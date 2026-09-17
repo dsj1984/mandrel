@@ -112,6 +112,7 @@ const FRAMEWORK_SCRIPT_BASENAMES = Object.freeze([
   'coverage-capture.js',
   'deliver-light.js',
   'deliver-recover.js',
+  'deliver-run.js',
   'diagnose-friction.js',
   'diagnose.js',
   'drain-pending-cleanup.js',

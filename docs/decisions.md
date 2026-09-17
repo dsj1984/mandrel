@@ -60,12 +60,13 @@ the floor-vs-ratchet policy are tooling commitments rather than ADRs and live in
 
 <!-- ADR-INDEX:START -->
 
-**In force (48).** Each governs the surface named beside it.
+**In force (49).** Each governs the surface named beside it.
 A `Status` of `Accepted in part` means some clause of the entry has been
 superseded — open it before citing it.
 
 | Decision | Governs | Surface | Status |
 | --- | --- | --- | --- |
+| [`20260917-5345`](#adr-20260917-5345-the-multi-story-run-is-a-script-beat-plus-spawns-and-closes-the-run-ledger-is-the-dispatch-record) | The multi-Story run is a script beat plus spawns and closes | `.agents/scripts/deliver-run.js` | Accepted |
 | [`20260917-5344`](#adr-20260917-5344-the-light-gate-reads-evidence-only-and-an-escalation-may-continue-in-session) | The light gate reads evidence only; an escalation may continue in-session | `.agents/scripts/lib/orchestration/light-suitability.js` | Accepted |
 | [`20260917-5343`](#adr-20260917-5343-the-delivering-worker-owns-its-acceptance-verdict-and-a-recorded-verdict-buys-one-rerun) | The delivering worker owns its acceptance verdict; a recorded verdict buys one rerun | `.agents/scripts/lib/orchestration/ceremony-routing.js` | Accepted |
 | [`20260917-5342`](#adr-20260917-5342-the-authoring-contract-is-the-outcome--persist-derives-what-it-can-and-warns-where-it-cannot) | The authoring contract is the outcome; persist derives and warns | `.agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js` | Accepted |
@@ -153,6 +154,101 @@ at the release tag named in the entry.
 - [Earlier ADRs (001 / 002 / 003)](#earlier-adrs-001--002--003)
 
 <!-- ADR-INDEX:END -->
+
+## ADR 20260917-5345: The multi-Story run is a script beat plus spawns and closes; the run ledger is the dispatch record
+
+**Status:** Accepted
+**Date:** 2026-09-17
+**Surface:** `.agents/scripts/deliver-run.js`
+**Story:** #5345
+
+### Context
+
+A multi-Story `/mandrel-deliver` run was a hand-driven protocol over
+`stories-wave-tick.js`. The session looped the tick, and carried four separate
+pieces of bookkeeping between beats:
+
+1. `--dispatched` — an append-only list of every id spawned this run, supplied
+   by the session because live state cannot report a Story dispatched moments
+   ago. Append-only meant *omitting* an id was the only way to get it wrong,
+   and the cost of getting it wrong was a second worker joining the first on a
+   live branch and worktree.
+2. A pasted `node --input-type=module -e` block that imported
+   `buildDispatchChecklist` and `parse` to produce each worker's
+   `checklistPath`.
+3. The dispatch prompt's contents — id, `workCwd` conventions, docs digest
+   path, checklist path, change-set discipline — recomposed per spawn.
+4. `--merge-watch-mode async` on every close, because close sees one Story and
+   cannot see run topology.
+
+Each is a transcription risk of exactly the kind
+[`20260912-5313`](#adr-20260912-5313-the-delivery-diet--deliver-time-knobs-bound-by-risk-not-by-count-and-scripts-read-ground-truth)
+retired elsewhere by replacing a hand-carried import block with
+`ceremony-derive.js`. The pasted snippet was also **wrong**: `parse` returns
+`{ body, warnings, info }`, and destructuring `changes` / `references` off the
+top level yields `undefined`, so every checklist it built was built from an
+empty footprint.
+
+### Decision
+
+`deliver-run.js` owns one beat of a multi-Story run, and the run's prose is
+reduced to: run the beat, spawn one `story-worker` per `ready[]` entry with
+that entry's prompt file, run each `close[]` command as hand-offs arrive,
+repeat until the envelope reports the run `done`.
+
+**The run ledger is the dispatch record.** `<tempRoot>/run-<id>/ledger.json`
+records every id the beat hands out, and the next beat reads it back and seeds
+the tick with it. `--dispatched` is not removed from the tick — it remains the
+kernel's additive in-flight augmentation — it is simply no longer something a
+human maintains. The run id is a stable digest of the Story id set, so every
+beat of one run finds the same ledger and two concurrent runs never share one.
+A missing or corrupt ledger costs one extra beat of the init window, never the
+run: refusing the beat over a bookkeeping artifact would be the worse failure.
+
+**Scheduling is untouched.** The ready set, the concurrency cap, the footprint
+guard, the foreign-lease withholding and the exit-code contract (2 cycle, 3
+wedged, 4 blocked) all still come from `runProbedStoriesWaveTick`. The beat is
+a ledger, a prompt writer and a command renderer around it — deliberately not
+a second scheduler, so the two ordering channels
+[`20260828-5077f`](#adr-20260828-5077f-dependency-ordering-has-two-channels--declared-edges-and-the-delivery-time-footprint-guard)
+records keep their single home.
+
+**Run topology decides `--merge-watch-mode async`, at the one layer that knows
+it.** The beat adds the flag when the run holds more than one Story and omits
+it for a run of one; `single-story-close.js`'s own defaults are unchanged.
+
+**A single-Story run is not this path.** `resolve-stories.js` still reports
+`dispatchMode: "inline"` for a one-id run, and that run executes
+`helpers/deliver-story.md` in-session with no beat, no ledger and no spawn.
+
+### Alternatives considered
+
+- **Keep the tick and fix the prose.** Rejected — the prose was already
+  correct and was still transcribed wrongly; the snippet's `parse` defect
+  survived in a documented, reviewed code block. Bookkeeping a human can skip
+  is bookkeeping a human will eventually skip.
+- **Make the tick itself write prompts and ledger.** Rejected — the tick is
+  the scheduling kernel's adapter and is consumed in flag mode by tests and
+  hand-driven runs. Side effects on disk belong in a caller, not in the
+  planner.
+- **Have the beat spawn the workers and run the closes itself.** Rejected —
+  dispatch and the close tail are the host's, and a script that spawned agents
+  would own a concurrency model the host already owns. The beat emits what to
+  run; the session runs it.
+
+### Consequences
+
+- The session's per-beat state is a single command line. Nothing is carried
+  between beats in the model's head, so a long run cannot silently degrade.
+- Every checklist is now built from the footprint the Story actually declares,
+  which is a behavioural fix, not only a tidy-up.
+- `buildDispatchChecklist` gains its first production caller since
+  Story #4627 wired it, and leaves the dead-exports production baseline.
+- The beat's envelope is the one place an unfilled dispatch slot is explained:
+  `withheld[]` folds the in-flight reservation and the beat-local guard into
+  one list.
+
+---
 
 ## ADR 20260917-5344: The light gate reads evidence only, and an escalation may continue in-session
 

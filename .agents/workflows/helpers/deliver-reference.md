@@ -20,7 +20,7 @@ means exactly the five ids in it.
 
 **Pass the span through; never expand it by hand.** Every id-list flag on the
 delivery path takes range tokens — `resolve-stories.js --ids`,
-`stories-wave-tick.js --stories` and `--dispatched`, and
+`deliver-run.js --stories` and `--handoff`, and
 `plan-run-epilogue.js --stories`. Normalize the operator's spacing away and hand
 the scripts one unspaced token (`--ids 4922-4926`), mixed freely with singles
 and commas (`--ids 4901,4922-4926`); overlaps dedupe. A hand-typed enumeration
@@ -40,7 +40,7 @@ The cap is per range token, not per run: a genuine 60-Story delivery is still
 expressible as two ranges, but a slipped digit cannot fan out into a live
 resolution sweep of thousands of issues.
 
-## Sequencing edge cases (`stories-wave-tick.js`)
+## Sequencing edge cases (`deliver-run.js` over `stories-wave-tick.js`)
 
 **What "discovered, not declared" means concretely.** `resolve-stories.js` reads
 the graph from live state as the union of the Story bodies' `depends_on` edges
@@ -55,6 +55,21 @@ with verifiable acceptance criteria — so resolving one means dispatching a
 worker at an unenriched body, after taking its lease. Route it through
 `/mandrel-plan` first, which applies `agent::ready` at the end of planning.
 `--allow-unlabelled` is the deliberate escape hatch.
+
+**Inspecting a beat without taking one.** `deliver-run.js` writes — the ledger,
+the prompts — so it is not the tool for "what *would* the next beat do?". The
+tick underneath it is read-only and answers exactly that, with no ledger and no
+prompt files:
+
+```bash
+node .agents/scripts/stories-wave-tick.js --stories <id,id,...> --probe-live
+```
+
+Its envelope is the beat's scheduling half verbatim — `ready`, `inFlight`,
+`inFlightReservation`, `footprintGuard`, `foreignHeld`, `wedged`. Read it when
+a slot is unfilled and you want to know why before acting. Do **not** drive a
+run from it: without the ledger the init window reopens, and the same Story is
+handed out twice.
 
 **The non-zero exit codes.** **2** — `cycleError`: the graph is
 self-referential; fix `depends_on`, do not retry. **3** — `wedged`: nothing
@@ -77,22 +92,24 @@ another run), and derives **in-flight** from live `agent::executing` /
 `agent::closing` labels. You never compute `done` or `in-flight` — that
 accounting is read from reality every beat.
 
-**`--dispatched` is the one thing you must tell it.** List every
-Story id you have spawned this run. Live state cannot instantly report a Story
-you dispatched moments ago: `single-story-init.js` publishes `agent::executing`
-before the worktree install (ahead of the multi-minute install, so the
-window is short rather than minutes-long), but it is not
-zero — until the label lands the Story still reads `agent::ready` and, without
-`--dispatched`, the next beat would hand it back and a second sub-agent would
-join the first on the same branch and worktree, interleaving commits.
-`--dispatched` closes that residual same-run window. The rule is
-**append-only: add each id as you dispatch it and never remove one.** The flag
-is additive, not authoritative — the probe unions it into the label-derived set
-and then filters it against live state, so an id that has since gone
-`agent::done` is dropped for you. Re-listing an id costs nothing and cannot
-double-count a slot; *omitting* one is the only way to get this wrong. This is
-why `--dispatched` is not the retired `--done` bookkeeping, and why
-`--in-flight` remains rejected under `--probe-live`.
+**The run ledger closes the init window, and you maintain nothing.** Live state
+cannot instantly report a Story dispatched moments ago:
+`single-story-init.js` publishes `agent::executing` before the worktree install
+(ahead of the multi-minute install, so the window is short rather than
+minutes-long), but it is not zero — until the label lands the Story still reads
+`agent::ready`, and an unaugmented beat would hand it back so a second
+sub-agent joined the first on the same branch and worktree, interleaving
+commits. `deliver-run.js` closes that window from its own ledger
+(`<tempRoot>/run-<id>/ledger.json`): every id it hands out as ready is
+recorded, and the next beat reads the file back and seeds the tick with it.
+Append-only by construction, so the "forgot to re-list one" failure the
+hand-maintained list had cannot occur. The ledger is additive, not
+authoritative — the probe unions it into the label-derived set and then filters
+it against live state, so an id that has since gone `agent::done` is dropped
+for you. A missing or corrupt ledger costs one extra beat of the init window,
+never the run. The run id is a stable digest of the Story id set, so every beat
+of one run finds the same ledger and two concurrent runs never share one;
+`--run-id` pins it explicitly.
 
 **Cross-run de-confliction is automatic.** A Story another
 operator is delivering is withheld without any bookkeeping from you: the probe
@@ -170,7 +187,7 @@ footprint keeps the fresh acceptance critic), and the `route::lite` label
 remains a human-visible hint only, never the control signal — a lost or
 never-written label cannot misroute delivery.
 
-**Issue a beat's spawns in one turn.** A wave tick hands you a ready set, not a
+**Issue a beat's spawns in one turn.** A beat hands you a ready set, not a
 queue: those Stories have no dependency edge between them (the resolver already
 withheld any that do) and no shared write paths (each owns its own worktree and
 branch). Dispatch them the way
@@ -191,43 +208,25 @@ exposes agent dispatch, spawn each ready Story as its own
 sub-agent executes [`deliver-story.md`](deliver-story.md) Steps 0–2.5
 (init → implement → acceptance self-eval → **push**) and stops there; **you**
 own Step 3, serialized — see `/mandrel-deliver` § Closing what the workers hand back.
-Thread into its prompt: `storyId`; `docsDigestPath` (the per-run docs digest, null when
-`project.docsContextFiles` is unset); `checklistPath` (the footprint-matched
-write-time audit checklist, produced at dispatch, below); and the
-**change-set discipline** — the worker computes the change set once with
-`computeChangeSet` and hands that one list to every acceptance critic; it
-never lets a critic re-derive the diff.
 
-**Produce `checklistPath` before the spawn.** Compute the payload
-from the Story's predicted footprint (its `changes[]` / `references[]` path
-entries) with `buildDispatchChecklist` and write it to the run temp dir, then
-thread the resulting path (empty when nothing matched):
-
-```bash
-node --input-type=module -e '
-  import { buildDispatchChecklist } from "<main-repo>/.agents/scripts/lib/audit-suite/index.js";
-  import { parse } from "<main-repo>/.agents/scripts/lib/story-body/story-body.js";
-  // storyBody is the fetched Story issue body.
-  const { changes, references } = parse(process.env.STORY_BODY);
-  const { checklistPath } = buildDispatchChecklist({
-    storyId: <storyId>, changes, references, runTempDir: "temp/run-<id>",
-  });
-  console.log(checklistPath ?? "");
-'
-```
-
-`buildDispatchChecklist` (`lib/audit-suite/dispatch-checklist.js`) is a pure
-function of the footprint and the on-disk checklists; an empty match prints
-nothing and the worker runs with no write-time checklist — the maker-blind
-close-scope pass still covers it.
+**The beat writes the prompt; you pass the file.** Each `ready[]` entry carries
+a `promptPath` under `<tempRoot>/run-<id>/`, and that file is the whole spawn
+payload: the Story id, the `workCwd` conventions, the `docsDigestPath` (null
+when `project.docsContextFiles` is unset), the `checklistPath` — the
+footprint-matched write-time audit checklist built from the Story's declared
+`changes[]` / `references[]`, empty when nothing matched — and the
+**change-set discipline** (derive the change set once with `ceremony-derive.js`
+and hand that one list to the verdict owner; never let a critic re-derive the
+diff). An unmatched checklist costs nothing: the maker-blind close-scope pass
+still covers the Story.
 
 **Inline fallback (`roleScopedAgents: false` / no-nesting harness).** When the
 kill-switch is off, or the host cannot spawn a sub-agent at this nesting depth,
 do **not** stall: read [`deliver-story.md`](deliver-story.md) **in full** and
-execute it directly, in this turn, threading the same `docsDigestPath` /
-`checklistPath` / change-set discipline. Under `--yes` / injected helper
-content, execute directly without a re-read turn. The engine, gates, and
-terminal envelope are identical either way — only the isolation differs.
+execute it directly, in this turn, following that same dispatch prompt. Under
+`--yes` / injected helper content, execute directly without a re-read turn. The
+engine, gates, and terminal envelope are identical either way — only the
+isolation differs.
 
 ## Intent phrases (what replaced the flag table)
 
@@ -381,17 +380,15 @@ agent) and move on to the next Story; `single-story-confirm-merge.js` is
 idempotent and owns the whole tail. Do not foreground-poll the merge. The
 default `"sync"` behaviour is unchanged.
 
-**On a multi-Story run, pass `--merge-watch-mode async` on every close.** Close
+**On a multi-Story run the beat adds `--merge-watch-mode async` for you.** Close
 sees one Story and cannot see run topology, so it cannot make this call for
-itself — you can. Implementation runs in parallel but the close tail is
+itself — `deliver-run.js` can, and does: every `close[]` command it renders
+carries the flag when the run holds more than one Story and omits it for a run
+of one. Run the command it printed verbatim rather than composing your own.
+The reason it matters: implementation runs in parallel but the close tail is
 serialized one at a time, and under `sync` each of those closes holds the
 foreground for its full merge wait before the next Story's close may start.
-That is the run's dominant serialized cost, and it is paid per sibling:
-
-```bash
-node <main-repo>/.agents/scripts/single-story-close.js \
-  --story <storyId> --cwd <main-repo> --merge-watch-mode async
-```
+That is the run's dominant serialized cost, and it is paid per sibling.
 
 The flag overrides `delivery.mergeWatch.mode` for that invocation only — the
 config default stays `"sync"`, which is right for the solo delivery that has no

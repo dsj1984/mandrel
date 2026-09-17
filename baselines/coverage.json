@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-09-17T14:49:34.332Z",
+  "generatedAt": "2026-09-17T16:12:13.606Z",
   "rollup": {
     "*": {
       "lines": 96.35,
-      "branches": 87.37,
-      "functions": 88.36
+      "branches": 87.33,
+      "functions": 88.38
     }
   },
   "rows": [
@@ -212,6 +212,12 @@
       "path": ".agents/scripts/deliver-recover.js",
       "lines": 100,
       "branches": 95.65,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/deliver-run.js",
+      "lines": 97.4,
+      "branches": 64.63,
       "functions": 100
     },
     {

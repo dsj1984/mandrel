@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-17T15:45:58.642Z",
+  "generatedAt": "2026-09-17T16:10:33.214Z",
   "rollup": {
     "*": {
       "min": 76.381,
@@ -149,6 +149,10 @@
     {
       "path": ".agents/scripts/deliver-recover.js",
       "mi": 85.515
+    },
+    {
+      "path": ".agents/scripts/deliver-run.js",
+      "mi": 93.729
     },
     {
       "path": ".agents/scripts/diagnose-friction.js",

@@ -1109,7 +1109,10 @@ export function runStoriesWaveTick({
  * @param {object} [args.config]       Pre-resolved config (test injection).
  * @param {Function} [args.probe]      Probe seam (test injection).
  * @param {Function} [args.context]    Provider-context seam (test injection).
- * @returns {Promise<{ envelope: object, exitCode: number }>}
+ * @returns {Promise<{ envelope: object, exitCode: number, records: object[] }>}
+ *   `records` are the probed nodes (id, dependsOn, files, body, labels) — the
+ *   bodies this beat already fetched, handed to the caller beside the envelope
+ *   rather than serialized into it.
  */
 export async function runProbedStoriesWaveTick({
   stories,
@@ -1204,6 +1207,13 @@ export async function runProbedStoriesWaveTick({
       foreignHeld,
       foreignHeldReason: foreignHeldReasonFor(foreignHeld),
     },
+    // The probed nodes, beside the envelope rather than inside it. The
+    // envelope is a list of ids by design — a Story body is several KB and has
+    // no business on stdout — but the probe has already fetched every body,
+    // and the one caller that needs them (`deliver-run.js`, building each
+    // ready Story's dispatch prompt from its declared `changes[]`) would
+    // otherwise re-fetch the whole set to read what this beat already holds.
+    records: nodes,
     // A blocked Story outranks the scheduler's own verdict — including a
     // wedge, whose named blockers are moot while a human owes a decision.
     // A cycle (2) does not yield: a self-referential DAG is a planning error

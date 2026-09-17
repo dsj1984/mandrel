@@ -112,11 +112,20 @@ describe('unified /mandrel-deliver router', () => {
     );
   });
 
-  it('sequences N>1 via resolve-stories + stories-wave-tick + the epilogue', () => {
+  it('sequences N>1 via resolve-stories + deliver-run + the epilogue', () => {
+    // Story #5345 moved the beat behind `deliver-run.js`: the doc names the
+    // resolver, the beat and the epilogue, and no longer names the tick the
+    // beat wraps — driving a run from the tick directly reopens the init
+    // window the run ledger closes.
     const md = readFileSync(DELIVER_MD, 'utf8');
     assert.match(md, /resolve-stories\.js/);
-    assert.match(md, /stories-wave-tick\.js/);
+    assert.match(md, /deliver-run\.js/);
     assert.match(md, /plan-run-epilogue\.js/);
+    assertDocOmits(
+      md,
+      /stories-wave-tick\.js/,
+      'the multi-Story run goes through deliver-run.js, not the tick underneath it',
+    );
     assertDocOmits(
       md,
       /resolveEpicDeliveryRoute|wave-tick\.js --check-idle/,
@@ -133,12 +142,9 @@ describe('unified /mandrel-deliver router', () => {
     // documented default 3) would defeat the operator's configured cap.
     const md = readFileSync(DELIVER_MD, 'utf8');
     const commandTemplate = md.match(
-      /stories-wave-tick\.js \\\n\s*--stories <id,id,\.\.\.> --probe-live[^\n]*/,
+      /deliver-run\.js \\\n\s*--stories <id,id,\.\.\.>[^\n]*/,
     );
-    assert.ok(
-      commandTemplate,
-      'the sequencing command template must be present',
-    );
+    assert.ok(commandTemplate, 'the beat command template must be present');
     assert.doesNotMatch(
       commandTemplate[0],
       /--concurrency/,
@@ -200,8 +206,12 @@ describe('/mandrel-deliver takes only Story ids (Story #4540)', () => {
     // there is no seed to get wrong. The invariant is now enforced by
     // `lib/wave-runner/live-probe.js` (and pinned in
     // tests/wave-runner/live-probe.test.js) instead of by operator prose.
+    //
+    // Story #5345 took the last hand-maintained flag out too: `--dispatched`
+    // is now the run ledger `deliver-run.js` keeps for itself, so the beat
+    // command carries only the id set and the hand-offs.
     const md = readFileSync(DELIVER_MD, 'utf8');
-    assert.match(md, /--stories <id,id,\.\.\.> --probe-live/);
+    assert.match(md, /deliver-run\.js \\\n\s*--stories <id,id,\.\.\.>/);
     assertDocOmits(
       md,
       /Seed the first beat/,
@@ -211,6 +221,11 @@ describe('/mandrel-deliver takes only Story ids (Story #4540)', () => {
       md,
       /--done <csv> --in-flight <n>/,
       'the loop must not ask the host to maintain done / in-flight by hand',
+    );
+    assertDocOmits(
+      md,
+      /--dispatched/,
+      'the dispatched list is the run ledger, never the operator’s bookkeeping',
     );
   });
 
