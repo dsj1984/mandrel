@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-17T12:21:25.744Z",
+  "generatedAt": "2026-09-17T12:38:37.634Z",
   "rollup": {
     "*": {
       "min": 76.381,
@@ -2380,7 +2380,7 @@
     },
     {
       "path": "lib/cli/update.js",
-      "mi": 93.449
+      "mi": 94.794
     },
     {
       "path": "lib/cli/version-check.js",
