@@ -62,6 +62,7 @@ export { resolveListValue } from './config/shared.js';
 export { validateOrchestrationConfig } from './config/validate-orchestration.js';
 export {
   defaultNodeModulesStrategy,
+  getWorktreeIsolation,
   WORKTREE_ISOLATION_DEFAULTS,
 } from './config/worktree-isolation.js';
 export { PROJECT_ROOT } from './project-root.js';

@@ -557,17 +557,20 @@ describe('runStoriesWaveTick', () => {
 
 describe('resolveConcurrencyCap', () => {
   it('falls back to the default of 3 for an empty config', () => {
-    assert.strictEqual(resolveConcurrencyCap({ config: {} }), 3);
+    assert.strictEqual(resolveConcurrencyCap({ config: {}, env: {} }), 3);
   });
 
   it('reads delivery.deliverRunner.concurrencyCap from config', () => {
     const config = { delivery: { deliverRunner: { concurrencyCap: 9 } } };
-    assert.strictEqual(resolveConcurrencyCap({ config }), 9);
+    assert.strictEqual(resolveConcurrencyCap({ config, env: {} }), 9);
   });
 
   it('an override wins over config', () => {
     const config = { delivery: { deliverRunner: { concurrencyCap: 9 } } };
-    assert.strictEqual(resolveConcurrencyCap({ config, override: 4 }), 4);
+    assert.strictEqual(
+      resolveConcurrencyCap({ config, override: 4, env: {} }),
+      4,
+    );
   });
 });
 
@@ -637,7 +640,10 @@ describe('parseConcurrencyOverride', () => {
  *   done?: string, inFlight?: string }} [opts]
  * @returns {{ status: number, envelope: object }}
  */
-function runCli({ dag, dagFile, concurrency, done, inFlight } = {}) {
+// `env` defaults to an empty environment rather than `process.env`: Story
+// #5357 made worktree-isolation-off clamp the cap to 1, so a suite run inside
+// a Claude Code web session would otherwise change what these cases resolve.
+function runCli({ dag, dagFile, concurrency, done, inFlight, env = {} } = {}) {
   const { envelope, exitCode } = runStoriesWaveTick({
     dagJson:
       typeof dag === 'string' || dag === undefined ? dag : JSON.stringify(dag),
@@ -645,6 +651,7 @@ function runCli({ dag, dagFile, concurrency, done, inFlight } = {}) {
     concurrency,
     done,
     inFlight,
+    env,
   });
   return { status: exitCode, envelope };
 }
@@ -860,9 +867,15 @@ describe('wedge detection (Story #4540)', () => {
 
 describe('resolveCapPrecedence — the flag wins, and says that it won (AC-6)', () => {
   const CONFIG = { delivery: { deliverRunner: { concurrencyCap: 3 } } };
+  // Pin the environment: every assertion here is about the flag-vs-config
+  // rules, and Story #5357 made the worktree-isolation floor outrank both. An
+  // ambient CLAUDE_CODE_REMOTE (running the suite inside a web session) would
+  // otherwise clamp these to 1 and fail the file for a reason none of them is
+  // about.
+  const ENV = {};
 
   it('names config as the source when no flag was given', () => {
-    const p = resolveCapPrecedence({ config: CONFIG });
+    const p = resolveCapPrecedence({ config: CONFIG, env: ENV });
     assert.strictEqual(p.cap, 3);
     assert.strictEqual(p.source, 'config');
     assert.strictEqual(p.configuredCap, 3);
@@ -872,7 +885,7 @@ describe('resolveCapPrecedence — the flag wins, and says that it won (AC-6)', 
   });
 
   it('names the flag as the source, and carries the configured value it outranked', () => {
-    const p = resolveCapPrecedence({ config: CONFIG, override: 2 });
+    const p = resolveCapPrecedence({ config: CONFIG, override: 2, env: ENV });
     assert.strictEqual(p.cap, 2);
     assert.strictEqual(p.source, 'flag');
     assert.strictEqual(p.configuredCap, 3);
@@ -882,7 +895,7 @@ describe('resolveCapPrecedence — the flag wins, and says that it won (AC-6)', 
   });
 
   it('flags a request that EXCEEDS the configured cap rather than applying it silently', () => {
-    const p = resolveCapPrecedence({ config: CONFIG, override: 8 });
+    const p = resolveCapPrecedence({ config: CONFIG, override: 8, env: ENV });
     assert.strictEqual(p.cap, 8, 'a deliberate operator escalation still runs');
     assert.strictEqual(p.exceedsConfigured, true);
     assert.match(p.note, /EXCEEDS/);
@@ -892,8 +905,8 @@ describe('resolveCapPrecedence — the flag wins, and says that it won (AC-6)', 
   it('resolveConcurrencyCap stays the cap-only view of the same decision', () => {
     for (const override of [undefined, 2, 8]) {
       assert.strictEqual(
-        resolveConcurrencyCap({ config: CONFIG, override }),
-        resolveCapPrecedence({ config: CONFIG, override }).cap,
+        resolveConcurrencyCap({ config: CONFIG, override, env: ENV }),
+        resolveCapPrecedence({ config: CONFIG, override, env: ENV }).cap,
       );
     }
   });
@@ -902,9 +915,14 @@ describe('resolveCapPrecedence — the flag wins, and says that it won (AC-6)', 
 describe('the beat envelope reports the cap precedence (AC-6)', () => {
   const DAG = JSON.stringify([{ id: 101, dependsOn: [] }]);
   const CONFIG = { delivery: { deliverRunner: { concurrencyCap: 3 } } };
+  const ENV = {};
 
   it('carries a config-sourced precedence record when no flag was given', () => {
-    const { envelope } = runStoriesWaveTick({ dagJson: DAG, config: CONFIG });
+    const { envelope } = runStoriesWaveTick({
+      dagJson: DAG,
+      config: CONFIG,
+      env: ENV,
+    });
     assert.strictEqual(envelope.concurrencyCap, 3);
     assert.strictEqual(envelope.capPrecedence.source, 'config');
     assert.strictEqual(envelope.capPrecedence.exceedsConfigured, false);
@@ -915,6 +933,7 @@ describe('the beat envelope reports the cap precedence (AC-6)', () => {
       dagJson: DAG,
       config: CONFIG,
       concurrency: '8',
+      env: ENV,
     });
     assert.strictEqual(envelope.concurrencyCap, 8);
     assert.strictEqual(envelope.capPrecedence.source, 'flag');
@@ -932,6 +951,201 @@ describe('the beat envelope reports the cap precedence (AC-6)', () => {
     assert.strictEqual(envelope.concurrencyCap, 8);
     assert.strictEqual(envelope.capPrecedence.source, 'flag');
     assert.strictEqual(typeof envelope.capPrecedence.note, 'string');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Story #5357 — concurrency is clamped to 1 when worktree isolation is off
+// ---------------------------------------------------------------------------
+
+describe('resolveCapPrecedence — the worktree-isolation safety floor', () => {
+  const CONFIG = { delivery: { deliverRunner: { concurrencyCap: 3 } } };
+  // The three routes to isolation-off. `resolveWorktreeEnabled` resolves all
+  // three to the same boolean, and the clamp keys off that boolean rather than
+  // off any one of them — so this table is the AC-4 proof that the floor
+  // cannot be reached by one route and missed by another.
+  const OFF_ROUTES = [
+    [
+      'CLAUDE_CODE_REMOTE=true (web session auto-detect)',
+      CONFIG,
+      { CLAUDE_CODE_REMOTE: 'true' },
+    ],
+    [
+      'AP_WORKTREE_ENABLED=false (operator override)',
+      CONFIG,
+      { AP_WORKTREE_ENABLED: 'false' },
+    ],
+    [
+      'delivery.worktreeIsolation.enabled: false (config)',
+      {
+        delivery: {
+          deliverRunner: { concurrencyCap: 3 },
+          worktreeIsolation: { enabled: false },
+        },
+      },
+      {},
+    ],
+  ];
+
+  for (const [label, config, env] of OFF_ROUTES) {
+    it(`clamps the configured cap to 1 — ${label}`, () => {
+      const p = resolveCapPrecedence({ config, env });
+      assert.strictEqual(p.cap, 1);
+      assert.strictEqual(p.source, 'worktree-clamp');
+      assert.strictEqual(p.requestedCap, 3, 'the requested value is reported');
+      assert.strictEqual(p.configuredCap, 3);
+      assert.match(p.note, /worktree isolation resolved OFF/);
+    });
+
+    it(`clamps an explicit --concurrency too — ${label}`, () => {
+      const p = resolveCapPrecedence({ config, env, override: 8 });
+      assert.strictEqual(
+        p.cap,
+        1,
+        'the floor outranks a literal the operator typed',
+      );
+      assert.strictEqual(p.source, 'worktree-clamp');
+      assert.strictEqual(p.requestedCap, 8);
+      assert.match(p.note, /requested 8 from --concurrency/);
+    });
+  }
+
+  it('all three routes produce an identical clamped record (AC-4)', () => {
+    const [first, ...rest] = OFF_ROUTES.map(([, config, env]) =>
+      resolveCapPrecedence({ config, env, override: 5 }),
+    );
+    for (const other of rest) assert.deepStrictEqual(other, first);
+  });
+
+  it('does not report the escalation as exceeding the configured cap — it never ran', () => {
+    const p = resolveCapPrecedence({
+      config: CONFIG,
+      env: { CLAUDE_CODE_REMOTE: 'true' },
+      override: 8,
+    });
+    assert.strictEqual(p.exceedsConfigured, false);
+  });
+
+  it('reports the clamp even when the requested cap was already 1', () => {
+    // The run would have been sequential either way, but not for this reason.
+    // Reporting only when the number changes would make a run that is
+    // sequential BECAUSE it is unsafe indistinguishable from one that is
+    // sequential because somebody preferred it.
+    const p = resolveCapPrecedence({
+      config: { delivery: { deliverRunner: { concurrencyCap: 1 } } },
+      env: { CLAUDE_CODE_REMOTE: 'true' },
+    });
+    assert.strictEqual(p.cap, 1);
+    assert.strictEqual(p.source, 'worktree-clamp');
+  });
+
+  it('a config that OMITS worktreeIsolation is not clamped (AC-5)', () => {
+    // The trap this guards: `resolveWorktreeEnabled` reads the raw
+    // `Boolean(config.delivery.worktreeIsolation.enabled)`, so an omitted
+    // block is `Boolean(undefined) === false`. Normalising through
+    // `getWorktreeIsolation` first applies the framework default (enabled:
+    // true) exactly as `resolveConfig` does, so the clamp fires on a
+    // deliberate off and never on an absent key.
+    const p = resolveCapPrecedence({ config: CONFIG, env: {} });
+    assert.strictEqual(p.cap, 3);
+    assert.strictEqual(p.source, 'config');
+  });
+
+  it('leaves every existing source combination untouched with isolation on (AC-5)', () => {
+    const on = {
+      delivery: {
+        deliverRunner: { concurrencyCap: 3 },
+        worktreeIsolation: { enabled: true },
+      },
+    };
+    const config = resolveCapPrecedence({ config: on, env: {} });
+    assert.strictEqual(config.source, 'config');
+    assert.strictEqual(config.cap, 3);
+
+    const under = resolveCapPrecedence({ config: on, env: {}, override: 2 });
+    assert.strictEqual(under.source, 'flag');
+    assert.strictEqual(under.cap, 2);
+    assert.strictEqual(under.exceedsConfigured, false);
+
+    const over = resolveCapPrecedence({ config: on, env: {}, override: 8 });
+    assert.strictEqual(over.source, 'flag');
+    assert.strictEqual(over.cap, 8);
+    assert.strictEqual(over.exceedsConfigured, true);
+  });
+
+  it('AP_WORKTREE_ENABLED=true rescues a config-disabled run (precedence is preserved)', () => {
+    const p = resolveCapPrecedence({
+      config: {
+        delivery: {
+          deliverRunner: { concurrencyCap: 3 },
+          worktreeIsolation: { enabled: false },
+        },
+      },
+      env: { AP_WORKTREE_ENABLED: 'true' },
+    });
+    assert.strictEqual(
+      p.cap,
+      3,
+      'isolation is on, so there is nothing to clamp',
+    );
+    assert.strictEqual(p.source, 'config');
+  });
+});
+
+describe('the ready set never exceeds one Story when isolation is off (AC-1)', () => {
+  // Four independent Stories: with a cap of 3 the beat dispatches three, which
+  // under a shared checkout is three workers in one working tree.
+  const DAG = JSON.stringify([
+    { id: 101, dependsOn: [] },
+    { id: 102, dependsOn: [] },
+    { id: 103, dependsOn: [] },
+    { id: 104, dependsOn: [] },
+  ]);
+  const CONFIG = { delivery: { deliverRunner: { concurrencyCap: 3 } } };
+
+  it('dispatches three with isolation on', () => {
+    const { envelope } = runStoriesWaveTick({
+      dagJson: DAG,
+      config: CONFIG,
+      env: {},
+    });
+    assert.strictEqual(envelope.ready.length, 3);
+    assert.strictEqual(envelope.concurrencyCap, 3);
+  });
+
+  it('dispatches exactly one with isolation off, whatever the cap is configured to', () => {
+    const { envelope } = runStoriesWaveTick({
+      dagJson: DAG,
+      config: CONFIG,
+      env: { CLAUDE_CODE_REMOTE: 'true' },
+    });
+    assert.deepStrictEqual(envelope.ready, [101]);
+    assert.strictEqual(envelope.concurrencyCap, 1);
+    assert.strictEqual(envelope.capPrecedence.source, 'worktree-clamp');
+    assert.strictEqual(envelope.capPrecedence.requestedCap, 3);
+  });
+
+  it('dispatches exactly one with isolation off and an explicit --concurrency 4 (AC-2)', () => {
+    const { envelope } = runStoriesWaveTick({
+      dagJson: DAG,
+      config: CONFIG,
+      concurrency: '4',
+      env: { CLAUDE_CODE_REMOTE: 'true' },
+    });
+    assert.deepStrictEqual(envelope.ready, [101]);
+    assert.strictEqual(envelope.concurrencyCap, 1);
+    assert.strictEqual(envelope.capPrecedence.source, 'worktree-clamp');
+    assert.strictEqual(envelope.capPrecedence.requestedCap, 4);
+  });
+
+  it('a Story already in flight leaves no slot at all when clamped', () => {
+    const { envelope } = runStoriesWaveTick({
+      dagJson: DAG,
+      config: CONFIG,
+      inFlight: '1',
+      env: { CLAUDE_CODE_REMOTE: 'true' },
+    });
+    assert.deepStrictEqual(envelope.ready, []);
   });
 });
 

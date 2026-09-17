@@ -60,12 +60,13 @@ the floor-vs-ratchet policy are tooling commitments rather than ADRs and live in
 
 <!-- ADR-INDEX:START -->
 
-**In force (50).** Each governs the surface named beside it.
+**In force (51).** Each governs the surface named beside it.
 A `Status` of `Accepted in part` means some clause of the entry has been
 superseded — open it before citing it.
 
 | Decision | Governs | Surface | Status |
 | --- | --- | --- | --- |
+| [`20260917-5357`](#adr-20260917-5357-concurrent-dispatch-requires-per-story-worktrees-the-cap-is-clamped-to-1-when-isolation-resolves-off) | Concurrent dispatch requires per-Story worktrees; the cap clamps to 1 when isolation is off | `.agents/scripts/lib/config/runners.js` | Accepted |
 | [`20260917-5355`](#adr-20260917-5355-probe-graphql-reachability-at-close-init-defer-the-gh-pr-rest-migration) | Probe GraphQL reachability at close init; defer the `gh pr` REST migration | `.agents/scripts/lib/gh-exec.js` | Accepted |
 | [`20260917-5345`](#adr-20260917-5345-the-multi-story-run-is-a-script-beat-plus-spawns-and-closes-the-run-ledger-is-the-dispatch-record) | The multi-Story run is a script beat plus spawns and closes | `.agents/scripts/deliver-run.js` | Accepted |
 | [`20260917-5344`](#adr-20260917-5344-the-light-gate-reads-evidence-only-and-an-escalation-may-continue-in-session) | The light gate reads evidence only; an escalation may continue in-session | `.agents/scripts/lib/orchestration/light-suitability.js` | Accepted |
@@ -155,6 +156,95 @@ at the release tag named in the entry.
 - [Earlier ADRs (001 / 002 / 003)](#earlier-adrs-001--002--003)
 
 <!-- ADR-INDEX:END -->
+
+## ADR 20260917-5357: Concurrent dispatch requires per-Story worktrees; the cap is clamped to 1 when isolation resolves off
+
+**Status:** Accepted
+**Date:** 2026-09-17
+**Surface:** `.agents/scripts/lib/config/runners.js`
+**Story:** #5357
+
+### Context
+
+Two settings decided independently were in fact one decision. `stories-wave-tick.js`
+resolved the per-beat dispatch cap from `delivery.deliverRunner.concurrencyCap`
+(default 3), and `resolveWorktreeEnabled()` separately resolved whether each
+Story gets its own checkout. Neither read the other.
+
+Worktree isolation is not a convenience — it is the precondition that makes
+concurrent dispatch safe at all. With it on, each Story resolves to its own
+`workCwd` and two workers can never contend. With it off, `resolveWorkingPath`
+returns the repo root for *every* Story, so a cap of 3 means three workers
+sharing one `HEAD`, one index and one working tree. In the #5339/#5340 web run
+both wave-1 workers were initialised into the same checkout and one took `HEAD`
+from under the other.
+
+### Decision
+
+`stories-wave-tick.js` resolves worktree isolation alongside the cap, and when
+isolation is off the effective cap is clamped to
+`WORKTREE_DISABLED_CONCURRENCY_CAP` (1).
+
+**The clamp is a safety floor, not a preference, so it outranks an explicit
+`--concurrency`** — the one place in the runner where a literal an operator
+typed does not win. The distinction is that the configured cap is a throughput
+preference and a flag may outrank a preference, but no preference makes a
+shared checkout safe; the number being asked for is not the thing in question.
+
+**It is never silent.** `capPrecedence` reports `source: "worktree-clamp"`,
+carries the value that was requested alongside the clamped one, and says why in
+its `note` — the same reporting contract Story #4875 established for the
+flag-over-config case. A clamped run does **not** report
+`exceedsConfigured`: the escalation never took effect and must not read as
+though it had. The record is emitted whenever isolation is off, including when
+the requested cap was already 1, so a run that is sequential *because it is
+unsafe* is never indistinguishable from one that is sequential because somebody
+preferred it.
+
+**The clamp keys off the resolved boolean, never one environment variable.**
+`CLAUDE_CODE_REMOTE=true` is only one of three routes to isolation-off;
+`AP_WORKTREE_ENABLED=false` and `delivery.worktreeIsolation.enabled: false` are
+the others and are exactly as unsafe. Reading `resolveWorktreeEnabled()`'s
+result covers all three by construction rather than by enumeration, so the
+floor cannot be reached by one route and missed by another.
+
+**The config is normalised through `getWorktreeIsolation()` first, and that is
+load-bearing.** `resolveWorktreeEnabled` reads
+`Boolean(config.delivery.worktreeIsolation.enabled)` raw, so a config that
+merely *omits* the block is indistinguishable from one that disables it. Without
+normalisation every partial config — every test injection, every consumer who
+never wrote the block — would be clamped as though an operator had opted out.
+Normalising applies the framework default (`enabled: true`) the same way
+`resolveConfig` does for a real `.agentrc`, so the clamp fires on a deliberate
+off and never on an absent key.
+
+### Alternatives considered
+
+- **Refuse to dispatch at all when isolation is off.** Rejected — sequential
+  delivery in a single checkout is correct, just slower; it is exactly what a
+  cap of 1 means. Refusing would turn a supported configuration into a hard
+  stop.
+- **Let `--concurrency` override the clamp.** Rejected — that is the defect,
+  not a feature. An operator raising a throughput number is not asserting that
+  a shared checkout is safe, and honouring it would corrupt the run.
+- **Auto-enable worktree isolation instead of clamping.** Rejected — isolation
+  can be off for reasons the runner cannot overrule (a web-session container
+  where worktrees do not work). Clamping degrades throughput; forcing isolation
+  would fail outright.
+- **Special-case `CLAUDE_CODE_REMOTE`.** Rejected — it is the route that
+  surfaced the bug, not the condition that causes it. Keying off the symptom
+  leaves the other two routes unguarded.
+
+### Consequences
+
+- A multi-Story run in a web session, or under either operator opt-out, is
+  sequential and says so. Throughput drops; correctness does not depend on the
+  operator having noticed.
+- `capPrecedence` gains a third `source` value. Readers that switch on it must
+  handle `worktree-clamp`; readers that only display the cap are unaffected.
+- Re-severing the coupling means deleting the clamp, which a reviewer can see.
+  The two settings are documented as one decision here so a later change to
+  either reads this first.
 
 ## ADR 20260917-5355: Probe GraphQL reachability at close init; defer the `gh pr` REST migration
 
