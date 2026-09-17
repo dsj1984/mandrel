@@ -54,7 +54,7 @@ import { deriveChangeLevel } from './review-depth.js';
 /**
  * ## Why no predicted-effort ceilings live here any more (Story #5344)
  *
- * This module used to export `STORY_SHAPE_CEILINGS` — declared change kinds,
+ * This module used to export a frozen shape-ceilings constant — declared kinds,
  * a magnitude bucket, an uncertainty bucket, and a deployable span — which the
  * light path judged a prompt's predicted footprint against. Two rounds of
  * evidence retired them. Story #4764 had already removed the artifact counts
