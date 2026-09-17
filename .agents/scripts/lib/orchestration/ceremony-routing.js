@@ -1,75 +1,50 @@
 /**
- * lib/orchestration/ceremony-routing.js — ceremony-profile + derived-level
- * acceptance ceremony resolver.
+ * lib/orchestration/ceremony-routing.js — ceremony-profile acceptance
+ * ceremony resolver.
  *
- * The sibling of `review-depth.js#resolveDepth`: it folds the operator ceremony
- * profile and the **derived** change level into a per-cluster ceremony decision
- * for the single-delivery acceptance critic — **fresh-context spawn** vs the
- * contract-identical **inline** critic. It does NOT invent a new risk score and
- * it does NOT own clustering.
+ * The sibling of `review-depth.js#resolveDepth`: it folds the operator
+ * ceremony profile into a per-Story ceremony decision for the acceptance
+ * verdict — **fresh-context spawn** vs the contract-identical **inline**
+ * self-eval. It does NOT invent a risk score, and it no longer routes off
+ * anything the diff says.
  *
- * ## One derived source, two decisions (Story #4542)
+ * ## The profile is the whole decision (Story #5343)
  *
- * `derivedLevel` comes from `review-depth.js#deriveChangeLevel` — the same call
- * that feeds review depth — so both ceremony decisions read one observable
- * signal: does the change set touch a sensitive path registered in
- * `audit-rules.json`? Previously this consumed the planner's own risk verdict,
- * which meant a confident all-low self-assertion bought *less* independent
- * checking than authoring nothing at all. A derived level cannot be talked down.
+ *   - `minimal`  — `inline`.
+ *   - `standard` — `inline` (the **default**).
+ *   - `strict`   — `fresh`.
  *
- * ## Ceremony profiles (`delivery.routing.ceremonyProfile`)
+ * A frontier-model worker scoring its own `acceptance[]` items against the
+ * `verify[]` output it just produced is the default the delivery diet settled
+ * on: the fresh critic's isolation bought a second full-context boot per
+ * Story and, measured across the run, changed no verdict the inline pass did
+ * not already reach. `strict` keeps the fresh-context critic for
+ * high-assurance surfaces, and is the one profile that spawns one.
  *
- *   - `minimal`  — always `inline` (no fresh critic spawn).
- *                  Use for tiny N=1 Stories the operator trusts.
- *   - `standard` — level-routed (default). Low → inline; high or
- *                  underivable → fresh.
- *   - `strict`   — always `fresh` regardless of the derived level.
+ * **`derivedLevel` no longer routes.** It is still accepted (and still
+ * derived, and still printed by `ceremony-derive.js`) because **review
+ * depth** reads the same signal — `review-depth.js#resolveDepth` continues to
+ * resolve `deep` for any sensitive class, and that is untouched. What changed
+ * is only which of the two decisions the level feeds: review depth, not the
+ * verdict owner. An unenumerable diff is therefore no longer a fail-safe
+ * escalation here; it escalates review depth instead, where the evidence it
+ * withholds actually matters.
  *
- * ## The load-bearing invariant (M4-B acceptance floor — DO NOT VIOLATE)
+ * ## One verdict-owner per Story (Story #4723, narrowed by #5343)
  *
- * Risk-routing chooses fresh-vs-inline **PER CLUSTER**. It NEVER changes the
- * cluster COUNT — the caller owns clustering and hands this module a cluster
- * index. A low-risk Story still gets one verdict per cluster — just possibly
- * authored inline instead of by a fresh sub-agent. This module takes the
- * cluster index as an INPUT and returns a decision for that one cluster; it
- * has no way to add or remove clusters.
- *
- * ## One verdict-owner per cluster (Story #4723)
- *
- * The resolved decision names the cluster's **single verdict owner** via
+ * The resolved decision names the Story's **single verdict owner** via
  * `verdictOwner`: `'fresh-critic'` when the mode is `fresh`,
  * `'inline-self-eval'` when the mode is `inline`. Exactly one pass authors
- * the cluster's verdict — the fresh maker-blind critic OR the
+ * the Story's verdict — the fresh maker-blind critic OR the
  * contract-identical inline self-eval, never both, and never an additional
  * pre-pass self-assessment before the owner runs. `acceptance-eval.js` is
  * the deterministic SCORER of that one authored verdict (schema validation,
  * round cap, proceed/redraft/block) — it is not a third pass over the
- * criteria. This removes a redundant pass only; it never removes a
- * cluster's verdict (the M4-B floor above holds).
- *
- * ## Tier rules (per cluster, `standard` profile)
- *
- *   - `high` level       → `fresh`   (a sensitive path was touched — a
- *                                     fresh-context maker-blind spawn).
- *   - `low` level        → `inline`  (the contract-identical inline critic).
- *   - missing / unknown  → `fresh`   (fail-safe: the diff could not be
- *                                     enumerated, so there is no evidence the
- *                                     change is unremarkable; treat it as
- *                                     needing the full fresh-context ceremony,
- *                                     exactly as `resolveDepth` degrades to
- *                                     `standard` on the same signal).
- *
- * ## No sampling floor (Story #5313)
- *
- * The maker-checker sampling floor (`delivery.routing.freshCriticSampleRate`,
- * `sampledFresh`) bounded independent checking by a cluster-index stride —
- * a count, not a risk signal — and was retired with the delivery diet. The
- * standard profile now routes purely off the derived level, so the decision
- * carries no `sampled` field and `clusterIndex` is accepted only for call-site
- * compatibility (it never changes the outcome).
+ * criteria. The verdict is **one file per Story**, scored in one gate call;
+ * the cluster protocol that used to split it was retired with #5343.
  *
  * Pure and total: inputs in, decision out. No I/O, no throws. `null` /
- * `undefined` / malformed inputs degrade to `fresh` + `full` ceremony.
+ * `undefined` / malformed inputs degrade to the default profile.
  *
  * @typedef {'fresh'|'inline'} CeremonyMode
  * @typedef {'fresh-critic'|'inline-self-eval'} VerdictOwner
@@ -78,7 +53,7 @@
  */
 
 /**
- * Map a resolved ceremony mode to the cluster's single verdict owner
+ * Map a resolved ceremony mode to the Story's single verdict owner
  * (Story #4723). Total: any non-`fresh` value maps to the inline
  * self-eval owner, mirroring how the mode itself degrades.
  *
@@ -103,6 +78,28 @@ const CEREMONY_PROFILES = Object.freeze(['minimal', 'standard', 'strict']);
 const DEFAULT_CEREMONY_PROFILE = 'standard';
 
 /**
+ * The one routing table: profile → mode + the reason the decision carries.
+ * `strict` is the only profile that spawns a fresh critic.
+ *
+ * @type {Readonly<Record<CeremonyProfile, { mode: CeremonyMode, reason: string }>>}
+ */
+const PROFILE_DECISIONS = Object.freeze({
+  minimal: {
+    mode: 'inline',
+    reason: 'ceremonyProfile=minimal: inline self-eval (no fresh spawn)',
+  },
+  standard: {
+    mode: 'inline',
+    reason:
+      'ceremonyProfile=standard: inline self-eval authors the Story verdict',
+  },
+  strict: {
+    mode: 'fresh',
+    reason: 'ceremonyProfile=strict: fresh-context critic',
+  },
+});
+
+/**
  * Normalize an operator/config ceremony profile. Unknown values degrade to
  * `standard` (fail toward the documented default, not toward less ceremony).
  *
@@ -116,16 +113,16 @@ function normalizeCeremonyProfile(value) {
 }
 
 /**
- * Resolve the acceptance ceremony for one cluster from the ceremony profile
- * and the derived change level. See the module header for the tier rules and
- * the untouchable cluster-count invariant.
+ * Resolve the acceptance ceremony for one Story from the ceremony profile.
+ * See the module header for the profile table and why the derived level no
+ * longer routes it.
  *
  * @param {{
  *   derivedLevel?: (ChangeLevel|string|null|undefined),
  *   clusterIndex?: (number|null|undefined),
  *   ceremonyProfile?: (CeremonyProfile|string|null|undefined),
- * }} [input] `clusterIndex` is accepted for call-site compatibility only
- *   (Story #5313 retired the sampling floor that read it).
+ * }} [input] `derivedLevel` and `clusterIndex` are accepted for call-site
+ *   compatibility only — neither changes the outcome (Story #5343).
  * @returns {{
  *   mode: CeremonyMode,
  *   reason: string,
@@ -134,64 +131,9 @@ function normalizeCeremonyProfile(value) {
  * }}
  */
 export function resolveCeremonyForRisk(input = {}) {
-  const decision = resolveCeremonyDecision(input);
-  return { ...decision, verdictOwner: verdictOwnerForMode(decision.mode) };
-}
-
-/**
- * Internal mode/reason resolution — the tier rules. `resolveCeremonyForRisk`
- * decorates the result with the single `verdictOwner` derived from the mode
- * (Story #4723).
- *
- * @param {Parameters<typeof resolveCeremonyForRisk>[0]} [input]
- * @returns {{
- *   mode: CeremonyMode,
- *   reason: string,
- *   profile: CeremonyProfile,
- * }}
- */
-function resolveCeremonyDecision(input = {}) {
-  const derivedLevel =
-    input && typeof input === 'object' ? input.derivedLevel : undefined;
   const profile = normalizeCeremonyProfile(
     input && typeof input === 'object' ? input.ceremonyProfile : undefined,
   );
-
-  if (profile === 'minimal') {
-    return {
-      mode: 'inline',
-      reason: 'ceremonyProfile=minimal: inline critic (no fresh spawn)',
-      profile,
-    };
-  }
-  if (profile === 'strict') {
-    return {
-      mode: 'fresh',
-      reason: 'ceremonyProfile=strict: fresh-context critic',
-      profile,
-    };
-  }
-
-  if (derivedLevel === 'high') {
-    return {
-      mode: 'fresh',
-      reason: 'sensitive path touched: fresh-context critic',
-      profile,
-    };
-  }
-  if (derivedLevel === 'low') {
-    return {
-      mode: 'inline',
-      reason: 'no sensitive path touched: contract-identical inline critic',
-      profile,
-    };
-  }
-  // Missing / unknown / malformed level → fail-safe fresh + full ceremony,
-  // matching how resolveDepth degrades to `standard` on the same signal.
-  return {
-    mode: 'fresh',
-    reason:
-      'change level underivable: fail-safe fresh-context critic + full ceremony',
-    profile,
-  };
+  const { mode, reason } = PROFILE_DECISIONS[profile];
+  return { mode, reason, profile, verdictOwner: verdictOwnerForMode(mode) };
 }

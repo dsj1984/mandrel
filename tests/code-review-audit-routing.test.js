@@ -179,7 +179,7 @@ describe('the existing depth tiers are preserved', () => {
 describe('depth and the acceptance critic read the same derived level', () => {
   const rules = readShippedRules();
 
-  test('a sensitive change routes deep review AND a fresh critic', () => {
+  test('a sensitive change routes deep review; the verdict owner is the profile', () => {
     const { level } = deriveChangeLevel({
       changedFiles: ['src/auth/login.js'],
       injectedRules: rules,
@@ -188,9 +188,16 @@ describe('depth and the acceptance critic read the same derived level', () => {
       resolveDepth({ derivedLevel: level, changedFileCount: 1 }),
       'deep',
     );
+    // Story #5343 — the level feeds review depth alone. It cannot buy (or
+    // avoid) a fresh acceptance critic any more.
     assert.equal(
-      resolveCeremonyForRisk({ derivedLevel: level, clusterIndex: 1 }).mode,
-      'fresh',
+      resolveCeremonyForRisk({ derivedLevel: level }).verdictOwner,
+      'inline-self-eval',
+    );
+    assert.equal(
+      resolveCeremonyForRisk({ derivedLevel: level, ceremonyProfile: 'strict' })
+        .verdictOwner,
+      'fresh-critic',
     );
   });
 
@@ -203,20 +210,19 @@ describe('depth and the acceptance critic read the same derived level', () => {
       resolveDepth({ derivedLevel: level, changedFileCount: 1 }),
       'light',
     );
-    // Story #5313: no sampling floor — a low level routes inline at every
-    // cluster index.
     assert.equal(
-      resolveCeremonyForRisk({ derivedLevel: level, clusterIndex: 0 }).mode,
+      resolveCeremonyForRisk({ derivedLevel: level }).mode,
       'inline',
     );
   });
 
-  test('an underivable level fails BOTH decisions toward more ceremony', () => {
+  test('an underivable level fails REVIEW DEPTH toward more ceremony', () => {
     const { level } = deriveChangeLevel({ changedFiles: [] });
     assert.equal(resolveDepth({ derivedLevel: level }), 'standard');
+    // The acceptance owner has no fail-safe to take: it never read the level.
     assert.equal(
-      resolveCeremonyForRisk({ derivedLevel: level, clusterIndex: 1 }).mode,
-      'fresh',
+      resolveCeremonyForRisk({ derivedLevel: level }).verdictOwner,
+      'inline-self-eval',
     );
   });
 });

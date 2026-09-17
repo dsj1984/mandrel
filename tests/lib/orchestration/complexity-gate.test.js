@@ -24,7 +24,10 @@ import {
   resolveStoryDispatchMode,
   SHAPE_CODES,
 } from '../../../.agents/scripts/lib/orchestration/complexity-gate.js';
-import { deriveChangeLevel } from '../../../.agents/scripts/lib/orchestration/review-depth.js';
+import {
+  deriveChangeLevel,
+  resolveDepth,
+} from '../../../.agents/scripts/lib/orchestration/review-depth.js';
 import {
   parse as parseStoryBody,
   serialize as serializeStoryBody,
@@ -420,20 +423,30 @@ describe('deriveStoryShape — sensitivity wins (AC-6)', () => {
     assert.equal(derived.route, 'full');
     assert.deepEqual(derived.shape.sensitiveClasses, ['security']);
     assert.match(derived.reasons[0], /sensitivity wins/i);
-    assert.match(derived.reasons[0], /fresh acceptance critic retained/i);
+    assert.match(derived.reasons[0], /deep review retained/i);
   });
 
-  test('the full route keeps the fresh critic via the shared close taxonomy', () => {
+  test('the full route keeps DEEP REVIEW via the shared close taxonomy', () => {
     // The same taxonomy at both read points: the predicted footprint derives
-    // `high` exactly as the landed diff would, and ceremony routing turns a
-    // high level into a fresh-context critic — sensitivity overrides the lite
-    // inline default end to end.
+    // `high` exactly as the landed diff would, and review depth turns a high
+    // level into a deep review — sensitivity overrides the lite default end to
+    // end. Story #5343: the acceptance verdict owner is NOT part of that
+    // escalation any more; it follows the ceremony profile alone.
     const { level } = deriveChangeLevel({
       changedFiles: ['src/auth/banner.js'],
       injectedRules: RULES,
     });
     assert.equal(level, 'high');
-    assert.equal(resolveCeremonyForRisk({ derivedLevel: level }).mode, 'fresh');
+    assert.equal(resolveDepth({ derivedLevel: level }), 'deep');
+    assert.equal(
+      resolveCeremonyForRisk({ derivedLevel: level }).verdictOwner,
+      'inline-self-eval',
+    );
+    assert.equal(
+      resolveCeremonyForRisk({ derivedLevel: level, ceremonyProfile: 'strict' })
+        .verdictOwner,
+      'fresh-critic',
+    );
   });
 
   test('an unreadable sensitive-path manifest never buys lite', () => {

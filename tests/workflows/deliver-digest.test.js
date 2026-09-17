@@ -199,14 +199,11 @@ describe('deliver-digest § 3 — the ceremony derivation is scripted (#5313)', 
     }
   });
 
-  it('the documented composition still resolves a real mode from a real level', () => {
+  it('the documented composition still resolves a real mode and owner', () => {
     const derived = deriveChangeLevel({
       changedFiles: ['docs/onboarding.md', 'README.md'],
     });
-    const ceremony = resolveCeremonyForRisk({
-      derivedLevel: derived.level,
-      clusterIndex: 0,
-    });
+    const ceremony = resolveCeremonyForRisk({ ceremonyProfile: 'standard' });
     assert.notEqual(derived.level, null);
     assert.ok(ceremony.mode === 'fresh' || ceremony.mode === 'inline');
     assert.equal(
@@ -215,23 +212,28 @@ describe('deliver-digest § 3 — the ceremony derivation is scripted (#5313)', 
     );
   });
 
-  it('routes the object-for-string mistake to the null fail-safe, never a low verdict', () => {
+  it('documents the profile as the only input to the verdict owner (#5343)', () => {
+    // The object-for-string transcription slip #5313 fixed cannot recur in a
+    // new disguise: the resolver reads no diff-derived field at all, so a
+    // malformed level cannot silently buy a different owner either way.
     const derived = deriveChangeLevel({
       changedFiles: ['docs/onboarding.md'],
       selectSensitivePathClassesFn: () => [],
     });
     assert.equal(derived.level, 'low');
-    const documented = resolveCeremonyForRisk({
-      derivedLevel: derived.level,
-      clusterIndex: 1,
-    });
-    const mistaken = resolveCeremonyForRisk({
-      derivedLevel: derived,
-      clusterIndex: 1,
-    });
-    assert.equal(documented.mode, 'inline');
-    assert.equal(mistaken.mode, 'fresh');
-    assert.match(mistaken.reason, /underivable/);
+    assert.deepEqual(
+      resolveCeremonyForRisk({ derivedLevel: derived }),
+      resolveCeremonyForRisk({ derivedLevel: derived.level }),
+    );
+    assert.equal(
+      resolveCeremonyForRisk({ ceremonyProfile: 'standard' }).verdictOwner,
+      'inline-self-eval',
+    );
+    assert.equal(
+      resolveCeremonyForRisk({ ceremonyProfile: 'strict' }).verdictOwner,
+      'fresh-critic',
+    );
+    assert.match(digest(), /verdictOwner/);
   });
 });
 
