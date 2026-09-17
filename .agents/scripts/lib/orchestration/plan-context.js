@@ -256,18 +256,17 @@ export const STORIES_TEMPLATE_FILENAME = 'stories.template.json';
 
 /**
  * Build the template's `changes[]` entries from the envelope's advisory
- * complexity signals (Story #4723). Each seed-predicted path is
- * pre-resolved to its creates-vs-refactors assumption against the repo
- * snapshot the signals already probed: a path present in the repo is a
- * `refactors-existing`, a missing one is a `creates`. Order follows
+ * complexity signals (Story #4723). Each seed-predicted path is emitted as a
+ * **bare path string** — the default authored form since Story #5342. The
+ * template used to pre-resolve each one to a creates-vs-refactors assumption
+ * against the repo snapshot; persist re-derives it against the base-branch
+ * ref, which is the authoritative probe, so the skeleton no longer carries a
+ * second answer for the author to keep in sync. Order follows
  * `predictedPaths` (first appearance in the seed). Falls back to the
  * single instructive placeholder entry when the seed predicted no paths.
  *
- * @param {{
- *   predictedPaths?: string[],
- *   repoState?: { existingPaths?: string[], missingPaths?: string[] },
- * }|null|undefined} complexitySignals
- * @returns {Array<{ path: string, assumption: string }>}
+ * @param {{ predictedPaths?: string[] }|null|undefined} complexitySignals
+ * @returns {string[]}
  */
 function buildTemplateChanges(complexitySignals) {
   const predicted = Array.isArray(complexitySignals?.predictedPaths)
@@ -275,18 +274,7 @@ function buildTemplateChanges(complexitySignals) {
         (p) => typeof p === 'string' && p.length > 0,
       )
     : [];
-  if (predicted.length === 0) {
-    return [{ path: 'path/to/file.ext', assumption: 'refactors-existing' }];
-  }
-  const existing = new Set(
-    Array.isArray(complexitySignals?.repoState?.existingPaths)
-      ? complexitySignals.repoState.existingPaths
-      : [],
-  );
-  return predicted.map((path) => ({
-    path,
-    assumption: existing.has(path) ? 'refactors-existing' : 'creates',
-  }));
+  return predicted.length === 0 ? ['path/to/file.ext'] : predicted;
 }
 
 /**
@@ -305,10 +293,10 @@ function buildTemplateChanges(complexitySignals) {
  *
  * Correct-by-construction skeleton (Story #4723): when the envelope's
  * `complexitySignals` predicted a footprint the `changes[]` entries arrive
- * pre-resolved to creates-vs-refactors against the repo snapshot — a
- * faithfully-filled skeleton passes the persist ticket validators without a
- * mechanical round-trip. The persist gates stay
- * authoritative (they probe the base branch ref, not the working tree).
+ * already filled in, as the bare paths Story #5342 made the default form —
+ * a faithfully-filled skeleton passes the persist ticket validators without a
+ * mechanical round-trip. Persist derives each assumption by probing the base
+ * branch ref and reports the derivation.
  *
  * Pure and deterministic; the output is valid JSON (parseable as-is), with
  * instructive placeholder values rather than comments.

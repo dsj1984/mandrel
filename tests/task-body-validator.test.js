@@ -59,12 +59,13 @@ describe('collectTaskBodyErrors — empty section detection', () => {
     assert.match(errs[0], /acceptance must list at least one criterion/);
   });
 
-  it('rejects empty verify[]', () => {
-    const errs = collectTaskBodyErrors([
-      story('t1', { ...validStoryBody, verify: [] }),
-    ]);
-    assert.equal(errs.length, 1);
-    assert.match(errs[0], /verify must list at least one entry/);
+  it('no longer scores verify[] at all (Story #5342)', () => {
+    // The non-empty check moved to the ticket validator as a warning; this
+    // validator is silent on verify either way.
+    assert.deepEqual(
+      collectTaskBodyErrors([story('t1', { ...validStoryBody, verify: [] })]),
+      [],
+    );
   });
 
   it('rejects empty goal string', () => {
@@ -190,7 +191,7 @@ describe('validateTaskBodies', () => {
   it('throws batched error containing every offending slug', () => {
     const tickets = [
       story('t1', { ...validStoryBody, changes: [] }),
-      story('t2', { ...validStoryBody, verify: [] }),
+      story('t2', { ...validStoryBody, acceptance: [] }),
     ];
     assert.throws(
       () => validateTaskBodies(tickets),
@@ -274,9 +275,11 @@ describe('validateTaskBodyShape (predicate)', () => {
       expectIncludes: 'acceptance must list at least one criterion',
     },
     {
-      name: 'verify empty array',
+      // Story #5342: the ticket validator warns on an empty verify[]; this
+      // validator no longer scores the field at all.
+      name: 'verify empty array is clean here',
       body: { ...validStoryBody, verify: [] },
-      expectIncludes: 'verify must list at least one entry',
+      expectErrors: 0,
     },
     {
       name: 'a tier-less verify command is clean (Story #5312)',
@@ -351,13 +354,13 @@ describe('contract fields resolve from the ticket top level (Story #4541)', () =
     assert.deepEqual(collectTaskBodyErrors([ticket]), []);
   });
 
-  it('still rejects a Story that carries neither top-level nor body lists', () => {
+  it('still rejects a Story that carries no acceptance list anywhere', () => {
     const errs = collectTaskBodyErrors([
       canonicalTicket({ acceptance: undefined, verify: undefined }),
     ]);
-    assert.equal(errs.length, 2);
+    // Story #5342: acceptance is the one half this validator still refuses on.
+    assert.equal(errs.length, 1);
     assert.ok(errs.some((e) => /acceptance must list at least one/.test(e)));
-    assert.ok(errs.some((e) => /verify must list at least one/.test(e)));
   });
 
   it('keeps validating body sections when the author mirrored them', () => {

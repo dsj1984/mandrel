@@ -45,12 +45,17 @@ describe('BODY_FORMAT_LINTS registry', () => {
     const ids = new Set(BODY_FORMAT_LINTS.map((l) => l.id));
     for (const required of [
       'changes-path-entry-shape',
-      'verify-non-empty',
       'acceptance-non-empty',
     ]) {
       assert.ok(ids.has(required), `registry is missing lint "${required}"`);
     }
-    for (const retired of ['verify-tier-suffix', 'verify-manual-reason']) {
+    // Story #5342 demoted `verify-non-empty` to a dry-run warning, so it is
+    // no longer a rejecting lint and must not be taught as one.
+    for (const retired of [
+      'verify-tier-suffix',
+      'verify-manual-reason',
+      'verify-non-empty',
+    ]) {
       assert.ok(!ids.has(retired), `retired lint "${retired}" must be gone`);
     }
     const autoFixable = BODY_FORMAT_LINTS.filter((l) => l.autoFixable).map(
@@ -127,7 +132,9 @@ describe('AC-2: suggestPathEntryFix', () => {
 });
 
 describe('AC-2: the failing lint output carries the corrected form', () => {
-  it('story-body parser rejects a bare Changes bullet WITH a suggested fix', () => {
+  it('story-body parser accepts a bare Changes bullet (Story #5342)', () => {
+    // The bare path is the default authored form now: the parser records it
+    // with no assumption and persist derives one by probing base.
     const body = [
       '## Goal',
       'G',
@@ -141,12 +148,30 @@ describe('AC-2: the failing lint output carries the corrected form', () => {
       '## Verify',
       '- npm run validate (validate)',
     ].join('\n');
+    assert.deepEqual(parse(body).body.changes, [
+      { path: 'src/app.js', assumption: null },
+    ]);
+  });
+
+  it('story-body parser rejects a prose Changes bullet WITH a suggested fix', () => {
+    const body = [
+      '## Goal',
+      'G',
+      '',
+      '## Changes',
+      '- rework src/app.js and its tests',
+      '',
+      '## Acceptance',
+      '- [ ] x',
+      '',
+      '## Verify',
+      '- npm run validate (validate)',
+    ].join('\n');
     assert.throws(
       () => parse(body),
       (err) => {
         assert.ok(err instanceof StoryBodyParseError);
         assert.match(err.message, /Suggested fix:/);
-        assert.match(err.message, /"path":"src\/app\.js"/);
         assert.match(err.message, /"assumption":"refactors-existing"/);
         return true;
       },

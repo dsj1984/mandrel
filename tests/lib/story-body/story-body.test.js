@@ -181,23 +181,20 @@ Do the thing.
 // parse() — legacy string-form changes
 // ---------------------------------------------------------------------------
 
-describe('parse() — rejects legacy string path entries', () => {
-  it('throws StoryBodyParseError for bare string bullets in markdown', () => {
+describe('parse() — path entry shapes (Story #5342)', () => {
+  it('throws StoryBodyParseError for a prose bullet in markdown', () => {
     const md = `## Goal\nWire X to Y.\n\n## Changes\n- src/foo.js: extract handler\n\n## Acceptance\n- [ ] it works\n\n## Verify\n- npm test (unit)`;
     assert.throws(
       () => parse(md),
       (err) => {
         assert.ok(err instanceof StoryBodyParseError);
-        assert.match(
-          err.message,
-          /plain string bullets are no longer accepted/,
-        );
+        assert.match(err.message, /prose bullets are not accepted/);
         return true;
       },
     );
   });
 
-  it('throws StoryBodyParseError for string entries in structured object input', () => {
+  it('throws StoryBodyParseError for prose entries in structured object input', () => {
     const obj = {
       goal: 'Wire X to Y.',
       changes: [
@@ -208,6 +205,30 @@ describe('parse() — rejects legacy string path entries', () => {
       verify: ['npm test (unit)'],
     };
     assert.throws(() => parse(obj), StoryBodyParseError);
+  });
+
+  it('parses a bare path bullet with a null assumption and round-trips it', () => {
+    const md = `## Goal\nWire X to Y.\n\n## Changes\n- src/foo.js\n- \`src/bar.js\`\n\n## Acceptance\n- [ ] it works\n\n## Verify\n- npm test`;
+    const { body } = parse(md);
+    assert.deepEqual(body.changes, [
+      { path: 'src/foo.js', assumption: null },
+      { path: 'src/bar.js', assumption: null },
+    ]);
+    // The bare form survives serialization rather than silently acquiring a
+    // derivation the author never made — persist fills it in by probing base.
+    const round = serialize(body);
+    assert.match(round, /^- `src\/foo\.js`$/m);
+    assert.deepEqual(parse(round).body.changes, body.changes);
+  });
+
+  it('parses an object entry that names only a path', () => {
+    const { body } = parse({
+      goal: 'Wire X to Y.',
+      changes: [{ path: 'src/foo.js' }],
+      acceptance: ['it works'],
+      verify: ['npm test'],
+    });
+    assert.deepEqual(body.changes, [{ path: 'src/foo.js', assumption: null }]);
   });
 });
 
@@ -606,7 +627,7 @@ linked report`;
     assert.deepEqual(body.acceptance, ['observable outcome']);
   });
 
-  it('rejects legacy-string change entries in markdown', () => {
+  it('rejects prose change entries in markdown', () => {
     const md = `## Goal
 g
 
@@ -620,10 +641,7 @@ g
       () => parse(md),
       (err) => {
         assert.ok(err instanceof StoryBodyParseError);
-        assert.match(
-          err.message,
-          /plain string bullets are no longer accepted/,
-        );
+        assert.match(err.message, /prose bullets are not accepted/);
         return true;
       },
     );

@@ -19,9 +19,11 @@
  * the 2-tier hierarchy (Epic → Story).
  *
  * Required after parse/normalize: a non-empty `goal`, and non-empty
- * `changes`, `acceptance`, and `verify` arrays — and `changes` items must
- * name at least one path-shaped token so vague verbs ("clean up",
- * "refactor") can't slip through.
+ * `changes` and `acceptance` arrays — and `changes` items must name at least
+ * one path-shaped token so vague verbs ("clean up", "refactor") can't slip
+ * through. Story #5342 dropped the non-empty `verify` requirement: an empty
+ * `verify[]` is a dry-run warning the ticket validator raises, not a
+ * refusal.
  *
  * `acceptance` / `verify` are the **top-level machine contract** (Story
  * #4541). The decomposer prompt tells authors to write those lists once at
@@ -43,8 +45,8 @@
  *
  * `body.verify` entries are commands, nothing more: Story #5312 deleted the
  * `(<tier>)` suffix, the `manual:<reason>` escape and the repair pass that
- * appended the suffix for the author. The only verify rule left is that the
- * list is non-empty.
+ * appended the suffix for the author, and Story #5342 deleted the last rule
+ * — the non-empty check. This validator no longer scores `verify` at all.
  *
  * The errors are batched and surfaced as a single thrown Error so the
  * planner can see every offending slug in one pass instead of fixing one
@@ -69,7 +71,7 @@ import { FILE_ASSUMPTION_VALUES } from './file-assumption-enum.js';
  * Story body to a markdown string, so a *string* body is NOT skipped here
  * (Story #3906) — `validateTaskBodyShape` parses it back into structured
  * form via `parseStoryBody` before applying the section rules. This is what
- * makes the non-empty-verify / vague-verb / non-empty-goal checks actually fire
+ * makes the vague-verb / non-empty-goal checks actually fire
  * on real plans. Features (and everything else) use narrative string bodies
  * and are skipped by the `type !== 'story'` guard.
  *
@@ -185,7 +187,6 @@ export function validateTaskBodyShape(ticket) {
   }
   errors.push(...collectChangesErrors(prefix, body.changes));
   errors.push(...collectAcceptanceErrors(prefix, body.acceptance));
-  errors.push(...collectVerifyErrors(prefix, body.verify));
   errors.push(...collectReferencesErrors(prefix, body.references));
   return errors;
 }
@@ -306,16 +307,6 @@ function collectAcceptanceErrors(prefix, rawAcceptance) {
  * @param {unknown} rawVerify
  * @returns {string[]}
  */
-function collectVerifyErrors(prefix, rawVerify) {
-  const verify = Array.isArray(rawVerify) ? rawVerify : [];
-  if (verify.length === 0) {
-    return [
-      `${prefix}: verify must list at least one entry — author it at the ticket's top level (preferred) or in the body's ## Verify section.`,
-    ];
-  }
-  return [];
-}
-
 /**
  * Validate every 2-tier Story in `tickets` whose `body` is a structured
  * object. Returns an array of error strings (one per offending slug); empty

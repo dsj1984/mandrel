@@ -169,11 +169,8 @@ describe('story-author prompt — one-shot authoring surface (AC-5)', () => {
     assert.ok(prompt.includes(STORIES_TEMPLATE_FILENAME));
   });
 
-  test('names the changes[] repair and the demoted footprint probes', () => {
-    assert.match(
-      prompt,
-      /repairs a plain-string bullet or a trailing parenthetical/,
-    );
+  test('names the derived assumption and the demoted footprint probes', () => {
+    assert.match(prompt, /persist derives its assumption by probing the base/);
     assert.match(prompt, /only a `deletes` naming an absent path is refused/);
   });
 });
@@ -181,19 +178,15 @@ describe('story-author prompt — one-shot authoring surface (AC-5)', () => {
 describe('story-author prompt — orders only output the parser accepts (#5005)', () => {
   const prompt = renderStoryAuthorCore();
 
-  test('the testid-invariance rule targets acceptance[] / Non-Goals, never changes[]', () => {
-    const section = prompt.slice(
-      prompt.indexOf('#### UI / TESTID INVARIANCE'),
-      prompt.indexOf('#### BRAND / COPY / STYLE WORK'),
-    );
-    assert.ok(section.length > 0, 'the invariance section must still exist');
-    assert.match(section, /top-level `acceptance\[\]` item/);
-    assert.match(section, /`## Non-Goals` prose/);
-    assert.doesNotMatch(section, /MUST end `changes`/);
-    assert.match(
-      section,
-      /Every `changes\[\]` entry is a `\{ path, assumption \}` object/,
-    );
+  test('the UI and copy rules point at their contracts instead of restating them (Story #5342)', () => {
+    const start = prompt.indexOf('#### UI AND COPY WORK');
+    assert.ok(start >= 0, 'the pointer section must exist');
+    const section = prompt.slice(start, prompt.indexOf('CRITICAL:', start));
+    assert.match(section, /states the `data-testid` contract in `acceptance/);
+    assert.match(section, /\.agents\/skills\/stack\/qa\/playwright\/SKILL\.md/);
+    assert.match(section, /docs\/style-guide\.md/);
+    // The rule itself is stated once, in the skill — not restated here.
+    assert.doesNotMatch(section, /data-testid invariance:/);
   });
 
   test('no Epic Acceptance Table reference survives anywhere in the prompt', () => {
@@ -222,7 +215,10 @@ describe('renderStoriesTemplate — ready-to-fill authoring skeleton (AC-5)', ()
     const { body } = parseStoryBody(story.body);
     assert.ok(body.goal.length > 0);
     assert.ok(Array.isArray(body.changes) && body.changes.length === 1);
-    assert.equal(body.changes[0].assumption, 'refactors-existing');
+    // Story #5342: the skeleton's bullet is a bare path — persist derives the
+    // assumption, so the parser records none.
+    assert.equal(body.changes[0].path, 'path/to/file.ext');
+    assert.equal(body.changes[0].assumption, null);
     assert.equal('reason_to_exist' in story.body, false);
   });
 

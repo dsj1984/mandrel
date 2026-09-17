@@ -53,10 +53,10 @@ test('ticket-validator: fails on duplicate slug', () => {
   );
 });
 
-test('ticket-validator: fails when a Story lacks an inline acceptance + verify contract', () => {
-  // A Story with no top-level acceptance/verify is the legacy shape that
-  // expected child Tasks. With the Task tier removed, such a Story is
-  // unimplementable and is rejected outright.
+test('ticket-validator: fails when a Story lacks an inline acceptance contract', () => {
+  // A Story with no top-level acceptance[] carries no observable criterion.
+  // With the Task tier removed, such a Story is unimplementable and is
+  // rejected outright.
   const tickets = [
     {
       slug: 'S1',
@@ -68,7 +68,7 @@ test('ticket-validator: fails when a Story lacks an inline acceptance + verify c
   ];
   assert.throws(
     () => validateAndNormalizeTickets(tickets),
-    /lack an inline acceptance \+ verify contract/,
+    /lack an inline acceptance contract/,
   );
 });
 
@@ -94,9 +94,9 @@ test('ticket-validator: accepts a 2-tier Story (inline acceptance + verify)', ()
   assert.equal(result.length, 2);
 });
 
-test('ticket-validator: empty inline arrays do not satisfy the contract', () => {
-  // Empty `acceptance` / `verify` arrays must not satisfy the inline
-  // contract — both arrays must be non-empty.
+test('ticket-validator: an empty acceptance[] does not satisfy the contract', () => {
+  // Story #5342 narrowed the invariant: an empty `acceptance[]` is still a
+  // refusal, and an empty `verify[]` is a warning the dry-run lists.
   const tickets = [
     {
       slug: 'S1',
@@ -110,10 +110,10 @@ test('ticket-validator: empty inline arrays do not satisfy the contract', () => 
   ];
   assert.throws(
     () => validateAndNormalizeTickets(tickets),
-    /lack an inline acceptance \+ verify contract/,
+    /lack an inline acceptance contract/,
   );
-  // A Story with only `acceptance` (no `verify`) is incomplete and must
-  // still fail — the contract requires both arrays.
+  // A Story with only `acceptance` (no `verify`) is warned about, not
+  // refused — the deliverer picks the commands (Story #5342).
   const onlyAcceptance = [
     {
       slug: 'S1',
@@ -123,9 +123,11 @@ test('ticket-validator: empty inline arrays do not satisfy the contract', () => 
     },
     makeStory('S2', { title: 'Well-formed sibling' }),
   ];
-  assert.throws(
-    () => validateAndNormalizeTickets(onlyAcceptance),
-    /lack an inline acceptance \+ verify contract/,
+  const validated = validateAndNormalizeTickets(onlyAcceptance);
+  assert.equal(
+    validated.warnings.filter((w) => /lists no verify\[\] entry/.test(w))
+      .length,
+    1,
   );
 });
 
@@ -275,32 +277,14 @@ function canonicalStory(slug, { acceptance, body }) {
   };
 }
 
-test('subject-prefix gate fires on the canonical shape (string body + top-level acceptance)', () => {
-  const tickets = [
-    canonicalStory('S1', {
-      acceptance: [
-        "Commit subject begins with 'baseline-refresh:' (forbidden)",
-      ],
-    }),
-  ];
-  let caught;
-  try {
-    validateAndNormalizeTickets(tickets);
-  } catch (err) {
-    caught = err;
-  }
-  assert.ok(caught, 'the gate must fire — it used to skip this shape entirely');
-  assert.equal(caught.code, 'forbidden-subject-prefix');
-  assert.equal(caught.violations[0].slug, 'S1');
-});
-
-test('subject-prefix gate passes a valid type on the canonical shape', () => {
+test('acceptance items no longer carry a subject-prefix gate (Story #5342)', () => {
+  // The validator's `validateAcceptanceSubjectPrefix` scan is deleted: the
+  // `commit-msg` hook and `normalize-pr-title.js` are what actually stop a
+  // non-Conventional-Commits subject, so a Story quoting one persists.
   assert.doesNotThrow(() =>
     validateAndNormalizeTickets([
       canonicalStory('S1', {
-        acceptance: [
-          "Commit subject begins with 'chore(baselines):' for the refresh",
-        ],
+        acceptance: ["Commit subject begins with 'baseline-refresh:'"],
       }),
     ]),
   );

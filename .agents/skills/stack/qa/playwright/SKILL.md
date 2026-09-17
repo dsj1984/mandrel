@@ -5,6 +5,8 @@ description:
   tests — leverage auto-waiting (no `waitForTimeout`), prefer user-visible
   locators (`getByRole`, `getByText`, `getByLabel`) over CSS/XPath, reuse
   `storageState` for auth, and enable trace-on-first-retry for CI debugging.
+  Also carries the `data-testid` contract a UI change states in its acceptance
+  criteria.
 vendor: playwright
 ---
 
@@ -20,6 +22,30 @@ vendor: playwright
 - Enable `trace: 'on-first-retry'` (or `'retain-on-failure'`) so CI failures are debuggable in the Trace Viewer.
 - Use a unique data set per test run, or tear down state explicitly, to prevent cross-test contamination.
 - Never let Playwright own the lifetime of a dev server it did not start: boot the server out-of-band, point the suite at the running origin, and set `reuseExistingServer` so `webServer` only probes readiness.
+
+## The testid contract
+
+A `data-testid` is a selector two artifacts share: the component that renders
+it and the spec that queries it. Renaming one without the other is a silent
+break — the suite still compiles, and the failure arrives as a missing element
+at run time, in CI, attributed to whichever change happened to land next.
+
+So a change touching UI (`*.tsx`, `*.astro`, `*.svelte`, `*.vue`, a components
+folder) states which side of that contract it is on, in its own acceptance
+criteria, as one of:
+
+- **`data-testid invariance: <the testids that MUST be preserved>`** — the
+  change reshapes markup and renames nothing, and the list says what the
+  reshape may not touch.
+- **`data-testid changes: <old> -> <new>, with the matching
+  tests/e2e/*.spec.ts selector updated`** — the rename is deliberate, and the
+  spec file that queries it is edited in the same change (or in one ordered
+  ahead of it, when the work is split).
+
+Renaming a testid without the matching spec edit is forbidden either way. When
+a change deliberately renames nothing, say so in its negative-scope prose too:
+a preserved set stated only once reads as an omission the next author is free
+to revise.
 
 ## Running a `webServer`-backed suite outside CI
 

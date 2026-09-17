@@ -86,11 +86,24 @@ describe('normalizeStoryTicket — supersedes (Story #4535)', () => {
     assert.equal(parse(stories[0].body).body.supersedes, undefined);
   });
 
-  it('assemblePlanStories fails closed on a partial supersede map', () => {
+  it('assemblePlanStories assigns an unclaimed source id to the primary Story (Story #5342)', () => {
+    const { stories, warnings } = assemblePlanStories(
+      [storyTicket('alpha', { supersedes: [4525] })],
+      { sourceTicketIds: [4525, 4526] },
+    );
+    assert.deepEqual(stories[0].supersedes, [
+      { id: 4525, note: null },
+      { id: 4526, note: null },
+    ]);
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0], /#4526 was claimed by no Story/);
+  });
+
+  it('assemblePlanStories still fails closed on a claim of a non-source id', () => {
     assert.throws(
       () =>
         assemblePlanStories([storyTicket('alpha', { supersedes: [4525] })], {
-          sourceTicketIds: [4525, 4526],
+          sourceTicketIds: [4526],
         }),
       /supersede partition failed/,
     );

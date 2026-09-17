@@ -233,3 +233,55 @@ describe('ticket-validator: external `#<id>` depends_on refs (Story #5155)', () 
     );
   });
 });
+
+/**
+ * Story #5342 — the inline contract narrowed to `acceptance[]`.
+ *
+ * An empty `acceptance[]` leaves a Story with no observable criterion and
+ * nothing downstream can recover it, so it stays a refusal. An empty
+ * `verify[]` only means the deliverer picks the commands — worth saying on
+ * the dry-run, never worth a re-authoring round.
+ */
+describe('ticket-validator: the inline contract (Story #5342)', () => {
+  it('REFUSES a Story with an empty acceptance[]', () => {
+    const backlog = [{ ...story('s1'), acceptance: [] }];
+    assert.throws(
+      () => validateAndNormalizeTickets(backlog),
+      /lack an inline acceptance contract/,
+    );
+  });
+
+  it('ACCEPTS a Story with an empty verify[], warning instead', () => {
+    const backlog = [{ ...story('s1'), verify: [] }];
+    let validated;
+    assert.doesNotThrow(() => {
+      validated = validateAndNormalizeTickets(backlog);
+    });
+    assert.equal(
+      validated.warnings.filter((w) => /lists no verify\[\] entry/.test(w))
+        .length,
+      1,
+    );
+    assert.deepEqual(validated.errors, []);
+  });
+
+  it('leaves a Story carrying both halves unwarned', () => {
+    const validated = validateAndNormalizeTickets([story('s1')]);
+    assert.deepEqual(
+      validated.warnings.filter((w) => /verify\[\]/.test(w)),
+      [],
+    );
+  });
+
+  it('no longer scores commit-subject prefixes in acceptance items', () => {
+    // The subject-prefix validator and its allowed-types set are gone: the
+    // commit-msg hook and normalize-pr-title.js are the enforcement points.
+    const backlog = [
+      {
+        ...story('s1'),
+        acceptance: ["Commit subject begins with 'baseline-refresh:'"],
+      },
+    ];
+    assert.doesNotThrow(() => validateAndNormalizeTickets(backlog));
+  });
+});

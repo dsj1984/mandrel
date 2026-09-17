@@ -36,14 +36,13 @@ import {
   renderStoriesTemplate,
   TICKET_SCHEMA_DESCRIPTOR,
 } from '../.agents/scripts/lib/orchestration/plan-context.js';
+import { validateTickets } from '../.agents/scripts/lib/orchestration/plan-persist/persist-helpers.js';
 import {
   loadPlanContextEnvelope,
   PLAN_CONTEXT_FILENAME,
   resolvePlanContextPath,
 } from '../.agents/scripts/lib/orchestration/plan-persist/plan-context-source.js';
 import { resolveSourceTicketIds } from '../.agents/scripts/lib/orchestration/plan-persist/supersede-ops.js';
-import { validateTaskBodies } from '../.agents/scripts/lib/orchestration/task-body-validator.js';
-import { validateAndNormalizeTickets } from '../.agents/scripts/lib/orchestration/ticket-validator.js';
 import { serialize } from '../.agents/scripts/lib/story-body/story-body.js';
 import {
   renderStoryAuthorCore,
@@ -54,6 +53,7 @@ import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 import {
   emitPlanContext,
   parseAmendsId,
+  resolveDefaultOutPath,
 } from '../.agents/scripts/plan-context.js';
 
 const CLEAR_EPIC_BODY = `# Widget Epic
@@ -375,10 +375,35 @@ describe('plan-context systemPrompts fold', () => {
     assert.equal(env.ticketSchema, TICKET_SCHEMA_DESCRIPTOR);
     assert.equal(env.ticketSchema.itemFields.type.includes('story'), true);
   });
+
+  it('carries no UI/TESTID or BRAND/COPY section, only a pointer (Story #5342)', async () => {
+    const prompt = renderStoryAuthorCore();
+    // The testid contract lives in the playwright stack skill now, and the
+    // mandated brand/copy phrasing is gone.
+    assert.doesNotMatch(prompt, /TESTID/);
+    assert.doesNotMatch(prompt, /BRAND \/ COPY/);
+    assert.doesNotMatch(prompt, /data-testid invariance:/);
+    assert.doesNotMatch(prompt, /Silence on style sourcing is a smell/);
+    // One sentence each, pointing at where the contract is written down.
+    assert.match(prompt, /\.agents\/skills\/stack\/qa\/playwright\/SKILL\.md/);
+    assert.match(prompt, /docs\/style-guide\.md/);
+    // The skill it points at actually carries the contract.
+    const skill = await readFile(
+      new URL(
+        '../.agents/skills/stack/qa/playwright/SKILL.md',
+        import.meta.url,
+      ),
+      'utf8',
+    );
+    assert.match(skill, /## The testid contract/);
+    assert.match(skill, /data-testid invariance:/);
+    assert.match(skill, /tests\/e2e\/\*\.spec\.ts selector updated/);
+  });
 });
 
 describe('plan-context stdout purity (Story #2278 discipline)', () => {
   it('the emit path writes exactly one JSON.parse-able payload to stdout', async () => {
+    const dir = await makeTempDir('plan-ctx-purity-');
     // Capture everything that would land on the process stdout fd —
     // both the injected envelope stream and any stray console.log from
     // the folded builders (Logger routes to console.error once
@@ -406,6 +431,7 @@ describe('plan-context stdout purity (Story #2278 discipline)', () => {
         provider: buildProvider(),
         config: {},
         settings: {},
+        outPath: path.join(dir, PLAN_CONTEXT_FILENAME),
         stdout: capture,
       });
     } finally {
@@ -419,9 +445,71 @@ describe('plan-context stdout purity (Story #2278 discipline)', () => {
     );
     const lines = captured.split('\n').filter((l) => l.length > 0);
     assert.equal(lines.length, 1, 'exactly one stdout line');
+    // Story #5342: the envelope is always captured to disk, so the one stdout
+    // line is the compact digest naming the artifacts — never the payload.
     const parsed = JSON.parse(lines[0]);
-    assert.deepEqual(parsed, JSON.parse(JSON.stringify(envelope)));
+    assert.equal(parsed.digest, 'plan-context');
     assert.equal(parsed.mode, 'seed-file');
+    assert.equal(parsed.out, path.resolve(dir, PLAN_CONTEXT_FILENAME));
+    assert.equal(
+      parsed.bytes,
+      Buffer.byteLength(JSON.stringify(envelope), 'utf8'),
+    );
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it('derives <tempRoot>/plan-<slug>/ when no --out is passed (Story #5342)', async () => {
+    const dir = await makeTempDir('plan-ctx-default-out-');
+    let captured = '';
+    await emitPlanContext({
+      mode: 'seed',
+      seedText: 'Add a --json flag to doctor',
+      provider: buildProvider(),
+      config: { project: { paths: { tempRoot: dir } } },
+      settings: {},
+      cwd: dir,
+      stdout: {
+        write(chunk) {
+          captured += chunk;
+          return true;
+        },
+      },
+    });
+    const digest = JSON.parse(captured.trim());
+    const expected = path.resolve(
+      dir,
+      'plan-add-a-json-flag-to-doctor',
+      PLAN_CONTEXT_FILENAME,
+    );
+    assert.equal(digest.out, expected);
+    assert.equal(
+      digest.storiesTemplate,
+      path.join(path.dirname(expected), 'stories.template.json'),
+    );
+    // Both artifacts exist on disk — persist auto-discovers them from there.
+    assert.ok(JSON.parse(await readFile(expected, 'utf8')).mode === 'seed');
+    assert.ok(
+      Array.isArray(JSON.parse(await readFile(digest.storiesTemplate, 'utf8'))),
+    );
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it('resolveDefaultOutPath names the directory from each entry form', () => {
+    const config = { project: { paths: { tempRoot: '/t' } } };
+    const at = (args) =>
+      path.basename(
+        path.dirname(resolveDefaultOutPath({ ...args, config, cwd: '/r' })),
+      );
+    assert.equal(at({ mode: 'amends', amendsId: 42 }), 'plan-amends-42');
+    assert.equal(
+      at({ mode: 'tickets', ticketIds: [7, 8] }),
+      'plan-tickets-7-8',
+    );
+    assert.equal(
+      at({ mode: 'seed-file', seedFilePath: 'temp/notes/Big Idea.md' }),
+      'plan-big-idea',
+    );
+    assert.equal(at({ mode: 'seed', seedText: '!!!' }), 'plan-plan');
   });
 });
 
@@ -888,22 +976,22 @@ describe('renderStoriesTemplate — correct-by-construction skeleton (Story #472
     }
   });
 
-  it('pre-resolves predicted changes[] paths against the repo snapshot', () => {
+  it('emits predicted changes[] paths as bare strings (Story #5342)', () => {
     const template = JSON.parse(
       renderStoriesTemplate({ complexitySignals: fixtureSignals() }),
     );
+    // The assumption is persist's to derive against the base-branch ref; the
+    // skeleton no longer carries a second answer to keep in sync.
     assert.deepEqual(template[0].body.changes, [
-      { path: 'lib/existing/module.js', assumption: 'refactors-existing' },
-      { path: 'lib/new/feature.js', assumption: 'creates' },
-      { path: 'tests/new/feature.test.js', assumption: 'creates' },
+      'lib/existing/module.js',
+      'lib/new/feature.js',
+      'tests/new/feature.test.js',
     ]);
   });
 
   it('falls back to the instructive placeholder entry without predicted paths', () => {
     const template = JSON.parse(renderStoriesTemplate());
-    assert.deepEqual(template[0].body.changes, [
-      { path: 'path/to/file.ext', assumption: 'refactors-existing' },
-    ]);
+    assert.deepEqual(template[0].body.changes, ['path/to/file.ext']);
   });
 
   it('a faithfully-filled skeleton passes the persist ticket validators with no round-trip', () => {
@@ -911,8 +999,8 @@ describe('renderStoriesTemplate — correct-by-construction skeleton (Story #472
       renderStoriesTemplate({ complexitySignals: fixtureSignals() }),
     );
     const story = template[0];
-    // A faithful fill replaces every "Fill:" placeholder and keeps the
-    // pre-resolved changes[] and the valid trailing tier tag.
+    // A faithful fill replaces every "Fill:" placeholder and keeps the bare
+    // changes[] paths the skeleton emitted.
     story.slug = 'harden-widget-pipeline';
     story.title = 'Harden the widget pipeline';
     story.body.goal = 'Harden the widget pipeline against stale snapshots.';
@@ -923,18 +1011,25 @@ describe('renderStoriesTemplate — correct-by-construction skeleton (Story #472
     ];
     story.verify = ['npm test'];
 
-    // Persist-shaped gates: the shared validator with a git probe that
-    // mirrors the fixture repo state, then the body-shape validator.
+    // The persist gate chain itself — repair against the base branch, then
+    // the cross-link, freshness and body-shape validators — with a git probe
+    // that mirrors the fixture repo state. Story #5342: the skeleton's bare
+    // paths are resolved by that repair, so "no round-trip" now means the
+    // author never types an assumption at all.
     const gitRunner = ({ path: p }) => FIXTURE_FILES.has(p);
     let validated;
     assert.doesNotThrow(() => {
-      validated = validateAndNormalizeTickets([story], {
-        baseBranchRef: 'main',
-        gitRunner,
-      });
-      validateTaskBodies(validated);
+      validated = validateTickets([story], {}, { gitRunner });
     });
     assert.deepEqual(validated.errors, []);
+    assert.deepEqual(
+      validated.repairs.map((r) => [r.path, r.assumption]),
+      [
+        ['lib/existing/module.js', 'refactors-existing'],
+        ['lib/new/feature.js', 'creates'],
+        ['tests/new/feature.test.js', 'creates'],
+      ],
+    );
   });
 
   it('emitPlanContext threads the envelope signals into the written template', async () => {
@@ -959,8 +1054,8 @@ describe('renderStoriesTemplate — correct-by-construction skeleton (Story #472
       await readFile(path.join(dir, 'stories.template.json'), 'utf8'),
     );
     assert.deepEqual(template[0].body.changes, [
-      { path: 'src/real.js', assumption: 'refactors-existing' },
-      { path: 'src/missing.js', assumption: 'creates' },
+      'src/real.js',
+      'src/missing.js',
     ]);
     for (const entry of template[0].verify) {
       assert.doesNotMatch(entry, /\((?:unit|contract|e2e|validate)\)\s*$/);

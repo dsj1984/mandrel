@@ -36,20 +36,18 @@
  *   --no-close-superseded     Keep the source tickets open (no comment, no
  *                             close) — for a genuinely partial supersede
  *   --dry-run                 Assemble + validate without GitHub writes
- *   --chain-on-clean          Fast path (Story #4741; any plan since Story
- *                             #5312): run the write-free dry-run first, and
- *                             when it passes clean chain straight into the
- *                             real persist in the SAME invocation, collapsing
- *                             the two operator round-trips into one. A
- *                             dry-run failure stops before any createIssue.
- *                             Ignored when `--dry-run` is also set
+ *   --chain-on-clean          Accepted no-op alias (Story #5342) — chaining
+ *                             is what the bare invocation already does
  *   --force-review            Operator-forced review stop before persist lands
  *
- * Run `--dry-run` first. It exercises every gate — the changes[] repair, the
- * validator, DAG, reachability, split/supersede partition, Spec fold —
- * write-free, and lists every warning (a footprint probe that disagrees with
- * the base branch, an open question in a body) so an authoring mistake
- * surfaces before a single issue exists.
+ * **Persist is one command (Story #5342).** With neither `--dry-run` nor
+ * `--chain-on-clean` the CLI runs the write-free dry-run first — the
+ * changes[] repair, the validator, DAG, reachability, split/supersede
+ * partition, Spec fold — and, when the gate list comes back clean, chains
+ * straight into the real persist in the SAME invocation. A dry-run failure
+ * stops before any `createIssue`, and the run lists every warning (a
+ * footprint probe that disagrees with the base branch, an empty `verify[]`,
+ * an open question in a body) either way. `--dry-run` still creates nothing.
  *
  * stdout is reserved for the JSON result (Story #2278 discipline, extended to
  * this CLI by Story #4541): `routeAllOutputToStderr()` runs before any
@@ -320,8 +318,9 @@ async function runPersistInvocation({
 }
 
 /**
- * Fast path (Story #4741 AC-1/AC-3; widened to any plan by Story #5312):
- * chain a clean dry-run into the real persist in ONE operator invocation.
+ * The default persist path (Story #4741 AC-1/AC-3; widened to any plan by
+ * Story #5312; made the default by Story #5342): chain a clean dry-run into
+ * the real persist in ONE operator invocation.
  *
  * Two passes over the **same** loaded artifacts:
  *
@@ -372,6 +371,25 @@ export async function runPersistChain({
     reason: 'dry-run-clean',
   };
   return persistResult;
+}
+
+/**
+ * Decide whether this invocation persists after its gates, or only validates.
+ *
+ * Story #5342: chaining is the default, not a flag. Every invocation that is
+ * not an explicit `--dry-run` runs the gate list and then persists what it
+ * passed, so the two operator round-trips collapse without anyone having to
+ * remember an opt-in. `--chain-on-clean` survives as a no-op alias so
+ * existing call-sites keep working — it can no longer turn anything on,
+ * because nothing is off.
+ *
+ * Exported for tests: this one predicate is what makes the CLI one command.
+ *
+ * @param {object} values Parsed `parseArgs` values.
+ * @returns {boolean} `true` to run the gates and then persist.
+ */
+export function shouldChainPersist(values) {
+  return values?.['dry-run'] !== true;
 }
 
 /**
@@ -440,10 +458,7 @@ async function main() {
   const paths = resolveInputPaths(values);
   const artifacts = await loadArtifacts(paths);
 
-  // `--chain-on-clean` collapses the dry-run + persist operator round-trips
-  // (Story #4741). `--dry-run` always wins — an explicit dry-run never writes.
-  const useChain =
-    values['chain-on-clean'] === true && values['dry-run'] !== true;
+  const useChain = shouldChainPersist(values);
 
   let result;
   try {
@@ -482,7 +497,7 @@ runAsCli(import.meta.url, main, {
     invocation:
       'node .agents/scripts/plan-persist.js --stories <file> [--tech-spec <file>] [--dry-run] [options]',
     summary:
-      'Validate an authored plan and persist it as GitHub Stories. Prints the result envelope as JSON on stdout.',
+      'Validate an authored plan and persist it as GitHub Stories in one invocation (pass --dry-run to validate only). Prints the result envelope as JSON on stdout.',
     flags: [
       ['--stories <file>', 'Authored stories.json (required).'],
       ['--tech-spec <file>', 'Optional companion techspec.md.'],
@@ -493,7 +508,10 @@ runAsCli(import.meta.url, main, {
       ],
       ['--source-tickets <ids>', 'Ticket ids this plan supersedes.'],
       ['--dry-run', 'Validate and report; create nothing.'],
-      ['--chain-on-clean', 'Persist immediately when the dry run is clean.'],
+      [
+        '--chain-on-clean',
+        'No-op alias — a bare invocation already persists on a clean dry run.',
+      ],
       ['--no-close-superseded', 'Leave superseded source tickets open.'],
       [
         '--force-review',

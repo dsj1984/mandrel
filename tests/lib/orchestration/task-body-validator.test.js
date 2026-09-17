@@ -132,12 +132,13 @@ describe('collectTaskBodyErrors — Story body required sections', () => {
     assert.match(errs[0], /acceptance must list at least one criterion/);
   });
 
-  it('rejects empty verify[]', () => {
-    const errs = collectTaskBodyErrors([
-      story('s1', { ...VALID_STORY_BODY, verify: [] }),
-    ]);
-    assert.equal(errs.length, 1);
-    assert.match(errs[0], /verify must list at least one entry/);
+  it('no longer scores verify[] at all (Story #5342)', () => {
+    // The non-empty check moved to the ticket validator as a warning; this
+    // validator is silent on verify either way.
+    assert.deepEqual(
+      collectTaskBodyErrors([story('s1', { ...VALID_STORY_BODY, verify: [] })]),
+      [],
+    );
   });
 
   it('prefixes errors with "Story" for story tickets', () => {

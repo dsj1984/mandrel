@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-17T12:38:37.634Z",
+  "generatedAt": "2026-09-17T14:01:15.377Z",
   "rollup": {
     "*": {
       "min": 76.381,
@@ -1704,7 +1704,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "mi": 94.817
+      "mi": 97.666
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing.js",
@@ -1880,7 +1880,7 @@
     },
     {
       "path": ".agents/scripts/lib/story-body/body-format-lints.js",
-      "mi": 83.974
+      "mi": 85.956
     },
     {
       "path": ".agents/scripts/lib/story-body/footer-block.js",
@@ -2112,7 +2112,7 @@
     },
     {
       "path": ".agents/scripts/plan-context.js",
-      "mi": 89.701
+      "mi": 94.507
     },
     {
       "path": ".agents/scripts/plan-critics.js",
@@ -2120,7 +2120,7 @@
     },
     {
       "path": ".agents/scripts/plan-persist.js",
-      "mi": 90.175
+      "mi": 91.401
     },
     {
       "path": ".agents/scripts/plan-run-epilogue.js",

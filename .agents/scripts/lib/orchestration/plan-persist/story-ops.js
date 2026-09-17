@@ -39,8 +39,8 @@ import {
   isExternalDependencyRef,
 } from './external-deps.js';
 import {
-  assertSupersedePartition,
   normalizeSupersedes,
+  resolveSupersedePartition,
 } from './supersede-ops.js';
 
 /**
@@ -513,9 +513,9 @@ function assertSharedSpecAllowed(tickets, sharedSpec) {
 
 /**
  * Assemble markdown bodies for every Story: normalize → fold spec →
- * assertSupersedePartition → serialize.
+ * resolveSupersedePartition → serialize.
  *
- * The partition check runs **before** any GitHub write so a mis-authored
+ * The partition pass runs **before** any GitHub write so a mis-authored
  * plan never leaves Stories live against an inconsistent tracker. Story #5332
  * retired the acceptance partition that used to run beside it: it refused
  * only byte-identical acceptance text across siblings, and the split gate is
@@ -526,7 +526,7 @@ function assertSharedSpecAllowed(tickets, sharedSpec) {
  * @param {object} [opts]
  * @param {string|null} [opts.sharedSpec]
  * @param {number[]} [opts.sourceTicketIds] Ids passed to `/mandrel-plan --tickets`.
- * @returns {{ stories: Array<{ slug: string, title: string, body: string, acceptance: string[], depends_on: string[], supersedes: Array<{ id: number, note: string|null }> }> }}
+ * @returns {{ stories: Array<{ slug: string, title: string, body: string, acceptance: string[], depends_on: string[], supersedes: Array<{ id: number, note: string|null }> }>, warnings: string[] }}
  */
 export function assemblePlanStories(tickets, opts = {}) {
   if (!Array.isArray(tickets) || tickets.length === 0) {
@@ -541,9 +541,12 @@ export function assemblePlanStories(tickets, opts = {}) {
     (ticket) => assembleOnePlanStory(ticket, opts).story,
   );
 
-  assertSupersedePartition(stories, opts.sourceTicketIds ?? []);
+  const warnings = resolveSupersedePartition(
+    stories,
+    opts.sourceTicketIds ?? [],
+  );
 
-  return { stories };
+  return { stories, warnings };
 }
 
 function orderStoriesByDependencies(stories) {

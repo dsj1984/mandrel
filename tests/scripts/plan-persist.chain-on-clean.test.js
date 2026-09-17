@@ -19,7 +19,10 @@ import {
 } from '../../.agents/scripts/lib/label-constants.js';
 import { serialize } from '../../.agents/scripts/lib/story-body/story-body.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
-import { runPersistChain } from '../../.agents/scripts/plan-persist.js';
+import {
+  runPersistChain,
+  shouldChainPersist,
+} from '../../.agents/scripts/plan-persist.js';
 
 /**
  * A clean Story: one `refactors-existing` change against a path that exists
@@ -48,7 +51,7 @@ function cleanTicket(slug = 'solo') {
   };
 }
 
-/** A Story with no acceptance/verify contract — fails the dry-run validator. */
+/** A Story with no acceptance contract — fails the dry-run validator. */
 function invalidTicket() {
   return {
     slug: 'bad',
@@ -223,7 +226,7 @@ describe('runPersistChain — fast path (Story #4741, any plan since #5312)', ()
               story: invalidTicket(),
             }),
           }),
-        /acceptance \+ verify contract/,
+        /lack an inline acceptance contract/,
       );
       // The real persist pass never ran — nothing was created.
       assert.equal(provider.issues.size, 0);
@@ -251,5 +254,24 @@ describe('runPersistChain — fast path (Story #4741, any plan since #5312)', ()
     } finally {
       rmSync(tempRoot, { recursive: true, force: true });
     }
+  });
+});
+
+describe('shouldChainPersist — persist is one command (Story #5342)', () => {
+  it('chains with no flags at all', () => {
+    assert.equal(shouldChainPersist({}), true);
+  });
+
+  it('chains when --chain-on-clean is passed, the no-op alias', () => {
+    assert.equal(shouldChainPersist({ 'chain-on-clean': true }), true);
+  });
+
+  it('does not chain under an explicit --dry-run', () => {
+    assert.equal(shouldChainPersist({ 'dry-run': true }), false);
+    // The alias cannot turn an explicit dry-run back into a write.
+    assert.equal(
+      shouldChainPersist({ 'dry-run': true, 'chain-on-clean': true }),
+      false,
+    );
   });
 });
