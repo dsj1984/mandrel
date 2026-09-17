@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-17T15:36:19.279Z",
+  "generatedAt": "2026-09-17T14:58:01.505Z",
   "rollup": {
     "*": {
       "min": 76.381,
@@ -144,7 +144,7 @@
     },
     {
       "path": ".agents/scripts/deliver-light.js",
-      "mi": 94.257
+      "mi": 92.181
     },
     {
       "path": ".agents/scripts/deliver-recover.js",
@@ -1188,7 +1188,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/complexity-gate.js",
-      "mi": 101.602
+      "mi": 102.576
     },
     {
       "path": ".agents/scripts/lib/orchestration/deliver-recover.js",
@@ -1328,7 +1328,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/light-suitability.js",
-      "mi": 93.545
+      "mi": 92.799
     },
     {
       "path": ".agents/scripts/lib/orchestration/merge-block-class.js",
