@@ -35,10 +35,10 @@ import { upsertStructuredComment } from './ticketing.js';
 /**
  * Canonical epilogue step kinds, in execution order.
  *
- * `sibling-coherence` was removed in Story #5341. It read every Story body a
- * second time to post a `plan-run-sibling-coherence` comment that nothing —
- * no script, no workflow step, no gate — ever read back, on the one run shape
- * (N>1) where the re-read is most expensive.
+ * A fourth step — a cross-Story spec/acceptance coherence check — was removed
+ * in Story #5341: it re-read every Story body to post a comment nothing read
+ * back, on the one run shape (N>1) where that re-read costs the most. ADR
+ * `20260917-5341` carries the reasoning.
  *
  * @type {readonly ['audit-roster', 'follow-up-rollup', 'epic-close']}
  */

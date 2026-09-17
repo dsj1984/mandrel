@@ -21,14 +21,6 @@ import { describe, it } from 'node:test';
 
 import { resolveConfig } from '../../.agents/scripts/lib/config-resolver.js';
 import { getAgentrcValidator } from '../../.agents/scripts/lib/config-settings-schema.js';
-
-/**
- * Story #5341 flipped `retroProposals` to opt-in. Every filing assertion below
- * is about what the graduator does when a consumer has asked for it, so each
- * one now says so explicitly instead of relying on a default that no longer
- * points that way.
- */
-const AUTO_FILE_ON = { delivery: { feedbackLoop: { retroProposals: true } } };
 import {
   buildContentMarker,
   enrichRoutedProposalsWithFilings,
@@ -187,6 +179,14 @@ function makeRoutedProposals() {
 }
 
 const REPO = { owner: 'o', repo: 'r' };
+
+/**
+ * Story #5341 flipped `retroProposals` to opt-in. Every filing assertion below
+ * is about what the graduator does when a consumer has asked for it, so each
+ * one now says so explicitly instead of relying on a default that no longer
+ * points that way.
+ */
+const AUTO_FILE_ON = { delivery: { feedbackLoop: { retroProposals: true } } };
 
 describe('AC1 — the toggle ON files actionable proposals via the pre-parsed seam', () => {
   it('files two issues with meta::* + friction::<category> labels, and re-run files nothing', async () => {

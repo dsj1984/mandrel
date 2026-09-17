@@ -37,25 +37,15 @@
       "requiredChecks": [
         {
           "name": "lint",
-          "cmd": [
-            "npm",
-            "run",
-            "lint"
-          ]
+          "cmd": ["npm", "run", "lint"]
         },
         {
           "name": "test",
-          "cmd": [
-            "npm",
-            "test"
-          ]
+          "cmd": ["npm", "test"]
         },
         {
           "name": "baselines",
-          "cmd": [
-            "node",
-            ".agents/scripts/check-baselines.js"
-          ]
+          "cmd": ["node", ".agents/scripts/check-baselines.js"]
         }
       ]
     },
@@ -68,11 +58,7 @@
     },
     "notifications": {
       "mentionOperator": false,
-      "commentEvents": [
-        "state-transition",
-        "story-merged",
-        "operator-message"
-      ],
+      "commentEvents": ["state-transition", "story-merged", "operator-message"],
       "webhookEvents": [
         "state-transition",
         "story-merged",
@@ -99,9 +85,7 @@
       "requireCreditedCapture": false
     },
     "docsFreshness": {
-      "paths": [
-        "README.md"
-      ]
+      "paths": ["README.md"]
     },
     "tempRetention": {
       "enabled": true,
@@ -181,9 +165,7 @@
               "methodsAbove20": 50
             }
           },
-          "targetDirs": [
-            "src"
-          ],
+          "targetDirs": ["src"],
           "newMethodCeiling": 30,
           "requireCoverage": true,
           "friction": {
@@ -269,9 +251,7 @@
               "percentage": 25
             }
           },
-          "targetDirs": [
-            "src"
-          ],
+          "targetDirs": ["src"],
           "refreshTimeoutMs": 60000,
           "ignoreGlobs": []
         }
@@ -315,16 +295,12 @@
         },
         {
           "name": "security-review",
-          "scopes": [
-            "story"
-          ],
+          "scopes": ["story"],
           "optional": true
         },
         {
           "name": "ultrareview",
-          "scopes": [
-            "story"
-          ],
+          "scopes": ["story"],
           "manualPrompt": true,
           "when": {
             "label": "risk::high"
@@ -388,23 +364,14 @@
     "gherkinLint": {
       "scopes": {
         "web": {
-          "featureRoots": [
-            "apps/web/tests/features"
-          ],
-          "stepRoots": [
-            "apps/web/tests/steps"
-          ]
+          "featureRoots": ["apps/web/tests/features"],
+          "stepRoots": ["apps/web/tests/steps"]
         }
       },
-      "exemptionTags": [
-        "@skip"
-      ],
+      "exemptionTags": ["@skip"],
       "stepWaivers": []
     },
-    "consoleAllowlist": [
-      "Download the React DevTools",
-      "[HMR]"
-    ],
+    "consoleAllowlist": ["Download the React DevTools", "[HMR]"],
     "designTokens": "src/styles/tokens.css"
   }
 }
