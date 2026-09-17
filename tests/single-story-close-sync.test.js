@@ -19,6 +19,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { BASELINES_GATE_NAMES as REAL_BASELINES_GATE_NAMES } from '../.agents/scripts/lib/close-validation/gates.js';
 import { pinRunScopedConfig } from '../.agents/scripts/lib/orchestration/run-scoped-config.js';
 import { runBaseSyncPhase } from '../.agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js';
+import { validateTerminalEnvelope } from '../.agents/scripts/lib/orchestration/story-deliver-terminal.js';
 import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 import {
   buildSyncFailureCommentBody,
@@ -126,6 +127,12 @@ function makeFakeGh(handler) {
     return { stdout: text, stderr: '', code: 0 };
   };
   return {
+    // Story #5355 — the close's GraphQL preflight asks this same facade for
+    // one `gh api graphql` read before any phase runs, so a facade without
+    // `api` would answer every close in this file with an inconclusive
+    // probe. Answering it healthily keeps these tests on the available path,
+    // which is the one they are about.
+    api: () => dispatch(['api', '-X', 'POST', 'graphql']),
     pr: {
       list: (flags = [], fields) =>
         dispatch([
@@ -1267,5 +1274,143 @@ describe('runBaseSyncPhase — the spent-credit warning (Story #5267/#5278)', ()
     assert.equal(warned.at(-1), '⚠️    …and 8 more');
     // Header + the capture-stamp verdict + 12 listed + the overflow line.
     assert.equal(warned.length, 15);
+  });
+});
+
+describe('runSingleStoryClose — GraphQL preflight (Story #5355)', () => {
+  const reviewOk = async () => ({
+    status: 'ok',
+    severity: { critical: 0, high: 0, medium: 0, suggestion: 0 },
+    posted: false,
+    postedCommentId: null,
+    commentTargetId: 0,
+    halted: false,
+    blockerReason: null,
+  });
+
+  let preflightTag = 0;
+
+  /**
+   * Record which pre-push steps a close reaches. The defect this Story fixes
+   * is that ALL of them ran — gates, sync, push — before the run discovered
+   * it could not open a PR, so "what did the run spend?" is the assertion
+   * that matters, and an empty list is the fix.
+   */
+  function preflightHarness(t, { probe }) {
+    const order = [];
+    t.mock.module(GIT_UTILS_URL, {
+      namedExports: {
+        ...gitUtilsMock().namedExports,
+        gitSync: (_cwd, ...args) => {
+          if (args[0] === 'push') order.push('push');
+          return '';
+        },
+      },
+    });
+    mockCloseValidation(t, {
+      namedExports: {
+        buildDefaultGates: () => [],
+        runCloseValidation: async () => {
+          order.push('close-validation');
+          return { ok: true, failed: [] };
+        },
+      },
+    });
+    t.mock.module(WORKTREE_MANAGER_URL, worktreeManagerMock());
+    const provider = fakeProvider();
+    const run = async () => {
+      preflightTag += 1;
+      const { runSingleStoryClose } = await import(
+        `${SUT_URL}?t=preflight-${preflightTag}`
+      );
+      return runSingleStoryClose({
+        storyId: 4242,
+        noWaitForMerge: true,
+        cwd: REPO_ROOT,
+        injectedProvider: provider,
+        injectedConfig: fakeConfig(),
+        injectedNotify: () => Promise.resolve(),
+        injectedRunCodeReview: reviewOk,
+        injectedGraphqlProbe: probe,
+        injectedSync: async () => {
+          order.push('base-sync');
+          return { synced: true, kind: 'fast-forward' };
+        },
+        injectedGh: makeFakeGh((args) => {
+          if (args[1] === 'list') return [];
+          if (args[1] === 'create') return 'https://github.com/o/r/pull/9';
+          return '';
+        }),
+      });
+    };
+    return { order, provider, run };
+  }
+
+  // AC-1 — the run stops in `init`: no gate is spawned and nothing is pushed.
+  // AC-5 — and the envelope it emits is the shipped schema's, unchanged.
+  it('stops in init on an unavailable verdict, spending no gate and no push', async (t) => {
+    const h = preflightHarness(t, {
+      probe: async () => ({
+        verdict: 'unavailable',
+        available: false,
+        reason: 'http-403',
+        detail: 'gh: HTTP 403',
+      }),
+    });
+    const out = await h.run();
+    assert.equal(out.success, false);
+    assert.deepEqual(h.order, [], 'no phase after init may run');
+    assert.equal(out.terminal.status, 'blocked');
+    assert.equal(out.terminal.phase, 'init');
+    assert.match(out.terminal.blocked.reason, /GraphQL is unavailable/i);
+    assert.match(out.terminal.blocked.reason, /gh pr create/);
+    assert.match(out.terminal.blocked.reason, /local session/i);
+    assert.match(
+      out.terminal.nextCommand,
+      /single-story-close\.js --story 4242/,
+    );
+    assert.ok(
+      h.provider._labels().includes('agent::blocked'),
+      'the Story must carry the label the blocked envelope claims',
+    );
+    // AC-5 — re-validated here rather than trusting the writer, so the
+    // envelope's schema conformance is asserted by this Story's own test.
+    validateTerminalEnvelope(out.terminal);
+  });
+
+  // AC-3 — the auth fault takes the same exit with a different message.
+  it('refuses an auth failure with its own message, not the 403 one', async (t) => {
+    const h = preflightHarness(t, {
+      probe: async () => ({
+        verdict: 'auth-failed',
+        available: false,
+        reason: 'auth',
+        detail: 'gh: run gh auth login',
+      }),
+    });
+    const out = await h.run();
+    assert.equal(out.terminal.status, 'blocked');
+    assert.equal(out.terminal.phase, 'init');
+    assert.match(out.terminal.blocked.reason, /gh auth login/);
+    assert.doesNotMatch(
+      out.terminal.blocked.reason,
+      /re-run the close from a local session/i,
+    );
+    assert.deepEqual(h.order, []);
+  });
+
+  // AC-4 — an available verdict leaves the pipeline exactly as it was.
+  it('changes nothing when GraphQL is available', async (t) => {
+    const h = preflightHarness(t, {
+      probe: async () => ({
+        verdict: 'available',
+        available: true,
+        reason: 'ok',
+      }),
+    });
+    const out = await h.run();
+    assert.equal(out.success, true);
+    assert.deepEqual(h.order, ['base-sync', 'close-validation', 'push']);
+    assert.equal(out.terminal.status, 'pending');
   });
 });

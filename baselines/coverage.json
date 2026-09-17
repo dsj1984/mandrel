@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-09-17T16:12:13.606Z",
+  "generatedAt": "2026-09-17T17:09:04.498Z",
   "rollup": {
     "*": {
-      "lines": 96.35,
+      "lines": 96.36,
       "branches": 87.33,
-      "functions": 88.38
+      "functions": 88.4
     }
   },
   "rows": [
@@ -1530,9 +1530,9 @@
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
-      "lines": 97.15,
-      "branches": 90.11,
-      "functions": 84.62
+      "lines": 97.82,
+      "branches": 91.6,
+      "functions": 86.05
     },
     {
       "path": ".agents/scripts/lib/git-branch-cleanup.js",
@@ -2417,6 +2417,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/graphql-preflight.js",
+      "lines": 100,
+      "branches": 82.35,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
       "lines": 100,
       "branches": 83.87,
@@ -2484,9 +2490,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
-      "lines": 98.1,
-      "branches": 86.6,
-      "functions": 86.96
+      "lines": 98.24,
+      "branches": 87,
+      "functions": 87.5
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-lease-guard.js",

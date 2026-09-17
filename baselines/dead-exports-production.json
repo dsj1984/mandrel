@@ -1,7 +1,7 @@
 {
   "$schema": "https://mandrel.dev/baselines/dead-exports.schema.json",
   "kernelVersion": "6.17.1",
-  "generatedAt": "2026-09-17T16:03:58.447Z",
+  "generatedAt": "2026-09-17T17:05:01.637Z",
   "mode": "production",
   "rows": [
     {
@@ -970,6 +970,10 @@
     },
     {
       "file": ".agents/scripts/lib/gh-exec.js",
+      "symbol": "describeGraphqlPreflight"
+    },
+    {
+      "file": ".agents/scripts/lib/gh-exec.js",
       "symbol": "getSpawnCount"
     },
     {
@@ -991,6 +995,10 @@
     {
       "file": ".agents/scripts/lib/gh-exec.js",
       "symbol": "GhScopeError"
+    },
+    {
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "symbol": "probeGraphqlAvailability"
     },
     {
       "file": ".agents/scripts/lib/gh-exec.js",
@@ -1619,6 +1627,10 @@
     {
       "file": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "symbol": "resolveMergeWaitConfig"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/graphql-preflight.js",
+      "symbol": "*"
     },
     {
       "file": ".agents/scripts/lib/orchestration/single-story-close/phases/options.js",

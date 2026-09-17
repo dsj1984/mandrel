@@ -60,12 +60,13 @@ the floor-vs-ratchet policy are tooling commitments rather than ADRs and live in
 
 <!-- ADR-INDEX:START -->
 
-**In force (49).** Each governs the surface named beside it.
+**In force (50).** Each governs the surface named beside it.
 A `Status` of `Accepted in part` means some clause of the entry has been
 superseded — open it before citing it.
 
 | Decision | Governs | Surface | Status |
 | --- | --- | --- | --- |
+| [`20260917-5355`](#adr-20260917-5355-probe-graphql-reachability-at-close-init-defer-the-gh-pr-rest-migration) | Probe GraphQL reachability at close init; defer the `gh pr` REST migration | `.agents/scripts/lib/gh-exec.js` | Accepted |
 | [`20260917-5345`](#adr-20260917-5345-the-multi-story-run-is-a-script-beat-plus-spawns-and-closes-the-run-ledger-is-the-dispatch-record) | The multi-Story run is a script beat plus spawns and closes | `.agents/scripts/deliver-run.js` | Accepted |
 | [`20260917-5344`](#adr-20260917-5344-the-light-gate-reads-evidence-only-and-an-escalation-may-continue-in-session) | The light gate reads evidence only; an escalation may continue in-session | `.agents/scripts/lib/orchestration/light-suitability.js` | Accepted |
 | [`20260917-5343`](#adr-20260917-5343-the-delivering-worker-owns-its-acceptance-verdict-and-a-recorded-verdict-buys-one-rerun) | The delivering worker owns its acceptance verdict; a recorded verdict buys one rerun | `.agents/scripts/lib/orchestration/ceremony-routing.js` | Accepted |
@@ -154,6 +155,99 @@ at the release tag named in the entry.
 - [Earlier ADRs (001 / 002 / 003)](#earlier-adrs-001--002--003)
 
 <!-- ADR-INDEX:END -->
+
+## ADR 20260917-5355: Probe GraphQL reachability at close init; defer the `gh pr` REST migration
+
+**Status:** Accepted
+**Date:** 2026-09-17
+**Deciders:** @dsj1984
+**Surface:** `.agents/scripts/lib/gh-exec.js`
+**Story:** #5355
+
+### Context
+
+A Story delivered from a Claude Code web session ran the entire
+close-validation gate chain, synced from the base branch, pushed — and then
+died in the `pull-request` phase on `gh pr create` with `gh-exec: gh exited
+with code 1` wrapping a raw HTTP 403. GitHub's GraphQL API is not reachable
+from that session, and `gh` routes the whole pull-request surface through it.
+
+That surface is six subcommands, and `lib/gh-exec.js` reaches every one of
+them: `gh pr view`, `gh pr create`, `gh pr edit`, `gh pr merge`,
+`gh pr update-branch` and `gh pr list`. They stand or fall together — there is
+no degraded subset where a PR can still be opened, inspected or merged. So the
+403 was not a phase-local failure that a later phase might have survived; it
+was a fact about the session, knowable before the first gate ran, that the
+operator paid roughly five minutes of gates to learn.
+
+The message compounded it. `gh exited with code 1` names neither the cause nor
+a remedy, and the remedy is not a retry — it is to run the close somewhere
+else.
+
+### Decision
+
+**`gh-exec.js` gains a GraphQL reachability probe, and close runs it during
+`init`.** One cheap authenticated read (`query{viewer{login}}`) classifies the
+session into three verdicts:
+
+| Verdict | Condition | Remedy the refusal names |
+| --- | --- | --- |
+| `available` | GraphQL answered | — the close proceeds unchanged |
+| `unavailable` | HTTP 403 from the GraphQL endpoint | Re-run the close from a local session |
+| `auth-failed` | No usable token — missing, expired, or under-scoped | Re-authenticate and re-run **here** |
+
+The last two are deliberately not one verdict. They have opposite remedies,
+and telling an unauthenticated operator to change sessions sends them to
+reproduce the fault somewhere new.
+
+Two properties bound the cost. On the happy path the probe is **one API read
+and no behaviour change** — same phase order, same gates, same envelope
+fields. And an *ambiguous* probe (a timeout, a connection reset, a novel `gh`
+error) is **fail-open**: it reports `available` with a recorded
+`probe-inconclusive` reason, because a failure that says nothing about
+reachability must not trade a rare late block for a common early one.
+
+A refusal returns rather than throws. The Story is flipped to
+`agent::blocked`, a `friction` comment carries the blocker and the remedy, and
+close emits a `blocked` terminal envelope at phase `init`, reusing the
+`api-race-other` block class — the shared classifier's documented fallback for
+a novel API condition — so the envelope validates against the shipped
+`story-deliver-terminal.schema.json` with no schema change. The block class is
+a bucket; the `reason` string is what names the fault.
+
+### Alternatives considered
+
+- **Migrate the `gh pr` surface to REST.** Deferred, deliberately, and this is
+  the entry that records the deferral rather than leaving it to be
+  rediscovered by the next operator who reads a 403. REST serves all six
+  operations, so mandrel *could* land a Story from a web session. But it is
+  twelve call sites across eight modules (`pull-request.js`, `auto-merge.js`,
+  the two `confirm-merge` modules, `deliver-recover.js`,
+  `pr-watch-with-update.js`, `single-story-confirm-merge.js`,
+  `ledger-pr.js`), and the part that breaks is the part with no direct REST
+  equivalent: **native auto-merge is a GraphQL mutation**
+  (`enablePullRequestAutoMerge`). Replacing it means either a polled-merge
+  fallback or giving up the arm, which is a delivery-model change, not a
+  transport swap — precisely why it needs its own plan and its own decision.
+- **Let the 403 surface where it happens, with a better message.** Rejected:
+  a clearer message at the `pull-request` phase still bills the operator for
+  the whole gate chain, the base-sync merge commit and a push first.
+- **Probe more than GraphQL.** Rejected. One condition, one read. A general
+  capability preflight is a standing tax on every close for faults nobody has
+  observed.
+
+### Consequences
+
+- A close from a GraphQL-less session costs one API read instead of a full
+  gate chain, a sync and a push, and says what to do about it.
+- The `gh pr` surface stays on GraphQL, so mandrel still cannot land from such
+  a session. That is now a named, recorded limitation with a written
+  follow-up, not an unexplained 403.
+- The block class `api-race-other` now covers a condition that is neither a
+  race nor transient. The `reason` string carries the whole diagnosis, which
+  is where a reader should be looking anyway.
+- Every close pays one extra API read. If that ever matters, the probe is one
+  function and one call site.
 
 ## ADR 20260917-5345: The multi-Story run is a script beat plus spawns and closes; the run ledger is the dispatch record
 
