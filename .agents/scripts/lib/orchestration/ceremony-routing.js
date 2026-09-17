@@ -131,9 +131,10 @@ function normalizeCeremonyProfile(value) {
  * }}
  */
 export function resolveCeremonyForRisk(input = {}) {
-  const profile = normalizeCeremonyProfile(
-    input && typeof input === 'object' ? input.ceremonyProfile : undefined,
-  );
+  // Optional chaining rather than a typeof guard: `normalizeCeremonyProfile`
+  // is already total over anything that is not one of the three names, so a
+  // non-object input degrades to `standard` through the same door.
+  const profile = normalizeCeremonyProfile(input?.ceremonyProfile);
   const { mode, reason } = PROFILE_DECISIONS[profile];
   return { mode, reason, profile, verdictOwner: verdictOwnerForMode(mode) };
 }
