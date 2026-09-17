@@ -164,12 +164,25 @@ describe('ci-remediation defines the unreproducible-tier verdict (Story #4994, A
     );
   });
 
-  it('still forbids rerunning to green under every verdict, the new one included', () => {
+  it('admits at most one rerun, and only for a filed environmental verdict', () => {
+    // Story #5343 — `unreproducible-tier` and `capacity` earn ONE rerun once
+    // `file-ci-gap.js` has recorded the verdict for the current head SHA.
+    // What must not drift: the allowance being read as an open exemption.
     const text = read(CI_REMEDIATION);
     assert.match(
       text,
-      /Rerunning a failed job to reach green stays forbidden under every verdict,\s+`capacity` and `unreproducible-tier` included\./,
-      `${CI_REMEDIATION} must keep the rerun prohibition total — a new verdict must not read as a new exemption`,
+      /once `file-ci-gap\.js` has recorded a\s+`capacity` or `unreproducible-tier` verdict for the \*\*current head\s+SHA\*\*/,
+      `${CI_REMEDIATION} must gate the rerun on a recorded filing for the current head`,
+    );
+    assert.match(
+      text,
+      /The allowance is spent when it is honoured/,
+      `${CI_REMEDIATION} must say the allowance is one-shot`,
+    );
+    assert.match(
+      text,
+      /real\s+red that routes to \*\*Option 1\*\*/,
+      `${CI_REMEDIATION} must route the second red back to fix-at-source`,
     );
   });
 

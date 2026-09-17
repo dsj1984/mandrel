@@ -198,18 +198,36 @@ describe('the capacity verdict (Story #4877, AC-8)', () => {
     );
   });
 
-  it('still forbids rerunning a failed job to reach green under EVERY verdict', () => {
+  it('gates the one rerun on a RECORDED filing, never on the verdict alone', () => {
+    // Story #5343 narrowed the universal prohibition to a single, evidence-
+    // gated exception. The failure mode this guards is `capacity` drifting
+    // back into the excuse it was written to remove: the allowance must be
+    // earned by the filing, spendable once, and refused for pre-existing.
     const text = rule();
     assert.match(
       text,
-      /forbidden under every verdict/i,
-      'adding a verdict must not open a rerun path — the prohibition has to be ' +
-        'restated as universal, or `capacity` becomes the excuse it was meant to remove',
+      /A rerun is earned by the filing, never by the hope\./,
+      'the rule must say the FILING earns the rerun, not the claim',
+    );
+    assert.match(
+      text,
+      /Reaching the verdict is not enough/,
+      'a verdict reached but unfiled must not license a rerun',
+    );
+    assert.match(
+      text,
+      /rerun the failed job \*\*once\*\*/,
+      'the allowance must be exactly one rerun',
+    );
+    assert.match(
+      text,
+      /`pre-existing` earns none/,
+      'a defect that reproduces on main can never be rerun away',
     );
     assert.match(
       text,
       /may \*\*not\*\*\s*\n?re-run a failed job/,
-      'the original no-rerun prohibition must remain intact',
+      'the no-rerun default must remain intact outside the allowance',
     );
   });
 

@@ -35,7 +35,11 @@ import {
   INTAKE_VERDICTS,
   REFUSED_VERDICT,
 } from './lib/orchestration/ci-gap-intake.js';
-import { readCiDigest } from './lib/orchestration/ci-rerun-guard.js';
+import {
+  RERUN_ALLOWANCE_VERDICTS,
+  readCiDigest,
+  recordRerunAllowance,
+} from './lib/orchestration/ci-rerun-guard.js';
 import {
   STATE_LABELS,
   transitionTicketState,
@@ -55,7 +59,7 @@ const USAGE = {
     ],
     [
       '--verdict <verdict>',
-      `One of ${INTAKE_VERDICTS.join(' | ')}. "${REFUSED_VERDICT}" is refused: it routes to Option 1, fix at source.`,
+      `One of ${INTAKE_VERDICTS.join(' | ')}. "${REFUSED_VERDICT}" is refused: it routes to Option 1, fix at source. ${RERUN_ALLOWANCE_VERDICTS.join(' / ')} also record the one-rerun allowance on the CI digest.`,
     ],
     [
       '--owner <bucket>',
@@ -138,7 +142,12 @@ function liveIntakePorts({ provider, searchRepo, cwd, logger }) {
  * @param {object} opts
  * @returns {string}
  */
-export function renderFrictionComment({ verdict, result, digest }) {
+export function renderFrictionComment({
+  verdict,
+  result,
+  digest,
+  rerunAllowance = null,
+}) {
   const target = result.issue?.url ?? result.issue?.number ?? '(not filed)';
   const lines = [
     `### CI gap filed — verdict \`${verdict}\``,
@@ -158,12 +167,29 @@ export function renderFrictionComment({ verdict, result, digest }) {
       `- **Routing:** deferred from \`${result.routing.deferredFrom}\` (${result.routing.deferralReason}) — filed locally instead.`,
     );
   }
-  lines.push(
-    '',
-    'This verdict does **not** license a re-run of the failed job. Graduate the',
-    'intake issue with `/mandrel-plan <issue number>` to turn it into a Story.',
-  );
+  lines.push('', renderRerunLine(rerunAllowance), GRADUATE_LINE);
   return lines.join('\n');
+}
+
+/** The graduation instruction every filing carries, verdict-independent. */
+const GRADUATE_LINE =
+  'Graduate the intake issue with `/mandrel-plan <issue number>` to turn it into a Story.';
+
+/**
+ * What this filing says about rerunning the failed job (Story #5343). An
+ * allowance is stated with its head SHA and its one-shot bound, because the
+ * comment is where an operator reads whether the rerun they are about to do
+ * is the sanctioned one.
+ *
+ * @param {{ headSha: string } | null} rerunAllowance
+ * @returns {string}
+ */
+function renderRerunLine(rerunAllowance) {
+  return rerunAllowance
+    ? 'This verdict is environmental and proven, so **one** rerun of the failed ' +
+        `job is now admitted on head \`${rerunAllowance.headSha}\` — and one only. ` +
+        'A second red after it is real and routes to Option 1.'
+    : 'This verdict does **not** license a re-run of the failed job.';
 }
 
 /**
@@ -198,7 +224,12 @@ export async function runFileCiGap({
     throw new Error('--story <id> is required (a positive issue number).');
   }
   const resolved = config ?? resolveConfig();
-  const ciDigest = digest ?? readCiDigest({ storyId: sid, tempRoot, cwd });
+  // The digest's temp root, resolved exactly as `pr-watch-with-update.js`
+  // resolves it when it WRITES the digest — the CLI never passed one, so the
+  // default read crashed on `undefined` before it could find the file.
+  const digestRoot = tempRoot ?? resolved?.project?.paths?.tempRoot ?? 'temp';
+  const ciDigest =
+    digest ?? readCiDigest({ storyId: sid, tempRoot: digestRoot, cwd });
   if (!ciDigest) {
     throw new Error(
       `no CI digest for Story #${sid}. The digest is written by \`pr-watch-with-update.js --story ${sid}\` on the first red; without it there is no run link or failure signature to file.`,
@@ -237,9 +268,26 @@ export async function runFileCiGap({
     now,
   });
 
+  // Story #5343 — a proven-environmental verdict earns the one same-SHA
+  // rerun the watcher's guard will admit. Recorded on the digest, keyed to
+  // the head SHA the red was observed on, and never on a dry run.
+  const rerunAllowance = dryRun
+    ? null
+    : recordRerunAllowance({
+        storyId: sid,
+        verdict,
+        tempRoot: digestRoot,
+        cwd,
+      });
+
   const actions = { commented: false, blocked: false };
   if (!dryRun && ticketing) {
-    const body = renderFrictionComment({ verdict, result, digest: ciDigest });
+    const body = renderFrictionComment({
+      verdict,
+      result,
+      digest: ciDigest,
+      rerunAllowance,
+    });
     try {
       await upsertStructuredComment(ticketing, sid, 'friction', body);
       actions.commented = true;
@@ -258,7 +306,7 @@ export async function runFileCiGap({
     }
   }
 
-  return { storyId: sid, verdict, ...result, actions };
+  return { storyId: sid, verdict, ...result, actions, rerunAllowance };
 }
 
 /**

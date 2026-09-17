@@ -21,13 +21,14 @@
  */
 
 import assert from 'node:assert/strict';
-import { existsSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import {
   classifyGreenVerdict,
   disarmAutoMerge,
   formatRerunViolation,
+  recordRerunAllowance,
   resolvePrHeadSha,
 } from '../../.agents/scripts/lib/orchestration/ci-rerun-guard.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
@@ -86,6 +87,16 @@ function seedDigest(tempRoot, storyId, digest) {
   writeFileSync(file, JSON.stringify(digest, null, 2));
   writeFileSync(path.join(tempRoot, `story-${storyId}-ci-digest.md`), '# seed');
   return file;
+}
+
+/** Read a seeded digest back off disk. */
+function readDigest(tempRoot, storyId) {
+  return JSON.parse(
+    readFileSync(
+      path.join(tempRoot, `story-${storyId}-ci-digest.json`),
+      'utf8',
+    ),
+  );
 }
 
 /** Baseline watch options: red or green checks, everything else stubbed. */
@@ -531,5 +542,173 @@ describe('ci-rerun-guard units', () => {
       /pre-existing\|capacity\|unreproducible-tier/,
       'the violation names the verdicts that route to a filing',
     );
+  });
+});
+
+/**
+ * Story #5343 — the one rerun a recorded verdict buys. `capacity` and
+ * `unreproducible-tier` name proven *environmental* failures, so no commit on
+ * the branch can move the head SHA to clear them; the no-rerun rule stranded
+ * those deliveries until a human intervened. The allowance is earned by the
+ * FILING, not by the claim, and it is spent the moment it is honoured.
+ */
+describe('one rerun after a recorded verdict (Story #5343)', () => {
+  const ALLOWED = {
+    storyId: 5343,
+    prNumber: 5343,
+    headSha: 'same-sha',
+    failingCheck: 'Validate and Test',
+    runId: '9001',
+    runUrl: 'https://github.com/o/r/actions/runs/9001',
+    classification: 'test',
+    logTail: 'forkpty/sudo: Device not configured',
+    priorReds: [],
+    rerunAllowance: {
+      verdict: 'capacity',
+      headSha: 'same-sha',
+      recordedAt: '2026-09-17T00:00:00.000Z',
+    },
+  };
+
+  it('classifies a same-SHA green as rerun-permitted when the allowance matches', () => {
+    for (const verdict of ['capacity', 'unreproducible-tier']) {
+      const out = classifyGreenVerdict({
+        digest: {
+          headSha: 'a',
+          rerunAllowance: { verdict, headSha: 'a' },
+        },
+        headSha: 'a',
+      });
+      assert.equal(out.verdict, 'rerun-permitted');
+      assert.match(out.reason, new RegExp(verdict));
+    }
+  });
+
+  it('refuses an allowance that is not one', () => {
+    const cases = [
+      // Earned on a different head — the red being adjudicated is not the one
+      // that was filed for.
+      { verdict: 'capacity', headSha: 'other' },
+      // pre-existing reproduces on main: a real defect, not an environment.
+      { verdict: 'pre-existing', headSha: 'a' },
+      { verdict: 'defect-in-diff', headSha: 'a' },
+      null,
+      'capacity',
+    ];
+    for (const rerunAllowance of cases) {
+      assert.equal(
+        classifyGreenVerdict({
+          digest: { headSha: 'a', rerunAllowance },
+          headSha: 'a',
+        }).verdict,
+        'rerun',
+        `expected a block for ${JSON.stringify(rerunAllowance)}`,
+      );
+    }
+  });
+
+  it('recordRerunAllowance stamps the digest only for the two verdicts', async () => {
+    await withTempRoot(async (tempRoot) => {
+      seedDigest(tempRoot, 5343, { ...ALLOWED, rerunAllowance: undefined });
+
+      assert.equal(
+        recordRerunAllowance({
+          storyId: 5343,
+          verdict: 'pre-existing',
+          tempRoot,
+          cwd: process.cwd(),
+        }),
+        null,
+      );
+      assert.equal(readDigest(tempRoot, 5343).rerunAllowance, undefined);
+
+      const stamped = recordRerunAllowance({
+        storyId: 5343,
+        verdict: 'capacity',
+        tempRoot,
+        cwd: process.cwd(),
+      });
+      assert.equal(stamped.verdict, 'capacity');
+      // Keyed on the digest's OWN head, never on a head the caller asserts.
+      assert.equal(stamped.headSha, 'same-sha');
+      const onDisk = readDigest(tempRoot, 5343);
+      assert.deepEqual(onDisk.rerunAllowance, stamped);
+      assert.equal(onDisk.failingCheck, 'Validate and Test', 'digest intact');
+    });
+  });
+
+  it('records nothing when there is no digest to stamp', async () => {
+    await withTempRoot(async (tempRoot) => {
+      assert.equal(
+        recordRerunAllowance({
+          storyId: 5343,
+          verdict: 'capacity',
+          tempRoot,
+          cwd: process.cwd(),
+        }),
+        null,
+      );
+    });
+  });
+
+  it('admits the green, retires the digest and re-arms auto-merge', async () => {
+    await withTempRoot(async (tempRoot) => {
+      const rec = recorder();
+      seedDigest(tempRoot, 5343, ALLOWED);
+      const blocks = [];
+      let reArmed = 0;
+      const code = await runPrWatch(
+        watchOpts({
+          checks: GREEN_CHECKS,
+          tempRoot,
+          storyId: 5343,
+          rec,
+          headShaFn: () => 'same-sha',
+          reArmAutoMergeFn: async () => {
+            reArmed += 1;
+            return { enabled: true };
+          },
+          blockDeliveryFn: async (args) => {
+            blocks.push(args);
+            return { blocked: true, commented: true };
+          },
+        }),
+      );
+
+      assert.equal(code, 0, 'the admitted rerun is a green exit');
+      assert.equal(blocks.length, 0, 'nothing is blocked');
+      assert.equal(reArmed, 1);
+      // Spending the allowance IS retiring the digest: that is what makes it
+      // exactly one rerun rather than an open licence on this head.
+      assert.equal(
+        existsSync(path.join(tempRoot, 'story-5343-ci-digest.json')),
+        false,
+      );
+      const out = JSON.parse(rec.lines.print[0]);
+      assert.equal(out.rerunGuard.verdict, 'rerun-permitted');
+    });
+  });
+
+  it('still blocks a same-SHA green with no allowance on the digest', async () => {
+    await withTempRoot(async (tempRoot) => {
+      const rec = recorder();
+      seedDigest(tempRoot, 5343, { ...ALLOWED, rerunAllowance: undefined });
+      const blocks = [];
+      const code = await runPrWatch(
+        watchOpts({
+          checks: GREEN_CHECKS,
+          tempRoot,
+          storyId: 5343,
+          rec,
+          headShaFn: () => 'same-sha',
+          blockDeliveryFn: async (args) => {
+            blocks.push(args);
+            return { blocked: true, commented: true };
+          },
+        }),
+      );
+      assert.equal(code, 1);
+      assert.equal(blocks.length, 1);
+    });
   });
 });

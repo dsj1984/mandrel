@@ -96,10 +96,14 @@ the `friction` comment and flips the Story in one call; then hand back to the
 operator, who owns the runner pool. Do not sit in a retry loop waiting for
 capacity to return.
 
-**Rerunning a failed job to reach green stays forbidden under every verdict,
-`capacity` and `unreproducible-tier` included.** The verdict changes who owns the fix and where it is
-filed; it never licenses a re-run, and it is not a route to a green bar. A
-capacity-blocked delivery ends `agent::blocked` — not merged.
+**A rerun is earned by the filing, never by the hope.** Rerunning a failed job
+to reach green is forbidden — with exactly one exception, and it is gated on
+evidence you have already committed to: once `file-ci-gap.js` has recorded a
+`capacity` or `unreproducible-tier` verdict for the **current head SHA**, you
+may rerun the failed job **once**. Reaching the verdict is not enough; the
+filing is what records the allowance, which is what makes the claim auditable.
+See § One rerun after a recorded verdict below. A capacity-blocked delivery
+that never reaches a filing ends `agent::blocked` — not merged.
 
 ### The `unreproducible-tier` verdict
 
@@ -129,10 +133,36 @@ before. On the verdict: run
 as `--evidence`; then hand back to the operator, who owns the sandbox. Do not author a fix for a tier you could not
 run — a blind fix to a suite nobody exercised is how the gap compounds.
 
+## One rerun after a recorded verdict
+
+`capacity` and `unreproducible-tier` name failures that are proven properties
+of the **environment**: no commit on the branch can move the head SHA to clear
+them, so the no-rerun rule used to strand a correct delivery until a human
+cleared it by hand. Those two verdicts — and only those two — now buy exactly
+one rerun:
+
+1. Reach the verdict with its required readings (§ above). A green on re-run is
+   never one of those readings.
+2. File it: `node .agents/scripts/file-ci-gap.js --story <id> --verdict
+   <capacity|unreproducible-tier> --owner <bucket> --evidence "<proof reading>"`.
+   The filing stamps a `rerunAllowance` on the CI digest, keyed to the head SHA
+   the red was observed on.
+3. Rerun the failed job **once**. The watcher's same-SHA guard admits that one
+   green, retires the digest and lets the delivery proceed.
+
+The allowance is spent when it is honoured — it dies with the digest — so a
+second red after the rerun writes a fresh digest carrying none, and is a real
+red that routes to **Option 1**. An allowance recorded against a different head
+SHA is not an allowance. `pre-existing` earns none: it reproduces on `main`, so
+it names a real defect someone owns and a rerun cannot remove it. Skipping,
+quarantining or loosening a test to reach green stays forbidden under every
+verdict, always.
+
 ## Verifier
 
-The check is resolved only when it is **green with zero reruns of the failed
-job**, and the diff carries **no `.skip` / `.only`, no quarantine, and no
+The check is resolved only when it is **green with no rerun of the failed job**
+— save the one a recorded `capacity` / `unreproducible-tier` verdict buys (§
+above) — and the diff carries **no `.skip` / `.only`, no quarantine, and no
 deleted or loosened assertion** introduced to reach green. You may **not**
 re-run a failed job to "see if it goes green," and you may **not** skip,
 `.only`, or quarantine a flaky test to get a green bar. Both mask the defect
@@ -146,8 +176,11 @@ first red the watcher **disarms native auto-merge** (a disarm failure is a
 blocker, not a warning) and records the PR **head SHA** in the digest
 alongside the failing check-run identity. On green it adjudicates:
 
-- **Same head SHA** → the green came from re-running the failed job. The
-  watcher exits non-zero, flips the Story to `agent::blocked` with a
+- **Same head SHA, with a recorded allowance** → the one rerun the section
+  above buys. The digest is retired (spending the allowance), auto-merge is
+  re-armed, and the delivery continues.
+- **Same head SHA, no allowance** → the green came from re-running the failed
+  job. The watcher exits non-zero, flips the Story to `agent::blocked` with a
   `friction` comment, and requires the CI-gap intake issue
   (`file-ci-gap.js` — run link and failure signature are already in the
   digest) before the delivery proceeds.
