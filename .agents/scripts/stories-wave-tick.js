@@ -107,6 +107,18 @@
  * deterministic config source (`delivery.deliverRunner.concurrencyCap`) and
  * one scheduling kernel with every `/mandrel-deliver` multi-Story invocation.
  *
+ * **The cap is clamped to 1 when worktree isolation resolves off** (Story
+ * #5357). Concurrent dispatch is safe only because each Story gets its own
+ * checkout; with isolation off every Story resolves to the same `workCwd`, so
+ * two workers contend for `HEAD` and one takes the branch from under the
+ * other — the #5339/#5340 web run, where both wave-1 workers were initialised
+ * into the same tree. The clamp reads `resolveWorktreeEnabled`'s result, so all
+ * three routes to off (`CLAUDE_CODE_REMOTE=true`, `AP_WORKTREE_ENABLED=false`,
+ * `delivery.worktreeIsolation.enabled: false`) are covered by construction. It
+ * is a safety floor rather than a preference, so it is the one case where an
+ * explicit `--concurrency` does NOT win — and `capPrecedence` names
+ * `worktree-clamp` as the winning source and carries the requested value.
+ *
  * Exit codes: 0 ok · 1 input error · 2 dependency cycle (`cycleError`) ·
  * 3 wedged (`wedged`) — ready is empty, nothing is in flight, and undone
  * Stories are waiting on blockers that are not done · 4 blocked (`blocked`) —
@@ -124,7 +136,13 @@ import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 
 import { runAsCli } from './lib/cli-utils.js';
-import { getPaths, getRunners, resolveConfig } from './lib/config-resolver.js';
+import {
+  getPaths,
+  getRunners,
+  getWorktreeIsolation,
+  resolveConfig,
+  resolveWorktreeEnabled,
+} from './lib/config-resolver.js';
 import { detectCycle } from './lib/Graph.js';
 import { Logger } from './lib/Logger.js';
 import { AGENT_LABELS } from './lib/label-constants.js';
@@ -206,6 +224,13 @@ Options:
                      WINS over the configured value, and the envelope's
                      capPrecedence records that it did — including when the
                      request exceeds the configured cap.
+                     ONE EXCEPTION: when worktree isolation resolves off
+                     (CLAUDE_CODE_REMOTE=true, AP_WORKTREE_ENABLED=false, or
+                     delivery.worktreeIsolation.enabled: false), the cap is
+                     clamped to 1 and the clamp outranks this flag — every
+                     Story would otherwise run in the same checkout and two
+                     workers would contend for HEAD. capPrecedence reports
+                     source "worktree-clamp" with the requested value.
   --done <csv>       Comma-separated Story IDs already completed this run.
                      Their dependents become eligible; they are never
                      re-dispatched. Defaults to empty.
@@ -639,6 +664,15 @@ export function parseInFlight(raw) {
 }
 
 /**
+ * The per-beat cap a run is clamped to when worktree isolation resolves off
+ * (Story #5357). `delivery.deliverRunner.concurrencyCap` is a throughput
+ * preference; this is a safety floor, so it outranks even an explicit
+ * `--concurrency`. Why the two are coupled, and why the clamp is never silent:
+ * ADR `20260917-5357` in `docs/decisions.md`.
+ */
+export const WORKTREE_DISABLED_CONCURRENCY_CAP = 1;
+
+/**
  * Validate a raw `--concurrency` value into a positive integer.
  *
  * Accepts a number or a numeric string (from the CLI). Rejects anything that
@@ -675,7 +709,9 @@ export function parseConcurrencyOverride(raw) {
  * @param {object} [opts.config]    Pre-resolved config (injected by tests so
  *                                   they never depend on a real `.agentrc`).
  * @param {number} [opts.override]  Validated positive integer from
- *                                   `--concurrency`; wins over config.
+ *                                   `--concurrency`; wins over config, unless
+ *                                   the worktree-isolation floor clamps it.
+ * @param {NodeJS.ProcessEnv} [opts.env] Environment (test injection).
  * @returns {number} The resolved positive-integer concurrency cap.
  */
 export function resolveConcurrencyCap(opts = {}) {
@@ -702,44 +738,115 @@ export function resolveConcurrencyCap(opts = {}) {
  * safety limit, and refusing a deliberate operator escalation would trade a
  * silent override for a silent stall.
  *
+ * **The one exception (Story #5357).** When worktree isolation resolves off,
+ * the cap is clamped to {@link WORKTREE_DISABLED_CONCURRENCY_CAP} and the
+ * clamp outranks the flag. That is not a reversal of the paragraph above: the
+ * configured cap is a preference and a flag may outrank a preference, but a
+ * shared checkout is not a preference at all. Dispatching two workers into one
+ * working tree corrupts the run whatever number either source asked for, so
+ * the floor wins — loudly, per {@link resolveWorktreeClamp}.
+ *
  * @param {object} [opts]
  * @param {string} [opts.cwd]      Repo root for config resolution.
  * @param {object} [opts.config]   Pre-resolved config (test injection).
  * @param {number} [opts.override] Validated positive integer from
  *                                 `--concurrency`.
+ * @param {NodeJS.ProcessEnv} [opts.env] Environment the worktree-isolation
+ *                                 rules read (test injection).
  * @returns {{
  *   cap: number,
- *   source: 'flag'|'config',
+ *   source: 'flag'|'config'|'worktree-clamp',
  *   configuredCap: number,
  *   requestedCap: number|null,
  *   exceedsConfigured: boolean,
  *   note: string,
  * }}
  */
-export function resolveCapPrecedence({ cwd, config, override } = {}) {
+export function resolveCapPrecedence({ cwd, config, override, env } = {}) {
   const resolved = config ?? resolveConfig({ cwd });
   const { deliverRunner } = getRunners(resolved);
   const configuredCap = deliverRunner.concurrencyCap;
-  if (override == null) {
-    return {
-      cap: configuredCap,
-      source: 'config',
-      configuredCap,
-      requestedCap: null,
-      exceedsConfigured: false,
-      note: `cap ${configuredCap} from delivery.deliverRunner.concurrencyCap (no --concurrency given)`,
-    };
-  }
-  const exceedsConfigured = override > configuredCap;
+  const requested =
+    override == null
+      ? {
+          cap: configuredCap,
+          source: 'config',
+          configuredCap,
+          requestedCap: null,
+          exceedsConfigured: false,
+          note: `cap ${configuredCap} from delivery.deliverRunner.concurrencyCap (no --concurrency given)`,
+        }
+      : {
+          cap: override,
+          source: 'flag',
+          configuredCap,
+          requestedCap: override,
+          exceedsConfigured: override > configuredCap,
+          note:
+            override > configuredCap
+              ? `cap ${override} from --concurrency, which OVERRIDES and EXCEEDS the configured delivery.deliverRunner.concurrencyCap ${configuredCap} — this run is deliberately above the project default`
+              : `cap ${override} from --concurrency, which overrides the configured delivery.deliverRunner.concurrencyCap ${configuredCap}`,
+        };
+
+  return resolveWorktreeClamp({ requested, config: resolved, env });
+}
+
+/**
+ * Apply the worktree-isolation safety floor to an already-resolved precedence
+ * record (Story #5357).
+ *
+ * **Keyed off the resolved boolean, never one env var.** `CLAUDE_CODE_REMOTE`
+ * is only one of three routes to isolation-off — `AP_WORKTREE_ENABLED=false`
+ * and `delivery.worktreeIsolation.enabled: false` are the others and are
+ * exactly as unsafe — so this reads {@link resolveWorktreeEnabled}'s result and
+ * all three are covered by construction rather than by enumeration.
+ *
+ * **The config is normalised through `getWorktreeIsolation` first**, and that
+ * is load-bearing. `resolveWorktreeEnabled` reads
+ * `Boolean(config.delivery.worktreeIsolation.enabled)` raw, so a config that
+ * simply omits the block — every test-injected partial, and any consumer who
+ * never wrote one — reads `Boolean(undefined) === false` and would be clamped
+ * as though an operator had disabled isolation. `getWorktreeIsolation` applies
+ * the framework default (`enabled: true`) the same way `resolveConfig` does for
+ * a real `.agentrc`, so the clamp fires on a deliberate off, never on an
+ * absent key.
+ *
+ * The record is emitted whenever isolation is off, **including when the
+ * requested cap was already 1**: the point is that the run's sequentiality is
+ * always attributable to the reason that forced it, not left to coincide with
+ * a preference that happened to agree.
+ *
+ * @param {object} args
+ * @param {{cap: number, source: string, configuredCap: number, requestedCap: number|null, exceedsConfigured: boolean, note: string}} args.requested
+ *   The precedence record the flag-vs-config rules produced.
+ * @param {object|null} [args.config] Resolved config.
+ * @param {NodeJS.ProcessEnv} [args.env] Environment (test injection).
+ * @returns {typeof args.requested} The record unchanged when isolation is on,
+ *   or the clamped record naming `worktree-clamp` as the winning source.
+ */
+export function resolveWorktreeClamp({ requested, config, env } = {}) {
+  const worktreeEnabled = resolveWorktreeEnabled(
+    {
+      config: { delivery: { worktreeIsolation: getWorktreeIsolation(config) } },
+    },
+    env ?? process.env,
+  );
+  if (worktreeEnabled) return requested;
+
+  const from =
+    requested.source === 'flag'
+      ? '--concurrency'
+      : 'delivery.deliverRunner.concurrencyCap';
   return {
-    cap: override,
-    source: 'flag',
-    configuredCap,
-    requestedCap: override,
-    exceedsConfigured,
-    note: exceedsConfigured
-      ? `cap ${override} from --concurrency, which OVERRIDES and EXCEEDS the configured delivery.deliverRunner.concurrencyCap ${configuredCap} — this run is deliberately above the project default`
-      : `cap ${override} from --concurrency, which overrides the configured delivery.deliverRunner.concurrencyCap ${configuredCap}`,
+    cap: WORKTREE_DISABLED_CONCURRENCY_CAP,
+    source: 'worktree-clamp',
+    configuredCap: requested.configuredCap,
+    requestedCap: requested.cap,
+    // The run is at 1, so it is not above the project default whatever was
+    // asked for — the escalation never took effect and must not be reported
+    // as though it had.
+    exceedsConfigured: false,
+    note: `cap clamped to ${WORKTREE_DISABLED_CONCURRENCY_CAP} because worktree isolation resolved OFF — requested ${requested.cap} from ${from}. Concurrent dispatch shares one checkout without per-Story worktrees, so two workers would contend for HEAD; this floor outranks an explicit --concurrency.`,
   };
 }
 
@@ -1000,6 +1107,8 @@ export function detectWedge({ nodes, doneIds, ready, inFlight }) {
  * @param {string|number} [args.inFlight] Raw --in-flight count.
  * @param {string} [args.cwd]          Repo root for config resolution.
  * @param {object} [args.config]       Pre-resolved config (test injection).
+ * @param {NodeJS.ProcessEnv} [args.env] Environment the worktree-isolation
+ *                                     clamp reads (test injection).
  * @returns {{
  *   envelope: {kind: string, ready: number[], totalStories: number, concurrencyCap: number, inFlight: number, cycleError: string|null},
  *   exitCode: number
@@ -1013,6 +1122,7 @@ export function runStoriesWaveTick({
   inFlight,
   cwd,
   config,
+  env,
 } = {}) {
   // Validate the --concurrency override before resolving config so an invalid
   // value fails fast with exit code 1 regardless of DAG validity.
@@ -1033,7 +1143,7 @@ export function runStoriesWaveTick({
     return inputErrorResult(doneError, null, inFlightValue);
   }
 
-  const capPrecedence = resolveCapPrecedence({ cwd, config, override });
+  const capPrecedence = resolveCapPrecedence({ cwd, config, override, env });
   const concurrencyCap = capPrecedence.cap;
 
   let rawJson;
@@ -1107,6 +1217,8 @@ export function runStoriesWaveTick({
  *   has spawned but may not yet have observed labelled.
  * @param {string} [args.cwd]          Repo root for config resolution.
  * @param {object} [args.config]       Pre-resolved config (test injection).
+ * @param {NodeJS.ProcessEnv} [args.env] Environment the worktree-isolation
+ *   clamp reads (test injection).
  * @param {Function} [args.probe]      Probe seam (test injection).
  * @param {Function} [args.context]    Provider-context seam (test injection).
  * @returns {Promise<{ envelope: object, exitCode: number, records: object[] }>}
@@ -1120,6 +1232,7 @@ export async function runProbedStoriesWaveTick({
   dispatched,
   cwd,
   config,
+  env,
   probe = probeLiveState,
   context = createProbeContext,
 } = {}) {
@@ -1144,7 +1257,7 @@ export async function runProbedStoriesWaveTick({
     return inputErrorResult(dispatchedError);
   }
 
-  const capPrecedence = resolveCapPrecedence({ cwd, config, override });
+  const capPrecedence = resolveCapPrecedence({ cwd, config, override, env });
   const concurrencyCap = capPrecedence.cap;
 
   let probed;

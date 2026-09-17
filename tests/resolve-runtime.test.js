@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import {
+  getWorktreeIsolation,
   resolveRuntime,
   resolveSessionId,
   resolveWorkingPath,
@@ -81,6 +82,54 @@ describe('resolveWorktreeEnabled', () => {
   it('ignores non-string AP_WORKTREE_ENABLED (no environments pass non-strings, guard anyway)', () => {
     assert.equal(
       resolveWorktreeEnabled(cfgOff, { AP_WORKTREE_ENABLED: undefined }),
+      false,
+    );
+  });
+
+  // Story #5357 — the concurrency clamp in `stories-wave-tick.js` keys off
+  // this helper's result, so the difference between "the operator disabled
+  // isolation" and "the config never mentioned it" is now load-bearing for
+  // something other than worktree creation: the first must clamp a run to one
+  // worker, the second must not.
+  it('an OMITTED block is not the same fact as a disabled one — callers must normalise first', () => {
+    // Raw, an omitted block reads exactly like a disabled one...
+    assert.equal(resolveWorktreeEnabled(cfgMissing, {}), false);
+    assert.equal(resolveWorktreeEnabled(cfgOff, {}), false);
+
+    // ...and `getWorktreeIsolation` is what separates them, applying the
+    // framework default (enabled: true) the same way `resolveConfig` does for
+    // a real `.agentrc`. A caller that skips it treats every partial config —
+    // every test injection, every consumer who never wrote the block — as a
+    // deliberate opt-out.
+    const normalise = (cfg) => ({
+      config: { delivery: { worktreeIsolation: getWorktreeIsolation(cfg) } },
+    });
+    assert.equal(
+      resolveWorktreeEnabled(normalise(cfgMissing.config), {}),
+      true,
+      'an omitted block defaults ON',
+    );
+    assert.equal(
+      resolveWorktreeEnabled(normalise(cfgOff.config), {}),
+      false,
+      'a deliberate false survives normalisation',
+    );
+  });
+
+  it('normalisation does not let the config outrank an env signal', () => {
+    const normalised = {
+      config: {
+        delivery: {
+          worktreeIsolation: getWorktreeIsolation(cfgMissing.config),
+        },
+      },
+    };
+    assert.equal(
+      resolveWorktreeEnabled(normalised, { CLAUDE_CODE_REMOTE: 'true' }),
+      false,
+    );
+    assert.equal(
+      resolveWorktreeEnabled(normalised, { AP_WORKTREE_ENABLED: 'false' }),
       false,
     );
   });
