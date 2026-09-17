@@ -5,14 +5,12 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
-  AGENT_BOOT_CEILING_BYTES,
-  agentBootDrift,
-  agentBootOverflow,
   budgetFailureCount,
   buildBaseline,
   diffBudget,
-  GATED_TIERS,
+  ENFORCED_TIERS,
   loadBaseline,
+  MEASURED_TIERS,
   parseArgv,
   renderDiff,
   renderReachable,
@@ -21,12 +19,18 @@ import {
 import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 
 /**
- * Unit coverage for the context-budget ratchet (Story #4438).
+ * Unit coverage for the context-budget command (Story #4438).
  *
  * Exercises the pure helpers, then drives `runCli` end-to-end against tmpdir
  * fixtures: a seeded budget passes; an artificial byte increase beyond
  * tolerance to an always-loaded file fails naming the tier; a missing budget
  * and an empty resolved tier are clean no-ops.
+ *
+ * Story #5340 narrowed the failing set to the `alwaysLoaded` tier. Every other
+ * measured tier — and the role-scoped `agentBoot` tier, whose per-file 8 KB
+ * ceiling and row-vs-tree drift gate were deleted outright — is measured,
+ * recorded and printed, and never fails the command. The tests below assert
+ * both halves: the always-loaded gate still bites, and workflow drift does not.
  */
 
 // ---------------------------------------------------------------------------
@@ -173,13 +177,14 @@ test('AC-8: growth past tolerance still fails while a shrunk sibling tier does n
   assert.equal(budgetFailureCount(diff), 1);
 });
 
-test('diffBudget reports a recorded row naming a path the tier no longer contains', () => {
-  const diff = diffBudget(
-    { tiers: { workflow: [{ path: 'a.md', bytes: 100 }] } },
+/** A one-tier baseline whose recorded rows name a file the tree lost. */
+function absentRowFixture(tier) {
+  return diffBudget(
+    { tiers: { [tier]: [{ path: 'a.md', bytes: 100 }] } },
     {
       toleranceBytes: 0,
       tiers: {
-        workflow: {
+        [tier]: {
           totalBytes: 100,
           files: [
             { path: 'a.md', bytes: 100 },
@@ -189,13 +194,25 @@ test('diffBudget reports a recorded row naming a path the tier no longer contain
       },
     },
   );
+}
+
+test('diffBudget reports a recorded row naming a path the tier no longer contains', () => {
+  const diff = absentRowFixture('workflow');
   // The total still agrees — only the row-level check can see this one.
   assert.deepEqual(diff.grown, []);
   assert.deepEqual(diff.shrunk, []);
   assert.equal(diff.absent.length, 1);
   assert.equal(diff.absent[0].path, 'deleted.md');
   assert.equal(diff.absent[0].tier, 'workflow');
+  // Story #5340: reported, but the workflow tier no longer fails the command.
+  assert.equal(budgetFailureCount(diff), 0);
+});
+
+test('an unbacked row still fails in the always-loaded tier — the one gate that remains', () => {
+  const diff = absentRowFixture('alwaysLoaded');
+  assert.equal(diff.absent.length, 1);
   assert.equal(budgetFailureCount(diff), 1);
+  assert.deepEqual(ENFORCED_TIERS, ['alwaysLoaded']);
 });
 
 test('diffBudget reports no absent rows when every recorded path is still measured', () => {
@@ -212,7 +229,7 @@ test('diffBudget reports no absent rows when every recorded path is still measur
   assert.equal(budgetFailureCount(diff), 0);
 });
 
-test('buildBaseline records only the gated tiers with totals', () => {
+test('buildBaseline records only the measured tiers with totals', () => {
   const envelope = buildBaseline(
     {
       tiers: {
@@ -224,7 +241,10 @@ test('buildBaseline records only the gated tiers with totals', () => {
     },
     2048,
   );
-  assert.deepEqual(Object.keys(envelope.tiers).sort(), [...GATED_TIERS].sort());
+  assert.deepEqual(
+    Object.keys(envelope.tiers).sort(),
+    [...MEASURED_TIERS].sort(),
+  );
   assert.equal(envelope.tiers.alwaysLoaded.totalBytes, 10);
   assert.equal(envelope.tiers.mandatoryRead.totalBytes, 20);
   assert.equal(envelope.toleranceBytes, 2048);
@@ -254,7 +274,7 @@ test('renderDiff tags a gate fail and a clean pass', () => {
   );
 });
 
-test('renderDiff reports shrinkage as ok and an absent row as a gate failure', () => {
+test('renderDiff reports shrinkage as ok and an unbacked always-loaded row as a gate failure', () => {
   const shrink = renderDiff({
     grown: [],
     shrunk: [{ tier: 'workflow', current: 900, baseline: 1000, delta: 100 }],
@@ -268,7 +288,7 @@ test('renderDiff reports shrinkage as ok and an absent row as a gate failure', (
   const missing = renderDiff({
     grown: [],
     shrunk: [],
-    absent: [{ tier: 'workflow', path: 'gone.md', bytes: 12 }],
+    absent: [{ tier: 'alwaysLoaded', path: 'gone.md', bytes: 12 }],
     skipped: [],
   });
   assert.match(missing, /\(gate fail\)/);
@@ -276,162 +296,28 @@ test('renderDiff reports shrinkage as ok and an absent row as a gate failure', (
   assert.match(missing, /absent=1/);
 });
 
-// ---------------------------------------------------------------------------
-// agentBootOverflow / buildBaseline agentBoot section
-// ---------------------------------------------------------------------------
-
-test('agentBootOverflow flags only role defs above the per-file ceiling', () => {
-  const tierMap = {
-    tiers: {
-      agentBoot: [
-        { path: '.agents/agents/story-worker.md', bytes: 7000 },
-        { path: '.agents/agents/huge.md', bytes: 9000 },
-      ],
-    },
-  };
-  const over = agentBootOverflow(tierMap, 8192);
-  assert.equal(over.length, 1);
-  assert.equal(over[0].path, '.agents/agents/huge.md');
-  assert.equal(over[0].ceiling, 8192);
-});
-
-test('agentBootOverflow is empty when there are no agent defs', () => {
-  assert.deepEqual(agentBootOverflow({ tiers: {} }), []);
-  assert.equal(AGENT_BOOT_CEILING_BYTES, 8192);
-});
-
-test('buildBaseline records the agentBoot ceiling + files top-level (not under tiers)', () => {
-  const envelope = buildBaseline(
-    {
-      tiers: {
-        alwaysLoaded: [{ path: 'CLAUDE.md', bytes: 10 }],
-        mandatoryRead: [],
-        agentBoot: [{ path: '.agents/agents/retro.md', bytes: 1800 }],
+test('renderDiff marks report-only drift `~` and says so on the line (Story #5340)', () => {
+  // A reader must be able to tell a reported line from a failing one without
+  // cross-referencing ENFORCED_TIERS — the `~` and the suffix carry it.
+  const out = renderDiff({
+    grown: [
+      {
+        tier: 'workflow',
+        current: 5000,
+        baseline: 1000,
+        tolerance: 0,
+        delta: 4000,
       },
-    },
-    2048,
-  );
-  // agentBoot MUST NOT leak into the ratcheted `tiers` set.
-  assert.deepEqual(Object.keys(envelope.tiers).sort(), [...GATED_TIERS].sort());
-  assert.equal(envelope.agentBoot.ceilingBytes, 8192);
-  // The recorded row carries the headroom an author sizing an edit needs, so
-  // reading the row does not require re-deriving it against the ceiling.
-  assert.deepEqual(envelope.agentBoot.files, [
-    {
-      path: '.agents/agents/retro.md',
-      bytes: 1800,
-      headroomBytes: AGENT_BOOT_CEILING_BYTES - 1800,
-    },
-  ]);
-});
-
-// ---------------------------------------------------------------------------
-// agentBootDrift — a recorded row that disagrees with the tree (Story #4830)
-// ---------------------------------------------------------------------------
-
-/** Build a `{ tierMap, baseline }` pair from `[path, recorded, actual]` rows. */
-function driftFixture(rows) {
-  return {
-    tierMap: {
-      tiers: {
-        agentBoot: rows.map(([p, , actual]) => ({ path: p, bytes: actual })),
-      },
-    },
-    baseline: {
-      agentBoot: {
-        ceilingBytes: AGENT_BOOT_CEILING_BYTES,
-        files: rows
-          .filter(([, recorded]) => recorded !== null)
-          .map(([p, recorded]) => ({
-            path: p,
-            bytes: recorded,
-            headroomBytes: AGENT_BOOT_CEILING_BYTES - recorded,
-          })),
-      },
-    },
-  };
-}
-
-test('agentBootDrift is empty when every recorded row matches the tree', () => {
-  const { tierMap, baseline } = driftFixture([
-    ['.agents/agents/a.md', 4000, 4000],
-    ['.agents/agents/b.md', 1234, 1234],
-  ]);
-  assert.deepEqual(agentBootDrift(tierMap, baseline), []);
-});
-
-test('agentBootDrift calls a row that understates its file permissive and reports the real headroom', () => {
-  const { tierMap, baseline } = driftFixture([
-    ['.agents/agents/story-worker.md', 7317, 8143],
-  ]);
-  const drift = agentBootDrift(tierMap, baseline);
-  assert.equal(drift.length, 1);
-  assert.deepEqual(drift[0], {
-    path: '.agents/agents/story-worker.md',
-    recorded: 7317,
-    actual: 8143,
-    delta: 826,
-    direction: 'permissive',
-    recordedHeadroom: AGENT_BOOT_CEILING_BYTES - 7317,
-    headroomBytes: AGENT_BOOT_CEILING_BYTES - 8143,
+    ],
+    shrunk: [],
+    absent: [{ tier: 'workflow', path: 'gone.md', bytes: 12 }],
+    skipped: [],
   });
-});
-
-test('agentBootDrift calls a row that overstates its file restrictive — self-correcting, never a gate fail', () => {
-  const { tierMap, baseline } = driftFixture([
-    ['.agents/agents/a.md', 5000, 4000],
-  ]);
-  const drift = agentBootDrift(tierMap, baseline);
-  assert.equal(drift.length, 1);
-  assert.equal(drift[0].direction, 'restrictive');
-  assert.equal(drift[0].delta, -1000);
-});
-
-test('agentBootDrift treats an unrecorded boot context as permissive — no row promises unbounded headroom', () => {
-  const { tierMap, baseline } = driftFixture([
-    ['.agents/agents/new.md', null, 3000],
-  ]);
-  const drift = agentBootDrift(tierMap, baseline);
-  assert.equal(drift.length, 1);
-  assert.equal(drift[0].direction, 'permissive');
-  assert.equal(drift[0].recorded, null);
-  assert.equal(drift[0].recordedHeadroom, null);
-});
-
-test('agentBootDrift catches a stale recorded headroom even when the byte count agrees', () => {
-  const drift = agentBootDrift(
-    { tiers: { agentBoot: [{ path: '.agents/agents/a.md', bytes: 4000 }] } },
-    {
-      agentBoot: {
-        ceilingBytes: AGENT_BOOT_CEILING_BYTES,
-        files: [
-          { path: '.agents/agents/a.md', bytes: 4000, headroomBytes: 9999 },
-        ],
-      },
-    },
-  );
-  assert.equal(drift.length, 1);
-  assert.equal(drift[0].direction, 'permissive');
-  assert.equal(drift[0].headroomBytes, AGENT_BOOT_CEILING_BYTES - 4000);
-});
-
-test('the committed baseline carries no agentBoot drift against this repo tree', () => {
-  const repoRoot = path.resolve(
-    path.dirname(fileURLToPath(import.meta.url)),
-    '..',
-  );
-  const baseline = loadBaseline(
-    path.join(repoRoot, 'baselines', 'context-budget.json'),
-  );
-  const tierMap = {
-    tiers: {
-      agentBoot: (baseline.agentBoot?.files ?? []).map((f) => ({
-        path: f.path,
-        bytes: fs.statSync(path.join(repoRoot, f.path)).size,
-      })),
-    },
-  };
-  assert.deepEqual(agentBootDrift(tierMap, baseline), []);
+  assert.match(out, /\(ok\)/);
+  assert.match(out, /~ workflow: 5000 bytes exceeds budget 1000/);
+  assert.match(out, /~ workflow: recorded row gone\.md/);
+  assert.equal(out.match(/reported, never gated/g).length, 2);
+  assert.doesNotMatch(out, /^\+ /m);
 });
 
 // ---------------------------------------------------------------------------
@@ -486,118 +372,13 @@ test('runCli exits 1 naming the tier that grew beyond tolerance (always-loaded f
   assert.match(stderr.text(), /grew beyond tolerance/);
 });
 
-test('runCli exits 1 when a role-agent boot context exceeds the per-file ceiling', async () => {
-  const { root, config } = makeRepo();
-  // A role def larger than the 8192-byte per-agent ceiling.
-  fs.mkdirSync(path.join(root, '.agents', 'agents'), { recursive: true });
-  fs.writeFileSync(
-    path.join(root, '.agents', 'agents', 'huge.md'),
-    'x'.repeat(AGENT_BOOT_CEILING_BYTES + 500),
-  );
-  // Seed a baseline (records the ceiling); update itself never fails.
-  await runCli({
-    argv: ['--update'],
-    cwd: root,
-    config,
-    stdout: makeSink(),
-    stderr: makeSink(),
-  });
-
-  const stdout = makeSink();
-  const stderr = makeSink();
-  const code = await runCli({ argv: [], cwd: root, config, stdout, stderr });
-  assert.equal(code, 1);
-  assert.match(stdout.text(), /agentBoot: \.agents\/agents\/huge\.md/);
-  assert.match(stderr.text(), /per-agent ceiling/);
-});
-
-test('runCli passes when role-agent boot contexts are within the ceiling', async () => {
-  const { root, config } = makeRepo();
-  fs.mkdirSync(path.join(root, '.agents', 'agents'), { recursive: true });
-  fs.writeFileSync(
-    path.join(root, '.agents', 'agents', 'ok.md'),
-    'x'.repeat(4000),
-  );
-  await runCli({
-    argv: ['--update'],
-    cwd: root,
-    config,
-    stdout: makeSink(),
-    stderr: makeSink(),
-  });
-  const code = await runCli({
-    argv: [],
-    cwd: root,
-    config,
-    stdout: makeSink(),
-    stderr: makeSink(),
-  });
-  assert.equal(code, 0);
-});
-
-test('runCli exits 1 when a recorded row understates its boot context, even though the file is under the ceiling', async () => {
-  const { root, config } = makeRepo();
-  const bootFile = path.join(root, '.agents', 'agents', 'ok.md');
-  fs.mkdirSync(path.dirname(bootFile), { recursive: true });
-  fs.writeFileSync(bootFile, 'x'.repeat(4000));
-  await runCli({
-    argv: ['--update'],
-    cwd: root,
-    config,
-    stdout: makeSink(),
-    stderr: makeSink(),
-  });
-
-  // Grow the boot context by 1000 bytes — still far below the 8192 ceiling, so
-  // the overflow gate stays silent and only the drift check can see it.
-  fs.appendFileSync(bootFile, 'y'.repeat(1000));
-
-  const stdout = makeSink();
-  const stderr = makeSink();
-  const code = await runCli({ argv: [], cwd: root, config, stdout, stderr });
-  assert.equal(code, 1);
-  assert.match(stdout.text(), /\+ agentBoot drift: \.agents\/agents\/ok\.md/);
-  assert.match(stdout.text(), /records 4000 bytes but the file is 5000/);
-  // The real remaining headroom is stated, not left to the reader.
-  assert.match(stdout.text(), /real headroom 3192/);
-  assert.match(stderr.text(), /overstates the headroom/);
-});
-
-test('runCli exits 0 with an informational marker when a recorded row overstates its boot context', async () => {
-  const { root, config } = makeRepo();
-  const bootFile = path.join(root, '.agents', 'agents', 'ok.md');
-  fs.mkdirSync(path.dirname(bootFile), { recursive: true });
-  fs.writeFileSync(bootFile, 'x'.repeat(4000));
-  await runCli({
-    argv: ['--update'],
-    cwd: root,
-    config,
-    stdout: makeSink(),
-    stderr: makeSink(),
-  });
-
-  // The file shrank: the row is now conservative, and a conservative row can
-  // only make an author under-spend — it never buys headroom that is not there.
-  fs.writeFileSync(bootFile, 'x'.repeat(3000));
-
-  const stdout = makeSink();
-  const code = await runCli({
-    argv: [],
-    cwd: root,
-    config,
-    stdout,
-    stderr: makeSink(),
-  });
-  assert.equal(code, 0);
-  assert.match(stdout.text(), /- agentBoot drift: \.agents\/agents\/ok\.md/);
-});
-
 // ---------------------------------------------------------------------------
 // Workflow mandatory-closure ratchet (Story #4752)
 // ---------------------------------------------------------------------------
 
-test('the workflow mandatory closure is a gated tier', () => {
-  assert.ok(GATED_TIERS.includes('workflow'));
+test('the workflow mandatory closure is measured but never enforced', () => {
+  assert.ok(MEASURED_TIERS.includes('workflow'));
+  assert.ok(!ENFORCED_TIERS.includes('workflow'));
 });
 
 test('--update records the workflow tier and the per-entry-point reachable closure', async () => {
@@ -632,7 +413,7 @@ test('--update records the workflow tier and the per-entry-point reachable closu
   assert.ok(baseline.workflowClosure.entryPoints[0].reachableBytes > 0);
 });
 
-test('runCli exits 1 when a mandatory workflow read grows beyond tolerance', async () => {
+test('AC-1: runCli exits 0 when a mandatory workflow read grows beyond tolerance', async () => {
   const { root, config } = makeRepo({ withWorkflows: true });
   await runCli({
     argv: ['--update'],
@@ -651,12 +432,13 @@ test('runCli exits 1 when a mandatory workflow read grows beyond tolerance', asy
   const stdout = makeSink();
   const stderr = makeSink();
   const code = await runCli({ argv: [], cwd: root, config, stdout, stderr });
-  assert.equal(code, 1);
-  assert.match(stdout.text(), /\+ workflow:/);
-  assert.match(stderr.text(), /grew beyond tolerance/);
+  assert.equal(code, 0);
+  assert.match(stdout.text(), /~ workflow:/);
+  assert.match(stdout.text(), /reported, never gated/);
+  assert.equal(stderr.text(), '');
 });
 
-test('a promoted on-demand read trips the ratchet — the marker, not the bytes, is the signal', async () => {
+test('a promoted on-demand read is reported — the marker, not the bytes, is the signal', async () => {
   const { root, config, write } = makeRepo({ withWorkflows: true });
   await runCli({
     argv: ['--update'],
@@ -689,8 +471,8 @@ test('a promoted on-demand read trips the ratchet — the marker, not the bytes,
     stdout,
     stderr: makeSink(),
   });
-  assert.equal(code, 1);
-  assert.match(stdout.text(), /\+ workflow:/);
+  assert.equal(code, 0);
+  assert.match(stdout.text(), /~ workflow:/);
 });
 
 test('growth in the reachable-only closure is reported but never gates', async () => {
@@ -740,7 +522,7 @@ test('AC-8: a shrunken workflow tier exits 0 and is reported, not failed', async
   assert.doesNotMatch(stderr.text(), /came in under its recorded total/);
 });
 
-test('a recorded row whose file was deleted fails the gate and is named', async () => {
+test('a recorded workflow row whose file was deleted is named but never fails', async () => {
   const { root, config, write } = makeRepo({ withWorkflows: true });
   write('.agents/workflows/retired.md', `# Retired\n${'q'.repeat(300)}`);
   await runCli({
@@ -754,9 +536,87 @@ test('a recorded row whose file was deleted fails the gate and is named', async 
   const stdout = makeSink();
   const stderr = makeSink();
   const code = await runCli({ argv: [], cwd: root, config, stdout, stderr });
-  assert.equal(code, 1);
+  assert.equal(code, 0);
   assert.match(stdout.text(), /recorded row \.agents\/workflows\/retired\.md/);
+  assert.equal(stderr.text(), '');
+});
+
+test('a recorded always-loaded row whose file was deleted still fails the gate', async () => {
+  const { root, config, write } = makeRepo();
+  write('CLAUDE.md', '@AGENTS.md\n@EXTRA.md\n');
+  write('EXTRA.md', `extra closure body\n${'q'.repeat(300)}`);
+  await runCli({
+    argv: ['--update'],
+    cwd: root,
+    config,
+    stdout: makeSink(),
+    stderr: makeSink(),
+  });
+  write('CLAUDE.md', '@AGENTS.md\n');
+  fs.rmSync(path.join(root, 'EXTRA.md'));
+  const stdout = makeSink();
+  const stderr = makeSink();
+  const code = await runCli({ argv: [], cwd: root, config, stdout, stderr });
+  assert.equal(code, 1);
+  assert.match(stdout.text(), /recorded row EXTRA\.md/);
   assert.match(stderr.text(), /no longer contains/);
+});
+
+test('AC-3: the CLI enforces no per-file ceiling on a role-scoped boot context', async () => {
+  const { root, config } = makeRepo();
+  // Far past the 8192-byte ceiling Story #5340 deleted.
+  fs.mkdirSync(path.join(root, '.agents', 'agents'), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, '.agents', 'agents', 'huge.md'),
+    'x'.repeat(40_000),
+  );
+  await runCli({
+    argv: ['--update'],
+    cwd: root,
+    config,
+    stdout: makeSink(),
+    stderr: makeSink(),
+  });
+  const stdout = makeSink();
+  const stderr = makeSink();
+  const code = await runCli({ argv: [], cwd: root, config, stdout, stderr });
+  assert.equal(code, 0);
+  assert.match(stdout.text(), /agentBoot: 40000 bytes across 1 role defs/);
+  assert.match(stdout.text(), /never gated/);
+  assert.equal(stderr.text(), '');
+  // The recorded rows carry no ceiling and no headroom to drift against.
+  const baseline = loadBaseline(
+    path.join(root, 'baselines', 'context-budget.json'),
+  );
+  assert.deepEqual(baseline.agentBoot.files, [
+    { path: '.agents/agents/huge.md', bytes: 40_000 },
+  ]);
+  assert.ok(!('ceilingBytes' in baseline.agentBoot));
+});
+
+test('AC-3: a recorded agentBoot row that disagrees with the tree is not a failure', async () => {
+  const { root, config } = makeRepo();
+  const bootFile = path.join(root, '.agents', 'agents', 'ok.md');
+  fs.mkdirSync(path.dirname(bootFile), { recursive: true });
+  fs.writeFileSync(bootFile, 'x'.repeat(4000));
+  await runCli({
+    argv: ['--update'],
+    cwd: root,
+    config,
+    stdout: makeSink(),
+    stderr: makeSink(),
+  });
+  fs.appendFileSync(bootFile, 'y'.repeat(1000));
+  const stderr = makeSink();
+  const code = await runCli({
+    argv: [],
+    cwd: root,
+    config,
+    stdout: makeSink(),
+    stderr,
+  });
+  assert.equal(code, 0);
+  assert.equal(stderr.text(), '');
 });
 
 test('the committed context-budget baseline carries no tier drift against this repo tree', () => {
@@ -881,7 +741,7 @@ test('runCli is a no-op (exit 0) when the baseline is absent', async () => {
   assert.match(stderr.text(), /budget not found/);
 });
 
-test('runCli no-ops (exit 0) against a fixture with no CLAUDE.md — every gated tier empty', async () => {
+test('runCli no-ops (exit 0) against a fixture with no CLAUDE.md — every measured tier empty', async () => {
   // No CLAUDE.md → alwaysLoaded empty; no docsContextFiles → mandatoryRead empty.
   const { root, config } = makeRepo({
     withClaude: false,

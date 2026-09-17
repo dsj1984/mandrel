@@ -1,6 +1,6 @@
 {
   "$schema": "https://mandrel.dev/baselines/context-budget.schema.json",
-  "generatedAt": "2026-09-14T13:26:52.506Z",
+  "generatedAt": "2026-09-17T12:04:16.476Z",
   "toleranceBytes": 2048,
   "tiers": {
     "alwaysLoaded": {
@@ -33,11 +33,11 @@
       ]
     },
     "mandatoryRead": {
-      "totalBytes": 389094,
+      "totalBytes": 394834,
       "files": [
         {
           "path": "docs/architecture.md",
-          "bytes": 93927
+          "bytes": 94287
         },
         {
           "path": "docs/data-dictionary.md",
@@ -45,7 +45,7 @@
         },
         {
           "path": "docs/decisions.md",
-          "bytes": 205758
+          "bytes": 211138
         },
         {
           "path": "docs/patterns.md",
@@ -184,32 +184,27 @@
     }
   },
   "agentBoot": {
-    "ceilingBytes": 8192,
     "files": [
       {
         "path": ".agents/agents/acceptance-critic.md",
-        "bytes": 7810,
-        "headroomBytes": 382
+        "bytes": 7810
       },
       {
         "path": ".agents/agents/auditor.md",
-        "bytes": 7933,
-        "headroomBytes": 259
+        "bytes": 7933
       },
       {
         "path": ".agents/agents/plan-critic.md",
-        "bytes": 4847,
-        "headroomBytes": 3345
+        "bytes": 4847
       },
       {
         "path": ".agents/agents/story-worker.md",
-        "bytes": 7744,
-        "headroomBytes": 448
+        "bytes": 7744
       }
     ]
   },
   "workflowClosure": {
-    "reachableTotalBytes": 505926,
+    "reachableTotalBytes": 505580,
     "entryPoints": [
       {
         "path": ".agents/workflows/audit-accessibility.md",
@@ -219,7 +214,7 @@
       {
         "path": ".agents/workflows/audit-adrs.md",
         "mandatoryBytes": 13659,
-        "reachableBytes": 334078
+        "reachableBytes": 333732
       },
       {
         "path": ".agents/workflows/audit-architecture.md",
@@ -254,7 +249,7 @@
       {
         "path": ".agents/workflows/audit-documentation.md",
         "mandatoryBytes": 12670,
-        "reachableBytes": 334078
+        "reachableBytes": 333732
       },
       {
         "path": ".agents/workflows/audit-mobile.md",
@@ -299,7 +294,7 @@
       {
         "path": ".agents/workflows/audit-to-stories.md",
         "mandatoryBytes": 23180,
-        "reachableBytes": 307749
+        "reachableBytes": 307403
       },
       {
         "path": ".agents/workflows/audit-ux-ui.md",
@@ -314,22 +309,22 @@
       {
         "path": ".agents/workflows/git-deliver.md",
         "mandatoryBytes": 7764,
-        "reachableBytes": 332625
+        "reachableBytes": 332279
       },
       {
         "path": ".agents/workflows/helpers/deliver-story.md",
         "mandatoryBytes": 16243,
-        "reachableBytes": 307749
+        "reachableBytes": 307403
       },
       {
         "path": ".agents/workflows/mandrel-deliver.md",
         "mandatoryBytes": 7930,
-        "reachableBytes": 307749
+        "reachableBytes": 307403
       },
       {
         "path": ".agents/workflows/mandrel-plan.md",
         "mandatoryBytes": 7835,
-        "reachableBytes": 307749
+        "reachableBytes": 307403
       },
       {
         "path": ".agents/workflows/mandrel-update.md",
@@ -339,27 +334,27 @@
       {
         "path": ".agents/workflows/memory-consolidate.md",
         "mandatoryBytes": 5968,
-        "reachableBytes": 307749
+        "reachableBytes": 307403
       },
       {
         "path": ".agents/workflows/prototype.md",
         "mandatoryBytes": 5180,
-        "reachableBytes": 307749
+        "reachableBytes": 307403
       },
       {
         "path": ".agents/workflows/qa-assist.md",
         "mandatoryBytes": 16861,
-        "reachableBytes": 373749
+        "reachableBytes": 373403
       },
       {
         "path": ".agents/workflows/qa-explore.md",
         "mandatoryBytes": 13563,
-        "reachableBytes": 373749
+        "reachableBytes": 373403
       },
       {
         "path": ".agents/workflows/qa-run.md",
         "mandatoryBytes": 14213,
-        "reachableBytes": 373749
+        "reachableBytes": 373403
       }
     ]
   }

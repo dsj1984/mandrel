@@ -272,9 +272,8 @@ describe('merge-baseline — the swarm-os reproduction (AC-4)', () => {
 });
 
 describe('merge-baseline — unrecognised baselines keep git text merge (AC-10)', () => {
-  // `baselines/*.json` also matches arch-cycles, audit-ledger,
-  // context-budget and workflow-citations — files with their own shapes and
-  // no row identity. Registering the driver must not change their behaviour
+  // `baselines/*.json` also matches arch-cycles, audit-ledger and
+  // context-budget — files with their own shapes and no row identity. Registering the driver must not change their behaviour
   // at all. (`cyclomatic` and `dead-exports*` LEFT this set in Story #5277;
   // they are row sets with a real identity and now merge as such.)
   const archCycles = (rows, generatedAt) => ({

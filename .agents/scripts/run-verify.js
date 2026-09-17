@@ -7,7 +7,8 @@
  *
  * Order: audit (SCA) → lint (includes docs:check + the arch-cycles ratchet) →
  * full test suite → unified baselines → the standalone ratchets
- * (dead-exports ×2, context-budget, cyclomatic, schema-references).
+ * (dead-exports ×2, context-budget, workflow-citations, cyclomatic,
+ * schema-references).
  *
  * The `audit` step runs `npm audit --audit-level=high`, matching CI's
  * "Dependency Vulnerability Audit (SCA)" gate so a local green no longer hides
@@ -33,9 +34,14 @@
  * being added here, so a green `verify` still hid both. Like their neighbours
  * they are pure-Node and cost milliseconds.
  *
- * Still NOT mirrored: `check-workflow-citations.js` and
- * `check-baseline-scope.js` run in CI's `baselines` job only —
- * `.agents/rules/known-tooling-behavior.md` entry 2 carries the current
+ * Story #5340 closed the `check-workflow-citations.js` gap the same way, once
+ * demoting it to a report made it free: it had been exempted here because
+ * `tests/check-workflow-citations.test.js` re-ran the same ratchet, so a
+ * `verify` step would have double-paid it. That test now asserts the report,
+ * not a ceiling, so the step is the only local surface that prints the count.
+ *
+ * Still NOT mirrored: `check-baseline-scope.js` runs in CI's `baselines` job
+ * only — `.agents/rules/known-tooling-behavior.md` entry 2 carries the current
  * coverage table. (`prune-baseline-orphans.js --check` used to sit in that
  * list; it no longer runs in CI at all — the un-attributed duplicate of the
  * scope gate's `extra` direction reds every open PR on inherited rows.) Nor are the CI gates this command structurally cannot
@@ -50,8 +56,8 @@ import { spawnSync } from 'node:child_process';
 import { runAsCli } from './lib/cli-utils.js';
 
 /**
- * A gate step: `node .agents/scripts/<script>` plus any extra args. Seven of
- * the ten steps share exactly that shape, so spelling it once leaves the list
+ * A gate step: `node .agents/scripts/<script>` plus any extra args. Eight of
+ * the eleven steps share exactly that shape, so spelling it once leaves the list
  * below readable as what it actually is — a gate *order* — instead of a wall
  * of spawn tuples.
  *
@@ -79,6 +85,7 @@ const STEPS = [
   gate('dead-exports', 'check-dead-exports.js'),
   gate('dead-exports-production', 'check-dead-exports.js', '--production'),
   gate('context-budget', 'check-context-budget.js'),
+  gate('workflow-citations', 'check-workflow-citations.js'),
   gate('cyclomatic', 'check-cyclomatic.js'),
   gate('schema-references', 'check-schema-references.js'),
 ];

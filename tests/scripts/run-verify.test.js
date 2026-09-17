@@ -53,6 +53,9 @@ test('runVerifySteps runs audit, lint, test, baselines, then the ratchets in ord
     ['node', '.agents/scripts/check-dead-exports.js'],
     ['node', '.agents/scripts/check-dead-exports.js', '--production'],
     ['node', '.agents/scripts/check-context-budget.js'],
+    // A report since Story #5340, and mirrored here from the same Story: the
+    // test that used to re-run its ratchet no longer does.
+    ['node', '.agents/scripts/check-workflow-citations.js'],
     ['node', '.agents/scripts/check-cyclomatic.js'],
     ['node', '.agents/scripts/check-schema-references.js'],
   ]);
@@ -85,10 +88,11 @@ test('runVerifySteps runs the ratchets CI’s "Architecture Cycle Check" step co
 // require every script it names to be accounted for: covered by verify,
 // covered by lint, or listed here as a deliberate, reasoned exemption.
 const CI_RATCHETS_NOT_MIRRORED_LOCALLY = new Map([
-  [
-    'check-workflow-citations.js',
-    'Scores workflow prose only; reachable as `npm run check:workflow-citations`.',
-  ],
+  // `check-workflow-citations.js` left this map in Story #5340. It was
+  // exempted because `tests/check-workflow-citations.test.js` re-ran the same
+  // ratchet through the `test` step, so a verify step would have double-paid
+  // it. Demoting it to a report ended that: the test asserts the report, and
+  // the verify step is now the only local surface that prints the count.
   [
     'check-baseline-scope.js',
     'Row-set honesty gate — meaningful only against a fully-scored tree; reachable as `npm run baselines:scope`.',

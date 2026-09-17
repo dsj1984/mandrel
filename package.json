@@ -45,6 +45,7 @@
     "maintainability:update": "node .agents/scripts/update-maintainability-baseline.js",
     "maintainability:reanchor": "node .agents/scripts/update-maintainability-baseline.js --full-scope",
     "check:arch": "node .agents/scripts/check-arch-cycles.js",
+    "//resident-context-reports": "check:context-budget and check:workflow-citations are REPORTS, not ratchets (Story #5340, ADR 20260917-5340). check:context-budget still fails when the alwaysLoaded tier exceeds its recorded total plus the committed tolerance; its workflow tier, and check:workflow-citations in full, print and always exit 0. A green run is not evidence the numbers held — read the output.",
     "check:context-budget": "node .agents/scripts/check-context-budget.js",
     "check:cyclomatic": "node .agents/scripts/check-cyclomatic.js",
     "cyclomatic:update": "node .agents/scripts/check-cyclomatic.js --update",

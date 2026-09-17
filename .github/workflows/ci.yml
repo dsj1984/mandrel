@@ -269,9 +269,9 @@ jobs:
         # Story #4438: the context-budget ratchet (check-context-budget.js,
         # budget baselines/context-budget.json) joins the same standalone-ratchet
         # slot — it measures the always-loaded doc closure + resolved
-        # docsContextFiles byte totals and fails when a tier grows beyond the
-        # committed tolerance, so doc-context growth becomes a conscious
-        # baseline-refresh decision.
+        # docsContextFiles byte totals and fails when the always-loaded tier
+        # grows beyond the committed tolerance, so growth in the closure every
+        # session re-pays becomes a conscious baseline-refresh decision.
         #
         # Story #4575: the dead-export ratchet runs a second, production-mode
         # pass (baseline baselines/dead-exports-production.json). The default
@@ -282,11 +282,19 @@ jobs:
         # test-only exports (.agents/rules/test-seams.md) and its row set is
         # therefore large and largely intentional.
         #
-        # The workflow-citation ratchet (check-workflow-citations.js, baseline
-        # baselines/workflow-citations.json) joins the same slot: workflow
-        # prose is resident context, so provenance asides are charged at the
-        # instruction rate, and nothing but a ratchet stops them
-        # re-accumulating one well-meaning citation at a time.
+        # Story #5340 demoted two of the commands below to REPORTS. They still
+        # run here — the measurement is worth seeing on every change — but
+        # neither can fail this job any more:
+        #   - `check-workflow-citations.js` counts provenance asides across
+        #     `.agents/workflows/**` and always exits 0; its baseline
+        #     (baselines/workflow-citations.json) is deleted.
+        #   - `check-context-budget.js` keeps failing on the `alwaysLoaded`
+        #     tier alone. Its workflow tier, and the per-file 8 KB agent-boot
+        #     ceiling, are report-only / gone.
+        # Both ratchets failed a *rise*, so a prose fix had to be paid for with
+        # an unrelated trim in the same commit — which is how three reference
+        # sections came to describe retired mechanisms. See docs/decisions.md,
+        # ADR 20260917-5340.
         #
         # Story #4923: the cyclomatic ratchet (check-cyclomatic.js, baseline
         # baselines/cyclomatic.json) joins the slot as the first consumer of

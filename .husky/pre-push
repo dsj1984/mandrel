@@ -24,10 +24,12 @@ fi
 node .agents/scripts/coverage-capture.js --skip-when-no-crap-files --ref origin/main
 npm run crap:check
 
-# Story #5004 — the context-budget ratchet is zero-tolerance in BOTH
-# directions: a byte-reducing change reds it just as a growing one does, and
-# the remedy is a committed baseline refresh. It was reachable locally only
-# through `npm run verify` (full suite, minutes), so shrink-reds were routinely
-# discovered by CI after the push. It is a pure-Node, sub-second read of the
-# always-loaded doc closure, so it belongs on the fast diff-scoped surface too.
+# The two resident-context measurements, both pure-Node and sub-second, so
+# they belong on the fast diff-scoped surface. Story #5004 put the first one
+# here when it was still a ratchet that reddened on a shrink; Story #5340
+# demoted both to reports — `check-context-budget.js` now fails on the
+# `alwaysLoaded` tier alone, and `check-workflow-citations.js` never fails.
+# They stay because the numbers are worth reading before a push, not because
+# they can stop one.
 node .agents/scripts/check-context-budget.js
+node .agents/scripts/check-workflow-citations.js
