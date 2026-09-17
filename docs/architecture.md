@@ -772,9 +772,9 @@ stateless and side-effect-free; these guards make the loop fail safe:
   before the scrape, each structurally incapable of naming an edit
   target: `audit-fingerprints` / `audit-semantic-keys` provenance
   footers, paths under `project.paths.tempRoot`, and markdown-link URL
-  interiors. The strip is surgical — a blanket HTML-comment strip would
-  swallow a `<!-- DECOMPOSITION -->` block, whose paths are genuine
-  intent (`instructions.md` § 7). Before it, the sweep-wide provenance
+  interiors. The strip is surgical rather than a blanket HTML-comment
+  strip, which would also swallow any commented block whose paths are
+  genuine edit intent. Before it, the sweep-wide provenance
   union `plan-persist` stamps made every pair of an audit-derived plan
   collide (10/10 measured; 0/10 after).
 - **Beat-local and cross-beat differ.** Against a peer admitted **this
@@ -843,10 +843,12 @@ changing its shape (full per-field reference:
   post-green refactor checkpoint in Story delivery (the
   `core/code-review-and-quality` skill's Post-Green Refactor Pass); never
   alters close-validation gate semantics.
-- **`delivery.feedbackLoop.auditResultsAutoFile`** —
-  default `true`: non-blocking code-review / audit findings may be
-  auto-filed as follow-up issues (routed via `lib/feedback-loop/`). Set
-  `false` to keep findings only in structured comments.
+- **`delivery.feedbackLoop.auditResultsAutoFile`** — opt-in, **default
+  `false`** since Story #5341: set it `true` to auto-file non-blocking
+  code-review / audit findings as follow-up issues (routed via
+  `lib/feedback-loop/`). Left off, findings stay in structured comments and
+  run artifacts. `retroProposals` defaults `false` for the same reason — the
+  unattended filings the channel produced were dominated by noise.
 - **`delivery.ci`** — exactly two keys (`additionalProperties: false`, so a
   third fails AJV validation): `autoMerge` (`"trust-ci"` default arms once
   every *required* check is green; `"strict"` restores the clean-sprint

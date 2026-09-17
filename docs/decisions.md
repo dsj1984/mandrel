@@ -60,12 +60,13 @@ the floor-vs-ratchet policy are tooling commitments rather than ADRs and live in
 
 <!-- ADR-INDEX:START -->
 
-**In force (45).** Each governs the surface named beside it.
+**In force (46).** Each governs the surface named beside it.
 A `Status` of `Accepted in part` means some clause of the entry has been
 superseded — open it before citing it.
 
 | Decision | Governs | Surface | Status |
 | --- | --- | --- | --- |
+| [`20260917-5341`](#adr-20260917-5341-one-home-per-delivery-rule-and-the-unattended-follow-up-filer-is-opt-in) | One home per delivery rule; the unattended follow-up filer is opt-in | `.agents/workflows/helpers/deliver-digest.md` | Accepted |
 | [`20260917-5340`](#adr-20260917-5340-resident-context-measurements-are-reports-the-always-loaded-closure-is-the-one-gate) | Resident-context measurements are reports; the always-loaded closure is the one gate | `.agents/scripts/check-context-budget.js` | Accepted |
 | [`20260912-5313`](#adr-20260912-5313-the-delivery-diet--deliver-time-knobs-bound-by-risk-not-by-count-and-scripts-read-ground-truth) | The delivery diet: deliver-time knobs bound by risk, not by count | `.agents/scripts/ceremony-derive.js` | Accepted in part |
 | [`20260912-5312`](#adr-20260912-5312-the-planning-diet--a-story-is-as-large-and-as-loosely-prescribed-as-the-work-needs) | The planning diet: no plan-time limit that never fires on real work | `.agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js` | Accepted |
@@ -149,6 +150,97 @@ at the release tag named in the entry.
 - [Earlier ADRs (001 / 002 / 003)](#earlier-adrs-001--002--003)
 
 <!-- ADR-INDEX:END -->
+
+## ADR 20260917-5341: One home per delivery rule, and the unattended follow-up filer is opt-in
+
+**Status:** Accepted
+**Date:** 2026-09-17
+**Deciders:** @dsj1984
+**Surface:** `.agents/workflows/helpers/deliver-digest.md`
+**Story:** #5341
+
+### Context
+
+Three unrelated accretions had the same shape — a rule restated until the
+copies disagreed, or a channel kept alive by its defaults rather than its
+output.
+
+The **credited suite run** was stated in four places
+(`helpers/deliver-digest.md` § 5, `helpers/deliver-story.md` Step 2.5,
+`agents/story-worker.md`, `helpers/deliver-story-reference.md`) and the
+lint/typecheck **evidence-share** in three more. Story #5324 had already had to
+patch the same sentence in two of them; a fifth copy is a fifth place for the
+next correction to miss.
+
+The **`Epic: #N` footer** — the v1 parent-link shape — was refused in seven
+documents and enforced in exactly one, `resolve-stories.js`. Seven statements
+of a refusal are seven chances to describe it wrongly, and none of them is what
+actually stops the ticket.
+
+The **`sibling-coherence` epilogue step** re-read every Story body in an N>1
+run to post a `plan-run-sibling-coherence` comment. Nothing read it back: no
+script, no workflow step, no gate.
+
+The **feedback loop's auto-filers** (`delivery.feedbackLoop.retroProposals`,
+`delivery.feedbackLoop.auditResultsAutoFile`) defaulted to on, and the
+`follow-ups` roll-up comment was posted whether or not anything was filed. The
+measured output of that channel: Story #5324's roll-up carried 116 signals and
+filed nothing, and issues #4653, #4833, #4834 and #4836 are filings that were
+false or leaked from test fixtures.
+
+### Decision
+
+**One home per rule.** The credited suite run is stated in
+`helpers/deliver-digest.md` § 5 and nowhere else; the spine, the worker boot
+context, the reference and the self-eval helper each point at it in one line.
+The evidence-share instruction is removed from every workflow and agent file —
+close runs its own scoped `lint` and `typecheck` gates, and the short-circuit
+in `close-validation/runner.js` still honours any evidence that happens to
+exist. The mechanism (`evidence-gate.js`, `lib/test-run-credit.js`) is
+unchanged; only the number of documents describing it moved.
+
+**A refusal is stated where it is enforced.** The `Epic: #N` check stays as the
+hard error in `resolve-stories.js`. The seven prose sites drop the sentence.
+
+**`sibling-coherence` is deleted**, along with its comment kind. The epilogue
+runs `audit-roster`, `follow-up-rollup` and `epic-close`.
+
+**The auto-filers become opt-in.** Both toggles default to `false`, and the
+`follow-ups` comment is posted only when the run filed at least one issue;
+otherwise the rendered roll-up is written to the run artifacts under the temp
+root, where it is still readable and no longer annotating a ticket.
+
+**BREAKING CHANGE:** `delivery.feedbackLoop.retroProposals` and
+`delivery.feedbackLoop.auditResultsAutoFile` now default to `false`. A consumer
+that relied on auto-filed follow-up issues sets both to `true` in
+`.agentrc.json`.
+
+### Alternatives considered
+
+- **Keep the restatements and add a drift test.** Rejected — a test that pins
+  five copies byte-for-byte makes every wording change a five-file edit, which
+  is the cost the duplication already imposes, now enforced.
+- **Keep `sibling-coherence` and find it a reader.** Rejected — the findings it
+  produced (a missing `## Acceptance`, a duplicated `## Spec`) are plan-time
+  defects, and `/mandrel-plan` already gates both at authoring time.
+- **Keep the auto-filers on and raise the recurrence threshold.** Rejected —
+  the threshold was not the failure. A roll-up carrying 116 signals and filing
+  nothing is a corpus problem, and the fixture-leaked filings are a routing
+  one; neither is repaired by asking for more occurrences.
+- **Drop the roll-up entirely when nothing is filed.** Rejected — the roll-up
+  is the record of what the run saw, and a zero-filing run is exactly when
+  somebody may want to know why. It is relocated, not discarded.
+
+### Consequences
+
+- A correction to the credited-run rule is a one-file edit, and a worker that
+  needs the invocation follows one pointer to get it.
+- `resolve-stories.js` becomes the only thing that can be wrong about the
+  `Epic: #N` refusal, and it is also the thing that performs it.
+- A consumer upgrading past this Story stops seeing auto-filed follow-ups
+  until it opts in — the breaking change the footer above names.
+- A `follow-ups` comment on a ticket now means something was filed, which is
+  what makes it worth reading.
 
 ## ADR 20260917-5340: Resident-context measurements are reports; the always-loaded closure is the one gate
 

@@ -1742,17 +1742,17 @@
         },
         "feedbackLoop": {
           "type": "object",
-          "description": "Opt-out toggles for the close-time auto-file graduators. All default to auto-filing on.",
+          "description": "Opt-in toggles for the close-time auto-file graduators. Both default to auto-filing OFF (Story #5341).",
           "properties": {
             "auditResultsAutoFile": {
               "type": "boolean",
-              "description": "When true (default), the close-time audit-results graduator auto-files non-blocking audit-results findings as follow-up issues routed by source classification. Set to false to suppress auto-filing; findings remain accessible in the structured comments on the Story.",
-              "default": true
+              "description": "When true, the close-time audit-results graduator auto-files non-blocking audit-results findings as follow-up issues routed by source classification. Defaults to false (Story #5341); findings remain accessible in the structured comments on the Story either way.",
+              "default": false
             },
             "retroProposals": {
               "type": "boolean",
-              "description": "When true (default), the retro auto-files its actionable routed proposals as meta::<framework-gap|consumer-improvement> + friction::<category> issues via the graduator pre-parsed-findings seam, and the rendered retro sections list the filed issue numbers instead of paste-ready gh command stanzas. Set to false to fall back to the command stanzas.",
-              "default": true
+              "description": "When true, the retro auto-files its actionable routed proposals as meta::<framework-gap|consumer-improvement> + friction::<category> issues via the graduator pre-parsed-findings seam, and the rendered retro sections list the filed issue numbers instead of paste-ready gh command stanzas. Defaults to false (Story #5341), which renders the command stanzas instead.",
+              "default": false
             },
             "frictionWindowDays": {
               "type": "integer",

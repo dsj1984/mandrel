@@ -36,7 +36,7 @@ gates, same PR to `main`, same terminal envelope, byte for byte.
 
 | Trait | Contract |
 | --- | --- |
-| Ticket type | `type::story` only; an `Epic: #N` footer means **stop and re-plan** |
+| Ticket type | `type::story` only — `resolve-stories.js` validates it |
 | Branch | `story-<id>`, seeded from `project.baseBranch` (`main`) |
 | Merge target | `main` via PR (squash + required checks) — never a direct push |
 | Gates | Every close gate runs regardless of route; no route bypasses one |

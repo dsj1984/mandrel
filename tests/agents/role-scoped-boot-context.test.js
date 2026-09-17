@@ -138,27 +138,37 @@ describe('story-worker boot context carries every delivery MUST (default-true ga
     }
   });
 
-  test('AC-1: names the runner-agnostic deposit, not a bare npm test (#5324)', () => {
+  // Story #5341 — the credited run had four homes (this boot context, the
+  // spine's Step 2.5, the reference and the digest) and they had already
+  // drifted: #5324 had to patch the same sentence in two of them. The rule now
+  // lives in `deliver-digest.md` § 5 alone and every other surface points at
+  // it, so the guard here inverts: the worker must route, not restate.
+  test('AC-1: routes the credited run at the digest instead of restating it (#5341)', () => {
     const { body } = bootContext('story-worker.md');
     assertDocMentions(
       body,
-      /--gate test --worktree <workCwd> -- npm test/,
-      'the boot context must name the deposit that earns the credit whatever `npm test` resolves to',
+      /deliver-digest\.md/,
+      'the boot context must name the file that carries the credited-run rule',
     );
     assertDocMentions(
       body,
-      /a bare `npm test` deposits nothing unless it routes through mandrel's own runner/,
-      'the boot context must not leave a worker believing a bare run earns the credit',
+      /§ 5/,
+      'the pointer must name the section, not just the file',
+    );
+    assertDocOmits(
+      body,
+      /--gate test --worktree <workCwd> -- npm test/,
+      'the invocation belongs to deliver-digest.md § 5 alone — a second copy is what drifted',
+    );
+    assertDocOmits(
+      body,
+      /routes through mandrel's own runner/,
+      'the bare-run caveat is part of the same rule and belongs in its one home',
     );
     assertDocOmits(
       body,
       /run `npm test` exactly once/,
-      "#5313's bare-run instruction is the claim #5324 falsifies — it must not survive",
-    );
-    assertDocOmits(
-      body,
-      /deposits \*\*no\*\* credit/,
-      'the retired no-credit shape must not survive',
+      "#5313's bare-run instruction is the claim #5324 falsified — it must not survive",
     );
     assertDocOmits(
       body,

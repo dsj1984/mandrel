@@ -9,7 +9,10 @@
  * @module lib/orchestration/story-follow-ups
  */
 
-import { signalsFile } from '../config/temp-paths.js';
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+
+import { orchestrationLogDir, signalsFile } from '../config/temp-paths.js';
 import { graduateRetroProposals } from '../feedback-loop/retro-proposals-graduator.js';
 import {
   DEFAULT_FRAMEWORK_REPO,
@@ -29,6 +32,76 @@ import {
 import { upsertStructuredComment } from './ticketing.js';
 
 const FOLLOW_UPS_COMMENT_TYPE = 'follow-ups';
+
+/**
+ * Publish a rendered roll-up — as a `follow-ups` comment when the run actually
+ * filed something, and as a run artifact under the temp root when it did not.
+ *
+ * Story #5341 made the filing the condition. The comment had been
+ * unconditional, and the corpus it rendered is dominated by noise: #5324's
+ * roll-up carried 116 signals and filed nothing, and #4653 / #4833 / #4834 /
+ * #4836 record filings that were false or leaked from fixtures. A comment that
+ * says "nothing to do" on every Story trains its readers to skip the one that
+ * does not — while the roll-up itself is still written, so nothing is lost,
+ * only moved off the ticket.
+ *
+ * @param {object} args
+ * @param {number} args.anchorId — the ticket the roll-up belongs to.
+ * @param {string} args.body — the rendered roll-up.
+ * @param {number} args.filedCount — issues this roll-up actually filed.
+ * @param {object} args.provider
+ * @param {object} [args.config]
+ * @returns {Promise<{ posted: boolean, artifactPath: string|null, summary: string }>}
+ */
+export async function publishFollowUpsRollup({
+  anchorId,
+  body,
+  filedCount,
+  provider,
+  config,
+}) {
+  return filedCount > 0
+    ? postFollowUpsComment({ anchorId, body, filedCount, provider })
+    : parkFollowUpsRollup({ anchorId, body, config });
+}
+
+/**
+ * Post the roll-up as the `follow-ups` structured comment.
+ *
+ * @param {object} args
+ * @returns {Promise<{ posted: true, artifactPath: null, summary: string }>}
+ */
+async function postFollowUpsComment({ anchorId, body, filedCount, provider }) {
+  await upsertStructuredComment(
+    provider,
+    anchorId,
+    FOLLOW_UPS_COMMENT_TYPE,
+    body,
+  );
+  return {
+    posted: true,
+    artifactPath: null,
+    summary: `Captured follow-ups for #${anchorId} (filed=${filedCount}).`,
+  };
+}
+
+/**
+ * Write the roll-up to the run artifacts under the temp root.
+ *
+ * @param {object} args
+ * @returns {Promise<{ posted: false, artifactPath: string, summary: string }>}
+ */
+async function parkFollowUpsRollup({ anchorId, body, config }) {
+  const dir = orchestrationLogDir(config);
+  const artifactPath = path.join(dir, `follow-ups-rollup-${anchorId}.md`);
+  await mkdir(dir, { recursive: true });
+  await writeFile(artifactPath, `${body}\n`, 'utf8');
+  return {
+    posted: false,
+    artifactPath,
+    summary: `No follow-ups filed for #${anchorId} — roll-up kept at ${artifactPath}.`,
+  };
+}
 
 /** Milliseconds in one day — the unit `frictionWindowDays` is expressed in. */
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -709,6 +782,52 @@ export function buildFollowUpsCommentBody({
 }
 
 /**
+ * Compose the routed proposals for one Story's friction corpus.
+ *
+ * @param {number} sid
+ * @param {Array<object>} signals
+ * @param {object} [config]
+ * @returns {object}
+ */
+function composeStoryProposals(sid, signals, config) {
+  const repos = resolveFollowUpRepos(config);
+  return composeRoutedProposals({
+    anchorId: sid,
+    anchorKind: 'story',
+    frameworkRepo: repos.frameworkRepo,
+    consumerRepo: repos.consumerRepo,
+    signals,
+    // Derived, not hardcoded `[]` (Story #4649). This is the escape hatch
+    // the retired story-scope threshold carve-out was standing in for: a
+    // Story still parked at `agent::blocked` files at a single occurrence,
+    // while one that blocked and self-resolved nets out entirely.
+    unresolvedBlockedEvents: deriveUnresolvedBlockedEvents(signals),
+  });
+}
+
+/**
+ * Hand one Story's routed proposals to the graduator.
+ *
+ * @param {object} args
+ * @returns {Promise<object>}
+ */
+function fileStoryProposals({ sid, proposals, provider, config, cwd }) {
+  const repos = resolveFollowUpRepos(config);
+  return graduateRetroProposals({
+    epicId: sid,
+    provider,
+    config,
+    currentRepo: repos.currentRepo,
+    // The resolved bucket object, not a re-split of the slug: routing is
+    // decided once in `github/framework-repo.js`.
+    frameworkRepo: repos.repos.framework,
+    platformRepo: repos.repos.platform,
+    routedProposals: proposals,
+    cwd,
+  });
+}
+
+/**
  * Capture and persist Story follow-ups. Never throws — the land must not
  * fail because follow-up filing flaked.
  *
@@ -743,29 +862,12 @@ export async function captureStoryFollowUps({
   }
   try {
     const signals = await gatherStoryFrictionSignals(sid, config);
-    const repos = resolveFollowUpRepos(config);
-    const proposals = composeRoutedProposals({
-      anchorId: sid,
-      anchorKind: 'story',
-      frameworkRepo: repos.frameworkRepo,
-      consumerRepo: repos.consumerRepo,
-      signals,
-      // Derived, not hardcoded `[]` (Story #4649). This is the escape hatch
-      // the retired story-scope threshold carve-out was standing in for: a
-      // Story still parked at `agent::blocked` files at a single occurrence,
-      // while one that blocked and self-resolved nets out entirely.
-      unresolvedBlockedEvents: deriveUnresolvedBlockedEvents(signals),
-    });
-    const graduated = await graduateRetroProposals({
-      epicId: sid,
+    const proposals = composeStoryProposals(sid, signals, config);
+    const graduated = await fileStoryProposals({
+      sid,
+      proposals,
       provider,
       config,
-      currentRepo: repos.currentRepo,
-      // The resolved bucket object, not a re-split of the slug: routing is
-      // decided once in `github/framework-repo.js`.
-      frameworkRepo: repos.repos.framework,
-      platformRepo: repos.repos.platform,
-      routedProposals: proposals,
       cwd,
     });
     const body = buildFollowUpsCommentBody({
@@ -775,30 +877,45 @@ export async function captureStoryFollowUps({
       signalCount: signals.length,
       categories: summarizeSignalCategories(signals),
     });
-    await upsertStructuredComment(provider, sid, FOLLOW_UPS_COMMENT_TYPE, body);
-    progress?.(
-      'FOLLOW-UPS',
-      `Captured follow-ups for Story #${sid} (filed=${graduated.filed?.length ?? 0}).`,
-    );
+    const filedCount = graduated.filed?.length ?? 0;
+    const published = await publishFollowUpsRollup({
+      anchorId: sid,
+      body,
+      filedCount,
+      provider,
+      config,
+    });
+    progress?.('FOLLOW-UPS', published.summary);
     return {
       ok: true,
       storyId: sid,
       proposals,
       graduated,
       signalCount: signals.length,
+      commentPosted: published.posted,
+      artifactPath: published.artifactPath,
     };
   } catch (err) {
-    Logger.warn(
-      `[story-follow-ups] capture failed for #${sid}: ${err?.message ?? err}`,
-    );
-    progress?.(
-      'FOLLOW-UPS',
-      `⚠️ Follow-up capture failed (close continues): ${err?.message ?? err}`,
-    );
-    return {
-      ok: false,
-      reason: 'capture-failed',
-      error: String(err?.message ?? err),
-    };
+    return reportCaptureFailure(sid, err, progress);
   }
+}
+
+/**
+ * Report a failed capture without failing the close around it — follow-up
+ * capture is a reporting step, so a provider or filesystem fault degrades the
+ * report and never the land.
+ *
+ * @param {number} sid
+ * @param {unknown} err
+ * @param {((tag: string, msg: string) => void)} [progress]
+ * @returns {{ ok: false, reason: string, error: string }}
+ */
+function reportCaptureFailure(sid, err, progress) {
+  const detail = String(err?.message ?? err);
+  Logger.warn(`[story-follow-ups] capture failed for #${sid}: ${detail}`);
+  progress?.(
+    'FOLLOW-UPS',
+    `⚠️ Follow-up capture failed (close continues): ${detail}`,
+  );
+  return { ok: false, reason: 'capture-failed', error: detail };
 }

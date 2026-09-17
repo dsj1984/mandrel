@@ -458,10 +458,8 @@ body lint), a `## Spec`, an `acceptance[]` / `verify[]`, or any path, finding
 or rationale a child does not already hold. It is a container; unique content
 here is content no delivering agent reads.
 
-What the **Stories** never gain is an `Epic: #N` footer. Linkage is
-parent→child only, which is exactly why every existing refusal of that footer
-still stands and each Story stays independently deliverable (ADR
-`20260905-5139`).
+Linkage runs parent→child only, which is why each Story stays independently
+deliverable (ADR `20260905-5139`).
 
 Degradation is deliberate: an unensurable `type::epic` label skips the Epic
 entirely (an unlabelled container is not a container), while a failed

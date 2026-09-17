@@ -77,13 +77,13 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   'follow-ups',
   // v2 plan-run epilogue artifacts (posted on the primary Story)
   'plan-run-audit-roster',
-  'plan-run-sibling-coherence',
   'epic-run-state',
   'epic-run-progress',
   'epic-plan-state',
   // `parked-follow-ons` retired in Story #5114 with the module that was its
-  // only writer. A kind the reader still recognises but nothing emits is the
-  // same dead wiring in a new place.
+  // only writer, and `plan-run-sibling-coherence` in Story #5341 with the
+  // epilogue step that was its. A kind the reader still recognises but
+  // nothing emits is the same dead wiring in a new place.
   // Story #566 — per-phase wall-clock summary posted by single-story-close.js.
   'phase-timings',
   // Story #831 — story-init upserts a `story-init` comment that

@@ -80,10 +80,19 @@ describe('one delivery door (Story #4760)', () => {
       /bare/i,
       'a bare invocation must have a documented behaviour, not be undefined',
     );
+    // Story #5341 — a mixed invocation is ambiguous, not fatal. The rule it
+    // replaced made the router refuse work a one-line question resolves, and
+    // the guard that matters is unchanged: the shape is never silently
+    // guessed.
     assertDocMentions(
       md,
-      /mixed[^.]*hard error/i,
-      'mixed ids-and-prose must refuse rather than guess a shape',
+      /mixed[^.]*ambiguous, not fatal/i,
+      'mixed ids-and-prose must be disambiguated rather than guessed at',
+    );
+    assertDocMentions(
+      md,
+      /ask which was meant/i,
+      'the router must say how to disambiguate, not merely that it is ambiguous',
     );
     assertDocMentions(
       md,

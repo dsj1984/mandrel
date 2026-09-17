@@ -180,12 +180,25 @@ function makeRoutedProposals() {
 
 const REPO = { owner: 'o', repo: 'r' };
 
-describe('AC1 — default-ON files actionable proposals via the pre-parsed seam', () => {
+/**
+ * Story #5341 flipped `retroProposals` to opt-in. Every filing assertion below
+ * is about what the graduator does when a consumer has asked for it, so each
+ * one now says so explicitly instead of relying on a default that no longer
+ * points that way.
+ */
+const AUTO_FILE_ON = { delivery: { feedbackLoop: { retroProposals: true } } };
+
+describe('AC1 — the toggle ON files actionable proposals via the pre-parsed seam', () => {
   it('files two issues with meta::* + friction::<category> labels, and re-run files nothing', async () => {
     assert.equal(
       isAutoFileEnabled(undefined),
+      false,
+      'Story #5341 — the toggle defaults to OFF when unset',
+    );
+    assert.equal(
+      isAutoFileEnabled(AUTO_FILE_ON),
       true,
-      'toggle defaults to ON when unset',
+      'an explicit true still enables it',
     );
 
     const spawnImpl = makeSpawnStub();
@@ -195,7 +208,7 @@ describe('AC1 — default-ON files actionable proposals via the pre-parsed seam'
     const first = await graduateRetroProposals({
       epicId: 4406,
       provider,
-      config: {},
+      config: AUTO_FILE_ON,
       currentRepo: REPO,
       frameworkRepo: REPO,
       routedProposals,
@@ -240,7 +253,7 @@ describe('AC1 — default-ON files actionable proposals via the pre-parsed seam'
     const second = await graduateRetroProposals({
       epicId: 4406,
       provider,
-      config: {},
+      config: AUTO_FILE_ON,
       currentRepo: REPO,
       frameworkRepo: REPO,
       routedProposals,
@@ -255,7 +268,7 @@ describe('AC1 — default-ON files actionable proposals via the pre-parsed seam'
   });
 });
 
-describe('AC2 — toggle OFF suppresses filing and falls back to command stanzas', () => {
+describe('AC2 — the toggle OFF (the default) suppresses filing and falls back to command stanzas', () => {
   it('files no issue and leaves the routed proposals unenriched', async () => {
     const spawnImpl = makeSpawnStub();
     const provider = makeProvider();
@@ -381,7 +394,7 @@ describe('AC4 — rendered body lists filed issue references and the cap is resp
     const { routedProposals: enriched, summary } = await fileRetroProposals({
       epicId: 4406,
       provider,
-      config: {},
+      config: AUTO_FILE_ON,
       frameworkRepo: 'o/r',
       consumerRepo: 'o/r',
       routedProposals,
@@ -407,7 +420,7 @@ describe('AC4 — rendered body lists filed issue references and the cap is resp
     const res = await graduateRetroProposals({
       epicId: 4406,
       provider,
-      config: {},
+      config: AUTO_FILE_ON,
       currentRepo: REPO,
       frameworkRepo: REPO,
       routedProposals,
@@ -443,7 +456,7 @@ describe('AC-6 — the shared memo blocks a cross-bucket duplicate (Story #4657)
     const res = await graduateRetroProposals({
       epicId: 4406,
       provider,
-      config: {},
+      config: AUTO_FILE_ON,
       currentRepo: REPO,
       frameworkRepo: REPO,
       routedProposals,
@@ -618,6 +631,7 @@ describe('AC-1/AC-2 — anchor-invariant idempotency identity (Story #4837)', ()
     const res = await graduateRetroProposals({
       epicId: 101,
       provider: { getTicketComments: async () => [] },
+      config: AUTO_FILE_ON,
       currentRepo: { owner: 'o', repo: 'r' },
       frameworkRepo: { owner: 'f', repo: 'w' },
       routedProposals: {

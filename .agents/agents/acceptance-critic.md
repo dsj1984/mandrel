@@ -93,24 +93,6 @@ For each acceptance item in your cluster:
    **required evidence**. A criterion cannot be scored `met` without the
    supporting `verify[]` evidence where a `verify[]` command is relevant to it.
    `verify[]` is evidence, not optional advisory pre-flight.
-3. **Share `lint` / `typecheck` evidence with close** (Story #4250). When a
-   `verify[]` command is **byte-identical** to a close-validation gate, run it
-   through `evidence-gate.js` in the **same Story worktree** close validates so
-   a passing run records an evidence entry in the keyspace close consults:
-
-   ```bash
-   node <main-repo>/.agents/scripts/evidence-gate.js \
-     --standalone --scope-id <storyId> --gate lint \
-     --worktree <worktree> -- npm run lint
-
-   node <main-repo>/.agents/scripts/evidence-gate.js \
-     --standalone --scope-id <storyId> --gate typecheck \
-     --worktree <worktree> -- <resolved typecheck command>
-   ```
-
-   **Never** run the coverage / CRAP suite through `evidence-gate.js` to stamp
-   it fresh — a false-fresh coverage record without `coverage-final.json`
-   silently weakens the floor.
 
 ## Verdict schema (MUST)
 

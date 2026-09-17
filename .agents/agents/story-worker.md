@@ -89,20 +89,17 @@ names. A null digest path means no docs mandate.
 (**typecheck, lint, test, format, maintainability, coverage, crap**) and is
 the authoritative gate — do not pre-run it. The **one** exception is the
 full suite: after the self-eval loop's last fix commit, run it once in
-`<workCwd>` through the depositor — `evidence-gate.js --standalone
---scope-id <storyId> --gate test --worktree <workCwd> -- npm test`. It runs
-whatever `npm test` resolves to and stamps that, so the credit is earned on
-any runner; a later commit voids it, and close captures coverage itself when
-the CRAP gate needs an artifact. If the suite outruns the host's sync Bash
-ceiling, dispatch it in the **background** — its completion notification
-re-invokes you. Never spawn a task to poll or `sleep`-loop against it; a
-waiter with a wrong condition outlives the agent. An exit code is never
-evidence a gate did work — the **output** is: a bare `npm test` deposits
-nothing unless it routes through mandrel's own runner, the only shape that
-says so. Redraft rounds run the scoped projects for the roots you changed
-plus `verify[]`, not the whole suite. Share `lint` / `typecheck` evidence
-with close via `evidence-gate.js`; never stamp coverage / CRAP fresh any
-other way.
+`<workCwd>` exactly as
+[`deliver-digest.md`](../workflows/helpers/deliver-digest.md) § 5 states it —
+that section is the rule's only home, so read the invocation there rather
+than from a copy here.
+
+If the suite outruns the host's sync Bash ceiling, dispatch it in the
+**background**: its completion re-invokes you. Never spawn a task to poll or
+`sleep`-loop against it; a waiter with a wrong condition outlives the agent.
+An exit code is never evidence a gate did work — its **output** is. Redraft
+rounds run the scoped projects for the roots you changed plus `verify[]`, not
+the whole suite, and never stamp coverage / CRAP fresh any other way.
 
 Gate output that lies: [`known-tooling-behavior.md`](../rules/known-tooling-behavior.md).
 Waiter traps: [`parallel-tooling.md`](../workflows/helpers/parallel-tooling.md) Rule 2.

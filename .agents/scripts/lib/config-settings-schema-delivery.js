@@ -452,18 +452,25 @@ const REVIEW_SCHEMA = {
 };
 
 /**
- * `delivery.feedbackLoop` — opt-out toggles consumed by the Epic finalize
- * listener's auto-file graduators (`lib/feedback-loop/*-graduator.js`, read
- * via `graduator-core.js#makeIsAutoFileEnabled`). All default to `true`
- * (auto-file on); set any to `false` to suppress auto-filing the
- * corresponding non-blocking findings as follow-up issues.
+ * `delivery.feedbackLoop` — **opt-in** toggles consumed by the auto-file
+ * graduators (`lib/feedback-loop/*-graduator.js`, read via
+ * `graduator-core.js#makeIsAutoFileEnabled`). Both default to `false`; set one
+ * to `true` to auto-file the corresponding non-blocking findings as follow-up
+ * issues.
  *
- * `retroProposals` (Story #4418) governs the retro auto-filer: when true
- * (default) the retro's actionable routed proposals are filed as
+ * They defaulted to `true` until Story #5341, which flipped them on the
+ * measured record of what the channel produced: Story #5324's roll-up carried
+ * 116 signals and filed nothing, and issues #4653, #4833, #4834 and #4836 are
+ * filings that were false or leaked from test fixtures. An auto-filer whose
+ * output is dominated by noise costs triage on every run and buys nothing, so
+ * a consumer that wants it now asks for it.
+ *
+ * `retroProposals` (Story #4418) governs the retro auto-filer: when `true` the
+ * retro's actionable routed proposals are filed as
  * `meta::<framework-gap|consumer-improvement>` + `friction::<category>`
  * issues via the graduator pre-parsed-findings seam, and the rendered retro
  * sections list the filed issue numbers instead of paste-ready `gh` command
- * stanzas; set it to `false` to fall back to the command stanzas.
+ * stanzas; left `false` it renders the command stanzas.
  *
  * `frictionWindowDays` (Story #4850) bounds the run-scope friction recurrence
  * window by row age. The window deliberately spans every surviving signal
@@ -475,19 +482,19 @@ const REVIEW_SCHEMA = {
 const FEEDBACK_LOOP_SCHEMA = {
   type: 'object',
   description:
-    'Opt-out toggles for the close-time auto-file graduators. All default to auto-filing on.',
+    'Opt-in toggles for the close-time auto-file graduators. Both default to auto-filing OFF (Story #5341).',
   properties: {
     auditResultsAutoFile: {
       type: 'boolean',
       description:
-        'When true (default), the close-time audit-results graduator auto-files non-blocking audit-results findings as follow-up issues routed by source classification. Set to false to suppress auto-filing; findings remain accessible in the structured comments on the Story.',
-      default: true,
+        'When true, the close-time audit-results graduator auto-files non-blocking audit-results findings as follow-up issues routed by source classification. Defaults to false (Story #5341); findings remain accessible in the structured comments on the Story either way.',
+      default: false,
     },
     retroProposals: {
       type: 'boolean',
       description:
-        'When true (default), the retro auto-files its actionable routed proposals as meta::<framework-gap|consumer-improvement> + friction::<category> issues via the graduator pre-parsed-findings seam, and the rendered retro sections list the filed issue numbers instead of paste-ready gh command stanzas. Set to false to fall back to the command stanzas.',
-      default: true,
+        'When true, the retro auto-files its actionable routed proposals as meta::<framework-gap|consumer-improvement> + friction::<category> issues via the graduator pre-parsed-findings seam, and the rendered retro sections list the filed issue numbers instead of paste-ready gh command stanzas. Defaults to false (Story #5341), which renders the command stanzas instead.',
+      default: false,
     },
     frictionWindowDays: {
       type: 'integer',

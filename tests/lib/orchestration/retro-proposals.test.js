@@ -717,6 +717,14 @@ test('framework-sourced signals compose a non-empty framework bucket', () => {
   );
 });
 
+/**
+ * Story #5341 made `retroProposals` opt-in, so the two routing tests below —
+ * which are about WHERE a filing lands, not whether filing happens — now ask
+ * for filing explicitly rather than relying on a default that points the other
+ * way.
+ */
+const AUTO_FILE_ON = { delivery: { feedbackLoop: { retroProposals: true } } };
+
 test('graduateRetroProposals files the framework bucket against frameworkRepo', async () => {
   const spawnImpl = makeGhSpawnStub();
   const routedProposals = composeRoutedProposals(
@@ -732,7 +740,7 @@ test('graduateRetroProposals files the framework bucket against frameworkRepo', 
   const result = await graduateRetroProposals({
     epicId: 8701,
     provider: stubProvider,
-    config: {},
+    config: AUTO_FILE_ON,
     // Running inside the framework repo itself — the cross-repo guard lets
     // the filing through, so the `--repo` argument is observable.
     currentRepo: { owner: fwOwner, repo: fwRepo },
@@ -765,7 +773,7 @@ test('a framework proposal routes to frameworkRepo, not the consumer it ran in',
   const result = await graduateRetroProposals({
     epicId: 8801,
     provider: stubProvider,
-    config: {},
+    config: AUTO_FILE_ON,
     currentRepo: { owner: cOwner, repo: cRepo },
     frameworkRepo: { owner: fwOwner, repo: fwRepo },
     routedProposals,

@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs/promises';
+import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
+import { orchestrationLogDir } from '../../../.agents/scripts/lib/config/temp-paths.js';
 import { graduateRetroProposals } from '../../../.agents/scripts/lib/feedback-loop/retro-proposals-graduator.js';
 import { DEFAULT_FRAMEWORK_REPO } from '../../../.agents/scripts/lib/github/framework-repo.js';
 import {
@@ -20,6 +22,7 @@ import {
   captureStoryFollowUps,
   gatherRunFrictionSignals,
   gatherStoryFrictionSignals,
+  publishFollowUpsRollup,
   resolveFollowUpRepos,
   summarizeSignalCategories,
 } from '../../../.agents/scripts/lib/orchestration/story-follow-ups.js';
@@ -826,6 +829,13 @@ describe('a routed bucket at threshold reaches the filer (Story #4828)', () => {
     deleteComment: async () => {},
   };
 
+  /**
+   * Story #5341 — `retroProposals` is opt-in now, and these two cases are
+   * about what the filer does once a consumer has asked for filing, so they
+   * ask for it explicitly.
+   */
+  const AUTO_FILE_ON = { delivery: { feedbackLoop: { retroProposals: true } } };
+
   /** A category at the ≥2 threshold, routed to the repo the roll-up runs in. */
   function thresholdProposals() {
     return composeRoutedProposals({
@@ -853,7 +863,7 @@ describe('a routed bucket at threshold reaches the filer (Story #4828)', () => {
     const result = await graduateRetroProposals({
       epicId: 4824,
       provider,
-      config: {},
+      config: AUTO_FILE_ON,
       currentRepo: { owner: 'acme', repo: 'app' },
       frameworkRepo: { owner: 'acme', repo: 'app' },
       routedProposals: proposals,
@@ -884,7 +894,7 @@ describe('a routed bucket at threshold reaches the filer (Story #4828)', () => {
     const result = await graduateRetroProposals({
       epicId: 4824,
       provider,
-      config: {},
+      config: AUTO_FILE_ON,
       currentRepo: { owner: 'acme', repo: 'app' },
       frameworkRepo: { owner: 'acme', repo: 'app' },
       routedProposals: proposals,
@@ -1027,5 +1037,169 @@ describe('zero proposals from a non-empty corpus (Story #4828)', () => {
     );
     assert.match(body, /"zeroProposalSuspect": true/);
     assert.match(body, /"signalCount": 4/);
+  });
+});
+
+/**
+ * Story #5341 — the roll-up comment is gated on a filing.
+ *
+ * The defect it closes is not a crash: the comment was posted unconditionally,
+ * so a run that filed nothing still left a `follow-ups` comment on the Story.
+ * Measured across the corpus that motivated the flip, that is the usual case
+ * — #5324's roll-up carried 116 signals and filed none — and a ticket
+ * annotation that almost always says "nothing happened" is read as noise, then
+ * skipped on the run where something did. The roll-up is still written, so the
+ * two tests that matter are: the comment appears exactly when a filing backs
+ * it, and the content is never lost when it does not.
+ */
+describe('publishFollowUpsRollup — the comment is gated on a filing (#5341)', () => {
+  function provider(posted) {
+    return {
+      getTicketComments: async () => [],
+      postComment: async (ticketId, payload) => {
+        posted.push({ ticketId, body: payload.body });
+        return { commentId: posted.length };
+      },
+      deleteComment: async () => {},
+    };
+  }
+
+  it('posts the comment when the run filed at least one issue', async () => {
+    const posted = [];
+    const tempRoot = makeTempDir('publish-filed-');
+    const config = { project: { paths: { tempRoot } } };
+    try {
+      const result = await publishFollowUpsRollup({
+        anchorId: 5341,
+        body: '### follow-ups\n\nfiled one',
+        filedCount: 1,
+        provider: provider(posted),
+        config,
+      });
+      assert.equal(result.posted, true);
+      assert.equal(result.artifactPath, null);
+      assert.match(result.summary, /Captured follow-ups for #5341 \(filed=1\)/);
+      assert.equal(posted.length, 1);
+      assert.match(posted[0].body, /filed one/);
+    } finally {
+      await fs.rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('parks the roll-up under the temp root when nothing was filed', async () => {
+    const posted = [];
+    const tempRoot = makeTempDir('publish-unfiled-');
+    const config = { project: { paths: { tempRoot } } };
+    try {
+      const result = await publishFollowUpsRollup({
+        anchorId: 5341,
+        body: '### follow-ups\n\n116 signals, nothing filed',
+        filedCount: 0,
+        provider: provider(posted),
+        config,
+      });
+      assert.equal(result.posted, false);
+      assert.equal(
+        posted.length,
+        0,
+        'a roll-up that filed nothing must not annotate the ticket',
+      );
+      assert.equal(
+        result.artifactPath,
+        path.join(orchestrationLogDir(config), 'follow-ups-rollup-5341.md'),
+      );
+      assert.match(
+        result.summary,
+        /No follow-ups filed for #5341 — roll-up kept at .*follow-ups-rollup-5341\.md/,
+        'the caller must be able to log where the roll-up went without re-deriving the path',
+      );
+      const parked = await fs.readFile(result.artifactPath, 'utf8');
+      assert.match(
+        parked,
+        /116 signals, nothing filed/,
+        'the roll-up is relocated, never discarded',
+      );
+    } finally {
+      await fs.rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+/**
+ * Story #5341 — the capture's own guards and its progress line.
+ *
+ * `captureStoryFollowUps` runs inside the post-land tail, so its contract is
+ * that it degrades rather than throws: an invalid id, or a temp root it cannot
+ * write the parked roll-up into, must come back as a result the tail can log
+ * and continue past. These arms were previously reached only incidentally.
+ */
+describe('captureStoryFollowUps degrades instead of throwing (#5341)', () => {
+  const provider = {
+    getTicketComments: async () => [],
+    postComment: async () => ({ commentId: 1 }),
+    deleteComment: async () => {},
+  };
+
+  it('refuses an invalid Story id before doing any work', async () => {
+    for (const storyId of [undefined, 0, -3, 'x']) {
+      const result = await captureStoryFollowUps({ storyId, provider });
+      assert.deepEqual(result, { ok: false, reason: 'invalid-story-id' });
+    }
+  });
+
+  it('names the parked roll-up on the progress line when nothing was filed', async () => {
+    const tempRoot = makeTempDir('capture-progress-');
+    const config = { project: { paths: { tempRoot } } };
+    const lines = [];
+    try {
+      const result = await captureStoryFollowUps({
+        storyId: 5341,
+        provider,
+        config,
+        progress: (tag, msg) => lines.push(`${tag}: ${msg}`),
+      });
+      assert.equal(result.ok, true);
+      assert.equal(result.commentPosted, false);
+      assert.ok(
+        lines.some((l) => /No follow-ups filed for #5341/.test(l)),
+        `expected the parked-roll-up progress line; got ${JSON.stringify(lines)}`,
+      );
+      assert.ok(
+        lines.some((l) => l.includes(result.artifactPath)),
+        'the progress line must name where the roll-up went, or it is unfindable',
+      );
+    } finally {
+      await fs.rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('reports a capture failure rather than throwing out of the tail', async () => {
+    const tempRoot = makeTempDir('capture-failure-');
+    // A FILE where the orchestration directory must be: `mkdir` throws
+    // ENOTDIR, which is the shape a read-only or hostile temp root produces.
+    const config = { project: { paths: { tempRoot } } };
+    try {
+      await fs.writeFile(
+        orchestrationLogDir(config),
+        'not a directory',
+        'utf8',
+      );
+      const lines = [];
+      const result = await captureStoryFollowUps({
+        storyId: 5341,
+        provider,
+        config,
+        progress: (tag, msg) => lines.push(`${tag}: ${msg}`),
+      });
+      assert.equal(result.ok, false);
+      assert.equal(result.reason, 'capture-failed');
+      assert.ok(result.error.length > 0, 'the failure must carry its detail');
+      assert.ok(
+        lines.some((l) => /close continues/.test(l)),
+        'the tail must be told the close is unaffected',
+      );
+    } finally {
+      await fs.rm(tempRoot, { recursive: true, force: true });
+    }
   });
 });

@@ -317,8 +317,8 @@
       "maxRounds": 2
     },
     "feedbackLoop": {
-      "auditResultsAutoFile": true,
-      "retroProposals": true
+      "auditResultsAutoFile": false,
+      "retroProposals": false
     },
     "ci": {
       "watch": {

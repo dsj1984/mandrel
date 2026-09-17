@@ -155,7 +155,7 @@ also comments on and closes each source id ([ref](helpers/plan-reference.md)).
 - Duplicate search targets open Stories (`type::story`), not Epics; and
   deterministic gates still fail closed under `--yes`.
 - A container Epic is never a work item and only an **open** one is adoptable;
-  no Story body gains an `Epic: #N` footer (linkage is parent→child only).
+  linkage is parent→child only.
 - `depends_on` takes a sibling slug or `#<id>` (open Story).
 
 ## See also

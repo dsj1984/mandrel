@@ -95,18 +95,27 @@ describe('runChild', () => {
 });
 
 describe('makeIsAutoFileEnabled', () => {
-  it('binds to the supplied toggle key and defaults to true', () => {
+  // Story #5341 inverted the default: the auto-filers are opt-in, so an
+  // unset toggle reads as OFF. The key-binding half of the contract is what
+  // is unchanged, and it is the half that has actually broken before — a
+  // reader that answered to any sibling key would silently enable a filer
+  // nobody asked for.
+  it('binds to the supplied toggle key and defaults to false', () => {
     const reader = makeIsAutoFileEnabled('myToggle');
-    assert.equal(reader(undefined), true);
-    assert.equal(reader({ delivery: { feedbackLoop: {} } }), true);
+    assert.equal(reader(undefined), false);
+    assert.equal(reader({ delivery: { feedbackLoop: {} } }), false);
+    assert.equal(
+      reader({ delivery: { feedbackLoop: { myToggle: true } } }),
+      true,
+    );
     assert.equal(
       reader({ delivery: { feedbackLoop: { myToggle: false } } }),
       false,
     );
-    // A different key must not disable it.
+    // A different key must not enable it.
     assert.equal(
-      reader({ delivery: { feedbackLoop: { otherToggle: false } } }),
-      true,
+      reader({ delivery: { feedbackLoop: { otherToggle: true } } }),
+      false,
     );
   });
 });
@@ -256,6 +265,54 @@ describe('graduate (parametrized walk)', () => {
       errors: [],
     });
     assert.equal(called, false, 'nothing spawns when toggled off');
+  });
+
+  // Story #5341 — the two guards below used to be reached incidentally, by
+  // real callers that passed `config: {}` and fell through a default-ON
+  // toggle. With the toggle opt-in those callers stop at `toggle-disabled`,
+  // so the guards need asking for directly. They are worth asking for: each
+  // returns an `errors[]` envelope rather than throwing, and a silent
+  // regression to a throw would take the close down with it.
+  it('rejects a missing or invalid epicId without throwing', async () => {
+    for (const epicId of [undefined, 0, -1, 1.5, 'x']) {
+      const env = await graduate({
+        epicId,
+        findings: FINDINGS(),
+        provider: {},
+        currentRepo,
+        spec: makeSpec(),
+      });
+      assert.deepEqual(env.filed, []);
+      assert.match(
+        env.errors[0],
+        /missing or invalid epicId/,
+        `epicId ${JSON.stringify(epicId)} must be refused by name`,
+      );
+    }
+  });
+
+  it('rejects a currentRepo that is not {owner, repo} strings', async () => {
+    for (const repo of [
+      undefined,
+      null,
+      {},
+      { owner: 'o' },
+      { owner: 1, repo: 2 },
+    ]) {
+      const env = await graduate({
+        epicId: 7,
+        findings: FINDINGS(),
+        provider: {},
+        currentRepo: repo,
+        spec: makeSpec(),
+      });
+      assert.deepEqual(env.filed, []);
+      assert.match(
+        env.errors[0],
+        /missing currentRepo \{owner,repo\}/,
+        `currentRepo ${JSON.stringify(repo)} must be refused by name`,
+      );
+    }
   });
 
   // Story #5003 — findings[] is now the only source. A caller that omits it

@@ -3,8 +3,10 @@
  */
 
 import assert from 'node:assert/strict';
-import { rmSync } from 'node:fs';
+import { readFileSync, rmSync } from 'node:fs';
+import path from 'node:path';
 import { describe, it } from 'node:test';
+import { orchestrationLogDir } from '../../../.agents/scripts/lib/config/temp-paths.js';
 import {
   emitRuntimeFriction,
   RUNTIME_FRICTION_CATEGORIES,
@@ -18,6 +20,30 @@ import {
 import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
 
 const US = String.fromCharCode(31);
+
+/**
+ * Read the roll-up from wherever Story #5341 put it.
+ *
+ * The `follow-ups` comment is now posted only when the run actually filed an
+ * issue; a roll-up that filed nothing is written to the run artifacts under
+ * the temp root instead. Every assertion below is about the roll-up's
+ * CONTENT — which survives either way — so none of them should care which
+ * surface carried it, and reading both is what keeps the relocation from
+ * silently deleting the evidence.
+ *
+ * @param {Array<{body: string}>} comments
+ * @param {number} anchorId
+ * @param {object} config
+ * @returns {string}
+ */
+function readRollup(comments, anchorId, config) {
+  const posted = comments.find((c) => /### follow-ups/.test(c.body))?.body;
+  if (posted) return posted;
+  return readFileSync(
+    path.join(orchestrationLogDir(config), `follow-ups-rollup-${anchorId}.md`),
+    'utf8',
+  );
+}
 
 /**
  * Build a `gitSpawn` stub over a scripted `git log` first-parent history.
@@ -336,7 +362,11 @@ describe('runPlanRunEpilogue — executor', () => {
     assert.deepEqual(result.results, []);
   });
 
-  it('runs sibling-coherence against Story bodies', async () => {
+  // Story #5341 — the sibling-coherence step is gone, and the guard that
+  // replaces its test is that it cannot come back by accident: the epilogue's
+  // step set is a closed list, and the comment it used to post is no longer
+  // written to any Story.
+  it('runs exactly the three surviving steps and posts no coherence comment', async () => {
     const comments = [];
     const provider = {
       getTicket: async (id) => ({
@@ -363,19 +393,20 @@ describe('runPlanRunEpilogue — executor', () => {
       cwd: process.cwd(),
     });
     assert.equal(result.applicable, true);
-    const coherence = result.results.find(
-      (r) => r.kind === 'sibling-coherence',
+    assert.deepEqual(RUN_EPILOGUE_STEP_KINDS, [
+      'audit-roster',
+      'follow-up-rollup',
+      'epic-close',
+    ]);
+    assert.equal(
+      result.results.find((r) => r.kind === 'sibling-coherence'),
+      undefined,
+      'the removed step must not execute',
     );
-    assert.ok(coherence);
     assert.ok(
-      coherence.findings.some((f) => /Acceptance/i.test(f)),
-      'expected missing-Acceptance finding',
+      !comments.some((c) => /plan-run-sibling-coherence/.test(c.body)),
+      'the coherence comment nothing read must no longer be posted',
     );
-    assert.ok(
-      coherence.findings.some((f) => /Duplicate/i.test(f)),
-      'expected duplicate Spec finding',
-    );
-    assert.ok(comments.some((c) => /plan-run-sibling-coherence/.test(c.body)));
   });
 });
 
@@ -541,15 +572,16 @@ describe('follow-up-rollup — an empty roll-up over N>1 asserts (Story #4578)',
     const comments = [];
     // An absolute tempRoot with no signals.ndjson under it → an empty stream.
     const tempRoot = makeTempDir('rollup-empty-');
+    const config = {
+      github: { owner: 'o', repo: 'r' },
+      project: { paths: { tempRoot } },
+    };
     try {
       const result = await runPlanRunEpilogue({
         planRunId: 'adhoc-1-2-3',
         stories: [1, 2, 3],
         provider: rollupProvider(comments),
-        config: {
-          github: { owner: 'o', repo: 'r' },
-          project: { paths: { tempRoot } },
-        },
+        config,
         cwd: process.cwd(),
       });
 
@@ -562,7 +594,7 @@ describe('follow-up-rollup — an empty roll-up over N>1 asserts (Story #4578)',
         'zero signals across 3 Stories is a claim the epilogue must flag',
       );
 
-      const body = comments.find((c) => /### follow-ups/.test(c.body))?.body;
+      const body = readRollup(comments, 1, config);
       assert.match(body, /0 friction signals across 3 Stories/);
       assert.match(body, /not a clean bill of health/);
       assert.doesNotMatch(
@@ -630,7 +662,7 @@ describe('follow-up-rollup — an empty roll-up over N>1 asserts (Story #4578)',
         'a tool that could not execute is a framework-surface failure',
       );
 
-      const body = comments.find((c) => /### follow-ups/.test(c.body))?.body;
+      const body = readRollup(comments, 9101, config);
       assert.doesNotMatch(
         body,
         /nothing to follow up/,
@@ -688,7 +720,7 @@ describe('follow-up-rollup — an empty roll-up over N>1 asserts (Story #4578)',
       assert.equal(rollup.signalCount, 2);
       assert.deepEqual(rollup.discarded, [], 'no longer below the threshold');
 
-      const body = comments.find((c) => /### follow-ups/.test(c.body))?.body;
+      const body = readRollup(comments, 9201, config);
       assert.match(body, /Actionable \(not auto-filed\)/);
       assert.match(body, /framework: Friction: tool-degraded recurred 2 times/);
     } finally {
@@ -796,7 +828,7 @@ describe('follow-up-rollup — the window is reported and the run is an input (S
         cwd: process.cwd(),
       });
 
-      const body = comments.find((c) => /### follow-ups/.test(c.body))?.body;
+      const body = readRollup(comments, 9401, config);
       assert.match(body, /in plan-run adhoc-9401-9402/);
       assert.match(body, /Triggering run: plan-run adhoc-9401-9402/);
       assert.doesNotMatch(
@@ -842,7 +874,7 @@ describe('follow-up-rollup — the window is reported and the run is an input (S
         cwd: process.cwd(),
       });
 
-      const body = comments.find((c) => /### follow-ups/.test(c.body))?.body;
+      const body = readRollup(comments, 9502, config);
       assert.match(
         body,
         /recurred 2 times across 2 Stories \(\d{4}-\d\d-\d\d\)/,
@@ -948,7 +980,7 @@ describe('follow-up-rollup — zero proposals from N signals (Story #4828)', () 
         { category: 'close-failed', occurrences: 4 },
       ]);
 
-      const body = comments.find((c) => /### follow-ups/.test(c.body))?.body;
+      const body = readRollup(comments, 9301, config);
       assert.match(body, /4 friction signals gathered, 0 proposals produced/);
       assert.match(body, /`close-failed` ×4/);
       assert.doesNotMatch(
@@ -1010,7 +1042,7 @@ describe('follow-up-rollup — zero proposals from N signals (Story #4828)', () 
       assert.equal(rollup.filingErrors.length, 1);
       assert.match(rollup.filingErrors[0], /gh label create/);
 
-      const body = comments.find((c) => /### follow-ups/.test(c.body))?.body;
+      const body = readRollup(comments, 9401, config);
       assert.match(
         body,
         /1 actionable proposal\(s\) reached the filer and none were filed/,

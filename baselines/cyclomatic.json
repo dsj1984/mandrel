@@ -1,11 +1,11 @@
 {
   "$schema": "https://mandrel.dev/baselines/cyclomatic.schema.json",
-  "generatedAt": "2026-09-14T11:59:45.183Z",
+  "generatedAt": "2026-09-17T13:09:49.010Z",
   "ceiling": 12,
   "rollup": {
     "*": {
-      "filesAboveCeiling": 41,
-      "methodsAboveCeiling": 44,
+      "filesAboveCeiling": 40,
+      "methodsAboveCeiling": 43,
       "maxCyclomatic": 20
     }
   },
@@ -157,11 +157,6 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/review-providers/parse-findings.js",
-      "methodsAboveCeiling": 1,
-      "maxCyclomatic": 14
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/run-epilogue.js",
       "methodsAboveCeiling": 1,
       "maxCyclomatic": 14
     },

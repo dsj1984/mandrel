@@ -23,8 +23,7 @@ single-story-init.js → implement + commits → derived-level ceremony → push
   → CI watch + merge → single-story-confirm-merge.js (agent::done)
 ```
 
-An `Epic: #N` reference marks a v1 ticket — **stop** and re-plan. Engine
-traits and prerequisites: reference § Engine invariants.
+Engine traits and prerequisites: reference § Engine invariants.
 
 ## Who owns which step
 
@@ -95,11 +94,9 @@ suite run is the sole exception.
 
 ### Step 2.5 — The one credited suite run, the push, then hand off
 
-After the self-eval loop's last fix commit, run the suite **once** in the
-worktree through the depositor — `evidence-gate.js … --gate test -- npm test`,
-spelled out in **digest § 5**. It runs whatever `npm test` resolves to and
-stamps that, so the `test` credit is earned on any runner and only a *later*
-commit invalidates it. Red → fix, commit, re-run.
+After the self-eval loop's last fix commit, run the one credited suite run
+in the worktree — **digest § 5** is its only home and carries the
+invocation. Red → fix, commit, re-run.
 
 Push `story-<storyId>` to `origin`, confirming the remote ref moved. Then
 (sub-agent dispatch only) return the hand-off — Story id, `workCwd`,
