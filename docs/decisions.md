@@ -60,12 +60,13 @@ the floor-vs-ratchet policy are tooling commitments rather than ADRs and live in
 
 <!-- ADR-INDEX:START -->
 
-**In force (46).** Each governs the surface named beside it.
+**In force (47).** Each governs the surface named beside it.
 A `Status` of `Accepted in part` means some clause of the entry has been
 superseded — open it before citing it.
 
 | Decision | Governs | Surface | Status |
 | --- | --- | --- | --- |
+| [`20260917-5342`](#adr-20260917-5342-the-authoring-contract-is-the-outcome--persist-derives-what-it-can-and-warns-where-it-cannot) | The authoring contract is the outcome; persist derives and warns | `.agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js` | Accepted |
 | [`20260917-5341`](#adr-20260917-5341-one-home-per-delivery-rule-and-the-unattended-follow-up-filer-is-opt-in) | One home per delivery rule; the unattended follow-up filer is opt-in | `.agents/workflows/helpers/deliver-digest.md` | Accepted |
 | [`20260917-5340`](#adr-20260917-5340-resident-context-measurements-are-reports-the-always-loaded-closure-is-the-one-gate) | Resident-context measurements are reports; the always-loaded closure is the one gate | `.agents/scripts/check-context-budget.js` | Accepted |
 | [`20260912-5313`](#adr-20260912-5313-the-delivery-diet--deliver-time-knobs-bound-by-risk-not-by-count-and-scripts-read-ground-truth) | The delivery diet: deliver-time knobs bound by risk, not by count | `.agents/scripts/ceremony-derive.js` | Accepted in part |
@@ -150,6 +151,102 @@ at the release tag named in the entry.
 - [Earlier ADRs (001 / 002 / 003)](#earlier-adrs-001--002--003)
 
 <!-- ADR-INDEX:END -->
+
+## ADR 20260917-5342: The authoring contract is the outcome — persist derives what it can, and warns where it cannot
+
+**Status:** Accepted
+**Date:** 2026-09-17
+**Deciders:** @dsj1984
+**Surface:** `.agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js`
+**Story:** #5342
+
+### Context
+
+Planning still asked the author for things the run could work out, and refused
+shapes something downstream already caught.
+
+Four accretions had that shape. **Two commands where one would do:** a persist
+had to be invoked twice — once `--dry-run`, once for real — unless the operator
+remembered `--chain-on-clean`, and `plan-context.js` had an optional `--out`
+that every documented invocation passed, because a run without it silently lost
+its `--tickets` source ids and the `stories.template.json` skeleton. **A
+derivable formality:** every `changes[]` bullet carried an `assumption` that
+persist re-probed against the base branch anyway — Story #5312 had already
+built the repair that infers it. **A refusal with an enforcement point
+elsewhere:** the `validateAcceptanceSubjectPrefix` gate scanned acceptance
+items for `Commit subject begins with '<prefix>:'` and rejected a
+non-Conventional-Commits prefix, while the `commit-msg` hook and
+`normalize-pr-title.js` are what actually stop a bad subject. **Refusals that
+cost a round-trip to answer a question the run knew:** an empty `verify[]`, and
+a `--tickets` source id no Story's `supersedes[]` claimed.
+
+### Decision
+
+**Persist is one command.** `plan-persist.js` with neither `--dry-run` nor
+`--chain-on-clean` runs every dry-run gate and, on a clean list, persists in
+the same invocation. `--dry-run` still creates nothing and is how a validate-only
+run is asked for; `--chain-on-clean` is kept as a no-op alias so existing
+call-sites keep working. `plan-context.js` without `--out` writes the envelope
+and `stories.template.json` under `<tempRoot>/plan-<slug>/` and prints the
+digest, so the artifacts persist auto-discovers always exist.
+
+**Bare paths in `changes[]`.** An entry may be a bare path string; persist
+derives the assumption by probing the base branch — present is a
+`refactors-existing`, absent a `creates` — and reports each derivation on the
+dry-run's repair list. The object form still parses, and `deletes` stays
+explicit: a bare path cannot express a removal, and a `deletes` naming a path
+absent at base is still refused.
+
+**Warnings where only the run can be right; refusals where only the author
+can.** Hard: a body that does not parse, an empty `acceptance[]`, a non-Story
+ticket, an unknown or cyclic `depends_on`, the same-wave collision refusal, a
+supersede claim on a non-source id or one claimed twice, and the `deletes`
+probe. Warned: an empty `verify[]`, and a source id no Story claimed — which is
+assigned to the primary Story, because the plan is replacing it either way and
+only the bookkeeping was open. The subject-prefix validator and its
+allowed-types set are deleted outright.
+
+**The author prompt states the rule once and names where the contract lives.**
+The UI/TESTID section moves to `.agents/skills/stack/qa/playwright/SKILL.md` —
+the skill a UI Story already engages — and the prompt points at it in one
+sentence. The BRAND/COPY mandated phrasing is deleted, leaving one sentence
+citing `docs/style-guide.md` when it exists.
+
+### Alternatives considered
+
+- **Keep `--dry-run` mandatory as a separate invocation.** Rejected — a clean
+  dry-run has paid for every deterministic refusal, so the second invocation
+  discovers nothing but network failure. The reviewable artifact is the warning
+  list, which the chained run prints all the same.
+- **Keep `changes[]` object-only and lean on the repair.** Rejected — the
+  repair already rewrote the bullet and reported it, so the object form was a
+  formality the author paid for and the run overwrote. Asking for the shape the
+  run derives teaches the author that the declaration is authoritative when it
+  is not.
+- **Keep the subject-prefix gate as a warning.** Rejected — it scanned prose
+  for a phrasing no current prompt emits, and the two real enforcement points
+  fire on the commit and the PR title regardless of what an acceptance item
+  says.
+- **Refuse an unclaimed source id at N>1 only.** Rejected — the partial-map
+  case the refusal existed for is exactly the case an authored map states, and
+  the default assignment is reported, so an operator who meant something else
+  sees it on the same list they already read.
+
+### Consequences
+
+- A plan reaches the tracker in one persist invocation, and the warning list is
+  the review it used to take a second round-trip to deliver.
+- An author writes paths, not assumptions. The derivation is the base-branch
+  probe — strictly more authoritative than the working-tree guess the template
+  used to pre-resolve.
+- A Story can now be filed with no `verify[]`. The acceptance critic then has
+  no mechanical evidence to read, which the warning says; the close gate chain
+  runs either way.
+- `assertSupersedePartition` is now `resolveSupersedePartition` and returns
+  warnings, so a caller that treated a throw as the only outcome must read the
+  return value.
+- The rendered `systemPrompts.story` is shorter by two sections, and the testid
+  contract now lives beside the runner that enforces it.
 
 ## ADR 20260917-5341: One home per delivery rule, and the unattended follow-up filer is opt-in
 

@@ -169,15 +169,15 @@ and ceremony is derived from the landed diff at close.
   are omitted: the work regenerates them, the refresh is a close-gate concern,
   and a declared shared artifact path reserves a footprint that needlessly
   serializes sibling Stories at dispatch.
-- **`changes[]` arrive pre-resolved to creates-vs-refactors.** Every path
-  the seed predicted is probed against the repo: an existing path is
-  emitted with `assumption: "refactors-existing"`, a missing one with
-  `assumption: "creates"`. The persist gates stay authoritative — they probe
-  the base branch ref, not the working tree — but a `creates` on a path that
-  exists at base, or a `refactors-existing` on one that does not, is a
-  dry-run **warning**, not a rejection; only a `deletes` naming an absent
-  path is refused. A plain-string bullet or a trailing parenthetical is
-  repaired into the object form by probing base, and the repair is reported.
+- **`changes[]` entries are bare paths.** The skeleton emits each seed-predicted
+  path as a bare string and persist derives its assumption by probing the base
+  branch ref — present is a `refactors-existing`, absent a `creates` — and
+  reports each derivation on the dry-run's repair list. Pin
+  `{path, assumption}` only when the probe would get it wrong; a `creates` on
+  a path that exists at base, or a `refactors-existing` on one that does not,
+  is then a dry-run **warning**, not a rejection. `deletes` stays explicit —
+  a bare path can never express a removal — and a `deletes` naming a path
+  absent at base is the one `changes[]` shape still refused.
 - **Keep `## Spec` at contract-level prose** — interfaces, invariants,
   load-bearing constraints; no per-file behavior narration — and as long as
   the work needs. There is no word or token budget.
@@ -188,11 +188,12 @@ kept — passes the persist ticket validators with no round-trip.
 ### Authored entry shape
 
 Each `stories.json` entry: `slug` (`^[a-z0-9][a-z0-9-]*$`), `type: "story"`,
-`title`, `body` (`goal`, optional `spec`, `changes[{path, assumption}]` —
-`creates|refactors-existing|deletes`, `non_goals`, `reason_to_exist`),
-top-level `acceptance[]`, `verify[]` (each a **bare command** — there is no
-tier suffix), and `depends_on[]` (a sibling slug, or `#<id>` for an existing
-open Story).
+`title`, `body` (`goal`, optional `spec`, `changes[]` — a **bare path string**
+by default, or `{path, assumption}` with
+`creates|refactors-existing|deletes` to pin one, `non_goals`,
+`reason_to_exist`), top-level `acceptance[]`, `verify[]` (each a **bare
+command** — there is no tier suffix), and `depends_on[]` (a sibling slug, or
+`#<id>` for an existing open Story).
 
 Author `acceptance[]` **without** the `AC-<n>:` handle: the body renderer
 numbers each checkbox from its array position, so a carried handle renders
@@ -200,11 +201,11 @@ doubled. Persist normalises one off rather than refusing, and names the strip
 on the dry-run's repair list.
 
 Nothing in that shape inventories the repo for the author. `changes[]` arrives
-pre-resolved against the working tree, and Phase 8's
-`validateStoryFileAssumptions` re-probes every `{path, assumption}` at persist
-as a hard error — so the grounding contract is the author's own targeted reads
-plus that gate. There is no pre-computed codebase snapshot to fall back on,
-and no manifest-derived replacement to build.
+filled in from the working-tree probe, and Phase 8's
+`validateStoryFileAssumptions` re-probes every resolved `{path, assumption}`
+at persist — so the grounding contract is the author's own targeted reads plus
+that gate. There is no pre-computed codebase snapshot to fall back on, and no
+manifest-derived replacement to build.
 
 ### Per-Story audit provenance (`provenance`)
 
@@ -318,13 +319,15 @@ template-only prose.
 
 ### Supersede-map partition
 
-`plan-persist` refuses a partial supersede map **before** it creates any
-Story, the same fail-closed shape as the collision refusal: every id passed to
-`--tickets` must be claimed by **exactly one** Story, and no Story may
-claim an id that was not a source ticket. With N>1 the mapping is not
-total by default — an authored map is the only thing that can say
-`#11-#14 → #20` while `#15 → #21`, which a blanket "superseded by
-this plan-run" reference could not.
+`plan-persist` completes the supersede map **before** it creates any Story,
+splitting it by who can be right. **Refused, fail-closed:** a Story claiming
+an id that was never a source ticket, and two Stories claiming the same id —
+the first would close an issue nobody asked about, the second cannot say which
+Story replaced it. **Assigned with a warning:** a source id no Story claimed
+goes to the primary Story, because this plan is replacing it either way and
+only the bookkeeping was open. With N>1 an authored map is still the only
+thing that can say `#11-#14 → #20` while `#15 → #21`, so author one whenever
+the default is not what you mean.
 
 ## The pre-mortem critic — operator-invoked
 
@@ -369,23 +372,27 @@ a re-author round.
 
 ## What `--dry-run` actually gates
 
-`plan-persist.js --dry-run` is the same command with GitHub writes suppressed,
-and every gate runs before the first `createIssue` would fire. Since
-Story #5312 the gates split two ways, and the dry-run is where the second
-half is read:
+A bare `plan-persist.js` runs the whole gate list write-free and then, on a
+clean list, persists in the same invocation (Story #5342); `--dry-run` is that
+same first half with the second suppressed. Either way every gate runs before
+the first `createIssue` would fire. Since Story #5312 the gates split two
+ways, and the dry-run output is where the second half is read:
 
 **Hard — the run refuses:** a body that does not parse, a ticket that is not
-a Story, an empty `acceptance[]` or `verify[]`, an unknown or cyclic
-`depends_on`, the acceptance partition at N>1, the supersede partition, a
-forbidden commit-subject prefix, and a `deletes` entry naming a path absent
-at base.
+a Story, an empty `acceptance[]`, an unknown or cyclic `depends_on`, the
+same-wave collision refusal at N>1, a supersede claim on a non-source id or
+one claimed twice, and a `deletes` entry naming a path absent at base.
+Story #5342 retired two: the commit-subject-prefix scan is gone entirely —
+the `commit-msg` hook and `normalize-pr-title.js` enforce subjects — and an
+empty `verify[]` is now a warning.
 
 **Warnings — listed, then the persist proceeds:** a `creates` on a path that
 exists at base or a `refactors-existing` on one that does not (including a
 path the base branch deleted or renamed, named with the removing commit), a
-goal or acceptance path absent at base, a `verify[]` command naming an absent
-test file, an `open-question` in a body (`Flag if…`, `TBD`, a trailing `?`),
-and a `pinned-identifier` in an acceptance item — a backticked bare symbol
+goal or acceptance path absent at base, an empty `verify[]`, a source id
+assigned to the primary Story by default, a `verify[]` command naming an
+absent test file, an `open-question` in a body (`Flag if…`, `TBD`, a trailing
+`?`), and a `pinned-identifier` in an acceptance item — a backticked bare symbol
 that is not a path, a label, a kebab token, a flag or a command, which the
 advisory `changes[]` is free to reshape out from under the criterion. The
 list also names every **repair** the run applied — a plain-string bullet or a
@@ -395,7 +402,8 @@ envelope as `warnings[]` and `repairs[]`, so a `--chain-on-clean` run loses
 nothing.
 
 A dry run that comes back clean has paid for every deterministic refusal, so
-the real persist has nothing left to discover except network failure.
+the real persist has nothing left to discover except network failure — which
+is why the clean case no longer waits for a second operator invocation.
 
 ## The container Epic (Gate #3)
 
@@ -544,7 +552,7 @@ them **envelope-first**:
 
 | Channel | When it wins |
 | --- | --- |
-| Envelope `sourceTickets[]` | **The normal path.** Written by step 1's `--out`, then read from `--plan-context <file>` or auto-discovered at `<plan-dir>/plan-context.json`. No ids to re-type. |
+| Envelope `sourceTickets[]` | **The normal path.** Written by step 1 to `<tempRoot>/plan-<slug>/` (or wherever `--out` points), then read from `--plan-context <file>` or auto-discovered at `<plan-dir>/plan-context.json`. No ids to re-type. |
 | `--source-tickets <ids>` | Explicit **override** for hand-driven runs (no captured envelope, or deliberately narrowing the set). Wins over the envelope; a disagreement is warned about, not silently reconciled. |
 
 The result envelope's `supersede.sourceTicketOrigin` reports which channel was

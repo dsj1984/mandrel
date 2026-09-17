@@ -47,14 +47,14 @@ checkpoints, not sibling tickets ([ref](helpers/plan-reference.md)).
 ### 1. Interrogate
 
 ```bash
-node .agents/scripts/plan-context.js --seed "<seed>" \
-  --out temp/plan-<slug>/plan-context.json
+node .agents/scripts/plan-context.js --seed "<seed>"
 # or: --seed-file <path> | --tickets 123,456 | --amends #<id>
 ```
 
-**Always pass `--out`.** Persist auto-discovers the envelope from `--plan-dir`
-and derives source ids from its `sourceTickets[]`; it also writes
-**`stories.template.json`**, step 2's skeleton.
+It writes the envelope and **`stories.template.json`** (step 2's skeleton) to
+`<tempRoot>/plan-<slug>/` and prints a digest naming both; `--out` overrides
+the path. Persist auto-discovers the envelope from `--plan-dir` and derives
+source ids from its `sourceTickets[]`.
 
 The envelope carries docs context, the story-author prompt (`systemPrompts.story`,
 plus `systemPrompts.storySplitRules` for an N>1 draft and
@@ -87,10 +87,11 @@ persist parses either, serializes canonical markdown and syncs top-level
 `acceptance[]` / `verify[]` in — never dual-author them.
 
 **Grounding = your reads + Phase 8.** Nothing inventories the repo: read each
-file you cite; persist hard-errors on any `{path, assumption}` absent from the
-tree — a `refactors-existing` on a path the base branch **deleted or renamed**
-included. One rescue: a **never-tracked** one normalises to `creates`. Fields:
-[ref](helpers/plan-reference.md).
+file you cite. A `changes[]` entry is a **bare path** by default — persist
+derives its assumption by probing the base branch and reports the derivation;
+pin `{path, assumption}` only when the probe would get it wrong, and always
+for a `deletes`, which is the one shape still refused on an absent path.
+Fields: [ref](helpers/plan-reference.md).
 
 Artifacts under `temp/plan-<slug>/`: `stories.json` (**length 1 by default**;
 a Spec is as long as the work needs, inline, never under `docs/`) and optional
@@ -120,15 +121,11 @@ Under `--yes`, auto-proceed.
 **any N** (`--epic <id>`); else, at **N>2**, a new container (`--epic-title` /
 `--epic-goal`). Never unasked ([ref](helpers/plan-reference.md)).
 
-Run persist `--dry-run` **first** — same command, writes suppressed; every gate
-runs before the first `createIssue` — including the **same-wave collision
-refusal**, which rejects an N>1 draft whose siblings declare a common path
-(merge them, or order them with `depends_on`) — and the run **lists its
-warnings**
-(a `creates` / `refactors-existing` the base branch disagrees with, a goal or
-acceptance path absent at base, an open question in a body) and the
-`changes[]` repairs it applied ([list](helpers/plan-reference.md)). Read
-them; they never stop the persist:
+**One command.** Persist runs every gate write-free first — including the
+**same-wave collision refusal**, which rejects an N>1 draft whose siblings
+declare a common path (merge them, or order them with `depends_on`) — and,
+when the gate list comes back clean, creates the issues in the same
+invocation:
 
 ```bash
 node .agents/scripts/plan-persist.js \
@@ -139,8 +136,12 @@ node .agents/scripts/plan-persist.js \
   [--epic <id> | --epic-title "<name>" --epic-goal "<one paragraph>"]
 ```
 
-`--chain-on-clean` folds a clean dry-run into the persist for **any** plan —
-the dry-run's warning list is the review.
+The run **lists its warnings** (a `creates` / `refactors-existing` the base
+branch disagrees with, a goal or acceptance path absent at base, an empty
+`verify[]`, a source id assigned to the primary Story by default, an open
+question in a body) and the `changes[]` repairs it applied
+([list](helpers/plan-reference.md)). Read them; they never stop the persist.
+Add `--dry-run` to validate without creating anything.
 
 Persist creates `type::story` issue(s), a **metadata-only** `plan-run::<id>`
 label, `blocked by #<id>` footers for every `depends_on` edge, and on a Gate #3
