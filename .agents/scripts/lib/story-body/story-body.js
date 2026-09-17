@@ -218,7 +218,7 @@ function parsePathEntry(raw, warnings) {
     return pathEntryFromObject(raw);
   }
 
-  const str = typeof raw === 'string' ? raw.trim() : String(raw).trim();
+  const str = String(raw).trim();
   if (str.length === 0) return null;
 
   const entry = pathEntryFromHumanized(str) ?? pathEntryFromInlineJson(str);
@@ -235,6 +235,26 @@ function parsePathEntry(raw, warnings) {
 }
 
 /**
+ * Read the assumption a raw entry declares, collapsing the three cases the
+ * parser has to tell apart into one value:
+ *
+ *   - a canonical `FILE_ASSUMPTION_VALUES` member — the author pinned one;
+ *   - `null` — the author named no assumption at all. Since Story #5342 that
+ *     is the **bare form**, and persist derives the value by probing the base
+ *     branch rather than the author guessing it;
+ *   - `undefined` — the author named something that is not an assumption.
+ *     Distinct from absent on purpose: a typo must fail closed where an
+ *     omission is the default shape.
+ *
+ * @param {unknown} raw
+ * @returns {string|null|undefined}
+ */
+function readAssumption(raw) {
+  if (FILE_ASSUMPTION_VALUES.includes(raw)) return raw;
+  return raw == null ? null : undefined;
+}
+
+/**
  * Validate an already-structured `{ path, assumption }` object. Fails closed
  * on a malformed object.
  *
@@ -243,11 +263,9 @@ function parsePathEntry(raw, warnings) {
  */
 function pathEntryFromObject(raw) {
   const path = typeof raw.path === 'string' ? raw.path.trim() : '';
-  // Story #5342: an object naming only a path is the bare form spelled the
-  // long way — the assumption is derived at persist, not missing.
-  const known = FILE_ASSUMPTION_VALUES.includes(raw.assumption);
-  if (path !== '' && (known || raw.assumption == null)) {
-    return { path, assumption: known ? raw.assumption : null };
+  const assumption = readAssumption(raw.assumption);
+  if (path !== '' && assumption !== undefined) {
+    return { path, assumption };
   }
   // Malformed object: fail closed.
   throw new StoryBodyParseError(
@@ -800,8 +818,7 @@ function serializePathEntry(entry) {
   // entry — a path the author wrote with no assumption — serializes back bare
   // rather than silently acquiring a derivation they never made; persist
   // fills it in by probing base before it writes a body.
-  const tail = entry.assumption == null ? '' : ` — ${entry.assumption}`;
-  return `\`${entry.path}\`${tail}`;
+  return [`\`${entry.path}\``, entry.assumption].filter(Boolean).join(' — ');
 }
 
 /**
