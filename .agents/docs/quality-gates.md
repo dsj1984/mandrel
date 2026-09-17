@@ -916,7 +916,7 @@ deliberately not `keyField`: CRAP groups by file (`keyField: 'path'`) but
 ships one row per method, so keying on `keyField` would drop every method in a
 file but one. Any `baselines/*.json` whose `$schema` is not a known per-kind
 envelope — `arch-cycles`, `cyclomatic`, `dead-exports`, `audit-ledger`,
-`context-budget`, `workflow-citations` — is handed straight back to
+`context-budget` — is handed straight back to
 `git merge-file`, so registering the driver cannot change their behaviour.
 
 Registration has two halves:

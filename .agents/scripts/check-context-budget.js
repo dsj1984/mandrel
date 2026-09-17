@@ -5,8 +5,8 @@
  * Follows the standalone `check-arch-cycles.js` / `check-dead-exports.js`
  * precedent — a pure-Node, baseline-aware, sub-second checker wired into the
  * CI `baselines` job — rather than a `baselines/kinds/` metric. It measures the
- * live byte total of two documentation read-tiers and compares each against a
- * single committed budget in `baselines/context-budget.json`:
+ * live byte total of three documentation read-tiers against a single committed
+ * budget in `baselines/context-budget.json`:
  *
  *   - `alwaysLoaded`  — the `CLAUDE.md` `@`-import closure re-paid on every
  *                       session and every subagent spawn (instructions.md § 4).
@@ -15,40 +15,33 @@
  *                       `.agents/workflows/**` entry point plus the transitive
  *                       closure of its `mandatoryReads:` frontmatter edges. The
  *                       companion **reachable** closure (per entry point) is
- *                       recorded under the top-level `workflowClosure` key as a
- *                       drift signal and never gates — growth there is a
- *                       reading-cost signal, not a contract violation.
+ *                       recorded under the top-level `workflowClosure` key.
  *
- * It additionally enforces a **per-file** ceiling on the role-scoped agent-boot
- * tier (`.agents/agents/*.md`, #4478): no single boot context may exceed
- * `agentBoot.ceilingBytes` (default 8192). This is a per-agent cap, not a sum
- * ratchet — each role def is a standalone system prompt a converted spawn boots
- * on, and adding another role def is legitimate.
+ * **One tier gates: `alwaysLoaded`.** It is the only tier every session and
+ * every subagent spawn pays unconditionally, so growth there is a real tax on
+ * every future turn. The other tiers are measured, recorded and printed, and
+ * never fail the command (Story #5340). Demoting them is what makes workflow
+ * prose editable again: under the old rule a prose fix had to be paid for with
+ * an unrelated trim in the same commit, and that is how three reference
+ * sections came to describe mechanisms the code had already retired. The
+ * measurement is still worth seeing on every change, so it is kept as a
+ * report rather than deleted. See `docs/decisions.md`, ADR 20260917-5340.
  *
- * The recorded `agentBoot` rows are additionally held **in sync with the tree**
- * (Story #4830), because those rows are what an author sizes an edit against.
- * The two drift directions are deliberately asymmetric:
- *
- *   - **permissive** (the row understates the file, or no row exists) — the row
- *     promises headroom that does not exist, the gate stays green, and the
- *     shortfall only lands as a ceiling failure once the edit is written. This
- *     fails the gate.
- *   - **restrictive** (the row overstates the file) — an author under-spends
- *     and the ceiling is never surprised, so it is self-correcting. Reported as
- *     a `-` line; exit stays 0.
- *
- * Each row also records its `headroomBytes` under the ceiling, so the budget an
- * author reads is stated rather than re-derived.
+ * The role-scoped agent-boot tier (`.agents/agents/*.md`) is recorded the same
+ * way. Its former per-file 8 KB ceiling and the row-vs-tree drift gate are
+ * gone with the same ADR — nothing enforces a per-file ceiling or a minimum
+ * headroom on a workflow or agent file any more.
  *
  * A read-tier that resolves **empty** is skipped silently (the `docsContextFiles`
  * half skips when unconfigured / its files are absent), so a repo with no
  * `CLAUDE.md` and no context docs is a clean no-op.
  *
  * Ratchet semantics (mirroring the sibling ratchets):
- *   - A gated tier grows beyond `baseline.tiers.<tier>.totalBytes +
- *     baseline.toleranceBytes` → exit 1, naming the tier and its delta.
- *   - A gated tier shrinks below its baseline total → **exit 0**, reported as
- *     an informational `-` line (Story #5313). This deliberately reverses
+ *   - The `alwaysLoaded` tier grows beyond `baseline.tiers.alwaysLoaded
+ *     .totalBytes + baseline.toleranceBytes` → exit 1, naming the tier and its
+ *     delta. Growth in any other measured tier is printed and exits 0.
+ *   - A measured tier shrinks below its baseline total → **exit 0**, reported
+ *     as an informational `-` line (Story #5313). This deliberately reverses
  *     Story #4872's "shrink fails" rule: that rule made every trim a red gate
  *     whose only remedy was a hand-run `--update`, so the gain was paid for
  *     twice. The concern it answered — a stale total silently absorbing the
@@ -58,9 +51,10 @@
  *     gain locks in without a failing gate. Shrinkage stays zero-tolerance
  *     in the *report* (every byte under the total is listed) so a sub-
  *     tolerance gain is never discarded by the write-back either.
- *   - A recorded row naming a path the measured tier no longer contains →
- *     exit 1. The row describes a file that has been deleted or de-listed, so
- *     the bytes it contributes to the recorded total are fiction.
+ *   - A recorded `alwaysLoaded` row naming a path the measured tier no longer
+ *     contains → exit 1. The row describes a file that has been deleted or
+ *     de-listed, so the bytes it contributes to the recorded total are fiction.
+ *     The same drift in a report-only tier is printed, not failed.
  *   - Within tolerance / clean → exit 0.
  *   - Baseline file absent → warn + exit 0 (no-op; nothing to ratchet against).
  *
@@ -85,12 +79,22 @@ import { resolveConfig } from './lib/config-resolver.js';
 import { resolveDocTiers, tierTotalBytes } from './lib/doc-tiers.js';
 
 /**
- * The tiers this ratchet gates (in report order). `digestVisible`, `onDemand`
- * and `workflowOnDemand` are resolved by the tier map for the lens, but the
- * byte budget intentionally gates only the tiers a session is *forced* to read.
+ * The tiers this command measures and records (in report order).
+ * `digestVisible`, `onDemand` and `workflowOnDemand` are resolved by the tier
+ * map for the lens, but the byte budget intentionally measures only the tiers
+ * a session is *forced* to read.
  * @type {Array<'alwaysLoaded' | 'mandatoryRead' | 'workflow'>}
  */
-export const GATED_TIERS = ['alwaysLoaded', 'mandatoryRead', 'workflow'];
+export const MEASURED_TIERS = ['alwaysLoaded', 'mandatoryRead', 'workflow'];
+
+/**
+ * The tiers whose drift fails the command (Story #5340). Only `alwaysLoaded`
+ * is paid by every session and every subagent spawn unconditionally, so it is
+ * the one tier where growth is a tax nobody opted into. Everything else in
+ * {@link MEASURED_TIERS} is a report.
+ * @type {Array<'alwaysLoaded'>}
+ */
+export const ENFORCED_TIERS = ['alwaysLoaded'];
 
 /**
  * Default tolerance (bytes) seeded into a fresh baseline by `--update` when the
@@ -98,125 +102,6 @@ export const GATED_TIERS = ['alwaysLoaded', 'mandatoryRead', 'workflow'];
  * @type {number}
  */
 export const DEFAULT_TOLERANCE_BYTES = 2048;
-
-/**
- * Per-file ceiling (bytes) for the role-scoped agent-boot tier (#4478). Unlike
- * the read-tiers (gated by a total-byte ratchet), each `.agents/agents/*.md`
- * boot context is a **standalone** system prompt a converted spawn boots on, so
- * the meaningful budget is per-agent, not the sum: no single role def may
- * exceed this ceiling. Adding another role def is legitimate — a per-file gate
- * (rather than a sum ratchet) does not false-positive on that.
- * @type {number}
- */
-export const AGENT_BOOT_CEILING_BYTES = 8192;
-
-/**
- * Return the agent-boot files that exceed the per-file ceiling.
- *
- * @param {{ tiers: Record<string, Array<{ path: string, bytes: number }>> }} tierMap
- * @param {number} ceiling
- * @returns {Array<{ path: string, bytes: number, ceiling: number }>}
- */
-export function agentBootOverflow(tierMap, ceiling = AGENT_BOOT_CEILING_BYTES) {
-  const files = tierMap?.tiers?.agentBoot ?? [];
-  return files
-    .filter((f) => Number.isFinite(f?.bytes) && f.bytes > ceiling)
-    .map((f) => ({ path: f.path, bytes: f.bytes, ceiling }));
-}
-
-/**
- * Classify one agent-boot file against its recorded baseline row (#4830).
- * Returns `null` when the row already agrees with the tree.
- *
- * `permissive` drift is the failure class this gate exists for: the row
- * understates the file (or is missing entirely), so the headroom an author
- * computes from it is larger than the headroom that exists, and the shortfall
- * only surfaces as a ceiling failure *after* the edit is written.
- * `restrictive` drift is the benign mirror — the row overstates the file, so an
- * author under-spends and the ceiling gate is never surprised.
- *
- * @param {{ path: string, bytes: number }} file live file measurement
- * @param {{ bytes?: number, headroomBytes?: number } | undefined} row recorded row
- * @param {number} ceiling
- * @returns {{ path: string, recorded: number|null, actual: number, delta: number,
- *   direction: 'permissive'|'restrictive', recordedHeadroom: number|null,
- *   headroomBytes: number } | null}
- */
-function classifyBootRow(file, row, ceiling) {
-  const actual = file.bytes;
-  const headroomBytes = ceiling - actual;
-  const recorded = Number.isFinite(row?.bytes) ? row.bytes : null;
-  const recordedHeadroom = Number.isFinite(row?.headroomBytes)
-    ? row.headroomBytes
-    : recorded === null
-      ? null
-      : ceiling - recorded;
-  // A row is in sync only when both the byte count and the headroom it
-  // advertises match the tree — a stale headroom misleads on its own.
-  if (recorded === actual && recordedHeadroom === headroomBytes) return null;
-  const permissive =
-    recorded === null ||
-    recorded < actual ||
-    (recordedHeadroom !== null && recordedHeadroom > headroomBytes);
-  return {
-    path: file.path,
-    recorded,
-    actual,
-    delta: recorded === null ? actual : actual - recorded,
-    direction: permissive ? 'permissive' : 'restrictive',
-    recordedHeadroom,
-    headroomBytes,
-  };
-}
-
-/**
- * Compare every recorded `agentBoot` row against the tree it describes.
- *
- * @param {{ tiers: Record<string, Array<{ path: string, bytes: number }>> }} tierMap
- * @param {{ agentBoot?: { ceilingBytes?: number, files?: Array<{ path: string, bytes: number, headroomBytes?: number }> } } | null} baseline
- * @param {number} [ceiling]
- * @returns {Array<ReturnType<typeof classifyBootRow>>} drift rows (empty = in sync)
- */
-export function agentBootDrift(tierMap, baseline, ceiling) {
-  const recordedCeiling = Number.isFinite(baseline?.agentBoot?.ceilingBytes)
-    ? baseline.agentBoot.ceilingBytes
-    : AGENT_BOOT_CEILING_BYTES;
-  const effective = Number.isFinite(ceiling) ? ceiling : recordedCeiling;
-  const rows = new Map(
-    (baseline?.agentBoot?.files ?? []).map((f) => [f.path, f]),
-  );
-  const drift = [];
-  for (const file of tierMap?.tiers?.agentBoot ?? []) {
-    if (!Number.isFinite(file?.bytes)) continue;
-    const row = classifyBootRow(file, rows.get(file.path), effective);
-    if (row) drift.push(row);
-  }
-  return drift;
-}
-
-/**
- * Render the agent-boot drift lines. `+` lines are permissive drift (gate
- * fail); `-` lines are restrictive drift (informational). Each line states the
- * **real** remaining headroom, so the author sizing the next edit reads the
- * true number rather than re-deriving it from a row that just proved stale.
- *
- * @param {Array<ReturnType<typeof classifyBootRow>>} drift
- * @returns {string[]}
- */
-export function renderBootDrift(drift) {
-  return drift.map((d) => {
-    const marker = d.direction === 'permissive' ? '+' : '-';
-    const recorded =
-      d.recorded === null
-        ? 'has no recorded row'
-        : `records ${d.recorded} bytes but the file is ${d.actual}`;
-    const note =
-      d.direction === 'permissive'
-        ? 'the row overstates the headroom an author would size an edit against'
-        : 'the row is conservative — refresh at leisure';
-    return `${marker} agentBoot drift: ${d.path} ${recorded} — ${note} (real headroom ${d.headroomBytes})`;
-  });
-}
 
 /**
  * Parse argv for `--baseline <path>`, `--root <path>`, `--update`, `--json`.
@@ -273,7 +158,7 @@ export function loadBaseline(baselinePath) {
 
 /**
  * Build the committed-baseline envelope from a resolved tier map. Only the
- * gated tiers are recorded (each as `{ totalBytes, files }`).
+ * measured tiers are recorded (each as `{ totalBytes, files }`).
  *
  * @param {{ tiers: Record<string, Array<{ path: string, bytes: number }>> }} tierMap
  * @param {number} toleranceBytes
@@ -281,20 +166,17 @@ export function loadBaseline(baselinePath) {
  */
 export function buildBaseline(tierMap, toleranceBytes) {
   const tiers = {};
-  for (const name of GATED_TIERS) {
+  for (const name of MEASURED_TIERS) {
     const files = tierMap.tiers[name] ?? [];
     tiers[name] = { totalBytes: tierTotalBytes(files), files };
   }
-  // The agent-boot tier is recorded top-level (not under `tiers`) because it is
-  // gated by a per-file ceiling, not the total-byte ratchet the `tiers` entries
-  // use — keeping it out of `tiers` keeps the ratchet diff loop unambiguous.
-  // Each row carries the headroom it leaves under the ceiling, so an author
-  // sizing an edit reads the remaining budget straight off the row (#4830)
-  // instead of re-deriving it — and `agentBootDrift` keeps both numbers honest.
+  // The agent-boot tier is recorded top-level (not under `tiers`) because it
+  // carries no recorded total to diff against — it is a per-file size record
+  // the audit instruments read as hotspot rows. Keeping it out of `tiers`
+  // keeps the ratchet diff loop unambiguous.
   const agentBootFiles = (tierMap.tiers.agentBoot ?? []).map((f) => ({
     path: f.path,
     bytes: f.bytes,
-    headroomBytes: AGENT_BOOT_CEILING_BYTES - f.bytes,
   }));
   return {
     $schema: 'https://mandrel.dev/baselines/context-budget.schema.json',
@@ -302,11 +184,10 @@ export function buildBaseline(tierMap, toleranceBytes) {
     toleranceBytes,
     tiers,
     agentBoot: {
-      ceilingBytes: AGENT_BOOT_CEILING_BYTES,
       files: agentBootFiles,
     },
     // Recorded, never gated (#4752): the total reachable closure per workflow
-    // entry point. It is a drift signal — the gate is `tiers.workflow`.
+    // entry point.
     workflowClosure: {
       reachableTotalBytes: tierMap.workflowClosure?.reachableTotalBytes ?? 0,
       entryPoints: tierMap.workflowClosure?.entryPoints ?? [],
@@ -315,7 +196,7 @@ export function buildBaseline(tierMap, toleranceBytes) {
 }
 
 /**
- * Collect the recorded rows of one gated tier that name a path the measured
+ * Collect the recorded rows of one measured tier that name a path the measured
  * tier no longer contains (Story #4872). A deleted file drops out of the
  * resolved tier, and so does one that has been de-listed from the read set —
  * either way the row's bytes are counted into a recorded total that no live
@@ -342,10 +223,11 @@ function absentRows(tier, files, baseTier) {
 
 /**
  * Pure diff: compare the current tier map against the committed baseline. A
- * gated tier with no current files is skipped; a tier absent from the baseline
- * is skipped. `grown` and `absent` entries fail the gate; `shrunk` entries are
- * reported and written back by the close (Story #5313) — see the ratchet
- * semantics in the module header.
+ * measured tier with no current files is skipped; a tier absent from the
+ * baseline is skipped. `grown` and `absent` entries in an {@link
+ * ENFORCED_TIERS} tier fail the gate; every other entry — and every `shrunk`
+ * entry — is reported (Story #5340, Story #5313) and `shrunk` is what the
+ * close writes back. See the ratchet semantics in the module header.
  *
  * @param {{ tiers: Record<string, Array<{ path: string, bytes: number }>> }} tierMap
  * @param {{ toleranceBytes?: number, tiers?: Record<string, { totalBytes: number }> }} baseline
@@ -364,7 +246,7 @@ export function diffBudget(tierMap, baseline) {
   const shrunk = [];
   const absent = [];
   const skipped = [];
-  for (const tier of GATED_TIERS) {
+  for (const tier of MEASURED_TIERS) {
     const files = tierMap.tiers[tier] ?? [];
     const current = tierTotalBytes(files);
     const baseTier = baseline?.tiers?.[tier];
@@ -402,33 +284,50 @@ export function diffBudget(tierMap, baseline) {
 }
 
 /**
+ * True when a diff entry belongs to a tier whose drift still fails the gate.
+ *
+ * @param {{ tier?: string }} entry
+ * @returns {boolean}
+ */
+function isEnforced(entry) {
+  return ENFORCED_TIERS.includes(entry?.tier);
+}
+
+/**
  * Count the drift entries that fail the gate: growth past tolerance and a
- * recorded row the tree no longer backs. Shrinkage is not in the set (Story
- * #5313 — the close writes it back instead). This is the one place the
- * failure set is defined and both the summary tag and the exit code read it.
+ * recorded row the tree no longer backs, **in an {@link ENFORCED_TIERS} tier
+ * only** (Story #5340). Shrinkage is not in the set (Story #5313 — the close
+ * writes it back instead). This is the one place the failure set is defined
+ * and both the summary tag and the exit code read it.
  *
  * @param {ReturnType<typeof diffBudget>} diff
  * @returns {number}
  */
 export function budgetFailureCount(diff) {
-  return (diff?.grown?.length ?? 0) + (diff?.absent?.length ?? 0);
+  const grown = (diff?.grown ?? []).filter(isEnforced).length;
+  const absent = (diff?.absent ?? []).filter(isEnforced).length;
+  return grown + absent;
 }
 
 /**
- * Render the human-readable diff. `+` lines are tiers that grew beyond
- * tolerance; `-` lines are tiers that shrank below their recorded total
+ * Render the human-readable diff. `+` lines are enforced tiers that grew
+ * beyond tolerance; `-` lines are tiers that shrank below their recorded total
  * (informational — the close writes the lower total back) or rows naming a
- * path the tree no longer carries (a gate failure). A one-line summary
- * always follows.
+ * path the tree no longer carries. Drift in a report-only tier is prefixed
+ * with `~` and says so on the line, so a reader never has to cross-reference
+ * {@link ENFORCED_TIERS} to know whether it broke the build. A one-line
+ * summary always follows.
  *
  * @param {ReturnType<typeof diffBudget>} diff
  * @returns {string}
  */
 export function renderDiff(diff) {
   const lines = [];
+  const report = ' — reported, never gated';
   for (const g of diff.grown) {
+    const gated = isEnforced(g);
     lines.push(
-      `+ ${g.tier}: ${g.current} bytes exceeds budget ${g.baseline} + tolerance ${g.tolerance} (delta +${g.delta})`,
+      `${gated ? '+' : '~'} ${g.tier}: ${g.current} bytes exceeds budget ${g.baseline} + tolerance ${g.tolerance} (delta +${g.delta})${gated ? '' : report}`,
     );
   }
   for (const s of diff.shrunk) {
@@ -437,8 +336,9 @@ export function renderDiff(diff) {
     );
   }
   for (const a of diff.absent ?? []) {
+    const gated = isEnforced(a);
     lines.push(
-      `- ${a.tier}: recorded row ${a.path} names a path the measured tier no longer contains — refresh baselines/context-budget.json`,
+      `${gated ? '-' : '~'} ${a.tier}: recorded row ${a.path} names a path the measured tier no longer contains — refresh baselines/context-budget.json${gated ? '' : report}`,
     );
   }
   const tag = budgetFailureCount(diff) > 0 ? '(gate fail)' : '(ok)';
@@ -468,6 +368,23 @@ export function renderReachable(tierMap, baseline) {
 }
 
 /**
+ * Render the role-scoped agent-boot line — a pure size report since Story
+ * #5340 removed the per-file ceiling. It names the largest boot context
+ * because that is the number an author sizing a role-def edit wants, and the
+ * total because that is what the whole role surface costs. Returns `''` when
+ * the tree carries no role defs.
+ *
+ * @param {{ tiers?: { agentBoot?: Array<{ path: string, bytes: number }> } }} tierMap
+ * @returns {string}
+ */
+function renderAgentBoot(tierMap) {
+  const files = tierMap?.tiers?.agentBoot ?? [];
+  if (files.length === 0) return '';
+  const largest = files.reduce((a, b) => (b.bytes > a.bytes ? b : a));
+  return `  agentBoot: ${tierTotalBytes(files)} bytes across ${files.length} role defs, largest ${largest.path} at ${largest.bytes} — reported, never gated`;
+}
+
+/**
  * Top-level CLI entry. Exported so tests can drive the full pipeline against a
  * tmpdir fixture with an injected config and sinks.
  *
@@ -479,7 +396,8 @@ export function renderReachable(tierMap, baseline) {
  *   stderr?: { write: (s: string) => void },
  * }} [opts]
  * @returns {Promise<number>} 0 = clean / within tolerance / shrink-only / no-op;
- *   1 = a gated tier grew beyond tolerance or a recorded row is unbacked
+ *   1 = the always-loaded tier grew beyond tolerance or one of its recorded
+ *   rows is unbacked
  */
 /**
  * Write a fresh budget, preserving the recorded tolerance so `--update` never
@@ -527,7 +445,7 @@ function reportMissingBaseline({
 }) {
   if (json) {
     stdout.write(
-      `${JSON.stringify({ kind: 'context-budget-report', baselinePath: resolvedBaselinePath, tiers: tierMap.tiers, grown: [], shrunk: [], absent: [], skipped: GATED_TIERS, exitCode: 0, noBaseline: true }, null, 2)}\n`,
+      `${JSON.stringify({ kind: 'context-budget-report', baselinePath: resolvedBaselinePath, tiers: tierMap.tiers, grown: [], shrunk: [], absent: [], skipped: MEASURED_TIERS, exitCode: 0, noBaseline: true }, null, 2)}\n`,
     );
   } else {
     stderr.write(
@@ -543,23 +461,11 @@ function reportMissingBaseline({
  * failed or drift apart in which fields they surface.
  *
  * @param {{ tierMap: object, baseline: object }} params
- * @returns {{ diff: object, ceiling: number, bootOverflow: object[], bootDrift: object[], permissiveDrift: object[], exitCode: 0 | 1 }}
+ * @returns {{ diff: object, exitCode: 0 | 1 }}
  */
 function evaluateBudget({ tierMap, baseline }) {
   const diff = diffBudget(tierMap, baseline);
-  const ceiling = Number.isFinite(baseline?.agentBoot?.ceilingBytes)
-    ? baseline.agentBoot.ceilingBytes
-    : AGENT_BOOT_CEILING_BYTES;
-  const bootOverflow = agentBootOverflow(tierMap, ceiling);
-  const bootDrift = agentBootDrift(tierMap, baseline, ceiling);
-  const permissiveDrift = bootDrift.filter((d) => d.direction === 'permissive');
-  const exitCode =
-    budgetFailureCount(diff) > 0 ||
-    bootOverflow.length > 0 ||
-    permissiveDrift.length > 0
-      ? 1
-      : 0;
-  return { diff, ceiling, bootOverflow, bootDrift, permissiveDrift, exitCode };
+  return { diff, exitCode: budgetFailureCount(diff) > 0 ? 1 : 0 };
 }
 
 /**
@@ -573,7 +479,7 @@ function renderJsonReport({
   report,
   stdout,
 }) {
-  const { diff, ceiling, bootOverflow, bootDrift, exitCode } = report;
+  const { diff, exitCode } = report;
   const envelope = {
     kind: 'context-budget-report',
     baselinePath: resolvedBaselinePath,
@@ -581,15 +487,14 @@ function renderJsonReport({
       ? baseline.toleranceBytes
       : 0,
     current: Object.fromEntries(
-      GATED_TIERS.map((t) => [t, tierTotalBytes(tierMap.tiers[t] ?? [])]),
+      MEASURED_TIERS.map((t) => [t, tierTotalBytes(tierMap.tiers[t] ?? [])]),
     ),
     grown: diff.grown,
     shrunk: diff.shrunk,
     absent: diff.absent,
     skipped: diff.skipped,
-    agentBootCeilingBytes: ceiling,
-    agentBootOverflow: bootOverflow,
-    agentBootDrift: bootDrift,
+    enforcedTiers: ENFORCED_TIERS,
+    agentBoot: tierMap.tiers?.agentBoot ?? [],
     workflowReachableBytes: tierMap.workflowClosure?.reachableTotalBytes ?? 0,
     exitCode,
   };
@@ -598,32 +503,23 @@ function renderJsonReport({
 
 /**
  * Each failing condition gets its own remediation line: they are fixed
- * differently (trim a role def vs refresh the budget), so a single generic
- * message would leave the author guessing which applies.
+ * differently, so a single generic message would leave the author guessing
+ * which applies. Only {@link ENFORCED_TIERS} drift speaks here — the report-
+ * only lines are already marked `~` in the preview above.
  *
  * @param {object} params
  * @returns {void}
  */
 function renderFailureDiagnostics({ report, stderr }) {
-  const { diff, ceiling, bootOverflow, permissiveDrift } = report;
-  if (permissiveDrift.length > 0) {
+  const { diff } = report;
+  if (diff.grown.some(isEnforced)) {
     stderr.write(
-      `[context-budget] ❌ a recorded agentBoot row understates the file it describes, so it overstates the headroom an author would size an edit against — refresh it with \`node .agents/scripts/check-context-budget.js --update\` (the ceiling is unchanged)\n`,
+      `[context-budget] ❌ the always-loaded documentation tier grew beyond tolerance — every session and every subagent spawn re-pays it. Refresh the budget consciously with \`node .agents/scripts/check-context-budget.js --update\` once the growth is intentional\n`,
     );
   }
-  if (bootOverflow.length > 0) {
+  if (diff.absent.some(isEnforced)) {
     stderr.write(
-      `[context-budget] ❌ a role-agent boot context exceeds the ${ceiling}-byte per-agent ceiling — trim the role def (the ceiling is a hard cap, not a starve target)\n`,
-    );
-  }
-  if (diff.grown.length > 0) {
-    stderr.write(
-      `[context-budget] ❌ a documentation tier grew beyond tolerance — refresh the budget consciously with \`node .agents/scripts/check-context-budget.js --update\` once the growth is intentional\n`,
-    );
-  }
-  if (diff.absent.length > 0) {
-    stderr.write(
-      `[context-budget] ❌ a recorded row names a path the measured tier no longer contains — its bytes inflate the recorded total against nothing. Refresh with \`node .agents/scripts/check-context-budget.js --update\`\n`,
+      `[context-budget] ❌ a recorded always-loaded row names a path the measured tier no longer contains — its bytes inflate the recorded total against nothing. Refresh with \`node .agents/scripts/check-context-budget.js --update\`\n`,
     );
   }
 }
@@ -633,19 +529,13 @@ function renderFailureDiagnostics({ report, stderr }) {
  * @returns {void}
  */
 function renderTextReport({ tierMap, baseline, report, stdout, stderr }) {
-  const { diff, bootOverflow, bootDrift, exitCode } = report;
+  const { diff, exitCode } = report;
   stdout.write(`\n--- context-budget preview ---\n`);
   stdout.write(`${renderDiff(diff)}\n`);
   const reachable = renderReachable(tierMap, baseline);
   if (reachable) stdout.write(`${reachable}\n`);
-  for (const o of bootOverflow) {
-    stdout.write(
-      `+ agentBoot: ${o.path} is ${o.bytes} bytes, over the ${o.ceiling}-byte per-agent ceiling\n`,
-    );
-  }
-  for (const line of renderBootDrift(bootDrift)) {
-    stdout.write(`${line}\n`);
-  }
+  const boot = renderAgentBoot(tierMap);
+  if (boot) stdout.write(`${boot}\n`);
   if (exitCode === 1) renderFailureDiagnostics({ report, stderr });
 }
 

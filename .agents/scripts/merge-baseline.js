@@ -36,9 +36,8 @@
  *
  * ## Not every `baselines/*.json` is an envelope
  *
- * That glob also matches arch-cycles, cyclomatic, dead-exports, audit-ledger,
- * context-budget and workflow-citations — files with their own shapes and no
- * row identity. Anything whose `$schema` is not a known per-kind envelope is
+ * That glob also matches arch-cycles, cyclomatic, dead-exports, audit-ledger
+ * and context-budget — files with their own shapes and no row identity. Anything whose `$schema` is not a known per-kind envelope is
  * handed straight back to `git merge-file`, so registering the driver cannot
  * change their behaviour.
  */
@@ -164,8 +163,8 @@ function delegateToGit(basePath, oursPath, theirsPath) {
  *     `git merge-file` even though `.gitattributes` routes them here, so the
  *     attribute promised a row merge the driver never performed.
  *
- * Anything else — arch-cycles, audit-ledger, context-budget,
- * workflow-citations — resolves `null` and is handed back to git unchanged.
+ * Anything else — arch-cycles, audit-ledger, context-budget — resolves `null`
+ * and is handed back to git unchanged.
  *
  * @param {unknown} ours
  * @param {unknown} theirs

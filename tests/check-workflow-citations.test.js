@@ -1,19 +1,19 @@
 /**
- * tests/check-workflow-citations.test.js — the provenance-citation ratchet.
+ * tests/check-workflow-citations.test.js — the provenance-citation report.
  *
  * Workflow prose is resident context: a `(Story #1234)` aside is charged at
  * the same rate as instruction and teaches the model Mandrel's own history
- * instead of the task. The strip is a one-time edit; without a ratchet the
- * tax re-accumulates one well-meaning aside at a time, which is precisely
- * how it reached 127 in the first place.
+ * instead of the task. Story #5340 demoted the ratchet that guarded the
+ * count to a report, because failing on a rise meant a prose fix had to be
+ * paid for with an unrelated trim in the same commit — the freeze that let
+ * three reference sections describe retired mechanisms.
  *
- * Two things therefore have to hold, and neither is self-enforcing:
+ * What has to hold now is the mirror of what held before:
  *
- *   1. The gate FAILS on a rise. A ratchet that only reports is a ratchet
- *      nobody notices.
- *   2. The committed baseline is real — present in this repo and not below
- *      the live corpus, so `npm run lint` is actually enforcing a ceiling
- *      rather than degrading to "no baseline found".
+ *   1. The report NEVER fails. Any count exits 0, and no baseline file is
+ *      read — `baselines/workflow-citations.json` is gone.
+ *   2. The count is still honest and per-file, so the measurement a reader
+ *      acts on survives the demotion.
  */
 
 import assert from 'node:assert/strict';
@@ -25,10 +25,8 @@ import { fileURLToPath } from 'node:url';
 import {
   collectMarkdownFiles,
   countCitations,
-  diffTally,
-  loadBaseline,
   parseArgv,
-  renderDiff,
+  renderReport,
   runCli,
   tallyCitations,
 } from '../.agents/scripts/check-workflow-citations.js';
@@ -39,8 +37,8 @@ const REPO_ROOT = path.resolve(__dirname, '..');
 
 const tempRoots = [];
 
-/** Build a throwaway repo-shaped fixture: `.agents/workflows` + a baseline. */
-function makeFixture({ docs = {}, baseline = null } = {}) {
+/** Build a throwaway repo-shaped fixture: `.agents/workflows` and nothing else. */
+function makeFixture({ docs = {} } = {}) {
   const root = makeTempDir('workflow-citations-');
   tempRoots.push(root);
   const workflows = path.join(root, '.agents', 'workflows');
@@ -49,13 +47,6 @@ function makeFixture({ docs = {}, baseline = null } = {}) {
     const full = path.join(workflows, name);
     fs.mkdirSync(path.dirname(full), { recursive: true });
     fs.writeFileSync(full, body);
-  }
-  if (baseline) {
-    fs.mkdirSync(path.join(root, 'baselines'), { recursive: true });
-    fs.writeFileSync(
-      path.join(root, 'baselines', 'workflow-citations.json'),
-      `${JSON.stringify(baseline, null, 2)}\n`,
-    );
   }
   return root;
 }
@@ -109,104 +100,75 @@ describe('tallyCitations', () => {
   });
 });
 
-describe('diffTally', () => {
-  it('names the file that grew, not just the total', () => {
-    const diff = diffTally(
-      { total: 1, files: [{ path: 'a.md', count: 1 }] },
-      { total: 3, files: [{ path: 'a.md', count: 3 }] },
-    );
-    assert.equal(diff.delta, 2);
-    assert.deepEqual(diff.grew, [{ path: 'a.md', from: 1, to: 3 }]);
-  });
-
-  it('reports a null delta when there is no baseline to compare against', () => {
-    const diff = diffTally(null, { total: 3, files: [] });
-    assert.equal(diff.baselineTotal, null);
-    assert.equal(diff.delta, null);
-  });
-});
-
-describe('renderDiff', () => {
-  it('flags shrinkage as a refresh nudge, never as a failure', () => {
-    const out = renderDiff(
-      { baselineTotal: 5, delta: -2, grew: [] },
-      { total: 3 },
-    );
-    assert.match(out, /below baseline/);
-    assert.match(out, /\(ok\)/);
+describe('renderReport', () => {
+  it('names every citing file and says the count is never gated', () => {
+    const out = renderReport({
+      total: 3,
+      files: [
+        { path: 'a.md', count: 2 },
+        { path: 'b.md', count: 1 },
+      ],
+    });
+    assert.match(out, /a\.md: 2/);
+    assert.match(out, /b\.md: 1/);
+    assert.match(out, /total=3 across 2 file\(s\)/);
+    assert.match(out, /never gated/);
   });
 });
 
 describe('parseArgv', () => {
   it('parses every documented flag', () => {
-    assert.deepEqual(
-      parseArgv(['--baseline', 'b.json', '--root', 'r', '--update', '--json']),
-      { baselinePath: 'b.json', rootPath: 'r', update: true, json: true },
-    );
+    assert.deepEqual(parseArgv(['--root', 'r', '--json']), {
+      rootPath: 'r',
+      json: true,
+    });
+  });
+
+  it('no longer accepts the retired baseline flags', () => {
+    // `--baseline` / `--update` described a committed ceiling that no longer
+    // exists; they must not silently swallow the next argument either.
+    assert.deepEqual(parseArgv(['--baseline', 'b.json', '--update']), {
+      rootPath: null,
+      json: false,
+    });
   });
 });
 
 describe('runCli', () => {
-  it('exits 1 when the total rises above the baseline', async () => {
+  it('exits 0 however high the count rises — the report never gates', async () => {
     const root = makeFixture({
-      docs: { 'a.md': 'refs #1234 and #5678' },
-      baseline: {
-        total: 1,
-        files: [{ path: '.agents/workflows/a.md', count: 1 }],
-      },
-    });
-    const cap = capture();
-    const code = await runCli({ argv: [], cwd: root, ...cap });
-    assert.equal(code, 1);
-    assert.match(cap.chunks.out, /gate fail/);
-    assert.match(cap.chunks.out, /a\.md: 1 -> 2/);
-  });
-
-  it('exits 0 at or below the baseline', async () => {
-    const root = makeFixture({
-      docs: { 'a.md': 'refs #1234' },
-      baseline: {
-        total: 4,
-        files: [{ path: '.agents/workflows/a.md', count: 4 }],
-      },
+      docs: { 'a.md': 'refs #1234 #5678 #9012 #3456 #7890' },
     });
     const cap = capture();
     assert.equal(await runCli({ argv: [], cwd: root, ...cap }), 0);
-    assert.match(cap.chunks.out, /total=1 baseline=4/);
+    assert.match(cap.chunks.out, /a\.md: 5/);
+    assert.match(cap.chunks.out, /total=5/);
   });
 
-  it('degrades to no-ceiling with a warning when the baseline is absent', async () => {
+  it('reads no baseline — a committed one is neither required nor consulted', async () => {
+    const root = makeFixture({ docs: { 'a.md': 'refs #1234 and #5678' } });
+    // A baseline file that would have failed the old ratchet outright.
+    fs.mkdirSync(path.join(root, 'baselines'), { recursive: true });
+    fs.writeFileSync(
+      path.join(root, 'baselines', 'workflow-citations.json'),
+      `${JSON.stringify({ total: 0, files: [] }, null, 2)}\n`,
+    );
+    const cap = capture();
+    assert.equal(await runCli({ argv: [], cwd: root, ...cap }), 0);
+    assert.equal(cap.chunks.err, '');
+    assert.doesNotMatch(cap.chunks.out, /baseline/);
+  });
+
+  it('--json emits the machine-readable envelope with no baseline fields', async () => {
     const root = makeFixture({ docs: { 'a.md': 'refs #1234' } });
     const cap = capture();
-    assert.equal(await runCli({ argv: [], cwd: root, ...cap }), 0);
-    assert.match(cap.chunks.err, /baseline not found/);
-  });
-
-  it('--update writes a baseline the next run passes against', async () => {
-    const root = makeFixture({ docs: { 'a.md': 'refs #1234 and #5678' } });
-    const cap = capture();
-    assert.equal(await runCli({ argv: ['--update'], cwd: root, ...cap }), 0);
-    const written = loadBaseline(
-      path.join(root, 'baselines', 'workflow-citations.json'),
-    );
-    assert.equal(written.total, 2);
-    assert.equal(await runCli({ argv: [], cwd: root, ...capture() }), 0);
-  });
-
-  it('--json emits the machine-readable envelope', async () => {
-    const root = makeFixture({
-      docs: { 'a.md': 'refs #1234' },
-      baseline: {
-        total: 1,
-        files: [{ path: '.agents/workflows/a.md', count: 1 }],
-      },
-    });
-    const cap = capture();
-    await runCli({ argv: ['--json'], cwd: root, ...cap });
+    assert.equal(await runCli({ argv: ['--json'], cwd: root, ...cap }), 0);
     const envelope = JSON.parse(cap.chunks.out);
     assert.equal(envelope.kind, 'workflow-citations-report');
     assert.equal(envelope.total, 1);
-    assert.equal(envelope.delta, 0);
+    assert.equal(envelope.exitCode, 0);
+    assert.ok(!('baselineTotal' in envelope));
+    assert.ok(!('delta' in envelope));
   });
 
   it('throws when the workflow root is missing rather than passing vacuously', async () => {
@@ -219,20 +181,15 @@ describe('runCli', () => {
   });
 });
 
-describe('the committed baseline holds a real ceiling', () => {
-  it('exists and is not below the live workflow corpus', async () => {
-    const baseline = loadBaseline(
-      path.join(REPO_ROOT, 'baselines', 'workflow-citations.json'),
-    );
-    assert.ok(
-      baseline && typeof baseline.total === 'number',
-      'baselines/workflow-citations.json must exist — without it `npm run lint` degrades to "no ceiling" and the citation tax re-accumulates unnoticed',
+describe('the demotion is complete in this repo', () => {
+  it('reports the live corpus and exits 0 with no committed baseline present', async () => {
+    assert.equal(
+      fs.existsSync(path.join(REPO_ROOT, 'baselines/workflow-citations.json')),
+      false,
+      'baselines/workflow-citations.json must be deleted — nothing reads it any more',
     );
     const cap = capture();
-    assert.equal(
-      await runCli({ argv: [], cwd: REPO_ROOT, ...cap }),
-      0,
-      `workflow citations regressed above the recorded baseline:\n${cap.chunks.out}`,
-    );
+    assert.equal(await runCli({ argv: [], cwd: REPO_ROOT, ...cap }), 0);
+    assert.match(cap.chunks.out, /\[workflow-citations\] total=\d+/);
   });
 });

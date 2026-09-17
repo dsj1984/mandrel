@@ -66,16 +66,29 @@ commands** the script knows nothing about, so a locally green
 | `check-dead-exports.js` | no | no | **yes** |
 | `check-dead-exports.js --production` | no | no | **yes** |
 | `check-context-budget.js` | no | no | **yes** |
-| `check-workflow-citations.js` | no | no | **no** |
+| `check-workflow-citations.js` | no | no | **yes** |
 | `check-cyclomatic.js` | no | no | **yes** |
 | `check-schema-references.js` | no | no | **yes** |
 | `check-knip-entries.js` | no | no | **yes** |
 | `check-baseline-scope.js` | no | no | **no** |
 
-Two are still in **no** local aggregate command —
-`check-workflow-citations.js` and `check-baseline-scope.js`. Each is reachable
-only as its own npm script (`check:workflow-citations`, `baselines:scope`) or a
-direct invocation.
+One is still in **no** local aggregate command — `check-baseline-scope.js`,
+reachable only as its own npm script (`baselines:scope`) or a direct
+invocation. `check-workflow-citations.js` joined `verify` in v2.34.0, when
+Story #5340 demoted it to a report; before that it was exempted because
+`tests/check-workflow-citations.test.js` re-ran its ratchet through the `test`
+step.
+
+**Two of the nine cannot fail this job any more** (Story #5340, ADR
+20260917-5340). `check-workflow-citations.js` prints a per-file provenance
+count and always exits 0 — `baselines/workflow-citations.json` is deleted.
+`check-context-budget.js` fails on the `alwaysLoaded` tier alone: its
+`workflow` and `mandatoryRead` tiers are printed, and the per-file 8 KB
+agent-boot ceiling and the row-vs-tree drift gate are gone. A green run of
+either is therefore **not** evidence the numbers held — read the report. Both
+ratchets used to fail a *rise*, so a prose fix had to be paid for with an
+unrelated trim in the same commit; the always-loaded gate is the one that
+stays because every session and every subagent spawn re-pays that closure.
 
 `prune-baseline-orphans.js --check` left this table in v2.32.0: it no longer
 runs in CI in any mode. It reports the same absent / out-of-scope rows as
@@ -84,25 +97,24 @@ the required job made the scope gate's inherited-divergence warning
 unreachable — a stale row on `main` red every open PR regardless of who landed
 it. It stays the operator's remedy, via `npm run baselines:prune`.
 
-`check-context-budget.js` additionally runs in `.husky/pre-push`. It is
-zero-tolerance in **both** directions — a change that *shrinks* the
-always-loaded doc closure reds it exactly as growth does, and the remedy is a
-committed baseline refresh, not a smaller diff.
+`check-context-budget.js` and `check-workflow-citations.js` additionally run in
+`.husky/pre-push`, as reports. A shrink in the always-loaded closure no longer
+reds anything either (Story #5313): it is reported, and the close's write-back
+seam commits the lower total on the Story branch.
 
 **Reproduce.**
 
 ```bash
 node .agents/scripts/check-baselines.js --format text   # names the 3 gates it ran
 sed -n '/name: baselines/,/windows-smoke/p' .github/workflows/ci.yml | grep 'js'
-grep "label: '" .agents/scripts/run-verify.js            # the 9 steps verify covers
+sed -n '/^const STEPS/,/^];/p' .agents/scripts/run-verify.js  # the steps verify covers
 ```
 
 **Safe move.** `npm run verify` is the closest local mirror. Run
-`node .agents/scripts/check-workflow-citations.js` alongside it when the change
-touches workflow prose under `.agents/workflows/`, and
-`npm run baselines:scope && npm run baselines:prune -- --check` when it adds,
-deletes or moves files inside a scored `targetDirs` root. Reproducing only the
-`.agentrc.json` command before a push is a false green.
+`npm run baselines:scope && npm run baselines:prune -- --check` alongside it
+when the change adds, deletes or moves files inside a scored `targetDirs`
+root. Reproducing only the `.agentrc.json` command before a push is a false
+green.
 
 ## 3. The two dead-export passes disagree, and the production pass is silent without `!`
 

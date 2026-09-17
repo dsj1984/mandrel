@@ -19,7 +19,6 @@ file is the roster, the per-kind command table, and the procedure.
 | `arch-cycles.json` | `npm run check:arch` |
 | `cyclomatic.json` | `npm run check:cyclomatic` |
 | `context-budget.json` | `npm run check:context-budget` |
-| `workflow-citations.json` | `npm run check:workflow-citations` |
 | `agents-loc.csv` | `npm run baseline:agents-loc` |
 
 A refresh is **not** a regression entry — it tells the ratchet that the new

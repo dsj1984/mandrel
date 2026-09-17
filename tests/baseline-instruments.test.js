@@ -223,7 +223,6 @@ describe('the tracked baselines directory holds no orphans', () => {
     // `audit-ledger.json` is the audit-suite's own run ledger, not a
     // measurement baseline; it has no gate and no rollup.
     known.add('baselines/audit-ledger.json');
-    known.add('baselines/workflow-citations.json');
     const orphans = tracked.filter((p) => !known.has(p));
     assert.deepEqual(
       orphans,

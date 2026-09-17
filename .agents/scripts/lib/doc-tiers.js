@@ -27,8 +27,10 @@
  *   - `agentBoot`     — the role-scoped boot contexts `.agents/agents/*.md`
  *                       (issue #4478). Each is a standalone system prompt a
  *                       converted spawn boots on **instead of** the always-loaded
- *                       closure, so it is budgeted independently (per-file ≤8KB
- *                       ceiling gated by `check-context-budget.js`).
+ *                       closure, so it is measured independently. Its per-file
+ *                       8 KB ceiling was deleted by Story #5340;
+ *                       `check-context-budget.js` now reports these sizes and
+ *                       gates nothing on them.
  *   - `workflow` /    — the `.agents/workflows/**` read-tier (Story #4752),
  *     `workflowOnDemand` resolved as each entry point's transitive
  *                       markdown-link closure by

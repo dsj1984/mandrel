@@ -11,8 +11,11 @@
  * AC-2 companion: the diet must never thin the security baseline. The
  * baseline file stays @-imported (resident) and every MUST section survives.
  *
- * The AC-4 workflow-spine budgets live in the sibling
- * `workflow-spine-budget.test.js`.
+ * The AC-4 workflow-spine budgets used to live in a sibling file. Story #5340
+ * deleted them: the per-file 8 KB ceiling and its minimum-headroom floor made
+ * every prose fix buy its bytes from an unrelated trim. This closure budget is
+ * the one that stays, because it is the only tier every session and every
+ * subagent spawn re-pays unconditionally.
  */
 
 import assert from 'node:assert/strict';
