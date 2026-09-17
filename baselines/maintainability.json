@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-17T14:01:15.377Z",
+  "generatedAt": "2026-09-17T14:53:13.924Z",
   "rollup": {
     "*": {
       "min": 76.381,
-      "p50": 99.169,
+      "p50": 99.173,
       "p95": 122.902
     }
   },
@@ -168,7 +168,7 @@
     },
     {
       "path": ".agents/scripts/file-ci-gap.js",
-      "mi": 84.753
+      "mi": 85.371
     },
     {
       "path": ".agents/scripts/generate-config-docs.js",
@@ -1132,7 +1132,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ceremony-routing.js",
-      "mi": 107.325
+      "mi": 110.6
     },
     {
       "path": ".agents/scripts/lib/orchestration/change-set.js",
@@ -1544,7 +1544,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-scoped-config.js",
-      "mi": 96.03
+      "mi": 100.077
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/close-note.js",
@@ -1669,6 +1669,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/story-follow-ups.js",
       "mi": 98.792
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-init-envelope.js",
+      "mi": 113.331
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-init-remote.js",
@@ -2280,7 +2284,7 @@
     },
     {
       "path": ".agents/scripts/single-story-init.js",
-      "mi": 93.134
+      "mi": 93.815
     },
     {
       "path": ".agents/scripts/stories-wave-tick.js",
