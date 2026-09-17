@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-17T12:15:44.046Z",
+  "generatedAt": "2026-09-17T12:21:25.744Z",
   "rollup": {
     "*": {
       "min": 76.381,
@@ -72,7 +72,7 @@
     },
     {
       "path": ".agents/scripts/check-context-budget.js",
-      "mi": 90.805
+      "mi": 91.72
     },
     {
       "path": ".agents/scripts/check-cyclomatic.js",
