@@ -96,9 +96,18 @@ async function emitTerminal({ terminal, result, config }) {
  *
  * A null `stateReason` keeps the `completed` reading — GitHub defaults to it,
  * and issues closed before the field existed carry null.
+ *
+ * The operator-facing `NOOP` line is emitted here rather than at the call
+ * site: both halves read the same field, and deciding what `not_planned`
+ * means in two places is how the log and the envelope come to disagree about
+ * one Story.
  */
 async function alreadyClosedResult(storyId, stateReason = null, config) {
   if (stateReason === 'not_planned') {
+    progress(
+      'NOOP',
+      `Story #${storyId} is closed as not planned — nothing to land.`,
+    );
     const result = {
       storyId,
       standalone: true,
@@ -121,6 +130,7 @@ async function alreadyClosedResult(storyId, stateReason = null, config) {
     return { success: false, result, terminal };
   }
 
+  progress('NOOP', `Story #${storyId} is already closed. Nothing to do.`);
   const result = {
     storyId,
     standalone: true,
@@ -905,12 +915,6 @@ async function runClosePipeline({
   progress('INIT', `Closing standalone Story #${options.storyId}...`);
   const story = await provider.getTicket(options.storyId);
   if (story.state === 'closed') {
-    progress(
-      'NOOP',
-      story.stateReason === 'not_planned'
-        ? `Story #${options.storyId} is closed as not planned — nothing to land.`
-        : `Story #${options.storyId} is already closed. Nothing to do.`,
-    );
     return await alreadyClosedResult(
       options.storyId,
       story.stateReason,
