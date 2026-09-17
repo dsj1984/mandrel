@@ -122,21 +122,12 @@ report is `available: false` and selection de-conflicts within the beat only.
 advisory, note }`. They used to be an unreported skip, so a Story simply
 vanished from `ready[]` and an unfilled slot read exactly like a cap that was
 never reached. Every entry in **either** report carries the colliding `paths`
-and a `source` tag:
-
-- `declared-overlap` — both Stories' `changes[]` named the path (or a declared
-  glob). Intended serialization; two Stories rewriting the same generated
-  baseline must not co-dispatch.
-- `scraped-overlap` — only the text evidence produced it. Real signal — a
-  declaration is only a lower bound — but the class where a false positive is
-  possible.
-
-**The evidence scrape excludes exactly three token sources**, each structurally
-incapable of naming an edit target: `audit-fingerprints` /
-`audit-semantic-keys` provenance footers, paths under `project.paths.tempRoot`,
-and markdown-link URL interiors. Nothing else is stripped — a
-`<!-- DECOMPOSITION -->` block's paths are genuine intent
-([`instructions.md` § 7](../../instructions.md)) and still count.
+and one `source` tag, `declared-overlap`: both Stories' `changes[]` named the
+path, or one declared a glob. Intended serialization — two Stories rewriting
+the same generated baseline must not co-dispatch. A declared footprint is the
+whole footprint: Story #5313 retired the body scrape that used to widen it,
+and the second source class it produced, so `changes[]` is the only evidence
+a collision is scored against.
 
 **`delivery.deliverRunner.footprintGuard`** selects what a collision does:
 

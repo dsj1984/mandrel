@@ -60,13 +60,14 @@ the floor-vs-ratchet policy are tooling commitments rather than ADRs and live in
 
 <!-- ADR-INDEX:START -->
 
-**In force (44).** Each governs the surface named beside it.
+**In force (45).** Each governs the surface named beside it.
 A `Status` of `Accepted in part` means some clause of the entry has been
 superseded — open it before citing it.
 
 | Decision | Governs | Surface | Status |
 | --- | --- | --- | --- |
-| [`20260912-5313`](#adr-20260912-5313-the-delivery-diet--deliver-time-knobs-bound-by-risk-not-by-count-and-scripts-read-ground-truth) | The delivery diet: deliver-time knobs bound by risk, not by count | `.agents/scripts/ceremony-derive.js` | Accepted |
+| [`20260917-5340`](#adr-20260917-5340-resident-context-measurements-are-reports-the-always-loaded-closure-is-the-one-gate) | Resident-context measurements are reports; the always-loaded closure is the one gate | `.agents/scripts/check-context-budget.js` | Accepted |
+| [`20260912-5313`](#adr-20260912-5313-the-delivery-diet--deliver-time-knobs-bound-by-risk-not-by-count-and-scripts-read-ground-truth) | The delivery diet: deliver-time knobs bound by risk, not by count | `.agents/scripts/ceremony-derive.js` | Accepted in part |
 | [`20260912-5312`](#adr-20260912-5312-the-planning-diet--a-story-is-as-large-and-as-loosely-prescribed-as-the-work-needs) | The planning diet: no plan-time limit that never fires on real work | `.agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js` | Accepted |
 | [`20260911-5300`](#adr-20260911-5300-follow-up-ownership-is-three-buckets-and-an-unroutable-bucket-is-an-outcome-not-a-fallback) | Follow-up ownership is three buckets; unroutable is an outcome | `.agents/scripts/lib/github/framework-repo.js` | Accepted |
 | [`20260906-5160a`](#adr-20260906-5160a-why-the-ci-verdict-set-carries-capacity-and-unreproducible-tier) | Why the CI verdict set carries `capacity` and `unreproducible-tier` | `.agents/rules/ci-remediation.md` | Accepted |
@@ -149,9 +150,98 @@ at the release tag named in the entry.
 
 <!-- ADR-INDEX:END -->
 
-## ADR 20260912-5313: The delivery diet — deliver-time knobs bound by risk, not by count, and scripts read ground truth
+## ADR 20260917-5340: Resident-context measurements are reports; the always-loaded closure is the one gate
 
 **Status:** Accepted
+**Date:** 2026-09-17
+**Deciders:** @dsj1984
+**Surface:** `.agents/scripts/check-context-budget.js`
+**Story:** #5340
+
+### Context
+
+Two ratchets guarded the byte cost of workflow prose, and both failed on a
+**rise**: `check-context-budget.js` reddened when the `workflow` mandatory
+closure grew past its recorded total plus tolerance, and
+`check-workflow-citations.js` reddened when the issue-reference count across
+`.agents/workflows/**` rose above `baselines/workflow-citations.json`. Two
+more guarded individual files: the per-file 8 KB agent-boot ceiling in
+`check-context-budget.js`, and the spine ceiling with its 256-byte
+minimum-headroom floor in `tests/bootstrap/workflow-spine-budget.test.js`.
+
+Together they made a prose edit cost more than the prose. A one-line fix to a
+contract had to be paid for with an unrelated trim in the same commit, or with
+a hand-run `--update` that reads as an unexplained baseline churn in the diff;
+`20260912-5313` records the context-budget ratchet going red on a *trim*, and
+`tests/bootstrap/story-worker-dispatch-guidance.test.js` records a guard file
+rewritten because the boot context sat 250 bytes under its ceiling.
+
+The result is visible in the tree. `helpers/deliver-reference.md` still
+described a prose scrape and a `scraped-overlap` collision class that
+`stories-wave-tick.js` retired in Story #5313. `helpers/deliver-story-reference
+.md` still described a lite route with a machine-readable `preserves` field
+retired in Story #5312, and named a `status: "done"` terminal the shipped
+schema calls `landed`. Each of those sections was cheaper to leave wrong than
+to fix, which is the failure mode: a ceiling that makes documentation
+unaffordable buys stale documentation, not a smaller context.
+
+### Decision
+
+**Demote the workflow prose ratchets to reports.** The `workflow` and
+`mandatoryRead` tiers of `check-context-budget.js` are measured, recorded and
+printed — with a `~` marker and a "reported, never gated" suffix so a reader
+never has to cross-reference a constant to know whether a line broke the
+build — and never fail the command.
+`check-workflow-citations.js` prints the per-file count and always exits 0;
+`baselines/workflow-citations.json` is deleted, and the command reads no
+baseline at all.
+
+**Delete the per-file ceilings outright.** The 8 KB agent-boot ceiling, the
+row-vs-tree drift gate that kept its headroom rows honest, and
+`tests/bootstrap/workflow-spine-budget.test.js` with its ceiling and 256-byte
+headroom floor are gone. Nothing enforces a per-file ceiling or a minimum
+headroom on a workflow or an agent file. Role-def sizes are still measured and
+printed.
+
+**The always-loaded gate is the one that stays.** `check-context-budget.js`
+still exits 1 when the `alwaysLoaded` tier exceeds its recorded total plus the
+committed `toleranceBytes`, and when a recorded `alwaysLoaded` row names a
+path the tree no longer carries. That tier is the `CLAUDE.md` `@`-import
+closure every session and every subagent spawn re-pays unconditionally, so
+growth there is a tax nobody opted into — unlike a workflow file, which is
+read only by the sessions that invoke it. The Story #5313 write-back seam is
+unchanged: a shrink is reported and committed back on the Story branch.
+
+**Keep measuring.** Both commands stay wired into CI's `baselines` job,
+`.husky/pre-push`, `npm run verify` and the `package.json` scripts. The
+resident-context number is worth seeing on every change; what is removed is
+its power to refuse a commit. `check-workflow-citations.js` joins the `verify`
+mirror it had been exempted from, because the reason for the exemption — its
+test re-ran the same ratchet — went with the ratchet.
+
+This supersedes the `workflow`-tier and spine-budget clauses of
+[`20260912-5313`](#adr-20260912-5313-the-delivery-diet--deliver-time-knobs-bound-by-risk-not-by-count-and-scripts-read-ground-truth)
+and the ratchet clause of `20260821-4872`, which survives only as a citation
+inside that entry.
+
+### Consequences
+
+- A green `check-context-budget.js` or `check-workflow-citations.js` is no
+  longer evidence that the workflow numbers held. The output is the evidence;
+  `known-tooling-behavior.md` entry 2 says so.
+- Nothing stops workflow prose re-accumulating, by design. The counter-measure
+  is the report plus review, not a build failure — a ratchet that makes the
+  fix unaffordable protects the number and loses the document.
+- The three stale reference sections this Story deletes are the debt the
+  ratchets bought. Removing the ratchets is what makes the cuts that follow
+  cheap enough to be worth making.
+
+## ADR 20260912-5313: The delivery diet — deliver-time knobs bound by risk, not by count, and scripts read ground truth
+
+**Status:** Accepted in part — its context-budget clause is superseded for the
+`workflow` tier by [`20260917-5340`](#adr-20260917-5340-resident-context-measurements-are-reports-the-always-loaded-closure-is-the-one-gate), which also retires the
+`20260821-4872` shrink-fails clause this entry only cites. Every other clause
+stands, including the write-back seam and the always-loaded ratchet.
 **Date:** 2026-09-12
 **Deciders:** @dsj1984
 **Surface:** `.agents/scripts/ceremony-derive.js`
