@@ -143,10 +143,11 @@ depth reads): reference § Ceremony.
   default to close-and-land (`delivery.routing.closeAndLand: true`); rest at
   `agent::closing` only when a human owns the merge.
 - **`/mandrel-deliver` never plans.** Planned tickets come from
-  [`/mandrel-plan`](mandrel-plan.md), and an over-scope prompt **escalates and
-  ends** — never invoke `/mandrel-plan` in this session to rescue it
-  ([`helpers/deliver-light.md`](helpers/deliver-light.md) § Escalation is
-  terminal).
+  [`/mandrel-plan`](mandrel-plan.md), and a refused prompt **escalates**: the
+  light path ends, and the escalation's `nextCommand` is what owns the work —
+  seeded with `escalation.reasons`, in this session or a fresh one
+  ([`helpers/deliver-light.md`](helpers/deliver-light.md) § Continuing into
+  `/mandrel-plan`).
 
 ## See also
 

@@ -25,13 +25,12 @@
 //           — it moved under helpers/ so `/mandrel-deliver` is the one delivery door;
 //   - AC-8: the light entry contains no parallel init/close implementation.
 //
-// Story #4764 re-anchors the suitability gate on effort and risk — distinct
-// change kinds, a coarse magnitude bucket, uncertainty, and epic-scope span —
-// instead of artifact cardinality, and makes the PREDICTION gate coarse: it
-// rejects clearly-epic work only, because the declared footprint is a guess and
-// the diff backstop is the pass that sees ground truth. The invariants above are
-// unchanged; the fixtures that used to be over-scope by count are now over-scope
-// by effort.
+// Story #4764 re-anchored the suitability gate off artifact cardinality, and
+// Story #5344 finished the job: the declared effort axes (change kinds,
+// magnitude, uncertainty, deployable span) and the `warnings[]` Story #5313 had
+// demoted them to are gone. What the gate reads now is evidence rather than a
+// self-declaration — the predicted PATHS, for the two absolute risk rules — and
+// a ledgered reason. Size is bounded by the diff backstop alone.
 //
 // Story #4746 makes the escalate-plan OUTCOME terminal rather than advisory.
 // The gate's decision is untouched (the describes above still pass verbatim);
@@ -104,33 +103,35 @@ const RULES = {
   },
 };
 
-/** A ledgered lite verdict — the auditable claim the gate demands. */
-const LITE_VERDICT = { route: 'lite', reason: 'one-file additive helper' };
+/** A ledgered light verdict — the auditable claim the gate demands. */
+const LITE_VERDICT = { reason: 'one-file additive helper' };
 
 // ---------------------------------------------------------------------------
 // resolveLedgeredVerdict (AC-2) — a lite claim counts only when ledgered
 // ---------------------------------------------------------------------------
 
-describe('resolveLedgeredVerdict — lite only with a recorded reason (AC-2)', () => {
-  test('a lite claim with a recorded reason is honored', () => {
+describe('resolveLedgeredVerdict — light only with a recorded reason (AC-2)', () => {
+  test('a verdict with a recorded reason is honored', () => {
     const v = resolveLedgeredVerdict(LITE_VERDICT);
     assert.equal(v.route, 'lite');
     assert.equal(v.recorded, true);
     assert.equal(v.reason, 'one-file additive helper');
   });
 
-  test('a lite claim WITHOUT a recorded reason fails closed to full', () => {
+  test('a verdict WITHOUT a recorded reason fails closed to full', () => {
     for (const reason of ['', '   ', undefined, null, 42]) {
-      const v = resolveLedgeredVerdict({ route: 'lite', reason });
+      const v = resolveLedgeredVerdict({ reason });
       assert.equal(v.route, 'full', `reason ${JSON.stringify(reason)}`);
       assert.equal(v.recorded, false);
       assert.equal(v.reason, null);
     }
   });
 
-  test('a non-lite route is full regardless of reason', () => {
-    const v = resolveLedgeredVerdict({ route: 'full', reason: 'whatever' });
-    assert.equal(v.route, 'full');
+  test('Story #5344: the route half is gone — a stray route key decides nothing', () => {
+    assert.equal(
+      resolveLedgeredVerdict({ route: 'full', reason: 'why' }).route,
+      'lite',
+    );
   });
 
   test('is total: missing verdict yields a full route, never a throw', () => {
@@ -143,8 +144,8 @@ describe('resolveLedgeredVerdict — lite only with a recorded reason (AC-2)', (
 // deriveLightSuitability (AC-2) — shape machinery AND ledgered verdict
 // ---------------------------------------------------------------------------
 
-describe('deriveLightSuitability — ledgered verdict and risk decide; the shape warns (AC-2, Story #5313)', () => {
-  test('a clearly-small prompt with a ledgered lite verdict is suitable', () => {
+describe('deriveLightSuitability — only risk and the ledger decide (AC-2, Story #5344)', () => {
+  test('a clearly-small prompt with a ledgered verdict is suitable', () => {
     const s = deriveLightSuitability({
       predictedChanges: [{ path: 'bin/hello.js', assumption: 'creates' }],
       predictedAcceptance: ['prints hello and exits 0'],
@@ -157,7 +158,7 @@ describe('deriveLightSuitability — ledgered verdict and risk decide; the shape
     assert.equal(s.ledger.route, 'lite');
   });
 
-  test('a clearly-epic predicted footprint proceeds light with a warning naming the axis (Story #5313 AC-6)', () => {
+  test('Story #5344: a multi-deployable footprint proceeds light — span is not a rule any more', () => {
     const s = deriveLightSuitability({
       predictedChanges: [
         { path: 'apps/api/src/a.js', assumption: 'refactors-existing' },
@@ -167,55 +168,54 @@ describe('deriveLightSuitability — ledgered verdict and risk decide; the shape
       verdict: LITE_VERDICT,
       injectedRules: RULES,
     });
-    // The honest shape verdict is untouched …
-    assert.equal(s.shape.route, 'full');
-    // … but it no longer decides: the prediction is a warning.
+    assert.equal(s.shape.route, 'lite', 'no absolute risk rule fires');
     assert.equal(s.suitable, true);
     assert.equal(s.route, 'lite');
-    assert.equal(s.warnings.length, 1);
-    assert.match(s.warnings[0], new RegExp(`"${s.shape.code}"`));
-    assert.match(s.warnings[0], /diff backstop bounds the actual change set/);
   });
 
-  test('a within-ceiling prediction carries no warning', () => {
+  test('Story #5344: no decision carries a warnings[] any more', () => {
     const s = deriveLightSuitability({
       predictedChanges: [{ path: 'bin/hello.js', assumption: 'creates' }],
       predictedAcceptance: ['prints hello and exits 0'],
       verdict: LITE_VERDICT,
       injectedRules: RULES,
     });
-    assert.deepEqual(s.warnings, []);
+    assert.equal('warnings' in s, false);
+    assert.equal('ceilings' in s, false, 'no predicted-shape ceilings survive');
   });
 
-  // Story #4764 — the predicted axes are effort and risk, and the gate over
-  // them is coarse: it rejects clearly-epic work, not marginal small work.
-  test('AC-1: three instances of one mechanical edit are suitable; a substantial rewrite is not', () => {
+  test('Story #5344: the declared effort axes are not inputs — passing them changes nothing', () => {
+    const base = {
+      predictedChanges: [
+        { path: 'src/reporting.js', assumption: 'refactors-existing' },
+      ],
+      predictedAcceptance: ['the report renders identically'],
+      verdict: LITE_VERDICT,
+      injectedRules: RULES,
+    };
+    const plain = deriveLightSuitability(base);
+    const declared = deriveLightSuitability({
+      ...base,
+      predictedKinds: ['a', 'b', 'c', 'd'],
+      predictedMagnitude: 'substantial',
+      predictedUncertainty: 'needs-design',
+    });
+    assert.equal(plain.suitable, true);
+    assert.deepEqual(declared.shape, plain.shape);
+    assert.equal(declared.suitable, true);
+  });
+
+  test('AC-1: three instances of one mechanical edit are suitable', () => {
     const mechanical = deriveLightSuitability({
       predictedChanges: ['a', 'b', 'c'].map((p) => ({
         path: `src/${p}.js`,
         assumption: 'refactors-existing',
       })),
       predictedAcceptance: ['every call site passes the new flag'],
-      predictedKinds: ['add-flag-to-call-site'],
-      predictedMagnitude: 'trivial',
       verdict: LITE_VERDICT,
       injectedRules: RULES,
     });
     assert.equal(mechanical.suitable, true);
-
-    const rewrite = deriveLightSuitability({
-      predictedChanges: [
-        { path: 'src/reporting.js', assumption: 'refactors-existing' },
-      ],
-      predictedAcceptance: ['the report renders identically'],
-      predictedMagnitude: 'substantial',
-      verdict: LITE_VERDICT,
-      injectedRules: RULES,
-    });
-    // Story #5313: a substantial magnitude is a stated warning, not a stop.
-    assert.equal(rewrite.suitable, true);
-    assert.equal(rewrite.shape.route, 'full');
-    assert.match(rewrite.warnings[0], /"magnitude"/);
   });
 
   test('AC-3: marginal small work is no longer rejected on counts alone', () => {
@@ -243,26 +243,10 @@ describe('deriveLightSuitability — ledgered verdict and risk decide; the shape
         { path: 'tests/server.test.js', assumption: 'creates' },
       ],
       predictedAcceptance: ['200', 'hello world', 'port', 'npm test passes'],
-      predictedMagnitude: 'trivial',
       verdict: LITE_VERDICT,
       injectedRules: RULES,
     });
     assert.equal(s.suitable, true);
-  });
-
-  test('AC-6: the benchmark epic-scope footprint proceeds with a deployable-span warning', () => {
-    const s = deriveLightSuitability({
-      predictedChanges: [
-        { path: 'packages/contract/src/schema.js', assumption: 'creates' },
-        { path: 'apps/api/src/handler.js', assumption: 'refactors-existing' },
-      ],
-      predictedAcceptance: ['both deployables honour the shared contract'],
-      verdict: LITE_VERDICT,
-      injectedRules: RULES,
-    });
-    assert.equal(s.suitable, true);
-    assert.equal(s.shape.route, 'full');
-    assert.equal(s.warnings.length, 1);
   });
 
   test('a sensitive-path footprint is not suitable even when small', () => {
@@ -276,13 +260,43 @@ describe('deriveLightSuitability — ledgered verdict and risk decide; the shape
     });
     assert.equal(s.suitable, false);
     assert.equal(s.route, 'full');
+    assert.equal(s.unwaivable.present, true);
+    assert.deepEqual(s.unwaivable.classes, ['security']);
+  });
+
+  test('a billing footprint is not suitable even when small', () => {
+    const s = deriveLightSuitability({
+      predictedChanges: [
+        { path: 'src/billing/invoice.js', assumption: 'refactors-existing' },
+      ],
+      predictedAcceptance: ['the invoice total is right'],
+      verdict: LITE_VERDICT,
+      injectedRules: RULES,
+    });
+    assert.equal(s.suitable, false);
+    assert.deepEqual(s.unwaivable.classes, ['billing']);
+  });
+
+  test('a migration paired with its consumers is not suitable', () => {
+    const s = deriveLightSuitability({
+      predictedChanges: [
+        { path: 'db/migrations/003_add_col.sql', assumption: 'creates' },
+        { path: 'src/repo/user.js', assumption: 'refactors-existing' },
+      ],
+      predictedAcceptance: ['the column is read'],
+      injectedRules: { sensitivePaths: {} },
+      verdict: LITE_VERDICT,
+    });
+    assert.equal(s.suitable, false);
+    assert.equal(s.shape.code, 'migration-span');
+    assert.equal(s.unwaivable.present, true);
   });
 
   test('a small shape with an UNLEDGERED verdict is not suitable (verdict wins)', () => {
     const s = deriveLightSuitability({
       predictedChanges: [{ path: 'bin/hello.js', assumption: 'creates' }],
       predictedAcceptance: ['prints hello'],
-      verdict: { route: 'lite', reason: '' },
+      verdict: { reason: '' },
       injectedRules: RULES,
     });
     assert.equal(s.suitable, false);
@@ -300,20 +314,15 @@ describe('deriveLightSuitability — ledgered verdict and risk decide; the shape
 // resolveLightGateOutcome (AC-3) — over-scope stops, never lands silently
 // ---------------------------------------------------------------------------
 
-describe('resolveLightGateOutcome — proceed with warnings, or escalate (Story #5313)', () => {
-  test('a suitable decision proceeds light and carries its warnings', () => {
-    const o = resolveLightGateOutcome({
-      suitability: { suitable: true, warnings: ['predicted shape exceeds x'] },
-    });
-    assert.equal(o.action, 'proceed-light');
-    assert.deepEqual(o.warnings, ['predicted shape exceeds x']);
-    assert.match(o.reasons.join(' '), /predicted-shape warning/);
-  });
-
-  test('a suitable decision with no warning proceeds with an empty warnings[]', () => {
+describe('resolveLightGateOutcome — proceed, or escalate (Story #5344)', () => {
+  test('a suitable decision proceeds light and carries no warnings channel', () => {
     const o = resolveLightGateOutcome({ suitability: { suitable: true } });
     assert.equal(o.action, 'proceed-light');
-    assert.deepEqual(o.warnings, []);
+    assert.equal('warnings' in o, false);
+    assert.match(
+      o.reasons.join(' '),
+      /diff backstop bounds the actual change set/,
+    );
   });
 
   test('an unsuitable decision escalates whether or not the run is attended', () => {
@@ -578,7 +587,6 @@ describe('runLightGate — end-to-end gate over the entry inputs (AC-3, AC-6)', 
       prompt: 'add a bin/hello.js greeter',
       creates: ['bin/hello.js'],
       acceptance: 1,
-      route: 'lite',
       reason: 'single additive file',
       injectedRules: RULES,
     });
@@ -590,7 +598,6 @@ describe('runLightGate — end-to-end gate over the entry inputs (AC-3, AC-6)', 
       prompt: 'rework the whole billing pipeline',
       refactors: ['src/billing/a.js', 'src/billing/b.js', 'src/billing/c.js'],
       acceptance: 5,
-      route: 'lite',
       reason: 'claims small but is not',
       injectedRules: RULES,
     });
@@ -603,7 +610,6 @@ describe('runLightGate — end-to-end gate over the entry inputs (AC-3, AC-6)', 
       prompt: 'fix the off-by-one in the counter',
       refactors: ['src/counter.js'],
       acceptance: 1,
-      route: 'lite',
       reason: 'one-line fix in an existing file',
       amends: '#4200',
       injectedRules: RULES,
@@ -611,34 +617,19 @@ describe('runLightGate — end-to-end gate over the entry inputs (AC-3, AC-6)', 
     assert.equal(gate.action, 'proceed-light');
   });
 
-  test('the effort flags reach the gate: one kind at three sites proceeds', () => {
-    const gate = runLightGate({
-      prompt: 'pass the new flag at every call site',
-      refactors: ['src/a.js', 'src/b.js', 'src/c.js'],
-      acceptance: 2,
-      kinds: ['add-flag-to-call-site'],
-      magnitude: 'trivial',
-      uncertainty: 'determined',
-      route: 'lite',
-      reason: 'one mechanical edit repeated',
-      injectedRules: RULES,
-    });
-    assert.equal(gate.action, 'proceed-light');
-  });
-
-  test('the effort flags reach the gate: open design decisions proceed with a warning', () => {
+  test('Story #5344: the retired effort flags are not inputs — the gate ignores them', () => {
     const gate = runLightGate({
       prompt: 'make the counter configurable somehow',
       refactors: ['src/counter.js'],
       acceptance: 1,
+      kinds: ['a', 'b', 'c', 'd'],
+      magnitude: 'substantial',
       uncertainty: 'needs-design',
-      route: 'lite',
       reason: 'one file, but the shape is not decided',
       injectedRules: RULES,
     });
     assert.equal(gate.action, 'proceed-light');
-    assert.equal(gate.outcome.warnings.length, 1);
-    assert.match(gate.outcome.warnings[0], /"uncertainty"/);
+    assert.equal('warnings' in gate.outcome, false);
   });
 
   test('--amends: a HEAVY amendment escalates to /mandrel-plan under --yes', () => {
@@ -646,7 +637,6 @@ describe('runLightGate — end-to-end gate over the entry inputs (AC-3, AC-6)', 
       prompt: 'amend: overhaul auth and add a migration',
       creates: ['src/auth/new.js'],
       acceptance: 2,
-      route: 'lite',
       reason: 'claims small but touches auth',
       amends: '#4200',
       yes: true,
@@ -830,14 +820,14 @@ describe('deliver-light.js is a thin entry point, not a second engine (AC-8)', (
 // ---------------------------------------------------------------------------
 
 /**
- * Over-scope gate inputs: a footprint spanning two deployables, which is
- * clearly-epic scope by effort rather than by count (Story #4764).
+ * Over-scope gate inputs. Since Story #5344 the only prediction-time refusal
+ * is an un-waivable risk rule, so the fixture is a sensitive footprint rather
+ * than a large one.
  */
 const OVER_SCOPE = {
-  prompt: 'rework the whole reporting pipeline end to end',
-  refactors: 'apps/api/src/report.js,apps/web/src/report.js',
+  prompt: 'rework the whole billing pipeline end to end',
+  refactors: 'src/billing/report.js,src/billing/ledger.js',
   acceptance: '5',
-  route: 'lite',
   reason: 'claims small but is not',
 };
 
@@ -886,7 +876,7 @@ describe('escalate-plan emits a terminal envelope and exits non-zero (AC-1)', ()
     assert.equal(env.status, 'escalated');
     assert.equal(env.phase, 'suitability-gate');
     assert.match(env.nextCommand, /^\/mandrel-plan "/);
-    assert.match(env.nextCommand, /reporting pipeline/);
+    assert.match(env.nextCommand, /billing pipeline/);
 
     // Non-zero: a caller must not be able to read escalation as success.
     assert.notEqual(code, 0);
@@ -900,7 +890,8 @@ describe('escalate-plan emits a terminal envelope and exits non-zero (AC-1)', ()
   test('the gate reasons survive verbatim into the envelope', async () => {
     const { terminals } = await driveGate({ ...OVER_SCOPE, yes: true });
     const reasons = terminals[0].escalation.reasons.join(' ');
-    assert.match(reasons, /maxDeployables/);
+    assert.match(reasons, /un-waivable/);
+    assert.match(reasons, /sensitive-path class\(es\) billing/);
     assert.match(reasons, /fails closed to \/mandrel-plan/);
   });
 });
@@ -946,8 +937,6 @@ describe('an escalated run starts nothing (AC-2)', () => {
         OVER_SCOPE.refactors,
         '--acceptance',
         OVER_SCOPE.acceptance,
-        '--route',
-        'lite',
         '--reason',
         OVER_SCOPE.reason,
         '--yes',
@@ -983,12 +972,11 @@ describe('attended and unattended over-scope both escalate (Story #5313)', () =>
     assert.equal(created, 0);
   });
 
-  test('proceed-light is untouched — receipt authored, no terminal, empty warnings', async () => {
+  test('proceed-light is untouched — receipt authored, no terminal, no warnings channel', async () => {
     const { code, terminals, gateEnvelopes, created } = await driveGate({
       prompt: 'add a bin/hello.js greeter',
       creates: 'bin/hello.js',
       acceptance: '1',
-      route: 'lite',
       reason: 'single additive file',
       yes: true,
     });
@@ -996,27 +984,22 @@ describe('attended and unattended over-scope both escalate (Story #5313)', () =>
     assert.equal(created, 1);
     assert.equal(terminals.length, 0);
     assert.equal(gateEnvelopes[0].action, 'proceed-light');
-    assert.deepEqual(gateEnvelopes[0].warnings, []);
+    assert.equal(Object.hasOwn(gateEnvelopes[0], 'warnings'), false);
   });
 
-  test('AC-6: a predicted shape past STORY_SHAPE_CEILINGS proceeds light with the axis named', async () => {
+  test('Story #5344: a footprint past every retired ceiling proceeds light silently', async () => {
     const { code, terminals, gateEnvelopes, created } = await driveGate({
       prompt: 'raise the webServer boot timeout',
       refactors:
         'apps/web/playwright.config.ts,apps/staff/playwright.config.ts',
-      kinds: 'one-mechanical-edit',
-      magnitude: 'trivial',
-      uncertainty: 'determined',
       acceptance: '1',
-      route: 'lite',
       reason: 'one constant, two identical call sites',
     });
     assert.equal(code, 0);
     assert.equal(created, 1);
     assert.equal(terminals.length, 0);
     assert.equal(gateEnvelopes[0].action, 'proceed-light');
-    assert.equal(gateEnvelopes[0].warnings.length, 1);
-    assert.match(gateEnvelopes[0].warnings[0], /"deployable-span"/);
+    assert.equal(Object.hasOwn(gateEnvelopes[0], 'warnings'), false);
     assert.equal(
       Object.hasOwn(gateEnvelopes[0], 'override'),
       false,
@@ -1025,57 +1008,68 @@ describe('attended and unattended over-scope both escalate (Story #5313)', () =>
   });
 });
 
-describe('the workflow states escalation is terminal (AC-3)', () => {
+describe('the workflow states escalation is terminal for the path (AC-3)', () => {
   // Prose assertions go through doc-assert: these claims are about what the
   // document SAYS, and a plain `assert.match` would silently also be pinning
   // where the 80-column wrap happens to fall.
-  // Story #4760 moved this from a top-level workflow to a helper: the prompt
-  // path has two callers (/mandrel-deliver and /mandrel-plan Gate #1) and no longer projects a
-  // command of its own. The escalation claims below are unchanged.
   const doc = readDoc(
     path.join(REPO_ROOT, '.agents', 'workflows', 'helpers', 'deliver-light.md'),
   );
 
-  test('names the envelope as the session terminal output', () => {
+  test('names the envelope as the terminal output', () => {
     assertDocMentions(
       doc,
-      /envelope IS this session's terminal output/i,
+      /envelope IS this session's terminal output for the light path/i,
       'the workflow must state the escalated envelope IS the terminal output',
     );
     assertDocMentions(doc, /status.{0,4}:.{0,4}"?escalated/i);
   });
 
-  test('forbids invoking /mandrel-plan in the same session', () => {
-    // `?` around the code span: this pins what the doc SAYS, not whether
-    // /mandrel-plan happens to be code-formatted at that call site.
-    assertDocMentions(
+  test('Story #5344: in-session /mandrel-plan is permitted and seeded, not barred', () => {
+    assertDocOmits(
       doc,
-      /Invoking `?\/mandrel-plan`? in this same session is forbidden/i,
-      'in-session /mandrel-plan must be forbidden in so many words',
+      /forbidden/i,
+      'the ban is lifted; no clause may still call in-session planning forbidden',
     );
     assertDocMentions(
       doc,
-      /`?\/mandrel-plan`? runs in a \*\*fresh\*\* session/i,
+      /in this same session/i,
+      'the loosening must be stated in so many words',
+    );
+    assertDocMentions(
+      doc,
+      /`escalation\.reasons`/,
+      'the seeding instruction must name the field to carry over',
+    );
+    assertDocMentions(
+      doc,
+      /fresh session is still the safer default/i,
+      'the fresh-session alternative must survive as the recommended default',
     );
   });
 
-  test('records the empirical reason so the rule reads as load-bearing', () => {
+  test('records the empirical reason the ban existed, and what now measures it', () => {
     // Without the measurement this is style; with it, it is a finding. Pin
     // the numbers themselves — a doc that kept the word "empirically" but
     // dropped the 1-vs-4 comparison would have lost exactly what makes the
-    // rule persuasive to the next session reading it.
+    // history legible to the next session reading it.
     assertDocMentions(doc, /mandrel-bench/i);
     assertDocMentions(
       doc,
-      /authored \*\*one\*\* Story against the scenario's 3[–-]5 contract/i,
+      /authored \*\*one\*\* Story against the\s+scenario's 3[–-]5 contract/i,
       'the under-decomposition finding must name what in-session planning produced',
     );
     assertDocMentions(
       doc,
-      /fresh `?\/mandrel-plan`? session on the identical seed authored \*\*four\*\*/i,
-      'the finding is only load-bearing next to the fresh-session comparison',
+      /fresh `?\/mandrel-plan`? session on the identical\s+seed authored \*\*four\*\*/i,
+      'the finding is only legible next to the fresh-session comparison',
     );
     assertDocMentions(doc, /under-decompos/i);
+    assertDocMentions(
+      doc,
+      /light-arm cell of mandrel-bench/i,
+      'the doc must name the cell that decides whether the loosening stays',
+    );
   });
 
   test('states that an escalated run leaves no Story, branch, or worktree', () => {
@@ -1087,27 +1081,24 @@ describe('the workflow states escalation is terminal (AC-3)', () => {
   });
 });
 
-describe('the workflow scopes by effort, not artifact count (Story #4764)', () => {
+describe('the workflow gates on risk, not on a declared size (Story #5344)', () => {
   const doc = readDoc(
     path.join(REPO_ROOT, '.agents', 'workflows', 'helpers', 'deliver-light.md'),
   );
 
-  test('names the axes and rejects the cardinality reading in so many words', () => {
+  test('states outright that a self-declared size is not a measurement', () => {
     assertDocMentions(
       doc,
-      /Counting the footprint is the wrong axis/i,
-      'the workflow must say outright that counting artifacts is the wrong axis',
+      /A size you declare about your own request is not a measurement/i,
+      'the workflow must say why the declared axes are gone',
     );
-    assertDocMentions(doc, /change \*\*kinds\*\*/i);
-    assertDocMentions(doc, /magnitude/i);
-    assertDocMentions(doc, /uncertainty/i);
   });
 
-  test('states the gate is coarse and names where size is really enforced', () => {
+  test('names the one gate and where size is really enforced', () => {
     assertDocMentions(
       doc,
-      /deliberately \*\*coarse\*\*: it rejects clearly-epic work only/i,
-      'a reader must know the prediction gate is not the size guard',
+      /one gate/i,
+      'a reader must know there is a single prediction-time gate',
     );
     assertDocMentions(
       doc,
@@ -1116,11 +1107,19 @@ describe('the workflow scopes by effort, not artifact count (Story #4764)', () =
     );
   });
 
+  test('does not send the reader back to the retired shape flags', () => {
+    assertDocOmits(
+      doc,
+      /--kinds|--magnitude|--uncertainty|STORY_SHAPE_CEILINGS/,
+      'the retired flags and constant must not survive in the procedure',
+    );
+  });
+
   test('keeps the sensitivity hard gate stated as absolute', () => {
     assertDocMentions(
       doc,
       /Sensitivity is the exception and stays absolute/i,
-      'relaxing the count ceilings must not read as relaxing sensitivity',
+      'dropping the size ceilings must not read as relaxing sensitivity',
     );
   });
 });
@@ -1177,14 +1176,14 @@ describe('the light path does not project a command (AC-7, Story #4760)', () => 
 });
 
 // ---------------------------------------------------------------------------
-// Story #5313 — the predicted-shape gate is a warning; the answer flag is gone
+// Story #5344 — the predicted-shape gate is gone entirely; so is its warning
 // ---------------------------------------------------------------------------
 
 /**
  * The consumer shape that motivated the retired override: one mechanical
- * constant bump at sites that straddle two apps, with the ledgered lite
- * verdict in place. It used to stop at `ask-operator`; now it proceeds with a
- * `deployable-span` warning.
+ * constant bump at sites that straddle two apps, with the ledgered verdict in
+ * place. It used to stop at `ask-operator`, then warned (Story #5313); since
+ * Story #5344 it is simply lite.
  */
 const SPANNING_SCOPE = Object.freeze({
   predictedChanges: [
@@ -1195,24 +1194,19 @@ const SPANNING_SCOPE = Object.freeze({
     },
   ],
   predictedAcceptance: ['the boot timeout is raised at every call site'],
-  predictedKinds: ['one-mechanical-edit'],
-  predictedMagnitude: 'trivial',
-  predictedUncertainty: 'determined',
   verdict: LITE_VERDICT,
   injectedRules: RULES,
 });
 
-describe('the predicted shape warns instead of gating (Story #5313 AC-6)', () => {
-  test('a deployable-span prediction proceeds light, warning by axis', () => {
+describe('the predicted shape no longer objects at all (Story #5344 AC-2)', () => {
+  test('a multi-deployable prediction is simply lite — the axis is gone', () => {
     const s = deriveLightSuitability(SPANNING_SCOPE);
     assert.equal(s.suitable, true);
-    assert.equal(s.shape.code, 'deployable-span');
-    assert.equal(s.warnings.length, 1);
-    assert.match(s.warnings[0], /"deployable-span"/);
-    assert.match(s.warnings[0], /maxDeployables/);
+    assert.equal(s.shape.code, null);
+    assert.equal('warnings' in s, false);
   });
 
-  test('every unknown-footprint shape is likewise a warning, never a stop', () => {
+  test('an unknown footprint is likewise not a stop — the backstop owns it', () => {
     for (const [code, overrides] of [
       ['no-changes', { predictedChanges: [] }],
       [
@@ -1223,17 +1217,24 @@ describe('the predicted shape warns instead of gating (Story #5313 AC-6)', () =>
     ]) {
       const s = deriveLightSuitability({ ...SPANNING_SCOPE, ...overrides });
       assert.equal(s.shape.code, code, `fixture yields ${code}`);
-      assert.equal(s.suitable, true, `${code} must warn, not refuse`);
-      assert.match(s.warnings[0], new RegExp(`"${code}"`));
+      assert.equal(s.suitable, true, `${code} must not refuse`);
     }
   });
 
+  test('a risk rule still refuses the same fixture', () => {
+    const s = deriveLightSuitability({
+      ...SPANNING_SCOPE,
+      predictedChanges: [
+        ...SPANNING_SCOPE.predictedChanges,
+        { path: 'apps/web/auth/session.ts', assumption: 'refactors-existing' },
+      ],
+    });
+    assert.equal(s.suitable, false);
+    assert.equal(s.unwaivable.code, 'sensitive-path');
+  });
+
   test('the ledgered verdict still stands on its own', () => {
-    for (const verdict of [
-      { route: 'full', reason: 'not small' },
-      { route: 'lite', reason: '' },
-      undefined,
-    ]) {
+    for (const verdict of [{ reason: '' }, { reason: '   ' }, undefined]) {
       const s = deriveLightSuitability({ ...SPANNING_SCOPE, verdict });
       assert.equal(s.suitable, false, JSON.stringify(verdict));
       assert.equal(
@@ -1252,39 +1253,65 @@ describe('the predicted shape warns instead of gating (Story #5313 AC-6)', () =>
   });
 });
 
-describe('deliver-light.js CLI — the answer flag is gone (Story #5313)', () => {
-  test('--help no longer documents --operator-proceed-light or ask-operator', () => {
+describe('deliver-light.js CLI — the retired flags are gone (Story #5344 AC-1)', () => {
+  test('--help documents exactly the surviving gate flags', () => {
     const result = spawnSync(process.execPath, [DELIVER_LIGHT_SRC, '--help'], {
       encoding: 'utf8',
     });
     assert.equal(result.status, 0, result.stderr);
+    for (const flag of [
+      '--prompt',
+      '--creates',
+      '--refactors',
+      '--acceptance',
+      '--reason',
+      '--amends',
+      '--yes',
+    ]) {
+      assert.ok(result.stdout.includes(flag), `--help must document ${flag}`);
+    }
     assert.doesNotMatch(result.stdout, /--operator-proceed-light/);
     assert.doesNotMatch(result.stdout, /ask-operator/);
-    assert.match(result.stdout, /WARNING on the envelope/);
+    assert.doesNotMatch(result.stdout, /--kinds|--magnitude|--uncertainty/);
+    assert.doesNotMatch(result.stdout, /--route\b/);
   });
 
-  test('the parser owns no retired flag — a phantom flag under strict: false would be silently ignored', () => {
+  test('each retired flag is REJECTED as unknown, not silently ignored', () => {
+    for (const flag of ['--kinds', '--magnitude', '--uncertainty', '--route']) {
+      const result = spawnSync(
+        process.execPath,
+        [DELIVER_LIGHT_SRC, '--prompt', 'x', '--reason', 'y', flag, 'z'],
+        { encoding: 'utf8' },
+      );
+      assert.notEqual(result.status, 0, `${flag} must exit non-zero`);
+    }
+  });
+
+  test('the parser owns no retired flag — a phantom flag would be silently ignored', () => {
     const src = readFileSync(DELIVER_LIGHT_SRC, 'utf8');
     assert.doesNotMatch(src, /operator-proceed-light/);
     assert.doesNotMatch(src, /ask-operator/);
+    const options = src.slice(src.indexOf('const { values } = parseArgs('));
+    for (const key of ['kinds', 'magnitude', 'uncertainty', 'route']) {
+      assert.doesNotMatch(
+        options,
+        new RegExp(`\\b${key}: \\{ type:`),
+        `${key} must not survive as a parser option`,
+      );
+    }
   });
 });
 
-describe('the workflow describes the warning, not a question (Story #5313)', () => {
+describe('the workflow describes one gate, not a size declaration (Story #5344)', () => {
   const doc = readDoc(
     path.join(REPO_ROOT, '.agents', 'workflows', 'helpers', 'deliver-light.md'),
   );
 
-  test('names the warnings[] entry and says the run proceeds', () => {
-    assertDocMentions(
-      doc,
-      /`warnings\[\]`/,
-      'the workflow must name the envelope field the shape objection lands in',
-    );
+  test('no longer names a warnings[] channel or the retired answer flag', () => {
     assertDocOmits(
       doc,
-      /ask-operator|--operator-proceed-light/,
-      'the retired outcome and its answer flag must not survive in prose',
+      /`warnings\[\]`|ask-operator|--operator-proceed-light/,
+      'the retired outcomes and their flags must not survive in prose',
     );
   });
 
@@ -1292,12 +1319,12 @@ describe('the workflow describes the warning, not a question (Story #5313)', () 
     assertDocMentions(
       doc,
       /Sensitivity is the exception and stays absolute/i,
-      'relaxing the shape gate must not read as relaxing sensitivity',
+      'dropping the shape gate must not read as relaxing sensitivity',
     );
     assertDocMentions(
       doc,
       /LIGHT_DIFF_CEILINGS/,
-      'the backstop is what licenses warning on the prediction at all',
+      'the backstop is the only remaining size block and must be named',
     );
   });
 });
@@ -1465,7 +1492,6 @@ describe('light-path rejections are telemetered (Story #4856)', () => {
         prompt: 'rework the whole reporting pipeline end to end',
         refactors: 'apps/api/x.js,apps/web/y.js',
         acceptance: '1',
-        route: 'lite',
         reason: 'claims small but is not',
         amends: '#4321',
       },
@@ -1530,10 +1556,11 @@ describe('light-path rejections are telemetered (Story #4856)', () => {
 // ---------------------------------------------------------------------------
 
 /**
- * A footprint that trips a ceiling rule (`change-kinds`) AND the absolute
- * `sensitive-path` rule. The shape decision records only the first hit, so
- * before this Story the operator saw a size objection they could waive, worked
- * the whole change, and met the un-waivable refusal at the backstop.
+ * A footprint whose recorded objection is the absolute `sensitive-path` rule.
+ * Story #5344 removed the ceiling rules that used to be reported ahead of it,
+ * but `deriveUnwaivableRisk` still reads the risk facts off the shape rather
+ * than trusting the recorded code — an unknown-footprint rejection can still
+ * be recorded ahead of a risk rule.
  */
 const DOUBLE_OBJECTION_SCOPE = Object.freeze({
   predictedChanges: [
@@ -1542,19 +1569,14 @@ const DOUBLE_OBJECTION_SCOPE = Object.freeze({
     { path: 'docs/notes.md', assumption: 'documents' },
   ],
   predictedAcceptance: ['sessions rotate and the report renders'],
-  predictedKinds: ['schema-change', 'new-endpoint', 'copy-edit'],
-  predictedMagnitude: 'trivial',
-  predictedUncertainty: 'determined',
   verdict: LITE_VERDICT,
   injectedRules: RULES,
 });
 
 describe('the prediction gate names the un-waivable class up front (AC-1, AC-2)', () => {
-  test('the recorded objection is a size rule, yet the risk class is still reported', () => {
+  test('the risk class is reported independently of the recorded code', () => {
     const s = deriveLightSuitability(DOUBLE_OBJECTION_SCOPE);
-    // The shape's own first-hit reporting still says "change-kinds" …
-    assert.equal(s.shape.code, 'change-kinds');
-    // … and the suitability decision names what no re-slicing can fix.
+    assert.equal(s.shape.code, 'sensitive-path');
     assert.equal(s.unwaivable.present, true);
     assert.equal(s.unwaivable.code, 'sensitive-path');
     assert.deepEqual(s.unwaivable.classes, ['security']);
@@ -1568,7 +1590,7 @@ describe('the prediction gate names the un-waivable class up front (AC-1, AC-2)'
     assert.equal(s.route, 'full');
   });
 
-  test('the warning is in the same voice as a change-kinds objection — a reason string', () => {
+  test('every objection is a reason string, in one voice', () => {
     const s = deriveLightSuitability(DOUBLE_OBJECTION_SCOPE);
     assert.ok(
       s.reasons.every((r) => typeof r === 'string' && r.trim() !== ''),
@@ -1590,7 +1612,7 @@ describe('the prediction gate names the un-waivable class up front (AC-1, AC-2)'
   });
 
   test('a rejection with no judgeable shape claims no un-waivable rule', () => {
-    // `no-changes` never builds an effort shape, so there are no risk facts to
+    // `no-changes` never builds a risk shape, so there are no risk facts to
     // read — and inventing one would be worse than reporting nothing.
     const s = deriveLightSuitability({
       ...SPANNING_SCOPE,
@@ -1615,7 +1637,7 @@ describe('the prediction gate names the un-waivable class up front (AC-1, AC-2)'
   });
 });
 
-describe('a risk rule escalates even when the recorded objection is a size rule (AC-1)', () => {
+describe('a risk rule escalates and names itself (AC-1)', () => {
   test('the gate escalates and names the un-waivable rule', () => {
     const outcome = resolveLightGateOutcome({
       suitability: deriveLightSuitability(DOUBLE_OBJECTION_SCOPE),
@@ -1627,12 +1649,12 @@ describe('a risk rule escalates even when the recorded objection is a size rule 
     );
   });
 
-  test('a purely-size objection proceeds — the risk rule did not widen', () => {
+  test('a risk-free footprint proceeds — the risk rule did not widen', () => {
     const outcome = resolveLightGateOutcome({
       suitability: deriveLightSuitability(SPANNING_SCOPE),
     });
     assert.equal(outcome.action, 'proceed-light');
-    assert.equal(outcome.warnings.length, 1);
+    assert.equal('warnings' in outcome, false);
   });
 });
 

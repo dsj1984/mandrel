@@ -20,35 +20,35 @@
  *
  * Two modes:
  *
- *   - **gate** (default) — judge a prompt's predicted footprint. On
+ *   - **gate** (default) — judge a prompt's predicted footprint for RISK. On
  *     `proceed-light` it authors the receipt Story (via the plan-persist
- *     `createStoryIssues` surface) and prints the init/close hand-off,
- *     carrying any predicted-shape `warnings[]` (Story #5313: an over-ceiling
- *     prediction warns, it no longer stops). An un-ledgered verdict or an
- *     un-waivable risk rule emits an `escalated` terminal envelope, never
- *     landing silently. The former attended stop-and-ask outcome and the
- *     flag that answered it went with the gate they answered.
+ *     `createStoryIssues` surface) and prints the init/close hand-off. An
+ *     un-ledgered verdict or an un-waivable risk rule emits an `escalated`
+ *     terminal envelope, never landing silently. Story #5313 demoted the
+ *     predicted-shape ceilings to warnings and Story #5344 deleted them: a
+ *     size bucket the caller declares about its own request is not evidence,
+ *     and the backstop below measures the real thing.
  *   - **backstop** (`--backstop --story <id>`) — re-check the ACTUAL diff of
  *     the Story branch after implementation; exit non-zero when it exceeds the
  *     light ceilings, so an over-scope diff is blocked rather than landed.
  *
- * ## Escalation is terminal, not advisory (Story #4746)
+ * ## Escalation is terminal for THIS path, not for the session (Story #5344)
  *
- * Over-scope under `--yes` emits a schema-validated `story-deliver-terminal`
- * envelope with status `escalated` and **ends the session**. Before that it was
- * an ordinary gate envelope plus exit 2 — a warning a caller could walk past,
- * and one mandrel-bench 2.13.0 light-arm run did exactly that: it read the
- * escalation, invoked `/mandrel-plan` in the same session, and delivered. In-session
- * planning under-decomposed (ONE Story against the scenario's 3-5 contract,
- * where a fresh `/mandrel-plan` session on the identical seed authored four), so
- * escalation silently produced the outcome the guard exists to prevent.
+ * A refused gate emits a schema-validated `story-deliver-terminal` envelope
+ * with status `escalated`: nothing was created, and there is no smaller version
+ * of the light path to attempt. Story #4746 additionally required the SESSION
+ * to end, on one mandrel-bench 2.13.0 observation where an in-session
+ * `/mandrel-plan` under-decomposed. Story #5344 relaxes that half — the
+ * escalation still ends the light path, and `/mandrel-plan` may now be seeded
+ * with `escalation.reasons` in the same session (see
+ * `helpers/deliver-light.md`).
  * {@link module:lib/orchestration/story-deliver-terminal.buildEscalationTerminal}
- * carries the guarantees the schema then enforces.
+ * carries the guarantees the schema enforces either way.
  *
  * Usage:
  *   node .agents/scripts/deliver-light.js --prompt "<text>" \
- *     --creates path,path --acceptance 1 --route lite --reason "<why>"
- *   node .agents/scripts/deliver-light.js --prompt "<text>" --amends '#123' --route lite --reason "<why>"
+ *     --creates path,path --acceptance 1 --reason "<why>"
+ *   node .agents/scripts/deliver-light.js --prompt "<text>" --amends '#123' --reason "<why>"
  *   node .agents/scripts/deliver-light.js --backstop --story 4741
  *
  * Exit codes: 0 ok (proceed / clean backstop), 1 usage error, 2 the gate did
@@ -81,33 +81,26 @@ import { createProvider } from './lib/provider-factory.js';
 const HELP = `\
 Usage:
   deliver-light.js --prompt <text> [--creates csv] [--refactors csv]
-                   [--acceptance n] [--kinds csv] [--magnitude m]
-                   [--uncertainty u] [--route lite|full] [--reason <text>]
-                   [--amends '#id'] [--yes]
+                   [--acceptance n] --reason <text> [--amends '#id'] [--yes]
   deliver-light.js --backstop --story <id>
 
 The thin /deliver-light entry point: suitability gate → inline receipt Story →
 the same single-story-init.js / single-story-close.js engine /mandrel-deliver uses.
 
-The gate judges EFFORT and RISK, not artifact counts: N instances of one
-mechanical edit is one kind at N sites. A predicted shape past a light ceiling
-is a WARNING on the envelope, not a refusal (Story #5313); only an un-ledgered
-verdict or an un-waivable risk rule (sensitive path, migration span) escalates.
-The --backstop pass enforces size against the actual diff.
+The gate judges RISK, not size. Only two things refuse: a verdict with no
+recorded reason, and an un-waivable risk rule the predicted PATHS trip (a
+sensitive-path class, a migration paired with its consumers). The predicted-
+shape ceilings were self-declared buckets and are gone (Story #5344, after
+Story #5313 had already demoted them to warnings). The --backstop pass measures
+the ACTUAL diff and is the only size block.
 
 Gate options:
   --prompt <text>    Operator prompt describing the change. Required for the gate.
   --creates <csv>    Predicted NEW file paths (comma-separated).
   --refactors <csv>  Predicted edited/existing file paths (comma-separated).
   --acceptance <n>   Predicted acceptance-criteria count (default 1). Not capped.
-  --kinds <csv>      Distinct KINDS of change (default: one per assumption, so
-                     N same-shaped edits count once).
-  --magnitude <m>    Coarse effort bucket: trivial | moderate | substantial
-                     (default moderate; substantial routes to /mandrel-plan).
-  --uncertainty <u>  determined (the request fixes the shape) | needs-design
-                     (default determined; needs-design routes to /mandrel-plan).
-  --route <r>        Ledgered model verdict route: lite | full.
-  --reason <text>    Recorded reason for a lite verdict (required for lite).
+  --reason <text>    Recorded reason for taking the light path. Required: an
+                     un-ledgered verdict escalates.
   --amends <#id>     Mark this as an amendment of an existing issue.
   --yes              Unattended marker. Escalation is terminal either way;
                      the flag is accepted so unattended callers keep their
@@ -181,25 +174,17 @@ export function synthesizeAcceptance(count) {
  *   creates?: string[],
  *   refactors?: string[],
  *   acceptance?: number,
- *   kinds?: string[],
- *   magnitude?: string,
- *   uncertainty?: string,
- *   route?: string,
  *   reason?: string,
  *   injectedRules?: object,
- * }} args `kinds` / `magnitude` / `uncertainty` are the declared effort-and-risk
- *   axes the gate judges (Story #4764); omitting them declares no signal, not a
- *   small one — an unrecognized bucket is reported as a warning (Story #5313).
+ * }} args `reason` is the ledgered verdict (Story #5344: the `--route` half is
+ *   gone, and so are the declared effort axes it sat beside — the recorded
+ *   reason and the predicted paths are what the gate reads).
  * @returns {{ action: string, suitability: object, outcome: object }}
  */
 export function runLightGate({
   creates = [],
   refactors = [],
   acceptance,
-  kinds,
-  magnitude,
-  uncertainty,
-  route,
   reason,
   injectedRules,
 } = {}) {
@@ -207,10 +192,7 @@ export function runLightGate({
   const suitability = deriveLightSuitability({
     predictedChanges,
     predictedAcceptance: synthesizeAcceptance(acceptance),
-    predictedKinds: kinds,
-    predictedMagnitude: magnitude,
-    predictedUncertainty: uncertainty,
-    verdict: { route, reason },
+    verdict: { reason },
     injectedRules,
   });
   const outcome = resolveLightGateOutcome({ suitability });
@@ -312,18 +294,17 @@ async function runBackstopMode(values, deps = {}) {
 /**
  * Gate mode — judge the prompt and, on proceed, author the receipt Story.
  *
- * The three outcomes are deliberately asymmetric in what they emit:
+ * The two outcomes are deliberately asymmetric in what they emit:
  *
  *   - **`escalate-plan`** returns a schema-validated `escalated` **terminal
  *     envelope** and stops (Story #4746). It is placed **first**, above every
  *     creation call site, so "nothing was started" is a property of the
  *     control flow rather than a claim the envelope makes about itself.
- *   - **`proceed-light`** authors the receipt Story and prints the hand-off,
- *     carrying the predicted-shape `warnings[]` (Story #5313) on the envelope
- *     and on stderr, so an over-ceiling prediction is stated rather than
- *     silently waved through. The former attended stop-and-ask outcome is
- *     gone: the gate never had a question a human could answer that the diff
- *     backstop does not answer better.
+ *   - **`proceed-light`** authors the receipt Story and prints the hand-off.
+ *     The former attended stop-and-ask outcome is gone, and so are the
+ *     predicted-shape warnings Story #5313 left behind (Story #5344): the gate
+ *     never had a question a human could answer that the diff backstop does
+ *     not answer better.
  *
  * The injectable seams exist so the no-side-effect guarantee is testable
  * without a network: a test asserts the escalate path never reaches them.
@@ -359,10 +340,6 @@ export async function runGateMode(values, deps = {}) {
     acceptance: values.acceptance
       ? Number.parseInt(String(values.acceptance), 10)
       : 1,
-    kinds: parseCsvPaths(values.kinds),
-    magnitude: values.magnitude,
-    uncertainty: values.uncertainty,
-    route: values.route,
     reason: values.reason,
   });
 
@@ -376,12 +353,11 @@ export async function runGateMode(values, deps = {}) {
     // recalibratable from evidence even now that only risk rules refuse.
     await recordRefusalFn({ gate, amends: values.amends });
     Logger.warn(
-      `[deliver-light] ESCALATED to /mandrel-plan — this session ENDS here; run ${envelope.nextCommand} in a FRESH session: ${gate.outcome.reasons.join('; ')}`,
+      `[deliver-light] ESCALATED to /mandrel-plan — the light path ENDS here; run ${envelope.nextCommand}, seeded with these reasons: ${gate.outcome.reasons.join('; ')}`,
     );
     return exitCodeForTerminal(envelope);
   }
 
-  const warnings = gate.outcome.warnings ?? [];
   const provider = createProviderFn(resolveConfigFn());
   const receipt = await createReceiptFn({
     provider,
@@ -398,15 +374,11 @@ export async function runGateMode(values, deps = {}) {
       action: 'proceed-light',
       storyId: receipt.storyId,
       url: receipt.url,
-      warnings,
       nextCommands: buildNextCommands(receipt.storyId),
       outcome: gate.outcome,
     },
     values.pretty,
   );
-  for (const warning of warnings) {
-    Logger.warn(`[deliver-light] ⚠ ${warning}`);
-  }
   Logger.info(
     `[deliver-light] receipt Story #${receipt.storyId} created — hand off to single-story-init.js.`,
   );
@@ -420,10 +392,6 @@ async function main() {
       creates: { type: 'string' },
       refactors: { type: 'string' },
       acceptance: { type: 'string' },
-      kinds: { type: 'string' },
-      magnitude: { type: 'string' },
-      uncertainty: { type: 'string' },
-      route: { type: 'string' },
       reason: { type: 'string' },
       amends: { type: 'string' },
       yes: { type: 'boolean', default: false },

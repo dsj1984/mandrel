@@ -1,9 +1,9 @@
 ---
 description:
   The unplanned prompt path /mandrel-deliver takes for a free-text prompt. Judges a
-  prompt's predicted footprint, authors a receipt Story, then lands it through
-  the same single-story-init / single-story-close engine — every close gate
-  unchanged.
+  prompt's predicted footprint for risk, authors a receipt Story, then lands it
+  through the same single-story-init / single-story-close engine — every close
+  gate unchanged.
 ---
 
 # Unplanned delivery (the prompt path)
@@ -24,53 +24,45 @@ straight to execution from a prompt, landing through the unchanged close path.
 It never relaxes a close gate, never bypasses the PR to `main`, and never lands
 over-scope work silently.
 
-One gate, whatever the door: the suitability gate below is the decision, read
-against the predicted work's *effort and risk* (`STORY_SHAPE_CEILINGS`: change
-kinds, magnitude, uncertainty, deployable span). `/mandrel-plan` no longer
-suggests this path at its Gate #1 (Story #5312) — a prompt reaches it through
-`/mandrel-deliver`, and the gate runs there every time.
+## One gate, and it reads evidence {#one-gate}
 
-## Scope by effort, not by artifact count {#scope-by-effort}
+There is exactly **one gate** at prediction time, and it asks one question:
+does the predicted footprint trip an absolute **risk** rule? Two do — a path in
+a registered sensitive class, and a migration paired with its consumers — and
+both are derived from the paths you name, not from anything you assert about
+the size of your own request.
 
-**Counting the footprint is the wrong axis.** Three identical one-line edits
-across three files is trivial work with a high count; a 200-line rewrite of one
-module is a single change. The axes are therefore effort and risk: distinct
-change **kinds** (N instances of one mechanical edit is one kind at N sites), a
-coarse **magnitude** bucket, and **uncertainty** — is the shape determined by
-the request, or does it still need the design decisions `/mandrel-plan` exists to
-resolve?
+**A size you declare about your own request is not a measurement.** The path
+used to ask for four more axes (distinct change kinds, a magnitude bucket, an
+uncertainty bucket, a deployable span) and judge them against framework
+ceilings. Story #5313 demoted them to warnings, which meant they decided
+nothing; Story #5344 deleted them. Every one was supplied by the same agent
+asking to proceed, so the axis and the answer had a single author.
 
-Because the predicted footprint is a *declaration* — a guess, and a gameable one
-— this gate is deliberately **coarse**: it rejects clearly-epic work only
-(multiple deployables, a migration plus its consumers, an explicit
-multi-capability enumeration). Size is enforced where ground truth is available:
-the diff backstop in step 4. Do not talk yourself past that one.
+**Size is enforced where ground truth is available:** the diff backstop in
+step 4, against the actual committed change set. `LIGHT_DIFF_CEILINGS` —
+implementation lines plus a file-sprawl tripwire — is the only size block on
+this path, and it reads a diff rather than a declaration.
 
-**The backstop counts by the same principle.** It reads magnitude — changed
-lines over implementation files — not artifacts, and exempts the test and doc
-companions the framework itself mandates. A ceiling that punishes a repo for
-obeying its own test-first rule is a ceiling that over-fires.
+**The backstop counts by the right principle too.** It reads magnitude —
+changed lines over implementation files — not artifacts, and exempts the test
+and doc companions the framework itself mandates. A ceiling that punishes a
+repo for obeying its own test-first rule is a ceiling that over-fires.
 
 Sensitivity is the exception and stays absolute: a footprint touching an auth,
-crypto, billing, or migration class routes `full` however small or mechanical —
-and unlike a ceiling, it is never a warning. The shape ceilings themselves
-stopped gating in Story #5313: a prediction past one is carried as a
-`warnings[]` entry on the envelope, naming the exceeded axis, and the run
-proceeds — `LIGHT_DIFF_CEILINGS` in the backstop is the only size block.
+crypto, billing, or migration class routes `full` however small or mechanical,
+at prediction time and again at the backstop. That one was never a ceiling and
+is not being loosened.
 
 ## Four invariants (do not skip one)
 
-1. **Suitability gate.** The prompt's predicted footprint is judged by the
-   shared effort/risk machinery (`deriveStoryShape` / `deriveChangeLevel`)
-   **and** a ledgered model verdict with a recorded reason. Both must agree on
-   `lite`.
-2. **The predicted shape warns; risk escalates.** A prompt past a shape
-   ceiling proceeds light with a `warnings[]` entry (Story #5313) — the
-   prediction is a guess the backstop bounds for real. Only an un-ledgered
-   verdict or an un-waivable risk rule (a sensitive-path class, a migration
-   span) refuses, and it refuses the same way attended or not: an
-   **`escalated` terminal envelope** that ends the session (§ Escalation is
-   terminal). There is no question to wait for and no answer flag.
+1. **Risk gate.** The predicted footprint is judged by the shared risk
+   machinery (`deriveStoryShape` / `deriveChangeLevel`) **and** a ledgered
+   verdict carrying a recorded reason.
+2. **Only risk and the ledger refuse.** An un-waivable risk rule (a
+   sensitive-path class, a migration span) or an unrecorded reason emits an
+   **`escalated` terminal envelope** (§ Escalation ends this path), attended or
+   not. Nothing else refuses at prediction time.
 3. **Diff-derived backstop.** After implementation the ACTUAL change set is
    re-checked — the diff is the real scope signal — and an over-ceiling diff is
    blocked rather than landed.
@@ -81,30 +73,26 @@ proceeds — `LIGHT_DIFF_CEILINGS` in the backstop is the only size block.
 ## Procedure
 
 1. **Predict + gate.** Form the predicted footprint (new files, edited files,
-   acceptance count), judge its effort honestly (`--kinds` / `--magnitude` /
-   `--uncertainty`, per § Scope by effort), and record your ledgered verdict (a
-   recorded reason for `lite`), then run the gate — it documents every flag
-   itself, so run it with `--help` rather than guessing:
+   acceptance count) and record the reason you are taking this path, then run
+   the gate — it documents every flag itself, so run it with `--help` rather
+   than guessing:
 
    ```bash
    node .agents/scripts/deliver-light.js --prompt "<prompt>" \
      --creates <csv> --refactors <csv> --acceptance <n> \
-     --kinds <csv> --magnitude trivial|moderate|substantial \
-     --uncertainty determined|needs-design \
-     --route lite --reason "<why this is trivial>" [--amends '#<id>'] [--yes]
+     --reason "<why this is small>" [--amends '#<id>'] [--yes]
    ```
 
    Branch on `action` in the JSON envelope:
    - **`proceed-light`** — the receipt Story is authored; read `storyId` and
-     `nextCommands`. Relay every `warnings[]` entry to the operator verbatim
-     (each names the shape axis the prediction exceeded), then continue to
-     step 2 — the diff backstop in step 4 is what bounds the actual change.
+     `nextCommands`, then continue to step 2. The diff backstop in step 4 is
+     what bounds the actual change.
    - **escalation** — no `action` to branch on: the gate emits an
      **`escalated` terminal envelope** instead (exit 2), attended or not.
-     § Escalation is terminal governs; you are finished.
+     § Escalation ends this path governs.
 
-   `--amends '#<id>'` is the canonical light case — shape-checked identically; a
-   heavy amendment escalates to `/mandrel-plan` like any other over-scope prompt.
+   `--amends '#<id>'` is the canonical light case — judged identically; an
+   amendment touching a sensitive class escalates like any other prompt.
 
 2. **Init (same engine).** From the main checkout, synchronously, with the
    maximum Bash timeout:
@@ -120,7 +108,7 @@ proceeds — `LIGHT_DIFF_CEILINGS` in the backstop is the only size block.
 3. **Implement + self-eval.** `cd` into `workCwd`, implement the change, run
    the full suite once in the worktree **so close can credit it** — the
    crediting invocation and the freshness contract are
-   [`deliver-story.md`](deliver-story.md) Step 1.3, unchanged here — then run
+   [`deliver-digest.md`](deliver-digest.md) § 5, unchanged here — then run
    the bounded acceptance self-eval loop
    ([`deliver-story.md`](deliver-story.md) Step 1a). Commit
    on `story-<id>` with `(refs #<storyId>)`.
@@ -132,7 +120,7 @@ proceeds — `LIGHT_DIFF_CEILINGS` in the backstop is the only size block.
    ```
 
    This is the pass that actually bounds size, which is why the prediction gate
-   above can afford to be coarse. It measures **magnitude on the change's
+   above can afford to judge risk only. It measures **magnitude on the change's
    implementation half** — changed lines (additions + deletions) plus a file
    sprawl tripwire — never raw artifact count. Tests, `docs/**`, `**/*.md`,
    `baselines/**`, and lockfiles are exempt from the counts, because the
@@ -161,62 +149,66 @@ proceeds — `LIGHT_DIFF_CEILINGS` in the backstop is the only size block.
    ```
 
    Branch on the terminal envelope's `status` per
-   [`deliver-digest.md`](deliver-digest.md) § 5 — every close
+   [`deliver-digest.md`](deliver-digest.md) § 6 — every close
    gate runs byte-identical to the full path.
 
-## Escalation is terminal {#escalation-is-terminal}
+## Escalation ends this path {#escalation-is-terminal}
 
 A refused gate — an un-ledgered verdict or an un-waivable risk rule, under
 `--yes` or attended alike — emits a schema-validated `story-deliver-terminal`
 envelope with **`status: "escalated"`**, `storyId: null`, and a `nextCommand`
 naming the `/mandrel-plan` invocation that owns the work.
 
-**That envelope IS this session's terminal output.** Relay it and stop. There is
-no remaining step, no degraded fallback, and no smaller version of the work to
-attempt.
-
-**Invoking `/mandrel-plan` in this same session is forbidden.** Hand the operator the
-`nextCommand`; `/mandrel-plan` runs in a **fresh** session.
-
-This is not style — it is the empirical finding that motivated the envelope.
-A mandrel-bench 2.13.0 light-arm run read the escalation and continued anyway:
-it invoked `/mandrel-plan` in-session and delivered. The in-session plan authored **one**
-Story against the scenario's 3–5 contract, where a fresh `/mandrel-plan` session on the
-identical seed authored **four**. Planning inside a session already framed as
-small work under-decomposes, so walking past the escalation silently produced
-the very outcome the guard exists to prevent. The gate's decision was right both
-times; only the outcome's finality was missing.
+**That envelope IS this session's terminal output for the light path.** There
+is no remaining light step, no degraded fallback, and no smaller version of the
+work to attempt. Relay the envelope.
 
 Nothing is left half-started: an escalated run creates **no receipt Story, no
 `story-<id>` branch, and no worktree** — the escalation path returns before
 every creation call site, and `escalation.created` records all three as `false`
 in a shape the schema pins, so a later run finds nothing to trip over.
 
-## Why escalation breaks the session {#why-the-two-directions-differ}
+## Continuing into `/mandrel-plan` {#continuing-into-plan}
 
-Traffic runs one way between this path and `/mandrel-plan` — light →
-`/mandrel-plan` on an over-scope prompt — and that direction has a deliberate
-session rule:
+You may run the `nextCommand` **in this same session**, and when you do, seed
+it deliberately:
 
-> **The direction whose guard is model judgment must break the session.**
+- hand `/mandrel-plan` the **original prompt** and the envelope's
+  `escalation.reasons` verbatim — the reasons name the risk class or the
+  missing ledger, which is planning input, not noise;
+- state plainly that the light path refused it, so the planning pass starts
+  from "this is not small" rather than from the framing that produced the
+  prompt.
 
-**Light → `/mandrel-plan` must be a fresh session.** What is being protected is
-*authoring judgment*, and the empirical finding above is that a session already
-framed as small work under-decomposes — one Story against a 3–5 contract where
-a fresh session on the identical seed authored four. The frame is the hazard,
-so only a new session removes it. Everything on this path's own side is
-mechanical — `STORY_SHAPE_CEILINGS`, the ledgered verdict, the diff backstop —
-and none of it degrades because the context is large.
+**A fresh session is still the safer default** when the work is clearly larger
+than the prompt admitted, or when the reasons name a sensitive class you had
+not considered: the cost is one boot, and it removes the frame entirely.
 
-Do not "fix" this by letting light → `/mandrel-plan` run in-session: that
-reintroduces the exact failure the `escalated` envelope exists to prevent.
+### Why in-session planning was barred, and why it is not any more
+
+Story #4746 required the *session* to end here, on one mandrel-bench 2.13.0
+light-arm observation: a run read the escalation, invoked `/mandrel-plan`
+in-session, and the in-session plan authored **one** Story against the
+scenario's 3–5 contract, where a fresh `/mandrel-plan` session on the identical
+seed authored **four**. The reading was that a session already framed as small
+work under-decomposes.
+
+That is one observation on one scenario, and the rule it bought cost every
+escalated prompt a full cold boot — the exact session multiplication this path
+exists to remove. Story #5344 keeps the finding and drops the ban: the
+under-decomposition risk is real, so the seeding instructions above exist to
+counter the frame directly, and the **light-arm cell of mandrel-bench** is the
+measurement that decides whether the loosening stays. If that cell's
+decomposition counts regress against the fresh-session arm, the ban comes back
+and this section is the record of why. See
+[`docs/decisions.md`](../../../docs/decisions.md) ADR `20260917-5344`.
 
 ## See also
 
 - [`/mandrel-deliver`](../mandrel-deliver.md) — the delivery entry point; routes here on a
   free-text prompt.
-- [`/mandrel-plan`](../mandrel-plan.md) — owns the work an over-scope prompt
-  escalates to.
+- [`/mandrel-plan`](../mandrel-plan.md) — owns the work an escalated prompt
+  goes to next.
 - [`deliver-story.md`](deliver-story.md) — the one Story delivery engine every
   path shares.
 - [`deliver-digest.md`](deliver-digest.md) — engine invariants, gates, and the

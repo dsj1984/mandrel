@@ -60,12 +60,13 @@ the floor-vs-ratchet policy are tooling commitments rather than ADRs and live in
 
 <!-- ADR-INDEX:START -->
 
-**In force (47).** Each governs the surface named beside it.
+**In force (48).** Each governs the surface named beside it.
 A `Status` of `Accepted in part` means some clause of the entry has been
 superseded — open it before citing it.
 
 | Decision | Governs | Surface | Status |
 | --- | --- | --- | --- |
+| [`20260917-5344`](#adr-20260917-5344-the-light-gate-reads-evidence-only-and-an-escalation-may-continue-in-session) | The light gate reads evidence only; an escalation may continue in-session | `.agents/scripts/lib/orchestration/light-suitability.js` | Accepted |
 | [`20260917-5343`](#adr-20260917-5343-the-delivering-worker-owns-its-acceptance-verdict-and-a-recorded-verdict-buys-one-rerun) | The delivering worker owns its acceptance verdict; a recorded verdict buys one rerun | `.agents/scripts/lib/orchestration/ceremony-routing.js` | Accepted |
 | [`20260917-5342`](#adr-20260917-5342-the-authoring-contract-is-the-outcome--persist-derives-what-it-can-and-warns-where-it-cannot) | The authoring contract is the outcome; persist derives and warns | `.agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js` | Accepted |
 | [`20260917-5341`](#adr-20260917-5341-one-home-per-delivery-rule-and-the-unattended-follow-up-filer-is-opt-in) | One home per delivery rule; the unattended follow-up filer is opt-in | `.agents/workflows/helpers/deliver-digest.md` | Accepted |
@@ -152,6 +153,90 @@ at the release tag named in the entry.
 - [Earlier ADRs (001 / 002 / 003)](#earlier-adrs-001--002--003)
 
 <!-- ADR-INDEX:END -->
+
+## ADR 20260917-5344: The light gate reads evidence only, and an escalation may continue in-session
+
+**Status:** Accepted
+**Date:** 2026-09-17
+**Surface:** `.agents/scripts/lib/orchestration/light-suitability.js`
+**Story:** #5344
+
+### Context
+
+`/deliver-light`'s prediction gate judged a prompt on six things. Two were
+derived from the predicted paths — an `audit-rules.json` sensitive-path class,
+and a migration paired with its consumers. Four were buckets the invoking agent
+declared about its own request: `--kinds`, `--magnitude`, `--uncertainty`, and
+a deployable span computed from the same declared footprint, all scored against
+the framework constants `STORY_SHAPE_CEILINGS`.
+
+[`20260912-5313`](#adr-20260912-5313-the-delivery-diet--deliver-time-knobs-bound-by-risk-not-by-count-and-scripts-read-ground-truth)
+had already demoted those four from a gate to a `warnings[]` entry, on the
+grounds that a declared footprint is a guess and the diff backstop bounds the
+real change set. That left them deciding nothing while still costing the caller
+four flags to fill in — and the caller supplying the axis was the caller asking
+to proceed, so the measurement and its answer had a single author.
+
+Separately, [`20260726-v2-story-collapse`](#adr-20260726-v2-story-collapse-story-only-ticket-model-one-plan-one-deliver-one-engine)-era
+Story #4746 made an escalation end the **session**, not merely the light path,
+on one mandrel-bench 2.13.0 light-arm observation: a run that read the
+escalation and invoked `/mandrel-plan` in-session authored **one** Story against
+that scenario's 3–5 contract, where a fresh session on the identical seed
+authored **four**. The inference was that a session already framed as small work
+under-decomposes.
+
+### Decision
+
+**The prediction gate keeps only what reads evidence.** The four declared axes,
+`STORY_SHAPE_CEILINGS`, the four ceiling `SHAPE_CODES`, and the `warnings[]`
+channel they produced are deleted. What remains at prediction time is the two
+absolute risk rules, derived from the predicted paths, plus a ledgered verdict
+that must carry a recorded reason. `LIGHT_DIFF_CEILINGS` in the diff backstop is
+the only size block on the path, and it measures the actual committed diff.
+
+**An escalation ends the light path, not the session.** The `escalated`
+terminal envelope is unchanged — null `storyId`, three `created` booleans
+pinned false, a `/mandrel-plan` `nextCommand`. What changes is that
+`helpers/deliver-light.md` no longer bars running that command in the escalating
+session: it instructs seeding `/mandrel-plan` with `escalation.reasons` and the
+original prompt, and states outright that the light path refused the work, so
+the planning pass does not start from the frame that produced the prompt. A
+fresh session remains the stated safer default.
+
+**The light-arm cell of mandrel-bench is the measurement that decides whether
+the loosening stays.** If that cell's decomposition counts regress against the
+fresh-session arm, the ban returns; the workflow's § Continuing into
+`/mandrel-plan` carries that contract alongside the original observation.
+
+### Alternatives considered
+
+- **Keep the four axes as warnings.** Rejected — a warning nothing branches on
+  is documentation with a flag attached, and the flags were four more chances
+  for an unattended caller to get the invocation shape wrong.
+- **Verify the declared axes instead of deleting them.** Rejected — the only
+  available verification is the diff, which is what the backstop already reads.
+  A second, earlier, weaker copy of that check buys nothing.
+- **Keep the fresh-session ban.** Rejected as disproportionate to its evidence:
+  one observation on one scenario, charged against every escalated prompt as a
+  full cold boot — the session multiplication this path exists to remove. The
+  finding is preserved, with a named cell to re-decide it.
+
+### Consequences
+
+- A prompt whose predicted footprint spans two deployables, or declares itself
+  substantial, now proceeds light and is bounded by the backstop rather than
+  turned away at the door.
+- An un-waivable risk rule and an un-ledgered verdict are the only
+  prediction-time refusals, so an escalation always names something no
+  re-slicing can fix.
+- In-session planning after an escalation is a supported path with a seeding
+  contract, which means its failure mode is now observable in the bench rather
+  than prevented by prohibition.
+- `deliver-light.js` rejects `--kinds`, `--magnitude`, `--uncertainty` and
+  `--route` as unknown flags — a consumer invocation carrying one fails loudly
+  instead of being silently ignored.
+
+---
 
 ## ADR 20260917-5343: The delivering worker owns its acceptance verdict, and a recorded verdict buys one rerun
 
