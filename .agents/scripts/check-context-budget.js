@@ -321,13 +321,30 @@ export function budgetFailureCount(diff) {
  * @param {ReturnType<typeof diffBudget>} diff
  * @returns {string}
  */
+const REPORT_ONLY_NOTE = ' — reported, never gated';
+
+/**
+ * Marker prefix and trailing note for one diff row. An enforced tier keeps the
+ * caller's `+` / `-` marker and adds no note; a report-only tier is prefixed
+ * with `~` and says so inline, so a reader never has to cross-reference
+ * {@link ENFORCED_TIERS} to know whether the line broke the build.
+ *
+ * @param {{ tier: string }} row
+ * @param {string} enforcedPrefix
+ * @returns {{ prefix: string, note: string }}
+ */
+function gateMarks(row, enforcedPrefix) {
+  return isEnforced(row)
+    ? { prefix: enforcedPrefix, note: '' }
+    : { prefix: '~', note: REPORT_ONLY_NOTE };
+}
+
 export function renderDiff(diff) {
   const lines = [];
-  const report = ' — reported, never gated';
   for (const g of diff.grown) {
-    const gated = isEnforced(g);
+    const { prefix, note } = gateMarks(g, '+');
     lines.push(
-      `${gated ? '+' : '~'} ${g.tier}: ${g.current} bytes exceeds budget ${g.baseline} + tolerance ${g.tolerance} (delta +${g.delta})${gated ? '' : report}`,
+      `${prefix} ${g.tier}: ${g.current} bytes exceeds budget ${g.baseline} + tolerance ${g.tolerance} (delta +${g.delta})${note}`,
     );
   }
   for (const s of diff.shrunk) {
@@ -336,9 +353,9 @@ export function renderDiff(diff) {
     );
   }
   for (const a of diff.absent ?? []) {
-    const gated = isEnforced(a);
+    const { prefix, note } = gateMarks(a, '-');
     lines.push(
-      `${gated ? '-' : '~'} ${a.tier}: recorded row ${a.path} names a path the measured tier no longer contains — refresh baselines/context-budget.json${gated ? '' : report}`,
+      `${prefix} ${a.tier}: recorded row ${a.path} names a path the measured tier no longer contains — refresh baselines/context-budget.json${note}`,
     );
   }
   const tag = budgetFailureCount(diff) > 0 ? '(gate fail)' : '(ok)';
@@ -528,14 +545,27 @@ function renderFailureDiagnostics({ report, stderr }) {
  * @param {object} params
  * @returns {void}
  */
+/**
+ * The optional closure lines, in print order, with the empty ones dropped.
+ * Both renderers return `''` when they have nothing to say, so filtering here
+ * keeps {@link renderTextReport} free of one branch per optional line.
+ *
+ * @param {{ tierMap: object, baseline: object | null }} params
+ * @returns {string[]}
+ */
+function optionalReportLines({ tierMap, baseline }) {
+  return [renderReachable(tierMap, baseline), renderAgentBoot(tierMap)].filter(
+    Boolean,
+  );
+}
+
 function renderTextReport({ tierMap, baseline, report, stdout, stderr }) {
   const { diff, exitCode } = report;
   stdout.write(`\n--- context-budget preview ---\n`);
   stdout.write(`${renderDiff(diff)}\n`);
-  const reachable = renderReachable(tierMap, baseline);
-  if (reachable) stdout.write(`${reachable}\n`);
-  const boot = renderAgentBoot(tierMap);
-  if (boot) stdout.write(`${boot}\n`);
+  for (const line of optionalReportLines({ tierMap, baseline })) {
+    stdout.write(`${line}\n`);
+  }
   if (exitCode === 1) renderFailureDiagnostics({ report, stderr });
 }
 
