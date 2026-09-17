@@ -108,11 +108,13 @@ Waiter traps: [`parallel-tooling.md`](../workflows/helpers/parallel-tooling.md) 
 
 **Before** flipping to `closing`, run the bounded self-eval loop
 ([`acceptance-self-eval.md`](../workflows/helpers/acceptance-self-eval.md)).
-Derive the change set, level and ceremony with
-`node <main-repo>/.agents/scripts/ceremony-derive.js --story <storyId> --cwd <workCwd>`
-and hand its `files` to the critic — never one it re-derives. It scores
-each `acceptance[]` item, consuming `verify[]` output as evidence.
-**proceed** → flip to `closing`, run the suite, push, hand off;
+Derive the change set and the verdict owner with
+`node <main-repo>/.agents/scripts/ceremony-derive.js --story <storyId> --cwd <workCwd>`.
+Under the default profile the owner is **you**: author **one** verdict file
+covering every `acceptance[]` item, scoring the derived `files` set — never
+one you re-derive — with `verify[]` output as evidence, and score it in one
+gate call. Under `strict` the owner is a fresh critic; hand it that same
+`files` list. **proceed** → flip to `closing`, run the suite, push, hand off;
 **redraft** → fix the criteria, commit, re-eval; **block** → take the
 blocked path below. Never hand off an unscored branch.
 

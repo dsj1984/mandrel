@@ -393,11 +393,15 @@ describe('acceptance-critic boot context produces a valid maker-blind verdict (d
     assert.match(body, /self-assessment|narration|homework/i);
   });
 
-  test('scores a cluster it is handed — never decides the cluster count', () => {
+  test('scores every criterion exactly once — and carries no cluster protocol', () => {
+    // Story #5343 retired clustering outright: the verdict is one file per
+    // Story covering the whole acceptance[] array, so the boot context must
+    // not describe a slice, a merge, or a cluster-unique verdict path.
     const { body } = bootContext('acceptance-critic.md');
-    assert.match(body, /cluster/i);
-    assert.match(body, /the caller owns clustering/i);
-    assert.match(body, /never|not.*re-slice|do not.*re-slice/i);
+    assert.doesNotMatch(body, /cluster/i);
+    assert.match(body, /every.*acceptance\[\]|whole.*`acceptance\[\]`/i);
+    assert.match(body, /re-slice/i);
+    assert.match(body, /acceptance-array order/i);
   });
 
   test('references the verdict schema the gate consumes', () => {

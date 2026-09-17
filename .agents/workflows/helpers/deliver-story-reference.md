@@ -244,41 +244,33 @@ directly.
 
 ### Step 1a — self-eval mechanics
 
-**One verdict-owner per cluster.** The ceremony routing's
-resolved decision names each cluster's single verdict owner
+**One verdict owner per Story.** The ceremony decision names it
 (`verdictOwner: 'fresh-critic' | 'inline-self-eval'` from
-`resolveCeremonyForRisk`): the fresh maker-blind critic when sensitivity
-routes the cluster `fresh`, the contract-identical inline self-eval when it
-routes `inline`. Exactly one pass authors the verdict — never both, and
-never a preliminary self-assessment pass before dispatching the fresh
-critic (the redundant pre-pass buys no measurable quality and roughly
-triples the acceptance-block cost). `acceptance-eval.js` is the
-deterministic **scorer** of that one authored verdict — schema validation,
-round cap, proceed / redraft / block — not an independent additional pass
-over the criteria. The M4-B floor holds: one verdict per cluster, with the
-cluster count owned by the dispatching caller and never by routing.
+`resolveCeremonyForRisk`), and since Story #5343 it follows the **ceremony
+profile alone**: the contract-identical inline self-eval under `minimal` /
+`standard` (the default), the fresh maker-blind critic under `strict`.
+Exactly one pass authors the verdict — never both, and never a preliminary
+self-assessment before dispatching a fresh critic (the redundant pre-pass
+buys no measurable quality and roughly triples the acceptance-block cost).
+`acceptance-eval.js` is the deterministic **scorer** of that one authored
+verdict — schema validation, round cap, proceed / redraft / block — not an
+independent additional pass over the criteria.
 
-**One round = N cluster critics → ONE merged verdict → ONE gate call** (fresh
-critics; an inline-owned verdict is one file scored in one call). The
-clusters are how a round is _authored_; they are not how it is _scored_.
-Concatenate every cluster's records into a single `criteria[]` ordered by
-`index` — exactly one per `acceptance[]` item, under one `storyId`,
-`schemaVersion`, `round` and `commitSha` — and hand that merged file to the
-gate once:
+**One round = ONE verdict file → ONE gate call.** The verdict covers every
+`acceptance[]` item exactly once, ordered by `index`, under one `storyId`,
+`schemaVersion`, `round` and `commitSha`:
 
 ```bash
 node <main-repo>/.agents/scripts/acceptance-eval.js \
-  --story <storyId> --verdict <merged-verdict-path>
+  --story <storyId> --verdict <verdict-path>
 ```
 
 The gate reads the Story's `acceptance[]` count itself (Story #5313), so a
-single cluster's verdict handed over unmerged is rejected before scoring and
-consumes no round; `--expected-criteria` is accepted but redundant. Calling
-the gate once per cluster instead spends a round
-_per cluster_ — a Story past the cluster ceiling would burn its whole redraft
-budget on cluster arithmetic — and N concurrent calls race the Story-scoped
-round ledger. Full per-round mechanics, including the parallel dispatch and the
-merge shape: [`acceptance-self-eval.md`](acceptance-self-eval.md).
+partial verdict is rejected before scoring and consumes no round;
+`--expected-criteria` is accepted but redundant. A second gate call inside one
+round spends a round for nothing, and concurrent calls race the Story-scoped
+round ledger. Full per-round mechanics:
+[`acceptance-self-eval.md`](acceptance-self-eval.md).
 
 **On `decision: "block"`** — post a `friction` comment naming the unmet
 criteria, then transition the Story to `agent::blocked`:
@@ -307,26 +299,24 @@ Its `level` comes from
 the one computed change-set list: a diff touching a sensitive path registered
 in `.agents/schemas/audit-rules.json` derives `high`, one touching none
 derives `low`, and an unenumerable diff (`files: null`) derives `null`.
-Hand the **same** `files` list to every acceptance critic you spawn (Step 1a)
-— a critic that re-ran its own `git diff` could score against a different
-set than the one that routed it.
+Hand the **same** `files` list to the verdict owner (Step 1a) — an evaluator
+that re-ran its own `git diff` could score against a different set than the
+one that routed it.
 
-Its `mode` / `verdictOwner` come from
+The derived level drives **review depth** and nothing else: `review-depth.js`
+reads it inside close and still resolves `deep` for any sensitive class.
+`mode` / `verdictOwner` come from
 [`resolveCeremonyForRisk`](../../scripts/lib/orchestration/ceremony-routing.js)
-(`minimal` → always inline; `strict` → always fresh; `standard` →
-`high`/`null` → `fresh`, `low` → `inline`). Review depth reads the same
-derived level via `review-depth.js` inside close, so the two decisions cannot
-disagree.
+and follow the profile alone (Story #5343): `minimal` / `standard` → `inline`,
+`strict` → `fresh`.
 
 **Inline-dispatch override.** When the Story dispatches
 `inline` (`resolveStoryDispatchMode` → `inline`, which is exactly a
 single-Story run — the function reads the resolved set size and nothing
-else), run
-every acceptance critic **inline** — do not spawn fresh-context critic
-sub-agents regardless of what the profile would otherwise resolve. The self-eval rigor
-(scoring each `acceptance[]` item against the one computed change set, with
-`verify[]` output as evidence) is unchanged; only the sub-agent boot is
-removed. Hard gates are untouched.
+else), author the verdict **inline** — do not spawn a fresh-context critic
+even under `strict`. The self-eval rigor (scoring each `acceptance[]` item
+against the one computed change set, with `verify[]` output as evidence) is
+unchanged; only the sub-agent boot is removed. Hard gates are untouched.
 
 ---
 
