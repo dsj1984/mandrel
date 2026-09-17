@@ -1078,6 +1078,7 @@ describe('publishFollowUpsRollup — the comment is gated on a filing (#5341)', 
       });
       assert.equal(result.posted, true);
       assert.equal(result.artifactPath, null);
+      assert.match(result.summary, /Captured follow-ups for #5341 \(filed=1\)/);
       assert.equal(posted.length, 1);
       assert.match(posted[0].body, /filed one/);
     } finally {
@@ -1107,11 +1108,95 @@ describe('publishFollowUpsRollup — the comment is gated on a filing (#5341)', 
         result.artifactPath,
         path.join(orchestrationLogDir(config), 'follow-ups-rollup-5341.md'),
       );
+      assert.match(
+        result.summary,
+        /No follow-ups filed for #5341 — roll-up kept at .*follow-ups-rollup-5341\.md/,
+        'the caller must be able to log where the roll-up went without re-deriving the path',
+      );
       const parked = await fs.readFile(result.artifactPath, 'utf8');
       assert.match(
         parked,
         /116 signals, nothing filed/,
         'the roll-up is relocated, never discarded',
+      );
+    } finally {
+      await fs.rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+/**
+ * Story #5341 — the capture's own guards and its progress line.
+ *
+ * `captureStoryFollowUps` runs inside the post-land tail, so its contract is
+ * that it degrades rather than throws: an invalid id, or a temp root it cannot
+ * write the parked roll-up into, must come back as a result the tail can log
+ * and continue past. These arms were previously reached only incidentally.
+ */
+describe('captureStoryFollowUps degrades instead of throwing (#5341)', () => {
+  const provider = {
+    getTicketComments: async () => [],
+    postComment: async () => ({ commentId: 1 }),
+    deleteComment: async () => {},
+  };
+
+  it('refuses an invalid Story id before doing any work', async () => {
+    for (const storyId of [undefined, 0, -3, 'x']) {
+      const result = await captureStoryFollowUps({ storyId, provider });
+      assert.deepEqual(result, { ok: false, reason: 'invalid-story-id' });
+    }
+  });
+
+  it('names the parked roll-up on the progress line when nothing was filed', async () => {
+    const tempRoot = makeTempDir('capture-progress-');
+    const config = { project: { paths: { tempRoot } } };
+    const lines = [];
+    try {
+      const result = await captureStoryFollowUps({
+        storyId: 5341,
+        provider,
+        config,
+        progress: (tag, msg) => lines.push(`${tag}: ${msg}`),
+      });
+      assert.equal(result.ok, true);
+      assert.equal(result.commentPosted, false);
+      assert.ok(
+        lines.some((l) => /No follow-ups filed for #5341/.test(l)),
+        `expected the parked-roll-up progress line; got ${JSON.stringify(lines)}`,
+      );
+      assert.ok(
+        lines.some((l) => l.includes(result.artifactPath)),
+        'the progress line must name where the roll-up went, or it is unfindable',
+      );
+    } finally {
+      await fs.rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('reports a capture failure rather than throwing out of the tail', async () => {
+    const tempRoot = makeTempDir('capture-failure-');
+    // A FILE where the orchestration directory must be: `mkdir` throws
+    // ENOTDIR, which is the shape a read-only or hostile temp root produces.
+    const config = { project: { paths: { tempRoot } } };
+    try {
+      await fs.writeFile(
+        orchestrationLogDir(config),
+        'not a directory',
+        'utf8',
+      );
+      const lines = [];
+      const result = await captureStoryFollowUps({
+        storyId: 5341,
+        provider,
+        config,
+        progress: (tag, msg) => lines.push(`${tag}: ${msg}`),
+      });
+      assert.equal(result.ok, false);
+      assert.equal(result.reason, 'capture-failed');
+      assert.ok(result.error.length > 0, 'the failure must carry its detail');
+      assert.ok(
+        lines.some((l) => /close continues/.test(l)),
+        'the tail must be told the close is unaffected',
       );
     } finally {
       await fs.rm(tempRoot, { recursive: true, force: true });

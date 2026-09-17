@@ -51,7 +51,7 @@ const FOLLOW_UPS_COMMENT_TYPE = 'follow-ups';
  * @param {number} args.filedCount — issues this roll-up actually filed.
  * @param {object} args.provider
  * @param {object} [args.config]
- * @returns {Promise<{ posted: boolean, artifactPath: string|null }>}
+ * @returns {Promise<{ posted: boolean, artifactPath: string|null, summary: string }>}
  */
 export async function publishFollowUpsRollup({
   anchorId,
@@ -60,20 +60,47 @@ export async function publishFollowUpsRollup({
   provider,
   config,
 }) {
-  if (filedCount > 0) {
-    await upsertStructuredComment(
-      provider,
-      anchorId,
-      FOLLOW_UPS_COMMENT_TYPE,
-      body,
-    );
-    return { posted: true, artifactPath: null };
-  }
+  return filedCount > 0
+    ? postFollowUpsComment({ anchorId, body, filedCount, provider })
+    : parkFollowUpsRollup({ anchorId, body, config });
+}
+
+/**
+ * Post the roll-up as the `follow-ups` structured comment.
+ *
+ * @param {object} args
+ * @returns {Promise<{ posted: true, artifactPath: null, summary: string }>}
+ */
+async function postFollowUpsComment({ anchorId, body, filedCount, provider }) {
+  await upsertStructuredComment(
+    provider,
+    anchorId,
+    FOLLOW_UPS_COMMENT_TYPE,
+    body,
+  );
+  return {
+    posted: true,
+    artifactPath: null,
+    summary: `Captured follow-ups for #${anchorId} (filed=${filedCount}).`,
+  };
+}
+
+/**
+ * Write the roll-up to the run artifacts under the temp root.
+ *
+ * @param {object} args
+ * @returns {Promise<{ posted: false, artifactPath: string, summary: string }>}
+ */
+async function parkFollowUpsRollup({ anchorId, body, config }) {
   const dir = orchestrationLogDir(config);
   const artifactPath = path.join(dir, `follow-ups-rollup-${anchorId}.md`);
   await mkdir(dir, { recursive: true });
   await writeFile(artifactPath, `${body}\n`, 'utf8');
-  return { posted: false, artifactPath };
+  return {
+    posted: false,
+    artifactPath,
+    summary: `No follow-ups filed for #${anchorId} — roll-up kept at ${artifactPath}.`,
+  };
 }
 
 /** Milliseconds in one day — the unit `frictionWindowDays` is expressed in. */
@@ -858,12 +885,7 @@ export async function captureStoryFollowUps({
       provider,
       config,
     });
-    progress?.(
-      'FOLLOW-UPS',
-      published.posted
-        ? `Captured follow-ups for Story #${sid} (filed=${filedCount}).`
-        : `No follow-ups filed for Story #${sid} — roll-up kept at ${published.artifactPath}.`,
-    );
+    progress?.('FOLLOW-UPS', published.summary);
     return {
       ok: true,
       storyId: sid,

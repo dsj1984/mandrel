@@ -267,6 +267,54 @@ describe('graduate (parametrized walk)', () => {
     assert.equal(called, false, 'nothing spawns when toggled off');
   });
 
+  // Story #5341 — the two guards below used to be reached incidentally, by
+  // real callers that passed `config: {}` and fell through a default-ON
+  // toggle. With the toggle opt-in those callers stop at `toggle-disabled`,
+  // so the guards need asking for directly. They are worth asking for: each
+  // returns an `errors[]` envelope rather than throwing, and a silent
+  // regression to a throw would take the close down with it.
+  it('rejects a missing or invalid epicId without throwing', async () => {
+    for (const epicId of [undefined, 0, -1, 1.5, 'x']) {
+      const env = await graduate({
+        epicId,
+        findings: FINDINGS(),
+        provider: {},
+        currentRepo,
+        spec: makeSpec(),
+      });
+      assert.deepEqual(env.filed, []);
+      assert.match(
+        env.errors[0],
+        /missing or invalid epicId/,
+        `epicId ${JSON.stringify(epicId)} must be refused by name`,
+      );
+    }
+  });
+
+  it('rejects a currentRepo that is not {owner, repo} strings', async () => {
+    for (const repo of [
+      undefined,
+      null,
+      {},
+      { owner: 'o' },
+      { owner: 1, repo: 2 },
+    ]) {
+      const env = await graduate({
+        epicId: 7,
+        findings: FINDINGS(),
+        provider: {},
+        currentRepo: repo,
+        spec: makeSpec(),
+      });
+      assert.deepEqual(env.filed, []);
+      assert.match(
+        env.errors[0],
+        /missing currentRepo \{owner,repo\}/,
+        `currentRepo ${JSON.stringify(repo)} must be refused by name`,
+      );
+    }
+  });
+
   // Story #5003 — findings[] is now the only source. A caller that omits it
   // short-circuits into errors[] rather than silently filing nothing, which
   // is what the deleted structured-comment limb would have degraded to.
