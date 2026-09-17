@@ -118,8 +118,9 @@ clone produces zero file mutations.
 Once installed, the ongoing upgrade path is **`mandrel update`** — it bumps
 `mandrel` to the newest published version, re-runs `mandrel sync`,
 applies version-keyed migrations, and verifies the install with
-`mandrel doctor`. The lockfile bump is left **staged for you to review and
-commit** (the command performs no `git` mutation):
+`mandrel doctor`. The command performs **no `git` mutation** — it reads the
+index read-only and its closing line **reports** whether the dependency bump
+is staged, printing the exact `git add` to run when it is not:
 
 ```bash
 npx mandrel update           # update → sync → migrate → doctor

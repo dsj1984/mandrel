@@ -150,6 +150,18 @@ function makeDeps(fsFake, cap, { onNpmView, onNpmInstall } = {}) {
       // in this dev repo).
       resolveBinScript: () =>
         '/fake/consumer/node_modules/mandrel/bin/mandrel.js',
+      // Story #5339 — the staging report's read-only git probe. Stubbed to a
+      // fixed "nothing staged" index so the entrypoint's success line is
+      // deterministic rather than a reading of whatever this dev checkout
+      // happens to have staged. The lockfile name still resolves through the
+      // production `detectLockfile` path against the fake fs (no lockfile in
+      // the fixture ⇒ the npm default, `package-lock.json`).
+      gitStatus: () => ({
+        ok: true,
+        staged: [],
+        unstaged: ['package.json', 'package-lock.json'],
+        tracksAgents: false,
+      }),
       // Downstream materialize/migrate/verify phases run through the spawn
       // boundary (the sole post-install path since Story #4182 retired the
       // in-process runSync/runMigrations/runDoctor seam set). The boundary under
@@ -212,10 +224,17 @@ describe('mandrel update entrypoint — production wiring', () => {
       `migrate:${CURRENT_VERSION}->${TARGET_VERSION}`,
       'spawn:doctor',
     ]);
-    // Success surface + staged-lockfile messaging from runUpdate.
+    // Success surface + the staging report from runUpdate. The stubbed probe
+    // reports an unstaged index, so the entrypoint must print the honest
+    // "NOT staged" line with the exact `git add` remedy (Story #5339) — never
+    // the old unconditional "staged for review" claim.
     const joined = cap.out.join('');
     assert.match(joined, /Updated to v1\.44\.0/);
-    assert.match(joined, /staged for review/);
+    assert.match(
+      joined,
+      /The dependency bump is NOT staged\. Review and stage it: git add package\.json package-lock\.json/,
+    );
+    assert.doesNotMatch(joined, /staged for review/);
     // The changelog section for the applied version was surfaced.
     assert.match(joined, /Changelog for v1\.44\.0/);
     assert.match(joined, /headline auto-update feature/);
