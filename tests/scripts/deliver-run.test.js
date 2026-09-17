@@ -358,9 +358,18 @@ describe('deliver-run — the close command (AC-4)', () => {
       mainRepo: '/main/repo',
       storyCount: 1,
     });
+    // `renderCloseCommand` builds the script path with `path.join`, so the
+    // separator is the host's. Deriving the expectation the same way keeps the
+    // assertion true on Windows, where the literal would read `\main\repo\...`.
+    const closeScript = path.join(
+      '/main/repo',
+      '.agents',
+      'scripts',
+      'single-story-close.js',
+    );
     assert.strictEqual(
       command,
-      'node /main/repo/.agents/scripts/single-story-close.js --story 5 --cwd /main/repo',
+      `node ${closeScript} --story 5 --cwd /main/repo`,
     );
   });
 });
