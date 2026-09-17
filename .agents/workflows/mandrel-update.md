@@ -7,7 +7,7 @@ description: >-
   leaves unowned: reconcile `.agentrc.json`, install the stabilized
   quality-gate surface, refresh the harness permission allowlist, reconcile
   the consumer's `AGENTS.md` / runbooks against the surfaced changelog, and
-  stage + commit the staged lockfile bump.
+  stage + commit the dependency bump the CLI's closing report describes.
 ---
 
 # /mandrel-update
@@ -19,14 +19,15 @@ description: >-
 > **distribution-agnostic judgment steps** the CLI deliberately does **not**
 > perform — config reconciliation, the quality-gate installs, the
 > permission-allowlist refresh, the consumer-side changelog reconciliation,
-> and the stage-and-commit of the staged lockfile bump.
+> and the stage-and-commit of the dependency bump.
 
 The upgrade contract, in brief: the version only moves on explicit
 invocation (no `postinstall` drift — teammates track the committed
 lockfile pin, and CI's `npm ci` honours it); majors apply like any other
 bump (Mandrel ships hard cutovers — the surfaced changelog is the
-migration guide); the CLI **never commits** (the lockfile bump is left
-staged for operator review); and the only authoritative writer of the
+migration guide); the CLI **never mutates git** — it reads the index and
+**reports** whether the bump is staged, so the operator follows that
+report rather than an assumption; and the only authoritative writer of the
 generated `.claude/commands/` tree is
 [`sync-claude-commands.js`](../scripts/sync-claude-commands.js), invoked by
 the CLI's sync step.
@@ -80,22 +81,32 @@ npx mandrel update
 The dry run resolves the newest published version and prints the ordered
 step plan (`npm-update → runSync → runMigrations → doctor → surface
 changelog`) without touching anything — read the planned target version
-before applying. The live run drives those phases in order, leaves the
-lockfile bump **staged** (never committed), and finishes by printing the
-`docs/CHANGELOG.md` sections covering the applied range `(current, target]`.
-**Capture that changelog output** — Step 4 reconciles the consumer's own
-instructions against it. Already-newest is a clean no-op (`Already up to
-date`, exit 0).
+before applying. The live run drives those phases in order, never commits,
+and finishes by printing the `docs/CHANGELOG.md` sections covering the
+applied range `(current, target]`. **Capture that changelog output** —
+Step 4 reconciles the consumer's own instructions against it.
+Already-newest is a clean no-op (`Already up to date`, exit 0).
+
+**Read the closing line — it reports the real index state.** Staging is
+package-manager-specific (`npm install` may stage; `pnpm add` / `yarn add`
+stage nothing), so the CLI probes git read-only and tells you which of three
+states you are in rather than asserting one:
+
+| Closing line | What it means | What you do |
+| --- | --- | --- |
+| `The dependency bump is staged for review (package.json, <lockfile>).` | The index already carries both. | Go to Step 2. |
+| `The dependency bump is NOT staged. … Review and stage it: git add …` | Nothing (or only half) is staged. | Run the exact `git add` the line prints — it names `.agents/` too when this consumer tracks the materialized tree. |
+| `Review the working tree and commit the bump (git not available to report staging state).` | The probe could not read git; the update still succeeded (exit 0). | Inspect `git status` yourself before Step 5. |
 
 ## Step 2.5 — Partial-upgrade recovery (**blocker — resolve before Step 5**)
 
-The install phase stages the lockfile bump *before* the later phases run,
+The install phase writes the dependency bump *before* the later phases run,
 and by deliberate design the CLI **never rolls back the install on
 failure**. So when a post-install phase (`sync` / `sync-commands` /
 `migrate` / `doctor`) exits non-zero you land in a **partially-upgraded
-state**: the bump is already staged while `.agents/` may be
-half-materialized, the command tree out of sync, or a migration partially
-applied — and the operator is one `git commit` away from recording a broken
+state**: the bump is already on disk (and possibly in the index) while
+`.agents/` may be half-materialized, the command tree out of sync, or a
+migration partially applied — and the operator is one `git commit` away from recording a broken
 half-upgrade as "done". **Treat any post-install phase failure as an
 explicit blocker: do not proceed to Step 5 until the failed phase is
 recovered and a clean re-run reports success.**
@@ -203,22 +214,25 @@ between the installed and target versions:
    workflows for renamed flags / changed exit codes / removed scripts.
 
 Do not invent updates — silence is a valid review outcome. Stage every
-consumer-side edit alongside the staged lockfile bump so the upgrade and
-the reconciliation land in one reviewable commit.
+consumer-side edit alongside the dependency bump so the upgrade and the
+reconciliation land in one reviewable commit.
 
 ## Step 5 — Commit the bump
 
-> **Blocker check before you commit.** The staged lockfile bump is only safe
+> **Blocker check before you commit.** The dependency bump is only safe
 > to commit once every post-install phase has gone green. If `npx mandrel
 > update` exited non-zero, resolve it via
 > [Step 2.5 — Partial-upgrade recovery](#step-25--partial-upgrade-recovery-blocker--resolve-before-step-5)
 > **before** the `git commit` below. Committing over a half-upgrade records
 > a broken state as "done".
 
-Stage and commit the bump plus everything the wraparound touched:
+Stage and commit the bump plus everything the wraparound touched. Start from
+the `git add` the CLI's closing report printed (it names the detected
+lockfile, and `.agents/` when this consumer tracks it), then add the
+wraparound paths:
 
 ```bash
-git add package.json package-lock.json .agentrc.json .claude/settings.json AGENTS.md  # plus any runbook files touched in Step 4
+git add package.json package-lock.json .agentrc.json .claude/settings.json AGENTS.md  # lockfile per the CLI report; plus any runbook files touched in Step 4
 git commit -m "chore: update mandrel to v<NEW_VERSION>
 
 Upgraded v<OLD_VERSION> → v<NEW_VERSION> via mandrel update.
@@ -239,8 +253,9 @@ materialized tree.
 
 - **Idempotent.** A second `mandrel update` after a successful run hits the
   no-op short-circuit — exit 0, nothing bumped.
-- **No auto-commit.** The CLI leaves the lockfile bump staged and never runs
-  git; the operator writes the commit (Step 5).
+- **No auto-commit.** The CLI never stages and never commits — it reads git
+  only to report whether the bump is staged; the operator writes the commit
+  (Step 5).
 - **No framework-side version bump.** This workflow advances the
   *consumer's* pinned version; framework releases remain the maintainer's
   call via release-please.
