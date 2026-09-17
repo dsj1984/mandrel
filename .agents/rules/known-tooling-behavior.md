@@ -74,14 +74,15 @@ commands** the script knows nothing about, so a locally green
 
 One is still in **no** local aggregate command — `check-baseline-scope.js`,
 reachable only as its own npm script (`baselines:scope`) or a direct
-invocation. `check-workflow-citations.js` joined `verify` in v2.34.0, when
-Story #5340 demoted it to a report; before that it was exempted because
+invocation. `check-workflow-citations.js` joined `verify` when Story #5340
+demoted it to a report; before that it was exempted because
 `tests/check-workflow-citations.test.js` re-ran its ratchet through the `test`
 step.
 
 **Two of the nine cannot fail this job any more** (Story #5340, ADR
 20260917-5340). `check-workflow-citations.js` prints a per-file provenance
-count and always exits 0 — `baselines/workflow-citations.json` is deleted.
+count and always exits 0 — it reads no baseline at all, and the one it used
+to ratchet against is deleted.
 `check-context-budget.js` fails on the `alwaysLoaded` tier alone: its
 `workflow` and `mandatoryRead` tiers are printed, and the per-file 8 KB
 agent-boot ceiling and the row-vs-tree drift gate are gone. A green run of
