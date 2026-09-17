@@ -3,12 +3,11 @@
 /**
  * acceptance-eval.js — bounded per-Story acceptance self-eval gate (Story #3819).
  *
- * The Story-implementation phase runs ONE verdict-owner per acceptance
- * cluster (Story #4723) — the fresh-context critic when
- * `ceremony-routing.js` sensitivity-routes the cluster fresh, the
- * contract-identical inline self-eval otherwise — which scores the
- * caller-injected change set against each inline `acceptance[]` item and
- * emits one verdict file per round
+ * The Story-implementation phase runs ONE verdict-owner per Story
+ * (Story #4723, narrowed by #5343) — the contract-identical inline self-eval
+ * under `ceremonyProfile` `minimal` / `standard`, a fresh-context maker-blind
+ * critic under `strict` — which scores the caller-injected change set against
+ * each inline `acceptance[]` item and emits one verdict file per round
  * (`.agents/schemas/acceptance-eval-verdict.schema.json`). This CLI is the
  * deterministic SCORER of that single authored verdict — it validates and
  * decides, it never re-scores the criteria as an independent additional
@@ -41,18 +40,17 @@
  * tier along with the per-AC-cluster `--epic <id> --cluster <id>` mode that
  * scored an Epic `## Acceptance Table` against a `main..epic/<id>` diff.)
  *
- * One gate call per round (Story #4951). A round may fan out into N parallel
- * maker-blind cluster critics, but their per-cluster verdicts are merged by
- * the caller into ONE verdict — `criteria[]` in acceptance-array order — and
- * scored here exactly once. Invoking the gate per cluster instead would burn
- * one Story-level round per cluster (distinct fingerprints defeat the replay
- * guard) and race the `signals.ndjson` round ledger. The gate reads the
- * Story's own `acceptance[]` count off its body (Story #5313) and rejects a
- * verdict whose `criteria[]` length differs **before** scoring, so the
- * mistake costs no round. `--expected-criteria` is still accepted but is
- * redundant with the derived count: when both are known they must agree.
- * An inline-owned verdict is one file scored in one call — the cluster
- * merge applies only to fresh critics.
+ * One gate call per round (Story #4951; Story #5343 retired the cluster
+ * protocol that used to fan a round out). The round's owner authors ONE
+ * verdict covering every `acceptance[]` item — `criteria[]` in
+ * acceptance-array order — and it is scored here exactly once. A second call
+ * inside one round would burn a Story-level round for nothing (distinct
+ * fingerprints defeat the replay guard) and race the `signals.ndjson` round
+ * ledger. The gate reads the Story's own `acceptance[]` count off its body
+ * (Story #5313) and rejects a verdict whose `criteria[]` length differs
+ * **before** scoring, so the mistake costs no round. `--expected-criteria` is
+ * still accepted but is redundant with the derived count: when both are known
+ * they must agree.
  *
  * CLI:
  *   --story <id>              Story ID (required).
@@ -180,13 +178,13 @@ function parseCliArgs(argv) {
 }
 
 /**
- * The merge contract, stated once so both the flag error and the coverage
+ * The coverage contract, stated once so both the flag error and the coverage
  * error name the same shape the caller has to produce.
  */
 const MERGE_CONTRACT =
-  'One round = N parallel cluster critics -> ONE merged verdict -> ONE gate call: ' +
-  "merge every cluster's records into a single criteria[] in acceptance[] order, " +
-  'one per acceptance item, before scoring.';
+  'One round = ONE verdict -> ONE gate call: the verdict must carry one ' +
+  'criteria[] record per acceptance[] item, in acceptance-array order, ' +
+  'before scoring.';
 
 /**
  * Read the Story's `acceptance[]` count off its body (Story #5313), so the
@@ -292,8 +290,8 @@ export function resolveExpectedCriteria(raw) {
  * Reject a verdict that does not cover exactly `expectedCriteria` criteria.
  *
  * Called **before** `runAcceptanceEval`, which is where the round ledger is
- * read and appended — so a partial cluster verdict handed to the gate by
- * mistake costs no round and can never escalate a `redraft` into a `block`.
+ * read and appended — so a partial verdict handed to the gate by mistake
+ * costs no round and can never escalate a `redraft` into a `block`.
  *
  * Exported for tests.
  *
@@ -544,9 +542,9 @@ export async function runAcceptanceEvalCli(
 
   const verdict = validateVerdictImpl(parsed);
 
-  // Story #4951 / #5313: a merged verdict must cover every acceptance[] item,
-  // and the count comes from the Story body itself. This runs before the
-  // round ledger is touched, so a partial cluster verdict is a free mistake.
+  // Story #4951 / #5313: the verdict must cover every acceptance[] item, and
+  // the count comes from the Story body itself. This runs before the round
+  // ledger is touched, so a partial verdict is a free mistake.
   const config = resolveConfigImpl();
   const expected = await resolveExpectedCriteriaCount({
     storyId,
