@@ -1,20 +1,20 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-09-14T14:04:12.739Z",
+  "generatedAt": "2026-09-17T14:49:34.332Z",
   "rollup": {
     "*": {
-      "lines": 96.33,
-      "branches": 87.34,
-      "functions": 88.32
+      "lines": 96.35,
+      "branches": 87.37,
+      "functions": 88.36
     }
   },
   "rows": [
     {
       "path": ".agents/scripts/acceptance-eval.js",
-      "lines": 99.67,
-      "branches": 92.55,
-      "functions": 91.67
+      "lines": 99.68,
+      "branches": 92.71,
+      "functions": 92.31
     },
     {
       "path": ".agents/scripts/apply-quality-bootstrap.js",
@@ -234,9 +234,9 @@
     },
     {
       "path": ".agents/scripts/file-ci-gap.js",
-      "lines": 78.76,
-      "branches": 61.11,
-      "functions": 75
+      "lines": 82.77,
+      "branches": 71.11,
+      "functions": 80
     },
     {
       "path": ".agents/scripts/generate-config-docs.js",
@@ -1735,7 +1735,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/ceremony-routing.js",
       "lines": 100,
-      "branches": 90.48,
+      "branches": 88.89,
       "functions": 100
     },
     {
@@ -1800,9 +1800,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
-      "lines": 92.06,
-      "branches": 77.1,
-      "functions": 94.12
+      "lines": 93.08,
+      "branches": 79.59,
+      "functions": 95
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
@@ -2142,8 +2142,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
-      "lines": 95.08,
-      "branches": 75.68,
+      "lines": 95.78,
+      "branches": 78.21,
       "functions": 100
     },
     {
@@ -2161,7 +2161,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/summary.js",
       "lines": 100,
-      "branches": 87.5,
+      "branches": 88.24,
       "functions": 100
     },
     {
@@ -2346,14 +2346,14 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
-      "lines": 97.75,
-      "branches": 85.43,
+      "lines": 97.53,
+      "branches": 82.1,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-scoped-config.js",
       "lines": 100,
-      "branches": 95.35,
+      "branches": 96.3,
       "functions": 100
     },
     {
@@ -2382,9 +2382,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js",
-      "lines": 99.56,
-      "branches": 79.17,
-      "functions": 75
+      "lines": 99.7,
+      "branches": 82.98,
+      "functions": 83.33
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
@@ -2478,9 +2478,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
-      "lines": 96.98,
-      "branches": 83.33,
-      "functions": 90
+      "lines": 98.1,
+      "branches": 86.6,
+      "functions": 86.96
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-lease-guard.js",
@@ -2540,6 +2540,12 @@
       "path": ".agents/scripts/lib/orchestration/story-follow-ups.js",
       "lines": 98.51,
       "branches": 87.18,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-init-envelope.js",
+      "lines": 100,
+      "branches": 84.62,
       "functions": 100
     },
     {
@@ -2611,7 +2617,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
       "lines": 99.8,
-      "branches": 91.8,
+      "branches": 91.67,
       "functions": 100
     },
     {
@@ -3204,9 +3210,9 @@
     },
     {
       "path": ".agents/scripts/plan-persist.js",
-      "lines": 83.53,
-      "branches": 86.67,
-      "functions": 66.67
+      "lines": 83.49,
+      "branches": 88.89,
+      "functions": 69.23
     },
     {
       "path": ".agents/scripts/plan-run-epilogue.js",
@@ -3216,8 +3222,8 @@
     },
     {
       "path": ".agents/scripts/pr-watch-with-update.js",
-      "lines": 95.84,
-      "branches": 89.34,
+      "lines": 95.88,
+      "branches": 89.6,
       "functions": 86.96
     },
     {
