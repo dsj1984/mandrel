@@ -23,6 +23,7 @@ import {
   describeGraphqlPreflight,
   GhAuthError,
   GhExecError,
+  GhRateLimitError,
   GhScopeError,
   probeGraphqlAvailability,
 } from '../../.agents/scripts/lib/gh-exec.js';
@@ -84,7 +85,8 @@ describe('probeGraphqlAvailability', () => {
     );
   });
 
-  // AC-3 (first half) — the 403 shape is its own verdict.
+  // AC-3 (first half) — the 403 shape, carrying no rate-limit evidence, is
+  // its own verdict.
   it('reports unavailable on an HTTP 403 from the GraphQL endpoint', async () => {
     const probe = await probeGraphqlAvailability({
       ghFacade: facadeThatRejects(graphql403()),
@@ -93,6 +95,73 @@ describe('probeGraphqlAvailability', () => {
     assert.equal(probe.available, false);
     assert.equal(probe.reason, 'http-403');
     assert.match(probe.detail, /403/);
+  });
+
+  // Story #5362 AC-1 — GitHub answers a secondary rate limit with HTTP 403.
+  // A throttle says nothing about reachability, and the `unavailable` remedy
+  // ("re-run from a local session") would send the operator to reproduce it.
+  it('falls open to available when a 403 carries secondary-rate-limit text', async () => {
+    const probe = await probeGraphqlAvailability({
+      ghFacade: facadeThatRejects(
+        new GhExecError('gh-exec: gh exited with code 1', {
+          args: ['api', '-X', 'POST', 'graphql'],
+          stderr:
+            'gh: You have exceeded a secondary rate limit. Please wait a few minutes before you try again. (HTTP 403)',
+          code: 1,
+        }),
+      ),
+    });
+    assert.equal(probe.verdict, 'available');
+    assert.equal(probe.available, true);
+    assert.equal(probe.reason, 'rate-limited-inconclusive');
+    assert.match(probe.detail, /secondary rate limit/i);
+  });
+
+  it('falls open to available on a primary API rate limit', async () => {
+    const probe = await probeGraphqlAvailability({
+      ghFacade: facadeThatRejects(
+        new GhExecError('gh-exec: gh exited with code 1', {
+          args: [],
+          stderr: 'gh: API rate limit exceeded for user ID 1 (HTTP 403)',
+          code: 1,
+        }),
+      ),
+    });
+    assert.equal(probe.verdict, 'available');
+    assert.equal(probe.reason, 'rate-limited-inconclusive');
+  });
+
+  // Story #5362 AC-2 — the typed error the shared classifier already produces
+  // is rate-limit evidence on its own, whatever status text it carries.
+  it('falls open to available on the typed rate-limit error, 403 text and all', async () => {
+    const probe = await probeGraphqlAvailability({
+      ghFacade: facadeThatRejects(
+        new GhRateLimitError('gh-exec: gh API rate limit exceeded', {
+          args: [],
+          stderr: 'gh: HTTP 403 (https://api.github.com/graphql)',
+          code: 1,
+        }),
+      ),
+    });
+    assert.equal(probe.verdict, 'available');
+    assert.equal(probe.available, true);
+    assert.equal(probe.reason, 'rate-limited-inconclusive');
+  });
+
+  // Story #5362 AC-4 — rate-limit evidence must not swallow an auth fault.
+  it('still reports auth-failed when a rate-limited session also has no token', async () => {
+    const probe = await probeGraphqlAvailability({
+      ghFacade: facadeThatRejects(
+        new GhAuthError('gh-exec: gh is not authenticated', {
+          args: [],
+          stderr:
+            'gh: To use GitHub CLI, run: gh auth login (rate limit applies to unauthenticated requests)',
+          code: 1,
+        }),
+      ),
+    });
+    assert.equal(probe.verdict, 'auth-failed');
+    assert.equal(probe.reason, 'auth');
   });
 
   // AC-3 (second half) — an auth fault is a DIFFERENT verdict, not the same
@@ -248,6 +317,28 @@ describe('runGraphqlPreflight', () => {
     assert.deepEqual(provider.comments, []);
     assert.deepEqual(provider.labels, []);
     assert.ok(lines.some((l) => l.includes('reachable')));
+  });
+
+  // Story #5362 AC-5 — a throttled probe is an `available` verdict, so the
+  // close proceeds on its own terms: no friction comment, no `agent::blocked`.
+  it('mutates nothing when the probe was rate-limited', async () => {
+    const provider = recordingProvider();
+    const { lines, progress } = recorder();
+    const outcome = await runGraphqlPreflight({
+      storyId: 5362,
+      provider,
+      progress,
+      probe: async () => ({
+        verdict: 'available',
+        available: true,
+        reason: 'rate-limited-inconclusive',
+        detail: 'gh: You have exceeded a secondary rate limit (HTTP 403)',
+      }),
+    });
+    assert.equal(outcome, null, 'a rate limit must not refuse the close');
+    assert.deepEqual(provider.comments, [], 'no friction comment is posted');
+    assert.deepEqual(provider.labels, [], 'no agent::blocked label is applied');
+    assert.ok(lines.some((l) => l.includes('rate-limited-inconclusive')));
   });
 
   it('refuses, flips agent::blocked and posts friction on an unavailable verdict', async () => {
