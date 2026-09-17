@@ -165,9 +165,13 @@ baseline still trips the gate.
 ### When the floor gate fires
 
 - **Pre-push** (`.husky/pre-push`): diff-scoped, fast path only —
-  `quality-preview.js --changed-since origin/main` (MI + CRAP preview),
-  then `coverage-capture.js` and `npm run crap:check` (unified
-  dispatcher, diff-scoped via `delivery.quality.gateScoping`). Full-repo
+  `coverage-capture.js` first, then
+  `quality-preview.js --changed-since origin/main` (MI + CRAP preview)
+  and `npm run crap:check` (unified dispatcher, diff-scoped via
+  `delivery.quality.gateScoping`). Capture leads because the preview's
+  CRAP half scores `coverage/coverage-final.json` off disk, so previewing
+  first scores whatever artifact an earlier run happened to leave there
+  (Story #5356). Full-repo
   lint, docs generation checks, and the complete test suite are **not**
   run on push; use `npm run verify` locally before a PR. CI enforces the
   authoritative full gate set on every PR.

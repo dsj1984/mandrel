@@ -1274,8 +1274,8 @@ watch-and-iterate loop.
 ```text
         ┌───────────────────────────────────────┐
 local ▶ │ pre-push (.husky/pre-push):           │
-        │   quality-preview (diff) →            │
-        │   coverage-capture → crap:check       │
+        │   coverage-capture →                  │
+        │   quality-preview (diff) → crap:check │
         │   (full lint+test: npm run verify)    │
         └───────────────────┬───────────────────┘
                             │
