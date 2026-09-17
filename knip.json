@@ -38,6 +38,7 @@
     ".agents/scripts/coverage-capture.js!",
     ".agents/scripts/deliver-light.js!",
     ".agents/scripts/deliver-recover.js!",
+    ".agents/scripts/deliver-run.js!",
     ".agents/scripts/diagnose-friction.js!",
     ".agents/scripts/diagnose.js!",
     ".agents/scripts/drain-pending-cleanup.js!",

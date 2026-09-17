@@ -1123,6 +1123,40 @@ describe('runProbedStoriesWaveTick — threads the probed in-flight records (AC-
     assert.strictEqual(envelope.inFlightReservation.available, true);
     assert.deepEqual(envelope.inFlightReservation.withheld, []);
   });
+
+  it('hands the probed records back beside the envelope (Story #5345)', async () => {
+    // `deliver-run.js` builds each ready Story's dispatch checklist from its
+    // declared `changes[]`, which lives in the body the probe already fetched.
+    // The body stays OUT of the envelope — stdout is a list of ids by design —
+    // so it travels as a sibling of it rather than a second provider round.
+    const { envelope, records } = await tick({
+      nodes: [
+        {
+          id: 1,
+          dependsOn: [],
+          files: ['lib/a.js'],
+          body: '## Changes\n- `lib/a.js` — refactors-existing',
+          labels: [],
+        },
+      ],
+      inFlightRecords: [],
+      doneIds: new Set(),
+      inFlight: 0,
+      blockedIds: [],
+      foreignHeld: [],
+    });
+
+    assert.deepEqual(
+      records.map((r) => r.id),
+      [1],
+    );
+    assert.match(records[0].body, /lib\/a\.js/);
+    assert.strictEqual(
+      Object.hasOwn(envelope, 'records'),
+      false,
+      'the envelope stays a list of ids',
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
