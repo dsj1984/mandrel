@@ -374,6 +374,25 @@ export async function runPersistChain({
 }
 
 /**
+ * Decide whether this invocation persists after its gates, or only validates.
+ *
+ * Story #5342: chaining is the default, not a flag. Every invocation that is
+ * not an explicit `--dry-run` runs the gate list and then persists what it
+ * passed, so the two operator round-trips collapse without anyone having to
+ * remember an opt-in. `--chain-on-clean` survives as a no-op alias so
+ * existing call-sites keep working — it can no longer turn anything on,
+ * because nothing is off.
+ *
+ * Exported for tests: this one predicate is what makes the CLI one command.
+ *
+ * @param {object} values Parsed `parseArgs` values.
+ * @returns {boolean} `true` to run the gates and then persist.
+ */
+export function shouldChainPersist(values) {
+  return values?.['dry-run'] !== true;
+}
+
+/**
  * Attach the plan-metrics roll-up for **this** invocation.
  *
  * Two Story #4541 fixes meet here. `readPlanMetrics` is declared
@@ -439,12 +458,7 @@ async function main() {
   const paths = resolveInputPaths(values);
   const artifacts = await loadArtifacts(paths);
 
-  // Story #5342: chaining is the default, not a flag. Every invocation that
-  // is not an explicit `--dry-run` runs the gates and then persists what
-  // they passed, so the two operator round-trips collapse without anyone
-  // having to remember an opt-in. `--chain-on-clean` survives as a no-op
-  // alias so existing call-sites keep working.
-  const useChain = values['dry-run'] !== true;
+  const useChain = shouldChainPersist(values);
 
   let result;
   try {
