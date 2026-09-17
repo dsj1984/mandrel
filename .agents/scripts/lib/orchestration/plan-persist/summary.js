@@ -1,10 +1,14 @@
 /**
  * summary.js — plan-persist terminal summary (v2 Stage 3).
  *
- * Upserts a single `plan-summary` structured comment on the primary Story
- * at terminal success. Carries the persist receipts — including whether the
- * operator forced a review stop — and the dry-run `depends_on` ordering table
- * for the rare N>1 plan.
+ * Renders the persist receipts — the created Story set, whether the operator
+ * forced a review stop, the `depends_on` ordering table and the exact deliver
+ * command. Story #5343 folded that rendering into the **`story-plan-state`**
+ * checkpoint every created Story already carries: it used to be a second,
+ * primary-Story-only `plan-summary` comment saying what the checkpoint beside
+ * it already implied, which cost one more write per plan and split the
+ * operator's reading between two markers. One comment per Story now carries
+ * both.
  *
  * Story #4542 removed the risk / review-routing line: no risk level, gate
  * decision, or acceptance disposition is computed at plan time any more, so
@@ -15,11 +19,6 @@
 
 import { computeStoryWaves } from '../dependency-analyzer.js';
 import { renderPredictedSerialisationLines } from './wave-serialisation.js';
-
-/**
- * Structured-comment type for the persist summary.
- */
-export const PLAN_SUMMARY_COMMENT_TYPE = 'plan-summary';
 
 /**
  * Compute the dry-run wave assignment for a validated ticket set.
@@ -114,7 +113,8 @@ function renderSharedEditorLines(conflictFindings) {
 }
 
 /**
- * Build the `plan-summary` structured-comment body.
+ * Build the plan-summary section spliced into each Story's `story-plan-state`
+ * comment (Story #5343).
  *
  * @param {object} input
  * @returns {string}
@@ -169,7 +169,7 @@ export function buildPlanSummaryCommentBody({
       : '/mandrel-deliver <storyId> [<storyId> ...]';
 
   return [
-    `### 📋 Plan Summary — Story #${epicId} is \`agent::ready\``,
+    `#### 📋 Plan Summary — Story #${epicId} is \`agent::ready\``,
     '',
     `- ${ticketCount} Story ticket(s) persisted: ${storyList}.`,
     ...reviewLines,

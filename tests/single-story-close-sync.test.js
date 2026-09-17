@@ -12,12 +12,14 @@
  */
 
 import assert from 'node:assert/strict';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { BASELINES_GATE_NAMES as REAL_BASELINES_GATE_NAMES } from '../.agents/scripts/lib/close-validation/gates.js';
 import { pinRunScopedConfig } from '../.agents/scripts/lib/orchestration/run-scoped-config.js';
 import { runBaseSyncPhase } from '../.agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js';
+import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 import {
   buildSyncFailureCommentBody,
   handleSyncFailure,
@@ -73,30 +75,40 @@ const FORMAT_AUTOFIX_URL = pathToFileURL(
 ).href;
 
 /**
- * Story #4891 — render a `story-init` receipt comment body the way
- * `renderSingleStoryInitComment` does: a fenced JSON payload behind the
- * structured-comment marker. `legacy: true` omits the `runScopedConfig` block
- * so the top-level-field fallback (receipts written before the block existed)
- * is exercised too.
+ * Story #4891, re-homed by #5343 — plant the init envelope
+ * `single-story-init.js` writes, in the shape `emitTerseResult` writes it
+ * (human markers around pretty JSON), under a throwaway tempRoot. Returns
+ * that tempRoot so a test can point a config at it.
+ *
+ * The pin used to live on a `story-init` ticket comment; #5343 retired that
+ * write, so the envelope on disk is the one source.
  */
-function storyInitComment({ baseBranch, legacy = false, extra = null }) {
+function plantInitEnvelope({ baseBranch, storyId = 4242, extra = null }) {
+  const tempRoot = makeTempDir('mandrel-init-envelope-');
+  const dir = path.join(tempRoot, 'orchestration');
+  mkdirSync(dir, { recursive: true });
   const payload = {
-    storyId: 4242,
+    storyId,
     standalone: true,
-    storyBranch: 'story-4242',
+    storyBranch: `story-${storyId}`,
     baseBranch,
-    ...(legacy ? {} : { runScopedConfig: { baseBranch, ...(extra ?? {}) } }),
+    runScopedConfig: { baseBranch, ...(extra ?? {}) },
   };
-  return [
-    '<!-- ap:structured-comment type="story-init" -->',
-    '',
-    '## Story init (standalone)',
-    '',
-    '```json',
-    JSON.stringify(payload, null, 2),
-    '```',
-    '',
-  ].join('\n');
+  writeFileSync(
+    path.join(dir, `story-init-result-${storyId}.log`),
+    [
+      '--- STORY INIT RESULT ---',
+      JSON.stringify(payload, null, 2),
+      '--- END RESULT ---',
+      '',
+    ].join('\n'),
+  );
+  return tempRoot;
+}
+
+/** The pin reader a test hands `resolveRunScopedConfig` for a planted value. */
+function pinOf(values) {
+  return () => values;
 }
 
 /**
@@ -425,52 +437,40 @@ describe('pinRunScopedConfig (Story #4891 — the write half)', () => {
   });
 });
 
-describe('resolveRunScopedConfig (Story #4891 — the read half)', () => {
-  const provider = { id: 'unused-by-the-injected-find' };
-  const findReturning = (comment) => {
-    const calls = [];
-    const fn = async (_provider, ticketId, type) => {
-      calls.push({ ticketId, type });
-      return comment;
-    };
-    fn.calls = calls;
-    return fn;
-  };
-
-  // AC-1 — the value comes off the run's receipt, and `confirmed` is a fact
-  // only a receipt read can establish.
-  it('derives the base branch from the story-init receipt', async () => {
-    const findCommentFn = findReturning({
-      id: 1,
-      body: storyInitComment({ baseBranch: 'trunk' }),
-    });
+describe('resolveRunScopedConfig (Story #4891, re-homed by #5343)', () => {
+  // AC-1 — the value comes off the run's init envelope, and `confirmed` is a
+  // fact only a successful pin read can establish.
+  it('derives the base branch from the init envelope pin', async () => {
+    const seen = [];
     const out = await resolveRunScopedConfig({
-      provider,
       storyId: 4242,
       config: { project: { baseBranch: 'trunk' } },
-      findCommentFn,
+      readPinFn: (args) => {
+        seen.push(args);
+        return { baseBranch: 'trunk' };
+      },
     });
     assert.equal(out.values.baseBranch, 'trunk');
     assert.equal(out.confirmed, true);
     assert.equal(out.receiptStatus, 'found');
     assert.equal(out.warning, null);
-    assert.deepEqual(findCommentFn.calls, [
-      { ticketId: 4242, type: 'story-init' },
-    ]);
+    assert.deepEqual(
+      seen.map((a) => a.storyId),
+      [4242],
+    );
   });
 
-  it('reads a legacy receipt that carries the value as a top-level field', async () => {
+  it('reads a real envelope file the way single-story-init writes one', async () => {
+    // The default reader, end to end: `emitTerseResult`'s marker-wrapped
+    // pretty JSON under <tempRoot>/orchestration, parsed back into the pin.
+    const tempRoot = plantInitEnvelope({ baseBranch: 'trunk' });
     const out = await resolveRunScopedConfig({
-      provider,
       storyId: 4242,
-      config: { project: { baseBranch: 'main' } },
-      findCommentFn: findReturning({
-        id: 1,
-        body: storyInitComment({ baseBranch: 'main', legacy: true }),
-      }),
+      config: { project: { baseBranch: 'trunk', paths: { tempRoot } } },
     });
-    assert.equal(out.values.baseBranch, 'main');
+    assert.equal(out.values.baseBranch, 'trunk');
     assert.equal(out.confirmed, true);
+    rmSync(tempRoot, { recursive: true, force: true });
   });
 
   // AC-2 — fail closed, naming BOTH values. Throwing is what keeps every
@@ -479,13 +479,9 @@ describe('resolveRunScopedConfig (Story #4891 — the read half)', () => {
     await assert.rejects(
       () =>
         resolveRunScopedConfig({
-          provider,
           storyId: 4242,
           config: { project: { baseBranch: 'release-3' } },
-          findCommentFn: findReturning({
-            id: 1,
-            body: storyInitComment({ baseBranch: 'main' }),
-          }),
+          readPinFn: pinOf({ baseBranch: 'main' }),
         }),
       (err) => {
         assert.match(err.message, /run-scoped config changed mid-run/);
@@ -501,22 +497,21 @@ describe('resolveRunScopedConfig (Story #4891 — the read half)', () => {
     );
   });
 
-  // AC-4 — a missing receipt is a real state (the upsert is best-effort, and a
-  // recovery path may close a Story whose init predates the receipt). It falls
-  // back, but never silently.
-  it('falls back to config with an explicit warning when the receipt is absent', async () => {
+  // AC-4 — a missing pin is a real state (the temp tree is reapable, and a
+  // recovery path may close a Story long after its init). It falls back, but
+  // never silently.
+  it('falls back to config with an explicit warning when no pin survives', async () => {
     const lines = [];
     const out = await resolveRunScopedConfig({
-      provider,
       storyId: 4242,
       config: { project: { baseBranch: 'main' } },
-      findCommentFn: findReturning(null),
+      readPinFn: pinOf(null),
       progress: (tag, msg) => lines.push({ tag, msg }),
     });
     assert.equal(out.values.baseBranch, 'main');
     assert.equal(out.confirmed, false);
     assert.equal(out.receiptStatus, 'absent');
-    assert.match(out.warning, /no story-init comment on the ticket/);
+    assert.match(out.warning, /no runScopedConfig pin for Story #4242/);
     assert.match(out.warning, /falling back to the currently-resolved config/);
     assert.match(out.warning, /project\.baseBranch=`main`/);
     assert.ok(
@@ -525,50 +520,22 @@ describe('resolveRunScopedConfig (Story #4891 — the read half)', () => {
     );
   });
 
-  it('falls back with a warning when the receipt carries no JSON payload', async () => {
+  it('degrades to the same fallback when the envelope is absent on disk', async () => {
+    const tempRoot = makeTempDir('mandrel-no-envelope-');
     const out = await resolveRunScopedConfig({
-      provider,
       storyId: 4242,
-      config: { project: { baseBranch: 'main' } },
-      findCommentFn: findReturning({
-        id: 1,
-        body: '<!-- ap:structured-comment type="story-init" -->\n\nno fence here',
-      }),
+      config: { project: { baseBranch: 'main', paths: { tempRoot } } },
     });
     assert.equal(out.confirmed, false);
-    assert.equal(out.receiptStatus, 'unreadable');
-    assert.match(out.warning, /no parseable JSON payload/);
+    assert.equal(out.receiptStatus, 'absent');
+    rmSync(tempRoot, { recursive: true, force: true });
   });
 
-  it('falls back with a warning (never throws) when the comment read fails', async () => {
+  it('warns rather than confirms when the pin carries no value for a key', async () => {
     const out = await resolveRunScopedConfig({
-      provider,
       storyId: 4242,
       config: { project: { baseBranch: 'main' } },
-      findCommentFn: async () => {
-        throw new Error('provider down');
-      },
-    });
-    assert.equal(out.confirmed, false);
-    assert.equal(out.receiptStatus, 'provider-error');
-    assert.match(out.warning, /provider down/);
-  });
-
-  it('warns rather than confirms when the receipt pins no value for a key', async () => {
-    const out = await resolveRunScopedConfig({
-      provider,
-      storyId: 4242,
-      config: { project: { baseBranch: 'main' } },
-      findCommentFn: findReturning({
-        id: 1,
-        body: [
-          '<!-- ap:structured-comment type="story-init" -->',
-          '',
-          '```json',
-          JSON.stringify({ storyId: 4242, runScopedConfig: {} }),
-          '```',
-        ].join('\n'),
-      }),
+      readPinFn: pinOf({}),
     });
     assert.equal(out.values.baseBranch, 'main');
     assert.equal(out.confirmed, false);
@@ -588,19 +555,15 @@ describe('resolveRunScopedConfig (Story #4891 — the read half)', () => {
         label: 'delivery.routing.ceremonyProfile',
       },
     };
-    const findCommentFn = findReturning({
-      id: 1,
-      body: storyInitComment({
-        baseBranch: 'main',
-        extra: { ceremonyProfile: 'standard' },
-      }),
+    const readPinFn = pinOf({
+      baseBranch: 'main',
+      ceremonyProfile: 'standard',
     });
     const ok = await resolveRunScopedConfig({
-      provider,
       storyId: 4242,
       config: { project: { baseBranch: 'main' } },
       keys,
-      findCommentFn,
+      readPinFn,
     });
     assert.deepEqual(ok.values, {
       baseBranch: 'main',
@@ -611,14 +574,13 @@ describe('resolveRunScopedConfig (Story #4891 — the read half)', () => {
     await assert.rejects(
       () =>
         resolveRunScopedConfig({
-          provider,
           storyId: 4242,
           config: {
             project: { baseBranch: 'main' },
             delivery: { routing: { ceremonyProfile: 'strict' } },
           },
           keys,
-          findCommentFn,
+          readPinFn,
         }),
       /delivery\.routing\.ceremonyProfile: pinned at init = `standard`, currently resolves to `strict`/,
     );
@@ -766,8 +728,17 @@ describe('runSingleStoryClose — run-scoped base pin (Story #4891)', () => {
    * pinning anything else models "a concurrent session edited `.agentrc`
    * during the implementation window".
    */
-  function pinnedConfig(baseBranch) {
-    return { ...fakeConfig(), project: { baseBranch } };
+  /**
+   * A config whose `project.baseBranch` is `baseBranch` and whose tempRoot
+   * holds an init envelope pinning `pinnedBase` (default: the same value).
+   * Story #5343 — the pin is read off that envelope, not off a ticket comment.
+   */
+  function pinnedConfig(baseBranch, pinnedBase = baseBranch) {
+    const tempRoot = plantInitEnvelope({ baseBranch: pinnedBase });
+    return {
+      ...fakeConfig(),
+      project: { baseBranch, paths: { tempRoot } },
+    };
   }
 
   // AC-2 — the refusal happens before ANY of the three destructive-adjacent
@@ -815,9 +786,7 @@ describe('runSingleStoryClose — run-scoped base pin (Story #4891)', () => {
     t.mock.module(WORKTREE_MANAGER_URL, worktreeManagerMock());
 
     const { runSingleStoryClose } = await import(`${SUT_URL}?t=pin-conflict`);
-    const provider = fakeProvider({
-      comments: [storyInitComment({ baseBranch: 'main' })],
-    });
+    const provider = fakeProvider();
     await assert.rejects(
       () =>
         runSingleStoryClose({
@@ -825,7 +794,7 @@ describe('runSingleStoryClose — run-scoped base pin (Story #4891)', () => {
           noWaitForMerge: true,
           cwd: REPO_ROOT,
           injectedProvider: provider,
-          injectedConfig: pinnedConfig('release-3'),
+          injectedConfig: pinnedConfig('release-3', 'main'),
           injectedSync: async () => {
             syncInvoked = true;
             return { synced: true, kind: 'fast-forward' };
@@ -848,18 +817,16 @@ describe('runSingleStoryClose — run-scoped base pin (Story #4891)', () => {
     assert.equal(pushAttempted, false, 'push must not run');
   });
 
-  // AC-1 — the base handed to base-sync is the receipt's, and AC-3 — with the
-  // base confirmed against the receipt, the merge advice is emitted.
-  it('base-syncs against the receipt base and advises the merge on a conflict', async (t) => {
+  // AC-1 — the base handed to base-sync is the envelope's, and AC-3 — with the
+  // base confirmed against that pin, the merge advice is emitted.
+  it('base-syncs against the pinned base and advises the merge on a conflict', async (t) => {
     t.mock.module(GIT_UTILS_URL, gitUtilsMock());
     mockCloseValidation(t, closeValidationMock());
     t.mock.module(WORKTREE_MANAGER_URL, worktreeManagerMock());
     const syncedFrom = [];
 
     const { runSingleStoryClose } = await import(`${SUT_URL}?t=pin-confirmed`);
-    const provider = fakeProvider({
-      comments: [storyInitComment({ baseBranch: 'trunk' })],
-    });
+    const provider = fakeProvider();
     await assert.rejects(() =>
       runSingleStoryClose({
         storyId: 4242,
@@ -888,15 +855,21 @@ describe('runSingleStoryClose — run-scoped base pin (Story #4891)', () => {
 
   // AC-4 — no receipt: close still runs, but on the announced fallback, and
   // AC-3 — an unconfirmed base withholds the merge advice.
-  it('falls back with a warning when the receipt is absent and withholds merge advice', async (t) => {
+  /** A config whose tempRoot holds no init envelope at all. */
+  function unpinnedConfig(baseBranch) {
+    const tempRoot = makeTempDir('mandrel-unpinned-');
+    return { ...fakeConfig(), project: { baseBranch, paths: { tempRoot } } };
+  }
+
+  it('falls back with a warning when the pin is absent and withholds merge advice', async (t) => {
     t.mock.module(GIT_UTILS_URL, gitUtilsMock());
     mockCloseValidation(t, closeValidationMock());
     t.mock.module(WORKTREE_MANAGER_URL, worktreeManagerMock());
     const syncedFrom = [];
 
     const { runSingleStoryClose } = await import(`${SUT_URL}?t=pin-absent`);
-    // No `comments` — the best-effort init upsert never landed, or the Story
-    // is being closed from a recovery path.
+    // No envelope on disk — the temp tree was reaped, or the Story is being
+    // closed from a recovery path long after its init.
     const provider = fakeProvider();
     await assert.rejects(() =>
       runSingleStoryClose({
@@ -904,7 +877,7 @@ describe('runSingleStoryClose — run-scoped base pin (Story #4891)', () => {
         noWaitForMerge: true,
         cwd: REPO_ROOT,
         injectedProvider: provider,
-        injectedConfig: pinnedConfig('main'),
+        injectedConfig: unpinnedConfig('main'),
         injectedSync: async ({ baseBranch }) => {
           syncedFrom.push(baseBranch);
           return {

@@ -23,9 +23,15 @@
  *   { storyId, baseRef, headRef, files, enumerated, level, classes, profile,
  *     mode, reason, verdictOwner }
  *
- * `files` is the one change set every acceptance critic must be handed; the
- * caller never lets a critic re-enumerate it. `files: null` means the diff
- * could not be enumerated, which routes to the fail-safe fresh critic.
+ * `files` is the one change set the verdict owner must be handed; the caller
+ * never lets it re-enumerate the diff. `files: null` means the diff could not
+ * be enumerated.
+ *
+ * `level` / `classes` are what **review depth** reads (`resolveDepth`), and a
+ * sensitive class still resolves `deep`. Since Story #5343 they no longer
+ * route the verdict owner: `verdictOwner` follows the ceremony profile alone
+ * — `inline-self-eval` under `minimal` / `standard`, `fresh-critic` under
+ * `strict`.
  *
  * Exit codes: 0 on a derived decision (including the `null` fail-safe — an
  * unenumerable diff is a decision, not an error), 1 on a usage error.
@@ -114,13 +120,10 @@ export function deriveCeremony(
   const { level, classes } = deriveChangeLevelImpl({
     changedFiles: changeSet.files,
   });
-  // `derivedLevel` is the level STRING — handing the `{ level, classes }`
-  // object here was the transcription slip this CLI exists to retire.
-  const ceremony = resolveCeremonyImpl({
-    derivedLevel: level,
-    clusterIndex: 0,
-    ceremonyProfile,
-  });
+  // The level is still derived and still printed — review depth reads it —
+  // but since Story #5343 the ceremony profile alone resolves the verdict
+  // owner, so nothing here can be talked into a different owner by the diff.
+  const ceremony = resolveCeremonyImpl({ ceremonyProfile });
   return {
     storyId,
     baseRef,

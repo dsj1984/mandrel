@@ -258,12 +258,12 @@ const MERGE_WATCH_SCHEMA = {
 // context; false falls back to `subagent_type: general-purpose` (the instant
 // per-consumer revert + the escape for hosts that ignore `.claude/agents/`).
 // Story #5313 retired `delivery.routing.freshCriticSampleRate` (the
-// maker-checker sampling floor): the standard profile now routes purely off
-// the derived change level.
+// maker-checker sampling floor). Story #5343 then retired the derived-level
+// routing it left behind: the profile alone decides the verdict owner.
 const ROUTING_SCHEMA = {
   type: 'object',
   description:
-    'v2 delivery-spawn routing: role-scoped boot contexts and the ceremony profile. The v1 singleDelivery epic-route kill-switch was removed in Stage 6; the freshCriticSampleRate sampling floor was retired in Story #5313.',
+    'v2 delivery-spawn routing: role-scoped boot contexts and the ceremony profile. The v1 singleDelivery epic-route kill-switch was removed in Stage 6; the freshCriticSampleRate sampling floor was retired in Story #5313 and the derived-level ceremony routing in Story #5343.',
   properties: {
     roleScopedAgents: {
       type: 'boolean',
@@ -275,7 +275,7 @@ const ROUTING_SCHEMA = {
       type: 'string',
       enum: ['minimal', 'standard', 'strict'],
       description:
-        'Acceptance-ceremony depth. minimal = always inline critic; strict = always fresh-context critic; standard (default) = routed off the change level derived from the Story diff: high or underivable → fresh, low → inline.',
+        'Acceptance-ceremony depth — who authors the Story acceptance verdict. minimal and standard (default) = the inline self-eval, whatever the diff touches; strict = a fresh-context maker-blind critic. Review depth is a separate decision and still derives `deep` for any sensitive path (review-depth.js).',
       default: DELIVERY_ROUTING_DEFAULTS.ceremonyProfile,
     },
     closeAndLand: {

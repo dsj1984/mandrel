@@ -14,6 +14,7 @@
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -22,6 +23,7 @@ import {
   renderFrictionComment,
   runFileCiGap,
 } from '../../.agents/scripts/file-ci-gap.js';
+import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 
 const REPO_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -293,5 +295,93 @@ describe('file-ci-gap — friction comment body', () => {
     });
     assert.match(body, /unroutable/);
     assert.match(body, /github\.followUpRepos\.platform/);
+  });
+});
+
+/**
+ * Story #5343 — the filing is what records the one-rerun allowance, so the
+ * claim is auditable on the digest rather than asserted in prose.
+ */
+describe('file-ci-gap — the one-rerun allowance (Story #5343)', () => {
+  it('stamps the digest for capacity and unreproducible-tier', async () => {
+    for (const verdict of ['capacity', 'unreproducible-tier']) {
+      const tempRoot = makeTempDir('mandrel-ci-gap-');
+      writeFileSync(
+        path.join(tempRoot, 'story-5300-ci-digest.json'),
+        JSON.stringify({ ...DIGEST, headSha: 'head-1' }),
+      );
+      const provider = stubProvider();
+      const result = await runFileCiGap({
+        ...BASE,
+        digest: undefined,
+        tempRoot,
+        cwd: process.cwd(),
+        verdict,
+        owner: 'framework',
+        evidence: 'proof',
+        ports: stubPorts(),
+        provider,
+      });
+      assert.equal(result.rerunAllowance.verdict, verdict);
+      assert.equal(result.rerunAllowance.headSha, 'head-1');
+      const onDisk = JSON.parse(
+        readFileSync(path.join(tempRoot, 'story-5300-ci-digest.json'), 'utf8'),
+      );
+      assert.deepEqual(onDisk.rerunAllowance, result.rerunAllowance);
+      // The friction comment says the rerun is now admitted, and says once.
+      assert.match(provider.posted[0].body, /\*\*one\*\* rerun/);
+      assert.match(provider.posted[0].body, /second\s+red after it is real/);
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('records nothing for pre-existing and keeps the no-rerun wording', async () => {
+    const tempRoot = makeTempDir('mandrel-ci-gap-');
+    writeFileSync(
+      path.join(tempRoot, 'story-5300-ci-digest.json'),
+      JSON.stringify({ ...DIGEST, headSha: 'head-1' }),
+    );
+    const provider = stubProvider();
+    const result = await runFileCiGap({
+      ...BASE,
+      digest: undefined,
+      tempRoot,
+      cwd: process.cwd(),
+      verdict: 'pre-existing',
+      owner: 'consumer',
+      ports: stubPorts(),
+      provider,
+    });
+    assert.equal(result.rerunAllowance, null);
+    const onDisk = JSON.parse(
+      readFileSync(path.join(tempRoot, 'story-5300-ci-digest.json'), 'utf8'),
+    );
+    assert.equal(onDisk.rerunAllowance, undefined);
+    assert.match(provider.posted[0].body, /does \*\*not\*\* license a re-run/);
+    rmSync(tempRoot, { recursive: true, force: true });
+  });
+
+  it('writes no allowance on a dry run', async () => {
+    const tempRoot = makeTempDir('mandrel-ci-gap-');
+    writeFileSync(
+      path.join(tempRoot, 'story-5300-ci-digest.json'),
+      JSON.stringify({ ...DIGEST, headSha: 'head-1' }),
+    );
+    const result = await runFileCiGap({
+      ...BASE,
+      digest: undefined,
+      tempRoot,
+      cwd: process.cwd(),
+      verdict: 'capacity',
+      owner: 'framework',
+      dryRun: true,
+      ports: stubPorts(),
+    });
+    assert.equal(result.rerunAllowance, null);
+    const onDisk = JSON.parse(
+      readFileSync(path.join(tempRoot, 'story-5300-ci-digest.json'), 'utf8'),
+    );
+    assert.equal(onDisk.rerunAllowance, undefined);
+    rmSync(tempRoot, { recursive: true, force: true });
   });
 });

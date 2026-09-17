@@ -66,6 +66,7 @@ superseded — open it before citing it.
 
 | Decision | Governs | Surface | Status |
 | --- | --- | --- | --- |
+| [`20260917-5343`](#adr-20260917-5343-the-delivering-worker-owns-its-acceptance-verdict-and-a-recorded-verdict-buys-one-rerun) | The delivering worker owns its acceptance verdict; a recorded verdict buys one rerun | `.agents/scripts/lib/orchestration/ceremony-routing.js` | Accepted |
 | [`20260917-5342`](#adr-20260917-5342-the-authoring-contract-is-the-outcome--persist-derives-what-it-can-and-warns-where-it-cannot) | The authoring contract is the outcome; persist derives and warns | `.agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js` | Accepted |
 | [`20260917-5341`](#adr-20260917-5341-one-home-per-delivery-rule-and-the-unattended-follow-up-filer-is-opt-in) | One home per delivery rule; the unattended follow-up filer is opt-in | `.agents/workflows/helpers/deliver-digest.md` | Accepted |
 | [`20260917-5340`](#adr-20260917-5340-resident-context-measurements-are-reports-the-always-loaded-closure-is-the-one-gate) | Resident-context measurements are reports; the always-loaded closure is the one gate | `.agents/scripts/check-context-budget.js` | Accepted |
@@ -151,6 +152,143 @@ at the release tag named in the entry.
 - [Earlier ADRs (001 / 002 / 003)](#earlier-adrs-001--002--003)
 
 <!-- ADR-INDEX:END -->
+
+## ADR 20260917-5343: The delivering worker owns its acceptance verdict, and a recorded verdict buys one rerun
+
+**Status:** Accepted
+**Date:** 2026-09-17
+**Deciders:** @dsj1984
+**Surface:** `.agents/scripts/lib/orchestration/ceremony-routing.js`
+**Story:** #5343
+
+### Context
+
+Four costs in the delivery path were each paid on **every** run to buy
+something only some runs needed.
+
+**A second full-context boot per Story.** `ceremonyProfile: standard` routed
+the acceptance verdict to a fresh maker-blind critic whenever the diff touched
+a sensitive path in `audit-rules.json`, and the fresh critic re-paid a role
+boot, re-read the change set it was handed, and re-ran `verify[]`. The
+isolation it bought was real in principle; in practice a frontier-model worker
+scoring its own `acceptance[]` items against the `verify[]` output it had just
+produced reached the same verdict, and the gate — `acceptance-eval.js` — was
+the deterministic scorer either way.
+
+**A cluster protocol with no fan-out left to coordinate.** The verdict used to
+be split into clusters, dispatched in parallel, merged by `index`, and scored
+in one gate call, with a cluster-unique verdict path so siblings could not
+clobber each other. Story #5313 had already made the gate read the Story's own
+`acceptance[]` count and reject a partial verdict, so the merge contract was
+the only thing the cluster rules still protected — a protocol whose whole
+purpose was arithmetic about itself.
+
+**An audit roster nobody asked for.** Every N>1 epilogue selected cross-Story
+audit lenses and posted `plan-run-audit-roster` with a MUST that the host
+dispatch one `auditor` sub-agent per lens. The sweep is valuable when someone
+is going to read it; on a run delivered for its own sake it spent the host's
+sub-agent budget on findings nothing consumed.
+
+**Two comments restating the run's own envelope.** Persist posted a
+`story-plan-state` checkpoint on every Story *and* a primary-only
+`plan-summary`, so the operator's instructions lived on a different marker from
+the state — and on a different ticket from four Stories out of five. Init
+posted `story-init`, whose every field its envelope already carried on stdout
+and on disk.
+
+Separately, `ci-remediation.md`'s no-rerun rule had one shape it could not
+resolve. A `capacity` or `unreproducible-tier` verdict means the failure is a
+proven property of the *environment*: there is no fix at source, so the branch
+can never move its head SHA, and the watcher's same-SHA guard blocked the
+delivery until a human cleared it by hand.
+
+### Decision
+
+**The profile is the whole ceremony decision.** `resolveCeremonyForRisk` reads
+`delivery.routing.ceremonyProfile` and nothing else: `minimal` and `standard`
+resolve `verdictOwner: inline-self-eval`, `strict` resolves `fresh-critic`.
+The derived change level is still computed and still printed by
+`ceremony-derive.js`, because **review depth** reads it and still resolves
+`deep` for any sensitive class — that decision is untouched. What changed is
+which of the two decisions the level feeds.
+
+**One verdict file per Story, scored in one gate call.** The cluster dispatch,
+the merge-by-index step and the cluster-unique verdict path are deleted from
+`acceptance-self-eval.md`, `agents/acceptance-critic.md`, `deliver-digest.md`
+§ 4 and the Step 1a reference. `acceptance-eval.js`, the verdict schema and
+`maxRounds` are unchanged, and the gate still refuses a verdict whose
+`criteria[]` length differs from `acceptance[]`. The `acceptance-critic` role
+context stays: it is the `strict` profile's owner.
+
+**The audit roster is opt-in.** `plan-run-epilogue.js --audit-roster`
+enumerates the step; a default run posts no roster comment and spawns no
+auditors. The operator asks for it, as for the pre-mortem plan critic.
+
+**One comment per Story from persist, none from init.** `writeCheckpointV2`
+appends the plan summary — story set, delivery order, deliver command — below
+the checkpoint's JSON fence, so every Story carries both on one marker and the
+`plan-summary` type is retired. `single-story-init.js` posts nothing; its
+envelope is on stdout and at
+`<tempRoot>/orchestration/story-init-result-<id>.log`, `deliver-recover.js`
+already classifies state from labels, the PR probe and disk artifacts, and the
+run-scoped config pin close compares against moves to that envelope
+(`story-init-envelope.js`).
+
+**One rerun, earned by the filing.** Once `file-ci-gap.js` has filed a
+`capacity` or `unreproducible-tier` verdict, it stamps a `rerunAllowance` on
+the CI digest keyed to the head SHA the red was recorded against. The
+watcher admits exactly one same-SHA green carrying that allowance, retires the
+digest — which spends it — and still blocks every other same-SHA green. A
+second red writes a fresh digest carrying none, so it routes to Option 1.
+`pre-existing` earns no allowance: it reproduces on `main`, so it names a real
+defect a rerun cannot remove.
+
+### Alternatives considered
+
+- **Keep the fresh critic for sensitive diffs.** Rejected — sensitivity is
+  evidence about *review depth*, which still escalates on it. Spending a second
+  boot on the acceptance verdict as well conflated "this change deserves closer
+  reading" with "the maker cannot be trusted to read its own criteria", and
+  only the first is what the sensitive-path manifest measures.
+- **Keep clusters for Stories above N acceptance criteria.** Rejected — the
+  ceiling that would have justified it was arithmetic about the protocol, not
+  about the work. A Story whose criteria genuinely exceed one pass's attention
+  is a Story that should have been sliced.
+- **Default the audit roster on, with a `--no-audit-roster` opt-out.** Rejected
+  — the default is what runs unattended, and an unread roster is exactly the
+  cost this Story is removing. An opt-out also reads as "someone decided you
+  need this", which is the opposite of the pre-mortem critic's contract.
+- **Keep the `story-init` comment as a legacy read for the config pin.**
+  Rejected — a dual read would have kept a write alive to serve a case the
+  envelope answers with equal authority, and the envelope is written by the
+  same process, in the same run, that seeds the branch. A missing pin already
+  degrades loudly rather than refusing.
+- **Admit the rerun on the verdict alone, without a filing.** Rejected — an
+  unfiled verdict is a claim, and `capacity` is precisely the verdict a green
+  on re-run tempts an agent to assert. Requiring the filing makes the claim
+  auditable and routes the real fault to whoever owns it.
+
+BREAKING CHANGE: under `delivery.routing.ceremonyProfile` `standard` the
+acceptance verdict is authored inline; set `strict` to keep a fresh-context
+critic. `plan-run-epilogue.js` runs the audit roster only with
+`--audit-roster`.
+
+### Consequences
+
+- A `standard`-profile Story spends one acceptance pass, not two. A consumer
+  that wants maker-blind isolation sets `strict`, which is now the only
+  profile that spawns a critic.
+- Review depth is the surface sensitivity escalates. An audit reading
+  `ceremony-routing.js` for the sensitive-path response will find nothing —
+  `review-depth.js` is where it lives.
+- A multi-Story run no longer produces an audit roster unless asked, so a host
+  that walked the roster automatically now walks nothing by default.
+- A Story carries one persist comment and no init comment. Tooling that read
+  `plan-summary`, or the `story-init` receipt, reads `story-plan-state` and the
+  init envelope instead; the `story-init` type stays in the comment-type enum
+  only so an older ticket that still carries one is readable.
+- A capacity-blocked delivery can now reach green without an operator — once,
+  and only after it has filed the intake issue that names who owns the fault.
 
 ## ADR 20260917-5342: The authoring contract is the outcome — persist derives what it can, and warns where it cannot
 

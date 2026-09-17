@@ -5,10 +5,11 @@
  * Stage 6 dropped `delivery.routing.singleDelivery` (the v1 epic
  * single-vs-fan-out kill-switch). Story #5313 dropped
  * `delivery.routing.freshCriticSampleRate` (the maker-checker sampling
- * floor): the standard profile now routes purely off the derived change
- * level — high or underivable → fresh critic, low → inline self-eval. v2 has
- * one Story delivery path; routing here is only about spawn boot context and
- * the ceremony profile.
+ * floor), and Story #5343 dropped the derived-level routing that replaced
+ * it: `minimal` and `standard` resolve the inline self-eval as the Story's
+ * verdict owner whatever the diff touches, and `strict` is the one profile
+ * that spawns a fresh-context critic. v2 has one Story delivery path;
+ * routing here is only about spawn boot context and the ceremony profile.
  *
  * `delivery.routing.roleScopedAgents` is the **kill-switch for the role-scoped
  * boot contexts** (Epic #4478, M7-B). It defaults to `true`: a converted spawn

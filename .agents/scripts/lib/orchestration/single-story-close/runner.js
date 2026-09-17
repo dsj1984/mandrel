@@ -860,7 +860,7 @@ async function runClosePipeline({
   }
 
   // Story #4891 — the base branch this run was SEEDED from, read back off the
-  // run's `story-init` receipt rather than re-resolved from a config file that
+  // run's init receipt on disk rather than re-resolved from a config file that
   // may have changed during the whole implementation window. Throws (fail
   // closed, naming both values) when the pin and current config disagree —
   // deliberately here, before the gate chain, format-autofix and base-sync,
@@ -868,7 +868,6 @@ async function runClosePipeline({
   // gates the base-merge remediation advice further down.
   const { values: runScoped, confirmed: baseConfirmed } =
     await resolveRunScopedConfig({
-      provider,
       storyId: options.storyId,
       config,
       progress,

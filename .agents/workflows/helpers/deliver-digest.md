@@ -57,38 +57,34 @@ import block:
 node <main-repo>/.agents/scripts/ceremony-derive.js --story <storyId> --cwd <workCwd>
 ```
 
-It prints one JSON object: `files` — the one change set every critic is
+It prints one JSON object: `files` — the one change set the verdict owner is
 handed (`null` when the diff could not be enumerated) — plus `level` and
 `classes` from `review-depth.js`, and `mode`, `reason` and `verdictOwner`
 from `ceremony-routing.js`. Level rules: a sensitive path registered in
 `audit-rules.json` → `high`, none → `low`, an unenumerable diff → `null`.
-Ceremony rules: `minimal` → always inline, `strict` → always fresh,
-`standard` → `high`/`null` → fresh and `low` → inline. An `inline` dispatch
-mode overrides all of it to inline critics. Close's `review-depth.js` reads
-the same derived level, so the two cannot disagree. `--base <ref>` overrides
-`project.baseBranch`.
+The level drives **review depth** only; close's `review-depth.js` reads the
+same derived level, so the two cannot disagree. Ceremony rules are the
+profile alone (Story #5343): `minimal` / `standard` → `inline`, `strict` →
+`fresh`. An `inline` dispatch mode changes nothing it has not already
+decided. `--base <ref>` overrides `project.baseBranch`.
 
 ## 4. Acceptance self-eval (Step 1a, required)
 
-**One verdict-owner per cluster** — the fresh critic *or* the inline
-self-eval, named by `verdictOwner`, never both and never a warm-up pass. Each
-scores its cluster's `acceptance[]` items against the change set above, with
-`verify[]` output as evidence. Bounded by `delivery.acceptanceEval.maxRounds`
+**One verdict owner per Story** — named by `verdictOwner`: the inline
+self-eval under `minimal` / `standard` (the default), a fresh maker-blind
+critic under `strict`. Never both, and never a warm-up pass. The owner
+authors **one** verdict file covering every `acceptance[]` item, scored
+against the change set above with `verify[]` output as evidence, and it is
+scored in **one** gate call. Bounded by `delivery.acceptanceEval.maxRounds`
 (default 2; `0` scores once with no redraft).
-
-**Inline owner:** author **one** verdict file covering every `acceptance[]`
-item and score it in **one** gate call — there is no cluster merge.
-**Fresh critics:** one round = N cluster critics → ONE merged verdict → ONE
-gate call. Merge every cluster's records into a single `criteria[]` in
-`acceptance[]` order and score that once; a gate call per cluster spends a
-round *per cluster* and races the round ledger.
 
 `node <main-repo>/.agents/scripts/acceptance-eval.js --story <storyId>
 --verdict <verdict-path>`
 
 The gate reads the Story's `acceptance[]` count itself and rejects a verdict
 whose `criteria[]` length differs **before** scoring, consuming no round;
-`--expected-criteria` is accepted but redundant.
+`--expected-criteria` is accepted but redundant. A second gate call in the
+same round spends a round for nothing and races the Story-scoped ledger.
 
 `proceed` → close. `redraft` → one more round inside the cap. `block` → **do
 not close**: post a `friction` comment and flip `agent::blocked`.

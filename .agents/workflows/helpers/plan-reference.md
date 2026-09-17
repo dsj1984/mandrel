@@ -265,8 +265,8 @@ substring-match advisories that depended on it are retired, leaving
 `shared-editor` as the one conflict kind. Both passes complete before the first
 `createIssue`, so a refusal still costs no writes.
 
-`shared-editor` findings are rendered into the posted `plan-summary` comment,
-directly beneath the wave table: the table promises which Stories can run
+`shared-editor` findings are rendered into the plan-summary section of every
+Story's posted `story-plan-state` comment, directly beneath the wave table: the table promises which Stories can run
 together, and a path two same-wave Stories both write is exactly where that
 promise breaks. Promise and caveat belong on one durable surface — previously
 the caveat was a stderr warning nobody kept.
@@ -514,8 +514,9 @@ state.
 ## Ready means fully persisted
 
 `agent::ready` is the **terminal** step, not part of the creating POST.
-The order is: create unlabelled → upsert `story-plan-state` on
-every Story → upsert `plan-summary` on the primary → flip every Story to
+The order is: create unlabelled → upsert `story-plan-state` on every Story —
+since Story #5343 one comment carrying the checkpoint **and** the plan summary
+(story set, delivery order, deliver command) — → flip every Story to
 `agent::ready`.
 
 This is what lets `/mandrel-deliver` trust the label: a Story carrying

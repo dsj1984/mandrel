@@ -24,6 +24,19 @@
  * (`file-ci-gap.js`, carrying the run link and failure signature the digest
  * already holds) is required before it can proceed.
  *
+ * **One rerun after a recorded verdict (Story #5343).** The single exception,
+ * and it is evidence-gated rather than discretionary: once `file-ci-gap.js`
+ * has filed a `capacity` or `unreproducible-tier` verdict **for the current
+ * head SHA**, it stamps a `rerunAllowance` on the digest, and exactly one
+ * same-SHA green is then admitted — the digest is retired and the delivery
+ * proceeds. This closes the one shape where the rule stranded a correct
+ * delivery: a runner that ran out of something has no fix at source to make,
+ * so the branch could never move its head SHA and the block needed a human to
+ * clear. Every other same-SHA green is still a violation, the allowance is
+ * spent the moment it is honoured (it dies with the digest), and a second red
+ * after the rerun is real: it writes a fresh digest with no allowance, so it
+ * routes to Option 1 like any other red.
+ *
  * **Fail closed on an unverifiable green.** A digest whose head SHA is
  * missing, or a current head SHA that `gh` could not resolve, leaves no
  * evidence that the red was fixed at source. An unresolved red plus no
@@ -52,6 +65,20 @@ import {
 
 /** How many superseded unresolved reds a digest carries before the oldest is dropped. */
 const MAX_PRIOR_REDS = 10;
+
+/**
+ * The verdicts that earn the one same-SHA rerun (Story #5343). Both mean the
+ * failure is a property of the *environment*, proven — so no commit on the
+ * branch can move the head SHA to clear it. `pre-existing` is deliberately
+ * excluded: it reproduces on `main`, which is a real defect someone owns and
+ * a rerun cannot make go away.
+ *
+ * @type {readonly ['capacity', 'unreproducible-tier']}
+ */
+export const RERUN_ALLOWANCE_VERDICTS = Object.freeze([
+  'capacity',
+  'unreproducible-tier',
+]);
 
 /**
  * Resolve which ticket the digest is keyed to. Story #4539: the digest used
@@ -332,7 +359,9 @@ function renderDigestMarkdown(digest, failures) {
     '',
     'A green on THIS head SHA is a re-run of a failed job and is forbidden',
     '(`.agents/rules/ci-remediation.md` § Verifier). Fix at source and push a',
-    'new commit — the head SHA moving is what clears this digest.',
+    'new commit — the head SHA moving is what clears this digest. The one',
+    'exception: `file-ci-gap.js --verdict capacity|unreproducible-tier` records',
+    'an allowance for this head SHA, and exactly one rerun is then admitted.',
     '',
     '## `gh run view --log-failed` tail',
     '',
@@ -409,15 +438,88 @@ export function writeCiDigest({
 }
 
 /**
+ * Stamp the one-rerun allowance on the scope's digest (Story #5343).
+ *
+ * Called by `file-ci-gap.js` after it has filed the intake issue, so the
+ * allowance exists only where the evidence the filing carries does. It is
+ * keyed on the digest's own head SHA — the head the red was recorded
+ * against — so an allowance can never be honoured on a later head it was not
+ * earned for.
+ *
+ * Best-effort and non-throwing: a digest that cannot be re-read or re-written
+ * simply records no allowance, and the guard keeps blocking. Returns the
+ * recorded allowance, or `null` when none was written (no digest, an
+ * ineligible verdict, or an unresolved head SHA).
+ *
+ * @param {{
+ *   storyId?: number|string|null,
+ *   verdict: string,
+ *   tempRoot: string,
+ *   cwd: string,
+ *   now?: () => Date,
+ * }} opts
+ * @returns {{ verdict: string, headSha: string, recordedAt: string } | null}
+ */
+export function recordRerunAllowance({
+  storyId = null,
+  verdict,
+  tempRoot,
+  cwd,
+  now = () => new Date(),
+}) {
+  if (!RERUN_ALLOWANCE_VERDICTS.includes(verdict)) return null;
+  const paths = ciDigestPaths({ storyId, tempRoot, cwd });
+  const digest = readCiDigest({ storyId, tempRoot, cwd });
+  if (!paths || !digest?.headSha) return null;
+  const allowance = {
+    verdict,
+    headSha: digest.headSha,
+    recordedAt: now().toISOString(),
+  };
+  try {
+    writeFileSync(
+      paths.jsonPath,
+      `${JSON.stringify({ ...digest, rerunAllowance: allowance }, null, 2)}\n`,
+    );
+  } catch {
+    return null;
+  }
+  return allowance;
+}
+
+/**
+ * The allowance a digest carries for `headSha`, or `null`. An allowance
+ * recorded against a different head is not one: the red it was filed for is
+ * not the red being adjudicated.
+ *
+ * @param {object|null} digest
+ * @param {string|null} headSha
+ * @returns {{ verdict: string, headSha: string } | null}
+ */
+function allowanceFor(digest, headSha) {
+  const allowance = digest?.rerunAllowance;
+  return allowance &&
+    typeof allowance === 'object' &&
+    headSha &&
+    allowance.headSha === headSha &&
+    RERUN_ALLOWANCE_VERDICTS.includes(allowance.verdict)
+    ? allowance
+    : null;
+}
+
+/**
  * Adjudicate an all-green watch against any digest recorded for the scope.
  *
  * @param {{ digest: object|null, headSha: string|null }} opts
- * @returns {{ verdict: 'clean'|'fix-at-source'|'rerun'|'unverifiable', reason: string }}
- *   - `clean`         — no digest: this delivery never went red.
- *   - `fix-at-source` — the head SHA moved since the red; legal.
- *   - `rerun`         — green on the SAME head SHA; forbidden.
- *   - `unverifiable`  — an unresolved red with no head-SHA evidence either
- *                       side; fail closed and treat it as a rerun.
+ * @returns {{ verdict: 'clean'|'fix-at-source'|'rerun-permitted'|'rerun'|'unverifiable', reason: string }}
+ *   - `clean`           — no digest: this delivery never went red.
+ *   - `fix-at-source`   — the head SHA moved since the red; legal.
+ *   - `rerun-permitted` — same head SHA, but `file-ci-gap.js` recorded a
+ *                         `capacity` / `unreproducible-tier` verdict for it;
+ *                         the one sanctioned rerun (Story #5343).
+ *   - `rerun`           — green on the SAME head SHA; forbidden.
+ *   - `unverifiable`    — an unresolved red with no head-SHA evidence either
+ *                         side; fail closed and treat it as a rerun.
  */
 export function classifyGreenVerdict({ digest, headSha }) {
   if (!digest) return { verdict: 'clean', reason: 'no digest for this scope' };
@@ -429,10 +531,16 @@ export function classifyGreenVerdict({ digest, headSha }) {
     };
   }
   if (recorded === headSha) {
-    return {
-      verdict: 'rerun',
-      reason: `green on the SAME head SHA the red was recorded against (${headSha})`,
-    };
+    const allowance = allowanceFor(digest, headSha);
+    return allowance
+      ? {
+          verdict: 'rerun-permitted',
+          reason: `one rerun admitted: \`${allowance.verdict}\` verdict recorded for this head SHA (${headSha})`,
+        }
+      : {
+          verdict: 'rerun',
+          reason: `green on the SAME head SHA the red was recorded against (${headSha})`,
+        };
   }
   return {
     verdict: 'fix-at-source',
@@ -487,7 +595,10 @@ export function formatRerunViolation({ digest, headSha, prNumber, reason }) {
     '   <consumer|framework|platform> --evidence "<proof reading>"` — then',
     '   resume. It carries the run link and signature above, routes the filing',
     '   to whoever owns the fault, and updates the existing ticket when this',
-    '   signature has been seen before.',
+    '   signature has been seen before. A `capacity` or `unreproducible-tier`',
+    '   verdict also records the one-rerun allowance for this head SHA, so a',
+    '   single rerun of the failed job is then admitted; `pre-existing` does',
+    '   not, because it names a real defect a rerun cannot remove.',
   ].join('\n');
 }
 

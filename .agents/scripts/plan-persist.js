@@ -11,7 +11,8 @@
  *   split-policy partition → fold Spec into each Story body →
  *   createIssue(s) with type::story, resumably by plan fingerprint (NOT
  *   agent::ready) → story-plan-state on every Story;
- *   plan-summary on the primary → flip every Story to agent::ready →
+ *   story-plan-state (checkpoint + plan summary) on every Story → flip every
+ *   Story to agent::ready →
  *   comment + close superseded source tickets → temp cleanup + stale reap.
  *
  * Story #4542 retired the authored risk verdict: persist neither requires nor
@@ -85,7 +86,6 @@ import {
 import {
   buildPlanSummaryCommentBody,
   buildWaveTable,
-  PLAN_SUMMARY_COMMENT_TYPE,
 } from './lib/orchestration/plan-persist/summary.js';
 import { resolveSourceTicketIds } from './lib/orchestration/plan-persist/supersede-ops.js';
 import { createProvider } from './lib/provider-factory.js';
@@ -93,7 +93,6 @@ import { createProvider } from './lib/provider-factory.js';
 export {
   buildPlanSummaryCommentBody,
   buildWaveTable,
-  PLAN_SUMMARY_COMMENT_TYPE,
   runPlanPersist,
   writeCheckpointV2,
 };

@@ -70,7 +70,6 @@ import { handleRemoteVerificationFailure } from './lib/orchestration/story-init-
 import {
   STATE_LABELS,
   transitionTicketState,
-  upsertStructuredComment,
 } from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
 import { buildProtectionCtx } from './lib/single-story-sweep/protection-ctx.js';
@@ -770,28 +769,13 @@ export async function runSingleStoryInit({
     remoteProbe: { remoteUrl: remote.remoteUrl, detail: remote.detail },
   };
 
-  // Upsert the `story-init` structured comment (no-op under --dry-run). The
-  // `agent::executing` flip already happened above, before provisioning, so the
-  // claim is label-visible during the install window (see `flipStoryToExecuting`).
-  if (!dryRun) {
-    try {
-      await upsertStructuredComment(
-        provider,
-        storyId,
-        'story-init',
-        renderSingleStoryInitComment(result),
-      );
-      progress(
-        'COMMENT',
-        `📝 Upserted story-init structured comment on #${storyId}.`,
-      );
-    } catch (err) {
-      Logger.error(
-        `[single-story-init] ⚠️ Failed to upsert story-init structured comment: ${err?.message ?? err}`,
-      );
-    }
-  }
-
+  // Story #5343 — init posts no `story-init` comment. It was one GitHub write
+  // per Story restating what its own envelope already carries; the envelope is
+  // on stdout and on disk (below), `deliver-recover.js` classifies state from
+  // labels, the PR probe and disk artifacts, and `run-scoped-config.js` reads
+  // the base-branch pin off that same envelope. The `agent::executing` flip
+  // above is what makes the claim visible during the install window.
+  //
   // Story #4685 — route the full result to a temp log and emit a single-line
   // summary carrying the fields the orchestrating agent acts on (workCwd,
   // remoteVerified). The `## Spec` names this the hot-path stdout to quiet.
@@ -818,40 +802,6 @@ export async function runSingleStoryInit({
   );
 
   return { success: true, result };
-}
-
-export function renderSingleStoryInitComment(result) {
-  const payload = {
-    storyId: result.storyId,
-    epicId: null,
-    standalone: true,
-    storyBranch: result.storyBranch,
-    baseBranch: result.baseBranch,
-    runScopedConfig: result.runScopedConfig,
-    worktreeEnabled: result.worktreeEnabled,
-    workCwd: result.workCwd,
-    worktreeCreated: result.worktreeCreated,
-    dependenciesInstalled: result.dependenciesInstalled,
-    installStatus: result.installStatus,
-    remoteVerified: result.remoteVerified,
-    remoteProbe: result.remoteProbe,
-  };
-  return [
-    '## Story init (standalone)',
-    '',
-    `- **standalone:** \`true\``,
-    `- **storyBranch:** \`${result.storyBranch}\``,
-    `- **baseBranch:** \`${result.baseBranch}\``,
-    `- **workCwd:** \`${result.workCwd}\``,
-    `- **worktreeEnabled:** \`${result.worktreeEnabled}\``,
-    `- **remoteVerified:** \`${result.remoteVerified}\``,
-    `- **dependenciesInstalled:** \`${result.dependenciesInstalled}\``,
-    '',
-    '```json',
-    JSON.stringify(payload, null, 2),
-    '```',
-    '',
-  ].join('\n');
 }
 
 runAsCli(import.meta.url, runSingleStoryInit, {

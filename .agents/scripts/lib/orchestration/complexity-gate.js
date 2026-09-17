@@ -33,7 +33,7 @@
  * `audit-rules.json` sensitive-path classes): **predicted shape at dispatch,
  * actual diff at close** — one taxonomy, two read points. Sensitivity always
  * wins: a small change whose footprint intersects a sensitive-path class
- * routes `full`, which keeps its fresh acceptance critic.
+ * routes `full`, which keeps its deep code review (`review-depth.js`).
  *
  * {@link LITE_PATH_INVARIANTS} is the machine-readable contract that the
  * light path still produces a Story ticket, still lands via a PR to `main`,
@@ -292,7 +292,7 @@ const EFFORT_RULES = Object.freeze([
     code: SHAPE_CODES.SENSITIVE_PATH,
     when: (s) => s.sensitiveClasses.length > 0,
     reason: (s) =>
-      `footprint intersects sensitive-path class(es) ${s.sensitiveClasses.join(', ')} — sensitivity wins over a small shape; full route (fresh acceptance critic retained)`,
+      `footprint intersects sensitive-path class(es) ${s.sensitiveClasses.join(', ')} — sensitivity wins over a small shape; full route (deep review retained)`,
   },
 ]);
 
@@ -511,8 +511,9 @@ function buildEffortShape({
  *   - a footprint intersecting **no** sensitive-path class
  *     (`deriveChangeLevel`, the taxonomy close applies to the landed diff).
  *     Sensitivity always wins (AC-6): a sensitive footprint routes `full`
- *     however small or mechanical, which keeps the fresh acceptance critic via
- *     `ceremony-routing.js`.
+ *     however small or mechanical, which keeps the deep code review via
+ *     `review-depth.js#resolveDepth`. Since Story #5343 it does NOT also buy a
+ *     fresh acceptance critic — that owner follows the ceremony profile.
  *
  * Everything else — an unknown/undeclared footprint, a malformed magnitude or
  * uncertainty claim, or an unreadable sensitive-path manifest — fails toward

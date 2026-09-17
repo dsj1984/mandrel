@@ -1,7 +1,8 @@
 /**
  * tests/scripts/plan-persist.summary.test.js
  *
- * Unit coverage for the `plan-summary` comment body.
+ * Unit coverage for the plan-summary section of the `story-plan-state`
+ * comment (Story #5343 folded the two markers into one).
  *
  * Story #4542 retired the risk/routing receipts this file used to pin (the
  * `- Risk: <level> · <gateDecision> (review routing: …)` line and the
@@ -15,6 +16,7 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { writeCheckpointV2 } from '../../.agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js';
 import { buildPlanSummaryCommentBody } from '../../.agents/scripts/lib/orchestration/plan-persist/summary.js';
 import { predictWaveSerialisation } from '../../.agents/scripts/lib/orchestration/plan-persist/wave-serialisation.js';
 
@@ -29,7 +31,7 @@ const BASE = {
   ],
 };
 
-describe('plan-summary — review receipt (Story #4542)', () => {
+describe('plan summary — review receipt (Story #4542)', () => {
   it('reports an operator-forced review stop', () => {
     const body = buildPlanSummaryCommentBody({ ...BASE, forceReview: true });
     const line = body.split('\n').find((l) => l.startsWith('- ⚠️ Review:'));
@@ -271,5 +273,60 @@ describe('plan-summary — predicted serialisation (Story #5265, narrowed by #53
       withVerify('alpha', '.agents/scripts/check-baselines.js'),
     ]);
     assert.deepEqual(collisions, []);
+  });
+});
+
+describe('one comment per Story — the checkpoint carries the summary (#5343)', () => {
+  /** A provider that records every structured-comment write. */
+  function recordingProvider() {
+    const comments = [];
+    return {
+      comments,
+      getTicketComments: async () => [],
+      postComment: async (ticketId, payload) => {
+        comments.push({ ticketId, body: payload.body });
+        return { commentId: comments.length };
+      },
+      deleteComment: async () => {},
+    };
+  }
+
+  const STATE = { persist: { storyCount: 2, primaryStoryId: 4242 } };
+
+  it('appends the summary below the machine checkpoint', async () => {
+    const provider = recordingProvider();
+    const summary = buildPlanSummaryCommentBody({
+      ...BASE,
+      stories: [
+        { id: 4242, slug: 'a' },
+        { id: 4243, slug: 'b' },
+      ],
+    });
+    await writeCheckpointV2(provider, 4243, STATE, summary);
+
+    assert.equal(provider.comments.length, 1);
+    const { body } = provider.comments[0];
+    // The JSON fence stays first and stays parseable — deliver-recover and
+    // the checkpoint readers key on it, not on the prose beside it.
+    const fence = body.match(/```json\n([\s\S]*?)\n```/);
+    assert.ok(fence, `expected a json fence:\n${body}`);
+    assert.deepEqual(JSON.parse(fence[1]).persist, STATE.persist);
+    // …and the operator's instructions ride along on the same marker.
+    assert.match(body, /Plan Summary/);
+    assert.match(body, /Delivery order/);
+    assert.match(body, /\/mandrel-deliver 4242 4243/);
+    assert.ok(body.indexOf('```') < body.indexOf('Plan Summary'));
+  });
+
+  it('writes the checkpoint alone when no summary is supplied', async () => {
+    for (const summary of [undefined, null, '', '   ']) {
+      const provider = recordingProvider();
+      await writeCheckpointV2(provider, 4243, STATE, summary);
+      assert.equal(provider.comments.length, 1);
+      const { body } = provider.comments[0];
+      assert.match(body, /story-plan-state/);
+      assert.doesNotMatch(body, /Plan Summary/);
+      assert.ok(body.trimEnd().endsWith('```'));
+    }
   });
 });

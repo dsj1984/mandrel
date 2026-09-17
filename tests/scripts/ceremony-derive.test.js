@@ -81,14 +81,18 @@ describe('deriveCeremony — one change set, one decision', () => {
     assert.equal(out.headRef, 'story-1');
   });
 
-  test('hands the level STRING to the ceremony resolver, never the object', () => {
+  test('hands the resolver the PROFILE, and no diff-derived signal', () => {
+    // Story #5343 — the level is still derived and still printed (review
+    // depth reads it), but it no longer reaches the ceremony resolver, so the
+    // object-for-string transcription slip this CLI retired cannot recur in a
+    // new disguise.
     const seen = [];
     deriveCeremony(
       {
         storyId: 1,
         baseRef: 'main',
         cwd: '/repo',
-        ceremonyProfile: 'standard',
+        ceremonyProfile: 'strict',
       },
       {
         computeChangeSetImpl: changeSetOf(['lib/a.js']),
@@ -98,17 +102,18 @@ describe('deriveCeremony — one change set, one decision', () => {
           return {
             mode: 'fresh',
             reason: 'r',
-            profile: 'standard',
+            profile: 'strict',
             verdictOwner: 'fresh-critic',
           };
         },
       },
     );
-    assert.equal(seen[0].derivedLevel, 'high');
-    assert.equal(seen[0].ceremonyProfile, 'standard');
+    assert.equal(seen.length, 1);
+    assert.equal(seen[0].ceremonyProfile, 'strict');
+    assert.deepEqual(Object.keys(seen[0]), ['ceremonyProfile']);
   });
 
-  test('an unenumerable diff routes to the fail-safe fresh critic', () => {
+  test('an unenumerable diff reports null without escalating the owner', () => {
     const out = deriveCeremony(
       {
         storyId: 1,
@@ -121,26 +126,37 @@ describe('deriveCeremony — one change set, one decision', () => {
     assert.equal(out.files, null);
     assert.equal(out.enumerated, false);
     assert.equal(out.level, null);
-    assert.equal(out.mode, 'fresh');
-    assert.match(out.reason, /underivable/);
+    // The fail-safe that used to live here moved to review depth, which is
+    // where an unenumerable diff actually withholds evidence.
+    assert.equal(out.mode, 'inline');
+    assert.equal(out.verdictOwner, 'inline-self-eval');
   });
 
-  test('a sensitive path derives high and a fresh critic through the real level derivation', () => {
-    const out = deriveCeremony(
+  test('a sensitive path still derives high through the real level derivation', () => {
+    const sensitive = {
+      computeChangeSetImpl: changeSetOf(['lib/migrations/steps/x.js']),
+    };
+    const standard = deriveCeremony(
       {
         storyId: 1,
         baseRef: 'main',
         cwd: '/repo',
         ceremonyProfile: 'standard',
       },
-      {
-        computeChangeSetImpl: changeSetOf(['lib/migrations/steps/x.js']),
-      },
+      sensitive,
     );
-    assert.equal(out.level, 'high');
-    assert.ok(out.classes.length > 0);
-    assert.equal(out.mode, 'fresh');
-    assert.equal(out.verdictOwner, 'fresh-critic');
+    assert.equal(standard.level, 'high');
+    assert.ok(standard.classes.length > 0);
+    // AC-6 lives in review depth now; the acceptance owner follows the profile.
+    assert.equal(standard.verdictOwner, 'inline-self-eval');
+
+    const strict = deriveCeremony(
+      { storyId: 1, baseRef: 'main', cwd: '/repo', ceremonyProfile: 'strict' },
+      sensitive,
+    );
+    assert.equal(strict.level, 'high');
+    assert.equal(strict.mode, 'fresh');
+    assert.equal(strict.verdictOwner, 'fresh-critic');
   });
 });
 

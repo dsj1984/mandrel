@@ -10,8 +10,8 @@
  *   3. Same-wave collision refusal (`assertNoWaveCollisions`) + spec fold
  *   4. Create Story issues (`type::story` + sanitized authored labels —
  *      deliberately NOT `agent::ready`), resumably via a plan fingerprint
- *   5. Upsert `story-plan-state` on every created Story; upsert `plan-summary`
- *      on the primary Story
+ *   5. Upsert `story-plan-state` on every created Story — since Story #5343
+ *      that one comment carries the plan summary too
  *   6. Flip every Story to `agent::ready` — the terminal step, so `ready`
  *      always implies "checkpoints written"
  *   7. Comment on + close the superseded `--tickets` source issues
@@ -75,11 +75,7 @@ import {
   createStoryIssues,
   markStoriesReady,
 } from './story-ops.js';
-import {
-  buildPlanSummaryCommentBody,
-  buildWaveTable,
-  PLAN_SUMMARY_COMMENT_TYPE,
-} from './summary.js';
+import { buildPlanSummaryCommentBody, buildWaveTable } from './summary.js';
 import { closeSupersededTickets } from './supersede-ops.js';
 import { assertNoWaveCollisions } from './wave-collision-gate.js';
 
@@ -90,13 +86,25 @@ const PLAN_CHECKPOINT_SCHEMA_VERSION_V2 = 2;
 const STORY_PLAN_STATE_TYPE = 'story-plan-state';
 
 /**
- * Write the `story-plan-state` checkpoint on a Story.
+ * Write the `story-plan-state` checkpoint on a Story — the **one** comment
+ * persist posts per Story (Story #5343).
+ *
+ * It carries the machine checkpoint `/mandrel-deliver` reads *and*, appended
+ * below it, the human plan summary: the created Story set, the delivery order
+ * and the exact deliver command. That summary used to be a second
+ * `plan-summary` comment on the primary Story only, which meant the operator's
+ * instructions lived on a different marker from the state — and on a different
+ * ticket from four Stories out of five.
  *
  * @param {object} provider
  * @param {number} storyId
  * @param {object} state
+ * @param {string} [summary] Rendered plan-summary markdown to append. Omitted
+ *   (or empty) writes the checkpoint alone, which is what a caller with no
+ *   summary to report wants.
+ * @returns {Promise<object>} the `state` written, for the caller's receipts.
  */
-export async function writeCheckpointV2(provider, storyId, state) {
+export async function writeCheckpointV2(provider, storyId, state, summary) {
   if (!Number.isInteger(storyId)) {
     throw new TypeError('writeCheckpointV2 requires a numeric storyId');
   }
@@ -105,15 +113,12 @@ export async function writeCheckpointV2(provider, storyId, state) {
     '',
     '```json',
     JSON.stringify(
-      {
-        version: PLAN_CHECKPOINT_SCHEMA_VERSION_V2,
-        storyId,
-        ...state,
-      },
+      { version: PLAN_CHECKPOINT_SCHEMA_VERSION_V2, storyId, ...state },
       null,
       2,
     ),
     '```',
+    ...(summary?.trim() ? ['', summary.trim()] : []),
   ].join('\n');
   await upsertStructuredComment(provider, storyId, STORY_PLAN_STATE_TYPE, body);
   return state;
@@ -130,7 +135,7 @@ export async function writeCheckpointV2(provider, storyId, state) {
  * the helper applied are reported alongside so the operator sees what was
  * rewritten.
  *
- * The returned freshness counts feed the posted `plan-summary`'s freshness
+ * The returned freshness counts feed the posted summary's freshness
  * line: every warning is a reference the base branch disagreed with, so it
  * counts as `stale` there rather than the comment reading "clean" on a run
  * that had something to say.
@@ -248,7 +253,7 @@ async function runSupersedePhase(args) {
 }
 
 /**
- * Render the plan-metrics line for the **posted** `plan-summary` comment,
+ * Render the plan-metrics line for the **posted** summary section,
  * scoped to this invocation.
  *
  * The ordering hazard this closes: the ledger record for the current run is
@@ -313,7 +318,7 @@ async function renderRunScopedPlanMetricsLine({
  * writes — and the passes that scan `body.acceptance` / `body.verify` were
  * inert on the canonical top-level authoring shape as a result. Findings the
  * raw pass already reported are dropped so the same collision is not
- * announced twice per run; the rest are returned for the plan-summary
+ * announced twice per run; the rest are returned for the summary
  * comment, which is where these findings stop being a stderr line nobody
  * keeps. Every finding is advisory (Story #5312).
  *
@@ -419,8 +424,9 @@ async function enforceReachability(reachability, config) {
 }
 
 /**
- * Write the per-Story checkpoint, upsert the plan-summary comment, and flip
- * every created Story to `agent::ready`. Terminal ordering is load-bearing:
+ * Write the per-Story checkpoint — which since Story #5343 carries the plan
+ * summary too, so persist posts exactly one comment per Story — and flip every
+ * created Story to `agent::ready`. Terminal ordering is load-bearing:
  * `agent::ready` lands last so it can honestly mean "fully persisted"
  * (Story #4541). A dry run performs none of it.
  *
@@ -449,25 +455,24 @@ async function persistStoryArtifacts({
   await concurrentMap(
     created,
     (story) =>
-      writeCheckpointV2(provider, story.id, {
-        persist: {
-          completedAt: new Date().toISOString(),
-          storyCount: created.length,
-          primaryStoryId: primary.id,
-          stories: cohort,
+      writeCheckpointV2(
+        provider,
+        story.id,
+        {
+          persist: {
+            completedAt: new Date().toISOString(),
+            storyCount: created.length,
+            primaryStoryId: primary.id,
+            stories: cohort,
+          },
         },
-      }),
+        summaryBody,
+      ),
     // The per-Story checkpoint upserts (Story #4952): each targets a
     // different issue and reads nothing another writes, so this loop was
     // serial only by construction — but see {@link persistStoryArtifacts}
     // for the phase ordering that is *not* incidental.
     { concurrency: FANOUT_CONCURRENCY },
-  );
-  await upsertStructuredComment(
-    provider,
-    primary.id,
-    PLAN_SUMMARY_COMMENT_TYPE,
-    summaryBody,
   );
   await markStoriesReady({ provider, created });
 }

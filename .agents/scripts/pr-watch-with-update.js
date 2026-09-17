@@ -458,12 +458,19 @@ async function evaluateGreenWatch({
   }
   const headSha = headShaFn({ prRef, cwd });
   const { verdict, reason } = classifyGreenVerdict({ digest, headSha });
-  if (verdict === 'fix-at-source') {
+  if (verdict === 'fix-at-source' || verdict === 'rerun-permitted') {
+    // Story #5343 — `rerun-permitted` is the one same-SHA green the rule
+    // admits: `file-ci-gap.js` recorded a proven `capacity` /
+    // `unreproducible-tier` verdict for THIS head, so there is no fix at
+    // source to make. Retiring the digest spends the allowance with it, which
+    // is what makes it exactly one: a second red writes a fresh digest that
+    // carries none.
     retireDigestFn({ storyId, tempRoot, cwd });
     const reArm = await reArmFn({ cwd, prNumber });
     const reArmed = Boolean(reArm?.enabled);
     logger.info?.(
-      `[pr-watch] green on a NEW head SHA (${reason}) — fix at source; digest retired, ` +
+      `[pr-watch] ${verdict === 'rerun-permitted' ? 'green admitted on the SAME head SHA' : 'green on a NEW head SHA'} ` +
+        `(${reason}) — digest retired, ` +
         `auto-merge ${reArmed ? 're-armed' : `NOT re-armed (${reArm?.reason ?? 'unknown'})`}.`,
     );
     return { verdict, reason, exitCode: 0, headSha, reArmed };

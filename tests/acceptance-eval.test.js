@@ -248,17 +248,16 @@ describe('runAcceptanceEvalCli', () => {
 });
 
 /**
- * Story #4951 — one round = N parallel cluster critics → ONE merged verdict →
- * ONE gate call.
+ * Story #4951, narrowed by #5343 — one round = ONE verdict → ONE gate call.
  *
- * The round counter is Story-scoped, so a gate call per cluster spends a whole
- * round per cluster. `--expected-criteria` is the guard: a verdict that does
- * not cover every `acceptance[]` item is refused before the scoring path is
- * ever entered, which the `seen` spy makes observable — an empty `seen` means
- * the round ledger was never read or appended.
+ * The round counter is Story-scoped, so a second call inside one round spends
+ * a whole round for nothing. The coverage assertion is the guard: a verdict
+ * that does not cover every `acceptance[]` item is refused before the scoring
+ * path is ever entered, which the `seen` spy makes observable — an empty
+ * `seen` means the round ledger was never read or appended.
  */
-describe('--expected-criteria — the merge contract (Story #4951)', () => {
-  const clusterVerdict = (count) =>
+describe('--expected-criteria — the coverage contract (Story #4951)', () => {
+  const partialVerdict = (count) =>
     verdictFixture({
       criteria: Array.from({ length: count }, (_, index) => ({
         index,
@@ -301,15 +300,15 @@ describe('--expected-criteria — the merge contract (Story #4951)', () => {
   });
 
   it('passes a verdict covering exactly the expected criteria', () => {
-    assert.doesNotThrow(() => assertCriteriaCoverage(clusterVerdict(4), 4));
+    assert.doesNotThrow(() => assertCriteriaCoverage(partialVerdict(4), 4));
   });
 
   it('is a no-op when no expectation was given', () => {
-    assert.doesNotThrow(() => assertCriteriaCoverage(clusterVerdict(1), null));
+    assert.doesNotThrow(() => assertCriteriaCoverage(partialVerdict(1), null));
   });
 
   it('scores a merged full-coverage verdict as one round', async () => {
-    const h = harness({ verdict: clusterVerdict(4) });
+    const h = harness({ verdict: partialVerdict(4) });
     const envelope = await runAcceptanceEvalCli(
       [
         '--story',
@@ -325,8 +324,8 @@ describe('--expected-criteria — the merge contract (Story #4951)', () => {
     assert.equal(h.seen.length, 1, 'the gate scores the merged verdict once');
   });
 
-  it('rejects an unmerged cluster verdict before scoring, consuming no round', async () => {
-    const h = harness({ verdict: clusterVerdict(2) });
+  it('rejects a partial verdict before scoring, consuming no round', async () => {
+    const h = harness({ verdict: partialVerdict(2) });
     await assert.rejects(
       () =>
         runAcceptanceEvalCli(
@@ -334,7 +333,7 @@ describe('--expected-criteria — the merge contract (Story #4951)', () => {
             '--story',
             '4780',
             '--verdict',
-            'cluster-1.json',
+            'verdict-1.json',
             '--expected-criteria',
             '4',
           ],
@@ -345,7 +344,7 @@ describe('--expected-criteria — the merge contract (Story #4951)', () => {
           err.message,
           /verdict covers 2 criteria but the Story's acceptance\[\] count is 4/,
         );
-        assert.match(err.message, /ONE merged verdict -> ONE gate call/);
+        assert.match(err.message, /ONE verdict -> ONE gate call/);
         assert.match(err.message, /No round was consumed/);
         return true;
       },
@@ -360,10 +359,10 @@ describe('--expected-criteria — the merge contract (Story #4951)', () => {
 
   it('skips the assertion (and says so) when neither the body nor the flag is readable', async () => {
     const warnings = [];
-    const h = harness({ verdict: clusterVerdict(2) });
+    const h = harness({ verdict: partialVerdict(2) });
     h.deps.logger = { info: () => {}, warn: (m) => warnings.push(m) };
     const envelope = await runAcceptanceEvalCli(
-      ['--story', '4780', '--verdict', 'cluster-1.json'],
+      ['--story', '4780', '--verdict', 'verdict-1.json'],
       h.deps,
     );
     assert.equal(envelope.decision, 'proceed');
@@ -383,7 +382,7 @@ describe('--expected-criteria — the merge contract (Story #4951)', () => {
  * scored in one call.
  */
 describe('the derived acceptance[] count (Story #5313)', () => {
-  const clusterVerdict = (count) =>
+  const partialVerdict = (count) =>
     verdictFixture({
       criteria: Array.from({ length: count }, (_, index) => ({
         index,
@@ -451,7 +450,7 @@ describe('the derived acceptance[] count (Story #5313)', () => {
   });
 
   it('AC-4: rejects a shorter verdict before scoring with NO flag passed', async () => {
-    const h = harness({ verdict: clusterVerdict(2) });
+    const h = harness({ verdict: partialVerdict(2) });
     h.deps.readAcceptanceCountImpl = async ({ storyId }) => {
       assert.equal(storyId, 4780);
       return 4;
@@ -459,7 +458,7 @@ describe('the derived acceptance[] count (Story #5313)', () => {
     await assert.rejects(
       () =>
         runAcceptanceEvalCli(
-          ['--story', '4780', '--verdict', 'cluster-1.json'],
+          ['--story', '4780', '--verdict', 'verdict-1.json'],
           h.deps,
         ),
       /verdict covers 2 criteria but the Story's acceptance\[\] count is 4/,
@@ -468,7 +467,7 @@ describe('the derived acceptance[] count (Story #5313)', () => {
   });
 
   it('AC-4: an inline-owned verdict covering every item is scored in ONE call', async () => {
-    const h = harness({ verdict: clusterVerdict(4) });
+    const h = harness({ verdict: partialVerdict(4) });
     h.deps.readAcceptanceCountImpl = async () => 4;
     const envelope = await runAcceptanceEvalCli(
       ['--story', '4780', '--verdict', 'inline.json'],
@@ -479,7 +478,7 @@ describe('the derived acceptance[] count (Story #5313)', () => {
   });
 
   it('the redundant flag is accepted when it agrees and refused when it does not', async () => {
-    const agree = harness({ verdict: clusterVerdict(4) });
+    const agree = harness({ verdict: partialVerdict(4) });
     agree.deps.readAcceptanceCountImpl = async () => 4;
     await runAcceptanceEvalCli(
       ['--story', '4780', '--verdict', 'v.json', '--expected-criteria', '4'],
@@ -487,7 +486,7 @@ describe('the derived acceptance[] count (Story #5313)', () => {
     );
     assert.equal(agree.seen.length, 1);
 
-    const disagree = harness({ verdict: clusterVerdict(4) });
+    const disagree = harness({ verdict: partialVerdict(4) });
     disagree.deps.readAcceptanceCountImpl = async () => 4;
     await assert.rejects(
       () =>

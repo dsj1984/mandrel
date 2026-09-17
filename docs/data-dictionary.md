@@ -157,8 +157,7 @@ call site.
 
 | Type                        | Writer                                                                 | Purpose                                                                  |
 | --------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `story-plan-state`          | `lib/orchestration/plan-persist/run-plan-persist.js`                    | Per-Story persist checkpoint, upserted on every Story `/mandrel-plan` creates.   |
-| `plan-summary`              | `lib/orchestration/plan-persist/run-plan-persist.js`                    | Risk/routing receipts + `depends_on` order table; primary Story only.    |
+| `story-plan-state`          | `lib/orchestration/plan-persist/run-plan-persist.js`                    | Per-Story persist checkpoint, upserted on every Story `/mandrel-plan` creates, carrying the plan summary (story set, `depends_on` order table, deliver command) below it. |
 | `superseded-by`             | `lib/orchestration/plan-persist/supersede-ops.js`                       | Names the Story claiming a `/mandrel-plan --tickets` source issue, posted immediately before closing it `not_planned`. The marker is what makes a re-run non-double-commenting. |
 | `story-init`                | `single-story-init.js`                                                  | Initial Story metadata snapshot (incl. `dependenciesInstalled`).         |
 | `verification-results`      | `lib/orchestration/code-review.js` (`runCodeReview`)                    | Unified review + lens findings on the Story; critical findings block close. Read by the feedback-loop graduators and the auto-merge integration gate. |
@@ -166,7 +165,7 @@ call site.
 | `progress`                  | `lib/orchestration/ticketing/bulk.js` (`cascadeCompletion`)             | Cascade-completion note on a parent ticket.                              |
 | `friction`                  | `lib/orchestration/story-init-remote.js`; `single-story-close/phases/` (`base-sync`, `review-block`, `confirm-merge`, `wrong-tree-guard`) | Blocker observation posted on the Story. Distinct from the on-disk `friction` **signal** (`signals-writer.appendSignal` → `signals.ndjson`), which `diagnose-friction.js` writes and never posts. |
 | `follow-ups`                | `lib/orchestration/run-epilogue.js`; `lib/orchestration/story-follow-ups.js` | Actionable follow-ups distilled from friction signals at Story closeout. |
-| `plan-run-audit-roster`     | `lib/orchestration/run-epilogue.js`                                     | Audit lenses selected for the run, grounded in the landed diff.          |
+| `plan-run-audit-roster`     | `lib/orchestration/run-epilogue.js`                                     | Audit lenses selected for the run, grounded in the landed diff; opt-in (`--audit-roster`). |
 | `model-attribution`         | `lib/orchestration/model-attribution.js`                                | Which model executed the work. Shape SSOT: `.agents/schemas/model-attribution.schema.json` — documented, not AJV-compiled; the runtime gate is the hand-rolled `validateModelAttributionPayload` in the same writer. |
 | `cross-repo-deferred`       | `lib/feedback-loop/graduator-core.js`                                   | Findings routed to another repository and therefore not filed here. Discriminated by a `graduator` attr so independent graduators upsert without clobbering each other. |
 

@@ -40,7 +40,6 @@ import {
   planStoryFingerprint,
   sanitizeAuthoredLabels,
 } from '../../.agents/scripts/lib/orchestration/plan-persist/story-ops.js';
-import { PLAN_SUMMARY_COMMENT_TYPE } from '../../.agents/scripts/lib/orchestration/plan-persist/summary.js';
 import { resolveSourceTicketIds } from '../../.agents/scripts/lib/orchestration/plan-persist/supersede-ops.js';
 import { serialize } from '../../.agents/scripts/lib/story-body/story-body.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
@@ -338,7 +337,7 @@ describe('base-branch resolution (Story #4541)', () => {
 });
 
 describe('runPlanPersist — flat Story ops', () => {
-  it('creates one Story by default with agent::ready and plan-summary', async () => {
+  it('creates one Story by default with agent::ready and its plan summary', async () => {
     const provider = fakeProvider();
     const result = await runPlanPersist({
       provider,
@@ -362,12 +361,18 @@ describe('runPlanPersist — flat Story ops', () => {
     assert.ok(issue.labels.includes(result.planRunLabel));
     assert.match(issue.body, /## Spec/);
 
-    const bodies = provider.comments.map((c) => c.body).join('\n');
-    assert.match(bodies, /Plan Summary/);
+    // Story #5343 — ONE comment per Story, carrying the machine checkpoint
+    // and the operator's plan summary together. A second `plan-summary`
+    // marker is a regression, not a belt-and-braces.
+    assert.equal(provider.comments.length, 1);
+    const [comment] = provider.comments;
+    assert.match(comment.body, /story-plan-state/);
+    assert.match(comment.body, /Plan Summary/);
+    assert.match(comment.body, /\/mandrel-deliver/);
+    assert.doesNotMatch(comment.body, /type="plan-summary"/);
     // Story #4542: persist writes no risk artifact at all — neither the
     // per-Story `risk-verdict` comment nor a risk line on the summary.
-    assert.doesNotMatch(bodies, /risk-verdict/);
-    void PLAN_SUMMARY_COMMENT_TYPE;
+    assert.doesNotMatch(comment.body, /risk-verdict/);
   });
 
   it('omits the cohort-filter epilogue line when the label ensure was refused', async () => {

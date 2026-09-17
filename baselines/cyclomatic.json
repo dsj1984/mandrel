@@ -1,6 +1,6 @@
 {
   "$schema": "https://mandrel.dev/baselines/cyclomatic.schema.json",
-  "generatedAt": "2026-09-17T13:09:49.010Z",
+  "generatedAt": "2026-09-17T14:47:46.169Z",
   "ceiling": 12,
   "rollup": {
     "*": {
@@ -198,7 +198,7 @@
     {
       "file": ".agents/scripts/single-story-init.js",
       "methodsAboveCeiling": 1,
-      "maxCyclomatic": 14
+      "maxCyclomatic": 13
     },
     {
       "file": ".agents/scripts/stories-wave-tick.js",
