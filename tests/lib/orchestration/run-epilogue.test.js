@@ -84,10 +84,54 @@ describe('planRunEpilogue — not applicable', () => {
   });
 
   it('synthesizes an adhoc planRunId for positional multi-Story runs', () => {
-    const plan = planRunEpilogue({ stories: ['102', '101'] });
+    const plan = planRunEpilogue({
+      stories: ['102', '101'],
+      auditRoster: true,
+    });
     assert.equal(plan.applicable, true);
     assert.equal(plan.planRunId, 'adhoc-101-102');
     assert.equal(plan.steps.length, RUN_EPILOGUE_STEP_KINDS.length);
+  });
+});
+
+describe('planRunEpilogue — the audit roster is opt-in (Story #5343)', () => {
+  const STORIES = ['s1', 's2', 's3'];
+
+  it('enumerates no audit-roster step by default', () => {
+    const plan = planRunEpilogue({ planRunId: 'run-42', stories: STORIES });
+    assert.equal(plan.applicable, true);
+    assert.deepEqual(
+      plan.steps.map((step) => step.kind),
+      ['follow-up-rollup', 'epic-close'],
+    );
+  });
+
+  it('enumerates it, in first position, only under auditRoster: true', () => {
+    const plan = planRunEpilogue({
+      planRunId: 'run-42',
+      stories: STORIES,
+      auditRoster: true,
+    });
+    assert.deepEqual(
+      plan.steps.map((step) => step.kind),
+      [...RUN_EPILOGUE_STEP_KINDS],
+    );
+  });
+
+  it('a falsy opt-in is off — the reporting steps are unaffected', () => {
+    for (const auditRoster of [false, undefined, null, 0, '']) {
+      const plan = planRunEpilogue({
+        planRunId: 'run-42',
+        stories: STORIES,
+        auditRoster,
+      });
+      assert.equal(
+        plan.steps.some((step) => step.kind === 'audit-roster'),
+        false,
+        `auditRoster=${JSON.stringify(auditRoster)} must not enumerate the roster`,
+      );
+      assert.equal(plan.steps.length, 2);
+    }
   });
 });
 
@@ -96,6 +140,7 @@ describe('planRunEpilogue — applicable (N>1)', () => {
     const plan = planRunEpilogue({
       planRunId: 'run-42',
       stories: ['s1', 's2', 's3'],
+      auditRoster: true,
     });
     assert.equal(plan.applicable, true);
     assert.equal(plan.planRunId, 'run-42');
@@ -469,6 +514,7 @@ describe('audit-roster — lens selection is grounded in the landed diff', () =>
     const result = await runPlanRunEpilogue({
       planRunId: 'run-x',
       stories: [1, 2],
+      auditRoster: true,
       provider: rosterProvider(comments),
       git: landedRunGit(['src/scheduler/wave.js', 'src/scheduler/tick.js']),
       selectAuditsFn: async (args) => {
@@ -513,6 +559,7 @@ describe('audit-roster — lens selection is grounded in the landed diff', () =>
     const result = await runPlanRunEpilogue({
       planRunId: 'run-y',
       stories: [1, 2],
+      auditRoster: true,
       provider: rosterProvider(comments),
       git,
       selectAuditsFn: async (args) => {

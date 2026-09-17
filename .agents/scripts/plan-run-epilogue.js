@@ -25,6 +25,8 @@ import { expandIdList } from './lib/util/parse-id-list.js';
 const CLI_OPTIONS = {
   stories: { type: 'string' },
   cwd: { type: 'string' },
+  /** Story #5343 — opt-in; see `run-epilogue.js` RUN_EPILOGUE_STEP_KINDS. */
+  'audit-roster': { type: 'boolean', default: false },
 };
 
 /**
@@ -51,15 +53,10 @@ export async function main(argv = process.argv.slice(2), deps = {}) {
     options: CLI_OPTIONS,
     strict: false,
   });
-  const hasStoriesFlag =
-    typeof values.stories === 'string' && values.stories.trim().length > 0;
-  if (!hasStoriesFlag) {
+  if (typeof values.stories !== 'string' || !values.stories.trim()) {
     throw new Error('Usage: node plan-run-epilogue.js --stories 1,2,3');
   }
-  const cwd =
-    typeof values.cwd === 'string' && values.cwd.trim()
-      ? values.cwd.trim()
-      : process.cwd();
+  const cwd = values.cwd?.trim() || process.cwd();
   const config = resolveConfigImpl({ cwd });
   const provider = createProviderImpl(config);
 
@@ -87,6 +84,7 @@ export async function main(argv = process.argv.slice(2), deps = {}) {
     provider,
     config,
     cwd,
+    auditRoster: values['audit-roster'] === true,
   });
   warnOnUnresolvedBase(result, logger);
   warnOnEmptyRollup(result, logger);
@@ -99,6 +97,7 @@ export async function main(argv = process.argv.slice(2), deps = {}) {
 
 /**
  * Surface an unresolvable combined landed diff as a loud operator warning.
+ * Only reachable under `--audit-roster`: a default run enumerates no roster.
  *
  * The roster's changed-file set is the input the host walks its audit lenses
  * against; a silent absence would read as "nothing changed" and the lens walk
@@ -167,7 +166,7 @@ function warnOnEmptyRollup(result, logger = Logger) {
 await runAsCli(import.meta.url, main, {
   usage: {
     invocation:
-      'node .agents/scripts/plan-run-epilogue.js --stories <id,id,...> [--cwd <path>]',
+      'node .agents/scripts/plan-run-epilogue.js --stories <id,id,...> [--cwd <path>] [--audit-roster]',
     summary:
       'Close out a delivery run: roll up the delivered Stories’ signals and report the run’s loop health.',
     flags: [
@@ -176,6 +175,10 @@ await runAsCli(import.meta.url, main, {
         'Comma-separated delivered Story ids, singles or A-B ranges (required).',
       ],
       ['--cwd <path>', 'Repository root (default: process cwd).'],
+      [
+        '--audit-roster',
+        'Also select the cross-Story audit lens roster and post plan-run-audit-roster (off by default; the host then walks every listed lens).',
+      ],
     ],
   },
 });

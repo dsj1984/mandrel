@@ -283,15 +283,21 @@ node .agents/scripts/plan-run-epilogue.js --stories 101,102
 
 This executes, in order:
 
-- `audit-roster` — selects cross-Story audit lenses over the combined landed
-  tip and posts `plan-run-audit-roster` on the primary Story; the host MUST
-  walk each listed lens against the combined diff.
 - `follow-up-rollup` — friction follow-ups across every Story in the run
   (files issues when auto-file is on; posts `follow-ups`).
 - `epic-close` — **reports** which of the run's container Epics its land tails
   left closed and which are still open. **Read-only** — it derives nothing:
   every child state change is already a rollup edge, so the container was
   derived from a complete child set by the last Story's own land tail.
+
+**The audit roster is opt-in** (Story #5343). Add `--audit-roster` and the run
+also selects cross-Story audit lenses over the combined landed tip and posts
+`plan-run-audit-roster` on the primary Story — and the host MUST then walk
+every listed lens against the combined diff, one `auditor` sub-agent per lens.
+That walk is the expensive half, and it only pays for itself when someone is
+going to read it, so **the operator asks for it** — exactly as for the
+pre-mortem plan critic. Without the flag no roster comment is posted and no
+auditor is spawned.
 
 A single-Story run skips the epilogue — follow-ups are captured on merge
 confirm instead (`captureStoryFollowUps`).
@@ -342,22 +348,25 @@ strands its container open above finished work.
 ## Ceremony (profiles + two scopes)
 
 Ceremony depth is selected by `delivery.routing.ceremonyProfile`
-(`minimal` | `standard` | `strict`, default `standard`) and the **change level
-derived from the Story's own diff** — the changed files' intersection with the
-sensitive-path classes in `audit-rules.json`
-(`review-depth.js#deriveChangeLevel`), not a planner-authored verdict:
+(`minimal` | `standard` | `strict`, default `standard`) — and by that alone
+since Story #5343. The **change level derived from the Story's own diff** (the
+changed files' intersection with the sensitive-path classes in
+`audit-rules.json`, `review-depth.js#deriveChangeLevel`, never a
+planner-authored verdict) still selects **review depth**, which is the second
+row of the scope table below:
 
-| Profile | Acceptance critic | When to use |
+| Profile | Acceptance verdict owner | When to use |
 | --- | --- | --- |
-| `minimal` | Always inline | Tiny trusted N=1 Stories |
-| `standard` | Derived-level routed | Default |
-| `strict` | Always fresh-context | High-assurance / regulated surfaces |
+| `minimal` | Inline self-eval | Tiny trusted N=1 Stories |
+| `standard` | Inline self-eval | Default |
+| `strict` | Fresh-context critic | High-assurance / regulated surfaces |
 
 | Scope | What runs | Mechanism |
 | --- | --- | --- |
 | **Per-Story (always)** | Gates, branch discipline, close-and-land | `deliver-story` / `single-story-close` |
-| **Per-Story (profile + derived level)** | Acceptance critic mode; review depth | `ceremony-routing.js` + `review-depth.js` + `code-review.js` |
-| **Per-run (N>1)** | Audit roster · follow-up roll-up · sibling coherence | `plan-run-epilogue.js` once at run end |
+| **Per-Story (profile)** | Acceptance verdict owner | `ceremony-routing.js` |
+| **Per-Story (derived level)** | Review depth | `review-depth.js` + `code-review.js` |
+| **Per-run (N>1)** | Follow-up roll-up · container-Epic report (· audit roster on `--audit-roster`) | `plan-run-epilogue.js` once at run end |
 | **Per-Story land tail** | Follow-up capture · status resync · Epic rollup · ref cleanup · base fast-forward | `single-story-close/phases/post-land.js` (in-process, per-step reported) |
 
 ## Async merge-confirm mode (`delivery.mergeWatch.mode: "async"`)

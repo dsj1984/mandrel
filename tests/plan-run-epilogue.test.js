@@ -77,6 +77,19 @@ describe('plan-run-epilogue main', () => {
     assert.equal(h.calls[0].planRunId, 'adhoc-12-30-31-32');
   });
 
+  // Story #5343 — the audit roster is the one epilogue step that spends the
+  // host's sub-agent budget and asks the operator to act. A default run must
+  // therefore not enumerate it, and the flag is the only thing that does.
+  it('leaves the audit roster off unless --audit-roster is passed', async () => {
+    const off = harness();
+    await main(['--stories', '1,2'], off.deps);
+    assert.equal(off.calls[0].auditRoster, false);
+
+    const on = harness();
+    await main(['--stories', '1,2', '--audit-roster'], on.deps);
+    assert.equal(on.calls[0].auditRoster, true);
+  });
+
   it('defaults cwd to the process cwd and threads --cwd when given', async () => {
     const bare = harness();
     await main(['--stories', '1'], bare.deps);
@@ -195,6 +208,9 @@ describe('audit-roster — the emitted dispatch instruction (Story #4949 AC-4)',
     await runPlanRunEpilogue({
       planRunId: 'run-4949',
       stories: [1, 2],
+      // Story #5343 — the roster is opt-in; this suite is about what the
+      // comment SAYS once the operator has asked for it.
+      auditRoster: true,
       provider: {
         getTicket: async (id) => ({
           id,

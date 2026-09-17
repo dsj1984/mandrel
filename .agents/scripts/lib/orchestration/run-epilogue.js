@@ -40,6 +40,12 @@ import { upsertStructuredComment } from './ticketing.js';
  * back, on the one run shape (N>1) where that re-read costs the most. ADR
  * `20260917-5341` carries the reasoning.
  *
+ * `audit-roster` is **opt-in** since Story #5343 (`--audit-roster`): it is
+ * the one step that asks the host to spend a sub-agent per selected lens,
+ * and a run whose operator did not ask for an audit sweep paid that cost —
+ * plus a `plan-run-audit-roster` comment nobody acted on — on every N>1 run.
+ * The other two steps are reporting and stay on by default.
+ *
  * @type {readonly ['audit-roster', 'follow-up-rollup', 'epic-close']}
  */
 export const RUN_EPILOGUE_STEP_KINDS = Object.freeze([
@@ -164,9 +170,16 @@ function normalizeStoryIds(stories) {
  * @param {object} args
  * @param {string} args.planRunId
  * @param {Array<string|number|{ id?: string|number, slug?: string }>} args.stories
+ * @param {boolean} [args.auditRoster] Opt into the cross-Story audit roster
+ *   (Story #5343). Default `false`: the roster spawns auditors and posts a
+ *   comment the operator has to act on, so it runs only when asked for.
  * @returns {object}
  */
-export function planRunEpilogue({ planRunId, stories } = {}) {
+export function planRunEpilogue({
+  planRunId,
+  stories,
+  auditRoster = false,
+} = {}) {
   const ids = normalizeStoryIds(stories);
   const runId =
     typeof planRunId === 'string' && planRunId.trim() !== ''
@@ -194,11 +207,15 @@ export function planRunEpilogue({ planRunId, stories } = {}) {
     `adhoc-${[...ids].sort((a, b) => Number(a) - Number(b)).join('-')}`;
 
   const steps = [
-    {
-      kind: 'audit-roster',
-      description: `Select cross-Story audit lenses for run ${effectiveRunId}`,
-      stories: ids,
-    },
+    ...(auditRoster
+      ? [
+          {
+            kind: 'audit-roster',
+            description: `Select cross-Story audit lenses for run ${effectiveRunId}`,
+            stories: ids,
+          },
+        ]
+      : []),
     {
       kind: 'follow-up-rollup',
       description: `Friction follow-up roll-up for run ${effectiveRunId}`,
@@ -922,6 +939,8 @@ function buildRollupStepResult({
  * @param {typeof graduateRetroProposals} [args.graduateFn] - Injection seam so
  *   the roll-up's reporting layer can be asserted against a filer that fails
  *   (Story #4828) without spawning a real `gh`.
+ * @param {boolean} [args.auditRoster] Opt into the audit-roster step
+ *   (Story #5343); default `false`.
  * @returns {Promise<object>}
  */
 export async function runPlanRunEpilogue({
@@ -933,8 +952,9 @@ export async function runPlanRunEpilogue({
   git = { gitSpawn },
   selectAuditsFn = selectAudits,
   graduateFn = graduateRetroProposals,
+  auditRoster = false,
 } = {}) {
-  const plan = planRunEpilogue({ planRunId, stories });
+  const plan = planRunEpilogue({ planRunId, stories, auditRoster });
   if (!plan.applicable) {
     return { ...plan, results: [], errors: [] };
   }
