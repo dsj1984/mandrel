@@ -13,6 +13,10 @@
  *   - AC-3: a dispatch prompt per ready Story, carrying id, docs digest path,
  *     checklist path and the change-set discipline
  *   - AC-4: --merge-watch-mode async on a multi-Story run, absent on N=1
+ *
+ * Story #5363 adds the stalled-dispatch report: a ledgered id live state still
+ * reports as `agent::ready` is named in the envelope with its recovery, is
+ * still withheld, and never changes the ready set.
  */
 
 import assert from 'node:assert/strict';
@@ -26,10 +30,12 @@ import {
   readLedgerDispatched,
   renderCloseCommand,
   renderDispatchPrompt,
+  renderStalledDispatchReason,
   resolveRunIds,
   runDeliverRunBeat,
 } from '../../.agents/scripts/deliver-run.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
+import { classifyStory } from '../../.agents/scripts/lib/wave-runner/ready-set.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
@@ -88,7 +94,18 @@ const beat = async (probed, overrides = {}, deps = {}) =>
           foreignHeld: [],
           ...probed,
         };
-        const nodes = (base.nodes ?? []).map((n) =>
+        const raw = base.nodes ?? [];
+        // Derived from the RAW labels, before the projection below hides them,
+        // exactly as live-probe.js does: a claimed id still classifying
+        // `ready` is one the label has not reached — a live init window, or a
+        // spawn that never started one.
+        const stalledDispatch =
+          base.stalledDispatch ??
+          raw
+            .filter((n) => inFlight.has(n.id) && classifyStory(n) === 'ready')
+            .map((n) => n.id)
+            .sort((a, b) => a - b);
+        const nodes = raw.map((n) =>
           inFlight.has(n.id)
             ? { ...n, labels: [...n.labels, 'agent::executing'] }
             : n,
@@ -96,6 +113,7 @@ const beat = async (probed, overrides = {}, deps = {}) =>
         return {
           ...base,
           nodes,
+          stalledDispatch,
           inFlightRecords: nodes.filter((n) => inFlight.has(n.id)),
           inFlight: base.inFlight ?? inFlight.size,
         };
@@ -375,6 +393,131 @@ describe('deliver-run — the close command (AC-4)', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Story #5363 — the stalled-dispatch report
+// ---------------------------------------------------------------------------
+
+describe('deliver-run — a dispatch that never reached init (#5363)', () => {
+  it('names a ledgered id live state still reports as agent::ready', async () => {
+    const cwd = makeTempDir('deliver-run-');
+    const probed = { nodes: [node(101), node(102)] };
+
+    await beat(probed, { stories: '101,102', cwd });
+    // Nothing has moved: both ids are ledgered and both still read ready.
+    const { envelope, exitCode } = await beat(probed, {
+      stories: '101,102',
+      cwd,
+    });
+
+    assert.strictEqual(exitCode, 0, 'a stalled dispatch is not a wedge');
+    assert.deepEqual(envelope.stalledDispatch, [101, 102]);
+    assert.ok(envelope.stalledDispatchReason);
+    assert.match(envelope.stalledDispatchReason, /#101, #102/);
+  });
+
+  it('reports it as its own reason, not a footprint withhold or a foreign lease', async () => {
+    const cwd = makeTempDir('deliver-run-');
+    const probed = { nodes: [node(101)] };
+
+    await beat(probed, { stories: '101', cwd });
+    const { envelope } = await beat(probed, { stories: '101', cwd });
+
+    assert.deepEqual(envelope.stalledDispatch, [101]);
+    assert.deepEqual(
+      envelope.withheld,
+      [],
+      'no peer blocks it and no paths collide — it is not a footprint withhold',
+    );
+    assert.deepEqual(envelope.foreignHeld, []);
+  });
+
+  it('states the recovery: the ledger path and the run-id flag (AC-2)', async () => {
+    const cwd = makeTempDir('deliver-run-');
+    const probed = { nodes: [node(101)] };
+
+    await beat(probed, { stories: '101', cwd });
+    const { envelope } = await beat(probed, { stories: '101', cwd });
+
+    const ledgerPath = path.join(envelope.runTempDir, 'ledger.json');
+    assert.ok(
+      envelope.stalledDispatchReason.includes(ledgerPath),
+      'the operator must not have to derive the ledger path',
+    );
+    assert.ok(
+      envelope.stalledDispatchReason.includes(`--run-id ${envelope.runId}`),
+      'and must be told which flag pins the same run directory',
+    );
+    assert.match(envelope.stalledDispatchReason, /agent::ready/);
+  });
+
+  it('does not report a ledgered id that has moved on (AC-3)', async () => {
+    const cwd = makeTempDir('deliver-run-');
+    await beat(
+      { nodes: [node(101), node(102), node(103)] },
+      {
+        stories: '101,102,103',
+        cwd,
+      },
+    );
+
+    const { envelope } = await beat(
+      {
+        nodes: [
+          node(101, { labels: ['agent::executing'] }),
+          node(102, { labels: ['agent::closing'] }),
+          node(103, { labels: ['agent::done'] }),
+        ],
+        doneIds: new Set([103]),
+      },
+      { stories: '101,102,103', cwd },
+    );
+
+    assert.deepEqual(envelope.stalledDispatch, []);
+    assert.strictEqual(envelope.stalledDispatchReason, null);
+  });
+
+  it('leaves the ready set and the ledger untouched (AC-4)', async () => {
+    const cwd = makeTempDir('deliver-run-');
+    const probed = { nodes: [node(101), node(102)] };
+
+    const first = await beat(probed, { stories: '101,102', cwd });
+    assert.deepEqual(
+      first.envelope.ready.map((r) => r.id),
+      [101, 102],
+      'a healthy first beat hands out both, exactly as before',
+    );
+    assert.deepEqual(first.envelope.stalledDispatch, []);
+
+    const second = await beat(probed, { stories: '101,102', cwd });
+    assert.deepEqual(second.envelope.ready, [], 'still withheld, not released');
+    assert.strictEqual(second.envelope.inFlight, 2);
+    const ledger = JSON.parse(
+      readFileSync(
+        path.join(second.envelope.runTempDir, 'ledger.json'),
+        'utf8',
+      ),
+    );
+    assert.deepEqual(ledger.dispatched, [101, 102], 'no id is dropped');
+  });
+
+  it('renders no reason when nothing is stalled', () => {
+    assert.strictEqual(
+      renderStalledDispatchReason([], {
+        ledgerPath: '/t/ledger.json',
+        runId: 'abc',
+      }),
+      null,
+    );
+    assert.strictEqual(
+      renderStalledDispatchReason(undefined, {
+        ledgerPath: '/t/ledger.json',
+        runId: 'abc',
+      }),
+      null,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
 // id parsing
 // ---------------------------------------------------------------------------
 
@@ -408,6 +551,21 @@ describe('deliver-run — CLI', () => {
     assert.match(out.stdout, /deliver-run\.js --stories/);
     assert.match(out.stdout, /--handoff/);
     assert.match(out.stdout, /--merge-watch-mode async/);
+  });
+
+  it('leaves --help to the CLI bootstrap, which never reaches main (AC-7)', () => {
+    // `runAsCli` intercepts --help/-h before `main` runs, so declaring a
+    // `help` option in the beat's own parseArgs was a flag nothing read.
+    const short = spawnSync(process.execPath, [CLI, '-h'], {
+      encoding: 'utf8',
+    });
+    assert.strictEqual(short.status, 0);
+    assert.match(short.stdout, /deliver-run\.js --stories/);
+    const source = readFileSync(
+      path.join(REPO_ROOT, '.agents', 'scripts', 'deliver-run.js'),
+      'utf8',
+    );
+    assert.doesNotMatch(source, /help: \{ type: 'boolean'/);
   });
 
   it('exits 1 on a missing --stories', () => {

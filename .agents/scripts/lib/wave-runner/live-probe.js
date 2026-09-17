@@ -101,22 +101,31 @@ import { classifyStory, storyIdOf } from './ready-set.js';
  * Ids outside the probed set are ignored: they are not part of this run and
  * must not consume its cap.
  *
+ * The second arm is also reported on its own, as `unlabelled`. A claimed id
+ * that still reads `agent::ready` is in flight either because its init is
+ * still running or because the spawn that claimed it never started one, and
+ * those two are indistinguishable here — but only the second pins the id in
+ * the caller's ledger forever. Live state cannot tell them apart; the operator
+ * can, so the fact is surfaced rather than acted on (Story #5363).
+ *
  * @param {Array<{id?: number, number?: number, labels?: string[], state?: string}>} storyRecords
  * @param {Iterable<number>} [dispatched] Ids the host has spawned.
- * @returns {Set<number>} In-flight Story ids.
+ * @returns {{inFlight: Set<number>, unlabelled: Set<number>}} In-flight Story
+ *   ids, and the subset of them claimed by the caller that live state still
+ *   reports as `agent::ready`.
  */
 function deriveInFlightIds(storyRecords, dispatched = []) {
   const claimed = new Set(dispatched);
   const inFlight = new Set();
+  const unlabelled = new Set();
   for (const rec of storyRecords) {
     const id = storyIdOf(rec);
     if (id === null) continue;
     const cls = classifyStory(rec);
-    if (cls === 'executing' || (claimed.has(id) && cls === 'ready')) {
-      inFlight.add(id);
-    }
+    if (claimed.has(id) && cls === 'ready') unlabelled.add(id);
+    if (cls === 'executing' || unlabelled.has(id)) inFlight.add(id);
   }
-  return inFlight;
+  return { inFlight, unlabelled };
 }
 
 /**
@@ -251,6 +260,7 @@ export function createProbeContext({
  *   doneIds: Set<number>,
  *   inFlight: number,
  *   blockedIds: number[],
+ *   stalledDispatch: number[],
  *   foreignHeld: Array<{id: number, holder: string}>
  * }>}
  */
@@ -294,7 +304,10 @@ export async function probeLiveState({
   // They are consumed in-process by `planReadySet` and never serialized into
   // the beat envelope, which stays a list of ids.
   const bodyById = new Map(stories.map((s) => [s.id, s.body ?? '']));
-  const inFlightIds = deriveInFlightIds(stories, dispatched);
+  const { inFlight: inFlightIds, unlabelled } = deriveInFlightIds(
+    stories,
+    dispatched,
+  );
   // A Story another operator's lease holds occupies a (global) dispatch slot
   // just like an in-flight one: fold it into the in-flight set so it is both
   // withheld (via the projected label) and excluded from a false wedge, but
@@ -322,6 +335,13 @@ export async function probeLiveState({
     doneIds: new Set(envelope.done),
     inFlight: inFlightIds.size,
     blockedIds: deriveBlockedIds(stories),
+    // Claimed by the caller, still labelled `agent::ready`: a live init window
+    // or a spawn that never reached one. Reported, never released here. A
+    // foreign lease is its own withhold reason and outranks the claim, so it
+    // is subtracted — one Story must not carry two recoveries.
+    stalledDispatch: [...unlabelled]
+      .filter((id) => !foreignHeld.has(id))
+      .sort((a, b) => a - b),
     foreignHeld: [...foreignHeld].map(([id, holder]) => ({ id, holder })),
   };
 }
