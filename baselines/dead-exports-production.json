@@ -1,7 +1,7 @@
 {
   "$schema": "https://mandrel.dev/baselines/dead-exports.schema.json",
   "kernelVersion": "6.17.1",
-  "generatedAt": "2026-09-14T11:59:17.371Z",
+  "generatedAt": "2026-09-17T13:45:47.343Z",
   "mode": "production",
   "rows": [
     {
@@ -1739,10 +1739,6 @@
     {
       "file": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "symbol": "_internal"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "symbol": "validateAcceptanceSubjectPrefix"
     },
     {
       "file": ".agents/scripts/lib/orchestration/ticket-validator.js",
