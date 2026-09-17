@@ -43,6 +43,53 @@ import { FILE_ASSUMPTION_VALUES } from '../orchestration/file-assumption-enum.js
  */
 const DEFAULT_SUGGESTED_ASSUMPTION = 'refactors-existing';
 
+/**
+ * The bare-path bullet grammar (Story #5342, widened by Story #5361) — the
+ * **one** definition of what a `## Changes` / `## References` bullet has to
+ * look like to be a path rather than prose.
+ *
+ * It lives here, in the cycle-free lint leaf, because two consumers need the
+ * identical judgment and neither may import the other: the story-body parser
+ * (`story-body.js#parsePathEntry`) and the persist repair pass
+ * (`plan-persist/changes-repair.js`). They carried a copy each, and the
+ * copies drifted.
+ *
+ * A bullet is a path when it is a single token git could track: any run of
+ * non-whitespace, optionally wrapped in a matched pair of backticks. That
+ * admits the shapes the earlier `[\w@*-]*[/.][\w@./*-]+` class refused
+ * outright — route-segment paths (`app/[slug]/page.tsx`,
+ * `app/(marketing)/page.tsx`, `src/routes/$id.svelte`) and extensionless
+ * top-level files (`Makefile`) — while still refusing prose, since
+ * whitespace is the one thing that reliably marks a sentence.
+ */
+const BARE_PATH_TOKEN_RE = /^(?:`([^\s`]+)`|([^\s`]+))$/;
+
+/**
+ * Read the bare path token out of a bullet, or `null` when the bullet is not
+ * one single token.
+ *
+ * @param {unknown} raw
+ * @returns {string|null} The path, with any wrapping backticks peeled.
+ */
+export function matchBarePathToken(raw) {
+  if (typeof raw !== 'string') return null;
+  const match = raw.trim().match(BARE_PATH_TOKEN_RE);
+  return match ? (match[1] ?? match[2]) : null;
+}
+
+/**
+ * Whether a rejected bullet is prose — it carries whitespace, so no path
+ * grammar could ever have admitted it. The counterpart failure is a
+ * single token that still names no usable path; the two get different
+ * refusals because they need different fixes.
+ *
+ * @param {unknown} raw
+ * @returns {boolean}
+ */
+export function isProseBullet(raw) {
+  return typeof raw === 'string' && /\s/.test(raw.trim());
+}
+
 // A token that looks like a file path / glob / module id: it carries a `/` or a
 // `.`-separated segment. Deliberately loose — the suggestion is best-effort, and
 // a false positive only produces an unhelpful (still-valid) fix-it string.

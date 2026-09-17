@@ -513,7 +513,17 @@ function assertSharedSpecAllowed(tickets, sharedSpec) {
 
 /**
  * Assemble markdown bodies for every Story: normalize → fold spec →
- * resolveSupersedePartition → serialize.
+ * order by dependency → resolveSupersedePartition → serialize.
+ *
+ * **The dependency sort runs here, once** (Story #5361). It used to run again
+ * inside the create loop, which meant "the primary Story" was derived twice
+ * from two different orderings: supersede assignment took the first *authored*
+ * Story, while the checkpoint and the plan summary took the first *created*
+ * one. A draft whose authoring order differed from its dependency order made
+ * the `superseded-by` comment name a different Story from the checkpoint. One
+ * sort, one ordered list threaded on to every consumer, so `stories[0]` is the
+ * only primary there is. The sort also refuses an unknown sibling or a cycle,
+ * which now fails the write-free pass rather than the first create.
  *
  * The partition pass runs **before** any GitHub write so a mis-authored
  * plan never leaves Stories live against an inconsistent tracker. Story #5332
@@ -537,8 +547,8 @@ export function assemblePlanStories(tickets, opts = {}) {
 
   assertSharedSpecAllowed(tickets, opts.sharedSpec);
 
-  const stories = tickets.map(
-    (ticket) => assembleOnePlanStory(ticket, opts).story,
+  const stories = orderStoriesByDependencies(
+    tickets.map((ticket) => assembleOnePlanStory(ticket, opts).story),
   );
 
   const warnings = resolveSupersedePartition(
@@ -1005,7 +1015,10 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
   const created = [];
   const idBySlug = new Map();
 
-  for (const story of orderStoriesByDependencies(list)) {
+  // Already in dependency order: `assemblePlanStories` sorted once, and
+  // sorting again here is what gave the run a second, disagreeing notion of
+  // which Story is primary (Story #5361).
+  for (const story of list) {
     const already = byFingerprint.get(story.fingerprint);
     if (!already) warnOnDivergentSameTitleStory(story, idsByTitle);
     if (already) {

@@ -41,7 +41,11 @@
  */
 
 import { FILE_ASSUMPTION_VALUES } from '../orchestration/file-assumption-enum.js';
-import { suggestPathEntryFix } from './body-format-lints.js';
+import {
+  isProseBullet,
+  matchBarePathToken,
+  suggestPathEntryFix,
+} from './body-format-lints.js';
 import { isFooterSeparator, parseFooterBlockedByRefs } from './footer-block.js';
 
 // ---------------------------------------------------------------------------
@@ -164,9 +168,10 @@ const HUMANIZED_PATH_ENTRY_RE = /^`([^`]+)`\s+—\s+(\S+)$/;
 // Bare path bullet (Story #5342): `src/app.js` or `` `src/app.js` `` with no
 // assumption. The assumption is a fact about the base branch, not a thing the
 // author knows better than a probe does, so the default authored form omits
-// it and persist derives it. A single path-shaped token with no whitespace —
-// prose bullets do not match and are still rejected.
-const BARE_PATH_ENTRY_RE = /^`?([\w@*-]*[/.][\w@./*-]+)`?$/;
+// it and persist derives it. The grammar itself — a single whitespace-free
+// token, so prose bullets do not match and are still rejected — is
+// `body-format-lints.js#matchBarePathToken`, the one definition the persist
+// repair pass scores against too (Story #5361).
 
 // AC-<n> presentation prefix on acceptance checkboxes (Story #4600). The
 // numbering is a stable 1-based human handle only — parse() strips it so the
@@ -225,11 +230,19 @@ function parsePathEntry(raw, warnings) {
   if (entry) return entry;
   // Story #5342: the bare path bullet. `assumption: null` records only what
   // the author said — persist derives the rest by probing the base branch.
-  const bare = str.match(BARE_PATH_ENTRY_RE);
-  if (bare) return { path: bare[1], assumption: null };
+  // A `{`-leading string got here because it failed to parse as the inline
+  // JSON object it announced itself as, so it is malformed JSON rather than a
+  // path and must keep failing closed.
+  const bare = str.startsWith('{') ? null : matchBarePathToken(str);
+  if (bare !== null) return { path: bare, assumption: null };
 
+  // Story #5361: the two failures need different fixes, so they get different
+  // refusals — rewrite a sentence as a path, versus fix a token that is not
+  // one.
   throw new StoryBodyParseError(
-    `changes/references entry must name a path — a bare path string, or a { path, assumption } object; prose bullets are not accepted: ${str.slice(0, 120)}${pathEntryFixIt(str)}`,
+    isProseBullet(str)
+      ? `changes/references entry is prose, not a path — a bullet must be a single whitespace-free path token, or a { path, assumption } object: ${str.slice(0, 120)}${pathEntryFixIt(str)}`
+      : `changes/references entry names no usable path — a bullet must be a single whitespace-free path token, or a { path, assumption } object: ${str.slice(0, 120)}${pathEntryFixIt(str)}`,
     { field: 'changes', raw: str },
   );
 }

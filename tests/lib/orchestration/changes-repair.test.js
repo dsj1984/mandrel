@@ -192,6 +192,43 @@ describe('repairChangeEntries — serialized string bodies', () => {
   });
 });
 
+describe("AC-2: the repair pass scores the parser's grammar (Story #5361)", () => {
+  const WIDE = [
+    'app/[slug]/page.tsx',
+    'app/(marketing)/page.tsx',
+    'src/routes/$id.svelte',
+    'Makefile',
+  ];
+
+  it('repairs the route-segment and extensionless paths the parser now admits', () => {
+    const story = objectStory([...WIDE]);
+    const repairs = repairChangeEntries([story], { existsAtBase });
+    assert.deepEqual(
+      story.body.changes,
+      WIDE.map((path) => ({ path, assumption: 'creates' })),
+    );
+    assert.equal(repairs.length, WIDE.length);
+  });
+
+  it('agrees with the parser bullet for bullet — one grammar, two consumers', () => {
+    const story = stringStory(WIDE.map((path) => `- \`${path}\``));
+    repairChangeEntries([story], { existsAtBase });
+    // The parser reads back exactly the entries the repair pass wrote, which
+    // is the invariant the two copies of the token class used to break.
+    assert.deepEqual(
+      parseStoryBody(story.body).body.changes,
+      WIDE.map((path) => ({ path, assumption: 'creates' })),
+    );
+  });
+
+  it('still leaves a whitespace-bearing prose bullet for the validator to refuse', () => {
+    const story = stringStory(['- rework the handler wiring']);
+    const repairs = repairChangeEntries([story], { existsAtBase });
+    assert.deepEqual(repairs, []);
+    assert.ok(story.body.includes('- rework the handler wiring'));
+  });
+});
+
 describe('repairChangeEntries — totality and reporting', () => {
   it('ignores non-Story tickets, null entries and a non-array argument', () => {
     const feature = { slug: 'f', type: 'feature', body: { changes: ['x.js'] } };

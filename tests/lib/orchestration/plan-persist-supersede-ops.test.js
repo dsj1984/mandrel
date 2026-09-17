@@ -177,11 +177,17 @@ describe('resolveSupersedePartition', () => {
     );
   });
 
-  it('refuses a source id when the draft carries no Story to assign it to', () => {
-    assert.throws(
-      () => resolveSupersedePartition([], [1]),
-      /no Story to assign it to/,
-    );
+  it('assigns to the dependency-ordered first Story — the one primary (Story #5361)', () => {
+    // `assemblePlanStories` hands this list over already sorted by
+    // `orderStoriesByDependencies`, which is the order the create loop files
+    // the Stories in, so stories[0] is the same Story the checkpoint and the
+    // plan summary call primary.
+    const stories = [story('blocker'), story('consumer')];
+    const warnings = resolveSupersedePartition(stories, [7]);
+    assert.deepEqual(stories[0].supersedes, [{ id: 7, note: null }]);
+    assert.deepEqual(stories[1].supersedes, []);
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0], /primary Story "blocker"/);
   });
 });
 
