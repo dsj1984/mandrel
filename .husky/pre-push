@@ -16,12 +16,26 @@
 # unconsumed stdin can leak into the next command on some shells.
 cat > /dev/null
 
+# Coverage is captured BEFORE the preview scores it (Story #5356). The CRAP
+# score is a function of complexity AND coverage, so a preview run against
+# whatever `coverage/coverage-final.json` happened to be on disk describes
+# neither the old tree nor the new one: during #5343 that invented an
+# `evaluateBudget` violation (coverage reported 0 on a two-line pure
+# function) which vanished on re-capture. The failure is asymmetric — a
+# stale artifact that under-reports coverage fabricates a violation, one
+# that over-reports hides a real one — and neither is distinguishable from
+# a true reading at the point the hook fails. Both steps are anchored on
+# the SAME ref: `--skip-when-no-crap-files` deposits no artifact when the
+# change set touches nothing under `crap.targetDirs`, and off that same ref
+# the preview's CRAP scope is empty too, so it scores no file rather than
+# reading the artifact a prior, unrelated run left behind. Changing one
+# ref without the other reopens exactly that hole.
+node .agents/scripts/coverage-capture.js --skip-when-no-crap-files --ref origin/main
 node .agents/scripts/quality-preview.js --changed-since origin/main
 if [ "${PREPUSH_AUDIT:-0}" = "1" ]; then
   npm audit --audit-level=high
 fi
 
-node .agents/scripts/coverage-capture.js --skip-when-no-crap-files --ref origin/main
 npm run crap:check
 
 # The two resident-context measurements, both pure-Node and sub-second, so
