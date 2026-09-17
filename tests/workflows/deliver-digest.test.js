@@ -248,37 +248,51 @@ describe('deliver-digest § 5 — the one credited run (#5174, #5313, #5324)', (
   // assert one contract; a doc that still told a worker the bare run earns it
   // would be the defect this Story exists to remove.
   it('AC-5: names the runner-agnostic deposit, not a bare npm test', () => {
-    for (const [label, doc] of [
-      ['the digest', digest()],
-      ['the story-worker context', worker()],
-    ]) {
-      assertDocMentions(doc, /npm test/, `${label} must name the runner`);
-      assertDocMentions(
-        doc,
-        /--gate test --worktree <workCwd> -- npm test/,
-        `${label} must give the deposit that works whatever the test script resolves to`,
-      );
-      assertDocMentions(
-        doc,
-        /routes through mandrel's own runner/,
-        `${label} must scope the bare-run deposit to the runner that performs it`,
-      );
-      assertDocOmits(
-        doc,
-        /run `npm test` exactly once/,
-        `${label} must not carry #5313's bare-run instruction`,
-      );
-      assertDocOmits(
-        doc,
-        /coverage-capture\.js --cwd/,
-        `${label} must not carry the retired capture invocation`,
-      );
-      assertDocOmits(
-        doc,
-        /(before|after) the push/,
-        `${label} must carry no push-before-capture ordering rule`,
-      );
-    }
+    const doc = digest();
+    assertDocMentions(doc, /npm test/, 'the digest must name the runner');
+    assertDocMentions(
+      doc,
+      /--gate test --worktree <workCwd> -- npm test/,
+      'the digest must give the deposit that works whatever the test script resolves to',
+    );
+    assertDocMentions(
+      doc,
+      /routes through mandrel's own runner/,
+      'the digest must scope the bare-run deposit to the runner that performs it',
+    );
+    assertDocOmits(
+      doc,
+      /run `npm test` exactly once/,
+      "the digest must not carry #5313's bare-run instruction",
+    );
+    assertDocOmits(
+      doc,
+      /coverage-capture\.js --cwd/,
+      'the digest must not carry the retired capture invocation',
+    );
+    assertDocOmits(
+      doc,
+      /(before|after) the push/,
+      'the digest must carry no push-before-capture ordering rule',
+    );
+  });
+
+  // Story #5341 — the invocation used to be restated on the worker boot
+  // context too, and #5324 had to patch the same sentence twice. § 5 is now
+  // the rule's one home; the worker routes at it.
+  it('AC-1: the worker points at § 5 rather than carrying a second copy', () => {
+    const doc = worker();
+    assertDocMentions(
+      doc,
+      /deliver-digest\.md/,
+      'the story-worker context must name the file that carries the rule',
+    );
+    assertDocMentions(doc, /§ 5/, 'the pointer must name the section');
+    assertDocOmits(
+      doc,
+      /--gate test --worktree <workCwd> -- npm test/,
+      'a second copy of the invocation is exactly the drift § 5 exists to prevent',
+    );
   });
 
   it('places the run after the last fix commit', () => {

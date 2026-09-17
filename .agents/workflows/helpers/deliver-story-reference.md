@@ -234,46 +234,9 @@ before it spawns the worker — see [`/mandrel-deliver`](../mandrel-deliver.md).
 drift-guard and schema tests living outside the Story's scoped greps — are
 the failure class that actually bounces deliveries: close-validation
 discovers them only after the whole close pipeline has run, at several times
-the cost of one full-suite run in the worktree.
-
-**Run it once, last, through the depositor.** The run belongs **after** the
-self-eval loop's last fix commit; redraft rounds run scoped tests. Run it in
-the worktree on `story-<id>` as
-
-```bash
-node <main-repo>/.agents/scripts/evidence-gate.js \
-  --standalone --scope-id <storyId> --gate test \
-  --worktree <workCwd> -- npm test
-```
-
-The wrapper spawns the project's own `npm test` — whatever that resolves to —
-and records the pass into the Story evidence keyspace, so the credit is
-runner-agnostic by construction: it stamps only what it just ran. The record
-is keyed on HEAD and the tree fingerprint and hashed on the exact command
-close spawns, so close reports the gate as credited at unchanged HEAD instead
-of re-running the suite. The credit expires the moment it stops describing the
-tree: any later commit invalidates it and close re-runs the suite for real, so
-this never trades away the gate. The CRAP gate still runs
-`coverage-capture.js` itself when it needs a fresh artifact — the capture
-stamp is a claim about `coverage/coverage-final.json`, which `npm test` alone
-does not produce.
-
-**A bare `npm test` is a bonus, not the contract.** It deposits the same
-record only where the project's `test` script routes through mandrel's own
-runner (`run-tests.js` → `lib/test-run-credit.js`, Story #5313), which prints
-the outcome. A project whose `npm test` is `vitest run`, `jest` or any other
-runner never reaches that code, so it prints nothing and deposits nothing —
-silence is not a signal, and nothing here asks you to confirm the credit by
-reading for a line that cannot appear. `mandrel doctor`'s `test-credit-path`
-check reports which shape a project is and names the command above as its
-remedy.
-
-**`verify[]` reuses the same credit.** A `verify[]` entry that is itself a
-full-suite command is reported **credited** against that record rather than
-respawned (`resolveVerifyCredit` in
-[`verify-credit.js`](../../scripts/lib/orchestration/verify-credit.js)), and the
-self-eval gate warns when it sees one: the intended shape is scoped `verify[]`
-entries **plus** the single credited run.
+the cost of one full-suite run in the worktree. The run itself — when, how
+and what it credits — is stated once, in
+[`deliver-digest.md`](deliver-digest.md) § 5.
 
 **Conflict with `main` mid-implementation** → resolve as you would any branch
 rebase. There is no `epic/<id>` intermediate, so the rebase base is `main`
@@ -316,18 +279,6 @@ _per cluster_ — a Story past the cluster ceiling would burn its whole redraft
 budget on cluster arithmetic — and N concurrent calls race the Story-scoped
 round ledger. Full per-round mechanics, including the parallel dispatch and the
 merge shape: [`acceptance-self-eval.md`](acceptance-self-eval.md).
-
-**Critic evidence-share.** When the critic runs a `verify[]`
-command that is byte-identical to a close gate (`lint` / `typecheck`), it
-records the pass into the Story evidence keyspace via `--standalone` so
-close short-circuits the gate at unchanged HEAD. Run it in the **Story
-worktree** (`workCwd` from Step 0):
-
-```bash
-node <main-repo>/.agents/scripts/evidence-gate.js \
-  --standalone --scope-id <storyId> --gate lint \
-  --worktree <workCwd> -- npm run lint
-```
 
 **On `decision: "block"`** — post a `friction` comment naming the unmet
 criteria, then transition the Story to `agent::blocked`:

@@ -115,35 +115,11 @@ mid-delivery, and evaluates the actual work product.
      Before spawning a `verify[]` entry, classify it with `resolveVerifyCredit`
      from
      [`verify-credit.js`](../../scripts/lib/orchestration/verify-credit.js): an
-     entry that is itself a full-suite command (`npm test`, `pnpm run test`,
-     a bare `node --test`) is consulted against the **same stamp close reads**
-     and, when that stamp is fresh, recorded as `pass` with a `detail` naming
-     the credit — **never respawned**. A stale or absent stamp reports
-     `spawn: true` and the command runs for real, so the credit can never
-     manufacture a pass. The gate warns on any such entry: the intended shape
-     is scoped `verify[]` entries **plus** the one credited run
-     ([`deliver-digest.md`](deliver-digest.md) § 5).
-   + **Shares `lint` / `typecheck` evidence with close.** When a
-     `verify[]` command is **byte-identical** to a close-validation gate — in
-     practice only the cheap, command-identical `lint` and `typecheck` gates
-     (`npm run lint` and the resolved `project.commands.typecheck`) — the
-     critic MUST run it through `evidence-gate.js` so a passing run records an
-     evidence entry in the **same keyspace** `close-validation/runner.js`
-     consults. Run it in the **same Story worktree** the close validates (the
-     HEAD-sha key enforces "unchanged HEAD") and pass the exact gate name:
-
-     ```bash
-     node <main-repo>/.agents/scripts/evidence-gate.js \
-       --standalone --scope-id <storyId> --gate lint \
-       --worktree <worktree> -- npm run lint
-     ```
-
-     Close's `shouldSkip` then short-circuits that gate when HEAD is
-     unchanged; a redraft round (HEAD moves) correctly busts it. **Never**
-     run the coverage / CRAP suite through `evidence-gate.js` to stamp it
-     fresh — a false-fresh coverage record without `coverage-final.json`
-     silently weakens the floor. Limit the evidence-share to `lint` and
-     `typecheck`.
+     entry that is itself a full-suite command is consulted against the same
+     stamp close reads and, when that stamp is fresh, recorded as `pass`
+     without being respawned; a stale or absent stamp reports `spawn: true` and
+     the command runs for real. The credited run itself is stated once, in
+     [`deliver-digest.md`](deliver-digest.md) § 5.
    + Emits a **cluster** verdict file under `temp/` conforming to
      [`acceptance-eval-verdict.schema.json`](../../schemas/acceptance-eval-verdict.schema.json):
      one `{ index, criterion, verdict: met|partial|unmet, evidence,
