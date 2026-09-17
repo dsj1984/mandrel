@@ -116,16 +116,22 @@ import { classifyStory, storyIdOf } from './ready-set.js';
  */
 function deriveInFlightIds(storyRecords, dispatched = []) {
   const claimed = new Set(dispatched);
-  const inFlight = new Set();
-  const unlabelled = new Set();
+  // Bucketed by live class rather than tested twice. The admission rule is
+  // unchanged; it is only that the `ready` bucket IS the claimed-but-unlabelled
+  // set, since `ready` is the one class the rule admits on the caller's claim.
+  const byClass = { executing: new Set(), ready: new Set() };
   for (const rec of storyRecords) {
     const id = storyIdOf(rec);
     if (id === null) continue;
     const cls = classifyStory(rec);
-    if (claimed.has(id) && cls === 'ready') unlabelled.add(id);
-    if (cls === 'executing' || unlabelled.has(id)) inFlight.add(id);
+    if (cls === 'executing' || (claimed.has(id) && cls === 'ready')) {
+      byClass[cls].add(id);
+    }
   }
-  return { inFlight, unlabelled };
+  return {
+    inFlight: new Set([...byClass.executing, ...byClass.ready]),
+    unlabelled: byClass.ready,
+  };
 }
 
 /**
