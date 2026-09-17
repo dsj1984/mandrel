@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-14T13:51:52.518Z",
+  "generatedAt": "2026-09-17T12:15:44.046Z",
   "rollup": {
     "*": {
       "min": 76.381,
-      "p50": 99.156,
+      "p50": 99.169,
       "p95": 122.902
     }
   },
@@ -124,7 +124,7 @@
     },
     {
       "path": ".agents/scripts/check-workflow-citations.js",
-      "mi": 95.345
+      "mi": 101
     },
     {
       "path": ".agents/scripts/check-workflow-cli-lint.js",
