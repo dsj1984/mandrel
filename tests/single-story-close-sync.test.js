@@ -12,14 +12,14 @@
  */
 
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { BASELINES_GATE_NAMES as REAL_BASELINES_GATE_NAMES } from '../.agents/scripts/lib/close-validation/gates.js';
 import { pinRunScopedConfig } from '../.agents/scripts/lib/orchestration/run-scoped-config.js';
 import { runBaseSyncPhase } from '../.agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js';
+import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 import {
   buildSyncFailureCommentBody,
   handleSyncFailure,
@@ -84,7 +84,7 @@ const FORMAT_AUTOFIX_URL = pathToFileURL(
  * write, so the envelope on disk is the one source.
  */
 function plantInitEnvelope({ baseBranch, storyId = 4242, extra = null }) {
-  const tempRoot = mkdtempSync(path.join(tmpdir(), 'mandrel-init-envelope-'));
+  const tempRoot = makeTempDir('mandrel-init-envelope-');
   const dir = path.join(tempRoot, 'orchestration');
   mkdirSync(dir, { recursive: true });
   const payload = {
@@ -521,7 +521,7 @@ describe('resolveRunScopedConfig (Story #4891, re-homed by #5343)', () => {
   });
 
   it('degrades to the same fallback when the envelope is absent on disk', async () => {
-    const tempRoot = mkdtempSync(path.join(tmpdir(), 'mandrel-no-envelope-'));
+    const tempRoot = makeTempDir('mandrel-no-envelope-');
     const out = await resolveRunScopedConfig({
       storyId: 4242,
       config: { project: { baseBranch: 'main', paths: { tempRoot } } },
@@ -857,7 +857,7 @@ describe('runSingleStoryClose — run-scoped base pin (Story #4891)', () => {
   // AC-3 — an unconfirmed base withholds the merge advice.
   /** A config whose tempRoot holds no init envelope at all. */
   function unpinnedConfig(baseBranch) {
-    const tempRoot = mkdtempSync(path.join(tmpdir(), 'mandrel-unpinned-'));
+    const tempRoot = makeTempDir('mandrel-unpinned-');
     return { ...fakeConfig(), project: { baseBranch, paths: { tempRoot } } };
   }
 

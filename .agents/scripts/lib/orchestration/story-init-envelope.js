@@ -32,7 +32,7 @@ import { orchestrationLogDir } from '../config/temp-paths.js';
  * }} args
  * @returns {object|null} the parsed init result, or `null`.
  */
-export function readStoryInitEnvelope({
+function readStoryInitEnvelope({
   storyId,
   config,
   readFileFn = readFileSync,

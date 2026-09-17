@@ -14,8 +14,7 @@
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -24,6 +23,7 @@ import {
   renderFrictionComment,
   runFileCiGap,
 } from '../../.agents/scripts/file-ci-gap.js';
+import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 
 const REPO_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -305,7 +305,7 @@ describe('file-ci-gap — friction comment body', () => {
 describe('file-ci-gap — the one-rerun allowance (Story #5343)', () => {
   it('stamps the digest for capacity and unreproducible-tier', async () => {
     for (const verdict of ['capacity', 'unreproducible-tier']) {
-      const tempRoot = mkdtempSync(path.join(tmpdir(), 'mandrel-ci-gap-'));
+      const tempRoot = makeTempDir('mandrel-ci-gap-');
       writeFileSync(
         path.join(tempRoot, 'story-5300-ci-digest.json'),
         JSON.stringify({ ...DIGEST, headSha: 'head-1' }),
@@ -336,7 +336,7 @@ describe('file-ci-gap — the one-rerun allowance (Story #5343)', () => {
   });
 
   it('records nothing for pre-existing and keeps the no-rerun wording', async () => {
-    const tempRoot = mkdtempSync(path.join(tmpdir(), 'mandrel-ci-gap-'));
+    const tempRoot = makeTempDir('mandrel-ci-gap-');
     writeFileSync(
       path.join(tempRoot, 'story-5300-ci-digest.json'),
       JSON.stringify({ ...DIGEST, headSha: 'head-1' }),
@@ -362,7 +362,7 @@ describe('file-ci-gap — the one-rerun allowance (Story #5343)', () => {
   });
 
   it('writes no allowance on a dry run', async () => {
-    const tempRoot = mkdtempSync(path.join(tmpdir(), 'mandrel-ci-gap-'));
+    const tempRoot = makeTempDir('mandrel-ci-gap-');
     writeFileSync(
       path.join(tempRoot, 'story-5300-ci-digest.json'),
       JSON.stringify({ ...DIGEST, headSha: 'head-1' }),
