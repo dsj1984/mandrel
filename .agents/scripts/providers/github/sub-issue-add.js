@@ -1,54 +1,25 @@
 /**
- * GitHub Provider — shared "link child issue to a parent" helper.
+ * GitHub Provider — link child issues under a parent as native sub-issues
+ * (`POST /repos/{owner}/{repo}/issues/{n}/sub_issues`).
  *
- * Story #5139 — a container Epic holds its children as native GitHub
- * sub-issue edges. The read side has existed since v1
- * (`sub-issues.js` → `getNativeSubIssues`, and the three-strategy
- * aggregator in `issues.js` → `getSubTickets`); this is the missing write.
+ * `sub_issue_id` is the child's database id, not its issue number; both are
+ * plausible integers, so a mix-up silently links the wrong issue.
  *
- * API surface used:
- *   Read:  GET  /repos/{owner}/{repo}/issues/{issue_number}/sub_issues
- *   Write: POST /repos/{owner}/{repo}/issues/{issue_number}/sub_issues
- *          body: { "sub_issue_id": <integer db id of the CHILD issue> }
- *
- * **`sub_issue_id` is the child's database id, not its issue number.** They
- * are different integers and both are plausible, so a mix-up does not throw
- * — it silently links the wrong issue, or a nonexistent one. This mirrors
- * `blocked-by-add.js`, whose `issue_id` carries the same trap.
- *
- * Contract (deliberately identical to `blocked-by-add.js`):
- *   - **Idempotent** — reads existing edges first; only POSTs missing ones.
- *   - **Non-fatal** — catches all errors per edge, warns, and continues.
- *     The function never throws; failures are returned in the summary.
- *     The Epic body's checklist is the durable mirror, so a lost edge
- *     degrades discoverability rather than losing the child.
- *   - **No-op on empty input.**
+ * Idempotent (reads existing edges first) and non-fatal (per-edge failures
+ * are warned and counted, never thrown) — the Epic body's checklist is the
+ * durable mirror. Same contract as `blocked-by-add.js`.
  */
 
 import { Logger } from '../../lib/Logger.js';
 import { concurrentMap } from '../../lib/util/concurrent-map.js';
 import { paginateRest } from './request-helpers.js';
 
-/**
- * Bounded concurrency for the sub-issue round-trips. Matches the
- * dependency-edge writer's cap: modest enough for GitHub's secondary rate
- * limits while collapsing wall-clock from `sum(round-trips)` toward
- * `sum(round-trips) / concurrency`.
- */
+/** Kept modest for GitHub's secondary rate limits. */
 const EDGE_CONCURRENCY = 5;
 
 /**
- * Fetch the database ids of a parent's existing sub-issues, **paginated to
- * exhaustion**.
- *
- * This read is the idempotency check: an edge it fails to see is re-POSTed.
- * Reading only the first page would therefore make the writer non-idempotent
- * past the page boundary — the same defect Story #5046 fixed in
- * `blocked-by-add.js`.
- *
- * Returns `[]` on any error so the caller falls back to posting the full
- * set. Worst case is a duplicate POST, which GitHub rejects harmlessly and
- * the per-edge catch absorbs.
+ * Paginated to exhaustion: this is the idempotency check, and an unseen edge
+ * is re-POSTed. `[]` on error — a duplicate POST is rejected harmlessly.
  *
  * @param {{ gh: object, owner: string, repo: string, issueNumber: number, paginate?: Function }} opts
  * @returns {Promise<number[]>} Database ids of the parent's current children.
@@ -77,12 +48,6 @@ async function fetchExistingSubIssueIds({
 }
 
 /**
- * Link a set of child issues to one parent as native sub-issues.
- *
- * For each entry in `childInternalIds`, checks whether the edge already
- * exists and POSTs only the missing ones. Every individual POST failure is
- * caught, logged and counted — the function never throws.
- *
  * @param {{
  *   gh: object,
  *   owner: string,
@@ -113,8 +78,7 @@ export async function addSubIssueEdges({
   });
   const existingSet = new Set(existing);
 
-  // Partition up front so the skip count is deterministic regardless of the
-  // concurrent POST dispatch order.
+  // Partition up front so `skipped` is independent of dispatch order.
   const missing = ids.filter((id) => !existingSet.has(id));
   const skipped = ids.length - missing.length;
 
@@ -149,24 +113,10 @@ export async function addSubIssueEdges({
 }
 
 /**
- * Link child Stories to a container Epic, resolving each child's **database
- * id** from its issue number.
- *
- * Callers hold issue numbers (that is what `plan-persist` creates and what
- * an operator types); the API wants database ids. Doing the translation here
- * keeps that trap in one place instead of at every call site.
- *
- * `knownInternalIds` short-circuits the translation for children whose
- * database id the caller already has. `createIssue` returns `internalId` in
- * its response, so a cohort this run just created needs no lookup at all —
- * the `getTicket` fan-out that used to run over every child was re-reading
- * issues the same process had created seconds earlier, one round-trip per
- * Story, to recover a field it had already been handed and thrown away.
- * `getTicket` stays for the children a *resumed* run adopted, whose ids came
- * from a listing rather than a create.
- *
- * Never throws: a child whose id cannot be resolved is counted as failed and
- * the remaining edges still go out.
+ * Link Stories to a container Epic, translating issue numbers to database ids
+ * here so the trap lives in one place. `knownInternalIds` (from
+ * `createIssue`) skips the lookup; `getTicket` covers children a resumed run
+ * adopted. An unresolvable child counts as failed; the rest still go out.
  *
  * @param {{
  *   epicNumber: number,
