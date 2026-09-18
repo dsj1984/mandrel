@@ -313,7 +313,7 @@ names or defaults.
 - **`notifications`.** Both event allowlists filter their channel
   independently; their enums are pinned in the schema. Set an array to `[]` to
   suppress a channel. The severity vocabulary and shipped default allowlists
-  are documented under [`SDLC.md` § Notification system](SDLC.md#notification-system).
+  are documented under [`SDLC.md` § Notification system](https://github.com/dsj1984/mandrel/blob/main/docs/SDLC.md#notification-system).
 
 ### `planning`
 
@@ -360,7 +360,7 @@ A config still carrying the retired key is a hard validation failure; the
   `duplication` `targetDirs` default `["src"]`. The `bundle-size` gate has
   **no** `refreshTag` — there is no scorer to regenerate its baseline, so its
   one-shot refresh is the `BUNDLE_SIZE_REFRESH=1` env var, not a config knob
-  (see [`quality-gates.md` § Bundle-size ratchet](quality-gates.md#bundle-size-ratchet--one-shot-refreshacknowledge-story-151)).
+  (see [`quality-gates.md` § Bundle-size ratchet](https://github.com/dsj1984/mandrel/blob/main/docs/quality-gates.md#bundle-size-ratchet--one-shot-refreshacknowledge-story-151)).
   Extend the list-valued gate keys with the deep-merge extender form (see
   [How to extend](#how-to-extend)).
 
@@ -462,14 +462,15 @@ the lint ratchet, and the CRAP/MI gates.
 
 | File                              | Owner                                | Refresh                                                                |
 | --------------------------------- | ------------------------------------ | ---------------------------------------------------------------------- |
-| `baselines/lint.json`             | the consumer's own linter            | No framework CLI — see [Lint baseline ratchet](quality-gates.md#lint-baseline-ratchet) |
+| `baselines/coverage.json`         | `update-coverage-baseline.js`        | `node .agents/scripts/update-coverage-baseline.js`                     |
 | `baselines/crap.json`             | `update-crap-baseline.js`            | `npm run crap:update`                                                   |
+| `baselines/duplication.json`      | `update-duplication-baseline.js`     | `node .agents/scripts/update-duplication-baseline.js`                  |
 | `baselines/maintainability.json`  | `update-maintainability-baseline.js` | `npm run maintainability:update`                                        |
-| `baselines/bundle-size.json`      | consumer's own build/measure step    | Commit the build's measured sizes; for an intentional growth, run the check with `BUNDLE_SIZE_REFRESH=1` (see [Bundle-size ratchet](quality-gates.md#bundle-size-ratchet--one-shot-refreshacknowledge-story-151)) |
+| `baselines/bundle-size.json`      | consumer's own build/measure step    | Commit the build's measured sizes; for an intentional growth, run the check with `BUNDLE_SIZE_REFRESH=1` (see [Bundle-size ratchet](https://github.com/dsj1984/mandrel/blob/main/docs/quality-gates.md#bundle-size-ratchet--one-shot-refreshacknowledge-story-151)) |
 
 These files are the contract — read by every gate (Story close, push hook, CI)
 and regenerated only via tagged `baseline-refresh:` commits with a non-empty
-body (see [`quality-gates.md`](quality-gates.md) for the policy). Paths are
+body (see [`quality-gates.md`](https://github.com/dsj1984/mandrel/blob/main/docs/quality-gates.md) for the policy). Paths are
 configured in `delivery.quality.gates.<tier>.baselinePath`, defaulting to the
 layout above. The `.agents/state/` directory is created on demand by the
 progress reporter and is not committed.
@@ -592,7 +593,7 @@ Claude Code web environment-variables UI for web sessions.
 | `WEBHOOK_SECRET`           | No        | Shared secret used to sign outbound webhook payloads as `X-Signature-256: sha256=<hmac>`. Unset ships unsigned payloads.                                 |
 | `MANDREL_ALLOW_TEST_WEBHOOKS` | No     | Set to `1` to keep `NOTIFICATION_WEBHOOK_URL` live inside `npm test` / `npm run test:profile`. Default behaviour scrubs the env var from the test child so no URL resolves and the webhook never fires (see below). |
 | `MANDREL_POOL_CONCURRENCY` | No | Upper bound on the width of every `runOnPool` worker pool in the process (the MI and CRAP scan pools). Precedence is: a caller's explicit `concurrency` → this variable → a clamp of 4 under `node:test` → `os.availableParallelism()`. Set it on a constrained or shared runner where one pool per core oversubscribes the host; a non-numeric value is ignored rather than collapsing the pool. |
-| `MANDREL_BASELINE_GENERATED_AT` | No | Pins the `generatedAt` stamp every baseline envelope carries, instead of reading the clock. Set it for a reproducible build, or to make a hand-run refresh diff against a known stamp. It changes only the stamp — rows and rollup are unaffected, and a refresh that moves no row still rewrites nothing. Concurrent refreshes no longer need it to avoid conflicting: `baselines/*.json` merges by row identity (see the baseline merge driver in [quality-gates.md](quality-gates.md)). |
+| `MANDREL_BASELINE_GENERATED_AT` | No | Pins the `generatedAt` stamp every baseline envelope carries, instead of reading the clock. Set it for a reproducible build, or to make a hand-run refresh diff against a known stamp. It changes only the stamp — rows and rollup are unaffected, and a refresh that moves no row still rewrites nothing. Concurrent refreshes no longer need it to avoid conflicting: `baselines/*.json` merges by row identity (see the baseline merge driver in [quality-gates.md](https://github.com/dsj1984/mandrel/blob/main/docs/quality-gates.md)). |
 | `MANDREL_AGENTRC_VALIDATOR` | No | Set to `dynamic` to compile the `.agentrc.json` AJV validator at runtime instead of loading the committed precompiled one (see below). Costs ~35 ms per process; the escape hatch exists for a hand-edited schema or a host where the generated module will not load. |
 
 ### The `.agentrc` validator is precompiled
@@ -748,6 +749,6 @@ Run `mandrel --help` for the live list.
 - Bootstrap script —
   [`bootstrap.js`](../scripts/bootstrap.js)
 - Quality gates runbook (CRAP onboarding, MI ratchet, lint ratchet) —
-  [`quality-gates.md`](quality-gates.md)
+  [`quality-gates.md`](https://github.com/dsj1984/mandrel/blob/main/docs/quality-gates.md)
 - Activation pointers (slash commands, personas, skills) —
   [`.agents/README.md`](../README.md)

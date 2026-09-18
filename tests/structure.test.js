@@ -31,17 +31,28 @@ describe('Core .agents/ files', () => {
   }
 
   // Consumer-facing reference docs ship under .agents/docs/ (Story #3697).
-  const docsRequired = [
-    'docs/SDLC.md',
-    'docs/configuration.md',
-    'docs/agentrc-reference.json',
-  ];
+  const docsRequired = ['docs/configuration.md', 'docs/agentrc-reference.json'];
 
   for (const file of docsRequired) {
     it(`${file} exists`, () => {
       assert.ok(
         fs.existsSync(agentsPath(file)),
         `Missing required file: .agents/${file}`,
+      );
+    });
+  }
+
+  // Human-only reference docs live in the repo's docs/, outside the shipped
+  // payload (Story #5385) — no agent read path reaches them.
+  for (const file of ['SDLC.md', 'quality-gates.md']) {
+    it(`${file} lives in repo docs/, not in the .agents/docs payload`, () => {
+      assert.ok(
+        fs.existsSync(path.join(ROOT, 'docs', file)),
+        `Missing human reference doc: docs/${file}`,
+      );
+      assert.ok(
+        !fs.existsSync(agentsPath('docs', file)),
+        `Human-only doc must not ship in the payload: .agents/docs/${file}`,
       );
     });
   }

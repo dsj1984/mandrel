@@ -10,7 +10,7 @@
 This is an **auto-generated reference index** of every slash command shipped
 under `.agents/workflows/` (top-level only — `helpers/` are path-included
 modules, not runnable commands). The canonical workflow narrative lives in
-[`SDLC.md`](SDLC.md) — read that first to understand how the commands
+[`SDLC.md`](https://github.com/dsj1984/mandrel/blob/main/docs/SDLC.md) — read that first to understand how the commands
 compose. This file is only for "which command does X?" lookups.
 
 Every command file lives at `.agents/workflows/<name>.md` and is projected

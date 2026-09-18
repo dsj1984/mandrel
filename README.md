@@ -105,7 +105,7 @@ idempotent — safe to re-run anytime.
 
 For the consumer reference and the end-to-end workflow narrative, see
 [`.agents/README.md`](.agents/README.md) and
-[`.agents/docs/SDLC.md`](.agents/docs/SDLC.md). Every `.agentrc.json` key is
+[`docs/SDLC.md`](docs/SDLC.md). Every `.agentrc.json` key is
 documented in [`.agents/docs/configuration.md`](.agents/docs/configuration.md), and the
 slash-command index lives in
 [`.agents/docs/workflows.md`](.agents/docs/workflows.md).

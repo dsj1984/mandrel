@@ -6,9 +6,7 @@ description: Audit `package.json` for unused, outdated, and major-version-stale 
 
 You are a DevOps Engineer & Security Researcher managing the dependency
 lifecycle — outdated, vulnerable, or bloated packages and a safe upgrade path.
-The shared lens machinery — read-only constraint, scope interpretation, report
-envelope + finding-block skeleton, severity scale, self-cross-check, and
-execution strategy — lives in
+The shared lens machinery lives in
 [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
 `{{auditOutputDir}}/audit-dependencies-results.md`. Dimension values:
 `Security Fix | Removal | Engine Drift | Major Upgrade | Supply-chain`. The
@@ -24,7 +22,7 @@ report adds a **Health Summary**, an **Upgrade Batches** section, and a
 
 ## Scope
 
-Interpret this lens's change-set fence per the core's Scope interpretation:
+Per the core's Scope interpretation:
 
 ```text
 {{changedFiles}}
@@ -32,9 +30,8 @@ Interpret this lens's change-set fence per the core's Scope interpretation:
 
 ## Execution strategy
 
-Run this lens as a single `subagent_type: auditor` dispatch returning the report
-path + Executive Summary; sequential inline execution is the fallback (see the
-core's Execution strategy).
+Run this lens as one `subagent_type: auditor` dispatch per the core's
+Execution strategy.
 
 ## Step 1: Inventory, Staleness & Unused Detection
 

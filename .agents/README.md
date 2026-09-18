@@ -4,7 +4,7 @@ An opinionated workflow framework for AI coding assistants built on
 Story-centric GitHub orchestration. Planning, execution, and state all live natively in GitHub Issues, Labels, and Projects V2.
 
 This is the consumer README inside the distributed `.agents/` bundle. It explains what each part of the bundle is for and captures the cross-directory authoring conventions. The process narrative for
-`/mandrel-plan` and `/mandrel-deliver` stays in [`docs/SDLC.md`](docs/SDLC.md).
+`/mandrel-plan` and `/mandrel-deliver` stays in [`docs/SDLC.md`](https://github.com/dsj1984/mandrel/blob/main/docs/SDLC.md).
 
 The framework payload (`.agents/`) is consumed by host repos. It ships inside the [`mandrel`](https://www.npmjs.com/package/mandrel)
 npm package and is materialized into a consumer's `./.agents/` directory by `mandrel sync`. It carries a system prompt, a baseline rule pack, a two-tier skill library, a slash-command workflow set, and the orchestration engine that runs Story-centric plans on GitHub (`/mandrel-plan` → Stories, `/mandrel-deliver` → `story-*` → `main`).
@@ -275,7 +275,7 @@ After bootstrap, every Mandrel command is generated into a flat
 `.claude/commands/` tree by `npm run sync:commands` (kept current at install
 time and on every `mandrel sync`/`update`) and loads as a bare `/<command>`
 slash command — e.g. `/mandrel-plan`, `/mandrel-deliver`, `/audit-security`. The commands load
-in every Claude Code environment. The [SDLC guide](docs/SDLC.md) walks end-to-end planning and
+in every Claude Code environment. The [SDLC guide](https://github.com/dsj1984/mandrel/blob/main/docs/SDLC.md) walks end-to-end planning and
 delivery; Stories pair [`/mandrel-plan`](workflows/mandrel-plan.md) (idea → drafted Story Issue)
 with [`/mandrel-deliver`](workflows/mandrel-deliver.md) (Story Issue → merged
 PR).
@@ -332,7 +332,7 @@ integration branch; a ticket carrying an `Epic: #N` footer is refused by
 child checklist, never delivered itself, expanded to its open Stories by
 `/mandrel-deliver <epicId>` — and its linkage is parent→child only, which is
 what keeps that footer refused. The execution-model contract is owned by
-[`instructions.md` § 5.B](instructions.md) and [`docs/SDLC.md`](docs/SDLC.md).
+[`instructions.md` § 5.B](instructions.md) and [`docs/SDLC.md`](https://github.com/dsj1984/mandrel/blob/main/docs/SDLC.md).
 
 ---
 
@@ -341,7 +341,7 @@ what keeps that footer refused. The execution-model contract is owned by
 | Path | Purpose |
 | ---- | ------- |
 | [`instructions.md`](instructions.md) | Primary system prompt loaded by the host AI tool. |
-| [`docs/SDLC.md`](docs/SDLC.md) | Operator process for `/mandrel-plan` and `/mandrel-deliver`. |
+| [`docs/SDLC.md`](https://github.com/dsj1984/mandrel/blob/main/docs/SDLC.md) | Operator process for `/mandrel-plan` and `/mandrel-deliver`. |
 | [`starter-agentrc.json`](starter-agentrc.json) | Bootstrap delta-seed copied to the consumer repo root as `.agentrc.json`. |
 | [`agentrc-reference.json`](docs/agentrc-reference.json) | Exhaustive editor reference enumerating every schema key with its framework default. |
 | [`agents/`](agents/) | Optional role-scoped spawn boot contexts (`delivery.routing.roleScopedAgents`). |
@@ -362,10 +362,10 @@ what keeps that footer refused. The execution-model contract is owned by
 
 | You want… | Open |
 | --------- | ---- |
-| The Epic planning and delivery process | [`docs/SDLC.md`](docs/SDLC.md) |
+| The Epic planning and delivery process | [`docs/SDLC.md`](https://github.com/dsj1984/mandrel/blob/main/docs/SDLC.md) |
 | The system prompt loaded by your AI tool | [`instructions.md`](instructions.md) |
 | Every `.agentrc.json` key, default, and override | [`docs/configuration.md`](docs/configuration.md) (under `.agents/`) |
-| Quality-gate runbooks (CRAP, MI, lint, friction) plus the baseline envelope, component model, and writer/reader contract | [`.agents/docs/quality-gates.md`](docs/quality-gates.md) |
+| Quality-gate runbooks (CRAP, MI, lint, friction) plus the baseline envelope, component model, and writer/reader contract | [`docs/quality-gates.md`](https://github.com/dsj1984/mandrel/blob/main/docs/quality-gates.md) |
 | Slash-command workflow definitions | [`workflows/`](workflows/) |
 | Role-scoped spawn boot contexts | [`agents/`](agents/) |
 | Domain-agnostic baseline rules | [`rules/`](rules/) |
@@ -603,7 +603,7 @@ shape, per-kind axes, component model, path canonicalisation, writer/reader
 contract, kernel-version friction, and the consumer **floor override** path
 (add a `floors` block, and optional `components`, under your gate in
 `.agentrc.json`) — is owned by
-[`quality-gates.md` § Baseline reference](docs/quality-gates.md#baseline-reference).
+[`quality-gates.md` § Baseline reference](https://github.com/dsj1984/mandrel/blob/main/docs/quality-gates.md#baseline-reference).
 The unified runtime gate
 [`check-baselines.js`](scripts/check-baselines.js) currently runs floor +
 tolerance + schema + kernel-mismatch checks only; full regression absorption
@@ -682,7 +682,7 @@ They solve different problems and must not be confused:
   **within a single machine/clone**. They are keyed on local process PIDs
   and live under `.git/` (or a local lockfile path), so they do **not**
   coordinate across clones. See
-  [`docs/SDLC.md` § Cross-clone coordination](docs/SDLC.md#cross-clone-coordination)
+  [`docs/SDLC.md` § Cross-clone coordination](https://github.com/dsj1984/mandrel/blob/main/docs/SDLC.md#cross-clone-coordination)
   for why.
 - **The assignee-as-lease claim** coordinates **across clones** by riding
   the ticket's GitHub `assignees` surface — a substrate every clone can

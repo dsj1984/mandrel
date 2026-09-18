@@ -27,7 +27,7 @@ mandrel/
 │   ├── scripts/              # Deterministic JS tooling (orchestration engine)
 │   ├── schemas/              # JSON Schemas for structured output validation
 │   ├── templates/            # Planning prompt templates
-│   ├── docs/                 # Shipped consumer reference docs (SDLC.md, configuration.md, execution-reference.md, quality-gates.md, workflows.md, agentrc-reference.json)
+│   ├── docs/                 # Shipped consumer reference docs (configuration.md, execution-reference.md, workflows.md, agentrc-reference.json)
 │   ├── runtime-deps.json     # Runtime dependencies the payload needs present
 │   ├── starter-agentrc.json  # Bootstrap delta-seed — consumers copy to project root
 │   └── README.md             # Detailed consumer user guide
@@ -35,7 +35,7 @@ mandrel/
 ├── lib/                      # Distributed: cli/ subcommand impls + migrations/
 ├── .agentrc.json             # Root config for this repo (dogfooding)
 ├── baselines/                # Committed quality/ratchet baselines
-├── docs/                     # Implementation plans and changelog
+├── docs/                     # Human reference (SDLC.md, quality-gates.md), plans and changelog
 │   └── contributing/         # Contributor-only rules (known-tooling-behavior, test-seams, orchestration-error-handling, comment-policy)
 ├── scripts/                  # Contributor-only CLIs (lint/verify aggregates, CI ratchets) — not distributed
 ├── tests/                    # Framework tests
@@ -282,7 +282,7 @@ consulted at release time, not on every task.
 | ----------------------------------------------------------- | ----------------------------------- |
 | [`.agents/instructions.md`](../.agents/instructions.md)     | **System prompt** — all agent rules |
 | [`.agents/README.md`](../.agents/README.md)                 | Consumer user guide                 |
-| [`.agents/docs/SDLC.md`](../.agents/docs/SDLC.md)           | End-to-end SDLC narrative           |
+| [`docs/SDLC.md`](SDLC.md)           | End-to-end SDLC narrative           |
 | [`.agentrc.json`](../.agentrc.json)                         | Runtime configuration               |
 | [`CHANGELOG.md`](CHANGELOG.md)                              | Release history                     |
 | [`claude-coupling-review.md`](claude-coupling-review.md)    | Where the Claude Code coupling lives |

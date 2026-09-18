@@ -6,23 +6,17 @@ description: Drive Gherkin scenarios through a real browser as an agent-driven Q
 
 Execute a consumer's Gherkin `.feature` scenarios through a **real browser**
 (the chrome-devtools MCP surface), with the agent acting as the step executor
-and a human observing. The sweep resolves a **run envelope** — a target
-environment, a concrete scenario set, and an authenticated persona session —
-then delegates each scenario to
-[`helpers/qa-run-scenario.md`](helpers/qa-run-scenario.md), which drives it
-navigation-first and asserts `Then` outcomes semantically against the
-accessibility snapshot. Per-surface console and network are captured as
-structured findings, recorded as `QaLedgerItem`s on the shared session ledger,
-and triaged — after operator sign-off — through the shared classify/route/
-dedup/promote core. The harness never files tickets autonomously.
+and a human observing: resolve a run envelope, drive each scenario through
+[`helpers/qa-run-scenario.md`](helpers/qa-run-scenario.md), record findings as
+`QaLedgerItem`s, and triage after operator sign-off.
 
 The shared machinery — contract resolution + loud failure, the session & ledger
 contract, redact-first, the `QaLedgerItem` shape, the triage procedure, and the
 HITL write gate — lives once in [`helpers/qa-core.md`](helpers/qa-core.md); this
 workflow states only the `/qa-run`-specific phases (env → scope → sign-in →
-drive) plus a Constraints delta. Deterministic Node helpers under
-`.agents/scripts/lib/qa/` own contract, environment, and scenario resolution;
-the agent never invents those decisions in prose.
+drive). Deterministic Node helpers under `.agents/scripts/lib/qa/` own
+contract, environment, and scenario resolution; the agent never invents those
+decisions in prose.
 
 > **When to run**: during sprint testing to exercise a targeted slice of the
 > acceptance suite (a feature, a tag expression, or a domain), for regression
@@ -99,7 +93,8 @@ The chrome-devtools MCP surface (`navigate_page`, `take_snapshot`, `click`,
 `list_network_requests`) is **host-provided** — an external runtime dependency,
 not in-repo code. If the host does not expose it, degrade with a clear error
 ("the chrome-devtools MCP server is unavailable; the QA harness requires a live
-browser surface") and stop. Never attempt a headless fallback.
+browser surface") and stop. Never attempt a headless fallback, and never fall
+back to a retired headless BDD runner.
 
 ### Step 1 — Resolve the environment, then the scope
 
@@ -234,23 +229,6 @@ Then summarize the sweep in chat with:
 
 ## Constraints
 
-Beyond the shared core ([`helpers/qa-core.md`](helpers/qa-core.md): contract +
-loud failure, session/ledger, redact-first, QaLedgerItem, triage, HITL gate)
-and the driving rules ([`helpers/qa-run-scenario.md`](helpers/qa-run-scenario.md):
-navigation-first, semantic `Then`, redaction, sequential-only), the
-`/qa-run`-specific deltas are:
-
-- **Always** resolve a target environment (Step 1) — prompt when no `<env>` is
-  supplied — and **fail loudly** on an unknown name or unmatched URL; never
-  silently fall back to the default.
-- **Always** apply the `allowWrites` guardrail: on a read-only environment,
-  exclude mutating scenarios and report the exclusion count; include them only
-  on explicit in-session operator confirmation.
-- **Always** sign in per persona through the environment's `signInSeam` and
-  confirm the authenticated state with a post-sign-in `take_snapshot` before
-  driving.
-- An **empty selection is operator error**, not a passing sweep — report it and
-  stop.
-- **Never** expand `consoleAllowlist` to suppress genuine error signal.
-- **Never** file follow-up tickets autonomously, and **never** fall back to a
-  retired headless BDD runner.
+The shared core in [`helpers/qa-core.md`](helpers/qa-core.md) and the driving
+rules in [`helpers/qa-run-scenario.md`](helpers/qa-run-scenario.md) bind this
+workflow; the `/qa-run` deltas are the MUSTs in Steps 0–5 above.

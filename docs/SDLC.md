@@ -19,7 +19,7 @@ The framework is **Claude Code-first**: `.claude/`, hooks, skills, and
 the slash-command surface lean in on Claude Code as the reference
 runtime, and the dispatcher (`.agents/scripts/`) treats the dispatch
 manifest (md + structured comment) as the cross-runtime contract. See
-ADR 20260512-coupling-stance in [`../docs/decisions.md`](../../docs/decisions.md).
+ADR 20260512-coupling-stance in [`../docs/decisions.md`](decisions.md).
 
 ---
 
@@ -27,20 +27,20 @@ ADR 20260512-coupling-stance in [`../docs/decisions.md`](../../docs/decisions.md
 
 From zero to shipped:
 
-1. **Plan the work.** Run [`/mandrel-plan`](../workflows/mandrel-plan.md) in your agentic IDE.
+1. **Plan the work.** Run [`/mandrel-plan`](../.agents/workflows/mandrel-plan.md) in your agentic IDE.
    The framework authors **one Story by default** (folded Tech Spec in
    `## Spec`), splitting into N>1 only under the default-single split policy.
    Three operator modes are the **only** accepted entries — `/mandrel-plan --seed
    "<text>"` (ideate from chat text), `/mandrel-plan --seed-file <path>` (author from
-   on-disk notes / a plan seed — the [`/audit-to-stories`](../workflows/audit-to-stories.md)
+   on-disk notes / a plan seed — the [`/audit-to-stories`](../.agents/workflows/audit-to-stories.md)
    handoff via `--emit-plan-seed`), and `/mandrel-plan --tickets 123[,456…]` (analyze
    existing issue(s), preferring an N=1 rewrite). `/mandrel-plan` is a **single path**
    — interrogate → author → persist, bracketed by two HITL gates and a single
    critic gate — with no Epic/Story router, split-routing verdict, or
    `deliveryShape`. Duplicate search targets open **Stories**, never Epics. The
-   step-by-step lives in [`mandrel-plan.md`](../workflows/mandrel-plan.md).
+   step-by-step lives in [`mandrel-plan.md`](../.agents/workflows/mandrel-plan.md).
 
-2. **Deliver the Story.** Run [`/mandrel-deliver <storyId>`](../workflows/mandrel-deliver.md)
+2. **Deliver the Story.** Run [`/mandrel-deliver <storyId>`](../.agents/workflows/mandrel-deliver.md)
    (or `/mandrel-deliver <a> <b> …` for several). `/mandrel-deliver` takes only Story ids and
    resolves their dependency graph from live state — body edges union native
    GitHub `blocked_by` edges, every blocker checked against its real issue
@@ -48,9 +48,9 @@ From zero to shipped:
    ready. `/mandrel-deliver` owns input resolution and dispatch order — the declared
    `depends_on` edges plus a delivery-time file-overlap guard that withholds
    two Stories whose footprints would race the same path (see
-   [`architecture.md` § Scheduler safety mechanics](../../docs/architecture.md));
+   [`architecture.md` § Scheduler safety mechanics](architecture.md));
    every Story runs through the single v2 delivery engine
-   [`helpers/deliver-story`](../workflows/helpers/deliver-story.md) —
+   [`helpers/deliver-story`](../.agents/workflows/helpers/deliver-story.md) —
    init → implement → acceptance self-eval → ceremony → close → CI watch →
    confirm-merge — which owns its own per-step detail. For a multi-Story run,
    `/mandrel-deliver` sequences ready Stories by `depends_on` — plus that footprint
@@ -60,7 +60,7 @@ From zero to shipped:
 That is the whole happy path. Everything below is **detail** — branching
 conventions, HITL escalation, audit lenses — that you only need when the
 default flow requires adjustment. It intentionally **links** to
-[`mandrel-plan.md`](../workflows/mandrel-plan.md) and [`mandrel-deliver.md`](../workflows/mandrel-deliver.md)
+[`mandrel-plan.md`](../.agents/workflows/mandrel-plan.md) and [`mandrel-deliver.md`](../.agents/workflows/mandrel-deliver.md)
 rather than re-documenting the ceremony they own.
 
 ## Core Principles
@@ -107,7 +107,7 @@ artifacts live under `temp/run-<id>/` (standalone Stories under
 `temp/standalone/stories/story-<id>/`); the `run-<id>` directory naming is
 historical (it predates the Story-centric cutover) but remains the live
 on-disk layout resolved by
-[`lib/config/temp-paths.js`](../scripts/lib/config/temp-paths.js).
+[`lib/config/temp-paths.js`](../.agents/scripts/lib/config/temp-paths.js).
 
 | State Store | Owner (canonical writer) | Mutation API | Idempotency key | Conflict resolution |
 | --- | --- | --- | --- | --- |
@@ -185,7 +185,7 @@ it defaults to files-only so GitHub provisioning never runs unattended. The
 `bootstrap.js` pipeline (cold-start repo/board provisioning, the `.agentrc.json`
 seed, the label taxonomy + Projects V2 fields + branch protection) and the
 onboarding tail are documented in
-[`README.md` § Activation](../README.md#activation). Bootstrap runs once per
+[`README.md` § Activation](../.agents/README.md#activation). Bootstrap runs once per
 repository and is safe to re-run — existing labels, fields, and
 branch-protection entries are preserved; missing ones are added.
 
@@ -193,7 +193,7 @@ branch-protection entries are preserved; missing ones are added.
 
 ## Phase 1: Planning
 
-Planning is owned end-to-end by [`/mandrel-plan`](../workflows/mandrel-plan.md). Rather than
+Planning is owned end-to-end by [`/mandrel-plan`](../.agents/workflows/mandrel-plan.md). Rather than
 re-document the ceremony here, this section states the contract the rest of
 the SDLC depends on:
 
@@ -221,7 +221,7 @@ transition anywhere on the path: sizing is the authoring model's cohesion
 judgment, and the one deterministic split gate is the collision refusal.
 
 Audit findings enter planning through
-[`/audit-to-stories`](../workflows/audit-to-stories.md), which groups and
+[`/audit-to-stories`](../.agents/workflows/audit-to-stories.md), which groups and
 deduplicates findings and hands off via `--emit-plan-seed` →
 `/mandrel-plan --seed-file <path>`.
 
@@ -229,13 +229,13 @@ deduplicates findings and hands off via `--emit-plan-seed` →
 
 ## Phase 2: Delivery
 
-Delivery is owned end-to-end by [`/mandrel-deliver`](../workflows/mandrel-deliver.md), which
+Delivery is owned end-to-end by [`/mandrel-deliver`](../.agents/workflows/mandrel-deliver.md), which
 delegates every Story to
-[`helpers/deliver-story`](../workflows/helpers/deliver-story.md). This
+[`helpers/deliver-story`](../.agents/workflows/helpers/deliver-story.md). This
 section states the contract; the per-Story step detail (init, implement,
 self-eval, ceremony, close, CI watch, confirm-merge, cleanup) lives in the
 `deliver-story` workflow and its
-[reference](../workflows/helpers/deliver-story-reference.md).
+[reference](../.agents/workflows/helpers/deliver-story-reference.md).
 
 ### Invocation modes
 
@@ -270,7 +270,7 @@ Who authors a Story's acceptance verdict is selected by
 decision and tunes review depth and audit-lens selection. Hard gates (lint /
 test / format / coverage / CRAP / maintainability) always run at close —
 neither decision disables them. The full profile × scope matrix lives in
-[`mandrel-deliver.md` § Ceremony](../workflows/mandrel-deliver.md).
+[`mandrel-deliver.md` § Ceremony](../.agents/workflows/mandrel-deliver.md).
 
 ### State sync
 
@@ -302,11 +302,11 @@ Concurrent runs are serialised by **two distinct layers**:
 - **The assignee-as-lease is the cross-clone layer.** To stop two clones
   from both *starting* the same Story, `deliver-story` takes an exclusive,
   time-bounded claim on the ticket via
-  [`ticket-lease.js`](../scripts/lib/orchestration/ticket-lease.js), riding
+  [`ticket-lease.js`](../.agents/scripts/lib/orchestration/ticket-lease.js), riding
   the ticket's GitHub `assignees` field so a live foreign claim is visible
   to every clone. The standalone lease **fails closed** on a foreign
   assignee; `--steal` is the only override. See
-  [`README.md` § Multi-developer coordination](../README.md#multi-developer-coordination).
+  [`README.md` § Multi-developer coordination](../.agents/README.md#multi-developer-coordination).
 
 ### Concurrent close
 
@@ -371,9 +371,9 @@ Tests are **pyramid-aware**. Every test written during Story delivery
 belongs to exactly one tier — **unit**, **contract**, or **e2e /
 acceptance**. The canonical tier definitions, assertion-placement rules,
 and coverage thresholds live in
-[`rules/testing-standards.md`](../rules/testing-standards.md); Gherkin
+[`rules/testing-standards.md`](../.agents/rules/testing-standards.md); Gherkin
 authoring for the acceptance tier is governed by
-[`rules/gherkin-standards.md`](../rules/gherkin-standards.md).
+[`rules/gherkin-standards.md`](../.agents/rules/gherkin-standards.md).
 
 Write a Story's acceptance criteria in Gherkin-compatible `Given / When /
 Then` form so the acceptance suite can lift them into executable `.feature`
@@ -383,20 +383,20 @@ files.
 
 Three complementary QA workflows sit alongside the automated pyramid, all
 reading the consumer's `qa.*` contract through
-[`resolve-qa-contract.js`](../scripts/lib/qa/resolve-qa-contract.js) (which
+[`resolve-qa-contract.js`](../.agents/scripts/lib/qa/resolve-qa-contract.js) (which
 fails loudly when no `qa` block is bound):
 
-- **[`/qa-explore`](../workflows/qa-explore.md)** — **agent-led** open-ended
+- **[`/qa-explore`](../.agents/workflows/qa-explore.md)** — **agent-led** open-ended
   Plan → Capture → Triage sweep of a named surface (read-only capture; every
   state-changing action lands in Triage after operator confirmation).
-- **[`/qa-assist`](../workflows/qa-assist.md)** — the **human-led** sibling: a
+- **[`/qa-assist`](../.agents/workflows/qa-assist.md)** — the **human-led** sibling: a
   single-observation Intake → Enrich → Record loop, same ledger contract.
-- **[`/qa-run`](../workflows/qa-run.md)** — the **automated complement**: steps
+- **[`/qa-run`](../.agents/workflows/qa-run.md)** — the **automated complement**: steps
   a *known* set of Gherkin `.feature` scenarios through a real browser into
   structured `F#` findings.
 
 Consumer adoption steps are in
-[`README.md` § Adopting the QA harness](../README.md#adopting-the-qa-harness).
+[`README.md` § Adopting the QA harness](../.agents/README.md#adopting-the-qa-harness).
 
 ---
 
@@ -437,8 +437,8 @@ the Story diff once (change-set-matched local lenses as review dimensions
 alongside the review pillars) and posts the unified `verification-results`
 comment, halting on surviving 🔴 Critical findings. The provider chain and
 remediation knobs are owned by
-[`README.md` § Code review providers](../README.md#code-review-providers-pluggable-chain);
-the walk-through is in [`helpers/code-review.md`](../workflows/helpers/code-review.md).
+[`README.md` § Code review providers](../.agents/README.md#code-review-providers-pluggable-chain);
+the walk-through is in [`helpers/code-review.md`](../.agents/workflows/helpers/code-review.md).
 
 ### Quality ratchets
 
@@ -452,7 +452,7 @@ baseline edits. The runbooks (bootstrap, refresh, floor policy) are owned by
 
 The standalone `/audit-<dimension>` workflows write
 `audit-<dimension>-results.md` under `temp/audits/`;
-[`/audit-to-stories`](../workflows/audit-to-stories.md) groups and deduplicates
+[`/audit-to-stories`](../.agents/workflows/audit-to-stories.md) groups and deduplicates
 those findings and hands off to `/mandrel-plan --seed-file` (or opens standalone
 Stories), closing the loop back into planning.
 
@@ -467,7 +467,7 @@ ship to consuming projects.
 
 Every notification — whether a manual orchestration milestone (Story
 merged, HITL gate triggered) or an auto-fired ticket-state transition —
-routes through [`notify.js`](../scripts/notify.js). Two delivery channels:
+routes through [`notify.js`](../.agents/scripts/notify.js). Two delivery channels:
 
 | Channel | What it does |
 | --- | --- |
@@ -551,7 +551,7 @@ the old value. When tuning knobs mid-Story:
    so the script sees the bump on its next read.
 3. **Use `.agentrc.local.json`** for per-machine tuning you never commit
    (see
-   [`configuration.md`](configuration.md#per-machine-local-overrides)) —
+   [`configuration.md`](../.agents/docs/configuration.md#per-machine-local-overrides)) —
    place it inside the worktree, or invoke the script with
    `--cwd <main-repo>` so the resolver reads the main checkout's override.
 
@@ -584,7 +584,7 @@ v1 ticket and still refused.
 | `/mandrel-plan --tickets <ids>` | Analyze existing issue(s) into proper Stories (prefer an N=1 rewrite). |
 | `/mandrel-deliver <storyId>` | Deliver one Story via `helpers/deliver-story` — `story-<id>` → PR → `main`. |
 | `/mandrel-deliver <storyId> [<storyId>…]` | Deliver multiple Stories in `depends_on` order (resolved from live state), then run the per-run epilogue. |
-| *helper* `helpers/deliver-story` | Per-Story engine invoked by `/mandrel-deliver`; not an operator slash command. See [`deliver-story.md`](../workflows/helpers/deliver-story.md). |
+| *helper* `helpers/deliver-story` | Per-Story engine invoked by `/mandrel-deliver`; not an operator slash command. See [`deliver-story.md`](../.agents/workflows/helpers/deliver-story.md). |
 | `/audit-to-stories` | Convert audit findings into a plan seed / Stories → `/mandrel-plan --seed-file`. |
 | `/qa-explore` · `/qa-assist` · `/qa-run` | Agent-led / human-led exploratory QA and the automated Gherkin harness. |
 | `/git-deliver` | Ad-hoc delivery of working-tree changes — detects the git setup and escalates to commit, commit + push, or commit + push + PR (auto-merge armed). |

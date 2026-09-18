@@ -16,9 +16,7 @@ nav-registry entry surfaces it for any persona — only a hardcoded deep-link
 reaches it) and the **dead nav href** (a nav entry points at a route that does
 not exist). This is **mechanism, not content**: the lens reads the consumer's
 configured route tree and nav-registry SSOT and is a **silent no-op when neither
-is configured**. The shared lens machinery — read-only constraint, scope
-interpretation, report envelope + finding-block skeleton, severity scale,
-self-cross-check, and execution strategy — lives in
+is configured**. The shared lens machinery lives in
 [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
 `{{auditOutputDir}}/audit-navigability-results.md`. Dimension values:
 `Orphaned Route | Dead Nav Href`; extra finding fields **Route / Door:** and
@@ -61,9 +59,8 @@ a foreign change set leak into a scoped lens.
 
 ## Execution strategy
 
-Run this lens as a single `subagent_type: auditor` dispatch returning the report
-path + Executive Summary; sequential inline execution is the fallback (see the
-core's Execution strategy).
+Run this lens as one `subagent_type: auditor` dispatch per the core's
+Execution strategy.
 
 ## Configuration
 

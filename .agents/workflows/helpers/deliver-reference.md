@@ -8,14 +8,13 @@ description:
 
 # /mandrel-deliver — reference appendix (on-demand)
 
-Reference-only detail split out of [`mandrel-deliver.md`](../mandrel-deliver.md) so the
-always-resident spine stays lean. Nothing here is a new MUST —
-it is the mechanics an operator consults when the matching lever is engaged.
+Reference-only detail split out of [`mandrel-deliver.md`](../mandrel-deliver.md).
+Nothing here is a new MUST — it is the mechanics an operator consults when the
+matching lever is engaged.
 
 ## Ranges (`4922 - 4926`) {#ranges}
 
-A contiguous span is how an operator reads a plan run, so the dash range is a
-first-class id shape rather than prose to interpret — `/mandrel-deliver 4922 - 4926`
+A contiguous span is a first-class id shape — `/mandrel-deliver 4922 - 4926`
 means exactly the five ids in it.
 
 **Pass the span through; never expand it by hand.** Every id-list flag on the
@@ -26,8 +25,7 @@ the scripts one unspaced token (`--ids 4922-4926`), mixed freely with singles
 and commas (`--ids 4901,4922-4926`); overlaps dedupe. A hand-typed enumeration
 is where an id gets dropped or invented, and the drop is silent.
 
-The shared expander (`lib/util/parse-id-list.js`) refuses rather than guesses,
-so a typo fails where it was typed instead of resolving the wrong set:
+The shared expander (`lib/util/parse-id-list.js`) refuses rather than guesses:
 
 | Input | Outcome |
 | --- | --- |
@@ -36,30 +34,26 @@ so a typo fails where it was typed instead of resolving the wrong set:
 | `1-4926` | Refused — above the 50-id span cap (`MAX_RANGE_SPAN`). |
 | `4922-`, `-4926`, `4922-4923-4924` | Refused as a malformed token. |
 
-The cap is per range token, not per run: a genuine 60-Story delivery is still
-expressible as two ranges, but a slipped digit cannot fan out into a live
-resolution sweep of thousands of issues.
+The cap is per range token, not per run: a 60-Story delivery is still two
+ranges.
 
 ## Sequencing edge cases (`deliver-run.js` over `stories-wave-tick.js`)
 
 **What "discovered, not declared" means concretely.** `resolve-stories.js` reads
 the graph from live state as the union of the Story bodies' `depends_on` edges
 and GitHub's native `blocked_by` edges, resolving each blocker against its real
-issue state rather than against anything you hand it. That is why there is no
-batch label to pass and why a blocker that landed in an unrelated run is simply
-seen as done.
+issue state. That is why there is no batch label to pass and why a blocker that
+landed in an unrelated run is simply seen as done.
 
 **A Story with no `agent::*` label is refused.** The audit sweep files Stories
 deliberately without one — their bodies are audit prose, not a scoped change
-with verifiable acceptance criteria — so resolving one means dispatching a
-worker at an unenriched body, after taking its lease. Route it through
-`/mandrel-plan` first, which applies `agent::ready` at the end of planning.
-`--allow-unlabelled` is the deliberate escape hatch.
+with verifiable acceptance criteria. Route it through `/mandrel-plan` first,
+which applies `agent::ready` at the end of planning. `--allow-unlabelled` is
+the deliberate escape hatch.
 
 **Inspecting a beat without taking one.** `deliver-run.js` writes — the ledger,
-the prompts — so it is not the tool for "what *would* the next beat do?". The
-tick underneath it is read-only and answers exactly that, with no ledger and no
-prompt files:
+the prompts. The tick underneath it is read-only and answers "what *would* the
+next beat do?":
 
 ```bash
 node .agents/scripts/stories-wave-tick.js --stories <id,id,...> --probe-live
@@ -89,83 +83,62 @@ turn, not a slow beat.
 Each beat re-probes live state: it re-resolves the graph, classifies **done**
 (`agent::done` or a closed issue — including foreign blockers that landed in
 another run), and derives **in-flight** from live `agent::executing` /
-`agent::closing` labels. You never compute `done` or `in-flight` — that
-accounting is read from reality every beat.
+`agent::closing` labels. You never compute `done` or `in-flight`.
 
-**The run ledger closes the init window, and you maintain nothing.** Live state
-cannot instantly report a Story dispatched moments ago:
-`single-story-init.js` publishes `agent::executing` before the worktree install
-(ahead of the multi-minute install, so the window is short rather than
-minutes-long), but it is not zero — until the label lands the Story still reads
-`agent::ready`, and an unaugmented beat would hand it back so a second
-sub-agent joined the first on the same branch and worktree, interleaving
-commits. `deliver-run.js` closes that window from its own ledger
-(`<tempRoot>/run-<id>/ledger.json`): every id it hands out as ready is
-recorded, and the next beat reads the file back and seeds the tick with it.
-Append-only by construction, so the "forgot to re-list one" failure the
-hand-maintained list had cannot occur. The ledger is additive, not
-authoritative — the probe unions it into the label-derived set and then filters
-it against live state, so an id that has since gone `agent::done` is dropped
-for you. A missing or corrupt ledger costs one extra beat of the init window,
-never the run. The run id is a stable digest of the Story id set, so every beat
-of one run finds the same ledger and two concurrent runs never share one;
-`--run-id` pins it explicitly.
+**The run ledger closes the init window, and you maintain nothing.** Until
+`single-story-init.js` publishes `agent::executing`, a just-dispatched Story
+still reads `agent::ready`, and an unaugmented beat would hand it out again.
+`deliver-run.js` records every id it hands out in
+`<tempRoot>/run-<id>/ledger.json` and seeds the next beat with it. The ledger
+is additive, not authoritative — the probe unions it into the label-derived set
+and filters it against live state, so an id that has gone `agent::done` drops
+out. A missing or corrupt ledger costs one extra beat of the init window, never
+the run. The run id is a stable digest of the Story id set, so every beat of
+one run finds the same ledger; `--run-id` pins it explicitly.
 
-**A spawn that never reached init is the ledger's one sharp edge.** Append-only
-is what makes the list safe to keep, and it is also why a bad entry never
-leaves: if a spawn dies before `single-story-init.js` runs, the id stays
-ledgered, is withheld as in flight on every later beat, and the run returns an
-empty `ready[]` with a non-zero `inFlight` forever — which reads exactly like a
-healthy wait. The beat names it instead: every ledgered id live state still
-reports as `agent::ready` appears in `stalledDispatch[]`, with the recovery in
-`stalledDispatchReason`. That is its **own** reason — not a footprint withhold
-(which names a blocking peer and the colliding paths) and not a foreign lease
-(which names a holder and clears itself when their run ends).
+**A spawn that never reached init is the ledger's one sharp edge.** If a spawn
+dies before `single-story-init.js` runs, the id stays ledgered and is withheld
+as in flight on every later beat — an empty `ready[]` with a non-zero
+`inFlight` that reads like a healthy wait. The beat names it: every ledgered id
+live state still reports as `agent::ready` appears in `stalledDispatch[]`, with
+the recovery in `stalledDispatchReason` — its **own** reason, not a footprint
+withhold and not a foreign lease.
 
-It is a report, not a release. A slow init and a dead spawn are the same
-observation at the beat's altitude, and auto-releasing would re-dispatch a live
-Story onto its own branch — the failure the ledger exists to prevent. So the
+It is a report, not a release: a slow init and a dead spawn look identical, and
+auto-releasing would re-dispatch a live Story onto its own branch. So the
 operator owns the call: confirm no worker is running, remove the id from
 `dispatched` in `<tempRoot>/run-<id>/ledger.json` (deleting the file works too,
 at the cost of reopening the init window for the rest), and beat again with
-`--run-id <id>` so the same run directory is reused. An id that has since
-picked up `agent::executing`, `agent::closing` or `agent::done` is never
-reported here — live state has moved on and the ledger entry is already inert.
+`--run-id <id>` so the same run directory is reused.
 
 **Cross-run de-confliction is automatic.** A Story another
 operator is delivering is withheld without any bookkeeping from you: the probe
 reads the Story's assignee lease and, when it belongs to a different operator,
 withholds the Story and reports it in the envelope's
 `foreignHeld: [{ id, holder }]` (with `foreignHeldReason`). That is not a
-failure or a wedge — the holder's run owns the branch, and this run picks the
-Story up automatically once their lease clears. Init is the backstop: it
-refuses a Story already labelled `agent::executing`, or one whose lease a
-different operator holds, unless you pass `--steal`. Assignee-based withholding
-needs `github.operatorHandle` set (in `.agentrc.local.json`); without it the
-probe logs a warning and leans on init's lease refusal alone.
+failure or a wedge — this run picks the Story up once their lease clears. Init
+is the backstop: it refuses a Story already labelled `agent::executing`, or one
+whose lease a different operator holds, unless you pass `--steal`.
+Assignee-based withholding needs `github.operatorHandle` set (in
+`.agentrc.local.json`); without it the probe logs a warning and leans on init's
+lease refusal alone.
 
 **Overlapping footprints are reserved across beats, not just within one.** A
 Story sharing a **concrete** path with a still-implementing Story is withheld
 and named in `inFlightReservation: { available, withheld: [{ id, blockedBy,
 reason, source, paths }], note }`, where `reason` is `in-flight-earlier-beat` or
 `foreign-lease`. Like `foreignHeld` this is neither a failure nor a wedge — the
-Story re-admits automatically once its blocker leaves the in-flight set — and
-it exists so an unfilled slot is explained rather than mysterious. A **glob**
-footprint (or the UNKNOWN sentinel for an unparseable body) reserves nothing
-across beats; it still serializes its own beat. Reservation needs the in-flight
-Stories' footprints, so it is a `--probe-live` capability: under `--dag` the
-report is `available: false` and selection de-conflicts within the beat only.
+Story re-admits automatically once its blocker leaves the in-flight set. A
+**glob** footprint (or the UNKNOWN sentinel for an unparseable body) reserves
+nothing across beats; it still serializes its own beat. Reservation is a
+`--probe-live` capability: under `--dag` the report is `available: false` and
+selection de-conflicts within the beat only.
 
 **Beat-local skips are reported too**, in `footprintGuard: { mode, withheld,
-advisory, note }`. They used to be an unreported skip, so a Story simply
-vanished from `ready[]` and an unfilled slot read exactly like a cap that was
-never reached. Every entry in **either** report carries the colliding `paths`
-and one `source` tag, `declared-overlap`: both Stories' `changes[]` named the
-path, or one declared a glob. Intended serialization — two Stories rewriting
-the same generated baseline must not co-dispatch. A declared footprint is the
-whole footprint: Story #5313 retired the body scrape that used to widen it,
-and the second source class it produced, so `changes[]` is the only evidence
-a collision is scored against.
+advisory, note }`. Every entry in **either** report carries the colliding
+`paths` and one `source` tag, `declared-overlap`: both Stories' `changes[]`
+named the path, or one declared a glob. A declared footprint is the whole
+footprint — `changes[]` is the only evidence a collision is scored against.
 
 **`delivery.deliverRunner.footprintGuard`** selects what a collision does:
 
@@ -176,47 +149,24 @@ a collision is scored against.
 
 ## Dispatch mechanics (role-scoped by default)
 
-**A single-Story run executes inline.** Sub-agent isolation is
-load-bearing only for **concurrent** dispatch — two workers sharing a checkout
-would race on worktrees and branch refs — so a run resolving exactly one Story
-has no sibling to isolate from and pays the spawn premium for nothing (a boot is
-a cache write at full rate; an inline continuation is a cache read at ~10%).
-`resolve-stories.js` already reports it: a one-id run comes back with
-`dispatchMode: "inline"` whatever the Story's shape. Role-scoped spawning is
-retained in full for multi-Story waves, and the rule changes **where** the
-engine runs, never what runs — gates, PR, and terminal envelope are identical.
-
-**Read the mode; never infer it from shape.** Before spawning
-anything, read the Story's `dispatchMode` from the resolver envelope
-(`stories[].dispatchMode`, produced by `resolveStoryDispatchMode` in
-`lib/orchestration/complexity-gate.js`, which decides on the resolved set size
-alone — it does not read the Story body). A Story with `dispatchMode: "inline"`
-executes [`deliver-story.md`](deliver-story.md) **inline in this session** — no
-`story-worker` sub-agent boot (sub-agent boots are the dominant deliver-phase
-token cost at trivial scope) — threading the same `docsDigestPath` /
-`checklistPath` / change-set discipline as a spawned worker. It does not touch
-the acceptance verdict owner, which the ceremony profile alone names
-([`deliver-digest.md`](deliver-digest.md) § 3). Every `single-story-close.js`
-gate, the PR to `main`, and the terminal envelope are identical.
-
-**A trivial shape does not buy that session.** Only the
-one-Story rule above yields `inline`; every Story of a multi-Story run comes
-back `subagent` however lite its body, because the ready set below may offer
-several Stories on one beat and a session cannot be split between them. The
-Story's shape does not enter the decision at all — `resolveStoryDispatchMode`
-reads the resolved set size and nothing else, and the `route::lite` hint label
-was retired with the plan-side route claim (Story #5312), so there is no label
-left to lose or misread.
+**Read the mode; never infer it from shape.** Before spawning anything, read
+the Story's `dispatchMode` from the resolver envelope (`stories[].dispatchMode`,
+from `resolveStoryDispatchMode` in `lib/orchestration/complexity-gate.js`,
+which decides on the resolved set size alone). The rule is digest § 1: a
+one-Story run is `inline`, every Story of a multi-Story run is `subagent`
+however lite its body. A Story with `dispatchMode: "inline"` executes
+[`deliver-story.md`](deliver-story.md) **inline in this session** — no
+`story-worker` boot — threading the same `docsDigestPath` / `checklistPath` /
+change-set discipline as a spawned worker. It does not touch the acceptance
+verdict owner ([`deliver-digest.md`](deliver-digest.md) § 3).
 
 **Issue a beat's spawns in one turn.** A beat hands you a ready set, not a
-queue: those Stories have no dependency edge between them (the resolver already
-withheld any that do) and no shared write paths (each owns its own worktree and
-branch). Dispatch them the way
+queue: those Stories have no dependency edge between them and no shared write
+paths. Dispatch them the way
 [`parallel-tooling.md`](parallel-tooling.md) Rule 3 prescribes — **N `Agent`
 calls issued together in a single assistant turn**, one per ready Story, not
-`Agent` → wait → `Agent`. Serial dispatch is compliant with every other rule on
-this page and costs the run a full Story's implementation time per sibling for
-nothing; the wave aggregator is built for the parallel shape. Respect
+`Agent` → wait → `Agent`. Serial dispatch costs the run a full Story's
+implementation time per sibling for nothing. Respect
 `delivery.deliverRunner.concurrencyCap`: when the ready set exceeds it, slice
 into batches of `cap` and dispatch each batch in its own turn.
 
@@ -289,8 +239,7 @@ at `agent::closing` for the human merge and is **not** flipped to
 `agent::blocked` — `--wait-merge` does not override this, because the operator
 owning the merge is a decision to respect, not a fault to report. A genuine
 *arm failure* is the opposite case: nobody chose it, so close still waits and
-still blocks. That asymmetry is what keeps the must-land contract intact
-without misfiling deliberate human merges as blocks.
+still blocks.
 
 ## Per-run epilogue (N>1)
 
@@ -306,16 +255,14 @@ This executes, in order:
 - `follow-up-rollup` — friction follow-ups across every Story in the run
   (files issues when auto-file is on; posts `follow-ups`).
 - `epic-close` — **reports** which of the run's container Epics its land tails
-  left closed and which are still open. **Read-only** — it derives nothing:
-  every child state change is already a rollup edge, so the container was
-  derived from a complete child set by the last Story's own land tail.
+  left closed and which are still open. **Read-only** — the last Story's own
+  land tail already derived the container from a complete child set.
 
 **The audit roster is opt-in** (Story #5343). Add `--audit-roster` and the run
 also selects cross-Story audit lenses over the combined landed tip and posts
 `plan-run-audit-roster` on the primary Story — and the host MUST then walk
 every listed lens against the combined diff, one `auditor` sub-agent per lens.
-That walk is the expensive half, and it only pays for itself when someone is
-going to read it, so **the operator asks for it** — exactly as for the
+That walk is expensive, so **the operator asks for it** — exactly as for the
 pre-mortem plan critic. Without the flag no roster comment is posted and no
 auditor is spawned.
 
@@ -324,56 +271,40 @@ confirm instead (`captureStoryFollowUps`).
 
 ## Container-Epic rollup (every N)
 
-A container Epic is never delivered, so nothing used to write to it during
-the run it was the subject of. `epic-rollup.js` derives its state from its
-children at **every edge that changes a child's state** — the
-`agent::executing` flip in `single-story-init.js`, the post-land tail
-(reported as the tail's `epicRollup` step), and `plan-persist`'s supersede
-close (reported as `supersede.epicRollup`) — which is why it holds at **N=1**,
-where no epilogue runs, and why a cohort superseded by a re-plan no longer
-strands its container open above finished work.
+`epic-rollup.js` derives a container Epic's state from its children at
+**every edge that changes a child's state** — the `agent::executing` flip in
+`single-story-init.js`, the post-land tail (the tail's `epicRollup` step), and
+`plan-persist`'s supersede close (`supersede.epicRollup`) — so it holds at
+**N=1**, where no epilogue runs.
 
 - **Status** follows the children's composition (`deriveParentState` mapped
   onto the board's three options): any **open** child executing or blocked →
   `In Progress`, every child `agent::done` or closed → `Done`. A **closed**
-  child contributes no `agent::*` state at all — its label records where it
-  stopped, and a superseded Story closed still wearing `agent::blocked` used
-  to pin its container open forever. It is written
-  **directly**, never via a label: the container carries no `agent::*` label
-  by construction, which is what keeps it out of the bare `/mandrel-deliver`
-  ready list.
+  child contributes no `agent::*` state at all. It is written **directly**,
+  never via a label: the container carries no `agent::*` label by
+  construction, which keeps it out of the bare `/mandrel-deliver` ready list.
 - **Owner** — `github.operatorHandle` is added to the Epic while any child is
   in flight, through the additive assignees endpoint, and is never removed.
 - **Closure** is one-way: a container whose children are all finished closes,
   as `completed` when at least one child landed and as `not_planned` when none
-  did (a cohort superseded by a re-plan is finished, but nothing merged). A
-  reopened child moves Status back to `In Progress` and does **not** reopen the
-  issue — which is why the lookup reads `state: 'all'`, since an open-only
-  listing cannot see the container it would have to correct.
+  did. A reopened child moves Status back to `In Progress` and does **not**
+  reopen the issue.
 - The parent lookup resolves the native parent edge in **one** call
-  (`getParentIssue`), because linkage is parent→child only; it falls back to a
-  `type::epic` scan for a child linked by checklist alone. Children are read as
-  the body checklist **union** the native sub-issue edges — literally the same
-  reader `/mandrel-deliver`'s expansion uses, so an Epic can never be
-  expandable but unclosable — bounded at 5 concurrent reads.
+  (`getParentIssue`), falling back to a `type::epic` scan for a child linked by
+  checklist alone. Children are the body checklist **union** the native
+  sub-issue edges — the same reader `/mandrel-deliver`'s expansion uses.
 - A checklist row citing an id that resolves to nothing is **dropped with a
-  warning** when the native read succeeded: hand-edited prose can cite a
-  deleted or mistyped issue, and no re-run will make it resolve. An
-  unresolvable *native* edge still fails the read. An Epic-typed child is
-  refused by name (`epic-typed-child`) and neither blocks nor advances the
-  parent.
+  warning** when the native read succeeded; an unresolvable *native* edge
+  still fails the read. An Epic-typed child is refused by name
+  (`epic-typed-child`) and neither blocks nor advances the parent.
 - Every step is best-effort and never throws: a stale container costs
   tidiness, not a landed Story's envelope.
 
 ## Ceremony (profiles + two scopes)
 
-Ceremony depth is selected by `delivery.routing.ceremonyProfile`
-(`minimal` | `standard` | `strict`, default `standard`) — and by that alone
-since Story #5343. The **change level derived from the Story's own diff** (the
-changed files' intersection with the sensitive-path classes in
-`audit-rules.json`, `review-depth.js#deriveChangeLevel`, never a
-planner-authored verdict) still selects **review depth**, which is the second
-row of the scope table below:
+The ceremony rule is digest § 3: `delivery.routing.ceremonyProfile` alone names
+the acceptance verdict owner; the change level derived from the Story's own
+diff selects **review depth**.
 
 | Profile | Acceptance verdict owner | When to use |
 | --- | --- | --- |
@@ -391,34 +322,29 @@ row of the scope table below:
 
 ## Async merge-confirm mode (`delivery.mergeWatch.mode: "async"`)
 
-A slow-CI consumer can opt the close into `"async"` mode so the merge wait
-probes once for ~60s (catching an instant merge or an instantly-red required
-check) and then returns `pending` instead of burning ~5 minutes of the host
-tool slot polling a merge that lands after the wait would have expired anyway.
-When a close returns that `pending` envelope, launch its `nextCommand` as a
-**background** invocation (host background Bash — its completion re-invokes the
-agent) and move on to the next Story; `single-story-confirm-merge.js` is
-idempotent and owns the whole tail. Do not foreground-poll the merge. The
-default `"sync"` behaviour is unchanged.
+In async mode the close arms auto-merge, probes for ~60s (catching an instant
+merge or, via the head-anchored required-check predicate, an instantly-red
+required check) and then returns `pending` with a `nextCommand`, instead of
+holding the host tool slot for a merge that lands after the wait would have
+expired anyway. When a close returns that `pending` envelope, launch its
+`nextCommand` (`single-story-confirm-merge.js … --wait`) as a **background**
+invocation (host background Bash — its completion re-invokes the agent) and
+move on to the next Story; `single-story-confirm-merge.js` is idempotent and
+owns the whole tail, and `deliver-recover.js` recovers an orphaned confirm. Do
+not foreground-poll the merge. The cumulative `maxBudgetSeconds` give-up is
+unchanged.
 
 **On a multi-Story run the beat adds `--merge-watch-mode async` for you.** Close
-sees one Story and cannot see run topology, so it cannot make this call for
-itself — `deliver-run.js` can, and does: every `close[]` command it renders
-carries the flag when the run holds more than one Story and omits it for a run
-of one. Run the command it printed verbatim rather than composing your own.
-The reason it matters: implementation runs in parallel but the close tail is
-serialized one at a time, and under `sync` each of those closes holds the
-foreground for its full merge wait before the next Story's close may start.
-That is the run's dominant serialized cost, and it is paid per sibling.
+sees one Story and cannot see run topology — `deliver-run.js` can: every
+`close[]` command it renders carries the flag when the run holds more than one
+Story and omits it for a run of one. Run the command it printed verbatim rather
+than composing your own. Under `sync` each serialized close would hold the
+foreground for its full merge wait before the next may start — the run's
+dominant serialized cost, paid per sibling. Expect a `pending` envelope from
+each async close — that is the designed ending here, not a failure.
 
-The flag overrides `delivery.mergeWatch.mode` for that invocation only — the
-config default stays `"sync"`, which is right for the solo delivery that has no
-sibling waiting behind it. It composes with `--max-wait-seconds`: pass both and
-the explicit bound still wins over the async probe cap. An unrecognized value
-exits non-zero before any phase runs, so a typo cannot silently drop the run
-back onto synchronous waiting. Expect a `pending` envelope from each async
-close — that is the designed ending here, not a failure; background its
-`nextCommand` and move to the next Story's close immediately.
-
-A one-Story run should keep the `sync` default: there is no sibling to unblock,
-and the foreground wait is the cheapest path to `landed`.
+The flag overrides `delivery.mergeWatch.mode` for that invocation only; the
+config default stays `"sync"`. A slow-CI solo consumer may opt into `"async"`
+for the same reason — a foreground wait longer than the host tool ceiling
+expires `pending` anyway. Otherwise a one-Story run keeps `sync`: there is no
+sibling to unblock, and the foreground wait is the cheapest path to `landed`.

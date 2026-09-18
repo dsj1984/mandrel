@@ -141,7 +141,7 @@ the string fails lint.
 
 - [`docs/architecture.md`](architecture.md) — system overview; Story
   delivery scripts and operator-tunable knobs.
-- [`.agents/docs/SDLC.md`](../.agents/docs/SDLC.md) — end-to-end SDLC narrative.
+- [`docs/SDLC.md`](SDLC.md) — end-to-end SDLC narrative.
 - [`.agents/workflows/mandrel-deliver.md`](../.agents/workflows/mandrel-deliver.md)
   — operator-facing `/mandrel-deliver` router.
 - [`docs/decisions.md`](decisions.md) — architectural decisions log; the

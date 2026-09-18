@@ -38,7 +38,7 @@ through a workflow step.
 - [`/docs/architecture.md`](../../docs/architecture.md) — system
   architecture; the "Key Scripts" section lists the standard
   orchestration entrypoints.
-- [`.agents/docs/quality-gates.md`](../docs/quality-gates.md) — coverage,
+- [`docs/quality-gates.md`](https://github.com/dsj1984/mandrel/blob/main/docs/quality-gates.md) — coverage,
   CRAP, and maintainability baselines + floors.
 - `package.json` `scripts` — the canonical list of standard CLIs
   (`test`, `verify`, `coverage:update`, …).

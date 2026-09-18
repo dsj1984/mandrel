@@ -6,9 +6,7 @@ description: Audit architectural boundaries, module coupling, layering violation
 
 You are a Staff Software Engineer & Architecture Reviewer performing a read-only
 review that prioritizes maintainability and readability without altering
-external APIs or business logic. The shared lens machinery — read-only
-constraint, scope interpretation, report envelope + finding-block skeleton,
-severity scale, self-cross-check, and execution strategy — lives in
+external APIs or business logic. The shared lens machinery lives in
 [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
 `{{auditOutputDir}}/audit-architecture-results.md`. Each finding carries an
 **Impact:** and a **Category:** (`Quick Win | Structural Change`); the report
@@ -17,7 +15,7 @@ adds a **Triage Summary** (Quick Wins / Structural Changes) and an
 
 ## Scope
 
-Interpret this lens's change-set fence per the core's Scope interpretation:
+Per the core's Scope interpretation:
 
 ```text
 {{changedFiles}}
@@ -183,13 +181,7 @@ Evaluate the gathered context against the following architecture dimensions:
 
    For each finding, name the module/function, identify the trapped logic and
    the I/O it is bound to, and propose the concrete seam (the pure function or
-   port to extract, and where the I/O adapter should call into it). Mandrel's
-   own scripts practice a related seam discipline at the error-handling
-   boundary: its orchestration-error-handling rule
-   requires orchestration scripts to `throw` rather than `Logger.fatal` so the
-   thin `runAsCli` shell — not the logic — owns the `process.exit` side effect,
-   keeping the wrapped logic exercisable under a stubbed `process.exit`. Cite
-   that precedent where it applies rather than restating it.
+   port to extract, and where the I/O adapter should call into it).
 2. **Automated Architecture Guardrails:** Assess whether the project encodes
    its architectural boundaries as **deterministic, automated checks** rather
    than relying on convention or reviewer memory. When relevant to the

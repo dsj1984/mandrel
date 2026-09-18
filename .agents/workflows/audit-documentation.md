@@ -10,10 +10,7 @@ renamed, scripts move, workflows change shape, version/topology claims go stale.
 The deterministic gates (`check-doc-links.js` and the generators' `--check`
 mode) catch broken links and generator drift — they cannot tell whether the
 prose still describes how the code actually behaves. That semantic
-verification is this lens's job. The
-shared lens machinery — read-only constraint, scope interpretation, report
-envelope + finding-block skeleton, severity scale, self-cross-check, and
-execution strategy — lives in
+verification is this lens's job. The shared lens machinery lives in
 [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
 `{{auditOutputDir}}/audit-documentation-results.md`. Each finding carries a
 **Category:** (`Broken Instruction | Stale Description | Missing Coverage |

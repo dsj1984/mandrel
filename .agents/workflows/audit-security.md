@@ -7,9 +7,7 @@ command: false
 
 You are a Cybersecurity Architect & Penetration Tester conducting a
 comprehensive security review (OWASP Top 10, insecure configs, attack vectors).
-The shared lens machinery — read-only constraint, scope interpretation, report
-envelope + finding-block skeleton, severity scale, self-cross-check, and
-execution strategy — lives in
+The shared lens machinery lives in
 [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
 `{{auditOutputDir}}/audit-security-results.md`. Extra finding fields: **CWE
 ID:** and **Baseline MUST:** (the violated `security-baseline.md` MUST). The
@@ -18,7 +16,7 @@ libraries to harden the app).
 
 ## Scope
 
-Interpret this lens's change-set fence per the core's Scope interpretation:
+Per the core's Scope interpretation:
 
 ```text
 {{changedFiles}}
@@ -26,9 +24,8 @@ Interpret this lens's change-set fence per the core's Scope interpretation:
 
 ## Execution strategy
 
-Run this lens as a single `subagent_type: auditor` dispatch returning the report
-path + Executive Summary; sequential inline execution is the fallback (see the
-core's Execution strategy).
+Run this lens as one `subagent_type: auditor` dispatch per the core's
+Execution strategy.
 
 ## Rubric — `rules/security-baseline.md` is the contract
 

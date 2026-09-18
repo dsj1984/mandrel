@@ -135,7 +135,7 @@ should move first.
 - [`package.json`](../../package.json) — "Claude Code-first…" description, the
   `claude-code` keyword
 - [`AGENTS.md`](../../AGENTS.md), [`architecture.md`](../architecture.md),
-  [`.agents/docs/SDLC.md`](../../.agents/docs/SDLC.md) — the coupling-stance prose
+  [`docs/SDLC.md`](../SDLC.md) — the coupling-stance prose
   (deliberate, ADR-governed)
 - [`README.md:37`](../../README.md), [`patterns.md:171`](../patterns.md), the
   loop-units ADR, and roughly 25 further prose spots across `.agents/`

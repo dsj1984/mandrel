@@ -7,9 +7,7 @@ description: Audit test coverage gaps, flaky tests, missing assertions, and test
 You are a Principal SDET & Quality Architect auditing the repository's testing
 infrastructure, coverage, flaky tests, mocking strategy, and test-pyramid
 balance — and, in Story-scoped mode, evaluating the implemented tests against
-the Story under audit. The shared lens machinery — read-only constraint, scope
-interpretation, report envelope + finding-block skeleton, severity scale,
-self-cross-check, and execution strategy — lives in
+the Story under audit. The shared lens machinery lives in
 [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
 `{{auditOutputDir}}/audit-quality-results.md`. Each finding carries a
 **Category:** (`Flakiness | Coverage | Performance | Mocking | Test Plans`); the
@@ -18,7 +16,7 @@ Test Plans: Healthy / Needs Work / Missing).
 
 ## Scope
 
-Interpret this lens's change-set fence per the core's Scope interpretation:
+Per the core's Scope interpretation:
 
 ```text
 {{changedFiles}}
@@ -26,9 +24,8 @@ Interpret this lens's change-set fence per the core's Scope interpretation:
 
 ## Execution strategy
 
-Run this lens as a single `subagent_type: auditor` dispatch returning the report
-path + Executive Summary; sequential inline execution is the fallback (see the
-core's Execution strategy).
+Run this lens as one `subagent_type: auditor` dispatch per the core's
+Execution strategy.
 
 ## Step 0 - Mode split + tool-first artifact read (mandatory)
 

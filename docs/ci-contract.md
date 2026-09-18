@@ -101,7 +101,7 @@ lost nothing. There is no gap here to attribute to Story #5004.
 
 Full-scope **re-scoring** has only ever existed in two places: the write path
 (`*:update -- --full-scope`) and
-[`check-baseline-drift.js`](../.agents/docs/quality-gates.md#check-baseline-driftjs--the-scheduled-full-scope-re-score).
+[`check-baseline-drift.js`](quality-gates.md#check-baseline-driftjs--the-scheduled-full-scope-re-score).
 Nothing automated ran the latter — before Story #5004 or after it — so drift in
 untouched files has always accumulated invisibly. That is a real hole; it was
 simply never the deleted step's to fill.

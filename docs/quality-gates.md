@@ -11,12 +11,12 @@ The floor + ratchet duo is intentional: the ratchet protects against
 regressions on touched files; the floor enforces an absolute threshold
 on every in-scope file regardless of diff scope. See
 [§ Absolute quality floors (Epic #1184)](#absolute-quality-floors-epic-1184)
-below for the policy and [`docs/decisions.md`](../../docs/decisions.md) (ADR
+below for the policy and [`docs/decisions.md`](decisions.md) (ADR
 20260512-coupling-stance) for the framework-wide stance that motivates
 the lift the floor gate represents.
 
 The configuration knobs that drive these gates live in
-[`.agents/docs/configuration.md`](../docs/configuration.md) under
+[`.agents/docs/configuration.md`](../.agents/docs/configuration.md) under
 `delivery.quality.*`. This file is the runbook side — what the gate does,
 when it fires, and how to bootstrap or refresh it.
 
@@ -47,7 +47,7 @@ non-zero and leaves the tree clean for manual resolution. See
 
 ## Test runner concurrency
 
-`npm test` (via [`.agents/scripts/run-tests.js`](../scripts/run-tests.js))
+`npm test` (via [`.agents/scripts/run-tests.js`](../.agents/scripts/run-tests.js))
 derives `--test-concurrency` from `os.availableParallelism()` at startup,
 clamped into `[1, 16]` (`resolveTestConcurrency`). The clamp keeps the value
 sane at both extremes: on the GitHub Actions 2-vCPU runner the derived value
@@ -73,11 +73,11 @@ concurrency flakes.
 `scripts/run-coverage.js` in mandrel's own repository,
 which runs the unit-test suite with `NODE_V8_COVERAGE` set, post-processes
 the V8 dumps with `c8 report`, then delegates to
-[`.agents/scripts/check-baselines.js`](../scripts/check-baselines.js)
+[`.agents/scripts/check-baselines.js`](../.agents/scripts/check-baselines.js)
 for the gate decision. There is no global `lines/branches/functions`
 threshold — the gate compares **per-file** coverage in
 `coverage/coverage-final.json` against the floors recorded in
-[`baselines/coverage.json`](../../baselines/coverage.json) and fails on:
+[`baselines/coverage.json`](../baselines/coverage.json) and fails on:
 
 - a regression on any axis (lines, branches, or functions) for any file
   whose coverage dropped more than `0.01` percentage points below its
@@ -87,7 +87,7 @@ threshold — the gate compares **per-file** coverage in
   floor to drop below).
 
 Scope (include/exclude) and reporters are declared in
-[`.c8rc.cjs`](../../.c8rc.cjs); the gate reads the same file so `c8 report`
+[`.c8rc.cjs`](../.c8rc.cjs); the gate reads the same file so `c8 report`
 and the per-file checker agree on what's in scope. Bootstrap or
 ratchet the baseline when an intentional scope change shifts coverage:
 
@@ -101,7 +101,7 @@ npm run coverage:update # writes baselines/coverage.json from the run
 `coverage-final.json` artifact (useful from CI hooks or close-validation
 runners that orchestrate coverage capture separately).
 
-The files-out-of-scope list is declared in [`.c8rc.cjs`](../../.c8rc.cjs) —
+The files-out-of-scope list is declared in [`.c8rc.cjs`](../.c8rc.cjs) —
 thin CLI shells plus the larger Story #1702 carve-out of
 top-level/orchestration/git CLIs and `lib/*` glue. The `exclude[]` array is
 the **single** declaration: each entry carries its rationale as an inline
@@ -112,7 +112,7 @@ file also carries `/* node:coverage ignore file */` at the top of its source
 as a second line of defence.
 
 `.c8rc.cjs`'s `include` globs and `delivery.quality.gates.coverage.targetDirs`
-in [`.agentrc.json`](../../.agentrc.json) MUST name the same roots — the gate
+in [`.agentrc.json`](../.agentrc.json) MUST name the same roots — the gate
 scores what c8 measures. `tests/c8rc-scope.test.js` asserts both invariants.
 
 ---
@@ -142,7 +142,7 @@ example in `.agents/docs/agentrc-reference.json`, which is validated only
 against itself, and the coverage gate was not configured at all.
 
 The live coverage floors are derived from the measurement in
-[`baselines/coverage.json`](../../baselines/coverage.json) — a full-tier run
+[`baselines/coverage.json`](../baselines/coverage.json) — a full-tier run
 scored 95.65 / 86.16 / 88.52, and each floor sits ~1–1.7 points under its
 axis. Re-derive them, do not invent them, whenever the baseline is
 regenerated wholesale.
@@ -153,10 +153,10 @@ same shape the `crap` gate uses). Story #4922's scope was making the
 instrument honest; arming the ratchet belongs with the debt burn-down that
 the widened measurement newly exposes.
 
-The floors are declared in [`.agentrc.json`](../../.agentrc.json) under
+The floors are declared in [`.agentrc.json`](../.agentrc.json) under
 `delivery.quality.gates.<gate>.floors.*` (defaults baked into the helper
 match the table above) and resolved at runtime by the shared
-helper [`lib/orchestration/check-baselines/phases/floors.js`](../scripts/lib/orchestration/check-baselines/phases/floors.js).
+helper [`lib/orchestration/check-baselines/phases/floors.js`](../.agents/scripts/lib/orchestration/check-baselines/phases/floors.js).
 All three gates run through `check-baselines.js` (coverage,
 maintainability, crap), which invokes the floors phase **after** the
 ratchet decision so a file that's below floor but matched the (stale)
@@ -197,13 +197,13 @@ There is no floor opt-out flag on the check path. The `*:update`
 baseline-snap scripts snapshot whatever the current numbers are without
 floor enforcement **by construction** — they are writers, not gates —
 so no disable switch exists or is needed (the floors phase at
-[`lib/orchestration/check-baselines/phases/floors.js`](../scripts/lib/orchestration/check-baselines/phases/floors.js)
+[`lib/orchestration/check-baselines/phases/floors.js`](../.agents/scripts/lib/orchestration/check-baselines/phases/floors.js)
 has no off switch).
 
 ### No silent excludes (`.c8rc.cjs` policy)
 
 The floor gate is only as strict as its scope, so the `exclude` list in
-[`.c8rc.cjs`](../../.c8rc.cjs) carries three hard requirements that are
+[`.c8rc.cjs`](../.c8rc.cjs) carries three hard requirements that are
 enforced by review (and partially by the audit suite):
 
 1. **One-line rationale per entry.** Every file in `exclude[]` MUST carry
@@ -229,7 +229,7 @@ enforced by review (and partially by the audit suite):
 ## Anti-thrashing protocol
 
 The qualitative anti-thrashing cues are owned by
-[`.agents/instructions.md`](../instructions.md) § 1.I. When they trip, the
+[`.agents/instructions.md`](../.agents/instructions.md) § 1.I. When they trip, the
 friction logger flips the Story to `agent::blocked` and posts a structured
 `friction` comment on the Story so the operator has the trace.
 
@@ -245,10 +245,10 @@ critic scores the caller-injected change set against every inline
 close-validation chain above — that chain proves the code is *healthy*, this
 loop proves it satisfies *this Story's* acceptance criteria. The per-round
 mechanic is owned by
-[`helpers/acceptance-self-eval`](../workflows/helpers/acceptance-self-eval.md)
-(Step 1a of [`helpers/deliver-story`](../workflows/helpers/deliver-story.md));
+[`helpers/acceptance-self-eval`](../.agents/workflows/helpers/acceptance-self-eval.md)
+(Step 1a of [`helpers/deliver-story`](../.agents/workflows/helpers/deliver-story.md));
 the `delivery.acceptanceEval` field reference is in
-[`configuration.md`](../docs/configuration.md).
+[`configuration.md`](../.agents/docs/configuration.md).
 
 ---
 
@@ -278,7 +278,7 @@ between Stories.
 Refresh with `npm run maintainability:update`.
 
 `delivery.quality.gates.maintainability.targetDirs` controls the scanned
-directories (see [`configuration.md`](../docs/configuration.md) for the
+directories (see [`configuration.md`](../.agents/docs/configuration.md) for the
 default and the deep-merge extender form).
 
 ---
@@ -464,7 +464,7 @@ source edits required. The maintainability ratchet keeps running.
 extender form — `{ "append": [...] }` / `{ "prepend": [...] }` add to the
 framework default (`["src"]`), while a plain array replaces it entirely. The
 worked example and the general rule live once in
-[`configuration.md` § How to extend](../docs/configuration.md#how-to-extend).
+[`configuration.md` § How to extend](../.agents/docs/configuration.md#how-to-extend).
 
 ### Interpreting the JSON report
 
@@ -483,7 +483,7 @@ CI does **not** upload a `crap-report` artifact — `ci.yml` uploads only
 (`coverage/coverage-final.json`).
 
 The JSON envelope is the unified check-baselines report (see
-[`lib/orchestration/check-baselines/phases/report.js`](../scripts/lib/orchestration/check-baselines/phases/report.js)):
+[`lib/orchestration/check-baselines/phases/report.js`](../.agents/scripts/lib/orchestration/check-baselines/phases/report.js)):
 top-level totals (`totalBreaches`, `totalRegressions`,
 `kernelDriftCount`, `schemaErrors`) plus a `gates[]` array where each
 gate entry carries its `kind`, breach/regression counts,
@@ -810,7 +810,7 @@ correct shape for a gate with no rescoring path of its own.
 
 `risk::high` is planning/audit metadata only — it never pauses runtime. The
 sole runtime HITL pause point is `agent::blocked`. The full model is owned by
-[`.agents/instructions.md`](../instructions.md) § 1.J and
+[`.agents/instructions.md`](../.agents/instructions.md) § 1.J and
 [`SDLC.md` § HITL model](SDLC.md#hitl-human-in-the-loop-model).
 
 ---
@@ -829,9 +829,9 @@ gates read and write.
 
 Cross-references:
 
-- [`.agents/docs/configuration.md`](../docs/configuration.md) — the `.agentrc.json`
+- [`.agents/docs/configuration.md`](../.agents/docs/configuration.md) — the `.agentrc.json`
   configuration surface that backs the gates.
-- [`.agents/README.md`](../README.md) — consumer onboarding.
+- [`.agents/README.md`](../.agents/README.md) — consumer onboarding.
 
 > `mutation` is a **registered baseline kind with no shipped runner**. The
 > envelope, schema, and floor config below describe a `baselines/mutation.json`
@@ -868,9 +868,9 @@ top-level envelope:
 | `rollup`        | Per-component aggregate keyed by component name. `*` is required. |
 | `rows`          | Sorted, canonicalised per-file (or per-route/per-bundle) entries. |
 
-The schemas live under [`.agents/schemas/baselines/`](../schemas/baselines/).
+The schemas live under [`.agents/schemas/baselines/`](../.agents/schemas/baselines).
 The shared AJV instance is built by `buildBaselineSchemaAjv()` in
-[`.agents/scripts/lib/baseline-schema-registry.js`](../scripts/lib/baseline-schema-registry.js).
+[`.agents/scripts/lib/baseline-schema-registry.js`](../.agents/scripts/lib/baseline-schema-registry.js).
 
 ### Concurrent refreshes — the baseline merge driver
 
@@ -886,7 +886,7 @@ from the moved rows is an accident of proximity. Both outcomes are wrong:
   guards a number no scorer ever produced.
 
 A baseline is a set of rows keyed by identity plus a rollup derived from them,
-so [`merge-baseline.js`](../scripts/merge-baseline.js) merges it as that. Per
+so [`merge-baseline.js`](../.agents/scripts/merge-baseline.js) merges it as that. Per
 row identity the standard 3-way rule applies; only a genuine double move
 conflicts, and then markers wrap that row alone. The rollup is always
 **recomputed** from the merged rows — merging two rollups is the same splice
@@ -917,14 +917,14 @@ above, and passes as skipped when `.gitattributes` does not declare the
 driver at all.
 
 `MANDREL_BASELINE_GENERATED_AT` pins the stamp for a reproducible build (see
-the environment table in [configuration.md](configuration.md)). It is no
+the environment table in [configuration.md](../.agents/docs/configuration.md)). It is no
 longer needed to dodge merge conflicts.
 
 ### Per-kind shapes
 
 Each kind contributes a `rows[]` schema and a `rollup` axis set. The
 authoritative declarations live in the per-kind modules at
-[`.agents/scripts/lib/baselines/kinds/`](../scripts/lib/baselines/kinds/):
+[`.agents/scripts/lib/baselines/kinds/`](../.agents/scripts/lib/baselines/kinds):
 
 | Kind              | Key field | Row axes                                                       | Rollup axes                              |
 | ----------------- | --------- | -------------------------------------------------------------- | ---------------------------------------- |
@@ -964,7 +964,7 @@ Rules:
   reported under both.
 - When a gate omits `components`, the default is `{ "*": ["**"] }`. The
   resolver lives in
-  [`.agents/scripts/lib/baselines/components.js`](../scripts/lib/baselines/components.js)
+  [`.agents/scripts/lib/baselines/components.js`](../.agents/scripts/lib/baselines/components.js)
   (`resolveComponents` + `groupRows`).
 
 ### Path canonicalisation
@@ -981,7 +981,7 @@ form before it is written:
   rewrite identity).
 
 The canonicaliser lives at
-[`.agents/scripts/lib/baselines/path-canon.js`](../scripts/lib/baselines/path-canon.js).
+[`.agents/scripts/lib/baselines/path-canon.js`](../.agents/scripts/lib/baselines/path-canon.js).
 The reader applies a defensive second pass (`canonicaliseRowPath`) when
 loading so downstream consumers never have to special-case the worktree
 prefix.
@@ -989,7 +989,7 @@ prefix.
 ### Writer/reader contract
 
 The single funnel for **writing** a baseline is
-[`.agents/scripts/lib/baselines/writer.js`](../scripts/lib/baselines/writer.js)
+[`.agents/scripts/lib/baselines/writer.js`](../.agents/scripts/lib/baselines/writer.js)
 — `write({ kind, rows, components, kernelVersion?, generatedAt? })`:
 
 1. Resolve the per-kind module from the kernel registry.
@@ -1004,7 +1004,7 @@ The single funnel for **writing** a baseline is
    serialise + atomic-rename seam.
 
 The single funnel for **reading** a baseline is
-[`.agents/scripts/lib/baselines/reader.js`](../scripts/lib/baselines/reader.js)
+[`.agents/scripts/lib/baselines/reader.js`](../.agents/scripts/lib/baselines/reader.js)
 — `reader.load(kind, { cwd?, configPath? })`:
 
 1. Resolve the on-disk path from `delivery.quality.gates.<kind>.baselinePath`,
@@ -1015,9 +1015,9 @@ The single funnel for **reading** a baseline is
 5. Return `{ rollup, rows, kernelVersion, generatedAt }`.
 
 Every gate reads through this module — the unified
-[`check-baselines.js`](../scripts/check-baselines.js) dispatcher
+[`check-baselines.js`](../.agents/scripts/check-baselines.js) dispatcher
 (whose per-kind gate logic lives in
-[`.agents/scripts/lib/baselines/kinds/`](../scripts/lib/baselines/kinds/)
+[`.agents/scripts/lib/baselines/kinds/`](../.agents/scripts/lib/baselines/kinds)
 — `coverage.js`, `crap.js`, `maintainability.js`,
 `mutation.js`, etc.), the audit-suite delta emitter, and the
 per-component drift signals. No gate opens
@@ -1104,12 +1104,12 @@ on the legacy `maintainability` axis (which never appears in the rollup)
 are rejected with an explanatory error.
 
 For the full configuration surface (every gate-level key with defaults
-and types) see [`.agents/docs/configuration.md`](../docs/configuration.md) and the
+and types) see [`.agents/docs/configuration.md`](../.agents/docs/configuration.md) and the
 `delivery.quality.*` section.
 
 #### Shipped surface vs follow-up
 
-The unified [`check-baselines.js`](../scripts/check-baselines.js)
+The unified [`check-baselines.js`](../.agents/scripts/check-baselines.js)
 ships **floor + tolerance + schema + kernel-mismatch** logic and is the
 **only** baseline gate. Epic #1943 (Story #1981) absorbed the per-kind
 regression / scope / git-base-ref logic and deleted the per-kind
@@ -1153,8 +1153,8 @@ delta and nothing else.
 
 ### Baseline source of truth
 
-- [`.agents/docs/configuration.md`](../docs/configuration.md) — full `.agentrc.json`
+- [`.agents/docs/configuration.md`](../.agents/docs/configuration.md) — full `.agentrc.json`
   surface.
-- [`.agents/scripts/lib/baselines/`](../scripts/lib/baselines/) —
+- [`.agents/scripts/lib/baselines/`](../.agents/scripts/lib/baselines) —
   source of truth for the writer, reader, kernel registry, components
   resolver, envelope schemas, and per-kind modules.

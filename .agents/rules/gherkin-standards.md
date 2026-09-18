@@ -148,3 +148,7 @@ authored:
 
 When a step is superseded, mark it deprecated and migrate every call site in
 the same PR; do not leave two near-identical steps live.
+
+When `qa.gherkinLint` is configured, `node .agents/scripts/check-gherkin-corpus.js`
+enforces this statically: every `.feature` must compile, and every active
+step must bind within its own scope.

@@ -87,7 +87,7 @@ const tasks = [
   // shim-writing failure mode the /mandrel-plan collapse killed. See
   // check-workflow-cli-lint.js for the paragraph-level heuristic.
   nodeGate('workflow-cli-lint', 'scripts/check-workflow-cli-lint.js'),
-  // Label-vocabulary citations in `.agents/docs/SDLC.md` and
+  // Label-vocabulary citations in `docs/SDLC.md` and
   // `.agents/workflows/**/*.md` (Story #2892). Greps inline backtick code
   // spans for axis-shaped tokens (`type/epic`, etc.) and asserts only the
   // canonical `<axis>::<value>` separator from `lib/label-constants.js`
