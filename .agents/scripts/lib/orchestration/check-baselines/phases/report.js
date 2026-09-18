@@ -1,9 +1,5 @@
 /**
- * report.js — Phase 6 of the check-baselines pipeline (Story #2466).
- *
- * Formats the structured report for stdout. Pure. Extracted verbatim from
- * `check-baselines.js`; the public `formatReport(report, format)` named
- * export is preserved on the CLI shell for test consumers.
+ * Formats the check-baselines report for stdout.
  *
  * @module lib/orchestration/check-baselines/phases/report
  */
@@ -27,18 +23,12 @@ function formatGateLine(g) {
     ? ''
     : ` [kernel drift ${g.kernelBaseline} → ${g.kernelCurrent}]`;
   const baseRef = g.baseRef ? ` [baseRef=${g.baseRef}]` : '';
-  // Story #4914 — a compare arm that never read its base reports zero
-  // regressions and zero additions, which is indistinguishable from a clean
-  // run unless the text report says so out loud.
+  // A compare that never ran would otherwise read as a clean run.
   const baseRead =
     g.baseRef && g.baseRead === false
       ? ' [baseRead=false — compare skipped]'
       : '';
-  // Story #5179 — a refresh commit acknowledges only the rows it refreshed, so
-  // the count says how much was cleared and the status ahead of it still shows
-  // FAIL when regressions outside those rows survived. `buildGateReport` always
-  // sets `acknowledgedKeys` alongside `acknowledged` from the same result
-  // object, so the array needs no guard of its own here.
+  // `acknowledgedKeys` is always set alongside `acknowledged`.
   const ack = g.acknowledged
     ? ` [ACKNOWLEDGED ${g.acknowledgedKeys.length} row(s) — this run only]`
     : '';

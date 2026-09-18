@@ -1,37 +1,9 @@
 /**
- * lib/workers/maintainability-report-worker.js — CPU-pool worker entry for
- * the native ReviewProvider's per-file maintainability scoring. One file
- * in, the file's full maintainability *report* out (module score, per-method
- * scores, worstMethod). No project config, no git, no provider — just
- * typhonjs-escomplex (via maintainability-engine) and the in-memory TS
- * transpile shim.
- *
- * This is the report-shaped sibling of `maintainability-worker.js`, which
- * returns only the scalar MI score for the baseline gate. The native review
- * needs the richer report (per-method scores feed the critical/warning
- * tiering in `classifyReport`), so this worker calls
- * `calculateReportForFile` instead of `calculateForFile`.
- *
- * Message contract — see lib/cpu-pool.js:
- *   IN  : { item: string }                  — absolute file path to score
- *                                             (reads head content from disk)
- *         { item: { source, label } }       — pre-sourced content to score
- *                                             (Story #3696: the native review
- *                                             sources head content via
- *                                             `git show <headRef>:<path>` and
- *                                             passes the string here so the
- *                                             worker scores the head version,
- *                                             not the on-disk base copy)
- *         { exit: true }                     — drain & terminate
- *   OUT : { ok: true, result: { filePath, report: object | null } }
- *
- * `report` is `null` only when the file genuinely cannot be read (ENOENT
- * or other I/O error) — the native classifier treats a null report the
- * same way the serial path treats a thrown `reportFn` (drop the file).
- * Parse failures inside escomplex still resolve to a `{ parseError: true }`
- * report to preserve parity with the in-process serial path
- * (`calculateReportForFile` returns a parse-error report rather than
- * throwing).
+ * CPU-pool worker for the native review: one file (a path, or
+ * `{ source, label }` holding head content from `git show`) in, its full
+ * maintainability report out. `report` is `null` only on an I/O error (the
+ * file is dropped); a parse failure yields a `parseError` report, matching
+ * the serial path.
  */
 
 import { parentPort } from 'node:worker_threads';
@@ -43,10 +15,7 @@ import { transpileIfNeeded } from '../transpile.js';
 import { serveWorkerMessages } from './serve-worker-messages.js';
 
 /**
- * Score a pre-sourced content string (Story #3696). Mirrors
- * `native.js#scoreSourceReport`: transpile the source by its `label`
- * extension, then report. A null transpile (unsupported / failed) resolves
- * to a parse-error report rather than throwing, matching the disk path.
+ * Report for pre-sourced content; a failed transpile is a parse-error report.
  *
  * @param {string} source
  * @param {string} label  Path used only to pick the transpile mode.
@@ -67,9 +36,7 @@ function reportFromSource(source, label) {
 }
 
 /**
- * Pure handler for a single inbound worker message. Exported so unit
- * tests can drive each branch (exit, malformed item, success, error)
- * without spawning a real `Worker` thread.
+ * Pure handler for one worker message (testable without a `Worker`).
  *
  * @param {unknown} msg
  * @param {{ report?: (filePath: string) => object }} [deps]
@@ -106,11 +73,7 @@ export function handleMaintainabilityReportWorkerMessage(msg, deps = {}) {
       message: { ok: true, result: { filePath, report } },
     };
   } catch (err) {
-    // I/O or other unexpected error (e.g. file deleted between diff and
-    // scoring) — surface as a per-item null report so the run keeps
-    // going. The native classifier maps a null report to a dropped file,
-    // matching the serial path's `classifyChangedFile` try/catch that
-    // returns `{ row: null }` on a thrown reportFn.
+    // A null report drops the file and keeps the run going.
     return {
       kind: 'reply',
       message: {

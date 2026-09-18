@@ -1,10 +1,6 @@
 /**
- * compare.js — Phase 3 of the check-baselines pipeline (Story #2466).
- *
- * Owns the head-vs-base compare stage: scope resolution, base-baseline
- * read, per-kind classifier dispatch, and tolerance application.
- *
- * Extracted from `check-baselines.js` without behavior change.
+ * Head-vs-base compare stage of check-baselines: scope, base read, per-kind
+ * classifier, tolerance.
  *
  * @module lib/orchestration/check-baselines/phases/compare
  */
@@ -38,19 +34,8 @@ function emptyCompareResult(baseRef) {
 }
 
 /**
- * Story #4914 — a base read that FAILS is not a base that is ABSENT.
- *
- * `readBaseFromGit` already draws that line itself: it returns `null` only
- * for git exit 128 ("path does not exist in this revision") and throws on
- * everything else. Swallowing the throw conflated the two, so a broken read
- * silently emptied the whole head-vs-base arm — regressions AND additions —
- * while the floors arm kept the run at exit 0. A gate that fails open is
- * worse than no gate, because it is trusted.
- *
- * So the read failure fails CLOSED as `EXIT_CONFIG` (3) — "the gate could
- * not even start", the same code `assertFloorAxesExist` uses for a
- * misconfigured floor axis. `check-baselines.js#main` maps any throw out of
- * the pipeline onto that code.
+ * A failed base read is not an absent base: it fails closed as `EXIT_CONFIG`
+ * rather than silently emptying the compare arm to a trusted exit 0.
  */
 function buildBaseReadError({ kind, ref, file, cause }) {
   const detail = cause?.message ?? String(cause);
@@ -80,14 +65,7 @@ function readBaseBaselinePayload(scope, kind, gateBlock, cwd) {
   try {
     return JSON.parse(raw);
   } catch (cause) {
-    // Story #5277 — the same distinction one line above, applied to the
-    // second way a base read fails. `null` here means "no baseline at the base
-    // ref", which empties the head-vs-base arm on purpose; an UNPARSEABLE base
-    // blob is a read that failed, and reporting it as "no base" made a
-    // corrupted or half-merged `baselines/*.json` on the base branch report
-    // zero regressions at exit 0. Text-merged baselines are exactly how such a
-    // blob gets onto the base branch, which is the failure this Story removes
-    // upstream — this arm is what stops it being silent when it happens anyway.
+    // An unparseable (e.g. text-merged) base blob is a failed read too.
     throw buildBaseReadError({ kind, ref: scope.ref, file: rel, cause });
   }
 }
@@ -104,21 +82,9 @@ export async function evaluateCompare({ kind, gateBlock, scope, cwd }) {
 }
 
 /**
- * Is the base baseline comparable to the head baseline (Story #4775)?
- *
- * A kind can change its SCORING SEMANTICS — how it derives a row's metric —
- * without moving `kernelVersion`. Across that boundary the same row can carry
- * a different score for reasons that have nothing to do with the branch's
- * changes, so a head-vs-base diff manufactures phantom regressions (and can
- * hide real ones behind them).
- *
- * The head-side stamp is already a fail-closed gate: a stale HEAD baseline
- * never reaches this point. What reaches here is the opposite and legitimate
- * case — a branch that DOES carry a re-derived baseline, compared against a
- * base that predates the change. The only honest verdict is "no comparison";
- * floors still run, so a genuine ceiling breach is still caught, and once the
- * refreshed baseline is the base the ratchet returns to full strength on the
- * very next run without anything to remember to reset.
+ * Rows scored under different `scoringSemantics` are incomparable (phantom
+ * regressions), so a branch carrying a re-derived baseline skips compare
+ * against an older base; floors still run.
  */
 function baseIsComparable(headBaseline, basePayload) {
   const head = headBaseline?.scoringSemantics ?? null;

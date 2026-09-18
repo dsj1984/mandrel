@@ -1,10 +1,6 @@
 /**
- * cli.js — `main()` entry point for git-cleanup (Story #2466).
- *
- * Owns argv parsing, base-branch resolution, fan-out across the four
- * cleanup phases, and the optional JSON envelope emission. Per-phase
- * orchestrators (`runFastForwardPhase` etc.) live in
- * `phase-drivers.js`; interactive prompts in `prompts.js`.
+ * git-cleanup `main()`: argv, base-branch resolution, the four phases, and
+ * the optional JSON envelope.
  *
  * @module lib/orchestration/git-cleanup/phases/cli
  */

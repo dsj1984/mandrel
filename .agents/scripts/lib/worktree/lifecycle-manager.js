@@ -1,24 +1,6 @@
 /**
- * worktree/lifecycle-manager.js — facade (Story 15, Epic #773).
- *
- * Public surface preserved byte-identically. Implementations live under
- * `lib/worktree/lifecycle/`:
- *
- *   - `creation.js`         — `ensure`
- *   - `registry-sync.js`    — `pathFor`, `list`, `prune`, `getWorktreeList`,
- *                             `invalidateWorktreeCache`, `findByPath`
- *   - `reap.js`             — `isSafeToRemove`,
- *                             `removeWorktreeWithRecovery`, `reap`
- *   - `gc.js`               — `gc`
- *   - `drift-detection.js`  — `sweepStaleLocks`
- *   - `pending-cleanup.js`  — `recordPendingCleanup`, `drainPendingCleanup`,
- *                             and the `.worktrees/.pending-cleanup.json`
- *                             manifest reader/writer
- *
- * Cross-submodule data flows exclusively through the explicit `ctx` bag built
- * by `WorktreeManager` (see `lib/worktree-manager.js`). Imports between
- * submodules are limited to pure function composition — e.g. `gc` calling
- * `reap` and `list` — so no submodule reaches into another's state.
+ * Facade over `lib/worktree/lifecycle/`. Submodules share state only through
+ * the `ctx` bag `WorktreeManager` builds.
  */
 
 export { ensure } from './lifecycle/creation.js';

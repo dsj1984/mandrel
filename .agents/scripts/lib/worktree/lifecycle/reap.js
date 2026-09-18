@@ -1,16 +1,7 @@
 /**
- * worktree/lifecycle/reap.js
- *
- * Worktree removal end-to-end:
- *
- *   - `isSafeToRemove`: clean-tree + branch-merged precondition.
- *   - `removeWorktreeWithRecovery`: `git worktree remove` with Windows-lock
- *     retries, Stage 1 `fs.rm` fallback, and the Stage 2 hand-off to the
- *     `pending-cleanup.json` manifest when Stage 1 exhausts.
- *   - `reap`: precondition check, force-discard for already-merged dirty
- *     trees, and the post-remove belt-and-braces fs.rm sweep.
- *
- * No state is reached outside the supplied `ctx` bag.
+ * Worktree removal: safety preconditions, `git worktree remove` with Windows
+ * lock retries, `fs.rm` fallback, and hand-off to the pending-cleanup
+ * manifest when that exhausts.
  */
 
 import fs from 'node:fs';
@@ -34,26 +25,8 @@ const WINDOWS_CWD_RE =
   /(current working directory|inside the worktree|cannot remove.*current working directory|used by another process because it is the current working directory)/i;
 
 /**
- * Decide whether a worktree is safe to remove.
- *
- * The merge-reachability gate uses **`git merge-base --is-ancestor HEAD
- * epicRef`** (run from the main checkout) rather than the prior
- * branch-vs-epic ancestry heuristic. The branch-name check fails after a
- * post-merge rebase or force-push because the local branch ref no longer
- * points at the SHA the Epic actually merged — see Epic #1072 where the
- * close script needed a five-step manual reap recipe to recover. Comparing
- * the worktree's *HEAD commit* against the Epic ref captures both the
- * happy path (branch unchanged since merge) and the post-rebase path
- * (branch advanced to a SHA still reachable from the Epic merge commit).
- *
- * When HEAD is no longer an ancestor (force-push that drops or rewrites
- * the merged tip), the function falls back to a `rebased-equivalents`
- * check: `git cherry` proves every commit on the branch is already
- * upstream by patch-id even though the current HEAD has diverged, so the
- * worktree is still safe to reap.
- *
- * `opts.epicBranch` is the integration / base ref the Story must already
- * be merged into (e.g. `main` or a plan-run branch).
+ * Safe to remove: clean tree and, when a base ref is given, the worktree's
+ * HEAD reachable from it (see `checkMergeReachability`).
  *
  * @param {object} ctx
  * @param {string} wtPath
@@ -72,33 +45,11 @@ export async function isSafeToRemove(ctx, wtPath, opts = {}) {
 }
 
 /**
- * Returns true iff `branch`'s work is demonstrably already integrated into
- * `baseRef`. Used only to license discarding a **dirty** tree, so it must
- * err toward `false`.
- *
- * Two-phase:
- *   1. `merge-base --is-ancestor` — cheap SHA reachability; true for
- *      fast-forward and merge-commit integration.
- *   2. `git cherry <baseRef> <branch>` — compares **patch-ids** rather than
- *      SHAs, marking a commit `-` when an equivalent change already exists
- *      upstream. All-`-` (or empty) means every commit on the branch is
- *      present in the base under some SHA.
- *
- * **Known limit — this is not a general squash detector.** A squash collapses
- * N commits into ONE new commit whose patch equals their *combined* diff, so
- * no individual original commit has an upstream patch-id equivalent and
- * `git cherry` marks them all `+`. Phase 2 therefore only recognises a
- * squash-landed branch when the branch had a **single** commit (verified
- * empirically, Story #4539). A multi-commit squash still reads as unmerged
- * and the dirty tree is refused — the safe direction, and the same answer
- * the previous ancestor-only check gave. Detecting the general case needs
- * the PR's merged state, which this module has no client for.
- *
- * A missing ref or a git failure yields false, so callers default to the
- * safe, non-forcing behavior. Module-private: `ensureSafeOrForceDiscard` is
- * its only caller, and the symbol it replaced was exported with no consumer
- * and then baselined as a dead export — repeating that would just hide a
- * new corpse.
+ * True iff `branch` is provably integrated into `baseRef` (ancestor, or every
+ * commit patch-id-equivalent upstream via `git cherry`). It licenses
+ * discarding a dirty tree, so every failure is `false`. Not a squash
+ * detector: a multi-commit squash reads as unmerged (refusal is the safe
+ * direction).
  *
  * @param {object} ctx
  * @param {string} branch
@@ -122,14 +73,9 @@ function isBranchMergedIntoBase(ctx, branch, baseRef) {
     .split('\n')
     .map((l) => l.trim())
     .filter(Boolean);
-  // Every line starting with '+' is a commit with no upstream equivalent.
   return lines.every((line) => line.startsWith('-'));
 }
 
-/**
- * Collect the set of paths reported dirty by `git status --porcelain` inside
- * a worktree. Returned paths are relative to the worktree root.
- */
 function collectDirtyPaths(ctx, wtPath) {
   const res = ctx.git.gitSpawn(wtPath, 'status', '--porcelain');
   if (res.status !== 0) return [];
@@ -140,10 +86,6 @@ function collectDirtyPaths(ctx, wtPath) {
     .map((line) => line.replace(/^[^ ]{1,2}\s+/, ''));
 }
 
-/**
- * Hard-reset and clean a worktree so subsequent remove calls no longer hit
- * `uncommitted-changes`. Returns `true` if both operations succeed.
- */
 function discardWorktreeChanges(ctx, wtPath) {
   const reset = ctx.git.gitSpawn(wtPath, 'reset', '--hard', 'HEAD');
   if (reset.status !== 0) return false;
@@ -151,12 +93,7 @@ function discardWorktreeChanges(ctx, wtPath) {
   return clean.status === 0;
 }
 
-/**
- * Stage 1 recovery after `git worktree remove` exhausts its retries with a
- * Windows-lock-class error: retry `fs.rm` up to `maxRetries` times. Returns
- * `{ success: true, attempts }` on first success or
- * `{ success: false, attempts, error }` on final failure.
- */
+/** Stage 1 recovery: retry `fs.rm` after `git worktree remove` exhausts. */
 async function fsRmWithRetry(
   fsRm,
   wtPath,
@@ -344,7 +281,7 @@ async function handleFsRmFailure({
   fsRm,
   sleepFn,
 }) {
-  // Stage 1.5 — coverage-leak quiesce + extended fs.rm budget (Windows only).
+  // Stage 1.5 (Windows): quiesce, then an extended fs.rm budget.
   if (ctx.platform === 'win32') {
     const stage15 = await tryStage15WindowsFsRm({
       ctx,
@@ -407,9 +344,7 @@ export async function removeWorktreeWithRecovery(ctx, wtPath, opts = {}) {
     if (fallback.handled) return fallback.result;
     lastReason = fallback.lastReason;
   }
-  // Stage 1 recovery is unconditional. Every path into this block has
-  // already cleared `reap()`'s `isSafeToRemove` gate — merged or
-  // force-discarded — so we are committed to removal.
+  // Unconditional: callers already cleared the safety gate.
   const fsRm = ctx.fsRm ?? fsPromisesRm;
   const rmResult = await fsRmWithRetry(fsRm, wtPath, {
     maxRetries: 5,
@@ -444,16 +379,8 @@ export async function removeWorktreeWithRecovery(ctx, wtPath, opts = {}) {
 }
 
 /**
- * Delete the story branch locally (and optionally on origin) after a reap
- * attempt. Pure best-effort — every failure mode is logged and surfaces
- * as `branchDeleted: false` rather than throwing, because branch cleanup
- * is the *follow-up* to a reap, not a precondition for declaring the
- * post-merge work complete.
- *
- * Returns `{ branchDeleted, remoteBranchDeleted }`. Both default to `false`
- * when `branch` is falsy. `branchDeleted: true` includes the "already gone"
- * outcome (refs-not-found from a prior partial reap) — semantically the
- * caller can treat the story branch as cleared in either case.
+ * Best-effort branch deletion after a reap: failures log and return `false`,
+ * never throw; "already gone" counts as deleted.
  */
 function reapDeleteLocal(ctx, branch) {
   const localDel = ctx.git.gitSpawn(ctx.repoRoot, 'branch', '-D', branch);
@@ -494,8 +421,7 @@ async function deleteBranchAfterReap(ctx, { branch, push }) {
 }
 
 /**
- * The on-disk paths of the code currently executing: the entry script and
- * this module itself.
+ * Paths of the running entry script and this module.
  *
  * @returns {string[]}
  */
@@ -506,27 +432,15 @@ function runningCodePaths() {
   try {
     paths.push(fileURLToPath(import.meta.url));
   } catch {
-    // A non-file module URL cannot be inside a worktree; nothing to add.
+    // A non-file module URL cannot be inside a worktree.
   }
   return paths;
 }
 
 /**
- * Return the running-code path that lives inside `wtPath`, or `null`.
- *
- * `escapeWorktreeCwd` already handles the *cwd* being inside the doomed
- * tree; this is the other half — the **code** being inside it. An agent that
- * invokes `node .agents/scripts/single-story-close.js` with its shell cwd set
- * to the Story worktree runs the WORKTREE's copy of the script, and reaping
- * the tree then deletes the running program out from under itself. Node has
- * already loaded the static module graph, so the process does not die on the
- * spot — it dies later, at the first lazy read or dynamic `import()`, in
- * whatever phase happens to need one. That is how a close whose PR merged,
- * whose Story flipped to `agent::done`, and whose post-land tail was green
- * still exited non-zero with no terminal envelope.
- *
- * Refusing the reap is cheap: the tree survives one extra cycle and the next
- * boot sweep takes it. Reaping it costs the run's return contract.
+ * The running-code path inside `wtPath`, or `null`. Reaping the tree the
+ * running script was loaded from kills the process later, at its first lazy
+ * read or dynamic `import()`; refusing only defers the tree to the next sweep.
  *
  * @param {object} ctx
  * @param {string} wtPath
@@ -540,9 +454,7 @@ function findRunningCodeInside(ctx, wtPath) {
 }
 
 /**
- * The refusals that disqualify a tree before any git work happens, in the
- * order they are checked. Returns the refusal envelope, or `null` when the
- * tree is eligible for the safety checks that follow.
+ * First pre-git refusal envelope, or `null`.
  *
  * @param {object} ctx
  * @param {object} opts
@@ -579,18 +491,8 @@ function checkReapPreconditions(ctx, _storyId, opts, wtPath) {
   }
   const refusal = firstReapRefusal(ctx, opts, wtPath);
   if (refusal) return { ok: false, result: refusal };
-  // Story #4539 removed an `epic-branch-required` gate here: a
-  // `story-<id>` worktree used to be unreapable unless the caller supplied
-  // an Epic integration branch. v2 has no Epic branch, and the only v2
-  // caller (the close path) never passed one — so EVERY close silently
-  // failed to reap while reporting success, and cleanup fell to the next
-  // boot-sweep.
-  //
-  // Nothing is lost by dropping it. The close path reaps AFTER pushing
-  // `story-<id>` to origin and opening the PR, so the work is durable
-  // off-machine; and the real safety net is unchanged — `isSafeToRemove`
-  // still refuses a dirty tree (`uncommitted-changes`), which is what
-  // actually protects unsaved work.
+  // No base-branch requirement: close reaps after pushing the branch, and
+  // `isSafeToRemove` still refuses a dirty tree.
   return { ok: true };
 }
 
@@ -603,11 +505,7 @@ async function ensureSafeOrForceDiscard(ctx, storyId, wtPath, opts) {
 
   const discardAfterMerge = opts.discardAfterMerge !== false;
   const branchName = `story-${validateStoryId(storyId)}`;
-  // Discarding a dirty tree is only permissible when the branch's work is
-  // demonstrably already integrated. See `isBranchMergedIntoBase` for what
-  // that can and cannot prove — notably a multi-commit squash reads as
-  // unmerged, so the discard is refused and the tree survives. Refusing is
-  // the safe direction: the cost is a stale worktree, not lost work.
+  // Discard a dirty tree only when the work is provably integrated.
   const canForceReap =
     discardAfterMerge &&
     safety.reason === 'uncommitted-changes' &&

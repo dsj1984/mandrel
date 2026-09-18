@@ -1,9 +1,5 @@
 /**
- * floors.js — Phase 2 of the check-baselines pipeline (Story #2466).
- *
- * Pure floor-comparison helpers. Extracted verbatim from `check-baselines.js`
- * so `compareToFloor`, `assertFloorAxesExist`, and `applyFloors` keep their
- * named-export contracts for the existing unit tests.
+ * Pure floor-comparison helpers for check-baselines.
  *
  * @module lib/orchestration/check-baselines/phases/floors
  */
@@ -11,11 +7,7 @@
 import { EXIT_CONFIG } from '../../../baselines/exit-codes.js';
 
 /**
- * Which way a floor axis is compared: `gte` means the measured value must be
- * at or above the floor, `lte` at or below it. Exported (Story #4902) so the
- * baseline hotspot engine reports floor headroom with the same polarity the
- * gate enforces — a second copy of this table would let the two disagree
- * about which direction is "better" for a given axis.
+ * Floor polarity per axis; the single table every consumer must share.
  *
  * @param {string} kind
  * @param {string} axis
@@ -33,10 +25,7 @@ export function axisDirection(kind, axis) {
   return 'gte';
 }
 
-/**
- * Compare a single rollup component against a single floor object. Returns
- * the array of axis violations (empty when every axis meets its floor).
- */
+/** Axis violations of one rollup component against its floor. */
 export function compareToFloor(kind, aggregate, floor) {
   const out = [];
   if (!floor || typeof floor !== 'object') return out;
@@ -52,10 +41,6 @@ export function compareToFloor(kind, aggregate, floor) {
   return out;
 }
 
-/**
- * Tiny helper to suggest the closest available axis when an operator
- * misnamed a floor axis. Substring containment is enough.
- */
 function suggestAxis(unknownAxis, availableKeys) {
   if (availableKeys.length === 0) return null;
   const target = unknownAxis.toLowerCase();
@@ -85,9 +70,8 @@ function buildAxisMismatchError({ kind, component, axis, availableKeys }) {
 }
 
 /**
- * Story #2193 / AC-6: fail closed when a configured floor axis is not
- * present in the rollup. See the original module docstring for the full
- * rationale (typo in `.agentrc.json` → exit code 3 instead of silent pass).
+ * Fail closed (exit 3) on a floor axis absent from the rollup, so a config
+ * typo never silently passes.
  */
 export function assertFloorAxesExist(kind, component, aggregate, floor) {
   if (!floor || typeof floor !== 'object') return;
@@ -119,9 +103,6 @@ function evaluateComponentFloor(kind, component, rollup, floors) {
   return { component, violations };
 }
 
-/**
- * Apply the floor policy across every component in a rollup. Pure.
- */
 export function applyFloors(kind, rollup, floors) {
   const out = [];
   for (const component of collectComponentNames(rollup, floors)) {
