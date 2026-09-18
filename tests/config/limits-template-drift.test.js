@@ -55,11 +55,9 @@ describe('full-agentrc.json ↔ LIMITS_DEFAULTS drift guard', () => {
     assert.equal('maxTokenBudget' in LIMITS_DEFAULTS, false);
   });
 
-  it('declares delivery.execution.timeoutMs matching LIMITS_DEFAULTS.executionTimeoutMs', () => {
-    assert.equal(
-      parsed?.delivery?.execution?.timeoutMs,
-      LIMITS_DEFAULTS.executionTimeoutMs,
-    );
+  it('does not declare delivery.execution.timeoutMs — folded into LIMITS_DEFAULTS (Story #5382)', () => {
+    assert.equal('timeoutMs' in (parsed?.delivery?.execution ?? {}), false);
+    assert.equal(LIMITS_DEFAULTS.executionTimeoutMs, 600000);
   });
 
   it('does not declare the retired delivery.signals block (Story #5313)', () => {

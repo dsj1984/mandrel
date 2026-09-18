@@ -8,12 +8,13 @@
  *     degraded input fails open to "do not skip".
  *   - `countChangedLines` totals `git diff --numstat` output and returns
  *     `null` (count unknown) on any failure or unparseable output.
- *   - `resolveLensDiffFloor` reads `delivery.review.lensDiffFloor` with the
- *     framework default (40) and `0`-disables.
+ *   - The floor is the fixed `DEFAULT_LENS_DIFF_FLOOR` (40); Story #5382
+ *     folded the never-set `delivery.review.lensDiffFloor` key into it, and
+ *     a caller-injected `0` still disables the skip.
  *   - `runLocalLensReview` under the floor: a below-floor non-sensitive diff
  *     produces NO lens artifacts (runAuditSuite never runs) and records the
  *     skip (`skipped: true` + `floorSkip` verdict with the roster retained).
- *   - AC-5: the runtime AJV schema accepts `delivery.review.lensDiffFloor`.
+ *   - AC-5: the runtime AJV schema now rejects `delivery.review` outright.
  */
 
 import assert from 'node:assert/strict';
@@ -24,7 +25,6 @@ import {
   countChangedLines,
   DEFAULT_LENS_DIFF_FLOOR,
   evaluateLensDiffFloor,
-  resolveLensDiffFloor,
 } from '../../../.agents/scripts/lib/audit-suite/lens-diff-floor.js';
 import { AGENTRC_SCHEMA } from '../../../.agents/scripts/lib/config-settings-schema.js';
 import { runLocalLensReview } from '../../../.agents/scripts/lib/orchestration/story-close/phases/local-lens-review.js';
@@ -166,28 +166,24 @@ test('countChangedLines returns null on git failure, throw, or unparseable outpu
 });
 
 // ---------------------------------------------------------------------------
-// resolveLensDiffFloor — the config accessor.
+// The floor is a constant — the config accessor went with Story #5382.
 // ---------------------------------------------------------------------------
 
-test('resolveLensDiffFloor defaults to 40 and honours the configured value', () => {
+test('the floor defaults to 40 and a caller-injected value still wins', () => {
   assert.equal(DEFAULT_LENS_DIFF_FLOOR, 40);
-  assert.equal(resolveLensDiffFloor(undefined), 40);
-  assert.equal(resolveLensDiffFloor({}), 40);
-  assert.equal(
-    resolveLensDiffFloor({ delivery: { review: { lensDiffFloor: 80 } } }),
-    80,
-  );
-  assert.equal(
-    resolveLensDiffFloor({ delivery: { review: { lensDiffFloor: 0 } } }),
-    0,
-  );
+  const verdict = (floor) =>
+    evaluateLensDiffFloor({
+      changedFiles: ['lib/util.js'],
+      changedLineCount: 50,
+      floor,
+      injectedRules: fixtureRules(),
+    });
+  assert.equal(verdict(undefined).floor, 40);
+  assert.equal(verdict(80).floor, 80);
+  assert.equal(verdict(0).reason, 'floor-disabled');
   // Malformed values fall back to the default.
   for (const bad of [-1, 1.5, 'forty', null]) {
-    assert.equal(
-      resolveLensDiffFloor({ delivery: { review: { lensDiffFloor: bad } } }),
-      40,
-      `bad=${String(bad)}`,
-    );
+    assert.equal(verdict(bad).floor, 40, `bad=${String(bad)}`);
   }
 });
 
@@ -283,10 +279,10 @@ test('an unknown changed-line count materializes lenses (fail-open)', async () =
 });
 
 // ---------------------------------------------------------------------------
-// AC-5 — the runtime AJV schema accepts `delivery.review.lensDiffFloor`.
+// AC-5 — the runtime AJV schema rejects `delivery.review` (Story #5382).
 // ---------------------------------------------------------------------------
 
-test('runtime AJV schema accepts delivery.review.lensDiffFloor and rejects malformed values', () => {
+test('runtime AJV schema rejects delivery.review.lensDiffFloor, naming the block', () => {
   const ajv = new Ajv({ allErrors: true });
   const validate = ajv.compile(AGENTRC_SCHEMA);
   const base = {
@@ -295,24 +291,15 @@ test('runtime AJV schema accepts delivery.review.lensDiffFloor and rejects malfo
     },
   };
 
-  assert.equal(
-    validate({ ...base, delivery: { review: { lensDiffFloor: 40 } } }),
-    true,
-    JSON.stringify(validate.errors),
-  );
-  assert.equal(
-    validate({ ...base, delivery: { review: { lensDiffFloor: 0 } } }),
-    true,
-    'zero (floor off) is a valid configuration',
-  );
-  assert.equal(
-    validate({ ...base, delivery: { review: { lensDiffFloor: -1 } } }),
-    false,
-    'negative floors are rejected',
-  );
-  assert.equal(
-    validate({ ...base, delivery: { review: { unknownKey: 1 } } }),
-    false,
-    'unknown keys under delivery.review are rejected',
-  );
+  for (const lensDiffFloor of [40, 0]) {
+    assert.equal(
+      validate({ ...base, delivery: { review: { lensDiffFloor } } }),
+      false,
+      `lensDiffFloor=${lensDiffFloor} must be rejected`,
+    );
+    assert.ok(
+      validate.errors.some((e) => e.params?.additionalProperty === 'review'),
+      JSON.stringify(validate.errors),
+    );
+  }
 });

@@ -1,13 +1,13 @@
 /**
  * tests/providers/github-timeout-defaults.test.js
  *
- * Covers the `github.defaultTimeoutMs` config knob wired in Story #2860.
+ * Covers the `gh` subprocess ceiling wired in Story #2860. Story #5382
+ * folded the never-set `github.defaultTimeoutMs` knob into the fixed
+ * `GH_DEFAULT_TIMEOUT_MS`.
  *
  * The provider must:
- *   1. Apply a 60_000 ms ceiling when no value is supplied (in-code default,
- *      not a schema-level default — keeps existing `.agentrc.json` files
- *      validating without re-resolution).
- *   2. Honor an operator-supplied override on `config.defaultTimeoutMs`.
+ *   1. Apply the 60_000 ms ceiling to every `gh` subprocess.
+ *   2. Ignore a leftover `config.defaultTimeoutMs` (the schema rejects it).
  *   3. Pass the operator's injected `opts.gh` through unchanged — tests rely
  *      on this to drive the facade with fakes without going through the
  *      default-construction path.
@@ -35,18 +35,18 @@ function baseConfig(extra = {}) {
   };
 }
 
-describe('GitHubProvider — github.defaultTimeoutMs wiring (Story #2860)', () => {
-  it('applies 60_000 ms in-code default when defaultTimeoutMs is unset', () => {
+describe('GitHubProvider — gh timeout ceiling (Stories #2860, #5382)', () => {
+  it('applies the 60_000 ms ceiling', () => {
     const provider = new GitHubProvider(baseConfig(), { token: 'ghp_test' });
     assert.equal(provider._gh.defaults.timeoutMs, 60_000);
   });
 
-  it('honors an operator-supplied override on config.defaultTimeoutMs', () => {
+  it('ignores a leftover config.defaultTimeoutMs — the ceiling is fixed', () => {
     const provider = new GitHubProvider(
       baseConfig({ defaultTimeoutMs: 5_000 }),
       { token: 'ghp_test' },
     );
-    assert.equal(provider._gh.defaults.timeoutMs, 5_000);
+    assert.equal(provider._gh.defaults.timeoutMs, 60_000);
   });
 
   it('passes an injected opts.gh through verbatim (test-injection path)', () => {

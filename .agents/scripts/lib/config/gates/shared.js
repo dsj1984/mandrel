@@ -12,8 +12,8 @@ import { SHELL_INJECTION_PATTERN_STRING } from '../../config-schema-shared.js';
  *   - `tolerance`    — `{ kind: 'absolute' | 'percent', value: number }`.
  *   - `floors`       — workspace-keyed `{ "*": { ... } }` absolute floor object.
  *
- * Gate-specific extras (targetDirs for crap/MI, routes for lighthouse,
- * bundles for bundle-size, coveragePath for coverage) layer on top via the
+ * Gate-specific extras (targetDirs for crap/MI/duplication, bundles for
+ * bundle-size, coveragePath for coverage) layer on top via the
  * per-gate schemas in sibling files. Split out of
  * `config-settings-schema.js` (Story #1737) and then split again
  * (Story #2987) to keep each module under the maintainability ceiling —
@@ -23,12 +23,6 @@ import { SHELL_INJECTION_PATTERN_STRING } from '../../config-schema-shared.js';
 export const SAFE_STRING = {
   type: 'string',
   not: { pattern: SHELL_INJECTION_PATTERN_STRING },
-};
-
-export const NULLABLE_NONEMPTY_SAFE_STRING = {
-  type: ['string', 'null'],
-  minLength: 1,
-  not: { type: 'string', pattern: SHELL_INJECTION_PATTERN_STRING },
 };
 
 export const LIST_OR_EXTENDER_OF_STRINGS = {

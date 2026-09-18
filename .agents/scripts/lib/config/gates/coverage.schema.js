@@ -21,18 +21,6 @@ export const COVERAGE_GATE = {
         'Repo-relative path to the Istanbul `coverage-final.json` the capture step writes and the gate reads.',
       default: COVERAGE_GATE_DEFAULTS.coveragePath,
     },
-    // Story #2136 / Task #2142 — bounded timeout for `npm run test:coverage`.
-    // Wired into `runCapture` via `spawnSync({ timeout, killSignal })`. A
-    // SIGKILL fired by the timeout is translated to exit code 124 (the GNU
-    // `timeout` convention) so close-validation can branch on "hang" vs.
-    // "test failed".
-    timeoutMs: {
-      type: 'integer',
-      minimum: 1,
-      description:
-        'Bounded timeout (ms) for the `npm run test:coverage` capture spawn. A SIGKILL at the budget boundary maps to exit 124 so close-validation can tell a hang from a test failure.',
-      default: COVERAGE_GATE_DEFAULTS.timeoutMs,
-    },
   },
   additionalProperties: false,
 };

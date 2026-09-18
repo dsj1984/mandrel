@@ -441,13 +441,6 @@ const GITHUB_SCHEMA = {
         'The human the framework escalates to, `@`-prefixed. Used for HITL @-mentions on `agent::blocked`.',
       default: '@[USERNAME]',
     },
-    defaultTimeoutMs: {
-      type: 'integer',
-      minimum: 1000,
-      description:
-        'Default `timeoutMs` applied to every `gh` subprocess the provider facade spawns, so a stalled socket or long-poll cannot hang an orchestration indefinitely. A `GhExecTimeoutError` from a hit ceiling is classified `transient` and retried by `withTransientRetry`. Story #2860.',
-      default: 60000,
-    },
     followUpRepos: FOLLOW_UP_REPOS_SCHEMA,
     branchProtection: BRANCH_PROTECTION_SCHEMA,
     mergeMethods: MERGE_METHODS_SCHEMA,
@@ -487,29 +480,16 @@ const GITHUB_SCHEMA = {
 // longer exists. The block stays `additionalProperties: false`, so a config
 // still carrying one fails loudly; the 2.57.0 retirement migration strips them
 // on upgrade.
+//
+// Story #5382 folded `memoryPool.indexByteCeiling` into the fixed
+// `INDEX_BYTE_CEILING` (24576 — the harness's own index cap) in
+// `planning/memory-pool-advisory.js`; no surveyed config set it.
 
 const PLANNING_SCHEMA = {
   type: 'object',
   description:
-    'Inputs to `/mandrel-plan`: the memory-hygiene advisory ceiling and the opt-in navigability reachability gate.',
+    'Inputs to `/mandrel-plan`: the opt-in navigability reachability gate.',
   properties: {
-    // The `/mandrel-plan` Phase 0 memory-hygiene advisory's one surviving
-    // arm (Story #5285; the age and growth arms went with Story #5312).
-    memoryPool: {
-      type: 'object',
-      description:
-        'Threshold for the memory-hygiene advisory `/mandrel-plan` surfaces at Gate #1. Advisory only: it recommends `/memory-consolidate` and never gates, reroutes, or mutates the memory pool.',
-      properties: {
-        indexByteCeiling: {
-          type: 'integer',
-          minimum: 1,
-          description:
-            "Recommend a consolidation pass once the pool's `MEMORY.md` index exceeds this many bytes. The harness truncates the index it loads into each session at its own byte cap, so an oversized index is a loss already happening — every entry listed after the cut is invisible — rather than a hygiene forecast. Default 24576, the harness cap itself.",
-          default: 24576,
-        },
-      },
-      additionalProperties: false,
-    },
     // Navigability-reachability config consumed by the plan-persist draft
     // reachability gate (Epic #4131 F7; demoted into persist by #4474 PR6).
     // Opt-in: absent or empty routeGlobs degrades to a silent no-op.

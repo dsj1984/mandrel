@@ -103,32 +103,19 @@ async function parkFollowUpsRollup({ anchorId, body, config }) {
   };
 }
 
-/** Milliseconds in one day — the unit `frictionWindowDays` is expressed in. */
+/** Milliseconds in one day — the unit the friction window is expressed in. */
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
-/** Window bound applied when `frictionWindowDays` is unset. */
-const DEFAULT_FRICTION_WINDOW_DAYS = 30;
 
 /**
  * How many days back the run-scope recurrence window reaches (Story #4850).
  *
- * Defaults to 30 rather than to "unbounded": the widened cross-run window
- * exists to let a once-per-Story defect reach the ≥ 2 threshold, and 30 days is
- * long enough for that while short enough that a defect fixed last month stops
- * re-routing. An absent, non-integer, or sub-1 value takes the default — the
- * runtime AJV in `config-settings-schema-delivery.js` rejects those at load, so
- * reaching this fallback means the config never went through the validator.
- *
- * @param {object} [config]
- * @returns {number}
+ * 30 rather than "unbounded": the widened cross-run window exists to let a
+ * once-per-Story defect reach the ≥ 2 threshold, and 30 days is long enough
+ * for that while short enough that a defect fixed last month stops
+ * re-routing. Fixed since Story #5382 folded the never-set
+ * `delivery.feedbackLoop.frictionWindowDays` key.
  */
-function resolveFrictionWindowDays(config) {
-  const raw = config?.delivery?.feedbackLoop?.frictionWindowDays;
-  const days = Number(raw);
-  return Number.isInteger(days) && days >= 1
-    ? days
-    : DEFAULT_FRICTION_WINDOW_DAYS;
-}
+const FRICTION_WINDOW_DAYS = 30;
 
 /**
  * Resolve the follow-up ownership buckets for the retro composer and the
@@ -261,7 +248,7 @@ function signalIdentity(parsed, file, lineNumber) {
  * whole surviving temp tree also made it unbounded in *time*: a defect fixed
  * weeks ago kept its occurrences on disk and kept re-routing forever, burying
  * a genuine new regression underneath a historical ledger. Rows older than
- * `delivery.feedbackLoop.frictionWindowDays` (default 30) are excluded, as are
+ * {@link FRICTION_WINDOW_DAYS} (30) days are excluded, as are
  * rows carrying no `ts` a `Date` can read — excluding an undateable row is the
  * direction that fails toward under-counting, and under-counting fails toward
  * not filing. Both exclusions are **counted and reported**, so a caller can
@@ -285,7 +272,7 @@ export async function gatherRunFrictionSignals(
   config,
   { now = Date.now() } = {},
 ) {
-  const days = resolveFrictionWindowDays(config);
+  const days = FRICTION_WINDOW_DAYS;
   const cutoffMs = now - days * MS_PER_DAY;
   const signals = [];
   const seen = new Set();

@@ -301,8 +301,10 @@ export async function readPrWaitProbe({
 }
 
 /**
- * Resolve the wait cadence and both budgets from `delivery.mergeWatch.*`,
+ * Resolve the wait posture and both budgets from `delivery.mergeWatch.*`,
  * falling back to the framework defaults when a key is absent or invalid.
+ * The poll cadence (`DEFAULT_INTERVAL_SECONDS`) and the behind-the-base
+ * update cap (`DEFAULT_UPDATE_ATTEMPTS`) are fixed since Story #5382.
  *
  * `maxWaitSecondsOverride` is the per-run `--max-wait-seconds` flag and wins
  * over the config: a headless caller with no host tool-invocation ceiling
@@ -338,8 +340,8 @@ export function resolveMergeWaitConfig(
   modeOverride,
 ) {
   const mergeWatch = config?.delivery?.mergeWatch ?? {};
-  const int = (value, fallback, min = 1) =>
-    Number.isInteger(value) && value >= min ? value : fallback;
+  const int = (value, fallback) =>
+    Number.isInteger(value) && value >= 1 ? value : fallback;
   const requestedMode = modeOverride ?? mergeWatch.mode;
   const mode = requestedMode === 'async' ? 'async' : 'sync';
   const configuredMaxWait = int(
@@ -365,10 +367,7 @@ export function resolveMergeWaitConfig(
   // `pending` that never escalates. Clamping the interval to the bound keeps
   // at least one real poll cycle possible, which is what both the floor and
   // the give-up bound depend on.
-  const intervalSeconds = Math.min(
-    int(mergeWatch.intervalSeconds, DEFAULT_INTERVAL_SECONDS),
-    maxWaitSeconds,
-  );
+  const intervalSeconds = Math.min(DEFAULT_INTERVAL_SECONDS, maxWaitSeconds);
   return {
     mode,
     intervalSeconds,
@@ -377,7 +376,7 @@ export function resolveMergeWaitConfig(
       mergeWatch.maxBudgetSeconds,
       DEFAULT_MAX_BUDGET_SECONDS,
     ),
-    updateAttempts: int(mergeWatch.updateAttempts, DEFAULT_UPDATE_ATTEMPTS, 0),
+    updateAttempts: DEFAULT_UPDATE_ATTEMPTS,
   };
 }
 

@@ -90,7 +90,7 @@ function captureRun(root, argv) {
 }
 
 describe('resolveCyclomaticPolicy', () => {
-  test('reads the advisory flag from the guardrails and the fixed ceiling (Story #5313)', () => {
+  test('uses the fixed advisory flag and the fixed ceiling (Stories #5313, #5382)', () => {
     const policy = resolveCyclomaticPolicy({
       codingGuardrails: { cyclomaticMustFix: 5, cyclomaticFlag: 3 },
       maintainability: { targetDirs: ['src'], ignoreGlobs: ['src/gen/**'] },
@@ -101,7 +101,7 @@ describe('resolveCyclomaticPolicy', () => {
       12,
       'a leftover cyclomaticMustFix tunes nothing',
     );
-    assert.equal(policy.flag, 3);
+    assert.equal(policy.flag, 8, 'a leftover cyclomaticFlag tunes nothing');
     assert.deepEqual(policy.targetDirs, ['src']);
     assert.deepEqual(policy.ignoreGlobs, ['src/gen/**']);
   });

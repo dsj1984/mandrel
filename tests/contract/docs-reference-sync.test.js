@@ -179,7 +179,7 @@ describe('docs in scope — every quoted .agentrc.json key validates (Story #478
 
   it('pins delivery.ci to its live keys (the skipForStoryPushes guard)', () => {
     // Story #5096 added `blockOnAdvisoryFailure` + `advisoryAllowlist`;
-    // Story #5266 added `rerunAdvisory`. The pin is deliberately exact so a
+    // Story #5266 added `rerunAdvisory`; Story #5382 folded `watch`. The pin is deliberately exact so a
     // RETIRED key (earlyPr, requireChecks, skipForStoryPushes) cannot creep
     // back unnoticed — extend it when a key genuinely goes live, never loosen
     // it to a subset check.
@@ -189,7 +189,6 @@ describe('docs in scope — every quoted .agentrc.json key validates (Story #478
       'autoMerge',
       'blockOnAdvisoryFailure',
       'rerunAdvisory',
-      'watch',
     ]);
     assert.equal(ci.additionalProperties, false);
   });

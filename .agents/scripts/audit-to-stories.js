@@ -961,33 +961,26 @@ function loadPlan(planPath) {
   return JSON.parse(fs.readFileSync(planPath, 'utf8'));
 }
 
+/**
+ * The unattended-sweep severity floor when `--severity` names none. Fixed
+ * since Story #5382 folded the never-set
+ * `delivery.auditToStories.severityFloor` key.
+ */
 const DEFAULT_SEVERITY_FLOOR = 'high';
 
 /**
- * Resolve the unattended-sweep severity floor: an explicit `--severity` wins,
- * else `delivery.auditToStories.severityFloor` from config, else the built-in
- * default (`high`). Reads config defensively so a missing/failed resolve never
- * breaks the run.
+ * The effective sweep floor: an explicit `--severity` wins, else the default.
  *
  * @param {string|undefined} explicit
- * @returns {Promise<string>}
+ * @returns {string}
  */
-async function resolveSeverityFloor(explicit) {
-  if (explicit) return explicit;
-  try {
-    const { resolveConfig } = await import('./lib/config-resolver.js');
-    const config = resolveConfig();
-    const floor = config?.delivery?.auditToStories?.severityFloor;
-    if (typeof floor === 'string' && floor.length > 0) return floor;
-  } catch (_) {
-    // fall through to default
-  }
-  return DEFAULT_SEVERITY_FLOOR;
+function severityFloorOf(explicit) {
+  return explicit || DEFAULT_SEVERITY_FLOOR;
 }
 
 /**
  * Unattended `--auto` sweep. No interactive gates: it resolves the severity
- * floor from config, builds the plan (with cross-run ledger reconciliation),
+ * floor (`--severity`, else `high`), builds the plan (with cross-run ledger reconciliation),
  * and reports a run summary. Under `--dry-run` it performs zero GitHub writes
  * and emits the summary only; otherwise it returns the create-eligible Story
  * payloads for the caller to open. Always resolves — never prompts.
@@ -1017,7 +1010,7 @@ async function runAuto({
   cwd,
   logger = Logger,
 }) {
-  const floor = await resolveSeverityFloor(severity);
+  const floor = severityFloorOf(severity);
   const resolvedLedgerPath = ledgerPath ?? DEFAULT_LEDGER_PATH;
   const plan = await buildPlan({
     glob,
@@ -1295,7 +1288,6 @@ export const __testing = {
   dedupIndexDegradedWarning,
   buildAndGateStories,
   runAuto,
-  resolveSeverityFloor,
   reconcileScanLedger,
   issueStatesFromClassifications,
   wireEdges,

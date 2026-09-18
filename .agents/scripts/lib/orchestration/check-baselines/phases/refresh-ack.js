@@ -20,8 +20,11 @@ import { Logger } from '../../../Logger.js';
 import { applyTolerance } from './compare.js';
 import { DEFAULT_BASELINE_PATHS } from './parse-args.js';
 
-/** Default refresh-tag substring when the gate omits `refreshTag`. */
-const DEFAULT_REFRESH_TAG = 'baseline-refresh:';
+/**
+ * Commit-subject substring that acknowledges a deliberate refresh. Fixed since
+ * Story #5382 folded the never-set per-gate `refreshTag` key.
+ */
+const REFRESH_TAG = 'baseline-refresh:';
 
 function resolveBaselinePath(kind, gateBlock) {
   const configured =
@@ -29,13 +32,6 @@ function resolveBaselinePath(kind, gateBlock) {
       ? gateBlock.baselinePath
       : null;
   return configured ?? DEFAULT_BASELINE_PATHS[kind] ?? null;
-}
-
-function resolveRefreshTag(gateBlock) {
-  return typeof gateBlock?.refreshTag === 'string' &&
-    gateBlock.refreshTag.length
-    ? gateBlock.refreshTag
-    : DEFAULT_REFRESH_TAG;
 }
 
 /**
@@ -46,7 +42,7 @@ function resolveRefreshTag(gateBlock) {
  *      the two pre-existing names (`BUNDLE_SIZE_REFRESH`,
  *      `MAINTAINABILITY_REFRESH`) keep working unchanged.
  *   2. Commit tag: a commit in the compared range `<baseRef>..HEAD` whose
- *      subject contains the configured `refreshTag` AND whose diff touches that
+ *      subject contains the `baseline-refresh:` tag AND whose diff touches that
  *      kind's baseline file. One-shot by construction — once merged, the
  *      refreshed baseline becomes the base and the tag leaves the range.
  *
@@ -73,15 +69,14 @@ function resolveRefreshTrigger({ kind, gateBlock, cmp, cwd, env }) {
   const refreshCommits = [];
   const baseRef = cmp?.baseRef ?? null;
   if (baseRef && typeof baselinePath === 'string' && baselinePath.length) {
-    const refreshTag = resolveRefreshTag(gateBlock);
     const commits = readRangeCommitsTouchingFile(baseRef, baselinePath, {
       cwd,
     });
     for (const commit of commits) {
-      if (!commit.subject.includes(refreshTag)) continue;
+      if (!commit.subject.includes(REFRESH_TAG)) continue;
       refreshCommits.push(commit);
       reasons.push(
-        `refresh commit "${commit.subject}" (subject contains ${JSON.stringify(refreshTag)}, touches ${baselinePath})`,
+        `refresh commit "${commit.subject}" (subject contains ${JSON.stringify(REFRESH_TAG)}, touches ${baselinePath})`,
       );
     }
   }

@@ -5,7 +5,7 @@
   "rollup": {
     "*": {
       "min": 76.381,
-      "p50": 99.184,
+      "p50": 99.285,
       "p95": 122.565
     }
   },
@@ -160,7 +160,7 @@
     },
     {
       "path": ".agents/scripts/lib/audit-baselines/kinds.js",
-      "mi": 98.578
+      "mi": 100.078
     },
     {
       "path": ".agents/scripts/lib/audit-baselines/outliers.js",
@@ -216,7 +216,7 @@
     },
     {
       "path": ".agents/scripts/lib/audit-suite/lens-diff-floor.js",
-      "mi": 101.071
+      "mi": 99.64
     },
     {
       "path": ".agents/scripts/lib/audit-suite/runner.js",
@@ -356,7 +356,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kernel.js",
-      "mi": 92.176
+      "mi": 95.628
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/_crap-new-method-gate.js",
@@ -389,14 +389,6 @@
     {
       "path": ".agents/scripts/lib/baselines/kinds/kind-factory.js",
       "mi": 97.12
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/kinds/lighthouse.js",
-      "mi": 99.531
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/kinds/lint.js",
-      "mi": 95.926
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/maintainability.js",
@@ -432,7 +424,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/scope.js",
-      "mi": 99.385
+      "mi": 104.379
     },
     {
       "path": ".agents/scripts/lib/baselines/writer.js",
@@ -576,7 +568,7 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
-      "mi": 97.664
+      "mi": 96.819
     },
     {
       "path": ".agents/scripts/lib/close-validation/process.js",
@@ -628,11 +620,11 @@
     },
     {
       "path": ".agents/scripts/lib/config/baselines.js",
-      "mi": 107.281
+      "mi": 111.856
     },
     {
       "path": ".agents/scripts/lib/config/ci.js",
-      "mi": 114.875
+      "mi": 116.107
     },
     {
       "path": ".agents/scripts/lib/config/commands.js",
@@ -648,15 +640,15 @@
     },
     {
       "path": ".agents/scripts/lib/config/explain.js",
-      "mi": 90.83
+      "mi": 92.457
     },
     {
       "path": ".agents/scripts/lib/config/gates/index.js",
-      "mi": 109.091
+      "mi": 112.515
     },
     {
       "path": ".agents/scripts/lib/config/gates/shared.js",
-      "mi": 79.924
+      "mi": 81.841
     },
     {
       "path": ".agents/scripts/lib/config/github.js",
@@ -664,7 +656,7 @@
     },
     {
       "path": ".agents/scripts/lib/config/limits.js",
-      "mi": 123.5
+      "mi": 134.628
     },
     {
       "path": ".agents/scripts/lib/config/paths.js",
@@ -676,11 +668,11 @@
     },
     {
       "path": ".agents/scripts/lib/config/quality.js",
-      "mi": 85.426
+      "mi": 88.089
     },
     {
       "path": ".agents/scripts/lib/config/runners.js",
-      "mi": 110.668
+      "mi": 111.489
     },
     {
       "path": ".agents/scripts/lib/config/runtime.js",
@@ -1040,7 +1032,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/refresh-ack.js",
-      "mi": 95.423
+      "mi": 94.568
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/report.js",
@@ -1528,7 +1520,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
-      "mi": 88.765
+      "mi": 89.72
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/local-lens-review.js",
@@ -1960,7 +1952,7 @@
     },
     {
       "path": ".agents/scripts/providers/github.js",
-      "mi": 113.613
+      "mi": 115.133
     },
     {
       "path": ".agents/scripts/providers/github/auth.js",
@@ -2227,8 +2219,16 @@
       "mi": 117.829
     },
     {
+      "path": "lib/migrations/steps/strip-removed-agentrc-keys.js",
+      "mi": 94.524
+    },
+    {
       "path": "scripts/check-action-pinning.js",
       "mi": 95.351
+    },
+    {
+      "path": "scripts/check-agentrc-key-ceiling.js",
+      "mi": 108.03
     },
     {
       "path": "scripts/check-audit-attribution.js",
@@ -2291,6 +2291,10 @@
       "mi": 90.439
     },
     {
+      "path": "scripts/lib/agentrc-key-ceiling.js",
+      "mi": 113.335
+    },
+    {
       "path": "scripts/lib/audit-advisories.js",
       "mi": 105.717
     },
@@ -2312,7 +2316,7 @@
     },
     {
       "path": "scripts/lib/baselines/scope-inventory.js",
-      "mi": 90.034
+      "mi": 91.309
     },
     {
       "path": "scripts/lib/c8-cli-path.js",
@@ -2440,7 +2444,7 @@
     },
     {
       "path": "scripts/run-lint.js",
-      "mi": 112.164
+      "mi": 111.324
     },
     {
       "path": "scripts/run-test-profile.js",

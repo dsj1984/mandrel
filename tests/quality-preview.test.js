@@ -373,7 +373,9 @@ test('mergeEnvelopes — an unusable CRAP delta never becomes a worst delta', ()
   assert.equal(merged.rows[0].worstCrapDelta, 0);
 });
 
-test('runCli — reads the resolved cyclomaticFlag from the project config', async () => {
+test('runCli — counts against the fixed cyclomatic flag, whatever the config says (Story #5382)', async () => {
+  // `delivery.quality.codingGuardrails.cyclomaticFlag` was folded into the
+  // `CODING_GUARDRAILS` constant; a leftover key tunes nothing.
   const root = makeTempDir('quality-preview-flag-');
   fs.writeFileSync(
     path.join(root, '.agentrc.json'),
@@ -394,8 +396,8 @@ test('runCli — reads the resolved cyclomaticFlag from the project config', asy
     runMi: makeMiStub(makeMiEnvelope([], 0)),
     runCrap: makeCrapStub(makeCrapEnvelope()),
   });
-  assert.equal(merged.cyclomaticFlag, 4);
-  assert.match(out.lines.join(''), /new-method count over c=4/);
+  assert.equal(merged.cyclomaticFlag, 8);
+  assert.match(out.lines.join(''), /new-method count over c=8/);
   fs.rmSync(root, { recursive: true, force: true });
 });
 
@@ -407,10 +409,10 @@ function makeCrapStub(envelope, exitCode = 0) {
   return async () => ({ exitCode, envelope });
 }
 
-test('runCli — an unreadable config degrades to the framework flag, not a crash', async () => {
+test('runCli — an unreadable config does not stop the report', async () => {
   // `quality:preview` is a developer-facing report: a tree whose `.agentrc.json`
-  // cannot be parsed should still render its table at the framework default
-  // rather than abort the pre-commit hook over a config error it did not cause.
+  // cannot be parsed still renders its table at the framework flag. Since
+  // Story #5382 the flag is a constant, so the config is never read for it.
   const root = makeTempDir('quality-preview-badcfg-');
   fs.writeFileSync(path.join(root, '.agentrc.json'), '{ not json');
   const out = makeStreamCapture();
@@ -425,7 +427,6 @@ test('runCli — an unreadable config degrades to the framework flag, not a cras
   });
   assert.equal(exitCode, 0);
   assert.equal(merged.cyclomaticFlag, 8);
-  assert.match(err.lines.join(''), /config resolution failed/);
   assert.match(out.lines.join(''), /new-method count over c=8/);
   fs.rmSync(root, { recursive: true, force: true });
 });

@@ -425,8 +425,7 @@ The routine shape is **lenses full-scope → dry-run → live with a ledger PR**
 3. `--auto --ledger-commit` once the tallies stop surprising you.
 
 `--auto` runs with **no interactive gates**: it resolves the severity floor
-from `delivery.auditToStories.severityFloor` (default `high`, overridable with
-`--severity`), applies the two-stage dedup, reconciles the cross-run ledger,
+from `--severity` (default `high`), applies the two-stage dedup, reconciles the cross-run ledger,
 and prints a run-summary JSON (create / skip-open / skip-reoccurring /
 suppressed-by-ledger tallies, the `create`-classified group keys the `--ids`
 map is built from, plus the re-detected open Issue numbers an operator may want

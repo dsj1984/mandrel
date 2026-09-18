@@ -245,8 +245,8 @@ describe('runPrWatch — three-way exit codes (Story #4358)', () => {
   });
 });
 
-describe('resolveWatchKnobs — delivery.ci.watch.* precedence (Story #4356/#4358)', () => {
-  it('reads pollIntervalMs / maxPolls / maxResumes from delivery.ci.watch', () => {
+describe('resolveWatchKnobs — flag → default precedence (Stories #4356/#4358, #5382)', () => {
+  it('ignores a leftover delivery.ci.watch block — the config rung was removed', () => {
     const knobs = resolveWatchKnobs({
       config: {
         delivery: {
@@ -254,18 +254,15 @@ describe('resolveWatchKnobs — delivery.ci.watch.* precedence (Story #4356/#435
         },
       },
     });
-    assert.equal(knobs.pollIntervalMs, 500);
-    assert.equal(knobs.maxPolls, 12);
-    assert.equal(knobs.maxResumes, 4);
+    assert.equal(knobs.pollIntervalMs, WATCH_DEFAULTS.pollIntervalMs);
+    assert.equal(knobs.maxPolls, WATCH_DEFAULTS.maxPolls);
+    assert.equal(knobs.maxResumes, WATCH_DEFAULTS.maxResumes);
   });
 
-  it('a CLI flag overrides config; config overrides the framework default', () => {
-    const knobs = resolveWatchKnobs({
-      config: { delivery: { ci: { watch: { maxPolls: 12 } } } },
-      flags: { maxPolls: 99 },
-    });
+  it('a CLI flag overrides the framework default', () => {
+    const knobs = resolveWatchKnobs({ flags: { maxPolls: 99 } });
     assert.equal(knobs.maxPolls, 99, 'flag wins');
-    // maxResumes: no flag, no config → framework default.
+    // maxResumes: no flag → framework default.
     assert.equal(knobs.maxResumes, WATCH_DEFAULTS.maxResumes);
   });
 

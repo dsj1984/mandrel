@@ -16,23 +16,19 @@
 import { parseStandardCliArgs } from '../../../cli/standard-args.js';
 
 export const KNOWN_KINDS = Object.freeze([
-  'lint',
   'coverage',
   'crap',
   'maintainability',
   'mutation',
-  'lighthouse',
   'bundle-size',
   'duplication',
 ]);
 
 export const DEFAULT_BASELINE_PATHS = Object.freeze({
-  lint: 'baselines/lint.json',
   coverage: 'baselines/coverage.json',
   crap: 'baselines/crap.json',
   maintainability: 'baselines/maintainability.json',
   mutation: 'baselines/mutation.json',
-  lighthouse: 'baselines/lighthouse.json',
   'bundle-size': 'baselines/bundle-size.json',
   duplication: 'baselines/duplication.json',
 });
@@ -55,8 +51,8 @@ Env vars:
                          re-enforces the ratchet at full strength.
 
                          Equivalent commit-tagged trigger: a commit in the
-                         compared range whose subject contains the gate's
-                         'refreshTag' (default 'baseline-refresh:') AND whose
+                         compared range whose subject contains
+                         'baseline-refresh:' AND whose
                          diff touches that kind's baseline file. One-shot by
                          construction — once merged the refreshed baseline is
                          the new base and the tag leaves the range.
@@ -84,7 +80,7 @@ export function helpReport() {
 /**
  * Comma-split + repeat-aggregate the raw `--gate` tokens collected by
  * the shared parser. The original walker accepted both
- * `--gate coverage,lint` and `--gate coverage --gate lint` and
+ * `--gate coverage,crap` and `--gate coverage --gate crap` and
  * concatenated the values; we replicate that here in a single pass over
  * the `string-multi` array the shared parser produces.
  */

@@ -290,8 +290,7 @@ export async function main(args = process.argv.slice(2)) {
   }
 
   const config = resolveConfig();
-  const limits = getLimits(config);
-  const executionTimeoutMs = limits.executionTimeoutMs;
+  const { executionTimeoutMs } = getLimits();
   // The interceptor's bound is deliberately *below* the framework-wide
   // `MAX_BUFFER_BYTES` ceiling: it is a reported policy bound whose value the
   // emitted friction row carries (`details.executionMaxBuffer`), not an

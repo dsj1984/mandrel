@@ -14,12 +14,12 @@ import {
 //   - cross-kind schema validation (the kind in $schema is the one AJV uses)
 // ---------------------------------------------------------------------------
 
-function canonicalLint() {
+function canonicalMaintainability() {
   return buildEnvelope({
-    kind: 'lint',
+    kind: 'maintainability',
     kernelVersion: '1.0.0',
-    rollup: { '*': { errorCount: 0, warningCount: 0 } },
-    rows: [{ path: 'src/a.js', errorCount: 0, warningCount: 0 }],
+    rollup: { '*': { min: 80, p50: 80, p95: 80 } },
+    rows: [{ path: 'src/a.js', mi: 80 }],
   });
 }
 
@@ -40,8 +40,11 @@ describe('buildEnvelope()', () => {
   });
 
   it('stamps $schema, kernelVersion, and generatedAt', () => {
-    const env = canonicalLint();
-    assert.equal(env.$schema, '.agents/schemas/baselines/lint.schema.json');
+    const env = canonicalMaintainability();
+    assert.equal(
+      env.$schema,
+      '.agents/schemas/baselines/maintainability.schema.json',
+    );
     assert.equal(env.kernelVersion, '1.0.0');
     assert.ok(typeof env.generatedAt === 'string');
     assert.match(env.generatedAt, /^\d{4}-\d{2}-\d{2}T/);
@@ -49,16 +52,16 @@ describe('buildEnvelope()', () => {
 
   it('MANDREL_BASELINE_GENERATED_AT overrides the runtime clock', () => {
     process.env.MANDREL_BASELINE_GENERATED_AT = '2026-01-01T00:00:00Z';
-    const env = canonicalLint();
+    const env = canonicalMaintainability();
     assert.equal(env.generatedAt, '2026-01-01T00:00:00Z');
   });
 
   it('an explicit generatedAt arg wins over the env var', () => {
     process.env.MANDREL_BASELINE_GENERATED_AT = '2026-01-01T00:00:00Z';
     const env = buildEnvelope({
-      kind: 'lint',
+      kind: 'maintainability',
       kernelVersion: '1.0.0',
-      rollup: { '*': { errorCount: 0, warningCount: 0 } },
+      rollup: { '*': { min: 80, p50: 80, p95: 80 } },
       rows: [],
       generatedAt: '2099-12-31T23:59:59Z',
     });
@@ -82,9 +85,9 @@ describe('buildEnvelope()', () => {
     assert.throws(
       () =>
         buildEnvelope({
-          kind: 'lint',
+          kind: 'maintainability',
           kernelVersion: 'v1',
-          rollup: { '*': { errorCount: 0, warningCount: 0 } },
+          rollup: { '*': { min: 80, p50: 80, p95: 80 } },
           rows: [],
         }),
       /kernelVersion must be semver-shaped/,
@@ -95,7 +98,7 @@ describe('buildEnvelope()', () => {
     assert.throws(
       () =>
         buildEnvelope({
-          kind: 'lint',
+          kind: 'maintainability',
           kernelVersion: '1.0.0',
           rollup: { someComponent: {} },
           rows: [],
@@ -108,9 +111,9 @@ describe('buildEnvelope()', () => {
     assert.throws(
       () =>
         buildEnvelope({
-          kind: 'lint',
+          kind: 'maintainability',
           kernelVersion: '1.0.0',
-          rollup: { '*': { errorCount: 0, warningCount: 0 } },
+          rollup: { '*': { min: 80, p50: 80, p95: 80 } },
           rows: [],
           generatedAt: 'last tuesday',
         }),
@@ -120,8 +123,8 @@ describe('buildEnvelope()', () => {
 });
 
 describe('assertEnvelope()', () => {
-  it('accepts a canonical lint envelope', () => {
-    assert.doesNotThrow(() => assertEnvelope(canonicalLint()));
+  it('accepts a canonical maintainability envelope', () => {
+    assert.doesNotThrow(() => assertEnvelope(canonicalMaintainability()));
   });
 
   it('accepts a canonical crap envelope', () => {
@@ -142,7 +145,7 @@ describe('assertEnvelope()', () => {
     'rows',
   ]) {
     it(`rejects an envelope missing the top-level "${key}" key`, () => {
-      const env = canonicalLint();
+      const env = canonicalMaintainability();
       delete env[key];
       const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       assert.throws(() => assertEnvelope(env), new RegExp(escapedKey));
@@ -150,14 +153,14 @@ describe('assertEnvelope()', () => {
   }
 
   it('rejects an envelope whose $schema is not one of the known kinds', () => {
-    const env = canonicalLint();
+    const env = canonicalMaintainability();
     env.$schema = '.agents/schemas/baselines/unknown.schema.json';
     assert.throws(() => assertEnvelope(env), /known kinds/);
   });
 
   it('rejects an envelope whose row shape disagrees with the schema', () => {
-    const env = canonicalLint();
-    env.rows = [{ path: 'src/a.js' }]; // missing errorCount / warningCount
+    const env = canonicalMaintainability();
+    env.rows = [{ path: 'src/a.js' }]; // missing mi
     assert.throws(() => assertEnvelope(env), /schema validation/);
   });
 

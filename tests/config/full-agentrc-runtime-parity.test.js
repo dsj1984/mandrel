@@ -38,7 +38,6 @@ import { LIMITS_DEFAULTS } from '../../.agents/scripts/lib/config/limits.js';
 import { getRunners } from '../../.agents/scripts/lib/config/runners.js';
 import { WORKTREE_ISOLATION_DEFAULTS } from '../../.agents/scripts/lib/config/worktree-isolation.js';
 import { AGENTRC_SCHEMA } from '../../.agents/scripts/lib/config-settings-schema.js';
-import { WATCH_DEFAULTS } from '../../.agents/scripts/pr-watch-with-update.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REFERENCE_PATH = path.resolve(
@@ -60,20 +59,15 @@ const AGENT_READ_ONLY_PREFIXES = Object.freeze([
   'github.projectNumber',
   'github.projectOwner',
   'github.operatorHandle',
-  'github.defaultTimeoutMs',
   'delivery.docsFreshness',
   'delivery.mergeWatch',
   'delivery.feedbackLoop',
-  'delivery.quality.gates.lint',
   'delivery.quality.gates.mutation',
-  'delivery.quality.gates.lighthouse',
   'delivery.quality.gates.bundle-size',
   'delivery.quality.gates.duplication',
-  'delivery.quality.gateScoping',
   'delivery.quality.autoRefresh',
   'delivery.quality.navigability',
   'delivery.quality.requireBaselines',
-  'delivery.quality.formatAutofix',
   'delivery.codeReview.providers',
   'delivery.refactorStage',
   'qa.',
@@ -103,17 +97,6 @@ const RESTATED_DEFAULTS = Object.freeze([
     reason:
       'WORKTREE_ISOLATION_DEFAULTS.nodeModulesStrategy is evaluated at import time and becomes `per-worktree` on win32; the inventory pins the cross-platform documented default.',
     expected: () => 'clone',
-  },
-  {
-    path: 'delivery.ci.watch',
-    reason:
-      'WATCH_DEFAULTS lives in the pr-watch-with-update.js CLI; importing it behind a schema declaration would drag runAsCli into every config read.',
-    expected: () => ({
-      pollIntervalMs: WATCH_DEFAULTS.pollIntervalMs,
-      maxPolls: WATCH_DEFAULTS.maxPolls,
-      maxResumes: WATCH_DEFAULTS.maxResumes,
-      attachWindowMs: WATCH_DEFAULTS.attachWindowMs,
-    }),
   },
 ]);
 
@@ -165,9 +148,10 @@ describe('agentrc-reference.json — restated defaults still track their runtime
       ...WORKTREE_ISOLATION_DEFAULTS.bootstrapFiles,
     ]);
     assert.equal('reapOnCancel' in wi, false);
-    assert.equal(
-      ref.delivery.execution.timeoutMs,
-      LIMITS_DEFAULTS.executionTimeoutMs,
+    assert.deepEqual(
+      ref.delivery.execution,
+      { fullSuiteLock: true },
+      'execution.timeoutMs was folded into LIMITS_DEFAULTS by Story #5382',
     );
     assert.equal(
       ref.delivery.signals,
@@ -205,9 +189,31 @@ describe('agentrc-reference.json — retired keys stay out', () => {
     ]) {
       assert.equal(ref.planning[key], undefined, key);
     }
-    assert.deepEqual(Object.keys(ref.planning.memoryPool), [
-      'indexByteCeiling',
-    ]);
+    assert.equal(
+      ref.planning.memoryPool,
+      undefined,
+      'memoryPool.indexByteCeiling was folded into a constant by Story #5382',
+    );
+  });
+
+  it('omits every key the Story #5382 cut removed', () => {
+    for (const dead of [
+      'github.defaultTimeoutMs',
+      'delivery.ci.watch',
+      'delivery.review',
+      'delivery.auditToStories',
+      'delivery.quality.gates.lint',
+      'delivery.quality.gates.lighthouse',
+      'delivery.quality.gateScoping',
+      'delivery.quality.formatAutofix',
+      'delivery.quality.codingGuardrails',
+      'delivery.quality.baselineEpsilon',
+      'delivery.codeReview.maxFixAttempts',
+      'delivery.mergeWatch.intervalSeconds',
+      'delivery.tempRetention.staleDays',
+    ]) {
+      assert.equal(lookupPath(ref, dead).present, false, dead);
+    }
   });
 
   it('omits delivery.lease (retired lease TTL — Story #5006)', () => {

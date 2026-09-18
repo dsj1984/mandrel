@@ -2,7 +2,9 @@
 /**
  * Unit tests for the `delivery.ci.*` config namespace — Story #4356
  * (Epic #4355). `earlyPr` / `requireChecks` were retired on v2 (no
- * production readers); surviving knobs are `watch` + `autoMerge`.
+ * production readers); Story #5382 folded the never-set `watch.*` poll-loop
+ * keys into `WATCH_DEFAULTS`. The surviving knobs are `autoMerge` and the
+ * advisory-check policy.
  */
 
 import assert from 'node:assert/strict';
@@ -20,11 +22,9 @@ function makeValidator() {
 }
 
 /**
- * Compile the shipped `.agentrc` mirror schema. `CI_WATCH_SCHEMA` is
- * `additionalProperties: false` on BOTH sides, so a knob that lands in only one
- * of them is inert: the runtime validator rejects a config the mirror blesses
- * (or the editor's `$schema` flags a key the runtime accepts). Story #4890
- * pins both directions for `attachWindowMs`.
+ * Compile the shipped `.agentrc` mirror schema. `delivery.ci` is
+ * `additionalProperties: false` on BOTH sides, so a key present in only one of
+ * them is inert. Story #5382 pins the `watch` removal in both directions.
  */
 function makeMirrorValidator() {
   const mirrorPath = path.resolve(
@@ -49,8 +49,10 @@ describe('delivery.ci.* runtime AJV schema (Story #4356)', () => {
     const validate = makeValidator();
     const ok = validate(
       withCi({
-        watch: { pollIntervalMs: 15000, maxPolls: 200, maxResumes: 5 },
         autoMerge: 'strict',
+        blockOnAdvisoryFailure: false,
+        advisoryAllowlist: ['codeql'],
+        rerunAdvisory: 1,
       }),
     );
     assert.equal(ok, true, JSON.stringify(validate.errors));
@@ -58,12 +60,7 @@ describe('delivery.ci.* runtime AJV schema (Story #4356)', () => {
 
   it('accepts the reference default shape', () => {
     const validate = makeValidator();
-    const ok = validate(
-      withCi({
-        watch: { pollIntervalMs: 10000, maxPolls: 180, maxResumes: 3 },
-        autoMerge: 'trust-ci',
-      }),
-    );
+    const ok = validate(withCi({ autoMerge: 'trust-ci' }));
     assert.equal(ok, true, JSON.stringify(validate.errors));
   });
 
@@ -83,13 +80,13 @@ describe('delivery.ci.* runtime AJV schema (Story #4356)', () => {
     assert.equal(validate(withCi({ requireChecks: true })), false);
   });
 
-  it('rejects an unknown key under delivery.ci.watch', () => {
+  it('rejects the folded delivery.ci.watch block (Story #5382)', () => {
     const validate = makeValidator();
-    const ok = validate(withCi({ watch: { bogus: 1 } }));
+    const ok = validate(withCi({ watch: { pollIntervalMs: 10000 } }));
     assert.equal(ok, false);
     assert.ok(
-      validate.errors.some((e) => e.keyword === 'additionalProperties'),
-      'expected an additionalProperties violation on watch',
+      validate.errors.some((e) => e.params?.additionalProperty === 'watch'),
+      'expected an additionalProperties violation naming watch',
     );
   });
 
@@ -114,41 +111,23 @@ describe('delivery.ci.* runtime AJV schema (Story #4356)', () => {
       );
     }
   });
-
-  it('rejects a non-integer watch.pollIntervalMs', () => {
-    const validate = makeValidator();
-    const ok = validate(withCi({ watch: { pollIntervalMs: 1.5 } }));
-    assert.equal(ok, false);
-  });
 });
 
-describe('delivery.ci.watch.attachWindowMs (Story #4890 AC-4)', () => {
+describe('delivery.ci.watch.attachWindowMs (Story #4890 AC-4, folded by #5382)', () => {
   const runtime = makeValidator();
   const mirror = makeMirrorValidator();
 
-  it('is accepted by the runtime AJV validator and the .agentrc mirror alike', () => {
+  it('is rejected by the runtime AJV validator and the .agentrc mirror alike', () => {
     const config = withCi({ watch: { attachWindowMs: 1_200_000 } });
-    assert.equal(runtime(config), true, JSON.stringify(runtime.errors));
-    assert.equal(mirror(config), true, JSON.stringify(mirror.errors));
+    assert.equal(runtime(config), false, 'runtime still accepts watch');
+    assert.equal(mirror(config), false, 'mirror still accepts watch');
   });
 
-  it('is rejected by both when out of range', () => {
-    for (const attachWindowMs of [0, -1, 90_000.5]) {
-      const config = withCi({ watch: { attachWindowMs } });
-      assert.equal(
-        runtime(config),
-        false,
-        `runtime accepted ${attachWindowMs}`,
-      );
-      assert.equal(mirror(config), false, `mirror accepted ${attachWindowMs}`);
-    }
-  });
-
-  it('getCiDelivery passes the knob through to the watch consumer', () => {
+  it('getCiDelivery no longer surfaces a watch block', () => {
     const resolved = getCiDelivery({
-      delivery: { ci: { watch: { attachWindowMs: 300_000 } } },
+      delivery: { ci: { autoMerge: 'strict' } },
     });
-    assert.deepEqual(resolved.watch, { attachWindowMs: 300_000 });
+    assert.equal('watch' in resolved, false);
   });
 });
 
@@ -168,15 +147,9 @@ describe('getCiDelivery defaults (Story #4356)', () => {
 
   it('passes through operator overrides', () => {
     const resolved = getCiDelivery({
-      delivery: {
-        ci: {
-          autoMerge: 'strict',
-          watch: { pollIntervalMs: 5000 },
-        },
-      },
+      delivery: { ci: { autoMerge: 'strict' } },
     });
     assert.equal(resolved.autoMerge, 'strict');
-    assert.deepEqual(resolved.watch, { pollIntervalMs: 5000 });
   });
 
   it('falls back to trust-ci for an invalid autoMerge value', () => {

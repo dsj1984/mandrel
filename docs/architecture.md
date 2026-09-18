@@ -826,18 +826,16 @@ Several schema-declared `delivery.*` blocks tune delivery without
 changing its shape (full per-field reference:
 [`.agents/docs/configuration.md`](../.agents/docs/configuration.md)):
 
-- **`delivery.codeReview.providers` / `providerConfig`** —
+- **`delivery.codeReview.providers`** —
   pluggable review backend for Story close. `providers: []` sequences one or
   more of `native` / `codex` / `security-review` (plus optional
   `ultrareview` manual-prompt entries) with per-entry scopes and label
   conditions; unset/empty defaults to `[{ name: "native" }]`.
-  `providerConfig` is an open-shape escape hatch for adapter-specific
-  options.
-- **`delivery.mergeWatch.{mode,intervalSeconds,maxBudgetSeconds}`** — poll
-  cadence and total wall-clock budget for merge confirmation after
-  auto-merge is armed (defaults 30s / 3600s); exhausting the budget
-  surfaces `agent::blocked` attributed with a block class from
-  `BLOCK_CLASSES`
+- **`delivery.mergeWatch.{mode,maxWaitSeconds,maxBudgetSeconds}`** — posture
+  and wall-clock budgets for merge confirmation after auto-merge is armed
+  (the poll cadence is a fixed 30s; the cumulative budget defaults to
+  3600s); exhausting the budget surfaces `agent::blocked` attributed with a
+  block class from `BLOCK_CLASSES`
   (`.agents/scripts/lib/orchestration/merge-block-class.js`:
   `checks-failed`, `checks-pending-timeout`,
   `branch-protection-human-required`, `arm-failure`, `api-race-other`).
@@ -857,12 +855,13 @@ changing its shape (full per-field reference:
   produced were dominated by noise. The sibling `auditResultsAutoFile` key was
   removed by Story #5366: its graduator had already been deleted, so the
   toggle had no runtime reader at all.
-- **`delivery.ci`** — exactly two keys (`additionalProperties: false`, so a
-  third fails AJV validation): `autoMerge` (`"trust-ci"` default arms once
-  every *required* check is green; `"strict"` restores the clean-sprint
-  predicate) and `watch` (the merge-wait budget). Required-check contexts come
-  off the live ruleset, never off `.agentrc.json` —
-  [`ci-contract.md`](ci-contract.md).
+- **`delivery.ci`** — `autoMerge` (`"trust-ci"` default arms once every
+  *required* check is green; `"strict"` restores the clean-sprint predicate)
+  plus the advisory-check policy (`blockOnAdvisoryFailure`,
+  `advisoryAllowlist`, `rerunAdvisory`); `additionalProperties: false`, so any
+  other key fails AJV validation. The `watch.*` poll-loop tuning was folded
+  into fixed defaults by Story #5382. Required-check contexts come off the live
+  ruleset, never off `.agentrc.json` — [`ci-contract.md`](ci-contract.md).
 - **`delivery.routing.closeAndLand`** — default `true`: `single-story-close`
   arms auto-merge and may poll to confirmation; set `false` to stop at
   PR-open for operator-driven merge.

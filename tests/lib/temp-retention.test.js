@@ -387,7 +387,7 @@ describe('sweepTempRetention — the boot catch-up path', () => {
     assert.equal(existsSync(otherFresh), true, 'unconfirmed → waits');
   });
 
-  it('respects a staleDays override', async () => {
+  it('holds the fixed 7-day floor whatever a leftover staleDays says (Story #5382)', async () => {
     const root = makeRoot();
     const target = writeAged(
       path.join(root, 'audits', 'audit-seo-results.md'),
@@ -399,7 +399,7 @@ describe('sweepTempRetention — the boot catch-up path', () => {
       tempRoot: root,
       logger: quiet,
     });
-    assert.equal(existsSync(target), false);
+    assert.equal(existsSync(target), true, '3 days old is inside the floor');
   });
 
   it('restricts to the named classes and honours excludePaths', async () => {

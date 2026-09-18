@@ -138,7 +138,8 @@ describe('check-baselines-pipeline — byte-identical surface (Story #2466)', ()
     assert.equal(res.report.help, true);
     assert.ok(Array.isArray(res.report.knownKinds));
     assert.ok(res.report.knownKinds.includes('coverage'));
-    assert.ok(res.report.knownKinds.includes('lint'));
+    assert.ok(res.report.knownKinds.includes('duplication'));
+    assert.equal(res.report.knownKinds.includes('lint'), false);
     assert.match(res.output, /Usage: check-baselines\.js/);
     assert.match(res.output, /Exit codes:/);
   });

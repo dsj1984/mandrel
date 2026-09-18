@@ -21,6 +21,7 @@ import {
   gateExitCode,
 } from '../../.agents/scripts/lib/close-validation/process.js';
 import { runCloseValidation } from '../../.agents/scripts/lib/close-validation/runner.js';
+import { COVERAGE_GATE_DEFAULTS } from '../../.agents/scripts/lib/config/quality.js';
 import {
   FULL_SUITE_LOCK_EXPIRY_ENV,
   LOCK_WAIT_EXPIRED_EXIT_CODE,
@@ -168,9 +169,7 @@ describe('the close `test` gate is bounded (Story #5377)', () => {
         { name: 'test', cmd: 'npm', args: ['test'], fullSuiteLock: true },
         { name: 'lint', cmd: 'npm', args: ['run', 'lint'] },
       ],
-      config: {
-        delivery: { quality: { gates: { coverage: { timeoutMs: 4321 } } } },
-      },
+      config: {},
       runner: async (_cmd, _args, opts) => {
         seen.push(opts);
         return { status: 0 };
@@ -180,7 +179,8 @@ describe('the close `test` gate is bounded (Story #5377)', () => {
     });
     const test = seen.find((o) => o.gateName === 'test');
     const lint = seen.find((o) => o.gateName === 'lint');
-    assert.equal(test.timeoutMs, 4321);
+    // The coverage wall clock is the fixed constant since Story #5382.
+    assert.equal(test.timeoutMs, COVERAGE_GATE_DEFAULTS.timeoutMs);
     assert.equal(test.deferOnLockExpiry, true);
     assert.equal(
       lint.timeoutMs,

@@ -1,123 +1,67 @@
 /**
- * quality-epsilon.test.js — `delivery.quality.baselineEpsilon` resolver
- * (Story #1964 / Task #1978).
+ * quality-epsilon.test.js — per-kind baseline epsilon (Story #1964 /
+ * Task #1978), folded into the fixed `BASELINE_EPSILON` constant by
+ * Story #5382.
  *
  * Covers:
- *   - Framework defaults (no project override).
- *   - Per-kind override merge (only the supplied kind moves; rest fall
- *     through to defaults).
- *   - Negative or non-numeric values throw an EXIT_CONFIG-style error so
- *     a misconfigured project halts at startup.
- *   - `getBaselineEpsilon(kind, config)` traverses the standard config
- *     shapes (`delivery.quality`, `quality`, `agentSettings.quality`).
+ *   - The constant carries the Story #1964 acceptance values for every
+ *     surviving kind, and none for the removed `lint` / `lighthouse` kinds.
+ *   - `getQuality` surfaces the constant whatever a leftover
+ *     `delivery.quality.baselineEpsilon` block says (the schema now rejects
+ *     that block, and the upgrade migration strips it).
+ *   - `getBaselineEpsilon(kind)` returns the constant and throws on an
+ *     unknown kind.
  */
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
-  BASELINE_EPSILON_DEFAULTS,
   getBaselineEpsilon,
   getQuality,
-  resolveBaselineEpsilon,
 } from '../../.agents/scripts/lib/config/quality.js';
 
-describe('resolveBaselineEpsilon — defaults', () => {
-  it('returns framework defaults when block is undefined', () => {
-    const out = resolveBaselineEpsilon(undefined);
-    assert.deepEqual(out, { ...BASELINE_EPSILON_DEFAULTS });
+/** The fixed per-kind epsilon, read back through the resolver. */
+const BASELINE_EPSILON = getQuality({}).baselineEpsilon;
+
+describe('BASELINE_EPSILON — the fixed per-kind epsilon', () => {
+  it('AC: carries the Story #1964 acceptance values', () => {
+    assert.equal(BASELINE_EPSILON.maintainability, 0.5);
+    assert.equal(BASELINE_EPSILON.crap, 0.5);
+    assert.equal(BASELINE_EPSILON.coverage, 0.1);
+    assert.equal(BASELINE_EPSILON.mutation, 0.5);
+    assert.equal(BASELINE_EPSILON['bundle-size'], 1024);
+    assert.equal(BASELINE_EPSILON.duplication, 0.5);
   });
 
-  it('returns framework defaults when block is null', () => {
-    const out = resolveBaselineEpsilon(null);
-    assert.deepEqual(out, { ...BASELINE_EPSILON_DEFAULTS });
-  });
-
-  it('AC: defaults match the Story #1964 acceptance values', () => {
-    const out = resolveBaselineEpsilon(undefined);
-    assert.equal(out.maintainability, 0.5);
-    assert.equal(out.crap, 0.5);
-    assert.equal(out.coverage, 0.1);
-    assert.equal(out.mutation, 0.5);
-    assert.equal(out.lint, 0);
-    assert.equal(out.lighthouse, 1);
-    assert.equal(out['bundle-size'], 1024);
+  it('carries no epsilon for the removed lint and lighthouse kinds', () => {
+    assert.equal('lint' in BASELINE_EPSILON, false);
+    assert.equal('lighthouse' in BASELINE_EPSILON, false);
   });
 });
 
-describe('resolveBaselineEpsilon — overrides', () => {
-  it('AC: resolveBaselineEpsilon override surfaces user value, defaults remain', () => {
-    const out = resolveBaselineEpsilon({ crap: 0.25 });
-    assert.equal(out.crap, 0.25);
-    assert.equal(out.maintainability, 0.5);
-    assert.equal(out.coverage, 0.1);
-  });
-
-  it('per-kind override accepts 0 as a valid value', () => {
-    const out = resolveBaselineEpsilon({ coverage: 0 });
-    assert.equal(out.coverage, 0);
-  });
-
+describe('getQuality — baselineEpsilon is the constant', () => {
   it('AC: getQuality with no project override surfaces crap epsilon = 0.5', () => {
-    const q = getQuality({});
-    assert.equal(q.baselineEpsilon.crap, 0.5);
+    assert.equal(getQuality({}).baselineEpsilon.crap, 0.5);
+  });
+
+  it('a leftover baselineEpsilon override tunes nothing', () => {
+    const q = getQuality({
+      delivery: { quality: { baselineEpsilon: { crap: 0.05, coverage: -1 } } },
+    });
+    assert.deepEqual(q.baselineEpsilon, { ...BASELINE_EPSILON });
   });
 });
 
-describe('resolveBaselineEpsilon — invalid values', () => {
-  it('AC: negative value throws an EXIT_CONFIG-style error', () => {
-    assert.throws(
-      () => resolveBaselineEpsilon({ crap: -0.1 }),
-      (err) => {
-        assert.equal(err.code, 'EXIT_CONFIG');
-        assert.equal(err.exitCode, 3);
-        assert.match(err.message, /quality\.baselineEpsilon\.crap/);
-        return true;
-      },
-    );
+describe('getBaselineEpsilon', () => {
+  it('returns the constant for every surviving kind', () => {
+    for (const kind of Object.keys(BASELINE_EPSILON)) {
+      assert.equal(getBaselineEpsilon(kind), BASELINE_EPSILON[kind], kind);
+    }
   });
 
-  it('AC: non-numeric value throws an EXIT_CONFIG-style error', () => {
-    assert.throws(
-      () => resolveBaselineEpsilon({ coverage: 'oops' }),
-      (err) => {
-        assert.equal(err.code, 'EXIT_CONFIG');
-        assert.equal(err.exitCode, 3);
-        return true;
-      },
-    );
-  });
-
-  it('Infinity and NaN are rejected', () => {
-    assert.throws(() => resolveBaselineEpsilon({ mutation: Infinity }), {
-      code: 'EXIT_CONFIG',
-    });
-    assert.throws(() => resolveBaselineEpsilon({ mutation: Number.NaN }), {
-      code: 'EXIT_CONFIG',
-    });
-  });
-});
-
-describe('getBaselineEpsilon — config traversal', () => {
-  it('reads from delivery.quality.baselineEpsilon', () => {
-    const cfg = {
-      delivery: { quality: { baselineEpsilon: { crap: 0.05 } } },
-    };
-    assert.equal(getBaselineEpsilon('crap', cfg), 0.05);
-  });
-
-  it('ignores legacy quality.baselineEpsilon unwrapped shape (hard cutover)', () => {
-    const cfg = { quality: { baselineEpsilon: { coverage: 0.2 } } };
-    // Falls through to framework default (0.1).
-    assert.equal(getBaselineEpsilon('coverage', cfg), 0.1);
-  });
-
-  it('falls back to framework default when config is empty', () => {
-    assert.equal(getBaselineEpsilon('maintainability', {}), 0.5);
-    assert.equal(getBaselineEpsilon('lint', undefined), 0);
-  });
-
-  it('throws on unknown kind', () => {
-    assert.throws(() => getBaselineEpsilon('not-a-kind', {}), /unknown kind/);
+  it('throws on an unknown or removed kind', () => {
+    assert.throws(() => getBaselineEpsilon('not-a-kind'), /unknown kind/);
+    assert.throws(() => getBaselineEpsilon('lint'), /unknown kind/);
   });
 });

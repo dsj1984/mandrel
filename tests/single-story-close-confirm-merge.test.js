@@ -922,15 +922,7 @@ describe('merge wait — a PR that falls behind its base', () => {
     let updates = 0;
     const outcome = await runConfirmMergePhase(
       phaseArgs({
-        config: {
-          delivery: {
-            mergeWatch: {
-              updateAttempts: 1,
-              intervalSeconds: 30,
-              maxWaitSeconds: 120,
-            },
-          },
-        },
+        config: { delivery: { mergeWatch: { maxWaitSeconds: 600 } } },
         nowMsFn: makeClock(40_000),
         injectedGh: {
           pr: {
@@ -944,7 +936,11 @@ describe('merge wait — a PR that falls behind its base', () => {
       }),
     );
     assert.equal(outcome.terminal, 'pending');
-    assert.equal(updates, 1, 'the update budget is a bound, not a suggestion');
+    assert.equal(
+      updates,
+      DEFAULT_UPDATE_ATTEMPTS,
+      'the update budget is a bound, not a suggestion',
+    );
   });
 
   it('a failed update-branch does not itself terminate the wait', async () => {
@@ -1019,7 +1015,13 @@ describe('resolveMergeWaitConfig / resolveBudgetAnchorMs', () => {
       },
     };
     assert.equal(resolveMergeWaitConfig(config).maxWaitSeconds, 100);
-    assert.equal(resolveMergeWaitConfig(config).updateAttempts, 0);
+    // Story #5382 fixed the cadence and the update cap: a leftover key
+    // (which the schema now rejects) tunes nothing.
+    assert.equal(
+      resolveMergeWaitConfig(config).updateAttempts,
+      DEFAULT_UPDATE_ATTEMPTS,
+    );
+    assert.equal(resolveMergeWaitConfig(config).intervalSeconds, 30);
     assert.equal(resolveMergeWaitConfig(config, 900).maxWaitSeconds, 900);
     // An override must not disturb the other axes.
     assert.equal(resolveMergeWaitConfig(config, 900).maxBudgetSeconds, 200);
@@ -1530,7 +1532,7 @@ describe('Story #4873 — shared poll primitive and progress heartbeat', () => {
       prUrl: 'https://github.com/o/r/pull/21',
       autoMergeEnabled: true,
       provider: makeFakeProvider(),
-      config: { delivery: { mergeWatch: { intervalSeconds: 7 } } },
+      config: {},
       progress: NOOP_PROGRESS,
       readPrWaitProbeFn: async () => probes[i++] ?? { state: 'MERGED' },
       confirmStoryMergedFn: async () => ({ merged: true, action: 'flipped' }),
@@ -1543,7 +1545,7 @@ describe('Story #4873 — shared poll primitive and progress heartbeat', () => {
     assert.equal(outcome.confirmed, true);
     assert.deepEqual(
       sleeps,
-      [7000, 7000],
+      [30_000, 30_000],
       'one interval sleep between each pair of polls, taken through the injected seam',
     );
   });

@@ -407,8 +407,7 @@ const CREDITING_INVOCATION =
  *   requireCredited?: boolean,
  *   logger: { info: Function, warn: Function, error: Function },
  * }} opts `requireCredited` comes from the CLI's `--require-credited`
- *   argument, which the close gate passes when
- *   `delivery.execution.requireCreditedCapture` is set (default false →
+ *   argument, an operator opt-in for one invocation (default false →
  *   announce and run). Story #5278: it is deliberately NOT read from config
  *   here — that made the refusal cover the depositing invocation too, leaving
  *   no way to earn the credit it demanded.

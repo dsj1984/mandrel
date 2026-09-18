@@ -27,7 +27,6 @@
     "projectNumber": null,
     "projectOwner": null,
     "operatorHandle": "@[USERNAME]",
-    "defaultTimeoutMs": 60000,
     "followUpRepos": {
       "framework": "dsj1984/mandrel",
       "platform": null
@@ -70,9 +69,6 @@
     }
   },
   "planning": {
-    "memoryPool": {
-      "indexByteCeiling": 24576
-    },
     "navigation": {
       "routeGlobs": [],
       "navRegistry": []
@@ -80,16 +76,13 @@
   },
   "delivery": {
     "execution": {
-      "timeoutMs": 600000,
-      "fullSuiteLock": true,
-      "requireCreditedCapture": false
+      "fullSuiteLock": true
     },
     "docsFreshness": {
       "paths": ["README.md"]
     },
     "tempRetention": {
       "enabled": true,
-      "staleDays": 7,
       "classes": {
         "orchestrationLogs": true,
         "validationEvidence": true,
@@ -116,24 +109,7 @@
       ]
     },
     "quality": {
-      "gateScoping": {
-        "scope": "diff",
-        "diffRef": "main"
-      },
       "gates": {
-        "lint": {
-          "enabled": true,
-          "baselinePath": "baselines/lint.json",
-          "tolerance": {
-            "kind": "absolute",
-            "value": 0
-          },
-          "floors": {
-            "*": {
-              "errorCount": 0
-            }
-          }
-        },
         "coverage": {
           "enabled": true,
           "baselinePath": "baselines/coverage.json",
@@ -148,8 +124,7 @@
               "functions": 90
             }
           },
-          "coveragePath": "coverage/coverage-final.json",
-          "timeoutMs": 600000
+          "coveragePath": "coverage/coverage-final.json"
         },
         "crap": {
           "enabled": true,
@@ -168,11 +143,6 @@
           "targetDirs": ["src"],
           "newMethodCeiling": 30,
           "requireCoverage": true,
-          "friction": {
-            "markerKey": "crap-baseline-regression"
-          },
-          "refreshTag": "baseline-refresh:",
-          "refreshTimeoutMs": 60000,
           "ignoreGlobs": [],
           "incrementalCoverage": {
             "skipWhenUnchanged": true,
@@ -192,7 +162,6 @@
             }
           },
           "targetDirs": [],
-          "refreshTimeoutMs": 60000,
           "ignoreGlobs": []
         },
         "mutation": {
@@ -206,26 +175,7 @@
             "*": {
               "score": 60
             }
-          },
-          "strykerConfigPath": null
-        },
-        "lighthouse": {
-          "enabled": false,
-          "baselinePath": "baselines/lighthouse.json",
-          "tolerance": {
-            "kind": "absolute",
-            "value": 0
-          },
-          "floors": {
-            "*": {
-              "performance": 0,
-              "accessibility": 0,
-              "bestPractices": 0,
-              "seo": 0
-            }
-          },
-          "baseUrl": null,
-          "routes": []
+          }
         },
         "bundle-size": {
           "enabled": false,
@@ -252,31 +202,11 @@
             }
           },
           "targetDirs": ["src"],
-          "refreshTimeoutMs": 60000,
           "ignoreGlobs": []
         }
       },
-      "formatAutofix": {
-        "timeoutMs": 60000
-      },
-      "codingGuardrails": {
-        "cyclomaticFlag": 8,
-        "requireSiblingTest": false
-      },
       "autoRefresh": {
-        "enabled": true,
-        "crapJumpCap": 5,
-        "scope": "diff"
-      },
-      "baselineEpsilon": {
-        "maintainability": 0.5,
-        "crap": 0.5,
-        "coverage": 0.1,
-        "mutation": 0.5,
-        "lint": 0,
-        "lighthouse": 1,
-        "bundle-size": 1024,
-        "duplication": 0.5
+        "enabled": true
       },
       "requireBaselines": false,
       "navigability": {
@@ -285,7 +215,6 @@
       }
     },
     "mergeWatch": {
-      "intervalSeconds": 30,
       "maxBudgetSeconds": 3600
     },
     "codeReview": {
@@ -307,7 +236,6 @@
           }
         }
       ],
-      "maxFixAttempts": 3,
       "autoFixSeverity": "medium"
     },
     "refactorStage": {
@@ -320,12 +248,6 @@
       "retroProposals": false
     },
     "ci": {
-      "watch": {
-        "pollIntervalMs": 10000,
-        "maxPolls": 180,
-        "maxResumes": 3,
-        "attachWindowMs": 1200000
-      },
       "autoMerge": "trust-ci",
       "blockOnAdvisoryFailure": true,
       "advisoryAllowlist": [],

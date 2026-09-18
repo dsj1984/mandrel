@@ -2,9 +2,8 @@
 //
 // Story #1892 / Task #1903 — single read entry point for every baseline.
 //
-// Every gate that compares against a committed baseline file (`lint`,
-// `coverage`, `crap`, `maintainability`, `mutation`, `lighthouse`,
-// `bundle-size`) MUST go through this module rather than open-coding
+// Every gate that compares against a committed baseline file (`coverage`,
+// `crap`, `maintainability`, `mutation`, `bundle-size`, `duplication`) MUST go through this module rather than open-coding
 // `JSON.parse(readFileSync(...))`. The reader:
 //
 //   1. Resolves the on-disk path for the given kind from the resolved
@@ -35,34 +34,30 @@ import { getBaselines } from '../config/baselines.js';
 import { resolveConfig } from '../config-resolver.js';
 
 // ---------------------------------------------------------------------------
-// Kind → default path. The four kinds not surfaced by `getBaselines` (which
-// only exposes lint/crap/maintainability for historical reasons) fall
+// Kind → default path. The kinds not surfaced by `getBaselines` (which
+// only exposes crap/maintainability for historical reasons) fall
 // through this table. Repos that relocate a baseline should set
 // `delivery.quality.gates.<kind>.baselinePath` in `.agentrc.json`.
 // ---------------------------------------------------------------------------
 const DEFAULT_PATHS = Object.freeze({
-  lint: 'baselines/lint.json',
   coverage: 'baselines/coverage.json',
   crap: 'baselines/crap.json',
   maintainability: 'baselines/maintainability.json',
   mutation: 'baselines/mutation.json',
-  lighthouse: 'baselines/lighthouse.json',
   'bundle-size': 'baselines/bundle-size.json',
   duplication: 'baselines/duplication.json',
 });
 
 const KIND_TO_SCHEMA_FILE = Object.freeze({
-  lint: 'lint.schema.json',
   coverage: 'coverage.schema.json',
   crap: 'crap.schema.json',
   maintainability: 'maintainability.schema.json',
   mutation: 'mutation.schema.json',
-  lighthouse: 'lighthouse.schema.json',
   'bundle-size': 'bundle-size.schema.json',
   duplication: 'duplication.schema.json',
 });
 
-// Lazy singleton — building the AJV instance reads eight schema files off
+// Lazy singleton — building the AJV instance reads the schema files off
 // disk; doing it once per process keeps `load()` cheap to call in a loop.
 let _ajv = null;
 function ajv() {
@@ -92,7 +87,7 @@ function resolveBaselinePath(kind, opts = {}) {
       configured = gateBlock.baselinePath;
     } else {
       const flat = getBaselines(resolved ?? {});
-      if (kind === 'lint' || kind === 'crap' || kind === 'maintainability') {
+      if (kind === 'crap' || kind === 'maintainability') {
         configured = flat[kind]?.path ?? null;
       }
     }
@@ -133,12 +128,7 @@ export function canonicaliseRowPath(value) {
  */
 function canonicaliseRow(kind, row) {
   if (!row || typeof row !== 'object') return row;
-  const field =
-    kind === 'lighthouse'
-      ? 'route'
-      : kind === 'bundle-size'
-        ? 'bundle'
-        : 'path';
+  const field = kind === 'bundle-size' ? 'bundle' : 'path';
   const value = row[field];
   if (typeof value !== 'string') return row;
   const canonical = canonicaliseRowPath(value);
@@ -283,8 +273,8 @@ function inferKindFromSchema(schemaValue) {
  * Load the canonical baseline for `kind` from its configured (or default)
  * on-disk path.
  *
- * @param {string} kind  One of lint | coverage | crap | maintainability |
- *   mutation | lighthouse | bundle-size.
+ * @param {string} kind  One of coverage | crap | maintainability |
+ *   mutation | bundle-size | duplication.
  * @param {{ configPath?: string, cwd?: string }} [opts]
  * @returns {{ rollup: object, rows: Array<object>, kernelVersion: string, generatedAt: string }}
  */

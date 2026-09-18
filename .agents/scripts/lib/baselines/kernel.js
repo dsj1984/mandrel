@@ -10,7 +10,7 @@
  *   - CRAP and Maintainability share the `typhonjs-escomplex` upstream
  *     package version; both modules' `kernelVersion()` read it from the
  *     nearest `node_modules/typhonjs-escomplex/package.json`.
- *   - Lint, Coverage, Mutation, Lighthouse, Bundle-Size carry a static
+ *   - Coverage, Mutation, Bundle-Size, Duplication carry a static
  *     in-repo semver bumped by hand whenever the scoring/rollup math
  *     changes. Their `kernelVersion()` just returns the constant.
  *
@@ -76,30 +76,6 @@ import {
   rowIdentity as duplicationRowIdentity,
   sortRows as duplicationSortRows,
 } from './kinds/duplication.js';
-import {
-  applyEpsilon as lighthouseApplyEpsilon,
-  compare as lighthouseCompare,
-  kernelVersion as lighthouseKernelVersion,
-  keyField as lighthouseKeyField,
-  mergeRows as lighthouseMergeRows,
-  name as lighthouseName,
-  projectRow as lighthouseProjectRow,
-  rollup as lighthouseRollup,
-  rowIdentity as lighthouseRowIdentity,
-  sortRows as lighthouseSortRows,
-} from './kinds/lighthouse.js';
-import {
-  applyEpsilon as lintApplyEpsilon,
-  compare as lintCompare,
-  kernelVersion as lintKernelVersion,
-  keyField as lintKeyField,
-  mergeRows as lintMergeRows,
-  name as lintName,
-  projectRow as lintProjectRow,
-  rollup as lintRollup,
-  rowIdentity as lintRowIdentity,
-  sortRows as lintSortRows,
-} from './kinds/lint.js';
 import {
   applyEpsilon as maintainabilityApplyEpsilon,
   compare as maintainabilityCompare,
@@ -167,18 +143,6 @@ function bindKindModule(members) {
  * filenames so a future "list all kinds" iterator can stay declarative.
  */
 const KIND_MODULES = Object.freeze({
-  lint: bindKindModule({
-    name: lintName,
-    keyField: lintKeyField,
-    rowIdentity: lintRowIdentity,
-    kernelVersion: lintKernelVersion,
-    projectRow: lintProjectRow,
-    sortRows: lintSortRows,
-    rollup: lintRollup,
-    compare: lintCompare,
-    applyEpsilon: lintApplyEpsilon,
-    mergeRows: lintMergeRows,
-  }),
   coverage: bindKindModule({
     name: coverageName,
     keyField: coverageKeyField,
@@ -229,18 +193,6 @@ const KIND_MODULES = Object.freeze({
     applyEpsilon: mutationApplyEpsilon,
     mergeRows: mutationMergeRows,
     assertBaselineCompatible: mutationAssertBaselineCompatible,
-  }),
-  lighthouse: bindKindModule({
-    name: lighthouseName,
-    keyField: lighthouseKeyField,
-    rowIdentity: lighthouseRowIdentity,
-    kernelVersion: lighthouseKernelVersion,
-    projectRow: lighthouseProjectRow,
-    sortRows: lighthouseSortRows,
-    rollup: lighthouseRollup,
-    compare: lighthouseCompare,
-    applyEpsilon: lighthouseApplyEpsilon,
-    mergeRows: lighthouseMergeRows,
   }),
   'bundle-size': bindKindModule({
     name: bundleSizeName,

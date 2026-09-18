@@ -38,24 +38,15 @@ const buildAjv = () => {
 };
 
 const KIND_FILES = [
-  'lint.schema.json',
   'coverage.schema.json',
   'crap.schema.json',
   'maintainability.schema.json',
   'mutation.schema.json',
-  'lighthouse.schema.json',
   'bundle-size.schema.json',
   'duplication.schema.json',
 ];
 
 const CANONICAL_FIXTURES = {
-  'lint.schema.json': {
-    $schema: '.agents/schemas/baselines/lint.schema.json',
-    kernelVersion: '1.0.0',
-    generatedAt: '2026-05-15T00:00:00Z',
-    rollup: { '*': { errorCount: 0, warningCount: 3 } },
-    rows: [{ path: 'src/a.js', errorCount: 0, warningCount: 1 }],
-  },
   'coverage.schema.json': {
     $schema: '.agents/schemas/baselines/coverage.schema.json',
     kernelVersion: '1.0.0',
@@ -83,23 +74,6 @@ const CANONICAL_FIXTURES = {
     generatedAt: '2026-05-15T00:00:00Z',
     rollup: { '*': { score: 75, killed: 30, survived: 10, noCoverage: 2 } },
     rows: [{ path: 'src/a.js', score: 80, killed: 8, survived: 2 }],
-  },
-  'lighthouse.schema.json': {
-    $schema: '.agents/schemas/baselines/lighthouse.schema.json',
-    kernelVersion: '1.0.0',
-    generatedAt: '2026-05-15T00:00:00Z',
-    rollup: {
-      '*': { performance: 90, accessibility: 95, bestPractices: 92, seo: 100 },
-    },
-    rows: [
-      {
-        route: '/',
-        performance: 90,
-        accessibility: 95,
-        bestPractices: 92,
-        seo: 100,
-      },
-    ],
   },
   'bundle-size.schema.json': {
     $schema: '.agents/schemas/baselines/bundle-size.schema.json',
@@ -133,16 +107,20 @@ const CANONICAL_FIXTURES = {
 
 // Cross-kind rollup-shape used to prove each schema rejects a rollup whose
 // keys do not match its own row shape. Picked so it never matches any of
-// the seven kinds' rollup contracts.
+// the six kinds' rollup contracts.
 const MISMATCHED_ROLLUP = { '*': { mystery: 1, totallyUnknown: 'no' } };
 
 describe('per-kind baseline schemas (Story #1888)', () => {
-  it('exposes all eight schema files plus the envelope on disk', () => {
+  it('exposes all six schema files plus the envelope on disk', () => {
     const files = readdirSync(SCHEMAS_DIR).filter((f) =>
       f.endsWith('.schema.json'),
     );
     for (const f of [...KIND_FILES, 'baseline-envelope.schema.json']) {
       assert.ok(files.includes(f), `missing schema file: ${f}`);
+    }
+    // Story #5382 removed the lint and lighthouse gates end to end.
+    for (const gone of ['lint.schema.json', 'lighthouse.schema.json']) {
+      assert.equal(files.includes(gone), false, `${gone} should be deleted`);
     }
   });
 

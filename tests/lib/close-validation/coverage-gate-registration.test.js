@@ -379,33 +379,22 @@ describe('buildDefaultGates — the pre-push CRAP-scope preview is a close gate 
   });
 });
 
-describe('buildDefaultGates — --require-credited is a gate argument (Story #5278)', () => {
+describe('buildDefaultGates — --require-credited is a gate argument (Stories #5278, #5382)', () => {
   const captureArgs = (config) =>
     buildDefaultGates({
       config,
       packageScripts: { 'test:coverage': 'c8 node --test' },
     }).find((g) => g.name === 'coverage-capture').args;
 
-  it('AC-1: passes the flag only when the consumer set the policy', () => {
-    assert.deepEqual(captureArgs({ delivery: { quality: {} } }), [
-      '.agents/scripts/coverage-capture.js',
-    ]);
-    assert.deepEqual(
-      captureArgs({
-        delivery: { execution: { requireCreditedCapture: true }, quality: {} },
-      }),
-      ['.agents/scripts/coverage-capture.js', '--require-credited'],
-    );
-  });
-
-  it('AC-1: a falsy or absent policy never passes it', () => {
-    for (const requireCreditedCapture of [false, undefined, 'true']) {
-      assert.deepEqual(
-        captureArgs({
-          delivery: { execution: { requireCreditedCapture }, quality: {} },
-        }),
-        ['.agents/scripts/coverage-capture.js'],
-      );
+  it('AC-1: close never passes the flag — the policy key was folded away', () => {
+    for (const execution of [
+      undefined,
+      { requireCreditedCapture: true },
+      { requireCreditedCapture: false },
+    ]) {
+      assert.deepEqual(captureArgs({ delivery: { execution, quality: {} } }), [
+        '.agents/scripts/coverage-capture.js',
+      ]);
     }
   });
 });

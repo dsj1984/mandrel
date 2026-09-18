@@ -85,9 +85,11 @@ describe('explainConfig — per-key report', () => {
 
   it('falls back to the framework default for omitted keys', () => {
     const report = explainConfig();
-    // delivery.execution.timeoutMs is not set in this repo's .agentrc.json.
-    const entry = report.find((e) => e.key === 'delivery.execution.timeoutMs');
-    assert.ok(entry, 'expected delivery.execution.timeoutMs in report');
+    // delivery.execution.fullSuiteLock is not set in this repo's .agentrc.json.
+    const entry = report.find(
+      (e) => e.key === 'delivery.execution.fullSuiteLock',
+    );
+    assert.ok(entry, 'expected delivery.execution.fullSuiteLock in report');
     assert.equal(entry.source, 'default');
   });
 });

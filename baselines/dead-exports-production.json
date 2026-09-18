@@ -1,7 +1,7 @@
 {
   "$schema": "https://mandrel.dev/baselines/dead-exports.schema.json",
   "kernelVersion": "6.17.1",
-  "generatedAt": "2026-09-18T14:30:32.899Z",
+  "generatedAt": "2026-09-18T15:26:40.099Z",
   "mode": "production",
   "rows": [
     {
@@ -657,16 +657,8 @@
       "symbol": "TOLERANCE_SCHEMA"
     },
     {
-      "file": ".agents/scripts/lib/config/limits.js",
-      "symbol": "resolveLimits"
-    },
-    {
       "file": ".agents/scripts/lib/config/qa.js",
       "symbol": "__testing"
-    },
-    {
-      "file": ".agents/scripts/lib/config/quality.js",
-      "symbol": "resolveBaselineEpsilon"
     },
     {
       "file": ".agents/scripts/lib/config/runners.js",

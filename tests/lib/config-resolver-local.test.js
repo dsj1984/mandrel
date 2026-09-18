@@ -56,13 +56,13 @@ describe('config-resolver — .agentrc.local.json overlay (Story #3388)', () => 
     writeConfigs({
       agentrc: {
         project: { ...REQ.project, baseBranch: 'develop' },
-        delivery: { execution: { timeoutMs: 900000 } },
+        delivery: { deliverRunner: { concurrencyCap: 3 } },
       },
     });
 
     const config = resolveConfig({ bustCache: true, cwd: FIXTURE_ROOT });
     assert.equal(config.project.baseBranch, 'develop');
-    assert.equal(config.delivery.execution.timeoutMs, 900000);
+    assert.equal(config.delivery.deliverRunner.concurrencyCap, 3);
     assert.equal(config.source, path.join(FIXTURE_ROOT, '.agentrc.json'));
   });
 
@@ -71,19 +71,19 @@ describe('config-resolver — .agentrc.local.json overlay (Story #3388)', () => 
       agentrc: {
         project: { ...REQ.project, baseBranch: 'develop' },
         delivery: {
-          execution: { timeoutMs: 900000 },
+          deliverRunner: { concurrencyCap: 3 },
           docsFreshness: { paths: ['README.md'] },
         },
       },
       local: {
-        delivery: { execution: { timeoutMs: 120000 } },
+        delivery: { deliverRunner: { concurrencyCap: 5 } },
       },
     });
 
     const config = resolveConfig({ bustCache: true, cwd: FIXTURE_ROOT });
-    assert.equal(config.delivery.execution.timeoutMs, 120000);
+    assert.equal(config.delivery.deliverRunner.concurrencyCap, 5);
     // `delivery.docsFreshness` is a sibling of the overridden
-    // `delivery.execution` block — the deep merge must not clobber it.
+    // `delivery.deliverRunner` block — the deep merge must not clobber it.
     assert.deepEqual(config.delivery.docsFreshness.paths, ['README.md']);
     assert.match(
       config.source,

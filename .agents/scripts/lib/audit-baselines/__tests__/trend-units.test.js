@@ -292,22 +292,22 @@ describe('staleness accounts for commits, not only wall time', () => {
   });
 
   it('claims nothing for a kind whose rows are not file paths', () => {
-    // lighthouse keys on routes; handing a route to git as a pathspec would
-    // answer a question about a file that does not exist.
+    // bundle-size keys on bundle names; handing one to git as a pathspec
+    // would answer a question about a file that does not exist.
     const byKind = surfaceOf({
       root: makeFixture([
         [
-          'baselines/lighthouse.json',
+          'baselines/bundle-size.json',
           {
             generatedAt: '2026-08-02T00:00:00.000Z',
-            rows: [{ route: '/home', performance: 90 }],
+            rows: [{ bundle: 'main', rawKb: 90 }],
           },
         ],
       ]),
       run: fakeSurfaceGit({ commits: 7 }),
     });
-    assert.equal(byKind.get('lighthouse').staleCommits, null);
-    assert.equal(byKind.get('lighthouse').surfaceStale, null);
+    assert.equal(byKind.get('bundle-size').staleCommits, null);
+    assert.equal(byKind.get('bundle-size').surfaceStale, null);
   });
 
   it('claims nothing for a baseline that is not on disk', () => {

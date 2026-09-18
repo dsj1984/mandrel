@@ -47,9 +47,9 @@ function git(args, { cwd, run }) {
 /**
  * The repo-relative paths whose commits would invalidate this baseline: the
  * gate's declared `targetDirs` when it has them, else the baseline's own row
- * ids — which are file paths for every kind but `lighthouse` (routes) and
- * `bundle-size` (bundle names). Those two get an empty surface rather than a
- * route name handed to git as a pathspec.
+ * ids — which are file paths for every kind but `bundle-size` (bundle
+ * names). That one gets an empty surface rather than a bundle name handed to
+ * git as a pathspec.
  *
  * @param {{ kind: string, gateBlock: object | null, rows: Array<{id: string}> }} args
  * @returns {string[]}

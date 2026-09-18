@@ -155,8 +155,8 @@ Two envelope-level reads come **before** any finding:
    The acknowledgment is the kind upper-snaked. It demotes that kind's
    head-vs-base regressions to unchanged **for one run only** — floors stay
    enforced, so a genuine breach is still caught. The durable equivalent is a
-   commit in the compared range whose subject carries the gate's `refreshTag`
-   (default `baseline-refresh:`) **and** whose diff touches that kind's
+   commit in the compared range whose subject carries the fixed refresh tag
+   `baseline-refresh:` **and** whose diff touches that kind's
    baseline file. Confirm both against
    `node .agents/scripts/check-baselines.js --help` before writing the prompt,
    and never invent an acknowledgment for a kind that ships no regeneration

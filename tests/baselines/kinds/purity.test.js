@@ -8,8 +8,6 @@ import * as bundleSize from '../../../.agents/scripts/lib/baselines/kinds/bundle
 import * as coverage from '../../../.agents/scripts/lib/baselines/kinds/coverage.js';
 import * as crap from '../../../.agents/scripts/lib/baselines/kinds/crap.js';
 import * as duplication from '../../../.agents/scripts/lib/baselines/kinds/duplication.js';
-import * as lighthouse from '../../../.agents/scripts/lib/baselines/kinds/lighthouse.js';
-import * as lint from '../../../.agents/scripts/lib/baselines/kinds/lint.js';
 import * as maintainability from '../../../.agents/scripts/lib/baselines/kinds/maintainability.js';
 import * as mutation from '../../../.agents/scripts/lib/baselines/kinds/mutation.js';
 
@@ -32,8 +30,6 @@ const KINDS = [
   { name: 'bundle-size', mod: bundleSize, sample: bundleSizeSample() },
   { name: 'coverage', mod: coverage, sample: coverageSample() },
   { name: 'crap', mod: crap, sample: crapSample() },
-  { name: 'lighthouse', mod: lighthouse, sample: lighthouseSample() },
-  { name: 'lint', mod: lint, sample: lintSample() },
   {
     name: 'maintainability',
     mod: maintainability,
@@ -92,38 +88,6 @@ function crapSample() {
     base: {
       rows: [{ path: 'src/a.js', method: 'foo', startLine: 1, crap: 8 }],
     },
-  };
-}
-function lighthouseSample() {
-  return {
-    head: {
-      rows: [
-        {
-          route: '/dashboard',
-          performance: 80,
-          accessibility: 90,
-          bestPractices: 90,
-          seo: 90,
-        },
-      ],
-    },
-    base: {
-      rows: [
-        {
-          route: '/dashboard',
-          performance: 90,
-          accessibility: 95,
-          bestPractices: 95,
-          seo: 95,
-        },
-      ],
-    },
-  };
-}
-function lintSample() {
-  return {
-    head: { rows: [{ path: 'src/a.js', errorCount: 2, warningCount: 0 }] },
-    base: { rows: [{ path: 'src/a.js', errorCount: 0, warningCount: 0 }] },
   };
 }
 function maintainabilitySample() {

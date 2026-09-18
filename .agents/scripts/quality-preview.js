@@ -40,8 +40,7 @@ import {
 } from './lib/baselines/preview-gates.js';
 import { resolveMergeHead } from './lib/changed-files.js';
 import { respondToHelp } from './lib/cli-usage.js';
-import { getQuality, resolveConfig } from './lib/config-resolver.js';
-import { resolveCyclomaticPolicy } from './lib/cyclomatic-ceiling.js';
+import { CODING_GUARDRAILS } from './lib/config/quality.js';
 
 const USAGE = {
   invocation:
@@ -62,12 +61,12 @@ const USAGE = {
 };
 
 /**
- * Framework default for `delivery.quality.codingGuardrails.cyclomaticFlag`,
- * used only when a caller drives `mergeEnvelopes` / `renderTable` without a
- * resolved config in hand (tests, and the pure-function surface). `runCli`
- * always passes the resolved value.
+ * The advisory cyclomatic flag — `CODING_GUARDRAILS.cyclomaticFlag`, a fixed
+ * constant since Story #5382 folded the never-set
+ * `delivery.quality.codingGuardrails` block. `mergeEnvelopes` / `renderTable`
+ * still take it as a parameter so the pure-function surface stays testable.
  */
-const DEFAULT_CYCLOMATIC_FLAG = 8;
+const DEFAULT_CYCLOMATIC_FLAG = CODING_GUARDRAILS.cyclomaticFlag;
 
 /**
  * Parse `--changed-since <ref>` from argv. Defaults to `HEAD` when the flag is
@@ -143,7 +142,7 @@ function normalizeFlag(value) {
  *
  * @param {{ worstCrapDelta: number, newOverCeilingMethods: number }} row
  * @param {{ crap?: number, ceiling?: number, baseline?: number, cyclomatic?: number, kind?: string }} v
- * @param {number} flag resolved `codingGuardrails.cyclomaticFlag`
+ * @param {number} flag the advisory cyclomatic flag
  * @returns {void}
  */
 function foldCrapViolation(row, v, flag) {
@@ -176,13 +175,9 @@ function foldCrapViolation(row, v, flag) {
  *     scoring above the flag ceiling. The CRAP envelope's `cyclomatic` field
  *     is the per-method `c` reading.
  *
- * `cyclomaticFlag` is the resolved
- * `delivery.quality.codingGuardrails.cyclomaticFlag` (Story #4923). It used to
- * be the literal `8` written into this function and into the column header, so
- * a consumer that tuned the knob saw its own value validated by the schema,
- * defaulted by the bootstrap, resolved by `lib/config/quality.js` — and then
- * ignored here. The parameter defaults to the framework default so a caller
- * with no config in hand still gets the historical reading.
+ * `cyclomaticFlag` is the advisory flag (Story #4923 threaded it through
+ * rather than hardcoding `8` in two places; Story #5382 made it a fixed
+ * constant). The parameter defaults to that constant.
  *
  * @param {{ violations?: Array<{ file: string, drop?: number }> } | null} miEnvelope
  * @param {{ violations?: Array<{
@@ -353,11 +348,9 @@ export function computeExitCode(merged, miExit, crapExit) {
  * Render the per-file delta table. Columns:
  *   "file", "MI delta", "worst CRAP delta", "new-method count over c=<flag>".
  *
- * The last header used to hardcode `c=8`, which quietly lied to any consumer
- * that had tuned `codingGuardrails.cyclomaticFlag`. It now names the value the
- * count was actually taken against, read off the merge result — through the
- * same `normalizeFlag` the merge itself uses, rather than the second, hand-
- * inlined copy of that coercion this function used to carry.
+ * The last header names the flag the count was actually taken against, read
+ * off the merge result through the same `normalizeFlag` the merge itself
+ * uses.
  *
  * Pure — accepts pre-computed merge rows and returns a multi-line string. The
  * table renders even on a clean diff so operators see the "no drift" signal.
@@ -399,31 +392,6 @@ export function renderTable(merged) {
     '',
     `Totals: MI regressions=${merged.totals.miRegressions} · CRAP violations=${merged.totals.crapViolations}`,
   ].join('\n');
-}
-
-/**
- * Resolve `codingGuardrails.cyclomaticFlag` for the tree at `cwd`
- * (Story #4923), falling back to the framework default when the config cannot
- * be resolved at all.
- *
- * Best-effort by design: `quality:preview` is a developer-facing report, and a
- * run in a tree with no readable `.agentrc.json` should still render its table
- * rather than abort. Extracted from `runCli` rather than inlined so the CLI
- * body stays under the cyclomatic must-fix ceiling this same Story starts
- * enforcing — a gate whose own delivery breaches it is not a gate.
- *
- * @param {{ cwd: string, stderr: { write: (s: string) => void } }} args
- * @returns {number}
- */
-function resolveCyclomaticFlag({ cwd, stderr }) {
-  try {
-    return resolveCyclomaticPolicy(getQuality(resolveConfig({ cwd }))).flag;
-  } catch (err) {
-    stderr.write(
-      `[quality:preview] config resolution failed, using cyclomaticFlag=${DEFAULT_CYCLOMATIC_FLAG}: ${err?.message ?? err}\n`,
-    );
-    return DEFAULT_CYCLOMATIC_FLAG;
-  }
 }
 
 /**
@@ -597,12 +565,8 @@ export async function runCli({
     stderr,
   );
 
-  // Story #4923 — the over-ceiling column counts against the *resolved*
-  // `codingGuardrails.cyclomaticFlag`, not the literal that used to be written
-  // into `mergeEnvelopes` and the column header.
-  const cyclomaticFlag = resolveCyclomaticFlag({ cwd, stderr });
   const merged = mergeEnvelopes(miResult.envelope, crapResult.envelope, {
-    cyclomaticFlag,
+    cyclomaticFlag: DEFAULT_CYCLOMATIC_FLAG,
   });
 
   emitReport({

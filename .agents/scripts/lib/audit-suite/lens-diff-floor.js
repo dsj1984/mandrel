@@ -9,9 +9,10 @@
  * Suggestion severity. The cheapest correct response is a deterministic
  * floor: a *small* diff that touches *no* sensitive path earns no lens
  * materialization at all. The floor is measured in **changed lines**
- * (additions + deletions across the diff), configured via
- * `delivery.review.lensDiffFloor` (default {@link DEFAULT_LENS_DIFF_FLOOR};
- * `0` disables the skip entirely).
+ * (additions + deletions across the diff); the floor is the fixed
+ * {@link DEFAULT_LENS_DIFF_FLOOR} (Story #5382 folded the never-set
+ * `delivery.review.lensDiffFloor` key), and a caller-injected `0` disables
+ * the skip entirely.
  *
  * ## Fail-open contract
  *
@@ -37,23 +38,6 @@ import { selectSensitivePathClasses } from './selector.js';
  * sampled zero-yield closes clustered well under this size.
  */
 export const DEFAULT_LENS_DIFF_FLOOR = 40;
-
-/**
- * Resolve the configured lens diff-floor from a resolved config wrapper.
- * `delivery.review.lensDiffFloor` must be a non-negative integer; anything
- * else (absent block, wrong type, negative, non-finite) falls back to
- * {@link DEFAULT_LENS_DIFF_FLOOR}. `0` is a valid, deliberate "floor off".
- *
- * @param {object|null|undefined} config Resolved `.agentrc.json` wrapper.
- * @returns {number}
- */
-export function resolveLensDiffFloor(config) {
-  const value = config?.delivery?.review?.lensDiffFloor;
-  if (typeof value === 'number' && Number.isInteger(value) && value >= 0) {
-    return value;
-  }
-  return DEFAULT_LENS_DIFF_FLOOR;
-}
 
 /**
  * Count the changed lines (additions + deletions) in the

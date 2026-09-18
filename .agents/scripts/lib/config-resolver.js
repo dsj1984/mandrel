@@ -45,9 +45,8 @@ export {
 } from './config/limits.js';
 export { getPaths } from './config/paths.js';
 export {
-  CODING_GUARDRAILS_DEFAULTS,
+  CODING_GUARDRAILS,
   getQuality,
-  resolveCodingGuardrails,
   resolveMaintainabilityCrap,
   resolveQuality,
 } from './config/quality.js';

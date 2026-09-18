@@ -749,10 +749,6 @@ async function gatherEnvelopeInputs({
             epic: { id: 0, title: epicTitle, body: seed },
             github: config.github ?? null,
             cwd,
-            // Story #5182 — the memory-hygiene advisory's two thresholds.
-            // They live on `planning`, not the `project` block `settings`
-            // carries, so they ride the opts bag rather than that legacy one.
-            memoryPool: config.planning?.memoryPool ?? null,
           },
         ),
       () =>

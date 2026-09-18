@@ -97,7 +97,7 @@ async function main() {
   const absBaselinePath = path.isAbsolute(baselinePath)
     ? baselinePath
     : path.resolve(process.cwd(), baselinePath);
-  const epsilon = getBaselineEpsilon('maintainability', config);
+  const epsilon = getBaselineEpsilon('maintainability');
 
   Logger.info('[Maintainability] Updating baseline...');
   if (fullScope) {

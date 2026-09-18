@@ -23,10 +23,12 @@
 //      `BASELINE_REF` (any git ref). The dispatcher reads these from
 //      `process.env` and forwards via `envScope` / `envRef` so the
 //      resolver itself never touches process state. CI sets these.
-//   2. Config — `configScope` ('full' | 'diff') and `configRef` (any
-//      git ref) from `delivery.quality.gateScoping` in `.agentrc.json`.
-//   3. Default — `mode='diff'` against `ref='main'`. This is the
-//      framework-wide fallback when nothing else is configured.
+//   2. Default — `mode='diff'` against `ref='main'`. This is the
+//      framework-wide fallback when the environment names nothing.
+//
+// Story #5382 removed the config layer between them: the
+// `delivery.quality.gateScoping` block it read was never set by any
+// surveyed config and always resolved to the default above.
 //
 // Story #4922 removed a fourth, highest-precedence layer: a
 // `cliFlags.fullScope` / `cliFlags.changedSinceRef` operator override,
@@ -45,10 +47,10 @@
 // would have to invent a default anyway; centralising it here keeps
 // every gate aligned.
 //
-// `kind` (e.g. `'lint'`, `'coverage'`, `'crap'`) is currently echoed
-// through to the resolution unchanged. The argument exists so future
-// per-kind overrides (e.g. "lint always runs full") have a place to
-// land without breaking call signatures. Today: pass it; ignore it.
+// `kind` (e.g. `'coverage'`, `'crap'`) is currently echoed through to
+// the resolution unchanged. The argument exists so future per-kind
+// overrides have a place to land without breaking call signatures.
+// Today: pass it; ignore it.
 //
 // Returned shape:
 //
@@ -86,13 +88,11 @@ function asMode(v) {
 }
 
 /**
- * Resolve a scope against the layered precedence (env > config >
- * default). Pure; no I/O.
+ * Resolve a scope against the layered precedence (env > default). Pure;
+ * no I/O.
  *
  * @param {object} input
- * @param {string} input.kind          - Baseline kind (e.g. `'lint'`).
- * @param {string} [input.configScope] - `'full'` | `'diff'` from agentrc.
- * @param {string} [input.configRef]   - Diff ref from agentrc.
+ * @param {string} input.kind          - Baseline kind (e.g. `'crap'`).
  * @param {string} [input.envScope]    - From `BASELINE_SCOPE`.
  * @param {string} [input.envRef]      - From `BASELINE_REF`.
  * @returns {{
@@ -128,29 +128,7 @@ export function resolveScope(input = {}) {
     });
   }
 
-  // ---- Layer 2: Config (delivery.quality.gateScoping) ------------------
-  const cfgMode = asMode(input.configScope);
-  if (cfgMode === 'full') {
-    return Object.freeze({
-      kind,
-      mode: 'full',
-      ref: null,
-      source: 'config:gateScoping.scope=full',
-    });
-  }
-  const cfgRef = asNonEmptyString(input.configRef);
-  if (cfgMode === 'diff' || cfgRef) {
-    return Object.freeze({
-      kind,
-      mode: 'diff',
-      ref: cfgRef ?? DEFAULT_DIFF_REF,
-      source: cfgRef
-        ? 'config:gateScoping.diffRef'
-        : 'config:gateScoping.scope=diff',
-    });
-  }
-
-  // ---- Layer 3: Default ------------------------------------------------
+  // ---- Layer 2: Default ------------------------------------------------
   return Object.freeze({
     kind,
     mode: 'diff',

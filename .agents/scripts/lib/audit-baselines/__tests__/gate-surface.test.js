@@ -76,19 +76,19 @@ describe('stub-instrument detection', () => {
     const byKind = surfaceOf(
       makeFixture([
         [
-          'baselines/lint.json',
+          'baselines/bundle-size.json',
           {
             kernelVersion: '1.0.0',
             generatedAt: '2026-01-01T00:00:00.000Z',
-            rollup: { '*': { errorCount: 0, warningCount: 0 } },
+            rollup: { '*': { rawKb: 0, gzippedKb: 0 } },
             rows: [],
           },
         ],
       ]),
     );
-    assert.equal(byKind.get('lint').stub, true);
-    assert.equal(byKind.get('lint').rowCount, 0);
-    assert.equal(byKind.get('lint').baselineExists, true);
+    assert.equal(byKind.get('bundle-size').stub, true);
+    assert.equal(byKind.get('bundle-size').rowCount, 0);
+    assert.equal(byKind.get('bundle-size').baselineExists, true);
   });
 
   it('does not flag a measuring instrument that happens to report zero rows', () => {
@@ -111,24 +111,24 @@ describe('stub-instrument detection', () => {
     const byKind = surfaceOf(
       makeFixture([
         [
-          'baselines/lint.json',
+          'baselines/bundle-size.json',
           {
             kernelVersion: '1.0.0',
             generatedAt: '2026-01-01T00:00:00.000Z',
-            rollup: { '*': { errorCount: 4, warningCount: 0 } },
+            rollup: { '*': { rawKb: 4, gzippedKb: 0 } },
             rows: [],
           },
         ],
       ]),
     );
-    assert.equal(byKind.get('lint').stub, false);
+    assert.equal(byKind.get('bundle-size').stub, false);
   });
 
   it('does not flag a missing baseline — there is no instrument to call dead', () => {
     const byKind = surfaceOf(makeFixture([]));
-    assert.equal(byKind.get('lint').baselineExists, false);
-    assert.equal(byKind.get('lint').stub, false);
-    assert.equal(byKind.get('lint').staleDays, null);
+    assert.equal(byKind.get('bundle-size').baselineExists, false);
+    assert.equal(byKind.get('bundle-size').stub, false);
+    assert.equal(byKind.get('bundle-size').staleDays, null);
   });
 });
 
@@ -212,7 +212,11 @@ describe('buildGateSurface over the live repository', () => {
   });
 
   it('reports the deleted kinds as absent rather than empty', () => {
-    for (const kind of ['bundle-size', 'lighthouse', 'lint', 'mutation']) {
+    // Story #5382 then removed the `lint` and `lighthouse` kinds outright, so
+    // they no longer appear on the surface at all.
+    assert.equal(byKind.has('lint'), false);
+    assert.equal(byKind.has('lighthouse'), false);
+    for (const kind of ['bundle-size', 'mutation']) {
       const entry = byKind.get(kind);
       assert.equal(entry.baselineExists, false, `${kind} should be absent`);
       assert.equal(entry.configured, false, `${kind} should have no gate`);

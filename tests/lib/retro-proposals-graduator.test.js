@@ -342,30 +342,30 @@ describe('AC3 — the config key validates against the runtime AJV schema', () =
 });
 
 /**
- * Story #4850 AC-7 — the knob has to live in the RUNTIME AJV, not only in the
- * published mirror. A key added to `.agents/schemas/agentrc.schema.json` alone
- * is dead on arrival: `resolveConfig` validates against
- * `config-settings-schema-delivery.js`, so the mirror-only key is rejected as
- * an additional property and never reaches the reader.
+ * Story #4850 AC-7 pinned the knob in the RUNTIME AJV. Story #5382 folded the
+ * never-set key into the fixed `FRICTION_WINDOW_DAYS` (30), so the runtime
+ * AJV now rejects every value — a leftover key fails loudly at load rather
+ * than configuring nothing, and the upgrade migration strips it first.
  */
-describe('AC-7 — frictionWindowDays validates against the runtime AJV', () => {
+describe('AC-7 — frictionWindowDays is rejected by the runtime AJV (Story #5382)', () => {
   const base = {
     project: {
       paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
     },
   };
 
-  it('accepts an integer of at least 1', () => {
+  it('rejects even a well-formed window, naming the key', () => {
     const validate = getAgentrcValidator();
     for (const frictionWindowDays of [1, 7, 30, 365]) {
       const ok = validate({
         ...base,
         delivery: { feedbackLoop: { frictionWindowDays } },
       });
-      assert.equal(
-        ok,
-        true,
-        `${frictionWindowDays} rejected: ${JSON.stringify(validate.errors)}`,
+      assert.equal(ok, false, `${frictionWindowDays} accepted`);
+      assert.ok(
+        validate.errors.some(
+          (e) => e.params?.additionalProperty === 'frictionWindowDays',
+        ),
       );
     }
   });

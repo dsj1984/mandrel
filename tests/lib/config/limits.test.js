@@ -3,17 +3,17 @@ import { describe, it } from 'node:test';
 import {
   getLimits,
   LIMITS_DEFAULTS,
-  resolveLimits,
 } from '../../../.agents/scripts/lib/config/limits.js';
 
 // ---------------------------------------------------------------------------
-// Post-reshape (Epic #1720 Story #1739) — the surviving limit is
-// `delivery.execution.timeoutMs`.
+// Post-reshape (Epic #1720 Story #1739) — the surviving limit was
+// `delivery.execution.timeoutMs`, and Story #5382 folded that never-set key
+// into the fixed `LIMITS_DEFAULTS.executionTimeoutMs`.
 //
 // `planning.context.{maxBytes,summaryMode}` was removed in Story #4541,
 // `maxTickets` in Story #5312, and `delivery.signals.{rework, retry}` with
 // `SIGNALS_DEFAULTS` / `getSignals` in Story #5313 (the delivery diet):
-// `resolveLimits` neither reads nor returns any of them.
+// `getLimits` neither reads nor returns any of them.
 // ---------------------------------------------------------------------------
 
 describe('LIMITS_DEFAULTS export', () => {
@@ -23,47 +23,29 @@ describe('LIMITS_DEFAULTS export', () => {
   });
 });
 
-describe('resolveLimits — surviving budget surface', () => {
-  it('reads delivery.execution.timeoutMs and omits the retired maxTokenBudget', () => {
-    const lim = resolveLimits({
+describe('getLimits — the fixed budget surface', () => {
+  it('returns the constant and omits the retired maxTokenBudget', () => {
+    const lim = getLimits({
       delivery: { maxTokenBudget: 50000, execution: { timeoutMs: 1234 } },
     });
     assert.equal('maxTokenBudget' in lim, false);
-    assert.equal(lim.executionTimeoutMs, 1234);
-  });
-
-  it('applies defaults when fields are absent', () => {
-    const lim = resolveLimits({});
-    assert.equal(lim.executionTimeoutMs, LIMITS_DEFAULTS.executionTimeoutMs);
+    assert.equal(
+      lim.executionTimeoutMs,
+      LIMITS_DEFAULTS.executionTimeoutMs,
+      'a leftover execution.timeoutMs tunes nothing (Story #5382)',
+    );
   });
 
   it('ignores a leftover delivery.signals block rather than resolving it (Story #5313)', () => {
-    const lim = resolveLimits({
+    const lim = getLimits({
       delivery: { signals: { rework: { editsPerFile: 7 } } },
     });
     assert.equal('signals' in lim, false);
   });
 
-  it('treats a non-object delivery / execution as absent', () => {
-    assert.equal(
-      resolveLimits({ delivery: 42 }).executionTimeoutMs,
-      LIMITS_DEFAULTS.executionTimeoutMs,
-    );
-    assert.equal(
-      resolveLimits({ delivery: { execution: null } }).executionTimeoutMs,
-      LIMITS_DEFAULTS.executionTimeoutMs,
-    );
-  });
-});
-
-describe('getLimits accessor (post-reshape)', () => {
-  it('reads the resolved-config wrapper and null/undefined alike', () => {
-    assert.equal(
-      getLimits({ delivery: { execution: { timeoutMs: 99 } } })
-        .executionTimeoutMs,
-      99,
-    );
-    assert.deepEqual(getLimits(null), getLimits(undefined));
-    assert.equal(getLimits(null).executionTimeoutMs, 600000);
+  it('answers null, undefined and malformed configs alike', () => {
+    for (const config of [null, undefined, { delivery: 42 }]) {
+      assert.equal(getLimits(config).executionTimeoutMs, 600000);
+    }
   });
 });

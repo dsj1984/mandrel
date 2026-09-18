@@ -57,7 +57,10 @@ import { Logger } from './Logger.js';
 /**
  * Shipped defaults for `delivery.tempRetention`. `enabled` defaults to `true`:
  * the operator asked for auto-purge to be the behaviour, with the knob there
- * to turn it off rather than to turn it on.
+ * to turn it off rather than to turn it on. `staleDays` is a fixed constant
+ * since Story #5382 folded the never-set `tempRetention.staleDays` key; the
+ * master switch and the per-class opt-outs stay configurable because each
+ * one turns a deletion off.
  */
 export const TEMP_RETENTION_DEFAULTS = Object.freeze({
   enabled: true,
@@ -127,7 +130,7 @@ export function resolveTempRetention(config) {
   }
   return {
     enabled: raw.enabled ?? TEMP_RETENTION_DEFAULTS.enabled,
-    staleDays: raw.staleDays ?? TEMP_RETENTION_DEFAULTS.staleDays,
+    staleDays: TEMP_RETENTION_DEFAULTS.staleDays,
     classes,
   };
 }

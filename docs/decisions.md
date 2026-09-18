@@ -60,12 +60,13 @@ the floor-vs-ratchet policy are tooling commitments rather than ADRs and live in
 
 <!-- ADR-INDEX:START -->
 
-**In force (51).** Each governs the surface named beside it.
+**In force (52).** Each governs the surface named beside it.
 A `Status` of `Accepted in part` means some clause of the entry has been
 superseded — open it before citing it.
 
 | Decision | Governs | Surface | Status |
 | --- | --- | --- | --- |
+| [`20260918-5382`](#adr-20260918-5382-the-agentrc-surface-carries-only-keys-someone-sets-tuning-constants-live-at-their-read-site) | The `.agentrc` surface carries only keys someone sets; tuning constants live at their read site | `scripts/lib/agentrc-key-ceiling.js` | Accepted |
 | [`20260917-5357`](#adr-20260917-5357-concurrent-dispatch-requires-per-story-worktrees-the-cap-is-clamped-to-1-when-isolation-resolves-off) | Concurrent dispatch requires per-Story worktrees; the cap clamps to 1 when isolation is off | `.agents/scripts/lib/config/runners.js` | Accepted |
 | [`20260917-5355`](#adr-20260917-5355-probe-graphql-reachability-at-close-init-defer-the-gh-pr-rest-migration) | Probe GraphQL reachability at close init; defer the `gh pr` REST migration | `.agents/scripts/lib/gh-exec.js` | Accepted |
 | [`20260917-5345`](#adr-20260917-5345-the-multi-story-run-is-a-script-beat-plus-spawns-and-closes-the-run-ledger-is-the-dispatch-record) | The multi-Story run is a script beat plus spawns and closes | `.agents/scripts/deliver-run.js` | Accepted |
@@ -156,6 +157,108 @@ at the release tag named in the entry.
 - [Earlier ADRs (001 / 002 / 003)](#earlier-adrs-001--002--003)
 
 <!-- ADR-INDEX:END -->
+
+## ADR 20260918-5382: The .agentrc surface carries only keys someone sets; tuning constants live at their read site
+
+**Status:** Accepted
+**Date:** 2026-09-18
+**Surface:** `scripts/lib/agentrc-key-ceiling.js`
+**Story:** #5382
+
+### Context
+
+The `.agentrc` schema had grown to 183 leaf keys. Each one is paid for four
+times — the runtime AJV schema, the generated JSON mirror, the precompiled
+validator and the generated `configuration.md` table — and once more as a
+branch in the code that reads it. A survey of every config this operator runs
+found 127 of the 183 keys set by nobody.
+
+**Surveyed evidence (2026-09-18).** Both `.agentrc.json` and the gitignored
+`.agentrc.local.json` (deep-merged over it) were read in mandrel and in every
+repository under `~/Development/` that carries one: `areacodetechnologies-site`,
+`athportal`, `design-system`, `domio`, `dsj.blog`, `mandrel-bench`,
+`mandrel-platform`, `mandrel-platform-fix` and `swarm-os`. The local overlays
+set exactly three keys between them — `github.operatorHandle` (all seven
+overlays), `delivery.deliverRunner.concurrencyCap` (seven, values 3 and 5) and
+`project.baseBranch` (`domio`). The committed configs set 53 more, all under
+`project.paths`, `project.commands`, `project.docsContextFiles`,
+`github.owner|repo|projectNumber|operatorHandle`,
+`github.branchProtection.requiredChecks`, `planning.navigation`,
+`delivery.docsFreshness`, `delivery.mergeWatch.maxWaitSeconds|maxBudgetSeconds`,
+`qa.*`, and the `enabled`, `floors`, `tolerance`, `ignoreGlobs`, `targetDirs`,
+`baselinePath`, `coveragePath`, `newMethodCeiling`, `requireCoverage` and
+`minMethodResolutionRate` keys of the `coverage`, `crap`, `maintainability`,
+`mutation`, `bundle-size` and `duplication` gates.
+
+### Decision
+
+**Removal rule.** A leaf key is removed when no surveyed config — committed or
+local — sets it **and** its default is a tuning constant rather than a project
+fact. A key any config sets is kept without exception. The cut takes the schema
+from 183 leaf keys to 128.
+
+- **Removed outright.** The `lint` and `lighthouse` gates, end to end (config
+  schema, baseline kind, baseline schema, registry, docs, their epsilon rows):
+  no consumer configured either, and the framework never shipped a writer for
+  `baselines/lint.json`. `npm run lint` as a close gate is untouched. Also the
+  keys with no reader at all: `gates.mutation.strykerConfigPath`,
+  `delivery.auditToStories.autoComment`, `delivery.codeReview.providerConfig`
+  and `delivery.codeReview.maxFixAttempts`, `gates.crap.friction.markerKey`,
+  the crap / maintainability / duplication `refreshTimeoutMs`, and the
+  deprecated `gates.crap.incrementalCoverage.enabled` alias.
+- **Folded into a named constant at the read site.** `gateScoping.*`
+  (`GATE_SCOPING`), the crap / maintainability `refreshTag`
+  (`baseline-refresh:`), `gates.coverage.timeoutMs`,
+  `formatAutofix.timeoutMs`, `codingGuardrails.*` (`CODING_GUARDRAILS`),
+  `autoRefresh.crapJumpCap|scope`, `baselineEpsilon.*` (`BASELINE_EPSILON`),
+  `github.defaultTimeoutMs` (`GH_DEFAULT_TIMEOUT_MS`), `delivery.ci.watch.*`
+  (`WATCH_DEFAULTS`; the `pr-watch-with-update.js` flags still override per
+  run), `delivery.execution.timeoutMs|requireCreditedCapture`,
+  `tempRetention.staleDays`, `mergeWatch.intervalSeconds|updateAttempts`,
+  `review.lensDiffFloor`, `feedbackLoop.frictionWindowDays`,
+  `auditToStories.severityFloor` (`--severity` still overrides) and
+  `planning.memoryPool.indexByteCeiling`. Each constant is the value its key's
+  default always resolved to, so no delivery behaves differently.
+
+**Never-set keys deliberately kept**, each a genuine per-project switch:
+
+| Key | Why it stays |
+| --- | --- |
+| `delivery.deliverRunner.concurrencyCap` | Set in seven local overlays — a live operator setting. |
+| `delivery.deliverRunner.footprintGuard` | An operator throughput trade recorded as a decision in `20260828-5077f`. |
+| `delivery.routing.roleScopedAgents`, `closeAndLand`, `ceremonyProfile` | Named by the workflows as operator switches; each is a per-consumer revert. |
+| `delivery.ci.autoMerge`, `blockOnAdvisoryFailure`, `advisoryAllowlist`, `rerunAdvisory` | Auto-merge posture and its opt-outs; `rerunAdvisory` spends CI minutes and mutates GitHub. |
+| `github.mergeMethods.*`, `github.notifications.*`, `github.branchProtection.enforce` | Opt-outs of networked repository mutation and notification. |
+| `delivery.tempRetention.enabled`, `classes.*` | Each turns a deletion off. |
+| `delivery.worktreeIsolation.*` | Host and package-manager facts (`nodeModulesStrategy`, `primeFromPath`, `bootstrapFiles`), a Windows hazard opt-in, and `reapOnSuccess`, a deletion opt-out. |
+| `delivery.execution.fullSuiteLock` | The config half of an opt-out whose env half is `MANDREL_FULL_SUITE_LOCK=0`. |
+| `delivery.mergeWatch.mode` | Slow-CI posture switch (`sync` / `async`). |
+| `delivery.codeReview.providers`, `autoFixSeverity` | Which reviewers run and which severities are fixed on-branch — project choices, not tuning. |
+| `delivery.feedbackLoop.retroProposals`, `delivery.refactorStage.enabled`, `delivery.quality.requireBaselines`, `delivery.quality.autoRefresh.enabled` | Opt-ins or opt-outs of whole behaviours, not tuning of one. |
+| `incrementalCoverage` `skipWhenUnchanged`, `baselineJoin`, `baseRef` (crap gate) | Independent economies split on purpose by Story #5173; `baseRef` keeps one scope across `.husky/pre-push` (Story #5365). |
+| `delivery.acceptanceEval.maxRounds` | The ceremony bound the deliver digest names as the operator's dial. |
+| per-gate `components`, `bundle-size.bundles`, `delivery.quality.navigability.*`, `github.projectOwner`, `github.followUpRepos.*`, `qa.gherkinLint.stepWaivers`, `project.commands.lint` | Project facts — what the repository contains or where it lives. |
+
+**The migration makes the removal safe.** Every affected block is
+`additionalProperties: false`, so a config still carrying a removed key fails
+validation with an error naming it. `mandrel update` runs
+`lib/migrations/steps/strip-removed-agentrc-keys.js` first: it deletes each
+removed key from both config surfaces, prints the constant that replaced it,
+reports a value that differed from that constant as a behaviour change, and is
+a no-op on a second run.
+
+**A ceiling keeps it cut.** `scripts/check-agentrc-key-ceiling.js` (inside
+`npm run lint`) counts the runtime schema's leaf keys and fails above 128, so a
+new key must displace an old one or raise `AGENTRC_LEAF_KEY_CEILING` in a change
+that records why.
+
+### Consequences
+
+- A tuning value is changed by editing the constant and shipping a release,
+  never per project. That is the point: no surveyed project ever changed one.
+- The pre-generated validator stays, so consumers still need no runtime AJV.
+- A consumer that did set a removed key gets it stripped on upgrade and a line
+  naming the change, rather than a silent drop or a hard validation failure.
 
 ## ADR 20260917-5357: Concurrent dispatch requires per-Story worktrees; the cap is clamped to 1 when isolation resolves off
 

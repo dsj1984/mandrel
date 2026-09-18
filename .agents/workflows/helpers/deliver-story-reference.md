@@ -363,7 +363,7 @@ separate (`delivery.mergeWatch.*`):
 
 The wait probes the checks every poll: a red required check fails fast as
 `checks-failed` instead of burning the budget, and a PR that falls behind its
-base is brought up to date within `updateAttempts` tries.
+base is brought up to date within 3 tries.
 
 **Async merge-confirm mode (`delivery.mergeWatch.mode: "async"`).** Under
 the default `"sync"` the merge wait runs in the foreground as described above.
@@ -567,10 +567,9 @@ node <agentRoot>/scripts/pr-watch-with-update.js --pr <prNumber> --story <storyI
 run id + run link, and a `gh run view --log-failed` tail). Omit it and a red
 check writes no digest — and with no digest the no-rerun guard has nothing to
 adjudicate the next green against, so always pass it.
-Poll cadence and caps come from `delivery.ci.watch.*` (`pollIntervalMs`,
-`maxPolls`, `maxResumes`, `attachWindowMs`); pass `--poll-interval-ms`,
+Poll cadence and caps are fixed defaults; pass `--poll-interval-ms`,
 `--max-polls`, `--max-resumes`, or `--attach-window-ms` to override for one run.
-`attachWindowMs` (default 20 min) is how long the watch keeps re-resolving an
+The attach window (default 20 min) is how long the watch keeps re-resolving an
 **empty** required-check set before it stops waiting for a context to attach —
 a required context that is an aggregator job gated on every other tier is the
 last check to appear, measured at 16m52s on this repository.
@@ -607,7 +606,7 @@ When the watch exits, branch on the exit code:
     and **no** required context ever attached, while the PR kept reading back
     fine. CI has not started; there is no failing check and no CI digest to
     read. Do **not** treat it as red — nothing needs fixing, and re-watching
-    (or raising `attachWindowMs`) is the whole remediation.
+    (or raising `--attach-window-ms`) is the whole remediation.
   - **unresolved** (`reconciliation.reconciled: false`) — every observed
     required check is green but the repository still refuses the merge, so the
     green verdict is withheld.

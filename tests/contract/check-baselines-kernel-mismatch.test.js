@@ -91,7 +91,6 @@ function setupRepo() {
     github: { owner: 'x', repo: 'y', operatorHandle: '@ci' },
     delivery: {
       quality: {
-        gateScoping: { scope: 'diff', diffRef: 'main' },
         gates: {
           coverage: {
             enabled: true,

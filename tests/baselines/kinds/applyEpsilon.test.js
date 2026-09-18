@@ -15,8 +15,6 @@ import * as bundleSize from '../../../.agents/scripts/lib/baselines/kinds/bundle
 import * as coverage from '../../../.agents/scripts/lib/baselines/kinds/coverage.js';
 import * as crap from '../../../.agents/scripts/lib/baselines/kinds/crap.js';
 import * as duplication from '../../../.agents/scripts/lib/baselines/kinds/duplication.js';
-import * as lighthouse from '../../../.agents/scripts/lib/baselines/kinds/lighthouse.js';
-import * as lint from '../../../.agents/scripts/lib/baselines/kinds/lint.js';
 import * as maintainability from '../../../.agents/scripts/lib/baselines/kinds/maintainability.js';
 import * as mutation from '../../../.agents/scripts/lib/baselines/kinds/mutation.js';
 
@@ -25,8 +23,6 @@ const ALL_KINDS = [
   ['crap', crap],
   ['maintainability', maintainability],
   ['mutation', mutation],
-  ['lint', lint],
-  ['lighthouse', lighthouse],
   ['bundle-size', bundleSize],
   ['duplication', duplication],
 ];
@@ -133,78 +129,6 @@ describe('mutation.applyEpsilon', () => {
   it('missing-prior: regenerated wins', () => {
     const newRow = [{ path: 'src/new.js', score: 50, killed: 5, survived: 5 }];
     const out = mutation.applyEpsilon(prior, newRow, 0.5);
-    assert.deepEqual(out, newRow);
-  });
-});
-
-describe('lint.applyEpsilon', () => {
-  const prior = [{ path: 'src/a.js', errorCount: 0, warningCount: 1 }];
-  const regenSame = [{ path: 'src/a.js', errorCount: 0, warningCount: 1 }];
-  const regenOver = [{ path: 'src/a.js', errorCount: 1, warningCount: 1 }];
-
-  it('under-epsilon (zero delta, eps=0): prior row bytes preserved', () => {
-    const out = lint.applyEpsilon(prior, regenSame, 0);
-    assert.deepEqual(out, prior);
-  });
-  it('over-epsilon: regenerated wins', () => {
-    const out = lint.applyEpsilon(prior, regenOver, 0);
-    assert.deepEqual(out, regenOver);
-  });
-  it('missing-prior: regenerated wins', () => {
-    const newRow = [{ path: 'src/new.js', errorCount: 2, warningCount: 0 }];
-    const out = lint.applyEpsilon(prior, newRow, 0);
-    assert.deepEqual(out, newRow);
-  });
-});
-
-describe('lighthouse.applyEpsilon', () => {
-  const prior = [
-    {
-      route: '/',
-      performance: 90,
-      accessibility: 95,
-      bestPractices: 92,
-      seo: 100,
-    },
-  ];
-  const regenUnder = [
-    {
-      route: '/',
-      performance: 90.5,
-      accessibility: 95,
-      bestPractices: 92,
-      seo: 100,
-    },
-  ];
-  const regenOver = [
-    {
-      route: '/',
-      performance: 85,
-      accessibility: 95,
-      bestPractices: 92,
-      seo: 100,
-    },
-  ];
-
-  it('under-epsilon: prior row bytes preserved', () => {
-    const out = lighthouse.applyEpsilon(prior, regenUnder, 1);
-    assert.deepEqual(out, prior);
-  });
-  it('over-epsilon: regenerated wins', () => {
-    const out = lighthouse.applyEpsilon(prior, regenOver, 1);
-    assert.deepEqual(out, regenOver);
-  });
-  it('missing-prior (new route): regenerated wins', () => {
-    const newRow = [
-      {
-        route: 'pricing',
-        performance: 60,
-        accessibility: 70,
-        bestPractices: 80,
-        seo: 90,
-      },
-    ];
-    const out = lighthouse.applyEpsilon(prior, newRow, 1);
     assert.deepEqual(out, newRow);
   });
 });

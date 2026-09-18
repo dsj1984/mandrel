@@ -14,11 +14,9 @@
 
 import {
   evaluateLensDiffFloor,
-  resolveLensDiffFloor,
   runAuditSuite,
   selectLocalLenses,
 } from '../../../audit-suite/index.js';
-import { resolveConfig } from '../../../config-resolver.js';
 import { gitSpawn } from '../../../git-utils.js';
 import {
   emitRuntimeFriction,
@@ -189,7 +187,7 @@ function resolveLensChangeSet({
  *
  * Story #4699 — the **lens diff-floor**. When the caller supplies a known
  * `changedLineCount` and the diff sits strictly below the configured floor
- * (`delivery.review.lensDiffFloor`, default 40) with zero sensitive-path
+ * (`DEFAULT_LENS_DIFF_FLOOR`, 40, unless the caller injects one) with zero sensitive-path
  * hits, the pass records the matched roster but skips materialization
  * entirely (`skipped: true` with the lenses retained and a `floorSkip`
  * verdict) — the maker-blind code-review pillar and every hard gate are
@@ -209,7 +207,6 @@ function resolveLensChangeSet({
  *   gitSpawnFn?: import('../../change-set.js').GitSpawnFn,
  *   selectLocalLensesFn?: typeof selectLocalLenses,
  *   runAuditSuiteFn?: typeof runAuditSuite,
- *   resolveConfigFn?: typeof resolveConfig,
  *   evaluateLensDiffFloorFn?: typeof evaluateLensDiffFloor,
  *   emitToolDegradationFn?: typeof emitRuntimeFriction,
  * }} args
@@ -235,7 +232,6 @@ export async function runLocalLensReview({
   gitSpawnFn = gitSpawn,
   selectLocalLensesFn = selectLocalLenses,
   runAuditSuiteFn = runAuditSuite,
-  resolveConfigFn = resolveConfig,
   evaluateLensDiffFloorFn = evaluateLensDiffFloor,
   emitToolDegradationFn = emitRuntimeFriction,
 }) {
@@ -269,10 +265,7 @@ export async function runLocalLensReview({
     const floorVerdict = evaluateLensDiffFloorFn({
       changedFiles,
       changedLineCount,
-      floor:
-        typeof lensDiffFloor === 'number'
-          ? lensDiffFloor
-          : resolveLensDiffFloor(safeResolveConfig(resolveConfigFn)),
+      floor: lensDiffFloor,
     });
     if (floorVerdict.skip) {
       progress(
@@ -339,21 +332,5 @@ export async function runLocalLensReview({
       // Observability must never fail the close (best-effort contract).
     }
     return empty;
-  }
-}
-
-/**
- * Resolve config for the floor read without letting a resolver failure
- * fail the (advisory) lens pass. Module-local: a degraded config simply
- * yields the framework-default floor.
- *
- * @param {typeof resolveConfig} resolveConfigFn
- * @returns {object|undefined}
- */
-function safeResolveConfig(resolveConfigFn) {
-  try {
-    return resolveConfigFn();
-  } catch {
-    return undefined;
   }
 }

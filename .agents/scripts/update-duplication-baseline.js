@@ -239,7 +239,7 @@ async function main() {
     buildRefreshOpts({
       ...selection,
       absBaselinePath,
-      epsilon: getBaselineEpsilon('duplication', config),
+      epsilon: getBaselineEpsilon('duplication'),
     }),
   );
 

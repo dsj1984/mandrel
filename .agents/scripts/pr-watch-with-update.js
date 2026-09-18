@@ -27,7 +27,7 @@
  *             delivery path v2 has).
  *   - STILL-RUNNING — the poll cap fired with checks still pending and
  *             none failed; the watcher re-armed up to
- *             `delivery.ci.watch.maxResumes` times, then returned a
+ *             `maxResumes` times, then returned a
  *             `still-running` verdict → exit 2 (NEVER 1, NEVER
  *             `timed_out`). The CLI prints the `gh pr checks --watch`
  *             handoff so the host can keep polling on its own cadence.
@@ -73,12 +73,10 @@
  * went red has no digest and is untouched. Mechanism:
  * `lib/orchestration/ci-rerun-guard.js`.
  *
- * Config (Story #4356 namespace, read via `getCiDelivery`):
- *   - `delivery.ci.watch.pollIntervalMs`
- *   - `delivery.ci.watch.maxPolls`
- *   - `delivery.ci.watch.maxResumes`
- *   - `delivery.ci.watch.attachWindowMs` (Story #4890)
- *   CLI flags override config; config overrides the framework fallback.
+ * Poll knobs: `--poll-interval-ms`, `--max-polls`, `--max-resumes`,
+ *   `--max-updates` and `--attach-window-ms` override {@link WATCH_DEFAULTS}
+ *   per invocation. Story #5382 retired the `delivery.ci.watch.*` config
+ *   ladder that used to sit between them: no surveyed config ever set it.
  *
  * Usage:
  *   node .agents/scripts/pr-watch-with-update.js --pr <n> --story <id>
@@ -87,7 +85,6 @@
  */
 import { parseArgs } from 'node:util';
 import { runAsCli } from './lib/cli-utils.js';
-import { getCiDelivery } from './lib/config/ci.js';
 import { resolveConfig } from './lib/config-resolver.js';
 import { gh as defaultGh } from './lib/gh-exec.js';
 import { Logger } from './lib/Logger.js';
@@ -124,14 +121,13 @@ export const STILL_RUNNING_EXIT_CODE = 2;
  * as designed.
  *
  * The default therefore covers a late aggregator with margin rather than a
- * fast ruleset, and it is operator-tunable on the `delivery.ci.watch.*` ladder
- * (`attachWindowMs`) for a repository whose contexts arrive on a different
- * cadence. Spending the window costs nothing but wall-clock on a PR nobody
+ * fast ruleset; `--attach-window-ms` raises it for one run on a repository
+ * whose contexts arrive on a different cadence. Spending the window costs nothing but wall-clock on a PR nobody
  * could merge yet; exhausting it too early costs the whole delivery.
  */
 export const REQUIRED_CONTEXT_ATTACH_WINDOW_MS = 1_200_000;
 
-/** Framework fallbacks when neither a CLI flag nor config supplies a value. */
+/** Framework fallbacks when no CLI flag supplies a value. */
 export const WATCH_DEFAULTS = Object.freeze({
   pollIntervalMs: 10_000,
   maxPolls: 180,
@@ -300,40 +296,21 @@ function parsePositiveInt(raw, fallback) {
 }
 
 /**
- * Resolve the effective poll knobs: CLI flag → `delivery.ci.watch.*` →
- * framework fallback. Pure (given a config bag) — exported for tests so
- * the precedence ladder is reviewable. `flags` are the raw string values
- * from `parseArgs` (or numbers, in tests); a nullish flag falls through
- * to config, and a nullish config field falls through to the default.
+ * Resolve the effective poll knobs: CLI flag → framework fallback. Pure —
+ * exported for tests so the precedence is reviewable. `flags` are the raw
+ * string values from `parseArgs` (or numbers, in tests); a nullish or
+ * malformed flag falls through to {@link WATCH_DEFAULTS}.
  *
  * @param {object} opts
- * @param {object|null} [opts.config]  resolved config (or a bare bag).
  * @param {object} [opts.flags]        `{ pollIntervalMs, maxPolls, maxResumes, maxUpdates, attachWindowMs }`.
  * @returns {{ pollIntervalMs: number, maxPolls: number, maxResumes: number, maxUpdates: number, attachWindowMs: number }}
  */
-export function resolveWatchKnobs({ config, flags = {} } = {}) {
-  const watch = getCiDelivery(config).watch ?? {};
-  const pick = (flag, cfg, dflt) =>
-    parsePositiveInt(flag, Number.isInteger(cfg) && cfg >= 0 ? cfg : dflt);
-  return {
-    pollIntervalMs: pick(
-      flags.pollIntervalMs,
-      watch.pollIntervalMs,
-      WATCH_DEFAULTS.pollIntervalMs,
-    ),
-    maxPolls: pick(flags.maxPolls, watch.maxPolls, WATCH_DEFAULTS.maxPolls),
-    maxResumes: pick(
-      flags.maxResumes,
-      watch.maxResumes,
-      WATCH_DEFAULTS.maxResumes,
-    ),
-    maxUpdates: pick(flags.maxUpdates, undefined, WATCH_DEFAULTS.maxUpdates),
-    attachWindowMs: pick(
-      flags.attachWindowMs,
-      watch.attachWindowMs,
-      WATCH_DEFAULTS.attachWindowMs,
-    ),
-  };
+export function resolveWatchKnobs({ flags = {} } = {}) {
+  const knobs = {};
+  for (const [key, fallback] of Object.entries(WATCH_DEFAULTS)) {
+    knobs[key] = parsePositiveInt(flags[key], fallback);
+  }
+  return knobs;
 }
 
 /** Default re-arm: the sanctioned auto-merge enablement path. */
@@ -508,7 +485,7 @@ async function evaluateGreenWatch({
 function resolveWatchContext({ config, tempRoot, logger, flags }) {
   const resolvedConfig =
     config !== undefined ? config : safeResolveConfig(logger);
-  const knobs = resolveWatchKnobs({ config: resolvedConfig, flags });
+  const knobs = resolveWatchKnobs({ flags });
   const effectiveTempRoot =
     tempRoot ?? resolvedConfig?.project?.paths?.tempRoot ?? 'temp';
   return { knobs, effectiveTempRoot, cwd: process.cwd() };
@@ -782,8 +759,7 @@ async function settleRedWatch({
  * @param {number|string} [opts.maxPolls]
  * @param {number|string} [opts.maxResumes]
  * @param {number|string} [opts.attachWindowMs] override the required-context
- *   attach window for one run (flag → `delivery.ci.watch.attachWindowMs` →
- *   {@link REQUIRED_CONTEXT_ATTACH_WINDOW_MS}).
+ *   attach window for one run (flag → {@link REQUIRED_CONTEXT_ATTACH_WINDOW_MS}).
  * @param {object|null} [opts.config]         resolved config (defaults to resolveConfig()).
  * @param {string} [opts.tempRoot]            digest output dir (default `temp`).
  * @param {Function} [opts.ghPrChecksFn]      inject for tests
