@@ -39,7 +39,7 @@ function deadExportsBaseline({ files, symbols }) {
   for (let i = 0; i < symbols; i += 1) {
     rows.push({ file: `lib/mod-${i % files}.js`, symbol: `sym${i}` });
   }
-  return { generatedAt: '2026-08-02T00:00:00.000Z', rows };
+  return { rows };
 }
 
 /**
@@ -138,31 +138,41 @@ describe('the trend roll-up counts the measured quantity, not the rows', () => {
     assert.deepEqual(entry.deltas, { bytes: 421 });
   });
 
-  it('keeps a declared rollup verbatim rather than overriding its axes', () => {
-    const rollup = (percentage) => ({
-      generatedAt: '2026-08-02T00:00:00.000Z',
-      rollup: { '*': { percentage } },
-      rows: [{ path: 'lib/a.js', percentage }],
+  it("derives a gate kind's rollup from its rows, on the kind's own axes (Story #5400)", () => {
+    // The committed file carries no rollup; the trend reads the one the kind
+    // kernel derives — duplication recomputes `percentage` from line counts.
+    const baseline = (duplicatedLines, totalLines) => ({
+      rows: [{ path: 'lib/a.js', duplicatedLines, totalLines }],
     });
     const entry = trendFor({
       kind: 'duplication',
-      previous: rollup(9),
-      current: rollup(8.5),
+      previous: baseline(9, 100),
+      current: baseline(17, 200),
     });
-    assert.deepEqual(entry.deltas, { percentage: -0.5 });
+    // 9/100 → 17/200: 9% → 8.5%.
+    assert.deepEqual(entry.deltas, {
+      percentage: -0.5,
+      duplicatedLines: 8,
+      totalLines: 100,
+      filesWithDuplication: 0,
+    });
   });
 
-  it('names a non-additive metric filesTracked rather than summing scores', () => {
-    // Averaging per-file percentages unweighted would fabricate a statistic.
-    // Counting the rows is honest — provided the axis says so.
+  it('never sums a non-additive metric — the tally is named filesTracked', () => {
+    // Summing per-file percentages would fabricate a statistic: the derived
+    // rollup averages them, and the measured total counts the rows under an
+    // axis that says so.
     const rows = (n) => ({
-      generatedAt: '2026-08-02T00:00:00.000Z',
       rows: Array.from({ length: n }, (_, i) => ({
         path: `lib/a${i}.js`,
         lines: 90,
       })),
     });
-    assert.deepEqual(trendRollupOf('coverage', rows(4)), { filesTracked: 4 });
+    assert.equal(trendRollupOf('coverage', rows(4)).lines, 90);
+    assert.deepEqual(measuredTotalOf('coverage', rows(4)), {
+      unit: 'filesTracked',
+      value: 4,
+    });
   });
 
   it('gives every kind the engine walks a declared unit', () => {
@@ -203,11 +213,13 @@ function makeFixture(files) {
   return root;
 }
 
-/** A coverage baseline stamped now, with two rows to key the surface on. */
+/**
+ * A coverage baseline with two rows to key the surface on. It carries no
+ * stamp (Story #5400): its age is its last-commit date, which
+ * `fakeSurfaceGit` reports as "now".
+ */
 const FRESH_COVERAGE = {
   kernelVersion: '1.0.0',
-  generatedAt: '2026-08-02T00:00:00.000Z',
-  rollup: { '*': { lines: 90, branches: 80, functions: 85 } },
   rows: [
     { path: 'src/a.js', lines: 90, branches: 80, functions: 85 },
     { path: 'src/b.js', lines: 91, branches: 81, functions: 86 },
@@ -215,13 +227,18 @@ const FRESH_COVERAGE = {
 };
 
 /**
- * Stand in for the two git commands `buildGateSurface` issues.
+ * Stand in for the git commands `buildGateSurface` issues: the baseline's
+ * last-commit date (committed "now"), its last-commit sha, and the count of
+ * surface commits since.
  *
  * @param {{ commits: number }} args
  * @returns {Function}
  */
 function fakeSurfaceGit({ commits }) {
   return (_cmd, args) => {
+    if (args[0] === 'log' && args.includes('--format=%cI')) {
+      return '2026-08-02T00:00:00+00:00\n';
+    }
     if (args[0] === 'log') return `${'c'.repeat(40)}\n`;
     if (args[0] === 'rev-list') return `${commits}\n`;
     throw new Error(`unexpected git ${args.join(' ')}`);
@@ -298,10 +315,7 @@ describe('staleness accounts for commits, not only wall time', () => {
       root: makeFixture([
         [
           'baselines/bundle-size.json',
-          {
-            generatedAt: '2026-08-02T00:00:00.000Z',
-            rows: [{ bundle: 'main', rawKb: 90 }],
-          },
+          { rows: [{ bundle: 'main', rawKb: 90 }] },
         ],
       ]),
       run: fakeSurfaceGit({ commits: 7 }),

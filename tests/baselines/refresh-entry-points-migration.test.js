@@ -56,8 +56,9 @@ describe('coverage-baseline.writeBaseline — envelope migration', () => {
       '.agents/schemas/baselines/coverage.schema.json',
     );
     assert.equal(typeof parsed.kernelVersion, 'string');
-    assert.equal(typeof parsed.generatedAt, 'string');
-    assert.ok(Object.hasOwn(parsed.rollup, '*'));
+    // Story #5400: the committed shape carries no stamp and no rollup.
+    assert.equal(Object.hasOwn(parsed, 'generatedAt'), false);
+    assert.equal(Object.hasOwn(parsed, 'rollup'), false);
     assert.doesNotThrow(() => assertEnvelope(parsed));
   });
 
@@ -158,8 +159,7 @@ describe('update-maintainability-baseline.js — end-to-end smoke', () => {
       'scripts',
       'update-maintainability-baseline.js',
     );
-    // The CLI inherits cwd, MANDREL_BASELINE_GENERATED_AT pin makes the
-    // output deterministic so we can assert the timestamp.
+    // The CLI inherits cwd; its output carries no timestamp to pin.
     // Story #2202 / Task #2214 flipped the CLI's flag-omission default to
     // diff-scope (it derives the file list from `git diff --name-only
     // origin/main..HEAD`). The synthetic fixture here is not a git repo,
@@ -168,10 +168,6 @@ describe('update-maintainability-baseline.js — end-to-end smoke', () => {
     // `tests/baselines/refresh-service.diff-scope.test.js`.
     execFileSync(process.execPath, [cliPath, '--full-scope'], {
       cwd: workDir,
-      env: {
-        ...process.env,
-        MANDREL_BASELINE_GENERATED_AT: '2026-05-15T00:00:00Z',
-      },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     const baselinePath = path.join(
@@ -184,8 +180,8 @@ describe('update-maintainability-baseline.js — end-to-end smoke', () => {
       parsed.$schema,
       '.agents/schemas/baselines/maintainability.schema.json',
     );
-    assert.equal(parsed.generatedAt, '2026-05-15T00:00:00Z');
-    assert.ok(Object.hasOwn(parsed.rollup, '*'));
+    assert.equal(Object.hasOwn(parsed, 'generatedAt'), false);
+    assert.equal(Object.hasOwn(parsed, 'rollup'), false);
     assert.ok(Array.isArray(parsed.rows));
     assert.doesNotThrow(() => assertEnvelope(parsed));
   });

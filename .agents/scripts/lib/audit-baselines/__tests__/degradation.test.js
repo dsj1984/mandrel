@@ -34,8 +34,6 @@ function writeBareFixture() {
     path.join(root, 'baselines', 'crap.json'),
     JSON.stringify({
       kernelVersion: '1.0.0',
-      generatedAt: '2026-01-01T00:00:00.000Z',
-      rollup: { '*': { p50: 2, p95: 20, max: 30, methodsAbove20: 2 } },
       rows: [
         { path: 'src/a.js', method: 'x', startLine: 1, crap: 30 },
         { path: 'src/b.js', method: 'y', startLine: 1, crap: 1 },

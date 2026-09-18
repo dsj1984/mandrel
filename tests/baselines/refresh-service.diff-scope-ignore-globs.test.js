@@ -9,16 +9,16 @@
  * applied `ignoreGlobs`. So a changed file that is under a targetDir AND
  * matches an ignore glob (e.g. `src/config-settings-schema.js`, ignored via
  * `config-settings-schema*.js`) got scored, its row merged into `rows`, and —
- * because the writer computes the `rollup["*"]` min/p50/p95 from those rows —
- * it dragged `rollup["*"].min` below the configured maintainability floor. A
- * `--full-scope` refresh correctly excluded it.
+ * because the floors phase derives the `rollup["*"]` min/p50/p95 from those
+ * rows — it dragged `rollup["*"].min` below the configured maintainability
+ * floor. A `--full-scope` refresh correctly excluded it.
  *
  * This test drives the REAL default maintainability scorer (no injected
  * `scorer`) through a genuinely diff-scoped `refreshBaseline` call (an injected
  * `gitDiff` seam returns the changed file list, so `scope.mode === 'diff'`),
  * over a hermetic tmp project whose quality config ignores one of two changed,
  * under-target files. It asserts the ignored file appears in NEITHER
- * `envelope.rows` NOR the `rollup["*"].min`. It FAILS against the pre-fix code
+ * `envelope.rows` NOR the rollup `min` derived from them. It FAILS against the pre-fix code
  * (the ignored, lower-MI file leaks into the rows and becomes the min) and
  * PASSES once the diff-scope path applies the same ignore matcher the
  * full-scope walk uses.
@@ -30,6 +30,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { getKindModule } from '../../.agents/scripts/lib/baselines/kernel.js';
 import { refreshBaseline } from '../../.agents/scripts/lib/baselines/refresh-service.js';
 
 // The default maintainability scorer's `calculateAll` keys MI scores by
@@ -44,8 +45,6 @@ const REPO_ROOT = path.resolve(
   '..',
 );
 const TEMP_ROOT = path.join(REPO_ROOT, 'temp');
-
-const FIXED = '2026-06-15T00:00:00Z';
 
 // A small, clean function — high maintainability index (~160).
 const KEPT_SOURCE = 'export function add(a, b) {\n  return a + b;\n}\n';
@@ -118,7 +117,7 @@ describe('refreshBaseline — diff-scope maintainability honours ignoreGlobs', (
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it('excludes an ignoreGlobs-listed changed file from rows AND rollup["*"].min', async () => {
+  it('excludes an ignoreGlobs-listed changed file from rows AND the derived rollup min', async () => {
     // Arrange — a genuinely diff-scoped refresh: scopeFiles=null + an injected
     // gitDiff that reports BOTH changed files. The kind predicate admits both
     // (.js), so the only thing that can keep the ignored file out is the
@@ -133,7 +132,6 @@ describe('refreshBaseline — diff-scope maintainability honours ignoreGlobs', (
       writePath,
       cwd: projectDir,
       gitDiff,
-      generatedAt: FIXED,
     });
 
     // Sanity: the scope was resolved as a diff (not explicit/full), so the
@@ -162,8 +160,13 @@ describe('refreshBaseline — diff-scope maintainability honours ignoreGlobs', (
 
     // Contract 2 — the ignored file must NOT drive the rollup min. Its MI
     // (~93) is well below the kept file's (~160); if it leaked, min would drop
-    // to ~93. With the fix, min reflects only the kept file (~160).
-    const min = result.envelope.rollup['*'].min;
+    // to ~93. With the fix, min reflects only the kept file (~160). The
+    // envelope carries no rollup (Story #5400), so derive it the way the
+    // floors phase does.
+    const { min } = getKindModule('maintainability').rollup(
+      result.envelope.rows,
+      [],
+    )['*'];
     assert.ok(
       min > 100,
       `rollup["*"].min is ${min}; the ignored low-MI file poisoned the rollup min`,

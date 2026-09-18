@@ -31,13 +31,21 @@ function writeJson(p, value) {
   writeFileSync(p, JSON.stringify(value, null, 2));
 }
 
-function coverageEnvelope({ rollup, rows } = {}) {
+function covRow(p, v) {
+  return { path: p, lines: v, branches: v, functions: v };
+}
+
+// The floor check reads the rollup derived from the rows, so a floor-clean
+// default needs rows whose mean clears the 90/85/90 floors.
+const HEALTHY_ROWS = [
+  { path: 'src/ok.js', lines: 95, branches: 92, functions: 95 },
+];
+
+function coverageEnvelope({ rows } = {}) {
   return {
     $schema: 'coverage.schema.json',
     kernelVersion: currentKernelVersion('coverage'),
-    generatedAt: '2026-01-01T00:00:00.000Z',
-    rollup: rollup ?? { '*': { lines: 95, branches: 92, functions: 95 } },
-    rows: rows ?? [],
+    rows: rows ?? HEALTHY_ROWS,
   };
 }
 
@@ -102,9 +110,8 @@ describe('check-baselines — exit-code contract (Task #1975)', () => {
     root = setupTmpRepo();
     writeJson(
       path.join(root, 'baselines', 'coverage.json'),
-      coverageEnvelope({
-        rollup: { '*': { lines: 50, branches: 50, functions: 50 } },
-      }),
+      // Derived rollup 50/50/50 sits below every floor.
+      coverageEnvelope({ rows: [covRow('src/a.js', 50)] }),
     );
     __setSpawnRunner({
       spawn: () => ({ status: 128, stdout: '', stderr: 'no base' }),
@@ -146,19 +153,16 @@ describe('check-baselines — exit-code contract (Task #1975)', () => {
 
   it('REGRESSION fixture exits 4', async () => {
     root = setupTmpRepo();
-    // Head: floor-clean rollup, regressing rows vs base.
+    // Head: src/a.js regressed vs base, but four healthy rows hold the
+    // derived rollup at 92/92/92 — clear of the floors.
+    const healthy = ['b', 'c', 'd', 'e'].map((n) => covRow(`src/${n}.js`, 100));
     writeJson(
       path.join(root, 'baselines', 'coverage.json'),
-      coverageEnvelope({
-        rollup: { '*': { lines: 95, branches: 92, functions: 95 } },
-        rows: [{ path: 'src/a.js', lines: 60, branches: 60, functions: 60 }],
-      }),
+      coverageEnvelope({ rows: [covRow('src/a.js', 60), ...healthy] }),
     );
-    // Base baseline: same path, perfect coverage → head is a regression.
+    // Base baseline: same paths, src/a.js higher → head is a regression.
     const baseCoverage = JSON.stringify(
-      coverageEnvelope({
-        rows: [{ path: 'src/a.js', lines: 95, branches: 95, functions: 95 }],
-      }),
+      coverageEnvelope({ rows: [covRow('src/a.js', 95), ...healthy] }),
     );
     __setSpawnRunner({
       spawn: (_cmd, args) => {
@@ -174,23 +178,19 @@ describe('check-baselines — exit-code contract (Task #1975)', () => {
       cwd: root,
     });
     assert.equal(res.exitCode, 4);
+    assert.equal(res.report.totalBreaches, 0, 'derived rollup clears floors');
     assert.ok(res.report.totalRegressions >= 1);
   });
 
   it('mixed FLOOR + REGRESSION fixture exits 4 (precedence)', async () => {
     root = setupTmpRepo();
-    // Head: floor-breach rollup AND regressing rows.
+    // Head: regressing row whose derived rollup (60) also breaches floors.
     writeJson(
       path.join(root, 'baselines', 'coverage.json'),
-      coverageEnvelope({
-        rollup: { '*': { lines: 50, branches: 50, functions: 50 } },
-        rows: [{ path: 'src/a.js', lines: 60, branches: 60, functions: 60 }],
-      }),
+      coverageEnvelope({ rows: [covRow('src/a.js', 60)] }),
     );
     const baseCoverage = JSON.stringify(
-      coverageEnvelope({
-        rows: [{ path: 'src/a.js', lines: 95, branches: 95, functions: 95 }],
-      }),
+      coverageEnvelope({ rows: [covRow('src/a.js', 95)] }),
     );
     __setSpawnRunner({
       spawn: (_cmd, args) => {

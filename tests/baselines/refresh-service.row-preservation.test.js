@@ -8,11 +8,10 @@
  *   - 10 baseline rows, scope of 3: the 7 out-of-scope rows are byte-
  *     identical pre/post (the row object — every field — matches the
  *     prior on-disk row exactly).
- *   - When no in-scope rows changed value either, the envelope-level
- *     `generatedAt` is preserved byte-for-byte (the writer's structural-
- *     equality short-circuit). This is the proxy for "row updatedAt
- *     fields are unchanged" until per-row timestamps land in a future
- *     schema bump.
+ *   - When no in-scope rows changed value either, the file is preserved
+ *     byte-for-byte and not rewritten (the writer's structural-equality
+ *     short-circuit). This is the proxy for "row updatedAt fields are
+ *     unchanged" — the envelope carries no run timestamp (Story #5400).
  *   - In-scope rows reflect fresh scores.
  *   - Out-of-scope rows whose paths are absent from the new score input
  *     are still preserved (the scorer doesn't have to enumerate them).
@@ -28,9 +27,6 @@ import {
   writeFile as writeEnvelopeFile,
 } from '../../.agents/scripts/lib/baselines/writer.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
-
-const FIXED_PRIOR = '2024-01-01T00:00:00Z';
-const FIXED_NOW = '2026-05-15T00:00:00Z';
 
 // 10-row prior baseline; scope of 3 in-scope (a, b, c); 7 untouched.
 const TEN_ROW_PRIOR_ROWS = [
@@ -50,22 +46,13 @@ function makeScorer(rows) {
   return (_files, _opts) => rows;
 }
 
-function seedPriorBaseline(
-  writePath,
-  rows,
-  generatedAt,
-  kind = 'maintainability',
-) {
+function seedPriorBaseline(writePath, rows, kind = 'maintainability') {
   mkdirSync(path.dirname(writePath), { recursive: true });
-  // Round-trip through the writer so the rollup math matches what the
-  // service will compute on the next refresh. Hand-rolled rollups would
-  // diverge from the writer's deterministic aggregation and defeat the
-  // structural-equality short-circuit assertions below.
-  const envelope = writeEnvelope({
-    kind,
-    rows,
-    generatedAt,
-  });
+  // Round-trip through the writer so the seeded rows carry the canonical
+  // projection and sort the service will produce on the next refresh.
+  // Hand-rolled rows would diverge and defeat the structural-equality
+  // short-circuit assertions below.
+  const envelope = writeEnvelope({ kind, rows });
   writeEnvelopeFile(writePath, envelope);
   return envelope;
 }
@@ -83,11 +70,7 @@ describe('refreshBaseline — out-of-scope row preservation (Task #2209, AC-4)',
 
   it('AC: 10 rows, scope of 3, the 7 out-of-scope rows are byte-identical pre/post', async () => {
     const writePath = path.join(workDir, 'baselines', 'maintainability.json');
-    const priorEnvelope = seedPriorBaseline(
-      writePath,
-      TEN_ROW_PRIOR_ROWS,
-      FIXED_PRIOR,
-    );
+    const priorEnvelope = seedPriorBaseline(writePath, TEN_ROW_PRIOR_ROWS);
     const priorByPath = new Map(priorEnvelope.rows.map((r) => [r.path, r]));
 
     // Scorer produces NEW scores for the 3 in-scope files only. The
@@ -103,7 +86,6 @@ describe('refreshBaseline — out-of-scope row preservation (Task #2209, AC-4)',
       kind: 'maintainability',
       writePath,
       scopeFiles: inScope,
-      generatedAt: FIXED_NOW,
       scorer: makeScorer(freshRows),
     });
 
@@ -138,12 +120,11 @@ describe('refreshBaseline — out-of-scope row preservation (Task #2209, AC-4)',
     // the prior on its own. This is the explicit guarantee that ends
     // finalize-introduces-unrelated-rows.
     const writePath = path.join(workDir, 'baselines', 'maintainability.json');
-    seedPriorBaseline(writePath, TEN_ROW_PRIOR_ROWS, FIXED_PRIOR);
+    seedPriorBaseline(writePath, TEN_ROW_PRIOR_ROWS);
     await refreshBaseline({
       kind: 'maintainability',
       writePath,
       scopeFiles: ['src/a.js'],
-      generatedAt: FIXED_NOW,
       scorer: makeScorer([{ path: 'src/a.js', mi: 100 }]),
     });
     const parsed = JSON.parse(readFileSync(writePath, 'utf8'));
@@ -164,14 +145,14 @@ describe('refreshBaseline — out-of-scope row preservation (Task #2209, AC-4)',
     ]);
   });
 
-  it('AC: when no in-scope row changed value, the envelope generatedAt is preserved byte-for-byte', async () => {
+  it('AC: when no in-scope row changed value, the file is preserved byte-for-byte', async () => {
     // Proxy for "out-of-scope updatedAt fields are unchanged": when the
-    // structurally-equivalent rows + rollup produce the same envelope,
-    // the writer's structural-equality short-circuit MUST return the
-    // prior envelope unchanged (same `generatedAt`, same on-disk bytes).
+    // refreshed rows are structurally equal to the prior's, the writer's
+    // structural-equality short-circuit MUST return the prior envelope
+    // unchanged and the service MUST skip the write (same on-disk bytes).
     const writePath = path.join(workDir, 'baselines', 'maintainability.json');
     const priorBytes = (() => {
-      seedPriorBaseline(writePath, TEN_ROW_PRIOR_ROWS, FIXED_PRIOR);
+      seedPriorBaseline(writePath, TEN_ROW_PRIOR_ROWS);
       return readFileSync(writePath);
     })();
 
@@ -179,7 +160,6 @@ describe('refreshBaseline — out-of-scope row preservation (Task #2209, AC-4)',
       kind: 'maintainability',
       writePath,
       scopeFiles: ['src/a.js'],
-      generatedAt: FIXED_NOW, // fresh timestamp — must be ignored on no-op
       scorer: makeScorer([{ path: 'src/a.js', mi: 50 }]), // same as prior
     });
 
@@ -187,23 +167,22 @@ describe('refreshBaseline — out-of-scope row preservation (Task #2209, AC-4)',
     assert.equal(
       afterBytes.equals(priorBytes),
       true,
-      'no-op refresh must preserve the prior envelope bytes (including generatedAt)',
+      'no-op refresh must preserve the prior envelope bytes',
     );
     assert.equal(result.wrote, false);
-    assert.equal(result.envelope.generatedAt, FIXED_PRIOR);
+    assert.deepEqual(result.envelope, JSON.parse(priorBytes.toString('utf8')));
   });
 
   it('explicit empty scope: no rows are re-scored; the entire prior is preserved verbatim', async () => {
     const writePath = path.join(workDir, 'baselines', 'maintainability.json');
     const priorBytes = (() => {
-      seedPriorBaseline(writePath, TEN_ROW_PRIOR_ROWS, FIXED_PRIOR);
+      seedPriorBaseline(writePath, TEN_ROW_PRIOR_ROWS);
       return readFileSync(writePath);
     })();
     const result = await refreshBaseline({
       kind: 'maintainability',
       writePath,
       scopeFiles: [],
-      generatedAt: FIXED_NOW,
       scorer: makeScorer([]),
     });
     assert.equal(result.wrote, false);
@@ -214,12 +193,11 @@ describe('refreshBaseline — out-of-scope row preservation (Task #2209, AC-4)',
     // The contract is explicit: fullScope=true regenerates everything.
     // Out-of-scope preservation only applies in diff / explicit scope.
     const writePath = path.join(workDir, 'baselines', 'maintainability.json');
-    seedPriorBaseline(writePath, TEN_ROW_PRIOR_ROWS, FIXED_PRIOR);
+    seedPriorBaseline(writePath, TEN_ROW_PRIOR_ROWS);
     await refreshBaseline({
       kind: 'maintainability',
       writePath,
       fullScope: true,
-      generatedAt: FIXED_NOW,
       scorer: makeScorer([{ path: 'src/only-this-one.js', mi: 42 }]),
     });
     const parsed = JSON.parse(readFileSync(writePath, 'utf8'));
@@ -233,11 +211,7 @@ describe('refreshBaseline — out-of-scope row preservation (Task #2209, AC-4)',
     // service feeds gitDiff-derived files into the scope and the writer
     // merges them with the prior.
     const writePath = path.join(workDir, 'baselines', 'maintainability.json');
-    const priorEnvelope = seedPriorBaseline(
-      writePath,
-      TEN_ROW_PRIOR_ROWS,
-      FIXED_PRIOR,
-    );
+    const priorEnvelope = seedPriorBaseline(writePath, TEN_ROW_PRIOR_ROWS);
     const priorByPath = new Map(priorEnvelope.rows.map((r) => [r.path, r]));
 
     await refreshBaseline({
@@ -247,7 +221,6 @@ describe('refreshBaseline — out-of-scope row preservation (Task #2209, AC-4)',
       fullScope: false,
       baseRef: 'origin/main',
       headRef: 'HEAD',
-      generatedAt: FIXED_NOW,
       gitDiff: async () => ['src/a.js'], // only src/a.js diffed
       scorer: makeScorer([{ path: 'src/a.js', mi: 99 }]),
     });
@@ -299,14 +272,10 @@ describe('refreshBaseline — scoped refresh includes new files (Story #3695)', 
   it('AC-1 (explicit scope, maintainability): a new file in scope lands in the baseline; out-of-scope rows untouched', async () => {
     const writePath = path.join(workDir, 'baselines', 'maintainability.json');
     // Prior has one existing in-scope file and one out-of-scope file.
-    const priorEnvelope = seedPriorBaseline(
-      writePath,
-      [
-        { path: 'src/existing.js', mi: 50 },
-        { path: 'src/untouched.js', mi: 72 },
-      ],
-      FIXED_PRIOR,
-    );
+    const priorEnvelope = seedPriorBaseline(writePath, [
+      { path: 'src/existing.js', mi: 50 },
+      { path: 'src/untouched.js', mi: 72 },
+    ]);
     const priorByPath = new Map(priorEnvelope.rows.map((r) => [r.path, r]));
 
     // Scope = [existing.js, brandNew.js]; the scorer scores both, but
@@ -315,7 +284,6 @@ describe('refreshBaseline — scoped refresh includes new files (Story #3695)', 
       kind: 'maintainability',
       writePath,
       scopeFiles: ['src/existing.js', 'src/brandNew.js'],
-      generatedAt: FIXED_NOW,
       scorer: makeScorer([
         { path: 'src/existing.js', mi: 61 },
         { path: 'src/brandNew.js', mi: 83 },
@@ -350,7 +318,6 @@ describe('refreshBaseline — scoped refresh includes new files (Story #3695)', 
           { path: 'src/existing.js', method: 'f', startLine: 1, crap: 5 },
           { path: 'src/untouched.js', method: 'g', startLine: 9, crap: 7 },
         ],
-        generatedAt: FIXED_PRIOR,
       });
       writeEnvelopeFile(writePath, env);
       return env;
@@ -366,7 +333,6 @@ describe('refreshBaseline — scoped refresh includes new files (Story #3695)', 
       kind: 'crap',
       writePath,
       scopeFiles: ['src/existing.js', 'src/brandNew.js'],
-      generatedAt: FIXED_NOW,
       scorer: makeScorer([
         { path: 'src/existing.js', method: 'f', startLine: 1, crap: 6 },
         { path: 'src/brandNew.js', method: 'h', startLine: 3, crap: 8 },
@@ -396,14 +362,10 @@ describe('refreshBaseline — scoped refresh includes new files (Story #3695)', 
     // worktree-prefixed scope entry, AND the existing file kept its STALE
     // prior score because the in-scope regen row was discarded.
     const writePath = path.join(workDir, 'baselines', 'maintainability.json');
-    const priorEnvelope = seedPriorBaseline(
-      writePath,
-      [
-        { path: 'src/existing.js', mi: 50 },
-        { path: 'src/untouched.js', mi: 88 },
-      ],
-      FIXED_PRIOR,
-    );
+    const priorEnvelope = seedPriorBaseline(writePath, [
+      { path: 'src/existing.js', mi: 50 },
+      { path: 'src/untouched.js', mi: 88 },
+    ]);
     const priorByPath = new Map(priorEnvelope.rows.map((r) => [r.path, r]));
 
     await refreshBaseline({
@@ -413,7 +375,6 @@ describe('refreshBaseline — scoped refresh includes new files (Story #3695)', 
       fullScope: false,
       baseRef: 'origin/main',
       headRef: 'HEAD',
-      generatedAt: FIXED_NOW,
       gitDiff: async () => [
         '.worktrees/story-3695/src/existing.js',
         '.worktrees/story-3695/src/brandNew.js',
@@ -487,7 +448,6 @@ describe('refreshBaseline — an in-scope file is re-scored, not preserved (#496
         { path: 'src/edited.js', method: 'host', startLine: 8, crap: 3 },
         { path: 'src/untouched.js', method: 'stable', startLine: 2, crap: 1 },
       ],
-      FIXED_PRIOR,
       'crap',
     );
     const priorByKey = new Map(
@@ -498,7 +458,6 @@ describe('refreshBaseline — an in-scope file is re-scored, not preserved (#496
       kind: 'crap',
       writePath,
       scopeFiles: ['src/edited.js'],
-      generatedAt: FIXED_NOW,
       scorer: makeScorer([
         {
           path: 'src/edited.js',

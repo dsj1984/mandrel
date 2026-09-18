@@ -43,17 +43,24 @@ function writeJson(p, value) {
   writeFileSync(p, JSON.stringify(value, null, 2));
 }
 
-function coverageEnvelope({ rollup, rows } = {}) {
+// The floor check reads the rollup derived from `rows`; the default single
+// row clears the 90/85/90 floors.
+const HEALTHY_ROW = {
+  path: 'src/a.js',
+  lines: 95,
+  branches: 92,
+  functions: 95,
+};
+
+function coverageEnvelope({ rows } = {}) {
   return {
     $schema: 'coverage.schema.json',
     kernelVersion: currentKernelVersion('coverage'),
-    generatedAt: '2026-01-01T00:00:00.000Z',
-    rollup: rollup ?? { '*': { lines: 95, branches: 92, functions: 95 } },
-    rows: rows ?? [],
+    rows: rows ?? [HEALTHY_ROW],
   };
 }
 
-function setupTmpRepo({ coverageRollup } = {}) {
+function setupTmpRepo({ coverageRows } = {}) {
   const root = makeTempDir('check-baselines-pipeline-');
   mkdirSync(path.join(root, 'baselines'), { recursive: true });
   const agentrc = {
@@ -80,7 +87,7 @@ function setupTmpRepo({ coverageRollup } = {}) {
   writeJson(path.join(root, '.agentrc.json'), agentrc);
   writeJson(
     path.join(root, 'baselines', 'coverage.json'),
-    coverageEnvelope({ rollup: coverageRollup }),
+    coverageEnvelope({ rows: coverageRows }),
   );
   return root;
 }
@@ -109,7 +116,9 @@ describe('check-baselines-pipeline — byte-identical surface (Story #2466)', ()
 
   it('FAIL (floor breach) fixture: exit code 1, breach surfaced with full tuple', async () => {
     root = setupTmpRepo({
-      coverageRollup: { '*': { lines: 80, branches: 75, functions: 80 } },
+      coverageRows: [
+        { path: 'src/a.js', lines: 80, branches: 75, functions: 80 },
+      ],
     });
     const res = await runCheckBaselines({
       argv: ['--no-friction'],

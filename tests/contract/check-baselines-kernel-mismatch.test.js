@@ -44,13 +44,13 @@ function writeJson(p, value) {
   writeFileSync(p, JSON.stringify(value, null, 2));
 }
 
-function coverageEnvelope({ kernelVersion, rollup, rows } = {}) {
+// One floor-clean row: the rows-derived rollup (95/92/95) meets the floors,
+// and head and base carry the same row, so no regression is possible.
+function coverageEnvelope({ kernelVersion } = {}) {
   return {
     $schema: 'coverage.schema.json',
     kernelVersion: kernelVersion ?? currentKernelVersion('coverage'),
-    generatedAt: '2026-01-01T00:00:00.000Z',
-    rollup: rollup ?? { '*': { lines: 95, branches: 92, functions: 95 } },
-    rows: rows ?? [],
+    rows: [{ path: 'src/a.js', lines: 95, branches: 92, functions: 95 }],
   };
 }
 
@@ -139,7 +139,7 @@ describe('check-baselines (binary spawn) — kernel-mismatch contract', () => {
 
   it('emits friction (kernel drift) and exits non-failing (0) when head kernel mismatches', () => {
     // Overwrite working-tree baseline with a mismatched kernelVersion.
-    // Floor is met and rows are absent, so the only friction surface
+    // Floor is met and rows match the base, so the only friction surface
     // available is the kernel-mismatch event.
     writeJson(
       path.join(root, 'baselines', 'coverage.json'),

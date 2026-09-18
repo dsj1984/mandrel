@@ -26,7 +26,7 @@
  *   2. Behaviourally — driving `refreshBaseline` exactly the way the CLI now
  *      does (kind: 'maintainability', NO injected scorer, diff scope) excludes
  *      an `ignoreGlobs`-listed changed file from `envelope.rows` and from
- *      `rollup["*"].min`.
+ *      the `rollup["*"].min` derived from them.
  */
 
 import assert from 'node:assert/strict';
@@ -41,6 +41,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { rollupOfRows } from '../../.agents/scripts/lib/audit-baselines/rollup.js';
 import { refreshBaseline } from '../../.agents/scripts/lib/baselines/refresh-service.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -52,8 +53,6 @@ const CLI_PATH = path.join(
   'update-maintainability-baseline.js',
 );
 const TEMP_ROOT = path.join(REPO_ROOT, 'temp');
-
-const FIXED = '2026-06-24T00:00:00Z';
 
 // A small, clean function — high maintainability index (~160).
 const KEPT_SOURCE = 'export function add(a, b) {\n  return a + b;\n}\n';
@@ -180,7 +179,6 @@ describe('refreshBaseline (CLI invocation shape) — diff-scope honours ignoreGl
       writePath,
       cwd: projectDir,
       gitDiff,
-      generatedAt: FIXED,
     });
 
     // Sanity: the scope resolved as a diff, so the diff-scope branch ran.
@@ -205,8 +203,9 @@ describe('refreshBaseline (CLI invocation shape) — diff-scope honours ignoreGl
 
     // Contract 2 — the ignored file must NOT drive the rollup min. Its MI is
     // well below the kept file's; if it leaked, min would drop and breach the
-    // floor (the seed.mjs min:70 breach).
-    const min = result.envelope.rollup['*'].min;
+    // floor (the seed.mjs min:70 breach). The envelope carries no rollup
+    // (Story #5400); the floor is checked against the one derived from rows.
+    const { min } = rollupOfRows('maintainability', result.envelope.rows);
     assert.ok(
       min > 100,
       `rollup["*"].min is ${min}; the ignored low-MI file poisoned the rollup min`,

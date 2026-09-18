@@ -5,9 +5,8 @@
  * Acceptance:
  *   - Two sequential invocations against the same fixture produce
  *     byte-identical output.
- *   - The on-disk envelope contains no ISO-8601 timestamp not present in
- *     the pinned fixture (i.e. no clock-derived `generatedAt` smuggled in
- *     by the writer).
+ *   - The on-disk envelope contains no ISO-8601 timestamp at all (no
+ *     clock-derived stamp smuggled in by the writer — Story #5400).
  *   - Iteration order of the rows in the resulting envelope is stable
  *     across runs, regardless of the scorer's insertion order.
  *
@@ -27,8 +26,6 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import { refreshBaseline } from '../../.agents/scripts/lib/baselines/refresh-service.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 
-const FIXED = '2026-05-15T00:00:00Z';
-
 // Cross-platform fixture: same set of files presented with separator /
 // prefix variants that the service is contracted to collapse. The order
 // is intentionally shuffled so any iteration-order leak surfaces as a
@@ -44,8 +41,7 @@ function makeStaticScorer(rows) {
   return (_files, _opts) => rows;
 }
 
-// Match any ISO-8601-ish timestamp that contains a year+T marker. We only
-// reject occurrences that don't match the pinned `FIXED` constant.
+// Any ISO-8601-ish timestamp (year + T marker).
 const ISO_TIMESTAMP_RE = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/g;
 
 describe('refreshBaseline — determinism (Task #2206)', () => {
@@ -67,14 +63,12 @@ describe('refreshBaseline — determinism (Task #2206)', () => {
       kind: 'maintainability',
       writePath: writePathA,
       fullScope: true,
-      generatedAt: FIXED,
       scorer: makeStaticScorer(CROSS_PLATFORM_MI_FIXTURE),
     });
     await refreshBaseline({
       kind: 'maintainability',
       writePath: writePathB,
       fullScope: true,
-      generatedAt: FIXED,
       scorer: makeStaticScorer(CROSS_PLATFORM_MI_FIXTURE),
     });
 
@@ -87,24 +81,16 @@ describe('refreshBaseline — determinism (Task #2206)', () => {
     );
   });
 
-  it('AC: output contains no ISO timestamp not already present in the fixture', async () => {
+  it('AC: output contains no ISO timestamp', async () => {
     const writePath = path.join(workDir, 'maintainability.json');
     await refreshBaseline({
       kind: 'maintainability',
       writePath,
       fullScope: true,
-      generatedAt: FIXED,
       scorer: makeStaticScorer(CROSS_PLATFORM_MI_FIXTURE),
     });
     const raw = readFileSync(writePath, 'utf8');
-    const found = raw.match(ISO_TIMESTAMP_RE) ?? [];
-    for (const ts of found) {
-      assert.equal(
-        ts,
-        FIXED.slice(0, ts.length),
-        `unexpected timestamp "${ts}" leaked into baseline (only the pinned ${FIXED} is allowed)`,
-      );
-    }
+    assert.deepEqual(raw.match(ISO_TIMESTAMP_RE) ?? [], []);
   });
 
   it('row iteration order is stable regardless of scorer insertion order', async () => {
@@ -117,14 +103,12 @@ describe('refreshBaseline — determinism (Task #2206)', () => {
       kind: 'maintainability',
       writePath: writePathA,
       fullScope: true,
-      generatedAt: FIXED,
       scorer: makeStaticScorer(CROSS_PLATFORM_MI_FIXTURE),
     });
     await refreshBaseline({
       kind: 'maintainability',
       writePath: writePathB,
       fullScope: true,
-      generatedAt: FIXED,
       scorer: makeStaticScorer(reversed),
     });
 
@@ -143,7 +127,6 @@ describe('refreshBaseline — determinism (Task #2206)', () => {
       kind: 'maintainability',
       writePath,
       fullScope: true,
-      generatedAt: FIXED,
       scorer: makeStaticScorer(CROSS_PLATFORM_MI_FIXTURE),
     });
     const parsed = JSON.parse(readFileSync(writePath, 'utf8'));
@@ -162,21 +145,18 @@ describe('refreshBaseline — determinism (Task #2206)', () => {
       kind: 'maintainability',
       writePath,
       fullScope: true,
-      generatedAt: FIXED,
       scorer: makeStaticScorer(CROSS_PLATFORM_MI_FIXTURE),
     });
     const firstBytes = readFileSync(writePath);
     const firstMtimeMs = firstBytes.byteLength; // proxy: use byte length to assert no rewrite path-difference
 
-    // A second refresh with the same scorer output and a fresh `generatedAt`
-    // must still produce byte-identical output because the writer's
-    // structural-equality short-circuit returns the prior envelope when
-    // rows + rollup match.
+    // A second refresh with the same scorer output must produce
+    // byte-identical output: the writer's short-circuit returns the prior
+    // envelope when the rows match.
     const result = await refreshBaseline({
       kind: 'maintainability',
       writePath,
       fullScope: true,
-      generatedAt: '2099-12-31T23:59:59Z', // intentionally different — must be ignored
       scorer: makeStaticScorer(CROSS_PLATFORM_MI_FIXTURE),
     });
     const secondBytes = readFileSync(writePath);

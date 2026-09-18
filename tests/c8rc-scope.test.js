@@ -28,6 +28,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { describe, test } from 'node:test';
 
+import { rollup } from '../.agents/scripts/lib/baselines/kinds/coverage.js';
 import { buildScopePredicate } from '../.agents/scripts/lib/coverage-baseline.js';
 
 const require = createRequire(import.meta.url);
@@ -171,17 +172,23 @@ describe('baselines/coverage.json covers exactly the declared scope', () => {
     );
   });
 
-  test('the rollup is the arithmetic mean of the rows it summarises', () => {
-    // The floors are checked against `rollup["*"]`, not against rows. If the
-    // stored rollup drifts from the rows, the gate polices a number nothing
-    // produced.
+  test('the floors police the arithmetic mean of the rows, never a stored rollup', () => {
+    // Story #5400 — a persisted rollup could drift from its rows, and then the
+    // gate policed a number nothing produced. The baseline no longer carries
+    // one; the floors read the kind's rollup derived from the rows.
+    assert.equal(
+      Object.hasOwn(baseline, 'rollup'),
+      false,
+      'baselines/coverage.json must not persist a `rollup` — it is derived',
+    );
+    const derived = rollup(baseline.rows)['*'];
     for (const axis of ['lines', 'branches', 'functions']) {
       const mean =
         baseline.rows.reduce((s, r) => s + (r[axis] ?? 0), 0) /
         baseline.rows.length;
       assert.ok(
-        Math.abs(mean - baseline.rollup['*'][axis]) < 0.02,
-        `rollup["*"].${axis}=${baseline.rollup['*'][axis]} does not match the ` +
+        Math.abs(mean - derived[axis]) < 0.01,
+        `derived rollup["*"].${axis}=${derived[axis]} does not match the ` +
           `row mean ${mean.toFixed(2)}`,
       );
     }

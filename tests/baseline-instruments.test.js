@@ -22,6 +22,8 @@ import path from 'node:path';
 import { describe, test } from 'node:test';
 
 import { buildGateSurface } from '../.agents/scripts/lib/audit-baselines/gate-surface.js';
+import { rollupOfRows } from '../.agents/scripts/lib/audit-baselines/rollup.js';
+import { load } from '../.agents/scripts/lib/baselines/reader.js';
 import {
   getQuality,
   resolveConfig,
@@ -98,11 +100,13 @@ describe('baselines/duplication.json is a live measurement', () => {
     );
   });
 
-  test('the rollup counts exactly the rows it summarises', () => {
+  test('the file carries no rollup that could disagree with its rows', () => {
+    // Story #5400: the rollup the floor is checked against is derived from the
+    // rows on read, so a committed copy could only ever go stale.
+    assert.equal(Object.hasOwn(baseline, 'rollup'), false);
     assert.equal(
-      baseline.rollup['*'].filesWithDuplication,
+      rollupOfRows('duplication', baseline.rows).filesWithDuplication,
       baseline.rows.length,
-      'the rollup the floor is checked against must describe the rows on disk',
     );
   });
 });
@@ -160,13 +164,10 @@ describe('baselines/maintainability.json covers the declared scope', () => {
 });
 
 describe('the committed floors are tightened to the measured levels', () => {
+  // The committed files carry no rollup (Story #5400); derive the one the
+  // floors gate compares against from the rows the reader loads.
   const readRollup = (kind) =>
-    JSON.parse(
-      fs.readFileSync(
-        path.join(REPO_ROOT, 'baselines', `${kind}.json`),
-        'utf8',
-      ),
-    ).rollup['*'];
+    rollupOfRows(kind, load(kind, { cwd: REPO_ROOT }).rows);
 
   test('the crap methodsAbove20 floor is at the measured count', () => {
     assert.equal(

@@ -1,8 +1,10 @@
 // tests/baselines/reader.test.js
 //
 // Story #1892 / Task #1903 — covers the shared baseline reader (load,
-// loadFile, schema-validation, defensive canonicalisation, default
-// rollup fallback for the '*' key).
+// loadFile, schema-validation, defensive canonicalisation). Story #5400:
+// the loaded envelope carries neither `generatedAt` nor `rollup` — the
+// committed file has neither, and the floors phase derives the rollup from
+// the rows itself.
 
 import assert from 'node:assert/strict';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -24,29 +26,17 @@ function envelope(kind, overrides = {}) {
   const base = {
     $schema: `${kind}.schema.json`,
     kernelVersion: '1.0.0',
-    generatedAt: '2026-01-01T00:00:00.000Z',
-    rollup: { '*': defaultRollupFor(kind) },
     rows: [],
   };
   return { ...base, ...overrides };
 }
 
-function defaultRollupFor(kind) {
-  switch (kind) {
-    case 'coverage':
-      return { lines: 80, branches: 70, functions: 90 };
-    case 'crap':
-      return { p50: 1, p95: 5, max: 10, methodsAbove20: 0 };
-    case 'maintainability':
-      return { min: 50, p50: 80, p95: 95 };
-    case 'mutation':
-      return { score: 80, killed: 100, survived: 25, noCoverage: 0 };
-    case 'bundle-size':
-      return { totalKb: 100, gzippedKb: 30 };
-    default:
-      throw new Error(`unknown kind ${kind}`);
-  }
-}
+const COVERAGE_ROW = {
+  path: 'src/a.js',
+  lines: 80,
+  branches: 70,
+  functions: 90,
+};
 
 describe('baselines/reader — canonicaliseRowPath', () => {
   it('strips a .worktrees/<name>/ prefix', () => {
@@ -82,13 +72,14 @@ describe('baselines/reader — loadFile', () => {
     rmSync(tmp, { recursive: true, force: true });
   });
 
-  it("returns rollup containing '*' (default fallback path: coverage)", () => {
+  it('returns rows and kernelVersion with no rollup or generatedAt key', () => {
     const file = path.join(tmp, 'coverage.json');
-    writeJson(file, envelope('coverage'));
+    writeJson(file, envelope('coverage', { rows: [COVERAGE_ROW] }));
     const out = loadFile(file);
-    assert.ok(out.rollup);
-    assert.ok(out.rollup['*']);
-    assert.equal(out.rollup['*'].lines, 80);
+    assert.deepEqual(out.rows, [COVERAGE_ROW]);
+    assert.equal(out.kernelVersion, '1.0.0');
+    assert.equal(Object.hasOwn(out, 'rollup'), false);
+    assert.equal(Object.hasOwn(out, 'generatedAt'), false);
   });
 
   it('canonicalises .worktrees/<name>/ prefixes in row paths', () => {
@@ -114,9 +105,7 @@ describe('baselines/reader — loadFile', () => {
     writeJson(file, {
       $schema: 'coverage.schema.json',
       kernelVersion: '1.0.0',
-      generatedAt: '2026-01-01T00:00:00.000Z',
-      rollup: { '*': { lines: 'not-a-number', branches: 70, functions: 90 } },
-      rows: [],
+      rows: [{ ...COVERAGE_ROW, lines: 'not-a-number' }],
     });
     assert.throws(() => loadFile(file), /schema validation failed/);
   });
@@ -152,9 +141,15 @@ describe('baselines/reader — loadFile', () => {
     // permits an explicit `opts.kind` to override the inference path (e.g.
     // when a caller already knows the kind via context).
     const file = path.join(tmp, 'override.json');
-    writeJson(file, envelope('mutation', { $schema: 'unknown.schema.json' }));
+    writeJson(
+      file,
+      envelope('mutation', {
+        $schema: 'unknown.schema.json',
+        rows: [{ path: 'src/a.js', score: 80, killed: 8, survived: 2 }],
+      }),
+    );
     const out = loadFile(file, { kind: 'mutation' });
-    assert.equal(out.rollup['*'].score, 80);
+    assert.equal(out.rows[0].score, 80);
   });
 
   it('throws when kind cannot be inferred and no override is provided', () => {
@@ -178,14 +173,33 @@ describe('baselines/reader — load (config-driven)', () => {
     rmSync(tmp, { recursive: true, force: true });
   });
 
-  it("load('coverage') returns rollup['*'] when components is unset", () => {
+  it("load('coverage') reads the default-path baseline without a rollup", () => {
     // Stage the default-path baseline under cwd/baselines/coverage.json.
     const dir = path.join(tmp, 'baselines');
     mkdirSync(dir, { recursive: true });
-    writeJson(path.join(dir, 'coverage.json'), envelope('coverage'));
+    writeJson(
+      path.join(dir, 'coverage.json'),
+      envelope('coverage', { rows: [COVERAGE_ROW] }),
+    );
     const out = load('coverage', { cwd: tmp });
-    assert.ok(out.rollup['*']);
-    assert.equal(out.rollup['*'].lines, 80);
+    assert.deepEqual(out.rows, [COVERAGE_ROW]);
+    assert.equal(Object.hasOwn(out, 'rollup'), false);
+    assert.equal(Object.hasOwn(out, 'generatedAt'), false);
+  });
+
+  it('rejects a committed file that still carries a retired rollup', () => {
+    const dir = path.join(tmp, 'baselines');
+    mkdirSync(dir, { recursive: true });
+    writeJson(
+      path.join(dir, 'coverage.json'),
+      envelope('coverage', {
+        rollup: { '*': { lines: 80, branches: 70, functions: 90 } },
+      }),
+    );
+    assert.throws(
+      () => load('coverage', { cwd: tmp }),
+      /schema validation failed/,
+    );
   });
 
   it('rejects unknown kinds', () => {

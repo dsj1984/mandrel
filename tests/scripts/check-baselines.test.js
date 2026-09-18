@@ -27,13 +27,14 @@ function writeJson(p, value) {
   writeFileSync(p, JSON.stringify(value, null, 2));
 }
 
-function coverageEnvelope({ rollup, kernelVersion } = {}) {
+// The floor check reads the rollup the reader derives from `rows`, so the
+// row's values ARE the `*` aggregate under test. The default clears the
+// 90/85/90 floors.
+function coverageEnvelope({ row, kernelVersion } = {}) {
   return {
     $schema: 'coverage.schema.json',
     kernelVersion: kernelVersion ?? currentKernelVersion('coverage'),
-    generatedAt: '2026-01-01T00:00:00.000Z',
-    rollup: rollup ?? { '*': { lines: 95, branches: 92, functions: 95 } },
-    rows: [],
+    rows: [row ?? { path: 'src/a.js', lines: 95, branches: 92, functions: 95 }],
   };
 }
 
@@ -221,7 +222,7 @@ describe('check-baselines — integration (pass / floor-breach / schema-error / 
     writeJson(
       path.join(root, 'baselines', 'coverage.json'),
       coverageEnvelope({
-        rollup: { '*': { lines: 50, branches: 50, functions: 50 } },
+        row: { path: 'src/a.js', lines: 50, branches: 50, functions: 50 },
       }),
     );
     const res = await runCheckBaselines({
@@ -247,7 +248,7 @@ describe('check-baselines — integration (pass / floor-breach / schema-error / 
     writeJson(
       path.join(root, 'baselines', 'coverage.json'),
       coverageEnvelope({
-        rollup: { '*': { lines: 50, branches: 50, functions: 50 } },
+        row: { path: 'src/a.js', lines: 50, branches: 50, functions: 50 },
       }),
     );
     const res = await runCheckBaselines({
@@ -259,7 +260,7 @@ describe('check-baselines — integration (pass / floor-breach / schema-error / 
   });
 
   it('Story #2125: framework defaults pass when rollup clears them', async () => {
-    // Same setup but rollup is comfortably above the framework default.
+    // Same setup but the derived rollup is comfortably above the default.
     root = setupTmpRepo({
       coverageGate: {
         enabled: true,
@@ -271,7 +272,7 @@ describe('check-baselines — integration (pass / floor-breach / schema-error / 
     writeJson(
       path.join(root, 'baselines', 'coverage.json'),
       coverageEnvelope({
-        rollup: { '*': { lines: 95, branches: 92, functions: 95 } },
+        row: { path: 'src/a.js', lines: 95, branches: 92, functions: 95 },
       }),
     );
     const res = await runCheckBaselines({
@@ -353,7 +354,6 @@ describe('check-baselines — formatReport', () => {
           floors: { '*': { lines: 90 } },
           components: [{ component: '*', violations: [] }],
           breachCount: 0,
-          generatedAt: '2026-01-01T00:00:00.000Z',
         },
       ],
       totalBreaches: 0,

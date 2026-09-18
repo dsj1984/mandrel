@@ -3,22 +3,18 @@
  * Story #5012 — the measurement-free orphan pruner.
  *
  * The pruner is the remedy that makes the scope gate's hard failure fair, so
- * what it MUST NOT do is as load-bearing as what it does. Three prohibitions
+ * what it MUST NOT do is as load-bearing as what it does. Two prohibitions
  * are pinned below, each guarding a way a pruned file could start lying:
  *
  *  - **Never add a row.** Adding one claims a measurement nobody took.
- *  - **Never restamp `generatedAt`.** A fresh stamp over rows nobody
- *    re-measured is the exact failure an age check exists to catch — the
- *    envelope would claim to describe today's tree on the strength of a
- *    deletion.
  *  - **Never delete a row it cannot prove inert.** Only two classes qualify:
  *    the file is absent from disk, or it has left the gate's own scope.
  *
- * Plus the two failure modes: a pruned envelope must stay schema-valid with a
- * rollup recomputed by the kind's own arithmetic (a hand-rolled formula here
- * would let rows and rollup describe different trees), and an unreadable scope
- * config must degrade to orphan-only rather than reading unknown scope as
- * empty scope — which would hand the pruner the entire baseline.
+ * Plus the two failure modes: a pruned envelope must stay schema-valid with
+ * only `rows` changed (the committed shape carries no rollup — readers derive
+ * it from the surviving rows, Story #5400), and an unreadable scope config
+ * must degrade to orphan-only rather than reading unknown scope as empty
+ * scope — which would hand the pruner the entire baseline.
  */
 
 import assert from 'node:assert/strict';
@@ -27,7 +23,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test, { after, describe } from 'node:test';
 import { fileURLToPath } from 'node:url';
-
+import { rollupOfRows } from '../../../.agents/scripts/lib/audit-baselines/rollup.js';
 import { currentKernelVersion } from '../../../.agents/scripts/lib/baselines/kernel.js';
 import { load } from '../../../.agents/scripts/lib/baselines/reader.js';
 import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
@@ -44,7 +40,6 @@ const CLI = fileURLToPath(
 );
 
 const TMP = fs.realpathSync(makeTempDir('orphan-pruner-'));
-const STAMP = '2026-01-01T00:00:00.000Z';
 
 after(() => {
   fs.rmSync(TMP, { recursive: true, force: true });
@@ -79,8 +74,6 @@ function fixture({ withAgentrc = true } = {}) {
       {
         $schema: '.agents/schemas/baselines/maintainability.schema.json',
         kernelVersion: currentKernelVersion('maintainability'),
-        generatedAt: STAMP,
-        rollup: { '*': { min: 10, p50: 20, p95: 30 } },
         rows: [
           { path: 'src/deleted.js', mi: 10 },
           { path: 'src/ignored.js', mi: 20 },
@@ -215,26 +208,37 @@ describe('runPrune — the file on disk (AC-7, AC-8)', () => {
     assert.deepEqual(after.rows, [{ path: 'src/kept.js', mi: 90 }]);
   });
 
-  test('generatedAt is carried through unchanged (AC-7)', () => {
+  test('only rows change — the pruned file gains no stamp and no rollup (AC-7)', () => {
     const { root, baselinePath } = fixture();
-
-    runPrune({ cwd: root, kinds: ['maintainability'], quality: QUALITY });
-
-    // A fresh stamp over rows nobody re-measured is the precise failure an
-    // age check exists to catch, so the prune must be invisible to it.
-    assert.equal(readJson(baselinePath).generatedAt, STAMP);
-  });
-
-  test('the rollup is recomputed by the kind kernel, not left stale (AC-8)', () => {
-    const { root, baselinePath } = fixture();
+    const before = readJson(baselinePath);
 
     runPrune({ cwd: root, kinds: ['maintainability'], quality: QUALITY });
     const after = readJson(baselinePath);
 
-    // The pre-prune rollup was min 10 — the MI of the row that just went away.
-    // Leaving it would let the file's floor be defended by a deleted file.
-    assert.equal(after.rollup['*'].min, 90);
-    assert.notEqual(after.rollup['*'].min, 10);
+    // A stamp over rows nobody re-measured would claim the file describes
+    // today's tree on the strength of a deletion; the committed shape carries
+    // neither a stamp nor a rollup, and the prune must not reintroduce one.
+    assert.deepEqual(Object.keys(after), Object.keys(before));
+    assert.equal(after.$schema, before.$schema);
+    assert.equal(after.kernelVersion, before.kernelVersion);
+    assert.equal(Object.hasOwn(after, 'generatedAt'), false);
+    assert.equal(Object.hasOwn(after, 'rollup'), false);
+  });
+
+  test('the derived rollup reflects only the surviving rows (AC-8)', () => {
+    const { root } = fixture();
+    const minOf = () =>
+      rollupOfRows(
+        'maintainability',
+        load('maintainability', { cwd: root }).rows,
+      ).min;
+    assert.equal(minOf(), 10);
+
+    runPrune({ cwd: root, kinds: ['maintainability'], quality: QUALITY });
+
+    // Pre-prune the min was 10 — the MI of the row that just went away. A
+    // floor must never be defended by a deleted file.
+    assert.equal(minOf(), 90);
   });
 
   test('a pruned baseline still loads through reader#load (AC-8)', () => {
@@ -247,7 +251,6 @@ describe('runPrune — the file on disk (AC-7, AC-8)', () => {
       loaded.rows.map((row) => row.path),
       ['src/kept.js'],
     );
-    assert.equal(loaded.generatedAt, STAMP);
   });
 
   test('a clean baseline is left byte-identical', () => {
@@ -357,36 +360,40 @@ describe('runPrune — degradation and --check (AC-9)', () => {
   });
 });
 
-describe('pruneEnvelope — refusals (AC-8)', () => {
-  test('refuses a rollup carrying component buckets rather than dropping them', () => {
+describe('pruneEnvelope (AC-8)', () => {
+  test('changes only rows, carrying every other key through verbatim', () => {
+    const envelope = {
+      $schema: '.agents/schemas/baselines/maintainability.schema.json',
+      kernelVersion: '1.2.3',
+      rows: [
+        { path: 'src/deleted.js', mi: 1 },
+        { path: 'src/kept.js', mi: 2 },
+      ],
+    };
+
     const result = pruneEnvelope({
-      kind: 'maintainability',
-      envelope: {
-        rollup: { '*': { min: 1, p50: 1, p95: 1 }, app: { min: 1 } },
-        rows: [{ path: 'src/deleted.js', mi: 1 }],
-      },
-      inventory: { files: [] },
-      existsOnDisk: () => false,
+      envelope,
+      inventory: { files: ['src/kept.js', 'src/deleted.js'] },
+      existsOnDisk: (file) => file !== 'src/deleted.js',
     });
 
-    assert.equal(result.skipped, true);
-    assert.equal(result.envelope, null);
-    assert.match(result.reason, /component buckets/);
+    assert.deepEqual(result, {
+      envelope: {
+        $schema: envelope.$schema,
+        kernelVersion: '1.2.3',
+        rows: [{ path: 'src/kept.js', mi: 2 }],
+      },
+      removed: [{ path: 'src/deleted.js', reason: EXTRA_REASONS.ABSENT }],
+    });
   });
 
   test('returns no envelope when nothing is prunable, so nothing is rewritten', () => {
     const result = pruneEnvelope({
-      kind: 'maintainability',
-      envelope: {
-        rollup: { '*': { min: 1, p50: 1, p95: 1 } },
-        rows: [{ path: 'src/kept.js', mi: 1 }],
-      },
+      envelope: { rows: [{ path: 'src/kept.js', mi: 1 }] },
       inventory: { files: ['src/kept.js'] },
       existsOnDisk: () => true,
     });
 
-    assert.equal(result.skipped, false);
-    assert.equal(result.envelope, null);
-    assert.deepEqual(result.removed, []);
+    assert.deepEqual(result, { envelope: null, removed: [] });
   });
 });

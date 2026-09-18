@@ -31,8 +31,6 @@ function maintainabilityEnvelope({ min }) {
   return {
     $schema: 'maintainability.schema.json',
     kernelVersion: currentKernelVersion('maintainability'),
-    generatedAt: '2026-01-01T00:00:00.000Z',
-    rollup: { '*': { min, p50: 88, p95: 95 } },
     rows: [{ path: 'src/example.js', mi: min }],
   };
 }

@@ -11,14 +11,13 @@ import { write } from '../../.agents/scripts/lib/baselines/writer.js';
  * stabilized under Story #2017.
  *
  * Lock in that re-running the shared writer on the shipped baselines is a
- * structural no-op (modulo the timestamp, which the writer stamps from the
- * input).
+ * structural no-op.
  *
  * Contract:
  *   1. Every shipped baseline parses, schema-validates, and round-trips
- *      through the writer to a STRUCTURALLY identical envelope when the
- *      original `generatedAt` is pinned. "Structural" intentionally
- *      ignores object key insertion order in the JSON: prior baselines on
+ *      through the writer to a STRUCTURALLY identical envelope.
+ *      "Structural" intentionally ignores object key insertion order in
+ *      the JSON: prior baselines on
  *      disk may have rows in the legacy `{ path, crap, method, startLine }`
  *      key order while the writer's `projectRow` emits the canonical
  *      `{ path, method, startLine, crap }` order, and the
@@ -31,7 +30,9 @@ import { write } from '../../.agents/scripts/lib/baselines/writer.js';
  *      backslash separator — the canonicaliser must have already done
  *      its job.
  *   3. crap.json rows key on `path` (not the legacy `file`).
- *   4. The `*` rollup matches the per-kind rollup applied to the rows.
+ *   4. No shipped baseline carries a `generatedAt` stamp or a `rollup`
+ *      (Story #5400): both rewrote on every refresh, so disjoint refreshes
+ *      conflicted wherever the merge driver does not run.
  *
  * These assertions fail if (a) a shipped baseline contains a
  * non-canonical path or (b) a future writer change makes the same input
@@ -90,20 +91,25 @@ describe('shipped baselines — writer-idempotent and canonical', () => {
         }
       });
 
-      it('round-trips through the writer structurally (generatedAt pinned)', () => {
+      it('carries no generatedAt stamp and no rollup', () => {
+        const { parsed } = loadShipped(file);
+        assert.equal(Object.hasOwn(parsed, 'generatedAt'), false);
+        assert.equal(Object.hasOwn(parsed, 'rollup'), false);
+      });
+
+      it('round-trips through the writer structurally', () => {
         const { parsed } = loadShipped(file);
         const rebuilt = write({
           kind,
           rows: parsed.rows ?? [],
           kernelVersion: parsed.kernelVersion,
-          generatedAt: parsed.generatedAt,
         });
         // `deepStrictEqual` compares own-key sets and values, not key
         // insertion order. That's exactly what we want: the writer must
-        // emit the same envelope shape, same rows, and same rollup that
-        // ships on disk, but it is allowed to reorder object keys (which
-        // both `projectRow` and the prior-row preservation paths in
-        // `applyEpsilon` / `mergeRowsByScope` legitimately do).
+        // emit the same envelope shape and the same rows that ship on disk,
+        // but it is allowed to reorder object keys (which both `projectRow`
+        // and the prior-row preservation paths in `applyEpsilon` /
+        // `mergeRowsByScope` legitimately do).
         assert.deepStrictEqual(
           rebuilt,
           parsed,

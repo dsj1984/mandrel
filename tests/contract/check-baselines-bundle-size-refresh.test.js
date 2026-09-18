@@ -43,12 +43,10 @@ function writeJson(p, value) {
   writeFileSync(p, JSON.stringify(value, null, 2));
 }
 
-function bundleSizeEnvelope({ rollup, rows } = {}) {
+function bundleSizeEnvelope({ rows } = {}) {
   return {
     $schema: 'bundle-size.schema.json',
     kernelVersion: currentKernelVersion('bundle-size'),
-    generatedAt: '2026-01-01T00:00:00.000Z',
-    rollup: rollup ?? { '*': { totalKb: 200, gzippedKb: 80 } },
     rows: rows ?? [{ bundle: 'main', rawKb: 200, gzippedKb: 80 }],
   };
 }
@@ -153,7 +151,6 @@ describe('check-baselines (binary spawn) — bundle-size BUNDLE_SIZE_REFRESH con
     writeJson(
       path.join(root, 'baselines', 'bundle-size.json'),
       bundleSizeEnvelope({
-        rollup: { '*': { totalKb: 220, gzippedKb: 80 } },
         rows: [{ bundle: 'main', rawKb: 220, gzippedKb: 80 }],
       }),
     );
@@ -224,7 +221,6 @@ describe('check-baselines (binary spawn) — floors still enforced when acknowle
     writeJson(
       path.join(root, 'baselines', 'bundle-size.json'),
       bundleSizeEnvelope({
-        rollup: { '*': { totalKb: 220, gzippedKb: 80 } },
         rows: [{ bundle: 'main', rawKb: 220, gzippedKb: 80 }],
       }),
     );

@@ -38,15 +38,23 @@ function writeJson(p, value) {
   writeFileSync(p, JSON.stringify(value, null, 2));
 }
 
-function coverageEnvelope({ rollup, rows } = {}) {
+function coverageEnvelope({ rows } = {}) {
   return {
     $schema: 'coverage.schema.json',
     kernelVersion: currentKernelVersion('coverage'),
-    generatedAt: '2026-01-01T00:00:00.000Z',
-    rollup: rollup ?? { '*': { lines: 95, branches: 92, functions: 95 } },
     rows: rows ?? [],
   };
 }
+
+function covRow(p, v) {
+  return { path: p, lines: v, branches: v, functions: v };
+}
+
+// Rows that hold the rows-derived rollup above the 90/85/90 floors even when
+// `src/a.js` regresses to 60: (60 + 4 × 100) / 5 = 92.
+const HEALTHY_ROWS = ['b', 'c', 'd', 'e'].map((n) =>
+  covRow(`src/${n}.js`, 100),
+);
 
 // Env with every `GIT_*` variable dropped. Under a husky pre-push from a
 // linked worktree, git exports GIT_DIR pointing at the shared main gitdir —
@@ -71,7 +79,7 @@ function runGit(args, cwd) {
   return res.stdout;
 }
 
-function setupRepo({ baseRollup, baseRows } = {}) {
+function setupRepo({ baseRows } = {}) {
   const root = makeTempDir('cb-contract-regress-');
   mkdirSync(path.join(root, 'baselines'), { recursive: true });
 
@@ -104,7 +112,7 @@ function setupRepo({ baseRollup, baseRows } = {}) {
 
   writeJson(
     path.join(root, 'baselines', 'coverage.json'),
-    coverageEnvelope({ rollup: baseRollup, rows: baseRows }),
+    coverageEnvelope({ rows: baseRows }),
   );
   runGit(['add', '.agentrc.json', 'baselines/coverage.json'], root);
   runGit(['commit', '-m', 'baseline: initial'], root);
@@ -128,10 +136,7 @@ describe('check-baselines (binary spawn) — regression contract', () => {
   let root;
 
   before(() => {
-    root = setupRepo({
-      baseRollup: { '*': { lines: 95, branches: 92, functions: 95 } },
-      baseRows: [{ path: 'src/a.js', lines: 95, branches: 95, functions: 95 }],
-    });
+    root = setupRepo({ baseRows: [covRow('src/a.js', 95), ...HEALTHY_ROWS] });
   });
 
   after(() => {
@@ -148,15 +153,13 @@ describe('check-baselines (binary spawn) — regression contract', () => {
   });
 
   it('exits 4 when the head baseline regresses against the committed base', () => {
-    // Overwrite the working-tree baseline with a regressing row. Floor
-    // is still met by the rollup (95/92/95), so the only failure mode
-    // available is regression — isolating EXIT_REGRESSION.
+    // Overwrite the working-tree baseline with a regressing row. The
+    // healthy rows keep the derived rollup (92/92/92) above the floors, so
+    // the only failure mode available is regression — isolating
+    // EXIT_REGRESSION.
     writeJson(
       path.join(root, 'baselines', 'coverage.json'),
-      coverageEnvelope({
-        rollup: { '*': { lines: 95, branches: 92, functions: 95 } },
-        rows: [{ path: 'src/a.js', lines: 60, branches: 60, functions: 60 }],
-      }),
+      coverageEnvelope({ rows: [covRow('src/a.js', 60), ...HEALTHY_ROWS] }),
     );
 
     const res = spawnDispatcher(root);
@@ -165,5 +168,6 @@ describe('check-baselines (binary spawn) — regression contract', () => {
       4,
       `expected exit 4, got ${res.status}; stdout=${res.stdout}; stderr=${res.stderr}`,
     );
+    assert.equal(JSON.parse(res.stdout).totalBreaches, 0, 'floors still met');
   });
 });

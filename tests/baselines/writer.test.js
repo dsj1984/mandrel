@@ -17,10 +17,10 @@ import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 //   1. write() emits an envelope that passes assertEnvelope for every kind.
 //   2. Re-running write() on identical input is byte-identical.
 //   3. Absolute paths in rows[] abort the write with a clear error.
-//   4. rollup["*"] is always present even when components is undefined.
+//   4. The envelope carries no run timestamp and no rollup (Story #5400):
+//      both rewrote on every refresh and conflicted wherever the merge driver
+//      does not run.
 // ---------------------------------------------------------------------------
-
-const FIXED_TIMESTAMP = '2026-05-15T00:00:00Z';
 
 const FIXTURES = {
   coverage: {
@@ -55,30 +55,26 @@ const FIXTURES = {
   },
 };
 
-function buildWithFixedClock(input) {
-  return write({ ...input, generatedAt: FIXED_TIMESTAMP });
-}
-
 describe('write() — schema conformance per kind', () => {
   for (const [kind, fixture] of Object.entries(FIXTURES)) {
     it(`emits an assertEnvelope-passing envelope for ${kind}`, () => {
-      const env = buildWithFixedClock(fixture);
+      const env = write(fixture);
       assert.doesNotThrow(() => assertEnvelope(env));
       assert.equal(
         env.$schema,
         `.agents/schemas/baselines/${kind}.schema.json`,
       );
-      assert.equal(env.generatedAt, FIXED_TIMESTAMP);
       assert.ok(typeof env.kernelVersion === 'string');
-      assert.ok(Object.hasOwn(env.rollup, '*'));
+      assert.equal(Object.hasOwn(env, 'generatedAt'), false);
+      assert.equal(Object.hasOwn(env, 'rollup'), false);
     });
   }
 });
 
 describe('write() — idempotency', () => {
   it('two writes with identical input produce byte-identical envelopes', () => {
-    const a = JSON.stringify(buildWithFixedClock(FIXTURES.crap), null, 2);
-    const b = JSON.stringify(buildWithFixedClock(FIXTURES.crap), null, 2);
+    const a = JSON.stringify(write(FIXTURES.crap), null, 2);
+    const b = JSON.stringify(write(FIXTURES.crap), null, 2);
     assert.equal(a, b);
   });
 
@@ -87,17 +83,13 @@ describe('write() — idempotency', () => {
       ...FIXTURES.maintainability,
       rows: [...FIXTURES.maintainability.rows].reverse(),
     };
-    const a = JSON.stringify(
-      buildWithFixedClock(FIXTURES.maintainability),
-      null,
-      2,
-    );
-    const b = JSON.stringify(buildWithFixedClock(shuffled), null, 2);
+    const a = JSON.stringify(write(FIXTURES.maintainability), null, 2);
+    const b = JSON.stringify(write(shuffled), null, 2);
     assert.equal(a, b);
   });
 
   it('crap rows sort by (path, startLine, method)', () => {
-    const env = buildWithFixedClock(FIXTURES.crap);
+    const env = write(FIXTURES.crap);
     // src/a.js bar (startLine 5) should come before src/a.js foo (startLine 10).
     assert.equal(env.rows[0].path, 'src/a.js');
     assert.equal(env.rows[0].method, 'bar');
@@ -108,7 +100,7 @@ describe('write() — idempotency', () => {
 
 describe('write() — canonicalisation at the boundary', () => {
   it('strips .worktrees/<workspace>/ prefix from row paths', () => {
-    const env = buildWithFixedClock({
+    const env = write({
       kind: 'maintainability',
       rows: [{ path: '.worktrees/story-1/src/a.js', mi: 90 }],
     });
@@ -116,7 +108,7 @@ describe('write() — canonicalisation at the boundary', () => {
   });
 
   it('normalises backslash separators', () => {
-    const env = buildWithFixedClock({
+    const env = write({
       kind: 'maintainability',
       rows: [{ path: 'src\\nested\\a.js', mi: 85 }],
     });
@@ -126,7 +118,7 @@ describe('write() — canonicalisation at the boundary', () => {
   it('aborts the write when a row carries an absolute path', () => {
     assert.throws(
       () =>
-        buildWithFixedClock({
+        write({
           kind: 'maintainability',
           rows: [{ path: '/abs/path', mi: 80 }],
         }),
@@ -137,7 +129,7 @@ describe('write() — canonicalisation at the boundary', () => {
   it('error message names the offending row index', () => {
     assert.throws(
       () =>
-        buildWithFixedClock({
+        write({
           kind: 'maintainability',
           rows: [
             { path: 'src/a.js', mi: 80 },
@@ -146,32 +138,6 @@ describe('write() — canonicalisation at the boundary', () => {
         }),
       /index 1/,
     );
-  });
-});
-
-describe('write() — rollup["*"] presence', () => {
-  it('emits rollup["*"] even when components is undefined', () => {
-    const env = buildWithFixedClock(FIXTURES.maintainability);
-    assert.ok(Object.hasOwn(env.rollup, '*'));
-  });
-
-  it('emits rollup["*"] when components is an empty array', () => {
-    const env = write({
-      ...FIXTURES.maintainability,
-      components: [],
-      generatedAt: FIXED_TIMESTAMP,
-    });
-    assert.ok(Object.hasOwn(env.rollup, '*'));
-  });
-
-  it('emits a component bucket alongside "*" when components are supplied', () => {
-    const env = write({
-      ...FIXTURES.maintainability,
-      components: [{ name: 'core', includes: 'src' }],
-      generatedAt: FIXED_TIMESTAMP,
-    });
-    assert.ok(Object.hasOwn(env.rollup, '*'));
-    assert.ok(Object.hasOwn(env.rollup, 'core'));
   });
 });
 
@@ -187,7 +153,7 @@ describe('writeFile()', () => {
   });
 
   it('round-trips an envelope through disk byte-identically', () => {
-    const env = buildWithFixedClock(FIXTURES.crap);
+    const env = write(FIXTURES.crap);
     const filePath = path.join(workDir, 'crap.json');
     writeFile(filePath, env);
     const onDisk = readFileSync(filePath, 'utf8');
@@ -195,7 +161,6 @@ describe('writeFile()', () => {
       {
         $schema: env.$schema,
         kernelVersion: env.kernelVersion,
-        generatedAt: env.generatedAt,
         // Story #4775 — the crap kind stamps its scoring semantics, and the
         // disk projection must carry it through by name or the stamp exists
         // only in memory. Story #4866 added the transpiler stamp on the same
@@ -206,7 +171,6 @@ describe('writeFile()', () => {
         scoringSemantics: env.scoringSemantics,
         tsTranspilerVersion: env.tsTranspilerVersion,
         provenanceStamped: env.provenanceStamped,
-        rollup: env.rollup,
         rows: env.rows,
       },
       null,
@@ -219,7 +183,7 @@ describe('writeFile()', () => {
   });
 
   it('terminates the file with a trailing newline', () => {
-    const env = buildWithFixedClock(FIXTURES.maintainability);
+    const env = write(FIXTURES.maintainability);
     const filePath = path.join(workDir, 'maintainability.json');
     writeFile(filePath, env);
     const onDisk = readFileSync(filePath, 'utf8');
@@ -227,7 +191,7 @@ describe('writeFile()', () => {
   });
 
   it('rejects a relative destination path', () => {
-    const env = buildWithFixedClock(FIXTURES.maintainability);
+    const env = write(FIXTURES.maintainability);
     assert.throws(
       () => writeFile('baselines/maintainability.json', env),
       /absolute path/,
@@ -235,14 +199,14 @@ describe('writeFile()', () => {
   });
 
   it('re-validates the envelope at the disk seam', () => {
-    const env = buildWithFixedClock(FIXTURES.maintainability);
+    const env = write(FIXTURES.maintainability);
     env.kernelVersion = 'not-semver';
     const filePath = path.join(workDir, 'maintainability.json');
     assert.throws(() => writeFile(filePath, env), /schema validation/);
   });
 
   it('creates the parent directory when it does not yet exist', () => {
-    const env = buildWithFixedClock(FIXTURES.maintainability);
+    const env = write(FIXTURES.maintainability);
     const filePath = path.join(
       workDir,
       'nested',
@@ -274,10 +238,7 @@ describe('writeFile() — fsImpl seam (Story #2135 / Task #2146)', () => {
   }
 
   it('routes mkdirSync/writeFileSync/renameSync through fsImpl when provided', () => {
-    const env = write({
-      ...FIXTURES.maintainability,
-      generatedAt: FIXED_TIMESTAMP,
-    });
+    const env = write(FIXTURES.maintainability);
     const target = path.join(
       tmpdir(),
       'mandrel-fsimpl-never-touched',
@@ -298,10 +259,7 @@ describe('writeFile() — fsImpl seam (Story #2135 / Task #2146)', () => {
   });
 
   it('does not touch disk when fsImpl is supplied', () => {
-    const env = write({
-      ...FIXTURES.maintainability,
-      generatedAt: FIXED_TIMESTAMP,
-    });
+    const env = write(FIXTURES.maintainability);
     // A path that demonstrably does not exist; writing to it via real fs
     // would fail (ENOENT on the parent). With the seam, the test passes.
     const target = path.join(
@@ -316,10 +274,7 @@ describe('writeFile() — fsImpl seam (Story #2135 / Task #2146)', () => {
   });
 
   it('treats a two-argument call as the default (real fs) path', () => {
-    const env = write({
-      ...FIXTURES.maintainability,
-      generatedAt: FIXED_TIMESTAMP,
-    });
+    const env = write(FIXTURES.maintainability);
     const workDir = makeTempDir('mandrel-writer-bc-');
     try {
       const target = path.join(workDir, 'maintainability.json');
@@ -332,51 +287,38 @@ describe('writeFile() — fsImpl seam (Story #2135 / Task #2146)', () => {
 });
 
 describe('write() — structural-equality short-circuit (Story #2135 / Task #2146)', () => {
-  it('returns the prior envelope unchanged when rows+rollup are structurally equal', () => {
-    const firstAt = '2026-01-01T00:00:00Z';
-    const prior = write({ ...FIXTURES.maintainability, generatedAt: firstAt });
-    const laterAt = '2026-12-31T23:59:59Z';
+  it('returns the prior envelope unchanged when rows are structurally equal', () => {
+    const prior = write(FIXTURES.maintainability);
     const result = write({
       ...FIXTURES.maintainability,
-      generatedAt: laterAt,
       priorEnvelope: prior,
     });
     // Same envelope object: callers who serialise will produce the exact
     // same bytes the prior was written with.
     assert.equal(result, prior);
-    assert.equal(result.generatedAt, firstAt);
   });
 
   it('row order in the input does not defeat the short-circuit', () => {
-    const firstAt = '2026-01-01T00:00:00Z';
-    const prior = write({ ...FIXTURES.maintainability, generatedAt: firstAt });
-    const laterAt = '2026-12-31T23:59:59Z';
+    const prior = write(FIXTURES.maintainability);
     const result = write({
       kind: 'maintainability',
       rows: [...FIXTURES.maintainability.rows].reverse(),
-      generatedAt: laterAt,
       priorEnvelope: prior,
     });
     assert.equal(result, prior);
   });
 
-  it('stamps a fresh envelope when rows actually drift', () => {
-    const firstAt = '2026-01-01T00:00:00Z';
-    const prior = write({ ...FIXTURES.maintainability, generatedAt: firstAt });
-    const laterAt = '2026-12-31T23:59:59Z';
+  it('builds a fresh envelope when rows actually drift', () => {
+    const prior = write(FIXTURES.maintainability);
     const drifted = {
       ...FIXTURES.maintainability,
       rows: FIXTURES.maintainability.rows.map((r, i) =>
         i === 0 ? { ...r, mi: r.mi - 5 } : r,
       ),
     };
-    const result = write({
-      ...drifted,
-      generatedAt: laterAt,
-      priorEnvelope: prior,
-    });
+    const result = write({ ...drifted, priorEnvelope: prior });
     assert.notEqual(result, prior);
-    assert.equal(result.generatedAt, laterAt);
+    assert.equal(result.rows[0].mi, FIXTURES.maintainability.rows[0].mi - 5);
   });
 
   it('accepts the prior as a full envelope passed via `prior`', () => {
@@ -384,20 +326,25 @@ describe('write() — structural-equality short-circuit (Story #2135 / Task #214
     // `priorEnvelope` and instead pass the whole prior envelope object
     // through the existing `prior` argument. The writer recognises an
     // envelope shape there and uses it for the short-circuit only.
-    const firstAt = '2026-01-01T00:00:00Z';
-    const prior = write({ ...FIXTURES.maintainability, generatedAt: firstAt });
-    const result = write({
-      ...FIXTURES.maintainability,
-      generatedAt: '2026-12-31T23:59:59Z',
-      prior,
-    });
+    const prior = write(FIXTURES.maintainability);
+    const result = write({ ...FIXTURES.maintainability, prior });
+    assert.equal(result, prior);
+  });
+
+  it('recognises a rollup-less prior envelope — rows alone qualify it', () => {
+    // The committed shape has no rollup, so a prior read straight off disk
+    // must still short-circuit; keying on `rollup` would re-stamp every file.
+    const prior = JSON.parse(JSON.stringify(write(FIXTURES.maintainability)));
+    assert.equal(Object.hasOwn(prior, 'rollup'), false);
+    const result = write({ ...FIXTURES.maintainability, priorEnvelope: prior });
     assert.equal(result, prior);
   });
 
   it('produces a fresh envelope when no prior is supplied (regression-safe default)', () => {
-    const generatedAt = '2026-06-01T00:00:00Z';
-    const result = write({ ...FIXTURES.maintainability, generatedAt });
-    assert.equal(result.generatedAt, generatedAt);
+    const first = write(FIXTURES.maintainability);
+    const second = write(FIXTURES.maintainability);
+    assert.notEqual(first, second);
+    assert.deepEqual(first, second);
   });
 });
 
@@ -419,7 +366,6 @@ describe('writer.writeFile — envelope stamps survive serialization (#4969)', (
       const envelope = write({
         kind: 'crap',
         rows: [{ path: 'src/a.js', method: 'run', startLine: 1, crap: 2 }],
-        generatedAt: '2026-01-01T00:00:00.000Z',
       });
       writeFile(absPath, envelope);
       const onDisk = JSON.parse(readFileSync(absPath, 'utf8'));

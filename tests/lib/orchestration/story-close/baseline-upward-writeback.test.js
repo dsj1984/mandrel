@@ -520,8 +520,6 @@ describe('runBaselineUpwardWriteback — rollback in a real repository (AC-5)', 
       {
         $schema: '.agents/schemas/baselines/maintainability.schema.json',
         kernelVersion: '1.0.0',
-        generatedAt: '2026-01-01T00:00:00.000Z',
-        rollup: { '*': { min: mi } },
         rows: [{ path: '.agents/scripts/lib/a.js', mi }],
       },
       null,

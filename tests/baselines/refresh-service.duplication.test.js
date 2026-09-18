@@ -29,15 +29,13 @@ import { mkdirSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { resolveDetectClones } from '../../.agents/scripts/lib/baselines/duplication-scanner.js';
+import { getKindModule } from '../../.agents/scripts/lib/baselines/kernel.js';
 import { refreshBaseline } from '../../.agents/scripts/lib/baselines/refresh-service.js';
 import {
   write as writeEnvelope,
   writeFile as writeEnvelopeFile,
 } from '../../.agents/scripts/lib/baselines/writer.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
-
-const FIXED_PRIOR = '2024-01-01T00:00:00Z';
-const FIXED_NOW = '2026-05-15T00:00:00Z';
 
 /** `{ path, duplicatedLines, totalLines, percentage }` — the kind's row shape. */
 function row(p, duplicatedLines, totalLines) {
@@ -56,18 +54,27 @@ const PRIOR_ROWS = [
   row('src/d.js', 40, 100), // 40% — out of scope throughout
 ];
 
-function seedPrior(writePath, rows, generatedAt = FIXED_PRIOR) {
+function seedPrior(writePath, rows) {
   mkdirSync(path.dirname(writePath), { recursive: true });
-  // Round-trip through the writer so the seeded rollup matches what the
-  // service recomputes; a hand-rolled rollup would diverge and defeat the
-  // structural-equality short-circuit.
-  const envelope = writeEnvelope({ kind: 'duplication', rows, generatedAt });
+  // Round-trip through the writer so the seeded rows carry the canonical
+  // projection the service compares against in its structural-equality
+  // short-circuit.
+  const envelope = writeEnvelope({ kind: 'duplication', rows });
   writeEnvelopeFile(writePath, envelope);
   return envelope;
 }
 
 function readEnvelope(writePath) {
   return JSON.parse(readFileSync(writePath, 'utf8'));
+}
+
+/**
+ * The committed file carries no rollup (Story #5400); the floors phase
+ * derives it from the rows exactly like this.
+ */
+function derivedRollup(envelope) {
+  assert.equal(Object.hasOwn(envelope, 'rollup'), false);
+  return getKindModule('duplication').rollup(envelope.rows, [])['*'];
 }
 
 function byPath(envelope) {
@@ -93,7 +100,6 @@ describe('refreshBaseline — duplication kind (Story #4944)', () => {
       writePath,
       fullScope: true,
       scorer: () => [row('src/a.js', 5, 100)],
-      generatedAt: FIXED_NOW,
     });
     assert.equal(result.kind, 'duplication');
     assert.equal(result.scope.mode, 'full');
@@ -114,7 +120,6 @@ describe('refreshBaseline — duplication kind (Story #4944)', () => {
       kind: 'duplication',
       writePath,
       scopeFiles: ['src/a.js', 'src/b.js'],
-      generatedAt: FIXED_NOW,
       scorer: () => [
         row('src/a.js', 30, 100), // in scope → 30%
         row('src/b.js', 0, 100), // in scope → 0%
@@ -143,7 +148,6 @@ describe('refreshBaseline — duplication kind (Story #4944)', () => {
       kind: 'duplication',
       writePath,
       scopeFiles: ['src/a.js'],
-      generatedAt: FIXED_NOW,
       scorer: () => [row('src/b.js', 10, 100), row('src/c.js', 40, 100)],
     });
 
@@ -164,7 +168,6 @@ describe('refreshBaseline — duplication kind (Story #4944)', () => {
       kind: 'duplication',
       writePath,
       fullScope: true,
-      generatedAt: FIXED_NOW,
       scorer: () => [row('src/a.js', 1, 100)],
     });
 
@@ -174,25 +177,25 @@ describe('refreshBaseline — duplication kind (Story #4944)', () => {
       ['src/a.js'],
       'full scope must replace the row set outright, not merge into it',
     );
-    assert.equal(after.rollup['*'].percentage, 1);
+    assert.equal(derivedRollup(after).percentage, 1);
   });
 
-  it('AC: the rollup recomputes the exact aggregate ratio after a scoped merge', async () => {
+  it('AC: the rollup derived from the merged rows is the exact aggregate ratio', async () => {
     seedPrior(writePath, PRIOR_ROWS);
 
     await refreshBaseline({
       kind: 'duplication',
       writePath,
       scopeFiles: ['src/a.js'],
-      generatedAt: FIXED_NOW,
       scorer: () => [row('src/a.js', 20, 100)],
     });
 
     const after = readEnvelope(writePath);
     // a=20 + b=10 + c=40 + d=40 duplicated over 400 total lines → 27.5%.
-    assert.equal(after.rollup['*'].duplicatedLines, 110);
-    assert.equal(after.rollup['*'].totalLines, 400);
-    assert.equal(after.rollup['*'].percentage, 27.5);
+    const rollup = derivedRollup(after);
+    assert.equal(rollup.duplicatedLines, 110);
+    assert.equal(rollup.totalLines, 400);
+    assert.equal(rollup.percentage, 27.5);
   });
 
   it('AC: writes an empty-row envelope rather than nothing when no clones are found', async () => {
@@ -200,14 +203,13 @@ describe('refreshBaseline — duplication kind (Story #4944)', () => {
       kind: 'duplication',
       writePath,
       fullScope: true,
-      generatedAt: FIXED_NOW,
       scorer: () => [],
     });
 
     assert.equal(result.wrote, true);
     const after = readEnvelope(writePath);
     assert.deepEqual(after.rows, []);
-    assert.equal(after.rollup['*'].percentage, 0);
+    assert.equal(derivedRollup(after).percentage, 0);
   });
 });
 
@@ -242,7 +244,6 @@ describe('refreshBaseline — default duplication scorer scans whole-tree (Story
       kind: 'duplication',
       writePath,
       scopeFiles: ['src/a.js'],
-      generatedAt: FIXED_NOW,
       scorer: (files, opts) => {
         seen.push({ files, fullScope: opts.fullScope });
         // A whole-tree scan legitimately returns rows for files the scope

@@ -1,11 +1,11 @@
 /**
  * merge-envelopes.test.js — pure 3-way baseline merge (Story #5215).
  *
- * The bug this closes: two branches that each refresh a baseline differ on
- * `generatedAt` (line 4 of every envelope) even when they moved completely
- * disjoint rows, so git's line-based merge either conflicts on work that
- * never overlapped or — worse — splices both sides' rows into a set neither
- * side scored. These tests pin the row-identity semantics that replace it.
+ * The bug this closes: git's line-based merge conflicts on disjoint row
+ * moves that sit adjacent in sort order and can splice both sides' rows into
+ * a set neither side scored. These tests pin the row-identity semantics that
+ * replace it. Since Story #5400 the envelope carries no `generatedAt` and no
+ * `rollup`, so the merge output carries neither.
  */
 
 import assert from 'node:assert/strict';
@@ -29,18 +29,12 @@ const readFixture = (name) =>
 
 const MI_SCHEMA = '.agents/schemas/baselines/maintainability.schema.json';
 
-function miEnvelope(rowsMap, generatedAt) {
+function miEnvelope(rowsMap) {
   const mod = getKindModule('maintainability');
   const rows = mod.sortRows(
     Object.entries(rowsMap).map(([p, mi]) => ({ path: p, mi })),
   );
-  return {
-    $schema: MI_SCHEMA,
-    kernelVersion: '0.1.0',
-    generatedAt,
-    rollup: mod.rollup(rows, []),
-    rows,
-  };
+  return { $schema: MI_SCHEMA, kernelVersion: '0.1.0', rows };
 }
 
 const byPath = (envelope) =>
@@ -66,18 +60,9 @@ describe('kindFromEnvelope', () => {
 });
 
 describe('mergeEnvelopes — disjoint row moves (AC-1)', () => {
-  const base = miEnvelope(
-    { 'a.js': 60, 'b.js': 70, 'c.js': 80 },
-    '2026-09-01T00:00:00.000Z',
-  );
-  const ours = miEnvelope(
-    { 'a.js': 61, 'b.js': 70, 'c.js': 80 },
-    '2026-09-02T00:00:00.000Z',
-  );
-  const theirs = miEnvelope(
-    { 'a.js': 60, 'b.js': 70, 'c.js': 83 },
-    '2026-09-03T00:00:00.000Z',
-  );
+  const base = miEnvelope({ 'a.js': 60, 'b.js': 70, 'c.js': 80 });
+  const ours = miEnvelope({ 'a.js': 61, 'b.js': 70, 'c.js': 80 });
+  const theirs = miEnvelope({ 'a.js': 60, 'b.js': 70, 'c.js': 83 });
 
   it('keeps both sides moved values', () => {
     const { envelope, conflicts } = mergeEnvelopes({ base, ours, theirs });
@@ -85,21 +70,13 @@ describe('mergeEnvelopes — disjoint row moves (AC-1)', () => {
     assert.deepEqual(byPath(envelope), { 'a.js': 61, 'b.js': 70, 'c.js': 83 });
   });
 
-  it('recomputes the rollup from the merged rows rather than merging it', () => {
+  it('emits neither a rollup nor a generatedAt stamp (Story #5400)', () => {
     const { envelope } = mergeEnvelopes({ base, ours, theirs });
-    const mod = getKindModule('maintainability');
-    assert.deepEqual(envelope.rollup, mod.rollup(envelope.rows, []));
-    // Neither input's rollup describes the merged set — which is exactly why
-    // a merged rollup would be a silent lie.
-    assert.notDeepEqual(envelope.rollup, ours.rollup);
-    assert.notDeepEqual(envelope.rollup, theirs.rollup);
-  });
-
-  it('takes the later of the two stamps', () => {
-    const { envelope } = mergeEnvelopes({ base, ours, theirs });
-    assert.equal(envelope.generatedAt, '2026-09-03T00:00:00.000Z');
-    const swapped = mergeEnvelopes({ base, ours: theirs, theirs: ours });
-    assert.equal(swapped.envelope.generatedAt, '2026-09-03T00:00:00.000Z');
+    assert.deepEqual(Object.keys(envelope), [
+      '$schema',
+      'kernelVersion',
+      'rows',
+    ]);
   });
 
   it('emits rows in the kind canonical order', () => {
@@ -113,17 +90,11 @@ describe('mergeEnvelopes — disjoint row moves (AC-1)', () => {
 });
 
 describe('mergeEnvelopes — additions and deletions', () => {
-  const base = miEnvelope({ 'a.js': 60 }, '2026-09-01T00:00:00.000Z');
+  const base = miEnvelope({ 'a.js': 60 });
 
   it('keeps a row added on either side', () => {
-    const ours = miEnvelope(
-      { 'a.js': 60, 'new-ours.js': 90 },
-      '2026-09-02T00:00:00.000Z',
-    );
-    const theirs = miEnvelope(
-      { 'a.js': 60, 'new-theirs.js': 91 },
-      '2026-09-02T00:00:00.000Z',
-    );
+    const ours = miEnvelope({ 'a.js': 60, 'new-ours.js': 90 });
+    const theirs = miEnvelope({ 'a.js': 60, 'new-theirs.js': 91 });
     const { envelope, conflicts } = mergeEnvelopes({ base, ours, theirs });
     assert.deepEqual(conflicts, []);
     assert.deepEqual(byPath(envelope), {
@@ -134,15 +105,15 @@ describe('mergeEnvelopes — additions and deletions', () => {
   });
 
   it('honours a deletion when the other side left the row alone', () => {
-    const ours = miEnvelope({}, '2026-09-02T00:00:00.000Z');
-    const theirs = miEnvelope({ 'a.js': 60 }, '2026-09-02T00:00:00.000Z');
+    const ours = miEnvelope({});
+    const theirs = miEnvelope({ 'a.js': 60 });
     const { envelope, conflicts } = mergeEnvelopes({ base, ours, theirs });
     assert.deepEqual(conflicts, []);
     assert.deepEqual(envelope.rows, []);
   });
 
   it('treats a null base (added on both sides) as an empty row set', () => {
-    const ours = miEnvelope({ 'a.js': 60 }, '2026-09-02T00:00:00.000Z');
+    const ours = miEnvelope({ 'a.js': 60 });
     const { envelope, conflicts } = mergeEnvelopes({
       base: null,
       ours,
@@ -154,18 +125,9 @@ describe('mergeEnvelopes — additions and deletions', () => {
 });
 
 describe('mergeEnvelopes — genuine double moves conflict (AC-2)', () => {
-  const base = miEnvelope(
-    { 'a.js': 60, 'b.js': 70 },
-    '2026-09-01T00:00:00.000Z',
-  );
-  const ours = miEnvelope(
-    { 'a.js': 61, 'b.js': 71 },
-    '2026-09-02T00:00:00.000Z',
-  );
-  const theirs = miEnvelope(
-    { 'a.js': 62, 'b.js': 71 },
-    '2026-09-03T00:00:00.000Z',
-  );
+  const base = miEnvelope({ 'a.js': 60, 'b.js': 70 });
+  const ours = miEnvelope({ 'a.js': 61, 'b.js': 71 });
+  const theirs = miEnvelope({ 'a.js': 62, 'b.js': 71 });
 
   it('reports only the row both sides moved differently', () => {
     const { conflicts } = mergeEnvelopes({ base, ours, theirs });
@@ -184,13 +146,10 @@ describe('mergeEnvelopes — genuine double moves conflict (AC-2)', () => {
   });
 
   it('does not conflict when both sides moved a row to the SAME value', () => {
-    const same = miEnvelope(
-      { 'a.js': 65, 'b.js': 70 },
-      '2026-09-03T00:00:00.000Z',
-    );
+    const same = miEnvelope({ 'a.js': 65, 'b.js': 70 });
     const { conflicts } = mergeEnvelopes({
       base,
-      ours: miEnvelope({ 'a.js': 65, 'b.js': 70 }, '2026-09-02T00:00:00.000Z'),
+      ours: miEnvelope({ 'a.js': 65, 'b.js': 70 }),
       theirs: same,
     });
     assert.deepEqual(conflicts, []);
@@ -200,25 +159,25 @@ describe('mergeEnvelopes — genuine double moves conflict (AC-2)', () => {
 describe('mergeEnvelopes — envelope stamps', () => {
   const rows = { 'a.js': 60 };
   it('merges a one-sided kernelVersion bump', () => {
-    const base = miEnvelope(rows, '2026-09-01T00:00:00.000Z');
+    const base = miEnvelope(rows);
     const ours = {
-      ...miEnvelope(rows, '2026-09-02T00:00:00.000Z'),
+      ...miEnvelope(rows),
       kernelVersion: '0.2.0',
     };
-    const theirs = miEnvelope(rows, '2026-09-03T00:00:00.000Z');
+    const theirs = miEnvelope(rows);
     const { envelope, conflicts } = mergeEnvelopes({ base, ours, theirs });
     assert.deepEqual(conflicts, []);
     assert.equal(envelope.kernelVersion, '0.2.0');
   });
 
   it('conflicts when both sides bump a stamp differently', () => {
-    const base = miEnvelope(rows, '2026-09-01T00:00:00.000Z');
+    const base = miEnvelope(rows);
     const ours = {
-      ...miEnvelope(rows, '2026-09-02T00:00:00.000Z'),
+      ...miEnvelope(rows),
       kernelVersion: '0.2.0',
     };
     const theirs = {
-      ...miEnvelope(rows, '2026-09-03T00:00:00.000Z'),
+      ...miEnvelope(rows),
       kernelVersion: '0.3.0',
     };
     const { conflicts } = mergeEnvelopes({ base, ours, theirs });
@@ -232,11 +191,9 @@ describe('mergeEnvelopes — envelope stamps', () => {
 describe('mergeEnvelopes — CRAP sibling rows (AC-3)', () => {
   const mod = getKindModule('crap');
   const CRAP_SCHEMA = '.agents/schemas/baselines/crap.schema.json';
-  const crapEnvelope = (rows, generatedAt) => ({
+  const crapEnvelope = (rows) => ({
     $schema: CRAP_SCHEMA,
     kernelVersion: '0.1.0',
-    generatedAt,
-    rollup: mod.rollup(mod.sortRows(rows), []),
     rows: mod.sortRows(rows),
   });
 
@@ -249,12 +206,9 @@ describe('mergeEnvelopes — CRAP sibling rows (AC-3)', () => {
   };
   const target = { path: 'a/b.js', method: 'target', startLine: 7, crap: 3 };
 
-  const base = crapEnvelope([target, sibling], '2026-09-01T00:00:00.000Z');
-  const ours = crapEnvelope(
-    [{ ...target, crap: 9 }, sibling],
-    '2026-09-02T00:00:00.000Z',
-  );
-  const theirs = crapEnvelope([target, sibling], '2026-09-03T00:00:00.000Z');
+  const base = crapEnvelope([target, sibling]);
+  const ours = crapEnvelope([{ ...target, crap: 9 }, sibling]);
+  const theirs = crapEnvelope([target, sibling]);
 
   it('moves only the identified row and preserves its sibling verbatim', () => {
     const { envelope, conflicts } = mergeEnvelopes({ base, ours, theirs });
@@ -267,10 +221,7 @@ describe('mergeEnvelopes — CRAP sibling rows (AC-3)', () => {
   });
 
   it('rejects a side whose rows collide on identity', () => {
-    const dup = crapEnvelope(
-      [target, { ...target }],
-      '2026-09-02T00:00:00.000Z',
-    );
+    const dup = crapEnvelope([target, { ...target }]);
     assert.throws(
       () => mergeEnvelopes({ base, ours: dup, theirs }),
       /identity contract/,
@@ -285,8 +236,8 @@ describe('mergeEnvelopes — the swarm-os reproduction (AC-4)', () => {
 
   it('the fixture reproduces the bug: the three blobs differ only in disjoint rows', () => {
     // main refreshed site-analytics/ + site-metrics/; the branch refreshed
-    // news/. Zero row overlap — yet the text merge conflicts (pinned in the
-    // driver contract test) purely because of the stamp.
+    // news/. Zero row overlap — before Story #5400 the text merge still
+    // conflicted, purely because of the `generatedAt` stamp.
     const movedBy = (side) =>
       Object.entries(byPath(side))
         .filter(([p, mi]) => byPath(base)[p] !== mi)
@@ -328,7 +279,6 @@ describe('mergeEnvelopes — the swarm-os reproduction (AC-4)', () => {
   it('is order-independent', () => {
     const a = mergeEnvelopes({ base, ours: branch, theirs: main });
     const b = mergeEnvelopes({ base, ours: main, theirs: branch });
-    assert.deepEqual(byPath(a.envelope), byPath(b.envelope));
-    assert.deepEqual(a.envelope.rollup, b.envelope.rollup);
+    assert.deepEqual(a.envelope, b.envelope);
   });
 });

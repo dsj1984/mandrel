@@ -33,6 +33,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { rollupOfRows } from '../../.agents/scripts/lib/audit-baselines/rollup.js';
 import { COVERAGE_GATE } from '../../.agents/scripts/lib/config/gates/coverage.schema.js';
 import { CRAP_GATE } from '../../.agents/scripts/lib/config/gates/crap.schema.js';
 import { AGENTRC_SCHEMA } from '../../.agents/scripts/lib/config-settings-schema.js';
@@ -451,9 +452,12 @@ describe('data-dictionary.md — SignalEvent row mirrors the live schema (Story 
 });
 
 describe('data-dictionary.md — crap.json row mirrors the live schema (Story #4785)', () => {
-  it('names the two stamps the floors gate compares against', () => {
+  it('names the stamp the floors gate compares against, and no committed rollup', () => {
     assert.ok(Object.hasOwn(crapSchema().properties, 'scoringSemantics'));
-    assert.ok(Object.hasOwn(crapSchema().properties, 'rollup'));
+    // Story #5400: the committed envelope carries no rollup — readers derive
+    // it from `rows` — so neither schema may declare one.
+    assert.ok(!Object.hasOwn(crapSchema().properties, 'rollup'));
+    assert.ok(!Object.hasOwn(baselineEnvelopeSchema().properties, 'rollup'));
 
     const md = dataDictionary();
     assert.match(
@@ -461,11 +465,19 @@ describe('data-dictionary.md — crap.json row mirrors the live schema (Story #4
       /`scoringSemantics`/,
       'crap.json row omits `scoringSemantics`',
     );
-    assert.match(md, /`rollup`/, 'crap.json row omits `rollup`');
+    assert.match(
+      md,
+      /no rollup \(readers derive it from `rows`\)/,
+      'crap.json row must say the rollup is derived, not committed',
+    );
   });
 
   it('documents the rollup axes the floors are checked against', () => {
-    const axes = crapSchema().properties.rollup.properties['*'].required;
+    const axes = Object.keys(
+      rollupOfRows('crap', [
+        { path: 'a.js', method: 'm', startLine: 1, crap: 1 },
+      ]),
+    );
     assert.deepEqual([...axes].sort(), ['max', 'methodsAbove20', 'p50', 'p95']);
     const md = dataDictionary();
     for (const axis of axes) {
