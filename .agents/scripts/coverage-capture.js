@@ -41,6 +41,13 @@
  *       `--require-credited` was passed. The caller MUST
  *       surface this — silently passing here would defeat the CRAP gate's
  *       `requireCoverage: true` policy.
+ *   75 — the full-suite lock wait expired and the capture was deferred, so
+ *       no suite ran. Only when the caller set
+ *       `MANDREL_FULL_SUITE_LOCK_ON_EXPIRY=defer`, which close does for its
+ *       gate children and nothing else does (Story #5377); every other
+ *       caller spawns anyway on an expired wait.
+ *   124 — the suite exceeded `delivery.quality.gates.coverage.timeoutMs` and
+ *       its process group was killed.
  */
 import { getChangedFiles } from './lib/changed-files.js';
 import { isDirectInvocation } from './lib/cli-utils.js';
@@ -112,9 +119,9 @@ export function parseArgs(argv) {
  *   filterFilesUnderTargetsImpl?: typeof filterFilesUnderTargets,
  *   logger?: { info: Function, warn: Function, error: Function },
  * }} [deps]
- * @returns {number} process exit code
+ * @returns {Promise<number>} process exit code
  */
-export function runCoverageCapture(argv = process.argv, deps = {}) {
+export async function runCoverageCapture(argv = process.argv, deps = {}) {
   const {
     resolveConfigImpl = resolveConfig,
     getQualityImpl = getQuality,
@@ -188,29 +195,31 @@ export function runCoverageCapture(argv = process.argv, deps = {}) {
     logger,
   };
 
-  const incrementalResult = tryIncrementalCapture({
+  const incrementalResult = await tryIncrementalCapture({
     ...shared,
     filterFilesUnderTargetsImpl,
   });
   if (incrementalResult !== null) return incrementalResult;
 
-  return runFullScopeCapture(shared);
+  return await runFullScopeCapture(shared);
 }
 
-// cli-opt-out: synchronous main returns an exit code that is forwarded via process.exit(code); runAsCli's async-main signature does not preserve the result code.
+// cli-opt-out: main resolves an exit code that is forwarded via process.exit(code); runAsCli's async-main signature does not preserve the result code.
 // The direct-invocation guard keeps `import`ing this module (from the unit
 // tests that drive `runCoverageCapture` with injected seams) side-effect free;
 // invoked as a CLI the behaviour — exit code and log lines — is unchanged.
 if (isDirectInvocation(import.meta.url)) {
-  try {
-    // `--help` is answered before the decision core runs: it used to fall
-    // through to the capture path, so asking this script to describe itself
-    // spawned the whole coverage suite.
-    process.exit(
-      handleCoverageCaptureHelp(process.argv) ? 0 : runCoverageCapture(),
-    );
-  } catch (err) {
-    Logger.error('[coverage-capture] unexpected error:', err);
-    process.exit(1);
-  }
+  // `--help` is answered before the decision core runs: it used to fall
+  // through to the capture path, so asking this script to describe itself
+  // spawned the whole coverage suite.
+  (handleCoverageCaptureHelp(process.argv)
+    ? Promise.resolve(0)
+    : runCoverageCapture()
+  ).then(
+    (code) => process.exit(code),
+    (err) => {
+      Logger.error('[coverage-capture] unexpected error:', err);
+      process.exit(1);
+    },
+  );
 }

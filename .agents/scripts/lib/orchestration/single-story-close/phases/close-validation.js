@@ -40,6 +40,14 @@
  * `*:update` + `baseline-refresh:` remedy — advisory only, so the close
  * verdict is unchanged.
  *
+ * Full-suite lock waits (Story #5377). A gate that queues behind another
+ * full suite on this host announces the wait, and those lines are teed to the
+ * operator's `progress()` console as well as the gate log — a multi-minute
+ * wait that only an artifact records reads as a hang. The phase also tallies
+ * them into `lockWait` for the terminal envelope. Close opts every gate into
+ * the defer posture, so a wait that expires spawns nothing: the phase returns
+ * `pending` instead of failing, and the runner ends the close resumably.
+ *
  * `runCloseValidation`, `buildDefaultGates` and the pre-gate steps (whole, or
  * their two individual collaborators) are accepted as injected dependencies so
  * the parent CLI's cache-busted bindings win in tests that mock the upstream
@@ -48,6 +56,8 @@
 
 import { buildDefaultGates as defaultBuildDefaultGates } from '../../../close-validation/gates.js';
 import { runCloseValidation as defaultRunCloseValidation } from '../../../close-validation/runner.js';
+import { LOCK_WAIT_EXPIRED_EXIT_CODE } from '../../../full-suite-lock.js';
+import { parseLockWaitOutcome } from '../../../full-suite-queue.js';
 import { createGateLogSink as defaultCreateGateLogSink } from '../gate-log.js';
 import { runPreGateSteps as defaultRunPreGateSteps } from './pre-gate-steps.js';
 
@@ -81,10 +91,16 @@ import { runPreGateSteps as defaultRunPreGateSteps } from './pre-gate-steps.js';
  *   runContextBudgetWriteback?: Function,
  *   createGateLogSink?: typeof defaultCreateGateLogSink,
  * }} args
- * @returns {Promise<{ gates: Record<string, 'passed'|'skipped'> }>} Per-gate
- *   outcomes keyed by gate name — the terminal envelope reports the split
- *   baselines entries from this (Story #5172). A failure throws instead, with
- *   `err.closeGate` naming the gate that died.
+ * @returns {Promise<{
+ *   gates: Record<string, 'passed'|'skipped'>|null,
+ *   lockWait: { waitedSeconds: number, expired: boolean }|null,
+ *   pending: boolean,
+ * }>} Per-gate outcomes keyed by gate name — the terminal envelope reports
+ *   the split baselines entries from this (Story #5172) — plus the lock-wait
+ *   tally, `null` when no gate waited. `pending` is true when a gate's lock
+ *   wait expired and it deferred rather than spawning (Story #5377); `gates`
+ *   is then `null`, since the chain did not finish. Any other failure throws,
+ *   with `err.closeGate` naming the gate that died.
  */
 export async function runCloseValidationPhase({
   cwd,
@@ -122,6 +138,7 @@ export async function runCloseValidationPhase({
   // Story #4736 — one sink for both `log` seams (gate construction and gate
   // execution), so nothing in the chain can route around the artifact.
   const gateLog = createGateLogSink({ storyId, config });
+  const lockWaits = trackLockWaits({ sink: gateLog.log, progress });
   const gateList = buildDefaultGates({
     config,
     baseBranch,
@@ -136,7 +153,7 @@ export async function runCloseValidationPhase({
       cwd,
       worktreePath,
       gates: gateList,
-      log: gateLog.log,
+      log: lockWaits.log,
       storyId,
       // Story #4250 — standalone storyId-anchored evidence keyspace. No
       // epicId; the standalone flag routes the cache to
@@ -149,6 +166,8 @@ export async function runCloseValidationPhase({
       baseBranch,
       storyBranch,
       config,
+      // Story #5377 — an expired lock wait spawns nothing; see below.
+      deferOnLockExpiry: true,
     });
   } finally {
     // Story #4766 — gate lines are buffered to an async stream so the drain
@@ -156,6 +175,14 @@ export async function runCloseValidationPhase({
     // reads it, replays from it, or reports its path — including on the throw
     // path, where the artifact is the only surviving record.
     await gateLog.flush();
+  }
+  const lockWait = lockWaits.summary();
+  if (!validation.ok && isDeferredLockWait(validation.failed[0], lockWait)) {
+    progress(
+      'VALIDATE',
+      `⏸ ${validation.failed[0].gate.name} deferred: the full-suite lock wait expired after ${lockWait.waitedSeconds}s. Nothing was spawned; close will report pending.`,
+    );
+    return { gates: null, lockWait, pending: true };
   }
   if (!validation.ok) {
     const [first] = validation.failed;
@@ -174,7 +201,55 @@ export async function runCloseValidationPhase({
     throw err;
   }
   progress('VALIDATE', `✅ All gates passed. ${gateLog.digest()}`);
-  return { gates: gateOutcomes(gateList, validation) };
+  return {
+    gates: gateOutcomes(gateList, validation),
+    lockWait,
+    pending: false,
+  };
+}
+
+/**
+ * Tee full-suite lock-wait lines to `progress()` and tally their outcomes.
+ *
+ * The lines arrive the same way whether the wait happened in this process
+ * (the `test` gate) or in a gate child (a coverage capture), so parsing the
+ * gate log stream is the one place that sees both.
+ *
+ * @param {{ sink: (m: string) => void, progress: (tag: string, msg: string) => void }} args
+ * @returns {{ log: (m: string) => void, summary: () => { waitedSeconds: number, expired: boolean }|null }}
+ */
+function trackLockWaits({ sink, progress }) {
+  let tally = null;
+  return {
+    log(line) {
+      sink(line);
+      if (!String(line).includes('[full-suite-lock]')) return;
+      progress('LOCK', line);
+      const outcome = parseLockWaitOutcome(line);
+      if (!outcome) return;
+      tally = {
+        waitedSeconds: (tally?.waitedSeconds ?? 0) + outcome.waitedSeconds,
+        expired: Boolean(tally?.expired) || outcome.expired,
+      };
+    },
+    summary: () => tally,
+  };
+}
+
+/**
+ * Did the first failed gate fail only because its lock wait expired and it
+ * deferred? Both halves are required: the exit code alone could be a suite's
+ * own, the expiry alone could belong to a gate that then spawned anyway.
+ *
+ * @param {{ status: number }|undefined} failure
+ * @param {{ expired: boolean }|null} lockWait
+ * @returns {boolean}
+ */
+function isDeferredLockWait(failure, lockWait) {
+  return (
+    failure?.status === LOCK_WAIT_EXPIRED_EXIT_CODE &&
+    lockWait?.expired === true
+  );
 }
 
 /**

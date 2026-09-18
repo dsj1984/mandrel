@@ -955,11 +955,11 @@ describe('the happy path spends ONE full-suite spawn per Story (#5174)', () => {
     );
   });
 
-  it('leaves the close coverage-capture gate nothing to do', () => {
+  it('leaves the close coverage-capture gate nothing to do', async () => {
     // What the single spawn buys: close consults the stamp the worker wrote
     // and exits fresh, instead of paying for the identical suite again.
     const logs = [];
-    const exit = runCoverageCapture(
+    const exit = await runCoverageCapture(
       ['node', 'coverage-capture.js', '--cwd', '/abs/wt'],
       {
         resolveConfigImpl: () => ({}),

@@ -371,6 +371,74 @@ describe('story-deliver-terminal — pending', () => {
   });
 });
 
+describe('story-deliver-terminal — lockWait (Story #5377)', () => {
+  it('AC-10: reports null when the close never waited on the full-suite lock', () => {
+    const env = buildTerminalEnvelope({
+      storyId: 5377,
+      status: 'landed',
+      phase: 'post-land',
+      tail: {
+        followUps: true,
+        statusResync: true,
+        refCleanup: true,
+        baseFastForward: true,
+        tempPurge: true,
+        leaseRelease: true,
+        epicRollup: true,
+      },
+      nextCommand: null,
+      elapsedSeconds: 30,
+    });
+    assert.equal(env.lockWait, null);
+    assert.equal(validateTerminalEnvelope(env).valid, true);
+  });
+
+  it('AC-7/AC-10: an expired wait is a resumable pending at close-validation that re-runs close', () => {
+    const env = buildTerminalEnvelope({
+      storyId: 5377,
+      status: 'pending',
+      phase: 'close-validation',
+      lockWait: { waitedSeconds: 300, expired: true },
+      nextCommand: NEXT_COMMANDS.close(5377),
+      elapsedSeconds: 305,
+    });
+    assert.equal(exitCodeForTerminal(env), 3);
+    assert.equal(env.nextCommand, NEXT_COMMANDS.close(5377));
+    assert.deepEqual(env.lockWait, { waitedSeconds: 300, expired: true });
+    assert.equal(env.waitBudget, null, 'lock wait is not merge-wait');
+  });
+
+  it('AC-10: the schema pins the lockWait shape', () => {
+    const base = {
+      kind: 'story-deliver-terminal',
+      storyId: 5377,
+      status: 'pending',
+      phase: 'close-validation',
+      nextCommand: NEXT_COMMANDS.close(5377),
+      elapsedSeconds: 1,
+    };
+    for (const lockWait of [
+      null,
+      { waitedSeconds: 42, expired: false },
+      { waitedSeconds: 300, expired: true },
+    ]) {
+      assert.equal(validateTerminalEnvelope({ ...base, lockWait }).valid, true);
+    }
+    for (const lockWait of [
+      { waitedSeconds: 42 },
+      { waitedSeconds: -1, expired: false },
+      { waitedSeconds: 1, expired: 'yes' },
+      { waitedSeconds: 1, expired: false, holderPid: 7 },
+    ]) {
+      assert.equal(
+        validateTerminalEnvelope({ ...base, lockWait }).valid,
+        false,
+        `expected ${JSON.stringify(lockWait)} to be rejected`,
+      );
+    }
+  });
+});
+
 describe('story-deliver-terminal — blocked / failed', () => {
   it('blocked carries a shared-classifier class and a friction pointer', () => {
     const env = buildTerminalEnvelope({

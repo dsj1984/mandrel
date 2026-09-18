@@ -7,7 +7,15 @@
 
 import { spawn } from 'node:child_process';
 
-import { withFullSuiteLockAsync } from '../full-suite-lock.js';
+import {
+  LOCK_WAIT_EXPIRED_EXIT_CODE,
+  withFullSuiteLockAsync,
+} from '../full-suite-lock.js';
+import {
+  groupSpawnOptions,
+  superviseGroup,
+  TIMEOUT_EXIT_CODE,
+} from '../process-group.js';
 
 /**
  * Pipe a child stream's output line-by-line through `emit`, prepending
@@ -55,24 +63,6 @@ function pipePrefixed(stream, prefix, emit) {
   // A pipe-level error (EIO on a vanished child) must not become an
   // unhandled 'error' event that takes the whole close down.
   stream.on('error', () => {});
-}
-
-/** Wire the AbortSignal so an abort kills the child. Returns the cleanup fn. */
-export function attachGateAbortHandler(child, signal) {
-  if (!signal) return () => {};
-  const killChild = () => {
-    try {
-      child.kill('SIGTERM');
-    } catch {
-      /* race: already exited */
-    }
-  };
-  if (signal.aborted) {
-    killChild();
-    return () => {};
-  }
-  signal.addEventListener('abort', killChild, { once: true });
-  return () => signal.removeEventListener('abort', killChild);
 }
 
 /** SIGTERM (no exit code) on abort → non-zero so the gate counts as failed. */
@@ -146,14 +136,20 @@ function isBiomeNoFilesProcessed(output) {
  * When `opts.fullSuiteLock` is set — the standalone `test` gate, the one gate
  * here that runs a whole suite (Story #5173) — the spawn is serialized behind
  * the host-level advisory lock so two concurrent closes on one checkout do not
- * run two suites against the same cores. Best-effort: a wait that expires
- * spawns anyway. The async wrapper is used rather than the synchronous one
- * precisely because this runner drives sibling gates on the same event loop,
- * which a blocking wait would stall.
+ * run two suites against the same cores. The async wrapper is used rather than
+ * a blocking one precisely because this runner drives sibling gates on the
+ * same event loop, which a blocking wait would stall. A wait that expires
+ * spawns anyway, unless `opts.deferOnLockExpiry` is set (close only, Story
+ * #5377): then nothing is spawned and the gate reports
+ * `LOCK_WAIT_EXPIRED_EXIT_CODE` so close can end `pending` instead.
+ *
+ * Every gate child leads its own process group (Story #5377): `timeoutMs`,
+ * an abort, and a SIGINT/SIGTERM to this process all kill the whole group, so
+ * a suite's worker processes never outlive the gate that spawned them.
  *
  * @param {string} cmd
  * @param {string[]} args
- * @param {{ cwd: string, signal?: AbortSignal, gateName?: string, log?: (m: string) => void, env?: Record<string, string>, tolerateNoFilesProcessed?: boolean, fullSuiteLock?: boolean, skipIfSatisfied?: () => {status: number}|undefined }} opts
+ * @param {{ cwd: string, signal?: AbortSignal, gateName?: string, log?: (m: string) => void, env?: Record<string, string>, tolerateNoFilesProcessed?: boolean, fullSuiteLock?: boolean, deferOnLockExpiry?: boolean, timeoutMs?: number, lockOptions?: object, skipIfSatisfied?: () => {status: number}|undefined }} opts
  * @returns {Promise<{ status: number }>}
  */
 export function defaultGateRunner(cmd, args, opts = {}) {
@@ -163,10 +159,26 @@ export function defaultGateRunner(cmd, args, opts = {}) {
   // `skipIfSatisfied` (Story #5278) is the caller's post-wait re-probe: after
   // queueing behind another full suite, the gate re-asks whether its evidence
   // has since been deposited and returns that verdict instead of spawning.
-  return withFullSuiteLockAsync(
-    { cwd: opts.cwd, log: opts.log, skipIfSatisfied: opts.skipIfSatisfied },
-    () => spawnGate(cmd, args, opts),
+  return withFullSuiteLockAsync(gateLockOptions(opts), () =>
+    spawnGate(cmd, args, opts),
   );
+}
+
+/** The full-suite lock options a `fullSuiteLock` gate runs under. */
+function gateLockOptions(opts) {
+  return {
+    cwd: opts.cwd,
+    log: opts.log,
+    skipIfSatisfied: opts.skipIfSatisfied,
+    onWaitExpired: opts.deferOnLockExpiry ? deferredGateStatus : undefined,
+    // Test seam only (lock path, wait budget); production never passes it.
+    ...opts.lockOptions,
+  };
+}
+
+/** The gate verdict an expired, deferred lock wait stands in for a spawn. */
+function deferredGateStatus() {
+  return { status: LOCK_WAIT_EXPIRED_EXIT_CODE };
 }
 
 /**
@@ -180,57 +192,107 @@ export function defaultGateRunner(cmd, args, opts = {}) {
  * @returns {Promise<{ status: number }>}
  */
 function spawnGate(cmd, args, opts) {
-  const { cwd, signal, gateName, log, env, tolerateNoFilesProcessed } = opts;
-  const child = spawn(cmd, args, {
-    cwd,
-    shell: process.platform === 'win32',
-    stdio: ['ignore', 'pipe', 'pipe'],
-    // Per-gate env overlay (Story #3890): merged over the inherited
-    // environment so a gate-scoped `BASELINE_REF` reaches the spawned
-    // `check-baselines` child without mutating the parent process env.
-    ...(env ? { env: { ...process.env, ...env } } : {}),
+  const child = spawnGateChild(cmd, args, opts);
+  const output = gateOutput(opts);
+  pipePrefixed(child.stdout, output.prefix, output.tap);
+  pipePrefixed(child.stderr, output.prefix, output.tap);
+  // A bare suite has nothing to clean up, so a signal to close SIGKILLs its
+  // group; any other gate child (a capture holding the lock) gets SIGTERM so
+  // its own handler can release what it holds and kill its own suite.
+  const supervisor = superviseGroup(child, {
+    timeoutMs: opts.timeoutMs,
+    abortSignal: opts.signal,
+    signalOnParentSignal: opts.fullSuiteLock ? 'SIGKILL' : 'SIGTERM',
   });
-  const prefix = gateName ? `[${gateName}] ` : '';
-  const emit =
-    typeof log === 'function' ? log : (m) => process.stdout.write(`${m}\n`);
-  // Retain a bounded tail only when we may need to inspect it for the biome
-  // "No files were processed" marker — otherwise the stream is purely piped
-  // through to the operator (no retained buffer).
-  const recent = [];
-  const tap = tolerateNoFilesProcessed
-    ? (line) => {
-        recent.push(line);
-        if (recent.length > MARKER_PROBE_TAIL_LINES) recent.shift();
-        emit(line);
-      }
-    : emit;
-  pipePrefixed(child.stdout, prefix, tap);
-  pipePrefixed(child.stderr, prefix, tap);
-  const detach = attachGateAbortHandler(child, signal);
   return new Promise((resolve) => {
     // 'close', not 'exit' (Story #4766): 'close' fires only once the child has
     // exited AND both stdio pipes have been fully drained and closed, so no
     // gate ever reports its status while lines are still in flight. Resolving
     // on 'exit' raced the tail of a high-volume gate's output.
     child.on('close', (code, sig) => {
-      detach();
-      const status = gateExitCode(code, sig);
-      if (
-        status !== 0 &&
-        tolerateNoFilesProcessed &&
-        isBiomeNoFilesProcessed(recent.join('\n'))
-      ) {
-        emit(
-          `${prefix}↳ biome processed zero files (all changed paths are config-ignored); treating as a clean skip`,
-        );
-        resolve({ status: 0 });
-        return;
-      }
-      resolve({ status });
+      supervisor.release();
+      resolve({
+        status: settledGateStatus({ code, sig, supervisor, opts, output }),
+      });
     });
     child.on('error', () => {
-      detach();
+      supervisor.release();
       resolve({ status: 1 });
     });
   });
+}
+
+/**
+ * Spawn one gate child as the leader of its own process group.
+ *
+ * @param {string} cmd
+ * @param {string[]} args
+ * @param {{ cwd: string, env?: Record<string, string> }} opts
+ */
+function spawnGateChild(cmd, args, { cwd, env }) {
+  return spawn(cmd, args, {
+    cwd,
+    shell: process.platform === 'win32',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    ...groupSpawnOptions(),
+    // Per-gate env overlay (Story #3890): merged over the inherited
+    // environment so a gate-scoped `BASELINE_REF` reaches the spawned
+    // `check-baselines` child without mutating the parent process env.
+    ...(env ? { env: { ...process.env, ...env } } : {}),
+  });
+}
+
+/**
+ * The gate's output sink: its line prefix, the drain callback, and — only
+ * when the biome marker may need inspecting — a bounded tail of recent lines.
+ * Otherwise the stream is purely piped through (no retained buffer).
+ *
+ * @param {{ gateName?: string, log?: (m: string) => void, tolerateNoFilesProcessed?: boolean }} opts
+ */
+function gateOutput({ gateName, log, tolerateNoFilesProcessed }) {
+  const prefix = gateName ? `[${gateName}] ` : '';
+  const emit =
+    typeof log === 'function' ? log : (m) => process.stdout.write(`${m}\n`);
+  const recent = [];
+  const tap = tolerateNoFilesProcessed ? retainTail(recent, emit) : emit;
+  return { prefix, emit, tap, recent };
+}
+
+/** A drain that also keeps the last `MARKER_PROBE_TAIL_LINES` lines. */
+function retainTail(recent, emit) {
+  return (line) => {
+    recent.push(line);
+    if (recent.length > MARKER_PROBE_TAIL_LINES) recent.shift();
+    emit(line);
+  };
+}
+
+/**
+ * The status a closed gate child reports: 124 when its wall-clock budget
+ * killed it (Story #5377), a clean 0 for biome's "processed zero files" exit
+ * under `tolerateNoFilesProcessed` (Story #4292), else its own exit code.
+ */
+function settledGateStatus(settled) {
+  return settled.supervisor.timedOut
+    ? timedOutStatus(settled)
+    : exitedStatus(settled);
+}
+
+/** Report the watchdog kill and return the `timeout(1)` exit code. */
+function timedOutStatus({ opts, output }) {
+  output.emit(
+    `${output.prefix}⏱ exceeded ${opts.timeoutMs}ms — killed the gate's process group. Returning exit ${TIMEOUT_EXIT_CODE}.`,
+  );
+  return TIMEOUT_EXIT_CODE;
+}
+
+/** The child's own exit status, with biome's zero-files exit forgiven. */
+function exitedStatus({ code, sig, opts, output }) {
+  const status = gateExitCode(code, sig);
+  if (status === 0 || !opts.tolerateNoFilesProcessed) return status;
+  if (!isBiomeNoFilesProcessed(output.recent.join('\n'))) return status;
+  output.emit(
+    `${output.prefix}↳ biome processed zero files (all changed paths are config-ignored); treating as a clean skip`,
+  );
+  return 0;
 }

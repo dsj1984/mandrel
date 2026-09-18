@@ -1,22 +1,43 @@
 /**
  * Story #1642 — unit-test the extracted helpers behind `defaultGateRunner`.
  *
- * `attachGateAbortHandler` and `gateExitCode` are the two pure pieces that
- * came out of the cc-reduction refactor. Coverage on them keeps the file's
- * function-coverage above its baseline.
+ * `gateExitCode` came out of the cc-reduction refactor; Story #5377 replaced
+ * the abort helper beside it with the process-group supervision every gate
+ * child now runs under, pinned here with fakes and with real process trees.
  */
 
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { spawn } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import { afterEach, beforeEach, describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
   buildDefaultGates,
   partitionGates,
 } from '../../.agents/scripts/lib/close-validation/gates.js';
 import {
-  attachGateAbortHandler,
+  defaultGateRunner,
   gateExitCode,
 } from '../../.agents/scripts/lib/close-validation/process.js';
+import { runCloseValidation } from '../../.agents/scripts/lib/close-validation/runner.js';
+import {
+  FULL_SUITE_LOCK_EXPIRY_ENV,
+  LOCK_WAIT_EXPIRED_EXIT_CODE,
+} from '../../.agents/scripts/lib/full-suite-lock.js';
+import {
+  groupSpawnOptions,
+  killProcessGroup,
+  superviseGroup,
+} from '../../.agents/scripts/lib/process-group.js';
+import { acquireSweepLock } from '../../.agents/scripts/lib/single-story-sweep/sweep-lock.js';
+import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import { hashCommandConfig } from '../../.agents/scripts/lib/validation-evidence.js';
+import {
+  waitForDeath,
+  waitForExit,
+  waitForFile,
+} from '../fixtures/process-group/probe.js';
 
 describe('gateExitCode', () => {
   it('returns numeric exit codes verbatim', () => {
@@ -33,61 +54,254 @@ describe('gateExitCode', () => {
   });
 });
 
-function makeFakeChild() {
-  const calls = { killed: 0 };
+function makeFakeChild({ pid, throws = false } = {}) {
+  const calls = { killed: [] };
   return {
-    kill: () => {
-      calls.killed += 1;
+    pid,
+    kill: (signal) => {
+      calls.killed.push(signal);
+      if (throws) throw new Error('already exited');
     },
     calls,
   };
 }
 
-describe('attachGateAbortHandler', () => {
-  it('returns a no-op detach when signal is absent', () => {
-    const child = makeFakeChild();
-    const detach = attachGateAbortHandler(child, null);
-    detach();
-    assert.equal(child.calls.killed, 0);
+describe('killProcessGroup (Story #5377)', () => {
+  it('signals the whole group on POSIX', () => {
+    const sent = [];
+    const child = makeFakeChild({ pid: 4242 });
+    killProcessGroup(child, 'SIGKILL', {
+      platform: 'linux',
+      killFn: (pid, signal) => sent.push([pid, signal]),
+    });
+    assert.deepEqual(sent, [[-4242, 'SIGKILL']]);
+    assert.deepEqual(child.calls.killed, []);
   });
 
-  it('kills the child immediately when signal is already aborted', () => {
+  it('falls back to the child when the group is already gone', () => {
+    const child = makeFakeChild({ pid: 4242 });
+    const delivered = killProcessGroup(child, 'SIGTERM', {
+      platform: 'darwin',
+      killFn: () => {
+        throw Object.assign(new Error('gone'), { code: 'ESRCH' });
+      },
+    });
+    assert.equal(delivered, true);
+    assert.deepEqual(child.calls.killed, ['SIGTERM']);
+  });
+
+  it('AC-11: degrades to the plain child kill on win32 and never throws', () => {
+    const groupKills = [];
+    const child = makeFakeChild({ pid: 4242, throws: true });
+    assert.doesNotThrow(() =>
+      killProcessGroup(child, 'SIGKILL', {
+        platform: 'win32',
+        killFn: (pid) => groupKills.push(pid),
+      }),
+    );
+    assert.deepEqual(groupKills, [], 'no POSIX group kill on win32');
+    assert.deepEqual(child.calls.killed, ['SIGKILL']);
+    assert.equal(
+      killProcessGroup(null, 'SIGKILL', { platform: 'win32' }),
+      true,
+      'a missing child is not an error',
+    );
+  });
+
+  it('spawns a group leader only where process groups exist', () => {
+    assert.deepEqual(groupSpawnOptions('win32'), {});
+    assert.deepEqual(groupSpawnOptions('linux'), { detached: true });
+  });
+});
+
+describe('superviseGroup — abort wiring', () => {
+  it('kills the child immediately when the signal is already aborted', () => {
     const ac = new AbortController();
     ac.abort();
     const child = makeFakeChild();
-    attachGateAbortHandler(child, ac.signal);
-    assert.equal(child.calls.killed, 1);
+    superviseGroup(child, { abortSignal: ac.signal }).release();
+    assert.deepEqual(child.calls.killed, ['SIGTERM']);
   });
 
-  it('attaches an abort listener that kills the child when the signal fires', () => {
+  it('kills the child when the signal fires, and not after release', () => {
     const ac = new AbortController();
     const child = makeFakeChild();
-    const detach = attachGateAbortHandler(child, ac.signal);
-    assert.equal(child.calls.killed, 0);
+    const supervisor = superviseGroup(child, { abortSignal: ac.signal });
+    assert.deepEqual(child.calls.killed, []);
     ac.abort();
-    assert.equal(child.calls.killed, 1);
-    detach();
-  });
-
-  it('detach removes the listener so a later abort is a no-op', () => {
-    const ac = new AbortController();
-    const child = makeFakeChild();
-    const detach = attachGateAbortHandler(child, ac.signal);
-    detach();
-    ac.abort();
-    assert.equal(child.calls.killed, 0);
+    assert.deepEqual(child.calls.killed, ['SIGTERM']);
+    supervisor.release();
+    const later = new AbortController();
+    const quiet = makeFakeChild();
+    superviseGroup(quiet, { abortSignal: later.signal }).release();
+    later.abort();
+    assert.deepEqual(quiet.calls.killed, []);
   });
 
   it('swallows kill() races (child already exited)', () => {
     const ac = new AbortController();
-    const child = {
-      kill: () => {
-        throw new Error('already exited');
-      },
-    };
-    attachGateAbortHandler(child, ac.signal);
-    // Must not throw.
+    const supervisor = superviseGroup(makeFakeChild({ throws: true }), {
+      abortSignal: ac.signal,
+    });
     assert.doesNotThrow(() => ac.abort());
+    supervisor.release();
+  });
+
+  it('forwards SIGINT/SIGTERM to the group only while the child is live', () => {
+    const before = process.listenerCount('SIGTERM');
+    const supervisor = superviseGroup(makeFakeChild());
+    assert.equal(process.listenerCount('SIGTERM'), before + 1);
+    supervisor.release();
+    assert.equal(process.listenerCount('SIGTERM'), before);
+  });
+});
+
+describe('the close `test` gate is bounded (Story #5377)', () => {
+  it('AC-3: runCloseValidation hands the full-suite gate the coverage wall clock', async () => {
+    const seen = [];
+    await runCloseValidation({
+      cwd: '/repo',
+      gates: [
+        { name: 'test', cmd: 'npm', args: ['test'], fullSuiteLock: true },
+        { name: 'lint', cmd: 'npm', args: ['run', 'lint'] },
+      ],
+      config: {
+        delivery: { quality: { gates: { coverage: { timeoutMs: 4321 } } } },
+      },
+      runner: async (_cmd, _args, opts) => {
+        seen.push(opts);
+        return { status: 0 };
+      },
+      runProjections: async () => {},
+      deferOnLockExpiry: true,
+    });
+    const test = seen.find((o) => o.gateName === 'test');
+    const lint = seen.find((o) => o.gateName === 'lint');
+    assert.equal(test.timeoutMs, 4321);
+    assert.equal(test.deferOnLockExpiry, true);
+    assert.equal(
+      lint.timeoutMs,
+      undefined,
+      'only the full-suite gate is bounded here',
+    );
+    for (const opts of [test, lint]) {
+      assert.equal(
+        opts.env[FULL_SUITE_LOCK_EXPIRY_ENV],
+        'defer',
+        'close opts every gate child in to the defer posture',
+      );
+    }
+  });
+
+  it('outside close no gate child is opted in to defer', async () => {
+    const seen = [];
+    await runCloseValidation({
+      cwd: '/repo',
+      gates: [
+        { name: 'test', cmd: 'npm', args: ['test'], fullSuiteLock: true },
+      ],
+      runner: async (_cmd, _args, opts) => {
+        seen.push(opts);
+        return { status: 0 };
+      },
+      runProjections: async () => {},
+    });
+    assert.equal(seen[0].env, undefined);
+    assert.equal(seen[0].deferOnLockExpiry, false);
+    assert.equal(seen[0].timeoutMs, 600_000, 'the resolved default budget');
+  });
+
+  it('a deferred full-suite gate reports the lock-expiry exit without spawning', async () => {
+    const lockDir = makeTempDir('mandrel-gate-defer-');
+    try {
+      const lockPath = path.join(lockDir, 'full-suite.lock');
+      const marker = path.join(lockDir, 'spawned');
+      const holder = acquireSweepLock({ lockPath, timeoutMs: 600_000 });
+      const result = await defaultGateRunner(
+        process.execPath,
+        [
+          '-e',
+          `require('node:fs').writeFileSync(${JSON.stringify(marker)}, '')`,
+        ],
+        {
+          cwd: lockDir,
+          gateName: 'test',
+          log: () => {},
+          fullSuiteLock: true,
+          deferOnLockExpiry: true,
+          lockOptions: { lockPath, waitMs: 0 },
+        },
+      );
+      holder.release();
+      assert.deepEqual(result, { status: LOCK_WAIT_EXPIRED_EXIT_CODE });
+      assert.equal(fs.existsSync(marker), false, 'nothing was spawned');
+    } finally {
+      fs.rmSync(lockDir, { recursive: true, force: true });
+    }
+  });
+});
+
+/**
+ * Story #5377 — real process trees. POSIX-only: win32 has no process groups
+ * and its degraded kill is pinned above.
+ */
+describe('gate children are process groups (Story #5377)', {
+  skip: process.platform === 'win32',
+}, () => {
+  const fixtures = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '../fixtures/process-group',
+  );
+  let dir;
+  beforeEach(() => {
+    dir = makeTempDir('mandrel-gate-pgroup-');
+  });
+  afterEach(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('AC-2: a close `test` gate killed by its timeout leaves no surviving worker and exits 124', async () => {
+    const pidFile = path.join(dir, 'worker.pid');
+    const lines = [];
+    const result = await defaultGateRunner(
+      process.execPath,
+      [path.join(fixtures, 'suite-tree.mjs'), pidFile],
+      {
+        cwd: dir,
+        gateName: 'test',
+        log: (m) => lines.push(m),
+        fullSuiteLock: true,
+        timeoutMs: 3_000,
+      },
+    );
+    assert.deepEqual(result, { status: 124 });
+    assert.match(lines.join('\n'), /exceeded 3000ms/);
+    const worker = Number(fs.readFileSync(pidFile, 'utf8'));
+    assert.equal(
+      await waitForDeath(worker),
+      true,
+      'the worker dies with its group',
+    );
+  });
+
+  it('AC-4: SIGTERM to the process running a gate kills that gate’s group before it exits', async () => {
+    const pidFile = path.join(dir, 'worker.pid');
+    const runner = spawn(
+      process.execPath,
+      [path.join(fixtures, 'gate-holder.mjs'), dir, pidFile],
+      { stdio: 'ignore' },
+    );
+    await waitForFile(pidFile);
+    const worker = Number(fs.readFileSync(pidFile, 'utf8'));
+    const exited = waitForExit(runner);
+    runner.kill('SIGTERM');
+    const { code, signal, ms } = await exited;
+    assert.ok(ms < 5_000, `the gate runner took ${ms}ms to exit`);
+    assert.ok(
+      signal === 'SIGTERM' || code !== 0,
+      'it still dies of the signal',
+    );
+    assert.equal(await waitForDeath(worker), true, 'the gate’s worker is gone');
   });
 });
 
@@ -97,7 +311,7 @@ describe('attachGateAbortHandler', () => {
 // that gate lives in `tests/check-baselines-pre-merge-wiring.test.js` and
 // the attribution-wiring tests under
 // `tests/lib/orchestration/story-close/baseline-attribution-wiring.test.js`.
-// The pure helpers above (`gateExitCode`, `attachGateAbortHandler`) remain.
+// The pure helpers above (`gateExitCode`, the process-group kill) remain.
 
 // ─────────────────────────────────────────────────────────────────────────
 // The `lint` gate resolves `project.commands.lint`.

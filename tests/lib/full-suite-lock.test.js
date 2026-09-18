@@ -5,12 +5,20 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import { defaultGateRunner } from '../../.agents/scripts/lib/close-validation/process.js';
 import {
   FULL_SUITE_LOCK_ENV,
+  FULL_SUITE_LOCK_EXPIRY_ENV,
   isFullSuiteLockEnabled,
+  LOCK_WAIT_EXPIRED_EXIT_CODE,
   lockedCapture,
   resolveFullSuiteLockPath,
   withFullSuiteLockAsync,
-  withFullSuiteLockSync,
 } from '../../.agents/scripts/lib/full-suite-lock.js';
+import {
+  dequeueWaiter,
+  enqueueWaiter,
+  isFirstInLine,
+  parseLockWaitOutcome,
+  refreshTicket,
+} from '../../.agents/scripts/lib/full-suite-queue.js';
 import { acquireSweepLock } from '../../.agents/scripts/lib/single-story-sweep/sweep-lock.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 
@@ -125,215 +133,26 @@ describe('full-suite lock (Story #5173)', () => {
     });
   });
 
-  describe('withFullSuiteLockSync', () => {
-    it('runs the spawn and releases the lockfile on the uncontended path', () => {
-      let held = null;
-      const code = withFullSuiteLockSync({ cwd: dir, lockPath }, () => {
-        held = fs.existsSync(lockPath);
-        return 7;
-      });
-      assert.equal(code, 7);
-      assert.equal(held, true, 'the lock must be held across the spawn');
-      assert.equal(fs.existsSync(lockPath), false, 'and released after it');
-    });
-
-    it('AC-6: a contended runner spawns only after the holder releases', () => {
-      const order = [];
-      const holder = acquireSweepLock({ lockPath, timeoutMs: 60_000 });
-      assert.equal(holder.acquired, true);
-
-      const code = withFullSuiteLockSync(
-        {
-          cwd: dir,
-          lockPath,
-          waitMs: 10_000,
-          pollMs: 1,
-          // The holder finishes during the wait — released from the sleep seam
-          // so the ordering assertion below is deterministic rather than timed.
-          sleepFn: () => {
-            if (order.length === 0) {
-              order.push('holder-release');
-              holder.release();
-            }
-          },
-        },
-        () => {
-          order.push('spawn');
-          return 0;
-        },
-      );
-
-      assert.equal(code, 0);
-      assert.deepEqual(order, ['holder-release', 'spawn']);
-    });
-
-    it('AC-8: a wait names the holding pid rather than reading as a hang', () => {
-      const holder = acquireSweepLock({ lockPath, timeoutMs: 60_000 });
-      assert.equal(holder.acquired, true);
-      const lines = [];
-      withFullSuiteLockSync(
-        {
-          cwd: dir,
-          lockPath,
-          waitMs: 0,
-          pollMs: 0,
-          log: (m) => lines.push(m),
-        },
-        () => 0,
-      );
-      holder.release();
-      const waitLine = lines.find((m) => m.includes('full-suite-lock'));
-      assert.ok(waitLine, 'expected a wait line');
-      assert.match(waitLine, new RegExp(`holding pid ${process.pid}\\b`));
-    });
-
-    it('AC-7: a stale holder is reclaimed rather than waited out', () => {
-      const holder = acquireSweepLock({
-        lockPath,
-        timeoutMs: 60_000,
-        heartbeatMs: 0,
-      });
-      assert.equal(holder.acquired, true);
-      // Age the lockfile past the staleness threshold without touching the
-      // holder — exactly the shape a killed process leaves behind.
-      const old = new Date(Date.now() - 10 * 60_000);
-      fs.utimesSync(lockPath, old, old);
-
-      let sleeps = 0;
-      const lines = [];
-      const code = withFullSuiteLockSync(
-        {
-          cwd: dir,
-          lockPath,
-          staleMs: 1_000,
-          sleepFn: () => {
-            sleeps += 1;
-          },
-          log: (m) => lines.push(m),
-        },
-        () => 5,
-      );
-      assert.equal(code, 5);
-      assert.equal(
-        sleeps,
-        0,
-        'a stale lock must be taken over, never waited on',
-      );
-      assert.equal(
-        lines.some((m) => m.includes('full-suite-lock')),
-        false,
-        'and the takeover is silent — no wait happened to announce',
-      );
-    });
-
-    it('is best-effort: an exhausted wait still spawns exactly once', () => {
-      const holder = acquireSweepLock({ lockPath, timeoutMs: 60_000 });
-      let spawns = 0;
-      const code = withFullSuiteLockSync(
-        { cwd: dir, lockPath, waitMs: 0, pollMs: 0 },
-        () => {
-          spawns += 1;
-          return 3;
-        },
-      );
-      holder.release();
-      assert.equal(code, 3);
-      assert.equal(spawns, 1);
-    });
-
-    it('is best-effort: a hard acquire error still spawns exactly once', () => {
-      let spawns = 0;
-      const code = withFullSuiteLockSync(
-        {
-          cwd: dir,
-          lockPath,
-          acquireOnceFn: () => ({
-            acquired: false,
-            reason: 'error',
-            detail: 'EACCES',
-          }),
-        },
-        () => {
-          spawns += 1;
-          return 0;
-        },
-      );
-      assert.equal(code, 0);
-      assert.equal(spawns, 1);
-      assert.equal(fs.existsSync(lockPath), false);
-    });
-
-    it('AC-9: disabled means no lockfile is ever created', () => {
-      const code = withFullSuiteLockSync(
-        { cwd: dir, lockPath, enabled: false },
-        () => 0,
-      );
-      assert.equal(code, 0);
-      assert.equal(fs.existsSync(lockPath), false);
-    });
-
-    it('AC-9: never locks when the lock home cannot be resolved', () => {
-      let spawns = 0;
-      withFullSuiteLockSync({ cwd: '' }, () => {
-        spawns += 1;
-      });
-      assert.equal(spawns, 1);
-    });
-
-    it('releases the lock even when the spawn throws', () => {
-      assert.throws(
-        () =>
-          withFullSuiteLockSync({ cwd: dir, lockPath }, () => {
-            throw new Error('suite blew up');
-          }),
-        /suite blew up/,
-      );
-      assert.equal(fs.existsSync(lockPath), false);
-    });
-  });
-
-  // The decorator the CLI applies to `runCapture`. It resolves both escape
-  // hatches once, then serializes every spawn the wrapped runner makes.
-  describe('lockedCapture', () => {
-    it('holds the lock across the wrapped runner and forwards its options', () => {
-      const seen = [];
-      const wrapped = lockedCapture((opts) => {
-        seen.push({ ...opts, held: fs.existsSync(lockPath) });
-        return 0;
-      }, {});
-      // The decorator resolves the lock home from `cwd`; point it at the
-      // temp checkout stand-in by pre-creating nothing and letting the
-      // best-effort path run — the assertion that matters is pass-through.
-      assert.equal(wrapped({ cwd: dir, timeoutMs: 99 }), 0);
-      assert.equal(seen.length, 1);
-      assert.equal(seen[0].cwd, dir);
-      assert.equal(seen[0].timeoutMs, 99);
-    });
-
-    it('AC-10: a disabling config short-circuits the lock entirely', () => {
-      let calls = 0;
-      const wrapped = lockedCapture(
-        () => {
-          calls += 1;
-          return 0;
-        },
-        { delivery: { execution: { fullSuiteLock: false } } },
-      );
-      assert.equal(wrapped({ cwd: dir }), 0);
-      assert.equal(calls, 1);
-      assert.equal(fs.existsSync(lockPath), false);
-    });
-
-    it('tolerates a runner invoked with no options at all', () => {
-      const wrapped = lockedCapture(() => 4, {
-        delivery: { execution: { fullSuiteLock: false } },
-      });
-      assert.equal(wrapped(), 4);
-    });
-  });
+  /**
+   * A fake clock the wait loop advances through its own sleep seam, so a
+   * five-minute wait runs in microseconds and its log lines are exact.
+   */
+  function fakeClock(onSleep = () => {}) {
+    let now = 1_000_000;
+    return {
+      nowFn: () => now,
+      sleepFn: async (ms) => {
+        now += ms;
+        onSleep(now);
+      },
+      advance: (ms) => {
+        now += ms;
+      },
+    };
+  }
 
   describe('withFullSuiteLockAsync', () => {
-    it('holds the lock across the awaited spawn and releases it after', async () => {
+    it('runs the spawn and releases the lockfile on the uncontended path', async () => {
       let held = null;
       const result = await withFullSuiteLockAsync(
         { cwd: dir, lockPath },
@@ -343,55 +162,488 @@ describe('full-suite lock (Story #5173)', () => {
         },
       );
       assert.deepEqual(result, { status: 0 });
-      assert.equal(held, true);
-      assert.equal(fs.existsSync(lockPath), false);
+      assert.equal(held, true, 'the lock must be held across the spawn');
+      assert.equal(fs.existsSync(lockPath), false, 'and released after it');
     });
 
-    it('AC-8: announces the holding pid before waiting, then acquires', async () => {
+    it('a contended runner spawns only after the holder releases', async () => {
+      const order = [];
       const holder = acquireSweepLock({ lockPath, timeoutMs: 60_000 });
-      const lines = [];
-      const result = await withFullSuiteLockAsync(
+      assert.equal(holder.acquired, true);
+      const code = await withFullSuiteLockAsync(
         {
           cwd: dir,
           lockPath,
-          log: (m) => lines.push(m),
-          // The bounded wait is driven through the shipped async wrapper; the
-          // holder steps aside on the first sleep tick.
-          acquireWithWaitFn: async ({ lockPath: p }) => {
-            holder.release();
-            return acquireSweepLock({ lockPath: p, timeoutMs: 60_000 });
+          waitMs: 10_000,
+          pollMs: 1,
+          sleepFn: async () => {
+            if (order.length === 0) {
+              order.push('holder-release');
+              holder.release();
+            }
           },
         },
-        async () => ({ status: 0 }),
+        async () => {
+          order.push('spawn');
+          return 0;
+        },
       );
-      assert.deepEqual(result, { status: 0 });
-      assert.match(
-        lines.join('\n'),
-        new RegExp(`holding pid ${process.pid}\\b`),
-      );
-      assert.equal(fs.existsSync(lockPath), false);
+      assert.equal(code, 0);
+      assert.deepEqual(order, ['holder-release', 'spawn']);
     });
 
-    it('is best-effort: an exhausted wait still spawns exactly once', async () => {
+    it('a wait names the holding pid and reports how long it waited', async () => {
       const holder = acquireSweepLock({ lockPath, timeoutMs: 60_000 });
-      let spawns = 0;
-      const result = await withFullSuiteLockAsync(
+      const lines = [];
+      const clock = fakeClock((now) => {
+        if (now >= 1_000_000 + 6_000) holder.release();
+      });
+      await withFullSuiteLockAsync(
+        { cwd: dir, lockPath, log: (m) => lines.push(m), ...clock },
+        async () => 0,
+      );
+      assert.match(lines[0], new RegExp(`holding pid ${process.pid}\\b`));
+      assert.deepEqual(parseLockWaitOutcome(lines.at(-1)), {
+        waitedSeconds: 6,
+        expired: false,
+      });
+    });
+
+    it('a stale holder is reclaimed rather than waited out', async () => {
+      const holder = acquireSweepLock({
+        lockPath,
+        timeoutMs: 60_000,
+        heartbeatMs: 0,
+      });
+      assert.equal(holder.acquired, true);
+      const old = new Date(Date.now() - 10 * 60_000);
+      fs.utimesSync(lockPath, old, old);
+      let sleeps = 0;
+      const lines = [];
+      const code = await withFullSuiteLockAsync(
         {
           cwd: dir,
           lockPath,
-          acquireWithWaitFn: async () => ({
+          staleMs: 1_000,
+          sleepFn: async () => {
+            sleeps += 1;
+          },
+          log: (m) => lines.push(m),
+        },
+        async () => 5,
+      );
+      assert.equal(code, 5);
+      assert.equal(
+        sleeps,
+        0,
+        'a stale lock must be taken over, never waited on',
+      );
+      assert.deepEqual(lines, [], 'and the takeover is silent');
+    });
+
+    it('is best-effort: an exhausted wait still spawns exactly once by default', async () => {
+      const holder = acquireSweepLock({ lockPath, timeoutMs: 60_000 });
+      let spawns = 0;
+      const lines = [];
+      const code = await withFullSuiteLockAsync(
+        { cwd: dir, lockPath, waitMs: 0, log: (m) => lines.push(m) },
+        async () => {
+          spawns += 1;
+          return 3;
+        },
+      );
+      holder.release();
+      assert.equal(code, 3);
+      assert.equal(spawns, 1);
+      assert.match(lines.at(-1), /spawning anyway/);
+      assert.equal(parseLockWaitOutcome(lines.at(-1)).expired, true);
+    });
+
+    it('is best-effort: a hard acquire error still spawns exactly once', async () => {
+      let spawns = 0;
+      const code = await withFullSuiteLockAsync(
+        {
+          cwd: dir,
+          lockPath,
+          acquireOnceFn: () => ({
             acquired: false,
-            reason: 'contended-after-wait',
+            reason: 'error',
+            detail: 'EACCES',
           }),
         },
         async () => {
           spawns += 1;
-          return { status: 1 };
+          return 0;
+        },
+      );
+      assert.equal(code, 0);
+      assert.equal(spawns, 1);
+      assert.equal(fs.existsSync(lockPath), false);
+    });
+
+    it('a hard error mid-wait ends the wait without calling it an expiry', async () => {
+      const holder = acquireSweepLock({ lockPath, timeoutMs: 60_000 });
+      let calls = 0;
+      let deferred = 0;
+      const code = await withFullSuiteLockAsync(
+        {
+          cwd: dir,
+          lockPath,
+          sleepFn: async () => {},
+          acquireOnceFn: (opts) => {
+            calls += 1;
+            return calls === 1
+              ? acquireSweepLock(opts)
+              : { acquired: false, reason: 'error' };
+          },
+          onWaitExpired: () => {
+            deferred += 1;
+            return 75;
+          },
+        },
+        async () => 0,
+      );
+      holder.release();
+      assert.equal(code, 0, 'an I/O error spawns unserialized');
+      assert.equal(deferred, 0);
+    });
+
+    it('disabled means no lockfile is ever created', async () => {
+      const code = await withFullSuiteLockAsync(
+        { cwd: dir, lockPath, enabled: false },
+        async () => 0,
+      );
+      assert.equal(code, 0);
+      assert.equal(fs.existsSync(lockPath), false);
+    });
+
+    it('never locks when the lock home cannot be resolved', async () => {
+      let spawns = 0;
+      await withFullSuiteLockAsync({ cwd: '' }, async () => {
+        spawns += 1;
+      });
+      assert.equal(spawns, 1);
+    });
+
+    it('releases the lock even when the spawn throws', async () => {
+      await assert.rejects(
+        withFullSuiteLockAsync({ cwd: dir, lockPath }, async () => {
+          throw new Error('suite blew up');
+        }),
+        /suite blew up/,
+      );
+      assert.equal(fs.existsSync(lockPath), false);
+    });
+  });
+
+  describe('budgets (Story #5377)', () => {
+    it('AC-5: the default wait expires at 300s, under the foreground ceiling', async () => {
+      const holder = acquireSweepLock({ lockPath, timeoutMs: 600_000 });
+      const lines = [];
+      const clock = fakeClock();
+      await withFullSuiteLockAsync(
+        { cwd: dir, lockPath, log: (m) => lines.push(m), ...clock },
+        async () => 0,
+      );
+      holder.release();
+      const outcome = parseLockWaitOutcome(lines.at(-1));
+      assert.equal(outcome.expired, true);
+      assert.ok(
+        outcome.waitedSeconds >= 298 && outcome.waitedSeconds <= 300,
+        `expected a ~300s wait, got ${outcome.waitedSeconds}s`,
+      );
+    });
+
+    it('AC-5: the default stale threshold does not exceed the wait budget', async () => {
+      // A live pid that has not refreshed its lock for a full wait budget: a
+      // stale threshold at or below that budget reclaims it at once.
+      const holder = acquireSweepLock({
+        lockPath,
+        timeoutMs: 600_000,
+        heartbeatMs: 0,
+      });
+      const aged = new Date(Date.now() - 301_000);
+      fs.utimesSync(lockPath, aged, aged);
+      let sleeps = 0;
+      const code = await withFullSuiteLockAsync(
+        {
+          cwd: dir,
+          lockPath,
+          sleepFn: async () => {
+            sleeps += 1;
+          },
+        },
+        async () => 0,
+      );
+      holder.release();
+      assert.equal(code, 0);
+      assert.equal(sleeps, 0);
+    });
+  });
+
+  describe('arrival-order fairness (Story #5377)', () => {
+    it('AC-6: of two waiters, the one that began waiting first acquires first', async () => {
+      const holder = acquireSweepLock({ lockPath, timeoutMs: 60_000 });
+      const order = [];
+      let releaseHolder;
+      const holderGone = new Promise((resolve) => {
+        releaseHolder = resolve;
+      });
+      const tick = () => new Promise((resolve) => setImmediate(resolve));
+      // The earlier waiter polls slowly; the later one polls on every tick,
+      // which is exactly the lucky-moment overtake the queue must refuse.
+      const early = withFullSuiteLockAsync(
+        {
+          cwd: dir,
+          lockPath,
+          pollMs: 0,
+          sleepFn: async () => {
+            await holderGone;
+            for (let i = 0; i < 20; i += 1) await tick();
+          },
+        },
+        async () => {
+          order.push('early');
+          await tick();
+          return 0;
+        },
+      );
+      await tick();
+      const late = withFullSuiteLockAsync(
+        { cwd: dir, lockPath, pollMs: 0, sleepFn: tick },
+        async () => {
+          order.push('late');
+          return 0;
+        },
+      );
+      for (let i = 0; i < 5; i += 1) await tick();
+      holder.release();
+      releaseHolder();
+      await Promise.all([early, late]);
+      assert.deepEqual(order, ['early', 'late']);
+    });
+
+    it('a newcomer does not take the free lock ahead of a live queued waiter', () => {
+      const ticket = enqueueWaiter({ lockPath });
+      try {
+        assert.equal(
+          isFirstInLine({ lockPath, ticket: null, staleMs: 60_000 }),
+          false,
+        );
+        assert.equal(
+          isFirstInLine({ lockPath, ticket, staleMs: 60_000 }),
+          true,
+        );
+      } finally {
+        dequeueWaiter(ticket);
+      }
+      assert.equal(
+        isFirstInLine({ lockPath, ticket: null, staleMs: 60_000 }),
+        true,
+      );
+    });
+
+    it('a corrupt, dead-pid, or stale queue entry never holds a place in line', () => {
+      const queueDir = `${lockPath}.queue`;
+      fs.mkdirSync(queueDir, { recursive: true });
+      fs.writeFileSync(path.join(queueDir, '000000000000001-garbage'), '');
+      fs.writeFileSync(
+        path.join(queueDir, '000000000000002-000001-999999999-ab'),
+        '',
+      );
+      const stale = path.join(
+        queueDir,
+        `000000000000003-000001-${process.pid}-cd`,
+      );
+      fs.writeFileSync(stale, '');
+      const aged = new Date(Date.now() - 120_000);
+      fs.utimesSync(stale, aged, aged);
+      assert.equal(
+        isFirstInLine({
+          lockPath,
+          ticket: null,
+          staleMs: 60_000,
+          killFn: (pid) => {
+            if (pid !== process.pid) {
+              throw Object.assign(new Error('gone'), { code: 'ESRCH' });
+            }
+          },
+        }),
+        true,
+      );
+    });
+
+    it('queue I/O failures resolve to first-in-line, never to a stuck wait', () => {
+      const brokenFs = {
+        mkdirSync: () => {
+          throw new Error('EROFS');
+        },
+        readdirSync: () => {
+          throw new Error('EIO');
+        },
+      };
+      assert.equal(enqueueWaiter({ lockPath, fsImpl: brokenFs }), null);
+      assert.equal(
+        isFirstInLine({ lockPath, ticket: null, staleMs: 1, fsImpl: brokenFs }),
+        true,
+      );
+      assert.doesNotThrow(() => {
+        refreshTicket(null);
+        refreshTicket({ file: path.join(dir, 'missing') });
+        dequeueWaiter(null);
+        dequeueWaiter({ file: path.join(dir, 'missing'), detach: () => {} });
+      });
+    });
+  });
+
+  describe('visibility and expiry (Story #5377)', () => {
+    it('AC-9: a waiter reports it is still waiting at least every 30s', async () => {
+      const holder = acquireSweepLock({ lockPath, timeoutMs: 600_000 });
+      const stamps = [];
+      const clock = fakeClock();
+      await withFullSuiteLockAsync(
+        {
+          cwd: dir,
+          lockPath,
+          waitMs: 120_000,
+          log: () => stamps.push(clock.nowFn()),
+          nowFn: clock.nowFn,
+          sleepFn: clock.sleepFn,
+        },
+        async () => 0,
+      );
+      holder.release();
+      assert.ok(stamps.length >= 5, 'start, ≥3 still-waiting, and expiry');
+      for (let i = 1; i < stamps.length; i += 1) {
+        assert.ok(
+          stamps[i] - stamps[i - 1] <= 30_000,
+          `gap ${stamps[i] - stamps[i - 1]}ms between wait lines exceeds 30s`,
+        );
+      }
+    });
+
+    it('onWaitExpired stands in for the spawn only when the wait expired', async () => {
+      const holder = acquireSweepLock({ lockPath, timeoutMs: 600_000 });
+      let spawns = 0;
+      const lines = [];
+      const code = await withFullSuiteLockAsync(
+        {
+          cwd: dir,
+          lockPath,
+          waitMs: 4_000,
+          log: (m) => lines.push(m),
+          onWaitExpired: () => LOCK_WAIT_EXPIRED_EXIT_CODE,
+          ...fakeClock(),
+        },
+        async () => {
+          spawns += 1;
+          return 0;
         },
       );
       holder.release();
-      assert.deepEqual(result, { status: 1 });
-      assert.equal(spawns, 1);
+      assert.equal(code, LOCK_WAIT_EXPIRED_EXIT_CODE);
+      assert.equal(spawns, 0);
+      assert.match(lines.at(-1), /not spawning/);
+      const uncontended = await withFullSuiteLockAsync(
+        { cwd: dir, lockPath, onWaitExpired: () => 75 },
+        async () => 0,
+      );
+      assert.equal(uncontended, 0);
+    });
+
+    it('parseLockWaitOutcome reads only a wait’s final line', () => {
+      assert.equal(
+        parseLockWaitOutcome(
+          '[full-suite-lock] ⏳ still waiting (holding pid 1, waited 25s).',
+        ),
+        null,
+      );
+      assert.equal(parseLockWaitOutcome(undefined), null);
+      assert.deepEqual(
+        parseLockWaitOutcome(
+          '[coverage-capture] [full-suite-lock] ✅ acquired the full-suite lock (waited 42s).',
+        ),
+        { waitedSeconds: 42, expired: false },
+      );
+      assert.deepEqual(
+        parseLockWaitOutcome(
+          '[full-suite-lock] ⌛ gave up waiting for the full-suite lock (waited 300s, holding pid 9) — spawning anyway.',
+        ),
+        { waitedSeconds: 300, expired: true },
+      );
+    });
+  });
+
+  // The decorator the CLI applies to `runCapture`. It resolves both escape
+  // hatches once, then serializes every spawn the wrapped runner makes.
+  describe('lockedCapture', () => {
+    it('holds the lock across the wrapped runner and forwards its options', async () => {
+      const seen = [];
+      const wrapped = lockedCapture(async (opts) => {
+        seen.push({ ...opts });
+        return 0;
+      }, {});
+      assert.equal(await wrapped({ cwd: dir, timeoutMs: 99 }), 0);
+      assert.equal(seen.length, 1);
+      assert.equal(seen[0].cwd, dir);
+      assert.equal(seen[0].timeoutMs, 99);
+    });
+
+    it('a disabling config short-circuits the lock entirely', async () => {
+      let calls = 0;
+      const wrapped = lockedCapture(
+        async () => {
+          calls += 1;
+          return 0;
+        },
+        { delivery: { execution: { fullSuiteLock: false } } },
+      );
+      assert.equal(await wrapped({ cwd: dir }), 0);
+      assert.equal(calls, 1);
+      assert.equal(fs.existsSync(lockPath), false);
+    });
+
+    it('AC-8: outside close an expired wait still spawns the suite', async () => {
+      const holder = acquireSweepLock({ lockPath, timeoutMs: 600_000 });
+      let spawns = 0;
+      const wrapped = lockedCapture(
+        async () => {
+          spawns += 1;
+          return 0;
+        },
+        {},
+        {},
+        { lockPath, waitMs: 0 },
+      );
+      const code = await wrapped({ cwd: dir });
+      holder.release();
+      assert.equal(code, 0);
+      assert.equal(spawns, 1, 'pre-push and a direct run keep spawn-anyway');
+    });
+
+    it('AC-7: under close’s opt-in an expired wait spawns nothing and exits 75', async () => {
+      const holder = acquireSweepLock({ lockPath, timeoutMs: 600_000 });
+      let spawns = 0;
+      const wrapped = lockedCapture(
+        async () => {
+          spawns += 1;
+          return 0;
+        },
+        {},
+        { [FULL_SUITE_LOCK_EXPIRY_ENV]: 'defer' },
+        { lockPath, waitMs: 0 },
+      );
+      const code = await wrapped({ cwd: dir });
+      holder.release();
+      assert.equal(code, LOCK_WAIT_EXPIRED_EXIT_CODE);
+      assert.equal(spawns, 0);
+    });
+
+    it('tolerates a runner invoked with no options at all', async () => {
+      const wrapped = lockedCapture(async () => 4, {
+        delivery: { execution: { fullSuiteLock: false } },
+      });
+      assert.equal(await wrapped(), 4);
     });
   });
 
@@ -434,176 +686,38 @@ describe('full-suite lock (Story #5173)', () => {
     });
   });
 
-  /**
-   * Story #5278 — the two things the lock could not previously do: keep a
-   * spawn-blocked holder looking alive, and notice that the wait itself made
-   * the spawn unnecessary.
-   */
-  describe('the spawn heartbeat (Story #5278)', () => {
-    // AC-5 — the main thread is inside a blocking spawn for the whole run, so
-    // the holder's own `setInterval` heartbeat cannot fire and its mtime
-    // freezes at acquisition. A worker thread has its own event loop, which
-    // is why the refresh happens off-thread. This drives the REAL worker: a
-    // fake would pin the plumbing and miss the only thing that matters —
-    // whether an mtime advances while this thread is not running.
-    it('AC-5: the mtime advances while the main thread is blocked in the spawn', () => {
-      const holder = acquireSweepLock({
-        lockPath,
-        timeoutMs: 60_000,
-        heartbeatMs: 0, // the in-process heartbeat is off: only the worker beats
-      });
-      assert.equal(holder.acquired, true);
-      const before = fs.statSync(lockPath).mtimeMs;
-      const seen = [];
-
-      withFullSuiteLockSync(
-        {
-          cwd: dir,
-          lockPath,
-          // Already held by us, so this wrapper proceeds unserialized; the
-          // heartbeat is driven explicitly with the owner's id.
-          acquireOnceFn: () => ({
-            acquired: true,
-            ownerId: holder.ownerId,
-            release: () => {},
-          }),
-          spawnHeartbeatMs: 60,
-        },
-        () => {
-          // Block this thread the way `spawnSync` does — no timer, no
-          // microtask, nothing on this event loop can run.
-          const buf = new Int32Array(new SharedArrayBuffer(4));
-          for (let i = 0; i < 8; i += 1) {
-            Atomics.wait(buf, 0, 0, 60);
-            seen.push(fs.statSync(lockPath).mtimeMs);
-          }
-          return 0;
-        },
-      );
-
-      assert.ok(
-        seen.some((m) => m > before),
-        `the lockfile mtime must advance during the spawn (before=${before}, seen=${seen.join()})`,
-      );
-      holder.release();
-    });
-
-    it('AC-5: a concurrent acquirer with a short timeoutMs does not steal it', () => {
-      const holder = acquireSweepLock({
-        lockPath,
-        timeoutMs: 60_000,
-        heartbeatMs: 0,
-      });
-      assert.equal(holder.acquired, true);
-      let stolen = null;
-
-      withFullSuiteLockSync(
-        {
-          cwd: dir,
-          lockPath,
-          acquireOnceFn: () => ({
-            acquired: true,
-            ownerId: holder.ownerId,
-            release: () => {},
-          }),
-          spawnHeartbeatMs: 40,
-        },
-        () => {
-          const buf = new Int32Array(new SharedArrayBuffer(4));
-          // Sit here far longer than the rival's 150ms staleness window.
-          for (let i = 0; i < 12; i += 1) Atomics.wait(buf, 0, 0, 40);
-          const rival = acquireSweepLock({
-            lockPath,
-            timeoutMs: 150,
-            heartbeatMs: 0,
-          });
-          stolen = rival.acquired;
-          if (rival.acquired) rival.release();
-        },
-      );
-
-      assert.equal(
-        stolen,
-        false,
-        'a heartbeat-refreshed lock must read live to a rival with a shorter window',
-      );
-      holder.release();
-    });
-
-    it('is best-effort: a heartbeat that cannot start never blocks the spawn', () => {
-      let ran = 0;
-      const code = withFullSuiteLockSync(
-        {
-          cwd: dir,
-          lockPath,
-          startSpawnHeartbeatFn: () => {
-            throw new Error('worker threads unavailable');
-          },
-        },
-        () => {
-          ran += 1;
-          return 7;
-        },
-      );
-      assert.equal(code, 7);
-      assert.equal(ran, 1);
-    });
-  });
-
   describe('the post-wait re-probe (Story #5278)', () => {
-    // AC-7 — waiting for the lock is waiting for someone else's full suite
-    // against this same checkout. By the time it finishes, the thing this
-    // caller was going to spawn the suite to establish may already be true.
-    it('AC-7: a caller that waited and finds it satisfied returns without spawning', () => {
+    it('a caller that waited and finds it satisfied returns without spawning', async () => {
       const holder = acquireSweepLock({ lockPath, timeoutMs: 60_000 });
-      assert.equal(holder.acquired, true);
       let spawns = 0;
-      let released = false;
-
-      const code = withFullSuiteLockSync(
+      const code = await withFullSuiteLockAsync(
         {
           cwd: dir,
           lockPath,
-          waitMs: 10_000,
-          pollMs: 0,
-          sleepFn: () => {
-            if (!released) {
-              holder.release();
-              released = true;
-            }
-          },
-          skipIfSatisfied: () => 0,
+          sleepFn: async () => holder.release(),
+          skipIfSatisfied: () => ({ status: 0 }),
         },
-        () => {
+        async () => {
           spawns += 1;
-          return 1;
+          return { status: 1 };
         },
       );
-
-      assert.equal(code, 0, 'the probe value stands in for the spawn');
+      assert.deepEqual(code, { status: 0 }, 'the probe value stands in');
       assert.equal(spawns, 0, 'the suite must not run a second time');
       assert.equal(fs.existsSync(lockPath), false, 'and the lock is released');
     });
 
-    it('AC-7: an undefined verdict still spawns — the probe can only skip', () => {
+    it('an undefined verdict still spawns — the probe can only skip', async () => {
       const holder = acquireSweepLock({ lockPath, timeoutMs: 60_000 });
-      let released = false;
       let spawns = 0;
-      const code = withFullSuiteLockSync(
+      const code = await withFullSuiteLockAsync(
         {
           cwd: dir,
           lockPath,
-          waitMs: 10_000,
-          pollMs: 0,
-          sleepFn: () => {
-            if (!released) {
-              holder.release();
-              released = true;
-            }
-          },
+          sleepFn: async () => holder.release(),
           skipIfSatisfied: () => undefined,
         },
-        () => {
+        async () => {
           spawns += 1;
           return 3;
         },
@@ -612,9 +726,9 @@ describe('full-suite lock (Story #5173)', () => {
       assert.equal(spawns, 1);
     });
 
-    it('is never consulted on the uncontended path', () => {
+    it('is never consulted on the uncontended path', async () => {
       let probed = 0;
-      const code = withFullSuiteLockSync(
+      const code = await withFullSuiteLockAsync(
         {
           cwd: dir,
           lockPath,
@@ -623,33 +737,10 @@ describe('full-suite lock (Story #5173)', () => {
             return 0;
           },
         },
-        () => 9,
+        async () => 9,
       );
       assert.equal(code, 9, 'no wait happened, so nothing changed underneath');
       assert.equal(probed, 0);
-    });
-
-    it('AC-7: the async wrapper re-probes after its wait too', async () => {
-      const holder = acquireSweepLock({ lockPath, timeoutMs: 60_000 });
-      let spawns = 0;
-      const code = await withFullSuiteLockAsync(
-        {
-          cwd: dir,
-          lockPath,
-          acquireWithWaitFn: async ({ lockPath: p }) => {
-            holder.release();
-            return acquireSweepLock({ lockPath: p, timeoutMs: 60_000 });
-          },
-          skipIfSatisfied: () => ({ status: 0 }),
-        },
-        async () => {
-          spawns += 1;
-          return { status: 1 };
-        },
-      );
-      assert.deepEqual(code, { status: 0 });
-      assert.equal(spawns, 0);
-      assert.equal(fs.existsSync(lockPath), false);
     });
   });
 });

@@ -21,6 +21,16 @@
  * falls through to spawning the suite anyway. The lock is a collision damper,
  * not mutual exclusion; turning it load-bearing would let a stale lockfile
  * fail a delivery, which is strictly worse than the contention it prevents.
+ * The one exception is close (Story #5377): it opts in to *defer* on an
+ * expired wait — spawn nothing and report {@link LOCK_WAIT_EXPIRED_EXIT_CODE}
+ * — so it can end `pending` rather than run a second suite beside the first.
+ * Every other caller (pre-push, a direct capture) keeps spawning anyway.
+ *
+ * **Waits are asynchronous, ordered and visible (Story #5377).** The holder's
+ * event loop keeps turning for the whole spawn, so its heartbeat and its
+ * release-on-signal handler both work while the suite runs. Waiters acquire in
+ * arrival order (`full-suite-queue.js`), and a wait announces itself when it
+ * starts, every {@link DEFAULT_REPORT_MS} while it lasts, and when it ends.
  *
  * **It covers only the spawn.** Callers acquire immediately around the child
  * process, never around the freshness/digest checks that precede it, so a
@@ -28,18 +38,28 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { Worker } from 'node:worker_threads';
 
 import { mainCheckoutRoot } from './config/temp-paths.js';
-import {
-  acquireLockWithWait,
-  acquireSweepLock,
-  readLockHolderPid,
-  refreshLockSync,
-} from './single-story-sweep/sweep-lock.js';
+import { isFirstInLine, waitInLine } from './full-suite-queue.js';
+import { acquireSweepLock } from './single-story-sweep/sweep-lock.js';
 
 /** Environment escape hatch: set to `0`/`false`/`off`/`no` to disable. */
 export const FULL_SUITE_LOCK_ENV = 'MANDREL_FULL_SUITE_LOCK';
+
+/**
+ * Environment opt-in for the close-only expiry posture (Story #5377). Close
+ * sets it to `defer` on its gate children, and nothing else sets it, so a
+ * capture spawned by close reports an expired wait as
+ * {@link LOCK_WAIT_EXPIRED_EXIT_CODE} while pre-push and a direct run keep
+ * spawning anyway.
+ */
+export const FULL_SUITE_LOCK_EXPIRY_ENV = 'MANDREL_FULL_SUITE_LOCK_ON_EXPIRY';
+
+/**
+ * Exit code for "the lock wait expired and the caller chose not to spawn" —
+ * `EX_TEMPFAIL` from `sysexits.h`: try again later, nothing is broken.
+ */
+export const LOCK_WAIT_EXPIRED_EXIT_CODE = 75;
 
 /**
  * Lockfile name, resolved under the **git common dir's parent** so every
@@ -49,23 +69,46 @@ export const FULL_SUITE_LOCK_ENV = 'MANDREL_FULL_SUITE_LOCK';
  */
 const FULL_SUITE_LOCK_FILENAME = 'mandrel-full-suite.lock';
 
-/** Stale-holder threshold. A suite legitimately runs for minutes. */
-const DEFAULT_STALE_MS = 15 * 60_000;
+/**
+ * Total bounded wait. Well under the ten-minute foreground ceiling close runs
+ * under, so a close that waits the whole budget still has time to report.
+ */
+const DEFAULT_WAIT_MS = 300_000;
 
-/** Total bounded wait before giving up and spawning anyway. */
-const DEFAULT_WAIT_MS = 20 * 60_000;
+/**
+ * Stale-holder threshold — never above the wait budget. A live holder keeps
+ * its mtime current through the primitive's heartbeat (a third of this), a
+ * dead-pid holder is reclaimed at once, and a hung suite is killed by its own
+ * timeout; none of them is this threshold's job.
+ */
+const DEFAULT_STALE_MS = 240_000;
 
 /** Poll interval while waiting. */
 const DEFAULT_POLL_MS = 2_000;
 
 /**
- * Mtime-refresh interval for the spawn heartbeat. A third of the staleness
- * window, matching the sweep primitive's own divisor: two consecutive missed
- * beats still leave a live holder looking live.
+ * Still-waiting cadence. Below 30 s by more than one poll, so polling jitter
+ * can never stretch the gap between two lines past thirty seconds.
  */
-const DEFAULT_SPAWN_HEARTBEAT_MS = DEFAULT_STALE_MS / 3;
+const DEFAULT_REPORT_MS = 25_000;
 
 const FALSEY = /^(0|false|off|no)$/i;
+
+const LOCK_TAG = '[full-suite-lock]';
+
+/** Every {@link withFullSuiteLockAsync} option that has a default. */
+const LOCK_DEFAULTS = Object.freeze({
+  enabled: true,
+  log: () => {},
+  waitMs: DEFAULT_WAIT_MS,
+  pollMs: DEFAULT_POLL_MS,
+  staleMs: DEFAULT_STALE_MS,
+  reportMs: DEFAULT_REPORT_MS,
+  fsImpl: fs,
+  nowFn: Date.now,
+  sleepFn: (ms) => defaultSleep(ms),
+  acquireOnceFn: (opts) => acquireSweepLock(opts),
+});
 
 /**
  * Is the full-suite lock enabled for this process?
@@ -105,187 +148,30 @@ export function resolveFullSuiteLockPath({
 }
 
 /**
- * Emit the operator-facing wait line. Naming the holding pid is what keeps a
- * multi-minute wait from reading as a hang — it is the difference between
- * "nothing is happening" and "pid 4711 is running the suite; mine is next".
- *
- * @param {(m: string) => void} log
- * @param {string} lockPath
- * @param {object} fsImpl
- */
-function logWait(log, lockPath, fsImpl) {
-  const pid = readLockHolderPid(lockPath, fsImpl);
-  log(
-    `[full-suite-lock] ⏳ another full suite is already running on this host (holding pid ${pid ?? 'unknown'}) — waiting for it to finish before spawning.`,
-  );
-}
-
-/**
- * Shared preamble for both wrappers: decide whether to lock at all, take the
- * uncontended fast path, and emit the wait line when a wait is about to
- * happen.
+ * Decide whether to lock at all and take the uncontended fast path. A
+ * caller with waiters already queued ahead of it does not try the fast path
+ * — that is exactly the overtaking the queue exists to stop.
  *
  * @returns {{ lock: object|null, lockPath: string|null }} `lock` is a held
  *   lock when the fast path won, `null` when the caller must wait (or when
  *   locking is off, in which case `lockPath` is `null` too).
  */
-function beginLock({
-  cwd,
-  enabled,
-  log,
-  staleMs,
-  fsImpl,
-  acquireOnceFn,
-  lockPath: explicitLockPath,
-}) {
+function beginLock({ cwd, enabled, staleMs, fsImpl, acquireOnceFn, lockPath }) {
   if (!enabled) return { lock: null, lockPath: null };
-  const lockPath = explicitLockPath ?? resolveFullSuiteLockPath({ cwd });
-  if (lockPath === null) return { lock: null, lockPath: null };
+  const resolved = lockPath ?? resolveFullSuiteLockPath({ cwd });
+  if (resolved === null) return { lock: null, lockPath: null };
+  if (!isFirstInLine({ lockPath: resolved, ticket: null, staleMs, fsImpl })) {
+    return { lock: null, lockPath: resolved };
+  }
   const first = acquireOnceFn({
-    lockPath,
+    lockPath: resolved,
     timeoutMs: staleMs,
     fsImpl,
   });
-  if (first.acquired) return { lock: first, lockPath };
+  if (first.acquired) return { lock: first, lockPath: resolved };
   // A hard I/O error will not resolve by waiting — proceed unserialized.
   if (first.reason === 'error') return { lock: null, lockPath: null };
-  logWait(log, lockPath, fsImpl);
-  return { lock: null, lockPath };
-}
-
-/**
- * The heartbeat body, run on a worker thread (Story #5278).
- *
- * Sleeps in `Atomics.wait` slices and refreshes the lockfile's mtime between
- * them, stopping the moment the main thread flips the shared stop flag (and
- * `Atomics.notify`s it), the lockfile stops being ours, or any I/O fails.
- * Ownership is re-read from the file's first line on every beat for the same
- * reason the in-process heartbeat does it: after a steal the file belongs to
- * someone else, and bumping its mtime would keep *their* lock alive on our
- * behalf.
- *
- * Inline source rather than a module of its own: it is nine lines of loop
- * whose whole meaning is the lock it refreshes, and a separate worker entry
- * point would be a second file that no reader of this one can see.
- */
-const HEARTBEAT_WORKER_SOURCE = `
-const fs = require('node:fs');
-const { workerData } = require('node:worker_threads');
-const { lockPath, ownerId, intervalMs, stopBuffer } = workerData;
-const stop = new Int32Array(stopBuffer);
-while (Atomics.load(stop, 0) === 0) {
-  Atomics.wait(stop, 0, 0, intervalMs);
-  if (Atomics.load(stop, 0) !== 0) break;
-  try {
-    if (String(fs.readFileSync(lockPath, 'utf8')).split('\\n', 1)[0] !== ownerId) break;
-    const now = new Date();
-    fs.utimesSync(lockPath, now, now);
-  } catch {
-    break;
-  }
-}
-`;
-
-/**
- * Keep a held lock's mtime advancing while this thread is blocked inside a
- * synchronous spawn (Story #5278).
- *
- * The primitive's own heartbeat is a `setInterval`, so it only fires when the
- * holder's event loop gets a turn. `runCapture` spawns the suite with
- * `spawnSync`: the loop stops turning for the entire run, the mtime freezes
- * at acquisition time, and a sibling reading that mtime concludes — correctly,
- * on the evidence available to it — that the holder died, breaks the lock, and
- * starts a second full suite beside the first. That is the exact collision
- * this lock exists to prevent, and it fires most reliably on the slowest
- * suites, where it costs the most.
- *
- * A worker thread has its own event loop, unaffected by the main thread's
- * blocking spawn, so it is the only place a refresh can happen at all here.
- *
- * **Best-effort, like everything else on this path.** A worker that cannot
- * start (a runtime with threads disabled, a resource limit) leaves the
- * pre-#5278 behaviour exactly as it was; it never throws and never delays the
- * spawn it guards.
- *
- * @param {{ lockPath: string|null, ownerId?: string, heartbeatMs: number }} opts
- * @returns {() => void} `stop()` — idempotent, safe when no worker started.
- */
-function startSpawnHeartbeat({ lockPath, ownerId, heartbeatMs }) {
-  if (!(lockPath && typeof ownerId === 'string' && heartbeatMs > 0)) {
-    return () => {};
-  }
-  let worker = null;
-  let stop = null;
-  try {
-    const stopBuffer = new SharedArrayBuffer(4);
-    stop = new Int32Array(stopBuffer);
-    worker = new Worker(HEARTBEAT_WORKER_SOURCE, {
-      eval: true,
-      workerData: { lockPath, ownerId, intervalMs: heartbeatMs, stopBuffer },
-    });
-    // A heartbeat must never be the reason the process stays alive.
-    worker.unref();
-    worker.on('error', () => {});
-  } catch {
-    return () => {};
-  }
-  let stopped = false;
-  return () => {
-    if (stopped) return;
-    stopped = true;
-    try {
-      Atomics.store(stop, 0, 1);
-      Atomics.notify(stop, 0);
-      worker.terminate();
-    } catch {
-      // Already gone.
-    }
-  };
-}
-
-/**
- * Start the spawn heartbeat without ever letting it become a reason the suite
- * does not run.
- *
- * The whole module's posture is that a lock defect may slow a suite down and
- * may never skip one, and a heartbeat is the least load-bearing thing on the
- * path — it exists only so a *rival* reads the mtime correctly. So a starter
- * that throws (an environment without worker threads, a resource limit, an
- * injected seam) resolves to "no heartbeat", never to a failed close.
- *
- * @param {Function} startFn
- * @param {{ lockPath: string|null, ownerId?: string, heartbeatMs: number }} opts
- * @returns {() => void}
- */
-function safeStartHeartbeat(startFn, opts) {
-  try {
-    return startFn(opts) ?? (() => {});
-  } catch {
-    return () => {};
-  }
-}
-
-/**
- * Stamp a held lock as current immediately before its critical section
- * begins (Story #5278).
- *
- * A lock acquired at the end of a twenty-minute wait was created — or last
- * heartbeat-refreshed — long before the spawn it is about to guard, and the
- * synchronous caller's event loop is about to stop turning for the whole
- * duration of that spawn. Refreshing here is the last chance to put a current
- * mtime on the file.
- *
- * Routed through the primitive's own {@link refreshLockSync} rather than the
- * holder's `refresh()` so an injected `acquireOnceFn` seam that returns a
- * bare `{ acquired, release }` is refreshed identically to the real one.
- *
- * @param {{ ownerId?: string }|null} held
- * @param {string|null} lockPath
- * @param {object} fsImpl
- */
-function refreshBeforeSpawn(held, lockPath, fsImpl) {
-  if (!(held?.acquired && typeof held.ownerId === 'string' && lockPath)) return;
-  refreshLockSync({ lockPath, ownerId: held.ownerId, fsImpl });
+  return { lock: null, lockPath: resolved };
 }
 
 /**
@@ -300,43 +186,30 @@ function refreshBeforeSpawn(held, lockPath, fsImpl) {
  *
  * Consulted **only after a real wait**: an uncontended caller's freshness
  * probe ran moments ago and nothing has happened since, so re-running it
- * would be pure overhead on the hot path.
+ * would be pure overhead on the hot path. It stays scoped to the caller's
+ * own tree: a sibling Story's suite measured a different one.
  *
  * @template T
- * @param {(() => T|undefined)|undefined} skipIfSatisfied
- * @param {boolean} waited
+ * @param {(() => T|undefined)|undefined} probe
+ * @param {boolean} applies
  * @returns {{ satisfied: boolean, value?: T }}
  */
-function probeAlreadySatisfied(skipIfSatisfied, waited) {
-  if (!(waited && typeof skipIfSatisfied === 'function')) {
-    return { satisfied: false };
-  }
-  const value = skipIfSatisfied();
+function consult(probe, applies) {
+  if (!(applies && typeof probe === 'function')) return { satisfied: false };
+  const value = probe();
   return value === undefined
     ? { satisfied: false }
     : { satisfied: true, value };
 }
 
 /**
- * Block a synchronous caller for `ms` without a timer. `runCapture` spawns the
- * suite with `spawnSync`, so its whole call stack is synchronous and there is
- * no event loop to yield to; `Atomics.wait` on a throwaway buffer is the
- * sanctioned way to sleep on that stack.
+ * Run `spawn` with the full-suite lock held.
  *
- * @param {number} ms
- */
-function sleepSync(ms) {
-  if (!(ms > 0)) return;
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
-}
-
-/**
- * Run `spawn` with the full-suite lock held, from a **synchronous** caller.
- *
- * Never throws on the lock's account and always runs `spawn` exactly once:
- * every lock outcome — disabled, acquired, contended past the wait budget,
- * I/O error — ends in the same call, so a lock defect can slow a suite down
- * but can never skip or duplicate it.
+ * Never throws on the lock's account and runs `spawn` at most once: every
+ * lock outcome — disabled, acquired, contended past the wait budget, I/O
+ * error — ends in the same call, so a lock defect can slow a suite down but
+ * can never duplicate it. It skips the spawn only when the caller asked it
+ * to: `skipIfSatisfied` after a wait, or `onWaitExpired` after an expired one.
  *
  * @template T
  * @param {{
@@ -346,89 +219,78 @@ function sleepSync(ms) {
  *   waitMs?: number,
  *   pollMs?: number,
  *   staleMs?: number,
+ *   reportMs?: number,
  *   fsImpl?: object,
  *   nowFn?: () => number,
- *   sleepFn?: (ms: number) => void,
+ *   sleepFn?: (ms: number) => Promise<void>,
  *   acquireOnceFn?: typeof acquireSweepLock,
  *   lockPath?: string,
  *   skipIfSatisfied?: () => T|undefined,
- *   spawnHeartbeatMs?: number,
- *   startSpawnHeartbeatFn?: typeof startSpawnHeartbeat,
- * }} opts `skipIfSatisfied` is the post-wait re-probe (Story #5278): after a
- *   contended wait it decides whether the thing this spawn would establish is
- *   already true, and a non-`undefined` return is returned in the spawn's
- *   place. Never consulted on the uncontended path.
- * @param {() => T} spawn
- * @returns {T}
+ *   onWaitExpired?: () => T|undefined,
+ * }} opts `skipIfSatisfied` is the post-wait re-probe (Story #5278); a
+ *   non-`undefined` return is returned in the spawn's place. `onWaitExpired`
+ *   is the close-only defer (Story #5377): consulted only when the wait
+ *   expired, and a non-`undefined` return likewise stands in for the spawn.
+ * @param {() => Promise<T>} spawn
+ * @returns {Promise<T>}
  */
-export function withFullSuiteLockSync(
-  {
-    cwd,
-    enabled = true,
-    log = () => {},
-    waitMs = DEFAULT_WAIT_MS,
-    pollMs = DEFAULT_POLL_MS,
-    staleMs = DEFAULT_STALE_MS,
-    fsImpl = fs,
-    nowFn = Date.now,
-    sleepFn = sleepSync,
-    acquireOnceFn = acquireSweepLock,
-    lockPath: explicitLockPath,
-    skipIfSatisfied,
-    spawnHeartbeatMs = DEFAULT_SPAWN_HEARTBEAT_MS,
-    startSpawnHeartbeatFn = startSpawnHeartbeat,
-  },
-  spawn,
-) {
-  const { lock, lockPath } = beginLock({
-    cwd,
-    enabled,
-    log,
-    staleMs,
-    fsImpl,
-    acquireOnceFn,
-    lockPath: explicitLockPath,
-  });
-  let held = lock;
-  let waited = false;
-  if (held === null && lockPath !== null) {
-    const deadline = nowFn() + Math.max(0, waitMs);
-    for (;;) {
-      if (nowFn() >= deadline) break;
-      waited = true;
-      sleepFn(Math.max(0, pollMs));
-      const attempt = acquireOnceFn({ lockPath, timeoutMs: staleMs, fsImpl });
-      if (attempt.acquired) {
-        held = attempt;
-        break;
-      }
-      if (attempt.reason === 'error') break;
-    }
-  }
+export async function withFullSuiteLockAsync(options, spawn) {
+  const opts = withDefaults(options);
+  const { lock, lockPath } = beginLock(opts);
+  const wait =
+    lock === null && lockPath !== null
+      ? await waitInLine({ ...opts, lockPath, expiryNote: expiryNote(opts) })
+      : { held: lock, expired: false, waited: false };
   try {
-    const probe = probeAlreadySatisfied(skipIfSatisfied, waited);
-    if (probe.satisfied) {
-      log(
-        '[full-suite-lock] ⏭ the run we waited for already covered this tree — skipping the spawn.',
-      );
-      return probe.value;
-    }
-    refreshBeforeSpawn(held, lockPath, fsImpl);
-    // The main thread is about to stop turning for the whole spawn, so the
-    // holder's own interval heartbeat cannot fire; this one runs off-thread.
-    const stopHeartbeat = safeStartHeartbeat(startSpawnHeartbeatFn, {
-      lockPath: held?.acquired ? lockPath : null,
-      ownerId: held?.ownerId,
-      heartbeatMs: spawnHeartbeatMs,
-    });
-    try {
-      return spawn();
-    } finally {
-      stopHeartbeat();
-    }
+    return await spawnOrStandIn(opts, wait, spawn);
   } finally {
-    if (held?.acquired) held.release();
+    if (wait.held?.acquired) wait.held.release();
   }
+}
+
+/** The caller's options over {@link LOCK_DEFAULTS}; `undefined` never wins. */
+function withDefaults(options) {
+  const opts = { ...LOCK_DEFAULTS };
+  for (const [key, value] of Object.entries(options ?? {})) {
+    if (value !== undefined) opts[key] = value;
+  }
+  return opts;
+}
+
+/** What an expired wait's final line says the caller will do next. */
+function expiryNote({ onWaitExpired }) {
+  return typeof onWaitExpired === 'function'
+    ? 'not spawning; the caller reports the wait instead'
+    : 'spawning anyway';
+}
+
+/**
+ * Spawn — unless the post-wait re-probe or the expiry defer supplies the
+ * answer the spawn would have produced.
+ */
+async function spawnOrStandIn(opts, wait, spawn) {
+  const probe = consult(opts.skipIfSatisfied, wait.waited);
+  if (probe.satisfied) {
+    opts.log(
+      `${LOCK_TAG} ⏭ the run we waited for already covered this tree — skipping the spawn.`,
+    );
+    return probe.value;
+  }
+  const deferred = consult(opts.onWaitExpired, wait.expired);
+  return deferred.satisfied ? deferred.value : await spawn();
+}
+
+/**
+ * Promise-based delay. Injectable so tests can drive the wait loop on a fake
+ * clock without a real timer.
+ *
+ * @param {number} ms
+ * @returns {Promise<void>}
+ */
+function defaultSleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 /**
@@ -445,12 +307,23 @@ export function withFullSuiteLockSync(
  *
  * @param {Function} runCaptureFn The runner to wrap (`runCapture`).
  * @param {object} [config] Resolved config; both escape hatches are read here.
- * @returns {Function} A runner with the same `(opts) => exitCode` contract.
+ * @param {Record<string, string|undefined>} [env] Read for the enable hatch
+ *   and for close's {@link FULL_SUITE_LOCK_EXPIRY_ENV} opt-in.
+ * @param {object} [lockOptions] Test seam only (lock path, wait budget);
+ *   production never passes it.
+ * @returns {(opts?: object) => Promise<number>} A runner with the same
+ *   `(opts) => exitCode` contract, asynchronous.
  */
-export function lockedCapture(runCaptureFn, config) {
-  const enabled = isFullSuiteLockEnabled({ config });
+export function lockedCapture(
+  runCaptureFn,
+  config,
+  env = process.env,
+  lockOptions = {},
+) {
+  const enabled = isFullSuiteLockEnabled({ config, env });
+  const defer = env?.[FULL_SUITE_LOCK_EXPIRY_ENV] === 'defer';
   return (captureOpts = {}) =>
-    withFullSuiteLockSync(
+    withFullSuiteLockAsync(
       {
         cwd: captureOpts.cwd,
         log: captureOpts.log,
@@ -464,74 +337,9 @@ export function lockedCapture(runCaptureFn, config) {
           typeof captureOpts.recheckFresh === 'function'
             ? () => (captureOpts.recheckFresh() ? 0 : undefined)
             : undefined,
+        onWaitExpired: defer ? () => LOCK_WAIT_EXPIRED_EXIT_CODE : undefined,
+        ...lockOptions,
       },
       () => runCaptureFn(captureOpts),
     );
-}
-
-/**
- * Run `spawn` with the full-suite lock held, from an **async** caller.
- *
- * Same contract as {@link withFullSuiteLockSync}, but it waits on the shipped
- * promise-based `acquireLockWithWait` so it never blocks the event loop — the
- * close-validation gate runner drives sibling gates on that loop, and a
- * blocking wait there would stall them behind this one.
- *
- * @template T
- * @param {Parameters<typeof withFullSuiteLockSync>[0] & {
- *   acquireWithWaitFn?: typeof acquireLockWithWait,
- * }} opts `skipIfSatisfied` behaves exactly as in the sync wrapper.
- * @param {() => Promise<T>} spawn
- * @returns {Promise<T>}
- */
-export async function withFullSuiteLockAsync(
-  {
-    cwd,
-    enabled = true,
-    log = () => {},
-    waitMs = DEFAULT_WAIT_MS,
-    pollMs = DEFAULT_POLL_MS,
-    staleMs = DEFAULT_STALE_MS,
-    fsImpl = fs,
-    acquireOnceFn = acquireSweepLock,
-    acquireWithWaitFn = acquireLockWithWait,
-    lockPath: explicitLockPath,
-    skipIfSatisfied,
-  },
-  spawn,
-) {
-  const { lock, lockPath } = beginLock({
-    cwd,
-    enabled,
-    log,
-    staleMs,
-    fsImpl,
-    acquireOnceFn,
-    lockPath: explicitLockPath,
-  });
-  let held = lock;
-  let waited = false;
-  if (held === null && lockPath !== null) {
-    waited = true;
-    const attempt = await acquireWithWaitFn({
-      lockPath,
-      waitMs,
-      pollMs,
-      timeoutMs: staleMs,
-      fsImpl,
-    });
-    if (attempt.acquired) held = attempt;
-  }
-  try {
-    const probe = probeAlreadySatisfied(skipIfSatisfied, waited);
-    if (probe.satisfied) {
-      log(
-        '[full-suite-lock] ⏭ the run we waited for already covered this tree — skipping the spawn.',
-      );
-      return probe.value;
-    }
-    return await spawn();
-  } finally {
-    if (held?.acquired) held.release();
-  }
 }

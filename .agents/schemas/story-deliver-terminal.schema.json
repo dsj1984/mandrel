@@ -194,6 +194,16 @@
       },
       "additionalProperties": false
     },
+    "lockWait": {
+      "type": ["object", "null"],
+      "description": "Story #5377 — full-suite lock accounting for this close: how long its gates waited, in total, for another full suite on the same host to release the lock, and whether a wait expired. null when the close never waited. Distinct from waitBudget, which is merge-wait accounting only. An expired wait inside close spawns nothing, and the close ends pending at phase close-validation with nextCommand re-running close.",
+      "required": ["waitedSeconds", "expired"],
+      "properties": {
+        "waitedSeconds": { "type": "number", "minimum": 0 },
+        "expired": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
     "timestamp": { "type": "string", "format": "date-time" }
   },
   "allOf": [
