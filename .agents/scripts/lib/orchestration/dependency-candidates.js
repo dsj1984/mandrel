@@ -1,28 +1,11 @@
 /**
- * dependency-candidates.js — open Stories a newly planned Story may need to
- * wait for.
- *
- * Story #5155. `depends_on[]` has always ordered *siblings within one plan*.
- * Nothing surfaced the other ordering that actually bites: a Story authored
- * today that edits a file an already-open Story from an earlier plan is going
- * to rewrite. Delivered concurrently, the second lands on a base the first
- * just changed — and the planner had no way to see it coming, because the
- * duplicate search asks "is this the same Story?" (title/body similarity),
- * never "does this Story touch what I am about to touch?".
- *
- * Overlap here is therefore computed on **declared footprints**, not prose:
- * the seed's `predictedPaths` against each open Story's parsed `changes[]`,
- * via the same `storyFootprint` the wave runner uses to withhold colliding
- * Stories at dispatch. That is deliberate — the planner sees the collision the
- * runtime would later enforce, one layer earlier and while it is still cheap
- * to order around.
- *
- * The result is **advisory**: an overlap is a prompt to consider an edge, not
- * proof one is needed. Two Stories can touch a shared barrel file with no real
- * ordering between them; only the operator knows.
+ * dependency-candidates.js — open Stories from earlier plans whose declared
+ * footprint overlaps a new seed's predicted paths, via the same
+ * `storyFootprint` the wave runner uses to withhold collisions — so the
+ * planner sees the collision the runtime would enforce. Advisory: an overlap
+ * suggests an edge, it does not prove one.
  *
  * @module lib/orchestration/dependency-candidates
- * @see Story #5155
  */
 
 import { Logger } from '../Logger.js';
@@ -31,8 +14,6 @@ import { parse as parseStoryBody } from '../story-body/story-body.js';
 import { storyFootprint } from '../wave-runner/footprint.js';
 
 /**
- * Build an issue URL for a Story the provider returned without one.
- *
  * @param {number} id
  * @param {{ owner?: string, repo?: string }} [opts]
  * @returns {string}
@@ -43,12 +24,7 @@ function buildStoryUrl(id, { owner, repo } = {}) {
 }
 
 /**
- * Read one open Story's declared footprint.
- *
- * Total by construction: an unparseable body yields an empty footprint, which
- * intersects with nothing and drops the Story from the candidate list. A
- * hand-written Story with no `## Changes` section is exactly that case, and it
- * is the right outcome — there is no declared footprint to collide with.
+ * Declared footprint; empty (never a candidate) when unparseable.
  *
  * @param {object} issue
  * @returns {Set<string>}
@@ -64,13 +40,8 @@ function footprintOf(issue) {
 }
 
 /**
- * Find open Stories whose declared footprint intersects the seed's predicted
- * paths.
- *
- * Returns `[]` **without contacting the provider** when the seed named no
- * paths: with nothing to intersect, every candidate would score empty, and the
- * round-trip would buy nothing. That short-circuit is load-bearing for the
- * common one-line seed, which mentions no file at all.
+ * Returns `[]` without contacting the provider when the seed names no paths
+ * (the common case).
  *
  * @param {{
  *   predictedPaths: string[],
@@ -113,10 +84,7 @@ export async function findDependencyCandidates({
 
   const out = [];
   for (const issue of Array.isArray(issues) ? issues : []) {
-    // The declared ticket shape: `id` is the issue number. Reading it through
-    // the old `number`-then-`id` fallback was the bug in waiting — on this
-    // shape the fallback never fires, and on a raw REST payload it silently
-    // produced database ids for every candidate the planner offered.
+    // Declared ticket shape: `id` is the issue number.
     const id = Number(issue?.id);
     if (!Number.isInteger(id) || id <= 0 || excluded.has(id)) continue;
 

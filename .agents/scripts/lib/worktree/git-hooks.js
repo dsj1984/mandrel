@@ -1,23 +1,9 @@
 /**
- * worktree/git-hooks.js
- *
- * Materialize the repository's git hooks directory into a linked worktree.
- *
- * `core.hooksPath` is resolved by git against **each working tree's own
- * root**, not against the common git dir. A relative value therefore points
- * at a directory that only exists in the checkout that generated it — husky
- * writes `.husky/_` from its `prepare` script in the main checkout and
- * self-ignores it — so every linked worktree resolves the hooks path to a
- * directory that is not there. Git finds no hooks and proceeds silently:
- * `commit-msg`, `pre-commit` and `pre-push` do not run for any commit made in
- * a worktree, without anyone passing a bypass flag.
- *
- * This module closes that gap by copying the resolved hooks directory into
- * the worktree at the same relative path. It is deliberately total about the
- * cases where there is nothing to do — an unset or absolute `core.hooksPath`,
- * or a source directory that does not exist — because a consumer project
- * without husky must not fail worktree creation. Every other outcome either
- * materializes the hooks or throws: a silent skip is the defect being fixed.
+ * Materialize the git hooks directory into a linked worktree. Git resolves a
+ * relative `core.hooksPath` per working tree, and husky's gitignored `.husky/_`
+ * exists only in the main checkout, so without this no hook runs in a
+ * worktree. Nothing-to-do cases skip; every other outcome materializes or
+ * throws, never a silent skip.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -26,27 +12,15 @@ import path from 'node:path';
 import * as defaultGit from '../git-utils.js';
 import { assertPathContainment } from '../path-security.js';
 
-// Skip reasons. Deliberately not exported: they are part of the result
-// digest's observable contract, so callers and tests read them as the literal
-// strings they are printed as, not through a symbol that could be renamed
-// without anyone noticing the digest changed.
-//
-//   hooks-path-unset  — git uses the common `hooks` dir, already shared.
-//   hooks-path-absolute — resolves alike from every working tree already.
-//   source-absent     — no hooks directory to mirror (no husky in this project).
-//   same-checkout     — target is the source; copying it onto itself would
-//                       destroy the only copy.
+// Skip reasons are printed contract strings, so deliberately not exported.
+// same-checkout: copying the source onto itself would destroy the only copy.
 const SKIP_UNSET = 'hooks-path-unset';
 const SKIP_ABSOLUTE = 'hooks-path-absolute';
 const SKIP_SOURCE_ABSENT = 'source-absent';
 const SKIP_SAME_CHECKOUT = 'same-checkout';
 
 /**
- * Read `core.hooksPath` as configured for `repoRoot`.
- *
- * `git config --get` exits non-zero when the key is unset, which is a
- * legitimate state rather than an error, so this reports `null` for both an
- * unset key and an empty value.
+ * `core.hooksPath`, or `null` when unset or empty.
  *
  * @param {string} repoRoot
  * @param {{ gitSpawn: Function }} gitImpl
@@ -60,12 +34,7 @@ function readHooksPath(repoRoot, gitImpl) {
 }
 
 /**
- * Canonical form of `dir` for identity comparison.
- *
- * `realpathSync.native` is used so a symlinked temp root (macOS `/var` →
- * `/private/var`) does not make a checkout look distinct from itself. A path
- * that cannot be resolved falls back to `path.resolve`, which is enough for
- * the comparison to stay conservative.
+ * Realpath for identity comparison (macOS `/var` → `/private/var`).
  *
  * @param {string} dir
  * @param {typeof fs} fsImpl
@@ -81,8 +50,6 @@ function canonical(dir, fsImpl) {
 }
 
 /**
- * Names of the regular files directly inside `dir`, sorted.
- *
  * @param {string} dir
  * @param {typeof fs} fsImpl
  * @returns {string[]}
@@ -96,14 +63,11 @@ function hookFileNames(dir, fsImpl) {
 }
 
 /**
- * Materialize `repoRoot`'s resolved git hooks directory into `worktree`.
- *
- * Idempotent, and refreshing rather than preserving: an existing target is
- * replaced so an upgraded husky can never leave a stale shim behind.
+ * Idempotent; replaces an existing target so no stale shim survives.
  *
  * @param {object} opts
- * @param {string} opts.repoRoot   Absolute path to the checkout that owns the hooks.
- * @param {string} opts.worktree   Absolute path to the worktree to provision.
+ * @param {string} opts.repoRoot
+ * @param {string} opts.worktree
  * @param {{ gitSpawn: Function }} [opts.gitImpl]
  * @param {typeof fs} [opts.fsImpl]
  * @returns {{ action: 'materialized' | 'skipped', reason?: string,
@@ -145,9 +109,7 @@ export function materializeGitHooks({
   if (!fsImpl.existsSync(source)) return skip(SKIP_SOURCE_ABSENT, hooksPath);
 
   const target = path.resolve(worktree, hooksPath);
-  // `core.hooksPath` is repo configuration, but it still reaches a recursive
-  // remove below — a `../..` value must not be able to delete outside the
-  // worktree it claims to provision.
+  // The value reaches a recursive remove; `../..` must not escape the worktree.
   assertPathContainment(
     path.resolve(worktree),
     target,
@@ -165,9 +127,7 @@ export function materializeGitHooks({
     );
   }
 
-  // Verify rather than trust the copy. The whole point of this module is that
-  // a hooks directory which is absent behaves exactly like one that is
-  // present and empty — git runs neither, and says nothing either way.
+  // Verify: missing hooks fail silently in git.
   const expected = hookFileNames(source, fsImpl);
   const actual = new Set(
     fsImpl.existsSync(target) ? hookFileNames(target, fsImpl) : [],
@@ -183,12 +143,7 @@ export function materializeGitHooks({
 }
 
 /**
- * Resolve the checkout that owns the shared git config from `cwd`.
- *
- * `--git-common-dir` reports the common git dir from any working tree —
- * `.git` from the main checkout, an absolute path from a linked worktree —
- * so the owning checkout is its parent. This is what lets the standalone CLI
- * be run from inside a worktree with no arguments.
+ * The main checkout: parent of `--git-common-dir`, from any working tree.
  *
  * @param {string} cwd
  * @param {{ execFileSyncImpl?: typeof execFileSync }} [deps]

@@ -1,30 +1,13 @@
 /**
- * phases/worktree-reap.js — reap the per-Story worktree after close.
- *
- * The Story branch is still alive on `origin` so the PR can land; the
- * local worktree is no longer needed once the PR is open. Reap is
- * best-effort: any failure is logged loudly and the close result still
- * reports success because the operator can clean stale worktrees out of
- * band.
- *
- * **Report what happened, not what was attempted** (Story #4539). This
- * phase used to set `worktreeReaped = true` and log "🧹 Reaped worktree"
- * on any non-throwing call — without reading the returned envelope. Since
- * `reap` signals refusal by *returning* `{ removed: false, reason }`
- * rather than throwing, and a v2-era precondition refused every
- * `story-<id>` worktree outright, the result was that no close ever
- * actually reaped and every close said it did. Best-effort means the close
- * still succeeds on refusal; it does not mean the close may claim an
- * outcome it never checked.
+ * phases/worktree-reap.js — best-effort reap of the per-Story worktree once
+ * the PR is open. `reap` refuses by RETURNING `{ removed: false }`, so report
+ * what happened, never merely that the call did not throw.
  */
 
 import { Logger } from '../../../Logger.js';
 import { WorktreeManager as DefaultWorktreeManager } from '../../../worktree-manager.js';
 
 /**
- * Reap the worktree for a standalone Story when isolation is enabled and
- * `reapOnSuccess` is not explicitly disabled.
- *
  * @param {{
  *   cwd: string,
  *   storyId: number,
@@ -56,20 +39,9 @@ export async function reapWorktreePhase({
           error: (m) => Logger.error(`[single-story-close] ${m}`),
         },
       });
-      // Deliberately NO base ref. This phase runs BEFORE the merge (see
-      // `../runner.js` — reap precedes the confirm phase), so "is this work
-      // integrated into the base?" is the wrong question: the answer is
-      // always no, and supplying a ref would activate `isSafeToRemove`'s
-      // merge-reachability gate and refuse every reap with
-      // `unmerged-commits` — trading one always-refuse precondition for
-      // another.
-      //
-      // What actually makes the reap safe here is that close has already
-      // pushed `story-<id>` to origin and opened the PR, so the work is
-      // durable off-machine; and `isSafeToRemove` still refuses a dirty
-      // tree (`uncommitted-changes`), which is the check that protects
-      // unsaved work. Refusal is signalled by the returned envelope rather
-      // than by throwing — so read it.
+      // NO base ref: this runs before the merge, so a merge-reachability
+      // check would refuse every reap. Safe because the work is pushed, and
+      // a dirty tree is still refused.
       const result = await wm.reap(storyId);
       worktreeReaped = result?.removed === true;
       if (worktreeReaped) {

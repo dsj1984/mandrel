@@ -2,39 +2,14 @@
 /* node:coverage ignore file */
 
 /**
- * boot-sweep.js — protected boot-sweep CLI (Story #4373).
+ * boot-sweep.js — non-interactive *protected* merged-branch sweep over
+ * `sweepMergedBranches` (flags: see HELP). Unlike `git-cleanup --branches` it
+ * always skips a branch with unpushed work, a dirty worktree or an open
+ * parent Story. Best-effort: failures land in the envelope, exit is always 0.
  *
- * A thin, non-interactive wrapper over the scope-agnostic
- * [`sweepMergedBranches`](./lib/single-story-sweep.js) engine, exposed so
- * workflow prose can invoke a *protected* boot sweep directly. Unlike the
- * plain `git-cleanup.js --branches` phase (which reaps every merged
- * candidate the planner surfaces), this surface always applies the
- * `evaluateProtection` partition — a merged branch with unpushed work, a
- * dirty worktree, or a still-open parent Story ticket is skipped, not
- * reaped.
- *
- * The sweep is best-effort: any failure (lock contention, git/gh error)
- * is swallowed and reported in the result envelope, never thrown, so a
- * caller can wire it into a boot path without risking the host run.
- *
- * **Content-merged branches are report-only (Story #4396).** The planner
- * also surfaces branches whose content already landed in the base branch
- * by another route (a squash-merged Epic PR, a renamed head, a manual
- * squash merge) via `detectedBy: 'content-merged'` (Story #4395's
- * `git merge-tree --write-tree` probe) — a weaker signal than a merged PR
- * or git ancestry, since no CI/GitHub merge check ever validated that
- * branch's exact diff. This sweep never reaps on that signal alone; it
- * surfaces the branches under `contentMerged` in the result envelope (and
- * a routing hint in the human summary) so the operator can send them to
- * `/git-cleanup` for a confirmed, eyeballed reap.
- *
- * Usage:
- *   node .agents/scripts/boot-sweep.js [--include <glob>...] \
- *     [--exclude <glob>...] [--current <branch>] [--base <branch>] \
- *     [--no-fast-forward] [--json]
- *
- * Defaults: `--include story-*`, fast-forward the base branch on.
- * Exit code is always 0 — a boot sweep never fails its host.
+ * `content-merged` branches (merge-tree equivalence — no merge check ever
+ * validated their exact diff) are never reaped here, only reported for
+ * `/git-cleanup`.
  */
 
 import path from 'node:path';
@@ -50,10 +25,8 @@ import { sweepMergedBranches } from './lib/single-story-sweep.js';
 import { sweepTempRetention } from './lib/temp-retention.js';
 
 /**
- * Recover the Story ids from the branch names a sweep reaped. Only the
- * canonical `story-<id>` shape yields an id — an operator's ad-hoc branch that
- * happened to match the include glob contributes nothing, so a purge can never
- * be triggered by a name this framework did not create.
+ * Story ids from reaped branch names — only exact `story-<id>`, so a purge is
+ * never triggered by a name this framework did not create.
  *
  * @param {string[]|undefined} branches
  * @returns {number[]}
@@ -88,12 +61,7 @@ Options:
 `;
 
 /**
- * Run the protected boot sweep. Best-effort: swallows any error and
- * returns the sweep envelope so no caller can be blocked by a failure.
- *
- * DI-friendly: `injectedConfig` / `injectedProvider` let a caller (e.g.
- * `single-story-init.js`) reuse an already-resolved config + provider,
- * and `injectedSweep` swaps the engine for unit tests.
+ * Run the protected boot sweep; never throws.
  *
  * @param {{
  *   cwd?: string,
@@ -108,8 +76,8 @@ Options:
  *   purgeFn?: Function,
  *   logger?: { info?: Function, warn?: Function },
  * }} [args]
- * @returns {Promise<object>} the {@link sweepMergedBranches} envelope, plus a
- *   `tempPurge` result from the Story #4794 temp-retention catch-up.
+ * @returns {Promise<object>} the {@link sweepMergedBranches} envelope plus
+ *   `tempPurge`.
  */
 export async function runBootSweep({
   cwd,
@@ -126,11 +94,7 @@ export async function runBootSweep({
 } = {}) {
   const root = path.resolve(cwd ?? PROJECT_ROOT);
   try {
-    // Config/provider resolution is inside the try so a malformed
-    // `.agentrc.json` (or a provider-construction throw) degrades to the
-    // swallowed `ok:false` envelope below rather than propagating and
-    // exiting non-zero — the "host continues, exit 0" boot-sweep contract
-    // must hold even when config resolution is the thing that fails.
+    // Inside the try: a bad config must also degrade to `ok:false`, exit 0.
     const config = injectedConfig ?? resolveConfig({ cwd: root });
     const provider = injectedProvider ?? createProvider(config);
     const baseBranch = base ?? config.project?.baseBranch ?? 'main';
@@ -142,11 +106,8 @@ export async function runBootSweep({
       excludeGlobs.push(current);
     }
 
-    // Story #5112 — one critical section, one lock. `single-story-init.js`
-    // reaps the same merged `story-*` branches through the same engine; when
-    // the two surfaces held differently named lockfiles they could run
-    // concurrently, each deleting branches the other had already planned.
-    // Both now resolve the path through `resolveSweepLockPath`.
+    // Shared with `single-story-init.js`, which reaps the same branches: one
+    // lock path, or the two sweeps race to delete each other's plans.
     const tempRoot = config?.project?.paths?.tempRoot ?? 'temp';
     const lockPath = resolveSweepLockPath({ cwd: root, tempRoot });
     const lockTimeoutMs =
@@ -169,13 +130,8 @@ export async function runBootSweep({
       lockTimeoutMs,
     });
 
-    // Story #4794 — the temp-retention catch-up. Two eligibility signals, both
-    // already paid for: every branch this sweep reaped is a merge it CONFIRMED
-    // (merged PR + matching headRefOid), so those Stories' artifacts are spent;
-    // and the age floor collects everything else — the backlog from Stories
-    // merged before this existed, merged through the GitHub UI, or whose branch
-    // was already gone. Best-effort like the sweep itself: `runBootSweep`'s
-    // catch swallows any throw into the `ok: false` envelope, and exit stays 0.
+    // Temp-retention catch-up: reaped branches are confirmed merges, so their
+    // artifacts are spent; the age floor collects the rest.
     const purge = await purgeFn({
       config,
       mergedStoryIds: storyIdsFromBranches(result?.reaped),
@@ -201,10 +157,7 @@ export async function runBootSweep({
 }
 
 /**
- * Build the human-readable one-line summary for a sweep result envelope.
- * Exported for unit tests (Story #4396). A zero `contentMerged` count keeps
- * the pre-Story #4396 line byte-identical (silent no-op summary); a nonzero
- * count appends a routing hint pointing the operator at `/git-cleanup`.
+ * One-line summary; a nonzero `contentMerged` count adds a `/git-cleanup` hint.
  *
  * @param {{ localDeleted: number, remoteDeleted: number, protected?: Array, contentMerged?: Array }} result
  * @returns {string}
@@ -220,13 +173,7 @@ export function buildSummaryLine(result) {
 }
 
 /**
- * The CLI core: parse argv, run the sweep, render the report. Extracted from
- * the `main` shell so the argv → render decision table is reachable without
- * spawning a real sweep against a real git tree.
- *
- * Both seams on the optional final `deps` parameter default to the real
- * implementation (`docs/contributing/test-seams.md` rules 1-2), so `main` and any
- * production caller are unchanged.
+ * CLI core: parse argv, run the sweep, render the report.
  *
  * @param {string[]} [argv]
  * @param {{ runBootSweepImpl?: typeof runBootSweep, logger?: { info: Function } }} [deps]

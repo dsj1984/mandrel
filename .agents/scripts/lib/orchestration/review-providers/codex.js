@@ -1,25 +1,6 @@
 /**
- * review-providers/codex.js — Codex ReviewProvider adapter.
- *
- * Story #2830 (Epic #2815) — wires the
- * [`openai/codex-plugin-cc`](https://github.com/openai/codex-plugin-cc)
- * Claude Code plugin's `/codex:review` slash command into the
- * pluggable ReviewProvider contract.
- *
- * Two halves shipped under one Story:
- *   - Task #2834 — schema enum + factory registration + hard-fail
- *     probe (this file's `createCodexProvider` + `*ForRegistry`).
- *   - Task #2836 — `runReview()` invokes `/codex:review --base <ref>
- *     --wait` through an injectable runner and parses the response
- *     into `Finding[]`, mapping the Codex severity vocabulary onto
- *     the canonical `critical|high|medium|suggestion` enum.
- *
- * The factory NEVER silently falls back to the native provider when
- * `provider: codex` is configured. Operators who want native MUST set
- * `provider: native` explicitly; the probe is the only thing that
- * routes between "configured backend present" and "configured backend
- * missing". The adapter never consults a GitHub provider — the
- * orchestrator owns posting and upserting.
+ * review-providers/codex.js — ReviewProvider over `/codex:review`. A missing
+ * plugin hard-fails at construction; never a silent fallback to native.
  *
  * @typedef {import('./types.js').Finding} Finding
  * @typedef {import('./types.js').ReviewInput} ReviewInput
@@ -34,11 +15,6 @@ import path from 'node:path';
 import { parseProviderFindings } from './parse-findings.js';
 import { renderDepthDirective } from './review-depth.js';
 
-/**
- * Canonical install/remediation guidance baked into every probe failure.
- * Exported so tests (and any future error-renderer) can assert against
- * the exact remediations rather than free-text matching.
- */
 export const CODEX_REMEDIATIONS = Object.freeze({
   install:
     'Install the Codex plugin (https://github.com/openai/codex-plugin-cc) ' +
@@ -48,27 +24,14 @@ export const CODEX_REMEDIATIONS = Object.freeze({
     'in-process maintainability/lint provider instead.',
 });
 
-/**
- * Default Codex plugin marker locations searched by the probe. The
- * Claude Code plugin manager (and its `claude plugin install` flow)
- * unpacks plugins under one of these roots; presence of the
- * `codex-plugin-cc` directory is treated as "the slash command is
- * registered on the host".
- *
- * Exported so tests can extend the list without monkey-patching `os`.
- */
+/** A present `codex-plugin-cc` directory means the slash command is registered. */
 const DEFAULT_PLUGIN_MARKERS = Object.freeze([
   path.join(os.homedir(), '.claude', 'plugins', 'codex-plugin-cc'),
   path.join(os.homedir(), '.claude', 'plugins', 'openai', 'codex-plugin-cc'),
 ]);
 
 /**
- * Default probe: returns true when any marker path exists on disk.
- *
- * The probe is intentionally cheap and synchronous — the factory runs
- * it at construction time and the worst case (plugin absent) MUST
- * surface immediately so the operator sees the remediation, not a
- * deferred runtime failure during the first review run.
+ * Synchronous so a missing plugin surfaces at construction, not mid-review.
  *
  * @param {{ markers?: readonly string[], existsFn?: (p: string) => boolean }} [opts]
  * @returns {boolean}
@@ -80,18 +43,13 @@ export function defaultProbeCodexCommand(opts = {}) {
     try {
       if (existsFn(marker)) return true;
     } catch (_err) {
-      // Treat I/O errors as "absent" — the factory throws with the
-      // remediation message, and the operator can inspect the path.
+      // An I/O error reads as absent.
     }
   }
   return false;
 }
 
 /**
- * Build the hard-fail Error thrown when the probe reports the
- * `/codex:review` command is absent. Exported so the registry entry
- * and tests use the same message shape.
- *
  * @returns {Error}
  */
 export function buildCodexUnavailableError() {
@@ -103,35 +61,21 @@ export function buildCodexUnavailableError() {
 }
 
 /**
- * Canonical severity table. Maps every Codex severity vocabulary
- * token (case-insensitive) onto the canonical ReviewProvider
- * `Severity` enum. The table is intentionally explicit — drop-through
- * to `'suggestion'` is reserved for tokens the table does NOT name.
- *
- * Exported so unit tests can drive a table-driven assertion across
- * every documented Codex severity without re-listing the mapping
- * inside the test file.
+ * Codex severity tokens (case-insensitive) → canonical `Severity`; an
+ * unnamed token falls through to `'suggestion'`.
  *
  * @type {Readonly<Record<string, Severity>>}
  */
 export const CODEX_SEVERITY_MAP = Object.freeze({
-  // Codex "blocker" terminology → canonical critical (halts the
-  // review with an unresolved-finding gate).
   blocker: 'critical',
   critical: 'critical',
   fatal: 'critical',
-  // Codex "major" terminology → canonical high (lint-error
-  // equivalent; non-halting but must be addressed before merge).
   major: 'high',
   high: 'high',
   error: 'high',
-  // Codex "minor" terminology → canonical medium (size/volume
-  // warning equivalent; flagged but not gating).
   minor: 'medium',
   medium: 'medium',
   warning: 'medium',
-  // Codex "info" / "nit" / "style" → canonical suggestion
-  // (advisory only, no gate).
   info: 'suggestion',
   nit: 'suggestion',
   style: 'suggestion',
@@ -140,8 +84,6 @@ export const CODEX_SEVERITY_MAP = Object.freeze({
 });
 
 /**
- * Map a single Codex severity string onto the canonical enum.
- *
  * @param {unknown} raw
  * @returns {Severity}
  */
@@ -152,23 +94,6 @@ export function mapCodexSeverity(raw) {
 }
 
 /**
- * Parse the raw `/codex:review` stdout into `Finding[]`.
- *
- * The plugin emits JSON; the adapter is liberal in what it accepts:
- *   - A bare array of finding objects.
- *   - An object with a `findings` array.
- *   - Either shape wrapped in an outer envelope with a `result` or
- *     `data` key (covers minor wire-format drift across plugin
- *     versions without re-shimming).
- *
- * Each entry's severity is funnelled through `mapCodexSeverity` so
- * the canonical enum is the only thing that reaches the renderer.
- * Entries without a `title` or `body` are skipped — the orchestrator
- * cannot post an empty finding, and silently dropping the entry is
- * safer than fabricating one.
- *
- * Exported for testing.
- *
  * @param {string} rawStdout
  * @returns {Finding[]}
  * @throws {Error} when stdout is not parseable JSON.
@@ -181,15 +106,7 @@ export function parseCodexFindings(rawStdout) {
 }
 
 /**
- * Build the `claude --print` prompt that invokes the `/codex:review` slash
- * command for a review input. The risk-derived `depth` lever (Story #3937) is
- * appended via `renderDepthDirective` so a high-risk Epic instructs Codex
- * toward a deeper second-pass review while a low-risk one keeps it light; an
- * absent depth renders the `standard` directive. The `/codex:review` slash
- * command and its `--wait` flag are unchanged — the directive rides as
- * trailing prompt prose the plugin's wrapping model reads.
- *
- * Pure. Exported for testing.
+ * The depth directive rides as trailing prompt prose after the slash command.
  *
  * @param {{ baseRef: string, headRef: string, depth?: import('./types.js').ReviewDepth }} args
  * @returns {string}
@@ -202,14 +119,8 @@ function buildCodexReviewPrompt({ baseRef, headRef, depth }) {
 }
 
 /**
- * Default invoker: shell out to the host's `claude` CLI to run the
- * `/codex:review` slash command. The plugin is expected to print a
- * JSON document to stdout when `--wait` is passed; non-zero exits
- * propagate as an Error so the orchestrator records the run as
- * `status=invalid` rather than burying the failure.
- *
- * Exported for testing — the production adapter accepts an
- * `invokeFn` override so tests never spawn a real process.
+ * Run `/codex:review` through the host's `claude` CLI; `--wait` makes the
+ * plugin print JSON to stdout.
  *
  * @param {{ baseRef: string, headRef: string, depth?: import('./types.js').ReviewDepth }} args
  * @returns {{ status: number, stdout: string, stderr: string }}
@@ -231,14 +142,6 @@ function defaultInvokeCodexReview({ baseRef, headRef, depth }) {
 }
 
 /**
- * Build a `ReviewProvider` instance backed by the Codex plugin.
- *
- * The `deps` overload is the test seam — production callers (the
- * factory) invoke `createCodexProvider()` with no arguments and get
- * the default dependency chain (probe via plugin marker, invoker via
- * the `claude` CLI). Tests inject `probeFn` (to bypass the marker
- * check) and `invokeFn` (to return canned stdout).
- *
  * @param {{
  *   probeFn?: () => boolean,
  *   invokeFn?: (args: { baseRef: string, headRef: string, scope: string, ticketId: number, depth?: import('./types.js').ReviewDepth }) => { status: number, stdout: string, stderr: string },
@@ -297,10 +200,6 @@ export function createCodexProvider(deps = {}) {
 }
 
 /**
- * Zero-arg factory entry point used by the `review-provider-factory`
- * registry. Mirrors `createNativeProviderForRegistry` so the registry
- * signature stays `() => ReviewProvider`.
- *
  * @returns {ReviewProvider}
  */
 export function createCodexProviderForRegistry() {

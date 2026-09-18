@@ -1,11 +1,6 @@
 /**
- * close-validation/runner.js — The `runCloseValidation` orchestrator.
- *
- * Runs typecheck, lint, test, format check, and maintainability/coverage/
- * CRAP regression checks before the story merge so drift is caught in the
- * worktree rather than at pre-push time on the Epic branch. All gates
- * inherit stdio so the operator sees the raw output; the returned summary
- * surfaces actionable hints on failure.
+ * Runs the close gates (typecheck, lint, test, format, baselines) in the
+ * Story worktree before merge; the summary carries failure hints.
  */
 
 import { getQuality } from '../config/quality.js';
@@ -29,10 +24,7 @@ import { defaultGetHeadSha } from './projections/head-sha.js';
 /** @typedef {import('./gates.js').Gate} Gate */
 
 function applyChangedFileScope({ gate, spawnCwd, log }) {
-  // Story #5278 — a skip the gate list already decided (the coverage-capture
-  // gate whose incremental skip is known to fire). Honoured before anything
-  // else so the gate is recorded as `skipped` with its real reason rather
-  // than spawned to discover the same thing minutes later.
+  // A skip decided when the gate list was built wins over everything.
   if (gate.skip) {
     log(`[close-validation] ⏭ ${gate.name} skipped (${gate.skip.reason})`);
     return {
@@ -50,11 +42,7 @@ function applyChangedFileScope({ gate, spawnCwd, log }) {
     cwd: spawnCwd,
     baseRef: gate.changedFileScope.baseRef,
   });
-  // Filter to the formatter-eligible subset before deciding to skip. A
-  // non-empty diff that contains zero formatter-eligible files (e.g. a
-  // docs-only Story) must take the skip path, not invoke biome with only
-  // ineligible paths — biome reports "No files were processed" and exits 1
-  // in that case (Story #3410).
+  // Biome exits 1 ("No files were processed") on only-ineligible paths.
   const eligibleFiles = changedFiles.filter(isFormatterEligible);
   if (eligibleFiles.length === 0) {
     log(
@@ -69,12 +57,8 @@ function applyChangedFileScope({ gate, spawnCwd, log }) {
   log(
     `[close-validation] ↳ ${gate.name} scoped to ${eligibleFiles.length} formatter-eligible changed file(s) from ${gate.changedFileScope.baseRef}...HEAD`,
   );
-  // The extension filter cannot see biome's own config-ignore axis
-  // (`files.includes` allowlist / `files.ignore` / `overrides`). When every
-  // eligible-by-extension path is also config-ignored, the scoped biome
-  // invocation exits 1 with "No files were processed" — a false negative for
-  // the gate (Story #4292). Flag the scoped run so the runner downgrades that
-  // specific exit to a clean skip instead of a formatting failure.
+  // The extension filter cannot see biome's config ignores; if every path is
+  // config-ignored biome exits 1 "No files were processed" — downgrade that.
   return {
     gate,
     cmd: gate.cmd,
@@ -85,38 +69,12 @@ function applyChangedFileScope({ gate, spawnCwd, log }) {
 }
 
 /**
- * Run every gate sequentially. Stops collecting after the first failure but
- * still returns a summary so the caller decides how to surface the result.
- *
- * Worktree locality (Story #1120): when `worktreePath` is supplied, every
- * gate runner is spawned with `cwd: worktreePath` so the gate sees the
- * Story branch's post-rebase tree. Evidence reads/writes still key against
- * `cwd` (the main checkout) because the temp tree lives under the main
- * `.git/`. Failure messages name the worktree path.
- *
- * Evidence-aware: when `storyId` is provided alongside `standalone: true`,
- * and `useEvidence !== false`, each gate consults
- * `validation-evidence.shouldSkip()` against current HEAD + the gate's
- * command-config hash. A matching record skips the gate; a successful run
- * is recorded so the next caller in the local hot path can skip in turn.
- *
- * Standalone keyspace (Story #4250): `standalone: true` routes the evidence
- * file to the storyId-anchored
- * `<tempRoot>/standalone/stories/story-<id>/validation-evidence.json`
- * keyspace. v2.0.0 removed the Epic tier and its Epic-keyed keyspace.
- *
- * `onGateStart` is invoked immediately before each gate's runner spawn, so a
- * caller can record per-gate wall-clock telemetry. Errors thrown from the
- * hook propagate.
- *
- * Projection advisories (Story #4776): when `baseBranch` and `storyBranch`
- * are both supplied and every gate passed, the maintainability and CRAP
- * pre-merge projections run through `projections/advisories.js` and log
- * their advisories to the same `log` sink the gates use. They are advisory
- * by construction — the returned `ok` is decided entirely by the gates, so
- * a projected breach never fails a close. They are skipped after a gate
- * failure, where the operator needs the failing gate's evidence, not a
- * baseline-refresh nudge.
+ * Independent gates run in parallel (first failure aborts the rest), then
+ * serial gates in order, stopping at the first failure. Gates spawn in
+ * `worktreePath`; evidence is keyed to `cwd` (main checkout). With
+ * `storyId` + `standalone`, a matching evidence record skips a gate and a
+ * pass is recorded. Projection advisories run only after every gate passes
+ * and never affect `ok`. `onGateStart` errors propagate.
  *
  * @param {{
  *   cwd: string,
@@ -138,9 +96,8 @@ function applyChangedFileScope({ gate, spawnCwd, log }) {
  *   recordPass?: typeof defaultRecordPass,
  *   shouldSkip?: typeof defaultShouldSkip,
  *   deferOnLockExpiry?: boolean,
- * }} opts `deferOnLockExpiry` (close only, Story #5377): a full-suite lock
- *   wait that expires spawns nothing — in this process and in every gate
- *   child — and the gate reports `LOCK_WAIT_EXPIRED_EXIT_CODE` instead.
+ * }} opts `deferOnLockExpiry`: an expired full-suite lock wait spawns
+ *   nothing (here or in any gate child) and reports `LOCK_WAIT_EXPIRED_EXIT_CODE`.
  * @returns {{ ok: boolean, failed: Array<{ gate: Gate, status: number, cwd: string }>, skipped: Array<{ gate: Gate, reason: string }> }}
  */
 export async function runCloseValidation({
@@ -168,29 +125,15 @@ export async function runCloseValidation({
   const failed = [];
   const lockOpts = fullSuiteLockOptions({ config, deferOnLockExpiry });
   const skipped = [];
-  // Evidence is active when a Story id is present AND there is a keyspace to
-  // anchor on (`standalone: true` — Story #4250's storyId-anchored
-  // keyspace, now the only one).
   const evidenceActive = useEvidence && storyId != null && standalone;
   const evidenceStoreOpts = { cwd, standalone };
-  // Evidence keys against the main checkout's HEAD because the evidence
-  // file lives under the main `.git/`. Gate spawn, in contrast,
-  // runs in the worktree when one is supplied — that's the whole point of
-  // Story #1120.
   const spawnCwd = worktreePath ?? cwd;
   const headSha = evidenceActive ? getHeadSha(spawnCwd) : null;
-  // Story #5278 — one tree fingerprint for the whole run, not one per gate.
-  // Every gate here reads the same working tree, so an identical tree means
-  // identical inputs for all of them; a per-gate scope would be narrower but
-  // would have to model each gate's read set, and being wrong about that
-  // grants a skip the gate did not earn. A gate that carries its own
+  // One whole-tree fingerprint for every gate: a per-gate read set that is
+  // modelled wrong would grant a skip the gate did not earn. A gate's own
   // `inputFingerprint` still wins.
   const treeSha = evidenceActive ? getTreeFingerprint(spawnCwd) : null;
 
-  // Helper closures so the parallel and serial passes share evidence
-  // bookkeeping bit-for-bit.
-
-  /** Returns a `{ skip: true }` verdict when evidence makes the gate redundant. */
   const evidenceVerdict = (gate, configHash) => {
     if (!(evidenceActive && headSha)) return { skip: false };
     const verdict = shouldSkip(
@@ -237,13 +180,7 @@ export async function runCloseValidation({
   };
 
   /**
-   * Run a single gate. When `gate.run` is a function the gate executes
-   * **in process** (Story #1973 / Task #1984 — per-kind baseline gates
-   * removed their `child_process.spawn(node check-<kind>.js)` arm and
-   * call `compare(head, base)` directly). The `run` callable receives
-   * the same `(cmd, args, opts)` argv shape as `runner` so it slots into
-   * the existing contract without churn at the runner boundary.
-   * Otherwise the supplied `runner` is used (default: spawn).
+   * A `gate.run` function executes in process with the `runner` signature.
    *
    * @returns {Promise<{ status: number }>}
    */
@@ -259,12 +196,8 @@ export async function runCloseValidation({
       log,
       signal,
       ...lockOpts.forGate(gate),
-      // Story #5278 — only the full-suite gate can end up *waiting* on the
-      // host lock, and only it is expensive enough for the wait to change the
-      // answer: whoever we queued behind may have deposited this gate's
-      // evidence while we sat there. Re-asking the same question the runner
-      // asked before the wait is the whole mechanism; a `{ status: 0 }`
-      // stands in for the spawn.
+      // Whoever held the full-suite lock may have deposited this gate's
+      // evidence meanwhile; re-check after the wait instead of spawning.
       ...(gate.fullSuiteLock && configHash
         ? {
             skipIfSatisfied: () =>
@@ -273,10 +206,7 @@ export async function runCloseValidation({
                 : undefined,
           }
         : {}),
-      // Story #5173 — forwarded unconditionally (never a conditional spread
-      // like the two below): `defaultGateRunner` already treats a falsy value
-      // as "no lock", so a branch here would only add a decision point to the
-      // hottest function in this file.
+      // Unconditional: the runner treats falsy as "no lock".
       fullSuiteLock: gate.fullSuiteLock,
       ...(gate.tolerateNoFilesProcessed
         ? { tolerateNoFilesProcessed: true }
@@ -287,11 +217,8 @@ export async function runCloseValidation({
 
   const { independent, serial } = partitionGates(gates);
 
-  // ── Phase 1: independent gates in parallel ──────────────────────────
-  // First non-zero exit pins `firstFailure` and aborts every in-flight
-  // sibling via SIGTERM. Other gates' results are still awaited (so we
-  // never leak children) but their non-zero status is intentionally
-  // dropped: only one error surfaces.
+  // Phase 1. The first failure aborts siblings; they are still awaited (no
+  // leaked children) but only one error surfaces.
   const ac = new AbortController();
   let firstIndepFailure = null;
 
@@ -370,7 +297,6 @@ export async function runCloseValidation({
     return { ok: false, failed, skipped };
   }
 
-  // ── Phase 2: serial gates in declared order ─────────────────────────
   await runSerialGates(serial, {
     spawnCwd,
     log,
@@ -383,10 +309,6 @@ export async function runCloseValidation({
     dispatchGate,
   });
 
-  // ── Phase 3: advisory projections ───────────────────────────────────
-  // Story #4776 — the projection layer's live call site. Deliberately
-  // outside the `ok` computation: a projected breach informs, it never
-  // fails a close.
   if (failed.length === 0) {
     await runAdvisoryProjections({
       runProjections,
@@ -402,14 +324,9 @@ export async function runCloseValidation({
 }
 
 /**
- * The full-suite options every gate dispatch carries (Story #5377).
- *
- * The `test` gate — the one marked `fullSuiteLock` — is bounded by the same
- * wall clock as coverage capture (`delivery.quality.gates.coverage.timeoutMs`,
- * the one full-suite budget), so a hung `npm test` fails the gate instead of
- * holding the host lock indefinitely. Under `deferOnLockExpiry` every gate
- * child also inherits the expiry opt-in, which is how a capture running as a
- * child learns that close would rather end `pending` than spawn unserialized.
+ * The `fullSuiteLock` gate shares coverage capture's timeout so a hung suite
+ * fails instead of holding the host lock. Under `deferOnLockExpiry` every
+ * gate child inherits the defer opt-in via env.
  *
  * @param {{ config: object|null, deferOnLockExpiry: boolean }} args
  * @returns {{ forGate: (gate: object) => object }}
@@ -431,13 +348,7 @@ function fullSuiteLockOptions({ config, deferOnLockExpiry }) {
 }
 
 /**
- * Phase 2 helper — run the serial gates in declared order, stopping at the
- * first failure. Extracted from `runCloseValidation` (Story #4926); the
- * evidence bookkeeping stays bit-identical to the parallel pass because both
- * call the same injected `evidenceVerdict` / `recordIfActive` closures.
- *
- * Mutates the caller's `failed` / `skipped` accumulators — the same arrays
- * Phase 1 already wrote into, so the returned verdict stays one list.
+ * Mutates the caller's `failed` / `skipped` accumulators.
  *
  * @param {Array<object>} serial
  * @param {object} deps
@@ -520,11 +431,7 @@ async function runSerialGates(
 }
 
 /**
- * Phase 3 helper — run the advisory projections, absorbing every failure.
- *
- * No-ops without a branch pair to diff (resume / legacy callers), and can
- * never influence the close verdict: the caller has already decided `ok`
- * before this runs, and a throw here is logged, not propagated.
+ * No-op without a branch pair; a throw is logged, never propagated.
  *
  * @param {{
  *   runProjections: typeof defaultRunProjections,

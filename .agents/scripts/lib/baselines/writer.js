@@ -1,41 +1,7 @@
 /**
- * writer.js — shared baseline writer (Story #1891, Epic #1786).
- *
- * Every legacy baseline-refresh script (`update-crap-baseline.js`,
- * `update-maintainability-baseline.js`, `lib/coverage-baseline.js`,
- * the auto-refresh evaluator, now inside `auto-refresh-runner.js`) used to assemble its own envelope and
- * call `fs.writeFileSync`. That meant the path canonicalisation, rollup
- * math, kernel-version stamping, and JSON-serialisation conventions were
- * duplicated five-ish times, each with subtly different rules. The
- * worktree-prefix bug that prompted Story #1891 is the proof: each
- * refresh path had to remember to strip `.worktrees/<workspace>/` on its
- * own, and the maintainability path forgot.
- *
- * `write({ kind, rows, components, kernelVersion?, generatedAt? })` is
- * the single funnel:
- *
- *   1. Look up the per-kind module via the kernel registry. The module
- *      declares the `keyField`, `projectRow`, `sortRows`, `rollup`, and
- *      `kernelVersion()` functions.
- *   2. Run every row through `projectRow` — that's where the path is
- *      canonicalised via `path-canon.canonicalise()`. After projection,
- *      the writer asserts every key field is already canonical
- *      (`path-canon.assertCanonical()`), refusing to silently rewrite
- *      identity.
- *   3. Sort the rows for deterministic on-disk diffs.
- *   4. Compute the per-component rollup (always including `*`).
- *   5. Stamp the envelope via `buildEnvelope` — `$schema`, `kernelVersion`,
- *      `generatedAt`.
- *   6. Validate the envelope via `assertEnvelope` (AJV against the per-kind
- *      schema).
- *   7. Return the envelope object. Callers serialise via `writeFile()`
- *      (separate seam so tests can round-trip without touching disk).
- *
- * `writeFile(absPath, envelope)` is the serialise + flush seam. It
- * stringifies the envelope with two-space indent, appends a trailing
- * newline, creates the parent directory, and writes atomically (write to
- * `<path>.tmp` then `rename` — `rename` is atomic on every platform we
- * support).
+ * Shared baseline writer, the single funnel for envelope assembly
+ * (`write`: project, canonical-assert, merge, stabilise, sort, rollup, stamp,
+ * validate) and serialisation (`writeFile`: atomic tmp + rename).
  *
  * @module lib/baselines/writer
  */
@@ -48,42 +14,11 @@ import { currentKernelVersion, getKindModule } from './kernel.js';
 import { assertCanonical } from './path-canon.js';
 
 /**
- * Assemble + validate a baseline envelope. Returns the envelope object
- * (no disk I/O). Callers feed the result into `writeFile()` when they're
- * ready to persist.
- *
- * Story #1964 (s-stability-epsilon) added the optional `prior` and
- * `epsilon` parameters. When both are present, the writer calls the
- * per-kind `applyEpsilon(prior, regenerated, epsilon)` stabilizer
- * **after** projection but **before** sort/rollup/serialise. Sub-epsilon
- * row deltas resolve to the prior bytes, so env variance never rewrites
- * the on-disk envelope. When either is absent (`undefined`), behaviour is
- * unchanged from the pre-#1964 contract — this is regression-fail-safe by
- * design so existing call sites stay untouched.
- *
- * Story #1974 (s-diff-scoped-writes) added the optional `scope` parameter.
- * When `scope` is present *and* `prior` is supplied, the writer calls the
- * per-kind `mergeRows(prior, projected, scope)` filter **after** projection
- * but **before** `applyEpsilon`. The composition is intentional: scope-
- * filter first (preserve out-of-scope prior rows verbatim), then stabilise
- * the in-scope rows against the same prior under epsilon. The merged result
- * is sorted, rolled up, and serialised exactly as before. When `scope` is
- * absent (or `prior` is absent), behaviour is unchanged from the pre-#1974
- * contract — also regression-fail-safe.
- *
- * `prior` MUST be an array of rows already in canonical (per-kind
- * `projectRow`) shape — the on-disk baseline format is canonical
- * end-to-end, and the writer no longer re-projects prior rows on entry.
- *
- * Story #2135 (Task #2146) added the structural-equality short-circuit on
- * top of `prior`. When a `prior` envelope (or `priorEnvelope`) is supplied
- * and the projected `rows + rollup` deep-equal the prior's `rows + rollup`,
- * the writer returns the prior envelope unchanged — same `generatedAt`,
- * same kernelVersion, same byte payload. Without this guard every
- * auto-refresh that ran on a no-op Story would stamp a fresh
- * `generatedAt` and surface a spurious one-line diff. The short-circuit
- * is the semantic replacement for the legacy byte-equality compare that
- * lived in `baseline-snapshot.js`.
+ * Assemble and validate an envelope (no I/O). With `scope`, out-of-scope
+ * `prior` rows are preserved first; with `epsilon`, sub-epsilon deltas then
+ * resolve to prior bytes. `prior` rows must already be canonical. When rows
+ * and rollup deep-equal the prior envelope, the prior is returned unchanged
+ * so a no-op refresh leaves no `generatedAt` diff.
  *
  * @param {{
  *   kind: string,
@@ -127,11 +62,7 @@ export function write({
     }
   });
 
-  // Defensive: assert every key field on the projected rows is canonical.
-  // The per-kind `projectRow` already funnels paths through `canonicalise`,
-  // but the assertion catches a future per-kind module that forgets — and
-  // catches absolute paths in inputs that the canonicaliser would also
-  // throw on (we surface a writer-scoped error pointing at the row).
+  // Catches a kind module whose `projectRow` forgets to canonicalise.
   if (mod.keyField === 'path') {
     projected.forEach((row, idx) => {
       try {
@@ -150,30 +81,19 @@ export function write({
   const sortedRows = mod.sortRows(stabilised);
   const rollup = mod.rollup(sortedRows, components ?? []);
 
-  // The rollup() implementations always seed `*` from `aggregate()`, but
-  // the AC pins this explicitly: the envelope ALWAYS carries `*` even
-  // when `components` is undefined or empty. Belt-and-braces.
   if (!Object.hasOwn(rollup, '*')) {
     throw new Error(
       `writer.write: ${kind} rollup is missing the required "*" key`,
     );
   }
 
-  // Story #2135 / Task #2146 — structural-equality short-circuit. When the
-  // caller supplies a `priorEnvelope` (or, for backwards-compatibility, the
-  // bare `prior` array is itself a full envelope object), and the projected
-  // rows + rollup deep-equal what's on the prior, return the prior envelope
-  // unchanged. This is the semantic replacement for the byte-equality
-  // compare in `baseline-snapshot.js` and is what makes a no-op auto-refresh
-  // produce a zero-byte baseline diff.
   const priorEnv = resolvePriorEnvelope(priorEnvelope, prior);
   if (
     priorEnv &&
     deepEqual(sortedRows, priorEnv.rows) &&
     deepEqual(rollup, priorEnv.rollup)
   ) {
-    // Re-validate defensively before returning so a caller cannot smuggle
-    // an invalid envelope through the short-circuit.
+    // No smuggling an invalid envelope through the short-circuit.
     assertEnvelope(priorEnv);
     return priorEnv;
   }
@@ -191,14 +111,7 @@ export function write({
   return envelope;
 }
 
-/**
- * Resolve the prior envelope used by the structural-equality short-circuit.
- * Accepts either an explicit `priorEnvelope` (preferred) or, for backwards
- * compatibility, recognises when `prior` is itself a full envelope object
- * carrying `rows` + `rollup` rather than a bare rows array. Returns null
- * when neither yields a usable envelope — the short-circuit is opt-in by
- * design.
- */
+/** `priorEnvelope`, else `prior` when it is a whole envelope, else null. */
 function resolvePriorEnvelope(priorEnvelope, prior) {
   if (
     priorEnvelope &&
@@ -224,21 +137,8 @@ function resolvePriorEnvelope(priorEnvelope, prior) {
 }
 
 /**
- * Serialise an envelope to `absPath`. Deterministic: two-space indent,
- * trailing newline, sorted keys for the top-level envelope keys (rows are
- * already sorted by the per-kind module's `sortRows`). Atomic: writes to
- * `<absPath>.tmp` then `rename`s onto the destination so a crash mid-write
- * never leaves a half-flushed envelope on disk.
- *
- * Story #2135 / Task #2146 — the optional `fsImpl` seam lets tests inject
- * a virtual filesystem (or an in-memory recorder) the way the legacy
- * saver helpers allowed. Production callers omit it and fall through to
- * `node:fs`. The seam covers `mkdirSync`, `writeFileSync`, and
- * `renameSync` — the three calls this function actually makes — so a mock
- * that exposes a subset of `fs` works without leaking real disk I/O.
- *
- * Backwards-compatible: two-argument callers (`writeFile(abs, env)`)
- * continue to work unchanged.
+ * Serialise deterministically (fixed top-level key order, two-space indent,
+ * trailing newline) and atomically (tmp + rename).
  *
  * @param {string} absPath
  * @param {object} envelope
@@ -251,29 +151,13 @@ export function writeFile(absPath, envelope, opts = {}) {
       `writer.writeFile: absPath must be an absolute path (got ${JSON.stringify(absPath)})`,
     );
   }
-  // Re-validate at the seam — a caller might mutate the envelope between
-  // `write()` and `writeFile()`.
+  // The caller may have mutated the envelope since `write()`.
   assertEnvelope(envelope);
 
   const fsImpl = opts?.fsImpl ? opts.fsImpl : fs;
 
-  // Canonical key order on the top-level envelope keeps diffs stable
-  // across runs and platforms. Per-kind row keys retain their natural
-  // declaration order; the row sort is done by `sortRows()`.
-  //
-  // The projection is deliberately explicit (Story #4775): a per-kind envelope
-  // stamp reaches disk only if it is named here, so an unlisted one is present
-  // in memory, passes validation, and is absent from the file it exists to
-  // protect. That is not hypothetical — Story #4901 added `provenanceStamped`
-  // to `envelopeExtras()` and not to this list, and every baseline written
-  // between then and Story #4969 lost it at this boundary, leaving the
-  // `provenance-unstamped` axis reading an absence its own writer had
-  // manufactured.
-  //
-  // A stamp a kind does not set is simply `undefined`, and `JSON.stringify`
-  // omits an undefined-valued key — so naming all three unconditionally emits
-  // exactly what the per-key `undefined` guards used to, with nothing to
-  // half-apply when the next stamp is added.
+  // A kind's envelope stamp reaches disk only if named here — add every new
+  // `envelopeExtras()` key. Unset stamps are undefined and JSON omits them.
   const canonical = {
     $schema: envelope.$schema,
     kernelVersion: envelope.kernelVersion,
@@ -292,29 +176,12 @@ export function writeFile(absPath, envelope, opts = {}) {
   return absPath;
 }
 
-/**
- * Story #1974 — s-diff-scoped-writes scope-merge dispatch. When `scope` is
- * present, defer to the per-kind `mergeRows(prior, projected, scope)` to
- * preserve out-of-scope prior rows verbatim. Returns `projected` unchanged
- * when `scope` is omitted, when the kind doesn't ship the merger
- * (forward-compatible), or when `prior` is absent (nothing to preserve).
- */
 function scopeMergeRows(mod, projected, prior, scope) {
   if (scope === undefined || scope === null) return projected;
   if (typeof mod.mergeRows !== 'function') return projected;
-  // mergeRows treats null/undefined/empty prior as "no preservation needed"
-  // and returns projected verbatim — that branch is covered upstream and
-  // here for symmetry.
   return mod.mergeRows(prior ?? [], projected, scope);
 }
 
-/**
- * Story #1964 — s-stability-epsilon stabilizer dispatch. When both
- * `prior` and `epsilon` are present, fold sub-epsilon row deltas back to
- * the prior bytes via the per-kind `applyEpsilon`. Returns `projected`
- * unchanged when either is omitted, or when the kind doesn't ship the
- * stabilizer (forward-compatible).
- */
 function stabiliseRows(mod, projected, prior, epsilon) {
   if (prior === undefined || epsilon === undefined) return projected;
   if (!Array.isArray(prior)) {

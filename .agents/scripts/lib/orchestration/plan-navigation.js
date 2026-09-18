@@ -1,19 +1,9 @@
 /**
- * plan-navigation.js — shared navigability helpers for the persist-side
- * draft reachability check (`plan-reachability.js`).
- *
- * Extracted from the retired `epic-plan-healthcheck.js` so the live
- * draft-ticket scan owns its own mechanics without pulling in the
- * deleted post-plan healthcheck CLI.
+ * plan-navigation.js — navigability helpers for `plan-reachability.js`.
  */
 
 /**
- * Resolve the navigation config that drives the reachability check.
- *
- * The check is opt-in: a consumer that has not configured
- * `planning.navigation.routeGlobs` gets a silent no-op. The nav-registry
- * token list is what a route-adding Story is expected to reference
- * somewhere in its body or `## Acceptance` section.
+ * Opt-in: no `planning.navigation.routeGlobs` means a silent no-op.
  *
  * @param {object} config Resolved `.agentrc.json`.
  * @returns {{ routeGlobs: string[], navRegistry: string[] }}
@@ -31,20 +21,15 @@ export function resolveNavConfig(config) {
 }
 
 /**
- * Translate a route glob (`pages/**`, `app/**\/route.ts`) into a RegExp that
- * matches a path string. Supports `**` (any depth, including `/`), `*` (any
- * run of non-separator chars), and `?` (single non-separator char). All other
- * characters are matched literally.
+ * `**` any depth, `*` any non-separator run, `?` one non-separator char;
+ * everything else literal.
  *
  * @param {string} glob
  * @returns {RegExp}
  */
 export function globToRegExp(glob) {
-  // Collapse adjacent `**` segments before compiling. `**/**` and `***` both
-  // mean "any depth", but compiling them literally emits adjacent `.*` runs
-  // (`.*/.*` / `.*.*`) that backtrack catastrophically on a long non-matching
-  // path. Collapsing to a single `**` preserves semantics and keeps the
-  // matcher linear (ReDoS hardening).
+  // Collapse `**/**` and `***` to `**`: adjacent `.*` runs backtrack
+  // catastrophically on long non-matching paths (ReDoS).
   const normalized = glob
     .replace(/\*\*(?:\/\*\*)+/g, '**')
     .replace(/\*{3,}/g, '**');
@@ -68,10 +53,8 @@ export function globToRegExp(glob) {
 }
 
 /**
- * Extract the candidate route-touching paths a Story declares. Reads the
- * `## Changes` block (the decompose-author emits one `{"path":...}` JSON
- * object per bullet) and falls back to any bare `` `path/like/this` ``
- * inline-code spans in the body.
+ * Paths a Story declares: `"path": "…"` change descriptors plus path-like
+ * inline code spans.
  *
  * @param {string} body
  * @returns {string[]}
@@ -79,11 +62,9 @@ export function globToRegExp(glob) {
 export function extractStoryPaths(body) {
   if (typeof body !== 'string' || body.length === 0) return [];
   const paths = new Set();
-  // `{"path":"pages/foo.tsx", ...}` change descriptors.
   for (const m of body.matchAll(/"path"\s*:\s*"([^"]+)"/g)) {
     paths.add(m[1]);
   }
-  // Inline-code spans that look like a path (contain a slash or a dotted ext).
   for (const m of body.matchAll(/`([^`]+)`/g)) {
     const token = m[1].trim();
     if (/[/.]/.test(token) && !token.includes(' ')) paths.add(token);

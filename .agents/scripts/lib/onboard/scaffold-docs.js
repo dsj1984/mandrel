@@ -1,15 +1,8 @@
 /**
- * Guided-onboard doc scaffolder (Epic #3438 Story #3519).
- *
- * Detects which of the project's configured `project.docsContextFiles` are
- * absent under the resolved docs root, and — on acceptance — scaffolds a stub
- * for each missing file. Stubs are seeded from a dedicated template under
- * `.agents/templates/docs/<name>` when one ships; otherwise a generic
- * placeholder stub is written so the mandatory-read never resolves to a
- * missing file.
- *
- * The detection pass is side-effect free: callers can preview the missing set
- * (`scaffoldDocs({ write: false })`) before deciding whether to scaffold.
+ * Guided-onboard doc scaffolder: find the configured
+ * `project.docsContextFiles` missing under the docs root and, when `write`,
+ * stub each one (from `.agents/templates/docs/<name>` when shipped, else a
+ * generic placeholder). `write: false` is a side-effect-free preview.
  *
  * @module lib/onboard/scaffold-docs
  */
@@ -25,18 +18,14 @@ const AGENT_ROOT = path.resolve(__dirname, '../../..');
 const DOCS_TEMPLATE_DIR = path.join(AGENT_ROOT, 'templates', 'docs');
 
 /**
- * Deterministic marker written into every scaffolded stub. The `/mandrel-plan`
- * first-run preflight (and any tooling that wants to detect unedited stubs)
- * keys off this exact string — do not change it without a hard cutover.
+ * Marker in every stub; the `/mandrel-plan` first-run preflight detects
+ * unedited stubs by this exact string — changing it is a hard cutover.
  *
  * @type {string}
  */
 export const STUB_MARKER = '<!-- MANDREL:STUB -->';
 
 /**
- * Build the generic placeholder stub for a docsContextFile that has no
- * dedicated template. Derives a human-readable title from the filename.
- *
  * @param {string} fileName - e.g. `data-dictionary.md`
  * @returns {string}
  */
@@ -57,11 +46,6 @@ function genericStub(fileName) {
 }
 
 /**
- * Read the dedicated template body for a docsContextFile, or fall back to the
- * generic stub when no template ships for that name. Either path prepends the
- * {@link STUB_MARKER} so the `/mandrel-plan` first-run preflight can detect un-edited
- * stubs regardless of whether a dedicated template was used.
- *
  * @param {string} fileName
  * @param {import('node:fs')} fsImpl
  * @returns {string}
@@ -70,25 +54,19 @@ function stubContentFor(fileName, fsImpl) {
   const templatePath = path.join(DOCS_TEMPLATE_DIR, fileName);
   if (fsImpl.existsSync(templatePath)) {
     const body = fsImpl.readFileSync(templatePath, 'utf8');
-    // Prepend the marker only when absent (idempotent; the template files
-    // themselves are kept marker-free so they read cleanly as documentation).
+    // Templates stay marker-free so they read cleanly as documentation.
     return body.startsWith(STUB_MARKER) ? body : `${STUB_MARKER}\n${body}`;
   }
   return genericStub(fileName);
 }
 
 /**
- * Detect missing docsContextFiles and, on acceptance, scaffold stubs.
- *
  * @param {object} [opts]
  * @param {string} [opts.root] - Project root to resolve config + docs root
- *   against. Defaults to the resolver's `PROJECT_ROOT`.
- * @param {string[]} [opts.docsContextFiles] - Override the configured list
- *   (primarily for tests). Falls back to `project.docsContextFiles`.
- * @param {string} [opts.docsRoot] - Override the resolved docs-root directory
- *   name (relative to `root`). Falls back to `project.paths.docsRoot`.
- * @param {boolean} [opts.write=true] - When `false`, only detect (no files are
- *   created). When `true` (acceptance), scaffold each missing file.
+ *   against.
+ * @param {string[]} [opts.docsContextFiles] - Override the configured list.
+ * @param {string} [opts.docsRoot] - Override the docs-root directory name.
+ * @param {boolean} [opts.write=true] - `false` only detects.
  * @param {import('node:fs')} [opts.fs] - Injectable fs implementation.
  * @returns {{
  *   docsRoot: string,
@@ -126,7 +104,6 @@ export function scaffoldDocs(opts = {}) {
     fsImpl.mkdirSync(docsRootAbs, { recursive: true });
     for (const fileName of missing) {
       const target = path.join(docsRootAbs, fileName);
-      // Guard against nested paths whose parent dir is absent.
       fsImpl.mkdirSync(path.dirname(target), { recursive: true });
       fsImpl.writeFileSync(target, stubContentFor(fileName, fsImpl), 'utf8');
       created.push(fileName);

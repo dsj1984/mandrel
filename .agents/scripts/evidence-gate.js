@@ -1,34 +1,10 @@
 #!/usr/bin/env node
 
 /**
- * evidence-gate.js — evidence-aware wrapper around a single shell gate.
- *
- * Tech Spec #819 §"Evidence record (Story 7)" — `/mandrel-deliver` Phase 3
- * (close-validation) runs `npm run lint` and `npm test` against the Epic
- * branch before opening the PR.
- * If the same gate has already passed against the current `git rev-parse
- * HEAD` (recorded earlier in the local hot path), this wrapper logs a skip
- * and exits 0 instead of re-spawning the runner. On run, a successful
- * gate is recorded so the next invocation can skip in turn.
- *
- * Usage:
- *   node .agents/scripts/evidence-gate.js \
- *     --standalone --scope-id <storyId> --gate <name> \
- *     [--worktree <path>] [--no-evidence] -- <cmd> [args...]
- *
- * Examples:
- *   node .agents/scripts/evidence-gate.js --standalone --scope-id 4250 --gate lint \
- *     --worktree .worktrees/story-4250 -- npm run lint
- *   node .agents/scripts/evidence-gate.js --standalone --scope-id 4250 --gate test \
- *     --worktree .worktrees/story-4250 -- npm test
- *
- * `--standalone` (Story #4250) is required: the evidence file is anchored on
- * the Story id at
- * `<tempRoot>/standalone/stories/story-<sid>/validation-evidence.json` — the
- * same keyspace the standalone close consults, so the acceptance-self-eval
- * critic's verify[] runs (lint / typecheck) are shared with the close.
- * v2.0.0 removed the Epic tier along with the `--epic-id` Epic-keyed
- * keyspace.
+ * Runs one gate, skipping it when evidence shows the same gate already
+ * passed for the current HEAD and tree, and recording a pass for the next
+ * caller. `--standalone` is required: it keys evidence by Story id, the same
+ * keyspace close consults, so worker-side verify[] runs credit the close.
  */
 
 import { spawnSync } from 'node:child_process';
@@ -44,12 +20,6 @@ import {
   treeFingerprint,
 } from './lib/validation-evidence.js';
 
-/**
- * Split argv at the first `--` and return both halves. The wrapper consumes
- * everything before `--`; the runner receives everything after.
- *
- * Exported for testing.
- */
 export function splitOnDashDash(argv) {
   const idx = argv.indexOf('--');
   if (idx === -1) return { wrapperArgs: argv, runnerArgs: [] };
@@ -59,11 +29,6 @@ export function splitOnDashDash(argv) {
   };
 }
 
-/**
- * Parse the wrapper-side argv (before `--`).
- *
- * Exported for testing.
- */
 export function parseWrapperArgs(argv) {
   const { values } = parseArgs({
     args: argv,
@@ -96,16 +61,9 @@ function resolveHeadShaDefault(cwd, gitSpawnFn) {
 }
 
 /**
- * The pair of keys an evidence record is written and read under: the commit
- * this gate ran at, and the content identity of the tree it ran against
- * (Story #5278).
- *
- * Both are read from the **spawn** cwd — the Story worktree when one is
- * supplied — so the keys describe the tree the gate actually saw. The tree
- * fingerprint is what keeps this gate credited across close's own base-sync
- * fast-forward, which moves HEAD between the deposit and the gates that would
- * spend it; see `validation-evidence.js#treeFingerprint`.
- *
+ * Read from the spawn cwd so the keys describe the tree the gate saw. The
+ * tree fingerprint keeps credit across close's base-sync fast-forward, which
+ * moves HEAD between deposit and spend.
  * @param {{ spawnCwd: string, gitSpawnFn: Function, useEvidence: boolean }} args
  * @returns {{ headSha: string|null, inputFingerprint: string|null }}
  */
@@ -118,34 +76,21 @@ function resolveEvidenceKeys({ spawnCwd, gitSpawnFn, useEvidence }) {
 }
 
 /**
- * Runner-shaped entry-point: takes the parsed wrapper args + runner args and
- * executes the gate. Pure-ish (modulo IO) — all side-effects are routed via
- * the injection hooks so tests can stub `gitSpawn`, `spawnSync`, and the
- * evidence store without touching disk or spawning processes.
- *
- * Exported for tests + the CLI `main()`.
- *
  * @param {object} params
- * @param {number}   params.scopeId      — Story ID (positive integer).
- * @param {boolean}  [params.standalone] — Required. Routes to the
- *   storyId-anchored standalone keyspace (Story #4250).
- * @param {string}   params.gate         — Logical gate name (`lint`, `typecheck`, …).
- * @param {boolean}  params.useEvidence  — When false, force the runner.
- * @param {string}   params.cwd          — Evidence cwd (locates the temp
- *   tree). The runner is spawned in `worktreePath` when set, else `cwd`.
- * @param {string|null} [params.worktreePath] — Spawn cwd override (Story #1120).
- *   When set, the runner runs in the Story worktree and the HEAD-SHA used as
- *   the evidence cache key is read from the worktree, not from `cwd`.
- * @param {string[]} params.runnerArgs   — `[cmd, ...args]` from after `--`.
- * @param {object}   [deps]              — Optional injection hooks (tests).
- * @param {Function} [deps.gitSpawnFn]   — Stub for `gitSpawn`.
- * @param {Function} [deps.spawnFn]      — Stub for `spawnSync`.
- * @param {Function} [deps.shouldSkipFn] — Stub for `shouldSkip`.
- * @param {Function} [deps.recordPassFn] — Stub for `recordPass`.
- * @param {object}   [deps.logger]       — Logger-shaped object (info/error/warn/fatal).
- * @returns {{ status: number, skipped: boolean }} Outcome summary. `status`
- *   is the runner's exit code (0 = pass), `skipped` is true when evidence
- *   short-circuited the runner.
+ * @param {number}   params.scopeId
+ * @param {boolean}  [params.standalone]
+ * @param {string}   params.gate
+ * @param {boolean}  params.useEvidence
+ * @param {string}   params.cwd          — evidence cwd (locates the temp tree)
+ * @param {string|null} [params.worktreePath] — spawn cwd and HEAD source
+ * @param {string[]} params.runnerArgs
+ * @param {object}   [deps]
+ * @param {Function} [deps.gitSpawnFn]
+ * @param {Function} [deps.spawnFn]
+ * @param {Function} [deps.shouldSkipFn]
+ * @param {Function} [deps.recordPassFn]
+ * @param {object}   [deps.logger]
+ * @returns {{ status: number, skipped: boolean }}
  */
 export async function runEvidenceGate(params, deps = {}) {
   const {
@@ -165,9 +110,6 @@ export async function runEvidenceGate(params, deps = {}) {
     runnerArgs,
   } = params ?? {};
 
-  // `--standalone` (Story #4250) routes the evidence file to the
-  // storyId-anchored keyspace so the acceptance-self-eval critic can record
-  // verify[] evidence into the same keyspace the standalone close consults.
   if (
     !scopeId ||
     !standalone ||
@@ -180,14 +122,10 @@ export async function runEvidenceGate(params, deps = {}) {
     );
     return { status: 1, skipped: false };
   }
-  // Evidence-store opts shared by shouldSkip + recordPass below.
   const evidenceStoreOpts = { cwd, standalone };
 
-  // Spawn cwd is the worktree when supplied — every gate command sees the
-  // Story branch's tree, not the main checkout. Evidence cwd stays anchored
-  // to the main checkout so the temp tree resolves under the main
-  // `.git/`. The HEAD-SHA used as the cache key is read from the spawn cwd
-  // (the worktree), so cache entries key against the Story branch's HEAD.
+  // The gate runs in the worktree; evidence stays anchored to the main
+  // checkout so the temp tree resolves under the main `.git/`.
   const spawnCwd = worktreePath ?? cwd;
   const [cmd, ...cmdArgs] = runnerArgs;
   const configHash = hashCommandConfig({ cmd, args: cmdArgs, cwd: spawnCwd });

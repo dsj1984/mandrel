@@ -1,23 +1,6 @@
 /**
- * `getAgentrcDefaults()` — single source of `.agentrc.json` defaults.
- *
- * `.agents/docs/agentrc-reference.json` is the authoritative editor-reference
- * inventory of every field the framework supports plus its default
- * value. Runtime accessors under `lib/config/*.js` (`COMMANDS_DEFAULTS`,
- * `BRANCH_PROTECTION_DEFAULTS`, gate defaults, etc.) layer the same
- * values onto whatever the project config carries; a parity test
- * (tests/config/full-agentrc-runtime-parity.test.js) keeps the two in
- * lockstep.
- *
- * Story #1995: the `/mandrel-update` sync helper consults this module
- * (not the template directly) to decide whether a project value is
- * "just the default" and therefore safe to omit from `.agentrc.json`.
- *
- * Identity placeholders (`[OWNER]`, `[REPO]`, `@[USERNAME]`) carry no
- * meaningful default — the operator must set them. They survive in
- * the returned object so the consumer can see the expected shape, but
- * the sync helper treats them as "no usable default" via
- * `IDENTITY_PLACEHOLDER_PATHS`.
+ * `.agentrc.json` defaults from `.agents/docs/agentrc-reference.json`; a
+ * parity test keeps them in lockstep with the runtime accessors' constants.
  */
 
 import fs from 'node:fs';
@@ -33,12 +16,7 @@ export const FULL_AGENTRC_PATH = path.join(
   'agentrc-reference.json',
 );
 
-/**
- * Dotted paths whose template value is a human placeholder
- * (`[OWNER]`, `[REPO]`, `@[USERNAME]`). The sync helper treats these
- * as "no default" — they are never auto-filled, and a project value
- * present at one of these paths is never flagged as redundant.
- */
+/** Placeholder-valued paths: never auto-filled, never flagged redundant. */
 export const IDENTITY_PLACEHOLDER_PATHS = Object.freeze([
   'github.owner',
   'github.repo',
@@ -48,8 +26,6 @@ export const IDENTITY_PLACEHOLDER_PATHS = Object.freeze([
 let _cache = null;
 
 /**
- * Parse `.agents/docs/agentrc-reference.json` and return a deep-frozen snapshot.
- *
  * @param {{ bustCache?: boolean }} [opts]
  * @returns {object}
  */
@@ -57,7 +33,6 @@ export function getAgentrcDefaults(opts = {}) {
   if (!opts.bustCache && _cache) return _cache;
   const raw = fs.readFileSync(FULL_AGENTRC_PATH, 'utf8');
   const parsed = JSON.parse(raw);
-  // Strip the `$schema` pointer — it's editor metadata, not a default.
   delete parsed.$schema;
   _cache = deepFreeze(parsed);
   return _cache;
@@ -70,8 +45,7 @@ function deepFreeze(obj) {
 }
 
 /**
- * Walk a default object and yield `[dottedPath, value]` for every
- * scalar / array leaf. Objects are descended into, not yielded.
+ * Arrays are leaves.
  *
  * @param {object} defaults
  * @returns {Generator<[string, unknown]>}
@@ -93,9 +67,6 @@ export function* iterDefaultLeaves(defaults, prefix = '') {
 }
 
 /**
- * Look up a dotted path inside an arbitrary nested object.
- * Returns `{ present: boolean, value: unknown }`.
- *
  * @param {object|null|undefined} obj
  * @param {string} dottedPath
  */

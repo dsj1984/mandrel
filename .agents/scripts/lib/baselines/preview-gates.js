@@ -1,20 +1,7 @@
 /**
- * preview-gates.js — `quality-preview` / `quality-watch` per-kind runners.
- *
- * Hoisted from the per-kind CLI shells (Story #1981, Task #2005) so the
- * quality-preview surface no longer depends on the to-be-deleted
- * `check-maintainability.js` and `check-crap.js` CLI scripts. Each
- * exported runner takes a parsed scope ref + an optional `--staged`
- * flag, runs the same scan → compare → report-builder pipeline the CLIs
- * used internally, and returns:
- *
- *   {
- *     exitCode,                 // 0 = pass, 1 = regression / floor break
- *     envelope,                 // the same `--json` envelope the CLI emitted
- *   }
- *
- * No I/O beyond the scan itself; no friction signals (preview is a
- * developer-facing tool, not a gate); no `process.exit`.
+ * `quality-preview` / `quality-watch` per-kind runners: scan, compare, and
+ * return `{ exitCode, envelope }` (1 = regression or floor break). No
+ * friction signals and no `process.exit`.
  */
 
 import path from 'node:path';
@@ -36,21 +23,11 @@ import {
   MAINTAINABILITY_EXCLUSIONS,
 } from './kinds/maintainability.js';
 
-/**
- * Framework default MI preview tolerance, used only when neither an explicit
- * override nor a configured `quality.maintainability.tolerance` is present.
- * Mirrors the historical preview default.
- */
 export const MI_PREVIEW_DEFAULT_TOLERANCE = 0.5;
 
 /**
- * Resolve the effective maintainability tolerance for the preview gate so it
- * agrees with the authoritative `check-baselines` gate. Precedence: an explicit
- * caller override → the configured `quality.maintainability.tolerance` (already
- * resolved to a scalar by `getQuality`) → the framework default. Previously the
- * preview hardcoded the default and ignored the configured value, so a project
- * that raised its tolerance (e.g. to 12) still saw the local pre-commit/pre-push
- * gate flag sub-tolerance drops that `check-baselines` accepted.
+ * Explicit override, then configured tolerance, then the default — so the
+ * preview agrees with `check-baselines`.
  *
  * @param {{ explicit?: number | null, configured?: number, fallback?: number }} opts
  * @returns {number}
@@ -193,8 +170,7 @@ export async function runMaintainabilityPreview({
   });
 
   const rawScores = await calculateAll(scopedFiles);
-  // Story #2467 / Task #2494: drop parse-unscorable files so they cannot
-  // surface as phantom MI=0 regressions in the preview envelope.
+  // Excluded files would surface as phantom MI=0 regressions.
   const scores = {};
   for (const [key, mi] of Object.entries(rawScores)) {
     const rel = path.isAbsolute(key) ? path.relative(cwd, key) : key;
@@ -237,13 +213,8 @@ export async function runCrapPreview({
     return { exitCode: 0, envelope: emptyCrapEnvelope({ scope, diffRef }) };
   }
 
-  // Story #4866 (AC-6): judge the loaded envelope BEFORE comparing anything
-  // against it. A baseline whose scoring semantics or transpiler coordinates
-  // predate the running scorer cannot yield a meaningful per-method verdict,
-  // and emitting regressions from it asks the operator to fix code that is
-  // not broken. Fail open — the authoritative `check-baselines` gate still
-  // gates the merge, so a permissive pre-commit hook costs no real coverage
-  // while a blocking one costs a provably defect-free commit.
+  // An incompatible baseline yields no meaningful verdict. Fail open:
+  // `check-baselines` still gates the merge.
   const incompatible = assertBaselineCompatible(baseline);
   if (incompatible) {
     return {

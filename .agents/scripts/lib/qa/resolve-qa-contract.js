@@ -1,41 +1,9 @@
 /**
- * `qa` contract resolver — Epic #3214, Story #3294; environment-keyed
- * contract added by Epic #4326, Story #4327.
- *
- * The agent-driven QA harness (`/qa-run`) needs the
- * consumer's `.agentrc.json` `qa` block to know where the `.feature` root
- * lives, which deployment targets (`environments`) exist and how to sign in
- * to each, and which personas the seam accepts. The block is
- * *optional in the schema* (most repos never bind the harness, so config
- * validation must not break them — see Tech Spec #3285 § "qa contract
- * block"), which means presence is enforced at run time by this resolver
- * rather than by the AJV gate.
- *
- * This resolver is the single seam the harness calls. It fails **loudly**:
- *   - Absent block  → throw with the operator-actionable phrase
- *     "this project has not bound the QA harness". There is no silent
- *     fallback to auto-detection; the harness must not pretend a contract
- *     exists.
- *   - Malformed block → throw an error naming the offending field so the
- *     operator can fix `.agentrc.json` without spelunking the schema.
- *   - Well-formed block → return the normalized contract object with
- *     `environments` + `defaultEnvironment` and the two optional fields
- *     (`consoleAllowlist`, `designTokens`) defaulted.
- *
- * `resolveQaEnvironment(contract, target)` selects one environment per
- * harness invocation — by exact name or by raw-URL origin match against each
- * environment's `baseUrl` — and throws loudly (naming the known environments)
- * on an unknown name or unmatched URL.
- *
- * It also **resolves the selected environment's `signInSeam`** (Story #5135).
- * A `{ skill }` seam naming an id that resolves to no readable `SKILL.md`
- * under either skills root used to fail silently: the contract validated, the
- * seam was returned unread, and the dangling pointer only surfaced much later
- * when a sweep reached its sign-in step — after the harness had already
- * driven a browser. Resolution now happens here, at config-resolution time,
- * so the failure lands where the operator can fix `.agentrc.json`. A seam
- * that is absent entirely is a legitimate, declarable state (the workflows
- * drive the unauthenticated surface and record the gap), not an error.
+ * `qa` contract resolver — the single seam the QA harness calls. The block is
+ * optional in the schema (non-QA repos must validate), so presence is enforced
+ * here at run time, loudly: an absent block, a malformed field, or a dangling
+ * `signInSeam.skill` throws an operator-actionable error; there is no silent
+ * fallback.
  */
 
 import Ajv from 'ajv';
@@ -47,13 +15,8 @@ import {
 } from '../skills/walk-skill-files.js';
 
 /**
- * The harness-required fields. The AJV `QA_SCHEMA` keeps these optional so
- * the full-document validator never rejects a non-QA consumer; the harness
- * contract, however, is meaningless without all four, so the resolver
- * enforces them here. Keeping the list adjacent to the resolver (not in the
- * schema) is deliberate: the schema validates *shape* for any repo, the
- * resolver enforces *harness-binding completeness* only when the harness is
- * actually invoked.
+ * Optional in the schema (shape for any repo), required here (binding
+ * completeness only when the harness actually runs).
  */
 export const QA_REQUIRED_FIELDS = Object.freeze([
   'featureRoot',
@@ -62,16 +25,10 @@ export const QA_REQUIRED_FIELDS = Object.freeze([
   'personas',
 ]);
 
-/**
- * The environment name whose `allowWrites` defaults to `true` when the
- * consumer omits the flag. Every other environment defaults to read-only
- * (`allowWrites: false`) so an unguarded remote target cannot accept writes
- * by accident — only the conventional `local` environment is write-enabled
- * by default.
- */
+// The only environment whose `allowWrites` defaults to true; every other
+// target is read-only unless the consumer opts in.
 const WRITE_ENABLED_DEFAULT_ENVIRONMENT = 'local';
 
-/** Defaults applied to the optional fields of a well-formed contract. */
 export const QA_CONTRACT_DEFAULTS = Object.freeze({
   consoleAllowlist: Object.freeze([]),
   designTokens: null,
@@ -93,16 +50,8 @@ function getQaValidator() {
 }
 
 /**
- * Normalize the two accepted `personas` shapes to one canonical internal
- * form (Story #3306).
- *
- * The schema accepts either a plain `string[]` of persona names (the honest
- * shape for a `urlTemplate` dev-impersonation seam, where the workflow reads
- * only the persona name) or the object-map form keyed by persona name (each
- * entry carrying `credentialRef` / `signInSkill` for a `skill`/credential
- * seam). Downstream the workflow consumes only the persona *names*, so the
- * canonical internal form is an object map keyed by persona name. A name-only
- * persona maps to an empty record — it carries no fabricated auth material.
+ * Normalize `string[]` or object-map personas to an object map; a name-only
+ * persona maps to `{}` (no fabricated auth material).
  *
  * @param {string[] | Record<string, object>} personas Either accepted shape.
  * @returns {{ personas: Record<string, object>, personaNames: string[] }}
@@ -115,7 +64,6 @@ function normalizePersonas(personas) {
     }
     return { personas: map, personaNames: [...personas] };
   }
-  // Object-map form: clone each entry so callers cannot mutate the input.
   const map = {};
   for (const [name, material] of Object.entries(personas)) {
     map[name] = { ...material };
@@ -124,15 +72,10 @@ function normalizePersonas(personas) {
 }
 
 /**
- * Render an AJV error into an actionable, field-named sentence.
- *
  * @param {import('ajv').ErrorObject} err
  * @returns {string}
  */
 function describeError(err) {
-  // `instancePath` is e.g. "/featureRoot" or "/signInSeam"; strip the
-  // leading slash so the message reads `qa.featureRoot ...`. A top-level
-  // error (empty path) describes the block itself.
   const field = err.instancePath ? err.instancePath.replace(/^\//, '') : '';
   const dotted = field ? `qa.${field.replace(/\//g, '.')}` : 'qa';
   if (err.keyword === 'additionalProperties') {
@@ -143,16 +86,8 @@ function describeError(err) {
 }
 
 /**
- * Resolve, validate, and normalize the `qa` contract block.
- *
- * Accepts either the full resolved config wrapper (`{ qa, project, ... }`)
- * or the bare `qa` bag. Returns a fresh normalized object — callers must not
- * mutate the input.
- *
- * `personas` is accepted in either shape (a `string[]` of names or the
- * object-map form) and normalized to one canonical internal form: an object
- * map keyed by persona name. A `personaNames` array is also returned for the
- * common case (url-template seam) where only the names are consumed.
+ * Accepts the full config or the bare `qa` bag; returns a fresh normalized
+ * contract.
  *
  * @param {object | null | undefined} config Full resolved config or bare qa block.
  * @returns {{
@@ -174,10 +109,7 @@ export function resolveQaContract(config) {
     throw new Error(ABSENT_MESSAGE);
   }
 
-  // Distinguish "absent" from "malformed": a block that is missing *every*
-  // harness-required field is treated as absent (the operator scaffolded an
-  // empty `qa: {}` but never bound it), so it gets the loud no-fallback
-  // message rather than a field-by-field validation dump.
+  // A scaffolded `qa: {}` with no required field is "absent", not malformed.
   const presentRequired = QA_REQUIRED_FIELDS.filter(
     (key) => qa[key] !== undefined,
   );
@@ -185,15 +117,13 @@ export function resolveQaContract(config) {
     throw new Error(ABSENT_MESSAGE);
   }
 
-  // Malformed-shape check first (AJV), so a wrong-typed field is reported by
-  // name even when a required field is also missing.
+  // Shape first, so a wrong-typed field is named even when another is missing.
   const validate = getQaValidator();
   if (!validate(qa)) {
     const detail = (validate.errors || []).map(describeError).join('; ');
     throw new Error(`qa: malformed contract — ${detail}`);
   }
 
-  // Required-field completeness, naming the first missing field.
   const missing = QA_REQUIRED_FIELDS.filter((key) => qa[key] === undefined);
   if (missing.length > 0) {
     throw new Error(
@@ -205,15 +135,12 @@ export function resolveQaContract(config) {
 
   const { personas, personaNames } = normalizePersonas(qa.personas);
 
-  // Clone each environment so callers cannot mutate the resolver's input.
   const environments = {};
   for (const [name, env] of Object.entries(qa.environments)) {
     environments[name] = { ...env };
   }
 
-  // The default environment is the conventional `local` target when present,
-  // otherwise the first-declared environment. `resolveQaEnvironment(contract)`
-  // (no target) resolves to this one.
+  // `local` when declared, else the first-declared environment.
   const environmentNames = Object.keys(environments);
   const defaultEnvironment = Object.hasOwn(
     environments,
@@ -240,11 +167,6 @@ export function resolveQaContract(config) {
 }
 
 /**
- * Normalize a value to its URL origin (`protocol//host:port`), or `null` when
- * it is not a parseable absolute URL. Used to match a raw-URL `target` against
- * each environment's `baseUrl` by origin, so a target carrying a path,
- * query-string, or trailing slash still resolves to the right environment.
- *
  * @param {string} value
  * @returns {string | null}
  */
@@ -257,21 +179,11 @@ function toOrigin(value) {
 }
 
 /**
- * Normalize and verify one environment's `signInSeam`.
- *
- * An absent seam normalizes to `null` — a declarable state, not an error.
- * A `{ skill }` seam is resolved against both skills roots and throws when
- * it resolves under neither, so a dangling pointer is caught here rather
- * than mid-sweep. The resolved `SKILL.md` path is attached as
- * `skillPath` so the harness reads the file the check actually found.
- *
- * The two failures get **different** messages (Story #5285). A well-formed id
- * that resolves nowhere is a skill to author; a malformed one is an id to
- * fix, and telling the operator to author `../../secrets/SKILL.md` would be
- * advice they cannot take. A config validated against the shipped schema
- * never reaches the malformed branch — the `pattern` rejects it first — but
- * this resolver also runs over hand-assembled contracts in tests and over
- * configs loaded past a degraded validator, so the branch is real.
+ * An absent seam is a declarable `null`. A `{ skill }` seam must resolve
+ * under a skills root now, not mid-sweep after a browser was driven; the
+ * resolved path is attached as `skillPath`. A malformed id and an unresolved
+ * one get different messages because they need different fixes (the
+ * malformed branch is reachable past a degraded validator).
  *
  * @param {object | undefined} seam
  * @param {string} envName Environment name, for the error message.
@@ -309,32 +221,15 @@ function resolveSignInSeam(seam, envName, options) {
 }
 
 /**
- * Resolve a single QA environment for one harness invocation.
- *
- * `target` selects which of the contract's `environments` to run against:
- *   - **Omitted / falsy** → the contract's `defaultEnvironment`.
- *   - **Exact environment name** → that environment.
- *   - **Raw URL** → the environment whose `baseUrl` shares the same origin
- *     (`protocol//host:port`), so a target with a path or query still matches.
- *
- * Resolution is name-first: a `target` that exactly names an environment wins
- * even if it also happens to parse as a URL.
- *
- * `allowWrites` is resolved to an explicit boolean on the returned object: the
- * environment's own value when set, otherwise `true` only for the conventional
- * `local` environment and `false` for every other target — an unguarded remote
- * environment is read-only unless the consumer opts in.
- *
- * Fails **loudly**: an unknown name or an unmatched URL throws an error that
- * names the known environments so the operator can correct the invocation.
+ * Select one environment: omitted → default; exact name (wins even if it
+ * parses as a URL); else a raw URL matched by origin against each `baseUrl`.
+ * `allowWrites` resolves to an explicit boolean.
  *
  * @param {{ environments: Record<string, { baseUrl: string, signInSeam?: object, allowWrites?: boolean }>, defaultEnvironment: string }} contract
  *   A contract returned by `resolveQaContract`.
- * @param {string} [target] Environment name or raw URL. Omit for the default.
- * @param {{ repoRoot?: string }} [options] `repoRoot` roots skill-seam
- *   resolution; defaults to the project root. Injected by tests.
+ * @param {string} [target] Environment name or raw URL.
+ * @param {{ repoRoot?: string }} [options] Roots skill-seam resolution.
  * @returns {{ name: string, baseUrl: string, signInSeam: object | null, allowWrites: boolean }}
- *   `signInSeam` is `null` when the environment declares none.
  * @throws {Error} on an unknown name, an unmatched URL, or a `{ skill }` seam
  *   that resolves under no skills root.
  */
@@ -354,15 +249,11 @@ export function resolveQaEnvironment(contract, target, options = {}) {
   const known = Object.keys(environments);
   const knownList = known.map((name) => `\`${name}\``).join(', ');
 
-  // No target → the default environment.
   const name =
     target == null || target === '' ? contract.defaultEnvironment : target;
 
-  // Exact-name match wins first (a name that also parses as a URL still
-  // resolves by name).
   let resolvedName = Object.hasOwn(environments, name) ? name : null;
 
-  // Otherwise try to match the target as a raw URL against each baseUrl origin.
   if (resolvedName === null) {
     const targetOrigin = toOrigin(name);
     if (targetOrigin !== null) {

@@ -1,31 +1,18 @@
 /**
- * outliers.js — bounded top-N outlier extraction per gate (Story #4902).
- *
- * `baselines/crap.json` alone is ~650KB of per-method rows. The engine must
- * never embed a whole baseline in its envelope, so every kind is narrowed to
- * at most `topN` rows here, before anything downstream sees them.
- *
- * Narrowing happens in two steps:
- *
- *   1. **Aggregate to the cluster grain.** Baseline rows are per-method
- *      (crap) or per-symbol (dead exports); hotspots are per-file. Each id
- *      keeps its single worst value, plus how many rows it contributed.
- *   2. **Score, then cut.** `severityWeight` is the row's position in its
- *      own kind's distribution, from 0 (the best value present) to 1 (the
- *      worst). Scoring within the kind is what makes CRAP 29 and MI 74
- *      comparable at all — the two axes share no unit, and the whole point
- *      of a cluster is to add them up.
+ * Bounded top-N outliers per gate, so no whole baseline enters the envelope.
+ * Rows fold to the file grain (worst value kept), then `severityWeight` is
+ * the position in the kind's own distribution (0 best … 1 worst) — which is
+ * what makes unit-less axes like CRAP and MI summable in a cluster.
  *
  * @module lib/audit-baselines/outliers
  */
 
 import { KIND_SPECS } from './kinds.js';
 
-/** Default bound on rows extracted per gate. */
 export const DEFAULT_TOP_N = 20;
 
 /**
- * Fold `{ id, value }` rows to one entry per id, keeping the worst value.
+ * One entry per id, worst value kept.
  *
  * @param {Array<{ id: string, value: number }>} rows
  * @param {'higher' | 'lower'} worse
@@ -48,9 +35,7 @@ function aggregateById(rows, worse) {
 }
 
 /**
- * Position of `value` in `[min, max]` normalized so 1 is always the worst
- * end. A degenerate distribution (every value identical) scores 1 for every
- * row: they are all equally the worst, and equally the best.
+ * 1 is always the worst end; a degenerate distribution scores all 1.
  *
  * @param {number} value
  * @param {number} min
@@ -65,8 +50,6 @@ function normalizeSeverity(value, min, max, worse) {
 }
 
 /**
- * Extract the bounded worst-N rows for one kind.
- *
  * @param {{ kind: string, baseline: object | null, topN?: number }} args
  * @returns {Array<{
  *   kind: string, id: string, metric: string, value: number,

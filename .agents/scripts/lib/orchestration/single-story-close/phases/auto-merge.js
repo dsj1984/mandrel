@@ -1,64 +1,8 @@
 /**
- * phases/auto-merge.js — enable GitHub native auto-merge on the PR.
- *
- * Mirrors the v2 `single-story-close.js` finalize call shape: squash strategy, delete
- * the branch on merge. Non-fatal — returns `{ enabled: false, reason }`
- * on any failure so the caller can fall back to the operator-merges-button
- * path.
- *
- * Story #2990 routed the underlying `gh pr merge` call through the
- * `lib/gh-exec.js` facade (the same shim the `providers/github/`
- * gateways use). The `runner` seam is preserved so existing tests can
- * inject a synchronous fake; the default runner delegates to
- * `gh.pr.merge`, which spawns through the classified, typed-error
- * surface instead of a raw `execFileSync('gh', …)` call.
- *
- * Story #4282 made arming robust when the base branch is checked out by a
- * git worktree. The `--delete-branch` flag makes `gh` shell out to local
- * `git` (including a `git checkout <base>`); from a per-Story worktree cwd
- * that collides with the base branch already checked out by the primary
- * worktree (`fatal: '<base>' is already used by worktree`). We now resolve
- * the arm cwd to the **primary worktree root** (which holds the base
- * branch) via `resolveAutoMergeArmCwd`, so `gh`'s local checkout is a
- * no-op. `--delete-branch` is preserved verbatim, so the PR head branch is
- * still deleted on merge without depending on the repo's auto-delete
- * setting. Resolution is non-fatal — it degrades to the original cwd.
- *
- * Story #4681 made the arm survive a LOCAL-ONLY cleanup failure. Against an
- * already-mergeable PR, `gh pr merge --auto --squash --delete-branch` merges
- * immediately and then shells out to local `git` to drop the head branch.
- * When the per-Story worktree still holds `story-<id>`, that local delete
- * fails (`Cannot delete branch 'story-<id>' used by worktree at …`) and `gh`
- * exits non-zero — even though the REMOTE merge already landed. Reporting
- * that as an arm failure sent close's confirm phase straight to
- * `blockOnUnlanded`, flipping a merged Story to a stale `agent::blocked` that
- * only a hand-run `single-story-confirm-merge.js` could undo. The failure is
- * now classified: a local-cleanup-only signature reports the arm as ENABLED
- * with `localCleanupDeferred: true`, so the confirm phase polls the PR
- * (observes MERGED) and the post-land tail reaps the local ref. Every other
- * non-zero exit — a genuinely refused REMOTE merge — keeps the pre-existing
- * `enabled: false` → blocked behaviour verbatim.
- *
- * Story #4682 restored the direct-merge fallback the v2.0.0 Story-only cutover
- * dropped (originally PR #4480 / Story #4472, in the retired `AutomergeArmer`).
- * GitHub native auto-merge (`gh pr merge --auto`) can only be QUEUED on a repo
- * that has the "Allow auto-merge" setting enabled — which in practice requires
- * branch protection. A repo with NO required checks and NO branch protection
- * (every mandrel-bench sandbox, many real consumer repos) refuses the `--auto`
- * arm: either "auto-merge is not allowed for this repository", or — once the
- * PR has settled to an immediately-mergeable state, which the SECOND delivery
- * into a warm repo reaches faster than the first into a cold one — the
- * `enablePullRequestAutoMerge` "Pull request is in clean status" refusal. The
- * close gates and Story-scope review have already cleared the merge by the
- * time the arm runs, so the safe, must-land-satisfying response is a direct
- * immediate squash-merge (no `--auto`). When the `--auto` failure matches the
- * narrow {@link isAutoMergeUnavailable} signature, `enableAutoMergeWith`
- * retries `gh pr merge --squash --delete-branch` and reports
- * `{ enabled: true, directMerged: true }` on success — so the confirm phase
- * polls the PR, observes MERGED, and lands it instead of blocking a PR that
- * would never merge on its own. Every OTHER `--auto` failure — a genuine
- * conflict, a red required check, an auth fault — matches neither the
- * local-cleanup nor the unavailable signature and keeps blocking verbatim.
+ * phases/auto-merge.js — arm GitHub native auto-merge (squash, delete branch).
+ * Non-fatal: a failure returns `{ enabled: false, reason }`. The arm runs from
+ * the primary worktree so `--delete-branch`'s local `git checkout <base>`
+ * cannot collide with a worktree holding the base.
  */
 
 import { gh as defaultGh, describeGhFailure } from '../../../gh-exec.js';
@@ -69,15 +13,8 @@ import {
 } from '../../merge-poll.js';
 
 /**
- * Arm reasons that mean **the operator deliberately owns the merge** — the PR
- * was never armed because it was asked not to be, not because arming failed.
- *
- * The distinction is load-bearing: an un-armed-by-request PR has nothing for
- * close to land, so `resolveWaitForMerge` (`./options.js`) resolves
- * `waitForMerge` to `false` for these reasons and the Story rests at
- * `agent::closing` for the human. Every *other* falsy arm outcome
- * (`pr-number-unparseable`, an `enableAutoMerge` failure) is a genuine fault
- * and still routes through the merge-unlanded block path.
+ * The operator deliberately owns the merge, so close does not wait for it;
+ * every other falsy arm outcome is a genuine fault.
  */
 const OPERATOR_MERGE_ARM_REASONS = Object.freeze([
   'disabled-by-flag',
@@ -93,34 +30,16 @@ export function isOperatorMergeReason(reason) {
 }
 
 /**
- * Signatures of a `gh pr merge --delete-branch` failure whose ONLY casualty
- * is the LOCAL head-branch cleanup that runs *after* the remote merge has
- * already been performed (or auto-merge already armed).
- *
- * Each pattern is emitted by local `git` (or `gh`'s wrapper around it) and
- * names branch DELETION specifically:
- *   - `Cannot delete branch '<name>' used by worktree at …` — `git branch -D`
- *     refusing a ref another worktree has checked out (the Story #4681 report).
- *   - `failed to delete local branch …` — `gh`'s own wrapper wording.
- *
- * Deliberately narrow on two fronts. A genuinely refused REMOTE merge ("Pull
- * request is not mergeable", a required status check, branch protection)
- * matches neither pattern and keeps the existing blocked path. Nor does the
- * bare `fatal: '<base>' is already used by worktree` checkout collision Story
- * #4282 defends against: that one aborts `gh` *before* the branch delete and
- * carries no evidence the merge stands, so it must keep failing the arm.
+ * A `gh pr merge --delete-branch` failure whose only casualty is the LOCAL
+ * head-branch delete after the remote merge/arm already happened. Deliberately
+ * narrow: a refused remote merge, and the `'<base>' is already used by
+ * worktree` checkout collision (which aborts before the merge), must still
+ * fail the arm.
  */
 const LOCAL_CLEANUP_FAILURE =
   /cannot delete branch[^\n]*used by worktree|failed to delete (?:the )?local branch/i;
 
 /**
- * Whether a non-zero `gh pr merge` exit is attributable solely to local
- * branch cleanup, leaving the remote merge/arm itself intact.
- *
- * Module-private on purpose: `enableAutoMergeWith` is the only caller and the
- * only surface worth pinning, so the classification is asserted through it
- * rather than through a test-only export.
- *
  * @param {string|undefined|null} stderr
  * @returns {boolean}
  */
@@ -129,33 +48,10 @@ function isLocalCleanupOnlyFailure(stderr) {
 }
 
 /**
- * Pure: does a `gh pr merge --auto` stderr indicate that GitHub native
- * auto-merge is UNAVAILABLE on this repository / PR — as opposed to a genuine
- * arm failure (a merge conflict, a red required check, an auth fault)?
- *
- * Two distinct refusals both mean "there is no queued auto-merge for this repo,
- * merge it directly instead", and both are safe to retry as an immediate
- * squash-merge:
- *
- *   - **"auto-merge is not allowed for this repository"** — the repo has no
- *     "Allow auto-merge" setting (no branch protection). Constant per repo.
- *   - **"Pull request is in clean status"** — the `enablePullRequestAutoMerge`
- *     GraphQL mutation refuses to queue a merge on a PR that is ALREADY
- *     immediately mergeable with nothing to wait for (no required checks
- *     pending). This is the second-delivery wedge (Story #4682): the first
- *     delivery into a cold sandbox arms while GitHub is still computing the
- *     fresh PR's mergeability (the arm queues, then merges); the second
- *     delivery into the now-warm repo hits an instantly-clean PR, so the arm
- *     is refused here.
- *
- * Only these classes fall through to the direct-merge fallback; everything
- * else (an unmatched non-zero exit) keeps the `enabled: false` → blocked path.
- * Matched case-insensitively.
- *
- * Module-private on purpose (mirroring {@link isLocalCleanupOnlyFailure}):
- * `enableAutoMergeWith` is the only caller, so the marker set is asserted
- * through it rather than through a test-only export the production dead-export
- * ratchet would then flag.
+ * Whether `--auto` was refused because native auto-merge is unavailable —
+ * the repo disallows it, or the PR is already clean with nothing to queue
+ * behind (`enablePullRequestAutoMerge` "clean status"). Both are safe to
+ * retry as a direct squash-merge; any other failure keeps blocking.
  *
  * @param {string|undefined|null} stderr
  * @returns {boolean}
@@ -172,18 +68,8 @@ function isAutoMergeUnavailable(stderr) {
 }
 
 /**
- * Direct (non-`--auto`) squash-merge fallback (Story #4682, restoring PR
- * #4480 / Story #4472). Reached only when the `--auto` arm was refused with
- * the {@link isAutoMergeUnavailable} signature — a repo with no native
- * auto-merge, or an already-clean PR with nothing to queue behind. Omitting
- * `--auto` makes `gh` merge synchronously; the same `--squash --delete-branch`
- * shape and the same `armCwd` re-point are preserved so the trailing local
- * `--delete-branch` housekeeping runs from the primary worktree (Story #4282).
- *
- * A local-cleanup-only grumble on the direct merge (Story #4681) still means
- * the REMOTE merge landed, so it reports `directMerged` with
- * `localCleanupDeferred`. Any other non-zero exit is a genuine failure the
- * caller escalates.
+ * Direct (non-`--auto`) squash-merge, run from the same `armCwd`. A
+ * local-cleanup-only failure still means the remote merge landed.
  *
  * @returns {Promise<{ enabled: boolean, directMerged?: boolean, localCleanupDeferred?: boolean, reason?: string }>}
  */
@@ -229,9 +115,6 @@ export async function enableAutoMergeWith({
   resolveArmCwd = resolveAutoMergeArmCwd,
 }) {
   const exec = runner ?? makeDefaultGhAutoMergeRunner(gh ?? defaultGh);
-  // Re-point the arm at the base-branch (primary) worktree so gh's
-  // `--delete-branch` local `git checkout <base>` cannot collide with the
-  // base branch already checked out by the primary worktree (Story #4282).
   const armCwd = resolveArmCwd(cwd);
   try {
     const result = await exec(
@@ -248,15 +131,10 @@ export async function enableAutoMergeWith({
     if (result.status === 0) return { enabled: true };
     const detail = `gh-exit-${result.status}: ${(result.stderr ?? '').trim().slice(0, 200)}`;
     if (isLocalCleanupOnlyFailure(result.stderr)) {
-      // The remote side stands; only the local head-branch cleanup failed.
-      // Report ENABLED so the confirm phase polls the real PR state instead
-      // of blocking a merge that already landed, and flag the deferred
-      // cleanup for the land tail's `git branch -D` to finish.
+      // The remote side stands; the land tail finishes the local ref reap.
       return { enabled: true, localCleanupDeferred: true, reason: detail };
     }
     if (isAutoMergeUnavailable(result.stderr)) {
-      // No native auto-merge on this repo (or nothing to queue behind an
-      // already-clean PR): merge directly so the PR still lands (Story #4682).
       return directMergeFallback({
         exec,
         prNumber,
@@ -271,20 +149,11 @@ export async function enableAutoMergeWith({
 }
 
 /**
- * Build the default `gh pr merge` runner that adapts the async
- * `lib/gh-exec.js` facade into the synchronous-looking
- * `{ status, stdout, stderr }` envelope `enableAutoMergeWith` consumes.
- *
- * The adapter swallows non-zero exits (mapping the typed `GhExecError`
- * carrier back to its `code` + `stderr`) because auto-merge enablement
- * is intentionally non-fatal — the caller treats failures as "operator
- * merges manually".
+ * Adapt `gh.pr.merge` into the `{ status, stdout, stderr }` envelope,
+ * mapping non-zero exits back to that envelope rather than throwing.
  */
 function makeDefaultGhAutoMergeRunner(gh) {
   return async function defaultGhAutoMergeRunner(args, _opts) {
-    // `args` always starts with `pr merge <prNumber>` — pass everything
-    // after the third element to `gh.pr.merge` as flags so the facade
-    // owns the `gh pr merge <id> …` argv assembly.
     const [, , prIdStr, ...flags] = args;
     try {
       const result = await gh.pr.merge(prIdStr, flags);
@@ -294,13 +163,8 @@ function makeDefaultGhAutoMergeRunner(gh) {
         stderr: result?.stderr ?? '',
       };
     } catch (err) {
-      // Duck-type: any error carrying a numeric `.code` (or `.status`,
-      // which the legacy `execFileSync` shim used) + an optional
-      // `.stderr` is mapped back to the `{ status, stdout, stderr }`
-      // envelope `enableAutoMergeWith` consumes. The typed
-      // `GhExecError` carriers from `lib/gh-exec.js` already fit this
-      // shape; bare `Error`s without a code fall through to the spawn-
-      // error reason in the parent catch.
+      // Any error with a numeric `.code`/`.status` maps to the envelope;
+      // a codeless Error falls through to the caller's spawn-error reason.
       const numericCode =
         typeof err?.code === 'number'
           ? err.code
@@ -326,24 +190,8 @@ function makeDefaultGhAutoMergeRunner(gh) {
 }
 
 /**
- * Evaluate the pre-arm advisory-gate verdict (Story #5096).
- *
- * GitHub native auto-merge is defined to wait on REQUIRED contexts only, so a
- * red ADVISORY quality gate — a coverage, mutation, duplication, a11y or
- * bundle-size ratchet a consumer deliberately left non-required — is merged
- * straight past once the required contexts go green. The arming decision is
- * mandrel's, not GitHub's, so this is where it has to be made.
- *
- * Reads the SAME head-anchored derivation the merge wait uses
- * (`readPrWaitProbe` → `deriveRedHeadRuns`), so a `CANCELLED` superseded-push
- * run or a sibling-invalidated run is never mistaken for a red gate (the
- * #4695 / #4710 trap), and `mergeStateStatus: UNSTABLE` supplies the
- * required-vs-advisory discrimination the rollup itself lacks.
- *
- * **Non-fatal and fail-open in every degraded case.** A probe error, an absent
- * or `UNKNOWN` merge state, or a disabled knob all return "do not block" — the
- * arm proceeds exactly as it did before this Story. Only a positive verdict
- * refuses.
+ * Native auto-merge waits on REQUIRED contexts only, so mandrel must refuse
+ * to arm over a red advisory gate itself.
  *
  * @param {object} args
  * @returns {Promise<{ blocked: boolean, blockingRuns?: Array<object>, reason?: string }>}
@@ -363,36 +211,19 @@ async function readAdvisoryProbe({ prNumber, gh }) {
 }
 
 /**
- * A `gh` refusal that means auto-merge was never armed in the first place —
- * there is nothing to disarm, so the PR is already in the un-armed posture the
- * caller wants. Distinguishing this from a genuine disarm failure is
- * load-bearing for the recovery watch: an armed PR that could not be disarmed
- * is a blocker there, while a never-armed PR is the desired end state.
+ * A `gh` refusal meaning auto-merge was never armed — the PR is already in the
+ * desired un-armed posture, unlike a genuine disarm failure.
  */
 const NOT_ARMED = /not enabled|isn't enabled|is not set|no auto-?merge/i;
 
 /**
- * Disarm GitHub native auto-merge on a PR — the ONE implementation (Story
- * #5096; the recovery watch's raw-spawn twin in `ci-rerun-guard.js` folded
- * into it by Story #5383).
- *
- * Lives here, beside the arm, because `lifecycle-lint`'s merge-lockout rule
- * confines every `gh pr merge` invocation to this module: auto-merge
- * enablement — and therefore its reversal — must flow through the Story close
- * path rather than being spelled out wherever a caller happens to need it.
- * Both the merge wait (advisory block) and `pr-watch-with-update.js` (first
- * red on a required check) call this.
- *
- * Never throws: a failed disarm is reported, because the one thing it cannot
- * do is stop GitHub from landing the PR, and each caller decides what an
- * un-disarmed PR means for it.
+ * Lives here because `lifecycle-lint` confines `gh pr merge` to this module.
+ * Never throws.
  *
  * @param {{ prNumber?: number|string, prRef?: string, gh?: object,
- *   progress?: (tag: string, msg: string) => void }} args `prRef` (a number
- *   or a canonical PR URL) wins over `prNumber` when both are given.
+ *   progress?: (tag: string, msg: string) => void }} args `prRef` wins over
+ *   `prNumber` when both are given.
  * @returns {Promise<{ disarmed: boolean, alreadyUnarmed: boolean, detail: string }>}
- *   `disarmed` is true when the PR is (now) un-armed; `alreadyUnarmed`
- *   distinguishes "there was nothing armed" from an executed disarm.
  */
 export async function disarmAutoMerge({ prNumber, prRef, gh, progress }) {
   const ref = String(prRef ?? prNumber);
@@ -411,9 +242,6 @@ export async function disarmAutoMerge({ prNumber, prRef, gh, progress }) {
 }
 
 /**
- * Pure: read a refused disarm. A "never armed" refusal leaves the PR in the
- * un-armed posture the caller wanted; anything else is a genuine failure.
- *
  * @param {string} detail The operator-legible `gh` failure line.
  * @returns {{ disarmed: boolean, alreadyUnarmed: boolean, detail: string }}
  */
@@ -428,7 +256,6 @@ function classifyDisarmFailure(detail) {
   };
 }
 
-/** Warn the operator when a disarm genuinely failed — the PR may still land. */
 function warnIfStillArmed({ outcome, ref, progress }) {
   if (outcome.disarmed) return;
   progress?.(
@@ -438,6 +265,7 @@ function warnIfStillArmed({ outcome, ref, progress }) {
   );
 }
 
+/** Fail-open: a probe error or disabled knob never blocks the arm. */
 async function evaluateAdvisoryGate({
   prNumber,
   gh,
@@ -464,12 +292,7 @@ async function evaluateAdvisoryGate({
     );
     return { blocked: false };
   }
-  // Story #5383 — the SAME evaluator the merge wait's mid-wait gate calls, so
-  // the pre-arm and mid-wait verdicts cannot drift. Story #5266 — the class
-  // travels with the reason; this pre-arm gate classifies on the text the
-  // ROLLUP carried (a legacy StatusContext's `description`), while the merge
-  // wait additionally reads the check-run output. Either way a run whose
-  // failure cannot be read as "never finished" keeps `advisory-gate-red`.
+  // Same evaluator as the merge wait's mid-wait gate, so the verdicts cannot drift.
   const verdict = decideAdvisoryGateBlock({
     probe,
     blockOnAdvisoryFailure,
@@ -485,9 +308,7 @@ async function evaluateAdvisoryGate({
 }
 
 /**
- * Dispatch auto-merge enablement based on `--no-auto-merge`, an
- * unparseable PR number, or a `gh` failure. Returns the structured
- * `{ autoMergeEnabled, autoMergeReason }` pair the result envelope needs.
+ * Dispatch auto-merge enablement.
  *
  * @param {{
  *   cwd: string,
@@ -499,10 +320,8 @@ async function evaluateAdvisoryGate({
  *   progress: (tag: string, msg: string) => void,
  * }} args
  * @returns {Promise<{ autoMergeEnabled: boolean, autoMergeReason: string|null, localCleanupDeferred?: boolean, directMerged?: boolean }>}
- *   `localCleanupDeferred` is true when the arm stands but `gh`'s local
- *   head-branch delete failed (Story #4681) — the land tail owns the reap.
- *   `directMerged` is true when native auto-merge was unavailable and the PR
- *   was landed by a direct squash-merge instead (Story #4682).
+ *   `localCleanupDeferred`: the arm stands but the land tail owns the local
+ *   ref reap. `directMerged`: landed by direct squash-merge instead.
  */
 export async function runAutoMergePhase({
   cwd,
@@ -520,13 +339,6 @@ export async function runAutoMergePhase({
     progress('PR', '⏭  Auto-merge disabled (--no-auto-merge).');
     return { autoMergeEnabled: false, autoMergeReason: 'disabled-by-flag' };
   }
-  // `delivery.ci.autoMerge: "strict"` opts standalone Stories out of
-  // auto-merge (parallel to the Epic path's strict predicate): the PR opens
-  // and waits for an operator merge instead of arming native auto-merge.
-  // The default `"trust-ci"` keeps arming on green required CI — GitHub's
-  // native `--auto` is the required-check gate, so no client-side predicate
-  // is needed here (unlike the Epic path, which gates on local
-  // audit/review/retro signals a standalone Story does not produce).
   if (autoMergePolicy === 'strict') {
     progress(
       'PR',
@@ -547,10 +359,8 @@ export async function runAutoMergePhase({
       autoMergeReason: 'pr-number-unparseable',
     };
   }
-  // Story #5096 — refuse to arm over a genuinely red ADVISORY check. This
-  // gate covers the narrow case where the gate is ALREADY red at close time
-  // (a re-close, or a gate carried over from an earlier push); the merge
-  // wait owns the common case, where the gate reddens after arming.
+  // Covers a gate ALREADY red at close time; the merge wait owns one that
+  // reddens after arming.
   const advisory = await evaluateAdvisoryGate({
     prNumber,
     gh,
@@ -577,10 +387,6 @@ export async function runAutoMergePhase({
   const result = await enableAutoMergeWith({ cwd, prNumber, gh });
   if (result.enabled) {
     if (result.directMerged) {
-      // No native auto-merge on this repo — the PR was merged directly
-      // instead of queued (Story #4682). The confirm phase polls the PR,
-      // observes MERGED, and runs the land tail; `localCleanupDeferred`
-      // still defers a local-ref reap when gh's `--delete-branch` grumbled.
       progress(
         'PR',
         `✅ Native auto-merge unavailable on PR #${prNumber} — direct squash-merge landed it` +
@@ -596,8 +402,6 @@ export async function runAutoMergePhase({
       };
     }
     if (result.localCleanupDeferred) {
-      // Warning, never a block (Story #4681): the merge/arm stands and the
-      // land tail reaps the local ref once the worktree releases it.
       progress(
         'PR',
         `⚠️ Auto-merge armed on PR #${prNumber}, but gh's LOCAL branch cleanup failed ` +

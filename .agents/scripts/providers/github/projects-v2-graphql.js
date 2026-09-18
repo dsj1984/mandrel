@@ -1,10 +1,7 @@
 /**
- * Projects V2 GraphQL shim — single retained surface (Story #1358, Epic #1179).
- * Collapses the projects.js / graphql.js / graphql-builder.js trio into one
- * file; provider delegates the four V2 methods + addItemToProject here. Token:
- * `gh auth token` → GITHUB_TOKEN/GH_TOKEN env. Soft-fails on
- * INSUFFICIENT_SCOPES via `{scopesMissing:true}` / `status:'scopes-missing'` /
- * `unavailable:true` envelopes. Wave 3 deletes the old submodules.
+ * Projects V2 GraphQL shim. Token: `gh auth token` → GITHUB_TOKEN/GH_TOKEN.
+ * Soft-fails on INSUFFICIENT_SCOPES via `{scopesMissing:true}` /
+ * `status:'scopes-missing'` / `unavailable:true` envelopes.
  */
 import { execSync } from 'node:child_process';
 import { withTransientRetry } from './errors.js';

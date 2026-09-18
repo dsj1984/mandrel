@@ -1,27 +1,8 @@
 /**
- * lib/orchestration/light-backstop.js — the light path's diff-backstop pass
- * (Story #4856).
- *
- * The backstop is invariant 3 of the light path: after implementation the
- * **actual** change set is re-checked, because the diff — not the prompt — is
- * the real scope signal. This module owns that pass end to end so
- * `deliver-light.js` stays the thin CLI shell it claims to be: it reads the two
- * git surfaces, applies
- * {@link module:lib/orchestration/light-suitability.checkLightDiffBackstop},
- * and resolves what a refusal means.
- *
- * ## Two git surfaces, each used for what it reports reliably
- *
- *   - `--name-only`, via the one canonical `computeChangeSet` enumerator, gives
- *     the clean full file list. Sensitive-path derivation and
- *     implementation-file counting both read it, so the backstop and every
- *     other consumer are looking at the same change set.
- *   - `--numstat` gives per-file line counts, the only surface carrying them.
- *
- * Both read committed state, which is why a third read exists
- * ({@link module:lib/orchestration/worktree-dirty.hasUncommittedWork}): an
- * empty diff is ambiguous between "no work" and "work not committed yet", and
- * only one of those is about scope.
+ * lib/orchestration/light-backstop.js — the light path's diff backstop: the
+ * actual diff, not the prompt, is the real scope signal. Files come from the
+ * canonical `computeChangeSet`, line counts from numstat; both read committed
+ * state, so an empty diff is disambiguated by `hasUncommittedWork`.
  *
  * @module lib/orchestration/light-backstop
  */
@@ -43,8 +24,6 @@ import { hasUncommittedWork } from './worktree-dirty.js';
 const EXIT_BACKSTOP_BLOCKED = 3;
 
 /**
- * Run the diff backstop against a Story branch's actual change set.
- *
  * @param {{
  *   storyId: number,
  *   baseRef?: string,
@@ -76,9 +55,7 @@ function runDiffBackstop({
     magnitude,
     injectedRules,
     storyBranch: headRef,
-    // Only an ENUMERATED-empty diff can be explained by uncommitted work, so
-    // the probe's two git calls are spent only where they can change what the
-    // refusal tells the agent to do.
+    // Only an enumerated-empty diff can be explained by uncommitted work.
     uncommittedWork:
       Array.isArray(files) && files.length === 0
         ? dirtyProbeFn({ branch: headRef, cwd, gitFn })
@@ -87,8 +64,6 @@ function runDiffBackstop({
 }
 
 /**
- * Is this refusal the one that is NOT about scope?
- *
  * @param {{ refusalClass?: string|null }} result
  * @returns {boolean}
  */
@@ -97,12 +72,8 @@ function isUncommittedRefusal(result) {
 }
 
 /**
- * Close the refusal log line: what became of the work, and what to run next.
- *
- * A `null` preservation is the uncommitted-work refusal by construction — that
- * is the one path that does not push, because there is nothing a push could
- * preserve: it would publish a branch at its base and then report uncommitted
- * work as safe on `origin`, which is the opposite of true.
+ * `null` preservation means the uncommitted-work refusal, which never pushes
+ * (it would falsely report uncommitted work as safe on `origin`).
  *
  * @param {{
  *   storyId: number,
@@ -119,25 +90,16 @@ function describeBlockedTail({ storyId, preservation, nextCommand }) {
 }
 
 /**
- * Resolve the backstop pass into everything the CLI needs to print and exit
- * with: the verdict, the recycle command on a refusal (`null` when clean), the
- * exit code, and the log line.
- *
- * A refusal also **preserves** the work before it reports (Story #4875): the
- * implementation is finished and the recycle command hands the receipt to
- * `/mandrel-plan`, so leaving it on an untracked local branch that routine cleanup may
- * reap is not an acceptable end state. Preservation is best-effort and its
- * outcome is reported either way — a failed push degrades the message, never
- * the verdict or the exit code.
+ * Resolve the backstop into verdict, next command, exit code and log line.
+ * A scope refusal first preserves the finished work on `origin`;
+ * a failed push degrades the message, never the verdict.
  *
  * @param {{
  *   storyId: number,
  *   runFn?: typeof runDiffBackstop,
  *   handleBlockedFn?: typeof handleBlockedBackstop,
  *   preserveFn?: typeof preserveRefusedWork,
- * }} args Any further keys (`baseRef`, `cwd`, `computeFn`, `readRowsFn`,
- *   `dirtyProbeFn`, `gitFn`, `injectedRules`) forward to the backstop run, so
- *   the git-surface join is drivable through this one entry point.
+ * }} args Further keys forward to the backstop run.
  * @returns {Promise<{
  *   result: ReturnType<typeof checkLightDiffBackstop>,
  *   nextCommand: string|null,

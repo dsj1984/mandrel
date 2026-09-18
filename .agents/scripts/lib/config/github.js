@@ -1,24 +1,9 @@
 /**
- * `github.*` accessor (Epic #1720 Story #1739 — top-level reshape).
- *
- * GitHub identity, branch protection, merge methods, and notifications all
- * live under the top-level `github` block post-reshape.
- *
- * `branchProtection.requiredChecks` is the single source of truth that
- * drives both:
- *
- *   - `/agents-bootstrap-github` — registers GitHub required-status checks.
+ * `github.*` accessor. `branchProtection.requiredChecks` is the SSOT
+ * `/agents-bootstrap-github` registers as required-status checks.
  */
 
-/**
- * Default required-check suite. Mirrors the live CI required-check set
- * (`lint` + `test` + `baselines`); consumers override via
- * `github.branchProtection.requiredChecks` in `.agentrc.json`. Kept in sync
- * with the CI job names in
- * `.github/workflows/ci.yml` — the retired `format:check` folded into `lint`
- * (Story #1829) and `lifecycle-doc-drift` collapsed into `lint`/`docs:check`
- * (Epic #1943), so neither belongs in the default set.
- */
+/** Keep in sync with the job names in `.github/workflows/ci.yml`. */
 export const DEFAULT_REQUIRED_CHECKS = Object.freeze([
   Object.freeze({
     name: 'lint',
@@ -65,10 +50,7 @@ export const NOTIFICATIONS_DEFAULTS = Object.freeze({
 });
 
 /**
- * Read the merged `github.*` block. Accepts the full resolved config or
- * the bare github bag. Operator-supplied keys shallow-overlay framework
- * defaults; the required-checks list is replaced wholesale when present
- * (no extender semantics).
+ * Shallow overlay; `requiredChecks` is replaced wholesale when present.
  *
  * @param {object | null | undefined} config
  * @returns {{

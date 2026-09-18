@@ -1,41 +1,7 @@
 /**
- * lib/audit-to-stories/dedupe-against-github.js
- *
- * Idempotency gate: classify each proposed group as either eligible-to-create,
- * already-open (skip), or re-occurring (skip, but flag).
- *
- * This module owns **no** fingerprint or dedup logic. It routes every
- * finding through the shared `lib/findings/route-finding.js` helper — the
- * single dedup/route implementation, shared verbatim with `qa-explore` — and
- * folds the per-finding `routeFinding` decisions up to a group action:
- *
- *   - any finding routes to `update-existing` / `duplicate` → `skip-open`
- *   - else any finding routes to `regression-of-closed`     → `skip-reoccurring`
- *   - else (every finding is `new`)                          → `create`
- *
- * The GitHub lookup is delegated to a `provider` port the caller injects,
- * exposing `findIssuesByFingerprint(sha)` → `{ number, state, body }[]`. The
- * port is adapted into the `searchIssues` shape the shared helper expects.
- * When the caller ALSO injects a `searchCandidates(finding)` port (production
- * wires it to `semantic-issue-search.js`), routing runs the meaning-first
- * Stage-1 pass and opts into location-based semantic-key confirmation so a
- * reworded finding at an unchanged location still dedupes against its Issue
- * (Story #4626).
- *
- * When the caller injects a `listAuditIssues(labels)` port, the whole dedup
- * corpus is pre-fetched **once per run** off the list endpoint and indexed by
- * both provenance footers, so `findIssuesByFingerprint` is answered locally and
- * the rate-limited search API is spent only on findings with no exact hit.
- *
- * A caller that already holds the corpus injects it directly as `issues`
- * instead (Story #5301) — the host fetched it by whatever access path it has,
- * which is what lets dedup run on a host with no `gh` CLI at all. That source
- * needs no provider: with an index in play the exact lookup is answered from
- * memory and `findIssuesByFingerprint` is never called, so the port is required
- * only on the un-indexed path where it is genuinely used.
- *
- * Pure orchestration: this module performs no network I/O itself, and reads no
- * file — the caller hands over an array, never a path.
+ * Classify each group `create`, `skip-open` (any open match) or
+ * `skip-reoccurring` (any closed match) by folding `route-finding.js`
+ * decisions. No I/O.
  */
 
 import { routeFinding, semanticKeyFor } from '../findings/route-finding.js';
@@ -52,12 +18,7 @@ import { lookupLocally } from './issue-index.js';
  */
 
 /**
- * Render a short, operator-legible reason from a dedup-lookup failure. Pure —
- * no imports, no I/O — so the module stays pure orchestration (Story #4678).
- *
- * Both degrade paths run through here, so the wording an operator reads for a
- * failed index pre-fetch matches the wording for a failed per-group lookup:
- * one vocabulary for "the GitHub read did not complete", whichever read it was.
+ * One vocabulary for both degrade paths (index pre-fetch and per-group lookup).
  *
  * @param {unknown} err
  * @returns {string}
@@ -75,7 +36,6 @@ function describeDegradeReason(err) {
 }
 
 /**
- * Stable operator-facing label for a group in a degrade report.
  * @param {object} group
  * @returns {string}
  */
@@ -84,11 +44,7 @@ function groupLabel(group) {
 }
 
 /**
- * Route every finding in one group and fold the per-finding decisions up to a
- * group action. Extracted so the top-level loop can wrap it in one try/catch:
- * a search failure that survives the endpoint budget (an HTTP 422, or a rate
- * limit still exhausted after the cooldown) throws out of here and is caught
- * once per group rather than aborting the whole scan (Story #4678).
+ * Throws on lookup failure; caught per group by the caller.
  *
  * @param {object} group
  * @param {object} routing — `{ searchIssues, semanticPort, routeOptions }`.
@@ -141,14 +97,8 @@ async function classifyOneGroup(
 }
 
 /**
- * The read ports one finding is routed through.
- *
- * With no local index this is the historical wiring: the provider answers the
- * exact lookup and the semantic port always runs. With an index, the exact
- * lookup is answered from memory, and the semantic port — the only remaining
- * network call — runs **only** when the index holds no exact fingerprint hit.
- * That is the whole saving: a finding the sweep has already filed costs zero
- * requests, and only a genuinely-unrecognised one is worth a search.
+ * With an index, the exact lookup is answered from memory and the semantic
+ * search (the only network call left) runs only when there is no exact hit.
  *
  * @param {object} canonical — the canonical finding projection.
  * @param {string} sha — its full fingerprint.
@@ -171,25 +121,15 @@ function portsFor(canonical, sha, { searchIssues, semanticPort, index }) {
  * @param {object} params
  * @param {Array<object>} params.groups — output of `groupFindings`.
  * @param {{ findIssuesByFingerprint: (sha: string) => Promise<Array<{ number: number, state: string, body?: string }>> }} params.provider
+ *   Only read on the un-indexed path.
  * @param {(finding: object) => Promise<Array<{ number: number, state: string, title?: string, body?: string }>>} [params.searchCandidates]
- *   Optional meaning-first candidate search (production: `semantic-issue-search.js`).
- *   When supplied, routing runs the Stage-1 semantic pass and opts into
- *   location-based semantic-key confirmation.
+ *   Enables the semantic pass and semantic-key confirmation.
  * @param {(labels: string[]) => Promise<Array<object>>} [params.listAuditIssues]
- *   Optional list port over the run's `audit::*` labels. When wired, its result
- *   is fetched once and indexed, and `provider.findIssuesByFingerprint` is not
- *   called at all — the exact lookup is answered from that index.
- * @param {Array<object>} [params.issues]
- *   Optional pre-fetched corpus the caller already holds, used in preference to
- *   `listAuditIssues`. Supplying it makes `provider` optional: with an index in
- *   play no provider read port is ever invoked, which is what lets a host with
- *   no `gh` CLI dedup at all (Story #5301). An empty array is a valid corpus —
- *   a first sweep — and is NOT read as "no index".
+ *   Fetched once and indexed.
+ * @param {Array<object>} [params.issues] Pre-fetched corpus, preferred over
+ *   `listAuditIssues`; lets a host with no `gh` dedup. `[]` is a valid corpus.
  * @param {(entry: { group: object, reason: string }) => void} [params.onDegraded]
- *   Optional sink notified once per group whose dedup lookup could not complete
- *   (Story #4678). The group is then classified `create` — a soft-fail, never
- *   fatal. Pure orchestration: this module performs no network I/O and swallows
- *   no failure silently.
+ *   Notified per group whose lookup failed; that group soft-fails to `create`.
  * @returns {Promise<{ classifications: GroupClassification[], summary: { create: number, skipOpen: number, skipReoccurring: number, dedupDegraded: { count: number, groups: Array<{ group: string, reason: string }> } } }>}
  */
 export async function classifyGroupsAgainstGitHub({
@@ -212,11 +152,7 @@ export async function classifyGroupsAgainstGitHub({
     issues,
   });
   if (error) {
-    // Same vocabulary as a per-group failure, but deliberately NOT counted as
-    // a degraded group: the count names groups classified without a check, and
-    // every group still gets one here, off the per-finding search path. Until
-    // Story #5301 this failure was swallowed whole, so the operator saw only
-    // the downstream per-group degradation and could not tell what caused it.
+    // Not counted as a degraded group: per-finding search still checks each.
     const reason = `issue-index pre-fetch failed: ${describeDegradeReason(error)}`;
     summary.dedupDegraded.indexPrefetch = reason;
     if (typeof onDegraded === 'function') onDegraded({ group: null, reason });
@@ -229,8 +165,6 @@ export async function classifyGroupsAgainstGitHub({
     try {
       result = await classifyOneGroup(group, routing);
     } catch (err) {
-      // A dedup lookup that cannot complete degrades this group to `create`
-      // with a recorded reason — never aborts the whole scan.
       const reason = describeDegradeReason(err);
       const entry = { group: groupLabel(group), reason };
       summary.dedupDegraded.count += 1;

@@ -1,15 +1,7 @@
 /**
- * review-providers/findings-renderer.js — single renderer for the
- * structured `code-review` comment body.
- *
- * Story #2825 (Epic #2815) — adapters return `Finding[]`; the renderer
- * is the sole source of truth for the markdown body posted to the
- * Story/Epic ticket. Adapters MUST NOT post comments themselves.
- *
- * Output is deterministic for a given `Finding[]` input: the input
- * order is preserved within each severity tier, and the tier sections
- * always appear in the canonical order critical → high → medium →
- * suggestion. This is what makes the snapshot test stable.
+ * review-providers/findings-renderer.js — the sole renderer of the
+ * `code-review` comment body (adapters never post). Deterministic: input
+ * order is kept within each tier, tiers in canonical order.
  *
  * @typedef {import('./types.js').Finding} Finding
  * @typedef {import('./types.js').Severity} Severity
@@ -23,10 +15,6 @@ import {
 } from './degraded-gates.js';
 
 /**
- * Canonical severity ordering. The render output always lists the
- * severity-tier counts in this order and emits the per-finding sections
- * in this order, so a stable input produces a byte-stable output.
- *
  * @type {ReadonlyArray<Severity>}
  */
 const SEVERITY_ORDER = Object.freeze([
@@ -37,10 +25,6 @@ const SEVERITY_ORDER = Object.freeze([
 ]);
 
 /**
- * Emoji + human label mapping. Mirrors the legacy
- * legacy epic-code-review vocabulary so downstream operators see the
- * same tier names regardless of which adapter produced the findings.
- *
  * @type {Readonly<Record<Severity, { emoji: string, label: string }>>}
  */
 const SEVERITY_META = Object.freeze({
@@ -51,9 +35,7 @@ const SEVERITY_META = Object.freeze({
 });
 
 /**
- * Pure: tally findings by severity. Unknown severities are ignored to
- * keep the renderer forgiving of adapter bugs (a misbehaving adapter
- * still produces a readable, if incomplete, report).
+ * Unknown severities are ignored, so a buggy adapter still renders.
  *
  * @param {ReadonlyArray<Finding>} findings
  * @returns {Record<Severity, number>}
@@ -70,13 +52,7 @@ export function countBySeverity(findings) {
 }
 
 /**
- * Pure: render a single Finding as a markdown subsection. Exported for
- * testability.
- *
- * The `file`/`line` attribution lives on the same line as the title so
- * GitHub renders a compact, scannable header. The `body` follows
- * verbatim — adapters own its markdown shape (it may contain code
- * fences, lists, etc.).
+ * The body is emitted verbatim; adapters own its markdown.
  *
  * @param {Finding} finding
  * @returns {string}
@@ -91,14 +67,6 @@ export function renderFinding(finding) {
 }
 
 /**
- * Pure: render the optional "Manual review suggestions" section.
- * Story #2871 — manual-prompt providers (e.g. ultrareview) contribute
- * one message each; the section is omitted entirely when the input
- * array is empty so the legacy snapshot stays byte-stable for chains
- * that carry no prompts.
- *
- * Exported for testing.
- *
  * @param {ReadonlyArray<string>} messages
  * @returns {string[]}  lines to append (empty when no messages)
  */
@@ -116,17 +84,8 @@ function renderManualPromptsSection(messages) {
 }
 
 /**
- * Pure: render the full markdown body for a code-review comment.
- *
- * Story #2871 — accepts an optional `promptMessages` field carrying
- * manual-prompt provider output; rendered as a trailing section when
- * non-empty.
- *
- * Story #4839 — an optional `degradations` field names review gates that could
- * not execute. They are **not** findings and never enter `countBySeverity`; they
- * render as their own section and suppress the unqualified "no findings" claim,
- * because a review that could not run a gate has not established that the
- * gate's surface is clean.
+ * `degradations` are never findings: they render as their own section and
+ * suppress the unqualified "no findings" claim.
  *
  * @param {{
  *   ticketId: number,
@@ -195,9 +154,6 @@ export function renderFindings(input) {
 }
 
 /**
- * Pure: build the `(file:line)` attribution suffix for a finding header.
- * Returns an empty string when no file is attributable.
- *
  * @param {Finding} finding
  * @returns {string}
  */

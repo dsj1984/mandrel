@@ -1,21 +1,7 @@
 /**
- * bootstrap/install-ledger — durable record of what an install applied, for
- * a future `mandrel uninstall` to consume (Story #3524, Feature #3515,
- * Epic #3438).
- *
- * A successful bootstrap run writes a ledger to
- * `<projectRoot>/.agents/.install-manifest.json` enumerating exactly the
- * mutation-manifest entries that were APPROVED and applied (the approved
- * subset of `buildMutationManifest`, never the full manifest). The ledger is
- * the single artifact `mandrel uninstall` will later read to know which
- * reversible mutations to undo and which irreversible (GitHub-admin) ones to
- * surface for manual rollback.
- *
- * The ledger is gitignored (`.agents/.install-manifest.json` is added to the
- * consumer `.gitignore` by the bootstrap) because it is a per-clone install
- * record, not a checked-in source artifact.
- *
- * This module performs filesystem writes but no network I/O.
+ * Per-clone (gitignored) record of the manifest entries an install actually
+ * applied — never the full manifest — which `mandrel uninstall` reads to undo
+ * reversible mutations and surface irreversible ones.
  *
  * @module bootstrap/install-ledger
  */
@@ -24,39 +10,24 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 /**
- * Path of the install ledger, relative to the project root. The bootstrap's
- * `.gitignore` step keys its ignore entry off this exact POSIX path.
+ * The `.gitignore` step keys off this exact POSIX path.
  *
  * @type {string}
  */
 export const LEDGER_RELATIVE_PATH = '.agents/.install-manifest.json';
 
 /**
- * Current ledger schema version. A future `mandrel uninstall` reads this to
- * detect a ledger it cannot interpret (hard-cutover contract — no read-side
- * tolerance branch, just a clean refusal).
- *
- * v2 (Story #3895): each entry now carries `executedAction` — the *live*
- * outcome of the bootstrap phase that produced it (e.g. `seeded` vs
- * `already-present` for `.agentrc.json`). Uninstall keys destructive reversal
- * off this so a pre-existing, operator-authored file the install merely left
- * in place (`already-present`) is never deleted.
+ * Uninstall refuses a version it cannot interpret. Entries carry
+ * `executedAction` so an operator-authored file the install left in place
+ * (`already-present`) is never deleted.
  *
  * @type {number}
  */
 export const LEDGER_SCHEMA_VERSION = 2;
 
 /**
- * Map a mutation-manifest `target` (POSIX-relative path) to the bootstrap
- * **phase name** whose execution outcome describes that target. Only targets
- * whose reversal is destructive enough to need the live outcome are mapped;
- * everything else is reversed content-aware and needs no execution hint.
- *
- * The `.agentrc.json` `create` entry is produced by the `agentrc` phase
- * (`ensureAgentrc`), which returns `{ action: 'seeded' }` when it wrote the
- * file from the starter and `{ action: 'already-present' }` when an
- * operator-authored file was left untouched. Recording that distinction lets
- * uninstall skip deleting a file the install did not create (Story #3895).
+ * Target → the phase whose live outcome governs its reversal; only targets
+ * whose reversal is destructive are mapped.
  *
  * @type {Readonly<Record<string, string>>}
  */
@@ -65,16 +36,8 @@ const TARGET_TO_PHASE = Object.freeze({
 });
 
 /**
- * Resolve the live executed action for a manifest entry from the bootstrap
- * report, when one is available. Pure — derives entirely from the entry +
- * report. Returns `undefined` when the target has no mapped phase, the report
- * is absent, or the phase produced no `action` (so older callers/tests that
- * omit the report degrade to "no hint" rather than throwing).
- *
- * The `.agentrc.json` quality-gates `merge` entry shares the same target as
- * the repo-config `create` entry but is keyed by phase, not target — both
- * manifest entries resolve to the same `agentrc` outcome, which is correct:
- * reversal dedupes them to a single `revertAgentrc` call anyway.
+ * `undefined` means no hint. Both `.agentrc.json` entries resolve to the same
+ * `agentrc` outcome, which is correct: reversal dedupes them.
  *
  * @param {{ target: string }} entry
  * @param {Record<string, { action?: string }>} [report]
@@ -89,8 +52,6 @@ function resolveExecutedAction(entry, report) {
 }
 
 /**
- * Resolve the absolute ledger path for a project root.
- *
  * @param {string} projectRoot
  * @returns {string}
  */
@@ -99,24 +60,14 @@ export function ledgerPath(projectRoot) {
 }
 
 /**
- * Build the ledger record from the approved manifest entries. Pure helper —
- * no I/O — so the shape is unit-testable in isolation. The `appliedAt`
- * timestamp is injectable for deterministic tests.
- *
  * @param {object} args
  * @param {import('./manifest.js').MutationManifestEntry[]} args.entries
- *   — the subset of the mutation manifest that was applied.
- * @param {string[]} args.approvedGroups — the phase groups whose mutations
- *   landed (sorted for stable output). Field name predates Story #5007's
- *   removal of the phased-approval gate; the ledger record shape is a
- *   consumer contract read back by `mandrel uninstall`, so it is unchanged.
+ *   — the applied subset.
+ * @param {string[]} args.approvedGroups — groups that landed. The name is a
+ *   consumer contract read by `mandrel uninstall`; do not rename.
  * @param {{ owner?: string, repo?: string }} [args.answers]
- * @param {string} [args.appliedAt] — ISO-8601 timestamp (default: now).
- * @param {Record<string, { action?: string }>} [args.report] — the live
- *   bootstrap execution report (phase name → outcome). When present, each
- *   entry whose target maps to a phase records that phase's `action` as
- *   `executedAction` so uninstall can distinguish `seeded` from
- *   `already-present` (Story #3895).
+ * @param {string} [args.appliedAt] — ISO-8601 (default: now).
+ * @param {Record<string, { action?: string }>} [args.report] — phase → outcome.
  * @returns {{ schemaVersion: number, appliedAt: string,
  *   repo: string|null, approvedGroups: string[],
  *   entries: Array<import('./manifest.js').MutationManifestEntry
@@ -145,10 +96,7 @@ export function buildLedgerRecord(args) {
 }
 
 /**
- * Write the install ledger to `<projectRoot>/.agents/.install-manifest.json`,
- * creating the `.agents/` directory if needed. The file is overwritten on
- * each successful install so the ledger always reflects the most recent run
- * (a re-install with a different approval set replaces, never appends).
+ * Overwrites: the ledger always reflects the most recent install.
  *
  * @param {string} projectRoot
  * @param {ReturnType<typeof buildLedgerRecord>} record
@@ -162,10 +110,6 @@ export function writeInstallLedger(projectRoot, record) {
 }
 
 /**
- * Read and parse the install ledger. Returns `null` when no ledger exists
- * (never installed, or the ledger was removed). A future `mandrel uninstall`
- * is the primary consumer.
- *
  * @param {string} projectRoot
  * @returns {ReturnType<typeof buildLedgerRecord>|null}
  */

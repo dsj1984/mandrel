@@ -1,25 +1,8 @@
 /**
- * audit-labels-bootstrap.js — Idempotently create the audit label taxonomy in
- * the configured GitHub repo.
- *
- * Run this once per repo before `/audit-to-stories` opens its first
- * Story. Re-runs are safe — existing labels are skipped, only missing
- * ones are created. Story #2583 acceptance criterion #6.
- *
- * This CLI is a thin creator over
- * [`lib/audit-to-stories/audit-label-taxonomy.js`](lib/audit-to-stories/audit-label-taxonomy.js),
- * which is the SSOT for **every** label an audit sweep creates or generates:
- * the `audit::<lens>` set (derived from the shared `AUDIT_LENSES` list, one per
- * `/audit-<lens>` workflow) plus the story-axis labels the filer applies. The
- * creator and the generator (`build-story-body.js`) read that one list, so the
- * bootstrap cannot fall behind the filer — the drift that left `risk::high`
- * generated but defined nowhere (Story #4877), and that made `audit::<dimension>`
- * labels mint from free-form prose before Story #4195.
- *
- * Delegates to `gh label create` so the script works without any
- * provider plumbing — `gh auth status` is the only prerequisite. Per
- * docs/contributing/orchestration-error-handling.md, the CLI surface throws
- * rather than calling Logger.fatal.
+ * audit-labels-bootstrap.js — idempotently create the audit label taxonomy via
+ * `gh label create` (only `gh auth` needed). The taxonomy is the SSOT that
+ * `build-story-body.js` also reads, so the bootstrap cannot fall behind the
+ * filer. Throws rather than calling Logger.fatal.
  */
 
 import process from 'node:process';
@@ -115,10 +98,7 @@ export async function bootstrapAuditLabels({
 }
 
 /**
- * Resolve `{ owner, repo }` from parsed CLI flags, falling back to the
- * `github.{owner,repo}` config keys. Throws when neither source supplies
- * both values. Pulled out of `main` so the resolution + guard is a single
- * testable unit.
+ * Flags, then `github.{owner,repo}`; throws unless both resolve.
  *
  * @param {{ owner?: string, repo?: string }} values
  * @param {{ github?: { owner?: string, repo?: string } }} [config]
@@ -136,10 +116,6 @@ export function resolveOwnerRepo(values, config) {
 }
 
 /**
- * Render the operator-facing summary lines for a bootstrap result. Pure:
- * returns `{ stdout, stderr }` strings rather than writing, so `main` owns
- * the single write site and the formatting stays unit-testable.
- *
  * @param {{ created: string[], skipped: string[], failed: Array<{label: string, reason: string}>, total: number }} result
  * @returns {{ stdout: string, stderr: string }}
  */

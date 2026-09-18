@@ -1,22 +1,8 @@
 /**
- * worktree/lifecycle/force-drain.js
- *
- * Stage 3 of the Windows worktree reap fallback: when Stage 2
- * (`drainPendingCleanup`) repeatedly fails to clear an entry because some
- * process is still holding handles inside the worktree, this module
- * enumerates the holding processes via PowerShell `Get-CimInstance
- * Win32_Process`, terminates them with `taskkill /T /F`, and re-runs the
- * Stage 2 drain.
- *
- * Detection is best-effort: it matches process `ExecutablePath` and
- * `CommandLine` against the worktree path. Kernel-held locks (Windows
- * Search indexer, AV scanners) won't show up — those entries stay in the
- * manifest and surface again on the next sweep, by which time the
- * indexer/AV has usually moved on.
- *
- * Non-Windows: this module is a no-op (`findHoldersInPath` returns `[]`),
- * so calling `forceDrainPendingCleanup` is safe everywhere — it just
- * degrades to the standard drain.
+ * Stage 3 of the reap fallback (Windows): find user-mode processes holding a
+ * stuck worktree, `taskkill /T /F` them, and re-drain. Kernel-held locks
+ * (indexer, AV) are invisible and wait for the next sweep. A no-op drain
+ * elsewhere.
  */
 
 import { spawnSync } from 'node:child_process';
@@ -24,9 +10,7 @@ import path from 'node:path';
 import { NOOP_LOGGER } from '../../Logger.js';
 import { drainPendingCleanup, readManifest } from './pending-cleanup.js';
 
-/** Initial wait after `taskkill` before retrying `drainPendingCleanup`. */
 const SETTLE_MS = 1500;
-/** If entries remain stuck after the first post-kill drain, wait again and drain once more. */
 const POST_KILL_RETRY_SETTLE_MS = 800;
 
 /**
@@ -52,15 +36,13 @@ function mergeDrainPasses(prev, next) {
 }
 
 /**
- * Enumerate Windows processes whose ExecutablePath or CommandLine is rooted
- * inside `wtPath`. On non-Windows, returns `[]`. Any PowerShell failure
- * (timeout, parse error, exit !=0) also returns `[]` — this is best-effort
- * escalation, never a hard error path.
+ * Windows processes whose executable or command line references `wtPath`.
+ * Best-effort: any failure, or non-Windows, returns `[]`.
  *
- * @param {string} wtPath Absolute path to the worktree directory.
+ * @param {string} wtPath
  * @param {object} [opts]
- * @param {Function} [opts.spawn] Injection point for tests (default `spawnSync`).
- * @param {string} [opts.platform] Override `process.platform` for tests.
+ * @param {Function} [opts.spawn]
+ * @param {string} [opts.platform]
  * @returns {Array<{pid:number, name:string, path?:string, commandLine?:string}>}
  */
 export function findHoldersInPath(wtPath, opts = {}) {
@@ -70,7 +52,6 @@ export function findHoldersInPath(wtPath, opts = {}) {
   if (!wtPath) return [];
 
   const normalized = path.resolve(wtPath);
-  // Single-quote escape for PowerShell: double any embedded single quote.
   const psNeedle = normalized.replace(/'/g, "''");
 
   const script = [
@@ -119,11 +100,8 @@ export function findHoldersInPath(wtPath, opts = {}) {
 }
 
 /**
- * Pure: compute the set of pids that must never be killed — `selfPid` plus
- * its full ancestor chain — from a process table of `{ pid, ppid }` rows.
- * Cycle-guarded (a corrupt/raced table cannot loop forever). `selfPid` is
- * always included even when the table is empty or missing its row, so the
- * guard fails safe.
+ * Pids never to kill: `selfPid` (always, even with an empty table) plus its
+ * ancestor chain. Cycle-guarded.
  *
  * @param {number} selfPid
  * @param {Array<{ pid: number, ppid?: number }>} table
@@ -149,13 +127,11 @@ export function computeProtectedPids(selfPid, table) {
 }
 
 /**
- * Enumerate the full Windows process table as `{ pid, ppid }` rows so the
- * kill set can exclude the invoking shell / orchestrator ancestry.
- * Best-effort: any failure returns `[]` (callers still protect `selfPid`).
+ * Windows process table as `{ pid, ppid }`; `[]` on any failure.
  *
  * @param {object} [opts]
- * @param {Function} [opts.spawn] Injection point for tests (default `spawnSync`).
- * @param {string} [opts.platform] Override `process.platform` for tests.
+ * @param {Function} [opts.spawn]
+ * @param {string} [opts.platform]
  * @returns {Array<{ pid: number, ppid: number }>}
  */
 export function fetchProcessTable(opts = {}) {
@@ -192,15 +168,9 @@ export function fetchProcessTable(opts = {}) {
 }
 
 /**
- * `taskkill /T /F /PID <pid>` for each holder. Returns the pids reported
- * as terminated. Per-pid failures are logged but do not throw — caller
- * decides whether the partial kill is enough to retry.
- *
- * Self-preservation (Story #4018): holders are matched by command-line
- * substring, which can select the invoking shell or the orchestrator's own
- * ancestor chain (any ancestor whose command line mentions the worktree
- * path). Before any `taskkill /T /F`, the kill set excludes `selfPid` and
- * its full ancestor chain — `/T` on an ancestor would kill this process too.
+ * `taskkill /T /F` each holder; returns killed pids, never throws. Excludes
+ * self and ancestors: a command-line match can select the invoking shell, and
+ * `/T` on an ancestor would kill this process too.
  */
 export function terminateHolders(holders, opts = {}) {
   const spawn = opts.spawn ?? spawnSync;
@@ -251,19 +221,9 @@ export function terminateHolders(holders, opts = {}) {
 }
 
 /**
- * Drain the pending-cleanup manifest with escalation. Runs the standard
- * `drainPendingCleanup` first; for any entry left in `stillPending` or
- * `persistent`, enumerates handle-holders inside the worktree path,
- * terminates them, and re-drains.
- *
- * Result extends the standard drain shape with:
- *   - `escalated`:  storyIds where holders were detected AND killed.
- *   - `killedPids`: { [storyId]: number[] } pids terminated per entry.
- *   - `noHolders`:  storyIds whose lock could not be attributed to a
- *                   user-mode process (likely indexer/AV/kernel).
- *
- * Escalation is gated on `escalate: true` (default); pass `false` to
- * mirror the legacy `drainPendingCleanup` behaviour exactly.
+ * Drain, then for still-stuck entries kill their holders and re-drain. Adds
+ * `escalated`, `killedPids` and `noHolders` (no user-mode holder found) to the
+ * drain result; `escalate: false` is a plain drain.
  */
 export async function forceDrainPendingCleanup({
   repoRoot,

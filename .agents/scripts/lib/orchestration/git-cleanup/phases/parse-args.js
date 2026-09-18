@@ -1,8 +1,5 @@
 /**
- * parse-args.js — argv parser for the git-cleanup CLI (Story #2466).
- *
- * Extracted verbatim from `git-cleanup.js` so `parseCleanupArgs(argv)`
- * keeps its named-export contract for the existing unit-test surface.
+ * Argv parser for the git-cleanup CLI.
  *
  * @module lib/orchestration/git-cleanup/phases/parse-args
  */

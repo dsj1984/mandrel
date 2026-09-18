@@ -1,32 +1,9 @@
 /**
- * QA exploratory-session resume helper — Story #3723, Epic #3686.
- *
- * A `/qa-explore` run captures observations into a per-session ledger
- * (one `QaLedgerItem` per line, see `.agents/schemas/qa-ledger.schema.json`
- * from Story #3716). For an f5-safety resume to work, a later run with the
- * *same* session-id must read the on-disk ledger, carry forward the still
- * un-triaged findings as a rolling backlog, and append to — never overwrite —
- * the existing file.
- *
- * This module owns three small seams:
- *   - {@link resolveSessionId}  — a stable session-id for a run.
- *   - {@link ledgerPathFor}     — the ledger path under `<tempRoot>/qa/`.
- *   - {@link readLedger}        — parse an existing ledger into items plus the
- *                                 un-triaged subset (the rolling backlog).
- *
- * {@link resolveQaSession} composes them: it resolves the id and path, reads
- * any existing ledger, and reports whether the file already existed so the
- * caller knows to *reuse* rather than re-create it.
- *
- * Evidence persisted in the ledger MUST already be scrubbed of secrets and
- * PII per `.agents/rules/security-baseline.md` (see `lib/qa/redact-evidence.js`)
- * before it reaches disk; this module only reads what is already there.
- *
- * The ledger round-trip is field-preserving: {@link readLedger} parses each
- * line as a whole `QaLedgerItem` and returns it untouched, so optional fields
- * such as the Triage `routedTo` finding-to-issue link
- * (see `.agents/schemas/qa-ledger.schema.json`) survive a read/append cycle
- * intact rather than being dropped on resume.
+ * QA exploratory-session resume helper. A resumed run with the same
+ * session-id reads the on-disk NDJSON ledger, carries forward un-triaged items
+ * as the rolling backlog, and appends — never overwrites. Items round-trip
+ * untouched so optional fields (e.g. `routedTo`) survive. Evidence must be
+ * redacted before it reaches the ledger; this module only reads.
  */
 
 import crypto from 'node:crypto';
@@ -35,22 +12,15 @@ import path from 'node:path';
 
 import { tempRootFrom } from '../config/temp-paths.js';
 
-/** Directory segment (under `tempRoot`) that holds every QA session ledger. */
 const QA_LEDGER_DIRNAME = 'qa';
 
 /**
- * Triaged dispositions, mirrored from the `disposition` enum in
- * `.agents/schemas/qa-ledger.schema.json`. An item carrying any of these has
- * already been triaged; anything else (absent, null, empty, or unrecognized)
- * is still part of the rolling backlog.
+ * Mirrors the `disposition` enum in `qa-ledger.schema.json`; anything else
+ * (absent, null, unrecognized) is still backlog.
  */
 export const TRIAGED_DISPOSITIONS = Object.freeze(['file', 'defer', 'dismiss']);
 
 /**
- * True when a ledger item has **not** yet been triaged — i.e. its
- * `disposition` is not one of the canonical triaged values. These items are
- * the rolling backlog a resume run carries forward.
- *
  * @param {{ disposition?: unknown }} item
  * @returns {boolean}
  */
@@ -60,10 +30,7 @@ export function isUntriaged(item) {
 }
 
 /**
- * Normalize an arbitrary session label into a filesystem-safe slug. Keeps
- * alphanumerics, dot, dash, and underscore; collapses everything else to a
- * single dash. Guards against path traversal so a hostile label can never
- * escape the `qa/` directory.
+ * Filesystem-safe slug; guards against a hostile label escaping `qa/`.
  *
  * @param {string} raw
  * @returns {string}
@@ -77,9 +44,7 @@ function slugifySessionId(raw) {
 }
 
 /**
- * Derive a fresh, stable session-id when the caller supplies none. The id is
- * date-prefixed for human scannability and suffixed with short entropy so two
- * runs on the same day never collide.
+ * Date-prefixed with short entropy so same-day runs never collide.
  *
  * @returns {string}
  */
@@ -90,11 +55,7 @@ function deriveSessionId() {
 }
 
 /**
- * Resolve a stable session-id for a run.
- *
- * Precedence: an explicit `sessionId` option wins; otherwise the
- * `QA_SESSION_ID` environment variable; otherwise a freshly derived id. An
- * explicit or environment id is slugified so it is safe to use as a filename.
+ * Explicit `sessionId`, then `QA_SESSION_ID`, then a derived id.
  *
  * @param {{ sessionId?: string, env?: NodeJS.ProcessEnv }} [opts]
  * @returns {string}
@@ -112,11 +73,9 @@ export function resolveSessionId(opts = {}) {
 }
 
 /**
- * The ledger path for a session: `<tempRoot>/qa/<sessionId>.ndjson`.
- *
- * @param {string} sessionId A slug-safe session-id (see {@link resolveSessionId}).
- * @param {object} [config] Resolved config bag (for `project.paths.tempRoot`).
- * @returns {string}
+ * @param {string} sessionId
+ * @param {object} [config]
+ * @returns {string} `<tempRoot>/qa/<sessionId>.ndjson`
  */
 export function ledgerPathFor(sessionId, config) {
   const slug = slugifySessionId(sessionId);
@@ -124,9 +83,7 @@ export function ledgerPathFor(sessionId, config) {
 }
 
 /**
- * Parse a single ndjson line into a ledger item, or `null` when the line is
- * blank or not valid JSON. Malformed lines are skipped rather than thrown so a
- * partially-written ledger from a crashed run still resumes.
+ * Malformed lines are skipped so a crashed run's partial ledger still resumes.
  *
  * @param {string} line
  * @returns {object | null}
@@ -142,12 +99,6 @@ function parseLine(line) {
 }
 
 /**
- * Read and parse an existing ledger from disk.
- *
- * Returns the full parsed `items` array plus `untriaged` — the subset whose
- * disposition is not yet triaged (the rolling backlog). A missing ledger is
- * not an error: it yields empty arrays and `exists: false`.
- *
  * @param {string} ledgerPath
  * @param {{ fsImpl?: typeof fs }} [opts]
  * @returns {{ exists: boolean, items: object[], untriaged: object[] }}
@@ -163,12 +114,7 @@ export function readLedger(ledgerPath, opts = {}) {
 }
 
 /**
- * Resolve a QA exploratory session: a stable session-id, the ledger path
- * under `<tempRoot>/qa/`, and the current ledger contents (parsed items plus
- * the un-triaged rolling backlog).
- *
- * `reused` is `true` when a ledger already exists for this session-id — the
- * signal that a resume run must append to, not overwrite, the file.
+ * `reused: true` means a ledger exists and the run must append to it.
  *
  * @param {{
  *   sessionId?: string,

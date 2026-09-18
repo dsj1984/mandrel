@@ -1,18 +1,6 @@
 /**
- * crap-baseline-join.js — the incremental-coverage CRAP join (Story #4981),
- * end to end: the method-identity key, the per-file baseline index, the
- * per-file queue wiring, and the join itself.
- *
- * Story #4981 landed those four concerns as three files
- * (`crap-baseline-index.js`, `crap-utils-incremental.js`, and this one) so
- * the work would land as new code rather than same-file expansions. Story
- * #5002 folded them back together: they were one cohesive unit split only
- * for that scoring reason, and the split cost two import hops and two
- * modules whose whole content was five short pure functions.
- *
- * Imports its coordinate/formula primitives from `crap-coordinates.js` (not
- * `crap-engine.js`) so this file stays a one-directional consumer with no
- * edge back into the scoring kernel — `crap-engine.js` imports FROM here.
+ * The incremental-coverage CRAP join. Imports primitives from
+ * `crap-coordinates.js`, never `crap-engine.js`, which imports from here.
  */
 import {
   COORDINATE_ORIGINAL,
@@ -21,10 +9,7 @@ import {
 } from './crap-coordinates.js';
 
 /**
- * Per-file half of the method-identity key `baselines/kinds/crap.js`'s
- * `crapRowKey` composes with the file path (`${path}::${method}@${startLine}`).
- * The path component is redundant once a row set is already narrowed to one
- * file, which is exactly what `indexBaselineRowsByFile` does below.
+ * Per-file half of `crapRowKey` (`${path}::${method}@${startLine}`).
  *
  * @param {{method: string, startLine: number}} row
  * @returns {string}
@@ -34,11 +19,7 @@ function methodIdentityKey(row) {
 }
 
 /**
- * Index baseline rows (accepts either the `{file, method, startLine, crap}`
- * legacy shape `compareCrap`/`scanAndScore` use, or the on-disk `{path, ...}`
- * shape) by file, then by `methodIdentityKey`, for O(1) per-method lookup —
- * exactly the shape `finalizeMethodRowsWithBaseline`'s `baselineByKey`
- * expects.
+ * Accepts both the in-memory `{file}` and on-disk `{path}` row shapes.
  *
  * @param {Array<{file?: string, path?: string, method: string, startLine: number, crap: number}>} baselineRows
  * @returns {Map<string, Map<string, {crap: number}>>} file → (method@startLine → row)
@@ -55,10 +36,7 @@ function indexBaselineRowsByFile(baselineRows) {
 }
 
 /**
- * Resolve `crap-utils.js#scanAndScore`'s `incremental` option into the two
- * lookup structures the per-file queue build needs. Both are `null` when
- * `incremental` is absent (full-scope, the default) — every downstream
- * consumer treats a `null` context as "not incremental".
+ * Both fields `null` means "not incremental".
  *
  * @param {{ touchedFiles?: Set<string>|string[], baselineRows?: Array<object> } | null} incremental
  * @returns {{ touchedFiles: Set<string>|null, baselineByFile: Map<string, Map<string, object>>|null }}
@@ -76,10 +54,7 @@ export function resolveIncrementalContext(incremental) {
 }
 
 /**
- * Merge one queued file's `touched` flag and per-file `baselineByKey` map
- * (resolved from the `resolveIncrementalContext` output) onto its base queue
- * item. `touched` defaults to `true` (every file is "touched" outside
- * incremental mode, matching `finalizeMethodRowsWithBaseline`'s own default).
+ * Outside incremental mode every file is `touched`.
  *
  * @param {object} item Base queue item (`{ abs, relPath, requireCoverage, coverageAvailable }`).
  * @param {{ touchedFiles: Set<string>|null, baselineByFile: Map<string, Map<string, object>>|null }} ctx
@@ -97,10 +72,6 @@ export function resolveQueueIncrementalFields(
 }
 
 /**
- * True when a file's methods should resolve from the baseline rather than
- * from a fresh coverage entry — an untouched file with at least one indexed
- * baseline row.
- *
  * @param {boolean} touched
  * @param {Map<string, object>|null} baselineByKey
  * @returns {boolean}
@@ -110,10 +81,6 @@ function isIncrementalJoinActive(touched, baselineByKey) {
 }
 
 /**
- * `crap-utils.js#scoreFileSerial`'s file-level skip decision, factored out
- * whole so the incremental exception lives with the rest of the join rather
- * than inflating the cyclomatic complexity of the pre-#4981 caller.
- *
  * @param {boolean} requireCoverage
  * @param {object|null} entry Istanbul coverage entry for this file.
  * @param {boolean} touched
@@ -134,23 +101,17 @@ export function shouldSkipFileForNoCoverage(
 }
 
 /**
- * Apply the standard `requireCoverage` policy to a single raw method row.
- * The per-row half of `crap-engine.js#finalizeMethodRows`'s loop body,
- * extracted (Story #4981) so `finalizeMethodRowsWithBaseline`, below, can
- * apply the exact same per-row policy to a method whose file was NOT in the
- * diff scope but whose baseline row could not be found — the fail-closed
- * path AC-3 requires.
+ * The per-row `requireCoverage` policy, shared by both finalize paths.
  *
  * @param {object} mr A raw row from `methodRowsFromReport`.
  * @param {{requireCoverage: boolean, coverageAvailable: boolean}} opts
- * @returns {{ resolved: boolean, row: object | null }} `row: null` means the
- *   method is skipped-and-counted; `resolved` tracks the join outcome
- *   (independent of whether the row survives the skip policy).
+ * @returns {{ resolved: boolean, row: object | null }} `row: null` means
+ *   skipped-and-counted; `resolved` tracks the join alone.
  */
 export function resolveRawRow(mr, { requireCoverage, coverageAvailable }) {
   const unresolved = mr.crap === null || mr.coverage === null;
   const resolved = !unresolved;
-  // Unjoinable is not untested (Story #4901).
+  // Unjoinable (transpiled) is not untested.
   if (
     mr.coordinateSystem === COORDINATE_TRANSPILED ||
     (unresolved && (requireCoverage || !coverageAvailable))
@@ -159,11 +120,7 @@ export function resolveRawRow(mr, { requireCoverage, coverageAvailable }) {
   }
   const coverage = unresolved ? 0 : mr.coverage;
   const crap = unresolved ? crapFormula(mr.cyclomatic, 0) : mr.crap;
-  // Everything the scan decided is carried forward; this step overrides only
-  // what its own policy resolves. Spreading rather than re-listing each field
-  // is why the row's identity marker (Story #4969) and its provenance
-  // (Story #4866) survive the step without a line each to remember them —
-  // a hand-rebuilt row is how a marker silently stops reaching the baseline.
+  // Spread, never rebuild: a hand-listed row silently drops markers.
   return {
     resolved,
     row: {
@@ -176,38 +133,11 @@ export function resolveRawRow(mr, { requireCoverage, coverageAvailable }) {
 }
 
 /**
- * Baseline-join mode (Story #4981; gated by
- * `incrementalCoverage.baselineJoin` since Story #5173): resolve a file's raw
- * method rows against its committed CRAP-baseline rows instead of requiring
- * fresh coverage, for a file the diff did NOT touch.
- *
- * Rationale: when the capture was skipped because nothing under
- * `crap.targetDirs` changed, the coverage artifact on disk is whatever the
- * last run left — so an untouched file's coverage entry may legitimately be
- * absent even though nothing about that file's methods changed. (The capture
- * run itself is never narrowed: a capture that *does* happen is the ordinary
- * full suite — Story #5065.) Requiring a fresh join for it would either
- * (a) skip-and-count
- * every one of its methods under `requireCoverage: true`, weakening the
- * gate's signal for the vast majority of the tree on every run, or (b) score
- * them at an invented 0% under `requireCoverage: false`, manufacturing a
- * maximal CRAP for code the diff never touched. Neither is a measurement.
- *
- * The join key is `${method}@${startLine}` — the per-file half of the
- * composite identity `kinds/crap.js#crapRowKey` uses for the full baseline
- * compare (`${path}::${method}@${startLine}`); callers pass in a
- * per-file-scoped `baselineByKey` map so this function stays path-agnostic.
- *
- * **Fail-closed (AC-3).** `touched: true` (the file WAS in the diff) or a
- * missing/empty `baselineByKey` reproduces `crap-engine.js#finalizeMethodRows`
- * exactly — this is the pre-#4981 per-row policy, so a caller that never
- * opts in sees byte-identical behaviour (AC-5). For an untouched file, a
- * method whose baseline row cannot be found (new method, moved line, or a
- * baseline that simply never carried it) is NOT invented — it falls back to
- * the same per-row `requireCoverage` skip-and-count policy, via the shared
- * `resolveRawRow`. A method whose coordinate system is transpiled is never
- * resolved from the baseline either, for the same un-joinable reason
- * `resolveRawRow` excludes it (Story #4901).
+ * For a file the diff did not touch, resolve methods from committed baseline
+ * rows: a skipped capture leaves its coverage entry legitimately absent, and
+ * neither skip-and-count nor an invented 0% would be a measurement. Touched
+ * files, an empty baseline, a missing row or a transpiled line all fall back
+ * to `resolveRawRow` — never an invented verdict.
  *
  * @param {Array<object>} rawRows Rows from `methodRowsFromReport`, all for
  *   the SAME file.
@@ -257,8 +187,6 @@ export function finalizeMethodRowsWithBaseline(
         continue;
       }
     }
-    // Touched file, no baseline scope, or no baseline row for this method —
-    // fail closed to the standard policy rather than inventing a verdict.
     const resolution = resolveRawRow(mr, {
       requireCoverage,
       coverageAvailable,

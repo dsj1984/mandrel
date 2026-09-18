@@ -1,30 +1,12 @@
 /**
- * GitHub Provider — CommentGateway.
- *
- * Owns issue-comment CRUD against `/repos/{owner}/{repo}/issues/.../comments`.
- * `postComment` is the structured-comment writer (it prepends the visible
- * type-badge); the `<!-- ap:structured-comment ... -->` marker is added by
- * the upstream `upsertStructuredComment` ticketing helper before the body
- * lands here.
- *
- * Extracted from `../github.js` in Story #2462 / Task #2480. `postComment`,
- * `getTicketComments`, and `deleteComment` on `GitHubProvider` all delegate
- * here. Story #5008 dropped the repo-wide `getRecentComments` feed — the
- * telemetry dashboard that read it was retired and nothing else polls a
- * cross-issue comment stream.
- *
- * @see Story #2462 — Split GitHubProvider god class into seven composed gateways.
+ * GitHub Provider — CommentGateway: issue-comment CRUD. The structured
+ * marker is added upstream by `upsertStructuredComment`; this layer adds only
+ * the visible type badge.
  */
 
 import { paginateRest, parseApiJson } from './request-helpers.js';
 
-// Structured-comment badge — preserved verbatim from the legacy
-// `./github/comments.js`. The upstream `upsertStructuredComment` ticketing
-// helper prepends the `<!-- ap:structured-comment ... -->` marker before
-// the body reaches `postComment`; this badge is the visible header
-// consumers (Slack notifier, dashboard) grep for. Keeping the emoji + bold
-// marker stable is what makes the round-trip with structured-comment
-// detection work across the rewrite.
+// Visible headers downstream consumers grep for — keep them byte-stable.
 const TYPE_BADGES = {
   progress: '🔄 **Progress**',
   friction: '⚠️ **Friction**',
@@ -48,10 +30,7 @@ export class CommentGateway {
   }
 
   /**
-   * All comments on a single ticket. Used by the upstream
-   * `findStructuredComment` ticketing helper, which greps each comment
-   * body for the `<!-- ap:structured-comment type="..." -->` marker — so
-   * the per-comment `body` field must round-trip verbatim.
+   * `body` must round-trip verbatim: structured-comment lookup greps it.
    *
    * @field-manifest /repos/{owner}/{repo}/issues/{n}/comments:
    *                 id, body, created_at, user
@@ -63,11 +42,6 @@ export class CommentGateway {
     );
   }
 
-  /**
-   * Delete a comment by id. Called by `upsertStructuredComment` before
-   * posting the replacement, so the in-place semantics hold even though
-   * the underlying GitHub API has no native upsert.
-   */
   async deleteComment(commentId) {
     await this._gh.api({
       method: 'DELETE',
@@ -76,13 +50,8 @@ export class CommentGateway {
   }
 
   /**
-   * Post a comment on an issue. When `payload.type` matches a known
-   * structured-comment kind, prepend the visible type-badge so operators
-   * see the same header the old client produced.
-   *
-   * Accepts either `{ body, type }` (canonical) or a bare string (legacy
-   * shape exercised by `tests/lib/github-provider.test.js` and a handful
-   * of direct callers under `notify.js`).
+   * Accepts `{ body, type }` or a bare string; a known `type` gets its badge
+   * prepended.
    *
    * @field-manifest POST /repos/{owner}/{repo}/issues/{n}/comments:
    *                 id (returned for the caller's `commentId`)
@@ -99,8 +68,6 @@ export class CommentGateway {
       body: { body },
     });
     const comment = parseApiJson(result);
-    // Posting a comment mutates the ticket's comment thread. Invalidate so
-    // the next `getTicketComments` / `getTicket` reflects the new comment.
     if (typeof this._hooks.invalidateTicket === 'function') {
       this._hooks.invalidateTicket(ticketId);
     }

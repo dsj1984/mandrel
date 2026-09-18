@@ -34,7 +34,6 @@ export const CRAP_GATE = {
         'When true, the gate refuses to score without a coverage artifact rather than silently reporting complexity-only rows.',
       default: CRAP_GATE_DEFAULTS.requireCoverage,
     },
-    // Story #4775 — fail-closed floor on the per-method coverage JOIN.
     minMethodResolutionRate: {
       type: 'number',
       minimum: 0,

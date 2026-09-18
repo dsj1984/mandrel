@@ -1,18 +1,6 @@
 /**
- * GitHub Provider — IssuesGateway.
- *
- * Owns the remaining read-side surface that did not belong to any of the
- * earlier six gateways: the raw GraphQL shim (`graphql` / `_ghGraphql`),
- * epic reads (`getEpic`), repository-wide label scans
- * (`listIssuesByLabel`), branch existence probes (`branchExists`), and the
- * three-strategy sub-ticket aggregator (`getSubTickets`).
- *
- * Extracted from `../github.js` in Story #2462 / Task #2481 — the final
- * slice that brings `GitHubProvider` down to a thin composition root.
- * Public surface on `GitHubProvider` is unchanged: every method here is
- * exposed by a one-line delegating wrapper on the parent provider.
- *
- * @see Story #2462 — Split GitHubProvider god class into seven composed gateways.
+ * GitHub Provider — IssuesGateway: the raw GraphQL shim, epic reads, label
+ * scans, branch probes, issue search, and the sub-ticket aggregator.
  */
 
 import { GhRateLimitError } from '../../lib/gh-exec.js';
@@ -33,12 +21,8 @@ import {
 import { composeBoundedQuery } from './search-query.js';
 
 /**
- * Retry classifier for the `searchIssues` call site. A rate-limit error is
- * non-transient **here** — the shared search budget (not `withTransientRetry`)
- * owns the wait, so the call must fail fast rather than burn its retry budget
- * re-issuing into an empty window. Every other error keeps the global
- * classification, so a 5xx/network blip still retries. `classifyGithubError`
- * itself is unchanged: other endpoints legitimately retry on rate-limit.
+ * Rate-limit is non-transient for search: the shared search budget owns the
+ * wait, so retrying would only re-issue into an empty window.
  *
  * @param {unknown} err
  * @returns {string}
@@ -48,20 +32,11 @@ function classifySearchRetry(err) {
   return classifyGithubError(err);
 }
 
-/**
- * Concurrency budget for the `getSubTickets` fan-out — preserved from
- * the old `./github/issues.js` predecessor.
- */
 export const SUBTICKET_HYDRATION_CONCURRENCY = 8;
 
 /**
- * The `Issue.parent` read backing {@link IssuesGateway#getParentIssue}.
- *
- * Node selection is deliberately identical to `SUB_ISSUES_QUERY`'s, so the
- * parent and the children a caller holds come back in one shape and
- * `subIssueNodeToTicket` maps both. Addressed by `owner/repo/number` rather
- * than by node id because every caller starts from an issue number and would
- * otherwise pay a round-trip just to learn the node id.
+ * Node selection matches `SUB_ISSUES_QUERY` so `subIssueNodeToTicket` maps
+ * parent and children alike; addressed by number to skip a node-id lookup.
  */
 const PARENT_ISSUE_QUERY = `query($owner: String!, $repo: String!, $number: Int!) {
   repository(owner: $owner, name: $repo) {
@@ -80,9 +55,6 @@ const PARENT_ISSUE_QUERY = `query($owner: String!, $repo: String!, $number: Int!
   }
 }`;
 
-// Re-export so existing test consumers that previously imported
-// `paginateRest` from this module continue to work without an extra
-// migration step.
 export { paginateRest };
 
 export class IssuesGateway {
@@ -104,16 +76,13 @@ export class IssuesGateway {
     this.owner = owner;
     this.repo = repo;
     this._hooks = hooks;
-    // The `/search/issues` fan-out budget. Defaults to the process-wide
-    // singleton so every gateway instance shares one 30/min window; injectable
-    // so unit tests drive it deterministically (Story #4678).
+    // Process-wide singleton by default so all gateways share one 30/min
+    // `/search/issues` window.
     this._searchBudget = searchBudget ?? defaultSearchBudget;
   }
 
   /**
-   * Run a GraphQL query/mutation through `gh api graphql` (POST with a
-   * JSON `{ query, variables }` body on stdin). Returns the `data` field.
-   * Throws when the response contains a non-empty `errors[]`.
+   * Returns the response's `data`; throws on a non-empty `errors[]`.
    */
   async ghGraphql(query, variables = {}, _opts = {}) {
     const body = { query };
@@ -135,9 +104,7 @@ export class IssuesGateway {
   }
 
   /**
-   * List every issue carrying `labels` (comma-separated string per GitHub
-   * REST). Used by the dispatcher / reconciler to scan for `agent::*`
-   * state.
+   * Raw REST issues (PRs excluded); `labels` is GitHub's comma-separated form.
    *
    * @field-manifest /repos/{owner}/{repo}/issues: number, title, body, labels,
    *                 state, assignees, pull_request
@@ -151,21 +118,9 @@ export class IssuesGateway {
   }
 
   /**
-   * The same scan as {@link listIssuesByLabel}, mapped through
-   * `issueToTicket` — one **declared** shape instead of a raw REST payload.
-   *
-   * The two differ in exactly the field that keeps biting: the REST payload
-   * calls the issue number `number` and the database id `id`, while every
-   * mapped read calls the issue number `id`. Consumers that could be handed
-   * either wrote `number ?? id` to cope, and that fallback is not a
-   * defensive nicety — it is a live bug, because on a *mapped* ticket `id`
-   * is the number and on a *raw* one it is the database id. A caller that
-   * ever receives the raw shape silently addresses issues by database id.
-   *
-   * `url` is carried alongside the mapped fields because two consumers
-   * (`epic-candidates`, `dependency-candidates`) render a link and
-   * `issueToTicket` drops `html_url`. It is the only addition; everything
-   * else is exactly what every other single-issue read returns.
+   * {@link listIssuesByLabel} mapped through `issueToTicket`, plus `url`.
+   * Prefer this: on a raw payload `id` is the database id, on a mapped one it
+   * is the issue number, and a `number ?? id` fallback silently mis-addresses.
    *
    * @param {{ state?: 'open'|'closed'|'all', labels?: string }} [opts]
    * @returns {Promise<Array<object>>} Mapped tickets (`id` is the issue number).
@@ -182,20 +137,9 @@ export class IssuesGateway {
   }
 
   /**
-   * Resolve an issue's container parent in **one** request.
-   *
-   * The rollup's child→parent lookup used to scan every open `type::epic`
-   * issue and read each one's children looking for the Story it was handed:
-   * O(open Epics) requests to answer a question the API answers directly.
-   * `Issue.parent` is the native sub-issue edge read backwards, so a Story
-   * with a container costs one call and a Story without one costs the same.
-   *
-   * Returns `null` — never throws — when the issue has no parent, when the
-   * response is shaped unexpectedly, or when the sub-issues feature is
-   * unavailable on this repo. A null is "no parent resolved here", which is
-   * exactly what the caller's body-checklist fallback exists for; turning a
-   * disabled feature into an exception would convert a degraded lookup into a
-   * failed lifecycle edge.
+   * Resolve an issue's container parent in one request via `Issue.parent`.
+   * Never throws: no parent, an odd shape, or sub-issues being unavailable all
+   * return `null`, leaving the caller's checklist fallback to run.
    *
    * @param {number} number Issue number whose parent to resolve.
    * @returns {Promise<object|null>} Mapped parent ticket, or null.
@@ -230,25 +174,10 @@ export class IssuesGateway {
   }
 
   /**
-   * Search issues by a free-text query via the REST search API
-   * (`GET /search/issues`). Deliberately REST, **not** GraphQL: transient
-   * GraphQL 401s are a known failure mode in this repo (the dedup port that
-   * consumes this method must not silently no-op on an auth blip), so the
-   * search rides the same `gh api` REST surface + transient-retry shim as
-   * every other read here.
-   *
-   * The caller (`audit-to-stories.js` `loadProvider()`) passes a 40-char
-   * fingerprint sha as the query so the search resolves the handful of
-   * issues whose fingerprint footer carries that sha; `route-finding.js`
-   * then confirms identity against the footer. Both open and closed issues
-   * are returned (no `state:` qualifier is appended) so a closed-fingerprint
-   * match can surface as `regression-of-closed`.
-   *
-   * Returns the trimmed `[{ number, state, body, title, html_url }]`
-   * projection. Dedup callers use `{ number, state, body }`; duplicate-
-   * search also needs `title` / `html_url`. `state` is normalised to the
-   * REST lowercase form (`open` / `closed`). Results are capped at one
-   * Search API page (`per_page=100`).
+   * Search issues (open and closed, so a closed match can surface as a
+   * regression) in this repo via REST — not GraphQL, whose transient 401s
+   * would make the dedup port silently no-op. Capped at one 100-item page;
+   * `state` is lowercase.
    *
    * @param {{ query: string, owner?: string, repo?: string }} params
    * @returns {Promise<Array<{ number: number, state: string, body: string, title: string, html_url?: string }>>}
@@ -260,18 +189,12 @@ export class IssuesGateway {
     }
     const scopeOwner = owner ?? this.owner;
     const scopeRepo = repo ?? this.repo;
-    // Constrain the search to this repo and to issues (not PRs). The
-    // fingerprint sha is the free-text term; GitHub matches it against the
-    // issue body where the `<!-- audit-fingerprints: ... -->` footer lives.
-    // The composed `q` is bounded to GitHub Search's 256-char limit here — the
-    // only place that knows both the free text and the qualifiers it appends —
-    // truncating the free-text portion on a whole-token boundary (Story #4678).
+    // Bounded here — the only place that sees both the free text and the
+    // qualifiers — to Search's 256-char `q` limit.
     const qualifiers = [`repo:${scopeOwner}/${scopeRepo}`, 'type:issue'];
     const q = composeBoundedQuery(query, qualifiers);
     const params = new URLSearchParams({ q, per_page: '100' });
     const endpoint = `/search/issues?${params}`;
-    // Await the shared 30/min budget before every call so the whole scan's
-    // fan-out is throttled at the endpoint, not per caller (Story #4678).
     await this._searchBudget.take();
     let result;
     try {
@@ -284,9 +207,8 @@ export class IssuesGateway {
         },
       );
     } catch (err) {
-      // A rate limit means the window is empty: drain the budget until the
-      // reported reset so the *next* call pauses once, rather than every call
-      // retrying independently into the exhausted window.
+      // Drain the budget until reset so the next call pauses once instead of
+      // every caller retrying into the exhausted window.
       if (err instanceof GhRateLimitError) {
         this._searchBudget.noteRateLimited(parseRateLimitResetMs(err));
       }
@@ -320,9 +242,8 @@ export class IssuesGateway {
   }
 
   /**
-   * Probe whether `branch` exists on the remote. Returns `true` when the
-   * branch resolves, `false` on 404, and propagates any other transport
-   * error so auth/scope failures don't masquerade as a missing branch.
+   * `false` only on 404; other errors propagate so auth failures don't
+   * masquerade as a missing branch.
    *
    * @field-manifest GET /repos/{owner}/{repo}/branches/{branch}: name
    */
@@ -340,7 +261,6 @@ export class IssuesGateway {
     }
   }
 
-  /** Strategy 2 — Markdown checklist links `- [ ] #N` / `- [x] #N`. */
   _getChecklistChildren(parentBody) {
     const re = /-\s*\[[ xX]\]\s+#(\d+)/g;
     return [...(parentBody ?? '').matchAll(re)].map((m) =>
@@ -348,10 +268,7 @@ export class IssuesGateway {
     );
   }
 
-  /**
-   * Strategy 3 — reverse-search for issues that reference the parent
-   * (`Epic: #N` / `parent: #N`). Non-fatal on error.
-   */
+  /** Reverse-search for issues referencing the parent; non-fatal on error. */
   async _getReferencedChildren(parentId) {
     const getTickets = this._hooks.getTickets;
     const primeTicketCache = this._hooks.primeTicketCache;
@@ -370,32 +287,23 @@ export class IssuesGateway {
   }
 
   /**
-   * Aggregate sub-tickets via a priority-fallback strategy:
-   *   1. Native sub-issues (GraphQL) + checklist links in body — run in
-   *      parallel because checklist parsing is pure/synchronous.
-   *   2. Reverse-search (`_getReferencedChildren`) — a full-repo label
-   *      scan that is **only** executed when both strategy 1 sources
-   *      return empty. This avoids the unconditional full-repo scan that
-   *      fired on every call in the old `Promise.all` path.
+   * Union of native sub-issues and body checklist links; the full-repo
+   * reverse search runs only when both are empty.
    *
    * @param {number} parentId
-   * @param {{ fresh?: boolean }} [opts] - Pass `{ fresh: true }` to bypass
-   *   the per-instance ticket cache for every child hydration fetch. Used
-   *   by the cascade logic to skip a redundant second fan-out.
+   * @param {{ fresh?: boolean }} [opts] - `fresh` bypasses the ticket cache
+   *   for every child fetch.
    */
   async getSubTickets(parentId, opts = {}) {
     const getTicket = this._hooks.getTicket;
     const getNativeSubIssues = this._hooks.getNativeSubIssues;
     const parent = await getTicket(parentId);
 
-    // Strategy 1: native sub-issues (GraphQL) + checklist (synchronous).
     const [nativeChildIds, checklistChildIds] = await Promise.all([
       getNativeSubIssues(parent.nodeId, parentId),
       Promise.resolve(this._getChecklistChildren(parent.body)),
     ]);
 
-    // Strategy 2 (fallback): full-repo reverse-search — only when strategy
-    // 1 produced nothing, avoiding the unconditional scan on every call.
     let referencedChildIds = [];
     if (nativeChildIds.length === 0 && checklistChildIds.length === 0) {
       referencedChildIds = await this._getReferencedChildren(parentId);

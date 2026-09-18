@@ -1,20 +1,6 @@
 /**
- * lib/audit-suite/runner.js — `runAuditSuite` aggregation core.
- *
- * Extracted from the former `run-audit-suite.js` CLI (Story #963, Epic #946;
- * the CLI wrapper itself was retired in #4482 — `runAuditSuite` via the
- * barrel is the only supported entry point).
- *
- * The runner composes the focused helpers from this directory:
- *   - frontmatter.js     → `summarizeWorkflow`
- *   - substitutions.js   → `applySubstitutions`, `computeAllowedKeys`
- *   - findings.js        → `aggregateSummary`
- *   - workflow-loader.js → `loadWorkflow`, `defaultWriteArtifact`
- *
- * It owns the audit envelope shape (`metadata`, `findings`, `workflows`) and
- * the per-audit fan-out + result reduction. The former CLI entry-point
- * (`run-audit-suite.js`) was retired in #4482; callers invoke
- * `runAuditSuite` via the `lib/audit-suite/index.js` barrel.
+ * `runAuditSuite`: owns the audit envelope shape (`metadata`, `findings`,
+ * `workflows`) and the per-audit fan-out; invoked via the barrel.
  */
 
 import fs from 'node:fs/promises';
@@ -149,35 +135,19 @@ async function reduceResults({
 }
 
 /**
- * Run a suite of named audit workflows.
- *
- * For each audit name the suite will:
- *   1. Validate it is registered in audit-rules.json.
- *   2. Locate the corresponding `.agents/workflows/<auditName>.md` file.
- *   3. Return a slim `workflow` descriptor (audit name, source path, summary,
- *      byte size) for the calling AI agent. Full prompt bodies are written to
- *      `<auditOutputDir>/audit-<runId>-<audit>.md` (resolved from
- *      `project.paths.tempRoot`, default `temp/audits/`) when `artifactPrefix`
- *      (or `runId`) is provided, so downstream agents can read them locally
- *      without bloating the GitHub comment surface.
- *
- * Substitutions: callers may pass a `substitutions` map of `{{key}}` → value
- * pairs. Allowed keys are the built-ins (auditOutputDir, ticketId, baseBranch,
- * changedFiles) plus any `substitutionKeys` declared on the requested audits in
- * audit-rules.json, aggregated across auditWorkflows. Unknown keys
- * raise a ValidationError.
+ * Resolve registered audit workflows into slim descriptors; with
+ * `artifactPrefix`, full bodies are written to disk instead of travelling in
+ * the envelope. Substitution keys beyond the built-ins must be declared as
+ * `substitutionKeys` in audit-rules.json, else ValidationError.
  *
  * @param {object} opts
- * @param {string[]} opts.auditWorkflows - List of audit names to run.
- * @param {Record<string,string>} [opts.substitutions] - Optional template substitutions.
- * @param {string} [opts.artifactPrefix] - When set, write full bodies to
- *   `<artifactsDir>/audit-<artifactPrefix>-<audit>.md`.
- * @param {string} [opts.artifactsDir] - Override the artifacts directory
- *   (default: `<PROJECT_ROOT>/<auditOutputDir>`, which resolves to
- *   `<tempRoot>/audits` — `temp/audits` with default config).
- * @param {Function} [opts.injectedLoadWorkflow] - Optional override for testing.
- * @param {object} [opts.injectedRules] - Optional override for the audit-rules content (testing).
- * @param {Function} [opts.injectedWriteArtifact] - Optional override for filesystem-free testing.
+ * @param {string[]} opts.auditWorkflows
+ * @param {Record<string,string>} [opts.substitutions]
+ * @param {string} [opts.artifactPrefix] - writes `audit-<prefix>-<audit>.md`.
+ * @param {string} [opts.artifactsDir] - defaults to `<auditOutputDir>`.
+ * @param {Function} [opts.injectedLoadWorkflow]
+ * @param {object} [opts.injectedRules]
+ * @param {Function} [opts.injectedWriteArtifact]
  * @returns {Promise<object>} Aggregated audit results.
  */
 export async function runAuditSuite({

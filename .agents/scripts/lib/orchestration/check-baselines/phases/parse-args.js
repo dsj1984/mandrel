@@ -1,14 +1,5 @@
 /**
- * parse-args.js — Phase 1 of the check-baselines pipeline (Story #2466).
- *
- * Owns CLI flag parsing and the canned `--help` text. Migrated in Story
- * #2989 to delegate the bulk of argv walking to
- * `parseStandardCliArgs`; the wrapper preserves the legacy parsed shape
- * (storyId / epicId are now numbers, the rest of the keys are unchanged).
- *
- * `parseArgs(argv)` is re-exported from `check-baselines.js` and exercised
- * directly by the unit tests, so the function name and signature are
- * load-bearing.
+ * check-baselines CLI flag parsing and `--help` text.
  *
  * @module lib/orchestration/check-baselines/phases/parse-args
  */
@@ -77,13 +68,7 @@ export function helpReport() {
   };
 }
 
-/**
- * Comma-split + repeat-aggregate the raw `--gate` tokens collected by
- * the shared parser. The original walker accepted both
- * `--gate coverage,crap` and `--gate coverage --gate crap` and
- * concatenated the values; we replicate that here in a single pass over
- * the `string-multi` array the shared parser produces.
- */
+/** Accept both `--gate a,b` and repeated `--gate a --gate b`. */
 function flattenGateTokens(raw) {
   if (!Array.isArray(raw) || raw.length === 0) return null;
   const parts = [];
@@ -98,15 +83,6 @@ function flattenGateTokens(raw) {
 }
 
 /**
- * Parse the CLI flags. Pure — exported for tests.
- *
- * Note: the migration to `parseStandardCliArgs` (Story #2989) changes
- * `storyId` / `epicId` from string to number — both `parseTicketId`
- * (positive integer, leading `#` stripped, `null` on invalid). The
- * downstream `emitFrictionSignal` short-circuits on falsy, and
- * `signals-writer` documents `storyId` / `epicId` as `number`, so the
- * type alignment fixes a latent string-vs-number mismatch.
- *
  * @param {string[]} argv  process.argv.slice(2)
  * @returns {{
  *   configPath: string | null,
@@ -119,12 +95,8 @@ function flattenGateTokens(raw) {
  * }}
  */
 export function parseArgs(argv) {
-  // `--help` / `-h` is a side-channel: the shared parser does not (yet)
-  // surface a help flag; pre-scan and short-circuit before delegating.
+  // The shared parser has no help flag and accepts any `--format` string.
   const helpRequested = argv.some((t) => t === '--help' || t === '-h');
-  // Pre-validate `--format` so the legacy "expects json/text" message
-  // shape survives. The shared parser would accept any string for an
-  // extras `string` flag.
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] !== '--format') continue;
     const v = argv[i + 1];
@@ -147,7 +119,6 @@ export function parseArgs(argv) {
     });
   } catch (err) {
     if (err && err.code === 'UNKNOWN_FLAG') {
-      // Preserve the legacy `unknown flag "--foo"` phrasing.
       throw new Error(`unknown flag "--${err.flag}"`);
     }
     throw err;

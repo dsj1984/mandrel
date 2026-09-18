@@ -1,8 +1,5 @@
 /**
- * stashes.js — stash-triage phase of git-cleanup (Story #2466).
- *
- * Owns `parseStashList`, `planStashes`, `executeStashes`, `stashRefIndex`,
- * and `buildAllowlistDecider`. Extracted verbatim from `git-cleanup.js`.
+ * Stash-triage phase of git-cleanup.
  *
  * @module lib/orchestration/git-cleanup/phases/stashes
  */

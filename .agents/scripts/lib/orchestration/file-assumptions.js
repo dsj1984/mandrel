@@ -1,60 +1,11 @@
 /**
- * file-assumptions.js — Phase 8 path-assumption validator.
- *
- * Story #2635 added the Tech Spec freshness check at Phase 7. This module
- * is the matching gate at Phase 8: every Story's `body.changes` /
- * `body.references` entry that declares an explicit `assumption` is
- * cross-checked against the actual state of `baseBranchRef`. Mismatches
- * are batched per-Story and surfaced through the same error envelope the
- * decompose loop already uses.
- *
- * Under the 2-tier hierarchy (Epic → Story; Epic #3078 / #3238)
- * the Story is the implementation unit — there is no `type::task` ticket
- * layer — so the gate scans `type === 'story'` tickets and reads the
- * `{ path, assumption }` entries inlined on each Story body.
- *
- * Rules (one finding per mismatched path). Story #5312 demoted every
- * mismatch but one to a **warning** the dry-run lists and the persist
- * proceeds past — `changes[]` is an advisory sketch the deliverer revises
- * against the real tree, so refusing a plan on it cost re-authoring rounds
- * for a footprint nobody was bound to:
- *   - `creates`            + path **exists**  → warning (Story may clobber).
- *   - `refactors-existing` (via `changes`) + path **absent and never
- *     tracked** at `baseBranchRef` → auto-normalized to `creates` with a
- *     logged warning (#4496 fix 5): a refactor declaration against a
- *     path with no history is deterministically a create.
- *   - `refactors-existing` (via `changes`) + path **absent but present in
- *     that ref's history** → warning naming the removing commit and, when
- *     git detects one, the rename target (Story #5265) — a plan authored
- *     against a file the tree deleted is worth saying out loud.
- *   - `exists`             + path **absent** → warning (read dependency missing).
- *   - `deletes`            + path **absent** → **error** (nothing to delete —
- *     the one declaration a deliverer cannot act on at all).
- *
- * Wave awareness (Story #3960): the base-branch-only rules above produce
- * false signals once an earlier Story in the same epic creates (or deletes)
- * a file before a later Story touches it. `validateStoryFileAssumptions`
- * therefore validates each Story against the **simulated post-predecessor
- * tree** — base-branch existence overlaid with the create/delete delta of
- * the Story's transitive `depends_on` predecessors (the same reachability
- * walk the conflict gate uses, imported from the shared
- * `story-reachability.js` leaf rather than re-derived). Two extra
- * wave-aware rules layer on top of the
- * base-branch rules:
- *   - `creates`            + path created by a **predecessor** → mismatch
- *     (`expected: 'refactors-existing'`) telling the planner to declare
- *     `refactors-existing` and naming the producing Story.
- *   - `refactors-existing` + path absent from base but created by a
- *     **predecessor** → validates clean (no false-positive base-branch
- *     "absent" mismatch).
- * Concurrent same-path creates between Stories with no `depends_on` path are
- * the shared-editor conflict gate's domain — that finding's rendering is
- * cross-referenced (see `renderMismatch`), not duplicated here.
- *
- * String bullets: stories whose `body.changes` items are still bare
- * strings are hard errors — they are pushed to `errors[]` by the
- * validator's body-shape gate before this module runs. There is no
- * silent skip or deprecation nudge.
+ * file-assumptions.js — Phase 8 path-assumption validator: every Story's
+ * `{ path, assumption }` entry in `body.changes` / `body.references` is
+ * checked against `baseBranchRef`, overlaid with the create/delete delta of
+ * the Story's transitive `depends_on` predecessors (the simulated
+ * post-predecessor tree). `changes[]` is an advisory sketch, so every
+ * mismatch is a warning except `deletes` on an absent path (nothing to act
+ * on), which is an error.
  */
 
 import { gitSpawn } from '../git-utils.js';
@@ -64,12 +15,8 @@ import { computeStoryReachability } from './story-reachability.js';
 import { isObjectPathEntry } from './task-body-validator.js';
 
 /**
- * Default git probe — returns `true` when `path` exists at
- * `baseBranchRef`. Mirrors the existence check used by
- * {@link ./ticket-validator.js#validateAcFreshness} so both gates share
- * semantics. (Story #4811 deleted the third sharer, `spec-freshness.js`,
- * along with the codebase snapshot it grounded; this gate — Phase 8 — is
- * now the grounding gate and its behaviour is unchanged.)
+ * Existence probe at `baseBranchRef`; same semantics as
+ * `ticket-validator.js#validateAcFreshness`.
  *
  * @param {{ baseBranchRef: string, path: string, cwd?: string }} opts
  * @returns {boolean}
@@ -85,16 +32,9 @@ function defaultGitRunner({ baseBranchRef, path, cwd }) {
 }
 
 /**
- * Parse the `--name-status` line for the commit that last touched `path`
- * into the history verdict (Story #5265).
- *
- * `-M` reports a rename as `R<score>\t<old>\t<new>`. The scan is run over the
- * commit's **whole** rename diff rather than a pathspec-limited one on
- * purpose: rename detection pairs a delete with an add, and restricting the
- * pathspec to the source path filters the add out, so git falls back to
- * reporting a plain `D` and the target is lost. No matching `R` line means
- * the path was deleted outright — still a removal, just without a successor
- * to name.
+ * Find `path`'s rename target in a commit's `--name-status -M` output. The
+ * diff must be the whole commit, not pathspec-limited: limiting to the
+ * source path filters out the add half, so git reports a plain `D`.
  *
  * @param {string} stdout
  * @param {string} path
@@ -113,20 +53,10 @@ function parseRenameTarget(stdout, path) {
 }
 
 /**
- * Default git **history** probe: did `baseBranchRef` ever track `path`, and
- * if so, which commit stopped tracking it (Story #5265)?
- *
- * The existence probe above cannot tell a mechanical mislabel ("extend a file
- * I am actually creating") from a plan authored against stale documentation
- * ("extend a file deleted three weeks ago"). Both look identical at the tip —
- * the path is absent — and only history separates them. Injectable exactly
- * like {@link defaultGitRunner} so the discrimination is unit-testable with
- * no repository fixture.
- *
- * Fails **open**: an unreadable ref, a git that errors, or an empty history
- * all report `hadHistory: false`, which preserves the pre-#5265
- * auto-normalisation rather than manufacturing a hard error out of a probe
- * failure.
+ * History probe: did `baseBranchRef` ever track `path`, and which commit
+ * removed it? Separates a mislabelled create from a plan written against a
+ * deleted file. Fails open (`hadHistory: false`) so a probe failure never
+ * becomes an error.
  *
  * @param {{ baseBranchRef: string, path: string, cwd?: string }} opts
  * @returns {{ hadHistory: boolean, commit: string|null, renamedTo: string|null }}
@@ -152,15 +82,6 @@ function defaultHistoryRunner({ baseBranchRef, path, cwd }) {
 }
 
 /**
- * Pull every `(path, assumption, source)` triple from a Story body.
- * `source` is one of `'changes' | 'references'` so error messages can
- * point the operator at the right list.
- *
- * Returns an empty array when the body is absent, a plain string, or
- * carries no object-form entries — that's the legacy path. Callers use
- * the resulting array's emptiness to decide whether to emit a
- * deprecation warning for the Story.
- *
  * @param {object} story
  * @returns {Array<{ path: string, assumption: string, source: 'changes' | 'references' }>}
  */
@@ -168,17 +89,12 @@ export function collectStoryAssumptionEntries(story) {
   const out = [];
   const body = story?.body;
 
-  // Story #3302: when the body is a markdown string (canonical serialized
-  // form emitted by `serialize()` from story-body.js), parse it first to
-  // extract the structured changes[] / references[] arrays. Without this,
-  // every story with a string body would be treated as the legacy case
-  // (no object-form entries) and the assumption gate would silently no-op.
+  // A serialized markdown body must be parsed, or the gate silently no-ops.
   let structuredBody;
   if (typeof body === 'string' && body.trim().length > 0) {
     try {
       structuredBody = parseStoryBody(body).body;
     } catch {
-      // Unparseable body — treat as legacy (no assumptions to check).
       return out;
     }
   } else if (body !== null && typeof body === 'object') {
@@ -213,11 +129,6 @@ export function collectStoryAssumptionEntries(story) {
 }
 
 /**
- * Predicate: does the story have any string-form `body.changes` bullets
- * left over after a partial migration? Used to decide whether to emit a
- * per-story deprecation warning even when at least one object entry is
- * present.
- *
  * @param {object} story
  * @returns {boolean}
  */
@@ -229,21 +140,10 @@ export function hasLegacyChangeBullets(story) {
 }
 
 /**
- * Render a single mismatch into a stable error string. Kept pure so
- * tests can pin the exact message shape downstream tooling parses.
- *
- * The `expected` discriminator selects the message shape:
- *   - `'present'`            — base-branch read/refactor/delete target absent.
- *   - `'absent'`             — base-branch `creates` target already exists.
- *   - `'refactors-existing'` — wave-aware: a transitive predecessor already
- *     creates this path, so the dependent Story should declare
- *     `refactors-existing` (Story #3960). Names the producing Story.
- *   - `'predecessor-conflict'` — wave-aware: a concurrent Story (no
- *     `depends_on` ordering) also creates this path. Cross-references the
- *     shared-editor conflict finding rather than re-deriving its prose.
- *   - `'present-was-removed'` — the base branch **once tracked** this path
- *     and no longer does (Story #5265). Names the removing commit, and the
- *     rename target when git detected one.
+ * Render a mismatch as a stable string (downstream tooling parses it),
+ * selected by `expected`: `present`, `absent`, `refactors-existing`
+ * (predecessor creates it), `predecessor-conflict` (unordered co-creator),
+ * `present-was-removed` (base branch removed it).
  *
  * @param {{ slug: string, source: string, path: string, assumption: string, expected: string, producerSlug?: string, removedInCommit?: string, renamedTo?: string|null }} mismatch
  * @returns {string}
@@ -281,16 +181,9 @@ function renderMismatch({
 }
 
 /**
- * Render the stale-documentation refusal (Story #5265).
- *
- * The auto-normalisation this replaces is right for a path that never
- * existed and wrong for one the base branch used to track: "extend
- * `<deleted file>`" is not a mechanical mislabel a rewrite can fix — it is a
- * plan authored against documentation the tree has outgrown, and rewriting it
- * to `creates` would resurrect a file somebody deliberately removed and
- * propagate the stale premise into acceptance criteria nothing can satisfy.
- * The removing commit is named because it is the shortest route to *what
- * replaced it*.
+ * A refactor of a path the base branch once tracked is a plan written
+ * against stale docs; normalizing it to `creates` would resurrect a
+ * deliberately removed file. The removing commit points at its replacement.
  *
  * @param {{ slug: string, source: string, path: string, assumption: string, removedInCommit?: string, renamedTo?: string|null }} mismatch
  * @returns {string}
@@ -310,10 +203,6 @@ function renderRemovedPathMismatch({
 }
 
 /**
- * Render an auto-normalization (#4496 fix 5) into a stable warning string.
- * Kept pure and exported through the report so callers log a
- * self-explanatory line rather than re-deriving the rationale.
- *
  * @param {{ slug: string, source: string, path: string, assumption: string }} normalization
  * @returns {string}
  */
@@ -322,13 +211,8 @@ function renderNormalization({ slug, source, path, assumption }) {
 }
 
 /**
- * Index, across every Story, which Stories declare a `creates` (and which
- * declare a `deletes`) for each `changes`-sourced path. The maps drive the
- * wave-aware simulated-tree overlay: a path created by a transitive
- * predecessor is treated as present, a path deleted by one as absent.
- *
- * Only `changes`-sourced entries count — `references` describe read
- * dependencies, never writes, so they cannot mutate the simulated tree.
+ * Index which Stories `creates` / `deletes` each path. Only `changes`
+ * entries count; `references` are reads and never mutate the tree.
  *
  * @param {object[]} stories
  * @returns {{ creators: Map<string, string[]>, deleters: Map<string, string[]> }}
@@ -361,10 +245,6 @@ function indexPathMutations(stories) {
 }
 
 /**
- * Resolve the first transitive predecessor of `story` that mutates `path`
- * in the requested way (`creators` or `deleters` index). Returns the
- * producing Story's slug, or `null` when no predecessor mutates the path.
- *
  * @param {Map<string, string[]>} index
  * @param {string} path
  * @param {Set<string>} predecessors  Transitive `depends_on` slug set.
@@ -380,38 +260,16 @@ function predecessorMutator(index, path, predecessors) {
 }
 
 /**
- * Validate every Story's declared file assumptions against the simulated
- * post-predecessor tree: the actual state of `baseBranchRef` overlaid with
- * the create/delete delta of the Story's transitive `depends_on`
- * predecessors (Story #3960). Returns an envelope:
- *
- *   {
- *     errors:    string[]   // a `deletes` naming an absent path, or a
- *                           // legacy string-bullet body — the refusals
- *     warnings:  string[]   // every other mismatch (Story #5312) +
- *                           // auto-normalization notices (#4496 fix 5)
- *     mismatches: object[]  // structured payload for downstream tooling
- *     normalizations: object[] // `refactors-existing`→`creates`
- *                           // auto-normalizations on base-untracked paths
- *   }
- *
- * Under the 2-tier hierarchy the Story is the implementation unit, so the
- * gate scans `type === 'story'` tickets and reads the inline
- * `{ path, assumption }` entries on each Story body.
- *
- * The function never throws on a probe failure — the runner is expected
- * to return `false` for any unreadable git ref, which surfaces the path
- * as a mismatch (for `refactors-existing` / `exists` / `deletes`) or as
- * fresh (for `creates`). This matches the non-blocking, advisory shape
- * of the Phase 7 freshness check.
+ * Validate every Story's file assumptions against the simulated
+ * post-predecessor tree. `errors` holds refusals (`deletes` on an absent
+ * path, legacy string bullets); `warnings` every other mismatch plus
+ * normalization notices. Never throws on a probe failure.
  *
  * @param {object}   opts
  * @param {object[]} opts.tickets
  * @param {string}   opts.baseBranchRef
  * @param {Function} [opts.gitRunner]      Existence probe at `baseBranchRef`.
- * @param {Function} [opts.historyRunner]  History probe (Story #5265),
- *   injectable exactly like `gitRunner`; returns
- *   `{ hadHistory, commit, renamedTo }`.
+ * @param {Function} [opts.historyRunner]  Returns `{ hadHistory, commit, renamedTo }`.
  * @param {string}   [opts.cwd]
  * @returns {{ errors: string[], warnings: string[], mismatches: Array, normalizations: Array }}
  */
@@ -444,10 +302,6 @@ export function validateStoryFileAssumptions(opts) {
       cache: historyCache,
     });
 
-  // Wave-aware setup (Story #3960): transitive predecessor sets over the
-  // story-level `depends_on` graph, plus per-path create/delete indices so
-  // each Story is validated against the simulated post-predecessor tree
-  // rather than the base branch alone.
   const reach = computeStoryReachability(stories);
   const { creators, deleters } = indexPathMutations(stories);
 
@@ -488,9 +342,7 @@ export function validateStoryFileAssumptions(opts) {
         path,
         predecessors,
       );
-      // Simulated post-predecessor existence: base state, then a
-      // predecessor `creates` makes the path present, a predecessor
-      // `deletes` (with no predecessor create) makes it absent.
+      // A predecessor create wins over a predecessor delete.
       let simulatedExists = baseExists;
       if (predecessorCreator) simulatedExists = true;
       else if (predecessorDeleter) simulatedExists = false;
@@ -504,9 +356,6 @@ export function validateStoryFileAssumptions(opts) {
         predecessorCreator,
       });
       if (mismatch !== null) {
-        // Auto-normalization (#4496 fix 5): a deterministic
-        // `refactors-existing`→`creates` rewrite is a warning, never a
-        // rejection — genuine mismatches keep flowing to `errors`.
         const { kind, finding } = classifyMismatch(mismatch, probeHistory);
         if (kind === 'normalization') {
           normalizations.push(finding);
@@ -517,13 +366,8 @@ export function validateStoryFileAssumptions(opts) {
         routeMismatch(finding, { errors, warnings });
         continue;
       }
-      // Wave-aware concurrent-create check (Story #3960): two Stories with
-      // no `depends_on` ordering both declaring `creates` on the same path.
-      // The shared-editor conflict gate owns the canonical resolution; this
-      // gate surfaces the same signal in the assumption channel and
-      // cross-references that finding rather than re-deriving its prose.
-      // Only reached when `checkAssumption` returned clean — a base-branch
-      // clobber or a predecessor-create already produced a richer mismatch.
+      // Unordered co-creators: the shared-editor conflict gate owns the
+      // resolution; this only cross-references it.
       if (assumption === 'creates') {
         const concurrent = concurrentCoCreator({
           creators,
@@ -551,9 +395,7 @@ export function validateStoryFileAssumptions(opts) {
 }
 
 /**
- * Route one confirmed mismatch to the channel it belongs on (Story #5312):
- * a `deletes` on an absent path is the one declaration nothing can act on and
- * stays an error; every other mismatch is advisory and lands on `warnings`.
+ * Only a `deletes` on an absent path is an error; the rest are warnings.
  *
  * @param {object} finding
  * @param {{ errors: string[], warnings: string[] }} channels
@@ -565,14 +407,8 @@ function routeMismatch(finding, { errors, warnings }) {
 }
 
 /**
- * Route one mismatch to the errors channel or the normalization channel
- * (Story #5265).
- *
- * `checkAssumption` marks a `changes`-sourced `refactors-existing` on an
- * absent path with `normalizedTo: 'creates'` — the #4496 rescue. Whether that
- * rescue actually applies is a *history* question the pure rules table cannot
- * answer, so it is resolved here: no history keeps the rescue, history ending
- * in a removal converts it into a refusal that names the commit.
+ * Decide whether a `normalizedTo: 'creates'` mismatch keeps its rescue: no
+ * history keeps it; history ending in a removal becomes a refusal.
  *
  * @param {object} mismatch
  * @param {(path: string) => ({ commit: string|null, renamedTo: string|null }|null)} probeHistory
@@ -600,14 +436,8 @@ function classifyMismatch(mismatch, probeHistory) {
 }
 
 /**
- * Memoized history probe: `{ commit, renamedTo }` when `baseBranchRef` once
- * tracked `path` and no longer does, `null` when it never did (Story #5265).
- *
- * One cache per validation run, keyed on the path, because a plan commonly
- * declares the same path across several Stories and the probe costs two git
- * processes. A runner that throws is absorbed as "no history": the whole
- * point of the discrimination is to *add* a refusal for a provable stale
- * declaration, never to convert a probe failure into one.
+ * Memoized per run (the probe costs two git processes). A throwing runner
+ * means "no history" — a probe failure must never manufacture a refusal.
  *
  * @param {{ historyRunner: Function, baseBranchRef: string, path: string, cwd?: string, cache: Map<string, object|null> }} args
  * @returns {{ commit: string|null, renamedTo: string|null }|null}
@@ -631,12 +461,8 @@ function probeRemoval({ historyRunner, baseBranchRef, path, cwd, cache }) {
 }
 
 /**
- * Find the first *concurrent* co-creator of `path` for the Story `slug`:
- * another Story that declares `creates` on the same path with no
- * `depends_on` ordering in either direction. Returns that Story's slug, or
- * `null` when every co-creator is ordered relative to `slug` (predecessor
- * or successor) — those are handled by the predecessor-create rule, not the
- * concurrent-conflict rule.
+ * First other Story creating `path` with no `depends_on` ordering either
+ * way; ordered co-creators fall to the predecessor-create rule.
  *
  * @param {{ creators: Map<string, string[]>, path: string, slug: string, reach: Map<string, Set<string>> }} args
  * @returns {string|null}
@@ -648,7 +474,6 @@ function concurrentCoCreator({ creators, path, slug, reach }) {
   for (const other of slugs) {
     if (other === slug) continue;
     const otherPredecessors = reach.get(other) ?? new Set();
-    // Ordered in either direction → not concurrent.
     if (myPredecessors.has(other)) continue;
     if (otherPredecessors.has(slug)) continue;
     return other;
@@ -657,18 +482,6 @@ function concurrentCoCreator({ creators, path, slug, reach }) {
 }
 
 /**
- * Apply one assumption rule against the simulated post-predecessor tree and
- * return a structured mismatch or `null` when the declared assumption
- * matches. Extracted from `validateStoryFileAssumptions` so the rules table
- * sits in one place that's trivially unit-testable.
- *
- * `baseExists` is the path's existence on the base branch; `simulatedExists`
- * is `baseExists` overlaid with the create/delete delta of the Story's
- * transitive predecessors. `predecessorCreator` (when non-null) is the slug
- * of the predecessor Story that creates the path — used to distinguish a
- * wave-aware `creates`-on-a-will-exist-path mismatch from the base-branch
- * "already exists" mismatch, and to name the producing Story in the nudge.
- *
  * @param {{ slug: string, source: string, path: string, assumption: string, baseExists: boolean, simulatedExists: boolean, predecessorCreator: string|null }} args
  * @returns {object|null}
  */
@@ -683,8 +496,6 @@ function checkAssumption({
 }) {
   switch (assumption) {
     case 'creates':
-      // Base-branch clobber — the path already exists before any Story
-      // runs. Unchanged from the base-branch-only rule.
       if (baseExists) {
         return {
           slug,
@@ -695,9 +506,6 @@ function checkAssumption({
           actual: 'present',
         };
       }
-      // Wave-aware (Story #3960): a transitive predecessor already creates
-      // this path, so it exists in the simulated tree. Nudge the planner to
-      // declare `refactors-existing` and name the producing Story.
       if (predecessorCreator) {
         return {
           slug,
@@ -711,18 +519,10 @@ function checkAssumption({
       }
       return null;
     case 'refactors-existing':
-      // Validate against the simulated tree: a predecessor `creates` makes
-      // an otherwise-absent base path present, so `refactors-existing`
-      // against it is no longer a false-positive mismatch (Story #3960).
       if (!simulatedExists) {
-        // Auto-normalization (#4496 fix 5): a `changes`-sourced refactor
-        // declaration on a path untracked at the base branch (and not
-        // produced by any predecessor) is deterministically a create —
-        // downgrade to a normalization warning instead of rejecting. Two
-        // genuine mismatches stay hard errors: a `references`-sourced entry
-        // (a read dependency this Story does not author cannot be "created"
-        // here), and a base-TRACKED path a predecessor deletes (the absence
-        // is a plan-shape conflict, not an untracked-path misdeclaration).
+        // A `changes` refactor of a base-untracked path is deterministically
+        // a create. A `references` entry (not authored here) or a tracked
+        // path a predecessor deletes stays a genuine mismatch.
         if (source === 'changes' && !baseExists) {
           return {
             slug,
@@ -746,8 +546,6 @@ function checkAssumption({
       return null;
     case 'exists':
     case 'deletes':
-      // Same simulated-tree overlay as above (Story #3960); an absent path
-      // remains a genuine mismatch for both assumptions.
       if (!simulatedExists) {
         return {
           slug,
@@ -760,9 +558,7 @@ function checkAssumption({
       }
       return null;
     default:
-      // Unknown assumption values were already rejected by the body
-      // schema validator — defensive default so future enum additions
-      // surface as test failures rather than silent passes.
+      // Schema already rejects unknown values; fail loud on new enum members.
       return {
         slug,
         source,
@@ -774,8 +570,4 @@ function checkAssumption({
   }
 }
 
-/**
- * Re-export the canonical assumption enum so callers can reach for the
- * list without depending on task-body-validator's internals.
- */
 export { FILE_ASSUMPTION_VALUES };

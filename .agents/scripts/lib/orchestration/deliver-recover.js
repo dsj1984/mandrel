@@ -1,42 +1,8 @@
 /**
- * deliver-recover.js — probe a stranded Story and name its ONE next command
- * (Story #4543).
- *
- * Recovery here is a **read, not a repair**. Every input is already
- * probeable — labels and lease from the ticket, the branch locally and via
- * its tracking ref, the worktree path, the PR by head branch (with state,
- * merge, and checks probes) — so this module is probes, a decision table
- * over `label × PR × branch × worktree`, and one command with the evidence it
- * was derived from. It never mutates anything, and it never prints a menu of
- * options: a menu is what an operator already has, and it is the thing they
- * cannot act on.
- *
- * The strand shapes the table resolves, and why each is real:
- *
- *   - `executing`, branch UNPUSHED, no PR → resume implementation. The work
- *     never reached close. Since Story #5267 the worker pushes before its
- *     creditable capture, so an unpushed branch means this and nothing else.
- *   - `executing`, branch PUSHED, no PR → run close. The worker's hand-off
- *     landed; only the close-and-land tail is owed, and re-initializing here
- *     would re-open finished work.
- *   - `closing` with a pending PR → resume the land. The overwhelmingly
- *     common shape now that the merge wait is bounded: the wait returned
- *     `pending` and something has to pick it back up.
- *   - `closing` with a red PR → enter the fix loop. Waiting is pointless; no
- *     budget turns a failed check green.
- *   - `closing` with a MERGED PR → run confirm. **This is the strand a
- *     `/mandrel-deliver` re-run refuses outright**, because `single-story-init.js`
- *     hard-errors on an already-closed Story — so before this surface, the
- *     merged-but-label-stale Story had no automated way back.
- *   - `done` with a drifted board → run resync. The GitHub Projects bot won
- *     the race.
- *   - `blocked` → print the class-specific remediation the friction comment
- *     already names, rather than inventing a second opinion about a
- *     condition that was already classified.
- *
- * The command vocabulary is shared with the terminal envelope
- * (`story-deliver-terminal.js#NEXT_COMMANDS`), so recovery and normal
- * resumption speak one language instead of two dialects for one state.
+ * deliver-recover.js — probe a stranded Story and name its ONE next command.
+ * Read-only: probes, a decision table over label × PR × branch × worktree ×
+ * close artifacts, and one command plus its evidence — never a menu. The
+ * command vocabulary is `story-deliver-terminal.js#NEXT_COMMANDS`.
  */
 
 import nodeFs from 'node:fs';
@@ -52,21 +18,12 @@ import { NEXT_COMMANDS } from './story-deliver-terminal.js';
 import { STATE_LABELS } from './ticketing.js';
 
 /**
- * How recently the gate log must have been appended for the close that writes
- * it to count as live (Story #4816).
- *
- * The window is generous on purpose. Gate output arrives in bursts — a single
- * `npm test` gate can run for a long stretch between lines — so a tight window
- * would read a slow-but-healthy close as dead and re-open the exact
- * misdiagnosis this exists to remove. Being wrong in the other direction is
- * cheap: the verdict for a live close is "re-run this read-only probe", which
- * costs nothing if the close has in fact already exited.
+ * Gate-log freshness window for a close to count as live. Generous because
+ * gate output is bursty; erring toward "live" only costs a re-probe.
  */
 const CLOSE_IN_FLIGHT_WINDOW_MS = 120_000;
 
 /**
- * Probe the ticket: state labels, issue open/closed, and the lease holder.
- *
  * @returns {Promise<object>}
  */
 export async function probeTicket({ provider, storyId }) {
@@ -90,8 +47,7 @@ export async function probeTicket({ provider, storyId }) {
 }
 
 /**
- * Probe the Story branch locally and its remote tracking ref, plus the
- * worktree path. Pure git — no network.
+ * Local branch, remote tracking ref and worktree path. No network.
  *
  * @returns {object}
  */
@@ -128,9 +84,7 @@ export function probeBranch({ cwd, storyBranch, config, gitSpawnFn }) {
 }
 
 /**
- * Probe the PR for the Story branch. `--state all` is required: a merged PR
- * is no longer `open`, and the merged-but-label-stale strand is precisely
- * the one that matters most here.
+ * `--state all`: the merged-but-label-stale strand needs the merged PR.
  *
  * @returns {Promise<object|null>}
  */
@@ -155,20 +109,9 @@ export async function probePr({ storyBranch, gh = defaultGh }) {
 }
 
 /**
- * Probe the two on-disk artifacts a close leaves behind (Story #4816): the
- * persisted terminal envelope and the gate log.
- *
- * These exist because the label-and-PR probes above cannot see the difference
- * between an implementation that died and a close that is still running —
- * both read `agent::executing` with no PR for the whole gate chain. The
- * artifacts can: a persisted envelope means the close already reached a
- * verdict, and a recently-appended gate log means one is mid-chain right now.
- * Gate-log freshness is exactly the signal operators were already using by
- * hand to tell the two apart, which is the argument for reading it here
- * instead of expecting them to know.
- *
- * Never throws: an unreadable or absent artifact is a `null` reading, and the
- * table falls back to the label-only verdict it always had.
+ * Probe the close's persisted terminal envelope and gate log — the only
+ * evidence separating a dead implementation from a close mid-gate-chain
+ * (both read `executing` with no PR). Never throws; absent reads are `null`.
  *
  * @param {{
  *   storyId: number,
@@ -216,9 +159,6 @@ export function probeCloseArtifacts({
   let envelopeMtimeMs = null;
   try {
     const parsed = JSON.parse(fsImpl.readFileSync(envelopePath, 'utf8'));
-    // A parsed non-object (or an array) is not an envelope; treat it as
-    // absent rather than handing the table something it cannot read fields
-    // off of.
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
       envelope = parsed;
       envelopeMtimeMs = fsImpl.statSync(envelopePath).mtimeMs;
@@ -249,14 +189,8 @@ export function probeCloseArtifacts({
 }
 
 /**
- * Is a close running right now, outranking whatever a persisted envelope says?
- *
- * A persisted envelope is definitive about the close that wrote it — but a
- * Story can be closed more than once (a `pending` wait resumed, a red gate
- * fixed and re-run), and a *stale* envelope from the previous attempt must not
- * out-argue a gate log the current attempt is appending to as we read. So the
- * live signal wins whenever the gate log is both fresh and fresher than the
- * envelope.
+ * A fresh gate log newer than the envelope wins: a Story can be closed more
+ * than once, and a prior attempt's envelope must not mask a live one.
  *
  * @param {object} artifacts A {@link probeCloseArtifacts} reading.
  * @returns {boolean}
@@ -268,14 +202,9 @@ function closeLooksLive(artifacts) {
 }
 
 /**
- * The verdict for a Story whose close already finished but whose envelope
- * never reached the caller — the orphaned-turn shape (Story #4816).
- *
- * Nothing is re-derived here: the envelope on disk is the same
- * schema-validated object the close emitted, so its own `status` and
- * `nextCommand` are relayed rather than a second opinion invented from
- * labels. A `landed` envelope carries a null next command, and the honest
- * follow-up for a landed-but-mislabelled Story is the idempotent confirm.
+ * Close finished but its envelope never reached the caller. Relay the
+ * envelope's own `nextCommand`; a landed one names none, so fall back to the
+ * idempotent confirm.
  */
 function envelopeOnDiskVerdict({ storyId, artifacts, evidence }) {
   const { envelope, envelopePath } = artifacts;
@@ -294,13 +223,8 @@ function envelopeOnDiskVerdict({ storyId, artifacts, evidence }) {
 }
 
 /**
- * The verdict for a close that is running as we probe (Story #4816).
- *
- * The next command is this probe again. That is not a shrug: there is no
- * attach-to-a-running-close surface, the close needs nothing from anyone, and
- * every *other* command an operator might reach for here is actively harmful
- * — which is why the detail names the re-init hazard explicitly instead of
- * leaving it implied.
+ * A close is running: the only safe command is this probe again; every
+ * other one (notably re-init) would race it.
  */
 function closeInFlightVerdict({ storyId, artifacts, evidence }) {
   const seconds = Math.round((artifacts.gateLogAgeMs ?? 0) / 1000);
@@ -320,12 +244,7 @@ function closeInFlightVerdict({ storyId, artifacts, evidence }) {
 }
 
 /**
- * The `agent::executing` rows of the table (Story #4543; split on push state
- * by Story #5267).
- *
- * Lifted out of {@link decideRecovery} because this label alone fans out into
- * five distinct strands, and because the push-state split below only reads
- * correctly next to the artifact probes it is ordered after.
+ * The `agent::executing` rows; order matters (artifacts before push state).
  *
  * @param {{ storyId: number, branch: object, pr: object|null, closeArtifacts?: object, evidence: string[] }} args
  * @returns {{ shape: string, nextCommand: string|null, detail: string, evidence: string[] }}
@@ -342,12 +261,7 @@ function decideExecuting({ storyId, branch, pr, closeArtifacts, evidence }) {
       evidence,
     };
   }
-  // Story #4816 — the close artifacts get the first word here, and ONLY
-  // here. Every other row of this table describes a state whose evidence is
-  // already unambiguous; `executing` + no PR is the one row that reads
-  // identically for a dead implementation and for a close that is halfway
-  // through its gate chain, and answering it from labels alone is what sent
-  // operators to re-init on top of a live close.
+  // `executing` + no PR is ambiguous from labels alone; artifacts decide.
   if (closeLooksLive(closeArtifacts)) {
     return closeInFlightVerdict({
       storyId,
@@ -362,13 +276,8 @@ function decideExecuting({ storyId, branch, pr, closeArtifacts, evidence }) {
       evidence,
     });
   }
-  // Story #5267 — push state is what separates the two remaining strands, and
-  // it separates them cleanly now that the worker pushes BEFORE its creditable
-  // capture. Before that ordering, a worker whose turn ended on the
-  // backgrounded capture left an unpushed branch that was indistinguishable
-  // from work that never got started; now an unpushed branch means exactly one
-  // thing, and a pushed one means the hand-off happened and only close is
-  // owed.
+  // The worker pushes before its creditable capture, so pushed means
+  // handed off (close owed) and unpushed means implementation unfinished.
   if (branch?.remote) {
     return {
       shape: 'executing-pushed-no-pr',
@@ -394,11 +303,7 @@ function decideExecuting({ storyId, branch, pr, closeArtifacts, evidence }) {
 }
 
 /**
- * The decision table. Pure: every input is an already-observed probe, so the
- * mapping is testable without git, GitHub, or a clock.
- *
- * Returns exactly one `{ shape, nextCommand, evidence[], detail }` — never a
- * list of candidates.
+ * The pure decision table: exactly one verdict, never a list.
  *
  * @param {{
  *   storyId: number,
@@ -435,12 +340,9 @@ export function decideRecovery({
   ];
 
   const label = ticket?.stateLabel;
-  // The shared merged predicate (Story #5383); this probe runs in its own
-  // process, so it keeps its own read but not its own definition.
   const merged = isPrMerged(pr);
 
-  // A merged PR outranks every label reading. The code is on the base
-  // branch; whatever the label says, the only thing left is the flip + tail.
+  // A merged PR outranks every label: only the flip + tail remain.
   if (merged && label !== STATE_LABELS.DONE) {
     return {
       shape: 'merged-label-stale',
@@ -528,15 +430,8 @@ export function decideRecovery({
 }
 
 /**
- * The shapes a LIVE delivery process actively mutates while it runs. A probe
- * that lands mid-close can read `executing` + `pr=none` seconds before the
- * push and PR-open land, and confidently misdirect the operator to re-init a
- * Story whose close is about to open a PR (observed live on Story #4712: two
- * probes seconds apart flipped `executing-no-pr` → `executing-with-pr`).
- * These shapes therefore earn a stability re-probe before the verdict is
- * trusted; the remaining shapes (`merged-label-stale`, `blocked`,
- * `done-board-drift`, `ready`) describe settled states no live process is
- * racing to change.
+ * Shapes a live delivery may be mutating (e.g. a PR about to open), so they
+ * earn a stability re-probe; the other shapes are settled.
  */
 const TRANSIENT_SHAPES = new Set([
   'executing-no-pr',
@@ -545,27 +440,14 @@ const TRANSIENT_SHAPES = new Set([
   'closing-no-pr',
   'closing-pr-pending',
   'closing-pr-red',
-  // Story #4816 — the definition of this shape is "a process is mutating this
-  // Story right now", so it is the most transient row in the table: the second
-  // probe often catches the push and PR landing and returns a settled verdict
-  // instead.
   'close-in-flight',
 ]);
 
-/**
- * Default settle window between the two probes of the stability pass. Long
- * enough for an in-flight push / `gh pr create` / label flip to land (each is
- * a single network call), short enough that the read-only CLI stays
- * interactive.
- */
+/** Settle window: enough for one push / PR open / label flip to land. */
 const STABILITY_DELAY_MS = 5000;
 
 /**
- * Build the verdict for a state observed mid-mutation: the two probe rounds
- * derived DIFFERENT shapes, so neither is safe to act on — acting on the
- * first misdirects (the #4712 shape), acting on the second may race the same
- * live process again. The one next command is the probe itself, re-run once
- * the live process settles.
+ * The two probes disagreed, so neither is safe to act on; re-probe later.
  *
  * @param {{ storyId: number, first: object, second: object, delayMs: number }} args
  * @returns {{ shape: string, nextCommand: string, detail: string, evidence: string[] }}
@@ -588,10 +470,7 @@ function buildInTransitionVerdict({ storyId, first, second, delayMs }) {
   };
 }
 
-/**
- * One full probe round: ticket + branch + PR → decision. Throws only when
- * the ticket itself is unreadable (the probe cannot run without it).
- */
+/** Throws only when the ticket is unreadable. */
 async function probeAndDecide({
   storyId,
   storyBranch,
@@ -610,9 +489,6 @@ async function probeAndDecide({
   }
   const branch = probeBranch({ cwd, storyBranch, config, gitSpawnFn });
   const pr = await probePr({ storyBranch, gh });
-  // Re-read on every round: the whole point of the stability pass is that a
-  // second look can catch a close that has since flushed a gate line or
-  // written its envelope.
   const closeArtifacts = probeCloseArtifacts({
     storyId,
     config,
@@ -629,14 +505,9 @@ async function probeAndDecide({
 }
 
 /**
- * Probe live state and resolve the single next command. Read-only.
- *
- * Transient shapes (`executing-*` / `closing-*`) get a **stability re-probe**
- * (same consecutive-evidence pattern the merge wait's fail-fast uses, Story
- * #4695): a second probe after a short settle window. Matching shapes return
- * the fresher verdict; diverging shapes return `in-transition` instead of a
- * confidently wrong command. Settled shapes skip the second round — their
- * state has no live process racing to change it.
+ * Probe live state and resolve the single next command. Transient shapes
+ * are re-probed after a settle window: a match returns the fresher verdict,
+ * a divergence returns `in-transition`.
  *
  * @param {object} args
  * @param {number} args.storyId
@@ -645,9 +516,7 @@ async function probeAndDecide({
  * @param {object} [args.config]
  * @param {object} [args.gh]
  * @param {Function} [args.gitSpawnFn]
- * @param {boolean} [args.reprobe=true] Disable to skip the stability pass
- *   (single-probe legacy behavior — for scripted callers that own their own
- *   settling).
+ * @param {boolean} [args.reprobe=true] Skip the stability pass when false.
  * @param {number} [args.stabilityDelayMs] Settle window between the probes.
  * @param {Function} [args.sleepFn] Test seam for the settle wait.
  * @param {typeof nodeFs} [args.fsImpl] Test seam for the close-artifact reads.
@@ -692,7 +561,6 @@ export async function recoverStory({
   const second = await probeAndDecide(probeArgs);
 
   if (second.decision.shape === first.decision.shape) {
-    // Stable across the settle window — trust the fresher evidence.
     return {
       storyId,
       storyBranch,
@@ -717,9 +585,7 @@ export async function recoverStory({
 }
 
 /**
- * Render the operator-facing report: the shape, the one command, and the
- * evidence it was derived from — so the operator can check the reasoning
- * rather than trust it.
+ * Render the report with its evidence so the reasoning can be checked.
  *
  * @param {object} recovery
  * @returns {string}

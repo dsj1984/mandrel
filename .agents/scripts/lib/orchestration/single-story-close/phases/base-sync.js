@@ -1,25 +1,8 @@
 /**
- * phases/base-sync.js — pre-push base-sync phase for `single-story-close`.
- *
- * Story #2580: sync the Story branch from `origin/<baseBranch>` before
- * push so the PR opens with the latest base commits already integrated.
- * Defends against the parallel-`/single-story-deliver` race where one
- * Story's auto-merge bumps `main` while sibling Stories are mid-flight —
- * without the sync, the lagging PRs open "behind base" and stall against
- * the `up-to-date branch` protection rule.
- *
- * The sync runs INSIDE the worktree (where the Story branch is checked
- * out); falls back to the main checkout when the worktree is absent.
- * On a merge conflict the Story is transitioned to `agent::blocked` via
- * `handleSyncFailure` and the caller throws — the operator resolves in
- * the worktree and re-runs.
- *
- * Story #5267: a sync that lands tracked content also spends the worker's
- * pre-push credit, because that credit is keyed on the tree. The phase says
- * so out loud — see `buildStampInvalidatedWarning` — instead of leaving
- * close's second full suite looking like a bug. Story #5278 splits the claim
- * in two: gate evidence is spent by any tracked path, the capture stamp only
- * by one under `crap.targetDirs`.
+ * phases/base-sync.js — sync the Story branch from `origin/<baseBranch>`
+ * before push, so a PR does not open behind a base a sibling's merge just
+ * moved. Runs in the worktree (else the main checkout); a failure blocks the
+ * Story and throws.
  */
 
 import { getQuality } from '../../../config/quality.js';
@@ -35,11 +18,7 @@ import {
 } from '../../ticketing.js';
 
 /**
- * Orchestrate the pre-push base-sync step: run `syncBranchFromBase`
- * inside the worktree (or main checkout when no worktree exists). On
- * failure, post a friction comment, flip the Story to `agent::blocked`,
- * and throw so the caller fails non-zero. The `--skip-sync` flag is
- * handled by the caller; this function assumes the sync is desired.
+ * `--skip-sync` is the caller's concern.
  *
  * @param {{
  *   cwd: string,
@@ -109,10 +88,7 @@ export async function runBaseSyncPhase({
 }
 
 /**
- * The CRAP scoring scope, or `[]` when it cannot be resolved. A `[]` makes
- * the warning below fall back to naming the capture stamp unconditionally —
- * the pre-#5278 wording — because an unresolvable scope is no evidence that
- * the stamp survived.
+ * The CRAP scoring scope, or `[]` when unresolvable.
  *
  * @param {typeof resolveConfig} resolveConfigImpl
  * @param {string} cwd
@@ -126,37 +102,13 @@ function resolveCrapTargetDirs(resolveConfigImpl, cwd) {
   }
 }
 
-/**
- * How many changed paths the warning names before it stops listing.
- * Enough to recognise the change set; short enough that the warning still
- * reads as a warning rather than as a diff.
- */
 const WARNED_PATH_LIMIT = 12;
 
 /**
- * The loud "your credit is spent" warning, or `[]` when the sync changed
- * nothing (Story #5267, narrowed by #5278).
- *
- * The worker banks two kinds of credit before the push: gate evidence keyed
- * on the tree (lint, typecheck) and one full-suite capture stamp keyed on the
- * content of `crap.targetDirs`. This sync runs after that, and the two are
- * spent on different conditions — which is why #5267's single blanket
- * sentence was wrong half the time:
- *
- *   - **Gate evidence** is spent by any tracked path at all, because the tree
- *     hash it is keyed on moves with the first byte.
- *   - **The capture stamp** is spent only when a merged path lands under
- *     `crap.targetDirs`. A sync that brings in docs, workflows or CI config
- *     leaves it perfectly valid, and announcing it as spent taught operators
- *     to expect a second full suite that close was never going to run.
- *
- * Quiet by construction on the outcome that cannot spend either: a
- * `noop-already-current` sync never touched the tree. A content-changing
- * fast-forward DOES warn — it moves the tree exactly as a merge commit does,
- * and staying quiet there would be a lie of omission.
- *
- * Pure. Module-private: the phase is the seam tests drive it through
- * (`injectedSync` + a `progress` spy), so it needs no export of its own.
+ * Warn that the sync spent pre-push credit, or `[]` when it changed nothing.
+ * Gate evidence is keyed on the tree, so any tracked path spends it; the
+ * full-suite capture stamp is spent only by a path under `crap.targetDirs`.
+ * A content-changing fast-forward warns just as a merge does.
  *
  * @param {{ baseBranch: string, result: { kind?: string, changedPaths?: string[] }, targetDirs?: string[] }} args
  * @returns {string[]} Progress lines, in order. Empty when nothing changed.
@@ -167,8 +119,7 @@ function buildStampInvalidatedWarning({ baseBranch, result, targetDirs }) {
     : [];
   if (changed.length === 0) return [];
   const dirs = Array.isArray(targetDirs) ? targetDirs : [];
-  // An unresolvable scope (`[]`) cannot prove the stamp survived, so it fails
-  // closed to the unconditional wording.
+  // An unresolvable scope cannot prove the stamp survived: fail closed.
   const scored =
     dirs.length === 0 ? changed : filterFilesUnderTargets(changed, dirs);
   const shown = changed.slice(0, WARNED_PATH_LIMIT);
@@ -191,8 +142,7 @@ function buildStampInvalidatedWarning({ baseBranch, result, targetDirs }) {
 }
 
 /**
- * Post a `friction` structured comment summarising a base-sync failure
- * and transition the Story to `agent::blocked`. Exported for testing.
+ * Post a `friction` comment and block the Story; both best-effort.
  *
  * @param {{
  *   provider: object,
@@ -224,10 +174,8 @@ export async function handleSyncFailure({
     result,
   });
 
-  // Post the structured comment first so the operator's recovery
-  // surface lands even if the label flip fails. Both are best-effort:
-  // we never want a notification-side failure to mask the real reason
-  // close threw.
+  // Comment first so the recovery surface lands even if the flip fails; a
+  // notification failure must never mask why close threw.
   try {
     await upsertStructuredComment(provider, storyId, 'friction', body);
     progress('SYNC', `📝 Posted friction comment on #${storyId}.`);
@@ -237,9 +185,7 @@ export async function handleSyncFailure({
     );
   }
 
-  // Story #4539 — the canonical mutator, not a direct label write: a bare
-  // `provider.updateTicket` skips the Projects v2 column sync (Story
-  // #2548) and strands the board on the Story's prior status.
+  // The canonical mutator: a bare label write skips the Projects v2 sync.
   try {
     await transitionTicketState(provider, storyId, STATE_LABELS.BLOCKED, {});
     progress('SYNC', `🚧 Flipped Story #${storyId} → ${AGENT_LABELS.BLOCKED}.`);
@@ -251,17 +197,9 @@ export async function handleSyncFailure({
 }
 
 /**
- * Build the markdown body posted on a base-sync failure. Pure; exported
- * for tests so the operator-recoverable surface stays reviewable.
- *
- * Story #4891 — `baseConfirmed` gates the merge-the-base recovery block, and
- * defaults to `false` so it fails closed. Telling the operator to run
- * `git merge origin/<baseBranch>` is actively harmful when `<baseBranch>` is
- * not the base the Story was seeded from: it permanently contaminates the
- * branch and its PR diff with an unrelated base. Close confirms the base
- * against the run's init receipt before that advice is emitted; when
- * it could not (receipt absent, unreadable, or unpinned), the operator is
- * told to establish the real base first instead.
+ * `baseConfirmed` (default false, fail-closed) gates the merge-the-base
+ * advice: merging a base the Story was not seeded from contaminates the
+ * branch and PR diff, so an unconfirmed base gets "establish it first".
  *
  * @param {{ storyId: number, storyBranch: string, baseBranch: string, baseConfirmed?: boolean, syncCwd: string, result: { kind: string, conflictFiles?: string[], stderr?: string } }} args
  * @returns {string}

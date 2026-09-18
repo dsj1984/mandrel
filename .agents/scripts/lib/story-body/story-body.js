@@ -1,41 +1,9 @@
 // .agents/scripts/lib/story-body/story-body.js
 /**
- * Canonical Story-body parser/serializer (Gap 1, Epic #3211).
- *
- * This module is the single source of truth for the Story body shape.
- * Every consumer that reads or writes a structured Story body MUST go
- * through these exports — do not inline ad-hoc parsing elsewhere.
- *
- * ## Structured Story body shape
- *
- * ```js
- * {
- *   goal:                string,           // one-sentence purpose
- *   slicing:             string,           // v2 intra-Story delivery slice plan (optional; '' when absent)
- *   spec:                string,           // folded Tech Spec text block (optional; '' when absent)
- *   changes:             PathEntry[],      // files/globs this Story touches
- *   acceptance:          string[],         // observable criteria
- *   verify:              string[],         // exact commands / tier annotation
- *   references:          PathEntry[],      // read-only paths (optional)
- *   non_goals:           string[],         // negative-scope bullets (optional, advisory)
- *   depends_on:          string[],         // blocker story slugs or #ids
- * }
- * ```
- *
- * Where `PathEntry` is:
- *   - `{ path: string, assumption: "creates"|"refactors-existing"|"exists"|"deletes" }`
- *     (canonical form — string bullets are rejected at parse time)
- *
- * ## Round-trip contract
- *
- * `serialize(parse(markdown)) === markdown` when the input is already
- * in the canonical serialized form. Non-canonical whitespace or
- * section ordering may produce a normalized (but equivalent) output.
- *
- * The parser MUST fail closed: a body that cannot be mapped to the
- * canonical shape throws `StoryBodyParseError` — it does NOT silently
- * coerce malformed input. This prevents a corrupt body from supplying
- * wrong `depends_on` edges that reorder the wave DAG.
+ * Canonical Story-body parser/serializer — the single source of truth for
+ * the Story body shape. The parser fails closed: a body that cannot be mapped
+ * to the canonical shape throws, so a corrupt body cannot supply wrong
+ * `depends_on` edges. `serialize(parse(md)) === md` for canonical input.
  *
  * @module story-body
  */
@@ -47,10 +15,6 @@ import {
   suggestPathEntryFix,
 } from './body-format-lints.js';
 import { isFooterSeparator, parseFooterBlockedByRefs } from './footer-block.js';
-
-// ---------------------------------------------------------------------------
-// Public types (JSDoc only — no runtime schema file)
-// ---------------------------------------------------------------------------
 
 /**
  * @typedef {'creates'|'refactors-existing'|'exists'|'deletes'} AssumptionEnum
@@ -66,52 +30,45 @@ import { isFooterSeparator, parseFooterBlockedByRefs } from './footer-block.js';
 
 /**
  * @typedef {object} StoryBody
- * @property {string}        goal                - One-sentence purpose statement.
- * @property {string}        slicing             - Optional v2 intra-Story delivery slice plan text block; '' when absent.
- * @property {string}        spec                - Optional folded Tech Spec text block; '' when absent.
- * @property {PathEntry[]}   changes             - Files / globs this Story modifies.
- * @property {string[]}      acceptance          - Observable acceptance criteria.
- * @property {string[]}      verify              - Exact commands the deliverer runs.
- * @property {PathEntry[]}   references          - Read-only paths (may be empty).
- * @property {string[]}      non_goals           - Negative-scope bullets (advisory; may be empty).
+ * @property {string}        goal
+ * @property {string}        slicing             - Intra-Story slice plan; '' when absent.
+ * @property {string}        spec                - Folded Tech Spec; '' when absent.
+ * @property {PathEntry[]}   changes
+ * @property {string[]}      acceptance
+ * @property {string[]}      verify
+ * @property {PathEntry[]}   references          - Read-only paths.
+ * @property {string[]}      non_goals           - Advisory negative scope.
  * @property {string[]}      depends_on          - Blocking story slugs / issue refs.
  */
 
 /**
  * @typedef {object} ParseResult
- * @property {StoryBody}  body      - The parsed structured body.
- * @property {string[]}   warnings  - Non-fatal issues (e.g. unstructured-body).
- * @property {ParseInfo}  info      - Metadata about the parse.
+ * @property {StoryBody}  body
+ * @property {string[]}   warnings
+ * @property {ParseInfo}  info
  */
 
 /**
  * @typedef {object} ParseInfo
- * @property {boolean} hasGoalSection       - Whether a `## Goal` section was found.
- * @property {boolean} hasChangesSection    - Whether a `## Changes` section was found.
- * @property {boolean} hasAcceptanceSection - Whether a `## Acceptance` section was found.
- * @property {boolean} hasVerifySection     - Whether a `## Verify` section was found.
- * @property {boolean} hasReferencesSection - Whether a `## References` section was found.
- * @property {boolean} hasNonGoalsSection   - Whether a `## Non-Goals` section was found.
- * @property {boolean} hasSlicingSection    - Whether a `## Slicing` section was found (v2 folded slice plan).
- * @property {boolean} hasSpecSection       - Whether a `## Spec` section was found (folded Tech Spec).
+ * @property {boolean} hasGoalSection
+ * @property {boolean} hasChangesSection
+ * @property {boolean} hasAcceptanceSection
+ * @property {boolean} hasVerifySection
+ * @property {boolean} hasReferencesSection
+ * @property {boolean} hasNonGoalsSection
+ * @property {boolean} hasSlicingSection
+ * @property {boolean} hasSpecSection
  * @property {boolean} isUnstructuredBody   - True when no structured sections were found.
  */
 
 /**
  * @typedef {object} SerializeOptions
  * @property {boolean} [includeFooter=false] - Include `---\nparent/blocked-by` footer.
- * @property {object}  [footer]              - Footer fields when `includeFooter` is true.
- * @property {number}  [footer.parent]       - Parent feature issue number.
+ * @property {object}  [footer]
+ * @property {number}  [footer.parent]
  */
 
-// ---------------------------------------------------------------------------
-// Error class
-// ---------------------------------------------------------------------------
-
-/**
- * Thrown when the Story body cannot be parsed into the canonical shape.
- * The parser fails closed — do not catch this to silently continue.
- */
+/** Thrown when a Story body cannot be parsed; never catch to continue. */
 export class StoryBodyParseError extends Error {
   /**
    * @param {string} message
@@ -125,13 +82,7 @@ export class StoryBodyParseError extends Error {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Section heading map
-// ---------------------------------------------------------------------------
-
-// Heading text → body field name. Keys are normalized: lower-cased with `-`
-// folded to `_` (see splitSections), so the hyphenated `## Non-Goals` heading
-// maps to the `non_goals` field.
+// Keys are lower-cased with `-` folded to `_` (see splitSections).
 const HEADING_TO_FIELD = new Map([
   ['goal', 'goal'],
   ['slicing', 'slicing'],
@@ -144,14 +95,7 @@ const HEADING_TO_FIELD = new Map([
 ]);
 const TEXT_BLOCK_FIELDS = new Set(['slicing', 'spec']);
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 /**
- * Strip leading `- ` or `- [ ] ` from a markdown list item, returning the
- * raw content.
- *
  * @param {string} line
  * @returns {string}
  */
@@ -159,66 +103,30 @@ function stripListMarker(line) {
   return line.replace(/^-\s+(?:\[\s*[xX ]?\s*\]\s+)?/, '').trim();
 }
 
-// Humanized PathEntry bullet (Story #4600): `path` — assumption. This is the
-// shape serialize() now emits for `## Changes` / `## References`; the legacy
-// inline-JSON object bullet remains accepted at parse time indefinitely (live
-// issue bodies are never rewritten).
+// `path` — assumption: the shape serialize() emits. The inline-JSON bullet is
+// still accepted at parse time because live issue bodies are never rewritten.
 const HUMANIZED_PATH_ENTRY_RE = /^`([^`]+)`\s+—\s+(\S+)$/;
 
-// Bare path bullet (Story #5342): `src/app.js` or `` `src/app.js` `` with no
-// assumption. The assumption is a fact about the base branch, not a thing the
-// author knows better than a probe does, so the default authored form omits
-// it and persist derives it. The grammar itself — a single whitespace-free
-// token, so prose bullets do not match and are still rejected — is
-// `body-format-lints.js#matchBarePathToken`, the one definition the persist
-// repair pass scores against too (Story #5361).
-
-// AC-<n> presentation prefix on acceptance checkboxes (Story #4600). The
-// numbering is a stable 1-based human handle only — parse() strips it so the
-// top-level acceptance[] machine contract round-trips byte-identical.
-//
-// The lettered form (`AC-14a:`) is accepted too (Story #5323). Nothing emits
-// one — `serialize()` numbers from the array index — but a Story planned from
-// an existing ticket can copy one out of the source issue's rendered
-// checkboxes, and a body that already carries one must still parse to the
-// handle-free text or the round-trip invariant breaks for it alone. Trailing
-// whitespace is optional so `AC-3:text` normalises as readily as `AC-3: text`.
+// Presentation-only `AC-<n>:` handle (lettered `AC-14a:` too, copied from
+// source tickets); parse() strips it so acceptance[] round-trips.
 const AC_PREFIX_RE = /^AC-\d+[a-z]?:\s*/i;
 
-// Machine-managed marker lines a body authored before Story #5312 may still
-// carry: the `> **Wide:** <reason>` rationale line (Story #4600), the
-// `> 🏷️ Authored with Mandrel …` provenance line, and the trailing
-// `<!-- meta: {...} -->` block. Nothing writes them any more — the `wide` /
-// `reason_to_exist` fields and the provenance stamp went with the plan-time
-// sizing model — but live issue bodies are never rewritten, so the parser
-// still skips them wherever they appear rather than absorbing a stray line
-// into the last structured section. A skipped block is dropped on
-// re-serialize, which is the cutover working as intended.
+// Retired machine-managed marker lines nothing writes any more. Live bodies
+// still carry them, so the parser skips them rather than absorbing them into
+// the last section; they are dropped on re-serialize.
 const WIDE_MARKER_LINE_RE = /^>\s*\*\*Wide:\*\*/;
 const AUTHORED_MARKER_LINE_RE = /^\s*>\s*🏷️\s+Authored with Mandrel\b/;
 const META_BLOCK_RE = /<!--\s*meta:[\s\S]*?-->/;
 
 /**
- * Parse a single `changes` / `references` bullet into a `PathEntry`.
- *
- * Accepted markdown shapes (all parsed indefinitely — live issue bodies
- * are never rewritten):
- *   - Bare path (the default authored form since Story #5342):
- *     `` `src/x.js` `` or `src/x.js`, parsed with `assumption: null`
- *   - Humanized bullet (canonical serialize() output since Story #4600):
- *     `` `src/x.js` — refactors-existing ``
- *   - Legacy inline-JSON object bullet:
- *     `- { "path": "...", "assumption": "..." }`
- *
- * A structured object entry (from a parsed JSON body that was never
- * serialized to markdown) arrives as-is and is validated directly.
+ * Parse one `changes` / `references` bullet: bare path (`assumption: null`),
+ * humanized `` `path` — assumption ``, or inline-JSON object.
  *
  * @param {string|object} raw
  * @param {string[]} warnings
  * @returns {PathEntry}
  */
 function parsePathEntry(raw, warnings) {
-  // Already a structured object (from a parsed JSON body, not markdown).
   if (raw !== null && typeof raw === 'object') {
     return pathEntryFromObject(raw);
   }
@@ -232,17 +140,9 @@ function parsePathEntry(raw, warnings) {
 }
 
 /**
- * Parse the bare path bullet — the default authored form since Story #5342 —
- * or refuse the bullet. This is the last shape `parsePathEntry` tries, so it
- * owns the rejection too.
- *
- * `assumption: null` records only what the author said; persist derives the
- * rest by probing the base branch. A `{`-leading string reached here because
- * it failed to parse as the inline JSON object it announced itself as, so it
- * is malformed JSON rather than a path and keeps failing closed.
- *
- * Story #5361: the two failures need different fixes, so they get different
- * refusals — rewrite a sentence as a path, versus fix a token that is not one.
+ * Last shape tried, so it owns the rejection. A `{`-leading string here is
+ * malformed JSON, not a path. Prose and non-path tokens get distinct refusals
+ * because they need different fixes.
  *
  * @param {string} str
  * @returns {PathEntry}
@@ -263,16 +163,8 @@ function pathEntryFromBare(str) {
 }
 
 /**
- * Read the assumption a raw entry declares, collapsing the three cases the
- * parser has to tell apart into one value:
- *
- *   - a canonical `FILE_ASSUMPTION_VALUES` member — the author pinned one;
- *   - `null` — the author named no assumption at all. Since Story #5342 that
- *     is the **bare form**, and persist derives the value by probing the base
- *     branch rather than the author guessing it;
- *   - `undefined` — the author named something that is not an assumption.
- *     Distinct from absent on purpose: a typo must fail closed where an
- *     omission is the default shape.
+ * A canonical value (pinned), `null` (omitted — persist derives it), or
+ * `undefined` (not an assumption — a typo must fail closed).
  *
  * @param {unknown} raw
  * @returns {string|null|undefined}
@@ -283,9 +175,6 @@ function readAssumption(raw) {
 }
 
 /**
- * Validate an already-structured `{ path, assumption }` object. Fails closed
- * on a malformed object.
- *
  * @param {object} raw
  * @returns {PathEntry}
  */
@@ -295,7 +184,6 @@ function pathEntryFromObject(raw) {
   if (path !== '' && assumption !== undefined) {
     return { path, assumption };
   }
-  // Malformed object: fail closed.
   throw new StoryBodyParseError(
     `changes/references entry is an object but not a valid PathEntry: ${JSON.stringify(raw)}`,
     { field: 'changes', raw: JSON.stringify(raw) },
@@ -303,10 +191,7 @@ function pathEntryFromObject(raw) {
 }
 
 /**
- * Parse the humanized bullet shape (the canonical serialize() output since
- * Story #4600): `` `path` — assumption ``. Returns `null` when the line is
- * not that shape at all; fails closed when the shape is recognized but the
- * fields are invalid.
+ * `null` when not the humanized shape; throws when recognized but invalid.
  *
  * @param {string} str
  * @returns {PathEntry|null}
@@ -318,7 +203,6 @@ function pathEntryFromHumanized(str) {
   if (path.length > 0 && FILE_ASSUMPTION_VALUES.includes(humanized[2])) {
     return { path, assumption: humanized[2] };
   }
-  // Recognized the humanized shape but the fields are invalid: fail closed.
   throw new StoryBodyParseError(
     `changes/references entry is a humanized bullet but not a valid PathEntry: ${str.slice(0, 120)}${pathEntryFixIt(str)}`,
     { field: 'changes', raw: str },
@@ -326,12 +210,7 @@ function pathEntryFromHumanized(str) {
 }
 
 /**
- * Parse the legacy inline-JSON object bullet:
- * `{ "path": "...", "assumption": "..." }`. Returns `null` when the line is
- * not a JSON object at all (including a JSON parse failure — the caller then
- * tries the bare-path form and finally rejects the bullet); delegates the
- * field check to {@link pathEntryFromObject}, which is the same judgment on
- * the same shape and fails closed the same way.
+ * `null` when not a JSON object (the caller then tries the bare form).
  *
  * @param {string} str
  * @returns {PathEntry|null}
@@ -342,7 +221,6 @@ function pathEntryFromInlineJson(str) {
   try {
     parsed = JSON.parse(str);
   } catch {
-    // JSON parse failed — the caller falls through to the bare-path form.
     return null;
   }
   return parsed !== null && typeof parsed === 'object'
@@ -351,10 +229,8 @@ function pathEntryFromInlineJson(str) {
 }
 
 /**
- * Build the ` Suggested fix: …` suffix for a rejected changes/references
- * bullet, when a `{ path, assumption }` object can be salvaged from it. Returns
- * an empty string when nothing is inferable, so callers can append it
- * unconditionally (Story #4684 — mechanical auto-fix in the failure output).
+ * ` Suggested fix: …` suffix for a rejected bullet, or '' when nothing is
+ * inferable.
  *
  * @param {string} raw The rejected bullet text.
  * @returns {string}
@@ -366,11 +242,7 @@ function pathEntryFixIt(raw) {
 }
 
 /**
- * Extract the `blocked by #N` lines from the footer block (text after
- * the last `---` separator). Returns an array of "#N" strings.
- *
- * Delegates to `./footer-block.js`, which owns the footer-block grammar
- * (Story #5046) so the body parser and the dispatch-edge parser cannot
+ * Delegates to footer-block.js so the body and dispatch-edge parsers cannot
  * disagree about what declares an edge.
  *
  * @param {string} footerBlock
@@ -381,15 +253,8 @@ function extractBlockedBy(footerBlock) {
 }
 
 /**
- * Split markdown into named sections plus a footer block.
- *
- * Returns `{ sections: Map<string, string[]>, footer: string }`.
- * Each map value is the raw non-empty content lines under that heading
- * (heading line stripped).
- *
- * A `---` followed by recognised footer keys (`parent:`, `Epic:`,
- * `blocked by`) marks the start of the footer block. Content after the
- * footer separator is NOT parsed as sections.
+ * Split markdown into named sections plus the footer block; content after
+ * the footer separator is not parsed as sections.
  *
  * @param {string} markdown
  * @returns {{ sections: Map<string, string[]>, footer: string, preamble: string }}
@@ -410,20 +275,9 @@ function splitSections(markdown) {
       break;
     }
 
-    // Detect `## Heading` (canonical) or `### Heading` lines. GitHub Issue
-    // Forms (Story #4227) render every field label as a level-3 heading
-    // (`### Goal`), not the level-2 the canonical serializer emits, so the
-    // parser accepts both levels. Any other heading depth is ignored.
-    //
-    // The token class is `[\w-]+` (not bare `\w+`) so a single hyphenated
-    // heading word — the canonical `## Non-Goals` negative-scope section —
-    // matches as one token. The captured name is normalized (lower-cased,
-    // `-` folded to `_`) before the HEADING_TO_FIELD lookup, so `Non-Goals`
-    // resolves to the `non_goals` field. Multi-word headings that contain a
-    // space (`## Out of Scope`, `## Agent Prompts`) still do NOT match this
-    // single-token shape — they fall through to the section-terminator branch
-    // below, which closes the open section. The chosen canonical spelling is
-    // therefore the hyphenated single token `## Non-Goals`.
+    // `##` or `###` (GitHub Issue Forms render labels as level 3). The token
+    // is a single `[\w-]+` word so `Non-Goals` matches; multi-word headings
+    // fall through to the terminator branch below.
     const fieldHeadingMatch = line.match(/^#{2,3}\s+([\w-]+)\s*$/i);
     const fieldName = fieldHeadingMatch?.[1]?.toLowerCase().replace(/-/g, '_');
     if (HEADING_TO_FIELD.has(fieldName)) {
@@ -454,14 +308,9 @@ function splitSections(markdown) {
 }
 
 /**
- * True for a non-canonical markdown heading that TERMINATES the current
- * structured section. Trailing extended content a producer appends after the
- * canonical block — `audit-to-stories`'s `## Agent Prompts` / `## Context`
- * / `## Sequencing` blocks, for instance — must not bleed into the last
- * structured section's bullet list (Story #4270). Without this, those
- * lines were silently absorbed into `verify[]` / `acceptance[]`. The
- * heading and everything under it is dropped from structured parsing
- * (it is extended, non-canonical markdown).
+ * A non-canonical heading closes the current section so appended extended
+ * content (e.g. `## Agent Prompts`) never bleeds into `verify[]` /
+ * `acceptance[]`. Text-block sections keep their own headings.
  *
  * @param {string} line
  * @param {boolean} inPreamble
@@ -477,11 +326,6 @@ function isSectionTerminatorHeading(line, inPreamble, currentSection) {
 }
 
 /**
- * True for the legacy machine-managed marker lines section parsing skips
- * wherever they appear (see the regexes above): a `## References` section
- * immediately followed by a retired meta block must not swallow the comment
- * as a references entry.
- *
  * @param {string} line
  * @returns {boolean}
  */
@@ -493,19 +337,13 @@ function isMachineMarkerLine(line) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Parser — per-section sub-parsers
-// ---------------------------------------------------------------------------
-
 /**
- * Build the minimal {@link ParseResult} returned for an unstructured body —
- * markdown that carries no recognised structured section. The goal falls
- * back to the preamble text (or the whole trimmed input), `depends_on` is
- * still recovered from the footer, and all section arrays are empty.
+ * Minimal result for a body with no structured section: goal falls back to
+ * the preamble, `depends_on` is still read from the footer.
  *
- * @param {string} input - The original markdown string.
- * @param {string} preamble - Text before the first heading (from splitSections).
- * @param {string} footer - Footer block text (from splitSections).
+ * @param {string} input
+ * @param {string} preamble
+ * @param {string} footer
  * @returns {ParseResult}
  */
 function parseUnstructuredBody(input, preamble, footer) {
@@ -541,10 +379,7 @@ function parseUnstructuredBody(input, preamble, footer) {
 }
 
 /**
- * Parse the `## Goal` section: join its non-empty content lines into a
- * single one-line goal string.
- *
- * @param {string[]} lines - Raw content lines under the heading.
+ * @param {string[]} lines
  * @returns {string}
  */
 function parseGoalSection(lines) {
@@ -555,10 +390,8 @@ function parseGoalSection(lines) {
 }
 
 /**
- * Parse a verbatim text-block section (`## Slicing` or `## Spec`) into a
- * newline-joined string. Unlike {@link parseGoalSection}, line breaks are
- * preserved so a bullet list, compact table, or folded Tech Spec survives the
- * round-trip; only blank lines and trailing whitespace are normalized.
+ * Line breaks are preserved so lists and tables round-trip; only blank edge
+ * lines and trailing whitespace are normalized.
  *
  * @param {string[]} lines
  * @returns {string}
@@ -571,12 +404,8 @@ function parseTextBlockSection(lines) {
 }
 
 /**
- * Parse a `## Changes` / `## References` section into a list of
- * `PathEntry` entries. List markers are stripped, blank entries are
- * dropped, and each surviving entry is normalized via {@link parsePathEntry}.
- *
- * @param {string[]} lines - Raw content lines under the heading.
- * @param {string[]} warnings - Mutable warnings sink.
+ * @param {string[]} lines
+ * @param {string[]} warnings
  * @returns {PathEntry[]}
  */
 function parsePathEntrySection(lines, warnings) {
@@ -591,46 +420,17 @@ function parsePathEntrySection(lines, warnings) {
 }
 
 /**
- * Parse a plain bullet-list section (`## Acceptance` / `## Verify`) into a
- * list of trimmed strings, dropping blank entries.
- *
- * @param {string[]} lines - Raw content lines under the heading.
+ * @param {string[]} lines
  * @returns {string[]}
  */
 function parseTextListSection(lines) {
   return lines.map((l) => stripListMarker(l)).filter(Boolean);
 }
 
-// ---------------------------------------------------------------------------
-// Parser
-// ---------------------------------------------------------------------------
-
 /**
- * Parse a GitHub Story issue body (markdown string) into a structured
- * {@link StoryBody}. Fails closed on malformed input.
- *
- * Returns a {@link ParseResult} containing the body, any non-fatal
- * warnings, and parse metadata. Use `result.body` directly; inspect
- * `result.warnings` to detect legacy path entries that should be
- * migrated.
- *
- * @param {string|object} input - Markdown string or already-structured body object.
- * @returns {ParseResult}
- * @throws {StoryBodyParseError} When the body is structurally unrecoverable.
- */
-/**
- * Strip the presentation `AC-<n>:` handle off one acceptance item.
- *
- * The handle belongs to {@link serialize}, which numbers every checkbox from
- * its position in `acceptance[]`; an authored item that already carries one
- * would render doubled (`- [ ] AC-1: AC-1: …`) and a lettered handle copied
- * from a source ticket would survive into the machine contract. Both parse
- * and the persist-side normalisation resolve the grammar here so the two can
- * never disagree about what a handle is (Story #5323).
- *
- * Stacked handles are peeled in full — a body persisted while the doubling
- * was live carries two, and leaving the inner one would normalise to
- * something that still is not the authored text.
+ * Strip every stacked `AC-<n>:` handle. serialize() numbers checkboxes from
+ * position, so a kept handle would render doubled; parse and persist share
+ * this so they agree on the grammar.
  *
  * @param {string} item
  * @returns {{ text: string, stripped: boolean }} The handle-free text, and
@@ -645,6 +445,13 @@ export function stripAcceptanceHandle(item) {
   return { text, stripped: text !== original };
 }
 
+/**
+ * Parse a Story issue body (markdown or structured object).
+ *
+ * @param {string|object} input - Markdown string or already-structured body object.
+ * @returns {ParseResult}
+ * @throws {StoryBodyParseError} When the body is structurally unrecoverable.
+ */
 export function parse(input) {
   if (input === null || input === undefined) {
     throw new StoryBodyParseError('Story body is null or undefined', {
@@ -652,8 +459,6 @@ export function parse(input) {
     });
   }
 
-  // If the caller already has a structured object (e.g. from the decomposer
-  // before it's serialized to markdown), parse it directly.
   if (typeof input === 'object' && !Array.isArray(input)) {
     return parseStructuredObject(input);
   }
@@ -677,7 +482,6 @@ export function parse(input) {
   const hasSlicingSection = sections.has('slicing');
   const hasSpecSection = sections.has('spec');
 
-  // If no structured sections found, treat as unstructured body.
   const isUnstructuredBody =
     !hasGoalSection &&
     !hasChangesSection &&
@@ -689,19 +493,12 @@ export function parse(input) {
   }
 
   const goal = parseGoalSection(sections.get('goal') ?? []);
-  // Optional v2 intra-Story delivery slice plan (`## Slicing`). Preserved as
-  // a verbatim text block — a large Story (what v1 called an Epic) folds its
-  // Delivery Slicing here instead of fanning out into sibling Stories; a
-  // trivial Story omits it entirely. Parsed as a text block so a bullet list
-  // or compact table round-trips.
   const slicing = parseTextBlockSection(sections.get('slicing') ?? []);
   const spec = parseTextBlockSection(sections.get('spec') ?? []);
   const changes = parsePathEntrySection(
     sections.get('changes') ?? [],
     warnings,
   );
-  // The AC-<n> checkbox prefix is presentation-only (Story #4600): strip it
-  // so acceptance[] round-trips byte-identical to the authored array.
   const acceptance = parseTextListSection(sections.get('acceptance') ?? []).map(
     (a) => stripAcceptanceHandle(a).text,
   );
@@ -743,9 +540,7 @@ export function parse(input) {
 }
 
 /**
- * Parse a structured body object (as produced by the decomposer's JSON
- * output, before markdown serialization). Normalizes all fields to the
- * canonical shape.
+ * Normalize a structured body object (pre-serialization decomposer output).
  *
  * @param {object} obj
  * @returns {ParseResult}
@@ -753,10 +548,6 @@ export function parse(input) {
 function parseStructuredObject(obj) {
   const warnings = [];
 
-  // The declarative half of the normalization: every field whose value is a
-  // pure function of its raw input (plus the shared warnings sink) is one
-  // table row, walked in canonical body-key order. Adding a field of an
-  // existing kind is a one-row change.
   const body = {};
   for (const { name, kind } of STRUCTURED_FIELD_SPECS) {
     body[name] = STRUCTURED_FIELD_NORMALIZERS[kind](obj[name], warnings);
@@ -780,36 +571,23 @@ function parseStructuredObject(obj) {
 }
 
 /**
- * The field-spec table driving {@link parseStructuredObject}, in canonical
- * body-key order. `kind` selects the normalizer from
- * {@link STRUCTURED_FIELD_NORMALIZERS}:
- *   - `text`          — trimmed string, or `''` when absent/non-string.
- *   - `stringList`    — array filtered to non-empty strings, else `[]`.
- *   - `pathEntryList` — array normalized entry-wise via `parsePathEntry`
- *                       (fails closed on a malformed entry), else `[]`.
+ * Field specs in canonical body-key order.
  *
  * @type {Array<{ name: string, kind: keyof typeof STRUCTURED_FIELD_NORMALIZERS }>}
  */
 const STRUCTURED_FIELD_SPECS = [
   { name: 'goal', kind: 'text' },
-  // slicing — optional v2 intra-Story delivery slice plan (verbatim text).
   { name: 'slicing', kind: 'text' },
-  // spec — optional folded Tech Spec (verbatim text).
   { name: 'spec', kind: 'text' },
   { name: 'changes', kind: 'pathEntryList' },
   { name: 'acceptance', kind: 'stringList' },
   { name: 'verify', kind: 'stringList' },
   { name: 'references', kind: 'pathEntryList' },
-  // non_goals — advisory negative-scope bullets.
   { name: 'non_goals', kind: 'stringList' },
-  // depends_on — may be at top level or in body.
   { name: 'depends_on', kind: 'stringList' },
 ];
 
 /**
- * One normalizer per {@link STRUCTURED_FIELD_SPECS} kind. Each takes the raw
- * field value plus the shared warnings sink and returns the canonical value.
- *
  * @type {Record<string, (raw: unknown, warnings: string[]) => unknown>}
  */
 const STRUCTURED_FIELD_NORMALIZERS = {
@@ -828,37 +606,19 @@ const STRUCTURED_FIELD_NORMALIZERS = {
   },
 };
 
-// ---------------------------------------------------------------------------
-// Serializer
-// ---------------------------------------------------------------------------
-
 /**
- * Render a `PathEntry | string` as a markdown list item.
- *
  * @param {PathEntry | string} entry
  * @returns {string}
  */
 function serializePathEntry(entry) {
   if (typeof entry === 'string') return entry;
-  // Canonical object form (Story #4600): a human-readable bullet — path in
-  // backticks, em-dash, assumption. parsePathEntry recognizes this shape (and
-  // the legacy inline-JSON one) for round-trip fidelity. Story #5342: a bare
-  // entry — a path the author wrote with no assumption — serializes back bare
-  // rather than silently acquiring a derivation they never made; persist
-  // fills it in by probing base before it writes a body.
+  // A bare entry (no assumption) stays bare; persist derives the assumption.
   return [`\`${entry.path}\``, entry.assumption].filter(Boolean).join(' — ');
 }
 
 /**
- * Descriptor table for the human-readable Story-body sections, in canonical
- * emit order (`## Goal`, `## Slicing`, `## Spec`, `## Changes`,
- * `## Acceptance`, `## Verify`, `## References`, `## Non-Goals`). Each
- * descriptor reads one body field and returns the section's markdown block
- * when the field is present and non-empty, or `null` to omit the section.
- *
- * Standardising the section ladder as a single data table makes adding a new
- * optional section a one-line edit here rather than a new control-flow branch
- * in {@link serialize}.
+ * Sections in canonical emit order; `render` returns `null` to omit, so an
+ * absent optional field keeps older bodies round-tripping byte-identically.
  *
  * @type {Array<{ field: string, render: (value: unknown) => string | null }>}
  */
@@ -871,10 +631,6 @@ const SERIALIZE_SECTIONS = [
         : null,
   },
   {
-    // Optional v2 intra-Story delivery slice plan. Single-token `## Slicing`
-    // heading (recognized by the `[\w-]+` field-heading regex). Verbatim text
-    // block. Render-when-non-empty: an absent/empty `slicing` emits nothing,
-    // so every pre-v2 body round-trips byte-identically.
     field: 'slicing',
     render: (slicing) =>
       typeof slicing === 'string' && slicing.trim().length > 0
@@ -882,8 +638,6 @@ const SERIALIZE_SECTIONS = [
         : null,
   },
   {
-    // Optional folded Tech Spec. Like `## Slicing`, this is a verbatim text
-    // block and emits nothing for absent/empty pre-v2 bodies.
     field: 'spec',
     render: (spec) =>
       typeof spec === 'string' && spec.trim().length > 0
@@ -898,10 +652,6 @@ const SERIALIZE_SECTIONS = [
         : null,
   },
   {
-    // Each checkbox carries a stable 1-based `AC-<n>:` handle (Story #4600)
-    // so humans and reviewers can reference criteria by number. The prefix
-    // is presentation-only — parse() strips it, and validators compare the
-    // top-level acceptance[] array, so numbering never affects gating.
     field: 'acceptance',
     render: (acceptance) =>
       Array.isArray(acceptance) && acceptance.length > 0
@@ -923,11 +673,6 @@ const SERIALIZE_SECTIONS = [
         : null,
   },
   {
-    // Advisory negative-scope bullets. Rendered as the hyphenated canonical
-    // `## Non-Goals` heading (the spelling the parser's widened
-    // `[\w-]+` field-heading regex recognizes). Render-when-non-empty: an
-    // empty or absent `non_goals` emits nothing, so every pre-existing body
-    // round-trips byte-identically.
     field: 'non_goals',
     render: (nonGoals) =>
       Array.isArray(nonGoals) && nonGoals.length > 0
@@ -937,9 +682,6 @@ const SERIALIZE_SECTIONS = [
 ];
 
 /**
- * Build the optional `---` footer block (`parent` / `blocked by` lines).
- * Returns the empty string when `opts.includeFooter` is falsy.
- *
  * @param {StoryBody} body
  * @param {SerializeOptions} opts
  * @returns {string}
@@ -948,9 +690,7 @@ function serializeFooter(body, opts) {
   if (!opts.includeFooter) return '';
   const footerLines = ['---'];
   if (opts.footer?.parent) footerLines.push(`parent: #${opts.footer.parent}`);
-  // Story #4545 — no `Epic: #N` branch. `pr-base-guard.js` hard-refuses a
-  // Story body carrying that footer, so composing one here would let the
-  // framework generate work it would then reject at delivery.
+  // Never an `Epic: #N` line: pr-base-guard.js refuses a body carrying one.
   if (Array.isArray(body.depends_on)) {
     for (const dep of body.depends_on) {
       footerLines.push(`blocked by ${dep}`);
@@ -960,13 +700,6 @@ function serializeFooter(body, opts) {
 }
 
 /**
- * Serialize a structured {@link StoryBody} back to the canonical markdown
- * format written to GitHub issue bodies.
- *
- * The output matches the section order the spec-renderer uses:
- * `## Goal`, `## Slicing`, `## Spec`, `## Changes`, `## Acceptance`,
- * `## Verify`, `## References`, `## Non-Goals` (each omitted when empty).
- *
  * @param {StoryBody} body
  * @param {SerializeOptions} [opts]
  * @returns {string}
@@ -987,17 +720,9 @@ export function serialize(body, opts = {}) {
   return sections.join('\n\n') + serializeFooter(body, opts);
 }
 
-// ---------------------------------------------------------------------------
-// Convenience: extract changes paths for the wave planner
-// ---------------------------------------------------------------------------
-
 /**
- * Extract the list of path strings from a parsed `changes[]` array.
- * Glob-bearing entries are flagged via `{ path, isGlob: true }`.
- *
- * The wave planner (Feature 3) uses this to compute file-overlap
- * serialization between Stories: if any entry `isGlob`, the Story's
- * footprint is `unknown-width`.
+ * Path strings from `changes[]`; any glob entry makes the footprint
+ * unknown-width for the wave planner.
  *
  * @param {ChangeEntry[]} changes
  * @returns {Array<{ path: string, isGlob: boolean }>}

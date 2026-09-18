@@ -1,17 +1,7 @@
 /**
- * story-ops.js — flat Story creation for v2 plan-persist (Stage 3).
- *
- * Under the Story collapse (`docs/roadmap.md` § Stage 3), `/mandrel-plan` persists
- * zero-or-more Story issues directly — no Epic parent, no reconciler tree,
- * no `deliveryShape` mode matrix. Default is **one Story**; N>1 is gated by
- * the supersede partition check.
- *
- * Each Story body is the single executable document: Tech Spec stays inline
- * under `## Spec`, at whatever length the work needs (Story #5312 deleted
- * the token budget that used to refuse it) — never spilled to `docs/`.
- * Top-level `acceptance[]` / `verify[]` are the machine
- * contract and are synced into the body so the GitHub issue stays complete
- * without requiring the LLM to dual-author the same lists.
+ * Flat Story creation for plan-persist. Each Story body is the single
+ * executable document: the Spec stays inline at any length, and top-level
+ * `acceptance[]` / `verify[]` (the machine contract) are synced into it.
  *
  * @module lib/orchestration/plan-persist/story-ops
  */
@@ -44,28 +34,16 @@ import {
 } from './supersede-ops.js';
 
 /**
- * Label prefix grouping the Stories one plan-persist run authored.
- *
- * Reintroduced (Story #4692) after Story #4540 retired it: #4540 was right
- * that batch identity is the wrong axis for *ordering delivery across runs*
- * (`/mandrel-deliver` takes ids and resolves the graph from live state — that stays),
- * but it is the correct axis for *grouping the Stories one plan run created*
- * so a cohort is filterable and traceable in the GitHub UI. The label is
- * metadata only; nothing in persist or delivery reads it as a
- * delivery-resolution input.
+ * Label prefix grouping the Stories one plan-persist run authored. Metadata
+ * only: delivery never reads it as an ordering input.
  */
 export const PLAN_RUN_LABEL_PREFIX = 'plan-run::';
 
-/** Stable color for the cohort grouping label (`ensureLabels`). */
 const PLAN_RUN_LABEL_COLOR = '#C5DEF5';
 
-/** Length of the derived plan-run id (hex chars). */
 const PLAN_RUN_ID_LENGTH = 8;
 
 /**
- * Normalize a caller-supplied plan-run token. Kept shared so human-readable
- * ids map to one canonical label shape.
- *
  * @param {string} id
  * @returns {string}
  */
@@ -82,11 +60,8 @@ export function normalizePlanRunId(id) {
 }
 
 /**
- * Build a `plan-run::<id>` label from an explicit id.
- *
- * Unlike the pre-#4540 shape, this never mints a random token — a random id
- * would split a resumed persist's cohort across two labels. Derive the id
- * from the authored artifacts via {@link derivePlanRunId} instead.
+ * Never mints a random token — that would split a resumed persist's cohort
+ * across two labels; derive the id via {@link derivePlanRunId}.
  *
  * @param {string} id
  * @returns {string}
@@ -96,19 +71,11 @@ export function planRunLabel(id) {
 }
 
 /**
- * Derive the deterministic plan-run id for a cohort of assembled Stories.
+ * Hash of the sorted per-Story fingerprints, so a resumed persist derives the
+ * same label its adopted Stories already carry, independent of creation order.
  *
- * Hashes the **sorted** set of per-Story plan fingerprints (the same
- * content identities the resumable-create contract adopts on), so the id is
- * a pure function of the authored artifacts: the same `stories.json` yields
- * the same `plan-run::<id>` on every run — a persist resumed after a
- * mid-run failure applies the identical label to the newly-created
- * remainder that the already-created (adopted) Stories carry — while a
- * different plan derives a different label. Sorting makes the id
- * independent of creation order.
- *
- * @param {string[]} fingerprints Per-Story plan fingerprints.
- * @returns {string} Hex id, {@link PLAN_RUN_ID_LENGTH} chars.
+ * @param {string[]} fingerprints
+ * @returns {string}
  */
 export function derivePlanRunId(fingerprints) {
   const sorted = (Array.isArray(fingerprints) ? fingerprints : [])
@@ -121,59 +88,27 @@ export function derivePlanRunId(fingerprints) {
 }
 
 /**
- * Marker prefix for the per-Story plan fingerprint appended to every
- * created body. `createStoryIssues` greps open `type::story` issues for
- * `<!-- plan-story: <fingerprint> -->` to decide whether a Story already
- * exists — the idempotency half of the resumable-create contract.
+ * Marker prefix stamped into every created body; the resume path adopts an
+ * open Story whose marker matches.
  */
 const PLAN_FINGERPRINT_MARKER_PREFIX = 'plan-story:';
 
-/** Length of the hex fingerprint digest. Collision-free at plan scale. */
 const PLAN_FINGERPRINT_LENGTH = 16;
 
 /**
- * Compute the deterministic identity of one authored Story within a plan.
- *
- * Derived from `slug` + `title` + the **assembled** body, so the fingerprint
- * identifies the authored *content*, not merely a name. Because the marker is
- * what `createStoryIssues` adopts on, that is the whole safety property of the
- * resume path: a fingerprint hit means the open Story on the tracker is
- * byte-identical to what this run would author, so adopting it instead of
- * creating it is a genuine no-op.
- *
- * **Why the body is in scope.** It used to be excluded, on the rationale that
- * creation rewrites the body to substitute real issue ids into `depends_on`
- * footers, so a body-derived fingerprint would differ between an aborted run
- * and its resume. That conflated two different bodies. The fingerprint is
- * computed in `assembleOnePlanStory` over the *assembled* body — whose
- * `depends_on` are still sibling **slugs**, and which is a pure function of
- * `stories.json` plus the shared Spec. The id substitution happens later, and
- * only inside `renderStoryBodyForCreate`, which produces the *posted* body.
- * Nothing ever re-derives a fingerprint from a posted body; the lookup reads
- * the marker that body carries. The assembled body is therefore stable across
- * a run and its resume, and folding it in defeats no lookup.
- *
- * Excluding it cost two silent failures, both closed by this:
- *
- *   1. A later, unrelated plan that reused a slug **and** title adopted the
- *      stale open Story — never rewriting its body or Spec, and landing this
- *      run's plan comments, ready-flip, and supersede comments on the wrong
- *      issue.
- *   2. A legitimate resume after the operator edited `stories.json` adopted
- *      the pre-edit Story and kept its stale body, discarding the edit.
- *
- * With the body in scope both cases simply miss the lookup, and a correct new
- * Story is created; only a genuinely identical Story is ever adopted.
+ * Content identity of one authored Story: slug + title + the *assembled* body
+ * (whose `depends_on` are still slugs, so it is stable across a run and its
+ * resume). A hit means the open Story is byte-identical to what this run
+ * would author; a reused slug/title or an edited `stories.json` misses and
+ * gets a fresh Story instead of a stale adoption.
  *
  * The fields are joined on NUL separators, written as the `\u0000` escape and
  * never as a raw byte — a literal NUL would make git classify this file as
- * binary and silently drop its diffs. NUL cannot occur in a slug, a title, or
- * a serialized body, so the join is unambiguous: `{slug:'a-b', title:'c'}` and
- * `{slug:'a', title:'b-c'}` cannot collide the way a hyphen or space separator
- * would let them.
+ * binary and silently drop its diffs. NUL cannot occur in any field, so the
+ * join is unambiguous.
  *
  * @param {{ slug: string, title: string, body?: string }} story
- * @returns {string} Hex digest.
+ * @returns {string}
  */
 export function planStoryFingerprint({ slug, title, body = '' }) {
   return createHash('sha256')
@@ -183,10 +118,6 @@ export function planStoryFingerprint({ slug, title, body = '' }) {
 }
 
 /**
- * Render the HTML-comment marker carrying a Story's plan fingerprint. It is
- * invisible in GitHub's rendered issue body and survives edits to every
- * other section.
- *
  * @param {string} fingerprint
  * @returns {string}
  */
@@ -194,16 +125,13 @@ function planFingerprintMarker(fingerprint) {
   return `<!-- ${PLAN_FINGERPRINT_MARKER_PREFIX} ${fingerprint} -->`;
 }
 
-/** The one parser for the marker {@link planFingerprintMarker} renders. */
 const PLAN_FINGERPRINT_MARKER_RE = new RegExp(
   `<!--\\s*${PLAN_FINGERPRINT_MARKER_PREFIX}\\s*([0-9a-f]+)\\s*-->`,
 );
 
 /**
- * Recover the plan fingerprint an issue body was stamped with, or `null` when
- * the body carries no marker. Module-private: both readers of the marker (the
- * resume index and the create-retry adoption probe) go through it so they can
- * never drift into recognising different Stories as "already created".
+ * The single marker reader, shared by the resume index and the create-retry
+ * probe so they never disagree on "already created".
  *
  * @param {unknown} body
  * @returns {string|null}
@@ -215,13 +143,8 @@ function extractPlanFingerprint(body) {
 }
 
 /**
- * Labels the authoring pass is never allowed to set. The `agent::*` axis is
- * the runtime's lifecycle state (persist owns the terminal `agent::ready`
- * flip itself), `type::*` is fixed to `type::story` by the v2 hierarchy,
- * `persona::*` and `route::*` are retired axes (the latter with the
- * plan-side lite claim, Story #5312), and `plan-run::*` is the
- * runtime-derived cohort grouping axis (Story #4692) — a hand-authored entry
- * on it would compete with the deterministic label persist applies itself.
+ * Label axes the runtime owns (lifecycle, type, cohort) or has retired
+ * (persona, route); authored entries on them are dropped.
  */
 const FORBIDDEN_LABEL_PREFIXES = Object.freeze([
   'agent::',
@@ -235,17 +158,11 @@ const FORBIDDEN_LABEL_PREFIXES = Object.freeze([
 const MAX_LABEL_LENGTH = 50;
 
 /**
- * Sanitize the author-supplied `labels[]` on a plan Story (Story #4541).
- *
- * The schema descriptor and the authoring prompt both ask for `labels[]`,
- * but persist never read the field — it hard-coded its own list, so every
- * authored label was silently discarded. Rather than keep asking for input
- * that goes nowhere, apply it: drop the axes the runtime owns, drop
- * malformed entries, dedupe, and always guarantee `type::story`.
+ * Drop runtime-owned and malformed labels, dedupe, and guarantee `type::story`.
  *
  * @param {unknown} rawLabels
- * @param {string} slug For the dropped-label warning.
- * @returns {string[]} Sanitized labels, always including `type::story`.
+ * @param {string} slug
+ * @returns {string[]}
  */
 export function sanitizeAuthoredLabels(rawLabels, slug) {
   const kept = new Set([TYPE_LABELS.STORY]);
@@ -306,10 +223,8 @@ function arraysEqual(a, b) {
 }
 
 /**
- * Top-level `acceptance[]` / `verify[]` are the machine contract (validator
- * SSOT). Sync them into the body so the persisted GitHub issue is complete.
- * When the body already lists the same items, keep them; when the body is
- * empty, fill from top-level; when both disagree, fail closed.
+ * Sync a top-level contract field into the body; fail closed when both are
+ * set and disagree.
  *
  * @param {object} ticket
  * @param {object} bodyObject
@@ -330,16 +245,8 @@ function syncContractFieldFromTopLevel(ticket, bodyObject, field) {
 }
 
 /**
- * Normalize a plan Story ticket into `{ slug, title, bodyObject }`.
- * Accepts either a serialized markdown `body` string or a structured body.
- *
- * `supersedes[]` is a top-level-only field (Story #4535) — it is planning
- * bookkeeping for the `--tickets` source issues, not part of the Story's
- * executable body, so it is deliberately not serialized into the markdown.
- *
- * `provenance` is likewise top-level-only (Story #5045) — it names the audit
- * identities *this* Story owns, and is stamped into the body as footers rather
- * than serialized as a section.
+ * `supersedes[]` and `provenance` are top-level-only: planning bookkeeping and
+ * footer input respectively, never serialized as body sections.
  *
  * @param {object} ticket
  * @returns {{ slug: string, title: string, bodyObject: object, depends_on: string[], labels: string[], supersedes: Array<{ id: number, note: string|null }>, provenance: { fingerprints: string[], semanticKeys: string[] }|null }}
@@ -386,11 +293,7 @@ export function normalizeStoryTicket(ticket) {
 }
 
 /**
- * Fold optional shared Tech Spec prose into a Story body when the Story has
- * no inline Spec. Specs stay inline, verbatim, at any length.
- *
- * Precedence: per-Story `body.spec` wins; otherwise `sharedSpec` is used
- * (N===1 convenience only — callers must not share one Spec across N>1).
+ * Per-Story `body.spec` wins; otherwise `sharedSpec` (N===1 only).
  *
  * @param {object} bodyObject
  * @param {string} slug
@@ -424,25 +327,13 @@ export function foldSpecIntoStoryBody(bodyObject, slug, opts = {}) {
 }
 
 /**
- * Resolve the provenance source one Story is stamped from (Story #5045).
- *
- * Two channels, and the precedence between them is the whole contract:
- *
- * - **Attributed** — the Story authored a `provenance` field naming the audit
- *   identities *it* owns. Exactly those are stamped. This is what makes the
- *   footers answer "which Story tracks this finding?" instead of "which sweep
- *   planned it?": under the union every sibling carried every key, so the next
- *   sweep's confirmation pass could only pick an arbitrary open Story, and a
- *   key whose owner had since closed was masked by any open neighbour.
- * - **Union fallback** — no `provenance` field, so the whole seed's footers are
- *   carried, exactly as before. This is **not** dead weight to be tidied away:
- *   hand-carried provenance is the failure Stories #4626 / #4877 measured, and
- *   the union is what closed it. Attribution is additive and recall-safe;
- *   deleting the fallback would re-open that hole for every plan that does not
- *   attribute.
+ * An authored `provenance` stamps exactly the identities this Story owns;
+ * otherwise the whole seed's footers are carried. Keep that union fallback:
+ * without it a non-attributing plan persists Stories with no provenance and
+ * the next audit sweep re-files planned work.
  *
  * @param {{ fingerprints: string[], semanticKeys: string[] }|null} provenance
- * @param {object} opts Assembly options carrying `provenanceSource`.
+ * @param {object} opts
  * @returns {string}
  */
 function resolveProvenanceSource(provenance, opts) {
@@ -463,17 +354,9 @@ function assembleOnePlanStory(ticket, opts) {
   const { bodyObject: folded } = foldSpecIntoStoryBody(bodyObject, slug, {
     sharedSpec: opts.sharedSpec ?? null,
   });
-  // Body first: the fingerprint is an identity over the *assembled* content,
-  // so it cannot be computed until that content exists.
   const serialized = serializeStoryBody({ ...folded, depends_on });
-  // Carry audit dedup provenance into the persisted body (Story #4877). The
-  // audit sweep's Single-plan path stamps the `audit-fingerprints` /
-  // `audit-semantic-keys` footers into the seed it hands `/mandrel-plan`; without this
-  // the persisted Story carries no provenance and the next sweep re-files work
-  // it already planned. Mechanical on purpose — the authoring agent is not
-  // asked to notice HTML comments in a one-pager. A non-audit seed carries no
-  // footers, so this is a no-op there. Which identities reach *this* Story is
-  // `resolveProvenanceSource`'s call (Story #5045).
+  // Mechanical on purpose: the authoring agent is not asked to hand-carry
+  // audit footers. A non-audit seed has none, so this is a no-op there.
   const { body } = carryProvenanceFooters({
     from: resolveProvenanceSource(provenance, opts),
     into: serialized,
@@ -495,9 +378,6 @@ function assembleOnePlanStory(ticket, opts) {
 }
 
 /**
- * Shared techspec.md is an N===1 convenience only — folding one Spec into
- * every sibling duplicates approach prose and breaks Story-as-SSOT.
- *
  * @param {object[]} tickets
  * @param {string|null|undefined} sharedSpec
  */
@@ -512,25 +392,10 @@ function assertSharedSpecAllowed(tickets, sharedSpec) {
 }
 
 /**
- * Assemble markdown bodies for every Story: normalize → fold spec →
- * order by dependency → resolveSupersedePartition → serialize.
- *
- * **The dependency sort runs here, once** (Story #5361). It used to run again
- * inside the create loop, which meant "the primary Story" was derived twice
- * from two different orderings: supersede assignment took the first *authored*
- * Story, while the plan summary took the first *created*
- * one. A draft whose authoring order differed from its dependency order made
- * the `superseded-by` comment name a different Story from the summary. One
- * sort, one ordered list threaded on to every consumer, so `stories[0]` is the
- * only primary there is. The sort also refuses an unknown sibling or a cycle,
- * which now fails the write-free pass rather than the first create.
- *
- * The partition pass runs **before** any GitHub write so a mis-authored
- * plan never leaves Stories live against an inconsistent tracker. Story #5332
- * retired the acceptance partition that used to run beside it: it refused
- * only byte-identical acceptance text across siblings, and the split gate is
- * now `assertNoWaveCollisions` in `run-plan-persist.js`, ahead of the first
- * create.
+ * Normalize → fold spec → dependency-order → supersede partition, all before
+ * any GitHub write. The dependency sort runs here only, so `stories[0]` is the
+ * one primary Story every consumer sees; an unknown sibling or cycle fails
+ * this write-free pass.
  *
  * @param {object[]} tickets
  * @param {object} [opts]
@@ -576,9 +441,8 @@ function orderStoriesByDependencies(stories) {
   const scheduled = new Set();
   const pending = [...list];
   while (pending.length > 0) {
-    // External refs gate delivery, never creation order: the blocker is
-    // already live, so it can never become "scheduled" in this run and would
-    // otherwise wedge the sort into a false cycle (Story #5155).
+    // External refs are already live, never "scheduled" here; counting them
+    // would wedge the sort into a false cycle.
     const index = pending.findIndex((story) =>
       story.depends_on
         .filter((slug) => !isExternalDependencyRef(slug))
@@ -597,21 +461,9 @@ function orderStoriesByDependencies(stories) {
 }
 
 /**
- * Index the open `type::story` backlog so a re-run can recognise Stories a
- * previous, partially-failed persist already created.
- *
- * Two indexes come back. `byFingerprint` is the adoption key — an exact match
- * on the authored content (see {@link planStoryFingerprint}). `idsByTitle` is
- * only used to *warn*: it catches the near miss where a Story with this title
- * is already open but its content differs, which is what an abandoned earlier
- * plan or an edited `stories.json` leaves behind. Adoption deliberately does
- * not key on it — a title is not an identity, and adopting on one would let a
- * later unrelated plan overwrite someone else's Story.
- *
- * Best-effort by construction: a provider with no `listIssuesByLabel` (or a
- * listing that errors) yields empty indexes and the create loop proceeds
- * un-deduplicated, exactly as it did before. That degrades resume, not
- * correctness of a first run — so it warns rather than throws.
+ * Index open Stories for resume. `byFingerprint` is the adoption key;
+ * `idsByTitle` only warns (a title is not an identity). Best-effort: a
+ * missing or failing listing degrades resume, not a first run, so it warns.
  *
  * @param {object} provider
  * @returns {Promise<{
@@ -662,19 +514,9 @@ async function indexExistingStories(provider) {
 }
 
 /**
- * Re-run the resume lookup for a single fingerprint and return the **raw**
- * issue, or `null`.
- *
- * This is the probe `createIssue` calls before any retry POST (Story #5112).
- * A create whose response was lost has already filed the issue; retrying
- * blind duplicates it. Because the body posted carries the fingerprint
- * marker, the same content-keyed lookup the resume path uses answers "did
- * attempt 1 land?" authoritatively — from the server's state, not from a
- * client-side guess about where the connection broke.
- *
- * Best-effort like {@link indexExistingStories}: a provider without the
- * listing surface, or a listing that throws, yields `null` and the retry
- * proceeds exactly as it did before.
+ * Probe `createIssue` runs before a retry POST: a create whose response was
+ * lost already filed the issue, and the posted marker answers that from
+ * server state. Best-effort — `null` lets the retry proceed.
  *
  * @param {{ provider: object, fingerprint: string }} args
  * @returns {Promise<object|null>}
@@ -698,15 +540,8 @@ async function findOpenStoryByPlanFingerprint({ provider, fingerprint }) {
 }
 
 /**
- * Warn when a Story with this title is already open but did **not** match the
- * fingerprint — i.e. its authored content differs from what this run is about
- * to create.
- *
- * This is the visible half of the fingerprint tightening. Keying adoption on
- * content means these cases correctly get a fresh Story rather than a silent
- * stale-body adoption, but the divergent Story stays open, and a duplicate the
- * operator never hears about is its own small trap. Naming it converts silent
- * litter into a decision.
+ * Name a same-title open Story whose content differs, so the duplicate a fresh
+ * create leaves behind is a visible decision rather than silent litter.
  *
  * @param {{ slug: string, title: string }} story
  * @param {Map<string, number[]>} idsByTitle
@@ -724,9 +559,8 @@ function warnOnDivergentSameTitleStory(story, idsByTitle) {
 }
 
 /**
- * Render the body actually posted for a Story: the assembled markdown with
- * sibling `depends_on` slugs resolved to real issue ids, plus the invisible
- * plan-fingerprint marker that makes the create loop resumable.
+ * The posted body: sibling slugs resolved to issue ids, plus the fingerprint
+ * marker.
  *
  * @param {object} story
  * @param {Map<string, number>} idBySlug
@@ -738,19 +572,10 @@ function renderStoryBodyForCreate(story, idBySlug) {
   );
   let base = story.body;
   if (dependencyRefs.length > 0) {
-    // Re-serializing from `bodyObject` is what resolves the sibling slugs to
-    // real issue ids — but `bodyObject` never held the provenance footers
-    // (`assembleOnePlanStory` appends those to the body *string*), so this
-    // branch drops them unless the carry is re-applied. That is the exact
-    // loss site Story #4935 diagnosed, #4939 fixed, and #4956 reverted
-    // wholesale hours later; Story #5056 restored it with a persist-side
-    // regression test that reads the POSTed body.
-    //
-    // `from: story.body` — not the seed — is load-bearing: it re-carries the
-    // identities *this* Story was stamped with under Story #5045 attribution
-    // rather than reintroducing the whole seed's union. `carryProvenanceFooters`
-    // is additive, union-preserving and idempotent, so re-applying is safe by
-    // construction.
+    // `bodyObject` never held the provenance footers (they were appended to
+    // the body string), so re-serializing drops them unless re-carried.
+    // `from: story.body`, not the seed, keeps this Story's attributed
+    // identities; the carry is idempotent.
     const reserialized = serializeStoryBody(
       { ...story.bodyObject, depends_on: dependencyRefs },
       { includeFooter: true },
@@ -764,34 +589,18 @@ function renderStoryBodyForCreate(story, idBySlug) {
 }
 
 /**
- * Mirror the plan's sibling `depends_on` edges into native GitHub `blocked_by`
- * dependency edges (Story #4544).
+ * Mirror sibling `depends_on` into native `blocked_by` edges. Non-fatal: the
+ * `blocked by #N` body footer already carries the ordering.
  *
- * Ordering is authored as slugs and, until now, survived persist only as
- * `blocked by #N` prose in the body footer. That footer stays — it is what
- * `/mandrel-deliver`'s resolver falls back on — but a native edge is the durable,
- * machine-readable form: visible in the GitHub UI, readable without parsing
- * markdown, and settable by an operator later for cross-run order.
- *
- * **Non-fatal by design, and deliberately asymmetric with the read path.** A
- * missing native edge is cosmetic here: `renderStoryBodyForCreate` has already
- * written the footer, so ordering is not lost when the dependencies API says
- * no. `/mandrel-deliver`'s *read* of these edges is a real dispatch gate, which is why
- * that side fails loud. Persist reports the failure and completes.
- *
- * Two shape hazards this crossing has to get right, both silent if missed:
- * `applyBlockedByDependencies` indexes `slugToIssueNumber` with property
- * access, so the `Map` the create loop builds must be flattened to a plain
- * object — a `Map` would yield `undefined` for every lookup, skip every edge,
- * and (being non-fatal) report success having written nothing. And it reads
- * `dependsOn`, not the `depends_on` the assembled Story carries.
+ * `applyBlockedByDependencies` indexes `slugToIssueNumber` by property access
+ * and reads `dependsOn`, so the Map must be flattened to an object and the key
+ * renamed — either miss silently skips every edge and reports success.
  *
  * @param {object} args
  * @param {object} args.provider
  * @param {Array<{ slug: string, depends_on: string[] }>} args.stories
  * @param {Map<string, number>} args.idBySlug
  * @returns {Promise<{ edgesAdded: number, edgesSkipped: number, edgesFailed: number, storiesProcessed: number }|null>}
- *   `null` when there was nothing to mirror or no interface to mirror through.
  */
 async function mirrorNativeDependencyEdges({ provider, stories, idBySlug }) {
   const withEdges = stories.filter((story) => story.depends_on.length > 0);
@@ -811,9 +620,7 @@ async function mirrorNativeDependencyEdges({ provider, stories, idBySlug }) {
 
   try {
     const { gh, owner, repo } = provider.getDependencyWriteContext();
-    // `applyBlockedByDependencies` resolves every entry through this one map,
-    // so an external `#<id>` ref only needs an identity entry to be mirrored
-    // by the same code path as a sibling (Story #5155).
+    // An external `#<id>` ref needs only an identity entry here.
     const slugToIssueNumber = Object.fromEntries(idBySlug);
     for (const story of stories) {
       for (const entry of story.depends_on) {
@@ -855,27 +662,17 @@ async function mirrorNativeDependencyEdges({ provider, stories, idBySlug }) {
 }
 
 /**
- * Ensure the runtime-derived `plan-run::<id>` cohort label exists before it
- * is applied — GitHub's create-issue path does not auto-create unknown
- * labels on every provider route, and an opaque derived label never exists
- * yet.
- *
- * **Non-fatal by design**, matching the native-blocked_by mirroring posture:
- * the label is not load-bearing for correctness (grouping is cosmetic), so
- * it is never a reason to fail persist. On an ensure
- * failure (throw, or the label reported `missing` by the post-loop
- * reconcile) the create loop proceeds **without** the label — applying an
- * unensured label could fail the issue create itself, and the Stories matter
- * more than their metadata. A provider that exposes no `ensureLabels` (test
- * fakes, minimal providers) is assumed to accept arbitrary labels on create.
+ * Ensure a label exists before it is applied (create-issue does not always
+ * auto-create). Non-fatal: on failure the Stories are created without it,
+ * since an unensured label could fail the create itself.
  *
  * @param {object} args
  * @param {object} args.provider
  * @param {string} args.label
  * @param {string} args.color
  * @param {string} args.description
- * @param {string} args.role Human-readable role for the degrade warning.
- * @returns {Promise<boolean>} Whether the create loop should apply the label.
+ * @param {string} args.role
+ * @returns {Promise<boolean>} Whether to apply the label.
  */
 async function ensurePersistLabel({
   provider,
@@ -911,51 +708,12 @@ async function ensurePersistLabel({
 }
 
 /**
- * Create Story issues via `provider.createIssue`, resumably.
+ * Create Story issues resumably, adopting any open Story whose fingerprint
+ * matches. Stories are born without `agent::ready`; `markStoriesReady` flips
+ * it last, once every plan comment is on the ticket.
  *
- * **Stories are born without `agent::ready`** (Story #4541). They used to
- * carry it in the creating POST while the `story-plan-state` comment was
- * upserted afterwards, so anything that picked a Story up inside that window —
- * or after a comment failure aborted the loop — found a ready Story carrying
- * none of the operator's delivery instructions. Creation now applies
- * `type::story` plus the sanitized authored labels only; `markStoriesReady`
- * performs the flip as the terminal step, once every plan comment is on the
- * ticket.
- *
- * **The loop is resumable, and adoption is content-keyed.** Each body carries
- * a plan-fingerprint marker, and the open `type::story` backlog is indexed by
- * it before the first POST. A Story whose fingerprint already exists is
- * adopted rather than re-created, so a re-run after a 502 at story *k* of *N*
- * completes the cohort instead of minting a second copy of `1..k-1`.
- *
- * The fingerprint covers the assembled body, not just slug + title, so a hit
- * means the open Story *is* what this run would author and adoption changes
- * nothing. A same-named Story whose content has drifted — an abandoned plan, or
- * an edited `stories.json` — misses the lookup, gets a correct new Story, and
- * is named in a warning. Adoption never rewrites a body, so keying it on
- * anything weaker than content would silently ship a stale one.
- *
- * **Every created Story carries the cohort's `plan-run::<id>` grouping
- * label** (Story #4692, metadata only). The id is deterministic over the
- * authored artifacts ({@link derivePlanRunId}), so a resumed persist derives
- * the identical label its adopted Stories already carry from their original
- * create — no relabel call is needed on the resume path, and the cohort is
- * never split across two labels. The label is ensured to exist before the
- * first POST, **non-fatally**: grouping is cosmetic and never fails the run
- * (see `ensureCohortLabel`). `/mandrel-deliver` never reads it — delivery stays
- * ids-only over live state (Story #4540's actual point).
- *
- * **The create loop stays serial and dependency-ordered** — deliberately, and
- * unlike every other per-Story loop on this path (Story #4952). It is not an
- * independent fan-out: `renderStoryBodyForCreate(story, idBySlug)` resolves a
- * Story's `depends_on` slugs to the real issue ids its siblings were just
- * minted with, and `idBySlug` is filled *in loop order* by the POSTs
- * themselves. Running it concurrently would render `#undefined` dependency
- * refs for any Story whose dependency had not yet returned an id.
- *
- * **Sibling order is mirrored into native GitHub `blocked_by` edges** once
- * every id is known (Story #4544), so plan-created order stops depending on
- * prose. That pass is non-fatal — see `mirrorNativeDependencyEdges`.
+ * The loop stays serial: `idBySlug` is filled in loop order by the POSTs, and
+ * a concurrent create would render `#undefined` dependency refs.
  *
  * @param {object} args
  * @param {object} args.provider
@@ -978,9 +736,6 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
 
   const list = Array.isArray(stories) ? stories : [];
 
-  // Derived once for the whole cohort, before any write — a pure function of
-  // the authored artifacts, so dry-run can report it write-free and a resume
-  // re-derives the identical label.
   const cohortLabel = planRunLabel(
     derivePlanRunId(list.map((story) => story.fingerprint)),
   );
@@ -996,9 +751,6 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
       })),
       dependencyEdges: null,
       planRunLabel: cohortLabel,
-      // A dry run writes nothing, so nothing was ensured and nothing carries
-      // the label — the derived id is still reported, the application is not
-      // claimed.
       planRunLabelApplied: false,
     };
   }
@@ -1016,16 +768,11 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
   const created = [];
   const idBySlug = new Map();
 
-  // Already in dependency order: `assemblePlanStories` sorted once, and
-  // sorting again here is what gave the run a second, disagreeing notion of
-  // which Story is primary (Story #5361).
+  // Already dependency-ordered; re-sorting would disagree on the primary.
   for (const story of list) {
     const already = byFingerprint.get(story.fingerprint);
     if (!already) warnOnDivergentSameTitleStory(story, idsByTitle);
     if (already) {
-      // Adopted Stories already carry the cohort label from their original
-      // create — the deterministic derivation guarantees it is the same
-      // label this run derived, so no relabel call is needed here.
       Logger.info(
         `[plan-persist] resuming: Story "${story.slug}" already exists as ` +
           `#${already.id} with byte-identical authored content ` +
@@ -1046,9 +793,6 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
       title: story.title,
       body: renderStoryBodyForCreate(story, idBySlug),
       labels: [...story.labels, ...(applyCohortLabel ? [cohortLabel] : [])],
-      // Story #5112 — hand the provider the same content-keyed lookup this
-      // loop's resume path uses, so a retry after a lost response adopts the
-      // issue attempt 1 already filed instead of creating a twin.
       findExisting: () =>
         findOpenStoryByPlanFingerprint({
           provider,
@@ -1066,21 +810,15 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
       id,
       title: story.title,
       url: result.url,
-      // Kept, not discarded (Story #5280). `createIssue` hands back the
-      // database id, which is the only identifier the native sub-issue write
-      // accepts — and dropping it here is what made the Epic linker re-read
-      // every Story this run had just created to recover it.
+      // The database id — the only id the native sub-issue write accepts.
       internalId: result.internalId,
-      // True when the provider's retry probe adopted an issue a lost-response
-      // first attempt had already filed — pre-existing either way.
+      // True when the retry probe adopted a lost-response first attempt.
       adopted: result.adopted === true,
     });
     idBySlug.set(story.slug, id);
   }
 
-  // Every id is known now — including the adopted ones a resumed run reused —
-  // so a re-run mirrors the whole cohort's edges, not just the Stories this
-  // invocation happened to POST. Re-application is idempotent.
+  // Includes adopted ids, so a resume mirrors the whole cohort (idempotent).
   const dependencyEdges = await mirrorNativeDependencyEdges({
     provider,
     stories: list,
@@ -1090,35 +828,17 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
   return {
     created,
     dependencyEdges,
-    // The derived id and whether it actually landed are separate facts. The id
-    // is reported either way (a resumed persist re-derives it, and the
-    // dry-run path reports it write-free); the flag is what an epilogue must
-    // consult before advertising a `label:` filter that may match nothing.
+    // Check the flag before advertising a `label:` filter that may match nothing.
     planRunLabel: cohortLabel,
     planRunLabelApplied: applyCohortLabel,
   };
 }
 
 /**
- * Flip every created Story to `agent::ready` — the terminal step of persist
- * (Story #4541).
- *
- * This is what makes `agent::ready` *mean* "fully persisted": by the time it
- * lands, the Story's `story-plan-state` comment is already on the ticket, so a
- * `/mandrel-deliver` that picks it up always has the plan summary beside it.
- *
- * Fails closed: an un-flipped Story is invisible to `/mandrel-deliver`, which is the
- * safe direction — the operator is told exactly which ids need the label.
- *
- * **Collect failures, never fast-fail** (preserved verbatim under the
- * Story #4952 concurrency conversion). Every Story is attempted even when an
- * earlier one's PATCH rejects, because the whole value of the closing error is
- * naming the *complete* set of ids that still need the label by hand. The
- * mapper below therefore absorbs its own rejection into a per-Story outcome
- * rather than letting `concurrentMap`'s first-rejection-wins policy abandon
- * the remaining flips. `concurrentMap` preserves input order, so `readied[]`
- * and the reported failures come back in `created[]` order exactly as the
- * serial loop produced them.
+ * Terminal step: flip every created Story to `agent::ready`, so the label
+ * means "fully persisted". Fails closed, but attempts every Story first — the
+ * mapper absorbs its own rejection so the error names the complete set of ids
+ * still needing the label.
  *
  * @param {object} args
  * @param {object} args.provider
@@ -1147,9 +867,6 @@ export async function markStoriesReady({ provider, created }) {
         };
       }
     },
-    // The terminal per-Story `agent::ready` PATCHes (Story #4952): each flip
-    // is an independent single-issue write, so the loop was serial only by
-    // construction. A latency fix, not a throughput one.
     { concurrency: FANOUT_CONCURRENCY },
   );
   const readied = outcomes

@@ -1,11 +1,6 @@
 /**
- * pipeline.js — Phase 7 of the check-baselines pipeline (Story #2466).
- *
- * Orchestrates the per-kind dispatch: filter enabled kinds, fan-out via
- * `Promise.all`, aggregate exit codes through the shared helper, run
- * friction emission, and assemble the final structured report.
- *
- * Extracted from `check-baselines.js` without behavior change.
+ * check-baselines dispatch: enabled kinds in parallel, aggregated exit
+ * codes, friction emission, final report.
  *
  * @module lib/orchestration/check-baselines/phases/pipeline
  */

@@ -1,17 +1,7 @@
 /**
- * weights.js — the three ranking multipliers, and their degradations
- * (Story #4902).
- *
- * A hotspot's severity says how bad the code measures. These three say how
- * much that badness costs: how often the file changes (churn), how much of
- * the repository depends on it (import in-degree), and how often agents have
- * actually tripped over it (friction signals).
- *
- * All three are **optional inputs**. A shallow clone has no git history, a
- * fresh checkout has no friction ledger, and a consumer whose sources live
- * outside the scanned roots has no resolvable import graph. Each degrades to
- * a neutral multiplier of exactly 1.0 — never 0 (which would erase the
- * hotspot) and never a guess. The engine exits 0 in every degraded case.
+ * Hotspot ranking multipliers — churn, import in-degree, friction signals.
+ * Each input is optional and degrades to exactly 1.0: never 0 (which would
+ * erase the hotspot), never a guess.
  *
  * @module lib/audit-baselines/weights
  */
@@ -21,14 +11,11 @@ import path from 'node:path';
 import { execFileCapture } from '../child-exec.js';
 import { computeInDegree, resolveRepoGraph } from '../import-graph.js';
 
-/** Neutral multiplier every degraded weight collapses to. */
 const NEUTRAL_WEIGHT = 1.0;
 
 /**
- * Saturating count → multiplier in `[1, 2)`. Zero observations gives exactly
- * `NEUTRAL_WEIGHT`, so "no signal" and "signal says nothing notable" are the
- * same number — the degradation is indistinguishable from an honest zero,
- * which is the point: neither should move the ranking.
+ * Saturating count → `[1, 2)`; zero equals the degraded weight, so neither
+ * moves the ranking.
  *
  * @param {number} count
  * @param {number} half count at which the multiplier reaches 1.5
@@ -40,12 +27,10 @@ function saturate(count, half) {
 }
 
 /**
- * Count commits touching each file in the recent history window.
+ * Commits per file in the window; `degraded` when git cannot answer at all.
  *
  * @param {{ cwd: string, windowDays?: number, run?: Function }} args
  * @returns {{ counts: Map<string, number>, degraded: boolean }}
- *   `degraded` is true when git could not answer at all — not a git work
- *   tree, no commits yet, or the binary is unavailable.
  */
 export function readChurn({ cwd, windowDays = 180, run }) {
   let stdout;
@@ -62,8 +47,7 @@ export function readChurn({ cwd, windowDays = 180, run }) {
       {
         run,
         cwd,
-        // git narrates "not a git repository" on stderr; the degradation is
-        // reported in the envelope, not shouted at the operator.
+        // Degradation is reported in the envelope, not on stderr.
         stdio: ['ignore', 'pipe', 'ignore'],
       },
     );
@@ -80,8 +64,6 @@ export function readChurn({ cwd, windowDays = 180, run }) {
 }
 
 /**
- * Import in-degree per module, keyed by repo-relative posix path.
- *
  * @param {{ cwd: string, graph?: Map<string, string[]> | null }} args
  * @returns {{ degrees: Map<string, number>, degraded: boolean }}
  */
@@ -91,12 +73,9 @@ export function readCentrality({ cwd, graph }) {
   return { degrees: computeInDegree(resolved), degraded: false };
 }
 
-/** Path tokens that look like repository files, harvested from signal text. */
 const PATH_TOKEN_RE = /[\w@][\w./@-]*\.(?:js|mjs|cjs|ts|tsx|json|md)\b/g;
 
 /**
- * Collect every `signals.ndjson` under `tempRoot`. Absent tree → empty list.
- *
  * @param {string} tempRootAbs
  * @returns {string[]} absolute paths
  */
@@ -121,12 +100,8 @@ function findSignalStreams(tempRootAbs) {
 }
 
 /**
- * Count friction signals blaming each file.
- *
- * Signal records carry no dedicated path field — the blamed file surfaces
- * inside free-form `details` / `emitter.command` text — so paths are
- * harvested by token scan over each record's serialized form. A malformed
- * line is skipped, never fatal.
+ * Friction signals per blamed file. Records have no path field, so paths are
+ * token-scanned from `details` / `emitter.command`; bad lines are skipped.
  *
  * @param {{ tempRootAbs: string, kinds?: Set<string> }} args
  * @returns {{ counts: Map<string, number>, degraded: boolean, streams: number }}
@@ -167,9 +142,6 @@ export function readFriction({
 }
 
 /**
- * Bundle the three weight lookups into one resolver the hotspot builder can
- * call per cluster id, plus the degradation flags the envelope reports.
- *
  * @param {{
  *   churn: { counts: Map<string, number>, degraded: boolean },
  *   centrality: { degrees: Map<string, number>, degraded: boolean },

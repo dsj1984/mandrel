@@ -1,45 +1,11 @@
 /**
  * single-story-sweep/protection.js
  *
- * Story #2011: per-candidate protection check the
- * [`single-story-sweep`](../single-story-sweep.js) runs **before** handing
- * a merged-branch candidate to `executeCleanup`. The pre-existing sweep
- * relies solely on `gh pr list --state merged` to identify reap
- * candidates. That's necessary but not sufficient — a branch whose PR has
- * been merged can still hold operator work the merge did not capture
- * (post-merge commits, uncommitted edits) or sit on a worktree whose
- * parent Story is still live.
- *
- * This module is a pure-ish protection evaluator: given a candidate
- * (with branch name and optional worktreePath) plus injected ports for
- * git, gh, and the ticketing provider, it returns
- * `{ protected: boolean, reason?: string }`. The sweep filters protected
- * candidates out of `executeCleanup` and records them in the result
- * envelope so the operator can see what was skipped.
- *
- * Three independent guards:
- *
- *   1. `unpushed-work` — branch HEAD SHA differs from the PR's
- *      `headRefOid` (the commit GitHub actually merged). Catches both
- *      post-merge commits and force-pushed divergence. Handles squash
- *      merges correctly (where `merge-base --is-ancestor` would falsely
- *      flag the branch as unmerged).
- *   2. `dirty-tree` — when a worktree is attached and `git status
- *      --porcelain` reports uncommitted edits. The operator is
- *      mid-flight.
- *   3. `ticket-not-done` — the parent Story ticket is not in a terminal
- *      state (closed, `agent::done`). Mirrors the guard
- *      [`sweepStaleStoryWorktrees`](../orchestration/plan-runner/worktree-sweep.js)
- *      already enforces at plan time.
- *
- * Failures during the checks themselves (network blip on gh, ticket
- * provider error, git rev-parse exit !=0) all default to **protected**.
- * Better to leave a candidate alone than to nuke operator work because
- * an unrelated query timed out.
- *
- * Pure with respect to its inputs; all I/O routes through the injected
- * ports so unit tests can drive the state machine without touching disk
- * or the network.
+ * Per-candidate guards run before a merged-branch candidate is reaped: a
+ * merged PR is necessary but not sufficient, since the branch may still hold
+ * post-merge commits, uncommitted edits, or belong to a live Story. Any check
+ * that itself fails defaults to **protected** — leave a candidate alone rather
+ * than destroy operator work because a query timed out. All I/O is injected.
  */
 
 import { parseStoryBranch } from '../git-utils.js';
@@ -47,9 +13,6 @@ import { parseStoryBranch } from '../git-utils.js';
 const DONE_LABEL = 'agent::done';
 
 /**
- * Story id from a `story-<n>` branch name. Returns `null` for any other
- * shape. Exported for tests.
- *
  * @param {string} branch
  * @returns {number|null}
  */
@@ -58,8 +21,7 @@ export function storyIdFromBranch(branch) {
 }
 
 /**
- * Pure: does the ticket count as "done"? Closed state OR carrying the
- * `agent::done` label. Exported for tests.
+ * Closed, or carrying `agent::done`.
  *
  * @param {{state?: string|null, labels?: Array<string>}} ticket
  * @returns {boolean}
@@ -72,9 +34,6 @@ export function isTicketDone(ticket) {
 }
 
 /**
- * Resolve a branch ref to its full SHA via `git rev-parse`. Returns
- * `{ ok: true, sha }` on success, `{ ok: false, reason }` on any failure.
- *
  * @param {{ gitSpawn: Function, repoRoot: string }} ctx
  * @param {string} ref
  */
@@ -92,10 +51,6 @@ function gitRevParse(ctx, ref) {
 }
 
 /**
- * Run `git status --porcelain` inside a worktree and report whether the
- * tree is clean. Returns `{ ok: true, dirty: boolean }` on success, or
- * `{ ok: false, reason }` when the command itself fails.
- *
  * @param {{ gitSpawn: Function }} ctx
  * @param {string} worktreePath
  */
@@ -112,12 +67,7 @@ function gitStatusDirty(ctx, worktreePath) {
 }
 
 /**
- * Probe a PR's `headRefOid` (the commit GitHub merged) via gh CLI.
- * Returns `{ ok: true, sha }` on success, `{ ok: false, reason }`
- * otherwise.
- *
- * The runner port mirrors `git-cleanup-branches.js`'s `defaultGhRunner`
- * shape: `(args, opts) => stdout`. Tests inject their own.
+ * The PR's `headRefOid` — the commit GitHub actually merged.
  *
  * @param {{ ghRunner: Function }} ctx
  * @param {number} prNumber
@@ -146,23 +96,12 @@ function probePrHeadRefOid(ctx, prNumber, repoRoot) {
 }
 
 /**
- * Sub-check: does the branch have commits the PR did not merge?
- *
- * Compares `git rev-parse <branch>` against `gh pr view --json
- * headRefOid`. Any mismatch (post-merge push, force-push divergence,
- * the operator amended) flags the branch as protected. Squash merges
- * are handled correctly: a squash where the branch is unchanged since
- * the PR was opened keeps `branch HEAD == headRefOid`; the squash
- * commit lives only on `main`.
- *
- * Exported for tests.
+ * Branch HEAD must equal the PR's `headRefOid`; any mismatch (post-merge
+ * push, force-push, amend) protects. Unlike `merge-base --is-ancestor`, this
+ * is correct for squash merges.
  */
 export function checkUnpushedWork({ candidate, ctx }) {
   if (typeof candidate?.prNumber !== 'number') {
-    // No PR-detected candidate — the gh probe in `planCleanup` should
-    // have populated this. Without a PR number we cannot do a reliable
-    // ancestry check; default to protected so we never reap a branch
-    // whose merge state we cannot verify.
     return { protected: true, reason: 'no-pr-number' };
   }
   const branchHead = gitRevParse(ctx, candidate.branch);
@@ -179,15 +118,7 @@ export function checkUnpushedWork({ candidate, ctx }) {
   return { protected: false };
 }
 
-/**
- * Sub-check: does the candidate's worktree have uncommitted edits?
- *
- * Skips silently (returns `not-protected`) when no worktree is attached
- * — there is nothing to be dirty in that case; the branch-only delete
- * path is unaffected.
- *
- * Exported for tests.
- */
+/** No attached worktree means nothing can be dirty. */
 export function checkDirtyTree({ candidate, ctx }) {
   if (!candidate.hasWorktree || !candidate.worktreePath) {
     return { protected: false };
@@ -202,18 +133,7 @@ export function checkDirtyTree({ candidate, ctx }) {
   return { protected: false };
 }
 
-/**
- * Sub-check: is the parent Story ticket in a terminal state? Treats
- * provider failures as "still open" — better to leave a candidate alone
- * than to reap one whose status we cannot read.
- *
- * Branches that do not match the `story-<n>` shape have no parent
- * ticket to query; they bypass this guard. The sweep's branch filter
- * already excludes non-`story-*` branches upstream, so this code path
- * is reached only when the matcher passes.
- *
- * Exported for tests.
- */
+/** Non-`story-<n>` branches have no parent ticket and bypass this guard. */
 export async function checkTicketNotDone({ candidate, ctx }) {
   const storyId = storyIdFromBranch(candidate.branch);
   if (storyId === null) return { protected: false };
@@ -235,14 +155,7 @@ export async function checkTicketNotDone({ candidate, ctx }) {
 }
 
 /**
- * Evaluate every protection guard against a single sweep candidate.
- * Returns the first protected verdict encountered (short-circuits) so
- * the reason string in the result envelope is single-cause and easy to
- * read.
- *
- * Ordering: dirty-tree (cheap, local-only) → ticket-not-done (one
- * provider call) → unpushed-work (one gh + one git call). Fail-fast on
- * the cheapest checks first.
+ * First protected verdict wins (single-cause reason), cheapest check first.
  *
  * @param {{
  *   candidate: {

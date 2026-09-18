@@ -1,35 +1,17 @@
 /**
  * single-story-sweep/protection-ctx.js
  *
- * Shared builder for the `evaluateProtection` context the boot-sweep
- * engine ([`sweepMergedBranches`](../single-story-sweep.js)) threads into
- * every candidate protection check. Single-homed here so the three boot
- * callers — `single-story-init.js` and the
- * `boot-sweep.js` CLI — build an identical ctx instead of each re-wiring
- * the git/gh/ticket ports.
- *
- * Story #2990: the sweep protection-ctx `ghRunner` stays on raw
- * `spawnSync('gh', …)` (not the `lib/gh-exec.js` async facade) because
- * `executeCleanup` invokes the protection checks inside a synchronous
- * candidate-filter loop. The runner contract is the legacy
- * `(args, opts) => stdout string` shape.
+ * The one builder of the `evaluateProtection` ctx for every sweep caller.
+ * `ghRunner` stays on synchronous `spawnSync` (not the async gh-exec facade)
+ * because the checks run inside a synchronous candidate-filter loop.
  */
 
 import { spawnSync as defaultSpawnSync } from 'node:child_process';
 import { gitSpawn } from '../git-utils.js';
 
 /**
- * Build the synchronous `gh` runner the sweep uses for its
- * candidate-protection checks.
- *
- * Story #4073: the `spawnImpl` seam injects the `spawnSync` boundary so
- * the runner's success/error handling can be unit-tested without a live
- * `gh` binary. It defaults to `child_process.spawnSync`, so the
- * production CLI path is unchanged.
- *
  * @param {string} cwd Repo root used as the default spawn cwd.
- * @param {typeof defaultSpawnSync} [spawnImpl] Injectable spawn boundary —
- *   defaults to `child_process.spawnSync`.
+ * @param {typeof defaultSpawnSync} [spawnImpl]
  * @returns {(args: string[], opts?: { cwd?: string }) => string}
  */
 export function makeGhRunner(cwd, spawnImpl = defaultSpawnSync) {
@@ -49,10 +31,6 @@ export function makeGhRunner(cwd, spawnImpl = defaultSpawnSync) {
 }
 
 /**
- * Build the `evaluateProtection` ctx bag: the repo root, the `gitSpawn`
- * port, the synchronous `gh` runner, and a `getTicket` port bound to the
- * supplied provider.
- *
  * @param {{
  *   cwd: string,
  *   provider: { getTicket: (id: number) => Promise<object> },

@@ -1,16 +1,7 @@
 /**
- * friction.js — Phase 5 of the check-baselines pipeline (Story #2466).
- *
- * Centralised friction emission. The dispatcher is the single emission
- * site: per (kind, severity) tuple, exactly one friction event with the
- * canonical payload `{tool:'check-baselines', kind, severity, file?,
- * method?, delta?, baseRef}`.
- *
- * Severities:
- *   - `floor`            — at least one floor breach.
- *   - `regression`       — at least one head-vs-base regression.
- *   - `schema`           — head baseline failed schema validation / read.
- *   - `kernel-mismatch`  — baseline kernelVersion ≠ running kernel.
+ * The single check-baselines friction emission site: exactly one event per
+ * (kind, severity), severity one of `floor | regression | schema |
+ * kernel-mismatch`.
  *
  * @module lib/orchestration/check-baselines/phases/friction
  */

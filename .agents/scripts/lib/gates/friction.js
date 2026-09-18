@@ -4,9 +4,7 @@
  * shape (`kind`/`ts`/`emitter`) and swallows append errors after a warn
  * so observability outages never block a gate run.
  *
- * `details` is normalised to an object (never a bare string) per the
- * Epic #4406 canonical contract — a string caller value is wrapped as
- * `{ message }`.
+ * `details` is always an object; a string is wrapped as `{ message }`.
  */
 
 import { appendSignal } from '../signals/index.js';

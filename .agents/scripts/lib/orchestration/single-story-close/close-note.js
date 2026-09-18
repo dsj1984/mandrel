@@ -1,45 +1,18 @@
 /**
- * close-note.js — the human-readable `note` on close's result record
- * (Story #5266).
+ * close-note.js — the human-readable `note` on close's result record.
  *
- * ## Why this is its own module
- *
- * The note used to branch on `waitedForMerge` — whether close *waited* — and
- * not on `merged`. A bounded wait that expired with the PR still open
- * therefore wrote "Close-and-land: PR merge confirmed … the issue closed"
- * into `story-close-result-<id>.log` **beside `merged: false`**, while the
- * schema-validated terminal envelope correctly reported
- * `status: pending, phase: confirm-merge`. That log is what close's summary
- * line points the operator at, so the contradiction is what gets read first:
- * a merge that never happened, reported as confirmed.
- *
- * The invariant this module exists to hold:
- *
- *   > **No note may assert a state the same object denies.**
- *
- * Every branch below is therefore derived from the result's OWN
- * `merged` / `directMerged` / `autoMergeEnabled` / `landCompleted` fields —
- * the ones the note ships next to — so no input can produce a note that
- * contradicts them. Story #5279 added the fourth, because `merged: true`
- * used to imply the flip, the issue close and the post-land tail: a direct
- * squash-merge under `--no-wait-merge`, and a merge whose `agent::done` write
- * failed, now reach it with none of the three, and reusing the confirmed
- * wording for them would reintroduce the defect above one field over. The
- * unmerged branches deliberately claim nothing about the Story's label state
- * either: close's ending may be `pending` OR `blocked` with the same
- * `merged: false`, and the terminal envelope is the authority on which. They
- * also avoid the merge-completion vocabulary entirely — no `agent::done`, no
- * "the merge confirms" — so that a reader skimming for those words cannot
- * take a next-step instruction for a report of what happened.
+ * Invariant: no note may assert a state the same object denies, so every
+ * branch derives from the result's own fields. A merge is not a completed
+ * land (`landCompleted`), and the unmerged branches claim nothing about label
+ * state and avoid merge-completion vocabulary — the terminal envelope is the
+ * authority on pending vs blocked.
  */
 
 /**
- * The one line the note is not allowed to get wrong.
- *
  * @param {{ merged?: boolean, directMerged?: boolean,
  *   autoMergeEnabled?: boolean, landCompleted?: boolean }} result
  *   `landCompleted` — did THIS run flip `agent::done`, close the issue and
- *   run the post-land tail? Defaults to `merged`, the pre-#5279 equivalence.
+ *   run the post-land tail? Defaults to `merged`.
  * @returns {string}
  */
 export function deriveCloseNote({

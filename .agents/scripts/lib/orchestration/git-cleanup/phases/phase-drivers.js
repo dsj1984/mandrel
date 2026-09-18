@@ -1,20 +1,7 @@
 /**
- * phase-drivers.js — per-phase orchestrators for git-cleanup (Story #2466).
- *
- * Each export drives one of the four cleanup phases (fast-forward-main,
- * prune-remotes, branches, stashes) — wraps the corresponding
- * `plan`/`execute` pair, applies the `--dry-run` / `--yes` semantics,
- * and emits the operator-facing log lines.
- *
- * ## Decide / Execute split (Story #2994)
- *
- * `runBranchPhase`, `runFastForwardPhase`, and `runStashPhase` each
- * delegate to a pure `decideXPhase(state)` that returns a plain action
- * record `{ kind, args }`, and an impure `executeXPhase(action, ctx)`
- * that performs I/O. The `runXPhase` sequencer composes the two,
- * inserting the interactive prompt between them when the action's
- * `kind` is `'prompt-then-execute'`. The split keeps the branching
- * logic unit-testable without spinning up git or stdin.
+ * Per-phase drivers for git-cleanup. Each `runXPhase` composes a pure
+ * `decideXPhase` (returns an action record) with an impure `executeXPhase`,
+ * prompting in between for `prompt-then-execute`.
  *
  * @module lib/orchestration/git-cleanup/phases/phase-drivers
  */
@@ -68,19 +55,11 @@ function emitExecutionHuman(result) {
 // =====================================================================
 
 /**
- * Pure: decide what the fast-forward phase should do given the plan.
- *
- * Returns an action record:
- *  - `{ kind: 'skip', result }`               — base branch can't FF
- *  - `{ kind: 'dry-run', result }`            — dry-run mode
- *  - `{ kind: 'prompt-then-execute', promptMessage, declinedResult, executeArgs }`
- *  - `{ kind: 'execute', executeArgs }`       — --yes mode, run immediately
- *
  * @param {object} state
- * @param {object} state.plan        Output of `planFastForward`.
- * @param {object} state.opts        CLI options (`dryRun`, `yes`).
- * @param {string} state.baseBranch  Base branch name.
- * @param {string} state.cwd         Working directory (for execute args).
+ * @param {object} state.plan
+ * @param {object} state.opts
+ * @param {string} state.baseBranch
+ * @param {string} state.cwd
  */
 export function decideFastForwardPhase(state) {
   const { plan, opts, baseBranch, cwd } = state;
@@ -128,10 +107,6 @@ export function decideFastForwardPhase(state) {
   return { kind: 'execute', executeArgs };
 }
 
-/**
- * Impure: perform the fast-forward action returned by
- * `decideFastForwardPhase`. Returns the phase result.
- */
 export async function executeFastForwardPhase(action) {
   if (action.kind === 'skip' || action.kind === 'dry-run') {
     if (action.logMessage) Logger.info(action.logMessage);
@@ -160,7 +135,7 @@ export async function runFastForwardPhase(opts, cwd, baseBranch) {
 }
 
 // =====================================================================
-// Prune phase (unchanged — low CRAP, kept for parity)
+// Prune phase
 // =====================================================================
 
 /* node:coverage ignore next */
@@ -192,14 +167,8 @@ export async function runPrunePhase(opts, cwd) {
 // =====================================================================
 
 /**
- * Count of a plan's *actionable* candidates — the ones `executeCleanup`
- * will actually delete given the current `--remote` setting. Story #4395
- * always enumerates remote-only candidates in `plan.candidates` (so the
- * operator sees them in the dry-run list), but their deletion still
- * requires `--remote`; without it, `executeCleanup` no-ops on every
- * `localExists: false` candidate. Counting only the actionable subset
- * keeps the "no-candidates" short-circuit and the confirmation prompt's
- * "Reap N" count honest about what will actually happen.
+ * Remote-only candidates are listed but only deleted under `--remote`, so
+ * count just what will actually be reaped.
  */
 function countActionableCandidates(candidates, remote) {
   return remote
@@ -208,19 +177,10 @@ function countActionableCandidates(candidates, remote) {
 }
 
 /**
- * Pure: decide what the branch-reap phase should do given the plan.
- *
- * Returns an action record:
- *  - `{ kind: 'no-candidates', result }`       — empty plan, nothing to reap
- *  - `{ kind: 'dry-run', result }`             — dry-run mode (plan only)
- *  - `{ kind: 'prompt-then-execute', promptMessage, declinedResult, executeArgs, plan }`
- *  - `{ kind: 'execute', executeArgs, plan }`  — --yes mode
- *
  * @param {object} state
- * @param {object} state.plan         Output of `planCleanup`.
- * @param {object} state.opts         CLI options (`dryRun`, `yes`, `remote`,
- *                                    `includeContentMerged`).
- * @param {string} state.cwd          Working directory.
+ * @param {object} state.plan
+ * @param {object} state.opts
+ * @param {string} state.cwd
  */
 export function decideBranchPhase(state) {
   const { plan, opts, cwd } = state;
@@ -255,9 +215,8 @@ export function decideBranchPhase(state) {
       executeArgs,
     };
   }
-  // Story #5283: the unattended arm. Nobody saw the weak-signal note
-  // above, so a `content-merged` candidate's remote ref is withheld
-  // unless the operator opted in with `--include-content-merged`.
+  // Unattended: nobody saw the weak-signal note, so content-merged remote
+  // refs are withheld unless `--include-content-merged`.
   return {
     kind: 'execute',
     plan,
@@ -268,10 +227,6 @@ export function decideBranchPhase(state) {
   };
 }
 
-/**
- * Impure: perform the branch-reap action returned by `decideBranchPhase`.
- * Returns the phase result `{ plan, result, declined? }`.
- */
 export async function executeBranchPhase(action) {
   if (action.kind === 'dry-run' || action.kind === 'no-candidates') {
     return action.result;
@@ -293,10 +248,7 @@ export async function runBranchPhase(opts, cwd, baseBranch) {
     include: opts.include,
     exclude: opts.exclude,
   });
-  // Story #4395: always enumerate remote-only merged branches so the
-  // dry-run / prompt shows them without requiring `--remote`. Deletion of
-  // a remote-only candidate still requires `--remote` — `executeCleanup`
-  // no-ops on `localExists: false` candidates otherwise (unchanged).
+  // Always list remote-only candidates; deleting them still needs `--remote`.
   const plan = planCleanup({
     cwd,
     baseBranch,
@@ -320,19 +272,10 @@ export async function runBranchPhase(opts, cwd, baseBranch) {
 // =====================================================================
 
 /**
- * Pure: decide what the stash-triage phase should do given the plan.
- *
- * Returns an action record:
- *  - `{ kind: 'no-stashes', result }`        — nothing to triage
- *  - `{ kind: 'dry-run', result, stashes }`  — dry-run mode
- *  - `{ kind: 'execute-allowlist', executeArgs }` — --yes / --json mode
- *  - `{ kind: 'execute-interactive', executeArgs }` — interactive prompt
- *
  * @param {object} state
- * @param {Array}  state.stashes  Output of `planStashes().stashes`.
- * @param {object} state.opts     CLI options (`dryRun`, `yes`, `json`,
- *                                `dropStashes`).
- * @param {string} state.cwd     Working directory.
+ * @param {Array}  state.stashes
+ * @param {object} state.opts
+ * @param {string} state.cwd
  */
 export function decideStashPhase(state) {
   const { stashes, opts, cwd } = state;
@@ -365,10 +308,6 @@ export function decideStashPhase(state) {
   };
 }
 
-/**
- * Impure: perform the stash-triage action returned by `decideStashPhase`.
- * Returns the phase result.
- */
 export async function executeStashPhase(action) {
   if (action.kind === 'no-stashes' || action.kind === 'dry-run') {
     return action.result;
@@ -387,11 +326,6 @@ export async function executeStashPhase(action) {
   );
 }
 
-// Story #4922 — the `node:coverage ignore next` directive that used to sit
-// here is gone. It was never justified: `runStashPhase` is drivable end to
-// end (planStashes degrades to an empty list outside a repo, and the
-// decide/execute pair below is pure given an allowlist), so the directive
-// only hid a sequencer nothing exercised.
 export async function runStashPhase(opts, cwd) {
   Logger.info(`${TAG} ── phase: stashes ──`);
   const { stashes } = planStashes({ cwd });

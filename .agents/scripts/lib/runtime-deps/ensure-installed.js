@@ -1,30 +1,12 @@
 /**
  * runtime-deps/ensure-installed — fail-fast guard for framework runtime deps.
  *
- * Importing this module runs the dependency-presence check as a side effect:
- * if any package in `.agents/runtime-deps.json`'s `dependencies` block cannot
- * be resolved from the framework's `node_modules` (i.e. the consumer's
- * install is missing, empty, or stale), it prints an actionable remediation
- * message and exits non-zero — *before* the entry point's heavier imports
- * reach the first `import 'ajv'` and throw an opaque `ERR_MODULE_NOT_FOUND`
- * (Story #3432).
- *
- * Why a side-effect-on-import (rather than a function the entry point calls):
- * ESM evaluates a module's imports in source order, depth-first, *before* the
- * module body runs. A function call in `main()` would therefore execute only
- * after the third-party-importing sibling modules had already been evaluated
- * (and already thrown). By making each target entry point's *first* import a
- * side-effect import of this module, the check runs first and short-circuits a
- * broken install with a clear message.
- *
- * The guard only ever exits when a *required* dependency is genuinely
- * missing. With a healthy install (CI, tests, normal runs) it is a no-op, so
- * it is safe for entry points imported by the test suite. `optionalDependencies`
- * are intentionally not checked — they sit behind graceful-degradation paths.
- *
- * Set `MANDREL_SKIP_DEP_PREFLIGHT=1` to disable the side effect (escape hatch
- * for tooling that imports an entry point in an environment that deliberately
- * lacks the framework deps).
+ * Runs on import, deliberately: ESM evaluates imports depth-first before any
+ * module body, so only a side-effect import placed first in an entry point
+ * can report a broken install before a sibling throws an opaque
+ * `ERR_MODULE_NOT_FOUND`. A no-op on a healthy install. `optionalDependencies`
+ * are not checked (they degrade gracefully). `MANDREL_SKIP_DEP_PREFLIGHT=1`
+ * disables it.
  */
 
 import { createRequire } from 'node:module';
@@ -36,16 +18,10 @@ import {
 import { loadRuntimeDepsManifest } from './manifest.js';
 import { detectPackageManager, formatMissingDepsMessage } from './preflight.js';
 
-// `require.resolve` bound to this module's location walks `node_modules`
-// upward from `.agents/scripts/lib/runtime-deps/` to the consumer root —
-// exactly the resolution path the framework's third-party imports follow.
+// Resolves from this file upward — the same path the framework's imports take.
 const frameworkRequire = createRequire(import.meta.url);
 
 /**
- * Run the dependency-presence check and, on failure, write the remediation
- * message and exit. Seams (`requireResolve`, `cwd`, `stderr`, `exit`,
- * `manifest`) make it fully testable without touching the real process.
- *
  * @param {{
  *   requireResolve?: (specifier: string) => string,
  *   cwd?: string,
@@ -66,8 +42,8 @@ export function ensureRuntimeDepsInstalled(opts = {}) {
     readVersion,
   } = opts;
 
-  // A manifest we cannot read is a packaging defect the drift test owns —
-  // never let the guard kill an otherwise-healthy process over it.
+  // An unreadable manifest is a packaging defect the drift test owns; never
+  // kill a healthy process over it.
   if (!manifest) return { ok: true, missing: [] };
 
   const result = checkRuntimeDeps({
@@ -84,11 +60,7 @@ export function ensureRuntimeDepsInstalled(opts = {}) {
 }
 
 /**
- * Remediation text for a failed check.
- *
- * Absence is reported first: a package that is not installed cannot have a
- * version, and installing it is the prerequisite for any version complaint
- * being actionable.
+ * Absence first: installing is the prerequisite for any version complaint.
  *
  * @param {{ missing: string[], mismatched: {name: string, required: string, resolved: string}[] }} result
  * @param {string} cwd
@@ -106,9 +78,6 @@ function describeFailure(result, cwd) {
 }
 
 /**
- * Read a resolved package's version through the framework's own resolution,
- * so the version checked is the one the framework's imports will load.
- *
  * @param {string} name
  * @returns {string | null}
  */
@@ -117,9 +86,6 @@ function defaultReadVersion(name) {
 }
 
 /**
- * Load the manifest, swallowing a read/parse failure to `null` so the guard
- * stays inert on a packaging defect (see `ensureRuntimeDepsInstalled`).
- *
  * @returns {{ required: string[] } | null}
  */
 function safeLoadManifest() {

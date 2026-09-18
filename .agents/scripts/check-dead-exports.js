@@ -1,42 +1,13 @@
 /**
- * CLI: ratchet-down dead-export gate built on knip.
+ * CLI: ratchet-down dead-export gate built on knip. Diffs knip's unused
+ * exports — plus a `{ file, symbol: '*' }` row per module nothing imports —
+ * against `baselines/dead-exports.json` by `(file, symbol)`. Exit 1 only on an
+ * added row; a knip spawn/parse failure is advisory (exit 0 + warning) so a
+ * broken knip cannot block CI.
  *
- * Story #1852 (Epic #1831) shipped the advisory form. Story #3627 (Epic #3599)
- * converts it to a **ratchet-down gate**: exit 1 when `added.length > 0`
- * (new dead exports are not allowed), exit 0 when the diff is clean or when
- * only removals are detected (the baseline is shrinking, which is the success
- * signal). Knip spawn failures remain advisory (exit 0 + stderr warning) so a
- * misconfigured knip installation cannot block CI when we have no current
- * snapshot to compare against.
- *
- * Story #4575 adds the **production pass** (`--production`), the test-only-
- * importer discount: default mode counts a test as an importer, so
- * production-dead code hides behind its own tests. See
- * `lib/dead-exports-mode.js` for why the two passes carry separate baselines.
- *
- * Story #5001 widens what the ratchet can see: knip's `files` category (a
- * module nothing imports) now maps to a `{ file, symbol: '*' }` row alongside
- * the per-export rows, and `knip.json` lists `.agents/scripts/*.js` entry
- * points explicitly instead of by blanket glob — so a top-level CLI that
- * nothing invokes surfaces as dead instead of being declared live by the glob.
- *
- * Contract:
- *   - Reads the committed baseline at `baselines/dead-exports.json` — or
- *     `baselines/dead-exports-production.json` under `--production`
- *     (override either with `--baseline <path>`). Envelope shape:
- *       { $schema, kernelVersion, generatedAt, rows: [{ file, symbol }] }
- *   - Spawns `npx knip --reporter json --no-progress` (plus `--production`),
- *     parses stdout, extracts `{ file, symbol }` rows from `issues[].exports[]`
- *     **and** `issues[].files[]` — the latter as one `{ file, symbol: '*' }`
- *     whole-file row per module nothing imports (Story #5001).
- *   - Diffs current vs. baseline by `(file, symbol)` identity.
- *   - Prints `+ <file>: <symbol>` for each added dead export and
- *     `- <file>: <symbol>` for each removed one, then a summary line.
- *   - With `--json`: writes the structured envelope to stdout and skips the
- *     human summary. The envelope still includes `added`, `removed`,
- *     `baselineRows`, `currentRows`, and `exitCode`.
- *   - Exit codes: 0 = clean or removals-only; 1 = added exports detected.
- *     Knip spawn/parse failure exits 0 (advisory) with a stderr warning.
+ * `--production` discounts test-only importers (production-dead code hides
+ * behind its own tests) and uses its own baseline — see
+ * `lib/dead-exports-mode.js`.
  */
 
 import fs from 'node:fs';
@@ -51,9 +22,7 @@ import {
 import { resolveDeadExportsMode } from './lib/dead-exports-mode.js';
 
 /**
- * Parse argv for `--baseline <path>`, `--json`, `--knip-output <path>`, and
- * `--production`. `--knip-output` is a test seam: pass a pre-captured knip JSON
- * file instead of spawning knip. Exported so unit tests can pin the parser.
+ * `--knip-output` is a test seam: a pre-captured knip JSON instead of a spawn.
  *
  * @param {string[]} argv
  * @returns {{ baselinePath: string | null, json: boolean, knipOutputPath: string | null, production: boolean }}
@@ -87,9 +56,7 @@ export function parseArgv(argv = []) {
 }
 
 /**
- * Pure helper: read a baseline envelope from disk. Returns the parsed object
- * or `null` when the file is missing or unparseable. Exported for tests so
- * they can feed fixture paths.
+ * `null` when missing or unparseable.
  *
  * @param {string} baselinePath
  * @returns {{ kernelVersion?: string, generatedAt?: string, rows?: Array<{file: string, symbol: string}> } | null}
@@ -107,11 +74,7 @@ export function loadBaseline(baselinePath) {
 }
 
 /**
- * Pure helper: diff two `{ file, symbol }` row sets. Returns `added` (in
- * current but not baseline) and `removed` (in baseline but not current).
- * Identity is `<file>\0<symbol>`. Exported as the AC's "diff helper" — the
- * sibling test exercises both the added and removed branches against fixture
- * baselines without spawning knip.
+ * Diff two row sets by `(file, symbol)`, sorted for stable output.
  *
  * @param {Array<{ file: string, symbol: string }>} baselineRows
  * @param {Array<{ file: string, symbol: string }>} currentRows
@@ -126,7 +89,6 @@ export function diffRows(baselineRows, currentRows) {
   const currentSet = new Set((currentRows ?? []).map(key));
   const added = (currentRows ?? []).filter((r) => !baselineSet.has(key(r)));
   const removed = (baselineRows ?? []).filter((r) => !currentSet.has(key(r)));
-  // Sort deterministically so output is stable across runs.
   const sortFn = (a, b) =>
     a.file.localeCompare(b.file) || a.symbol.localeCompare(b.symbol);
   return {
@@ -136,15 +98,8 @@ export function diffRows(baselineRows, currentRows) {
 }
 
 /**
- * Pure helper: render the human-readable diff. Lines:
- *   `+ <file>: <symbol>` for added rows
- *   `- <file>: <symbol>` for removed rows
- * Followed by a one-line summary even on a clean diff so operators see the
- * "no drift" signal. When added rows are present the summary includes a
- * "(gate fail)" marker so the ratchet violation is visible in CI output.
- *
- * `label` distinguishes the two passes in CI logs, which run back to back and
- * would otherwise emit two identical-looking summaries.
+ * `+`/`-` rows then a summary line. `label` tells the two back-to-back passes
+ * apart in CI logs.
  *
  * @param {{ added: Array, removed: Array }} diff
  * @param {string} [label='dead-exports']
@@ -162,9 +117,6 @@ export function renderDiff(diff, label = 'dead-exports') {
 }
 
 /**
- * Top-level CLI entry. Exported so tests can drive the full pipeline through
- * injected hooks without spawning knip.
- *
  * @param {{
  *   argv?: string[],
  *   cwd?: string,
@@ -213,9 +165,6 @@ export async function runCli({
   const currentRows = extractRowsFromKnip(knipEnvelope);
   const diff = diffRows(baselineRows, currentRows);
 
-  // Ratchet-down gate: fail when new dead exports are introduced. Removals are
-  // the success signal (baseline shrinking). Knip spawn failures stay advisory
-  // so a misconfigured knip installation cannot block CI without a snapshot.
   const exitCode = knipError === null && diff.added.length > 0 ? 1 : 0;
 
   if (json) {

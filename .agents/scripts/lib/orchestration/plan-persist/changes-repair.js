@@ -1,37 +1,10 @@
 /**
- * changes-repair.js — repair-before-judging for `changes[]` entries
- * (Story #5312).
- *
- * The `{ path, assumption }` object shape is a deterministic, mechanically
- * derivable formality. The validator already knew how to salvage a path from
- * a plain-string bullet (`suggestPathEntryFix`) — then rejected the plan
- * anyway and charged the author a full re-drafting round to paste that exact
- * object back. Story #5005 made the same call for the verify-tier suffix and
- * repaired it instead; the suffix is gone now, and the repair moves to the
- * one formality left: this module applies the inference the validator
- * trusts, so the dry-run rewrites and **reports** each repair rather than
- * refusing on it.
- *
- * Two shapes are repaired, on both authoring surfaces (a structured object
- * body's `changes[]` array and a serialized string body's `## Changes`
- * section):
- *
- *   - a **plain-string bullet** (`src/app.js`, `` `src/app.js` ``,
- *     `src/app.js — adds the route`) becomes `{ path, assumption }`, the
- *     assumption resolved by probing the base branch — a path present at
- *     base is a `refactors-existing`, an absent one a `creates`;
- *   - a **trailing parenthetical** on a path (`src/app.js (new)`,
- *     `` `src/app.js (creates)` — refactors-existing ``) is stripped; an
- *     authored assumption is kept, an absent one probed as above.
- *
- * A string nothing path-shaped can be salvaged from is left untouched and
- * still fails the body-shape validator — that is the one `changes[]` failure
- * only the author can resolve.
- *
- * It lives beside the validator rather than inside it because the validator's
- * job is to *judge*: mixing a mutating repair pass into a module of pure
- * collectors muddies both. `persist-helpers.js#validateTickets` calls this
- * first, then the validators.
+ * Repair-before-judging for `changes[]`, on both the structured array and a
+ * serialized `## Changes` section: a plain-string bullet becomes
+ * `{ path, assumption }` (probed at base: present → `refactors-existing`,
+ * absent → `creates`), and a trailing parenthetical on a path is stripped.
+ * Repairs are reported, not refused; an unsalvageable string is left for the
+ * validator. Kept apart from the validator, whose collectors are pure.
  *
  * @module lib/orchestration/plan-persist/changes-repair
  */
@@ -39,22 +12,16 @@
 import { matchBarePathToken } from '../../story-body/body-format-lints.js';
 import { FILE_ASSUMPTION_VALUES } from '../file-assumption-enum.js';
 
-/** The `## Changes` heading (either level the parser accepts). */
 const CHANGES_HEADING_RE = /^#{2,3}\s+Changes\s*$/i;
 
-/** Any heading — the end of the `## Changes` section. */
 const ANY_HEADING_RE = /^#{1,6}\s+\S/;
 
-/** A trailing `(…)` on a path token. */
 const TRAILING_PARENTHETICAL_RE = /\s*\([^)]*\)\s*$/;
 
-/** The humanized canonical bullet: `` `path` — assumption ``. */
+/** The canonical bullet: `` `path` — assumption ``. */
 const HUMANIZED_RE = /^`([^`]+)`\s+—\s+(\S+)$/;
 
 /**
- * Strip a trailing parenthetical from a path token, reporting whether one
- * was present.
- *
  * @param {string} raw
  * @returns {{ path: string, stripped: boolean }}
  */
@@ -64,16 +31,8 @@ function stripParenthetical(raw) {
 }
 
 /**
- * Salvage the path token from a plain-string bullet: drop a leading list
- * marker, take the segment before any humanized ` — ` tail, peel quotes and
- * backticks, strip a trailing parenthetical. Returns `null` when nothing
- * path-shaped survives.
- *
- * What counts as path-shaped is `matchBarePathToken` — the same grammar the
- * story-body parser admits a bare bullet under, imported rather than
- * restated (Story #5361). The repair pass scoring a narrower class than the
- * parser is what let a route-segment path be repaired on one surface and
- * refused on the other.
+ * Path-shaped means `matchBarePathToken` — the parser's own grammar, so the
+ * repair and the parser accept the same class.
  *
  * @param {string} raw
  * @returns {string|null}
@@ -93,9 +52,6 @@ function salvagePath(raw) {
 }
 
 /**
- * Resolve the assumption for a path with none authored: present at base →
- * `refactors-existing`, absent → `creates`.
- *
  * @param {string} path
  * @param {(path: string) => boolean} existsAtBase
  * @returns {'refactors-existing'|'creates'}
@@ -105,9 +61,7 @@ function probeAssumption(path, existsAtBase) {
 }
 
 /**
- * Repair one structured `changes[]` item. Returns the corrected entry and a
- * repair record, or `null` when the item needs no repair (or cannot be
- * repaired).
+ * `null` when the item needs no repair or cannot be repaired.
  *
  * @param {unknown} item
  * @param {(path: string) => boolean} existsAtBase
@@ -144,10 +98,6 @@ function repairStructuredItem(item, existsAtBase) {
 }
 
 /**
- * Repair one line of a serialized `## Changes` section. Returns the rewritten
- * line and a repair record, or `null` when the line is already canonical or
- * cannot be repaired.
- *
  * @param {string} line
  * @param {(path: string) => boolean} existsAtBase
  * @returns {{ line: string, repair: object }|null}
@@ -200,9 +150,7 @@ function repairSectionLine(line, existsAtBase) {
 }
 
 /**
- * Repair the `## Changes` section of a serialized body in place. Only lines
- * between the heading and the next heading are touched; the rest of the
- * body is byte-identical.
+ * Touches only the `## Changes` section; the rest stays byte-identical.
  *
  * @param {string} body
  * @param {(path: string) => boolean} existsAtBase
@@ -232,11 +180,9 @@ function repairSerializedBody(body, existsAtBase) {
 }
 
 /**
- * Repair the `changes[]` of one ticket, on whichever surface carries it.
- *
  * @param {object} ticket Mutated in place.
  * @param {(path: string) => boolean} existsAtBase
- * @returns {object[]} The repairs applied to this ticket.
+ * @returns {object[]}
  */
 function repairTicket(ticket, existsAtBase) {
   const body = ticket.body;
@@ -263,13 +209,6 @@ function repairTicket(ticket, existsAtBase) {
 }
 
 /**
- * Render one `changes[]` repair as the dry-run line the operator reads.
- *
- * The dry-run's repair list is mixed — an `acceptance[]` handle strip is
- * reported on it too — but the dispatch across kinds lives in
- * [`acceptance-handle-repair.js`](acceptance-handle-repair.js)`#renderRepair`,
- * which delegates here for this kind. Each producer owns its own line.
- *
  * @param {{ slug: string, from: string, path: string, assumption: string, reason: string }} repair
  * @returns {string}
  */
@@ -284,11 +223,8 @@ export function renderChangeRepair({ slug, from, path, assumption, reason }) {
 }
 
 /**
- * Rewrite every repairable `changes[]` entry across the draft, probing the
- * base branch for the assumption where none was authored. Mutates `tickets`
- * in place (the persist pipeline threads this same array on to assembly)
- * and returns the repairs, each tagged with the Story's slug. Total — a
- * non-array argument and non-Story tickets are no-ops.
+ * Mutates `tickets` in place — persist threads this same array on to
+ * assembly.
  *
  * @param {object[]} tickets
  * @param {{ existsAtBase: (path: string) => boolean }} args

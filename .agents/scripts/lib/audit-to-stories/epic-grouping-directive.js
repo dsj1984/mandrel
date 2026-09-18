@@ -1,20 +1,8 @@
 /**
- * epic-grouping-directive.js — the container-Epic directive an audit sweep
- * emits (Story #5139).
- *
- * Lives on its own because **both** `/audit-to-stories` output paths carry it:
- * the `/mandrel-plan` seed one-pager (`seed-from-findings.js`) and the
- * standalone Story-draft transcript (`audit-to-stories.js`). A sweep is the
- * clearest case for a container — every Story shares a provenance and the
- * operator almost always wants them delivered together — so the Epic is the
- * **default** here, unlike the offer `/mandrel-plan` makes on an ad-hoc plan.
- *
- * It stays a directive in the text rather than an automatic write: the
- * workflow's Phase 4 HITL stop is where an operator declines it.
- *
- * Since Story #5155 the directive names adoption first: a repeat sweep over the
- * same area is the case most likely to already have a container, and opening a
- * second one beside it is the failure this ordering exists to prevent.
+ * The container-Epic directive both `/audit-to-stories` output paths carry.
+ * For a sweep the Epic is the default (shared provenance), declinable at the
+ * HITL stop; adoption of an existing Epic is named first so a repeat sweep
+ * does not open a second container.
  *
  * @module lib/audit-to-stories/epic-grouping-directive
  */
@@ -22,8 +10,6 @@
 import { EPIC_SUGGESTION_THRESHOLD } from '../orchestration/plan-persist/epic-ops.js';
 
 /**
- * Render the grouping directive for a proposed Story set.
- *
  * @param {unknown[]} groups The proposed Stories (only the count is read).
  * @returns {string} Markdown paragraph(s).
  */

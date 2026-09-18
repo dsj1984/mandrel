@@ -2,12 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 /**
- * Read an explicit list of doc files relative to `docsRoot`, returning one
- * `{ name, path, content }` object per file that exists and reads cleanly.
- * Missing or unreadable files are skipped silently. Order is preserved from
- * the input list. This is the shared read/normalize seam the per-Epic docs
- * digest builds on (Story #4338) so there is a single home for the fs read
- * path.
+ * Read doc files relative to `docsRoot`, in input order; missing or
+ * unreadable files are skipped.
  *
  * @param {{ files: string[], docsRoot?: string }} args
  * @returns {Promise<Array<{ name: string, path: string, content: string }>>}

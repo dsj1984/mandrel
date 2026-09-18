@@ -1,29 +1,7 @@
 /**
- * review-providers/security-review.js — Inline ReviewProvider that
- * invokes Anthropic's built-in `/security-review` Claude Code skill.
- *
- * Story #2871 — extends the pluggable Code Review chain (Epic #2815)
- * to surface security-specific findings before a Story or Epic
- * merges. The adapter shells out to the host's `claude` CLI with a
- * prompt that wraps `/security-review` and asks for JSON-shaped
- * findings on stdout, then maps each entry onto the canonical
- * `Finding[]` contract so the existing `runCodeReview()` halting
- * gate ("any critical → halted: true") applies without a parallel
- * code path.
- *
- * Probe semantics: the provider checks for a `claude` binary on
- * PATH at construction. When absent, the constructor throws a
- * descriptive Error. The chain treats a constructor throw as a
- * skip when the entry was declared `optional: true` (the canonical
- * choice for `security-review` on non-Claude hosts), and as a
- * hard-fail when not.
- *
- * Output parsing is liberal: the provider accepts (a) a bare JSON
- * array, (b) `{findings: [...]}`, or (c) either shape wrapped in a
- * `result`/`data` envelope. Free-text output that does not parse as
- * JSON collapses to a single advisory `suggestion` finding pointing
- * the operator at the manual command — the chain still runs, but
- * the security signal is downgraded honestly rather than dropped.
+ * review-providers/security-review.js — runs `/security-review` through
+ * `claude --print`. A missing CLI throws at construction; unparseable output
+ * becomes one advisory finding rather than being dropped.
  *
  * @typedef {import('./types.js').Finding}        Finding
  * @typedef {import('./types.js').ReviewInput}    ReviewInput
@@ -35,10 +13,6 @@ import { spawnSync } from 'node:child_process';
 import { parseProviderFindings } from './parse-findings.js';
 import { renderDepthDirective } from './review-depth.js';
 
-/**
- * Canonical install/remediation guidance baked into every probe
- * failure. Exported so tests assert against the exact strings.
- */
 export const SECURITY_REVIEW_REMEDIATIONS = Object.freeze({
   install:
     'Install the Claude Code CLI (https://docs.anthropic.com/en/docs/claude-code) ' +
@@ -49,12 +23,7 @@ export const SECURITY_REVIEW_REMEDIATIONS = Object.freeze({
 });
 
 /**
- * Default probe: returns true when `claude --version` exits cleanly.
- * Synchronous + cheap; the worst case (claude absent) MUST surface
- * at factory construction time so the operator sees the remediation
- * before the first review run.
- *
- * Exported for testing — tests inject a stub `probeFn` to bypass.
+ * Synchronous so a missing CLI surfaces at construction, not mid-review.
  *
  * @param {{ spawnFn?: typeof spawnSync }} [opts]
  * @returns {boolean}
@@ -74,10 +43,6 @@ function defaultProbeClaudeCli(opts = {}) {
 }
 
 /**
- * Build the hard-fail Error thrown when the probe reports the
- * `claude` CLI is absent. Exported so the registry entry and tests
- * share one message shape.
- *
  * @returns {Error}
  */
 export function buildSecurityReviewUnavailableError() {
@@ -89,9 +54,7 @@ export function buildSecurityReviewUnavailableError() {
 }
 
 /**
- * Severity vocabulary mapping. Mirrors `CODEX_SEVERITY_MAP` so
- * operators see a consistent severity-tier vocabulary regardless of
- * which adapter produced the finding.
+ * Mirrors `CODEX_SEVERITY_MAP` for a consistent vocabulary across adapters.
  *
  * @type {Readonly<Record<string, Severity>>}
  */
@@ -113,9 +76,6 @@ export const SECURITY_REVIEW_SEVERITY_MAP = Object.freeze({
 });
 
 /**
- * Map a single security-review severity string onto the canonical
- * enum. Unknown / missing values collapse to `'suggestion'`.
- *
  * @param {unknown} raw
  * @returns {Severity}
  */
@@ -126,14 +86,6 @@ export function mapSecurityReviewSeverity(raw) {
 }
 
 /**
- * Parse `/security-review` JSON output into `Finding[]`. Liberal:
- * accepts a bare array, `{findings: [...]}`, or either shape
- * wrapped in a `result`/`data` envelope. Free-text output that
- * fails to parse throws — the caller decides whether to fall back
- * to a single advisory finding.
- *
- * Exported for testing.
- *
  * @param {string} rawStdout
  * @returns {Finding[]}
  * @throws {Error} when stdout is not parseable JSON.
@@ -147,21 +99,7 @@ export function parseSecurityReviewFindings(rawStdout) {
   });
 }
 
-/**
- * Prompt body sent to `claude --print` to wrap the built-in
- * `/security-review` skill with an explicit JSON-emit instruction.
- * Exported so doc tooling and tests reference one canonical string.
- *
- * The prompt is intentionally narrow: it asks the model to run the
- * skill against a specific git range and emit findings as a JSON
- * array. Any prose preface or trailing commentary is parseable as
- * "garbage before/after JSON" — `parseSecurityReviewFindings` uses
- * the first JSON-shaped substring rather than the whole stdout.
- *
- * The `{depthDirective}` slot renders the risk-derived thoroughness lever
- * (Story #3937) so a high-risk Epic instructs the model toward a deeper
- * second-pass review while a low-risk one keeps it light.
- */
+/** Wraps `/security-review` with an explicit JSON-emit instruction. */
 const SECURITY_REVIEW_INVOKE_PROMPT =
   'Run /security-review against the diff `{baseRef}`...`{headRef}` ' +
   'for {scopeLabel} #{ticketId}. {depthDirective} After the review, emit ' +
@@ -174,13 +112,6 @@ const SECURITY_REVIEW_INVOKE_PROMPT =
   'No prose around the JSON.';
 
 /**
- * Build the `claude --print` prompt for a specific review input. The
- * risk-derived `depth` lever (Story #3937) is rendered into the prompt via
- * `renderDepthDirective` so the model's thoroughness tracks the Epic's judged
- * risk; an absent depth renders the `standard` directive.
- *
- * Exported for testing.
- *
  * @param {ReviewInput} input
  * @returns {string}
  */
@@ -200,11 +131,6 @@ export function buildSecurityReviewPrompt(input) {
 }
 
 /**
- * Default invoker: shell out to the host's `claude` CLI to run the
- * `/security-review` skill via a JSON-emit prompt. Exported for
- * testing — the production adapter accepts an `invokeFn` override
- * so tests never spawn a real process.
- *
  * @param {ReviewInput} input
  * @returns {{ status: number, stdout: string, stderr: string }}
  */
@@ -223,10 +149,6 @@ function defaultInvokeSecurityReview(input) {
 }
 
 /**
- * Build the advisory fallback finding emitted when `/security-review`
- * exits cleanly but its stdout is not parseable JSON. Pure +
- * exported so tests assert against the exact shape.
- *
  * @returns {Finding}
  */
 export function buildUnparseableFallbackFinding() {
@@ -243,8 +165,6 @@ export function buildUnparseableFallbackFinding() {
 }
 
 /**
- * Build a `ReviewProvider` instance backed by `/security-review`.
- *
  * @param {{
  *   probeFn?: () => boolean,
  *   invokeFn?: (input: ReviewInput) => { status: number, stdout: string, stderr: string },
@@ -311,9 +231,6 @@ export function createSecurityReviewProvider(deps = {}) {
 }
 
 /**
- * Zero-arg factory entry point used by the `review-provider-factory`
- * registry. Mirrors `createCodexProviderForRegistry`.
- *
  * @returns {ReviewProvider}
  */
 export function createSecurityReviewProviderForRegistry() {

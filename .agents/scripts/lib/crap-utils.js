@@ -20,42 +20,19 @@ import {
 
 const CRAP_WORKER_URL = new URL('./workers/crap-worker.js', import.meta.url);
 
-// Pool-vs-serial cutover — single-sourced in cpu-pool.js (see the
-// POOL_SERIAL_THRESHOLD docstring for the tuning rationale). Callers may
-// override it per scan via `serialThreshold`, which is how the parity tests
-// drive the pooled path without materialising a batch bigger than the
-// cutover (Story #5109 raised it from 8 to 256).
+// Overridable per scan via `serialThreshold` (parity tests drive the pool).
 const SERIAL_THRESHOLD = POOL_SERIAL_THRESHOLD;
-// 1.1.0 — TypeScript support landed in 5.29.0. Bumped from 1.0.0 because
-// the scanner now emits CRAP rows for TS/TSX paths that the previous
-// kernel could never reach. The CRAP formula and per-method scoring
-// shape are unchanged for JS sources.
 export const KERNEL_VERSION = '1.1.0';
 export { resolveTsTranspilerVersion };
 
 const SCHEMA_REF = '.agents/schemas/crap-baseline.schema.json';
 
-/**
- * Package whose resolved version is stamped as the scorer identity.
- *
- * `escomplex-plugin-metrics-module` computes the metrics. The retired
- * `typhonjs-escomplex` facade did not, so stamping it described the shell
- * rather than the scorer.
- */
+/** Stamped as scorer identity: the package that actually computes the metrics. */
 const SCORER_PACKAGE = 'escomplex-plugin-metrics-module';
 
 /**
- * Resolve the running scorer's version by walking up from `cwd` and reading the
- * nearest `node_modules/<SCORER_PACKAGE>/package.json`.
- *
- * The package read is `escomplex-plugin-metrics-module`, which owns the
- * Halstead and maintainability math — not the displaced `typhonjs-escomplex`
- * shell, which contributed a parser and a plugin bus and never a metric. The
- * stamp is supposed to answer "could this scorer have produced different
- * numbers", so it has to name the package that computes them.
- *
- * Returns `'0.0.0'` when the dependency cannot be found — callers treat that
- * sentinel as "unknown environment" and may refuse to persist a baseline.
+ * Nearest installed `SCORER_PACKAGE` version walking up from `cwd`;
+ * `'0.0.0'` (unknown environment) when not found.
  *
  * @param {string} [cwd]
  * @returns {string}
@@ -89,13 +66,8 @@ export function resolveEscomplexVersion(cwd = process.cwd()) {
 }
 
 /**
- * Project rich scan rows onto the minimal baseline row shape and assemble an
- * envelope ready for the shared V2 writer.
- *
- * `tsTranspilerVersion` stamps the resolved `typescript` package version so
- * consumers can detect transpiler drift on TS rows. Defaults to the
- * sentinel `'0.0.0'` when typescript is unresolvable — drift detection
- * then becomes a no-op rather than failing the bake.
+ * Baseline envelope of the scored rows. `tsTranspilerVersion` lets consumers
+ * detect TS transpiler drift (`'0.0.0'` when typescript is unresolvable).
  *
  * @param {{
  *   rows: Array<{file: string, method: string, startLine: number, crap: number|null}>,
@@ -132,16 +104,9 @@ export function buildBaselineEnvelope({
 }
 
 /**
- * True when a coverage artifact was actually loaded for this scan.
- *
- * Story #4871: "the tests ran and never reached this method" is a measurement
- * and the CRAP formula's 0%-covered arm is the right answer for it. "No
- * coverage run happened at all" — a freshly initialized story worktree with no
- * `coverage/` directory — is an *absent* observation, and filling it with 0%
- * drives every method to `c² + c`, failing the first commit on files the
- * change never touched. Resolved once per scan and carried on each queue item
- * so the pool workers, which only ever receive their own file's coverage
- * entry, can still tell the two apart.
+ * "Tests never reached this method" scores 0% coverage; "no coverage run at
+ * all" is absent, not 0% (which would fail untouched files). Carried per queue
+ * item because pool workers only see their own file's entry.
  *
  * @param {object|null|undefined} coverage Parsed `coverage-final.json` map.
  * @returns {boolean}
@@ -150,24 +115,11 @@ function isCoverageArtifactPresent(coverage) {
   return coverage !== null && coverage !== undefined;
 }
 
-/**
- * How many files to name when reporting the worst unresolved offenders. Long
- * enough to point at a pattern, short enough to stay a readable CLI message.
- */
 const WORST_OFFENDER_LIMIT = 5;
 
 /**
- * Method-resolution telemetry (Story #4775, fix part 4).
- *
- * The updater used to persist a 100-row baseline built from 5023 dropped
- * methods and log it as success — the rot that let a broken coverage join
- * sit undetected for five weeks across three repos. These three helpers
- * carry the counters that make a thin result *visible* and therefore
- * refusable.
- *
- * The rate is deliberately measured over files that **do** have a coverage
- * entry: a file the test run never touched has no join to fail, so counting
- * it would dilute the signal the floor is meant to catch.
+ * Method-resolution counters that make a broken coverage join visible. Only
+ * files with a coverage entry count: an untouched file has no join to fail.
  */
 function newResolutionAccumulator() {
   return { resolved: 0, total: 0, byFile: [] };
@@ -197,27 +149,12 @@ function summarizeResolution(acc) {
   };
 }
 
-/**
- * Minimum number of joinable methods before the resolution-rate floor is
- * enforced. A diff-scoped run can legitimately touch a handful of methods,
- * where one unresolved method is a 50% rate and says nothing about the health
- * of the join. Below this sample the rate is reported, never enforced.
- */
+/** Below this sample (e.g. a small diff scope) the rate is not enforced. */
 const MIN_RESOLUTION_SAMPLE = 25;
 
 /**
- * Fail-closed guard on the per-method coverage join (Story #4775, fix part 4).
- *
- * The updater used to persist a 100-row baseline distilled from 5023 dropped
- * methods and log it as a success — which is exactly how a broken join stayed
- * invisible for five weeks across three repositories. A thin result is now a
- * refusal: the caller throws before anything is written, and the message names
- * the rate, the counts, and the files carrying the most unresolved methods so
- * the operator can tell "my tests do not cover that" apart from "the join is
- * broken".
- *
- * Returns `null` when the run may proceed, or the operator-facing message when
- * it must not.
+ * Fail-closed guard on the coverage join: a thin result refuses the write.
+ * Returns `null` to proceed, or the refusal message.
  *
  * @param {{resolvedMethods: number, joinableMethods: number, rate: number,
  *   worstFiles: Array<{file: string, unresolved: number, total: number}>}
@@ -248,24 +185,13 @@ export function checkResolutionFloor(resolution, floor) {
 }
 
 /**
- * Parse `source` exactly once with escomplex and derive both the
- * maintainability score and the raw CRAP method rows from that single report.
- *
- * Callers that need both scores for the same source string MUST use this
- * helper rather than calling `calculateCrapForSource` and `calculateForSource`
- * separately — doing so would parse the AST twice.
- *
- * Coverage-dependent CRAP values require a `coverageForFile` entry (the value
- * from `coverage-final.json` for this file). Pass `null` when no coverage is
- * available; method rows whose coverage cannot be resolved will carry
- * `coverage: null` and `crap: null`.
+ * Parse once, deriving both MI and CRAP rows. Unresolvable coverage yields
+ * `coverage: null, crap: null` rows.
  *
  * @param {string} source Prepared (possibly transpiled) JavaScript source text.
  * @param {object|null} coverageForFile Istanbul coverage entry for this file.
  * @param {((line: number) => number|null)|null} [mapLine] Transpiled →
- *   original-source line resolver from `transpileIfNeeded(…, {withLineMap:
- *   true})`; `null` for JavaScript, whose coordinates already match the
- *   coverage entry's.
+ *   original line resolver; `null` for JavaScript.
  * @returns {{
  *   report: object,
  *   miScore: number,
@@ -293,13 +219,8 @@ function analyzeOnce(source, coverageForFile, mapLine = null) {
 }
 
 /**
- * Build `scanAndScore`'s per-file work queue: canonicalise each discovered
- * absolute path, drop everything outside `scopeSet`, and merge the
- * incremental-join fields onto the surviving items.
- *
- * Story #2079: every relPath goes through path-canon so a scan from inside
- * `.worktrees/<workspace>/` (with `cwd` pointing at the main checkout) cannot
- * leak the worktree prefix into the on-disk baseline's `file` / `path` keys.
+ * Per-file work queue, scoped by `scopeSet`. Paths are canonicalised so a
+ * scan from inside `.worktrees/<ws>/` never leaks that prefix into baselines.
  *
  * @param {string[]} files Absolute paths, already sorted.
  * @param {{
@@ -331,9 +252,6 @@ function buildScanQueue(
 }
 
 /**
- * Project one finalized method row onto the enriched scan-row shape
- * `compareCrap` and the baseline writer consume.
- *
  * @param {string} relPath Canonical repo-relative path of the scanned file.
  * @param {object} mr A row from `finalizeMethodRowsWithBaseline`.
  * @returns {object}
@@ -342,8 +260,7 @@ function projectScanRow(relPath, mr) {
   return {
     file: relPath,
     method: mr.method,
-    // Story #4969: `method` may be a derived anonymous identity; the flag is
-    // what lets the persisted row say so.
+    // `method` may be a derived anonymous identity.
     anonymous: mr.anonymous === true,
     startLine: mr.startLine,
     cyclomatic: mr.cyclomatic,
@@ -356,35 +273,13 @@ function projectScanRow(relPath, mr) {
 }
 
 /**
- * Scan `targetDirs` for JS files, score each method via the CRAP kernel, and
- * return enriched rows plus skip counters. Does not write to disk.
- *
- * Files without a coverage entry are skipped when `requireCoverage` is `true`
- * (the default); methods whose coverage cannot be resolved are always
- * skipped from the returned rows so the baseline never contains
- * partially-scored entries. Both counters surface for reporting.
- *
- * A file neither path could score at all — unreadable, untranspilable, or one
- * the kernel could not parse — is dropped and counted in `unscorableFiles`
- * (Story #5311). Unscorable is not scored-as-nothing: without this counter a
- * dropped file is indistinguishable from a file with no methods, which is what
- * let a whole parse-failure class leave the baseline silently.
- *
- * When `scopeFiles` is provided (the `--changed-since` code path) files
- * discovered via directory walking are filtered against that set before any
- * I/O or scoring happens — so pre-push / PR-CI runs never pay the
- * parse-and-score cost on untouched files.
- *
- * When `preScannedFiles` is provided (an array of absolute paths already
- * collected by a prior `scanDirectory` pass over the same `targetDirs`), the
- * directory walk is skipped entirely — the supplied list is used as-is.
- * Callers that run both CRAP and MI passes over the same target dirs (e.g.
- * `regenerateMainFromTree`) SHOULD pass the MI scan's file list here so the
- * tree is walked only once per run.
- *
- * `incremental` (Story #4981) resolves an untouched file's methods from
- * `crap-baseline-join.js#finalizeMethodRowsWithBaseline` instead of
- * requiring fresh coverage; omitted (the default), behaviour is unchanged.
+ * Score every method under `targetDirs` (no disk writes). Files without
+ * coverage are skipped under `requireCoverage`; methods without resolvable
+ * coverage are always dropped, so baselines never hold partial rows. A file
+ * that cannot be read, transpiled or parsed is counted in `unscorableFiles`
+ * so no drop is silent. `scopeFiles` filters before any I/O;
+ * `preScannedFiles` skips the walk; `incremental` resolves untouched files
+ * from the baseline instead of fresh coverage.
  *
  * @param {{
  *   targetDirs: string[],
@@ -430,8 +325,6 @@ export async function scanAndScore({
       : scopeFiles instanceof Set
         ? scopeFiles
         : new Set(scopeFiles);
-  // When the caller supplies a pre-walked file list (e.g. from a prior MI
-  // scan over the same target dirs), skip the directory walk entirely.
   const files = preScannedFiles != null ? [...preScannedFiles] : [];
   if (preScannedFiles == null) {
     for (const dir of targetDirs) {
@@ -443,8 +336,6 @@ export async function scanAndScore({
 
   const incrementalCtx = resolveIncrementalContext(incremental);
 
-  // Build the work-queue first so scopeFile filtering happens before
-  // any I/O / IPC. `scannedFiles` is the in-scope count.
   const queue = buildScanQueue(files, {
     cwd,
     scopeSet,
@@ -454,9 +345,7 @@ export async function scanAndScore({
   });
   const scannedFiles = queue.length;
 
-  // Serial below the pool cutover, and ALWAYS in incremental mode: the
-  // per-file baseline lookup Maps the join needs do not cross the worker
-  // boundary (Story #4981).
+  // Always serial in incremental mode: the baseline Maps don't cross workers.
   const runSerial = queue.length < serialThreshold || Boolean(incremental);
   const perFile = runSerial
     ? queue.map((item) => ({ item, result: scoreFileSerial(item, coverage) }))
@@ -469,9 +358,7 @@ export async function scanAndScore({
   const resolution = newResolutionAccumulator();
   for (const { item, result } of perFile) {
     if (!result) {
-      // Unrecoverable per-file failure (a pool-level error the worker never
-      // answered). Dropped like any other unscorable file, and counted — the
-      // point of the counter is that no drop is silent.
+      // Pool-level error the worker never answered.
       unscorableFiles += 1;
       continue;
     }
@@ -480,9 +367,6 @@ export async function scanAndScore({
       continue;
     }
     if (result.rows === null) {
-      // read/transpile/parse failure: drop and move on, but if the worker
-      // attached an error message (calculateCrapForSource throw) surface it
-      // so the run isn't silent on the ops side.
       unscorableFiles += 1;
       if (result.error) {
         Logger.warn(
@@ -515,13 +399,7 @@ export async function scanAndScore({
   };
 }
 
-/**
- * In-process scorer used by both the small-batch fast path and as the
- * reference implementation against which the worker output is asserted
- * byte-for-byte in the cpu-pool tests.
- *
- * Uses `analyzeOnce` so the source is parsed a single time.
- */
+/** In-process scorer; the reference the worker output must match exactly. */
 function scoreFileSerial(
   {
     abs,
@@ -576,9 +454,7 @@ function scoreFileSerial(
 }
 
 async function scoreFilesViaPool(queue, coverage) {
-  // Resolve each file's coverage entry on the host before dispatch so workers
-  // receive only their file's entry rather than the whole map. This removes the
-  // O(workers × coverageMapSize) structured-clone at spawn time.
+  // Send each worker only its file's entry, not the whole coverage map.
   const enrichedQueue = queue.map((item) => ({
     ...item,
     coverageEntry: findCoverageEntry(coverage, item.relPath),

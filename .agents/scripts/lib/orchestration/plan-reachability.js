@@ -1,27 +1,12 @@
 /**
- * plan-reachability.js — deterministic draft-ticket reachability check for
- * the persist surface (Epic #4474 PR6, design §4: the 8.4 reachability
- * critic demoted from a fresh-context sub-agent to a persist-side scan).
+ * plan-reachability.js — deterministic persist-side scan of draft tickets'
+ * route paths against the nav registry, run before any provider call so an
+ * orphaned surface is fixed by a free one-line amend.
  *
- * Route-glob scan of the paths a Story declares vs the
- * `planning.navigation.navRegistry` token list, run over the **draft**
- * ticket set inside `plan-persist.js` step 4.5, before any provider call,
- * so an orphaned surface is caught while a one-line targeted amend is
- * still free (nothing has been written to GitHub yet).
- *
- * Plan-level coverage semantics (the convergence contract): a route-adding
- * story that never references the nav registry produces orphan surfaces —
- * UNLESS every one of its route paths is also mentioned by some story in
- * the plan that DOES reference the registry (the "navigation owner"). That
- * is exactly what the documented recovery produces: the author appends the
- * single reachability Story (which cites the orphaned routes and the nav
- * registry) in one targeted amend, and the re-run persist passes.
- *
- * Silent no-op when `planning.navigation` is unconfigured (`routeGlobs`
- * empty) — reported as `status: 'skipped'` so the caller can append the
- * audit record to the plan-metrics ledger.
- *
- * Pure over its inputs (tickets + resolved config), no I/O.
+ * A route-adding Story that never cites the registry is an orphan unless
+ * every one of its route paths is mentioned by some registry-citing Story in
+ * the plan (the navigation owner). `skipped` when `routeGlobs` is empty.
+ * Pure, no I/O.
  */
 
 import {
@@ -30,37 +15,28 @@ import {
   resolveNavConfig,
 } from './plan-navigation.js';
 
-/**
- * Fallback tokens when `navRegistry` is unconfigured but `routeGlobs` is.
- */
+/** Used when `navRegistry` is unconfigured but `routeGlobs` is. */
 const FALLBACK_REGISTRY_TOKENS = ['nav registry', 'navigation'];
 
 /**
  * @typedef {Object} ReachabilityOrphan
  * @property {string} story The offending draft story's slug (or title).
- * @property {string[]} paths The route-matching paths with no navigation
- *   owner anywhere in the plan.
+ * @property {string[]} paths Route paths with no navigation owner.
  */
 
 /**
  * @typedef {Object} DraftReachabilityResult
  * @property {'skipped'|'ok'|'orphans'} status
  * @property {string[]} reasons
- * @property {ReachabilityOrphan[]} orphans Empty unless `status` is
- *   `'orphans'`.
+ * @property {ReachabilityOrphan[]} orphans
  * @property {number} scanned Draft stories scanned (0 when skipped).
  */
 
 /**
- * Evaluate draft-ticket reachability against the configured navigation
- * surface.
- *
  * @param {object} input
  * @param {Array<{ slug?: string, title?: string, body?: string }>} input.tickets
- *   The draft ticket set the persist is about to create (fan-out: the
- *   authored `tickets.json`; amend: the merged set).
- * @param {object} [input.config] Resolved `.agentrc.json` (threads
- *   `planning.navigation`).
+ *   The draft ticket set about to be created.
+ * @param {object} [input.config] Resolved `.agentrc.json`.
  * @returns {DraftReachabilityResult}
  */
 export function evaluateDraftReachability({ tickets, config }) {
@@ -82,7 +58,6 @@ export function evaluateDraftReachability({ tickets, config }) {
       ? navRegistry.map((t) => t.toLowerCase())
       : FALLBACK_REGISTRY_TOKENS;
 
-  // Pass 1: per-story scan — declared paths, route matches, registry refs.
   const scannedStories = stories.map((story) => {
     const body = typeof story?.body === 'string' ? story.body : '';
     const paths = extractStoryPaths(body);
@@ -92,8 +67,7 @@ export function evaluateDraftReachability({ tickets, config }) {
     return { story, paths, routePaths, referencesRegistry };
   });
 
-  // Pass 2: navigation owners — every path mentioned by a
-  // registry-referencing story is covered plan-wide.
+  // Every path a registry-citing Story mentions is covered plan-wide.
   const coveredPaths = new Set();
   for (const s of scannedStories) {
     if (!s.referencesRegistry) continue;
@@ -135,9 +109,6 @@ export function evaluateDraftReachability({ tickets, config }) {
 }
 
 /**
- * Render the named soft-failure message the persist CLI prints — the
- * orphan-surface list plus the one-targeted-amend recovery contract.
- *
  * @param {DraftReachabilityResult} result A `status: 'orphans'` result.
  * @returns {string}
  */

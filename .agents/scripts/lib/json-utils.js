@@ -1,22 +1,9 @@
 /**
- * json-utils.js — shared JSON-shape helpers.
- *
- * Hoisted out of five callers (`lib/baselines/writer.js`,
- * `lib/config/defaults.js`, `lib/signals/schema.js`) which
- * shipped functionally-equivalent copies of these predicates. See Story
- * #2464.
- *
- * The helpers are scoped to JSON-shaped data — numbers, strings, booleans,
- * null, arrays, and plain objects. They do not handle Dates, Maps, Sets,
- * RegExps, or class instances; callers either JSON-roundtrip their inputs
- * or only ever pass JSON-equivalent values (the on-disk baseline writer
- * and the config defaults module both fall in the second bucket).
+ * json-utils.js — predicates for JSON-shaped data only (no Dates, Maps,
+ * Sets, RegExps or class instances).
  */
 
 /**
- * Return true when `v` is a plain object (not null, not an array). Used
- * by readers and aggregators to defensively pre-flight record shapes.
- *
  * @param {unknown} v
  * @returns {boolean}
  */
@@ -25,9 +12,7 @@ export function isObject(v) {
 }
 
 /**
- * Structural deep-equality for JSON-shaped data. Object key order is
- * ignored. Array order is significant. NaN compares unequal (matches
- * `===` semantics; callers must not pass NaN).
+ * Key order ignored, array order significant; NaN compares unequal.
  *
  * @param {unknown} a
  * @param {unknown} b

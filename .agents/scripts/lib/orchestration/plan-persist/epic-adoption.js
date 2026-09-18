@@ -1,25 +1,10 @@
 /**
- * epic-adoption.js — join the Stories of this persist run to an Epic that
- * already exists.
- *
- * Story #5155. `epic-ops.js` opens a *new* container and, on a resumed run,
- * re-adopts the one carrying its exact fingerprint. This module covers the
- * case neither does: an operator pointing a fresh plan at an Epic an earlier
- * plan opened, with a different cohort and no fingerprint in common.
- *
- * **The posture is deliberately stricter than creation's.** Creation degrades
- * — an unensurable label just skips the container, because the Stories are the
- * part that matters and a missing Epic costs only tidiness. Adoption cannot
- * degrade the same way: the operator named a specific id, so silently not
- * adopting it would leave them believing their Stories were filed somewhere
- * they were not. A bad target is therefore a **hard error, raised before the
- * first Story is created** (dry run included), when nothing has been written
- * and the fix is free. Once the Stories exist, the posture flips to creation's
- * — a failed checklist write or sub-issue edge warns, because by then refusing
- * would strand live Stories over a cosmetic link.
+ * Join this run's Stories to an existing Epic the operator named (`--epic`).
+ * A bad target is a hard error raised before the first create — silently not
+ * adopting would misfile the plan. Once Stories exist, link failures only
+ * warn.
  *
  * @module lib/orchestration/plan-persist/epic-adoption
- * @see Story #5155
  */
 
 import { Logger } from '../../Logger.js';
@@ -29,14 +14,7 @@ import { isEpicTicket } from '../epic-container.js';
 import { mirrorSubIssueEdges } from './epic-ops.js';
 
 /**
- * Resolve and validate the Epic an operator asked to adopt.
- *
- * Called **before any create**, so every refusal below costs the operator a
- * re-run of a command that wrote nothing.
- *
- * A null/absent `epicId` is the ordinary "no adoption requested" case and
- * resolves to `null` — only a *supplied* id can be wrong, and every wrong one
- * throws.
+ * Called before any create. An absent `epicId` resolves to `null`.
  *
  * @param {{ provider: object, epicId: number|null }} opts
  * @returns {Promise<{ id: number, title: string, body: string }|null>}
@@ -91,11 +69,7 @@ export async function resolveAdoptionTarget({ provider, epicId }) {
 }
 
 /**
- * Link this run's Stories into an already-resolved Epic.
- *
- * Runs **after** the Stories exist, because both halves of the linkage need
- * their real ids: the checklist embeds issue numbers and the sub-issue edges
- * need database ids.
+ * Runs after the Stories exist — the linkage needs their real ids.
  *
  * @param {{
  *   provider: object,
@@ -122,9 +96,7 @@ export async function adoptContainerEpic({
 
   const all = Array.isArray(created) ? created : [];
 
-  // Dry run reports the intent write-free. `created` carries negative
-  // placeholder ids there, so report them as-is rather than filtering to the
-  // positives and claiming an empty adoption.
+  // Dry-run ids are negative placeholders; report them as-is.
   if (dryRun) {
     return {
       id: target.id,
@@ -163,29 +135,11 @@ export async function adoptContainerEpic({
 }
 
 /**
- * Write the appended checklist back to the Epic body.
- *
- * **The body is re-read `fresh` immediately before the append.** `target.body`
- * was captured by `resolveAdoptionTarget` before the first Story was created,
- * which on a cohort of any size is many seconds and several writes ago. An
- * append computed against that snapshot and PATCHed wholesale silently drops
- * every checklist row another writer added in between — a concurrent persist
- * run adopting the same Epic, or an operator ticking a child off by hand. The
- * body is a full-document write, so a stale base is not a merge conflict; it
- * is a silent revert.
- *
- * This **narrows** the read-then-PATCH window; it does not close it. Nothing
- * here is atomic, and GitHub's issue API offers no compare-and-swap, so a
- * write landing between this read and this PATCH is still lost. Narrowing it
- * from "the whole create phase" to "one round-trip" is the available fix; a
- * real one needs an API that does not exist.
- *
- * The PATCH is skipped when the append changes nothing, so re-running an
- * adoption that already landed writes nothing at all.
- *
- * Non-fatal: the Stories are already live, and the native sub-issue edges
- * written next are the other half of the linkage. Losing the checklist costs
- * the body-only fallback path, not the grouping.
+ * The body is re-read fresh right before the append: the body PATCH is a
+ * whole-document write, so appending to the pre-create snapshot would
+ * silently revert rows another writer added since. This narrows the window
+ * to one round-trip; GitHub offers no compare-and-swap to close it. Skips the
+ * PATCH when nothing changes. Non-fatal.
  *
  * @param {{ provider: object, target: { id: number, body: string }, childIds: number[] }} opts
  * @returns {Promise<void>}
@@ -212,13 +166,8 @@ async function appendChecklist({ provider, target, childIds }) {
 }
 
 /**
- * Re-read the Epic's body, bypassing any provider cache.
- *
- * `{ fresh: true }` is the whole point: the adoption path already read this
- * issue once, so a cached read would hand back the very snapshot this function
- * exists to replace. Falls back to the snapshot when the re-read fails or the
- * provider has no `getTicket` — a stale base still appends the run's own
- * children, which beats not linking them.
+ * `{ fresh: true }` bypasses the cache that holds the stale snapshot. Falls
+ * back to the snapshot, which still links this run's children.
  *
  * @param {{ provider: object, target: { id: number, body: string } }} opts
  * @returns {Promise<string>}

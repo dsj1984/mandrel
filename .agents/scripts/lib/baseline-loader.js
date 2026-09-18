@@ -1,76 +1,37 @@
 import { createGitInterface } from './git-utils.js';
 
 /**
- * baseline-loader.js — read a JSON baseline file at an arbitrary git ref.
- *
- * Story #1120 (Tech Spec #902) moved close-validation gate execution into the
- * Story worktree and wants every gate to compare against the baseline as it
- * exists on `epic/<id>` HEAD, not against whatever `baselines/*.json` happens
- * to be on the main checkout's working tree at close time. This helper is
- * the single seam every gate uses to do that — it shells out to
- * `git show <ref>:<path>`, parses the JSON, and memoizes the parsed object
- * in an in-process Map keyed by `${ref}:${path}` so a single close run
- * never re-spawns `git show` for the same (ref, path) pair.
- *
- * Caching contract:
- *   - The cache lives on the module — one instance per Node process. A
- *     close run is short-lived enough that staleness across invocations is
- *     not a concern (the next close re-imports the module).
- *   - Tests can call `clearBaselineCache()` to reset between cases. Real
- *     callers never need to.
- *
- * Failure modes:
- *   - Unresolvable ref / missing path → throws `Error` whose message names
- *     the ref AND the path so operators can act without scraping the
- *     stderr blob underneath.
- *   - `git show` succeeds but stdout is not parseable JSON → throws an
- *     Error tagged `parse-error` that names the ref + path.
- *   - The cache stores the parsed object on success; failures are NOT
- *     cached so a transient git failure doesn't poison subsequent calls.
+ * Read a JSON baseline at a git ref (`git show <ref>:<path>`), so gates
+ * compare against the committed baseline rather than the working tree.
+ * Memoized per process; failures are not cached, so a transient git error
+ * cannot poison later calls.
  */
 
 const _cache = new Map();
 
 /**
- * Build the cache key. Exported for tests that want to assert exact key
- * collisions (different refs vs. different paths must never collide).
- *
  * @param {string} ref
  * @param {string} path
  * @returns {string}
  */
 export function cacheKeyFor(ref, path) {
-  // `\u0000` is a control character that cannot legally appear in either a
-  // git ref name (per `git check-ref-format`) or a POSIX path component, so
-  // using it as the structural separator guarantees no collision between
-  // (ref="a", path="b:c") and (ref="a:b", path="c"). Tests assert this.
+  // NUL is legal in neither a ref nor a path, so keys cannot collide.
   return `${ref}\u0000${path}`;
 }
 
-/**
- * Reset the in-process cache. Tests use this to keep cases independent.
- * Production callers never need to call it.
- */
+/** Test-only cache reset. */
 export function clearBaselineCache() {
   _cache.clear();
 }
 
 /**
- * Read the JSON baseline at `path` as it exists at the git `ref`.
- *
- * @param {string} ref           Git ref (e.g. `epic/1114`, `HEAD`).
- * @param {string} path          Repo-relative path (e.g. `baselines/maintainability.json`).
+ * @param {string} ref
+ * @param {string} path Repo-relative.
  * @param {object} [opts]
- * @param {string} [opts.cwd]    Working directory for `git show`. Defaults to
- *                               `process.cwd()`. Must be a real git workdir.
- * @param {ReturnType<typeof createGitInterface>} [opts.git] Injected git
- *                               interface — production callers omit this;
- *                               tests pass a mock.
- * @returns {unknown} Parsed JSON value (`object` for baseline shapes; the
- *   helper does not constrain the schema — that contract belongs to the
- *   caller, e.g. `getBaseline` for the maintainability shape).
- * @throws {Error} When the ref/path is unresolvable or the blob is not
- *   parseable JSON. The cache is NOT populated on failure.
+ * @param {string} [opts.cwd]
+ * @param {ReturnType<typeof createGitInterface>} [opts.git]
+ * @returns {unknown} Parsed JSON; the schema is the caller's contract.
+ * @throws {Error} Naming ref and path, on an unresolvable blob or bad JSON.
  */
 export function readBaselineAtRef(ref, path, opts = {}) {
   if (typeof ref !== 'string' || ref.length === 0) {

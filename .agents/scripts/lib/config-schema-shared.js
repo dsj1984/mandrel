@@ -19,10 +19,7 @@ export const SHELL_INJECTION_RE = new RegExp(SHELL_INJECTION_PATTERN_STRING);
  */
 export const SHELL_INJECTION_RE_STRICT = /[&|;`<>()$]/;
 
-// Re-export the canonical baseline schema registry (Story #1888). The
-// registry implementation lives in `baseline-schema-registry.js`; this
-// re-export keeps `config-schema-shared.js` as the canonical import surface
-// for downstream consumers and the mirror-drift test.
+// Canonical import surface for the baseline schema registry.
 export {
   BASELINE_ENVELOPE_FILE,
   BASELINE_KIND_SCHEMA_FILES,

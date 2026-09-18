@@ -3,27 +3,8 @@ import { collectStoryAssumptionEntries } from './file-assumptions.js';
 import { computeStoryReachability } from './story-reachability.js';
 
 /**
- * Normalize a Story so its `body` is the structured object the conflict
- * passes scan, mirroring `validateAcFreshness` /
- * `collectStoryAssumptionEntries` (Story #3302) and the sizing gate's
- * `resolveStoryBody` (Story #4271).
- *
- * The decomposer emits `body` as the canonical serialized **string**, but the
- * conflict passes (the producer path scan in `collectStoryProducerPaths`, and
- * the two substring-match advisories Story #5332 retired) historically read
- * `story.body` only when it was already an object — so on the production
- * string shape they emitted nothing. Parsing the body once at the entry point
- * and threading the normalized Story through every pass restores parity.
- *
- * `collectStoryAssumptionEntries` already parses string bodies itself, so a
- * normalized object body round-trips through it unchanged. The returned Story
- * keeps every other field (notably `slug` and `depends_on`) intact.
- *
- *   - **string body** → parsed via `parseStoryBody`; an unparseable string
- *     yields `body: null` (the passes degrade to "no structured signal",
- *     never throw mid-validation).
- *   - **object body** → returned verbatim.
- *   - **null / other** → `body: null`.
+ * Parse a serialized string body so the passes see the production shape. An
+ * unparseable string yields `body: null` rather than throwing mid-validation.
  *
  * @param {object} story
  * @returns {object} A shallow clone of `story` with a structured `body`.
@@ -42,83 +23,25 @@ function normalizeStoryBody(story) {
 }
 
 /**
- * Cross-Story path-conflict & implicit-dependency findings.
- *
- * Two related gaps in the original decomposition validator motivate this
- * module:
- *
- *   1. The legacy freshness gate only audits paths under
- *      `.agents/scripts | lib | tests` and operates on individual Tasks. A
- *      decomposition that produces multiple Wave-0 Stories each editing the
- *      same shared file (e.g. `.github/workflows/quality.yml`) sails through
- *      validation, but parallel dispatch produces merge conflicts on every
- *      Story-to-Epic close after the first.
- *
- *   2. The validator's `depends_on` graph only honors explicit slug links.
- *      A Story whose Task `verify` block reads a file produced by a Task in
- *      a different Story has no dependency expressed, even though the
- *      consumer Story would fail execution-time verification when run in
- *      the same wave as the producer.
- *
- * Both gaps share a single underlying mechanism — a path-keyed graph across
- * all Tasks in the spec — which is why detection lives in one module.
- *
- * The module is pure: it consumes the already-normalized ticket array (with
- * lifted Task→Story `depends_on` deps applied) and returns a structured
- * findings array. Severity is `'soft'` by default; the caller's policy
- * flags upgrade findings to `'hard'`, which routes them through
- * `renderHardConflictError` and into the validator's `errors[]` channel.
+ * Cross-Story `shared-editor` findings: a path written by two or more Stories
+ * that no `depends_on` chain orders. Pure; every finding is advisory.
  *
  * @typedef {object} SharedEditorFinding
  * @property {'shared-editor'} kind
  * @property {'hard'|'soft'}   severity
- * @property {string}          path        Producer path written by ≥2 Stories.
- * @property {string[]}        storySlugs  Story slugs in the conflict cluster.
+ * @property {string}          path
+ * @property {string[]}        storySlugs
  *
  * @typedef {SharedEditorFinding} ConflictFinding
  */
 
-/**
- * Story #5332 retired the `implicit-cross-story-dep` and
- * `missing-bdd-scaffold` findings, leaving `shared-editor` as the one
- * conflict kind. Both matched a producer path as a **substring** of a
- * consumer's `acceptance[]` / `verify[]` text — the noise-prone shape the
- * planning-diet ADR (`20260912-5312`) itself calls out — and both had been
- * unreachable on the real payload for most of their life (see
- * {@link computeAssembledConflictFindings}). What they nudged for, ordering a
- * consumer after its producer, the same-wave collision refusal now enforces
- * on declarations rather than guesses at from prose.
-
-/**
- * Every conflict class is advisory (`'soft'`) since Story #5312: the
- * `planning.failOnSharedEditors` / `requireExplicitCrossStoryDeps` /
- * `failOnRegistryConflicts` / `failOnLargeFanOut` upgrade knobs are gone,
- * along with the registry and fan-out findings they gated. A finding is a
- * line in the plan summary the operator reads, never a refusal.
- */
 const SOFT = 'soft';
 
-/**
- * Assumptions that imply a *write* to a path — and therefore make the Story
- * a producer for shared-editor / implicit-dep purposes. `exists` declares a
- * read-only dependency (and `references` reads are likewise not writes), so
- * neither produces a `shared-editor` conflict.
- */
+/** `exists` and `references` are reads, never producers. */
 const WRITE_IMPLYING_ASSUMPTIONS = Object.freeze(
   new Set(['creates', 'refactors-existing', 'deletes']),
 );
 
-/**
- * Collect the write-implying producer paths a single Story declares.
- *
- * Uses object-form `{ path, assumption }` entries via
- * `collectStoryAssumptionEntries` (the same extractor the Phase-8
- * file-assumption gate uses), keeping only `changes`-sourced entries
- * whose assumption writes the path (`creates` / `refactors-existing` /
- * `deletes`). `exists` reads and `references` entries are dropped.
- *
- * Returns a de-duplicated array of producer paths for the Story.
- */
 function collectStoryProducerPaths(story) {
   const paths = new Set();
 
@@ -131,24 +54,13 @@ function collectStoryProducerPaths(story) {
   return Array.from(paths);
 }
 
-/**
- * Resolve the Story-identifying slug for a 2-tier Story. A Story is its
- * own implementation unit (Epic #3238) — there is no parent Task — so the
- * producer/consumer indices key on the Story's own `slug`.
- */
 function storySlugOf(story) {
   return story.slug;
 }
 
 /**
- * Build the producers index — `Map<path, Array<{storySlug, taskSlug}>>` —
- * by walking every Story's declared writes. Only object-form
- * `{ path, assumption }` entries count as producers via
- * `collectStoryProducerPaths`; only write-implying assumptions count.
- *
- * `taskSlug` is retained in the entry shape for finding/render
- * compatibility; in the 2-tier model it carries the Story's own slug since
- * the Story is the implementation unit.
+ * `Map<path, Array<{storySlug, taskSlug}>>`; `taskSlug` is the Story's own
+ * slug, kept for shape compatibility.
  */
 function indexProducers(stories) {
   const producers = new Map();
@@ -172,12 +84,7 @@ function inSameWave(reach, slugA, slugB) {
   return true;
 }
 
-/**
- * Emit one `shared-editor` finding per path that is written by Tasks in
- * two or more distinct Stories where no `depends_on` path orders the
- * Stories relative to one another. Stories serialized by an explicit chain
- * are not flagged — the operator already accepted the merge order.
- */
+/** Stories ordered by an explicit chain are not flagged. */
 function computeSharedEditorFindings(producers, reach, severity) {
   const findings = [];
   for (const [path, entries] of producers.entries()) {
@@ -204,20 +111,11 @@ function computeSharedEditorFindings(producers, reach, severity) {
 }
 
 /**
- * Public entry point. Walks the normalized ticket spec once and returns
- * the structured cross-Story findings array. Every finding is `'soft'`
- * (Story #5312) — an advisory line for the plan summary, never an
- * `errors[]` entry.
- *
  * @param {object}    input
  * @param {object[]}  input.stories
  * @returns {ConflictFinding[]}
  */
 export function computeConflictFindings({ stories } = {}) {
-  // Story #4271: normalize every Story's body to its structured object form
-  // once, up front, so the canonical serialized **string** shape the
-  // decomposer emits is scanned at parity with the pre-serialize object
-  // shape across every conflict pass.
   const storyList = (stories ?? []).map(normalizeStoryBody);
   const producers = indexProducers(storyList);
   const reach = computeStoryReachability(storyList);
@@ -225,19 +123,8 @@ export function computeConflictFindings({ stories } = {}) {
 }
 
 /**
- * Re-run the cross-Story conflict passes over the **assembled** Story bodies —
- * the artifact persist actually writes (Story #5045).
- *
- * `validateTickets` runs before `assemblePlanStories`, over the raw
- * `stories.json` payload, so plan-time conflict analysis never saw what got
- * persisted. That is not a cosmetic ordering nit: the canonical authoring shape
- * carries `acceptance[]` / `verify[]` at the ticket's **top level**, and it is
- * assembly's `syncContractFieldFromTopLevel` that folds them into the body.
- * The two retired advisories scanned `body.acceptance` / `body.verify` for
- * producer paths, so on the real payload they scanned two empty arrays and
- * were silently unreachable. Running the passes again over the serialized
- * bodies is what keeps the surviving `shared-editor` pass honest about what
- * persist actually writes.
+ * Re-run over the assembled bodies persist actually writes — validation runs
+ * before assembly folds top-level fields into the body.
  *
  * @param {{ stories: Array<{ slug: string, title: string, body: string, depends_on?: string[] }> }} args
  * @returns {ConflictFinding[]}
@@ -254,11 +141,7 @@ export function computeAssembledConflictFindings({ stories } = {}) {
 }
 
 /**
- * Stable identity for one conflict finding, so the post-assembly pass can be
- * diffed against the raw pass and only the genuinely-new findings reported
- * (Story #5045). Without it the two passes announce the same shared-editor
- * collision twice per run, which is how a warning channel gets discounted.
- *
+ * Lets the post-assembly pass report only genuinely new findings.
  * The separator is written as the `\u0000` escape and never as a raw byte — a
  * literal NUL would make git classify this file as binary and drop its diffs.
  *
@@ -278,32 +161,15 @@ export function conflictFindingKey(finding) {
   ].join('\u0000');
 }
 
-/**
- * The finding kinds that are genuinely **cross-Story conflicts** — the SSOT
- * for that question (Story #4907).
- *
- * The persist soft-finding surface announces a conflict as a conflict and
- * every other soft kind as the advisory it is, and the summary comment
- * renders only the shared-editor class beside the wave table. A second copy
- * of this list is how readers drift apart, so it is defined exactly once and
- * imported.
- */
+/** SSOT for which finding kinds are cross-Story conflicts. */
 export const CONFLICT_KINDS = Object.freeze(new Set(['shared-editor']));
 
-/**
- * Render a conflict finding as a human-readable line. Every finding is soft
- * since Story #5312, so this feeds the dry-run warning list and the plan
- * summary rather than an `errors[]` channel; the name survives because every
- * caller imports it.
- */
+/** Every finding is soft now; the name survives for its importers. */
 export function renderHardConflictError(finding) {
   if (finding.kind === 'shared-editor') {
     const stories = finding.storySlugs.map((s) => `"${s}"`).join(', ');
     return `Shared-editor conflict: "${finding.path}" is written by ${finding.storySlugs.length} concurrent Stories (${stories}). Add depends_on chains between them or split the edits into a dedicated late-wave wiring Story.`;
   }
-  // Findings from other passes carry their own message — render it rather
-  // than a shape-blind generic line, so the soft surface
-  // (`surfaceSoftConflictFindings`) stays legible for every kind.
   if (typeof finding.message === 'string' && finding.message.length > 0) {
     return finding.message;
   }

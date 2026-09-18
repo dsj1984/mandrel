@@ -1,9 +1,5 @@
 /**
- * prune.js — prune-remotes phase of git-cleanup (Story #2466).
- *
- * Owns `executePrune(ctx)` and the pure `parsePrunedRefs(output, remoteName)`
- * helper that consumes `git fetch --prune` stderr. Both exports are
- * preserved byte-identically from `git-cleanup.js`.
+ * Prune-remotes phase of git-cleanup.
  *
  * @module lib/orchestration/git-cleanup/phases/prune
  */

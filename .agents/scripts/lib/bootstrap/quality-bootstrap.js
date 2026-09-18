@@ -1,34 +1,7 @@
 /**
- * bootstrap/quality-bootstrap — Story #1401 (Epic #1386)
- *
- * Idempotent installer for the stabilized-quality-gates surface area on a
- * project clone. Performs five additive actions, each safe to re-run:
- *
- *   1. Copies the `code-quality-guardrails.md` helper into the project's
- *      `.agents/workflows/helpers/` (no-op when the helper is already present).
- *   2. Installs `.husky/pre-commit` carrying the `quality:preview` invocation
- *      that the framework ships, preserving any custom hook lines already in
- *      place. When a custom (non-framework) `pre-commit` exists, it is left
- *      untouched and the caller is told to merge in the snippet manually.
- *   3. Adds `quality:preview` and `quality:watch` npm scripts when missing.
- *      Existing scripts are preserved.
- *   4. Seeds the `delivery.quality.autoRefresh` default in `.agentrc.json`
- *      when the key is absent. Existing values are preserved.
- *   5. Registers the `baselines/*.json` merge driver (Story #5215) — the
- *      `.gitattributes` line plus this clone's `merge.mandrel-baseline.driver`
- *      config, so concurrent baseline refreshes merge by row identity instead
- *      of conflicting on the `generatedAt` stamp.
- *   6. Prunes a committed pre-v2 `baselines/epic/` tree (Story #5007). The
- *      v2 model is Story-only — nothing writes, reads, or reaps per-Epic
- *      ratchet snapshots — so an upgrading consumer is left carrying a
- *      committed directory no gate consults. Absent on every repo that never
- *      ran a pre-v2 install, which is the overwhelmingly common case.
- *
- * Returns a structured summary so the bootstrap and update workflows can
- * surface exactly which actions ran and which were no-ops.
- *
- * Exports are pure-ish (filesystem effects only via the supplied paths) so
- * the test suite can drive the helper against a tmp directory.
+ * Idempotent, additive installer for the quality-gates surface: guardrails
+ * helper, pre-commit hook, npm scripts, config defaults, baseline merge
+ * driver, and pruning the retired `baselines/epic/` tree.
  *
  * @module bootstrap/quality-bootstrap
  */
@@ -40,11 +13,7 @@ import { getAgentrcDefaults, lookupPath } from '../config/defaults.js';
 import { deepEqual } from '../json-utils.js';
 import { ensureBaselineMergeDriver } from './baseline-merge-driver.js';
 
-/**
- * The exact pre-commit body the framework ships. Kept as a single string so
- * the hook-installer can detect a verbatim framework hook (overwrite-safe)
- * vs a custom hook (preserve and warn).
- */
+/** The framework's own pre-commit body. */
 const FRAMEWORK_PRE_COMMIT = `node scripts/check-version-sync.js
 npx lint-staged
 # Story #1395 / Epic #1386: catch MI/CRAP drift at git-commit time so the
@@ -55,13 +24,7 @@ npx lint-staged
 node .agents/scripts/quality-preview.js --changed-since HEAD --staged
 `;
 
-/**
- * Minimal pre-commit body for downstream projects that do not carry the
- * framework's `check-version-sync.js` script. Drops that line and the
- * `lint-staged` invocation (downstream may or may not have lint-staged
- * configured); keeps the quality-preview line which is the load-bearing
- * Epic #1386 addition.
- */
+/** Consumer pre-commit: only the load-bearing quality-preview line. */
 export const DOWNSTREAM_PRE_COMMIT = `# Stabilized quality gates (Epic #1386 / Story #1401):
 # catch MI/CRAP drift at git-commit time so the agent refactors before the
 # diff is closed. quality:preview wraps both gates with --changed-since HEAD
@@ -70,36 +33,25 @@ export const DOWNSTREAM_PRE_COMMIT = `# Stabilized quality gates (Epic #1386 / S
 node .agents/scripts/quality-preview.js --changed-since HEAD --staged
 `;
 
-/**
- * Marker substring used to detect a framework-installed quality-preview line
- * inside a pre-commit hook regardless of which body variant is in use.
- */
+/** Detects an installed quality-preview line in either body variant. */
 export const PRE_COMMIT_MARKER =
   'node .agents/scripts/quality-preview.js --changed-since HEAD --staged';
 
 /**
- * Default values seeded into `delivery.quality.autoRefresh` when the key is
- * absent. Mirrors `.agents/docs/agentrc-reference.json` — keep in sync. The
- * `codingGuardrails` block and the other `autoRefresh` knobs became fixed
- * constants in Story #5382, so seeding them would write an invalid config.
+ * Mirrors `.agents/docs/agentrc-reference.json`. Other `autoRefresh` knobs are
+ * fixed constants; seeding them would write an invalid config.
  */
 const QUALITY_CONFIG_DEFAULTS = Object.freeze({
   autoRefresh: Object.freeze({ enabled: true }),
 });
 
-/**
- * NPM scripts seeded by the bootstrap. Existing values are preserved.
- */
 export const QUALITY_NPM_SCRIPTS = Object.freeze({
   'quality:preview':
     'node .agents/scripts/quality-preview.js --changed-since HEAD',
   'quality:watch': 'node .agents/scripts/quality-watch.js',
 });
 
-/**
- * Read JSON from a path, returning `null` when the file does not exist.
- * Surfaces parse errors so callers can fail loudly on a corrupt config.
- */
+/** `null` when absent; parse errors propagate so a corrupt config fails loudly. */
 function readJsonIfExists(p) {
   if (!fs.existsSync(p)) return null;
   const raw = fs.readFileSync(p, 'utf8');
@@ -112,16 +64,9 @@ function writeJson(p, obj) {
 }
 
 /**
- * Step 1 — Ensure the code-quality-guardrails helper is present under
- * `.agents/workflows/helpers/`. When the helper already exists we report
- * `already-present`. Otherwise the helper is copied from the framework source
- * if available, or skipped with a `missing-source` outcome the caller can
- * surface.
- *
  * @param {object} ctx
  * @param {string} ctx.projectRoot
- * @param {string} [ctx.frameworkRoot] - Path to the framework checkout
- *   (defaults to `<projectRoot>/.agents`). Tests pass an explicit path.
+ * @param {string} [ctx.frameworkRoot] - Defaults to `<projectRoot>/.agents`.
  */
 export function ensureGuardrailsHelper(ctx) {
   const projectRoot = ctx.projectRoot;
@@ -151,16 +96,8 @@ export function ensureGuardrailsHelper(ctx) {
 }
 
 /**
- * Step 2 — Install the `.husky/pre-commit` hook. Decision tree:
- *
- *   - No `.husky/pre-commit` file → write the requested body, action `created`.
- *   - File exists and already contains the quality-preview marker → no-op,
- *     action `already-present`.
- *   - File exists, does NOT contain the marker, and matches the framework
- *     body byte-for-byte → safe overwrite, action `updated`.
- *   - File exists, custom content → leave untouched and emit
- *     `custom-hook-skip` so the workflow can print the operator notice with
- *     the recommended snippet to merge in.
+ * Create the hook when absent; an existing hook without the marker is never
+ * overwritten — `custom-hook-skip` hands the operator the snippet to merge.
  *
  * @param {object} ctx
  * @param {string} ctx.projectRoot
@@ -201,14 +138,7 @@ export function ensurePreCommitHook(ctx) {
   };
 }
 
-/**
- * Step 3 — Register the `quality:preview` and `quality:watch` npm scripts
- * in the project's `package.json`. Existing values are preserved
- * unconditionally; this helper only adds missing keys.
- *
- * Returns the per-script outcome so the workflow can surface which scripts
- * were added vs already present.
- */
+/** Add missing quality npm scripts; existing values always win. */
 export function ensureQualityNpmScripts(ctx) {
   const pkgPath = path.join(ctx.projectRoot, 'package.json');
   const pkg = readJsonIfExists(pkgPath);
@@ -236,24 +166,13 @@ export function ensureQualityNpmScripts(ctx) {
 }
 
 /**
- * Deep-merge the requested defaults into an object, only setting keys that
- * are absent AND whose intended value diverges from the framework default
- * at that dotted path. The runtime layers `getAgentrcDefaults()`
- * underneath the project config at read time, so a key whose intended
- * value equals the framework default would be written redundantly — and
- * would then be flagged `[REDUNDANT]` by the sync-agentrc helper on the
- * next /mandrel-update. Default-aware seeding keeps the two helpers from
- * contradicting each other.
- *
- * Returns `{ merged, addedKeys[] }` so the caller can report exactly
- * which keys were seeded. Pure-default writes are reported under
- * `skippedKeys[]` so callers can surface why the seed was a no-op.
+ * Set only keys that are absent AND differ from the framework default — a
+ * default-equal write would be flagged `[REDUNDANT]` by sync-agentrc.
+ * Default-equal keys are reported in `skippedKeys`.
  *
  * @param {object} target
- * @param {object} defaults — the values the caller would seed if
- *   default-blindness were the policy.
- * @param {object} frameworkDefaults — the framework's resolved defaults
- *   at the seed root. Compared to each intended write.
+ * @param {object} defaults
+ * @param {object} frameworkDefaults — resolved defaults at the seed root.
  * @param {string} prefix — dotted path under construction.
  */
 function mergeMissingKeys(
@@ -301,13 +220,8 @@ function mergeMissingKeys(
 }
 
 /**
- * Step 4 — Seed the `delivery.quality.autoRefresh` default into
- * `.agentrc.json`. Only
- * missing keys are added; existing values are preserved unconditionally
- * (including operator overrides that diverge from the framework defaults).
- *
- * When `.agentrc.json` does not exist the action is `missing-config` and
- * nothing is written — the project must complete its base bootstrap first.
+ * Seed missing quality defaults into `.agentrc.json`; writes nothing when the
+ * file is absent (base bootstrap must run first).
  */
 export function ensureQualityConfigDefaults(ctx) {
   const cfgPath = path.join(ctx.projectRoot, '.agentrc.json');
@@ -336,9 +250,7 @@ export function ensureQualityConfigDefaults(ctx) {
   if (addedKeys.length > 0) {
     writeJson(cfgPath, cfg);
   } else {
-    // No-op path — undo the scaffolding we inserted so the on-disk file
-    // and the in-memory snapshot agree (defensive; nothing reads cfg
-    // after this).
+    // Undo the scaffolding so memory matches disk.
     if (!hadQuality) delete cfg.delivery.quality;
     if (!hadDelivery) delete cfg.delivery;
   }
@@ -350,31 +262,17 @@ export function ensureQualityConfigDefaults(ctx) {
   };
 }
 
-/**
- * Repo-root-relative path of the retired committed per-Epic snapshot tree.
- * Module-private: exporting it would add a production-dead row to the
- * dead-exports ratchet for a two-word constant.
- */
+/** Private: exporting it would add a dead-exports row. */
 const LEGACY_EPIC_BASELINES_RELPATH = 'baselines/epic';
 
 /**
- * Step 5 — Prune a committed pre-v2 `baselines/epic/` tree (Story #5007).
- *
- * Story #1396 committed per-Epic ratchet snapshots under
- * `baselines/epic/<id>/`. The v2 Story-only model retired epics along with
- * every reader of those snapshots, and `check-baselines.js` resolves
- * baselines by fixed filename rather than by directory glob — so the tree is
- * inert, and the only remaining value in the retired layout migration was
- * getting it out of version control.
- *
- * `git rm -r --ignore-unmatch` stages the removal when the path is tracked
- * and is a safe no-op when it is not (fresh clone / untracked leftovers);
- * the on-disk residue is then removed so a re-run reports `absent`. The
- * caller commits the resulting working-tree delta.
+ * Remove the inert per-Epic snapshot tree no reader consults. `git rm
+ * --ignore-unmatch` stages it when tracked and no-ops otherwise; the caller
+ * commits the delta.
  *
  * @param {object} ctx
  * @param {string} ctx.projectRoot
- * @param {typeof defaultSpawnSync} [ctx.spawnImpl] — injectable spawn seam.
+ * @param {typeof defaultSpawnSync} [ctx.spawnImpl]
  * @returns {{ action: 'absent'|'pruned', path: string, gitStatus?: number|null }}
  */
 export function pruneLegacyEpicBaselines(ctx) {
@@ -403,10 +301,6 @@ export function pruneLegacyEpicBaselines(ctx) {
 }
 
 /**
- * Run all six steps in order. Composable wrapper used by the bootstrap
- * and update workflows. Each step's outcome is returned under its own key
- * so callers can render a per-action summary.
- *
  * @param {object} ctx
  * @param {string} ctx.projectRoot
  * @param {string} [ctx.frameworkRoot]

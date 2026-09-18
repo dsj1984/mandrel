@@ -1,22 +1,11 @@
 /**
- * lib/audit-to-stories/ledger-pr.js — everything the ledger PR is made of.
- *
- * The mechanical half of `--ledger-commit`: how the branch is named, when the
- * checkout is refused, the commit sequence itself, the push, and the PR body.
- * `ledger-commit.js` next door keeps only the two entry points and the
- * persistence assessment they share, so the run sequence there reads as a
- * sequence rather than as a git driver.
- *
- * Every refusal in this module happens **before** its first write, so a refused
- * run cannot have left a branch or a commit behind. The git and `gh` seams are
- * injected (`docs/contributing/test-seams.md`), so the whole retry matrix is
- * assertable without a live remote.
+ * The `--ledger-commit` write sequence. Every refusal precedes the first
+ * write.
  */
 
 /**
- * Run a read-only git probe that must never throw: a checkout with no commits
- * (or no repository at all) is a legitimate answer of "nothing to report", not
- * a crash. The write path uses `runStep` instead, where a failure IS fatal.
+ * Read-only git probe that never throws; a checkout with no commits is an
+ * answer, not a crash. Writes use `runStep`, where failure is fatal.
  *
  * @param {(cwd: string, ...args: string[]) => string} git
  * @param {string} cwd
@@ -33,9 +22,6 @@ export function probeGit(git, cwd, args) {
 }
 
 /**
- * Does a ref resolve in this checkout? Read-only, and never fatal — an absent
- * ref is the answer, not an error.
- *
  * @param {(cwd: string, ...args: string[]) => string} git
  * @param {string} cwd
  * @param {string} ref
@@ -48,14 +34,9 @@ function refExists(git, cwd, ref) {
 }
 
 /**
- * The short sha the branch name carries.
- *
- * Dating the branch alone was not enough to make a retry safe: a second run on
- * the same day found `chore/audit-ledger-<date>` already present and failed at
- * `create-branch`, so the *first* failure (usually a push) permanently poisoned
- * every retry that day. Qualifying the name with the base commit makes it
- * unique across bases while staying **deterministic** for the same base — which
- * is exactly what lets a retry recognise its own half-finished branch.
+ * Qualifies the branch name so it is unique across bases (a same-day retry
+ * must not collide) yet deterministic per base (so a retry recognises its own
+ * half-finished branch).
  *
  * @param {(cwd: string, ...args: string[]) => string} git
  * @param {string} cwd
@@ -71,14 +52,8 @@ function shortSha(git, cwd, baseRef) {
 }
 
 /**
- * Resolve the ledger branch for this run, and whether it is a **resume**.
- *
- * A ledger branch that exists locally and has never been pushed is the wreckage
- * of a failed run, not a landed one: its commit is already made, so the work
- * left is the push and the PR. Recognising it is what turns a failed push plus
- * its retry into exactly one PR instead of a stranded branch and a run
- * reporting `ledger-unchanged` — which is what the ledger file honestly is once
- * its change has been committed onto that branch.
+ * A local, never-pushed ledger branch is a failed run's commit: resume at the
+ * push, so a failed push plus its retry yields exactly one PR.
  *
  * @param {{ git: Function, cwd: string, base: string, date: string }} params
  * @returns {{ branch: string, resuming: boolean }}
@@ -94,14 +69,8 @@ function resolveLedgerBranch({ git, cwd, base, date }) {
 }
 
 /**
- * Refuse, naming the step, when the checkout cannot legitimately produce a
- * ledger PR. Both refusals happen **before** any write, so a refused run leaves
- * no branch and no commit behind.
- *
- * HEAD parked off the base branch is the one an unattended sweep actually
- * meets: a job that has already checked out a feature branch would otherwise
- * cut its ledger branch from that branch's tip and open a PR carrying every
- * unrelated commit on it.
+ * Refuses before any write. HEAD off the base branch would cut the ledger
+ * branch from a feature tip and carry its unrelated commits into the PR.
  *
  * @param {{ hasOrigin: boolean, onBaseBranch: boolean, headBranch: string,
  *   baseBranch: string }} state
@@ -125,10 +94,6 @@ function assertCommittable(state, branch) {
 }
 
 /**
- * Extract the PR URL `gh pr create` prints, so the caller can name it in the
- * run summary. A wrapper that returns something else yields `null` rather than
- * a fabricated link.
- *
  * @param {unknown} result
  * @returns {string|null}
  */
@@ -139,8 +104,6 @@ function pullRequestUrl(result) {
 }
 
 /**
- * Wrap one write step so a git or `gh` failure surfaces as a fatal error that
- * names the step that broke. Accepts sync and async steps alike.
  * @param {string} name
  * @param {() => unknown} fn
  * @returns {Promise<unknown>}
@@ -157,8 +120,6 @@ async function runStep(name, fn) {
 }
 
 /**
- * Compose the ledger PR body. Kept separate so the step sequence below reads
- * as a sequence and not as a string-building exercise.
  * @param {string} ledgerPath
  * @param {string} date
  * @returns {string}
@@ -179,10 +140,6 @@ function pullRequestBody(ledgerPath, date) {
 }
 
 /**
- * Cut the ledger branch from `origin/<base>` and commit the ledger onto it —
- * or, when `resuming`, simply check out the branch a failed run already
- * committed onto, because those steps have already succeeded.
- *
  * @param {object} ctx
  * @returns {Promise<void>}
  */
@@ -196,7 +153,6 @@ async function commitLedgerOnto({
   resuming = false,
 }) {
   if (resuming) {
-    // The commit already exists on that branch; all it is missing is a push.
     await runStep('resume-branch', () => git(cwd, 'checkout', branch));
     return;
   }
@@ -205,18 +161,14 @@ async function commitLedgerOnto({
     git(cwd, 'checkout', '-b', branch, `origin/${base}`),
   );
   await runStep('stage-ledger', () => git(cwd, 'add', '--', ledgerPath));
-  // The `-- <path>` pathspec is what keeps the commit ledger-only even when
-  // the sweep's checkout carries unrelated dirt.
+  // The pathspec keeps the commit ledger-only in a dirty checkout.
   await runStep('commit-ledger', () =>
     git(cwd, 'commit', '-m', subject, '--', ledgerPath),
   );
 }
 
 /**
- * Push the ledger branch and open its PR, returning the PR URL.
- *
- * Auto-merge is never requested: the ledger records machine-derived lifecycle
- * state a human should glance at, so landing it stays an operator decision.
+ * Never requests auto-merge: landing the ledger stays an operator decision.
  *
  * @param {object} ctx
  * @returns {Promise<string|null>}
@@ -251,12 +203,8 @@ async function pushAndOpenPullRequest({
 }
 
 /**
- * Put the checkout back on the branch the run started on.
- *
- * Best-effort by design, and called from a `finally`: on the failure path
- * especially — where the next thing the operator runs is the retry — leaving
- * them parked on a half-finished ledger branch is its own defect, but a failure
- * to restore must never mask the failure that caused it.
+ * Best-effort, from a `finally`: a failed restore must never mask the failure
+ * that caused it.
  *
  * @param {{ git: Function, cwd: string, startBranch: string, branch: string }} params
  */
@@ -265,28 +213,12 @@ function restoreBranch({ git, cwd, startBranch, branch }) {
   try {
     git(cwd, 'checkout', startBranch);
   } catch (_) {
-    // Deliberately swallowed — see the contract above.
+    // Deliberately swallowed.
   }
 }
 
 /**
- * Run the whole `--ledger-commit` write sequence against an assessed checkout:
- * refuse or skip, cut (or resume) the branch, push, open the PR, and put the
- * checkout back where it started.
- *
- * **Re-runnable**, which is the property an unattended sweep needs. The two
- * ways a retry used to misbehave are both closed here:
- *
- *   - The branch name is qualified by the base commit, so a same-day retry no
- *     longer collides with the branch a failed run left behind.
- *   - A ledger already committed on an **unpushed** ledger branch resumes at
- *     the push rather than reporting `ledger-unchanged` (the ledger file is
- *     clean — it is committed, just not pushed) and abandoning the work.
- *     Across a failed push and its retry that yields exactly one PR.
- *
- * The branch the run started on is restored in a `finally`, so a failure
- * anywhere in the sequence — and success alike — leaves the operator's checkout
- * where they left it rather than parked on a ledger branch.
+ * Re-runnable; always restores the starting branch.
  *
  * @param {{ state: object, ledgerPath: string, cwd: string, git: Function,
  *   gh: object, date: string }} params

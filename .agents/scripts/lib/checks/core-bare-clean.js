@@ -1,32 +1,12 @@
 /**
- * core-bare-clean — refuse-and-print blocker check.
- *
- * Asserts that `git config core.bare` on the main checkout is NOT set
- * to `true`. This guards the old failure mode where an `npm test` path
- * mis-set `core.bare=true` on the main checkout, after which
- * `single-story-close.js`'s post-rebase `git checkout` aborted with
- * `fatal: this operation must be run in a work tree`. `cleanGitEnv`
- * already lands the live fix; this check is the regression guard.
- *
- * Severity is `blocker` because single-story-close cannot recover on its own
- * — the operator must run `git config --unset core.bare` (or rely on
- * `cleanGitEnv` to do it before the rebase). The check is
- * refuse-and-print: the `fixCommand` is the literal unset, and the
- * operator runs it deliberately. We do not auto-fix because mutating
- * the parent repo's git config from a check is exactly the
- * "no commits to integration branches" cousin of the autoCorrect
- * disallowed list — config writes outside the local worktree boundary.
- *
- * Detection reads `state.git.coreBare`, the string returned by
- * `git config --get core.bare` (or `null` when unset). The check fires
- * when the string is the literal `'true'`.
+ * Blocks on `core.bare=true` in the main checkout, which aborts close's
+ * post-rebase checkout (`cleanGitEnv` is the live fix; this is the regression
+ * guard). Refuse-and-print: a check must not write config outside its worktree.
  */
 export default {
   id: 'core-bare-clean',
   severity: 'blocker',
-  // 'npm-test' keeps the test-wrapper preflight's refusal claim true: a
-  // poisoned shared config is caught before a suite (or N concurrent
-  // /mandrel-deliver workers) inherits it, not only at close/retro time (#4580).
+  // 'npm-test' catches a poisoned shared config before a suite inherits it.
   scope: ['story-close', 'retro', 'npm-test'],
   autoCorrect: 'refuse-and-print',
   detect(state) {

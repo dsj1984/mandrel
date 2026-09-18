@@ -1,31 +1,7 @@
 /**
- * duplicate-search.js — Cross-Story Duplicate Detection
- *
- * Used by `/mandrel-plan` to surface open Stories whose scope overlaps with a
- * seed / seed-file / tickets corpus before new Stories are created.
- * Returns ranked candidates with an overlap score and URL so the host
- * LLM can pause for HITL confirmation.
- *
- * Design notes:
- *  - Prefer `provider.searchIssues` to narrow open Stories server-side
- *    (`label:"type::story" state:open` + top seed tokens), capped at
- *    ~100 hits, then rank that set. Fall back to `listIssuesByLabel`
- *    when search errors, is unavailable, or returns **nothing** (same
- *    try/catch pattern as `TicketGateway.getTickets`).
- *  - The narrowing query is deliberately weak (Story #4541). GitHub ANDs
- *    free-text terms, so the former 8-token query demanded that a candidate
- *    contain all eight of a multi-sentence seed's longest words — which no
- *    real Story does. Gate #1 duplicate triage therefore reported "no
- *    candidates" on every realistic seed while looking perfectly healthy.
- *    Search is now a cheap best-case narrowing over a handful of tokens; an
- *    empty result is treated as "search did not help", not "no duplicates",
- *    and falls through to the label listing whose Jaccard ranker has real
- *    recall.
- *  - Scoring is intentionally simple (token Jaccard over title + body).
- *    It is a triage signal, not a semantic-search replacement.
- *  - Provider errors on the list fallback propagate verbatim — the
- *    caller is responsible for translating them into a friction comment
- *    or operator-visible failure.
+ * duplicate-search.js — rank open Stories overlapping a planning seed (token
+ * Jaccard over title + body: a triage signal, not semantic search). List
+ * fallback errors propagate verbatim to the caller.
  */
 
 import { Logger } from './Logger.js';
@@ -88,23 +64,11 @@ const STOPWORDS = new Set([
 
 const DEFAULT_MIN_SCORE = 0.15;
 const DEFAULT_MAX_RESULTS = 5;
-/**
- * How many seed tokens to pass as free-text search terms.
- *
- * GitHub ANDs these, so the cap is a precision/recall dial pointing the
- * wrong way: every extra token shrinks the candidate set. Three is a
- * best-case narrowing that can plausibly hit on a focused seed; anything
- * beyond that reliably matched nothing on a multi-sentence one (Story
- * #4541). Recall does not rest on this number — an empty result falls back
- * to label-listing plus client-side ranking.
- */
+/** GitHub ANDs terms, so more tokens match nothing; recall is the fallback's. */
 const DEFAULT_SEARCH_TOKEN_CAP = 3;
-/** Hard cap on search hits ranked client-side (~one Search API page). */
 const SEARCH_RESULT_CAP = 100;
 
 /**
- * Tokenize freeform text into a deduplicated set of meaningful words.
- *
  * @param {string} text
  * @returns {Set<string>}
  */
@@ -119,8 +83,7 @@ export function tokenize(text) {
 }
 
 /**
- * Pick the highest-signal seed tokens for a Search API free-text query.
- * Longer tokens first (specificity proxy), then alphabetical for stability.
+ * Longest first (specificity), then alphabetical.
  *
  * @param {string} seed
  * @param {number} [maxTokens]
@@ -134,9 +97,6 @@ export function pickSearchTokens(seed, maxTokens = DEFAULT_SEARCH_TOKEN_CAP) {
 }
 
 /**
- * Build the `/search/issues` query for open Stories overlapping a seed.
- * Repo scoping is left to `provider.searchIssues`.
- *
  * @param {string} seed
  * @returns {string}
  */
@@ -146,8 +106,6 @@ export function buildOpenStorySearchQuery(seed) {
 }
 
 /**
- * Compute the Jaccard overlap between two token sets.
- *
  * @param {Set<string>} a
  * @param {Set<string>} b
  * @returns {number} 0..1
@@ -161,9 +119,6 @@ export function overlapScore(a, b) {
 }
 
 /**
- * Build the issue URL for an id. The candidate exposes the URL so the
- * HITL pause can render clickable links without a second round-trip.
- *
  * @param {number|string} id
  * @param {{ owner?: string, repo?: string }} [opts]
  * @returns {string}
@@ -178,8 +133,6 @@ function buildIssueUrl(id, opts = {}) {
 }
 
 /**
- * Normalize a provider issue (list or search hit) into the ranking shape.
- *
  * @param {object} issue
  * @returns {{ id: number, title: string, body: string, url?: string }}
  */
@@ -193,9 +146,6 @@ function normalizeIssue(issue) {
 }
 
 /**
- * Rank a pre-fetched open-Story list against a seed corpus.
- * Pure helper shared by the provider-backed search and tests.
- *
  * @param {{
  *   seed: string,
  *   openStories: Array<{ id:number, title?:string, body?:string, url?:string }>,
@@ -253,8 +203,6 @@ function rankOpenStoryDuplicates({
 }
 
 /**
- * Server-narrowed open-Story fetch via `/search/issues`.
- *
  * @param {object} provider
  * @param {string} seed
  * @returns {Promise<Array<{ id:number, title:string, body:string, url?:string }>>}
@@ -267,8 +215,6 @@ async function fetchOpenStoriesViaSearch(provider, seed) {
 }
 
 /**
- * Full open-Story backlog via label listing (fallback path).
- *
  * @param {object} provider
  * @returns {Promise<Array<{ id:number, title:string, body:string, url?:string }>>}
  */
@@ -287,16 +233,9 @@ async function fetchOpenStoriesViaList(provider) {
 }
 
 /**
- * Fetch open-Story candidates: try Search API narrowing first, fall back to
- * `listIssuesByLabel` when search errors, is unavailable, or **returns no
- * hits**.
- *
- * The empty-result fallback is the load-bearing one (Story #4541). The
- * narrowing query ANDs seed tokens, so on any real multi-sentence seed it
- * matches nothing — and treating that as an authoritative "no duplicates
- * exist" is what made Gate #1 triage report a clean bill of health while
- * never actually looking. An empty search is evidence about the *query*, not
- * about the backlog.
+ * Search first; fall back to the label listing when search errors, is
+ * unavailable, or returns no hits. An empty search is evidence about the
+ * AND-ed query, not about the backlog.
  *
  * @param {object} provider
  * @param {string} seed
@@ -337,9 +276,6 @@ async function fetchOpenStoryCandidates(provider, seed) {
 }
 
 /**
- * Find open Stories whose title + body overlap with the supplied seed
- * above a configurable threshold.
- *
  * @param {{
  *   seed: string,
  *   provider: import('./ITicketingProvider.js').ITicketingProvider,

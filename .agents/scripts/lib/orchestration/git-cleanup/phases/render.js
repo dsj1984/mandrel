@@ -1,9 +1,5 @@
 /**
- * render.js — pure rendering helpers for git-cleanup (Story #2466).
- *
- * Owns the text + JSON envelope renderers and the `computeExitCode`
- * helper. Extracted verbatim from `git-cleanup.js` so every named export
- * keeps its contract.
+ * Pure text / JSON renderers and exit-code derivation for git-cleanup.
  *
  * @module lib/orchestration/git-cleanup/phases/render
  */
@@ -12,14 +8,8 @@ const TAG = '[git-cleanup]';
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
- * Pure: format a last-commit ISO timestamp as a short relative-age string
- * for the `not-merged` skip-visibility line (Story #4395). Returns
- * `'unknown'` when `iso` is missing or unparseable — a branch whose commit
- * date could not be resolved (e.g. `gh`-degraded run, deleted ref) still
- * gets a line, just without an age.
- *
  * @param {string|null|undefined} iso
- * @param {number} now  Epoch-ms reference clock (injectable for tests).
+ * @param {number} now
  * @returns {string}
  */
 function formatCommitAge(iso, now) {
@@ -33,17 +23,8 @@ function formatCommitAge(iso, now) {
 }
 
 /**
- * Pure: render a single `not-merged` skip-visibility line (Story #4395).
- * `renderDryRun` previously kept `not-merged` survivors silent; this
- * surfaces each one with its last-commit age so the operator can see why
- * a leftover branch isn't reaped instead of hunting for it by hand.
- *
- * Story #5188 routes the remote-only walk's genuinely-unmerged survivors
- * through here too. A `localExists: false` skip is marked `(remote-only)`
- * — the same marker {@link renderCandidateRow} puts on a remote-only
- * candidate — because the short name it prints has no local ref behind
- * it: without the marker the operator reads the line as a local branch and
- * hunts for a ref that `git branch` will never list.
+ * A remote-only skip is marked `(remote-only)` because its short name has
+ * no local ref behind it.
  *
  * @param {{ branch: string, reason: string, lastCommitAt?: string|null, localExists?: boolean }} skip
  * @param {{ now?: number }} [opts]
@@ -57,46 +38,22 @@ export function renderNotMergedSkipLine(skip, opts = {}) {
   return `${TAG} ⏭️  ${skip.branch}${scope} skipped — not merged (last commit: ${age})`;
 }
 
-/**
- * Pure: render a single content-merged candidate annotation line
- * (Story #4395). `content-merged` is a weaker signal than a merged PR or
- * git ancestry — this note lets the operator tell it apart in both the
- * dry-run list and the confirmation prompt.
- */
 function contentMergedNote(candidate) {
   return candidate.detectedBy === 'content-merged'
     ? ' (weaker signal — verify before deleting)'
     : '';
 }
 
-/**
- * Pure: render a single behind-the-merged-head candidate annotation.
- *
- * A branch whose tip is a strict ancestor of its merged PR head is a
- * stale pre-merge snapshot — reapable, because every commit on it landed
- * with the PR, but reapable for a different reason than a branch whose
- * tip *matches* the merged head. It used to be skipped outright as a
- * post-merge force-push; the note keeps the two visibly distinct in the
- * dry-run list and the confirmation prompt so the operator can see why a
- * branch that is not at the merged head is nonetheless offered.
- */
 function behindMergeNote(candidate) {
   return candidate.behindMerge
     ? ' (tip behind the merged head — content already landed)'
     : '';
 }
 
-/** Pure: every provenance annotation a candidate row carries, in order. */
 function candidateNotes(candidate) {
   return `${contentMergedNote(candidate)}${behindMergeNote(candidate)}`;
 }
 
-/**
- * Pure: one candidate row — its detection provenance, worktree, locality
- * and annotations. Split out of {@link renderDryRun} so that renderer
- * stays a loop over rows rather than growing a fourth inline ternary
- * every time a candidate gains a new dimension.
- */
 function renderCandidateRow(c) {
   const pr = c.prNumber ? `PR #${c.prNumber}` : c.detectedBy;
   const wt = c.hasWorktree ? ` (worktree: ${c.worktreePath})` : '';
@@ -105,15 +62,8 @@ function renderCandidateRow(c) {
 }
 
 /**
- * Pure: render the branch-phase candidate list as the operator-facing text
- * block.
- *
- * The header states the run mode: `execute` opts into the reap wording and
- * defaults to `false`, so a caller that forgets it still gets the harmless
- * preview line. Prefer {@link renderCandidateList}, which derives the mode
- * from the phase's own CLI options rather than making the caller restate
- * it — the header used to be hardcoded to the preview wording, so an
- * `--execute` run announced "nothing deleted" and then reaped.
+ * Prefer {@link renderCandidateList}, which derives `execute` from the CLI
+ * options.
  *
  * @param {{ candidates: Array, skipped?: Array, ghDegraded?: boolean }} plan
  * @param {{ baseBranch?: string|null, now?: number, execute?: boolean }} [opts]
@@ -159,17 +109,12 @@ export function renderDryRun(plan, opts = {}) {
 }
 
 /**
- * Pure: the branch phase's candidate-list block, with the header's run
- * mode derived from the phase's own CLI options — the same `opts.dryRun`
- * the reap path reads. Taking the whole bag (rather than a restated
- * boolean) is the point: the driver cannot get the wording wrong because
- * it never names the flag, so a destructive `--execute` run can no longer
- * announce itself as a `DRY RUN (nothing deleted)` preview and then
- * delete every candidate.
+ * Takes the whole CLI option bag — the same `dryRun` the reap path reads —
+ * so an `--execute` run can never announce itself as a dry run.
  *
  * @param {object} args
  * @param {{ candidates: Array, skipped?: Array }} args.plan
- * @param {{ dryRun?: boolean }} args.opts   Parsed CLI options.
+ * @param {{ dryRun?: boolean }} args.opts
  * @param {string|null} [args.baseBranch]
  * @returns {string[]}
  */
@@ -177,10 +122,6 @@ export function renderCandidateList({ plan, opts = {}, baseBranch = null }) {
   return renderDryRun(plan, { baseBranch, execute: !opts.dryRun });
 }
 
-/**
- * Pure: the tip / merged short-SHA pair both merged-tip skip lines quote,
- * with a placeholder for either side the planner could not resolve.
- */
 function shortShaPair(skip) {
   return {
     tip: skip.tipSha ? skip.tipSha.slice(0, 7) : '<unknown>',
@@ -189,11 +130,7 @@ function shortShaPair(skip) {
 }
 
 /**
- * Pure: render a single latest-PR-state skip line. Returns null when the
- * skip reason is not one of the latest-PR family — `renderDryRun` filters
- * by truthy return value so unrelated skip reasons (`protected`,
- * `current-head`, `filtered`) stay quiet here. `not-merged` gets its own
- * renderer ({@link renderNotMergedSkipLine}).
+ * `null` for any reason outside the latest-PR / merged-tip family.
  *
  * @param {{ branch: string, reason: string, prNumber?: number, tipSha?: string, mergedSha?: string, detail?: string }} skip
  * @returns {string | null}
@@ -227,25 +164,13 @@ export function renderLatestPrSkipLine(skip) {
   return null;
 }
 
-/**
- * Remedy text per withheld-delete reason (Story #5283). A withheld entry
- * that named no way to proceed would read as an unexplained refusal, so
- * every reason the executor can record gets its own next step here.
- */
+/** Next step per withheld-delete reason, so a withhold never reads as an unexplained refusal. */
 const WITHHELD_HINTS = {
   'weak-signal-needs-confirmation':
     'detected only by content-equivalence; re-run interactively or pass --include-content-merged',
 };
 
-/**
- * Pure: render a per-branch execution line.
- *
- * An entry marked `skipped` is a delete the executor deliberately
- * withheld rather than one it attempted — it must not render with the
- * `✅` of a completed reap, which is exactly the misreport that would let
- * an operator believe an unattended run had cleaned up a ref it left
- * standing.
- */
+/** A `skipped` entry was withheld, not attempted — never render it as ✅. */
 export function renderExecutionLine(entry, scope) {
   const label = scope.padEnd(8);
   const tagName =
@@ -263,7 +188,6 @@ export function renderExecutionLine(entry, scope) {
   return `${TAG} ${icon} ${label} ${tagName}${note}`;
 }
 
-/** Pure: render the optional prune line. */
 export function renderPruneLine(prune) {
   if (!prune?.attempted) return null;
   if (!prune.ok) {
@@ -277,12 +201,8 @@ export function renderPruneLine(prune) {
 }
 
 /**
- * Pure: render a single deferred-worktree line. A lock-class
- * worktree-removal failure (Windows file lock on an already-merged
- * branch's directory) is non-fatal — the branch ref was still reaped and
- * the directory is handed off to the pending-cleanup sweep. Returns the
- * operator-facing warning so the deferred signal is visible even on a
- * clean (`ok: true`) run.
+ * A lock-class worktree removal failure (Windows file lock) is non-fatal:
+ * the ref was reaped and the directory deferred. Shown even on an `ok` run.
  *
  * @param {{ branch?: string, path: string, pendingCleanup?: object|null }} entry
  * @returns {string}
@@ -295,7 +215,6 @@ export function renderDeferredLine(entry) {
   return `${TAG} ⚠️ deferred ${ref}${entry.path} — worktree locked; ref reaped${handoff}`;
 }
 
-/** Pure: render the trailing summary line. */
 export function renderExecutionSummary(result) {
   if (!result.ok) {
     return `${TAG} ❌ ${result.failures.length} failure(s) during cleanup.`;
@@ -308,8 +227,7 @@ export function renderExecutionSummary(result) {
     deferredCount > 0
       ? ` (${deferredCount} worktree(s) deferred to sweep)`
       : '';
-  // Story #5283: withheld remote entries are recorded on `remote[]` but
-  // were never deleted — counting them would overstate the reap.
+  // Withheld remote entries were never deleted; don't count them.
   const remoteDeleted = result.remote.filter((r) => !r.skipped).length;
   const withheldCount = result.remote.length - remoteDeleted;
   const withheldNote =
@@ -329,7 +247,6 @@ const EMPTY_RESULT = Object.freeze({
   ok: true,
 });
 
-/** Pure: build the JSON envelope emitted in `--json` mode. */
 export function buildJsonEnvelope({
   dryRun,
   baseBranch,
@@ -365,8 +282,7 @@ function legacyExitCode(plan, result) {
 }
 
 /**
- * Pure: derive the process exit code. Supports both the legacy
- * `(plan, result)` signature and the new multi-phase context object.
+ * Accepts `(plan, result)` or a multi-phase context object.
  *
  * @param {{ candidates?: Array, branchesPlan?: object, branchesResult?: object, fastForward?: object, prune?: object, stashes?: object } | { candidates: Array }} ctx
  * @param {{ ok: boolean } | null | undefined} [legacyResult]

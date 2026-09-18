@@ -1,93 +1,21 @@
 /**
- * phases/confirm-merge.js — the close-and-land merge wait (Story #4428,
- * reworked into a resumable, checks-aware wait by Story #4543).
+ * phases/confirm-merge.js — the close-and-land merge wait, the default
+ * terminal step of every close (`--no-wait-merge` opts out).
  *
- * This is the **default terminal step for every run** — attended and
- * headless alike — because `waitForMerge` defaults from
- * `delivery.routing.closeAndLand` (`true`); `--no-wait-merge` is the opt-out,
- * and a PR the operator deliberately left un-armed (`--no-auto-merge` /
- * `autoMerge: "strict"`) resolves to no-wait and rests at `agent::closing`
- * for the human.
+ * Two timing domains: `maxWaitSeconds` bounds THIS invocation (it must fit
+ * the host's ~10-min tool ceiling after the close gates) and expires to a
+ * resumable `pending` with no mutation; `maxBudgetSeconds` bounds the
+ * cumulative wait, anchored at the PR's `createdAt` so resumes don't restart
+ * it, and exhausting it is the real give-up (classify, emit, block). The
+ * poll is stateless and re-entrant. Async mode only shortens the
+ * per-invocation window. Checks are probed every iteration so a red required
+ * check fails fast instead of burning the budget.
  *
- * ## The timing model (Story #4543 — the load-bearing design decision)
- *
- * The original wait polled a single budget: `maxBudgetSeconds`, one hour.
- * The host caps a single tool invocation at ~10 minutes, and the close gates
- * burn minutes of that before the wait even starts. So a close-and-land
- * whose CI took longer than roughly eight minutes was **killed mid-poll**
- * with no terminal path taken — no `merge.unlanded` event, no `agent::blocked`
- * flip, the Story parked at `agent::closing`: precisely the strand the
- * must-land contract exists to eliminate.
- *
- * The fix splits the two timing domains that were conflated:
- *
- *   - **`maxWaitSeconds`** bounds THIS invocation (default 300s, comfortably
- *     inside the host ceiling). On expiry the wait returns
- *     `terminal: 'pending'` — **no label mutation, no `merge.unlanded`
- *     event** — and the caller surfaces a resumable terminal with its own
- *     exit code. Merely shrinking `maxBudgetSeconds` instead would have been
- *     wrong: that path conflates slow CI with a hard block, so most runs
- *     would have been misfiled as blocked.
- *   - **`maxBudgetSeconds`** bounds the CUMULATIVE wait, anchored at the
- *     PR's `createdAt` rather than this invocation's start, so resumes do not
- *     restart the clock. Exhausting it is the genuine give-up: classify,
- *     emit, block. `agent::blocked` stays reserved for hard blocks.
- *
- * Backgrounding is not a workaround here and does not need to be: an
- * interrupted poll is stateless and re-entrant by construction.
- *
- * ## Async mode (Story #4698 — a designed short probe window, not an accident)
- *
- * `maxWaitSeconds` (default 300s) still routinely EXPIRES on a slow-CI
- * consumer: the median PR-create→merge time can be minutes, so nearly every
- * close burns its whole foreground slot polling and then returns `pending`
- * anyway. `delivery.mergeWatch.mode: "async"` makes that async confirm a
- * designed mode rather than an expiry accident. It caps the per-invocation
- * wait to a short probe window (`ASYNC_PROBE_WINDOW_SECONDS`, ~60s) — long
- * enough for the loop's existing checks to catch an instant merge and, via the
- * imported {@link decideMergeWaitFailFast} decision (Story #4695/#4710), an
- * instantly-red required check — then returns the SAME resumable `pending`
- * terminal, whose `nextCommand` the worker launches in the background. Nothing
- * else changes: the cumulative `maxBudgetSeconds` anchor is untouched, and
- * `sync` mode (the default) is byte-compatible. An explicit `--max-wait-seconds`
- * override wins over the async cap so a headless caller can still land in one
- * block. The clamp lives entirely in `resolveMergeWaitConfig`; the poll loop is
- * mode-agnostic.
- *
- * ## The wait is not weaker than the watch it displaced
- *
- * The pre-#4543 poll read only `state` / `mergedAt`. A check that went red
- * at minute one therefore burned the full hour and then classified as
- * `branch-protection-human-required` (the exhaustion probe sees
- * `mergeStateStatus: BLOCKED` with checks settled) — sending the operator to
- * diagnose branch protection instead of their red check. This wait probes the
- * checks every iteration: it fails fast on `checks-failed`, and runs a
- * bounded `gh pr update-branch` on a BEHIND PR instead of waiting out the
- * budget behind a base it could have caught up to.
- *
- * The per-iteration `provider.getTicket` is also gone. It was re-fetched
- * every poll for an idempotence check whose answer cannot change mid-poll —
- * ~240 reads per Story per hour. The loop now probes the PR only, and calls
- * the shared `confirmStoryMerged` exactly once, after a merge is observed.
- *
- * Terminal outcomes:
- *   - `{ confirmed: true, action, tail }` — the PR merged; `confirmStoryMerged`
- *     flipped `agent::closing → agent::done` and closed the issue, and the
- *     shared post-land tail ran.
- *   - `{ confirmed: false, terminal: 'pending', waitBudget }` — this
- *     invocation's bound expired with the PR still in flight. Resumable;
- *     nothing was mutated.
- *   - `{ confirmed: false, terminal: 'blocked', blockClass, reason }` — the
- *     arm failed outright, the PR closed without merging, a required check
- *     went red, or the cumulative budget was exhausted. Classified via the
- *     shared `classifyMergeBlock`, emitted as `merge.unlanded`, friction
- *     posted, Story transitioned to `agent::blocked`.
- *   - `{ confirmed: false, terminal: 'blocked', blockClass: 'merged-flip-failed' }`
- *     — the PR merged but the `agent::done` label write failed. Its own
- *     `merge.flip-failed` event and friction wording (Story #4539): the merge
- *     landed, so attributing it to an unlanded merge would send the operator
- *     to diagnose branch protection instead of re-running the idempotent
- *     confirm.
+ * Terminals: `landed` (confirmed, post-land tail ran); `pending` (nothing
+ * mutated); `blocked` (classified, `merge.unlanded` emitted, friction posted,
+ * Story → `agent::blocked`); `blocked`/`merged-flip-failed` (merged but the
+ * `agent::done` write failed — its own event and wording, since the merge
+ * is not in question).
  */
 
 import { getCiDelivery } from '../../../config/ci.js';
@@ -130,51 +58,22 @@ import {
 import { disarmAutoMerge } from './auto-merge.js';
 import { runPostLandTail as defaultRunPostLandTail } from './post-land.js';
 
-/**
- * Per-invocation merge-wait bound. 300s fits inside a single host tool
- * invocation (~10 min ceiling) with room for the close gates that precede
- * the wait. A headless caller with no such ceiling raises
- * `delivery.mergeWatch.maxWaitSeconds` to keep single-block semantics.
- */
+/** Per-invocation bound; fits the host's ~10-min tool ceiling after the gates. */
 export const DEFAULT_MAX_WAIT_SECONDS = 300;
 
-/**
- * Async-mode per-invocation probe window (Story #4698). When
- * `delivery.mergeWatch.mode` is `"async"`, `resolveMergeWaitConfig` caps the
- * per-invocation wait to this many seconds so close returns the resumable
- * `pending` terminal fast instead of burning the foreground host slot. Sized
- * to catch an instant merge and — via the head-anchored required-check
- * predicate — an instantly-red required check, while staying far inside the
- * cumulative `maxBudgetSeconds` give-up bound.
- */
+/** Async-mode per-invocation cap: long enough to catch an instant merge or red check. */
 export const ASYNC_PROBE_WINDOW_SECONDS = 60;
 
-/** Bounded `gh pr update-branch` attempts for a BEHIND PR. */
 export const DEFAULT_UPDATE_ATTEMPTS = 3;
 
 /**
- * Minimum polls before the CUMULATIVE budget may block.
- *
- * The cumulative clock is anchored at the PR's `createdAt` so resumes do not
- * restart it — but that alone means a PR older than `maxBudgetSeconds` (1h by
- * default) is already over budget on its very first probe. Resuming a Story
- * the next morning, or landing a long-open PR, would then flip
- * `agent::blocked` and emit `merge.unlanded` against a perfectly healthy PR
- * that was seconds from merging, without ever having waited.
- *
- * The floor gives every invocation at least one real poll cycle before the
- * cumulative bound can fire. A genuinely stuck PR still blocks within one
- * interval (~30s), so the give-up bound keeps its meaning; a PR about to go
- * green gets the chance it earned.
+ * Minimum polls before the cumulative budget may block: the clock is anchored
+ * at `createdAt`, so a long-open PR is over budget on its first probe and
+ * would otherwise block without ever having waited.
  */
 export const MIN_POLLS_BEFORE_BUDGET_BLOCK = 2;
 
-/**
- * The verdict for a PR closed without merging. Decided by the wait itself and
- * carried to the terminal (Story #5383); the class and wording are the ones
- * the classifier's `api-race-other` fallback produced for this case before
- * that, so the recorded attribution is unchanged.
- */
+/** Verdict for a PR closed without merging, decided by the wait itself. */
 const CLOSED_UNMERGED_BLOCK_CLASS = 'api-race-other';
 const CLOSED_UNMERGED_REASON =
   'PR probe error: PR closed without merging (state=CLOSED)';
@@ -183,34 +82,14 @@ function defaultSleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/**
- * The wait's default `gh` facade, bound to a spawn-level timeout (Story
- * #4710): every subprocess the wait launches through it carries
- * `MERGE_WAIT_GH_TIMEOUT_MS`, so a wedged `gh` child is killed rather than
- * stranding an unattended async-mode wait forever. Callers that inject their
- * own `gh` (tests, the resume CLI) are bounded by {@link withGhTimeout} at
- * the call sites instead.
- */
+/** Spawn-level timeout kills a wedged `gh` child; injected `gh`s are bounded by withGhTimeout. */
 const defaultGh = createGh(undefined, { timeoutMs: MERGE_WAIT_GH_TIMEOUT_MS });
 
 /**
- * Bound an arbitrary `gh` call with a wall-clock timeout (Story #4710). The
- * spawn-level `timeoutMs` on {@link defaultGh} already kills a wedged real
- * subprocess, but an injected `gh` implementation (a test stub, a facade
- * built without defaults) can still return a promise that never settles —
- * and the merge wait must never hang on any of them. Rejection maps to the
- * caller's existing error handling: the probe degrades to its conservative
- * pending shape, the update-branch attempt logs and continues.
- *
- * A late settlement of the losing promise is explicitly absorbed so a
- * post-timeout rejection cannot surface as an unhandled rejection.
- *
- * The timeout timer is deliberately NOT `unref`'d: when the awaited call is a
- * promise that never settles (a hung stub, or a real gh child whose I/O has
- * gone quiet), the timer is the ONLY handle keeping the event loop alive, so
- * unref'ing it would let the process/test exit before the timeout ever fires —
- * exactly the hang this guard exists to prevent. It is short-lived and always
- * cleared in `finally`, so keeping it referenced costs nothing.
+ * Wall-clock bound for any `gh` call, including injected ones that may never
+ * settle. The losing promise's late rejection is absorbed. The timer is NOT
+ * unref'd: for a never-settling call it is the only handle keeping the event
+ * loop alive until the timeout fires.
  */
 function withGhTimeout(promise, timeoutMs, label) {
   let timer;
@@ -227,19 +106,11 @@ function withGhTimeout(promise, timeoutMs, label) {
 }
 
 /**
- * One string field off a `gh pr view` payload, or `absent` when the API did
- * not return one. Deduplicated out of the probe below (Story #5266): six
- * identical `typeof x === 'string'` ternaries put that one function over the
- * CRAP ratchet the moment a seventh field was needed.
- *
- * An empty string counts as absent — `gh` returns `""` for a field it cannot
- * read, and every caller treats that exactly as "not there".
+ * A string field off a `gh pr view` payload; `""` (gh's unreadable field)
+ * counts as absent.
  *
  * @param {unknown} value
- * @param {null|undefined} [absent] What to report when the field is missing.
- *   `null` for the three fields the poll loop compares against null; the
- *   `undefined` default for the ones whose absence must not shadow a
- *   downstream default.
+ * @param {null|undefined} [absent] `undefined` where absence must not shadow a downstream default.
  * @returns {string|null|undefined}
  */
 function readString(value, absent = undefined) {
@@ -247,17 +118,8 @@ function readString(value, absent = undefined) {
 }
 
 /**
- * One probe per poll iteration, carrying every field the loop and the
- * terminal classifier need: merge state, the checks rollup, the merge-state
- * status (for BEHIND recovery and human-required classification), and
- * `createdAt` (the cumulative-budget anchor).
- *
- * Returns a degraded `{ checksStatus: 'pending', error }` probe when the read
- * itself fails, preserving the conservative classification on probe errors —
- * a flaky API read must not be mistaken for a definitive verdict. A probe
- * that exceeds `ghTimeoutMs` (Story #4710) takes the SAME degraded path: a
- * hung subprocess must surface as a probe error within the bound, never
- * strand the wait.
+ * One probe per poll iteration. A failed or timed-out read degrades to
+ * `{ checksStatus: 'pending', error }` so a flaky read is never a verdict.
  *
  * @returns {Promise<object>}
  */
@@ -275,8 +137,6 @@ export async function readPrWaitProbe({
         'mergeStateStatus',
         'reviewDecision',
         'statusCheckRollup',
-        // Story #5266 — the head the red advisory runs belong to, so their
-        // check-run output can be read back and classified.
         'headRefOid',
       ]),
       ghTimeoutMs,
@@ -289,14 +149,9 @@ export async function readPrWaitProbe({
       mergeStateStatus: readString(view?.mergeStateStatus),
       reviewDecision: readString(view?.reviewDecision),
       checksStatus: deriveChecksStatus(view?.statusCheckRollup),
-      // Head-anchored per-run evidence (Story #4695): distinguishes a
-      // genuinely red required run from the superseded / still-pending noise
-      // the aggregate `checksStatus` folds together. `null` when the rollup is
-      // absent/empty — the loop's consecutive-probe fallback owns that path.
+      // Head-anchored, so superseded/pending runs don't read as red; `null`
+      // when the rollup is empty (the consecutive-probe fallback owns that).
       requiredRunEvidence: deriveRequiredRunEvidence(view?.statusCheckRollup),
-      // The named red head runs (Story #5096), so an `advisory-gate-red`
-      // verdict can name the offending job and match the allowlist. Same
-      // red-ness test as `requiredRunEvidence`, so the two cannot disagree.
       redHeadRuns: deriveRedHeadRuns(view?.statusCheckRollup),
       headSha: readString(view?.headRefOid),
     };
@@ -313,33 +168,11 @@ export async function readPrWaitProbe({
 }
 
 /**
- * Resolve the wait posture and both budgets from `delivery.mergeWatch.*`,
- * falling back to the framework defaults when a key is absent or invalid.
- * The poll cadence (`DEFAULT_INTERVAL_SECONDS`) and the behind-the-base
- * update cap (`DEFAULT_UPDATE_ATTEMPTS`) are fixed since Story #5382.
- *
- * `maxWaitSecondsOverride` is the per-run `--max-wait-seconds` flag and wins
- * over the config: a headless caller with no host tool-invocation ceiling
- * raises the per-invocation bound to keep single-block semantics without
- * editing the consumer's config.
- *
- * `mode` (Story #4698) selects the close-time merge posture. `async` caps the
- * per-invocation wait to `ASYNC_PROBE_WINDOW_SECONDS` so close returns the
- * resumable `pending` terminal fast; `sync` (the default) is unchanged. An
- * explicit `maxWaitSecondsOverride` still wins over the async cap — a headless
- * caller with no host ceiling opts back into single-block waiting.
- *
- * `modeOverride` is the per-invocation `--merge-watch-mode` flag (Story #4949)
- * and wins over `delivery.mergeWatch.mode` on exactly the precedence
- * `maxWaitSecondsOverride` already uses. It exists because run topology is
- * knowable only to the orchestrator: close sees one Story and cannot tell a
- * solo delivery (where a foreground wait is the cheapest ending) from the Nth
- * close of a wave (where each foreground wait is serialized dead time). The
- * config default therefore stays `sync`, and the caller that knows better says
- * so per invocation. The two flags remain composable — `--merge-watch-mode
- * async --max-wait-seconds 900` selects the async posture and then overrides
- * its probe cap, because the cap check below keys on the override's presence,
- * not on where the mode came from.
+ * Resolve posture and budgets from `delivery.mergeWatch.*`. Both overrides
+ * (`--max-wait-seconds`, `--merge-watch-mode`) win over config; the mode flag
+ * exists because only the orchestrator knows whether a foreground wait is
+ * cheap (solo) or serialized dead time (a wave). An explicit max-wait
+ * override also beats the async cap.
  *
  * @param {object} [config]
  * @param {number} [maxWaitSecondsOverride]
@@ -360,25 +193,12 @@ export function resolveMergeWaitConfig(
     maxWaitSecondsOverride,
     int(mergeWatch.maxWaitSeconds, DEFAULT_MAX_WAIT_SECONDS),
   );
-  // Async mode caps the per-invocation wait to a short probe window so close
-  // returns `pending` fast instead of burning the foreground host slot on a
-  // merge that lands after the wait would have expired anyway. The window is
-  // long enough for the loop's existing checks to catch an instant merge and —
-  // via the imported `decideMergeWaitFailFast` decision — an instantly
-  // red required check. An explicit `--max-wait-seconds` override still wins so
-  // a headless caller with no host ceiling opts back into single-block waiting.
   const maxWaitSeconds =
     mode === 'async' && maxWaitSecondsOverride == null
       ? Math.min(configuredMaxWait, ASYNC_PROBE_WINDOW_SECONDS)
       : configuredMaxWait;
-  // A poll interval longer than the wait bound is incoherent, and silently
-  // harmful: the pending check would fire on poll 1 every time, so the wait
-  // could never sleep, `polls` could never reach
-  // MIN_POLLS_BEFORE_BUDGET_BLOCK, and the cumulative budget would become
-  // unreachable across ANY number of resumes — a Story stuck in permanent
-  // `pending` that never escalates. Clamping the interval to the bound keeps
-  // at least one real poll cycle possible, which is what both the floor and
-  // the give-up bound depend on.
+  // An interval longer than the bound would expire every invocation on poll
+  // 1, so MIN_POLLS_BEFORE_BUDGET_BLOCK and the budget could never be reached.
   const intervalSeconds = Math.min(DEFAULT_INTERVAL_SECONDS, maxWaitSeconds);
   return {
     mode,
@@ -393,11 +213,8 @@ export function resolveMergeWaitConfig(
 }
 
 /**
- * Anchor the cumulative budget at the PR's `createdAt` so a resumed wait
- * does not restart the clock. Falls back to this invocation's start when the
- * probe carried no timestamp — a conservative degrade: the worst case is a
- * resume getting a fresh cumulative budget, which is exactly the pre-#4543
- * behaviour, never a premature block.
+ * Budget anchor; without `createdAt` it falls back to this invocation's start
+ * (worst case a fresh budget, never a premature block).
  *
  * @returns {number} epoch ms
  */
@@ -408,22 +225,9 @@ export function resolveBudgetAnchorMs({ createdAt, fallbackMs }) {
 }
 
 /**
- * The advisory-gate half of {@link unlandedRemedy} (Story #5279).
- *
- * Both advisory classes used to fall through to the generic remedy, which
- * opens by telling the operator to resolve "branch protection, required
- * checks, or a manual merge" — a diagnosis of a fault that provably does not
- * exist here. An advisory gate blocks precisely BECAUSE GitHub reports the PR
- * mergeable (`mergeStateStatus=UNSTABLE`) over a NON-required red check, so
- * close refused to let native auto-merge land it. Saying so is the paragraph
- * that stops the operator hunting a protection rule that is working fine.
- *
- * The two classes then part on what the evidence authorises. `inconclusive`
- * is a job that failed WITHOUT FINISHING and reported no violation — nothing
- * says the change is bad — so the proportionate act is a re-run, named here
- * as `--rerun-advisory`; the permanent global exemption is deliberately
- * mentioned last. `advisory-gate-red` reported a real violation, so the
- * change is implicated and landing over it is a deliberate override.
+ * Advisory-gate remedy: the PR is mergeable (UNSTABLE over a non-required
+ * red), so branch protection is not the fault. `inconclusive` never finished
+ * and implicates nothing (re-run first); `red` reported a real violation.
  *
  * @param {{ storyId: number, blockClass: string }} args
  * @returns {string}
@@ -455,10 +259,6 @@ function advisoryGateRemedy({ storyId, blockClass }) {
 }
 
 /**
- * The class-specific remediation paragraph of the unlanded friction comment.
- * Split out of {@link formatUnlandedFriction} so each class's wording is one
- * named branch rather than a nested ternary.
- *
  * @param {{ storyId: number, prNumber: number|null, blockClass: string }} args
  * @returns {string}
  */
@@ -484,10 +284,6 @@ function unlandedRemedy({ storyId, prNumber, blockClass }) {
   );
 }
 
-/**
- * Format the `friction` comment body posted alongside the `agent::blocked`
- * transition when a landing attempt gives up without a confirmed merge.
- */
 function formatUnlandedFriction({
   storyId,
   prNumber,
@@ -511,13 +307,7 @@ function formatUnlandedFriction({
   );
 }
 
-/**
- * Format the `friction` comment for a merge that **landed** while the
- * `agent::done` label write failed. Deliberately not the unlanded wording:
- * the merge is not in question, so pointing the operator at branch
- * protection and required checks would send them to diagnose a fault that
- * does not exist. Name the actual remedy instead.
- */
+/** Friction for a merge that landed but whose `agent::done` write failed. */
 function formatFlipFailedFriction({
   storyId,
   prNumber,
@@ -546,10 +336,7 @@ function formatFlipFailedFriction({
 }
 
 /**
- * Post a friction comment best-effort and return its id when the provider
- * surfaces one. The id is the terminal envelope's `frictionCommentId`
- * pointer, so a caller can link the operator straight at the remediation
- * instead of telling them to go find it.
+ * Best-effort; the id becomes the envelope's `frictionCommentId`.
  *
  * @returns {Promise<string|null>}
  */
@@ -572,12 +359,7 @@ async function postFriction({ provider, storyId, body, progress }) {
   }
 }
 
-/**
- * Terminal for a confirmed merge whose `agent::done` flip failed. Emits
- * `merge.flip-failed` (NOT `merge.unlanded` — the merge landed), posts the
- * flip-failed friction, and blocks explicitly. Best-effort throughout: the
- * caller owns the non-zero exit.
- */
+/** Emits `merge.flip-failed` (not `merge.unlanded`); best-effort throughout. */
 async function blockOnFlipFailed({
   storyId,
   prNumber,
@@ -639,25 +421,17 @@ async function blockOnFlipFailed({
     reason,
     frictionCommentId,
     elapsedSeconds,
-    // The merge is CONFIRMED here — only the label write failed — so the
-    // envelope must say MERGED even when the probe that got us here was read
-    // before the merge landed. Reporting the stale OPEN (or null) would tell
-    // the operator to chase a merge that already happened.
+    // The merge is confirmed even if the probe was read before it landed.
     prProbe: { ...(prProbe ?? {}), state: 'MERGED' },
   };
 }
 
 /**
- * Story #5266 — the per-invocation advisory rerun allowance.
+ * `--rerun-advisory` beats `delivery.ci.rerunAdvisory`; both default 0
+ * because a rerun spends CI minutes. An invalid override falls back to config.
  *
- * `--rerun-advisory <n>` wins over `delivery.ci.rerunAdvisory` on exactly the
- * precedence `--max-wait-seconds` already uses. Both default to **0**: a
- * rerun spends CI minutes and mutates GitHub state, so close does neither
- * unasked. A non-integer or negative override is not an instruction to guess
- * — it degrades to the config value.
- *
- * @param {object|null} config Resolved config (or any `delivery.ci` bag).
- * @param {number} [override] The `--rerun-advisory` value, when supplied.
+ * @param {object|null} config
+ * @param {number} [override]
  * @returns {number} allowance ≥ 0
  */
 export function resolveAdvisoryRerunAllowance(config, override) {
@@ -666,10 +440,8 @@ export function resolveAdvisoryRerunAllowance(config, override) {
 }
 
 /**
- * Identify ONE observation of a red run: the job, the workflow run behind it,
- * and when that run finished. A rerun changes `completedAt` (and eventually
- * the conclusion), so this is what lets the wait tell a re-run's verdict apart
- * from the stale pre-rerun snapshot it will keep seeing for a poll or two.
+ * One observation of a red run; a rerun changes `completedAt`, which tells a
+ * fresh verdict from the stale pre-rerun snapshot.
  *
  * @param {{name?: string|null, runId?: number, completedAt?: string}} run
  * @returns {string}
@@ -679,17 +451,9 @@ function advisoryRunSignature(run) {
 }
 
 /**
- * Story #5266 — read each red advisory run's own account of WHY it failed.
- *
- * `gh pr view --json statusCheckRollup` has a fixed projection that carries no
- * output text for a CheckRun, so on the rollup alone every red advisory run
- * looks identical — which is the defect. The check-runs API for the head SHA
- * carries `output.title` / `output.summary`, and ONE call for the whole head
- * is enough to classify every red run on it.
- *
- * Called only on the block path (never per poll), and **fails open**: any
- * error, timeout, or missing head SHA returns the runs unchanged, which
- * classifies them as `advisory-gate-red` — the pre-#5266 verdict.
+ * Attach each red run's check-run output (the rollup carries none), in one
+ * call per head. Block path only; fails open to the unenriched runs, which
+ * classify as `advisory-gate-red`.
  *
  * @returns {Promise<Array<object>>} the runs, enriched where output was found
  */
@@ -731,17 +495,10 @@ async function enrichRedRunsWithOutput({
 }
 
 /**
- * Story #5266 — re-run the failed advisory workflow run(s), once, within the
- * caller's remaining allowance.
+ * `rerun-failed-jobs` once per distinct workflow run (not per job).
  *
- * Requests `rerun-failed-jobs` per distinct workflow run rather than per job:
- * one advisory workflow commonly fans out, and re-running the whole failed set
- * is both cheaper in API calls and what an operator means by "re-run it".
- *
- * @returns {Promise<boolean>} whether every rerun request succeeded. `false`
- *   (including "no run id to re-run") leaves the caller on the block path,
- *   because an allowance that cannot be spent must not silently suppress the
- *   gate.
+ * @returns {Promise<boolean>} `false` (incl. no run id) keeps the caller on
+ *   the block path — an unspendable allowance must not suppress the gate.
  */
 async function rerunAdvisoryRuns({ blockingRuns, gh, ghTimeoutMs, progress }) {
   const runIds = [
@@ -786,11 +543,8 @@ async function rerunAdvisoryRuns({ blockingRuns, gh, ghTimeoutMs, progress }) {
 }
 
 /**
- * The rerun allowance this wait may still spend on an ADVISORY red, as the
- * shared rerun rule (Story #5383) permits it. The advisory gate's runs are red
- * on an `UNSTABLE` PR, so by construction none is required and the rule
- * permits the rerun; a red REQUIRED check never reaches the rerun path — the
- * wait fails fast on it and records `checks-failed` instead.
+ * Advisory runs are non-required by construction; a red required check
+ * fails fast as `checks-failed` and never reaches the rerun path.
  *
  * @param {{ remaining: number }} rerunState
  * @returns {number}
@@ -800,16 +554,9 @@ function advisoryRerunsLeft(rerunState) {
 }
 
 /**
- * Spend one unit of the rerun allowance, if there is one and the rerun takes.
- * Records the observation signature of every run it re-ran, so the stale
- * pre-rerun snapshot the next poll reads does not re-block on the same job.
- *
- * Deliberately does NOT disarm first, unlike the block path: the whole point
- * of a rerun is that a green re-run lands the PR on its own. The cost is an
- * armed window in which GitHub could land the PR over the still-red advisory
- * if the required contexts go green before the re-run reports — which is
- * exactly what opting in to `--rerun-advisory` buys and accepts. At the
- * default 0 there is no such window.
+ * Spend one rerun unit, recording each re-run's signature so the stale
+ * snapshot doesn't re-block. Does NOT disarm: a green re-run should land on
+ * its own; the armed window is what opting in to `--rerun-advisory` accepts.
  *
  * @returns {Promise<boolean>} `true` when the caller should keep polling.
  */
@@ -836,22 +583,10 @@ async function maybeRerunAdvisory({
 }
 
 /**
- * Story #5096 — resolve the advisory-gate terminal for one poll.
- *
- * Takes the poll's current `unlanded` and returns it unchanged when a terminal
- * is already decided, so the caller is a single assignment with NO added
- * branch. `runMergePoll` is already above `check-cyclomatic`'s ceiling; the
- * three decision points this would otherwise cost inline are a real gate
- * regression, and they belong with the policy either way.
- *
- * Disarms BEFORE returning the terminal: an armed PR can merge out from under
- * the block the caller is about to record.
- *
- * Story #5266 threads three more steps through the same single assignment:
- * runs this invocation already re-ran (and has no fresh verdict for) are
- * skipped rather than re-blocked; the survivors are enriched with their own
- * check-run output so the class can be `advisory-gate-inconclusive`; and a
- * remaining rerun allowance is spent before any block is recorded.
+ * Advisory-gate terminal for one poll; passes a decided `unlanded` through so
+ * the caller stays branch-free (`runMergePoll` is at the cyclomatic ceiling).
+ * Skips runs already re-ran, enriches the rest, spends any rerun allowance,
+ * and disarms BEFORE returning a block so the PR cannot merge out from under it.
  */
 async function resolveAdvisoryUnlanded({
   unlanded,
@@ -873,9 +608,6 @@ async function resolveAdvisoryUnlanded({
     advisoryAllowlist,
   });
   if (!advisory) return null;
-  // Every blocking run is one this invocation already re-ran and has not seen
-  // a fresh verdict for yet (Story #5266) — keep polling rather than blocking
-  // on the snapshot the rerun was meant to replace.
   const pending = advisory.blockingRuns.filter(
     (run) => !rerunState.issued.has(advisoryRunSignature(run)),
   );
@@ -912,12 +644,7 @@ async function resolveAdvisoryUnlanded({
   };
 }
 
-/**
- * Classify the unlanded merge, emit `merge.unlanded`, post a `friction`
- * comment, and transition the Story to `agent::blocked`. Every side effect
- * is best-effort logged rather than thrown — the caller owns surfacing the
- * non-zero exit once this returns.
- */
+/** Classify, emit `merge.unlanded`, post friction, block — all best-effort. */
 async function blockOnUnlanded({
   storyId,
   prNumber,
@@ -932,13 +659,9 @@ async function blockOnUnlanded({
   blockClassOverride,
   reasonOverride,
 }) {
-  // A verdict decided at detection is carried here and emitted as-is, never
-  // re-derived (Story #5383): `checks-failed` from the fail-fast decision, the
-  // closed-unmerged verdict, and — Story #5096 — `advisory-gate-red`, which
-  // `classifyMergeBlock` cannot produce at all: by construction GitHub is NOT
-  // gating that merge (`mergeStateStatus: UNSTABLE`), so every classifier
-  // heuristic reads the PR as healthy. The classifier runs only for the
-  // arm-failure and budget-exhaustion terminals, which have no prior verdict.
+  // A verdict decided at detection is emitted as-is, never re-derived (the
+  // classifier reads an advisory-gate PR as healthy); the classifier runs
+  // only for arm-failure and budget exhaustion.
   const { blockClass, reason } = blockClassOverride
     ? {
         blockClass: blockClassOverride,
@@ -950,11 +673,7 @@ async function blockOnUnlanded({
         budget,
       });
   const elapsedSeconds = budget?.elapsedSeconds ?? 0;
-  // Which evidence path produced a `checks-failed` verdict (Story #4695):
-  // `per-run` (head-anchored required-run evidence) or `consecutive-probe`
-  // (the evidence-unavailable fallback). Named on the emitted record so the
-  // `merge.unlanded` telemetry attributes the fail-fast to the path that
-  // fired it. Absent for every other block class.
+  // `per-run` | `consecutive-probe` for `checks-failed`; absent otherwise.
   const evidencePath = prProbe?.evidencePath;
 
   if (Number.isInteger(prNumber) && prNumber > 0) {
@@ -1015,27 +734,14 @@ async function blockOnUnlanded({
     reason,
     frictionCommentId,
     elapsedSeconds,
-    // The probe the classifier just read. The terminal envelope reports
-    // `pr.state` / `pr.checksStatus` from here; dropping it made every
-    // blocked envelope claim `null` for facts we had just observed — a
-    // `checks-failed` envelope reporting `checksStatus: null` contradicts
-    // itself. Schema wants "live PR facts as observed at terminal time".
+    // The envelope's `pr.state` / `pr.checksStatus` come from here.
     prProbe,
   };
 }
 
 /**
- * Bring a BEHIND PR up to date, bounded by `updateAttempts`. Best-effort:
- * a failed update is not itself a terminal — the next poll re-reads the
- * real state and lets the normal classification decide, which is why a
- * failed attempt still counts against the wait's tick.
- *
- * The BEHIND / budget / did-it-land decision itself lives in the shared
- * {@link applyBehindUpdate} (Story #5006) — the CI-watch loop in
- * `lib/orchestration/pr-watch.js` runs the same one. This wrapper supplies
- * the merge wait's probe source, its `gh` facade (bounded by
- * {@link withGhTimeout}, so a wedged child cannot strand an unattended
- * async-mode wait), and its operator wording.
+ * Update a BEHIND PR, bounded by `updateAttempts`; a failed update is not a
+ * terminal (the next poll re-reads) but still counts as an attempt.
  *
  * @returns {Promise<boolean>} whether an update was actually attempted.
  */
@@ -1077,11 +783,7 @@ async function maybeUpdateBehindPr({
   return recovery.attempted;
 }
 
-/**
- * Handle an observed merge: run the shared `confirmStoryMerged` flip, then
- * the shared post-land tail. Called at most once per wait — the loop probes
- * the PR, not the ticket.
- */
+/** Called at most once per wait: the flip, then the post-land tail. */
 async function onMergeObserved({
   storyId,
   storyBranch,
@@ -1112,19 +814,13 @@ async function onMergeObserved({
     injectedGh,
     injectedNotify,
     readPrMergeStateFn,
-    // The poll already read the PR as merged; hand that observation down so
-    // confirmation does not spend a second `gh pr view` re-reading it
-    // (Story #5383).
+    // Saves confirmation a second `gh pr view`.
     prState: prProbe,
   });
 
   if (confirmation.merged && confirmation.action === 'flip-failed') {
-    // The PR merged but the agent::closing → agent::done label flip itself
-    // threw. Blocking explicitly is right — reporting confirmed:true would
-    // strand the Story at agent::closing with no notification. Reporting it
-    // as UNLANDED was not (Story #4539): the merge landed, so the
-    // merge.unlanded event would be false and its friction would send the
-    // operator to branch protection instead of the one-line remedy.
+    // Block explicitly (confirmed:true would strand it at agent::closing),
+    // but not as unlanded — the merge landed.
     progress?.(
       'CONFIRM',
       `⚠️ Story #${storyId} merge confirmed but the agent::done flip failed — blocking explicitly.`,
@@ -1159,11 +855,7 @@ async function onMergeObserved({
     terminal: 'landed',
     action: confirmation.action,
     tail,
-    // Carry the OBSERVED rollup rather than stamping 'success'. A merge landed
-    // by admin override, or with non-required checks red, must not be reported
-    // as a green run nobody actually saw — that is the same
-    // report-an-outcome-you-never-checked shape the land tail's per-step
-    // booleans exist to prevent.
+    // The observed rollup, not a stamped 'success' (admin merges exist).
     prProbe,
   };
 }
@@ -1183,29 +875,20 @@ async function onMergeObserved({
  * @param {string|null} args.autoMergeReason
  * @param {object} args.provider
  * @param {object} [args.config]
- * @param {'sync'|'async'} [args.mergeWatchMode] Per-invocation
- *   `--merge-watch-mode` override (Story #4949); wins over
- *   `delivery.mergeWatch.mode`.
+ * @param {'sync'|'async'} [args.mergeWatchMode]
  * @param {(tag: string, msg: string) => void} [args.progress]
- * @param {number} [args.rerunAdvisory] `--rerun-advisory <n>` — the
- *   per-invocation override of `delivery.ci.rerunAdvisory` (both default 0).
+ * @param {number} [args.rerunAdvisory]
  * @param {object} [args.injectedGh]
  * @param {Function} [args.injectedNotify]
- * @param {Function} [args.confirmStoryMergedFn] Test seam — defaults to the
- *   SAME `confirmStoryMerged` export `single-story-confirm-merge.js` calls
- *   (Story #4428 AC4: one merged/`agent::done` implementation).
- * @param {Function} [args.readPrWaitProbeFn]    Test seam for the poll probe.
- * @param {Function} [args.readPrMergeStateFn]   Test seam for the PR-state reader.
- * @param {Function} [args.classifyMergeBlockFn] Test seam for the classifier.
- * @param {Function} [args.emitMergeUnlandedFn]  Test seam for the emitter.
- * @param {Function} [args.runPostLandTailFn]    Test seam for the land tail.
- * @param {(ms: number) => Promise<void>} [args.sleepFn] Test seam so the
- *   suite does not actually wait.
- * @param {() => number} [args.nowMsFn] Test seam; returns epoch ms.
- * @param {number} [args.ghTimeoutMs] Wall-clock bound for each `gh` call the
- *   wait makes (Story #4710). A framework constant
- *   (`MERGE_WAIT_GH_TIMEOUT_MS`), overridable only as a test seam — not
- *   config.
+ * @param {Function} [args.confirmStoryMergedFn] The one shared merged/`agent::done` implementation.
+ * @param {Function} [args.readPrWaitProbeFn]
+ * @param {Function} [args.readPrMergeStateFn]
+ * @param {Function} [args.classifyMergeBlockFn]
+ * @param {Function} [args.emitMergeUnlandedFn]
+ * @param {Function} [args.runPostLandTailFn]
+ * @param {(ms: number) => Promise<void>} [args.sleepFn]
+ * @param {() => number} [args.nowMsFn]
+ * @param {number} [args.ghTimeoutMs] Test seam only, not config.
  * @returns {Promise<object>}
  */
 export async function runConfirmMergePhase({
@@ -1238,10 +921,7 @@ export async function runConfirmMergePhase({
   nowMsFn = Date.now,
   ghTimeoutMs = MERGE_WAIT_GH_TIMEOUT_MS,
 }) {
-  // The arm itself never succeeded (gh failure, unparseable PR number, or a
-  // deliberate disablement) — there is no "armed but unconfirmed" PR to
-  // poll. An explicit terminal state is still required, so classify and
-  // block immediately rather than resting silently.
+  // Never armed: nothing to poll, but a terminal is still required.
   if (!autoMergeEnabled) {
     progress?.(
       'CONFIRM',
@@ -1257,12 +937,8 @@ export async function runConfirmMergePhase({
       progress,
       classifyMergeBlockFn,
       emitMergeUnlandedFn,
-      // Story #5096 — the arm phase already refused over a red advisory gate;
-      // carry its verdict through instead of letting the classifier read this
-      // as a generic `arm-failure`.
-      // Story #5266 — carry the arm phase's CLASS too: a pre-arm refusal over
-      // a scan that never finished is `advisory-gate-inconclusive`, and
-      // hard-coding the red class here would relabel it at the terminal.
+      // Carry the arm phase's advisory verdict and class (which may be
+      // `inconclusive`) rather than a generic `arm-failure`.
       ...(autoMergeReason === 'advisory-gate-red'
         ? {
             blockClassOverride: advisoryGate?.blockClass ?? 'advisory-gate-red',
@@ -1283,11 +959,8 @@ export async function runConfirmMergePhase({
     maxWaitSecondsOverride,
     mergeWatchModeOverride,
   );
-  // Story #5096 — the advisory-gate knobs, read once for the whole wait.
   const { blockOnAdvisoryFailure, advisoryAllowlist } = getCiDelivery(config);
-  // Story #5266 — the rerun allowance and its ledger, spent across the whole
-  // wait rather than per poll, so `n` bounds the CI minutes this invocation
-  // can cost no matter how many times the gate is observed red.
+  // Spent across the whole wait, not per poll, so `n` bounds CI minutes.
   const rerunAllowance = resolveAdvisoryRerunAllowance(
     config,
     rerunAdvisoryOverride,
@@ -1302,11 +975,8 @@ export async function runConfirmMergePhase({
   let anchorMs = startedAtMs;
   let updatesUsed = 0;
   let polls = 0;
-  // Consecutive failing check probes observed WITHOUT per-run evidence
-  // (Story #4695). The evidence-unavailable fallback: a single failing rollup
-  // snapshot never fail-fasts — two consecutive failing probes at least one
-  // poll interval apart are required. Reset on any non-failing (or genuinely
-  // evidenced) probe.
+  // Without per-run evidence, fail fast only after two consecutive failing
+  // probes an interval apart; reset on any other probe.
   let consecutiveRequiredFailSnapshots = 0;
 
   progress?.(
@@ -1316,23 +986,7 @@ export async function runConfirmMergePhase({
       `cumulative budget=${maxBudgetSeconds}s)...`,
   );
 
-  /**
-   * One poll iteration. Returns `{ done: false }` to keep polling, or
-   * `{ done: true, outcome }` with the phase's terminal. Story #4873 lifted
-   * this body out of a bespoke unbounded loop so this wait's cadence is owned
-   * by the shared {@link pollUntil} primitive — the loop below sleeps, aborts,
-   * and counts ticks in one place. It is NOT the only wait in the codebase:
-   * the recovery watch (`pr-watch.js#watchPrToTerminal` / `pollUntilTerminal`)
-   * keeps its own sleep loop over `gh pr checks --required`, deliberately
-   * separate because it reads a different GitHub source with different blind
-   * spots (Story #5383 unified the decisions the two share, not the loops).
-   * Every budget, floor, and classification decision is unchanged; only who
-   * owns the `await sleep(...)` moved.
-   *
-   * A throw from any of the terminal handlers is captured rather than allowed
-   * to escape into `pollUntil` (which treats a throwing `fn` as a non-match
-   * and would spin forever on it); the caller re-throws it after the loop.
-   */
+  /** One iteration: `{ done: false }` or `{ done: true, outcome }`. */
   async function runMergePoll() {
     const probe = await readPrWaitProbeFn({
       prNumber,
@@ -1341,8 +995,6 @@ export async function runConfirmMergePhase({
     });
     polls += 1;
 
-    // Anchor the cumulative budget at the PR's creation the first time we
-    // learn it, so a resumed wait continues the clock instead of restarting.
     anchorMs = resolveBudgetAnchorMs({
       createdAt: probe.createdAt,
       fallbackMs: startedAtMs,
@@ -1357,12 +1009,7 @@ export async function runConfirmMergePhase({
       maxBudgetSeconds,
     };
 
-    // Heartbeat (Story #4873). A backgrounded close writes this phase's
-    // progress to its own output file, and between the opening banner and the
-    // terminal there used to be NOTHING for minutes at a time — so an
-    // orchestrator watching that file could not tell a healthy in-flight wait
-    // from a wedged process without going back to GitHub itself. One line per
-    // poll makes the file's own growth the liveness signal.
+    // Heartbeat: a backgrounded close's output-file growth is its liveness signal.
     progress?.(
       'CONFIRM',
       `⏱  poll ${polls}: PR #${prNumber} state=${probe.state ?? 'unknown'} ` +
@@ -1397,18 +1044,10 @@ export async function runConfirmMergePhase({
       );
     }
 
-    // Everything below funnels into ONE terminal exit (Story #4710): each
-    // definitive condition fills `unlanded` and the single call site at the
-    // bottom classifies, emits, and blocks — the fail-fast tree used to
-    // duplicate that block twice inline.
+    // Each definitive condition fills `unlanded`; one call site below blocks.
     let unlanded = null;
 
     if (probe.state === 'CLOSED') {
-      // Closed without merging — a definitive terminal, not a "still
-      // pending" condition the budget should keep waiting on. The verdict is
-      // decided HERE and carried to the terminal (Story #5383), rather than
-      // handing the classifier a fabricated `checksStatus` to steer it off its
-      // budget-timeout branch. The terminal reports the probe as observed.
       unlanded = {
         prProbe: probe,
         budget: {
@@ -1419,13 +1058,7 @@ export async function runConfirmMergePhase({
         reasonOverride: CLOSED_UNMERGED_REASON,
       };
     } else {
-      // Fail fast on a GENUINELY red REQUIRED check — head-anchored (Story
-      // #4695), decided by the extracted `decideMergeWaitFailFast` (Story
-      // #4710): per-run evidence decides on a single probe; without evidence
-      // two consecutive failing probes are required. No remaining budget
-      // turns a failed check green, and waiting it out is what made the
-      // pre-#4543 wait report the operator's red test run as a
-      // branch-protection block.
+      // No remaining budget turns a red required check green; fail fast.
       const decision = decideMergeWaitFailFast({
         probe,
         consecutiveRequiredFailSnapshots,
@@ -1439,8 +1072,6 @@ export async function runConfirmMergePhase({
             ? `🛑 PR #${prNumber}: a required check concluded failure with none in flight — failing fast (evidence=per-run).`
             : `🛑 PR #${prNumber}: two consecutive failing check probes without per-run evidence — failing fast (evidence=consecutive-probe).`,
         );
-        // The verdict decided at detection travels to the terminal as-is
-        // (Story #5383) — the classifier is not re-run to re-derive it.
         unlanded = {
           prProbe: decision.prProbe,
           budget: {
@@ -1452,11 +1083,8 @@ export async function runConfirmMergePhase({
         };
       }
 
-      // Story #5096 — the ADVISORY counterpart, and the half that catches the
-      // common shape. Close arms immediately after opening the PR, while the
-      // gate is still QUEUED, so the pre-arm refusal in `auto-merge.js` sees
-      // nothing; the gate reddens here, mid-wait, and native auto-merge would
-      // land the PR the moment the REQUIRED contexts go green.
+      // Advisory gates are usually still QUEUED at arm time, so they redden
+      // here, mid-wait, before auto-merge lands over them.
       unlanded = await resolveAdvisoryUnlanded({
         unlanded,
         probe,
@@ -1487,11 +1115,7 @@ export async function runConfirmMergePhase({
         updatesUsed += 1;
       }
 
-      // Cumulative budget exhausted → the genuine give-up. Classify from the
-      // probe we already hold. Gated behind the poll floor so an
-      // already-over-budget PR (anchored at a createdAt older than the budget
-      // — a resume the next day, or a long-open PR) still gets a real poll
-      // cycle instead of being blocked before this invocation waited at all.
+      // Cumulative budget exhausted, behind the poll floor.
       if (
         polls >= MIN_POLLS_BEFORE_BUDGET_BLOCK &&
         cumulativeMs + intervalMs > maxBudgetSeconds * 1000
@@ -1521,11 +1145,7 @@ export async function runConfirmMergePhase({
       );
     }
 
-    // This invocation's bound expired → PENDING. Deliberately NOT a block:
-    // nothing is wrong, the run simply reached the edge of its host slot.
-    // No label mutation, no merge.unlanded event — the caller surfaces a
-    // resumable terminal and the next invocation continues the cumulative
-    // clock from the PR's createdAt.
+    // Invocation bound reached: resumable `pending`, no mutation.
     if (waitedMs + intervalMs > maxWaitSeconds * 1000) {
       progress?.(
         'CONFIRM',
@@ -1551,25 +1171,19 @@ export async function runConfirmMergePhase({
       try {
         return await runMergePoll();
       } catch (err) {
-        // A terminal handler threw. `pollUntil` treats a throwing `fn` as a
-        // non-match and would poll forever on it, so the throw is carried out
-        // as a match and re-raised below.
+        // pollUntil treats a throw as a non-match and would spin; carry it out.
         return { done: true, thrown: err };
       }
     },
     predicate: (result) => result?.done === true,
     intervalMs,
-    // The wait owns its own bounds (`maxWaitSeconds` → `pending`,
-    // `maxBudgetSeconds` → blocked), and both are decided from the probe
-    // inside the tick. A second, cruder wall-clock timeout here would throw
-    // past those classifications.
+    // No pollUntil timeout: the tick owns both bounds and their classification.
     sleepFn: (ms) => sleepFn(ms),
   });
   if (tick.thrown) throw tick.thrown;
   return tick.outcome;
 }
 
-/** Wrap a phase terminal as the poll loop's match. */
 function doneWith(outcome) {
   return { done: true, outcome };
 }

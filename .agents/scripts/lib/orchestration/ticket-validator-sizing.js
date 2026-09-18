@@ -1,29 +1,10 @@
 /**
- * Story authoring guidance — the two prose constants the story-author prompt
- * cites, stated once so no second copy can drift.
- *
- * Story #5312 deleted the numeric sizing model that used to live beside
- * them: `DEFAULT_MODEL_CAPACITY` with its soft / hard session-mass ceilings,
- * the `wide` declaration that lifted the hard one, the `merge-candidate`,
- * `unanchored-constant` and `missing-reason-to-exist` findings, and the
- * `estimateStorySessionMass` estimator they read. None of those ceilings
- * fired on real work — the hard ceiling never rejected an accepted Story, and
- * the soft ones duplicated a judgment the authoring model already makes — so
- * a Story is now as large and as loosely prescribed as the work needs. What
- * survives here is the prose that says *how* to think about a slice, not a
- * number that scores it.
+ * Story authoring guidance the story-author prompt cites — prose on how to
+ * think about a slice, deliberately not a number that scores it. Stated once
+ * so no second copy drifts.
  */
 
-/**
- * `DELIVERABLE_GRANULARITY_GUIDANCE` is the **single source of truth** for the
- * deliverable-granularity definition of a Story (Story #3777). It is stated
- * ONCE here and consumed by the story-author prompt template.
- *
- * Story #5332 re-anchored the definition off "a single reviewer-sized PR":
- * that anchor read as a size ceiling and fragmented cohesive sweeps, so the
- * only stated sizing test is now cohesion — one coherent change with one
- * reason to exist.
- */
+/** Cohesion, not size, is the only sizing test. */
 export const DELIVERABLE_GRANULARITY_GUIDANCE = Object.freeze({
   definition:
     'A Story is a **capability slice a frontier model delivers and self-verifies in one pass** — one coherent change with one reason to exist, a capability or user-visible surface, **not a single module or file**. Fold module-level slices into the capability they belong to rather than emitting one Story per module. A remediation sweep over one subsystem is one Story; its stages belong in `## Slicing`, not in sibling tickets.',
@@ -33,16 +14,7 @@ export const DELIVERABLE_GRANULARITY_GUIDANCE = Object.freeze({
     '**Thin dependent slices are a merge signal.** A Story that is neither parallel-deliverable nor orthogonal to its siblings — especially a short `depends_on` fragment whose only job is to feed one consumer — should be **merged into its consumer**. Modern frontier models one-shot capability-sized changes, so a chain of small dependent Stories needlessly pays a full delivery session (branch, PR, review, CI) per link. Merge such links up unless a parallelism or orthogonality reason justifies the separate slice.',
 });
 
-/**
- * `AUTHORING_ALTITUDE_GUIDANCE` is the **single source of truth** for the
- * binding-vs-advisory authoring altitude (Epic #4131 F8) and the New-File
- * Contract (Story #4272).
- *
- * Story #5312 demoted the footprint probes behind the advisory caveat to
- * dry-run warnings: a `creates` / `refactors-existing` mismatch, or a goal or
- * acceptance path absent at base, is now reported and the persist proceeds.
- * Only a `deletes` naming a path absent at base is still refused.
- */
+/** Binding-vs-advisory authoring altitude and the New-File Contract. */
 export const AUTHORING_ALTITUDE_GUIDANCE = Object.freeze({
   altitude:
     '**Binding contract vs advisory sketch.** `acceptance[]` and `verify[]` are the Story\'s **binding contract** — the executor MUST satisfy them exactly, and they are the only definition of "done." `changes[]` and `references[]` are an **advisory implementation sketch**: your best prediction of the file footprint, which the executor MAY revise when the real codebase diverges from the sketch. Author `acceptance[]` / `verify[]` to assert the **outcome** independent of any one file layout — never pin an incidental implementation detail (an internal helper name, a private file path) into an acceptance item that the advisory `changes[]` is free to reshape; assert the observable behaviour instead.',

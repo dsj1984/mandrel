@@ -1,30 +1,8 @@
 /* node:coverage ignore file -- AJV schema declaration (data-as-code) */
 
 /**
- * `delivery.quality.gates.crap.incrementalCoverage` — the two independent
- * full-suite economies (Story #4981, split by Story #5173).
- *
- * Split into its own module (rather than an inline property literal on
- * `CRAP_GATE`) so the schema addition lands as a new file, not a same-file
- * expansion of `crap.schema.js` — the file this module's sole export is
- * spread into.
- *
- * The two switches are deliberately independent because they are not equally
- * safe:
- *
- *   - **`skipWhenUnchanged`** (default `true`) decides *whether* to capture:
- *     no changed file under `crap.targetDirs` versus `baseRef` means no
- *     capture at all. It is a pure saving — the gates score exactly what they
- *     scored before, because nothing they score moved.
- *   - **`baselineJoin`** (default `false`) loosens gate semantics: the CRAP
- *     join resolves a method in an untouched file from its committed baseline
- *     row instead of requiring fresh coverage for it.
- *
- * Bundling them under one `enabled` switch is what forced the earlier default
- * flip to be reverted; that deprecated alias was removed in Story #5382.
- *
- * Neither switch narrows the capture run itself: a capture that does happen is
- * the ordinary full `npm run test:coverage` (Story #5065).
+ * `delivery.quality.gates.crap.incrementalCoverage`; the two switches stay
+ * independent because only `baselineJoin` loosens the gate.
  */
 export const INCREMENTAL_COVERAGE_SCHEMA = {
   type: 'object',

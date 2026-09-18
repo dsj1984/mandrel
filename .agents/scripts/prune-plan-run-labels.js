@@ -1,35 +1,15 @@
 #!/usr/bin/env node
 
-// .agents/scripts/prune-plan-run-labels.js — Story #5189.
+// prune-plan-run-labels.js — delete spent `plan-run::<id>` cohort labels
+// across the whole repository (the close tail only reaps one Story's labels
+// as it lands). The spent-ness decision lives in `plan-run-labels/reap.js` so
+// this sweep and the close-path reap cannot disagree. A zero-issue label is
+// kept by default: it looks exactly like one an in-flight persist just minted.
 //
-// Sweep the repository's `plan-run::<id>` cohort labels and delete the ones
-// that are provably spent.
-//
-// The close tail reaps incrementally — one Story's own labels, as it lands —
-// which keeps a healthy repository flat but does nothing about a pile that
-// already exists, and nothing about a cohort whose last Story was closed by
-// hand rather than by a close. This is the surface that burns an accumulated
-// pile down: it reads the whole label vocabulary through the paginating
-// listing port, so what it can see is bounded by the repository rather than by
-// an API page.
-//
-// The decision is not made here — `lib/orchestration/plan-run-labels/reap.js`
-// owns it, so this sweep and the close-path reap cannot come to different
-// conclusions about when a label is spent. In short: reapable means the label
-// carries at least one issue and every one of them is closed. A label carrying
-// zero issues is NOT reapable by default, because that shape is exactly what
-// an in-flight `plan-persist` looks like between minting its label and
-// creating its Stories; `--include-unreferenced` is the explicit opt-in for an
-// operator who knows no persist is running.
-//
-// Exit codes:
-//   0  nothing reapable (or, without `--check`, the reap was performed)
-//   1  `--check` found at least one label that would be reaped
-//   2  the sweep could not run
+// Exit codes: 0 clean or reaped; 1 `--check` found reapable labels; 2 the
+// sweep could not run.
 
-// Fail-fast if the framework's runtime deps are not installed — must be the
-// first import so the check runs before any third-party-importing sibling
-// module is evaluated (Story #3432).
+// Must be the first import: fail fast before any third-party import runs.
 import './lib/runtime-deps/ensure-installed.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
@@ -65,8 +45,7 @@ const HELP = {
 };
 
 /**
- * Parse argv into an options bag. An unknown flag is an error, never a silent
- * no-op — a typo'd `--dry-run` must not read as "delete the labels".
+ * An unknown flag throws: a typo'd `--dry-run` must not read as "delete".
  *
  * @param {string[]} argv
  * @returns {{ check: boolean, json: boolean, includeUnreferenced: boolean, cwd: string }}
@@ -99,9 +78,7 @@ export function parseArgs(argv = []) {
 }
 
 /**
- * One human-readable line per cohort label, naming the reason it was kept or
- * reaped. The reason is printed for every label, not only the reapable ones —
- * an operator auditing a pile of 235 needs to see why the other 234 stayed.
+ * Every label gets a reason line, kept ones included, so an audit can see why.
  *
  * @param {object} decision
  * @param {boolean} check
@@ -120,8 +97,6 @@ function renderDecision(decision, check) {
 }
 
 /**
- * Render the whole report as text.
- *
  * @param {object} report
  * @returns {string}
  */
@@ -147,14 +122,6 @@ export function formatReport(report) {
 }
 
 /**
- * The whole sweep — argv in, exit code out, report written through `writeFn`.
- *
- * Exported with its provider/config/output surfaces as default-parameter
- * seams (`docs/contributing/test-seams.md`) so a test drives the *real* argv parsing,
- * report rendering and exit-code decision against a stub provider. Without
- * that, the only testable thing here would be a re-implementation of the
- * decision, which is precisely the copy that drifts.
- *
  * @param {string[]} argv
  * @param {{
  *   createProviderFn?: Function,
@@ -201,9 +168,8 @@ export async function runSweep(
 }
 
 /**
- * CLI entry point. Returns its exit code rather than calling `process.exit()`,
- * so `runAsCli`'s `propagateExitCode` path settles it through `flushStdio` and
- * an unbounded report is not truncated at a pipe boundary (Story #4783).
+ * Returns the exit code instead of `process.exit()` so a long report is not
+ * truncated at a pipe boundary.
  *
  * @returns {Promise<number>}
  */

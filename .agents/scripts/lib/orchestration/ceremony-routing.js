@@ -1,53 +1,8 @@
 /**
- * lib/orchestration/ceremony-routing.js — ceremony-profile acceptance
- * ceremony resolver.
- *
- * The sibling of `review-depth.js#resolveDepth`: it folds the operator
- * ceremony profile into a per-Story ceremony decision for the acceptance
- * verdict — **fresh-context spawn** vs the contract-identical **inline**
- * self-eval. It does NOT invent a risk score, and it no longer routes off
- * anything the diff says.
- *
- * ## The profile is the whole decision (Story #5343)
- *
- *   - `minimal`  — `inline`.
- *   - `standard` — `inline` (the **default**).
- *   - `strict`   — `fresh`.
- *
- * A frontier-model worker scoring its own `acceptance[]` items against the
- * `verify[]` output it just produced is the default the delivery diet settled
- * on: the fresh critic's isolation bought a second full-context boot per
- * Story and, measured across the run, changed no verdict the inline pass did
- * not already reach. `strict` keeps the fresh-context critic for
- * high-assurance surfaces, and is the one profile that spawns one.
- *
- * **The derived change level is not an input here (Story #5366).** It is
- * still derived and still printed by `ceremony-derive.js`, because **review
- * depth** reads it — `review-depth.js#resolveDepth` continues to resolve
- * `deep` for any sensitive class, and that is untouched. What changed with
- * #5343 is which of the two decisions the level feeds: review depth, not the
- * verdict owner. Story #5366 finished the job by removing it (and the
- * per-cluster index beside it) from this function's signature: a decision
- * function that accepts what it ignores reads, to every caller and every
- * reviewer, as though the input still mattered. An unenumerable diff is
- * therefore not a fail-safe escalation here at all; it escalates review
- * depth instead, where the evidence it withholds actually matters.
- *
- * ## One verdict-owner per Story (Story #4723, narrowed by #5343)
- *
- * The resolved decision names the Story's **single verdict owner** via
- * `verdictOwner`: `'fresh-critic'` when the mode is `fresh`,
- * `'inline-self-eval'` when the mode is `inline`. Exactly one pass authors
- * the Story's verdict — the fresh maker-blind critic OR the
- * contract-identical inline self-eval, never both, and never an additional
- * pre-pass self-assessment before the owner runs. `acceptance-eval.js` is
- * the deterministic SCORER of that one authored verdict (schema validation,
- * round cap, proceed/redraft/block) — it is not a third pass over the
- * criteria. The verdict is **one file per Story**, scored in one gate call;
- * the cluster protocol that used to split it was retired with #5343.
- *
- * Pure and total: inputs in, decision out. No I/O, no throws. `null` /
- * `undefined` / malformed inputs degrade to the default profile.
+ * lib/orchestration/ceremony-routing.js — the acceptance verdict owner from
+ * the ceremony profile alone: `strict` → fresh critic, else inline self-eval.
+ * The change level is deliberately not an input (it feeds review depth).
+ * Exactly one pass authors the verdict. Pure and total.
  *
  * @typedef {'fresh'|'inline'} CeremonyMode
  * @typedef {'fresh-critic'|'inline-self-eval'} VerdictOwner
@@ -55,10 +10,6 @@
  */
 
 /**
- * Map a resolved ceremony mode to the Story's single verdict owner
- * (Story #4723). Total: any non-`fresh` value maps to the inline
- * self-eval owner, mirroring how the mode itself degrades.
- *
  * @param {CeremonyMode} mode
  * @returns {VerdictOwner}
  */
@@ -66,23 +17,12 @@ export function verdictOwnerForMode(mode) {
   return mode === 'fresh' ? 'fresh-critic' : 'inline-self-eval';
 }
 
-/**
- * The ceremony-profile vocabulary — the **single** place the three profile
- * names are written. `normalizeCeremonyProfile` is its reader and the
- * `CeremonyProfile` typedef is derived from it, so adding a profile is a
- * one-line change here (Story #4926).
- *
- * @type {readonly ['minimal', 'standard', 'strict']}
- */
+/** @type {readonly ['minimal', 'standard', 'strict']} */
 const CEREMONY_PROFILES = Object.freeze(['minimal', 'standard', 'strict']);
 
-/** The profile an absent or unrecognized value degrades to. */
 const DEFAULT_CEREMONY_PROFILE = 'standard';
 
 /**
- * The one routing table: profile → mode + the reason the decision carries.
- * `strict` is the only profile that spawns a fresh critic.
- *
  * @type {Readonly<Record<CeremonyProfile, { mode: CeremonyMode, reason: string }>>}
  */
 const PROFILE_DECISIONS = Object.freeze({
@@ -102,9 +42,6 @@ const PROFILE_DECISIONS = Object.freeze({
 });
 
 /**
- * Normalize an operator/config ceremony profile. Unknown values degrade to
- * `standard` (fail toward the documented default, not toward less ceremony).
- *
  * @param {unknown} value
  * @returns {CeremonyProfile}
  */
@@ -115,10 +52,6 @@ function normalizeCeremonyProfile(value) {
 }
 
 /**
- * Resolve the acceptance ceremony for one Story from the ceremony profile —
- * its one and only input. See the module header for the profile table and why
- * the derived change level is not among them.
- *
  * @param {{
  *   ceremonyProfile?: (CeremonyProfile|string|null|undefined),
  * }} [input]
@@ -130,9 +63,6 @@ function normalizeCeremonyProfile(value) {
  * }}
  */
 export function resolveCeremonyForRisk(input = {}) {
-  // Optional chaining rather than a typeof guard: `normalizeCeremonyProfile`
-  // is already total over anything that is not one of the three names, so a
-  // non-object input degrades to `standard` through the same door.
   const profile = normalizeCeremonyProfile(input?.ceremonyProfile);
   const { mode, reason } = PROFILE_DECISIONS[profile];
   return { mode, reason, profile, verdictOwner: verdictOwnerForMode(mode) };

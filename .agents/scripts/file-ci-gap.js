@@ -1,18 +1,9 @@
 #!/usr/bin/env node
 /**
- * file-ci-gap.js — the CI-remediation Option-2 filing command.
- *
- * `rules/ci-remediation.md` sends three verdicts here — `pre-existing`,
- * `capacity`, `unreproducible-tier` — each meaning "this red check is real,
- * and fixing it is not this delivery's job". The rule used to say "file a
- * `meta::framework-gap` issue" and stop, leaving the agent to hand-run
- * `gh issue create` wherever it was standing. This is the mechanism behind
- * that sentence: evidence from the CI digest, ownership routing, fingerprint
- * dedup, the `friction` comment, and the `agent::blocked` flip in one call.
- *
- * It files an **intake** issue, never a Story: `/mandrel-plan <id>` graduates
- * it on the next planning pass. Delivery never blocks on planning — see
- * `lib/orchestration/ci-gap-intake.js` for why that split is load-bearing.
+ * CI-remediation Option-2 filing: for a red check that is real but not this
+ * delivery's to fix, files (or updates, by fingerprint) an intake issue in
+ * the owning repo, comments `friction` on the Story, and optionally blocks it.
+ * It files intake, never a Story, so delivery never blocks on planning.
  */
 
 import { parseArgs } from 'node:util';
@@ -84,15 +75,9 @@ const USAGE = {
 };
 
 /**
- * Wire the live GitHub ports the intake filer writes through.
- *
- * `gh` is the transport rather than the provider facade because a filing can
- * target a repository other than the configured one, and `gh issue create
- * --repo` is the surface that already does that (the graduators file
- * cross-repo the same way).
- *
+ * `gh` rather than the provider facade: a filing may target another repo.
  * @param {object} opts
- * @returns {object} ports for `fileCiGapIntake`
+ * @returns {object}
  */
 function liveIntakePorts({ provider, searchRepo, cwd, logger }) {
   const labelCache = new Map();
@@ -104,9 +89,7 @@ function liveIntakePorts({ provider, searchRepo, cwd, logger }) {
         repo: searchRepo.repo,
       }),
     createIssue: async ({ owner, repo, title, body, labels }) => {
-      // `gh issue create --label <absent>` fails outright, so a brand-new
-      // routing label (meta::platform-gap, friction::unreproducible-tier)
-      // has to exist before the create — not after it errors.
+      // `gh issue create` fails outright on an absent label; ensure first.
       const ensured = await ensureIssueLabels({
         owner,
         repo,
@@ -136,9 +119,6 @@ function liveIntakePorts({ provider, searchRepo, cwd, logger }) {
 }
 
 /**
- * Render the `friction` comment the Story carries so the blocker is legible
- * on the ticket itself, not only in the intake issue.
- *
  * @param {object} opts
  * @returns {string}
  */
@@ -171,16 +151,10 @@ export function renderFrictionComment({
   return lines.join('\n');
 }
 
-/** The graduation instruction every filing carries, verdict-independent. */
 const GRADUATE_LINE =
   'Graduate the intake issue with `/mandrel-plan <issue number>` to turn it into a Story.';
 
 /**
- * What this filing says about rerunning the failed job (Story #5343). An
- * allowance is stated with its head SHA and its one-shot bound, because the
- * comment is where an operator reads whether the rerun they are about to do
- * is the sanctioned one.
- *
  * @param {{ headSha: string } | null} rerunAllowance
  * @returns {string}
  */
@@ -193,14 +167,8 @@ function renderRerunLine(rerunAllowance) {
 }
 
 /**
- * File the CI-gap intake issue for one Story, post the `friction` comment,
- * and optionally flip the Story to `agent::blocked`.
- *
- * Every port is injectable so the unit tests exercise the whole command with
- * no network and no live tracker.
- *
  * @param {object} opts
- * @returns {Promise<object>} the intake result, plus what the command did.
+ * @returns {Promise<object>}
  */
 export async function runFileCiGap({
   storyId,
@@ -224,9 +192,7 @@ export async function runFileCiGap({
     throw new Error('--story <id> is required (a positive issue number).');
   }
   const resolved = config ?? resolveConfig();
-  // The digest's temp root, resolved exactly as `pr-watch-with-update.js`
-  // resolves it when it WRITES the digest — the CLI never passed one, so the
-  // default read crashed on `undefined` before it could find the file.
+  // Must resolve exactly as `pr-watch-with-update.js` does when writing it.
   const digestRoot = tempRoot ?? resolved?.project?.paths?.tempRoot ?? 'temp';
   const ciDigest =
     digest ?? readCiDigest({ storyId: sid, tempRoot: digestRoot, cwd });
@@ -268,9 +234,7 @@ export async function runFileCiGap({
     now,
   });
 
-  // Story #5343 — a proven-environmental verdict earns the one same-SHA
-  // rerun the watcher's guard will admit. Recorded on the digest, keyed to
-  // the head SHA the red was observed on, and never on a dry run.
+  // A proven-environmental verdict earns one same-SHA rerun; never on dry run.
   const rerunAllowance = dryRun
     ? null
     : recordRerunAllowance({
@@ -310,8 +274,6 @@ export async function runFileCiGap({
 }
 
 /**
- * CLI entrypoint.
- *
  * @returns {Promise<void>}
  */
 async function main() {
@@ -338,8 +300,6 @@ async function main() {
     block: values.block,
   });
 
-  // Single-line JSON per the script-output contract — an orchestrator parses
-  // this, and a pretty dump is noise in a delivery transcript.
   process.stdout.write(`${JSON.stringify(result)}\n`);
   for (const err of result.errors) {
     Logger.error(`[file-ci-gap] ${err}`);

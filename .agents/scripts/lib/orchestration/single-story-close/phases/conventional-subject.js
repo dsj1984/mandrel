@@ -1,52 +1,14 @@
 /**
- * conventional-subject.js — the pure Conventional-Commit rules behind the
- * squash-merge subject a standalone Story lands on `main`.
- *
- * Split out of `normalize-pr-title.js` so the rules that decide
- * what the release notes say are testable without a git read. The three rules
- * here each closed a defect observed live on `main`:
- *
- *   1. **Type precedence follows release impact.** A multi-commit Story used
- *      to resolve its type off a hand-ordered list in which `docs` outranked
- *      `chore` for no stated reason. Story #5004 (`chore(gates)`, `docs(ci)`,
- *      `chore(baselines)`) therefore landed as
- *      `docs: check/CI gate sweep …` — a change that deleted five
- *      `lib/checks` modules, two CLIs and a dependency, filed under
- *      documentation. `TYPE_RANK` now mirrors `changelog-sections` in
- *      `release-please-config.json`: rank IS how visible the type is in the
- *      release notes. Types that render identically (the six `hidden: true`
- *      ones) share a rank, because there is no honest ordering between them —
- *      those ties break on how much of the branch carries the type, then on
- *      the Story's primary (oldest) commit.
- *
- *   2. **Casing leaves acronyms alone.** The old synthesizer lowercased the
- *      first character unconditionally to satisfy commitlint's `subject-case`
- *      rule, which turned Story #5002's "CRAP surface diet" into
- *      `refactor: cRAP surface diet`. `shapeDescription` lowercases only when
- *      the leading word is not an all-caps token, so CRAP / CI / QA / API
- *      survive. That is a deliberate, narrow trade: commitlint's
- *      `subject-case` treats ANY leading capital as sentence-case and would
- *      flag `CRAP surface diet` — but commitlint never runs on a PR title or
- *      a GitHub squash subject (see `rules/git-conventions.md` §
- *      Conventional Commits), so the rule it would fail is not a gate this
- *      subject passes through, while a mangled acronym is permanent in the
- *      changelog.
- *
- *   3. **A breaking change survives the squash.** release-please only sees a
- *      breaking change through a `!` in the subject or a `BREAKING CHANGE:`
- *      footer. Story #5004 removed `project.commands.lintBaseline` from a
- *      schema block that is `additionalProperties: false` — a hard consumer
- *      break — described in prose in the commit body and therefore invisible
- *      to the parser. `collectBreakingNotes` reads the footer out of any
- *      constituent commit (or a Story-body declaration) and `markBreaking`
- *      puts the `!` where the parser looks.
+ * conventional-subject.js — pure Conventional-Commit rules for the squash
+ * subject a Story lands on `main`: type precedence by release impact,
+ * acronym-safe casing (commitlint never sees a squash subject, but a mangled
+ * acronym is permanent in the changelog), and a breaking change that
+ * survives the squash as a `!`.
  */
 
 /**
- * The Conventional-Commit types Mandrel accepts. Mirrors
- * `commitlint.config.js` → `type-enum` and `release-please-config.json` →
- * `changelog-sections`. Kept in sync by hand (single hard-cutover, no
- * shim) — adding a type means touching all three.
+ * Mirrors commitlint `type-enum` and release-please `changelog-sections`;
+ * kept in sync by hand.
  */
 const CONVENTIONAL_TYPES = Object.freeze([
   'feat',
@@ -63,11 +25,8 @@ const CONVENTIONAL_TYPES = Object.freeze([
 ]);
 
 /**
- * Release-impact rank per type — LOWER wins. Derived from
- * `changelog-sections` in `release-please-config.json`: the five types that
- * render a visible section are ordered by how much a reader needs to see
- * them, and the six `hidden: true` types share the bottom rank because the
- * release notes draw no distinction between them.
+ * Release-impact rank, LOWER wins, from `changelog-sections`; the hidden
+ * types tie because the release notes don't distinguish them.
  *
  * @type {Readonly<Record<string, number>>}
  */
@@ -85,48 +44,28 @@ const TYPE_RANK = Object.freeze({
   ci: 5, // hidden
 });
 
-/** Rank for a type absent from `TYPE_RANK` — always loses. */
 const UNRANKED = Number.MAX_SAFE_INTEGER;
 
 const TYPE_GROUP = CONVENTIONAL_TYPES.join('|');
 
-// Anchored Conventional-Commit header matcher:
-//   <type>(<optional scope>)<optional !>: <non-empty description>
-// Mirrors the shape `@commitlint/config-conventional` enforces (a known
-// type, an optional parenthesised scope, an optional breaking `!`, a
-// colon-space separator, and a non-empty subject). Used for the pure
-// "is this already conventional?" check and to pull the type off a branch
-// commit subject without spawning commitlint per call.
+// <type>(<scope>)?!?: <description> — the shape config-conventional enforces.
 const CONVENTIONAL_HEADER_RE = new RegExp(
   `^(?:${TYPE_GROUP})(?:\\([^()\\r\\n]+\\))?!?: \\S.*$`,
 );
 const LEADING_TYPE_RE = new RegExp(
   `^(${TYPE_GROUP})(?:\\([^()\\r\\n]+\\))?(!?):`,
 );
-// Splits a conventional header into `<type><scope?>`, `<!?>`, `<description>`
-// so the breaking marker can be inserted at the one position the parser reads.
 const HEADER_PARTS_RE = new RegExp(
   `^((?:${TYPE_GROUP})(?:\\([^()\\r\\n]+\\))?)(!?): (.*)$`,
 );
 
-/**
- * The Conventional-Commits breaking footer, in both spellings the spec
- * defines (`BREAKING CHANGE:` and the hyphenated `BREAKING-CHANGE:`). Case is
- * significant — the spec requires uppercase, and so does
- * `conventional-commits-parser`'s default `noteKeywords`, so matching
- * case-insensitively here would announce breaks release-please will not.
- */
+/** Case-sensitive, as the parser's `noteKeywords` are. */
 const BREAKING_FOOTER_RE = /^BREAKING[ -]CHANGE:[ \t]*(.*)$/;
 
-/** A git-trailer-shaped line (`Some-Token: value`) — ends a footer's text. */
 const TRAILER_RE = /^[A-Za-z][A-Za-z-]*:[ \t]/;
-/** An opening or closing markdown code fence: ``` or ~~~, optionally indented. */
 const FENCE_RE = /^\s{0,3}(`{3,}|~{3,})/;
 
 /**
- * True iff `subject` is a parseable Conventional Commit subject under the
- * repo's type vocabulary. Pure.
- *
  * @param {string} subject
  * @returns {boolean}
  */
@@ -136,9 +75,6 @@ export function isConventionalSubject(subject) {
 }
 
 /**
- * Extract the Conventional-Commit `type` from a single commit subject, or
- * `null` when the subject is not conventional. Pure.
- *
  * @param {string} subject
  * @returns {string|null}
  */
@@ -149,10 +85,8 @@ function parseConventionalType(subject) {
 }
 
 /**
- * Order two type candidates: release impact first, then how much of the
- * branch carries the type, then the earliest commit that used it. The second
- * and third keys only ever decide a tie inside the hidden tier — every
- * visible type holds its rank alone.
+ * Rank, then commit count, then earliest use (the tie-breaks only matter in
+ * the hidden tier).
  *
  * @param {{rank: number, count: number, firstIndex: number}} a
  * @param {{rank: number, count: number, firstIndex: number}} b
@@ -165,12 +99,8 @@ function compareTypeCandidates(a, b) {
 }
 
 /**
- * Pick the type the squash subject should carry from the branch's own commit
- * subjects. Returns `null` when no subject is conventional.
- *
- * `subjects` MUST be oldest-first: the final tie-break reads index 0 as the
- * Story's primary commit, the one whose type the operator chose before any
- * fixup or baseline-refresh commit piled on.
+ * `subjects` MUST be oldest-first: the last tie-break treats index 0 as the
+ * Story's primary commit.
  *
  * @param {string[]} subjects Commit subjects, oldest first.
  * @returns {string|null}
@@ -199,11 +129,8 @@ export function pickDominantType(subjects) {
 }
 
 /**
- * True when the leading word of `text` is an all-caps token — an acronym the
- * synthesizer must not touch. Requires two or more letters so a stray leading
- * "A" or "I" still lowercases; punctuation and digits are ignored so
- * `CRAP:`, `CI/CD` and `API-surface` all read as acronyms while `A11y` does
- * not.
+ * Leading all-caps word of 2+ letters (non-letters ignored), so `CI/CD` is an
+ * acronym but a lone "A" or `A11y` is not.
  *
  * @param {string} text
  * @returns {boolean}
@@ -215,10 +142,7 @@ function leadsWithAcronym(text) {
 }
 
 /**
- * Shape a human Story title into the description half of a synthesized
- * Conventional-Commit subject: lowercase the first character so the subject
- * reads as a sentence fragment, EXCEPT when the leading word is an acronym.
- * Pure.
+ * Lowercase the first character unless the leading word is an acronym.
  *
  * @param {string} text
  * @returns {string}
@@ -231,10 +155,7 @@ export function shapeDescription(text) {
 }
 
 /**
- * Insert the breaking-change `!` into a conventional subject, at the one
- * position `conventional-commits-parser` reads it: immediately before the
- * colon, after any scope. A subject that already carries `!`, or that is not
- * conventional, is returned unchanged. Pure.
+ * Insert `!` before the colon (after any scope); otherwise unchanged.
  *
  * @param {string} subject
  * @returns {string}
@@ -248,9 +169,7 @@ export function markBreaking(subject) {
 }
 
 /**
- * Pull the text of one `BREAKING CHANGE:` footer out of `lines`, starting at
- * the footer line itself. The note runs to the end of its paragraph: a blank
- * line, another trailer, or the end of the message closes it.
+ * A footer note runs until a blank line, another trailer, or the end.
  *
  * @param {string[]} lines
  * @param {number} start Index of the matched footer line.
@@ -271,22 +190,8 @@ function readFooterNote(lines, start, head) {
 }
 
 /**
- * Scan one commit message (or the Story body) for breaking-change evidence.
- *
- * @param {string} text
- * @param {boolean} readHeaderBang Whether line 0 is a commit header whose `!`
- *   counts. False for the Story body, which has no header.
- * @returns {{ breaking: boolean, notes: string[], subject: string|null }}
- */
-/**
- * Blank every line inside a markdown code fence, keeping line indices intact.
- *
- * A Story `## Spec` that documents this very contract quotes the footer in a
- * fence; reading that as a declaration ships a `<type>!:` subject and a release
- * note for a break nobody made. Fenced spans are the only place the anchored
- * footer regex can fire on non-footer text — an indented block or a blockquote
- * already fails the `^` anchor. Blanking rather than dropping means a fence
- * also closes an open footer note, which is what a paragraph break would do.
+ * Blank lines inside code fences, so a quoted footer is not a declaration;
+ * blanking (not dropping) keeps indices and closes an open note.
  *
  * @param {string[]} lines
  * @returns {string[]}
@@ -302,6 +207,11 @@ function blankFencedLines(lines) {
   });
 }
 
+/**
+ * @param {string} text
+ * @param {boolean} readHeaderBang False for the Story body, which has no header.
+ * @returns {{ breaking: boolean, notes: string[], subject: string|null }}
+ */
 function scanForBreaking(text, readHeaderBang) {
   const lines = blankFencedLines(String(text ?? '').split('\n'));
   const notes = [];
@@ -334,23 +244,9 @@ function scanForBreaking(text, readHeaderBang) {
 }
 
 /**
- * Collect the branch's breaking-change declarations.
- *
- * Two sources, both honoured:
- *
- *   - **Any constituent commit** — a `BREAKING CHANGE:` / `BREAKING-CHANGE:`
- *     footer, or a `!` in the header. This is the path a maker takes while
- *     writing the commit that does the breaking.
- *   - **The Story body** — the same footer, written as its own line anywhere
- *     in the Story issue (the `## Spec` block is the natural home). This is
- *     the declarative path: `/mandrel-plan` can state the break up front and close
- *     propagates it even when no individual commit remembered the footer.
- *     Only the footer form counts; prose describing a break does not, because
- *     a keyword-free sentence is exactly what release-please cannot parse.
- *
- * When something is breaking but no footer supplied text, the `!` commit's
- * own description becomes the note — the fallback Conventional Commits
- * itself prescribes for a `!` header with no footer.
+ * Breaking declarations from any commit (footer or header `!`) or a footer
+ * line in the Story body; prose never counts. With no footer text, the `!`
+ * commit's description is the note, per the spec.
  *
  * @param {{ commitMessages?: string[], storyBody?: string }} args
  * @returns {{ breaking: boolean, notes: string[] }}

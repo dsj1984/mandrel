@@ -1,39 +1,45 @@
 {
   "$schema": ".agents/schemas/baselines/duplication.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-09-18T14:27:17.093Z",
+  "generatedAt": "2026-09-18T16:35:28.010Z",
   "rollup": {
     "*": {
-      "percentage": 6.96,
-      "duplicatedLines": 1510,
-      "totalLines": 21684,
-      "filesWithDuplication": 72
+      "percentage": 7.85,
+      "duplicatedLines": 1628,
+      "totalLines": 20738,
+      "filesWithDuplication": 77
     }
   },
   "rows": [
     {
       "path": ".agents/scripts/check-arch-cycles.js",
-      "duplicatedLines": 41,
-      "totalLines": 323,
-      "percentage": 12.69
+      "duplicatedLines": 39,
+      "totalLines": 273,
+      "percentage": 14.29
+    },
+    {
+      "path": ".agents/scripts/check-baselines.js",
+      "duplicatedLines": 7,
+      "totalLines": 63,
+      "percentage": 11.11
     },
     {
       "path": ".agents/scripts/check-context-budget.js",
-      "duplicatedLines": 36,
-      "totalLines": 717,
-      "percentage": 5.02
+      "duplicatedLines": 33,
+      "totalLines": 506,
+      "percentage": 6.52
     },
     {
       "path": ".agents/scripts/check-cyclomatic.js",
       "duplicatedLines": 12,
-      "totalLines": 284,
-      "percentage": 4.23
+      "totalLines": 253,
+      "percentage": 4.74
     },
     {
       "path": ".agents/scripts/check-dead-exports.js",
       "duplicatedLines": 12,
-      "totalLines": 271,
-      "percentage": 4.43
+      "totalLines": 228,
+      "percentage": 5.26
     },
     {
       "path": ".agents/scripts/check-windows-git-perf.js",
@@ -50,14 +56,14 @@
     {
       "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
       "duplicatedLines": 6,
-      "totalLines": 223,
-      "percentage": 2.69
+      "totalLines": 174,
+      "percentage": 3.45
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/_shared-metric.js",
       "duplicatedLines": 14,
-      "totalLines": 220,
-      "percentage": 6.36
+      "totalLines": 165,
+      "percentage": 8.48
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/bundle-size.js",
@@ -66,40 +72,34 @@
       "percentage": 3.82
     },
     {
-      "path": ".agents/scripts/lib/baselines/kinds/coverage.js",
-      "duplicatedLines": 12,
-      "totalLines": 78,
-      "percentage": 15.38
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "duplicatedLines": 35,
+      "totalLines": 763,
+      "percentage": 4.59
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/kind-factory.js",
       "duplicatedLines": 14,
-      "totalLines": 192,
-      "percentage": 7.29
+      "totalLines": 171,
+      "percentage": 8.19
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/maintainability.js",
       "duplicatedLines": 9,
-      "totalLines": 219,
-      "percentage": 4.11
+      "totalLines": 155,
+      "percentage": 5.81
     },
     {
       "path": ".agents/scripts/lib/baselines/maintainability-baseline-io.js",
-      "duplicatedLines": 19,
-      "totalLines": 59,
-      "percentage": 32.2
+      "duplicatedLines": 15,
+      "totalLines": 52,
+      "percentage": 28.85
     },
     {
       "path": ".agents/scripts/lib/baselines/reader.js",
-      "duplicatedLines": 90,
-      "totalLines": 337,
-      "percentage": 26.71
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "duplicatedLines": 9,
-      "totalLines": 747,
-      "percentage": 1.2
+      "duplicatedLines": 34,
+      "totalLines": 258,
+      "percentage": 13.18
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-list.js",
@@ -109,33 +109,33 @@
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-preflight.js",
-      "duplicatedLines": 24,
-      "totalLines": 304,
-      "percentage": 7.89
+      "duplicatedLines": 16,
+      "totalLines": 217,
+      "percentage": 7.37
     },
     {
       "path": ".agents/scripts/lib/bootstrap/preflight.js",
-      "duplicatedLines": 16,
-      "totalLines": 198,
-      "percentage": 8.08
+      "duplicatedLines": 13,
+      "totalLines": 149,
+      "percentage": 8.72
     },
     {
       "path": ".agents/scripts/lib/close-validation/commands.js",
       "duplicatedLines": 10,
-      "totalLines": 188,
-      "percentage": 5.32
+      "totalLines": 151,
+      "percentage": 6.62
     },
     {
       "path": ".agents/scripts/lib/close-validation/projections/crap.js",
-      "duplicatedLines": 8,
-      "totalLines": 303,
-      "percentage": 2.64
+      "duplicatedLines": 10,
+      "totalLines": 257,
+      "percentage": 3.89
     },
     {
       "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
       "duplicatedLines": 8,
-      "totalLines": 286,
-      "percentage": 2.8
+      "totalLines": 239,
+      "percentage": 3.35
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
@@ -144,52 +144,70 @@
       "percentage": 5.26
     },
     {
-      "path": ".agents/scripts/lib/config-settings-schema.js",
-      "duplicatedLines": 20,
-      "totalLines": 798,
-      "percentage": 2.51
+      "path": ".agents/scripts/lib/coverage-capture-fullscope.js",
+      "duplicatedLines": 9,
+      "totalLines": 103,
+      "percentage": 8.74
     },
     {
-      "path": ".agents/scripts/lib/config/gates/shared.js",
-      "duplicatedLines": 15,
-      "totalLines": 117,
-      "percentage": 12.82
+      "path": ".agents/scripts/lib/coverage-capture-incremental.js",
+      "duplicatedLines": 9,
+      "totalLines": 105,
+      "percentage": 8.57
     },
     {
       "path": ".agents/scripts/lib/crap-baseline-join.js",
       "duplicatedLines": 13,
-      "totalLines": 270,
-      "percentage": 4.81
+      "totalLines": 202,
+      "percentage": 6.44
+    },
+    {
+      "path": ".agents/scripts/lib/crap-engine.js",
+      "duplicatedLines": 13,
+      "totalLines": 199,
+      "percentage": 6.53
+    },
+    {
+      "path": ".agents/scripts/lib/crap-utils.js",
+      "duplicatedLines": 38,
+      "totalLines": 475,
+      "percentage": 8
     },
     {
       "path": ".agents/scripts/lib/findings/semantic-issue-search.js",
       "duplicatedLines": 10,
-      "totalLines": 217,
-      "percentage": 4.61
+      "totalLines": 172,
+      "percentage": 5.81
     },
     {
       "path": ".agents/scripts/lib/import-graph.js",
       "duplicatedLines": 11,
-      "totalLines": 156,
-      "percentage": 7.05
+      "totalLines": 129,
+      "percentage": 8.53
     },
     {
       "path": ".agents/scripts/lib/mandrel-catalog.js",
-      "duplicatedLines": 49,
-      "totalLines": 206,
-      "percentage": 23.79
+      "duplicatedLines": 37,
+      "totalLines": 148,
+      "percentage": 25
     },
     {
       "path": ".agents/scripts/lib/onboard/init-tail.js",
       "duplicatedLines": 11,
-      "totalLines": 206,
-      "percentage": 5.34
+      "totalLines": 145,
+      "percentage": 7.59
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-container.js",
-      "duplicatedLines": 18,
-      "totalLines": 186,
-      "percentage": 9.68
+      "duplicatedLines": 13,
+      "totalLines": 200,
+      "percentage": 6.5
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/file-assumptions.js",
+      "duplicatedLines": 19,
+      "totalLines": 573,
+      "percentage": 3.32
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
@@ -198,106 +216,112 @@
       "percentage": 6.67
     },
     {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/persist-helpers.js",
+      "duplicatedLines": 16,
+      "totalLines": 140,
+      "percentage": 11.43
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
       "duplicatedLines": 8,
-      "totalLines": 212,
-      "percentage": 3.77
+      "totalLines": 174,
+      "percentage": 4.6
     },
     {
       "path": ".agents/scripts/lib/orchestration/project-meta-cache.js",
       "duplicatedLines": 16,
+      "totalLines": 173,
+      "percentage": 9.25
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/resolve-stories.js",
+      "duplicatedLines": 16,
+      "totalLines": 323,
+      "percentage": 4.95
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/codex.js",
+      "duplicatedLines": 22,
+      "totalLines": 207,
+      "percentage": 10.63
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
+      "duplicatedLines": 22,
       "totalLines": 238,
-      "percentage": 6.72
+      "percentage": 9.24
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
-      "duplicatedLines": 28,
-      "totalLines": 832,
-      "percentage": 3.37
+      "duplicatedLines": 16,
+      "totalLines": 853,
+      "percentage": 1.88
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
+      "duplicatedLines": 22,
+      "totalLines": 963,
+      "percentage": 2.28
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
       "duplicatedLines": 11,
-      "totalLines": 520,
-      "percentage": 2.12
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-follow-ups.js",
-      "duplicatedLines": 12,
-      "totalLines": 705,
-      "percentage": 1.7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
-      "duplicatedLines": 18,
-      "totalLines": 896,
-      "percentage": 2.01
+      "totalLines": 239,
+      "percentage": 4.6
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "duplicatedLines": 21,
-      "totalLines": 633,
-      "percentage": 3.32
+      "totalLines": 504,
+      "percentage": 4.17
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/protection.js",
-      "duplicatedLines": 14,
-      "totalLines": 274,
-      "percentage": 5.11
+      "duplicatedLines": 11,
+      "totalLines": 187,
+      "percentage": 5.88
     },
     {
       "path": ".agents/scripts/lib/validation-evidence.js",
       "duplicatedLines": 14,
-      "totalLines": 333,
-      "percentage": 4.2
-    },
-    {
-      "path": ".agents/scripts/lib/workers/crap-worker.js",
-      "duplicatedLines": 20,
-      "totalLines": 173,
-      "percentage": 11.56
-    },
-    {
-      "path": ".agents/scripts/lib/workers/maintainability-report-worker.js",
-      "duplicatedLines": 12,
-      "totalLines": 137,
-      "percentage": 8.76
-    },
-    {
-      "path": ".agents/scripts/lib/workers/maintainability-worker.js",
-      "duplicatedLines": 12,
-      "totalLines": 84,
-      "percentage": 14.29
+      "totalLines": 295,
+      "percentage": 4.75
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/force-drain.js",
       "duplicatedLines": 28,
-      "totalLines": 366,
-      "percentage": 7.65
+      "totalLines": 326,
+      "percentage": 8.59
+    },
+    {
+      "path": ".agents/scripts/providers/github/blocked-by-add.js",
+      "duplicatedLines": 44,
+      "totalLines": 220,
+      "percentage": 20
     },
     {
       "path": ".agents/scripts/providers/github/mappers.js",
       "duplicatedLines": 33,
-      "totalLines": 116,
-      "percentage": 28.45
+      "totalLines": 94,
+      "percentage": 35.11
     },
     {
       "path": ".agents/scripts/providers/github/search-query.js",
       "duplicatedLines": 10,
-      "totalLines": 71,
-      "percentage": 14.08
+      "totalLines": 50,
+      "percentage": 20
     },
     {
       "path": ".agents/scripts/providers/github/sub-issue-add.js",
-      "duplicatedLines": 47,
-      "totalLines": 218,
-      "percentage": 21.56
+      "duplicatedLines": 43,
+      "totalLines": 185,
+      "percentage": 23.24
     },
     {
       "path": ".agents/scripts/prune-plan-run-labels.js",
       "duplicatedLines": 9,
-      "totalLines": 218,
-      "percentage": 4.13
+      "totalLines": 184,
+      "percentage": 4.89
     },
     {
       "path": ".agents/scripts/quality-preview.js",
@@ -314,26 +338,26 @@
     {
       "path": ".agents/scripts/resolve-doc-tiers.js",
       "duplicatedLines": 11,
-      "totalLines": 106,
-      "percentage": 10.38
+      "totalLines": 83,
+      "percentage": 13.25
     },
     {
       "path": ".agents/scripts/resync-status-column.js",
-      "duplicatedLines": 10,
-      "totalLines": 184,
-      "percentage": 5.43
-    },
-    {
-      "path": ".agents/scripts/sync-claude-agents.js",
       "duplicatedLines": 10,
       "totalLines": 165,
       "percentage": 6.06
     },
     {
+      "path": ".agents/scripts/sync-claude-agents.js",
+      "duplicatedLines": 10,
+      "totalLines": 119,
+      "percentage": 8.4
+    },
+    {
       "path": ".agents/scripts/sync-claude-commands.js",
       "duplicatedLines": 10,
-      "totalLines": 290,
-      "percentage": 3.45
+      "totalLines": 200,
+      "percentage": 5
     },
     {
       "path": ".agents/scripts/update-duplication-baseline.js",
@@ -344,38 +368,44 @@
     {
       "path": ".agents/scripts/validate-skills.js",
       "duplicatedLines": 32,
-      "totalLines": 278,
-      "percentage": 11.51
+      "totalLines": 245,
+      "percentage": 13.06
     },
     {
       "path": "lib/cli/init.js",
       "duplicatedLines": 11,
-      "totalLines": 442,
-      "percentage": 2.49
+      "totalLines": 303,
+      "percentage": 3.63
     },
     {
       "path": "lib/cli/migrate.js",
       "duplicatedLines": 7,
-      "totalLines": 266,
-      "percentage": 2.63
+      "totalLines": 207,
+      "percentage": 3.38
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "duplicatedLines": 34,
+      "totalLines": 981,
+      "percentage": 3.47
     },
     {
       "path": "lib/cli/sync-agents.js",
-      "duplicatedLines": 54,
-      "totalLines": 157,
-      "percentage": 34.39
+      "duplicatedLines": 80,
+      "totalLines": 97,
+      "percentage": 82.47
     },
     {
       "path": "lib/cli/sync-commands.js",
-      "duplicatedLines": 54,
-      "totalLines": 159,
-      "percentage": 33.96
+      "duplicatedLines": 80,
+      "totalLines": 106,
+      "percentage": 75.47
     },
     {
       "path": "lib/cli/sync.js",
       "duplicatedLines": 7,
-      "totalLines": 461,
-      "percentage": 1.52
+      "totalLines": 307,
+      "percentage": 2.28
     },
     {
       "path": "scripts/check-action-pinning.js",

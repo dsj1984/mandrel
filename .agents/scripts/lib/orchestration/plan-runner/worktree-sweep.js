@@ -1,33 +1,11 @@
 /**
- * plan-runner/worktree-sweep.js
+ * plan-runner/worktree-sweep.js — plan-boot sweep that force-removes
+ * `.worktrees/story-<id>/` entries whose Story is closed or `agent::done`,
+ * after draining the pending-cleanup manifest.
  *
- * Reap-sweep run at plan boot (via `drainPendingCleanupAtBoot` in
- * `lib/orchestration/epic-plan-spec/phases/drain.js`, wired into
- * `plan-persist.js`). Iterates the `.worktrees/story-<id>/`
- * entries registered with git, looks up each parent Story, and force-removes
- * any whose Story is already closed or labeled `agent::done`.
- *
- * The `--force` flag is intentional. By the time a Story is `agent::done`
- * its branch has already been merged into the Epic branch (via
- * `single-story-close.js`), so any residue left in the worktree — dirty
- * build artifacts, an interrupted rebase, a stray Windows lock — is noise.
- * The safety rails in `WorktreeManager.reap` exist for the _active_ close
- * path; at plan time we already know the Story is done and want the
- * directory gone no matter what.
- *
- * Public API:
- *   - `sweepStaleStoryWorktrees({ provider, repoRoot, git?, logger?, fsRm?, worktreeRoot? })`
- *
- * Also drains any `.worktrees/.pending-cleanup.json` manifest left behind
- * by Stage 1 (`removeWorktreeWithRecovery` → fs-rm-retry exhaustion, see
- * `../worktree/lifecycle/pending-cleanup.js`). Entries whose Stage 1 retry now
- * succeeds are removed from the manifest; entries reaching
- * MAX_SWEEP_ATTEMPTS emit an `OPERATOR ACTION REQUIRED: persistent-lock`.
- *
- * Returns `{
- *   reaped, skipped,
- *   drainedPending, persistentPending, stillPending
- * }`.
+ * `--force` is deliberate: a done Story's branch is already merged, so any
+ * residue (dirty artifacts, an interrupted rebase, a Windows lock) is noise;
+ * the `WorktreeManager.reap` safety rails are for the active close path.
  */
 
 import path from 'node:path';
@@ -56,20 +34,13 @@ function storyIdFromPath(wtPath) {
 }
 
 /**
- * Scan registered worktrees and force-remove any whose parent Story is
- * done (closed or `agent::done`). Never touches worktrees whose Story is
- * still open — those are live or in-flight.
- *
- * Provider reads are fanned out at concurrency 8 via `concurrentMap`; the
- * subsequent `git worktree remove` calls stay sequential because they
- * mutate `.git/worktrees/`.
+ * Never touches a worktree whose Story is still open.
  *
  * @param {object} opts
- * @param {object} opts.provider    ITicketingProvider-compatible; only
- *                                  `getTicket(id)` is required.
+ * @param {object} opts.provider    Only `getTicket(id)` is required.
  * @param {string} opts.repoRoot    Absolute path to the main checkout.
- * @param {object} [opts.git]       `{ gitSpawn }` injection for tests.
- * @param {object} [opts.logger]    `{ info, warn, error }`.
+ * @param {object} [opts.git]
+ * @param {object} [opts.logger]
  * @returns {Promise<{
  *   reaped: Array<{ storyId: number, path: string }>,
  *   skipped: Array<{ storyId: number|null, path: string, reason: string }>,
@@ -95,11 +66,8 @@ export async function sweepStaleStoryWorktrees(opts = {}) {
   const resolvedWorktreeRoot =
     worktreeRoot ?? path.join(repoRoot, '.worktrees');
 
-  // Stage 2 + Stage 3: drain pending-cleanup manifest before touching the
-  // live worktree list. Retrying the Stage 1 sequence here picks up entries
-  // whose Windows file locks have since released; entries still stuck get
-  // their handle-holders enumerated and terminated (Windows only) so the
-  // ledger self-heals across sprints instead of accumulating.
+  // Drain the pending-cleanup manifest first so entries whose Windows locks
+  // have released self-heal instead of accumulating.
   const drainResult = await forceDrainPendingCleanup({
     repoRoot,
     worktreeRoot: resolvedWorktreeRoot,
@@ -121,10 +89,8 @@ export async function sweepStaleStoryWorktrees(opts = {}) {
 
   const entries = parseWorktreePorcelain(listRes.stdout || '');
 
-  // Phase 1 — fan out provider reads. Each mapper call captures its own
-  // error so a single transient provider hiccup doesn't trip
-  // concurrentMap's first-rejection-wins policy and abort the whole sweep;
-  // we want the original per-entry skip/continue semantics preserved.
+  // Each mapper captures its own error so one provider hiccup cannot abort
+  // the sweep via concurrentMap's first-rejection-wins policy.
   const reads = await concurrentMap(
     entries,
     async (entry) => {
@@ -142,10 +108,8 @@ export async function sweepStaleStoryWorktrees(opts = {}) {
     { concurrency: TICKET_READ_CONCURRENCY },
   );
 
-  // Phase 2 — sequential `git worktree remove`. These mutate
-  // .git/worktrees/ and the per-worktree admin dir; serializing avoids
-  // racing git's own locking on Windows where a half-removed entry can
-  // leave a partial admin dir that the next remove then trips over.
+  // Removes stay sequential: they mutate .git/worktrees/, and racing git's
+  // locking on Windows can leave a partial admin dir the next remove trips on.
   for (const r of reads) {
     if (r.kind === 'no-path' || r.kind === 'non-story') continue;
     if (r.kind === 'provider-error') {
@@ -198,8 +162,6 @@ export async function sweepStaleStoryWorktrees(opts = {}) {
     );
   }
 
-  // Drop any lingering worktree registrations. Cheap; safe to run whether
-  // or not we actually removed anything.
   git.gitSpawn(repoRoot, 'worktree', 'prune');
 
   return {

@@ -1,21 +1,8 @@
 /**
- * full-suite-queue.js — how a full-suite lock waiter waits (Story #5377):
- * in arrival order, and out loud.
- *
- * The lockfile alone is first-come-first-*polled*: whichever waiter happens to
- * retry in the instant after the holder releases wins, so a waiter that has
- * queued for four minutes can lose to one that arrived a second ago. Each
- * waiter therefore drops a ticket named by its arrival time into a directory
- * beside the lockfile, and only attempts the lock when no live ticket is
- * older than its own.
- *
- * **Best-effort, like the lock it orders.** A ticket counts only while it is
- * well-formed, its pid is alive, and its mtime is fresher than the stale
- * threshold — every waiter refreshes its own ticket on each poll. So a
- * corrupt entry is ignored at once, a crashed waiter's entry as soon as its
- * pid is gone, and nothing can block acquisition for longer than the stale
- * threshold. Any I/O failure resolves to "first in line": the queue may make
- * a waiter wait its turn, it may never make one wait forever.
+ * full-suite-queue.js — FIFO for full-suite lock waiters (the lockfile alone
+ * is first-come-first-polled). A ticket counts only while well-formed, its
+ * pid alive and its mtime fresh; any I/O failure means "first in line", so
+ * no waiter can wait forever.
  */
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -28,11 +15,7 @@ import {
 
 const LOCK_TAG = '[full-suite-lock]';
 
-/**
- * `<arrival ms>-<in-process sequence>-<pid>-<nonce>`, fixed-width where it
- * matters, so lexical order is arrival order — including two waiters of one
- * process that arrive within the same millisecond.
- */
+/** Fixed-width, so lexical order is arrival order. */
 const TICKET_RE = /^\d{15}-\d{6}-(\d+)-[0-9a-f]+$/;
 
 let sequence = 0;
@@ -42,9 +25,7 @@ let sequence = 0;
  */
 
 /**
- * Take a ticket at the back of the queue for `lockPath`. Returns `null` when
- * the ticket cannot be written, which makes this waiter unordered rather
- * than unable to acquire.
+ * `null` when unwritable: unordered, not blocked.
  *
  * @param {{ lockPath: string, nowFn?: () => number, fsImpl?: object, processImpl?: object }} opts
  * @returns {Ticket|null}
@@ -67,14 +48,11 @@ function enqueueWaiter({
   } catch {
     return null;
   }
-  // No exit hook: a waiter that dies mid-wait leaves a ticket whose pid is
-  // gone, and a dead pid never holds a place in line.
+  // No exit hook needed: a dead pid never holds a place in line.
   return { dir, name, file };
 }
 
 /**
- * Stamp a ticket as still-waiting so no other waiter reads it as stale.
- *
  * @param {Ticket|null} ticket
  * @param {{ nowFn?: () => number, fsImpl?: object }} [opts]
  */
@@ -89,8 +67,6 @@ function refreshTicket(ticket, { nowFn = Date.now, fsImpl = fs } = {}) {
 }
 
 /**
- * Leave the queue. Idempotent and never throws.
- *
  * @param {Ticket|null} ticket
  * @param {{ fsImpl?: object }} [opts]
  */
@@ -104,8 +80,6 @@ function dequeueWaiter(ticket, { fsImpl = fs } = {}) {
 }
 
 /**
- * Does a queue entry still hold a place in line?
- *
  * @param {{ dir: string, name: string, staleMs: number, nowFn: () => number, fsImpl: object, killFn?: Function }} args
  * @returns {boolean}
  */
@@ -121,9 +95,7 @@ function isLiveEntry({ dir, name, staleMs, nowFn, fsImpl, killFn }) {
 }
 
 /**
- * Is it this waiter's turn? True when no live ticket is older than `ticket`
- * — or, for a caller holding no ticket (the uncontended first attempt), when
- * nobody is queued at all.
+ * With no ticket, true only when nobody is queued.
  *
  * @param {{
  *   lockPath: string,
@@ -160,13 +132,10 @@ export function isFirstInLine({
 }
 
 /**
- * Read the outcome a finished wait announced, from one of its log lines —
- * the one channel that reaches close from a capture running in a child
- * process as well as from a gate running in close's own.
+ * Log lines are the one channel that reaches close from a child capture.
  *
  * @param {string} line
- * @returns {{ waitedSeconds: number, expired: boolean }|null} `null` for any
- *   line that is not a wait's final line.
+ * @returns {{ waitedSeconds: number, expired: boolean }|null}
  */
 export function parseLockWaitOutcome(line) {
   const match = /\[full-suite-lock\] (✅|⌛) [^\n]*\(waited (\d+)s[,)]/u.exec(
@@ -181,10 +150,6 @@ function holderLabel(lockPath, fsImpl) {
 }
 
 /**
- * Wait, in arrival order, for the lock at `lockPath`. Announces the wait when
- * it starts, every `reportMs` while it lasts, and how it ended — the lines
- * {@link parseLockWaitOutcome} reads back.
- *
  * @param {{
  *   lockPath: string, waitMs: number, pollMs: number, staleMs: number,
  *   reportMs: number, fsImpl: object, nowFn: () => number,
@@ -217,10 +182,7 @@ export async function waitInLine(opts) {
   return { held: null, expired: true, waited: true };
 }
 
-/**
- * The poll loop: attempt the lock only when first in line, until it is held,
- * a hard error ends the wait, or the deadline passes (`null`).
- */
+/** `null` means the deadline passed. */
 async function pollForTurn(opts, ticket, clock) {
   const { lockPath, staleMs, fsImpl, nowFn, log } = opts;
   while (nowFn() < clock.deadline) {

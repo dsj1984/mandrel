@@ -1,20 +1,6 @@
 /**
- * lib/audit-to-stories/seed-from-findings.js
- *
- * Build the `/mandrel-plan --seed`-shaped one-pager markdown that the audit-to-
- * stories Single-plan grouping path emits for `/mandrel-plan` to consume.
- *
- * The seed renders the canonical one-pager sections so the authoring
- * pass can sharpen it without having to invent context:
- *   - Problem Statement (aggregated severity profile)
- *   - Recommended Direction (rollup of recommendations by dimension)
- *   - Key Assumptions (carries the source-report links forward)
- *   - MVP Scope (the findings themselves, flat — Story #5332)
- *   - Key Files (explicit file paths so `/mandrel-plan` authoring has concrete
- *     anchors)
- *   - Not Doing (out-of-scope items by convention)
- *
- * Pure: returns a string. The caller decides where to persist it.
+ * Render the `/mandrel-plan --seed` one-pager for the single-plan audit path.
+ * Pure: returns a string.
  */
 
 import { SEVERITIES } from '../findings/severity.js';
@@ -39,12 +25,6 @@ const DIMENSION_LABEL = {
   architecture: 'Architecture',
 };
 
-/**
- * The severity profile in the seed's Problem Statement is ordered and bucketed
- * by the canonical scale (Story #4877) rather than by a fourth local copy of
- * it. The list this replaces omitted `info`, so an informational finding was
- * absent from the profile the planner reads even when it survived the filter.
- */
 const SEVERITY_ORDER = SEVERITIES;
 
 function tallySeverities(findings) {
@@ -93,15 +73,8 @@ function formatRecommendedDirection(findings) {
 }
 
 /**
- * The findings, flat (Story #5332).
- *
- * This section used to render one numbered bullet per `groupFindings` group
- * under a `## Grouping` directive — a partition the seed had already decided
- * before the planner read a word of it, and at a grain (`groupFindings`'s) the
- * planner's cohesion judgment never got to review. The measured result was a
- * sweep of 44 findings arriving as 18 Stories. The seed now states what was
- * found and lets N reach the planner undecided; container grouping is Gate
- * #3's call at persist, where N is known.
+ * Flat, not grouped: the seed must not pre-decide the Story partition; that
+ * is the planner's cohesion call.
  *
  * @param {object[]} findings
  * @returns {string}
@@ -118,17 +91,9 @@ function formatFindingsList(findings) {
 }
 
 /**
- * The machine-readable dedup identity, one footer set per group.
- *
- * Deliberately **not** folded into one footer over the whole sweep, and
- * deliberately not attached to a visible bullet. Each group's fingerprint and
- * location-based semantic-key footers are the identity the next sweep matches
- * on (Story #4626), and the `audit::*` labels are the reason it ever looks at
- * the issue at all — an indexed sweep answers exact lookups from the labelled
- * pool without reaching the provider, so a Story missing the labels is
- * invisible however good its fingerprints (Story #5307). They are HTML
- * comments, so they carry no partition to the planner's eye while staying
- * byte-identical to what the standalone-Stories path emits.
+ * Per-group dedup footers (fingerprint, semantic key, `audit::*` labels) as
+ * HTML comments: invisible to the planner, byte-identical to the standalone
+ * path. Without the labels an indexed sweep never sees the Story.
  *
  * @param {object[]} groups
  * @returns {string}

@@ -1,40 +1,10 @@
 /**
- * BDD runner detection + pending-tag verification (Epic #2001 Story #2094
- * Task #2103; workspace-aware extension from Story #2956).
- *
- * Used by `buildAuthoringContext` (the `plan-context.js` envelope) to decide whether the
- * acceptance-table section should plan **features-first** Story ordering (a real
- * pending-tag is available, so the features-first Story can ship `.feature`
- * files marked `@pending` / `@skip` ahead of the implementation Stories) or
- * fall back to **dependencies-first** ordering (no pending tag → cannot
- * suspend an unimplemented scenario without a permanent red, so Stories run
- * in dependency order and the AC reconciler defers).
- *
- * The verification is **static**: we inspect `package.json` for a known BDD
- * runner dependency, and consult a small lookup table of which runners
- * support which pending/skip tag. We do not boot the runner. This keeps
- * `/mandrel-plan` Phase 7 hermetic and offline.
- *
- * **Workspace awareness (Story #2956).** In a pnpm / npm / yarn monorepo the
- * BDD runner is rarely a root devDependency — it lives in the workspace
- * package that owns the e2e suite (e.g. `apps/web/package.json`). The
- * detector reads the root `package.json` first and then unions in
- * dependencies from every declared workspace package, so an `apps/*` shaped
- * monorepo no longer falls back to "no runner detected" when the runner
- * sits one level down. Workspace declarations are read from
- * `pnpm-workspace.yaml` (`packages:` field) or the root `package.json`
- * `workspaces` field (array or `{ packages: [] }` object form).
- * Preferred-first ordering is preserved by iterating
- * `BDD_RUNNER_TAG_TABLE` against the union of all collected deps — the
- * first runner present in *any* package wins.
- *
- * Output shape (returned to the planner-context envelope):
- *
- *   { runner: 'cucumber-js',         pendingTag: '@skip',     supported: true,  fallback: false }
- *   { runner: 'playwright-bdd',      pendingTag: '@skip',     supported: true,  fallback: false }
- *   { runner: '@cucumber/cucumber',  pendingTag: '@skip',     supported: true,  fallback: false }
- *   { runner: null,                  pendingTag: null,        supported: false, fallback: true,
- *     reason: 'no-bdd-runner-detected' }
+ * Static BDD runner detection: does the project ship a runner with a
+ * pending/skip tag? If so the planner can order features-first (scenarios
+ * land `@skip` ahead of the implementation); if not, dependencies-first,
+ * since an unimplemented scenario would be a permanent red. Reads the root
+ * `package.json` plus every workspace package (runners usually live in one),
+ * never boots the runner.
  */
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -45,13 +15,7 @@ import picomatch from 'picomatch';
 
 import { Logger } from './Logger.js';
 
-/**
- * Known BDD runner package names → pending-tag string the runner honours.
- *
- * Keys MUST match the literal npm package name as it appears in
- * `dependencies` or `devDependencies`. Order is preferred-first: if multiple
- * runners are present (rare), the first match wins.
- */
+/** npm package name → pending tag. Preferred-first: the first match wins. */
 export const BDD_RUNNER_TAG_TABLE = Object.freeze({
   'playwright-bdd': '@skip',
   '@cucumber/cucumber': '@skip',
@@ -60,21 +24,8 @@ export const BDD_RUNNER_TAG_TABLE = Object.freeze({
 });
 
 /**
- * Shared set of tag tokens that mean "this scenario does not yet satisfy
- * its AC — treat coverage as pending, not satisfied." Sourced from every
- * pending-tag value in `BDD_RUNNER_TAG_TABLE` (today `@skip` / `skip`).
- *
- * Both the prefixed (`@skip`) and the unprefixed (`skip`) form of each
- * tag are included so consumers can look up either the raw tag string
- * (as it appears in a `.feature` file) or the normalized token form
- * produced by tag-block parsers that strip the leading `@`.
- *
- * Consumers:
- *   - `acceptance-spec-reconciler.classifyCoverage` — membership check
- *     against parsed scenario tag sets.
- *   - Contract tests that walk `BDD_RUNNER_TAG_TABLE` and assert each
- *     pending tag is registered here, guarding against drift when a
- *     new runner is added.
+ * Tags meaning "coverage pending, not satisfied", in both `@skip` and
+ * `skip` forms (parsers may strip the `@`).
  */
 export const PENDING_TAGS = Object.freeze(
   new Set(
@@ -85,11 +36,6 @@ export const PENDING_TAGS = Object.freeze(
   ),
 );
 
-/**
- * Result returned when no supported BDD runner is detected. The acceptance
- * spec body will print "Fallback: dependencies-first ordering" and Phase 8
- * decomposer ordering reverts to topological dependency order.
- */
 const FALLBACK = Object.freeze({
   runner: null,
   pendingTag: null,
@@ -99,19 +45,11 @@ const FALLBACK = Object.freeze({
 });
 
 /**
- * Verify which BDD runner (if any) the project ships and whether it
- * supports a pending/skip tag. Reads the root `package.json` and (when
- * declared) every workspace `package.json` so monorepos that house the
- * runner in `apps/<name>` or `packages/<name>` resolve correctly.
- *
  * @param {object} [opts]
- * @param {string} [opts.cwd] - Project root holding `package.json`.
- * @param {(p: string) => Promise<string>} [opts.readPkg] - Override for
- *   tests; receives the resolved absolute path to a `package.json`.
+ * @param {string} [opts.cwd]
+ * @param {(p: string) => Promise<string>} [opts.readPkg] Test seam.
  * @param {(ctx: { cwd: string, rootPkg: object, readPkg: Function }) => Promise<string[]>} [opts.listWorkspacePkgPaths]
- *   Override for tests; returns absolute paths to workspace `package.json`
- *   files. Defaults to scanning `pnpm-workspace.yaml` then the root
- *   `package.json` `workspaces` field and expanding their glob patterns.
+ *   Test seam.
  * @returns {Promise<{ runner: string|null, pendingTag: string|null, supported: boolean, fallback: boolean, reason?: string }>}
  */
 export async function verifyBddRunnerPendingTag(opts = {}) {
@@ -153,7 +91,6 @@ export async function verifyBddRunnerPendingTag(opts = {}) {
       logger,
     });
   } catch (err) {
-    // Workspace discovery failure is non-fatal: degrade to root-only scan.
     logger.debug(
       `[bdd-runner-detect] workspace discovery failed for ${cwd}: ${err?.message ?? err}`,
     );
@@ -201,18 +138,8 @@ export async function verifyBddRunnerPendingTag(opts = {}) {
 }
 
 /**
- * Default workspace discovery: read `pnpm-workspace.yaml` (`packages:`
- * field) then the root `package.json` `workspaces` field, expand the
- * glob patterns against `cwd`, and return the resulting workspace
- * `package.json` absolute paths.
- *
- * Returns `[]` (silent) on any of:
- *   - no `pnpm-workspace.yaml` and no `workspaces` field
- *   - YAML parse failure
- *   - patterns matching no on-disk directories
- *
- * Failures here are non-fatal so a malformed workspace file can never
- * block planner-context emission.
+ * Workspace `package.json` paths from `pnpm-workspace.yaml`, else the root
+ * `workspaces` field. Non-fatal: `[]` on any failure.
  *
  * @returns {Promise<string[]>}
  */
@@ -233,7 +160,6 @@ function readWorkspacePatterns(cwd, rootPkg, logger) {
         return parsed.packages.filter((p) => typeof p === 'string');
       }
     } catch (err) {
-      // unparseable yaml → fall through to package.json workspaces
       logger.debug(
         `[bdd-runner-detect] pnpm-workspace.yaml parse failed for ${yamlPath}: ${err?.message ?? err}`,
       );
@@ -253,14 +179,7 @@ function readWorkspacePatterns(cwd, rootPkg, logger) {
   return [];
 }
 
-/**
- * Expand a list of workspace glob patterns into absolute paths to each
- * matching `package.json`. Handles:
- *   - literal directory entries (no glob chars): `apps/web`
- *   - single-segment globs: `apps/*`, `packages/*`
- *   - recursive globs: `packages/**`
- *   - exclusion patterns prefixed with `!` (pnpm/npm convention)
- */
+/** Handles literal dirs, `*` and `**` globs, and `!` exclusions. */
 function expandWorkspacePatterns(cwd, patterns, logger) {
   const includes = patterns.filter((p) => !p.startsWith('!'));
   const excludes = patterns
@@ -366,13 +285,7 @@ function existsSyncDir(p, logger) {
   }
 }
 
-/**
- * Canonical directories a project might use to house `.feature` files.
- * Probed in order; the first existing directory wins. The list is
- * deliberately short — projects that house features elsewhere will need
- * to land an explicit config surface for it, which Story #2637 leaves
- * out of scope.
- */
+/** Canonical `.feature` directories; there is no config key for others. */
 const CANONICAL_FEATURE_ROOTS = Object.freeze([
   'tests/features',
   'features',
@@ -380,17 +293,10 @@ const CANONICAL_FEATURE_ROOTS = Object.freeze([
 ]);
 
 /**
- * Resolve the project's BDD feature roots — absolute paths to every
- * canonical directory that exists under `cwd`. Returns an empty array
- * when no feature directory is present (the project has not adopted
- * BDD), so downstream scanners can degrade silently to "no scenarios".
- *
- * Story #2637 — the Phase 7 BDD-scenario scanner consumes this so the
- * planner can cross-reference acceptance criteria against existing
- * scenarios without introducing a new config key.
+ * Existing canonical feature roots; `[]` when the project has not adopted BDD.
  *
  * @param {{ cwd?: string }} [opts]
- * @returns {string[]} Absolute paths to existing feature roots.
+ * @returns {string[]}
  */
 export function resolveFeatureRoots(opts = {}) {
   const cwd = opts.cwd ?? process.cwd();
@@ -403,7 +309,6 @@ export function resolveFeatureRoots(opts = {}) {
         roots.push(abs);
       }
     } catch (err) {
-      // Unreadable path → treat as absent. Non-blocking by design.
       logger.debug(
         `[bdd-runner-detect] feature-root probe failed for ${abs}: ${err?.message ?? err}`,
       );

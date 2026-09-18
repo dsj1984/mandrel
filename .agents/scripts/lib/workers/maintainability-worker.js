@@ -1,22 +1,8 @@
 /**
- * lib/workers/maintainability-worker.js — CPU-pool worker entry for
- * `calculateAll`. One file in, one score out. No project config, no git,
- * no provider — just typhonjs-escomplex (via maintainability-engine) and
- * the in-memory TS transpile shim.
- *
- * Message contract — see lib/cpu-pool.js:
- *   IN  : { item: string }      — absolute file path to score
- *         { exit: true }        — drain & terminate
- *   OUT : { ok: true, result: { filePath, score, unscorable?, reason? } }
- *
- * `score` is `null` only when the file genuinely cannot be read (ENOENT
- * or other I/O error).
- *
- * A file the kernel cannot analyse comes back as `unscorable: true` with the
- * kernel's own `reason`, rather than as a bare `0`. The `0` is still carried in
- * `score` for wire compatibility, but it is no longer the only signal — the
- * point of the flag is that the caller can *report* the file instead of
- * silently dropping it (see `maintainability-engine.js`'s `UNSCORABLE`).
+ * CPU-pool worker for `calculateAll`: one file path in, one MI score out.
+ * `score` is `null` only on an I/O error. An unanalysable file carries
+ * `unscorable: true` and the kernel's `reason` (with `score: 0` for wire
+ * compatibility) so the caller reports it instead of silently dropping it.
  */
 
 import { parentPort } from 'node:worker_threads';
@@ -24,9 +10,7 @@ import { scoreFile } from '../maintainability-engine.js';
 import { serveWorkerMessages } from './serve-worker-messages.js';
 
 /**
- * Pure handler for a single inbound worker message. Exported so unit
- * tests can drive each branch (exit, malformed item, success, error)
- * without spawning a real `Worker` thread.
+ * Pure handler for one worker message (testable without a `Worker`).
  *
  * @param {unknown} msg
  * @param {{ score?: (filePath: string) => { score: number, unscorable: boolean, reason: string|null } }} [deps]

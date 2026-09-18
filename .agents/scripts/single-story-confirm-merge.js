@@ -1,30 +1,10 @@
 #!/usr/bin/env node
 
 /**
- * single-story-confirm-merge.js — confirm a standalone Story's PR merged
- * and flip `agent::closing → agent::done` (closing the issue).
- *
- * Story #3385 — the post-merge half of the standalone close path.
- * `single-story-close.js` rests the Story at `agent::closing` with its
- * GitHub issue OPEN while the PR is open with auto-merge armed. GitHub
- * auto-merge completes *asynchronously* after the close script exits, so
- * the `agent::done` flip (which closes the issue) is deferred to this
- * confirmation step, invoked by the CI-watch loop in
- * `helpers/deliver-story.md` once `pr-watch-with-update.js` exits.
- *
- * The script:
- *   1. Resolves the PR number (`--pr <n>`, or probes
- *      `gh pr list --head story-<id> --state all`).
- *   2. Reads the live PR state via `gh pr view --json state,mergedAt`.
- *   3. When the PR is MERGED → flips `agent::closing → agent::done`
- *      (issue closes via the canonical mutator) and fires the
- *      `story-merged` notify.
- *   4. When the PR is still open / closed-without-merge → leaves the Story
- *      at `agent::closing` and exits cleanly (recoverable; re-run after
- *      the merge lands).
- *
- * Idempotent: re-running on an already-done / already-closed Story
- * short-circuits to a `noop` envelope.
+ * single-story-confirm-merge.js — the post-merge half of close: auto-merge
+ * lands asynchronously after close exits, so this confirms the PR merged and
+ * flips `agent::closing → agent::done`. An unmerged PR leaves the Story at
+ * `agent::closing` (re-run later). Idempotent.
  *
  * Usage:
  *   node single-story-confirm-merge.js --story <STORY_ID> [--pr <n>] [--wait]
@@ -67,24 +47,17 @@ const progress = Logger.createProgress('single-story-confirm-merge', {
 });
 
 /**
- * This CLI's own surface name — the `runAsCli` source, and the `emitter.tool`
- * every friction record it emits carries. Single-homed so the two cannot
- * drift: `emitTerminalFriction` defaults to the CLOSE CLI's name, so a record
- * emitted from here without it is attributed to a CLI that never ran, and the
- * retro roll-up sends the follow-up to the wrong surface.
+ * Pass as `tool` on every friction emit: `emitTerminalFriction` defaults to
+ * the close CLI's name and would misattribute the record.
  */
 const CLI_SOURCE = 'single-story-confirm-merge';
 
 /**
- * Default `gh` facade for this CLI, bound to the merge wait's spawn-level
- * timeout (Story #4710). This CLI is the resume surface async mode hands the
- * merge wait to — a background invocation with no host tool ceiling — so an
- * un-timeboxed `gh pr list` / `gh pr view` here could strand the resume the
- * same way an un-timeboxed probe stranded the in-close wait.
+ * Time-boxed: this is a background resume surface with no host tool ceiling,
+ * so a hung `gh` call would strand the resume.
  */
 const defaultGh = createGh(undefined, { timeoutMs: MERGE_WAIT_GH_TIMEOUT_MS });
 
-/** One usage string for the throw path and `--help` (Story #4710). */
 const USAGE =
   'Usage: node single-story-confirm-merge.js --story <STORY_ID> [--pr <n>] [--wait] ' +
   '[--max-wait-seconds <n>] [--cwd <main-repo>]\n\n' +
@@ -95,10 +68,6 @@ const USAGE =
   '                      probe-window cap; only meaningful with --wait)';
 
 /**
- * Read the `--pr <n>` flag from `process.argv` for the direct-CLI path.
- * Injection callers pass `pr` directly and never reach this. Returns the
- * raw string value or `undefined` when the flag is absent.
- *
  * @returns {string|undefined}
  */
 function readPrFlag() {
@@ -115,13 +84,8 @@ function readPrFlag() {
 }
 
 /**
- * `--wait`: resume the bounded merge wait rather than probing once.
- *
- * This CLI serves two callers behind one command string. `confirmMerge` wants
- * a fast idempotent flip for a merge that ALREADY happened (an operator-merge
- * flow, or a `merged-flip-failed` retry) and must not stall. `resumeLand`
- * wants to pick up a merge wait the close handed off at its per-invocation
- * bound — that one must actually wait, and must be able to give up.
+ * `--wait` resumes the bounded merge wait (`resumeLand`); without it the CLI
+ * probes once, a fast flip for a merge that already happened.
  */
 function readWaitFlag() {
   try {
@@ -137,15 +101,7 @@ function readWaitFlag() {
 }
 
 /**
- * `--max-wait-seconds <n>`: per-invocation wait-bound override for the
- * `--wait` resume path (Story #4710). The close CLI already accepted this
- * flag, but the resume CLI — the exact command async mode's `pending`
- * terminal hands off to — did not, so the documented per-run override was
- * unreachable where it mattered most and a slow-CI landing depended on an
- * unbounded chain of short invocations. Threaded to `runConfirmMergePhase`
- * (and thence `resolveMergeWaitConfig`) exactly as close threads its own
- * flag. Returns `undefined` when absent or not a positive integer — the
- * phase's config/default resolution owns that case.
+ * Per-run wait bound for `--wait`; `undefined` unless a positive integer.
  *
  * @returns {number|undefined}
  */
@@ -164,10 +120,7 @@ function readMaxWaitSecondsFlag() {
 }
 
 /**
- * Resolve the PR number for the Story branch when one was not passed on
- * the CLI. Probes `gh pr list --head <branch> --state all` (the merged PR
- * is no longer `open`, so `--state all` is required). Returns `null` when
- * no PR is found. Exported for testing.
+ * `--state all` because a merged PR is no longer open.
  *
  * @param {{ storyBranch: string, gh: object }} args
  * @returns {Promise<number|null>}
@@ -191,16 +144,10 @@ export async function resolvePrNumber({ storyBranch, gh }) {
 }
 
 /**
- * Story #4578 — async so the runtime-derived friction emit can be awaited.
- * This CLI is the resume path for a parked worker (`--wait`), so a `pending`
- * terminal here means a bounded wait expired again with the PR still in
- * flight: the exact observable the retro was blind to. The emit is
- * best-effort and cannot throw; awaiting it matters because `runAsCli`
- * exits via `process.exit` the moment `main` resolves.
+ * The friction emit is awaited because `runAsCli` exits via `process.exit`
+ * as soon as `main` resolves.
  */
 async function logConfirmResult(result, terminal, config) {
-  // Story #4685 — full detail to a temp log; the agent acts on the terminal
-  // envelope emitted below. The summary line keeps the at-a-glance fields.
   emitTerseResult({
     label: 'CONFIRM MERGE RESULT',
     result,
@@ -218,19 +165,9 @@ async function logConfirmResult(result, terminal, config) {
 }
 
 /**
- * Map a `confirmStoryMerged` envelope onto the shared terminal envelope
- * (Story #4543) so this CLI and the in-close land path report one shape.
- *
- * The three confirm outcomes map cleanly:
- *   - `done` / `noop` (already-done) → `landed`. Both mean the merge is on
- *     the base branch and the Story is `agent::done`.
- *   - `pending` (`pr-open` / `no-pr`) → `pending`. Re-run once the merge
- *     lands; nothing is wrong.
- *   - `flip-failed` → `blocked` with the shared `merged-flip-failed` class:
- *     the merge landed, so this is a label-write fault, and the remedy is
- *     re-running this very command (it is idempotent).
- *   - `pr-not-merged` (closed without merging) → `blocked`. The PR is gone;
- *     a re-run cannot fix it, so it needs a human.
+ * Map a confirmation onto the shared terminal envelope: done/noop → landed;
+ * flip-failed → blocked (re-run this command); pr-not-merged → blocked (needs
+ * a human); otherwise pending.
  */
 function buildConfirmTerminal({
   storyId,
@@ -241,8 +178,6 @@ function buildConfirmTerminal({
   tail,
   elapsedSeconds,
 }) {
-  // `pr-not-merged` means the PR is CLOSED — reporting it as OPEN put a
-  // fact in the envelope that the blocked reason directly contradicts.
   const prState = confirmation.merged
     ? 'MERGED'
     : confirmation.reason === 'pr-not-merged'
@@ -310,9 +245,6 @@ async function resolveConfirmPrNumber({ prParam, storyBranch, gh }) {
   return Number.isInteger(prNumber) && prNumber > 0 ? prNumber : null;
 }
 
-/**
- * Confirm a standalone Story's merge. Exported for testing.
- */
 export async function runConfirmMerge({
   storyId: storyIdParam,
   cwd: cwdParam,
@@ -378,18 +310,10 @@ export async function runConfirmMerge({
     );
   }
 
-  // `--wait` (what `NEXT_COMMANDS.resumeLand` passes): resume the merge wait
-  // the close handed off at its per-invocation bound, by running the SAME
-  // phase the in-close path runs. Without this the resume was a single probe
-  // that reported `pending` and exited, so the cumulative `maxBudgetSeconds`
-  // give-up — the only thing that ever emits `merge.unlanded` and flips a
-  // wedged Story to `agent::blocked` — was reachable ONLY inside the original
-  // close invocation. A PR that wedged after the close returned could be
-  // resumed forever, always answering `pending`, never escalating to anyone.
-  //
-  // The phase anchors its cumulative budget at the PR's `createdAt`, so the
-  // resume does not restart the clock — exactly what the envelope's
-  // `waitBudget` contract already promised.
+  // `--wait` runs the SAME phase as close so the cumulative budget give-up
+  // (the only path to `merge.unlanded` / `agent::blocked`) is reachable from a
+  // resume. The budget is anchored at the PR's `createdAt`, so resuming does
+  // not restart the clock.
   if (wait) {
     const waitOutcome = await runConfirmMergePhaseFn({
       cwd,
@@ -398,12 +322,8 @@ export async function runConfirmMerge({
       baseBranch,
       prNumber,
       prUrl: `${storyBranch} PR #${prNumber}`,
-      // The close already armed it; this CLI is resuming that wait, not
-      // deciding whether to arm.
+      // The close already armed it.
       autoMergeEnabled: true,
-      // The per-run override (`--max-wait-seconds`), resolved by
-      // `resolveMergeWaitConfig` exactly as the close resolves its own flag —
-      // it wins over the config value and the async probe-window cap.
       maxWaitSeconds,
       provider,
       config,
@@ -420,8 +340,7 @@ export async function runConfirmMerge({
       prNumber,
       prUrl: null,
       autoMergeEnabled: true,
-      // This CLI runs no close gates, so it reports none — `gates` is
-      // "each gate this invocation was responsible for".
+      // This CLI runs no close gates.
       gates: undefined,
       elapsedSeconds: Math.round((Date.now() - startedAtMs) / 1000),
     });
@@ -451,19 +370,9 @@ export async function runConfirmMerge({
     readPrMergeStateFn: injectedReadPrMergeState,
   });
 
-  // Story #4543 — reach the SAME shared land tail the in-close path reaches
-  // (`phases/post-land.js`), rather than this CLI's own follow-ups-only
-  // wrapper. That wrapper was the whole reason the two landing surfaces
-  // diverged: it captured follow-ups and nothing else, while the resync and
-  // cleanup steps lived in prose the caller had to remember to run.
-  //
-  // Gated on `merged`, NOT on `action === 'done'`. `done` means "this run
-  // flipped the label"; a Story already at `agent::done` returns
-  // `action: 'noop', merged: true`, and gating on `done` skipped the tail for
-  // exactly that case — the belated-manual-confirm backfill this tail exists
-  // to make possible (see `story-follow-ups.js`, which documents the gap).
-  // Re-running is safe: every step is idempotent (the follow-ups comment is
-  // an upsert, ref cleanup and base fast-forward no-op when already done).
+  // The same shared land tail close runs. Gated on `merged`, not
+  // `action === 'done'`: an already-done Story (`noop`, merged) still needs
+  // the belated backfill. Every tail step is idempotent.
   const tail =
     confirmation.merged === true
       ? await runPostLandTail({
@@ -497,23 +406,12 @@ export async function runConfirmMerge({
 }
 
 /**
- * CLI entry — mirrors `single-story-close.js`: the exit code comes from the
- * terminal envelope's status, so a caller can tell `pending` (the PR has not
- * merged yet; re-run me) from `landed` without parsing stdout.
- *
- * The catch mirrors close's for the same reason: `confirmStoryMerged`'s PR
- * read is a live `gh` call that throws on a transient API error, and this CLI
- * is a *landing surface* — the one `pending` tells the operator to re-run. If
- * a flaked read exited 1 with no envelope, the surface would be silent exactly
- * where the envelope is the contract. Both landing surfaces emit one envelope
- * or none at all; "none at all" is what Story #4543 removes.
+ * Exit code comes from the terminal envelope's status. A throw (e.g. a
+ * transient `gh` error) still emits a `failed` envelope: the envelope is the
+ * landing surface's contract.
  */
 async function main() {
   if (process.argv.includes('--help')) {
-    // Print usage (including --max-wait-seconds) and exit cleanly — the
-    // resume-path override is only discoverable if the CLI can say it exists.
-    // `process.stdout.write` (not console.log) keeps the CLI within the
-    // no-console repo invariant while still writing help to stdout.
     process.stdout.write(`${USAGE}\n`);
     return 0;
   }
@@ -521,20 +419,15 @@ async function main() {
     const outcome = await runConfirmMerge();
     return exitCodeForTerminal(outcome?.terminal ?? { status: 'failed' });
   } catch (err) {
-    // Non-throwing by construction (Story #4959): this used to call
-    // `parseSprintArgs()`, so a rejected `--merge-watch-mode` threw a second
-    // time here and escaped the handler — no envelope, no friction. Close
-    // carries the identical shape; both landing surfaces behave the same.
+    // Tolerant parse: a strict one would re-throw an argv rejection here.
     const { args, error: argvError } = parseSprintArgsTolerant();
     const storyId = Number(args.storyId);
-    // No story id → a usage error; there is nothing to report an envelope
-    // about, so let runAsCli surface it as a plain fatal.
+    // No story id: nothing to report an envelope about.
     if (!Number.isInteger(storyId) || storyId <= 0) throw err;
     const terminal = buildTerminalEnvelope({
       storyId,
       status: 'failed',
-      // An argv rejection happens before any phase runs, so it reports at
-      // `init` rather than claiming a confirm-merge attempt that never began.
+      // An argv rejection precedes every phase.
       phase: argvError ? 'init' : 'confirm-merge',
       failure: { reason: String(err?.message ?? err) },
       nextCommand: NEXT_COMMANDS.recover(storyId),

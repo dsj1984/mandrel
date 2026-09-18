@@ -1,30 +1,7 @@
 /**
- * audit-to-stories.js — Convert audit-* report findings into actionable
- * GitHub Story proposals.
- *
- * The CLI exposes three deterministic sub-commands the host workflow
- * (`/audit-to-stories`) invokes between HITL gates:
- *
- *   --scan [--glob <pattern>] [--severity <threshold>]
- *     Parse every audit-*-results.md under the glob, normalise findings,
- *     stamp fingerprints, group cross-audit, and (when a provider is
- *     available) classify each group as create / skip-open / skip-reoccurring.
- *     Emits a single `audit-to-stories-plan.json` envelope to --out (or
- *     stdout when --json is set).
- *
- *   --emit-plan-seed --plan <plan.json> --out <path>
- *     Read the plan envelope from disk, render the `/mandrel-plan --seed`
- *     seed markdown, persist to --out.
- *
- *   --emit-stories --plan <plan.json>
- *     Read the plan envelope from disk, render the per-group `{ title,
- *     body, labels }` objects. The host LLM consumes the JSON and calls
- *     the GitHub provider (gh / mcp__github__issue_write) to open one
- *     Issue per group.
- *
- * Per docs/contributing/orchestration-error-handling.md, this CLI throws on
- * unrecoverable failure rather than calling Logger.fatal so runAsCli's
- * exit-code boundary stays robust under mocked process.exit.
+ * audit-to-stories.js — turn audit-* report findings into a dedup-checked
+ * plan, a `/mandrel-plan` seed, or standalone Story drafts. Throws rather than
+ * calling Logger.fatal so runAsCli owns the exit code.
  */
 
 import fs from 'node:fs';
@@ -76,17 +53,8 @@ const DEFAULT_GLOB = 'temp/audits/audit-*-results.md';
 const FAN_OUT_REPORT = 'audit-fan-out-results.md';
 
 /**
- * Does `finding` clear the `threshold` severity floor?
- *
- * `SEVERITY_RANK` is imported from the canonical scale rather than declared
- * here (Story #4877). The local copy this replaces ranked only four levels
- * (`critical|high|medium|low`), so `info` — the canonical floor — ranked `0`,
- * below even `--severity low`, and every informational finding was silently
- * dropped from every filtered run. Sourcing the ranking from the SSOT means a
- * level cannot exist in the vocabulary and be invisible to the filter.
- *
- * An unrecognised or absent severity still ranks below every real floor: it
- * failed to parse, so it is not evidence that a threshold was met.
+ * Does `finding` clear the `threshold` floor? An unparsed severity ranks below
+ * every real floor.
  *
  * @param {{ severity?: string }} finding
  * @param {string} [threshold] — a canonical level, `'all'`, or falsy for no floor.
@@ -116,11 +84,8 @@ function readReports(paths) {
 }
 
 /**
- * Count findings per severity bucket. The buckets are the canonical levels plus
- * `unknown` for a finding whose severity did not parse — kept as a visible
- * bucket so an unparseable severity is reported rather than absorbed into a
- * real level. Derived from `SEVERITIES` so a new level appears in the tally
- * automatically instead of falling into `unknown` (Story #4877).
+ * Count findings per canonical level, plus a visible `unknown` bucket for an
+ * unparsed severity.
  *
  * @param {Array<{ severity?: string }>} findings
  * @returns {Record<string, number>}
@@ -137,18 +102,10 @@ function tallyBySeverity(findings) {
   return t;
 }
 
-/**
- * The four levels a report's `Severity tally:` line declares. `Info` is
- * deliberately absent — the severity scale already excludes it from scheduled
- * work — and `unknown` is not a level a lens can declare, so neither is
- * comparable against the line.
- */
+/** The levels a `Severity tally:` line declares; `info` and `unknown` are not comparable. */
 const TALLY_LEVELS = Object.freeze(['critical', 'high', 'medium', 'low']);
 
 /**
- * Project a findings list onto the four comparable levels, so a report's
- * declared tally and the parsed one are compared over the same axes.
- *
  * @param {Array<{ severity?: string }>} findings
  * @returns {{ critical: number, high: number, medium: number, low: number }}
  */
@@ -167,14 +124,9 @@ function formatTally(tally) {
 }
 
 /**
- * Run the cross-check, route its messages to stderr, and enforce the
- * fail-closed arm — the whole report-verification step as one call, so
- * `buildPlan` reads as a pipeline rather than absorbing the branching.
- *
- * `--auto` files unattended, so a report it cannot trust must stop the run
- * BEFORE the ledger reconcile and before any Story payload is built: no GitHub
- * write, no ledger write, non-zero exit. `--scan` reports and carries on — the
- * failures ride the plan envelope for the operator to act on.
+ * Cross-check the reports, warn on stderr, and throw under
+ * `failOnReportFailures` (`--auto`) BEFORE any ledger or GitHub write; `--scan`
+ * carries the failures on the plan envelope instead.
  *
  * @param {object} params
  * @param {Array<{ sourceReport: string, markdown: string }>} params.reports
@@ -209,28 +161,12 @@ function auditReportFailures({
 }
 
 /**
- * Cross-check every report's declared `Severity tally:` line against the
- * findings the parser actually extracted from it (Story #5144).
- *
- * A parser that silently drops findings is indistinguishable from a clean
- * report: the empty plan looks exactly like "nothing to file". The lens
- * contract therefore mandates one machine-readable tally line per report, and
- * this is where the two numbers meet. Three failure kinds are named:
- *
- * - `missing-tally` — the report declares no tally at all (an older or
- *   hand-written report). `allowMissingTally` downgrades ONLY this kind to a
- *   warning, for an interactive `--scan` over legacy reports.
- * - `tally-mismatch` — the report says one thing and the parse says another.
- * - `duplicate-tally` — the report declares the tally more than once, so there
- *   is no single number to check against. Adopting whichever line the scan
- *   reached first would compare the parse against an arbitrary one of two
- *   declarations, which is a cross-check in name only. `allowMissingTally`
- *   does NOT downgrade it: the report is contradictory, not merely old.
- * - `unresolved-severity` — a finding parsed with no resolvable severity. It
- *   is a report defect, never an `unknown` group.
- *
- * Pure: returns the messages and lets the caller own the single `Logger.warn`
- * (stderr) sink, so `--scan` JSON on stdout stays clean.
+ * Cross-check each report's declared `Severity tally:` line against what the
+ * parser extracted — a parser that silently drops findings otherwise looks
+ * like a clean report. Failure kinds: `missing-tally` (the only kind
+ * `allowMissingTally` downgrades to a warning), `tally-mismatch`,
+ * `duplicate-tally` (no single number to check; contradictory, never
+ * downgraded), and `unresolved-severity`. Pure; the caller owns stderr.
  *
  * @param {object} params
  * @param {Array<{ sourceReport: string, markdown: string }>} params.reports
@@ -295,10 +231,6 @@ function crossCheckReports({ reports, findings, allowMissingTally }) {
 }
 
 /**
- * The `--allow-missing-tally` downgrade message. It still names the report and
- * says plainly that `--auto` ignores the flag, so an operator never reads the
- * warning as "this report is fine".
- *
  * @param {{ sourceReport: string, parsed: object }} failure
  * @returns {string}
  */
@@ -307,11 +239,8 @@ function missingTallyWarning(failure) {
 }
 
 /**
- * Render the report-failure block: one line per failure naming the report path
- * and BOTH tallies, so the operator can see which side is wrong without
- * re-reading the report.
- *
- * Pure: returns the message string so the caller owns the single `Logger.warn`.
+ * One line per failure naming the report and BOTH tallies, so the operator
+ * sees which side is wrong.
  *
  * @param {Array<{ sourceReport: string, kind: string, reported: object|null, parsed: object, titles?: string[], tallyLines?: string[] }>} failures
  * @returns {string}
@@ -321,9 +250,7 @@ function reportFailureWarning(failures) {
     const titles = f.titles?.length
       ? ` findings=${f.titles.map((t) => `"${t}"`).join(', ')}`
       : '';
-    // A duplicate names the competing lines rather than a tally: there is no
-    // single `reported` number to print, and "which two lines" is the whole
-    // remedy.
+    // A duplicate has no single `reported` number; name the competing lines.
     const declared = f.tallyLines?.length
       ? ` declared=${f.tallyLines.map((t) => `"${t}"`).join(' | ')}`
       : '';
@@ -337,11 +264,9 @@ function reportFailureWarning(failures) {
 }
 
 /**
- * Test-only seam: when `AUDIT_TO_STORIES_PROVIDER_FIXTURE` names a module, load
- * its default export as the dedup provider (ports) instead of the live GitHub
- * provider. This lets the soft-fail contract be exercised end-to-end through
- * the real `--scan` CLI with a search port that fails for a subset of groups
- * (Story #4678, AC-8), with no network. Returns null when the env var is unset.
+ * Test-only seam: `AUDIT_TO_STORIES_PROVIDER_FIXTURE` names a module whose
+ * default export replaces the whole provider adapter, so the real CLI runs
+ * with no network.
  *
  * @returns {Promise<object|null>}
  */
@@ -353,14 +278,8 @@ async function loadFixtureProvider() {
 }
 
 /**
- * Why the live provider could not be adapted, as a typed refusal.
- *
- * `loadProvider` used to collapse every one of these onto a bare `null`, which
- * was survivable for the dedup path (it degrades to a create-only plan and
- * warns) but not for `--wire-edges`, which cannot degrade and could therefore
- * only blame "configuration" for what was just as likely an auth failure.
- * Throwing a reason keeps the soft-fail (`loadProviderOrNull`) and lets the
- * write path name the missing precondition (Story #5143).
+ * Why the live provider could not be adapted. A typed reason lets
+ * `--wire-edges`, which cannot degrade, name the missing precondition.
  */
 class ProviderUnavailableError extends Error {
   /**
@@ -375,13 +294,9 @@ class ProviderUnavailableError extends Error {
 }
 
 /**
- * Walk the list endpoint once per label and merge the pages into one
- * deduplicated, normalised issue list.
- *
- * `labels` is an OR across the run's lenses, which the REST list endpoint
- * cannot express in one query (its `labels` parameter is an AND), so one call
- * per label is the narrowest honest read. Each is a paginated **list**, not a
- * search — a different, far larger rate-limit budget.
+ * List issues once per label (the REST `labels` filter is an AND, we need an
+ * OR) and merge them deduplicated. The list endpoint has a far larger
+ * rate-limit budget than search.
  *
  * @param {object} provider
  * @param {string[]} labels
@@ -403,11 +318,8 @@ async function listIssuesForLabels(provider, labels) {
 }
 
 /**
- * The two read ports the dedupe module consumes, adapted off the provider's
- * one full-text `searchIssues` call: `findIssuesByFingerprint(sha)` for the
- * exact-fingerprint pass and — since Story #4626 — `searchCandidates(finding)`
- * for the meaning-first Stage-1 pass. Adapted here so no provider-shape
- * knowledge is baked into the dedupe module.
+ * The dedupe module's read ports, adapted here so it holds no provider-shape
+ * knowledge.
  *
  * @param {object} provider
  * @param {{ owner: string, repo: string }} coords
@@ -421,12 +333,8 @@ function buildDedupPorts(provider, { owner, repo }) {
       return (hits ?? []).map(normaliseIssueHit);
     },
     /**
-     * List every Issue carrying one of the run's `audit::*` labels, once, off
-     * the REST list endpoint. The dedup module indexes the result and answers
-     * every exact-fingerprint lookup from it, so the rate-limited search API is
-     * spent only on findings it has never seen. A provider without the list
-     * port yields `null`, which returns dedup to the per-finding search path
-     * rather than silently skipping it.
+     * Every Issue carrying one of the run's `audit::*` labels, for the
+     * fingerprint index. `null` (no list port) falls back to per-finding search.
      *
      * @param {string[]} labels
      * @returns {Promise<Array<object>|null>}
@@ -436,8 +344,6 @@ function buildDedupPorts(provider, { owner, repo }) {
       return listIssuesForLabels(provider, labels);
     },
     async searchCandidates(finding) {
-      // Wire the shared semantic search onto the provider's full-text
-      // issue search (open + closed) so route-finding's Stage-1 pass runs.
       const search = async (query) => {
         if (!query || query.trim().length === 0) return [];
         const hits = await provider.searchIssues({ query, owner, repo });
@@ -449,15 +355,9 @@ function buildDedupPorts(provider, { owner, repo }) {
 }
 
 /**
- * The provider's write ports, carried through the adapter **bound** to their
- * provider so `this` survives the hand-off — `GitHubProvider` delegates each
- * of these to a composed gateway off `this`, so an unbound reference throws on
- * first call. Narrowing the adapter to the dedup read ports is what made
- * `--wire-edges` fail closed against a correctly configured repo (Story #5143).
- *
- * A port the provider does not implement is omitted rather than stubbed: the
- * wire step already degrades per port (footer-only when the native dependency
- * ports are absent), and a stub would defeat that check.
+ * The provider's write ports, **bound** — `GitHubProvider` delegates off
+ * `this`, so an unbound reference throws. A missing port is omitted, not
+ * stubbed, so the wire step's per-port degradation still sees it.
  *
  * @param {object} provider
  * @returns {Record<string, Function>}
@@ -480,9 +380,6 @@ const PROVIDER_WRITE_PORTS = [
 ];
 
 /**
- * Resolve the config and construct the live provider, converting each way that
- * can fail into a typed refusal.
- *
  * @param {{ createProviderImpl?: Function, resolveConfigImpl?: Function }} seams
  * @returns {Promise<{ config: object, provider: object }>}
  * @throws {ProviderUnavailableError}
@@ -520,14 +417,7 @@ async function constructProvider({ createProviderImpl, resolveConfigImpl }) {
 }
 
 /**
- * Adapt the configured provider for this CLI: the dedup read ports plus the
- * provider's own write ports, bound.
- *
- * The `createProviderImpl` / `resolveConfigImpl` seams let a contract test
- * drive this exact adapter with an in-memory issue store instead of the live
- * GitHub provider. The `AUDIT_TO_STORIES_PROVIDER_FIXTURE` fixture is returned
- * verbatim — it stands in for the whole adapter, not for the provider behind
- * it.
+ * Adapt the configured provider: dedup read ports plus bound write ports.
  *
  * @param {{ createProviderImpl?: Function, resolveConfigImpl?: Function }} [seams]
  * @returns {Promise<object>} the adapter (never null).
@@ -556,9 +446,7 @@ async function loadProvider({ createProviderImpl, resolveConfigImpl } = {}) {
 }
 
 /**
- * The dedup path's soft-fail view of `loadProvider`: the provider is optional
- * there — when it cannot be adapted the dedupe step emits a create-only
- * classification and warns the operator loudly rather than aborting the scan.
+ * Soft-fail `loadProvider` for dedup, which degrades to create-only and warns.
  *
  * @param {{ createProviderImpl?: Function, resolveConfigImpl?: Function }} [seams]
  * @returns {Promise<object|null>}
@@ -572,21 +460,8 @@ async function loadProviderOrNull(seams = {}) {
 }
 
 /**
- * Render the loud, operator-visible warning emitted when the Phase 6 dedup
- * does NOT run against real GitHub issues. Two distinct reasons:
- *
- *   - `'no-provider-port'` — the configured provider resolved but exposes no
- *     `searchIssues` port (or `loadProviderOrNull()` swallowed a typed
- *     refusal — bad config, failed construction). This is the
- *     silent-no-op the workflow's "Never open a duplicate Issue" contract
- *     was failing on: every group classifies `create` and the operator gets
- *     zero automated dedup signal. Surfacing it loudly is the whole point.
- *   - `'disabled'` — the operator passed `--no-provider`, intentionally
- *     skipping dedup. Still warned (so a re-run that opens duplicates is
- *     never a surprise), but framed as a deliberate choice.
- *
- * Pure: returns the message string so `buildPlan` owns the single
- * `Logger.warn` write site and the text stays unit-testable.
+ * Warning for a dedup that did not run: `no-provider-port` (no usable provider
+ * — otherwise a silent all-`create` plan) or `disabled` (`--no-provider`).
  *
  * @param {'no-provider-port'|'disabled'} reason
  * @returns {string}
@@ -611,16 +486,8 @@ function dedupSkippedWarning(reason) {
 }
 
 /**
- * Render the loud, operator-visible warning emitted when Phase 6 dedup ran but
- * one or more groups' lookups could not complete (an HTTP 422, or a rate limit
- * still exhausted after the endpoint budget's cooldown). Those groups degrade
- * to `create` rather than aborting the whole scan (Story #4678); this warning
- * names each affected group so the operator knows exactly which to check by
- * hand. Mirrors the `dedupSkippedWarning` shape so a partially-checked plan
- * reads as clearly as a wholly-unchecked one.
- *
- * Pure: returns the message string so `buildPlan` owns the single `Logger.warn`
- * write site (stderr) and the text stays unit-testable.
+ * Warning naming each group whose lookup could not complete (422, exhausted
+ * rate limit) and so degraded to `create` unchecked.
  *
  * @param {Array<{ group: string, reason: string }>} entries
  * @returns {string}
@@ -636,15 +503,9 @@ function dedupDegradedWarning(entries) {
 }
 
 /**
- * Render the operator-visible line naming a host-supplied index and its size.
- *
- * Always emitted for a `--issues-file` run, because "how many issues did you
- * actually check against" is the one number that separates a real dedup from a
- * plan that merely looks checked. At zero it is the load-bearing case: an empty
- * corpus is a legitimate first sweep AND exactly what a broken fetch writes, so
- * the operator — not the run — decides which this was. Deliberately distinct in
- * wording from both `dedupSkippedWarning` and `dedupDegradedWarning` so the
- * three are never confused in a scrollback.
+ * Always emitted for `--issues-file`: the corpus size separates a real dedup
+ * from one that merely looks checked. Zero is ambiguous (first sweep or broken
+ * fetch), so the operator decides.
  *
  * @param {{ source?: string, size?: number }} dedupIndex
  * @returns {string}
@@ -662,11 +523,7 @@ function dedupIndexWarning({ size = 0 } = {}) {
 }
 
 /**
- * Render the warning for a pre-fetch of the issue index that could not
- * complete. The run still dedups — it falls back to a per-finding search — but
- * it loses the one-list saving, and until Story #5301 this failure was
- * swallowed whole: the operator saw only the downstream per-group degradation
- * and could not tell that the pre-fetch itself was the cause.
+ * Warning for a failed index pre-fetch; dedup falls back to per-finding search.
  *
  * @param {string} reason
  * @returns {string}
@@ -680,23 +537,10 @@ function dedupIndexDegradedWarning(reason) {
 }
 
 /**
- * Phase 6: classify every group against GitHub, and say loudly whichever way
- * it went.
- *
- * Extracted from `buildPlan` because the gate has three outcomes, not two, and
- * inlining them pushed the caller past its complexity ceiling. The three:
- *
- *   - **deduped** — a provider resolved, or the host supplied a corpus, or
- *     both. A host-supplied corpus is a dedup source in its own right, which is
- *     the whole point: the gate asks "can we dedup at all", not "did a provider
- *     resolve". While it asked the latter, `--no-provider --issues-file` — the
- *     one invocation a `gh`-less host can run — short-circuited to the seeded
- *     all-`create` classifications however well the dedupe module worked.
- *   - **skipped, no port** — a provider was wanted but could not be adapted.
- *   - **skipped, disabled** — `--no-provider` with no corpus to fall back on.
- *
- * Every outcome warns on stderr, so the `--scan` JSON on stdout stays clean and
- * a create-only plan is never read as "checked, found nothing".
+ * Classify every group against GitHub and warn on stderr whichever way it
+ * went. A host-supplied corpus is a dedup source on its own, so
+ * `--no-provider --issues-file` (the `gh`-less host) still dedups; only with
+ * neither a provider nor a corpus is every group `create`.
  *
  * @param {{ groups: Array<object>, useProvider?: boolean,
  *   issues?: Array<object>|null }} params
@@ -740,25 +584,17 @@ async function runDedupPhase(
 }
 
 /**
- * Every warning a completed dedup pass owes the operator, in order. Pure, so
- * the wording stays unit-testable and `runDedupPhase` keeps one write site.
- *
  * @param {{ issues?: Array<object>|null, summary: object }} params
  * @returns {string[]}
  */
 function dedupPhaseWarnings({ issues, summary }) {
   const warnings = [];
   if (issues) warnings.push(dedupIndexWarning(summary.dedupIndex));
-  // The pre-fetch failing is a distinct fact from any group's lookup failing,
-  // and used to be invisible: the operator saw only the downstream per-group
-  // degradation and could not tell what had caused it.
   if (summary.dedupDegraded?.indexPrefetch) {
     warnings.push(
       dedupIndexDegradedWarning(summary.dedupDegraded.indexPrefetch),
     );
   }
-  // A partially-checked plan is a useful result — name the groups that degraded
-  // to create because their lookup could not complete (Story #4678).
   if (summary.dedupDegraded?.count > 0) {
     warnings.push(dedupDegradedWarning(summary.dedupDegraded.groups));
   }
@@ -766,12 +602,7 @@ function dedupPhaseWarnings({ issues, summary }) {
 }
 
 /**
- * Scan → group → dedup → (optionally) reconcile the cross-run ledger, and
- * return the plan envelope.
- *
- * Every seam on the optional final `deps` parameter defaults to the real
- * implementation (`docs/contributing/test-seams.md` rules 1-2, 4), so `main`,
- * `runAuto`, and every production caller are unchanged.
+ * Scan → group → dedup → (optionally) reconcile the cross-run ledger.
  *
  * @param {{ glob?: string, severity?: string, useProvider?: boolean,
  *   issuesFile?: string, ledger?: object }} params
@@ -807,9 +638,7 @@ async function buildPlan(
     reconcileScanLedgerImpl = reconcileScanLedger,
     logger = Logger,
   } = deps;
-  // Deliberately BEFORE the reports are read: an unusable corpus is a usage
-  // error, and failing fast costs the operator nothing, where failing late
-  // would tempt a fallback that silently dedups nothing.
+  // Before reading reports: an unusable corpus is a usage error, not a fallback.
   const issues = issuesFile ? loadIssuesFileImpl(issuesFile) : null;
   const reportPaths = await collectReportPathsImpl(pattern ?? DEFAULT_GLOB);
   if (reportPaths.length === 0) {
@@ -842,9 +671,7 @@ async function buildPlan(
     logger,
   });
   const filtered = allFindings.filter((f) => meetsSeverity(f, severity));
-  // A finding whose severity did not resolve is a report defect, not a Story.
-  // It stays visible in `summary.tally.unknown` and in `reportFailures`, but
-  // it never reaches grouping — an `unknown` group is not a thing to file.
+  // An unresolved severity is a report defect (tallied, never grouped).
   const stamped = withFingerprints(filtered.filter((f) => Boolean(f.severity)));
   const { groups, edges } = groupFindings(stamped);
 
@@ -853,10 +680,7 @@ async function buildPlan(
     { loadProviderImpl, classifyGroupsImpl, logger },
   );
 
-  // Cross-run ledger (Story #4626): fold this scan onto the committed memory,
-  // suppress findings a prior run recorded as accepted-risk, and (unless the
-  // caller asked not to write) persist the updated ledger. Opt-in — the plain
-  // --scan path leaves it untouched so it never mutates a committed file.
+  // Opt-in: plain --scan never mutates the committed ledger.
   let ledgerSummary;
   if (ledger) {
     const suppressed = reconcileScanLedgerImpl({
@@ -903,9 +727,8 @@ async function buildPlan(
 }
 
 /**
- * Fold the current scan onto the committed cross-run ledger and persist it.
- * Returns the set of finding fingerprints the ledger says are accepted-risk
- * (deliberately rejected) so the caller can suppress them.
+ * Fold the scan onto the ledger, persist it, and return the accepted-risk
+ * fingerprints to suppress.
  *
  * @param {object} params
  * @param {string} params.ledgerPath
@@ -921,8 +744,7 @@ function reconcileScanLedger({ ledgerPath, findings, classifications, write }) {
     ledger: prior,
     findings,
     issueStates,
-    // The ledger lives in the shared findings layer and cannot import the
-    // audit adapter without closing a cycle, so the projection is ours to pass.
+    // Passed in: the ledger importing the audit adapter would close a cycle.
     toCanonical: toCanonicalFinding,
   });
   if (write !== false) writeLedger(ledgerPath, next);
@@ -934,8 +756,6 @@ function reconcileScanLedger({ ledgerPath, findings, classifications, write }) {
 }
 
 /**
- * Derive a `{ fingerprint → issueState }` map from dedupe classifications so
- * the ledger reconcile sees the live open/closed state of matched Issues.
  * @param {Array<object>} classifications
  * @returns {Record<string, { state: string, number: number|null }>}
  */
@@ -961,16 +781,10 @@ function loadPlan(planPath) {
   return JSON.parse(fs.readFileSync(planPath, 'utf8'));
 }
 
-/**
- * The unattended-sweep severity floor when `--severity` names none. Fixed
- * since Story #5382 folded the never-set
- * `delivery.auditToStories.severityFloor` key.
- */
+/** The `--auto` severity floor when `--severity` names none. */
 const DEFAULT_SEVERITY_FLOOR = 'high';
 
 /**
- * The effective sweep floor: an explicit `--severity` wins, else the default.
- *
  * @param {string|undefined} explicit
  * @returns {string}
  */
@@ -979,11 +793,9 @@ function severityFloorOf(explicit) {
 }
 
 /**
- * Unattended `--auto` sweep. No interactive gates: it resolves the severity
- * floor (`--severity`, else `high`), builds the plan (with cross-run ledger reconciliation),
- * and reports a run summary. Under `--dry-run` it performs zero GitHub writes
- * and emits the summary only; otherwise it returns the create-eligible Story
- * payloads for the caller to open. Always resolves — never prompts.
+ * Unattended `--auto` sweep: build the plan with ledger reconciliation and
+ * return a summary plus the create-eligible Story payloads (none under
+ * `--dry-run`, which writes nothing). Never prompts.
  *
  * @param {object} params
  * @param {string} [params.glob]
@@ -1018,8 +830,7 @@ async function runAuto({
     useProvider,
     issuesFile,
     ledger: { path: resolvedLedgerPath, write: !dryRun },
-    // `--auto` never accepts `--allow-missing-tally`: an unattended sweep has
-    // no operator to read a warning, so every report failure is fatal here.
+    // No operator reads warnings unattended, so every report failure is fatal.
     allowMissingTally: false,
     failOnReportFailures: true,
   });
@@ -1054,20 +865,14 @@ async function runAuto({
       skipReoccurring: byAction.skipReoccurring.length,
       suppressedByLedger: byAction.suppressed.length,
     },
-    // `--auto` opens no Issues itself — the caller does, from the `--emit-stories`
-    // drafts — so these keys are the only thing standing between its summary and
-    // the `--wire-edges --ids` map. Without them an unattended sweep cannot
-    // record what it filed, and the ledger stays empty however well it works.
+    // The caller opens the Issues; these keys feed its `--wire-edges --ids`
+    // map, without which the ledger never records what was filed.
     createGroupKeys: eligible.map((g) => g?.groupKey).filter(Boolean),
-    // Re-detected open Issues the operator may want a "re-detected" comment on.
     reDetected: byAction.skipOpen
       .flatMap((c) => c.matchedIssues ?? [])
       .map((i) => i.number)
       .filter((n) => typeof n === 'number'),
-    // The sweep may have just written memory this checkout cannot keep — an
-    // ephemeral scheduled clone is exactly where that bites (Story #5145).
-    // The whole decision lives in `resolveLedgerSummary` so this assembly
-    // stays branch-free.
+    // An ephemeral clone may not be able to keep the ledger it just wrote.
     ledger: await resolveLedgerSummary({
       ledger: plan.summary?.ledger ?? null,
       ledgerPath: resolvedLedgerPath,
@@ -1083,16 +888,9 @@ async function runAuto({
 }
 
 /**
- * Build every eligible group into a `{ title, body, labels }` Story object and
- * gate the batch against the inline-contract bar BEFORE any issue is opened.
- *
- * The `--emit-stories` path opens GitHub issues directly (no decomposer
- * round-trip), so `assertEveryStoryHasInlineContract` never runs against these
- * bodies. This gate restores that guarantee at the standalone seam: each
- * emitted body is re-parsed through the canonical `story-body` parser and must
- * carry a non-empty `acceptance[]` AND a non-empty `verify[]`. A body that
- * fails throws, surfacing the gap instead of opening an ungated Story
- * (Story #4270).
+ * Build each eligible group into a Story and throw BEFORE any issue is opened
+ * unless every body re-parses with non-empty `acceptance[]` and `verify[]` —
+ * this path skips the decomposer's inline-contract assertion.
  *
  * @param {Array<{ group: object }>} eligible — classifications eligible to create.
  * @param {Array<{ fromGroupKey: string, toGroupKey: string }>} edges — sequencing edges.
@@ -1123,14 +921,8 @@ function buildAndGateStories(eligible, edges) {
 }
 
 /**
- * Which precondition is missing, keyed by the reason `loadProvider` refused.
- *
- * `--wire-edges` cannot degrade — the `blocked by #N` footers are the only
- * thing `/mandrel-deliver`'s resolver reads — so the one thing its failure owes the
- * operator is which of the preconditions is actually unmet. The message it
- * replaced ("Configure github.owner/repo (and auth), or wire the edges by
- * hand") blamed configuration for an auth failure and pointed at a manual
- * fallback for what is a wiring bug (Story #5143).
+ * The unmet precondition, keyed by `loadProvider`'s refusal reason.
+ * `--wire-edges` cannot degrade, so its error must name which one.
  */
 const WIRE_EDGES_PRECONDITIONS = {
   'no-config': 'github.owner and github.repo are not both set in .agentrc.json',
@@ -1159,18 +951,9 @@ function wireEdgesPreconditionError(reason, detail) {
 }
 
 /**
- * The `--wire-edges` pass: hand the opened issue numbers back so the cohort's
- * detected group edges become declared ordering (Story #5044).
- *
- * This is the second half of the two-pass crossing `--emit-stories` starts. The
- * host opens one Issue per group from the emitted drafts, then replays the
- * `groupKey → issueNumber` map here; each Story whose blockers now exist is
- * re-rendered with a canonical `blocked by #N` footer and the same edges are
- * mirrored as native `blocked_by` relations.
- *
- * The same map is what the cross-run ledger needs to record what this run
- * filed, so the record rides along here rather than arriving as a second
- * command an operator must remember (Story #5305).
+ * Second pass after `--emit-stories`: given the opened `groupKey →
+ * issueNumber` map, re-render each Story with `blocked by #N` footers, mirror
+ * them as native `blocked_by`, and record the filed issues in the ledger.
  *
  * @param {object} params
  * @param {object} params.plan   A `--scan` plan envelope.
@@ -1199,12 +982,8 @@ async function wireEdges(
     .filter((c) => c.action === 'create')
     .map((c) => c.group);
 
-  // Record BEFORE the provider is loaded. The record is pure local filesystem
-  // work, while the wiring below needs a provider exposing `updateTicket` — and
-  // the host most likely to lack one is the `gh`-less host where the ledger is
-  // the only duplicate protection there is. Recording first means such a run
-  // still remembers what it filed, and the precondition error below still
-  // surfaces unchanged afterwards.
+  // Record before loading the provider: a `gh`-less host, whose only duplicate
+  // protection is the ledger, must still remember what it filed.
   const ledger = recordFiledIssuesImpl({
     ledgerPath,
     groups,
@@ -1233,8 +1012,7 @@ async function wireEdges(
 }
 
 /**
- * Parse the `--ids` argument: a JSON object mapping group key → issue number,
- * or a path to a file containing one.
+ * `--ids`: inline JSON `{ groupKey: issueNumber }` or a path to one.
  *
  * @param {string|undefined} raw
  * @returns {Record<string, number>}
@@ -1295,13 +1073,7 @@ export const __testing = {
 };
 
 /**
- * The CLI core: dispatch one of the four sub-commands and persist its output.
- * Extracted from the `main` shell so the whole sub-command table (including
- * the no-sub-command usage throw) is reachable without spawning the CLI.
- *
- * Every seam on the optional final `deps` parameter defaults to the real
- * implementation (`docs/contributing/test-seams.md` rules 1-2, 4), so `main` and
- * every production invocation are unchanged.
+ * The CLI core: dispatch one sub-command and persist its output.
  *
  * @param {string[]} [argv]
  * @param {{
@@ -1316,12 +1088,7 @@ export const __testing = {
  * @returns {Promise<void>}
  */
 /**
- * The one-line `--ledger-commit` outcome, for stderr.
- *
- * Names the branch and the PR on success — the two things an operator needs to
- * go look at it — and the skip reason otherwise, because "nothing happened" and
- * "the ledger was already clean" are different facts and only one of them is
- * fine.
+ * The one-line `--ledger-commit` outcome: branch and PR, or the skip reason.
  *
  * @param {{ committed?: boolean, reason?: string, branch?: string,
  *   prUrl?: string|null, resumed?: boolean, ledgerPath?: string }} [result]
@@ -1334,8 +1101,6 @@ function describeLedgerCommit(result) {
 }
 
 /**
- * The success half: the branch, whether it resumed a half-finished one, and
- * the PR to go look at.
  * @param {object} result
  * @returns {string}
  */
@@ -1346,8 +1111,7 @@ function ledgerCommittedLine(result) {
 }
 
 /**
- * The skip half. It names the ledger file, because the fact that matters is
- * which state is still only in the working tree.
+ * Names the ledger file: its state is still only in the working tree.
  * @param {object} [result]
  * @returns {string}
  */
@@ -1358,14 +1122,8 @@ function ledgerSkippedLine(result) {
 }
 
 /**
- * Validate `--severity` against the canonical scale, failing on a value the
- * filter would silently ignore.
- *
- * `meetsSeverity` reads an unknown threshold as rank `0`, so a typo — the
- * classic being `--severity Hgh` — quietly widened the run to every finding
- * instead of narrowing it. On an unattended sweep that is the difference
- * between filing a batch and filing the backlog, with nothing on stderr to say
- * so. An absent flag stays absent: the floor then resolves from config.
+ * Reject an unknown `--severity`: `meetsSeverity` would read a typo as rank 0
+ * and silently widen the run to every finding. Absent stays absent.
  *
  * @param {string|undefined} raw
  * @returns {string|undefined} the canonical level.
@@ -1439,15 +1197,10 @@ export async function runAuditToStories(
       })
     ).summary;
 
-  // Deliberately AFTER the summary is persisted (see the subcommand table's
-  // `after` slot): a broken remote must not cost the operator the sweep's
-  // findings, so the PR attempt is the last thing the run does (Story #5145).
+  // Runs after the summary is persisted: a broken remote must not cost the
+  // sweep's findings.
   const commitLedger = async () => {
     if (!values['ledger-commit'] || values['dry-run']) return;
-    // Say what happened. The tail used to run silently, so an operator could
-    // not tell a ledger PR from a skip without going to look for the branch —
-    // and a skip is the outcome that matters, because it means the sweep's
-    // memory is still only in the working tree.
     Logger.warn(
       describeLedgerCommit(
         await runLedgerCommitImpl({ ledgerPath: values.ledger }),
@@ -1487,18 +1240,11 @@ export async function runAuditToStories(
       plan: loadPlanImpl(values.plan),
       issueByGroupKey: parseIssueMapImpl(values.ids),
       ledgerPath: values.ledger,
-      // `--scan` still never writes the ledger; `--wire-edges` runs only after
-      // the Issues were really opened, where recording is never wrong — so the
-      // record is on by default here and `--dry-run` is what suppresses it.
+      // The Issues really exist here, so recording defaults on.
       write: !values['dry-run'],
     });
 
-  // One table, not a chain of `if (values.X) { …; return; }`. Each entry
-  // renders its sub-command's output; persisting it — and the stdout newline a
-  // piped run needs — happens once, below. The chain restated that tail in
-  // every arm, so each new sub-command paid for it twice: once in the branch
-  // and once in the complexity budget. The optional fourth slot is an
-  // after-persist tail for work that must not pre-empt the report.
+  // [flag, render, newlineOnStdout, afterPersist?]
   const subcommands = [
     ['auto', async () => json(await runAutoSummary()), true, commitLedger],
     ['scan', async () => json(await scanPlan()), true],
@@ -1520,17 +1266,9 @@ export async function runAuditToStories(
 }
 
 /**
- * Render the Story drafts as the human-readable `--emit-stories` transcript
- * (the `--json` form is the machine one). `dependsOn` is surfaced because the
- * group edges no longer ride the body at emit time — the blockers have no issue
- * numbers yet — so this is where a human driving the create pass by hand sees
- * the ordering they will replay through `--wire-edges` (Story #5044).
- *
- * The trailing `--- grouping ---` block carries the container-Epic default
- * (Story #5139), so the standalone path states it where it is actually read.
- * The `--json` form stays a bare array on purpose: it is a documented output
- * shape with a test asserting it, and the Epic is an operator decision the
- * workflow's Phase 4 stop owns, not a field a machine consumer acts on.
+ * Human-readable `--emit-stories` transcript. `dependsOn` is shown because the
+ * blockers have no issue numbers yet (they are replayed via `--wire-edges`).
+ * The Epic grouping block is text-only; `--json` stays a bare array.
  *
  * @param {Array<{ title: string, labels: string[], body: string, groupKey?: string, dependsOn?: string[] }>} built
  * @returns {string}

@@ -1,49 +1,7 @@
 /**
- * review-providers/native.js — Native (in-process) ReviewProvider adapter.
- *
- * Story #2833 (Epic #2815) — extracts the findings-collection logic that
- * previously lived in the retired `.agents/scripts/epic-code-review` CLI into a
- * `ReviewProvider`-shaped adapter. The adapter:
- *
- *   1. Diffs `headRef` against `baseRef` to enumerate changed files.
- *   2. Runs scoped lint (biome + markdownlint) over the changed surface.
- *   3. Computes per-file maintainability reports for changed JS files, minus
- *      the files the maintainability gate exempts (see below).
- *   4. Maps each signal to a `Finding` with a `severity` ∈ {critical, high,
- *      medium, suggestion}.
- *
- * **The maintainability dimension honours the gate's exemption list**, read via
- * [`mi-exemptions.js`](mi-exemptions.js) — see that module for why this
- * provider disagreeing with the ratchet was a live delivery blocker. Exempted
- * files are named on the log rather than silently dropped.
- *
- * The lint dimension is deliberately NOT filtered through the same list:
- * lint carries its own exclusion surface (biome's `files.includes`,
- * `.markdownlintignore`), and a quality-gate ignore glob makes no claim about
- * whether a file should parse or format cleanly.
- *
- * The adapter does NOT post to GitHub and does NOT render a markdown body.
- * Those concerns belong to `runCodeReview()`, which calls the renderer + the
- * structured-comment upserter.
- *
- * Construction is intentionally zero-arg so the factory can instantiate
- * it without threading config through every call. Per-invocation config
- * (paths, runners, evidence store) is injected via the `runReview` arg or
- * the `createNativeProvider({ deps })` overload used by tests.
- *
- * **Depth is deliberately ignored here (Story #3937).** The pluggable review
- * contract threads a risk-derived `depth` lever (`light` / `standard` /
- * `deep`) on `ReviewInput` so LLM-backed providers can dial their thoroughness
- * up or down with the Epic's judged risk. This native adapter does not read
- * `input.depth` and does not branch on it: its work is a *mechanical* lint +
- * maintainability sweep whose cost already scales with the diff — every
- * changed file is linted once and every changed JS file is scored once,
- * regardless of risk tier. There is no "review harder" knob a deterministic
- * scorer can turn: a high-risk diff and a low-risk diff of the same size do
- * exactly the same amount of work. The contract is therefore explicit rather
- * than silently dropping the field — `depth` is a no-op for this provider by
- * design, and the LLM-backed providers (codex, security-review, ultrareview)
- * are where the lever actually changes behaviour.
+ * review-providers/native.js — in-process ReviewProvider: scoped lint plus
+ * maintainability scoring of the changed files. MI honours the gate's
+ * exemptions (lint has its own); `input.depth` is ignored by design.
  *
  * @typedef {import('./types.js').Finding} Finding
  * @typedef {import('./types.js').ReviewInput} ReviewInput
@@ -73,56 +31,25 @@ import {
   runScopedLint,
 } from './scoped-lint.js';
 
-/**
- * The scoped-lint surface lives in [`scoped-lint.js`](scoped-lint.js), which
- * owns runner resolution, per-surface classification, and the merge. Story
- * #4839 moved it there while fixing the three invocation defects that made this
- * gate fail open on ~78% of deliveries; the module docstring there carries the
- * diagnosis. The three names stay part of this provider's published lint seam.
- */
 export { parseLintOutput, partitionFilesForLint, runScopedLint };
 
-/** Worker entry that scores one file into a full maintainability report. */
 const MAINTAINABILITY_REPORT_WORKER_URL = new URL(
   '../../workers/maintainability-report-worker.js',
   import.meta.url,
 );
 
-/**
- * Below this JS-file count the worker pool's spawn overhead dominates, so
- * `analyzeChangedFiles` scores in-process (the pre-pool serial path). At or
- * above it, per-file `calculateReportForFile` scoring is offloaded to the
- * shared worker pool so the event loop is not blocked during epic-scoped
- * reviews (f-performance). Single-sourced in `cpu-pool.js` (see the
- * `POOL_SERIAL_THRESHOLD` docstring for the tuning rationale); the
- * `SERIAL_THRESHOLD` export name is preserved as this module's public API.
- */
+/** Below this JS-file count scoring runs in-process; at or above, on the worker pool. */
 export const SERIAL_THRESHOLD = POOL_SERIAL_THRESHOLD;
 
 const JS_MAINTAINABILITY_EXTS = new Set(['.js', '.mjs', '.cjs']);
 
 /**
- * Read a changed file's content as it exists at `headRef` via
- * `git show <headRef>:<relPath>`, rather than reading the on-disk copy at
- * `PROJECT_ROOT`.
+ * Read the file at `headRef`, never from disk: close runs from the main
+ * checkout, where disk holds the BASE content. `null` when absent at head.
  *
- * This is the fix for Story #3696: the native review previously scored the
- * working-tree copy at `PROJECT_ROOT`, which — when the review runs from the
- * main checkout (the common case for story/epic close) — is the **base**
- * (pre-change) content, not the **head** (PR-branch) content the PR actually
- * produces. Scoring the base copy made MI-*improving* refactors emit a
- * false-positive "Size/Volume Warning" citing the very debt they removed.
- * Sourcing from `headRef` makes the score reflect the PR branch regardless of
- * which tree happens to be checked out on disk.
- *
- * Returns `null` when the file does not exist at `headRef` (deleted by the PR,
- * a brand-new untracked path not yet committed, or a `git show` failure). A
- * `null` source is dropped downstream exactly like a `reportFn` throw — the
- * provider does not warn about a file it cannot read at head.
- *
- * @param {string} relPath  Repo-relative path of the changed file.
- * @param {string} headRef  Git ref under review (e.g. 'story-3696', 'epic/42').
- * @param {typeof gitSpawn} [gitSpawnFn]  Injected git runner (test seam).
+ * @param {string} relPath
+ * @param {string} headRef
+ * @param {typeof gitSpawn} [gitSpawnFn]
  * @returns {string|null}
  */
 export function readHeadSource(relPath, headRef, gitSpawnFn = gitSpawn) {
@@ -132,16 +59,11 @@ export function readHeadSource(relPath, headRef, gitSpawnFn = gitSpawn) {
 }
 
 /**
- * Pure: score a raw source string into a maintainability report, applying the
- * in-memory TS/TSX transpile shim first so a changed `.ts`/`.tsx` file scores
- * the same as the JS the engine would otherwise see. Returns a parse-error
- * report (never throws) when the source cannot be transpiled, matching the
- * disk-based `calculateReportForFile` contract.
+ * Score a source string (TS transpiled first). Returns a parse-error report
+ * rather than throwing.
  *
- * Exported for testing.
- *
- * @param {string} source   File content at head.
- * @param {string} relPath  Path (used only to pick the transpile mode).
+ * @param {string} source
+ * @param {string} relPath  Used only to pick the transpile mode.
  * @returns {ReturnType<typeof calculateReport>}
  */
 export function scoreSourceReport(source, relPath) {
@@ -159,10 +81,8 @@ export function scoreSourceReport(source, relPath) {
 }
 
 /**
- * Pure: classify a single file's maintainability report into a row + optional
- * Finding-shaped entries. `reportFn` is the thunk that produces the file's
- * report (it closes over the file's head-ref source — see
- * {@link analyzeChangedFiles}); a throw is treated as "drop this file".
+ * Classify one file's report into a row plus optional findings. A `reportFn`
+ * throw drops the file.
  *
  * @returns {{ row: object|null, criticalFinding: Finding|null, mediumFinding: Finding|null }}
  */
@@ -219,9 +139,7 @@ export function classifyChangedFile(relPath, { reportFn, classifier } = {}) {
 }
 
 /**
- * Pure: fold one classified file into the running analysis tally. Shared by
- * the serial and pooled scoring paths so both produce byte-for-byte identical
- * `maintainability` rows and `critical`/`medium` findings.
+ * Shared by the serial and pooled paths so both emit identical output.
  *
  * @param {{ totalFiles: number, jsFiles: number, maintainability: object[], criticalFindings: Finding[], mediumFindings: Finding[] }} results
  * @param {{ row: object|null, criticalFinding: Finding|null, mediumFinding: Finding|null }} classified
@@ -239,39 +157,8 @@ function isJsMaintainabilityFile(relPath) {
 }
 
 /**
- * Walk every changed JS file and accumulate the analysis tally.
- *
- * For small JS-file sets (below {@link SERIAL_THRESHOLD}) scoring runs
- * in-process — the worker pool's spawn overhead dominates at small sizes and
- * the in-process path matches the pre-pool behaviour byte-for-byte. At or
- * above the threshold, each file's `calculateReportForFile` call is offloaded
- * to the shared worker pool (`maintainability-report-worker`) so the native
- * provider no longer blocks the event loop during epic-scoped reviews
- * (f-performance). Either way the pure classification core
- * ({@link classifyChangedFile} + {@link classifyReport}) runs in-process, so
- * the two paths emit identical rows and findings.
- *
- * **Head sourcing (Story #3696).** Each changed JS file is scored against the
- * content it has at `headRef` — sourced via `git show <headRef>:<relPath>` —
- * not the on-disk copy at `PROJECT_ROOT`. When the review runs from the main
- * checkout (the common story/epic close case) the on-disk copy is the *base*
- * (pre-change) content, so scoring it made MI-improving refactors emit a
- * false-positive size/volume warning citing the debt they remove. Sourcing
- * from head makes the score reflect the PR branch regardless of the checked-out
- * tree. A file with no content at head (deleted by the PR, or unreadable) is
- * dropped — the provider never warns about a file it cannot read at head.
- *
- * `classifier` is injected for testability. Tests may also inject `reportFn`
- * to bypass head sourcing entirely (it receives the head source string and the
- * relPath); production callers omit it and get the git-head scorer. Injecting
- * `reportFn` forces the serial path (the injected scorer cannot cross the
- * worker boundary).
- *
- * `serialThreshold` overrides the pool-vs-serial cutover for one call. It is
- * the seam the parity test uses to drive the pooled branch: Story #5109
- * retuned `POOL_SERIAL_THRESHOLD` from 8 to 256 against measured data, and a
- * fixture sized to clear the old number would otherwise have gone quietly
- * serial while still claiming to cover the pool.
+ * Pooled at or above `serialThreshold`. An injected `reportFn` forces the
+ * serial path (a closure cannot cross the worker boundary).
  *
  * @param {string[]} changedFiles
  * @param {{ reportFn?: Function, classifier?: Function, runOnPoolFn?: typeof runOnPool, headRef?: string|null, gitSpawnFn?: typeof gitSpawn, readHeadSourceFn?: typeof readHeadSource, serialThreshold?: number }} [deps]
@@ -301,20 +188,14 @@ export async function analyzeChangedFiles(
   results.jsFiles = jsFiles.length;
   if (jsFiles.length === 0) return results;
 
-  // Resolve each file's head-ref source up front. `null` source (deleted at
-  // head / unreadable) is dropped — it carries no head report to warn about.
   const sources = jsFiles.map((relPath) =>
     headRef == null ? '' : readHeadSourceFn(relPath, headRef, gitSpawnFn),
   );
 
-  // Default scorer: score the head source string. A test-injected `reportFn`
-  // overrides it (receives the head source + relPath) and forces the serial
-  // path because the closure cannot be cloned into a worker thread.
   const scoreReport =
     reportFn ?? ((source, relPath) => scoreSourceReport(source, relPath));
   const customReportFn = reportFn != null;
 
-  // Serial path: small batches, or whenever a caller injects its own scorer.
   if (jsFiles.length < serialThreshold || customReportFn) {
     for (let i = 0; i < jsFiles.length; i += 1) {
       const relPath = jsFiles[i];
@@ -331,12 +212,7 @@ export async function analyzeChangedFiles(
     return results;
   }
 
-  // Pooled path: offload `scoreSourceReport` to the worker pool by sending the
-  // pre-sourced head content (not a disk path) so the worker scores the same
-  // head string the serial path does. Files with `null` head source are not
-  // sent to the pool; their slot is reconstructed by mapping pool results back
-  // onto the non-null subset in input order. The pure classification core runs
-  // in-process so both paths emit identical rows and findings.
+  // Send head content (not a disk path) so the worker scores what the serial path does.
   const poolItems = [];
   const poolIndex = []; // poolItems[k] corresponds to jsFiles[poolIndex[k]]
   for (let i = 0; i < jsFiles.length; i += 1) {
@@ -353,8 +229,7 @@ export async function analyzeChangedFiles(
   for (let k = 0; k < poolIndex.length; k += 1) {
     const relPath = jsFiles[poolIndex[k]];
     const poolEntry = poolResults[k];
-    // A host-level pool error or a null report (the worker's parse/I/O
-    // sentinel) maps to the serial path's "reportFn threw" → dropped file.
+    // A pool error or null report drops the file, as a serial throw does.
     if (!poolEntry || poolEntry.__cpuPoolError || poolEntry.report == null) {
       continue;
     }
@@ -370,27 +245,8 @@ export async function analyzeChangedFiles(
 }
 
 /**
- * Pure: turn a lint summary into Finding(s). Lint errors collapse into a
- * single high-risk finding (the structured comment shows the count); lint
- * warnings collapse into a single suggestion.
- *
- * **Findings come from the parsed counts, never from the execution flag**
- * (Story #5282). `executionFailed` is the OR across the biome and markdownlint
- * surfaces, so gating findings on it let *one* absent runner discard the
- * *other* surface's real errors — and since the code surface's disk probe
- * (#5193) degrades in every checkout without `node_modules/.bin/biome`, that
- * was the default state of a consumer checkout: markdownlint errors reached
- * neither the findings nor the severity tally while the outcome read clean
- * apart from a degradation line.
- *
- * Story #4699's intent is preserved exactly, because it was never about the
- * flag: a degradation is still not a `Finding` — it has no counts to report,
- * so a surface that could not execute contributes `parsed: false` and zero
- * counts and produces nothing here, while travelling on the degradation and
- * friction-telemetry channels under its own name. A summary that explicitly
- * reports `parsed: false` therefore yields no findings whatever its counts
- * claim; a summary omitting `parsed` (an injected or pre-#4839 shape) is
- * scored on its counts as before.
+ * Findings come from parsed counts, never `executionFailed` (an OR across
+ * surfaces), so one absent runner cannot discard the other's errors.
  *
  * @param {{ errors: number, warnings: number, parsed?: boolean, skipped?: boolean, mode?: string, executionFailed?: boolean, evidenceSkipped?: boolean }} lintSummary
  * @returns {Finding[]}
@@ -452,13 +308,8 @@ async function runLintPhase({
 }
 
 /**
- * Pure: turn an `executionFailed` lint summary into the degradation records the
- * review outcome carries beside its findings (Story #4839).
- *
- * A summary from `runScopedLint` names each failed surface; an injected or
- * legacy summary that sets only `executionFailed` degrades to one record for
- * the gate as a whole, so the outcome is never silent about a gate that did not
- * run just because the summary predates the per-surface contract.
+ * Degradation records for an `executionFailed` summary; one without
+ * per-surface rows degrades to a single gate-wide record, never silence.
  *
  * @param {{ executionFailed?: boolean, degradations?: Array<{ surface: string, reason: string }> }} lintSummary
  * @returns {Array<{ tool: string, gate: string, surface: string, reason: string }>}
@@ -481,12 +332,6 @@ function buildLintDegradations(lintSummary) {
 }
 
 /**
- * Build a `ReviewProvider` instance backed by the native in-process pipeline.
- *
- * The `deps` overload is the test seam — production callers (the factory)
- * invoke `createNativeProvider()` with no arguments and get the default
- * dependency chain (real git, real lint, real maintainability engine).
- *
  * @param {{
  *   gitSpawnFn?: typeof gitSpawn,
  *   runScopedLintFn?: typeof runScopedLint,
@@ -506,20 +351,13 @@ export function createNativeProvider(deps = {}) {
     analyzeChangedFilesFn = analyzeChangedFiles,
     buildLintFindingsFn = buildLintFindings,
     emitToolDegradationFn = emitRuntimeFriction,
-    // The maintainability-gate exemption seam. The resolution itself — gate-key
-    // read and fail-open — is unit-tested in `mi-exemptions.js`; this dep is
-    // here so a provider test can pin the WIRING without a config on disk.
     resolveIgnoreGlobsFn = resolveMaintainabilityIgnoreGlobs,
     logger,
     scopeLint = 'changed-only',
   } = deps;
 
   /**
-   * Degradations recorded by the most recent `runReview`. Read through
-   * `getDegradations()` after the run, mirroring how `getPromptMessages` is
-   * feature-detected by the orchestrator — findings and degradations travel
-   * side by side, so an unexecutable tool never has to become a `Finding` to
-   * be visible (Story #4699's intent; Story #4839's fix).
+   * Degradations from the latest `runReview`, travelling beside findings.
    *
    * @type {Array<{ tool: string, gate: string, surface: string, reason: string }>}
    */
@@ -527,9 +365,6 @@ export function createNativeProvider(deps = {}) {
 
   return {
     /**
-     * Gate degradations from the last `runReview`. Never a `Finding`, so
-     * severity counts stay code-findings-only.
-     *
      * @returns {Array<{ tool: string, gate: string, surface: string, reason: string }>}
      */
     getDegradations() {
@@ -600,19 +435,8 @@ export function createNativeProvider(deps = {}) {
       });
 
       if (lintSummary.executionFailed) {
-        // Story #4699 — a tool that could not execute is an operational
-        // degradation, not a code finding. Route it to friction telemetry
-        // (best-effort) so severity counts reflect code findings only.
-        //
-        // Story #4839 — telemetry alone left the review's own verdict unable to
-        // distinguish "lint ran and found nothing" from "lint never ran", so
-        // the same degradation is also recorded on the outcome channel. It is
-        // still never a `Finding`: the friction emission below is unchanged.
-        //
-        // Story #5282 — this branch is about the degraded surface only. A
-        // sibling surface that *did* run still contributes its parsed counts
-        // to `buildLintFindings` below, so a degradation here no longer
-        // suppresses the other surface's errors.
+        // A tool that could not execute is a degradation, recorded on the
+        // outcome and in friction telemetry — never a finding.
         recordedDegradations = buildLintDegradations(lintSummary);
         logger?.warn?.(
           `[native-review] Lint runner could not execute (${recordedDegradations
@@ -633,19 +457,13 @@ export function createNativeProvider(deps = {}) {
             },
           });
         } catch {
-          // Observability must never fail the review (best-effort contract).
+          // Observability must never fail the review.
         }
       }
 
       const lintFindings = buildLintFindingsFn(lintSummary);
 
-      // Canonical ordering: critical (maintainability) first, then high
-      // (lint errors), then medium (size/volume warnings), then suggestion
-      // (lint warnings). An execution failure contributes no counts of its
-      // own to these tiers — it travels on the degradation channel — but it
-      // no longer suppresses a sibling surface's. The renderer
-      // re-bucketizes by severity tier, so this order only matters for
-      // stability of fixture outputs.
+      // Severity order; only matters for fixture stability.
       return [
         ...results.criticalFindings,
         ...lintFindings.filter((f) => f.severity === 'high'),
@@ -657,9 +475,7 @@ export function createNativeProvider(deps = {}) {
 }
 
 /**
- * Zero-arg factory entry point used by the `review-provider-factory`. Kept
- * separate from `createNativeProvider({ deps })` so the registry signature
- * stays `() => ReviewProvider`.
+ * Zero-arg registry entry point.
  *
  * @returns {ReviewProvider}
  */

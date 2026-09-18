@@ -1,13 +1,4 @@
-/**
- * Provider Factory — resolves the configured ticketing provider to a concrete class.
- *
- * Accepts the canonical resolved config object (the wrapper returned by
- * `resolveConfig()` with `config.github` populated). The legacy
- * `orchestration`-shaped argument is no longer supported as part of the
- * Epic #2880 hard cutover; see `.agents/rules/git-conventions-reference.md#contract-cutovers-—-no-shim-layer`.
- *
- * @see docs/v5-implementation-plan.md Sprint 1B
- */
+/** Provider factory — resolved config → concrete ticketing provider. */
 
 import { GitHubProvider } from '../providers/github.js';
 
@@ -17,16 +8,6 @@ const PROVIDERS = {
 };
 
 /**
- * Create a ticketing provider instance from the canonical resolved config.
- *
- * The canonical contract is:
- *   - `config.github` carries the GitHub provider config block
- *     (`owner`, `repo`, `projectNumber`, `projectOwner`, `operatorHandle`,
- *     and friends).
- *   - Today GitHub is the only supported provider, so the provider name is
- *     inferred from the presence of `config.github`. When additional
- *     providers land, this resolver will gain a `config.provider` discriminator.
- *
  * @param {object|null} config - The resolved config wrapper (`resolveConfig()` output).
  * @param {{ token?: string }} [opts] - Override options (e.g., test token).
  * @returns {import('../lib/ITicketingProvider.js').ITicketingProvider}
@@ -68,11 +49,7 @@ export function createProvider(config, opts = {}) {
   return new ProviderClass(providerConfig, opts);
 }
 
-/**
- * Infer the provider name from the resolved config. Today the only
- * supported value is `'github'`; a future provider would add a discriminator
- * field on the top-level config and this helper would consult it.
- */
+/** An explicit `config.provider` wins; otherwise a `github` block implies it. */
 function resolveProviderName(config) {
   if (typeof config.provider === 'string') return config.provider;
   if (config.github) return 'github';

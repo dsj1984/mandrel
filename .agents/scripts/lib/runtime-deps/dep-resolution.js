@@ -1,30 +1,16 @@
 /**
- * runtime-deps/dep-resolution — is a declared runtime dependency actually
- * there, is it the right major, and how do we say so.
- *
- * `.agents/` materializes into the consumer's repository root, so every
- * framework runtime dependency resolves from *their* `node_modules`. A range
- * in `.agents/runtime-deps.json` therefore documents a requirement it cannot
- * enforce, and the preflight guard needs to compare the range against what
- * actually resolved.
- *
- * Deliberately major-only, and deliberately not `semver`. The framework's
- * runtime ranges are all `^`, whose whole contract is "this major"; pulling in
- * a semver implementation to decide one comparison would add a dependency to
- * the very closure this module exists to keep honest.
+ * runtime-deps/dep-resolution — is a declared runtime dependency present and
+ * the right major. Deps resolve from the consumer's `node_modules`, so a
+ * declared range is only enforced by comparing it to what resolved.
+ * Major-only and semver-free on purpose: every range is `^`, and a semver
+ * dependency would grow the very closure this guards.
  *
  * @module lib/runtime-deps/dep-resolution
  */
 
 /**
- * Leading major number of a version or a caret/tilde range, or `null`.
- *
- * Module-local: `majorMismatch` is the only question callers have.
- *
- * Anything this cannot read as `<major>.` — `*`, a tag, a git URL, a
- * `>=x <y` span — yields `null` and is treated as "not range-checked". That
- * asymmetry is intentional: a conservative miss is a no-op, while a false
- * positive blocks a working install.
+ * Anything not `<major>.`-shaped yields `null` (not range-checked): a
+ * conservative miss is a no-op, a false positive blocks a working install.
  *
  * @param {string|null|undefined} spec
  * @returns {number|null}
@@ -36,18 +22,8 @@ function majorOf(spec) {
 }
 
 /**
- * Does `resolved` sit outside the major `range` names?
- *
- * Module-local: `checkRuntimeDeps` is the only caller, and exporting it only
- * for a test would be a production-dead export.
- *
- * `false` whenever either side is unreadable, so an unparseable range or an
- * unreadable installed version is never reported as a mismatch.
- *
- * `0.x` majors compare as written: `^0.1.0` and `0.2.1` differ in minor, not
- * major, so this does not separate them. Accepted — the `0.x` packages in the
- * closure are terminal, and the range this exists to enforce is
- * `@babel/parser`'s `^7`.
+ * `false` when either side is unreadable. `0.x` minors are not separated —
+ * accepted, since the range this enforces is `@babel/parser`'s `^7`.
  *
  * @param {string|null|undefined} range
  * @param {string|null|undefined} resolved
@@ -62,14 +38,8 @@ function majorMismatch(range, resolved) {
 }
 
 /**
- * Is a package present in the resolvable tree?
- *
- * The bare specifier is tried first, then `<name>/package.json`. The fallback
- * is not belt-and-braces: a package with no `main` and no `exports` — which
- * `typhonjs-escomplex-commons` and `babel-runtime` both are — cannot be
- * resolved by name at all, and is reached only by deep path. Probing the bare
- * name alone would report such a package missing while it sits installed, and
- * this guard exits the process on that verdict.
+ * Falls back to `<name>/package.json`: a package with no `main`/`exports`
+ * cannot be resolved by name, and reporting it missing would exit the process.
  *
  * @param {string} dep
  * @param {(specifier: string) => string} resolve
@@ -91,13 +61,8 @@ export function isResolvable(dep, resolve) {
 }
 
 /**
- * Remediation text for a resolved dependency whose major differs from the
- * range the framework declares.
- *
- * Named separately from the missing-deps message because the remedy differs:
- * the package is installed, so installing again changes nothing. What is
- * wrong is the version the consumer's own tree resolves, which only they can
- * change.
+ * Distinct from the missing-deps message: reinstalling changes nothing, only
+ * the consumer can pin a compatible major.
  *
  * @param {{name: string, required: string, resolved: string}[]} mismatched
  * @param {{ root: string }} ctx
@@ -119,11 +84,6 @@ export function formatMismatchedDepsMessage(mismatched, { root }) {
 }
 
 /**
- * Resolve each required package via the injected `resolve` seam and collect
- * the ones that fail. `resolve` is typically `require.resolve` bound to the
- * framework module location; it throws `MODULE_NOT_FOUND` when a package is
- * absent from the resolvable `node_modules`.
- *
  * @param {{ required: string[], resolve: (specifier: string) => string }} opts
  * @returns {{ ok: boolean, missing: string[] }}
  */

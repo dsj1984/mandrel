@@ -1,38 +1,16 @@
 /**
- * pinned-identifier-lint.js — the `pinned-identifier` advisory lint over a
- * draft Story's `acceptance[]` (Story #5323).
- *
- * `acceptance[]` is the Story's **binding** contract and `changes[]` only an
- * advisory sketch the deliverer may revise, so an acceptance item naming an
- * internal symbol pins something the executor is free to rename out from
- * under it. The story-author prompt has always said so; nothing surfaced a
- * violation, which left the rule enforced only by the authoring model
- * remembering it.
- *
- * The classifier lives in its own module because its vocabulary is its own:
- * four token grammars and a call-suffix strip that the sibling prose lint in
- * `plan-text-hygiene.js` shares nothing with.
- *
- * Advisory by contract: findings are deterministic text for the persist
- * dry-run's warning list. They never gate persist and spawn nothing.
- *
- * Pure, synchronous, no I/O.
+ * pinned-identifier-lint.js — advisory lint flagging `acceptance[]` items that
+ * name an internal symbol. Acceptance is binding while `changes[]` is only a
+ * sketch the deliverer may rename, so a pinned symbol breaks under a legal
+ * refactor. Findings are warnings only. Pure, synchronous, no I/O.
  *
  * @module lib/orchestration/pinned-identifier-lint
  */
 
 /**
- * An inline code span carrying one of these is naming something other than a
- * source identifier, and is never a pinned identifier:
- *
- *   - `/` — a file path or a glob (`src/app.js`, `tests/x/*.spec.ts`);
- *   - `.` — a dotted path, a filename, or a config key
- *     (`delivery.routing.closeAndLand`, `story-body.js`);
- *   - `:` — a label (`agent::ready`, `type::story`);
- *   - `-` — a kebab token: a `data-testid` value, a slug, a package name, or
- *     a CLI flag (`--dry-run`);
- *   - whitespace — an argv shape, so a command (`npm run lint`);
- *   - `[` / `]` — a field reference (`acceptance[]`).
+ * A code span containing any of these names a path/glob, dotted key or
+ * filename, label, kebab token or flag, command, or field reference — never a
+ * source identifier.
  */
 const NON_IDENTIFIER_MARKERS = /[/.:\-\s[\]]/;
 
@@ -40,29 +18,20 @@ const NON_IDENTIFIER_MARKERS = /[/.:\-\s[\]]/;
 const BARE_IDENTIFIER_RE = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 
 /**
- * An UPPER_SNAKE token. Exempt by contract: an environment variable and an
- * internal constant are the same shape, and warning on every `DATABASE_URL`
- * to catch the occasional pinned constant trades a real class of false
- * positives for a marginal gain.
+ * UPPER_SNAKE is exempt: env vars and constants share the shape, and warning
+ * on every `DATABASE_URL` costs more than it catches.
  */
 const UPPER_SNAKE_RE = /^[A-Z0-9_$]+$/;
 
-/**
- * A case transition (`staffCan`, `MyCalendarBoard`, `TimeGrid`) — the
- * signature that separates a source identifier from a prose word a criterion
- * legitimately quotes (`landed`, `pending`, `main`).
- */
+/** A case transition separates an identifier from a quoted prose word. */
 const CASE_TRANSITION_RE = /[a-z][A-Z]/;
 
-/** The remedy, either side of the identifiers a finding names. */
 const MESSAGE_HEAD = 'Acceptance item pins the internal identifier(s) ';
 const MESSAGE_TAIL =
   '; `changes[]` is an advisory sketch the deliverer may reshape, so assert ' +
   'the observable behaviour instead of the symbol that implements it.';
 
 /**
- * Collect the inline code spans of one acceptance item.
- *
  * @param {string} item
  * @returns {string[]}
  */
@@ -71,13 +40,8 @@ function codeSpans(item) {
 }
 
 /**
- * Decide whether one code span pins a source identifier: a bare token
- * carrying a case transition, with no separator that would make it a path, a
- * label, a kebab token, a flag or a command, and not an UPPER_SNAKE name.
- *
- * Deliberately conservative in one direction only: a false positive costs a
- * warning line the author dismisses, while a false negative on a path, a
- * testid or a command would train the author to ignore the lint.
+ * Conservative: a false positive costs a dismissable warning, while flagging
+ * paths or commands would train authors to ignore the lint.
  *
  * @param {string} span
  * @returns {boolean}
@@ -93,11 +57,8 @@ function isPinnedIdentifier(span) {
 }
 
 /**
- * The authored `acceptance[]` of one draft Story.
- *
- * It is authored at the ticket's top level — the machine contract the
- * validators read — and synced into the body only at assembly, so the top
- * level wins; the parsed body covers a draft that carries it inline.
+ * Top-level `acceptance[]` wins (it is synced into the body only at
+ * assembly); the parsed body covers an inline draft.
  *
  * @param {object} story The raw draft ticket.
  * @param {object} body Its parsed body.
@@ -109,14 +70,13 @@ function resolveAcceptance(story, body) {
 }
 
 /**
- * Evaluate the lint over one draft Story — one finding per offending
- * acceptance item, naming every identifier it pinned.
+ * One finding per offending acceptance item.
  *
  * @param {object} story The raw draft ticket.
  * @param {object} body Its parsed body.
  * @param {string} slug
- * @param {(text: string) => string} excerpt Evidence truncator, shared with
- *   the sibling lints so every finding excerpts alike.
+ * @param {(text: string) => string} excerpt Evidence truncator shared with
+ *   the sibling lints.
  * @returns {Array<{ kind: 'pinned-identifier', slug: string, evidence: string, message: string }>}
  */
 export function findPinnedIdentifiers(story, body, slug, excerpt) {

@@ -1,13 +1,6 @@
 /**
- * phases/review-core.js — the shared Story-scope review spine.
- *
- * Extracted from the Epic-era `phases/code-review.js` (Story #4603) so the
- * spine belonged to neither close path. `runStoryReviewCore` is the one
- * implementation `runCodeReview` is called through; since Story #5006 retired
- * the Epic-attached phase, its sole caller is the v2 standalone path
- * (`single-story-close/phases/code-review.js#runStoryScopeReview`). It stays
- * here — the shared-spine contract (Story #3653) is what keeps the maker-blind
- * review invocation out of a phase file.
+ * phases/review-core.js — the shared Story-scope review spine; keeps the
+ * maker-blind `runCodeReview` invocation out of any phase file.
  */
 
 import { countChangedLines } from '../../../audit-suite/index.js';
@@ -18,35 +11,15 @@ import { runCodeReview } from '../../code-review.js';
 import { runLocalLensReview } from './local-lens-review.js';
 
 /**
- * Invoke `runCodeReviewFn` with the canonical Story-scope envelope and return
- * the raw result.
+ * Run the local-lens pass and `runCodeReview` over one change set and return
+ * the review result. Throws propagate; the caller picks the advisory posture.
+ * Review depth is derived by `runCodeReview` from the changed files and is
+ * input-only — it never alters the output envelope.
  *
- * The caller is responsible for error handling and result interpretation —
- * this function propagates throws rather than swallowing them, because the
- * two callers have different advisory postures:
- *
- *   - Epic-attached close: swallows throws (non-blocking advisory, same as
- *     `refresh.js`).
- *   - Standalone close: propagates throws (a review failure stops the close).
- *
- * Review depth is not passed in: `runCodeReview` derives it from the changed
- * files — their sensitive-path intersection plus their count (Story #4542, which
- * retired the planner-authored risk envelope this spine used to forward). Depth
- * remains an **input-only** signal: it tells the provider how thorough to be and
- * never alters the review's output envelope or the posted structured-comment
- * body.
- *
- * Story #4593 — this spine is the **single injection point** for the change set.
- * It enumerates `baseRef...headRef` exactly once via {@link computeChangeSet}
- * and threads the resulting list into both the local-lens pass and
- * `runCodeReview`, which otherwise each enumerated the diff for themselves. Both
- * consumers ultimately route through `deriveChangeLevel`, so feeding them one
- * list is what makes the lens roster and the review depth provably agree about
- * what changed — even when a commit lands between the two calls.
- *
- * Story #4603 — the invariant now holds on the failure path too: an unenumerable
- * diff injects an explicit `null`, and both consumers distinguish that from
- * `undefined` ("nobody enumerated") rather than re-spawning git.
+ * The diff is enumerated exactly once here and injected into both consumers,
+ * so lens roster and review depth agree on what changed even if a commit
+ * lands in between. An unenumerable diff injects `null` ("already tried"),
+ * which both consumers honour without re-spawning git.
  *
  * @param {{
  *   storyId: number|string,
@@ -63,10 +36,8 @@ import { runLocalLensReview } from './local-lens-review.js';
  *   countChangedLinesFn?: typeof countChangedLines,
  *   appendFindingsYieldFn?: typeof appendFindingsYield,
  * }} args
- * @returns {Promise<object>} Raw result envelope from `runCodeReview`, augmented
- *   with a `localLensReview` field carrying the Story-scope local-lens pass
- *   outcome (Epic #4405, Story #4409) and the `changeSet` this run computed
- *   (Story #4593).
+ * @returns {Promise<object>} The `runCodeReview` result plus
+ *   `localLensReview` and the computed `changeSet`.
  */
 export async function runStoryReviewCore({
   storyId,
@@ -85,17 +56,10 @@ export async function runStoryReviewCore({
 }) {
   const storyIdNum = Number(storyId);
 
-  // The one enumeration per close run. Every consumer below is injected from
-  // this list; none of them re-derives the diff. `files` is `null` when the
-  // diff is unenumerable — an explicit "already tried" signal both consumers
-  // honour without retrying (Story #4603).
   const changeSet = computeChangeSetFn({ baseRef, headRef, gitSpawnFn });
 
-  // The one changed-LINE enumeration (Story #4699 — the lens diff-floor's
-  // size signal). Probed only when the file enumeration succeeded with a
-  // non-empty set: a null/empty set already yields an empty lens roster, so
-  // a second git spawn would buy nothing. `null` = count unknown → the
-  // floor fails open (no skip).
+  // Line count for the lens diff-floor, probed only for a non-empty file set;
+  // `null` = unknown, and the floor fails open.
   const changedLineCount =
     Array.isArray(changeSet.files) && changeSet.files.length > 0
       ? countChangedLinesFn({ baseRef, headRef, gitSpawnFn })
@@ -118,11 +82,6 @@ export async function runStoryReviewCore({
     opts.commentTargetId = commentTargetId;
   }
 
-  // Shift-left local-lens pass (Epic #4405). Runs matched local lenses at
-  // `light` depth against the actual Story diff, inside this close-subprocess
-  // spine so the maker never grades its own work. Advisory — it never blocks
-  // the close and its outcome rides on the returned envelope for downstream
-  // consumers.
   const localLensReview = await runLocalLensReviewFn({
     baseRef,
     headRef,
@@ -136,9 +95,7 @@ export async function runStoryReviewCore({
 
   const result = await runCodeReviewFn(opts);
 
-  // Findings-yield ledger (Story #4699) — record what this close's lens
-  // pass produced (or floor-skipped) so the roster can later be tuned on
-  // measurement. Best-effort: a ledger failure never fails the review.
+  // Best-effort findings-yield ledger, for tuning the roster on measurement.
   try {
     const yieldEntries = buildLensYieldEntries(localLensReview);
     if (yieldEntries !== null) {
@@ -160,15 +117,7 @@ export async function runStoryReviewCore({
 }
 
 /**
- * Fold the lens-pass envelope into per-lens findings-yield entries
- * (Story #4699). One entry per lens in the matched roster: the lens name,
- * the count of materialization findings attributed to it, and whether the
- * diff-floor skipped its materialization. Returns `null` when the roster is
- * empty (nothing ran, nothing skipped — no record to write).
- *
- * Module-local: an implementation detail of {@link runStoryReviewCore},
- * asserted through the appended record's shape rather than imported
- * directly.
+ * One findings-yield entry per matched lens; `null` for an empty roster.
  *
  * @param {object|null|undefined} localLensReview
  * @returns {Array<{ lens: string, findings: number, skippedByFloor: boolean }>|null}

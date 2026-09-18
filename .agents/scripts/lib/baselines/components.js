@@ -1,47 +1,20 @@
-// .agents/scripts/lib/baselines/components.js
-//
-// Story #1892 / Task #1902 — shared component resolver and row grouper.
-//
-// The "components" model lets a gate slice a baseline into named buckets
-// (e.g. `app`, `worker`, `infra`) so per-component floors and tolerances
-// can be evaluated independently. The shape is:
-//
-//   components: { [name: string]: string[] }   // map of name → glob list
-//
-// The canonical default — used when a gate omits `components` from its
-// agentrc config — is `{ '*': ['**'] }`, meaning "one bucket called `*`
-// matching every row". This keeps backwards compatibility with the
-// pre-components rollup contract: a baseline that ships only `rollup['*']`
-// continues to work without operator intervention.
-//
-// Globs are matched with minimatch. Overlap is allowed by design — a row
-// matched by two components is reported under both. Components keyed by
-// the literal `*` are treated as the whole-repo rollup and always match
-// every row regardless of declared globs.
+// Component resolver and row grouper: slice a baseline into named glob
+// buckets for per-component floors. The `*` component is the whole-repo
+// rollup and matches every row; overlap between components is allowed.
 
 import { Minimatch } from 'minimatch';
 
-/** The default components map, used when a gate omits `components`. */
 const DEFAULT_COMPONENTS = Object.freeze({ '*': Object.freeze(['**']) });
 
 /**
- * Compiled-matcher cache for `groupRows`, keyed on the glob string.
- *
- * `groupRows` is called once per gate over the whole baseline row set — tens
- * of thousands of rows for `crap.json` — and the functional `minimatch()` it
- * used re-parsed each component glob for every single row. The component
- * globs come from config, so the distinct set is small and immutable; caching
- * the compiled matcher turns an O(rows × globs) parse into an O(globs) one
- * (Story #5109). Matching semantics are unchanged: same patterns, same
- * `{ dot: true }`.
+ * Compiled matchers keyed by glob: `groupRows` runs over tens of thousands of
+ * rows, and re-parsing each glob per row dominated its cost.
  *
  * @type {Map<string, import('minimatch').Minimatch>}
  */
 const GLOB_MATCHER_CACHE = new Map();
 
 /**
- * Compile (once) the `Minimatch` for one glob.
- *
  * @param {string} glob
  * @returns {import('minimatch').Minimatch}
  */
@@ -55,21 +28,10 @@ function matcherFor(glob) {
 }
 
 /**
- * Resolve the components map for a single gate config.
+ * Absent or empty `components` → `{ '*': ['**'] }`; non-array glob lists
+ * coerce to `[]`.
  *
- * Behaviour:
- *   - If the gate config has no `components` key (or it's not a plain
- *     object), return the default `{ '*': ['**'] }`.
- *   - If `components` is present but contains no entries, also return the
- *     default — a writer that emitted an empty `components: {}` is
- *     functionally equivalent to "no components declared".
- *   - Otherwise pass the operator-declared map through unchanged. Each
- *     value MUST be an array of glob strings; non-array values are
- *     coerced to an empty array so the grouper's caller can't crash on
- *     malformed input.
- *
- * @param {object} [gateConfig]  A single gate config slice, e.g.
- *   `delivery.quality.gates.coverage`.
+ * @param {object} [gateConfig]
  * @returns {Record<string, string[]>} Components map, never null.
  */
 export function resolveComponents(gateConfig) {
@@ -96,25 +58,12 @@ function cloneDefault() {
 }
 
 /**
- * Group rows by component using the resolved components map.
- *
- * Matching rules:
- *   - The component literally named `*` is the whole-repo bucket and
- *     captures every row regardless of declared globs.
- *   - For every other component, the row's `keyField` value is matched
- *     against each declared glob with minimatch (using `dot: true` so
- *     leading-dot paths participate). A row joins the bucket on first
- *     match — but a row CAN appear in multiple buckets because we evaluate
- *     every component (overlap is allowed).
- *   - Rows whose `keyField` is not a non-empty string never match
- *     any non-`*` bucket; they still land in `*`.
+ * A row without a string `keyField` lands only in `*`.
  *
  * @param {Array<Record<string, unknown>>} rows
  * @param {Record<string, string[]>}       components
  * @param {string}                         [keyField='path']
- *   The row field to feed into the matcher. Defaults to `path` (used by
- *   lint / coverage / crap / maintainability / mutation). Use `'route'`
- *   for lighthouse and `'bundle'` for bundle-size.
+ *   `route` for lighthouse, `bundle` for bundle-size.
  * @returns {Record<string, Array<Record<string, unknown>>>}
  *   Map of component name → matching rows, in input order.
  */

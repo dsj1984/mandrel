@@ -1,50 +1,16 @@
 // .agents/scripts/lib/orchestration/ci-rerun-guard.js
 /**
- * ci-rerun-guard.js — the machine enforcement behind the no-rerun MUST in
- * [`rules/ci-remediation.md`](../../../rules/ci-remediation.md) § Verifier
- * (Story #4865). Owns the CI failure digest (write / read / retire), the
- * head-SHA discriminator, and the blocked-delivery escalation. The auto-merge
- * disarm it drives is the one implementation in `auto-merge.js` (Story #5383);
- * the rerun decision itself is `check-state.js#isRerunPermitted`.
- * `pr-watch-with-update.js` is the enforcement point; this
- * module is the mechanism it drives.
+ * ci-rerun-guard.js — mechanism behind the no-rerun MUST in
+ * `rules/ci-remediation.md` § Verifier, driven by `pr-watch-with-update.js`:
+ * the CI failure digest, the head-SHA discriminator, and the block.
  *
- * **Why the first red, and not the rerun-green.** The obvious design —
- * observe a green that arrives on a re-run of the same commit, then disarm
- * auto-merge and block — cannot enforce anything. GitHub's native
- * auto-merge fires server-side the moment branch protection is satisfied,
- * so it races the watcher's next poll: by the time the rerun-green is
- * observed, the PR may already be merged. The only race-free observation
- * point is the **first red**, which necessarily precedes any green. So the
- * watcher disarms on red and records the PR head SHA; the head SHA is then
- * read at **re-arm** time, not at merge time.
- *
- * **Head SHA is the discriminator.** A green on a *different* head SHA is a
- * fix at source — legal, and it retires the digest. A green on the *same*
- * head SHA is a re-run of a failed job, which the rule forbids: the
- * delivery hard-stops at `agent::blocked` and a CI-gap intake filing
- * (`file-ci-gap.js`, carrying the run link and failure signature the digest
- * already holds) is required before it can proceed.
- *
- * **One rerun after a recorded verdict (Story #5343).** The single exception,
- * and it is evidence-gated rather than discretionary: once `file-ci-gap.js`
- * has filed a `capacity` or `unreproducible-tier` verdict **for the current
- * head SHA**, it stamps a `rerunAllowance` on the digest, and exactly one
- * same-SHA green is then admitted — the digest is retired and the delivery
- * proceeds. This closes the one shape where the rule stranded a correct
- * delivery: a runner that ran out of something has no fix at source to make,
- * so the branch could never move its head SHA and the block needed a human to
- * clear. Every other same-SHA green is still a violation, the allowance is
- * spent the moment it is honoured (it dies with the digest), and a second red
- * after the rerun is real: it writes a fresh digest with no allowance, so it
- * routes to Option 1 like any other red.
- *
- * **Fail closed on an unverifiable green.** A digest whose head SHA is
- * missing, or a current head SHA that `gh` could not resolve, leaves no
- * evidence that the red was fixed at source. An unresolved red plus no
- * evidence of a new commit is treated as a violation rather than waved
- * through — the same unknown-is-blocking posture the arming probe takes on
- * an unrecognized check state.
+ * Enforcement happens at the first red, not the rerun-green: native
+ * auto-merge fires server-side and races the watcher, so only the red is a
+ * race-free observation point. The watcher disarms on red and records the
+ * head SHA. A later green on a different SHA is a fix at source; on the
+ * same SHA it is a forbidden rerun, unless `file-ci-gap.js` recorded a
+ * `capacity`/`unreproducible-tier` allowance for that SHA (one rerun; it
+ * dies with the digest). A missing SHA on either side fails closed.
  */
 
 import {
@@ -70,11 +36,8 @@ import {
 const MAX_PRIOR_REDS = 10;
 
 /**
- * The verdicts that earn the one same-SHA rerun (Story #5343). Both mean the
- * failure is a property of the *environment*, proven — so no commit on the
- * branch can move the head SHA to clear it. `pre-existing` is deliberately
- * excluded: it reproduces on `main`, which is a real defect someone owns and
- * a rerun cannot make go away.
+ * Verdicts earning the one same-SHA rerun: proven environment faults no
+ * commit can fix. `pre-existing` is excluded — a real defect on `main`.
  *
  * @type {readonly ['capacity', 'unreproducible-tier']}
  */
@@ -84,13 +47,6 @@ export const RERUN_ALLOWANCE_VERDICTS = Object.freeze([
 ]);
 
 /**
- * Resolve which ticket the digest is keyed to. Story #4539: the digest used
- * to be Epic-scoped by filename and returned `null` without an epic id — so
- * on the v2 Story path (which has no Epic and invokes the watch with `--pr`
- * alone) a red check wrote no digest at all, despite the module header
- * advertising one. v2.0.0 removed the Epic tier; Story scope is the only
- * scope.
- *
  * @param {{ storyId?: number|string|null }} opts
  * @returns {{ kind: 'story', id: number } | null}
  */
@@ -103,9 +59,8 @@ export function resolveDigestScope({ storyId = null } = {}) {
 }
 
 /**
- * Coarse failure classification from a failing-check name. Pure —
- * exported for tests. Deliberately shallow: it steers the operator's
- * next move (which `/loop` unit to reach for), not a root-cause verdict.
+ * Coarse classification from a check name; steers the next move, not a
+ * root-cause verdict.
  *
  * @param {string} name  failing required-check name.
  * @returns {'test'|'lint'|'baseline'|'build'|'unknown'}
@@ -120,13 +75,7 @@ export function classifyFailure(name) {
 }
 
 /**
- * Resolve the `.json` / `.md` digest paths for a scope. Returns `null` when
- * no scope can be keyed (the digest is scoped by filename and has nothing
- * to key on).
- *
- * Module-private: `writeCiDigest` / `readCiDigest` / `retireCiDigest` are the
- * only callers and are the surface worth pinning, so the keying is asserted
- * through them rather than through an export nothing in production reaches.
+ * Digest paths for a scope; `null` without a Story id to key on.
  *
  * @param {{ storyId?: number|string|null, tempRoot: string, cwd: string }} opts
  * @returns {{ scope: { kind: 'story', id: number }, jsonPath: string, mdPath: string } | null}
@@ -144,10 +93,7 @@ function ciDigestPaths({ storyId = null, tempRoot, cwd }) {
 }
 
 /**
- * Default `gh run view --log-failed` spawn — pulls the tail of the failed
- * job log so the digest carries an actionable excerpt. Best-effort:
- * returns an empty tail when the run id is unknown or `gh` errors.
- * Injected into `writeCiDigest` so tests never shell out.
+ * Tail of the failed job log; best-effort, empty on any failure.
  */
 function ghRunLogTail({ runId, cwd, spawnFn, maxLines = 40 }) {
   if (!runId) return '';
@@ -163,11 +109,8 @@ function ghRunLogTail({ runId, cwd, spawnFn, maxLines = 40 }) {
 }
 
 /**
- * Resolve the failing check's run identity — the GitHub Actions run id AND
- * the run URL. Best-effort via `gh pr checks --json name,link`: the `link`
- * field carries the run URL whose trailing path segment is the run id. The
- * URL matters as much as the id, because the intake issue a
- * rerun violation demands must carry a run **link**.
+ * The failing check's run id and URL (the intake filing needs the link).
+ * Best-effort.
  *
  * @returns {{ runId: string|null, url: string|null }}
  */
@@ -191,10 +134,8 @@ function resolveFailingCheckRun({ prRef, checkName, cwd, spawnFn }) {
 }
 
 /**
- * Resolve the PR's current head SHA (`headRefOid`) — the discriminator
- * between a legal fix-at-source green and a forbidden rerun green. Returns
- * `null` when `gh` fails or the payload is unparseable; callers treat an
- * unresolvable head as unverifiable, never as "changed".
+ * The PR's head SHA; `null` on failure, which callers treat as
+ * unverifiable, never as "changed".
  *
  * @param {{ prRef: string, cwd: string, spawnFn?: Function }} opts
  * @returns {string|null}
@@ -219,9 +160,8 @@ export function resolvePrHeadSha({ prRef, cwd, spawnFn }) {
 }
 
 /**
- * Read the CI failure digest for a scope, or `null` when none exists (or it
- * is unreadable / malformed — an unparseable digest carries no enforceable
- * evidence, so it is treated as absent).
+ * The digest, or `null`; a malformed one carries no evidence and counts as
+ * absent.
  *
  * @param {{ storyId?: number|string|null, tempRoot: string, cwd: string }} opts
  * @returns {object|null}
@@ -238,8 +178,7 @@ export function readCiDigest({ storyId = null, tempRoot, cwd }) {
 }
 
 /**
- * Retire the digest for a scope — the red it recorded was resolved at
- * source. Best-effort; returns the paths removed (or `null`).
+ * Retire the digest once its red is resolved.
  *
  * @param {{ storyId?: number|string|null, tempRoot: string, cwd: string }} opts
  * @returns {{ jsonPath: string, mdPath: string } | null}
@@ -253,9 +192,7 @@ export function retireCiDigest({ storyId = null, tempRoot, cwd }) {
 }
 
 /**
- * Condense a digest into the record kept in a successor digest's
- * `priorReds`, so a second red on a new head never silently erases the
- * evidence of an unresolved earlier one.
+ * Summary kept in `priorReds` so a new red never erases an unresolved one.
  */
 function summarizeRed(digest) {
   return {
@@ -268,9 +205,7 @@ function summarizeRed(digest) {
 }
 
 /**
- * Carry forward the unresolved reds an incoming digest must not lose. A
- * re-red on the SAME head is the same unresolved red observed again, so it
- * is not duplicated into the history.
+ * A re-red on the same head is not duplicated into history.
  */
 function carryPriorReds(previous, headSha) {
   if (!previous) return [];
@@ -282,10 +217,6 @@ function carryPriorReds(previous, headSha) {
   return history.slice(-MAX_PRIOR_REDS);
 }
 
-/**
- * Render the human-readable digest. Names the head SHA, because that is the
- * field the green path adjudicates on.
- */
 function renderDigestMarkdown(digest, failures) {
   return [
     `# CI failure digest — Story #${digest.storyId} (PR #${digest.prNumber})`,
@@ -325,9 +256,7 @@ function renderDigestMarkdown(digest, failures) {
 }
 
 /**
- * Write the CI failure digest (`.json` + `.md`) for a red watch. Returns
- * the two paths written, or `null` when no story id was supplied (the
- * digest is scoped by filename and has nothing to key on).
+ * Write the digest (`.json` + `.md`); `null` without a Story id.
  *
  * @param {object} opts
  * @param {number|string|null} [opts.storyId] The v2 delivery scope.
@@ -339,9 +268,7 @@ function renderDigestMarkdown(digest, failures) {
  * @param {string} opts.prRef
  * @param {Function} [opts.checkRunFn]
  * @param {Function} [opts.logTailFn]
- * @param {Function} [opts.spawnFn] Child runner handed to the two default
- *   `gh` probes, so their real bodies can be exercised without shelling out.
- *   Ignored when `checkRunFn` / `logTailFn` are replaced outright.
+ * @param {Function} [opts.spawnFn] Child runner for the default `gh` probes.
  * @returns {{ jsonPath: string, mdPath: string } | null}
  */
 export function writeCiDigest({
@@ -390,18 +317,9 @@ export function writeCiDigest({
 }
 
 /**
- * Stamp the one-rerun allowance on the scope's digest (Story #5343).
- *
- * Called by `file-ci-gap.js` after it has filed the intake issue, so the
- * allowance exists only where the evidence the filing carries does. It is
- * keyed on the digest's own head SHA — the head the red was recorded
- * against — so an allowance can never be honoured on a later head it was not
- * earned for.
- *
- * Best-effort and non-throwing: a digest that cannot be re-read or re-written
- * simply records no allowance, and the guard keeps blocking. Returns the
- * recorded allowance, or `null` when none was written (no digest, an
- * ineligible verdict, or an unresolved head SHA).
+ * Stamp the one-rerun allowance, called by `file-ci-gap.js` after filing.
+ * Keyed on the digest's own head SHA so it cannot apply to a later head.
+ * Non-throwing; `null` when nothing was written (the guard keeps blocking).
  *
  * @param {{
  *   storyId?: number|string|null,
@@ -440,10 +358,6 @@ export function recordRerunAllowance({
 }
 
 /**
- * The allowance a digest carries for `headSha`, or `null`. An allowance
- * recorded against a different head is not one: the red it was filed for is
- * not the red being adjudicated.
- *
  * @param {object|null} digest
  * @param {string|null} headSha
  * @returns {{ verdict: string, headSha: string } | null}
@@ -460,18 +374,10 @@ function allowanceFor(digest, headSha) {
 }
 
 /**
- * Adjudicate an all-green watch against any digest recorded for the scope.
+ * Adjudicate an all-green watch against the scope's digest (see header).
  *
  * @param {{ digest: object|null, headSha: string|null }} opts
  * @returns {{ verdict: 'clean'|'fix-at-source'|'rerun-permitted'|'rerun'|'unverifiable', reason: string }}
- *   - `clean`           — no digest: this delivery never went red.
- *   - `fix-at-source`   — the head SHA moved since the red; legal.
- *   - `rerun-permitted` — same head SHA, but `file-ci-gap.js` recorded a
- *                         `capacity` / `unreproducible-tier` verdict for it;
- *                         the one sanctioned rerun (Story #5343).
- *   - `rerun`           — green on the SAME head SHA; forbidden.
- *   - `unverifiable`    — an unresolved red with no head-SHA evidence either
- *                         side; fail closed and treat it as a rerun.
  */
 export function classifyGreenVerdict({ digest, headSha }) {
   if (!digest) return { verdict: 'clean', reason: 'no digest for this scope' };
@@ -483,9 +389,7 @@ export function classifyGreenVerdict({ digest, headSha }) {
     };
   }
   if (recorded === headSha) {
-    // The digest records a red on a REQUIRED check (the watch reads
-    // `gh pr checks --required`), so the shared rerun rule decides: never,
-    // unless an evidence-gated allowance was recorded for this head.
+    // Digests only record required checks.
     const allowance = allowanceFor(digest, headSha);
     return isRerunPermitted({
       required: true,
@@ -506,11 +410,7 @@ export function classifyGreenVerdict({ digest, headSha }) {
   };
 }
 
-/**
- * The failure signature an intake filing must carry (see `file-ci-gap.js`):
- * the first
- * distinctive line of the captured failed-job log.
- */
+/** First non-blank failed-log line: the signature an intake filing carries. */
 function failureSignature(digest) {
   const tail = String(digest?.logTail ?? '');
   const line = tail
@@ -521,8 +421,7 @@ function failureSignature(digest) {
 }
 
 /**
- * Render the rerun-violation report — used verbatim as the friction comment
- * body and, line by line, as the watcher's stderr report.
+ * The friction comment body, also the watcher's stderr report.
  *
  * @param {{ digest: object, headSha: string|null, prNumber: number, reason: string }} opts
  * @returns {string}
@@ -561,13 +460,9 @@ export function formatRerunViolation({ digest, headSha, prNumber, reason }) {
 }
 
 /**
- * Hard-stop the delivery: post the `friction` comment and flip the Story to
- * `agent::blocked`. Both halves are best-effort — a failure to reach GitHub
- * must not turn the block into a crash, and the watcher's non-zero exit is
- * what actually stops the delivery.
- *
- * Routed through `transitionTicketState` rather than a bare label write so
- * the Projects v2 column sync runs (Story #2548 / #4539).
+ * Post the `friction` comment and flip to `agent::blocked` (via
+ * `transitionTicketState` so the board column syncs). Best-effort: the
+ * watcher's non-zero exit is what actually stops delivery.
  *
  * @param {{
  *   storyId: number|string,

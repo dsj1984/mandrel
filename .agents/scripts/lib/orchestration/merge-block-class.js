@@ -1,74 +1,8 @@
 // .agents/scripts/lib/orchestration/merge-block-class.js
 /**
- * merge-block-class.js — Story #4426 (Epic #4425, slice 1: foundation).
- *
- * Shared block-class classifier for the `single-story-close` must-land
- * terminal step and `deliver-recover`, so a headless delivery run that
- * finishes its work without a confirmed merge is attributable to exactly one
- * class from ONE decision logic, instead of each caller inventing its own ad
- * hoc diagnosis. (It was written to serve an epic-path terminal too; the v2
- * cutover left `single-story-close` as the only delivery path.)
- *
- * Block classes (Epic #4425 Goal; `predicate-refused` added by #4472):
- *   - `checks-pending-timeout`           The watch/poll budget was
- *                                         exhausted while required checks
- *                                         were still pending/running — not
- *                                         a hard block, the run simply ran
- *                                         out of time.
- *   - `checks-failed`                    A required check went RED — red
- *                                         checks that branch protection does
- *                                         not require are NOT this class
- *                                         (see `failingChecksBlockMerge`). A
- *                                         definitive terminal the merge wait
- *                                         must fail fast on (Story #4543):
- *                                         before this class the in-close poll
- *                                         read only `state`/`mergedAt`, so a
- *                                         check that failed at minute one
- *                                         burned the entire budget and then
- *                                         classified as
- *                                         `branch-protection-human-required`
- *                                         (the exhaustion probe sees
- *                                         `mergeStateStatus: BLOCKED` with
- *                                         checks settled) — sending the
- *                                         operator to diagnose branch
- *                                         protection instead of the red check
- *                                         that is actually in their way.
- *   - `branch-protection-human-required` GitHub reports the PR needs a
- *                                         human action: a required review
- *                                         that hasn't been granted, or a
- *                                         branch-protection rule the
- *                                         automation cannot satisfy on its
- *                                         own.
- *   - `arm-failure`                      The arm call itself (`gh pr merge
- *                                         --auto` or equivalent) failed for
- *                                         a reason that is NOT branch
- *                                         protection — auth, rate limit, an
- *                                         already-merged race, a network
- *                                         error.
- *   - `api-race-other`                   Fallback for anything that does
- *                                         not cleanly fit the above three —
- *                                         a transient GraphQL/API error, an
- *                                         ambiguous probe result, or a
- *                                         genuinely novel condition.
- *   - `predicate-refused`                The AutomergePredicate refused to
- *                                         arm merge BEFORE any arm attempt —
- *                                         a red/pending required check, an
- *                                         unreadable check probe, a dirty
- *                                         structured-signal verdict, or a
- *                                         (retired `requireChecks` policy
- *                                         block on a checks-less repo (#4472).
- *                                         The must-land contract previously
- *                                         only covered post-arm poll
- *                                         exhaustion, so a predicate refusal
- *                                         in headless mode silently parked;
- *                                         this class makes it attributable.
- *
- * Pure function, no I/O: callers pass in the already-observed
- * arm-result / PR-probe / budget signals (from the close path's merge wait,
- * a raw `gh pr view` read, or the standalone
- * `single-story-confirm-merge.js` poll) and get back a
- * `{ blockClass, reason }` verdict ready to hand to `emitMergeUnlanded`
- * (`emit-merge-unlanded.js`).
+ * merge-block-class.js — the one pure classifier attributing an unlanded
+ * delivery run to exactly one block class, from observed arm / probe /
+ * budget signals, for `emitMergeUnlanded`.
  */
 
 import {
@@ -80,14 +14,7 @@ import {
 } from './merge-poll.js';
 
 /**
- * Every class `classifyMergeBlock` can return. Order is the evaluation
- * priority documented on `classifyMergeBlock` below, NOT an arbitrary
- * listing — earlier entries are checked first when a real input happens to
- * satisfy more than one heuristic.
- *
- * Started as the four classes named in the Epic #4425 Goal; Story #4543
- * added `checks-failed` so a red required check is attributable as itself
- * rather than being absorbed by the timeout or branch-protection verdicts.
+ * Every class `classifyMergeBlock` can return, in its evaluation priority.
  */
 export const BLOCK_CLASSES = Object.freeze([
   CHECKS_FAILED_CLASS,
@@ -98,38 +25,13 @@ export const BLOCK_CLASSES = Object.freeze([
 ]);
 
 /**
- * The full set of block-class values a `merge.unlanded` record may carry.
- * This is the classifier's four outputs PLUS `predicate-refused` (#4472),
- * emitted DIRECTLY for a headless refusal that never reached the
- * poll-exhaustion classifier — so it is a valid attribution value even though
- * `classifyMergeBlock` never produces it. Story #5096 added
- * `advisory-gate-red` on the same footing: a genuinely red NON-required check
- * observed while GitHub reports the PR mergeable anyway
- * (`mergeStateStatus: UNSTABLE`), which native auto-merge would land straight
- * past. It is emitted directly by the arm and merge-wait phases — the
- * classifier cannot produce it, because by construction GitHub is NOT blocking
- * the merge, which is the entire problem it names. Story #5266 added
- * `advisory-gate-inconclusive` beside it, emitted directly by the same two
- * phases and under the same discipline: the SAME observation (a red advisory
- * run on an `UNSTABLE` PR) whose run never FINISHED — a scan or navigation
- * timeout reporting no violation. It blocks exactly as `advisory-gate-red`
- * does; it exists because the two authorise different remedies, and reporting
- * a timed-out scan as a found violation pushes the operator toward a permanent
- * allowlist exemption for a transient failure. It is deliberately NOT in
- * `BLOCK_CLASSES`, whose reachability invariant covers only what
- * `classifyMergeBlock` returns. (The Epic-era listeners that used to
- * emit it, AutomergePredicate and AutomergeArmer, are gone; the value stays
- * because archived `merge.unlanded` records carry it and the schema enum
- * must keep validating them.) `isValidBlockClass` (and the `merge.unlanded` schema enum)
- * validate against this broader set; the classifier's own reachability
- * invariant stays scoped to `BLOCK_CLASSES`.
+ * Plus classes emitted directly, never by the classifier: `predicate-refused`
+ * (kept so archived records validate) and the advisory-gate pair.
  */
 export const MERGE_UNLANDED_BLOCK_CLASSES = Object.freeze([
   ...BLOCK_CLASSES,
   'predicate-refused',
-  // Sourced from the constants the advisory gate itself decides with
-  // (Story #5266), so the attribution vocabulary cannot drift from the
-  // verdict that emits it.
+  // Sourced from the gate's own constants so the vocabulary cannot drift.
   ADVISORY_GATE_RED_CLASS,
   ADVISORY_GATE_INCONCLUSIVE_CLASS,
 ]);
@@ -139,18 +41,13 @@ const BLOCK_CLASS_SET = new Set(MERGE_UNLANDED_BLOCK_CLASSES);
 /**
  * @param {string} value
  * @returns {boolean} `true` iff `value` is a valid `merge.unlanded`
- *   block-class attribution (the four classifier outputs plus the directly-
- *   emitted `predicate-refused`).
+ *   block-class attribution.
  */
 export function isValidBlockClass(value) {
   return BLOCK_CLASS_SET.has(value);
 }
 
-/**
- * Substrings that identify a branch-protection / human-review rejection
- * surfaced through an arm call's stderr or reason text. Matched
- * case-insensitively against the whole string.
- */
+/** Case-insensitive markers of a protection/review rejection in arm text. */
 const BRANCH_PROTECTION_MARKERS = Object.freeze([
   'review',
   'required_status_checks',
@@ -164,18 +61,13 @@ function textIncludesAny(text, markers) {
   return markers.some((marker) => lower.includes(marker));
 }
 
-/**
- * Build the `api-race-other` fallback reason from whatever signal is
- * available, so the emitted event still carries a specific-as-possible
- * explanation rather than a bare "unknown".
- */
+/** The most specific `api-race-other` reason the signals allow. */
 function describeApiRaceFallback(prProbe, budget) {
   if (prProbe?.error) {
     return `PR probe error: ${prProbe.error}`;
   }
-  // Red checks that do not gate the merge (step 1b declined them). Name the
-  // situation precisely: the operator must NOT be sent to fix the red check,
-  // because auto-merge was free to land this PR and did not.
+  // Red but non-gating checks: don't send the operator to fix them — auto-merge
+  // was free to land this PR and did not.
   if (prProbe?.checksStatus === 'failure') {
     return `PR did not land although its failing checks are not required (mergeStateStatus=${prProbe?.mergeStateStatus ?? 'n/a'}); the red checks are not the block — check that auto-merge is still armed`;
   }
@@ -186,74 +78,32 @@ function describeApiRaceFallback(prProbe, budget) {
 }
 
 /**
- * Classify why a delivery run finished without a confirmed merge.
- *
- * Evaluation order (first match wins):
- *   1. Arm failure — the arm call itself did not succeed. A failed arm
- *      means there is no "armed but stuck" PR left to probe, so this is
- *      checked before any PR-probe or budget signal. A branch-protection
- *      rejection surfaced AT arm time still routes to
- *      `branch-protection-human-required` rather than the generic
- *      `arm-failure`.
- *   1b. A genuinely red required check — `checks-failed` (Story #4543,
- *      head-anchored by Story #4695). Evaluated before every budget and
- *      probe signal because it is *definitive*: no amount of remaining
- *      budget turns a failed check green, and on a protected branch it also
- *      presents as `mergeStateStatus: 'BLOCKED'`, so leaving it to step 3
- *      would attribute the operator's red test run to branch protection.
- *      Gated on `requiredCheckFailedBlocksMerge`: a run must have concluded
- *      failure with none in flight — a red rollup while a required run is
- *      merely queued is the protected-branch pending state, not this class.
- *      The predicate also declines the verdict when the probe reports
- *      `reviewDecision: 'REVIEW_REQUIRED'` (Story #4710): the rollup cannot
- *      prove the red run is required, and a missing required review already
- *      explains the BLOCKED merge state, so classification falls through to
- *      the step-3 human-required verdict instead of misdirecting the
- *      operator at a possibly-optional red check.
- *   2. Budget exhaustion while checks were still in flight —
- *      `checks-pending-timeout`. Evaluated BEFORE the human-required
- *      probe signals because on a protected branch GitHub reports
- *      `mergeStateStatus: 'BLOCKED'` for the entire time required checks
- *      are still running — a slow-CI timeout would otherwise always
- *      misclassify as `branch-protection-human-required` and the
- *      headless once-only budget extension could never engage.
- *   3. PR-probe human-required signals — `reviewDecision` reporting a
- *      required review, or `mergeStateStatus: 'BLOCKED'` with checks NOT
- *      in flight (green/failed checks + BLOCKED = a genuinely human
- *      gate, e.g. a missing approval).
- *   4. Fallback — `api-race-other`.
+ * Classify why a delivery run finished without a confirmed merge. First match
+ * wins: (1) arm failure (a protection rejection at arm time still routes to
+ * human-required); (1b) a red required check; (2) budget exhausted with
+ * checks in flight; (3) human-required probe signals; (4) `api-race-other`.
  *
  * @param {object} input
  * @param {object} [input.armResult] Outcome of the arm call.
  * @param {boolean} [input.armResult.armed] `false` when the arm call
- *   itself failed (a non-zero `gh pr merge` exit, or arming was refused
- *   up-front).
- * @param {string} [input.armResult.reason] Free-form failure detail (e.g.
- *   `gh` stderr) — inspected for branch-protection markers.
- * @param {string} [input.armResult.error] Alternate free-form failure
- *   detail field, checked when `reason` is absent.
+ *   failed or was refused up-front.
+ * @param {string} [input.armResult.reason] Failure detail (e.g. `gh` stderr).
+ * @param {string} [input.armResult.error]
  * @param {object} [input.prProbe] Latest `gh pr view` read.
- * @param {string} [input.prProbe.reviewDecision] GitHub review decision
- *   (`REVIEW_REQUIRED`, `APPROVED`, …).
- * @param {string} [input.prProbe.mergeStateStatus] GitHub merge-state
- *   status (`BLOCKED`, `BEHIND`, `CLEAN`, …).
- * @param {string} [input.prProbe.checksStatus] Aggregate status across ALL
- *   checks observed on the last probe (`success` | `pending` |
- *   `still-running` | `failure` | `unknown`) — required-ness is decided by
- *   `mergeStateStatus`, not by this field.
- * @param {string} [input.prProbe.error] Set when the probe call itself
- *   errored (network / API failure reading the PR).
+ * @param {string} [input.prProbe.reviewDecision]
+ * @param {string} [input.prProbe.mergeStateStatus]
+ * @param {string} [input.prProbe.checksStatus] Aggregate over ALL checks;
+ *   required-ness comes from `mergeStateStatus`.
+ * @param {string} [input.prProbe.error] Set when the probe itself errored.
  * @param {object} [input.budget] Poll-budget accounting.
- * @param {boolean} [input.budget.exhausted] `true` once the watch loop hit
- *   its budget without observing a confirmed merge.
- * @param {number} [input.budget.elapsedSeconds] Elapsed watch time in
- *   seconds, folded into the `reason` text.
+ * @param {boolean} [input.budget.exhausted]
+ * @param {number} [input.budget.elapsedSeconds]
  * @returns {{ blockClass: string, reason: string }}
  */
 export function classifyMergeBlock(input) {
   const { armResult, prProbe, budget } = input ?? {};
 
-  // 1. Arm call failure.
+  // 1. Arm failed: no armed PR is left to probe.
   if (armResult && armResult.armed === false) {
     const detail = armResult.reason ?? armResult.error ?? '';
     if (textIncludesAny(detail, BRANCH_PROTECTION_MARKERS)) {
@@ -270,41 +120,16 @@ export function classifyMergeBlock(input) {
     };
   }
 
-  // Positive in-flight evidence from the latest probe. Only `pending` /
-  // `still-running` count — `unknown` (empty rollup: a checks-less repo
-  // or a probe race) routes to the api-race re-arm below, and
-  // `undefined` (no probe at all) keeps its budget-timeout mapping in
-  // step 2 without suppressing the step-3 human-required verdict.
+  // Positive evidence only: `unknown` routes to the fallback; `undefined`
+  // (no probe) keeps the step-2 mapping.
   const checksStatus = prProbe?.checksStatus;
-  // A required run still queued/in-progress on the head is the
-  // protected-branch pending steady state (Story #4695), so it counts as
-  // in-flight evidence exactly like a `pending`/`still-running` aggregate —
-  // keeping a red-rollup-but-required-run-in-flight probe out of the
-  // human-required verdict below and into the timeout branch on budget expiry.
   const checksPendingEvidence =
     checksStatus === 'pending' ||
     checksStatus === 'still-running' ||
     prProbe?.requiredRunEvidence?.requiredRunInFlight === true;
 
-  // 1b. A required check is RED. Definitive — no remaining budget makes a
-  // failed check pass — so this precedes both the budget branch and the
-  // BLOCKED-merge-state heuristic, which would otherwise attribute the red
-  // check to branch protection on any protected base.
-  //
-  // Gated on `requiredCheckFailedBlocksMerge` (Story #4695), not the raw
-  // rollup status: `checksStatus: 'failure'` covers optional checks AND the
-  // protected-branch pending state where a required run is merely queued (the
-  // rollup counts a cancelled superseded run as failure). Naming either as THE
-  // block sends the operator to fix a check that was never gating the merge —
-  // on a PR that merges on its own. Only head-anchored evidence of a genuinely
-  // red required run with none in flight classifies here; anything short of
-  // that falls through, keeps polling, and — on budget expiry with checks in
-  // flight — classifies `checks-pending-timeout` as before.
-  //
-  // The merge wait does NOT reach this branch for its own fail-fast: it
-  // decides `checks-failed` in `decideMergeWaitFailFast` and carries that
-  // verdict to the terminal (Story #5383). This branch serves every caller
-  // that hands the classifier a raw probe.
+  // 1b. Definitive, and before step 3 since it also presents as BLOCKED.
+  // Head-anchored evidence, not the raw rollup (optional/superseded runs).
   if (requiredCheckFailedBlocksMerge(prProbe)) {
     return {
       blockClass: CHECKS_FAILED_CLASS,
@@ -312,11 +137,8 @@ export function classifyMergeBlock(input) {
     };
   }
 
-  // 2. Budget exhausted while checks were still in flight. Ordered
-  // before the human-required probe signals: `mergeStateStatus:
-  // 'BLOCKED'` is the steady state on a protected branch while required
-  // checks run, so a slow-CI timeout must not read as human-required —
-  // it must consume the headless once-only budget extension instead.
+  // 2. BLOCKED is the steady state while checks run; a slow-CI timeout must
+  // not read as human-required.
   if (
     budget &&
     budget.exhausted === true &&
@@ -328,11 +150,7 @@ export function classifyMergeBlock(input) {
     };
   }
 
-  // 3. PR-probe human-required signals. A BLOCKED merge state counts
-  // only without positive checks-in-flight evidence —
-  // BLOCKED-with-settled-checks is a genuinely human gate (e.g. a
-  // missing required approval), whereas BLOCKED-while-checks-run is the
-  // protected-branch steady state.
+  // 3. BLOCKED counts only with checks settled — a genuinely human gate.
   if (prProbe) {
     if (
       prProbe.reviewDecision === 'REVIEW_REQUIRED' ||
@@ -345,7 +163,6 @@ export function classifyMergeBlock(input) {
     }
   }
 
-  // 4. Fallback.
   return {
     blockClass: 'api-race-other',
     reason: describeApiRaceFallback(prProbe, budget),

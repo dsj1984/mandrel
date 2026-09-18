@@ -1,6 +1,6 @@
 /**
- * Pure-I/O baseline-JSON store: encapsulates the Story #1120 `--epic-ref`
- * fallback chain (try `readAtRef` → fall back to fs with a warning) and
+ * Pure-I/O baseline-JSON store: encapsulates the `--epic-ref` fallback
+ * chain (try `readAtRef` → fall back to fs with a warning) and
  * an atomic tmp-rename write. Shape validation stays in each gate.
  * Missing files throw `BaselineNotFoundError`; write failures throw
  * `BaselineWriteError` — no swallowing.
@@ -49,10 +49,8 @@ function defaultReadFromTree({ baselinePath, projectRoot } = {}) {
 }
 
 /**
- * Load a baseline JSON file with the Story #1120 `--epic-ref` fallback
- * chain. Gates may supply a `readFromTree` to preserve a "missing →
- * empty" bootstrap (e.g. MI returns `{}`); otherwise the default throws
- * `BaselineNotFoundError`.
+ * A gate may supply `readFromTree` for a "missing → empty" bootstrap (MI
+ * returns `{}`); the default throws `BaselineNotFoundError`.
  */
 export function loadBaseline({
   baselinePath,
@@ -76,9 +74,7 @@ export function loadBaseline({
   return readFromTree({ baselinePath, projectRoot });
 }
 
-/**
- * Atomic write via temp-file + rename. 2-space indent + trailing newline.
- */
+/** Atomic write via temp-file + rename. */
 export function writeBaseline({
   baselinePath,
   data,

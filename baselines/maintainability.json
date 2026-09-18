@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-18T15:54:32.788Z",
+  "generatedAt": "2026-09-18T17:33:55.593Z",
   "rollup": {
     "*": {
       "min": 76.381,
-      "p50": 99.299,
+      "p50": 99.285,
       "p95": 122.565
     }
   },
@@ -2247,6 +2247,10 @@
       "mi": 90.044
     },
     {
+      "path": "scripts/check-comment-policy.js",
+      "mi": 93.712
+    },
+    {
       "path": "scripts/check-generated-validator.js",
       "mi": 97.187
     },
@@ -2325,6 +2329,10 @@
     {
       "path": "scripts/lib/c8-cli-path.js",
       "mi": 122.902
+    },
+    {
+      "path": "scripts/lib/comment-policy.js",
+      "mi": 99.175
     },
     {
       "path": "scripts/lib/dynamic-workflow/architecture-report-contract.js",

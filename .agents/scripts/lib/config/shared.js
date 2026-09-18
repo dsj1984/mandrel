@@ -1,21 +1,7 @@
-/**
- * Cross-block helpers for the lib/config/* sub-modules (Epic #773 Story 6).
- *
- * Lives outside the per-sub-block files because more than one resolver needs
- * the same merge primitives. Adding a helper here is appropriate when ≥ 2
- * sub-block resolvers would otherwise duplicate the same logic; keep
- * single-use helpers private to their own sub-block.
- */
+/** Merge primitives shared by two or more config resolvers. */
 
 /**
- * Deep-merge a list-valued config key with its framework default.
- *
- * Accepts:
- *   - `undefined`           → return a copy of `defaultList`
- *   - plain array           → replace wholesale (returns a copy)
- *   - `{ append, prepend }` → extend `defaultList`; items already present in
- *                             the result are deduped so a consumer appending
- *                             a framework entry does not produce a duplicate.
+ * An array replaces the default; `{ append, prepend }` extends it, deduped.
  *
  * @param {readonly string[]} defaultList
  * @param {unknown} userValue

@@ -1,27 +1,7 @@
 /**
- * signal-validator.js — write-time validation of NDJSON signal records
- * against the canonical `signal-event.schema.json` (Epic #4406 /
- * Story #4413).
- *
- * The signals writer calls {@link validateSignal} before appending a
- * record so a schema-invalid line is dropped with a `Logger.warn` naming
- * the violating field rather than polluting the stream (and defeating the
- * downstream consumers that assume the canonical shape). Validation is
- * best-effort: the writer contract (Tech Spec #1032) is preserved —
- * observability MUST NOT throw into the runner, so every helper here
- * swallows its own faults and degrades to "treat as valid" only when the
- * validator itself cannot be constructed.
- *
- * The AJV instance compiles the on-disk schema **once** at module load so
- * the writer and the contract test validate against the exact same
- * document (no hand-rolled drift). `strict: false` matches the repo's
- * other draft-07 validators (see `tests/schemas/signal-schemas.test.js`).
- *
- * Story #5003 deleted the persisted per-Epic reject tally
- * (`temp/run-<eid>/signal-rejects.json`) and its `readSignalRejectCount`
- * reader: the tally was keyed on a positive `epicId`, and v2 Stories are
- * standalone, so nothing ever wrote a row and nothing could ever read one.
- * Write-time validation itself is untouched.
+ * signal-validator.js — write-time validation of signal records against the
+ * on-disk `signal-event.schema.json`, compiled once so the writer and the
+ * contract test validate against the same document. Never throws.
  */
 
 import { readFileSync } from 'node:fs';
@@ -44,10 +24,8 @@ const SCHEMA_PATH = path.resolve(
 );
 
 /**
- * Compile the signal-event schema once. Returns `null` when the schema
- * cannot be read or compiled — the caller then treats every record as
- * valid (fail-open) so a packaging error never silently drops all
- * signals.
+ * `null` when the schema cannot be compiled: validation then fails open so a
+ * packaging error never drops every signal.
  *
  * @returns {import('ajv').ValidateFunction | null}
  */
@@ -70,10 +48,6 @@ function buildValidator() {
 const _validate = buildValidator();
 
 /**
- * Derive a human-readable "violating field" label from the first AJV
- * error. Prefers the missing property name (required errors) or the
- * instance path, falling back to the raw message.
- *
  * @param {import('ajv').ErrorObject[] | null | undefined} errors
  * @returns {string}
  */
@@ -96,12 +70,6 @@ function violatingFieldOf(errors) {
 }
 
 /**
- * Validate a signal record against the canonical schema.
- *
- * Fail-open: when the validator could not be compiled the record is
- * reported valid (the writer keeps working). A non-object record is
- * reported invalid without invoking AJV.
- *
  * @param {unknown} record
  * @returns {{ valid: boolean, violatingField: string|null, message: string|null }}
  */

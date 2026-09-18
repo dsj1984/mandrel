@@ -1,24 +1,8 @@
 /**
- * lib/audit-to-stories/group-findings.js — Cluster findings into Stories.
- *
- * Grouping signals, in priority order (Story #2583):
- *   1. **Same primary file** — two findings on the same file merge.
- *   2. **Adjacent files in the same module directory** — when the
- *      directory hash matches and there is no stronger signal.
- *   3. **Root-cause keyword overlap** — shared topical n-gram across
- *      Current State / Title.
- *
- * Cross-audit grouping is enabled by default: a `security` finding and a
- * `clean-code` finding on the same file produce a single group with both
- * dimensions captured (`group.dimensions` is an array — callers map this
- * to multiple `audit::<dim>` labels).
- *
- * Dependency edges (Recommendation of A references the file Current
- * State of B flags) are emitted as a separate `edges` array — they do
- * NOT merge the groups. The CLI surfaces them in the preview so the
- * operator can decide if a sequencing constraint is worth flagging.
- *
- * Pure: no I/O.
+ * Cluster findings (across lenses) into Stories by: same primary file, then
+ * same directory with root-cause keyword overlap, then keyword overlap alone.
+ * Dependency edges (A's recommendation names B's file) are reported
+ * separately and never merge groups. Pure.
  */
 
 import { highestSeverity as highestSeverityOf } from '../findings/severity.js';
@@ -38,16 +22,8 @@ function pickPrimaryFile(finding) {
 }
 
 /**
- * The highest severity across a group's findings, ranked by the severity SSOT
- * ({@link highestSeverityOf}) rather than a local copy of the scale.
- *
- * The rank map this replaces knew four levels and not `info`, so an Info
- * finding tied with a finding carrying no severity at all — the same partial
- * vocabulary this Story removes everywhere else.
- *
- * A group whose findings all lack a usable severity still reports `null`, not
- * the SSOT's `info` floor: absent is not the same claim as "graded lowest",
- * and the callers that tally and threshold on this value distinguish them.
+ * `null` (not `info`) when no finding states a severity: absent is not
+ * "graded lowest", and callers distinguish them.
  *
  * @param {Array<{ severity?: string }>} findings
  * @returns {string|null} a canonical severity, or null when none is stated.
@@ -88,7 +64,6 @@ function tokenisePhrase(text) {
 }
 
 function rootCauseSignature(finding) {
-  // Topical tokens drawn from title + current-state.
   const title = tokenisePhrase(finding.normalisedTitle ?? finding.title ?? '');
   const state = tokenisePhrase(finding.currentState ?? '');
   return new Set([...title, ...state]);
@@ -143,8 +118,7 @@ function synthesizeTitle(group) {
 }
 
 function detectDependencyEdges(groups) {
-  // A dependency edge fires when group B's primary file is mentioned in
-  // group A's Recommendation text (i.e. fixing A requires B to land).
+  // A → B when A's recommendation mentions a file B owns.
   const fileToGroup = new Map();
   for (const g of groups) {
     const filesIter = Array.isArray(g.files) ? g.files : [...g.files];
@@ -176,8 +150,6 @@ function detectDependencyEdges(groups) {
 }
 
 /**
- * Cluster findings into Stories.
- *
  * @param {Array<{
  *   dimension: string,
  *   severity: string|null,
@@ -204,7 +176,6 @@ export function groupFindings(findings) {
     if (primary) {
       key = `file:${primary}`;
     } else {
-      // No file → try signature-based merge with an existing group.
       const { key: matchKey, sig } = bestSignatureGroupKey(finding, sigBuckets);
       if (matchKey) {
         key = matchKey;
@@ -227,9 +198,8 @@ export function groupFindings(findings) {
     attachFindingToGroup(groups.get(key), finding);
   }
 
-  // Second pass: merge any single-finding groups whose primary directory
-  // matches another group's directory AND whose root-cause signatures
-  // overlap by ≥ 3 tokens. This implements signal #2.
+  // Merge single-finding groups into a same-directory group sharing ≥ 3
+  // signature tokens.
   const groupArray = [...groups.values()];
   const merged = new Set();
   for (let i = 0; i < groupArray.length; i += 1) {

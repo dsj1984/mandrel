@@ -1,51 +1,8 @@
 /**
- * lib/orchestration/light-suitability.js — the `/deliver-light` suitability
- * gate and diff backstop (Story #4740).
- *
- * ## Why a light entry point exists
- *
- * mandrel-bench 2.12.0 forensics attributed the framework arm's cost to
- * **session multiplication** — repeated cold framework boots (2 for a one-file
- * greenfield build, 4 for a change request) — where the bare control does
- * comparable small work in a single session, lacking only the quality gates
- * and the landing guarantee. `/deliver-light` closes that gap: one session
- * straight to execution from an operator prompt, landing through the
- * **unchanged** `single-story-close.js` path. This module is the reusable
- * decision core the light workflow drives; it owns **no** git, branch, PR, or
- * label mutation — those stay in the shared engine scripts.
- *
- * ## Four invariants keep it proportional, not a planning bypass
- *
- *   1. **Risk gate ({@link deriveLightSuitability}).** The prompt's predicted
- *      footprint is judged for **risk** by the shared machinery
- *      ({@link module:lib/orchestration/complexity-gate.deriveStoryShape} over
- *      the `audit-rules.json` sensitive-path classes and the
- *      migration-with-consumers span) **and** a ledgered verdict carrying a
- *      recorded reason ({@link resolveLedgeredVerdict}). A tripped risk rule
- *      or an unrecorded reason fails closed to `full`.
- *   2. **Nothing the caller declares about its own size decides (Story
- *      #5344).** The predicted-shape ceilings — declared change kinds, a
- *      magnitude bucket, an uncertainty bucket, a deployable span — are gone,
- *      along with the `warnings[]` Story #5313 had already demoted them to.
- *      They were self-declared by the agent asking to proceed, and once they
- *      only warned they decided nothing at all. What is left reads evidence:
- *      the predicted PATHS at the gate, and the actual diff at invariant 3.
- *   3. **Diff-derived backstop ({@link checkLightDiffBackstop}).** After
- *      implementation the **actual** change set is re-checked with
- *      {@link module:lib/orchestration/review-depth.deriveChangeLevel} plus the
- *      implementation-only magnitude ceilings of {@link LIGHT_DIFF_CEILINGS} —
- *      the diff is the real scope signal, and since Story #5344 it is the ONLY
- *      size block on the path. Story #4856 moved it from a `maxFiles: 4`
- *      cardinality ceiling to changed lines over implementation files, and made
- *      a block **recycle** its receipt Story through `/mandrel-plan` tickets
- *      mode instead of orphaning it.
- *   4. **Minimal receipt Story ({@link buildReceiptStoryTicket}).** A
- *      `type::story` ticket is authored inline so `refs #`, history, telemetry,
- *      and the `agent::executing -> agent::done` state machine survive.
- *
- * Every function here is pure and total: inputs in, decision out, no I/O and no
- * throws (except {@link buildReceiptStoryTicket}, which rejects an empty
- * prompt — a receipt with no prompt has nothing to record).
+ * lib/orchestration/light-suitability.js — pure `/deliver-light` decision
+ * core (no git/PR/label mutation). Nothing the caller declares about its own
+ * size decides: the gate reads risk off predicted paths plus a recorded
+ * reason, and the diff backstop is the only size block.
  *
  * @module lib/orchestration/light-suitability
  */
@@ -54,25 +11,8 @@ import { deriveStoryShape, SHAPE_CODES } from './complexity-gate.js';
 import { deriveChangeLevel } from './review-depth.js';
 
 /**
- * Detect the **un-waivable** risk rules a predicted footprint trips —
- * `sensitive-path` and `migration-span` — **independent of which rule the
- * shape decision happened to record** (Story #4875).
- *
- * No re-slicing, shrinking, or operator answer satisfies one: a footprint
- * intersecting a sensitive-path class routes `full` however small the change,
- * and the diff backstop refuses the same footprint again at the end. But
- * {@link deriveStoryShape} reports only the **first** rule a footprint trips,
- * and it can reject on an unknown footprint (a glob, an absent acceptance
- * list) before either risk rule is reached — so the recorded `code` is not a
- * reliable answer to "is this risk or is this something I can fix?".
- *
- * The recovery is that the shape decision attaches the built risk shape to
- * every footprint it can judge at all, and that shape carries the risk facts
- * (`sensitiveClasses`, `migrationSpan`) whether or not a risk rule was the
- * recorded one. Reading them here surfaces the objection first-hit reporting
- * hides — the difference between a wasted session and a redirected one.
- *
- * Pure and total.
+ * Read from the risk shape, not the recorded `code`: first-hit reporting can
+ * hide a risk rule behind a fixable one.
  *
  * @param {{ shape?: { sensitiveClasses?: unknown, migrationSpan?: unknown } }} [decision]
  *   A {@link deriveStoryShape} return value.
@@ -118,28 +58,8 @@ function deriveUnwaivableRisk(decision) {
 }
 
 /**
- * Ceilings for the **actual landed** change set the diff backstop
- * ({@link checkLightDiffBackstop}) enforces, measured on the change's
- * implementation half (Story #4856 — see
- * {@link module:lib/orchestration/diff-magnitude} for the measured case and the
- * companion-class boundary).
- *
- * The backstop reads ground truth, so it is where size is genuinely enforced;
- * the prediction gate above it is a declaration and stays coarse (Story #4764).
- * What changed is the **axis**: this used to be `maxFiles: 4`, a cardinality
- * ceiling that rejected 79% of this repository's real merged work while passing
- * a three-file 323-line rewrite.
- *
- *   - `maxImplLines` — additions plus deletions across implementation files.
- *                      Simulated over 41 merges, 1000 admits 83% of real work
- *                      and rejects exactly the genuinely large changes.
- *   - `maxImplFiles` — implementation files touched, a *sprawl* tripwire rather
- *                      than a size gate. Set to `DEFAULT_DIFF_WIDTH.softFiles`
- *                      so the light path and `review-depth.js` stop holding two
- *                      different definitions of a narrow diff.
- *
- * Framework constants, not knobs: a ceiling an operator could widen past what a
- * single session safely absorbs is a ceiling that fails silently.
+ * Implementation-half ceilings (companions exempt); `maxImplFiles` matches
+ * `DEFAULT_DIFF_WIDTH.softFiles`. Constants: a widenable ceiling fails silently.
  */
 export const LIGHT_DIFF_CEILINGS = Object.freeze({
   maxImplLines: 1000,
@@ -147,9 +67,7 @@ export const LIGHT_DIFF_CEILINGS = Object.freeze({
 });
 
 /**
- * Coerce a candidate ceiling into a positive integer, falling back to the
- * framework default for anything malformed — a stray `0`, `-1`, or `NaN` must
- * never widen (or zero out) a light diff ceiling.
+ * A malformed ceiling falls back to the default, never widens or zeroes.
  *
  * @param {unknown} value
  * @param {number} fallback
@@ -163,8 +81,6 @@ function normalizeCeiling(value, fallback) {
 }
 
 /**
- * Resolve the effective diff ceilings from a caller-supplied partial override.
- *
  * @param {{ maxImplLines?: unknown, maxImplFiles?: unknown }} [ceilings]
  * @returns {{ maxImplLines: number, maxImplFiles: number }}
  */
@@ -182,22 +98,7 @@ function resolveDiffCeilings(ceilings) {
 }
 
 /**
- * Resolve the model's ledgered light verdict: the **recorded reason** is the
- * whole of it. A prompt arriving with no reason fails closed to `full` — an
- * unaudited "trust me, it's small" never buys the light path.
- *
- * Story #5344 removed the `--route lite|full` half. It was a second
- * self-declaration on top of the reason, and it carried no information the
- * reason did not: a caller writing a reason is claiming `lite`, and one that
- * meant `full` would not be invoking this gate. What survives is the part that
- * leaves a record a human can read afterwards.
- *
- * Story #5366 removed the `route` field this used to carry beside `recorded`.
- * It was a second spelling of the same boolean — `recorded === false` IS the
- * fail-closed route — and two fields that must agree are a chance for them
- * not to.
- *
- * Pure and total.
+ * No recorded reason fails closed to `full`.
  *
  * @param {{ reason?: unknown }} [verdict]
  * @returns {{
@@ -223,27 +124,8 @@ export function resolveLedgeredVerdict({ reason } = {}) {
 }
 
 /**
- * Judge whether an operator prompt's predicted footprint is suitable for the
- * light path. Two things can refuse, and both are checks the caller cannot
- * satisfy by re-describing its own request: an **un-waivable risk rule** read
- * off the predicted paths (a sensitive-path class, a migration paired with its
- * consumers) and an **un-ledgered verdict** (no recorded reason). Everything
- * else proceeds light and is bounded for real by
- * {@link checkLightDiffBackstop} against the actual diff.
- *
- * Story #5344 removed the declared effort axes — `predictedKinds`,
- * `predictedMagnitude`, `predictedUncertainty` — and the `warnings[]` Story
- * #5313 had demoted them to. A bucket the caller picks about its own request
- * is not a measurement, and once it only warned it was not even a gate.
- * Story #5366 removed `predictedAcceptance` for the same reason from the
- * other end: its zero-check was the only thing that read it, and the
- * `--acceptance` flag that fed it clamped to a floor of one.
- *
- * The result reports `suitable` and nothing that restates it. The `route`
- * field it used to carry was a second spelling of that same boolean, and no
- * caller read it — {@link resolveLightGateOutcome} branches on `suitable`.
- *
- * Pure and total: never throws, never mutates its inputs.
+ * Refuses only on un-waivable risk or an un-ledgered verdict; size is bounded
+ * later by {@link checkLightDiffBackstop}.
  *
  * @param {{
  *   predictedChanges?: unknown,
@@ -257,9 +139,7 @@ export function resolveLedgeredVerdict({ reason } = {}) {
  *   ledger: ReturnType<typeof resolveLedgeredVerdict>,
  *   unwaivable: ReturnType<typeof deriveUnwaivableRisk>,
  *   reasons: string[],
- * }} `unwaivable` names an absolute risk rule the predicted footprint trips
- *   even when the recorded `shape.code` is something else (Story #4875), so
- *   the operator learns at prediction time that no re-slicing can help.
+ * }}
  */
 export function deriveLightSuitability({
   predictedChanges,
@@ -282,17 +162,6 @@ export function deriveLightSuitability({
 }
 
 /**
- * Resolve what the light gate does with a suitability decision (Story #4740
- * AC-3; Story #5313; Story #5344).
- *
- *   - suitable        → `proceed-light`.
- *   - not suitable    → `escalate-plan` — only an un-ledgered verdict or an
- *                       un-waivable risk rule gets here, and neither has an
- *                       answer an operator could give, so there is no
- *                       attended/unattended split any more.
- *
- * Pure and total.
- *
  * @param {{
  *   suitability?: { suitable?: boolean, reasons?: string[] },
  * }} [args]
@@ -326,43 +195,22 @@ export function resolveLightGateOutcome({ suitability } = {}) {
 }
 
 /**
- * The refusal classes a blocked diff backstop can carry — the machine-readable
- * half of a verdict whose `reasons[]` are prose (Story #5238).
- *
- * One value per blocked verdict, and the reason it exists is downstream: the
- * refusal's friction category is derived from it
- * ({@link module:lib/observability/runtime-friction.lightScopeRejectedCategory}),
- * and the category is the ONLY key the retro composer separates buckets on.
- * Under one bare category an empty-diff refusal and a `public-api` refusal
- * aggregated into a single "recurred 2 times" follow-up with nothing in common
- * (issue #5237) — the roll-up's shape fingerprint could not tell them apart
- * either, because it hashes detail keys and every refusal carries the same set.
- *
- * Kept coarse on purpose: a class must be stable enough that N refusals of one
- * cause still coalesce into the recurrence evidence the ceilings are
- * recalibrated from.
+ * One class per blocked verdict; retro buckets split only on the friction
+ * category derived from it. Kept coarse so repeats of one cause coalesce.
  *
  * @typedef {{ reason: string, refusalClass: string }} Objection
  */
 export const LIGHT_REFUSAL_CLASSES = Object.freeze({
-  /** The diff could not be enumerated, or enumerated to nothing. */
   CHANGE_SET_UNKNOWN: 'change-set-unknown',
   /** Enumerated-empty, but the worktree carries uncommitted changes. */
   UNCOMMITTED_WORK: 'uncommitted-work',
-  /** The change set intersects a registered sensitive-path class. */
   SENSITIVE_PATH: 'sensitive-path',
-  /** Sensitivity could not be classified, so non-sensitivity is unproven. */
   SENSITIVITY_UNKNOWN: 'sensitivity-unknown',
-  /** The implementation magnitude could not be measured. */
   MAGNITUDE_UNKNOWN: 'magnitude-unknown',
-  /** Measured magnitude exceeded a light ceiling. */
   OVER_CEILING: 'over-ceiling',
 });
 
 /**
- * Name the branch a commit-first refusal tells the agent to commit on, with a
- * generic stand-in when the caller supplied none. Pure.
- *
  * @param {unknown} storyBranch
  * @returns {string}
  */
@@ -372,29 +220,9 @@ function describeStoryBranch(storyBranch) {
 }
 
 /**
- * Diff-derived backstop (Story #4740 AC-4, re-based on magnitude by Story
- * #4856): re-check the **actual** change set after implementation, because the
- * diff — not the prompt — is the real scope signal. Blocks (rather than landing)
- * when the diff intersects a sensitive-path class, exceeds an implementation
- * ceiling, or cannot be measured. A clean result is the only path that lands
- * light.
- *
- * Two inputs, two different scopes, and the difference is load-bearing:
- *
- *   - `changedFiles` is the **full** change set, companions included, and is
- *     what sensitive-path derivation reads. Exempting a companion from the
- *     *count* must never exempt it from *risk* — a test file under a registered
- *     sensitive class still blocks.
- *   - `magnitude` is the implementation-only summary from
- *     {@link module:lib/orchestration/diff-magnitude.summarizeDiffMagnitude}.
- *     `null` means the magnitude could not be measured, which blocks: absence
- *     of evidence is not evidence the diff is small.
- *
- * Reuses close's own {@link module:lib/orchestration/review-depth.deriveChangeLevel}
- * — one taxonomy, applied to the predicted shape at the gate and the actual
- * diff here — so the two read points can never disagree about what is sensitive.
- *
- * Pure and total.
+ * Re-check the ACTUAL diff; anything unmeasurable blocks. `changedFiles` is
+ * the full set — a companion exempt from the count is never exempt from
+ * risk. Shares close's `deriveChangeLevel`, so gate and backstop agree.
  *
  * @param {{
  *   changedFiles?: unknown,
@@ -404,12 +232,7 @@ function describeStoryBranch(storyBranch) {
  *   selectSensitivePathClassesFn?: Function,
  *   storyBranch?: string,
  *   uncommittedWork?: boolean,
- * }} [args] `uncommittedWork` is the caller's dirty-worktree probe result: the
- *   backstop reads COMMITTED state, so an implemented-but-uncommitted run
- *   measures an empty diff, and the door for that is `git commit` — not an
- *   escalation. It only ever refines an enumerated-empty verdict's guidance;
- *   the verdict itself still blocks. `storyBranch` names the branch that
- *   guidance points at.
+ * }} [args] `uncommittedWork` only redirects guidance to `git commit`.
  * @returns {{
  *   blocked: boolean,
  *   level: 'low'|'high'|null,
@@ -419,8 +242,7 @@ function describeStoryBranch(storyBranch) {
  *   ceilings: { maxImplLines: number, maxImplFiles: number },
  *   refusalClass: string|null,
  *   reasons: string[],
- * }} `refusalClass` is `null` on a clean verdict and exactly one
- *   {@link LIGHT_REFUSAL_CLASSES} value on every blocked one.
+ * }}
  */
 export function checkLightDiffBackstop({
   changedFiles,
@@ -437,11 +259,7 @@ export function checkLightDiffBackstop({
     : null;
 
   if (files === null || files.length === 0) {
-    // An ENUMERATED-empty diff over a dirty worktree is a different event from
-    // an unverifiable one, and blocking is right for both — but only one of
-    // them is about scope. The caller's probe distinguishes them; `files ===
-    // null` never can, because a `git diff` that failed outright is exactly
-    // the case where nothing about the change is known.
+    // `files === null` (git diff failed) can never be the uncommitted case.
     const uncommitted = files !== null && uncommittedWork === true;
     return {
       blocked: true,
@@ -481,10 +299,8 @@ export function checkLightDiffBackstop({
     fileCount: files.length,
     magnitude: measured,
     ceilings: resolved,
-    // Objection ORDER is the class precedence: sensitivity is derived before
-    // magnitude, so a diff that is both sensitive and over-ceiling files as a
-    // sensitive-path refusal. That is the right way round — the ceiling is
-    // recalibratable, the sensitive path is not.
+    // Order is precedence: sensitivity wins over magnitude, since a ceiling
+    // is recalibratable and a sensitive path is not.
     refusalClass: blocked ? objections[0].refusalClass : null,
     reasons: blocked
       ? objections.map((objection) => objection.reason)
@@ -497,9 +313,6 @@ export function checkLightDiffBackstop({
 }
 
 /**
- * Coerce a magnitude summary into non-negative integer counts, or `null` when
- * it was not measurable. Pure.
- *
  * @param {unknown} magnitude
  * @returns {{ implFiles: number, implLines: number }|null}
  */
@@ -512,8 +325,6 @@ function normalizeMagnitude(magnitude) {
 }
 
 /**
- * Sensitivity objections, over the **full** change set. Pure.
- *
  * @param {{ level: 'low'|'high'|null, classes: string[] }} derived
  * @returns {Objection[]}
  */
@@ -539,8 +350,6 @@ function describeSensitivity({ level, classes }) {
 }
 
 /**
- * Magnitude objections, over the implementation half only. Pure.
- *
  * @param {{ implFiles: number, implLines: number }|null} measured
  * @param {{ maxImplLines: number, maxImplFiles: number }} ceilings
  * @returns {Objection[]}
@@ -571,12 +380,9 @@ function describeMagnitude(measured, ceilings) {
   return objections;
 }
 
-/** Cap on a receipt slug's length — keep the branch/id readable. */
 const RECEIPT_SLUG_MAX = 48;
 
 /**
- * Derive a stable, lowercase, hyphenated slug from a prompt.
- *
  * @param {string} text
  * @returns {string}
  */
@@ -590,12 +396,10 @@ function slugifyPrompt(text) {
   return slug === '' ? 'light-change' : slug;
 }
 
-/** Cap on a receipt title's length. */
 const RECEIPT_TITLE_MAX = 72;
 
 /**
- * Coerce an `--amends` argument (`#123`, `123`, or `123` as a number) into a
- * positive integer issue number, or `null` when absent/malformed.
+ * `#<n>`, `<n>` or a number → positive issue number, else `null`.
  *
  * @param {unknown} amends
  * @returns {number|null}
@@ -615,8 +419,6 @@ function normalizeAmends(amends) {
 }
 
 /**
- * One-line receipt title from the prompt, prefixed for an amendment.
- *
  * @param {string} text
  * @param {number|null} amendsId
  * @returns {string}
@@ -633,9 +435,7 @@ function deriveReceiptTitle(text, amendsId) {
 }
 
 /**
- * Map an actual/predicted changed-file list into `changes[]` PathEntry objects
- * for the receipt body. Every entry is recorded as `refactors-existing` — the
- * conservative assumption, since the light path is not asserting creates.
+ * All `refactors-existing`: the light path does not assert creates.
  *
  * @param {unknown} changedFiles
  * @returns {Array<{ path: string, assumption: string }>}
@@ -654,12 +454,7 @@ function toReceiptChanges(changedFiles) {
 }
 
 /**
- * Build the minimal receipt `type::story` ticket for the light path
- * (Story #4740 AC-5) — the input `assemblePlanStories` / `createStoryIssues`
- * consume, so the light path reuses the plan-persist story-creation surface
- * rather than reimplementing issue authoring. The body carries the operator
- * prompt (goal + spec) and the diff-derived footprint (`changes[]`), so
- * history and `refs #<id>` on the commit survive.
+ * Minimal receipt Story in plan-persist's input shape; throws on empty prompt.
  *
  * @param {{
  *   prompt?: unknown,

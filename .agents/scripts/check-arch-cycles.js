@@ -1,36 +1,9 @@
 /**
- * CLI: ratchet-down architecture gate for import cycles (Story #3991).
- *
- * Walks every `.js` file across the project's **distributed surface**
- * (the `files[]` set published to npm — `.agents/scripts/`, `bin/`, and
- * the root `lib/`, excluding `node_modules`), parses relative
- * static-import edges (`from './…/x.js'`), detects directed cycles via
- * DFS, and compares them against the committed allowlist at
- * `baselines/arch-cycles.json`.
- *
- * The multi-root scan resolves every root into a **single** import graph
- * keyed by repository-relative module ids (Story #4071). This lets
- * `findCycles` catch cycles that cross the documented lifecycle↔runtime
- * partition — e.g. a `bin/` lifecycle script and an `.agents/scripts/lib`
- * runtime module importing each other — which a single-root scan cannot
- * see because it only walks one side of the partition.
- *
- * Ratchet semantics mirror `check-dead-exports.js`:
- *   - Any detected cycle NOT in the allowlist → exit 1, cycle path printed.
- *   - Allowlisted cycle no longer detected → printed as `-` (removal),
- *     warning that the allowlist can shrink. Removals-only exits 0.
- *   - Clean diff → exit 0.
- *
- * Cycles are normalized by rotating to the lexicographically-smallest
- * member so the same cycle always serializes identically regardless of
- * the DFS entry point.
- *
- * Flags:
- *   --baseline <path>  override the allowlist path (default
- *                      `baselines/arch-cycles.json`, resolved from cwd)
- *   --root <path>      scan a single explicit root instead of the default
- *                      distributed surface, relativized against that root
- *   --json             write the structured envelope to stdout
+ * CLI: ratchet-down gate for relative static-import cycles across the npm
+ * distributed surface, against the allowlist `baselines/arch-cycles.json`.
+ * All roots resolve into ONE graph keyed by repo-relative ids, so a cycle
+ * crossing the `bin/` ↔ `.agents/scripts/lib` partition is visible. Exit 1
+ * only on a new cycle; a vanished allowlisted cycle is reported as `-`.
  */
 
 import fs from 'node:fs';
@@ -44,17 +17,10 @@ import {
   parseRelativeImports,
 } from './lib/import-graph.js';
 
-// The import-graph builder itself lives in `lib/import-graph.js` (Story
-// #4902) so `audit-baselines.js` can rank hotspots by import in-degree
-// against the same graph this ratchet detects cycles in. Re-exported here
-// because this module's named exports are its unit-test surface and its
-// documented contract; the behaviour is unchanged by the move.
+// Shared with `audit-baselines.js`; re-exported as part of this module's contract.
 export { buildGraph, collectJsFiles, DEFAULT_ROOTS, parseRelativeImports };
 
 /**
- * Parse argv for `--baseline <path>`, `--root <path>`, and `--json`.
- * Exported so unit tests can pin the parser.
- *
  * @param {string[]} argv
  * @returns {{ baselinePath: string | null, rootPath: string | null, json: boolean }}
  */
@@ -84,10 +50,8 @@ export function parseArgv(argv = []) {
 }
 
 /**
- * Pure helper: rotate a cycle (array of module ids, no repeated terminal
- * element) so it starts at its lexicographically-smallest member. The same
- * cycle therefore always serializes identically regardless of where the
- * DFS entered it.
+ * Rotate a cycle to start at its smallest member, so it serializes the same
+ * whatever the DFS entry point.
  *
  * @param {string[]} cycle
  * @returns {string[]}
@@ -102,10 +66,8 @@ export function normalizeCycle(cycle) {
 }
 
 /**
- * Detect directed cycles in the graph via iterative-stack DFS (white /
- * gray / black coloring). Each back edge to a gray node yields the cycle
- * slice currently on the DFS path. Cycles are normalized and deduplicated
- * by their serialized form, then sorted for stable output.
+ * Iterative three-colour DFS; each back edge to a gray node yields the path
+ * slice as a cycle. Normalized, deduplicated, sorted.
  *
  * @param {Map<string, string[]>} graph
  * @returns {string[][]} normalized cycles
@@ -162,8 +124,7 @@ export function findCycles(graph) {
 }
 
 /**
- * Pure helper: read the allowlist envelope from disk. Returns the parsed
- * object or `null` when the file is missing or unparseable.
+ * `null` when missing or unparseable.
  *
  * @param {string} baselinePath
  * @returns {{ cycles?: string[][] } | null}
@@ -180,9 +141,7 @@ export function loadBaseline(baselinePath) {
 }
 
 /**
- * Pure helper: diff detected cycles against the allowlist. Both sides are
- * normalized before comparison so rotation differences never count as
- * drift. Identity is the ` -> `-joined normalized cycle.
+ * Both sides normalized, so a rotation never counts as drift.
  *
  * @param {string[][]} allowlisted
  * @param {string[][]} detected
@@ -199,10 +158,6 @@ export function diffCycles(allowlisted, detected) {
 }
 
 /**
- * Pure helper: render the human-readable diff. `+` lines are new cycles
- * (gate fail), `-` lines are fixed cycles whose allowlist entry can be
- * removed. A one-line summary always follows.
- *
  * @param {{ added: string[][], removed: string[][] }} diff
  * @returns {string}
  */
@@ -224,9 +179,6 @@ export function renderDiff(diff) {
 }
 
 /**
- * Top-level CLI entry. Exported so tests can drive the full pipeline
- * against a tmpdir fixture graph.
- *
  * @param {{
  *   argv?: string[],
  *   cwd?: string,
@@ -242,10 +194,8 @@ export async function runCli({
   stderr = process.stderr,
 } = {}) {
   const { baselinePath, rootPath, json } = parseArgv(argv);
-  // With an explicit `--root`, scan that single root and relativize ids
-  // against it (unchanged contract). Without it, scan the full distributed
-  // surface and relativize every id against the repo root (`cwd`) so edges
-  // that cross two roots resolve into a single graph.
+  // `--root` scans one root relative to itself; otherwise every root is
+  // relativized against `cwd` so cross-root edges join one graph.
   const graphRoot = rootPath ? path.resolve(cwd, rootPath) : path.resolve(cwd);
   const scanDirs = (rootPath ? [rootPath] : DEFAULT_ROOTS).map((dir) =>
     path.resolve(cwd, dir),

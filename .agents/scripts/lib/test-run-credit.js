@@ -1,39 +1,8 @@
 /**
- * lib/test-run-credit.js — let a green `npm test` **that routes through
- * mandrel's own runner** earn the credit close reads (Story #5313, scoped by
- * Story #5324).
- *
- * This is a **bonus, not the contract.** The deposit every project can rely
- * on is `evidence-gate.js --standalone --scope-id <id> --gate test --worktree
- * <workCwd> -- npm test`: it spawns whatever `npm test` resolves to and
- * stamps what it just ran, so it is honest on any runner. What this module
- * adds is that a repo whose `test` script *is* `run-tests.js` need not type
- * that wrapper — the runner already knows the tree it ran against, whether
- * the run was green, and whether it ran the whole suite, so it deposits on
- * the way out.
- *
- * The reach is therefore exactly one call site: `run-tests.js`. A consumer
- * whose `npm test` is `vitest run` or `jest` never loads this module, so it
- * deposits nothing **and prints nothing** — silence is not a signal, and no
- * delivery surface may tell an agent to confirm credit by reading for the
- * line below. `mandrel doctor`'s `test-credit-path` check reports which of
- * the two shapes a project is and names the wrapper as the remedy.
- *
- * On a green **full-tier** run inside a `story-<id>` checkout the runner
- * records the `test` gate's evidence in the same keyspace
- * `close-validation/runner.js` consults — keyed on HEAD and the tree
- * fingerprint, hashed on the exact `{ cmd: 'npm', args: ['test'], cwd }`
- * close will spawn — so close's `test` gate short-circuits at unchanged HEAD.
- * The freshness keying is untouched: a later commit voids the record exactly
- * as it voids one `evidence-gate.js` wrote.
- *
- * What it deliberately does **not** do is write the coverage capture stamp:
- * that stamp is a claim that `coverage/coverage-final.json` describes this
- * tree, and a bare `npm test` produces no such artifact. The CRAP gate still
- * runs `coverage-capture.js` when it needs one.
- *
- * Total: every failure — not a Story branch, no git, an unwritable evidence
- * file — is reported by reason and never fails the test run that earned it.
+ * A green full-tier `run-tests.js` run on a `story-<id>` branch deposits the
+ * `test` evidence close reads — a bonus; `evidence-gate.js` is the contract.
+ * Other runners never load this, so absence of its line means nothing. Never
+ * writes the coverage stamp (no coverage artifact exists). Never fails the run.
  *
  * @module lib/test-run-credit
  */
@@ -48,18 +17,15 @@ import {
   treeFingerprint,
 } from './validation-evidence.js';
 
-/** The gate name close's runner looks the record up under. */
 const GATE_NAME = 'test';
 
-/** The exact command close spawns for that gate — the hash must match it. */
+/** Must hash identically to the command close spawns. */
 const GATE_COMMAND = Object.freeze({
   cmd: 'npm',
   args: Object.freeze(['test']),
 });
 
 /**
- * Read one trimmed git stdout line, or `null` on any failure.
- *
  * @param {Function} gitSpawnFn
  * @param {string} cwd
  * @param {string[]} args
@@ -77,8 +43,6 @@ function gitLine(gitSpawnFn, cwd, args) {
 }
 
 /**
- * The Story id a checkout's branch names, or `null` off a Story branch.
- *
  * @param {string|null} branch
  * @returns {number|null}
  */
@@ -90,10 +54,7 @@ export function storyIdFromBranch(branch) {
 }
 
 /**
- * The checkout whose temp tree holds the evidence keyspace: the **main**
- * checkout, which is where close runs with `--cwd <main-repo>`. From a
- * worktree `git rev-parse --git-common-dir` names the main `.git`; from the
- * main checkout it names its own. Either way the parent is the checkout.
+ * The main checkout (where close reads evidence), via `--git-common-dir`.
  *
  * @param {string} cwd
  * @param {Function} gitSpawnFn
@@ -107,8 +68,6 @@ export function resolveEvidenceRoot(cwd, gitSpawnFn) {
 }
 
 /**
- * Deposit the `test` gate's evidence for a green full-suite run.
- *
  * @param {{
  *   cwd: string,
  *   tier?: string,
@@ -151,11 +110,7 @@ export function depositTestRunCredit({
 }
 
 /**
- * Deposit and say so on stderr — the runner's one-line hook, printed only
- * when this runner is the one running. It names the outcome by reason, so a
- * green run that deposited nothing (wrong branch, partial tier) says so
- * rather than passing silently; a project on another runner prints no line
- * at all, which is why absence of this line is never evidence either way.
+ * Deposit and report the outcome (with reason) on stderr.
  *
  * @param {Parameters<typeof depositTestRunCredit>[0] & { log?: (line: string) => void }} args
  * @returns {ReturnType<typeof depositTestRunCredit>}
@@ -174,17 +129,9 @@ export function reportTestRunCredit({
 }
 
 /**
- * Is the `test` gate already credited for this tree — did a green bare
- * `npm test` in the Story worktree deposit its evidence? The read side of
- * {@link depositTestRunCredit}, consulted by `close-validation/gates.js`.
- *
- * When it did, close registers the plain `test` gate beside the capture gate
- * even though coverage-capture is the active test runner: the runner's
- * evidence check then skips it as credited, so close REPORTS the suite the
- * worker already ran instead of silently folding it into the capture. It is
- * never a second spend — an uncredited tree resolves `false` and the
- * pre-#5313 shape (capture alone runs the suite) is unchanged. Every
- * uncertainty resolves `false`.
+ * Read side of {@link depositTestRunCredit}: when credited, close registers
+ * the plain `test` gate so it reports as credited (never a second spend).
+ * Every uncertainty resolves `false`.
  *
  * @param {{
  *   storyId?: number|null,
@@ -234,8 +181,6 @@ export function predictsTestEvidenceCredit({
 }
 
 /**
- * The write itself, split out so the guard chain above stays flat.
- *
  * @param {{ storyId: number, sha: string, cwd: string, evidenceRoot: string, durationMs: number|null, gitSpawnFn: Function, recordPassFn: Function }} args
  * @returns {{ deposited: boolean, reason: string, storyId: number, sha: string }}
  */

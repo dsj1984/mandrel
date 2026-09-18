@@ -1,45 +1,17 @@
 #!/usr/bin/env node
 
 /**
- * merge-baseline.js — git merge driver for `baselines/*.json` (Story #5215).
+ * merge-baseline.js — git merge driver for `baselines/*.json`.
  *
- * ## The failure it replaces
- *
- * Every baseline write stamps `generatedAt` on line 4, so two branches that
- * each refresh a baseline ALWAYS differ there — even when they moved
- * completely disjoint rows. Git merges JSON as text, so whether it can
- * separate that hunk from the moved rows is an accident of proximity:
- *
- *   - it cannot → a conflict on work that never overlapped (the observed
- *     `coverage.json` / `maintainability.json` "always conflicts" pattern);
- *   - it can → it splices both sides' row lines into a row set neither side
- *     scored, and the ratchet then guards a number no scorer produced (the
- *     observed `crap.json` "silently auto-merges" pattern).
- *
- * The quiet one is the worse one. A baseline is a set of rows keyed by
- * identity plus a rollup derived from them, so this driver merges it as
- * that — see `lib/baselines/merge-envelopes.js` for the semantics.
- *
- * ## Contract
+ * A text merge of a baseline either conflicts on the always-different
+ * `generatedAt` stamp or, worse, silently splices both sides' rows into a set
+ * no scorer produced. This merges rows by identity and re-derives the rollup.
+ * Files that are not a known row baseline go to `git merge-file` unchanged.
  *
  *   node .agents/scripts/merge-baseline.js %O %A %B %P
  *
- * git's merge-driver calling convention: `%O` ancestor, `%A` ours (and the
- * file the driver MUST leave its result in), `%B` theirs, `%P` the real
- * pathname being merged. Exit 0 merged clean, non-zero conflicted.
- *
- * Registered per clone (registration is per-clone, so `mandrel doctor` is
- * the guard that it happened, not `mandrel sync`):
- *
- *   .gitattributes:  baselines/*.json merge=mandrel-baseline
- *   git config:      merge.mandrel-baseline.driver
- *
- * ## Not every `baselines/*.json` is an envelope
- *
- * That glob also matches arch-cycles, cyclomatic, dead-exports, audit-ledger
- * and context-budget — files with their own shapes and no row identity. Anything whose `$schema` is not a known per-kind envelope is
- * handed straight back to `git merge-file`, so registering the driver cannot
- * change their behaviour.
+ * `%A` is ours and MUST hold the result. Exit 0 clean, non-zero conflicted.
+ * Registration is per-clone git config, so `mandrel doctor` guards it.
  */
 
 import fs from 'node:fs';
@@ -70,13 +42,11 @@ function rowBlock(row) {
 }
 
 /**
- * Wrap each conflicting row in git conflict markers, leaving every other row
- * merged. Operates on the canonical text the writer already produced, so the
- * non-conflicting remainder of the file is byte-identical to what a clean
- * merge would have written.
+ * Wrap each conflicting row in markers within the canonical text, so the rest
+ * is byte-identical to a clean merge.
  *
- * @param {string} text Canonical serialization of the merged envelope.
- * @param {Array<object>} conflicts Row-scoped conflict records.
+ * @param {string} text
+ * @param {Array<object>} conflicts
  * @returns {string}
  */
 export function renderConflictMarkers(text, conflicts) {
@@ -85,8 +55,7 @@ export function renderConflictMarkers(text, conflicts) {
     const placed = conflict.ours ?? conflict.theirs;
     if (placed === undefined) continue;
     const block = rowBlock(placed);
-    // The row may or may not be the last element of `rows`; keep whichever
-    // separator follows it on both sides so the markers wrap whole lines.
+    // Keep the row's trailing separator (if any) so markers wrap whole lines.
     const withComma = `${block},`;
     const [needle, suffix] = out.includes(withComma)
       ? [withComma, ',']
@@ -124,18 +93,13 @@ function readSide(file) {
 }
 
 /**
- * Hand the merge back to git's own text merge. Used for every
- * `baselines/*.json` that is not a known per-kind envelope, and for one that
- * is too damaged to parse — in both cases the driver must not invent a
- * result, and git's behaviour is exactly what the repo had before.
+ * Fall back to git's text merge for unknown or unparseable files; the driver
+ * never invents a result.
  *
  * @returns {number} git merge-file's own exit code.
  */
 function delegateToGit(basePath, oursPath, theirsPath) {
-  // `stdio: 'inherit'` so git's own conflict reporting reaches the operator
-  // exactly as it would have with no driver registered. `spawnChild` returns
-  // the RAW result deliberately: a `status` of null means the child was
-  // killed, and that must never be read as a clean merge.
+  // A null status means the child was killed — never a clean merge.
   const result = spawnChild(
     'git',
     ['merge-file', oursPath, basePath, theirsPath],
@@ -151,20 +115,8 @@ function delegateToGit(basePath, oursPath, theirsPath) {
 }
 
 /**
- * Which merge does this file get?
- *
- * Two families answer, and neither is "all of `baselines/*.json`":
- *
- *   - **Envelope kinds** — the eight kernel kinds, merged by the kind
- *     module's own `rowIdentity` with the rollup RE-DERIVED.
- *   - **Plain row baselines** — `cyclomatic`, `dead-exports` and
- *     `dead-exports-production`, which are row sets with a real identity but
- *     no kernel protocol. Until Story #5277 these fell through to
- *     `git merge-file` even though `.gitattributes` routes them here, so the
- *     attribute promised a row merge the driver never performed.
- *
- * Anything else — arch-cycles, audit-ledger, context-budget — resolves `null`
- * and is handed back to git unchanged.
+ * Envelope kinds (rollup re-derived) or plain row baselines (cyclomatic,
+ * dead-exports*); anything else resolves `null` and goes back to git.
  *
  * @param {unknown} ours
  * @param {unknown} theirs
@@ -179,11 +131,8 @@ function resolveMergeTarget(ours, theirs) {
 }
 
 /**
- * Serialize the merged result into `%A`. Envelope kinds go through the shared
- * writer (which validates against the per-kind schema); plain baselines are
- * written with the same `JSON.stringify(…, null, 2)` + trailing newline their
- * own generators use, which is what keeps a clean merge byte-identical to a
- * regeneration.
+ * Plain baselines use their generators' exact serialization so a clean merge
+ * is byte-identical to a regeneration.
  *
  * @param {string} oursPath
  * @param {{ envelope: object }} merged
@@ -198,15 +147,8 @@ function writeMerged(oursPath, merged, isEnvelopeKind) {
 }
 
 /**
- * Register the driver in this clone (`--install`).
- *
- * The driver script installs its own registration because the registration is
- * the half that cannot travel: `.gitattributes` is tracked and ships with the
- * repo, `merge.mandrel-baseline.driver` is per-clone git config and is absent
- * in every fresh clone — silently, with git falling back to a text merge and
- * reporting nothing. Wired into this repo's `prepare` script so `npm install`
- * completes the registration, and idempotent so every later `prepare` is a
- * no-op.
+ * `--install`: the per-clone git config does not travel with the repo and its
+ * absence is silent, so `prepare` runs this (idempotent).
  *
  * @returns {number} Process exit code.
  */
@@ -238,11 +180,8 @@ export function runMergeBaseline(argv) {
     return 2;
   }
 
-  // Git hands the driver temp filenames RELATIVE to the worktree root it
-  // invokes us from (`.merge_file_xxxxxx`), so every path is resolved before
-  // use — the shared writer refuses a relative path, and that refusal only
-  // shows up under a real `git merge`, never when the driver is called
-  // directly with absolute paths.
+  // Git passes worktree-relative temp names; the shared writer refuses
+  // relative paths.
   const [basePath, oursPath, theirsPath] = [baseArg, oursArg, theirsArg].map(
     (p) => path.resolve(p),
   );
@@ -268,9 +207,7 @@ export function runMergeBaseline(argv) {
 }
 
 /**
- * Merge a file whose kind the driver DOES understand, and leave the result in
- * `%A`. A merge that throws is handed back to git rather than half-written:
- * the driver must never invent a result for a baseline it could not model.
+ * A merge that throws is handed back to git rather than half-written.
  *
  * @param {object} ctx
  * @returns {number} Process exit code.
@@ -296,9 +233,7 @@ function mergeResolved({
     return delegateToGit(basePath, oursPath, theirsPath);
   }
 
-  // Write the canonical projection first even when conflicted: the marker
-  // rendering operates on exactly the bytes a clean merge would have left,
-  // so the merged remainder of a conflicted file is identical to it.
+  // Written even when conflicted: markers are rendered onto these bytes.
   writeMerged(oursPath, merged, isEnvelopeKind);
 
   if (merged.conflicts.length === 0) {
@@ -309,15 +244,11 @@ function mergeResolved({
 }
 
 /**
- * Report a conflicted merge and render its markers into `%A`.
- *
- * Both scopes get markers. An envelope-level conflict used to be reported on
- * stderr alone, leaving a file that looked cleanly merged while git held the
- * path unmerged — the operator had to reconstruct from scrollback which stamp
- * disagreed.
+ * Both row and envelope conflicts get in-file markers, so the file never
+ * looks cleanly merged while git holds it unmerged.
  *
  * @param {{ kind: string, merged: object, oursPath: string, label: string }} ctx
- * @returns {number} Always 1 — a conflicted merge.
+ * @returns {number} Always 1.
  */
 function markConflicts({ kind, merged, oursPath, label }) {
   const rowConflicts = merged.conflicts.filter((c) => c.scope === 'row');
@@ -338,13 +269,8 @@ function markConflicts({ kind, merged, oursPath, label }) {
 }
 
 /**
- * Report every conflict on stderr, then name the regeneration command.
- *
- * The regenerate line is not decoration. The merged file's rollup was derived
- * from a row set that still carries conflict markers, so resolving the markers
- * by hand leaves the rollup describing a tree nobody scored — the same silent
- * wrong number the driver exists to prevent, arrived at from the other
- * direction. Saying it here is the only place an operator sees it.
+ * Names the regenerate command: the rollup was derived from unresolved rows,
+ * so hand-resolving the markers leaves it describing a tree nobody scored.
  *
  * @param {{ kind: string, label: string, rowConflicts: Array<object>, envelopeConflicts: Array<object> }} args
  */

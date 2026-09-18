@@ -80,13 +80,7 @@ if (
     Logger.info(
       `[State-Sync] Transitioning ticket #${ticketId} to ${state}...`,
     );
-    // Story #4545 — no second cascade here. `transitionTicketState` already
-    // fires the upward cascade on every transition (bulk.js registers
-    // `cascadeParentState` as transition.js's cascade runner, and the DONE
-    // branch delegates to `cascadeCompletion`), so the explicit call this
-    // used to make re-walked the same parents and re-spent the same API
-    // calls a second time on every done transition — under a Story-only
-    // model where no orchestration parent exists to find.
+    // No explicit cascade: `transitionTicketState` already runs it.
     await transitionTicketState(provider, ticketId, state);
 
     // Optional secondary label removal alongside the state transition

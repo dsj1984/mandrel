@@ -1,16 +1,7 @@
 /**
- * `validateOrchestrationConfig` — hand-written security checks for the
- * post-reshape config (Epic #1720 Story #1739).
- *
- * The structural validation now lives in the top-level AJV schema (run by
- * `resolveConfig` against the full `.agentrc.json` document). This module
- * carries the security checks that JSON Schema cannot express:
- *
- *   - Shell-metacharacter injection on `github.{owner, repo, operatorHandle}`.
- *   - Path-traversal containment on `delivery.worktreeIsolation.root`.
- *
- * Accepts either the full resolved config (`{ project, github, planning,
- * delivery }`) or `null` (zero-config callers — no checks needed).
+ * Security checks JSON Schema cannot express: shell metacharacters in
+ * `github.{owner, repo, operatorHandle}` and path containment of
+ * `delivery.worktreeIsolation.root`.
  */
 
 import path from 'node:path';
@@ -23,11 +14,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '../../../..');
 
 /**
- * Run the post-reshape security checks against a resolved config bag.
- *
- * @param {object|null} config - The resolved config (`{ project, github, ... }`)
- *   or `null` for zero-config callers.
- * @throws {Error} If any security check fails.
+ * @param {object|null} config - `null` for zero-config callers.
+ * @throws {Error}
  */
 export function validateOrchestrationConfig(config) {
   if (config == null) return;

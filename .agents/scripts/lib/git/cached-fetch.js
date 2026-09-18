@@ -1,38 +1,14 @@
 /**
- * cached-fetch.js — coalesce redundant `git fetch origin <ref>` calls.
- *
- * A single dispatch wave runs multiple Story inits in parallel; each one
- * fetches the same epic ref before creating its worktree. The fetches are
- * idempotent w.r.t. the local refs but cost wall-clock and contend on
- * `packed-refs.lock`. This module caches successful fetches by
- * `(cwd, ref)` for a configurable window (default 30s) so subsequent
- * callers within the window are no-ops.
- *
- * Two wrappers are exported because callers in the codebase split along a
- * sync/async line:
- *   - `cachedGitFetch` — async, wraps `gitFetchWithRetry` (used by
- *     story-init's `bootstrapWorktree`).
- *   - `cachedGitFetchSync` — sync, wraps a `gitSpawn(cwd, 'fetch', ref)`
- *     style call (used by `projectMaintainabilityRegressions` in
- *     close-validation).
- *
- * Both share the same underlying cache state, so a fetch issued by
- * story-init satisfies a later sync caller (and vice versa) inside the
- * window.
- *
- * The cache lives at module scope — invocations within one Node process
- * (one wave-runner) see the same state. Callers that need an isolated
- * cache (mostly tests) can construct a `FetchCache` directly.
+ * cached-fetch.js — coalesce redundant `git fetch origin <ref>` calls (they
+ * contend on `packed-refs.lock`) by caching successes per `(cwd, ref)` for a
+ * window; the async and sync wrappers share one cache.
  */
 
 import { gitFetchWithRetry as defaultGitFetchWithRetry } from '../git-utils.js';
 
 const DEFAULT_WINDOW_MS = 30_000;
 
-/**
- * Pure-ish cache state keyed by `(cwd, ref)`. Exposed so tests can build
- * fresh instances without poking module globals.
- */
+/** Cache state keyed by `(cwd, ref)`; constructible for isolated tests. */
 export class FetchCache {
   constructor({ now = () => Date.now() } = {}) {
     /** @type {Map<string, number>} */
@@ -44,11 +20,6 @@ export class FetchCache {
     return `${cwd}\u0000${ref}`;
   }
 
-  /**
-   * Return true when a fetch for `(cwd, ref)` is needed because either no
-   * fetch has been recorded yet, or the recorded one is older than
-   * `windowMs`.
-   */
   shouldFetch(cwd, ref, windowMs = DEFAULT_WINDOW_MS) {
     const key = FetchCache._key(cwd, ref);
     const last = this._lastFetchAt.get(key);
@@ -56,17 +27,14 @@ export class FetchCache {
     return this._now() - last >= windowMs;
   }
 
-  /** Record that a fetch for `(cwd, ref)` just succeeded. */
   recordFetch(cwd, ref) {
     this._lastFetchAt.set(FetchCache._key(cwd, ref), this._now());
   }
 
-  /** Test seam: drop all cached entries. */
   reset() {
     this._lastFetchAt.clear();
   }
 
-  /** Diagnostics: number of cached `(cwd, ref)` entries. */
   size() {
     return this._lastFetchAt.size;
   }
@@ -74,28 +42,22 @@ export class FetchCache {
 
 const moduleCache = new FetchCache();
 
-/**
- * Reset the module-level cache. Test-only — production code should never
- * call this.
- */
+/** Test-only. */
 export function __resetModuleCache() {
   moduleCache.reset();
 }
 
-/** Test helper: expose module cache size. */
+/** Test-only. */
 export function __moduleCacheSize() {
   return moduleCache.size();
 }
 
 /**
- * Async fetch with `(cwd, ref, windowMs)` caching.
- *
  * @param {string} cwd
- * @param {string} ref  The single ref argument passed to `git fetch origin`.
- *                      Pass `'origin'` (no second arg) by using ref=''.
+ * @param {string} ref  `''` fetches without a ref.
  * @param {object} [opts]
  * @param {number} [opts.windowMs=30000]
- * @param {FetchCache} [opts.cache]            Override the module cache.
+ * @param {FetchCache} [opts.cache]
  * @param {typeof defaultGitFetchWithRetry} [opts.fetchFn]
  * @returns {Promise<{ status: 0, cached: true, attempts: 0 } | { status: number, stdout: string, stderr: string, attempts: number, cached: false }>}
  */
@@ -120,13 +82,8 @@ export async function cachedGitFetch(
 }
 
 /**
- * Sync fetch with `(cwd, ref, windowMs)` caching. Wraps a `gitSpawn`-style
- * synchronous fetch (used by `close-validation`'s MI projection helper,
- * which must stay synchronous).
- *
  * @param {string} cwd
- * @param {string} ref  Required for sync callers — the projection helper
- *                      always passes an explicit epic branch ref.
+ * @param {string} ref
  * @param {object} opts
  * @param {(cwd: string, ...args: string[]) => { status: number, stdout: string, stderr: string }} opts.gitSpawn
  * @param {number} [opts.windowMs=30000]

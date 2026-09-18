@@ -1,30 +1,12 @@
 #!/usr/bin/env node
 // .agents/scripts/validate-skills.js
 //
-// Walk `SKILL.md` under both skills roots — the package payload
-// (`.agents/skills/{core,stack}/`) and the consumer-writable local zone
-// (`.agents/local/skills/{core,stack}/`, Story #5135) — via the shared parser
-// helper, validate each frontmatter block against
-// `.agents/schemas/skill.schema.json`, enforce Policy Capsule presence
-// (5–12 bullets), and verify membership in each root's own manifest when it
-// exists. A consumer-authored skill is held to exactly the same bar as a
-// shipped one; the roots are validated separately because each carries its
-// own index (the shipped manifest is a payload file and must stay
-// payload-only — see generate-skills-index.js). All findings are batched into a single
-// human-readable report; the process exits non-zero when any finding is
-// surfaced.
 //
-// CLI surface:
-//
-//   node validate-skills.js [--root <dir>]
-//
-//   --root <dir>   Use <dir> as the repo root (defaults to the project
-//                  root containing `.agents/skills`). Useful for tests
-//                  staging fixture trees outside the real repo.
-//
-// Honors AGENT_LOG_LEVEL via the shared `Logger`. The findings report is
-// written to stdout when any finding is present, so callers can capture
-// it for ticket comments or CI logs.
+// Validate every `SKILL.md` in the payload and local skills roots: schema
+// frontmatter, a 5–12 bullet Policy Capsule, and membership in that root's
+// own index (the shipped index is a payload file and stays payload-only).
+// Local skills meet the same bar. Findings are batched; any finding exits
+// non-zero. `--root <dir>` overrides the repo root (for fixtures).
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -56,9 +38,7 @@ function defaultRepoRoot() {
 }
 
 export function parseArgs(argv) {
-  // `--help` / `-h` is a side-channel signal handled before the shared
-  // parser sees it: the shared parser does not (yet) model help flags as
-  // first-class output, and pre-stripping keeps the legacy parsed shape.
+  // Help is handled before the shared parser, which does not model it.
   if (argv.some((t) => t === '--help' || t === '-h')) {
     return { root: null, help: true };
   }

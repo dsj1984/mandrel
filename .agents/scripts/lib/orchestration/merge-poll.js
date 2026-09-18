@@ -1,63 +1,21 @@
 /**
- * merge-poll.js — merge-wait constants and check-rollup derivation owned by
- * the close path.
- *
- * Story #4545 — these three symbols used to live in the Epic-era
- * `lifecycle/listeners/merge-watcher.js`. That listener class had no
- * production caller after the v2.0.0 Story-only cutover, but it was not
- * importer-less: the live close path (`single-story-close/phases/confirm-merge.js`)
- * and `deliver-recover.js` both reached into it for the poll defaults and
- * `deriveChecksStatus`. Relocating them here lets the listener go without
- * leaving the close path importing a lifecycle module it does not otherwise
- * participate in.
- *
- * Sits beside `merge-block-class.js`, its sole consumer pairing:
- * `deriveChecksStatus` produces the `prProbe.checksStatus` value that
- * `classifyMergeBlock` reads.
+ * merge-poll.js — merge-wait constants and check-rollup derivation for the
+ * close path. `deriveChecksStatus` feeds `classifyMergeBlock`'s
+ * `prProbe.checksStatus`.
  */
 
 import { checkVerdict, classifyRollupEntry } from './check-state.js';
 
-/**
- * Poll interval and default cumulative budget for the merge wait. The interval
- * is fixed (Story #5382 folded the never-set
- * `delivery.mergeWatch.intervalSeconds` key); the budget is the default for
- * `delivery.mergeWatch.maxBudgetSeconds` (3600).
- */
+/** Fixed poll interval; default for `delivery.mergeWatch.maxBudgetSeconds`. */
 export const DEFAULT_INTERVAL_SECONDS = 30;
 export const DEFAULT_MAX_BUDGET_SECONDS = 3600;
 
-/**
- * Wall-clock bound for every `gh` subprocess the merge wait spawns (Story
- * #4710). The wait is now routinely unattended (`delivery.mergeWatch.mode:
- * "async"` runs it in a background invocation with no host tool ceiling), so
- * a hung `gh pr view` / `gh pr update-branch` used to strand the wait with no
- * terminal envelope, no label flip, and no friction record. Sixty seconds is
- * generous for a single API round-trip while staying inside the async probe
- * window; a timeout maps to the existing probe-error path, so the wait
- * degrades to conservative-pending / `api-race-other` semantics instead of
- * hanging. A framework constant by design — not config (Story #4710
- * Non-Goals).
- */
+/** Bounds every `gh` spawn so a hang degrades to the probe-error path. */
 export const MERGE_WAIT_GH_TIMEOUT_MS = 60_000;
 
 /**
- * Pure: derive an aggregate `checksStatus` (`success` | `still-running` |
- * `failure` | `unknown`) from a `statusCheckRollup` array (`gh pr view --json
- * statusCheckRollup` shape: `{ status, conclusion }` per CheckRun, `{ state }`
- * per legacy StatusContext). Mirrors the values `classifyMergeBlock` expects
- * on `prProbe.checksStatus`.
- *
- * Each entry is classified by the shared check-state classifier
- * (`check-state.js`, Story #5383) — the same one the recovery watch's
- * `--required` reader uses — so "is this check red" has one answer across
- * both readers.
- *
- * **Scope: EVERY check reported on the PR, required or not.** The rollup
- * carries no required-vs-optional discriminator (`gh`'s projection has no
- * `isRequired` field), so `failure` here means "something on this PR is red",
- * NOT "the merge is blocked". Use {@link failingChecksBlockMerge} before
- * treating a `failure` as terminal.
+ * Aggregate over EVERY check (the rollup has no `isRequired`): `failure`
+ * means "something is red", not "blocked" — see {@link failingChecksBlockMerge}.
  */
 export function deriveChecksStatus(statusCheckRollup) {
   if (!Array.isArray(statusCheckRollup) || statusCheckRollup.length === 0) {
@@ -73,13 +31,7 @@ export function deriveChecksStatus(statusCheckRollup) {
 }
 
 /**
- * Pure: is this PR merged? The one predicate every "did it land" read shares
- * (Story #5383) — the merge wait's poll, `confirmStoryMerged`, and
- * `deliver-recover`'s probe. A `mergedAt` stamp counts even when `state`
- * lags, because GitHub can report the timestamp before the state flips.
- *
- * A CLOSED issue is deliberately NOT an input: the `Closes #<id>` footer
- * closes the issue on merge, but a closed issue does not prove the PR merged.
+ * `mergedAt` counts even when `state` lags. A closed issue proves nothing.
  *
  * @param {{ state?: string|null, mergedAt?: string|null }|null|undefined} pr
  * @returns {boolean}
@@ -89,60 +41,8 @@ export function isPrMerged(pr) {
 }
 
 /**
- * Pure: derive HEAD-ANCHORED per-run evidence from a `statusCheckRollup`
- * array, distinguishing a genuinely red required run from the pending /
- * superseded noise the aggregate {@link deriveChecksStatus} folds together.
- *
- * {@link deriveChecksStatus} returns `failure` the instant it sees ANY
- * non-passing conclusion — including a `CANCELLED` superseded-push run or a
- * sibling-invalidated run — even while the real required check is still
- * queued. Paired with `mergeStateStatus: BLOCKED` (the protected-branch steady
- * state while required checks run), that matched a merely *pending* PR and
- * hard-blocked Stories whose PRs merged untouched. This derivation reads the
- * two signals the fail-fast decision actually needs:
- *
- *   - `requiredRunFailed`   — a run on the head concluded `FAILURE` (or a
- *                             legacy status context is `FAILURE`/`ERROR`).
- *                             Deliberately NOT `CANCELLED`/`TIMED_OUT`/
- *                             `SKIPPED`: those are the superseded-push and
- *                             sibling-invalidated runs, not a red required
- *                             check.
- *   - `requiredRunInFlight` — any run on the head is still QUEUED /
- *                             IN_PROGRESS (a CheckRun whose status is not
- *                             `COMPLETED`, or a legacy status context still
- *                             `PENDING`/`EXPECTED`).
- *
- * Returns `null` when the rollup is absent or empty — the evidence is
- * unavailable and the caller must fall back to the consecutive-probe path
- * (a single evidence-free failing snapshot must never fail-fast).
- *
- * **Contract honesty (Story #4710).** The `requiredRun*` field names describe
- * what the evidence is USED to establish, not what this function reads: the
- * `gh pr view` rollup projection carries no `isRequired` discriminator, so
- * this derivation reads EVERY run on the head, required or not. On its own,
- * `requiredRunFailed: true` therefore means "a head run genuinely concluded
- * failure", and required-ness attribution is supplied downstream by
- * {@link requiredCheckFailedBlocksMerge}, which admits the verdict only when
- * `mergeStateStatus: BLOCKED` says GitHub itself gates the merge AND no
- * review-required signal offers a competing explanation for that BLOCKED
- * state. Do not treat this function's output as a required-only reading.
- *
- * @param {Array<{status?: string, conclusion?: string, state?: string}>} statusCheckRollup
- * @returns {{ requiredRunFailed: boolean, requiredRunInFlight: boolean } | null}
- */
-/**
- * Pure: the uppercase conclusion of a check that GENUINELY concluded red, or
- * `null` when it did not.
- *
- * Red means `FAILURE` / `ERROR` only — never `CANCELLED` / `TIMED_OUT` /
- * `SKIPPED`, which are the superseded-push and sibling-invalidated runs a bare
- * rollup read miscounts (the #4695 / #4710 trap). A CheckRun carries the
- * verdict on `conclusion`; a legacy StatusContext carries it on `state`, so
- * both are read and the one that is red is the one returned.
- *
- * Extracted (Story #5266) because {@link deriveRequiredRunEvidence} and
- * {@link deriveRedHeadRuns} were carrying byte-identical copies of this test:
- * two places that must agree about what "red" means, and nothing making them.
+ * Red is `FAILURE` / `ERROR` only; `CANCELLED` / `TIMED_OUT` / `SKIPPED` are
+ * superseded or sibling-invalidated runs.
  *
  * @param {{ conclusion?: string, state?: string }} [check]
  * @returns {string|null}
@@ -156,13 +56,7 @@ function redConclusionOf(check) {
 }
 
 /**
- * Pure: a check's display name — the CheckRun's `name`, falling back to a
- * legacy StatusContext's `context`, and `null` when the projection carries
- * neither.
- *
- * A run with no readable name can never match an allowlist entry, so it always
- * blocks. That is the conservative direction for a gate whose whole purpose is
- * to stop a silent landing.
+ * An unnamed run never matches an allowlist entry, so it always blocks.
  *
  * @param {{ name?: string, context?: string }} [check]
  * @returns {string|null}
@@ -174,6 +68,14 @@ function readRunName(check) {
   return null;
 }
 
+/**
+ * Head-anchored evidence; `null` on an empty rollup (the caller falls back
+ * to consecutive probes). Reads EVERY run despite the names — required-ness
+ * is attributed via `BLOCKED` in {@link requiredCheckFailedBlocksMerge}.
+ *
+ * @param {Array<{status?: string, conclusion?: string, state?: string}>} statusCheckRollup
+ * @returns {{ requiredRunFailed: boolean, requiredRunInFlight: boolean } | null}
+ */
 export function deriveRequiredRunEvidence(statusCheckRollup) {
   if (!Array.isArray(statusCheckRollup) || statusCheckRollup.length === 0) {
     return null;
@@ -183,9 +85,7 @@ export function deriveRequiredRunEvidence(statusCheckRollup) {
   for (const check of statusCheckRollup) {
     const status = String(check?.status ?? '').toUpperCase();
     const state = String(check?.state ?? '').toUpperCase();
-    // In flight: a CheckRun not yet COMPLETED, or a legacy StatusContext still
-    // PENDING/EXPECTED. `status` is empty on a StatusContext, so it degrades to
-    // the `state` branch rather than counting as in-flight.
+    // `status` is empty on a StatusContext, so it falls to the `state` branch.
     if (status && status !== 'COMPLETED') {
       requiredRunInFlight = true;
     } else if (state === 'PENDING' || state === 'EXPECTED') {
@@ -198,41 +98,13 @@ export function deriveRequiredRunEvidence(statusCheckRollup) {
   return { requiredRunFailed, requiredRunInFlight };
 }
 
-/**
- * The one `mergeStateStatus` value that means GitHub itself is gating the
- * merge. See {@link failingChecksBlockMerge}.
- */
+/** The `mergeStateStatus` meaning GitHub itself gates the merge. */
 const MERGE_GATED_STATE = 'BLOCKED';
 
 /**
- * Pure: does the PR's RED check status actually gate the merge?
- *
- * `deriveChecksStatus` aggregates the whole rollup, so it reports `failure`
- * for a red check of any kind. Branch protection — and therefore GitHub
- * native auto-merge — gates only on REQUIRED checks. A red optional check
- * (an advisory bot, or a `CANCELLED` superseded workflow run, which the
- * rollup derivation counts as a failure) says nothing about whether the PR
- * will land: auto-merge lands it regardless. Treating that as terminal is
- * what stranded a Story `agent::blocked` on a PR that merged anyway.
- *
- * `mergeStateStatus` is GitHub's own verdict, computed against the live
- * branch-protection rules, so it supplies the required-vs-optional
- * discrimination the rollup lacks:
- *
- *   - `BLOCKED`  — merging is gated. With red checks observed, the red
- *                  required check is the gate.
- *   - `UNSTABLE` — "mergeable with non-passing commit status": the red
- *                  checks are NOT required. Auto-merge will land it.
- *   - `CLEAN` / `BEHIND` / `UNKNOWN` / absent — not evidence that the red
- *     check gates the merge.
- *
- * Deliberately conservative: only `BLOCKED` returns `true`. A transient
- * `UNKNOWN` (GitHub has not finished computing the merge state) or a token
- * that cannot see the field degrades to "keep waiting" — the caller's poll
- * budget still bounds the wait and the budget-exhausted classification still
- * fires. The asymmetry is intentional: failing to fail fast costs poll time,
- * whereas failing fast wrongly costs a merged-but-`agent::blocked` strand
- * that only an operator can unpick.
+ * Does the red status gate the merge? Only `BLOCKED` (GitHub's verdict
+ * against live protection rules) says so; `UNKNOWN` keeps waiting, since a
+ * wrong fail-fast strands a merged PR while waiting only costs poll time.
  *
  * @param {{ checksStatus?: string, mergeStateStatus?: string }} [prProbe]
  * @returns {boolean}
@@ -245,10 +117,7 @@ export function failingChecksBlockMerge(prProbe) {
 }
 
 /**
- * Pure: does a missing required review explain the PR's `BLOCKED` merge state?
- * When it does, a red rollup cannot be attributed to a required CHECK — the
- * review is a competing, GitHub-attributed explanation (Story #4710). Shared
- * by both fail-fast evidence paths so the softening is stated once.
+ * A missing review competes as the explanation for `BLOCKED`.
  *
  * @param {{ reviewDecision?: string }} [prProbe]
  * @returns {boolean}
@@ -257,18 +126,9 @@ function reviewOwnsBlockedState(prProbe) {
   return prProbe?.reviewDecision === 'REVIEW_REQUIRED';
 }
 
-/**
- * The block class a fail-fast on a red required check records (Story #4543).
- * One constant so the merge wait — which decides it — and `classifyMergeBlock`
- * — which derives it for every other caller — spell it identically.
- */
 export const CHECKS_FAILED_CLASS = 'checks-failed';
 
 /**
- * Pure: the operator-facing reason for a `checks-failed` verdict, naming the
- * evidence path that decided it. Shared by the wait's fail-fast (which
- * carries the verdict forward) and `classifyMergeBlock`.
- *
  * @param {{ mergeStateStatus?: string }} [prProbe]
  * @param {string} [evidencePath]
  * @returns {string}
@@ -278,39 +138,8 @@ export function formatChecksFailedReason(prProbe, evidencePath) {
 }
 
 /**
- * Pure: does HEAD-ANCHORED evidence establish that a REQUIRED check is
- * genuinely red — enough to fail-fast the merge wait as `checks-failed`?
- *
- * This is the single gated decision Story #4695 adds, and the named predicate
- * a downstream async-confirm Story imports rather than reopening the poll
- * loop's classification internals. It layers on {@link failingChecksBlockMerge}
- * (the rollup-`failure` + `mergeStateStatus: BLOCKED` gate) the head-anchored
- * refinement the raw gate lacked: classify `checks-failed` ONLY when a run
- * genuinely concluded failure AND none is still in flight. A red rollup while
- * a required run is queued/in-progress is the protected-branch pending steady
- * state, not a failure.
- *
- * The evidence is read from `prProbe.requiredRunEvidence` (the
- * {@link deriveRequiredRunEvidence} output threaded through the probe). When it
- * is absent — older `gh`, an API error, or a probe that never carried a rollup
- * — this returns `false`: the caller's consecutive-probe fallback owns that
- * path, because a single evidence-free failing snapshot must never fail-fast.
- *
- * **Review-required softening (Story #4710).** The rollup evidence cannot
- * prove the red run is a REQUIRED check (see
- * {@link deriveRequiredRunEvidence}), so when the probe carries a competing
- * explanation for the `BLOCKED` merge state — `reviewDecision:
- * 'REVIEW_REQUIRED'`, i.e. a required approval is missing — this predicate
- * declines the `checks-failed` verdict. A red *optional* check beside a
- * missing required review used to fail-fast as `checks-failed` and send the
- * operator to fix a check that was never gating the merge; with the review
- * signal present, classification falls through to the
- * `branch-protection-human-required` branch, which names the gate GitHub
- * actually attributes. When a genuinely red required check coexists with a
- * missing review, both are true blocks and the human-required verdict is
- * still an honest one — the conservative direction (see
- * {@link failingChecksBlockMerge} on why failing to fail fast is the cheap
- * error).
+ * A genuinely red REQUIRED check: gated, no review owns `BLOCKED`, a run is
+ * red and none in flight. No evidence → false (consecutive-probe path).
  *
  * @param {{ checksStatus?: string, mergeStateStatus?: string,
  *   reviewDecision?: string,
@@ -331,30 +160,15 @@ export function requiredCheckFailedBlocksMerge(prProbe) {
 }
 
 /**
- * The one `mergeStateStatus` value that means the PR is mergeable **despite**
- * red runs — GitHub's own words are "mergeable with non-passing commit
- * status". It is the required-vs-advisory discriminator the rollup itself
- * cannot supply: under `UNSTABLE` the red runs are, by definition, not
- * required, so native auto-merge will land the PR over them.
- *
- * The exact complement of {@link MERGE_GATED_STATE}: `BLOCKED` means the red
- * run gates the merge (`failingChecksBlockMerge`), `UNSTABLE` means it does
- * not and only mandrel can stop the landing.
+ * Red runs are not required: auto-merge lands over them unless mandrel stops it.
  */
 const MERGE_ADVISORY_STATE = 'UNSTABLE';
 
 /**
- * The fields a check projection can use to say, in its own words, WHY it went
- * red. A legacy StatusContext carries `description`; a GitHub Actions CheckRun
- * carries none of them in `gh pr view`'s fixed `statusCheckRollup` projection,
- * so the merge wait enriches the run with the check-run API's
- * `output.title` / `output.summary` before classifying (Story #5266). Both
- * shapes are read here so the projection has ONE text extractor.
+ * The run's own account of why it went red (rollup or enriched check-run).
  *
  * @param {object} [check] A rollup entry, or an enriched check-run record.
- * @returns {string|undefined} The joined text, or `undefined` when the record
- *   carries none — which is itself the signal that the run cannot be
- *   classified beyond "red".
+ * @returns {string|undefined} `undefined` when the record carries no text.
  */
 export function readRunSummary(check) {
   const parts = [];
@@ -367,11 +181,7 @@ export function readRunSummary(check) {
 }
 
 /**
- * Pure: the workflow run id behind a check run's `detailsUrl`
- * (`.../actions/runs/<runId>/job/<jobId>`), or `null` when the URL is absent
- * or shaped otherwise (a legacy StatusContext's `targetUrl`, a third-party
- * app's own page). A run with no id can never be re-run, which is why the
- * rerun path treats `null` as "nothing to re-run" rather than an error.
+ * `null` means "nothing to re-run".
  *
  * @param {string} [detailsUrl]
  * @returns {number|null}
@@ -385,30 +195,8 @@ export function parseWorkflowRunId(detailsUrl) {
 }
 
 /**
- * Pure: project the HEAD-ANCHORED runs that genuinely concluded red, naming
- * each one (Story #5096).
- *
- * Same red-ness test as {@link deriveRequiredRunEvidence} — `FAILURE` /
- * `ERROR` only, never `CANCELLED` / `TIMED_OUT` / `SKIPPED`, which are the
- * superseded-push and sibling-invalidated runs a bare rollup read miscounts
- * (the #4695 / #4710 trap) — but it returns the runs rather than a boolean, so
- * a block summary can name the offending job and the advisory allowlist can
- * match on it.
- *
- * `name` is the CheckRun's `name`, falling back to a legacy StatusContext's
- * `context`, and is `null` when the projection carries neither. A run with no
- * readable name can never match an allowlist entry, so it always blocks — the
- * conservative direction for a gate whose whole purpose is to stop a silent
- * landing.
- *
- * **Widened by Story #5266** from `{name, conclusion}` to carry what a red run
- * is classified and acted on by: `summary` (the run's own account of why it
- * failed — see {@link readRunSummary}), `runId` (the workflow run behind it,
- * so a rerun can be requested), and `completedAt` (the observation stamp that
- * tells a re-run's verdict apart from the stale pre-rerun one). Every added
- * field is OMITTED when the projection carries no value for it, so a run the
- * rollup describes as thinly as before still projects to exactly the old two
- * keys — and a thin run classifies as a violation, i.e. the pre-#5266 verdict.
+ * Red head runs. Optional fields are omitted when absent; `completedAt`
+ * separates a rerun's verdict from the stale one.
  *
  * @param {Array<{name?: string, context?: string, status?: string, conclusion?: string, state?: string, detailsUrl?: string, completedAt?: string, description?: string, output?: object}>} statusCheckRollup
  * @returns {Array<{ name: string|null, conclusion: string, summary?: string, runId?: number, completedAt?: string }>}
@@ -436,11 +224,7 @@ export function deriveRedHeadRuns(statusCheckRollup) {
 }
 
 /**
- * Pure: drop the red runs a consumer has exempted via
- * `delivery.ci.advisoryAllowlist`, returning the ones that still block.
- *
- * Matching is exact on the run name. An unnamed run never matches (see
- * {@link deriveRedHeadRuns}).
+ * Red runs not exempted by the allowlist (exact name match).
  *
  * @param {Array<{ name: string|null, conclusion: string }>} redHeadRuns
  * @param {string[]} [allowlist]
@@ -458,22 +242,8 @@ function selectBlockingRedRuns(redHeadRuns, allowlist = []) {
 }
 
 /**
- * Pure: does this PR carry a genuinely red ADVISORY run — one that will NOT
- * stop GitHub from landing the PR, and therefore one only mandrel can act on?
- * (Story #5096.)
- *
- * The complement of {@link requiredCheckFailedBlocksMerge}. That predicate
- * answers "is a red REQUIRED check gating the merge" (`BLOCKED`); this one
- * answers "is a red NON-required check about to be merged straight past"
- * (`UNSTABLE`). The two are mutually exclusive by construction, so a red
- * required check keeps its existing `checks-failed` treatment untouched.
- *
- * **Fails OPEN by design.** `UNKNOWN`, `CLEAN`, `BEHIND`, or an absent
- * `mergeStateStatus` all return `false`. The asymmetry is the same one
- * {@link failingChecksBlockMerge} documents and is deliberate: failing to
- * block costs an unattended landing the operator can still revert, whereas
- * blocking wrongly strands a mergeable PR at `agent::blocked` that only an
- * operator can unpick. A transient `UNKNOWN` must never do the latter.
+ * A red advisory run about to be merged past (`UNSTABLE`). Fails open on any
+ * other state: a wrong block strands a PR; a miss is a revertable landing.
  *
  * @param {{ mergeStateStatus?: string, redHeadRuns?: Array<{name: string|null, conclusion: string}> }} [prProbe]
  * @param {string[]} [allowlist] `delivery.ci.advisoryAllowlist`.
@@ -490,31 +260,15 @@ function advisoryCheckFailedBlocksArm(prProbe, allowlist = []) {
 }
 
 /**
- * The two advisory-gate block classes (Story #5266). Both BLOCK — the gate's
- * verdict on whether to land is unchanged — but they authorise different acts,
- * which is the whole reason they are two:
- *
- *   - `advisory-gate-red`          A red advisory run that REPORTED a
- *                                   violation. The change is implicated;
- *                                   landing over it is a deliberate override.
- *   - `advisory-gate-inconclusive` A red advisory run that never finished — a
- *                                   scan or navigation timeout that reported
- *                                   no violation at all. Nothing here says the
- *                                   change is bad, so the proportionate remedy
- *                                   is to re-run the job, not to grant the
- *                                   permanent global exemption
- *                                   `advisoryAllowlist` is.
+ * Both block; `-inconclusive` (never finished, e.g. a timeout) warrants a
+ * rerun rather than a permanent allowlist exemption.
  */
 export const ADVISORY_GATE_RED_CLASS = 'advisory-gate-red';
 export const ADVISORY_GATE_INCONCLUSIVE_CLASS = 'advisory-gate-inconclusive';
 
 /**
- * Text signatures of a run that FAILED WITHOUT FINISHING. Deliberately narrow:
- * the observed shape (Story #5266) is a `Navigation timeout of NNNN ms
- * exceeded` line with an empty violation set, and anything this list does not
- * recognise keeps the pre-#5266 `advisory-gate-red` verdict — the conservative
- * direction, since misreading a real violation as a timeout would offer the
- * operator a rerun for a finding that will come back every time.
+ * Deliberately narrow: misreading a violation as a timeout offers a rerun
+ * that fails every time.
  */
 const INCONCLUSIVE_MARKERS = Object.freeze([
   /navigation timeout/i,
@@ -528,19 +282,10 @@ const INCONCLUSIVE_MARKERS = Object.freeze([
 /** A counted finding — `0 violations` is explicitly NOT one. */
 const VIOLATION_COUNT =
   /\b(\d+)\s+(?:violation|error|issue|failure|problem|finding)s?\b/i;
-/** An uncounted finding — enough on its own, because it names a verdict. */
 const VIOLATION_WORD = /\bviolations?\b|\bfailed assertion/i;
 
 /**
- * Pure: does this red run's own text report a VIOLATION (as opposed to saying
- * nothing, or saying it never got that far)?
- *
- * A counted phrase wins over the bare word so `0 violations found` — a scan
- * that completed cleanly and then died — is not read as a finding.
- *
- * Takes the text, not the run: its one caller has already established the
- * run says something, so a second empty-text guard here would be a branch no
- * input can reach.
+ * A counted phrase wins over the bare word.
  *
  * @param {string} text A non-empty run summary.
  * @returns {boolean}
@@ -552,12 +297,7 @@ function reportsViolations(text) {
 }
 
 /**
- * Pure: classify ONE red advisory run as a genuine violation or an
- * unfinished job (Story #5266).
- *
- * A run whose projection carries no text at all classifies as `violation`:
- * absence of evidence is not evidence the job timed out, and `violation` is
- * the verdict every red advisory run already got before this Story.
+ * No text is a `violation`: absence of evidence is not a timeout.
  *
  * @param {{ summary?: string }} [run]
  * @returns {'violation'|'inconclusive'}
@@ -571,16 +311,8 @@ function classifyAdvisoryRedRun(run) {
 }
 
 /**
- * Pure: the block class for a whole set of blocking runs.
- *
- * `advisory-gate-inconclusive` requires EVERY blocking run to be inconclusive.
- * One genuine violation beside a timeout is still a genuine violation, and the
- * operator must not be offered a rerun as the remedy for it.
- *
- * Module-private: {@link resolveAdvisoryGateVerdict} is the one door, so a
- * caller cannot take the class without the reason that matches it — and, being
- * the one door, it is also what normalises `blockingRuns` to an array, so
- * neither this nor {@link formatAdvisoryGateReason} re-guards the shape.
+ * Inconclusive only when EVERY run is. Private: the class travels with its
+ * reason via {@link resolveAdvisoryGateVerdict}.
  *
  * @param {Array<{ summary?: string }>} runs
  * @returns {string} one of the two advisory classes above
@@ -593,10 +325,6 @@ function deriveAdvisoryGateClass(runs) {
 }
 
 /**
- * Pure: the advisory gate's whole verdict — class AND the reason text that
- * matches it (Story #5266). One function so a caller can never pair an
- * inconclusive class with the violation wording.
- *
  * @param {{ blockingRuns?: Array<object>, rerunAllowance?: number }} [args]
  * @returns {{ blockClass: string, blockingRuns: Array<object>, reason: string }}
  */
@@ -614,22 +342,8 @@ export function resolveAdvisoryGateVerdict({
 }
 
 /**
- * Pure: the merge wait's advisory-gate decision, the sibling of
- * {@link decideMergeWaitFailFast} (Story #5096).
- *
- * Encapsulates the whole policy — the knob, the predicate, and the allowlist
- * projection — so the poll body carries a single assignment rather than three
- * decision points. `runMergePoll` sits above `check-cyclomatic`'s ceiling
- * already; every branch added inline there is a real regression, and this
- * policy has a natural home beside the predicate it consumes.
- *
- * Returns `null` when the wait should keep polling — the knob is off, the PR
- * is not in the advisory-red state, or every red run is allowlisted.
- *
- * The verdict it returns is provisional on the text the ROLLUP carried
- * (Story #5266): the caller may enrich the blocking runs with the check-run
- * API's output and re-resolve via {@link resolveAdvisoryGateVerdict} before
- * recording the block.
+ * `null` means keep polling. Reflects rollup text only; the caller may enrich
+ * and re-resolve.
  *
  * @param {object} args
  * @returns {{ blockingRuns: Array<object>, reason: string, blockClass: string } | null}
@@ -650,19 +364,6 @@ export function decideAdvisoryGateBlock({
 }
 
 /**
- * Format the one-line reason a `merge.unlanded` record and the operator-facing
- * block carry for an advisory-gate verdict, naming each offending job and its
- * conclusion.
- *
- * Story #5266 splits the wording by class: an unfinished job is reported as
- * one, because telling an operator a timed-out scan "concluded red" invites
- * them to grant a permanent `advisoryAllowlist` exemption for a transient
- * failure. Both wordings name the same three remedies — rerun, hand-merge,
- * allowlist — in the order proportionate to the class.
- *
- * Module-private for the same reason {@link deriveAdvisoryGateClass} is: the
- * class and the wording must travel together.
- *
  * @param {Array<{ name: string|null, conclusion: string }>} runs
  * @param {{ blockClass: string, rerunAllowance: number }} options
  * @returns {string}
@@ -703,30 +404,8 @@ function formatAdvisoryGateReason(runs, { blockClass, rerunAllowance }) {
 }
 
 /**
- * Pure: the merge wait's single fail-fast decision (Story #4710 — extracted
- * from the two near-verbatim inline blocks in `runConfirmMergePhase`'s poll
- * loop, beside its sibling predicates).
- *
- * Encapsulates the Story #4695 evidence policy in one place:
- *
- *   - **Per-run evidence available** — decide on this single probe via
- *     {@link requiredCheckFailedBlocksMerge}; a required run still in flight
- *     (or only superseded / non-required noise red) resets the counter and
- *     keeps polling.
- *   - **Evidence unavailable** (older `gh`, API error, empty rollup) — require
- *     TWO consecutive failing probes at least one poll interval apart. The
- *     review-required softening applies here exactly as on the per-run path.
- *
- * **The verdict is carried, not re-derived (Story #5383).** A fail-fast
- * returns the block class and reason it decided; the caller hands them to the
- * terminal as-is, the way an advisory verdict already travels. The classifier
- * is never re-run on a probe stamped with invented evidence to make it agree.
- *
- * Returns the next counter value alongside the verdict; the caller owns the
- * mutable counter and the terminal side effects. When `failFast` is `true`,
- * `blockClass` / `reason` are the decided verdict, `prProbe` is the observed
- * probe annotated with `evidencePath`, and `evidencePath` names which path
- * fired (`per-run` | `consecutive-probe`) for the `merge.unlanded` telemetry.
+ * Fail-fast: decide on per-run evidence, else require two consecutive
+ * failing probes. The verdict is carried to the terminal, never re-derived.
  *
  * @param {object} args
  * @param {object} args.probe The current poll's {@code readPrWaitProbe} result.
@@ -747,9 +426,7 @@ export function decideMergeWaitFailFast({
     if (requiredCheckFailedBlocksMerge(probe)) {
       return checksFailedVerdict(probe, 'per-run', 0);
     }
-    // A required run is still in flight, only non-required / superseded runs
-    // are red, or a missing required review owns the BLOCKED state: the
-    // protected-branch steady state, not a failure. Keep polling.
+    // In flight, only non-required red, or review owns BLOCKED: keep polling.
     return { failFast: false, consecutiveRequiredFailSnapshots: 0 };
   }
   const next = consecutiveRequiredFailSnapshots + 1;
@@ -759,11 +436,6 @@ export function decideMergeWaitFailFast({
   return { failFast: false, consecutiveRequiredFailSnapshots: next };
 }
 
-/**
- * The fail-fast verdict shape: the decided class and reason, carried forward
- * with the observed probe (annotated with the evidence path) — never a probe
- * rewritten to steer a later classification.
- */
 function checksFailedVerdict(
   probe,
   evidencePath,

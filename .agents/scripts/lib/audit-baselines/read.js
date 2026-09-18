@@ -1,12 +1,6 @@
 /**
- * read.js — tolerant, strictly read-only filesystem access for the baseline
- * hotspot engine (Story #4902).
- *
- * The engine's job is to *report on* the baseline surface, including the
- * parts of it that are missing or malformed. So no read here throws: a
- * missing file, an unreadable directory, or a JSON parse error is evidence
- * the envelope carries, not a crash. Nothing in this module opens a file for
- * writing — the read-only invariant over `baselines/` starts here.
+ * Tolerant, strictly read-only fs access: a missing or malformed file is
+ * evidence for the envelope, never a throw.
  *
  * @module lib/audit-baselines/read
  */
@@ -15,8 +9,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 /**
- * Read and parse a JSON file without throwing.
- *
  * @param {string} absolutePath
  * @returns {{ exists: boolean, parsed: object | null, parseError: string | null }}
  */
@@ -39,10 +31,6 @@ export function readJsonFile(absolutePath) {
 }
 
 /**
- * List every file under `rootDir` as a posix repo-relative path, skipping
- * `node_modules`, `.git`, and `.worktrees`. Returns `[]` for an absent or
- * unreadable root rather than throwing.
- *
  * @param {string} repoRoot
  * @param {string} rootDir repo-relative directory to walk
  * @returns {string[]} sorted repo-relative posix paths
@@ -72,8 +60,7 @@ export function listFilesUnder(repoRoot, rootDir) {
 }
 
 /**
- * Age in whole days between `generatedAt` and `now`. Null when the stamp is
- * absent or unparseable — the engine reports "unknown", never a fabricated 0.
+ * Whole days; `null` (unknown) rather than a fabricated 0.
  *
  * @param {unknown} generatedAt
  * @param {Date} now

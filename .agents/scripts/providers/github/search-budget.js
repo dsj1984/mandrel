@@ -1,26 +1,10 @@
 /**
- * GitHub Provider — `/search/issues` fan-out budget (Story #4678).
- *
- * The 30-requests-per-minute cap is a property of GitHub's `/search/issues`
- * endpoint, not of any one caller. A single audit-to-stories scan issues ~2
- * search calls per finding; a 22-group scan therefore blows well past the cap
- * with no throttle of any kind, and every exhausted call then spends its whole
- * transient-retry budget re-issuing a request against an already-empty window.
- *
- * This module owns the throttle at the endpoint seam: a pure, injectable token
- * bucket that `IssuesGateway#searchIssues` awaits before every call, so every
- * caller (audit-to-stories dedup, `lib/duplicate-search.js`, the tickets
- * gateway's `_searchIssues`) inherits one shared budget for free.
- *
- * `now` and `sleep` are injected so unit tests drive the bucket deterministically
- * without wall-clock time.
+ * GitHub Provider — token-bucket throttle for `/search/issues`, whose
+ * 30/min cap belongs to the endpoint, not any caller. `searchIssues` awaits
+ * it before every call so all callers share one budget.
  */
 
-/**
- * Default budget: 30 tokens per 60s window, matching GitHub's authenticated
- * Search API cap. When a rate limit is reported with no readable reset, the
- * bucket pauses for one full window before the next `take()` resolves.
- */
+/** GitHub's authenticated Search cap; cooldown applies when no reset is readable. */
 const SEARCH_BUDGET_DEFAULTS = Object.freeze({
   capacity: 30,
   windowMs: 60_000,
@@ -28,14 +12,9 @@ const SEARCH_BUDGET_DEFAULTS = Object.freeze({
 });
 
 /**
- * Create a token-bucket search budget.
- *
- * `take()` resolves once a token is available, consuming it; it awaits an
- * accruing token (and any active rate-limit cooldown) rather than failing.
- * `noteRateLimited(resetAtMs)` drains the bucket and blocks every subsequent
- * `take()` until the reported reset (or a fixed cooldown when no reset is
- * readable), so the whole batch pauses **once** instead of each call retrying
- * independently into the empty window.
+ * `take()` waits for (never fails on) a token. `noteRateLimited` drains the
+ * bucket and blocks every `take()` until the reset, so the batch pauses once
+ * instead of each call retrying into the empty window.
  *
  * @param {object} [opts]
  * @param {number} [opts.capacity] — max tokens (and burst size).
@@ -79,7 +58,6 @@ export function createSearchBudget({
         tokens -= 1;
         return;
       }
-      // Sleep just long enough for one token to accrue, then re-check.
       const waitMs = Math.max(1, Math.ceil((1 - tokens) / refillPerMs));
       await sleep(waitMs);
     }
@@ -99,19 +77,11 @@ export function createSearchBudget({
   return { take, noteRateLimited };
 }
 
-/**
- * Process-wide singleton shared by every `searchIssues` caller. Per-process,
- * matching the one-scan-per-checkout model — there is deliberately no
- * cross-process budget.
- */
+/** Per-process by design (one scan per checkout); no cross-process budget. */
 export const searchBudget = createSearchBudget();
 
 /**
- * Best-effort extract of a rate-limit reset time (epoch ms) from a thrown
- * error's stderr. GitHub surfaces the reset as an `x-ratelimit-reset` epoch
- * (seconds) header; `gh` echoes response headers onto stderr on failure.
- * Returns `undefined` when no reset is readable so the bucket falls back to a
- * fixed cooldown. Pure — no I/O.
+ * The `x-ratelimit-reset` header (epoch seconds) `gh` echoes onto stderr.
  *
  * @param {unknown} err
  * @returns {number|undefined} reset time in epoch milliseconds, or undefined.

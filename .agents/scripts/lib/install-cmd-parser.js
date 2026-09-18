@@ -1,14 +1,8 @@
 /**
- * Tokenize + spawn the operator-supplied install command in argv form
- * (shell:true is only used on Windows because well-known package managers
- * ship as `.cmd` shims and Node 18.20+/20.10+/22+ refuses to spawn them
- * with shell:false under CVE-2024-27980). Tokenization removes the
- * single-string injection vector — args are escaped individually even
- * when shell:true is required for binary resolution.
- *
- * Whitespace tokenization (no quote handling) is deliberate: the input
- * contract is a simple `binary arg arg …` form. Operators that need
- * quoted args can pass a `runInstall` override directly.
+ * Spawn the operator's install command in argv form, removing the
+ * single-string injection vector. Shell only on Windows (`.cmd` shims,
+ * CVE-2024-27980). Whitespace tokenization with no quoting is the contract;
+ * quoted args need a `runInstall` override.
  */
 
 import { spawnSync as defaultSpawnSync } from 'node:child_process';
@@ -32,9 +26,6 @@ function parseInstallCmd(installCmd) {
 }
 
 /**
- * Default runInstall implementation. Tokenizes `installCmd`, then spawns
- * synchronously with the correct shell flag per platform.
- *
  * @param {string} installCmd
  * @param {string} cwd
  * @param {{ spawnSync?: typeof defaultSpawnSync }} [deps] — test seam

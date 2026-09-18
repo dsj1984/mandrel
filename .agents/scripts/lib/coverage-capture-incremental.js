@@ -1,40 +1,14 @@
-/**
- * coverage-capture-incremental.js — the incremental-mode capture path for
- * `coverage-capture.js` (Story #4981).
- *
- * Split into its own module (rather than added inline to the CLI shell) so
- * the Story's opt-in branch lands as new code, not a same-file expansion of
- * `runCoverageCapture`. Every collaborator is injected — no seam differs
- * from the ones `coverage-capture.js` already exposes on its `deps`
- * parameter (`docs/contributing/test-seams.md` rules 1-2, 4).
- */
+/** Incremental-mode capture path for `coverage-capture.js`. */
 import path from 'node:path';
 import { resolveChangedFilesRef } from './changed-files.js';
 import { reportCaptureFailure, stampCapturedTree } from './coverage-capture.js';
 
 /**
- * Run the skip-aware capture path when
- * `delivery.quality.gates.crap.incrementalCoverage.skipWhenUnchanged` is true
- * (the default since Story #5173).
- *
- * **This does not shorten the capture run.** The changed-file set decides
- * *whether* to capture, never *what* the capture executes: when nothing under
- * `crap.targetDirs` changed there is no capture at all, and otherwise the
- * ordinary full `npm run test:coverage` runs. The saving that makes the mode
- * worth having is the skip.
- *
- * Gated by `skipWhenUnchanged` alone (Story #5173). It MUST NOT consult
- * `baselineJoin`: that switch governs the CRAP join
- * (`crap-baseline-join.js`), which resolves methods in untouched files from
- * the committed baseline row instead of demanding fresh coverage for them —
- * a gate loosening, where the skip is a pure saving. The two are defaulted
- * differently for exactly that reason, so neither may read the other.
- *
- * Returns the process exit code when incremental mode handled the run
- * (skip, capture, or a capture failure), or `null` when the caller should
- * fall through to the full-scope path — either incremental mode is
- * disabled, or the changed-files ref could not be resolved (a
- * misconfiguration must not silently relax the gate).
+ * Under `skipWhenUnchanged`: the changed-file set decides whether to capture,
+ * never what runs (a capture is always the full suite). Must not read
+ * `baselineJoin` — that loosens the gate, while the skip is a pure saving.
+ * Returns `null` to fall through to full scope, including when the ref
+ * cannot be resolved (never silently relax the gate).
  *
  * @param {{
  *   crap: object,
@@ -99,7 +73,7 @@ export async function tryIncrementalCapture({
   logger.info(
     `[coverage-capture] Incremental mode: ${scopedFiles.length} changed file(s) under [${crap.targetDirs.join(', ')}] — capturing…`,
   );
-  // Story #5278 — pre-spawn digest; see `stampCapturedTree`.
+  // Pre-spawn digest; see `stampCapturedTree`.
   const preDigest = computeContentDigestImpl(args.cwd, crap.targetDirs);
   const code = await runCaptureImpl({
     cwd: args.cwd,

@@ -1,57 +1,13 @@
 /**
- * plan-metrics.js — append-only plan-invocation ledger (Epic #4474, PR1).
+ * plan-metrics.js — append-only NDJSON ledger of plan CLI invocations
+ * (`{ v, cli, mode, epicId, startedAt, endedAt, durationMs, ok }`) plus
+ * `kind: 'critic-skip'` records. Readers key on `kind`, never on absent
+ * fields. Counts CLI invocations from the parent session, not turns.
  *
- * The `/mandrel-plan` collapse (#4474) is measured, not asserted: before any pipeline
- * phase is removed, every plan CLI invocation stamps an entry/exit record so
- * the current 12-phase baseline is captured on disk. Each record is one
- * newline-terminated JSON line appended to
- * `temp/run-<id>/plan-metrics.json` (per-Epic plan CLIs) or
- * `temp/standalone/plan-metrics.json` (Epic-less plan and healthcheck runs —
- * same standalone routing the friction ledger uses).
- *
- * Record shape (v1):
- *
- * ```json
- * { "v": 1, "cli": "plan-context", "mode": "emit",
- *   "epicId": 4474, "startedAt": "...", "endedAt": "...",
- *   "durationMs": 1234, "ok": true }
- * ```
- *
- * Critic-skip records (Epic #4474 PR6 — additive `kind` extension): the
- * conditional-critic layer logs every skip decision so under-firing is
- * auditable from the same stream:
- *
- * ```json
- * { "v": 1, "kind": "critic-skip", "cli": "plan-critics",
- *   "critic": "pre-mortem", "reasons": ["..."], "epicId": 4474,
- *   "at": "..." }
- * ```
- *
- * Records without a `kind` field are invocation records (the PR1 shape);
- * readers key on `kind`, never on the absence of other fields.
- *
- * Attribution note (#4474 PR1 risk register): these records count **CLI
- * invocations from the parent session's perspective**. Sub-agent sessions
- * spawned by the workflow do not write here; they are attributed separately
- * by the host's session accounting. Do not read `invocations` as "turns".
- *
- * Robustness contract (mirrors `lib/observability/signals-writer.js`):
- *   - **Best-effort writes.** A failed append is a missing metric, not a
- *     failed plan phase — fs errors are swallowed after a `Logger.warn`.
- *   - **No buffering / rotation.** The append tail (open → append one line →
- *     rotate at the byte cap → close) is owned by the shared
- *     `lib/observability/metrics-ledger.js` module (Story #4712); every
- *     appender here routes through it. The close-domain findings-yield
- *     entry point (Story #4699) lives there too, so the story-close review
- *     spine never imports this plan-domain module.
- *   - **Malformed-line tolerance on read.** The reader skips unparseable
- *     lines (counting them) instead of throwing, so a torn write can never
- *     wedge the analyzer.
- *
- * `plan-metrics.json` is intentionally NOT in
- * `lib/plan-phase-cleanup.js#PHASE_TEMP_BASENAMES`: the ledger must survive
- * phase cleanup so the whole plan run (spec → decompose → healthcheck) is
- * visible in one stream.
+ * Writes are best-effort (a failed append is a missing metric, never a failed
+ * phase) via the shared `metrics-ledger.js` tail; reads skip and count
+ * malformed lines. The file deliberately survives phase cleanup so a whole
+ * plan run is one stream.
  */
 
 import fs from 'node:fs/promises';
@@ -63,13 +19,10 @@ import {
   planMetricsPath,
 } from '../observability/metrics-ledger.js';
 
-/** Record kind for a logged critic skip decision (Epic #4474 PR6). */
 export const PLAN_METRICS_KIND_CRITIC_SKIP = 'critic-skip';
 
 /**
- * Append one invocation record to the ledger. Best-effort: returns `false`
- * (after a `Logger.warn`) instead of throwing on any fs failure, so metric
- * capture can never fail a plan phase.
+ * Append one invocation record. Best-effort: warns and returns `false`.
  *
  * @param {{
  *   cli: string,
@@ -126,12 +79,8 @@ export async function appendPlanMetric(entry, config, opts = {}) {
 }
 
 /**
- * Append one critic-skip audit record (Epic #4474 PR6). Every conditional
- * critic that decides NOT to dispatch logs the decision here — with the
- * deterministic reasons — so an under-firing critic layer (a distorted
- * plan sailing through) is auditable after the fact. Best-effort with the
- * same contract as `appendPlanMetric`: a failed append can never fail the
- * plan step.
+ * Append a critic-skip record with its reasons, so an under-firing critic
+ * layer is auditable. Best-effort like `appendPlanMetric`.
  *
  * @param {{
  *   critic: string,
@@ -181,10 +130,8 @@ export async function appendCriticSkip(entry, config, opts = {}) {
 }
 
 /**
- * Wrap one plan CLI invocation: stamp `startedAt`, run `fn`, stamp
- * `endedAt` + `ok`, append the record, and re-throw the original error on
- * failure. The metric write itself is best-effort and can never mask or
- * replace the wrapped function's outcome.
+ * Run `fn` and record the invocation; the metric write never masks `fn`'s
+ * outcome.
  *
  * @template T
  * @param {{ cli: string, mode: string, epicId?: number|null, config?: object }} meta
@@ -216,9 +163,7 @@ export async function recordPlanInvocation(meta, fn) {
 }
 
 /**
- * Read the active ledger generation. Missing file → `{ entries: [],
- * malformedLines: 0, missing: true }`. Malformed lines are skipped and
- * counted, never thrown.
+ * Read the active ledger generation; malformed lines are counted, not thrown.
  *
  * @param {number|null} epicId
  * @param {object} [config]
@@ -256,22 +201,18 @@ export async function readPlanMetrics(epicId, config) {
 }
 
 /**
- * Roll a read ledger up into the compact summary surfaced by the persist
- * summary. (Story #4545 deleted its second consumer, `analyze-execution.js`,
- * with the execution-analysis surface.) Returns `null` when there is nothing
- * to summarize (missing ledger or zero parseable entries).
- *
- * Critic-skip records (kind: 'critic-skip') are counted separately from
- * invocations — `criticSkips` totals them and `criticSkipsByCritic` breaks
- * them down, so the skip-audit trail is visible in the persist summary
- * without inflating the turns-per-plan proxy.
- *
- * Pass `opts.since` (an ISO-8601 instant) to scope the roll-up to one plan
- * run (Story #4541). The Epic-less ledger at `temp/standalone/` is shared by
- * every plan the repo has ever run, so an unfiltered summary reported
- * lifetime totals under a line the reader takes to describe the invocation
- * in front of them. Records are timestamped `startedAt` (invocations) or
- * `at` (critic skips); either at-or-after `since` is in scope.
+ * @param {object} entry
+ * @returns {string|null}
+ */
+function recordTimestamp(entry) {
+  const stamp = typeof entry?.kind === 'string' ? entry.at : entry?.startedAt;
+  return typeof stamp === 'string' ? stamp : null;
+}
+
+/**
+ * Roll a ledger up for the persist summary; `null` when empty. Critic skips
+ * are tallied apart from invocations. `opts.since` (ISO-8601) scopes to one
+ * run — the standalone ledger is shared by every plan ever run.
  *
  * @param {{ entries: object[], malformedLines?: number }} ledger
  * @param {{ since?: string|null }} [opts]
@@ -289,23 +230,10 @@ export async function readPlanMetrics(epicId, config) {
  *   malformedLines: number,
  * }|null}
  */
-/**
- * Timestamp a ledger record is ordered by: `startedAt` for invocation
- * records, `at` for kinded records (critic-skip, findings-yield).
- *
- * @param {object} entry
- * @returns {string|null}
- */
-function recordTimestamp(entry) {
-  const stamp = typeof entry?.kind === 'string' ? entry.at : entry?.startedAt;
-  return typeof stamp === 'string' ? stamp : null;
-}
-
 export function summarizePlanMetrics(ledger, opts = {}) {
   const all = ledger?.entries ?? [];
   const since = typeof opts.since === 'string' ? opts.since : null;
-  // ISO-8601 UTC strings sort lexicographically in time order, so a string
-  // compare is a correct (and allocation-free) instant compare here.
+  // ISO-8601 UTC strings compare correctly as strings.
   const entries =
     since === null
       ? all
@@ -333,9 +261,7 @@ export function summarizePlanMetrics(ledger, opts = {}) {
       continue;
     }
     if (typeof e.kind === 'string') {
-      // Any other kinded record (e.g. `findings-yield`, Story #4699) is not
-      // an invocation — readers key on `kind`, never on absent fields, so it
-      // must not inflate the invocation/failure tallies.
+      // Other kinded records (e.g. `findings-yield`) are not invocations.
       continue;
     }
     invocationEntries.push(e);
@@ -375,11 +301,6 @@ export function summarizePlanMetrics(ledger, opts = {}) {
 }
 
 /**
- * Render the one-line human summary (snapshot-tested). Example:
- *
- *   `plan-metrics: 3 invocation(s) (1 failed) across plan-context ×1,
- *    plan-critics ×1, plan-persist ×1 — span 12m 3s`
- *
  * @param {ReturnType<typeof summarizePlanMetrics>} summary
  * @returns {string}
  */
@@ -409,7 +330,7 @@ export function renderPlanMetricsSummaryLine(summary) {
 }
 
 /**
- * Compact duration formatter: `45s`, `12m 3s`, `2h 5m`.
+ * `45s`, `12m 3s`, `2h 5m`.
  *
  * @param {number} ms
  * @returns {string}

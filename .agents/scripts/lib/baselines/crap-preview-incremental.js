@@ -1,27 +1,11 @@
-/**
- * crap-preview-incremental.js — resolve `runCrapPreview`'s incremental-join
- * `scanAndScore` input (Story #4981).
- *
- * Split into its own file (rather than added inline to `preview-gates.js`)
- * so the Story's opt-in wiring lands as new code, not a same-file expansion
- * of the pre-existing preview runner.
- */
 import { getChangedFiles, resolveChangedFilesRef } from '../changed-files.js';
 
 /**
- * Resolve the `incremental` option `scanAndScore` (`crap-utils.js`) expects,
- * or `null` when incremental mode is disabled or the changed-files ref could
- * not be resolved — a resolution failure falls back to full-scope rather
- * than silently relaxing the gate.
- *
- * The join's ref comes from `resolveChangedFilesRef` (Story #5365), the same
- * rule capture applies: the `--changed-since` ref the preview was handed wins
- * over a configured `baseRef`, so one hook invocation cannot resolve two.
- *
- * Gated by `incrementalCoverage.baselineJoin` alone (Story #5173). It MUST
- * NOT consult `skipWhenUnchanged`: the join loosens what the gate demands,
- * while the skip only decides whether a capture runs, so a consumer that took
- * the saving has not thereby asked for the loosening.
+ * The `incremental` option for `scanAndScore`, or `null` (full scope) when
+ * disabled or the changed-files ref fails — never a silently relaxed gate.
+ * The preview's `--changed-since` ref wins over configured `baseRef`, so one
+ * hook invocation resolves one ref. Gated by `baselineJoin` alone, never
+ * `skipWhenUnchanged`: skipping a capture is not consent to loosen the gate.
  *
  * @param {{
  *   crap: { incrementalCoverage?: { baselineJoin?: boolean, baseRef?: string } },

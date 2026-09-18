@@ -40,7 +40,6 @@
     ".agents/scripts/mandrel-update-preflight.js!",
     ".agents/scripts/merge-baseline.js!",
     ".agents/scripts/nav-registry-diff.js!",
-    ".agents/scripts/notify.js!",
     ".agents/scripts/plan-context.js!",
     ".agents/scripts/plan-critics.js!",
     ".agents/scripts/plan-persist.js!",

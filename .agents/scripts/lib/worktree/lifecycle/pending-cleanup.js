@@ -1,36 +1,11 @@
 /**
- * worktree/lifecycle/pending-cleanup.js
+ * Stage 2 of the reap fallback: worktrees whose removal exhausted Stage 1
+ * are recorded in the gitignored `.worktrees/.pending-cleanup.json` and
+ * retried by the next plan-time sweep, once OS file locks have usually gone.
  *
- * Stage 2 of the Windows worktree reap fallback (see #386).
- *
- * When Stage 1 (`removeWorktreeWithRecovery` → `fs.rm`) exhausts its retries
- * on a Windows lock-class failure, the entry is appended to
- * `.worktrees/.pending-cleanup.json`. The plan-time `worktree-sweep.js`
- * reader (shipped in Epic #349) picks up the manifest on the next
- * `/mandrel-plan` run and retries removal
- * (`git worktree remove` then `fs.rm`) — by then the live file handles from Node / AV / the Windows
- * Search indexer are almost always gone. If `MAX_SWEEP_ATTEMPTS` elapses
- * without clearing, an `OPERATOR ACTION REQUIRED: persistent-lock` line
- * fires and the entry stays in the manifest so the signal persists.
- *
- * The manifest itself lives under `.worktrees/`, which is already
- * git-ignored; no tracked state is mutated.
- *
- * **Story #5112 — the manifest is shared mutable state.** `recordPendingCleanup`
- * runs from the close reap and `drainPendingCleanup` runs from the `/mandrel-plan`
- * boot, so two concurrent delivery sessions can read-modify-write the same
- * file. Three properties close that:
- *
- *   1. **Atomic write.** Every write lands in a pid-scoped temp file and is
- *      then `rename`d over the manifest, so a reader never observes a half-
- *      written array (`readManifest` treats a torn or absent file as empty,
- *      which used to silently *drop* the backlog).
- *   2. **Mutual exclusion.** Read-modify-write runs under the shared
- *      `acquireSweepLock` primitive on a manifest-adjacent lockfile.
- *   3. **Merge before write.** The drain holds its snapshot across awaited
- *      removals, so it re-reads and merges by `storyId` before its final
- *      write — an entry recorded mid-drain survives instead of being erased
- *      by a stale snapshot.
+ * Concurrent sessions read-modify-write this manifest, so every write is
+ * atomic (temp + rename), runs under a lock, and the drain merges by
+ * `storyId` against the current file before writing.
  */
 
 import fs from 'node:fs';
@@ -42,18 +17,9 @@ import { acquireSweepLock } from '../../single-story-sweep/sweep-lock.js';
 const MANIFEST_FILENAME = '.pending-cleanup.json';
 const MANIFEST_LOCK_FILENAME = '.pending-cleanup.lock';
 
-/**
- * Staleness threshold for the manifest lock. Deliberately short: the guarded
- * section is a read, an in-memory merge and a rename — milliseconds — so a
- * lockfile older than this is a crashed holder, not a slow one.
- */
+/** Short: the guarded section takes milliseconds, so older means crashed. */
 const MANIFEST_LOCK_TIMEOUT_MS = 5_000;
-/**
- * After a reap hands off to the manifest, `attempts` counts failed
- * `drainPendingCleanup` passes (initial hand-off uses `attempts: 0`). The entry
- * becomes `persistent` when `attempts` reaches this threshold after another
- * failed drain (i.e. three consecutive sweep failures).
- */
+/** Failed drains (hand-off starts at 0) before an entry is `persistent`. */
 export const MAX_SWEEP_ATTEMPTS = 3;
 
 export function manifestPath(worktreeRoot) {
@@ -61,12 +27,6 @@ export function manifestPath(worktreeRoot) {
 }
 
 /**
- * Path of the lockfile guarding manifest read-modify-write. Manifest-adjacent
- * (same gitignored `.worktrees/` directory) so it needs no extra config and
- * shares the manifest's lifetime. Module-private: the lock is internal to
- * this manifest's read-modify-write, and callers only ever observe that a
- * mutation completed and left nothing behind.
- *
  * @param {string} worktreeRoot
  * @returns {string}
  */
@@ -75,10 +35,9 @@ function manifestLockPath(worktreeRoot) {
 }
 
 /**
- * Run `fn` under the manifest lock. Best-effort in the same sense as every
- * other use of this primitive: on contention the work still runs (the
- * merge-before-write below is what makes a lost race non-destructive), so a
- * stuck lockfile can never wedge a reap. Always releases.
+ * Run `fn` under the manifest lock. Best-effort: on contention `fn` still
+ * runs (merge-before-write keeps a lost race harmless), so a stuck lockfile
+ * never wedges a reap.
  *
  * @template T
  * @param {string} worktreeRoot
@@ -116,11 +75,7 @@ export function readManifest(worktreeRoot) {
 }
 
 /**
- * Write the manifest atomically: serialize into a pid-scoped temp file in the
- * same directory (so `rename` stays within one filesystem and is therefore
- * atomic), then rename it over the manifest. A concurrent reader sees either
- * the whole previous manifest or the whole new one — never a truncated array
- * that `readManifest`'s catch would silently turn into "no pending cleanups".
+ * Atomic write: a torn file would read as empty and silently drop the backlog.
  */
 function writeManifest(worktreeRoot, entries) {
   const p = manifestPath(worktreeRoot);
@@ -137,11 +92,8 @@ function writeManifest(worktreeRoot, entries) {
 }
 
 /**
- * Write `contents` to `targetPath` atomically: serialize into a pid-scoped
- * temp file beside it (same directory, so the rename stays within one
- * filesystem and is therefore atomic), then rename it into place. On failure
- * the temp file is reaped and the error propagates — a half-written file is
- * never left where a reader could pick it up.
+ * Pid-scoped temp file in the same directory (so rename is atomic), renamed
+ * into place; on failure the temp is reaped and the error propagates.
  *
  * @param {string} targetPath
  * @param {string} contents
@@ -157,28 +109,21 @@ function writeFileAtomic(targetPath, contents) {
   }
 }
 
-/** Best-effort removal of an abandoned atomic-write temp file. */
 function reapTempFile(tmp) {
   try {
     fs.unlinkSync(tmp);
   } catch {
-    // Temp file already gone (or never created) — nothing to reap.
+    // Already gone.
   }
 }
 
 /**
- * Upsert a pending-cleanup entry by storyId. Preserves `firstFailedAt` on
- * repeated failures; always updates `lastFailedAt` and increments
- * `attempts`. New rows start at `attempts: 0` (hand-off, not yet a failed
- * sweep). Called by Stage 1 when fs.rm exhausts its retries.
+ * Upsert by storyId, keeping `firstFailedAt`; new rows start at `attempts: 0`.
  */
 export function recordPendingCleanup(
   worktreeRoot,
   { storyId, branch, path: wtPath, push = false },
 ) {
-  // The read, the merge and the write are one critical section: without the
-  // lock a concurrent drain's write can land between our read and our write
-  // and erase this hand-off entirely.
   return withManifestLock(worktreeRoot, () => {
     const now = new Date().toISOString();
     const entries = readManifest(worktreeRoot);
@@ -289,18 +234,12 @@ async function retryStage1ForEntry(entry, ctx) {
 }
 
 /**
- * Write the drain's result, merged against whatever the manifest holds *now*.
- *
- * The drain awaits a removal per entry, so its `entries` snapshot can be
- * minutes old by the time it writes. Writing that snapshot back wholesale
- * erased any entry a concurrent `recordPendingCleanup` added mid-drain — the
- * exact hand-off that reap had just decided it could not complete. Merging by
- * `storyId` keeps it: rows this pass re-computed win, rows it successfully
- * drained are dropped, and everything else the manifest has gained survives.
+ * Write the drain result merged by `storyId` against the manifest as it is
+ * now, so an entry recorded during the (slow) drain survives.
  *
  * @param {string} worktreeRoot
- * @param {object[]} next          Rows this drain re-computed (still pending).
- * @param {Set<number|string>} drainedIds Story ids this drain cleared.
+ * @param {object[]} next          Rows still pending after this drain.
+ * @param {Set<number|string>} drainedIds
  */
 function commitDrainedManifest(worktreeRoot, next, drainedIds) {
   withManifestLock(worktreeRoot, () => {
@@ -315,11 +254,8 @@ function commitDrainedManifest(worktreeRoot, next, drainedIds) {
 }
 
 /**
- * Drain the pending-cleanup manifest: for each entry, retry Stage 1
- * cleanup. Successful entries are removed; failing entries have their
- * `attempts` incremented. Entries whose attempts reach `MAX_SWEEP_ATTEMPTS`
- * trigger an `OPERATOR ACTION REQUIRED: persistent-lock` log line but
- * remain in the manifest so the signal persists across subsequent sweeps.
+ * Retry each entry; persistent entries log OPERATOR ACTION REQUIRED but stay
+ * in the manifest so the signal persists.
  */
 export async function drainPendingCleanup({
   repoRoot,

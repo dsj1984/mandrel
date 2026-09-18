@@ -1,27 +1,7 @@
 /**
- * GitHub Provider — TicketGateway.
- *
- * Owns ticket CRUD against `/repos/{owner}/{repo}/issues` plus the
- * per-instance ticket cache that the dispatcher / reconciler / cascade
- * share. Extracted from `../github.js` in Story #2462 / Task #2482 as the
- * first slice of the seven-gateway split.
- *
- * The gateway is constructed with a `{ gh, owner, repo, hooks }` object so
- * cross-gateway concerns can be threaded in without bloating the constructor
- * signature. The `addItemToProject` hook (from the projects-v2 shim) adds a
- * newly-created issue to the configured Project V2.
- *
- * Story #4545 deleted `createTicket` and its `composeStoryBody` helper — the
- * Epic-hierarchy write surface. It composed the exact `Epic: #N` footer that
- * `pr-base-guard.js` hard-refuses at delivery, so the framework retained the
- * ability to generate work it would then reject; it had no production caller
- * (`/mandrel-plan` persists through the bare `createIssue` below).
- *
- * Public surface: `GitHubProvider.createIssue / getTicket /
- * getTickets / updateTicket / getTicketDependencies / primeTicketCache /
- * invalidateTicket` all delegate to the same-named methods on this class.
- *
- * @see Story #2462 — Split GitHubProvider god class into seven composed gateways.
+ * GitHub Provider — TicketGateway: issue CRUD plus the per-instance ticket
+ * cache shared across gateways. `hooks` carries cross-gateway concerns
+ * (Project V2 board add).
  */
 
 import { parseBlockedBy, parseBlocks } from '../../lib/dependency-parser.js';
@@ -37,10 +17,8 @@ import {
 } from './request-helpers.js';
 
 /**
- * GitHub Search API hard ceiling is 1000 results per query; at
- * `per_page=100` that is 10 pages. An Epic never has anywhere near 1000
- * children, so hitting this cap means the query is degenerate — we stop
- * rather than throw (the regex post-filter keeps results correct).
+ * Search API ceiling: 1000 results = 10 pages of 100. Hitting it means a
+ * degenerate query, so stop rather than throw.
  */
 const SEARCH_PAGE_CAP = 10;
 
@@ -64,27 +42,16 @@ export class TicketGateway {
     this._hooks = hooks;
     this._cache = cache ?? createInlineTicketCache();
     /**
-     * Per-instance memo of `getTickets(epicId, filters)` results (Story
-     * #3988). Planning-era healing fetched the same child list twice
-     * per planning pass; without this memo each fetch re-pays the full
-     * search/list round-trip. Invalidated on every write surface.
+     * Memo of `getTickets(epicId, filters)`; cleared on every write.
      * @type {Map<string, object[]>}
      */
     this._listCache = new Map();
   }
 
-  /**
-   * Expose the cache so the parent provider's other surfaces (sub-issues,
-   * comments) can keep invalidating on mutations. The parent passes the
-   * same cache instance into every gateway constructor.
-   */
+  /** Shared with sibling gateways so their mutations can invalidate it. */
   get cache() {
     return this._cache;
   }
-
-  // ---------------------------------------------------------------------------
-  // Read surface
-  // ---------------------------------------------------------------------------
 
   /**
    * @field-manifest /repos/{owner}/{repo}/issues/{n}: number, id, node_id,
@@ -113,10 +80,8 @@ export class TicketGateway {
   }
 
   /**
-   * Run one Search API query (`/search/issues`) to completion, returning
-   * the raw issue items. Search responses are `{ total_count, items }`
-   * envelopes rather than bare arrays, so this paginates manually instead
-   * of going through `paginateRest`.
+   * Paginated manually: search responses are `{ total_count, items }`
+   * envelopes, not the bare arrays `paginateRest` expects.
    */
   async _searchIssues(query) {
     const items = [];
@@ -143,13 +108,9 @@ export class TicketGateway {
   }
 
   /**
-   * Server-side narrowed child lookup (Story #3988): two Search API
-   * queries — `"Epic: #N" in:body` and `"parent: #N" in:body` — deduped
-   * by issue number. Replaces the repo-wide `state=all` pagination that
-   * cost ~1 spawn per 100 repo issues and hard-failed past the
-   * `paginateRest` page cap. Search tokenization can over-match (e.g.
-   * `#10` vs `#100`), so callers MUST keep the word-boundary regex
-   * post-filter.
+   * Two body searches (the `Epic:` and `parent:` footers) deduped by number.
+   * Search tokenization over-matches (issue 10 hits issue 100), so callers
+   * MUST keep the word-boundary regex post-filter.
    */
   async _searchEpicChildren(epicId, filters) {
     const qualifiers = [`repo:${this.owner}/${this.repo}`, 'is:issue'];
@@ -172,10 +133,7 @@ export class TicketGateway {
     return Array.from(byNumber.values());
   }
 
-  /**
-   * Repo-wide listing fallback — the pre-#3988 shape. Only used when the
-   * Search API path fails (search outage, search-specific rate limit).
-   */
+  /** Repo-wide fallback for when the Search API fails. */
   /* node:coverage ignore next */
   async _listAllIssues(filters) {
     const params = new URLSearchParams({ state: filters.state ?? 'all' });
@@ -206,7 +164,7 @@ export class TicketGateway {
       issues = await this._listAllIssues(filters);
     }
 
-    // Word-boundary regex prevents #1 matching #10, #100, etc.
+    // Word boundary: epic 1 must not match 10 or 100.
     const epicRefRe = new RegExp(
       `(?:Epic:\\s*#${epicId}|parent:\\s*#${epicId})(?:\\s|$|[,.)\\]])`,
     );
@@ -231,11 +189,6 @@ export class TicketGateway {
     };
   }
 
-  // ---------------------------------------------------------------------------
-  // Cache primers — exposed so the parent provider keeps a stable surface for
-  // `primeTicketCache` / `invalidateTicket` callers.
-  // ---------------------------------------------------------------------------
-
   primeTicketCache(tickets) {
     this._cache.primeMany(tickets);
   }
@@ -245,35 +198,12 @@ export class TicketGateway {
     this._listCache.clear();
   }
 
-  // ---------------------------------------------------------------------------
-  // Write surface
-  // ---------------------------------------------------------------------------
-
   /**
-   * Create a **bare** issue — no footer composition and no sub-issue link.
-   * Since Story #4545 this is the *only* create path: `/mandrel-plan` persist and the
-   * `/mandrel-plan` Phase 4 Epic open (`openEpicFromOnePager`'s `createIssue` port)
-   * both route through it.
-   *
-   * After the POST, the new issue is added to the configured Project V2
-   * board via the shared `addIssueToBoard` helper (Story #3822) —
-   * idempotent, non-fatal, and a no-op when no project number resolves —
-   * so board membership never depends on GitHub's "Auto-add to project"
-   * built-in workflow.
-   *
-   * The POST is wrapped in `withTransientRetry` (Story #4541) so it absorbs
-   * the same 502/429/ECONNRESET blips the read surfaces already do. It used
-   * to post bare, which made a single transient failure at story *k* of *N*
-   * abort `/mandrel-plan` persist with `1..k-1` already live on the tracker.
-   *
-   * Retry alone is not sufficient for that failure mode — a POST whose
-   * response is lost would double-create on the retry. Story #5112 closed
-   * that: `findExisting` is consulted **before every retry POST**, and a hit
-   * is adopted instead of re-created, so a response-lost first attempt files
-   * exactly one issue. `/mandrel-plan` persist supplies the plan-fingerprint lookup
-   * its resume path already uses (`plan-persist`'s `createStoryIssues`);
-   * callers with no content identity omit it and keep the pre-#5112
-   * retry-only behaviour.
+   * Create a bare issue (the only create path) and add it to the Project V2
+   * board (non-fatal, no-op without a project). The POST retries transient
+   * failures; because a lost response would double-create, `findExisting` is
+   * consulted before every retry POST and a hit is adopted. Callers with no
+   * content identity omit it and get retry-only behaviour.
    *
    * @field-manifest POST /repos/{owner}/{repo}/issues: number, id, node_id,
    *                 html_url
@@ -322,8 +252,6 @@ export class TicketGateway {
   }
 
   /**
-   * POST one issue and parse the created resource out of the response.
-   *
    * @param {{ title: string, body: string, labels: string[] }} payload
    * @returns {Promise<object>}
    */
@@ -338,9 +266,8 @@ export class TicketGateway {
   }
 
   /**
-   * Resolve the ambiguity a lost response leaves behind: did attempt 1 land?
-   * `ECONNRESET` after the server committed the create looks exactly like
-   * `ECONNRESET` before it, so the only authority is the server's own state.
+   * Did a prior attempt land? `ECONNRESET` looks the same before and after
+   * the server commits, so only the server's state can say.
    *
    * @param {(() => Promise<object|null>)|null} findExisting
    * @returns {Promise<object|null>} the already-created issue, or `null`.
@@ -350,10 +277,6 @@ export class TicketGateway {
   }
 
   /**
-   * The idempotent half of {@link TicketGateway#createIssue}: POST once, and
-   * on every subsequent attempt look for an already-created issue *before*
-   * posting again, so a retry adopts rather than duplicates.
-   *
    * @param {{ title: string, body: string, labels: string[], findExisting: (() => Promise<object|null>)|null }} args
    * @returns {Promise<{ issue: object, adopted: boolean }>}
    */
@@ -374,10 +297,8 @@ export class TicketGateway {
   }
 
   /**
-   * Append logins to an issue's assignee set via GitHub's additive assignees
-   * endpoint. No read-before-write and no replace semantics, so it cannot
-   * evict an assignee another run added between our read and our write. A
-   * non-array or empty list is a no-op.
+   * Additive assignee write: cannot evict an assignee another run added
+   * concurrently. Empty/absent list is a no-op.
    *
    * @param {number} ticketId
    * @param {string[]|undefined} logins
@@ -397,21 +318,10 @@ export class TicketGateway {
   }
 
   /**
-   * Add/remove labels on an issue. When the only mutation is "add", uses the
-   * additive labels endpoint (POST /issues/{n}/labels) for atomicity and to
-   * avoid a read-before-write. When other PATCH fields are present, or when
-   * removing labels, computes the final label set and returns it to the
-   * caller for inclusion in the PATCH.
-   *
-   * The additive POST goes through `withTransientRetry` (Story #4961) on the
-   * same policy as every other call in this file. Story #4952 raised the
-   * `/mandrel-plan` write loops that reach this endpoint — the `agent::ready` flips
-   * and the checkpoint fan-out — off serial, which is precisely what makes
-   * GitHub's secondary rate limit likelier; `gh-exec` already classifies that
-   * as transient, so the only thing missing was a backoff behind it.
-   * Retry does not change what the caller observes on a genuine failure: an
-   * exhausted or non-transient error still throws, so `markStoriesReady`
-   * still collects it into the complete failure set.
+   * Add-only with no other PATCH fields uses the atomic additive labels POST
+   * (no read-before-write); otherwise returns the merged label set for the
+   * caller's PATCH. Retried because parallel write fan-outs hit the secondary
+   * rate limit; a genuine failure still throws.
    */
   async _applyLabelMutations(
     ticketId,
@@ -434,9 +344,7 @@ export class TicketGateway {
       return { skipPatch: true };
     }
 
-    // Story #1795 — when `transitionTicketState` threads a pre-fetched
-    // snapshot via `_ticketSnapshot` we reuse its labels rather than
-    // issuing another `getTicket` for the merge.
+    // Reuse a caller-supplied snapshot rather than re-fetching.
     const ticket = ticketSnapshot ?? (await this.getTicket(ticketId));
     const currentLabels = new Set(ticket.labels ?? []);
     for (const l of remove) currentLabels.delete(l);
@@ -446,20 +354,10 @@ export class TicketGateway {
   }
 
   /**
-   * The issue PATCH is wrapped in `withTransientRetry` (Story #4961) for the
-   * same reason as the additive label POST above — see
-   * {@link TicketGateway#_applyLabelMutations}. Both are the write half of the
-   * fan-outs Story #4952 raised; the reads in this file were already wrapped.
-   *
-   * `mutations.addAssignees` (Story #5112) is the **additive** assignee
-   * write, on the same shape as the additive label POST above: it appends to
-   * the assignee set instead of replacing it. The lease claim
-   * (`lib/orchestration/ticket-lease.js`) needs that — a replacing PATCH
-   * evicts a simultaneous claimer silently, so both runs read a clean
-   * `[self]` on verify and both believe they hold the lease. Appending makes
-   * the collision *observable* as a co-assignment, which is exactly what the
-   * lease's `lost-race` back-out keys on. `mutations.assignees` (replace) is
-   * unchanged and still used by the steal and release paths.
+   * `mutations.addAssignees` appends rather than replaces: the lease claim
+   * needs a simultaneous claimer to show up as a co-assignment (what its
+   * `lost-race` back-out keys on) instead of being silently evicted.
+   * `mutations.assignees` replaces (steal/release paths).
    *
    * @field-manifest POST /repos/{owner}/{repo}/issues/{n}/assignees: assignees
    * @field-manifest PATCH /repos/{owner}/{repo}/issues/{n}:

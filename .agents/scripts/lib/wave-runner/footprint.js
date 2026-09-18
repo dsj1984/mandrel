@@ -1,58 +1,24 @@
 /**
- * lib/wave-runner/footprint.js — what a Story is going to touch, and what two
- * Stories would touch in common.
- *
- * Split out of `ready-set.js` (Story #5044), which is the *scheduling* kernel:
- * eligibility, capacity, admission order. Deciding whether two Stories collide
- * is a separate question with its own rules — what counts as a declaration and
- * what a glob means — and it had grown large enough inside the scheduler to
- * obscure both.
- *
- * ## The footprint is the declaration (Story #5313)
- *
- * Between Story #4875 and Story #5313 the footprint compared here was the
- * declared `changes[]` **widened** by every repo-relative path scraped out of
- * the Story's title, spec and body, on the theory that a declaration is a
- * lower bound. Measured against real cohorts the widening manufactured far
- * more serialisation than it prevented: audit provenance footers, markdown
- * citations, `## Verify` gate commands and `## Non-Goals` prose all read as
- * edit intent, and three narrowing passes (#5044, #5265) were spent teaching
- * the scrape what a path is not. The delivery diet removes the scrape: two
- * Stories collide only when **both declare** a path (or one declares a glob),
- * so the `scraped-overlap` class, the per-path attribution and the field
- * labels are gone with it. What a Story edits beyond its declaration is the
- * close-time merge's business, not a dispatch guess.
- *
- * The layer has exactly one job: given two Story records, say whether their
- * declared footprints intersect and name the paths. It reads nothing and
- * mutates nothing.
+ * lib/wave-runner/footprint.js — whether two Stories' declared footprints
+ * intersect. The footprint is the declaration only: paths scraped from
+ * titles, specs or prose manufactured far more serialisation than they
+ * prevented, so two Stories collide only when both declare a path (or one
+ * declares a glob). Reads and mutates nothing.
  *
  * @module lib/wave-runner/footprint
  */
 
 /**
- * Why two footprints collided. Since Story #5313 there is exactly one class:
- * a path both Stories declared (or a declared glob). The value is kept on the
- * envelope so a consumer keyed on `source` does not have to learn a new
- * vocabulary, and so a future second class has a home.
+ * One class today; kept on the envelope so consumers keyed on `source` stay
+ * stable if a second class appears.
  */
 export const OVERLAP_SOURCES = Object.freeze({
   DECLARED: 'declared-overlap',
 });
 
 /**
- * Extract a Story's declared file footprint as a normalized set of path
- * strings. Accepts the three footprint shapes a Story record can carry:
- *
- *   - `files: string[]`                         — explicit footprint.
- *   - `changes: string[]`                       — string-array sketch.
- *   - `changeset: Array<{ path }>` /            — object-array sketch (the
- *     `changes: Array<{ path }>`                   `{ path, assumption }`
- *                                                  shape from a Story body).
- *
- * Paths are trimmed; empty / non-string entries are dropped. A Story with
- * no declared footprint yields an empty set, which (by {@link detectCollision}'s
- * contract) means it overlaps with nothing and is never withheld.
+ * Union of `files`, `changes` and `changeset` (strings or `{ path }`),
+ * trimmed. An empty set overlaps nothing.
  *
  * @param {object} story
  * @returns {Set<string>}
@@ -76,10 +42,6 @@ export function storyFootprint(story) {
 }
 
 /**
- * Does a declared path contain a glob metacharacter? Mirrors the detection
- * in `story-body.js#extractChangePaths`, whose `isGlob` flag documents an
- * "unknown-width footprint" policy that was never implemented downstream.
- *
  * @param {string} path
  * @returns {boolean}
  */
@@ -88,11 +50,8 @@ function isGlobPath(path) {
 }
 
 /**
- * Collect the glob paths on one side. A glob is unknown width, and unknown
- * width is not no width: within a beat it collides with everything, because
- * exact-string comparison would silently pass a Story declaring
- * `.agents/scripts/lib/**` alongside one declaring a file underneath it
- * (Story #4539/#4540).
+ * A glob is unknown width, not no width: exact-string comparison would pass
+ * `lib/**` alongside a file beneath it, so a glob collides with everything.
  *
  * @param {Set<string>} hits
  * @param {Set<string>} side
@@ -104,25 +63,13 @@ function collectGlobs(hits, side) {
 }
 
 /**
- * The colliding paths between two Stories' declared footprints — or `null`
- * when they do not collide.
+ * Colliding paths, or `null`. An empty footprint never collides —
+ * withholding on absence would serialize every run.
  *
- * **An empty footprint means "no known overlap"**, so this short-circuits to
- * `null` on one. That is permissive by necessity: a Story with no declared
- * footprint carries no information, and withholding on absence would
- * serialize every run.
- *
- * `concreteOnly` selects between the two guards' deliberately different
- * treatment of unknown width (Story #4960). The beat-local guard counts a glob
- * on either side as colliding with everything; the cross-beat reservation
- * ignores globs entirely, because an in-flight Story holds its footprint for a
- * whole implementation window and one glob would otherwise withhold the entire
- * run for hours — and `resolve-stories.js` substitutes an UNKNOWN sentinel for
- * any body it cannot parse, so one malformed Story would make a run serial.
- *
- * The second options parameter is accepted for call-site compatibility with
- * the retired evidence-scrape options (`tempRoot`); only `concreteOnly` is
- * read.
+ * `concreteOnly` is for the cross-beat reservation: an in-flight Story holds
+ * its footprint for hours, and unparseable bodies resolve to an UNKNOWN glob
+ * sentinel, so honouring globs there would make one bad Story serialize the
+ * whole run. The beat-local guard honours globs.
  *
  * @param {object} a
  * @param {object} b

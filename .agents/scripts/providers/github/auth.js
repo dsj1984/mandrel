@@ -1,12 +1,7 @@
 /**
- * GitHub Provider — token resolution.
- *
- * Hierarchy: GITHUB_TOKEN / GH_TOKEN env → `gh auth token` CLI fallback
- * → throws with an instructive error. `execSync` is indirected through a
- * holder so tests can swap it.
- *
- * Extracted from `../github.js` in Story #1846 / Task #1855 — see that
- * Story for the broader split rationale.
+ * GitHub Provider — token resolution: GITHUB_TOKEN / GH_TOKEN env →
+ * `gh auth token` → instructive throw. `execSync` sits behind a holder so
+ * tests can swap it.
  */
 
 import { execSync as defaultExecSync } from 'node:child_process';

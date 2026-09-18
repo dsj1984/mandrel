@@ -1,35 +1,12 @@
 /**
- * ticket-body-sections.js — marker-delimited managed sections of a
- * planning ticket body.
- *
- * Story #4324 retired the `context::tech-spec` / `context::acceptance-spec`
- * ticket classes: the planning ticket body is the single planning document.
- * The Tech Spec (opening with `## Delivery Slicing`, per #4316) and the
- * Acceptance Spec's AC-ID table (`## Acceptance Table`) land as **managed
- * sections**, delimited by invisible HTML comment markers so each writer
- * can update *only its own region* without rewriting the rest of the body.
- *
- * Section-scoped writes are the load-bearing contract (extending the
- * single-writer discipline #4303 established for the body trailer):
- *
- *   - The `/mandrel-plan` persist path upserts the `techSpec` and `acceptanceTable`
- *     regions.
- *   - The close-time acceptance reconciler
- *     (`acceptance-spec-reconciler.js`) reads and rewrites the
- *     `acceptanceTable` region only (verification dispositions).
- *
- * Everything outside a managed region is byte-preserved by every helper in
- * this module. Markers are chosen so GitHub renders nothing for them; the
- * human-visible headings (`## Delivery Slicing`, `## Acceptance Table`)
- * live INSIDE the regions as ordinary content.
- *
- * Pure ESM, no I/O.
+ * Marker-delimited managed sections of a planning ticket body. Each writer
+ * updates only its own region (persist: `techSpec` + `acceptanceTable`; the
+ * close reconciler: `acceptanceTable` only); every byte outside a region is
+ * preserved. Markers render as nothing on GitHub; visible headings live
+ * inside the regions. Pure, no I/O.
  */
 
 /**
- * Managed-region descriptors. `start`/`end` are the literal marker lines;
- * `label` is the human name used in log lines and error messages.
- *
  * @type {Readonly<Record<'techSpec'|'acceptanceTable', { start: string, end: string, label: string }>>}
  */
 export const TICKET_BODY_SECTIONS = Object.freeze({
@@ -45,19 +22,10 @@ export const TICKET_BODY_SECTIONS = Object.freeze({
   }),
 });
 
-/**
- * Canonical heading the acceptance-table region opens with. Distinct from
- * the ticket's ideation `## Acceptance Criteria` bullets (which remain the
- * SSOT for *what* the table verifies — the table anchors to those bullets).
- */
+/** Distinct from `## Acceptance Criteria`, which stays the SSOT it anchors to. */
 export const ACCEPTANCE_TABLE_HEADING = '## Acceptance Table';
 
-/**
- * Regex matching the Tech Spec's `## Delivery Slicing` heading, tolerating
- * the `Delivery ` qualifier and casing variants. Exported so it is the single
- * source of truth for this pattern — `consolidation-precondition.js` imports
- * it rather than carrying its own copy.
- */
+/** SSOT for the `## (Delivery) Slicing` heading, case-insensitive. */
 export const DELIVERY_SLICING_RE = /^##\s+(?:Delivery\s+)?Slicing\s*$/im;
 
 /**
@@ -75,10 +43,8 @@ function descriptor(kind) {
 }
 
 /**
- * Locate a managed region. Returns `null` when either marker is absent or
- * the end marker precedes the start marker (malformed body — treated as
- * absent so a writer re-appends a well-formed region rather than
- * corrupting the body further).
+ * `null` when a marker is missing or out of order: treated as absent so a
+ * writer re-appends a well-formed region instead of corrupting further.
  *
  * @param {string} body
  * @param {'techSpec'|'acceptanceTable'} kind
@@ -96,8 +62,6 @@ function locate(body, kind) {
 }
 
 /**
- * True when the body carries a well-formed managed region of `kind`.
- *
  * @param {string} body
  * @param {'techSpec'|'acceptanceTable'} kind
  * @returns {boolean}
@@ -107,14 +71,8 @@ export function hasTicketSection(body, kind) {
 }
 
 /**
- * Insert or replace a managed region, preserving every byte outside it.
- *
- * When the region exists, only the content between the markers is
- * replaced. When absent, the region is appended at the end of the body
- * (trailing whitespace normalised to a single blank-line separator). The
- * `techSpec` region is appended before an existing `acceptanceTable`
- * region so the rendered document keeps its canonical order
- * (ideation sections → Tech Spec → Acceptance Table).
+ * Insert or replace a managed region. An absent region is appended, except
+ * `techSpec`, which goes before an existing `acceptanceTable` to keep order.
  *
  * @param {string} body
  * @param {'techSpec'|'acceptanceTable'} kind
@@ -136,8 +94,6 @@ export function upsertTicketSection(body, kind, content) {
     );
   }
 
-  // Keep canonical order when appending: the Tech Spec region goes before
-  // an already-present acceptance-table region.
   if (kind === 'techSpec') {
     const acceptanceLoc = locate(safeBody, 'acceptanceTable');
     if (acceptanceLoc) {
@@ -156,9 +112,7 @@ export function upsertTicketSection(body, kind, content) {
 }
 
 /**
- * Remove a managed region (markers and content). Byte-preserving outside
- * the region; collapses the surrounding blank lines the writer added.
- * No-op when the region is absent.
+ * Remove a region and the blank lines the writer added around it.
  *
  * @param {string} body
  * @param {'techSpec'|'acceptanceTable'} kind
@@ -174,9 +128,7 @@ export function stripTicketSection(body, kind) {
 }
 
 /**
- * Re-plan / decompose detection: true when the ticket body carries folded
- * Tech Spec content — the managed region, or (defence in depth for a
- * hand-authored body) a bare `## Delivery Slicing` heading.
+ * Folded Tech Spec present: the region, or a hand-authored slicing heading.
  *
  * @param {string} body
  * @returns {boolean}
@@ -187,11 +139,7 @@ export function hasTechSpecContent(body) {
 }
 
 /**
- * `##` headings dropped from the delivery-hydrated Epic body. These are
- * ideation / authoring / close-machinery sections a story agent never acts
- * on: keeping them out of the per-Story prompt trims token cost without
- * losing any binding context (the Story carries its own inline
- * acceptance[] / verify[]).
+ * Ideation sections a delivering agent never acts on.
  *
  * @type {ReadonlySet<string>}
  */
@@ -202,21 +150,9 @@ const DELIVERY_DROP_HEADINGS = new Set([
 ]);
 
 /**
- * Slice a planning ticket body down to the sections a delivery story agent acts on.
- *
- * KEEP: the ticket title / preamble before the first `##`, `## Goal`,
- * `## Non-Goals`, `## User Stories`, the `techSpec` managed region, and —
- * fail-open — any unknown / operator-authored `##` section not in the drop
- * list. DROP: `## Context`, `## Scope`, `## Acceptance Criteria`, and the
- * `acceptanceTable` managed region.
- *
- * The `techSpec` region is located by its markers (not by heading
- * boundaries) so its inner `## Delivery Slicing` heading is preserved
- * verbatim and never mistaken for a plain droppable section. Plain `##`
- * sections outside the managed regions are sliced by heading boundaries.
- *
- * Fail-open is load-bearing: any heading not explicitly in the drop set is
- * kept, so operator-authored content is never silently lost.
+ * Slice a planning body to what a delivering agent acts on: drops the
+ * `acceptanceTable` region and the {@link DELIVERY_DROP_HEADINGS} sections.
+ * Fail-open — any other heading is kept so operator content is never lost.
  *
  * @param {string} body
  * @returns {string}
@@ -224,14 +160,10 @@ const DELIVERY_DROP_HEADINGS = new Set([
 export function sliceTicketBodyForDelivery(body) {
   if (typeof body !== 'string' || body.length === 0) return '';
 
-  // 1. Drop the acceptance-table managed region outright (authoring/close
-  //    machinery, never delivery context).
   let working = stripTicketSection(body, 'acceptanceTable');
 
-  // 2. Protect the techSpec managed region from heading-boundary slicing by
-  //    lifting it out behind an opaque placeholder, then restoring it after
-  //    the plain-section pass. Its inner `## Delivery Slicing` heading must
-  //    survive verbatim.
+  // Lift the techSpec region out behind a placeholder so heading slicing
+  // cannot touch its inner `##` headings.
   const techLoc = locate(working, 'techSpec');
   let techRegion = null;
   const PLACEHOLDER = '\u0000MANDREL_TECH_SPEC_PLACEHOLDER\u0000';
@@ -244,9 +176,6 @@ export function sliceTicketBodyForDelivery(body) {
       working.slice(techLoc.endIdx + end.length);
   }
 
-  // 3. Slice plain `##` sections by heading boundaries, dropping only the
-  //    known ideation/authoring headings. The preamble before the first
-  //    `##` (ticket title / lede) is always kept.
   const kept = [];
   let dropping = false;
   for (const line of working.split('\n')) {
@@ -262,12 +191,10 @@ export function sliceTicketBodyForDelivery(body) {
   }
   working = kept.join('\n');
 
-  // 4. Restore the techSpec region in place.
   if (techRegion !== null) {
     working = working.replace(PLACEHOLDER, () => techRegion);
   }
 
-  // 5. Normalise the blank-line runs left by the drops.
   return working
     .replace(/\n{3,}/g, '\n\n')
     .replace(/^\n+/, '')
@@ -275,10 +202,8 @@ export function sliceTicketBodyForDelivery(body) {
 }
 
 /**
- * Strip the retired machine-managed `## Planning Artifacts` checklist from
- * a planning ticket body (the section that linked the now-retired context tickets).
- * The slice ends at the next `## ` heading, a managed-region marker, or
- * EOF. Historical bodies without the section pass through untouched.
+ * Strip a `## Planning Artifacts` section, up to the next `## `, managed
+ * marker, or EOF.
  *
  * @param {string} body
  * @returns {string}

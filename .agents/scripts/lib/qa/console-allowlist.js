@@ -1,46 +1,18 @@
 /**
  * console-allowlist.js — deterministic console-message → finding filter.
- *
- * Story #3295 (Feature #3289 "Instrumentation, inspection & findings",
- * Epic #3214). The QA harness captures per-surface console messages via
- * `list_console_messages` and must turn genuine console errors into
- * structured findings while suppressing benign, expected noise. The
- * suppression contract is the `qa.consoleAllowlist` array bound in
- * `.agentrc.json` (landed by Story #3293): a list of inline patterns that
- * mark a console message as expected.
- *
- * This module is the pure, side-effect-free decision layer. Given a list of
- * captured console messages and the consumer's `consoleAllowlist`, it returns
- * one structured finding per non-allowlisted console error and drops every
- * message matched by an allowlist pattern. Determinism is load-bearing:
- * re-running the filter over the same captured console with the same allowlist
- * always yields the same findings in the same order, so the surrounding
- * harness produces stable, diffable evidence.
- *
- * The emitted finding aligns with the `F#` finding shape from Tech Spec #3285
- * (`{ id, classification, surface, symptom, likelyRootCause, disposition,
- * acceptance, evidence: { console[], network[] } }`). This module produces the
- * console-derived subset; `/qa-run` (Story #4330) maps each such finding onto a
- * `QaLedgerItem` (`qa-ledger.schema.json`) before routing it through the shared
- * classify/route/dedup/promote core, leaving richer enrichment
- * (likely-root-cause heuristics, drafting) to those later layers.
+ * Each non-allowlisted console error becomes one `F#` finding (console-derived
+ * subset); `qa.consoleAllowlist` patterns suppress expected noise.
  */
 
 /**
- * Console message levels that the harness treats as error-grade. Only
- * messages at one of these levels can become a finding; `log`, `info`,
- * `debug`, and `warning` are never escalated by this module.
+ * Only these levels can become a finding.
  *
  * @type {ReadonlySet<string>}
  */
 const ERROR_LEVELS = new Set(['error', 'severe']);
 
 /**
- * Normalise a captured console message into `{ level, text }`. Capture
- * surfaces (`list_console_messages`, raw CDP, etc.) disagree on field names,
- * so accept the common spellings and coerce defensively. A message with no
- * recoverable text normalises to an empty string (which never matches an
- * allowlist pattern and never reads as an error symptom).
+ * Capture surfaces disagree on field names, so accept the common spellings.
  *
  * @param {unknown} message
  * @returns {{ level: string, text: string }}
@@ -59,17 +31,11 @@ function normaliseMessage(message) {
 }
 
 /**
- * Decide whether a console message text is matched by any allowlist pattern.
- *
- * Each allowlist entry is matched as a case-sensitive substring against the
- * message text. Substring (not regex) matching is the deliberate contract:
- * patterns stay readable in `.agentrc.json`, an operator never has to escape
- * regex metacharacters, and the decision is trivially deterministic. An empty
- * or blank pattern is ignored (it would otherwise match everything and
- * silently swallow every error).
+ * Case-sensitive substring match (not regex, so operators never escape
+ * metacharacters). A blank pattern is ignored — it would swallow every error.
  *
  * @param {string} text Normalised console message text.
- * @param {string[]} allowlist Inline benign-console patterns.
+ * @param {string[]} allowlist
  * @returns {boolean} `true` when the message is allowlisted (suppress it).
  */
 export function isAllowlisted(text, allowlist) {
@@ -85,11 +51,6 @@ export function isAllowlisted(text, allowlist) {
 }
 
 /**
- * Build a structured finding for a single non-allowlisted console error.
- * The `id` is assigned by the caller (1-based finding index across a surface)
- * so the surrounding harness controls finding numbering across console and
- * network evidence.
- *
  * @param {{ level: string, text: string }} message Normalised console error.
  * @param {{ surface?: string, index: number }} ctx
  * @returns {object} Structured `F#` finding (console-derived subset).
@@ -111,22 +72,12 @@ function buildFinding(message, ctx) {
 }
 
 /**
- * Filter captured console messages through the `consoleAllowlist` and emit a
- * structured finding for each non-allowlisted console error.
- *
- * Behaviour contract:
- * - A console **error** (level `error`/`severe`) whose text matches no
- *   allowlist pattern becomes exactly one finding.
- * - A console message matched by any allowlist pattern is suppressed — no
- *   finding — even when it is an error.
- * - Non-error levels (`log`, `info`, `warning`, …) are never escalated.
- * - Findings are returned in capture order; ids are assigned `F1`, `F2`, …
- *   in that order.
+ * Findings in capture order, ids `F1`, `F2`, …
  *
  * @param {Array<unknown>} messages Captured console messages.
  * @param {string[]} [allowlist] `qa.consoleAllowlist` patterns.
- * @param {{ surface?: string }} [opts] Surface label for the finding.
- * @returns {object[]} Structured findings (possibly empty).
+ * @param {{ surface?: string }} [opts]
+ * @returns {object[]}
  */
 export function filterConsoleMessages(messages, allowlist = [], opts = {}) {
   if (!Array.isArray(messages)) {

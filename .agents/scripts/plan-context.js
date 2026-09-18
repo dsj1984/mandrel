@@ -2,53 +2,16 @@
 /* node:coverage ignore file */
 
 /**
- * plan-context.js — step 1 of the collapsed `/mandrel-plan` pipeline.
+ * plan-context.js — build the `/mandrel-plan` authoring-context envelope from
+ * exactly one entry form (`--seed`, `--seed-file`, `--tickets`, `--amends`),
+ * write it with `stories.template.json` under `<tempRoot>/plan-<slug>/`
+ * (where `plan-persist.js` discovers the `--tickets` source ids), and print a
+ * compact JSON digest as the only stdout.
  *
- * Emits one stdout-pure JSON envelope for the `/mandrel-plan` authoring middle.
- *
- * Two operator modes (exactly one is required):
- *
- *   --seed "<text>"           Chat/text ideation. Dup search runs off the
- *                             raw seed; envelope carries `seed`.
- *
- *   --seed-file <path>        Same as --seed, but the corpus is read from
- *                             disk (audit-to-stories handoff, notes).
- *
- *   --tickets 123[,456…]      Analyze existing issue(s) into proper
- *                             Stories. Envelope carries `sourceTickets[]`.
- *
- *   --amends 123 | #123       Amendment (delta) planning. Composes a DELTA
- *                             envelope from the prior Story's body, its
- *                             acceptance criteria, and its delivered file map
- *                             instead of re-interrogating the repo from
- *                             scratch (Story #4741). Envelope carries `amends`.
- *
- * Flags:
- *   --out <path>     Override where the envelope is written (parent dirs
- *                    created). **Optional since Story #5342** — with no
- *                    `--out` the envelope lands at
- *                    `<tempRoot>/plan-<slug>/plan-context.json`, the plan
- *                    directory `/mandrel-plan` would have named by hand, and
- *                    `stories.template.json` lands beside it. That is where
- *                    `plan-persist.js` auto-discovers the `--tickets` source
- *                    ids from (Story #4554); without a captured envelope
- *                    persist cannot know a `--tickets` run happened, and
- *                    superseding degrades to the `--source-tickets` flag.
- *   --pretty         Pretty-print the written JSON envelope.
- *
- * stdout is reserved for a single JSON payload (Story #2278 discipline) —
- * the compact digest naming the written artifacts (Story #4708
- * script-output contract): `routeAllOutputToStderr()` runs before any
- * pipeline code so the stream is unconditionally parseable by `JSON.parse`.
- *
- * Exit codes:
- *   0 — envelope emitted.
- *   1 — fatal error (see stderr).
+ * Exit codes: 0 envelope emitted; 1 fatal.
  */
 
-// Fail-fast if the framework's runtime deps are not installed — must be the
-// first import so the check runs before any third-party-importing sibling
-// module is evaluated (Story #3432).
+// Must be the first import: fail fast before any third-party import runs.
 import './lib/runtime-deps/ensure-installed.js';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -69,19 +32,14 @@ import {
 import { recordPlanInvocation } from './lib/orchestration/plan-metrics.js';
 import { createProvider } from './lib/provider-factory.js';
 
-/** Longest slug segment a default plan directory carries. */
 const PLAN_SLUG_MAX_LENGTH = 48;
 
 /**
- * Reduce free text to the hyphen-case segment a plan directory is named by.
- *
- * Deliberately lossy: the slug is a human-readable handle on a temp
- * directory, not an identity — two runs from the same seed land in the same
- * directory and the second overwrites the first, which is the idempotent
- * behaviour the operator already got from typing the same `--out` twice.
+ * Deliberately lossy: a handle, not an identity — the same seed reuses (and
+ * overwrites) the same directory.
  *
  * @param {string} raw
- * @returns {string} A non-empty hyphen-case slug (`plan` when nothing survives).
+ * @returns {string} `plan` when nothing survives.
  */
 export function slugifyPlanLabel(raw) {
   const slug = String(raw ?? '')
@@ -94,28 +52,18 @@ export function slugifyPlanLabel(raw) {
 }
 
 /**
- * Resolve where the envelope is written when the operator passed no `--out`
- * (Story #5342).
- *
- * `--out` was mandatory in practice and optional in the CLI: persist
- * auto-discovers the envelope and the `stories.template.json` beside it from
- * the plan directory, so a run without it silently lost superseding and the
- * authoring skeleton. The path it always pointed at is derivable — the
- * configured `tempRoot`, a `plan-<slug>` directory named for what is being
- * planned — so the CLI derives it rather than asking.
- *
- * Exported for tests: this is the join where a missing flag stops costing
- * the plan its source ids.
+ * Envelope path when no `--out` is given. Always written, because persist
+ * discovers source ids and the template from this directory.
  *
  * @param {object} args
- * @param {string} args.mode One of `seed` | `seed-file` | `tickets` | `amends`.
+ * @param {string} args.mode
  * @param {string} [args.seedText]
  * @param {string} [args.seedFilePath]
  * @param {number[]} [args.ticketIds]
  * @param {number} [args.amendsId]
- * @param {object} [args.config] Resolved config (for `project.paths.tempRoot`).
+ * @param {object} [args.config]
  * @param {string} [args.cwd]
- * @returns {string} Absolute path to the envelope file.
+ * @returns {string} Absolute path.
  */
 export function resolveDefaultOutPath({
   mode,
@@ -141,8 +89,6 @@ export function resolveDefaultOutPath({
 }
 
 /**
- * Parse a comma-/space-separated ticket id list into positive integers.
- *
  * @param {string} raw
  * @returns {number[]}
  */
@@ -164,8 +110,6 @@ export function parseTicketIds(raw) {
 }
 
 /**
- * Parse a single `--amends` id, tolerating a leading `#` (`#123` or `123`).
- *
  * @param {string} raw
  * @returns {number}
  */
@@ -183,11 +127,6 @@ export function parseAmendsId(raw) {
 }
 
 /**
- * Build the envelope, write it (plus the `stories.template.json` skeleton)
- * to `outPath` — or to the derived default when none was passed
- * (Story #5342) — and print the compact digest on stdout. Exported for
- * tests.
- *
  * @param {object} args
  * @returns {Promise<object>} the emitted envelope.
  */
@@ -233,11 +172,8 @@ export async function emitPlanContext({
       cwd: cwd ?? undefined,
     });
   {
-    // Script-output contract (Story #4708, AC-5): the full envelope is a
-    // ~40KB artifact that would ride resident in the transcript for every
-    // later turn. It is always captured to disk (Story #5342 derives the
-    // path when `--out` is absent), so stdout carries a compact digest
-    // naming the artifacts instead of the payload itself.
+    // The ~40KB envelope goes to disk; stdout carries only a digest so it
+    // does not ride resident in the transcript.
     await writeEnvelopeFile(resolvedOut, json);
     await writeStoriesTemplateFile(resolvedOut, envelope);
     const resolved = path.resolve(resolvedOut);
@@ -252,10 +188,7 @@ export async function emitPlanContext({
       bytes: Buffer.byteLength(json, 'utf8'),
       sourceTickets: (envelope.sourceTickets ?? []).map((t) => t.id),
       duplicates: (envelope.duplicates ?? []).length,
-      // Advisory only: signals, no route. `uiSurface` is the recorded
-      // /prototype offer — advisory, never an automatic reroute. It rides the
-      // digest because with `--out` the digest is the only thing the planner
-      // reads.
+      // Advisory signals only, never a reroute.
       complexitySignals: envelope.complexitySignals
         ? {
             artifactCount: envelope.complexitySignals.artifactCount,
@@ -264,8 +197,7 @@ export async function emitPlanContext({
             uiSurface: envelope.complexitySignals.uiSurface ?? null,
           }
         : null,
-      // Story #5312: an envelope over the planner-context ceiling is written
-      // truncated, and the digest names what was cut.
+      // Names what was cut when the envelope exceeded the context ceiling.
       truncated: envelope.truncated ?? null,
       amends: envelope.amends ? { id: envelope.amends.id } : null,
     };
@@ -275,12 +207,8 @@ export async function emitPlanContext({
 }
 
 /**
- * Persist the envelope to `--out` so `plan-persist.js` can derive the
- * `--tickets` source ids from it without an operator re-typing them.
- *
- * Writing is part of emitting, not a best-effort extra: a failed write means
- * persist will silently see no source tickets, so it throws rather than
- * warning past the problem.
+ * Throws on failure: a missing envelope makes persist silently see no source
+ * tickets.
  *
  * @param {string} outPath
  * @param {string} json
@@ -299,19 +227,11 @@ async function writeEnvelopeFile(outPath, json) {
 }
 
 /**
- * Emit the ready-to-fill Story authoring template next to the captured
- * envelope (Story #4707 — one-shot authoring). The planner copies it to
- * `stories.json` and fills the placeholders; no step of the authoring path
- * requires reading `story-body.js` source. Written on every run (Story
- * #5342), and throwing on failure for the same reason the envelope write
- * does: a silently missing template re-opens the format-discovery loop it
- * exists to close. The envelope's advisory `complexitySignals` are threaded
- * through so the skeleton's `changes[]` arrive pre-resolved to
- * creates-vs-refactors against the repo snapshot (Story #4723).
+ * Write the ready-to-fill authoring template beside the envelope, with
+ * `changes[]` pre-resolved from `complexitySignals`. Throws on failure.
  *
- * @param {string} outPath The envelope `--out` path; the template lands in
- *   the same directory as {@link STORIES_TEMPLATE_FILENAME}.
- * @param {object} [envelope] The emitted plan-context envelope.
+ * @param {string} outPath
+ * @param {object} [envelope]
  */
 async function writeStoriesTemplateFile(outPath, envelope = {}) {
   const resolved = path.resolve(
@@ -380,18 +300,14 @@ async function main() {
     mode = 'seed';
   }
 
-  // stdout is reserved for the JSON envelope: flip every Logger sink that
-  // could land on stdout to stderr BEFORE any pipeline code runs
-  // (Story #2278 — the same stdout-purity guarantee the retired pipeline
-  // gives; this CLI is emit-only so the flip is unconditional).
+  // stdout is reserved for the JSON digest.
   routeAllOutputToStderr();
 
   let config;
   let settings;
   try {
     config = resolveConfig();
-    // `settings` retains the legacy bag shape `buildAuthoringContext` and
-    // friends consume: `{ baseBranch, paths, planning, docsContextFiles }`.
+    // The bag shape `buildAuthoringContext` consumes.
     settings = {
       baseBranch: config.project?.baseBranch,
       paths: config.project?.paths,

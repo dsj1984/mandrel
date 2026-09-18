@@ -1,46 +1,21 @@
 /**
- * bdd-scenario-budget.js — envelope byte budget for the `bddScenarios`
- * `/mandrel-plan` context-envelope field (Story #4977).
- *
- * `bdd-scenario-scanner.js`'s `scanBddScenarios` stays a faithful, uncapped
- * index of the project's `.feature` corpus — that scan is also used
- * directly by `lib/qa/resolve-selection.js`, which needs the full set. The
- * cap belongs at the envelope boundary instead, in its own module: on a
- * consumer with a mature Gherkin corpus, `bddScenarios` grew to 118 KB —
- * larger than `docsContext` and `systemPrompts` combined — consuming
- * nearly the entire `PLAN_CONTEXT_ENVELOPE_BYTE_CEILING` headroom on its
- * own and blocking `/audit-to-stories`' single-plan path entirely.
- *
- * Deliberately a fixed framework constant rather than an `.agentrc.json`
- * knob: Story #4541 retired the one operator-tunable planner-context budget
- * (`planning.context.maxBytes`) because a cap the operator can raise past
- * what the model can read fails silently again, and the same reasoning
- * applies here.
+ * Byte cap for the `bddScenarios` plan-envelope field. The scanner stays
+ * uncapped (other callers need the full set); the cap lives at the envelope
+ * boundary, since a mature corpus can crowd out the whole envelope. A fixed
+ * constant, not a config knob: a cap an operator can raise past what the
+ * model reads fails silently.
  */
 
 /**
- * Byte budget for the capped `bddScenarios` envelope field. Sized well
- * under `PLAN_CONTEXT_ENVELOPE_BYTE_CEILING` (256 KB) — this is one of
- * several envelope fields, not the whole budget. At the measured ~337
- * bytes/scenario average (Story #4977 evidence, a mature Gherkin corpus),
- * 24 KB holds roughly 70 scenarios before truncating.
- *
- * Deliberately module-private: the only production consumer is
- * {@link capBddScenarios} below via the `opts.byteBudget` default. Tests
- * assert the resulting behavior (truncation, order, fit) rather than
- * importing this value directly, so it carries no public export the
- * `--production` dead-exports ratchet would otherwise flag as test-only.
+ * One field's share of the 256 KB envelope ceiling: about 70 scenarios.
+ * Module-private so it is not a test-only export.
  */
 const BDD_SCENARIOS_BYTE_BUDGET = 24_000;
 
 /**
- * Truncate a scenario index to a byte budget, deterministically (scan
- * order — file walk order, then in-file order — never re-sorted), and
- * report what was dropped rather than truncating silently: `truncated` is
- * `null` when everything fit, else a note naming how many scenarios were
- * cut (Story #5312).
+ * Truncate in scan order (never re-sorted) and report what was dropped.
  *
- * @param {Array<object>} scenarios Full scan output (order preserved).
+ * @param {Array<object>} scenarios
  * @param {{ byteBudget?: number }} [opts]
  * @returns {{
  *   scenarios: Array<object>,
@@ -70,8 +45,6 @@ export function capBddScenarios(scenarios, opts = {}) {
 }
 
 /**
- * The `truncated` note: `null` when everything fit, else what was cut.
- *
  * @param {Array<object>} list
  * @param {number} cut
  * @param {number} byteBudget

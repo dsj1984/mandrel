@@ -1,24 +1,12 @@
 /**
- * hotspots.js — join per-gate outliers into ranked, per-file clusters
- * (Story #4902).
- *
- * The signal a baseline review is looking for is *convergence*: the file that
- * is simultaneously a CRAP outlier, a maintainability outlier, and a
- * duplication outlier is a different kind of problem from three unrelated
- * files each bad at one thing. Reading the baselines one at a time cannot see
- * it, because each gate's own top-20 is a different list.
- *
- * So severity **adds across gate memberships** and the three cost
- * multipliers apply to the sum. Two gate memberships of severity s therefore
- * outrank one membership of severity s at equal churn, centrality, and
- * friction — which is the ranking property this section exists to provide.
+ * Per-file clusters of per-gate outliers. Severity adds across gate
+ * memberships before the cost multipliers apply, so convergence (one file bad
+ * on several gates) outranks a single membership.
  *
  * @module lib/audit-baselines/hotspots
  */
 
 /**
- * Group per-gate outlier rows by cluster id and rank them.
- *
  * @param {{
  *   outliers: Array<object>,
  *   weightsFor: (id: string) => {

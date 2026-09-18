@@ -1,36 +1,20 @@
 // .agents/scripts/lib/orchestration/remote-verifier.js
 /**
- * remote-verifier.js — deterministic "is there a live, pushable remote?"
- * evidence for the delivery entry seams. Issue #4483.
+ * remote-verifier.js — verified "is there a live, pushable remote?" evidence
+ * for the delivery entry seams, so the workflow branches on
+ * `remoteVerified` (use the remote, or block quoting the probe) instead of an
+ * agent's perception — never a silent local build.
  *
- * `/mandrel-deliver` could silently shortcut the entire orchestration — building
- * the delivery inline and committing to local `main` without pushing —
- * when the driving agent *perceived* the environment had no live GitHub
- * remote. The judgment was vibes, not fact. This module gives the entry
- * seams (`single-story-init.js` for v2 `/mandrel-deliver`) a verified
- * probe result to record in their envelopes so the workflow can branch on
- * `remoteVerified: true|false` deterministically: use the remote, or
- * transition to `agent::blocked` quoting the probe output — never a
- * silent local build.
- *
- * Two probes, both bounded (a hung git spawn must not park the entry
- * seam — mirrors the `ghPrListHead` timeout contract in `finalizer.js`):
- *
- *   1. `git remote get-url origin`  — is an `origin` remote configured?
- *   2. `git ls-remote origin HEAD`  — is it reachable with current auth?
- *
- * `remoteVerified` is true only when BOTH succeed. The CLI callers do
- * NOT flip labels on a false result — the workflow owns the
- * `agent::blocked` transition (same division of labour as the preflight
- * breach handling).
+ * `remoteVerified` requires both `git remote get-url origin` and
+ * `git ls-remote origin HEAD` to succeed. Callers flip no labels; the
+ * workflow owns the `agent::blocked` transition.
  */
 
 import { spawnSync } from 'node:child_process';
 
 /**
- * Bounded timeout for each git probe. `ls-remote` is a network call;
- * SIGKILL at the bound so an unreachable or hanging remote degrades to a
- * deterministic `remoteVerified: false` instead of a stuck entry seam.
+ * Per-probe bound, SIGKILLed, so a hanging remote degrades to
+ * `remoteVerified: false` instead of parking the entry seam.
  */
 export const REMOTE_PROBE_TIMEOUT_MS = 30_000;
 
@@ -51,8 +35,6 @@ function runProbe({ args, cwd, spawnFn, timeoutMs }) {
 }
 
 /**
- * Probe the `origin` remote for existence + reachability.
- *
  * @param {{
  *   cwd?: string,
  *   spawnFn?: typeof spawnSync,
@@ -113,15 +95,9 @@ export function verifyRemote({
 }
 
 /**
- * Probe whether a specific branch exists on `origin` — the deterministic
- * finalize backstop (issue #4483 fix direction 3): a delivery branch that
- * was never pushed MUST fail finalize with an explicit blocker rather
- * than let the run declare success.
- *
- * Distinct from `git-branch-lifecycle.js#branchExistsRemotely` in two
- * load-bearing ways: the spawn is bounded (timeout + SIGKILL, so a hung
- * remote cannot park the finalize seam) and the result carries the probe
- * detail for the blocker envelope instead of a bare boolean.
+ * Finalize backstop: a never-pushed delivery branch must fail with a blocker,
+ * not declare success. Unlike `branchExistsRemotely`, the spawn is bounded
+ * and the result carries probe detail for the blocker envelope.
  *
  * @param {{
  *   branch: string,

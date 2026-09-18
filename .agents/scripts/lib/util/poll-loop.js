@@ -1,25 +1,9 @@
 /**
- * pollUntil — run `fn` on an interval until `predicate(result)` is truthy,
- * the optional `signal` aborts, or `timeoutMs` elapses.
- *
- * Returns the first `fn` result that satisfies `predicate`. If the signal
- * aborts first, resolves to `undefined`. If the timeout elapses, throws.
- *
- * Errors thrown by `fn` are logged via `logger.warn` (if provided) and
- * treated as a non-match — the loop continues until predicate, abort, or
- * timeout. This mirrors the hand-rolled wait loops we replaced, where a
- * single transient fetch error should not terminate the poll.
- *
- * `sleep` is exported as the cancellable delay primitive used internally;
- * callers that already have their own cadence (e.g. a continuous ticker)
- * can import it directly.
- *
- * `sleepFn` is the inter-tick delay seam (Story #4873). A caller that already
- * owns a delay seam of its own — the close-and-land merge wait, whose suite
- * must never actually sleep out a 30s poll interval — passes it here so
- * adopting this primitive does not cost it that seam. It is called as
- * `sleepFn(intervalMs, signal)`; a one-argument stub simply ignores the
- * signal, and the default is the cancellable {@link sleep} below.
+ * pollUntil — run `fn` every `intervalMs` until `predicate(result)` holds
+ * (returns it), `signal` aborts (`undefined`), or `timeoutMs` elapses
+ * (throws). A throwing `fn` is logged and treated as a non-match, so one
+ * transient error never ends the poll. `sleepFn(ms, signal)` lets a caller
+ * keep its own delay seam.
  */
 
 /**
@@ -74,13 +58,9 @@ export async function pollUntil(opts) {
 }
 
 /**
- * Cancellable sleep. Resolves after `ms` or immediately when `signal` aborts.
- *
- * The timer is intentionally NOT `unref`'d — unref'd timers caused Node 22's
- * test runner to cancel subtests that awaited `sleep` with `cancelledByParent`
- * / "Promise resolution is still pending but the event loop has already
- * resolved". Callers that need a clean shutdown should abort the `signal`
- * instead of relying on unref.
+ * Resolves after `ms` or on abort. Deliberately not `unref`'d: Node 22's test
+ * runner cancels subtests awaiting an unref'd timer. Abort the signal for a
+ * clean shutdown instead.
  *
  * @param {number} ms
  * @param {AbortSignal} [signal]

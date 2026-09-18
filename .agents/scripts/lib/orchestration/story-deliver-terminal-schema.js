@@ -1,30 +1,8 @@
 /**
- * story-deliver-terminal-schema.js — load `story-deliver-terminal.schema.json`
- * and validate envelopes against it.
- *
- * Split out of `story-deliver-terminal.js` so the envelope WRITER holds only
- * the contract's shape and vocabulary, and this module holds the one thing
- * the writer must never depend on at call time: the filesystem.
- *
- * That separation is the fix, not just tidiness. `single-story-close.js`
- * invoked by a *worktree-relative* path runs the Story worktree's own copy of
- * the script and then **reaps that worktree** as one of its phases. The schema
- * used to be read lazily, on the first envelope build — which happens after
- * the reap — so the read hit a path that no longer existed. The throw landed
- * inside the close CLI's error path, so a Story whose PR had merged, whose
- * label was `agent::done`, and whose post-land tail was green exited non-zero
- * emitting NO envelope at all: the delivery engine's documented return
- * contract lost to a success, recoverable only by a second close run from the
- * main checkout.
- *
- * Two guarantees close that, and both live here:
- *
- *   1. The schema is read and parsed ONCE, at module load. The parsed schema
- *      outlives the file, so what happens to the directory afterwards is
- *      irrelevant. Compilation stays lazy — it needs no filesystem — so an
- *      import costs one small read and nothing else.
- *   2. An unreadable schema DEGRADES validation rather than throwing. A
- *      schema violation still fails loudly; see {@link validateTerminalEnvelope}.
+ * Load `story-deliver-terminal.schema.json` and validate envelopes. The schema
+ * is read ONCE at module load: close may run from a worktree it later reaps,
+ * so a lazy read after the reap would lose the envelope. An unreadable schema
+ * degrades validation rather than throwing.
  */
 
 import fs from 'node:fs';
@@ -36,14 +14,6 @@ import addFormats from 'ajv-formats';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-/**
- * Absolute path to the shipped schema — the SSOT this module reads.
- *
- * Module-private, like every other `SCHEMA_PATH` in the tree
- * (`validation-evidence.js`, `signal-validator.js`): the path is an
- * implementation detail of loading, and callers want the verdict, not the
- * location.
- */
 const SCHEMA_PATH = path.resolve(
   __dirname,
   '..',
@@ -54,9 +24,7 @@ const SCHEMA_PATH = path.resolve(
 );
 
 /**
- * Read and parse the shipped schema. Never throws: a read failure is recorded
- * on the returned source and degrades validation downstream, because importing
- * this module must never be what breaks a delivery.
+ * Never throws: importing this module must never break a delivery.
  *
  * @returns {{ schema: object|null, error: string|null }}
  */
@@ -71,28 +39,17 @@ function loadSchemaSource() {
   }
 }
 
-/**
- * The schema, read and parsed at module load. Deliberately eager — see the
- * module header for the failure that made it so.
- *
- * @type {{ schema: object|null, error: string|null }}
- */
+/** @type {{ schema: object|null, error: string|null }} */
 const SCHEMA_SOURCE = loadSchemaSource();
 
 /**
- * Compiled validators keyed by the source object they came from.
- *
- * A `WeakMap` rather than one module-level slot so an injected `schemaSource`
- * (the test seam) can never poison the validator the production path memoizes.
+ * Keyed by source so an injected test source never poisons production's.
  *
  * @type {WeakMap<object, Function>}
  */
 const VALIDATORS = new WeakMap();
 
 /**
- * Compile (once per source) and return the terminal-envelope validator, or
- * `null` when the source carries no usable schema.
- *
  * @param {{ schema: object|null }} source
  * @returns {Function|null}
  */
@@ -110,13 +67,8 @@ function getValidator(source) {
 let _unvalidatedWarned = false;
 
 /**
- * Announce — once per process — that an envelope is going out unvalidated.
- *
- * Written straight to stderr rather than through `Logger.warn` for the same
- * reason `emitTerminalEnvelope` bypasses `Logger.info`: the envelope itself is
- * unsuppressible, so the notice that one was not checked has to be too. Under
- * `AGENT_LOG_LEVEL=silent` a level-gated warning would vanish and the degrade
- * would be invisible.
+ * Once per process, straight to stderr: like the envelope itself, the notice
+ * must survive `AGENT_LOG_LEVEL=silent`.
  *
  * @param {string|null|undefined} error
  * @returns {void}
@@ -132,20 +84,12 @@ function warnUnvalidated(error) {
 }
 
 /**
- * Validate a candidate envelope against the shipped schema.
- *
- * When the schema is unavailable the result reports `validated: false` and
- * `valid: true` — a **deliberate degrade**, not an oversight. Losing the shape
- * check costs a guard against a malformed envelope; throwing here costs the
- * envelope entirely, and the envelope is the documented return contract of the
- * delivery engine. An unvalidated terminal a caller can act on beats no
- * terminal at all, so the unreadable-schema case degrades and says so on
- * stderr while a schema *violation* still fails loudly at the writer.
+ * With no schema: `valid: true, validated: false` — deliberately, since an
+ * unvalidated envelope beats none. A violation still fails at the writer.
  *
  * @param {object} envelope
  * @param {{ schemaSource?: { schema: object|null, error: string|null } }} [opts]
- *   `schemaSource` is a test seam — production always uses the eagerly loaded
- *   module-level source.
+ *   Test seam.
  * @returns {{ valid: boolean, errors: string[], validated: boolean }}
  */
 export function validateTerminalEnvelope(

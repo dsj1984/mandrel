@@ -2,36 +2,10 @@
 /* node:coverage ignore file */
 
 /**
- * diagnose-friction.js — v5 Diagnostic Interceptor & Friction Signal Detector
- *
- * Wraps a shell command with telemetry capture. On failure:
- *   1. Prints static diagnostic suggestions to stdout.
- *   2. Appends a structured `friction` record to the per-Story
- *      `signals.ndjson` stream via `signals-writer.appendSignal` (when
- *      both `--story` and `--epic` can be resolved).
- *
- * In v5 (Epic #1030), friction is a **local NDJSON signal**, not a GitHub
- * comment. The detector posts no comments; the analyzer reads the NDJSON
- * stream out-of-band. See Tech Spec #1032 §observability.
- *
- * Usage:
- *   node diagnose-friction.js [--story <STORY_ID>] \
- *     [--epic <EPIC_ID>] --cmd <cmd> <args...>
- *
- * `--cmd` consumes the remaining argv as separate words and spawns them with
- * no shell. Quoting the whole command as one string is a usage error, not
- * friction — it is refused loudly and writes no ledger row.
- *
- * Story/Epic resolution order:
- *   1. CLI flags (--story, --epic).
- *   2. Environment vars (STORY_ID, EPIC_ID / SPRINT_ID).
- *
- * If neither story nor epic can be resolved, the script still prints
- * diagnostic suggestions but skips the signal write (a missing signal is
- * preferable to a halted runner — see signals-writer best-effort contract).
- *
- * @see docs/v5-implementation-plan.md Sprint 3E
- * @see .agents/scripts/lib/observability/signals-writer.js
+ * Diagnostic interceptor: runs a command (argv words, no shell) and on
+ * failure prints remediation and appends a local `friction` NDJSON signal —
+ * never a ticket comment. With no resolvable Story the write is skipped: a
+ * missing signal beats a halted runner.
  */
 import { spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
@@ -40,10 +14,6 @@ import { INTERCEPTOR_MAX_BUFFER_BYTES } from './lib/child-exec.js';
 import { getLimits, resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
 import { appendSignal } from './lib/observability/signals-writer.js';
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function parseArguments(args) {
   let storyId = null;
@@ -63,10 +33,7 @@ function parseArguments(args) {
 }
 
 /**
- * Ordered classification rules. The first rule whose `markers` are found
- * (any-match) wins. Table-driven so adding a new pattern doesn't grow the
- * cyclomatic complexity of `classifyFrictionCategory`.
- *
+ * First rule with any matching marker wins.
  * @type {ReadonlyArray<{markers: string[], category: string, remediation: string}>}
  */
 const FRICTION_RULES = [
@@ -104,51 +71,28 @@ function classifyFrictionCategory(errorOutput) {
 }
 
 /**
- * `spawnSync`'s own `timeout` option kills the child with `SIGTERM`, so a
- * SIGTERM observed here almost always means the interceptor's configured
- * `executionTimeoutMs` bound fired. Any other signal — a `SIGKILL` from the
- * OOM killer, an operator `kill -9` — originated outside this process.
- *
+ * `spawnSync`'s timeout kills with SIGTERM; any other signal came from outside.
  * @type {string}
  */
 const INTERCEPTOR_TIMEOUT_SIGNAL = 'SIGTERM';
 
 /**
- * A `maxBuffer` overflow presents identically to a timeout — `status: null`,
- * `signal: 'SIGTERM'` — because Node kills the child the same way. The only
- * discriminator is `result.error.code`, so a SIGTERM carrying this code is a
- * buffer overflow and must never be reported as a timeout (Story #4915).
- *
+ * A maxBuffer overflow is also a SIGTERM; only this error code tells it
+ * apart from a timeout.
  * @type {string}
  */
 const OVERFLOW_ERROR_CODE = 'ENOBUFS';
 
-/** Shell convention for "the process died by signal N": exit `128 + N`. */
 const SIGNAL_EXIT_BASE = 128;
 
 /**
- * Describe a child that never exited normally — `status === null`, Node's
- * documented representation of "did not exit normally". The raw status must
- * never reach `process.exit`, because `process.exit(null)` exits **0**: the
- * interceptor would report success for a command it just watched get killed
- * (Story #4851).
- *
- * Which signal fired is the diagnostic value: SIGTERM points at one of the
- * interceptor's own bounds, anything else at the host. A SIGTERM splits again
- * on `error.code`: `ENOBUFS` means the output blew past `executionMaxBuffer`,
- * anything else means `executionTimeoutMs` fired. Recording that plus the
- * bound itself is what makes the row actionable to a consumer who cannot edit
- * the materialized framework tree.
- *
- * Deliberately module-local and pure — exporting it for tests would fail the
- * `--production` dead-exports ratchet, and folding it into `main` would spend
- * the file's per-file maintainability-delta headroom. The CLI contract is the
- * seam the unit tests drive.
- *
+ * For a `null` status, which must never reach `process.exit` (null exits 0).
+ * SIGTERM + ENOBUFS = buffer overflow, SIGTERM otherwise = timeout, any other
+ * signal = the host. Kept module-local: exporting it for tests would trip the
+ * `--production` dead-exports gate.
  * @param {{signal: (string|null), error?: {message?: string, code?: string}}}
- *   result A `spawnSync` result whose `status` is `null`.
- * @param {{executionTimeoutMs: number, executionMaxBuffer: number}} bounds The
- *   resolved interceptor bounds — the timeout in ms, the buffer in bytes.
+ *   result
+ * @param {{executionTimeoutMs: number, executionMaxBuffer: number}} bounds
  * @returns {{category: string, remediation: string, details: object,
  *   preview: string, exitCode: number}}
  */
@@ -244,14 +188,10 @@ function buildFrictionSignal({
     ts: new Date().toISOString(),
     epicId: epicId ?? null,
     storyId: storyId ?? null,
-    // 2-tier hierarchy (Epic #3163): no Task tier, so friction signals
-    // carry no Task id. The field is retained for schema compatibility
-    // and always null.
+    // No Task tier; kept for schema compatibility.
     taskId: null,
     category,
-    // `emitter.command` is what `classifySignalSource` step 1 scans, so the
-    // command-scan stays authoritative for `source`: a consumer command killed
-    // by its own host remains consumer-actionable (Story #4851).
+    // `classifySignalSource` scans `emitter.command` first to attribute source.
     emitter: {
       tool: 'diagnose-friction.js',
       command: commandStr,
@@ -259,10 +199,6 @@ function buildFrictionSignal({
     details: { errorPreview, ...(terminationDetails ?? {}) },
   };
 }
-
-// ---------------------------------------------------------------------------
-// Main Execution
-// ---------------------------------------------------------------------------
 
 export async function main(args = process.argv.slice(2)) {
   const { storyId, epicId, cmdArgs } = parseArguments(args);
@@ -273,16 +209,9 @@ export async function main(args = process.argv.slice(2)) {
     );
   }
 
-  // Story #4915 — the interceptor spawns `cmdArgs[0]` directly, with no shell.
-  // A single argument containing whitespace therefore names an executable that
-  // cannot exist, and the resulting ENOENT is a usage error in the
-  // interceptor's OWN invocation, not friction in the wrapped command. It must
-  // be reported as one and MUST NOT reach the ledger — otherwise the real
-  // friction is discarded and the roll-up eventually auto-files a framework-gap
-  // ticket about the framework's own instrumentation being misused. The
-  // discriminator is this argv shape, never the ENOENT result: a correctly
-  // split command whose binary is genuinely absent yields the identical
-  // `spawnSync` result and stays real friction.
+  // No shell, so one whitespace-bearing arg is a usage error that must not
+  // reach the ledger. Discriminate on argv shape, not ENOENT: a genuinely
+  // absent binary yields the same spawn result and is real friction.
   if (cmdArgs.length === 1 && /\s/.test(cmdArgs[0])) {
     throw new Error(
       `Usage: --cmd takes the command as separate argv words, not one quoted string. Received a single quoted argument: "${cmdArgs[0]}". Drop the quotes so each word is its own argv entry — \`--cmd ${cmdArgs[0]}\`. No friction signal was recorded.`,
@@ -291,11 +220,8 @@ export async function main(args = process.argv.slice(2)) {
 
   const config = resolveConfig();
   const { executionTimeoutMs } = getLimits();
-  // The interceptor's bound is deliberately *below* the framework-wide
-  // `MAX_BUFFER_BYTES` ceiling: it is a reported policy bound whose value the
-  // emitted friction row carries (`details.executionMaxBuffer`), not an
-  // overflow guard. Story #5009 moved its definition to the shared
-  // child-process surface so it is no longer a hand-copied literal here.
+  // Deliberately below `MAX_BUFFER_BYTES`: a reported policy bound, not an
+  // overflow guard.
   const executionMaxBuffer = INTERCEPTOR_MAX_BUFFER_BYTES;
 
   const commandStr = cmdArgs.join(' ');
@@ -312,8 +238,6 @@ export async function main(args = process.argv.slice(2)) {
   if (result.stderr) process.stderr.write(result.stderr);
 
   if (result.status !== 0) {
-    // A `null` status means the child never exited normally; the cause lives in
-    // `result.signal`, not in the status.
     const abnormal =
       result.status === null
         ? describeAbnormalExit(result, {
@@ -321,9 +245,6 @@ export async function main(args = process.argv.slice(2)) {
             executionMaxBuffer,
           })
         : null;
-    // With both streams empty an abnormal termination names its signal; the
-    // `Unknown exit code` fallback is therefore reachable only with a real
-    // numeric status, never as `Unknown exit code null`.
     const noOutputFallback = abnormal
       ? abnormal.preview
       : `Unknown exit code ${result.status}`;
@@ -339,9 +260,7 @@ export async function main(args = process.argv.slice(2)) {
       'Command failed. Appending friction signal to NDJSON stream...',
     );
 
-    // An abnormal termination classifies itself: the marker scan reads output
-    // the kill may have truncated (or never produced), so it cannot name the
-    // signal.
+    // A killed command's output may be truncated, so it classifies itself.
     const classified = classifyFrictionCategory(errorOutput);
     const category = abnormal?.category ?? classified.category;
     const remediation = abnormal?.remediation ?? classified.remediation;
@@ -358,11 +277,7 @@ export async function main(args = process.argv.slice(2)) {
       terminationDetails: abnormal?.details ?? null,
     });
 
-    // Story #2874 — accept story-only context (no parent Epic). When
-    // only the story is resolved, write to the standalone signals
-    // stream at `<tempRoot>/standalone/stories/story-<sid>/signals.ndjson`
-    // by passing `epicId: null` through to the writer. The only case
-    // we still skip is fully-no-context (story unresolved).
+    // A null epicId routes to the standalone Story stream.
     if (resolvedStoryId != null) {
       try {
         const ok = await appendSignal({
@@ -393,17 +308,11 @@ export async function main(args = process.argv.slice(2)) {
     Logger.error(remediation);
     Logger.error('----------------------------------------\n');
 
-    // Never `process.exit(result.status)` on a null status — that exits 0 and
-    // reports success for a killed command.
     process.exit(abnormal?.exitCode ?? result.status);
   } else {
     process.exit(0);
   }
 }
-
-// ---------------------------------------------------------------------------
-// Call main if run directly
-// ---------------------------------------------------------------------------
 
 import { runAsCli } from './lib/cli-utils.js';
 

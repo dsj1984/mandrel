@@ -1,12 +1,4 @@
-/**
- * coverage-capture-fullscope.js — the full-scope (pre-#4981, and still the
- * default) capture path for `coverage-capture.js`.
- *
- * Hoisted out of the CLI shell's `runCoverageCapture` verbatim (Story
- * #4981) so that function's cyclomatic complexity does not grow with the
- * incremental-mode branch alongside it — this is a relocation, not new
- * logic; behaviour is byte-for-byte the pre-#4981 body.
- */
+/** Full-scope (default) capture path for `coverage-capture.js`. */
 import path from 'node:path';
 import { resolveChangedFilesRef } from './changed-files.js';
 import {
@@ -17,13 +9,9 @@ import {
 } from './coverage-capture.js';
 
 /**
- * Run the `--skip-when-no-crap-files` check (when requested), the
- * content-digest freshness probe, and — when stale — the full-repo
- * `npm run test:coverage` capture + stamp write.
- *
- * The skip check scores the ref `resolveChangedFilesRef` resolves — the rule,
- * and the same answer, incremental mode applies, so a fall-through from it
- * cannot change scope mid-run (Story #5365).
+ * Optional no-CRAP-files skip, freshness probe, then capture and stamp. The
+ * skip uses the same ref incremental mode resolves, so a fall-through from
+ * it cannot change scope mid-run.
  *
  * @param {{
  *   crap: object,
@@ -57,8 +45,7 @@ export async function runFullScopeCapture({
         cwd: args.cwd,
       });
     } catch (err) {
-      // A bad ref must not silently relax the gate. Fall through to the
-      // freshness check so coverage still gets captured if needed.
+      // A bad ref must not relax the gate; fall through to freshness.
       logger.warn(
         `[coverage-capture] ⚠ ${err?.message ?? err} — falling back to freshness check.`,
       );
@@ -87,17 +74,13 @@ export async function runFullScopeCapture({
   logger.info(
     `[coverage-capture] Coverage at ${crap.coveragePath} is ${describeFreshness(freshness, crap.targetDirs)}; running npm run test:coverage…`,
   );
-  // Story #5278 — the digest of the tree the suite is about to measure, taken
-  // BEFORE the spawn. That is the value the stamp claims; see
-  // `stampCapturedTree`.
+  // Pre-spawn digest; see `stampCapturedTree`.
   const preDigest = computeContentDigestImpl(args.cwd, crap.targetDirs);
   const code = await runCaptureImpl({
     cwd: args.cwd,
     timeoutMs: coverage?.timeoutMs,
     log: (m) => logger.info(m),
-    // Story #5278 — consulted only if this capture had to queue behind
-    // another full suite on this host. Whoever we waited for may have just
-    // stamped this exact tree.
+    // After queueing behind another suite, which may have stamped this tree.
     recheckFresh: () =>
       isCoverageFreshImpl({
         coveragePath: crap.coveragePath,
@@ -107,10 +90,6 @@ export async function runFullScopeCapture({
   });
   if (code !== 0) return reportCaptureFailure(code, logger);
 
-  // Persist the content digest next to the fresh artifact so subsequent
-  // freshness checks are content-aware (mtime churn from branch switches no
-  // longer invalidates). Best-effort — a missing stamp just means the next
-  // check falls back to the mtime heuristic.
   stampCapturedTree({
     preDigest,
     cwd: args.cwd,

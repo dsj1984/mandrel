@@ -1,27 +1,8 @@
 /**
- * branch-name-guard.js — Canonical branch-name safety assertion.
- *
- * Single source of truth for "is this string safe to forward to a `git`
- * subprocess as a branch name?". Consolidates the duplicated assertion
- * logic that previously lived in `git-branch-lifecycle.js` and
- * `git-branch-cleanup.js`, so the two sites cannot drift apart.
- *
- * The default check is the **union** of every assertion either previous
- * site performed:
- *   - reject `null` / `undefined` / non-string values
- *   - reject empty string
- *   - reject any character outside `[a-zA-Z0-9._\-/]` (catches whitespace,
- *     shell metacharacters, glob characters, etc.)
- *   - reject leading `-` (would otherwise be parsed as a CLI flag by git,
- *     even though the regex character class allows hyphens elsewhere)
- *
- * Callers performing destructive operations (`branch -D`, `push --delete`)
- * can opt into the protected-branch deny list by passing `{ protected: true }`,
- * which additionally rejects `main`, `master`, `HEAD`, and any name
- * starting with `refs/`.
- *
- * All exports are pure: they read no config, spawn no subprocesses, and
- * make no network calls.
+ * The one check that a string is safe to pass to `git` as a branch name:
+ * a non-empty string of `[a-zA-Z0-9._\-/]` with no leading `-` (git would
+ * read it as a flag). Destructive callers pass `{ protected: true }` to also
+ * reject `main`, `master`, `HEAD` and `refs/*`. Pure.
  */
 
 import { isSafeBranchComponent } from './dependency-parser.js';

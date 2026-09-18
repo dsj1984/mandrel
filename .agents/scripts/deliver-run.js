@@ -1,47 +1,11 @@
 #!/usr/bin/env node
 
 /**
- * deliver-run.js — one beat of a multi-Story `/mandrel-deliver` run
- * (Story #5345).
- *
- * The multi-Story path used to be a hand-driven protocol: loop
- * `stories-wave-tick.js`, keep an append-only `--dispatched` list across
- * beats, paste a `node --input-type=module -e` block to build each worker's
- * checklist, and remember to add `--merge-watch-mode async` to every close
- * because close cannot see run topology. Four pieces of bookkeeping, all of
- * them carried in the session's head, each of them silently wrong when
- * forgotten — a dropped `--dispatched` id joins a second worker to a live
- * branch, and a forgotten async flag serializes the run's merge waits.
- *
- * This CLI is that bookkeeping, scripted. One beat per invocation:
- *
- *   1. Tick with `--probe-live`, seeding `dispatched` from the **run ledger**
- *      rather than from the caller (`<tempRoot>/run-<id>/ledger.json`).
- *   2. Write one dispatch prompt per ready Story — id, `workCwd` conventions,
- *      docs digest path, checklist path, change-set discipline — so the
- *      session's spawn is "use this file as the prompt" and nothing else.
- *   3. Print the exact `single-story-close.js` command for every hand-off,
- *      with `--merge-watch-mode async` decided from run topology here, where
- *      the topology is known.
- *
- * Stdout is one compact JSON envelope (`kind: "deliver-run-beat"`). The
- * tick's exit-code contract is preserved byte for byte — 0 ok · 1 input
- * error · 2 cycle · 3 wedged · 4 blocked — because the loop's stopping rules
- * are the tick's and this script must not invent a second dialect of them.
- *
- * The ledger is append-only on purpose, which is also its one sharp edge: an
- * id whose spawn never reached `single-story-init.js` stays in it, is withheld
- * as in flight on every later beat, and the run reads as "waiting" forever.
- * The beat therefore reports every ledgered id live state still calls
- * `agent::ready` in `stalledDispatch[]` with the recovery in
- * `stalledDispatchReason`. It never auto-releases one: a slow init and a dead
- * spawn are indistinguishable at this altitude, and releasing the first joins
- * a second worker to a live branch (Story #5363).
- *
- * Scheduling itself is untouched: the ready set, the concurrency cap, the
- * footprint guard and the foreign-lease withholding all come from
- * `stories-wave-tick.js#runProbedStoriesWaveTick`. This is a ledger, a
- * prompt writer and a command renderer around that one beat.
+ * One beat of a multi-Story `/mandrel-deliver` run: tick from live state with
+ * the run ledger as the dispatched list, write a dispatch prompt per ready
+ * Story, and render each hand-off's close command. Scheduling is entirely the
+ * tick's, and so is the exit-code contract — the loop's stopping rules must
+ * not get a second dialect.
  */
 
 import { createHash } from 'node:crypto';
@@ -92,15 +56,10 @@ const USAGE = {
 };
 
 /**
- * Derive the run's stable identity from its Story id set.
- *
- * The identity must be the same on every beat of one run (so the ledger is
- * found again) and different across runs (so two concurrent deliveries do not
- * share a dispatched list). The sorted id set is the only thing that satisfies
- * both — a timestamp fails the first, and a single id fails the second.
- *
+ * Stable across beats of one run, distinct across concurrent runs — only the
+ * sorted id set satisfies both.
  * @param {number[]} ids
- * @returns {string} an 8-hex-character digest
+ * @returns {string}
  */
 export function deriveRunId(ids) {
   const key = [...new Set(ids)].sort((a, b) => a - b).join(',');
@@ -108,13 +67,8 @@ export function deriveRunId(ids) {
 }
 
 /**
- * Read the run ledger's dispatched ids, tolerating absence and corruption.
- *
- * A ledger that cannot be read is treated as empty rather than fatal: the
- * consequence is one extra beat of the init window (which `--dispatched`
- * existed to close), whereas refusing the beat would strand a live run on a
- * bookkeeping artifact.
- *
+ * An unreadable ledger is empty, not fatal: refusing the beat would strand a
+ * live run on a bookkeeping artifact.
  * @param {string} ledgerPath
  * @param {{ readFileFn?: (p: string, enc: string) => string }} [deps]
  * @returns {number[]}
@@ -139,18 +93,15 @@ export function readLedgerDispatched(
 }
 
 /**
- * Persist the union of the previously-ledgered ids and the ids handed out on
- * this beat. Append-only by construction: nothing here removes an id, so the
- * caller cannot get the "forgot to re-list one" failure `--dispatched` had.
- *
+ * Append-only: nothing removes an id, so none can be forgotten.
  * @param {object} args
  * @param {string} args.ledgerPath
  * @param {string} args.runId
  * @param {number[]} args.stories
- * @param {number[]} args.dispatched  ids already ledgered
- * @param {number[]} args.ready       ids handed out this beat
+ * @param {number[]} args.dispatched
+ * @param {number[]} args.ready
  * @param {{ writeFileFn?: (p: string, c: string, enc: string) => void }} [deps]
- * @returns {number[]} the persisted dispatched set
+ * @returns {number[]}
  */
 function writeLedger(
   { ledgerPath, runId, stories, dispatched, ready },
@@ -169,16 +120,8 @@ function writeLedger(
 }
 
 /**
- * Render the close command for one hand-off.
- *
- * `--merge-watch-mode async` is a **run-topology** decision, which is why it
- * is made here: the close process sees one Story and cannot tell whether a
- * sibling is queued behind its merge wait. On a multi-Story run the serialized
- * close tail is the dominant cost, and each synchronous close holds the
- * foreground for its full merge wait before the next may start; on a run of
- * one there is no sibling to unblock and the sync default reaches `landed`
- * fastest.
- *
+ * `--merge-watch-mode async` is a run-topology call close cannot make: with
+ * siblings, sync closes serialize every merge wait; alone, sync lands fastest.
  * @param {{ storyId: number, mainRepo: string, storyCount: number }} args
  * @returns {string}
  */
@@ -194,15 +137,13 @@ export function renderCloseCommand({ storyId, mainRepo, storyCount }) {
 }
 
 /**
- * Render one ready Story's dispatch prompt — the whole spawn payload, so the
- * session's `Agent` call is this file and nothing else.
- *
+ * The whole spawn payload for one ready Story.
  * @param {object} args
  * @param {number} args.storyId
  * @param {string} args.mainRepo
  * @param {string|null} args.docsDigestPath
  * @param {string|null} args.checklistPath
- * @returns {string} markdown
+ * @returns {string}
  */
 export function renderDispatchPrompt({
   storyId,
@@ -266,11 +207,9 @@ export function renderDispatchPrompt({
 }
 
 /**
- * Build one ready Story's dispatch prompt file and return its entry.
- *
  * @param {object} args
  * @param {number} args.storyId
- * @param {string} args.body        the Story body the probe already fetched
+ * @param {string} args.body
  * @param {string} args.runTempDir
  * @param {string} args.mainRepo
  * @param {string|null} args.docsDigestPath
@@ -287,17 +226,12 @@ function buildDispatchEntry(
   let changes = [];
   let references = [];
   try {
-    // `parse` returns `{ body, warnings, info }` — the path entries live on
-    // `.body`, not at the top level. The retired `node -e` snippet in
-    // `helpers/deliver-reference.md` destructured the top level and so built
-    // every checklist from an empty footprint.
+    // Path entries live on `.body`, not at the top level of the parse result.
     const { body: parsed } = parseStoryBody(body ?? '');
     changes = parsed?.changes ?? [];
     references = parsed?.references ?? [];
   } catch {
-    // An unparseable body costs a footprint-matched checklist, never the
-    // dispatch: the worker reads the real Story body itself, and close-scope
-    // lens coverage runs maker-blind regardless.
+    // Costs the checklist, never the dispatch: the worker reads the body itself.
     changes = [];
     references = [];
   }
@@ -322,10 +256,7 @@ function buildDispatchEntry(
 }
 
 /**
- * Flatten the two withhold reports the tick emits into one list, so an
- * unfilled dispatch slot is explained in a single place.
- *
- * @param {object} envelope the tick envelope
+ * @param {object} envelope
  * @returns {Array<{id: number, blockedBy: number, reason: string, paths: string[]}>}
  */
 function collectWithheld(envelope) {
@@ -348,21 +279,11 @@ function collectWithheld(envelope) {
 }
 
 /**
- * Render the operator-facing reason for the ledgered ids live state still
- * reports as `agent::ready`.
- *
- * **Report, do not release.** A slow `single-story-init.js` and a spawn that
- * died before reaching one look identical from here, and releasing the first
- * re-dispatches a live Story onto its own branch — the exact failure the
- * ledger exists to prevent. So the beat names the id and hands the operator
- * the two things the call needs: where the ledger lives, and the flag that
- * pins the run directory once they have edited it. Neither is derivable from
- * the envelope's other fields, which is why both are spelled out here rather
- * than left to a reader of the source.
- *
+ * Report, never release: a slow init and a dead spawn look identical here,
+ * and releasing the first re-dispatches a live Story onto its own branch.
  * @param {number[]} ids
  * @param {{ ledgerPath: string, runId: string }} run
- * @returns {string|null} null when nothing is stalled
+ * @returns {string|null}
  */
 export function renderStalledDispatchReason(ids, { ledgerPath, runId }) {
   if (!Array.isArray(ids) || ids.length === 0) return null;
@@ -381,9 +302,7 @@ export function renderStalledDispatchReason(ids, { ledgerPath, runId }) {
 }
 
 /**
- * The input-error result, shaped like a beat envelope so a caller branching on
- * `kind` never has to special-case the failure.
- *
+ * Shaped like a beat envelope so callers branching on `kind` need no special case.
  * @param {string} message
  * @returns {{ envelope: object, exitCode: 1 }}
  */
@@ -395,8 +314,6 @@ function inputError(message) {
 }
 
 /**
- * Resolve the ids for `--stories` and `--handoff`, or the error to report.
- *
  * @param {{ stories?: string, handoff?: string[] }} args
  * @returns {{ ids: number[]|null, handoffIds: number[], error: string|null }}
  */
@@ -431,21 +348,15 @@ export function resolveRunIds({ stories, handoff }) {
 }
 
 /**
- * Run one beat: tick, write the dispatch prompts, persist the ledger, render
- * the close commands, and shape the envelope.
- *
- * Every collaborator is injectable so the beat is testable without a provider,
- * a network call or the repository's own temp root.
- *
  * @param {object} args
- * @param {string} args.stories            raw `--stories` value
- * @param {string[]} [args.handoff]        raw `--handoff` values
- * @param {string} [args.concurrency]      raw `--concurrency` value
- * @param {string} [args.runId]            explicit run id
- * @param {string} [args.cwd]              main checkout
- * @param {object} [args.config]           pre-resolved config (test injection)
- * @param {Function} [args.probe]          tick probe seam (test injection)
- * @param {Function} [args.context]        tick provider-context seam
+ * @param {string} args.stories
+ * @param {string[]} [args.handoff]
+ * @param {string} [args.concurrency]
+ * @param {string} [args.runId]
+ * @param {string} [args.cwd]
+ * @param {object} [args.config]
+ * @param {Function} [args.probe]
+ * @param {Function} [args.context]
  * @param {object} [deps]
  * @returns {Promise<{ envelope: object, exitCode: number }>}
  */
@@ -492,10 +403,7 @@ export async function runDeliverRunBeat(
   } = await tickFn({
     stories,
     concurrency,
-    // The ledger IS the dispatched list. It is additive, never authoritative:
-    // the probe unions it into the label-derived in-flight set and then
-    // filters it against live state, so an id that has since gone done is
-    // dropped rather than pinned in flight forever.
+    // Additive, never authoritative: the probe filters it against live state.
     dispatched: ledgered.join(','),
     cwd: mainRepo,
     ...(config ? { config } : {}),
@@ -563,10 +471,7 @@ export async function runDeliverRunBeat(
       blocked: tick.blocked ?? [],
       blockedReason: tick.blockedReason ?? null,
       foreignHeld: tick.foreignHeld ?? [],
-      // Its own reason, deliberately beside `withheld[]` rather than inside
-      // it: a footprint withhold names a blocking peer Story and its colliding
-      // paths, and a stalled dispatch has neither — it names a recovery the
-      // operator owns.
+      // Not in `withheld[]`: it has no blocking peer, only an operator recovery.
       stalledDispatch,
       stalledDispatchReason: renderStalledDispatchReason(stalledDispatch, {
         ledgerPath,
@@ -579,8 +484,6 @@ export async function runDeliverRunBeat(
 }
 
 /**
- * Parse argv into the beat's inputs.
- *
  * @param {string[]} argv
  * @returns {{ stories?: string, handoff: string[], concurrency?: string, runId?: string, cwd?: string }}
  */

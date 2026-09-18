@@ -1,26 +1,7 @@
 /**
- * GitHub Provider — SubIssueGateway.
- *
- * Owns the **read** side of the native GitHub Sub-Issues surface: the
- * GraphQL `subIssues` field on an Issue, paginated into a child-number
- * list. Story #5008 removed the write side (`addSubIssue`,
- * `removeSubIssue`) and the `reconcileSubIssueLinks` walker along with the
- * rest of the Epic-hierarchy provider surface — v2 delivery is Story-only,
- * so nothing establishes or repairs parent/child links any more.
- *
- * Extracted from `../github.js` in Story #2462 / Task #2480. The read path
- * still reaches `GitHubProvider` as `_getNativeSubIssues`, and
- * `IssuesGateway` calls it directly through its `getNativeSubIssues` hook.
- *
- * Constructed with `{ ghGraphql, cache, classifyGithubError }`:
- *   - `ghGraphql(query, variables, opts)`    — bound `_ghGraphql` from the parent.
- *   - `cache.primeIfAbsent(ticket)`          — bound to the shared cache (native-walk priming).
- *
- * The gateway holds **no** transport state of its own — every call goes
- * through the supplied `ghGraphql` hook, which is the parent provider's
- * `gh api graphql` shim.
- *
- * @see Story #2462 — Split GitHubProvider god class into seven composed gateways.
+ * GitHub Provider — SubIssueGateway: the read side of native Sub-Issues (the
+ * GraphQL `subIssues` field, paginated into child numbers). Holds no
+ * transport state; every call goes through the parent's `ghGraphql` hook.
  */
 
 import { describeGhFailure } from '../../lib/gh-exec.js';
@@ -33,10 +14,7 @@ import {
 import { subIssueNodeToTicket } from './mappers.js';
 import { defaultRetryWarn } from './request-helpers.js';
 
-// Story #2852: cap the native sub-issue cursor walk so a runaway pagination
-// (e.g. an upstream API regression that never sets `hasNextPage = false`)
-// fails fast instead of looping forever. 50 cursor pages × 100 nodes per
-// page = 5000 sub-issues, well above any realistic Epic.
+// Fail fast if `hasNextPage` never clears; 50 × 100 = 5000 sub-issues.
 const NATIVE_SUB_ISSUE_PAGE_CAP = 50;
 
 export class SubIssueGateway {
@@ -57,11 +35,7 @@ export class SubIssueGateway {
     this._classify = classifyGithubError;
   }
 
-  /**
-   * Strategy 1 — native GitHub Sub-Issues via GraphQL. Paginates and seeds
-   * the ticket cache via the supplied `cache.primeIfAbsent` hook. Returns
-   * `[]` (not throw) when the feature is disabled on this repo.
-   */
+  /** Primes the ticket cache; `[]` when the feature is disabled. */
   async getNativeSubIssues(parentNodeId, parentId) {
     const childIds = [];
     let cursor = null;
@@ -105,11 +79,8 @@ export class SubIssueGateway {
         );
         return [];
       }
-      // `describeGhFailure`, not `err.message`: on the gh transport the
-      // message is only the classified summary (`gh exited with code 1`) and
-      // the actionable sentence — the HTTP status, the rate-limit notice — is
-      // on stderr. Three identical opaque lines are what made the Epic-rollup
-      // incident unreadable until the API was queried by hand (Story #5210).
+      // Not `err.message`: on the gh transport that is only `gh exited with
+      // code 1`; the HTTP status and rate-limit notice are on stderr.
       Logger.error(
         `[GitHubProvider] sub-issues GraphQL failed (parent #${parentId}, ` +
           `category=${category}): ${describeGhFailure(err)}`,

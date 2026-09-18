@@ -1,42 +1,23 @@
 /**
- * footer-block.js — the Story body's `---` footer grammar.
- *
- * A Story body is prose an operator edits. Its **declared dependency edges**
- * are not: they live in a footer block, in one exact line shape, and that
- * distinction is the whole safety property. An unanchored whole-body scan
- * (what `parseBlockedBy` used to be) turned any sentence that merely mentioned
- * a blocker into a real dispatch gate — an example, a changelog note, an
- * acceptance criterion quoting the phrase — and withheld the Story until an
- * unrelated issue closed.
- *
- * This module is the single home for that grammar. Both readers go through it:
- * `lib/story-body/story-body.js` (what a body round-trips as `depends_on`) and
- * `lib/dependency-parser.js` (what gates dispatch). Sharing one implementation
- * is what keeps them from drifting apart into two different answers about the
- * same body.
+ * footer-block.js — the Story body's `---` footer grammar, shared by the body
+ * parser and the dispatch-edge parser so they cannot disagree. Dependency
+ * edges are declared only by an exact line in the footer; an unanchored body
+ * scan turned any sentence mentioning a blocker into a real dispatch gate.
  *
  * @module lib/story-body/footer-block
  */
 
-/**
- * The one line shape that declares a dependency edge: `blocked by #N` alone on
- * its own line inside the footer block. Anchored at both ends deliberately —
- * `depends on #N`, `Blocked by: #N`, and `blocked by #N once X lands` all
- * declare nothing.
- */
+// Anchored at both ends: `Blocked by: #N` or `blocked by #N once X` declare
+// nothing.
 const FOOTER_BLOCKED_BY_LINE_RE = /^blocked by\s+(#\d+)$/i;
 
-/** A `---` rule on its own line. */
 const FOOTER_RULE_RE = /^---\s*$/;
 
-/** Footer keys that qualify a bare `---` rule as the footer separator. */
 const FOOTER_KEY_RE = /^(parent:|Epic:|blocked by)/im;
 
 /**
- * True when line `index` opens the footer block: a `---` on its own line whose
- * remaining lines start with a recognised footer key (`parent:`, `Epic:`,
- * `blocked by`). A `---` opening a thematic break or a table mid-body is
- * therefore not mistaken for the footer.
+ * A `---` counts only when later lines start with a footer key, so a mid-body
+ * thematic break is not mistaken for the footer.
  *
  * @param {string} line
  * @param {string[]} lines
@@ -49,16 +30,8 @@ export function isFooterSeparator(line, lines, index) {
 }
 
 /**
- * Return the footer block of a body — everything after the footer separator —
- * or `''` when the body carries no footer.
- *
- * Module-private: `parseFooterBlockedByIds` is its only caller. The body
- * parser splits its own sections and reaches for `parseFooterBlockedByRefs`
- * with the footer it already has, so exporting this would ship a symbol with
- * no consumer.
- *
  * @param {string} body
- * @returns {string}
+ * @returns {string} everything after the footer separator, or ''.
  */
 function extractFooterBlock(body) {
   if (!body) return '';
@@ -68,11 +41,8 @@ function extractFooterBlock(body) {
 }
 
 /**
- * Extract the `blocked by #N` refs from an already-split footer block, as the
- * `"#N"` strings a Story body's `depends_on` field round-trips.
- *
  * @param {string} footerBlock
- * @returns {string[]}
+ * @returns {string[]} `"#N"` refs, as `depends_on` round-trips them.
  */
 export function parseFooterBlockedByRefs(footerBlock) {
   if (!footerBlock) return [];
@@ -83,11 +53,8 @@ export function parseFooterBlockedByRefs(footerBlock) {
 }
 
 /**
- * Parse a body's declared blocker issue **numbers**, deduped — the
- * dispatch-edge view of the same footer the body parser reads.
- *
  * @param {string} body
- * @returns {number[]}
+ * @returns {number[]} deduped blocker issue numbers.
  */
 export function parseFooterBlockedByIds(body) {
   const ids = parseFooterBlockedByRefs(extractFooterBlock(body)).map((ref) =>

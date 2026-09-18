@@ -1,82 +1,14 @@
 #!/usr/bin/env node
 /**
- * pr-watch-with-update.js — the single CI-watch mechanism for the Story
- * delivery path (`helpers/deliver-story.md` Step 4). Story #4358 retired
- * the bare `gh pr checks --watch` so every caller drives this one CLI.
+ * pr-watch-with-update.js — the single CI-watch CLI for Story delivery.
+ * Polls the PR's required checks to a terminal state via `watchPrToTerminal`,
+ * recovering from `BEHIND` with bounded `gh pr update-branch` calls.
  *
- * Polls the PR's required checks to a terminal state and auto-recovers
- * from `mergeStateStatus: BEHIND` (via bounded `gh pr update-branch`
- * calls) by delegating to the `watchPrToTerminal` primitive in
- * `lib/orchestration/pr-watch.js`. That primitive was shared with the
- * `Watcher` bus listener until Story #5006 deleted it (nothing emitted at
- * it); this CLI is now its only caller. Story #5024 retired the bus
- * outright, so there is no bus to create — this is a direct, synchronous
- * watch with a real exit code.
- *
- * Slow-vs-failed semantics (Story #4358):
- *   - GREEN — every required check terminal + green → exit 0, unless the
- *             no-rerun guard says otherwise (below).
- *   - RED   — one or more required checks genuinely failed → exit 1
- *             IMMEDIATELY, consuming no resume budget. On red the CLI
- *             disarms native auto-merge and writes
- *             `temp/story-<id>-ci-digest.{json,md}` (failing check name,
- *             head SHA, run id + run link, a `gh run view --log-failed`
- *             tail, and a coarse classification). The digest is scoped by
- *             filename, so it requires `--story` (Story #4539: the digest
- *             was Epic-scoped and therefore never written on the only
- *             delivery path v2 has).
- *   - STILL-RUNNING — the poll cap fired with checks still pending and
- *             none failed; the watcher re-armed up to
- *             `maxResumes` times, then returned a
- *             `still-running` verdict → exit 2 (NEVER 1, NEVER
- *             `timed_out`). The CLI prints the `gh pr checks --watch`
- *             handoff so the host can keep polling on its own cadence.
- *   - UNRESOLVED — every observed required check is green but the observed
- *             set does not reconcile with the repository's own verdict
- *             (Story #4873) → exit 2, same "keep watching" semantics as
- *             still-running. Withholding is the point: this watcher has
- *             reported green on a PR GitHub was reporting as BLOCKED.
- *   - NOT-YET-STARTED — the attach window was spent and NO required context
- *             ever attached, while the pull request itself kept reading back
- *             fine (Story #4890) → exit 2, the same "keep watching"
- *             semantics. This used to map onto the red exit code, which
- *             misroutes the caller twice over: the module reserves exit 1 for
- *             a required check that GENUINELY FAILED, and the red path writes
- *             a CI digest naming the failing check — so a caller routed onto
- *             it by a set that was merely empty found nothing to read. A
- *             still-empty required set is a slow condition, and the module
- *             already models slow as exit 2. A `gh` fault the PR probe cannot
- *             see past is still exit 1.
- *
- * Two GitHub oracles are deliberately not trusted on a single reading
- * (Story #4873). An EMPTY `gh pr checks --required` probe is re-resolved
- * within {@link REQUIRED_CONTEXT_ATTACH_WINDOW_MS} before it is believed —
- * a ruleset attaches its required contexts asynchronously, and a required
- * context that is an aggregator job gated on every other tier is by
- * construction the LAST to appear (#4890 measured 16m52s), so a watch launched
- * right after `gh pr create` used to fail a delivery whose CI had not been
- * asked to start yet. And a GREEN verdict is issued only after
- * {@link reconcileGreenVerdict} confirms the repository agrees; an
- * unreconcilable set reports unresolved instead of green.
- *
- * No-rerun enforcement (Story #4865). `rules/ci-remediation.md` § Verifier
- * forbids re-running a failed job to reach green; this CLI is the point
- * that enforces it. Enforcement acts on the **first red** — GitHub's native
- * auto-merge fires server-side and races any post-green detection, so a
- * green can already have merged by the time it is observed. On red the
- * watcher disarms auto-merge and records the head SHA; on green it reads
- * the digest and adjudicates: a green on the SAME head SHA is a forbidden
- * re-run (exit 1, `agent::blocked`, a `file-ci-gap.js` intake filing
- *             required), while
- * a green on a NEW head SHA is a fix at source — the digest is retired,
- * auto-merge is re-armed, and the delivery proceeds. A delivery that never
- * went red has no digest and is untouched. Mechanism:
- * `lib/orchestration/ci-rerun-guard.js`.
- *
- * Poll knobs: `--poll-interval-ms`, `--max-polls`, `--max-resumes`,
- *   `--max-updates` and `--attach-window-ms` override {@link WATCH_DEFAULTS}
- *   per invocation. Story #5382 retired the `delivery.ci.watch.*` config
- *   ladder that used to sit between them: no surveyed config ever set it.
+ * No-rerun enforcement (`rules/ci-remediation.md` § Verifier) acts on the
+ * FIRST red, because native auto-merge fires server-side and races any
+ * post-green detection: red disarms auto-merge and records the head SHA in a
+ * digest; a later green on the SAME SHA is a forbidden re-run, on a NEW SHA a
+ * fix at source (digest retired, auto-merge re-armed).
  *
  * Usage:
  *   node .agents/scripts/pr-watch-with-update.js --pr <n> --story <id>
@@ -110,22 +42,10 @@ import { sleep as defaultSleep } from './lib/util/poll-loop.js';
 export const STILL_RUNNING_EXIT_CODE = 2;
 
 /**
- * How long a probe that resolved NO required contexts keeps being retried
- * before the watch stops waiting for one (Stories #4873, #4890).
- *
- * A repository ruleset attaches its required contexts to a pull request
- * asynchronously, and the arrival latency is set by the SLOWEST context in the
- * set. Story #4873 measured tens of seconds on a cold repo and calibrated the
- * window at 90s; #4890 measured **16m52s** on this repository, because its
- * required context is an aggregator job gated on every other tier and is
- * therefore, by construction, the last check to appear. A 90s window still
- * exhausted, so the watch still aborted on a PR whose CI was working exactly
- * as designed.
- *
- * The default therefore covers a late aggregator with margin rather than a
- * fast ruleset; `--attach-window-ms` raises it for one run on a repository
- * whose contexts arrive on a different cadence. Spending the window costs nothing but wall-clock on a PR nobody
- * could merge yet; exhausting it too early costs the whole delivery.
+ * How long an EMPTY required-context probe keeps being retried. Rulesets
+ * attach contexts asynchronously and an aggregator context gated on every
+ * other tier arrives last (~17 min measured), so the default covers that with
+ * margin: waiting costs wall-clock, giving up early costs the delivery.
  */
 export const REQUIRED_CONTEXT_ATTACH_WINDOW_MS = 1_200_000;
 
@@ -139,25 +59,15 @@ export const WATCH_DEFAULTS = Object.freeze({
 });
 
 /**
- * Merge-state values that reconcile an observed all-green required set with
- * the repository's own view of the pull request (Story #4873).
- *
- * `BLOCKED` is the measured false-green: the watcher's `gh pr checks
- * --required` set came back SMALLER than branch protection's — a context
- * attached after the first probe, so it was never in `requiredChecks` — every
- * check the watcher knew about was green, and it reported green while GitHub
- * still refused the merge. `UNKNOWN` / an unreadable probe is not a
- * reconciliation either: it is the absence of the second opinion, and a green
- * verdict is exactly the verdict that must not be issued on absent evidence.
+ * Merge states that confirm an observed all-green required set. `BLOCKED`
+ * means branch protection enforces a context the watch never observed (it
+ * attached after the first probe); `UNKNOWN`/unreadable is absent evidence.
  */
 const RECONCILED_MERGE_STATES = Object.freeze(
   new Set(['CLEAN', 'UNSTABLE', 'HAS_HOOKS', 'BEHIND', 'DRAFT']),
 );
 
 /**
- * Does an observed-green required set reconcile with the repository's own
- * verdict on the PR? Pure — exported so the rule is reviewable as code.
- *
  * @param {{ observedRequired?: string[], mergeStateStatus?: string|null }} args
  * @returns {{ reconciled: boolean, mergeStateStatus: string|null, reason: string }}
  */
@@ -206,12 +116,7 @@ async function defaultMergeStateProbe({ prRef }) {
   }
 }
 
-/**
- * Adapt the watch loop's own `ghPrViewFn` port — which already spawns
- * `gh pr view --json mergeStateStatus` for BEHIND recovery — into the
- * reconciliation probe, so a caller that injected one port does not have to
- * inject a second for the same `gh` call.
- */
+/** Reuse an injected `ghPrViewFn` port as the merge-state probe. */
 function mergeStateProbeFromView(ghPrViewFn) {
   return async ({ prUrl, repo, cwd }) => {
     try {
@@ -228,22 +133,11 @@ function mergeStateProbeFromView(ghPrViewFn) {
 }
 
 /**
- * Run the watch, re-resolving a required-check set that came back EMPTY until
- * the attach window is spent (Stories #4873 AC-3, #4890 AC-1). Every other
- * terminal — green, red, still-running — returns on the first arm exactly as
- * before.
- *
- * Re-arming the whole call is what makes convergence possible: the required
- * check NAMES are resolved once per `watchPrToTerminal` call, so a context that
- * attaches minutes later is only ever seen by a fresh call.
- *
- * `probePrResolvable` is the **structural** classifier, re-read every round: a
- * required set that is empty while the pull request itself reads back fine is
- * CI that has not started, so the window is worth spending; a pull request that
- * does not read back at all is a `gh` fault, so the window is not spent on it
- * and the caller reports the failure immediately. `gh` overloads its exit code
- * across both conditions, and this deliberately does not fall back to matching
- * its stderr prose — a human-readable string is not a classification contract.
+ * Run the watch, re-running the whole call while the required set is EMPTY
+ * (names resolve once per call, so a late context needs a fresh call) until
+ * the attach window is spent. `probePrResolvable` separates CI-not-started
+ * (PR reads back) from a `gh` fault (it does not) structurally — never from
+ * stderr prose.
  *
  * @returns {Promise<object>} the watch result plus `attachRetries`, and
  *   `prResolvable` whenever the required set stayed empty.
@@ -258,11 +152,8 @@ async function watchWithAttachWindow({
   logger,
 }) {
   const deadline = nowMsFn() + attachWindowMs;
-  // The window is wall-clock, but the retry count is also capped: a caller
-  // running with a zero poll interval (every unit test, and a config that
-  // sets one) would otherwise spin the window out as a tight loop. Flooring
-  // the assumed cadence at 5s bounds the attempts without changing the
-  // wall-clock bound that governs a real watch.
+  // Cap retries too (cadence floored at 5s) so a zero poll interval cannot
+  // spin the wall-clock window as a tight loop.
   const maxRetries = Math.ceil(
     attachWindowMs / Math.max(retryIntervalMs, 5000),
   );
@@ -298,13 +189,11 @@ function parsePositiveInt(raw, fallback) {
 }
 
 /**
- * Resolve the effective poll knobs: CLI flag → framework fallback. Pure —
- * exported for tests so the precedence is reviewable. `flags` are the raw
- * string values from `parseArgs` (or numbers, in tests); a nullish or
- * malformed flag falls through to {@link WATCH_DEFAULTS}.
+ * Resolve poll knobs: a nullish or malformed flag falls back to
+ * {@link WATCH_DEFAULTS}.
  *
  * @param {object} opts
- * @param {object} [opts.flags]        `{ pollIntervalMs, maxPolls, maxResumes, maxUpdates, attachWindowMs }`.
+ * @param {object} [opts.flags]
  * @returns {{ pollIntervalMs: number, maxPolls: number, maxResumes: number, maxUpdates: number, attachWindowMs: number }}
  */
 export function resolveWatchKnobs({ flags = {} } = {}) {
@@ -321,13 +210,9 @@ function defaultReArm({ cwd, prNumber }) {
 }
 
 /**
- * Red path (Story #4865). Disarm native auto-merge FIRST — that is the
- * race-free moment, before any green can exist — then record the digest so
- * the green path can adjudicate against the head SHA the red happened on.
- *
- * A disarm failure is a **blocker**, not a warning: an armed PR whose
- * required check went red can still be merged by GitHub the instant a
- * re-run turns it green, which is precisely what this guard exists to stop.
+ * Red path: disarm auto-merge FIRST (the race-free moment), then record the
+ * digest keyed to the red head SHA. A disarm failure blocks — an armed PR
+ * merges the instant a re-run turns it green.
  *
  * @returns {Promise<{ headSha: string|null, disarm: object, digestPaths: object|null, blocked: boolean }>}
  */
@@ -344,7 +229,6 @@ async function handleRedWatch({
   blockFn,
   logger,
 }) {
-  // The one disarm implementation (Story #5383), shared with the merge wait.
   const disarm = await disarmFn({ prRef });
   const scope = resolveDigestScope({ storyId });
   const headSha = scope ? headShaFn({ prRef, cwd }) : null;
@@ -399,9 +283,7 @@ async function handleRedWatch({
 }
 
 /**
- * Green path (Story #4865). Adjudicate the green against any digest the
- * scope recorded, and return the exit code with the report the caller
- * prints.
+ * Green path: adjudicate the green against any recorded red digest.
  *
  * @returns {Promise<{ verdict: string, reason: string, exitCode: number, headSha: string|null, reArmed?: boolean, blocked?: boolean }>}
  */
@@ -439,12 +321,8 @@ async function evaluateGreenWatch({
   const headSha = headShaFn({ prRef, cwd });
   const { verdict, reason } = classifyGreenVerdict({ digest, headSha });
   if (verdict === 'fix-at-source' || verdict === 'rerun-permitted') {
-    // Story #5343 — `rerun-permitted` is the one same-SHA green the rule
-    // admits: `file-ci-gap.js` recorded a proven `capacity` /
-    // `unreproducible-tier` verdict for THIS head, so there is no fix at
-    // source to make. Retiring the digest spends the allowance with it, which
-    // is what makes it exactly one: a second red writes a fresh digest that
-    // carries none.
+    // `rerun-permitted`: `file-ci-gap.js` proved a capacity/unreproducible
+    // verdict for THIS head. Retiring the digest spends the one allowance.
     retireDigestFn({ storyId, tempRoot, cwd });
     const reArm = await reArmFn({ cwd, prNumber });
     const reArmed = Boolean(reArm?.enabled);
@@ -476,11 +354,7 @@ async function evaluateGreenWatch({
 }
 
 /**
- * Resolve the knobs, temp root and working directory one watch run needs.
- *
- * Split out of `runPrWatch` because config resolution must not abort the
- * watch: a broken `.agentrc` should degrade to defaults, not turn a CI probe
- * into a crash.
+ * A broken `.agentrc` degrades to defaults rather than aborting the watch.
  *
  * @param {{ config?: object, tempRoot?: string, logger: object, flags: object }} params
  * @returns {{ knobs: object, effectiveTempRoot: string, cwd: string }}
@@ -495,11 +369,7 @@ function resolveWatchContext({ config, tempRoot, logger, flags }) {
 }
 
 /**
- * Build the argument bag for the underlying watch port.
- *
- * Each injectable port is spread in only when supplied so the port keeps its
- * own default — passing `undefined` explicitly would override a default with
- * nothing and break every caller that relies on it.
+ * Ports are spread in only when supplied so the watch keeps its own defaults.
  *
  * @param {object} params
  * @returns {object}
@@ -532,13 +402,8 @@ function buildWatchArgs({
 }
 
 /**
- * One terminal outcome of the watch: the attach window is spent and no
- * required check ever attached, or the pull request could not be read at all.
- *
- * The two are distinguished structurally — never against `gh`'s stderr prose
- * (Story #4890) — because they route oppositely: CI that has not started is
- * slow (exit 2, keep watching), while an unreadable PR is a `gh` / access
- * fault (exit 1).
+ * No required check attached (slow, exit 2) vs. unreadable PR (`gh` fault,
+ * exit 1).
  *
  * @param {object} params
  * @returns {number} exit code
@@ -579,13 +444,8 @@ function reportUnattachedOrError({
 }
 
 /**
- * Settle a watch whose observed required checks all came back green.
- *
- * Never green on an undercount (Story #4873): the observed set is whatever
- * `gh pr checks --required` returned on the FIRST probe, so a context a
- * ruleset attached later can leave every check we knew about green while
- * GitHub still refuses the merge. An unreconcilable set reports unresolved
- * (exit 2, keep watching) rather than a false green or a false red.
+ * Settle an all-green watch. The observed set is from the FIRST probe and may
+ * undercount, so an unreconcilable set exits 2 rather than a false green.
  *
  * @param {object} params
  * @returns {Promise<number>} exit code
@@ -640,9 +500,7 @@ async function settleGreenWatch({
 }
 
 /**
- * Slow-but-not-red: the poll cap AND the resume budget are exhausted with
- * checks still pending and none failed. Never exit 1, never `timed_out` —
- * hand off to the host's interval loop and exit 2.
+ * Poll cap and resume budget exhausted, none red: hand off, exit 2.
  *
  * @param {object} params
  * @returns {number} exit code
@@ -661,11 +519,8 @@ function reportStillRunning({ result, envelope, logger, print }) {
 }
 
 /**
- * The failing checks, excluding every non-failing state **and**
- * `still-running`: when the cap fires with a mixed failed+pending map,
- * `promotePendingToStillRunning` has rewritten the pending entries, and a
- * still-running check is slow, not red — including it here would let it become
- * the digest's "primary" failing check and mispoint the diagnosis.
+ * Failing checks. `still-running` is excluded: it is slow, not red, and would
+ * otherwise become the digest's primary failing check.
  *
  * @param {Record<string, string>} outcomes
  * @returns {Array<{ name: string, outcome: string }>}
@@ -683,9 +538,6 @@ function collectFailures(outcomes) {
 }
 
 /**
- * Genuine red check — exit 1 immediately, disarm auto-merge, write the digest,
- * and surface the fix-loop handoff.
- *
  * @param {object} params
  * @returns {Promise<number>} exit code
  */
@@ -742,43 +594,34 @@ async function settleRedWatch({
 }
 
 /**
- * Run the watch loop and resolve to the exit code. Exported for tests so
- * the green / red / still-running / BEHIND paths can be exercised with
- * injected `gh` spawns and no `process.exit`.
- *
- *   0 → all required checks green (and the no-rerun guard cleared them).
- *   1 → a required check genuinely failed (red), OR the green was reached
- *       by a forbidden re-run of the same commit, OR the pull request itself
- *       could not be read (a `gh` / access fault).
- *   2 → slow-but-not-red: still-running (cap + resume budget exhausted, none
- *       red), an unreconcilable green, or no required context attached within
- *       the attach window while the PR kept reading back fine (#4890).
+ * Run the watch and resolve to the exit code: 0 green (guard cleared);
+ * 1 red, forbidden same-SHA re-run, or unreadable PR; 2 slow-but-not-red
+ * (still running, unreconcilable green, or no context attached in the window).
  *
  * @param {object} opts
  * @param {number} opts.prNumber
- * @param {string|null} [opts.repo]           `owner/repo`; passed to `gh` as `--repo`.
+ * @param {string|null} [opts.repo]
  * @param {number|string} [opts.maxUpdates]
  * @param {number|string} [opts.pollIntervalMs]
  * @param {number|string} [opts.maxPolls]
  * @param {number|string} [opts.maxResumes]
- * @param {number|string} [opts.attachWindowMs] override the required-context
- *   attach window for one run (flag → {@link REQUIRED_CONTEXT_ATTACH_WINDOW_MS}).
- * @param {object|null} [opts.config]         resolved config (defaults to resolveConfig()).
- * @param {string} [opts.tempRoot]            digest output dir (default `temp`).
- * @param {Function} [opts.ghPrChecksFn]      inject for tests
- * @param {Function} [opts.ghPrViewFn]        inject for tests
- * @param {Function} [opts.ghPrUpdateBranchFn] inject for tests
- * @param {Function} [opts.sleepFn]           inject for tests
- * @param {Function} [opts.writeDigestFn]     inject for tests (default writeCiDigest)
- * @param {Function} [opts.readDigestFn]      inject for tests (default readCiDigest)
- * @param {Function} [opts.retireDigestFn]    inject for tests (default retireCiDigest)
- * @param {Function} [opts.headShaFn]         inject for tests (default resolvePrHeadSha)
- * @param {Function} [opts.disarmAutoMergeFn] inject for tests (default disarmAutoMerge)
- * @param {Function} [opts.reArmAutoMergeFn]  inject for tests (default enableAutoMergeWith)
- * @param {Function} [opts.blockDeliveryFn]   inject for tests (default blockStoryDelivery)
+ * @param {number|string} [opts.attachWindowMs]
+ * @param {object|null} [opts.config]
+ * @param {string} [opts.tempRoot]
+ * @param {Function} [opts.ghPrChecksFn]
+ * @param {Function} [opts.ghPrViewFn]
+ * @param {Function} [opts.ghPrUpdateBranchFn]
+ * @param {Function} [opts.sleepFn]
+ * @param {Function} [opts.writeDigestFn]
+ * @param {Function} [opts.readDigestFn]
+ * @param {Function} [opts.retireDigestFn]
+ * @param {Function} [opts.headShaFn]
+ * @param {Function} [opts.disarmAutoMergeFn]
+ * @param {Function} [opts.reArmAutoMergeFn]
+ * @param {Function} [opts.blockDeliveryFn]
  * @param {object} [opts.logger]
- * @param {(line: string) => void} [opts.print] stdout sink (default process.stdout)
- * @returns {Promise<number>} process exit code.
+ * @param {(line: string) => void} [opts.print]
+ * @returns {Promise<number>}
  */
 export async function runPrWatch({
   prNumber,
@@ -817,22 +660,13 @@ export async function runPrWatch({
     flags: { pollIntervalMs, maxPolls, maxResumes, maxUpdates, attachWindowMs },
   });
 
-  // `gh` has NO `<owner/repo>#<number>` argument form — it parses that string
-  // as a BRANCH NAME, which is why every `--repo` invocation used to fail at
-  // the first probe with a misleading `gh-checks-failed:status=1` (#4890). The
-  // repository therefore travels two sanctioned ways, never as a composed ref:
-  //   - a real `--repo` flag on the watch ports, which build their own argv;
-  //   - a canonical PR URL for the no-rerun-guard helpers, which take a bare
-  //     ref and no repository of their own.
-  // With `--repo` omitted, `gh` infers the repository from the cwd's remote.
+  // `gh` parses `<owner/repo>#<n>` as a branch name, so the repo travels as a
+  // `--repo` flag on watch ports and as a PR URL for the guard helpers.
   const prRef = String(prNumber);
   const guardPrRef = repo
     ? `https://github.com/${repo}/pull/${prNumber}`
     : prRef;
 
-  // One merge-state probe, resolved once and used for both readings that need
-  // the repository's own view of the PR: the empty-required-set classification
-  // below, and the green-verdict reconciliation further down.
   const probeMergeState =
     mergeStateProbeFn ??
     (ghPrViewFn ? mergeStateProbeFromView(ghPrViewFn) : defaultMergeStateProbe);
@@ -855,14 +689,10 @@ export async function runPrWatch({
     retryIntervalMs: knobs.pollIntervalMs,
     sleepFn: sleepFn ?? defaultSleep,
     nowMsFn,
-    // Structural, not prose: the PR reads back ⇒ `gh` works and the empty
-    // required set is CI that has not started yet.
     probePrResolvable: async () => (await readMergeState()) !== null,
     logger,
   });
 
-  // Always print the final outcomes map so the operator (and the
-  // workflow log) can see exactly which check blocked.
   const envelope = {
     prNumber,
     checkOutcomes: result.outcomes,

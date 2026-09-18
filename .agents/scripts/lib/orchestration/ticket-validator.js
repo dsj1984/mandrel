@@ -12,27 +12,18 @@ import {
 import { computeConflictFindings } from './ticket-validator-conflicts.js';
 
 /**
- * Regex matching code-asset paths the freshness gate cares about. The three
- * roots — `.agents/scripts`, `lib`, and `tests` — cover the executable surface
- * the decomposer's tasks legitimately reference. Anchoring on the leading dot
- * for `.agents` and a word boundary for `lib`/`tests` keeps URLs, image paths,
- * and unrelated prose ("library", "testimonial", "established") from being
- * scanned as fictitious file references.
- *
- * The regex is intentionally global + multi-match per body string so a single
- * Task naming several files surfaces every miss in one error.
+ * Code-asset paths under `.agents/scripts`, `lib`, `tests`. The leading
+ * delimiter keeps URLs and prose ("library") out. Global: every miss surfaces.
  */
 const FRESHNESS_PATH_RE =
   /(?:^|[\s`([<])(\.agents\/scripts|lib|tests)\/[\w./-]+\.js\b/g;
 
 function collectPathsFromText(text, paths) {
   if (!text || typeof text !== 'string') return;
-  // Reset lastIndex on the shared regex literal between calls.
   FRESHNESS_PATH_RE.lastIndex = 0;
   let match = FRESHNESS_PATH_RE.exec(text);
   while (match !== null) {
-    // Capture group 1 is the root; full match index 0 includes the leading
-    // delimiter — slice it off so the path is a clean repo-relative reference.
+    // Slice off the leading delimiter the match includes.
     const captured = match[0];
     const rootStart = captured.indexOf(match[1]);
     paths.add(captured.slice(rootStart));
@@ -52,8 +43,7 @@ function collectTaskPathReferences(task) {
       for (const item of arr) collectPathsFromText(String(item ?? ''), paths);
     }
   }
-  // Some planner shapes carry a top-level `acceptance` array even on string
-  // bodies — scan it defensively.
+  // Some planner shapes carry top-level `acceptance` even on string bodies.
   if (Array.isArray(task.acceptance)) {
     for (const item of task.acceptance) {
       collectPathsFromText(String(item ?? ''), paths);
@@ -63,48 +53,17 @@ function collectTaskPathReferences(task) {
 }
 
 /**
- * Collect every code-asset path a Task declares it will *create or modify*
- * via its `body.changes` array. These paths are net-new (or about to be
- * touched) from the planner's perspective, so the freshness gate must
- * accept them even when they're absent from `baseBranchRef`.
- *
- * Three shapes are accepted:
- *
- * 1. **Canonical string body** — the body is a markdown string produced by
- *    `serialize()` from `story-body.js`. Parsed via `parse()` to extract
- *    the structured `changes[]` and `references[]` arrays. This is the
- *    shape emitted by the decomposer after Story #3302.
- * 2. **Legacy string bullets** — `"<path>: <verb> <object>"` inside an
- *    object body's `changes[]`. The regex `FRESHNESS_PATH_RE` picks the
- *    path out of the prose.
- * 3. **Object form** — `{ path: "<path>", assumption: "creates" | ... }`,
- *    introduced by Story #2636 as the canonical declaration shape and
- *    documented in `lib/templates/decomposer-prompts.js`. The path is
- *    trusted verbatim.
- *
- * Only `body.changes` (and `body.references`) is consulted —
- * `body.goal`, `body.acceptance`, and `body.verify` are deliberately
- * excluded so the gate continues to flag a planner that hallucinates a
- * fictitious file in narrative copy without declaring it in the
- * changes/references contract.
+ * Paths a Story declares in `changes[]` / `references[]` — exempt from the
+ * freshness probe since they may be net-new. Accepts a serialized markdown
+ * body, string bullets, or `{ path, assumption }` objects. Goal / acceptance
+ * / verify are deliberately excluded so undeclared narrative paths still flag.
  */
 function collectTaskChangesPaths(task) {
   const paths = new Set();
   const body = task.body;
 
-  // Story #3302: when the body is a markdown string (canonical serialized
-  // form), parse it to extract the structured changes[] / references[]
-  // arrays before scanning. Without this, a string body causes the
-  // object-form branch below to fall through on every item, leaving the
-  // freshness gate blind to declared paths.
-  //
-  // Story #4541: a parse failure is NOT swallowed here. Swallowing it
-  // returned an empty whitelist, so a single malformed `## Changes` entry
-  // surfaced downstream as "files do not exist at main" naming the very
-  // paths the Story *had* declared — a misdiagnosis that cost two authoring
-  // round-trips. `assertStoryBodiesParse` runs before the freshness gate and
-  // owns that failure with a named error; the throw here is the same error
-  // for any caller that drives `validateAcFreshness` directly.
+  // A parse failure throws rather than yielding an empty whitelist, which
+  // would misreport every declared path as missing.
   if (typeof body === 'string' && body.trim().length > 0) {
     const parsed = parseStoryBodyOrThrow(task);
     for (const arrName of ['changes', 'references']) {
@@ -146,14 +105,6 @@ function collectTaskChangesPaths(task) {
   return paths;
 }
 
-/**
- * Default git probe: returns true when `path` exists at `ref` in the cwd repo.
- * Uses `git cat-file -e <ref>:<path>` which is the standard low-cost existence
- * check (no blob materialisation, no tree walk in node).
- *
- * Callers may inject their own runner with the same `(ref, path) => boolean`
- * signature for unit tests.
- */
 function defaultGitRunner({ baseBranchRef, path, cwd }) {
   const result = gitSpawn(
     cwd ?? process.cwd(),
@@ -165,13 +116,9 @@ function defaultGitRunner({ baseBranchRef, path, cwd }) {
 }
 
 /**
- * Wrap a `(ref, path) → boolean` git runner in a memoizing closure keyed by
- * `"${baseBranchRef}:${path}"`. The wrapper is created once per
- * `validateAndNormalizeTickets` call and threaded into both
- * `validateAcFreshness` and `validateStoryFileAssumptions` so the two gates
- * share a single probe cache rather than maintaining independent ones.
+ * One cache shared by the freshness and file-assumption gates.
  *
- * @param {Function} runner - The underlying `({ baseBranchRef, path, cwd }) => boolean` probe.
+ * @param {Function} runner - `({ baseBranchRef, path, cwd }) => boolean`.
  * @returns {Function} A memoized probe with the same signature.
  */
 function makeMemoizedGitRunner(runner) {
@@ -188,22 +135,14 @@ function makeMemoizedGitRunner(runner) {
 }
 
 /**
- * Check that every code-asset path referenced by a Story body or AC exists at
- * `baseBranchRef`, and report the ones that do not. A missing path usually
- * means the planner named a file it is about to create without declaring it,
- * or a stale reference — worth saying, not worth refusing on: Story #5312
- * demoted this gate from a throw to the **warning list** the dry-run prints,
- * because the paths a goal or acceptance line names are prose the deliverer
- * reads against the real tree, never a contract the validator can hold it to.
- *
- * Only Stories are scanned — they are the implementation unit; the Epic
- * carries narrative copy, not implementation paths.
+ * Warn (never refuse) on Story-referenced code paths absent at the base:
+ * narrative paths are prose, not a contract the validator can enforce.
  *
  * @param {object}   opts
- * @param {object[]} opts.tickets         - Validated ticket hierarchy.
- * @param {string}   opts.baseBranchRef   - Ref to probe (e.g. 'main' or 'origin/main').
- * @param {Function} [opts.gitRunner]     - Probe override (testing seam).
- * @param {string}   [opts.cwd]           - Repo cwd (forwarded to default runner).
+ * @param {object[]} opts.tickets
+ * @param {string}   opts.baseBranchRef
+ * @param {Function} [opts.gitRunner]
+ * @param {string}   [opts.cwd]
  * @returns {string[]} One warning line per missing reference, empty when clean.
  */
 export function validateAcFreshness({
@@ -218,11 +157,7 @@ export function validateAcFreshness({
     );
   }
   const stories = (tickets ?? []).filter((t) => t.type === 'story');
-  // Union every Story's `body.changes` paths into an expected-new set. Any
-  // path the planner has declared in `changes` is considered intentional
-  // (net-new or about-to-be-modified) and the git probe is skipped for it
-  // — otherwise the freshness gate would reject the very test/source file
-  // a Story is meant to create, even when the Story is well-formed.
+  // Declared paths (any Story) are intentional and skip the probe.
   const expectedNewPaths = new Set();
   for (const story of stories) {
     for (const path of collectTaskChangesPaths(story)) {
@@ -230,8 +165,6 @@ export function validateAcFreshness({
     }
   }
   const misses = [];
-  // Cache per-path probe results — sibling Stories frequently cite the same
-  // helper module; avoid re-spawning git for each repeat.
   const probeCache = new Map();
   for (const story of stories) {
     const refs = collectTaskPathReferences(story);
@@ -250,43 +183,23 @@ export function validateAcFreshness({
   return misses.map((m) => renderMissLine(m, baseBranchRef));
 }
 
-/**
- * Render one missing-path warning with a remediation hint pointing at the
- * Story's `changes[]`. For `tests/**` paths we suggest the explicit
- * "add the test file" verb; for everything else we emit a generic hint
- * since the planner knows whether the path is net-new or a typo.
- */
 function renderMissLine({ slug, path }, baseBranchRef) {
   const verb = path.startsWith('tests/') ? 'add test file' : 'create';
   return `Story "${slug}" references ${path}, which does not exist at ${baseBranchRef} — if net-new, declare {"path":"${path}","assumption":"creates"} in changes[] (${verb}); otherwise fix the typo or stale reference.`;
 }
 
 /**
- * Validates the generated ticket hierarchy and handles lifting cross-story dependencies.
+ * Hierarchy, cycle and parse checks throw. The returned array also carries
+ * non-enumerable `findings` (advisory conflicts), `errors` (a `deletes` of a
+ * path absent at base), `warnings` (demoted footprint probes) and
+ * `normalizations` (`refactors-existing`→`creates` rewrites).
  *
- * The returned tickets array carries extra non-array properties:
- *   - `findings` — the advisory cross-Story conflict findings.
- *   - `errors`   — human-readable strings, one per hard refusal: a `deletes`
- *     naming a path absent at base (prefixed `File assumption mismatch:`).
- *     The hierarchy/cycle/parse checks continue to throw.
- *   - `warnings` — the demoted footprint probes (Story #5312): a `creates`
- *     or `refactors-existing` mismatch, a goal/acceptance/verify path absent
- *     at base. Listed by the dry-run; the persist proceeds.
- *   - `normalizations` — the `refactors-existing`→`creates` rewrites applied.
- *
- * @param {object[]}                   tickets             - Array of ticket objects parsed from LLM output.
+ * @param {object[]}                   tickets
  * @param {object}                     [opts]
- * @param {string}                     [opts.baseBranchRef] - When set, runs the base-branch probes against this ref.
- * @param {Function}                   [opts.gitRunner]     - Optional git probe override.
- * @param {string}                     [opts.cwd]           - Repo cwd (forwarded to the probes).
+ * @param {string}                     [opts.baseBranchRef] - Enables the base-branch probes.
+ * @param {Function}                   [opts.gitRunner]
+ * @param {string}                     [opts.cwd]
  * @returns {object[] & { findings: object[], errors: string[], warnings: string[], normalizations: object[] }}
- */
-/**
- * Internal helpers extracted from `validateAndNormalizeTickets` so each
- * stage can be unit-tested in isolation and the orchestration method stays
- * at a low cyclomatic complexity. Exported via the `_internal` bundle at
- * the bottom of the module for tests; production callers should keep
- * using `validateAndNormalizeTickets`.
  */
 
 function indexTicketsBySlug(tickets) {
@@ -302,9 +215,7 @@ function indexTicketsBySlug(tickets) {
       }
       ticketBySlug.set(t.slug, t);
     }
-    // External `#<id>` refs (Story #5155) name issues already on the tracker,
-    // not nodes in this run's graph — they cannot close a cycle back into a
-    // Story that does not exist yet, so they are not edges here.
+    // External `#<id>` refs are tracker issues, not graph nodes — no cycle.
     slugAdjacency.set(
       t.slug,
       (t.depends_on ?? []).filter((d) => !isExternalDependencyRef(d)),
@@ -314,12 +225,7 @@ function indexTicketsBySlug(tickets) {
   return { ticketBySlug, stories, slugAdjacency };
 }
 
-/**
- * 2-tier invariant (Story #4041): the decomposer emits Stories only — every
- * ticket in the backlog must be `type: "story"` and at least one must be
- * present. Any other type (the retired `feature`/`task` tiers, or planner
- * hallucinations) HARD-rejects the decomposition.
- */
+/** Every ticket must be `type: "story"`, and at least one must exist. */
 function assertAllTicketsAreStories({ tickets, stories }) {
   const nonStories = (tickets ?? []).filter((t) => t.type !== 'story');
   if (nonStories.length > 0) {
@@ -338,16 +244,8 @@ function assertAllTicketsAreStories({ tickets, stories }) {
 }
 
 /**
- * Return true when a Story carries a non-empty top-level `acceptance[]` —
- * the inline-contract shape (Epic #3078) where the Story is itself the
- * implementation unit and its criteria live on the Story rather than in
- * child Task tickets.
- *
- * Story #5342 narrowed the invariant to `acceptance[]` alone. A Story with
- * no observable criterion is genuinely unimplementable and nothing
- * downstream can recover it; an empty `verify[]` only means the deliverer
- * picks the commands, which the close gate chain runs regardless — so that
- * half is a warning ({@link collectMissingVerifyWarnings}), not a refusal.
+ * Only `acceptance[]` is required: a Story with no criterion is
+ * unimplementable, while an empty `verify[]` is merely a warning.
  */
 function hasInlineAcceptance(story) {
   if (story === null || typeof story !== 'object') return false;
@@ -365,13 +263,6 @@ function assertEveryStoryHasInlineContract({ stories }) {
 }
 
 /**
- * One warning per Story with no `verify[]` entry (Story #5342).
- *
- * Demoted from the hard refusal above: an absent verify list costs the
- * acceptance critic its cheapest evidence, which is worth saying on the
- * dry-run, but it never makes the Story unimplementable — the deliverer
- * derives the commands and the close gate chain runs either way.
- *
  * @param {object[]} stories
  * @returns {string[]}
  */
@@ -388,18 +279,8 @@ function collectMissingVerifyWarnings(stories) {
 }
 
 /**
- * Shape-check the optional per-Story `provenance` field (Story #5045).
- *
- * The field decides which audit identities persist stamps into a Story body,
- * so a malformed entry has to fail at the validator rather than at the
- * stamper: by the time assembly runs, an unnoticed drop is indistinguishable
- * from a Story that legitimately owns nothing — and the cost lands a whole
- * sweep later, when the next audit re-files work this plan already tracked.
- *
- * Absence is valid and common: a Story with no `provenance` inherits the
- * whole-seed union carry, which is the recall-safe default.
- *
- * Errors are batched across the backlog so one pass names every offender.
+ * Fail malformed `provenance` here: at the stamper a silent drop looks like a
+ * Story owning nothing. Absent is valid (inherits the seed-wide union).
  *
  * @param {{ stories: object[] }} args
  * @throws {Error} naming each malformed field.
@@ -426,8 +307,7 @@ function assertNoUnknownDeps({ tickets, ticketBySlug }) {
   const unknownDeps = [];
   for (const t of tickets) {
     for (const depSlug of t.depends_on ?? []) {
-      // An external `#<id>` ref is resolved against the tracker at persist
-      // (`assertExternalDependenciesResolvable`), never against this backlog.
+      // External refs resolve against the tracker at persist.
       if (isExternalDependencyRef(depSlug)) continue;
       if (!ticketBySlug.has(depSlug)) {
         unknownDeps.push({ slug: t.slug, title: t.title, dep: depSlug });
@@ -460,10 +340,6 @@ function attachFindingsAndErrors(
     ['findings', findings],
     ['errors', errors],
     ['warnings', warnings],
-    // Story #5265: the auto-normalizations the assumption gate applied. They
-    // used to end at a `Logger.warn` and die with the process, so persist's
-    // emitted result reported a plan whose declarations it had silently
-    // rewritten as if nothing had been rewritten.
     ['normalizations', normalizations],
   ]) {
     Object.defineProperty(tickets, key, {
@@ -485,29 +361,16 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
 
   assertAcyclic(slugAdjacency);
 
-  // Story #4541 — refuse an unparseable Story body up front, with a named
-  // error pointing at the offending section + entry. Must precede the
-  // freshness gate: it parses the body, and its net-new whitelist comes from
-  // `body.changes`, so a malformed body used to surface as a stale-path miss
-  // naming the paths the Story had legitimately declared.
+  // Must precede the freshness gate, whose whitelist comes from the parsed
+  // body — a malformed body would otherwise read as stale paths.
   assertStoryBodiesParse({ tickets });
 
-  // Hoist a single memoized (ref, path) → boolean probe shared across both
-  // git-probe gates below. Without this, `validateAcFreshness` and
-  // `validateStoryFileAssumptions` each maintain an independent cache, so a
-  // path that appears in both the AC-freshness scan and the file-assumption
-  // scan spawns two `git cat-file` processes. The memoizing wrapper captures
-  // results by `"${baseBranchRef}:${path}"` key so the second gate reuses
-  // the first's results without any additional git I/O.
   const sharedGitRunner = opts.baseBranchRef
     ? makeMemoizedGitRunner(opts.gitRunner ?? defaultGitRunner)
     : null;
 
   const warnings = [...collectMissingVerifyWarnings(stories)];
-  // Story #5312: a goal / acceptance / verify path absent at base is a
-  // warning the dry-run lists, not a refusal. Skipped when the caller omits
-  // `baseBranchRef` so unit tests keep their semantics; production
-  // call-sites always pass it.
+  // Base probes run only with `baseBranchRef` (production always passes it).
   if (opts.baseBranchRef) {
     warnings.push(
       ...validateAcFreshness({
@@ -519,10 +382,7 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
     );
   }
 
-  // Story #2636 — Phase 8 path-assumption gate. Cross-check every Story's
-  // declared `{ path, assumption }` against the actual state of the base
-  // branch. A `deletes` on an absent path batches into the validator's
-  // errors envelope; every other mismatch is a warning (Story #5312).
+  // Only a `deletes` of an absent path is an error; other mismatches warn.
   let assumptionErrors = [];
   let assumptionNormalizations = [];
   if (opts.baseBranchRef) {
@@ -537,9 +397,7 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
     assumptionNormalizations = assumptionReport.normalizations ?? [];
   }
 
-  // Cross-Story path-conflict pass observes the story-level depends_on
-  // graph. Every finding is advisory; the persist surfaces them and the
-  // plan summary renders the shared-editor class beside the wave table.
+  // Conflict findings are advisory.
   const findings = computeConflictFindings({ stories });
   const errors = assumptionErrors.map((e) => `File assumption mismatch: ${e}`);
 

@@ -1,11 +1,6 @@
 /**
- * refresh-ack.js — the one-shot baseline refresh acknowledgment (Story #5179).
- *
- * Extracted from `evaluate.js`, where it grew from a bundle-size env flag
- * (Story #151) through a maintainability env-or-commit-tag pair (Story #4731)
- * into the kind-generic trigger (Story #4802). Story #5179 narrowed the
- * commit-tag arm from a whole-run blanket to the rows the tagged commit
- * actually refreshed, which is enough logic to own its own module.
+ * One-shot baseline refresh acknowledgment, scoped to the rows a tagged
+ * commit actually refreshed.
  *
  * @module lib/orchestration/check-baselines/phases/refresh-ack
  */
@@ -20,10 +15,7 @@ import { Logger } from '../../../Logger.js';
 import { applyTolerance } from './compare.js';
 import { DEFAULT_BASELINE_PATHS } from './parse-args.js';
 
-/**
- * Commit-subject substring that acknowledges a deliberate refresh. Fixed since
- * Story #5382 folded the never-set per-gate `refreshTag` key.
- */
+/** Commit-subject substring that acknowledges a deliberate refresh. */
 const REFRESH_TAG = 'baseline-refresh:';
 
 function resolveBaselinePath(kind, gateBlock) {
@@ -35,26 +27,10 @@ function resolveBaselinePath(kind, gateBlock) {
 }
 
 /**
- * Resolve the one-shot refresh trigger for any ratcheted kind. Two paths, either
- * of which acknowledges:
- *
- *   1. Env parity: `<KIND>_REFRESH=1` (the manual override) — upper-snaked, so
- *      the two pre-existing names (`BUNDLE_SIZE_REFRESH`,
- *      `MAINTAINABILITY_REFRESH`) keep working unchanged.
- *   2. Commit tag: a commit in the compared range `<baseRef>..HEAD` whose
- *      subject contains the `baseline-refresh:` tag AND whose diff touches that
- *      kind's baseline file. One-shot by construction — once merged, the
- *      refreshed baseline becomes the base and the tag leaves the range.
- *
- * The tag is matched as a plain substring of a conventional commit subject, so
- * commitlint stays satisfied (e.g. `chore(baselines): baseline-refresh: …`).
- *
- * The two arms are reported separately because Story #5179 scopes them
- * differently: see `applyRefreshAcknowledgment`.
- *
- * Fails closed: a kind whose baseline path is neither configured nor present in
- * `DEFAULT_BASELINE_PATHS` simply skips the commit-tag path rather than
- * throwing, leaving that arm un-acknowledged.
+ * Refresh trigger: env `<KIND>_REFRESH=1`, or a commit in `<baseRef>..HEAD`
+ * whose subject contains the tag (a substring, so commitlint still passes) and
+ * whose diff touches the kind's baseline. One-shot: after merge the tag leaves
+ * the range. A kind with no known baseline path skips the commit arm.
  *
  * @returns {{ triggered: boolean, reasons: string[], envAcknowledged: boolean,
  *   refreshCommits: { sha: string, subject: string }[], baselinePath: string | null }}
@@ -91,20 +67,9 @@ function resolveRefreshTrigger({ kind, gateBlock, cmp, cwd, env }) {
 }
 
 /**
- * Read the baseline rows as of one git ref.
- *
- * Returns `null` — never throws and never a partial row set — when the blob is
- * unreadable or unparseable at that ref. The caller treats `null` as "this
- * commit acknowledges nothing", which keeps the ratchet at full strength rather
- * than acknowledging on a guess.
- *
- * A blob that is genuinely ABSENT at the ref reads as `{ rows: [] }`, not
- * `null`. The distinction only matters for the `sha^` read below: the commit
- * that CREATES a baseline has no blob at its parent, and treating that as
- * unreadable would make the first refresh of any kind acknowledge nothing.
- * `readBaseFromGit` already draws exactly this line — `null` for git's exit
- * 128 "path does not exist in this revision", a throw for everything else — so
- * the two cases are distinguishable rather than guessed at.
+ * Baseline rows at a ref; `null` (acknowledge nothing) when unreadable. An
+ * absent blob reads as `{ rows: [] }` so a baseline-creating commit's `sha^`
+ * read still works.
  *
  * @returns {{ rows: Array<object> }|null}
  */
@@ -125,24 +90,11 @@ function readRowsAtRef(ref, baselinePath, cwd) {
 }
 
 /**
- * Which row identities did the tagged commit itself REWRITE (Story #5277)?
+ * Row keys the tagged commit itself rewrote (`sha^ → sha`, no tolerance). The
+ * blob at the commit is a whole-file snapshot that also carries rows earlier
+ * untagged commits lowered; only this diff attributes a row to the commit.
  *
- * This is the half Story #5179 left open. It scoped the acknowledgment to the
- * rows present in the baseline blob *at* the tagged commit — but a blob is a
- * whole-file snapshot, so it also contains every row an EARLIER, untagged
- * commit on the same branch lowered. Such a row is present at the refresh
- * commit and unchanged at head, so it classified as `ok` and was acknowledged
- * by a commit that never touched it. The observed shape: a branch lowers a
- * maintainability row while refactoring, later refreshes an unrelated CRAP row
- * with a `baseline-refresh:` commit, and the first regression is waved through.
- *
- * Diffing `sha^ → sha` is what makes the acknowledgment a statement about the
- * COMMIT rather than about the branch's accumulated state. No tolerance is
- * applied: any movement at all means the commit re-scored that identity, which
- * is the only question being asked here.
- *
- * @returns {Set<string>|null} null when the diff is unusable, which
- *   acknowledges nothing from this commit.
+ * @returns {Set<string>|null} null (acknowledge nothing) when unusable.
  */
 function keysTouchedByCommit({ mod, rowsAtSha, rowsAtParent }) {
   try {
@@ -160,25 +112,10 @@ function keysTouchedByCommit({ mod, rowsAtSha, rowsAtParent }) {
 }
 
 /**
- * Classify the head rows against one refresh commit's rows, using the kind's
- * own classifier and the gate's own tolerance.
- *
- * Row identity is deliberately never derived here. A kind's `keyField` names
- * the row property the kind is *about*, which is not always its compare key:
- * CRAP declares `keyField: 'path'` but keys rows as `path::method@startLine`,
- * because one file holds many methods. Reading `row[keyField]` would produce a
- * key matching no regression, silently acknowledging nothing for that kind.
- * `compare()` is the one thing that knows a kind's key, so every key here comes
- * back out of it — the same reason direction and tolerance are delegated rather
- * than reimplemented.
- *
- * That also collapses both tests into one classification:
- *
- *   - `regressions` — present in both, worse at head: post-refresh drift.
- *   - `improvements` / `unchanged` — present in both, no worse: the rows this
- *     commit vouches for.
- *   - `additions` — present at head but absent from the refresh blob, i.e.
- *     never refreshed by this commit, so deliberately in neither set.
+ * Classify head rows against a refresh commit's rows with the kind's own
+ * `compare()` and tolerance. Keys always come out of `compare()`: `keyField`
+ * is not the compare key (CRAP keys `path::method@startLine`). `ok` =
+ * no worse since refresh; `drifted` = worse; additions are in neither.
  *
  * @returns {{ ok: string[], drifted: string[] } | null} null when the
  *   classifier is unusable, which acknowledges nothing.
@@ -205,29 +142,8 @@ function classifyAgainstRefresh({ mod, headRows, refreshRows, tolerance }) {
 }
 
 /**
- * Which regression keys are acknowledgeable by the tagged commits (Story #5179)?
- *
- * The acknowledgment is a statement about what a refresh commit re-scored, so a
- * key is acknowledgeable only when the commit both covered it and recorded a
- * value the head has not since fallen below. Both tests come out of
- * `classifyAgainstRefresh` above:
- *
- *   1. **Row membership** — a key absent from the refresh blob lands in
- *      `additions`, never in `ok`. This was the larger half of the leak: a
- *      single tagged commit cleared regressions on rows in directories it never
- *      touched.
- *   2. **No post-refresh drift** — a key worse at head than the commit recorded
- *      lands in `drifted`. Drift from commits landing AFTER the refresh is what
- *      "the baseline commit must be the branch's last score-moving commit" asks
- *      for by convention and nothing enforced.
- *   3. **The commit actually rewrote it** (Story #5277) — `keysTouchedByCommit`
- *      diffs `sha^ → sha`. Tests 1 and 2 both read the blob AT the commit,
- *      which is a whole-file snapshot and therefore also carries rows an
- *      earlier untagged commit lowered; those rows passed both tests without
- *      the tagged commit having touched them.
- *
- * Fails closed at every step: an unreadable blob, a missing `compare`, or a
- * classifier that throws contributes nothing, so those regressions stand.
+ * Regression keys a tagged commit acknowledges: in its blob, not drifted worse
+ * since, and actually rewritten by that commit. Fails closed at every step.
  *
  * @returns {Set<string>}
  */
@@ -253,9 +169,7 @@ function acknowledgeableKeys({
   if (typeof mod?.compare !== 'function') return acknowledgeable;
 
   const headRows = Array.isArray(headBaseline?.rows) ? headBaseline.rows : [];
-  // `readRangeCommitsTouchingFile` returns newest-first, and a key the newest
-  // refresh already ruled on is not reopened by an older one: the newest is the
-  // state the branch is asking to be held to.
+  // Newest-first: an older refresh never reopens a key a newer one ruled on.
   const decided = new Set();
   for (const { sha } of refreshCommits) {
     const atSha = readRowsAtRef(sha, baselinePath, cwd);
@@ -308,27 +222,10 @@ function logAcknowledgment({ kind, reasons, acknowledged, kept }) {
 }
 
 /**
- * One-shot baseline refresh/acknowledge for any ratcheted kind. When triggered,
- * demote acknowledged head-vs-base regressions to `unchanged` for this run only
- * — floors still apply, so a row below its floor still breaches. The trigger is
- * read fresh every run and never persisted: post-merge the refreshed baseline is
- * the new base and the tag leaves the range, so the ratchet returns to full
- * strength automatically.
- *
- * The two trigger arms are scoped differently, deliberately:
- *
- * - **Commit tag** — scoped to the rows the tagged commits actually rewrote,
- *   per `acknowledgeableKeys`. Before Story #5179 this cleared every regression
- *   in the range, so a branch merged carrying a stale row and the ratchet ran
- *   loose on that file; the failure recurred six times. Story #5277 closed the
- *   remainder: the scoping read the blob at the tagged commit, which still
- *   carried rows an earlier untagged commit had lowered.
- * - **Env parity** (`<KIND>_REFRESH=1`) — stays whole-run. There is no commit to
- *   anchor row-scoping to, and setting the variable is an explicit, deliberate
- *   operator act rather than a signal inferred from history.
- *
- * A no-op absent a trigger, so an unacknowledged run of any kind reports its
- * regressions exactly as before.
+ * When triggered, demote acknowledged regressions to `unchanged` for this run
+ * only (floors still apply; nothing persists). The commit-tag arm is scoped to
+ * rewritten rows; the env arm stays whole-run, as an explicit operator act
+ * with no commit to anchor to.
  *
  * @returns {{ compareOutput: object, acknowledged: boolean, acknowledgedKeys: string[] }}
  */

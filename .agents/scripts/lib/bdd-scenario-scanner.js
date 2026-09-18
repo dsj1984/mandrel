@@ -1,28 +1,7 @@
 /**
- * bdd-scenario-scanner.js — Gherkin scenario index for /mandrel-plan Phase 7.
- *
- * Story #2637 (sibling to #2636's file-assumption gate; the #2634 and #2635
- * planner-grounding siblings were retired in Story #4811). The Acceptance
- * Engineer step of
- * `epic-plan-spec-author` currently writes ACs from Epic/Tech Spec narrative
- * alone — it never inspects the consumer project's existing `.feature`
- * files. Planned ACs frequently duplicate scenarios that already exist or
- * re-specify behaviour the codebase already proves; the duplication is
- * only discovered (at best) during `/mandrel-deliver` or (at worst) after
- * a redundant PR ships.
- *
- * `scanBddScenarios` walks every configured feature root, parses each
- * `.feature` file with a Gherkin-aware regex pass (deliberately not a
- * full Gherkin AST — keep the scanner cheap and dependency-free), and
- * returns one entry per scenario with its file path, line number,
- * scenario title, tag list, and an extracted set of outcome keywords
- * (action verb + objects from the "Then" clauses). The keyword set is
- * the fuzzy-match surface the planner uses to spot ACs that already
- * have a matching scenario.
- *
- * Determinism is load-bearing: the matcher is keyword-based, not
- * embedding-based, so re-running `/mandrel-plan` against the same
- * acceptance spec produces the same disposition annotations.
+ * Gherkin scenario index for `/mandrel-plan`, so planned ACs can be matched
+ * against existing scenarios. A cheap regex pass, not a full AST; matching is
+ * keyword-based (not embeddings) so re-planning is deterministic.
  */
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -31,9 +10,7 @@ import path from 'node:path';
 import { Logger } from './Logger.js';
 
 /**
- * Recursively list every file with a `.feature` extension under one of
- * the given roots. Returns absolute paths; never throws on permission
- * errors — unreadable directories are simply skipped.
+ * Unreadable directories are skipped, never thrown.
  *
  * @param {string[]} roots
  * @param {{ logger?: { debug: Function } }} [opts]
@@ -79,14 +56,7 @@ function walk(dir, acc, logger) {
   }
 }
 
-/**
- * English stop words that carry no outcome semantics. Stripped from
- * extracted keywords so "the invoice appears in the outbox" reduces to
- * `{invoice, appears, outbox}` rather than including `{the, in}`.
- *
- * Kept short on purpose — false-negative pruning here is preferable to
- * over-pruning a verb the matcher needs.
- */
+/** Kept short: under-pruning beats pruning a verb the matcher needs. */
 const STOP_WORDS = new Set([
   'a',
   'an',
@@ -121,13 +91,6 @@ const STOP_WORDS = new Set([
 ]);
 
 /**
- * Reduce a free-text outcome ("the invoice appears in the outbox") to a
- * deterministic, lower-case keyword set ("invoice", "appears", "outbox").
- * Words of length 1 are dropped; common stop words are filtered.
- *
- * Exported so the matcher and downstream tests can share the exact
- * tokenisation contract.
- *
  * @param {string} text
  * @returns {string[]}
  */
@@ -147,16 +110,8 @@ const THEN_LINE_RE = /^\s*(?:Then|And|But)\s+(.+?)\s*$/i;
 const STEP_KEYWORD_RE = /^\s*(?:Given|When|Then|And|But|\*)\s+/i;
 
 /**
- * Parse a single `.feature` file body into an array of scenario rows.
- * The parser is deliberately minimal:
- *
- *   - `@tag` lines preceding a `Scenario:` are attached to that scenario.
- *   - `Scenario:` and `Scenario Outline:` both produce a row.
- *   - `Then` / `And` / `But` lines following the scenario (until the
- *     next scenario or EOF) feed the `outcomeKeywords` set.
- *
- * The Background block is recognised but its steps are NOT folded into
- * outcomeKeywords — Background carries setup, not outcomes.
+ * Only `Then`/`And`/`But` lines feed `outcomeKeywords`; Background steps are
+ * setup, not outcomes, and are excluded.
  *
  * @param {string} body
  * @returns {Array<{ scenarioTitle: string, line: number, tags: string[], outcomeKeywords: string[] }>}
@@ -199,8 +154,7 @@ export function parseFeatureBody(body) {
       const thenMatch = raw.match(THEN_LINE_RE);
       if (thenMatch) current.thenLines.push(thenMatch[1]);
     }
-    // Reset pendingTags when a step keyword in the body appears with no
-    // scenario yet — stray tags before a Feature: header don't bind.
+    // Stray tags before any scenario don't bind.
     if (current === null && STEP_KEYWORD_RE.test(raw)) {
       pendingTags = [];
     }
@@ -223,14 +177,6 @@ function finalize(scenario) {
 }
 
 /**
- * Scan every `.feature` file under the configured feature roots and
- * return the full scenario index. Each row carries the absolute path,
- * the 1-based line number of the `Scenario:` keyword, the title, the
- * tag list, and the deterministic outcome-keyword set. Returns an
- * empty array when no roots exist or no scenarios are found — the
- * caller (the spec-author skill) uses emptiness to know the project
- * hasn't adopted BDD, no warning required.
- *
  * @param {{ featureRoots: string[] }} opts
  * @returns {Array<{ file: string, line: number, scenarioTitle: string, tags: string[], outcomeKeywords: string[] }>}
  */
@@ -264,11 +210,8 @@ export function scanBddScenarios(opts = {}) {
 }
 
 /**
- * Score the overlap between an acceptance criterion's outcome string
- * and a scenario's outcome-keyword set. The score is the count of
- * keywords the AC outcome shares with the scenario, normalised by the
- * smaller of the two sets so single-word ACs aren't penalised against
- * verbose scenarios (and vice versa).
+ * Shared keywords over the smaller set's size, so terse ACs are not
+ * penalised against verbose scenarios.
  *
  * @param {string} acOutcome
  * @param {{ outcomeKeywords: string[] }} scenario
@@ -286,12 +229,7 @@ export function scoreMatch(acOutcome, scenario) {
 }
 
 /**
- * Find the best matching scenario for one AC outcome string, if any.
- * Returns `null` when no scenario scores above `minScore` (default
- * `0.5`). The matcher is intentionally conservative — false positives
- * cost the planner more (rewriting the spec to "refine" a scenario
- * that doesn't actually exist) than false negatives (writing a new
- * scenario the operator can later dedupe).
+ * Conservative: a false match costs more than a duplicate scenario.
  *
  * @param {string} acOutcome
  * @param {Array<{ outcomeKeywords: string[] }>} scenarios

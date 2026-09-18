@@ -1,18 +1,7 @@
 /* node:coverage ignore file */
 /**
- * agents-bootstrap-github — Idempotent Label & Field Setup
- *
- * Creates the required label taxonomy and project board custom fields
- * for the v5 Story-centric flow on a target GitHub repo. Idempotent —
- * skips resources that already exist.
- *
- * Usage:
- *   node .agents/scripts/agents-bootstrap-github.js
- *
- * Reads the canonical config from .agentrc.json via the config resolver,
- * then uses the provider factory to instantiate the correct provider.
- *
- * @see docs/v5-implementation-plan.md Sprint 1C
+ * agents-bootstrap-github — idempotent GitHub-side setup: label taxonomy,
+ * optional project board, branch protection, merge methods.
  */
 
 import { applyBranchProtection } from './lib/bootstrap/branch-protection.js';
@@ -51,14 +40,8 @@ const PROJECTS_DOC_POINTER =
   'Configure the board views manually in the GitHub Projects UI.';
 
 /**
- * Detect that an error is a not-found / 404 signal across the surfaces
- * the provider can emit. The `gh-exec` classifier wraps the CLI's
- * "could not resolve to a" / "HTTP 404" / "not found" stderr in a
- * `GhNotFoundError` whose message is the literal string
- * `gh-exec: resource not found` — the `'404'` substring is absent. The
- * legacy bespoke-client path produced `failed (404):` messages. Match
- * both so a legitimate fresh-repo run (issue #1 doesn't exist yet)
- * doesn't fatal-fail the preflight.
+ * Not-found across both error shapes (`GhNotFoundError` carries no `404`
+ * substring), so a fresh repo with no issue 1 passes the preflight.
  */
 function isApiAccessNotFoundError(err) {
   if (!err) return false;
@@ -79,8 +62,7 @@ async function verifyApiAccess(provider) {
   try {
     await provider.getTicket(1);
   } catch (err) {
-    // Not-found is fine — API reachable, issue #1 doesn't exist on the
-    // target repo. Anything else (auth, scope, transport) is fatal.
+    // Not-found means the API is reachable; anything else is fatal.
     if (!isApiAccessNotFoundError(err)) {
       throw new Error(
         `[Bootstrap] API access verification failed: ${err.message}`,
@@ -154,15 +136,9 @@ async function ensureStatusField(provider, log) {
 }
 
 /**
- * Audit the project's built-in workflows and, when explicitly opted-in
- * via `--reap-conflicting-workflows`, delete the ones that race against
- * the orchestrator's `ColumnSync` writes. Default behaviour is
- * advisory: warn loudly with the operator-driven remediation hint, do
- * not mutate. Story #2845.
- *
- * Returns a structured envelope the bootstrap summary renders, even
- * when the audit was skipped (no projectId) so callers don't need a
- * separate "did this run" guard.
+ * Audit the board's built-in workflows that race `ColumnSync` (e.g. "Pull
+ * request merged" rewriting Status); warn by default, delete only under
+ * `reap` — the GraphQL delete is irreversible. Always returns an envelope.
  *
  * @param {object} provider
  * @param {number} projectNumber
@@ -233,26 +209,10 @@ async function ensureProjectFields(provider, project, log) {
 }
 
 /**
- * Run the idempotent bootstrap sequence.
- *
- * Accepts the canonical resolved config (output of `resolveConfig()` —
- * `config.github` holds the GitHub provider block). Epic #2880 removed the
- * legacy shim parameters; see `.agents/rules/git-conventions-reference.md#contract-cutovers-—-no-shim-layer`.
- *
- * Consent-first install (Story #3526, Feature #3515, Epic #3438): every
- * mutation this function performs — labels, Projects V2, branch protection,
- * merge methods — is the irreversible `github-admin` phase group from the
- * mutation manifest. The whole sequence is now **explicit opt-in**: unless
- * `opts.githubAdminApproved === true`, `runBootstrap` short-circuits before
- * touching the provider and issues **zero** GitHub mutations. This is the
- * boundary-level enforcement of the consent signal the `bootstrap.js`
- * orchestrator threads from `parseAndValidate` (interactive operator
- * confirmation, `--assume-yes`, or `--approve-github-admin`) down through
- * `executeGithubBootstrap`: a direct caller cannot silently reconfigure a
- * repo by skipping that consent. Even additive branch-protection /
- * merge-method changes that
- * previously applied without a prompt are gated — they are enumerated in the
- * manifest's `github-admin` group and only land once that group is approved.
+ * Run the idempotent bootstrap sequence. Every mutation here is the
+ * irreversible `github-admin` phase group, so this is the default-deny
+ * boundary: unless `opts.githubAdminApproved === true` it returns before
+ * constructing the provider — zero mutations, zero network I/O.
  *
  * @param {object} config - Resolved config wrapper with a `github` block.
  * @param {{
@@ -265,19 +225,10 @@ async function ensureProjectFields(provider, project, log) {
  *   githubAdminApproved?: boolean,
  *   withProjectBoard?: boolean,
  *   isTTY?: boolean,
- * }} [opts] - `githubAdminApproved` MUST be `true` for any GitHub mutation to
- *   occur; any other value (absent / `false`) is treated as "not approved"
- *   and the run is a verified no-op.
- *   `withProjectBoard` (default `false`) — opt-in for Projects V2 board,
- *   Status field, custom fields, and workflow audit. When absent or `false`,
- *   the board decoration is skipped and only labels + branch protection +
- *   merge methods are provisioned.
+ * }} [opts] - `withProjectBoard` opts into the board, its fields and the
+ *   workflow audit.
  */
 export async function runBootstrap(config, opts = {}) {
-  // Explicit opt-in gate (Story #3526). Default-deny: absent or non-`true`
-  // approval issues zero GitHub mutations and returns a no-op envelope the
-  // CLI summary renders as a skip. The provider is never instantiated, so a
-  // non-approved run performs no network I/O at all.
   if (opts.githubAdminApproved !== true) {
     const skipLog = opts.quiet ? () => {} : Logger.info;
     skipLog(
@@ -302,10 +253,7 @@ export async function runBootstrap(config, opts = {}) {
 
   const labels = await ensureLabels(provider, log);
 
-  // Board decoration (Projects V2 board, Status field, custom fields, workflow
-  // audit) is opt-in and defaults OFF. Minimal install = labels only. Gate is
-  // `opts.withProjectBoard === true`; absent or false skips all board work.
-  // ColumnSync already soft-noops when projectNumber is unset (column-sync.js:19-23).
+  // Board decoration defaults off; ColumnSync soft-noops without a projectNumber.
   const projectBoard = opts.withProjectBoard === true;
   let project = { projectNumber: null, created: false, skipped: true };
   let statusField = { status: 'skipped', added: [] };
@@ -321,13 +269,6 @@ export async function runBootstrap(config, opts = {}) {
     if (projectReady) {
       statusField = await ensureStatusField(provider, log);
       fields = await ensureProjectFields(provider, project, log);
-      // Story #2845 — audit project workflows for the ones that race against
-      // the orchestrator's ColumnSync writes (notably `Pull request merged`
-      // and `Pull request linked to issue`, which both rewrite Status as a
-      // side-effect of auto-merge). When `--reap-conflicting-workflows` is
-      // set, also delete the offenders via `deleteProjectV2Workflow` (the
-      // only programmatic action GraphQL exposes today — `enabled` is
-      // read-only).
       workflowAudit = await auditAndOptionallyReapWorkflows(
         provider,
         project.projectNumber,
@@ -342,24 +283,15 @@ export async function runBootstrap(config, opts = {}) {
     log('[Bootstrap] Project board decoration skipped (opt-in not set).');
   }
 
-  // Consumer-facing bootstrap promotes the framework's CI-gates-only
-  // stance: branch protection with enforce_admins + 0-approval-count and
-  // the squash-only merge-method allowlist. Behavior-shifting drift on
-  // branch protection routes through the HITL confirm gate — non-TTY runs
-  // abort with a clear stderr message rather than silently apply. The
-  // merge-method step differs by design (Story #4045 A4): non-TTY without an
-  // assume override default-applies the framework stance with an explicit
-  // log line (see mergeMethodsHitlConfirm below).
-  //
-  // Post-reshape: bootstrap reads from the new `project` + `github` blocks
-  // exclusively. The legacy "agent settings" opt was removed in Epic #2880.
+  // The CI-gates-only stance: branch protection (enforce_admins, 0 approvals)
+  // and squash-only merges. Behaviour-shifting branch-protection drift goes
+  // through the HITL gate, which aborts on non-TTY.
   const projectCfg = opts.project ?? config.project ?? {};
   const githubCfg = opts.github ?? {};
   const settings = {
     ...projectCfg,
     baseBranch: opts.baseBranch ?? projectCfg.baseBranch ?? 'main',
     github: githubCfg,
-    // Preserve the legacy `quality` shape pointer when callers still pass it.
     quality: projectCfg.quality,
   };
   const hitlConfirm =
@@ -376,13 +308,8 @@ export async function runBootstrap(config, opts = {}) {
     log,
   });
 
-  // Merge-methods gate (Story #4045 A4): under non-TTY without an explicit
-  // assume override there is no operator to consult, and the default HITL
-  // gate declines every non-TTY prompt — which would make applyMergeMethods'
-  // documented non-TTY default-apply branch unreachable. Skip the gate in
-  // that case so the merge-method stance default-applies with its explicit
-  // log line. Interactive runs (and explicit --assume-yes/--assume-no, and
-  // injected gates) keep the loud confirm/decline behaviour.
+  // Non-TTY with no assume override: drop the gate (which would decline every
+  // prompt) so merge methods default-apply with a log line, by design.
   const stdoutIsTTY = opts.isTTY ?? Boolean(process.stdout.isTTY);
   const mergeMethodsHitlConfirm =
     opts.hitlConfirm ??
@@ -406,16 +333,9 @@ export async function runBootstrap(config, opts = {}) {
   };
 }
 
-// ---------------------------------------------------------------------------
-// CLI entry point
-// ---------------------------------------------------------------------------
-
 async function main() {
-  // Preflight `gh` before touching config or the provider — surfaces the
-  // most common new-adopter failure (missing/stale `gh`) as the first
-  // diagnostic instead of an ENOENT later in the provider stack.
-  // Tech Spec #1350 → "Bootstrap surface": gh auth status must exit 0
-  // before bootstrap proceeds.
+  // A missing/stale/unauthenticated `gh` is the first diagnostic, not an
+  // ENOENT deep in the provider stack.
   try {
     const { version } = await preflightGh();
     Logger.info(`[Bootstrap] gh CLI ${version} ready (auth verified).`);
@@ -431,10 +351,7 @@ async function main() {
     throw err;
   }
 
-  // Preflight runtime deps before the dynamic config-resolver import so
-  // a consumer who hasn't installed framework runtime deps yet gets a
-  // clear hint (`run mandrel init` or `npm install mandrel`) instead of
-  // a raw `ERR_MODULE_NOT_FOUND`.
+  // Before the dynamic import, so missing deps get a hint, not ERR_MODULE_NOT_FOUND.
   try {
     await preflightRuntimeDeps();
   } catch (err) {
@@ -445,7 +362,6 @@ async function main() {
     throw err;
   }
 
-  // Dynamic import to avoid circular dependency issues at module level.
   const { resolveConfig, validateOrchestrationConfig } = await import(
     './lib/config-resolver.js'
   );
@@ -463,30 +379,15 @@ async function main() {
     process.exit(1);
   }
 
-  // Epic #1235 Story 5 — flags let CI / non-interactive callers pin the
-  // HITL gate's answer deterministically. The bootstrap is non-interactive
-  // by default in non-TTY contexts (the gate returns false and aborts);
-  // these flags are the documented escape hatches.
+  // --assume-yes/--assume-no pin the HITL gate's answer for non-TTY callers.
   const assumeYes = process.argv.includes('--assume-yes');
   const assumeNo = process.argv.includes('--assume-no');
-  // Story #2845 — opt-in destructive flag. When set, the workflow-audit
-  // step calls `deleteProjectV2Workflow` for every conflicting built-in
-  // (e.g. "Pull request merged", "Pull request linked to issue"). Default
-  // is warn-only because the GraphQL mutation is irreversible.
   const reapConflictingWorkflows = process.argv.includes(
     '--reap-conflicting-workflows',
   );
-  // Story #3526 — GitHub-admin mutations are explicit opt-in. The standalone
-  // CLI must carry an unambiguous approval signal before any remote mutation
-  // lands: either `--approve-github-admin` (the dedicated consent flag) or
-  // `--assume-yes` (the existing "accept everything" escape hatch). Without
-  // one of these, `runBootstrap` short-circuits to a verified no-op so a bare
-  // invocation never silently reconfigures branch protection or merge methods.
+  // A bare invocation must never reconfigure the repo.
   const githubAdminApproved =
     assumeYes || process.argv.includes('--approve-github-admin');
-  // Story #4234 — Board decoration is opt-in (default off). Pass
-  // `--with-project-board` to also provision the Projects V2 board, Status
-  // field, and custom fields.
   const withProjectBoard = process.argv.includes('--with-project-board');
 
   try {
@@ -499,9 +400,7 @@ async function main() {
       githubAdminApproved,
       withProjectBoard,
     });
-    // A non-approved run returns the skip envelope (no full result shape);
-    // the skip line is already logged inside runBootstrap, so render the
-    // detailed summary only when mutations were actually attempted.
+    // A skip envelope has no summary shape.
     if (result.skipped) {
       Logger.info(
         `[Bootstrap] GitHub-admin step skipped (${result.reason}). Re-run with --approve-github-admin (or --assume-yes) to apply.`,
@@ -514,8 +413,7 @@ async function main() {
   }
 }
 
-// Re-export the gh-preflight surface so existing test consumers can keep
-// importing it from this module after the Story #3349 split.
+// Re-exported: callers import the gh-preflight surface from here.
 export {
   compareSemver,
   isApiAccessNotFoundError,

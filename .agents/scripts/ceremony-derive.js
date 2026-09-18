@@ -1,41 +1,15 @@
 #!/usr/bin/env node
 
 /**
- * ceremony-derive.js — derive a Story's acceptance ceremony from ground truth
- * (Story #5313).
+ * ceremony-derive.js — derive a Story's acceptance ceremony from the branch,
+ * not from a hand-carried incantation: compute the `<base>...story-<id>`
+ * change set once, derive its level and sensitive classes, resolve the
+ * ceremony, print one JSON object.
  *
- * The deliver digest used to hand the worker a three-module import block to
- * paste into `node --input-type=module -e` — compute the change set, derive
- * the level, resolve the ceremony — and every hand-carried incantation is a
- * transcription risk (the object-vs-string `derivedLevel` slip alone routed a
- * whole class of Stories to the null fail-safe). This CLI is that block,
- * scripted: one invocation, one JSON object, computed from the branch rather
- * than recalled.
- *
- *   1. Compute the change set ONCE for `<base>...story-<id>`
- *      (`lib/orchestration/change-set.js`).
- *   2. Derive the change level and the sensitive-path classes from it
- *      (`lib/orchestration/review-depth.js#deriveChangeLevel`).
- *   3. Resolve the ceremony for the configured profile
- *      (`lib/orchestration/ceremony-routing.js#resolveCeremonyForRisk`).
- *
- * Stdout: a single JSON object —
- *   { storyId, baseRef, headRef, files, enumerated, level, classes, profile,
- *     mode, reason, verdictOwner }
- *
- * `files` is the one change set the verdict owner must be handed; the caller
- * never lets it re-enumerate the diff. `files: null` means the diff could not
- * be enumerated.
- *
- * `level` / `classes` are what **review depth** reads (`resolveDepth`), and a
- * sensitive class still resolves `deep`. They do not route the verdict owner:
- * `verdictOwner` follows the ceremony profile alone (Story #5343) —
- * `inline-self-eval` under `minimal` / `standard`, `fresh-critic` under
- * `strict` — and since Story #5366 the resolver does not even accept the
- * level, so the two signals cannot be confused for one decision.
- *
- * Exit codes: 0 on a derived decision (including the `null` fail-safe — an
- * unenumerable diff is a decision, not an error), 1 on a usage error.
+ * `files` is the one change set the verdict owner is handed (`null` = not
+ * enumerable). `level`/`classes` feed review depth only; `verdictOwner`
+ * follows the ceremony profile alone. Exit 0 on any derived decision,
+ * including the `null` fail-safe; 1 on a usage error.
  */
 
 import { parseArgs } from 'node:util';
@@ -66,8 +40,6 @@ const USAGE = {
 };
 
 /**
- * Parse the CLI argv. Exported for tests.
- *
  * @param {string[]} argv
  * @returns {{ storyId: number|null, base: string|null, cwd: string|null }}
  */
@@ -90,9 +62,6 @@ export function parseArgv(argv) {
 }
 
 /**
- * The derivation itself — pure over its injected collaborators, so tests can
- * pin the envelope without spawning git or reading a config.
- *
  * @param {{ storyId: number, baseRef: string, cwd: string, ceremonyProfile: string }} input
  * @param {{
  *   computeChangeSetImpl?: typeof computeChangeSet,
@@ -121,10 +90,7 @@ export function deriveCeremony(
   const { level, classes } = deriveChangeLevelImpl({
     changedFiles: changeSet.files,
   });
-  // The level is still derived and still printed — review depth reads it —
-  // but the ceremony profile alone resolves the verdict owner, and the
-  // resolver accepts nothing else, so nothing here can be talked into a
-  // different owner by the diff.
+  // The resolver takes the profile only, so the diff cannot change the owner.
   const ceremony = resolveCeremonyImpl({ ceremonyProfile });
   return {
     storyId,
@@ -142,8 +108,6 @@ export function deriveCeremony(
 }
 
 /**
- * CLI shell: resolve the config-backed defaults, derive, print.
- *
  * @param {string[]} [argv]
  * @param {{
  *   resolveConfigImpl?: typeof resolveConfig,

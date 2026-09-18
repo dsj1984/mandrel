@@ -1,44 +1,12 @@
 #!/usr/bin/env node
 
 /**
- * single-story-close.js — Close a Story against `main` (v2 `/mandrel-deliver` path).
- *
- * Thin CLI entry for `/mandrel-deliver` / `helpers/deliver-story`. Opens a PR from
- * `story-<id>` to `project.baseBranch`, runs Story-scope review, and arms
- * auto-merge. There is no Epic parent, epic-merge-lock, or wave merge.
- *
- * Pipeline (each step is a phase under
- * `./lib/orchestration/single-story-close/phases/`):
- *
- *   1. close-validation  — canonical gate chain against `baseBranch`
- *   2. base-sync         — `origin/<baseBranch>` → Story branch (Story #2580)
- *   3. push              — `git push -u` the Story branch
- *   4. pull-request      — `gh pr list` probe + `gh pr create`
- *   5. code-review       — Story-scope review (Epic #2815 / Story #2839)
- *   6. auto-merge        — `gh pr merge --auto --squash --delete-branch`
- *   7. label flip + notify — Story → `agent::closing` (Story #3385; the
- *                          `agent::done` flip + issue-close is deferred to
- *                          the post-merge confirmation step,
- *                          `single-story-confirm-merge.js`)
- *   8. worktree-reap     — drop the per-Story worktree
- *   9. confirm-merge      — close-and-land (Story #4428; the DEFAULT for
- *                          every run since `delivery.routing.closeAndLand`):
- *                          poll the just-armed PR to merge confirmation
- *                          (reusing `confirmStoryMerged`), capture the
- *                          Story follow-ups, or terminate `agent::blocked`
- *                          with a classified `merge.unlanded` event — or
- *                          `merge.flip-failed` when the merge landed and
- *                          only the label write failed. Skipped when the
- *                          operator owns the merge (`--no-wait-merge`,
- *                          `--no-auto-merge`, or `autoMerge: "strict"`),
- *                          which rests at `agent::closing` for the human.
- *
- * Existing tests import the re-exported helpers
- * (`runSingleStoryClose`, `parsePrNumber`, `handleSyncFailure`,
- * `buildSyncFailureCommentBody`, `runStoryScopeReview`,
- * `buildStoryReviewCrossRefBody`) from this file. The PR-open and arm helpers
- * are imported from their defining phase modules (Story #5383 dropped the
- * test-only `ensurePullRequest` / `enableAutoMerge` aliases).
+ * single-story-close.js — close a Story against the base branch: gates,
+ * base-sync, push, PR, Story-scope review, arm auto-merge, flip to
+ * `agent::closing`, reap the worktree, then (by default) wait for the merge.
+ * The wait is skipped when the operator owns the merge (`--no-wait-merge`,
+ * `--no-auto-merge`, `autoMerge: "strict"`); an arm FAILURE still waits and
+ * blocks, keeping the must-land contract.
  *
  * Usage:
  *   node single-story-close.js --story <STORY_ID> [--cwd <main-repo>]
@@ -49,62 +17,15 @@
  *                              [--rerun-advisory <n>]
  *                              [--override-review-block <reason>]
  *
- * `--override-review-block <reason>` is the one sanctioned way
- * past a code-review CRITICAL blocker. A critical finding halts this script
- * before auto-merge, and until this flag existed there was no override at all —
- * so an operator who had read a finding and judged it wrong could only land by
- * running `gh pr merge` themselves, bypassing the gate with nothing written
- * down. The flag does not weaken the gate; it moves that escape hatch into a
- * mandatory-reason audit trail (Story comment + PR comment + a
- * `review-block-overridden` friction signal) and reports
- * `gates.codeReview: "overridden"` on the terminal envelope. A bare or
- * too-short reason fails during option parsing, before any phase runs.
+ * `--override-review-block <reason>` is the audited escape past a code-review
+ * CRITICAL blocker (instead of a hand-merge with no record).
+ * `--merge-watch-mode async` is passed per close by the orchestrator, the only
+ * party that knows the run has N Stories and a foreground wait is dead time.
  *
- * `--merge-watch-mode` (Story #4949) overrides `delivery.mergeWatch.mode` for
- * one invocation, on the same explicit-wins-over-config precedence
- * `--max-wait-seconds` uses, and the two compose. It exists because run
- * topology is invisible from inside close: a solo delivery is cheapest waiting
- * in the foreground, while the Nth close of a wave pays that wait as
- * serialized dead time. The config default therefore stays `sync` and the
- * orchestrator — the only party that knows N — passes `async` per close. An
- * unrecognized value fails during option parsing, before any phase runs.
- *
- * Close-and-land is the DEFAULT for every run (Story #4428 introduced it as
- * `--wait-merge`; `delivery.routing.closeAndLand` — default `true` — made it
- * the default, and Story #4539 made that knob actually readable). Resolution
- * order, highest first: `--no-wait-merge` (explicit opt-out, always wins);
- * operator-owns-the-merge (`--no-auto-merge` or `delivery.ci.autoMerge:
- * "strict"` — the PR was deliberately left un-armed, so there is nothing to
- * land and the Story rests at `agent::closing`); explicit `--wait-merge`;
- * then the config. A genuine arm FAILURE is not an opt-out — it still waits
- * and therefore still blocks, which is what keeps the must-land contract
- * intact.
- *
- * Every invocation emits ONE schema-validated terminal envelope
- * (`.agents/schemas/story-deliver-terminal.schema.json`, Story #4543) on
- * stdout between `--- STORY DELIVER TERMINAL ---` markers. Its `status` is
- * the contract; the exit code mirrors it:
- *
- *   0 — `landed`:  the PR merged, the Story is `agent::done`, and the
- *                  post-land tail ran (follow-ups, status resync, local ref
- *                  cleanup, base fast-forward).
- *   3 — `pending`: RESUMABLE, not a failure. Either the per-invocation merge
- *                  wait (`delivery.mergeWatch.maxWaitSeconds`, default 300s
- *                  to fit a single host tool invocation) expired with the PR
- *                  still healthy and in flight, or the operator owns the
- *                  merge (`--no-wait-merge` / `--no-auto-merge` /
- *                  `autoMerge: "strict"`). NO label was mutated and no
- *                  `merge.unlanded` event was emitted. The envelope's
- *                  `nextCommand` names the single command that resumes it,
- *                  and the cumulative budget is anchored at the PR's
- *                  createdAt so the resume does not restart the clock.
- *   1 — `blocked` or `failed`: a classified hard block (the Story carries
- *                  `agent::blocked` and a friction comment) or a phase crash.
- *
- * The distinct `pending` code is the point: before it, a close-and-land whose
- * CI outlived the host's tool-invocation ceiling was killed mid-poll with no
- * terminal path taken at all, and merely shrinking the budget instead would
- * have misfiled every slow-CI run as a hard block.
+ * Every invocation emits ONE terminal envelope; the exit code mirrors its
+ * status: 0 `landed`; 3 `pending` (resumable — the per-invocation wait
+ * expired with the PR healthy, or the operator owns the merge; nothing
+ * mutated, run `nextCommand`); 1 `blocked` or `failed`.
  *
  * @see .agents/workflows/helpers/deliver-story.md
  * @see .agents/schemas/story-deliver-terminal.schema.json
@@ -134,15 +55,9 @@ import {
   exitCodeForTerminal,
 } from './lib/orchestration/story-deliver-terminal.js';
 
-// Re-export pure helpers verbatim — they don't touch `execFileSync`
-// or any URL-mocked module, so the phase exports work unmodified.
-// `gatesForFailedPhase` now lives beside the envelope it feeds
-// (`single-story-close/failed-terminal.js`); it is re-exported here so the
-// CLI's public surface is unchanged by that move.
-// `resolveRunScopedConfig` (Story #4891) is the run-scoped config pin the
-// pipeline reads before its first phase; it is part of this CLI's surface for
-// the same reason the sync helpers are — the runner reaches it only through a
-// dynamic import, so this file is where it is statically visible.
+// Pure helpers re-exported as this CLI's public surface; the runner is
+// reached only via dynamic import, so this is where they are statically
+// visible.
 export {
   buildStoryReviewCrossRefBody,
   buildSyncFailureCommentBody,
@@ -162,22 +77,9 @@ export async function runSingleStoryClose(opts) {
 }
 
 /**
- * CLI entry — resolves the process exit code from the terminal envelope's
- * status rather than from a thrown/not-thrown distinction, so `pending`
- * (resumable) is distinguishable from `blocked` (come look) without parsing
- * stdout.
- *
- * The catch parses argv through the **non-throwing** wrapper (Story #4959).
- * It used to call `parseSprintArgs()` — re-invoking the very parser that had
- * just thrown, since `parseMergeWatchMode` made argv parsing fallible. The
- * second throw escaped the handler, so an unparseable argv produced a bare
- * stack trace with no envelope and no friction signal, on the surface whose
- * whole contract is that every invocation emits exactly one envelope. An
- * error handler may not depend on an operation already known to fail.
- *
- * A parse rejection carries no `closePhase`, so the envelope reports `init` —
- * accurate: the runner rejected the flag before any phase ran, and nothing
- * was mutated.
+ * Exit code comes from the envelope's status. The catch parses argv with the
+ * non-throwing wrapper: the strict parser may be what just threw, and every
+ * invocation must still emit exactly one envelope.
  */
 async function main() {
   try {
@@ -186,13 +88,9 @@ async function main() {
   } catch (err) {
     const terminal = failedTerminalFor(err, parseSprintArgsTolerant().args);
     if (!terminal) throw err;
-    // Mirror runAsCli's default error line (which this catch pre-empts) so the
-    // human-facing failure text is unchanged, then emit the envelope.
+    // Mirrors runAsCli's default error line, which this catch pre-empts.
     Logger.error(`[single-story-close] Fatal error: ${formatCliError(err)}`);
     emitTerminalEnvelope(terminal);
-    // Story #4578 — a close that died before the runner could report its own
-    // terminal is exactly the friction the retro must see, so the crash path
-    // gets the same emit the happy path does. Best-effort; cannot throw.
     await emitTerminalFriction({ envelope: terminal });
     return exitCodeForTerminal(terminal);
   }
@@ -228,10 +126,8 @@ runAsCli(import.meta.url, main, {
       ],
       [
         '--override-review-block <reason>',
-        // Deliberately does not spell the merge CLI invocation: the
-        // merge-lockout rule in `check-lifecycle-lint.js` forbids that literal
-        // in any string outside `phases/auto-merge.js`, and it is right to —
-        // the point of this flag is that arming stays on the one code path.
+        // Must not spell the merge CLI invocation: `check-lifecycle-lint.js`
+        // forbids that literal outside `phases/auto-merge.js`.
         'Land despite a Story-scope code-review CRITICAL blocker you have reviewed and judged wrong. The reason is mandatory (≥12 chars) and is recorded on the Story, on the PR, and as a `review-block-overridden` friction signal; the terminal envelope reports `gates.codeReview: "overridden"`. Use this instead of merging the PR by hand with the GitHub CLI — a hand-merge bypasses the gate with no record at all.',
       ],
     ],

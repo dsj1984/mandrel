@@ -1,8 +1,6 @@
 /**
- * evaluate.js — Phase 4 of the check-baselines pipeline (Story #2466).
- *
- * Runs the per-kind pipeline: load → floor → compare → tolerance → report.
- * Extracted from `check-baselines.js` without behavior change.
+ * Per-kind check-baselines pipeline: load → floor → compare → tolerance →
+ * acknowledgment → report.
  *
  * @module lib/orchestration/check-baselines/phases/evaluate
  */
@@ -19,33 +17,13 @@ import { applyFloors, flattenBreaches } from './floors.js';
 import { applyRefreshAcknowledgment } from './refresh-ack.js';
 
 /**
- * Defense-in-depth against an `ignoreGlobs`-poisoned baseline (Epic #4326
- * incident). The generation path already drops `ignoreGlobs`-matched files
- * before they reach `rows` (both the canonical `buildDefaultMaintainabilityScorer`
- * and the story-close `buildKindScorer`), so a freshly-generated baseline's
- * `rollup["*"]` never includes an ignored file. But the floor check trusts the
- * *stored* `rollup["*"]`: if a baseline is poisoned by some other route — a
- * stale branch's older tooling, a hand-edit, a future generation bug — an
- * ignored file's metric can still drag the global floor axis (e.g.
- * maintainability `min`) below its floor and block every downstream close.
- *
- * This recomputes the global `*` aggregate over the baseline rows that are NOT
- * matched by the gate's `ignoreGlobs`, using the kind's own canonical
- * `rollup()` aggregator, so the floor axis reflects only the files the gate is
- * meant to police. It is a **no-op for a correctly-generated baseline** (no
- * ignored file is present in `rows`, so the filtered set is identical and the
- * stored `rollup["*"]` is returned unchanged) and only affects the `*`
- * component the incident poisons; named-component rollups are left as stored.
- * The compare/regression stage is untouched — this only reshapes the floor
- * input. All three `ignoreGlobs`-configured gates (maintainability, crap,
- * duplication) are `path`-keyed, so the shared path matcher applies uniformly.
- *
- * Kept module-local (not exported): the poison-exclusion behaviour is covered
- * end-to-end through `evaluateKind` by the `check-baselines.min-floor` suite,
- * so there is no external consumer to justify widening the surface.
+ * Recompute the `*` floor rollup without `ignoreGlobs` rows, in case a
+ * baseline was poisoned by some route other than generation (which already
+ * drops them); an ignored file could otherwise breach a global floor. A no-op
+ * for a correct baseline; compare is untouched.
  *
  * @param {{ kind: string, baseline: { rollup?: object, rows?: object[] }, ignoreGlobs?: string[], cwd?: string }} args
- * @returns {object} the effective rollup to feed the floor check
+ * @returns {object}
  */
 function rollupExcludingIgnored({ kind, baseline, ignoreGlobs, cwd }) {
   const rollup = baseline?.rollup;
@@ -64,8 +42,6 @@ function rollupExcludingIgnored({ kind, baseline, ignoreGlobs, cwd }) {
     const p = row?.path;
     return typeof p !== 'string' || !isIgnoredByGlobs(p, ignoreGlobs, cwd);
   });
-  // Nothing ignored is present → the stored rollup already excludes ignored
-  // files (the correct-baseline fast path); return it untouched.
   if (kept.length === rows.length) return rollup;
   const recomputed = mod.rollup(kept);
   return { ...rollup, '*': recomputed?.['*'] ?? rollup?.['*'] };
@@ -109,17 +85,11 @@ function buildGateReport({
     additions: compareOutput.additions ?? [],
     regressionCount: compareOutput.regressions.length,
     baseRef: cmp.baseRef ?? null,
-    // Story #4914 — the compare arm's read status was internal to compare.js,
-    // which is why a dead compare arm looked byte-identical to a clean run.
-    // Surfacing it makes "the head-vs-base arm did not run" diagnosable from
-    // the JSON report alone.
+    // Without this a compare arm that never ran looks identical to a clean run.
     baseRead: cmp.baseRead === true,
     generatedAt: baseline.generatedAt,
     acknowledged: ack.acknowledged,
-    // Story #5179 — `acknowledged` is now a PARTIAL statement: a refresh commit
-    // clears only the rows it actually refreshed, so a run can acknowledge some
-    // regressions and still fail on others. Naming the acknowledged keys makes
-    // which-half-was-which readable from the JSON report without re-walking git.
+    // Acknowledgment can be partial; name which regressions it cleared.
     acknowledgedKeys: ack.acknowledgedKeys,
   };
 }
@@ -135,11 +105,8 @@ export async function evaluateKind({
   const headLoad = loadHeadBaseline(kind, cwd, configPath);
   if (headLoad.schemaError) return { kind, schemaError: headLoad.schemaError };
   const baseline = headLoad.baseline;
-  // Story #4775 — scoring-semantics gate. A baseline whose rows were produced
-  // by superseded scoring semantics is structurally valid but semantically
-  // incomparable, so schema validation alone would wave it through. Fail
-  // closed on the `semantics` tag rather than compare across the boundary;
-  // the message names the exact re-baseline command.
+  // Rows from superseded scoring semantics pass schema but are incomparable;
+  // fail closed.
   const semanticsError = checkBaselineSemantics(kind, baseline);
   if (semanticsError) {
     return {

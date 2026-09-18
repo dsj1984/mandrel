@@ -1,26 +1,9 @@
 /**
- * CLI: ratchet on cyclomatic complexity against
- * the fixed cyclomatic ceiling of 12 (Story #4923; the `cyclomaticMustFix`
- * config key was retired in Story #5313).
- *
- * The must-fix ceiling was documented as blocking (`code-quality-guardrails.md`
- * promises "the close-validation chain refuses the merge") while being read by
- * nothing. This is the consumer that makes the promise true. It joins the
- * standalone-ratchet family — `check-arch-cycles.js`, `check-dead-exports.js`,
- * `check-context-budget.js` — which the CI `baselines` job runs as a required
- * check, and it follows their contract exactly:
- *
- *   - Reads the committed breach baseline at `baselines/cyclomatic.json`
- *     (override with `--baseline <path>`).
- *   - Walks the maintainability gate's `targetDirs` / `ignoreGlobs` and scores
- *     every function with the in-repo escomplex kernel — no coverage artifact
- *     required, so the verdict is available on a cold checkout.
- *   - Exit 0 when clean, improved, or shrinking; exit 1 when a file gains an
- *     over-ceiling function or its worst function gets worse.
- *
- * `--update` rewrites the baseline from the current tree. That is the
- * sanctioned motion after a deliberate refactor lands, and the only way the
- * recorded breach count is allowed to rise.
+ * CLI: ratchet on the fixed cyclomatic ceiling of 12 against
+ * `baselines/cyclomatic.json`. Scores every function in the maintainability
+ * gate's `targetDirs` with the in-repo escomplex kernel — no coverage artifact,
+ * so it works on a cold checkout. Exit 1 when a file gains an over-ceiling
+ * function or its worst function worsens.
  */
 
 import fs from 'node:fs';
@@ -39,8 +22,6 @@ import {
 import { resolveScanScope } from './lib/cyclomatic-scope.js';
 
 /**
- * Parse `--baseline <path>`, `--json`, and `--update`.
- *
  * @param {string[]} argv
  * @returns {{ baselinePath: string | null, json: boolean, update: boolean }}
  */
@@ -66,10 +47,8 @@ function parseArgv(argv = []) {
 }
 
 /**
- * Read a breach baseline envelope from disk. Returns `null` when the file is
- * missing or unparseable — the caller treats that as an empty baseline, which
- * makes the very first run report every existing breach as `added` rather than
- * silently passing.
+ * `null` when missing or unparseable — treated as empty, so a first run
+ * reports every breach rather than silently passing.
  *
  * @param {string} baselinePath
  * @returns {{ ceiling?: number, rows?: Array<object> } | null}
@@ -85,9 +64,7 @@ function loadCyclomaticBaseline(baselinePath) {
 }
 
 /**
- * `--update`: rewrite the baseline from the current (whole-tree) scan. The
- * sanctioned motion after a deliberate refactor lands, and the only way the
- * recorded breach count is allowed to rise.
+ * `--update`: the only way the recorded breach count may rise.
  *
  * @param {{ scan: object, ceiling: number, baselinePath: string, writeFileImpl: Function, stdout: { write: (s: string) => void } }} args
  * @returns {number} Always 0 — writing a baseline cannot fail the ratchet.
@@ -108,8 +85,6 @@ function writeUpdatedBaseline({
 }
 
 /**
- * `--json`: the machine-readable comparison envelope.
- *
  * @param {{ policy: object, baseline: object|null, baselineRows: Array<object>, baselinePath: string, scan: object, diff: object, exitCode: number }} args
  * @returns {string}
  */
@@ -142,10 +117,8 @@ function renderJsonReport({
 }
 
 /**
- * Announce a baseline the comparison cannot fully trust: absent, or recorded
- * at a ceiling the config no longer uses. Both are warnings rather than
- * failures — the diff still runs, and staying silent is what would let an
- * operator read a meaningless verdict as a clean one.
+ * Warn (not fail) on an absent baseline or one recorded at another ceiling,
+ * so a meaningless verdict is never read as clean.
  *
  * @param {{ baseline: object|null, mustFix: number, baselinePath: string, stderr: { write: (s: string) => void } }} args
  * @returns {void}
@@ -165,9 +138,6 @@ function warnAboutBaseline({ baseline, mustFix, baselinePath, stderr }) {
 }
 
 /**
- * Top-level CLI entry. Exported so tests can drive the whole pipeline through
- * the injected seams below without spawning a process.
- *
  * @param {{
  *   argv?: string[],
  *   cwd?: string,
@@ -199,10 +169,8 @@ export async function runCli({
     baselinePath ?? DEFAULT_CYCLOMATIC_BASELINE,
   );
 
-  // Read the baseline before scanning: its rows are half the diff scope
-  // (Story #5109). `--update` rewrites the baseline from the whole tree, and
-  // `BASELINE_SCOPE=full` is the operator's explicit "re-derive everything",
-  // so both opt out of scoping entirely.
+  // Before scanning: baseline rows are half the scan scope. `--update` and
+  // `BASELINE_SCOPE=full` scan the whole tree.
   const baseline = loadBaselineImpl(resolvedBaselinePath);
   const baselineRows = Array.isArray(baseline?.rows) ? baseline.rows : [];
   const scopeFiles = resolveScanScope({ cwd, config, update, baselineRows });

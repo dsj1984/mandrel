@@ -1,25 +1,7 @@
 /**
- * Config-explain capability (Story #3523, Epic #3438).
- *
- * `explainConfig()` answers the operator question "what does each resolved
- * config key mean, what is its effective value, and where did that value
- * come from?". It pairs with the unified config resolver: the resolver
- * decides the *effective* value, this module attributes that value to a
- * *source* layer and pins a one-line *meaning* to every key.
- *
- * Source attribution is two-valued (Story #3690 removed the named
- * config-profile layer):
- *   - `agentrc`  — the key is present in the project's resolved `.agentrc.json`
- *                  (including any `.agentrc.local.json` overlay). The operator
- *                  set it.
- *   - `default`  — the project does not carry the key; the framework default
- *                  from `.agents/docs/agentrc-reference.json` applies.
- *
- * Secret hygiene: no key in the `.agentrc.json` surface is a credential today,
- * but the report is defensive — any key whose dotted path matches a
- * secret-shaped token (`token`, `secret`, `password`, `apiKey`, `credential`,
- * …) has its value redacted to `null` and is flagged `redacted: true`. Only
- * the *source* of a secret is ever reported, never the value.
+ * `mandrel explain`: each config key's effective value, source (`agentrc`
+ * incl. local overlay, or `default`) and one-line meaning. Secret-shaped keys
+ * report their source only; the value is redacted to `null`.
  */
 
 import { resolveConfig } from '../config-resolver.js';
@@ -30,11 +12,7 @@ import {
 } from './defaults.js';
 
 /**
- * Dotted-path segment patterns that mark a key as secret-bearing. Matched
- * case-insensitively against any segment of the dotted path. The
- * `.agentrc.json` schema carries none of these today; the guard is forward
- * defence so a future credential-shaped key never leaks its value through
- * `mandrel explain`.
+ * Forward defence: no key matches today.
  *
  * @type {readonly RegExp[]}
  */
@@ -51,12 +29,7 @@ const SECRET_SEGMENT_PATTERNS = Object.freeze([
 ]);
 
 /**
- * Curated one-line meanings keyed by dotted config path. Wildcard floor
- * paths (`...floors.*`) are covered by the prefix fallbacks below, so this
- * map pins the operator-facing keys that benefit from a bespoke gloss. Any
- * key without an exact entry falls back to the longest matching prefix gloss,
- * then to a top-level block gloss, so every key always reports a non-empty
- * meaning.
+ * Exact glosses; misses fall back to the longest prefix, then the block.
  *
  * @type {Readonly<Record<string, string>>}
  */
@@ -171,10 +144,6 @@ const KEY_MEANINGS = Object.freeze({
 });
 
 /**
- * Prefix-keyed fallback glosses. Used when a key has no exact entry in
- * `KEY_MEANINGS` (notably wildcard floor paths and per-gate sub-keys). The
- * longest matching prefix wins.
- *
  * @type {ReadonlyArray<[string, string]>}
  */
 const PREFIX_MEANINGS = Object.freeze([
@@ -213,9 +182,6 @@ const PREFIX_MEANINGS = Object.freeze([
 ]);
 
 /**
- * Block-level fallback glosses by top-level prefix. Guarantees every key gets
- * a non-empty meaning even if neither the exact map nor a prefix gloss matches.
- *
  * @type {Readonly<Record<string, string>>}
  */
 const BLOCK_MEANINGS = Object.freeze({
@@ -227,8 +193,6 @@ const BLOCK_MEANINGS = Object.freeze({
 });
 
 /**
- * Is `dottedPath` a secret-bearing key whose value must be redacted?
- *
  * @param {string} dottedPath
  * @returns {boolean}
  */
@@ -241,8 +205,6 @@ export function isSecretKey(dottedPath) {
 }
 
 /**
- * Resolve the one-line meaning for a dotted config key.
- *
  * @param {string} dottedPath
  * @returns {string}
  */
@@ -250,7 +212,6 @@ export function meaningFor(dottedPath) {
   if (Object.hasOwn(KEY_MEANINGS, dottedPath)) {
     return KEY_MEANINGS[dottedPath];
   }
-  // Longest matching prefix wins.
   let best = null;
   for (const [prefix, gloss] of PREFIX_MEANINGS) {
     if (
@@ -267,12 +228,9 @@ export function meaningFor(dottedPath) {
 }
 
 /**
- * Attribute a key's effective value to a source layer and capture the value
- * the resolver actually applies.
- *
  * @param {string} dottedPath
- * @param {object|null} rawAgentrc  The resolver's `raw` (merged agentrc+local), or null.
- * @param {unknown} defaultValue    The framework default for this key.
+ * @param {object|null} rawAgentrc — merged agentrc + local overlay.
+ * @param {unknown} defaultValue
  * @returns {{ source: 'agentrc'|'default', value: unknown }}
  */
 function attribute(dottedPath, rawAgentrc, defaultValue) {
@@ -284,12 +242,7 @@ function attribute(dottedPath, rawAgentrc, defaultValue) {
 }
 
 /**
- * Build the config-explain report: one entry per known config key, each
- * carrying its effective value, source layer, and one-line meaning.
- *
  * @param {{ cwd?: string }} [opts]
- *   - `cwd`: project root whose `.agentrc.json` is resolved (default: the
- *     framework root via `resolveConfig`).
  * @returns {Array<{
  *   key: string,
  *   value: unknown,

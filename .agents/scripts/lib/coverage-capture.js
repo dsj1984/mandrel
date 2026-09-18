@@ -1,14 +1,7 @@
 /**
- * coverage-capture.js — ensure `coverage/coverage-final.json` is present and
- * fresh before any CRAP gate (close-validation pre-flight, pre-push, CI) reads
- * it. The CRAP scorer treats "no coverage" as "skip the method" under the
- * default `requireCoverage: true` policy, so a missing or stale artifact
- * silently weakens the gate. This helper closes that hole by capturing
- * coverage in-band when it is missing or older than the CRAP-target sources.
- *
- * Pure functions live here; the spawn wiring lives in
- * `.agents/scripts/coverage-capture.js` (CLI). Importers test freshness via
- * `isCoverageFresh` and decide whether to delegate to `runCapture`.
+ * Keep `coverage/coverage-final.json` present and fresh before a CRAP gate
+ * reads it: the scorer skips uncovered methods, so a stale artifact silently
+ * weakens the gate.
  */
 import { spawn, spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
@@ -26,16 +19,8 @@ import {
 } from './source-extensions.js';
 
 /**
- * Walk a directory tree and return the newest mtime (ms since epoch) seen
- * across the scorable source files (`source-extensions.js`) — the same set
- * the CRAP scanner walks, so freshness tracks exactly what the gate scores.
- * Symlinks, missing dirs, and unreadable nodes resolve to 0.
- *
- * A 0 return means "discovery found nothing", which {@link isCoverageFresh}
- * treats as an absence of evidence rather than as freshness — see its
- * `no-sources` contract.
- *
- * Exported for unit testing.
+ * Newest mtime across the scorable sources the CRAP scanner walks; unreadable
+ * nodes are skipped. 0 means "found nothing", never "fresh".
  *
  * @param {string} cwd Absolute repo root.
  * @param {string[]} targetDirs Repo-relative directories to scan.
@@ -80,11 +65,8 @@ export function newestSourceMtime(cwd, targetDirs, io = {}) {
 }
 
 /**
- * Resolve the capture-stamp path that sits next to the coverage artifact.
- * The stamp persists the content digest of the CRAP-target sources at the
- * moment coverage was last captured, so freshness can be decided by content
- * rather than mtime (mtime churns on branch switches / checkouts even when
- * content is unchanged).
+ * The stamp records the sources' content digest at capture time, so freshness
+ * survives mtime churn from checkouts.
  *
  * @param {string} cwd Absolute repo root.
  * @param {string} coveragePath Repo-relative coverage artifact path.
@@ -98,13 +80,8 @@ export function captureStampPath(cwd, coveragePath) {
 }
 
 /**
- * Fold every dirty scorable working-tree file under the scanned dirs into
- * `hash`, and report how many there were.
- *
- * Dirty files are not represented by their index blob SHA, so their on-disk
- * bytes (or absence) go in explicitly. Split out of
- * {@link computeContentDigest} to keep that function's complexity at its
- * committed CRAP floor.
+ * Fold dirty scorable files' on-disk bytes (or absence) into `hash`; their
+ * index blob SHA does not represent them.
  *
  * @param {{
  *   hash: import('node:crypto').Hash,
@@ -133,19 +110,10 @@ function foldDirtySources({ hash, cwd, readFileSync, porcelain }) {
 }
 
 /**
- * Compute a stable content digest of the scorable sources
- * (`source-extensions.js`) under `targetDirs`: the `git ls-files -s` listing (mode + blob SHA + path) of
- * tracked content, plus the on-disk bytes of any dirty working-tree files.
- * Checkout/branch churn leaves blob SHAs untouched, so the digest only moves
- * when content actually changes.
- *
- * Returns `null` when the digest cannot be computed (git unavailable, not a
- * repo, empty target list) so callers can fall back to the mtime heuristic.
- * A target list that matches **no** scorable file is the same "unavailable"
- * case, not a digest over zero files: this path is the primary freshness
- * test, so returning a real hash of empty input would pin the artifact
- * permanently fresh and make the mtime path's fail-closed verdict
- * unreachable (Story #5076).
+ * Digest of the scorable sources under `targetDirs`: `git ls-files -s` of
+ * tracked content plus dirty files' bytes, so it moves only on content change.
+ * `null` means unavailable (no git, no dirs, or zero matching files — a hash
+ * of empty input would pin the artifact permanently fresh).
  *
  * @param {string} cwd Absolute repo root.
  * @param {string[]} targetDirs Repo-relative directories to digest.
@@ -181,9 +149,6 @@ export function computeContentDigest(cwd, targetDirs, io = {}) {
       readFileSync,
       porcelain: git('status', '--porcelain', '--', ...dirs),
     });
-    // Discovery found nothing to digest: hashing the empty input would yield
-    // a constant that can never go stale, so report "unavailable" instead and
-    // let the caller's fail-closed mtime path decide.
     if (tracked.length + scorableDirty === 0) return null;
     return hash.digest('hex');
   } catch {
@@ -192,16 +157,9 @@ export function computeContentDigest(cwd, targetDirs, io = {}) {
 }
 
 /**
- * Persist the capture stamp next to the coverage artifact. Best-effort: a
- * write failure returns `false` rather than throwing — the worst case is a
- * fall back to the mtime heuristic on the next freshness check.
- *
- * `scope` / `files` / `ref` are Story #4981 additions for incremental-mode
- * capture. They are written to the stamp **only when the caller supplies
- * `scope`** — the default (full-scope) call sites never pass it, so the
- * emitted JSON stays the exact `{ digest, capturedAt }` shape byte-for-byte
- * (AC-5). `isCoverageFresh` reads `scope` back to refuse letting a scoped
- * stamp satisfy a full-scope freshness probe (AC-4).
+ * Best-effort: a write failure returns `false` (next check falls back to
+ * mtime). Full-scope callers omit `scope`, keeping the `{ digest, capturedAt }`
+ * shape.
  *
  * @param {{
  *   cwd: string,
@@ -240,16 +198,10 @@ export function writeCaptureStamp({
 }
 
 /**
- * Read a persisted capture stamp's digest and scope tag back into the shape
- * `isCoverageFresh` needs, applying the Story #4981 scope-asymmetry rule
- * (AC-4) in one place. Extracted so the parent function's own branching
- * stays under the cyclomatic ceiling.
- *
  * @param {{digest?: unknown, scope?: unknown} | null} stamp
  * @param {'full' | 'incremental'} requireScope
  * @returns {{ digest: string } | { scopeMismatch: true } | null} `null`
- *   means the stamp is missing/unreadable/digest-less — fall through to the
- *   mtime heuristic.
+ *   falls through to the mtime heuristic.
  */
 function readStampForScope(stamp, requireScope) {
   if (typeof stamp?.digest !== 'string' || stamp.digest.length === 0) {
@@ -263,33 +215,11 @@ function readStampForScope(stamp, requireScope) {
 }
 
 /**
- * Decide whether the existing coverage artifact is "fresh".
- *
- * Primary test (content-aware, Story #3982): when a capture stamp exists
- * next to the artifact, compare its persisted digest against the current
- * content digest of `targetDirs`. Equal digests → fresh; different → stale.
- * Branch switches and checkouts that bump mtimes without changing content
- * no longer invalidate coverage.
- *
- * Fallback (stamp absent / unreadable / digest unavailable): the original
- * mtime heuristic — artifact at least as new as the newest source file
- * under `targetDirs`. Missing files, missing target dirs, or any IO error
- * resolve to `false` so the caller captures rather than trusting stale data.
- *
- * **Both paths fail closed on an empty source set (Story #5076).** Finding no
- * scorable source under `targetDirs` means the check learned nothing, so it
- * reports `{ fresh: false, reason: 'no-sources' }` and the caller captures.
- * The alternative — treating "found nothing" as "nothing changed" — is how a
- * `js|mjs`-only selector left the CRAP gate green while measuring nothing in
- * every TypeScript consumer.
- *
- * **Scope asymmetry (Story #4981, AC-4).** A stamp written by an incremental
- * capture (`scope: 'incremental'`) only covers the files the diff touched —
- * it must never satisfy a caller that requires the full-scope guarantee
- * (`requireScope` defaults to `'full'`, matching every pre-existing caller
- * byte-for-byte). A full-scope stamp (or a legacy stamp with no `scope`
- * field, which predates this Story and is therefore full-scope by
- * construction) satisfies either probe.
+ * Stamp digest vs current digest when a stamp exists; otherwise artifact
+ * mtime vs newest source. IO errors resolve stale. Both paths fail closed
+ * (`no-sources`) on an empty source set — "found nothing" is not "nothing
+ * changed". An incremental stamp never satisfies a full-scope probe; a stamp
+ * with no `scope` is full-scope.
  *
  * @param {{
  *   coveragePath: string,
@@ -351,9 +281,6 @@ export function isCoverageFresh({
     statSync,
     readdirSync,
   });
-  // Source discovery found nothing. That is an absence of evidence, never a
-  // freshness guarantee — trusting it silently disables the capture (and with
-  // it the CRAP gate) for any tree the walk cannot see (Story #5076).
   if (newestSrc === 0) return { fresh: false, reason: 'no-sources' };
   return coverageMtime >= newestSrc
     ? { fresh: true, reason: 'fresh' }
@@ -361,14 +288,8 @@ export function isCoverageFresh({
 }
 
 /**
- * Render a freshness verdict for the operator-facing capture log.
- *
- * Every reason but `no-sources` speaks for itself. That one does not: failing
- * closed on an empty source walk is correct, but bare it reads as an
- * unexplained full capture on every run, and the cause is far more often a
- * `targetDirs` that does not name the project's sources than a genuine
- * recapture — so the walked dirs and the key to fix are named inline
- * (Story #5076).
+ * `no-sources` usually means a misconfigured `targetDirs`, so it names the
+ * walked dirs and the key to fix.
  *
  * @param {{ reason?: string }} freshness Verdict from {@link isCoverageFresh}.
  * @param {string[]} targetDirs The CRAP scan scope that was walked.
@@ -381,36 +302,19 @@ export function describeFreshness(freshness, targetDirs) {
   return `${reason} — no scorable source file found under [${dirs}]; if that does not name this project's sources, fix quality.gates.crap.targetDirs`;
 }
 
-/**
- * The invocation that deposits capture credit for a Story branch. Named in
- * the uncredited-capture announcement so a reader of a close log sees the
- * command that would have avoided the cost, not just the cost.
- */
 const CREDITING_INVOCATION =
   'node <main-repo>/.agents/scripts/coverage-capture.js --cwd <workCwd>';
 
 /**
- * Announce — and, when the consumer requires credit, refuse — a full-suite
- * capture that no committed stamp covers.
- *
- * Every caller invokes this immediately before it would spawn the suite, and
- * the ordering is the whole point. The capture itself is the most expensive
- * thing a close does; discovering that it ran uncredited is only actionable
- * while it is still ahead of you, not once it is visible as a `durationMs`
- * in `validation-evidence.json` twelve minutes later.
- *
- * The probe is read-only by construction: every caller has already decided
- * to capture by the time it runs, and it writes nothing — so it never takes
- * the full-suite host lock and can never itself be the reason a close waits.
+ * Announce (or, under `--require-credited`, refuse) an uncredited full-suite
+ * capture — before the spawn, while it is still actionable. Read-only, so it
+ * never takes the host lock.
  *
  * @param {{
  *   requireCredited?: boolean,
  *   logger: { info: Function, warn: Function, error: Function },
- * }} opts `requireCredited` comes from the CLI's `--require-credited`
- *   argument, an operator opt-in for one invocation (default false →
- *   announce and run). Story #5278: it is deliberately NOT read from config
- *   here — that made the refusal cover the depositing invocation too, leaving
- *   no way to earn the credit it demanded.
+ * }} opts `requireCredited` is a per-invocation CLI opt-in, never config:
+ *   from config it would also refuse the invocation that deposits credit.
  * @returns {number | null} A non-zero exit code the caller MUST return
  *   without spawning the suite, or `null` to proceed with the capture.
  */
@@ -429,24 +333,13 @@ function announceUncreditedCapture({ requireCredited = false, logger }) {
 }
 
 /**
- * Compose the uncredited-capture probe over a capture runner, so the
- * announcement is structurally inseparable from the spawn it describes.
+ * Wrap a capture runner so the announcement is inseparable from the spawn.
+ * Composes outside `lockedCapture`, so a refusal never acquires the lock.
  *
- * This mirrors `lockedCapture`, and for the same reason: there are two
- * capture paths (full-scope and incremental) and neither should have to
- * remember the policy. Wrapping the runner they share means a third path
- * added later inherits the probe for free, and that the warning can never be
- * emitted for a capture that does not happen — or omitted for one that does.
- *
- * It composes OUTSIDE `lockedCapture`, so a refusal costs nothing: the host
- * lock is never acquired for a run that is about to be declined.
- *
- * @param {(opts: object) => Promise<number>|number} runCaptureFn The (possibly already
- *   lock-wrapped) capture runner.
+ * @param {(opts: object) => Promise<number>|number} runCaptureFn
  * @param {{ requireCredited?: boolean, logger: object }} policy
- * @returns {(opts?: object) => Promise<number>} A runner resolving to the
- *   capture's exit code, or a non-zero refusal code without having spawned
- *   anything.
+ * @returns {(opts?: object) => Promise<number>} Exit code, or a refusal code
+ *   without spawning.
  */
 export function creditedCapture(runCaptureFn, { requireCredited, logger }) {
   return async (captureOpts = {}) => {
@@ -456,22 +349,9 @@ export function creditedCapture(runCaptureFn, { requireCredited, logger }) {
 }
 
 /**
- * Write the capture stamp for a run that has just finished — but only when
- * the tree it measured is still the tree on disk (Story #5278).
- *
- * The stamp is a claim about content: "coverage/coverage-final.json reflects
- * sources digesting to X". Computing X *after* the suite finishes makes that
- * claim false whenever anything moved while the suite ran — a sibling
- * worktree's write, a rebase, an editor save minutes into a ten-minute run.
- * The digest taken **before** the spawn is the one the run actually measured,
- * so that is the value written, and a post-run digest that disagrees means
- * the artifact describes a tree nobody has any more: no stamp is written at
- * all, and the next reader captures rather than crediting a run against
- * sources it never saw.
- *
- * A `null` on either digest is "unavailable", not "changed" — the same
- * fail-open the pre-#5278 code had, since without a digest there is nothing
- * to stamp.
+ * Stamp the pre-spawn digest (the tree the run measured), and write nothing
+ * when the post-run digest differs — the artifact then describes a tree no
+ * longer on disk. A `null` post-digest is "unavailable", not "changed".
  *
  * @param {{
  *   preDigest: string|null,
@@ -526,12 +406,7 @@ export function stampCapturedTree({
 }
 
 /**
- * Narrow `changedFiles` to the subset that lives under one of `targetDirs`.
- *
- * Both inputs are forward-slash-normalised; `targetDirs` are matched as path
- * prefixes followed by `/`. Shared by `anyChangedUnderTargets` (the pre-push
- * fast-path boolean) and the incremental-coverage scope resolver (Story
- * #4981), which needs the actual file list rather than a yes/no.
+ * Changed files under a `targetDirs` prefix, forward-slash-normalised.
  *
  * @param {string[]} changedFiles
  * @param {string[]} targetDirs
@@ -549,11 +424,7 @@ export function filterFilesUnderTargets(changedFiles, targetDirs) {
 }
 
 /**
- * Decide whether any of `changedFiles` lives under one of `targetDirs`.
- * Used by the pre-push fast-path so we can skip the (slow) coverage capture
- * when the push touches only files outside the CRAP scoring scope.
- *
- * An empty changed-file list returns `false`.
+ * Pre-push fast path: skip capture when nothing in CRAP scope changed.
  *
  * @param {string[]} changedFiles
  * @param {string[]} targetDirs
@@ -563,39 +434,14 @@ export function anyChangedUnderTargets(changedFiles, targetDirs) {
   return filterFilesUnderTargets(changedFiles, targetDirs).length > 0;
 }
 
-/**
- * Exit code surfaced when the bounded `npm run test:coverage` spawn was
- * killed by the timeout watchdog. Matches the GNU `timeout(1)` convention so
- * the close-validation caller can branch on "hang" (124) vs. "tests failed"
- * (any other non-zero status). Story #2136 / Task #2142.
- */
+/** GNU `timeout(1)` code, so callers tell a hang (124) from failing tests. */
 export const COVERAGE_TIMEOUT_EXIT_CODE = TIMEOUT_EXIT_CODE;
 
 /**
- * Spawn `npm run test:coverage` in `cwd` with a bounded wall clock. Inherits
- * stdio so the operator sees the raw test output. Resolves to the exit
- * status; a non-zero exit means the caller should propagate the failure (a
- * broken test suite cannot be papered over by the CRAP gate).
- *
- * **Asynchronous, and the suite is a process group (Story #5377).** It used to
- * block in `spawnSync`, which froze this process's event loop for the whole
- * suite: the lock heartbeat stopped, and a SIGTERM could not release the lock
- * until the suite returned on its own. Now the loop keeps turning, and the
- * suite runs as the leader of its own process group, so the `timeoutMs`
- * watchdog and a signal to this process both kill `npm` *and* every
- * `node --test` worker under it. A timeout surfaces as the GNU `timeout(1)`
- * exit code 124 so callers can pattern-match a runaway runner without
- * inspecting signal names.
- *
- * The spawn takes **no positional file arguments**. Story #4981 forwarded the
- * changed-file list as `npm run test:coverage -- <files...>` on the premise
- * that a test runner treats trailing positionals as filters over the suite.
- * Node's runner does not: it treats each path as a test file to execute, so a
- * forwarded *source* file runs as a trivially-passing test and the real suite
- * never runs. `run-coverage.js` discarded the list, which is the only reason
- * that never bit; Story #5063 measured it and Story #5065 removed the
- * plumbing rather than leave a parameter whose obvious "fix" empties the
- * coverage artifact.
+ * Spawn `npm run test:coverage` asynchronously as its own process group, so
+ * the lock heartbeat keeps running and a timeout or signal kills every
+ * worker. Takes no positional file args: node's runner would execute a
+ * forwarded source file as a test instead of filtering the suite.
  *
  * @param {{
  *   cwd: string,
@@ -640,9 +486,7 @@ export function runCapture({
 }
 
 /**
- * Report a capture that did not exit 0, and return its code unchanged.
- * Shared by both capture paths so an expired, deferred lock wait (Story
- * #5377) is never described as a failing suite: nothing ran.
+ * Report a non-zero capture; an expired lock wait is not a failing suite.
  *
  * @param {number} code
  * @param {{ info: Function, error: Function }} logger

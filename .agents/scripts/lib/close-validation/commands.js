@@ -1,41 +1,23 @@
-/**
- * close-validation/commands.js — Command resolution + formatter file policy.
- *
- * Owns the `project.commands.*` resolution helpers used by the close-
- * validation gates (typecheck / lint / formatCheck / formatWrite), the Story-diff
- * changed-file listing for the format gate, and the formatter
- * file-eligibility policy (Story #3410).
- */
+/** Close-validation `project.commands.*` resolution and formatter file policy. */
 
 import { execFileSync } from 'node:child_process';
 import { diffNameOnly } from '../changed-files.js';
 import { getCommands } from '../config/commands.js';
 
-/**
- * Fallback typecheck command — the gate is mandatory by design (Epic-branch
- * type regressions surface in the next Story's pre-push otherwise).
- */
+/** The typecheck and lint gates are mandatory, so they carry their own fallbacks. */
 const TYPECHECK_FALLBACK = 'npm run typecheck';
 
 /**
- * Fallback lint command. The gate is mandatory, and this string is the exact
- * command the gate spawned before `project.commands.lint` existed — an
- * unconfigured consumer must keep getting byte-identical argv, because the
- * gate's `commandConfigHash` is computed over it and any drift would silently
- * invalidate every previously recorded lint evidence record.
+ * Must stay byte-identical: `commandConfigHash` covers it, and drift would
+ * invalidate every recorded lint evidence record.
  */
 const LINT_FALLBACK = 'npm run lint';
 
-/** Default formatter command when `project.commands.formatCheck` is unset. */
 export const FORMAT_CHECK_FALLBACK = 'npx biome format .';
 
-/** Default formatter command in write mode. */
 const FORMAT_WRITE_FALLBACK = 'npx biome format --write .';
 
-/**
- * Build the format-gate hint dynamically from the resolved write command so
- * a Prettier-only repo gets `prettier --write` in its hint, not biome.
- */
+/** Derived from the write command so a Prettier repo is not told to run biome. */
 export function buildFormatHint(writeCmd) {
   const cmd =
     writeCmd && writeCmd.trim().length > 0 ? writeCmd : FORMAT_WRITE_FALLBACK;
@@ -43,37 +25,27 @@ export function buildFormatHint(writeCmd) {
 }
 
 /**
- * Resolve a string `project.commands.<key>` with a fallback when the
- * value is missing, empty, or the resolver throws on malformed config.
- * Shared engine behind the three resolveX command helpers.
+ * Falls back on a missing/empty value or malformed config.
  *
  * @param {{ project?: { commands?: object } } | null | undefined} config
- *   Canonical resolved config (or a bare `{ project: { commands } }` bag).
  * @param {string} key
  * @param {string} fallback
  * @returns {string}
  */
 function resolveCommandWithFallback(config, key, fallback) {
   try {
-    // `getCommands` reads `config.project.commands` from the canonical
-    // resolved config.
     const cmds = getCommands(config);
     const value = cmds[key];
     if (typeof value === 'string' && value.trim().length > 0) {
       return value.trim();
     }
   } catch {
-    // Malformed config — fall through to the framework default.
+    // Malformed config — use the fallback.
   }
   return fallback;
 }
 
 /**
- * Resolve the typecheck command. Reads `project.commands.typecheck`;
- * falls back to `npm run typecheck`. The framework-wide
- * `COMMANDS_DEFAULTS.typecheck` is `null` but this gate is mandatory, so
- * we apply the fallback here. Exported for testing.
- *
  * @param {{ project?: { commands?: object } } | null | undefined} config
  * @returns {string}
  */
@@ -82,14 +54,7 @@ export function resolveTypecheckCommand(config) {
 }
 
 /**
- * Resolve the lint command. Reads `project.commands.lint`; falls back to
- * `npm run lint`. The framework-wide `COMMANDS_DEFAULTS.lint` is `null` — as
- * for typecheck — because the fallback belongs to this mandatory gate rather
- * than to the shared accessor.
- *
- * A consumer sets this to point the gate at the scoped pair its hooks already
- * run: the close-time gate stays real (the diff is still linted) while CI
- * keeps owning whole-repo drift. Exported for testing.
+ * A consumer may point this at its hooks' scoped lint; CI keeps whole-repo drift.
  *
  * @param {{ project?: { commands?: object } } | null | undefined} config
  * @returns {string}
@@ -99,10 +64,6 @@ export function resolveLintCommand(config) {
 }
 
 /**
- * Resolve the format-check command. Reads `project.commands.formatCheck`;
- * falls back to `npx biome format .` so existing repos keep working byte-
- * for-byte. Exported for testing.
- *
  * @param {{ project?: { commands?: object } } | null | undefined} config
  * @returns {string}
  */
@@ -115,10 +76,6 @@ export function resolveFormatCheckCommand(config) {
 }
 
 /**
- * Resolve the format-write command used by story-close format-autofix (and
- * surfaced in the format-gate hint). Reads `project.commands.formatWrite`;
- * falls back to `npx biome format --write .`. Exported for testing.
- *
  * @param {{ project?: { commands?: object } } | null | undefined} config
  * @returns {string}
  */
@@ -131,11 +88,8 @@ export function resolveFormatWriteCommand(config) {
 }
 
 /**
- * Compute the Story-diff file scope for formatter gates. The default Biome
- * formatter used to run against `.` from inside `.worktrees/story-*`, which
- * lets consumer ignore globs that exclude `.worktrees` self-exclude the whole
- * run. Scoping to changed paths keeps verification real without depending on
- * how consumers spell root ignore patterns.
+ * Story-diff scope for the format gate: run against `.` inside
+ * `.worktrees/story-*`, a consumer's `.worktrees` ignore glob excludes everything.
  *
  * @param {{ cwd: string, baseRef: string }} opts
  * @returns {string[]}
@@ -144,8 +98,6 @@ export function listChangedFilesForFormatGate({ cwd, baseRef }) {
   if (!cwd) throw new Error('listChangedFilesForFormatGate: cwd is required');
   if (!baseRef)
     throw new Error('listChangedFilesForFormatGate: baseRef is required');
-  // Bridge execFileSync into the gitSpawn(cwd, ...args) contract so
-  // diffNameOnly owns the stdout → path-list conversion.
   const gitSpawn = (_cwd, ...args) => {
     try {
       const stdout = execFileSync('git', args, {
@@ -166,18 +118,8 @@ export function listChangedFilesForFormatGate({ cwd, baseRef }) {
 }
 
 /**
- * File extensions Biome's formatter can process. Used to filter the
- * changed-file scope down to the formatter-eligible subset (Story #3410):
- * passing only ineligible paths (e.g. a docs-only Story whose diff is all
- * markdown) makes `biome format <files>` report "No files were processed"
- * and exit 1, failing the gate for a Story that has nothing to format.
- *
- * The set mirrors Biome's handled languages (JS/TS family + JSON + CSS).
- * Markdown, YAML, and other unhandled types are intentionally absent — the
- * default formatter is biome, so the scope is keyed to what biome formats.
- * Consumers who swap the formatter via `project.commands.formatCheck`
- * do not get `changedFileScope` at all (see `buildDefaultGates`), so this
- * filter only ever runs against the default biome command.
+ * What biome formats. Handing biome only ineligible paths exits 1 ("No files
+ * were processed"). Only the default biome command gets a changed-file scope.
  */
 const FORMATTER_ELIGIBLE_EXTENSIONS = new Set([
   'ts',
@@ -192,11 +134,7 @@ const FORMATTER_ELIGIBLE_EXTENSIONS = new Set([
 ]);
 
 /**
- * Whether a changed path is eligible for the default (biome) formatter,
- * decided purely by file extension. Pure function — no I/O. Exported for
- * unit coverage (Story #3410).
- *
- * @param {string} filePath - A repo-relative path (forward-slash normalized).
+ * @param {string} filePath - Repo-relative.
  * @returns {boolean}
  */
 export function isFormatterEligible(filePath) {
@@ -207,7 +145,6 @@ export function isFormatterEligible(filePath) {
   );
   const base = filePath.slice(lastSlash + 1);
   const dot = base.lastIndexOf('.');
-  // No extension (dotfile-only or extensionless) → not formatter-eligible.
   if (dot <= 0) return false;
   const ext = base.slice(dot + 1).toLowerCase();
   return FORMATTER_ELIGIBLE_EXTENSIONS.has(ext);

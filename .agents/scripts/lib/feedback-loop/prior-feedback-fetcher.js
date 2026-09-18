@@ -1,27 +1,7 @@
 /**
- * prior-feedback-fetcher.js — gh-CLI-backed fetcher for open meta feedback
- * issues that feed the `/mandrel-plan` Phase 0 planner context.
- *
- * Story #2554 / Epic #2547. Tech Spec #2550 specifies that the fetcher MUST
- * return open issues carrying the `meta::framework-gap` and
- * `meta::consumer-improvement` labels, dedupe by issue number across the two
- * arrays, and tolerate every error path (missing `gh` binary, unreachable
- * repo, non-zero exit) by appending to a structured `errors[]` list — the
- * function never throws.
- *
- * Tests inject a `spawnImpl` (or shape-compatible `execImpl`) to exercise
- * the gh-exec surface deterministically; production code defaults to
- * `child_process.spawn`.
- *
- * Story #4135 (Epic #4131, F11) — the envelope additionally carries a
- * `recurringDefectClasses[]` array derived from the `friction::<class>`
- * labels the retro routed-proposals composer stamps onto the meta issues it
- * proposes. That closes the retro→planner loop: a recurring defect class
- * caught by review/mandrel-deliver is filed as a `meta::*` + `friction::<class>`
- * issue, and the next `/mandrel-plan` Phase 0 surfaces the class (with a recurrence
- * count across the open feedback issues) to the decompose-author guidance so
- * the planning floor ratchets up. The derivation is no-op-safe: issues with
- * no `friction::*` label contribute nothing and the array is empty.
+ * Fetches open `meta::*` feedback issues for `/mandrel-plan` Phase 0, plus
+ * the recurring `friction::<class>` counts that close the retro→planner
+ * loop. Never throws; failures land in `errors[]`.
  */
 
 import { META_LABELS } from '../label-constants.js';
@@ -30,25 +10,10 @@ import { runChild } from './graduator-core.js';
 
 const DEFAULT_LIMIT = 50;
 
-/** Prefix stamped on routed-proposal issue labels by the retro composer. */
 const FRICTION_LABEL_PREFIX = 'friction::';
 
 /**
- * Pure: derive recurring-defect-class signals from a list of normalized
- * issues by counting `friction::<class>` labels across them (Story #4135).
- *
- * Each fetched meta issue may carry one `friction::<class>` label (stamped by
- * the retro routed-proposals composer when it proposed the issue). A class
- * that appears across **multiple** open feedback issues is recurring across
- * Epics — exactly the signal F11 surfaces to the planner. The count is the
- * number of distinct open issues carrying the class; the `issues[]` array
- * lists their numbers so the planner can cross-reference.
- *
- * Determinism: classes are sorted by descending recurrence count, ties
- * broken by class name ASC, so a given input always yields a stable order.
- *
- * No-op-safe: issues without a `friction::*` label contribute nothing; an
- * empty / non-array input yields `[]`.
+ * `count` is distinct open issues per class; sorted count desc, then name.
  *
  * @param {Array<{ number: number, labels?: string[] }>} issues
  * @returns {Array<{ class: string, count: number, issues: number[] }>}
@@ -91,19 +56,10 @@ function extractRecurringDefectClasses(issues) {
 }
 
 /**
- * Spawn the given gh CLI with the supplied args and resolve to
- * `{ code, stdout, stderr, spawnError }`. Delegates to the shared
- * `runChild` helper in `graduator-core.js` (Story #3845 folded the three
- * feedback-loop spawn copies into one) — the fetcher only needs JSON-mode
- * reads and structured error capture, which `runChild` provides.
- *
- * Never throws: spawn-time errors are captured as `spawnError` so the caller
- * can classify and surface them through the `errors[]` envelope.
- *
  * @param {object} opts
- * @param {string} opts.ghPath — path to the gh binary (e.g. "gh")
- * @param {string[]} opts.args — positional + flag arguments
- * @param {Function} [opts.spawnImpl] — test seam; defaults to node:child_process spawn
+ * @param {string} opts.ghPath
+ * @param {string[]} opts.args
+ * @param {Function} [opts.spawnImpl]
  * @returns {Promise<{ code: number|null, stdout: string, stderr: string, spawnError: Error|null }>}
  */
 function runGh({ ghPath, args, spawnImpl }) {
@@ -111,9 +67,7 @@ function runGh({ ghPath, args, spawnImpl }) {
 }
 
 /**
- * Build a human-readable error message for a failed gh invocation.
- *
- * @param {string} label — the meta label being fetched
+ * @param {string} label
  * @param {{ code: number|null, stderr: string, spawnError: Error|null }} result
  * @returns {string}
  */
@@ -131,17 +85,8 @@ function formatGhError(label, { code, stderr, spawnError }) {
 }
 
 /**
- * Normalize a single issue record returned by `gh issue list --json`. We keep
- * the shape narrow on purpose: planner context payloads ride on top of an
- * already-budgeted envelope, and trimming early avoids any ambient assumption
- * that downstream consumers can rely on extra fields.
- *
- * `intake` is the one field derived rather than copied: an issue whose body
- * carries the CI-gap intake marker is a filing awaiting graduation, not a
- * finished report, and `/mandrel-plan` offers those a `/mandrel-plan <id>`
- * rewrite. The body itself is NOT carried onto the envelope — the marker
- * check is the whole reason it was fetched, and a planner payload does not
- * need every intake issue's full text.
+ * Deliberately narrow: the planner envelope is budgeted. The body is fetched
+ * only to derive `intake` (CI-gap intake marker) and is not carried.
  *
  * @param {object} raw
  * @returns {{ number: number, title: string, url: string, labels: string[], intake: boolean }|null}
@@ -158,8 +103,7 @@ function normalizeIssue(raw) {
 }
 
 /**
- * Flatten `gh issue list --json labels` into plain names. `gh` returns label
- * objects; a hand-built fixture may return strings. Pure.
+ * Accepts `gh` label objects or plain strings.
  *
  * @param {unknown} raw
  * @returns {string[]}
@@ -172,9 +116,6 @@ function normalizeLabels(raw) {
 }
 
 /**
- * Fetch open issues for a single meta label via `gh issue list`. Errors are
- * captured rather than thrown.
- *
  * @param {object} opts
  * @param {string} opts.owner
  * @param {string} opts.repo
@@ -228,11 +169,8 @@ async function fetchByLabel({ owner, repo, label, ghPath, limit, spawnImpl }) {
 }
 
 /**
- * Append every not-yet-seen issue to one bucket, marking it seen.
- *
- * An issue carrying more than one meta label must reach the planner exactly
- * once, so the `seen` set spans all three buckets and the first bucket to
- * claim a number keeps it. Mutates both arguments — one walk, three buckets.
+ * `seen` spans all buckets so a multi-labelled issue lands once, in the
+ * first bucket to claim it.
  *
  * @param {object[]} bucket
  * @param {object[]} issues
@@ -248,23 +186,15 @@ function dedupeInto(bucket, issues, seen) {
 }
 
 /**
- * Fetch the union of open issues carrying `meta::framework-gap`,
- * `meta::consumer-improvement` or `meta::platform-gap` and split them into
- * three arrays — one per ownership bucket in `github/framework-repo.js`, so
- * a filing's bucket survives all the way to the planner. An issue carrying
- * more than one label appears once, in that precedence order; dedupe-by-number
- * runs across all three arrays so the planner sees each issue exactly once.
- *
- * The returned envelope is best-effort: every failure mode (gh missing, repo
- * not found, non-zero exit, malformed JSON) is captured as a string in
- * `errors[]`. The function never throws.
+ * One array per ownership bucket (framework, consumer, platform); an issue
+ * with several meta labels appears once, in that precedence order.
  *
  * @param {object} opts
- * @param {string} opts.owner — GitHub owner (e.g. "dsj1984")
- * @param {string} opts.repo  — GitHub repo (e.g. "mandrel")
- * @param {string} [opts.ghPath="gh"] — path to the gh binary
- * @param {number} [opts.limit=50] — per-label `--limit` passed to gh
- * @param {Function} [opts.spawnImpl] — test seam for node:child_process spawn
+ * @param {string} opts.owner
+ * @param {string} opts.repo
+ * @param {string} [opts.ghPath="gh"]
+ * @param {number} [opts.limit=50] — per label.
+ * @param {Function} [opts.spawnImpl]
  * @returns {Promise<{
  *   frameworkGaps: object[],
  *   consumerImprovements: object[],
@@ -332,19 +262,11 @@ export async function fetchPriorFeedback({
     if (error) errors.push(error);
   }
 
-  // Dedupe by issue number across both arrays. Issues that carry both labels
-  // land in frameworkGaps first (deterministic) and are filtered out of
-  // consumerImprovements.
   const seen = new Set();
   dedupeInto(envelope.frameworkGaps, gapsResult.issues, seen);
   dedupeInto(envelope.consumerImprovements, improvementsResult.issues, seen);
   dedupeInto(envelope.platformGaps, platformResult.issues, seen);
 
-  // Story #4135 (Epic #4131, F11) — close the retro→planner loop: derive the
-  // recurring defect classes from the `friction::<class>` labels carried by
-  // the deduped feedback issues, so the next /mandrel-plan Phase 0 surfaces them to
-  // the decompose-author guidance. No-op-safe when no issue carries a
-  // `friction::*` label (empty array, no behavioural change).
   envelope.recurringDefectClasses = extractRecurringDefectClasses([
     ...envelope.frameworkGaps,
     ...envelope.consumerImprovements,

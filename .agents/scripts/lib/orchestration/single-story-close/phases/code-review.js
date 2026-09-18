@@ -1,38 +1,11 @@
 /**
- * phases/code-review.js — Story-scope code review phase for
- * `single-story-close`.
+ * phases/code-review.js — Story-scope code review: findings post to the PR,
+ * with a cross-reference on the Story issue. Critical findings return
+ * `halted: true` so the caller never arms auto-merge.
  *
- * Runs the Story-scope code review against `main`, posts the structured
- * findings comment to the PR (not the Story issue), and adds a one-line
- * cross-reference comment on the Story issue linking back to the PR
- * review comment. The render header still labels the comment "Story #N"
- * even though the post target is the PR — the PR is the comment surface,
- * the Story is the ticket the findings *describe*.
- *
- * Cross-reference URL shape: GitHub serves issue comments at
- * `<prUrl>#issuecomment-<commentId>` — the same URL pattern for PR
- * conversation comments and issue comments, because PRs are issues at
- * the API level.
- *
- * Re-exports `parsePrNumber` (delegates to `lib/github-url.js`) so
- * existing call sites need not change. Story #3649.
- *
- * Critical findings cause `runStoryScopeReview` to return `halted: true`;
- * the caller raises that to a thrown error so auto-merge is not enabled.
- *
- * Delegates the `runCodeReview` invocation to `runStoryReviewCore`
- * (exported from `story-close/phases/review-core.js`) so the close path
- * shares a single invocation pattern (Story #3653). Review depth needs no
- * input here: it is derived from this Story's own diff inside `runCodeReview`
- * (Story #4542).
- *
- * Story #5325 — this phase boundary is where the base ref is resolved, once.
- * The resolved ref threads into `runStoryReviewCore`, which hands it to both
- * the change-set enumeration (and through it the provider review) and the
- * local lens pass, so one resolution corrects both arms. It resolves to
- * `origin/<baseBranch>` — the ref base-sync merged from — rather than the bare
- * branch name git would resolve to the local `refs/heads/<baseBranch>`, whose
- * drift would otherwise be scored as this Story's own change.
+ * The base ref is resolved once, here, to `origin/<baseBranch>` (what
+ * base-sync merged from) — the local branch's drift would otherwise be
+ * scored as this Story's change.
  */
 
 import { parsePrNumberFromUrl } from '../../../github-url.js';
@@ -49,23 +22,12 @@ import {
 } from './review-outcome.js';
 
 /**
- * Extract the numeric PR ID from a `gh pr create` URL. The CLI returns a
- * URL like `https://github.com/<owner>/<repo>/pull/<n>`; we want `<n>`.
- * Returns `null` when the URL doesn't match. Exported for testing.
- *
- * Delegates to `parsePrNumberFromUrl` in `lib/github-url.js`.
- * Re-exported under the original name so existing call sites and tests
- * do not need to change. Story #3649.
- *
  * @param {string|null|undefined} prUrl
  * @returns {number|null}
  */
 export const parsePrNumber = parsePrNumberFromUrl;
 
 /**
- * Build the cross-reference comment body posted on the Story issue when
- * the PR-side review comment lands. Pure; exported for testing.
- *
  * @param {{
  *   prUrl: string,
  *   prNumber: number,
@@ -109,9 +71,6 @@ async function invokeStoryReviewCore({
     progressTag: 'REVIEW',
     runCodeReviewFn,
     gitSpawnFn,
-    // Forward the seams only when the caller injects them; otherwise
-    // `runStoryReviewCore` uses its defaults. `undefined` deep-merges to
-    // the default via the destructuring default there.
     ...(runLocalLensReviewFn ? { runLocalLensReviewFn } : {}),
     ...(appendFindingsYieldFn ? { appendFindingsYieldFn } : {}),
   });
@@ -160,21 +119,8 @@ async function postStoryReviewCrossRef({
 }
 
 /**
- * Run the Story-scope code review against `main`, post the structured
- * findings comment to the PR, and add a one-line cross-reference comment
- * on the Story issue linking back to the PR review comment.
- *
- * Failure modes:
- *   - When `prNumber` is null (couldn't parse), the review is skipped
- *     and the function returns `{ halted: false, skipped: true }`.
- *   - When `origin/<baseBranch>` cannot be resolved, the review is skipped,
- *     a `base-ref-resolution` degradation is recorded on the returned
- *     envelope, and no findings are raised (Story #5325).
- *   - When the runner throws, the close fails non-zero (the throw
- *     propagates) — a Story-scope review failure is not silently
- *     ignored.
- *
- * Exported for testing.
+ * Skips on an unparseable PR number or an unresolvable base (recording a
+ * degradation); a runner throw propagates and fails the close.
  *
  * @param {{
  *   cwd: string,
@@ -224,8 +170,6 @@ export async function runStoryScopeReview({
     return { halted: false, skipped: true };
   }
 
-  // One resolution per close, at the phase boundary: `baseRef` threads from
-  // here into the change set, the provider review and the local lens pass.
   const base = resolveSharedBaseRef({ baseBranch, cwd, gitSpawnFn });
   if (!base.resolved) {
     return unresolvedBaseReviewOutcome({

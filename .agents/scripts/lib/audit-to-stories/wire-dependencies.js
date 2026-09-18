@@ -1,30 +1,6 @@
 /**
- * lib/audit-to-stories/wire-dependencies.js — turn a standalone audit cohort's
- * detected group edges into declared ordering, once the issues exist.
- *
- * `groupFindings` detects `edges[]` between finding groups, but at emit time
- * the groups have no issue numbers, so the ordering could only be rendered as
- * prose. Every standalone audit Story therefore shipped with `depends_on: []`,
- * and what actually kept a cohort from being co-dispatched onto colliding
- * branches was an **accident**: siblings shared the sweep-wide audit provenance
- * footers `plan-persist` stamps, and the delivery footprint guard scraped
- * path-shaped tokens out of them. Story #5044 narrows that scrape, which is why
- * this module lands with it — removing the accidental serializer without giving
- * the cohort a real one would leave it less ordered than before.
- *
- * The shape is `plan-persist`'s two-pass crossing (`plan-persist/story-ops.js`),
- * because it is the same problem: **create every issue first, then mirror the
- * edges**. Both halves are written:
- *
- *   1. The **body footer** (`---` / `blocked by #N`) — canonical, parsed by
- *      `/mandrel-deliver`'s resolver, and the fallback when the dependencies API is
- *      unavailable.
- *   2. The **native `blocked_by` relation** — visible in the GitHub UI,
- *      readable without parsing markdown, and settable by an operator later.
- *
- * Native mirroring is **non-fatal by design**, matching `plan-persist`: the
- * footer has already been written by the time it runs, so a dependencies API
- * that says no costs visibility, not ordering.
+ * Turn a created audit cohort's group edges into `blocked by #N` footers plus
+ * a native `blocked_by` mirror (non-fatal: the footer already orders).
  *
  * @module lib/audit-to-stories/wire-dependencies
  */
@@ -34,25 +10,15 @@ import { Logger } from '../Logger.js';
 import { buildStoryBody } from './build-story-body.js';
 
 /**
- * Re-render each created Story's body with its blockers resolved to `#N`, and
- * mirror the same edges as native `blocked_by` relations.
- *
- * Groups whose issue was not created — deduped against an existing Issue,
- * suppressed by the ledger, or simply not in `issueByGroupKey` — are skipped
- * rather than guessed at, and an edge pointing at one drops with them
- * (`dependencyRefs` filters it). A `blocked by #undefined` would gate a Story
- * on nothing forever, which is strictly worse than the un-ordered cohort this
- * replaces.
+ * Groups (and edges to groups) with no created issue are skipped: a
+ * `blocked by #undefined` would gate a Story on nothing forever.
  *
  * @param {object} args
- * @param {Array<object>} args.groups          The `create`-eligible groups, in
- *   the order their issues were opened.
+ * @param {Array<object>} args.groups          The `create`-eligible groups.
  * @param {Array<{ fromGroupKey: string, toGroupKey: string }>} [args.edges]
  * @param {Record<string, number>} args.issueByGroupKey  Group key → issue number.
  * @param {(issueNumber: number, body: string) => Promise<unknown>} args.updateBody
- *   Persist a re-rendered body. Injected so the caller owns the provider call.
- * @param {object|null} [args.provider] Provider for native edge mirroring.
- *   Omit (or pass one without the dependency ports) to write footers only.
+ * @param {object|null} [args.provider] Omit to write footers only.
  * @returns {Promise<{
  *   storiesWired: number,
  *   bodiesUpdated: number,
@@ -92,13 +58,7 @@ export async function wireAuditStoryEdges({
 }
 
 /**
- * Re-render every group that both has an issue **and** has at least one blocker
- * whose issue also exists.
- *
- * A group with no resolvable blocker is deliberately left alone rather than
- * rewritten to an identical body: an issue-body update is a mutation and a
- * notification, and doing it for a no-op edit is noise on every Story of every
- * sweep.
+ * Only groups with a resolvable blocker: a no-op body update still notifies.
  *
  * @param {object} args
  * @returns {Array<{ groupKey: string, issueNumber: number, body: string, blockerKeys: string[] }>}
@@ -124,13 +84,8 @@ function collectWiredStories({ groups, edges, issueByGroupKey }) {
 }
 
 /**
- * Mirror the declared edges as native GitHub `blocked_by` relations.
- *
- * Two shape hazards this crossing inherits from `plan-persist`, both silent if
- * missed: `applyBlockedByDependencies` indexes `slugToIssueNumber` with plain
- * property access (so it must be a plain object, never a `Map` — a `Map` yields
- * `undefined` for every lookup, skips every edge, and reports success having
- * written nothing), and it reads `dependsOn`, not `depends_on`.
+ * Silent hazards: `slugToIssueNumber` must be a plain object (a `Map` skips
+ * every edge and reports success), and the helper reads `dependsOn`.
  *
  * @param {object} args
  * @returns {Promise<{ edgesAdded: number, edgesSkipped: number, edgesFailed: number }|null>}
@@ -151,9 +106,7 @@ async function mirrorNativeEdges({ provider, wired, issueByGroupKey }) {
   try {
     const { gh, owner, repo } = provider.getDependencyWriteContext();
     const summary = await applyBlockedByDependencies({
-      // The group key IS the slug here — it is the stable identifier both
-      // sides of an edge are keyed by — so `issueByGroupKey` is already the
-      // slug→number map the helper wants.
+      // The group key is the slug, so `issueByGroupKey` is the slug map.
       stories: wired.map((s) => ({
         slug: s.groupKey,
         dependsOn: s.blockerKeys,

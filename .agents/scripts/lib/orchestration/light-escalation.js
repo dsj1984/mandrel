@@ -1,39 +1,12 @@
 /**
  * lib/orchestration/light-escalation.js — what the light path does when it
- * refuses a scope (Story #4856).
- *
- * Three behaviors, each previously missing, and each about a refusal rather
- * than a verdict — the verdicts live in
- * {@link module:lib/orchestration/light-suitability}:
- *
- *   1. **Recycling the receipt.** A blocked diff backstop used to tell the
- *      operator to "escalate to `/mandrel-plan`", which authored a brand-new Story and
- *      left the receipt open with no successor — orphaning its branch, its
- *      worktree, and a finished implementation. Naming the receipt as `/mandrel-plan`'s
- *      *input* recycles it instead: tickets mode already fetches a ticket,
- *      rewrites it into properly-planned Stories, and closes the source as
- *      superseded.
- *
- *      Deferring receipt creation until after the backstop would be the other
- *      fix, and is deliberately not taken: the issue id is load-bearing in
- *      `single-story-init.js` (the assignee lease, the `story-<id>` branch, the
- *      label state machine) and in the `(refs #<id>)` commit subject.
- *
- *   2. **Telemetering the refusal.** Neither light-path rejection emitted any
- *      signal, so an over-tight ceiling could only reach the framework as
- *      anecdote — which is exactly how the `maxFiles: 4` defect surfaced. The
- *      roll-up aggregates by category, so recording these makes the ceilings
- *      recalibratable from evidence.
- *
- *   3. **Preserving the refused work** ({@link preserveRefusedWork}, Story
- *      #4875). A refusal used to leave a finished implementation on a local
- *      `story-<id>` branch with no remote ref — the one shape routine branch
- *      and worktree cleanup is entitled to delete. The branch is published to
- *      `origin` (no PR, no merge) so the recycle command has something to
- *      recycle.
- *
- * Telemetry is best-effort by construction: a signals-write failure must never
- * change a gate's verdict.
+ * refuses a scope (verdicts live in `light-suitability`): recycle the
+ * receipt through `/mandrel-plan <id>` (which supersedes it) rather than
+ * orphaning it, record the refusal as friction so ceilings can be
+ * recalibrated from evidence, and publish the refused branch so cleanup
+ * cannot delete the only copy. The receipt is created before the backstop
+ * because its id drives the lease, branch, labels and commit subjects.
+ * Telemetry failure never changes a verdict.
  *
  * @module lib/orchestration/light-escalation
  */
@@ -47,8 +20,6 @@ import {
 import { LIGHT_REFUSAL_CLASSES } from './light-suitability.js';
 
 /**
- * The `/mandrel-plan` invocation that owns a Story the light path could not land.
- *
  * @param {number} storyId
  * @returns {string}
  */
@@ -57,12 +28,8 @@ function buildRecycleCommand(storyId) {
 }
 
 /**
- * The command that re-runs the backstop once the work is committed.
- *
- * The one refusal that is NOT about scope gets its own next step: an empty diff
- * over a dirty worktree means the backstop ran before the commit, and handing
- * that run to `/mandrel-plan` recycles a receipt whose implementation is fine
- * — the wrong door, dressed as an escalation (issue #5237).
+ * Uncommitted work is not a scope refusal: re-run the backstop after
+ * committing rather than recycling a fine receipt.
  *
  * @param {number} storyId
  * @returns {string}
@@ -72,15 +39,9 @@ function buildRerunBackstopCommand(storyId) {
 }
 
 /**
- * Coerce an `--amends` argument (`#123` or `123`) into a positive integer issue
- * number, or `null` when absent/malformed.
- *
- * This is the only Story context a **gate-stage** rejection can legitimately
- * claim: the signals stream is keyed on a Story id, and an escalating gate
- * has authored no receipt yet — deliberately, since not creating one is the
- * point of that outcome. A bare prompt's rejection therefore has no stream to
- * land in, and attributing it to a fabricated id would be worse than recording
- * nothing.
+ * `--amends` (with or without a leading `#`) as an issue number, else `null`. The only
+ * Story a gate-stage refusal can be attributed to (no receipt exists yet);
+ * never fabricate one.
  *
  * @param {unknown} amends
  * @returns {number|null}
@@ -93,9 +54,6 @@ function normalizeAmendsId(amends) {
 }
 
 /**
- * Record a suitability-gate refusal (`escalate-plan`) as friction, attributed
- * to the `--amends` target when there is one.
- *
  * @param {{
  *   gate: object,
  *   amends?: unknown,
@@ -122,19 +80,14 @@ export async function recordGateRefusal({
 }
 
 /**
- * Handle a blocked diff backstop: record the refusal as friction and return the
- * `/mandrel-plan` invocation that recycles the receipt.
- *
- * Lives here rather than in the CLI so the shell stays a shell — the backstop
- * mode's job is to branch and print, not to decide what a refusal means.
+ * Record a blocked backstop as friction and return the next command.
  *
  * @param {{
  *   storyId: number,
  *   result: object,
  *   preservation?: ReturnType<typeof preserveRefusedWork>,
  *   recordFrictionFn?: typeof recordScopeFriction,
- * }} args `result` is a {@link module:lib/orchestration/light-suitability.checkLightDiffBackstop}
- *   verdict; `preservation` is the {@link preserveRefusedWork} outcome.
+ * }} args
  * @returns {Promise<string>} The recycle command.
  */
 export async function handleBlockedBackstop({
@@ -157,9 +110,7 @@ export async function handleBlockedBackstop({
       implLines: result?.magnitude?.implLines ?? null,
       ceilings: result?.ceilings ?? null,
       classes: result?.classes ?? [],
-      // A refusal whose work was NOT preserved is a different (worse) event
-      // than one whose branch reached origin — the roll-up must be able to
-      // tell them apart.
+      // Unpreserved work is a worse event; the roll-up must tell them apart.
       preserved: preservation?.preserved ?? null,
       refusalClass,
     },
@@ -170,24 +121,9 @@ export async function handleBlockedBackstop({
 }
 
 /**
- * Publish a refused light run's branch to `origin` so the finished work is
- * recoverable (Story #4875).
- *
- * A blocked backstop refuses the *land*, not the *work*: the implementation is
- * complete and the recycle command hands the receipt to `/mandrel-plan`, which will
- * want it. Before this, that work existed only as a local `story-<id>` branch
- * with no remote ref — an untracked branch is exactly what the routine merged-
- * branch sweeps and worktree reaping treat as disposable, so the only copy of a
- * finished implementation sat one cleanup away from deletion.
- *
- * Pushing is deliberately **not** a landing: the branch gets a remote ref, no
- * PR is opened, and nothing merges. Total by construction — a push failure
- * (offline, no write access, no such branch) is reported and never changes the
- * refusal verdict, because a preservation attempt must not be able to turn a
- * blocked backstop into a crash.
- *
- * Idempotent: re-running against an already-pushed branch is an up-to-date
- * no-op.
+ * Push a refused run's branch to `origin` (no PR, no merge): a branch with
+ * no remote ref is what cleanup sweeps treat as disposable. Total and
+ * idempotent; a push failure is reported, never thrown.
  *
  * @param {{
  *   storyId: number,
@@ -235,10 +171,7 @@ export function preserveRefusedWork({
 }
 
 /**
- * Record a light-path scope rejection as friction.
- *
- * Total: never throws, and returns `false` rather than propagating when the
- * signals surface is unavailable.
+ * Never throws; `false` when the signals surface is unavailable.
  *
  * @param {{
  *   storyId?: number|null,
@@ -247,9 +180,8 @@ export function preserveRefusedWork({
  *   reasons?: string[],
  *   details?: object,
  *   emitFn?: typeof emitRuntimeFriction,
- * }} args `category` defaults to the unclassified light-refusal bucket, which
- *   is what the suitability gate emits: it refuses a prompt before any diff
- *   exists, so it carries no refusal class to encode.
+ * }} args `category` defaults to the unclassified bucket (gate refusals
+ *   precede any diff).
  * @returns {Promise<boolean>}
  */
 async function recordScopeFriction({

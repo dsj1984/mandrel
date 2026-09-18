@@ -1,27 +1,9 @@
 #!/usr/bin/env node
 
 /**
- * sync-agentrc.js — default-aware `.agentrc.json` reconciliation (Story #1995).
- *
- * Replaces the manual procedure formerly described in
- * `.agents/workflows/helpers/mandrel-sync-config.md`. Invoked by
- * `/mandrel-update` Step 3 after the package upgrade re-materializes `.agents/`.
- *
- * Contract:
- *   - Validates the project config against the framework schema. On
- *     failure, prints diagnostics and exits 1.
- *   - Never auto-fills optional keys from `.agents/docs/agentrc-reference.json`.
- *     The runtime layers framework defaults at read time, so an absent
- *     key resolves to the framework default without being written.
- *   - For every project leaf whose value equals the framework default,
- *     prints an informational `[REDUNDANT]` advisory. The project file
- *     is never modified.
- *
- * Exit codes:
- *   0 — Config is valid (advisories may still appear).
- *   1 — Config is missing, malformed, or fails schema validation.
- *
- * The flag contract lives in `USAGE` below — `--help` is the one home for it.
+ * Validate `.agentrc.json` and flag leaves that restate a framework default.
+ * Never writes the file: defaults are layered at read time, so absent keys
+ * need no filling. Flags and exit codes live in `USAGE`.
  */
 
 import { fileURLToPath } from 'node:url';

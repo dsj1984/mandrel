@@ -1,57 +1,7 @@
 /**
- * lib/orchestration/review-depth.js — the review-depth authority: derives a
- * change level from observable facts and folds it with diff width into a tier
- * (Story #3938, re-based on a derived signal by Story #4542).
- *
- * ## Why the level is derived, not authored
- *
- * This module used to consume `planningRisk.overallLevel` — a level the planner
- * asserted about the plan it had just written. That signal was self-refereed and
- * its fail-safe ran backwards: an *absent* verdict degraded toward MORE ceremony
- * (standard depth), while a schema-valid all-low verdict bought `light`. Nothing
- * cross-checked the claimed axes against the files actually touched, so the one
- * input that could *reduce* review was exactly the one nobody verified. Story
- * #4542 inverted that: the level is now derived at close time from the changed
- * files themselves, which makes it a fact rather than a claim — and therefore
- * trustworthy enough to reduce ceremony on.
- *
- * ## The two signals
- *
- *   - **Sensitive paths** ({@link deriveChangeLevel}) — the changed-file set
- *     intersected with the `sensitivePaths` classes registered in
- *     `.agents/schemas/audit-rules.json` (auth, migrations, billing, destructive
- *     mutation, public API). Registered as **configuration**, matched with the
- *     audit-suite's existing picomatch machinery. This is what keeps a *narrow*
- *     high-stakes diff — a three-file auth fix, a small migration — at `deep`,
- *     the one thing a pure width heuristic would miss.
- *   - **Diff width** — the mechanical changed-file count, unchanged in role.
- *
- * ## Tier rules ({@link resolveDepth})
- *
- *   - `deep`     — `derivedLevel === 'high'` (a sensitive path was touched) OR
- *                  the changed-file count exceeds the wide-change scale
- *                  (`diffWidth.hardFiles`). A wide diff earns a deep pass on
- *                  size alone even when it touches nothing sensitive.
- *   - `light`    — `derivedLevel === 'low'` (the change set is known and touches
- *                  no sensitive path) AND the count is at or below the
- *                  small-change scale (`diffWidth.softFiles`). An *unknown*
- *                  count does not block `light`: a missing width is treated as
- *                  "not wide".
- *   - `standard` — everything else, including an absent/underivable level. Fail
- *                  toward the middle, never toward `light`: when the diff cannot
- *                  be enumerated there is no evidence the change is safe, and
- *                  `standard` preserves today's behaviour.
- *
- * {@link resolveDepth} is pure and total: inputs in, tier out. No I/O, no
- * throws. `null` / `undefined` / malformed inputs degrade to `standard` (or
- * `deep`/`light` only when a signal unambiguously says so). {@link
- * deriveChangeLevel} owns the one manifest read and is likewise total — any
- * failure degrades to the `null` (fail-safe) level.
- *
- * v2 Stage 2: review depth is **decoupled** from the planning model-capacity
- * advisory. Diff width is a mechanical review signal (files in the landed
- * diff); planning capacity is an absolute authored-token session-mass signal.
- * The two no longer share a constant.
+ * Review-depth authority. The change level is derived from the changed files
+ * (a fact, not a planner's claim), so it is safe to reduce ceremony on. Both
+ * functions are total; any failure degrades toward `standard`, never `light`.
  *
  * @typedef {'light'|'standard'|'deep'} ReviewDepth
  * @typedef {'low'|'high'} ChangeLevel
@@ -59,40 +9,18 @@
 
 import { selectSensitivePathClasses } from '../audit-suite/selector.js';
 
-/**
- * Mechanical diff-width scales for review-depth tiering. These are **not**
- * planning Story-sizing ceilings (those are gone in v2) — they only classify
- * the changed-file count of a diff under review.
- */
+/** Classify review diff width only — not planning sizing ceilings. */
 export const DEFAULT_DIFF_WIDTH = Object.freeze({
   softFiles: 15,
   hardFiles: 30,
 });
 
 /**
- * Derive the change level for a change set from observable facts: does the
- * changed-file set intersect any sensitive-path class registered in
- * `audit-rules.json`?
- *
- * This is the **single source** of the derived level — the review depth
- * ({@link resolveDepth}) and the dispatch-side complexity routing
- * (`complexity-gate.js#deriveStoryShape`, Story #4722) both consume what this
- * returns, so no risk decision can disagree about how risky a change is.
- * Dispatch reads the **predicted** shape (the Story's declared `changes[]`
- * footprint) and close reads the **actual** diff — one taxonomy, two read
- * points, which is what keeps a lite-shaped Story whose footprint touches a
- * sensitive path on the full route and under a deep review.
- *
- * The acceptance verdict owner is **not** downstream of this level: Story
- * #5343 re-based `ceremony-routing.js#resolveCeremonyForRisk` on the ceremony
- * profile alone, and Story #5366 removed the level from its signature.
- *
- * Returns `null` — the fail-safe "no derivable signal" level — when the change
- * set is empty/unknown or the manifest cannot be read. Both consumers treat
- * `null` as the more thorough posture (`standard` depth, the conservative
- * `full` route), so a derivation failure never buys a change less checking.
- *
- * Total: never throws.
+ * `high` when the changed files hit a `sensitivePaths` class in
+ * `audit-rules.json` — this is what keeps a narrow auth or migration diff
+ * deep. Single source of the level for review depth and dispatch routing
+ * (predicted footprint vs actual diff). `null` on an empty set or unreadable
+ * manifest; consumers treat `null` as the more thorough posture. Never throws.
  *
  * @param {{
  *   changedFiles?: string[]|null,
@@ -122,9 +50,7 @@ export function deriveChangeLevel(input = {}) {
 }
 
 /**
- * Coerce an arbitrary input into a non-negative integer changed-file count, or
- * `null` when the count is unknown / unusable. A `null` count is the neutral
- * "width unknown" signal: it neither triggers `deep` nor blocks `light`.
+ * `null` = width unknown: neither triggers `deep` nor blocks `light`.
  *
  * @param {unknown} value
  * @returns {number|null}
@@ -137,9 +63,8 @@ function normalizeChangedFileCount(value) {
 }
 
 /**
- * Resolve the review depth for a change set from its derived level (see
- * {@link deriveChangeLevel}) and diff width. See the module header for the tier
- * rules.
+ * `deep` on a sensitive path or a wide diff; `light` only when known-low and
+ * small; otherwise `standard`.
  *
  * @param {{
  *   derivedLevel?: (ChangeLevel|string|null|undefined),
@@ -164,17 +89,10 @@ export function resolveDepth(input = {}) {
   };
   const { softFiles, hardFiles } = mergedWidth;
 
-  // A known count strictly above the wide-change scale is wide.
   const isWide = changedFileCount !== null && changedFileCount > hardFiles;
-  // An unknown count is treated as "not wide" — it does not block `light`.
   const isSmall = changedFileCount === null || changedFileCount <= softFiles;
 
-  // deep — a sensitive path was touched OR the diff is wide.
   if (derivedLevel === 'high' || isWide) return 'deep';
-  // light — nothing sensitive touched AND a (known-or-unknown-but-not-wide)
-  // small diff.
   if (derivedLevel === 'low' && isSmall) return 'light';
-  // standard — everything else: an underivable level, or a non-sensitive diff
-  // whose width sits between softFiles and hardFiles.
   return 'standard';
 }

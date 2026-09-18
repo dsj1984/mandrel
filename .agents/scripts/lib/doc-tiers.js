@@ -1,58 +1,9 @@
 /**
- * Doc-tier resolver (Story #4438, Epic #4430 — Context Economy).
- *
- * Pure functions that classify the repository's documentation into the four
- * read-tiers Mandrel's context model recognizes, each entry carrying its
- * on-disk byte size so a byte budget can ratchet against it:
- *
- *   - `alwaysLoaded`  — `CLAUDE.md` plus the transitive closure of its
- *                       `@`-import references (`@AGENTS.md`,
- *                       `@.agents/instructions.md`, the always-on rules, …).
- *                       This is the context every session re-pays
- *                       on every subagent spawn (instructions.md § 4), so it is
- *                       the primary budget the context-budget ratchet gates.
- *   - `mandatoryRead` — the resolved `project.docsContextFiles` set (prefixed
- *                       by `project.paths.docsRoot`), existing files only. This
- *                       is the `docsContextFiles` half the Epic AC gates; it
- *                       skips silently when the set is unconfigured or its
- *                       files are absent.
- *   - `digestVisible` — the situational **Conditional Reads** docs from
- *                       instructions.md § 3 (`docs/style-guide.md`,
- *                       `docs/web-routes.md`) — surfaced only when a task
- *                       touches UI/routing, i.e. visible through the docs
- *                       digest rather than always read. Existing files only.
- *   - `onDemand`      — the on-demand `.agents/rules/*.md` set (instructions.md
- *                       § 1.F): every rule file that is **not** part of the
- *                       always-on core already captured in `alwaysLoaded`.
- *   - `agentBoot`     — the role-scoped boot contexts `.agents/agents/*.md`
- *                       (issue #4478). Each is a standalone system prompt a
- *                       converted spawn boots on **instead of** the always-loaded
- *                       closure, so it is measured independently. Its per-file
- *                       8 KB ceiling was deleted by Story #5340;
- *                       `check-context-budget.js` now reports these sizes and
- *                       gates nothing on them.
- *   - `workflow` /    — the `.agents/workflows/**` read-tier (Story #4752),
- *     `workflowOnDemand` resolved as each entry point's transitive
- *                       markdown-link closure by
- *                       [`workflow-closure.js`](workflow-closure.js): the files
- *                       an entry point's `mandatoryReads:` frontmatter forces
- *                       you to read (`workflow`, gated) versus the reachable
- *                       remainder (`workflowOnDemand`, recorded only).
- *
- * A file that could appear in more than one tier is kept in its **highest**
- * tier only (alwaysLoaded > mandatoryRead > digestVisible > onDemand), so the
- * arrays partition the doc set with no double-counting. `agentBoot` is disjoint
- * from the read-tiers (it lives under `.agents/agents/`, not the doc/rules set),
- * and so are the workflow tiers (confined to `.agents/workflows/`).
- *
- * The closure is discovered by parsing `@`-import references and following
- * them recursively (cycle-safe via a visited set). A candidate `@`-token only
- * counts as an import when it resolves to an existing repo file, which
- * naturally filters prose mentions (`@[USERNAME]`, `noreply@example.com`,
- * backtick-wrapped `` `@`-imported `` phrasing).
- *
- * Security (security-baseline § 5 — Data Leakage & Logging): every function
- * emits only repo-relative paths and byte counts — never file contents.
+ * Doc-tier resolver: partition the repo's docs into read-tiers with byte
+ * sizes for the context-budget ratchet (`alwaysLoaded` = CLAUDE.md's
+ * `@`-import closure; `agentBoot` and `workflowOnDemand` are recorded, not
+ * gated). A path lives only in its highest tier. Emits paths and byte
+ * counts, never file contents.
  */
 
 import nodeFs from 'node:fs';
@@ -60,38 +11,24 @@ import path from 'node:path';
 import { resolveWorkflowClosures } from './workflow-closure.js';
 
 /**
- * Basename of the always-loaded entry document (the root of the closure).
  * @type {string}
  */
 const ENTRY_DOC = 'CLAUDE.md';
 
 /**
- * Always-on core rule files (instructions.md § 1.F). These live in the
- * `alwaysLoaded` closure (imported by `CLAUDE.md`); every other
- * `.agents/rules/*.md` file is `onDemand`.
  * @type {string[]}
  */
 const ALWAYS_ON_RULES = ['security-baseline.md', 'git-conventions.md'];
 
 /**
- * Conditional-read docs (instructions.md § 3 — "Conditional Reads"), resolved
- * against `project.paths.docsRoot`. Present in the `digestVisible` tier when
- * they exist.
  * @type {string[]}
  */
 const CONDITIONAL_DOCS = ['style-guide.md', 'web-routes.md'];
 
-/**
- * Match `@`-import tokens: an `@` at start-of-line or after whitespace,
- * followed by a path token that stops at whitespace or common closing
- * punctuation. The resolved-file existence check downstream is the real
- * filter; this regex only harvests candidates.
- */
+/** Candidates only; the file-existence check filters out prose `@` tokens. */
 const IMPORT_RE = /(?:^|\s)@([^\s'"`)\]}>,]+)/gm;
 
 /**
- * Default fs surface — a small subset of `node:fs` so callers can inject a
- * fixture double in tests without touching the real filesystem.
  * @typedef {{
  *   existsSync: (p: string) => boolean,
  *   readFileSync: (p: string, enc: string) => string,
@@ -100,17 +37,15 @@ const IMPORT_RE = /(?:^|\s)@([^\s'"`)\]}>,]+)/gm;
  */
 
 /**
- * Parse the raw `@`-import specifiers from a source document. A trailing `.`
- * or `:` (sentence punctuation) is trimmed so `@AGENTS.md.` still resolves.
+ * Trailing `.`/`:` is trimmed so `@AGENTS.md.` still resolves.
  *
  * @param {string} source
- * @returns {string[]} raw specifiers in first-seen order
+ * @returns {string[]}
  */
 export function parseImportSpecifiers(source) {
   const specs = [];
   for (const m of String(source ?? '').matchAll(IMPORT_RE)) {
     let spec = m[1];
-    // Strip trailing sentence punctuation that the greedy class allowed in.
     while (spec.length > 0 && (spec.endsWith('.') || spec.endsWith(':'))) {
       spec = spec.slice(0, -1);
     }
@@ -120,10 +55,8 @@ export function parseImportSpecifiers(source) {
 }
 
 /**
- * Convert an absolute path to a repo-relative, posix-separated id.
- *
- * @param {string} root absolute repo root
- * @param {string} abs absolute path
+ * @param {string} root
+ * @param {string} abs
  * @returns {string}
  */
 function toRepoRel(root, abs) {
@@ -131,11 +64,8 @@ function toRepoRel(root, abs) {
 }
 
 /**
- * Build a `{ path, bytes }` entry for a repo file, or `null` when it does not
- * exist. `path` is repo-relative posix; `bytes` is the on-disk byte size.
- *
- * @param {string} root absolute repo root
- * @param {string} rel repo-relative path
+ * @param {string} root
+ * @param {string} rel
  * @param {FsLike} fs
  * @returns {{ path: string, bytes: number } | null}
  */
@@ -152,16 +82,11 @@ function fileEntry(root, rel, fs) {
 }
 
 /**
- * Resolve the always-loaded closure: `CLAUDE.md` plus every file reachable by
- * recursively parsing `@`-import references. Cycle-safe (a visited set keyed
- * by repo-relative path). Nested imports resolve relative to the importing
- * file's directory (Claude Code `@`-import semantics). Non-resolving `@`-tokens
- * are ignored, so prose mentions never pollute the closure.
+ * Cycle-safe; nested imports resolve relative to the importing file.
  *
- * @param {string} root absolute repo root (where `CLAUDE.md` lives)
+ * @param {string} root
  * @param {{ fs?: FsLike }} [opts]
- * @returns {Array<{ path: string, bytes: number }>} sorted by path; empty when
- *   `CLAUDE.md` is absent
+ * @returns {Array<{ path: string, bytes: number }>}
  */
 export function resolveAlwaysLoadedClosure(root, { fs = nodeFs } = {}) {
   const entryAbs = path.resolve(root, ENTRY_DOC);
@@ -202,13 +127,10 @@ export function resolveAlwaysLoadedClosure(root, { fs = nodeFs } = {}) {
 }
 
 /**
- * Read the resolved `project.docsContextFiles` list from a config object,
- * prefixed by `project.paths.docsRoot`. Resolves new-shape
- * `project.docsContextFiles` first and falls back to the legacy top-level
- * key, so a config written against either shape yields the same list.
+ * Reads `project.*` first, then the legacy top-level keys.
  *
- * @param {object} config resolved config (`resolveConfig()` output)
- * @returns {string[]} repo-relative posix doc paths (existence not yet checked)
+ * @param {object} config
+ * @returns {string[]}
  */
 export function docsContextPaths(config) {
   const project = config?.project ?? config;
@@ -223,13 +145,7 @@ export function docsContextPaths(config) {
 }
 
 /**
- * Resolve the documentation read-tiers, each entry `{ path, bytes }`,
- * partitioned so no path appears in more than one tier (highest tier wins).
- * `workflowClosure` rides alongside the tiers as the per-entry-point workflow
- * measurement (Story #4752) — its `reachableTotalBytes` is a recorded drift
- * signal, never a gate.
- *
- * @param {object} config resolved config (`resolveConfig()` output)
+ * @param {object} config
  * @param {{ root?: string, fs?: FsLike }} [opts]
  * @returns {{
  *   tiers: {
@@ -266,33 +182,22 @@ export function resolveDocTiers(
     return out.sort((a, b) => a.path.localeCompare(b.path));
   };
 
-  // 1. always-loaded: CLAUDE.md @-import closure. Pre-claim its paths first so
-  //    a lower tier never re-lists a closure member.
+  // Pre-claim the closure so a lower tier never re-lists a member.
   const alwaysLoaded = resolveAlwaysLoadedClosure(root, { fs });
   for (const e of alwaysLoaded) claimed.add(e.path);
 
-  // 2. mandatory-read: resolved docsContextFiles (existing files only).
   const docsRoot =
     config?.project?.paths?.docsRoot ?? config?.paths?.docsRoot ?? 'docs';
   const mandatoryRead = collect(docsContextPaths(config));
 
-  // 3. digest-visible: situational Conditional-Read docs.
   const digestVisible = collect(
     CONDITIONAL_DOCS.map((f) => path.posix.join(docsRoot, f)),
   );
 
-  // 4. on-demand: every .agents/rules/*.md that is not an always-on core rule
-  //    (the always-on ones already live in the alwaysLoaded closure).
   const onDemand = collect(listOnDemandRules(root, fs));
 
-  // 5. agent-boot: role-scoped boot contexts .agents/agents/*.md (#4478). These
-  //    are standalone system prompts, disjoint from the doc read-tiers.
   const agentBoot = collect(listAgentDefs(root, fs));
 
-  // 6. workflow: each entry point's transitive markdown-link closure (#4752),
-  //    split into the gated mandatory set and the recorded on-demand remainder.
-  //    The walk is confined to `.agents/workflows/**`, and `collect` still
-  //    de-dupes, so no path is counted against two tiers.
   const closure = resolveWorkflowClosures(root, { fs });
   const workflow = collect(closure.mandatoryFiles.map((e) => e.path));
   const workflowOnDemand = collect(closure.onDemandFiles.map((e) => e.path));
@@ -316,10 +221,7 @@ export function resolveDocTiers(
 }
 
 /**
- * List the role-scoped agent-boot defs (repo-relative posix): every
- * `.agents/agents/*.md`. Returns [] when the directory is absent.
- *
- * @param {string} root absolute repo root
+ * @param {string} root
  * @param {FsLike} fs
  * @returns {string[]}
  */
@@ -338,11 +240,7 @@ function listAgentDefs(root, fs) {
 }
 
 /**
- * List the on-demand rule files (repo-relative posix): every `.agents/rules/
- * *.md` whose basename is not an always-on core rule. Returns [] when the
- * rules directory is absent.
- *
- * @param {string} root absolute repo root
+ * @param {string} root
  * @param {FsLike} fs
  * @returns {string[]}
  */
@@ -361,8 +259,6 @@ function listOnDemandRules(root, fs) {
 }
 
 /**
- * Sum the `bytes` of every entry in a tier array.
- *
  * @param {Array<{ bytes: number }>} entries
  * @returns {number}
  */

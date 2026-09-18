@@ -1,29 +1,7 @@
 /**
- * bootstrap/merge-methods — Epic #1235 Story 5
- *
- * Promotes the framework's hands-off-pipeline merge stance to the
- * consumer repo:
- *   - allow_squash_merge: true   — single commit per PR; clean history.
- *   - allow_rebase_merge: false  — no rebase-merge (status checks would
- *                                  need to be re-run per commit).
- *   - allow_merge_commit: false  — no merge commits cluttering the
- *                                  default branch.
- *   - allow_auto_merge: true     — required for the auto-merge label
- *                                  feature Story 1 delivered.
- *   - delete_branch_on_merge: true — head branches are throwaway.
- *
- * Behaviour rules
- * ---------------
- * No drift (live settings already match the target): no-op, returns
- * `{ status: 'unchanged' }`.
- *
- * Drift (any field differs from the target stance): when a `hitlConfirm`
- * gate is supplied, the proposed payload routes through it — on approval
- * the PATCH is issued; on decline the module returns
- * `{ status: 'skipped', reason: 'hitl-declined' }` without writing (a loud
- * decline, never silent). When NO gate is supplied (non-TTY, no operator
- * present — Story #4045 A4), the framework stance is default-applied with
- * an explicit log line.
+ * Applies the framework merge stance (squash-only, auto-merge on, delete head
+ * branches). On drift, a supplied `hitlConfirm` gate decides; with no gate
+ * (non-TTY) the stance is applied with an explicit log line.
  */
 
 export const TARGET_MERGE_METHODS = Object.freeze({
@@ -34,11 +12,7 @@ export const TARGET_MERGE_METHODS = Object.freeze({
   delete_branch_on_merge: true,
 });
 
-/**
- * Compute the drift between `current` (sparse) and the merged
- * (defaults+settings) target. Returns null when nothing diverges so the
- * caller can short-circuit before prompting HITL.
- */
+/** `null` when nothing diverges. */
 export function diffMergeMethods(current, target) {
   const diff = {};
   for (const key of Object.keys(target)) {
@@ -66,7 +40,6 @@ export async function applyMergeMethods({
   hitlConfirm,
   log = () => {},
 }) {
-  // Merge methods live under `github.mergeMethods`.
   const override = settings?.github?.mergeMethods ?? {};
   const target = { ...TARGET_MERGE_METHODS, ...override };
 
@@ -102,8 +75,6 @@ export async function applyMergeMethods({
       return { status: 'skipped', reason: 'hitl-declined', diff };
     }
   } else {
-    // Non-TTY: no operator present to confirm. Default-apply the framework
-    // stance and log explicitly so the consequence is never silent.
     log(
       '[Bootstrap] Merge methods: non-TTY — applying framework stance automatically ' +
         '(allow_squash_merge, allow_auto_merge, delete_branch_on_merge). ' +

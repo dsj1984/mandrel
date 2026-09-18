@@ -1,31 +1,11 @@
 /**
- * review-providers/review-depth.js — Shared depth-prompt vocabulary for the
- * LLM-backed review providers.
- *
- * Story #3937 / #3938 — the depth lever (`light` / `standard` / `deep`,
- * derived from the diff's observable width and sensitive-path hits by
- * `lib/orchestration/review-depth.js`; #4542 retired the judged-risk
- * input) is threaded into every
- * provider's `runReview` input. LLM-backed providers (codex, security-review,
- * ultrareview) must render that lever into the prompt/instructions they emit so
- * the model actually changes its thoroughness; the native (mechanical) provider
- * documents in its own JSDoc why depth does not change its lint +
- * maintainability sweep. This module is the single home for the depth → prose
- * mapping so the three LLM providers share one wording rather than each
- * re-spelling the semantics (which would cross the duplication gate).
- *
- * The mapping is intentionally model-agnostic: it describes *how thorough* the
- * review should be, not which tool runs it. A provider appends
- * `renderDepthDirective(depth)` to its prompt to instruct the model.
+ * review-providers/review-depth.js — the one depth → prompt-prose mapping the
+ * LLM-backed providers share; model-agnostic, it says how thorough to be.
  *
  * @typedef {import('./types.js').ReviewDepth} ReviewDepth
  */
 
 /**
- * Canonical per-depth review directive sentences. Keyed by the canonical
- * `ReviewDepth` enum. Exported so tests and doc tooling can assert against the
- * exact wording rather than free-text matching.
- *
  * @type {Readonly<Record<ReviewDepth, string>>}
  */
 const DEPTH_DIRECTIVES = Object.freeze({
@@ -45,11 +25,7 @@ const DEPTH_DIRECTIVES = Object.freeze({
 });
 
 /**
- * Normalize an arbitrary depth value to the canonical enum, defaulting to
- * `standard` for anything unrecognised (including `undefined` — providers may
- * receive an input without a depth from a caller that did not resolve one).
- *
- * Pure. Exported for testing.
+ * Anything unrecognised, including `undefined`, is `standard`.
  *
  * @param {unknown} depth
  * @returns {ReviewDepth}
@@ -59,12 +35,7 @@ function normalizeDepth(depth) {
 }
 
 /**
- * Render the depth directive sentence(s) for a given depth value, ready to
- * append to a provider's prompt. Always returns a non-empty string carrying a
- * `Review depth:` marker so connectivity tests can assert the lever reached the
- * prompt regardless of which tier resolved.
- *
- * Pure. Exported for testing.
+ * Always non-empty and carrying a `Review depth:` marker.
  *
  * @param {ReviewDepth|undefined} depth
  * @returns {string}

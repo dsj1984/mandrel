@@ -1,34 +1,14 @@
 /**
- * docs-digest.js — per-run docs digest builder (Story #4338).
- *
- * `/mandrel-deliver` story sub-agents previously re-read every file in
- * `project.docsContextFiles` on every Story, re-paying the full docs payload
- * per child. This module produces a single **digest** — one compact markdown
- * outline per configured doc — that the parent threads into every child prompt
- * once. The digest gives each child enough shape (path, size, heading outline
- * with line numbers, and the first paragraph under each `##` section) to decide
- * which full files to pull on demand, instead of ingesting the whole set up
- * front.
- *
- * The heavy lifting of reading + normalizing doc bodies is delegated to
- * `doc-reader.js` (`readDocFiles`), keeping a single home for the fs read path.
- *
- * Story #4433 extends this module with {@link ensureDocsDigest}, a shared
- * generate-and-write export so the planner-context surface
- * (`plan-context.js` / `authoring-context.js`) can produce a session docs
- * digest without duplicating the mkdir+writeFile plumbing shared by
- * `plan-context.js` / `authoring-context.js` and the `/mandrel-deliver` workflow.
+ * docs-digest.js — a compact outline of `project.docsContextFiles` (path,
+ * size, headings with line numbers, first `##` paragraph) so agents pull
+ * full docs on demand instead of ingesting the whole set per Story.
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { readDocFiles } from './doc-reader.js';
 
-/**
- * Level-2 / level-3 markdown heading matcher. Mirrors the outline granularity
- * the planning-context budget already uses so the two surfaces agree on what a
- * "section" is.
- */
+/** `##`/`###` headings — the planning-context budget's section granularity. */
 const HEADING_RE = /^(#{2,3})\s+(.+?)\s*$/;
 
 function byteLen(s) {
@@ -37,10 +17,6 @@ function byteLen(s) {
 }
 
 /**
- * Extract the heading outline (level + text + 1-based line number) from a
- * markdown body. Line numbers let a child jump straight to the section it
- * needs when it pulls the full file.
- *
  * @param {string} content
  * @returns {Array<{ level: number, text: string, line: number }>}
  */
@@ -56,12 +32,10 @@ function extractOutline(content) {
 }
 
 /**
- * The first non-empty paragraph that follows a given heading line, up to the
- * next heading or a blank-line paragraph break. Returns '' when the section
- * has no prose (e.g. a heading immediately followed by a sub-heading).
+ * First paragraph under a heading; '' when the section has no prose.
  *
- * @param {string[]} lines full doc split into lines
- * @param {number} headingLine 1-based line of the heading
+ * @param {string[]} lines
+ * @param {number} headingLine 1-based
  * @returns {string}
  */
 function firstParagraphAfter(lines, headingLine) {
@@ -79,9 +53,6 @@ function firstParagraphAfter(lines, headingLine) {
 }
 
 /**
- * Render one doc's digest section: path + byte size, then a bulleted heading
- * outline where each `##` bullet carries the first paragraph beneath it.
- *
  * @param {{ path: string, content: string }} doc
  * @returns {string} markdown block
  */
@@ -110,15 +81,12 @@ function renderDocSection(doc) {
 }
 
 /**
- * Build the per-run docs digest markdown from the configured docs context
- * files. Missing files are skipped silently (the read seam returns only the
- * files it could stat + read). Returns `null` when there is nothing to digest
- * — i.e. `docsContextFiles` is empty/unset — so callers surface a null
- * `docsDigestPath` rather than writing an empty file.
+ * Build the digest; missing files are skipped. `null` when nothing is
+ * readable, so callers report a null `docsDigestPath` instead of an empty
+ * file.
  *
  * @param {{ docsContextFiles?: string[], docsRoot?: string }} args
- * @returns {Promise<string|null>} the digest markdown, or null when there are
- *   no files to digest.
+ * @returns {Promise<string|null>}
  */
 export async function buildDocsDigest({ docsContextFiles, docsRoot } = {}) {
   const files = Array.isArray(docsContextFiles) ? docsContextFiles : [];
@@ -142,14 +110,8 @@ export async function buildDocsDigest({ docsContextFiles, docsRoot } = {}) {
 }
 
 /**
- * Build the docs digest and write it to `outputPath`, returning `null` (no
- * write) when there is nothing to digest. This is the single shared
- * generate-and-persist export both digest producers call: the per-run
- * `/mandrel-deliver` docs digest (`helpers/deliver-story.md`) and the planner-
- * context digest (`plan-context.js` → `authoring-context.js`, Story
- * #4433). Callers own path construction (temp-root layout, run id, etc.)
- * so both surfaces can keep — or deliberately share — their own convention;
- * this function only owns "build digest, ensure parent dir, write file".
+ * Build and write the digest (`null`, no write, when empty). Shared by the
+ * deliver and planner surfaces; callers own path construction.
  *
  * @param {{ docsContextFiles?: string[], docsRoot?: string, outputPath: string }} args
  * @returns {Promise<{ digest: string, outputPath: string } | null>}

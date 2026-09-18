@@ -1,32 +1,11 @@
 /**
- * phases/post-land.js — the script-owned land tail (Story #4543).
+ * phases/post-land.js — the land tail, the one seam both landing surfaces
+ * (the in-close wait and the standalone confirm CLI) reach, so "landed"
+ * means the whole tail ran on either.
  *
- * Everything after "the PR merged and the Story is `agent::done`" used to be
- * prose in `helpers/deliver-story.md`: Step 5.5 resync, Step 6 cleanup, and
- * follow-up capture, each a separate CLI an agent may or may not have run.
- * Follow-up capture was the sharpest edge — it lived only on the standalone
- * `single-story-confirm-merge.js` path, which close-and-land (the DEFAULT)
- * is explicitly told to skip, so per-Story follow-ups were captured *never*
- * on the default path, and a belated manual confirm could not backfill (the
- * Story is already `agent::done`, so confirm short-circuits `noop` and the
- * capture's `action === 'done'` gate never opens).
- *
- * This module folds every such step into one phase both landing surfaces
- * reach — the in-close wait (`phases/confirm-merge.js`) and the standalone
- * `single-story-confirm-merge.js` CLI — so the two paths cannot diverge and
- * "landed" means the whole tail ran.
- *
- * **Per-step booleans, not an aggregate.** {@link runPostLandTail} reports
- * each step's outcome individually. That is not bookkeeping fastidiousness:
- * the worktree-reap defect this repo fixed existed because a phase reported
- * an outcome it never checked, and a single `tailOk: true` bit invites that
- * class of bug straight back. A degraded step is visible in the terminal
- * envelope without failing an otherwise-healthy land.
- *
- * **Never throws.** The merge already landed — the code is on the base
- * branch. Failing the land because a Projects v2 mutation flaked would
- * report a false negative about work that is demonstrably done. Every step
- * is best-effort and records its own reason.
+ * Reports per-step booleans, never one aggregate bit, so a step cannot claim
+ * an outcome it never checked. Never throws: the merge already landed, and a
+ * flaky step must degrade the report, not the land.
  */
 
 import path from 'node:path';
@@ -51,12 +30,7 @@ import { releaseStoryLease as defaultReleaseStoryLease } from '../../single-stor
 import { captureStoryFollowUps as defaultCaptureStoryFollowUps } from '../../story-follow-ups.js';
 
 /**
- * Lockfile that serializes the local-checkout git mutations of the land tail
- * across concurrent closes. Keyed on the **main checkout** (never a
- * worktree): every concurrent `single-story-close` runs its tail against the
- * same `cwd`, so anchoring the lock under that checkout's `.git` directory
- * makes them all contend on one file. `.git` is always present, is one per
- * checkout, and is never itself tracked, so it is a safe rendezvous home.
+ * Under the MAIN checkout's `.git`, so every concurrent close contends on one file.
  *
  * @param {string} cwd Main checkout root.
  * @returns {string}
@@ -66,9 +40,7 @@ function postLandLockPath(cwd) {
 }
 
 /**
- * Run one tail step, converting any throw into a `false` + reason. Keeps
- * each step's own body free of defensive boilerplate while guaranteeing the
- * module-level never-throws contract.
+ * Converts any throw into `{ ok: false, detail }`.
  *
  * @template T
  * @param {() => Promise<{ ok: boolean, detail?: string|null }>} run
@@ -94,13 +66,8 @@ async function step(run, { name, progress }) {
 }
 
 /**
- * Capture the Story's follow-ups from its friction signal stream.
- *
- * Calls `captureStoryFollowUps` **directly** rather than through the
- * `captureFollowUpsAfterConfirm` action-gate wrapper: by the time the tail
- * runs, the merge is already confirmed, so re-deriving that fact from a
- * confirmation envelope's `action` field is the exact coupling that made
- * the default path skip capture entirely.
+ * Calls capture directly, not via the `action`-gated wrapper: the merge is
+ * already confirmed, and that gate never opens on an already-done Story.
  */
 async function stepFollowUps({
   storyId,
@@ -125,11 +92,7 @@ async function stepFollowUps({
 
 /**
  * Re-assert the Projects v2 Status column against the bot's late write.
- *
- * A `skipped` envelope (`no-project`, `not-on-project`, `no-meta`) is a
- * **success**: the board the helper would defend does not exist, so there
- * is nothing to get wrong. Only a genuine `drifted` outcome — the helper
- * fired, polled, and still lost — degrades the step.
+ * `skipped` (no board) is success; only `drifted` degrades.
  */
 async function stepStatusResync({
   storyId,
@@ -156,14 +119,7 @@ async function stepStatusResync({
   };
 }
 
-/**
- * Reap the local `story-<id>` ref. GitHub deletes the *remote* branch on
- * squash-merge (`--delete-branch`), but the local ref lingers in the main
- * checkout until something prunes it.
- *
- * An absent ref is a success, not a failure — the sweep is idempotent and
- * a previous run (or the init-time merged-sweep) may have already reaped it.
- */
+/** Reap the local `story-<id>` ref; already absent is success. */
 async function stepRefCleanup({ cwd, storyBranch, progress, gitSpawnFn }) {
   const exists = gitSpawnFn(
     cwd,
@@ -185,14 +141,8 @@ async function stepRefCleanup({ cwd, storyBranch, progress, gitSpawnFn }) {
 }
 
 /**
- * Fast-forward local `baseBranch` so the next Story seeds from the tip that
- * now contains this merge. Reuses the same planner/executor pair
- * `single-story-init.js` imports (rather than shelling out to
- * `/git-cleanup`), which is the established in-process composition pattern.
- *
- * `already-up-to-date` is a success. A dirty tree is a legitimate, expected
- * skip on a shared checkout — another worker is mid-flight — so it degrades
- * the step's report without pretending the base moved.
+ * Fast-forward local `baseBranch` so the next Story seeds from this merge. A
+ * dirty shared checkout is an expected skip that degrades the report.
  */
 async function stepBaseFastForward({
   cwd,
@@ -228,16 +178,7 @@ async function stepBaseFastForward({
   };
 }
 
-/**
- * Purge this Story's spent temp artifacts now that its merge is confirmed
- * (Story #4794).
- *
- * The engine already emits its own one-line summary and returns a disabled
- * policy as `skipped` with no errors, so this step needs no branching of its
- * own: errors degrade it, everything else — including a deliberate
- * config-disabled no-op — is a success. Reporting a disabled purge as a failed
- * step would train readers to ignore the field.
- */
+/** Only errors degrade; a config-disabled purge is success. */
 async function stepTempPurge({ storyId, config, purgeStoryTempArtifactsFn }) {
   const result = await purgeStoryTempArtifactsFn({ storyId, config });
   const errors = result?.errors ?? [];
@@ -245,32 +186,9 @@ async function stepTempPurge({ storyId, config, purgeStoryTempArtifactsFn }) {
 }
 
 /**
- * Release the Story's assignee-lease now that the merge is confirmed
- * (Story #4860).
- *
- * The close used to release here-ish — immediately after the PR was opened
- * and armed, before the merge wait ran — so a Story's ticket read *unassigned*
- * for the entire window its PR was open, and indefinitely on the
- * operator-merge path where a human owns the land. The claim is the only
- * ticket-visible record of who owns in-flight work, so dropping it at PR
- * creation is dropping it at exactly the wrong moment.
- *
- * It lives in the tail rather than in either landing surface because the tail
- * is the one seam **both** reach — the in-close merge wait
- * (`phases/confirm-merge.js`) and the standalone
- * `single-story-confirm-merge.js` CLI. Homing it anywhere else re-opens the
- * surface divergence this module exists to close.
- *
- * Idempotent by construction: `releaseStoryLease` no-ops when the resolved
- * operator is no longer the recorded owner, so a re-run (or the belated
- * manual confirm that backfills an already-`agent::done` Story) reports the
- * no-op reason rather than yanking a claim someone else has since taken.
- *
- * A `released: false` no-op is **not** a step failure: an already-released
- * ticket is the desired end state, and reporting it as `false` would train
- * readers to ignore the field. Only a throw — an unreachable API, an
- * unresolvable operator identity — degrades the step, and like every tail
- * step that degrades the report, never the land.
+ * Release the lease only once the merge is confirmed: the claim is the
+ * ticket's record of who owns in-flight work. Idempotent (no-ops for a
+ * non-owner); a `released: false` no-op is success, only a throw degrades.
  */
 async function stepLeaseRelease({
   storyId,
@@ -292,26 +210,13 @@ async function stepLeaseRelease({
   };
 }
 
-/**
- * The whole-repository sweep an operator runs when the automatic reap could
- * not finish its job. Named in the warning itself so the next step is in the
- * message rather than in a runbook nobody opens mid-incident.
- */
+/** Named in the reap warning so the remedy is in the message. */
 const REAP_SWEEP_REMEDY = 'node .agents/scripts/prune-plan-run-labels.js';
 
 /**
- * Roll the closing Story's container Epic up from its children (Story #5205).
- *
- * Wired here for the same reason the cohort-label reap is: this is the only
- * seam both a single- and a multi-Story run reach. The run epilogue that used
- * to own the Epic close runs at N>1 only, so a container whose last open
- * child was one Story stayed open forever.
- *
- * Unlike the reap, the outcome IS reported in the returned `tail`. The
- * distinction is what an operator can act on: a stale cohort label is read by
- * nothing, whereas an Epic left open or showing the wrong column is a visible
- * board state someone will otherwise correct by hand, so a false here earns
- * its line in the envelope.
+ * Roll up the container Epic; here because only this seam fires for both
+ * single- and multi-Story runs. Reported in `tail` (unlike the label reap):
+ * a wrong Epic state is visible and actionable.
  *
  * @returns {Promise<{ ok: boolean, detail: string|null }>}
  */
@@ -339,28 +244,9 @@ async function stepEpicRollup({
 }
 
 /**
- * Reap the cohort labels the closing Story carried (Story #5189).
- *
- * This seam is chosen deliberately. It is the only one that fires for both
- * single- and multi-Story runs: the multi-Story run epilogue is keyed on a
- * synthesized ad-hoc id, never sees the cohort label, and reports
- * `applicable: false` at N=1 — which is the planning default, so wiring the
- * reap there would leave the common case unreaped forever.
- *
- * Best-effort in the strongest sense the tail offers: the outcome is
- * deliberately NOT reported in the returned `tail` envelope. A per-step
- * boolean is the right shape for a step whose failure degrades the *report of
- * the land* — a missed follow-up, an unresynced status column. Label
- * vocabulary hygiene is not that: nothing downstream reads a cohort label as
- * an input, so a failed reap costs one stale label. Surfacing it in the
- * envelope would make a close whose label read flaked terminate differently
- * from one where no label was reapable, for no difference an operator can act
- * on. The failure is named in a warning instead, and the whole-repository
- * sweep (`node .agents/scripts/prune-plan-run-labels.js`) collects whatever
- * the automatic path misses.
- *
- * Never reaps a zero-issue label: that shape is indistinguishable from a label
- * an in-flight persist has just minted, so the opt-in stays off here.
+ * Reap the Story's cohort labels (the run epilogue never sees them). Not
+ * reported in `tail`: nothing reads a cohort label, so a failure only warns.
+ * Never reaps a zero-issue label — it may be one a persist just minted.
  */
 async function stepPlanRunLabelReap({
   storyId,
@@ -396,26 +282,11 @@ async function stepPlanRunLabelReap({
 }
 
 /**
- * Run the whole post-land tail. Never throws.
- *
- * Steps run **sequentially** and in this order deliberately: follow-up
- * capture and the status resync touch GitHub, while the ref reap and the
- * fast-forward mutate the local checkout — and the fast-forward must run
- * after the ref reap so `git branch -D` is not fighting a checkout that just
- * moved HEAD.
- *
- * **Cross-process serialization (Story #4622).** The two local-checkout
- * mutations — `stepRefCleanup` (`git branch -D`) and `stepBaseFastForward`
- * (fast-forward `baseBranch`) — run inside a best-effort cross-process lock
- * keyed on the main checkout. Under concurrent delivery (multiple
- * story-workers closing against one shared checkout + per-Story worktrees),
- * an unserialized tail races on the `main` ref and the worktree registry —
- * the `refCleanup:false` ("used by worktree") / `baseFastForward:false`
- * ("not-fast-forward") signature reported in swarm-os friction #579. The
- * GitHub-touching steps stay OUTSIDE the lock so a contended checkout never
- * delays them. The lock is never load-bearing: on sustained contention the
- * bounded wait expires and the mutations run anyway (proceeding is the same
- * best-effort contract every tail step already has).
+ * Run the post-land tail, sequentially. The ref reap and fast-forward (the
+ * local-checkout mutations, reap first) run under a cross-process lock on the
+ * main checkout, since concurrent closes race on the base ref and worktree
+ * registry; GitHub steps stay outside it. The lock is best-effort: on
+ * timeout the mutations run anyway.
  *
  * @param {object} args
  * @param {number} args.storyId
@@ -425,18 +296,18 @@ async function stepPlanRunLabelReap({
  * @param {object} args.provider
  * @param {object} [args.config]
  * @param {(tag: string, msg: string) => void} [args.progress]
- * @param {Function} [args.captureStoryFollowUpsFn] Test seam.
- * @param {Function} [args.emitCloseRecoveredFrictionFn] Test seam.
- * @param {Function} [args.emitRecoveredFrictionMarkerFn] Test seam.
- * @param {Function} [args.reassertStatusColumnFn]  Test seam.
- * @param {Function} [args.gitSpawnFn]              Test seam.
- * @param {Function} [args.planFastForwardFn]       Test seam.
- * @param {Function} [args.executeFastForwardFn]    Test seam.
- * @param {Function} [args.acquireLockWithWaitFn]   Test seam.
- * @param {Function} [args.purgeStoryTempArtifactsFn] Test seam.
- * @param {Function} [args.releaseStoryLeaseFn]     Test seam.
- * @param {Function} [args.reapPlanRunLabelsForStoryFn] Test seam.
- * @param {Function} [args.rollUpEpicForStoryFn]     Test seam.
+ * @param {Function} [args.captureStoryFollowUpsFn]
+ * @param {Function} [args.emitCloseRecoveredFrictionFn]
+ * @param {Function} [args.emitRecoveredFrictionMarkerFn]
+ * @param {Function} [args.reassertStatusColumnFn]
+ * @param {Function} [args.gitSpawnFn]
+ * @param {Function} [args.planFastForwardFn]
+ * @param {Function} [args.executeFastForwardFn]
+ * @param {Function} [args.acquireLockWithWaitFn]
+ * @param {Function} [args.purgeStoryTempArtifactsFn]
+ * @param {Function} [args.releaseStoryLeaseFn]
+ * @param {Function} [args.reapPlanRunLabelsForStoryFn]
+ * @param {Function} [args.rollUpEpicForStoryFn]
  * @returns {Promise<{ followUps: boolean, statusResync: boolean, refCleanup: boolean, baseFastForward: boolean, tempPurge: boolean, leaseRelease: boolean, epicRollup: boolean, details: Record<string, string|null> }>}
  */
 export async function runPostLandTail({
@@ -462,20 +333,9 @@ export async function runPostLandTail({
 }) {
   progress?.('POST-LAND', `🧾 Running land tail for Story #${storyId}...`);
 
-  // The close landed, so every friction incident on this Story's stream is
-  // provably resolved. Emit the recovery markers BEFORE follow-up capture
-  // reads the stream: the `landed` terminal envelope is emitted after this
-  // whole tail, so a marker written there would arrive too late to net
-  // anything out of the very run that produced the incident. Each emit is
-  // conditional on an un-recovered record already present, so a Story that
-  // never hit the incident gets no spurious (and bucket-suppressing) row.
-  //   - `close-failed`         — Story #4649.
-  //   - `story-blocked`        — a Story that blocked then reached
-  //     `agent::done` (Story #4654); resolves the occurrence-1 force-file.
-  //   - `merge-wait-exhausted` — a merge that spent its whole budget and
-  //     landed on a later resume (Story #4654); the residual case the
-  //     `frictionForTerminal` budget guard cannot suppress at the source.
-  // Best-effort and never throws, exactly like every other tail step.
+  // The land resolves this Story's friction incidents. Mark them recovered
+  // BEFORE follow-up capture reads the stream; each emit fires only over an
+  // un-recovered record, so no spurious rows.
   await emitCloseRecoveredFrictionFn({ storyId, config });
   await emitRecoveredFrictionMarkerFn({
     storyId,
@@ -511,9 +371,6 @@ export async function runPostLandTail({
       }),
     { name: 'status-column resync', progress },
   );
-  // Story #5189 — the cohort label's end of life. Runs with the other
-  // GitHub-touching steps (outside the checkout lock) and contributes nothing
-  // to `tail`; see `stepPlanRunLabelReap` for why that omission is the point.
   await step(
     () =>
       stepPlanRunLabelReap({
@@ -525,9 +382,6 @@ export async function runPostLandTail({
     { name: 'plan-run label reap', progress },
   );
 
-  // Story #5205 — the container Epic's state is derived from its children, so
-  // the child reaching `agent::done` is the edge that can close it. Runs with
-  // the other GitHub-touching steps, outside the checkout lock.
   const epicRollup = await step(
     () =>
       stepEpicRollup({
@@ -540,8 +394,6 @@ export async function runPostLandTail({
     { name: 'epic rollup', progress },
   );
 
-  // Local-checkout mutations: serialized behind a best-effort cross-process
-  // lock (Story #4622). Acquire once, run both steps, release in `finally`.
   const lockCfg = config?.delivery?.postLandLock ?? {};
   const lock = await acquireLockWithWaitFn({
     lockPath: postLandLockPath(cwd),
@@ -551,9 +403,6 @@ export async function runPostLandTail({
     ownerId: `post-land-${storyId}`,
   });
   if (!lock.acquired) {
-    // Never load-bearing: proceed anyway. The bounded wait already gave the
-    // concurrent holder its window; blocking the land on a lock we could not
-    // take would turn a best-effort damper into a false negative.
     progress?.(
       'POST-LAND',
       `⚠️ post-land lock not acquired (${lock.reason}); proceeding unserialized.`,
@@ -581,18 +430,12 @@ export async function runPostLandTail({
     if (lock.acquired) lock.release();
   }
 
-  // Story #4794 — the merge is confirmed, so this Story's gate transcripts and
-  // validation evidence are spent. Runs LAST so a purge can never race a step
-  // that still reads them, and outside the checkout lock because it touches
-  // only the temp tree. Its `signals.ndjson` survives by construction.
+  // After every step that reads the temp artifacts; `signals.ndjson` survives.
   const tempPurge = await step(
     () => stepTempPurge({ storyId, config, purgeStoryTempArtifactsFn }),
     { name: 'temp purge', progress },
   );
 
-  // Story #4860 — the merge is confirmed, so the operator's claim on this
-  // Story has finally done its job. Released here rather than at PR creation
-  // so the ticket stays assigned for the whole time its PR is open.
   const leaseRelease = await step(
     () =>
       stepLeaseRelease({

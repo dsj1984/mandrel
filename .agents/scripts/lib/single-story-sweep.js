@@ -1,54 +1,8 @@
 /**
- * single-story-sweep.js — the scope-agnostic merged-branch sweep engine
- * plus the `story-*` boot-sweep preset.
- *
- * `sweepMergedBranches` is the single reap engine every boot cleanup
- * path routes through. It sits directly over the `git-cleanup` phase
- * library (`planCleanup` / `executeCleanup` / `executeFastForward` /
- * `buildGlobFilter`) and the shared `evaluateProtection` guard set, so
- * no reap path re-implements the `git branch -D` / `git merge --ff-only`
- * primitives:
- *
- *   - Scope: caller-supplied `include` / `exclude` globs (via
- *            `buildGlobFilter`). The story preset pins `story-*`.
- *   - Reap:  merged local branches whose PR HEAD SHA equals the merged
- *            `headRefOid`, deleted local + origin with tracking-ref
- *            prune (`executeCleanup` in `--remote` mode).
- *   - Protection (Story #2011): each candidate is filtered through
- *            `evaluateProtection` before reaching `executeCleanup`. A
- *            candidate is protected (not reaped) when its branch HEAD
- *            differs from the PR's `headRefOid` (unpushed work), when
- *            its worktree has uncommitted edits, or when the parent
- *            Story ticket is not in a terminal state. Protected
- *            candidates surface under `protected`.
- *   - Fast-forward (opt-in via `fastForward: true`): fast-forward the
- *            base branch through `executeFastForward` after the reap.
- *            Best-effort — a failed fast-forward never fails the sweep.
- *   - Concurrency (Story #2011): the sweep acquires a process-scoped
- *            lockfile around plan + execute. On lock contention the
- *            sweep is skipped (the host continues — same contract as a
- *            plan failure).
- *   - Content-merged (Story #4396, report-only): a plan candidate the
- *            `git-cleanup` planner classified `detectedBy: 'content-merged'`
- *            (Story #4395's `git merge-tree --write-tree` content-equivalence
- *            probe) is a **weaker** signal than a merged PR or git ancestry —
- *            no CI/GitHub merge check ever validated its exact diff. This
- *            engine never reaps on that signal alone: content-merged
- *            candidates are pulled out of the plan before protection +
- *            execute and surfaced under `contentMerged` in the envelope so
- *            the operator can route them to `/git-cleanup` for a confirmed,
- *            eyeballed reap.
- *   - Never touches the stash stack.
- *   - Errors are caught and surfaced in the envelope. Callers MUST NOT
- *            propagate sweep failures — the host proceeds either way.
- *
- * `sweepMergedStoryBranches` is a thin preset over the engine tuned for
- * the boot path (`include: story-*`, `exclude: <current story branch>`,
- * `fastForward: false`). Its exported name, signature, and result
- * envelope are unchanged from the pre-engine implementation.
- *
- * Re-exports the same `planCleanup` / `executeCleanup` injection seams so
- * tests can stub git/`gh` without touching the CLI.
+ * Merged-branch sweep over the `git-cleanup` phases, plus the `story-*` boot
+ * preset. A candidate is protected when its HEAD differs from the PR's, its
+ * worktree is dirty, or its Story is not terminal. Lock contention skips.
+ * Errors land in the envelope; callers MUST NOT propagate them.
  */
 
 import {
@@ -64,8 +18,6 @@ import { acquireSweepLock as defaultAcquireSweepLock } from './single-story-swee
 const STORY_BRANCH_INCLUDE = 'story-*';
 
 /**
- * Scope-agnostic merged-branch sweep engine.
- *
  * @param {{
  *   cwd: string,
  *   baseBranch: string,
@@ -129,9 +81,7 @@ export async function sweepMergedBranches({
     return zeroResult({ error: 'baseBranch is required' });
   }
 
-  // Optional lock acquisition. Skip silently when no lockPath is
-  // supplied (e.g. unit tests, callers that opt out). Contention is
-  // non-fatal — return a skipped result and let the host continue.
+  // No lockPath → no lock. Contention returns a skipped result.
   let releaseLock = () => {};
   if (lockPath) {
     const lockResult = acquireLockFn({ lockPath, timeoutMs: lockTimeoutMs });
@@ -190,12 +140,8 @@ export async function sweepMergedBranches({
 }
 
 /**
- * Sweep merged `story-*` branches in `cwd`. Preset over
- * {@link sweepMergedBranches} for the boot path: it pins the `story-*`
- * include glob, excludes the current run's `currentStoryBranch`, and
- * keeps `fastForward` off (the boot caller fast-forwards the base branch
- * separately). Exported name, signature, and result-envelope shape are
- * unchanged from the pre-engine implementation.
+ * Boot preset: `story-*` only, current Story branch excluded, no
+ * fast-forward (the boot caller does that separately).
  *
  * @param {{
  *   cwd: string,
@@ -228,13 +174,9 @@ export function sweepMergedStoryBranches(args = {}) {
 }
 
 /**
- * Split a plan's candidates into the reapable set and the report-only
- * `content-merged` set (Story #4396). A candidate the `git-cleanup`
- * planner classified `detectedBy: 'content-merged'` (Story #4395's
- * `git merge-tree --write-tree` probe) never reaches protection or
- * `executeCleanup` — it is a weaker signal than a merged PR or git
- * ancestry, so the engine only reports it for the operator to route to
- * `/git-cleanup`.
+ * Content-merged candidates are report-only: content equivalence is weaker
+ * than a merged PR or ancestry, so only an operator-confirmed `/git-cleanup`
+ * may reap them.
  */
 function partitionContentMerged(candidates) {
   const contentMerged = [];
@@ -252,10 +194,6 @@ function partitionContentMerged(candidates) {
   return { contentMerged, reapCandidates };
 }
 
-/**
- * Inner: the plan + protect + execute pipeline. Kept separate so the
- * outer engine can stay focused on the lock and fast-forward wrappers.
- */
 async function runSweepUnderLock({
   cwd,
   baseBranch,
@@ -342,11 +280,6 @@ async function runSweepUnderLock({
   });
 }
 
-/**
- * Execute the reap plan for the reapable candidates and shape the result
- * envelope. Split out of {@link runSweepUnderLock} so each function keeps
- * a single responsibility.
- */
 function executeReap({
   reapable,
   protectedList,
@@ -403,10 +336,7 @@ function executeReap({
     candidates: candidateCount,
     localDeleted,
     remoteDeleted,
-    // Story #4794 — the branch names, not just the count. Each one is a merge
-    // this sweep CONFIRMED (merged PR + matching headRefOid), which is exactly
-    // the evidence the temp-retention catch-up needs to purge that Story's
-    // spent artifacts. Previously these existed only inside a log string.
+    // Confirmed merges: temp-retention's catch-up purges on these names.
     reaped: reapable.map((c) => c.branch),
     protected: protectedList,
     contentMerged,
@@ -414,11 +344,7 @@ function executeReap({
   };
 }
 
-/**
- * Best-effort fast-forward of the base branch through the git-cleanup
- * fast-forward phase. Never throws — a failed fast-forward is logged and
- * returned as `{ ok: false, error }` but must never fail the sweep.
- */
+/** Best-effort base fast-forward; never throws, never fails the sweep. */
 function runFastForwardStep({
   cwd,
   baseBranch,
@@ -453,17 +379,8 @@ function runFastForwardStep({
 }
 
 /**
- * Iterate plan candidates and split them into `reapable` (safe to pass
- * to executeCleanup) and `protectedList` (skipped, with a reason).
- *
- * Protection failures are treated as protected — never reap a candidate
- * whose state we cannot verify. The reason string travels into the
- * result envelope and the log line for postmortem clarity.
- *
- * When no `protectionCtx` is supplied (legacy callers, unit tests),
- * the protection check is bypassed entirely and every candidate is
- * reapable. The boot-path CLI surfaces always supply a ctx, so this
- * fallback never fires in production.
+ * A protection-eval error counts as protected: never reap what cannot be
+ * verified. No `protectionCtx` (tests only) bypasses protection.
  */
 async function partitionCandidates({
   candidates,

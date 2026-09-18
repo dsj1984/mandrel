@@ -1,20 +1,8 @@
 /**
- * WorktreeManager — single authority over per-story git worktrees.
- *
- * This file is a thin facade over `lib/worktree/*`:
- *   - `lib/worktree/lifecycle-manager.js` — ensure / reap / list / gc / prune.
- *   - `lib/worktree/node-modules-strategy.js` — per-worktree / symlink / pnpm-store.
- *   - `lib/worktree/bootstrapper.js` — bootstrap-file copy.
- *   - `lib/worktree/inspector.js` — pure path + porcelain parsing helpers.
- *
- * External callers import `WorktreeManager` and `parseWorktreePorcelain` from
- * this module path; those exports are preserved verbatim so no other file in
- * the repo needs to change.
- *
- * No other script may call `git worktree` directly. All git calls flow
- * through the injected `ctx.git` (defaults to `./git-utils.js`). Paths are
- * resolved and asserted to live inside `repoRoot`, and callers cannot request
- * force removal; bounded internal fallbacks live in the lifecycle module.
+ * WorktreeManager — the single authority over per-story git worktrees, a
+ * facade over `lib/worktree/*`. No other script may call `git worktree`.
+ * Paths are asserted inside `repoRoot` and callers cannot request force
+ * removal.
  */
 
 import path from 'node:path';
@@ -46,16 +34,13 @@ export { parseWorktreePorcelain };
 export class WorktreeManager {
   /**
    * @param {object} opts
-   * @param {string} opts.repoRoot        Absolute path to the main repo.
+   * @param {string} opts.repoRoot
    * @param {object} [opts.config]        Resolved `orchestration.worktreeIsolation` config.
-   * @param {object} [opts.logger]        Logger with info/warn/error (defaults to console-style).
-   * @param {object} [opts.git]           Injected `{ gitSync, gitSpawn }` (defaults to git-utils).
-   * @param {NodeJS.Platform} [opts.platform]  Defaults to `process.platform`.
+   * @param {object} [opts.logger]
+   * @param {object} [opts.git]           Injected `{ gitSync, gitSpawn }`.
+   * @param {NodeJS.Platform} [opts.platform]
    * @param {(phase: 'worktree-create'|'bootstrap'|'install') => void} [opts.onPhase]
-   *   Optional phase-boundary callback fired from `ensure()` just before each
-   *   internal phase (git worktree add, bootstrap-file copy, dependency
-   *   install), so a caller can attribute wall-clock to the sub-phases of
-   *   worktree provisioning.
+   *   Fired before each `ensure()` phase, for wall-clock attribution.
    */
   constructor({
     repoRoot,
@@ -101,9 +86,7 @@ export class WorktreeManager {
   }
 
   /**
-   * Build the context bag shared by every lifecycle helper. Regenerated on
-   * each call so mutating `this.config` between calls is respected, but the
-   * cache slot is a stable object so all helpers see the same list.
+   * Rebuilt per call so config mutations are seen; the cache slot is stable.
    */
   _ctx() {
     return {
@@ -120,9 +103,7 @@ export class WorktreeManager {
         maybeWarnWindowsPath(
           {
             platform: this.platform,
-            // Hardcoded post-reshape (Epic #1720 Story #1739). The value
-            // tracks Windows MAX_PATH minus headroom for the worktree's own
-            // path overhead — not a domain knob operators tune.
+            // Windows MAX_PATH minus headroom; not an operator knob.
             threshold: 240,
             logger: this.logger,
           },
@@ -177,23 +158,20 @@ export class WorktreeManager {
     };
   }
 
-  /** Absolute path for a given storyId. */
   pathFor(storyId) {
     return pathFor(this._ctx(), storyId);
   }
 
   /**
-   * True when this manager was constructed with `config.enabled === false`.
-   * The mutating lifecycle methods (`ensure`, `reap`, `gc`, `sweepStaleLocks`)
-   * short-circuit to no-op shapes in that case so the off-branch never
-   * touches fs or git regardless of caller-side gating drift.
+   * When disabled, mutating methods return no-op shapes and never touch fs or
+   * git, whatever the caller's gating.
    */
   _isDisabled() {
     return this.config?.enabled === false;
   }
 
   /**
-   * Idempotently ensure a worktree exists at `.worktrees/story-<id>/` on `branch`.
+   * Idempotent.
    *
    * @param {number|string} storyId
    * @param {string} branch
@@ -210,22 +188,19 @@ export class WorktreeManager {
     return ensure(this._ctx(), storyId, branch);
   }
 
-  /** Enumerate all worktrees known to git. */
   list() {
     return list(this._ctx());
   }
 
-  /** Check whether a worktree is safe to remove. */
   isSafeToRemove(wtPath, opts) {
     return isSafeToRemove(this._ctx(), wtPath, opts);
   }
 
-  /** Prune stale git worktree registrations for directories that no longer exist. */
   prune() {
     return prune(this._ctx());
   }
 
-  /** Remove the worktree for a given storyId. Rejects caller-requested force. */
+  /** Rejects caller-requested force. */
   reap(storyId, opts) {
     if (this._isDisabled()) {
       return {

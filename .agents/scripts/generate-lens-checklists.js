@@ -1,34 +1,9 @@
 #!/usr/bin/env node
 /**
- * .agents/scripts/generate-lens-checklists.js — per-lens authoring checklists
- *
- * Distils each canonical audit lens's own `.agents/workflows/audit-<lens>.md`
- * workflow body into one compact authoring checklist under
- * `.agents/audit-checklists/<lens>.md`. The distillation logic is the pure
- * `lib/audit-suite/lens-checklist.js` seam; this entry point owns only the
- * file read/write/prune and the `--check` drift gate.
- *
- * Why (Epic #4405 — shift-left audit): the audit lenses used to surface their
- * concerns only when `/audit-<lens>` ran. These checklists move the concerns to
- * the innermost, write-time tier as committed build artifacts, gated for
- * staleness by `npm run docs:check` exactly like every other generated doc so
- * they can never silently drift from their source workflow.
- *
- * The lens taxonomy is the SSOT `AUDIT_LENSES` list. A lens whose
- * `audit-<lens>.md` workflow is absent produces **no** checklist and is
- * reported (never a silent skip). Stray `.md` files under the checklist
- * directory that no longer map to a lens are pruned in write mode and flagged
- * in `--check` mode, keeping the directory a pure function of its sources.
- *
- * Modes:
- *   (default)  — writes one `<lens>.md` per lens with a workflow, prunes
- *                strays, reports lenses missing a workflow.
- *   --check    — exits 0 when every on-disk file matches the freshly generated
- *                content and no strays exist, throws (→ exit 1) otherwise.
- *
- * Per `docs/contributing/orchestration-error-handling.md`, unrecoverable failures
- * surface via `throw new Error(...)` so `runAsCli` maps the throw to
- * `process.exit(1)` deterministically (no `Logger.fatal`).
+ * Distils each `audit-<lens>.md` workflow into a committed write-time
+ * checklist under `.agents/audit-checklists/`. The directory is a pure
+ * function of its sources: strays are pruned (flagged under `--check`), and a
+ * lens with no workflow is reported, never silently skipped.
  */
 
 import fs from 'node:fs';
@@ -47,12 +22,7 @@ const WORKFLOWS_DIR = path.join(PROJECT_ROOT, '.agents', 'workflows');
 const CHECKLISTS_DIR = path.join(PROJECT_ROOT, '.agents', 'audit-checklists');
 
 /**
- * Pure: plan the expected checklist set from the lens taxonomy, given a
- * workflow-existence predicate and a reader. A lens whose workflow is absent
- * yields no checklist and is recorded in `missing` (never silently skipped).
- * Kept side-effect-free so it is unit-testable with fabricated inputs.
- *
- * @param {ReadonlyArray<string>} lenses — canonical lens names.
+ * @param {ReadonlyArray<string>} lenses
  * @param {(lens: string) => boolean} workflowExists
  * @param {(lens: string) => string} readWorkflow
  * @returns {{ expected: Map<string, string>, missing: string[] }}
@@ -71,17 +41,11 @@ export function planChecklists(lenses, workflowExists, readWorkflow) {
 }
 
 /**
- * Build the full expected checklist set from the lens taxonomy and the on-disk
- * workflow bodies, plus the strays (on-disk checklist files mapping to no
- * current lens).
- *
  * @returns {{
  *   expected: Map<string, string>,
  *   missing: string[],
  *   strays: string[],
- * }} `expected` maps a checklist basename (`<lens>.md`) to its generated
- *   content; `missing` lists lenses with no `audit-<lens>.md`; `strays` lists
- *   on-disk checklist basenames that map to no current lens.
+ * }}
  */
 export function buildExpected({
   fsImpl = fs,
@@ -105,10 +69,10 @@ export function buildExpected({
 }
 
 /**
- * @param {string} basename — e.g. `security.md`
+ * @param {string} basename
  * @param {string} [checklistsDir]
  * @param {string} [projectRoot]
- * @returns {string} repo-relative POSIX path for messages.
+ * @returns {string}
  */
 function relChecklist(
   basename,
@@ -122,14 +86,6 @@ function relChecklist(
 }
 
 /**
- * The generator core, extracted from the CLI shell so both modes — the
- * `--check` drift gate and the write/prune pass — are reachable without
- * touching the real `.agents/audit-checklists` tree.
- *
- * Every seam on the optional final `deps` parameter defaults to the real
- * implementation (`docs/contributing/test-seams.md` rules 1-2, 4), so `main` and
- * `npm run docs:check` are unchanged.
- *
  * @param {string[]} [argv]
  * @param {{
  *   fsImpl?: typeof fs,

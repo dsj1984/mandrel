@@ -1,31 +1,7 @@
 /**
- * lib/findings/audit-ledger.js — Cross-run audit findings ledger.
- *
- * Without a committed memory of what a prior sweep already saw, every
- * `/audit-to-stories` run re-litigates the whole backlog from zero: it cannot
- * tell a brand-new finding from one already filed, an intentionally-rejected
- * finding from an unseen one, or a genuine regression from routine churn. The
- * ledger is that memory. It is a small committed JSON file
- * (`baselines/audit-ledger.json`, the same envelope shape as the arch-cycles
- * baseline — `{ $schema, generatedAt, entries: [] }`) keyed by each finding's
- * shared-helper fingerprint plus a location-based `semanticKey` that survives a
- * reworded title.
- *
- * Each entry carries a lifecycle `status`:
- *   - `new`          — seen, not yet filed as an Issue.
- *   - `filed`        — an Issue was opened; re-detections are known, not new.
- *   - `fixed`        — the tracking Issue closed as completed.
- *   - `accepted-risk`— the tracking Issue closed as `not_planned`; the finding
- *                      is deliberately rejected and is SUPPRESSED on re-detect.
- *   - `regressed`    — a `fixed` finding re-appeared (closed-completed Issue,
- *                      finding detected again).
- *
- * `reconcileLedger` folds a fresh scan and the live Issue states onto the prior
- * ledger, returning the next ledger plus a per-finding classification whose
- * `action` (`propose` | `known` | `suppress` | `regressed`) tells the caller
- * whether to open a Story. Pure: filesystem access is confined to the tiny
- * {@link readLedger} / {@link writeLedger} helpers, which take an injectable
- * `fs` so tests never touch disk.
+ * lib/findings/audit-ledger.js — committed cross-run memory of audit
+ * findings, keyed by fingerprint and `semanticKey`. Status: `new` · `filed` ·
+ * `fixed` · `accepted-risk` (closed `not_planned`; suppressed) · `regressed`.
  */
 
 import nodeFs from 'node:fs';
@@ -36,11 +12,7 @@ export const DEFAULT_LEDGER_PATH = 'baselines/audit-ledger.json';
 const LEDGER_SCHEMA_URL =
   'https://mandrel.dev/baselines/audit-ledger.schema.json';
 
-// Entry lifecycle states — `new | filed | fixed | accepted-risk | regressed`.
-// The reconcile policy in `decideStatus` is the single source of truth.
-
 /**
- * Build an empty ledger envelope (arch-cycles-baseline shape).
  * @param {string} [now] — ISO timestamp to stamp.
  * @returns {{ $schema: string, generatedAt: string, entries: [] }}
  */
@@ -49,18 +21,9 @@ function createEmptyLedger(now = new Date().toISOString()) {
 }
 
 /**
- * Compute a finding's stable identity: its fingerprint (title-sensitive) and
- * its location-based semantic key (title-insensitive).
+ * `toCanonical` is injected: importing the audit adapter would close a cycle.
  *
- * The projection onto the canonical identity is the **caller's**, injected as
- * `toCanonical`. That is what lets this module live beside `route-finding.js`
- * in the shared findings layer: the audit pipeline's own adapter
- * (`lib/audit-to-stories/finding-adapter.js`) imports *from* here, so importing
- * it back would close a `findings → audit-to-stories → findings` cycle that
- * `check-arch-cycles` rightly refuses. A caller that already holds canonical
- * findings passes nothing.
- *
- * @param {object} finding — a parsed/stamped audit finding.
+ * @param {object} finding
  * @param {(finding: object) => object} [toCanonical]
  * @returns {{ fingerprint: string, semanticKey: string }}
  */
@@ -73,8 +36,7 @@ function findingIdentity(finding, toCanonical) {
 }
 
 /**
- * Read the ledger from disk. Returns an empty ledger when the file is absent
- * or unparseable — a missing memory is an empty memory, never a hard error.
+ * An absent or unparseable file reads as an empty ledger, never an error.
  * @param {string} filePath
  * @param {{ fs?: typeof import('node:fs') }} [deps]
  * @returns {{ $schema?: string, generatedAt?: string, entries: object[] }}
@@ -92,8 +54,6 @@ export function readLedger(filePath, { fs } = {}) {
 }
 
 /**
- * Persist the ledger to disk with a stable 2-space indent and a trailing
- * newline (so the committed file diffs cleanly).
  * @param {string} filePath
  * @param {object} ledger
  * @param {{ fs?: typeof import('node:fs'), path?: typeof import('node:path') }} [deps]
@@ -107,7 +67,6 @@ export function writeLedger(filePath, ledger, { fs, path } = {}) {
 }
 
 /**
- * Index a ledger's entries by fingerprint and by semanticKey for O(1) lookup.
  * @param {{ entries?: object[] }} ledger
  */
 function indexLedger(ledger) {
@@ -121,9 +80,7 @@ function indexLedger(ledger) {
 }
 
 /**
- * Resolve the effective Issue state for a finding: an explicit override in
- * `issueStates` (keyed by fingerprint then semanticKey) wins over whatever the
- * prior ledger entry recorded.
+ * An `issueStates` override beats the recorded Issue.
  * @param {{ fingerprint: string, semanticKey: string }} id
  * @param {object|null} existing
  * @param {Record<string, { state?: string, stateReason?: string|null, number?: number }>} issueStates
@@ -141,9 +98,6 @@ function resolveIssueState(id, existing, issueStates) {
 }
 
 /**
- * The four verdicts the policy can reach, spelled once. Deduping them keeps
- * `decideStatus` readable as the decision table it is, rather than eight
- * near-identical object literals.
  * @type {Record<string, { status: string, action: string }>}
  */
 const VERDICT = Object.freeze({
@@ -154,31 +108,20 @@ const VERDICT = Object.freeze({
 });
 
 /**
- * Decide the finding's next status + action from its prior ledger state and
- * the live Issue state. This is the whole reconciliation policy in one place.
+ * The whole reconciliation policy.
  * @param {object|null} existing — prior ledger entry (or null when unseen).
  * @param {{ state: string, stateReason: string|null }|null} issue
  * @returns {{ status: string, action: 'propose'|'known'|'suppress'|'regressed' }}
  */
 function decideStatus(existing, issue) {
-  // A closed Issue is the strongest signal — its close reason drives the
-  // verdict, and it is read FIRST so a recorded `filed` can never outrank it.
+  // A closed Issue outranks any recorded status.
   if (issue && issue.state === 'closed') {
     return issue.stateReason === 'not_planned'
       ? VERDICT.suppress
-      : // Closed as completed (or unspecified) but the finding is in this scan
-        // → it came back. That is a regression, not a fresh proposal.
-        VERDICT.regressed;
+      : VERDICT.regressed;
   }
 
-  // An OPEN tracking Issue means the finding has been filed, whatever the prior
-  // entry said — including when there is no prior entry at all. Until Story
-  // #5305 nothing in the package ever assigned `filed`, so this fell through to
-  // `new`/`propose` on every run and the `filed` arm below was unreachable in
-  // production: the ledger suppressed nothing, and only the GitHub-search dedup
-  // stopped a sweep re-filing what it had already filed. Reading it before the
-  // `!existing` guard is what makes a record pass correct on its FIRST run
-  // rather than its second.
+  // An open Issue means filed even with no prior entry.
   const unseen = issue?.state === 'open' ? VERDICT.filed : VERDICT.propose;
   if (!existing) return unseen;
 
@@ -187,9 +130,7 @@ function decideStatus(existing, issue) {
       return VERDICT.suppress;
     case 'filed':
       return VERDICT.filed;
-    // Recorded fixed, yet detected again with no closed-Issue evidence → treat
-    // as a regression the operator should look at. An open Issue does not
-    // soften that: the finding came back either way.
+    // Recorded fixed yet detected again: a regression, open Issue or not.
     case 'fixed':
       return VERDICT.regressed;
     case 'regressed':
@@ -200,17 +141,15 @@ function decideStatus(existing, issue) {
 }
 
 /**
- * Fold a fresh scan and the live Issue states onto the prior ledger.
+ * Fold a scan and live Issue states onto the prior ledger; untouched entries
+ * are preserved.
  *
  * @param {object} params
- * @param {{ entries?: object[] }} [params.ledger] — prior ledger (default empty).
- * @param {Array<object>} params.findings — parsed/stamped audit findings from this scan.
+ * @param {{ entries?: object[] }} [params.ledger]
+ * @param {Array<object>} params.findings
  * @param {Record<string, { state?: string, stateReason?: string|null, number?: number }>} [params.issueStates]
- *   Live Issue state keyed by fingerprint (or semanticKey). Optional — when a
- *   prior entry already records the Issue, that is used.
- * @param {string} [params.now] — ISO timestamp for firstSeen/lastSeen stamping.
- * @param {(finding: object) => object} [params.toCanonical] — projection onto
- *   the canonical identity; omit when `findings` are already canonical.
+ * @param {string} [params.now]
+ * @param {(finding: object) => object} [params.toCanonical]
  * @returns {{
  *   ledger: { $schema: string, generatedAt: string, entries: object[] },
  *   classifications: Array<{ fingerprint: string, semanticKey: string, status: string, action: string, issue: object|null }>,
@@ -228,7 +167,6 @@ export function reconcileLedger({
   }
 
   const { byFingerprint, bySemanticKey } = indexLedger(ledger);
-  // Preserve any prior entries NOT touched by this scan (their memory survives).
   const nextByFingerprint = new Map(byFingerprint);
   const classifications = [];
 
@@ -263,8 +201,7 @@ export function reconcileLedger({
       lastSeen: now,
     };
 
-    // Re-key under the fresh fingerprint; drop the old entry if it was matched
-    // by semanticKey under a now-drifted fingerprint (reworded finding).
+    // Re-key a reworded finding matched by semanticKey.
     if (existing?.fingerprint && existing.fingerprint !== id.fingerprint) {
       nextByFingerprint.delete(existing.fingerprint);
     }
@@ -290,24 +227,13 @@ export function reconcileLedger({
 }
 
 /**
- * Record a set of already-known identities as filed against one Issue.
- *
- * The finding-shaped {@link reconcileLedger} cannot serve this caller:
- * `plan-persist` never sees findings. It holds the provenance identities it
- * stamped on a Story body — fingerprints and semantic keys, as strings — plus
- * the issue number it just created. That is enough to record the filing, and
- * demanding a finding it does not have would be the reason the recommended
- * planning path never reached this ledger at all.
- *
- * An identity already carrying a **closed** Issue is left exactly as it is: a
- * finding whose tracking Issue was closed `not_planned` is `accepted-risk` and
- * must stay suppressed, and one closed as completed is a `regressed` the
- * operator still needs to see. A fresh filing never overwrites either verdict.
+ * Record identity strings (`plan-persist` has no findings) as filed. An
+ * identity whose Issue is closed is skipped, so its verdict survives.
  *
  * @param {object} params
- * @param {{ entries?: object[] }} [params.ledger] — prior ledger (default empty).
+ * @param {{ entries?: object[] }} [params.ledger]
  * @param {Array<{ fingerprint: string, semanticKey?: string, title?: string, dimension?: string, primaryFile?: string }>} params.identities
- * @param {{ number: number }} params.issue — the Issue these identities were filed as.
+ * @param {{ number: number }} params.issue
  * @param {string} [params.now]
  * @returns {{ ledger: object, recorded: number, skipped: number }}
  */

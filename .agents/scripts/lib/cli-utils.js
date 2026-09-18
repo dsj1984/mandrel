@@ -34,18 +34,8 @@ export function isDirectInvocation(importMetaUrl) {
 }
 
 /**
- * Settle one CLI run: await `main`, translate its outcome into an exit code,
- * then flush stdio.
- *
- * **The exit is never eager** (Story #4783). This helper assigns
- * `process.exitCode` and returns, letting Node terminate once the event loop
- * is empty — which is *after* the pending stdout writes drain. The previous
- * `process.exit()` call terminated first, discarding anything still queued
- * behind a full pipe buffer, so any CLI emitting more than 64 KiB into a pipe
- * truncated silently while still reporting success. The resulting exit code is
- * identical for every caller: `code ?? 0` on the `propagateExitCode` path,
- * `options.exitCode` (default 1) on the fatal-error path, and an untouched 0
- * everywhere else.
+ * Await `main` and set `process.exitCode` — never `process.exit()`, which
+ * truncates stdout still queued behind a full pipe buffer.
  *
  * @param {() => Promise<unknown>} main
  * @param {{ source: string, exitCode: number, onError?: (err: Error) => void,

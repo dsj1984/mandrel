@@ -1,15 +1,6 @@
 /**
- * Race a promise against a wall-clock timeout.
- *
- * If `ms` elapses before the input settles, the returned promise rejects with
- * an `Error` whose `code === 'ETIMEDOUT'`. Callers discriminate on `code` to
- * handle timeouts distinctly from the input's own rejections.
- *
- * Non-Promise inputs are wrapped via `Promise.resolve`, so `withTimeout(value, ms)`
- * is always safe.
- *
- * The timer is cleared on settle (success, failure, or timeout) so callers
- * never leak a pending `setTimeout`.
+ * Race `input` against a timeout that rejects with `code === 'ETIMEDOUT'`.
+ * The timer is cleared on every settle, so none leaks.
  *
  * @template T
  * @param {Promise<T> | T} input

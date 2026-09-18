@@ -1,90 +1,23 @@
 /**
- * lib/orchestration/retro-proposals.js — pure composer that turns
- * aggregated source-tagged friction signals into three routed proposal
- * sections (framework, consumer, discarded).
+ * Pure composer: source-tagged friction signals → framework / consumer /
+ * discarded proposal sections. No I/O, no clock; output sorted by `category`
+ * so a given input renders byte-identically.
  *
- * Epic #2547 / Story #2558 / Tech Spec #2550. Consumes per-Story signals
- * already source-tagged by `signals-writer.appendSignal` and yields a
- * three-way split that the retro composer renders above the
- * `<!-- retro-complete: ... -->` marker. The former "memory updates"
- * pane was deleted in the Epic #4406 signal-contract cutover (it had no
- * producer — no writer ever emitted the record it rendered).
- *
- * Heuristic (uniform across anchors — Story #4649):
- *   - **Actionable** (renders as a pre-drafted `gh issue create` shell
- *     command): a friction `category` with **≥ 2** occurrences under the
- *     anchor, OR a blocked event whose root cause was never resolved (the
- *     caller supplies these as `unresolvedBlockedEvents`).
- *   - **Discarded**: a friction category under the threshold with no
- *     follow-on signal. Discarded is not silent — the caller still renders
- *     the bucket, so the event stays *recorded* without opening an issue.
- *   - **Netted out** before either decision: a category with a recovery
- *     marker for that Story (see `netOutRecoveredIncidents`) contributes
- *     nothing at all.
- *
- * `anchorKind` deliberately does NOT move the threshold. It used to — story
- * scope promoted singletons at `≥ 1` — which, since the v2 Epic collapse put
- * every close on a per-Story window of population 1, made *every* un-netted
- * friction event auto-file. Cleanly-shipped Stories accumulated "recurred 1
- * times" issues, which is how a warning channel gets tuned out. The signal
- * that carve-out was standing in for is served properly by
- * `unresolvedBlockedEvents`: a Story genuinely parked at `agent::blocked`
- * forces actionable at count 1, while one that blocked and self-resolved
- * nets out. `anchorKind` now only selects title/body wording.
- *
- * Routing:
- *   - Each actionable item is routed to `framework` or `consumer` based
- *     on the dominant `source` tag for that category. "Dominant" means
- *     the source with the higher count; ties resolve to whichever source
- *     contributed the first occurrence so the ordering is deterministic.
- *
- * Corpus vs. trigger (Story #4850):
- *   - The run-scope gather reduces over the **whole surviving recurrence
- *     window**, not the triggering run's own Stories — deliberately, because a
- *     systemic defect fires once per Story and scored 1 under the old per-run
- *     window (see `gatherRunFrictionSignals`). The composer therefore may NOT
- *     describe its corpus as "in <the triggering run>": it names the window it
- *     was reduced over (occurrences, distinct Stories, first-to-last dates) and
- *     carries the run as a separate labelled fact. When the corpus IS confined
- *     to the run's own Stories, the plain "in <anchor>" wording is kept — that
- *     is the common single-run case and it is not a false claim there.
- *
- * Publishable evidence (Story #4892):
- *   - A routed item's body is filed verbatim as a real GitHub issue, and its
- *     contributing-Story line is the recurrence claim a reader triages on. The
- *     ids used to be rendered with no validation at all, so a synthetic id
- *     from a test fixture reached a live ticket unchallenged: issue #4870 was
- *     auto-filed naming `#999999`, an id the framework reserves for fixtures,
- *     alongside one real Story. Contributing ids are therefore filtered
- *     through `isPublishableTicketId` before they can be counted or printed,
- *     and a bucket whose contributing ids are ALL unpublishable is discarded
- *     rather than routed — a proposal with no resolvable evidence must not
- *     auto-file at all. The filter is a resolvability bound, never a scope
- *     narrowing: a real Story from outside the triggering run is published
- *     exactly as before, which is the cross-run recurrence the window exists
- *     to produce.
- *
- * Determinism:
- *   - Output arrays are sorted by `category` ASC so a given input always
- *     yields byte-identical markdown (Story #2558 AC).
- *   - The rendered window is derived from the corpus's own timestamps, never
- *     from the clock, so the module stays pure and its output reproducible.
- *
- * The module is pure: no I/O, no provider calls, no time-dependent state.
+ * A category is actionable at ≥ 2 occurrences (any anchor kind — a per-Story
+ * window has population 1, so a lower bar files every event) or when an
+ * unresolved block forces it; recovered incidents net out first. Actionable
+ * items route to the dominant `source` (ties → first seen). The corpus is the
+ * whole recurrence window, so bodies name the window, not the triggering run.
+ * Unpublishable (fixture) Story ids are never printed, and a bucket whose ids
+ * are all unpublishable is discarded rather than filed.
  *
  * @typedef {Object} FrictionSignal
- * @property {string} category   Free-form bucket (e.g. `"lint-loop"`).
+ * @property {string} category
  * @property {"framework"|"consumer"} source
- * @property {number} [storyId]  Emitting Story id (used to net out recovered
- *                               incidents — Story #4622 / #4649).
- * @property {string} [tool]     Emitting tool (`emitter.tool`) — descriptive
- *                               roll-up legibility only, never routing.
- * @property {string|null} [ts]  ISO-8601 emit time (Story #4850), carried by
- *                               `normalizeGatheredSignal`; `null` when the row
- *                               carried none a `Date` could read.
- * @property {object} [details]  Kind-specific payload; a record with
- *                               `details.recovered === true` is a recovery
- *                               marker for its own category.
+ * @property {number} [storyId]  Used to net out recovered incidents.
+ * @property {string} [tool]     Descriptive only, never routing.
+ * @property {string|null} [ts]  ISO-8601; `null` when unreadable.
+ * @property {object} [details]  `details.recovered === true` marks a recovery.
  *
  * @typedef {Object} BlockedEvent
  * @property {number} ticketId
@@ -93,17 +26,11 @@
  * @property {string} [summary]
  *
  * @typedef {Object} RoutedProposalsInput
- * @property {number}                anchorId      Story or run/Epic id in titles.
- * @property {'story'|'run'}  [anchorKind]    Wording in titles/bodies (default `story`).
- * @property {string}                [runToken]    The triggering run's own token
- *   (`plan-run::<id>` / `adhoc-<ids>`) — Story #4850. `run-epilogue.js` used to
- *   splice this in by regex over the rendered title and body *after* the fact;
- *   it is an input now, so the composer never emits a token the caller then has
- *   to rewrite.
- * @property {Array<number|string>}  [anchorStoryIds] The triggering run's own
- *   Story ids. Decides whether the corpus is confined to the run (the anchor is
- *   then a true scope) or spans Stories outside it (the anchor is then only the
- *   trigger). Defaults to `[anchorId]`.
+ * @property {number}                anchorId
+ * @property {'story'|'run'}  [anchorKind]    Wording only (default `story`).
+ * @property {string}                [runToken]    `plan-run::<id>` / `adhoc-<ids>`.
+ * @property {Array<number|string>}  [anchorStoryIds] The run's own Stories;
+ *   decides whether the corpus is confined to the run. Defaults to `[anchorId]`.
  * @property {string}                frameworkRepo   `"<owner>/<repo>"`.
  * @property {string}                consumerRepo    `"<owner>/<repo>"`.
  * @property {FrictionSignal[]}      [signals]
@@ -115,16 +42,15 @@
  * @property {"framework"|"consumer"} source
  * @property {string} title
  * @property {string} body
- * @property {string} command       The pre-drafted `gh issue create` line.
+ * @property {string} command       Pre-drafted `gh issue create` line.
  *
  * @typedef {Object} DiscardedItem
  * @property {string} category
  * @property {number} occurrences
  * @property {"framework"|"consumer"} source
- * @property {string[]} tools        Emitting tools, sorted (Story #4824).
- * @property {string} fingerprint    Stable 8-hex shape token (Story #4824).
- * @property {number} storyCount     Distinct publishable Stories the bucket
- *                                   spans — the cross-run recurrence count.
+ * @property {string[]} tools
+ * @property {string} fingerprint    Stable 8-hex shape token.
+ * @property {number} storyCount     Distinct publishable Stories spanned.
  *
  * @typedef {Object} RoutedProposals
  * @property {RoutedItem[]}     framework
@@ -140,19 +66,12 @@ import {
 } from '../observability/runtime-friction.js';
 import { isPublishableTicketId } from '../reserved-test-ids.js';
 
-/**
- * Empty result helper — returned for zero-input callers so the consumer
- * never needs to defensively spread undefineds.
- *
- * @returns {RoutedProposals}
- */
+/** @returns {RoutedProposals} */
 function emptyResult() {
   return { framework: [], consumer: [], discarded: [] };
 }
 
 /**
- * Normalise a stringy input to a trimmed string, or empty.
- *
  * @param {unknown} value
  * @returns {string}
  */
@@ -162,10 +81,6 @@ function asString(value) {
 }
 
 /**
- * Epoch milliseconds for a signal's `ts`, or `null` when it carries none a
- * `Date` can read. Pure, so the composer stays time-independent: the window it
- * renders is a property of the corpus, never of the clock.
- *
  * @param {unknown} ts
  * @returns {number|null}
  */
@@ -176,8 +91,6 @@ function tsMillis(ts) {
 }
 
 /**
- * Key a signal into its netting bucket: one `(category, storyId)` pair.
- *
  * @param {string} category
  * @param {number} storyId
  * @returns {string}
@@ -187,27 +100,11 @@ function incidentKey(category, storyId) {
 }
 
 /**
- * Net transient (self-resolved) incidents out of the signal stream before it
- * is aggregated (Story #4622, generalized by Story #4649).
- *
- * A recovery emits a record in the SAME category carrying
- * `details.recovered === true` — `agent::blocked → active` for
- * `story-blocked`, a confirmed land for `close-failed`. When a Story has such
- * a marker, that incident was transient: lease contention or a stale label
- * read under concurrent shared-checkout pressure (swarm-os friction #581), a
- * close that failed once and succeeded on retry. This drops **every** record
- * in that category for that Story (both the original incident and its
- * recovery marker), so the retro counts only incidents that never resolved.
- *
- * The netting is per `(category, storyId)`, not 1:1 pairing: a Story that
- * ever recovered from an incident in the run is treated as non-terminal for
- * that category for the whole run. That is a deliberate coarsening — the
- * aggregate is a routing heuristic, not an incident ledger, and the signal
- * stream carries no reliable ordering to reconstruct interleaved
- * incident/recover cycles. Keying on the category (rather than netting a
- * Story wholesale) is what keeps a recovered close from also cancelling that
- * Story's unrelated `story-blocked`. Records for other categories, and
- * Stories with no recovery marker, pass through untouched.
+ * Drop every record in a `(category, storyId)` pair that carries a recovery
+ * marker (`details.recovered === true`), so only never-resolved incidents are
+ * counted. Deliberately coarse — the stream has no reliable ordering to pair
+ * incident/recover cycles — and keyed per category so a recovered close does
+ * not cancel the same Story's unrelated `story-blocked`.
  *
  * @param {FrictionSignal[]} signals
  * @returns {FrictionSignal[]}
@@ -228,20 +125,8 @@ function netOutRecoveredIncidents(signals) {
 }
 
 /**
- * Derive the unresolved-block events for a signal stream (Story #4649).
- *
- * This is what replaces the retired story-scope threshold carve-out. A
- * `story-blocked` record whose Story has no companion recovery marker is a
- * Story still parked at `agent::blocked` — a human owes it a decision, and
- * that is worth filing at a single occurrence. One that recovered is netted
- * out by {@link netOutRecoveredIncidents} and produces no event here, so the
- * two mechanisms agree by construction.
- *
- * Callers previously passed a hardcoded `[]`, which left
- * `blockedForceActionable` permanently empty and made the carve-out the only
- * thing that could file anything at story scope.
- *
- * Pure. Sorted by `ticketId` so the routed output stays deterministic.
+ * A `story-blocked` record with no recovery marker is a Story still parked at
+ * `agent::blocked`, worth filing at one occurrence. Sorted by `ticketId`.
  *
  * @param {FrictionSignal[]} signals
  * @returns {BlockedEvent[]}
@@ -280,21 +165,12 @@ export function deriveUnresolvedBlockedEvents(signals) {
 }
 
 /**
- * Fingerprint the *shape* of a friction bucket (Story #4824) — the emitting
- * tools plus the `details` key set, hashed to a short stable token.
- *
- * Deliberately over the detail **keys**, never their values: a `reason` names
- * the file or command that failed and differs on every occurrence, so
- * hashing values would mint a fresh fingerprint per event and identify
- * nothing. The keys plus the emitting tool are what make two occurrences "the
- * same defect".
- *
- * Descriptive only. Routing and de-duplication stay keyed on `category`, so a
- * fingerprint can never split one filed issue into two.
+ * Hash of the emitting tools and `details` KEYS (values vary per event, so
+ * would identify nothing). Descriptive only — routing stays keyed on category.
  *
  * @param {string} category
- * @param {string[]} tools       Sorted, de-duplicated emitter tools.
- * @param {string[]} detailKeys  Sorted, de-duplicated `details` keys.
+ * @param {string[]} tools       Sorted, de-duplicated.
+ * @param {string[]} detailKeys  Sorted, de-duplicated.
  * @returns {string} 8 hex characters.
  */
 function fingerprintBucket(category, tools, detailKeys) {
@@ -306,21 +182,9 @@ function fingerprintBucket(category, tools, detailKeys) {
 }
 
 /**
- * Every reason text one signal's `details` carries, read from BOTH shapes the
- * emitters actually write.
- *
- * Two keys because two emitter conventions, and the divergence was silent: the
- * degradation emitters write a singular `details.reason` string, while the
- * light path's refusal emitter (`light-escalation.recordScopeFriction`) writes
- * `details.reasons` — an **array**, because one backstop verdict can object on
- * sensitivity and magnitude in the same pass. Reading only the singular key is
- * why every `light-scope-rejected` follow-up rendered with no `Reason:` line
- * at all (issue #5237), which defeated Story #4837's whole intent for that
- * emitter: the filed issue named a count and a category, and the refusal text
- * that would have told a reader which ceiling fired stayed in the ledger.
- *
- * Non-string members are skipped rather than coerced — `String(value)` would
- * put `[object Object]` in a live issue body.
+ * Reason texts from both emitter shapes: singular `details.reason` and the
+ * light-path refusal's `details.reasons` array. Non-strings are skipped, not
+ * coerced to `[object Object]`.
  *
  * @param {object} details
  * @returns {string[]}
@@ -339,9 +203,7 @@ function collectReasons(details) {
 }
 
 /**
- * Widen a bucket's first-to-last window to include one instant. A row with no
- * usable `ts` widens nothing — it is counted in `total` but cannot date the
- * corpus, so it must not be able to shrink the range either.
+ * A row with no usable `ts` is counted but never moves the window.
  *
  * @param {{ firstMs: number|null, lastMs: number|null }} entry
  * @param {number|null} ms
@@ -354,19 +216,9 @@ function widenWindow(entry, ms) {
 }
 
 /**
- * Aggregate friction signals by `category`, tracking per-source counts and
- * arrival order so we can pick a dominant source deterministically.
- *
- * Records with a missing/invalid `category` are skipped (no silent
- * "" bucket). Records with an unknown `source` default to `"consumer"`
- * — that matches the source-classifier's safe default.
- *
- * `category` is deliberately still the aggregation unit (Story #4824): it is
- * what titles a filed issue and what the graduator's idempotency marker
- * fingerprints, so splitting the bucket by emitter would file N issues where
- * the loop is designed to file one. The emitter tools, `details` key set, and
- * the distinct Stories a bucket spans ride **on** the entry instead, purely
- * so a roll-up can name what it counted.
+ * Aggregate by `category` — the unit the graduator's idempotency marker keys
+ * on, so it must not split by emitter. Missing category is skipped; unknown
+ * `source` defaults to `"consumer"`.
  *
  * @param {FrictionSignal[]} signals
  * @returns {Map<string, {
@@ -416,22 +268,14 @@ function aggregateByCategory(signals) {
     if (tool.length > 0) entry.tools.add(tool);
     if (sig.details !== null && typeof sig.details === 'object') {
       for (const key of Object.keys(sig.details)) entry.detailKeys.add(key);
-      // Two detail VALUES are carried through to the rendered body (Story
-      // #4837): the surface that degraded and the reason text. They are what
-      // turn "tool-degraded ×6" into "the scoped-lint gate could not execute
-      // and failed open" — the thing a reader absent from the run needs.
-      // Values never reach `detailKeys`, so the bucket fingerprint (hashed
-      // over keys, deliberately) is untouched by them.
+      // Surface and reason values reach the body, never the fingerprint.
       const surface = asString(sig.details.surface);
       if (surface.length > 0) entry.surfaces.add(surface);
       for (const reason of collectReasons(sig.details)) {
         entry.reasons.add(reason);
       }
     }
-    // An id that cannot be resolved to a real issue is tracked separately
-    // rather than dropped: it must never be counted or printed as recurrence
-    // evidence, but "this bucket's only contributing ids were synthetic" is
-    // exactly what stops it auto-filing (see `hasPublishableStoryEvidence`).
+    // Unpublishable ids are withheld, not dropped: they gate auto-filing.
     if (Number.isInteger(sig.storyId) && sig.storyId > 0) {
       if (isPublishableTicketId(sig.storyId)) entry.storyIds.add(sig.storyId);
       else entry.withheldStoryIds.add(sig.storyId);
@@ -441,17 +285,8 @@ function aggregateByCategory(signals) {
 }
 
 /**
- * Does this bucket carry story evidence a filed issue may cite (Story #4892)?
- *
- * Three cases, and the middle one is the point:
- *   - Some publishable id → yes, file it (the withheld ids are simply absent
- *     from the body).
- *   - Contributing ids, none publishable → **no**. Every id the bucket could
- *     cite is synthetic, so a filed issue would assert recurrence evidence
- *     that resolves to nothing. The bucket is discarded instead.
- *   - No contributing ids at all → yes. That is a bucket forced actionable by
- *     an unresolved block with no aggregated signals behind it; it never cited
- *     a Story, so there is nothing unresolvable about it.
+ * False only when every contributing id is unpublishable — a filed issue would
+ * then cite evidence that resolves to nothing. No ids at all is fine.
  *
  * @param {{ storyIds: Set<number>, withheldStoryIds: Set<number> }} entry
  * @returns {boolean}
@@ -461,16 +296,6 @@ function hasPublishableStoryEvidence(entry) {
 }
 
 /**
- * Project an aggregate entry's descriptive fields onto a `DiscardedItem`
- * (Story #4824).
- *
- * A roll-up that discards every candidate used to render as a bare
- * `` `category` ×1 `` per row, which is how a defect recurring once per Story
- * across eighteen consecutive Stories stayed invisible. The row now names the
- * emitting tools, the bucket fingerprint, and how many distinct Stories it
- * spans — the last is the cross-run count the widened recurrence window
- * exists to produce.
- *
  * @param {{ category: string, tools: Set<string>, detailKeys: Set<string>, storyIds: Set<number> }} entry
  * @returns {{ tools: string[], fingerprint: string, storyCount: number }}
  */
@@ -485,20 +310,8 @@ function describeBucket(entry) {
 }
 
 /**
- * The evidence an ACTIONABLE item's rendered body names (Story #4837).
- *
- * Story #4824 put the emitting tools, the shape fingerprint and the
- * distinct-Story span on the aggregate entry, but projected them only onto
- * the *discarded* rows — so the one bucket that actually became a GitHub
- * issue was rendered from a category and a count alone. Measured on issue
- * #4836: a `tool-degraded ×6` body that never named `native-review-lint`,
- * never named the `scoped-lint` surface, and never named the reason, so the
- * review gate that could not execute and failed open appeared nowhere in the
- * ticket opened about it.
- *
- * Every collection is sorted so the same input renders byte-identically —
- * the body is written to a live issue on every recurrence, and an unstable
- * ordering would rewrite it with no change of meaning.
+ * Evidence an actionable body names. Collections are sorted: the body is
+ * rewritten to a live issue on every recurrence.
  *
  * @param {{
  *   category: string,
@@ -522,9 +335,7 @@ function describeEvidence(entry) {
     surfaces: [...entry.surfaces].sort(),
     reasons: [...entry.reasons].sort(),
     storyIds: [...entry.storyIds].sort((a, b) => a - b),
-    // Story #4850 — the corpus's own first-to-last span. Deliberately NOT
-    // projected onto `describeBucket`: a discarded row is rendered from the
-    // bucket shape, and the window belongs to the claim a *filed* issue makes.
+    // Only a filed issue claims a window; discarded rows omit it.
     window: { firstMs: entry.firstMs, lastMs: entry.lastMs },
   };
 }
@@ -549,9 +360,7 @@ const MAX_RENDERED_REASONS = 3;
 const MAX_RENDERED_STORIES = 12;
 
 /**
- * Render a `label: value` evidence line, or `null` when there is nothing to
- * say. A missing field is omitted outright rather than rendered as "none":
- * an absent emitter is not the finding.
+ * `null` (omitted) rather than "none" when there are no values.
  *
  * @param {string} label
  * @param {string[]} values
@@ -562,11 +371,6 @@ function evidenceLine(label, values) {
 }
 
 /**
- * Render the contributing-Story line: the distinct Stories that emitted into
- * this bucket. This is the cross-run recurrence evidence — the difference
- * between "happened six times somewhere" and "happened on these six Stories,
- * so it is not one bad afternoon".
- *
  * @param {number[]} storyIds
  * @param {number} storyCount
  * @returns {string|null}
@@ -581,9 +385,6 @@ function storiesLine(storyIds, storyCount) {
 }
 
 /**
- * Render the reason texts the emitters supplied, capped so one pathological
- * bucket cannot produce an unreadable issue body.
- *
  * @param {string[]} reasons
  * @returns {string|null}
  */
@@ -596,9 +397,7 @@ function reasonsLine(reasons) {
 }
 
 /**
- * Resolve the dominant source for an aggregated category. Ties resolve to
- * `firstSource` so byte-identical inputs always produce byte-identical
- * routing.
+ * Ties resolve to `firstSource` so routing is deterministic.
  *
  * @param {{ bySource: { framework: number, consumer: number }, firstSource: "framework"|"consumer" }} entry
  * @returns {"framework"|"consumer"}
@@ -611,12 +410,6 @@ function dominantSource(entry) {
 }
 
 /**
- * Name the triggering anchor. For a run that means its own token when the
- * caller supplied one (Story #4850) — `run-epilogue.js` previously let the
- * composer print the primary Story's numeric id as if it were the run id and
- * then rewrote it by regex, which meant the rendered text and the caller's
- * notion of the run could silently disagree.
- *
  * @param {'story'|'run'} kind
  * @param {number} id
  * @param {string} runToken
@@ -627,13 +420,6 @@ function formatAnchor(kind, id, runToken) {
 }
 
 /**
- * Label the evidence fact that names the triggering anchor.
- *
- * Tracks `anchorKind` for the same reason {@link formatAnchor} does. Story
- * #4850 introduced the fact with a fixed `Triggering run` label, which on the
- * story-scope path called a Story a run (`Triggering run: Story #7`) — the one
- * place in this file where the wording did not follow the anchor.
- *
  * @param {'story'|'run'} kind
  * @returns {string}
  */
@@ -642,11 +428,8 @@ function formatTriggerLabel(kind) {
 }
 
 /**
- * The UTC calendar day of an instant, or `''` when there is no instant.
- *
- * Day granularity on purpose: the window is triage context ("this has been
- * recurring for three weeks"), and a full timestamp would rewrite the live
- * issue body on every recurrence for no change of meaning.
+ * UTC day, deliberately: a full timestamp would rewrite the live issue body on
+ * every recurrence.
  *
  * @param {number|null} ms
  * @returns {string}
@@ -656,9 +439,7 @@ function isoDay(ms) {
 }
 
 /**
- * Render the corpus window as a prose phrase, or `''` when no row in the
- * bucket carried a readable `ts`. Omitting it is the honest degradation: an
- * undateable corpus must not be given a made-up range.
+ * `''` when the corpus is undateable — never a made-up range.
  *
  * @param {{ firstMs: number|null, lastMs: number|null }} window
  * @returns {string}
@@ -671,8 +452,6 @@ function windowPhrase(window) {
 }
 
 /**
- * The same window as the compact span a title carries.
- *
  * @param {{ firstMs: number|null, lastMs: number|null }} window
  * @returns {string}
  */
@@ -684,8 +463,6 @@ function windowSpan(window) {
 }
 
 /**
- * `across N Stories`, or `''` when no Story could be attributed.
- *
  * @param {number} storyCount
  * @returns {string}
  */
@@ -694,29 +471,14 @@ function storySpan(storyCount) {
   return `across ${storyCount} ${storyCount === 1 ? 'Story' : 'Stories'}`;
 }
 
-/**
- * Occurrences needed before a category routes on its own. Uniform across
- * anchors (Story #4649) — see the module header for why story scope no
- * longer promotes singletons.
- */
 const ACTIONABLE_THRESHOLD = 2;
 
-/** A category routes when it recurred, or when a block forces it. */
 function isActionableFriction(total, force) {
   return total >= ACTIONABLE_THRESHOLD || Boolean(force);
 }
 
 /**
- * Render the opening sentence: what the corpus is, sized and dated by its own
- * contents (Story #4850).
- *
- * This line used to read `surfaced N times during <anchor>`, where `<anchor>`
- * was the run whose epilogue happened to fire. The corpus is the whole
- * surviving recurrence window (deliberately — see `gatherRunFrictionSignals`),
- * so on any systemic defect the sentence asserted a scope the evidence block
- * three lines below it already contradicted by listing foreign Stories. It now
- * describes the window it was actually reduced over; the triggering run is a
- * separate labelled fact, because that is what it is.
+ * Sized and dated by the corpus itself, never by the triggering run.
  *
  * @param {string} category
  * @param {number} occurrences
@@ -733,22 +495,8 @@ function corpusSentence(category, occurrences, evidence) {
 }
 
 /**
- * Render the issue body. Plain text — no markdown headings — so the
- * pre-drafted `gh issue create --body-file` heredoc remains a faithful
- * representation of what the operator would paste.
- *
- * The evidence block (Story #4837) is what makes the issue actionable by
- * someone who was not in the run: the emitting tool, the surface that
- * degraded, the reason the emitter gave, the distinct Stories it spans, and
- * the shape fingerprint that ties recurrences together. Absent fields are
- * omitted, so a bucket that genuinely carries no evidence renders as it
- * always did rather than as a wall of "unknown".
- *
- * The triggering anchor leads that block (Story #4850): it is what caused this
- * issue to be *filed now*, which is worth naming, and is exactly not the same
- * claim as its being where the occurrences happened. Its label tracks
- * `anchorKind` via {@link formatTriggerLabel}, so the story-scope path says
- * `Triggering Story` rather than calling a Story a run.
+ * Plain text (no headings) so the heredoc matches what an operator pastes.
+ * The trigger is a separate fact from where the occurrences happened.
  *
  * @param {{
  *   anchor: { label: string, trigger: string },
@@ -786,11 +534,7 @@ function renderIssueBody({ anchor, category, occurrences, source, evidence }) {
 }
 
 /**
- * Compose the pre-drafted `gh issue create` shell command for an actionable
- * item. The command is rendered verbatim — operators copy-paste it as-is.
- *
- * The body is supplied via `--body-file -` and a trailing heredoc so the
- * multi-line content survives shell quoting on every platform.
+ * Body goes via `--body-file -` heredoc so multi-line content survives quoting.
  *
  * @param {{
  *   repo: string,
@@ -803,8 +547,7 @@ function renderIssueBody({ anchor, category, occurrences, source, evidence }) {
  */
 function renderIssueCommand({ repo, title, metaLabel, category, body }) {
   const labels = `meta::${metaLabel},friction::${category}`;
-  // Heredoc form keeps multi-line bodies safe under POSIX shells; agents
-  // running on PowerShell convert it to a `--body` flag if needed.
+  // PowerShell agents convert the heredoc to `--body`.
   return [
     `gh issue create --repo ${repo} --title "${title}" --label "${labels}" --body-file - <<EOF`,
     body,
@@ -813,23 +556,9 @@ function renderIssueCommand({ repo, title, metaLabel, category, body }) {
 }
 
 /**
- * Render the issue title — the one line a human triages on, so it is the one
- * line that must not misname its own corpus (Story #4850).
- *
- * Two forms, selected by whether the corpus is *confined* to the triggering
- * run's own Stories:
- *
- *   - **Confined** → `recurred N times in <anchor>`. The anchor genuinely is
- *     the scope, and this is the common single-run case; hedging it would make
- *     every ordinary title longer and vaguer for no gain.
- *   - **Spanning** → `recurred N times across M Stories (<first> → <last>)`.
- *     The anchor is dropped from the *claim* entirely (it stays in the body as
- *     the triggering fact), because naming it here is the falsehood: the
- *     occurrences did not happen in it.
- *
- * Retitling is de-dupe safe — the graduator's idempotency marker is
- * category-fingerprint-only and anchor-free (Story #4837), and the title is
- * deliberately excluded from the hash.
+ * `in <anchor>` only when the corpus is confined to the run's Stories;
+ * otherwise `across M Stories (<first> → <last>)`. Retitling is de-dupe safe:
+ * the graduator's marker excludes the title.
  *
  * @param {{
  *   category: string,
@@ -855,11 +584,7 @@ function renderIssueTitle({
 }
 
 /**
- * Is every contributing Story one of the triggering run's own?
- *
- * A corpus with no attributable Story at all (a block forced actionable with no
- * aggregated signals) counts as confined: there is no foreign evidence to
- * contradict the anchor, so the plain wording stays.
+ * An empty corpus counts as confined.
  *
  * @param {number[]} storyIds
  * @param {Set<number>} anchorStoryIds
@@ -870,8 +595,6 @@ function isCorpusConfined(storyIds, anchorStoryIds) {
 }
 
 /**
- * Build an actionable RoutedItem for a category.
- *
  * @param {{
  *   anchor: { label: string, trigger: string, storyIds: Set<number> },
  *   category: string,
@@ -920,9 +643,6 @@ function buildRoutedItem({
 }
 
 /**
- * Validate that the input shape is sane and extract typed arrays. Returns
- * `null` when input is unusable (caller short-circuits to `emptyResult`).
- *
  * @param {unknown} input
  * @returns {{
  *   anchor: { label: string, trigger: string, storyIds: Set<number> },
@@ -937,11 +657,7 @@ function normalizeAnchorKind(kind) {
 }
 
 /**
- * The triggering run's own Story ids as a set, defaulting to the anchor itself.
- *
- * The default is what keeps story-scope capture byte-identical: one Story's
- * stream can only carry its own id, so the corpus is confined by construction
- * and the wording never hedges.
+ * Defaults to the anchor itself, so story scope is confined by construction.
  *
  * @param {unknown} raw
  * @param {number} anchorId
@@ -1051,8 +767,6 @@ function routeCategoryBuckets({
         source: info.source,
         frameworkRepo,
         consumerRepo,
-        // Forced actionable by an unresolved block with no aggregated
-        // signals behind it — there is no bucket to describe.
         evidence: emptyEvidence(),
       }),
     );
@@ -1064,15 +778,6 @@ function routeCategoryBuckets({
 }
 
 /**
- * Compose the four routed proposal sections from aggregated source-tagged
- * signals.
- *
- * Pure — no I/O, no time-dependent state, no provider calls. Returns an
- * object with three arrays:
- *   - `framework`: actionable items routed to the framework repo.
- *   - `consumer`: actionable items routed to the consumer repo.
- *   - `discarded`: single-occurrence friction with no follow-on signal.
- *
  * @param {RoutedProposalsInput} input
  * @returns {RoutedProposals}
  */

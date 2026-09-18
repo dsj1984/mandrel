@@ -1,17 +1,7 @@
 /**
- * single-story-close/failed-terminal.js — the `failed` terminal a close
- * emits when a phase crashes, and the gate reconstruction it carries.
- *
- * Split out of `single-story-close.js` so the CLI entry stays an entry: it
- * parses args, dispatches the runner, and maps a terminal onto an exit code.
- * The reasoning about which gates had run by the time a phase died belongs
- * with the envelope it feeds, not in the file that owns process lifetime.
- *
- * The runner deliberately throws rather than returning a failure (a red gate
- * must not look like a return value), so without this the most common
- * non-happy ending — a failing close-validation gate — would emit **no
- * envelope at all**, exiting 1 with only a stderr line while the workflow
- * docs promise the agent a `failed` envelope naming the phase.
+ * single-story-close/failed-terminal.js — the `failed` envelope a close
+ * emits when a phase throws, so a crashed close still reports which phase
+ * died and which gates had run.
  */
 
 import { Logger } from '../../Logger.js';
@@ -21,16 +11,12 @@ import {
 } from '../story-deliver-terminal.js';
 
 /**
- * The close pipeline's phase order, as `setPhase` walks it. Only used to
- * decide whether a gate had already run when a later phase died.
+ * The phase order `setPhase` walks; it MUST track `runPrePushPhases`, since
+ * it decides which gates had cleared when a later phase died.
  */
 const PHASE_ORDER = Object.freeze([
   'init',
   'wrong-tree-guard',
-  // Story #5172 — base-sync now precedes close-validation, so the tree the
-  // gates validate is the tree the push sends. The order here is not
-  // decoration: it is how a failed terminal decides which gates had already
-  // cleared, so it MUST track `runPrePushPhases`.
   'base-sync',
   'close-validation',
   'push',
@@ -42,7 +28,6 @@ const PHASE_ORDER = Object.freeze([
   'done',
 ]);
 
-/** Each reported gate and the pipeline phase that decides it. */
 const GATE_PHASES = Object.freeze([
   ['validation', 'close-validation'],
   ['baseSync', 'base-sync'],
@@ -50,18 +35,9 @@ const GATE_PHASES = Object.freeze([
 ]);
 
 /**
- * The names the unified baselines gate can register under, mirrored from
- * `BASELINES_GATE_NAMES` in `lib/close-validation/gates.js` (Story #5172) —
- * all three, matching the projection the SUCCESS path applies in
- * `runner.js#baselinesEnvelopeGates`, so the two endings of one run cannot
- * key the same gate differently.
- *
- * Deliberately a local copy rather than an import: several close suites
- * replace that module wholesale via `t.mock.module`, and a named import here
- * would fail to link against a mock that does not re-export the constant —
- * turning an unrelated test's mock into a load error on the CLI's own entry
- * path. `tests/close-validation-gates-enum.test.js` pins the two lists
- * against each other so the copy cannot drift.
+ * Mirrors `BASELINES_GATE_NAMES` in `lib/close-validation/gates.js`. A local
+ * copy, not an import, because close suites mock that module wholesale and a
+ * named import would fail to link; a test pins the two lists equal.
  */
 const BASELINES_ENTRY_NAMES = Object.freeze([
   'check-baselines',
@@ -70,21 +46,8 @@ const BASELINES_ENTRY_NAMES = Object.freeze([
 ]);
 
 /**
- * Project the baselines entries out of the per-gate outcomes THIS run
- * observed (Story #5279).
- *
- * This used to RECONSTRUCT them: it inferred, from the phase the run died in
- * plus the name of the failing gate, what the two split entries "must have"
- * done — and it did so over a hardcoded pair, so every failed close reported
- * both split names whether or not the run had ever registered them. A repo
- * whose config resolves to the unsplit `check-baselines`, or to only one half
- * of the pair, got envelope keys for gates that did not exist; a run that
- * died at `init` got them too, reported as `skipped`, which reads as "the
- * gate was turned off" rather than "there was no such gate".
- *
- * Reporting instead of reconstructing removes the whole class: an outcome
- * appears only for a gate the run actually observed, and the runner tags
- * exactly that set onto the error (`err.closeGates`).
+ * Baselines outcomes the run actually observed (`err.closeGates`) — reported,
+ * never reconstructed, so a gate the run never registered cannot appear.
  *
  * @param {Record<string, string>|null|undefined} observedGates
  * @returns {Record<string, 'passed'|'failed'|'skipped'>}
@@ -98,30 +61,12 @@ function baselinesGatesObserved(observedGates) {
 }
 
 /**
- * Report every gate's outcome for a run that died at `phase`.
- *
- * The schema's contract: "A gate the run skipped … reports `skipped` rather
- * than being omitted, so a missing gate is never mistaken for a passing one."
- * The previous shape named only the gate that died and omitted the rest
- * entirely — exactly the ambiguity the contract forbids.
- *
- * Reconstructed from the phase order, which is sound because the pipeline is
- * strictly sequential: reaching phase N means every gate before it completed.
- * A gate whose phase the run never reached is `skipped`; one the operator
- * turned off via `--skip-validation` / `--skip-sync` is `skipped` too (it did
- * not pass — it never ran).
- *
- * Story #5172 — the reported set also carries the baselines entries under
- * their own names, so a failed close says WHICH half of the baselines gate
- * breached instead of a single generic verdict. Story #5279 — those names
- * are REPORTED from `observedGates`, never reconstructed, so only a gate the
- * run registered can appear.
+ * Every gate's outcome, never omitted (a missing gate would read as passing);
+ * an unreached or operator-skipped gate is `skipped`.
  *
  * @param {string} phase The phase the run died in.
  * @param {{ skipValidation?: boolean, skipSync?: boolean,
  *   observedGates?: Record<string, string>|null }} args
- *   Parsed CLI args, plus the per-gate outcomes the runner tagged onto the
- *   error.
  * @returns {Record<string, 'passed'|'failed'|'skipped'>}
  */
 export function gatesForFailedPhase(phase, args = {}) {
@@ -138,31 +83,13 @@ export function gatesForFailedPhase(phase, args = {}) {
 }
 
 /**
- * Build the `failed` terminal for a phase that crashed. Every close
- * invocation emits exactly one envelope; this is the path that keeps that
- * true when a phase dies.
- *
- * `err.closePhase` is tagged by the runner's phase tracker.
- *
- * **Never throws.** This runs on the path that already has one failure in
- * hand, so a second failure here must not REPLACE the first: an
- * envelope-build error surfacing as the run's cause sends the operator to
- * diagnose the wrong thing entirely — a close whose PR had already merged
- * once reported a schema `ENOENT` as its fatal error, because the worktree
- * holding the script had been reaped mid-run. On failure this returns null
- * and the caller rethrows the original.
- *
- * `err.closeGates` — tagged by the runner — carries the per-gate outcomes the
- * run observed, which is what lets the reported gates name the baselines
- * entries that actually ran (Story #5172 / #5279) instead of a hardcoded pair.
+ * Never throws: a build failure here must not replace the original error as
+ * the run's reported cause, so it returns null and the caller rethrows.
+ * `err.closePhase` and `err.closeGates` are tagged by the runner.
  *
  * @param {unknown} err
  * @param {{ storyId?: string|number, skipValidation?: boolean, skipSync?: boolean }} args
- *   Parsed CLI args — the story id the envelope reports on, plus the skip
- *   flags `gatesForFailedPhase` needs.
- * @returns {object|null} A validated envelope, or null when even the story id
- *   is unknown (a usage error — there is nothing to report an envelope about)
- *   or the envelope itself could not be assembled.
+ * @returns {object|null} null when the story id is unknown or assembly failed.
  */
 export function failedTerminalFor(err, args = {}) {
   const phase = err?.closePhase ?? 'init';
