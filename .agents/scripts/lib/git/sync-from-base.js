@@ -38,7 +38,7 @@ function refuseWithoutMergeDriver(cwd, gitSpawn) {
       `.gitattributes routes baselines/*.json through the mandrel-baseline merge ` +
       `driver, but ${BASELINE_MERGE_DRIVER_CONFIG_KEY} is unset in this clone. ` +
       'Merging origin now would text-merge generated baselines, which conflicts on ' +
-      'the generatedAt stamp and can splice rows neither branch scored. Register the ' +
+      'adjacent rows and can splice rows neither branch scored. Register the ' +
       `driver, then re-run:\n  ${BASELINE_MERGE_DRIVER_REMEDY}\n` +
       '  (or: npm run baselines:merge-driver)',
     remedy: BASELINE_MERGE_DRIVER_REMEDY,

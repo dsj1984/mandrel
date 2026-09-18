@@ -1,18 +1,9 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-18T19:38:21.756Z",
   "scoringSemantics": "method-identity-v3",
   "tsTranspilerVersion": "6.0.3",
   "provenanceStamped": true,
-  "rollup": {
-    "*": {
-      "p50": 2,
-      "p95": 8.040303206997084,
-      "max": 27.003399884259263,
-      "methodsAbove20": 2
-    }
-  },
   "rows": [
     {
       "path": ".agents/scripts/acceptance-eval.js",

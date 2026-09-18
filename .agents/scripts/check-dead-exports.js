@@ -59,7 +59,7 @@ export function parseArgv(argv = []) {
  * `null` when missing or unparseable.
  *
  * @param {string} baselinePath
- * @returns {{ kernelVersion?: string, generatedAt?: string, rows?: Array<{file: string, symbol: string}> } | null}
+ * @returns {{ kernelVersion?: string, rows?: Array<{file: string, symbol: string}> } | null}
  */
 export function loadBaseline(baselinePath) {
   try {

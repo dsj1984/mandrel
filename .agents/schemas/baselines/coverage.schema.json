@@ -6,32 +6,6 @@
   "allOf": [{ "$ref": "baseline-envelope.schema.json" }],
   "type": "object",
   "properties": {
-    "rollup": {
-      "type": "object",
-      "required": ["*"],
-      "additionalProperties": {
-        "type": "object",
-        "required": ["lines", "branches", "functions"],
-        "additionalProperties": false,
-        "properties": {
-          "lines": { "type": "number", "minimum": 0, "maximum": 100 },
-          "branches": { "type": "number", "minimum": 0, "maximum": 100 },
-          "functions": { "type": "number", "minimum": 0, "maximum": 100 }
-        }
-      },
-      "properties": {
-        "*": {
-          "type": "object",
-          "required": ["lines", "branches", "functions"],
-          "additionalProperties": false,
-          "properties": {
-            "lines": { "type": "number", "minimum": 0, "maximum": 100 },
-            "branches": { "type": "number", "minimum": 0, "maximum": 100 },
-            "functions": { "type": "number", "minimum": 0, "maximum": 100 }
-          }
-        }
-      }
-    },
     "rows": {
       "type": "array",
       "items": {

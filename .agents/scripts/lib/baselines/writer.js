@@ -1,7 +1,6 @@
 /**
  * Shared baseline writer, the single funnel for envelope assembly
- * (`write`: project, canonical-assert, merge, stabilise, sort, rollup, stamp,
- * validate) and serialisation (`writeFile`: atomic tmp + rename).
+ * (`write`: project, canonical-assert, merge, stabilise, sort, stamp, validate) and serialisation (`writeFile`: atomic tmp + rename).
  *
  * @module lib/baselines/writer
  */
@@ -16,16 +15,14 @@ import { assertCanonical } from './path-canon.js';
 /**
  * Assemble and validate an envelope (no I/O). With `scope`, out-of-scope
  * `prior` rows are preserved first; with `epsilon`, sub-epsilon deltas then
- * resolve to prior bytes. `prior` rows must already be canonical. When rows
- * and rollup deep-equal the prior envelope, the prior is returned unchanged
- * so a no-op refresh leaves no `generatedAt` diff.
+ * resolve to prior bytes. `prior` rows must already be canonical. When the
+ * rows deep-equal the prior envelope's, the prior is returned unchanged so a
+ * no-op refresh leaves no diff.
  *
  * @param {{
  *   kind: string,
  *   rows: Array<object>,
- *   components?: Array<object>,
  *   kernelVersion?: string,
- *   generatedAt?: string,
  *   prior?: Array<object>,
  *   priorEnvelope?: object,
  *   epsilon?: number,
@@ -36,9 +33,7 @@ import { assertCanonical } from './path-canon.js';
 export function write({
   kind,
   rows,
-  components,
   kernelVersion,
-  generatedAt,
   prior,
   priorEnvelope,
   epsilon,
@@ -79,20 +74,9 @@ export function write({
   const stabilised = stabiliseRows(mod, merged, prior, epsilon);
 
   const sortedRows = mod.sortRows(stabilised);
-  const rollup = mod.rollup(sortedRows, components ?? []);
-
-  if (!Object.hasOwn(rollup, '*')) {
-    throw new Error(
-      `writer.write: ${kind} rollup is missing the required "*" key`,
-    );
-  }
 
   const priorEnv = resolvePriorEnvelope(priorEnvelope, prior);
-  if (
-    priorEnv &&
-    deepEqual(sortedRows, priorEnv.rows) &&
-    deepEqual(rollup, priorEnv.rollup)
-  ) {
+  if (priorEnv && deepEqual(sortedRows, priorEnv.rows)) {
     // No smuggling an invalid envelope through the short-circuit.
     assertEnvelope(priorEnv);
     return priorEnv;
@@ -101,9 +85,7 @@ export function write({
   const envelope = buildEnvelope({
     kind,
     rows: sortedRows,
-    rollup,
     kernelVersion: kernelVersion ?? currentKernelVersion(kind),
-    generatedAt,
     extras:
       typeof mod.envelopeExtras === 'function' ? mod.envelopeExtras() : null,
   });
@@ -113,27 +95,18 @@ export function write({
 
 /** `priorEnvelope`, else `prior` when it is a whole envelope, else null. */
 function resolvePriorEnvelope(priorEnvelope, prior) {
-  if (
-    priorEnvelope &&
-    typeof priorEnvelope === 'object' &&
-    !Array.isArray(priorEnvelope) &&
-    Array.isArray(priorEnvelope.rows) &&
-    priorEnvelope.rollup &&
-    typeof priorEnvelope.rollup === 'object'
-  ) {
-    return priorEnvelope;
-  }
-  if (
-    prior &&
-    typeof prior === 'object' &&
-    !Array.isArray(prior) &&
-    Array.isArray(prior.rows) &&
-    prior.rollup &&
-    typeof prior.rollup === 'object'
-  ) {
-    return prior;
-  }
+  if (isEnvelopeObject(priorEnvelope)) return priorEnvelope;
+  if (isEnvelopeObject(prior)) return prior;
   return null;
+}
+
+function isEnvelopeObject(value) {
+  return (
+    Boolean(value) &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    Array.isArray(value.rows)
+  );
 }
 
 /**
@@ -161,11 +134,9 @@ export function writeFile(absPath, envelope, opts = {}) {
   const canonical = {
     $schema: envelope.$schema,
     kernelVersion: envelope.kernelVersion,
-    generatedAt: envelope.generatedAt,
     scoringSemantics: envelope.scoringSemantics,
     tsTranspilerVersion: envelope.tsTranspilerVersion,
     provenanceStamped: envelope.provenanceStamped,
-    rollup: envelope.rollup,
     rows: envelope.rows,
   };
 

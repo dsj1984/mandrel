@@ -1,15 +1,6 @@
 {
   "$schema": ".agents/schemas/baselines/duplication.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-09-18T16:35:28.010Z",
-  "rollup": {
-    "*": {
-      "percentage": 7.85,
-      "duplicatedLines": 1628,
-      "totalLines": 20738,
-      "filesWithDuplication": 77
-    }
-  },
   "rows": [
     {
       "path": ".agents/scripts/check-arch-cycles.js",

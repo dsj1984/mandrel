@@ -156,8 +156,6 @@ function writeEnvelopeViaFsImpl(abs, envelope, fsImpl) {
   const canonical = {
     $schema: envelope.$schema,
     kernelVersion: envelope.kernelVersion,
-    generatedAt: envelope.generatedAt,
-    rollup: envelope.rollup,
     rows: envelope.rows,
   };
   fsImpl.writeFileSync(abs, `${JSON.stringify(canonical, null, 2)}\n`);

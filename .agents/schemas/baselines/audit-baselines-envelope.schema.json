@@ -100,7 +100,7 @@
           "generatedAt": { "type": ["string", "null"] },
           "staleDays": {
             "type": ["integer", "null"],
-            "description": "Whole days since generatedAt. Null when the stamp is absent or unparseable — never a fabricated 0. Wall time only: a baseline can read 0 here and still predate the surface it scores, which is what staleCommits catches."
+            "description": "Whole days since generatedAt — the baseline's own stamp where it carries one, else its last-commit date (row-set baselines carry no stamp). Null when neither is available or parseable — never a fabricated 0. Wall time only: a baseline can read 0 here and still predate the surface it scores, which is what staleCommits catches."
           },
           "staleCommits": {
             "type": ["integer", "null"],

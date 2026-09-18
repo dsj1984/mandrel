@@ -35,7 +35,7 @@ export function buildHeadroom({ kinds, quality, baselines }) {
   for (const kind of kinds) {
     const floors = quality?.gates?.[kind]?.floors?.['*'];
     if (!floors || typeof floors !== 'object') continue;
-    const rollup = rollupOf(baselines.get(kind) ?? null);
+    const rollup = rollupOf(kind, baselines.get(kind) ?? null);
     for (const [axis, floor] of Object.entries(floors)) {
       if (typeof floor !== 'number' || !Number.isFinite(floor)) continue;
       const measured = rollup?.[axis];

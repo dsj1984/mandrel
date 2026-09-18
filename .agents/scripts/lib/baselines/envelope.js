@@ -24,56 +24,25 @@ function kernelVersionPattern() {
   return /^[0-9]+\.[0-9]+\.[0-9]+$/;
 }
 
-function isoTimestampPattern() {
-  // Cheap pre-check for a friendlier error; AJV's `date-time` is authoritative.
-  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
-}
-
 /**
- * Explicit value, else `MANDREL_BASELINE_GENERATED_AT` (reproducible builds),
- * else now.
+ * The committed shape carries neither a run timestamp nor a rollup: both were
+ * rewritten on every refresh, so two branches refreshing disjoint rows always
+ * conflicted on a platform that never runs the merge driver. Readers derive
+ * the rollup from `rows`.
  *
- * @param {string|undefined} explicit
- * @returns {string}
- */
-function resolveGeneratedAt(explicit) {
-  const candidate =
-    typeof explicit === 'string' && explicit.length > 0
-      ? explicit
-      : (process.env.MANDREL_BASELINE_GENERATED_AT ?? new Date().toISOString());
-  if (typeof candidate !== 'string' || !isoTimestampPattern().test(candidate)) {
-    throw new Error(
-      `envelope.buildEnvelope: generatedAt must be an ISO-8601 timestamp (got ${JSON.stringify(candidate)})`,
-    );
-  }
-  return candidate;
-}
-
-/**
  * @param {{
  *   kind: string,
- *   rollup: Record<string, object>,
  *   rows: Array<object>,
  *   kernelVersion: string,
- *   generatedAt?: string,
  *   extras?: Record<string, unknown>,
  * }} params
  * @returns {{
  *   $schema: string,
  *   kernelVersion: string,
- *   generatedAt: string,
- *   rollup: Record<string, object>,
  *   rows: Array<object>,
  * }}
  */
-export function buildEnvelope({
-  kind,
-  rollup,
-  rows,
-  kernelVersion,
-  generatedAt,
-  extras,
-} = {}) {
+export function buildEnvelope({ kind, rows, kernelVersion, extras } = {}) {
   if (typeof kind !== 'string' || !KNOWN_KINDS.includes(kind)) {
     throw new TypeError(
       `envelope.buildEnvelope: kind must be one of ${KNOWN_KINDS.join(', ')} (got ${JSON.stringify(kind)})`,
@@ -87,16 +56,6 @@ export function buildEnvelope({
       `envelope.buildEnvelope: kernelVersion must be semver-shaped (got ${JSON.stringify(kernelVersion)})`,
     );
   }
-  if (!rollup || typeof rollup !== 'object' || Array.isArray(rollup)) {
-    throw new TypeError(
-      'envelope.buildEnvelope: rollup must be an object keyed by component',
-    );
-  }
-  if (!Object.hasOwn(rollup, '*')) {
-    throw new Error(
-      'envelope.buildEnvelope: rollup["*"] (whole-repo rollup) is required',
-    );
-  }
   if (!Array.isArray(rows)) {
     throw new TypeError('envelope.buildEnvelope: rows must be an array');
   }
@@ -106,9 +65,7 @@ export function buildEnvelope({
   return {
     $schema: schemaRefFor(kind),
     kernelVersion,
-    generatedAt: resolveGeneratedAt(generatedAt),
     ...(extras && typeof extras === 'object' ? extras : {}),
-    rollup,
     rows,
   };
 }
@@ -137,8 +94,6 @@ function getValidator(kind) {
 const REQUIRED_TOP_LEVEL_KEYS = Object.freeze([
   '$schema',
   'kernelVersion',
-  'generatedAt',
-  'rollup',
   'rows',
 ]);
 

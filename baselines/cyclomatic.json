@@ -1,14 +1,6 @@
 {
   "$schema": "https://mandrel.dev/baselines/cyclomatic.schema.json",
-  "generatedAt": "2026-09-18T15:56:00.369Z",
   "ceiling": 12,
-  "rollup": {
-    "*": {
-      "filesAboveCeiling": 39,
-      "methodsAboveCeiling": 41,
-      "maxCyclomatic": 20
-    }
-  },
   "rows": [
     {
       "file": ".agents/scripts/bootstrap.js",
