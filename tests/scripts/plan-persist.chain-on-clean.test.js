@@ -177,16 +177,16 @@ describe('runPersistChain — fast path (Story #4741, any plan since #5312)', ()
       assert.equal(result.stories.length, 1);
 
       // AC-2: every semantic step still ran on the dry-run pass and persist
-      // wrote its bookkeeping (agent::ready + story-plan-state). No route
-      // label rides the Story (Story #5312).
+      // wrote its bookkeeping (agent::ready + the story-plan-state comment).
+      // No route label rides the Story (Story #5312).
       const issue = provider.issues.get(result.primaryStoryId);
       assert.ok(issue.labels.includes(TYPE_LABELS.STORY));
       assert.ok(issue.labels.includes(AGENT_LABELS.READY));
       assert.ok(issue.labels.every((l) => !l.startsWith('route::')));
-      const checkpoint = provider.comments
+      const planComment = provider.comments
         .map((c) => c.body)
         .find((b) => b.includes('story-plan-state'));
-      assert.ok(checkpoint, 'the persist checkpoint was written');
+      assert.ok(planComment, 'the persist plan comment was written');
     } finally {
       rmSync(tempRoot, { recursive: true, force: true });
     }
@@ -343,7 +343,7 @@ describe('AC-4: one primary Story, whatever the authoring order (Story #5361)', 
     return [mk('consumer', { depends_on: ['blocker'] }), mk('blocker')];
   }
 
-  it('names the same Story in the supersede comment, the checkpoint and the summary', async () => {
+  it('names the same Story in the supersede comment and the plan summary', async () => {
     const { config, tempRoot } = isolatedConfig();
     const sourceTicketId = 4242;
     try {
@@ -368,12 +368,15 @@ describe('AC-4: one primary Story, whatever the authoring order (Story #5361)', 
       const consumerId = result.stories.find((s) => s.slug === 'consumer').id;
       assert.notEqual(blockerId, consumerId);
 
-      // The checkpoint and the envelope: the dependency-order first Story.
+      // The plan comment and the envelope: the dependency-order first Story.
       assert.equal(result.primaryStoryId, blockerId);
-      const checkpoint = provider.comments
+      const planComment = provider.comments
         .map((c) => c.body)
         .find((b) => b.includes('story-plan-state'));
-      assert.match(checkpoint, new RegExp(`"primaryStoryId":\\s*${blockerId}`));
+      assert.match(
+        planComment,
+        new RegExp(`Plan Summary — Story #${blockerId}`),
+      );
 
       // The supersede comment on the unclaimed source id must name it too.
       const supersedeComment = provider.comments.find(

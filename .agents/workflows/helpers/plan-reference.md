@@ -518,13 +518,13 @@ state.
 
 `agent::ready` is the **terminal** step, not part of the creating POST.
 The order is: create unlabelled → upsert `story-plan-state` on every Story —
-since Story #5343 one comment carrying the checkpoint **and** the plan summary
-(story set, delivery order, deliver command) — → flip every Story to
-`agent::ready`.
+since Story #5343 one comment, carrying the plan summary (story set, delivery
+order, deliver command) and nothing else, since Story #5367 deleted the machine
+checkpoint no reader consumed — → flip every Story to `agent::ready`.
 
 This is what lets `/mandrel-deliver` trust the label: a Story carrying
-`agent::ready` always has its persist receipt on the ticket, so nothing can
-pick it up mid-write and read a half-persisted plan.
+`agent::ready` always has the operator's delivery instructions on the ticket,
+so nothing can pick it up mid-write and act on a half-persisted plan.
 
 ## Resuming a failed persist
 

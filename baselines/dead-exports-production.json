@@ -1,7 +1,7 @@
 {
   "$schema": "https://mandrel.dev/baselines/dead-exports.schema.json",
   "kernelVersion": "6.17.1",
-  "generatedAt": "2026-09-17T17:05:01.637Z",
+  "generatedAt": "2026-09-18T00:20:41.405Z",
   "mode": "production",
   "rows": [
     {
@@ -1249,10 +1249,6 @@
       "symbol": "failingChecksBlockMerge"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/model-attribution.js",
-      "symbol": "*"
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/plan-context.js",
       "symbol": "buildScopeTriageSignal"
     },
@@ -1711,14 +1707,6 @@
     {
       "file": ".agents/scripts/lib/orchestration/story-follow-ups.js",
       "symbol": "gatherStoryFrictionSignals"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/story-plan-state.js",
-      "symbol": "*"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/structured-comment-parser.js",
-      "symbol": "*"
     },
     {
       "file": ".agents/scripts/lib/orchestration/task-body-validator.js",

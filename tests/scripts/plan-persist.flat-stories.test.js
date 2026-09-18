@@ -370,6 +370,10 @@ describe('runPlanPersist — flat Story ops', () => {
     assert.match(comment.body, /Plan Summary/);
     assert.match(comment.body, /\/mandrel-deliver/);
     assert.doesNotMatch(comment.body, /type="plan-summary"/);
+    // Story #5367 — the comment carries the operator's summary and nothing
+    // machine-readable. The fenced checkpoint it used to lead with had no
+    // production reader; a fence reappearing here is that payload growing back.
+    assert.doesNotMatch(comment.body, /```json/);
     // Story #4542: persist writes no risk artifact at all — neither the
     // per-Story `risk-verdict` comment nor a risk line on the summary.
     assert.doesNotMatch(comment.body, /risk-verdict/);
@@ -602,6 +606,47 @@ describe('runPlanPersist — flat Story ops', () => {
       assert.ok(
         provider.issues.get(story.id).labels.includes(AGENT_LABELS.READY),
       );
+    }
+  });
+
+  it('re-persisting the same plan leaves one plan comment per Story (#5367)', async () => {
+    // The `story-plan-state` marker outlived the machine payload precisely
+    // because it is what makes the comment an upsert: a second persist over
+    // the same artifacts must replace the comment, never append a rival copy
+    // the operator has to date-sort.
+    const provider = fakeProvider();
+    const artifacts = { stories: [ticket('alpha'), ticket('beta')] };
+    const opts = { skipCleanup: true };
+
+    const first = await runPlanPersist({
+      provider,
+      artifacts,
+      config: {},
+      opts,
+    });
+    const second = await runPlanPersist({
+      provider,
+      artifacts,
+      config: {},
+      opts,
+    });
+
+    assert.deepEqual(
+      second.stories.map((s) => s.id).sort(),
+      first.stories.map((s) => s.id).sort(),
+      'the re-persist must adopt the same Stories, not create new ones',
+    );
+    for (const story of second.stories) {
+      const live = provider.comments.filter(
+        (c) =>
+          c.issueNumber === story.id && c.body.includes('story-plan-state'),
+      );
+      assert.equal(
+        live.length,
+        1,
+        `Story #${story.id} carries ${live.length} plan comment(s)`,
+      );
+      assert.match(live[0].body, /Plan Summary/);
     }
   });
 

@@ -10,20 +10,20 @@
  *   3. Same-wave collision refusal (`assertNoWaveCollisions`) + spec fold
  *   4. Create Story issues (`type::story` + sanitized authored labels —
  *      deliberately NOT `agent::ready`), resumably via a plan fingerprint
- *   5. Upsert `story-plan-state` on every created Story — since Story #5343
- *      that one comment carries the plan summary too
+ *   5. Upsert the `story-plan-state` comment on every created Story — since
+ *      Story #5343 the one comment persist posts, carrying the plan summary
  *   6. Flip every Story to `agent::ready` — the terminal step, so `ready`
- *      always implies "checkpoints written"
+ *      always implies "plan comments written"
  *   7. Comment on + close the superseded `--tickets` source issues
  *      (Story #4535) — bookkeeping only; never fails the run
  *   8. Temp cleanup at terminal success + a stale-plan-dir reap
  *
  * **Why `agent::ready` moved to the end (Story #4541).** Issues used to be
- * born `agent::ready` in the creating POST while the checkpoints were
+ * born `agent::ready` in the creating POST while the plan comments were
  * written afterwards. Anything picking a Story up in that window — or after
- * a comment failure aborted the loop — read the checkpoint as `null`
- * (`story-plan-state.js` degrades missing/malformed to `null`). Creating
- * unlabelled, writing checkpoints, then flipping closes that race.
+ * a comment failure aborted the loop — found a ready Story carrying none of
+ * the operator's delivery instructions. Creating unlabelled, writing the
+ * comments, then flipping closes that race.
  *
  * **No authored risk artifact (Story #4542).** Persist neither requires nor
  * accepts a risk verdict, derives no envelope from one, and computes no
@@ -79,49 +79,44 @@ import { buildPlanSummaryCommentBody, buildWaveTable } from './summary.js';
 import { closeSupersededTickets } from './supersede-ops.js';
 import { assertNoWaveCollisions } from './wave-collision-gate.js';
 
-/** Checkpoint schema version written on each Story's story-plan-state. */
-const PLAN_CHECKPOINT_SCHEMA_VERSION_V2 = 2;
-
-/** Structured-comment type for the per-plan Story checkpoint. */
+/** Structured-comment type for the per-plan Story comment. */
 const STORY_PLAN_STATE_TYPE = 'story-plan-state';
 
 /**
- * Write the `story-plan-state` checkpoint on a Story — the **one** comment
- * persist posts per Story (Story #5343).
+ * Write the plan comment on a Story — the **one** comment persist posts per
+ * Story (Story #5343).
  *
- * It carries the machine checkpoint `/mandrel-deliver` reads *and*, appended
- * below it, the human plan summary: the created Story set, the delivery order
+ * It carries the human plan summary: the created Story set, the delivery order
  * and the exact deliver command. That summary used to be a second
  * `plan-summary` comment on the primary Story only, which meant the operator's
- * instructions lived on a different marker from the state — and on a different
+ * instructions lived on a different marker from the rest — and on a different
  * ticket from four Stories out of five.
+ *
+ * **No machine payload (Story #5367).** The comment used to lead with a fenced
+ * JSON checkpoint (a persist receipt: completion time, Story count, the
+ * cohort). Nothing ever read it back — the one module that parsed it had no
+ * production importer — so the payload and its readers are gone. The
+ * `story-plan-state` marker stays: it is what makes a re-persist upsert this
+ * comment in place instead of appending a second one.
  *
  * @param {object} provider
  * @param {number} storyId
- * @param {object} state
- * @param {string} [summary] Rendered plan-summary markdown to append. Omitted
- *   (or empty) writes the checkpoint alone, which is what a caller with no
- *   summary to report wants.
- * @returns {Promise<object>} the `state` written, for the caller's receipts.
+ * @param {string} summary Rendered plan-summary markdown. The comment exists
+ *   to carry it, so an empty summary is a caller bug rather than a degenerate
+ *   comment worth posting.
+ * @returns {Promise<void>}
  */
-export async function writeCheckpointV2(provider, storyId, state, summary) {
+export async function writePlanSummaryComment(provider, storyId, summary) {
   if (!Number.isInteger(storyId)) {
-    throw new TypeError('writeCheckpointV2 requires a numeric storyId');
+    throw new TypeError('writePlanSummaryComment requires a numeric storyId');
   }
-  const body = [
-    '### story-plan-state',
-    '',
-    '```json',
-    JSON.stringify(
-      { version: PLAN_CHECKPOINT_SCHEMA_VERSION_V2, storyId, ...state },
-      null,
-      2,
-    ),
-    '```',
-    ...(summary?.trim() ? ['', summary.trim()] : []),
-  ].join('\n');
+  const body = summary?.trim();
+  if (!body) {
+    throw new TypeError(
+      'writePlanSummaryComment requires a non-empty plan summary',
+    );
+  }
   await upsertStructuredComment(provider, storyId, STORY_PLAN_STATE_TYPE, body);
-  return state;
 }
 
 /**
@@ -425,51 +420,28 @@ async function enforceReachability(reachability, config) {
 }
 
 /**
- * Write the per-Story checkpoint — which since Story #5343 carries the plan
- * summary too, so persist posts exactly one comment per Story — and flip every
- * created Story to `agent::ready`. Terminal ordering is load-bearing:
- * `agent::ready` lands last so it can honestly mean "fully persisted"
- * (Story #4541). A dry run performs none of it.
+ * Write the per-Story plan comment — one comment per Story, carrying the plan
+ * summary (Story #5343) — and flip every created Story to `agent::ready`.
+ * Terminal ordering is load-bearing: `agent::ready` lands last so it can
+ * honestly mean "fully persisted" (Story #4541). A dry run performs none of it.
  *
- * **The checkpoints fan out; the phase boundary does not** (Story #4952). The
+ * **The comments fan out; the phase boundary does not** (Story #4952). The
  * per-Story upserts are independent of one another and run under bounded
  * concurrency, but the `await` on that whole fan-out is what keeps the
- * Story #4541 invariant intact: *every* checkpoint is on its ticket before the
- * first `agent::ready` flip is issued, so `ready` still means "fully
- * persisted" and a `/mandrel-deliver` that picks a Story up cannot read a null
- * checkpoint. Concurrency inside the phase is safe; overlapping the phases is
- * the race this ordering exists to close.
+ * Story #4541 invariant intact: *every* Story carries its plan comment before
+ * the first `agent::ready` flip is issued, so `ready` still means "fully
+ * persisted" and the operator's instructions are never missing from a ticket
+ * something else may already be picking up. Concurrency inside the phase is
+ * safe; overlapping the phases is the race this ordering exists to close.
  *
  * @param {object} args
  * @returns {Promise<void>}
  */
-async function persistStoryArtifacts({
-  provider,
-  created,
-  primary,
-  summaryBody,
-}) {
-  const cohort = created.map((createdStory) => ({
-    slug: createdStory.slug,
-    id: createdStory.id,
-  }));
+async function persistStoryArtifacts({ provider, created, summaryBody }) {
   await concurrentMap(
     created,
-    (story) =>
-      writeCheckpointV2(
-        provider,
-        story.id,
-        {
-          persist: {
-            completedAt: new Date().toISOString(),
-            storyCount: created.length,
-            primaryStoryId: primary.id,
-            stories: cohort,
-          },
-        },
-        summaryBody,
-      ),
-    // The per-Story checkpoint upserts (Story #4952): each targets a
+    (story) => writePlanSummaryComment(provider, story.id, summaryBody),
+    // The per-Story comment upserts (Story #4952): each targets a
     // different issue and reads nothing another writes, so this loop was
     // serial only by construction — but see {@link persistStoryArtifacts}
     // for the phase ordering that is *not* incidental.
@@ -736,12 +708,7 @@ export async function runPlanPersist({
   });
 
   if (!dryRun) {
-    await persistStoryArtifacts({
-      provider,
-      created,
-      primary,
-      summaryBody,
-    });
+    await persistStoryArtifacts({ provider, created, summaryBody });
   }
 
   // Story #5139 — the container Epic is created LAST among the writes: its

@@ -3,12 +3,12 @@
  *
  * Renders the persist receipts — the created Story set, whether the operator
  * forced a review stop, the `depends_on` ordering table and the exact deliver
- * command. Story #5343 folded that rendering into the **`story-plan-state`**
- * checkpoint every created Story already carries: it used to be a second,
- * primary-Story-only `plan-summary` comment saying what the checkpoint beside
- * it already implied, which cost one more write per plan and split the
- * operator's reading between two markers. One comment per Story now carries
- * both.
+ * command. Story #5343 moved that rendering onto the **`story-plan-state`**
+ * marker every created Story already carries: it used to be a second,
+ * primary-Story-only `plan-summary` comment, which cost one more write per
+ * plan and split the operator's reading between two markers. Story #5367
+ * deleted the machine checkpoint that shared the marker with it, so this
+ * rendering is now the whole body of the one comment persist posts.
  *
  * Story #4542 removed the risk / review-routing line: no risk level, gate
  * decision, or acceptance disposition is computed at plan time any more, so
@@ -113,8 +113,8 @@ function renderSharedEditorLines(conflictFindings) {
 }
 
 /**
- * Build the plan-summary section spliced into each Story's `story-plan-state`
- * comment (Story #5343).
+ * Build the body of each Story's `story-plan-state` comment (Story #5343;
+ * Story #5367 made it the whole body).
  *
  * @param {object} input
  * @returns {string}
