@@ -15,6 +15,13 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.62.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.61.0...mandrel-v2.62.0) (2026-09-18)
+
+
+### Fixed
+
+* **close:** arm auto-merge on a merge-queue-protected base ([#5395](https://github.com/dsj1984/mandrel/issues/5395)) ([#5396](https://github.com/dsj1984/mandrel/issues/5396)) ([6d739ea](https://github.com/dsj1984/mandrel/commit/6d739eadb8ae00bedeb7279b1a765c3e0cc5791e))
+
 ## [2.61.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.60.0...mandrel-v2.61.0) (2026-09-18)
 
 
