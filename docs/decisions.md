@@ -1396,7 +1396,7 @@ and a grep cannot see state shared through a helper.
   CLI calls, one shared git-fixture identity, one e2e install — not by removing
   the fork boundary between files.
 - Per-file `process.env` mutation and module mocking stay legitimate;
-  `docs/contributing/test-seams.md` needs no isolation caveat.
+  `rules/test-seams.md` needs no isolation caveat.
 - Re-open only with a whole-tier measurement. A favourable subset is the
   artefact this entry exists to warn about.
 
@@ -2692,7 +2692,7 @@ an operator *acts on*, so it is kept current rather than frozen at its
 | `mcp__mandrel__hydrate_context`        | `node .agents/scripts/plan-context.js` for the `/plan` authoring envelope and `node .agents/scripts/resolve-stories.js` for the delivery envelope; the single `hydrate-context.js` CLI was deleted. |
 | `mcp__mandrel__transition_ticket_state`| `node .agents/scripts/update-ticket-state.js --ticket <id> --state <state>` (auto-cascades on `agent::done`).                                |
 | `mcp__mandrel__cascade_completion`     | Inlined into `update-ticket-state.js`; also runs at Story close inside `single-story-close.js`.                                              |
-| `mcp__mandrel__post_structured_comment`| `node scripts/post-structured-comment.js --ticket <id> --marker <marker> --body-file <path>`; lib code imports `upsertStructuredComment` from `lib/orchestration/ticketing.js` directly. |
+| `mcp__mandrel__post_structured_comment`| `node .agents/scripts/post-structured-comment.js --ticket <id> --marker <marker> --body-file <path>`; lib code imports `upsertStructuredComment` from `lib/orchestration/ticketing.js` directly. |
 | `mcp__mandrel__select_audits`          | No CLI. `selectAudits()` from the `lib/audit-suite/index.js` SDK barrel; the `select-audits.js` entry script was deleted. |
 | `mcp__mandrel__run_audit_suite`        | No CLI. `runAuditSuite()` from the same barrel; the `run-audit-suite.js` entry script was deleted. |
 
