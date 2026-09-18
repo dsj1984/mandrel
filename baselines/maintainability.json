@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-18T15:49:05.405Z",
+  "generatedAt": "2026-09-18T15:54:32.788Z",
   "rollup": {
     "*": {
       "min": 76.381,
@@ -1428,7 +1428,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/auto-merge.js",
-      "mi": 88.769
+      "mi": 89.38
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js",
@@ -1444,7 +1444,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
-      "mi": 90.029
+      "mi": 90.664
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/conventional-subject.js",

@@ -1,11 +1,11 @@
 {
   "$schema": "https://mandrel.dev/baselines/cyclomatic.schema.json",
-  "generatedAt": "2026-09-18T14:27:17.855Z",
+  "generatedAt": "2026-09-18T15:56:00.369Z",
   "ceiling": 12,
   "rollup": {
     "*": {
-      "filesAboveCeiling": 40,
-      "methodsAboveCeiling": 43,
+      "filesAboveCeiling": 39,
+      "methodsAboveCeiling": 41,
       "maxCyclomatic": 20
     }
   },
@@ -103,7 +103,7 @@
     {
       "file": ".agents/scripts/lib/orchestration/deliver-recover.js",
       "methodsAboveCeiling": 1,
-      "maxCyclomatic": 14
+      "maxCyclomatic": 13
     },
     {
       "file": ".agents/scripts/lib/orchestration/file-assumptions.js",
@@ -118,7 +118,7 @@
     {
       "file": ".agents/scripts/lib/orchestration/merge-block-class.js",
       "methodsAboveCeiling": 1,
-      "maxCyclomatic": 18
+      "maxCyclomatic": 17
     },
     {
       "file": ".agents/scripts/lib/orchestration/plan-metrics.js",
@@ -132,7 +132,7 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/pr-watch.js",
-      "methodsAboveCeiling": 2,
+      "methodsAboveCeiling": 1,
       "maxCyclomatic": 17
     },
     {
@@ -159,11 +159,6 @@
       "file": ".agents/scripts/lib/orchestration/review-providers/parse-findings.js",
       "methodsAboveCeiling": 1,
       "maxCyclomatic": 14
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
-      "methodsAboveCeiling": 1,
-      "maxCyclomatic": 13
     },
     {
       "file": ".agents/scripts/lib/orchestration/ticket-validator.js",

@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-09-18T14:17:16.545Z",
+  "generatedAt": "2026-09-18T15:55:59.666Z",
   "rollup": {
     "*": {
-      "lines": 96.39,
-      "branches": 87.53,
-      "functions": 88.85
+      "lines": 96.42,
+      "branches": 87.59,
+      "functions": 88.93
     }
   },
   "rows": [
@@ -1583,6 +1583,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestration/check-state.js",
+      "lines": 100,
+      "branches": 96.97,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/ci-gap-intake.js",
       "lines": 100,
       "branches": 74.71,
@@ -1590,9 +1596,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
-      "lines": 93.08,
-      "branches": 79.59,
-      "functions": 95
+      "lines": 99.36,
+      "branches": 80.39,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
@@ -1614,9 +1620,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/deliver-recover.js",
-      "lines": 99.43,
+      "lines": 99.46,
       "branches": 85.71,
-      "functions": 92.31
+      "functions": 92.86
     },
     {
       "path": ".agents/scripts/lib/orchestration/dependency-analyzer.js",
@@ -1824,8 +1830,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/merge-block-class.js",
-      "lines": 99.38,
-      "branches": 82.14,
+      "lines": 99.43,
+      "branches": 82.35,
       "functions": 100
     },
     {
@@ -2004,9 +2010,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/pr-watch.js",
-      "lines": 95.99,
-      "branches": 84.62,
-      "functions": 88.24
+      "lines": 96.69,
+      "branches": 85.71,
+      "functions": 93.75
     },
     {
       "path": ".agents/scripts/lib/orchestration/project-meta-cache.js",
@@ -2160,8 +2166,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/auto-merge.js",
-      "lines": 99.32,
-      "branches": 76.14,
+      "lines": 99.68,
+      "branches": 83,
       "functions": 100
     },
     {
@@ -2184,9 +2190,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
-      "lines": 96.88,
-      "branches": 79.67,
-      "functions": 96.88
+      "lines": 96.95,
+      "branches": 79.78,
+      "functions": 96.97
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/conventional-subject.js",
@@ -2304,8 +2310,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
-      "lines": 98.82,
-      "branches": 80,
+      "lines": 100,
+      "branches": 93.02,
       "functions": 100
     },
     {
@@ -2586,9 +2592,9 @@
     },
     {
       "path": ".agents/scripts/lib/single-story/confirm-merge.js",
-      "lines": 94.03,
-      "branches": 88.24,
-      "functions": 75
+      "lines": 100,
+      "branches": 92.5,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/single-story/story-merged-notify.js",
