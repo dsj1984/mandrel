@@ -375,13 +375,9 @@ describe('deriveStoryShape — sensitivity wins (AC-6)', () => {
     });
     assert.equal(level, 'high');
     assert.equal(resolveDepth({ derivedLevel: level }), 'deep');
+    assert.equal(resolveCeremonyForRisk({}).verdictOwner, 'inline-self-eval');
     assert.equal(
-      resolveCeremonyForRisk({ derivedLevel: level }).verdictOwner,
-      'inline-self-eval',
-    );
-    assert.equal(
-      resolveCeremonyForRisk({ derivedLevel: level, ceremonyProfile: 'strict' })
-        .verdictOwner,
+      resolveCeremonyForRisk({ ceremonyProfile: 'strict' }).verdictOwner,
       'fresh-critic',
     );
   });

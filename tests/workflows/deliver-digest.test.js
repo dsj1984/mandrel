@@ -214,17 +214,13 @@ describe('deliver-digest § 3 — the ceremony derivation is scripted (#5313)', 
 
   it('documents the profile as the only input to the verdict owner (#5343)', () => {
     // The object-for-string transcription slip #5313 fixed cannot recur in a
-    // new disguise: the resolver reads no diff-derived field at all, so a
-    // malformed level cannot silently buy a different owner either way.
+    // new disguise: since Story #5366 the resolver does not accept a level at
+    // all, so there is no shape of it left to get wrong.
     const derived = deriveChangeLevel({
       changedFiles: ['docs/onboarding.md'],
       selectSensitivePathClassesFn: () => [],
     });
     assert.equal(derived.level, 'low');
-    assert.deepEqual(
-      resolveCeremonyForRisk({ derivedLevel: derived }),
-      resolveCeremonyForRisk({ derivedLevel: derived.level }),
-    );
     assert.equal(
       resolveCeremonyForRisk({ ceremonyProfile: 'standard' }).verdictOwner,
       'inline-self-eval',

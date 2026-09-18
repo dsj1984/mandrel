@@ -28,10 +28,11 @@
  * be enumerated.
  *
  * `level` / `classes` are what **review depth** reads (`resolveDepth`), and a
- * sensitive class still resolves `deep`. Since Story #5343 they no longer
- * route the verdict owner: `verdictOwner` follows the ceremony profile alone
- * — `inline-self-eval` under `minimal` / `standard`, `fresh-critic` under
- * `strict`.
+ * sensitive class still resolves `deep`. They do not route the verdict owner:
+ * `verdictOwner` follows the ceremony profile alone (Story #5343) —
+ * `inline-self-eval` under `minimal` / `standard`, `fresh-critic` under
+ * `strict` — and since Story #5366 the resolver does not even accept the
+ * level, so the two signals cannot be confused for one decision.
  *
  * Exit codes: 0 on a derived decision (including the `null` fail-safe — an
  * unenumerable diff is a decision, not an error), 1 on a usage error.
@@ -121,8 +122,9 @@ export function deriveCeremony(
     changedFiles: changeSet.files,
   });
   // The level is still derived and still printed — review depth reads it —
-  // but since Story #5343 the ceremony profile alone resolves the verdict
-  // owner, so nothing here can be talked into a different owner by the diff.
+  // but the ceremony profile alone resolves the verdict owner, and the
+  // resolver accepts nothing else, so nothing here can be talked into a
+  // different owner by the diff.
   const ceremony = resolveCeremonyImpl({ ceremonyProfile });
   return {
     storyId,
