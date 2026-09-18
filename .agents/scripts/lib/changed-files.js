@@ -1,6 +1,36 @@
 import { createGitInterface } from './git-utils.js';
 
 /**
+ * Resolve the ONE git ref a step of the pre-push chain computes its
+ * changed-file set against — the whole rule, stated once (Story #5365).
+ *
+ * **A ref the caller named wins; `crap.incrementalCoverage.baseRef` is the
+ * default for a caller that named none, and `main` the default for neither.**
+ * `.husky/pre-push` captures coverage at `--ref origin/main` and then previews
+ * CRAP at `--changed-since origin/main`, and the preview only reads its own
+ * tree when the artifact under it was captured over the same change set.
+ * Letting the configured value outrank the named ref meant a consumer that set
+ * `baseRef` captured one scope while the preview scored another — precisely
+ * the stale-artifact read the capture-before-preview ordering (Story #5356)
+ * closed. This repository sets no `baseRef`, so that divergence was invisible
+ * locally and only a consumer who configured one would have paid for it.
+ *
+ * Callers that name no ref — the close-validation gate, whose argv carries no
+ * `--ref` — still get the configured value, so the key keeps the meaning it
+ * was added with.
+ *
+ * Every step that derives that change set calls this: both `coverage-capture`
+ * paths and the preview's CRAP baseline join. A new consumer routes through it
+ * rather than reading `baseRef` itself.
+ *
+ * @param {{ crap: object, ref: string | null | undefined }} opts
+ * @returns {string}
+ */
+export function resolveChangedFilesRef({ crap, ref }) {
+  return ref ?? crap?.incrementalCoverage?.baseRef ?? 'main';
+}
+
+/**
  * Parse the stdout from `git diff --name-only` into a normalized file list.
  * Trims whitespace, drops blank lines, and converts backslash separators to
  * forward slashes so set-membership checks line up with the paths produced by

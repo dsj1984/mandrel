@@ -476,22 +476,17 @@ describe('createStoryIssues', () => {
     assert.deepEqual(parse(calls[1].body).body.depends_on, ['#201']);
   });
 
-  it('rejects unknown dependencies before any issue write', async () => {
-    let writes = 0;
-    const provider = {
-      createIssue: async () => {
-        writes += 1;
-        return { id: 1 };
-      },
-    };
-    const { stories } = assemblePlanStories([
-      storyTicket('consumer', { depends_on: ['missing'] }),
-    ]);
-    await assert.rejects(
-      () => createStoryIssues({ provider, stories }),
+  it('rejects unknown dependencies in assembly, before a provider exists at all', () => {
+    // Story #5361 moved the dependency sort into assembly so the run derives
+    // one primary Story. The refusal moved with it — earlier than the first
+    // create, which is where the write-free pass can see it.
+    assert.throws(
+      () =>
+        assemblePlanStories([
+          storyTicket('consumer', { depends_on: ['missing'] }),
+        ]),
       /unknown sibling/,
     );
-    assert.equal(writes, 0);
   });
 });
 

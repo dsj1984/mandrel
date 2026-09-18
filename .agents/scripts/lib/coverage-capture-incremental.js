@@ -9,6 +9,7 @@
  * parameter (`.agents/rules/test-seams.md` rules 1-2, 4).
  */
 import path from 'node:path';
+import { resolveChangedFilesRef } from './changed-files.js';
 import { stampCapturedTree } from './coverage-capture.js';
 
 /**
@@ -38,7 +39,7 @@ import { stampCapturedTree } from './coverage-capture.js';
  * @param {{
  *   crap: object,
  *   coverage: object,
- *   args: { ref: string, cwd: string },
+ *   args: { ref: string | null, cwd: string },
  *   getChangedFilesImpl: Function,
  *   filterFilesUnderTargetsImpl: Function,
  *   isCoverageFreshImpl: Function,
@@ -63,7 +64,7 @@ export function tryIncrementalCapture({
 }) {
   if (crap.incrementalCoverage?.skipWhenUnchanged !== true) return null;
 
-  const ref = crap.incrementalCoverage.baseRef || args.ref;
+  const ref = resolveChangedFilesRef({ crap, ref: args.ref });
   let changed = null;
   try {
     changed = getChangedFilesImpl({ ref, cwd: args.cwd });

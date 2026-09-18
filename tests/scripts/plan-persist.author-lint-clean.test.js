@@ -202,7 +202,7 @@ describe('AC-3: a prompt-authored Story passes dry-run on the first attempt', ()
           config: {},
           opts: { dryRun: true, skipCleanup: true },
         }),
-      /prose bullets are not accepted/,
+      /is prose, not a path/,
     );
   });
 });

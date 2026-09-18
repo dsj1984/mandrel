@@ -316,7 +316,16 @@ function indexSupersedeClaims(list) {
  *
  * Mutates the unclaimed ids onto the primary Story's `supersedes[]`.
  *
+ * **`stories[0]` is the primary, and it is the *only* derivation of it**
+ * (Story #5361): `assemblePlanStories` hands this list over already sorted by
+ * `orderStoriesByDependencies`, which is the same order the create loop files
+ * the Stories in — so the `superseded-by` comment this assignment produces
+ * can never name a different Story from the checkpoint and the plan summary.
+ * A non-empty list is the caller's contract (assembly refuses an empty
+ * draft before it gets here).
+ *
  * @param {Array<{ slug: string, supersedes: Array<{ id: number, note: string|null }> }>} stories
+ *   Dependency-ordered and non-empty.
  * @param {number[]} sourceTicketIds Ids passed to `/mandrel-plan --tickets`.
  * @returns {string[]} One warning per id assigned by default.
  */
@@ -351,12 +360,6 @@ export function resolveSupersedePartition(stories, sourceTicketIds = []) {
   const warnings = [];
   for (const id of sources) {
     if (claims.has(id)) continue;
-    if (!primary) {
-      throw new Error(
-        `[plan-persist] source ticket #${id} cannot be superseded — the ` +
-          'draft carries no Story to assign it to.',
-      );
-    }
     primary.supersedes = [...(primary.supersedes ?? []), { id, note: null }];
     warnings.push(
       `source ticket #${id} was claimed by no Story's supersedes[] — ` +

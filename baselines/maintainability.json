@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-17T17:03:58.461Z",
+  "generatedAt": "2026-09-18T00:06:10.488Z",
   "rollup": {
     "*": {
       "min": 76.381,
@@ -384,7 +384,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/crap-preview-incremental.js",
-      "mi": 113.043
+      "mi": 110.76
     },
     {
       "path": ".agents/scripts/lib/baselines/crap-preview-scan.js",
@@ -608,7 +608,7 @@
     },
     {
       "path": ".agents/scripts/lib/changed-files.js",
-      "mi": 100.02
+      "mi": 101.447
     },
     {
       "path": ".agents/scripts/lib/checks/core-bare-clean.js",
@@ -796,11 +796,11 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-capture-fullscope.js",
-      "mi": 95.649
+      "mi": 94.734
     },
     {
       "path": ".agents/scripts/lib/coverage-capture-incremental.js",
-      "mi": 93.159
+      "mi": 92.697
     },
     {
       "path": ".agents/scripts/lib/coverage-capture-usage.js",
@@ -1892,7 +1892,7 @@
     },
     {
       "path": ".agents/scripts/lib/story-body/body-format-lints.js",
-      "mi": 85.956
+      "mi": 94.389
     },
     {
       "path": ".agents/scripts/lib/story-body/footer-block.js",

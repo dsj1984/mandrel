@@ -188,10 +188,70 @@ describe('parse() — path entry shapes (Story #5342)', () => {
       () => parse(md),
       (err) => {
         assert.ok(err instanceof StoryBodyParseError);
-        assert.match(err.message, /prose bullets are not accepted/);
+        assert.match(err.message, /is prose, not a path/);
         return true;
       },
     );
+  });
+
+  it('AC-1: parses the path shapes git tracks but the old token class refused', () => {
+    // Route-segment paths and extensionless top-level files were rejected as
+    // prose by the `[\w@*-]*[/.][\w@./*-]+` class the bare bullet used to
+    // carry — the object form accepted every one of them without complaint
+    // (Story #5361).
+    for (const path of [
+      'app/[slug]/page.tsx',
+      'app/(marketing)/page.tsx',
+      'src/routes/$id.svelte',
+      'Makefile',
+      'src/{a,b}/mod.ts',
+      'packages/ui/Button+icon.tsx',
+      'docs/~draft.md',
+      'scripts/build#1.sh',
+      'src/a:b.ts',
+    ]) {
+      const md = `## Goal\nWire X to Y.\n\n## Changes\n- \`${path}\`\n\n## Acceptance\n- [ ] it works\n\n## Verify\n- npm test (unit)`;
+      assert.deepEqual(
+        parse(md).body.changes,
+        [{ path, assumption: null }],
+        `bare bullet must parse as a path entry: ${path}`,
+      );
+      // And unbackticked, which is the other documented default form.
+      const bare = md.replace(`\`${path}\``, path);
+      assert.deepEqual(parse(bare).body.changes, [{ path, assumption: null }]);
+    }
+  });
+
+  it('AC-3: names a whitespace-bearing bullet as prose, not as an unparseable path', () => {
+    const md = `## Goal\nWire X to Y.\n\n## Changes\n- rework the handler wiring\n\n## Acceptance\n- [ ] it works\n\n## Verify\n- npm test (unit)`;
+    assert.throws(
+      () => parse(md),
+      (err) => {
+        assert.ok(err instanceof StoryBodyParseError);
+        assert.match(err.message, /is prose, not a path/);
+        assert.doesNotMatch(err.message, /names no usable path/);
+        return true;
+      },
+    );
+  });
+
+  it('AC-3: a single token that is no path is refused as a path, not as prose', () => {
+    // The counterpart refusal: no whitespace, so "write it as a path" is the
+    // wrong advice — the bullet named nothing at all.
+    const md = `## Goal\nWire X to Y.\n\n## Changes\n- \`\`\n\n## Acceptance\n- [ ] it works\n\n## Verify\n- npm test (unit)`;
+    assert.throws(
+      () => parse(md),
+      (err) => {
+        assert.ok(err instanceof StoryBodyParseError);
+        assert.match(err.message, /names no usable path/);
+        return true;
+      },
+    );
+  });
+
+  it('keeps a malformed inline-JSON bullet failing closed rather than reading it as a path', () => {
+    const md = `## Goal\nWire X to Y.\n\n## Changes\n- {"path":}\n\n## Acceptance\n- [ ] it works\n\n## Verify\n- npm test (unit)`;
+    assert.throws(() => parse(md), /names no usable path/);
   });
 
   it('throws StoryBodyParseError for prose entries in structured object input', () => {
@@ -641,7 +701,7 @@ g
       () => parse(md),
       (err) => {
         assert.ok(err instanceof StoryBodyParseError);
-        assert.match(err.message, /prose bullets are not accepted/);
+        assert.match(err.message, /is prose, not a path/);
         return true;
       },
     );

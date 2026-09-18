@@ -202,8 +202,9 @@ function collectTextHygieneWarnings(rawStories) {
 
 /**
  * Print every warning the run collected under one heading. The dry-run is
- * where an operator reads these; the persist prints the same list so a
- * `--chain-on-clean` run loses nothing.
+ * where an operator reads these; the persist prints the same list so the
+ * chained run loses nothing on stderr, as the chain's envelope merge keeps
+ * it from losing anything on stdout (Story #5361).
  *
  * @param {string[]} warnings
  * @returns {void}

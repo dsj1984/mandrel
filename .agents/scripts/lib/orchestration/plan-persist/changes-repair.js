@@ -36,6 +36,7 @@
  * @module lib/orchestration/plan-persist/changes-repair
  */
 
+import { matchBarePathToken } from '../../story-body/body-format-lints.js';
 import { FILE_ASSUMPTION_VALUES } from '../file-assumption-enum.js';
 
 /** The `## Changes` heading (either level the parser accepts). */
@@ -49,11 +50,6 @@ const TRAILING_PARENTHETICAL_RE = /\s*\([^)]*\)\s*$/;
 
 /** The humanized canonical bullet: `` `path` — assumption ``. */
 const HUMANIZED_RE = /^`([^`]+)`\s+—\s+(\S+)$/;
-
-// A token that looks like a file path / glob / module id: it carries a `/` or a
-// `.`-separated segment. Deliberately loose — a false positive only produces a
-// `{ path, assumption }` entry the base-branch probes then judge.
-const PATH_LIKE_RE = /^[\w@*-]*[/.][\w@./*-]+$/;
 
 /**
  * Strip a trailing parenthetical from a path token, reporting whether one
@@ -73,6 +69,12 @@ function stripParenthetical(raw) {
  * backticks, strip a trailing parenthetical. Returns `null` when nothing
  * path-shaped survives.
  *
+ * What counts as path-shaped is `matchBarePathToken` — the same grammar the
+ * story-body parser admits a bare bullet under, imported rather than
+ * restated (Story #5361). The repair pass scoring a narrower class than the
+ * parser is what let a route-segment path be repaired on one surface and
+ * refused on the other.
+ *
  * @param {string} raw
  * @returns {string|null}
  */
@@ -87,7 +89,7 @@ function salvagePath(raw) {
     .replace(/[`'"]+$/, '')
     .trim();
   s = stripParenthetical(s).path;
-  return s !== '' && PATH_LIKE_RE.test(s) ? s : null;
+  return matchBarePathToken(s);
 }
 
 /**
