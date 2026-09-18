@@ -28,7 +28,7 @@ import {
   parseArgv,
   resolveKnipKernelVersion,
   runCli,
-} from '../.agents/scripts/update-dead-exports-baseline.js';
+} from '../scripts/update-dead-exports-baseline.js';
 
 const KNIP_VERSION = '6.17.1';
 

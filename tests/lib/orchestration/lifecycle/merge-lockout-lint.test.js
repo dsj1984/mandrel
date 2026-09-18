@@ -16,10 +16,9 @@ import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
-
-import { findMergeLockoutViolations } from '../../../../.agents/scripts/check-lifecycle-lint.js';
 import { stripJsComments } from '../../../../.agents/scripts/lib/source-text/strip-js-comments.js';
 import { makeTempDir } from '../../../../.agents/scripts/lib/test-temp.js';
+import { findMergeLockoutViolations } from '../../../../scripts/check-lifecycle-lint.js';
 
 /**
  * Build an in-tmp fixture tree shaped like the production layout so

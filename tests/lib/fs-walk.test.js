@@ -21,9 +21,8 @@ import assert from 'node:assert/strict';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
-
-import { walkFilesByExtension } from '../../.agents/scripts/lib/fs-walk.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
+import { walkFilesByExtension } from '../../scripts/lib/fs-walk.js';
 
 describe('lib/fs-walk — walkFilesByExtension', () => {
   let dir;

@@ -23,7 +23,7 @@ import {
  * a silently wrong lens verdict.
  *
  * `runNavRegistryDiff`'s filesystem and stdout are injected through its
- * optional final `deps` parameter (`.agents/rules/test-seams.md` rules 1, 4
+ * optional final `deps` parameter (`docs/contributing/test-seams.md` rules 1, 4
  * and 5) — plain stub objects, no module mocking.
  */
 

@@ -150,7 +150,7 @@ export function formatReport(report) {
  * The whole sweep — argv in, exit code out, report written through `writeFn`.
  *
  * Exported with its provider/config/output surfaces as default-parameter
- * seams (`rules/test-seams.md`) so a test drives the *real* argv parsing,
+ * seams (`docs/contributing/test-seams.md`) so a test drives the *real* argv parsing,
  * report rendering and exit-code decision against a stub provider. Without
  * that, the only testable thing here would be a re-implementation of the
  * decision, which is precisely the copy that drifts.

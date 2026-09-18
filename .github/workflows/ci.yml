@@ -77,7 +77,7 @@ jobs:
         # `continue-on-error` keeps a degraded probe from masking or
         # compounding the SCA failure; the job's verdict is the audit's.
         continue-on-error: true
-        run: node .agents/scripts/check-audit-attribution.js --base "$BASE_SHA"
+        run: node scripts/check-audit-attribution.js --base "$BASE_SHA"
 
       - name: Action Pinning Guard
         # Story #4079: fail the build if any third-party `uses:` ref drifts off
@@ -87,7 +87,7 @@ jobs:
         # real, automated gate the comments below reference — there is no
         # `npm run audit-security` script (that name is only the manual
         # `/audit-security` slash-command lens).
-        run: node .agents/scripts/check-action-pinning.js
+        run: node scripts/check-action-pinning.js
 
       - name: Secret Scanning (TruffleHog)
         # Pinned to a released tag rather than the moving `@main` head — a
@@ -103,7 +103,7 @@ jobs:
       - name: Lint and Format
         # Story #1829: `npm run lint` now invokes `biome ci .` (lint +
         # format check + import order) in parallel with `markdownlint-cli2`
-        # via .agents/scripts/run-lint.js, so the prior separate
+        # via scripts/run-lint.js, so the prior separate
         # `npm run format:check` step is folded in and removed.
         run: npm run lint
 
@@ -116,7 +116,7 @@ jobs:
         # dynamic import() of a raw path (not a valid ESM specifier on
         # Windows). This catches both here, on the required leg, instead of
         # in the advisory one nobody blocks on.
-        run: node .agents/scripts/check-test-portability.js
+        run: node scripts/check-test-portability.js
 
       # Story #5004: the `Maintainability Check` step that used to sit here
       # ran `npm run maintainability:check` — `check-baselines.js --gate
@@ -185,7 +185,7 @@ jobs:
         # invocation into the runner itself
         # (`lib/test-runner-contract.js#runTierPreflight`), so the preflight
         # now fires for every tier and for every caller — including a bare
-        # `node .agents/scripts/run-coverage.js` — instead of only where a
+        # `node scripts/run-coverage.js` — instead of only where a
         # caller remembered to name it. There is deliberately no `pretest*`
         # script left to invoke here.
         run: |
@@ -279,7 +279,7 @@ jobs:
         # importer is a test still reads as used — test usage keeps
         # production-dead code invisible. The production pass discounts test
         # importers and ratchets separately, because this repo sanctions
-        # test-only exports (.agents/rules/test-seams.md) and its row set is
+        # test-only exports (docs/contributing/test-seams.md) and its row set is
         # therefore large and largely intentional.
         #
         # Story #5340 demoted two of the commands below to REPORTS. They still
@@ -344,14 +344,14 @@ jobs:
         # as debt.
         run: |
           node .agents/scripts/check-arch-cycles.js --format text
-          node .agents/scripts/check-knip-entries.js
+          node scripts/check-knip-entries.js
           node .agents/scripts/check-dead-exports.js
           node .agents/scripts/check-dead-exports.js --production
           node .agents/scripts/check-context-budget.js
-          node .agents/scripts/check-workflow-citations.js
+          node scripts/check-workflow-citations.js
           node .agents/scripts/check-cyclomatic.js
-          node .agents/scripts/check-schema-references.js
-          node .agents/scripts/check-baseline-scope.js
+          node scripts/check-schema-references.js
+          node scripts/check-baseline-scope.js
 
   e2e:
     # Story #5111 — the real-binary tier, as its own job.

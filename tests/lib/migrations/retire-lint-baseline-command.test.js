@@ -16,7 +16,7 @@ import { retireLintBaselineCommand } from '../../../lib/migrations/steps/2.32.0-
  * promises `npx mandrel update` deletes it for them.
  *
  * Every stub is a plain object passed through the step's optional `ctx.fs`
- * seam (`.agents/rules/test-seams.md` rules 1 and 5) — no module mocking.
+ * seam (`docs/contributing/test-seams.md` rules 1 and 5) — no module mocking.
  */
 
 const ROOT = path.join(path.sep, 'repo');

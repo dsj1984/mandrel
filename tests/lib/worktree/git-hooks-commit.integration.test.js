@@ -218,12 +218,7 @@ test('the standalone CLI provisions an existing worktree and is idempotent', {
   skip: process.platform === 'win32' ? 'POSIX sh hook execution' : false,
 }, () => {
   const { worktree } = seedFixture();
-  const cli = path.join(
-    REPO_ROOT,
-    '.agents',
-    'scripts',
-    'provision-git-hooks.js',
-  );
+  const cli = path.join(REPO_ROOT, 'scripts', 'provision-git-hooks.js');
 
   // Addressed by explicit path from somewhere else entirely — the shape an
   // operator uses when the worktree is not their shell's cwd.

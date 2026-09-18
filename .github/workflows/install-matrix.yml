@@ -11,7 +11,7 @@ name: Install Matrix
 # in-tree code, not whatever is currently on the npm registry), installs it
 # into a throwaway consumer project with the leg's package manager, and then
 # asserts the three golden-path invariants via
-# `.agents/scripts/install-matrix-assert.js` (one cross-platform Node script
+# `scripts/install-matrix-assert.js` (one cross-platform Node script
 # instead of divergent PowerShell/bash snippets, which diverge on quoting,
 # `$?`, and path separators):
 #

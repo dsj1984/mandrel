@@ -22,7 +22,7 @@
  *     the GitHub provider (gh / mcp__github__issue_write) to open one
  *     Issue per group.
  *
- * Per .agents/rules/orchestration-error-handling.md, this CLI throws on
+ * Per docs/contributing/orchestration-error-handling.md, this CLI throws on
  * unrecoverable failure rather than calling Logger.fatal so runAsCli's
  * exit-code boundary stays robust under mocked process.exit.
  */
@@ -770,7 +770,7 @@ function dedupPhaseWarnings({ issues, summary }) {
  * return the plan envelope.
  *
  * Every seam on the optional final `deps` parameter defaults to the real
- * implementation (`.agents/rules/test-seams.md` rules 1-2, 4), so `main`,
+ * implementation (`docs/contributing/test-seams.md` rules 1-2, 4), so `main`,
  * `runAuto`, and every production caller are unchanged.
  *
  * @param {{ glob?: string, severity?: string, useProvider?: boolean,
@@ -1308,7 +1308,7 @@ export const __testing = {
  * the no-sub-command usage throw) is reachable without spawning the CLI.
  *
  * Every seam on the optional final `deps` parameter defaults to the real
- * implementation (`.agents/rules/test-seams.md` rules 1-2, 4), so `main` and
+ * implementation (`docs/contributing/test-seams.md` rules 1-2, 4), so `main` and
  * every production invocation are unchanged.
  *
  * @param {string[]} [argv]

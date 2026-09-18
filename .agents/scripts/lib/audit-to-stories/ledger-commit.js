@@ -22,7 +22,7 @@
  *     `origin`, or HEAD parked off the base branch) says so in its summary,
  *     and on stderr, instead of silently discarding the state.
  *
- * Both take injectable `git` / `gh` seams (`.agents/rules/test-seams.md`) so
+ * Both take injectable `git` / `gh` seams (`docs/contributing/test-seams.md`) so
  * the branch/commit/push/PR argv shape is assertable without a live remote.
  * The logic lives here rather than in `audit-to-stories.js` so the CLI file's
  * complexity budget does not absorb a git driver.

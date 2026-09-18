@@ -186,7 +186,7 @@ describe('checkoutStoryBranch', () => {
  * run goes through had no test at all.
  *
  * Its git seams are supplied through the function's own parameters — plain
- * stubs, never a module mock (`.agents/rules/test-seams.md` rules 3 and 5) —
+ * stubs, never a module mock (`docs/contributing/test-seams.md` rules 3 and 5) —
  * and the defaults-bind-to-cwd contract (rule 1) is proven against a real
  * throwaway repository rather than by mocking.
  */

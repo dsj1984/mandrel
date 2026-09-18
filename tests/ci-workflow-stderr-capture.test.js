@@ -68,7 +68,7 @@ test('the coverage step leaves the preflight to the runner, not to a named scrip
   );
   assert.match(
     readFileSync(
-      new URL('../.agents/scripts/run-coverage.js', import.meta.url),
+      new URL('../scripts/run-coverage.js', import.meta.url),
       'utf8',
     ),
     /runTierPreflight/,

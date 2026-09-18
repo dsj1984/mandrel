@@ -51,7 +51,7 @@ export function parseArgv(argv = []) {
  * with an injected sink and config.
  *
  * The optional final `deps` parameter is the module's injectable seam
- * (`.agents/rules/test-seams.md` rules 1-2): every entry defaults to the real
+ * (`docs/contributing/test-seams.md` rules 1-2): every entry defaults to the real
  * implementation, so the CLI path below — and any production caller — needs no
  * configuration change.
  *

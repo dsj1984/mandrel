@@ -97,7 +97,7 @@ export function parseArgv(argv) {
  * Probe and report. Exported for testing.
  *
  * The optional final `deps` parameter is the module's injectable seam
- * (`.agents/rules/test-seams.md` rules 1-2): config resolution, provider
+ * (`docs/contributing/test-seams.md` rules 1-2): config resolution, provider
  * construction, the probe itself, the renderer, and the log sink each default
  * to the real implementation, so the CLI path and every production caller are
  * unchanged. The pre-existing `injected*` fields on the first argument stay

@@ -95,7 +95,7 @@ jobs:
         run: |
           set -o pipefail
           code=0
-          node .agents/scripts/check-baseline-drift.js \
+          node scripts/check-baseline-drift.js \
             --gate maintainability --require-scored 2>&1 \
             | tee drift-report.txt || code=$?
           echo "code=$code" >> "$GITHUB_OUTPUT"

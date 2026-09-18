@@ -292,9 +292,9 @@ describe('check-baselines: stdout on a pipe', () => {
   // what stops a later edit from "simplifying" it back to `process.exit()`.
   for (const rel of [
     '.agents/scripts/check-baselines.js',
-    '.agents/scripts/check-baseline-drift.js',
-    '.agents/scripts/check-baseline-scope.js',
-    '.agents/scripts/prune-baseline-orphans.js',
+    'scripts/check-baseline-drift.js',
+    'scripts/check-baseline-scope.js',
+    'scripts/prune-baseline-orphans.js',
   ]) {
     test(`${rel} contains no process.exit call`, () => {
       const source = fs.readFileSync(

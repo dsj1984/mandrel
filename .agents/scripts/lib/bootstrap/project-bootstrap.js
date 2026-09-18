@@ -8,7 +8,7 @@
  * Injectable seams: every function that performs filesystem I/O or spawns a
  * child process accepts an optional `fsImpl` / `spawnImpl` default-param so
  * unit tests can stub I/O without touching the real filesystem. The seam
- * contract is defined in `.agents/rules/test-seams.md`.
+ * contract is defined in `docs/contributing/test-seams.md`.
  */
 
 import { spawnSync as defaultSpawnSync } from 'node:child_process';

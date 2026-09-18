@@ -101,7 +101,7 @@ An exit code is never evidence a gate did work — its **output** is. Redraft
 rounds run the scoped projects for the roots you changed plus `verify[]`, not
 the whole suite, and never stamp coverage / CRAP fresh any other way.
 
-Gate output that lies: [`known-tooling-behavior.md`](../rules/known-tooling-behavior.md).
+Gate output that lies (mandrel's own repo): `docs/contributing/known-tooling-behavior.md`.
 Waiter traps: [`parallel-tooling.md`](../workflows/helpers/parallel-tooling.md) Rule 2.
 
 ## Acceptance self-eval before close (MUST)

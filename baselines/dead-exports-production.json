@@ -5,7 +5,7 @@
   "mode": "production",
   "rows": [
     {
-      "file": ".agents/scripts/lib/audit-advisories.js",
+      "file": "scripts/lib/audit-advisories.js",
       "symbol": "extractBlockingAdvisories"
     },
     {
@@ -225,11 +225,11 @@
       "symbol": "MI_REPORT_KERNEL_VERSION"
     },
     {
-      "file": ".agents/scripts/lib/baselines/orphan-pruner.js",
+      "file": "scripts/lib/baselines/orphan-pruner.js",
       "symbol": "planPrune"
     },
     {
-      "file": ".agents/scripts/lib/baselines/orphan-pruner.js",
+      "file": "scripts/lib/baselines/orphan-pruner.js",
       "symbol": "pruneEnvelope"
     },
     {
@@ -257,23 +257,23 @@
       "symbol": "fileFilterFor"
     },
     {
-      "file": ".agents/scripts/lib/baselines/scope-assert.js",
+      "file": "scripts/lib/baselines/scope-assert.js",
       "symbol": "STRICT_REASONS"
     },
     {
-      "file": ".agents/scripts/lib/baselines/scope-inventory.js",
+      "file": "scripts/lib/baselines/scope-inventory.js",
       "symbol": "deriveWalkRoots"
     },
     {
-      "file": ".agents/scripts/lib/baselines/scope-inventory.js",
+      "file": "scripts/lib/baselines/scope-inventory.js",
       "symbol": "directionsFor"
     },
     {
-      "file": ".agents/scripts/lib/baselines/scope-inventory.js",
+      "file": "scripts/lib/baselines/scope-inventory.js",
       "symbol": "keyFieldFor"
     },
     {
-      "file": ".agents/scripts/lib/baselines/scope-inventory.js",
+      "file": "scripts/lib/baselines/scope-inventory.js",
       "symbol": "KIND_SCOPE_POLICY"
     },
     {
@@ -833,39 +833,39 @@
       "symbol": "pickSearchTokens"
     },
     {
-      "file": ".agents/scripts/lib/dynamic-workflow/architecture-report-contract.js",
+      "file": "scripts/lib/dynamic-workflow/architecture-report-contract.js",
       "symbol": "*"
     },
     {
-      "file": ".agents/scripts/lib/dynamic-workflow/audit-orchestrator.js",
+      "file": "scripts/lib/dynamic-workflow/audit-orchestrator.js",
       "symbol": "*"
     },
     {
-      "file": ".agents/scripts/lib/dynamic-workflow/clean-code-report-contract.js",
+      "file": "scripts/lib/dynamic-workflow/clean-code-report-contract.js",
       "symbol": "*"
     },
     {
-      "file": ".agents/scripts/lib/dynamic-workflow/degraded-coverage.js",
+      "file": "scripts/lib/dynamic-workflow/degraded-coverage.js",
       "symbol": "*"
     },
     {
-      "file": ".agents/scripts/lib/dynamic-workflow/documentation-report-contract.js",
+      "file": "scripts/lib/dynamic-workflow/documentation-report-contract.js",
       "symbol": "*"
     },
     {
-      "file": ".agents/scripts/lib/dynamic-workflow/performance-report-contract.js",
+      "file": "scripts/lib/dynamic-workflow/performance-report-contract.js",
       "symbol": "*"
     },
     {
-      "file": ".agents/scripts/lib/dynamic-workflow/quality-report-contract.js",
+      "file": "scripts/lib/dynamic-workflow/quality-report-contract.js",
       "symbol": "*"
     },
     {
-      "file": ".agents/scripts/lib/dynamic-workflow/report-contract-core.js",
+      "file": "scripts/lib/dynamic-workflow/report-contract-core.js",
       "symbol": "*"
     },
     {
-      "file": ".agents/scripts/lib/dynamic-workflow/security-report-contract.js",
+      "file": "scripts/lib/dynamic-workflow/security-report-contract.js",
       "symbol": "*"
     },
     {
@@ -1069,7 +1069,7 @@
       "symbol": "transitiveReduction"
     },
     {
-      "file": ".agents/scripts/lib/knip-entry-sync.js",
+      "file": "scripts/lib/knip-entry-sync.js",
       "symbol": "__testing"
     },
     {
@@ -2001,15 +2001,15 @@
       "symbol": "ensureTestScratchTempRoot"
     },
     {
-      "file": ".agents/scripts/lib/test-isolate/env-snapshot-loader.js",
+      "file": "scripts/lib/test-isolate/env-snapshot-loader.js",
       "symbol": "*"
     },
     {
-      "file": ".agents/scripts/lib/test-isolate/list-files.js",
+      "file": "scripts/lib/test-isolate/list-files.js",
       "symbol": "walkTestFiles"
     },
     {
-      "file": ".agents/scripts/lib/test-isolate/runner.js",
+      "file": "scripts/lib/test-isolate/runner.js",
       "symbol": "bisectFlipper"
     },
     {
@@ -2221,7 +2221,7 @@
       "symbol": "selectInstallCommand"
     },
     {
-      "file": ".agents/scripts/post-structured-comment.js",
+      "file": "scripts/post-structured-comment.js",
       "symbol": "*"
     },
     {
@@ -2305,7 +2305,7 @@
       "symbol": "addSubIssueEdges"
     },
     {
-      "file": ".agents/scripts/provision-git-hooks.js",
+      "file": "scripts/provision-git-hooks.js",
       "symbol": "*"
     }
   ]

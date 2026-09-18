@@ -25,7 +25,7 @@
  *   --root     — read and write under another checkout's `.agents/` tree.
  *                See {@link resolveTargets} for why this seam exists.
  *
- * Per `.agents/rules/orchestration-error-handling.md`, unrecoverable failures
+ * Per `docs/contributing/orchestration-error-handling.md`, unrecoverable failures
  * surface via `throw new Error(...)` so `runAsCli` maps the throw to
  * `process.exit(1)` deterministically (no `Logger.fatal`).
  */

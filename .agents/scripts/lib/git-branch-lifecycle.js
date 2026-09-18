@@ -137,7 +137,7 @@ export function classifyBranchSeed({ localHas, remoteHas }) {
  * The git seams (`spawn`, `existsLocally`, `existsRemotely`) are injectable so
  * each caller can bind its own cwd (and tests can substitute stubs through the
  * parameter rather than by module mocking). Per
- * `.agents/rules/test-seams.md` rule 1 each seam **defaults to the real
+ * `docs/contributing/test-seams.md` rule 1 each seam **defaults to the real
  * implementation** bound to `cwd`, so a caller that only knows its checkout
  * passes `cwd` and nothing else; `single-story-init.js` keeps passing its own
  * pre-bound seams and is unaffected.

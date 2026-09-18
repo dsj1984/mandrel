@@ -17,7 +17,7 @@ import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
  *
  * The provider, the classifier, and the ledger reconciler are injected
  * through `buildPlan`'s optional final `deps` parameter
- * (`.agents/rules/test-seams.md` rules 1 and 5) — plain functions, no module
+ * (`docs/contributing/test-seams.md` rules 1 and 5) — plain functions, no module
  * mocking — so no GitHub lookup happens and no committed ledger is written.
  * The report glob and the report reads run against a real temp directory, so
  * `collectReportPaths` and `readReports` are exercised for real.

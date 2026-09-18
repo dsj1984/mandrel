@@ -302,7 +302,7 @@ test('every FULL_TIER_GLOB matches at least one real test file', () => {
 test('the coverage runner consumes FULL_TIER_GLOBS rather than a literal', () => {
   const repoRoot = path.resolve(import.meta.dirname, '..', '..');
   const src = fs.readFileSync(
-    path.join(repoRoot, '.agents', 'scripts', 'run-coverage.js'),
+    path.join(repoRoot, 'scripts', 'run-coverage.js'),
     'utf8',
   );
   assert.ok(

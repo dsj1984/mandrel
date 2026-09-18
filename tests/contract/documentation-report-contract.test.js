@@ -19,6 +19,10 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
+  buildScopeClause,
+  buildSynthesisPrompt,
+} from '../../.claude/workflows/audit-documentation.workflow.js';
+import {
   assertReportContract,
   FINDING_CATEGORIES,
   FINDING_FIELDS,
@@ -26,11 +30,7 @@ import {
   REPORT_ARTIFACT_BASENAME,
   REPORT_TITLE,
   REQUIRED_SECTIONS,
-} from '../../.agents/scripts/lib/dynamic-workflow/documentation-report-contract.js';
-import {
-  buildScopeClause,
-  buildSynthesisPrompt,
-} from '../../.claude/workflows/audit-documentation.workflow.js';
+} from '../../scripts/lib/dynamic-workflow/documentation-report-contract.js';
 
 const REPO_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),

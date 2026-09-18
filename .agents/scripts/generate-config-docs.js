@@ -50,7 +50,7 @@
  * actually matters — key order drives the doc-table order and the ordering a
  * consumer's editor offers completions in.
  *
- * Per `.agents/rules/orchestration-error-handling.md`, unrecoverable
+ * Per `docs/contributing/orchestration-error-handling.md`, unrecoverable
  * failures surface via `throw new Error(...)` so `runAsCli` can map the
  * throw to `process.exit(1)` deterministically (no `Logger.fatal`).
  */

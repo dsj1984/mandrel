@@ -13,7 +13,7 @@ import check, {
  * backgrounded had none of its own detection rules verified.
  *
  * The filesystem is injected as a plain stub through the optional final
- * `fsImpl` parameter (`.agents/rules/test-seams.md` rules 1, 4 and 5). No
+ * `fsImpl` parameter (`docs/contributing/test-seams.md` rules 1, 4 and 5). No
  * module mocking, and the seam lives on the functions — never on a
  * module-level variable.
  */

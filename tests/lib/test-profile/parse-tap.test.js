@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import {
   parseTapOutput,
   selectSlowestEntries,
-} from '../../../.agents/scripts/lib/test-profile/parse-tap.js';
+} from '../../../scripts/lib/test-profile/parse-tap.js';
 
 const fixturePath = path.join(
   path.dirname(fileURLToPath(import.meta.url)),

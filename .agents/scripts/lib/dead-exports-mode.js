@@ -16,7 +16,7 @@
  *   and silently reports nothing.
  *
  * The two ratchet against separate baselines on purpose. This repo sanctions
- * exporting purely for a test (`.agents/rules/test-seams.md`), so the
+ * exporting purely for a test (`docs/contributing/test-seams.md`), so the
  * production row set is large and mostly intentional; merging it into the
  * default baseline would destroy that baseline's meaning.
  *

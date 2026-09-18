@@ -7,7 +7,7 @@
  * must never write: a regression, a row for a file outside the branch's own
  * changed set, or a second commit over an already-refreshed tree.
  *
- * Every collaborator is injected per `.agents/rules/test-seams.md` — no git is
+ * Every collaborator is injected per `docs/contributing/test-seams.md` — no git is
  * spawned, no baseline is scored, and nothing touches the real filesystem. The
  * `git` stub records its argv so the assertions can read what the step
  * actually staged and committed rather than inferring it from a return value.

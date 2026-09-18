@@ -19,12 +19,12 @@ import { describe, it } from 'node:test';
 import {
   parseArgs,
   runCheckBaselineDrift,
-} from '../../../.agents/scripts/check-baseline-drift.js';
+} from '../../../scripts/check-baseline-drift.js';
 import {
   DRIFT_KINDS,
   detectBaselineDrift,
   formatDriftReport,
-} from '../../../.agents/scripts/lib/baselines/drift-detector.js';
+} from '../../../scripts/lib/baselines/drift-detector.js';
 
 const MI_BASELINE = [
   { path: 'src/touched.js', mi: 80 },

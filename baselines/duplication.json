@@ -36,7 +36,7 @@
       "percentage": 4.43
     },
     {
-      "path": ".agents/scripts/check-schema-references.js",
+      "path": "scripts/check-schema-references.js",
       "duplicatedLines": 8,
       "totalLines": 366,
       "percentage": 2.19
@@ -48,13 +48,13 @@
       "percentage": 11.59
     },
     {
-      "path": ".agents/scripts/check-workflow-citations.js",
+      "path": "scripts/check-workflow-citations.js",
       "duplicatedLines": 11,
       "totalLines": 332,
       "percentage": 3.31
     },
     {
-      "path": ".agents/scripts/check-workflow-cli-lint.js",
+      "path": "scripts/check-workflow-cli-lint.js",
       "duplicatedLines": 9,
       "totalLines": 299,
       "percentage": 3.01
@@ -222,7 +222,7 @@
       "percentage": 7.05
     },
     {
-      "path": ".agents/scripts/lib/knip-entry-sync.js",
+      "path": "scripts/lib/knip-entry-sync.js",
       "duplicatedLines": 8,
       "totalLines": 452,
       "percentage": 1.77
@@ -306,7 +306,7 @@
       "percentage": 5.11
     },
     {
-      "path": ".agents/scripts/lib/test-isolate/runner.js",
+      "path": "scripts/lib/test-isolate/runner.js",
       "duplicatedLines": 40,
       "totalLines": 483,
       "percentage": 8.28
@@ -342,13 +342,13 @@
       "percentage": 7.65
     },
     {
-      "path": ".agents/scripts/lint-label-vocabulary.js",
+      "path": "scripts/lint-label-vocabulary.js",
       "duplicatedLines": 10,
       "totalLines": 214,
       "percentage": 4.67
     },
     {
-      "path": ".agents/scripts/post-structured-comment.js",
+      "path": "scripts/post-structured-comment.js",
       "duplicatedLines": 12,
       "totalLines": 127,
       "percentage": 9.45

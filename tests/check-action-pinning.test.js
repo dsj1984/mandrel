@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
+import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 import {
   isFirstParty,
   isFullSha,
@@ -10,8 +11,7 @@ import {
   renderReport,
   runCli,
   scanWorkflowText,
-} from '../.agents/scripts/check-action-pinning.js';
-import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
+} from '../scripts/check-action-pinning.js';
 
 /**
  * Unit coverage for the third-party action-pinning gate (Story #4079).

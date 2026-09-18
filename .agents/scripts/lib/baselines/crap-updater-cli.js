@@ -170,7 +170,7 @@ function reportScanSummary(summary, logger = Logger) {
  *     is not sparse, it is wrong.
  *
  * `loadCoverage` and the logger are named seams so a test drives the whole
- * scorer without a coverage artifact on disk (`rules/test-seams.md`).
+ * scorer without a coverage artifact on disk (`docs/contributing/test-seams.md`).
  *
  * @param {ReturnType<typeof resolveCrapUpdaterOptions>} options
  * @param {{loadCoverage: Function, scan?: Function, logger?: object}} deps

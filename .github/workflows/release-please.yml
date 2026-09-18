@@ -42,7 +42,7 @@ jobs:
       # or the moving `@main` ref — a third-party action's default branch
       # is a supply-chain risk vector (CWE-1357). Bump deliberately when a
       # new release-please-action ships; the `Action Pinning Guard` step in
-      # ci.yml (.agents/scripts/check-action-pinning.js) scans every
+      # ci.yml (scripts/check-action-pinning.js) scans every
       # workflow — including this one — and fails the build on any reversion
       # to `@main` / `@master` / a floating tag.
       #

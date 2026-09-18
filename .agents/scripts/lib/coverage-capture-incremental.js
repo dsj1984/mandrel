@@ -6,7 +6,7 @@
  * the Story's opt-in branch lands as new code, not a same-file expansion of
  * `runCoverageCapture`. Every collaborator is injected — no seam differs
  * from the ones `coverage-capture.js` already exposes on its `deps`
- * parameter (`.agents/rules/test-seams.md` rules 1-2, 4).
+ * parameter (`docs/contributing/test-seams.md` rules 1-2, 4).
  */
 import path from 'node:path';
 import { resolveChangedFilesRef } from './changed-files.js';

@@ -16,7 +16,7 @@ import {
  * `pin-current` check decides on, and it was entirely unexercised.
  *
  * The filesystem-touching pair below is driven through the module's
- * `fsImpl` seam (`.agents/rules/test-seams.md` rules 1 and 5) — a plain stub
+ * `fsImpl` seam (`docs/contributing/test-seams.md` rules 1 and 5) — a plain stub
  * object passed as the final parameter, never a module mock.
  */
 

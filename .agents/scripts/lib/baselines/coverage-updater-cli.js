@@ -51,7 +51,7 @@ export function resolveCoverageUpdaterScope(argv = []) {
  * mode — narrows again to the service-resolved in-scope list so untouched rows
  * are preserved rather than re-scored.
  *
- * The three collaborators are named seams (`rules/test-seams.md`) so a test
+ * The three collaborators are named seams (`docs/contributing/test-seams.md`) so a test
  * drives the whole scorer with no coverage artifact and no `.c8rc.cjs` on
  * disk.
  *

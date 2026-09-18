@@ -4,7 +4,7 @@
  *
  * Precompiled AJV validator for `AGENTRC_SCHEMA`
  * (.agents/scripts/lib/config-settings-schema.js), emitted by
- * .agents/scripts/check-generated-validator.js.
+ * scripts/check-generated-validator.js.
  *
  * Regenerate with `npm run validator:gen`; `npm run lint` fails when this file
  * and the schema disagree.

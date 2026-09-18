@@ -115,7 +115,7 @@ const NON_PRODUCTION_NODE_ENVS = new Set(['test', 'development']);
  *
  *   1. `spawnImpl` was injected — the walk then spawns the caller's stub and
  *      no child process reaches `gh` at all. This is the seam
- *      `.agents/rules/test-seams.md` already mandates, so a well-behaved test
+ *      `docs/contributing/test-seams.md` already mandates, so a well-behaved test
  *      is unaffected.
  *   2. The process provably is **not** a test or development context — not a
  *      node:test run (per the single shared detector in

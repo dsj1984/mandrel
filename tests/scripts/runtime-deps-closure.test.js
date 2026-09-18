@@ -17,14 +17,14 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { describe, it } from 'node:test';
+import { loadRuntimeDepsManifest } from '../../.agents/scripts/lib/runtime-deps/manifest.js';
+import { extractThirdPartyImports } from '../../.agents/scripts/lib/runtime-deps/scan-imports.js';
+import { registry } from '../../lib/cli/registry.js';
 import {
   checkManifestClean,
   FRAMEWORK_RUNTIME_DEPS,
   SHAREABLE_RUNTIME_DEPS,
-} from '../../.agents/scripts/install-matrix-assert.js';
-import { loadRuntimeDepsManifest } from '../../.agents/scripts/lib/runtime-deps/manifest.js';
-import { extractThirdPartyImports } from '../../.agents/scripts/lib/runtime-deps/scan-imports.js';
-import { registry } from '../../lib/cli/registry.js';
+} from '../../scripts/install-matrix-assert.js';
 
 const require = createRequire(import.meta.url);
 

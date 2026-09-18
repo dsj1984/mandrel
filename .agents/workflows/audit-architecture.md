@@ -183,9 +183,9 @@ Evaluate the gathered context against the following architecture dimensions:
 
    For each finding, name the module/function, identify the trapped logic and
    the I/O it is bound to, and propose the concrete seam (the pure function or
-   port to extract, and where the I/O adapter should call into it). This repo
-   already practices a related seam discipline at the error-handling boundary:
-   [`rules/orchestration-error-handling.md`](../rules/orchestration-error-handling.md)
+   port to extract, and where the I/O adapter should call into it). Mandrel's
+   own scripts practice a related seam discipline at the error-handling
+   boundary: its orchestration-error-handling rule
    requires orchestration scripts to `throw` rather than `Logger.fatal` so the
    thin `runAsCli` shell — not the logic — owns the `process.exit` side effect,
    keeping the wrapped logic exercisable under a stubbed `process.exit`. Cite

@@ -37,9 +37,8 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-
-import { findMergeLockoutViolations } from '../../../../.agents/scripts/check-lifecycle-lint.js';
 import { stripJsComments } from '../../../../.agents/scripts/lib/source-text/strip-js-comments.js';
+import { findMergeLockoutViolations } from '../../../../scripts/check-lifecycle-lint.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..', '..');

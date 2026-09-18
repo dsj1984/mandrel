@@ -299,7 +299,7 @@ test('pre-push — only the capture step moved: same checks, same order, same ex
     'fi',
     'npm run crap:check',
     'node .agents/scripts/check-context-budget.js',
-    'node .agents/scripts/check-workflow-citations.js',
+    'node scripts/check-workflow-citations.js',
   ]);
 
   const hook = readPrePush();

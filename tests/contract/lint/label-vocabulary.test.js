@@ -1,7 +1,7 @@
 /**
  * tests/contract/lint/label-vocabulary.test.js — Story #2892 / Task #2910
  *
- * Contract: `.agents/scripts/lint-label-vocabulary.js` MUST
+ * Contract: `scripts/lint-label-vocabulary.js` MUST
  *   1. Detect axis-shaped tokens inside inline backtick code spans that
  *      use a non-`::` separator (the F9 typo class).
  *   2. Ignore prose mentions of the same axis names (e.g.
@@ -21,16 +21,11 @@ import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
 import {
   findVocabularyViolations,
   lintLabelVocabulary,
-} from '../../../.agents/scripts/lint-label-vocabulary.js';
+} from '../../../scripts/lint-label-vocabulary.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
-const SCRIPT_PATH = path.join(
-  REPO_ROOT,
-  '.agents',
-  'scripts',
-  'lint-label-vocabulary.js',
-);
+const SCRIPT_PATH = path.join(REPO_ROOT, 'scripts', 'lint-label-vocabulary.js');
 
 describe('lint-label-vocabulary — pure scanner contract', () => {
   it('flags drift inside an inline code span', () => {

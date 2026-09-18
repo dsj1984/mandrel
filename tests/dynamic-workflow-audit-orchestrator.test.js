@@ -15,7 +15,7 @@ import {
   ORCHESTRATION_PHASES,
   runAuditOrchestration,
   SYNTHESIS_WRITE_TOOL,
-} from '../.agents/scripts/lib/dynamic-workflow/audit-orchestrator.js';
+} from '../scripts/lib/dynamic-workflow/audit-orchestrator.js';
 
 const READ_ONLY = Object.freeze(['Read', 'Grep', 'Glob']);
 

@@ -176,7 +176,7 @@
       "maxCyclomatic": 20
     },
     {
-      "file": ".agents/scripts/lib/test-profile/parse-tap.js",
+      "file": "scripts/lib/test-profile/parse-tap.js",
       "methodsAboveCeiling": 1,
       "maxCyclomatic": 16
     },

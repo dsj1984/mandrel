@@ -76,7 +76,7 @@
  * re-declaring (and drifting from) the runtime contract. The lens-specific
  * `inputs` keys this entry point reads are documented by {@link PerformanceInputs}.
  *
- * @typedef {import('../../.agents/scripts/lib/dynamic-workflow/audit-orchestrator.js').WorkflowContext} WorkflowContext
+ * @typedef {import('../../scripts/lib/dynamic-workflow/audit-orchestrator.js').WorkflowContext} WorkflowContext
  *
  * @typedef {object} PerformanceInputs
  * @property {string} [changedFiles]  Scoped-run change-set list (newline-delimited).
@@ -86,13 +86,13 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runAuditOrchestration } from '../../.agents/scripts/lib/dynamic-workflow/audit-orchestrator.js';
+import { runAuditOrchestration } from '../../scripts/lib/dynamic-workflow/audit-orchestrator.js';
 import {
   assertReportContract,
   REPORT_ARTIFACT_BASENAME,
   REPORT_TITLE,
   REQUIRED_SECTIONS,
-} from '../../.agents/scripts/lib/dynamic-workflow/performance-report-contract.js';
+} from '../../scripts/lib/dynamic-workflow/performance-report-contract.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..', '..');

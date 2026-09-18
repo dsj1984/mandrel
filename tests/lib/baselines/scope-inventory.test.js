@@ -22,6 +22,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import test, { after, describe } from 'node:test';
+import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
 import {
   buildScopeInventory,
   deriveWalkRoots,
@@ -30,8 +31,7 @@ import {
   KIND_SCOPE_POLICY,
   keyFieldFor,
   SCOPE_KINDS,
-} from '../../../.agents/scripts/lib/baselines/scope-inventory.js';
-import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
+} from '../../../scripts/lib/baselines/scope-inventory.js';
 
 const TMP = fs.realpathSync(makeTempDir('scope-inventory-'));
 

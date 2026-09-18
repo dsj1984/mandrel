@@ -9,7 +9,7 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { renderReport } from '../../../.agents/scripts/lib/test-isolate/render-report.js';
+import { renderReport } from '../../../scripts/lib/test-isolate/render-report.js';
 
 /** A clean run: files scanned, nothing wrong. */
 function cleanReport(over = {}) {

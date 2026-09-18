@@ -10,7 +10,7 @@ import { retireEpicAcTags } from '../../../lib/migrations/steps/2.2.0-retire-epi
  * tag-line rewrite rules it encodes were unverified.
  *
  * Every stub below is a plain object passed through the step's optional final
- * `fsImpl` parameter (`.agents/rules/test-seams.md` rules 1 and 5) — no
+ * `fsImpl` parameter (`docs/contributing/test-seams.md` rules 1 and 5) — no
  * module mocking, no module-level seam state.
  */
 

@@ -92,7 +92,7 @@
       "symbol": "__test"
     },
     {
-      "file": ".agents/scripts/lib/dynamic-workflow/report-contract-core.js",
+      "file": "scripts/lib/dynamic-workflow/report-contract-core.js",
       "symbol": "escapeRegExp"
     },
     {
@@ -156,11 +156,11 @@
       "symbol": "*"
     },
     {
-      "file": ".agents/scripts/lib/test-isolate/env-snapshot-loader.js",
+      "file": "scripts/lib/test-isolate/env-snapshot-loader.js",
       "symbol": "*"
     },
     {
-      "file": ".agents/scripts/lib/test-isolate/list-files.js",
+      "file": "scripts/lib/test-isolate/list-files.js",
       "symbol": "walkTestFiles"
     },
     {
@@ -176,11 +176,11 @@
       "symbol": "findByPath"
     },
     {
-      "file": ".agents/scripts/post-structured-comment.js",
+      "file": "scripts/post-structured-comment.js",
       "symbol": "main"
     },
     {
-      "file": ".agents/scripts/post-structured-comment.js",
+      "file": "scripts/post-structured-comment.js",
       "symbol": "parseArgv"
     },
     {
@@ -244,7 +244,7 @@
       "symbol": "DEFAULT_PER_PAGE"
     },
     {
-      "file": ".agents/scripts/provision-git-hooks.js",
+      "file": "scripts/provision-git-hooks.js",
       "symbol": "*"
     }
   ]

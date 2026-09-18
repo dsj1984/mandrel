@@ -4,7 +4,7 @@
  *
  * A script's default success-path stdout rides resident in the invoking
  * agent's transcript, so fat payloads are a per-turn tax. The contract
- * (documented in `.agents/rules/orchestration-error-handling.md`) is:
+ * (documented in `docs/contributing/orchestration-error-handling.md`) is:
  * compact digest + on-disk artifact path, single-line JSON for
  * machine-parsed envelopes, ≤ ~2KB on the default success path.
  *
@@ -25,8 +25,8 @@ const REPO_ROOT = path.resolve(__dirname, '..');
 const SCRIPTS_DIR = path.join(REPO_ROOT, '.agents', 'scripts');
 const RULE_PATH = path.join(
   REPO_ROOT,
-  '.agents',
-  'rules',
+  'docs',
+  'contributing',
   'orchestration-error-handling.md',
 );
 

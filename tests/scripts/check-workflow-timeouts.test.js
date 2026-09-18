@@ -15,6 +15,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, test } from 'node:test';
+import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import {
   countJobs,
   listWorkflowFiles,
@@ -23,8 +24,7 @@ import {
   renderReport,
   runCli,
   scanWorkflowText,
-} from '../../.agents/scripts/check-workflow-timeouts.js';
-import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
+} from '../../scripts/check-workflow-timeouts.js';
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '..', '..');
 
@@ -305,7 +305,7 @@ describe('this repository', () => {
 
   test('`npm run lint` runs the gate, so it is enforced and not merely present', () => {
     const runLint = fs.readFileSync(
-      path.join(REPO_ROOT, '.agents', 'scripts', 'run-lint.js'),
+      path.join(REPO_ROOT, 'scripts', 'run-lint.js'),
       'utf8',
     );
     assert.match(

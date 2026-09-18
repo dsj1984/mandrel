@@ -55,7 +55,7 @@ const BACKGROUND_TOKENS = [
  * starting with `.git`.
  *
  * The optional final `fsImpl` parameter defaults to the real `node:fs`
- * (`.agents/rules/test-seams.md` rule 1) and is forwarded to the recursive
+ * (`docs/contributing/test-seams.md` rule 1) and is forwarded to the recursive
  * call rather than re-acquired there (rule 4), so a test drives the whole walk
  * through a plain stub object instead of module mocking (rule 5).
  *
@@ -161,7 +161,7 @@ export default {
   /**
    * @param {{ cwd?: string, scanRoot?: string, scope?: string }} [state]
    * @param {typeof nodeFs} [fsImpl] Optional final filesystem seam; defaults
-   *   to the real `node:fs` (`.agents/rules/test-seams.md` rule 1) and is
+   *   to the real `node:fs` (`docs/contributing/test-seams.md` rule 1) and is
    *   forwarded to {@link walkSources} rather than re-acquired (rule 4).
    */
   detect(state, fsImpl = nodeFs) {
