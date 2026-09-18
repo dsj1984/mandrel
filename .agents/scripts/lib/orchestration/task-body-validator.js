@@ -1,56 +1,8 @@
 /**
- * Story body schema validator (v5.33+).
- *
- * Enforces the four-section structured body shape on 2-tier Stories emitted
- * by the decomposer. The canonical decomposition serializes every Story
- * `body` to a **markdown string** via `serialize()` from
- * `lib/story-body/story-body.js` (the decompose-author skill mandates this,
- * and `createOp` in `epic-spec-reconciler-ops.js` throws on an object body —
- * Story #3302). So at plan-time validation the Story body is a string, not an
- * object. To make the rules below actually fire on canonical plans, a string
- * body is **parsed** back into its structured form via `parseStoryBody`
- * before the section checks run (Story #3906 — previously the validator
- * `shouldSkipTicket`-skipped every string body, so the vague-verb check and
- * non-empty-goal check never ran on any real decomposition). A still-structured object body (e.g. a caller that passes
- * the pre-serialize shape directly) is validated as-is.
- *
- * Only `type: 'story'` tickets are validated; Feature/Epic tickets and
- * null/empty bodies pass through. There is no `type::task` ticket layer in
- * the 2-tier hierarchy (Epic → Story).
- *
- * Required after parse/normalize: a non-empty `goal`, and non-empty
- * `changes` and `acceptance` arrays — and `changes` items must name at least
- * one path-shaped token so vague verbs ("clean up", "refactor") can't slip
- * through. Story #5342 dropped the non-empty `verify` requirement: an empty
- * `verify[]` is a dry-run warning the ticket validator raises, not a
- * refusal.
- *
- * `acceptance` / `verify` are the **top-level machine contract** (Story
- * #4541). The decomposer prompt tells authors to write those lists once at
- * the ticket's top level and omit the matching body sections; persist syncs
- * them into the body at assemble time. Validation runs *before* that sync,
- * so this validator resolves each contract field from the parsed body and
- * falls back to the ticket's top-level array when the body section is
- * absent. Without that fallback the validator rejected the very shape its
- * own prompt prescribes.
- *
- * `body.changes` items must be object-form `{ path: string, assumption: enum }`
- * entries (Story #2636 shape). Plain string bullets are rejected at parse
- * time and by this validator.
- *
- * Object-form items must declare an `assumption` ∈ `creates |
- * refactors-existing | exists | deletes`. The optional `body.references`
- * array uses the same object shape and is the home for paths the Story
- * reads but does not modify (test fixtures, sibling modules, etc.).
- *
- * `body.verify` entries are commands, nothing more: Story #5312 deleted the
- * `(<tier>)` suffix, the `manual:<reason>` escape and the repair pass that
- * appended the suffix for the author, and Story #5342 deleted the last rule
- * — the non-empty check. This validator no longer scores `verify` at all.
- *
- * The errors are batched and surfaced as a single thrown Error so the
- * planner can see every offending slug in one pass instead of fixing one
- * at a time.
+ * Story body schema validator. String bodies (the canonical serialized form)
+ * are parsed before checking. Requires a non-empty `goal`, `acceptance`, and
+ * `changes` of `{ path, assumption }` objects; `references` is optional, same
+ * shape. `verify` is not scored. Errors are batched into one throw.
  */
 
 import { suggestPathEntryFix } from '../story-body/body-format-lints.js';
@@ -61,48 +13,23 @@ import {
 import { FILE_ASSUMPTION_VALUES } from './file-assumption-enum.js';
 
 /**
- * Predicate: should the validator skip this ticket entirely? Skip when:
- *   - it is not a Story (only `type: 'story'` tickets are validated here),
- *   - it has no body (null / undefined / empty-or-whitespace string — there
- *     is nothing to inspect).
- *
- * Under the 2-tier hierarchy (Epic → Story), Stories carry the
- * implementation scope inline. A canonical decomposition serializes the
- * Story body to a markdown string, so a *string* body is NOT skipped here
- * (Story #3906) — `validateTaskBodyShape` parses it back into structured
- * form via `parseStoryBody` before applying the section rules. This is what
- * makes the vague-verb / non-empty-goal checks actually fire
- * on real plans. Features (and everything else) use narrative string bodies
- * and are skipped by the `type !== 'story'` guard.
- *
- * Returns `true` when the ticket should be ignored by
- * `collectTaskBodyErrors`, `false` when the body should be inspected.
+ * Non-Stories and empty bodies are skipped; string bodies are NOT.
  *
  * @param {object} ticket
  * @returns {boolean}
  */
 function shouldSkipTicket(ticket) {
   if (!ticket) return true;
-  // Only Stories carry an inline implementation contract in the 2-tier
-  // world. Features (and everything else) use narrative bodies.
   if (ticket.type !== 'story') return true;
   const body = ticket.body;
   if (body == null) return true;
-  // An empty / whitespace-only string body carries no contract to inspect.
   if (typeof body === 'string' && body.trim() === '') return true;
   return false;
 }
 
 /**
- * Resolve a Story ticket's body to the structured object the section rules
- * operate on. A string body is the canonical serialized form — parse it via
- * `parseStoryBody` (Story #3906). An object body is already structured and
- * is returned verbatim (a caller may pass the pre-serialize shape directly).
- *
  * @param {object} ticket Story whose body passed `shouldSkipTicket`.
- * @returns {{ body: object|null, error: string|null }} `body` is the
- *   structured object when resolvable; `error` is a single message when a
- *   string body could not be parsed (mutually exclusive with `body`).
+ * @returns {{ body: object|null, error: string|null }} Mutually exclusive.
  */
 function resolveStructuredBody(ticket) {
   const raw = ticket.body;
@@ -122,25 +49,15 @@ function resolveStructuredBody(ticket) {
   }
 }
 
-/**
- * The two contract fields that live at the ticket's top level and are
- * synced into the body by `plan-persist` at assemble time.
- */
 const CONTRACT_FIELDS = Object.freeze(['acceptance', 'verify']);
 
 /**
- * Resolve the body's contract fields against the ticket's top-level arrays
- * (Story #4541). The decomposer prompt prescribes authoring `acceptance[]`
- * / `verify[]` **once** at top level and omitting the matching body
- * sections; `assemblePlanStories#syncContractFieldFromTopLevel` performs
- * the sync, but it runs *after* validation. So an absent body section is
- * not a violation when the ticket carries the list at top level — it is the
- * preferred shape. A body section that is present and disagrees with the
- * top level is left alone here: the sync itself fails closed on that
- * mismatch, and duplicating the check would report it twice.
+ * Fall back to top-level `acceptance[]` / `verify[]` (the preferred authoring
+ * shape): assembly syncs them into the body only after validation. A
+ * disagreeing body section is left to the sync, which fails closed.
  *
  * @param {object} ticket
- * @param {object} bodyObject Parsed / structured body.
+ * @param {object} bodyObject
  * @returns {object} A copy of `bodyObject` with the contract fields resolved.
  */
 function resolveContractFieldsFromTopLevel(ticket, bodyObject) {
@@ -156,19 +73,7 @@ function resolveContractFieldsFromTopLevel(ticket, bodyObject) {
 }
 
 /**
- * Validate one Story body and return every violation it exhibits. Empty
- * array means clean. Splits the per-ticket cascade out of
- * `collectTaskBodyErrors` so the iteration stays straight-line and so
- * each section's defensive checks are independently testable.
- *
- * Accepts both the canonical **serialized string** body (parsed back into
- * structured form via `parseStoryBody` — Story #3906) and the
- * pre-serialize **structured object** body. A string body that cannot be
- * parsed surfaces a single error.
- *
- * @param {object} ticket Story whose `body` has already passed the
- *   `shouldSkipTicket` filter (i.e. `body` is a non-empty string or an
- *   object).
+ * @param {object} ticket Story whose `body` passed `shouldSkipTicket`.
  * @returns {string[]}
  */
 export function validateTaskBodyShape(ticket) {
@@ -192,12 +97,6 @@ export function validateTaskBodyShape(ticket) {
 }
 
 /**
- * Predicate: is `entry` a well-formed object-form path entry? Returns
- * `true` only when it carries a non-empty `path` string and an
- * `assumption` from the canonical enum. Bare objects without these
- * fields surface as errors via `collectChangesErrors` /
- * `collectReferencesErrors`.
- *
  * @param {unknown} entry
  * @returns {entry is { path: string, assumption: typeof FILE_ASSUMPTION_VALUES[number] }}
  */
@@ -209,10 +108,7 @@ export function isObjectPathEntry(entry) {
 }
 
 /**
- * Predicate: is `entry` an object that *looks* like the new shape but
- * has at least one invalid field? Distinct from `isObjectPathEntry` so
- * we can route bad objects through a specific error message instead of
- * silently collapsing them into the "name no path-shaped token" bucket.
+ * An object that is not a valid entry, so it gets a specific error message.
  *
  * @param {unknown} entry
  * @returns {boolean}
@@ -220,8 +116,6 @@ export function isObjectPathEntry(entry) {
 export function isMalformedObjectPathEntry(entry) {
   if (entry === null || typeof entry !== 'object') return false;
   if (isObjectPathEntry(entry)) return false;
-  // Anything that's an object and isn't a valid entry is malformed —
-  // string-form bullets fall through this predicate (they're not objects).
   return true;
 }
 
@@ -269,7 +163,6 @@ function collectChangesErrors(prefix, rawChanges) {
  * @returns {string[]}
  */
 function collectReferencesErrors(prefix, rawReferences) {
-  // `body.references` is optional — absent / null / undefined is fine.
   if (rawReferences === undefined || rawReferences === null) return [];
   if (!Array.isArray(rawReferences)) {
     return [
@@ -308,10 +201,6 @@ function collectAcceptanceErrors(prefix, rawAcceptance) {
  * @returns {string[]}
  */
 /**
- * Validate every 2-tier Story in `tickets` whose `body` is a structured
- * object. Returns an array of error strings (one per offending slug); empty
- * array means clean.
- *
  * @param {object[]} tickets
  * @returns {string[]}
  */
@@ -325,9 +214,6 @@ export function collectTaskBodyErrors(tickets) {
 }
 
 /**
- * Throw a single batched error if any Story body is malformed; otherwise
- * return `tickets` unchanged.
- *
  * @param {object[]} tickets
  * @returns {object[]}
  */

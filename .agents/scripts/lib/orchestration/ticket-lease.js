@@ -1,49 +1,13 @@
 /**
- * ticket-lease.js — assignee-as-lease primitive (Story #3480, Epic #3457).
- *
- * The workflow-guards Feature (#3478) needs a way for one operator to take an
- * exclusive claim on a ticket so two concurrent runs do not both drive the
- * same Story. Rather than invent a new state column, the lease rides the
- * ticket's existing **assignees** surface: the single assignee *is* the lease
- * owner.
- *
- * **A foreign claim is a refusal, full stop (Story #5006).** The lease shipped
- * with a TTL: a claim whose owner's last heartbeat was older than
- * `delivery.lease.ttlMs` counted as stale and was silently reclaimed. The
- * `story.heartbeat` emitter that would have fed it was structurally inert (it
- * demanded an `epicId >= 1` that v2, which has no Epics, never supplies) and
- * was deleted, after which every guard pinned `heartbeatAt` to `now` so the
- * liveness test always answered "live" — the TTL, the heartbeat parameter and
- * the reclaim branch were an elaborate way of writing `true`. They are gone.
- * A stranded claim is cleared with `--steal`, which is now the only way past
- * a foreign owner.
- *
- * The two exported operations are deliberately thin and provider-agnostic:
- *
- *   - `acquireLease`  — claim an unassigned ticket, re-affirm a self-held
- *                       claim, or — with `steal: true` — forcibly transfer a
- *                       foreign claim.
- *   - `releaseLease`  — clear the assignment, but only when the operator
- *                       still holds it (a no-op once the ticket was
- *                       reassigned elsewhere, so a late release never steals
- *                       a claim back from whoever took over).
- *
- * Provider contract (a subset of `ITicketingProvider`):
- *   - `getTicket(id)`               → `{ assignees: string[], ... }`
- *   - `updateTicket(id, { assignees })`    replaces the assignee list.
- *   - `updateTicket(id, { addAssignees })` appends to it (Story #5112).
+ * Assignee-as-lease: the ticket's single assignee is the lease owner. A
+ * foreign claim is always refused; `steal: true` (`--steal`) is the only way
+ * past one. Provider needs `getTicket` and `updateTicket` with `assignees`
+ * (replace) or `addAssignees` (append).
  */
 
 /**
- * The shipped, non-personal operator-identity placeholder (and its bare,
- * post-normalise form). The committed `.agentrc.json` and the distributed
- * templates carry this sentinel so `github.operatorHandle` is schema-present
- * without naming a real person; each contributor overrides it with their own
- * handle in the gitignored `.agentrc.local.json`. It is NOT a usable lease
- * owner: `normalizeOperatorHandle` maps it to `null` so the guards fail closed
- * (a contributor who never set their handle is loudly refused, never silently
- * coordinated under a shared identity) and no assignee PATCH ever writes a
- * literal `[USERNAME]` (HTTP 422).
+ * Shipped placeholder handle. Normalizes to `null` so an unset handle fails
+ * closed and no PATCH writes a literal `[USERNAME]` (HTTP 422).
  */
 // kept (dead-export allowlist): public config sentinel — the distributed
 // `.agentrc.json` / templates carry this literal; exported so consumers and
@@ -52,17 +16,8 @@ export const OPERATOR_HANDLE_PLACEHOLDER = '@[USERNAME]';
 const OPERATOR_HANDLE_PLACEHOLDER_BARE = '[USERNAME]';
 
 /**
- * Normalise an operator handle into the bare login GitHub writes to (and
- * returns from) a ticket's `assignees`. Trims surrounding whitespace and
- * strips a single leading `@` so an `@`-prefixed `operatorHandle` matches a
- * bare assignee login (otherwise the assignee PATCH is rejected HTTP 422 and
- * the self-held-claim comparison `owner === operator` never matches).
- *
- * Returns `null` for a non-string, empty, whitespace-only, or placeholder
- * handle (`@[USERNAME]`) so each caller can apply its own absent-handling
- * (degrade to a no-op, or throw). Treating the placeholder as unset is what
- * makes the shipped sentinel safe: a contributor who never overrode it is
- * indistinguishable from one who set nothing, so the guards fail closed.
+ * Bare login (trimmed, one leading `@` stripped) so it matches assignee
+ * logins. `null` for empty or placeholder input; callers decide how to fail.
  *
  * @param {unknown} raw
  * @returns {string|null}
@@ -77,9 +32,7 @@ export function normalizeOperatorHandle(raw) {
 }
 
 /**
- * Normalise the assignee list into a single current owner. The lease model is
- * single-holder: the first assignee is authoritative. Returns `null` for an
- * unassigned ticket.
+ * The first assignee is authoritative.
  *
  * @param {string[]|undefined|null} assignees
  * @returns {string|null}
@@ -90,8 +43,6 @@ export function currentOwner(assignees) {
 }
 
 /**
- * Validate and normalise the shared option bag for the lease operations.
- *
  * @param {string} op
  * @param {object} opts
  * @returns {{ provider: object, ticketId: number, operator: string }}
@@ -113,34 +64,13 @@ function normaliseOpts(op, opts) {
 }
 
 /**
- * Acquire (or re-affirm) a lease on a ticket for `operator`.
- *
- * Outcomes:
- *   - Unassigned ticket            → assign operator, `acquired: true`,
- *                                     `reason: 'unclaimed'`.
- *   - Operator already holds it    → no write, `acquired: true`,
- *                                     `reason: 'already-held'`.
- *   - Foreign claim, no steal      → no write, `acquired: false`,
- *                                     `owner: <foreign>`, `reason: 'held'`.
- *   - Foreign claim + `steal:true` → reassign operator, `acquired: true`,
- *                                     `reason: 'stolen'`.
- *   - Lost a write race            → a foreign login co-assigned between our
- *                                     PATCH and the verify re-read; back the
- *                                     operator out, `acquired: false`,
- *                                     `owner: <foreign>`, `reason: 'lost-race'`.
- *
- * Every claiming write is verified: GitHub's assignee write is not a
- * compare-and-set, so two runs that both read the ticket unassigned will both
- * write themselves. {@link claimAndVerify} re-reads after the write and refuses
- * (fail-closed) when a foreign login is present, so the loser of a simultaneous
- * claim never proceeds as though it holds the lease. Story #5112 made the
- * first claim **additive** so that verify can actually see the collision —
- * see {@link claimAndVerify}.
+ * Every claiming write is verified by re-read, since assignee writes are not
+ * compare-and-set; a co-assigned foreign login yields `lost-race`.
  *
  * @param {object} opts
- * @param {object} opts.provider              Ticketing provider.
- * @param {number} opts.ticketId              Ticket to claim.
- * @param {string} opts.operator              Operator acquiring the lease.
+ * @param {object} opts.provider
+ * @param {number} opts.ticketId
+ * @param {string} opts.operator
  * @param {boolean} [opts.steal=false]        Transfer a foreign claim.
  * @returns {Promise<{
  *   acquired: boolean,
@@ -156,7 +86,6 @@ export async function acquireLease(opts) {
   const ticket = await provider.getTicket(ticketId);
   const owner = currentOwner(ticket?.assignees);
 
-  // Unclaimed → take it.
   if (owner === null) {
     return claimAndVerify({
       provider,
@@ -167,7 +96,6 @@ export async function acquireLease(opts) {
     });
   }
 
-  // Already ours → no write needed.
   if (owner === operator) {
     return {
       acquired: true,
@@ -177,7 +105,6 @@ export async function acquireLease(opts) {
     };
   }
 
-  // Foreign claim — refuse unless the operator explicitly steals it.
   if (!steal) {
     return {
       acquired: false,
@@ -197,44 +124,21 @@ export async function acquireLease(opts) {
 }
 
 /**
- * Write the operator to a ticket's assignees, then re-read to confirm the
- * claim actually stuck before reporting success.
- *
- * The assignee write is not atomic — GitHub offers no compare-and-set on the
- * assignees surface — so two runs that both observed the ticket unassigned (or
- * a stale foreign claim) will both write themselves in. Without a check the
- * loser of that race returns `acquired: true` and marches into the worktree
- * the winner is already building. The verify closes that window: it re-reads
- * with `fresh: true` (bypassing any provider cache so it sees the other run's
- * write, not our own), and if a foreign login is present it concedes — removes
- * the operator from the assignee set so no phantom co-owner lingers, and
- * returns `acquired: false` / `reason: 'lost-race'` so the fail-closed caller
- * refuses. A clean read (assignees exactly `[operator]`) confirms the claim.
- *
- * **The write must be additive for the verify to work (Story #5112).** With
- * the replacing PATCH this used unconditionally, a simultaneous claim
- * *evicted* the other operator rather than joining it, so the co-assignment
- * the `lost-race` branch keys on was a state the PATCH could never produce:
- * each run read a clean `[self]` on verify and both proceeded. Claiming an
- * unowned ticket therefore goes through the additive assignees endpoint
- * (`addAssignees`), which makes the collision observable and lets exactly one
- * claimer survive. The replacing form stays for the two cases that genuinely
- * mean "replace": the `--steal` transfer of a foreign claim, and the loser's
- * own back-out below.
+ * Write, then re-read with `fresh: true`; on a foreign co-assignee, back out
+ * and report `lost-race` so the loser never builds the winner's worktree.
  *
  * @param {object} args
- * @param {object} args.provider              Ticketing provider.
- * @param {number} args.ticketId              Ticket being claimed.
- * @param {string} args.operator              Operator acquiring the lease.
- * @param {string|null} args.previousOwner    Owner before this write (for the result).
+ * @param {object} args.provider
+ * @param {number} args.ticketId
+ * @param {string} args.operator
+ * @param {string|null} args.previousOwner
  * @param {string} args.reason                Success reason when the claim holds.
  * @returns {Promise<{ acquired: boolean, owner: string, previousOwner: string|null, reason: string }>}
  */
 /**
- * The assignee mutation a claim writes. Additive when the ticket has no
- * previous owner — that is what makes a simultaneous claim show up as a
- * co-assignment {@link claimAndVerify} can detect. Replacing only for a
- * steal, where evicting the previous owner *is* the intent.
+ * Additive for an unowned ticket — a replacing PATCH would evict a
+ * simultaneous claimer, hiding the collision verify keys on. Replacing only
+ * for a steal.
  *
  * @param {string} operator
  * @param {string|null} previousOwner
@@ -262,9 +166,7 @@ async function claimAndVerify({
     return { acquired: true, owner: operator, previousOwner, reason };
   }
 
-  // A foreign login co-assigned after our write — we lost a simultaneous
-  // claim. Back ourselves out so the winner is the sole assignee, and report
-  // the loss so the fail-closed caller refuses rather than double-delivering.
+  // Lost the race: leave the winner as sole assignee.
   await provider
     .updateTicket(ticketId, { assignees: foreign })
     .catch(() => undefined);
@@ -277,17 +179,12 @@ async function claimAndVerify({
 }
 
 /**
- * Release a lease the operator currently holds.
- *
- * Clears the ticket's assignees only when `operator` is still the recorded
- * owner. If the ticket has since been reassigned (or was never held by this
- * operator), the call is a no-op — a stale release must never yank a claim
- * away from whoever legitimately holds it now.
+ * No-op unless `operator` still owns it — a stale release never yanks a claim.
  *
  * @param {object} opts
- * @param {object} opts.provider   Ticketing provider.
- * @param {number} opts.ticketId   Ticket to release.
- * @param {string} opts.operator   Operator releasing the lease.
+ * @param {object} opts.provider
+ * @param {number} opts.ticketId
+ * @param {string} opts.operator
  * @returns {Promise<{
  *   released: boolean,
  *   owner: string|null,

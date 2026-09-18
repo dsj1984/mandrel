@@ -1,17 +1,7 @@
 /**
- * run-epilogue.js — real per-run closeout for `/mandrel-deliver --run`.
- *
- * After the last Story in a multi-Story plan-run lands, this module:
- *   1. Selects the cross-Story audit lens roster over the combined landed
- *      tip vs base (deterministic `selectAudits` — host walks lenses).
- *   2. Rolls up friction follow-ups across every Story in the run and
- *      files/posts them on the primary Story.
- *   3. Reports what the per-Story land tails left the run's container Epics
- *      in — closed, or still open (Story #5139; read-only since #5280).
- *
- * There is no inert planner-only path: `planRunEpilogue` enumerates steps
- * and `runPlanRunEpilogue` executes them. Single-Story runs skip the
- * epilogue (`applicable: false`).
+ * Per-run closeout after the last Story of a multi-Story run lands: optional
+ * audit roster, friction roll-up, and a read-only container-Epic report.
+ * Single-Story runs are `applicable: false`.
  *
  * @module lib/orchestration/run-epilogue
  */
@@ -33,18 +23,8 @@ import {
 import { upsertStructuredComment } from './ticketing.js';
 
 /**
- * Canonical epilogue step kinds, in execution order.
- *
- * A fourth step — a cross-Story spec/acceptance coherence check — was removed
- * in Story #5341: it re-read every Story body to post a comment nothing read
- * back, on the one run shape (N>1) where that re-read costs the most. ADR
- * `20260917-5341` carries the reasoning.
- *
- * `audit-roster` is **opt-in** since Story #5343 (`--audit-roster`): it is
- * the one step that asks the host to spend a sub-agent per selected lens,
- * and a run whose operator did not ask for an audit sweep paid that cost —
- * plus a `plan-run-audit-roster` comment nobody acted on — on every N>1 run.
- * The other two steps are reporting and stay on by default.
+ * Step kinds in execution order. `audit-roster` is opt-in (`--audit-roster`)
+ * because it costs a sub-agent per lens; the other two are reporting.
  *
  * @type {readonly ['audit-roster', 'follow-up-rollup', 'epic-close']}
  */
@@ -55,25 +35,9 @@ export const RUN_EPILOGUE_STEP_KINDS = Object.freeze([
 ]);
 
 /**
- * Report which container Epics this run's Stories left closed, and which are
- * still open.
- *
- * **It derives nothing and writes nothing.** It used to: it walked every Story
- * and re-ran the full rollup, closing containers itself. That made sense while
- * the rollup only fired on the edges someone had wired, and the epilogue was
- * the backstop for the ones that were missed. Every child state change is now
- * an edge — init, post-land, the supersede close — so by the time the last
- * Story of a run has landed, its container has already been derived from a
- * complete child set by that Story's own land tail. Re-deriving here would ask
- * the same question a second time and answer it identically, at the cost of a
- * full re-read per Story and a second writer on the same issue.
- *
- * What survives is the report, which is why the step exists at all: one place
- * an operator reads to see what a multi-Story run did to its containers. A
- * pending Epic here is a real signal — it means a land tail's rollup declined
- * to close, and the tail's own outcome says why.
- *
- * Non-fatal throughout: a container it cannot read is simply not reported.
+ * Report which container Epics are closed vs still open. Read-only: each land
+ * tail already derived its container, so a pending Epic here means a tail's
+ * rollup declined to close. Unreadable containers are omitted.
  *
  * @param {{ stories: string[], provider: object }} opts
  * @returns {Promise<{ kind: string, closed: number[], pending: number[] }>}
@@ -81,8 +45,7 @@ export const RUN_EPILOGUE_STEP_KINDS = Object.freeze([
 async function executeEpicClose({ stories, provider }) {
   const closed = new Set();
   const pending = new Set();
-  // Siblings share a container: resolve each distinct Epic once, however many
-  // of the run's Stories point at it.
+  // Siblings share a container: report each Epic once.
   const seen = new Set();
 
   for (const raw of stories) {
@@ -108,11 +71,8 @@ async function executeEpicClose({ stories, provider }) {
 }
 
 /**
- * Read one Story's container Epic, or null.
- *
- * One request per Story via the declared parent port. Degrades to null on any
- * failure and on a provider without the port — this is a report, and a
- * container it could not read is better omitted than guessed at.
+ * Null on any failure or a provider without `getParentIssue` — omitted, never
+ * guessed.
  *
  * @param {{ storyId: number, provider: object }} opts
  * @returns {Promise<object|null>}
@@ -165,14 +125,10 @@ function normalizeStoryIds(stories) {
 }
 
 /**
- * Enumerate the ordered epilogue steps for a completed run.
- *
  * @param {object} args
  * @param {string} args.planRunId
  * @param {Array<string|number|{ id?: string|number, slug?: string }>} args.stories
- * @param {boolean} [args.auditRoster] Opt into the cross-Story audit roster
- *   (Story #5343). Default `false`: the roster spawns auditors and posts a
- *   comment the operator has to act on, so it runs only when asked for.
+ * @param {boolean} [args.auditRoster] Default `false`.
  * @returns {object}
  */
 export function planRunEpilogue({
@@ -199,9 +155,7 @@ export function planRunEpilogue({
     };
   }
 
-  // Positional `/mandrel-deliver 101 102` has no plan-run label. Synthesize a
-  // stable adhoc id from the sorted Story set so the epilogue still
-  // anchors comments / audit roster without requiring `--run`.
+  // Positional delivery has no plan-run label: synthesize a stable adhoc id.
   const effectiveRunId =
     runId ??
     `adhoc-${[...ids].sort((a, b) => Number(a) - Number(b)).join('-')}`;
@@ -237,10 +191,7 @@ export function planRunEpilogue({
 }
 
 /**
- * How many first-parent commits of the base ref to scan when looking for the
- * run's landed squash-merges. The epilogue fires immediately after the run's
- * last Story lands, so the run's merges sit within the first handful of
- * commits; the limit only bounds the pathological case.
+ * The run's merges sit near the tip; this only bounds the pathological case.
  * @type {number}
  */
 const BASE_SCAN_LIMIT = 500;
@@ -249,8 +200,7 @@ const BASE_SCAN_LIMIT = 500;
 const FIELD_SEP = '\x1f';
 
 /**
- * Read the base ref's first-parent history as `{ sha, parents, subject }`
- * records, newest-first.
+ * Newest-first.
  *
  * @param {object} args
  * @param {string} args.cwd
@@ -300,35 +250,12 @@ function readFirstParentHistory({ cwd, baseRef, scanLimit, git }) {
   return { ok: true, commits };
 }
 
-/**
- * One trailing `(#<n>)` / `(refs #<n>)` marker, anchored at the end of what
- * is left of a subject after the markers to its right have been peeled off.
- */
 const TRAILING_MARKER_RE = /\s*\((?:refs\s+)?#(\d+)\)$/;
 
 /**
- * Peel the **trailing run** of `(#<n>)` markers off a squash subject.
- *
- * The shape this parses is fixed by the close pipeline plus GitHub: the PR
- * title `normalizePrTitle` writes ends with `(#<storyId>)`, and GitHub's
- * squash appends ` (#<prNumber>)` to it — so a landed Story merge reads
- * `<subject> (#<storyId>) (#<prNumber>)` and the Story's own marker is the
- * *second-to-last* marker, not the last one. Both are returned; the caller
- * decides which ids it cares about.
- *
- * Why the trailing run rather than a substring scan (the bug this replaces):
- * `subject.includes('(#101)')` matched the id **anywhere**, so an unrelated
- * later commit quoting an old marker — canonically a revert, whose subject
- * embeds the reverted title verbatim: `revert: "fix: x (#101) (#900)" (#950)`
- * — anchored the run on a far-older commit and inflated the roster diff with
- * everything in between. Peeling from the right stops at the first character
- * that is not part of a marker (the closing quote, above), so a quoted marker
- * is structurally out of reach.
- *
- * The `refs #` form is accepted because it is the other PR-title shape this
- * repo's own history carries (`feat(x): … (refs #4575) (#4582)`) — the
- * `refs #<id>` convention from `rules/git-conventions.md`. A plain substring
- * scan for `(#4575)` never matched those at all.
+ * Peel the trailing run of `(#<n>)` / `(refs #<n>)` markers off a squash
+ * subject (`<title> (#<storyId>) (#<prNumber>)`). Only the trailing run
+ * counts, so a revert quoting an old title can't anchor the run on an ancient commit.
  *
  * @param {string} subject
  * @returns {number[]} Marker ids, right-to-left (PR number first).
@@ -345,27 +272,15 @@ function trailingMarkerIds(subject) {
 }
 
 /**
- * Resolve the **pre-run base sha**: the commit the base branch pointed at
- * before the run's first Story landed.
- *
- * Why not `origin/main...HEAD` (the bug this replaces): the epilogue runs
- * *after* the run's last Story lands, so HEAD in the main checkout is either
- * `origin/main` itself or an ancestor of it. The three-dot merge-base is then
- * HEAD, and the diff is empty **by construction** — it never reported the
- * run's real diff. Rolling HEAD back does not help, so branch-reaping /
- * cleanup ordering is not the cause; the refs being compared are.
- *
- * The derivation walks the base ref's first-parent history for the run's
- * landed squash-merges. Every Story PR title carries a `(#<storyId>)` suffix
- * (guaranteed by `normalizePrTitle` in the close pipeline) and GitHub uses the
- * PR title as the squash subject, so the marker is a reliable, offline handle
- * that does **not** depend on the Story branches still existing. The earliest
- * such merge's first parent is the pre-run base.
+ * The commit the base pointed at before the run's first Story landed: the
+ * first parent of the earliest first-parent squash-merge carrying a run
+ * Story's `(#<storyId>)` marker. `origin/main...HEAD` would be empty by
+ * construction, since the epilogue runs after the last land.
  *
  * @param {object} args
- * @param {Array<string|number>} args.stories - Story ids in the run.
+ * @param {Array<string|number>} args.stories
  * @param {string} args.cwd
- * @param {string} [args.baseRef] - Remote-tracking base ref, e.g. `origin/main`.
+ * @param {string} [args.baseRef] - e.g. `origin/main`.
  * @param {number} [args.scanLimit]
  * @param {{ gitSpawn: Function }} [args.git]
  * @returns {{ resolved: true, baseSha: string, mergeSha: string, storyId: number, baseRef: string }
@@ -395,8 +310,7 @@ export function resolveRunBaseSha({
     return { resolved: false, baseRef, reason: history.reason };
   }
 
-  // `git log` is newest-first; walk backwards so the first hit is the
-  // *earliest* merge belonging to the run.
+  // Walk oldest-first so the first hit is the run's earliest merge.
   const wanted = new Set(ids);
   for (let i = history.commits.length - 1; i >= 0; i -= 1) {
     const commit = history.commits[i];
@@ -431,8 +345,6 @@ export function resolveRunBaseSha({
 }
 
 /**
- * List the files the run changed: `<pre-run base>...<baseRef>`.
- *
  * @returns {{ ok: true, files: string[] } | { ok: false, reason: string }}
  */
 function listChangedFiles({ cwd, baseSha, headRef, git }) {
@@ -461,8 +373,7 @@ function listChangedFiles({ cwd, baseSha, headRef, git }) {
 }
 
 /**
- * Resolve the run's combined landed diff, or an explicit reason it could not
- * be computed. Never conflates "could not compute" with "zero files changed".
+ * Never conflates "could not compute" with "zero files changed".
  *
  * @returns {{ resolved: boolean, changedFiles: string[], baseSha: string|null,
  *             mergeSha: string|null, baseRef: string, reason: string|null }}
@@ -506,8 +417,7 @@ function resolveCombinedDiff({ stories, cwd, baseRef, git }) {
 }
 
 /**
- * The diff line of the roster comment. An unresolved base MUST read as a
- * loud failure, never as `Changed files considered: 0`.
+ * An unresolved base reads as a loud failure, never as zero files.
  *
  * @param {ReturnType<typeof resolveCombinedDiff>} diff
  * @returns {string[]}
@@ -544,12 +454,6 @@ function resolveBaseRef(config) {
 }
 
 /**
- * Render the `plan-run-audit-roster` comment body.
- *
- * Split out of `executeAuditRoster` in Story #5341: the executor's job is to
- * resolve the diff and select the lenses, and a hundred lines of rendering
- * between those two facts and the result is what hid them.
- *
  * @param {object} args
  * @returns {string}
  */
@@ -573,11 +477,7 @@ function renderAuditRosterBody({
       ? selectedAudits.map((lens) => `- \`${lens}\``)
       : ['- _(none — docs-only or no matching change-set lenses)_']),
     '',
-    // Story #4949 — the roster used to name the lenses and say nothing about
-    // how to dispatch them, which made a serial walk (and a nested
-    // coordinator) fully compliant with it. The lenses are read-only and share
-    // no write paths, so they are the textbook independent fan-out; naming the
-    // shape here is what turns that from an option into the instruction.
+    // Lenses are read-only and independent; state the fan-out shape explicitly.
     '**Dispatch shape (MUST): flat, parallel, one turn.** Spawn one ' +
       '`auditor` sub-agent per lens listed above and issue every one of those ' +
       'spawns in a SINGLE turn — no nested fan-out, no serial walk. A ' +
@@ -624,11 +524,8 @@ async function executeAuditRoster({
     baseRef: resolveBaseRef(config),
     git,
   });
-  // Hand `selectAudits` the change set we just resolved — never a git range for
-  // it to re-derive. This function runs in the main checkout *after* the run's
-  // Stories merged, so every range it could name (`main...HEAD`) is empty by
-  // construction; asking for one is how the roster came to select lenses from
-  // zero files while printing the correct file list beside them (Story #4571).
+  // Pass the resolved change set, never a range: post-merge, any range
+  // `selectAudits` could derive is empty by construction.
   const lensGrounding = diff.resolved ? 'diff' : 'keyword-only';
   let selectedAudits = [];
   if (Number.isInteger(primaryId) && primaryId > 0) {
@@ -667,14 +564,9 @@ async function executeAuditRoster({
   return {
     kind: 'audit-roster',
     selectedAudits,
-    // Whether the lenses above were chosen from the run's landed files
-    // (`diff`) or, with no resolvable base, from the primary Story's prose
-    // alone (`keyword-only`). The two are not interchangeable: a keyword-only
-    // roster cannot select a lens that declares no keywords, so its silence
-    // about a lens says nothing about the code.
+    // A keyword-only roster's silence about a lens says nothing about the code.
     lensGrounding,
-    // `null` — not `0` — when unresolved: a zero count must only ever mean
-    // "the run genuinely changed nothing".
+    // `null`, not `0`, when unresolved.
     changedFileCount: diff.resolved ? diff.changedFiles.length : null,
     changedFiles: diff.resolved ? diff.changedFiles : null,
     baseResolution: {
@@ -688,16 +580,6 @@ async function executeAuditRoster({
 }
 
 /**
- * Compose the run-scope routed proposals.
- *
- * Story #4850 — `runToken` and `anchorStoryIds` are INPUTS. This used to
- * compose with the primary Story's numeric id standing in for the run and then
- * rewrite the rendered title/body by regex over a `plan-run \d+` substring,
- * which meant the composer's own wording could not be changed without silently
- * breaking the patch. `anchorStoryIds` is what lets the composer tell a corpus
- * confined to this run from one spanning the whole surviving window, so it
- * never titles the latter as if it were the former.
- *
  * @param {object} args
  * @returns {object}
  */
@@ -722,8 +604,6 @@ function composeRunProposals({
 }
 
 /**
- * Hand the run-scope proposals to the graduator (injectable for tests).
- *
  * @param {object} args
  * @returns {Promise<object>}
  */
@@ -741,8 +621,6 @@ function fileRunProposals({
     provider,
     config,
     currentRepo: repos.currentRepo,
-    // The resolved bucket object, not a re-split of the slug: routing is
-    // decided once in `github/framework-repo.js`.
     frameworkRepo: repos.repos.framework,
     platformRepo: repos.repos.platform,
     routedProposals: proposals,
@@ -758,9 +636,6 @@ async function executeFollowUpRollup({
   cwd,
   graduateFn = graduateRetroProposals,
 }) {
-  // Shared with the story-scoped gather (Story #4649): `storyId` + `details`
-  // are what the composer's recovery-netting keys on, and two hand-rolled
-  // copies of this loop are how they got dropped in the first place.
   const { signals, window: frictionWindow } = await gatherRunFrictionSignals(
     stories,
     config,
@@ -816,9 +691,6 @@ async function executeFollowUpRollup({
 }
 
 /**
- * Render the run-scope roll-up and publish it — the one place that decides
- * where it goes.
- *
  * @param {object} args
  * @returns {Promise<void>}
  */
@@ -839,12 +711,7 @@ async function publishRunRollup({
     storyId: primaryId,
     proposals,
     graduated,
-    // Story #4578 — the run's Story count is what lets an empty roll-up
-    // render as a flagged claim ("0 signals across N Stories") rather than
-    // as "nothing to follow up".
     storyCount,
-    // Story #4828 — and the corpus is what lets a zero-proposal or
-    // zero-filed roll-up name what it saw instead of rendering as clean.
     signalCount,
     categories,
   }).replace(
@@ -861,10 +728,8 @@ async function publishRunRollup({
 }
 
 /**
- * Assemble the `follow-up-rollup` step result. Split out of
- * `executeFollowUpRollup` in Story #5341: the literal had grown to carry
- * every suspicion the roll-up can raise, and the reporting shape is what
- * callers read, not how it was gathered.
+ * The step result carries every suspect flag so the CLI never regexes the
+ * comment body.
  *
  * @param {object} args
  * @returns {object}
@@ -884,31 +749,14 @@ function buildRollupStepResult({
     signalCount: signals.length,
     storyCount,
     filed: graduated.filed?.length ?? 0,
-    // Story #4850 — the recurrence window the gather actually applied, and what
-    // it dropped. `signalCount` alone cannot distinguish "the window is bounded
-    // at 30 days and 40 rows aged out" from "nothing older exists", and an
-    // operator triaging a roll-up needs to know which corpus produced it.
+    // What the age window excluded, so a bounded corpus is distinguishable.
     frictionWindow,
-    // Story #4828 — everything below is what the roll-up saw and what became
-    // of it. The pre-#4828 result reported `signalCount` and `filed` and
-    // nothing in between, so nine signals routing into one proposal whose
-    // every filing attempt errored rendered as `{signalCount: 9, filed: 0,
-    // discarded: []}` — arithmetically consistent, and indistinguishable from
-    // a run with nothing to do.
     proposalCount,
-    // The categories the corpus actually contained, so a zero-proposal
-    // roll-up names its own input rather than asserting emptiness.
     categories,
     filingErrors: Array.isArray(graduated.errors) ? graduated.errors : [],
     filingSkipped: outcome.blockingSkipReasons,
-    // Signals in, nothing out — not even a below-threshold row.
     zeroProposalSuspect: outcome.zeroProposals,
-    // Proposals cleared the threshold and the filer produced none of them.
     unfiledProposalSuspect: outcome.unfiledProposals,
-    // Story #4824 — a roll-up that discards every candidate must still name
-    // what it discarded. Rendering that as "nothing to follow up" is how a
-    // defect recurring once per Story survived eighteen consecutive Stories.
-    // Surfaced on the step result so the CLI need not regex the comment body.
     discarded: proposals.discarded.map((item) => ({
       category: item.category,
       occurrences: item.occurrences,
@@ -917,16 +765,12 @@ function buildRollupStepResult({
       tools: item.tools ?? [],
       fingerprint: item.fingerprint ?? null,
     })),
-    // Story #4578 — zero signals across a multi-Story run is a claim, not a
-    // clean bill of health. Surfaced on the step result so the CLI can warn
-    // the operator without re-deriving it from the comment prose.
     emptyRollupSuspect: signals.length === 0 && storyCount > 1,
   };
 }
 
 /**
- * Execute the per-run epilogue. Throws only on programmer misuse; step
- * failures are collected into `errors[]`.
+ * Throws only on programmer misuse; step failures collect into `errors[]`.
  *
  * @param {object} args
  * @param {string} args.planRunId
@@ -934,13 +778,10 @@ function buildRollupStepResult({
  * @param {object} args.provider
  * @param {object} [args.config]
  * @param {string} [args.cwd]
- * @param {{ gitSpawn: Function }} [args.git] - Injection seam for tests.
- * @param {typeof selectAudits} [args.selectAuditsFn] - Injection seam for tests.
- * @param {typeof graduateRetroProposals} [args.graduateFn] - Injection seam so
- *   the roll-up's reporting layer can be asserted against a filer that fails
- *   (Story #4828) without spawning a real `gh`.
- * @param {boolean} [args.auditRoster] Opt into the audit-roster step
- *   (Story #5343); default `false`.
+ * @param {{ gitSpawn: Function }} [args.git]
+ * @param {typeof selectAudits} [args.selectAuditsFn]
+ * @param {typeof graduateRetroProposals} [args.graduateFn]
+ * @param {boolean} [args.auditRoster] Default `false`.
  * @returns {Promise<object>}
  */
 export async function runPlanRunEpilogue({

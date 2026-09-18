@@ -1,11 +1,6 @@
 /**
- * lib/orchestration/story-body-gate.js — the Story-body parse gate
- * (Story #4541), extracted from `ticket-validator.js`: the one place a
- * serialized Story body is parsed with parse failures translated into the
- * validator's operator-legible `ValidationError` shape. Both the gate that
- * refuses a plan up front (`assertStoryBodiesParse`) and the per-call
- * translating parser (`parseStoryBodyOrThrow`) the downstream validators
- * lean on live here.
+ * The one place a Story body is parsed with failures translated into a
+ * `ValidationError` naming the section and entry.
  */
 
 import { ValidationError } from '../errors/index.js';
@@ -15,16 +10,6 @@ import {
 } from '../story-body/story-body.js';
 
 /**
- * Parse a Story's serialized markdown body, translating a
- * `StoryBodyParseError` into a `ValidationError` that names the offending
- * **section** and **entry** (Story #4541).
- *
- * `StoryBodyParseError` already carries `field` (the section the parser was
- * reading) and `raw` (the entry text that failed); this lifts both into an
- * operator-legible message and a structured `violation` payload so an
- * authoring loop can point at the exact bullet instead of re-deriving it
- * from a downstream freshness miss.
- *
  * @param {object} story Story whose `body` is a non-empty markdown string.
  * @returns {object} The structured body.
  * @throws {ValidationError} `code: 'story-body-unparseable'`.
@@ -53,14 +38,10 @@ export function parseStoryBodyOrThrow(story) {
 }
 
 /**
- * Refuse the plan when any Story's serialized body cannot be parsed, before
- * either git-probe gate runs (Story #4541). Ordering matters: the freshness
- * gate consults `body.changes` for its net-new whitelist, so an unparseable
- * body used to reach the operator as a freshness miss naming declared paths.
+ * Must run before the git-probe gates, whose whitelist is the parsed body.
  *
  * @param {{ tickets: object[] }} opts
- * @throws {ValidationError} `code: 'story-body-unparseable'` on the first
- *   offending Story.
+ * @throws {ValidationError} On the first offending Story.
  */
 export function assertStoryBodiesParse({ tickets }) {
   for (const story of (tickets ?? []).filter((t) => t.type === 'story')) {

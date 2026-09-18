@@ -33,12 +33,8 @@ export async function handleRemoteVerificationFailure({
         `[single-story-init] failed to post remote-verification friction: ${err?.message ?? err}`,
       );
     }
-    // Story #4539 — the canonical mutator. This is the path where the
-    // skipped Projects v2 column sync (Story #2548) visibly drifts: the
-    // Story is still agent::ready (To Do) when the remote probe fails, so
-    // a direct label write leaves the board reading To Do for a blocked
-    // Story. single-story-init.js's own comment explains exactly why this
-    // must not bypass the mutator.
+    // Use the canonical mutator: a direct label write skips the Projects v2
+    // column sync and leaves the board reading To Do for a blocked Story.
     try {
       await transitionTicketState(provider, storyId, STATE_LABELS.BLOCKED, {});
     } catch (err) {
