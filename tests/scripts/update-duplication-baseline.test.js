@@ -27,6 +27,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { rollupOfRows } from '../../.agents/scripts/lib/audit-baselines/rollup.js';
 import {
   buildDuplicationRows,
   collectVisitedFiles,
@@ -181,10 +182,12 @@ describe('duplication refresh — scanner rows flow through the shared writer', 
       '.agents/schemas/baselines/duplication.schema.json',
     );
     assert.match(envelope.kernelVersion, /^\d+\.\d+\.\d+$/);
-    assert.ok(Object.hasOwn(envelope.rollup, '*'));
-    assert.equal(envelope.rollup['*'].duplicatedLines, 20);
-    assert.equal(envelope.rollup['*'].totalLines, 200);
-    assert.equal(envelope.rollup['*'].percentage, 10);
+    // No committed rollup (Story #5400): readers derive it from the rows.
+    assert.equal(Object.hasOwn(envelope, 'rollup'), false);
+    const rollup = rollupOfRows('duplication', envelope.rows);
+    assert.equal(rollup.duplicatedLines, 20);
+    assert.equal(rollup.totalLines, 200);
+    assert.equal(rollup.percentage, 10);
     // Rows are canonicalised + sorted.
     assert.deepEqual(
       envelope.rows.map((r) => r.path),

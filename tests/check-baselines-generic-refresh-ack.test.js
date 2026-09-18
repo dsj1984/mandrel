@@ -34,12 +34,10 @@ function writeJson(p, value) {
   writeFileSync(p, JSON.stringify(value, null, 2));
 }
 
-function covEnvelope({ rows, rollup } = {}) {
+function covEnvelope({ rows } = {}) {
   return {
     $schema: 'coverage.schema.json',
     kernelVersion: currentKernelVersion('coverage'),
-    generatedAt: '2026-01-01T00:00:00.000Z',
-    rollup: rollup ?? { '*': { lines: 90, branches: 85, functions: 90 } },
     rows: rows ?? [],
   };
 }
@@ -79,11 +77,9 @@ function setupTmpRepo({ floors } = {}) {
  * blobs from `commits[].rows`. A commit with no `rows` models one whose blob
  * cannot be read at all (the fail-closed case).
  */
-function installGitStub({ baseRows, baseRollup, commits = [], baselineRel }) {
+function installGitStub({ baseRows, commits = [], baselineRel }) {
   const rel = baselineRel ?? COV_BASELINE_REL;
-  const baseJson = JSON.stringify(
-    covEnvelope({ rows: baseRows, rollup: baseRollup }),
-  );
+  const baseJson = JSON.stringify(covEnvelope({ rows: baseRows }));
   const blobBySha = new Map();
   for (const c of commits) {
     if (c.rows)
@@ -122,12 +118,14 @@ function installGitStub({ baseRows, baseRollup, commits = [], baselineRel }) {
   });
 }
 
-/** Head baseline whose row regressed vs base but whose rollup clears the floor. */
+/**
+ * Head baseline whose row regressed vs base; the rows-derived rollup (lines
+ * 70) clears the default 50 floor.
+ */
 function writeRegressedHead(root) {
   writeJson(
     path.join(root, 'baselines', 'coverage.json'),
     covEnvelope({
-      rollup: { '*': { lines: 90, branches: 85, functions: 90 } },
       rows: [{ path: 'src/a.js', lines: 70, branches: 70, functions: 70 }],
     }),
   );
@@ -169,7 +167,7 @@ describe('check-baselines — generic refresh acknowledgment (#4802)', () => {
   // Floors are never suppressed by an acknowledgment.
   it('a floor breach still fails under COVERAGE_REFRESH=1', async () => {
     root = setupTmpRepo({ floors: { '*': { lines: 95 } } });
-    writeRegressedHead(root); // rollup lines 90 < floor 95
+    writeRegressedHead(root); // derived rollup lines 70 < floor 95
     installGitStub({ baseRows: REGRESSED_BASE });
     const res = await runCheckBaselines({
       argv: ['--no-friction'],
@@ -324,14 +322,14 @@ function covRow(p, v) {
   return { path: p, lines: v, branches: v, functions: v };
 }
 
-/** Head baseline over several rows whose rollup stays clear of the floor. */
+/**
+ * Head baseline over several rows; every fixture keeps its rows at or above
+ * 60, so the rows-derived rollup stays clear of the default 50 floor.
+ */
 function writeHead(root, rows) {
   writeJson(
     path.join(root, 'baselines', 'coverage.json'),
-    covEnvelope({
-      rollup: { '*': { lines: 90, branches: 85, functions: 90 } },
-      rows,
-    }),
+    covEnvelope({ rows }),
   );
 }
 
@@ -621,7 +619,7 @@ describe('check-baselines — refresh acknowledgment is row-scoped (#5179)', () 
   // AC-7 — floors are never suppressed, on the tag arm as on the env arm.
   it('a floor breach still fails under a commit-tag acknowledgment', async () => {
     root = setupTmpRepo({ floors: { '*': { lines: 95 } } });
-    writeHead(root, [covRow('src/a.js', 70)]); // rollup lines 90 < floor 95
+    writeHead(root, [covRow('src/a.js', 70)]); // derived rollup lines 70 < floor 95
     installGitStub({
       baseRows: [covRow('src/a.js', 95)],
       commits: [
@@ -657,15 +655,6 @@ function dupEnvelope(rows) {
   return {
     $schema: 'duplication.schema.json',
     kernelVersion: currentKernelVersion('duplication'),
-    generatedAt: '2026-01-01T00:00:00.000Z',
-    rollup: {
-      '*': {
-        percentage: 4,
-        duplicatedLines: 4,
-        totalLines: 100,
-        filesWithDuplication: rows.length,
-      },
-    },
     rows,
   };
 }
@@ -831,11 +820,9 @@ function crapEnvelope(rows) {
   return {
     $schema: 'crap.schema.json',
     kernelVersion: currentKernelVersion('crap'),
-    generatedAt: '2026-01-01T00:00:00.000Z',
     scoringSemantics: 'method-identity-v3',
     tsTranspilerVersion: '6.0.3',
     provenanceStamped: true,
-    rollup: { '*': { p50: 2, p95: 4, max: 6, methodsAbove20: 0 } },
     rows,
   };
 }

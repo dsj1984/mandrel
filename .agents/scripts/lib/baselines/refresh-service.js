@@ -260,7 +260,6 @@ export function resolveDefaultScorer(kind, { cwd } = {}) {
  *   fs?: typeof nodeFs,
  *   gitDiff?: (args: { baseRef: string, headRef: string, cwd: string }) => Iterable<string> | Promise<Iterable<string>>,
  *   cwd?: string,
- *   generatedAt?: string,
  *   requireRowsForScopeFiles?: boolean,
  *   requiredScopeFilePredicate?: (file: string) => boolean,
  * }} opts
@@ -285,7 +284,6 @@ export async function refreshBaseline(opts = {}) {
     fs = nodeFs,
     gitDiff = defaultGitDiff,
     cwd = process.cwd(),
-    generatedAt,
     requireRowsForScopeFiles = false,
     requiredScopeFilePredicate,
   } = opts;
@@ -349,11 +347,10 @@ export async function refreshBaseline(opts = {}) {
       scope.mode === 'full'
         ? null
         : { mode: 'diff', files: new Set(scope.files) },
-    generatedAt: generatedAt ?? process.env.MANDREL_BASELINE_GENERATED_AT,
   });
 
   // The writer returns the prior object itself when nothing changed; skip the
-  // write so on-disk bytes (including `generatedAt`) stay verbatim.
+  // write so on-disk bytes stay verbatim.
   let wrote = false;
   if (priorEnvelope === null || envelope !== priorEnvelope) {
     writeEnvelopeFile(writePath, envelope, { fsImpl: fs });
@@ -523,9 +520,7 @@ function readPriorEnvelope(writePath, fs) {
       parsed &&
       typeof parsed === 'object' &&
       !Array.isArray(parsed) &&
-      Array.isArray(parsed.rows) &&
-      parsed.rollup &&
-      typeof parsed.rollup === 'object'
+      Array.isArray(parsed.rows)
     ) {
       return parsed;
     }

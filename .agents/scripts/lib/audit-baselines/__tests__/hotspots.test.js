@@ -48,8 +48,6 @@ function writeFixture() {
   write('crap.json', {
     $schema: '../.agents/schemas/baselines/crap.schema.json',
     kernelVersion: '1.0.0',
-    generatedAt: '2026-01-01T00:00:00.000Z',
-    rollup: { '*': { p50: 2, p95: 20, max: 30, methodsAbove20: 2 } },
     rows: [
       { path: SHARED, method: 'a', startLine: 1, crap: 30 },
       { path: LONELY, method: 'b', startLine: 1, crap: 30 },
@@ -59,8 +57,6 @@ function writeFixture() {
   write('maintainability.json', {
     $schema: '../.agents/schemas/baselines/maintainability.schema.json',
     kernelVersion: '1.0.0',
-    generatedAt: '2026-01-01T00:00:00.000Z',
-    rollup: { '*': { min: 40, p50: 70, p95: 100 } },
     rows: [
       { path: SHARED, mi: 40 },
       { path: CALM, mi: 100 },
@@ -133,8 +129,6 @@ describe('bounded extraction', () => {
       path.join(root, 'baselines', 'crap.json'),
       JSON.stringify({
         kernelVersion: '1.0.0',
-        generatedAt: '2026-01-01T00:00:00.000Z',
-        rollup: { '*': { p50: 50, p95: 95, max: 99, methodsAbove20: 79 } },
         rows,
       }),
     );

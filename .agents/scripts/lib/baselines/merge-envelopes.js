@@ -1,11 +1,10 @@
 /**
  * Pure 3-way merge of baseline envelopes by row identity. A line-based git
- * merge either conflicts on disjoint work (the `generatedAt` line) or splices
- * both sides into a row set no scorer produced.
+ * merge conflicts on disjoint rows that sit adjacent in sort order, and can
+ * splice both sides into a row set no scorer produced.
  *
  * Per identity the side that differs from base wins; both differing is a
- * conflict; absence is a value. The rollup is always recomputed from the
- * merged rows, never merged. Identity comes from the kind's `rowIdentity`,
+ * conflict; absence is a value. Identity comes from the kind's `rowIdentity`,
  * never `keyField`. No I/O: the driver validates the result.
  *
  * @module lib/baselines/merge-envelopes
@@ -15,8 +14,8 @@ import { deepEqual } from '../json-utils.js';
 import { KNOWN_KINDS } from './envelope.js';
 import { getKindModule } from './kernel.js';
 
-/** Keys not merged 3-way: rows by identity, rollup derived, stamp = later. */
-const DERIVED_KEYS = Object.freeze(['rows', 'rollup', 'generatedAt']);
+/** Merged by identity, not as a stamp. */
+const ROW_KEY = 'rows';
 
 /**
  * Kind from `$schema`, or `null` for anything not a known per-kind envelope.
@@ -77,20 +76,6 @@ function indexRows(rows, rowIdentity, side) {
 }
 
 /**
- * @param {string|undefined} ours
- * @param {string|undefined} theirs
- * @returns {string|undefined}
- */
-function laterStamp(ours, theirs) {
-  if (typeof ours !== 'string') return theirs;
-  if (typeof theirs !== 'string') return ours;
-  const a = Date.parse(ours);
-  const b = Date.parse(theirs);
-  if (Number.isNaN(a) || Number.isNaN(b)) return ours > theirs ? ours : theirs;
-  return a >= b ? ours : theirs;
-}
-
-/**
  * 3-way merge of envelope stamps; a double bump to different values is a
  * real conflict (two scorers).
  *
@@ -102,7 +87,7 @@ function laterStamp(ours, theirs) {
 function mergeStamps(base, ours, theirs) {
   const keys = new Set(
     [...Object.keys(ours), ...Object.keys(theirs), ...Object.keys(base)].filter(
-      (k) => !DERIVED_KEYS.includes(k),
+      (k) => k !== ROW_KEY,
     ),
   );
   const merged = {};
@@ -170,15 +155,13 @@ function mergeRowSets({ baseEnv, ours, theirs, rowIdentity }) {
 }
 
 /**
- * `base` is `null` when the file was added on both sides. `components`
- * defaults to `[]`, matching what a refresh writes.
+ * `base` is `null` when the file was added on both sides.
  *
  * @param {{
  *   base: object|null,
  *   ours: object,
  *   theirs: object,
  *   kind?: string,
- *   components?: Array<object>,
  * }} params
  * @returns {{
  *   kind: string,
@@ -186,13 +169,7 @@ function mergeRowSets({ baseEnv, ours, theirs, rowIdentity }) {
  *   conflicts: Array<{scope: string, identity: string, base?: unknown, ours?: unknown, theirs?: unknown}>,
  * }}
  */
-export function mergeEnvelopes({
-  base,
-  ours,
-  theirs,
-  kind,
-  components = [],
-} = {}) {
+export function mergeEnvelopes({ base, ours, theirs, kind } = {}) {
   const resolvedKind =
     kind ?? kindFromEnvelope(ours) ?? kindFromEnvelope(theirs);
   if (!resolvedKind) {
@@ -217,12 +194,7 @@ export function mergeEnvelopes({
     theirs ?? {},
   );
 
-  const envelope = {
-    ...stamps,
-    generatedAt: laterStamp(ours?.generatedAt, theirs?.generatedAt),
-    rollup: mod.rollup(sortedRows, components),
-    rows: sortedRows,
-  };
+  const envelope = { ...stamps, rows: sortedRows };
 
   return {
     kind: resolvedKind,
@@ -251,41 +223,15 @@ function orderKeys(obj, order) {
 }
 
 /**
- * Same arithmetic as `buildCyclomaticEnvelope`. Must be derived: two branches
- * each adding a row both write `n + 1`, which a 3-way merge resolves cleanly
- * and wrongly.
- *
- * @param {Array<object>} rows
- * @returns {{ '*': { filesAboveCeiling: number, methodsAboveCeiling: number, maxCyclomatic: number } }}
- */
-function cyclomaticRollup(rows) {
-  let methods = 0;
-  let max = 0;
-  for (const row of rows) {
-    methods += Number(row?.methodsAboveCeiling ?? 0);
-    const rowMax = Number(row?.maxCyclomatic ?? 0);
-    if (rowMax > max) max = rowMax;
-  }
-  return {
-    '*': {
-      filesAboveCeiling: rows.length,
-      methodsAboveCeiling: methods,
-      maxCyclomatic: max,
-    },
-  };
-}
-
-/**
- * Row-set baselines that are not per-kind envelopes. `rollup: null` is real:
- * the dead-export generator writes none. `keyOrder` mirrors each generator.
+ * Row-set baselines that are not per-kind envelopes. `keyOrder` mirrors each
+ * generator.
  */
 const PLAIN_BASELINE_KINDS = Object.freeze({
   cyclomatic: Object.freeze({
     rowIdentity: (row) => String(row?.file ?? ''),
     sortRows: (rows) =>
       [...rows].sort((a, b) => String(a.file).localeCompare(String(b.file))),
-    rollup: cyclomaticRollup,
-    keyOrder: ['$schema', 'generatedAt', 'ceiling', 'rollup', 'rows'],
+    keyOrder: ['$schema', 'ceiling', 'rows'],
   }),
   'dead-exports': Object.freeze({
     rowIdentity: (row) => `${row?.file ?? ''}::${row?.symbol ?? ''}`,
@@ -295,8 +241,7 @@ const PLAIN_BASELINE_KINDS = Object.freeze({
           String(a.file).localeCompare(String(b.file)) ||
           String(a.symbol).localeCompare(String(b.symbol)),
       ),
-    rollup: null,
-    keyOrder: ['$schema', 'kernelVersion', 'generatedAt', 'mode', 'rows'],
+    keyOrder: ['$schema', 'kernelVersion', 'mode', 'rows'],
   }),
 });
 
@@ -357,15 +302,7 @@ export function mergePlainBaseline({ base, ours, theirs, kind } = {}) {
     ours ?? {},
     theirs ?? {},
   );
-  const envelope = orderKeys(
-    {
-      ...stamps,
-      generatedAt: laterStamp(ours?.generatedAt, theirs?.generatedAt),
-      ...(spec.rollup ? { rollup: spec.rollup(sortedRows) } : {}),
-      rows: sortedRows,
-    },
-    spec.keyOrder,
-  );
+  const envelope = orderKeys({ ...stamps, rows: sortedRows }, spec.keyOrder);
   return {
     kind: resolvedKind,
     envelope,
@@ -380,8 +317,8 @@ const REGENERATE_COMMANDS = Object.freeze({
 });
 
 /**
- * After a conflicted merge, hand-resolving rows never updates the rollup, so
- * the driver must name the regeneration command.
+ * After a conflicted merge, hand-resolved rows describe a tree nobody scored,
+ * so the driver must name the regeneration command.
  *
  * @param {string} kind
  * @returns {string}

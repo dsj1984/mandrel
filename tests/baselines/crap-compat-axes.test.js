@@ -542,8 +542,6 @@ describe('read path — one door, complete (#5002)', () => {
       baselinePath,
       JSON.stringify({
         $schema: '.agents/schemas/baselines/crap.schema.json',
-        generatedAt: new Date().toISOString(),
-        rollup: { '*': { p50: 1, p95: 1, max: 2, methodsAbove20: 0 } },
         ...envelope,
       }),
     );

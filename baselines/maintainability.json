@@ -1,14 +1,6 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-18T19:38:20.859Z",
-  "rollup": {
-    "*": {
-      "min": 76.381,
-      "p50": 99.285,
-      "p95": 122.565
-    }
-  },
   "rows": [
     {
       "path": ".agents/scripts/acceptance-eval.js",
@@ -169,6 +161,10 @@
     {
       "path": ".agents/scripts/lib/audit-baselines/read.js",
       "mi": 99.069
+    },
+    {
+      "path": ".agents/scripts/lib/audit-baselines/rollup.js",
+      "mi": 109.943
     },
     {
       "path": ".agents/scripts/lib/audit-baselines/staleness.js",
@@ -344,7 +340,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/envelope.js",
-      "mi": 106.456
+      "mi": 108.044
     },
     {
       "path": ".agents/scripts/lib/baselines/exit-codes.js",
@@ -404,7 +400,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/merge-envelopes.js",
-      "mi": 93.09
+      "mi": 94.762
     },
     {
       "path": ".agents/scripts/lib/baselines/path-canon.js",
@@ -416,7 +412,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/reader.js",
-      "mi": 95.043
+      "mi": 95.876
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
@@ -428,7 +424,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/writer.js",
-      "mi": 93.855
+      "mi": 98.419
     },
     {
       "path": ".agents/scripts/lib/bdd-runner-detect.js",
@@ -748,7 +744,7 @@
     },
     {
       "path": ".agents/scripts/lib/cyclomatic-ceiling.js",
-      "mi": 93.888
+      "mi": 96.679
     },
     {
       "path": ".agents/scripts/lib/cyclomatic-scope.js",
@@ -1012,7 +1008,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/evaluate.js",
-      "mi": 87.606
+      "mi": 90.495
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/floors.js",
@@ -2227,6 +2223,10 @@
       "mi": 117.829
     },
     {
+      "path": "lib/migrations/steps/2.63.0-baseline-merge-queue-shape.js",
+      "mi": 89.762
+    },
+    {
       "path": "lib/migrations/steps/strip-removed-agentrc-keys.js",
       "mi": 94.524
     },
@@ -2320,7 +2320,7 @@
     },
     {
       "path": "scripts/lib/baselines/orphan-pruner.js",
-      "mi": 96.982
+      "mi": 98.873
     },
     {
       "path": "scripts/lib/baselines/scope-assert.js",

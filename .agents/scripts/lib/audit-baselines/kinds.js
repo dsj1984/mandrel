@@ -5,7 +5,10 @@
  * @module lib/audit-baselines/kinds
  */
 
+import { KNOWN_KINDS } from '../baselines/envelope.js';
+import { getKindModule } from '../baselines/kernel.js';
 import { GATES_SCHEMA } from '../config/gates/index.js';
+import { rollupOfRows } from './rollup.js';
 
 /** Derived from the schema so a new gate kind arrives automatically. */
 export const GATE_KINDS = Object.freeze(
@@ -203,15 +206,17 @@ export const KIND_SPECS = Object.freeze({
 });
 
 /**
- * The `*` rollup, or `null` (ratchets carry none — a zero-cycle `arch-cycles`
- * is a passing gate, not a stub).
+ * The `*` rollup derived from the rows (the committed file carries none), or
+ * `null` for a kind without rollup arithmetic — a zero-cycle `arch-cycles` is
+ * a passing gate, not a stub.
  *
+ * @param {string} kind
  * @param {object | null} baseline
  * @returns {object | null}
  */
-export function rollupOf(baseline) {
-  const rollup = baseline?.rollup?.['*'];
-  return rollup && typeof rollup === 'object' ? rollup : null;
+export function rollupOf(kind, baseline) {
+  const rows = baseline?.rows;
+  return Array.isArray(rows) ? rollupOfRows(kind, rows) : null;
 }
 
 /**
@@ -231,7 +236,7 @@ export function measuredTotalOf(kind, baseline) {
 }
 
 /**
- * Trend comparison rollup: the declared one, else (ratchets) the measured
+ * Trend comparison rollup: the derived one, else (ratchets) the measured
  * total under its unit, so ratchets appear in `trend[]` too.
  *
  * @param {string} kind
@@ -240,7 +245,7 @@ export function measuredTotalOf(kind, baseline) {
  */
 export function trendRollupOf(kind, baseline) {
   if (!baseline) return null;
-  const declared = rollupOf(baseline);
+  const declared = rollupOf(kind, baseline);
   if (declared) return declared;
   const measured = measuredTotalOf(kind, baseline);
   return measured ? { [measured.unit]: measured.value } : null;

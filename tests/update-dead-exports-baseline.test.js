@@ -3,7 +3,7 @@
  * baseline producer (Story #5011).
  *
  * Every case drives the CLI through its injected hooks — the `--knip-output`
- * seam, an injected knip runner, an injected clock and an injected writer — so
+ * seam, an injected knip runner and an injected writer — so
  * the suite never spawns knip and never touches a committed baseline.
  *
  * The load-bearing cases are the fail-closed ones. `check-dead-exports.js` is
@@ -78,7 +78,7 @@ function makeRepo({ report = KNIP_REPORT } = {}) {
 const sink = { write: () => {} };
 
 /**
- * Drive `runCli` with silenced streams and a pinned clock.
+ * Drive `runCli` with silenced streams.
  *
  * @param {object} opts forwarded to `runCli`
  * @returns {Promise<{ code: number, err: string }>}
@@ -88,7 +88,6 @@ async function run(opts) {
   const code = await runCli({
     stdout: sink,
     stderr: { write: (s) => (err += s) },
-    now: () => '2026-01-01T00:00:00.000Z',
     ...opts,
   });
   return { code, err };
@@ -176,14 +175,8 @@ test('buildEnvelope: default pass carries no mode key', () => {
     kernelVersion: KNIP_VERSION,
     mode: 'default',
     rows: [],
-    generatedAt: 'now',
   });
-  assert.deepEqual(Object.keys(envelope), [
-    '$schema',
-    'kernelVersion',
-    'generatedAt',
-    'rows',
-  ]);
+  assert.deepEqual(Object.keys(envelope), ['$schema', 'kernelVersion', 'rows']);
   assert.equal(envelope.$schema, DEAD_EXPORTS_SCHEMA_REF);
 });
 
@@ -192,7 +185,6 @@ test('buildEnvelope: production pass stamps mode', () => {
     kernelVersion: KNIP_VERSION,
     mode: 'production',
     rows: [],
-    generatedAt: 'now',
   });
   assert.equal(envelope.mode, 'production');
 });
@@ -246,12 +238,7 @@ test('runCli: the default pass writes the envelope the checker reads', async () 
 
   assert.equal(code, 0);
   const written = JSON.parse(fs.readFileSync(defaultBaseline, 'utf-8'));
-  assert.deepEqual(Object.keys(written), [
-    '$schema',
-    'kernelVersion',
-    'generatedAt',
-    'rows',
-  ]);
+  assert.deepEqual(Object.keys(written), ['$schema', 'kernelVersion', 'rows']);
   assert.equal(written.$schema, DEAD_EXPORTS_SCHEMA_REF);
   assert.equal(written.kernelVersion, KNIP_VERSION);
   assert.deepEqual(written.rows, [
@@ -309,21 +296,6 @@ test('runCli: the production pass self-labels and leaves its sibling alone', asy
   assert.deepEqual(fs.readFileSync(defaultBaseline), defaultBefore);
 });
 
-test('runCli: the default clock stamps a real ISO instant', async () => {
-  const { cwd, defaultBaseline, reportPath } = makeRepo();
-
-  const code = await runCli({
-    argv: ['--knip-output', path.relative(cwd, reportPath)],
-    cwd,
-    stdout: sink,
-    stderr: sink,
-  });
-
-  assert.equal(code, 0);
-  const { generatedAt } = JSON.parse(fs.readFileSync(defaultBaseline, 'utf-8'));
-  assert.equal(new Date(generatedAt).toISOString(), generatedAt);
-});
-
 test('runCli: --baseline redirects the write off the mode default', async () => {
   const { cwd, defaultBaseline, reportPath } = makeRepo();
   const before = fs.readFileSync(defaultBaseline);
@@ -343,20 +315,18 @@ test('runCli: --baseline redirects the write off the mode default', async () => 
   assert.deepEqual(fs.readFileSync(defaultBaseline), before);
 });
 
-test('runCli: two runs of the same report differ only in generatedAt', async () => {
+test('runCli: two runs of the same report are byte-identical', async () => {
   const { cwd, defaultBaseline, reportPath } = makeRepo();
   const argv = ['--knip-output', path.relative(cwd, reportPath)];
 
-  await run({ argv, cwd, now: () => '2026-01-01T00:00:00.000Z' });
+  await run({ argv, cwd });
   const first = fs.readFileSync(defaultBaseline, 'utf-8');
-  await run({ argv, cwd, now: () => '2027-02-02T00:00:00.000Z' });
+  await run({ argv, cwd });
   const second = fs.readFileSync(defaultBaseline, 'utf-8');
 
-  assert.notEqual(first, second);
-  assert.equal(
-    first.replace('2026-01-01T00:00:00.000Z', 'STAMP'),
-    second.replace('2027-02-02T00:00:00.000Z', 'STAMP'),
-  );
+  // No run stamp: a re-run on an unchanged tree leaves nothing to review.
+  assert.equal(second, first);
+  assert.doesNotMatch(first, /generatedAt/);
 });
 
 test('runCli: an unreadable saved report exits 1 and writes nothing', async () => {

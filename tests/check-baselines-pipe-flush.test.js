@@ -107,8 +107,6 @@ function setupBulkRepo() {
       {
         $schema: '.agents/schemas/baselines/maintainability.schema.json',
         kernelVersion: currentKernelVersion('maintainability'),
-        generatedAt: '2026-01-01T00:00:00.000Z',
-        rollup: { '*': { min: 80, p50: 90, p95: 100 } },
         rows,
       },
       null,

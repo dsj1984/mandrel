@@ -11,15 +11,11 @@
 //
 // ## Measurement-free by contract
 //
-// Three prohibitions, each guarding a way the file could start lying:
+// Two prohibitions, each guarding a way the file could start lying:
 //
 //   1. **Never add a row.** Adding one means claiming a measurement nobody
 //      took. Producing rows stays the producers' exclusive job.
-//   2. **Never restamp `generatedAt`.** A fresh stamp over rows nobody
-//      re-measured is precisely the failure an age check exists to catch — the
-//      envelope would claim to describe today's tree on the strength of a
-//      deletion. The pruner carries the original stamp through untouched.
-//   3. **Never delete a row it cannot prove inert.** Only two classes qualify:
+//   2. **Never delete a row it cannot prove inert.** Only two classes qualify:
 //      the file is absent from disk, or the file is no longer matched by the
 //      gate's own `targetDirs` / `ignoreGlobs`. Everything else survives.
 //
@@ -35,7 +31,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { getKindModule } from '../../../.agents/scripts/lib/baselines/kernel.js';
 import { _internals as readerInternals } from '../../../.agents/scripts/lib/baselines/reader.js';
 import { writeFile } from '../../../.agents/scripts/lib/baselines/writer.js';
 import { EXTRA_REASONS } from './scope-assert.js';
@@ -84,18 +79,10 @@ export function planPrune({ rows, inScope, existsOnDisk } = {}) {
 }
 
 /**
- * Prune one parsed envelope and recompute its `rollup` through the kind's own
- * arithmetic (`kinds/<kind>.js#rollup`), so the pruned file stays internally
- * consistent and still validates against its schema. Recomputing by a private
- * formula here would let the rollup and the rows describe different trees.
- *
- * A rollup carrying component buckets beyond `*` is refused rather than
- * recomputed: the component globs that produced those buckets live in gate
- * config this module is not handed, and emitting a `*`-only rollup would
- * silently delete them.
+ * Prune one parsed envelope. Only `rows` changes: the committed shape carries
+ * no rollup to recompute, so readers derive the aggregate from what is left.
  *
  * @param {{
- *   kind: string,
  *   envelope: object,
  *   inventory: { files: string[] | null },
  *   existsOnDisk?: (relPath: string) => boolean,
@@ -103,45 +90,17 @@ export function planPrune({ rows, inScope, existsOnDisk } = {}) {
  * @returns {{
  *   envelope: object | null,
  *   removed: Array<{ path: string, reason: string }>,
- *   skipped: boolean,
- *   reason: string | null,
  * }}
  */
-export function pruneEnvelope({
-  kind,
-  envelope,
-  inventory,
-  existsOnDisk,
-} = {}) {
-  const rollupKeys = Object.keys(envelope?.rollup ?? {});
-  if (rollupKeys.some((key) => key !== '*')) {
-    return {
-      envelope: null,
-      removed: [],
-      skipped: true,
-      reason: `rollup carries component buckets (${rollupKeys.join(', ')}); prune them with the producer`,
-    };
-  }
+export function pruneEnvelope({ envelope, inventory, existsOnDisk } = {}) {
   const inScope = inventory?.files === null ? null : new Set(inventory.files);
   const { keep, removed } = planPrune({
     rows: envelope?.rows ?? [],
     inScope,
     existsOnDisk: existsOnDisk ?? (() => true),
   });
-  if (removed.length === 0) {
-    return { envelope: null, removed: [], skipped: false, reason: null };
-  }
-  return {
-    envelope: {
-      ...envelope,
-      // `generatedAt` is carried by the spread, deliberately unmodified.
-      rollup: getKindModule(kind).rollup(keep, []),
-      rows: keep,
-    },
-    removed,
-    skipped: false,
-    reason: null,
-  };
+  if (removed.length === 0) return { envelope: null, removed: [] };
+  return { envelope: { ...envelope, rows: keep }, removed };
 }
 
 /**
@@ -179,7 +138,6 @@ function pruneKind({ kind, cwd, quality, check, fsImpl, requireFn }) {
   }
   const inventory = buildScopeInventory({ kind, cwd, quality, requireFn });
   const result = pruneEnvelope({
-    kind,
     envelope,
     inventory,
     existsOnDisk: (rel) => fsImpl.existsSync(path.resolve(cwd, rel)),
@@ -190,8 +148,6 @@ function pruneKind({ kind, cwd, quality, check, fsImpl, requireFn }) {
     present: true,
     degraded: inventory.degraded,
     degradedReason: inventory.degraded ? inventory.reason : null,
-    skipped: result.skipped,
-    skipReason: result.reason,
     removed: result.removed,
     written: false,
   };

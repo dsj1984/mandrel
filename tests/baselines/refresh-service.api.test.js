@@ -16,11 +16,9 @@ import { afterEach, beforeEach, describe, it, mock } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 
-const FIXED = '2026-05-15T00:00:00Z';
-
 /**
  * Pinned transpiler stamp — the environment half of the crap envelope,
- * fixed for the same reason `FIXED` pins `generatedAt`.
+ * fixed so the envelope does not vary with the installed compiler.
  *
  * `kinds/crap.js#envelopeExtras` stamps every crap envelope with
  * `resolveTsTranspilerVersion()`, which `require()`s the whole TypeScript
@@ -176,7 +174,6 @@ describe('refreshBaseline — option-bag validation', () => {
       writePath,
       fullScope: true,
       cwd: FIXTURE_ROOT,
-      generatedAt: FIXED,
     });
     assert.equal(result.kind, 'maintainability');
     assert.equal(result.scope.mode, 'full');
@@ -221,7 +218,6 @@ describe('refreshBaseline — per-kind dispatch (Task #2203)', () => {
       kind: 'maintainability',
       writePath,
       fullScope: true,
-      generatedAt: FIXED,
       scorer: makeStaticScorer([
         { path: 'src/a.js', mi: 80 },
         { path: 'src/b.js', mi: 90 },
@@ -247,7 +243,6 @@ describe('refreshBaseline — per-kind dispatch (Task #2203)', () => {
       kind: 'crap',
       writePath,
       fullScope: true,
-      generatedAt: FIXED,
       scorer: makeStaticScorer([
         { path: 'src/a.js', method: 'fn', startLine: 1, crap: 5 },
       ]),
@@ -264,7 +259,6 @@ describe('refreshBaseline — per-kind dispatch (Task #2203)', () => {
       kind: 'coverage',
       writePath,
       fullScope: true,
-      generatedAt: FIXED,
       scorer: makeStaticScorer([
         { path: 'src/a.js', lines: 90, branches: 80, functions: 100 },
       ]),
@@ -299,7 +293,6 @@ describe('refreshBaseline — path canonicalization (AC-7)', () => {
       kind: 'maintainability',
       writePath,
       fullScope: true,
-      generatedAt: FIXED,
       scorer: makeStaticScorer([
         { path: 'src\\windows.js', mi: 70 },
         { path: './src/dotrel.js', mi: 75 },

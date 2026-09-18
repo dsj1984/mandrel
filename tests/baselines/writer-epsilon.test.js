@@ -15,8 +15,6 @@ import { describe, it } from 'node:test';
 
 import { write } from '../../.agents/scripts/lib/baselines/writer.js';
 
-const FIXED = '2026-05-15T00:00:00Z';
-
 const PRIOR_MI_ROWS = [
   { path: 'src/a.js', mi: 72 },
   { path: 'src/b.js', mi: 88 },
@@ -33,7 +31,6 @@ describe('writer.write — epsilon parameter (Story #1964)', () => {
     const env = write({
       kind: 'maintainability',
       rows: regen,
-      generatedAt: FIXED,
     });
     // Without epsilon, the writer must NOT consult prior — the regenerated
     // rows land verbatim (modulo projection + sort).
@@ -51,7 +48,6 @@ describe('writer.write — epsilon parameter (Story #1964)', () => {
       rows: regen,
       prior: PRIOR_MI_ROWS,
       epsilon: 0.5,
-      generatedAt: FIXED,
     });
     // Every row's delta is within epsilon, so the writer must fold each
     // back to its prior bytes — the on-disk envelope is byte-stable.
@@ -68,7 +64,6 @@ describe('writer.write — epsilon parameter (Story #1964)', () => {
       rows: regen,
       prior: PRIOR_MI_ROWS,
       epsilon: 0.5,
-      generatedAt: FIXED,
     });
     const byPath = Object.fromEntries(env.rows.map((r) => [r.path, r.mi]));
     // src/a.js shifted by 2.0 (over epsilon) — regenerated wins.
@@ -88,7 +83,6 @@ describe('writer.write — epsilon parameter (Story #1964)', () => {
       rows: regen,
       prior: PRIOR_MI_ROWS,
       epsilon: 0.5,
-      generatedAt: FIXED,
     });
     const byPath = Object.fromEntries(env.rows.map((r) => [r.path, r.mi]));
     assert.equal(byPath['src/new.js'], 95);
@@ -104,7 +98,6 @@ describe('writer.write — epsilon parameter (Story #1964)', () => {
           rows: PRIOR_MI_ROWS,
           prior: PRIOR_MI_ROWS,
           epsilon: 'oops',
-          generatedAt: FIXED,
         }),
       /epsilon must be a non-negative finite number/,
     );
@@ -118,7 +111,6 @@ describe('writer.write — epsilon parameter (Story #1964)', () => {
           rows: PRIOR_MI_ROWS,
           prior: PRIOR_MI_ROWS,
           epsilon: -0.1,
-          generatedAt: FIXED,
         }),
       /epsilon must be a non-negative finite number/,
     );
@@ -132,7 +124,6 @@ describe('writer.write — epsilon parameter (Story #1964)', () => {
           rows: PRIOR_MI_ROWS,
           prior: 'not-an-array',
           epsilon: 0.5,
-          generatedAt: FIXED,
         }),
       /prior must be an array/,
     );
@@ -144,7 +135,6 @@ describe('writer.write — epsilon parameter (Story #1964)', () => {
       kind: 'maintainability',
       rows: regen,
       prior: PRIOR_MI_ROWS,
-      generatedAt: FIXED,
     });
     const byPath = Object.fromEntries(env.rows.map((r) => [r.path, r.mi]));
     assert.equal(byPath['src/a.js'], 72.3);
@@ -162,7 +152,6 @@ describe('writer.write — epsilon parameter (Story #1964)', () => {
       rows: regen,
       prior,
       epsilon: 0.1,
-      generatedAt: FIXED,
     });
     assert.deepEqual(env.rows, prior);
   });

@@ -15,8 +15,8 @@
 // Invariants pinned here:
 //   - The identical downward baseline change WITHOUT such a commit still
 //     exits 4 (EXIT_REGRESSION).
-//   - Floors never relax under acknowledgment: a rollup below the `min` floor
-//     still breaches (exit 1) under either trigger.
+//   - Floors never relax under acknowledgment: a rows-derived rollup below
+//     the `min` floor still breaches (exit 1) under either trigger.
 //   - The acknowledgment names itself on the gate report (`acknowledged:true`).
 
 import assert from 'node:assert/strict';
@@ -38,12 +38,10 @@ function writeJson(p, value) {
   writeFileSync(p, JSON.stringify(value, null, 2));
 }
 
-function miEnvelope({ rows, rollup } = {}) {
+function miEnvelope({ rows } = {}) {
   return {
     $schema: 'maintainability.schema.json',
     kernelVersion: currentKernelVersion('maintainability'),
-    generatedAt: '2026-01-01T00:00:00.000Z',
-    rollup: rollup ?? { '*': { min: 80, p50: 90, p95: 100 } },
     rows: rows ?? [],
   };
 }
@@ -136,11 +134,10 @@ describe('check-baselines — maintainability refresh acknowledgment (#4731)', (
   // AC-1 — a tagged range commit touching the baseline acknowledges.
   it('acknowledges a downward change when a tagged range commit touches the baseline (exit 0)', async () => {
     root = setupTmpRepo();
-    // Head: floor-clean rollup (min 80 ≥ 70), row regressed vs base.
+    // Head: floor-clean derived rollup (min 80 ≥ 70), row regressed vs base.
     writeJson(
       path.join(root, 'baselines', 'maintainability.json'),
       miEnvelope({
-        rollup: { '*': { min: 80, p50: 90, p95: 100 } },
         rows: [{ path: 'src/a.js', mi: 80 }],
       }),
     );
@@ -168,7 +165,6 @@ describe('check-baselines — maintainability refresh acknowledgment (#4731)', (
     writeJson(
       path.join(root, 'baselines', 'maintainability.json'),
       miEnvelope({
-        rollup: { '*': { min: 80, p50: 90, p95: 100 } },
         rows: [{ path: 'src/a.js', mi: 80 }],
       }),
     );
@@ -194,7 +190,6 @@ describe('check-baselines — maintainability refresh acknowledgment (#4731)', (
     writeJson(
       path.join(root, 'baselines', 'maintainability.json'),
       miEnvelope({
-        rollup: { '*': { min: 80, p50: 90, p95: 100 } },
         rows: [{ path: 'src/a.js', mi: 80 }],
       }),
     );
@@ -216,11 +211,10 @@ describe('check-baselines — maintainability refresh acknowledgment (#4731)', (
   // AC-2 — a floor breach still fails under either acknowledgment path.
   it('floor breach still fails under the commit-tag acknowledgment (exit 1)', async () => {
     root = setupTmpRepo();
-    // Head: rollup below the min-70 floor AND a regression vs base.
+    // Head: derived rollup below the min-70 floor AND a regression vs base.
     writeJson(
       path.join(root, 'baselines', 'maintainability.json'),
       miEnvelope({
-        rollup: { '*': { min: 50, p50: 90, p95: 100 } },
         rows: [{ path: 'src/a.js', mi: 50 }],
       }),
     );
@@ -247,7 +241,6 @@ describe('check-baselines — maintainability refresh acknowledgment (#4731)', (
     writeJson(
       path.join(root, 'baselines', 'maintainability.json'),
       miEnvelope({
-        rollup: { '*': { min: 50, p50: 90, p95: 100 } },
         rows: [{ path: 'src/a.js', mi: 50 }],
       }),
     );

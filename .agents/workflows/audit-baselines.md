@@ -114,7 +114,8 @@ Two envelope-level reads come **before** any finding:
    gate **High** (delivery reads that file every run), a dead glob **Low**.
 
 2. **Staleness.** Two clocks. `staleDays` is whole days since the baseline's
-   own `generatedAt`; `staleCommits` is commits touching the measured surface
+   own stamp where it carries one, else its last-commit date (row-set
+   baselines carry no stamp); `staleCommits` is commits touching the measured surface
    since the baseline was last committed, with `surfaceStale` its boolean. A
    `null` on either is never a fabricated zero — the stamp is unreadable, git
    cannot answer, or the rows are not file paths — and is itself the finding.

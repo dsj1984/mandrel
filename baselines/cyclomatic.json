@@ -1,14 +1,6 @@
 {
   "$schema": "https://mandrel.dev/baselines/cyclomatic.schema.json",
-  "generatedAt": "2026-09-18T15:56:00.369Z",
   "ceiling": 12,
-  "rollup": {
-    "*": {
-      "filesAboveCeiling": 39,
-      "methodsAboveCeiling": 41,
-      "maxCyclomatic": 20
-    }
-  },
   "rows": [
     {
       "file": ".agents/scripts/bootstrap.js",
@@ -49,11 +41,6 @@
       "file": ".agents/scripts/lib/baselines/env-overrides.js",
       "methodsAboveCeiling": 1,
       "maxCyclomatic": 15
-    },
-    {
-      "file": ".agents/scripts/lib/baselines/writer.js",
-      "methodsAboveCeiling": 1,
-      "maxCyclomatic": 13
     },
     {
       "file": ".agents/scripts/lib/bdd-scenario-scanner.js",

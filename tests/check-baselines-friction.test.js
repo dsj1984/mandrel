@@ -32,24 +32,18 @@ function writeJson(p, value) {
   writeFileSync(p, JSON.stringify(value, null, 2));
 }
 
-function coverageEnvelope({ rollup, rows, kernelVersion } = {}) {
+function coverageEnvelope({ rows, kernelVersion } = {}) {
   return {
     $schema: 'coverage.schema.json',
     kernelVersion: kernelVersion ?? currentKernelVersion('coverage'),
-    generatedAt: '2026-01-01T00:00:00.000Z',
-    rollup: rollup ?? { '*': { lines: 95, branches: 92, functions: 95 } },
     rows: rows ?? [],
   };
 }
 
-function mutationEnvelope({ rollup, rows, kernelVersion } = {}) {
+function mutationEnvelope({ rows, kernelVersion } = {}) {
   return {
     $schema: 'mutation.schema.json',
     kernelVersion: kernelVersion ?? currentKernelVersion('mutation'),
-    generatedAt: '2026-01-01T00:00:00.000Z',
-    rollup: rollup ?? {
-      '*': { score: 90, killed: 9, survived: 1, noCoverage: 0 },
-    },
     rows: rows ?? [],
   };
 }
@@ -108,7 +102,6 @@ describe('check-baselines — friction emission (Task #1976)', () => {
     writeJson(
       path.join(root, 'baselines', 'coverage.json'),
       coverageEnvelope({
-        rollup: { '*': { lines: 95, branches: 92, functions: 95 } },
         rows: [{ path: 'src/a.js', lines: 70, branches: 60, functions: 70 }],
       }),
     );
@@ -225,10 +218,11 @@ describe('check-baselines — friction emission (Task #1976)', () => {
 
   it('--no-friction suppresses every emission', async () => {
     root = setupTmpRepo();
+    // Derived rollup 50/50/50 breaches the coverage floors.
     writeJson(
       path.join(root, 'baselines', 'coverage.json'),
       coverageEnvelope({
-        rollup: { '*': { lines: 50, branches: 50, functions: 50 } },
+        rows: [{ path: 'src/a.js', lines: 50, branches: 50, functions: 50 }],
       }),
     );
     writeJson(

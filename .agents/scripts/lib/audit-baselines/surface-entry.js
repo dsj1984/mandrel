@@ -68,7 +68,7 @@ export function surfaceEntryFor({
   const gateBlock = quality?.gates?.[kind] ?? null;
   const { exists, parsed: baseline, parseError } = read;
   const rows = baseline ? KIND_SPECS[kind].rows(baseline) : [];
-  const rollup = rollupOf(baseline);
+  const rollup = rollupOf(kind, baseline);
   return {
     kind,
     surface: GATE_KINDS.includes(kind) ? 'gate' : 'ratchet',

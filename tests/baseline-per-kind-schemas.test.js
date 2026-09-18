@@ -13,7 +13,9 @@ import addFormats from 'ajv-formats';
 // lighthouse, bundle-size) MUST:
 //   1. extend baseline-envelope.schema.json via allOf,
 //   2. accept its canonical envelope shape, and
-//   3. reject an envelope whose rollup shape does not match its row shape.
+//   3. reject the retired `generatedAt` and `rollup` keys (Story #5400): both
+//      were rewritten on every refresh, so disjoint refreshes always
+//      conflicted textually; readers derive the rollup from rows[].
 // ---------------------------------------------------------------------------
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -50,50 +52,31 @@ const CANONICAL_FIXTURES = {
   'coverage.schema.json': {
     $schema: '.agents/schemas/baselines/coverage.schema.json',
     kernelVersion: '1.0.0',
-    generatedAt: '2026-05-15T00:00:00Z',
-    rollup: { '*': { lines: 90, branches: 85, functions: 88 } },
     rows: [{ path: 'src/a.js', lines: 91, branches: 80, functions: 100 }],
   },
   'crap.schema.json': {
     $schema: '.agents/schemas/baselines/crap.schema.json',
     kernelVersion: '1.1.0',
-    generatedAt: '2026-05-15T00:00:00Z',
-    rollup: { '*': { p50: 1.5, p95: 12, max: 25, methodsAbove20: 2 } },
     rows: [{ path: 'src/a.js', method: 'foo', startLine: 10, crap: 4.2 }],
   },
   'maintainability.schema.json': {
     $schema: '.agents/schemas/baselines/maintainability.schema.json',
     kernelVersion: '1.0.0',
-    generatedAt: '2026-05-15T00:00:00Z',
-    rollup: { '*': { min: 55, p50: 72, p95: 85 } },
     rows: [{ path: 'src/a.js', mi: 72 }],
   },
   'mutation.schema.json': {
     $schema: '.agents/schemas/baselines/mutation.schema.json',
     kernelVersion: '1.0.0',
-    generatedAt: '2026-05-15T00:00:00Z',
-    rollup: { '*': { score: 75, killed: 30, survived: 10, noCoverage: 2 } },
     rows: [{ path: 'src/a.js', score: 80, killed: 8, survived: 2 }],
   },
   'bundle-size.schema.json': {
     $schema: '.agents/schemas/baselines/bundle-size.schema.json',
     kernelVersion: '1.0.0',
-    generatedAt: '2026-05-15T00:00:00Z',
-    rollup: { '*': { totalKb: 250, gzippedKb: 80 } },
     rows: [{ bundle: 'main', rawKb: 250, gzippedKb: 80 }],
   },
   'duplication.schema.json': {
     $schema: '.agents/schemas/baselines/duplication.schema.json',
     kernelVersion: '1.0.0',
-    generatedAt: '2026-05-15T00:00:00Z',
-    rollup: {
-      '*': {
-        percentage: 10.5,
-        duplicatedLines: 21,
-        totalLines: 200,
-        filesWithDuplication: 1,
-      },
-    },
     rows: [
       {
         path: 'src/a.js',
@@ -105,10 +88,11 @@ const CANONICAL_FIXTURES = {
   },
 };
 
-// Cross-kind rollup-shape used to prove each schema rejects a rollup whose
-// keys do not match its own row shape. Picked so it never matches any of
-// the six kinds' rollup contracts.
-const MISMATCHED_ROLLUP = { '*': { mystery: 1, totallyUnknown: 'no' } };
+// Retired top-level keys every per-kind schema must now reject.
+const RETIRED_KEYS = {
+  generatedAt: '2026-05-15T00:00:00Z',
+  rollup: { '*': {} },
+};
 
 describe('per-kind baseline schemas (Story #1888)', () => {
   it('exposes all six schema files plus the envelope on disk', () => {
@@ -148,20 +132,29 @@ describe('per-kind baseline schemas (Story #1888)', () => {
         );
       });
 
-      it('rejects an envelope whose rollup keys do not match its row shape', () => {
-        const ajv = buildAjv();
-        const validate = ajv.compile(schema);
-        const envelopeWithBadRollup = {
-          ...CANONICAL_FIXTURES[filename],
-          rollup: MISMATCHED_ROLLUP,
-        };
-        const ok = validate(envelopeWithBadRollup);
-        assert.equal(
-          ok,
-          false,
-          `${filename} should reject a mismatched rollup shape, but accepted it`,
-        );
-      });
+      for (const [key, value] of Object.entries(RETIRED_KEYS)) {
+        it(`rejects an envelope carrying the retired "${key}" key`, () => {
+          const ajv = buildAjv();
+          const validate = ajv.compile(schema);
+          const ok = validate({
+            ...CANONICAL_FIXTURES[filename],
+            [key]: value,
+          });
+          assert.equal(
+            ok,
+            false,
+            `${filename} should reject a "${key}" key, but accepted it`,
+          );
+          assert.ok(
+            validate.errors.some(
+              (e) =>
+                e.keyword === 'additionalProperties' &&
+                e.params.additionalProperty === key,
+            ),
+            `${filename} rejected for the wrong reason: ${JSON.stringify(validate.errors)}`,
+          );
+        });
+      }
     });
   }
 });

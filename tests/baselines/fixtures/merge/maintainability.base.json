@@ -1,14 +1,6 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-05T09:14:02.118Z",
-  "rollup": {
-    "*": {
-      "min": 58.42,
-      "p50": 71.244,
-      "p95": 80.311
-    }
-  },
   "rows": [
     {
       "path": "news/blocks/canvas-model.ts",

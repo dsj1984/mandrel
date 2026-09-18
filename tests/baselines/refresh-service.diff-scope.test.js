@@ -26,8 +26,6 @@ import {
 } from '../../.agents/scripts/lib/baselines/refresh-service.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 
-const FIXED = '2026-05-15T00:00:00Z';
-
 function makeRecordingGitDiff(filesByRange) {
   const calls = [];
   const fn = async ({ baseRef, headRef, cwd }) => {
@@ -79,7 +77,6 @@ describe('refreshBaseline — diff-scope default (Task #2207)', () => {
       headRef: 'HEAD',
       scopeFiles: null,
       fullScope: false,
-      generatedAt: FIXED,
       gitDiff,
       scorer,
     });
@@ -107,7 +104,6 @@ describe('refreshBaseline — diff-scope default (Task #2207)', () => {
       kind: 'maintainability',
       writePath,
       fullScope: true,
-      generatedAt: FIXED,
       gitDiff,
       scorer,
     });
@@ -137,7 +133,6 @@ describe('refreshBaseline — diff-scope default (Task #2207)', () => {
       kind: 'maintainability',
       writePath,
       scopeFiles: explicit,
-      generatedAt: FIXED,
       gitDiff,
       scorer,
     });
@@ -174,7 +169,6 @@ describe('refreshBaseline — diff-scope default (Task #2207)', () => {
       fullScope: false,
       baseRef: 'origin/main',
       headRef: 'HEAD',
-      generatedAt: FIXED,
       gitDiff,
       scorer: makeRecordingScorer([]),
     });
@@ -201,7 +195,6 @@ describe('refreshBaseline — diff-scope default (Task #2207)', () => {
         writePath: path.join(workDir, `${kind}.json`),
         scopeFiles: null,
         fullScope: false,
-        generatedAt: FIXED,
         gitDiff: makeRecordingGitDiff([newFile]),
         scorer: makeRecordingScorer(rows),
         requireRowsForScopeFiles: true,
@@ -227,7 +220,6 @@ describe('refreshBaseline — diff-scope default (Task #2207)', () => {
           writePath: path.join(workDir, 'maintainability-missing.json'),
           scopeFiles: null,
           fullScope: false,
-          generatedAt: FIXED,
           gitDiff: makeRecordingGitDiff([newFile]),
           scorer: makeRecordingScorer([]),
           requireRowsForScopeFiles: true,

@@ -163,29 +163,17 @@ export function diffCyclomaticRows(baselineRows, currentRows) {
 }
 
 /**
- * @param {{ rows: Array<object>, ceiling: number, generatedAt?: string }} args
+ * No stamp and no rollup: both would rewrite on every refresh and conflict
+ * textually wherever the merge driver does not run.
+ *
+ * @param {{ rows: Array<object>, ceiling: number }} args
  * @returns {object}
  */
-export function buildCyclomaticEnvelope({ rows, ceiling, generatedAt }) {
-  const safeRows = rows ?? [];
-  let methods = 0;
-  let max = 0;
-  for (const row of safeRows) {
-    methods += Number(row.methodsAboveCeiling ?? 0);
-    if (Number(row.maxCyclomatic ?? 0) > max) max = Number(row.maxCyclomatic);
-  }
+export function buildCyclomaticEnvelope({ rows, ceiling }) {
   return {
     $schema: CYCLOMATIC_BASELINE_SCHEMA,
-    generatedAt: generatedAt ?? new Date().toISOString(),
     ceiling,
-    rollup: {
-      '*': {
-        filesAboveCeiling: safeRows.length,
-        methodsAboveCeiling: methods,
-        maxCyclomatic: max,
-      },
-    },
-    rows: safeRows,
+    rows: rows ?? [],
   };
 }
 

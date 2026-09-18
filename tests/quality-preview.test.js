@@ -702,13 +702,11 @@ function makeCrapFixture({
     JSON.stringify({
       $schema: '.agents/schemas/baselines/crap.schema.json',
       kernelVersion: '0.1.0',
-      generatedAt: new Date().toISOString(),
       scoringSemantics:
         scoringSemantics === undefined
           ? envelopeExtras().scoringSemantics
           : scoringSemantics,
       ...(provenanceStamped === undefined ? {} : { provenanceStamped }),
-      rollup: { '*': { p50: 1, p95: 1, max: 1, methodsAbove20: 0 } },
       rows: baselineRows,
     }),
   );

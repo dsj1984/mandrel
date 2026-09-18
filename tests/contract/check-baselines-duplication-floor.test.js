@@ -9,10 +9,10 @@
 // Regenerating the baseline fixes the staleness, but "the baseline is fresh"
 // is not the same claim as "the gate can fail". This test makes the second
 // claim checkable: it spawns the real dispatcher against a synthetic repo
-// whose duplication rollup breaches the configured floor, and asserts the
-// non-zero exit and the named breach. It deliberately does NOT assert the
-// production floor value — that number is a tuning decision and this test
-// must not have to move every time it is tightened.
+// whose rows-derived duplication rollup breaches the configured floor, and
+// asserts the non-zero exit and the named breach. It deliberately does NOT
+// assert the production floor value — that number is a tuning decision and
+// this test must not have to move every time it is tightened.
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -63,25 +63,19 @@ function runGit(args, cwd) {
   return res.stdout;
 }
 
+// The reader derives the rollup `percentage` from the rows' line counts
+// (`duplicatedLines / totalLines`), so the counts are chosen to reproduce
+// `percentage` exactly to two decimals.
 function duplicationEnvelope(percentage) {
   return {
     $schema: '.agents/schemas/baselines/duplication.schema.json',
     kernelVersion: currentKernelVersion('duplication'),
-    generatedAt: '2026-01-01T00:00:00.000Z',
-    rollup: {
-      '*': {
-        percentage,
-        duplicatedLines: Math.round(percentage * 10),
-        totalLines: 1000,
-        filesWithDuplication: 1,
-      },
-    },
     rows: [
       {
         path: 'src/a.js',
         percentage,
-        duplicatedLines: Math.round(percentage * 10),
-        totalLines: 1000,
+        duplicatedLines: Math.round(percentage * 100),
+        totalLines: 10000,
       },
     ],
   };

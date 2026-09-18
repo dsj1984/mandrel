@@ -15,8 +15,9 @@
 *.zip binary
 *.gz binary
 
-# Baselines merge by ROW IDENTITY, not by line (Story #5215). Without this the
-# `generatedAt` stamp on line 4 makes every concurrent refresh conflict, and
-# where git can separate the hunks it splices rows neither side scored.
+# Baselines merge by ROW IDENTITY, not by line (Story #5215). Disjoint,
+# non-adjacent row edits also merge as text (Story #5400: no stamp, no rollup),
+# which is all GitHub can do; locally this driver also resolves adjacent rows
+# and never splices rows neither side scored.
 # The driver command itself is per-clone git config — `mandrel doctor` checks it.
 baselines/*.json merge=mandrel-baseline

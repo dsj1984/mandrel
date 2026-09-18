@@ -28,8 +28,6 @@ import { describe, it } from 'node:test';
 
 import { write } from '../../.agents/scripts/lib/baselines/writer.js';
 
-const FIXED = '2026-05-15T00:00:00Z';
-
 const PRIOR_MI_ROWS = [
   { path: 'src/a.js', mi: 70 },
   { path: 'src/b.js', mi: 80 },
@@ -48,7 +46,6 @@ describe('writer.write — scope parameter (Story #1974)', () => {
       rows: regen,
       prior: PRIOR_MI_ROWS,
       scope: { mode: 'diff', files: new Set(['src/a.js']) },
-      generatedAt: FIXED,
     });
     const byPath = Object.fromEntries(env.rows.map((r) => [r.path, r.mi]));
     assert.equal(byPath['src/a.js'], 90, 'in-scope row should be regenerated');
@@ -74,7 +71,6 @@ describe('writer.write — scope parameter (Story #1974)', () => {
       kind: 'maintainability',
       rows: regen,
       prior: PRIOR_MI_ROWS,
-      generatedAt: FIXED,
     });
     const byPath = Object.fromEntries(env.rows.map((r) => [r.path, r.mi]));
     // Without scope, prior is irrelevant for merge — regen wins everywhere.
@@ -93,7 +89,6 @@ describe('writer.write — scope parameter (Story #1974)', () => {
       rows: regen,
       prior: PRIOR_MI_ROWS,
       scope: { mode: 'full', files: new Set() },
-      generatedAt: FIXED,
     });
     const byPath = Object.fromEntries(env.rows.map((r) => [r.path, r.mi]));
     assert.equal(byPath['src/a.js'], 90);
@@ -124,14 +119,12 @@ describe('writer.write — scope parameter (Story #1974)', () => {
       rows: storyARegen,
       prior: PRIOR_MI_ROWS,
       scope: { mode: 'diff', files: new Set(['src/a.js']) },
-      generatedAt: FIXED,
     });
     const envB = write({
       kind: 'maintainability',
       rows: storyBRegen,
       prior: PRIOR_MI_ROWS,
       scope: { mode: 'diff', files: new Set(['src/b.js']) },
-      generatedAt: FIXED,
     });
 
     const aByPath = Object.fromEntries(envA.rows.map((r) => [r.path, r.mi]));
@@ -185,7 +178,6 @@ describe('writer.write — scope parameter (Story #1974)', () => {
       prior: PRIOR_MI_ROWS,
       scope: { mode: 'diff', files: new Set(['src/a.js']) },
       epsilon: 0.5,
-      generatedAt: FIXED,
     });
     const byPath = Object.fromEntries(env.rows.map((r) => [r.path, r.mi]));
     // src/a.js: in-scope, sub-epsilon → prior bytes (mi=70).
@@ -203,7 +195,6 @@ describe('writer.write — scope parameter (Story #1974)', () => {
       rows: regen,
       prior: PRIOR_MI_ROWS,
       scope: null,
-      generatedAt: FIXED,
     });
     const byPath = Object.fromEntries(env.rows.map((r) => [r.path, r.mi]));
     assert.equal(byPath['src/a.js'], 90);

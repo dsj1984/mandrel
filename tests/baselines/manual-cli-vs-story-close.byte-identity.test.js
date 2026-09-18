@@ -2,8 +2,8 @@
  * manual-cli-vs-story-close.byte-identity.test.js — Story #2202 / Task #2212.
  *
  * Acceptance (AC-3, Epic #2173):
- *   - For the same input scope (same source files, same prior baseline,
- *     same pinned `generatedAt`), the on-disk envelope produced by the
+ *   - For the same input scope (same source files, same prior baseline),
+ *     the on-disk envelope produced by the
  *     manual `update-maintainability-baseline.js` CLI is **byte-identical**
  *     to the envelope that story-close's auto-refresh path emits.
  *
@@ -41,8 +41,6 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import { refreshBaseline } from '../../.agents/scripts/lib/baselines/refresh-service.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
-
-const FIXED_GENERATED_AT = '2026-05-15T00:00:00Z';
 
 // Helper: report the first byte where two Buffers diverge plus a short
 // context window from each side. Drives the AC2 failure-mode claim.
@@ -82,7 +80,7 @@ function assertBuffersEqual(actual, expected, label = 'envelope') {
 
 // Deterministic synthetic scorer. The byte-identity claim only depends on
 // the service's envelope-assembly logic being a pure function of (rows,
-// prior, scope, epsilon, generatedAt). A static row table is enough — we
+// prior, scope, epsilon). A static row table is enough — we
 // do NOT need a real escomplex run here, which would introduce its own
 // determinism caveats (worker pool ordering, TS transpiler version, etc.)
 // and obscure the byte-level contract this test is meant to lock down.
@@ -120,8 +118,6 @@ describe('manual CLI vs story-close — byte-identity (AC-3, Task #2212)', () =>
     const priorEnvelope = {
       $schema: '.agents/schemas/baselines/maintainability.schema.json',
       kernelVersion: '0.0.0-test',
-      generatedAt: FIXED_GENERATED_AT,
-      rollup: { '*': { min: 0, p50: 0, p95: 0 } },
       rows: [
         { path: 'src/alpha.js', mi: 50 },
         { path: 'src/delta.js', mi: 99 },
@@ -149,7 +145,6 @@ describe('manual CLI vs story-close — byte-identity (AC-3, Task #2212)', () =>
       scorer: makeStaticScorer(),
       gitDiff,
       cwd: workDir,
-      generatedAt: FIXED_GENERATED_AT,
     });
 
     // Story-close path: same scope, but presented as an explicit
@@ -162,7 +157,6 @@ describe('manual CLI vs story-close — byte-identity (AC-3, Task #2212)', () =>
       scopeFiles: ['src/alpha.js', 'src/beta.ts', 'src/gamma.tsx'],
       scorer: makeStaticScorer(),
       cwd: workDir,
-      generatedAt: FIXED_GENERATED_AT,
     });
 
     // Both refreshes must have actually written (priors differ from the
@@ -192,14 +186,12 @@ describe('manual CLI vs story-close — byte-identity (AC-3, Task #2212)', () =>
       writePath: aPath,
       fullScope: true,
       scorer: scorerA,
-      generatedAt: FIXED_GENERATED_AT,
     });
     await refreshBaseline({
       kind: 'maintainability',
       writePath: bPath,
       fullScope: true,
       scorer: scorerB,
-      generatedAt: FIXED_GENERATED_AT,
     });
 
     const aBytes = readFileSync(aPath);

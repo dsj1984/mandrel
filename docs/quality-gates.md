@@ -722,11 +722,9 @@ node scripts/prune-baseline-orphans.js --check     # report only, exit 1
 It removes exactly two provably-inert row classes across every file-keyed
 baseline — a row whose file is **absent** from disk, and a row for a file now
 **out-of-scope** under the gate's own `targetDirs`/`ignoreGlobs` — and it is
-**measurement-free by contract**: it never adds a row, never restamps
-`generatedAt` (a fresh stamp over rows nobody re-measured is the precise
-failure an age check exists to catch), and recomputes `rollup` through the
-kind's own arithmetic so the pruned envelope still validates against its
-schema. An unreadable scope config degrades to orphan-only pruning rather than
+**measurement-free by contract**: it never adds a row and never re-scores
+one; it only drops rows, and readers derive the rollup from what remains. An
+unreadable scope config degrades to orphan-only pruning rather than
 reading unknown scope as empty scope, which would hand it the whole baseline.
 
 A **missing** row is the one thing the pruner will not fix: a file added
@@ -850,10 +848,6 @@ top-level envelope:
 {
   "$schema": ".agents/schemas/baselines/<kind>.schema.json",
   "kernelVersion": "1.1.0",
-  "generatedAt": "2026-05-15T19:30:00.000Z",
-  "rollup": {
-    "*": { "<axis>": <number>, "...": <number> }
-  },
   "rows": [
     { "path": "<repo-relative-path>", "<axis>": <number>, "...": <number> }
   ]
@@ -864,9 +858,22 @@ top-level envelope:
 | --------------- | ----------------------------------------------------------------- |
 | `$schema`       | Per-kind JSON Schema path. Drives validation in the shared AJV.   |
 | `kernelVersion` | Version stamp of the writer that produced the file. See below.    |
-| `generatedAt`   | ISO 8601 timestamp; advisory — not load-bearing for gate logic.   |
-| `rollup`        | Per-component aggregate keyed by component name. `*` is required. |
 | `rows`          | Sorted, canonicalised per-file (or per-route/per-bundle) entries. |
+
+CRAP adds its scoring stamps (`scoringSemantics`, `tsTranspilerVersion`,
+`provenanceStamped`) between `kernelVersion` and `rows`; they change only when
+the scorer does.
+
+The file carries **no run timestamp and no rollup**. Both used to be rewritten
+on every refresh, so any two branches that refreshed a baseline conflicted
+textually even when their rows were disjoint — and GitHub never runs a custom
+merge driver, not for PR mergeability, update-branch, or a merge queue, so a
+queue-protected base ejected every second Story. The rollup (the per-component
+aggregate the floors check, `*` for the whole repo) is **derived** from
+`rows[]` by every reader through the kind module's `rollup(rows)`; freshness is
+the file's git history. With `rows[]` sorted by identity and one object per
+row, two refreshes that touch disjoint, non-adjacent rows merge as plain text.
+`mandrel migrate` (step 2.63.0) rewrites an older baseline to this shape.
 
 The schemas live under [`.agents/schemas/baselines/`](../.agents/schemas/baselines).
 The shared AJV instance is built by `buildBaselineSchemaAjv()` in
@@ -874,32 +881,31 @@ The shared AJV instance is built by `buildBaselineSchemaAjv()` in
 
 ### Concurrent refreshes — the baseline merge driver
 
-`generatedAt` sits on line 4 of every envelope, so two branches that each
-refresh a baseline **always** differ there, even when they moved completely
-disjoint rows. Git merges JSON as text, and whether it can separate that hunk
-from the moved rows is an accident of proximity. Both outcomes are wrong:
+Disjoint, non-adjacent row edits merge as plain text (see § Envelope). Git's
+text merge still gets two cases wrong:
 
-- it cannot → a conflict on work that never overlapped (the `coverage.json` /
-  `maintainability.json` "always conflicts" pattern);
-- it can → it splices both sides' row lines into a row set **neither side
-  scored** (the `crap.json` "silently auto-merges" pattern). The ratchet then
-  guards a number no scorer ever produced.
+- rows that sit **adjacent** in sort order, or that both sides append at the
+  tail, touch neighbouring lines, so git conflicts on work that never
+  overlapped;
+- where it can separate the hunks, it can splice both sides' row lines into a
+  row set **neither side scored**. The ratchet then guards a number no scorer
+  ever produced.
 
-A baseline is a set of rows keyed by identity plus a rollup derived from them,
-so [`merge-baseline.js`](../.agents/scripts/merge-baseline.js) merges it as that. Per
-row identity the standard 3-way rule applies; only a genuine double move
-conflicts, and then markers wrap that row alone. The rollup is always
-**recomputed** from the merged rows — merging two rollups is the same splice
-hazard compressed into one number — and `generatedAt` resolves to the later of
-the two stamps rather than conflicting.
+A baseline is a set of rows keyed by identity, so
+[`merge-baseline.js`](../.agents/scripts/merge-baseline.js) merges it as that
+wherever git runs it locally. Per row identity the standard 3-way rule applies;
+only a genuine double move conflicts, and then markers wrap that row alone.
+Stamps merge 3-way too, and a stamp both sides bumped differently conflicts.
+GitHub never runs the driver, so on a merge queue those two cases still need a
+local rebase.
 
 Row identity comes from the kind module's `rowIdentity(row)`, which is
 deliberately not `keyField`: CRAP groups by file (`keyField: 'path'`) but
 ships one row per method, so keying on `keyField` would drop every method in a
-file but one. Any `baselines/*.json` whose `$schema` is not a known per-kind
-envelope — `arch-cycles`, `cyclomatic`, `dead-exports`, `audit-ledger`,
-`context-budget` — is handed straight back to
-`git merge-file`, so registering the driver cannot change their behaviour.
+file but one. `cyclomatic` and both `dead-exports` files merge by row identity
+the same way. Any other `baselines/*.json` — `arch-cycles`, `audit-ledger`,
+`context-budget` — is handed straight back to `git merge-file`, so registering
+the driver cannot change their behaviour.
 
 Registration has two halves:
 
@@ -915,10 +921,6 @@ degrades **silently** back to the text merge. `mandrel doctor`'s
 `merge-driver` check is the guard: it prints the exact `git config` line
 above, and passes as skipped when `.gitattributes` does not declare the
 driver at all.
-
-`MANDREL_BASELINE_GENERATED_AT` pins the stamp for a reproducible build (see
-the environment table in [configuration.md](../.agents/docs/configuration.md)). It is no
-longer needed to dodge merge conflicts.
 
 ### Per-kind shapes
 
@@ -990,14 +992,15 @@ prefix.
 
 The single funnel for **writing** a baseline is
 [`.agents/scripts/lib/baselines/writer.js`](../.agents/scripts/lib/baselines/writer.js)
-— `write({ kind, rows, components, kernelVersion?, generatedAt? })`:
+— `write({ kind, rows, kernelVersion?, prior?, priorEnvelope?, epsilon?, scope? })`:
 
 1. Resolve the per-kind module from the kernel registry.
 2. Project every row through `projectRow` (which canonicalises the key
    field and asserts the result with `assertCanonical`).
 3. Sort the rows deterministically for stable on-disk diffs.
-4. Compute the per-component rollup, always including `*`.
-5. Stamp `$schema`, `kernelVersion`, and `generatedAt` via
+4. Return the prior envelope unchanged when the rows did not move, so a no-op
+   refresh writes nothing.
+5. Stamp `$schema`, `kernelVersion`, and any per-kind stamps via
    `buildEnvelope`.
 6. Validate the envelope against the per-kind schema via the shared AJV.
 7. Return the envelope. `writeFile(absPath, envelope)` is the separate
@@ -1012,7 +1015,8 @@ The single funnel for **reading** a baseline is
 2. Read the file as UTF-8 JSON.
 3. Validate against the per-kind schema.
 4. Apply the defensive path canonicalisation pass to `rows[]`.
-5. Return `{ rollup, rows, kernelVersion, generatedAt }`.
+5. Derive the `*` rollup from the rows through the kind module.
+6. Return `{ rollup, rows, kernelVersion, ...stamps }`.
 
 Every gate reads through this module — the unified
 [`check-baselines.js`](../.agents/scripts/check-baselines.js) dispatcher

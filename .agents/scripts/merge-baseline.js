@@ -3,10 +3,12 @@
 /**
  * merge-baseline.js — git merge driver for `baselines/*.json`.
  *
- * A text merge of a baseline either conflicts on the always-different
- * `generatedAt` stamp or, worse, silently splices both sides' rows into a set
- * no scorer produced. This merges rows by identity and re-derives the rollup.
- * Files that are not a known row baseline go to `git merge-file` unchanged.
+ * A text merge of a baseline conflicts on rows adjacent in sort order or
+ * appended at the tail, and can splice both sides' rows into a set no scorer
+ * produced. This merges rows by identity instead. The committed shape carries
+ * no stamp or rollup, so disjoint non-adjacent refreshes also merge textually
+ * where this driver never runs (GitHub). Files that are not a known row
+ * baseline go to `git merge-file` unchanged.
  *
  *   node .agents/scripts/merge-baseline.js %O %A %B %P
  *
@@ -115,7 +117,7 @@ function delegateToGit(basePath, oursPath, theirsPath) {
 }
 
 /**
- * Envelope kinds (rollup re-derived) or plain row baselines (cyclomatic,
+ * Envelope kinds or plain row baselines (cyclomatic,
  * dead-exports*); anything else resolves `null` and goes back to git.
  *
  * @param {unknown} ours
@@ -269,8 +271,8 @@ function markConflicts({ kind, merged, oursPath, label }) {
 }
 
 /**
- * Names the regenerate command: the rollup was derived from unresolved rows,
- * so hand-resolving the markers leaves it describing a tree nobody scored.
+ * Names the regenerate command: hand-resolved rows describe a tree nobody
+ * scored.
  *
  * @param {{ kind: string, label: string, rowConflicts: Array<object>, envelopeConflicts: Array<object> }} args
  */
@@ -286,9 +288,9 @@ function reportConflicts({ kind, label, rowConflicts, envelopeConflicts }) {
     );
   }
   process.stderr.write(
-    `merge-baseline: ${label} is conflicted — the rollup in it was derived from ` +
-      `unresolved rows and must not be trusted. After resolving the markers, ` +
-      `regenerate it: ${baselineRegenerateRemedy(kind)}\n`,
+    `merge-baseline: ${label} is conflicted — hand-resolved rows describe a ` +
+      `tree nobody scored. After resolving the markers, regenerate it: ` +
+      `${baselineRegenerateRemedy(kind)}\n`,
   );
 }
 
@@ -302,7 +304,7 @@ runAsCli(import.meta.url, main, {
   usage: {
     invocation: 'node .agents/scripts/merge-baseline.js %O %A %B %P',
     summary:
-      'Git merge driver for baselines/*.json. Merges per-kind envelopes by ROW IDENTITY — disjoint refreshes merge clean, the rollup is recomputed from the merged rows, and generatedAt resolves to the later stamp instead of conflicting. A baselines file that is not a known per-kind envelope is handed back to git merge-file unchanged. Exit 0 clean, 1 conflicted.',
+      'Git merge driver for baselines/*.json. Merges per-kind envelopes by ROW IDENTITY — disjoint refreshes merge clean even where their rows are adjacent, and a row both sides changed differently conflicts. A baselines file that is not a known per-kind envelope is handed back to git merge-file unchanged. Exit 0 clean, 1 conflicted.',
     flags: [
       ['%O', 'Merge ancestor (git supplies this).'],
       ['%A', 'Our version — the driver writes its result here.'],

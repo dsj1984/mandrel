@@ -3,7 +3,7 @@
  * the baseline surface (Story #4902).
  *
  * The load-bearing case is the **stub instrument**: a baseline committed with
- * no rows and an all-zero rollup passes its gate on every run without
+ * no rows (so its derived rollup is all-zero) passes its gate on every run without
  * measuring anything, and reads as green from the exit code. This suite pins
  * that four of Mandrel's own gates are exactly that today, and — the
  * asymmetry that makes the signal usable — that a ratchet baseline with
@@ -72,18 +72,10 @@ function surfaceOf(root, quality = { gates: {} }) {
 }
 
 describe('stub-instrument detection', () => {
-  it('flags a baseline with no rows AND an all-zero rollup', () => {
+  it('flags a baseline with no rows, whose derived rollup is all-zero', () => {
     const byKind = surfaceOf(
       makeFixture([
-        [
-          'baselines/bundle-size.json',
-          {
-            kernelVersion: '1.0.0',
-            generatedAt: '2026-01-01T00:00:00.000Z',
-            rollup: { '*': { rawKb: 0, gzippedKb: 0 } },
-            rows: [],
-          },
-        ],
+        ['baselines/bundle-size.json', { kernelVersion: '1.0.0', rows: [] }],
       ]),
     );
     assert.equal(byKind.get('bundle-size').stub, true);
@@ -107,20 +99,19 @@ describe('stub-instrument detection', () => {
     assert.equal(byKind.get('arch-cycles').stub, false);
   });
 
-  it('does not flag a baseline whose rollup carries a non-zero value', () => {
+  it('does not flag a baseline whose rows measure something', () => {
     const byKind = surfaceOf(
       makeFixture([
         [
           'baselines/bundle-size.json',
           {
             kernelVersion: '1.0.0',
-            generatedAt: '2026-01-01T00:00:00.000Z',
-            rollup: { '*': { rawKb: 4, gzippedKb: 0 } },
-            rows: [],
+            rows: [{ bundle: 'main.js', rawKb: 4, gzippedKb: 1 }],
           },
         ],
       ]),
     );
+    assert.equal(byKind.get('bundle-size').rowCount, 1);
     assert.equal(byKind.get('bundle-size').stub, false);
   });
 
@@ -159,26 +150,92 @@ describe('dead ignoreGlobs', () => {
 });
 
 describe('staleness', () => {
-  it('reports whole days since generatedAt', () => {
+  const NOW = new Date('2026-01-11T00:00:00.000Z');
+
+  /**
+   * A fake `git` that answers the last-commit-date query for one path and
+   * fails every other invocation, recording each call.
+   *
+   * @param {Record<string, string>} commitDates relPath → `%cI` output
+   * @returns {{ run: Function, calls: string[][] }}
+   */
+  function fakeGit(commitDates) {
+    const calls = [];
+    const run = (_file, args) => {
+      calls.push(args);
+      const relPath = args.at(-1);
+      if (args.includes('--format=%cI') && commitDates[relPath]) {
+        return `${commitDates[relPath]}\n`;
+      }
+      throw new Error('not a git repository');
+    };
+    return { run, calls };
+  }
+
+  it("dates an unstamped baseline by its file's last commit (Story #5400)", () => {
     const root = makeFixture([
       [
         'baselines/coverage.json',
         {
           kernelVersion: '1.0.0',
-          generatedAt: '2026-01-01T00:00:00.000Z',
-          rollup: { '*': { lines: 90, branches: 80, functions: 85 } },
           rows: [{ path: 'src/a.js', lines: 90, branches: 80, functions: 85 }],
         },
       ],
     ]);
+    const { run, calls } = fakeGit({
+      'baselines/coverage.json': '2026-01-01T00:00:00+00:00',
+    });
     const { entries } = buildGateSurface({
       cwd: root,
       quality: { gates: {} },
-      now: new Date('2026-01-11T00:00:00.000Z'),
+      now: NOW,
+      run,
     });
     const coverage = entries.find((e) => e.kind === 'coverage');
+    assert.equal(coverage.generatedAt, '2026-01-01T00:00:00+00:00');
     assert.equal(coverage.staleDays, 10);
-    assert.equal(coverage.generatedAt, '2026-01-01T00:00:00.000Z');
+    assert.ok(
+      calls.some(
+        (args) =>
+          args.join(' ') === 'log -n1 --format=%cI -- baselines/coverage.json',
+      ),
+    );
+  });
+
+  it('prefers a baseline that carries its own stamp over the commit date', () => {
+    const root = makeFixture([
+      [
+        'baselines/arch-cycles.json',
+        { generatedAt: '2026-01-06T00:00:00.000Z', cycles: [] },
+      ],
+    ]);
+    const { run } = fakeGit({
+      'baselines/arch-cycles.json': '2025-06-01T00:00:00+00:00',
+    });
+    const { entries } = buildGateSurface({
+      cwd: root,
+      quality: { gates: {} },
+      now: NOW,
+      run,
+    });
+    const archCycles = entries.find((e) => e.kind === 'arch-cycles');
+    assert.equal(archCycles.generatedAt, '2026-01-06T00:00:00.000Z');
+    assert.equal(archCycles.staleDays, 5);
+  });
+
+  it('reports unknown age as null — never a reassuring 0 — with no stamp and no history', () => {
+    const root = makeFixture([
+      ['baselines/coverage.json', { kernelVersion: '1.0.0', rows: [] }],
+    ]);
+    const { entries } = buildGateSurface({
+      cwd: root,
+      quality: { gates: {} },
+      now: NOW,
+      run: fakeGit({}).run,
+    });
+    const coverage = entries.find((e) => e.kind === 'coverage');
+    assert.equal(coverage.generatedAt, null);
+    assert.equal(coverage.staleDays, null);
   });
 });
 

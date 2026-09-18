@@ -64,7 +64,7 @@ function stage(dir, { base, ours, theirs }) {
   return paths;
 }
 
-function miEnvelope(rowsMap, generatedAt) {
+function miEnvelope(rowsMap) {
   const mod = getKindModule('maintainability');
   const rows = mod.sortRows(
     Object.entries(rowsMap).map(([p, mi]) => ({ path: p, mi })),
@@ -72,8 +72,6 @@ function miEnvelope(rowsMap, generatedAt) {
   return {
     $schema: '.agents/schemas/baselines/maintainability.schema.json',
     kernelVersion: '0.1.0',
-    generatedAt,
-    rollup: mod.rollup(rows, []),
     rows,
   };
 }
@@ -99,21 +97,12 @@ describe('merge-baseline --help (AC-12)', () => {
 });
 
 describe('merge-baseline — disjoint refreshes merge clean (AC-1)', () => {
-  it('exits 0 and writes both sides moved rows, a recomputed rollup and the later stamp', () => {
+  it('exits 0 and writes both sides moved rows with no rollup and no stamp', () => {
     const dir = makeTempDir('mandrel-merge-clean-');
     const paths = stage(dir, {
-      base: miEnvelope(
-        { 'a.js': 60, 'b.js': 70, 'c.js': 80 },
-        '2026-09-01T00:00:00.000Z',
-      ),
-      ours: miEnvelope(
-        { 'a.js': 61, 'b.js': 70, 'c.js': 80 },
-        '2026-09-02T00:00:00.000Z',
-      ),
-      theirs: miEnvelope(
-        { 'a.js': 60, 'b.js': 70, 'c.js': 83 },
-        '2026-09-03T00:00:00.000Z',
-      ),
+      base: miEnvelope({ 'a.js': 60, 'b.js': 70, 'c.js': 80 }),
+      ours: miEnvelope({ 'a.js': 61, 'b.js': 70, 'c.js': 80 }),
+      theirs: miEnvelope({ 'a.js': 60, 'b.js': 70, 'c.js': 83 }),
     });
 
     const res = runDriver(
@@ -126,11 +115,9 @@ describe('merge-baseline — disjoint refreshes merge clean (AC-1)', () => {
 
     const merged = readJson(paths.ours);
     assert.deepEqual(byPath(merged), { 'a.js': 61, 'b.js': 70, 'c.js': 83 });
-    assert.equal(merged.generatedAt, '2026-09-03T00:00:00.000Z');
-    assert.deepEqual(
-      merged.rollup,
-      getKindModule('maintainability').rollup(merged.rows, []),
-    );
+    // Story #5400: the committed shape carries neither key, so the merge
+    // must not reintroduce one.
+    assert.deepEqual(Object.keys(merged), ['$schema', 'kernelVersion', 'rows']);
     fs.rmSync(dir, { recursive: true, force: true });
   });
 });
@@ -139,20 +126,11 @@ describe('merge-baseline — a genuine double move conflicts, alone (AC-2)', () 
   it('exits 1, names kind and identity on stderr, and wraps only that row', () => {
     const dir = makeTempDir('mandrel-merge-conflict-');
     const paths = stage(dir, {
-      base: miEnvelope(
-        { 'a.js': 60, 'b.js': 70, 'c.js': 80 },
-        '2026-09-01T00:00:00.000Z',
-      ),
+      base: miEnvelope({ 'a.js': 60, 'b.js': 70, 'c.js': 80 }),
       // ours moves a.js AND c.js; theirs moves a.js differently. Only a.js
       // is a real double move — c.js must survive merged, outside markers.
-      ours: miEnvelope(
-        { 'a.js': 61, 'b.js': 70, 'c.js': 88 },
-        '2026-09-02T00:00:00.000Z',
-      ),
-      theirs: miEnvelope(
-        { 'a.js': 62, 'b.js': 70, 'c.js': 80 },
-        '2026-09-03T00:00:00.000Z',
-      ),
+      ours: miEnvelope({ 'a.js': 61, 'b.js': 70, 'c.js': 88 }),
+      theirs: miEnvelope({ 'a.js': 62, 'b.js': 70, 'c.js': 80 }),
     });
 
     const res = runDriver(
@@ -192,18 +170,16 @@ describe('merge-baseline — CRAP sibling rows (AC-3)', () => {
       crap: 12,
     };
     const target = { path: 'a/b.js', method: 'target', startLine: 7, crap: 3 };
-    const env = (rows, generatedAt) => ({
+    const env = (rows) => ({
       $schema: '.agents/schemas/baselines/crap.schema.json',
       kernelVersion: '0.1.0',
-      generatedAt,
-      rollup: mod.rollup(mod.sortRows(rows), []),
       rows: mod.sortRows(rows),
     });
 
     const paths = stage(dir, {
-      base: env([target, sibling], '2026-09-01T00:00:00.000Z'),
-      ours: env([{ ...target, crap: 9 }, sibling], '2026-09-02T00:00:00.000Z'),
-      theirs: env([target, sibling], '2026-09-03T00:00:00.000Z'),
+      base: env([target, sibling]),
+      ours: env([{ ...target, crap: 9 }, sibling]),
+      theirs: env([target, sibling]),
     });
 
     const res = runDriver(
@@ -225,13 +201,16 @@ describe('merge-baseline — CRAP sibling rows (AC-3)', () => {
 });
 
 describe('merge-baseline — the swarm-os reproduction (AC-4)', () => {
-  it('git merge-file conflicts on these blobs; the driver merges them', () => {
+  it('git merge-file and the driver both merge these blobs, to the same rows', () => {
     const dir = makeTempDir('mandrel-merge-swarmos-');
     const base = path.join(FIXTURES, 'maintainability.base.json');
     const main = path.join(FIXTURES, 'maintainability.main.json');
     const branchCopy = path.join(dir, 'ours.json');
 
-    // 1. The text merge these fixtures mirror: a conflict, on the stamp.
+    // 1. The text merge — what GitHub's mergeability check, update-branch and
+    //    the merge queue do, since none of them runs a custom driver. Before
+    //    Story #5400 these blobs conflicted on the `generatedAt` stamp; with
+    //    no stamp and no rollup, disjoint non-adjacent rows merge textually.
     fs.copyFileSync(
       path.join(FIXTURES, 'maintainability.branch.json'),
       branchCopy,
@@ -240,8 +219,8 @@ describe('merge-baseline — the swarm-os reproduction (AC-4)', () => {
       encoding: 'utf8',
       env: CLEAN_ENV,
     });
-    assert.notEqual(textMerge.status, 0, 'fixture must reproduce the bug');
-    assert.match(fs.readFileSync(branchCopy, 'utf8'), /generatedAt/);
+    assert.equal(textMerge.status, 0, textMerge.stderr);
+    const textMerged = readJson(branchCopy);
 
     // 2. The driver, on the same three blobs.
     fs.copyFileSync(
@@ -267,6 +246,8 @@ describe('merge-baseline — the swarm-os reproduction (AC-4)', () => {
 
     // Compared by row key, not row count.
     assert.deepEqual(byPath(merged), expected);
+    // The driverless text merge lands on the same envelope.
+    assert.deepEqual(textMerged, merged);
     fs.rmSync(dir, { recursive: true, force: true });
   });
 });
@@ -385,7 +366,6 @@ describe('merge-baseline — registered in a real repository (AC-5)', () => {
       kind: 'maintainability',
       writePath,
       fullScope: true,
-      generatedAt: '2026-09-01T00:00:00.000Z',
       scorer: scorerFor({}),
       cwd: dir,
     });
@@ -398,7 +378,6 @@ describe('merge-baseline — registered in a real repository (AC-5)', () => {
       kind: 'maintainability',
       writePath,
       scopeFiles: ['site-analytics/report.ts'],
-      generatedAt: '2026-09-02T00:00:00.000Z',
       scorer: scorerFor({ 'site-analytics/report.ts': 72.8 }),
       cwd: dir,
     });
@@ -411,13 +390,12 @@ describe('merge-baseline — registered in a real repository (AC-5)', () => {
       kind: 'maintainability',
       writePath,
       scopeFiles: ['news/news-view.ts'],
-      generatedAt: '2026-09-03T00:00:00.000Z',
       scorer: scorerFor({ 'news/news-view.ts': 59.7 }),
       cwd: dir,
     });
     git('commit', '-q', '-am', 'refresh news row');
 
-    // The rebase that used to conflict on line 4.
+    // The rebase that used to conflict on the `generatedAt` stamp.
     const rebase = spawnSync('git', ['rebase', 'story-one'], {
       cwd: dir,
       encoding: 'utf8',
@@ -429,7 +407,7 @@ describe('merge-baseline — registered in a real repository (AC-5)', () => {
       `rebase must complete with no conflict:\n${rebase.stdout}\n${rebase.stderr}`,
     );
 
-    // Both sides moved values survive, and the rollup describes the result.
+    // Both sides moved values survive.
     const merged = readJson(writePath);
     const rows = byPath(merged);
     assert.equal(rows['site-analytics/report.ts'], 72.8);
@@ -445,7 +423,6 @@ describe('merge-baseline — registered in a real repository (AC-5)', () => {
     // runs against the real repository as a `verify[]` line.
     assertEnvelope(merged); // schema errors: 0
     const mod = getKindModule('maintainability');
-    assert.deepEqual(merged.rollup, mod.rollup(merged.rows, []));
     const base = JSON.parse(
       execFileSync('git', ['show', 'main:baselines/maintainability.json'], {
         cwd: dir,
@@ -474,18 +451,9 @@ describe('merge-baseline — an envelope-level conflict is visible in the file (
     const dir = makeTempDir('mandrel-merge-stamp-');
     const withKernel = (env, kernelVersion) => ({ ...env, kernelVersion });
     const paths = stage(dir, {
-      base: withKernel(
-        miEnvelope({ 'a.js': 60 }, '2026-09-01T00:00:00.000Z'),
-        '1.0.0',
-      ),
-      ours: withKernel(
-        miEnvelope({ 'a.js': 60 }, '2026-09-02T00:00:00.000Z'),
-        '2.0.0',
-      ),
-      theirs: withKernel(
-        miEnvelope({ 'a.js': 60 }, '2026-09-03T00:00:00.000Z'),
-        '3.0.0',
-      ),
+      base: withKernel(miEnvelope({ 'a.js': 60 }), '1.0.0'),
+      ours: withKernel(miEnvelope({ 'a.js': 60 }), '2.0.0'),
+      theirs: withKernel(miEnvelope({ 'a.js': 60 }), '3.0.0'),
     });
 
     const res = runDriver(
@@ -511,17 +479,13 @@ describe('merge-baseline — an envelope-level conflict is visible in the file (
   });
 
   it('names the regenerate command on a delete-vs-modify row conflict', () => {
-    // Ours deletes the row, theirs moves it. Either resolution leaves the
-    // rollup describing a row set nobody scored — resolving the markers by
-    // hand does not recompute it, so the driver has to say so.
+    // Ours deletes the row, theirs moves it. Either hand resolution leaves a
+    // row set nobody scored, so the driver has to name the regeneration.
     const dir = makeTempDir('mandrel-merge-delmod-');
     const paths = stage(dir, {
-      base: miEnvelope({ 'a.js': 60, 'b.js': 70 }, '2026-09-01T00:00:00.000Z'),
-      ours: miEnvelope({ 'b.js': 70 }, '2026-09-02T00:00:00.000Z'),
-      theirs: miEnvelope(
-        { 'a.js': 64, 'b.js': 70 },
-        '2026-09-03T00:00:00.000Z',
-      ),
+      base: miEnvelope({ 'a.js': 60, 'b.js': 70 }),
+      ours: miEnvelope({ 'b.js': 70 }),
+      theirs: miEnvelope({ 'a.js': 64, 'b.js': 70 }),
     });
 
     const res = runDriver(
@@ -533,27 +497,16 @@ describe('merge-baseline — an envelope-level conflict is visible in the file (
 
     assert.equal(res.status, 1);
     assert.match(res.stderr, /row "a\.js"/);
-    assert.match(res.stderr, /must not be trusted/);
+    assert.match(res.stderr, /tree nobody scored/);
     assert.match(res.stderr, /npm run maintainability:update/);
     fs.rmSync(dir, { recursive: true, force: true });
   });
 });
 
 describe('merge-baseline — plain row baselines merge by identity (AC-9)', () => {
-  const cyclomatic = (rowsMap, generatedAt) => ({
+  const cyclomatic = (rowsMap) => ({
     $schema: 'https://mandrel.dev/baselines/cyclomatic.schema.json',
-    generatedAt,
     ceiling: 12,
-    rollup: {
-      '*': {
-        filesAboveCeiling: Object.keys(rowsMap).length,
-        methodsAboveCeiling: Object.values(rowsMap).reduce((a, b) => a + b, 0),
-        maxCyclomatic: Math.max(
-          0,
-          ...Object.values(rowsMap).map((n) => n + 12),
-        ),
-      },
-    },
     rows: Object.entries(rowsMap)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([file, n]) => ({
@@ -563,11 +516,10 @@ describe('merge-baseline — plain row baselines merge by identity (AC-9)', () =
       })),
   });
 
-  const deadExports = (rows, generatedAt, mode) => {
+  const deadExports = (rows, mode) => {
     const env = {
       $schema: 'https://mandrel.dev/baselines/dead-exports.schema.json',
       kernelVersion: '6.17.1',
-      generatedAt,
     };
     if (mode) env.mode = mode;
     env.rows = [...rows].sort(
@@ -577,21 +529,12 @@ describe('merge-baseline — plain row baselines merge by identity (AC-9)', () =
     return env;
   };
 
-  it('merges cyclomatic by file, with no conflict and the later stamp', () => {
+  it('merges cyclomatic by file, with no conflict, rollup or stamp', () => {
     const dir = makeTempDir('mandrel-merge-cyclo-');
     const paths = stage(dir, {
-      base: cyclomatic(
-        { 'a.js': 1, 'b.js': 2, 'c.js': 3 },
-        '2026-09-01T00:00:00.000Z',
-      ),
-      ours: cyclomatic(
-        { 'a.js': 4, 'b.js': 2, 'c.js': 3 },
-        '2026-09-02T00:00:00.000Z',
-      ),
-      theirs: cyclomatic(
-        { 'a.js': 1, 'b.js': 2, 'c.js': 6 },
-        '2026-09-03T00:00:00.000Z',
-      ),
+      base: cyclomatic({ 'a.js': 1, 'b.js': 2, 'c.js': 3 }),
+      ours: cyclomatic({ 'a.js': 4, 'b.js': 2, 'c.js': 3 }),
+      theirs: cyclomatic({ 'a.js': 1, 'b.js': 2, 'c.js': 6 }),
     });
 
     const res = runDriver(
@@ -607,24 +550,14 @@ describe('merge-baseline — plain row baselines merge by identity (AC-9)', () =
       merged.rows.map((r) => [r.file, r.methodsAboveCeiling]),
     );
     assert.deepEqual(byFile, { 'a.js': 4, 'b.js': 2, 'c.js': 6 });
-    assert.equal(merged.generatedAt, '2026-09-03T00:00:00.000Z');
-    // The rollup is DERIVED, not merged. Both sides wrote the same three
-    // counts (each moved one row), so a 3-way merge of the rollup would have
-    // resolved clean to numbers that describe neither side's row set.
-    assert.deepEqual(merged.rollup['*'], {
-      filesAboveCeiling: 3,
-      methodsAboveCeiling: 12,
-      maxCyclomatic: 18,
-    });
-    // Byte-identical to what the generator writes for these rows.
+    // Byte-identical to what the generator writes for these rows — which
+    // since Story #5400 is no stamp and no rollup.
     assert.equal(
       fs.readFileSync(paths.ours, 'utf8'),
       `${JSON.stringify(
         {
           $schema: merged.$schema,
-          generatedAt: merged.generatedAt,
           ceiling: 12,
-          rollup: merged.rollup,
           rows: merged.rows,
         },
         null,
@@ -648,15 +581,13 @@ describe('merge-baseline — plain row baselines merge by identity (AC-9)', () =
       const dir = makeTempDir('mandrel-merge-dead-');
       const shared = { file: 'lib/keep.js', symbol: 'kept' };
       const paths = stage(dir, {
-        base: deadExports([shared], '2026-09-01T00:00:00.000Z', mode),
+        base: deadExports([shared], mode),
         ours: deadExports(
           [shared, { file: 'lib/a.js', symbol: 'alpha' }],
-          '2026-09-02T00:00:00.000Z',
           mode,
         ),
         theirs: deadExports(
           [shared, { file: 'lib/b.js', symbol: 'beta' }],
-          '2026-09-03T00:00:00.000Z',
           mode,
         ),
       });
@@ -669,9 +600,10 @@ describe('merge-baseline — plain row baselines merge by identity (AC-9)', () =
         out.rows.map((r) => `${r.file}::${r.symbol}`),
         ['lib/a.js::alpha', 'lib/b.js::beta', 'lib/keep.js::kept'],
       );
-      assert.equal(out.generatedAt, '2026-09-03T00:00:00.000Z');
       assert.equal(out.mode, mode);
-      // Rollup-less: the generator writes none, so the merge invents none.
+      // The generator writes neither a stamp nor a rollup, so the merge
+      // invents neither.
+      assert.equal(Object.hasOwn(out, 'generatedAt'), false);
       assert.equal(Object.hasOwn(out, 'rollup'), false);
       fs.rmSync(dir, { recursive: true, force: true });
     });
@@ -680,9 +612,9 @@ describe('merge-baseline — plain row baselines merge by identity (AC-9)', () =
   it('conflicts on a row both sides moved differently, naming the regenerate command', () => {
     const dir = makeTempDir('mandrel-merge-cyclo-conflict-');
     const paths = stage(dir, {
-      base: cyclomatic({ 'a.js': 1 }, '2026-09-01T00:00:00.000Z'),
-      ours: cyclomatic({ 'a.js': 4 }, '2026-09-02T00:00:00.000Z'),
-      theirs: cyclomatic({ 'a.js': 7 }, '2026-09-03T00:00:00.000Z'),
+      base: cyclomatic({ 'a.js': 1 }),
+      ours: cyclomatic({ 'a.js': 4 }),
+      theirs: cyclomatic({ 'a.js': 7 }),
     });
     const res = runDriver(
       paths.base,

@@ -24,12 +24,11 @@
  *
  * **Envelope, not the shared writer.** Dead-exports does not route through
  * `lib/baselines/writer.js`: that writer admits only the kinds registered in
- * `lib/baselines/envelope.js` and requires a `*` rollup row, while dead-exports
- * is an out-of-band ratchet kind (`lib/audit-baselines/kinds.js`) that carries
- * no rollup. This CLI writes exactly the shape the checker already reads and
+ * `lib/baselines/envelope.js`, while dead-exports is an out-of-band ratchet
+ * kind (`lib/audit-baselines/kinds.js`). This CLI writes exactly the shape the checker already reads and
  * both committed baselines already carry:
  *
- *   { $schema, kernelVersion, generatedAt, [mode], rows: [{ file, symbol }] }
+ *   { $schema, kernelVersion, [mode], rows: [{ file, symbol }] }
  *
  * `kernelVersion` is knip's own installed version — knip is the scorer, so a
  * knip upgrade is what invalidates the rows. `mode` is stamped on the
@@ -37,8 +36,8 @@
  *
  * Rows are de-duplicated and sorted by `(file, symbol)` with the same
  * comparator `check-dead-exports.js` uses for its diff output, so a re-run
- * against an unchanged tree differs only in `generatedAt` and review sees real
- * movement rather than reordering noise.
+ * against an unchanged tree is byte-identical and review sees real movement
+ * rather than reordering noise.
  *
  * The pass is selected with `--production`, and the baseline/label/mode triple
  * comes from `lib/dead-exports-mode.js` — the same resolver the checker uses.
@@ -147,15 +146,11 @@ export function normalizeRows(rows) {
  * only: the default baseline has never carried the key, and adding it would
  * churn the committed file for no signal.
  *
- * @param {{ kernelVersion: string, mode: string, rows: Array<object>, generatedAt: string }} args
+ * @param {{ kernelVersion: string, mode: string, rows: Array<object> }} args
  * @returns {object}
  */
-export function buildEnvelope({ kernelVersion, mode, rows, generatedAt }) {
-  const envelope = {
-    $schema: DEAD_EXPORTS_SCHEMA_REF,
-    kernelVersion,
-    generatedAt,
-  };
+export function buildEnvelope({ kernelVersion, mode, rows }) {
+  const envelope = { $schema: DEAD_EXPORTS_SCHEMA_REF, kernelVersion };
   if (mode === 'production') envelope.mode = mode;
   envelope.rows = rows;
   return envelope;
@@ -223,7 +218,6 @@ export function describeUnusableReport(envelope) {
  *   readFileImpl?: typeof fs.readFileSync,
  *   writeFileImpl?: typeof fs.writeFileSync,
  *   renameImpl?: typeof fs.renameSync,
- *   now?: () => string,
  * }} [opts]
  * @returns {Promise<number>} 0 on a written baseline; 1 on any fail-closed path.
  */
@@ -237,7 +231,6 @@ export async function runCli({
   readFileImpl = fs.readFileSync,
   writeFileImpl = fs.writeFileSync,
   renameImpl = fs.renameSync,
-  now = () => new Date().toISOString(),
 } = {}) {
   const { baselinePath, knipOutputPath, production } = parseArgv(argv);
   const { mode, label, baseline } = resolveDeadExportsMode(production);
@@ -269,12 +262,7 @@ export async function runCli({
   }
 
   const rows = normalizeRows(extractRowsFromKnip(report.envelope));
-  const envelope = buildEnvelope({
-    kernelVersion,
-    mode,
-    rows,
-    generatedAt: now(),
-  });
+  const envelope = buildEnvelope({ kernelVersion, mode, rows });
   // Write-then-rename, matching `lib/baselines/writer.js`: a crash or a full
   // disk mid-write must not leave a truncated envelope behind. An unparseable
   // baseline reads as empty to `check-dead-exports.js`, which would report

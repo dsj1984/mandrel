@@ -130,21 +130,21 @@ function validate(kind, parsed, sourceHint) {
 /**
  * The one narrowing projection for every loaded envelope. It is an
  * allow-list: compat axes read stamps off the loaded object and fail closed
- * on `undefined`, so every envelope stamp must be carried through here.
+ * on `undefined`, so every envelope stamp must be carried through here. The
+ * committed file carries no rollup; a consumer that needs one derives it from
+ * `rows` through the kind module.
  *
  * @param {string} kind
  * @param {object} parsed A validated baseline envelope.
- * @returns {{ rollup: object, rows: Array<object>, kernelVersion: string, generatedAt: string }}
+ * @returns {{ rows: Array<object>, kernelVersion: string }}
  */
 function shapeEnvelope(kind, parsed) {
   const rows = Array.isArray(parsed.rows)
     ? parsed.rows.map((row) => canonicaliseRow(kind, row))
     : [];
   return {
-    rollup: parsed.rollup ?? { '*': {} },
     rows,
     kernelVersion: parsed.kernelVersion,
-    generatedAt: parsed.generatedAt,
     scoringSemantics: parsed.scoringSemantics,
     tsTranspilerVersion: parsed.tsTranspilerVersion,
     provenanceStamped: parsed.provenanceStamped,
@@ -154,7 +154,7 @@ function shapeEnvelope(kind, parsed) {
 /**
  * @param {string} kind
  * @param {string} absolutePath
- * @returns {{ rollup: object, rows: Array<object>, kernelVersion: string, generatedAt: string }}
+ * @returns {{ rows: Array<object>, kernelVersion: string }}
  */
 function readAndShape(kind, absolutePath) {
   let raw;
@@ -195,7 +195,7 @@ function inferKindFromSchema(schemaValue) {
 /**
  * @param {string} kind
  * @param {{ configPath?: string, cwd?: string }} [opts]
- * @returns {{ rollup: object, rows: Array<object>, kernelVersion: string, generatedAt: string }}
+ * @returns {{ rows: Array<object>, kernelVersion: string }}
  */
 export function load(kind, opts = {}) {
   if (!Object.hasOwn(KIND_TO_SCHEMA_FILE, kind)) {
@@ -214,7 +214,7 @@ export function load(kind, opts = {}) {
  *
  * @param {string} absolutePath
  * @param {{ kind?: string }} [opts]
- * @returns {{ rollup: object, rows: Array<object>, kernelVersion: string, generatedAt: string }}
+ * @returns {{ rows: Array<object>, kernelVersion: string }}
  */
 export function loadFile(absolutePath, opts = {}) {
   if (typeof absolutePath !== 'string' || absolutePath.length === 0) {

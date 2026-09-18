@@ -16,10 +16,8 @@
 //   - `out-of-scope` — the file is still there, but the gate's own
 //                      `targetDirs` / `ignoreGlobs` no longer match it.
 //
-// The pruner never adds a row, never restamps `generatedAt` (a fresh stamp
-// over unmeasured rows is the exact failure an age check exists to catch), and
-// recomputes `rollup` through the kind's own arithmetic so the pruned envelope
-// still validates against its schema. An unreadable scope config degrades to
+// The pruner never adds a row and never re-scores one; it only drops rows, and
+// readers derive the rollup from what remains. An unreadable scope config degrades to
 // orphan-only pruning rather than treating unknown scope as empty scope.
 //
 // Exit codes:
@@ -44,7 +42,7 @@ const HELP = {
   invocation:
     'node scripts/prune-baseline-orphans.js [--check] [--kind <kind>] [--json]',
   summary:
-    "Remove baseline rows whose file is gone from disk or has left the gate's scope. Never adds a row, never restamps generatedAt, never re-scores.",
+    "Remove baseline rows whose file is gone from disk or has left the gate's scope. Never adds a row, never re-scores.",
   flags: [
     ['--check', 'Report what would be pruned, write nothing, exit 1 if any.'],
     ['--kind <kind>', 'Prune one kind only (repeatable). Default: all.'],
@@ -100,8 +98,6 @@ export function parseArgs(argv = []) {
  */
 function renderKind(entry, check) {
   if (!entry.present) return [];
-  if (entry.skipped)
-    return [`  - ${entry.kind}: skipped (${entry.skipReason})`];
   const suffix = entry.degraded
     ? ` [orphan-only: ${entry.degradedReason}]`
     : '';

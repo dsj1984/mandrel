@@ -18,6 +18,7 @@ import path from 'node:path';
 import { after, describe, test } from 'node:test';
 
 import { runCli } from '../.agents/scripts/check-cyclomatic.js';
+import { rollupOf } from '../.agents/scripts/lib/audit-baselines/kinds.js';
 import {
   buildCyclomaticEnvelope,
   CYCLOMATIC_CEILING,
@@ -190,21 +191,24 @@ describe('diffCyclomaticRows', () => {
 });
 
 describe('buildCyclomaticEnvelope', () => {
-  test('derives the rollup from the rows rather than restating it', () => {
-    const env = buildCyclomaticEnvelope({
-      rows: [
-        { file: 'a.js', methodsAboveCeiling: 2, maxCyclomatic: 14 },
-        { file: 'b.js', methodsAboveCeiling: 1, maxCyclomatic: 30 },
-      ],
-      ceiling: 12,
-      generatedAt: '2026-01-01T00:00:00.000Z',
-    });
-    assert.deepEqual(env.rollup['*'], {
+  test('writes no stamp and no rollup — readers derive it from the rows', () => {
+    const rows = [
+      { file: 'a.js', methodsAboveCeiling: 2, maxCyclomatic: 14 },
+      { file: 'b.js', methodsAboveCeiling: 1, maxCyclomatic: 30 },
+    ];
+    const env = buildCyclomaticEnvelope({ rows, ceiling: 12 });
+    assert.deepEqual(Object.keys(env), ['$schema', 'ceiling', 'rows']);
+    assert.equal(env.ceiling, 12);
+    assert.deepEqual(env.rows, rows);
+    assert.deepEqual(rollupOf('cyclomatic', env), {
       filesAboveCeiling: 2,
       methodsAboveCeiling: 3,
       maxCyclomatic: 30,
     });
-    assert.equal(env.ceiling, 12);
+  });
+
+  test('a missing row set is written as an empty array', () => {
+    assert.deepEqual(buildCyclomaticEnvelope({ ceiling: 12 }).rows, []);
   });
 });
 
@@ -327,7 +331,7 @@ describe('check-cyclomatic.js enforces the fixed ceiling of 12', () => {
       readFileSync(path.join(root, 'baselines', 'cyclomatic.json'), 'utf8'),
     );
     assert.equal(written.ceiling, 12);
-    assert.equal(written.rollup['*'].methodsAboveCeiling, 1);
+    assert.equal(rollupOf('cyclomatic', written).methodsAboveCeiling, 1);
 
     const after = await captureRun(root, []);
     assert.equal(after.exitCode, 0, after.stdout);

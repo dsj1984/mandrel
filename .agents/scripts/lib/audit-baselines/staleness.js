@@ -1,7 +1,10 @@
 /**
  * Baseline staleness on two clocks: wall-clock age, and commits touching the
  * measured surface since the baseline was committed — a baseline behind its
- * surface is stale at zero days. Unknown reports `null`, never a reassuring 0.
+ * surface is stale at zero days. Age is the file's own stamp where it carries
+ * one, else its last-commit date: row-set baselines carry no stamp, since one
+ * rewritten on every refresh conflicted every concurrent merge. Unknown
+ * reports `null`, never a reassuring 0.
  *
  * @module lib/audit-baselines/staleness
  */
@@ -67,6 +70,15 @@ function commitsSinceBaseline({ relPath, surfacePaths, io }) {
 }
 
 /**
+ * @param {{ baseline: object, relPath: string, io: object }} args
+ * @returns {string | null}
+ */
+function writtenAtOf({ baseline, relPath, io }) {
+  if (typeof baseline.generatedAt === 'string') return baseline.generatedAt;
+  return git(['log', '-n1', '--format=%cI', '--', relPath], io);
+}
+
+/**
  * @param {{
  *   kind: string, gateBlock: object | null, rows: Array<{id: string}>,
  *   relPath: string, baseline: object | null, now: Date,
@@ -86,8 +98,7 @@ export function stalenessOf({
   now,
   io,
 }) {
-  const generatedAt =
-    typeof baseline?.generatedAt === 'string' ? baseline.generatedAt : null;
+  const generatedAt = baseline ? writtenAtOf({ baseline, relPath, io }) : null;
   const staleCommits = baseline
     ? commitsSinceBaseline({
         relPath,

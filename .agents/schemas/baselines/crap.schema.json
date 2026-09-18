@@ -14,34 +14,6 @@
       "type": "boolean",
       "description": "Positive assertion that the writer which produced these rows recorded coordinate provenance per row (Story #4901). Absence is the ONLY evidence a pre-Story-#4866 baseline leaves — such a baseline claims by omission that every row is an original-source coordinate while some are transpiled. Deliberately optional and unconstrained here for the same reason as scoringSemantics: an unstamped baseline must reach the `provenance-unstamped` compat axis, which fails it closed with the re-seed command when it also carries transpiled-source rows, rather than dying on a raw schema error. A pure-JavaScript baseline never needs it."
     },
-    "rollup": {
-      "type": "object",
-      "required": ["*"],
-      "additionalProperties": {
-        "type": "object",
-        "required": ["p50", "p95", "max", "methodsAbove20"],
-        "additionalProperties": false,
-        "properties": {
-          "p50": { "type": "number", "minimum": 0 },
-          "p95": { "type": "number", "minimum": 0 },
-          "max": { "type": "number", "minimum": 0 },
-          "methodsAbove20": { "type": "integer", "minimum": 0 }
-        }
-      },
-      "properties": {
-        "*": {
-          "type": "object",
-          "required": ["p50", "p95", "max", "methodsAbove20"],
-          "additionalProperties": false,
-          "properties": {
-            "p50": { "type": "number", "minimum": 0 },
-            "p95": { "type": "number", "minimum": 0 },
-            "max": { "type": "number", "minimum": 0 },
-            "methodsAbove20": { "type": "integer", "minimum": 0 }
-          }
-        }
-      }
-    },
     "rows": {
       "type": "array",
       "items": {

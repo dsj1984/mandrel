@@ -17,34 +17,28 @@ import { applyFloors, flattenBreaches } from './floors.js';
 import { applyRefreshAcknowledgment } from './refresh-ack.js';
 
 /**
- * Recompute the `*` floor rollup without `ignoreGlobs` rows, in case a
- * baseline was poisoned by some route other than generation (which already
- * drops them); an ignored file could otherwise breach a global floor. A no-op
- * for a correct baseline; compare is untouched.
+ * The floor rollup, derived from the rows (the committed file carries none).
+ * `ignoreGlobs` rows are dropped first in case a baseline was poisoned by some
+ * route other than generation, which already drops them; an ignored file
+ * could otherwise breach a global floor.
  *
- * @param {{ kind: string, baseline: { rollup?: object, rows?: object[] }, ignoreGlobs?: string[], cwd?: string }} args
+ * @param {{ kind: string, baseline: { rows?: object[] }, ignoreGlobs?: string[], cwd?: string }} args
  * @returns {object}
  */
-function rollupExcludingIgnored({ kind, baseline, ignoreGlobs, cwd }) {
-  const rollup = baseline?.rollup;
-  if (!Array.isArray(ignoreGlobs) || ignoreGlobs.length === 0) return rollup;
-  const rows = baseline?.rows;
-  if (!Array.isArray(rows) || rows.length === 0) return rollup;
-  let mod;
-  try {
-    mod = getKindModule(kind);
-  } catch {
-    return rollup;
-  }
-  if (mod?.keyField !== 'path' || typeof mod.rollup !== 'function')
-    return rollup;
-  const kept = rows.filter((row) => {
-    const p = row?.path;
-    return typeof p !== 'string' || !isIgnoredByGlobs(p, ignoreGlobs, cwd);
-  });
-  if (kept.length === rows.length) return rollup;
-  const recomputed = mod.rollup(kept);
-  return { ...rollup, '*': recomputed?.['*'] ?? rollup?.['*'] };
+function floorRollupOf({ kind, baseline, ignoreGlobs, cwd }) {
+  const mod = getKindModule(kind);
+  const rows = Array.isArray(baseline?.rows) ? baseline.rows : [];
+  const filterIgnored =
+    mod.keyField === 'path' &&
+    Array.isArray(ignoreGlobs) &&
+    ignoreGlobs.length > 0;
+  const kept = filterIgnored
+    ? rows.filter((row) => {
+        const p = row?.path;
+        return typeof p !== 'string' || !isIgnoredByGlobs(p, ignoreGlobs, cwd);
+      })
+    : rows;
+  return mod.rollup(kept);
 }
 
 function loadHeadBaseline(kind, cwd, configPath) {
@@ -87,7 +81,6 @@ function buildGateReport({
     baseRef: cmp.baseRef ?? null,
     // Without this a compare arm that never ran looks identical to a clean run.
     baseRead: cmp.baseRead === true,
-    generatedAt: baseline.generatedAt,
     acknowledged: ack.acknowledged,
     // Acknowledgment can be partial; name which regressions it cleared.
     acknowledgedKeys: ack.acknowledgedKeys,
@@ -114,7 +107,7 @@ export async function evaluateKind({
       schemaError: { tag: 'semantics', message: semanticsError },
     };
   }
-  const floorRollup = rollupExcludingIgnored({
+  const floorRollup = floorRollupOf({
     kind,
     baseline,
     ignoreGlobs: gateBlock.ignoreGlobs,

@@ -22,6 +22,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 
+import { rollup } from '../../.agents/scripts/lib/baselines/kinds/coverage.js';
 import { getQuality } from '../../.agents/scripts/lib/config-resolver.js';
 import {
   runCheckBaselines,
@@ -43,6 +44,10 @@ const REAL_AGENTRC = JSON.parse(
 const REAL_BASELINE = JSON.parse(
   fs.readFileSync(path.join(REPO_ROOT, 'baselines', 'coverage.json'), 'utf8'),
 );
+
+// Baselines carry no persisted rollup (Story #5400): the gate derives it from
+// the rows, so the "measured" number is the kind's own aggregate over them.
+const MEASURED = rollup(REAL_BASELINE.rows)['*'];
 
 const EXIT_PASS = 0;
 const EXIT_FLOOR = 1;
@@ -142,26 +147,46 @@ describe('coverage gate — selection', () => {
 describe('coverage gate — floors are derived from the regenerated baseline', () => {
   it('every floor sits at or below the measured rollup it was derived from', () => {
     const floors = REAL_AGENTRC.delivery.quality.gates.coverage.floors['*'];
-    const measured = REAL_BASELINE.rollup['*'];
     for (const axis of ['lines', 'branches', 'functions']) {
       assert.ok(
-        floors[axis] <= measured[axis],
+        floors[axis] <= MEASURED[axis],
         `coverage floor ${axis}=${floors[axis]} exceeds the measured ` +
-          `rollup ${measured[axis]} — a floor above the measurement fails on ` +
+          `rollup ${MEASURED[axis]} — a floor above the measurement fails on ` +
           'the very run it was configured from',
       );
       // ...and not so far below it that the floor is decorative. The
       // 90/85/90 example in .agents/docs/agentrc-reference.json is validated
       // only against itself; these floors track the real number.
       assert.ok(
-        measured[axis] - floors[axis] <= 5,
+        MEASURED[axis] - floors[axis] <= 5,
         `coverage floor ${axis}=${floors[axis]} is more than 5 points below ` +
-          `the measured ${measured[axis]} — that much slack makes the floor ` +
+          `the measured ${MEASURED[axis]} — that much slack makes the floor ` +
           'unable to catch a real drop',
       );
     }
   });
 });
+
+/**
+ * The real baseline plus just enough NEW rows scoring 0 on `axis` (and 100 on
+ * the others) to drag the rows-derived `axis` rollup under `floor`. New rows
+ * are additions, never regressions, and they only raise the other axes — so
+ * the floor breach on `axis` is the single failure the run can report.
+ */
+function poisonAxis(axis, floor) {
+  const poisoned = structuredClone(REAL_BASELINE);
+  let i = 0;
+  while (rollup(poisoned.rows)['*'][axis] >= floor) {
+    poisoned.rows.push({
+      path: `poison/${i++}.js`,
+      lines: 100,
+      branches: 100,
+      functions: 100,
+      [axis]: 0,
+    });
+  }
+  return poisoned;
+}
 
 describe('coverage gate — it can actually fail', () => {
   let root;
@@ -191,9 +216,10 @@ describe('coverage gate — it can actually fail', () => {
     it(`fails when the measured ${axis} rollup drops below its floor`, async () => {
       const floor =
         REAL_AGENTRC.delivery.quality.gates.coverage.floors['*'][axis];
-      const poisoned = structuredClone(REAL_BASELINE);
-      poisoned.rollup['*'][axis] = floor - 0.01;
-      writeJson(path.join(root, 'baselines', 'coverage.json'), poisoned);
+      writeJson(
+        path.join(root, 'baselines', 'coverage.json'),
+        poisonAxis(axis, floor),
+      );
 
       const res = runGate(root);
       assert.equal(

@@ -1,14 +1,14 @@
 // tests/scripts/check-baselines.min-floor.test.js
 //
 // Story #2193 / Task #2200 — AC-5: the unified `check-baselines.js`
-// dispatcher MUST fail closed when `rollup['*'].min` drops below the
-// configured maintainability floor.
+// dispatcher MUST fail closed when the rows-derived `rollup['*'].min` drops
+// below the configured maintainability floor.
 //
 // Pre-#2193 the framework default was `{ '*': { maintainability: 70 } }`,
 // which silently no-oped because the maintainability rollup exposes
 // `min` / `p50` / `p95` axes, not `maintainability`. Task #2198 corrected
 // the default to `{ '*': { min: 70 } }`; this test pins the integration
-// contract end-to-end: a rollup `min` of 65 trips the gate, 75 passes,
+// contract end-to-end: a derived `min` of 65 trips the gate, 75 passes,
 // and the breach payload names the `min` axis and the observed value.
 
 import assert from 'node:assert/strict';
@@ -28,10 +28,8 @@ function maintainabilityEnvelope({ min }) {
   return {
     $schema: 'maintainability.schema.json',
     kernelVersion: currentKernelVersion('maintainability'),
-    generatedAt: '2026-01-01T00:00:00.000Z',
-    // Rollup must satisfy the schema's required min/p50/p95 trio. Only
-    // `min` is load-bearing for the floor assertion under test.
-    rollup: { '*': { min, p50: 88, p95: 95 } },
+    // The reader derives `rollup['*'].min` from the rows, so the single row's
+    // MI is the observed `min` under test.
     rows: [{ path: 'src/example.js', mi: min }],
   };
 }
@@ -149,9 +147,9 @@ describe('check-baselines — maintainability min floor (Story #2193 AC-5)', () 
 // ---------------------------------------------------------------------------
 // Epic #4326 incident — floor-path defence against an ignoreGlobs-poisoned
 // baseline. Even if a baseline (from stale tooling, a hand-edit, or a future
-// generation bug) records an `ignoreGlobs`-matched file in its rows and drags
-// `rollup["*"].min` below the floor, the floor check must recompute the `*`
-// aggregate over non-ignored rows and NOT trip.
+// generation bug) records an `ignoreGlobs`-matched file in its rows, which
+// drags the rows-derived `rollup["*"].min` below the floor, the floor check
+// must recompute the `*` aggregate over non-ignored rows and NOT trip.
 // ---------------------------------------------------------------------------
 
 function setupRepoWithIgnoreGlobs({ floors, ignoreGlobs } = {}) {
@@ -179,15 +177,13 @@ function setupRepoWithIgnoreGlobs({ floors, ignoreGlobs } = {}) {
 }
 
 // A poisoned envelope: an ignored file leaked into rows with a below-floor MI,
-// dragging the stored rollup min to that value; a second, healthy file sits at
+// dragging the derived rollup min to that value; a second, healthy file sits at
 // 72 (above the 70 floor). With the ignored row excluded, the effective min is
 // 72 and the gate passes.
 function poisonedEnvelope() {
   return {
     $schema: 'maintainability.schema.json',
     kernelVersion: currentKernelVersion('maintainability'),
-    generatedAt: '2026-01-01T00:00:00.000Z',
-    rollup: { '*': { min: 48.787, p50: 88, p95: 95 } },
     rows: [
       { path: '.agents/scripts/lib/config-settings-schema.js', mi: 48.787 },
       { path: '.agents/scripts/lib/healthy.js', mi: 72 },
@@ -233,7 +229,11 @@ describe('check-baselines — maintainability floor ignores ignoreGlobs-matched 
       argv: ['--no-friction', '--gate', 'maintainability'],
       cwd: root,
     });
-    assert.equal(res.exitCode, 1, 'no ignoreGlobs → stored poisoned min trips');
+    assert.equal(
+      res.exitCode,
+      1,
+      'no ignoreGlobs → derived poisoned min trips',
+    );
     assert.equal(res.report.gates[0].breaches[0].value, 48.787);
   });
 });
