@@ -15,6 +15,17 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.63.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.62.0...mandrel-v2.63.0) (2026-09-18)
+
+
+### ⚠ BREAKING CHANGES
+
+* committed baselines/*.json row-set files no longer carry `generatedAt` or `rollup`, and the per-kind schemas reject both keys. Run `mandrel migrate` (step 2.63.0, run by `mandrel update`) to rewrite existing baselines. `MANDREL_BASELINE_GENERATED_AT` is retired.
+
+### Added
+
+* make committed row-set baselines merge clean without the custom merge driver ([#5400](https://github.com/dsj1984/mandrel/issues/5400)) ([#5401](https://github.com/dsj1984/mandrel/issues/5401)) ([8a2df0a](https://github.com/dsj1984/mandrel/commit/8a2df0aeb6c75c2c08ef70eeb970b88bef716bde))
+
 ## [2.62.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.61.0...mandrel-v2.62.0) (2026-09-18)
 
 
