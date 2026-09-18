@@ -1,45 +1,11 @@
 #!/usr/bin/env node
 
 /**
- * plan-critics.js — the /mandrel-plan pre-mortem dispatch verdict CLI
- * (Story #4592; pre-mortem only since Story #5312).
- *
- * The operator runs this between Author and Persist when they want the
- * pre-mortem — it is no longer a step of the `/mandrel-plan` spine. It
- * evaluates the pre-mortem dispatch condition against the draft
- * `stories.json` and prints the verdict as JSON on stdout so the workflow can
- * act on it — dispatching a fresh-context critic sub-agent and folding its
- * findings into a re-author round **before** the plan is persisted.
- *
- * The pre-mortem's external-dependency arm (Story #4700) needs the repo's own
- * manifests to tell an external scoped package from a local one, so this CLI
- * reads them (`collectRepoPackages`) and passes the specifier set down — the
- * pure evaluation modules never touch the filesystem.
- *
- * Why here and nowhere else. The evaluation used to run inside
- * `run-plan-persist.js`, after authoring was finished and immediately before
- * `createStoryIssues` — the one point in the flow where nothing can act on a
- * `dispatch: true` verdict, because the artifacts are about to become live
- * issues. It logged the verdict and moved on. This CLI is now the **single**
- * evaluation point, sited where a re-author loop actually exists.
- *
- * Advisory by contract: a `dispatch: true` verdict routes work to the
- * workflow, it does not gate the run. This CLI exits 0 on any verdict; only a
- * usage/IO error is a failure. Every `dispatch: false` decision is recorded to
- * the plan-metrics ledger (`appendCriticSkip`) so under-firing stays auditable.
- *
- * CLI:
- *   --stories <file>     Required. The draft Story ticket array (JSON).
- *   --tech-spec <file>   Optional. Shared Tech Spec, folded into the plan
- *                        text the external-dependency probe scans.
- *
- * stdout is reserved for the verdict JSON (Story #2278 discipline):
- *
- *   {
- *     "premortem": { "critic": "pre-mortem", "dispatch": true, "reasons": [...] }
- *   }
- *
- * Human-readable log lines go to stderr, matching the sibling `plan-persist`.
+ * plan-critics.js — operator-run pre-mortem dispatch verdict for a draft plan,
+ * evaluated between Author and Persist, where a re-author loop can still act
+ * on it. Advisory: exits 0 on any verdict; each skip is recorded to the
+ * plan-metrics ledger so under-firing stays auditable. stdout carries only
+ * `{ "premortem": { critic, dispatch, reasons } }`.
  *
  * Exit codes: 0 success (any verdict); 1 usage/IO error.
  */
@@ -61,10 +27,8 @@ const CLI_OPTIONS = {
 
 const USAGE = 'Usage: plan-critics.js --stories <file> [--tech-spec <file>]';
 
-/** The `cli` discriminator every ledger record from this surface carries. */
 export const PLAN_CRITICS_CLI = 'plan-critics';
 
-/** Dependency maps a manifest can declare a package under. */
 const DEP_MAP_KEYS = [
   'dependencies',
   'devDependencies',
@@ -72,7 +36,6 @@ const DEP_MAP_KEYS = [
   'peerDependencies',
 ];
 
-/** Add a manifest's own name and every declared dependency to `names`. */
 function collectPackageIdentity(names, pkg) {
   if (typeof pkg?.name === 'string') names.add(pkg.name);
   for (const key of DEP_MAP_KEYS) {
@@ -92,7 +55,6 @@ async function readJsonIfPresent(filePath) {
   }
 }
 
-/** Normalize the `workspaces` field (array or `{ packages: [] }`) to a list. */
 function workspacePatterns(pkg) {
   const ws = pkg?.workspaces;
   if (Array.isArray(ws)) return ws;
@@ -101,9 +63,7 @@ function workspacePatterns(pkg) {
 }
 
 /**
- * Resolve `workspaces` patterns to child `package.json` paths. Handles the two
- * common shapes — a `dir/*` glob (expanded one level) and a literal path — and
- * never throws: an unreadable base directory is skipped.
+ * Handles `dir/*` (one level) and literal paths; never throws.
  *
  * @param {string} rootDir
  * @param {string[]} patterns
@@ -134,11 +94,9 @@ async function resolveWorkspaceManifestPaths(rootDir, patterns) {
 }
 
 /**
- * Gather the package specifiers the repo's own manifests declare — the set the
- * pre-mortem external-dependency probe (Story #4700) measures a scoped-package
- * reference against. Includes the root manifest's own name and dependency maps
- * plus every workspace manifest's. Best-effort: a repo with no `package.json`
- * yields `[]`, which only widens what the probe treats as external.
+ * Package specifiers the repo's own manifests (root + workspaces) declare, so
+ * the external-dependency probe can tell local from external. No manifest
+ * yields `[]`, which only widens what counts as external.
  *
  * @param {{ rootDir?: string }} [opts]
  * @returns {Promise<string[]>}
@@ -160,8 +118,6 @@ export async function collectRepoPackages({ rootDir = process.cwd() } = {}) {
 }
 
 /**
- * Read the draft artifacts the critics evaluate.
- *
  * @param {{ storiesPath: string, techSpecPath?: string|null }} paths
  * @returns {Promise<{ tickets: object[], techSpecContent: string }>}
  */
@@ -188,9 +144,7 @@ export async function loadCriticArtifacts({
 }
 
 /**
- * Log the decision and record a skip on the plan-metrics ledger. The
- * ledger write is best-effort by `appendCriticSkip`'s own contract — it can
- * never fail the plan step.
+ * The ledger write is best-effort and never fails the plan step.
  *
  * @param {{ premortem: object }} verdict
  * @param {object} config
@@ -221,10 +175,6 @@ export async function recordCriticSkips(
 }
 
 /**
- * Load the artifacts, evaluate the pre-mortem, record a skip, and return the
- * verdict. Exported as the CLI's whole body so tests drive it in-process with
- * an explicit config and ledger seam.
- *
  * @param {{
  *   storiesPath: string,
  *   techSpecPath?: string|null,
@@ -232,10 +182,7 @@ export async function recordCriticSkips(
  *   knownPackages?: string[],
  *   append?: typeof appendCriticSkip,
  * }} args
- * @param {string[]} [args.knownPackages] - Package specifiers the repo's own
- *   manifests declare, forwarded to the pre-mortem external-dependency probe
- *   (Story #4700). `main()` resolves them via `collectRepoPackages`; tests may
- *   pass an explicit set or omit it (defaults to `[]`).
+ * @param {string[]} [args.knownPackages]
  * @returns {Promise<{ premortem: object }>}
  */
 export async function evaluateCriticArtifacts({
@@ -266,8 +213,7 @@ async function main() {
     throw new Error(USAGE);
   }
 
-  // stdout is reserved for the verdict JSON — flip every Logger sink that
-  // could land on stdout to stderr before any evaluation runs.
+  // stdout is reserved for the verdict JSON.
   routeAllOutputToStderr();
 
   const verdict = await evaluateCriticArtifacts({

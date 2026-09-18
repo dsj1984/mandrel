@@ -1,56 +1,10 @@
 #!/usr/bin/env node
 
 /**
- * plan-persist.js — flat Story GitHub-write surface for v2 `/mandrel-plan`
- * (Stage 3 — `docs/roadmap.md`).
- *
- * Given the author-written planning artifacts (`stories.json`, optional shared
- * Tech Spec), this CLI validates and creates Story issue(s) directly:
- *
- *   changes[] repair → ticket validator / DAG → reachability →
- *   split-policy partition → fold Spec into each Story body →
- *   createIssue(s) with type::story, resumably by plan fingerprint (NOT
- *   agent::ready) → one `story-plan-state` comment (the plan summary) on
- *   every Story → flip every Story to agent::ready →
- *   comment + close superseded source tickets → temp cleanup + stale reap.
- *
- * Story #4542 retired the authored risk verdict: persist neither requires nor
- * accepts one, and no plan-time step produces one. Review depth and the
- * acceptance-critic mode are derived from the diff at close time
- * (`review-depth.js#deriveChangeLevel`). `--force-review` is the only review
- * gate the planner still carries, and it is an explicit operator flag.
- *
- * CLI:
- *   --stories <file>          Required Story ticket array (default length 1)
- *   --tech-spec <file>        Optional shared Tech Spec folded into each Story
- *   --plan-dir <dir>          Optional temp dir deleted at terminal success.
- *                             Also where the `plan-context.json` envelope is
- *                             auto-discovered from (see --plan-context)
- *   --plan-context <file>     Optional explicit path to the `plan-context.js`
- *                             envelope. Its `sourceTickets[]` is what makes
- *                             `--tickets` superseding work without a flag
- *   --source-tickets <ids>    Explicit OVERRIDE of the envelope-derived source
- *                             ids, for hand-driven runs. Each id must be
- *                             claimed by exactly one Story's `supersedes[]`;
- *                             they are commented on and closed as superseded
- *   --no-close-superseded     Keep the source tickets open (no comment, no
- *                             close) — for a genuinely partial supersede
- *   --dry-run                 Assemble + validate without GitHub writes
- *   --force-review            Operator-forced review stop before persist lands
- *
- * **Persist is one command (Story #5342).** Without `--dry-run` the CLI runs
- * the write-free dry-run first — the
- * changes[] repair, the validator, DAG, reachability, split/supersede
- * partition, Spec fold — and, when the gate list comes back clean, chains
- * straight into the real persist in the SAME invocation. A dry-run failure
- * stops before any `createIssue`, and the run lists every warning (a
- * footprint probe that disagrees with the base branch, an empty `verify[]`,
- * an open question in a body) either way. `--dry-run` still creates nothing.
- *
- * stdout is reserved for the JSON result (Story #2278 discipline, extended to
- * this CLI by Story #4541): `routeAllOutputToStderr()` runs before any
- * pipeline code so a headless driver can `JSON.parse` stdout unconditionally.
- * Human-readable log lines go to stderr, matching the sibling `plan-context`.
+ * plan-persist.js — validate authored plan artifacts and create the Story
+ * issue(s). Without `--dry-run` it runs the write-free dry-run first and
+ * persists in the same invocation only if every gate passes. stdout carries
+ * only the JSON result; logs go to stderr.
  *
  * Exit codes: 0 success; 1 fatal; 3 reachability orphans (nothing mutated).
  */
@@ -137,9 +91,6 @@ async function readJsonFile(filePath, label) {
 }
 
 /**
- * Resolve every input path the CLI accepts, including where the
- * `plan-context.js` envelope is discovered from. Exported for tests.
- *
  * @param {object} values Parsed `parseArgs` values.
  */
 export function resolveInputPaths(values) {
@@ -171,16 +122,11 @@ async function loadArtifacts(paths) {
 }
 
 /**
- * Resolve the optional container-Epic request from the CLI flags.
+ * Title and goal are required together; exactly one is a usage error rather
+ * than a silent no-Epic run.
  *
- * Both halves are required together: an Epic with a title and no goal is a
- * container with nothing explaining the grouping, and a goal with no title
- * cannot be opened at all. Supplying exactly one is a **usage error**, not a
- * silent no-Epic run — the operator asked for a container and would otherwise
- * never learn they did not get one.
- *
- * @param {object} values Parsed `parseArgs` values.
- * @returns {{ title: string, goal: string }|null} `null` when no Epic was requested.
+ * @param {object} values
+ * @returns {{ title: string, goal: string }|null}
  */
 export function resolveEpicRequest(values) {
   const title = (values['epic-title'] ?? '').trim();
@@ -197,15 +143,11 @@ export function resolveEpicRequest(values) {
 }
 
 /**
- * Refuse `--epic` alongside `--epic-title`/`--epic-goal`.
+ * A run joins an Epic or opens one, never both.
  *
- * A run either joins a container or opens one; asking for both names no
- * coherent outcome, so it is a usage error rather than a silent precedence
- * rule the operator would have to know.
- *
- * @param {object} values Parsed `parseArgs` values.
+ * @param {object} values
  * @returns {void}
- * @throws {Error} When both forms were supplied.
+ * @throws {Error}
  */
 export function assertEpicFlagsExclusive(values) {
   const adopts = (values.epic ?? '').trim() !== '';
@@ -222,14 +164,11 @@ export function assertEpicFlagsExclusive(values) {
 }
 
 /**
- * Resolve `--epic <id>`: the existing open container this run joins.
+ * `--epic <id>` shape check before any provider call; existence is verified
+ * later against live state.
  *
- * Story #5155. Parsed here rather than deep in the engine so a typo costs a
- * usage error before any provider call — the id itself is verified against
- * live state later, before the first create.
- *
- * @param {object} values Parsed `parseArgs` values.
- * @returns {number|null} `null` when no adoption was requested.
+ * @param {object} values
+ * @returns {number|null}
  */
 export function resolveEpicAdoptionId(values) {
   const raw = (values.epic ?? '').trim();
@@ -244,16 +183,13 @@ export function resolveEpicAdoptionId(values) {
 }
 
 /**
- * Assemble the `runPlanPersist` opts bag from parsed CLI values.
+ * Where envelope-derived source ids meet the engine; a break here silently
+ * un-wires `--tickets` superseding.
  *
- * Exported for tests: this is the join where the envelope-derived source ids
- * meet the persist engine, so a regression here silently un-wires
- * `/mandrel-plan --tickets` superseding (Story #4554).
- *
- * @param {object} values Parsed `parseArgs` values.
+ * @param {object} values
  * @param {ReturnType<typeof resolveInputPaths>} paths
  * @param {object|null} planContextEnvelope
- * @returns {object} opts for `runPlanPersist`.
+ * @returns {object}
  */
 export function buildPersistOptions(values, paths, planContextEnvelope) {
   const source = resolveSourceTicketIds({
@@ -270,8 +206,7 @@ export function buildPersistOptions(values, paths, planContextEnvelope) {
     sourceTicketOrigin: source.origin,
     epic: resolveEpicRequest(values),
     adoptEpicId: resolveEpicAdoptionId(values),
-    // Default-on: `--no-close-superseded` is the explicit escape and always
-    // wins over the (default `true`) `--close-superseded`.
+    // `--no-close-superseded` always wins.
     closeSuperseded:
       values['no-close-superseded'] === true
         ? false
@@ -313,32 +248,10 @@ async function runPersistInvocation({
 }
 
 /**
- * The default persist path (Story #4741 AC-1/AC-3; widened to any plan by
- * Story #5312; made the default by Story #5342): chain a clean dry-run into
- * the real persist in ONE operator invocation.
- *
- * Two passes over the **same** loaded artifacts:
- *
- *   1. A write-free dry-run. Every gate runs before any `createIssue` can
- *      happen, so a validation failure — which throws or returns reachability
- *      orphans — stops here, before a single issue exists (AC-3).
- *   2. The real write, run when the dry-run passed clean. Because it replays
- *      the identical artifacts, the persisted output is byte-identical to
- *      what the dry-run validated (AC-1). The lite-route condition that used
- *      to gate this step went with the plan-side lite claim: a clean dry-run
- *      is the review the chain exists to fold.
- *
- * The caller reads the **second** pass's envelope, so the first pass's
- * evidence has to be carried onto it (Story #5361). The repair pass mutates
- * the loaded tickets in place, which is what makes replaying the identical
- * artifacts possible at all — and it is also why pass 2 recomputes an empty
- * `repairs[]`: by then there is nothing left to repair. The evidence is
- * preserved rather than re-derived, because re-running the repair pass would
- * report repairs the persisting pass did not make.
- *
- * Exported for tests — this is where the round-trip collapse lives, so a
- * regression here silently re-opens the second operator round-trip (or
- * worse, persists a plan the dry-run never gated).
+ * Dry-run then persist over the SAME artifacts: a gate failure throws before
+ * any issue exists, and the write replays exactly what was validated. The
+ * repair pass mutates tickets in place, so pass 2 sees no repairs — carry pass
+ * 1's evidence onto the returned envelope.
  *
  * @param {{ values: object, config: object, provider: object,
  *   artifacts: object, metricsSince: string }} args
@@ -385,10 +298,7 @@ export async function runPersistChain({
 }
 
 /**
- * Union two evidence lists, dry-run first, dropping an entry the second pass
- * reported identically. Order is the operator's reading order; the dedupe is
- * by rendered content because a repair is a plain record and a warning is a
- * string, so two passes that noticed the same thing noticed it byte-for-byte.
+ * Ordered union, deduped by serialized content.
  *
  * @param {unknown} first
  * @param {unknown} second
@@ -410,19 +320,7 @@ function mergeEvidence(first, second) {
 }
 
 /**
- * Decide whether this invocation persists after its gates, or only validates.
- *
- * Story #5342: chaining is the default, not a flag. Every invocation that is
- * not an explicit `--dry-run` runs the gate list and then persists what it
- * passed, so the two operator round-trips collapse without anyone having to
- * remember an opt-in. Story #5361 removed the no-op alias Story #5342 had
- * kept for existing call-sites, rather than accepting and ignoring it: a flag
- * that cannot change an outcome is a shim, and `parseArgs` refuses an unknown
- * option, so passing it now fails loudly instead of reading as honoured.
- *
- * Exported for tests: this one predicate is what makes the CLI one command.
- *
- * @param {object} values Parsed `parseArgs` values.
+ * @param {object} values
  * @returns {boolean} `true` to run the gates and then persist.
  */
 export function shouldChainPersist(values) {
@@ -430,18 +328,8 @@ export function shouldChainPersist(values) {
 }
 
 /**
- * Attach the plan-metrics roll-up for **this** invocation.
- *
- * Two Story #4541 fixes meet here. `readPlanMetrics` is declared
- * `(epicId, config)` but was called with `config` first, so it threw its
- * `epicId` guard on every run and the catch below turned that into a
- * silently missing summary — v2 persist is always Epic-less, hence the
- * explicit `null`. And the Epic-less ledger is shared across every plan the
- * repo has ever run, so `since` scopes the counts to the current invocation
- * instead of reporting lifetime totals under an invocation-shaped line.
- *
- * This runs *after* `recordPlanInvocation` has appended this run's own
- * record, so the summary always has at least that one entry to report.
+ * Attach the plan-metrics roll-up for this invocation. The Epic-less (`null`)
+ * ledger is shared by every plan run, so `since` scopes it to this one.
  *
  * @param {object} result Mutated in place with `planMetrics`.
  * @param {object} config
@@ -468,14 +356,10 @@ async function main() {
     throw new Error(USAGE);
   }
 
-  // stdout is reserved for the JSON result: flip every Logger sink that could
-  // land on stdout to stderr BEFORE any pipeline code runs (Story #2278
-  // discipline, extended here by Story #4541 — this CLI interleaved Logger
-  // lines with its own JSON, so a headless driver could not parse stdout).
+  // stdout is reserved for the JSON result.
   routeAllOutputToStderr();
 
-  // Boundary for this invocation's plan-metrics roll-up — stamped before any
-  // ledger-writing work so every record this run appends falls inside it.
+  // Stamped before any ledger write so this run's records fall inside it.
   const metricsSince = new Date().toISOString();
 
   let config;
@@ -485,8 +369,7 @@ async function main() {
   } catch (err) {
     throw new Error(`Config schema validation failed:\n${err.message}`);
   }
-  // Argument-shape refusals fire before any I/O (Story #5155): a usage error
-  // the operator can see without waiting on artifact reads or a provider.
+  // Argument-shape refusals fire before any I/O.
   assertEpicFlagsExclusive(values);
   resolveEpicRequest(values);
   resolveEpicAdoptionId(values);

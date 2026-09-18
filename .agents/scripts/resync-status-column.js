@@ -2,26 +2,10 @@
 /* node:coverage ignore file */
 
 /**
- * resync-status-column.js — re-assert the GitHub Projects v2 Status
- * column for a ticket after auto-merge has fired (Story #2845).
- *
- * The `/single-story-deliver` and `/mandrel-deliver` workflow docs call
- * this CLI after Step 5 confirms `state: "MERGED"` so the orchestrator
- * wins the race against the GitHub built-in `Pull request merged`
- * workflow, which would otherwise overwrite Status to whatever value
- * the bot's rule prescribes (typically `In Progress`) ~minutes after
- * the merge lands.
- *
- * Story #2876 — the helper polls the live Status after the initial
- * mutation and re-fires on drift. The one-shot mutation routinely
- * lost the race (reproduced on Story #2871 / PR #2872); the bounded
- * poll loop hardens the defense-in-depth so consumers who haven't
- * disabled the conflicting bot workflows still get a deterministic
- * outcome.
- *
- * Idempotent: re-running on a ticket whose Status already matches the
- * derived target returns the same `synced` envelope and issues the
- * same single GraphQL mutation.
+ * resync-status-column.js — re-assert a ticket's Projects v2 Status after
+ * merge, beating GitHub's built-in "Pull request merged" workflow that
+ * overwrites it minutes later. A one-shot write loses that race, so the live
+ * Status is polled and re-fired on drift. Idempotent.
  *
  * Usage:
  *   node .agents/scripts/resync-status-column.js --ticket <id>
@@ -84,9 +68,7 @@ export function parseArgv(argv) {
 }
 
 /**
- * Pure input-validation extracted so it can be tested without spawning
- * a subprocess. Returns `{ ticketId, pollAttempts, pollDelayMs, errors }`
- * — `errors` is empty on success.
+ * `errors` is empty on success.
  *
  * @param {Record<string, unknown>} values
  */
@@ -136,8 +118,7 @@ export function buildReassertOptions({
   };
   if (pollAttempts !== undefined) opts.pollAttempts = pollAttempts;
   if (pollDelayMs !== undefined) opts.pollDelayMs = pollDelayMs;
-  // Story #4252 — forward the resolved config so ColumnSync's on-disk
-  // board-metadata cache lands under the project's configured tempRoot.
+  // So the board-metadata cache lands under the configured tempRoot.
   if (config !== undefined) opts.config = config;
   return opts;
 }

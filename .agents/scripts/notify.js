@@ -2,41 +2,11 @@
 /* node:coverage ignore file */
 
 /**
- * notify.js
- *
- * Single dispatch entry point for runtime notifications across two
- * independent channels.
- *
- * Direct inline calls at phase boundaries are the only path: `notify()`
- * is invoked from the caller that has something to say. Direct CLI /
- * library invocations are equally supported, for one-shot operator
- * commands and the structured-comment back-channel.
- *
- * Channels:
- *
- *   1. GITHUB COMMENT — gated by `notifications.commentEvents` (event
- *      allowlist). Only dispatches whose `event` name appears in the
- *      allowlist reach the ticket. @mentions operator on `high` severity;
- *      on `medium` when `mentionOperator` is set. Callers may pass
- *      `opts.skipComment: true` to suppress the comment for a single
- *      dispatch while still firing the webhook (used for structured-
- *      comment writers that already posted the ticket-side body themselves).
- *   2. WEBHOOK — gated by `notifications.webhookEvents` (event allowlist).
- *      Only dispatches whose `event` name appears in the allowlist reach
- *      the webhook. The webhook channel is curated for the epic narrative
- *      (% progress + blockers), not the firehose of per-story transitions;
- *      the default allowlist is the five `epic-*` events. Payload envelope:
- *      `{ text, severity, event?, level?, ticketId?, epicId?, phase? }` —
- *      `text` is the primary human-readable body (Slack-style incoming
- *      webhooks read this field).
- *
- * Each channel filters independently — no fallback chain. Severity is
- * carried as envelope metadata (so Slack consumers can color-code by it
- * and high-severity comments still `@mention` the operator) but is no
- * longer a routing factor for either channel.
- *
- * Severity vocabulary: low | medium | high. See `lib/notifications/notifier.js`
- * for the `eventSeverity()` helper used by ticket-state-transition events.
+ * notify.js — dispatch a notification to two independently gated channels:
+ * a GitHub comment (`notifications.commentEvents` allowlist) and a webhook
+ * (`notifications.webhookEvents` allowlist; `text` is the body Slack-style
+ * hooks read). Severity never routes; it only drives @mentions and rides the
+ * webhook envelope as metadata.
  */
 
 import { createHmac } from 'node:crypto';
@@ -49,18 +19,13 @@ import {
 } from './lib/notifications/notifier.js';
 import { createProvider } from './lib/provider-factory.js';
 
-/** Map notification severity to a `postComment` badge style. */
 const SEVERITY_TO_COMMENT_TYPE = {
   low: 'progress',
   medium: 'notification',
   high: 'friction',
 };
 
-/**
- * Resolve a channel's event allowlist. Returns a `Set<string>` for O(1)
- * membership lookups. An absent/empty allowlist suppresses the channel
- * entirely — there is no implicit fallback to a severity-based gate.
- */
+/** An absent or empty allowlist suppresses the channel entirely. */
 function resolveEventAllowlist(notifications, key) {
   const list = notifications?.[key];
   if (!Array.isArray(list)) return new Set();
@@ -88,8 +53,6 @@ function buildWebhookPayload({
       : '';
   const text = `${prefix}${ticketPart}: ${cleanMessage}`;
 
-  // `text` is the primary human-readable body; typed fields follow for
-  // routable subscribers.
   const envelope = { text, severity };
   if (Number.isFinite(numericTicketId) && numericTicketId > 0) {
     envelope.ticketId = numericTicketId;
@@ -127,11 +90,7 @@ async function sendWebhook(url, payloadBody, fetchImpl = globalThis.fetch) {
 }
 
 /**
- * Dispatch a notification across the two channels.
- *
- * @param {number} ticketId - GitHub Issue number to post the notification on.
- *   Pass 0 (or any non-positive) to skip the GitHub comment and fire the
- *   webhook only.
+ * @param {number} ticketId - Non-positive skips the comment (webhook only).
  * @param {{
  *   severity?: 'low'|'medium'|'high',
  *   message: string,
@@ -139,21 +98,15 @@ async function sendWebhook(url, payloadBody, fetchImpl = globalThis.fetch) {
  *   level?: 'task'|'story'|'wave'|'epic',
  *   epicId?: number,
  *   phase?: string,
- * }} payload - `severity` defaults to `medium` when omitted; it controls
- *   @mention behavior on the comment channel and is carried as webhook
- *   envelope metadata, but does not gate either channel. `event` is
- *   required for any channel to fire — event-less dispatches are no-ops.
+ * }} payload - Without `event` no channel fires.
  * @param {{
  *   config?: object,
  *   provider?: object,
  *   webhookUrl?: string|null,
  *   skipComment?: boolean,
  *   fetchImpl?: typeof fetch,
- * }} [opts] - `fetchImpl` is injected into the webhook POST in place of
- *   `globalThis.fetch`; it defaults to the global, so production callers
- *   never pass it. Tests inject a fake to assert the request body,
- *   `X-Signature-256` header, and the 4xx/5xx response branches without a
- *   live network call or a global monkeypatch.
+ * }} [opts] - `skipComment` suppresses the comment for writers that already
+ *   posted the ticket-side body.
  */
 export async function notify(ticketId, payload, opts = {}) {
   const config = opts.config || resolveConfig();
@@ -177,8 +130,6 @@ export async function notify(ticketId, payload, opts = {}) {
   const fireComment = !noTicket && !callerSuppressed && eventAllowedOnComments;
 
   if (fireComment) {
-    // High always @mentions; medium @mentions when `mentionOperator` is set;
-    // low never @mentions.
     const mention =
       severity === 'high' ||
       (severity === 'medium' && notifications?.mentionOperator);
@@ -190,12 +141,8 @@ export async function notify(ticketId, payload, opts = {}) {
     });
   }
 
-  // Webhook channel: gated by event-name allowlist. A dispatch without an
-  // `event` field can never reach the webhook — there is no implicit
-  // category for unlabelled notifications.
   if (event && webhookEvents.has(event)) {
-    // `opts.webhookUrl === undefined` → resolve from process env.
-    // Explicit `null` or string → caller was explicit; don't resolve.
+    // Only `undefined` resolves from env; an explicit `null` means none.
     const webhookUrl =
       opts.webhookUrl === undefined ? resolveWebhookUrl() : opts.webhookUrl;
     if (webhookUrl) {
@@ -213,9 +160,7 @@ export async function notify(ticketId, payload, opts = {}) {
       });
       await sendWebhook(webhookUrl, payloadBody, opts.fetchImpl);
     } else {
-      // Event was on the allowlist but no URL is available — surface this
-      // so the operator notices a missing/empty NOTIFICATION_WEBHOOK_URL
-      // instead of silently dropping the dispatch.
+      // Allowlisted but no URL: warn rather than drop silently.
       Logger.warn(
         `[Notify] Webhook event (${event}) suppressed — no webhook URL resolved (NOTIFICATION_WEBHOOK_URL unset or empty).`,
       );
@@ -290,8 +235,6 @@ async function main() {
   const args = process.argv.slice(2);
   const { ticketId, message, severity } = parseNotifyArgs(args);
 
-  // CLI fires always carry the `operator-message` event so they route
-  // through the same event-name allowlist as the rest of the system.
   await notify(ticketId, {
     severity,
     message,

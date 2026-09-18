@@ -1,29 +1,12 @@
 #!/usr/bin/env node
 
 /**
- * resolve-stories.js — resolve a list of Story ids into the
- * `{ stories, dag, done }` envelope `/mandrel-deliver` sequences from.
- *
- * This is the ONE resolution step for multi-Story delivery. `/mandrel-deliver` takes
- * only Story ids; the graph is discovered here, from live state, rather than
- * hand-transcribed by the host or implied by a batch label.
- *
- * What it resolves, per Story:
- *   - the issue itself, fetched with **state=all** so an already-landed
- *     sibling is present rather than silently dropped;
- *   - its dependency edges: the union of the body's `---` footer
- *     (`blocked by #N`, footer-scoped and strict — prose mentioning a blocker
- *     elsewhere in the body declares nothing) and native GitHub `blocked_by`
- *     edges, read to exhaustion and failing loud rather than degrading to
- *     "no edges";
- *   - its declared file footprint, as plain path strings, so the scheduler's
- *     co-dispatch overlap guard has something to work with.
- *
- * And across the set: every dependency id — inside the requested set or
- * foreign to it — is checked against live issue state, and a blocker that is
- * closed or `agent::done` lands in `done[]`. That is what makes "deliver
- * Stories across plan runs and over time" work: a Story whose blocker merged
- * weeks ago in a different run is simply ready.
+ * resolve-stories.js — resolve Story ids into the `{ stories, dag, done }`
+ * envelope `/mandrel-deliver` sequences from, discovering the graph from live
+ * state: footer `blocked by #N` edges union native `blocked_by` edges (read to
+ * exhaustion, failing loud), plus each Story's footprint for the overlap
+ * guard. Every blocker, in-set or foreign, is checked live, so one that landed
+ * in an earlier run lands in `done[]`.
  *
  * Usage:
  *   node .agents/scripts/resolve-stories.js --ids 101,102
@@ -55,22 +38,15 @@ import { paginateRest } from './providers/github/request-helpers.js';
 
 export {
   buildStoriesEnvelope,
-  // Re-exported, not redefined (Story #5280). The reader now lives in
-  // `epic-container.js` beside the shape it reads, so the expansion path and
-  // the rollup share one definition — the pair whose divergence makes an Epic
-  // expandable but unclosable. The name stays exported here because two test
-  // modules import it from this entrypoint.
+  // Re-exported, not redefined: expansion and the Epic rollup must share one
+  // reader or an Epic becomes expandable but unclosable.
   nativeChildReader,
   parseIds,
   readNativeBlockedBy,
   toStoryRecord,
 };
 
-/**
- * Bounded concurrency for the per-issue round-trips. Matches the edge-writer's
- * cap: modest enough for GitHub's secondary rate limits, while collapsing
- * wall-clock from sum(round-trips) toward sum/concurrency.
- */
+/** Modest enough for GitHub's secondary rate limits. */
 const FETCH_CONCURRENCY = 5;
 
 const HELP = `\
@@ -111,13 +87,8 @@ export function resolveStoriesProvider({
 }
 
 /**
- * Fetch every requested id and map it to a Story record, failing on the first
- * id that is not a deliverable Story.
- *
- * Container Epics are expanded to their open child Stories **first**, so
- * everything downstream sees a plain Story-id list (Story #5139). The
- * expansion walk is sequential because it is id-by-id conditional; the Story
- * fetch that follows stays under the bounded concurrency.
+ * Container Epics expand to their open child Stories first; fails on the
+ * first id that is not a deliverable Story.
  *
  * @param {object} provider
  * @param {number[]} ids
@@ -153,12 +124,7 @@ export async function fetchStories(provider, ids, { allowUnlabelled } = {}) {
 }
 
 /**
- * Read native blocked_by edges for every Story in the set.
- *
- * `paginate` is injected rather than imported inside the lib layer so
- * `readNativeBlockedBy` stays provider-agnostic and unit-testable; production
- * passes `paginateRest`, which walks every page (the read used to stop at the
- * first, silently truncating a Story's gates — Story #5046).
+ * `paginate` must walk every page; stopping at one silently drops gates.
  *
  * @returns {Promise<Map<number, number[]>>}
  */
@@ -189,14 +155,8 @@ export async function readNativeEdges({
 }
 
 /**
- * Resolve dependency ids that are NOT in the requested set against live issue
- * state. A foreign blocker that already landed must enter `done[]`, or the
- * scheduler withholds its dependent forever — the exact wedge that made
- * cross-run delivery impossible.
- *
- * A foreign id that cannot be read is left OUT of `done[]`: unknown means
- * "still gating", which withholds the dependent rather than dispatching it
- * against a possibly-unlanded blocker.
+ * A landed foreign blocker must enter `done[]` or its dependent waits forever;
+ * an unreadable one stays out (unknown means still gating).
  *
  * @returns {Promise<number[]>}
  */
@@ -227,11 +187,6 @@ export async function resolveForeignDone({ provider, dag, inSetIds }) {
 }
 
 /**
- * Resolve the requested ids into the `{ stories, dag, done }` envelope and
- * write it to `stdout`. The flow core behind `main` — provider, config, and
- * stdout are injected so the whole path is unit-testable without a live
- * GitHub round-trip. Exported for testing.
- *
  * @param {{ ids: string, native?: boolean, pretty?: boolean,
  *   allowUnlabelled?: boolean }} args
  * @param {{ provider: object, config: object, stdout?: { write(s: string): void } }} deps
@@ -277,9 +232,6 @@ export async function runResolveStories(
 }
 
 /**
- * Project the parsed flags onto the flow core's options object, so `main` reads
- * as parse → help → run and the flag-name spellings live in one place.
- *
  * @param {Record<string, unknown>} values
  * @returns {{ ids: string, native: boolean, pretty: boolean, allowUnlabelled: boolean }}
  */
@@ -301,9 +253,7 @@ async function main() {
       'allow-unlabelled': { type: 'boolean', default: false },
       help: { type: 'boolean', default: false },
     },
-    // The documented opt-out is `--no-native`; without allowNegative,
-    // parseArgs rejects it as an unknown option and the CLI has no working
-    // way to skip the dependencies API.
+    // Required for `--no-native` to parse.
     allowNegative: true,
     allowPositionals: false,
   });
@@ -317,8 +267,7 @@ async function main() {
     throw new Error('[resolve-stories] --ids <n,n,...> is required');
   }
 
-  // stdout is a JSON stream — keep human-readable output on stderr so a
-  // headless caller can pipe this straight into stories-wave-tick.js.
+  // stdout is a JSON stream.
   routeAllOutputToStderr();
 
   return runResolveStories(toRunOptions(values), resolveStoriesProvider());

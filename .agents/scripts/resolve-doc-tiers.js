@@ -1,20 +1,7 @@
 /**
- * CLI: resolve the repository's documentation read-tiers (Story #4438).
- *
- * Thin wrapper over `lib/doc-tiers.js#resolveDocTiers` that prints the tier
- * map — `{ tiers: { alwaysLoaded, mandatoryRead, digestVisible, onDemand } }`,
- * every entry `{ path, bytes }` — as JSON. Consumed by the `audit-documentation`
- * lens (read-tier severity weighting), the `check-context-budget.js` ratchet,
- * and operators inspecting the always-loaded closure.
- *
- * Flags:
- *   --json   emit the tier map as JSON to stdout (default rendering is also
- *            JSON; the flag is accepted for parity with the sibling ratchets
- *            and future non-JSON renderings).
- *   --root <path>  resolve tiers against an explicit repo root (default: the
- *                  resolved PROJECT_ROOT).
- *
- * Exit code is always 0 on success — this is a reporter, not a gate.
+ * CLI: print the documentation read-tier map
+ * (`{ tiers: { alwaysLoaded, mandatoryRead, digestVisible, onDemand } }`,
+ * entries `{ path, bytes }`) as JSON. A reporter, not a gate: exits 0.
  */
 
 import process from 'node:process';
@@ -23,8 +10,6 @@ import { PROJECT_ROOT, resolveConfig } from './lib/config-resolver.js';
 import { resolveDocTiers } from './lib/doc-tiers.js';
 
 /**
- * Parse argv for `--root <path>` and `--json`.
- *
  * @param {string[]} argv
  * @returns {{ rootPath: string | null, json: boolean }}
  */
@@ -47,14 +32,6 @@ export function parseArgv(argv = []) {
 }
 
 /**
- * Top-level CLI entry. Exported so tests can drive it against a fixture root
- * with an injected sink and config.
- *
- * The optional final `deps` parameter is the module's injectable seam
- * (`docs/contributing/test-seams.md` rules 1-2): every entry defaults to the real
- * implementation, so the CLI path below — and any production caller — needs no
- * configuration change.
- *
  * @param {{
  *   argv?: string[],
  *   config?: object,

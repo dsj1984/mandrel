@@ -7,9 +7,7 @@
  *   node .agents/scripts/plan-run-epilogue.js --stories 1,2,3
  *   node .agents/scripts/plan-run-epilogue.js --stories 101-104   # inclusive range
  *
- * Keyed on the delivered id set: an `adhoc-<sorted-ids>` run id is
- * synthesized from `--stories`. Story #4540 retired the `--run <planRunId>`
- * label-resolution branch along with the `plan-run::<id>` label itself.
+ * Keyed on the delivered id set via a synthesized `adhoc-<sorted-ids>` run id.
  */
 
 import './lib/runtime-deps/ensure-installed.js';
@@ -25,7 +23,7 @@ import { expandIdList } from './lib/util/parse-id-list.js';
 const CLI_OPTIONS = {
   stories: { type: 'string' },
   cwd: { type: 'string' },
-  /** Story #5343 — opt-in; see `run-epilogue.js` RUN_EPILOGUE_STEP_KINDS. */
+  /** Opt-in; see `run-epilogue.js` RUN_EPILOGUE_STEP_KINDS. */
   'audit-roster': { type: 'boolean', default: false },
 };
 
@@ -36,9 +34,7 @@ const CLI_OPTIONS = {
  *   createProviderImpl?: typeof createProvider,
  *   runPlanRunEpilogueImpl?: typeof runPlanRunEpilogue,
  *   logger?: { info: Function, warn: Function },
- * }} [deps] Injectable seams; every entry defaults to the real
- *   implementation (`docs/contributing/test-seams.md` rules 1-2), so the CLI path
- *   and every production caller are unchanged.
+ * }} [deps]
  * @returns {Promise<object>}
  */
 export async function main(argv = process.argv.slice(2), deps = {}) {
@@ -60,14 +56,8 @@ export async function main(argv = process.argv.slice(2), deps = {}) {
   const config = resolveConfigImpl({ cwd });
   const provider = createProviderImpl(config);
 
-  // Story #4540 retired the `--run <planRunId>` label-resolution branch
-  // along with the label itself. The epilogue is keyed on the delivered id
-  // set, and the synthesized `adhoc-<ids>` id it already used for positional
-  // runs is now the only id it needs.
-  // Range tokens expand here too (`--stories 101-104`): /mandrel-deliver blesses the
-  // dash range at the operator surface, so the id set the epilogue is keyed on
-  // must read the same shape. Rejecting a bad token is deliberate — the old
-  // silent filter turned a typo into an empty, wrongly-keyed rollup.
+  // Ranges expand as at the operator surface; a bad token throws rather than
+  // silently producing an empty, wrongly-keyed rollup.
   const { ids: stories, error: storiesError } = expandIdList(values.stories, {
     flag: '--stories',
     prefix: '[plan-run-epilogue] ',
@@ -96,14 +86,9 @@ export async function main(argv = process.argv.slice(2), deps = {}) {
 }
 
 /**
- * Surface an unresolvable combined landed diff as a loud operator warning.
- * Only reachable under `--audit-roster`: a default run enumerates no roster.
- *
- * The roster's changed-file set is the input the host walks its audit lenses
- * against; a silent absence would read as "nothing changed" and the lens walk
- * would look complete while covering nothing. Not fatal — with no diff the
- * selector degrades to keyword-only lens selection, so the rest of the
- * roster is still useful.
+ * Warn (not fatal) when the combined landed diff is unresolvable under
+ * `--audit-roster`: silence would read as "nothing changed" and the lens walk
+ * would look complete while covering nothing.
  *
  * @param {object} result - `runPlanRunEpilogue` envelope.
  * @param {{ warn: Function }} [logger]
@@ -124,20 +109,9 @@ function warnOnUnresolvedBase(result, logger = Logger) {
 }
 
 /**
- * Surface a zero-signal roll-up over a multi-Story run as a loud operator
- * warning (Story #4578).
- *
- * The failure this exists to prevent is a *reassuring* one. The roll-up read
- * "No friction signals — nothing to follow up" for a 7-Story run that
- * contained a mid-run git outage, a parked worker needing an operator
- * resume, and an acceptance critic that needed four rounds. Nothing was
- * broken in the roll-up — the stream really was empty — but the report was
- * indistinguishable from a clean run, so the retro loop that exists to learn
- * from a run was silently blind to that run's pain.
- *
- * Not fatal: a genuinely friction-free multi-Story run is possible, and this
- * cannot tell the two apart — which is precisely why it asks the operator
- * rather than asserting either reading.
+ * Warn on a zero-signal roll-up over a multi-Story run: it is
+ * indistinguishable from a run whose friction went unrecorded, so the
+ * operator decides which it was.
  *
  * @param {object} result - `runPlanRunEpilogue` envelope.
  * @param {{ warn: Function }} [logger]

@@ -1,35 +1,9 @@
 #!/usr/bin/env node
 /**
- * .agents/scripts/quality-preview.js — Per-file MI/CRAP delta preview.
- *
- * Runs the maintainability + CRAP gates in-process via the per-kind
- * preview runners under `lib/baselines/preview-gates.js`, then merges
- * their structured envelopes into a single per-file delta table
- * contributors can read while the diff is still warm. Designed for
- * three callers:
- *
- *   1. `npm run quality:preview`   — interactive operator, pretty table.
- *   2. `npm run quality:watch`     — chokidar wrapper re-emits on save.
- *   3. `.husky/pre-commit`         — block the commit on threshold violations.
- *
- * The pre-commit hook passes `--staged` and nothing else — the index is
- * already the exact delta the operator is about to commit, and
- * `tests/pre-commit-hook.test.js` pins that `--changed-since` stays off it.
- * (This docblock previously claimed the hook passed `--changed-since HEAD`,
- * describing a wiring the hook has not used for some time; the stale prose
- * sent at least one bug report at the wrong flag — Story #5131.)
- *
- * `--staged` is merge-aware: while a merge is in progress the index is read
- * against `MERGE_HEAD` rather than `HEAD`, so a base-sync merge commit is
- * scored for the merging branch's own work and its conflict resolutions, not
- * for everything the base branch landed. See `resolveMergeHead` in
- * `lib/changed-files.js`.
- *
- * The CLI exits 0 when both envelopes report zero violations and the script
- * could not surface a regression. Any violation in either envelope, or any
- * non-zero gate exit, propagates as a non-zero exit code so git/husky/CI
- * surface the failure. The merge logic is exported as `mergeEnvelopes` for
- * unit testing without spawning the gate scripts.
+ * quality-preview.js — per-file MI/CRAP delta preview; exits non-zero on any
+ * violation. The pre-commit hook passes only `--staged`. During a merge,
+ * `--staged` reads the index against `MERGE_HEAD` so a base-sync commit is
+ * scored for the branch's own work, not everything the base landed.
  */
 
 import path from 'node:path';
@@ -60,26 +34,12 @@ const USAGE = {
   ],
 };
 
-/**
- * The advisory cyclomatic flag — `CODING_GUARDRAILS.cyclomaticFlag`, a fixed
- * constant since Story #5382 folded the never-set
- * `delivery.quality.codingGuardrails` block. `mergeEnvelopes` / `renderTable`
- * still take it as a parameter so the pure-function surface stays testable.
- */
 const DEFAULT_CYCLOMATIC_FLAG = CODING_GUARDRAILS.cyclomaticFlag;
 
 /**
- * Parse `--changed-since <ref>` from argv. Defaults to `HEAD` when the flag is
- * present without a value. Returns `null` when the flag is absent so callers
- * can fall through to the gate scripts' own diff defaults.
- *
- * **Last occurrence wins** (Story #4603). `npm run <alias> -- --changed-since <base>`
- * appends the operator's flag *after* any flag baked into the npm script, so a
- * first-wins scan silently discarded the operator's base and compared against
- * the script's hardcoded one instead — reporting a false green for a branch the
- * gate had never actually scored. Last-wins matches the convention every
- * mainstream CLI parser follows for repeated scalar flags, and makes the
- * npm-alias passthrough behave the way its callers already assume.
+ * `--changed-since <ref>` (bare flag → `HEAD`, absent → `null`). Last
+ * occurrence wins so `npm run <alias> -- --changed-since <base>` overrides a
+ * flag baked into the npm script.
  *
  * @param {string[]} argv
  * @returns {string | null}
@@ -95,10 +55,6 @@ export function parseChangedSinceArg(argv) {
 }
 
 /**
- * Detect `--json` (machine-readable mode). When set, the merged envelope is
- * written to stdout as JSON instead of the human-readable table; the exit code
- * still reflects gate health so CI runners can fail fast.
- *
  * @param {string[]} argv
  * @returns {boolean}
  */
@@ -107,10 +63,8 @@ export function parseJsonFlag(argv) {
 }
 
 /**
- * Detect `--staged` (pre-commit mode). Used by `.husky/pre-commit` to
- * scope both MI and CRAP preview gates to `git diff --name-only --cached`
- * so only index (staged) paths are scored. When present, `--staged` takes
- * precedence over `--changed-since`.
+ * `--staged` scores only index paths and takes precedence over
+ * `--changed-since`.
  *
  * @param {string[]} argv
  * @returns {boolean}
@@ -120,9 +74,6 @@ export function parseStagedFlag(argv) {
 }
 
 /**
- * Coerce a caller-supplied flag ceiling to a usable number, falling back to
- * the framework default for anything non-finite.
- *
  * @param {unknown} value
  * @returns {number}
  */
@@ -132,17 +83,11 @@ function normalizeFlag(value) {
 }
 
 /**
- * Fold one CRAP violation into its per-file aggregate row. Mutates `row`.
- *
- * Split out of `mergeEnvelopes` (Story #4923): threading the resolved
- * `cyclomaticFlag` through pushed that function from c=12 — exactly at the
- * must-fix ceiling — to c=13, and the same Story starts *enforcing* that
- * ceiling. Recording its own breach in `baselines/cyclomatic.json` would have
- * been the first re-spend of the slack the Story reclaims.
+ * Fold one CRAP violation into its per-file row (mutates `row`).
  *
  * @param {{ worstCrapDelta: number, newOverCeilingMethods: number }} row
  * @param {{ crap?: number, ceiling?: number, baseline?: number, cyclomatic?: number, kind?: string }} v
- * @param {number} flag the advisory cyclomatic flag
+ * @param {number} flag
  * @returns {void}
  */
 function foldCrapViolation(row, v, flag) {
@@ -161,23 +106,9 @@ function foldCrapViolation(row, v, flag) {
 }
 
 /**
- * Merge an MI envelope (from `runMaintainabilityPreview`) and a CRAP
- * envelope (from `runCrapPreview`) into a per-file delta map. Pure —
- * no I/O, no spawn. Tests pin the math without invoking the runners.
- *
- * Output rows are keyed by file (forward-slash relative path) and carry:
- *   - `miDrop`: maintainability score drop from baseline (0 when unchanged or
- *     improved). Higher = worse.
- *   - `worstCrapDelta`: largest CRAP regression delta among the file's
- *     methods (max of `crap - baseline` for matched-baseline rows, `crap`
- *     for new-method rows). 0 when the file has no CRAP violations.
- *   - `newOverCeilingMethods`: count of new-method violations (kind:'new')
- *     scoring above the flag ceiling. The CRAP envelope's `cyclomatic` field
- *     is the per-method `c` reading.
- *
- * `cyclomaticFlag` is the advisory flag (Story #4923 threaded it through
- * rather than hardcoding `8` in two places; Story #5382 made it a fixed
- * constant). The parameter defaults to that constant.
+ * Merge MI and CRAP envelopes into per-file rows: `miDrop` (higher = worse),
+ * `worstCrapDelta` (vs baseline, or vs ceiling for new methods), and
+ * `newOverCeilingMethods` (new methods with cyclomatic above the flag).
  *
  * @param {{ violations?: Array<{ file: string, drop?: number }> } | null} miEnvelope
  * @param {{ violations?: Array<{
@@ -244,14 +175,12 @@ export function mergeEnvelopes(
         (crapEnvelope?.summary?.newViolations ?? 0),
     },
     cyclomaticFlag: flag,
-    // Story #5313: advisories ride the merge but never the exit code.
+    // Advisories ride the merge but never the exit code.
     advisories: advisoriesOf(crapEnvelope),
   };
 }
 
 /**
- * The cyclomatic advisories a CRAP envelope carries (Story #5313), or none.
- *
  * @param {{ cyclomaticAdvisories?: unknown } | null | undefined} crapEnvelope
  * @returns {Array<{ file: string, method: string, startLine: number, cyclomatic: number }>}
  */
@@ -261,10 +190,6 @@ function advisoriesOf(crapEnvelope) {
 }
 
 /**
- * Print the advisories block when there is one (Story #5313). Split out of
- * `emitReport` so that function's branching stays inside its committed
- * cyclomatic budget.
- *
  * @param {Array<object>} advisories
  * @param {{ write: (s: string) => void }} stdout
  * @returns {void}
@@ -275,11 +200,6 @@ function writeAdvisories(advisories, stdout) {
 }
 
 /**
- * Render the cyclomatic advisories block (Story #5313), or `null` when the
- * scan carried none. One line per method at or over the ceiling; the block
- * says outright that it is advisory so a reader does not hunt for the exit
- * code it did not change.
- *
  * @param {Array<{ file: string, method: string, startLine: number, cyclomatic: number }>} advisories
  * @returns {string|null}
  */
@@ -295,14 +215,8 @@ export function renderAdvisories(advisories) {
 }
 
 /**
- * Render the named diagnostics a gate envelope carries, or `null` when it
- * carries none (Story #4866).
- *
- * A diagnostic is what a gate emits *instead of* per-method verdicts when it
- * has established that no verdict it could produce would be meaningful — an
- * incomparable baseline, or a comparison basis whose drifted-row ratio proves
- * the two sides disagree on line coordinates. It must reach the operator
- * verbatim: the gate exits 0, so silence would read as a clean run.
+ * Gate diagnostics (emitted instead of verdicts when none would be
+ * meaningful). Surfaced verbatim: the gate exits 0, so silence reads as clean.
  *
  * @param {Array<{ envelope: { diagnostics?: Array<{name: string, message: string}> } | null }>} results
  * @returns {string | null}
@@ -318,18 +232,8 @@ export function renderDiagnostics(results) {
 }
 
 /**
- * Compute the CLI exit code from a merge result + per-gate exit codes. Pure.
- *
- * The exit code is non-zero (1) whenever:
- *   - either gate returned a non-zero exit code (real violations or runtime
- *     failure), OR
- *   - the merged envelope reports any violation rows at all.
- *
- * Both signals are combined so a transient gate failure (e.g. JSON write
- * error) still surfaces even if the violations array happens to be empty.
- *
- * Advisories (`merged.advisories`, Story #5313) are deliberately not read
- * here: a method at cyclomatic 12 or above is reported and exits 0.
+ * 1 on any gate failure or violation (a gate failure counts even with no rows);
+ * advisories never affect it.
  *
  * @param {{ rows: Array<unknown>, totals: { miRegressions: number, crapViolations: number } }} merged
  * @param {number} miExit
@@ -345,26 +249,7 @@ export function computeExitCode(merged, miExit, crapExit) {
 }
 
 /**
- * Render the per-file delta table. Columns:
- *   "file", "MI delta", "worst CRAP delta", "new-method count over c=<flag>".
- *
- * The last header names the flag the count was actually taken against, read
- * off the merge result through the same `normalizeFlag` the merge itself
- * uses.
- *
- * Pure — accepts pre-computed merge rows and returns a multi-line string. The
- * table renders even on a clean diff so operators see the "no drift" signal.
- *
- * @param {{ rows: Array<{ file: string, miDrop: number, worstCrapDelta: number, newOverCeilingMethods: number }>, totals: { miRegressions: number, crapViolations: number }, cyclomaticFlag?: number }} merged
- * @returns {string}
- */
-/**
- * The table's body: one row per regressed file, or the single placeholder
- * line that keeps the "no drift" signal visible on a clean diff.
- *
- * Split out of `renderTable` so that function keeps a flat shape — the
- * empty-vs-populated branch and the row loop together carried it above the
- * per-method CRAP contract the pre-push preview enforces.
+ * Placeholder row on a clean diff keeps the "no drift" signal visible.
  *
  * @param {Array<{ file: string, miDrop: number, worstCrapDelta: number, newOverCeilingMethods: number }>} rows
  * @returns {string[]}
@@ -377,6 +262,10 @@ function tableBodyLines(rows) {
   );
 }
 
+/**
+ * @param {{ rows: Array<{ file: string, miDrop: number, worstCrapDelta: number, newOverCeilingMethods: number }>, totals: { miRegressions: number, crapViolations: number }, cyclomaticFlag?: number }} merged
+ * @returns {string}
+ */
 export function renderTable(merged) {
   const flag = normalizeFlag(merged?.cyclomaticFlag);
   const header = [
@@ -395,14 +284,7 @@ export function renderTable(merged) {
 }
 
 /**
- * Invoke one preview runner, degrading a thrown failure into the same
- * `{ exitCode: 1, envelope: null }` shape a real gate failure produces.
- *
- * Both runners degraded identically before, in two hand-copied `catch`
- * arms; folding them into one helper removes the copy and keeps `runCli` a
- * pipeline rather than a pair of inlined error handlers. The emitted message
- * is byte-identical to the arm it replaces — `label` supplies the `MI` /
- * `CRAP` prefix.
+ * A thrown runner degrades to the `{ exitCode: 1, envelope: null }` shape.
  *
  * @param {(args: object) => Promise<{exitCode: number, envelope: object|null}>} runner
  * @param {{cwd: string, staged: boolean, changedSinceRef: string|null}} args
@@ -420,19 +302,9 @@ function runGateSafely(runner, args, label, stderr) {
 }
 
 /**
- * Render the scope header line.
- *
- * Story #5131 — when `--staged` runs during a merge the scope is re-based to
- * `MERGE_HEAD`, and the header says so. Without that line the operator sees a
- * table whose row count does not match `git diff --cached` with no way to tell
- * the narrowing was deliberate.
- *
- * The merge state is resolved here rather than read back off a gate envelope's
- * `summary.diffRef`: that field means "the ref this scope was resolved
- * against" for every scope kind, so anything that populates it — a future
- * scope mode, a test stub — would render a merge banner over a repo that is
- * not merging. Resolving it after the `!staged` early return also keeps the
- * probe off the `--changed-since` path, which has no use for it.
+ * Scope header; names a `MERGE_HEAD` re-base so the narrowed row count reads as
+ * deliberate. Merge state is probed here, not read off an envelope's `diffRef`
+ * (which every scope kind populates).
  *
  * @param {{ staged: boolean, ref: string|null, cwd: string }} args
  * @returns {string}
@@ -449,13 +321,7 @@ function stagedScopeLine({ staged, ref, cwd }) {
 }
 
 /**
- * Write the run's report — the `--json` envelope, or the human-readable
- * table plus any gate diagnostics and the non-zero-exit summary.
- *
- * Split out of `runCli` (Story #5109): the rendering half carried five of
- * that function's decision points, which put it over the per-method CRAP
- * contract the pre-push preview enforces. Output bytes are unchanged in both
- * modes. The exit code stays with the caller — this function only reports.
+ * Write the `--json` envelope or the table + diagnostics; reports only.
  *
  * @param {{
  *   json: boolean,
@@ -513,10 +379,6 @@ function emitReport({
 }
 
 /**
- * Top-level CLI entry: invoke both per-kind preview runners, merge, render,
- * and exit with the right code. Exposed as `runCli` so tests can drive the
- * full pipeline through injected runner stubs.
- *
  * @param {{
  *   argv?: string[],
  *   cwd?: string,
@@ -539,19 +401,9 @@ export async function runCli({
   const staged = parseStagedFlag(argv);
   const ref = staged ? null : (parseChangedSinceArg(argv) ?? 'HEAD');
 
-  // Story #5109 — the two gates run **one after the other**, not under a
-  // `Promise.all`. Each scores its batch with its own `runOnPool` budget
-  // sized to `os.availableParallelism()`, so overlapping them oversubscribed
-  // the host by 2x and stacked two escomplex heaps: a 58-file preview peaked
-  // at 1.0-1.2 GB RSS for 3.9 s of CPU. Serialising them bounds the preview
-  // to one `availableParallelism` of workers and one heap at a time. The two
-  // runners share no state and neither reads the other's envelope, so the
-  // emitted envelopes — and therefore the merged table and the exit code —
-  // are identical either way; only the peak cost differs.
-  //
-  // Each runner gets its own options literal rather than one shared object,
-  // so serialising them cannot introduce a coupling the concurrent form
-  // did not have.
+  // Serial, not Promise.all: each runner sizes its own pool to
+  // availableParallelism, so overlapping them oversubscribes 2x and stacks
+  // two escomplex heaps (>1 GB RSS).
   const miResult = await runGateSafely(
     runMi,
     { cwd, staged, changedSinceRef: ref },
@@ -588,7 +440,6 @@ export async function runCli({
 }
 
 // cli-opt-out: Windows-aware main-guard with leading-slash drive-letter normalisation; mirrors quality-watch.js so the diagnostic surface stays consistent across the gate suite.
-// Only run main when invoked directly — keep the module importable from tests.
 const isDirect = (() => {
   try {
     const invoked = process.argv[1] ? path.resolve(process.argv[1]) : '';
