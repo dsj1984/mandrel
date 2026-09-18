@@ -1,57 +1,11 @@
 /**
- * phases/close-validation.js — run the canonical close-validation gate
- * chain for a standalone Story.
+ * phases/close-validation.js — the close-validation gate chain for a Story.
  *
- * The standalone path uses the same `runCloseValidation` chain as
- * Epic-attached Stories so the experience matches — only the baseline
- * ref changes (`main`, not `epic/<id>`).
- *
- * Standalone evidence keyspace (Story #4250). Standalone Stories have no
- * parent Epic, so they cannot scope a `validation-evidence.json` under a
- * `temp/run-<id>/` tree. Rather than feed a null `epicId` into the
- * Epic-keyed path (which structurally disabled the evidence cache and
- * forced every re-run — base-sync conflict, review remediation, baseline
- * absorb — to re-execute ALL gates including the coverage suite), the
- * standalone close now passes `standalone: true`. `runCloseValidation`
- * then anchors the cache on the Story id alone at
- * `temp/standalone/stories/story-<id>/validation-evidence.json`, so a
- * second close at unchanged HEAD short-circuits the already-passed gates.
- *
- * Pre-gate self-heal (Stories #4250, #5224). Two best-effort steps run on the
- * Story branch before the check-only gates score it — the scoped format
- * autofix and the upward maintainability write-back — so whatever they commit
- * is part of what the gates see and part of the branch's own PR. Both live in
- * [`pre-gate-steps.js`](pre-gate-steps.js); neither can fail a close, because
- * an authoritative gate for each runs immediately below.
- *
- * Bounded gate output (Story #4736). Every gate line goes to the run's
- * `gate-log.js` sink — an artifact under the gitignored temp tree — instead
- * of straight to the agent's stdout, where a passing `npm test` alone once
- * pushed a successful close past the host's inline tool-result ceiling. A
- * clean run reports one digest line naming the artifact; a failing gate
- * replays its captured tail inline, because that is exactly when the caller
- * needs the evidence in front of them. `AGENT_LOG_LEVEL=verbose` restores
- * live streaming.
- *
- * Projection advisories (Story #4776). `baseBranch`, `storyBranch` and the
- * resolved `config` are forwarded to `runCloseValidation` so its projection
- * phase can run. They surface, after the gates pass, which committed
- * baseline rows the post-merge tree would breach and the exact
- * `*:update` + `baseline-refresh:` remedy — advisory only, so the close
- * verdict is unchanged.
- *
- * Full-suite lock waits (Story #5377). A gate that queues behind another
- * full suite on this host announces the wait, and those lines are teed to the
- * operator's `progress()` console as well as the gate log — a multi-minute
- * wait that only an artifact records reads as a hang. The phase also tallies
- * them into `lockWait` for the terminal envelope. Close opts every gate into
- * the defer posture, so a wait that expires spawns nothing: the phase returns
- * `pending` instead of failing, and the runner ends the close resumably.
- *
- * `runCloseValidation`, `buildDefaultGates` and the pre-gate steps (whole, or
- * their two individual collaborators) are accepted as injected dependencies so
- * the parent CLI's cache-busted bindings win in tests that mock the upstream
- * module URLs.
+ * Gate output goes to an artifact sink (inline output once overflowed the
+ * host's tool-result ceiling): a pass reports one digest line, a failure
+ * replays its tail inline. Full-suite lock-wait lines are also teed to
+ * `progress()` so a long wait doesn't read as a hang, and an expired wait
+ * defers to `pending` rather than failing.
  */
 
 import { buildDefaultGates as defaultBuildDefaultGates } from '../../../close-validation/gates.js';
@@ -62,18 +16,8 @@ import { createGateLogSink as defaultCreateGateLogSink } from '../gate-log.js';
 import { runPreGateSteps as defaultRunPreGateSteps } from './pre-gate-steps.js';
 
 /**
- * Run the close-validation gate chain. Throws on first gate failure.
- *
- * Order: pre-gate self-heal steps → close-validation gates. The steps scope
- * to the `baseBranch...storyBranch` diff, commit inside the Story worktree,
- * and are best-effort — a missing `storyBranch` (resume/legacy callers) skips
- * them with a log line rather than failing.
- *
- * Gates are built from the canonical resolved config (`buildDefaultGates`
- * reads `project.commands` and `delivery.quality.gates.crap.enabled`); the
- * `baseBranch` is forwarded as the gate `baseBranch` so the format gate's
- * changed-file scope anchors on it. `standalone: true` routes the evidence
- * cache to the storyId-anchored keyspace.
+ * Pre-gate self-heal steps, then the gates (throws on first failure). The
+ * steps commit in the worktree before scoring, so the gates see their output.
  *
  * @param {{
  *   cwd: string,
@@ -95,12 +39,8 @@ import { runPreGateSteps as defaultRunPreGateSteps } from './pre-gate-steps.js';
  *   gates: Record<string, 'passed'|'skipped'>|null,
  *   lockWait: { waitedSeconds: number, expired: boolean }|null,
  *   pending: boolean,
- * }>} Per-gate outcomes keyed by gate name — the terminal envelope reports
- *   the split baselines entries from this (Story #5172) — plus the lock-wait
- *   tally, `null` when no gate waited. `pending` is true when a gate's lock
- *   wait expired and it deferred rather than spawning (Story #5377); `gates`
- *   is then `null`, since the chain did not finish. Any other failure throws,
- *   with `err.closeGate` naming the gate that died.
+ * }>} `pending` (with `gates: null`) when a lock wait expired; any other
+ *   failure throws with `err.closeGate` naming the gate.
  */
 export async function runCloseValidationPhase({
   cwd,
@@ -135,8 +75,7 @@ export async function runCloseValidationPhase({
     'VALIDATE',
     `Running close-validation gates against baseline ${baseBranch}${worktreePath ? ` in ${worktreePath}` : ''}...`,
   );
-  // Story #4736 — one sink for both `log` seams (gate construction and gate
-  // execution), so nothing in the chain can route around the artifact.
+  // One sink for both `log` seams so nothing routes around the artifact.
   const gateLog = createGateLogSink({ storyId, config });
   const lockWaits = trackLockWaits({ sink: gateLog.log, progress });
   const gateList = buildDefaultGates({
@@ -144,7 +83,7 @@ export async function runCloseValidationPhase({
     baseBranch,
     cwd: worktreePath || cwd,
     log: gateLog.log,
-    storyId, // Story #5313 — a credited bare `npm test` registers `test`.
+    storyId,
     evidenceCwd: cwd,
   });
   let validation;
@@ -155,25 +94,18 @@ export async function runCloseValidationPhase({
       gates: gateList,
       log: lockWaits.log,
       storyId,
-      // Story #4250 — standalone storyId-anchored evidence keyspace. No
-      // epicId; the standalone flag routes the cache to
-      // temp/standalone/stories/story-<id>/validation-evidence.json.
+      // Anchors the evidence cache on the Story id, so a re-close at an
+      // unchanged HEAD skips already-passed gates.
       standalone: true,
-      // Story #4776 — the branch pair and resolved config the advisory
-      // projections need. Without them the runner skips the projection
-      // phase entirely, which is the correct behaviour for resume/legacy
-      // callers that have no story branch to diff.
+      // Needed for the advisory baseline projections; absent, they're skipped.
       baseBranch,
       storyBranch,
       config,
-      // Story #5377 — an expired lock wait spawns nothing; see below.
       deferOnLockExpiry: true,
     });
   } finally {
-    // Story #4766 — gate lines are buffered to an async stream so the drain
-    // never blocks a gate child's pipe. Settle the artifact before anything
-    // reads it, replays from it, or reports its path — including on the throw
-    // path, where the artifact is the only surviving record.
+    // The sink is async-buffered; settle it before anything reads it, on
+    // the throw path too.
     await gateLog.flush();
   }
   const lockWait = lockWaits.summary();
@@ -189,8 +121,7 @@ export async function runCloseValidationPhase({
 }
 
 /**
- * A gate chain that did not pass either deferred on an expired lock wait —
- * the close ends `pending` (Story #5377) — or failed, which throws.
+ * Deferred on an expired lock wait → `pending`; otherwise throws.
  *
  * @param {{
  *   validation: { failed: Array<{ gate: { name: string, hint?: string }, status: number, cwd?: string }> },
@@ -210,26 +141,18 @@ function settleFailedValidation({ validation, lockWait, gateLog, progress }) {
     );
     return { gates: null, lockWait, pending: true };
   }
-  // The evidence is the point on this path: replay the captured tail inline
-  // rather than making the caller open a file to learn why close stopped.
   gateLog.replay();
   const err = new Error(
     `[single-story-close] Gate failed: ${gate.name} (exit ${status})${gateCwd ? ` in ${gateCwd}` : ''}.` +
       (gate.hint ? ` ${gate.hint}` : ''),
   );
-  // Story #5172 — the phase tracker tags `closePhase`; this tags WHICH gate
-  // inside the phase died, so the failed terminal can name the split
-  // baselines entry rather than reporting a generic validation failure.
   err.closeGate = gate.name;
   throw err;
 }
 
 /**
- * Tee full-suite lock-wait lines to `progress()` and tally their outcomes.
- *
- * The lines arrive the same way whether the wait happened in this process
- * (the `test` gate) or in a gate child (a coverage capture), so parsing the
- * gate log stream is the one place that sees both.
+ * Parsed from the gate log because it is the one place that sees waits both
+ * in-process and in gate children.
  *
  * @param {{ sink: (m: string) => void, progress: (tag: string, msg: string) => void }} args
  * @returns {{ log: (m: string) => void, summary: () => { waitedSeconds: number, expired: boolean }|null }}
@@ -253,9 +176,7 @@ function trackLockWaits({ sink, progress }) {
 }
 
 /**
- * Did the first failed gate fail only because its lock wait expired and it
- * deferred? Both halves are required: the exit code alone could be a suite's
- * own, the expiry alone could belong to a gate that then spawned anyway.
+ * Needs both the exit code and a recorded expiry — either alone is ambiguous.
  *
  * @param {{ status: number }|undefined} failure
  * @param {{ expired: boolean }|null} lockWait
@@ -269,15 +190,9 @@ function isDeferredLockWait(failure, lockWait) {
 }
 
 /**
- * Per-gate outcomes for a validation run that passed (Story #5172).
+ * A gate that did not run this invocation reports `skipped`, never `passed`.
  *
- * Every registered gate passed unless the runner reported it skipped — an
- * evidence short-circuit at unchanged HEAD, or a changed-file scope that
- * matched nothing. `skipped` is the honest verdict for both: the gate did not
- * run in THIS invocation, and the terminal schema's own contract is that a
- * skipped gate is reported as skipped rather than quietly counted as a pass.
- *
- * @param {Array<{ name: string }>} gateList The gates this run registered.
+ * @param {Array<{ name: string }>} gateList
  * @param {{ skipped?: Array<{ gate: { name: string } }> }} validation
  * @returns {Record<string, 'passed'|'skipped'>}
  */

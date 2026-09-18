@@ -1,62 +1,20 @@
 /**
- * phases/wrong-tree-guard.js — detect worktree/main-checkout edit divergence.
+ * phases/wrong-tree-guard.js — detect Story edits that landed in the main
+ * checkout instead of the worktree (path-based Edit/Write tools ignore the
+ * shell cwd, notably on Windows). The gates run on the worktree only, so
+ * such a close would ship a silent empty-diff PR.
  *
- * Story #3364 — `/single-story-deliver` (and `/mandrel-deliver`) materializes a
- * per-Story worktree and instructs the agent to `cd` into it before editing.
- * On Windows that guidance is silently insufficient: `cd <workCwd>` steers the
- * Bash tool's working directory, but the path-based Edit/Write tools operate on
- * absolute paths and ignore cwd. An agent whose shell is correctly inside the
- * worktree can still resolve a main-checkout absolute path and edit the wrong
- * tree — the two surfaces disagree and nothing detects it.
- *
- * Failure mode this guards: the worktree is the intended work tree, but the
- * agent's edits landed under the main checkout instead. `single-story-close.js`
- * runs its gates against the worktree only, so it would commit an unchanged /
- * partial worktree (gates pass on the clean tree) while leaving the main
- * checkout dirty — a silent empty-diff PR.
- *
- * Detection: when a worktree is the active work tree (it exists on disk and is
- * distinct from `cwd`), inspect `git -C <mainCheckout> status --porcelain`. Any
- * **tracked-path** change (modified, staged, deleted, renamed) in the main
- * checkout is the candidate wrong-tree signal. Untracked files (`??`) are
- * ignored — they are scratch artifacts, not relocated Story work, and flagging
- * them would produce false positives on every run.
- *
- * Story #4424 — the raw "main checkout is dirty" signal is too coarse for
- * multi-session operation: uncommitted tracked-path changes in the main
- * checkout can belong to a **different concurrent session** and have nothing to
- * do with the Story being closed (framework-gap #4420). The guard therefore
- * intersects the main-checkout stray tracked paths with the **Story's own
- * diff-path set** (paths changed on the worktree branch vs the base branch,
- * plus the worktree's uncommitted tracked changes):
- *   - **Overlap non-empty** → genuine wrong-tree signal: post a `friction`
- *     comment and throw (abort close), exactly as before.
- *   - **Disjoint** (Story diff-path set non-empty, no shared path) → another
- *     session's business: post a `friction` comment whose wording states close
- *     PROCEEDED and names the disjoint stray files (telemetry for
- *     concurrent-session hygiene), then return without throwing.
- *   - **Empty Story diff-path set** with stray paths → keep the abort (the
- *     #3364 silent empty-diff backstop; an empty set makes every stray path
- *     disjoint-by-definition, which must not downgrade the guard).
- *   - **Story-diff probe failure** with stray paths present → fall back to the
- *     coarse abort rather than fail-open, so a probe hiccup never converts a
- *     would-be abort into a silent pass.
- *
- * The main-checkout status probe keeps its fail-open semantics: a probe failure
- * downgrades to a warning and skips the guard — it never blocks an otherwise
- * valid close.
+ * Main-checkout tracked-path dirt (untracked files ignored) is intersected
+ * with the Story's own diff paths, because it may belong to another
+ * concurrent session: overlap aborts; disjoint proceeds with a telemetry
+ * comment; an empty Story diff or a failed Story-diff probe still aborts.
+ * A failed main-checkout probe skips the guard (fail-open).
  */
 
 import path from 'node:path';
 import { postStructuredComment } from '../../ticketing/state.js';
 
 /**
- * Parse `git status --porcelain` output into structured status entries.
- *
- * Porcelain v1 format: a two-character status field, a space, then the path
- * (renames use `orig -> dest`, which we collapse to the destination path).
- * Untracked entries carry the `??` status field.
- *
  * @param {string} raw - Raw `git status --porcelain` stdout (may be empty).
  * @returns {Array<{ status: string, path: string, untracked: boolean }>}
  */
@@ -69,13 +27,10 @@ export function parsePorcelainStatus(raw) {
     .map((line) => line.replace(/\r$/, ''))
     .filter((line) => line.length > 0)
     .flatMap((line) => {
-      // First two chars are the status code; path begins at column 3.
       const status = line.slice(0, 2);
       const rawPath = line.slice(3).trim();
-      // Renames/copies render as "orig -> dest". Keep BOTH sides: the
-      // Story-diff intersection downstream must match a rename whose
-      // ORIGIN path is in the Story's footprint — collapsing to the
-      // destination only made such a stray downgrade to proceed.
+      // Keep BOTH sides of a rename: the intersection must match an origin
+      // path in the Story's footprint.
       const arrowIdx = rawPath.indexOf(' -> ');
       if (arrowIdx !== -1) {
         const origin = unquote(rawPath.slice(0, arrowIdx).trim());
@@ -85,18 +40,12 @@ export function parsePorcelainStatus(raw) {
           { status, path: dest, untracked: status === '??' },
         ];
       }
-      // Porcelain may quote paths containing special chars; strip the quotes.
       return [{ status, path: unquote(rawPath), untracked: status === '??' }];
     });
 }
 
 /**
- * Filter porcelain status entries down to the tracked-path changes that
- * indicate stray Story work landed in the main checkout.
- *
- * Untracked files (`??`) are excluded — they are scratch artifacts, not
- * relocated tracked-file edits, and the issue's contract scopes the signal to
- * "uncommitted changes under tracked paths".
+ * Untracked (`??`) entries are scratch, not relocated Story work.
  *
  * @param {Array<{ status: string, path: string, untracked: boolean }>} entries
  * @returns {string[]} sorted list of stray tracked-file paths.
@@ -110,8 +59,6 @@ export function collectStrayTrackedPaths(entries) {
 }
 
 /**
- * Parse `git diff --name-only` output into a list of repo-relative paths.
- *
  * @param {string} raw - Raw `git diff --name-only` stdout (may be empty).
  * @returns {string[]}
  */
@@ -124,12 +71,7 @@ export function parseDiffNameOnly(raw) {
 }
 
 /**
- * Decide whether the wrong-tree guard applies for this close.
- *
- * The guard only makes sense when a worktree is the active work tree: it must
- * exist on disk (`worktreePath` is non-null) and be a distinct directory from
- * the main checkout (`cwd`). In single-tree mode the worktree IS the main
- * checkout, so there is no divergence to detect.
+ * Applies only when a worktree exists and is distinct from the main checkout.
  *
  * @param {{ cwd: string, worktreePath: string|null }} opts
  * @returns {boolean}
@@ -140,14 +82,8 @@ export function guardApplies({ cwd, worktreePath }) {
 }
 
 /**
- * Compute the Story's own diff-path set from the worktree: the union of paths
- * changed on the worktree branch vs the base branch (committed diff) and the
- * worktree's uncommitted tracked changes.
- *
- * Both probes are keyed off the worktree, so the returned paths are
- * repo-relative and directly comparable to the main-checkout porcelain paths.
- * A probe failure (thrown error or non-zero git exit) returns `{ ok: false }`
- * so the caller can fall back to the coarse abort rather than fail-open.
+ * The Story's diff paths: committed vs base, plus uncommitted tracked
+ * changes in the worktree. Any probe failure returns `{ ok: false }`.
  *
  * @param {{ worktreePath: string, baseBranch: string, gitSpawnFn: Function }} opts
  * @returns {{ ok: boolean, paths: string[], error?: string }}
@@ -195,9 +131,8 @@ export function collectStoryDiffPaths({
 }
 
 /**
- * Repo-relative path intersection. Both sides are git-emitted repo-relative
- * paths (forward-slash separated on every platform), so plain string equality
- * is correct regardless of which tree the probe ran in.
+ * Both sides are git-emitted forward-slash repo-relative paths, so string
+ * equality is correct on every platform.
  *
  * @param {string[]} mainStray
  * @param {string[]} storyPaths
@@ -209,9 +144,6 @@ export function intersectPaths(mainStray, storyPaths) {
 }
 
 /**
- * Format the `friction` finding body for an ABORT (overlap, empty-diff
- * backstop, or diff-probe-failure fallback) naming the stray files.
- *
  * @param {{ storyId: number, strayFiles: string[], worktreePath: string }} opts
  * @returns {string}
  */
@@ -237,11 +169,6 @@ export function formatWrongTreeFinding({ storyId, strayFiles, worktreePath }) {
 }
 
 /**
- * Format the `friction` finding body for the DOWNGRADE outcome — the main
- * checkout has stray tracked paths, but they are fully disjoint from the
- * Story's non-empty diff-path set (another concurrent session's work). Close
- * proceeds; this comment is telemetry for concurrent-session hygiene.
- *
  * @param {{ storyId: number, strayFiles: string[], worktreePath: string }} opts
  * @returns {string}
  */
@@ -266,9 +193,6 @@ export function formatWrongTreeDowngradeFinding({
 }
 
 /**
- * Post the ABORT friction comment and throw to abort close. Shared by the
- * overlap, empty-diff-backstop, and diff-probe-failure-fallback paths.
- *
  * @param {{
  *   storyId: number,
  *   strayFiles: string[],
@@ -312,8 +236,7 @@ async function abortWrongTree({
 }
 
 /**
- * Post the DOWNGRADE friction comment (telemetry) without throwing. Best-effort:
- * a post failure is logged but never converts the proceed into an abort.
+ * Best-effort; a post failure never turns the proceed into an abort.
  *
  * @param {{
  *   storyId: number,
@@ -351,11 +274,7 @@ async function reportDisjointDirt({
 }
 
 /**
- * Probe the main checkout for stray tracked-path changes.
- *
- * Fail-open on the probe: a thrown error or non-zero git exit returns
- * `{ ok: false }` so the caller skips the guard rather than blocking a valid
- * close on a git hiccup.
+ * Fail-open: a probe failure returns `{ ok: false }` and the guard is skipped.
  *
  * @param {{ cwd: string, gitSpawnFn: Function, progress: Function }} opts
  * @returns {{ ok: boolean, strayFiles: string[] }}
@@ -387,16 +306,6 @@ function probeMainCheckoutStray({ cwd, gitSpawnFn, progress }) {
 }
 
 /**
- * Run the wrong-tree detection guard for `single-story-close`.
- *
- * When a worktree is the active work tree and the main checkout has stray
- * tracked-path changes, the guard intersects those paths with the Story's own
- * diff-path set (Story #4424): overlap aborts close (throws), a disjoint set
- * downgrades to a proceed-with-telemetry `friction` comment, an empty Story
- * diff-path set keeps the abort (empty-diff backstop), and a Story-diff probe
- * failure falls back to the coarse abort. A main-checkout status probe failure
- * skips the guard (fail-open on the probe, fail-closed on a confirmed positive).
- *
  * @param {{
  *   cwd: string,
  *   worktreePath: string|null,
@@ -422,8 +331,7 @@ export async function runWrongTreeGuardPhase({
     return { applied: false, strayFiles: [] };
   }
 
-  // Dynamic import keeps the default git binding out of the module top-level so
-  // unit tests can inject a fake without module-URL mocking.
+  // Dynamic so tests can inject a fake without module mocking.
   const { gitSpawn: defaultGitSpawn } = await import('../../../git-utils.js');
   const gitSpawnFn = injectedGitSpawn ?? defaultGitSpawn;
 
@@ -443,8 +351,6 @@ export async function runWrongTreeGuardPhase({
     return { applied: true, strayFiles: [], overlap: [] };
   }
 
-  // Stray paths present — intersect with the Story's own diff-path set to tell
-  // this Story's misplaced work apart from a concurrent session's dirt.
   const storyDiff = collectStoryDiffPaths({
     worktreePath,
     baseBranch,
@@ -452,8 +358,7 @@ export async function runWrongTreeGuardPhase({
   });
 
   if (!storyDiff.ok) {
-    // A failed Story-diff probe must NOT silently convert a would-be abort into
-    // a pass — fall back to the coarse (#3364) abort behavior.
+    // Never let a probe hiccup turn a would-be abort into a pass.
     progress(
       'WRONG-TREE',
       `⚠️ Could not probe Story diff paths (${storyDiff.error}); falling back to coarse abort.`,
@@ -469,9 +374,7 @@ export async function runWrongTreeGuardPhase({
   }
 
   if (storyDiff.paths.length === 0) {
-    // Empty-diff backstop: an empty Story diff-path set makes every stray path
-    // disjoint-by-definition; that is exactly the #3364 silent empty-diff
-    // failure mode, so keep the abort.
+    // An empty diff makes every stray path "disjoint" — the empty-diff PR case.
     await abortWrongTree({
       storyId,
       strayFiles,
@@ -495,8 +398,7 @@ export async function runWrongTreeGuardPhase({
     });
   }
 
-  // Disjoint: the stray paths belong to another session. Post a proceed-wording
-  // friction comment (telemetry) and return without throwing.
+  // Disjoint: another session's dirt.
   await reportDisjointDirt({
     storyId,
     strayFiles,

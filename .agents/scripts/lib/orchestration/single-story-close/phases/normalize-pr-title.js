@@ -1,41 +1,8 @@
 /**
- * normalize-pr-title.js — guarantee the standalone-Story PR title is a
- * valid Conventional Commit subject so the squash-merge subject on `main`
- * parses for release-please.
- *
- * Story #3969 (framework gap). The repo squash-merges, and GitHub uses the
- * PR title as the squash-commit subject. `buildPullRequest` previously
- * emitted the raw human issue title (`<storyTitle> (#<id>)`), which is a
- * plain description ("Rename the published npm package…") that
- * release-please's Conventional-Commit parser rejects:
- *
- *   ❯ commit could not be parsed: … Rename the published npm package …
- *   ❯ error: unexpected token ' ' at 1:7, valid tokens [(, !, :]
- *   ❯ commits: 0  → no release cut
- *
- * The `commit-msg` commitlint Husky hook only validates *local* commits and
- * never runs on a GitHub-UI squash-merge title, so nothing mechanized the
- * documented "author the PR title in conventional form" contract. This
- * module mechanizes it.
- *
- * Contract (pure where possible — the only side effect is an injectable
- * `git log` read):
- *
- *   - If `storyTitle` is **already** a parseable Conventional Commit
- *     subject, it is preserved verbatim and suffixed with `(#<storyId>)`.
- *     No re-prefixing, no double type.
- *   - Otherwise the title is **synthesized** into conventional form:
- *     `<type>: <descriptive text> (#<storyId>)`. The `type` is derived
- *     from the branch's own (already-conventional) commit subjects when
- *     available, falling back to a safe configured default (`chore`).
- *   - Either way, a branch (or Story) that declares a breaking change gets
- *     the `!` marker and a `BREAKING CHANGE:` footer on the PR body.
- *
- * The rules that decide *what* the subject says now live in
- * `conventional-subject.js` — type precedence, acronym-safe casing, and
- * breaking-change collection are pure and unit-tested there. What is left
- * here is the git read those rules consume and the assembly of the two
- * strings `gh pr create` needs.
+ * normalize-pr-title.js — make the PR title (GitHub's squash subject) a
+ * Conventional Commit so release-please can parse it; commitlint never sees
+ * a squash title. The subject rules live in `conventional-subject.js`; this
+ * module does the git read and assembles the `gh pr create` strings.
  */
 
 import { gitSpawn as defaultGitSpawn } from '../../../git-utils.js';
@@ -48,28 +15,14 @@ import {
   shapeDescription,
 } from './conventional-subject.js';
 
-/** Safe default Conventional-Commit type when none can be derived. */
 const DEFAULT_CONVENTIONAL_TYPE = 'chore';
 
-/**
- * Record separator between whole commit messages in the `git log` read. A NUL
- * cannot occur inside a commit message, so splitting on it is unambiguous —
- * unlike a blank-line or subject-prefix heuristic, which a commit body can
- * forge.
- */
+/** NUL cannot occur in a commit message, so a body cannot forge a split. */
 const RECORD_SEP = '\u0000';
 
 /**
- * Read the branch's own commits (those unique to the Story branch relative to
- * the base branch) as whole messages — subject AND body, because the body is
- * where a `BREAKING CHANGE:` footer lives.
- *
- * Returns `[]` when the read fails, which degrades every downstream rule to
- * its safe default (type `chore`, no breaking marker) rather than throwing a
- * close that is otherwise healthy.
- *
- * Oldest-first (`--reverse`) is load-bearing: `pickDominantType` breaks a tie
- * on the Story's primary commit, which is the first one authored.
+ * Whole messages (bodies carry the breaking footer), oldest-first for the
+ * type tie-break. A failed read returns `[]`, degrading to safe defaults.
  *
  * @param {{
  *   storyBranch: string,
@@ -119,16 +72,8 @@ function readBranchCommits({
 }
 
 /**
- * Produce the PR title and the breaking-change notes that belong with it.
- *
- *   - Already-conventional `storyTitle` → preserved verbatim + `(#<id>)`.
- *   - Otherwise → `<derivedType>: <shaped storyTitle> (#<id>)`.
- *   - Empty / missing `storyTitle` → `<derivedType>: story #<id>`.
- *   - Breaking → `!` inserted before the colon in either shape.
- *
- * `commitMessages` is the branch read (`readBranchCommits`); passing `[]`
- * yields the safe default type and no breaking marker. `storyBody` is the
- * Story issue's body, scanned for a declared `BREAKING CHANGE:` footer.
+ * A conventional title is kept verbatim; prose is synthesized as
+ * `<derivedType>: <shaped title>`. Either gets `(#<id>)` and, if breaking, `!`.
  *
  * @param {{
  *   storyTitle: string,
@@ -151,9 +96,6 @@ function normalizePrTitle({
     storyBody,
   });
 
-  // Already conventional → preserve verbatim (the maker's own casing and
-  // scope survive), append the id reference. Only the breaking marker may be
-  // added, and only when it is not already there.
   const subject = isConventionalSubject(trimmed)
     ? trimmed
     : synthesizeSubject({ description: trimmed, storyId, commitMessages });
@@ -163,8 +105,6 @@ function normalizePrTitle({
 }
 
 /**
- * Build a conventional subject for a Story whose title is plain prose.
- *
  * @param {{ description: string, storyId: number|string, commitMessages: string[] }} args
  * @returns {string}
  */
@@ -176,16 +116,8 @@ function synthesizeSubject({ description, storyId, commitMessages }) {
 }
 
 /**
- * Build the PR body.
- *
- * The `Closes #<id>` footer is what auto-closes the Story on merge. A
- * `BREAKING CHANGE:` footer goes LAST, as the spec requires, so that a repo
- * configured to use the PR body as the squash-commit message hands
- * release-please a parseable note rather than prose. When the squash body is
- * built from the constituent commit messages instead (GitHub's default, and
- * this repo's setting), the note still reaches `main` through whichever
- * commit carried the footer — and the `!` in the subject carries the signal
- * either way.
+ * `Closes #<id>` auto-closes the Story; a breaking footer goes LAST, per the
+ * spec, for repos that squash with the PR body.
  *
  * @param {{ storyId: number|string, breakingNotes?: string[] }} args
  * @returns {string}
@@ -203,13 +135,8 @@ function buildPrBody({ storyId, breakingNotes }) {
 }
 
 /**
- * Derive the two strings `gh pr create` needs. One `git log` read serves both
- * halves: the commit SUBJECTS decide the type, and the commit BODIES — plus
- * the Story body — decide whether this is a breaking change.
- *
- * A declared break is announced on the progress channel, because a `!` the
- * operator did not expect in the squash subject should be visible while the
- * close is running rather than discovered in the release notes.
+ * A declared break is announced on progress so an unexpected `!` is seen
+ * during the close, not in the release notes.
  *
  * @param {{ storyTitle: string, storyId: number|string, storyBody?: string,
  *   storyBranch: string, baseBranch: string, cwd?: string,

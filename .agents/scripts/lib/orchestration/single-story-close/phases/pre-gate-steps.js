@@ -1,33 +1,9 @@
 /**
- * phases/pre-gate-steps.js — the self-heal steps the standalone close runs on
- * the Story branch *before* the check-only gate chain scores it.
- *
- * Two steps live here, and they share one contract that is the reason they
- * share a module: each may author a commit on `story-<id>`, each must run
- * ahead of the gates so its commit is part of what the gates score and part of
- * the branch's own PR, and **neither may ever fail the close**. Downstream
- * there is always an authoritative gate — `biome ci` for formatting,
- * `check-baselines` for the ratchet — so a failure here is a missed
- * opportunity to self-heal, never a verdict.
- *
- *   1. **Scoped format-autofix** (Story #4250) — run the formatter over the
- *      `baseBranch...storyBranch` diff and fold any rewrite into a
- *      `fix(story-close):` commit, so benign JSON/YAML drift that lint-staged
- *      does not glob never reaches the check-only format gate.
- *   2. **Upward baseline write-back** (Story #5224) — persist the
- *      maintainability rows this branch improved on files it touched, as a
- *      `baseline-refresh:` commit, so the committed baseline stops falling
- *      behind the tree in the upward direction.
- *   3. **Context-budget write-back** (Story #5313) — persist the lower
- *      documentation-tier totals this branch measured, so a trimmed tier's
- *      gain locks in without `check-context-budget.js` ever going red on it.
- *
- * Extracted from `close-validation.js` when the second step landed. The phase
- * module's job is the gate chain, the evidence keyspace and the gate-log sink;
- * carrying two multi-branch best-effort wrappers inline alongside that was the
- * mass that made it the file it was. Both collaborators stay injectable — the
- * parent CLI's cache-busted bindings must win in tests that mock the upstream
- * module URLs — and are threaded through from the phase unchanged.
+ * phases/pre-gate-steps.js — self-heal steps run on the Story branch before
+ * the gates: scoped format-autofix, the upward maintainability baseline
+ * write-back, and the context-budget write-back. Each may commit on
+ * `story-<id>` (so the gates score it) and none may ever fail the close — an
+ * authoritative gate for each runs right after.
  */
 
 import { Logger } from '../../../Logger.js';
@@ -36,8 +12,6 @@ import { runContextBudgetWriteback as defaultRunContextBudgetWriteback } from '.
 import { runScopedFormatAutofix as defaultRunScopedFormatAutofix } from '../../story-close/format-autofix.js';
 
 /**
- * Run the scoped formatter self-heal.
- *
  * @param {object} ctx the shared step context (see {@link runPreGateSteps})
  * @returns {void}
  */
@@ -73,12 +47,7 @@ function formatAutofixStep({
 }
 
 /**
- * Run one of the two baseline write-backs and report it on one progress line.
- *
- * Both steps (Story #5224's maintainability rows, Story #5313's context-budget
- * totals) take the same context and answer in the same shape — `committed`
- * with a `sha`, or a named `reason` — so one wrapper serves both; `describe`
- * renders the committed outcome in the step's own words.
+ * Serves both write-backs, which share an input and result shape.
  *
  * @param {object} ctx the shared step context (see {@link runPreGateSteps})
  * @param {{ tag: string, run: Function, describe: (w: object) => string, noun: string }} step
@@ -106,13 +75,7 @@ async function writebackStep(
 }
 
 /**
- * Run one step, absorbing any throw into a progress line.
- *
- * The absorption is the point, not laziness about error handling: every step
- * here is the *refresh* half of a loop whose *enforcement* half runs
- * immediately afterwards. A step that could abort the close would convert a
- * self-heal opportunity into an outage, and would do it on the path with the
- * least operator attention.
+ * Absorbs any throw: these are refresh halves; enforcement runs right after.
  *
  * @param {{ tag: string, label: string, progress: Function, run: () => Promise<void>|void }} opts
  * @returns {Promise<void>}
@@ -129,12 +92,7 @@ async function bestEffort({ tag, label, progress, run }) {
 }
 
 /**
- * Run every pre-gate self-heal step for a standalone Story close.
- *
- * Both steps commit to `story-<id>`, so both are skipped — with a log line, not
- * a throw — when the caller has no `storyBranch`. That is the resume/legacy
- * path, which has no branch to commit onto and must not trip an exception for
- * saying so.
+ * Without a `storyBranch` there is nothing to commit onto: skip with a log line.
  *
  * @param {{
  *   cwd: string,

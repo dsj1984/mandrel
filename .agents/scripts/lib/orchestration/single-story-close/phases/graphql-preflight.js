@@ -1,28 +1,8 @@
 /**
- * phases/graphql-preflight.js — the one precondition a standalone close
- * checks before it spends anything (Story #5355).
- *
- * A Story delivered from a Claude Code web session ran the entire
- * close-validation gate chain, synced from the base branch and pushed, then
- * died in the `pull-request` phase on `gh pr create` with a raw HTTP 403:
- * GitHub's GraphQL API is unreachable from that session, and `gh` routes the
- * whole `gh pr` surface through it. That 403 was a fact about the session,
- * knowable before the first gate ran, that the operator paid roughly five
- * minutes of gates to learn.
- *
- * ## Why this is not a pre-gate step
- *
- * It sits beside `pre-gate-steps.js` and inverts every clause of that
- * module's contract, which is why it does not live inside it. Those steps
- * commit to `story-<id>`, run from the gate phase, and may **never** fail the
- * close, because each is the refresh half of a loop whose enforcement half
- * runs immediately afterwards. This one commits nothing, runs from the runner
- * during `init`, and exists precisely to fail the close — before a single
- * gate is spawned and before anything is pushed. One module, one contract.
- *
- * What it must never do is fail a *healthy* close, which is why an ambiguous
- * probe is fail-open at its source (`probeGraphqlAvailability`) and a
- * throwing probe is fail-open here.
+ * phases/graphql-preflight.js — refuse the close during `init` when GitHub
+ * GraphQL (which all of `gh pr` needs) is unreachable, before any gate runs
+ * or anything is pushed. It must never fail a healthy close: ambiguous or
+ * throwing probes are fail-open.
  */
 
 import {
@@ -37,16 +17,8 @@ import {
 } from '../../ticketing.js';
 
 /**
- * Announce a refused preflight on the Story: a `friction` comment carrying
- * the blocker and its remedy, then the `agent::blocked` transition the
- * terminal envelope's `blocked` status promises the operator.
- *
- * Both writes are best-effort and warn rather than throw, for the reason
- * `handleSyncFailure` gives: a notification-side failure must not replace the
- * real blocker with a secondary one — and here the notification travels the
- * very API surface that is already suspect. Both go through the canonical
- * mutators; a bare `updateTicket` would skip the Projects v2 column sync and
- * strand the board on the Story's prior status.
+ * Best-effort: a notification failure must not replace the real blocker.
+ * Canonical mutators only, so the Projects v2 column syncs.
  *
  * @param {{ provider: object, storyId: number, reason: string,
  *   progress: (tag: string, msg: string) => void }} args
@@ -85,16 +57,7 @@ async function announcePreflightBlock({ provider, storyId, reason, progress }) {
 }
 
 /**
- * Preflight GitHub's GraphQL reachability before the close spends anything.
- *
- * One cheap API read decides it. An `available` verdict returns null and the
- * close proceeds exactly as a run with no preflight would; a refusing verdict
- * announces the block on the Story and returns the descriptor the runner
- * turns into a `blocked` terminal envelope at phase `init`.
- *
- * The probe cannot throw, but a caller-injected one can, and a preflight that
- * takes down a close it was meant to protect is the one outcome worse than
- * the late 403 — so a throwing probe is logged and treated as available.
+ * A throwing (injected) probe is treated as available.
  *
  * @param {{
  *   storyId: number,
@@ -102,12 +65,8 @@ async function announcePreflightBlock({ provider, storyId, reason, progress }) {
  *   progress: (tag: string, msg: string) => void,
  *   ghFacade?: { api: Function },
  *   probe?: typeof probeGraphqlAvailability,
- * }} args
- *   `ghFacade` is the run's own `gh` facade, so the preflight asks the same
- *   boundary the pull-request phase will later ask rather than a second one
- *   that could answer differently.
- * @returns {Promise<{ verdict: string, reason: string }|null>} null when the
- *   close may proceed.
+ * }} args `ghFacade` is the run's own, so it asks the same boundary the PR phase will.
+ * @returns {Promise<{ verdict: string, reason: string }|null>} null to proceed.
  */
 export async function runGraphqlPreflight({
   storyId,

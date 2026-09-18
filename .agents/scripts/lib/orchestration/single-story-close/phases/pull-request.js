@@ -1,44 +1,10 @@
 /**
- * phases/pull-request.js — open, reuse, or decline to open the PR for a
- * standalone Story.
+ * phases/pull-request.js — open, reuse, or decline to open the Story's PR.
  *
- * Probes for an existing PR with `head = storyBranch`; creates one if none
- * exists. Returns `{ url, alreadyMerged, created }`.
- *
- * `gh pr view --head` is not available on all `gh` versions, so we probe
- * with `gh pr list --head <branch>` and fall back to `gh pr create`.
- *
- * Story #2990 routed the underlying `gh pr list` / `gh pr create` calls
- * through the `lib/gh-exec.js` facade (the same shim the
- * `providers/github/` gateways use) so this phase inherits the typed
- * error classification, timeout handling, and JSON parsing surface
- * instead of carrying its own `execFileSync('gh', …)` plumbing.
- *
- * ## An already-merged PR is not an absent PR (Story #4873)
- *
- * The probe used to ask for `--state open` only. On the recovery path that is
- * a false negative with teeth: a resumed close pushes the branch, the push
- * turns the checks green, armed auto-merge lands the ORIGINAL PR server-side,
- * and the resumed close then sees no OPEN PR on the head — so it opened a
- * SECOND PR against a branch that is now byte-identical to base and
- * squash-merged a zero-file commit onto `main`. Both halves of that are now
- * closed:
- *
- *   1. The probe reads `--state all` and reports a MERGED PR on this head as
- *      the outcome (`alreadyMerged: true`), so the caller lands on the merge
- *      that already happened instead of manufacturing a new one. An OPEN PR
- *      still wins over a merged one — a re-opened head is a live PR.
- *   2. Creation is REFUSED outright when the head-versus-base diff contains no
- *      files. An empty diff means there is nothing to merge, so a PR opened on
- *      it can only ever produce an empty commit.
- *
- * The empty-diff guard fails **open**, not closed: `computeChangeSet` returns
- * `files: null` when it cannot enumerate the diff at all, and absence of
- * evidence must never block a legitimate PR — only a positively-observed empty
- * file list refuses.
- *
- * The function still accepts an injected `gh` facade so tests can wire
- * a fake without spawning real children.
+ * A MERGED PR on the head is reported as the outcome, not treated as absent:
+ * a resumed close whose original PR auto-merged would otherwise open a second
+ * PR and squash an empty commit onto `main`. Creation is also refused on a
+ * positively empty diff; an unenumerable diff fails open.
  */
 
 import { gh as defaultGh } from '../../../gh-exec.js';
@@ -47,21 +13,9 @@ import { computeChangeSet as defaultComputeChangeSet } from '../../change-set.js
 import { buildPullRequestFields } from './normalize-pr-title.js';
 
 /**
- * Pick the PR this head branch should resolve to from a `gh pr list
- * --state all` projection. A live PR always wins; otherwise the first MERGED
- * PR is the outcome to report. A head whose only PRs were CLOSED without
- * merging resolves to nothing — there is a new PR to open.
- *
- * A row carrying a url but no recognizable `state` reads as live, not as
- * nothing: the projection this phase asks for always includes `state`, so an
- * absent one means an older/other `gh`, and the old `--state open` probe
- * treated every returned row as a reusable open PR. Guessing "no PR" there is
- * the failure mode with teeth — it opens a duplicate.
- *
- * Pure, and module-private on purpose: `ensurePullRequestWith` is the only
- * caller and the only surface worth pinning, so the precedence is asserted
- * through it rather than through a test-only export the production
- * dead-export ratchet would then flag.
+ * OPEN wins, then the first MERGED; CLOSED-only resolves to null. A row with
+ * no recognizable `state` reads as live, since guessing "no PR" opens a
+ * duplicate. Module-private: a test-only export would trip dead-exports.
  *
  * @param {Array<{url?: string, state?: string, mergedAt?: string}>} rows
  * @returns {{ url: string, state: 'OPEN'|'MERGED' }|null}
@@ -84,14 +38,8 @@ function pickHeadPullRequest(rows) {
 }
 
 /**
- * Enumerate the head-versus-base diff and report whether it is positively
- * empty. `null` (diff unenumerable) is NOT empty — see the module header.
- *
- * The diff is taken against `origin/<baseBranch>` when that ref resolves,
- * because the local base ref can trail the remote by exactly the merge that
- * makes this diff empty — the very state the guard exists to catch. It falls
- * back to the local ref, and finally to "unknown", when the remote ref cannot
- * be enumerated.
+ * Prefers `origin/<base>`: the local ref can trail by exactly the merge that
+ * makes the diff empty. Unenumerable is NOT empty.
  *
  * @returns {{ empty: boolean, baseRef: string|null }}
  */
@@ -105,9 +53,6 @@ function probeEmptyDiff({ cwd, baseBranch, storyBranch, computeChangeSet }) {
 }
 
 /**
- * Probe for an existing PR with `head = storyBranch`; create one if none
- * exists. Exported for testing.
- *
  * @param {{
  *   cwd: string,
  *   storyId: number,
@@ -132,16 +77,9 @@ export async function ensurePullRequestWith({
   computeChangeSetFn = defaultComputeChangeSet,
   progress = () => {},
 }) {
-  // `cwd` is preserved on the call signature for backwards compatibility
-  // with the SUT's thin wrapper, but `gh-exec` spawns `gh` against the
-  // current process cwd. `single-story-close.js` chdirs into the worktree
-  // before invoking the phase, so the effective cwd matches the legacy
-  // `execFileSync('gh', …, { cwd })` shape.
+  // `gh-exec` spawns `gh` in the process cwd, not `_cwd`.
   try {
-    // `gh pr list --head <branch> --state all --json url,state,mergedAt`
-    // returns a JSON array of rows; an empty array means this head has never
-    // had a PR. `--state all` (not `open`) is load-bearing — see the module
-    // header's duplicate-empty-PR note.
+    // `--state all`, not `open`: a merged PR must be seen.
     const rows = await gh.pr.list(
       ['--head', storyBranch, '--state', 'all'],
       ['url', 'state', 'mergedAt'],
@@ -160,16 +98,11 @@ export async function ensurePullRequestWith({
       return { url: existing.url, alreadyMerged: true, created: false };
     }
   } catch (err) {
-    // `gh pr list` failure is recoverable — fall through to create. Log
-    // the error so an auth issue surfaces visibly.
     Logger.warn?.(
       `[single-story-close] ⚠️ \`gh pr list\` probe failed (continuing to create): ${err?.message ?? err}`,
     );
   }
 
-  // Nothing to merge → nothing to open. Refused before `gh pr create` so the
-  // failure names the empty diff rather than surfacing later as a zero-file
-  // squash commit on the base branch.
   const emptyDiff = probeEmptyDiff({
     cwd: _cwd ?? process.cwd(),
     baseBranch,
@@ -187,10 +120,6 @@ export async function ensurePullRequestWith({
   }
 
   progress('PR', `Opening PR for ${storyBranch} → ${baseBranch}...`);
-  // The repo squash-merges and GitHub uses the PR title as the squash subject
-  // on `main`, so both fields are derived rather than typed — see
-  // `normalize-pr-title.js`. `gh-exec` spawns `gh` against the current process
-  // cwd (the worktree), so the branch read uses the same cwd.
   const { title, body } = buildPullRequestFields({
     storyTitle,
     storyId,

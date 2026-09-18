@@ -1,12 +1,7 @@
 /**
- * phases/lock-wait-pending.js — the ending of a close whose full-suite lock
- * wait expired (Story #5377).
- *
- * `pending`, not `failed`: nothing is wrong with the Story — another suite
- * held the host for longer than this close's wait budget, and the gate chain
- * deferred rather than run a second suite beside it. Nothing was spawned,
- * pushed or labelled, and the claim is kept, so the one next command is the
- * same close again.
+ * phases/lock-wait-pending.js — a close whose full-suite lock wait expired
+ * ends `pending`, not `failed`: nothing was spawned, pushed or labelled, so
+ * the next command is the same close.
  */
 import {
   buildTerminalEnvelope,
