@@ -40,13 +40,24 @@
  * tracked `.agents/` tree), and git unavailable — asserting each report line
  * verbatim.
  *
+ * **Story #5364 — what "staged" means.** The probe read only the index, so a
+ * manifest pair the operator staged *before* running the command still counted
+ * as staged after the install rewrote both files on disk. Staged now means the
+ * index differs from HEAD **and** the worktree agrees with the index, which the
+ * in-memory fixture models by holding index *content* rather than a path set.
+ * The final describe block drives `defaultGitStatus` against a **real**
+ * throwaway git repository, because the porcelain column semantics the fix
+ * turns on cannot be proven by a stub that merely re-states them.
+ *
  * Tier: contract (testing-standards § Contract). The boundary under test is
  * the ordered contract between the update orchestrator and its downstream
  * phases (npm-update, then the sync / sync-commands / migrate / doctor spawn
  * phases) plus the staging report the cycle closes with.
- * All seams are driven through the injectable surface `runUpdate` exposes — no
- * real npm process, no real network, and no real `git` invocation occurs (the
- * git index is a faithful in-memory fake).
+ * The `runUpdate` cycles are driven entirely through its injectable surface —
+ * no real npm process and no real network — with the git index modelled as a
+ * faithful in-memory fake. Only the final `defaultGitStatus` block spawns real
+ * `git`, against a temporary repository under the OS temp dir that it removes
+ * again.
  *
  * Security (security-baseline § 5 — Data Leakage & Logging): the fixture
  * carries only version strings and file paths; no tokens, credentials, or
@@ -54,9 +65,16 @@
  */
 
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, it } from 'node:test';
-
-import { runUpdate } from '../../lib/cli/update.js';
+import {
+  defaultDetectLockfile,
+  defaultGitStatus,
+  runUpdate,
+} from '../../lib/cli/update.js';
 
 // ---------------------------------------------------------------------------
 // Golden-path fixture
@@ -76,13 +94,20 @@ const AGENTS_PATH = '.agents/rules/security-baseline.md';
  *
  *   - `committed`  — the path's content as of HEAD.
  *   - `workingTree`— the path's content on disk (mutated by the install).
- *   - `index`      — paths git has been told to `git add` (staged).
+ *   - `index`      — the content `git add` captured, per path.
+ *
+ * The index holds **content**, not just a path set, because "staged" is a
+ * two-sided fact (Story #5364): the index must differ from HEAD *and* the
+ * worktree must agree with the index. Modelling the index as a path set was
+ * what let a pair staged before the install — and rewritten on disk by it —
+ * read back as staged.
  *
  * The orchestrator's contract is that it bumps the manifest + lockfile and
  * never stages or commits them itself — whether the package manager staged
  * them is what the staging report reads back (Story #5339). This fixture lets
- * the tests assert both shapes: a tree whose install staged the pair, and one
- * whose install left everything unstaged.
+ * the tests assert every shape: a tree whose install staged the pair, one
+ * whose install left everything unstaged, and one staged *before* the install
+ * rewrote it.
  *
  * @param {{ lockfile?: string, tracksAgents?: boolean }} [opts]
  */
@@ -93,19 +118,20 @@ function makeWorkingTree({ lockfile = LOCKFILE, tracksAgents = false } = {}) {
   ]);
   if (tracksAgents) committed.set(AGENTS_PATH, `payload@${CURRENT_VERSION}`);
   const workingTree = new Map(committed);
-  const index = new Set();
+  const index = new Map();
   const commits = [];
 
-  const isDirty = (path) => committed.get(path) !== workingTree.get(path);
+  /** Staged: the index differs from HEAD and the worktree agrees with it. */
+  const isStaged = (path) =>
+    index.has(path) &&
+    index.get(path) !== committed.get(path) &&
+    index.get(path) === workingTree.get(path);
 
   return {
     lockfile,
     tracksAgents,
     commits,
-    /** True when `path` has been staged via `add` and not yet committed. */
-    isStaged(path) {
-      return index.has(path) && isDirty(path);
-    },
+    isStaged,
     /** Current on-disk content. */
     read(path) {
       return workingTree.get(path);
@@ -116,24 +142,27 @@ function makeWorkingTree({ lockfile = LOCKFILE, tracksAgents = false } = {}) {
     },
     /** Stage a path (the only git mutation the cycle is allowed to make). */
     add(path) {
-      index.add(path);
+      index.set(path, workingTree.get(path));
     },
-    /** What `git diff --cached --name-only` would print for this tree. */
-    stagedPaths() {
-      return [...index].filter(isDirty);
-    },
-    /** What `git status --porcelain` would report as dirty-in-worktree. */
-    unstagedPaths() {
-      return [...workingTree.keys()].filter(
-        (path) => isDirty(path) && !index.has(path),
-      );
+    /**
+     * What the read-only probe would report for this tree — the exact shape
+     * `defaultGitStatus` returns.
+     */
+    gitState() {
+      return {
+        ok: true,
+        stagedManifest: isStaged(PACKAGE_JSON),
+        stagedLockfile: isStaged(lockfile),
+        stagedPayload: isStaged(AGENTS_PATH),
+        tracksAgents,
+      };
     },
     /**
      * Record a commit of the staged paths. The orchestrator MUST NOT call
      * this — the test asserts `commits` stays empty.
      */
     commit(message) {
-      const staged = [...index];
+      const staged = [...index.keys()];
       for (const path of staged) committed.set(path, workingTree.get(path));
       index.clear();
       commits.push({ message, paths: staged });
@@ -232,14 +261,7 @@ function makeGoldenPathSeams(tree, { stageInstall = true, gitStatus } = {}) {
     },
     // Story #5339 — the read-only index probe. Defaults to a faithful read of
     // the fixture; a test passes its own stub to model "git unavailable".
-    gitStatus:
-      gitStatus ??
-      (() => ({
-        ok: true,
-        staged: tree.stagedPaths(),
-        unstaged: tree.unstagedPaths(),
-        tracksAgents: tree.tracksAgents,
-      })),
+    gitStatus: gitStatus ?? (() => tree.gitState()),
     detectLockfile: () => tree.lockfile,
   };
 }
@@ -400,11 +422,11 @@ describe('update golden path — staging report reflects the real index', () => 
       joined,
       `Updating v${CURRENT_VERSION} → v${TARGET_VERSION}…\n` +
         `✅  Updated to v${TARGET_VERSION}. The dependency bump is NOT staged. ` +
-        'The sync re-materialized tracked .agents/ files — stage that diff too. ' +
+        '.agents/ is tracked here, so stage the re-materialized payload too. ' +
         'Review and stage it: git add package.json pnpm-lock.yaml .agents/\n',
     );
     // The re-materialized payload really is dirty and unstaged in the fixture.
-    assert.ok(tree.unstagedPaths().includes(AGENTS_PATH));
+    assert.equal(tree.isStaged(AGENTS_PATH), false);
     assert.equal(result.ok, true);
     assert.equal(cap.exitCode, null);
   });
@@ -417,8 +439,9 @@ describe('update golden path — staging report reflects the real index', () => 
       // git absent / not a repository / probe exited non-zero.
       gitStatus: () => ({
         ok: false,
-        staged: [],
-        unstaged: [],
+        stagedManifest: false,
+        stagedLockfile: false,
+        stagedPayload: false,
         tracksAgents: false,
       }),
     });
@@ -446,13 +469,361 @@ describe('update golden path — staging report reflects the real index', () => 
         ok: true,
         // Only the lockfile made it into the index — a half-staged bump is
         // not "staged for review".
-        staged: [LOCKFILE],
-        unstaged: [PACKAGE_JSON],
+        stagedManifest: false,
+        stagedLockfile: true,
+        stagedPayload: false,
         tracksAgents: false,
       }),
     });
 
     assert.match(joined, /The dependency bump is NOT staged\./);
     assert.doesNotMatch(joined, /staged for review/);
+  });
+
+  // AC-1 — the regression Story #5364 was filed on. The operator staged the
+  // manifest pair BEFORE running the command; the install then rewrote both
+  // files on disk. Reading the index alone still called that "staged".
+  it('reports a pair staged before the install — and rewritten by it — as NOT staged', async () => {
+    const tree = makeWorkingTree();
+    // The pre-run stage: both files differ from HEAD and are in the index.
+    tree.write(PACKAGE_JSON, '{"version":"1.43.1-local"}');
+    tree.write(LOCKFILE, '{"version":"1.43.1-local"}');
+    tree.add(PACKAGE_JSON);
+    tree.add(LOCKFILE);
+    assert.equal(tree.isStaged(PACKAGE_JSON), true);
+
+    // The install rewrites both on disk and stages neither (the pnpm shape).
+    const { result, joined } = await driveGoldenPath(tree, {
+      stageInstall: false,
+    });
+
+    assert.equal(
+      joined,
+      `Updating v${CURRENT_VERSION} → v${TARGET_VERSION}…\n` +
+        `✅  Updated to v${TARGET_VERSION}. The dependency bump is NOT staged. ` +
+        'Review and stage it: git add package.json package-lock.json\n',
+    );
+    assert.doesNotMatch(joined, /staged for review/);
+    assert.equal(result.ok, true);
+  });
+
+  // AC-7 — a seam that throws is absorbed the same way a degraded probe is.
+  it('degrades to the neutral line and exits 0 when a probe seam throws', async () => {
+    const tree = makeWorkingTree();
+
+    const { result, cap, joined } = await driveGoldenPath(tree, {
+      stageInstall: false,
+      gitStatus: () => {
+        throw new Error('spawn git ENOENT');
+      },
+    });
+
+    assert.match(
+      joined,
+      /Review the working tree and commit the bump \(git not available to report staging state\)\./,
+    );
+    assert.equal(result.ok, true);
+    assert.equal(result.action, 'updated');
+    assert.equal(cap.exitCode, null);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Story #5364 — the drift-heal path reports too
+// ---------------------------------------------------------------------------
+
+/**
+ * Drive the drift-heal branch: the installed version is already newest, but
+ * `.agents/` is stale, so the cycle runs the two sync phases and nothing else.
+ * No dependency is bumped, so the payload IS the whole diff.
+ *
+ * @param {{ gitStatus: Function, detectLockfile?: Function }} seams
+ */
+async function driveDriftHeal({ gitStatus, detectLockfile = () => LOCKFILE }) {
+  const cap = makeCapture();
+  const result = await runUpdate({
+    argv: [],
+    currentVersion: TARGET_VERSION,
+    resolveTargetVersion: async () => TARGET_VERSION,
+    checkDrift: () => true,
+    cwd: () => '/fake/consumer',
+    resolveBinScript: () =>
+      '/fake/consumer/node_modules/mandrel/bin/mandrel.js',
+    spawnPhase: async () => ({ ok: true, stdout: '', stderr: '' }),
+    gitStatus,
+    detectLockfile,
+    write: cap.write,
+    writeErr: cap.writeErr,
+    exit: cap.exit,
+  });
+  return { result, cap, joined: cap.out.join('') };
+}
+
+describe('update drift heal — the re-materialized payload is reported', () => {
+  // AC-4: the heal used to return with no staging line at all, so a consumer
+  // that commits `.agents/` was told nothing about the diff it just produced.
+  it('names the unstaged payload when the consumer tracks the materialized tree', async () => {
+    const { result, joined } = await driveDriftHeal({
+      gitStatus: () => ({
+        ok: true,
+        stagedManifest: false,
+        stagedLockfile: false,
+        stagedPayload: false,
+        tracksAgents: true,
+      }),
+    });
+
+    assert.equal(result.action, 'resynced');
+    assert.match(
+      joined,
+      /The re-materialized \.agents\/ payload is NOT staged\. Review and stage it: git add \.agents\/\n$/,
+    );
+  });
+
+  it('reports the payload as staged when the index carries it and the worktree is clean', async () => {
+    const { joined } = await driveDriftHeal({
+      gitStatus: () => ({
+        ok: true,
+        stagedManifest: false,
+        stagedLockfile: false,
+        stagedPayload: true,
+        tracksAgents: true,
+      }),
+    });
+
+    assert.match(
+      joined,
+      /The re-materialized \.agents\/ payload is staged for review\.\n$/,
+    );
+  });
+
+  it('says nothing about staging when the consumer does not track .agents/', async () => {
+    const { result, joined } = await driveDriftHeal({
+      gitStatus: () => ({
+        ok: true,
+        stagedManifest: false,
+        stagedLockfile: false,
+        stagedPayload: false,
+        tracksAgents: false,
+      }),
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(
+      joined.endsWith('The materialized payload is now current.\n'),
+      true,
+    );
+    assert.doesNotMatch(joined, /staged/);
+  });
+
+  // AC-7, on the heal branch: a degraded probe never fails the heal.
+  it('degrades to the neutral line and still reports success', async () => {
+    const { result, cap, joined } = await driveDriftHeal({
+      gitStatus: () => {
+        throw new Error('spawn git ENOENT');
+      },
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(cap.exitCode, null);
+    assert.match(joined, /git not available to report staging state/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Story #5364 — the lockfile the consumer actually has
+// ---------------------------------------------------------------------------
+
+describe('update staging report — lockfile detection', () => {
+  /** Minimal `existsSync`-only fs seam over an explicit path allowlist. */
+  const fakeFs = (present) => ({
+    existsSync: (p) => present.some((name) => String(p).endsWith(`/${name}`)),
+  });
+
+  // AC-3: `detectPackageManager` flattens bun → npm so the install-command
+  // builder has a command to emit. The report must read the probe BEFORE that
+  // flattening, or a bun consumer is told to stage a file it does not have.
+  it('names bun.lockb on a bun consumer rather than the npm default', () => {
+    assert.equal(
+      defaultDetectLockfile('/fake/bun-consumer', fakeFs(['bun.lockb'])),
+      'bun.lockb',
+    );
+  });
+
+  it('still names each non-bun lockfile from the same probe', () => {
+    assert.equal(
+      defaultDetectLockfile('/fake/p', fakeFs(['pnpm-lock.yaml'])),
+      'pnpm-lock.yaml',
+    );
+    assert.equal(
+      defaultDetectLockfile('/fake/y', fakeFs(['yarn.lock'])),
+      'yarn.lock',
+    );
+    assert.equal(
+      defaultDetectLockfile('/fake/n', fakeFs(['package-lock.json'])),
+      'package-lock.json',
+    );
+    // No recognizable toolchain still resolves to a concrete file.
+    assert.equal(
+      defaultDetectLockfile('/fake/empty', fakeFs([])),
+      'package-lock.json',
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Story #5364 — the probe against a REAL git repository (AC-6)
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a throwaway git repository with a committed manifest pair and run the
+ * callback against it. Exercising `defaultGitStatus` against real `git` output
+ * is the point: the porcelain column semantics this Story turns on cannot be
+ * proven by a stub that re-states them.
+ *
+ * @param {(repo: string, git: (...args: string[]) => void) => void} body
+ */
+function withGitRepo(body) {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'mandrel-update-probe-'));
+  const git = (...args) => {
+    const r = spawnSync('git', args, { cwd: repo, encoding: 'utf8' });
+    assert.equal(r.status, 0, `git ${args.join(' ')} failed: ${r.stderr}`);
+  };
+  try {
+    git('init', '-q', '.');
+    git('config', 'user.email', 'test@example.invalid');
+    git('config', 'user.name', 'Test');
+    fs.writeFileSync(path.join(repo, 'package.json'), '{"v":0}');
+    fs.writeFileSync(path.join(repo, 'package-lock.json'), '{"v":0}');
+    git('add', '-A');
+    git('commit', '-qm', 'init');
+    body(repo, git);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+}
+
+describe('defaultGitStatus — the real git probe', () => {
+  it('reports a pair staged with a clean worktree as staged (AC-2)', () => {
+    withGitRepo((repo, git) => {
+      fs.writeFileSync(path.join(repo, 'package.json'), '{"v":1}');
+      fs.writeFileSync(path.join(repo, 'package-lock.json'), '{"v":1}');
+      git('add', 'package.json', 'package-lock.json');
+
+      const state = defaultGitStatus({
+        cwd: repo,
+        lockfile: 'package-lock.json',
+      });
+
+      assert.equal(state.ok, true);
+      assert.equal(state.stagedManifest, true);
+      assert.equal(state.stagedLockfile, true);
+    });
+  });
+
+  it('reports a pair re-modified after staging as NOT staged (AC-1)', () => {
+    withGitRepo((repo, git) => {
+      fs.writeFileSync(path.join(repo, 'package.json'), '{"v":1}');
+      fs.writeFileSync(path.join(repo, 'package-lock.json'), '{"v":1}');
+      git('add', 'package.json', 'package-lock.json');
+      // The install rewrites both files again — porcelain now reports `MM`.
+      fs.writeFileSync(path.join(repo, 'package.json'), '{"v":2}');
+      fs.writeFileSync(path.join(repo, 'package-lock.json'), '{"v":2}');
+
+      const state = defaultGitStatus({
+        cwd: repo,
+        lockfile: 'package-lock.json',
+      });
+
+      assert.equal(state.ok, true);
+      assert.equal(state.stagedManifest, false);
+      assert.equal(state.stagedLockfile, false);
+    });
+  });
+
+  // AC-5: path matching is anchored at the probe root.
+  it('does not let a nested workspace manifest satisfy the root check', () => {
+    withGitRepo((repo, git) => {
+      fs.mkdirSync(path.join(repo, 'packages', 'app'), { recursive: true });
+      fs.writeFileSync(
+        path.join(repo, 'packages', 'app', 'package.json'),
+        '{"v":1}',
+      );
+      fs.writeFileSync(
+        path.join(repo, 'packages', 'app', 'package-lock.json'),
+        '{"v":1}',
+      );
+      git('add', 'packages');
+
+      const state = defaultGitStatus({
+        cwd: repo,
+        lockfile: 'package-lock.json',
+      });
+
+      assert.equal(state.ok, true);
+      assert.equal(state.stagedManifest, false);
+      assert.equal(state.stagedLockfile, false);
+    });
+  });
+
+  it('reports the tracked payload and its staged state', () => {
+    withGitRepo((repo, git) => {
+      fs.mkdirSync(path.join(repo, '.agents', 'rules'), { recursive: true });
+      const payload = path.join(repo, '.agents', 'rules', 'x.md');
+      fs.writeFileSync(payload, 'v0');
+      git('add', '.agents');
+      git('commit', '-qm', 'track payload');
+
+      fs.writeFileSync(payload, 'v1');
+      const dirty = defaultGitStatus({
+        cwd: repo,
+        lockfile: 'package-lock.json',
+      });
+      assert.equal(dirty.tracksAgents, true);
+      assert.equal(dirty.stagedPayload, false);
+
+      git('add', '.agents');
+      const staged = defaultGitStatus({
+        cwd: repo,
+        lockfile: 'package-lock.json',
+      });
+      assert.equal(staged.stagedPayload, true);
+    });
+  });
+
+  it('degrades to ok:false outside a repository, never throwing (AC-7)', () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'mandrel-no-repo-'));
+    try {
+      const state = defaultGitStatus({
+        cwd: outside,
+        lockfile: 'package-lock.json',
+      });
+      assert.equal(state.ok, false);
+      assert.equal(state.stagedManifest, false);
+      assert.equal(state.tracksAgents, false);
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  // AC-8: the probe answers the whole contract from two reads.
+  it('issues no more than two git invocations per run', () => {
+    const invocations = [];
+    const spy = (bin, args, opts) => {
+      invocations.push([bin, ...args]);
+      return spawnSync(bin, args, opts);
+    };
+
+    withGitRepo((repo) => {
+      const state = defaultGitStatus({
+        cwd: repo,
+        lockfile: 'package-lock.json',
+        spawnSync: spy,
+      });
+      assert.equal(state.ok, true);
+    });
+
+    assert.equal(invocations.length, 2, JSON.stringify(invocations));
+    assert.ok(invocations.every(([bin]) => bin === 'git'));
   });
 });
