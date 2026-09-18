@@ -193,6 +193,9 @@ function compact(obj) {
  * @param {string|null} [args.nextCommand]
  * @param {number} args.elapsedSeconds
  * @param {object|null} [args.waitBudget]
+ * @param {{ waitedSeconds: number, expired: boolean }|null} [args.lockWait]
+ *   Full-suite lock-wait accounting (Story #5377); `null` when the run never
+ *   waited on the lock. Distinct from `waitBudget`, which is merge-wait only.
  * @param {string} [args.timestamp]
  * @param {{ schema: object|null, error: string|null }} [args.schemaSource]
  *   Test seam; never passed in production. Not part of the envelope — the
@@ -214,6 +217,7 @@ export function buildTerminalEnvelope({
   nextCommand,
   elapsedSeconds = 0,
   waitBudget,
+  lockWait,
   timestamp = new Date().toISOString(),
   schemaSource,
 }) {
@@ -236,6 +240,7 @@ export function buildTerminalEnvelope({
     nextCommand: nextCommand ?? null,
     elapsedSeconds: Math.max(0, Number(elapsedSeconds) || 0),
     waitBudget: waitBudget ?? null,
+    lockWait: lockWait ?? null,
     timestamp,
   });
 
@@ -492,6 +497,7 @@ export function terminalFromWaitOutcome({
   prUrl,
   autoMergeEnabled,
   gates,
+  lockWait,
   elapsedSeconds,
 }) {
   const prBase = {
@@ -504,6 +510,7 @@ export function terminalFromWaitOutcome({
     storyBranch,
     baseBranch,
     gates,
+    lockWait,
     elapsedSeconds,
   };
 

@@ -128,9 +128,12 @@ const RELEASE_ON_SIGNALS = Object.freeze(['SIGINT', 'SIGTERM']);
  *
  * @param {number|null} pid
  * @param {(pid: number, signal: number) => void} [killFn]
+ * Exported for the full-suite waiter queue (Story #5377), which judges a
+ * queued waiter's liveness by exactly the same rule.
+ *
  * @returns {boolean|null} `null` when the pid is unknown.
  */
-function isHolderAlive(pid, killFn = process.kill.bind(process)) {
+export function isHolderAlive(pid, killFn = process.kill.bind(process)) {
   if (!Number.isInteger(pid) || pid <= 0) return null;
   try {
     killFn(pid, 0);
@@ -307,7 +310,7 @@ function tryCreateLock(lockPath, ownerId, fsImpl = fs) {
  *                                        liveness probe (Story #5278).
  * @param {object} [opts.processImpl]     `process` seam for the
  *                                        release-on-signal handlers.
- * @returns {{ acquired: true, release: () => void, refresh: () => boolean, ownerId: string }
+ * @returns {{ acquired: true, release: () => void, ownerId: string }
  *          | { acquired: false, reason: 'contended' | 'error', detail?: string }}
  */
 export function acquireSweepLock({
@@ -448,23 +451,15 @@ function breakStaleLock(lockPath, observed, fsImpl) {
  * line is no longer ours — after a steal the file belongs to someone else and
  * bumping its mtime would keep *their* lock alive on our behalf.
  *
- * **The synchronous refresh entry point (Story #5278).** The interval-driven
- * heartbeat below only fires when the holder's event loop gets a turn, which
- * a `spawnSync` critical section never gives it. A caller on such a stack
- * calls this directly — immediately before it blocks — so the lock it is
- * about to sit on carries a current mtime rather than the one it was created
- * with minutes earlier.
+ * Module-private since Story #5377: the full-suite lock's one blocking
+ * caller became asynchronous, so the interval heartbeat below is the only
+ * refresher any holder needs.
  *
  * @param {{ lockPath: string, ownerId: string, fsImpl?: object, nowFn?: () => number }} holder
  * @returns {boolean} `true` when the refresh landed; `false` when the lock is
  *   no longer ours (the caller stops heartbeating).
  */
-export function refreshLockSync({
-  lockPath,
-  ownerId,
-  fsImpl = fs,
-  nowFn = Date.now,
-}) {
+function refreshLockSync({ lockPath, ownerId, fsImpl = fs, nowFn = Date.now }) {
   if (readLockOwner(lockPath, fsImpl) !== ownerId) return false;
   try {
     const stamp = new Date(nowFn());
@@ -544,7 +539,6 @@ function buildAcquired(holder) {
   return {
     acquired: true,
     release,
-    refresh: () => refreshLockSync(holder),
     ownerId,
   };
 }

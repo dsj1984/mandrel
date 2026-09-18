@@ -1,7 +1,7 @@
 {
   "$schema": "https://mandrel.dev/baselines/dead-exports.schema.json",
   "kernelVersion": "6.17.1",
-  "generatedAt": "2026-09-18T00:20:41.405Z",
+  "generatedAt": "2026-09-18T14:09:04.723Z",
   "mode": "production",
   "rows": [
     {
@@ -934,6 +934,10 @@
     },
     {
       "file": ".agents/scripts/lib/full-suite-lock.js",
+      "symbol": "FULL_SUITE_LOCK_EXPIRY_ENV"
+    },
+    {
+      "file": ".agents/scripts/lib/full-suite-lock.js",
       "symbol": "isFullSuiteLockEnabled"
     },
     {
@@ -945,8 +949,8 @@
       "symbol": "withFullSuiteLockAsync"
     },
     {
-      "file": ".agents/scripts/lib/full-suite-lock.js",
-      "symbol": "withFullSuiteLockSync"
+      "file": ".agents/scripts/lib/full-suite-queue.js",
+      "symbol": "parseLockWaitOutcome"
     },
     {
       "file": ".agents/scripts/lib/gates/baseline-store.js",
@@ -1626,6 +1630,10 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/single-story-close/phases/graphql-preflight.js",
+      "symbol": "*"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/lock-wait-pending.js",
       "symbol": "*"
     },
     {

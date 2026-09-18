@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-09-18T00:27:55.969Z",
+  "generatedAt": "2026-09-18T14:17:16.545Z",
   "rollup": {
     "*": {
-      "lines": 96.35,
-      "branches": 87.33,
-      "functions": 88.2
+      "lines": 96.39,
+      "branches": 87.48,
+      "functions": 88.33
     }
   },
   "rows": [
@@ -198,8 +198,8 @@
     },
     {
       "path": ".agents/scripts/coverage-capture.js",
-      "lines": 98.43,
-      "branches": 90.91,
+      "lines": 99.11,
+      "branches": 91.67,
       "functions": 100
     },
     {
@@ -966,15 +966,15 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
-      "lines": 98.98,
-      "branches": 94.02,
+      "lines": 99.02,
+      "branches": 94.12,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/close-validation/process.js",
-      "lines": 92.24,
-      "branches": 82.86,
-      "functions": 60
+      "lines": 93.62,
+      "branches": 86.49,
+      "functions": 78.57
     },
     {
       "path": ".agents/scripts/lib/close-validation/projections/advisories.js",
@@ -1008,9 +1008,9 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
-      "lines": 81.41,
-      "branches": 51.72,
-      "functions": 72.73
+      "lines": 90.81,
+      "branches": 81.82,
+      "functions": 86.67
     },
     {
       "path": ".agents/scripts/lib/command-header.js",
@@ -1231,13 +1231,13 @@
     {
       "path": ".agents/scripts/lib/coverage-capture-fullscope.js",
       "lines": 100,
-      "branches": 93.33,
+      "branches": 93.75,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/coverage-capture-incremental.js",
-      "lines": 96.12,
-      "branches": 88.89,
+      "lines": 100,
+      "branches": 95,
       "functions": 100
     },
     {
@@ -1248,8 +1248,8 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-capture.js",
-      "lines": 98.28,
-      "branches": 89.09,
+      "lines": 98.79,
+      "branches": 91.04,
       "functions": 100
     },
     {
@@ -1512,9 +1512,15 @@
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
-      "lines": 98.39,
-      "branches": 95.65,
-      "functions": 90
+      "lines": 100,
+      "branches": 98.57,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-queue.js",
+      "lines": 97.61,
+      "branches": 94,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/gates/baseline-store.js",
@@ -2389,7 +2395,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
       "lines": 100,
-      "branches": 92.86,
+      "branches": 100,
       "functions": 100
     },
     {
@@ -2414,6 +2420,12 @@
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/graphql-preflight.js",
       "lines": 100,
       "branches": 82.35,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/lock-wait-pending.js",
+      "lines": 100,
+      "branches": 100,
       "functions": 100
     },
     {
@@ -2484,9 +2496,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
-      "lines": 98.24,
-      "branches": 87,
-      "functions": 87.5
+      "lines": 98.33,
+      "branches": 88.46,
+      "functions": 88.46
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-lease-guard.js",
@@ -2538,8 +2550,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-deliver-terminal.js",
-      "lines": 99.64,
-      "branches": 88.31,
+      "lines": 99.65,
+      "branches": 89.87,
       "functions": 100
     },
     {
@@ -2669,6 +2681,12 @@
       "functions": 37.5
     },
     {
+      "path": ".agents/scripts/lib/process-group.js",
+      "lines": 98.82,
+      "branches": 97.3,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/project-root.js",
       "lines": 100,
       "branches": 100,
@@ -2796,9 +2814,9 @@
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
-      "lines": 97.14,
-      "branches": 86.96,
-      "functions": 95.45
+      "lines": 98.54,
+      "branches": 88.7,
+      "functions": 96.3
     },
     {
       "path": ".agents/scripts/lib/single-story/confirm-merge.js",

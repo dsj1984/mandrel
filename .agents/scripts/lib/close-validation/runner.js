@@ -8,6 +8,8 @@
  * surfaces actionable hints on failure.
  */
 
+import { getQuality } from '../config/quality.js';
+import { FULL_SUITE_LOCK_EXPIRY_ENV } from '../full-suite-lock.js';
 import { gitSpawn } from '../git-utils.js';
 import {
   recordPass as defaultRecordPass,
@@ -135,7 +137,10 @@ function applyChangedFileScope({ gate, spawnCwd, log }) {
  *   getTreeFingerprint?: (cwd: string) => string|null,
  *   recordPass?: typeof defaultRecordPass,
  *   shouldSkip?: typeof defaultShouldSkip,
- * }} opts
+ *   deferOnLockExpiry?: boolean,
+ * }} opts `deferOnLockExpiry` (close only, Story #5377): a full-suite lock
+ *   wait that expires spawns nothing — in this process and in every gate
+ *   child — and the gate reports `LOCK_WAIT_EXPIRED_EXIT_CODE` instead.
  * @returns {{ ok: boolean, failed: Array<{ gate: Gate, status: number, cwd: string }>, skipped: Array<{ gate: Gate, reason: string }> }}
  */
 export async function runCloseValidation({
@@ -158,8 +163,10 @@ export async function runCloseValidation({
     defaultTreeFingerprint(resolvedCwd, gitSpawn),
   recordPass = defaultRecordPass,
   shouldSkip = defaultShouldSkip,
+  deferOnLockExpiry = false,
 } = {}) {
   const failed = [];
+  const lockOpts = fullSuiteLockOptions({ config, deferOnLockExpiry });
   const skipped = [];
   // Evidence is active when a Story id is present AND there is a keyspace to
   // anchor on (`standalone: true` — Story #4250's storyId-anchored
@@ -251,7 +258,7 @@ export async function runCloseValidation({
       gateName: gate.name,
       log,
       signal,
-      ...(gate.env ? { env: gate.env } : {}),
+      ...lockOpts.forGate(gate),
       // Story #5278 — only the full-suite gate can end up *waiting* on the
       // host lock, and only it is expensive enough for the wait to change the
       // answer: whoever we queued behind may have deposited this gate's
@@ -392,6 +399,35 @@ export async function runCloseValidation({
   }
 
   return { ok: failed.length === 0, failed, skipped };
+}
+
+/**
+ * The full-suite options every gate dispatch carries (Story #5377).
+ *
+ * The `test` gate — the one marked `fullSuiteLock` — is bounded by the same
+ * wall clock as coverage capture (`delivery.quality.gates.coverage.timeoutMs`,
+ * the one full-suite budget), so a hung `npm test` fails the gate instead of
+ * holding the host lock indefinitely. Under `deferOnLockExpiry` every gate
+ * child also inherits the expiry opt-in, which is how a capture running as a
+ * child learns that close would rather end `pending` than spawn unserialized.
+ *
+ * @param {{ config: object|null, deferOnLockExpiry: boolean }} args
+ * @returns {{ forGate: (gate: object) => object }}
+ */
+function fullSuiteLockOptions({ config, deferOnLockExpiry }) {
+  const timeoutMs = getQuality(config).coverage?.timeoutMs;
+  const deferEnv = deferOnLockExpiry
+    ? { [FULL_SUITE_LOCK_EXPIRY_ENV]: 'defer' }
+    : null;
+  return {
+    forGate(gate) {
+      const env = deferEnv ? { ...gate.env, ...deferEnv } : gate.env;
+      return {
+        ...(env ? { env } : {}),
+        ...(gate.fullSuiteLock ? { timeoutMs, deferOnLockExpiry } : {}),
+      };
+    },
+  };
 }
 
 /**

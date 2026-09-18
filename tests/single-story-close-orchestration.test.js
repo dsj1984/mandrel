@@ -1157,6 +1157,155 @@ describe('runSingleStoryClose orchestration', () => {
     assert.equal(err.closePhase, 'close-validation');
   });
 
+  /**
+   * Story #5377 — a close that queues behind another full suite on this host.
+   * The mocked chain emits the same lock lines a real gate (or a capture
+   * child) would, through the `log` sink the phase hands it; the terminal and
+   * the operator console are what the phase and runner make of them.
+   */
+  function lockWaitingValidation({ expired }) {
+    return async (opts) => {
+      opts.log(
+        '[coverage-capture] [full-suite-lock] ⏳ another full suite is already running on this host (holding pid 4711) — waiting up to 300s for it to finish before spawning.',
+      );
+      opts.log(
+        '[coverage-capture] [full-suite-lock] ⏳ still waiting for the full-suite lock (holding pid 4711, waited 25s).',
+      );
+      if (!expired) {
+        opts.log(
+          '[coverage-capture] [full-suite-lock] ✅ acquired the full-suite lock (waited 42s).',
+        );
+        return { ok: true, failed: [], skipped: [] };
+      }
+      opts.log(
+        '[coverage-capture] [full-suite-lock] ⌛ gave up waiting for the full-suite lock (waited 300s, holding pid 4711) — not spawning; the caller reports the wait instead.',
+      );
+      return {
+        ok: false,
+        failed: [
+          {
+            gate: { name: 'coverage-capture' },
+            status: 75,
+            cwd: '/repo',
+          },
+        ],
+        skipped: [],
+      };
+    };
+  }
+
+  function captureStderr(t) {
+    const lines = [];
+    const original = process.stderr.write.bind(process.stderr);
+    t.mock.method(process.stderr, 'write', (chunk, ...rest) => {
+      lines.push(String(chunk));
+      return original(chunk, ...rest);
+    });
+    return lines;
+  }
+
+  it('AC-7: an expired lock wait ends pending at close-validation, spawning and mutating nothing', async (t) => {
+    const runs = [];
+    mockCloseValidation(t, {
+      namedExports: {
+        buildDefaultGates: () => [{ name: 'coverage-capture' }],
+        runCloseValidation: async (opts) => {
+          runs.push(opts);
+          return lockWaitingValidation({ expired: true })(opts);
+        },
+      },
+    });
+    t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
+    t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
+    const provider = makeFakeProvider({
+      initialStory: { id: 5377, state: 'open', title: 'x', labels: [] },
+    });
+    let leaseReleases = 0;
+    const stderr = captureStderr(t);
+
+    const { runSingleStoryClose } = await import(`${SUT_URL}?t=lock-expired`);
+    const { terminal, success } = await runSingleStoryClose({
+      storyId: 5377,
+      cwd: '/repo',
+      skipValidation: false,
+      skipSync: true,
+      injectedProvider: provider,
+      injectedConfig: fakeConfig(),
+      injectedRunCodeReview: noopReview(),
+      injectedReleaseLease: async () => {
+        leaseReleases += 1;
+        return { released: true };
+      },
+      injectedGh: makeFakeGh(() => {
+        throw new Error('gh must not run when the lock wait expired');
+      }),
+    });
+
+    assert.equal(success, false);
+    assert.equal(terminal.status, 'pending');
+    assert.equal(terminal.phase, 'close-validation');
+    assert.equal(
+      terminal.nextCommand,
+      'node .agents/scripts/single-story-close.js --story 5377',
+    );
+    assert.deepEqual(terminal.lockWait, { waitedSeconds: 300, expired: true });
+    const { exitCodeForTerminal } = await import(
+      pathToFileURL(
+        path.resolve(
+          REPO_ROOT,
+          '.agents/scripts/lib/orchestration/story-deliver-terminal.js',
+        ),
+      ).href
+    );
+    assert.equal(exitCodeForTerminal(terminal), 3);
+    assert.equal(runs[0].deferOnLockExpiry, true, 'close opts in to defer');
+    assert.deepEqual(provider._updates(), [], 'no label was mutated');
+    assert.equal(leaseReleases, 0, 'the claim is kept for the resume');
+    assert.ok(
+      stderr.some((l) => l.includes('holding pid 4711')),
+      'AC-9: the wait reaches the operator console, not only the gate log',
+    );
+  });
+
+  it('AC-9/AC-10: a wait that was acquired is on the console and in the landed envelope', async (t) => {
+    mockCloseValidation(t, {
+      namedExports: {
+        buildDefaultGates: () => [{ name: 'coverage-capture' }],
+        runCloseValidation: lockWaitingValidation({ expired: false }),
+      },
+    });
+    t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
+    t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
+    const stderr = captureStderr(t);
+
+    const { runSingleStoryClose } = await import(`${SUT_URL}?t=lock-acquired`);
+    const { terminal } = await runSingleStoryClose({
+      storyId: 5378,
+      cwd: '/repo',
+      skipValidation: false,
+      skipSync: true,
+      noWaitForMerge: true,
+      injectedProvider: makeFakeProvider({
+        initialStory: { id: 5378, state: 'open', title: 'x', labels: [] },
+      }),
+      injectedConfig: fakeConfig(),
+      injectedRunCodeReview: noopReview(),
+      injectedGh: makeFakeGh((args) => {
+        if (args[1] === 'list') return [];
+        if (args[1] === 'create') return 'https://github.com/o/r/pull/9\n';
+        return 'ok';
+      }),
+    });
+
+    assert.deepEqual(terminal.lockWait, { waitedSeconds: 42, expired: false });
+    for (const needle of ['holding pid 4711', 'still waiting', 'waited 42s']) {
+      assert.ok(
+        stderr.some((l) => l.includes(needle)),
+        `expected "${needle}" on the operator console`,
+      );
+    }
+  });
+
   it('throws when git push fails', async (t) => {
     t.mock.module(GIT_UTILS_URL, {
       namedExports: {
