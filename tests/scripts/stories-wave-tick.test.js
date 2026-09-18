@@ -1374,6 +1374,59 @@ describe('runProbedStoriesWaveTick — threads the probed in-flight records (AC-
 });
 
 // ---------------------------------------------------------------------------
+// Story #5363 — a dispatch that never reached init is named, not released
+// ---------------------------------------------------------------------------
+
+describe('runProbedStoriesWaveTick — stalledDispatch pass-through (#5363)', () => {
+  const CONFIG = { delivery: { deliverRunner: { concurrencyCap: 3 } } };
+
+  const tick = (probed) =>
+    runProbedStoriesWaveTick({
+      stories: '1,2',
+      config: CONFIG,
+      context: () => ({ provider: {}, owner: 'o', repo: 'r', self: null }),
+      probe: async () => probed,
+    });
+
+  const base = {
+    nodes: [
+      // #1 is the stalled one: live-probe projects agent::executing onto a
+      // claimed id so the kernel withholds it, and reports the raw fact
+      // separately on stalledDispatch.
+      {
+        id: 1,
+        dependsOn: [],
+        files: [],
+        body: '',
+        labels: ['agent::executing'],
+      },
+      { id: 2, dependsOn: [], files: [], body: '', labels: [] },
+    ],
+    inFlightRecords: [],
+    doneIds: new Set(),
+    inFlight: 1,
+    blockedIds: [],
+    foreignHeld: [],
+  };
+
+  it('carries the probe’s stalled ids onto the envelope', async () => {
+    const { envelope, exitCode } = await tick({
+      ...base,
+      stalledDispatch: [1],
+    });
+
+    assert.deepEqual(envelope.stalledDispatch, [1]);
+    assert.strictEqual(exitCode, 0, 'it reports; it does not end the loop');
+    assert.deepEqual(envelope.ready, [2], 'the ready set is untouched');
+  });
+
+  it('defaults to empty when the probe reports none', async () => {
+    const { envelope } = await tick(base);
+    assert.deepEqual(envelope.stalledDispatch, []);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Story #5044 — every withhold is explained, and the guard has a knob
 // ---------------------------------------------------------------------------
 
