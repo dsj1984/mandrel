@@ -54,11 +54,19 @@ describe('/mandrel-deliver navigability journey-suite contract (Epic #4131 F1/F4
     );
   });
 
-  it('documents the per-Story derived-level ceremony in /mandrel-deliver', () => {
+  it('documents the two per-Story decisions in /mandrel-deliver', () => {
+    // Story #5366 — the derived level feeds REVIEW DEPTH, not the acceptance
+    // verdict owner, which the ceremony profile alone names. The workflow has
+    // to name both mechanisms so a reader does not collapse them into one.
     assertDocMentions(
       source,
       /derived level.*review depth/i,
-      '/mandrel-deliver must name the derived-level ceremony it actually runs',
+      '/mandrel-deliver must say the derived level feeds review depth',
+    );
+    assertDocMentions(
+      source,
+      /ceremony profile alone/i,
+      '/mandrel-deliver must name the profile as the sole ceremony input',
     );
     assertDocMentions(
       source,
