@@ -405,13 +405,7 @@ export async function disarmAutoMerge({ prNumber, prRef, gh, progress }) {
     return { disarmed: true, alreadyUnarmed: false, detail: 'disarmed' };
   } catch (err) {
     const outcome = classifyDisarmFailure(describeGhFailure(err));
-    if (!outcome.disarmed) {
-      progress?.(
-        'CONFIRM',
-        `⚠️ Could not disarm auto-merge on PR #${ref} (${outcome.detail}) — ` +
-          'GitHub may still land it when the required checks pass. Disarm by hand.',
-      );
-    }
+    warnIfStillArmed({ outcome, ref, progress });
     return outcome;
   }
 }
@@ -432,6 +426,16 @@ function classifyDisarmFailure(detail) {
       ? `auto-merge was not armed: ${detail.slice(0, 160)}`
       : detail.slice(0, 200),
   };
+}
+
+/** Warn the operator when a disarm genuinely failed — the PR may still land. */
+function warnIfStillArmed({ outcome, ref, progress }) {
+  if (outcome.disarmed) return;
+  progress?.(
+    'CONFIRM',
+    `⚠️ Could not disarm auto-merge on PR #${ref} (${outcome.detail}) — ` +
+      'GitHub may still land it when the required checks pass. Disarm by hand.',
+  );
 }
 
 async function evaluateAdvisoryGate({
