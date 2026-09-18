@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-17T17:03:58.461Z",
+  "generatedAt": "2026-09-18T00:00:19.787Z",
   "rollup": {
     "*": {
       "min": 76.381,
@@ -796,11 +796,11 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-capture-fullscope.js",
-      "mi": 95.649
+      "mi": 94.734
     },
     {
       "path": ".agents/scripts/lib/coverage-capture-incremental.js",
-      "mi": 93.159
+      "mi": 96.497
     },
     {
       "path": ".agents/scripts/lib/coverage-capture-usage.js",
