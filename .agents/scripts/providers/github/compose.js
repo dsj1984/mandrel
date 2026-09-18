@@ -1,18 +1,6 @@
 /**
- * GitHub Provider — gateway composition helper.
- *
- * Pulled out of `../github.js` in Story #2462 / Task #2481 so the parent
- * file can stay under the thin-composer LOC ceiling. This module owns the
- * mechanical wiring: it builds each gateway, threads the hooks that
- * cross-link them, and constructs the shared `_ctx` object the projects-v2
- * shim reads from.
- *
- * The provider holds the public surface; this helper holds the wiring.
- * Splitting the two keeps the composer file readable and reviewable as a
- * delegation manifest rather than a constructor-shaped wall of new-up
- * calls.
- *
- * @see Story #2462 — Split GitHubProvider god class into seven composed gateways.
+ * GitHub Provider — gateway wiring: builds each gateway, cross-links them
+ * via hooks, and builds the shared `_ctx` the projects-v2 shim reads.
  */
 
 import { BranchProtectionGateway } from './branch-protection.js';
@@ -26,11 +14,7 @@ import * as projects from './projects-v2-graphql.js';
 import { SubIssueGateway } from './sub-issues.js';
 import { TicketGateway } from './tickets.js';
 
-/**
- * Wire every gateway onto `provider` and attach the shared `_ctx` object.
- * Mutates the provider in place — the constructor passes `this` in and
- * lets this helper own the wiring decisions.
- */
+/** Mutates `provider` in place. */
 export function composeGateways(provider) {
   const p = provider;
   const ghDeps = { gh: p._gh, owner: p.owner, repo: p.repo };

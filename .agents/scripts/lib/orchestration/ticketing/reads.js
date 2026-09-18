@@ -1,185 +1,76 @@
 /**
- * lib/orchestration/ticketing/reads.js — Ticketing read-side surface.
- *
- * Holds the read-only helpers, validators, and the process-level
- * structured-comment cache. Pure of state mutations; importing this
- * module never issues a `ticket-mutating` call to the provider.
- *
- * Split out of `../ticketing.js` under Story #1848 to keep the verb
- * families separated (`reads` / `state` / `bulk`). External callers
- * continue importing the same names from `../ticketing.js`, which
- * re-exports the surface defined here.
+ * lib/orchestration/ticketing/reads.js — Ticketing read-side surface:
+ * validators, markers, and the per-provider structured-comment caches.
+ * Never issues a mutating provider call.
  */
 
 import { AGENT_LABELS } from '../../label-constants.js';
 
 const WAVE_MARKER_RE = /^wave-([0-9]{1,3})-(start|end)$/;
 
-/**
- * Canonical agent-state label triad used by every state mutator. Kept on
- * the read side so `state.js` and `bulk.js` can both import without
- * pulling in any mutation helpers.
- */
 export const STATE_LABELS = {
   READY: AGENT_LABELS.READY,
   EXECUTING: AGENT_LABELS.EXECUTING,
-  // Story #2144 — intermediate state held by a Story between successful
-  // close-preflight and a confirmed Story PR merge into `main`. Included in
-  // the state enum so `transitionTicketState` can apply the label via
-  // the canonical one-state-at-a-time path (which removes every other
-  // `agent::*` label in the same call) and so the read-side `ALL_STATES`
-  // export — consumed by `state.js`'s `fromState` lookup — recognises
-  // `agent::closing` as a valid prior state when a `--resume` flip back
-  // to `done` fires post-merge.
+  // Held between close-preflight and a confirmed PR merge; must be a valid
+  // prior state for the post-merge `--resume` flip to `done`.
   CLOSING: AGENT_LABELS.CLOSING,
   DONE: AGENT_LABELS.DONE,
-  // Story #2004 — `agent::blocked` is the framework's single authoritative
-  // HITL pause point (see `.agents/instructions.md` §1.J). Adding it to the
-  // state enum lets `transitionTicketState` (and the
-  // `update-ticket-state.js` CLI) apply the label through the canonical
-  // one-state-at-a-time path; without it the workflow contract that names
-  // `agent::blocked` cannot be honoured by the tooling.
+  // The single HITL pause point (instructions.md § 1.J).
   BLOCKED: AGENT_LABELS.BLOCKED,
 };
 
-/**
- * Frozen list of every recognised `agent::*` state label. Exposed for
- * downstream guards (e.g. transition predicates) that need to match
- * against the full set without re-enumerating `STATE_LABELS`.
- */
 export const ALL_STATES = Object.values(STATE_LABELS);
 
 /**
- * Enumerated structured-comment types accepted by `postStructuredComment` and
- * `upsertStructuredComment`. Parametric `wave-N-start` / `wave-N-end` types
- * are matched separately by {@link WAVE_TYPE_PATTERN}.
+ * Structured-comment types accepted by the post/upsert paths; parametric
+ * `wave-N-start|end` types match {@link WAVE_TYPE_PATTERN}. A kind nothing
+ * emits any more is dead wiring and is removed. Some kinds stay registered
+ * only so historical comments remain readable.
  */
 export const STRUCTURED_COMMENT_TYPES = Object.freeze([
-  // Legacy core set
   'progress',
   'friction',
   'notification',
-  // Extended set (Story #449 — retro follow-ons)
-  // Story #4411 (Epic #4405) — the former `code-review` structured comment
-  // is unified with the former `audit-results` comment into the single
-  // `verification-results` findings contract. `runCodeReview` (the sole code
-  // producer) upserts `verification-results`; the feedback-loop graduators and
-  // the auto-merge integration gate read it. Both the `code-review` and (as of
-  // Story #4412's slim-Epic-close cutover) the `audit-results` markers are
-  // retired here — the Phase 4 standalone lens walk folded into the Phase 5
-  // code-review pass, whose single `verification-results` comment now carries
-  // the Epic-close lens findings. Hard cutover, no dual-shape reader per
-  // `git-conventions.md`.
+  // Single findings contract for code review and lens findings.
   'verification-results',
   'retro',
   'retro-partial',
-  // v2 Story closeout — actionable follow-ups from friction signals
   'follow-ups',
-  // v2 plan-run epilogue artifacts (posted on the primary Story)
   'plan-run-audit-roster',
   'epic-run-state',
   'epic-run-progress',
   'epic-plan-state',
-  // `parked-follow-ons` retired in Story #5114 with the module that was its
-  // only writer, and `plan-run-sibling-coherence` in Story #5341 with the
-  // epilogue step that was its. Story #5367 retired two more on the same
-  // rule: `story-init` (its write went away in #5343 — the receipt is read
-  // off disk now) and `model-attribution` (its writer went with the per-Task
-  // progress writer in #3157, and its reader modules are deleted). A kind the
-  // reader still recognises but nothing emits is the same dead wiring in a
-  // new place.
-  // Story #566 — per-phase wall-clock summary posted by single-story-close.js.
   'phase-timings',
-  // Story #2128 — Phase 6 Epic Clarity Gate (CLI retired). Historical
-  // `clarity-gate-update` comments may still exist on older tickets.
   'clarity-gate-update',
-  // Story #2635 — Tech Spec freshness check. `plan-persist.js`
-  // upserts a `spec-freshness` comment on the Epic listing any
-  // path-shaped references that don't exist at the base branch, so the
-  // operator can correct drift before Phase 8 decomposes from a stale
-  // spec. Advisory: the run continues regardless of the report contents.
+  // Advisory: path references missing at the base branch.
   'spec-freshness',
-  // Story #2894 — `finalize/post-handoff-comment.js` upserts an
-  // `epic-handoff` comment on the Epic at the end of the bus-owned
-  // finalize flow (after `open-or-locate-pr`
-  // succeed). The marker carries the freshly opened/located PR URL and
-  // its number so operators can jump straight to the PR from the Epic
-  // ticket. Re-invocations upsert the same marker rather than appending
-  // duplicates.
   'epic-handoff',
-  // Story #2899 (Epic #2880, F13) — the deleted `epic-deliver-preflight.js`
-  // upserted a `delivery-preflight` comment on the Epic at the start of
-  // pre-v2 Epic `/mandrel-deliver` Phase 1, surfacing estimated story count, install cost,
-  // wave count, GitHub API request volume, Claude quota burn, and any
-  // threshold breaches against `delivery.preflight.max*`. One entry per
-  // Epic; re-runs replace prior content.
   'delivery-preflight',
-  // Story #3062 (Epic #3051) — the deleted `wave-tick.js` upserted a
-  // `recurring-failure-class` comment on the Epic when the cross-Story
-  // detector finds two or more Stories that hit the same `failedGate` in
-  // `close-validate.end`. One entry per Epic; re-ticks with the same
-  // findings upsert in place (`upsertStructuredComment` diffs by body).
   'recurring-failure-class',
-  // Story #3061 (Epic #3051) — the pre-v2 `/mandrel-deliver` idle-watchdog prose
-  // instructed the parent host LLM to upsert a `wave-stall` comment on the
-  // Epic whenever an in-flight Story had been silent for longer than the
-  // configured cadence. The deleted `wave-tick.js --check-idle` CLI emitted
-  // the matching envelope; registering the kind here keeps historical
-  // the documented remediation actually executable
-  // (assertValidStructuredCommentType would otherwise throw).
   'wave-stall',
-  // Story #4019 — the plan-tier lease guard upserts a `plan-lease`
-  // comment at lease-acquire time, recording the claiming operator and the
-  // claim timestamp. Nothing emits a per-run liveness beat, so this
-  // claim-time is the only age signal a reader has when reasoning about the
-  // documented `--steal` contract. The guard itself fails closed regardless
-  // (it anchors liveness to `now`), so a stranded claim is cleared with
-  // `--steal`, not by TTL expiry. One entry per ticket; re-acquires upsert
-  // in place.
+  // Records claimant + claim time; the guard fails closed, so a stranded
+  // claim is cleared with `--steal`, not by TTL.
   'plan-lease',
-  // Story #4415 (Epic #4406) — the feedback-loop graduator
-  // (`retro-proposals-graduator.js`) upserts a
-  // `cross-repo-deferred` comment listing findings that route
-  // to a different repository and were therefore not filed here. Replaces
-  // the prior log-line-only trace so the deferral survives the finalize
-  // run as a durable, operator-visible record. Discriminated by a
-  // `graduator="<name>"` attr so independent graduators do not clobber each
-  // other's comment; re-runs upsert in place.
+  // Discriminated by a `graduator="<name>"` attr so graduators don't clobber
+  // each other.
   'cross-repo-deferred',
-  // v2 Stage 3 — the flat Story persist comment on every created Story
-  // (replaces epic-plan-state for new plans). Since Story #5343 it is the
-  // ONLY comment persist posts: the primary-Story-only `plan-summary` marker
-  // was retired and its content — story set, delivery order, deliver command
-  // — rides this marker on every Story. Story #5367 deleted the machine
-  // checkpoint that used to lead the body; the marker remains, and it is what
-  // makes a re-persist upsert in place.
+  // The only comment persist posts on each Story; the marker makes a
+  // re-persist upsert in place.
   'story-plan-state',
-  // Story #4535 — `plan-persist.js` upserts a `superseded-by` comment on
-  // each `/mandrel-plan --tickets` source issue at persist time, naming the single
-  // Story that claims it (plus any per-supersede note the plan authored),
-  // immediately before closing the issue as `not_planned`. Keying off this
-  // marker rather than a bare `postComment` is what makes a re-run
-  // non-double-commenting. One entry per source issue.
+  // Posted before closing a superseded source issue; the marker keeps
+  // re-runs from double-commenting.
   'superseded-by',
 ]);
 
 export const WAVE_TYPE_PATTERN = WAVE_MARKER_RE;
 
 /**
- * Pool-mode claim-comment marker. One marker per story-id (the comment is
- * upserted, so racing claims on the same story collapse to a single
- * authoritative entry — the label set is the actual race-detection signal).
- * Bounded to 1-9 digits to mirror the wave-marker safety margin.
+ * Pool-mode claim marker, upserted per story-id; the label set, not the
+ * comment, is the race-detection signal.
  */
 const CLAIM_TYPE_PATTERN = /^claim-([0-9]{1,9})$/;
 
-/**
- * Lifecycle-listener marker pattern (Story #2239 / #2241 / #2242). The
- * lifecycle StructuredCommentPoster writes minimal markers prefixed with
- * `lifecycle-` (e.g. `lifecycle-wave-0-start`, `lifecycle-epic-blocked`,
- * `lifecycle-epic-unblocked`). Treated as a generic prefix so future
- * listener-owned events can mint new markers without touching this enum.
- */
+/** Generic `lifecycle-*` prefix so listeners can mint markers freely. */
 const LIFECYCLE_TYPE_PATTERN = /^lifecycle-[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /**
@@ -197,10 +88,6 @@ export function isValidStructuredCommentType(type) {
 }
 
 /**
- * Throws if `type` is not a recognized structured-comment type. Error
- * message lists the accepted enum plus the wave pattern to make the
- * schema discoverable from the failure alone.
- *
  * @param {string} type
  */
 export function assertValidStructuredCommentType(type) {
@@ -212,18 +99,9 @@ export function assertValidStructuredCommentType(type) {
 }
 
 /**
- * Build an HTML marker that uniquely identifies a structured comment by
- * type plus an optional discriminator attribute bag. The marker is embedded
- * in the comment body so it can be discovered on read-back via
- * `findStructuredComment`.
- *
- * `attrs` lets a single `type` namespace coexist with multiple in-place
- * snapshots keyed by an additional dimension. The canonical use is the
- * per-wave `wave-run-progress` comment: each wave upserts its own snapshot
- * via `{ wave: N }` so subsequent waves don't overwrite prior rows.
- * Without the discriminator the next wave's upsert finds (and deletes) the
- * prior wave's comment, leaving the cross-wave epic-run-progress rollup
- * with a single row.
+ * HTML marker identifying a structured comment. `attrs` discriminates
+ * several snapshots of one type (e.g. one per wave) so an upsert doesn't
+ * overwrite a sibling.
  *
  * @param {string} type
  * @param {Record<string, string|number>} [attrs]
@@ -241,46 +119,14 @@ export function structuredCommentMarker(type, attrs = null) {
 }
 
 /**
- * Per-provider cache mapping `${ticketId}|${type}|${attrsHash}` to the
- * comment id (and the cached comment payload) returned by the most
- * recent `findStructuredComment` / `upsertStructuredComment` call.
- * Story #1795 — every Epic run owns its process for the duration of
- * the run, so a single seed-then-reuse window saves one
- * `getTicketComments` per repeat upsert on the hot path (`story-init`,
- * `verification-results`, etc).
- *
- * Lifecycle:
- *   - First call to `findStructuredComment(provider, t, type, attrs)`
- *     hits `getTicketComments` and seeds the cache with the resolved
- *     comment (or `null` to record the "no comment yet" miss).
- *   - Subsequent calls with the same provider return the cached row
- *     without a list call.
- *   - `upsertStructuredComment` refreshes the cache to the new
- *     comment id after `postComment` succeeds.
- *   - `deleteComment` paths inside this module evict the entry.
- *
- * Cache is scoped to the provider instance via a WeakMap — different
- * providers (including per-test fakes) get isolated caches so state
- * cannot leak across boundaries. Tests reset via the exported
- * `_resetStructuredCommentCache()` seam.
+ * Per-provider `(ticketId, type, attrs)` → resolved comment (or `null` miss).
+ * Upsert refreshes and delete evicts entries. WeakMap-scoped so fakes stay
+ * isolated.
  */
 const _structuredCommentCache = new WeakMap();
 
 /**
- * Build a well-formed ticket snapshot for a Story that has zero child
- * Tasks. Story #3097 (Wave-0 additive, Epic #3078 Strategy B) — the
- * 2-tier hierarchy collapses Epic → Story → Task into
- * Epic → Story, so a Story may legitimately have no Task
- * children. Read-side callers that expect a `subTickets` array on the
- * Story can route through this helper to materialise an empty-children
- * snapshot without paying a provider round-trip and without risk of
- * `undefined.map` dereferences. Pure / synchronous; never touches the
- * provider.
- *
- * The function preserves every field on the input `ticket` and merely
- * pins `subTickets` to `[]` when omitted. Callers that already hold a
- * resolved children list pass it through; the Storyless path is the
- * default.
+ * Snapshot of a ticket with `subTickets` pinned (default `[]`); pure.
  *
  * @param {object|null|undefined} ticket
  * @param {{ subTickets?: Array<object> }} [opts]
@@ -294,7 +140,6 @@ export function buildStorylessTicketSnapshot(ticket, opts = {}) {
 }
 
 /**
- * Lookup (or lazily create) the per-provider cache map.
  * @param {object} provider
  * @returns {Map<string, object|null>}
  */
@@ -309,8 +154,7 @@ export function getProviderCommentCache(provider) {
 }
 
 /**
- * Build a stable cache key for `(ticketId, type, attrs)`. Attrs object
- * is normalised by sorted JSON so equivalent keys collide. Story #1795.
+ * Attrs are key-sorted so equivalent bags collide.
  *
  * @param {number} ticketId
  * @param {string} type
@@ -329,31 +173,12 @@ export function structuredCommentCacheKey(ticketId, type, attrs) {
 }
 
 /**
- * Per-provider raw-comments cache mapping ticketId → the full comment
- * array returned by the most recent `provider.getTicketComments(ticketId)`
- * call. Story #2465 — `findStructuredComment` is invoked back-to-back for
- * different `type` discriminators against the same ticket (e.g.
- * `story-init` + `verification-results` + a `friction` probe during a
- * single close). Without this cache each lookup pays a full
- * pagination round-trip even when the prior call already fetched the
- * same comments. The structured-comment-id cache short-circuits *repeat*
- * lookups for the same `(type, attrs)` tuple but does not help across
- * different types on the same ticket.
- *
- * Lifecycle:
- *   - `findStructuredComment` consults this raw cache before issuing
- *     `provider.getTicketComments`; on cache miss it seeds the entry
- *     from the response.
- *   - `postStructuredComment` and `upsertStructuredComment` evict the
- *     entry for the mutated ticketId — any cached array is stale once
- *     a new comment lands.
- *   - Scoped per-provider via WeakMap so test fakes never share state
- *     with the real GitHubProvider.
+ * Per-provider ticketId → full comment array, so lookups for different types
+ * on one ticket share one fetch. Structured-comment writes evict the entry.
  */
 const _rawCommentsCache = new WeakMap();
 
 /**
- * Lookup (or lazily create) the per-provider raw-comments cache.
  * @param {object} provider
  * @returns {Map<number, object[]>}
  */
@@ -368,10 +193,6 @@ export function getProviderRawCommentsCache(provider) {
 }
 
 /**
- * Evict the cached raw-comments array for a given ticket on a provider.
- * Called from the structured-comment write paths after a `postComment`
- * lands. Safe to call when no entry exists.
- *
  * @param {object} provider
  * @param {number} ticketId
  */
@@ -383,9 +204,6 @@ export function invalidateRawCommentsCache(provider, ticketId) {
 }
 
 /**
- * Test seam — reset the raw-comments cache for a provider. Mirrors
- * `_resetStructuredCommentCache` for the structured-id cache.
- *
  * @param {object} [provider]
  */
 export function _resetRawCommentsCache(provider) {
@@ -395,17 +213,7 @@ export function _resetRawCommentsCache(provider) {
 }
 
 /**
- * Test seam — reset the structured-comment ID cache.
- * Exported so unit tests can isolate cases without restarting the
- * process. Without arguments the entire WeakMap is dropped by
- * reassigning the per-provider map of every known provider — in
- * practice tests just hand in their fresh provider instance which
- * has no cached state yet. Production callers never invoke this.
- *
- * @param {object} [provider] When supplied, clears just that
- *   provider's cache; otherwise no-op (per-provider caches are
- *   already isolated by WeakMap and tests creating fresh providers
- *   get clean state automatically).
+ * @param {object} [provider] Clears that provider's cache; otherwise no-op.
  */
 export function _resetStructuredCommentCache(provider) {
   if (provider && typeof provider === 'object') {
@@ -414,12 +222,9 @@ export function _resetStructuredCommentCache(provider) {
 }
 
 /**
- * Test seam — peek at a provider's cache contents. Returns the raw
- * Map for read-only inspection (do not mutate). Story #1795.
+ * Read-only view of a provider's cache (do not mutate).
  *
- * @param {object} [provider] If supplied, returns that provider's
- *   cache Map; otherwise returns an empty Map for callers that just
- *   want a stable shape.
+ * @param {object} [provider]
  */
 export function _peekStructuredCommentCache(provider) {
   if (provider && typeof provider === 'object') {
@@ -429,20 +234,8 @@ export function _peekStructuredCommentCache(provider) {
 }
 
 /**
- * Find the most recent structured comment of a given type on a ticket.
- * Detection is based on the HTML marker produced by
- * `structuredCommentMarker(type, attrs)`.
- *
- * When `attrs` is provided, only comments whose marker carries the same
- * discriminator attributes are returned — see `structuredCommentMarker` for
- * the per-wave `wave-run-progress` use case.
- *
- * Story #1795 — results are memoised in a process-level cache keyed by
- * `(ticketId, type, attrsHash)`. The first call seeds the cache with
- * the resolved comment (or `null` for the "no such comment yet" miss);
- * every subsequent call returns the cached row without issuing another
- * `getTicketComments`. `upsertStructuredComment` refreshes the cache
- * after a successful repost, and its delete path evicts the entry.
+ * Latest comment carrying `structuredCommentMarker(type, attrs)`; memoised
+ * per `(ticketId, type, attrs)`, including misses.
  *
  * @param {import('../../ITicketingProvider.js').ITicketingProvider} provider
  * @param {number} ticketId
@@ -462,10 +255,6 @@ export async function findStructuredComment(
     return cache.get(cacheKey);
   }
   const marker = structuredCommentMarker(type, attrs);
-  // Story #2465 — consult the per-ticketId raw-comments cache before
-  // hitting the wire. Two back-to-back `findStructuredComment` calls for
-  // different types against the same ticket would otherwise both pay a
-  // full `getTicketComments` round-trip.
   const rawCache = getProviderRawCommentsCache(provider);
   let comments;
   if (rawCache.has(ticketId)) {
@@ -474,7 +263,7 @@ export async function findStructuredComment(
     comments = (await provider.getTicketComments(ticketId)) ?? [];
     rawCache.set(ticketId, comments);
   }
-  // Return latest match (comments API sorts ascending by creation; take last).
+  // Comments sort ascending by creation; take the last match.
   const matches = comments.filter(
     (c) => typeof c.body === 'string' && c.body.includes(marker),
   );

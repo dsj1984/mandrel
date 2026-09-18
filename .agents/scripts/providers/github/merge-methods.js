@@ -1,24 +1,10 @@
 /**
- * GitHub Provider — MergeMethodsGateway.
- *
- * Owns `getMergeMethods` / `setMergeMethods` against `/repos/{owner}/{repo}`.
- * The narrow field list (`MERGE_METHOD_FIELDS`) keeps `getMergeMethods` and
- * `setMergeMethods` aligned on which keys they mirror — operators may have
- * tuned other repo flags and we deliberately do not surface them through
- * this interface.
- *
- * Extracted from `../github.js` in Story #2462 / Task #2479. Public
- * surface on `GitHubProvider` is unchanged — both merge-method methods
- * delegate here.
- *
- * @see Story #2462 — Split GitHubProvider god class into seven composed gateways.
+ * GitHub Provider — MergeMethodsGateway. Reads and writes only
+ * `MERGE_METHOD_FIELDS`, leaving other operator-tuned repo flags alone.
  */
 
 import { parseApiJson } from './request-helpers.js';
 
-/**
- * Fields the merge-method bootstrap reads/writes.
- */
 export const MERGE_METHOD_FIELDS = [
   'allow_squash_merge',
   'allow_rebase_merge',
@@ -38,10 +24,6 @@ export class MergeMethodsGateway {
   }
 
   /**
-   * Read the repo's current merge-method-related settings. Returns only
-   * the fields the bootstrap cares about so the diff layer can compare
-   * apples to apples regardless of what other knobs the repo exposes.
-   *
    * @field-manifest GET /repos/{owner}/{repo}: allow_squash_merge,
    *                 allow_rebase_merge, allow_merge_commit,
    *                 allow_auto_merge, delete_branch_on_merge
@@ -60,8 +42,7 @@ export class MergeMethodsGateway {
   }
 
   /**
-   * PATCH the repo with the supplied merge-method settings. Sparse body —
-   * only the supplied fields are sent / touched.
+   * Sparse PATCH: only supplied fields are sent.
    *
    * @field-manifest PATCH /repos/{owner}/{repo}: allow_squash_merge,
    *                 allow_rebase_merge, allow_merge_commit,

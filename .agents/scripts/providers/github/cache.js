@@ -1,18 +1,6 @@
 /**
- * GitHub Provider — per-instance ticket cache.
- *
- * One bare `Map<id, { ticket, insertedAt }>` scoped to the lifetime of a
- * single `GitHubProvider`, shared by dispatcher, reconciler, and cascade.
- * The outer TTL wrapper is deliberately omitted because `peekFresh` already
- * bounds entries by a caller-supplied `maxAgeMs`, and every other reader
- * trusts the ticket mutators (`updateTicket` / `postComment`) to call
- * `invalidate` explicitly.
- *
- * Surface is intentionally narrow: only the methods the provider itself
- * reaches for live here (`has` / `peek` / `peekFresh` / `set` /
- * `primeIfAbsent` / `primeMany` / `invalidate`).
- *
- * Extracted from `../github.js` in Story #1846 / Task #1858.
+ * GitHub Provider — per-instance ticket cache. No TTL: `peekFresh` bounds age
+ * per call, and mutators invalidate explicitly.
  *
  * @param {{ now?: () => number }} [opts]
  * @returns {{

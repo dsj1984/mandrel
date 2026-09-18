@@ -1,14 +1,6 @@
 /**
- * GitHub Provider — pure REST/GraphQL ticket mappers.
- *
- * Pure functions that translate raw GitHub API payloads (REST `Issue`,
- * GraphQL sub-issue node) into the normalized ticket shape consumed
- * throughout the dispatcher / reconciler layer. No I/O, no state, no
- * `execSync` —
- * verified by the sibling test which exercises the mappers without `gh`
- * installed.
- *
- * Extracted from `../github.js` in Story #1846 / Task #1859.
+ * GitHub Provider — pure mappers from REST issues / GraphQL sub-issue nodes
+ * to the normalized ticket shape.
  */
 
 function normalizeLabels(issue) {
@@ -35,10 +27,7 @@ export function issueToTicket(issue) {
     labelSet: new Set(labels),
     assignees: (issue.assignees ?? []).map((a) => a.login),
     state: issue.state,
-    // `completed` | `not_planned` | `reopened` | null. `state` alone cannot
-    // tell a Story that landed from one closed as superseded — both read
-    // `closed` — so the close path needs this to avoid reporting a
-    // never-merged Story as landed.
+    // Distinguishes a landed Story from a superseded one; both are `closed`.
     stateReason: issue.state_reason ?? null,
   };
 }
@@ -57,13 +46,7 @@ export function issueToEpic(issue) {
 }
 
 export function subIssueNodeToTicket(node) {
-  // Story #3097 (Wave-0 additive, Epic #3078 Strategy B) — return `null`
-  // for absent sub-issue nodes instead of dereferencing properties on
-  // `null`/`undefined`. In 2-tier mode a Story can legitimately have zero
-  // Task children, which surfaces as an empty / missing sub-issue node
-  // when callers iterate the GraphQL response and pass each entry through
-  // this mapper. The legacy 4-tier path also benefits — a transient
-  // empty node returned mid-pagination no longer throws.
+  // Absent nodes are legitimate (childless Story, empty page entry).
   if (node == null) return null;
   const labels = normalizeLabels(node);
   return {
@@ -81,12 +64,7 @@ export function subIssueNodeToTicket(node) {
 }
 
 /**
- * Map a list of raw GraphQL sub-issue nodes to ticket objects, skipping
- * any null/undefined entries. Story #3097 (Wave-0 additive, Epic #3078
- * Strategy B) — gives callers a single Storyless-tolerant entry point so
- * the existing per-node mappers can stay strict for the 4-tier path while
- * the 2-tier path (Storyless: a Story with zero child Tasks) gets a
- * well-defined empty-array result.
+ * Skips null entries; a non-array yields `[]`.
  *
  * @param {Array<object|null|undefined>|null|undefined} nodes
  * @returns {object[]}

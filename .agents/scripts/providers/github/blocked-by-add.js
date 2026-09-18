@@ -1,51 +1,22 @@
 /**
- * GitHub Provider — shared "set native blocked-by dependency" helper.
- *
- * Story #4067 — after issue creation during Phase 8 decomposition, each
- * Story's `depends_on` graph is known as a set of sibling slugs. This
- * helper translates those slug-to-issueNumber pairs into native GitHub
- * "blocked by" dependency edges so maintainers can see blocking
- * relationships directly in the GitHub UI.
- *
- * API surface used:
- *   Read:  GET  /repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocked_by
- *   Write: POST /repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocked_by
- *          body: { "issue_id": <integer db id of the blocking issue> }
- *
- * Contract:
- *   - **Idempotent** — reads existing edges first; only POSTs missing ones.
- *   - **Non-fatal** — catches all errors per edge, warns, and continues.
- *     The overall function never throws; errors are returned in a summary.
- *   - **No-op on empty input** — returns immediately when no depends_on
- *     edges are present or the slug→issueNumber map is empty.
+ * GitHub Provider — writes Story `depends_on` slugs as native "blocked by"
+ * edges (`POST .../dependencies/blocked_by` with the blocker's db id).
+ * Idempotent (reads existing edges first) and non-fatal: errors are counted
+ * in the summary, never thrown.
  */
 
 import { Logger } from '../../lib/Logger.js';
 import { concurrentMap } from '../../lib/util/concurrent-map.js';
 import { paginateRest } from './request-helpers.js';
 
-/**
- * Bounded concurrency for the GitHub dependency-edge round-trips. Kept modest
- * to respect GitHub's secondary rate limits while still collapsing the wall-
- * clock latency from `sum(round-trips)` toward `sum(round-trips) / concurrency`.
- */
+/** Modest, to stay clear of GitHub's secondary rate limits. */
 const EDGE_CONCURRENCY = 5;
 
 /**
- * Fetch the existing blocked-by database ids for a given issue, **paginated
- * to exhaustion**.
- *
- * This read is the idempotency check: an edge it fails to see is re-POSTed.
- * Reading only the first page therefore made the writer non-idempotent past
- * the page boundary — every edge beyond it looked missing on every run
- * (Story #5046). `paginateRest` walks the pages and carries the shared
- * transient-retry and page-cap guards.
- *
- * Returns `[]` on any error so the caller falls back to posting the full
- * set of missing edges (worst case: a duplicate POST, which GitHub
- * handles idempotently). That non-fatal contract is deliberate and is the
- * inverse of the READ path in `lib/orchestration/resolve-stories.js`: a lost
- * write-side edge is cosmetic, a lost read-side edge removes a dispatch gate.
+ * Existing blocker db ids, paginated to exhaustion — this read is the
+ * idempotency check, so an unseen page means re-POSTed edges. Returns `[]` on
+ * error (worst case a duplicate POST): a lost write-side edge is cosmetic,
+ * unlike the read path in `resolve-stories.js`, where it drops a gate.
  *
  * @param {{ gh: object, owner: string, repo: string, issueNumber: number, paginate?: Function }} opts
  * @returns {Promise<number[]>} Database ids of the issues that currently block `issueNumber`.
@@ -74,11 +45,7 @@ async function fetchExistingBlockedBy({
 }
 
 /**
- * Set native GitHub "blocked by" dependency edges for a single issue.
- *
- * For each entry in `blockerInternalIds`, checks whether the edge already
- * exists and POSTs only the missing ones. Every individual POST failure is
- * caught, logged as a warning, and counted — the function never throws.
+ * POST only the missing edges for one issue; never throws.
  *
  * @param {{
  *   gh: object,
@@ -108,9 +75,7 @@ async function addBlockedByEdges({
   });
   const existingSet = new Set(existing);
 
-  // Partition up front so the skip count is deterministic regardless of the
-  // concurrent POST dispatch order, then POST only the missing edges in
-  // parallel under a modest cap.
+  // Partition first so the skip count doesn't depend on POST ordering.
   const missing = blockerInternalIds.filter((id) => !existingSet.has(id));
   const skipped = blockerInternalIds.length - missing.length;
 
@@ -145,16 +110,8 @@ async function addBlockedByEdges({
 }
 
 /**
- * Translate a Story's `depends_on` slug list into native GitHub "blocked
- * by" dependency edges, given the slug→issueNumber map from the reconciler
- * state and a `getTicket` hook to resolve database ids.
- *
- * Iterates every Story that has a non-empty `dependsOn` array; for each
- * depended-on slug, resolves the blocker's issue number (via the slug map),
- * then resolves the blocker's database id via `getTicket`, and calls
- * `addBlockedByEdges`. Any failure at any step is caught, logged as a
- * warning, and reflected in the returned summary — the function never
- * throws.
+ * For each Story's `dependsOn` slugs, resolve blocker issue number (slug map)
+ * then db id (`getTicket`), and add the edges. Never throws.
  *
  * @param {{
  *   stories: Array<{ slug: string, dependsOn?: string[] }>,
@@ -184,11 +141,7 @@ export async function applyBlockedByDependencies({
   let edgesFailed = 0;
   let storiesProcessed = 0;
 
-  // Process each story's GET + its POST batch under one bounded concurrentMap
-  // so the per-story round-trips overlap. Each mapper returns its own counter
-  // contribution; we sum them after the pass. The bodies swallow their own
-  // errors (per-edge try/catch + the non-fatal contract), so concurrentMap
-  // never sees a rejection and the no-throw guarantee is preserved.
+  // Mappers swallow their own errors, so concurrentMap never rejects.
   const perStory = await concurrentMap(
     stories,
     async (story) => {

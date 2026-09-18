@@ -1,22 +1,8 @@
 /**
- * lib/orchestration/ticketing/bulk.js — Cascade + batch ticketing surface.
- *
- * Owns the multi-ticket, cross-parent operations: the cascade walk that
- * fires when a child ticket reaches `agent::done`, the per-parent
- * sequencing lock, the transient-error classifier and retry budget, and
- * the partial-failure log helper. Pulled out of `../ticketing.js` under
- * Story #1848 so the verb-family split (`reads` / `state` / `bulk`) is
- * complete and the parent collapses to a pure re-export facade.
- *
- * Story #3995 — the single-ticket mutators (`transitionTicketState`,
- * `toggleTasklistCheckbox`, `postStructuredComment`) moved to the leaf
- * `./transition.js`, so this module now depends **downward** on
- * `transition.js` and the former `state.js ↔ bulk.js` import cycle is
- * gone. `cascadeCompletion` still recursively transitions parents via
- * the imported `transitionTicketState`; the reverse call
- * (`transitionTicketState → cascadeParentState`) is injected into
- * `transition.js` by `state.js` via `registerCascadeRunner` rather than
- * imported, which is what keeps the graph acyclic.
+ * lib/orchestration/ticketing/bulk.js — Cascade + batch ticketing surface:
+ * the upward cascade walk, the per-parent lock, and transient-error retry.
+ * Depends downward on `./transition.js`; the reverse edge is injected via
+ * `registerCascadeRunner`, keeping the import graph acyclic.
  */
 
 import { Logger } from '../../Logger.js';
@@ -27,14 +13,7 @@ import {
   transitionTicketState,
 } from './transition.js';
 
-/**
- * Retry budget for transient `gh` failures (rate limit, secondary rate limit,
- * 5xx, transport timeouts) inside the cascade transition. Three attempts with
- * exponential backoff (250ms / 500ms / 1000ms) mirrors the budget used by
- * `gitFetchWithRetry` (see `lib/git-utils.js`) and the HTTP-client retry path
- * referenced by the plan persist surface. Backoff is overridable via
- * {@link __setCascadeRetryDelays} so tests don't pay real wall-clock time.
- */
+/** Backoff for transient `gh` failures inside the cascade transition. */
 const CASCADE_RETRY_BACKOFF_MS = [250, 500, 1000];
 const defaultCascadeSleep = (ms) =>
   new Promise((resolve) => setTimeout(resolve, ms));
@@ -42,8 +21,7 @@ let _cascadeRetryDelays = CASCADE_RETRY_BACKOFF_MS;
 let _cascadeSleep = defaultCascadeSleep;
 
 /**
- * Test seam — replace the backoff schedule and/or the sleep implementation
- * used by the cascade retry loop. Restore by calling with no arguments.
+ * Test seam; call with no arguments to restore defaults.
  *
  * @param {{ delays?: number[], sleep?: (ms: number) => Promise<void> }} [opts]
  */
@@ -56,21 +34,17 @@ export function __setCascadeRetryDelays(opts = {}) {
 }
 
 /**
- * Per-parent serial lock used to prevent two concurrent cascades within the
- * same wave from racing the parent's "all children done?" check (Story
- * #1817). The map is keyed by parent issue number; entries are reclaimed
- * once the last awaiter finishes. The lock is scoped to a single Node
- * process — cross-process races (multiple worktrees closing in parallel)
- * still rely on the retry/idempotency path.
+ * Per-parent serial lock so concurrent cascades cannot race the parent's
+ * "all children done?" check. In-process only; cross-process races rely on
+ * the retry/idempotency path.
  *
  * @type {Map<number, Promise<unknown>>}
  */
 const parentCascadeLocks = new Map();
 
 /**
- * Acquire the per-parent cascade lock, run `fn`, then release. Awaiters
- * queue strictly in invocation order. Failures of prior holders do not
- * propagate — each acquirer sees a clean entry into `fn`.
+ * Awaiters queue in invocation order; a prior holder's failure does not
+ * propagate to the next.
  *
  * @template R
  * @param {number} parentId
@@ -93,20 +67,12 @@ async function withParentCascadeLock(parentId, fn) {
   }
 }
 
-/**
- * Test seam — clear the per-parent cascade lock map between tests so a
- * pending entry from one scenario does not leak into the next.
- */
 export function __resetParentCascadeLocks() {
   parentCascadeLocks.clear();
 }
 
 /**
- * Classifies a thrown cascade error as "transient" (rate limit, secondary
- * rate limit, 5xx, transport timeout / reset) so the retry loop can back
- * off instead of surfacing the failure to the operator. Provider-agnostic:
- * matches on typed error names (`GhRateLimitError`), HTTP status, and
- * conservative regex over stderr + message.
+ * Rate limit, 5xx, or transport failure — worth a backoff retry.
  *
  * @param {unknown} err
  * @returns {boolean}
@@ -133,10 +99,8 @@ function isTransientCascadeError(err) {
 }
 
 /**
- * Render a cascade-failure error into a single log-friendly string that
- * preserves stderr and exit-code context. The legacy log line collapsed
- * `gh-exec`-thrown errors to a bare "exit 1" message, which made the
- * failure mode unclassifiable post-hoc (see Story #1817).
+ * One-line rendering that keeps stderr and exit code, so a failure stays
+ * classifiable after the fact.
  *
  * @param {unknown} err
  * @returns {string}
@@ -158,10 +122,7 @@ function formatCascadeError(err) {
 }
 
 /**
- * Run `fn` with exponential backoff on transient errors. Non-transient
- * errors propagate immediately on the first attempt. The total attempt
- * count is `delays.length + 1` (one initial attempt plus one retry per
- * delay).
+ * Retry `fn` on transient errors only; attempts = `delays.length + 1`.
  *
  * @template R
  * @param {() => Promise<R>} fn
@@ -192,16 +153,7 @@ async function retryTransient(fn, opts = {}) {
 }
 
 /**
- * Emit a warn line for every per-parent cascade failure captured by
- * {@link cascadeCompletion}. Each `error` string is pre-formatted with
- * stderr + exit-code by `formatCascadeError`, so callers can pass the
- * raw envelope through without further wrapping. Called from
- * `state.js`'s `transitionTicketState` to keep its cyclomatic
- * complexity inside the project's per-method CRAP ceiling (Story #1817,
- * Story #1848).
- *
- * @param {number} ticketId  The ticket whose `agent::done` transition
- *                           triggered the cascade.
+ * @param {number} ticketId  The ticket whose transition triggered the cascade.
  * @param {{ failed?: Array<{ parentId: number, error: string }> } | null} cascade
  */
 export function logCascadePartialFailures(ticketId, cascade) {
@@ -214,10 +166,6 @@ export function logCascadePartialFailures(ticketId, cascade) {
 }
 
 /**
- * Per-parent body of {@link cascadeCompletion}. Pulled out so the outer
- * walk stays a thin sequential loop while the per-parent work runs under
- * the per-parent cascade lock.
- *
  * @param {import('../../ITicketingProvider.js').ITicketingProvider} provider
  * @param {number} ticketId  - The ticket whose `agent::done` transition
  *                             triggered the cascade.
@@ -233,11 +181,6 @@ async function processCascadeParent(provider, ticketId, parentId, opts) {
 }
 
 /**
- * Body of {@link processCascadeParent} that runs under the per-parent lock.
- * Split out so the lock-acquire scaffolding stays a one-liner and the
- * cyclomatic complexity of the per-parent worker doesn't drift over the
- * project's CRAP ceiling once the retry / idempotency branches are added.
- *
  * @returns {Promise<{ cascadedTo: number[], failed: Array<{ parentId: number, error: string }> }>}
  */
 async function processCascadeParentLocked(
@@ -254,11 +197,8 @@ async function processCascadeParentLocked(
       checked: true,
     });
 
-    // Idempotency check (Story #1817): re-fetch the parent under the lock
-    // so a concurrent cascade winner that already flipped this parent to
-    // `agent::done` short-circuits us without re-running the transition.
-    // The provider cache may still hold a stale row from before the
-    // winner's PATCH — invalidate first when supported.
+    // Idempotency: re-read the parent under the lock (cache invalidated
+    // first) so a concurrent winner that already flipped it short-circuits us.
     if (typeof provider.invalidateTicket === 'function') {
       try {
         provider.invalidateTicket(parentId);
@@ -274,13 +214,7 @@ async function processCascadeParentLocked(
       return { cascadedTo, failed };
     }
 
-    // Fetch siblings with fresh reads to defend against stale-CLOSED entries.
-    // `{ fresh: true }` threads into the per-child `getTicket` inside
-    // `getSubTickets`, bypassing the cache in one pass rather than two.
-    // The per-child try/catch fallback-to-null is preserved by `getSubTickets`
-    // itself, so a transient read failure cannot silently flip the all-done
-    // check. The concurrency cap (SUBTICKET_HYDRATION_CONCURRENCY = 8) is
-    // applied inside `getSubTickets`.
+    // Fresh sibling reads defend against stale-CLOSED cache entries.
     const freshSubTickets = await provider.getSubTickets(parentId, {
       fresh: true,
     });
@@ -289,10 +223,6 @@ async function processCascadeParentLocked(
     );
     if (!allDone) return { cascadedTo, failed };
 
-    // Retry the parent transition on transient `gh` failures (rate limit,
-    // 5xx, transport timeouts). Permanent failures fall through to the
-    // outer catch on the first attempt so the operator sees the real
-    // error rather than three retries' worth of noise.
     await retryTransient(
       () =>
         transitionTicketState(provider, parentId, STATE_LABELS.DONE, {
@@ -330,47 +260,25 @@ async function processCascadeParentLocked(
 }
 
 /**
- * Recursively cascade upward.
- * If ticket reaches DONE, it toggles its checkbox in its parent.
- * Then checks if parent's sub-tickets are ALL DONE.
- * If yes, transitions parent to DONE and cascades up.
- *
- * Parents run strictly sequentially in input order (Story #4017 —
- * fan-out is <= 1 under the 2-tier hierarchy, so the former
- * shared-ancestor grouping / parallel dispatch was deleted); concurrent
- * transitions against a shared ancestor would race the "all children
- * done?" check. Within each parent, sibling reads fan out via
- * `getSubTickets(parentId, { fresh: true })` with the concurrency cap
- * (8) applied inside `getSubTickets`.
- *
- * Per-parent errors are isolated: a failure updating one parent (network,
- * permission, stale ticket) never discards progress on sibling parents.
- * Failures are collected and returned so callers can log them with full
- * ticket context instead of seeing a single rejection.
+ * When a ticket is `agent::done`, tick its checkbox in each parent and, if
+ * all the parent's children are done, transition the parent and recurse.
+ * Parents run sequentially (a shared ancestor would race the all-done
+ * check); per-parent failures are collected, never discarding sibling work.
  *
  * @param {import('../../ITicketingProvider.js').ITicketingProvider} provider
  * @param {number} ticketId
- * @param {{ notify?: Function, _logger?: object }} [opts] - `notify` is
- *   forwarded to any recursive `transitionTicketState` fired on parent
- *   tickets. `_logger` is an internal hook used by nested cascade calls
- *   to keep buffered output coherent — external callers should leave it
- *   unset so the module-level {@link Logger} is used.
+ * @param {{ notify?: Function, _logger?: object }} [opts] - `_logger` is for
+ *   nested calls only.
  * @returns {Promise<{ cascadedTo: number[], failed: Array<{ parentId: number, error: string }> }>}
  */
 async function cascadeCompletion(provider, ticketId, opts = {}) {
   const ticket = await provider.getTicket(ticketId);
 
-  // Determine if this ticket is agent::done
   if (!ticket.labels.includes(STATE_LABELS.DONE)) {
     return { cascadedTo: [], failed: [] };
   }
 
-  // Story #4545 — one strategy, not three. The `parent: #N` body footer and
-  // the native sub-issue link were both written by `createTicket`, the
-  // Epic-hierarchy write surface deleted in the same Story; with no writer,
-  // the body regex could only ever miss and the native lookup could only
-  // ever spend an API call to learn the same. The operator-settable `blocks`
-  // annotation is the one parent edge that can still exist.
+  // The operator-settable `blocks` annotation is the only parent edge.
   const { blocks: parentIds } = await provider.getTicketDependencies(ticketId);
   const parsedParents = Array.isArray(parentIds) ? parentIds : [];
 
@@ -378,12 +286,6 @@ async function cascadeCompletion(provider, ticketId, opts = {}) {
     return { cascadedTo: [], failed: [] };
   }
 
-  // Story #4017 — under the 2-tier hierarchy a ticket has at most one
-  // parent, so the shared-ancestor grouping / parallel-group dispatch
-  // machinery was deleted. Parents (fan-out <= 1
-  // in practice; the loop stays general for the body-reference fallback)
-  // run strictly sequentially, which trivially preserves the
-  // shared-ancestor safety invariant the grouping used to enforce.
   const cascadedTo = [];
   const failed = [];
   for (const parentId of parsedParents) {
@@ -398,49 +300,12 @@ async function cascadeCompletion(provider, ticketId, opts = {}) {
 }
 
 /**
- * Derive the parent `agent::*` state from the composition of its children.
+ * Labels describing live work on a child — empty for a closed child, whose
+ * stale `agent::*` label records where it stopped, not outstanding work.
  *
- * Rules (Story #2676):
- * - Any **open** child carrying `agent::blocked` → parent should be
- *   `agent::blocked`.
- * - Otherwise, every child is `agent::done` (or closed) → parent should be
- *   `agent::done`.
- * - Otherwise, any **open** child carrying `agent::executing` or
- *   `agent::closing` → parent should be `agent::executing`.
- * - Otherwise (e.g. all children still `agent::ready`) → return `null` to
- *   signal "leave the parent unchanged". A parent already partway through
- *   the lifecycle MUST NOT be downgraded just because one child reverted.
- *
- * **A closed child contributes no `agent::*` state** (Story #5255). Its label
- * records the state it was in when it stopped, not outstanding work, and
- * nothing clears it on the way out: a Story re-planned out of `agent::blocked`
- * is closed as superseded still wearing that label, and the blocked rule then
- * pinned its container Epic open forever — `epic-rollup.js` bails before its
- * close path on any derived state other than `agent::done`, so the Epic
- * reported `pending` every run with every child long since closed. Filtering
- * here rather than at that one call site is what also covers a child closed by
- * hand with a stale state label attached. The all-done branch already counted
- * `state === 'closed'` as done, so a closed child keeps exactly that meaning
- * and loses only its vote on the other two.
- *
- * The function is pure and exported so the rule can be exercised in
- * isolation by unit tests without dragging the cascade I/O surface in.
- *
- * @param {Array<{ labels?: string[], state?: string }>} siblings
- * @returns {string|null} A `STATE_LABELS.*` value, or `null` for no-op.
- */
-/**
- * The labels that still describe **live** work on this child.
- *
- * Empty for a closed child: its `agent::*` label records the state it stopped
- * in, not outstanding work, and the two live-state rules in
- * {@link deriveParentState} must not read it. The all-done rule reads the
- * child's labels directly, so a closed child keeps counting as done.
- *
- * Module-level rather than another local arrow inside `deriveParentState`:
- * the CRAP baseline keys anonymous functions positionally within their
- * enclosing scope, so adding or removing one there renumbers every later
- * arrow and reports the shift as drift on code that did not change.
+ * Module-level rather than a local arrow: the CRAP baseline keys anonymous
+ * functions positionally, so adding one inside `deriveParentState` would
+ * renumber later arrows and fake drift.
  *
  * @param {{ labels?: string[], state?: string }} sibling
  * @returns {string[]}
@@ -450,6 +315,16 @@ function liveChildLabels(sibling) {
   return Array.isArray(sibling?.labels) ? sibling.labels : [];
 }
 
+/**
+ * Derive a parent's `agent::*` state from its children: any open blocked →
+ * blocked; else all done-or-closed → done; else any open executing/closing →
+ * executing; else `null` (never downgrade a parent). Closed children vote
+ * only as done — a stale `agent::blocked` on a superseded child must not
+ * pin its Epic open.
+ *
+ * @param {Array<{ labels?: string[], state?: string }>} siblings
+ * @returns {string|null} A `STATE_LABELS.*` value, or `null` for no-op.
+ */
 export function deriveParentState(siblings) {
   if (!Array.isArray(siblings) || siblings.length === 0) return null;
   const labelsOf = (s) => (Array.isArray(s?.labels) ? s.labels : []);
@@ -470,22 +345,9 @@ export function deriveParentState(siblings) {
 }
 
 /**
- * Did any of these children actually **land**?
- *
- * `deriveParentState` answers `agent::done` for a child set in which every
- * child is done *or closed*, and it is right to: a closed child is finished
- * work as far as the parent's lifecycle goes. But "finished" and "landed" are
- * different claims, and the close path spends the difference. A cohort
- * re-planned out of existence closes every child as superseded, carrying no
- * `agent::done` and having merged nothing — and the container above it then
- * closed as `completed`, over a log line claiming every child Story landed.
- * Both the state reason and the sentence were false.
- *
- * So the two questions are asked separately: `deriveParentState` decides
- * *whether* the parent is finished, this decides *how* it finished. A single
- * landed child is enough — a container that delivered some of its work and
- * superseded the rest completed, partially, and `not_planned` is reserved for
- * the case where nothing was delivered at all.
+ * "Finished" is not "landed": a cohort closed wholly as superseded derives
+ * `done` but delivered nothing. One landed child means the container
+ * completed; none means `not_planned`.
  *
  * @param {Array<{ labels?: string[] }>} children
  * @returns {boolean} True when at least one child carries `agent::done`.
@@ -500,26 +362,9 @@ export function anyChildLanded(children) {
 }
 
 /**
- * Parent-state cascade for non-terminal transitions. Story #2676.
- *
- * When a child ticket transitions to any `agent::*` state, this function
- * walks the parent chain and updates each parent's state to the value
- * derived by {@link deriveParentState} — so that moving a Task to
- * `agent::executing` propagates "in progress" up to the Story and the
- * Epic on the Project board, and moving a Task to `agent::blocked`
- * surfaces the HITL signal at every ancestor.
- *
- * For `agent::done` transitions, propagation is delegated to the
- * existing {@link cascadeCompletion} so the long-standing semantics
- * (tasklist checkbox toggling, the "All child tickets completed via
- * recursive cascade" progress comment, Epic exclusion) are preserved
- * verbatim.
- *
- * Resilience matches {@link cascadeCompletion}: parents run
- * sequentially; the per-parent lock from {@link withParentCascadeLock}
- * prevents races on shared ancestors; and per-parent errors are
- * isolated so a sibling parent's failure does not discard work on the
- * others.
+ * Propagate any `agent::*` transition up the parent chain using
+ * {@link deriveParentState}; `done` delegates to {@link cascadeCompletion}.
+ * Same sequential, locked, failure-isolated walk.
  *
  * @param {import('../../ITicketingProvider.js').ITicketingProvider} provider
  * @param {number} ticketId
@@ -527,14 +372,7 @@ export function anyChildLanded(children) {
  * @returns {Promise<{ cascadedTo: number[], failed: Array<{ parentId: number, error: string }> }>}
  */
 export async function cascadeParentState(provider, ticketId, opts = {}) {
-  // Provider-capability guard. Cascade derivation needs both
-  // `getTicketDependencies` (to walk the `blocks:` parent edge) and
-  // `getSubTickets` (to inspect the parent's children). Test fakes
-  // that stub only the single-ticket surface (e.g. the column-sync
-  // sibling tests) MUST still be able to drive `transitionTicketState`
-  // without the cascade blowing up. Silently no-op when the surface
-  // is missing — propagation is best-effort, matching the contract
-  // already documented for the column-sync mirror.
+  // Best-effort: providers lacking the dependency/sub-ticket surface no-op.
   if (
     typeof provider?.getTicketDependencies !== 'function' ||
     typeof provider?.getSubTickets !== 'function'
@@ -546,9 +384,6 @@ export async function cascadeParentState(provider, ticketId, opts = {}) {
   const childState = labels.find((l) => ALL_STATES.includes(l));
   if (!childState) return { cascadedTo: [], failed: [] };
 
-  // DONE-cascade keeps the existing path: tasklist checkbox toggle,
-  // progress comment, Epic-close exclusion, and the legacy log shape are
-  // all encoded in `cascadeCompletion` and externally observed by tests.
   if (childState === STATE_LABELS.DONE) {
     return cascadeCompletion(provider, ticketId, opts);
   }
@@ -556,8 +391,6 @@ export async function cascadeParentState(provider, ticketId, opts = {}) {
   const parsedParents = await resolveParentIds(provider, ticket, ticketId);
   if (parsedParents.length === 0) return { cascadedTo: [], failed: [] };
 
-  // Story #4017 — sequential per-parent walk (fan-out <= 1 under the
-  // 2-tier hierarchy); see cascadeCompletion for the rationale.
   const cascadedTo = [];
   const failed = [];
   for (const parentId of parsedParents) {
@@ -572,10 +405,6 @@ export async function cascadeParentState(provider, ticketId, opts = {}) {
 }
 
 /**
- * Resolve the parent issue ids for a ticket from its `blocks:` dependency
- * annotations. Mirrors the resolution path used by {@link cascadeCompletion}
- * — see there for why the `parent: #NNN` body fallback is gone (Story #4545).
- *
  * @param {import('../../ITicketingProvider.js').ITicketingProvider} provider
  * @param {object} _ticket
  * @param {number} ticketId
@@ -587,10 +416,6 @@ async function resolveParentIds(provider, _ticket, ticketId) {
 }
 
 /**
- * Per-parent worker for {@link cascadeParentState}. Acquires the shared
- * per-parent cascade lock so concurrent transitions on sibling children
- * cannot race on the parent's derived-state check.
- *
  * @returns {Promise<{ cascadedTo: number[], failed: Array<{ parentId: number, error: string }> }>}
  */
 async function processStateCascadeParent(provider, parentId, opts) {
@@ -600,11 +425,6 @@ async function processStateCascadeParent(provider, parentId, opts) {
   );
 }
 
-/**
- * Body of {@link processStateCascadeParent} under the per-parent lock.
- * Computes the derived state from a fresh sibling read, applies the
- * idempotency guard, and recurses upward.
- */
 async function processStateCascadeParentLocked(
   provider,
   parentId,
@@ -621,21 +441,13 @@ async function processStateCascadeParentLocked(
         // best-effort cache invalidation
       }
     }
-    // Fetch siblings fresh in one pass — `{ fresh: true }` threads into the
-    // per-child `getTicket` inside `getSubTickets`, replacing the previous
-    // two-step pattern of `getSubTickets` + a second `concurrentMap` fan-out
-    // with `invalidateTicket` + `getTicket(id, { fresh:true })`.
     const freshSubs = await provider.getSubTickets(parentId, { fresh: true });
 
     const derived = deriveParentState(freshSubs);
     if (derived === null) return { cascadedTo, failed };
 
-    // Defer the all-done case to the legacy DONE-cascade so it
-    // owns the Epic exclusion, the tasklist toggle, the progress
-    // comment, and the recursive walk that already pin its
-    // behaviour via the existing test surface. The closing child's
-    // id is taken from `freshSubs` — any DONE child suffices because
-    // cascadeCompletion only uses the child to look up its parents.
+    // All-done defers to the DONE cascade; any done child suffices since it
+    // is only used to look up the parents.
     if (derived === STATE_LABELS.DONE) {
       const doneChild = freshSubs.find(
         (s) => Array.isArray(s?.labels) && s.labels.includes(STATE_LABELS.DONE),
@@ -654,9 +466,6 @@ async function processStateCascadeParentLocked(
     const parentLabels = Array.isArray(parent?.labels) ? parent.labels : [];
     const currentState = parentLabels.find((l) => ALL_STATES.includes(l));
     if (currentState === derived) {
-      // Idempotency guard — Project board is already in the derived
-      // column. Skip the transition entirely so we do not burn a
-      // GraphQL write for a no-op.
       return { cascadedTo, failed };
     }
 
@@ -664,9 +473,7 @@ async function processStateCascadeParentLocked(
       () =>
         transitionTicketState(provider, parentId, derived, {
           notify: opts.notify,
-          // Recursion is handled explicitly below — passing cascade:false
-          // prevents state.js from firing its own cascadeParentState on the
-          // parent and double-walking the tree.
+          // Recursion is explicit below; avoid double-walking the tree.
           cascade: false,
         }),
       {

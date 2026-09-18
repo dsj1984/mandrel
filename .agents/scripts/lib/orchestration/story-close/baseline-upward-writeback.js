@@ -1,50 +1,17 @@
 /**
  * baseline-upward-writeback.js — persist improved maintainability rows on the
- * branch that earned them (Story #5224).
+ * branch that earned them, as one `baseline-refresh:` commit ahead of the
+ * close gates. The diff-scoped ratchet only reds on regressions, so nothing
+ * else writes an improvement back.
  *
- * The diff-scoped baseline ratchet only ever reds on a REGRESSION. A branch
- * that *improves* a file it touched is therefore waved through with its
- * committed row left describing the worse, older tree — and nothing on the
- * per-PR path ever writes it back. The only thing that notices is the nightly
- * full-scope re-score (`check-baseline-drift.js`), which had filed the same
- * one-command chore seven times before this module existed.
- *
- * The classifier already does the hard half: `kinds/kind-factory.js#classify`
- * partitions every compared row into `regressions` / `improvements` /
- * `unchanged` / `additions`, and the enforcement path forwards `improvements`
- * all the way to the report. Nothing persisted it. This module is that
- * missing half — run from the close's `close-validation` phase, ahead of the
- * gate chain, so the refreshed row lands in the branch's own PR.
- *
- * Shape borrowed from {@link ../story-close/format-autofix.js#runScopedFormatAutofix}:
- * scope to the branch's changed-file set, fold the writes into one dedicated
- * commit ahead of the gates, log the paths touched, and inject every
- * git / baseline / scoring collaborator so the unit tests never spawn git
- * (`docs/contributing/test-seams.md`).
- *
- * Four constraints bind the design, and every one of them is a "must not":
- *
- *  1. **Only `improvements` are written.** A regression must still fail the
- *     gate exactly as it does today. A write-back that could launder one
- *     makes the baseline actively worse than leaving it stale, so a regressed
- *     row is never in the written set — it is not filtered out downstream, it
- *     never enters.
- *  2. **`maintainability` only.** CRAP's drift identity is
- *     `path::method@startLine`, which re-keys whenever anything above a
- *     method moves, so the same treatment there is churn rather than signal.
- *     That is exactly why the nightly watches maintainability alone.
- *  3. **Changed files only — never a full-scope regeneration.** A full-scope
- *     write at land time would absorb unrelated drift from other branches
- *     into whichever PR happened to land next, and would fight the
- *     row-identity merge driver that exists to keep concurrent refreshes
- *     apart (Story #5215).
- *  4. **Idempotent and silent.** No empty commit; a second close over the
- *     same tree finds nothing left to improve and commits nothing.
- *
- * The authored commit carries the `baseline-refresh:` marker
- * `phases/refresh-ack.js` recognises, so the refreshed rows are vouched for
- * rather than read as fresh drift, and its subject is conventional so
- * commitlint accepts it.
+ * Invariants:
+ *  1. Only classifier `improvements` are written — a regression never enters
+ *     the written set, so it still fails the gate.
+ *  2. Maintainability only: CRAP rows re-key on `method@startLine` when code
+ *     above moves, so write-back there is churn.
+ *  3. Changed files only — a full-scope write would absorb other branches'
+ *     drift into whichever PR lands next.
+ *  4. Idempotent: no empty commit.
  */
 
 import path from 'node:path';
@@ -72,25 +39,16 @@ import {
 
 const TAG = '[baseline-writeback]';
 
-/** The one kind this module touches. See constraint 2 in the preamble. */
 const KIND = 'maintainability';
 
-/**
- * Absolute drift tolerance when the gate configures none. Mirrors
- * `drift-detector.js`'s `KIND_SPECS.maintainability.defaultTolerance`, so the
- * per-PR write-back and the nightly full-scope check agree on what counts as
- * movement rather than float noise.
- */
+/** Matches the drift detector's maintainability default tolerance. */
 const DEFAULT_TOLERANCE = 0.5;
 
-/** Files the maintainability scorer can measure at all. */
 const SCORABLE = /\.(?:m?[jt]sx?)$/i;
 
 /**
- * Reasons reported before the step scored anything, so `ran: false` means
- * exactly "a guard stopped this before any work happened" rather than the
- * softer "nothing came of it". `no-scored-rows`, `no-improvements` and
- * `unchanged` are deliberately absent: those are outcomes of a run.
+ * Skips that fire before any scoring, so `ran: false` means exactly "a guard
+ * stopped this"; outcome reasons are deliberately absent.
  */
 const GUARD_REASONS = new Set([
   'gate-disabled',
@@ -102,10 +60,7 @@ const GUARD_REASONS = new Set([
 ]);
 
 /**
- * Resolve the gate's absolute tolerance. Anything below it is float noise the
- * ratchet already refuses to red on, so writing it back would be churn — and
- * churn on a file every concurrent branch also touches is the one cost this
- * step must not add.
+ * Deltas under the tolerance are float noise; writing them is churn.
  *
  * @param {object|undefined} gate resolved `delivery.quality.gates.maintainability`
  * @returns {number}
@@ -120,17 +75,9 @@ function resolveTolerance(gate) {
 }
 
 /**
- * Read the maintainability gate block as DECLARED — `quality.gates[kind]`, not
- * the sibling `quality[kind]` projection. The two differ in exactly the two
- * fields this module reads: the projection drops `enabled` entirely and
- * flattens `tolerance` to a bare number, so reading it would silently make the
- * gate un-disablable and every configured tolerance unreadable. `evaluate.js`
- * receives this same declared block as its `gateBlock`, which is what keeps
- * the write-back's notion of "moved" identical to the gate's.
- *
- * Tolerates a resolver that throws (a malformed config under a tmp cwd). An
- * unresolvable config reads as "framework defaults", which enable the gate —
- * the same reading `projections/advisories.js#isEnabled` applies.
+ * Read the DECLARED `quality.gates[kind]` block, not the `quality[kind]`
+ * projection, which drops `enabled` and flattens `tolerance`. A resolver that
+ * throws reads as framework defaults (gate enabled).
  *
  * @param {object|undefined} config
  * @returns {object|undefined}
@@ -144,10 +91,8 @@ function resolveGate(config) {
 }
 
 /**
- * Normalise scorer output into the on-disk row shape so scored rows and
- * committed rows are directly comparable. `projectRow` is the same projection
- * the writer applies, which is what makes the two sides comparable at all.
- * A row the writer itself would refuse is dropped rather than compared.
+ * Project scorer output through the writer's own `projectRow` so scored and
+ * committed rows are comparable; unprojectable rows are dropped.
  *
  * @param {Array<object>} rows
  * @returns {Array<{ path: string, mi: number }>}
@@ -166,24 +111,10 @@ function projectRows(rows) {
 }
 
 /**
- * Select the rows this branch has genuinely improved.
- *
- * The base side is deliberately narrowed to the rows the head side actually
- * scored. `compare()` classifies a base row with no head row through the
- * kind's `removedRowPolicy`, which for maintainability pushes an
- * **improvement** ("the file is gone, so its debt is gone too"). That policy
- * is correct for a full-scope compare and catastrophic for a scoped one: every
- * untouched file in the repo would arrive here as an improvement and be
- * rewritten from a score nobody computed. Narrowing the base to the scored
- * keys means every comparison has both sides, so the removed-row arm cannot
- * fire at all — and the `head === null` guard below makes that structural
- * rather than incidental.
- *
- * `additions` — a scored file with no committed row — is likewise excluded:
- * constraint 1 admits only what the classifier calls an improvement, and a new
- * file's row is the ordinary refresh path's business, not this step's.
- *
- * Pure.
+ * The base side is narrowed to scored paths: maintainability's
+ * `removedRowPolicy` counts a missing head row as an improvement, which in a
+ * scoped compare would rewrite every untouched file. `additions` are excluded
+ * too. Pure.
  *
  * @param {{ scoredRows: Array<object>, baselineRows: Array<object>, tolerance: number }} opts
  * @returns {Array<{ path: string, mi: number }>} the head rows to persist
@@ -211,10 +142,8 @@ function selectImprovedRows({ scoredRows, baselineRows, tolerance }) {
 }
 
 /**
- * Render the commit body: one line per rewritten row, before → after. The body
- * is the durable record of what the step touched — the `Logger` line scrolls
- * out of a close transcript, this does not — and `check-baseline-drift.js`'s
- * remedy text asks a `baseline-refresh:` commit to carry a non-empty body.
+ * One before → after line per row: the durable record of what was touched
+ * (a `baseline-refresh:` commit must carry a non-empty body).
  *
  * @param {Array<{ path: string, mi: number }>} improved
  * @param {Array<object>} baselineRows
@@ -238,11 +167,9 @@ function buildCommitBody(improved, baselineRows) {
 }
 
 /**
- * Build the commit subject. Conventional (`chore(baselines): …`) so commitlint
- * accepts it, carrying the `baseline-refresh:` marker as a plain substring so
- * `refresh-ack.js#resolveRefreshTrigger` recognises it, and fixed-length in
- * everything but the Story id so it cannot drift past commitlint's 100-char
- * subject cap.
+ * Conventional for commitlint, carrying the `baseline-refresh:` marker that
+ * `refresh-ack.js` recognises, and fixed-length apart from the id so it stays
+ * under the 100-char cap.
  *
  * @param {number|string} storyId
  * @returns {string}
@@ -252,14 +179,8 @@ function buildCommitSubject(storyId) {
 }
 
 /**
- * Stage the single baseline file and commit it. Hooks must run; never pass
- * `--no-verify` (project policy).
- *
- * On a commit failure the written file is restored, because everything
- * downstream — base-sync, the push, the gate chain's own reads — assumes the
- * close left the worktree clean. A half-applied write-back that survives as an
- * uncommitted edit would silently change what the gates score without ever
- * reaching the PR.
+ * Stage and commit the baseline file with hooks enabled. On a rejected commit
+ * the file is reset to HEAD so the close leaves a clean tree.
  *
  * @param {{ cwd: string, git: Function, relPath: string, subject: string, body: string }} opts
  * @returns {{ sha: string }}
@@ -272,13 +193,8 @@ function commitBaseline({ cwd, git, relPath, subject, body }) {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
   } catch (err) {
-    // `git checkout -- <path>` restores the WORKTREE from the index — and the
-    // index is exactly what the `git add` above just overwrote, so on a
-    // rejected commit it restored the file to the value it was meant to be
-    // rolled back FROM. The rollback was a no-op that looked like one, and the
-    // rewritten row survived as a staged edit into whatever the gates scored
-    // next. `restore --staged --worktree` resets both to HEAD, which is what
-    // "leave the tree as the close found it" actually means.
+    // `checkout --` would restore from the index `git add` just overwrote —
+    // a silent no-op. Reset both index and worktree to HEAD.
     git(['restore', '--staged', '--worktree', '--', relPath], {
       cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -294,22 +210,11 @@ function commitBaseline({ cwd, git, relPath, subject, body }) {
 }
 
 /**
- * Everything that must hold before the step is allowed to score anything.
- * Returns a skip reason, or `null` to proceed.
- *
- * The branch assertion runs here — before the write, not before the commit —
- * so a mis-wired `worktreePath` can never leave a modified baseline in a tree
- * whose history we then refuse to touch.
- *
- * The dirty-tree guard is the same refusal `runScopedFormatAutofix` makes and
- * for the same reason, sharpened to one path: this step's only write target is
- * the baseline file, and it commits that file by name. An uncommitted edit
- * sitting on it — a hand-run `maintainability:reanchor`, a half-resolved merge,
- * an operator mid-edit — would be swept into a `baseline-refresh:` commit
- * authored by close and attributed to rows this branch improved. That commit is
- * the one `refresh-ack.js` VOUCHES for, so an absorbed edit is not merely
- * unrelated: it arrives pre-acknowledged, which is the precise laundering this
- * whole Story exists to close.
+ * Guards that must hold before scoring; returns a skip reason or `null`.
+ * The branch check runs before any write. The dirty-tree check refuses an
+ * uncommitted edit on the baseline file, which would otherwise be swept into
+ * a `baseline-refresh:` commit that `refresh-ack.js` vouches for — i.e.
+ * laundered.
  *
  * @param {{ gate: object|undefined, workTree: string, storyBranch: string, git: Function, changed: string[], relPath: string }} ctx
  * @returns {string|null}
@@ -324,11 +229,7 @@ function precheck({ gate, workTree, storyBranch, git, changed, relPath }) {
 }
 
 /**
- * Is the baseline file already modified in the worktree or the index?
- *
- * Fails CLOSED on an unreadable status: a step that cannot tell whether it is
- * about to absorb someone else's edit must not proceed, and skipping costs
- * only a stale upward row that the nightly full-scope re-score still catches.
+ * Fails CLOSED on unreadable status; skipping only costs a stale upward row.
  *
  * @param {{ workTree: string, git: Function, relPath: string }} ctx
  * @returns {boolean}
@@ -342,16 +243,8 @@ function isDirty({ workTree, git, relPath }) {
 }
 
 /**
- * The ref the branch's changed-file set is measured against.
- *
- * `origin/<baseBranch>` when the remote-tracking ref exists, the local branch
- * otherwise. A local `main` in a long-lived checkout — and in every Story
- * worktree, which is seeded once and never pulled again — drifts behind the
- * remote, and a stale base widens the three-dot range to include commits that
- * landed on the base after the branch forked. Every file in that widening is
- * then scored and written back by whichever Story happens to close next, which
- * is precisely the "absorb unrelated drift into the next PR" failure
- * constraint 3 in the preamble forbids.
+ * Prefer `origin/<base>`: a stale local base (worktrees never pull it) widens
+ * the three-dot range to files landed after the fork, violating invariant 3.
  *
  * @param {{ workTree: string, git: Function, baseBranch: string }} ctx
  * @returns {string}
@@ -373,14 +266,9 @@ function resolveScopeBase({ workTree, git, baseBranch }) {
 }
 
 /**
- * Persist improved maintainability rows for the files this branch changed, and
- * fold them into one `baseline-refresh:` commit on the Story branch.
- *
- * Every no-op is reported by name rather than silently: `gate-disabled`,
- * `no-changed-files`, `wrong-branch`, `dirty-tree`, `no-baseline`,
- * `no-scored-rows`, `no-improvements`, `unchanged`. The caller logs the reason and proceeds —
- * this step is never allowed to fail a close, because `check-baselines` is
- * still the gate and this is only the refresh half of the loop.
+ * Persist improved rows for the branch's changed files as one commit. Every
+ * no-op returns a named `reason`; this step never fails a close —
+ * `check-baselines` remains the gate.
  *
  * @param {{
  *   cwd: string,
@@ -425,12 +313,8 @@ export async function runBaselineUpwardWriteback({
     throw new Error('runBaselineUpwardWriteback: storyBranch is required');
 
   const workTree = worktreePath || cwd;
-  // The two format-autofix helpers below take git as `(args, opts) => stdout`;
-  // `git-utils.gitSync` is `(cwd, ...args) => trimmed stdout` and throws on a
-  // non-zero exit. Adapt rather than reach for `node:child_process` directly —
-  // the shared surface owns the stdout ceiling, `shell: false` and error
-  // normalisation, and `tests/enforcement/child-process-imports.test.js`
-  // enforces that.
+  // Adapt `gitSync(cwd, ...args)` to the `(args, opts)` shape format-autofix
+  // expects; direct `node:child_process` use is forbidden by an enforcement test.
   const git = (args, opts = {}) => gitSync(opts.cwd ?? workTree, ...args);
   const gate = resolveGate(config);
 
@@ -487,11 +371,9 @@ export async function runBaselineUpwardWriteback({
 }
 
 /**
- * Write the selected rows through the one sanctioned write funnel and commit
- * them. The already-computed rows are handed to `refreshBaseline` as its
- * scorer so the files are scored exactly once — the service still owns path
- * canonicalization, `mergeRows` (which preserves every out-of-scope row
- * byte-for-byte), rollup, envelope stamping and the atomic write.
+ * Write through `refreshBaseline` (which owns canonicalization, out-of-scope
+ * row preservation and the atomic write), passing the computed rows as its
+ * scorer so files are scored once, then commit.
  *
  * @returns {Promise<{ ran: boolean, committed: boolean, sha?: string, improvedPaths?: string[], reason?: string }>}
  */
@@ -514,9 +396,6 @@ async function persist({
     scopeFiles: improvedPaths,
     scorer: () => improved,
   });
-  // The writer short-circuits on structural equality, so `wrote: false` means
-  // the committed rows already carried these values — nothing to commit, and
-  // nothing worth a log line above debug.
   if (!wrote) return skip(logger, 'unchanged');
 
   const { sha } = commitBaseline({
@@ -535,9 +414,6 @@ async function persist({
 }
 
 /**
- * Report a no-op by name. Every skip is `info`-level: none of them is a
- * problem, and the close transcript already carries one line per phase.
- *
  * @param {object} logger
  * @param {string} reason
  */
@@ -546,11 +422,7 @@ function skip(logger, reason) {
   return { ran: !GUARD_REASONS.has(reason), committed: false, reason };
 }
 
-/**
- * Default committed-row loader — the schema-validating reader, so a baseline
- * this module would refuse to compare against is reported as `no-baseline`
- * rather than half-read.
- */
+/** Schema-validating read; an unreadable baseline reports `no-baseline`. */
 function defaultLoadBaselineRows({ cwd }) {
   try {
     return loadBaselineEnvelope(KIND, { cwd })?.rows ?? null;
@@ -559,7 +431,6 @@ function defaultLoadBaselineRows({ cwd }) {
   }
 }
 
-/** Default on-disk location of the maintainability baseline. */
 function defaultResolveWritePath({ cwd }) {
   return baselineReaderInternals.resolveBaselinePath(KIND, { cwd });
 }

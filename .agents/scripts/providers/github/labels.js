@@ -1,57 +1,25 @@
 /**
- * GitHub Provider — LabelGateway.
- *
- * Owns `ensureLabels` (idempotent label create) plus the live-set
- * reconciliation helper (`_reconcileLabelsPresence` /
- * `_normalizeLabelListResult`). `gh label create` is the canonical CLI
- * surface for label creation; this gateway swallows the "already exists"
- * signal across all three surfaces (CLI stderr, API 422 body, legacy test
- * mock) so re-runs are idempotent.
- *
- * Extracted from `../github.js` in Story #2462 / Task #2478. Public
- * surface on `GitHubProvider` is unchanged — `ensureLabels`,
- * `_reconcileLabelsPresence`, and `_normalizeLabelListResult` all
- * delegate here.
- *
- * @see Story #2462 — Split GitHubProvider god class into seven composed gateways.
+ * GitHub Provider — LabelGateway: idempotent label create with live-set
+ * reconciliation, paginated listing, and delete.
  */
 
 import { withTransientRetry } from './errors.js';
 import { paginateRest } from './request-helpers.js';
 
 /**
- * Detect the "label already exists" signal across the surfaces `gh label
- * create` can emit it on. The CLI prints
- *
- *   `! Label "<name>" already exists`
- *
- * to stderr and exits non-zero; the underlying API surfaces a 422 with
- * `errors[].code === 'already_exists'`. The test mock throws
- * `Error('... code 422')`. Match all three — but require the patterns to
- * be **anchored to the label-create lexicon** so unrelated stderr lines
- * that happen to mention "already exists" don't get misclassified as
- * idempotent skips and let real creation failures look successful.
- *
- * Story #2018 (Bug 2) tightened the regexes after a fresh-repo bootstrap
- * counted 23 labels as "skipped" when none were actually created.
+ * "Label already exists" across CLI stderr, the API 422 `already_exists`
+ * body, and the legacy mock shape. Anchored to the label lexicon so an
+ * unrelated "already exists" can't turn a real create failure into a skip.
  */
 export function isLabelAlreadyExistsError(err) {
   if (!err) return false;
   const message = err?.message ?? '';
   const stderr = err?.stderr ?? '';
-  // CLI shapes (vary by gh version):
-  //   `! Label "<name>" already exists`
-  //   `label with name "<name>" already exists; use ` + '`--force`' + ` ...`
-  // Require both the "label" lexicon and the "already exists" signal (with
-  // anything in between) so unrelated errors are not misclassified as skips.
   if (/label\b[\s\S]*?already exists/i.test(stderr)) return true;
   if (/label\b[\s\S]*?already exists/i.test(message)) return true;
-  // REST API shape: 422 + `already_exists` code in the error body.
   if (/already_exists/i.test(stderr) || /already_exists/i.test(message)) {
     return true;
   }
-  // Test-mock legacy shape: `Error('... code 422 ...')` combined with the
-  // word "already exists" anywhere in the message.
   if (
     /\bcode\s+422\b/i.test(message) &&
     /already exists/i.test(message + stderr)
@@ -62,15 +30,8 @@ export function isLabelAlreadyExistsError(err) {
 }
 
 /**
- * Detect the "label does not exist" signal on the delete path. `gh api` exits
- * non-zero on a 404 with `gh: Not Found (HTTP 404)` on stderr; the REST body
- * carries `"message": "Not Found"`. Both are matched, and the numeric status
- * is matched on its own so a transport that surfaces only `err.status` still
- * classifies.
- *
- * Deliberately narrow: only a 404 counts. A 403 (scope) or a 422 must stay
- * loud, because reading either as "already gone" would let a sweep report
- * labels as reaped that are all still there.
+ * Only a 404 counts: reading a 403 or 422 as "already gone" would let a
+ * sweep report labels reaped that still exist.
  *
  * @param {unknown} err
  * @returns {boolean}
@@ -83,33 +44,13 @@ export function isLabelNotFoundError(err) {
   );
 }
 
-/**
- * GitHub's cap on a label description. A longer one is refused with an HTTP
- * 422 that `gh label create` reports as a bare exit 1 — a deterministic
- * create failure, never a truncation. Lives here rather than in the
- * provider-agnostic label vocabulary because it is an API constraint of this
- * provider (Story #5201, where two over-long `plan-persist` descriptions made
- * the `plan-run::<id>` cohort label uncreatable on every run).
- */
-// Module-private on purpose: nothing in production reads the number outside
-// the guard below, and the suite pins GitHub's published cap as a literal
-// rather than against our own constant.
+/** GitHub's description cap; longer is a 422 that `gh` reports as exit 1. */
 const LABEL_DESCRIPTION_MAX_LENGTH = 100;
 
 /**
- * Refuse a label description GitHub will reject anyway, **before** `gh` is
- * spawned.
- *
- * The API caps a description at {@link LABEL_DESCRIPTION_MAX_LENGTH}
- * characters and answers a longer one with an HTTP 422 that `gh label create`
- * surfaces as a bare exit 1 — legible only to a caller that digs the reason
- * out of stderr. Failing at the call site instead names the label and its
- * actual length, so the fix is obvious from the message alone.
- *
- * Deliberately a throw rather than a silent truncation: a truncated
- * description is a label whose text nobody chose, and every `ensureLabels`
- * caller already handles a throw — the bootstrap paths surface it, and
- * `plan-persist` degrades to creating its Stories without the cosmetic label.
+ * Fail before spawning `gh`, naming the label and its length. A throw, not a
+ * truncation: every caller already handles a throw, and a truncated
+ * description is text nobody chose.
  *
  * @param {{ name?: string, description?: string }} def
  * @throws {Error} when the description exceeds the cap.
@@ -134,22 +75,10 @@ export class LabelGateway {
   }
 
   /**
-   * Idempotent label creation. Each def's description is checked against
-   * GitHub's length cap first (`assertLabelDescriptionWithinCap`) so a
-   * guaranteed-422 create never reaches the network. Then, for each labelDef,
-   * attempt `gh label create
-   * <name> --color <hex> --description <text>`. The CLI prints
-   * "label already exists" (or the API surfaces a 422 "already_exists"
-   * error) when the name is taken; we swallow that and count it as
-   * `skipped`. Any other error propagates so transport faults stay loud.
-   *
-   * After the per-def loop, **reconcile against the live label set** by
-   * listing the labels actually present on the remote. Anything counted
-   * in `created` or `skipped` that isn't actually present is moved to a
-   * `missing[]` envelope — the bootstrap caller surfaces this loudly so a
-   * silent classification miss (Story #2018, Bug 2) can't pretend success.
-   * Verification failures (rate-limit, scope) are best-effort: they leave
-   * `missing` empty rather than aborting the bootstrap.
+   * Create each label, counting "already exists" as `skipped`; other errors
+   * propagate. Then reconcile against the live set: anything believed
+   * created/skipped but absent moves to `missing[]`, so a misclassification
+   * can't pass as success. A failed verification leaves `missing` empty.
    *
    * Returns `{ created: string[], skipped: string[], missing: string[] }`.
    */
@@ -182,10 +111,6 @@ export class LabelGateway {
     if (missing.length === 0) {
       return { created, skipped, missing };
     }
-    // Anything we believed we created/skipped that isn't actually on the
-    // remote is by definition a silent failure — drop it from those lists
-    // so the consumer's `created.length + skipped.length` math stays
-    // honest. The full label name survives in `missing[]`.
     const missingSet = new Set(missing);
     return {
       created: created.filter((n) => !missingSet.has(n)),
@@ -195,13 +120,9 @@ export class LabelGateway {
   }
 
   /**
-   * Best-effort post-loop reconcile for `ensureLabels`. Lists the live
-   * label set and returns the names from `labelDefs` that are absent.
-   * Internal helper — production callers go through `ensureLabels`.
-   *
-   * Accepts either the real `gh-exec` --json shape (returns an `Array`
-   * directly) or the legacy/test shape (`{stdout: '<json>', ...}`) so
-   * the verification path stays harness-agnostic.
+   * Names from `labelDefs` absent from the live set. Best-effort: an
+   * unreadable or empty listing means "verification unavailable", not
+   * "everything missing".
    */
   async _reconcileLabelsPresence(labelDefs) {
     let result;
@@ -212,9 +133,6 @@ export class LabelGateway {
     }
     const liveLabels = this._normalizeLabelListResult(result);
     if (!Array.isArray(liveLabels) || liveLabels.length === 0) {
-      // Listing returned nothing parseable. Treat as "verification
-      // unavailable" rather than "every label is missing" — false
-      // positives on this path would derail an otherwise-clean bootstrap.
       return [];
     }
     const liveNames = new Set();
@@ -230,19 +148,9 @@ export class LabelGateway {
   }
 
   /**
-   * List the repository's whole label vocabulary, paginated.
-   *
-   * Deliberately NOT modelled on `_reconcileLabelsPresence`'s
-   * `gh label list --limit 500`. That hard cap is fine for its own job —
-   * "are these 20 bootstrap labels present?" — and fatal for this one: a
-   * caller deciding which labels to delete from a truncated view would skip
-   * exactly the labels that sort after an accumulated pile, which is the
-   * failure Story #5189 exists to stop reproducing. `paginateRest` walks
-   * pages until a short one lands and throws (loudly) rather than truncating
-   * if the repository somehow exceeds its ceiling.
-   *
-   * Rows are projected to the fields a caller can rely on; a row without a
-   * usable `name` is dropped rather than passed on as a deletable target.
+   * The full label vocabulary, paginated — never the capped `--limit 500`
+   * list, since a caller choosing deletions from a truncated view would skip
+   * labels past the cap. Rows without a usable `name` are dropped.
    *
    * @returns {Promise<Array<{ name: string, color: string|null, description: string|null }>>}
    * @field-manifest /repos/{owner}/{repo}/labels: name, color, description
@@ -262,17 +170,8 @@ export class LabelGateway {
   }
 
   /**
-   * Delete one label by name.
-   *
-   * Goes through the REST surface (`DELETE /repos/{owner}/{repo}/labels/{name}`)
-   * rather than `gh label delete`, so the "already gone" signal arrives as a
-   * structured 404 on the same facade every other read here uses instead of
-   * as CLI prose — and so this gateway needs no new verb on the `gh` facade.
-   *
-   * A missing label resolves as a successful no-op. That is not leniency: the
-   * sweep this port exists for is expected to run repeatedly and concurrently
-   * with the close-path reap, so "someone else already deleted it" is the
-   * normal case, not an error.
+   * Delete via REST so "already gone" is a structured 404. A missing label is
+   * a normal no-op: sweeps run repeatedly and concurrently with the close reap.
    *
    * @param {string} name
    * @returns {Promise<{ deleted: boolean, reason: string|null }>}
@@ -294,6 +193,7 @@ export class LabelGateway {
     }
   }
 
+  /** Accepts the `gh-exec` array shape or a `{ stdout }` JSON wrapper. */
   _normalizeLabelListResult(result) {
     if (Array.isArray(result)) return result;
     if (result && typeof result.stdout === 'string') {

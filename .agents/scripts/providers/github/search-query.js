@@ -1,29 +1,13 @@
 /**
- * GitHub Provider — composed `/search/issues` query bound (Story #4678).
- *
- * `IssuesGateway#searchIssues` is the only place that knows the *composed* `q`
- * — the caller's free text plus the `repo:<owner>/<repo> type:issue` qualifiers
- * it appends. GitHub Search rejects a query over 256 characters with HTTP 422,
- * which is neither transient nor caught, so an over-long title over a deep path
- * would abort the whole scan. This module owns the defensive guard: it truncates
- * the free-text portion on a whole-token boundary until the composed `q` fits.
- *
- * Pure and unit-testable — no I/O.
+ * GitHub Provider — bounds a composed `/search/issues` query. Search answers
+ * a `q` over 256 chars with a non-transient 422 that would abort a scan.
  */
 
-/**
- * GitHub Search's documented maximum query length, in characters. Module-private
- * — `composeBoundedQuery` is the only supported way to apply it, so the bound
- * cannot drift between call sites.
- */
 const GITHUB_SEARCH_MAX_QUERY = 256;
 
 /**
- * Compose a `/search/issues` query from free text plus fixed qualifiers,
- * truncating the free-text portion on a whole-token boundary so the whole
- * composed string is at most `max` characters. Qualifiers are never dropped —
- * they are the load-bearing scope (`repo:` / `type:`) — so when even the
- * qualifiers alone exceed the budget the qualifier string is returned as-is.
+ * Truncate the free text on a whole-token boundary to fit `max`. Qualifiers
+ * are the scope and are never dropped, even if they alone exceed `max`.
  *
  * @param {string} freeText — the caller's free-text search term(s).
  * @param {string[]} qualifiers — fixed qualifier tokens (e.g. `repo:o/r`).
@@ -40,8 +24,6 @@ export function composeBoundedQuery(
   const full = `${free} ${quals}`.trim();
   if (full.length <= max) return full;
 
-  // Reserve space for the qualifiers (and the joining space) and fit as many
-  // leading free-text tokens as the remaining budget allows.
   const reserve = quals.length + (quals.length > 0 ? 1 : 0);
   const budget = max - reserve;
   const bounded = fitTokens(free.split(/\s+/).filter(Boolean), budget);
@@ -49,10 +31,7 @@ export function composeBoundedQuery(
 }
 
 /**
- * Join as many leading `tokens` as fit within `budget` characters, on a
- * whole-token boundary (space-separated). Returns '' when the budget cannot fit
- * even the first token. Module-private — exercised through
- * {@link composeBoundedQuery}, the only caller.
+ * Leading tokens that fit `budget`; '' when even the first doesn't.
  *
  * @param {string[]} tokens
  * @param {number} budget

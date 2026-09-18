@@ -1,33 +1,14 @@
 /**
- * GitHub Provider — BranchProtectionGateway.
- *
- * Owns `getBranchProtection` / `setBranchProtection` against
- * `/repos/{owner}/{repo}/branches/{branch}/protection`. Also exports the
- * shared `isNotFoundError` predicate that `branchExists` reuses on the
- * parent provider — keeping the 404-classification logic single-sourced.
- *
- * Extracted from `../github.js` in Story #2462 / Task #2478. Public
- * surface on `GitHubProvider` is unchanged — both branch-protection
- * methods delegate here.
- *
- * @see Story #2462 — Split GitHubProvider god class into seven composed gateways.
+ * GitHub Provider — BranchProtectionGateway, plus the shared
+ * `isNotFoundError` predicate.
  */
 
 import { withTransientRetry } from './errors.js';
 import { parseApiJson } from './request-helpers.js';
 
 /**
- * Detect a 404 across both error surfaces:
- *
- *   - `gh-exec`-classified errors land as `GhNotFoundError`
- *     (`err.name === 'GhNotFoundError'`); the underlying stderr may carry
- *     "HTTP 404" / "not found" / "Resource not accessible".
- *   - The legacy `GithubHttpClient` produced `Error('... failed (404): ...')`
- *     strings; some tests still throw those (and submodules that still
- *     delegate to the old transport do too).
- *
- * Used by `getBranchProtection` (distinguishes "no rule exists" from
- * transport failures) and `branchExists` on the parent provider.
+ * 404 across `GhNotFoundError`, `HTTP 404`/"not found" stderr, and the
+ * legacy `failed (404)` message shape some callers still throw.
  */
 export function isNotFoundError(err) {
   if (!err) return false;
@@ -39,7 +20,6 @@ export function isNotFoundError(err) {
     /HTTP 404/i.test(stderr) ||
     /HTTP 404/i.test(message) ||
     /\bnot found\b/i.test(stderr) ||
-    // gh-exec carries the failing code on err.code for the test mock path.
     err?.code === 404
   );
 }
@@ -55,9 +35,8 @@ export class BranchProtectionGateway {
   }
 
   /**
-   * Inspect branch-protection state. A 404 means "no protection rule
-   * exists"; any other error propagates so the caller can distinguish
-   * "intentionally unprotected" from "transport failure."
+   * 404 → `{ enabled: false }`; other errors propagate so "unprotected" and
+   * "transport failure" stay distinct.
    *
    * @field-manifest GET /repos/{owner}/{repo}/branches/{branch}/protection:
    *                 required_status_checks, enforce_admins,
@@ -78,12 +57,9 @@ export class BranchProtectionGateway {
   }
 
   /**
-   * Set (create or merge) branch protection on `branch`. Additive on the
-   * required-status-check `contexts` list (preserves operator-added
-   * contexts), and honours optional behaviour-shifting overrides
-   * (`enforceAdmins`, `requiredApprovingReviewCount`) so the consumer-
-   * facing bootstrap can promote the framework's hands-off-pipeline
-   * stance without silently flipping operator-tuned values.
+   * Create or merge protection. `contexts` are added, never removed; other
+   * operator-tuned values are kept unless `enforceAdmins` /
+   * `requiredApprovingReviewCount` explicitly override them.
    *
    * Returns `{ created, added, existing }`.
    *
@@ -109,9 +85,6 @@ export class BranchProtectionGateway {
       ? (current.raw?.required_status_checks?.contexts ?? [])
       : [];
 
-    // Additive merge: keep every context the operator already configured
-    // and append only those the prGate suite contributes that are not yet
-    // present.
     const merged = [...existingContexts];
     const added = [];
     for (const ctx of contexts) {
@@ -121,9 +94,6 @@ export class BranchProtectionGateway {
       }
     }
 
-    // Decide whether to override behaviour-shifting fields. Explicit
-    // `undefined` from legacy callers falls through to the operator's
-    // existing values (or the create-from-scratch defaults).
     const overrideEnforceAdmins = typeof opts?.enforceAdmins === 'boolean';
     const overrideApprovalCount =
       typeof opts?.requiredApprovingReviewCount === 'number';
@@ -139,8 +109,7 @@ export class BranchProtectionGateway {
 
     let prReviews;
     if (overrideApprovalCount) {
-      // Preserve operator-set review flags (dismiss-stale, code-owners,
-      // etc.) — only the count is promoted.
+      // Keep operator review flags; only the count is promoted.
       const baseReviews = current.enabled
         ? (current.raw?.required_pull_request_reviews ?? {})
         : {};
@@ -154,8 +123,7 @@ export class BranchProtectionGateway {
         : null;
     }
 
-    // PUT requires every top-level field in the body — null disables a
-    // section.
+    // PUT requires every top-level field; null disables a section.
     const body = current.enabled
       ? {
           required_status_checks: {

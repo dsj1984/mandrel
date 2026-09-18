@@ -1,28 +1,8 @@
 /**
- * GitHub Provider — composition root (thin composer).
- *
- * Story #2462 (Epic #2453) split this class into nine sibling modules under
- * `./github/`. This file now does two things only:
- *
- *   1. **Holds the constructor** that captures config + opts + the gh-exec
- *      facade, then delegates gateway wiring to `composeGateways()` in
- *      `./github/compose.js`.
- *   2. **Installs the ITicketingProvider surface** as one-line delegating
- *      methods sourced from the `DELEGATIONS` table below — every public
- *      method forwards verbatim to a concrete gateway.
- *
- * Re-exports: only the five error-classification helpers still used by tests
- * that import through this barrel (classifyGithubError et al.). All other
- * symbols (mappers, auth helpers, sub-issue constants) are dead exports per
- * baselines/dead-exports.json and were removed in Story #3650 (Epic #3599).
- * Callers should import those symbols directly from their ./github/<sub>.js
- * module.
- *
- * Gateway map: tickets, sub-issues, comments, labels, branch-protection,
- * merge-methods, project-board, issues (epics + sub-tickets + branch probe
- * + raw GraphQL). Story #5008 retired the `prs` gateway — `single-story-close`
- * drives `gh pr create` directly — along with the sub-issue write surface and
- * the repo-wide recent-comments feed.
+ * GitHub Provider — composition root. The constructor wires gateways via
+ * `composeGateways()`; the `DELEGATIONS` table installs the
+ * ITicketingProvider surface as one-line forwards to them. Only the error
+ * classifiers are re-exported; import anything else from `./github/<sub>.js`.
  */
 
 import { createGh } from '../lib/gh-exec.js';
@@ -48,10 +28,8 @@ export {
 };
 
 /**
- * Timeout (ms) applied to every `gh` subprocess the provider facade spawns, so
- * a stalled socket or long-poll cannot hang an orchestration indefinitely. A
- * `GhExecTimeoutError` from a hit ceiling is classified `transient` and
- * retried by `withTransientRetry` (Story #2860).
+ * Per-`gh`-subprocess ceiling so a stalled socket can't hang orchestration;
+ * the resulting `GhExecTimeoutError` classifies as transient and is retried.
  */
 const GH_DEFAULT_TIMEOUT_MS = 60_000;
 
@@ -66,11 +44,7 @@ export class GitHubProvider extends ITicketingProvider {
     this.operatorHandle = config.operatorHandle ?? null;
     this._explicitToken = opts.token ?? null;
     this._memoizedToken = opts.token ?? null;
-    // Every `gh` subprocess this provider spawns inherits the fixed
-    // `GH_DEFAULT_TIMEOUT_MS` ceiling (Story #2860; the never-set
-    // `github.defaultTimeoutMs` key was folded into it by Story #5382). An
-    // injected `opts.gh` is honored as-is so tests can drive the facade
-    // without going through this fallback.
+    // An injected `opts.gh` is honored as-is (test seam).
     this._gh =
       opts.gh ?? createGh(undefined, { timeoutMs: GH_DEFAULT_TIMEOUT_MS });
     this._cache = createInlineTicketCache();
@@ -84,17 +58,8 @@ export class GitHubProvider extends ITicketingProvider {
   }
 
   /**
-   * The identifiers a native dependency-edge writer needs, handed over as an
-   * explicit interface (Story #4544).
-   *
-   * `providers/github/blocked-by-add.js` talks to the dependencies REST API
-   * directly, so it needs the `gh` facade plus `owner`/`repo` — none of which
-   * the `ITicketingProvider` surface exposes. Its caller lives in the
-   * orchestration layer (`plan-persist/story-ops.js`), and the alternative was
-   * for that caller to reach through `provider._gh` — a private-by-convention
-   * field — from outside this module. Naming the hand-off here keeps the
-   * coupling declared and greppable instead of incidental: the provider
-   * decides what it lends out, and the field stays private.
+   * What `blocked-by-add.js` needs for the dependencies REST API, lent
+   * explicitly so orchestration callers never reach into `provider._gh`.
    *
    * @returns {{ gh: object, owner: string, repo: string }}
    */
@@ -107,12 +72,7 @@ export class GitHubProvider extends ITicketingProvider {
   }
 }
 
-/**
- * Delegation table. Each `[publicMethod, 'gatewayName.gatewayMethod']` pair
- * installs an async wrapper on `GitHubProvider.prototype` that forwards
- * every argument to the matching gateway method. This keeps the parity
- * surface explicit and the file under the thin-composer LOC ceiling.
- */
+/** `[publicMethod, 'gateway.method']` → async prototype forwarder. */
 const DELEGATIONS = [
   ['graphql', 'issues.ghGraphql'],
   ['searchIssues', 'issues.searchIssues'],
@@ -130,9 +90,7 @@ const DELEGATIONS = [
   ['updateTicket', 'tickets.updateTicket'],
   ['_applyLabelMutations', 'tickets._applyLabelMutations'],
   ['getNativeSubIssues', 'subIssues.getNativeSubIssues'],
-  // The private alias predates the declared `getNativeSubIssues` port above
-  // and still has call sites; both forward to the same gateway method, so the
-  // two can never answer differently while the older name is retired.
+  // Legacy private alias with live call sites; same target, so both agree.
   ['_getNativeSubIssues', 'subIssues.getNativeSubIssues'],
   ['getTicketComments', 'comments.getTicketComments'],
   ['deleteComment', 'comments.deleteComment'],

@@ -1,31 +1,10 @@
 /**
- * format-autofix.js — self-healing biome-format step for story-close.
+ * format-autofix.js — self-healing biome-format step for story-close, plus
+ * the git plumbing it shares with `baseline-upward-writeback.js`.
  *
- * Story #4017 collapsed the historical three-module split (a whole-tree
- * fork, a scoped changed-file fork, and a shared plumbing module) into
- * this single module. Story #5383 then deleted the whole-tree entry point,
- * which had no production caller left; the scoped entry point and the
- * git/formatter plumbing it shares with `baseline-upward-writeback.js`
- * remain.
- *
- * Background. The pre-merge `biome format` gate is check-only — it fails
- * the close when the working tree has any format drift. In practice
- * upstream waves frequently leave drift in files that lint-staged does
- * not glob (JSON/JSON5/YAML), so the *next* wave's close hits the gate,
- * fails, and forces an operator-driven `npx biome format --write` plus a
- * `style:` commit before the close can resume. That manual loop is
- * trivially automatable.
- *
- * Entry point:
- *
- *   - {@link runScopedFormatAutofix} — Story #2533: scopes the formatter to
- *     the changed-file set between the Epic branch and the Story branch and
- *     folds auto-fixed paths into a dedicated `fix(story-close):` commit,
- *     emitting `Logger.warn` naming the files. Carries the worktree-cwd fix
- *     and branch assert from Story #3907.
- *
- * Dependencies are injected so unit tests pin behaviour without spawning
- * git or biome.
+ * The pre-merge format gate is check-only, and drift in files lint-staged
+ * doesn't glob (JSON/YAML) would otherwise fail the next close; this step
+ * formats the changed files and commits the result instead.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -37,17 +16,8 @@ import { Logger as DefaultLogger } from '../../Logger.js';
 const SCOPED_TAG = '[format-autofix-scoped]';
 
 /**
- * Run `git status --porcelain` and return the list of changed paths.
- *
- * Porcelain lines are `XY <path>` — exactly two status chars, one space,
- * then the path. Leading whitespace inside the status pair is significant
- * (e.g. ` M file` for unstaged-modified) so we slice a fixed 3 chars off
- * the front rather than trimming.
- *
- * Exported since Story #5277: `baseline-upward-writeback.js` needs the same
- * "is this path already dirty?" test before it rewrites a baseline row, and a
- * second porcelain parser is exactly the near-duplicate the duplication gate
- * exists to refuse.
+ * Paths from `git status --porcelain`. Lines are `XY <path>` and the status
+ * pair's leading space is significant, so slice 3 chars rather than trim.
  *
  * @param {string} cwd
  * @param {(args: string[], opts: object) => string} git
@@ -66,19 +36,13 @@ export function listDirtyPaths(cwd, git) {
 }
 
 /**
- * Resolve the formatter write command from `project.commands.formatWrite`
- * (falling back to the historical `npx biome format --write .`) and split
- * it into an executable + argv pair ready for `execFileSync`.
- *
- * The scoped entry point appends an explicit changed-file set, so a trailing
- * `.` (the whole-tree target) is stripped before its file list.
+ * Split the configured format-write command into executable + argv, dropping
+ * a trailing whole-tree `.` so a file list can be appended.
  *
  * @param {{ commands?: object }} [opts]
  * @returns {{ writeCmdString: string, writeCmd: string, writeArgs: string[] }}
  */
 function resolveFormatterCmd({ commands } = {}) {
-  // `resolveFormatWriteCommand` reads `config.project.commands`; wrap the
-  // caller-supplied `commands` map into that canonical shape.
   const writeCmdString = resolveFormatWriteCommand({ project: { commands } });
   const parts = writeCmdString.split(/\s+/).filter(Boolean);
   if (parts[parts.length - 1] === '.') parts.pop();
@@ -87,12 +51,8 @@ function resolveFormatterCmd({ commands } = {}) {
 }
 
 /**
- * Resolve the branch currently checked out at `cwd` via
- * `git rev-parse --abbrev-ref HEAD`. Returns the trimmed branch name, or
- * `null` when the call fails or the tree is in a detached-HEAD state
- * (`HEAD`). Used as the commit-target guard before
- * {@link commitDirtyPaths} writes a scoped-autofix commit, so the commit
- * can never land on the wrong branch (e.g. the main checkout's `main`).
+ * Checked-out branch at `cwd`, or `null` on failure or detached HEAD. Guards
+ * commits against landing on the wrong branch.
  *
  * @param {string} cwd
  * @param {(args: string[], opts: object) => string} git
@@ -114,9 +74,7 @@ export function currentBranch(cwd, git) {
 }
 
 /**
- * Stage every modified path (`git add -u`), commit with the caller-supplied
- * `subject`, and return the short HEAD SHA. Hooks must run; we never pass
- * `--no-verify` (project policy: never skip git hooks).
+ * `git add -u` + commit with hooks enabled (never `--no-verify`).
  *
  * @param {{
  *   cwd: string,
@@ -139,24 +97,13 @@ export function commitDirtyPaths({ cwd, git, subject }) {
 }
 
 /**
- * List the files changed between `baseBranch` and `storyBranch` using the
- * three-dot merge-base diff. Delegates parsing to `diffNameOnly` from
- * `changed-files.js` so the stdout → path-list conversion lives in one place.
- *
- * The `git` parameter uses the caller's local interface:
- * `(args: string[], opts: object) => string`. A bridge adapter wraps it into
- * the `gitSpawn(cwd, ...args)` shape that `diffNameOnly` expects.
- *
- * Exported since Story #5224: the sibling `baseline-upward-writeback.js` step
- * scopes to the same branch changed-file set, and a second copy of this
- * `(args, opts)` → `gitSpawn` bridge is exactly the kind of near-duplicate the
- * duplication gate exists to refuse.
+ * Files changed in `baseBranch...storyBranch`, bridging the local
+ * `(args, opts)` git interface to the `gitSpawn` shape `diffNameOnly` takes.
  *
  * @param {{ cwd: string, baseBranch: string, storyBranch: string, git: Function }} opts
  * @returns {string[]}
  */
 export function listChangedFiles({ cwd, baseBranch, storyBranch, git }) {
-  // Bridge the (args, opts) → string interface into gitSpawn(cwd, ...args).
   const gitSpawn = (_cwd, ...args) => {
     try {
       const stdout = git(args, {
@@ -181,37 +128,11 @@ export function listChangedFiles({ cwd, baseBranch, storyBranch, git }) {
 }
 
 /**
- * Story #2533 — run `biome format --write <changedFiles>` on the Epic→Story
- * diff. If any file is modified, stage and commit the changes on the Story
- * branch with a conventional `fix(story-close):` subject and emit a
- * `Logger.warn` naming the auto-fixed files. Returns a structured
- * envelope so callers can log a single line.
- *
- * Why scoped + warn-level. The Tech Spec (Epic #2527, Story 5) calls out
- * that format diffs introduced by Story commits should never surface to
- * Phase 3 close-validation. The whole-tree autofix already covers that,
- * but emits `info` so operators routinely miss it. This entry point emits
- * `Logger.warn` naming the auto-fixed files so the signal is visible in
- * the close transcript and downstream ledger.
- *
- * No-op envelopes:
- *   - `{ ran: false, reason: 'no-changed-files' }`        — empty diff.
- *   - `{ ran: false, reason: 'dirty-tree' }`              — refused to
- *     absorb pre-existing edits.
- *   - `{ ran: true, committed: false }`                   — formatter
- *     was clean.
- *
- * **Worktree scope (Story #3907).** All git + formatter operations run in
- * `worktreePath` (the Story worktree where `story-<id>` is checked out), not
- * `cwd` (the main checkout). The earlier implementation ran every step
- * against `cwd`, so the `git add -u` + `git commit` could land an unreviewed
- * `fix(story-close):` commit on whatever branch the main checkout happened to
- * have out — including `main`. Before committing, the worktree's checked-out
- * branch is asserted to equal `storyBranch`; a mismatch refuses to commit and
- * returns `{ ran: true, committed: false, reason: 'wrong-branch' }` so a
- * stale-state checkout can never absorb the autofix into the wrong history.
- * `worktreePath` defaults to `cwd` for the resume/legacy callers that have no
- * separate worktree.
+ * Format the branch's changed files and fold any drift into one
+ * `fix(story-close):` commit, logged at warn so it is visible in the close
+ * transcript. Everything runs in `worktreePath` (default `cwd`), and the
+ * commit is refused unless that tree is on `storyBranch` — otherwise a
+ * mis-wired cwd could commit onto `main`. Refuses to absorb a dirty tree.
  *
  * @param {{
  *   cwd: string,
@@ -249,15 +170,10 @@ export function runScopedFormatAutofix({
   if (!storyBranch)
     throw new Error('runScopedFormatAutofix: storyBranch is required');
 
-  // Story #3907 — the formatter writes + the commit must land in the Story
-  // worktree, never the main checkout. Fall back to `cwd` only for callers
-  // that do not run under worktree isolation.
   const workTree = worktreePath || cwd;
 
   const git = gitSync ?? ((args, opts) => spawnSync('git', args, opts));
 
-  // Resolve the formatter base command (e.g. `npx biome format --write`).
-  // We drop a trailing `.` so we can append the changed-file set explicitly.
   const { writeCmdString, writeCmd, writeArgs } = resolveFormatterCmd({
     commands: config?.project?.commands,
   });
@@ -283,9 +199,7 @@ export function runScopedFormatAutofix({
     return { ran: false, committed: false, reason: 'dirty-tree' };
   }
 
-  // Run the formatter against the changed-file set. We tolerate non-zero
-  // exit because the downstream check gate is the source of truth for
-  // "did formatting succeed".
+  // A non-zero exit is tolerated: the downstream check gate is authoritative.
   try {
     spawnSync(writeCmd, [...writeArgs, ...changed], {
       cwd: workTree,
@@ -306,11 +220,6 @@ export function runScopedFormatAutofix({
     return { ran: true, committed: false };
   }
 
-  // Story #3907 — assert the worktree is actually on `storyBranch` before we
-  // stage + commit. Without this guard a stale-state checkout (or a
-  // mis-wired `cwd`) could absorb the autofix onto the wrong branch (incl.
-  // `main`). A mismatch refuses to commit and leaves the format drift for the
-  // downstream check gate to surface.
   const onBranch = currentBranch(workTree, git);
   if (onBranch !== storyBranch) {
     logger.warn?.(
@@ -320,14 +229,9 @@ export function runScopedFormatAutofix({
     return { ran: true, committed: false, reason: 'wrong-branch' };
   }
 
-  // Stage every modified path and commit. Hooks must run; do not pass
-  // --no-verify (project policy: never skip git hooks).
   const subject = `fix(story-close): auto-apply biome format in scoped lint (story #${storyId})`;
   const sha = commitDirtyPaths({ cwd: workTree, git, subject });
 
-  // The warn-level emission is the Tech Spec contract — operators read
-  // this line in the close transcript to know auto-fix landed in the
-  // close commit, and downstream ledger inspectors filter on it.
   logger.warn?.(
     `${SCOPED_TAG} auto-applied biome format to ${dirtyAfter.length} path(s) on story #${storyId}: ${dirtyAfter.join(', ')}; committed as ${sha}.`,
   );
