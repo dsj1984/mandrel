@@ -6,36 +6,21 @@ description: Human-led QA assist loop — set up, then ride a rolling multi-obse
 
 Drive a **human-led, rolling QA-assist session**. The operator tests; the agent
 rides alongside as the QA engineer and captures what they see into a
-high-quality, triage-ready ledger. The session has four movements:
+high-quality, triage-ready ledger: Setup (Phase 0), a rolling
+**Intake → Enrich → Record** loop over observations reported in any order and
+quantity (Phases 1–3 — record only, never plan), then Triage & Plan (Phase 4)
+once the operator says they are done.
 
-1. **Setup & Ready** (Phase 0) — load codebase context, resolve the contract,
-   open (or resume) the rolling ledger, then tell the operator what it will do
-   and that it is **ready for observations**.
-2. **Rolling intake** (Phases 1–3, looped) — the operator reports observations
-   **in any order and any quantity**: one at a time, or a **brain dump** of many
-   at once. The agent splits a multi-observation message into discrete items and
-   runs each through **Intake → Enrich → Record**, then **loops straight back**
-   for more. It **records and enriches only — it never plans or fixes during
-   intake.**
-3. **Done** — when the operator says they have finished testing, the agent does
-   a final review of the **entire** ledger and asks any last clarifying
-   questions.
-4. **Triage & Plan** (Phase 4) — only then does it route the full ledger through
-   [`/mandrel-plan`](mandrel-plan.md) to generate Stories.
-
-Unlike [`/qa-explore`](qa-explore.md) (where the *agent* drives open-ended
-exploration of a named surface), `/qa-assist` is **human-led**: the human owns
-the signal, the agent owns the enrichment. It is the front door for "I'm
-testing — ride along and capture everything well." Each observation is a
-`QaLedgerItem` on the same ledger `/qa-explore` produces, so a `/qa-assist` item
-flows through the identical dedup, classification, and promotion machinery in
-Phase 4.
+Unlike [`/qa-explore`](qa-explore.md) (where the *agent* drives exploration of
+a named surface), `/qa-assist` is **human-led**: the human owns the signal, the
+agent owns the enrichment. Each observation is a `QaLedgerItem` on the same
+ledger `/qa-explore` produces, so it flows through the identical dedup,
+classification, and promotion machinery in Phase 4.
 
 The shared machinery — contract resolution + loud failure, the session & ledger
 contract, redact-first, the `QaLedgerItem` shape, the triage procedure, and the
 HITL write gate — lives once in [`helpers/qa-core.md`](helpers/qa-core.md); this
-workflow states only the `/qa-assist`-specific phases (Intake / Enrich) plus a
-Constraints delta.
+workflow states only the `/qa-assist`-specific phases.
 
 > **When to run**: a developer or operator is about to test (or is mid-test) and
 > wants every bug and enhancement idea captured as a high-quality,
@@ -97,9 +82,8 @@ rolling loop stays fluid:
   done. Second, **every write that leaves the local ledger** — filing a ticket,
   invoking `/mandrel-plan`, or mutating a label. Present the artifact, ask, and wait.
 
-In short: appending to the rolling ledger is the natural product of intake and
-needs no gate beyond the echo-back; **planning and anything that leaves the
-ledger is hard-gated.**
+Appending to the rolling ledger needs no gate beyond the echo-back; **planning
+and anything that leaves the ledger is hard-gated.**
 
 ---
 
@@ -160,8 +144,10 @@ first, then run Intake for **each** before returning for the next message.
 
 ## Phase 2 — Enrich (per observation)
 
-Goal: turn the observation into a high-quality, triage-ready finding. Delegate
-every decision to the shared helpers; never re-derive them in prose.
+Goal: turn the observation into a high-quality, triage-ready finding. The
+classification comes from its deterministic helper and tier placement from the
+three path rules; context lookup and the missing-test sentence are your own
+judgment.
 
 1. **Redact first** (per [`helpers/qa-core.md`](helpers/qa-core.md)) — scrub the
    evidence string through `redactEvidence` before it touches disk or GitHub.
@@ -178,17 +164,10 @@ every decision to the shared helpers; never re-derive them in prose.
    `gh issue view <ticketNumber> --json title,body,labels`, and verify each
    surface-map path resolves with `git cat-file -e HEAD:<path>` — flag every
    miss rather than citing a path that does not exist.
-4. **Read the coverage tiers** for the surface the observation points at:
-   gather the tests that exercise it and classify each by path per
-   [`testing-standards.md` § The Three Tiers](../rules/testing-standards.md#the-three-tiers)
-   — a `.feature` file is **acceptance**, a path containing `/contract/` or
-   `.contract.test.` is **contract**, and a path containing `.test.` or
-   `__tests__/` is **unit**. A skipped test leaves its tier uncovered.
-5. **Name the missing test** (if any): take the lowest tier with no live test
-   (unit → contract → acceptance) and write one concrete sentence describing
-   the test that would close it. Every tier covered means no missing test.
-   Record that sentence as the ledger item's `missingTest`.
-6. **Classify** the finding via
+4. **Read the coverage tiers and name the missing test** per
+   [`helpers/qa-core.md`](helpers/qa-core.md) § Coverage tiers, recording the
+   sentence as the ledger item's `missingTest`.
+5. **Classify** the finding via
    [`classify-finding.js`](../scripts/lib/findings/classify-finding.js) so the
    tentative `class` resolves to the correct focus/meta label set. The helper
    **throws** on an absent/unknown class — fix the finding's class rather than
@@ -236,10 +215,9 @@ its transition is **explicitly operator-gated**.
    `file`-dispositioned findings through `promoteFindings` → `/mandrel-plan` (never a raw
    Issue), stamping each cluster's `fingerprintFooter(sha)` into the seed.
    `defer` carries an item forward as backlog; `dismiss` marks it non-actionable.
-3. **Gate:** the move into this phase, and every write inside it (seed write,
-   `/mandrel-plan` invocation, ticket-filing, label mutation), is **operator-gated** —
-   confirm each one. The plan→deliver hard stop is preserved; redaction has
-   already run, so nothing unredacted reaches disk or GitHub.
+3. **Gate:** every write inside this phase (seed write, `/mandrel-plan`
+   invocation, ticket-filing, label mutation) is **operator-gated** — confirm
+   each one. The plan→deliver hard stop is preserved.
 
 After planning, summarize: the findings recorded, the route/promotion decisions
 (`new`/`update-existing`/`duplicate`/`regression-of-closed`), whether each
@@ -250,31 +228,9 @@ resumed session will pick up.
 
 ## Constraints
 
-Beyond the shared core ([`helpers/qa-core.md`](helpers/qa-core.md): contract +
-loud failure, session/ledger, redact-first, QaLedgerItem, triage, HITL gate),
-the `/qa-assist`-specific deltas are:
-
-- **Human-led, rolling, multi-observation.** The operator owns the signal and
-  reports in any order and quantity — one at a time or a brain dump. The agent
-  splits a brain dump (echoing the split for correction), then enriches and
-  records each. **Never invent an observation**; ask clarifying questions only
-  when one is ambiguous, batched across the dump.
-- **Record during intake; plan only on "done".** Phases 1–3 enrich, append, and
-  loop — never triage, route, file, or invoke `/mandrel-plan`. All of that is Phase 4,
-  entered only on explicit operator confirmation that testing is done.
-- **Light intake gate, firm boundary gate.** Intake → Enrich → Record is fluid
-  (echo-back, no ceremony); the move into Phase 4 and every write that leaves the
-  ledger are hard-gated.
-- **Persistent, resumable rolling session** — `/qa-assist` defaults to resuming
-  the same session and appending; a reused session carries the untriaged backlog
-  forward and never overwrites a prior ledger.
-- **Enrichment delegates where a helper exists** — the finding classification
-  comes from its deterministic helper, never from prose; tier placement comes
-  from the three path rules in
-  [`testing-standards.md`](../rules/testing-standards.md#the-three-tiers).
-  Context lookup and the missing-test sentence are the model's own work: they
-  are judgments, not computations, and routing them through a module only
-  bought a round-trip.
+The shared core in [`helpers/qa-core.md`](helpers/qa-core.md) binds this
+workflow. The `/qa-assist` deltas are stated once, above: never invent an
+observation, record during intake, and plan only on "done" (§ Phase gates).
 
 ## See also
 

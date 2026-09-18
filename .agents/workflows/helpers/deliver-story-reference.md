@@ -67,16 +67,13 @@ Sweep failure or skip never blocks init. `--dry-run` also skips the sweep.
 
 `cd <workCwd>` steers the **Bash** tool's working directory, but it does
 **not** scope the path-based **Edit/Write/Read** tools — those resolve
-**absolute paths** and ignore the shell cwd. On Windows especially, an agent
-whose shell sits in the worktree can still silently edit the **main
-checkout** if it resolves a main-checkout absolute path. To stay in the
-worktree you MUST prefix **every Edit/Write/Read path with the absolute
-worktree root** (the `workCwd` value from Step 0), not merely `cd` into it.
-Never edit files under the bare main-checkout root. `single-story-close.js`
-runs a **wrong-tree guard** that aborts close and posts a
-`friction` comment if it finds uncommitted tracked-path edits in the main
-checkout while the worktree is the active work tree — but that is a backstop,
-not a substitute for prefixing paths correctly.
+**absolute paths** and ignore the shell cwd, so an agent whose shell sits in
+the worktree can still silently edit the **main checkout**. You MUST prefix
+**every Edit/Write/Read path with the absolute worktree root** (the `workCwd`
+value from Step 0). Never edit files under the bare main-checkout root.
+`single-story-close.js` runs a **wrong-tree guard** that aborts close and posts
+a `friction` comment on uncommitted tracked-path edits in the main checkout —
+a backstop, not a substitute for prefixing paths correctly.
 
 ---
 
@@ -122,11 +119,9 @@ alone inside the `---` footer block declares an edge:
 blocked by #42
 ```
 
-Prose elsewhere in the body declares **nothing** — a hand-written prose edge
-does not gate; move it into the footer block. The loose spellings never
-reached the footer grammar either: `depends on #N`, `Blocked by: #N`, and
-`blocked by #N once X lands` all declare nothing. The body parser and the
-dispatch-edge parser share one grammar, so they cannot drift apart.
+Prose elsewhere in the body declares **nothing** — move a hand-written prose
+edge into the footer block. The loose spellings `depends on #N`,
+`Blocked by: #N`, and `blocked by #N once X lands` declare nothing either.
 
 **The native channel fails loud.** The read paginates to exhaustion, and
 **a 404 is not an empty result**: an issue with no dependencies answers
@@ -136,13 +131,10 @@ check the token's scopes first. The one scoped degrade is a **cross-repo
 edge**: it cannot be matched against this repo's same-numbered issue, so it is
 dropped with a warning naming the Story, and its siblings resolve normally.
 
-**Edges are monotone — retraction is not built.** Both channels only ever
-_add_ a gate for the current resolution. Removing a `blocked by` footer line
-or deleting a native relation makes the edge absent from the **next** resolve,
-but nothing reconciles an edge that a previous run already acted on. Re-resolve
-after editing edges, and treat a stale gate as a body/issue edit plus a fresh
-`resolve-stories.js` run, never as something delivery un-declares on your
-behalf.
+**Edges are monotone — retraction is not built.** Removing a footer line or a
+native relation makes the edge absent from the **next** resolve, but nothing
+reconciles an edge a previous run already acted on: treat a stale gate as a
+body/issue edit plus a fresh `resolve-stories.js` run.
 
 ---
 
@@ -581,9 +573,8 @@ The four constraints the spine states without arguing for them:
 - **Never push the Story branch directly to `main`.** The PR is the only merge
   surface — a direct push bypasses required checks and the squash title
   release-please parses.
-- **Always prefix path-based tools with the absolute `workCwd` root.** `cd`
-  scopes Bash, not Edit/Write/Read; close's wrong-tree guard is a backstop for
-  the mistake, not a licence to make it.
+- **Always prefix path-based tools with the absolute `workCwd` root** —
+  § Worktree scope.
 - **Report state, not process.** Mirror the close envelope's fields; step
   narration reads as progress while telling the caller nothing it can branch on.
 - **Drive every `agent::*` transition through `update-ticket-state.js`** so the

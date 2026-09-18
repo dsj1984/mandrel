@@ -6,29 +6,18 @@ description: Agent-led exploratory-QA loop — the agent Plans a surface with an
 
 Drive a **bounded, agent-led exploratory-QA session** as a human-in-the-loop
 (HITL) loop: **Plan → Capture → Triage**. The operator names a single surface;
-the agent (acting as the QA engineer) **plans** how it will reach that surface,
-**drives** it itself — through the browser MCP by default, or statically as a
-documented interim — and records each observation as a structured ledger item
-under a strictly read-only capture invariant. Only after explicit operator
-confirmation does it triage the ledger into routed, classified, dedup'd
-follow-up dispositions.
-
-This is the **agent-led** front-end of exploratory QA: **the agent drives, the
-operator watches and gates.** Its human-led sibling is
-[`/qa-assist`](qa-assist.md) — there the *human* drives a single observation and
-the agent scribes/enriches. No human-driven flow lives in `/qa-explore`.
-
-Unlike [`/qa-run`](qa-run.md) (which steps a known set of Gherkin `.feature`
-scenarios through a browser), `/qa-explore` is **open-ended exploration**: the
-agent probes the surface for product bugs, environment-setup friction,
-tooling/DX gaps, missing tests, and enhancement ideas — each captured as a
-`QaLedgerItem`.
+the agent drives it itself — **the agent drives, the operator watches and
+gates** — and records each observation as a `QaLedgerItem` under a strictly
+read-only capture invariant. Its human-led sibling is
+[`/qa-assist`](qa-assist.md); no human-driven flow lives in `/qa-explore`.
+Unlike [`/qa-run`](qa-run.md) (a known set of Gherkin `.feature` scenarios),
+this is **open-ended exploration** for product bugs, environment-setup
+friction, tooling/DX gaps, missing tests, and enhancement ideas.
 
 The shared machinery — contract resolution + loud failure, the session & ledger
 contract, redact-first, the `QaLedgerItem` shape, the triage procedure, and the
 HITL write gate — lives once in [`helpers/qa-core.md`](helpers/qa-core.md); this
-workflow states only the `/qa-explore`-specific phases (Plan / Capture) plus a
-Constraints delta.
+workflow states only the `/qa-explore`-specific phases (Plan / Capture).
 
 > **When to run**: ad-hoc agent-driven exploration of a freshly delivered Story
 > or Feature, a regression sweep over a risky surface before `/mandrel-deliver`, or a
@@ -69,9 +58,7 @@ the skill owns them.
 | `surface` | yes      | `feature:login`, `area:onboarding` | A human label for the single surface to explore. Recorded as each ledger item's `coverage`. |
 
 If no `surface` is supplied, **stop and ask** the operator to name one — do not
-invent scope. `/qa-explore` is **bounded to one surface per session**: explore
-exactly the named surface, do not wander into adjacent surfaces, and start a
-fresh session for a different surface.
+invent scope.
 
 ## Contract & session
 
@@ -171,23 +158,16 @@ For each observation the agent makes while driving:
 
 1. **Redact first** (per [`helpers/qa-core.md`](helpers/qa-core.md)) — scrub the
    evidence string through `redactEvidence` before it touches disk.
-2. **Read the coverage tiers** for the surface the observation points at:
-   gather the tests that exercise it and classify each by path per
-   [`testing-standards.md` § The Three Tiers](../rules/testing-standards.md#the-three-tiers)
-   — a `.feature` file is **acceptance**, a path containing `/contract/` or
-   `.contract.test.` is **contract**, and a path containing `.test.` or
-   `__tests__/` is **unit**. A skipped test leaves its tier uncovered.
-3. **Name the missing test** (if any): take the lowest tier with no live test
-   (unit → contract → acceptance) and write one concrete sentence describing
-   the test that would close it. Every tier covered means no missing test.
-   Record that sentence as the ledger item's `missingTest` (or `null`).
-4. **Append a `QaLedgerItem`** to the ledger (shape per
+2. **Read the coverage tiers and name the missing test** per
+   [`helpers/qa-core.md`](helpers/qa-core.md) § Coverage tiers, recording the
+   sentence as the ledger item's `missingTest` (or `null`).
+3. **Append a `QaLedgerItem`** to the ledger (shape per
    [`helpers/qa-core.md`](helpers/qa-core.md)): a stable `id`, the redacted
    `evidence`, the `coverage` label (the `surface`, or `unknown`), a tentative
    `class` and `severity`, the `missingTest`, and `disposition` left untriaged.
-5. Continue driving until the agent believes the surface is covered, then
+4. Continue driving until the agent believes the surface is covered, then
    propose that exploration is complete.
-6. **Gate:** present the captured ledger (item count, classes, the driving
+5. **Gate:** present the captured ledger (item count, classes, the driving
    method used, the rolling backlog) and ask the operator to confirm moving to
    Triage. Do **not** triage until they confirm.
 
@@ -212,30 +192,10 @@ resumed session will pick up.
 
 ## Constraints
 
-Beyond the shared core ([`helpers/qa-core.md`](helpers/qa-core.md): contract +
-loud failure, session/ledger, redact-first, QaLedgerItem, triage, HITL gate)
-and the driving conventions
-([`stack/qa/qa-harness`](../skills/stack/qa/qa-harness/SKILL.md)),
-the `/qa-explore`-specific deltas are:
-
-- **Agent-led, bounded per surface.** The agent drives one named surface per
-  session and proposes when it is covered; the operator gates the boundary. No
-  human-driven flow lives here — that is [`/qa-assist`](qa-assist.md).
-- **Pick the driving method at Plan time** (drive default; static the documented
-  interim, chosen with a recorded reason, never a silent fallback); do not
-  switch mid-surface without a new Plan note.
-- **Capture is read-only.** The only Capture write is appending ledger lines
-  under `temp/qa/`. No source edits, ticket mutations, product writes, or
-  destructive form submissions. Reach an authenticated surface only through the
-  resolved environment's `signInSeam`; where no seam resolves, record the gap
-  and fall back to static.
-- **Broken navigation is a finding, not a workaround** — never URL-jump around a
-  missing affordance, a nav 404, or a guard redirect loop.
-- **Read tier placement from the rule, not from prose you invent.** The three
-  path rules in
-  [`testing-standards.md` § The Three Tiers](../rules/testing-standards.md#the-three-tiers)
-  decide which tier a test occupies; the missing-test sentence is yours to write
-  from the lowest uncovered tier.
+The shared core in [`helpers/qa-core.md`](helpers/qa-core.md) and the driving
+conventions in [`stack/qa/qa-harness`](../skills/stack/qa/qa-harness/SKILL.md)
+bind this workflow. The `/qa-explore` deltas are stated once, above: one
+surface per session, the method chosen at Plan time, and a read-only Capture.
 
 ## See also
 

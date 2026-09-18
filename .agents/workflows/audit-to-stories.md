@@ -26,7 +26,7 @@ They remain read-only emitters of audit reports.
 
 1. At least one `audit-*-results.md` file under
    `temp/audits/` (or the path passed as the argument). Run a
-   `/audit-<dimension>` or `/audit-fan-out` first if none are present.
+   `/audit-<dimension>` first if none are present.
 2. `GITHUB_TOKEN` or `gh auth status` clean — the dedupe and create
    steps both call GitHub.
 3. The `audit::<dimension>` label taxonomy bootstrapped via
@@ -37,8 +37,7 @@ They remain read-only emitters of audit reports.
 
 `/audit-to-stories [audit-file-or-glob]`
 
-- No argument → scans `temp/audits/audit-*-results.md`. The roll-up
-  report `audit-fan-out-results.md` is intentionally skipped.
+- No argument → scans `temp/audits/audit-*-results.md`.
 - Single file path or glob → restricts the scan to that input.
 
 ## Phase 1 — Discover & parse
@@ -46,15 +45,11 @@ They remain read-only emitters of audit reports.
 Run the CLI in `--scan` mode against the resolved glob. It parses every
 finding block, normalises the fields (`Severity` / `Impact` are
 both recognised; `Dimension` / `Category` likewise), and extracts file
-paths mentioned in the body. A `###` heading that carries no severity axis and
-holds `####` blocks is read as a **grouping header**: its `####` children are
-the findings, and the header itself never becomes one. It then stamps each
-finding with a stable sha1 fingerprint via the shared
+paths mentioned in the body, and stamps each finding with a stable sha1
+fingerprint via the shared
 [`lib/findings/route-finding.js`](../scripts/lib/findings/route-finding.js)
-helper (`fingerprintFinding`) — the single dedup/route implementation
-shared with `qa-explore`. The workflow carries **no** separate inline
-fingerprint or dedup code; identity, footer round-trip, and routing all
-flow through that one module.
+helper (`fingerprintFinding`) — the single dedup/route implementation shared
+with `qa-explore`; carry no separate inline fingerprint or dedup code.
 
 ```bash
 node .agents/scripts/audit-to-stories.js --scan \
@@ -69,13 +64,10 @@ rather than re-parsing the reports.
 **The tally cross-check is automatic.** Every report declares
 `Severity tally: Critical <n> / High <n> / Medium <n> / Low <n>` in its
 Executive Summary; the scan compares that line with what it parsed and carries
-each disagreement on `summary.reportFailures[]` as
-`{ sourceReport, kind, reported, parsed }`. The kinds are `missing-tally` (no
-line), `tally-mismatch` (line and parse disagree), and `unresolved-severity` (a
-finding whose severity did not resolve — dropped from grouping, never filed as
-an `unknown` group). They print to stderr before `--scan` returns its plan, so
-a mis-parsed report is never read as a clean audit: re-run the lens rather than
-file from it. Over older reports predating the mandate,
+each disagreement on `summary.reportFailures[]` (`missing-tally`,
+`tally-mismatch`, `unresolved-severity`), printed to stderr before `--scan`
+returns its plan. A mis-parsed report is never a clean audit: re-run the lens
+rather than file from it. Over older reports predating the mandate,
 `--scan --allow-missing-tally` downgrades **only** `missing-tally` to a
 warning.
 
@@ -192,13 +184,9 @@ alone leaves a plan-path Story invisible — and records each Story's
 carries every fingerprint, so an owner would be a coin flip; persist says so on
 stderr. Author per-Story `provenance` to record them.
 
-This is deliberately not an authoring step. It used to be: the footers reached
-the seed and stopped there, leaving the authoring agent to notice HTML comments
-in a one-pager and copy them forward — a remembered step, which is to say no
-step at all. Stories filed on the recommended path were therefore invisible to
-the next sweep's Phase 6 dedup, which re-filed work it had already planned. If
-you find yourself copying a footer by hand, the carry is broken — fix it there
-rather than papering over it in the body.
+This is deliberately not an authoring step. If you find yourself copying a
+footer by hand, the carry is broken — fix it there rather than papering over it
+in the body.
 
 ## Phase 5b — Standalone-Stories path
 
@@ -226,9 +214,9 @@ Labels applied:
   (cross-audit groups carry multiple).
 - `risk::high` — added when any finding in the group is Critical.
 
-**No `agent::` state label, deliberately.** The filer used to emit
-`agent::ready`, which is exactly what `/mandrel-deliver` reads as "available
-for pickup" — and these bodies are audit prose, not a delivery-ready Spec. A
+**No `agent::` state label, deliberately.** `agent::ready` is what
+`/mandrel-deliver` reads as "available for pickup", and these bodies are audit
+prose, not a delivery-ready Spec. A
 Story with no `agent::` label is a legal initial state; `/mandrel-plan` stamps
 `agent::ready` as its terminal flip once the finding has become a scoped
 capability slice. Do not re-add it here or apply it by hand at create time.

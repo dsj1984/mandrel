@@ -10,9 +10,7 @@ repository's **committed baseline surface**: the ratchet artifacts under
 `.agentrc.json`. Those instruments only prevent **regression** — nothing owns
 the loop that burns the measured debt **down** and tightens the floors behind
 it, so a repo can hold a floor it cleared years ago and never notice. This lens
-is that loop's read-only entry point. The shared lens machinery — read-only
-constraint, scope interpretation, report envelope + finding-block skeleton,
-severity scale, self-cross-check, and execution strategy — lives in
+is that loop's read-only entry point. The shared lens machinery lives in
 [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
 `{{auditOutputDir}}/audit-baselines-results.md`. Dimension values:
 `Dead Instrument | Staleness | Hotspot Cluster | Trend Drift | Tightening Headroom`.
@@ -26,7 +24,7 @@ severity scale, self-cross-check, and execution strategy — lives in
 
 ## Scope
 
-Interpret this lens's change-set fence per the core's Scope interpretation:
+Per the core's Scope interpretation:
 
 ```text
 {{changedFiles}}
@@ -51,9 +49,8 @@ This lens **refines** the core's read-only constraint; it never relaxes it.
 
 ## Execution strategy
 
-Run this lens as a single `subagent_type: auditor` dispatch returning the report
-path + Executive Summary; sequential inline execution is the fallback (see the
-core's Execution strategy).
+Run this lens as one `subagent_type: auditor` dispatch per the core's
+Execution strategy.
 
 ## Step 0: Run the engine (mandatory — measure before you judge)
 

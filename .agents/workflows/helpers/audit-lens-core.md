@@ -152,7 +152,7 @@ Treat the following as **out of scope by construction** and drop any finding
 that rests on one of them:
 
 - **Sanctioned test seams** — exports consumed only by tests, and other
-  patterns the `test-seams` rule blesses. Never a production defect.
+  deliberate test-only patterns. Never a production defect.
 - **Entry points & public API surface** — CLI mains, `bin/` scripts, declared
   `exports` / `bin` / `main`, and barrel contracts consumed out-of-tree. A
   zero in-repo consumer count is not death.

@@ -11,9 +11,7 @@ read-through: **measure before you judge** (a claim with no profile/timing/byte
 count is a hypothesis, not a finding); **adapt to the repo profile** (activate
 only the dimensions that apply, declaring the rest inapplicable); and
 **interleaving correctness is a performance concern** (races have been the most
-expensive defects this repo shipped). The shared lens machinery — read-only
-constraint, scope interpretation, report envelope + finding-block skeleton,
-severity scale, self-cross-check, and execution strategy — lives in
+expensive defects this repo shipped). The shared lens machinery lives in
 [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
 `{{auditOutputDir}}/audit-performance-results.md`. Extra finding field:
 **Evidence:** [a Step 0 repro command (or quoted code path) + a `measured` or
@@ -21,7 +19,7 @@ severity scale, self-cross-check, and execution strategy — lives in
 
 ## Scope
 
-Interpret this lens's change-set fence per the core's Scope interpretation:
+Per the core's Scope interpretation:
 
 ```text
 {{changedFiles}}

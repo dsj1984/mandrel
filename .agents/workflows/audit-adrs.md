@@ -16,9 +16,7 @@ Accepted ADR the tree has outgrown is worse than no ADR at all — it actively
 teaches a wrong contract, and it keeps teaching it until someone supersedes it.
 That is this lens's central target; structural tidiness is the cheap part.
 
-The shared lens machinery — read-only constraint, scope interpretation, report
-envelope + finding-block skeleton, severity scale, self-cross-check, and
-execution strategy — lives in
+The shared lens machinery lives in
 [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
 `{{auditOutputDir}}/audit-adrs-results.md`. Dimension values:
 `Decision Drift | Supersede-Chain Integrity | Structure & Status Hygiene |
@@ -91,9 +89,8 @@ only; the guard is not weakened for any other lens.
 
 ## Execution strategy
 
-Run this lens as a single `subagent_type: auditor` dispatch returning the report
-path + Executive Summary; sequential inline execution is the fallback (see the
-core's Execution strategy). On a large log, the Decision Drift claim-check
+Run this lens as one `subagent_type: auditor` dispatch per the core's
+Execution strategy. On a large log, the Decision Drift claim-check
 (Step 2.1) is the one dimension worth fanning out per batch of entries under
 parallel-tooling Rule 3 — merge under the shared self-cross-check.
 

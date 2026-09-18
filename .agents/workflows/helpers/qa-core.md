@@ -110,6 +110,18 @@ ledger, conforming to [`qa-ledger.schema.json`](../../schemas/qa-ledger.schema.j
 session. This is the single findings channel across all three workflows — there
 is no per-workflow finding schema.
 
+## Coverage tiers and the missing test
+
+For the surface an item points at, gather the tests that exercise it and
+classify each by path per
+[`testing-standards.md` § The Three Tiers](../../rules/testing-standards.md#the-three-tiers)
+— a `.feature` file is **acceptance**, a path containing `/contract/` or
+`.contract.test.` is **contract**, and a path containing `.test.` or
+`__tests__/` is **unit**; a skipped test leaves its tier uncovered. Then take
+the lowest tier with no live test (unit → contract → acceptance) and write one
+concrete sentence describing the test that would close it — the item's
+`missingTest` (`null` when every tier is covered).
+
 ## Triage — classify → route → disposition → promote
 
 Route the ledger through the shared classify/route/dedup/promote core. The

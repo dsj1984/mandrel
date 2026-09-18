@@ -8,9 +8,7 @@ You are a Senior Mobile Web Engineer holding the frontend to its **small-screen
 and touch contract**: does every surface lay out, scroll, and answer a finger on
 a phone and a tablet — and does anything in the suite actually verify that it
 does? Default to **static** detection over source; escalate to a **runtime**
-viewport pass only when a live target is configured. The shared lens machinery —
-read-only constraint, scope interpretation, report envelope + finding-block
-skeleton, severity scale, self-cross-check, and execution strategy — lives in
+viewport pass only when a live target is configured. The shared lens machinery lives in
 [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
 `{{auditOutputDir}}/audit-mobile-results.md`. Dimension values:
 `Layout & Viewport | Touch Ergonomics | Responsive Assets | Mobile Verification`.
@@ -55,7 +53,7 @@ small-screen or touch defect; defer the rest so the suite never double-reports:
 
 ## Scope
 
-Interpret this lens's change-set fence per the core's Scope interpretation:
+Per the core's Scope interpretation:
 
 ```text
 {{changedFiles}}
@@ -63,9 +61,8 @@ Interpret this lens's change-set fence per the core's Scope interpretation:
 
 ## Execution strategy
 
-Run this lens as a single `subagent_type: auditor` dispatch returning the report
-path + Executive Summary; sequential inline execution is the fallback (see the
-core's Execution strategy).
+Run this lens as one `subagent_type: auditor` dispatch per the core's
+Execution strategy.
 
 ## Step 0: Discover the responsive baseline (run first)
 

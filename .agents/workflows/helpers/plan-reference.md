@@ -402,15 +402,10 @@ leave the common follow-up plan with nowhere to file itself. The three-Story
 threshold governs **creation** only, where it still holds: at two Stories a
 pair of ids is as easy to carry as one container id.
 
-On a yes, pass `--epic <id>`. Persist then:
-
-1. resolves the id **before the first create** (dry run included) — it must be
-   **open** and carry `type::epic`, or the run hard-errors having written
-   nothing;
-2. after the Stories exist, appends one `- [ ] #N` row per new Story to the
-   Epic's checklist via `appendEpicChildIds`, which is idempotent and preserves
-   existing rows' **checked state**, their order, and the fingerprint marker;
-3. mirrors a native sub-issue edge per child.
+On a yes, pass `--epic <id>`. Persist resolves it **before the first create**
+(dry run included) — it must be **open** and carry `type::epic`, or the run
+hard-errors having written nothing — then appends a `- [ ] #N` checklist row
+and a native sub-issue edge per new Story.
 
 The refusal posture is the **opposite** of creation's, deliberately. Creation
 degrades (an unensurable label just skips the container) because the operator
@@ -430,11 +425,9 @@ raised before any I/O.
 ### Creating a new container (N>2)
 
 Above two Stories, `/mandrel-plan` offers to group them under one `type::epic`
-container. Confirmed, persist opens it **after** the Stories — its body embeds
-their issue numbers and its sub-issue edges need their database ids — and
-links every created Story both ways it can: a `- [ ] #N` body checklist and a
-native GitHub sub-issue edge. Both are written because each survives what the
-other does not; the delivery-side reader unions them.
+container. Confirmed, persist opens it **after** the Stories and links every
+created Story both ways: a `- [ ] #N` body checklist and a native GitHub
+sub-issue edge, which the delivery-side reader unions.
 
 What the Epic must never carry: an `agent::*` label (that absence keeps it out
 of the bare `/mandrel-deliver` ready list and outside the `type::story`-scoped
@@ -446,12 +439,9 @@ Linkage runs parent→child only, which is why each Story stays independently
 deliverable (ADR `20260905-5139`).
 
 Degradation is deliberate: an unensurable `type::epic` label skips the Epic
-entirely (an unlabelled container is not a container), while a failed
-sub-issue edge only warns — the checklist still lists every child. Either way
-the Stories are untouched and deliver by id. A resumed persist adopts an
-existing Epic carrying the same fingerprint, which is keyed on the title **and
-the exact child set**, so a run grouping different Stories never adopts the
-wrong container.
+entirely, while a failed sub-issue edge only warns. Either way the Stories are
+untouched and deliver by id. A resumed persist adopts an existing Epic whose
+fingerprint matches the title **and the exact child set**.
 
 ## Cross-plan `depends_on` (`#<id>`)
 
@@ -531,18 +521,10 @@ them **envelope-first**:
 | `--source-tickets <ids>` | Explicit **override** for hand-driven runs (no captured envelope, or deliberately narrowing the set). Wins over the envelope; a disagreement is warned about, not silently reconciled. |
 
 The result envelope's `supersede.sourceTicketOrigin` reports which channel was
-used (`envelope` \| `flag` \| `none`).
-
-Every path with no envelope is **audible** — persist cannot tell a legitimate
-`--seed` run from a `--tickets` run whose envelope was never captured, so it
-says so rather than deciding silently:
-
-| Situation | Behaviour |
-| --- | --- |
-| Neither `--plan-dir` nor `--plan-context` | **Warn** — nothing was read; only `--source-tickets` can supply ids. |
-| Auto-discovered `<plan-dir>/plan-context.json` absent | **Warn** — degrade to `--source-tickets`; a `--seed` run legitimately has none. |
-| Explicit `--plan-context` missing | **Fatal** — the operator named a file and meant it. |
-| Envelope present but unparseable | **Fatal** — a corrupt envelope is not "no source tickets". |
+used (`envelope` \| `flag` \| `none`). Every path with no envelope is
+**audible**: an absent envelope warns and degrades to `--source-tickets` (a
+`--seed` run legitimately has none), while an explicitly named but missing
+`--plan-context`, or an unparseable envelope, is **fatal**.
 
 Whichever channel supplies them, the supersede-map partition above still
 fail-closes: a `--tickets` run whose Stories forgot `supersedes[]` is
@@ -556,14 +538,13 @@ per-supersede `note` — and closes it with reason **`not_planned`**
 (`state_reason`) — nothing has shipped at persist time, so `completed` would
 be a lie.
 
-| Behaviour | Contract |
-| --- | --- |
-| Default | Comment + close every source ticket as `not_planned`, **clearing its `agent::*` label** in the same write — a retired ticket has no agent state, and `agent::done` would claim a delivery that never happened. |
-| `--no-close-superseded` | Skips all commenting and closing. Story creation is unchanged. Use it for a genuinely partial supersede — when the plan folded in only *part* of an issue and the remainder must stay open. |
-| `--dry-run` | Posts no comment and closes nothing; reports what it would have done. |
-| Re-run | Idempotent — the comment is keyed off a `superseded-by` structured-comment marker, and an already-closed source is skipped. |
-| Already closed / deleted / inaccessible | Skipped and reported. Never throws. |
-| Close-phase failure | **Never fails the run.** Stories stay created; the result envelope's `supersede` report names which tickets were and were not closed so the operator can finish by hand. |
+The default also **clears the source's `agent::*` label** in the same write — a
+retired ticket has no agent state. Pass **`--no-close-superseded`** for a
+genuinely partial supersede — when the plan folded in only *part* of an issue
+and the remainder must stay open. The phase is idempotent (keyed off a
+`superseded-by` marker), skips already-closed or inaccessible sources, and
+**never fails the run**: its `supersede` report names which tickets were and
+were not closed so the operator can finish by hand.
 
 `--seed` / `--seed-file` modes have no source tickets, so no close phase
 runs at all.

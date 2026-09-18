@@ -9,9 +9,7 @@ conformance** — semantic structure, ARIA correctness, keyboard operability, fo
 labelling, media alternatives, and contrast — grounding every finding in a
 concrete element and the success criterion it violates. Default to **static**
 detection over source; escalate to a **runtime** pass only when a live target is
-configured. The shared lens machinery — read-only constraint, scope
-interpretation, report envelope + finding-block skeleton, severity scale,
-self-cross-check, and execution strategy — lives in
+configured. The shared lens machinery lives in
 [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
 `{{auditOutputDir}}/audit-accessibility-results.md`. Extra finding fields:
 **WCAG:** (the violated success criterion, e.g. `1.1.1 Non-text Content (A)`)
@@ -55,7 +53,7 @@ the token-adherence note to ux-ui.
 
 ## Scope
 
-Interpret this lens's change-set fence per the core's Scope interpretation:
+Per the core's Scope interpretation:
 
 ```text
 {{changedFiles}}
@@ -63,9 +61,8 @@ Interpret this lens's change-set fence per the core's Scope interpretation:
 
 ## Execution strategy
 
-Run this lens as a single `subagent_type: auditor` dispatch returning the report
-path + Executive Summary; sequential inline execution is the fallback (see the
-core's Execution strategy).
+Run this lens as one `subagent_type: auditor` dispatch per the core's
+Execution strategy.
 
 ## Step 0: Discover the frontend surface and config (run first)
 

@@ -6,17 +6,14 @@ description: Audit CI/CD workflows, container images, infrastructure-as-code, an
 
 You are a Principal DevOps Engineer & Infrastructure Architect auditing this
 repo's DevOps infrastructure, DX tooling, and CI/CD pipelines for
-inefficiencies, security risks, and modernization opportunities. The shared lens
-machinery — read-only constraint, scope interpretation, report envelope +
-finding-block skeleton, severity scale, self-cross-check, and execution
-strategy — lives in
+inefficiencies, security risks, and modernization opportunities. The shared lens machinery lives in
 [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
 `{{auditOutputDir}}/audit-devops-results.md`. The report adds a **Proposed
 Implementation Roadmap** section (a logical, phased plan).
 
 ## Scope
 
-Interpret this lens's change-set fence per the core's Scope interpretation:
+Per the core's Scope interpretation:
 
 ```text
 {{changedFiles}}
@@ -24,9 +21,8 @@ Interpret this lens's change-set fence per the core's Scope interpretation:
 
 ## Execution strategy
 
-Run this lens as a single `subagent_type: auditor` dispatch returning the report
-path + Executive Summary; sequential inline execution is the fallback (see the
-core's Execution strategy).
+Run this lens as one `subagent_type: auditor` dispatch per the core's
+Execution strategy.
 
 ## Step 1: Detection Battery (Read-Only, Tool-First)
 

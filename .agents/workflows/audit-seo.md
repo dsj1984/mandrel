@@ -7,9 +7,7 @@ description: Audit SEO fundamentals and Generative Engine Optimization signals (
 You are a Senior Technical SEO & Generative Engine Optimization (GEO) Specialist
 (semantic HTML, JSON-LD Schema, Core Web Vitals) surfacing structural, semantic,
 and content-level improvements that increase discoverability in both traditional
-search indexes and AI answer engines. The shared lens machinery — read-only
-constraint, scope interpretation, report envelope + finding-block skeleton,
-severity scale, self-cross-check, and execution strategy — lives in
+search indexes and AI answer engines. The shared lens machinery lives in
 [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
 `{{auditOutputDir}}/audit-seo-results.md`. Each finding carries a **Category:**
 (`SEO | GEO | Core Web Vitals | Crawlability`); the report adds a **Detailed
@@ -29,7 +27,7 @@ from an `.agentrc` key, and the probe fails open when indeterminate.
 
 ## Scope
 
-Interpret this lens's change-set fence per the core's Scope interpretation:
+Per the core's Scope interpretation:
 
 ```text
 {{changedFiles}}
@@ -37,9 +35,8 @@ Interpret this lens's change-set fence per the core's Scope interpretation:
 
 ## Execution strategy
 
-Run this lens as a single `subagent_type: auditor` dispatch returning the report
-path + Executive Summary; sequential inline execution is the fallback (see the
-core's Execution strategy).
+Run this lens as one `subagent_type: auditor` dispatch per the core's
+Execution strategy.
 
 ## Step 0: Indexability gate (run first)
 

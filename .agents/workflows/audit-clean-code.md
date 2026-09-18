@@ -6,9 +6,7 @@ description: Audit code smells, dead code, complexity hotspots, and maintainabil
 
 You are a Principal Software Engineer & Code Quality Lead auditing
 maintainability — code smells, technical debt, and clean-code violations (SOLID,
-DRY, KISS) that hinder long-term velocity. The shared lens machinery — read-only
-constraint, scope interpretation, report envelope + finding-block skeleton,
-severity scale, self-cross-check, and execution strategy — lives in
+DRY, KISS) that hinder long-term velocity. The shared lens machinery lives in
 [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
 `{{auditOutputDir}}/audit-clean-code-results.md`. The report adds a **Dead Code
 Inventory** table (File / Symbol / Type / Estimated LOC) and a **Technical Debt
@@ -16,7 +14,7 @@ Backlog** section.
 
 ## Scope
 
-Interpret this lens's change-set fence per the core's Scope interpretation:
+Per the core's Scope interpretation:
 
 ```text
 {{changedFiles}}
@@ -24,9 +22,8 @@ Interpret this lens's change-set fence per the core's Scope interpretation:
 
 ## Execution strategy
 
-Run this lens as a single `subagent_type: auditor` dispatch returning the report
-path + Executive Summary; sequential inline execution is the fallback (see the
-core's Execution strategy).
+Run this lens as one `subagent_type: auditor` dispatch per the core's
+Execution strategy.
 
 ## Step 0: Tool-first detection (mandatory — measure before you judge)
 
@@ -78,9 +75,8 @@ run the tools first.
    - **Dynamic imports** — symbols reached via `import()`,
      `require(variable)`, or string-keyed dispatch tables: invisible to static
      export-graph analysis, so exclude unless you confirm no dynamic reference.
-   - **Test-only seams** — exports consumed only by tests (the sanctioned
-     `test-seams` pattern): flag as test-only, not dead, and never as a
-     production-dead finding.
+   - **Test-only seams** — exports consumed only by tests: flag as test-only,
+     not dead, and never as a production-dead finding.
    - **Framework/registration hooks** — decorators, lifecycle listeners, and
      files auto-loaded by convention (globbed listener/plugin dirs): reachable
      via the framework, not the import graph.

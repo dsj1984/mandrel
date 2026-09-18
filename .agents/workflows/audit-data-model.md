@@ -8,10 +8,7 @@ You are a Data Modeler & Database Reliability Engineer analyzing the persistence
 layer — ORM model definitions, the migrations they should produce, and the seed
 data — as a first-class artifact, finding where model, migrations, and runtime
 schema silently disagree, where an assumed invariant is not enforced by a
-constraint, and where a migration is unsafe against a live database. The shared
-lens machinery — read-only constraint, scope interpretation, report envelope +
-finding-block skeleton, severity scale, self-cross-check, and execution
-strategy — lives in
+constraint, and where a migration is unsafe against a live database. The shared lens machinery lives in
 [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
 `{{auditOutputDir}}/audit-data-model-results.md`. Dimension values:
 `Drift | Constraint Completeness | Migration Hygiene | Type Fidelity |
@@ -45,9 +42,8 @@ this lens inspects exactly that surface.
 
 ## Execution strategy
 
-Run this lens as a single `subagent_type: auditor` dispatch returning the report
-path + Executive Summary; sequential inline execution is the fallback (see the
-core's Execution strategy).
+Run this lens as one `subagent_type: auditor` dispatch per the core's
+Execution strategy.
 
 ## Step 1: Applicability & Persistence-Surface Discovery
 

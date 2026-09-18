@@ -6,9 +6,7 @@ description: Audit UX/UI consistency and design system adherence
 
 You are a Lead Product Designer & Frontend Architect evaluating the frontend for
 UI consistency, UX best practices, and adherence to the project's design system,
-ensuring the app feels premium and cohesive. The shared lens machinery —
-read-only constraint, scope interpretation, report envelope + finding-block
-skeleton, severity scale, self-cross-check, and execution strategy — lives in
+ensuring the app feels premium and cohesive. The shared lens machinery lives in
 [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
 `{{auditOutputDir}}/audit-ux-ui-results.md`. Dimension values:
 `Visual Consistency | UX Best Practices | Accessibility`; the report adds a
@@ -23,7 +21,7 @@ description for how applicability is probed from the consumer's checkout.
 
 ## Scope
 
-Interpret this lens's change-set fence per the core's Scope interpretation:
+Per the core's Scope interpretation:
 
 ```text
 {{changedFiles}}
@@ -31,9 +29,8 @@ Interpret this lens's change-set fence per the core's Scope interpretation:
 
 ## Execution strategy
 
-Run this lens as a single `subagent_type: auditor` dispatch returning the report
-path + Executive Summary; sequential inline execution is the fallback (see the
-core's Execution strategy).
+Run this lens as one `subagent_type: auditor` dispatch per the core's
+Execution strategy.
 
 ## Step 0: Discover the design-system SSOT (run first)
 

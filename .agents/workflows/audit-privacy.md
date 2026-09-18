@@ -6,9 +6,7 @@ description: Audit logs, telemetry, and persistence paths for PII leakage and re
 
 You are a Data Privacy Officer & Security Engineer finding accidental logging,
 insecure storage, or unnecessary collection of PII, and checking GDPR/CCPA
-compliance. The shared lens machinery — read-only constraint, scope
-interpretation, report envelope + finding-block skeleton, severity scale,
-self-cross-check, and execution strategy — lives in
+compliance. The shared lens machinery lives in
 [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
 `{{auditOutputDir}}/audit-privacy-results.md`. This lens labels the severity
 axis **Impact** and uses dimension values `Leaky Log | Insecure Storage | Data
@@ -17,7 +15,7 @@ Encryption / Logging Safety / Minimization: Pass/Fail/Partial).
 
 ## Scope
 
-Interpret this lens's change-set fence per the core's Scope interpretation:
+Per the core's Scope interpretation:
 
 ```text
 {{changedFiles}}
@@ -25,9 +23,8 @@ Interpret this lens's change-set fence per the core's Scope interpretation:
 
 ## Execution strategy
 
-Run this lens as a single `subagent_type: auditor` dispatch returning the report
-path + Executive Summary; sequential inline execution is the fallback (see the
-core's Execution strategy).
+Run this lens as one `subagent_type: auditor` dispatch per the core's
+Execution strategy.
 
 ## Step 1: Sink-First Detection
 
