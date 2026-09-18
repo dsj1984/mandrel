@@ -34,9 +34,11 @@
  *                          which rests at `agent::closing` for the human.
  *
  * Existing tests import the re-exported helpers
- * (`runSingleStoryClose`, `ensurePullRequest`, `parsePrNumber`,
- * `enableAutoMerge`, `handleSyncFailure`, `buildSyncFailureCommentBody`,
- * `runStoryScopeReview`, `buildStoryReviewCrossRefBody`) from this file.
+ * (`runSingleStoryClose`, `parsePrNumber`, `handleSyncFailure`,
+ * `buildSyncFailureCommentBody`, `runStoryScopeReview`,
+ * `buildStoryReviewCrossRefBody`) from this file. The PR-open and arm helpers
+ * are imported from their defining phase modules (Story #5383 dropped the
+ * test-only `ensurePullRequest` / `enableAutoMerge` aliases).
  *
  * Usage:
  *   node single-story-close.js --story <STORY_ID> [--cwd <main-repo>]
@@ -118,7 +120,6 @@ import {
   failedTerminalFor,
   gatesForFailedPhase,
 } from './lib/orchestration/single-story-close/failed-terminal.js';
-import { enableAutoMergeWith } from './lib/orchestration/single-story-close/phases/auto-merge.js';
 import {
   buildSyncFailureCommentBody,
   handleSyncFailure,
@@ -128,19 +129,10 @@ import {
   parsePrNumber,
   runStoryScopeReview,
 } from './lib/orchestration/single-story-close/phases/code-review.js';
-import { ensurePullRequestWith } from './lib/orchestration/single-story-close/phases/pull-request.js';
 import {
   emitTerminalEnvelope,
   exitCodeForTerminal,
 } from './lib/orchestration/story-deliver-terminal.js';
-
-// Story #2990 moved the `gh`-spawn boundary into the `lib/gh-exec.js`
-// facade (the same shim the `providers/github/` gateways use). The
-// re-exports below preserve the SUT's public surface so tests and the
-// orchestration body keep importing `ensurePullRequest` /
-// `enableAutoMerge` from this file unchanged.
-export const ensurePullRequest = ensurePullRequestWith;
-export const enableAutoMerge = enableAutoMergeWith;
 
 // Re-export pure helpers verbatim — they don't touch `execFileSync`
 // or any URL-mocked module, so the phase exports work unmodified.

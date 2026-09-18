@@ -31,71 +31,8 @@
 
 import { spawnSync } from 'node:child_process';
 
-import { parsePrNumberFromUrl } from '../github-url.js';
 import { applyBehindUpdate } from './behind-recovery.js';
-
-/**
- * Map `gh pr checks` `state` values to the canonical lowercase outcome
- * vocabulary (`success` | `failure` | `timed_out` | `skipped`), with a
- * fourth `'pending'` sentinel for in-flight checks. Pure — exported for
- * tests so the pin is explicit and reviewable.
- *
- * `gh` returns capitalized SCREAMING_SNAKE values (`SUCCESS`,
- * `FAILURE`, `TIMED_OUT`, etc.). An empty / queued / in_progress state
- * collapses to `'pending'` so the poll loop can distinguish "still
- * running" from terminal outcomes. `'pending'` is intentionally NOT a
- * terminal outcome — `reduceOutcomes` is called only on the live state,
- * and the final outcome map gates on `allTerminal()` so no `'pending'`
- * ever leaks into a finished watch. Unknown / non-pending unrecognized
- * values collapse to `'skipped'` so any future GitHub state we haven't
- * enumerated still maps into the vocabulary.
- */
-export function normalizeCheckState(raw) {
-  const v = String(raw ?? '')
-    .trim()
-    .toLowerCase();
-  switch (v) {
-    case '':
-    case 'pending':
-    case 'queued':
-    case 'in_progress':
-    case 'requested':
-    case 'waiting':
-      return 'pending';
-    case 'success':
-    case 'completed':
-      return 'success';
-    case 'failure':
-    case 'startup_failure':
-      return 'failure';
-    case 'neutral':
-      return 'neutral';
-    case 'cancelled':
-      return 'cancelled';
-    case 'timed_out':
-      return 'timed_out';
-    case 'action_required':
-      return 'action_required';
-    case 'stale':
-      return 'stale';
-    case 'skipped':
-      return 'skipped';
-    default:
-      return 'skipped';
-  }
-}
-
-/**
- * Parse a PR number out of a PR URL. Callers hand in the URL `gh pr
- * create` returned; `gh pr checks` accepts either the URL or the
- * number — we pass the URL through verbatim, but the helper still
- * exists for tests asserting we never silently coerce a malformed URL.
- *
- * Delegates to `parsePrNumberFromUrl` in `lib/github-url.js`.
- * Re-exported under the original name so existing call sites and tests
- * do not need to change. Story #3649.
- */
-export const extractPrNumber = parsePrNumberFromUrl;
+import { checkVerdict, classifyRequiredCheck } from './check-state.js';
 
 /**
  * The `gh --repo` flag pair for an optional `owner/repo` target, or an empty
@@ -209,17 +146,6 @@ function ghPrUpdateBranch({ prUrl, cwd, repo, spawnFn = spawnSync }) {
 }
 
 /**
- * Outcomes that count as "this required check did not block the
- * merge". Mirrors `automerge-predicate.NON_FAILING_CHECK_OUTCOMES` so
- * the BEHIND-recovery gate ("are all required checks passing?") uses
- * the same definition as the downstream predicate. Pure — exported
- * for tests.
- */
-const GREEN_CHECK_OUTCOMES = Object.freeze(
-  new Set(['success', 'neutral', 'skipped']),
-);
-
-/**
  * All outcomes are non-failing. Used as the gate before issuing a
  * `gh pr update-branch` recovery call — a red check is a hard block
  * regardless of mergeStateStatus, so we never auto-recover into a
@@ -228,10 +154,7 @@ const GREEN_CHECK_OUTCOMES = Object.freeze(
 function allGreen(outcomes) {
   const values = Object.values(outcomes);
   if (values.length === 0) return false;
-  for (const v of values) {
-    if (!GREEN_CHECK_OUTCOMES.has(v)) return false;
-  }
-  return true;
+  return values.every((v) => checkVerdict(v) === 'pass');
 }
 
 /**
@@ -268,8 +191,7 @@ export function parseGhPrChecks(stdout) {
 export function reduceOutcomes(entries) {
   const out = {};
   for (const e of entries) {
-    const raw = e.state || e.bucket || '';
-    out[e.name] = normalizeCheckState(raw);
+    out[e.name] = classifyRequiredCheck(e);
   }
   return out;
 }
@@ -278,8 +200,9 @@ export function reduceOutcomes(entries) {
  * Terminal-state predicate. Pure — exported for tests so the
  * pending-state list is reviewable as code, not as prose.
  *
- * Only `'pending'` is non-terminal — `normalizeCheckState` already
- * collapses every "still running" GitHub state into that sentinel.
+ * Only `'pending'` is non-terminal — the shared `classifyCheckState`
+ * (`check-state.js`) already collapses every "still running" GitHub state
+ * into that sentinel.
  */
 export function allTerminal(outcomes) {
   for (const v of Object.values(outcomes)) {
@@ -321,11 +244,7 @@ export function promotePendingToStillRunning(outcomes) {
  * Pure — exported for tests.
  */
 export function hasFailingCheck(outcomes) {
-  for (const v of Object.values(outcomes)) {
-    if (v === 'pending') continue;
-    if (!GREEN_CHECK_OUTCOMES.has(v)) return true;
-  }
-  return false;
+  return Object.values(outcomes).some((v) => checkVerdict(v) === 'fail');
 }
 
 /**

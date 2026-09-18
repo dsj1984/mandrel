@@ -19,8 +19,6 @@ import { describe, it } from 'node:test';
 
 import {
   allTerminal,
-  extractPrNumber,
-  normalizeCheckState,
   parseGhPrChecks,
   pollUntilTerminal,
   reduceOutcomes,
@@ -30,39 +28,6 @@ import {
 function quietLogger() {
   return { info: () => {}, warn: () => {}, debug: () => {} };
 }
-
-describe('normalizeCheckState', () => {
-  it('maps SUCCESS / FAILURE / TIMED_OUT / SKIPPED to schema enum', () => {
-    assert.equal(normalizeCheckState('SUCCESS'), 'success');
-    assert.equal(normalizeCheckState('FAILURE'), 'failure');
-    assert.equal(normalizeCheckState('TIMED_OUT'), 'timed_out');
-    assert.equal(normalizeCheckState('SKIPPED'), 'skipped');
-  });
-
-  it('collapses empty / queued / in-progress to pending; unknown to skipped', () => {
-    assert.equal(normalizeCheckState(''), 'pending');
-    assert.equal(normalizeCheckState('PENDING'), 'pending');
-    assert.equal(normalizeCheckState('QUEUED'), 'pending');
-    assert.equal(normalizeCheckState('IN_PROGRESS'), 'pending');
-    assert.equal(normalizeCheckState(undefined), 'pending');
-    assert.equal(normalizeCheckState('weird'), 'skipped');
-  });
-});
-
-describe('extractPrNumber', () => {
-  it('parses a github.com PR URL', () => {
-    assert.equal(
-      extractPrNumber('https://github.com/owner/repo/pull/123'),
-      123,
-    );
-  });
-
-  it('returns null for non-PR URLs', () => {
-    assert.equal(extractPrNumber('https://example.com'), null);
-    assert.equal(extractPrNumber(''), null);
-    assert.equal(extractPrNumber(undefined), null);
-  });
-});
 
 describe('parseGhPrChecks', () => {
   it('parses the JSON array form', () => {
@@ -323,5 +288,33 @@ describe('watchPrToTerminal (bus-free)', () => {
     });
     assert.equal(verdict.requiredChecksEmpty, true);
     assert.match(verdict.error, /gh-checks-empty/);
+  });
+});
+
+describe('watchPrToTerminal — the default sleeper', () => {
+  it('polls through a real zero-delay sleep when no sleepFn is injected', async () => {
+    // The CLI injects no sleeper; this is the path it takes.
+    const probes = [
+      {
+        status: 8,
+        stdout: JSON.stringify([{ name: 'test', state: 'PENDING' }]),
+      },
+      {
+        status: 0,
+        stdout: JSON.stringify([{ name: 'test', state: 'SUCCESS' }]),
+      },
+    ];
+    let i = 0;
+    const result = await watchPrToTerminal({
+      prUrl: '1',
+      cwd: '.',
+      maxPolls: 3,
+      maxUpdates: 0,
+      pollIntervalMs: 0,
+      ghPrChecksFn: () => probes[Math.min(i++, probes.length - 1)],
+      logger: quietLogger(),
+    });
+    assert.equal(result.green, true);
+    assert.equal(result.polls, 1);
   });
 });

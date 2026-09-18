@@ -25,8 +25,8 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import {
+  blockStoryDelivery,
   classifyGreenVerdict,
-  disarmAutoMerge,
   formatRerunViolation,
   recordRerunAllowance,
   resolvePrHeadSha,
@@ -481,47 +481,6 @@ describe('ci-rerun-guard units', () => {
     );
   });
 
-  it('disarmAutoMerge separates a never-armed PR from a genuine failure', () => {
-    assert.deepEqual(
-      disarmAutoMerge({
-        prRef: '1',
-        cwd: '.',
-        spawnFn: () => ({ status: 0, stdout: '', stderr: '' }),
-      }),
-      { disarmed: true, alreadyUnarmed: false, detail: 'disarmed' },
-    );
-
-    const notArmed = disarmAutoMerge({
-      prRef: '1',
-      cwd: '.',
-      spawnFn: () => ({
-        status: 1,
-        stdout: '',
-        stderr: 'auto-merge is not enabled for this pull request',
-      }),
-    });
-    assert.equal(notArmed.disarmed, true);
-    assert.equal(notArmed.alreadyUnarmed, true);
-
-    const failed = disarmAutoMerge({
-      prRef: '1',
-      cwd: '.',
-      spawnFn: () => ({ status: 1, stdout: '', stderr: 'HTTP 403: forbidden' }),
-    });
-    assert.equal(failed.disarmed, false);
-    assert.match(failed.detail, /gh-exit-1/);
-
-    const threw = disarmAutoMerge({
-      prRef: '1',
-      cwd: '.',
-      spawnFn: () => {
-        throw new Error('ENOENT');
-      },
-    });
-    assert.equal(threw.disarmed, false);
-    assert.match(threw.detail, /gh-spawn-error/);
-  });
-
   it('formatRerunViolation carries the run link and failure signature', () => {
     const body = formatRerunViolation({
       digest: {
@@ -710,5 +669,111 @@ describe('one rerun after a recorded verdict (Story #5343)', () => {
       assert.equal(code, 1);
       assert.equal(blocks.length, 1);
     });
+  });
+});
+
+describe('blockStoryDelivery — the escalation the red path takes', () => {
+  const quiet = () => {
+    const errors = [];
+    return { errors, logger: { error: (m) => errors.push(m) } };
+  };
+
+  it('cannot block without a Story id, and says the exit code is the only stop', async () => {
+    const { errors, logger } = quiet();
+    const outcome = await blockStoryDelivery({
+      storyId: null,
+      body: 'x',
+      logger,
+    });
+    assert.deepEqual(outcome, { blocked: false, commented: false });
+    assert.match(errors[0], /no Story id/);
+  });
+
+  it('reports each failed step rather than throwing', async () => {
+    const { errors, logger } = quiet();
+    const fail = async () => {
+      throw new Error('API 500');
+    };
+    const provider = {
+      getTicket: fail,
+      getTicketComments: fail,
+      postComment: fail,
+      updateComment: fail,
+      updateTicket: fail,
+    };
+    const outcome = await blockStoryDelivery({
+      storyId: 5383,
+      body: 'x',
+      provider,
+      logger,
+    });
+    assert.deepEqual(outcome, { blocked: false, commented: false });
+    assert.ok(errors.some((m) => /friction comment/.test(m)));
+    assert.ok(errors.some((m) => /flip Story #5383 to blocked/.test(m)));
+  });
+
+  it('flips the Story and posts the friction comment when the provider works', async () => {
+    const { errors, logger } = quiet();
+    const posted = [];
+    const updates = [];
+    const provider = {
+      getTicket: async (id) => ({
+        id,
+        state: 'open',
+        labels: ['agent::closing'],
+      }),
+      getTicketComments: async () => [],
+      postComment: async (id, payload) => {
+        posted.push({ id, payload });
+        return { id: 1 };
+      },
+      updateTicket: async (id, patch) => {
+        updates.push({ id, patch });
+      },
+    };
+    const outcome = await blockStoryDelivery({
+      storyId: 5383,
+      body: 'disarm failed',
+      provider,
+      logger,
+    });
+    assert.deepEqual(
+      outcome,
+      { blocked: true, commented: true },
+      errors.join(),
+    );
+    assert.equal(posted[0].id, 5383);
+    assert.ok(
+      updates.some((u) => u.patch.labels?.add?.includes('agent::blocked')),
+    );
+  });
+
+  it('degrades when no provider can be resolved, naming a non-Error cause', async () => {
+    const { errors, logger } = quiet();
+    const outcome = await blockStoryDelivery({
+      storyId: 5383,
+      body: 'x',
+      // An empty config has no `github` block, so the factory refuses.
+      config: {},
+      logger,
+    });
+    assert.deepEqual(outcome, { blocked: false, commented: false });
+    assert.match(errors[0], /could not resolve the ticketing provider/);
+
+    const thrower = await blockStoryDelivery({
+      storyId: 5383,
+      body: 'x',
+      provider: {
+        getTicket: async () => {
+          throw 'rate limited';
+        },
+        getTicketComments: async () => {
+          throw 'rate limited';
+        },
+      },
+      logger,
+    });
+    assert.deepEqual(thrower, { blocked: false, commented: false });
+    assert.ok(errors.some((m) => /rate limited/.test(m)));
   });
 });

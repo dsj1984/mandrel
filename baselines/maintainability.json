@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-18T14:25:50.622Z",
+  "generatedAt": "2026-09-18T15:54:32.788Z",
   "rollup": {
     "*": {
       "min": 76.381,
-      "p50": 99.285,
+      "p50": 99.299,
       "p95": 122.565
     }
   },
@@ -1039,12 +1039,16 @@
       "mi": 113.534
     },
     {
+      "path": ".agents/scripts/lib/orchestration/check-state.js",
+      "mi": 112.037
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/ci-gap-intake.js",
       "mi": 88.737
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
-      "mi": 91.857
+      "mi": 92.372
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
@@ -1204,7 +1208,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/merge-poll.js",
-      "mi": 99.269
+      "mi": 102.319
     },
     {
       "path": ".agents/scripts/lib/orchestration/pinned-identifier-lint.js",
@@ -1320,7 +1324,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/pr-watch.js",
-      "mi": 91.883
+      "mi": 96.404
     },
     {
       "path": ".agents/scripts/lib/orchestration/project-meta-cache.js",
@@ -1424,7 +1428,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/auto-merge.js",
-      "mi": 88.769
+      "mi": 89.38
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js",
@@ -1440,7 +1444,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
-      "mi": 90.029
+      "mi": 90.664
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/conventional-subject.js",
@@ -1520,7 +1524,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
-      "mi": 89.72
+      "mi": 93.879
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/local-lens-review.js",
@@ -2064,7 +2068,7 @@
     },
     {
       "path": ".agents/scripts/single-story-close.js",
-      "mi": 100.742
+      "mi": 101.634
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",

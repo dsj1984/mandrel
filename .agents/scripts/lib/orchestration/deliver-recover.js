@@ -47,7 +47,7 @@ import {
 } from '../config/temp-paths.js';
 import { gh as defaultGh } from '../gh-exec.js';
 import { gitSpawn as defaultGitSpawn, getStoryBranch } from '../git-utils.js';
-import { deriveChecksStatus } from './merge-poll.js';
+import { deriveChecksStatus, isPrMerged } from './merge-poll.js';
 import { NEXT_COMMANDS } from './story-deliver-terminal.js';
 import { STATE_LABELS } from './ticketing.js';
 
@@ -435,7 +435,9 @@ export function decideRecovery({
   ];
 
   const label = ticket?.stateLabel;
-  const merged = pr?.state === 'MERGED' || Boolean(pr?.mergedAt);
+  // The shared merged predicate (Story #5383); this probe runs in its own
+  // process, so it keeps its own read but not its own definition.
+  const merged = isPrMerged(pr);
 
   // A merged PR outranks every label reading. The code is on the base
   // branch; whatever the label says, the only thing left is the flip + tail.

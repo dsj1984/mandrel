@@ -58,7 +58,10 @@ import {
   terminalFromWaitOutcome,
   validateTerminalEnvelope,
 } from '../.agents/scripts/lib/orchestration/story-deliver-terminal.js';
-import { confirmStoryMerged } from '../.agents/scripts/lib/single-story/confirm-merge.js';
+import {
+  confirmStoryMerged,
+  readPrMergeState,
+} from '../.agents/scripts/lib/single-story/confirm-merge.js';
 import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 
 /**
@@ -2206,5 +2209,295 @@ describe('runConfirmMergePhase — in-poll advisory disarm (Story #5096)', () =>
       body,
       /Resolve the underlying condition \(branch protection/,
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Story #5383 — each close-path merge decision is made once.
+// ---------------------------------------------------------------------------
+
+describe('merge wait — decisions made once (Story #5383)', () => {
+  const TAIL_OK = async () => ({
+    followUps: true,
+    statusResync: true,
+    refCleanup: true,
+    baseFastForward: true,
+    tempPurge: true,
+    leaseRelease: true,
+    epicRollup: true,
+    details: {},
+  });
+
+  /** Envelope for a wait outcome, validated against the shipped schema. */
+  function envelopeFor(outcome) {
+    const terminal = terminalFromWaitOutcome({
+      waitOutcome: outcome,
+      storyId: 4428,
+      storyBranch: 'story-4428',
+      baseBranch: 'main',
+      prNumber: 99,
+      prUrl: 'https://github.com/o/r/pull/99',
+      autoMergeEnabled: true,
+      gates: { validation: 'passed', baseSync: 'passed', codeReview: 'passed' },
+      elapsedSeconds: 1,
+    });
+    const { valid, errors } = validateTerminalEnvelope(terminal);
+    assert.ok(
+      valid,
+      `envelope must be schema-valid: ${JSON.stringify(errors)}`,
+    );
+    return terminal;
+  }
+
+  it('AC-4: a successful land reads PR merged-state with ONE gh call', async () => {
+    // Only the `gh` facade is faked: the real probe reader, the real
+    // `confirmStoryMerged`, and its real PR-state reader all run. Before the
+    // poll's observation was threaded down, confirmation re-read the PR — two
+    // `gh pr view` calls per land; now the one poll read is the only one.
+    const viewCalls = [];
+    const gh = {
+      pr: {
+        view: async (prNumber, fields) => {
+          viewCalls.push({ prNumber, fields });
+          return {
+            state: 'MERGED',
+            mergedAt: '2026-09-18T00:00:00Z',
+            statusCheckRollup: [{ status: 'COMPLETED', conclusion: 'SUCCESS' }],
+          };
+        },
+      },
+    };
+    const provider = makeFakeProvider();
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        provider,
+        injectedGh: gh,
+        injectedNotify: async () => {},
+        runPostLandTailFn: TAIL_OK,
+      }),
+    );
+    assert.equal(outcome.terminal, 'landed');
+    assert.equal(viewCalls.length, 1, 'one gh pr view for the whole land');
+    assert.deepEqual(provider._updates().at(-1).patch.labels.add, [
+      'agent::done',
+    ]);
+    envelopeFor(outcome);
+  });
+
+  it('AC-4: confirmStoryMerged still reads the PR itself when no state is handed down', async () => {
+    // The standalone confirm CLI has no prior read — the drop is specific to
+    // the in-phase caller, not a removed read.
+    let reads = 0;
+    const readPrMergeStateFn = async () => {
+      reads += 1;
+      return { state: 'MERGED', mergedAt: null };
+    };
+    await confirmStoryMerged({
+      provider: makeFakeProvider(),
+      storyId: 4428,
+      prNumber: 99,
+      cwd: '/repo',
+      injectedNotify: async () => {},
+      readPrMergeStateFn,
+    });
+    assert.equal(reads, 1);
+    await confirmStoryMerged({
+      provider: makeFakeProvider(),
+      storyId: 4428,
+      prNumber: 99,
+      cwd: '/repo',
+      injectedNotify: async () => {},
+      readPrMergeStateFn,
+      prState: { state: 'MERGED', mergedAt: null },
+    });
+    assert.equal(reads, 1, 'a handed-down state costs no read');
+  });
+
+  it('AC-2: the fail-fast checks-failed verdict reaches the terminal without re-running the classifier', async () => {
+    let classifierCalls = 0;
+    const emitted = [];
+    const redProbe = openProbe({
+      checksStatus: 'failure',
+      mergeStateStatus: 'BLOCKED',
+      requiredRunEvidence: {
+        requiredRunFailed: true,
+        requiredRunInFlight: false,
+      },
+    });
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        readPrWaitProbeFn: async () => redProbe,
+        classifyMergeBlockFn: () => {
+          classifierCalls += 1;
+          return { blockClass: 'api-race-other', reason: 'should not run' };
+        },
+        emitMergeUnlandedFn: (rec) => emitted.push(rec),
+      }),
+    );
+    assert.equal(
+      classifierCalls,
+      0,
+      'the decided class is carried, not re-derived',
+    );
+    assert.equal(outcome.blockClass, 'checks-failed');
+    assert.equal(
+      outcome.reason,
+      'a required check failed (mergeStateStatus=BLOCKED, evidence=per-run)',
+    );
+    assert.equal(
+      outcome.prProbe.checksStatus,
+      'failure',
+      'observed, not fabricated',
+    );
+    assert.equal(emitted[0].evidencePath, 'per-run');
+    const envelope = envelopeFor(outcome);
+    assert.equal(envelope.blocked.blockClass, 'checks-failed');
+  });
+
+  it('AC-2: the consecutive-probe verdict carries forward with no synthetic evidence on the probe', async () => {
+    let classifierCalls = 0;
+    const evidenceFree = openProbe({
+      checksStatus: 'failure',
+      mergeStateStatus: 'BLOCKED',
+    });
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        readPrWaitProbeFn: async () => evidenceFree,
+        classifyMergeBlockFn: () => {
+          classifierCalls += 1;
+          return { blockClass: 'api-race-other', reason: 'should not run' };
+        },
+      }),
+    );
+    assert.equal(classifierCalls, 0);
+    assert.equal(outcome.blockClass, 'checks-failed');
+    assert.match(outcome.reason, /evidence=consecutive-probe/);
+    assert.equal(outcome.prProbe.requiredRunEvidence, undefined);
+  });
+
+  it('AC-2: a PR closed unmerged keeps its attribution with no fabricated checksStatus', async () => {
+    let classifierCalls = 0;
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        readPrWaitProbeFn: async () =>
+          openProbe({ state: 'CLOSED', checksStatus: 'success' }),
+        classifyMergeBlockFn: () => {
+          classifierCalls += 1;
+          return { blockClass: 'checks-failed', reason: 'should not run' };
+        },
+      }),
+    );
+    assert.equal(classifierCalls, 0);
+    assert.equal(outcome.blockClass, 'api-race-other');
+    assert.equal(
+      outcome.reason,
+      'PR probe error: PR closed without merging (state=CLOSED)',
+    );
+    // The terminal reports the PR as observed — before, it reported the
+    // invented `checksStatus: 'closed'`, which is not in the schema enum.
+    const envelope = envelopeFor(outcome);
+    assert.equal(envelope.pr.state, 'CLOSED');
+    assert.equal(envelope.pr.checksStatus, 'success');
+  });
+
+  it('AC-5: a required red is never re-run by the wait, even with an advisory rerun allowance', async () => {
+    const posts = [];
+    const gh = {
+      api: async ({ method = 'GET', endpoint }) => {
+        if (method === 'POST') posts.push(endpoint);
+        return { stdout: '{}', stderr: '', code: 0 };
+      },
+    };
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        rerunAdvisory: 3,
+        injectedGh: gh,
+        readPrWaitProbeFn: async () =>
+          openProbe({
+            checksStatus: 'failure',
+            mergeStateStatus: 'BLOCKED',
+            requiredRunEvidence: {
+              requiredRunFailed: true,
+              requiredRunInFlight: false,
+            },
+            redHeadRuns: [
+              {
+                name: 'test',
+                conclusion: 'FAILURE',
+                runId: 77,
+                completedAt: '2026-09-18T00:00:00Z',
+              },
+            ],
+          }),
+      }),
+    );
+    assert.equal(outcome.blockClass, 'checks-failed');
+    assert.deepEqual(posts, [], 'no rerun request for a required red');
+  });
+
+  it('AC-4: readPrMergeState is the one gh read the standalone confirm spends', async () => {
+    const calls = [];
+    const gh = {
+      pr: {
+        view: async (n, fields) => {
+          calls.push([n, fields]);
+          return { state: 'MERGED', mergedAt: 7 };
+        },
+      },
+    };
+    const state = await readPrMergeState({ cwd: '/repo', prNumber: 99, gh });
+    assert.deepEqual(calls, [[99, ['state', 'mergedAt']]]);
+    // A non-string field is not a timestamp.
+    assert.deepEqual(state, { state: 'MERGED', mergedAt: null });
+  });
+
+  it('AC-4: readPrMergeState reads a missing or malformed view as unknown', async () => {
+    const readWith = (view) =>
+      readPrMergeState({
+        cwd: '/repo',
+        prNumber: 99,
+        gh: { pr: { view: async () => view } },
+      });
+    assert.deepEqual(await readWith(null), { state: null, mergedAt: null });
+    assert.deepEqual(await readWith({ state: 'OPEN', mergedAt: 'x' }), {
+      state: 'OPEN',
+      mergedAt: 'x',
+    });
+  });
+
+  it('AC-4: a handed-down unmerged state leaves the Story pending without a read', async () => {
+    const lines = [];
+    const outcome = await confirmStoryMerged({
+      provider: makeFakeProvider(),
+      storyId: 4428,
+      prNumber: 99,
+      cwd: '/repo',
+      progress: (_tag, msg) => lines.push(msg),
+      readPrMergeStateFn: async () => {
+        throw new Error('must not read');
+      },
+      prState: { state: null, mergedAt: null },
+    });
+    assert.deepEqual(outcome, {
+      storyId: 4428,
+      action: 'pending',
+      reason: 'pr-open',
+      merged: false,
+    });
+    assert.ok(lines.some((l) => /state=unknown/.test(l)));
+  });
+
+  it('a flip failure with no stated reason still blocks with a named one', async () => {
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        readPrWaitProbeFn: async () => ({ state: 'MERGED', mergedAt: 'x' }),
+        confirmStoryMergedFn: async () => ({
+          action: 'flip-failed',
+          merged: true,
+        }),
+      }),
+    );
+    assert.equal(outcome.blockClass, 'merged-flip-failed');
+    assert.match(outcome.reason, /agent::done label write failed/);
   });
 });

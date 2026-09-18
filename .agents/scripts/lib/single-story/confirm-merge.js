@@ -38,6 +38,7 @@
 import { notify as defaultNotify } from '../../notify.js';
 import { gh as defaultGh } from '../gh-exec.js';
 import { Logger } from '../Logger.js';
+import { isPrMerged } from '../orchestration/merge-poll.js';
 import {
   STATE_LABELS,
   transitionTicketState,
@@ -79,6 +80,11 @@ export async function readPrMergeState({ cwd, prNumber, gh = defaultGh }) {
  * @param {Function} [args.injectedNotify] Test seam for the notify fn.
  * @param {(args: object) => Promise<{state: string|null, mergedAt: string|null}>} [args.readPrMergeStateFn]
  *   Test seam for the PR-state reader.
+ * @param {{ state: string|null, mergedAt: string|null }} [args.prState] The
+ *   PR's merge state as the caller ALREADY read it in this process. The merge
+ *   wait passes the probe that observed the merge, so a land reads merged-state
+ *   once rather than twice (Story #5383); omit it (the standalone confirm CLI)
+ *   and the state is read here.
  * @returns {Promise<object>} structured envelope (see module docblock).
  */
 export async function confirmStoryMerged({
@@ -92,6 +98,7 @@ export async function confirmStoryMerged({
   injectedGh,
   injectedNotify,
   readPrMergeStateFn = readPrMergeState,
+  prState,
 }) {
   progress?.('CONFIRM', `Confirming merge for standalone Story #${storyId}...`);
 
@@ -117,14 +124,15 @@ export async function confirmStoryMerged({
     return { storyId, action: 'noop', reason: 'already-done', merged: true };
   }
 
-  const { state, mergedAt } = await readPrMergeStateFn({
-    cwd,
-    prNumber,
-    gh: injectedGh,
-  });
+  const { state, mergedAt } =
+    prState ??
+    (await readPrMergeStateFn({
+      cwd,
+      prNumber,
+      gh: injectedGh,
+    }));
 
-  const isMerged = state === 'MERGED' || Boolean(mergedAt);
-  if (!isMerged) {
+  if (!isPrMerged({ state, mergedAt })) {
     const reason = state === 'CLOSED' ? 'pr-not-merged' : 'pr-open';
     progress?.(
       'CONFIRM',

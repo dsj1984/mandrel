@@ -98,6 +98,7 @@ import {
 } from '../../../single-story/confirm-merge.js';
 import { pollUntil } from '../../../util/poll-loop.js';
 import { applyBehindUpdate } from '../../behind-recovery.js';
+import { isRerunPermitted } from '../../check-state.js';
 import {
   emitMergeFlipFailed as defaultEmitMergeFlipFailed,
   MERGED_FLIP_FAILED_BLOCK_CLASS,
@@ -114,6 +115,7 @@ import {
   deriveChecksStatus,
   deriveRedHeadRuns,
   deriveRequiredRunEvidence,
+  isPrMerged,
   MERGE_WAIT_GH_TIMEOUT_MS,
   parseWorkflowRunId,
   readRunSummary,
@@ -166,6 +168,16 @@ export const DEFAULT_UPDATE_ATTEMPTS = 3;
  * green gets the chance it earned.
  */
 export const MIN_POLLS_BEFORE_BUDGET_BLOCK = 2;
+
+/**
+ * The verdict for a PR closed without merging. Decided by the wait itself and
+ * carried to the terminal (Story #5383); the class and wording are the ones
+ * the classifier's `api-race-other` fallback produced for this case before
+ * that, so the recorded attribution is unchanged.
+ */
+const CLOSED_UNMERGED_BLOCK_CLASS = 'api-race-other';
+const CLOSED_UNMERGED_REASON =
+  'PR probe error: PR closed without merging (state=CLOSED)';
 
 function defaultSleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -774,6 +786,20 @@ async function rerunAdvisoryRuns({ blockingRuns, gh, ghTimeoutMs, progress }) {
 }
 
 /**
+ * The rerun allowance this wait may still spend on an ADVISORY red, as the
+ * shared rerun rule (Story #5383) permits it. The advisory gate's runs are red
+ * on an `UNSTABLE` PR, so by construction none is required and the rule
+ * permits the rerun; a red REQUIRED check never reaches the rerun path — the
+ * wait fails fast on it and records `checks-failed` instead.
+ *
+ * @param {{ remaining: number }} rerunState
+ * @returns {number}
+ */
+function advisoryRerunsLeft(rerunState) {
+  return isRerunPermitted({ required: false }) ? rerunState.remaining : 0;
+}
+
+/**
  * Spend one unit of the rerun allowance, if there is one and the rerun takes.
  * Records the observation signature of every run it re-ran, so the stale
  * pre-rerun snapshot the next poll reads does not re-block on the same job.
@@ -794,7 +820,7 @@ async function maybeRerunAdvisory({
   ghTimeoutMs,
   progress,
 }) {
-  if (rerunState.remaining <= 0) return false;
+  if (advisoryRerunsLeft(rerunState) <= 0) return false;
   const rerun = await rerunAdvisoryRuns({
     blockingRuns,
     gh,
@@ -906,11 +932,13 @@ async function blockOnUnlanded({
   blockClassOverride,
   reasonOverride,
 }) {
-  // Story #5096 — `advisory-gate-red` is emitted DIRECTLY, never derived.
-  // `classifyMergeBlock` cannot produce it: by construction GitHub is NOT
-  // gating this merge (`mergeStateStatus: UNSTABLE`), which is the entire
-  // condition the class names, so every classifier heuristic reads the PR as
-  // healthy.
+  // A verdict decided at detection is carried here and emitted as-is, never
+  // re-derived (Story #5383): `checks-failed` from the fail-fast decision, the
+  // closed-unmerged verdict, and — Story #5096 — `advisory-gate-red`, which
+  // `classifyMergeBlock` cannot produce at all: by construction GitHub is NOT
+  // gating that merge (`mergeStateStatus: UNSTABLE`), so every classifier
+  // heuristic reads the PR as healthy. The classifier runs only for the
+  // arm-failure and budget-exhaustion terminals, which have no prior verdict.
   const { blockClass, reason } = blockClassOverride
     ? {
         blockClass: blockClassOverride,
@@ -1084,6 +1112,10 @@ async function onMergeObserved({
     injectedGh,
     injectedNotify,
     readPrMergeStateFn,
+    // The poll already read the PR as merged; hand that observation down so
+    // confirmation does not spend a second `gh pr view` re-reading it
+    // (Story #5383).
+    prState: prProbe,
   });
 
   if (confirmation.merged && confirmation.action === 'flip-failed') {
@@ -1287,11 +1319,15 @@ export async function runConfirmMergePhase({
   /**
    * One poll iteration. Returns `{ done: false }` to keep polling, or
    * `{ done: true, outcome }` with the phase's terminal. Story #4873 lifted
-   * this body out of a bespoke unbounded loop so the cadence is owned by the
-   * shared {@link pollUntil} primitive — the loop below sleeps, aborts, and
-   * counts ticks in exactly one place for every wait in the codebase. Every
-   * budget, floor, and classification decision is unchanged; only who owns the
-   * `await sleep(...)` moved.
+   * this body out of a bespoke unbounded loop so this wait's cadence is owned
+   * by the shared {@link pollUntil} primitive — the loop below sleeps, aborts,
+   * and counts ticks in one place. It is NOT the only wait in the codebase:
+   * the recovery watch (`pr-watch.js#watchPrToTerminal` / `pollUntilTerminal`)
+   * keeps its own sleep loop over `gh pr checks --required`, deliberately
+   * separate because it reads a different GitHub source with different blind
+   * spots (Story #5383 unified the decisions the two share, not the loops).
+   * Every budget, floor, and classification decision is unchanged; only who
+   * owns the `await sleep(...)` moved.
    *
    * A throw from any of the terminal handlers is captured rather than allowed
    * to escape into `pollUntil` (which treats a throwing `fn` as a non-match
@@ -1337,7 +1373,7 @@ export async function runConfirmMergePhase({
         (probe.error ? ` — probe error: ${probe.error}` : ''),
     );
 
-    if (probe.state === 'MERGED' || probe.mergedAt) {
+    if (isPrMerged(probe)) {
       return doneWith(
         await onMergeObserved({
           storyId,
@@ -1369,21 +1405,18 @@ export async function runConfirmMergePhase({
 
     if (probe.state === 'CLOSED') {
       // Closed without merging — a definitive terminal, not a "still
-      // pending" condition the budget should keep waiting on. checksStatus
-      // MUST be a non-pending, non-undefined value here: the classifier's
-      // budget-exhausted branch treats an undefined checksStatus as "still
-      // pending", which would misclassify this definitive case as
-      // checks-pending-timeout instead of reaching the api-race-other
-      // reason built from prProbe.error.
+      // pending" condition the budget should keep waiting on. The verdict is
+      // decided HERE and carried to the terminal (Story #5383), rather than
+      // handing the classifier a fabricated `checksStatus` to steer it off its
+      // budget-timeout branch. The terminal reports the probe as observed.
       unlanded = {
-        prProbe: {
-          checksStatus: 'closed',
-          error: 'PR closed without merging (state=CLOSED)',
-        },
+        prProbe: probe,
         budget: {
           exhausted: true,
           elapsedSeconds: Math.round(waitedMs / 1000),
         },
+        blockClassOverride: CLOSED_UNMERGED_BLOCK_CLASS,
+        reasonOverride: CLOSED_UNMERGED_REASON,
       };
     } else {
       // Fail fast on a GENUINELY red REQUIRED check — head-anchored (Story
@@ -1406,12 +1439,16 @@ export async function runConfirmMergePhase({
             ? `🛑 PR #${prNumber}: a required check concluded failure with none in flight — failing fast (evidence=per-run).`
             : `🛑 PR #${prNumber}: two consecutive failing check probes without per-run evidence — failing fast (evidence=consecutive-probe).`,
         );
+        // The verdict decided at detection travels to the terminal as-is
+        // (Story #5383) — the classifier is not re-run to re-derive it.
         unlanded = {
           prProbe: decision.prProbe,
           budget: {
             exhausted: false,
             elapsedSeconds: Math.round(waitedMs / 1000),
           },
+          blockClassOverride: decision.blockClass,
+          reasonOverride: decision.reason,
         };
       }
 

@@ -74,6 +74,8 @@
 import {
   ADVISORY_GATE_INCONCLUSIVE_CLASS,
   ADVISORY_GATE_RED_CLASS,
+  CHECKS_FAILED_CLASS,
+  formatChecksFailedReason,
   requiredCheckFailedBlocksMerge,
 } from './merge-poll.js';
 
@@ -88,7 +90,7 @@ import {
  * rather than being absorbed by the timeout or branch-protection verdicts.
  */
 export const BLOCK_CLASSES = Object.freeze([
-  'checks-failed',
+  CHECKS_FAILED_CLASS,
   'checks-pending-timeout',
   'branch-protection-human-required',
   'arm-failure',
@@ -298,11 +300,15 @@ export function classifyMergeBlock(input) {
   // red required run with none in flight classifies here; anything short of
   // that falls through, keeps polling, and — on budget expiry with checks in
   // flight — classifies `checks-pending-timeout` as before.
+  //
+  // The merge wait does NOT reach this branch for its own fail-fast: it
+  // decides `checks-failed` in `decideMergeWaitFailFast` and carries that
+  // verdict to the terminal (Story #5383). This branch serves every caller
+  // that hands the classifier a raw probe.
   if (requiredCheckFailedBlocksMerge(prProbe)) {
-    const evidencePath = prProbe?.evidencePath;
     return {
-      blockClass: 'checks-failed',
-      reason: `a required check failed (mergeStateStatus=${prProbe?.mergeStateStatus ?? 'n/a'}${evidencePath ? `, evidence=${evidencePath}` : ''})`,
+      blockClass: CHECKS_FAILED_CLASS,
+      reason: formatChecksFailedReason(prProbe, prProbe?.evidencePath),
     };
   }
 

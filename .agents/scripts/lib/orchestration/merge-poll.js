@@ -16,6 +16,8 @@
  * `classifyMergeBlock` reads.
  */
 
+import { checkVerdict, classifyRollupEntry } from './check-state.js';
+
 /**
  * Poll interval and default cumulative budget for the merge wait. The interval
  * is fixed (Story #5382 folded the never-set
@@ -42,8 +44,14 @@ export const MERGE_WAIT_GH_TIMEOUT_MS = 60_000;
 /**
  * Pure: derive an aggregate `checksStatus` (`success` | `still-running` |
  * `failure` | `unknown`) from a `statusCheckRollup` array (`gh pr view --json
- * statusCheckRollup` shape: `{ status, conclusion }` per check). Mirrors the
- * values `classifyMergeBlock` expects on `prProbe.checksStatus`.
+ * statusCheckRollup` shape: `{ status, conclusion }` per CheckRun, `{ state }`
+ * per legacy StatusContext). Mirrors the values `classifyMergeBlock` expects
+ * on `prProbe.checksStatus`.
+ *
+ * Each entry is classified by the shared check-state classifier
+ * (`check-state.js`, Story #5383) — the same one the recovery watch's
+ * `--required` reader uses — so "is this check red" has one answer across
+ * both readers.
  *
  * **Scope: EVERY check reported on the PR, required or not.** The rollup
  * carries no required-vs-optional discriminator (`gh`'s projection has no
@@ -57,16 +65,27 @@ export function deriveChecksStatus(statusCheckRollup) {
   }
   let anyPending = false;
   for (const check of statusCheckRollup) {
-    const conclusion = String(check?.conclusion ?? '').toUpperCase();
-    const status = String(check?.status ?? '').toUpperCase();
-    if (['FAILURE', 'CANCELLED', 'TIMED_OUT', 'ERROR'].includes(conclusion)) {
-      return 'failure';
-    }
-    if (status !== 'COMPLETED') {
-      anyPending = true;
-    }
+    const verdict = checkVerdict(classifyRollupEntry(check));
+    if (verdict === 'fail') return 'failure';
+    if (verdict === 'pending') anyPending = true;
   }
   return anyPending ? 'still-running' : 'success';
+}
+
+/**
+ * Pure: is this PR merged? The one predicate every "did it land" read shares
+ * (Story #5383) — the merge wait's poll, `confirmStoryMerged`, and
+ * `deliver-recover`'s probe. A `mergedAt` stamp counts even when `state`
+ * lags, because GitHub can report the timestamp before the state flips.
+ *
+ * A CLOSED issue is deliberately NOT an input: the `Closes #<id>` footer
+ * closes the issue on merge, but a closed issue does not prove the PR merged.
+ *
+ * @param {{ state?: string|null, mergedAt?: string|null }|null|undefined} pr
+ * @returns {boolean}
+ */
+export function isPrMerged(pr) {
+  return pr?.state === 'MERGED' || Boolean(pr?.mergedAt);
 }
 
 /**
@@ -226,6 +245,39 @@ export function failingChecksBlockMerge(prProbe) {
 }
 
 /**
+ * Pure: does a missing required review explain the PR's `BLOCKED` merge state?
+ * When it does, a red rollup cannot be attributed to a required CHECK — the
+ * review is a competing, GitHub-attributed explanation (Story #4710). Shared
+ * by both fail-fast evidence paths so the softening is stated once.
+ *
+ * @param {{ reviewDecision?: string }} [prProbe]
+ * @returns {boolean}
+ */
+function reviewOwnsBlockedState(prProbe) {
+  return prProbe?.reviewDecision === 'REVIEW_REQUIRED';
+}
+
+/**
+ * The block class a fail-fast on a red required check records (Story #4543).
+ * One constant so the merge wait — which decides it — and `classifyMergeBlock`
+ * — which derives it for every other caller — spell it identically.
+ */
+export const CHECKS_FAILED_CLASS = 'checks-failed';
+
+/**
+ * Pure: the operator-facing reason for a `checks-failed` verdict, naming the
+ * evidence path that decided it. Shared by the wait's fail-fast (which
+ * carries the verdict forward) and `classifyMergeBlock`.
+ *
+ * @param {{ mergeStateStatus?: string }} [prProbe]
+ * @param {string} [evidencePath]
+ * @returns {string}
+ */
+export function formatChecksFailedReason(prProbe, evidencePath) {
+  return `a required check failed (mergeStateStatus=${prProbe?.mergeStateStatus ?? 'n/a'}${evidencePath ? `, evidence=${evidencePath}` : ''})`;
+}
+
+/**
  * Pure: does HEAD-ANCHORED evidence establish that a REQUIRED check is
  * genuinely red — enough to fail-fast the merge wait as `checks-failed`?
  *
@@ -266,8 +318,9 @@ export function failingChecksBlockMerge(prProbe) {
  * @returns {boolean}
  */
 export function requiredCheckFailedBlocksMerge(prProbe) {
-  if (!failingChecksBlockMerge(prProbe)) return false;
-  if (prProbe?.reviewDecision === 'REVIEW_REQUIRED') return false;
+  if (!failingChecksBlockMerge(prProbe) || reviewOwnsBlockedState(prProbe)) {
+    return false;
+  }
   const evidence = prProbe?.requiredRunEvidence;
   if (!evidence || typeof evidence.requiredRunFailed !== 'boolean') {
     return false;
@@ -393,7 +446,7 @@ export function deriveRedHeadRuns(statusCheckRollup) {
  * @param {string[]} [allowlist]
  * @returns {Array<{ name: string|null, conclusion: string }>}
  */
-export function selectBlockingRedRuns(redHeadRuns, allowlist = []) {
+function selectBlockingRedRuns(redHeadRuns, allowlist = []) {
   if (!Array.isArray(redHeadRuns) || redHeadRuns.length === 0) return [];
   const exempt = new Set(
     (Array.isArray(allowlist) ? allowlist : [])
@@ -426,7 +479,7 @@ export function selectBlockingRedRuns(redHeadRuns, allowlist = []) {
  * @param {string[]} [allowlist] `delivery.ci.advisoryAllowlist`.
  * @returns {boolean}
  */
-export function advisoryCheckFailedBlocksArm(prProbe, allowlist = []) {
+function advisoryCheckFailedBlocksArm(prProbe, allowlist = []) {
   if (
     String(prProbe?.mergeStateStatus ?? '').toUpperCase() !==
     MERGE_ADVISORY_STATE
@@ -661,22 +714,27 @@ function formatAdvisoryGateReason(runs, { blockClass, rerunAllowance }) {
  *     (or only superseded / non-required noise red) resets the counter and
  *     keeps polling.
  *   - **Evidence unavailable** (older `gh`, API error, empty rollup) — require
- *     TWO consecutive failing probes at least one poll interval apart, then
- *     synthesize the evidence shape the classifier's gate reads so both paths
- *     classify `checks-failed` through the same predicate.
+ *     TWO consecutive failing probes at least one poll interval apart. The
+ *     review-required softening applies here exactly as on the per-run path.
+ *
+ * **The verdict is carried, not re-derived (Story #5383).** A fail-fast
+ * returns the block class and reason it decided; the caller hands them to the
+ * terminal as-is, the way an advisory verdict already travels. The classifier
+ * is never re-run on a probe stamped with invented evidence to make it agree.
  *
  * Returns the next counter value alongside the verdict; the caller owns the
  * mutable counter and the terminal side effects. When `failFast` is `true`,
- * `prProbe` is the evidence-stamped probe to hand to the classifier and
- * `evidencePath` names which path fired (`per-run` | `consecutive-probe`) for
- * the `merge.unlanded` telemetry.
+ * `blockClass` / `reason` are the decided verdict, `prProbe` is the observed
+ * probe annotated with `evidencePath`, and `evidencePath` names which path
+ * fired (`per-run` | `consecutive-probe`) for the `merge.unlanded` telemetry.
  *
  * @param {object} args
  * @param {object} args.probe The current poll's {@code readPrWaitProbe} result.
  * @param {number} args.consecutiveRequiredFailSnapshots Evidence-free failing
  *   probes observed so far.
  * @returns {{ failFast: boolean, consecutiveRequiredFailSnapshots: number,
- *   prProbe?: object, evidencePath?: 'per-run'|'consecutive-probe' }}
+ *   blockClass?: string, reason?: string, prProbe?: object,
+ *   evidencePath?: 'per-run'|'consecutive-probe' }}
  */
 export function decideMergeWaitFailFast({
   probe,
@@ -687,12 +745,7 @@ export function decideMergeWaitFailFast({
   }
   if (probe?.requiredRunEvidence) {
     if (requiredCheckFailedBlocksMerge(probe)) {
-      return {
-        failFast: true,
-        consecutiveRequiredFailSnapshots: 0,
-        evidencePath: 'per-run',
-        prProbe: { ...probe, evidencePath: 'per-run' },
-      };
+      return checksFailedVerdict(probe, 'per-run', 0);
     }
     // A required run is still in flight, only non-required / superseded runs
     // are red, or a missing required review owns the BLOCKED state: the
@@ -700,24 +753,28 @@ export function decideMergeWaitFailFast({
     return { failFast: false, consecutiveRequiredFailSnapshots: 0 };
   }
   const next = consecutiveRequiredFailSnapshots + 1;
-  // Synthesize the evidence the classifier's gate reads, so the
-  // consecutive-probe path classifies `checks-failed` through the SAME
-  // predicate as the per-run path (including its review-required softening).
-  const synthesized = {
-    ...probe,
-    requiredRunEvidence: {
-      requiredRunFailed: true,
-      requiredRunInFlight: false,
-    },
-    evidencePath: 'consecutive-probe',
-  };
-  if (next >= 2 && requiredCheckFailedBlocksMerge(synthesized)) {
-    return {
-      failFast: true,
-      consecutiveRequiredFailSnapshots: next,
-      evidencePath: 'consecutive-probe',
-      prProbe: synthesized,
-    };
+  if (next >= 2 && !reviewOwnsBlockedState(probe)) {
+    return checksFailedVerdict(probe, 'consecutive-probe', next);
   }
   return { failFast: false, consecutiveRequiredFailSnapshots: next };
+}
+
+/**
+ * The fail-fast verdict shape: the decided class and reason, carried forward
+ * with the observed probe (annotated with the evidence path) — never a probe
+ * rewritten to steer a later classification.
+ */
+function checksFailedVerdict(
+  probe,
+  evidencePath,
+  consecutiveRequiredFailSnapshots,
+) {
+  return {
+    failFast: true,
+    consecutiveRequiredFailSnapshots,
+    evidencePath,
+    blockClass: CHECKS_FAILED_CLASS,
+    reason: formatChecksFailedReason(probe, evidencePath),
+    prProbe: { ...probe, evidencePath },
+  };
 }
