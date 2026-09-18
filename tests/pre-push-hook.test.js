@@ -13,7 +13,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { runCoverageCapture } from '../.agents/scripts/coverage-capture.js';
+import { resolveCrapPreviewIncremental } from '../.agents/scripts/lib/baselines/crap-preview-incremental.js';
 import { computeCrapPreviewScan } from '../.agents/scripts/lib/baselines/crap-preview-scan.js';
+import { resolveChangedFilesRef } from '../.agents/scripts/lib/changed-files.js';
 import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 
 const REPO_ROOT = path.resolve(
@@ -124,6 +127,161 @@ test('pre-push — capture and preview are anchored on the same base ref', () =>
       'ref, and it is only because the preview derives its CRAP scope from the ' +
       'SAME ref that a skipped capture leaves the preview with nothing to score. ' +
       'Move one ref without the other and the skip becomes a stale read.',
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Story #5365 — one resolved ref per invocation.
+//
+// The ref equality asserted above is a property of the hook TEXT. It is only
+// the property that matters if `coverage-capture.js` actually computes its
+// change set against the ref the hook hands it — and until #5365 a consumer
+// that set `delivery.quality.gates.crap.incrementalCoverage.baseRef`
+// outranked the flag, so capture and the preview scored different scopes with
+// nothing saying so. This repo sets no `baseRef`, so only a test that
+// configures one can see it.
+// ---------------------------------------------------------------------------
+
+/** A base ref no step of the hook mentions — the desynchronizing setting. */
+const RIVAL_REF = 'refs/remotes/origin/some-other-base';
+
+/**
+ * The hook's own capture invocation, tokenized into a `process.argv`-shaped
+ * array. Read from `.husky/pre-push` rather than retyped, so editing the hook
+ * moves this test with it.
+ *
+ * @returns {string[]}
+ */
+function captureArgvFromHook() {
+  const line = readPrePush()
+    .split('\n')
+    .find(
+      (l) => l.includes('coverage-capture.js') && !l.trim().startsWith('#'),
+    );
+  assert.ok(line, 'the hook must invoke coverage-capture.js');
+  return line.trim().split(/\s+/);
+}
+
+/** The ref the hook hands `quality-preview.js`. */
+function previewRefFromHook() {
+  const ref = readPrePush().match(
+    /quality-preview\.js[^\n]*--changed-since\s+(\S+)/,
+  )?.[1];
+  assert.ok(ref, 'quality-preview must be given a --changed-since ref');
+  return ref;
+}
+
+/**
+ * Drive `runCoverageCapture` over injected seams with `baseRef` configured to
+ * `RIVAL_REF`, and report every ref the changed-file lookup was asked for.
+ * Coverage reports fresh, so no suite is ever spawned.
+ *
+ * @param {{ skipWhenUnchanged: boolean }} opts
+ * @param {string[]} argv
+ * @returns {string[]}
+ */
+function refsCaptureAsksFor({ skipWhenUnchanged }, argv) {
+  const refs = [];
+  runCoverageCapture(argv, {
+    resolveConfigImpl: () => ({
+      delivery: { execution: { fullSuiteLock: false } },
+    }),
+    getQualityImpl: () => ({
+      crap: {
+        enabled: true,
+        targetDirs: ['.agents/scripts'],
+        coveragePath: 'coverage/coverage-final.json',
+        incrementalCoverage: { skipWhenUnchanged, baseRef: RIVAL_REF },
+      },
+      coverage: {},
+    }),
+    readPackageScriptsImpl: () => ({ 'test:coverage': 'node --test' }),
+    hasNpmScriptImpl: () => true,
+    getChangedFilesImpl: ({ ref }) => {
+      refs.push(ref);
+      return ['.agents/scripts/a.js'];
+    },
+    filterFilesUnderTargetsImpl: (files) => files,
+    isCoverageFreshImpl: () => ({ fresh: true, reason: 'fresh' }),
+    runCaptureImpl: () => {
+      throw new Error('no suite may be spawned by this test');
+    },
+    computeContentDigestImpl: () => 'digest',
+    writeCaptureStampImpl: () => true,
+    logger: { info: () => {}, warn: () => {}, error: () => {} },
+  });
+  return refs;
+}
+
+test('pre-push — a configured baseRef cannot desynchronize capture from the preview', () => {
+  const argv = captureArgvFromHook();
+  const previewRef = previewRefFromHook();
+  assert.notEqual(
+    previewRef,
+    RIVAL_REF,
+    "the fixture ref must differ from the hook's, or the test proves nothing",
+  );
+
+  // Both capture paths, because either can reach the changed-file lookup:
+  // incremental mode owns it when `skipWhenUnchanged` is on, and the
+  // full-scope path re-runs it for `--skip-when-no-crap-files` otherwise.
+  for (const skipWhenUnchanged of [true, false]) {
+    const refs = refsCaptureAsksFor({ skipWhenUnchanged }, argv);
+    assert.ok(refs.length > 0, 'the changed-file set must be computed');
+    assert.deepEqual(
+      [...new Set(refs)],
+      [previewRef],
+      `with skipWhenUnchanged=${skipWhenUnchanged}, capture must score the ref ` +
+        'the hook named — the same one it hands quality-preview. Letting the ' +
+        'configured baseRef win captures one scope and previews another, which ' +
+        'is the stale artifact the capture-before-preview ordering exists to ' +
+        'prevent (Story #5365).',
+    );
+  }
+});
+
+test("pre-push — the preview's CRAP baseline join scores the hook's ref too", () => {
+  // The preview resolves a ref of its own whenever `baselineJoin` is on: the
+  // touched-file set that decides which methods may be answered from the
+  // committed baseline. It read `baseRef` first, the same inversion capture
+  // had, so the same configuration desynchronized it from the scope the hook
+  // handed the preview one line earlier.
+  const asked = [];
+  const result = resolveCrapPreviewIncremental({
+    crap: {
+      incrementalCoverage: { baselineJoin: true, baseRef: RIVAL_REF },
+    },
+    diffRef: previewRefFromHook(),
+    cwd: '/repo',
+    baselineRows: [],
+    getChangedFilesImpl: ({ ref }) => {
+      asked.push(ref);
+      return ['.agents/scripts/a.js'];
+    },
+  });
+  assert.ok(result, 'the join must resolve when baselineJoin is on');
+  assert.deepEqual(
+    asked,
+    [previewRefFromHook()],
+    'the ref the preview was handed wins over the configured baseRef',
+  );
+});
+
+test('resolveChangedFilesRef states the rule once: a named ref wins, config is the default', () => {
+  const crap = { incrementalCoverage: { baseRef: RIVAL_REF } };
+  assert.equal(
+    resolveChangedFilesRef({ crap, ref: 'origin/main' }),
+    'origin/main',
+  );
+  assert.equal(
+    resolveChangedFilesRef({ crap, ref: null }),
+    RIVAL_REF,
+    'a caller that names no ref — the close-validation gate — still gets the configured value',
+  );
+  assert.equal(
+    resolveChangedFilesRef({ crap: {}, ref: null }),
+    'main',
+    'no config and no named ref falls back to the gate default',
   );
 });
 
