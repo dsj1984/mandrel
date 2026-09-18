@@ -177,28 +177,8 @@ export async function runCloseValidationPhase({
     await gateLog.flush();
   }
   const lockWait = lockWaits.summary();
-  if (!validation.ok && isDeferredLockWait(validation.failed[0], lockWait)) {
-    progress(
-      'VALIDATE',
-      `⏸ ${validation.failed[0].gate.name} deferred: the full-suite lock wait expired after ${lockWait.waitedSeconds}s. Nothing was spawned; close will report pending.`,
-    );
-    return { gates: null, lockWait, pending: true };
-  }
   if (!validation.ok) {
-    const [first] = validation.failed;
-    const { gate, status, cwd: gateCwd } = first;
-    // The evidence is the point on this path: replay the captured tail inline
-    // rather than making the caller open a file to learn why close stopped.
-    gateLog.replay();
-    const err = new Error(
-      `[single-story-close] Gate failed: ${gate.name} (exit ${status})${gateCwd ? ` in ${gateCwd}` : ''}.` +
-        (gate.hint ? ` ${gate.hint}` : ''),
-    );
-    // Story #5172 — the phase tracker tags `closePhase`; this tags WHICH gate
-    // inside the phase died, so the failed terminal can name the split
-    // baselines entry rather than reporting a generic validation failure.
-    err.closeGate = gate.name;
-    throw err;
+    return settleFailedValidation({ validation, lockWait, gateLog, progress });
   }
   progress('VALIDATE', `✅ All gates passed. ${gateLog.digest()}`);
   return {
@@ -206,6 +186,42 @@ export async function runCloseValidationPhase({
     lockWait,
     pending: false,
   };
+}
+
+/**
+ * A gate chain that did not pass either deferred on an expired lock wait —
+ * the close ends `pending` (Story #5377) — or failed, which throws.
+ *
+ * @param {{
+ *   validation: { failed: Array<{ gate: { name: string, hint?: string }, status: number, cwd?: string }> },
+ *   lockWait: { waitedSeconds: number, expired: boolean }|null,
+ *   gateLog: { replay: () => void },
+ *   progress: (tag: string, msg: string) => void,
+ * }} args
+ * @returns {{ gates: null, lockWait: object, pending: true }}
+ */
+function settleFailedValidation({ validation, lockWait, gateLog, progress }) {
+  const [first] = validation.failed;
+  const { gate, status, cwd: gateCwd } = first;
+  if (isDeferredLockWait(first, lockWait)) {
+    progress(
+      'VALIDATE',
+      `⏸ ${gate.name} deferred: the full-suite lock wait expired after ${lockWait.waitedSeconds}s. Nothing was spawned; close will report pending.`,
+    );
+    return { gates: null, lockWait, pending: true };
+  }
+  // The evidence is the point on this path: replay the captured tail inline
+  // rather than making the caller open a file to learn why close stopped.
+  gateLog.replay();
+  const err = new Error(
+    `[single-story-close] Gate failed: ${gate.name} (exit ${status})${gateCwd ? ` in ${gateCwd}` : ''}.` +
+      (gate.hint ? ` ${gate.hint}` : ''),
+  );
+  // Story #5172 — the phase tracker tags `closePhase`; this tags WHICH gate
+  // inside the phase died, so the failed terminal can name the split
+  // baselines entry rather than reporting a generic validation failure.
+  err.closeGate = gate.name;
+  throw err;
 }
 
 /**

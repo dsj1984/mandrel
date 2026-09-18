@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-18T14:09:09.222Z",
+  "generatedAt": "2026-09-18T14:15:49.445Z",
   "rollup": {
     "*": {
       "min": 76.381,
@@ -988,7 +988,7 @@
     },
     {
       "path": ".agents/scripts/lib/full-suite-queue.js",
-      "mi": 94.751
+      "mi": 91.862
     },
     {
       "path": ".agents/scripts/lib/gates/baseline-store.js",

@@ -310,7 +310,7 @@ function tryCreateLock(lockPath, ownerId, fsImpl = fs) {
  *                                        liveness probe (Story #5278).
  * @param {object} [opts.processImpl]     `process` seam for the
  *                                        release-on-signal handlers.
- * @returns {{ acquired: true, release: () => void, refresh: () => boolean, ownerId: string }
+ * @returns {{ acquired: true, release: () => void, ownerId: string }
  *          | { acquired: false, reason: 'contended' | 'error', detail?: string }}
  */
 export function acquireSweepLock({
@@ -539,7 +539,6 @@ function buildAcquired(holder) {
   return {
     acquired: true,
     release,
-    refresh: () => refreshLockSync(holder),
     ownerId,
   };
 }

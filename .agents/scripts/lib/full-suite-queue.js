@@ -38,7 +38,7 @@ const TICKET_RE = /^\d{15}-\d{6}-(\d+)-[0-9a-f]+$/;
 let sequence = 0;
 
 /**
- * @typedef {{ dir: string, name: string, file: string, detach: () => void }} Ticket
+ * @typedef {{ dir: string, name: string, file: string }} Ticket
  */
 
 /**
@@ -67,14 +67,9 @@ function enqueueWaiter({
   } catch {
     return null;
   }
-  const ticket = { dir, name, file, detach: () => {} };
-  // A waiter that exits mid-wait must not leave its ticket ahead of others.
-  const onExit = () => dequeueWaiter(ticket, { fsImpl });
-  if (typeof processImpl.once === 'function') {
-    processImpl.once('exit', onExit);
-    ticket.detach = () => processImpl.off?.('exit', onExit);
-  }
-  return ticket;
+  // No exit hook: a waiter that dies mid-wait leaves a ticket whose pid is
+  // gone, and a dead pid never holds a place in line.
+  return { dir, name, file };
 }
 
 /**
@@ -101,7 +96,6 @@ function refreshTicket(ticket, { nowFn = Date.now, fsImpl = fs } = {}) {
  */
 function dequeueWaiter(ticket, { fsImpl = fs } = {}) {
   if (!ticket) return;
-  ticket.detach();
   try {
     fsImpl.unlinkSync(ticket.file);
   } catch {

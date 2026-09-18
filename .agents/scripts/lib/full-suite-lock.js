@@ -156,10 +156,9 @@ export function resolveFullSuiteLockPath({
  *   lock when the fast path won, `null` when the caller must wait (or when
  *   locking is off, in which case `lockPath` is `null` too).
  */
-function beginLock({ cwd, enabled, staleMs, fsImpl, acquireOnceFn, lockPath }) {
-  if (!enabled) return { lock: null, lockPath: null };
-  const resolved = lockPath ?? resolveFullSuiteLockPath({ cwd });
-  if (resolved === null) return { lock: null, lockPath: null };
+function beginLock({ staleMs, fsImpl, acquireOnceFn, ...where }) {
+  const resolved = lockHome(where);
+  if (resolved === null) return NO_LOCK;
   if (!isFirstInLine({ lockPath: resolved, ticket: null, staleMs, fsImpl })) {
     return { lock: null, lockPath: resolved };
   }
@@ -170,8 +169,24 @@ function beginLock({ cwd, enabled, staleMs, fsImpl, acquireOnceFn, lockPath }) {
   });
   if (first.acquired) return { lock: first, lockPath: resolved };
   // A hard I/O error will not resolve by waiting — proceed unserialized.
-  if (first.reason === 'error') return { lock: null, lockPath: null };
-  return { lock: null, lockPath: resolved };
+  return first.reason === 'error'
+    ? NO_LOCK
+    : { lock: null, lockPath: resolved };
+}
+
+/** Locking disabled, unresolvable, or broken: spawn unserialized. */
+const NO_LOCK = Object.freeze({ lock: null, lockPath: null });
+
+/**
+ * The lockfile this call contends on, or `null` when locking is off or the
+ * lock home cannot be resolved.
+ *
+ * @param {{ enabled: boolean, cwd: string, lockPath?: string }} where
+ * @returns {string|null}
+ */
+function lockHome({ enabled, cwd, lockPath }) {
+  if (!enabled) return null;
+  return lockPath ?? resolveFullSuiteLockPath({ cwd });
 }
 
 /**
@@ -251,7 +266,7 @@ export async function withFullSuiteLockAsync(options, spawn) {
 /** The caller's options over {@link LOCK_DEFAULTS}; `undefined` never wins. */
 function withDefaults(options) {
   const opts = { ...LOCK_DEFAULTS };
-  for (const [key, value] of Object.entries(options ?? {})) {
+  for (const [key, value] of Object.entries(options)) {
     if (value !== undefined) opts[key] = value;
   }
   return opts;
@@ -320,26 +335,49 @@ export function lockedCapture(
   env = process.env,
   lockOptions = {},
 ) {
-  const enabled = isFullSuiteLockEnabled({ config, env });
-  const defer = env?.[FULL_SUITE_LOCK_EXPIRY_ENV] === 'defer';
+  const policy = {
+    enabled: isFullSuiteLockEnabled({ config, env }),
+    onWaitExpired: deferredCaptureExit(env),
+    ...lockOptions,
+  };
   return (captureOpts = {}) =>
     withFullSuiteLockAsync(
       {
+        ...policy,
         cwd: captureOpts.cwd,
         log: captureOpts.log,
-        enabled,
-        // Story #5278 — the capture path supplies its own freshness re-probe
-        // per call, because only it knows which scope ('full' /
-        // 'incremental') the stamp has to satisfy. A `true` means the suite
-        // we queued behind already stamped this tree, so this caller reports
-        // success (exit 0) without spawning a second one.
-        skipIfSatisfied:
-          typeof captureOpts.recheckFresh === 'function'
-            ? () => (captureOpts.recheckFresh() ? 0 : undefined)
-            : undefined,
-        onWaitExpired: defer ? () => LOCK_WAIT_EXPIRED_EXIT_CODE : undefined,
-        ...lockOptions,
+        skipIfSatisfied: freshnessProbe(captureOpts),
       },
       () => runCaptureFn(captureOpts),
     );
+}
+
+/**
+ * Close's opt-in (Story #5377): under {@link FULL_SUITE_LOCK_EXPIRY_ENV}
+ * `defer`, an expired wait exits {@link LOCK_WAIT_EXPIRED_EXIT_CODE} instead
+ * of spawning; anywhere else it spawns anyway.
+ *
+ * @param {Record<string, string|undefined>} env
+ * @returns {(() => number)|undefined}
+ */
+function deferredCaptureExit(env) {
+  return env[FULL_SUITE_LOCK_EXPIRY_ENV] === 'defer'
+    ? () => LOCK_WAIT_EXPIRED_EXIT_CODE
+    : undefined;
+}
+
+/**
+ * Story #5278 — the capture path supplies its own freshness re-probe per
+ * call, because only it knows which scope ('full' / 'incremental') the stamp
+ * has to satisfy. A `true` means the suite we queued behind already stamped
+ * this tree, so this caller reports success (exit 0) without spawning a
+ * second one.
+ *
+ * @param {{ recheckFresh?: () => boolean }} captureOpts
+ * @returns {(() => number|undefined)|undefined}
+ */
+function freshnessProbe({ recheckFresh }) {
+  return typeof recheckFresh === 'function'
+    ? () => (recheckFresh() ? 0 : undefined)
+    : undefined;
 }

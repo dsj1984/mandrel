@@ -660,6 +660,25 @@ describe('full-suite lock (Story #5173)', () => {
       assert.equal(spawns, 0);
     });
 
+    it('re-probes freshness after a wait and skips a spawn the holder made redundant', async () => {
+      const holder = acquireSweepLock({ lockPath, timeoutMs: 600_000 });
+      setTimeout(() => holder.release(), 30);
+      let spawns = 0;
+      const wrapped = lockedCapture(
+        async () => {
+          spawns += 1;
+          return 1;
+        },
+        {},
+        {},
+        // The default (real-timer) sleep, polled fast so the test stays quick.
+        { lockPath, pollMs: 5 },
+      );
+      const code = await wrapped({ cwd: dir, recheckFresh: () => true });
+      assert.equal(code, 0, 'the fresh stamp stands in for the spawn');
+      assert.equal(spawns, 0);
+    });
+
     it('tolerates a runner invoked with no options at all', async () => {
       const wrapped = lockedCapture(async () => 4, {
         delivery: { execution: { fullSuiteLock: false } },
