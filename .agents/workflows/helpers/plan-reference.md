@@ -53,10 +53,7 @@ the first `createIssue`, and refuses any pair of same-wave siblings that both
 declare a path (or one of which declares a covering glob) — naming the pair,
 the paths and the two remedies (merge them, or order them with `depends_on`).
 Such a pair cannot be co-dispatched, so the split buys no parallelism and
-costs a delivery session per Story. It replaced the acceptance partition,
-which refused only byte-identical acceptance text across siblings — a shape
-model output does not produce — so it never fired on the fragmentation it was
-meant to catch. **N=1 can never trip the refusal.**
+costs a delivery session per Story. **N=1 can never trip the refusal.**
 
 A draft of more than one Story also stops at **Gate #2** for operator
 approval, `--force-review` or not: a split always earns eyes. `--yes`
@@ -65,8 +62,7 @@ auto-proceeds, as at every other gate.
 ## Unknown triage — AFK vs HITL
 
 Every open question interrogation surfaces is triaged by **who can resolve
-it**, not parked in one bucket (a shape borrowed from the Wayfinder skill's
-HITL/AFK ticket typing):
+it**, not parked in one bucket:
 
 - **AFK** (away from keyboard — the agent resolves it alone): the answer is a
   fact something already records — third-party docs, a dependency's API
@@ -106,7 +102,7 @@ not re-deriving which assumptions were really the agent's to make.
 
 Gate #1 stops for exactly two things — the sharpened plan intent and any HITL
 unknown — and everything else the envelope surfaced collapses to **one
-advisory line** beneath it (Story #5312). Nothing on that line stops the run,
+advisory line** beneath it. Nothing on that line stops the run,
 reroutes it, or is invoked by `/mandrel-plan`; each item names something the
 operator may prefer to do instead, and the run proceeds either way. Under
 `--yes` the line is recorded and planning continues — an unattended run has
@@ -128,8 +124,7 @@ The line names, in order, whichever of these the envelope carries:
   the same shape with a different owner.
 - **`memoryPoolAdvisory.recommend`** — name
   [`/memory-consolidate`](../memory-consolidate.md), quoting its
-  `reasons[]`. The one arm left measures the `MEMORY.md` index against the
-  harness's byte cap; a stale pool degrades recall, it does not make the plan
+  `reasons[]`. A stale pool degrades recall, it does not make the plan
   wrong.
 - **`complexitySignals.uiSurface`** — name [`/prototype`](../prototype.md)
   and stop there. The signal carries **no routing authority and adds no
@@ -138,8 +133,8 @@ The line names, in order, whichever of these the envelope carries:
   lenses gate on, and whether any predicted path matches a web lens
   `filePattern` in `audit-rules.json`; a project with no rendered frontend
   resolves falsey and the offer never fires. `/mandrel-plan` must never invoke
-  it — operator invocation is the entire design, because the value is a human
-  looking at a layout before its UI acceptance criteria are frozen. Under
+  it — the value is a human looking at a layout before its UI acceptance
+  criteria are frozen. Under
   `--yes` the offer is recorded and planning proceeds — no reroute, no
   prototype written, no gate raised.
 
@@ -149,12 +144,10 @@ The envelope's `complexitySignals` field carries the paths the seed predicts,
 their repo state (existing paths predict refactors; missing predict creates)
 and the `audit-rules.json` sensitive-path classes the footprint intersects —
 `routingAuthority: false`, no `route` field. They ground the authoring
-template's pre-resolved `changes[]` and the `/prototype` offer, nothing else.
-Story #5312 deleted the plan-side lite claim that used to read them
-(`--route-downgrade-reason`, the persist shape backstop, the `route::lite`
-hint): every Story lands through the same engine and the same close gates,
-and the acceptance verdict owner follows the operator's ceremony profile —
-never anything a plan authored.
+template's pre-resolved `changes[]` and the `/prototype` offer, nothing else:
+every Story lands through the same engine and the same close gates, and the
+acceptance verdict owner follows the operator's ceremony profile — never
+anything a plan authored.
 
 ## Correct-by-construction authoring template
 
@@ -163,7 +156,7 @@ never anything a plan authored.
 `complexitySignals` ran:
 
 - **`verify[]` entries are commands.** There is no tier suffix and no
-  `manual:<reason>` escape (Story #5312): write the exact command or test
+  `manual:<reason>` escape: write the exact command or test
   path the deliverer runs and the acceptance critic reads as evidence.
 - **`changes[]` names what the deliverer authors.** Generated artifacts —
   quality baselines, generated test indexes, migration journals, lockfiles —
@@ -201,12 +194,10 @@ numbers each checkbox from its array position, so a carried handle renders
 doubled. Persist normalises one off rather than refusing, and names the strip
 on the dry-run's repair list.
 
-Nothing in that shape inventories the repo for the author. `changes[]` arrives
-filled in from the working-tree probe, and Phase 8's
-`validateStoryFileAssumptions` re-probes every resolved `{path, assumption}`
-at persist — so the grounding contract is the author's own targeted reads plus
-that gate. There is no pre-computed codebase snapshot to fall back on, and no
-manifest-derived replacement to build.
+Nothing in that shape inventories the repo for the author: the grounding
+contract is the author's own targeted reads plus Phase 8's
+`validateStoryFileAssumptions`, which re-probes every resolved
+`{path, assumption}` at persist.
 
 ### Per-Story audit provenance (`provenance`)
 
@@ -234,20 +225,16 @@ work this plan already tracked.
 | Present but empty (`{}`) | Nothing. "Owns no findings" is a real answer. |
 | **Absent** | The **whole seed's** footers (the union) — the recall-safe default. |
 
-**The union fallback is load-bearing, not legacy.** Leaving the authoring agent
-to hand-carry provenance out of the seed's HTML comments was measured to fail —
-a remembered step is no step at all — and the mechanical union carry is what
-closed it. Attribution is additive: it sharpens a plan that opts in and changes
-nothing for one that does not. Never remove the fallback to "finish the
-migration".
+**The union fallback is load-bearing, not legacy** — hand-carrying provenance
+out of the seed's HTML comments is a step an author forgets. Attribution is
+additive: it sharpens a plan that opts in and changes nothing for one that
+does not. Never remove the fallback to "finish the migration".
 
-Attribution is what makes the next sweep's dedup answerable rather than
-arbitrary. Under the union every sibling carried every key, so a finding
-confirming against several open Stories could only pick one at random, and a
-key whose owning Story had since **closed** was masked by any open neighbour —
-a genuine regression filed as a routine update. With ownership stamped, the
-issue carrying a finding's own fingerprint decides both the match and its
-state (`lib/findings/route-finding.js`).
+Attribution makes the next sweep's dedup answerable: under the union a finding
+confirming against several open Stories can only pick one, and a key whose
+owning Story has **closed** is masked by an open neighbour. With ownership
+stamped, the issue carrying a finding's own fingerprint decides both the match
+and its state (`lib/findings/route-finding.js`).
 
 The audit path authors this mechanically from the per-group footers the seed
 already carries — see [`audit-to-stories`](../audit-to-stories.md). A `--seed`
@@ -257,24 +244,17 @@ or `--tickets` plan has nothing to attribute and omits the field.
 
 The conflict passes run **twice**: once over the raw `stories.json` payload
 (alongside the freshness, file-assumption and sizing gates), and again over the
-**assembled, footer-stamped bodies** — the artifact persist actually posts.
-The second pass is not belt-and-braces. The canonical authoring shape carries
-`acceptance[]` / `verify[]` at the ticket's top level and assembly folds them
-into the body, so the passes that scan `body.acceptance` / `body.verify`
-saw two empty arrays on the real payload and emitted nothing; the two
-substring-match advisories that depended on it are retired, leaving
-`shared-editor` as the one conflict kind. Both passes complete before the first
-`createIssue`, so a refusal still costs no writes.
+**assembled, footer-stamped bodies** — the artifact persist actually posts,
+where top-level `acceptance[]` / `verify[]` have been folded in. `shared-editor`
+is the one conflict kind. Both passes complete before the first `createIssue`,
+so a refusal still costs no writes.
 
 `shared-editor` findings are rendered into the plan-summary section of every
-Story's posted `story-plan-state` comment, directly beneath the wave table: the table promises which Stories can run
-together, and a path two same-wave Stories both write is exactly where that
-promise breaks. Promise and caveat belong on one durable surface — previously
-the caveat was a stderr warning nobody kept.
+Story's posted `story-plan-state` comment, directly beneath the wave table: the
+table promises which Stories can run together, and a path two same-wave Stories
+both write is exactly where that promise breaks.
 
-Every conflict class is advisory (Story #5312 retired the
-`planning.failOn*` / `requireExplicitCrossStoryDeps` upgrade knobs with the
-registry and fan-out findings): co-editing one file is routine and often
+Every conflict class is advisory: co-editing one file is routine and often
 correct — the delivery scheduler already serializes file-overlapping Stories —
 and a path reference matched by substring can read as a dependency a prose
 mention never meant. A finding names the Stories and the fix (a `depends_on`
@@ -284,10 +264,10 @@ edge, or folding the shared edit into one Story) for the operator to weigh.
 
 A `--tickets` envelope carries a third author prompt beside
 `systemPrompts.story` and `systemPrompts.storySplitRules`:
-**`systemPrompts.storyTicketsRules`**. It exists because a
-source ticket arrives already in Story shape — rendered `AC-<n>:` checkboxes,
-a `## Verify` list, a `## Changes` footprint — and an author reading it as a
-template carries that shape forward instead of re-deriving it. The addendum
+**`systemPrompts.storyTicketsRules`**. A source ticket arrives already in
+Story shape — rendered `AC-<n>:` checkboxes, a `## Verify` list, a
+`## Changes` footprint — and an author reading it as a template carries that
+shape forward instead of re-deriving it. The addendum
 binds the author to re-derive `acceptance[]` from the goal, to express
 mechanical checks (a refreshed baseline, a lint exiting 0, a regenerated
 index) as `verify[]` commands rather than acceptance items, and to take the
@@ -332,9 +312,7 @@ the default is not what you mean.
 
 ## The pre-mortem critic — operator-invoked
 
-The maker-blind **pre-mortem** critic is not a step of the spine (Story #5312
-retired step 2.5 with the consolidation critic, whose one deterministic input
-was a `## Delivery Slicing` table no Story carries). Run it when the operator
+The maker-blind **pre-mortem** critic is not a step of the spine. Run it when the operator
 asks for it, after Author and before Persist — the last point a finding folds
 into a re-author:
 
@@ -374,18 +352,17 @@ a re-author round.
 ## What `--dry-run` actually gates
 
 A bare `plan-persist.js` runs the whole gate list write-free and then, on a
-clean list, persists in the same invocation (Story #5342); `--dry-run` is that
-same first half with the second suppressed. Either way every gate runs before
-the first `createIssue` would fire. Since Story #5312 the gates split two
-ways, and the dry-run output is where the second half is read:
+clean list, persists in the same invocation; `--dry-run` is that same first
+half with the second suppressed. Either way every gate runs before the first
+`createIssue` would fire. The gates split two ways, and the dry-run output is
+where the second half is read:
 
 **Hard — the run refuses:** a body that does not parse, a ticket that is not
 a Story, an empty `acceptance[]`, an unknown or cyclic `depends_on`, the
 same-wave collision refusal at N>1, a supersede claim on a non-source id or
 one claimed twice, and a `deletes` entry naming a path absent at base.
-Story #5342 retired two: the commit-subject-prefix scan is gone entirely —
-the `commit-msg` hook and `normalize-pr-title.js` enforce subjects — and an
-empty `verify[]` is now a warning.
+Commit subjects are not scanned — the `commit-msg` hook and
+`normalize-pr-title.js` enforce them.
 
 **Warnings — listed, then the persist proceeds:** a `creates` on a path that
 exists at base or a `refactors-existing` on one that does not (including a
@@ -399,15 +376,11 @@ advisory `changes[]` is free to reshape out from under the criterion. The
 list also names every **repair** the run applied — a plain-string bullet or a
 trailing parenthetical rewritten into `{ path, assumption }` by probing base,
 and an `AC-<n>:` handle normalised off an acceptance item. The same list rides
-the result envelope as `warnings[]` and `repairs[]` — and because the repairs
-are applied in the write-free pass, the chained run carries that pass's
-`repairs[]` and `warnings[]` onto the envelope it returns, so the evidence
-survives the hand-off rather than being re-derived from an already-repaired
-draft.
+the result envelope as `warnings[]` and `repairs[]`, carried from the
+write-free pass onto the chained run's envelope.
 
 A dry run that comes back clean has paid for every deterministic refusal, so
-the real persist has nothing left to discover except network failure — which
-is why the clean case no longer waits for a second operator invocation.
+the real persist has nothing left to discover except network failure.
 
 ## The container Epic (Gate #3)
 
@@ -441,11 +414,10 @@ On a yes, pass `--epic <id>`. Persist then:
 
 The refusal posture is the **opposite** of creation's, deliberately. Creation
 degrades (an unensurable label just skips the container) because the operator
-never named one. Adoption cannot: the operator named a specific id, so silently
-not adopting it would leave them believing their Stories were filed somewhere
-they were not. Hence a hard error, raised while nothing has been written and
-the fix is free. Once the Stories are live the posture flips back — a failed
-checklist write or sub-issue edge only warns.
+never named one; adoption names a specific id, so silently not adopting it
+would misfile the Stories. Hence a hard error, raised while nothing has been
+written. Once the Stories are live the posture flips back — a failed checklist
+write or sub-issue edge only warns.
 
 **Only open Epics are adoptable.** A closed Epic is a finished body of work;
 joining one would reopen a container the epilogue deliberately closed and
@@ -493,9 +465,8 @@ opened and never had to name.
 `complexitySignals.predictedPaths`, each carrying the `overlappingPaths[]` that
 matched. Overlap is computed on **declared footprints** and not on prose, using
 the same `storyFootprint` the wave runner uses to withhold colliding Stories at
-dispatch — so the planner sees the collision the runtime would later enforce,
-one layer earlier and while it is still cheap to order around. A seed naming no
-paths short-circuits to `[]` with no provider call at all.
+dispatch — the collision the runtime would later enforce, seen while it is
+still cheap to order around. A seed naming no paths short-circuits to `[]`.
 
 It stays advisory: two Stories can touch a shared barrel file with no real
 ordering between them, and only the operator knows.
@@ -505,9 +476,9 @@ a Story already open is not scheduled by this run, so it has no position in the
 topological sort and cannot close a cycle back into a Story that does not exist
 yet. They are validated **before any create** (dry run included): each must
 resolve to an **open `type::story`**, and a closed issue, a container Epic, a
-missing id or a non-Story hard-errors with every bad ref named in one pass. The
-strictness is the point — a blocker that can never be satisfied reads to the
-delivery engine as a permanent wedge rather than as an error worth reporting.
+missing id or a non-Story hard-errors with every bad ref named in one pass — a
+blocker that can never be satisfied would read to the delivery engine as a
+permanent wedge.
 
 Persist renders the entry unchanged as a `blocked by #<id>` footer line and
 mirrors the native `blocked_by` edge, which is the same pair of surfaces a
@@ -518,10 +489,9 @@ state.
 ## Ready means fully persisted
 
 `agent::ready` is the **terminal** step, not part of the creating POST.
-The order is: create unlabelled → upsert `story-plan-state` on every Story —
-since Story #5343 one comment, carrying the plan summary (story set, delivery
-order, deliver command) and nothing else, since Story #5367 deleted the machine
-checkpoint no reader consumed — → flip every Story to `agent::ready`.
+The order is: create unlabelled → upsert `story-plan-state` on every Story (one
+comment carrying the plan summary: story set, delivery order, deliver command)
+→ flip every Story to `agent::ready`.
 
 This is what lets `/mandrel-deliver` trust the label: a Story carrying
 `agent::ready` always has the operator's delivery instructions on the ticket,
@@ -572,23 +542,19 @@ says so rather than deciding silently:
 | Neither `--plan-dir` nor `--plan-context` | **Warn** — nothing was read; only `--source-tickets` can supply ids. |
 | Auto-discovered `<plan-dir>/plan-context.json` absent | **Warn** — degrade to `--source-tickets`; a `--seed` run legitimately has none. |
 | Explicit `--plan-context` missing | **Fatal** — the operator named a file and meant it. |
-| Envelope present but unparseable | **Fatal** — a corrupt envelope is not "no source tickets"; treating it as such is how a `--tickets` run used to report success having superseded nothing. |
+| Envelope present but unparseable | **Fatal** — a corrupt envelope is not "no source tickets". |
 
 Whichever channel supplies them, the supersede-map partition above still
-fail-closes: a `--tickets` run whose Stories forgot `supersedes[]` is now
-**caught** (`source ticket #N is not claimed by any Story`) instead of
-partitioning an empty set and passing vacuously.
+fail-closes: a `--tickets` run whose Stories forgot `supersedes[]` is
+**caught** (`source ticket #N is not claimed by any Story`).
 
 ## Closing superseded source tickets
 
 **Default on.** After the Stories exist, persist comments on each source
 issue naming the specific Story that claims it — plus that Story's optional
 per-supersede `note` — and closes it with reason **`not_planned`**
-(`state_reason`). Nothing has shipped at persist time and the issue will not
-be actioned in its own right, so `not_planned` is the honest reason;
-`completed` would be a lie. This is what keeps the tracker from asserting
-that already-planned work is still unowned, and it writes down the supersede
-link that makes the history readable.
+(`state_reason`) — nothing has shipped at persist time, so `completed` would
+be a lie.
 
 | Behaviour | Contract |
 | --- | --- |

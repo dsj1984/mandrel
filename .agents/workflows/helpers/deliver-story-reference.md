@@ -245,8 +245,9 @@ base is brought up to date within 3 tries.
 on every close.** The close tail is serialized, and under `sync` each close
 holds the foreground for its full merge wait before the next may start. Close
 cannot see run topology, so the orchestrator makes the call per invocation
-while the config default stays `"sync"` — right for a solo delivery. What
-async does and how to resume its `pending` is
+(`deliver-run.js` renders it into every multi-Story `close[]` command) while
+the config default stays `"sync"` — right for a solo delivery. What async does
+and how to resume its `pending` is
 [`deliver-reference.md`](deliver-reference.md) § Async merge-confirm mode.
 
 **`delivery.ci.autoMerge` policy.** Under the default `"trust-ci"`, GitHub
