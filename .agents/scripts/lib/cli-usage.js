@@ -1,32 +1,10 @@
 /**
- * `.agents/scripts/lib/cli-usage.js` — the one implementation of `--help` for
- * every top-level script under `.agents/scripts/`.
+ * The one `--help` implementation for top-level scripts, so a flag contract
+ * lives with its code, not in workflow prose.
  *
- * ## Why
- *
- * A script's flag contract used to live in the workflow prose that invoked it
- * (`deliver-story.md` Step 0 restating `single-story-init.js`'s `--dry-run` /
- * `--steal`, and so on). Two homes for one contract is a drift class: the
- * script changes, the prose does not, and the next agent runs a flag that no
- * longer exists. Moving the enumeration into the script's own `--help` gives
- * the contract a single home that ships with the code that implements it.
- *
- * ## Contract
- *
- * `--help` (or `-h`) is a **query**, never an error path:
- *
- *   - writes non-empty text to **stdout** and exits **0**;
- *   - performs no GitHub write, acquires no lease, mutates no working tree.
- *
- * stdout — not `Logger.info` — because help output must survive
- * `AGENT_LOG_LEVEL=silent` and carry no `[Orchestrator]` decoration; this is
- * the same `process.stdout.write` carve-out that machine-parsable envelopes
- * use (see `tests/enforcement/no-console.test.js`).
- *
- * The short-circuit itself lives in `runAsCli` (`lib/cli-utils.js`), which
- * fires this module **before** the script's `main` runs — so the "no side
- * effects" half of the contract holds structurally rather than by each
- * script remembering to check first.
+ * `--help`/`-h` is a query: non-empty stdout, exit 0, no side effects.
+ * stdout (not `Logger`) so it survives `AGENT_LOG_LEVEL=silent`. `runAsCli`
+ * short-circuits before `main`, so "no side effects" holds structurally.
  *
  * ## Usage
  *

@@ -1,36 +1,8 @@
 /**
- * cyclomatic-ceiling.js — the enforcing core behind the cyclomatic ceiling
- * ratchet (Story #4923; fixed ceiling since Story #5313).
- *
- * The two `codingGuardrails` cyclomatic knobs shipped schema-validated,
- * bootstrap-defaulted and resolver-resolved, and were then read by nothing:
- * `cyclomaticMustFix` had no consumer at all, and `cyclomaticFlag` was
- * shadowed by a hardcoded `8` in a `quality-preview` display column. A ceiling
- * nothing enforces is worse than no ceiling, because the workflow docs promise
- * the merge will be refused.
- *
- * Story #5313 retired the `cyclomaticMustFix` config key: the ratchet's
- * ceiling is the fixed {@link CYCLOMATIC_CEILING} (12), so a consumer cannot
- * bound this gate by tuning a number, and `cyclomaticFlag` is the one
- * advisory knob — `quality-preview.js` reports over-flag methods and exits 0
- * on them.
- *
- * This module is that enforcement, shaped as a **ratchet** rather than a
- * cliff. The repository already carries dozens of functions above the
- * must-fix ceiling; failing every one of them at once would have made the
- * gate un-landable and it would have been disabled the same day. So the
- * committed `baselines/cyclomatic.json` records the existing breaches per
- * file, and the gate fails only when a change **adds** an over-ceiling
- * function to a file that had none, adds one **beyond** that file's recorded
- * count, or pushes a file's worst function **higher** than recorded. Burning
- * the recorded breaches down is a separate, always-permitted motion — a
- * shrinking baseline is the success signal.
- *
- * Scope: the module walks the `maintainability` gate's `targetDirs` /
- * `ignoreGlobs`. Both instruments read the same coverage-free escomplex
- * surface, so re-declaring the scope under `codingGuardrails` would have
- * added two config keys whose only correct value is "whatever maintainability
- * says".
+ * Cyclomatic ceiling as a ratchet, not a cliff: `baselines/cyclomatic.json`
+ * records existing breaches per file, and the gate fails only when a change
+ * adds an over-ceiling function beyond a file's recorded count or raises its
+ * worst one. Scope is borrowed from the maintainability gate.
  *
  * @module lib/cyclomatic-ceiling
  */
@@ -41,27 +13,18 @@ import { selectFilesToScore } from './cyclomatic-scope.js';
 import { calculateReportForFile } from './maintainability-engine.js';
 import { scanDirectory } from './maintainability-utils.js';
 
-/** Default location of the committed breach baseline. */
 export const DEFAULT_CYCLOMATIC_BASELINE = 'baselines/cyclomatic.json';
 
 /**
- * The per-function cyclomatic ceiling the ratchet enforces. Fixed — not a
- * config key — since Story #5313.
+ * Fixed, not configurable, so a consumer cannot loosen the gate.
  * @type {number}
  */
 export const CYCLOMATIC_CEILING = 12;
 
-/** Baseline `$schema` marker, matching the sibling ratchet baselines. */
 const CYCLOMATIC_BASELINE_SCHEMA =
   'https://mandrel.dev/baselines/cyclomatic.schema.json';
 
 /**
- * Resolve the enforcement policy from a resolved `delivery.quality` block.
- *
- * `mustFix` is the fixed {@link CYCLOMATIC_CEILING}; `flag` is the fixed
- * advisory `CODING_GUARDRAILS.cyclomaticFlag` (Story #5382). `targetDirs` / `ignoreGlobs`
- * are borrowed from the maintainability gate (see the module note).
- *
  * @param {object | null | undefined} quality resolved `delivery.quality`
  * @returns {{ mustFix: number, flag: number, targetDirs: string[], ignoreGlobs: string[] }}
  */
@@ -76,12 +39,7 @@ export function resolveCyclomaticPolicy(quality) {
 }
 
 /**
- * Reduce one file's escomplex method list to a breach row, or `null` when the
- * file carries no function above `ceiling`.
- *
- * Pure. Module-private: tests reach it through `scanCyclomatic`'s `scoreFile`
- * seam, which keeps the row math exercised without adding an export whose only
- * importer is a test (the `--production` dead-export pass discounts those).
+ * `null` when no function exceeds `ceiling`. Tested via the `scoreFile` seam.
  *
  * @param {string} file repo-relative POSIX path
  * @param {Array<{ cyclomatic?: number }>} methods
@@ -103,26 +61,10 @@ function breachRowFor(file, methods, ceiling) {
 }
 
 /**
- * Walk the configured scope and score every file, returning the breach rows
- * sorted by path.
- *
- * `scoreFile` is a seam so tests can drive the reduction without the kernel;
- * production callers omit it.
- *
- * **Scoped scoring (Story #5109).** The directory walk is cheap — a few
- * `readdir` calls — but scoring is an escomplex parse per file, and re-parsing
- * the whole tree on every CI run cost 0.94 s to re-derive rows that could not
- * have moved. `scopeFiles`, when supplied, is the set of repo-relative POSIX
- * paths that are still *scored*; everything else is walked, counted, and
- * skipped. That is sound precisely because this gate is a ratchet: a verdict
- * exists only for a file that either changed (so it must be re-scored) or is
- * already recorded in the baseline (so its recorded count must be re-derived
- * to detect an improvement or a removal). A file that is neither cannot
- * produce `added` or `worsened`, and `removed` is computed from baseline files
- * — all of which are in scope by construction. `scannedFiles` therefore keeps
- * reporting the **whole walk**, so the reported scan surface does not shrink
- * just because the scoring did. Callers pass `null` (the default) for the
- * whole-tree scan, which `--update` and `BASELINE_SCOPE=full` always do.
+ * Breach rows sorted by path. `scopeFiles` limits which walked files are
+ * scored — sound for a ratchet, since only a changed or baseline-recorded
+ * file can yield a verdict. `scannedFiles` still reports the whole walk;
+ * `null` scope scores everything.
  *
  * @param {{
  *   targetDirs: string[],
@@ -170,17 +112,7 @@ export function scanCyclomatic({
 }
 
 /**
- * Diff current breach rows against the committed baseline.
- *
- * Four buckets, only the first two of which fail the gate:
- *
- *   - `added`    — a file whose over-ceiling function count rose (including
- *                  0 → 1, i.e. a brand-new breach in new or changed code).
- *   - `worsened` — a file whose worst function got worse than recorded.
- *   - `removed`  — a file that no longer breaches at all.
- *   - `improved` — a file that breaches less than recorded.
- *
- * Pure; identity is the repo-relative file path.
+ * Only `added` (count rose) and `worsened` (worst function rose) fail.
  *
  * @param {Array<{file: string, methodsAboveCeiling: number, maxCyclomatic: number}>} baselineRows
  * @param {Array<{file: string, methodsAboveCeiling: number, maxCyclomatic: number}>} currentRows
@@ -231,10 +163,6 @@ export function diffCyclomaticRows(baselineRows, currentRows) {
 }
 
 /**
- * Assemble the committed baseline envelope. The rollup is deliberately
- * derived, never hand-written: a zero-row baseline here reports zero breaches
- * because the repository has none, not because nobody produced it.
- *
  * @param {{ rows: Array<object>, ceiling: number, generatedAt?: string }} args
  * @returns {object}
  */
@@ -262,8 +190,7 @@ export function buildCyclomaticEnvelope({ rows, ceiling, generatedAt }) {
 }
 
 /**
- * Render the human-readable diff. Emits a summary line even on a clean run so
- * operators see the "no drift" signal rather than silence.
+ * Always ends with a summary line, even on a clean run.
  *
  * @param {{ added: Array, worsened: Array, removed: Array, improved: Array }} diff
  * @param {number} ceiling

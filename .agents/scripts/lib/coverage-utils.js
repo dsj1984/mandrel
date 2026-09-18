@@ -4,12 +4,7 @@ const COVERAGE_INDEX = Symbol('coverage-utils.coverage-index');
 const ENTRY_INDEX = Symbol('coverage-utils.entry-index');
 
 /**
- * Load and parse an istanbul/c8 `coverage-final.json` artifact.
- *
- * Returns the parsed object (keyed by absolute file path) on success, or
- * `null` when the file is missing, unreadable, non-JSON, or structurally
- * unusable. Never throws — consumers treat a null map as "no coverage
- * available" and apply their own `requireCoverage` policy.
+ * Never throws; `null` for any missing or unusable artifact.
  *
  * @param {string} coveragePath
  * @returns {object|null}
@@ -37,12 +32,7 @@ function stripLeadingDotSlash(p) {
 }
 
 /**
- * Build a single-pass index over a parsed `coverage-final.json` map.
- *
- * Returns `{map, byNormalizedSuffix}` where `byNormalizedSuffix` is a
- * `Map<string, object>` keyed by the POSIX-normalized form of each original
- * key. Lookups that need exact-equality or `/`-bounded suffix matching
- * consult that Map without re-enumerating `Object.keys(map)` on every call.
+ * Entries keyed by POSIX-normalized path.
  *
  * @param {object|null} map
  * @returns {{map: object|null, byNormalizedSuffix: Map<string, object>}}
@@ -72,15 +62,8 @@ function getCoverageIndex(map) {
 }
 
 /**
- * Locate the coverage entry for a repo-relative path.
- *
- * `coverage-final.json` keys are typically absolute, platform-specific paths,
- * while callers pass POSIX-ish repo-relative strings. Match by exact equality
- * or by `/`-bounded suffix so we tolerate both Windows and POSIX producers.
- * If two distinct keys both end with the same `/`-bounded suffix (duplicate
- * basenames in different trees), the suffix is ambiguous — return null
- * rather than picking the first iteration-order hit and silently scoring
- * the wrong file.
+ * Match a repo-relative path to an absolute key by exact or `/`-bounded
+ * suffix. An ambiguous suffix returns null rather than scoring the wrong file.
  */
 function findFileEntry(map, relPath) {
   if (!map || !relPath) return null;
@@ -103,8 +86,6 @@ function findFileEntry(map, relPath) {
 export { findFileEntry as findCoverageEntry };
 
 /**
- * Does the map contain any entry whose path matches `relPath`?
- *
  * @param {object|null} map
  * @param {string} relPath
  * @returns {boolean}
@@ -114,17 +95,8 @@ export function hasCoverageFor(map, relPath) {
 }
 
 /**
- * Build a per-entry index that turns method-coverage lookups from
- * `O(fnCount + statementCount)` per call into `O(method-line-span)`.
- *
- * - `fnByStartLine`: maps either `decl.start.line` or `loc.start.line` to the
- *   raw `fnMap` entry — so callers may key by the escomplex `lineStart`
- *   (which can match either, depending on producer).
- * - `fnLocByStartLine`: same keying, value is `{fnStart, fnEnd}` derived once.
- * - `fnRanges`: every function's `{fnStart, fnEnd, declLine}` triple, used by
- *   the containment / nearest-decl fallbacks when exact-line keying misses.
- * - `statementsByLine`: `Map<line, {total, covered}>` so range scans don't
- *   re-walk the full statement map.
+ * Per-entry index making a method lookup `O(method-line-span)`. Functions are
+ * keyed by both `decl` and `loc` start lines (producers differ).
  *
  * @param {object|null} entry One inner value from a `coverage-final.json` map.
  */
@@ -181,36 +153,15 @@ export function buildEntryIndex(entry) {
 }
 
 /**
- * How far from a `fnMap` declaration line a method start may sit and still
- * be considered the same function.
- *
- * Even after remapping to original-source coordinates (Story #4775), a
- * method's start and istanbul's `decl.start.line` do not always agree on the
- * token: escomplex anchors on the function node, istanbul on the declaration
- * it instruments, and a decorator, a leading `export`, or a multi-line
- * parameter list puts them one line apart. One line of slack absorbs that
- * without letting an unrelated neighbouring function be claimed.
+ * escomplex and istanbul can disagree by one line on a function's start
+ * (decorator, leading `export`, multi-line params); wider would claim a
+ * neighbour.
  */
 const DECL_MATCH_WINDOW = 1;
 
 /**
- * Resolve the `{fnStart, fnEnd}` range of the function a method start line
- * belongs to, in the coordinate system of the coverage entry.
- *
- * Three strategies, most precise first:
- *
- *   1. **Exact** — the line keys a `fnMap` `decl.start.line` or
- *      `loc.start.line`. This is the pre-#4775 behaviour and still wins, so
- *      every already-resolving row keeps its exact prior value.
- *   2. **Containment** — the innermost function whose `loc` range contains
- *      the line. Smallest span wins, so a nested callback is preferred over
- *      the enclosing function that also contains the line.
- *   3. **Nearest declaration** — the closest `decl` line within
- *      `DECL_MATCH_WINDOW`, which absorbs the ±1 token disagreement between
- *      escomplex's method start and istanbul's declaration line.
- *
- * Returns `null` when none of the three finds a function — the caller
- * surfaces that as "no data" rather than "tested zero times."
+ * Exact start line, else innermost containing range, else nearest `decl`
+ * within `DECL_MATCH_WINDOW`; `null` means "no data", not "untested".
  *
  * @param {{fnByStartLine: Map, fnLocByStartLine: Map, fnRanges: Array}} idx
  * @param {number} startLine
@@ -264,23 +215,9 @@ function getEntryIndex(entry) {
 }
 
 /**
- * Compute the statement-coverage ratio for a single method inside a single
- * file's coverage entry.
- *
- * The ratio is the fraction of statements whose `start.line` falls within the
- * function's `loc` range that were executed at least once. An empty range
- * returns 0. A missing / malformed entry or no matching function returns
- * `null` so the caller can distinguish "no data" from "tested zero times."
- *
- * `startLine` MUST be in the coverage entry's own (original-source)
- * coordinate system. Callers scoring transpiled TypeScript remap escomplex's
- * transpiled `lineStart` first — see `transpileIfNeeded`'s `withLineMap`
- * option (Story #4775). Matching is exact-then-containment-then-nearest-decl;
- * see `resolveFnRangeForLine`.
- *
- * The first call on a given entry builds and caches a per-entry index via a
- * non-enumerable Symbol property; consecutive method lookups in the same
- * file pay the build cost exactly once.
+ * Executed fraction of statements in the method's range (0 for an empty
+ * range, `null` for no data). `startLine` MUST be in original-source
+ * coordinates. The entry index is cached on the entry.
  *
  * @param {object|null} entry One inner value from a `coverage-final.json` map.
  * @param {number} startLine The method's start line, in entry coordinates.
@@ -307,8 +244,6 @@ export function coverageForMethodInEntry(entry, startLine) {
 }
 
 /**
- * Look up per-method coverage in a full coverage map.
- *
  * @param {object|null} map Parsed `coverage-final.json`.
  * @param {string} relPath Repo-relative path of the source file.
  * @param {number} startLine The method's start line, in entry coordinates.

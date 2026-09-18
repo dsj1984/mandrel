@@ -1,27 +1,12 @@
 /**
- * coverage-capture-usage.js — the `--help` spec for `coverage-capture.js`
- * (Story #5063).
- *
- * The delivery workflow invokes `coverage-capture.js` by name
- * (`helpers/deliver-story-reference.md` § Step 1), which brings it under the
- * workflow-invoked self-description contract enforced by
- * `tests/enforcement/workflow-script-help.test.js`. It failed that contract:
- * `--help` fell through to the capture path and spawned the whole coverage
- * suite instead of describing the script.
- *
- * The spec lives here rather than inline for the same reason
- * `coverage-capture-incremental.js` does — a same-file expansion of the CLI
- * shell costs maintainability index on a file already near its floor, and a
- * usage table is data, not decision logic.
+ * `--help` spec for `coverage-capture.js`, which must answer `--help` without
+ * spawning the suite.
  */
 
 import { respondToHelp } from './cli-usage.js';
 
 /**
- * Usage spec consumed by `cli-usage.js#respondToHelp`. `coverage-capture.js`
- * does not route through `runAsCli` (its synchronous main returns an exit
- * code that `process.exit` forwards), so the help short-circuit is wired by
- * hand rather than declared on a `runAsCli` call.
+ * Wired by hand: `coverage-capture.js` does not route through `runAsCli`.
  *
  * @type {{ invocation: string, summary: string, flags: Array<[string, string]> }}
  */
@@ -48,11 +33,6 @@ const COVERAGE_CAPTURE_USAGE = {
 };
 
 /**
- * Answer `--help` / `-h` on stdout, returning whether the caller should stop.
- * Takes the full `process.argv`-shaped array so the CLI shell hands over its
- * own argv unchanged and the index arithmetic lives here rather than at the
- * call site.
- *
  * @param {string[]} argv Full `process.argv`-shaped array.
  * @param {{ write: (s: string) => void }} [out] Defaults to `process.stdout`.
  * @returns {boolean} `true` when help was printed and the run must not proceed.

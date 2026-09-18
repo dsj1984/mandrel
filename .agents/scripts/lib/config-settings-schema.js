@@ -11,36 +11,17 @@ import {
 } from './config/github.js';
 import { PATHS_DEFAULTS } from './config/paths.js';
 import { SHELL_INJECTION_PATTERN_STRING } from './config-schema-shared.js';
-// `delivery.*` sub-schemas were extracted to a sibling module (refs #3457)
-// to keep this aggregate module above the maintainability floor. The
-// resolved AGENTRC_SCHEMA is unchanged.
 import { DELIVERY_SCHEMA } from './config-settings-schema-delivery.js';
 import compiledAgentrcValidator from './generated/agentrc-validator.js';
 import { DEFAULT_FRAMEWORK_REPO } from './github/framework-repo.js';
 import { SKILL_ID_RE } from './skills/walk-skill-files.js';
 
 /**
- * Annotation contract (Story #5007). These schema literals are the SINGLE
- * annotated source for the whole `.agentrc.json` surface:
- *
- *   - `description` — the operator-facing gloss. `generate-config-docs.js`
- *     serializes it into the shipped JSON-Schema mirror
- *     (`.agents/schemas/agentrc.schema.json`, which every consumer config
- *     points `$schema` at) and into the `configuration.md` key table.
- *   - `default`     — the value that appears in the generated defaults
- *     inventory `.agents/docs/agentrc-reference.json` (the SSOT
- *     `lib/config/defaults.js` reads for `mandrel explain` and the
- *     sync-agentrc redundancy advisory). Import the matching runtime
- *     `*_DEFAULTS` constant rather than restating a literal wherever one
- *     exists, so the annotation and the resolver cannot drift.
- *
- * A key with a runtime default but no `default` annotation is deliberately
- * out of the inventory — annotating it would change what `mandrel explain`
- * reports and what sync-agentrc flags redundant, which is a behaviour
- * change, not a representation one.
- *
- * Nothing here is hand-mirrored any more: run `npm run docs:gen` after
- * editing, and `npm run docs:check` fails closed on drift.
+ * The single annotated source for `.agentrc.json`: `description` feeds the
+ * generated JSON-Schema mirror and configuration.md; `default` feeds the
+ * defaults inventory (import the runtime `*_DEFAULTS` constant, never restate
+ * a literal). A runtime default left unannotated is deliberately out of the
+ * inventory. Run `npm run docs:gen` after editing.
  */
 
 const SAFE_STRING = {
@@ -53,35 +34,18 @@ const _NULLABLE_SAFE_STRING = {
   not: { type: 'string', pattern: SHELL_INJECTION_PATTERN_STRING },
 };
 
-/**
- * Optional commands that may be `null` to mean "disabled" but, when set as a
- * string, must be non-empty. `minLength` is a string-only keyword so it is a
- * no-op for `null`; the empty string is explicitly rejected.
- */
+/** `null` allowed; a string must be non-empty (`minLength` ignores `null`). */
 const NULLABLE_NONEMPTY_SAFE_STRING = {
   type: ['string', 'null'],
   minLength: 1,
   not: { type: 'string', pattern: SHELL_INJECTION_PATTERN_STRING },
 };
 
-/**
- * Backwards-compatible export used by a handful of call sites that historically
- * scanned the schema for string-shaped fields. Post-reshape, the only
- * top-level flat string field of the legacy agentSettings bag is gone; the
- * export is kept (empty) so old imports don't fail.
- */
+/** Kept empty so existing imports still resolve. */
 export const AGENT_SETTINGS_STRING_FIELDS = Object.freeze([]);
 
-// ---------------------------------------------------------------------------
-// project.* — identity, conventions, commands
-// ---------------------------------------------------------------------------
+// project.*
 
-/**
- * `project.paths` carries the three required filesystem roots. The seven
- * legacy `*Root` subdirectory keys and the legacy `auditOutputDir` were
- * dropped — every `${dir}Root` is derived at runtime as `${agentRoot}/<dir>`
- * and `auditOutputDir` is derived as `${tempRoot}/audits`.
- */
 const PATHS_SCHEMA = {
   type: 'object',
   description:
@@ -113,12 +77,6 @@ const PATHS_SCHEMA = {
   additionalProperties: false,
 };
 
-/**
- * `project.commands` — names of the test/typecheck/lint/format commands the
- * close-validation chain spawns. `typecheck` accepts `null` to mean
- * "disabled"; `lint` accepts `null` to mean "use the framework default",
- * because that gate is mandatory and cannot be switched off. `validate` and `build` were dropped (no production consumers).
- */
 const COMMANDS_SCHEMA = {
   type: 'object',
   description:
@@ -190,35 +148,11 @@ const PROJECT_SCHEMA = {
   additionalProperties: false,
 };
 
-// ---------------------------------------------------------------------------
-// github.* — provider identity, bootstrap, notifications
-// ---------------------------------------------------------------------------
+// github.*
 
 /**
- * Curated webhook event vocabulary. The webhook channel is gated by an
- * explicit allowlist of event names — the vocabulary mirrors the events the
- * v2 runtime actually emits through `notify()` (Story transitions and merge
- * outcomes).
- *
- * `loop.tick` was retired here on the same rule (Story #5024). Its only
- * producer was `emit-loop-tick.js`, which published to the lifecycle bus and
- * never called `notify()` at all — and the bus had no production caller, so
- * the event could not reach a webhook by any path. The notify CLI cannot
- * substitute: it hardcodes `event: 'operator-message'` and exposes no
- * `--event` flag, so a consumer could not dispatch it either. It shipped in
- * `NOTIFICATIONS_DEFAULTS`, which meant every consumer was subscribed by
- * default to something that could never fire.
- *
- * `story.heartbeat` was retired here first (A22): the vocabulary's contract is
- * "events the runtime actually emits", and nothing could emit this one. Its
- * emitter (`emit-story-heartbeat.js`) demanded an `epicId >= 1` while the
- * sole call path (`single-story-init.js` → `setActiveStoryEnv`) passed
- * `epicId: null`, so `CC_EPIC_ID` was never set and the hook that would have
- * fired the beat always short-circuited. Emitter, hook, and schema are all
- * deleted; keeping the name allowlistable would let an operator subscribe to
- * a channel that can never deliver. Removing it from the enum makes a
- * resurrection fail loudly at config-validation time rather than silently
- * never firing.
+ * Webhook allowlist vocabulary: only events the runtime can actually emit, so
+ * an operator can never subscribe to a channel that cannot deliver.
  */
 export const WEBHOOK_EVENT_NAMES = Object.freeze([
   'state-transition',
@@ -230,32 +164,11 @@ export const WEBHOOK_EVENT_NAMES = Object.freeze([
 ]);
 
 /**
- * Curated GitHub-comment event vocabulary. The comment channel is gated by
- * an explicit allowlist of event names — same model as `webhookEvents`.
- *
- * **Deliberately narrower than {@link WEBHOOK_EVENT_NAMES}**, and the axis
- * is ticket scope, not importance. A comment is written *onto a Story
- * issue*, so only events that are about one Story, and whose message reads
- * as narrative an operator wants durably on the ticket, belong here. The
- * webhook-only remainder — `merge.unlanded` and `merge.flip-failed` — are
- * run-scoped beats; mirroring them onto the ticket would bury the narrative
- * under machine chatter, and `notify()` drops a comment for any dispatch
- * without a resolvable ticket id regardless.
- *
- * Note both webhook-only names are allowlistable but have no `notify()`
- * dispatcher today — they reach the run ledger via `appendLedgerEvent`, not
- * the notify path. That is a wiring gap, deliberately left alone by Story
- * #5024 (which only removed `loop.tick`, whose producer went with the bus):
- * unlike `loop.tick` these two have a live producer, so whether to wire the
- * dispatch or drop the allowlist entries is an open decision, not dead code.
- *
- * `story-closing` IS in scope by that rule (Story-scoped, `level: 'story'`,
- * human-readable — the same shape as `story-merged`) and its earlier
- * absence was an oversight: the event was emittable to webhooks but could
- * not be allowlisted for comments at all. It is in the vocabulary but NOT
- * in the shipped default (`config/github.js` `NOTIFICATIONS_DEFAULTS`) —
- * opting in is an operator choice, not a behaviour change forced on every
- * consumer.
+ * Comment allowlist vocabulary, deliberately narrower than
+ * {@link WEBHOOK_EVENT_NAMES}: only Story-scoped narrative events belong on a
+ * ticket. The run-scoped `merge.*` beats stay webhook-only (they reach the
+ * run ledger, not `notify()`; wiring them is an open decision, not dead code).
+ * `story-closing` is allowlistable but not in the shipped default.
  */
 export const COMMENT_EVENT_NAMES = Object.freeze([
   'state-transition',
@@ -372,12 +285,8 @@ const MERGE_METHODS_SCHEMA = {
 };
 
 /**
- * Where follow-up work is filed when the repository that surfaced it does not
- * own it. Ownership splits three ways — consumer / framework / platform — and
- * `github.owner`/`github.repo` already carry the consumer bucket, so only the
- * other two are configured here. Routing itself lives in
- * `lib/github/framework-repo.js`; an unset bucket is reported as unroutable
- * rather than silently re-pointed at the consumer's own tracker.
+ * The non-consumer follow-up buckets (`github.owner/repo` is the consumer
+ * one). An unset bucket is reported unroutable, never re-pointed locally.
  */
 const FOLLOW_UP_REPOS_SCHEMA = {
   type: 'object',
@@ -449,50 +358,13 @@ const GITHUB_SCHEMA = {
   additionalProperties: false,
 };
 
-// ---------------------------------------------------------------------------
-// planning.* — inputs to /mandrel-plan
-// ---------------------------------------------------------------------------
-
-// Story #4541: `planning.context.{maxBytes, summaryMode}` was retired. The
-// `applyBudget` pass it fed lost its last caller in the v2 cutover, and it
-// bounded a field the envelope builders discarded before shipping the raw seed
-// anyway — so the key resolved but capped nothing. The live bound on
-// planner-context size is the fixed `PLAN_CONTEXT_ENVELOPE_BYTE_CEILING` in
-// `lib/orchestration/plan-context.js`. Setting `planning.context` is now
-// rejected as an additional property, so a resurrected key fails loudly rather
-// than silently doing nothing.
-
-// Story #4811: the `planning` block's structural-snapshot key was retired
-// along with the snapshot itself. The pre-computed view it configured grounded
-// nothing — its default include globs missed the standard monorepo layout, and
-// its knobs only re-filtered the same matched set. Spec authoring is grounded
-// by the author's own targeted repo retrieval plus the Phase 8
-// `validateStoryFileAssumptions` gate, neither of which is configurable here.
-// `planning` carries `additionalProperties: false`, so a resurrected key fails
-// loudly; the 2.20.0 retirement migration strips it on upgrade.
-
-// Story #5312 — the planning diet. `riskHeuristics`, `complexityGate`,
-// `memoryPool.{staleAfterDays, growthDelta}`, `failOnSharedEditors`,
-// `requireExplicitCrossStoryDeps`, `failOnRegistryConflicts`,
-// `failOnLargeFanOut`, `largeFanOutThreshold` and `crossCuttingRegistries`
-// were retired together: every one either never fired on real work, duplicated
-// a judgment the authoring model already makes, or guarded a consumer that no
-// longer exists. The block stays `additionalProperties: false`, so a config
-// still carrying one fails loudly; the 2.57.0 retirement migration strips them
-// on upgrade.
-//
-// Story #5382 folded `memoryPool.indexByteCeiling` into the fixed
-// `INDEX_BYTE_CEILING` (24576 — the harness's own index cap) in
-// `planning/memory-pool-advisory.js`; no surveyed config set it.
+// planning.* — `additionalProperties: false`, so a retired key fails loudly.
 
 const PLANNING_SCHEMA = {
   type: 'object',
   description:
     'Inputs to `/mandrel-plan`: the opt-in navigability reachability gate.',
   properties: {
-    // Navigability-reachability config consumed by the plan-persist draft
-    // reachability gate (Epic #4131 F7; demoted into persist by #4474 PR6).
-    // Opt-in: absent or empty routeGlobs degrades to a silent no-op.
     navigation: {
       type: 'object',
       description:
@@ -519,49 +391,10 @@ const PLANNING_SCHEMA = {
   additionalProperties: false,
 };
 
-// ---------------------------------------------------------------------------
-// delivery.* — /mandrel-deliver + story-deliver consume. The full block of
-// per-key sub-schemas lives in `config-settings-schema-delivery.js` (refs
-// #3457); DELIVERY_SCHEMA is imported above and referenced unchanged below.
-// ---------------------------------------------------------------------------
-// Top-level: { project, github, planning, delivery }
-// ---------------------------------------------------------------------------
+// qa.* — agent-driven QA harness contract.
 
-/**
- * The top-level `.agentrc.json` shape, post-reshape (Epic #1720 Story #1739).
- *
- * The four blocks mirror SDLC phases:
- *   - `project`  — identity, paths, commands, docs context.
- *   - `github`   — provider identity, branch protection, merge methods,
- *                  notifications.
- *   - `planning` — the memory-hygiene advisory ceiling, navigability gate.
- *   - `delivery` — execution timeouts, worktree isolation, deliver-runner
- *                  concurrency, docs-freshness, signals, quality.
- *
- * Hard cutover (Epic #2646, Story #2687; finalized by Epic #2880, Story
- * #2935): the legacy `agentSettings.*` / `orchestration.*` input shape is
- * rejected entirely by this schema (top-level `additionalProperties: false`
- * fails any document carrying those keys), the corresponding resolver-side
- * compat branches were swept across the seven `lib/config/*.js` accessors,
- * and the output-side shim on `resolveConfig` was deleted — every consumer
- * now reads the canonical `project` / `github` / `planning` / `delivery`
- * blocks directly.
- */
-// ---------------------------------------------------------------------------
-// qa.* — Agent-driven QA harness contract (Epic #3214)
-// ---------------------------------------------------------------------------
-
-// The per-environment sign-in seam. `{ urlTemplate }` is a dev
-// impersonation route; `{ skill }` names a skill by its tier-relative id
-// (e.g. `stack/qa/acme-sso`), resolved against the payload skills root and
-// then the consumer-writable `.agents/local/skills/` zone (Story #5135).
-//
-// No default anywhere in this file may name a skill id: the framework ships
-// no sign-in skill, so any id baked into an inventory value would be a
-// dangling pointer a consumer copies verbatim — the exact defect #5134
-// reported. The `{ skill }` arm is taught in prose (`.agents/README.md`
-// § "Expose a `signInSeam`"), and `resolveQaEnvironment` fails loudly on an
-// id that resolves under neither root.
+// No default in this file may name a skill id: the framework ships no sign-in
+// skill, so any baked-in id is a dangling pointer consumers copy verbatim.
 const QA_SIGN_IN_SEAM_SCHEMA = {
   oneOf: [
     {
@@ -575,10 +408,8 @@ const QA_SIGN_IN_SEAM_SCHEMA = {
     {
       type: 'object',
       properties: {
-        // The id is joined onto a skills root to reach a `SKILL.md`, so the
-        // shape is validated here rather than at the path join (Story #5285).
-        // `SKILL_ID_RE` is imported, never restated: one regex, two
-        // enforcement points — this schema and `resolveSkillFile`.
+        // The id is joined onto a skills root, so its shape is validated here;
+        // `SKILL_ID_RE` is shared with `resolveSkillFile`, never restated.
         skill: {
           ...SAFE_STRING,
           minLength: 1,
@@ -593,21 +424,11 @@ const QA_SIGN_IN_SEAM_SCHEMA = {
   ],
 };
 
-// `personas` accepts two shapes (Story #3306). The plain `string[]` of
-// persona names is the honest shape for a `urlTemplate` dev-impersonation
-// seam, where the workflow substitutes only the persona name into the URL
-// and never reads per-persona auth material. The object-map form (keyed by
-// persona name, each entry carrying `credentialRef` or `signInSkill`) is
-// for `skill`/credential seams where per-persona material is genuinely
-// consulted. The resolver normalizes both to one canonical internal form.
+// The resolver normalizes both shapes to one canonical internal form.
 const QA_PERSONAS_SCHEMA = {
   description:
     'Personas the QA-harness sign-in seam accepts. Two accepted shapes: (1) a plain array of persona names — the honest shape for a `urlTemplate` dev-impersonation seam, where the persona name is the sole input the workflow consumes; (2) the object-map form keyed by persona name, where each entry carries per-persona auth material (`credentialRef` or `signInSkill`) consulted only under a skill-based or credential-based seam.',
-  // Inventory value: an illustrative map showing both per-persona shapes.
-  // Inventory value: illustrative credential references, not resolvable
-  // ones. It deliberately does NOT illustrate the `signInSkill` arm — a
-  // skill id in a shipped default is a dangling pointer (see
-  // QA_SIGN_IN_SEAM_SCHEMA above); that arm is taught in prose instead.
+  // Illustrative only; omits the `signInSkill` arm (no skill ids in defaults).
   default: {
     admin: { credentialRef: 'QA_ADMIN_CREDENTIAL' },
     member: { credentialRef: 'QA_MEMBER_CREDENTIAL' },
@@ -645,23 +466,11 @@ const QA_PERSONAS_SCHEMA = {
   ],
 };
 
-// `environments` is the environment-keyed contract (Epic #4326, Story #4327).
-// It replaces the retired top-level single `signInSeam` shape: each named
-// environment carries its own `baseUrl`, its own per-environment `signInSeam`
-// (reusing the same url-template/skill union), and an optional `allowWrites`
-// gate. Downstream, `resolveQaEnvironment` selects one environment per
-// invocation by name or by raw-URL origin match against `baseUrl`. The map
-// must carry at least one environment. This is a hard cutover — there is no
-// top-level `signInSeam` acceptance branch (see
-// `.agents/rules/git-conventions.md` § Contract Cutovers).
 const QA_ENVIRONMENTS_SCHEMA = {
   type: 'object',
   description:
     'Deployment targets the QA harness can run against (Epic #4326). A map keyed by environment name (e.g. `local`, `staging`), each carrying its own `baseUrl`, an optional per-environment sign-in seam, and an optional `allowWrites` gate. `signInSeam` is the union `{ urlTemplate }` (a dev impersonation route) or `{ skill }` (a skill id such as `stack/qa/acme-sso`, resolved against `.agents/skills/` then the consumer-writable `.agents/local/skills/` zone, and rejected loudly by resolveQaEnvironment when it resolves under neither); omit it entirely for a target with no sign-in seam. resolveQaEnvironment selects one environment per invocation by name or by raw-URL origin match against `baseUrl`; `allowWrites` defaults to true only for the `local` environment. Replaces the retired top-level single `signInSeam`.',
-  // Inventory value: an illustrative two-environment map, not a resolvable
-  // default. `staging` deliberately carries NO `signInSeam` — that is the
-  // honest shape for a deployed target with no dev sign-in seam, and it
-  // shows the field is optional (Story #5135).
+  // Illustrative; `staging` omits `signInSeam` to show it is optional.
   default: {
     local: {
       baseUrl: 'http://localhost:3000',
@@ -680,29 +489,19 @@ const QA_ENVIRONMENTS_SCHEMA = {
       signInSeam: QA_SIGN_IN_SEAM_SCHEMA,
       allowWrites: { type: 'boolean' },
     },
-    // `signInSeam` is OPTIONAL (Story #5135). An environment that resolves no
-    // seam is a state the QA workflows already branch on — they drive the
-    // unauthenticated surface and record the gap — so requiring it made an
-    // honestly seamless remote target undeclarable.
+    // No seam is a state QA workflows handle (unauthenticated drive).
     required: ['baseUrl'],
     additionalProperties: false,
   },
 };
 
-// `gherkinLint` is the static corpus gate's contract (Story #5013). It is
-// deliberately its own sub-block rather than more top-level `qa` keys: the
-// gate is opt-in as a whole, so presence of the block IS the opt-in signal,
-// and `check-gherkin-corpus.js` needs exactly one thing to test for. `scopes`
-// is a map rather than an array because a scope's name appears verbatim in
-// every finding, and a map makes naming it mandatory. Defaults for the two
-// escape hatches live in `lib/config/qa.js` (GHERKIN_LINT_DEFAULTS).
+// Presence of the block is the opt-in signal. `scopes` is a map so every
+// scope is named (the name appears in each finding).
 const QA_GHERKIN_LINT_SCHEMA = {
   type: 'object',
   description:
     'Static Gherkin corpus gate (Story #5013). Optional; the gate runs only when this block is present, so an upgrade never reddens the lint of a consumer that never asked the framework to police its `.feature` files. Inside the opt-in it fails closed: an unresolvable `@cucumber/gherkin` parser, or a scope resolving zero step definitions, exits 1 rather than reporting a clean run.',
-  // Inventory value: an illustrative single-scope map, not a resolvable
-  // default. Every path here is project-specific; the entry exists so
-  // `mandrel explain` can show the expected shape.
+  // Illustrative shape for `mandrel explain`, not a resolvable default.
   default: {
     scopes: {
       web: {
@@ -821,13 +620,7 @@ export const AGENTRC_SCHEMA = {
 let _agentrcValidator = null;
 
 /**
- * Compile `AGENTRC_SCHEMA` with a live AJV instance.
- *
- * `ajv` is pulled in through `createRequire` rather than a top-level
- * `import` so the module never enters the graph on the fast path
- * (Story #5109). Loading AJV was itself a measurable share of the ~35 ms
- * this function used to cost in each of the 36 config-touching entry
- * scripts, and the precompiled validator needs none of it.
+ * `ajv` loads via `createRequire` so it stays off the fast path entirely.
  *
  * @returns {import('ajv').ValidateFunction}
  */
@@ -840,20 +633,10 @@ function compileAgentrcValidatorDynamically() {
 }
 
 /**
- * The `.agentrc.json` validator.
- *
- * Returns the **precompiled** validator committed at
- * `lib/generated/agentrc-validator.js` — AJV's standalone emit for the exact
- * `AGENTRC_SCHEMA` literal above, kept in step by
- * `check-generated-validator.js --check` inside `npm run lint`. The verdicts
- * are AJV's own, produced by AJV's own generated code with the same
- * `allErrors: true` option the dynamic path uses, so nothing about what a
- * config is allowed to contain changes — only when the codegen runs.
- *
- * Set `MANDREL_AGENTRC_VALIDATOR=dynamic` to compile at runtime instead. That
- * escape hatch exists so a consumer who has hand-edited the schema (or hit a
- * platform where the generated module will not load) is never stuck with a
- * validator they cannot regenerate; it costs the ~35 ms the artifact removes.
+ * Returns the precompiled AJV standalone validator (kept in step with
+ * `AGENTRC_SCHEMA` by `check-generated-validator.js`).
+ * `MANDREL_AGENTRC_VALIDATOR=dynamic` compiles at runtime instead, for a
+ * hand-edited schema or a platform where the generated module won't load.
  *
  * @returns {import('ajv').ValidateFunction}
  */

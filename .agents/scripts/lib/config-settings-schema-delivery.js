@@ -1,12 +1,6 @@
 /* node:coverage ignore file -- AJV schema declaration (data-as-code); MI < 70 is inherent to large flat schema literals, no business logic to test */
 
-// ---------------------------------------------------------------------------
-// delivery.* sub-schemas — extracted from config-settings-schema.js to keep
-// the aggregate AGENTRC_SCHEMA module under the maintainability floor. These
-// are pure declarative AJV fragments referenced by DELIVERY_SCHEMA; moving
-// them here does not change validation semantics (the resolved schema is
-// byte-for-byte equivalent in effect).
-// ---------------------------------------------------------------------------
+// delivery.* sub-schemas of AGENTRC_SCHEMA.
 
 import { ACCEPTANCE_EVAL_DEFAULTS } from './config/acceptance-eval.js';
 import { CI_DELIVERY_DEFAULTS } from './config/ci.js';
@@ -14,9 +8,6 @@ import { DELIVERY_ROUTING_DEFAULTS } from './config/delivery-routing.js';
 import { DEFAULT_CODE_REVIEW } from './config/runners.js';
 import { WORKTREE_ISOLATION_DEFAULTS } from './config/worktree-isolation.js';
 import { SHELL_INJECTION_PATTERN_STRING } from './config-schema-shared.js';
-// `delivery.quality` and `delivery.codeReview` sub-schemas live in a
-// further-split module (refs #3457) so each schema file stays above the
-// maintainability floor.
 import {
   CODE_REVIEW_SCHEMA,
   QUALITY_SCHEMA,
@@ -27,11 +18,6 @@ const SAFE_STRING = {
   not: { pattern: SHELL_INJECTION_PATTERN_STRING },
 };
 
-// Story #5382 folded `execution.timeoutMs` (600000, now
-// `LIMITS_DEFAULTS.executionTimeoutMs`) and the opt-in
-// `execution.requireCreditedCapture` into constants; neither was ever set by a
-// surveyed config. `fullSuiteLock` stays: it is the config half of an
-// operator opt-out whose env half is `MANDREL_FULL_SUITE_LOCK=0`.
 const EXECUTION_SCHEMA = {
   type: 'object',
   description: 'Serialization of the full-suite spawns delivery drives.',
@@ -62,11 +48,6 @@ const DOCS_FRESHNESS_SCHEMA = {
   additionalProperties: false,
 };
 
-/**
- * `delivery.deliverRunner` — bounded-concurrency knob for the epic-deliver
- * fan-out. Flattened post-reshape — no `runners.` wrapper, no `enabled`
- * field (operators dial concurrency directly).
- */
 const DELIVER_RUNNER_SCHEMA = {
   type: 'object',
   description: 'Bounded-concurrency knob for the /mandrel-deliver fan-out.',
@@ -76,9 +57,7 @@ const DELIVER_RUNNER_SCHEMA = {
       minimum: 1,
       description:
         'Maximum ready Stories dispatched by /mandrel-deliver at once. Default 3. Moderate by design — keeps host-quota consumption predictable while allowing a small ready-set fan-out. Set 1 for strictly sequential delivery; raise further on hosts with adequate parallel-agent quota. See deliver.md for the sequencing model and throughput tradeoff.',
-      // getRunners() resolves this from its own DEFAULT_DELIVER_RUNNER
-      // constant, not from this annotation; the parity suite asserts the two
-      // agree.
+      // Runtime reads DEFAULT_DELIVER_RUNNER; a parity test keeps them equal.
       default: 3,
     },
     footprintGuard: {
@@ -92,9 +71,6 @@ const DELIVER_RUNNER_SCHEMA = {
   additionalProperties: false,
 };
 
-/**
- * `delivery.worktreeIsolation` — per-Story git worktree provisioning.
- */
 const WORKTREE_ISOLATION_SCHEMA = {
   type: 'object',
   description:
@@ -118,9 +94,7 @@ const WORKTREE_ISOLATION_SCHEMA = {
       enum: ['per-worktree', 'clone', 'symlink', 'pnpm-store'],
       description:
         'How each worktree gets its dependencies. `clone` copy-on-writes the main checkout tree (fast, cross-platform); `per-worktree` runs a full install; `symlink` links the shared tree (POSIX only unless `allowSymlinkOnWindows`); `pnpm-store` re-links from the pnpm content store.',
-      // Pinned to the cross-platform documented default. The runtime constant
-      // is evaluated at import time and resolves to `per-worktree` on win32,
-      // so it must not be imported here.
+      // Not imported: the runtime constant is `per-worktree` on win32.
       default: 'clone',
     },
     primeFromPath: {
@@ -151,7 +125,6 @@ const WORKTREE_ISOLATION_SCHEMA = {
     },
   },
   additionalProperties: false,
-  // `root` is required only when isolation is explicitly enabled.
   allOf: [
     {
       if: {
@@ -164,36 +137,6 @@ const WORKTREE_ISOLATION_SCHEMA = {
   ],
 };
 
-/**
- * `delivery.mergeWatch` — knobs consumed by the close-and-land merge wait
- * listener (Story #2896, Epic #2880) and by the close-and-land merge wait
- * (`single-story-close/phases/confirm-merge.js`).
- *
- * The two budgets are deliberately separate axes (Story #4543):
- *
- *   - `maxWaitSeconds` bounds **one invocation** of the merge wait. Its
- *     default (300s) fits inside a single host tool invocation, whose
- *     ceiling is ~10 minutes; the gates that run before the wait already
- *     consume minutes of that. Expiry is NOT a block — the wait returns a
- *     resumable `pending` terminal with no label mutation. A headless caller
- *     with no such ceiling raises it to keep land-in-one-block semantics.
- *   - `maxBudgetSeconds` bounds the **cumulative** wait across resumes,
- *     anchored at the PR's `createdAt` so re-entering the wait does not
- *     restart the clock. Exhausting *this* is the genuine give-up condition
- *     that classifies and blocks.
- *
- * The poll cadence (30s) and the behind-the-base update cap (3) are fixed
- * constants in `confirm-merge.js` since Story #5382 folded the never-set
- * `intervalSeconds` / `updateAttempts` keys.
- *
- * `mode` selects the close-time merge posture (Story #4698). Default `sync`
- * keeps the in-close foreground wait unchanged. `async` caps the per-invocation
- * wait to a short probe window (~60s: catches instant merges and instantly-red
- * required checks) and then returns the resumable `pending` terminal, so a
- * slow-CI consumer no longer burns ~5 minutes of the host tool slot on a merge
- * that lands after the wait would have expired anyway — the worker launches the
- * `pending` envelope's `nextCommand` in the background instead.
- */
 const MERGE_WATCH_SCHEMA = {
   type: 'object',
   description:
@@ -222,21 +165,6 @@ const MERGE_WATCH_SCHEMA = {
   additionalProperties: false,
 };
 
-/**
- * `delivery.epicAudit` was removed on v2 (Story-only delivery — no
- * epic-audit runner). Remediation policy lives on `delivery.codeReview`
- * (`CODE_REVIEW_SCHEMA` imported from the quality schema module).
- */
-
-// Epic #4478 (M7-B) — role-scoped-agent kill-switch.
-// Stage 6 dropped `delivery.routing.singleDelivery` (v1 epic route switch).
-// `delivery.routing.roleScopedAgents` (default true via getDeliveryRouting)
-// flips converted delivery spawns onto their `.claude/agents/<role>.md` boot
-// context; false falls back to `subagent_type: general-purpose` (the instant
-// per-consumer revert + the escape for hosts that ignore `.claude/agents/`).
-// Story #5313 retired `delivery.routing.freshCriticSampleRate` (the
-// maker-checker sampling floor). Story #5343 then retired the derived-level
-// routing it left behind: the profile alone decides the verdict owner.
 const ROUTING_SCHEMA = {
   type: 'object',
   description:
@@ -265,12 +193,6 @@ const ROUTING_SCHEMA = {
   additionalProperties: false,
 };
 
-// Story #4356 (Epic #4355) — CI-aware delivery namespace: the merge posture
-// and the advisory-check policy. The `watch.*` poll-loop tuning keys
-// (`pollIntervalMs`, `maxPolls`, `maxResumes`, `attachWindowMs`) were never
-// set by any surveyed config; Story #5382 fixed them as `WATCH_DEFAULTS` in
-// `pr-watch-with-update.js`, whose `--poll-interval-ms` / `--max-polls` /
-// `--max-resumes` / `--attach-window-ms` flags still override per invocation.
 const CI_DELIVERY_SCHEMA = {
   type: 'object',
   description:
@@ -307,15 +229,6 @@ const CI_DELIVERY_SCHEMA = {
   additionalProperties: false,
 };
 
-/**
- * `delivery.refactorStage` — opt-in, config-gated post-green refactor
- * checkpoint wired into story-deliver (Story #3430, Epic #3418). Strictly
- * additive and default-OFF: when `enabled` is unset or `false`, story-deliver
- * behaves exactly as before. When `true`, the worker runs an advisory
- * post-green refactor pass (the `core/code-review-and-quality` skill's
- * Post-Green Refactor Pass) after the suite is green. The stage is
- * advisory only — it never changes existing close-validation gate semantics.
- */
 const REFACTOR_STAGE_SCHEMA = {
   type: 'object',
   description:
@@ -331,21 +244,6 @@ const REFACTOR_STAGE_SCHEMA = {
   additionalProperties: false,
 };
 
-/**
- * `delivery.acceptanceEval` — bounded per-Story acceptance self-eval loop
- * (Story #3819). After the implementation commits land and before the
- * Story-implementation phase flips to `closing`, an independent
- * (fresh-context) critic pass scores the caller-injected change set against
- * each inline `acceptance[]` item, redrafts the unmet items, and
- * re-evaluates — capped at `maxRounds` redraft rounds.
- *
- * `maxRounds` is the operator-tunable redraft ceiling (default 2 via
- * `lib/config/acceptance-eval.js`). Story #5313 dropped the hard ceiling and
- * the floor-of-one clamp: `maxRounds: 0` is valid and means one pass scored
- * once with no redraft round. There is intentionally **no** `enabled` flag —
- * the scoring pass is a hard cutover, always on, per
- * `rules/git-conventions.md`.
- */
 const ACCEPTANCE_EVAL_SCHEMA = {
   type: 'object',
   description:
@@ -362,36 +260,7 @@ const ACCEPTANCE_EVAL_SCHEMA = {
   additionalProperties: false,
 };
 
-/**
- * `delivery.feedbackLoop` — the **opt-in** toggle consumed by the retro
- * auto-file graduator (`lib/feedback-loop/retro-proposals-graduator.js`, read
- * via `graduator-core.js#makeIsAutoFileEnabled`), plus the friction window.
- *
- * `auditResultsAutoFile` used to sit beside `retroProposals` here. Its
- * graduator was deleted two releases ago, so by Story #5341 — which flipped
- * its default from `true` to `false` on the measured record of what the
- * channel produced — there was nothing left to switch either way. Story #5366
- * removed the key: a toggle with no runtime reader reads as a live control,
- * and a consumer that set it was configuring nothing. The
- * `2.60.0-retire-audit-results-autofile` migration strips it from both config
- * surfaces, because this block is closed to additional properties and a
- * surviving key is a hard validation failure on upgrade.
- *
- * `retroProposals` (Story #4418) governs the retro auto-filer, and defaults to
- * `false` for the same Story #5341 reasons: Story #5324's roll-up carried 116
- * signals and filed nothing, and issues #4653, #4833, #4834 and #4836 are
- * filings that were false or leaked from test fixtures. An auto-filer whose
- * output is dominated by noise costs triage on every run and buys nothing, so
- * a consumer that wants it now asks for it. When `true` the
- * retro's actionable routed proposals are filed as
- * `meta::<framework-gap|consumer-improvement>` + `friction::<category>`
- * issues via the graduator pre-parsed-findings seam, and the rendered retro
- * sections list the filed issue numbers instead of paste-ready `gh` command
- * stanzas; left `false` it renders the command stanzas.
- *
- * The friction recurrence window (Story #4850) is a fixed 30 days since Story
- * #5382 folded the never-set `frictionWindowDays` key.
- */
+// `retroProposals` defaults off: the auto-filer's output was mostly noise.
 const FEEDBACK_LOOP_SCHEMA = {
   type: 'object',
   description:
@@ -407,15 +276,8 @@ const FEEDBACK_LOOP_SCHEMA = {
   additionalProperties: false,
 };
 
-/**
- * `delivery.tempRetention` — auto-purge of spent temp artifacts (Story #4794).
- *
- * `enabled` defaults to `true`: reclaiming a landed Story's gate transcripts
- * and evidence is the behaviour, and the knob exists to turn it off. `classes`
- * lets an operator keep one family while purging the rest. The age floor for
- * the families no Story id can be recovered from (audit reports, abandoned
- * `plan-<slug>/` dirs) is a fixed 7 days since Story #5382.
- */
+// Families with no recoverable Story id (audits, plan dirs) use a fixed
+// 7-day age floor.
 const TEMP_RETENTION_SCHEMA = {
   type: 'object',
   description:
@@ -481,12 +343,7 @@ export const DELIVERY_SCHEMA = {
     tempRetention: TEMP_RETENTION_SCHEMA,
     deliverRunner: DELIVER_RUNNER_SCHEMA,
     worktreeIsolation: WORKTREE_ISOLATION_SCHEMA,
-    // `quality.gates.crap.incrementalCoverage` (Story #4981) is declared in
-    // `config/gates/crap.schema.js` and reaches AJV validation through this
-    // property — QUALITY_SCHEMA → GATES_SCHEMA → CRAP_GATE. No separate
-    // declaration lives here; this is the composition point that makes the
-    // gate-level schema authoritative for the top-level `.agentrc.json`
-    // surface this module validates.
+    // Gate-level schemas (`config/gates/*.schema.js`) compose in here.
     quality: QUALITY_SCHEMA,
     mergeWatch: MERGE_WATCH_SCHEMA,
     codeReview: CODE_REVIEW_SCHEMA,

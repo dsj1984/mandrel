@@ -1,24 +1,8 @@
-// .agents/scripts/lib/command-header.js
-/**
- * Pure helper for projecting workflow `.md` files into slash commands:
- * injects the AUTO-GENERATED provenance header without disturbing YAML
- * frontmatter placement.
- *
- * Kept as its own module (rather than inline in `sync-claude-commands.js`,
- * which runs its sync at import time via top-level await) so it can be unit
- * tested directly.
- */
+/** Helpers for projecting workflow `.md` files into slash commands. */
 
 /**
- * Inject `header` into a workflow's `content`. When the source begins with a
- * YAML frontmatter block, the header is inserted **after** the closing `---`
- * so the frontmatter stays on line 1; sources without frontmatter keep the
- * header prepended verbatim.
- *
- * Claude Code only parses a command's frontmatter (its `description`) when the
- * `---` block is the very first thing in the file. Prepending the HTML comment
- * above it made `claude plugin validate` report "No frontmatter block found"
- * for every command and silently dropped all descriptions.
+ * Insert `header` after any YAML frontmatter: Claude Code only parses
+ * frontmatter that starts on line 1.
  *
  * @param {string} content - Raw workflow `.md` content.
  * @param {string} header - Provenance header to inject (typically ends `\n\n`).
@@ -33,15 +17,9 @@ export function applyHeader(content, header) {
 }
 
 /**
- * True when a workflow opts out of slash-command projection via a
- * `command: false` key in its YAML frontmatter (#4482). Used for dual-use
- * lens files (e.g. `audit-security.md`) that stay in
- * the payload as `/mandrel-deliver` audit-suite prompts but must NOT surface as
- * standalone slash commands because the host ships a native equivalent.
- *
- * Both `sync-claude-commands.js` (projection + orphan-reap) and the
- * `commands-in-sync` doctor check (parity expectation) consult this flag so
- * an excluded workflow never reads as "not synced".
+ * `command: false` in frontmatter opts a workflow out of slash-command
+ * projection (e.g. a lens the host ships natively). The sync and the doctor
+ * parity check both honour it.
  *
  * @param {string} content - Raw workflow `.md` content.
  * @returns {boolean}

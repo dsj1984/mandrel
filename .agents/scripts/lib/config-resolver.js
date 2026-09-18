@@ -1,25 +1,7 @@
 /**
- * Unified Configuration Resolver — facade (Epic #1720 Story #1739).
- *
- * Resolution chain: `<project-root>/.agentrc.local.json` (optional) →
- * `.agentrc.json` → built-in defaults. Object keys deep-merge; absent local
- * file is a no-op.
- * `.env` is loaded lazily once per resolved root via `loadEnv`.
- *
- * Post-reshape, `.agentrc.json` declares four top-level blocks:
- * `project`, `github`, `planning`, `delivery`. The resolver runs the
- * full-document AJV gate (`AGENTRC_SCHEMA`) on load and returns a wrapper
- * carrying each block plus a `raw`/`source` metadata pair.
- *
- * Hard cutover (Epic #2880, Story #2947): both the input-side and
- * output-side legacy shapes are gone. Legacy `agentSettings.*` /
- * `orchestration.*` input documents are rejected by the AJV schema
- * (`additionalProperties: false` at the top level), and the previously
- * synthesized `agentSettings` / `orchestration` output pointers have been
- * deleted from the resolver wrapper. Every internal call site reads the
- * canonical `project` / `github` / `planning` / `delivery` blocks
- * directly; consumers upgrade in lockstep with the framework bump
- * (see `.agents/rules/git-conventions-reference.md#contract-cutovers-—-no-shim-layer`).
+ * Configuration resolver facade: `.agentrc.local.json` deep-merges over
+ * `.agentrc.json` over built-in defaults, validated against `AGENTRC_SCHEMA`
+ * on load. `.env` loads lazily once per resolved root.
  */
 
 import fs from 'node:fs';
@@ -94,10 +76,8 @@ function applyCommandsDefaults(project) {
 }
 
 /**
- * Enrich `delivery.worktreeIsolation` so an omitted field resolves to
- * WORKTREE_ISOLATION_DEFAULTS. Critical for `enabled`/`root` —
- * `Boolean(undefined) === false` previously disabled worktrees silently
- * when the operator omitted the block.
+ * Omitted `worktreeIsolation` fields resolve to defaults — otherwise an
+ * absent `enabled` reads as false and silently disables worktrees.
  */
 function applyDeliveryDefaults(rawDelivery) {
   const delivery = { ...(rawDelivery ?? {}) };
@@ -110,10 +90,6 @@ function applyDeliveryDefaults(rawDelivery) {
   return delivery;
 }
 
-/**
- * Apply framework defaults for the four top-level blocks. Pure (no
- * mutation) — returns a fresh object.
- */
 /**
  * Deep-merge plain objects for the `.agentrc.local.json` overlay. Arrays and
  * scalars from `override` replace the base value at that key.
@@ -173,9 +149,6 @@ const ZERO_CONFIG_RAW = Object.freeze({
 
 function applyDefaults(raw) {
   const project = applyCommandsDefaults({ ...(raw.project ?? {}) });
-  // Default docsContextFiles list — same five files the framework has
-  // always shipped, preserved here so zero-config callers and configs
-  // that omit the list both get the canonical mandatory-reads set.
   if (project.docsContextFiles == null) {
     project.docsContextFiles = [
       'architecture.md',
@@ -193,29 +166,15 @@ function applyDefaults(raw) {
     github: applyGithubDefaults(raw.github),
     planning: raw.planning ?? {},
     delivery: applyDeliveryDefaults(raw.delivery),
-    // `qa` is an optional top-level block (agentrc.schema.json
-    // `#/$defs/qa`). It needs no default-layering — the harness resolver
-    // (`resolveQaContract`) owns normalization and required-field
-    // enforcement — it only needs to survive the reshape so
-    // `/qa-run` Step 0 can read it off the resolved wrapper.
+    // Passed through as authored; `resolveQaContract` owns normalization.
     ...(raw.qa !== undefined ? { qa: raw.qa } : {}),
   };
 }
 
 /**
- * Load + validate `.agentrc.json` and return the resolved wrapper.
- *
- * Returned shape:
- *   {
- *     project, github, planning, delivery,  // post-reshape canonical blocks
- *     qa,                                    // optional QA-harness block (present iff authored)
- *     raw, source,
- *   }
- *
- * Error policy:
- *   - File missing (ENOENT) → fall through to built-in defaults (zero-config).
- *   - File present but malformed JSON → throw immediately.
- *   - Schema validation failure → throw with a single-line error list.
+ * Returns `{ project, github, planning, delivery, qa?, raw, source }`. A
+ * missing file falls back to defaults; malformed JSON or a schema failure
+ * throws.
  *
  * @param {{ bustCache?: boolean, cwd?: string, validate?: boolean, ctx?: object }} [opts]
  */
