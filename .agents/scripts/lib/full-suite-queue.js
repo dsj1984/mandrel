@@ -49,7 +49,7 @@ let sequence = 0;
  * @param {{ lockPath: string, nowFn?: () => number, fsImpl?: object, processImpl?: object }} opts
  * @returns {Ticket|null}
  */
-export function enqueueWaiter({
+function enqueueWaiter({
   lockPath,
   nowFn = Date.now,
   fsImpl = fs,
@@ -83,7 +83,7 @@ export function enqueueWaiter({
  * @param {Ticket|null} ticket
  * @param {{ nowFn?: () => number, fsImpl?: object }} [opts]
  */
-export function refreshTicket(ticket, { nowFn = Date.now, fsImpl = fs } = {}) {
+function refreshTicket(ticket, { nowFn = Date.now, fsImpl = fs } = {}) {
   if (!ticket) return;
   try {
     const stamp = new Date(nowFn());
@@ -99,7 +99,7 @@ export function refreshTicket(ticket, { nowFn = Date.now, fsImpl = fs } = {}) {
  * @param {Ticket|null} ticket
  * @param {{ fsImpl?: object }} [opts]
  */
-export function dequeueWaiter(ticket, { fsImpl = fs } = {}) {
+function dequeueWaiter(ticket, { fsImpl = fs } = {}) {
   if (!ticket) return;
   ticket.detach();
   try {

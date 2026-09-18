@@ -13,11 +13,8 @@ import {
   withFullSuiteLockAsync,
 } from '../../.agents/scripts/lib/full-suite-lock.js';
 import {
-  dequeueWaiter,
-  enqueueWaiter,
   isFirstInLine,
   parseLockWaitOutcome,
-  refreshTicket,
 } from '../../.agents/scripts/lib/full-suite-queue.js';
 import { acquireSweepLock } from '../../.agents/scripts/lib/single-story-sweep/sweep-lock.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
@@ -423,24 +420,36 @@ describe('full-suite lock (Story #5173)', () => {
       assert.deepEqual(order, ['early', 'late']);
     });
 
-    it('a newcomer does not take the free lock ahead of a live queued waiter', () => {
-      const ticket = enqueueWaiter({ lockPath });
-      try {
-        assert.equal(
-          isFirstInLine({ lockPath, ticket: null, staleMs: 60_000 }),
-          false,
-        );
-        assert.equal(
-          isFirstInLine({ lockPath, ticket, staleMs: 60_000 }),
-          true,
-        );
-      } finally {
-        dequeueWaiter(ticket);
-      }
+    it('a newcomer does not take the free lock ahead of a live queued waiter', async () => {
+      const queueDir = `${lockPath}.queue`;
+      fs.mkdirSync(queueDir, { recursive: true });
+      const ahead = path.join(
+        queueDir,
+        `000000000000001-000001-${process.pid}-ab`,
+      );
+      fs.writeFileSync(ahead, '');
       assert.equal(
         isFirstInLine({ lockPath, ticket: null, staleMs: 60_000 }),
-        true,
+        false,
       );
+      const lines = [];
+      let sleeps = 0;
+      const code = await withFullSuiteLockAsync(
+        {
+          cwd: dir,
+          lockPath,
+          log: (m) => lines.push(m),
+          sleepFn: async () => {
+            sleeps += 1;
+            fs.rmSync(ahead, { force: true });
+          },
+        },
+        async () => 0,
+      );
+      assert.equal(code, 0);
+      assert.ok(sleeps >= 1, 'the free lock was not taken ahead of the queue');
+      assert.equal(parseLockWaitOutcome(lines.at(-1)).expired, false);
+      assert.deepEqual(fs.readdirSync(queueDir), [], 'its own ticket is gone');
     });
 
     it('a corrupt, dead-pid, or stale queue entry never holds a place in line', () => {
@@ -473,26 +482,38 @@ describe('full-suite lock (Story #5173)', () => {
       );
     });
 
-    it('queue I/O failures resolve to first-in-line, never to a stuck wait', () => {
+    it('queue I/O failures never stop a waiter from acquiring', async () => {
       const brokenFs = {
-        mkdirSync: () => {
-          throw new Error('EROFS');
-        },
-        readdirSync: () => {
-          throw new Error('EIO');
+        ...fs,
+        mkdirSync: (p, o) => {
+          if (String(p).endsWith('.queue')) throw new Error('EROFS');
+          return fs.mkdirSync(p, o);
         },
       };
-      assert.equal(enqueueWaiter({ lockPath, fsImpl: brokenFs }), null);
+      const holder = acquireSweepLock({ lockPath, timeoutMs: 60_000 });
+      const code = await withFullSuiteLockAsync(
+        {
+          cwd: dir,
+          lockPath,
+          fsImpl: brokenFs,
+          sleepFn: async () => holder.release(),
+        },
+        async () => 6,
+      );
+      assert.equal(code, 6);
       assert.equal(
-        isFirstInLine({ lockPath, ticket: null, staleMs: 1, fsImpl: brokenFs }),
+        isFirstInLine({
+          lockPath,
+          ticket: null,
+          staleMs: 1,
+          fsImpl: {
+            readdirSync: () => {
+              throw new Error('EIO');
+            },
+          },
+        }),
         true,
       );
-      assert.doesNotThrow(() => {
-        refreshTicket(null);
-        refreshTicket({ file: path.join(dir, 'missing') });
-        dequeueWaiter(null);
-        dequeueWaiter({ file: path.join(dir, 'missing'), detach: () => {} });
-      });
     });
   });
 

@@ -46,7 +46,7 @@ export function groupSpawnOptions(platform = process.platform) {
  * @param {{ platform?: string, killFn?: (pid: number, signal: string) => void }} [opts]
  * @returns {boolean} Whether any kill was delivered.
  */
-export function killProcessGroup(
+function killProcessGroup(
   child,
   signal = 'SIGKILL',
   { platform = process.platform, killFn = process.kill.bind(process) } = {},
@@ -124,9 +124,11 @@ function stopForwarding() {
  *   abortSignal?: AbortSignal,
  *   signalOnParentSignal?: string,
  *   processImpl?: NodeJS.Process,
+ *   killOptions?: { platform?: string, killFn?: Function },
  * }} [opts] `signalOnParentSignal` is what the group receives when this
  *   process is signalled: SIGKILL for a bare suite, SIGTERM for a child that
- *   has its own cleanup to run (a capture holding the lock).
+ *   has its own cleanup to run (a capture holding the lock). `killOptions`
+ *   is a test seam for the platform and the kill syscall.
  * @returns {{ readonly timedOut: boolean, release: () => void }}
  */
 export function superviseGroup(
@@ -136,6 +138,7 @@ export function superviseGroup(
     abortSignal,
     signalOnParentSignal = 'SIGKILL',
     processImpl = process,
+    killOptions,
   } = {},
 ) {
   let timedOut = false;
@@ -145,10 +148,10 @@ export function superviseGroup(
     Number.isFinite(timeoutMs) && timeoutMs > 0
       ? setTimeout(() => {
           timedOut = true;
-          killProcessGroup(child, 'SIGKILL');
+          killProcessGroup(child, 'SIGKILL', killOptions);
         }, timeoutMs)
       : null;
-  const onAbort = () => killProcessGroup(child, 'SIGTERM');
+  const onAbort = () => killProcessGroup(child, 'SIGTERM', killOptions);
   abortSignal?.addEventListener('abort', onAbort, { once: true });
   if (abortSignal?.aborted) onAbort();
   return {

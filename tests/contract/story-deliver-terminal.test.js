@@ -33,6 +33,7 @@ import { describe, it, mock } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { setLevel } from '../../.agents/scripts/lib/Logger.js';
 import { MERGE_UNLANDED_BLOCK_CLASSES } from '../../.agents/scripts/lib/orchestration/merge-block-class.js';
+import { lockWaitPending } from '../../.agents/scripts/lib/orchestration/single-story-close/phases/lock-wait-pending.js';
 import {
   buildEscalationTerminal,
   buildTerminalEnvelope,
@@ -406,6 +407,25 @@ describe('story-deliver-terminal — lockWait (Story #5377)', () => {
     assert.equal(env.nextCommand, NEXT_COMMANDS.close(5377));
     assert.deepEqual(env.lockWait, { waitedSeconds: 300, expired: true });
     assert.equal(env.waitBudget, null, 'lock wait is not merge-wait');
+  });
+
+  it('AC-7: the lock-wait ending builds that pending envelope and keeps the claim', () => {
+    const { result, terminal, note } = lockWaitPending({
+      storyId: 5377,
+      storyBranch: 'story-5377',
+      baseBranch: 'main',
+      lockWait: { waitedSeconds: 300, expired: true },
+      elapsedSeconds: 301,
+    });
+    assert.equal(terminal.status, 'pending');
+    assert.equal(terminal.phase, 'close-validation');
+    assert.equal(terminal.nextCommand, NEXT_COMMANDS.close(5377));
+    assert.equal(terminal.pr, null, 'nothing was pushed or opened');
+    assert.equal(result.action, 'deferred');
+    assert.match(
+      note,
+      /resume with: node \.agents\/scripts\/single-story-close\.js/,
+    );
   });
 
   it('AC-10: the schema pins the lockWait shape', () => {

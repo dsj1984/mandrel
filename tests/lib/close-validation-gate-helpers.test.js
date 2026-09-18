@@ -27,7 +27,6 @@ import {
 } from '../../.agents/scripts/lib/full-suite-lock.js';
 import {
   groupSpawnOptions,
-  killProcessGroup,
   superviseGroup,
 } from '../../.agents/scripts/lib/process-group.js';
 import { acquireSweepLock } from '../../.agents/scripts/lib/single-story-sweep/sweep-lock.js';
@@ -66,27 +65,36 @@ function makeFakeChild({ pid, throws = false } = {}) {
   };
 }
 
-describe('killProcessGroup (Story #5377)', () => {
+describe('the process-group kill (Story #5377)', () => {
+  const abortWith = (child, killOptions) => {
+    const ac = new AbortController();
+    const supervisor = superviseGroup(child, {
+      abortSignal: ac.signal,
+      killOptions,
+    });
+    ac.abort();
+    supervisor.release();
+  };
+
   it('signals the whole group on POSIX', () => {
     const sent = [];
     const child = makeFakeChild({ pid: 4242 });
-    killProcessGroup(child, 'SIGKILL', {
+    abortWith(child, {
       platform: 'linux',
       killFn: (pid, signal) => sent.push([pid, signal]),
     });
-    assert.deepEqual(sent, [[-4242, 'SIGKILL']]);
+    assert.deepEqual(sent, [[-4242, 'SIGTERM']]);
     assert.deepEqual(child.calls.killed, []);
   });
 
   it('falls back to the child when the group is already gone', () => {
     const child = makeFakeChild({ pid: 4242 });
-    const delivered = killProcessGroup(child, 'SIGTERM', {
+    abortWith(child, {
       platform: 'darwin',
       killFn: () => {
         throw Object.assign(new Error('gone'), { code: 'ESRCH' });
       },
     });
-    assert.equal(delivered, true);
     assert.deepEqual(child.calls.killed, ['SIGTERM']);
   });
 
@@ -94,18 +102,13 @@ describe('killProcessGroup (Story #5377)', () => {
     const groupKills = [];
     const child = makeFakeChild({ pid: 4242, throws: true });
     assert.doesNotThrow(() =>
-      killProcessGroup(child, 'SIGKILL', {
+      abortWith(child, {
         platform: 'win32',
         killFn: (pid) => groupKills.push(pid),
       }),
     );
     assert.deepEqual(groupKills, [], 'no POSIX group kill on win32');
-    assert.deepEqual(child.calls.killed, ['SIGKILL']);
-    assert.equal(
-      killProcessGroup(null, 'SIGKILL', { platform: 'win32' }),
-      true,
-      'a missing child is not an error',
-    );
+    assert.deepEqual(child.calls.killed, ['SIGTERM']);
   });
 
   it('spawns a group leader only where process groups exist', () => {
