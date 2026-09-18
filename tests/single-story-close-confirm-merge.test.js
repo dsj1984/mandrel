@@ -2450,4 +2450,54 @@ describe('merge wait — decisions made once (Story #5383)', () => {
     // A non-string field is not a timestamp.
     assert.deepEqual(state, { state: 'MERGED', mergedAt: null });
   });
+
+  it('AC-4: readPrMergeState reads a missing or malformed view as unknown', async () => {
+    const readWith = (view) =>
+      readPrMergeState({
+        cwd: '/repo',
+        prNumber: 99,
+        gh: { pr: { view: async () => view } },
+      });
+    assert.deepEqual(await readWith(null), { state: null, mergedAt: null });
+    assert.deepEqual(await readWith({ state: 'OPEN', mergedAt: 'x' }), {
+      state: 'OPEN',
+      mergedAt: 'x',
+    });
+  });
+
+  it('AC-4: a handed-down unmerged state leaves the Story pending without a read', async () => {
+    const lines = [];
+    const outcome = await confirmStoryMerged({
+      provider: makeFakeProvider(),
+      storyId: 4428,
+      prNumber: 99,
+      cwd: '/repo',
+      progress: (tag, msg) => lines.push(msg),
+      readPrMergeStateFn: async () => {
+        throw new Error('must not read');
+      },
+      prState: { state: null, mergedAt: null },
+    });
+    assert.deepEqual(outcome, {
+      storyId: 4428,
+      action: 'pending',
+      reason: 'pr-open',
+      merged: false,
+    });
+    assert.ok(lines.some((l) => /state=unknown/.test(l)));
+  });
+
+  it('a flip failure with no stated reason still blocks with a named one', async () => {
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        readPrWaitProbeFn: async () => ({ state: 'MERGED', mergedAt: 'x' }),
+        confirmStoryMergedFn: async () => ({
+          action: 'flip-failed',
+          merged: true,
+        }),
+      }),
+    );
+    assert.equal(outcome.blockClass, 'merged-flip-failed');
+    assert.match(outcome.reason, /agent::done label write failed/);
+  });
 });

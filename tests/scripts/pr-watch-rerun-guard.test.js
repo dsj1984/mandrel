@@ -711,4 +711,69 @@ describe('blockStoryDelivery — the escalation the red path takes', () => {
     assert.ok(errors.some((m) => /friction comment/.test(m)));
     assert.ok(errors.some((m) => /flip Story #5383 to blocked/.test(m)));
   });
+
+  it('flips the Story and posts the friction comment when the provider works', async () => {
+    const { errors, logger } = quiet();
+    const posted = [];
+    const updates = [];
+    const provider = {
+      getTicket: async (id) => ({
+        id,
+        state: 'open',
+        labels: ['agent::closing'],
+      }),
+      getTicketComments: async () => [],
+      postComment: async (id, payload) => {
+        posted.push({ id, payload });
+        return { id: 1 };
+      },
+      updateTicket: async (id, patch) => {
+        updates.push({ id, patch });
+      },
+    };
+    const outcome = await blockStoryDelivery({
+      storyId: 5383,
+      body: 'disarm failed',
+      provider,
+      logger,
+    });
+    assert.deepEqual(
+      outcome,
+      { blocked: true, commented: true },
+      errors.join(),
+    );
+    assert.equal(posted[0].id, 5383);
+    assert.ok(
+      updates.some((u) => u.patch.labels?.add?.includes('agent::blocked')),
+    );
+  });
+
+  it('degrades when no provider can be resolved, naming a non-Error cause', async () => {
+    const { errors, logger } = quiet();
+    const outcome = await blockStoryDelivery({
+      storyId: 5383,
+      body: 'x',
+      // An empty config has no `github` block, so the factory refuses.
+      config: {},
+      logger,
+    });
+    assert.deepEqual(outcome, { blocked: false, commented: false });
+    assert.match(errors[0], /could not resolve the ticketing provider/);
+
+    const thrower = await blockStoryDelivery({
+      storyId: 5383,
+      body: 'x',
+      provider: {
+        getTicket: async () => {
+          throw 'rate limited';
+        },
+        getTicketComments: async () => {
+          throw 'rate limited';
+        },
+      },
+      logger,
+    });
+    assert.deepEqual(thrower, { blocked: false, commented: false });
+    assert.ok(errors.some((m) => /rate limited/.test(m)));
+  });
 });
