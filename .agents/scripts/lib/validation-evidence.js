@@ -1,22 +1,9 @@
 /**
- * validation-evidence.js — record-and-skip for sprint validation gates.
- *
- * Tech Spec #819 §"Evidence record (Story 7)". Each successful gate run
- * writes a record keyed by `{ gateName, commitSha, commandConfigHash }` to
- * a storyId-anchored path under the resolved `tempRoot`:
- *
- *   `<tempRoot>/standalone/stories/story-<storyId>/validation-evidence.json`
- *
- * The path is gitignored via `temp/`. v2.0.0 removed the Epic tier along
- * with the Epic-keyed `<tempRoot>/epic-<epicId>/…` keyspace.
- *
- * A subsequent caller can `shouldSkip(...)` to learn whether the same gate
- * has already passed against the current HEAD with an identical
- * command-config — in which case the gate is skipped and only logged.
- *
- * The evidence file is a perf optimization, NOT a trust boundary: pre-push
- * hooks and CI continue to run their own checks. An adversarial agent that
- * tampered with the file would only skip local re-runs.
+ * Record-and-skip for validation gates: each pass is keyed by
+ * `{ gateName, commitSha, commandConfigHash }` in
+ * `<tempRoot>/standalone/stories/story-<id>/validation-evidence.json`.
+ * A perf optimization, NOT a trust boundary — pre-push and CI still run their
+ * own checks, so tampering only skips local re-runs.
  */
 
 import { createHash } from 'node:crypto';
@@ -50,9 +37,7 @@ const SCHEMA_PATH = path.resolve(
 let cachedValidator = null;
 
 /**
- * Lazily compile and cache the AJV validator for the evidence-file schema.
- * Lazy so importing this module never reads disk; cached so repeated
- * `recordPass` / `loadEvidence` calls do not recompile.
+ * Lazy so importing never reads disk; cached so calls never recompile.
  *
  * @returns {(data: unknown) => boolean}
  */
@@ -93,20 +78,8 @@ function requirePositiveInt(value, label) {
 }
 
 /**
- * Compute the absolute path of the evidence file for `scopeId` under the
- * storyId-anchored temp tree.
- *
- * **Standalone keyspace (Story #4250).** `opts.standalone` must be `true`:
- * the Story has no parent Epic, so the evidence file is anchored on the
- * Story id alone at
- * `<tempRoot>/standalone/stories/story-<scopeId>/validation-evidence.json`
- * (the `storyTempDir(null, sid)` layout from Story #2874).
- *
- * The legacy flat `temp/validation-evidence-<scopeId>.json` layout and the
- * Epic-keyed `<tempRoot>/epic-<epicId>/…` layout are both gone. The
- * synthetic config bag passed to `storyTempDir` keeps the resolver from
- * doing a disk-bound `.agentrc.json` lookup; bare callers can pass
- * `tempDir` via `opts` to override the default `'temp'`.
+ * Absolute evidence-file path. `opts.standalone` must be `true` (the only
+ * keyspace); the synthetic config bag avoids a disk-bound `.agentrc.json` read.
  *
  * @param {number|string} scopeId
  * @param {{ cwd?: string, tempDir?: string, standalone?: boolean }} opts
@@ -120,27 +93,19 @@ export function evidencePath(scopeId, opts = {}) {
   }
   const { cwd, tempDir } = resolveOpts(opts);
   const scope = requirePositiveInt(scopeId, 'scopeId');
-  // Bind the temp tree to the explicit `cwd` (Story #3900): pre-absolutise
-  // the tempRoot under `cwd` and pass it through the canonical
-  // `project.paths.tempRoot` shape so `temp-paths` honours it verbatim rather
-  // than (a) ignoring the legacy bare-`paths` bag and falling back to the
-  // default, then (b) anchoring that default to the main checkout. The
-  // evidence file is a per-cwd artifact, not a main-checkout lifecycle ledger,
-  // so it must stay rooted at the caller's `cwd`.
+  // Pre-absolutise under `cwd`: evidence is per-cwd, and a relative root
+  // would be anchored to the main checkout by `temp-paths`.
   const absTempRoot = path.isAbsolute(tempDir)
     ? tempDir
     : path.join(cwd, tempDir);
   const configBag = { project: { paths: { tempRoot: absTempRoot } } };
-  // Story #4250 — storyId-anchored standalone keyspace. `null` is the
-  // standalone-story sentinel `storyTempDir` accepts (Story #2874).
+  // `null` is `storyTempDir`'s standalone-story sentinel.
   const dir = storyTempDir(null, scope, configBag);
   return path.join(dir, EVIDENCE_FILENAME);
 }
 
 /**
- * Hash the resolved gate command-config to a stable sha256 digest. Skip is
- * gated on exact-match: changing `cmd`, `args`, or `cwd` invalidates prior
- * evidence so a config drift never silently re-uses a stale pass.
+ * Any change to `cmd`, `args`, or `cwd` invalidates prior evidence.
  *
  * @param {{ cmd: string, args?: string[], cwd?: string }} input
  * @returns {string} `sha256:<hex>` form, matching the schema pattern.
@@ -163,13 +128,8 @@ function emptyDoc(scopeId) {
 }
 
 /**
- * Read and validate the evidence file for `scopeId`. Returns an empty
- * document for the missing-file, parse-error, schema-mismatch, and
- * cross-scopeId cases — callers don't have to branch on those failure
- * modes; they manifest as `shouldSkip()` returning `skip: false`.
- *
- * `opts.standalone` is required (Story #4250) — it routes to the
- * storyId-anchored keyspace.
+ * Missing, unparseable, schema-invalid, or other-Story files all yield an
+ * empty document (so `shouldSkip` says no).
  *
  * @param {number|string} scopeId
  * @param {{ cwd?: string, tempDir?: string, standalone?: boolean, fs?: object }} opts
@@ -195,13 +155,7 @@ export function loadEvidence(scopeId, opts = {}) {
 }
 
 /**
- * Append a `gateName` pass record to the scope's evidence file, replacing any
- * prior record for the same gate. Creates the parent directory if missing.
- * Validates the resulting document against the schema before writing — a
- * malformed write throws so the bug surfaces immediately.
- *
- * `opts.standalone` is required (Story #4250) — it routes to the
- * storyId-anchored keyspace.
+ * Upsert a gate's pass record; a schema-invalid document throws before write.
  *
  * @param {{
  *   storyId: number|string,
@@ -266,25 +220,9 @@ export function recordPass(
 }
 
 /**
- * The content identity of a working tree, as an evidence `inputFingerprint`
- * (Story #5278).
- *
- * `commitSha` is the wrong key for "have these inputs already been checked".
- * Close's own base-sync moves HEAD immediately before the gates run, so every
- * gate the worker paid for is re-run against a commit whose *content* the
- * evidence already covers whenever the sync brought nothing in — the record
- * is discarded as `sha-mismatch` and lint, typecheck and the suite are all
- * paid for twice.
- *
- * `git rev-parse HEAD^{tree}` is the exact answer: the tree object id is a
- * hash of the committed content and nothing else, so it is stable across a
- * fast-forward, a rebase, an empty merge and a commit-message amend, and it
- * differs the instant any tracked byte does. It deliberately ignores
- * uncommitted changes for the same reason `commitSha` did — the gates run on
- * a committed Story branch.
- *
- * Returns `null` when the tree cannot be read, which routes every caller to
- * the pre-#5278 SHA-only behaviour rather than to a false match.
+ * `HEAD^{tree}` as `inputFingerprint`: survives close's base-sync moving HEAD
+ * without changing content, so gates are not re-paid. `null` when unreadable
+ * (SHA-only matching, never a false match).
  *
  * @param {string} cwd Absolute worktree root.
  * @param {Function} [gitSpawnFn] `(cwd, ...args) => { status, stdout }`.
@@ -303,15 +241,8 @@ export function treeFingerprint(cwd, gitSpawnFn) {
 }
 
 /**
- * Decide whether a gate can be skipped given the current HEAD + command
- * config. Skip is granted only on full triple-match: gateName + commitSha +
- * commandConfigHash. Any mismatch (or missing record) returns `skip: false`
- * with a machine-readable `reason` so callers can log why the skip didn't
- * fire.
- *
- * `opts.standalone` is required (Story #4250) — it routes to the
- * storyId-anchored keyspace. `opts` is forwarded verbatim to
- * `loadEvidence`, so `standalone` flows through unchanged.
+ * Skip only when gate and config hash match and either the SHA or a non-empty
+ * input fingerprint matches; otherwise `reason` says why not.
  *
  * @param {{ storyId: number|string, gateName: string, currentSha: string, configHash: string }} input
  * @param {{ cwd?: string, tempDir?: string, standalone?: boolean, fs?: object }} opts
@@ -333,7 +264,6 @@ export function shouldSkip(
   if (match.commitSha === currentSha) {
     return { skip: true, reason: 'evidence-match', record: match };
   }
-  // SHA moved but the gate's effective inputs may still be byte-identical.
   if (
     typeof inputFingerprint === 'string' &&
     inputFingerprint.length > 0 &&
@@ -347,12 +277,7 @@ export function shouldSkip(
 }
 
 /**
- * Delete the evidence file for `scopeId`. Called by `single-story-init.js` at the
- * start of each Story so a re-run always starts clean. Idempotent —
- * absent file is not an error.
- *
- * `opts.standalone` is required (Story #4250) — it routes to the
- * storyId-anchored keyspace.
+ * Idempotent delete, run at Story init so a re-run starts clean.
  *
  * @param {number|string} scopeId
  * @param {{ cwd?: string, tempDir?: string, standalone?: boolean, fs?: object }} opts

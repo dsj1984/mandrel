@@ -1,26 +1,13 @@
 /**
- * lib/audit-suite/findings.js — Findings histogram + baseline delta emitters.
- *
- * `aggregateSummary` (Story #963, Epic #946) populates the `metadata.summary`
- * block of the audit-suite envelope with a severity histogram.
- *
- * `aggregateBaselineDelta` (Task #1920, Epic #1786) reports per-component
- * rollup deltas between two committed baseline envelopes loaded via
- * `lib/baselines/reader.js`. It supersedes the prior row-by-row diff —
- * row-level deltas surfaced noise from churn that did not move any
- * component's rollup, drowning out the regressions that actually mattered.
- *
- * The delta function is **pure**: it takes the two `{ rollup, rows }`
- * envelopes returned by the reader plus the resolved components map and
- * returns a deterministic per-component delta. No filesystem I/O.
+ * Findings severity histogram and per-component baseline rollup deltas.
+ * Deltas are per rollup, not per row: row churn that moves no rollup is noise.
+ * Pure, no I/O.
  */
 
 import { groupRows, resolveComponents } from '../baselines/components.js';
 
 /**
- * Pure: count findings into a {critical,high,medium,low} histogram. Findings
- * with severities outside that set are ignored, keeping the rendered summary
- * truthful even if upstream callers append non-standard severities.
+ * Non-standard severities are ignored.
  *
  * @param {Array<{ severity?: string }>|null|undefined} findings
  * @returns {{ critical: number, high: number, medium: number, low: number }}
@@ -36,20 +23,10 @@ export function aggregateSummary(findings) {
 }
 
 /**
- * The single halting rule for the unified `verification-results` findings
- * contract (Story #4411, Epic #4405): a **surviving** (unfixed) Critical
- * finding halts the delivery gate. Every code consumer of the contract —
- * the in-process code-review producer (`runCodeReview`) and the auto-merge
- * integration gate (`evaluateAutoMergePredicate`) — routes its
- * halt-on-critical decision through this one predicate so the rule has a
- * single definition rather than a re-derived `critical > 0` expression at
- * each site.
- *
- * Accepts either the severity **count object** produced by
- * `countBySeverity` / {@link aggregateSummary} (`{ critical: n, ... }`) or a
- * raw `Finding[]`. A non-numeric / absent `critical` count (e.g. the
- * auto-merge gate's "unparseable body" sentinel `null`) is **not** a halt —
- * the caller owns that fail-open path separately. Pure; never throws.
+ * The single halting rule: a surviving Critical finding halts delivery. Every
+ * consumer routes through this rather than re-deriving `critical > 0`.
+ * Accepts a severity count object or a `Finding[]`; a non-numeric `critical`
+ * (e.g. an unparseable-body `null`) is not a halt — the caller owns that path.
  *
  * @param {{ critical?: unknown }|Array<{ severity?: string }>|null|undefined} input
  * @returns {boolean} `true` when at least one surviving Critical is present.
@@ -63,11 +40,7 @@ export function hasSurvivingCritical(input) {
 }
 
 /**
- * Resolve the per-component rollup map for an envelope. When the envelope
- * already carries a `rollup` block (every writer-produced baseline does), we
- * trust it as the source of truth. When `rollup` is absent (raw test
- * fixtures, hand-written cases) we recompute from rows via the supplied
- * `recompute` callback so the function stays useful in both shapes.
+ * The envelope's own `rollup` when present, else recomputed from rows.
  *
  * @param {{ rollup?: object, rows?: Array<object> }} envelope
  * @param {Record<string, string[]>} components
@@ -89,13 +62,8 @@ function resolveRollup(envelope, components, keyField, recompute) {
 }
 
 /**
- * Compare two component rollup objects (`{ axis: value }`) and emit one
- * delta entry per axis that differs. Pure.
- *
- * The direction is informational only — the audit emitter does not enforce
- * pass/fail policy; floor enforcement happens in `check-baselines.js`. We
- * report `before`, `after`, and the signed delta so a reviewer can read the
- * sign in context (lint count up = bad; coverage % down = bad).
+ * One entry per differing axis. Informational only — floors are enforced by
+ * `check-baselines.js`.
  *
  * @param {Record<string, number>|null|undefined} before
  * @param {Record<string, number>|null|undefined} after
@@ -120,12 +88,6 @@ function diffAxes(before, after) {
 }
 
 /**
- * Compute per-component rollup deltas between two baseline envelopes.
- *
- * Inputs are the shapes returned by `lib/baselines/reader.js#load(kind)`.
- * The function is pure — disk reads happen in the caller so the audit
- * emitter (and its tests) can drive synthetic before/after pairs.
- *
  * @param {{
  *   before: { rollup?: object, rows?: Array<object> },
  *   after:  { rollup?: object, rows?: Array<object> },
@@ -137,9 +99,7 @@ function diffAxes(before, after) {
  *   component: string,
  *   axes: Array<{ axis: string, before: number|null, after: number|null, delta: number|null }>
  * }>}
- *   One entry per component whose rollup changed. `*` always sorts first;
- *   the remainder is alpha. Components with no axis changes are omitted so
- *   an unchanged baseline yields `[]`.
+ *   Changed components only, `*` first then alpha.
  */
 export function aggregateBaselineDelta(params = {}) {
   const before = params.before ?? { rollup: {}, rows: [] };

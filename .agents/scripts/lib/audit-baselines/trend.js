@@ -1,17 +1,7 @@
 /**
- * trend.js — per-kind rollup deltas read out of each baseline file's own git
- * history (Story #4902).
- *
- * A ratchet only tells you whether today is worse than yesterday. The
- * question a baseline review asks is the other one: which direction has this
- * number been moving, and is the ratchet actually ratcheting? That answer is
- * already committed — every baseline refresh is a commit against the same
- * path — so it is read with `git log` + `git show`, never recomputed by
- * re-running an instrument.
- *
- * Degradation: any git failure (shallow clone, no history for the path, not
- * a work tree) yields an empty `trend[]` and exit 0. A missing history is
- * missing evidence, not an error.
+ * Per-kind rollup direction of travel, read from each baseline's own git
+ * history — never recomputed. Any git failure yields no trend entry: missing
+ * history is missing evidence, not an error.
  *
  * @module lib/audit-baselines/trend
  */
@@ -20,7 +10,7 @@ import { execFileCapture } from '../child-exec.js';
 import { trendRollupOf } from './kinds.js';
 
 /**
- * List the most recent commits touching `relPath`, newest first.
+ * Newest first.
  *
  * @param {{ cwd: string, relPath: string, limit: number, run?: Function }} args
  * @returns {Array<{ sha: string, committedAt: string }>}
@@ -47,8 +37,6 @@ function listCommits({ cwd, relPath, limit, run }) {
 }
 
 /**
- * Read the comparable rollup of a baseline as it existed at `sha`.
- *
  * @param {{ cwd: string, kind: string, sha: string, relPath: string, run?: Function }} args
  * @returns {object | null}
  */
@@ -71,9 +59,8 @@ function rollupAt({ cwd, kind, sha, relPath, run }) {
 }
 
 /**
- * Numeric axis-by-axis difference `to - from`. Axes missing from either side
- * are omitted rather than defaulted — a rollup that gained an axis has no
- * delta on it, and inventing one would read as a regression.
+ * `to - from` per axis; an axis missing on either side is omitted, since an
+ * invented delta would read as a regression.
  *
  * @param {object} from
  * @param {object} to
@@ -91,7 +78,7 @@ function rollupDelta(from, to) {
 }
 
 /**
- * Build the `trend[]` section: newest-vs-previous rollup deltas per kind.
+ * Newest-vs-previous rollup deltas per kind.
  *
  * @param {{
  *   cwd: string, kinds: string[], pathFor: (kind: string) => string,

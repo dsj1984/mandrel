@@ -1,34 +1,13 @@
 /**
- * lib/audit-suite/lens-checklist.js — distill an `audit-<lens>.md` workflow
- * body into a compact, drift-gated authoring checklist.
- *
- * Epic #4405 (shift-left audit) moves each lens's concerns to the innermost,
- * write-time tier: instead of an engineer only learning what a lens checks
- * when `/audit-<lens>` runs, a compact per-lens checklist ships as a committed
- * build artifact under `.agents/audit-checklists/`. This module is the pure
- * distillation seam — no IO — so it is unit-testable and the generator
- * (`generate-lens-checklists.js`) owns only the file read/write/prune and the
- * `--check` drift gate.
- *
- * The distillation is a deterministic transform of the workflow markdown: it
- * lifts the lens's *concern* labels — the bold lead-ins of the analysis /
- * evaluation list items — from the audit region of the workflow (everything
- * before the `Output Requirements` / report-template boundary), skipping the
- * recurring boilerplate sections (Role, Context, Scope, Execution strategy,
- * Configuration). When a lens exposes no bold concern items it falls back to
- * its audit-step headings so every checklist is non-empty. The output is
- * hard-capped at {@link MAX_CHECKLIST_LINES} lines.
- *
- * Pure: no IO, no provider calls, safe to unit-test in isolation.
- *
- * @see Story #4408 — per-lens authoring checklists as drift-gated artifacts.
+ * Pure distillation of an `audit-<lens>.md` workflow into the committed,
+ * drift-gated authoring checklist (the generator owns I/O). Lifts bold
+ * concern lead-ins from the audit region, skipping boilerplate sections and
+ * stopping at the report-template boundary; falls back to step headings.
  */
 
 import { clampSummary, extractFrontmatter } from './frontmatter.js';
 
-// All RegExp instances are built via the constructor (rather than literal
-// `/.../`) so the maintainability engine's AST walker (typhonjs-escomplex) can
-// score this file — see the note in lib/audit-suite/frontmatter.js.
+// RegExp constructors, not literals: typhonjs-escomplex crashes on literals.
 // biome-ignore-start lint/complexity/useRegexLiterals: typhonjs-escomplex MI workaround
 const LINE_SPLIT_RE = new RegExp(String.raw`\r?\n`);
 const FRONTMATTER_BLOCK_RE = new RegExp(
@@ -44,14 +23,11 @@ const BOLD_LEAD_ITEM_RE = new RegExp(
 );
 const STEP_PREFIX_RE = new RegExp(String.raw`^Step\s+\d+\s*[:.]?\s*`, 'i');
 const TRAILING_COLON_RE = new RegExp(String.raw`\s*:\s*$`);
-// A `##` section whose heading opens with one of these is workflow boilerplate,
-// not a lens concern — its list items are skipped during concern extraction.
 const BOILERPLATE_SECTION_RE = new RegExp(
   String.raw`^(Role|Context & Objective|Scope|Execution strategy|Configuration|Run Context|Target set)\b`,
   'i',
 );
-// The report-template / output-contract boundary. Everything at or after the
-// first heading matching this is template scaffolding, never a concern.
+// Everything from this heading on is report-template scaffolding.
 const OUTPUT_BOUNDARY_RE = new RegExp(
   '(Output Requirements|Generate the Report)',
   'i',
@@ -61,15 +37,9 @@ const OUTPUT_BOUNDARY_RE = new RegExp(
 /** Hard cap on generated checklist lines (asserted by the drift test). */
 export const MAX_CHECKLIST_LINES = 40;
 
-/** Fixed header/intro line budget consumed before the checklist items. */
 const HEADER_LINE_BUDGET = 12;
 
 /**
- * Pure: walk the workflow body once, collecting the lens's concern labels (bold
- * lead-ins of analysis/evaluation list items) and, as a fallback, its audit
- * step headings. Extraction stops at the report-template boundary and ignores
- * boilerplate sections.
- *
  * @param {string} content — raw `audit-<lens>.md` markdown.
  * @returns {{ title: string|null, concerns: string[], stepHeadings: string[] }}
  */
@@ -114,10 +84,8 @@ export function extractLensConcerns(content) {
 }
 
 /**
- * Pure: resolve a workflow's `description` to a single clamped line, folding a
- * YAML block scalar (`description: >-` / `|` with indented continuation lines)
- * back into one line. `extractFrontmatter` only sees the indicator token
- * (`>-`) for a block scalar, so this reads the continuation lines directly.
+ * One clamped description line; folds a YAML block scalar, whose indicator
+ * token is all `extractFrontmatter` sees.
  *
  * @param {string} content — raw workflow markdown.
  * @param {Record<string, string>} fm — parsed frontmatter map.
@@ -146,7 +114,7 @@ export function resolveDescription(content, fm) {
 }
 
 /**
- * Pure: dedupe a list case-insensitively, preserving first-seen order.
+ * Case-insensitive, first-seen order.
  *
  * @param {string[]} items
  * @returns {string[]}
@@ -164,10 +132,7 @@ function dedupePreserveOrder(items) {
 }
 
 /**
- * Pure: render the authoring checklist for a single lens from its workflow
- * markdown. The output is deterministic (a pure function of `content`) and
- * hard-capped at {@link MAX_CHECKLIST_LINES} lines including the trailing
- * newline, so the same input always regenerates byte-identically.
+ * Deterministic, capped at {@link MAX_CHECKLIST_LINES} lines.
  *
  * @param {string} lens — canonical lens name (e.g. `security`).
  * @param {string} content — raw `audit-<lens>.md` markdown.

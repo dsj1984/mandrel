@@ -1,16 +1,7 @@
 /**
- * engine.js — assemble the `/audit-baselines` evidence envelope
- * (Story #4902).
- *
- * Strictly read-only and strictly offline: it reads committed baselines, the
- * resolved config, git history, the static import graph, and any friction
- * ledger it finds. It never writes under `baselines/`, never refreshes a
- * baseline, and never runs a test, coverage, or mutation suite — the whole
- * point is that a baseline review costs a file read, not a CI run.
- *
- * Findings are evidence, not a verdict: assembling the envelope is success,
- * however alarming its contents, so the CLI exits 0 whenever it got this far.
- * Judgment belongs to the lens that reads the envelope.
+ * Assembles the `/audit-baselines` evidence envelope. Read-only and offline:
+ * never writes baselines or runs a suite — a review costs a file read, not a
+ * CI run. Evidence, not a verdict: assembling it is success (exit 0).
  *
  * @module lib/audit-baselines/engine
  */
@@ -31,19 +22,16 @@ import {
   readFriction,
 } from './weights.js';
 
-/** Envelope `kind` discriminator; matches the shipped schema's const. */
+/** Matches the shipped schema's const. */
 const ENVELOPE_KIND = 'audit-baselines-envelope';
 
-/** Envelope schema version — bumped on any breaking shape change. */
+/** Bump on any breaking shape change. */
 const ENVELOPE_SCHEMA_VERSION = '1';
 
-/** Cap on emitted hotspot clusters, independent of the per-gate `topN`. */
 export const DEFAULT_HOTSPOT_LIMIT = 50;
 
 /**
- * Resolve the repository config without letting a broken `.agentrc.json`
- * abort the run — an unreadable config still leaves the baseline files
- * themselves readable at their default paths.
+ * A broken `.agentrc.json` must not abort: default baseline paths still read.
  *
  * @param {string} cwd
  * @returns {{ quality: object, configError: string | null }}
@@ -57,11 +45,8 @@ function resolveQualityBlock(cwd) {
 }
 
 /**
- * Absolute temp root the friction ledger is searched under, anchored to the
- * **analysed** repository rather than the process cwd. `resolvedTempRoot()`
- * anchors to whichever checkout the current process sits in, which is the
- * right answer for a writer and the wrong one here: an engine pointed at
- * another repo with `--cwd` must read that repo's ledger, not this one's.
+ * Anchored to the analysed repo (`--cwd`), not the process's checkout as
+ * `resolvedTempRoot()` would be.
  *
  * @param {string} cwd
  * @returns {string}
@@ -71,17 +56,13 @@ function tempRootFor(cwd) {
   try {
     relative = tempRootFrom(resolveConfig({ cwd }));
   } catch {
-    // Unreadable config — the framework default root is still worth probing.
+    // Unreadable config: probe the default root.
   }
   if (path.isAbsolute(relative)) return relative;
   return path.join(mainCheckoutRoot(cwd) ?? cwd, relative);
 }
 
 /**
- * Run the engine and return the envelope object. Pure with respect to the
- * filesystem apart from the reads named in the module docstring — writing
- * the result is the caller's job.
- *
  * @param {{
  *   cwd: string,
  *   topN?: number,
@@ -138,11 +119,10 @@ export function runEngine({
 }
 
 /**
- * Condense an envelope into the pure-JSON stdout summary. Small enough to
- * read in a terminal, and never carrying a row set.
+ * Terminal-sized stdout summary; never carries a row set.
  *
  * @param {object} envelope
- * @param {string} outPath absolute path the full envelope was written to
+ * @param {string} outPath
  * @returns {object}
  */
 export function summarize(envelope, outPath) {

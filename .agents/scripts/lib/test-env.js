@@ -5,49 +5,20 @@ import path from 'node:path';
 import { TEST_TEMP_ROOT_ENV } from './config/temp-paths.js';
 import { reapOnExit } from './test-temp.js';
 
-/**
- * Per-process memo for the created scratch dir, so repeated calls in one
- * runner process (e.g. building env bags for several chunks) share a single
- * scratch tree instead of minting one dir per call.
- */
+/** Per-process memo: one scratch tree per runner process. */
 let _createdScratchDir = null;
 
-/**
- * Test-only: clear the per-process scratch memo so a suite can exercise the
- * creation branch repeatedly in one process.
- */
+/** Test-only: clear the scratch memo. */
 export function _clearTestScratchTempRootCache() {
   _createdScratchDir = null;
 }
 
 /**
- * Ensure an absolute per-process scratch tempRoot is available for the test
- * run and return it (Story #4696).
- *
- * If `baseEnv` already carries an absolute `MANDREL_TEST_TEMP_ROOT` (the
- * common case for a child process that inherits the parent runner's env),
- * that value is reused verbatim so every chunk / worker of a single suite
- * run shares one scratch dir. Otherwise a fresh `os.tmpdir()` directory is
- * created once per process (memoized). Every stream writer that resolves a
- * relative tempRoot then lands under this dir instead of the repo's real
- * `temp/` telemetry tree — the regression that let 99% of friction records
- * be test-fixture pollution.
- *
- * Reaping (Story #4808): the minting process registers removal of the
- * scratch dir at exit. This branch is creator-only by construction — a
- * process that inherited an absolute root returns above without ever
- * touching the memo, so a child can never delete its parent's scratch
- * while the parent is still writing to it. Left unreaped, this seam was
- * the single largest contributor to the OS-temp-root leak (870 surviving
- * `mandrel-test-temp-` roots on one host), because it mints one per
- * `run-tests.js` invocation.
- *
- * Directly unit-tested via the injectable `mkdtemp` seam in
- * `tests/lib/test-env.test.js` (Story #4711).
+ * Per-process scratch tempRoot keeping tests out of real `temp/` telemetry.
+ * An inherited absolute root is reused; only the minting process reaps it.
  *
  * @param {NodeJS.ProcessEnv} [baseEnv=process.env]
  * @param {{ mkdtemp?: typeof mkdtempSync, onExit?: (fn: () => void) => void }} [deps]
- *   Injectable for tests.
  * @returns {string} absolute scratch tempRoot
  */
 export function ensureTestScratchTempRoot(
@@ -70,39 +41,15 @@ export function ensureTestScratchTempRoot(
 }
 
 /**
- * Build a webhook-safe child-process environment for test runners.
+ * Env bag for test child processes:
  *
- * Operators keep a real `NOTIFICATION_WEBHOOK_URL` in `.env` for development
- * (the production `notify()` path reads it via `process.env` after
- * `resolveConfig()` calls `loadEnv()`). Without scrubbing, any test that
- * transitively reaches `notify()` POSTs to the live endpoint.
- *
- * This helper produces the env bag that test child processes inherit:
- *
- *   - `NOTIFICATION_WEBHOOK_URL` is deleted unless the operator opted in
- *     via `MANDREL_ALLOW_TEST_WEBHOOKS=1` (e.g., a contract test
- *     deliberately exercising a sandbox endpoint). With the URL scrubbed,
- *     `resolveWebhookUrl()` returns nothing and `notify()` never POSTs.
- *   - `NODE_ENV=test` is set for the rest of the suite's environment
- *     expectations. (It no longer gates `notify()`'s webhook delivery —
- *     the NODE_ENV band-aid was removed in Story #3342. Tests that need to
- *     exercise the webhook POST inject `opts.fetchImpl` instead, so the
- *     request never reaches the real network even if a URL resolves.)
- *   - Every `GIT_*` variable is dropped. When the suite runs inside a git
- *     hook (husky pre-push via the coverage-capture path), the parent git
- *     invocation exports `GIT_DIR` — from a linked worktree, the absolute
- *     `<main>/.git/worktrees/<name>` path. A test fixture's `git init`
- *     under that env re-initializes the shared gitdir and writes
- *     `core.bare=true` into the MAIN checkout's `.git/config`, breaking
- *     every worktree at once (#4580). Production git call sites are
- *     covered by `cleanGitEnv` in `git-utils.js`; this is the same scrub
- *     for test child processes, which may spawn git directly. Tests that
- *     need a `GIT_*` variable set it explicitly on their own spawn.
- *   - `MANDREL_TEST_TEMP_ROOT` is set to an absolute per-process scratch
- *     dir (Story #4696). Any test that reaches a stream writer without
- *     injecting its own absolute tempRoot lands under scratch instead of
- *     the repo's real `temp/` telemetry tree, so the suite can no longer
- *     append fixture records to friction / lifecycle / trace streams.
+ *   - `NOTIFICATION_WEBHOOK_URL` is deleted (unless
+ *     `MANDREL_ALLOW_TEST_WEBHOOKS=1`) so no test POSTs to a live endpoint;
+ *   - `NODE_ENV` defaults to `test`;
+ *   - every `GIT_*` is dropped: inside a git hook `GIT_DIR` points at the
+ *     shared gitdir, and a fixture's `git init` there writes `core.bare=true`
+ *     into the main checkout, breaking every worktree;
+ *   - `MANDREL_TEST_TEMP_ROOT` points at the per-process scratch root.
  *
  * @param {NodeJS.ProcessEnv} baseEnv
  * @returns {NodeJS.ProcessEnv}

@@ -1,17 +1,7 @@
 /**
- * staleness.js — the two clocks a baseline is stale against (Story #4962).
- *
- * Wall-clock age answers the wrong question on a busy repository.
- * `coverage.json` and `maintainability.json` both read `staleDays: 0` while
- * already predating merges that had rescored files they still carry rows for:
- * refreshed an hour ago, and behind already. The second clock is the one that
- * matters — how many commits have touched the **measured surface** since the
- * baseline was last committed. A baseline older than the surface it scores is
- * stale at zero wall-clock days.
- *
- * Read-only and degrading, like the rest of this engine: a shallow clone, an
- * untracked baseline, or a surface that is not path-keyed all report `null`.
- * Unknown is never rounded down to a reassuring 0.
+ * Baseline staleness on two clocks: wall-clock age, and commits touching the
+ * measured surface since the baseline was committed — a baseline behind its
+ * surface is stale at zero days. Unknown reports `null`, never a reassuring 0.
  *
  * @module lib/audit-baselines/staleness
  */
@@ -21,9 +11,7 @@ import { KIND_SPECS } from './kinds.js';
 import { ageInDays } from './read.js';
 
 /**
- * Run a git command under `cwd`, returning trimmed stdout, or `null` on any
- * failure or empty result. Buffer and shell policy come from the shared
- * child-process surface ([`child-exec.js`](../child-exec.js)).
+ * Trimmed stdout, or `null` on failure or empty output.
  *
  * @param {string[]} args
  * @param {{ cwd: string, run?: Function }} io
@@ -45,11 +33,8 @@ function git(args, { cwd, run }) {
 }
 
 /**
- * The repo-relative paths whose commits would invalidate this baseline: the
- * gate's declared `targetDirs` when it has them, else the baseline's own row
- * ids — which are file paths for every kind but `bundle-size` (bundle
- * names). That one gets an empty surface rather than a bundle name handed to
- * git as a pathspec.
+ * `targetDirs`, else path-keyed row ids; non-path kinds get an empty surface
+ * rather than a bundle name as a git pathspec.
  *
  * @param {{ kind: string, gateBlock: object | null, rows: Array<{id: string}> }} args
  * @returns {string[]}
@@ -64,9 +49,7 @@ function measuredSurfaceOf({ kind, gateBlock, rows }) {
 }
 
 /**
- * Commits touching `surfacePaths` since `relPath` was last committed. An
- * empty surface yields `null` too: nothing was checked, so nothing can be
- * claimed.
+ * Empty surface → `null`: nothing checked, nothing claimed.
  *
  * @param {{ relPath: string, surfacePaths: string[], io: object }} args
  * @returns {number | null}
@@ -84,8 +67,6 @@ function commitsSinceBaseline({ relPath, surfacePaths, io }) {
 }
 
 /**
- * The four staleness fields of one `gateSurface[]` entry, on both clocks.
- *
  * @param {{
  *   kind: string, gateBlock: object | null, rows: Array<{id: string}>,
  *   relPath: string, baseline: object | null, now: Date,

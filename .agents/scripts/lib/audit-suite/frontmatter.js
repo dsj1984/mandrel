@@ -1,20 +1,10 @@
 /**
- * lib/audit-suite/frontmatter.js — Markdown frontmatter + summary helpers.
- *
- * Extracted from `.agents/scripts/run-audit-suite.js` (Story #963, Epic #946).
- * Pure module — no IO, no provider calls, safe to unit-test in isolation.
- *
- * The functions here are the parsing seam used by the audit suite to derive
- * a 1–3-sentence summary from a workflow's `description` frontmatter field
- * (falling back to its first prose paragraph). Keep them tiny and free of
- * cross-module imports so the audit-suite entry-point stays orchestration-only.
+ * Pure frontmatter + workflow-summary helpers; keep free of cross-module
+ * imports.
  */
 
-// All RegExp instances are built via the constructor (rather than literal
-// `/.../`) so the maintainability engine's AST walker (typhonjs-escomplex) can
-// score this file. The walker has a long-standing bug where it crashes on
-// RegExp literals via `RegExpLiteral`, returning MI=0 — see the parse-time
-// fallback in lib/maintainability-engine.js#calculateForSource.
+// RegExp constructors, not literals: typhonjs-escomplex crashes on
+// `RegExpLiteral` and scores the file MI=0.
 // biome-ignore-start lint/complexity/useRegexLiterals: typhonjs-escomplex MI workaround
 const FRONTMATTER_RE = new RegExp(String.raw`^---\r?\n([\s\S]*?)\r?\n---\r?\n`);
 const NEWLINE_SPLIT_RE = new RegExp(String.raw`\r?\n`);
@@ -27,9 +17,7 @@ const SUMMARY_MAX_SENTENCES = 3;
 const SUMMARY_MAX_CHARS = 280;
 
 /**
- * Pure: parse a workflow's leading `---` frontmatter block into a flat
- * key→value map. Quoted values are unwrapped; entries without a `:` separator
- * are skipped. Returns `{}` when no frontmatter is present.
+ * Flat key→value map; quotes unwrapped, `:`-less lines skipped.
  *
  * @param {string} content
  * @returns {Record<string, string>}
@@ -55,10 +43,6 @@ export function extractFrontmatter(content) {
 }
 
 /**
- * Pure: find the first prose paragraph after the frontmatter block, skipping
- * headings and `---` rules. Whitespace inside the paragraph is collapsed to
- * single spaces. Returns `''` when the body is empty / heading-only.
- *
  * @param {string} content
  * @returns {string}
  */
@@ -75,11 +59,6 @@ export function firstProseParagraph(content) {
 }
 
 /**
- * Pure: trim a candidate summary to at most three sentences and 280 chars.
- * Sentences are matched by `[^.!?\n]+[.!?]+`; bare paragraphs that contain no
- * terminator are returned verbatim (subject to the char clamp). The 280-char
- * trim appends an ellipsis to signal truncation to readers.
- *
  * @param {string} text
  * @returns {string}
  */
@@ -97,9 +76,6 @@ export function clampSummary(text) {
 }
 
 /**
- * Pure: derive a 1–3-sentence summary from a workflow's frontmatter
- * `description` field, falling back to the first prose paragraph.
- *
  * @param {string} content
  * @returns {string}
  */

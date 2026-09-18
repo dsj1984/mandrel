@@ -1,36 +1,7 @@
 /**
- * Managed test temp directories (Story #4808).
- *
- * The suite used to mint `os.tmpdir()` directories directly at ~71 call
- * sites across 25 files that never reaped them, accumulating tens of
- * thousands of entries per run into a temp root shared with self-hosted CI
- * runners. The damaging axis is **entry count**, not bytes: a runner's
- * job-started hook scanning an 841k-entry temp root burned 5m29s inside the
- * job clock and timed jobs out.
- *
- * Per-call-site teardown had already failed 25 times, so this module makes
- * teardown structural instead: a directory cannot be created without its
- * reaping already registered.
- *
- * ## Why one suite root
- *
- * A guard over a *shared* `os.tmpdir()` cannot attribute an entry to this
- * suite. A prefix allowlist rots the moment someone invents a new prefix,
- * and a bare "no new entries" assertion false-positives on any unrelated
- * process that happened to run concurrently. Nesting every managed
- * directory inside a single per-process root
- * (`mandrel-suite-<pid>-<random>`) makes attribution exact: the guard asks
- * only whether a *suite root* survived, which is a question about this
- * suite alone. The suite contributes exactly one shared-root entry per
- * process, and reaps it.
- *
- * ## Why the root is never published to children
- *
- * Deliberately unlike `MANDREL_TEST_TEMP_ROOT` (the scratch seam in
- * `test-env.js` / `config/temp-paths.js`, which children inherit): each
- * process owns its own suite root, so "did I create it?" is always
- * answerable locally and a child can never reap its parent's root
- * mid-run.
+ * Managed test temp dirs: none exists without its reaping registered. All
+ * nest in one per-process suite root, so the leak guard attributes exactly;
+ * the root is never published to children, so none can reap its parent's.
  */
 
 import fs from 'node:fs';
@@ -38,32 +9,23 @@ import os from 'node:os';
 import path from 'node:path';
 import picomatch from 'picomatch';
 
-/**
- * Directory-name prefix identifying a per-process suite root. The guard
- * matches on this, so it is the one string both sides must agree on.
- */
+/** Suite-root name prefix; the guard matches on it. */
 export const SUITE_ROOT_PREFIX = 'mandrel-suite-';
 
 /**
- * Reserved snapshot-manifest key under which the guard records the suite
- * roots observed at `--snapshot` time. It cannot collide with a stream
- * entry: those are always `*.ndjson` relative paths.
+ * Snapshot-manifest key for suite roots; cannot collide with a stream entry
+ * (always a `*.ndjson` relative path).
  */
 export const SUITE_ROOTS_KEY = '#suiteRoots';
 
-/** Default `warn` sink: one line on stderr, shared by every seam below. */
 const stderrWarn = (msg) => process.stderr.write(`${msg}\n`);
 
 /**
- * Remove one directory, reporting a failure rather than throwing it.
- *
- * Both reapers need exactly this: a suite that passed must not start
- * failing because a directory could not be unlinked (a Windows file lock, a
- * read-only mount). The leak is the lesser defect, and the guard reports it
- * separately.
+ * Remove a directory, reporting rather than throwing: a passing suite must
+ * not fail on an unlinkable directory (Windows lock, read-only mount).
  *
  * @param {string} target absolute path to remove
- * @param {string} label what `target` is, for the failure message
+ * @param {string} label
  * @param {typeof fs} fsImpl
  * @param {(msg: string) => void} warn
  * @returns {void}
@@ -76,36 +38,25 @@ function rmQuietly(target, label, fsImpl, warn) {
   }
 }
 
-/** Per-process suite root, or `null` before the first `makeTempDir`. */
 let _suiteRoot = null;
 
-/** Guards against registering the exit reaper more than once. */
 let _reaperRegistered = false;
 
-/** Lead-in of the one warning a root disappearing mid-run produces. */
 const VANISHED =
   '[test-temp] suite temp root disappeared mid-run (removed by something ' +
   'outside this process):';
 
 /**
- * Suite roots this process minted and later found gone.
- *
- * Recovery is the right behaviour — see {@link suiteTempRoot} — but a silent
- * recovery is not. Incident #5272 was a required check going red with an
- * unattributable `ENOENT`, and the hardening written to expose it made the
- * run *quieter*: the re-mint succeeded, the suite went green, and the fact
- * that something outside the process is deleting the temp tree left no trace
- * anyone would look at. This list is that trace, and the exit reaper turns it
- * into a verdict.
+ * Suite roots this process minted and later found gone. Recovery must not be
+ * silent: the exit reaper turns this list into a failing verdict.
  */
 const _vanishedRoots = [];
 
-/** Exit code a run that lost a suite root reports, when nothing worse did. */
 const VANISHED_EXIT_CODE = 1;
 
 /**
- * Default `setExitCode` sink. Never lowers an exit code already set: a real
- * test failure is the more informative verdict.
+ * Never lowers an exit code already set: a real test failure is the more
+ * informative verdict.
  *
  * @param {number} code
  * @returns {void}
@@ -114,10 +65,7 @@ function raiseExitCode(code) {
   if (!process.exitCode) process.exitCode = code;
 }
 
-/**
- * Test-only: forget the per-process suite root without removing it, so a
- * test can exercise the creation branch repeatedly in one process.
- */
+/** Test-only: forget the suite root without removing it. */
 export function _resetSuiteTempRootForTests() {
   _suiteRoot = null;
   _reaperRegistered = false;
@@ -125,12 +73,7 @@ export function _resetSuiteTempRootForTests() {
 }
 
 /**
- * Report every root that vanished under this process, and fail the run.
- *
- * Called from the exit reaper, so it is the last word on a run that
- * otherwise passed. The exit code is only raised when nothing else already
- * failed: a real test failure is the more informative verdict and must not
- * be overwritten by this one.
+ * Report every root that vanished under this process and fail the run.
  *
  * @param {{ warn?: (msg: string) => void, setExitCode?: (code: number) => void }} [deps]
  * @returns {void}
@@ -149,11 +92,8 @@ function reportVanishedRoots({
 }
 
 /**
- * Report the suite root this process currently owns, without minting one.
- *
- * Test-only in spirit, but also the honest way for a failing fixture to say
- * whether the root still exists when it reports a copy failure: asking
- * {@link suiteTempRoot} would *create* one and destroy the evidence.
+ * The suite root this process owns, without minting one (asking
+ * {@link suiteTempRoot} would create one and destroy the evidence).
  *
  * @returns {string|null}
  */
@@ -162,16 +102,8 @@ export function _currentSuiteTempRoot() {
 }
 
 /**
- * Remove this process's suite root and everything under it.
- *
- * A teardown failure is reported on stderr and swallowed — see
- * {@link rmQuietly}.
- *
- * Only the process that minted the root can reach a non-null `_suiteRoot`,
- * so this is creator-only by construction. It reads that variable *live*
- * rather than a path captured at arming time, which is what keeps a root
- * re-created mid-run (see {@link suiteTempRoot}) reapable and a root it has
- * replaced unreachable — a stale path is never passed to `rmSync`.
+ * Remove this process's suite root. Creator-only by construction; reads
+ * `_suiteRoot` live so a re-minted root is reaped and a replaced one never is.
  *
  * @param {{ fsImpl?: typeof fs, warn?: (msg: string) => void }} [deps]
  * @returns {string|null} the removed root, or `null` when there was none
@@ -185,29 +117,8 @@ export function reapSuiteTempRoot({ fsImpl = fs, warn = stderrWarn } = {}) {
 }
 
 /**
- * Resolve (creating on first use) this process's suite root.
- *
- * The reaper is registered on `exit` at creation time, so a directory
- * cannot exist without its teardown already armed — including when the
- * suite fails, since a failing `node --test` run still exits normally.
- *
- * ## Why the memoised path is re-checked every call
- *
- * The root lives under a temp tree this process does not own exclusively
- * (see the module docstring: a `/tmp` shared with self-hosted runners, an
- * OS or operator pruner). Memoising the path without re-checking it made a
- * single external removal terminal: every later `makeTempDir` in the
- * process failed with an `ENOENT` naming an interior path, and with 204
- * call sites reaching this helper one deletion cascaded through the rest
- * of the file. Re-creating is strictly better than failing — nothing in
- * the suite holds a handle to the root itself, only to directories minted
- * beneath it, which the removal already took.
- *
- * The reaper armed at first use needs no re-arming: it reads `_suiteRoot`
- * live, so it already covers whatever root this process owns at exit.
- * Re-creation leaves the replaced path unreachable, so the creator-only
- * invariant holds — this process still reaps only a root it minted, and
- * never one it has replaced.
+ * Re-checked every call: one external prune must not cascade ENOENT through
+ * later `makeTempDir`s, and nothing holds a handle to the root itself.
  *
  * @param {{ fsImpl?: typeof fs, tmpdir?: () => string, onExit?: (fn: () => void) => void, warn?: (msg: string) => void, setExitCode?: (code: number) => void }} [deps]
  * @returns {string} absolute path to the suite root
@@ -219,13 +130,6 @@ export function suiteTempRoot(deps = {}) {
 }
 
 /**
- * Mint the process's suite root — the first one, or a replacement for one
- * that disappeared underneath it — and arm the reaper if nothing has.
- *
- * Separate from {@link suiteTempRoot} so the hot path stays the single
- * existence check callers pay on every `makeTempDir`, and the recovery it
- * guards reads as the exceptional branch it is.
- *
  * @param {{ fsImpl?: typeof fs, tmpdir?: () => string, onExit?: (fn: () => void) => void, warn?: (msg: string) => void, setExitCode?: (code: number) => void }} deps
  * @returns {string} absolute path to the new suite root
  */
@@ -238,12 +142,8 @@ function mintSuiteRoot({
 } = {}) {
   const vanished = _suiteRoot;
   const base = tmpdir();
-  // Recovery re-creates the suite's OWN root and nothing above it. An
-  // earlier revision called `mkdirSync(base, { recursive: true })` here, so a
-  // process whose OS temp root had been removed silently re-created `/tmp`
-  // — with this process's umask rather than the sticky 1777 the system sets
-  // — and carried on. That is a broken machine reported as a passing suite;
-  // name it instead.
+  // Never re-create the OS temp root itself: it would get this process's
+  // umask instead of sticky 1777, hiding a broken machine behind a pass.
   if (!fsImpl.existsSync(base))
     throw new Error(
       `[test-temp] OS temp root ${base} does not exist; refusing to create it. Something removed the system temp directory (or TMPDIR points at a path that was never created) — fix the environment rather than letting the suite mint it.`,
@@ -251,9 +151,6 @@ function mintSuiteRoot({
   _suiteRoot = fsImpl.mkdtempSync(
     path.join(base, `${SUITE_ROOT_PREFIX}${process.pid}-`),
   );
-  // Say it once, loudly: this is the only trace that something outside the
-  // process touched the temp tree, and the incident it explains (#5272) was
-  // filed against the wrong mechanism for want of it.
   if (vanished !== null) {
     _vanishedRoots.push(vanished);
     warn(`${VANISHED} ${vanished}; re-created as ${_suiteRoot}`);
@@ -269,18 +166,10 @@ function mintSuiteRoot({
 }
 
 /**
- * Create a fresh temp directory for a test, nested inside this process's
+ * Drop-in for `mkdtempSync(path.join(os.tmpdir(), prefix))`, nested in the
  * suite root and reaped with it.
  *
- * Drop-in for `mkdtempSync(path.join(os.tmpdir(), prefix))` — the returned
- * path is absolute and unique, so call sites change only where the
- * directory comes from, never how it is used.
- *
- * A vanished suite root is re-created by {@link suiteTempRoot} first, so
- * this never fails with an `ENOENT` naming a directory the caller did not
- * ask for.
- *
- * @param {string} [prefix='t-'] label kept for readability in a stack trace
+ * @param {string} [prefix='t-']
  * @param {{ fsImpl?: typeof fs, tmpdir?: () => string, onExit?: (fn: () => void) => void, warn?: (msg: string) => void }} [deps]
  * @returns {string} absolute path to the new directory
  */
@@ -291,16 +180,9 @@ export function makeTempDir(prefix = 't-', deps = {}) {
 }
 
 /**
- * Register removal of one specific scratch directory at process exit.
- *
- * For the two scratch seams (`test-env.js`, `config/temp-paths.js`) that
- * mint a root *outside* the suite tree because children inherit its path
- * through `MANDREL_TEST_TEMP_ROOT`. Call this only from the branch that
- * actually minted the directory — a process that inherited the path must
- * never reap it, or it deletes its parent's scratch mid-run.
- *
- * Teardown failures are swallowed for the same reason as
- * {@link reapSuiteTempRoot} — see {@link rmQuietly}.
+ * Register removal of a scratch directory at exit, for seams that mint
+ * outside the suite tree. Call only from the branch that minted it — an
+ * inheriting process would delete its parent's scratch mid-run.
  *
  * @param {string} dirPath absolute path this process minted
  * @param {{ fsImpl?: typeof fs, onExit?: (fn: () => void) => void, warn?: (msg: string) => void }} [deps]
@@ -318,11 +200,6 @@ export function reapOnExit(
 }
 
 /**
- * List the suite roots currently present in `tmpDir`, sorted.
- *
- * Names only (not absolute paths) so the guard can diff them against a
- * recorded snapshot without embedding the temp root's absolute location.
- *
  * @param {string} tmpDir
  * @param {{ fsImpl?: typeof fs }} [deps]
  * @returns {string[]}
@@ -339,12 +216,8 @@ export function listSuiteTempRoots(tmpDir, { fsImpl = fs } = {}) {
 }
 
 /**
- * Suite roots that appeared since the snapshot and are still on disk —
- * i.e. roots this suite run created and failed to reap.
- *
- * Diffing against the snapshot rather than asserting an empty set is what
- * keeps a concurrently-running suite (another checkout, another worktree)
- * from failing this one.
+ * Suite roots created since the snapshot and still on disk. Diffing against
+ * the snapshot keeps a concurrent suite from failing this one.
  *
  * @param {string} tmpDir
  * @param {string[]} snapshotRoots
@@ -357,31 +230,17 @@ export function survivingSuiteTempRoots(tmpDir, snapshotRoots, deps = {}) {
 }
 
 /**
- * Matches a `mkdtemp` / `mkdtempSync` call whose argument reaches
- * `tmpdir()`. The lookahead spans the call's argument text rather than
- * trying to balance parentheses, so it catches every shape in use:
- * `mkdtempSync(path.join(os.tmpdir(), 'x-'))`, `mkdtempSync(join(tmpdir(),
- * 'x-'))`, and `fs.mkdtempSync(...)`.
+ * A `mkdtemp`/`mkdtempSync` call whose argument reaches `tmpdir()`; spans the
+ * argument text instead of balancing parentheses.
  */
 const RAW_TMPDIR_MKDTEMP =
   /mkdtemp(?:Sync)?\s*\([^;\n]{0,200}?tmpdir\s*\(\s*\)/;
 
-/**
- * Opt-out marker for a line that must call `mkdtemp` against the real OS
- * temp root — the guard's own tests, and the scratch seams that
- * deliberately mint a root outside the suite tree.
- */
+/** Opt-out marker for a line that must mint against the real OS temp root. */
 const LINT_ESCAPE = 'test-temp-allow';
 
 /**
- * Flag test files that mint OS temp directories directly instead of going
- * through {@link makeTempDir}.
- *
- * This is the half of the backstop that catches the *next* leaking file at
- * authoring time rather than after it has already leaked, so it is scoped
- * to explicitly-passed globs: `check-test-temp-hygiene.js` ships in the
- * materialized `.agents/` payload, and a consumer's tests are none of this
- * rule's business.
+ * Raw OS-temp mints outside {@link makeTempDir}, in explicit globs only.
  *
  * @param {string} repoRoot
  * @param {string[]} globs repo-relative picomatch patterns
@@ -390,10 +249,8 @@ const LINT_ESCAPE = 'test-temp-allow';
  */
 export function findRawTmpdirMkdtemp(repoRoot, globs, { fsImpl = fs } = {}) {
   const patterns = (globs ?? []).filter(Boolean);
-  // Negation is handled here rather than handed to picomatch: passing a
-  // mixed `['a/**', '!a/b']` array makes the `!` entry read as its own
-  // positive "everything but a/b" matcher, which silently *widens* the
-  // scan instead of narrowing it.
+  // Split negations out: in a mixed picomatch array a `!` entry is its own
+  // positive matcher, which widens the scan instead of narrowing it.
   const include = patterns.filter((p) => !p.startsWith('!'));
   const exclude = patterns
     .filter((p) => p.startsWith('!'))
@@ -418,11 +275,8 @@ export function findRawTmpdirMkdtemp(repoRoot, globs, { fsImpl = fs } = {}) {
 }
 
 /**
- * Walk `root` for JavaScript sources, returning POSIX-normalised relative
- * paths. Unlike the `test-isolate` walker this descends dot-prefixed
- * directories (the `.agents/` payload carries `__tests__` trees) while
- * still skipping the trees that are never source: `node_modules`,
- * `.worktrees`, and `.git`.
+ * POSIX-relative JS sources under `root`; descends dot-directories (the
+ * `.agents/` payload has `__tests__`) but skips non-source trees.
  *
  * @param {string} root
  * @param {typeof fs} fsImpl

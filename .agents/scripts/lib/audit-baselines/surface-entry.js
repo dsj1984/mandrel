@@ -1,16 +1,6 @@
 /**
- * surface-entry.js — the health report for one measuring instrument
- * (Story #4902, split out in #4962).
- *
- * A baseline review that only reads the numbers cannot see the failure mode
- * that matters most: an instrument that is not measuring anything. A gate can
- * be unconfigured, its baseline file can be missing, it can be a **stub**
- * (committed with no rows and an all-zero rollup, so it passes every run
- * vacuously), it can be stale on either clock, and its `ignoreGlobs` can name
- * paths that no longer exist — each of which reads as "green" from the gate's
- * exit code. This module turns all of that into declarative fields for one
- * kind; [`gate-surface.js`](gate-surface.js) walks the kinds and
- * [`staleness.js`](staleness.js) owns the two clocks.
+ * Health of one measuring instrument: unconfigured, missing, stub, stale, or
+ * dead `ignoreGlobs` — each of which reads green from the gate's exit code.
  *
  * @module lib/audit-baselines/surface-entry
  */
@@ -20,9 +10,7 @@ import { GATE_KINDS, KIND_SPECS, measuredTotalOf, rollupOf } from './kinds.js';
 import { stalenessOf } from './staleness.js';
 
 /**
- * True when every numeric leaf of the rollup is zero. A rollup with no
- * numeric leaves at all is not all-zero — it carries no measurement to call
- * zero, and treating it as such would flag shapes this engine cannot read.
+ * A rollup with no numeric leaves is not all-zero.
  *
  * @param {object | null} rollup
  * @returns {boolean}
@@ -34,10 +22,8 @@ function isAllZeroRollup(rollup) {
 }
 
 /**
- * A **stub instrument**: zero rows AND an all-zero rollup. Both halves are
- * required. Ratchet baselines carry no rollup, so a clean `arch-cycles`
- * allowlist — genuinely zero cycles, the success state — is never mistaken
- * for a dead instrument.
+ * Zero rows AND an all-zero rollup, so a clean ratchet (no rollup) is never
+ * called a stub.
  *
  * @param {{ rowCount: number, rollup: object | null }} args
  * @returns {boolean}
@@ -47,11 +33,9 @@ function isStubInstrument({ rowCount, rollup }) {
 }
 
 /**
- * Which of a gate's configured `ignoreGlobs` match zero files on disk.
- *
  * @param {string[]} ignoreGlobs
  * @param {string[]} files repo-relative posix paths
- * @returns {string[]}
+ * @returns {string[]} globs matching zero files
  */
 function findDeadIgnoreGlobs(ignoreGlobs, files) {
   const dead = [];
@@ -64,12 +48,7 @@ function findDeadIgnoreGlobs(ignoreGlobs, files) {
 }
 
 /**
- * Assemble one `gateSurface[]` entry from an already-read baseline.
- *
- * `rowCount` and `measured` both appear because they legitimately disagree:
- * rows are counted after the kind's per-file aggregation, while `measured` is
- * the quantity the instrument reports in its own unit — 589 dead-export
- * symbols sit in 187 files.
+ * `rowCount` (per-file) and `measured` (own unit) legitimately differ.
  *
  * @param {{
  *   kind: string, quality: object, read: object, relPath: string,

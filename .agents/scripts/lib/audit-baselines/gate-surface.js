@@ -1,11 +1,5 @@
 /**
- * gate-surface.js — walk both halves of the baseline surface (Story #4902).
- *
- * The closed `delivery.quality.gates` kinds and the out-of-band ratchet
- * baselines are one surface, and an engine that walks only the first silently
- * drops the second. This module owns that walk and the file universe an
- * `ignoreGlobs` entry is checked against; [`surface-entry.js`](surface-entry.js)
- * turns each kind into its health report.
+ * Walks both halves of the baseline surface (gates and ratchets).
  *
  * @module lib/audit-baselines/gate-surface
  */
@@ -16,9 +10,7 @@ import { listFilesUnder, readJsonFile } from './read.js';
 import { surfaceEntryFor } from './surface-entry.js';
 
 /**
- * Every `targetDirs` entry declared by any gate, deduplicated. This is the
- * file universe an `ignoreGlobs` entry is checked against — a glob that
- * matches nothing inside the dirs its own gate scans is dead weight.
+ * The file universe `ignoreGlobs` are checked against.
  *
  * @param {object | null | undefined} quality
  * @returns {string[]}
@@ -34,15 +26,9 @@ function declaredTargetDirs(quality) {
 }
 
 /**
- * Walk both halves of the gate surface — the closed `delivery.quality.gates`
- * kinds and the out-of-band ratchet baselines — and report each instrument's
- * health.
- *
  * @param {{ cwd: string, quality: object, now?: Date, run?: Function }} args
- *   `run` overrides the git spawn; `staleness.js` owns the real default.
  * @returns {{ entries: object[], baselines: Map<string, object|null> }}
- *   `baselines` carries each parsed envelope forward so the hotspot, trend,
- *   and headroom sections never re-read a 650KB file off disk.
+ *   `baselines` is carried forward so later sections never re-read from disk.
  */
 export function buildGateSurface({ cwd, quality, now = new Date(), run }) {
   const files = declaredTargetDirs(quality).flatMap((dir) =>

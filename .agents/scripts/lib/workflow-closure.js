@@ -1,61 +1,17 @@
 /**
- * Workflow read-tier closure resolver (Story #4752).
- *
- * `.agents/workflows/**` is the largest body of instruction Mandrel ships, and
- * until this module it sat in none of the five doc read-tiers `doc-tiers.js`
- * resolves — measured only by a per-file spine ceiling that is satisfied by
- * moving prose into a linked helper. Workflows are a **graph**, not a flat set,
- * so this module resolves each entry point's transitive markdown-link closure
- * into two numbers:
- *
- *   - **mandatory closure** — the entry point plus the transitive closure of
- *     its `mandatoryReads:` frontmatter edges. This is what a session is
- *     *forced* to read, and it is what `check-context-budget.js` ratchets.
- *   - **reachable closure** — the entry point plus every workflow markdown file
- *     transitively linked from it. Recorded as a drift signal, never gated.
- *
- * **The marker is source-side and per-edge.** A workflow declares the reads it
- * requires in its own frontmatter (`mandatoryReads: [path, …]`, flow or block
- * style, resolved relative to the declaring file). Tier is not intrinsic to a
- * helper — the same file is mandatory from one workflow and on-demand from
- * another — so it cannot live in the target. The key is optional: an absent
- * key means zero mandatory edges and is never an error. Every reachable link
- * not named in `mandatoryReads` is classified on-demand.
- *
- * **Entry points** are the workflows a session can be invoked on: every
- * top-level `.agents/workflows/*.md`, plus any `helpers/*.md` whose H1 declares
- * a slash command named after the file itself (`helpers/deliver-story.md` →
- * `# /deliver-story …`) — a command-shaped helper is invoked directly, so it
- * owns a closure of its own. Plain helpers and appendices are reachable, never
- * entry points; counting every file as an entry point would collapse the
- * mandatory/on-demand distinction into "all workflow bytes".
- *
- * **Failure modes are loud** — a ratchet that silently shrinks its own closure
- * is worse than none:
- *   - a `mandatoryReads` entry that does not resolve to a workflow markdown
- *     file throws, naming the declaring workflow and the offending path;
- *   - a cycle among `mandatoryReads` edges throws, naming the cycle.
- * The **reachable** walk is deliberately cycle-*tolerant* rather than fatal:
- * bidirectional prose cross-references are normal and correct authoring (a
- * spine points at its digest, the digest points back at the spine), so that
- * walk terminates via a visited set and counts each file exactly once — it
- * neither loops nor truncates. Only the gated mandatory graph, where a loop is
- * a genuine authoring error, fails closed.
- *
- * The walk is confined to `.agents/workflows/**`: links out to
- * `.agents/rules/**` or `.agents/skills/**` are neither followed nor recorded,
- * because those are already tiered as flat sets by `doc-tiers.js` and
- * following them would double-count them.
- *
- * Security (security-baseline § Data Leakage & Logging): every value returned
- * or thrown is a repo-relative path or a byte count — never file contents.
+ * Workflow read-tier closures per entry point: **mandatory** (transitive
+ * `mandatoryReads:` frontmatter edges — ratcheted by `check-context-budget.js`)
+ * and **reachable** (transitive links — recorded, never gated). Tier is
+ * per-edge, so it lives in the declaring file. An unresolvable or cyclic
+ * mandatory edge throws: a ratchet that silently shrinks is worse than none.
+ * Confined to `.agents/workflows/**` (`doc-tiers.js` tiers the rest). Outputs
+ * are paths and byte counts, never contents.
  */
 
 import nodeFs from 'node:fs';
 import path from 'node:path';
 
 /**
- * Repo-relative root of the workflow tree. The closure never escapes it.
  * @type {string}
  */
 const WORKFLOWS_ROOT = '.agents/workflows';
@@ -63,10 +19,8 @@ const WORKFLOWS_ROOT = '.agents/workflows';
 /** Path-segment count of a top-level workflow (`.agents/workflows/x.md`). */
 const TOP_LEVEL_DEPTH = 3;
 
-// All RegExp instances are built via the constructor (rather than literal
-// `/.../`) so the maintainability engine's AST walker (typhonjs-escomplex) can
-// score this file — it crashes on `RegExpLiteral` nodes. Same workaround as
-// lib/audit-suite/frontmatter.js.
+// RegExp constructors, not literals: typhonjs-escomplex (the MI engine)
+// crashes on `RegExpLiteral` nodes.
 // biome-ignore-start lint/complexity/useRegexLiterals: typhonjs-escomplex MI workaround
 const FRONTMATTER_RE = new RegExp(String.raw`^---\r?\n([\s\S]*?)\r?\n---`);
 const NEWLINE_RE = new RegExp(String.raw`\r?\n`);
@@ -77,7 +31,6 @@ const COMMAND_H1_RE = new RegExp(String.raw`^#\s+/([A-Za-z0-9._-]+)`, 'm');
 // biome-ignore-end lint/complexity/useRegexLiterals: typhonjs-escomplex MI workaround
 
 /**
- * Default fs surface — the same injectable subset `doc-tiers.js` uses.
  * @typedef {{
  *   readdirSync: (p: string, o?: object) => any[],
  *   readFileSync: (p: string, enc: string) => string,
@@ -86,13 +39,10 @@ const COMMAND_H1_RE = new RegExp(String.raw`^#\s+/([A-Za-z0-9._-]+)`, 'm');
  */
 
 /**
- * A loaded workflow document.
  * @typedef {{ rel: string, bytes: number, source: string }} WorkflowDoc
  */
 
 /**
- * Strip surrounding quotes and whitespace from a scalar YAML value.
- *
  * @param {string} value
  * @returns {string}
  */
@@ -106,8 +56,6 @@ function unquote(value) {
 }
 
 /**
- * Convert a path to posix separators.
- *
  * @param {string} p
  * @returns {string}
  */
@@ -116,8 +64,6 @@ function toPosix(p) {
 }
 
 /**
- * Return the raw frontmatter block of a markdown source (`''` when absent).
- *
  * @param {string} source
  * @returns {string}
  */
@@ -127,8 +73,7 @@ function frontmatterBlock(source) {
 }
 
 /**
- * Collect a YAML block-sequence (`- item`) starting at `start`. Blank lines are
- * skipped; the first non-item, non-blank line ends the sequence.
+ * YAML block sequence from `start`; blank lines skipped, first other line ends it.
  *
  * @param {string[]} lines
  * @param {number} start
@@ -149,8 +94,6 @@ function blockSequence(lines, start) {
 }
 
 /**
- * Split a YAML flow sequence (`[a.md, b.md]`) into its scalar items.
- *
  * @param {string} inline
  * @returns {string[]}
  */
@@ -163,9 +106,7 @@ function flowSequence(inline) {
 }
 
 /**
- * Parse the optional `mandatoryReads:` frontmatter list from a workflow source.
- * Supports the flow (`[a.md, b.md]`), block (`- a.md` lines), and single-scalar
- * forms. An absent key resolves to `[]` — zero mandatory edges, never an error.
+ * `mandatoryReads:` in flow, block, or scalar form; absent key → `[]`.
  *
  * @param {string} source
  * @returns {string[]} raw specifiers, relative to the declaring file
@@ -181,7 +122,7 @@ function parseMandatoryReads(source) {
 }
 
 /**
- * Harvest every markdown link target in a source, anchors stripped.
+ * Markdown link targets, anchors stripped.
  *
  * @param {string} source
  * @returns {string[]}
@@ -196,9 +137,8 @@ function parseLinkTargets(source) {
 }
 
 /**
- * Resolve a link/`mandatoryReads` specifier declared in `fromRel` to a known
- * workflow doc, or `null` when it is external, non-markdown, or outside the
- * workflow tree.
+ * Resolve a specifier to a known workflow doc, or `null` when external,
+ * non-markdown, or outside the workflow tree.
  *
  * @param {string} fromRel repo-relative posix path of the declaring file
  * @param {string} spec
@@ -213,11 +153,6 @@ function resolveSpec(fromRel, spec, docs) {
 }
 
 /**
- * Resolve a workflow's declared mandatory edges. Throws when an entry does not
- * resolve to a workflow markdown file — a mandatory read pointing at nothing is
- * a silent hole in the ratchet, so it fails loudly, naming both the declaring
- * workflow and the offending path.
- *
  * @param {WorkflowDoc} doc
  * @param {Map<string, WorkflowDoc>} docs
  * @returns {string[]}
@@ -237,9 +172,7 @@ function mandatoryEdges(doc, docs) {
 }
 
 /**
- * Depth-first walk of the mandatory-edge graph. Cycle-fatal: a `mandatoryReads`
- * loop is an authoring error, so it throws naming the cycle rather than looping
- * or silently truncating the closure.
+ * Cycle-fatal DFS of the mandatory-edge graph.
  *
  * @param {string} rel
  * @param {Map<string, WorkflowDoc>} docs
@@ -264,10 +197,7 @@ function walkMandatory(rel, docs, stack, seen) {
 }
 
 /**
- * Breadth-first walk of the markdown-link graph. Cycle-tolerant by design:
- * bidirectional cross-references between a spine and its helper are correct
- * authoring, so the visited set makes the walk terminate with each file counted
- * exactly once.
+ * Cycle-tolerant BFS of the link graph; each file counted once.
  *
  * @param {string} rel
  * @param {Map<string, WorkflowDoc>} docs
@@ -289,8 +219,7 @@ function walkReachable(rel, docs) {
 }
 
 /**
- * Recursively collect repo-relative posix paths of every `.md` file under an
- * absolute directory. An unreadable directory yields nothing (silent skip).
+ * Recursive `.md` listing; an unreadable directory yields nothing.
  *
  * @param {FsLike} fs
  * @param {string} dirAbs
@@ -315,8 +244,6 @@ function listMarkdown(fs, dirAbs, root, out) {
 }
 
 /**
- * Load every workflow markdown file into a `rel -> { rel, bytes, source }` map.
- *
  * @param {string} root absolute repo root
  * @param {FsLike} fs
  * @returns {Map<string, WorkflowDoc>}
@@ -333,19 +260,15 @@ function loadDocs(root, fs) {
         source: fs.readFileSync(abs, 'utf8'),
       });
     } catch {
-      // Unreadable file — skipped silently, like the sibling tier resolvers.
+      // Unreadable file — skipped.
     }
   }
   return docs;
 }
 
 /**
- * True when a workflow is invocable in its own right: a top-level workflow, or
- * a helper whose H1 declares a slash command **named after the file itself**
- * (`helpers/deliver-story.md` → `# /deliver-story …`). The self-naming test is
- * what separates an invocable helper from an appendix that merely titles itself
- * after the command it documents (`helpers/deliver-reference.md` →
- * `# /mandrel-deliver — reference appendix`), which is read on demand, never invoked.
+ * Top-level workflow, or a helper whose H1 slash command matches its own
+ * filename — an appendix titled after the command it documents is not.
  *
  * @param {WorkflowDoc} doc
  * @returns {boolean}
@@ -357,8 +280,6 @@ function isEntryPoint(doc) {
 }
 
 /**
- * Materialize a path set as sorted `{ path, bytes }` entries.
- *
  * @param {Iterable<string>} rels
  * @param {Map<string, WorkflowDoc>} docs
  * @returns {Array<{ path: string, bytes: number }>}
@@ -370,8 +291,6 @@ function toEntries(rels, docs) {
 }
 
 /**
- * Sum the on-disk bytes of a path set.
- *
  * @param {Iterable<string>} rels
  * @param {Map<string, WorkflowDoc>} docs
  * @returns {number}
@@ -383,10 +302,8 @@ function sumBytes(rels, docs) {
 }
 
 /**
- * Resolve the workflow tier: every entry point's transitive markdown-link
- * closure, partitioned into the gated mandatory set and the recorded on-demand
- * remainder. Returns empty collections when `.agents/workflows` is absent — an
- * entry point resolving empty is skipped silently.
+ * Resolve every entry point's closures, partitioned into mandatory and
+ * on-demand; empty collections when `.agents/workflows` is absent.
  *
  * @param {string} root absolute repo root
  * @param {{ fs?: FsLike }} [opts]

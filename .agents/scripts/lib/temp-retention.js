@@ -1,47 +1,7 @@
 /**
- * temp-retention.js — allowlisted auto-purge of spent temp artifacts (Story #4794).
- *
- * The workspace temp tree grew without bound: every landed Story left its
- * close-gate transcript (~1.4MB each), its terse-result detail dumps, and its
- * validation-evidence envelope behind forever, because no code path had ever
- * removed them. This module is the single engine that reclaims them.
- *
- * ## Allowlist, never a blocklist
- *
- * The safety property that matters is not "delete the right things" but
- * "never delete the wrong thing". So classification is positive: an artifact
- * is a purge candidate only when a declared class claims it. Everything else —
- * an operator's scratch directory, a hand-parked file, a family a future
- * Story adds without teaching this module about it — is **unrecognized**, is
- * never touched, and is reported with its byte size so a human decides. A
- * blocklist would have the opposite failure mode: anything the framework
- * forgot to exclude gets deleted.
- *
- * ## Two eligibility signals, deliberately different in strength
- *
- * - **Story-keyed.** An artifact whose name carries a Story id is purged when
- *   that Story's merge has been *confirmed* by the caller — the post-land tail
- *   or a boot sweep that read live state. This is the primary path and the one
- *   the operator asked for: spent the moment the work lands.
- * - **Age-floored.** Artifacts no Story id can be recovered from (audit
- *   reports, abandoned `plan-<slug>/` dirs) fall back to a `staleDays` floor.
- *   Only the sweep opts into this; the per-Story purge never does, so a
- *   post-land tail can never reap a sibling's in-flight artifact.
- *
- * ## Keep-class
- *
- * `signals.ndjson` is the artifact whose value *starts* when the run ends —
- * `acceptance-eval` and the loop-health check both read it
- * long after the Story merged. It is excluded twice over: it is not in the
- * evidence basename allowlist, and {@link KEEP_BASENAMES} is re-checked at
- * the deletion site. Defence in depth is warranted for the one file whose
- * loss is silent and unrecoverable.
- *
- * ## Best-effort, never load-bearing
- *
- * Every entry point resolves rather than throws. This is hygiene: a purge
- * that fails must never fail a land, a boot, or a persist that already did
- * its real work. Failures are collected into `errors[]` and reported.
+ * Allowlisted auto-purge of spent temp artifacts: only a declared class's
+ * entries are candidates; the rest are reported, never touched. Never throws
+ * — a failed purge must not fail a land, boot, or persist.
  */
 
 import fsPromises from 'node:fs/promises';
@@ -55,12 +15,8 @@ import {
 import { Logger } from './Logger.js';
 
 /**
- * Shipped defaults for `delivery.tempRetention`. `enabled` defaults to `true`:
- * the operator asked for auto-purge to be the behaviour, with the knob there
- * to turn it off rather than to turn it on. `staleDays` is a fixed constant
- * since Story #5382 folded the never-set `tempRetention.staleDays` key; the
- * master switch and the per-class opt-outs stay configurable because each
- * one turns a deletion off.
+ * Defaults for `delivery.tempRetention`; purge is on unless turned off.
+ * `staleDays` is not configurable — only switches that turn a deletion off are.
  */
 export const TEMP_RETENTION_DEFAULTS = Object.freeze({
   enabled: true,
@@ -73,50 +29,36 @@ export const TEMP_RETENTION_DEFAULTS = Object.freeze({
   }),
 });
 
-/** Every declared purge class, in classification order. */
 export const PURGE_CLASS_NAMES = Object.freeze(
   Object.keys(TEMP_RETENTION_DEFAULTS.classes),
 );
 
 /**
- * Basenames no path may ever delete, re-checked at the deletion site even
- * though classification already excludes them. See the module header.
+ * Never deleted, re-checked at the deletion site: `signals.ndjson` is read
+ * long after merge and its loss is silent and unrecoverable.
  */
 export const KEEP_BASENAMES = Object.freeze(['signals.ndjson']);
 
-/**
- * The per-Story artifact basenames `validationEvidence` claims. An explicit
- * allowlist rather than a "delete everything but signals" rule: a file this
- * module has not been taught about is kept, not guessed at.
- */
+/** Explicit allowlist: an untaught file in a Story dir is kept. */
 const STORY_EVIDENCE_BASENAMES = Object.freeze([
   'validation-evidence.json',
   'lifecycle.ndjson',
   'manifest.md',
 ]);
 
-/**
- * Top-level temp entries that belong to the framework but are never purge
- * candidates: `qa/` holds resumable operator-owned session ledgers, `cache/`
- * has its own invalidation, and `*.lock` files are live coordination state.
- */
+/** Framework-owned, never purged (`*.lock` files are also skipped). */
 const RESERVED_TOP_LEVEL = Object.freeze(['qa', 'cache']);
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-/** `story-4794` → `4794`. */
 const STORY_DIR_PATTERN = /^story-(\d+)$/;
-/** `close-gates-4794`, `sync-result-story-4794` → `4794`. */
 const TRAILING_ID_PATTERN = /-(\d+)$/;
-/** `audit-story-4794-audit-clean-code.md` → `4794`. */
 const AUDIT_STORY_PATTERN = /^audit-story-(\d+)-/;
-/** `run-1030` — a per-run temp tree holding `stories/story-<id>/` children. */
+/** Per-run temp tree holding `stories/story-<id>/` children. */
 const RUN_DIR_PATTERN = /^run-\d+$/;
 
 /**
- * Resolve the effective retention policy, filling every field from
- * {@link TEMP_RETENTION_DEFAULTS}. An unset block yields the defaults, so a
- * consumer that never heard of this feature gets the purge.
+ * Effective retention policy, defaults filled in.
  *
  * @param {object} [config] Resolved config bag.
  * @returns {{ enabled: boolean, staleDays: number, classes: Record<string, boolean> }}
@@ -136,9 +78,7 @@ export function resolveTempRetention(config) {
 }
 
 /**
- * `readdir` that yields `[]` for a directory that does not exist or cannot be
- * read. Every scan below walks optional trees, so an absent one is the normal
- * case, not an error.
+ * `readdir` yielding `[]` for an absent or unreadable directory.
  *
  * @param {typeof fsPromises} fsp
  * @param {string} dir
@@ -153,8 +93,7 @@ async function safeReaddir(fsp, dir) {
 }
 
 /**
- * Total bytes under a path — the file's own size, or the recursive sum for a
- * directory. Reporting-only: a vanished child is skipped rather than fatal.
+ * Recursive byte total; a vanished child is skipped.
  *
  * @param {typeof fsPromises} fsp
  * @param {string} target
@@ -183,10 +122,8 @@ async function sizeOf(fsp, target) {
 }
 
 /**
- * Build one classified entry. `mtimeMs` is the entry's **own** mtime, not the
- * newest mtime beneath it — that is the semantics the shipped stale-plan-dir
- * reap has always used, and widening it here would silently change when an
- * abandoned directory becomes eligible.
+ * One classified entry. `mtimeMs` is the entry's own mtime, not the newest
+ * beneath it; widening it would change when an abandoned dir becomes eligible.
  *
  * @param {typeof fsPromises} fsp
  * @param {string} target
@@ -212,19 +149,12 @@ async function makeEntry(fsp, target, className, storyId, keep = false) {
   };
 }
 
-/**
- * Extensions this class owns inside `orchestration/`. Story #4816 added
- * `.json`: the persisted terminal envelope lands beside the gate log, and a
- * `.log`-only scan would have left one immortal file per delivered Story in a
- * directory the purge otherwise keeps clean.
- */
+/** `.json` covers the persisted terminal envelope beside each gate log. */
 const ORCHESTRATION_EXTENSIONS = Object.freeze(['.log', '.json']);
 
 /**
- * Recover the Story id a run-artifact basename carries. Every writer that
- * lands in `orchestration/` ends its name with the scope: `close-gates-4794.log`
- * from the gate sink, `sync-result-story-4794.log` from the terse-result dump,
- * `story-deliver-terminal-4794.json` from the terminal-envelope persist.
+ * Story id from an `orchestration/` basename; every writer there ends the
+ * name with `-<id>`.
  *
  * @param {string} name
  * @returns {number|null}
@@ -234,12 +164,7 @@ function storyIdFromLogName(name) {
   return match ? Number(match[1]) : null;
 }
 
-/**
- * `<tempRoot>/orchestration/*.{log,json}` — close gate transcripts,
- * terse-result detail dumps, and persisted terminal envelopes. An artifact
- * whose name carries no id (there are none today, but the class owns the
- * directory) is age-floored rather than dropped from the class.
- */
+/** `<tempRoot>/orchestration/*.{log,json}`; an id-less name is age-floored. */
 async function scanOrchestrationLogs(tempRoot, fsp) {
   const dir = path.join(tempRoot, ORCHESTRATION_DIRNAME);
   const entries = [];
@@ -261,10 +186,7 @@ async function scanOrchestrationLogs(tempRoot, fsp) {
   return entries;
 }
 
-/**
- * Every directory that holds `story-<id>/` children: the standalone tree and
- * each per-run tree.
- */
+/** Directories holding `story-<id>/` children: standalone and per-run. */
 async function storyParentDirs(tempRoot, fsp) {
   const parents = [path.join(tempRoot, 'standalone', 'stories')];
   for (const dirent of await safeReaddir(fsp, tempRoot)) {
@@ -276,11 +198,8 @@ async function storyParentDirs(tempRoot, fsp) {
 }
 
 /**
- * `<…>/stories/story-<id>/*` — the per-Story delivery artifacts.
- *
- * Every file in the directory is emitted, but only the declared evidence
- * basenames are purge candidates; `signals.ndjson` and anything unrecognized
- * are emitted with `keep: true` so the envelope can show what survived.
+ * `<…>/stories/story-<id>/*`; non-allowlisted files are emitted `keep: true`
+ * so the envelope shows what survived.
  */
 async function scanValidationEvidence(tempRoot, fsp) {
   const entries = [];
@@ -305,10 +224,7 @@ async function scanValidationEvidence(tempRoot, fsp) {
   return entries;
 }
 
-/**
- * `<tempRoot>/audits/*` — audit reports. `audit-story-<id>-<lens>.md` is
- * Story-keyed; the roster-level reports and profiling output are age-floored.
- */
+/** `<tempRoot>/audits/*`; `audit-story-<id>-*` is Story-keyed, rest age-floored. */
 async function scanAuditResults(tempRoot, fsp) {
   const dir = path.join(tempRoot, 'audits');
   const entries = [];
@@ -325,10 +241,7 @@ async function scanAuditResults(tempRoot, fsp) {
   return entries;
 }
 
-/**
- * `<tempRoot>/plan-<slug>/` — plan authoring dirs. Never Story-keyed: the
- * directory predates the Stories it creates, so age is the only safe signal.
- */
+/** `<tempRoot>/plan-<slug>/`: predates its Stories, so age is the only signal. */
 async function scanPlanDirs(tempRoot, fsp) {
   const entries = [];
   for (const dirent of await safeReaddir(fsp, tempRoot)) {
@@ -344,7 +257,6 @@ async function scanPlanDirs(tempRoot, fsp) {
   return entries;
 }
 
-/** Class name → scanner. Iteration order matches {@link PURGE_CLASS_NAMES}. */
 const SCANNERS = Object.freeze({
   orchestrationLogs: scanOrchestrationLogs,
   validationEvidence: scanValidationEvidence,
@@ -353,9 +265,8 @@ const SCANNERS = Object.freeze({
 });
 
 /**
- * Does a top-level temp entry belong to a declared class? Kept in lockstep
- * with the scanners above: an entry no class walks must show up as
- * unrecognized, never be silently ignored.
+ * Keep in lockstep with the scanners: an entry no class walks must surface
+ * as unrecognized.
  *
  * @param {string} name
  * @returns {boolean}
@@ -371,9 +282,7 @@ function isClassOwnedTopLevel(name) {
 }
 
 /**
- * Top-level entries that no class claims and that are not framework-reserved.
- * Reported with byte sizes, never deleted — this is what makes a 49MB scratch
- * directory visible to the operator instead of invisible to the tooling.
+ * Unclaimed, non-reserved top-level entries: reported with sizes, never deleted.
  *
  * @param {string} tempRoot
  * @param {typeof fsPromises} fsp
@@ -392,8 +301,7 @@ async function collectUnrecognized(tempRoot, fsp) {
 }
 
 /**
- * Classify a whole temp tree without deleting anything. Exported so a caller
- * (or a test) can see exactly what the purge would consider.
+ * Classify a temp tree without deleting anything.
  *
  * @param {{ config?: object, tempRoot?: string, fsp?: typeof fsPromises }} [args]
  * @returns {Promise<{ tempRoot: string, entries: object[], unrecognized: Array<{ path: string, bytes: number }> }>}
@@ -416,8 +324,6 @@ export async function collectTempEntries({
 }
 
 /**
- * Is this entry eligible for deletion under the current policy and signals?
- *
  * @param {object} entry
  * @param {object} ctx
  * @returns {boolean}
@@ -433,23 +339,20 @@ function isPurgeable(entry, ctx) {
 }
 
 /**
- * The purge core. Deliberately **module-private**: the two exported entry
- * points below are the whole public surface, and each encodes a policy
- * decision (Story-keyed vs. age-floored) that a caller reaching this directly
- * could get wrong. Exporting it would also be a dead export — nothing outside
- * this file has a reason to call it.
+ * Purge core; module-private because each exported entry point encodes the
+ * Story-keyed vs. age-floored policy a direct caller could get wrong.
  *
  * @param {object} [args]
- * @param {object} [args.config] Resolved config bag.
+ * @param {object} [args.config]
  * @param {number[]} [args.storyIds] Stories whose merge the caller CONFIRMED.
  * @param {boolean} [args.sweepStale] Opt into the age floor for un-keyed entries.
- * @param {string[]|null} [args.only] Restrict to these class names.
- * @param {string[]} [args.excludePaths] Absolute paths to leave alone.
- * @param {number} [args.now] Clock seam.
- * @param {string} [args.tempRoot] Temp root override (tests).
- * @param {typeof fsPromises} [args.fsp] Filesystem seam.
- * @param {{ info: Function }} [args.logger] Logger seam.
- * @param {string} [args.label] Prefix for the single summary line.
+ * @param {string[]|null} [args.only]
+ * @param {string[]} [args.excludePaths]
+ * @param {number} [args.now]
+ * @param {string} [args.tempRoot]
+ * @param {typeof fsPromises} [args.fsp]
+ * @param {{ info: Function }} [args.logger]
+ * @param {string} [args.label]
  * @returns {Promise<object>} Result envelope; never throws.
  */
 async function purgeTempArtifacts({
@@ -504,7 +407,6 @@ async function purgeTempArtifacts({
       result.purged.push({ path: entry.path, bytes: entry.bytes });
       result.bytesReclaimed += entry.bytes;
     } catch (err) {
-      // A racing writer or a permission error: leave it for the next run.
       result.errors.push(`${entry.path}: ${String(err?.message ?? err)}`);
     }
   }
@@ -519,8 +421,6 @@ async function purgeTempArtifacts({
 }
 
 /**
- * Human-readable byte count for the one summary line.
- *
  * @param {number} bytes
  * @returns {string}
  */
@@ -537,9 +437,7 @@ export function formatBytes(bytes) {
 }
 
 /**
- * Purge one merged Story's spent artifacts. Called from the post-land tail,
- * where "merged" is already confirmed — so this never applies the age floor
- * and can never touch a sibling Story's in-flight artifacts.
+ * Purge one confirmed-merged Story's artifacts; never applies the age floor.
  *
  * @param {{ storyId: number, config?: object, now?: number, tempRoot?: string,
  *   fsp?: typeof fsPromises, logger?: object }} args
@@ -555,10 +453,8 @@ export async function purgeStoryTempArtifacts({ storyId, config, ...rest }) {
 }
 
 /**
- * Catch-up sweep: purge the artifacts of every Story the caller confirmed
- * merged, plus every age-floored entry past `staleDays`. This is the path
- * that reclaims a backlog — Stories merged in an earlier run, merged through
- * the GitHub UI, or delivered before this feature existed.
+ * Catch-up sweep: confirmed-merged Stories plus age-floored entries past
+ * `staleDays`.
  *
  * @param {{ config?: object, mergedStoryIds?: number[], now?: number,
  *   tempRoot?: string, fsp?: typeof fsPromises, logger?: object,

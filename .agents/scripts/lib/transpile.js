@@ -26,19 +26,8 @@ function loadTypeScript() {
 let _tsVersion = null;
 
 /**
- * Resolve the `typescript` package version, used to stamp baselines so
- * consumers can detect transpiler drift. Returns `'0.0.0'` when the
- * dependency is unresolvable — callers treat that sentinel as "unknown
- * environment" and may refuse to persist a baseline that includes TS rows.
- *
- * **The version is read from the package manifest, never by evaluating the
- * compiler** (Story #5109) — see
- * [`dependency-version.js`](dependency-version.js) for how, and for what it
- * cost to do it the other way. The manifest returns the identical string, so
- * the stamp (and therefore every committed baseline envelope) is
- * byte-identical either way. The compiler itself is still loaded — lazily, by
- * `transpileIfNeeded` — the first time a `.ts`/`.tsx` input is actually
- * transpiled.
+ * `typescript` version for baseline stamps, read from the manifest (never by
+ * loading the compiler). `'0.0.0'` means unknown environment.
  *
  * @returns {string}
  */
@@ -54,32 +43,18 @@ function isTypeScriptPath(filePath) {
 }
 
 /**
- * Trailing `//# sourceMappingURL=…` comment `ts.transpileModule` appends
- * when `sourceMap: true` is requested. Stripping it makes the emitted code
- * byte-identical to the `sourceMap: false` emit, which is what keeps the
- * maintainability path — and every MI score in the committed baseline —
- * untouched by the CRAP path opting into a map.
+ * Stripped so a `sourceMap: true` emit is byte-identical to the plain one,
+ * keeping MI scores unaffected by the CRAP path's map.
  */
 const SOURCE_MAPPING_URL_RE = /\n?\/\/# sourceMappingURL=[^\n]*\n?$/;
 
 /**
- * Build a `transpiledLine → originalLine` resolver over a raw
- * `sourceMapText` payload, using Node's built-in `SourceMap` (no new
- * runtime dependency).
+ * Memoised `transpiledLine → originalLine` resolver. `findEntry` returns the
+ * mapping at or *before* a position, so columns are walked and only an entry
+ * on the same generated line is accepted; an unmapped line yields `null`.
  *
- * `SourceMap#findEntry(line, column)` is 0-based and returns the mapping at
- * or before the requested position, so a bare `findEntry(line, 0)` can
- * silently answer with a *previous* line's mapping when the requested line
- * carries no mapping at column 0. The resolver therefore walks the columns
- * of the generated line and accepts only an entry that actually originates
- * on that generated line; a line with no mapping at all resolves to `null`
- * and the caller falls back to the un-remapped coordinate.
- *
- * Results are memoised per generated line — a file's methods are looked up
- * once each, but the same line is often probed by several callers.
- *
- * @param {string} sourceMapText Raw JSON source map emitted by TypeScript.
- * @param {string} code The generated (transpiled) code the map describes.
+ * @param {string} sourceMapText
+ * @param {string} code
  * @returns {((line: number) => number|null)|null}
  */
 function buildLineMapper(sourceMapText, code) {
@@ -119,36 +94,9 @@ function buildLineMapper(sourceMapText, code) {
 }
 
 /**
- * Pre-transpile TypeScript or TSX sources to JavaScript that the
- * Esprima-based escomplex kernel can parse. Returns the input unchanged
- * for `.js` / `.mjs` / `.cjs` paths.
- *
- * Type annotations introduce no control flow, so the transpiled output
- * scores identically to the original TS for cyclomatic complexity,
- * Halstead volume, and the maintainability index. `.tsx` uses the
- * `react-jsx` emit so JSX expressions become function calls escomplex
- * can read; `.preserve` would leave JSX in the output and Esprima would
- * choke on it.
- *
- * On transpile failure the helper returns `null` — callers treat that
- * as "skip this file" rather than crashing the scan.
- *
- * **Line coordinates (Story #4775).** The transpile does not preserve line
- * numbers: interface elision and the injected JSX-runtime import shift the
- * emitted code relative to the original source. escomplex then reports each
- * method's `lineStart` in *transpiled* coordinates while istanbul's `fnMap`
- * is in *original source* coordinates — so a per-method coverage join keyed
- * on the raw `lineStart` cannot match. Callers that need to join against
- * coverage pass `{ withLineMap: true }` and receive
- * `{ code, mapLine }`, where `mapLine(transpiledLine)` returns the original
- * source line (or `null` when the line has no mapping).
- *
- * `withLineMap` is opt-in precisely so the maintainability path — which is
- * module-level and never joins coverage — keeps paying nothing for a map it
- * would not read, and keeps emitting byte-identical scores. A JavaScript
- * input is a passthrough in both modes: `mapLine` is `null` because the
- * coordinates already *are* original-source coordinates, so no remap is
- * needed and none is computed.
+ * TS/TSX → JS escomplex can parse (types add no control flow); JS passes
+ * through; `null` means skip. Transpiling shifts lines, so a coverage join
+ * opts into `{ withLineMap: true }` → `{ code, mapLine }` (`null` for JS).
  *
  * @param {string} filePath
  * @param {string} source
@@ -199,17 +147,10 @@ export function transpileIfNeeded(filePath, source, opts = {}) {
 }
 
 /**
- * Prepare a source file for scoring: read it, transpile TS/TSX with a
- * line map, and hand back the JavaScript escomplex will parse alongside the
- * transpiled → original-source line resolver the coverage join needs
- * (Story #4775).
+ * Read + transpile with a line map. Read and transpile failures stay
+ * distinct: the MI path drops the score on `read` but scores 0 on `transpile`.
  *
- * Failure is reported as `{error: 'read'}` or `{error: 'transpile'}` rather
- * than a bare null: CRAP drops the file either way, but the combined MI path
- * distinguishes them (a read failure drops the MI score, a transpile failure
- * scores it 0 — matching `calculateForFile`).
- *
- * @param {string} abs Absolute path of the source file.
+ * @param {string} abs
  * @param {{readFile?: (p: string) => string, transpile?: Function}} [deps]
  * @returns {{code: string, mapLine: ((line: number) => number|null)|null}
  *   | {error: 'read'|'transpile'}}

@@ -2,14 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import picomatch from 'picomatch';
 
-/**
- * Globs for slow / integration-style suites excluded from `test:quick`.
- *
- * Curated from `npm run test:profile` (Stories #2742 / #2744). Real-git
- * harnesses, binary-spawn CLI contracts, and other suites whose setup
- * dominates quick-tier feedback stay here; unit-guard / mock paths remain
- * in quick.
- */
+/** Slow suites (real git, binary spawns) excluded from `test:quick`. */
 export const INTEGRATION_INCLUDE = [
   'tests/**/*.integration.test.js',
   'tests/hook-chain-reflog-invariant.test.js',
@@ -24,85 +17,29 @@ export const INTEGRATION_INCLUDE = [
 const matchesIntegration = picomatch(INTEGRATION_INCLUDE, { dot: true });
 
 /**
- * Globs for the `e2e` tier — real-binary suites under `tests/e2e/` that pack
- * this repository, install it into a temp consumer and drive the shipped
- * `mandrel` binary end to end.
- *
- * They are the most expensive files the repository owns by an order of
- * magnitude: one `npm pack` plus real `npm install` spawns per file, measured
- * (Story #5111) at ~7 s of system time and ~17 s of summed install wall clock
- * for `update-chain.integration.test.js` alone. Every one of those seconds was
- * charged to `npm test` — i.e. to every pre-push hook and every local
- * iteration — for a signal that only changes when the release-shaped install
- * path changes.
- *
- * So they get their own tier and leave every other one: `full` (`npm test`),
- * `quick` and `integration` all exclude them, and `npm run test:e2e` is how
- * they run. CI runs that tier as its own job on every PR, so the
- * release-shaped path keeps its per-PR signal.
- *
- * Deliberately not exported: a second reader of this list is a second place
- * for the tier definition to drift. `listTestFilesForTier('e2e', root)` is the
- * public answer to "which files are e2e", and the tests assert through it.
+ * Pack-and-install suites driving the shipped binary — too expensive for
+ * every pre-push, so only `test:e2e` (its own CI job) runs them. Not exported:
+ * `listTestFilesForTier('e2e', root)` is the one reader.
  */
 const E2E_INCLUDE = ['tests/e2e/**/*.test.js'];
 
 const matchesE2E = picomatch(E2E_INCLUDE, { dot: true });
 
-/** Tier names `parseTierArgv` accepts, in the order `--help` lists them. */
 const TIERS = ['full', 'quick', 'integration', 'e2e'];
 
 /**
- * `node --test` flags the runner forwards verbatim to the child.
- *
- * Everything else that looks like a flag is a mistake — a typo, a retired
- * option, or a flag meant for `npm` that landed after the `--` separator —
- * and `parseTierArgv` rejects it rather than passing it to `node --test`,
- * which reads an unknown `--flag` as a *file pattern* and silently runs a
- * suite that matches nothing while exiting 0.
+ * The only flags forwarded to `node --test`; any other `--flag` is rejected,
+ * since `node --test` reads it as a file pattern and exits 0 having run nothing.
  */
 const PASSTHROUGH_FLAGS = ['--test-name-pattern', '--test-only'];
 
-/**
- * Repo-relative roots the tier walker scans for test files (names ending in
- * `.test.js`).
- *
- * `tests` holds the framework's suite tree; `lib` holds the published CLI
- * (under `lib/cli` and `lib/migrations`) whose tests are colocated in
- * `__tests__` directories per the unit-tier convention in
- * `rules/testing-standards.md`. `.agents/scripts` holds the orchestration
- * engine; some of its modules colocate tests in `__tests__` directories the
- * same way (Story #4195). Without each root here, both the quick /
- * integration walk and the full-tier glob set miss the colocated tests,
- * leaving that coverage dark in `npm test`. The matching full-tier globs
- * live in the exported `FULL_TIER_GLOBS` — every full-tier runner
- * (`run-tests.js`, `run-coverage.js`) MUST consume that constant rather than
- * restate a glob literal, or a runner silently walks a narrower surface.
- */
+/** Roots scanned for `*.test.js`, including colocated `__tests__` trees. */
 const TEST_WALK_ROOTS = ['tests', 'lib', '.agents/scripts'];
 
 /**
- * Glob targets for the `full` tier — one per walk root in `TEST_WALK_ROOTS`.
- * The `tests` glob is a flat recursive sweep; the `lib` and `.agents/scripts`
- * globs are scoped to `__tests__` subtrees so they only match colocated
- * tests, never the shipped source modules themselves.
- *
- * Exported because it is the **measured surface**: `run-coverage.js` — the
- * required CI job, and the run every coverage / CRAP baseline is scored from —
- * consumes it directly. Story #4922: the coverage runner used to restate
- * `tests/**` on its own, so the 47 colocated `__tests__` files ran under
- * `npm test` but were absent from the measured surface, leaving the coverage
- * and CRAP numbers computed over code the measuring run never executed.
- * Consume this constant; never restate a glob.
- *
- * Story #5111 made this a strict **superset** of the `full` runner tier: the
- * measured surface still includes `tests/e2e/**`, while `npm test` no longer
- * runs it. That asymmetry is deliberate and load-bearing. The e2e suites drive
- * the shipped binary through `bin/mandrel.js` and `lib/cli/update.js` in real
- * child processes, and c8's `NODE_V8_COVERAGE` is inherited by those children —
- * so dropping them from the measured run would deflate exactly the CLI files
- * they exist to exercise and red the coverage ratchet on code nobody touched.
- * Cheapening the pre-push loop must not cost the measurement its subject.
+ * The measured surface for coverage/CRAP; consume it, never restate a glob.
+ * A superset of the `full` tier: e2e children inherit `NODE_V8_COVERAGE` and
+ * are the only coverage of the CLI entry files.
  */
 export const FULL_TIER_GLOBS = [
   'tests/**/*.test.js',
@@ -132,10 +69,6 @@ function walkTestFiles(dir, prefix, fsLike) {
 }
 
 /**
- * Split the walked set into the `e2e` tier and the remainder every other tier
- * is drawn from, so an e2e file belongs to exactly one tier and `npm test`
- * never pays for it.
- *
  * @param {string[]} all
  * @returns {{ e2e: string[], rest: string[] }}
  */
@@ -146,9 +79,6 @@ function partitionE2E(all) {
 }
 
 /**
- * Split the non-e2e remainder into the slow `integration` tier and the `quick`
- * complement — the historical partition, unchanged.
- *
  * @param {string[]} rest
  * @param {'quick' | 'integration'} tier
  * @returns {string[]}
@@ -163,13 +93,8 @@ function splitBySpeed(rest, tier) {
 }
 
 /**
- * List repo-relative test file paths for a tier.
- *
- * `full` used to return {@link FULL_TIER_GLOBS} verbatim and let `node --test`
- * expand them. It enumerates files instead since Story #5111, because the one
- * thing a glob list cannot express is an exclusion: `node --test` has no
- * negative pattern, so "everything except `tests/e2e/**`" is only sayable as
- * a file set. The measured surface keeps the globs (see `FULL_TIER_GLOBS`).
+ * Repo-relative test files for a tier. Enumerated, not globbed: `node --test`
+ * has no negative pattern to exclude `tests/e2e/**`.
  *
  * @param {'full' | 'quick' | 'integration' | 'e2e'} tier
  * @param {string} repoRoot
@@ -191,15 +116,6 @@ export function listTestFilesForTier(tier, repoRoot, fsLike = fs) {
 }
 
 /**
- * Reject argv tokens that look like flags but are neither `--tier` (already
- * consumed) nor a sanctioned `node --test` pass-through.
- *
- * Silence was the old behaviour and the reason this exists: the runner
- * forwarded every unrecognized token verbatim, and `node --test` treats an
- * unknown `--flag` as another **file pattern**. A typo therefore produced a
- * run that matched nothing, printed a plausible-looking summary and exited 0 —
- * a green that proved nothing.
- *
  * @param {string[]} rest
  * @throws {Error} naming both the accepted tiers and the accepted flags.
  */
