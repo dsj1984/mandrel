@@ -2472,7 +2472,7 @@ describe('merge wait — decisions made once (Story #5383)', () => {
       storyId: 4428,
       prNumber: 99,
       cwd: '/repo',
-      progress: (tag, msg) => lines.push(msg),
+      progress: (_tag, msg) => lines.push(msg),
       readPrMergeStateFn: async () => {
         throw new Error('must not read');
       },
