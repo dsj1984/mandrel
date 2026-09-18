@@ -6,7 +6,7 @@
  * it lives per-file in [`baselines/coverage.json`](./baselines/coverage.json),
  * checked by `.agents/scripts/check-baselines.js` (coverage kind) and
  * updated via `npm run coverage:update`. See
- * [`.agents/docs/quality-gates.md`](./.agents/docs/quality-gates.md) for the full ratchet
+ * [`docs/quality-gates.md`](./docs/quality-gates.md) for the full ratchet
  * workflow.
  *
  * ## One declaration, not two (Story #4922)

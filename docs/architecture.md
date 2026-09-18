@@ -6,7 +6,7 @@ coding assistants. It is the authoritative reference for how the system is
 structured, how components interact, and where to find each subsystem.
 
 > **For the end-to-end workflow narrative** — how the commands compose, label
-> transitions, HITL touchpoints — see [`.agents/docs/SDLC.md`](../.agents/docs/SDLC.md).
+> transitions, HITL touchpoints — see [`docs/SDLC.md`](SDLC.md).
 > This file covers the *architecture* (modules, interfaces, data flow) that
 > the workflow runs on top of. The slash-command reference index lives in
 > [`.agents/docs/workflows.md`](../.agents/docs/workflows.md).
@@ -106,7 +106,6 @@ mandrel/
 │   ├── schemas/              ← JSON Schema for structured output
 │   ├── templates/            ← Prompt and planning templates
 │   └── docs/                 ← Shipped consumer reference docs
-│       ├── SDLC.md           ←   End-to-end workflow guide
 │       ├── configuration.md  ←   Every .agentrc.json key (shipped)
 │       └── agentrc-reference.json ← Exhaustive editor reference
 │
@@ -577,7 +576,7 @@ sequenceDiagram
 There is no Epic wave loop, no `epic/<id>` integration branch, and no
 `--no-ff` wave merges. See
 [`workflows/mandrel-deliver.md`](../.agents/workflows/mandrel-deliver.md) and
-[`.agents/docs/SDLC.md`](../.agents/docs/SDLC.md).
+[`docs/SDLC.md`](SDLC.md).
 
 ---
 
@@ -925,7 +924,7 @@ categories — planning, execution, closure, audits, git operations, and
 setup/meta. The canonical reference is
 [`.agents/docs/workflows.md`](../.agents/docs/workflows.md); the
 workflow narrative that wires them together lives in
-[`.agents/docs/SDLC.md`](../.agents/docs/SDLC.md).
+[`docs/SDLC.md`](SDLC.md).
 
 ### Workflow read-tier (transitive closure)
 
@@ -1450,7 +1449,7 @@ conventions to follow.
 - **Test file pattern:** `tests/**/*.test.js`
 - **Coverage:** `node --experimental-test-coverage` with absolute
   floors enforced per-file: lines ≥ 90, branches ≥ 85, functions ≥ 90,
-  MI ≥ 70, CRAP ≤ 20. See [`.agents/docs/quality-gates.md`](../.agents/docs/quality-gates.md) for the
+  MI ≥ 70, CRAP ≤ 20. See [`docs/quality-gates.md`](quality-gates.md) for the
   ratchet-plus-floor policy.
 
 ### Key Scripts

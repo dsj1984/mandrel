@@ -54,7 +54,7 @@ Four load-bearing entries are cited by most of the others:
 [`20260624-loop-units-division-of-labor`](#adr-20260624-loop-units-division-of-labor-mandrel-owns-content--oracle--contract-the-host-owns-cadence--iteration)
 (mandrel owns content, the host owns cadence). The absolute quality floors and
 the floor-vs-ratchet policy are tooling commitments rather than ADRs and live in
-[`quality-gates.md`](../.agents/docs/quality-gates.md).
+[`quality-gates.md`](quality-gates.md).
 
 ## Index
 
