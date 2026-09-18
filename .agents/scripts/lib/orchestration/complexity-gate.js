@@ -37,11 +37,13 @@
  * sensitive-path class routes `full`, which keeps its deep code review
  * (`review-depth.js`).
  *
- * {@link LITE_PATH_INVARIANTS} is the machine-readable contract that the
- * light path still produces a Story ticket, still lands via a PR to `main`,
- * still runs every repo quality gate, and still honours
- * `rules/security-baseline.md`. Those gates run in `single-story-close.js`
- * regardless of route; the router cannot and does not switch them off.
+ * The light path still produces a Story ticket, still lands via a PR to
+ * `main`, still runs every repo quality gate, and still honours
+ * `rules/security-baseline.md`. That is a property of
+ * `single-story-close.js`, which runs those gates regardless of route — the
+ * router cannot and does not switch them off. Story #5366 deleted the frozen
+ * `preserves` payload that used to restate it on every decision: nothing read
+ * it, and a claim attached to a decision is not the thing that enforces it.
  *
  * @typedef {'lite'|'full'} ComplexityRoute
  */
@@ -109,8 +111,10 @@ function spansMigrationAndConsumers(paths) {
  *     and derived from the predicted PATHS rather than a self-declared bucket.
  *     No re-slicing satisfies one.
  *   - **Unknown-footprint rejections** — `no-changes`, `unreadable-changes`,
- *     `glob-footprint`, `no-acceptance`, `classification-unavailable`.
- *     Nothing was judged, so there is nothing to appeal.
+ *     `glob-footprint`, `classification-unavailable`. Nothing was judged, so
+ *     there is nothing to appeal. Story #5366 deleted `no-acceptance` with
+ *     the `--acceptance` flag that was its only source: the flag clamped to a
+ *     floor of one, so the zero-check behind this code could never fire.
  *
  * A `lite` route carries `code: null`.
  */
@@ -120,7 +124,6 @@ export const SHAPE_CODES = Object.freeze({
   NO_CHANGES: 'no-changes',
   UNREADABLE_CHANGES: 'unreadable-changes',
   GLOB_FOOTPRINT: 'glob-footprint',
-  NO_ACCEPTANCE: 'no-acceptance',
   CLASSIFICATION_UNAVAILABLE: 'classification-unavailable',
 });
 
@@ -166,20 +169,6 @@ function firstRiskViolation(shape) {
   }
   return null;
 }
-
-/**
- * The non-negotiables the ceremony-lite path preserves (Story #4683 AC-2):
- * collapsing ceremony never means dropping the Story ticket, the PR-to-`main`
- * landing, the repo quality gates, or the security baseline. Attached
- * verbatim to every route decision's `preserves` field so a downstream reader
- * (or contract test) can assert the invariants held on either route.
- */
-const LITE_PATH_INVARIANTS = Object.freeze({
-  storyTicket: true,
-  prToMain: true,
-  repoGates: true,
-  securityBaseline: true,
-});
 
 /**
  * Count top-level enumerated items (`- `, `* `, `1. `) in a free-form seed —
@@ -296,8 +285,8 @@ export function buildComplexitySignals({
 
 /**
  * Assemble one decision object. Module-level rather than a closure inside
- * {@link deriveStoryShape}, so the `preserves` contract is attached in exactly
- * one place and each rejection family below can build its own verdict.
+ * {@link deriveStoryShape}, so each rejection family below can build its own
+ * verdict through one shape.
  *
  * @param {'lite'|'full'} route
  * @param {string|null} code
@@ -306,13 +295,7 @@ export function buildComplexitySignals({
  * @returns {object}
  */
 function decide(route, code, reason, shape = null) {
-  return {
-    route,
-    reasons: [reason],
-    code,
-    shape,
-    preserves: LITE_PATH_INVARIANTS,
-  };
+  return { route, reasons: [reason], code, shape };
 }
 
 /**
@@ -350,12 +333,17 @@ function readFootprintEntries(changes) {
 }
 
 /**
- * The rejections a footprint that WAS read can still earn before any risk rule
- * is reached: an unknowable width (a glob) or no contract to judge. Returns
- * `null` when neither applies.
+ * The one rejection a footprint that WAS read can still earn before any risk
+ * rule is reached: an unknowable width (a glob). Returns `null` when the
+ * footprint is judgeable.
+ *
+ * It used to have a sibling — a zero-length acceptance list — which Story
+ * #5366 removed along with the `--acceptance` flag that fed it. The flag
+ * clamped its own value to a floor of one, so the branch was unreachable from
+ * the only caller in the tree.
  *
  * @param {Array<{ isGlob?: boolean }>} entries
- * @param {{ acceptanceCount: number }} shape
+ * @param {object} shape
  * @returns {object|null}
  */
 function unjudgeableFootprintRejection(entries, shape) {
@@ -364,14 +352,6 @@ function unjudgeableFootprintRejection(entries, shape) {
       'full',
       SHAPE_CODES.GLOB_FOOTPRINT,
       'changes[] contains a glob path — unknown footprint width; conservative full route',
-      shape,
-    );
-  }
-  if (shape.acceptanceCount === 0) {
-    return decide(
-      'full',
-      SHAPE_CODES.NO_ACCEPTANCE,
-      'no acceptance criteria — the contract cannot be judged trivial; conservative full route',
       shape,
     );
   }
@@ -384,20 +364,17 @@ function unjudgeableFootprintRejection(entries, shape) {
  *
  * @param {{
  *   paths: string[],
- *   acceptance?: unknown,
  *   sensitiveClasses: string[],
  * }} args
  * @returns {{
  *   siteCount: number,
- *   acceptanceCount: number,
  *   migrationSpan: boolean,
  *   sensitiveClasses: string[],
  * }}
  */
-function buildRiskShape({ paths, acceptance, sensitiveClasses }) {
+function buildRiskShape({ paths, sensitiveClasses }) {
   return {
     siteCount: paths.length,
-    acceptanceCount: Array.isArray(acceptance) ? acceptance.length : 0,
     migrationSpan: spansMigrationAndConsumers(paths),
     sensitiveClasses,
   };
@@ -414,9 +391,6 @@ function buildRiskShape({ paths, acceptance, sensitiveClasses }) {
  *
  *   - a declared, parseable, glob-free `changes[]` footprint — width is not
  *     counted, but an unknown footprint cannot be classified for risk;
- *   - at least one acceptance criterion (a Story with no contract cannot be
- *     judged trivial). The criteria are **not** capped: criterion count is
- *     contract detail, not effort;
  *   - no migration-with-consumers span;
  *   - a footprint intersecting **no** sensitive-path class
  *     (`deriveChangeLevel`, the taxonomy close applies to the landed diff).
@@ -435,7 +409,6 @@ function buildRiskShape({ paths, acceptance, sensitiveClasses }) {
  *
  * @param {{
  *   changes?: unknown,
- *   acceptance?: unknown,
  *   injectedRules?: object,
  *   selectSensitivePathClassesFn?: Function,
  * }} [args]
@@ -444,14 +417,12 @@ function buildRiskShape({ paths, acceptance, sensitiveClasses }) {
  *   reasons: string[],
  *   code: string|null,
  *   shape: ReturnType<typeof buildRiskShape>|null,
- *   preserves: typeof LITE_PATH_INVARIANTS,
  * }} `code` is the stable {@link SHAPE_CODES} identifier for the rule that
  *   rejected the footprint (`null` on `lite`) — the field a caller branches
  *   on, since `reasons[]` is human prose and free to be re-worded.
  */
 export function deriveStoryShape({
   changes,
-  acceptance,
   injectedRules,
   selectSensitivePathClassesFn,
 } = {}) {
@@ -464,11 +435,7 @@ export function deriveStoryShape({
     injectedRules,
     selectSensitivePathClassesFn,
   });
-  const shape = buildRiskShape({
-    paths,
-    acceptance,
-    sensitiveClasses: classes,
-  });
+  const shape = buildRiskShape({ paths, sensitiveClasses: classes });
 
   const unjudgeable = unjudgeableFootprintRejection(entries, shape);
   if (unjudgeable !== null) return unjudgeable;
@@ -493,7 +460,7 @@ export function deriveStoryShape({
   return decide(
     'lite',
     null,
-    `no absolute risk rule fires across ${shape.siteCount} predicted path(s): no migration-with-consumers span, no sensitive-path class — inline-eligible; size is bounded by the diff backstop, and the non-negotiables are preserved`,
+    `no absolute risk rule fires across ${shape.siteCount} predicted path(s): no migration-with-consumers span, no sensitive-path class — inline-eligible; size is bounded by the diff backstop`,
     shape,
   );
 }

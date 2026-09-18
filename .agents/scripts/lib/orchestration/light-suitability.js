@@ -192,11 +192,15 @@ function resolveDiffCeilings(ceilings) {
  * meant `full` would not be invoking this gate. What survives is the part that
  * leaves a record a human can read afterwards.
  *
+ * Story #5366 removed the `route` field this used to carry beside `recorded`.
+ * It was a second spelling of the same boolean — `recorded === false` IS the
+ * fail-closed route — and two fields that must agree are a chance for them
+ * not to.
+ *
  * Pure and total.
  *
  * @param {{ reason?: unknown }} [verdict]
  * @returns {{
- *   route: 'lite'|'full',
  *   reason: string|null,
  *   recorded: boolean,
  *   note: string,
@@ -206,14 +210,12 @@ export function resolveLedgeredVerdict({ reason } = {}) {
   const recordedReason = typeof reason === 'string' ? reason.trim() : '';
   if (recordedReason === '') {
     return {
-      route: 'full',
       reason: null,
       recorded: false,
       note: 'no recorded reason — fails closed to full (the light verdict must be ledgered)',
     };
   }
   return {
-    route: 'lite',
     reason: recordedReason,
     recorded: true,
     note: `light verdict (recorded reason): ${recordedReason}`,
@@ -233,19 +235,24 @@ export function resolveLedgeredVerdict({ reason } = {}) {
  * `predictedMagnitude`, `predictedUncertainty` — and the `warnings[]` Story
  * #5313 had demoted them to. A bucket the caller picks about its own request
  * is not a measurement, and once it only warned it was not even a gate.
+ * Story #5366 removed `predictedAcceptance` for the same reason from the
+ * other end: its zero-check was the only thing that read it, and the
+ * `--acceptance` flag that fed it clamped to a floor of one.
+ *
+ * The result reports `suitable` and nothing that restates it. The `route`
+ * field it used to carry was a second spelling of that same boolean, and no
+ * caller read it — {@link resolveLightGateOutcome} branches on `suitable`.
  *
  * Pure and total: never throws, never mutates its inputs.
  *
  * @param {{
  *   predictedChanges?: unknown,
- *   predictedAcceptance?: unknown,
  *   verdict?: { reason?: unknown },
  *   injectedRules?: object,
  *   selectSensitivePathClassesFn?: Function,
  * }} [args]
  * @returns {{
  *   suitable: boolean,
- *   route: 'lite'|'full',
  *   shape: ReturnType<typeof deriveStoryShape>,
  *   ledger: ReturnType<typeof resolveLedgeredVerdict>,
  *   unwaivable: ReturnType<typeof deriveUnwaivableRisk>,
@@ -256,7 +263,6 @@ export function resolveLedgeredVerdict({ reason } = {}) {
  */
 export function deriveLightSuitability({
   predictedChanges,
-  predictedAcceptance,
   verdict,
   injectedRules,
   selectSensitivePathClassesFn,
@@ -264,23 +270,15 @@ export function deriveLightSuitability({
   const ledger = resolveLedgeredVerdict(verdict ?? {});
   const shape = deriveStoryShape({
     changes: predictedChanges,
-    acceptance: predictedAcceptance,
     injectedRules,
     selectSensitivePathClassesFn,
   });
   const unwaivable = deriveUnwaivableRisk(shape);
-  const suitable = ledger.route === 'lite' && !unwaivable.present;
+  const suitable = ledger.recorded && !unwaivable.present;
   const reasons = [`shape: ${shape.reasons[0]}`];
   if (unwaivable.present) reasons.push(unwaivable.reason);
   reasons.push(`verdict: ${ledger.note}`);
-  return {
-    suitable,
-    route: suitable ? 'lite' : 'full',
-    shape,
-    ledger,
-    unwaivable,
-    reasons,
-  };
+  return { suitable, shape, ledger, unwaivable, reasons };
 }
 
 /**

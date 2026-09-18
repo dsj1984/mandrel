@@ -72,15 +72,14 @@ is not being loosened.
 
 ## Procedure
 
-1. **Predict + gate.** Form the predicted footprint (new files, edited files,
-   acceptance count) and record the reason you are taking this path, then run
-   the gate — it documents every flag itself, so run it with `--help` rather
-   than guessing:
+1. **Predict + gate.** Form the predicted footprint (new files, edited files)
+   and record the reason you are taking this path, then run the gate — it
+   documents every flag itself, so run it with `--help` rather than guessing:
 
    ```bash
    node .agents/scripts/deliver-light.js --prompt "<prompt>" \
-     --creates <csv> --refactors <csv> --acceptance <n> \
-     --reason "<why this is small>" [--amends '#<id>'] [--yes]
+     --creates <csv> --refactors <csv> \
+     --reason "<why this is small>" [--amends '#<id>']
    ```
 
    Branch on `action` in the JSON envelope:
@@ -154,8 +153,8 @@ is not being loosened.
 
 ## Escalation ends this path {#escalation-is-terminal}
 
-A refused gate — an un-ledgered verdict or an un-waivable risk rule, under
-`--yes` or attended alike — emits a schema-validated `story-deliver-terminal`
+A refused gate — an un-ledgered verdict or an un-waivable risk rule, attended
+or unattended alike — emits a schema-validated `story-deliver-terminal`
 envelope with **`status: "escalated"`**, `storyId: null`, and a `nextCommand`
 naming the `/mandrel-plan` invocation that owns the work.
 

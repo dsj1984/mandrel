@@ -44,7 +44,6 @@ const RULES = {
 /** A genuinely trivial shape: one created artifact, one criterion. */
 const TRIVIAL = {
   changes: [{ path: 'bin/hello.js', assumption: 'creates' }],
-  acceptance: ['prints hello and exits 0'],
   injectedRules: RULES,
 };
 
@@ -119,7 +118,6 @@ describe('deriveStoryShape — the deterministic backstop (AC-1, AC-3)', () => {
     assert.match(derived.reasons[0], /no absolute risk rule fires/i);
     assert.deepEqual(derived.shape, {
       siteCount: 1,
-      acceptanceCount: 1,
       migrationSpan: false,
       sensitiveClasses: [],
     });
@@ -131,7 +129,6 @@ describe('deriveStoryShape — the deterministic backstop (AC-1, AC-3)', () => {
       changes: [
         { path: 'src/auth/handler.js', assumption: 'refactors-existing' },
       ],
-      acceptance: ['works'],
       injectedRules: RULES,
     });
     assert.equal(derived.route, 'full');
@@ -143,18 +140,20 @@ describe('deriveStoryShape — the deterministic backstop (AC-1, AC-3)', () => {
     // complex; the shape says lite because prose is not one of its inputs.
     const derived = deriveStoryShape({
       changes: [{ path: 'bin/hello.js', assumption: 'creates' }],
-      acceptance: ['prints hello'],
       injectedRules: RULES,
     });
     assert.equal(derived.route, 'lite');
   });
 
-  test('Story #4764: criterion count is contract detail, not effort — it no longer routes', () => {
-    const derived = deriveStoryShape({
-      ...TRIVIAL,
-      acceptance: ['a', 'b', 'c', 'd', 'e'],
-    });
+  test('Story #5366: the acceptance list is not an input at all any more', () => {
+    // Story #4764 stopped the criterion COUNT routing; #5366 removed the
+    // parameter, because the only rule left reading it — a zero-length list —
+    // could not fire from the one caller, whose flag clamped to a floor of 1.
+    // A zero-length list would once have routed `full`; it is now ignored,
+    // and the count it fed is no longer reported as evidence either.
+    const derived = deriveStoryShape({ ...TRIVIAL, acceptance: [] });
     assert.equal(derived.route, 'lite');
+    assert.equal('acceptanceCount' in derived.shape, false);
   });
 
   test('Story #5344: distinct change KINDS no longer route — the ceiling is gone', () => {
@@ -164,7 +163,6 @@ describe('deriveStoryShape — the deterministic backstop (AC-1, AC-3)', () => {
         { path: 'src/two.js', assumption: 'deletes' },
         { path: 'src/three.js', assumption: 'creates' },
       ],
-      acceptance: ['works'],
       injectedRules: RULES,
     });
     assert.equal(derived.route, 'lite');
@@ -190,18 +188,14 @@ describe('deriveStoryShape — the deterministic backstop (AC-1, AC-3)', () => {
     assert.equal(unreadable.route, 'full');
   });
 
-  test('a Story with no acceptance criteria cannot be judged trivial', () => {
-    assert.equal(
-      deriveStoryShape({ ...TRIVIAL, acceptance: [] }).route,
-      'full',
-    );
-  });
-
-  test('Story #5344: no decision carries predicted-shape ceilings any more', () => {
+  test('Story #5344/#5366: no decision carries ceilings or a preserves payload', () => {
     for (const derived of [deriveStoryShape(TRIVIAL), deriveStoryShape({})]) {
       assert.equal('ceilings' in derived, false);
+      // The frozen invariant list had no reader. The invariants themselves
+      // are enforced by `single-story-close.js` running the gates, not by a
+      // decision object asserting that it did.
+      assert.equal('preserves' in derived, false);
     }
-    assert.ok(Object.isFrozen(deriveStoryShape(TRIVIAL).preserves));
   });
 });
 
@@ -223,7 +217,6 @@ describe('neither artifact count nor a declared effort bucket routes (Story #534
         { path: 'src/b.js', assumption: 'refactors-existing' },
         { path: 'src/c.js', assumption: 'refactors-existing' },
       ],
-      acceptance: ['every call site passes the new flag'],
       injectedRules: RULES,
     });
     assert.equal(derived.route, 'lite');
@@ -233,7 +226,6 @@ describe('neither artifact count nor a declared effort bucket routes (Story #534
   test('a single SUBSTANTIAL rewrite of one file is light here — the diff backstop owns size', () => {
     const derived = deriveStoryShape({
       changes: [{ path: 'src/reporting.js', assumption: 'refactors-existing' }],
-      acceptance: ['the report renders identically'],
       injectedRules: RULES,
     });
     assert.equal(derived.route, 'lite');
@@ -269,7 +261,6 @@ describe('the prediction gate rejects only absolute risk (Story #5344)', () => {
         path: `src/widgets/${p}.js`,
         assumption: 'refactors-existing',
       })),
-      acceptance: ['a works', 'b works', 'c works', 'd works'],
       injectedRules: RULES,
     });
     assert.equal(derived.route, 'lite');
@@ -281,7 +272,6 @@ describe('the prediction gate rejects only absolute risk (Story #5344)', () => {
         { path: 'apps/web/src/page.js', assumption: 'refactors-existing' },
         { path: 'services/sync/src/job.js', assumption: 'refactors-existing' },
       ],
-      acceptance: ['both sides agree'],
       injectedRules: RULES,
     });
     assert.equal(derived.route, 'lite');
@@ -295,7 +285,6 @@ describe('the prediction gate rejects only absolute risk (Story #5344)', () => {
           { path: 'db/migrations/0007_add_column.sql', assumption: 'creates' },
           { path: 'src/reports/query.js', assumption: 'refactors-existing' },
         ],
-        acceptance: ['the report reads the new column'],
       },
       reason: /migration with its consumers/,
     },
@@ -318,12 +307,6 @@ describe('the benchmark rungs land on the right side (Story #4764 AC-5, AC-6)', 
         { path: 'package.json', assumption: 'refactors-existing' },
         { path: 'tests/server.test.js', assumption: 'creates' },
       ],
-      acceptance: [
-        'GET / returns 200',
-        'the response body is "hello world"',
-        'the server listens on the configured port',
-        'npm test passes',
-      ],
       injectedRules: RULES,
     });
     assert.equal(
@@ -343,7 +326,6 @@ describe('the benchmark rungs land on the right side (Story #4764 AC-5, AC-6)', 
           assumption: 'refactors-existing',
         },
       ],
-      acceptance: ['both deployables validate against the shared contract'],
       injectedRules: RULES,
     });
     assert.equal(derived.route, 'lite');
@@ -354,7 +336,6 @@ describe('deriveStoryShape — sensitivity wins (AC-6)', () => {
   test('a lite-shaped footprint intersecting a sensitive class derives full', () => {
     const derived = deriveStoryShape({
       changes: [{ path: 'src/auth/banner.js', assumption: 'creates' }],
-      acceptance: ['shows the banner'],
       injectedRules: RULES,
     });
     assert.equal(derived.route, 'full');
@@ -470,7 +451,6 @@ describe('resolveStoryDispatchMode — topology only (Story #5006)', () => {
 describe('resolveStoryDispatchMode — run topology (Story #4736)', () => {
   const sensitiveBody = storyBody({
     changes: [{ path: 'src/billing/banner.js', assumption: 'creates' }],
-    acceptance: ['shows the banner'],
   });
 
   test('AC-1: a single-Story run is inline even for a full-shaped Story', () => {
@@ -541,14 +521,12 @@ describe('resolveStoryDispatchMode — inline is one session, so one Story (#482
   /** The shape that used to buy `inline` unconditionally. */
   const liteBody = storyBody({
     changes: [{ path: 'bin/hello.js', assumption: 'creates' }],
-    acceptance: ['prints hello'],
   });
   const fullBody = storyBody({
     changes: [
       { path: 'apps/api/src/handler.js', assumption: 'refactors-existing' },
       { path: 'apps/web/src/page.js', assumption: 'refactors-existing' },
     ],
-    acceptance: ['both sides agree'],
   });
 
   test('AC-1: the measured two-Story and three-Story runs no longer claim the session', () => {
@@ -640,7 +618,6 @@ describe('deriveStoryShape — a stable code names WHICH rule objected', () => {
   /** Minimal args that clear every rule, so a fixture varies one thing. */
   const LITE_ARGS = {
     changes: [{ path: 'src/one.ts', assumption: 'refactors-existing' }],
-    acceptance: ['it works'],
     injectedRules: RULES,
   };
 
@@ -669,7 +646,6 @@ describe('deriveStoryShape — a stable code names WHICH rule objected', () => {
       SHAPE_CODES.GLOB_FOOTPRINT,
       { changes: [{ path: 'src/**/*.ts', assumption: 'creates' }] },
     ],
-    [SHAPE_CODES.NO_ACCEPTANCE, { acceptance: [] }],
     [
       SHAPE_CODES.CLASSIFICATION_UNAVAILABLE,
       {
@@ -680,12 +656,13 @@ describe('deriveStoryShape — a stable code names WHICH rule objected', () => {
     ],
   ];
 
-  test('Story #5344: the four ceiling codes no longer exist', () => {
+  test('Story #5344/#5366: the retired codes no longer exist', () => {
     for (const key of [
       'CHANGE_KINDS',
       'MAGNITUDE',
       'UNCERTAINTY',
       'DEPLOYABLE_SPAN',
+      'NO_ACCEPTANCE',
     ]) {
       assert.equal(key in SHAPE_CODES, false, `${key} must be retired`);
     }
@@ -712,16 +689,14 @@ describe('deriveStoryShape — a stable code names WHICH rule objected', () => {
     assert.match(derived.reasons[0], /sensitivity wins/i);
   });
 
-  test('the decision shape is route, reasons, code, shape and preserves', () => {
+  test('the decision shape is route, reasons, code and shape', () => {
     const derived = deriveStoryShape(LITE_ARGS);
     assert.deepEqual(Object.keys(derived).sort(), [
       'code',
-      'preserves',
       'reasons',
       'route',
       'shape',
     ]);
-    assert.equal(derived.preserves.repoGates, true);
     assert.equal(derived.shape.siteCount, 1);
   });
 });
