@@ -1,22 +1,9 @@
 /**
- * epic-checklist.js — edit a live Epic body's child checklist in place.
- *
- * Story #5155. `epic-container.js` describes the *shape* of a container and
- * renders one from scratch; this module is the other operation adoption needs
- * — amending a body that already exists, written by someone else, possibly
- * hand-edited since.
- *
- * The two are deliberately separate. Composing may assume everything about the
- * text because it produced all of it; amending may assume almost nothing and
- * must treat every line it did not come to change as untouchable: the `## Goal`
- * prose, the fingerprint marker, the item order, and above all the **checked
- * state** of existing rows. An operator who ticked `- [x] #41` is recording
- * that the Story landed, and a re-render would silently discard it.
- *
- * So the edit is a surgical line insertion rather than a re-render.
+ * epic-checklist.js — amend a live, possibly hand-edited Epic body's child
+ * checklist by surgical line insertion, never a re-render: goal prose,
+ * markers, order and existing checked state are untouchable.
  *
  * @module lib/orchestration/epic-checklist
- * @see Story #5155
  */
 
 import {
@@ -41,13 +28,8 @@ function findLastChecklistIndex(lines) {
 }
 
 /**
- * Where the new rows go, as a `[index, deleteCount]` splice target.
- *
- * Three placements, in priority order, each preserving a different thing:
- * replacing the empty-container placeholder (which would otherwise stand above
- * rows that contradict it), appending after the last existing row (which keeps
- * original-then-appended order on read-back), or opening the section for a body
- * that never had one.
+ * Splice target: replace the empty placeholder, else append after the last
+ * row, else open under the heading.
  *
  * @param {string[]} lines
  * @returns {[number, number]|null} `null` when there is no section to extend.
@@ -69,14 +51,10 @@ function locateInsertion(lines) {
 }
 
 /**
- * Append child ids to an existing Epic body's checklist, idempotently.
+ * Append child ids idempotently — a re-run persist passes the same cohort.
  *
- * Idempotence is the load-bearing property: a resumed or re-run persist calls
- * this again with the same cohort, and a second copy of every row would make
- * the container claim children it does not have.
- *
- * @param {string} body The Epic's current body.
- * @param {number[]} childIds Ids to add.
+ * @param {string} body
+ * @param {number[]} childIds
  * @returns {string} The updated body (byte-identical when nothing was added).
  */
 export function appendEpicChildIds(body, childIds) {
@@ -92,9 +70,7 @@ export function appendEpicChildIds(body, childIds) {
   const target = locateInsertion(lines);
 
   if (target === null) {
-    // A hand-written or foreign Epic with no checklist section. Add one rather
-    // than refusing: `isEpicTicket` already treats such a ticket as a real
-    // Epic, so the adoption must not be the one place that disagrees.
+    // No section: add one, since `isEpicTicket` counts this as an Epic.
     return `${text.replace(/\n+$/, '')}\n\n${CHILDREN_HEADING}\n\n${rows.join('\n')}\n`;
   }
 

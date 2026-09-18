@@ -1,37 +1,8 @@
 /**
- * ColumnSync — derive the GitHub Projects v2 Status column from an issue's
- * agent:: labels, and push the update via the provider's GraphQL surface.
- *
- * The Status field carries only the three stock GitHub options
- * (`Todo` / `In Progress` / `Done`) — granular lifecycle state lives in the
- * `agent::*` labels themselves. This mapping collapses each lifecycle label
- * onto one of those three buckets:
- *
- *   agent::review-spec → Todo
- *   agent::ready       → Todo
- *   agent::executing   → In Progress
- *   agent::closing     → In Progress
- *   agent::blocked     → In Progress (the `agent::blocked` label is the
- *                       granular signal; the board column just shows the
- *                       work is still in flight)
- *   agent::done        → Done
- *
- * No-op (soft fail) when:
- *   - `projectNumber` is not configured
- *   - The Status field or the required option is not present on the project
- *   - The issue is not a project item (e.g. orchestrator running on a fork)
- *
- * The sync is implemented as pure functions plus a thin class wrapper so
- * tests can pump a fake provider's `graphql` calls without touching live
- * GitHub.
- *
- * Located at `lib/orchestration/column-sync.js` (Story #2548) so the
- * canonical state mutator `transitionTicketState`
- * (`lib/orchestration/ticketing/state.js`) can invoke it without an
- * upward dependency into the deleted `epic-runner/` tree. Prior to #2548 this module
- * lived under `epic-runner/` and was only wired against the Epic
- * ticket — Stories and Tasks never updated their Projects v2 Status
- * column on label flips.
+ * ColumnSync — collapse an issue's `agent::*` labels onto the stock Projects
+ * v2 Status options (`Todo` / `In Progress` / `Done`) and push it via
+ * GraphQL. Soft no-op when no project is configured, the Status field or
+ * option is missing, or the issue is not on the board.
  */
 
 import { AGENT_LABELS } from '../label-constants.js';
@@ -52,11 +23,8 @@ export const LABEL_TO_COLUMN = Object.freeze({
 });
 
 /**
- * Pick the target column for a set of labels. Terminal `done` wins
- * unconditionally; otherwise any in-flight label (executing / closing /
- * blocked) collapses to `In Progress`, and parking labels (review-spec /
- * ready) collapse to `Todo`. Returns null when no `agent::*` label is
- * present so the caller can skip the sync.
+ * `done` wins, then any in-flight label, then parking labels; `null` when no
+ * `agent::*` label is present.
  */
 export function columnForLabels(labels) {
   const set = new Set(labels);
@@ -95,23 +63,14 @@ export class ColumnSync {
       null;
     this.projectOwner = opts.projectOwner ?? provider.projectOwner ?? null;
     this.logger = opts.logger ?? ctx?.logger ?? console;
-    // Resolved config bag used to locate the on-disk meta cache's tempRoot.
-    // Optional — when omitted, the cache resolves the framework-default
-    // `temp` root (Story #4252).
+    // Locates the meta cache's tempRoot; absent means the default `temp`.
     this.config = opts.config ?? ctx?.config ?? undefined;
     this._meta = null; // lazy-cached { projectId, fieldId, options: Map<name, id> }
-    // Records whether the in-process `_meta` was hydrated from the on-disk
-    // cache, so a GraphQL error against possibly-stale cached metadata can
-    // invalidate the disk entry and force a fresh resolve on the next flip
-    // (Story #4252).
+    // Disk-hydrated meta may be stale; a failed mutation then invalidates it.
     this._metaFromDiskCache = false;
   }
 
   /**
-   * Sync a single issue to the column its `agent::*` labels imply. Returns a
-   * result descriptor (`synced | skipped | failed`) so callers can log
-   * without parsing errors.
-   *
    * @param {number} issueId
    * @param {string[]} labels
    */
@@ -122,19 +81,8 @@ export class ColumnSync {
   }
 
   /**
-   * Push one issue to a column named **directly**, skipping the label
-   * derivation {@link sync} performs.
-   *
-   * Split out for the one caller whose target column cannot come from labels:
-   * a container Epic carries no `agent::*` label by construction, so
-   * {@link columnForLabels} returns `null` for it and `sync` can never move
-   * it. The Epic's column is derived from its children instead
-   * (`epic-rollup.js`) and handed here — which keeps that derivation from
-   * having to fabricate a label on the container just to reach the board, the
-   * one thing the container invariant forbids.
-   *
-   * Every skip path, the metadata cache and the stale-cache self-heal are
-   * shared with `sync` because they live here rather than in it.
+   * Set a column directly, without label derivation — for container Epics,
+   * which carry no `agent::*` label by invariant.
    *
    * @param {number} issueId
    * @param {string} column Board column name (`Todo` | `In Progress` | `Done`).
@@ -177,12 +125,8 @@ export class ColumnSync {
         },
       );
     } catch (err) {
-      // A failed mutation against metadata that came from the disk cache
-      // most likely means the board was reconfigured since the entry was
-      // written (a stale projectId / fieldId / optionId). Invalidate the
-      // disk entry so the next flip re-resolves against the live board and
-      // self-heals (Story #4252). Re-throw so the caller's existing error
-      // handling (e.g. `syncProjectStatusColumn`'s warn) is preserved.
+      // Likely a reconfigured board: drop cached meta so the next flip
+      // self-heals, and re-throw for the caller's handling.
       this.#invalidateMetaCache();
       throw err;
     }
@@ -190,9 +134,7 @@ export class ColumnSync {
   }
 
   /**
-   * The `(owner, projectNumber)` pair the disk cache is keyed by. Mirrors
-   * the owner that `#loadMeta` resolves the board against so a cache hit and
-   * a live resolve agree on the same board identity.
+   * Cache key; same owner `#loadMeta` resolves against.
    *
    * @returns {{ owner: string|null, projectNumber: number|null }}
    */
@@ -204,11 +146,8 @@ export class ColumnSync {
   }
 
   /**
-   * Invalidate the on-disk metadata cache entry for this board and drop the
-   * in-process copy, so the next `#loadMeta` re-resolves from the live
-   * board. Only fires when the current `_meta` came from the disk cache —
-   * a freshly-resolved entry that fails the mutation is a transient/live
-   * problem, not a stale-cache problem.
+   * Only disk-hydrated meta is invalidated; a fresh resolve that fails is a
+   * live problem, not a stale cache.
    */
   #invalidateMetaCache() {
     if (!this._metaFromDiskCache) return;
@@ -220,9 +159,8 @@ export class ColumnSync {
 
   async #loadMeta() {
     if (this._meta !== null) return this._meta || null;
-    // Disk cache hit short-circuits the ~2 metadata GraphQL round-trips
-    // (resolveProjectMeta) — repo-invariant board metadata persists across
-    // the cold CLI processes of a single-story delivery (Story #4252).
+    // Board meta is repo-invariant; the disk cache spares each cold CLI
+    // process the resolve round-trips.
     const cachedBoard = this.#cacheBoard;
     const cached = readProjectMetaCache({
       owner: cachedBoard.owner,
@@ -235,18 +173,9 @@ export class ColumnSync {
       return this._meta;
     }
     try {
-      // Resolve the board by walking the owner-type ladder
-      // (organization → user → viewer) via the shared resolver so the
-      // org-owned path can't drift from `workflow-audit.js`. The Status
-      // single-select field is projected alongside the board id in one
-      // round-trip. (Story #4237; org-owner support extends the
-      // user/viewer ladder added in #3560.)
+      // Shared org → user → viewer resolver; Status field in one round-trip.
       const project = await resolveProjectMeta({
         provider: this.provider,
-        // Prefer the explicit `github.projectOwner`; fall back to the repo
-        // owner so an org-owned board still gets a login to scope
-        // `organization(login:)` / `user(login:)` by even when no separate
-        // projectOwner is configured. `viewer` is always the final rung.
         owner: this.projectOwner ?? this.provider.owner ?? null,
         projectNumber: this.projectNumber,
         projectFields: `
@@ -269,9 +198,7 @@ export class ColumnSync {
         fieldId: field.id,
         options,
       };
-      // Persist the freshly-resolved, repo-invariant metadata so the next
-      // cold flip reads it from disk instead of re-paying the resolve
-      // (Story #4252). Best-effort: a write failure never blocks the sync.
+      // Best-effort; a write failure never blocks the sync.
       writeProjectMetaCache({
         owner: cachedBoard.owner,
         projectNumber: cachedBoard.projectNumber,
@@ -290,17 +217,8 @@ export class ColumnSync {
   }
 
   /**
-   * Read the live `Status` column for an issue from the Projects v2
-   * board. Returns the column name (e.g. `'Done'`, `'In Progress'`)
-   * or `null` when the issue is not on the configured project, the
-   * Status field has no current value, or the metadata cannot be
-   * resolved.
-   *
-   * Story #2876 — used by `reassertStatusColumn` to detect drift
-   * between the orchestrator's intended column and the bot-rewritten
-   * column. The labels alone don't move when the bot overwrites
-   * Status — that's the bug class we defend against — so the
-   * drift-check MUST read the live Status, not the issue labels.
+   * Live Status column, or `null`. Drift checks must read this, not labels:
+   * the Projects bot rewrites Status without touching labels.
    *
    * @param {number} issueId
    * @returns {Promise<string|null>}
@@ -336,14 +254,8 @@ export class ColumnSync {
   }
 
   async #getProjectItemId(issueId, projectId) {
-    // Walk from the issue to its projectItems and pick the one whose
-    // project.id matches the configured board. The previous implementation
-    // paginated `node(projectId).items(first: 100)` and scanned for the
-    // issue number, which silently returned null on any board with >100
-    // items — the Mandrel board crossed that cliff at ~2,300 items, so
-    // every recent ticket's Status flip became a no-op. The by-issue path
-    // is O(1) per sync and has no pagination cliff (an issue is
-    // realistically never on more than a handful of boards at once).
+    // Walk issue → projectItems, not board → items: scanning board items
+    // hits a pagination cliff on large boards; an issue is on few boards.
     const owner = this.provider.owner;
     const repo = this.provider.repo;
     if (!owner || !repo) return null;

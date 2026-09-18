@@ -1,42 +1,8 @@
 /**
- * lib/orchestration/code-review.js — In-process Code Review module.
- *
- * Story #1155 (Epic #1142, 5.40.0) — extracted the helper-driven
- * `epic-code-review` invocation into a callable module so the
- * `/mandrel-deliver` runner can run Phase D without spawning a child
- * process or routing through an LLM-driven helper.
- *
- * Story #2831 (Epic #2815, Pluggable Code Review) — refactored to load
- * the review provider through `review-provider-factory`, call the
- * adapter's `runReview()` to collect a `Finding[]`, render the
- * structured-comment body via `findings-renderer`, and post the
- * comment through the GitHub provider here (the adapter is post-free
- * by design).
- *
- * v2.0.0 removed the Epic tier. The Epic-scope envelope and the
- * Epic-scoped `code-review.start` / `.end` lifecycle emits (whose schema
- * requires `epicId`) went with it; Story scope is the only scope. Story #5024
- * deleted those schemas along with the bus that was their only publish path.
- *
- * Public API:
- *   - `runCodeReview({ ticketId, headRef, provider, logger, ... })` →
- *       `{ status, severity, posted, report, halted, blockerReason }`.
- *
- * Behaviour:
- *   - Loads the configured review adapter via the factory; defaults to
- *     a single `native` chain entry when `delivery.codeReview.providers`
- *     is unset or empty.
- *   - Always posts the unified `verification-results` structured comment on
- *     the target issue/PR (the adapter never posts; the orchestrator owns
- *     persistence). Story #4411 (Epic #4405) unified the former
- *     `code-review` and `audit-results` findings contracts into this one
- *     `verification-results` marker.
- *   - Treats severity.critical > 0 as a halting blocker — the merged
- *     `/mandrel-deliver` runner consults `halted` and refuses to advance
- *     to Phase E (retro) when set.
- *
- * Halting on critical findings is the in-process replacement for the
- * helper's "operator must remediate before /mandrel-deliver" gate.
+ * lib/orchestration/code-review.js — in-process Story-scope code review:
+ * load the configured review adapter (default `native`), collect its
+ * `Finding[]`, render and post the `verification-results` comment (adapters
+ * never post), and report `halted` on any surviving critical finding.
  */
 
 import { hasSurvivingCritical } from '../audit-suite/findings.js';
@@ -56,26 +22,16 @@ import { createReviewProvider } from './review-providers/review-provider-factory
 import { upsertStructuredComment } from './ticketing.js';
 
 /**
- * Review depth tiers, ordered light → standard → deep. The depth is resolved
- * by the shared {@link resolveDepth} resolver from two observable properties of
- * the diff under review — whether its changed files touch a registered
- * sensitive path ({@link deriveChangeLevel}) and their mechanical count — then
- * threaded into the review provider's `runReview` input so a sensitive *or*
- * wide-footprint change gets a deeper pass than a small, unremarkable one.
- * Depth is an **input** signal only — it never changes the
- * `{ status, severity, posted, report, halted, blockerReason }` output
- * envelope nor the `verification-results` structured-comment body (Story #3876,
- * extended by Story #3938; re-based off the diff by Story #4542).
+ * Review depth (light → standard → deep), from the diff's sensitivity and
+ * width. An input to `runReview` only; never changes the output envelope or
+ * the posted comment.
  *
  * @typedef {import('./review-depth.js').ReviewDepth} ReviewDepth
  */
 
 /**
- * Resolve the base ref used when a caller omits `baseRef`. Remote-qualified,
- * never the bare branch name — a caller that does not name a base must not
- * silently inherit the local ref's drift (Story #5325). An unfetched remote
- * then yields an unenumerable diff, which every downstream consumer already
- * fails safe on, instead of a confidently-wrong wide one.
+ * Default base is remote-qualified so it cannot inherit local-ref drift; an
+ * unfetched remote yields an unenumerable diff, which consumers fail safe on.
  */
 function resolveConfigBase(config) {
   return remoteBaseRef(config?.project?.baseBranch ?? 'main');
@@ -89,9 +45,6 @@ function resolveCommentTargetId(commentTargetId, fallback) {
 }
 
 /**
- * Resolve the Story-scope envelope from the parameterized
- * `{ scope: 'story', ticketId, baseRef, headRef, commentTargetId }` shape.
- *
  * @returns {{
  *   scope: 'story',
  *   ticketId: number,
@@ -123,40 +76,15 @@ function resolveStoryScope(opts, config) {
   };
 }
 
-/**
- * Resolve the scope envelope
- * (`{ scope, ticketId, baseRef, headRef, commentTargetId }`). v2.0.0
- * removed the Epic tier, so `'story'` is the only scope.
- */
+/** `'story'` is the only scope. */
 function resolveScopeEnvelope(opts, config) {
   return resolveStoryScope(opts, config);
 }
 
 /**
- * In-process wrapper that the `/mandrel-deliver` runner and the
- * `/single-story-deliver` close path consume.
- *
- * Story #2252 — emits `code-review.start` immediately on entry and
- * `code-review.end` immediately before returning the envelope (success
- * or halt). On runner throw, emits `code-review.end` with the canonical
- * structure (`status: 'invalid'`) before re-throwing so the ledger
- * always carries the closing boundary.
- *
- * Story #2831 — the runner loads its adapter through the factory; the
- * `reviewProvider` opt overrides the factory for tests. Severity is
- * derived from the `Finding[]` returned by the adapter (no separate
- * severity field on the runner result).
- *
- * Story #2839 (Epic #2815) — the Story closer requests a Story-scope
- * review against `main`, posts the structured findings comment to the PR
- * (via `commentTargetId`), and surfaces critical findings to the caller
- * as `halted: true`.
- *
- * Argument shape:
- *   `{ ticketId, baseRef, headRef, [commentTargetId], provider }`
- *   `baseRef` defaults to the project base branch; `headRef` is required.
- *   `commentTargetId` overrides the post target (e.g. PR number) while
- *   `ticketId` continues to label the rendered header ("Story #N").
+ * Run a Story-scope review. `headRef` is required; `baseRef` defaults to
+ * the remote base branch; `commentTargetId` (e.g. a PR number) overrides
+ * the post target while `ticketId` still labels the header.
  *
  * @param {{
  *   scope?: 'story',
@@ -188,12 +116,7 @@ function resolveScopeEnvelope(opts, config) {
  *   blockerReason: string|null,
  * }>}
  */
-/**
- * Resolve the human-facing provider name from the resolved code-review
- * config. Multi-entry chains render as `chain[a,b,...]`; a single-entry
- * chain (including the unset/empty default) renders that entry's name;
- * everything else falls back to `'native'`.
- */
+/** Display name: the single entry's name, `chain[a,b]`, or `'native'`. */
 function resolveProviderName(codeReviewConfig) {
   const providers =
     codeReviewConfig && Array.isArray(codeReviewConfig.providers)
@@ -209,17 +132,10 @@ function resolveProviderName(codeReviewConfig) {
 }
 
 /**
- * Resolve the change set the depth derivation reads (Story #4593).
- *
- * `opts.changedFiles` is an injection with three distinct states,
- * and the difference is load-bearing: an **array** is the change set to use
- * verbatim; an explicit **null** is a caller (`runStoryReviewCore`) reporting
- * that it already tried and the diff is unenumerable — re-running git here would
- * only fail again, so it degrades straight to the fail-safe tier; **absent**
- * means no caller enumerated at all, so the shared {@link computeChangeSet}
- * enumerator runs as the fallback (standalone CLI use). On the close path the
- * spine always injects, so the diff is enumerated exactly once per delivery and
- * this pillar can never disagree with the lens pass about what changed.
+ * `opts.changedFiles` has three states: an array is used verbatim; `null`
+ * means the caller already found the diff unenumerable (fail-safe tier, no
+ * retry); absent means enumerate here. The close path always injects, so
+ * review and lens pass agree on what changed.
  */
 function resolveInjectedChangedFiles({ opts, baseRef, headRef }) {
   if (opts.changedFiles === undefined) {
@@ -230,12 +146,8 @@ function resolveInjectedChangedFiles({ opts, baseRef, headRef }) {
 }
 
 /**
- * Build the provider `runReview` input, resolving the review depth from the
- * diff under review: its changed files derive the change level (sensitive path
- * touched or not — Story #4542) and their count supplies the width. The depth
- * is an input-only signal (light → standard → deep) and never touches the
- * output envelope or the posted comment. An unenumerable diff → `standard`.
- * Story #4075 — extracted from `runCodeReview`.
+ * Build the `runReview` input with its depth; an unenumerable diff yields
+ * `standard`.
  */
 function buildReviewInput({ opts, scope, ticketId, baseRef, headRef }) {
   const changedFiles = resolveInjectedChangedFiles({ opts, baseRef, headRef });
@@ -243,9 +155,7 @@ function buildReviewInput({ opts, scope, ticketId, baseRef, headRef }) {
     typeof opts.changedFileCount === 'number'
       ? opts.changedFileCount
       : (changedFiles?.length ?? null);
-  // v2 Stage 2: review depth uses DEFAULT_DIFF_WIDTH (mechanical file count
-  // of the diff under review). It is deliberately decoupled from the
-  // planning model-capacity advisory (`DEFAULT_MODEL_CAPACITY`).
+  // Width is the diff's file count, decoupled from planning model capacity.
   const { level } = deriveChangeLevel({ changedFiles });
   const depth = resolveDepth({
     derivedLevel: level,
@@ -262,10 +172,7 @@ function buildReviewInput({ opts, scope, ticketId, baseRef, headRef }) {
 }
 
 /**
- * Feature-detect manual-prompt providers (Story #2871). Legacy
- * single-adapter providers don't carry `getPromptMessages`, so the
- * empty-array fallback keeps the old snapshot byte-stable; a throw is
- * logged and degraded to empty.
+ * Optional `getPromptMessages`; absent or throwing yields `[]`.
  */
 async function resolvePromptMessages(reviewProvider, reviewInput, logger) {
   if (typeof reviewProvider.getPromptMessages !== 'function') return [];
@@ -283,9 +190,7 @@ async function resolvePromptMessages(reviewProvider, reviewInput, logger) {
 }
 
 /**
- * Upsert the rendered report as a structured comment. Posting failure is
- * non-fatal: it is logged and surfaced via `posted: false`. Story #4075 —
- * extracted from `runCodeReview`.
+ * Posting failure is non-fatal and surfaces as `posted: false`.
  */
 async function postReviewComment({
   upsertCommentFn,
@@ -319,12 +224,6 @@ async function postReviewComment({
   }
 }
 
-/**
- * Run the review pipeline (resolve provider → runReview → prompt messages →
- * render → post comment) and shape the `status: 'ok'` result. Pure of the
- * lifecycle-boundary concern — `runCodeReview` owns the start/end emit pair.
- * Story #4075 — extracted to keep both bodies below the CC must-fix band.
- */
 async function executeReviewPipeline({ opts, config, envelope }) {
   const {
     provider,
@@ -366,7 +265,7 @@ async function executeReviewPipeline({ opts, config, envelope }) {
     logger,
   );
 
-  // Story #4839 — degraded gates ride beside the findings, never inside them.
+  // Degraded gates ride beside the findings, never inside them.
   const degradations = await collectProviderDegradations(
     reviewProvider,
     logger,
@@ -413,8 +312,5 @@ export async function runCodeReview(opts = {}) {
   const config = resolveConfigFn();
   const envelope = resolveScopeEnvelope(opts, config);
 
-  // No lifecycle-bus emit: the `code-review.start` / `.end` ledger pair was
-  // Epic-scoped (its schema requires `epicId`), and v2.0.0 removed the Epic
-  // tier. Story-scope review sits outside the lifecycle ledger entirely.
   return executeReviewPipeline({ opts, config, envelope });
 }
