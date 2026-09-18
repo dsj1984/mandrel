@@ -1,28 +1,11 @@
 // .agents/scripts/lib/close-validation/projections/crap.js
 /**
- * crap.js — pre-merge CRAP ceiling projection helper (Story #4776).
- *
- * The CRAP analogue of `projections/maintainability.js`. Both answer the
- * same operator question before the merge runs: *given what this branch
- * changed, which committed baseline rows would the post-merge tree breach,
- * and what is the exact remedy?*
- *
- * Advisory only. `check-baselines` already fails close-validation closed on
- * a real regression; duplicating that here would double-gate the same
- * defect. What this projection adds is the **refresh** half of the loop —
- * naming the breaching methods and the `npm run crap:update` +
- * `baseline-refresh:` remedy while the operator still has the branch in
- * hand, so a corrected baseline does not rot back into staleness.
- *
- * The helper never throws and never mutates anything. Every failure path
- * resolves to `{ ok: true, breaches: [], skipped: '<reason>' }` so the
- * caller can treat the advisory as best-effort.
- *
- * Post-merge approximation: CRAP needs a coverage join, so — unlike the MI
- * projection, which scores a `git show` blob — the scorer reads the working
- * tree. Close-validation runs inside the Story worktree at the branch tip,
- * which is exactly the content a squash-merge lands, so the approximation is
- * exact whenever the merge applies cleanly.
+ * Advisory pre-merge CRAP projection: names the methods the post-merge tree
+ * would breach and the `crap:update` + `baseline-refresh:` remedy
+ * (`check-baselines` already gates the real regression). Never throws;
+ * failures resolve to `{ ok: true, breaches: [], skipped }`. Scores the
+ * worktree (CRAP needs a coverage join), which at the branch tip is exactly
+ * what a clean squash-merge lands.
  */
 
 import path from 'node:path';
@@ -39,20 +22,13 @@ import { gitSpawn as defaultGitSpawn } from '../../git-utils.js';
 import { SCORABLE_SOURCE_EXT_RE } from '../../source-extensions.js';
 import { MISSING_ARG_REASONS, validateProjectionInputs } from './inputs.js';
 
-/**
- * Default absolute tolerance on a projected CRAP score, shared with
- * `check-crap`'s regression arm: floating-point noise must not register as
- * a breach.
- */
+/** Absorbs floating-point noise. */
 export const DEFAULT_CRAP_TOLERANCE = 0.001;
 
-/** Framework default for the new-method ceiling (`gates.crap.newMethodCeiling`). */
 export const DEFAULT_NEW_METHOD_CEILING = 30;
 
 /**
- * Map the shared predicate's fine-grained `missing-*` reason onto the
- * `missing-args` skipped-reason the sibling MI projection reports, so both
- * projections speak one vocabulary at the advisory boundary.
+ * Collapse `missing-*` to `missing-args`, matching the MI projection.
  *
  * @param {string} reason
  * @returns {string}
@@ -62,17 +38,10 @@ function normaliseSkipReason(reason) {
 }
 
 /**
- * Read the committed CRAP baseline and re-key its rows onto the `file`
- * field `compareCrap` matches on (the on-disk v2 envelope keys on `path`).
- * Returns `[]` when the baseline is absent or unreadable — the caller maps
- * that to the `no-baseline` skip.
+ * Re-keys on-disk `path` to the `file` field `compareCrap` matches on;
+ * `[]` when absent or unreadable.
  *
- * Deliberately module-local: `projectCrapBreaches`'s `loadBaseline` default
- * is the single production door to it, and tests inject their own loader.
- * Exporting it would add a second entry point nothing in production reaches
- * — which is precisely the orphaning this Story exists to stop.
- *
- * @param {string} baselinePath absolute path to `baselines/crap.json`
+ * @param {string} baselinePath
  * @returns {Array<{file: string, method: string, startLine: number, crap: number}>}
  */
 function loadCrapBaselineRows(baselinePath) {
@@ -92,10 +61,8 @@ function loadCrapBaselineRows(baselinePath) {
 }
 
 /**
- * Build the default working-tree CRAP scorer. Returns an async callable
- * `(files) => rows | null`; `null` signals "coverage artifact missing under
- * `requireCoverage`", which the projection reports as the `no-coverage`
- * skip rather than as a clean run.
+ * The scorer resolves `null` when coverage is missing under
+ * `requireCoverage` (a `no-coverage` skip, not a clean run).
  *
  * @param {{
  *   cwd: string,
@@ -132,9 +99,8 @@ export function createCrapScorer({
 }
 
 /**
- * Refresh `origin/<baseBranch>` so the diff range resolves even when close
- * has not reached its own base-sync step. Routed through the shared fetch
- * cache so a story-init fetch in the same run satisfies it for free.
+ * Close may not have base-synced yet; the fetch cache makes this free when
+ * story-init already fetched.
  *
  * @param {string} cwd
  * @param {string} baseBranch
@@ -153,10 +119,6 @@ function refreshBaseRef(cwd, baseBranch, git) {
 }
 
 /**
- * Enumerate the Story branch's changed files, narrowed by the shared
- * scorable-source extension set (`source-extensions.js`) so the projection
- * selects exactly the files the CRAP scanner walks.
- *
  * @param {{ cwd: string, baseBranch: string, storyBranch: string, git: { gitSpawn: typeof defaultGitSpawn } }} opts
  * @returns {{ ok: true, files: string[] } | { ok: false, detail: string }}
  */
@@ -177,13 +139,9 @@ function diffScorableFiles({ cwd, baseBranch, storyBranch, git }) {
 }
 
 /**
- * Project the post-merge CRAP scores for every file changed on the Story
- * branch and return the subset of methods that would breach either their
- * committed baseline row or, for methods with no baseline row, the
- * configured `newMethodCeiling`.
- *
- * Baseline rows are narrowed to the changed-file set before the compare so
- * every untouched file's rows are not spuriously reported as removed.
+ * Breaches are vs the baseline row, or `newMethodCeiling` for new methods.
+ * Baseline rows are narrowed to changed files so untouched rows do not read
+ * as removed.
  *
  * @param {{
  *   cwd: string,
@@ -266,9 +224,6 @@ export async function projectCrapBreaches({
 }
 
 /**
- * Render one breach as an advisory bullet. New-method breaches name the
- * ceiling they cleared; regressions name the baseline row they exceeded.
- *
  * @param {object} b
  * @returns {string}
  */
@@ -283,10 +238,7 @@ function formatBreach(b) {
 }
 
 /**
- * Render the pre-merge CRAP advisory as a human-readable multi-line log
- * block, naming every breaching method and the exact refresh remedy.
- * Returns `null` when there is nothing to surface so callers can `if` past
- * the log call without a string-empty check.
+ * `null` when there is nothing to surface.
  *
  * @param {Awaited<ReturnType<typeof projectCrapBreaches>>} result
  * @returns {string | null}

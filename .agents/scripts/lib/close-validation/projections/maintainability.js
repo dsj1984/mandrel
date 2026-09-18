@@ -1,18 +1,7 @@
 // .agents/scripts/lib/close-validation/projections/maintainability.js
 /**
- * maintainability.js — pre-merge MI ceiling projection helper.
- *
- * Extracted from close-validation.js (Story #1850) and refactored to use
- * the shared `validateProjectionInputs` predicate so the guard cascade
- * lives in exactly one place. Public contract is unchanged — the parent
- * `close-validation.js` re-exports this function and every existing call
- * site continues to import from there.
- *
- * The projection is advisory only: story-close logs it before the merge
- * runs so the operator sees, by name, the files that would breach their
- * per-file MI baseline post-merge and can ship a `baseline-refresh:`
- * commit atomically with the Story PR. The hard MI gate still runs at
- * pre-push time.
+ * Advisory pre-merge MI projection: names files that would breach their
+ * per-file baseline so a `baseline-refresh:` commit can ship with the PR.
  */
 
 import { getBaseline } from '../../baselines/maintainability-baseline-io.js';
@@ -22,16 +11,11 @@ import { gitSpawn as defaultGitSpawn } from '../../git-utils.js';
 import { calculateForSource } from '../../maintainability-engine.js';
 import { MISSING_ARG_REASONS, validateProjectionInputs } from './inputs.js';
 
-/**
- * Default tolerance shared with check-maintainability.js: small floating-
- * point variances must not register as a regression.
- */
+/** Absorbs floating-point noise. */
 export const DEFAULT_MI_TOLERANCE = 0.001;
 
 /**
- * Map the predicate's fine-grained `missing-*` reason to the historical
- * `missing-args` skipped-reason so the public contract of
- * `projectMaintainabilityRegressions` is preserved byte-for-byte.
+ * Collapse `missing-*` to the public `missing-args` reason.
  *
  * @param {string} reason
  * @returns {string}
@@ -41,10 +25,8 @@ function normaliseSkipReason(reason) {
 }
 
 /**
- * Refresh `origin/<baseBranch>` so the diff range resolves even when the
- * close script hasn't reached its own pull/rebase step yet. Routed through
- * the shared `(cwd, ref, windowMs)` cache so a story-init fetch in the same
- * wave satisfies the projection without re-hitting origin.
+ * Close may not have base-synced yet; the fetch cache makes this free when
+ * story-init already fetched.
  *
  * @param {string} cwd
  * @param {string} baseBranch
@@ -65,10 +47,6 @@ function refreshEpicRef(cwd, baseBranch, git) {
 }
 
 /**
- * Run `git diff --name-only` against the epic-branch fork point and parse
- * the changed-files list. Normalises Windows-style backslash paths to
- * forward slashes so the baseline lookup is platform-agnostic.
- *
  * @param {{ cwd: string, baseBranch: string, storyBranch: string, git: { gitSpawn: typeof defaultGitSpawn } }} opts
  * @returns {{ ok: true, files: string[] } | { ok: false, detail: string }}
  */
@@ -86,10 +64,7 @@ function diffChangedFiles({ cwd, baseBranch, storyBranch, git }) {
 }
 
 /**
- * Score a single changed file and return a regression record when the
- * projected MI breaches `baselineScore - tolerance`. Returns `null` when
- * the file is non-JS, absent from baseline, deleted on the story branch,
- * or within tolerance.
+ * `null` when deleted on the story branch or within tolerance.
  *
  * @param {{
  *   cwd: string,
@@ -124,8 +99,6 @@ function scoreFile({
 }
 
 /**
- * Walk the changed-files list and collect regression records.
- *
  * @param {{
  *   cwd: string,
  *   storyBranch: string,
@@ -166,27 +139,9 @@ function collectRegressions({
 }
 
 /**
- * Project the post-merge maintainability scores for every file changed on
- * the Story branch relative to the Epic branch, and return the subset whose
- * projected score breaches the per-file baseline ceiling.
- *
- * Advisory only — the result is rendered as a log line by story-close
- * before the merge runs. The hard MI gate still runs at pre-push time via
- * the husky hook. The point of this projection is to surface the breach
- * **before** the merge so the operator can ship a `baseline-refresh:`
- * commit atomically with the Story PR rather than as a follow-on after the
- * push.
- *
- * The "post-merge body" of each file is approximated by the file content
- * at the tip of the Story branch — a `--no-ff` merge into the Epic branch
- * does not modify file contents, so this is exact when the merge applies
- * cleanly and a close-enough projection when it auto-resolves minor
- * conflicts.
- *
- * The helper never throws and never has side effects beyond running `git`
- * subcommands via the injected interface. Any failure path resolves to
- * `{ ok: true, regressions: [], skipped: '<reason>' }` so the caller
- * treats the advisory as best-effort.
+ * Scores each changed file's content at the Story branch tip (exact for a
+ * clean merge). Never throws; failures resolve to
+ * `{ ok: true, regressions: [], skipped }`.
  *
  * @param {{
  *   cwd: string,
@@ -261,9 +216,7 @@ export function projectMaintainabilityRegressions({
 }
 
 /**
- * Render the pre-merge MI advisory as a human-readable multi-line log
- * block. Returns `null` when there are no regressions to surface so
- * callers can `if` past the log call without a string-empty check.
+ * `null` when there is nothing to surface.
  *
  * @param {ReturnType<typeof projectMaintainabilityRegressions>} result
  * @returns {string | null}

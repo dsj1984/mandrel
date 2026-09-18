@@ -1,45 +1,19 @@
 /**
- * `delivery.routing` accessor + framework defaults — Epic #4478 (M7-B), the
- * role-scoped-boot-context flip and the ceremony profile.
- *
- * Stage 6 dropped `delivery.routing.singleDelivery` (the v1 epic
- * single-vs-fan-out kill-switch). Story #5313 dropped
- * `delivery.routing.freshCriticSampleRate` (the maker-checker sampling
- * floor), and Story #5343 dropped the derived-level routing that replaced
- * it: `minimal` and `standard` resolve the inline self-eval as the Story's
- * verdict owner whatever the diff touches, and `strict` is the one profile
- * that spawns a fresh-context critic. v2 has one Story delivery path;
- * routing here is only about spawn boot context and the ceremony profile.
- *
- * `delivery.routing.roleScopedAgents` is the **kill-switch for the role-scoped
- * boot contexts** (Epic #4478, M7-B). It defaults to `true`: a converted spawn
- * (`story-worker`, `acceptance-critic`) boots on its own
- * `.claude/agents/<role>.md` system prompt instead of re-paying the full
- * `CLAUDE.md` @-import closure, which is the whole payoff of the context diet
- * (≈50KB → ≈8KB per spawn). When set to `false`, every converted spawn falls
- * back to `subagent_type: general-purpose` — the instant, code-rollback-free
- * per-consumer revert, and the universal escape for hosts that ignore
- * `.claude/agents/`. Flipping it off never drops a gate: the fallback is the
- * full-closure agent that ran before M7-B.
- *
- * Framework-defaults pattern mirrors `lib/config/ci.js#getCiDelivery`.
+ * `delivery.routing`: spawn boot context and ceremony profile. Only `strict`
+ * spawns a fresh-context critic; `minimal`/`standard` use the inline
+ * self-eval. `roleScopedAgents: false` falls every converted spawn back to
+ * `general-purpose` with the full closure — a revert that drops no gate.
  */
 
 export const DELIVERY_ROUTING_DEFAULTS = Object.freeze({
   roleScopedAgents: true,
   /** @type {'minimal'|'standard'|'strict'} */
   ceremonyProfile: 'standard',
-  /**
-   * When true (default), attended `/mandrel-deliver` lands through merge in one
-   * close (`--wait-merge` semantics) instead of stopping at `agent::closing`.
-   * Operators opt out per-run with `--no-wait-merge`.
-   */
+  /** Land through merge in one close; opt out with `--no-wait-merge`. */
   closeAndLand: true,
 });
 
 /**
- * Normalize ceremony profile; unknown values → `standard`.
- *
  * @param {unknown} value
  * @returns {'minimal'|'standard'|'strict'}
  */
@@ -51,10 +25,7 @@ function normalizeCeremonyProfile(value) {
 }
 
 /**
- * Read the merged `delivery.routing` block, applying framework defaults for
- * any field the operator omitted. Accepts the full resolved config, the bare
- * `delivery` bag, or the bare `routing` bag — mirroring `getCiDelivery`'s
- * tolerant unwrap so callers can pass whichever shape they hold.
+ * Accepts the full config, the `delivery` bag, or the `routing` bag.
  *
  * @param {object | null | undefined} config
  * @returns {{

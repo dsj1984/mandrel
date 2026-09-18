@@ -1,23 +1,11 @@
 /**
- * `delivery.worktreeIsolation` accessor + framework defaults.
- *
- * Several consumers read this block directly (runtime.js,
- * worktree-manager.js, workspace-provisioner.js) and previously each
- * carried its own fallback constant. Centralising the defaults here
- * lets `applyDefaults()` in `config-resolver.js` enrich the canonical
- * block once, so consumers never see `undefined` for a defaulted field
- * (which previously meant, e.g., `Boolean(undefined) === false`
- * silently disabling worktrees when the operator omitted the block).
+ * `delivery.worktreeIsolation` defaults, applied once so no consumer reads
+ * `undefined` (e.g. `Boolean(undefined)` silently disabling worktrees).
  */
 
 /**
- * Default `nodeModulesStrategy`, platform-aware (Story #4249).
- *
- * darwin/linux default to `clone` — a copy-on-write (clonefile/reflink) clone
- * of the donor's `node_modules` that is effectively free in time and disk on
- * APFS / reflink-capable filesystems, with a clean fall-back to `per-worktree`
- * on any failure (unsupported fs, cross-volume, etc.). Windows has no reflink
- * equivalent on this path, so it keeps the `per-worktree` install default.
+ * `clone` is a copy-on-write clone (falls back to `per-worktree` on failure);
+ * Windows has no reflink path.
  *
  * @param {NodeJS.Platform} [platform]
  * @returns {'clone' | 'per-worktree'}
@@ -33,15 +21,10 @@ export const WORKTREE_ISOLATION_DEFAULTS = Object.freeze({
   primeFromPath: null,
   allowSymlinkOnWindows: false,
   reapOnSuccess: true,
-  // Gitignored workspace files copied into each new worktree. Includes the
-  // operator's local-override files (`.agentrc.local.json`,
-  // `.agents/instructions.local.md`) so a worktree-isolated agent honors the
-  // §1.E local-override contract instead of silently falling back to the
-  // committed `.agentrc.json` placeholders — the gap that left
-  // `github.operatorHandle` unset inside worktrees and broke Story-lease
-  // release at close. Missing sources are skipped by the provisioner, so
-  // listing files that may be absent is safe. Keep in sync with
-  // `DEFAULT_WORKSPACE_FILES` in `../workspace-provisioner.js`.
+  // Local overrides must reach the worktree, or e.g. `operatorHandle` reads
+  // the committed placeholder and lease release breaks at close. Absent
+  // files are skipped. Keep in sync with `DEFAULT_WORKSPACE_FILES` in
+  // `../workspace-provisioner.js`.
   bootstrapFiles: Object.freeze([
     '.env',
     '.mcp.json',
@@ -51,9 +34,7 @@ export const WORKTREE_ISOLATION_DEFAULTS = Object.freeze({
 });
 
 /**
- * Read the merged `delivery.worktreeIsolation` block, applying framework
- * defaults for any field the operator omitted. Accepts the full resolved
- * config, the bare delivery bag, or the bare worktreeIsolation bag.
+ * Accepts the full config, the `delivery` bag, or the block itself.
  *
  * @param {object | null | undefined} config
  * @returns {typeof WORKTREE_ISOLATION_DEFAULTS}

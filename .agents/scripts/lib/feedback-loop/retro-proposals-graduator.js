@@ -1,36 +1,8 @@
 /**
- * retro-proposals-graduator.js — Auto-graduate the retro's actionable
- * routed proposals into GitHub follow-up issues. Story #4418 / Epic #4406.
- *
- * This is the loop's terminal junction: the retro composer
- * (`retro-proposals.js`) already split the Epic's source-tagged friction
- * into `framework` / `consumer` actionable items, each carrying a
- * pre-drafted `gh issue create` command stanza. Historically an operator
- * had to copy-paste those stanzas by hand, so `/mandrel-plan` Phase 0's
- * `recurringDefectClasses` stayed empty unless someone remembered to run
- * the commands. This module files them mechanically instead — the retro
- * body then lists the real filed issue numbers rather than paste-ready
- * commands.
- *
- * Built on the graduator-core **pre-parsed-findings seam** (Story #4415):
- * the routed proposals are handed to `graduate()` as a pre-parsed
- * `findings` array, so there is no structured-comment parsing. The
- * proposals are not file-scoped, so each finding is **path-less** — the
- * seam skips the `git cat-file` path-exists gate rather than misclassifying
- * the finding `file-removed`.
- *
- * Routing correctness: a routed item already knows its source
- * (`framework` / `consumer`), so we file each source bucket with its own
- * constant classifier and thread the graduator's per-run filing cap across
- * the two buckets. Which repository a source routes to is decided once, in
- * `github/framework-repo.js` — the silent consumer-repo fallback that used
- * to live here (and mis-filed framework work into the consumer's tracker)
- * is gone from the whole path, not just from this module. The `meta::<framework-gap|consumer-improvement>` +
- * `friction::<category>` labels are lifted verbatim from the routed item.
- *
- * Behind the `delivery.feedbackLoop.retroProposals` toggle (default OFF
- * since Story #5341, per `graduator-core.js#makeIsAutoFileEnabled`). NEVER
- * throws — every failure path is captured in `errors[]`.
+ * Files the retro's routed `framework`/`consumer` proposals as follow-up
+ * issues via `graduate()`, as path-less pre-parsed findings, so the retro
+ * body can list real issue numbers instead of paste-ready commands. Opt-in
+ * via `delivery.feedbackLoop.retroProposals`; never throws.
  */
 
 import {
@@ -46,26 +18,17 @@ import {
 } from './graduator-core.js';
 
 /**
- * Resolve the toggle from the resolved agentrc config. Defaults to `false`
- * — the feature is opt-in (Story #5341). It is now the only such toggle: the
- * audit-results sibling was removed by Story #5366, its graduator having been
- * deleted two releases earlier.
- *
  * @param {object|undefined|null} config
  * @returns {boolean}
  */
 export const isAutoFileEnabled = makeIsAutoFileEnabled('retroProposals');
 
 /**
- * The content fingerprint identifying one retro proposal.
- *
- * Fingerprinted on the CATEGORY only — never the rendered title. The title
- * embeds the mutable recurrence count ("… recurred <N> times in …"), so
- * hashing it made a retro re-run after the count changed mint a fresh
- * fingerprint and re-file a duplicate issue for the same category.
+ * Category only: the title embeds a mutable recurrence count, so hashing it
+ * would re-file a duplicate whenever the count changed.
  *
  * @param {{ category?: string }} finding
- * @returns {string} 16-char lowercase hex digest.
+ * @returns {string}
  */
 function proposalFingerprint(finding) {
   return contentFingerprint({
@@ -76,29 +39,10 @@ function proposalFingerprint(finding) {
 }
 
 /**
- * Build the content-hash idempotency marker embedded in filed follow-up
- * bodies. An HTML comment so it survives markdown rendering without leaking
- * into the visible body; the idempotency probe strips the comment delimiters
- * before querying `gh search` (the raw `<!-- … -->` form never matches the
- * index — Story #4657).
+ * Anchor-free: a run anchor changes every run, so a marker carrying it could
+ * never match a prior filing. The category alone is the identity.
  *
- * **Anchor-free by construction (Story #4837).** The marker used to read
- * `epic-<anchorId>-<fp>`. The fingerprint half was stable, but the anchor
- * half was the run's FIRST STORY for a run-scoped roll-up
- * (`run-epilogue.js` passes `anchorId: Number(stories[0])`), so it changed
- * every run and the key could never match a prior filing. Measured: closed
- * issues #4833 and #4834 are one `story-blocked` finding under two anchors —
- * `epic-101-e59976671e0b848b` and `epic-777-e59976671e0b848b` — identical
- * fingerprint, different anchor. Dedup did not malfunction; its key was too
- * narrow. The identity of a recurring friction category is the category,
- * full stop: the anchor is evidence about one occurrence and belongs in the
- * body, never in the key.
- *
- * The `epicId` parameter is retained because `graduate()` owns the calling
- * convention for every graduator's `buildContentMarker`; this one
- * deliberately does not consult it.
- *
- * @param {number} _epicId — unused; see above.
+ * @param {number} _epicId — unused; `graduate()` owns the signature.
  * @param {{ category?: string }} finding
  * @returns {string}
  */
@@ -107,20 +51,8 @@ export function buildContentMarker(_epicId, finding) {
 }
 
 /**
- * Body substrings that identify a follow-up already filed for this finding,
- * handed to the graduator's strongly-consistent read (Story #4837).
- *
- * Two shapes, because the marker format changed under a live backlog:
- *
- *   1. The current anchor-free marker.
- *   2. `-<fp> -->` — the tail every pre-cutover anchored marker ends with
- *      (`<!-- retro-proposal-followup: epic-4828-d185e7279a48d03d -->`),
- *      whatever anchor it carried. Without it the cutover would re-file the
- *      whole already-filed backlog exactly once, which is the failure this
- *      Story exists to stop rather than to perform one last time.
- *
- * Module-local: it reaches `graduate()` on the spec bundle, so the walk is
- * the seam and a second exported symbol would only be one nothing imports.
+ * The current marker plus `-<fp> -->`, the tail of every older anchored
+ * marker (`…: epic-<anchor>-<fp> -->`), so those filings still dedup.
  *
  * @param {{ finding: { category?: string }, contentMarker: string }} args
  * @returns {string[]}
@@ -130,8 +62,6 @@ function buildMatchTokens({ finding, contentMarker }) {
 }
 
 /**
- * Map a routed source to its `meta::*` routing label.
- *
  * @param {string} source
  * @returns {string}
  */
@@ -142,18 +72,6 @@ function metaSourceLabel(source) {
 }
 
 /**
- * The per-graduator behaviour bundle for the retro-proposals walk. Bound to
- * a single source so the constant classifier routes every finding in the
- * bucket to the correct repo (and the label reflects that source).
- *
- * The bundle carries **only** builders. It used to declare a
- * `commentMarker` / `noCommentReason` / `parseFindings` trio purely to satisfy
- * the shared walk's shape — this graduator supplies its findings pre-parsed,
- * so the walk never consulted any of the three. Story #5003 deleted that limb
- * from `graduate()` along with the Epic-era graduator that was its only real
- * consumer, and the placeholder fields went with it: a declared-but-unread
- * field is a standing invitation to write a parser nothing will call.
- *
  * @param {'framework'|'consumer'} source
  * @returns {object}
  */
@@ -187,9 +105,6 @@ function makeSpec(source) {
 }
 
 /**
- * Convert a routed-proposal item into a pre-parsed, path-less finding for
- * the shared `graduate()` walk.
- *
  * @param {object} item — a `RoutedItem` from `composeRoutedProposals`.
  * @param {'framework'|'consumer'} source
  * @param {number} index
@@ -198,8 +113,6 @@ function makeSpec(source) {
 function toFinding(item, source, index) {
   return {
     index,
-    // Path-less — the retro proposals are not file-scoped, so the seam
-    // skips the path-exists gate rather than probing an empty path.
     path: '',
     severity: 'friction',
     category: typeof item?.category === 'string' ? item.category : '',
@@ -213,23 +126,15 @@ function toFinding(item, source, index) {
 }
 
 /**
- * File the retro's actionable routed proposals as GitHub follow-up issues
- * via the graduator pre-parsed-findings seam. Files the `framework` and
- * `consumer` buckets, threading the per-run filing cap across both so the
- * overall cap is respected. Never throws.
+ * The per-run filing cap is threaded across both buckets. Never throws.
  *
  * @param {object} opts
  * @param {number} opts.epicId
- * @param {object} opts.provider — ticketing provider (`postComment`, for the
- *   cross-repo-deferred persistence).
- * @param {object} [opts.config] — resolved agentrc.
- * @param {{owner: string, repo: string}} opts.currentRepo — the repo the
- *   retro is running inside (the consumer's own repo); the cross-repo guard's
- *   anchor.
- * @param {{owner: string, repo: string}} [opts.platformRepo] — the shared
- *   platform/infra bucket, forwarded to the walk's routing SSOT.
- * @param {{owner: string, repo: string}} [opts.frameworkRepo] — where
- *   framework-tagged proposals route.
+ * @param {object} opts.provider
+ * @param {object} [opts.config]
+ * @param {{owner: string, repo: string}} opts.currentRepo
+ * @param {{owner: string, repo: string}} [opts.platformRepo]
+ * @param {{owner: string, repo: string}} [opts.frameworkRepo]
  * @param {{ framework?: object[], consumer?: object[] }} [opts.routedProposals]
  * @param {string} [opts.ghPath='gh']
  * @param {Function} [opts.spawnImpl]
@@ -283,16 +188,10 @@ export async function graduateRetroProposals({
     { source: 'consumer', items: consumer },
   ];
 
-  // One memo of content markers filed so far, SHARED across both buckets: the
-  // two scopes mint an identical marker for the same category by construction
-  // (Story #4657), so without it the framework and consumer buckets could each
-  // file the same category. The shared set makes the second bucket short-
-  // circuit the repeat with no spawn.
+  // Shared across buckets: both mint the same marker for a category, so the
+  // second bucket short-circuits the repeat without a spawn.
   const filedMarkers = new Set();
 
-  // One live-label-set read per routed repo across both buckets (Story #4828):
-  // the two buckets file into at most two repos, and every finding in a bucket
-  // wants the same `meta::*` name.
   const labelCache = new Map();
 
   let remaining = maxFilingsPerRun;
@@ -306,8 +205,6 @@ export async function graduateRetroProposals({
       currentRepo,
       frameworkRepo,
       platformRepo,
-      // Each bucket's source is known — a constant classifier routes the
-      // whole bucket to the correct repo and stamps the correct label.
       classifier: () => source,
       ghPath,
       spawnImpl,
@@ -330,10 +227,6 @@ export async function graduateRetroProposals({
 }
 
 /**
- * Pure: extract the trailing issue number from a `gh issue create` URL
- * (`https://github.com/o/r/issues/123` → 123). Returns `null` when no
- * trailing number is present.
- *
  * @param {string|null|undefined} url
  * @returns {number|null}
  */
@@ -344,11 +237,8 @@ export function issueNumberFromUrl(url) {
 }
 
 /**
- * Pure: return a NEW `routedProposals` whose `framework` / `consumer` items
- * each carry a `filedIssue` field ({ url, number }) when the graduator filed
- * an issue for that item's `source` + `category`. Items with no matching
- * filing are copied unchanged (the body renderer then falls back to the
- * command stanza). The `discarded` bucket is passed through untouched.
+ * Attach `filedIssue: { url, number }` to items matched by
+ * `source:category`; unmatched items render their command stanza.
  *
  * @param {{ framework?: object[], consumer?: object[], discarded?: object[] } | null | undefined} routedProposals
  * @param {Array<{ source?: string, category?: string, url?: string|null }>} filed
@@ -393,27 +283,22 @@ export function enrichRoutedProposalsWithFilings(routedProposals, filed) {
 }
 
 /**
- * Orchestrating seam invoked by the retro post-and-mirror phase: gate the
- * toggle, file the routed proposals, and return the routed proposals
- * enriched with the filed issue references so the body composer renders real
- * issue numbers instead of command stanzas. Never throws — a filing failure
- * degrades to the unenriched proposals (the composer falls back to command
- * stanzas) and the error is surfaced in `errors[]`.
+ * File, then enrich the proposals with the filed issues. Never throws: a
+ * failure degrades to the unenriched proposals plus an `errors[]` entry.
  *
  * @param {object} opts
  * @param {number} opts.epicId
  * @param {object} opts.provider
  * @param {object} [opts.config]
  * @param {string} [opts.frameworkRepo] — `"<owner>/<repo>"` slug.
- * @param {string} [opts.consumerRepo] — `"<owner>/<repo>"` slug (currentRepo).
+ * @param {string} [opts.consumerRepo] — `"<owner>/<repo>"` slug.
  * @param {{ framework?: object[], consumer?: object[], discarded?: object[] }} [opts.routedProposals]
  * @param {string} [opts.ghPath]
  * @param {Function} [opts.spawnImpl]
  * @param {string} [opts.cwd]
  * @param {number} [opts.maxFilingsPerRun]
  * @param {{info?: Function, warn?: Function}} [opts.logger]
- * @param {Function} [opts.graduateFn] — test seam; defaults to
- *   {@link graduateRetroProposals}.
+ * @param {Function} [opts.graduateFn]
  * @returns {Promise<{ routedProposals: object|null, summary: { filed: object[], skipped: object[], errors: string[] } }>}
  */
 export async function fileRetroProposals({
@@ -435,25 +320,16 @@ export async function fileRetroProposals({
     summary: { filed: [], skipped: reason ? [{ reason }] : [], errors: [] },
   });
 
-  // Toggle OFF → leave proposals unenriched; the composer renders the
-  // paste-ready command stanzas.
   if (!isAutoFileEnabled(config)) return passthrough('toggle-disabled');
 
   const currentRepo = parseRepoSlug(consumerRepo);
   if (!currentRepo) {
-    // No resolvable consumer repo — the retro already disables the consumer
-    // pane loudly; skip filing and fall back to command stanzas.
     logger?.warn?.(
       '[retro-proposals-graduator] No resolvable consumer repo — skipping auto-file (falling back to command stanzas).',
     );
     return passthrough('no-current-repo');
   }
-  // An unconfigured framework slug falls back to the Mandrel mirror
-  // constant, NEVER to the consumer's own repo: the retired consumer-repo
-  // fallback silently auto-filed framework-tagged proposals into the
-  // consumer's tracker while the retro body rendered them under "framework
-  // repo" (masked in this repo only because consumer === framework here).
-  // `github/framework-repo.js` is the SSOT for that rule now.
+  // Fall back to the Mandrel constant, never the consumer's own repo.
   const frameworkRepoObj =
     parseRepoSlug(frameworkRepo) ?? parseRepoSlug(DEFAULT_FRAMEWORK_REPO);
 

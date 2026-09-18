@@ -1,70 +1,22 @@
 /**
- * `delivery.quality` accessor (Epic #1720 Story #1737 — uniform gate shape).
- *
- * The quality block under `delivery.quality.*` is now organised as a
- * `gates.<tier>` object where every tier (coverage, crap, maintainability,
- * mutation, bundle-size, duplication) shares the same four-field base:
- *
- *   - `enabled`      — when `false`, the checker exits 0 with a skip line.
- *   - `baselinePath` — repo-root-relative path to the gate's baseline file.
- *   - `tolerance`    — `{ kind: 'absolute' | 'percent', value: number }`.
- *   - `floors`       — workspace-keyed `{ "*": { ... } }` floor object.
- *
- * Story #1737 changes (vs the Story #1739 mechanical relocation):
- *
- *   - Diff scope / ref is one fixed constant (`GATE_SCOPING`, Story #5382
- *     folded the never-set `gateScoping` config block into it) — resolvers
- *     carry it through to crap and maintainability.
- *   - Scalar `tolerance` values became `{ kind, value }` objects.
- *   - `coveragePath` moved from `gates.crap` to `gates.coverage`. CRAP
- *     reads from the coverage gate instead of carrying its own.
- *   - Flat `qualityFloors.*` shape is gone — every gate carries its own
- *     workspace-keyed `floors` object.
- *
- * The resolver returns a flattened bag with the legacy field names
- * (`crap.tolerance` as a number, `crap.targetDirs`, `maintainability.targetDirs`,
- * `crap.coveragePath`, etc.) so existing call sites stay untouched.
- * The translation from gate shape → legacy bag happens here, in one
- * place.
+ * `delivery.quality` resolver. Every `gates.<tier>` shares `enabled`,
+ * `baselinePath`, `tolerance` (`{ kind, value }`) and workspace-keyed
+ * `floors`; the resolver flattens them into the legacy bag callers read
+ * (scalar `tolerance`, `crap.coveragePath` cross-read from the coverage gate).
  */
 
 import { Logger } from '../Logger.js';
 import { resolveListValue } from './shared.js';
 
-/**
- * Story #5382 — the tuning constants below replaced `.agentrc` keys no
- * surveyed config ever set (`gateScoping.*`, the crap/MI refresh tag,
- * `coverage.timeoutMs`, the `codingGuardrails` and
- * `autoRefresh` tuning, `baselineEpsilon.*`). Each is the value the key's
- * default always resolved to, so behaviour is unchanged;
- * `lib/migrations/steps/strip-removed-agentrc-keys.js` strips a leftover key
- * from a consumer config and names the constant that replaced it. The crap/MI
- * `refreshTimeoutMs` and `crap.friction.markerKey` keys had no reader at all
- * and were dropped outright.
- */
 const GATE_SCOPING = Object.freeze({ scope: 'diff', diffRef: 'main' });
 
 /** Commit-subject substring acknowledging a deliberate baseline refresh. */
 const BASELINE_REFRESH_TAG = 'baseline-refresh:';
 
-/**
- * Default object-shape tolerance for each gate. Values match the historical
- * scalar defaults so a consumer that omits `tolerance` keeps the prior
- * gate behaviour.
- */
 const DEFAULT_CRAP_TOLERANCE = Object.freeze({ kind: 'absolute', value: 0.05 });
 const DEFAULT_MI_TOLERANCE = Object.freeze({ kind: 'absolute', value: 0.5 });
 
-/**
- * Default floors per gate. Workspace-keyed so a single-workspace consumer
- * reads `floors["*"]` and a monorepo consumer can override per-workspace.
- *
- * Story #2125: these defaults are now injected by `resolveQuality` into
- * the resolved `gates.<kind>.floors` block when the consumer omits the
- * `'*'` workspace key, so `.agentrc.json` can carry `floors: {}` (or
- * omit the gate entirely) and still get framework-default enforcement
- * from the unified `check-baselines.js` dispatcher.
- */
+/** Injected when a declared gate omits a workspace key (usually `'*'`). */
 const DEFAULT_COVERAGE_FLOORS = Object.freeze({
   '*': Object.freeze({ lines: 90, branches: 85, functions: 90 }),
 });
@@ -72,35 +24,18 @@ const DEFAULT_CRAP_FLOORS = Object.freeze({
   '*': Object.freeze({ max: 30, p95: 20, methodsAbove20: 50 }),
 });
 /**
- * Story #2193 — maintainability rollups expose the `min` / `p50` / `p95`
- * axes (see `.agents/schemas/baselines/maintainability.schema.json`). The
- * default floor therefore targets `min`, not the row-axis `maintainability`
- * name. The pre-#2193 default keyed on `maintainability` silently no-oped
- * inside `check-baselines.js#compareToFloor` because the rollup never
- * exposed that axis.
+ * Keyed on the rollup's `min` axis; a `maintainability` key silently
+ * no-ops because the rollup never exposes it.
  */
 const DEFAULT_MI_FLOORS = Object.freeze({
   '*': Object.freeze({ min: 70 }),
 });
 
 /**
- * Story #4981 / #5065 / #5173 — the two independent full-suite economies.
- *
- * `skipWhenUnchanged` decides *whether* to capture: no changed file under
- * `crap.targetDirs` versus `baseRef` means no capture at all. It is on by
- * default because it is gate-semantics-neutral — the gates score exactly what
- * they scored before, since nothing they score moved.
- *
- * `baselineJoin` lets the CRAP join resolve a method in an untouched file
- * from its committed baseline row instead of requiring fresh coverage for it.
- * That *loosens* the gate, so it stays off by default. Bundling the two under
- * one `enabled` switch is precisely what forced the earlier default flip to
- * be reverted (Story #5173).
- *
- * Neither switch shortens the capture run — a capture that does happen is the
- * ordinary full `npm run test:coverage` (Story #5065). `baseRef: null` means
- * "use the caller's own ref resolution" (the gate's `--ref` flag / `main`)
- * rather than a second, possibly-conflicting default.
+ * `skipWhenUnchanged` (on: gate-neutral) skips capture when nothing under
+ * `crap.targetDirs` changed vs `baseRef`. `baselineJoin` (off: it loosens the
+ * gate) resolves untouched files from committed baseline rows. The two must
+ * stay independent. `baseRef: null` defers to the caller's ref resolution.
  */
 const DEFAULT_INCREMENTAL_COVERAGE = Object.freeze({
   skipWhenUnchanged: true,
@@ -108,7 +43,6 @@ const DEFAULT_INCREMENTAL_COVERAGE = Object.freeze({
   baseRef: null,
 });
 
-/** Framework defaults for the CRAP gate (post-1737 uniform shape). */
 export const CRAP_GATE_DEFAULTS = Object.freeze({
   enabled: true,
   baselinePath: 'baselines/crap.json',
@@ -119,54 +53,32 @@ export const CRAP_GATE_DEFAULTS = Object.freeze({
   requireCoverage: true,
   refreshTag: BASELINE_REFRESH_TAG,
   ignoreGlobs: Object.freeze([]),
-  // Story #4775 — fail-closed floor on the per-method coverage JOIN. The
-  // fraction of methods that must resolve a coverage entry, counted only over
-  // files that HAVE one, before `update-crap-baseline.js` will persist. A
-  // broken join is silent by construction (unresolved methods are simply
-  // absent from the baseline), so the updater refuses rather than writing a
-  // thin baseline and logging it as success. 0.75 sits far above a healthy
-  // run (a repo with fresh coverage resolves ~98%) and far below the 4–6%
-  // signature of a coordinate-system mismatch.
+  // Fail-closed floor on the coverage join (over files that have coverage):
+  // a broken join is silent, so the updater refuses to persist below it.
+  // Healthy runs resolve ~98%; a coordinate mismatch resolves 4–6%.
   minMethodResolutionRate: 0.75,
   incrementalCoverage: DEFAULT_INCREMENTAL_COVERAGE,
 });
 
-/** Framework defaults for the coverage gate. */
 export const COVERAGE_GATE_DEFAULTS = Object.freeze({
   enabled: true,
   baselinePath: 'baselines/coverage.json',
   tolerance: Object.freeze({ kind: 'absolute', value: 0 }),
   floors: DEFAULT_COVERAGE_FLOORS,
   coveragePath: 'coverage/coverage-final.json',
-  // Story #2136 — 10 minute wall clock on `npm run test:coverage`. Trips
-  // `runCapture` to return exit 124 (GNU `timeout` convention) so the
-  // close-validation caller can branch on hang-vs-failure.
+  // On expiry `runCapture` exits 124 so callers can tell a hang from a failure.
   timeoutMs: 600_000,
 });
 
-/** Framework defaults for the maintainability gate. */
 export const MAINTAINABILITY_GATE_DEFAULTS = Object.freeze({
   enabled: true,
   baselinePath: 'baselines/maintainability.json',
   tolerance: DEFAULT_MI_TOLERANCE,
   floors: DEFAULT_MI_FLOORS,
   targetDirs: Object.freeze([]),
-  // Story #4731 — the commit-subject substring that acknowledges a deliberate
-  // maintainability baseline refresh in the compared range. Mirrors the CRAP
-  // gate's `refreshTag`; the evaluate phase demotes head-vs-base regressions
-  // (floors still enforced) when a range commit carrying this tag touches the
-  // baseline file. Kept identical to the CRAP default so one refresh commit
-  // can acknowledge both gates.
+  // Same tag as CRAP so one refresh commit acknowledges both gates.
   refreshTag: BASELINE_REFRESH_TAG,
   ignoreGlobs: Object.freeze([]),
-  // Story #4775 — fail-closed floor on the per-method coverage JOIN. The
-  // fraction of methods that must resolve a coverage entry, counted only over
-  // files that HAVE one, before `update-crap-baseline.js` will persist. A
-  // broken join is silent by construction (unresolved methods are simply
-  // absent from the baseline), so the updater refuses rather than writing a
-  // thin baseline and logging it as success. 0.75 sits far above a healthy
-  // run (a repo with fresh coverage resolves ~98%) and far below the 4–6%
-  // signature of a coordinate-system mismatch.
   minMethodResolutionRate: 0.75,
 });
 
@@ -201,12 +113,8 @@ const MI_GATE_KEYS = new Set([
 ]);
 
 /**
- * Pure helper: coerce the object-shape tolerance to its scalar `value`
- * for call sites that still expect a plain number. Returns the default
- * scalar when the tolerance object is malformed.
- *
  * @param {{ kind?: string, value?: number } | undefined} tolerance
- * @param {number} fallback scalar tolerance
+ * @param {number} fallback
  * @returns {number}
  */
 function toleranceScalar(tolerance, fallback) {
@@ -230,19 +138,7 @@ function warnUnknownKeys(userBlock, knownKeys, blockLabel) {
 }
 
 /**
- * Resolve the CRAP gate. Accepts both the new `gates.crap.*` shape and
- * the resolved `coverage` gate (for the `coveragePath` cross-read). The
- * fixed `GATE_SCOPING` carries the diff scope and ref.
- *
- * @param {object | undefined} userCrap raw `delivery.quality.gates.crap`
- * @param {{ coveragePath: string }} coverageGate resolved coverage gate
- * @returns {object} flattened legacy-bag view that existing callers read
- */
-/**
- * Clamp a user-supplied method-resolution floor into `[0, 1]`. A
- * non-numeric, non-finite, or out-of-range value falls back to the framework
- * default rather than silently disabling the guard (a floor of `NaN` would
- * compare false against every rate and never fire).
+ * Out-of-range or non-finite falls back: a `NaN` floor would never fire.
  *
  * @param {unknown} value
  * @param {number} fallback
@@ -255,14 +151,6 @@ function resolveResolutionRate(value, fallback) {
 }
 
 /**
- * Resolve `gates.crap.incrementalCoverage` (Story #4981, split by #5173).
- *
- * Each explicit switch overrides its framework default (`skipWhenUnchanged:
- * true`, `baselineJoin: false`); a malformed or absent user block resolves to
- * the defaults, so a consumer that never sets the key inherits the saving
- * without the loosening. The deprecated `enabled` alias that set both was
- * removed in Story #5382.
- *
  * @param {{ skipWhenUnchanged?: boolean, baselineJoin?: boolean, baseRef?: string } | undefined} user
  * @param {{ skipWhenUnchanged: boolean, baselineJoin: boolean, baseRef: string | null }} defaults
  * @returns {{ skipWhenUnchanged: boolean, baselineJoin: boolean, baseRef: string | null }}
@@ -281,6 +169,11 @@ function resolveIncrementalCoverage(user, defaults) {
   };
 }
 
+/**
+ * @param {object | undefined} userCrap
+ * @param {{ coveragePath: string }} coverageGate
+ * @returns {object}
+ */
 export function resolveMaintainabilityCrap(userCrap, coverageGate) {
   const defaults = CRAP_GATE_DEFAULTS;
   const coverage = coverageGate ?? COVERAGE_GATE_DEFAULTS;
@@ -334,10 +227,6 @@ export function resolveMaintainabilityCrap(userCrap, coverageGate) {
   };
 }
 
-/**
- * Resolve the maintainability gate. Returns the legacy-bag shape with
- * `targetDirs` + a scalar `tolerance` (when set) + the fixed scoping.
- */
 function resolveMaintainabilityQuality(userBlock) {
   const defaults = MAINTAINABILITY_GATE_DEFAULTS;
   const fixed = {
@@ -369,7 +258,6 @@ function resolveMaintainabilityQuality(userBlock) {
   return out;
 }
 
-/** Resolve the coverage gate. Owns `coveragePath` and the fixed `timeoutMs`. */
 function resolveCoverageGate(userBlock) {
   const defaults = COVERAGE_GATE_DEFAULTS;
   if (userBlock == null || typeof userBlock !== 'object') {
@@ -395,22 +283,15 @@ function resolveCoverageGate(userBlock) {
 }
 
 /**
- * Authoring-time cyclomatic advisory thresholds (Story #5382 folded the
- * never-set `delivery.quality.codingGuardrails` block into this constant).
- * `cyclomaticFlag` is the advisory knob `quality-preview.js` reports over-flag
- * methods against without failing on them; the ratchet ceiling is fixed in
- * `lib/cyclomatic-ceiling.js#CYCLOMATIC_CEILING`. `requireSiblingTest` stays
- * off: nothing enforces a colocated test.
+ * `cyclomaticFlag` is advisory only (`quality-preview.js`); the ratchet
+ * ceiling lives in `lib/cyclomatic-ceiling.js`.
  */
 export const CODING_GUARDRAILS = Object.freeze({
   cyclomaticFlag: 8,
   requireSiblingTest: false,
 });
 
-/**
- * Baseline-attribution auto-refresh. Only `enabled` is an operator switch;
- * the jump cap and the rescore scope are fixed (Story #5382).
- */
+/** Only `enabled` is an operator switch. */
 const AUTO_REFRESH_DEFAULTS = Object.freeze({
   enabled: true,
   crapJumpCap: 5,
@@ -427,14 +308,7 @@ function resolveAutoRefresh(userBlock) {
   };
 }
 
-/**
- * Resolve the merged baselines block. Baselines now live alongside their
- * gates (`gates.<tier>.baselinePath`); this helper preserves the
- * historical flat `baselines.{crap, maintainability}` shape so
- * existing readers (`getBaselines(config)` in `config-resolver.js`)
- * stay untouched. Each entry is synthesised from the resolved gate's
- * `baselinePath`.
- */
+/** Flat `baselines.{crap, maintainability}` view over each gate's `baselinePath`. */
 function resolveBaselinesFromGates(gates) {
   return {
     crap: {
@@ -449,26 +323,12 @@ function resolveBaselinesFromGates(gates) {
 }
 
 /**
- * Merge the entire `delivery.quality` block with framework defaults.
+ * Consumer entries win per workspace key. Returns a fresh object so callers
+ * cannot mutate the frozen defaults.
  *
- * Returns the historical flattened bag (so the existing call sites that
- * read `q.crap.coveragePath`, `q.maintainability.targetDirs`, etc. keep
- * working) plus the new `gates` resolved object.
- *
- * @param {object|undefined} userQuality
- */
-/**
- * Story #2125: merge a consumer-supplied `floors` bag with the framework
- * default for that gate. Defaults supply any workspace key the consumer
- * didn't provide — most commonly the catch-all `'*'`. Consumer entries
- * always win over defaults at the workspace-key level.
- *
- * Returns a fresh plain object so downstream mutations can't poison the
- * frozen module-level defaults.
- *
- * @param {object | undefined | null} userFloors raw `gates.<kind>.floors`
- * @param {object} defaults frozen framework default (e.g. `DEFAULT_COVERAGE_FLOORS`)
- * @returns {object} merged workspace-keyed floors
+ * @param {object | undefined | null} userFloors
+ * @param {object} defaults
+ * @returns {object}
  */
 function mergeFloorsWithDefaults(userFloors, defaults) {
   const defaultsCopy = {};
@@ -493,21 +353,8 @@ const FLOOR_DEFAULTS_BY_KIND = Object.freeze({
 });
 
 /**
- * Build the resolved `gates` object that `resolveQuality` returns. For
- * each kind the consumer declared that has a framework-default floor
- * (coverage, crap, maintainability), the resolved block carries `floors`
- * merged with the kind's default — so `check-baselines.js` sees the
- * framework default at runtime even when `.agentrc.json` omits the
- * `floors` key.
- *
- * Kinds the consumer did NOT declare are passed through untouched —
- * `check-baselines.js` skips kinds whose gate block is absent, and this
- * function preserves that contract (synthesising a default block here
- * would silently enable gates the consumer never asked for).
- *
- * Other keys on a declared gate block (e.g. `enabled`, `targetDirs`,
- * `baselinePath`) are preserved as the consumer supplied them; this
- * function only injects the floors layer.
+ * Injects default floors into declared gates only; synthesising a block for
+ * an undeclared kind would silently enable a gate the consumer never asked for.
  */
 function resolveGatesWithFloors(gates) {
   const out = { ...gates };
@@ -523,6 +370,9 @@ function resolveGatesWithFloors(gates) {
   return out;
 }
 
+/**
+ * @param {object|undefined} userQuality
+ */
 export function resolveQuality(userQuality) {
   const block =
     userQuality && typeof userQuality === 'object' ? userQuality : {};
@@ -543,12 +393,8 @@ export function resolveQuality(userQuality) {
 }
 
 /**
- * Per-kind baseline epsilon (Story #1964 — s-stability-epsilon). The writer
- * folds sub-epsilon row deltas back to the prior bytes so env variance never
- * rewrites the on-disk baseline. MI 0.5, CRAP 0.5, coverage 0.1, mutation
- * 0.5, bundle-size 1024 (bytes), duplication 0.5 (percentage points). Fixed
- * constants since Story #5382 folded the never-set
- * `delivery.quality.baselineEpsilon` block.
+ * The writer folds sub-epsilon row deltas back to the prior bytes so env
+ * variance never rewrites a baseline. bundle-size is bytes.
  */
 const BASELINE_EPSILON = Object.freeze({
   maintainability: 0.5,
@@ -560,8 +406,6 @@ const BASELINE_EPSILON = Object.freeze({
 });
 
 /**
- * One kind's baseline epsilon. Throws when the kind is unknown.
- *
  * @param {string} kind
  * @returns {number}
  */
@@ -573,10 +417,6 @@ export function getBaselineEpsilon(kind) {
 }
 
 /**
- * Read the merged `delivery.quality` block. Accepts the full resolved
- * config — the canonical `delivery.quality` path is the single supported
- * shape.
- *
  * @param {object | null | undefined} config
  * @returns {ReturnType<typeof resolveQuality>}
  */
