@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-18T17:33:55.593Z",
+  "generatedAt": "2026-09-18T19:38:20.859Z",
   "rollup": {
     "*": {
       "min": 76.381,
@@ -1209,6 +1209,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/merge-poll.js",
       "mi": 102.319
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/merge-queue.js",
+      "mi": 92.848
     },
     {
       "path": ".agents/scripts/lib/orchestration/pinned-identifier-lint.js",
