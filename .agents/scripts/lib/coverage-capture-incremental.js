@@ -10,7 +10,7 @@
  */
 import path from 'node:path';
 import { resolveChangedFilesRef } from './changed-files.js';
-import { stampCapturedTree } from './coverage-capture.js';
+import { reportCaptureFailure, stampCapturedTree } from './coverage-capture.js';
 
 /**
  * Run the skip-aware capture path when
@@ -48,9 +48,9 @@ import { stampCapturedTree } from './coverage-capture.js';
  *   writeCaptureStampImpl: Function,
  *   logger: { info: Function, warn: Function, error: Function },
  * }} opts
- * @returns {number | null}
+ * @returns {Promise<number | null>}
  */
-export function tryIncrementalCapture({
+export async function tryIncrementalCapture({
   crap,
   coverage,
   args,
@@ -101,7 +101,7 @@ export function tryIncrementalCapture({
   );
   // Story #5278 — pre-spawn digest; see `stampCapturedTree`.
   const preDigest = computeContentDigestImpl(args.cwd, crap.targetDirs);
-  const code = runCaptureImpl({
+  const code = await runCaptureImpl({
     cwd: args.cwd,
     timeoutMs: coverage?.timeoutMs,
     log: (m) => logger.info(m),
@@ -113,12 +113,7 @@ export function tryIncrementalCapture({
         requireScope: 'incremental',
       }).fresh === true,
   });
-  if (code !== 0) {
-    logger.error(
-      `[coverage-capture] ✖ npm run test:coverage exited ${code}. Fix failing tests or coverage-threshold breaches before re-running the CRAP gate.`,
-    );
-    return code;
-  }
+  if (code !== 0) return reportCaptureFailure(code, logger);
 
   stampCapturedTree({
     preDigest,

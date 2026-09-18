@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-18T14:27:11.498Z",
+  "generatedAt": "2026-09-18T14:25:50.622Z",
   "rollup": {
     "*": {
       "min": 76.381,
-      "p50": 99.173,
+      "p50": 99.184,
       "p95": 122.565
     }
   },
@@ -88,7 +88,7 @@
     },
     {
       "path": ".agents/scripts/coverage-capture.js",
-      "mi": 80.437
+      "mi": 89.959
     },
     {
       "path": ".agents/scripts/deliver-light.js",
@@ -604,7 +604,7 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
-      "mi": 79.475
+      "mi": 80.526
     },
     {
       "path": ".agents/scripts/lib/command-header.js",
@@ -724,7 +724,7 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-capture.js",
-      "mi": 95.785
+      "mi": 97.878
     },
     {
       "path": ".agents/scripts/lib/coverage-utils.js",
@@ -860,7 +860,11 @@
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
-      "mi": 99.156
+      "mi": 107.558
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-queue.js",
+      "mi": 91.862
     },
     {
       "path": ".agents/scripts/lib/gates/baseline-store.js",
@@ -1436,7 +1440,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
-      "mi": 87.222
+      "mi": 92.614
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
@@ -1453,6 +1457,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/graphql-preflight.js",
       "mi": 98.072
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/lock-wait-pending.js",
+      "mi": 108.975
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
@@ -1613,6 +1621,10 @@
     {
       "path": ".agents/scripts/lib/preflight-runner.js",
       "mi": 106.958
+    },
+    {
+      "path": ".agents/scripts/lib/process-group.js",
+      "mi": 110.407
     },
     {
       "path": ".agents/scripts/lib/project-root.js",

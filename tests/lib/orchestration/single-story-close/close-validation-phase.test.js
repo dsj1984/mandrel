@@ -197,6 +197,54 @@ describe('runCloseValidationPhase — standalone parity (Story #4250)', () => {
 });
 
 /**
+ * Story #5377 — a full-suite lock wait inside the gate chain. Only a gate that
+ * reported the defer exit AND a wait that announced its expiry is a pending
+ * close; either half alone is an ordinary gate failure.
+ */
+describe('runCloseValidationPhase — full-suite lock waits (Story #5377)', () => {
+  const phaseWith = (runCloseValidation) =>
+    runCloseValidationPhase({
+      cwd: '/main/repo',
+      worktreePath: null,
+      config: {},
+      baseBranch: 'main',
+      storyId: 5377,
+      progress: noopProgress,
+      runCloseValidation,
+      buildDefaultGates: () => [{ name: 'coverage-capture' }],
+      runPreGateSteps: async () => {},
+    });
+
+  it('a defer exit with no expired wait is still a gate failure', async () => {
+    await assert.rejects(
+      phaseWith(async () => ({
+        ok: false,
+        failed: [{ gate: { name: 'coverage-capture' }, status: 75 }],
+        skipped: [],
+      })),
+      (err) =>
+        err.closeGate === 'coverage-capture' && /exit 75/.test(err.message),
+    );
+  });
+
+  it('sums every wait the chain announced, and reports null when none did', async () => {
+    const waited = await phaseWith(async ({ log }) => {
+      log('[full-suite-lock] ✅ acquired the full-suite lock (waited 10s).');
+      log('[x] [full-suite-lock] ✅ acquired the full-suite lock (waited 5s).');
+      return { ok: true, failed: [], skipped: [] };
+    });
+    assert.deepEqual(waited.lockWait, { waitedSeconds: 15, expired: false });
+    assert.equal(waited.pending, false);
+    const quiet = await phaseWith(async () => ({
+      ok: true,
+      failed: [],
+      skipped: [],
+    }));
+    assert.equal(quiet.lockWait, null);
+  });
+});
+
+/**
  * Story #4736 — the success path's stdout bound.
  *
  * A passing `npm test` alone used to put ~50KB of gate output on the invoking

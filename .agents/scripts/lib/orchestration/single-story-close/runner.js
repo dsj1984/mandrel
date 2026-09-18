@@ -31,6 +31,7 @@ import { runCloseValidationPhase } from './phases/close-validation.js';
 import { parsePrNumber, runStoryScopeReview } from './phases/code-review.js';
 import { runConfirmMergePhase } from './phases/confirm-merge.js';
 import { runGraphqlPreflight } from './phases/graphql-preflight.js';
+import { lockWaitPending } from './phases/lock-wait-pending.js';
 import { parseCloseOptions, resolveWaitForMerge } from './phases/options.js';
 import { ensurePullRequestWith } from './phases/pull-request.js';
 import { pushStoryBranch } from './phases/push.js';
@@ -230,6 +231,28 @@ function baselinesEnvelopeGates(validationGates) {
   return out;
 }
 
+/**
+ * The terminal envelope's `gates` map for a close that reached its PR.
+ *
+ * @param {{ skipValidation?: boolean, skipSync?: boolean }} options
+ * @param {Record<string, string>|null} validationGates
+ * @param {object|null} reviewOverride
+ * @returns {Record<string, string>}
+ */
+function closeEnvelopeGates(options, validationGates, reviewOverride) {
+  return {
+    validation: options.skipValidation ? 'skipped' : 'passed',
+    // Story #5172 — the split baselines entries, named individually so a
+    // reader can tell the two apart. Absent when validation was skipped.
+    ...baselinesEnvelopeGates(validationGates),
+    baseSync: options.skipSync ? 'skipped' : 'passed',
+    // An overridden blocker reports `overridden`, never
+    // `passed`. The review DID fail; a human authorized shipping anyway, and
+    // the envelope is the machine-readable trail that says so.
+    codeReview: reviewOverride ? 'overridden' : 'passed',
+  };
+}
+
 function resolveWorktreePath({ cwd, config, storyId }) {
   const root = config.delivery?.worktreeIsolation?.root ?? '.worktrees';
   const candidate = path.resolve(cwd, root, `story-${storyId}`);
@@ -252,10 +275,15 @@ function resolveWorktreePath({ cwd, config, storyId }) {
  * `--skip-sync` and `--skip-validation` stay independent — either, both or
  * neither may be set, and each still elides exactly its own phase.
  *
- * @returns {Promise<{ validationGates: Record<string, string>|null }>}
- *   The per-gate outcomes close-validation observed, or `null` when the phase
- *   was skipped. Feeds the terminal envelope's `gates` map so the split
- *   baselines entries are separable there.
+ * @returns {Promise<{
+ *   validationGates: Record<string, string>|null,
+ *   lockWait: { waitedSeconds: number, expired: boolean }|null,
+ *   pending: boolean,
+ * }>} The per-gate outcomes close-validation observed, or `null` when the
+ *   phase was skipped. Feeds the terminal envelope's `gates` map so the split
+ *   baselines entries are separable there. `lockWait` is the full-suite lock
+ *   accounting, and `pending` means a lock wait expired and the gate chain
+ *   deferred rather than spawning (Story #5377).
  */
 async function runPrePushPhases({
   cwd,
@@ -301,7 +329,7 @@ async function runPrePushPhases({
   }
   if (skipValidation) {
     progress('VALIDATE', '⏭ Skipped (--skip-validation).');
-    return { validationGates: null };
+    return { validationGates: null, lockWait: null, pending: false };
   }
   setPhase('close-validation');
   let validation;
@@ -331,7 +359,11 @@ async function runPrePushPhases({
   }
   const gates = validation?.gates ?? null;
   setObservedGates(gates);
-  return { validationGates: gates };
+  return {
+    validationGates: gates,
+    lockWait: validation?.lockWait ?? null,
+    pending: validation?.pending === true,
+  };
 }
 
 async function openAndReviewPr({
@@ -757,6 +789,7 @@ async function finishWithMergeWait(prCtx, deps) {
     prUrl: prCtx.prUrl,
     autoMergeEnabled: prCtx.autoMergeEnabled,
     gates: prCtx.gates,
+    lockWait: prCtx.lockWait,
     elapsedSeconds: elapsedSecondsSince(prCtx.startedAtMs),
   });
   const result = closeResult({
@@ -840,6 +873,7 @@ async function finishWithoutMergeWait(prCtx, waitForMergeReason) {
       autoMergeEnabled: Boolean(prCtx.autoMergeEnabled),
     },
     gates: prCtx.gates,
+    lockWait: prCtx.lockWait,
     nextCommand: NEXT_COMMANDS.confirmMerge(prCtx.storyId),
     elapsedSeconds: elapsedSecondsSince(prCtx.startedAtMs),
   });
@@ -849,6 +883,26 @@ async function finishWithoutMergeWait(prCtx, waitForMergeReason) {
     `✅ Story #${prCtx.storyId}: PR ready → ${prCtx.prUrl} (${waitForMergeReason})`,
   );
   return { success: true, result, terminal };
+}
+
+/**
+ * The deferred ending (Story #5377): a full-suite lock wait expired inside
+ * close-validation, so the close ends `pending` with nothing pushed.
+ *
+ * @param {{ waitedSeconds: number, expired: boolean }|null} lockWait
+ * @param {{ storyId: number, storyBranch: string, baseBranch: string,
+ *   config: object, startedAtMs: number }} ctx
+ * @returns {Promise<{ success: false, result: object, terminal: object }>}
+ */
+async function finishDeferred(lockWait, { config, startedAtMs, ...ids }) {
+  const { result, terminal, note } = lockWaitPending({
+    ...ids,
+    lockWait,
+    elapsedSeconds: elapsedSecondsSince(startedAtMs),
+  });
+  await emitTerminal({ terminal, result, config });
+  progress('PENDING', note);
+  return { success: false, result, terminal };
 }
 
 /**
@@ -977,7 +1031,7 @@ async function runClosePipeline({
   });
   // Both blocked-prone phases are wrapped so the lease is released
   // best-effort before the throw propagates; the original error is preserved.
-  const { validationGates } = await releaseLeaseOnBlock(
+  const prePush = await releaseLeaseOnBlock(
     () =>
       runPrePushPhases({
         ...options,
@@ -994,6 +1048,15 @@ async function runClosePipeline({
       }),
     leaseArgs,
   );
+  if (prePush.pending) {
+    return await finishDeferred(prePush.lockWait, {
+      storyId: options.storyId,
+      storyBranch,
+      baseBranch,
+      config,
+      startedAtMs,
+    });
+  }
 
   const { prUrl, prNumber, alreadyMerged, reviewOverride } =
     await releaseLeaseOnBlock(
@@ -1114,17 +1177,8 @@ async function runClosePipeline({
     directMerged,
     config,
     startedAtMs,
-    gates: {
-      validation: options.skipValidation ? 'skipped' : 'passed',
-      // Story #5172 — the split baselines entries, named individually so a
-      // reader can tell the two apart. Absent when validation was skipped.
-      ...baselinesEnvelopeGates(validationGates),
-      baseSync: options.skipSync ? 'skipped' : 'passed',
-      // An overridden blocker reports `overridden`, never
-      // `passed`. The review DID fail; a human authorized shipping anyway, and
-      // the envelope is the machine-readable trail that says so.
-      codeReview: reviewOverride ? 'overridden' : 'passed',
-    },
+    lockWait: prePush.lockWait,
+    gates: closeEnvelopeGates(options, prePush.validationGates, reviewOverride),
   };
 
   if (waitForMerge) {

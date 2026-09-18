@@ -140,6 +140,19 @@ describe('acquireLockWithWait (Story #4622)', () => {
     res.release();
   });
 
+  it('waits on the real timer when no sleep seam is supplied', async () => {
+    const lockPath = path.join(tmpDir, 'wait.lock');
+    const holder = acquireSweepLock({ lockPath });
+    setTimeout(() => holder.release(), 30);
+    const res = await acquireLockWithWait({
+      lockPath,
+      waitMs: 5_000,
+      pollMs: 5,
+    });
+    assert.equal(res.acquired, true);
+    res.release();
+  });
+
   it('polls until a contended lock is released, then acquires', async () => {
     const lockPath = path.join(tmpDir, 'wait.lock');
     const holder = acquireSweepLock({ lockPath });
@@ -199,5 +212,59 @@ describe('acquireLockWithWait (Story #4622)', () => {
     });
     assert.equal(res.acquired, false);
     assert.equal(res.reason, 'error');
+  });
+});
+
+// Story #5377 — the defensive paths the full-suite lock leans on now that its
+// holders are asynchronous: every one of them must degrade, never throw.
+describe('acquireSweepLock — degraded environments (Story #5377)', () => {
+  it('reports an unwritable lock home as an error, not a throw', () => {
+    const res = acquireSweepLock({
+      lockPath: path.join(tmpDir, 'x.lock'),
+      fsImpl: {
+        ...fs,
+        mkdirSync: () => {
+          throw Object.assign(new Error('EACCES'), { code: 'EACCES' });
+        },
+      },
+    });
+    assert.equal(res.acquired, false);
+    assert.equal(res.reason, 'error');
+    assert.match(res.detail, /EACCES/);
+  });
+
+  it('skips signal release on a process seam that cannot detach listeners', () => {
+    const res = acquireSweepLock({
+      lockPath: path.join(tmpDir, 'x.lock'),
+      heartbeatMs: 0,
+      processImpl: { once: () => {} },
+    });
+    assert.equal(res.acquired, true);
+    assert.doesNotThrow(() => res.release());
+  });
+
+  it('stops heartbeating when a refresh fails, even if clearing the timer throws', () => {
+    const lockPath = path.join(tmpDir, 'x.lock');
+    let beat = null;
+    const res = acquireSweepLock({
+      lockPath,
+      heartbeatMs: 1_000,
+      setIntervalFn: (fn) => {
+        beat = fn;
+        return {};
+      },
+      clearIntervalFn: () => {
+        throw new Error('fake timer cannot clear');
+      },
+      fsImpl: {
+        ...fs,
+        utimesSync: () => {
+          throw new Error('EROFS');
+        },
+      },
+    });
+    assert.equal(res.acquired, true);
+    assert.doesNotThrow(() => beat());
+    res.release();
   });
 });

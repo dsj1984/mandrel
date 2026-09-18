@@ -178,11 +178,11 @@ function previewRefFromHook() {
  *
  * @param {{ skipWhenUnchanged: boolean }} opts
  * @param {string[]} argv
- * @returns {string[]}
+ * @returns {Promise<string[]>}
  */
-function refsCaptureAsksFor({ skipWhenUnchanged }, argv) {
+async function refsCaptureAsksFor({ skipWhenUnchanged }, argv) {
   const refs = [];
-  runCoverageCapture(argv, {
+  await runCoverageCapture(argv, {
     resolveConfigImpl: () => ({
       delivery: { execution: { fullSuiteLock: false } },
     }),
@@ -213,7 +213,7 @@ function refsCaptureAsksFor({ skipWhenUnchanged }, argv) {
   return refs;
 }
 
-test('pre-push — a configured baseRef cannot desynchronize capture from the preview', () => {
+test('pre-push — a configured baseRef cannot desynchronize capture from the preview', async () => {
   const argv = captureArgvFromHook();
   const previewRef = previewRefFromHook();
   assert.notEqual(
@@ -226,7 +226,7 @@ test('pre-push — a configured baseRef cannot desynchronize capture from the pr
   // incremental mode owns it when `skipWhenUnchanged` is on, and the
   // full-scope path re-runs it for `--skip-when-no-crap-files` otherwise.
   for (const skipWhenUnchanged of [true, false]) {
-    const refs = refsCaptureAsksFor({ skipWhenUnchanged }, argv);
+    const refs = await refsCaptureAsksFor({ skipWhenUnchanged }, argv);
     assert.ok(refs.length > 0, 'the changed-file set must be computed');
     assert.deepEqual(
       [...new Set(refs)],

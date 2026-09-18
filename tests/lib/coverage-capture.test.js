@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
+import { execFileSync, spawn } from 'node:child_process';
+import { EventEmitter } from 'node:events';
+import fs from 'node:fs';
 import path from 'node:path';
-import { describe, it } from 'node:test';
+import { afterEach, beforeEach, describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
   anyChangedUnderTargets,
   COVERAGE_TIMEOUT_EXIT_CODE,
@@ -10,9 +14,17 @@ import {
   filterFilesUnderTargets,
   isCoverageFresh,
   newestSourceMtime,
+  reportCaptureFailure,
   runCapture,
   writeCaptureStamp,
 } from '../../.agents/scripts/lib/coverage-capture.js';
+import { LOCK_WAIT_EXPIRED_EXIT_CODE } from '../../.agents/scripts/lib/full-suite-lock.js';
+import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
+import {
+  waitForDeath,
+  waitForExit,
+  waitForFile,
+} from '../fixtures/process-group/probe.js';
 
 // `path.resolve` is platform-specific (Windows prepends a drive letter when
 // fed a leading-`/` path). Build fixture keys via `path.resolve` so the
@@ -510,77 +522,74 @@ describe('anyChangedUnderTargets', () => {
   });
 });
 
-describe('runCapture', () => {
-  it('spawns `npm run test:coverage` with inherited stdio', () => {
-    const calls = [];
-    const runner = (cmd, args, opts) => {
-      calls.push({ cmd, args, opts });
-      return { status: 0 };
+/**
+ * A fake `spawn` for `runCapture`: records the call and returns an emitter
+ * that exits with `code` on the next tick (or never, under `hang`, so the
+ * timeout path can fire).
+ */
+function fakeSpawn(calls, { code = 0, error = null, hang = false } = {}) {
+  return (cmd, args, opts) => {
+    calls.push({ cmd, args, opts });
+    const child = new EventEmitter();
+    child.pid = undefined;
+    child.kill = () => {
+      setImmediate(() => child.emit('exit', null, 'SIGKILL'));
     };
-    const code = runCapture({ cwd: '/repo', runner });
+    setImmediate(() => {
+      if (error) child.emit('error', error);
+      else if (!hang) child.emit('exit', code, null);
+    });
+    return child;
+  };
+}
+
+describe('runCapture', () => {
+  it('spawns `npm run test:coverage` with inherited stdio as a group leader', async () => {
+    const calls = [];
+    const code = await runCapture({
+      cwd: '/repo',
+      spawnImpl: fakeSpawn(calls),
+    });
     assert.equal(code, 0);
     assert.equal(calls.length, 1);
     assert.equal(calls[0].cmd, 'npm');
     assert.deepEqual(calls[0].args, ['run', 'test:coverage']);
     assert.equal(calls[0].opts.cwd, '/repo');
     assert.equal(calls[0].opts.stdio, 'inherit');
+    assert.equal(
+      calls[0].opts.detached,
+      process.platform === 'win32' ? undefined : true,
+      'on POSIX the suite leads its own process group',
+    );
   });
 
-  it('returns the runner status (1 when the suite fails)', () => {
-    const runner = () => ({ status: 1 });
-    assert.equal(runCapture({ cwd: '/repo', runner }), 1);
+  it('resolves the suite status (1 when the suite fails)', async () => {
+    const spawnImpl = fakeSpawn([], { code: 1 });
+    assert.equal(await runCapture({ cwd: '/repo', spawnImpl }), 1);
   });
 
-  it('coerces an undefined status to 1 so callers fail closed', () => {
-    const runner = () => ({ status: undefined });
-    assert.equal(runCapture({ cwd: '/repo', runner }), 1);
+  it('coerces a null exit code to 1 so callers fail closed', async () => {
+    const spawnImpl = fakeSpawn([], { code: null });
+    assert.equal(await runCapture({ cwd: '/repo', spawnImpl }), 1);
   });
 
-  it('threads a positive timeoutMs as `timeout` + killSignal: SIGKILL', () => {
-    const calls = [];
-    const runner = (cmd, args, opts) => {
-      calls.push({ cmd, args, opts });
-      return { status: 0 };
-    };
-    runCapture({ cwd: '/repo', timeoutMs: 600_000, runner });
-    assert.equal(calls.length, 1);
-    assert.equal(calls[0].opts.timeout, 600_000);
-    assert.equal(calls[0].opts.killSignal, 'SIGKILL');
+  it('resolves 1 when the spawn itself errors', async () => {
+    const spawnImpl = fakeSpawn([], { error: new Error('ENOENT') });
+    assert.equal(await runCapture({ cwd: '/repo', spawnImpl }), 1);
   });
 
-  it('omits the `timeout` option when timeoutMs is missing or non-positive', () => {
-    const calls = [];
-    const runner = (_cmd, _args, opts) => {
-      calls.push(opts);
-      return { status: 0 };
-    };
-    runCapture({ cwd: '/repo', runner });
-    runCapture({ cwd: '/repo', timeoutMs: 0, runner });
-    runCapture({ cwd: '/repo', timeoutMs: -1, runner });
-    runCapture({ cwd: '/repo', timeoutMs: 'nope', runner });
-    for (const opts of calls) {
-      assert.equal(
-        Object.hasOwn(opts, 'timeout'),
-        false,
-        'timeout must not be set when timeoutMs is unset/invalid',
-      );
-      assert.equal(opts.killSignal, 'SIGKILL');
-    }
-  });
-
-  it('returns 124 when the runner reports SIGKILL (simulating a timeout)', () => {
-    const runner = () => ({ status: null, signal: 'SIGKILL' });
+  it('returns 124 when the watchdog kills a suite that overran timeoutMs', async () => {
     const logs = [];
-    const code = runCapture({
+    const code = await runCapture({
       cwd: '/repo',
-      timeoutMs: 100,
-      runner,
+      timeoutMs: 20,
+      spawnImpl: fakeSpawn([], { hang: true }),
       log: (m) => logs.push(m),
     });
     assert.equal(code, COVERAGE_TIMEOUT_EXIT_CODE);
     assert.equal(code, 124);
     assert.ok(
-      logs.some((m) => /exceeded 100ms/.test(m)),
+      logs.some((m) => /exceeded 20ms/.test(m)),
       'expected a timeout-trip log entry',
     );
   });
@@ -599,15 +608,12 @@ describe('runCapture', () => {
   // reason it never bit. The argv is pinned here so the plumbing cannot come
   // back by way of an `opts.files` that looks harmless.
   describe('no positional file scope (Story #5065)', () => {
-    it('spawns the bare `npm run test:coverage` argv, whatever opts are passed', () => {
+    it('spawns the bare `npm run test:coverage` argv, whatever opts are passed', async () => {
       const calls = [];
-      const runner = (cmd, args) => {
-        calls.push({ cmd, args });
-        return { status: 0 };
-      };
-      runCapture({ cwd: '/repo', runner });
-      runCapture({ cwd: '/repo', runner, files: ['src/a.js', 'src/b.js'] });
-      runCapture({ cwd: '/repo', runner, files: [] });
+      const spawnImpl = fakeSpawn(calls);
+      await runCapture({ cwd: '/repo', spawnImpl });
+      await runCapture({ cwd: '/repo', spawnImpl, files: ['src/a.js'] });
+      await runCapture({ cwd: '/repo', spawnImpl, files: [] });
       for (const call of calls) {
         assert.equal(call.cmd, 'npm');
         assert.deepEqual(
@@ -618,6 +624,114 @@ describe('runCapture', () => {
       }
     });
   });
+});
+
+describe('reportCaptureFailure (Story #5377)', () => {
+  const recorder = () => {
+    const lines = { info: [], error: [] };
+    return {
+      lines,
+      logger: {
+        info: (m) => lines.info.push(m),
+        error: (m) => lines.error.push(m),
+      },
+    };
+  };
+
+  it('never describes a deferred lock wait as a failing suite', () => {
+    const { lines, logger } = recorder();
+    assert.equal(reportCaptureFailure(LOCK_WAIT_EXPIRED_EXIT_CODE, logger), 75);
+    assert.deepEqual(lines.error, []);
+    assert.match(lines.info[0], /no suite ran/);
+  });
+
+  it('reports any other non-zero exit as a suite failure', () => {
+    const { lines, logger } = recorder();
+    assert.equal(reportCaptureFailure(2, logger), 2);
+    assert.match(lines.error[0], /exited 2/);
+  });
+});
+
+/**
+ * Story #5377 — the real process tree. A fake spawn cannot show that a
+ * worker two levels below `npm` died, and that is the whole contract: the
+ * suite is killed as a process group, and a lock holder that takes a signal
+ * lets go of the lock while its suite is still running. POSIX-only — win32
+ * has no process groups, and its degraded kill is pinned in
+ * tests/lib/close-validation-gate-helpers.test.js.
+ */
+describe('the suite is a process group (Story #5377)', {
+  skip: process.platform === 'win32',
+}, () => {
+  const fixtures = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '../fixtures/process-group',
+  );
+  let dir;
+
+  beforeEach(() => {
+    dir = makeTempDir('mandrel-pgroup-');
+    const tree = path.join(fixtures, 'suite-tree.mjs');
+    const pidFile = path.join(dir, 'worker.pid');
+    fs.writeFileSync(
+      path.join(dir, 'package.json'),
+      JSON.stringify({
+        name: 'pgroup-fixture',
+        private: true,
+        scripts: {
+          'test:coverage': `node ${JSON.stringify(tree)} ${JSON.stringify(pidFile)}`,
+        },
+      }),
+    );
+    execFileSync('git', ['init', '-q'], { cwd: dir });
+  });
+
+  afterEach(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('AC-2: a capture killed by its timeout leaves no surviving suite worker and exits 124', async () => {
+    const pidFile = path.join(dir, 'worker.pid');
+    // Long enough for npm to start the tree and the tree to fork its worker;
+    // the tree never exits on its own, so the watchdog is what ends it.
+    const code = await runCapture({ cwd: dir, timeoutMs: 5_000 });
+    assert.equal(code, 124);
+    const worker = Number(fs.readFileSync(pidFile, 'utf8'));
+    assert.equal(
+      await waitForDeath(worker),
+      true,
+      'the worker must die with its group',
+    );
+  });
+
+  for (const sent of ['SIGTERM', 'SIGINT']) {
+    it(`AC-1: a lock holder takes its suite down and releases the lock within 5s of ${sent}`, async () => {
+      const pidFile = path.join(dir, 'worker.pid');
+      const lockFile = path.join(dir, '.git', 'mandrel-full-suite.lock');
+      const holder = spawn(
+        process.execPath,
+        [path.join(fixtures, 'capture-holder.mjs'), dir],
+        { stdio: 'ignore' },
+      );
+      await waitForFile(pidFile);
+      assert.equal(fs.existsSync(lockFile), true, 'the holder holds the lock');
+      const worker = Number(fs.readFileSync(pidFile, 'utf8'));
+      const exited = waitForExit(holder);
+      holder.kill(sent);
+      const { code, signal, ms } = await exited;
+      assert.ok(ms < 5_000, `holder took ${ms}ms to exit`);
+      assert.ok(
+        signal === sent || (code !== null && code !== 0),
+        'exits non-zero',
+      );
+      assert.equal(fs.existsSync(lockFile), false, 'the lockfile is released');
+      assert.equal(
+        await waitForDeath(worker),
+        true,
+        'the suite worker is gone',
+      );
+    });
+  }
 });
 
 describe('filterFilesUnderTargets', () => {

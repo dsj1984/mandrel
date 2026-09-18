@@ -10,10 +10,16 @@
  * `.agents/scripts/coverage-capture.js` (CLI). Importers test freshness via
  * `isCoverageFresh` and decide whether to delegate to `runCapture`.
  */
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { LOCK_WAIT_EXPIRED_EXIT_CODE } from './full-suite-lock.js';
+import {
+  groupSpawnOptions,
+  superviseGroup,
+  TIMEOUT_EXIT_CODE,
+} from './process-group.js';
 import {
   isScorableSourceFile,
   SCORABLE_SOURCE_EXT_RE,
@@ -436,16 +442,17 @@ function announceUncreditedCapture({ requireCredited = false, logger }) {
  * It composes OUTSIDE `lockedCapture`, so a refusal costs nothing: the host
  * lock is never acquired for a run that is about to be declined.
  *
- * @param {(opts: object) => number} runCaptureFn The (possibly already
+ * @param {(opts: object) => Promise<number>|number} runCaptureFn The (possibly already
  *   lock-wrapped) capture runner.
  * @param {{ requireCredited?: boolean, logger: object }} policy
- * @returns {(opts?: object) => number} A runner returning the capture's exit
- *   code, or a non-zero refusal code without having spawned anything.
+ * @returns {(opts?: object) => Promise<number>} A runner resolving to the
+ *   capture's exit code, or a non-zero refusal code without having spawned
+ *   anything.
  */
 export function creditedCapture(runCaptureFn, { requireCredited, logger }) {
-  return (captureOpts = {}) => {
+  return async (captureOpts = {}) => {
     const refusal = announceUncreditedCapture({ requireCredited, logger });
-    return refusal === null ? runCaptureFn(captureOpts) : refusal;
+    return refusal === null ? await runCaptureFn(captureOpts) : refusal;
   };
 }
 
@@ -563,19 +570,23 @@ export function anyChangedUnderTargets(changedFiles, targetDirs) {
  * the close-validation caller can branch on "hang" (124) vs. "tests failed"
  * (any other non-zero status). Story #2136 / Task #2142.
  */
-export const COVERAGE_TIMEOUT_EXIT_CODE = 124;
+export const COVERAGE_TIMEOUT_EXIT_CODE = TIMEOUT_EXIT_CODE;
 
 /**
  * Spawn `npm run test:coverage` in `cwd` with a bounded wall clock. Inherits
- * stdio so the operator sees the raw test output. Returns the exit status; a
- * non-zero exit means the caller should propagate the failure (a broken test
- * suite cannot be papered over by the CRAP gate).
+ * stdio so the operator sees the raw test output. Resolves to the exit
+ * status; a non-zero exit means the caller should propagate the failure (a
+ * broken test suite cannot be papered over by the CRAP gate).
  *
- * The `timeoutMs` budget is enforced by `spawnSync` with `killSignal:
- * 'SIGKILL'` — Node fires the signal at the budget boundary and the result
- * surfaces with `signal: 'SIGKILL'`. We translate that into the GNU
- * `timeout(1)` convention exit code 124 so callers can pattern-match a
- * runaway runner without inspecting signal names.
+ * **Asynchronous, and the suite is a process group (Story #5377).** It used to
+ * block in `spawnSync`, which froze this process's event loop for the whole
+ * suite: the lock heartbeat stopped, and a SIGTERM could not release the lock
+ * until the suite returned on its own. Now the loop keeps turning, and the
+ * suite runs as the leader of its own process group, so the `timeoutMs`
+ * watchdog and a signal to this process both kill `npm` *and* every
+ * `node --test` worker under it. A timeout surfaces as the GNU `timeout(1)`
+ * exit code 124 so callers can pattern-match a runaway runner without
+ * inspecting signal names.
  *
  * The spawn takes **no positional file arguments**. Story #4981 forwarded the
  * changed-file list as `npm run test:coverage -- <files...>` on the premise
@@ -590,42 +601,63 @@ export const COVERAGE_TIMEOUT_EXIT_CODE = 124;
  * @param {{
  *   cwd: string,
  *   timeoutMs?: number,
- *   runner?: typeof spawnSync,
+ *   spawnImpl?: typeof spawn,
  *   log?: (m: string) => void,
  * }} opts
- * @returns {number}
+ * @returns {Promise<number>}
  */
 export function runCapture({
   cwd,
   timeoutMs,
-  runner = spawnSync,
+  spawnImpl = spawn,
   log = () => {},
 } = {}) {
   const args = ['run', 'test:coverage'];
   log(`[coverage-capture] ▶ npm ${args.join(' ')}`);
-  const spawnOpts = {
-    cwd,
-    stdio: 'inherit',
-    shell: process.platform === 'win32',
-    killSignal: 'SIGKILL',
-  };
-  if (
-    typeof timeoutMs === 'number' &&
-    Number.isFinite(timeoutMs) &&
-    timeoutMs > 0
-  ) {
-    spawnOpts.timeout = timeoutMs;
-  }
-  const res = runner('npm', args, spawnOpts);
-  // A timeout-induced kill surfaces as `signal: 'SIGKILL'` (or, on some
-  // platforms, as a non-numeric status). Either signal indicates the
-  // watchdog tripped — surface the GNU `timeout` convention 124 so the
-  // caller can distinguish a hang from a normal test-suite failure.
-  if (res?.signal === 'SIGKILL') {
-    log(
-      `[coverage-capture] ⏱ npm run test:coverage exceeded ${timeoutMs}ms — killed (SIGKILL). Returning exit ${COVERAGE_TIMEOUT_EXIT_CODE}.`,
+  return new Promise((resolve) => {
+    const child = spawnImpl('npm', args, {
+      cwd,
+      stdio: 'inherit',
+      shell: process.platform === 'win32',
+      ...groupSpawnOptions(),
+    });
+    const supervisor = superviseGroup(child, { timeoutMs });
+    child.on('error', () => {
+      supervisor.release();
+      resolve(1);
+    });
+    child.on('exit', (code) => {
+      supervisor.release();
+      if (!supervisor.timedOut) {
+        resolve(code ?? 1);
+        return;
+      }
+      log(
+        `[coverage-capture] ⏱ npm run test:coverage exceeded ${timeoutMs}ms — killed its process group. Returning exit ${COVERAGE_TIMEOUT_EXIT_CODE}.`,
+      );
+      resolve(COVERAGE_TIMEOUT_EXIT_CODE);
+    });
+  });
+}
+
+/**
+ * Report a capture that did not exit 0, and return its code unchanged.
+ * Shared by both capture paths so an expired, deferred lock wait (Story
+ * #5377) is never described as a failing suite: nothing ran.
+ *
+ * @param {number} code
+ * @param {{ info: Function, error: Function }} logger
+ * @returns {number}
+ */
+export function reportCaptureFailure(code, logger) {
+  if (code === LOCK_WAIT_EXPIRED_EXIT_CODE) {
+    logger.info(
+      `[coverage-capture] ⏸ the full-suite lock wait expired and this capture was deferred — no suite ran. Exiting ${code}.`,
     );
-    return COVERAGE_TIMEOUT_EXIT_CODE;
+    return code;
   }
-  return res.status ?? 1;
+  logger.error(
+    `[coverage-capture] ✖ npm run test:coverage exited ${code}. Fix failing tests or coverage-threshold breaches before re-running the CRAP gate.`,
+  );
+  return code;
 }

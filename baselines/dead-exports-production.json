@@ -866,6 +866,10 @@
     },
     {
       "file": ".agents/scripts/lib/full-suite-lock.js",
+      "symbol": "FULL_SUITE_LOCK_EXPIRY_ENV"
+    },
+    {
+      "file": ".agents/scripts/lib/full-suite-lock.js",
       "symbol": "isFullSuiteLockEnabled"
     },
     {
@@ -877,8 +881,8 @@
       "symbol": "withFullSuiteLockAsync"
     },
     {
-      "file": ".agents/scripts/lib/full-suite-lock.js",
-      "symbol": "withFullSuiteLockSync"
+      "file": ".agents/scripts/lib/full-suite-queue.js",
+      "symbol": "parseLockWaitOutcome"
     },
     {
       "file": ".agents/scripts/lib/gates/baseline-store.js",
@@ -1554,6 +1558,10 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/single-story-close/phases/graphql-preflight.js",
+      "symbol": "*"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/lock-wait-pending.js",
       "symbol": "*"
     },
     {
