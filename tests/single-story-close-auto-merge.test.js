@@ -4,7 +4,7 @@
  *
  * Covers:
  *   - `parsePrNumber` parses well-formed PR URLs and rejects junk.
- *   - `enableAutoMerge` returns `{ enabled: true }` on `gh` exit 0 and
+ *   - `enableAutoMergeWith` returns `{ enabled: true }` on `gh` exit 0 and
  *     `{ enabled: false, reason }` on non-zero / spawn errors.
  *   - Spawn args wire `--auto --squash --delete-branch` so GitHub merges
  *     the PR when required checks pass and deletes the source branch.
@@ -20,10 +20,7 @@ import {
   enableAutoMergeWith,
   runAutoMergePhase,
 } from '../.agents/scripts/lib/orchestration/single-story-close/phases/auto-merge.js';
-import {
-  enableAutoMerge,
-  parsePrNumber,
-} from '../.agents/scripts/single-story-close.js';
+import { parsePrNumber } from '../.agents/scripts/single-story-close.js';
 
 describe('parsePrNumber', () => {
   it('extracts the numeric id from a canonical GitHub PR URL', () => {
@@ -62,7 +59,7 @@ describe('parsePrNumber', () => {
   });
 });
 
-describe('enableAutoMerge', () => {
+describe('enableAutoMergeWith', () => {
   it('passes --auto --squash --delete-branch to gh and reports enabled on exit 0', async () => {
     let capturedArgs = null;
     let capturedOpts = null;
@@ -71,7 +68,7 @@ describe('enableAutoMerge', () => {
       capturedOpts = opts;
       return { status: 0, stdout: 'ok', stderr: '' };
     };
-    const result = await enableAutoMerge({
+    const result = await enableAutoMergeWith({
       cwd: '/repo',
       prNumber: 123,
       runner,
@@ -94,7 +91,7 @@ describe('enableAutoMerge', () => {
       stdout: '',
       stderr: 'Pull request not in a state allowing auto-merge.',
     });
-    const result = await enableAutoMerge({
+    const result = await enableAutoMergeWith({
       cwd: '/repo',
       prNumber: 123,
       runner,
@@ -108,7 +105,7 @@ describe('enableAutoMerge', () => {
     const runner = () => {
       throw new Error('ENOENT: gh not installed');
     };
-    const result = await enableAutoMerge({
+    const result = await enableAutoMergeWith({
       cwd: '/repo',
       prNumber: 123,
       runner,
@@ -121,7 +118,7 @@ describe('enableAutoMerge', () => {
   it('truncates very long stderr to keep the reason field readable', async () => {
     const longStderr = 'x'.repeat(500);
     const runner = () => ({ status: 1, stderr: longStderr });
-    const result = await enableAutoMerge({
+    const result = await enableAutoMergeWith({
       cwd: '/repo',
       prNumber: 123,
       runner,
@@ -432,7 +429,9 @@ describe('runAutoMergePhase — advisory gate (Story #5096)', () => {
 // ---------------------------------------------------------------------------
 // `disarmAutoMerge` — the reversal the advisory gate depends on (Story #5266
 // gave it its first direct coverage). It lives here, beside the arm, because
-// lifecycle-lint confines every merge invocation to that one module.
+// lifecycle-lint confines every merge invocation to that one module. Story
+// #5383 folded the recovery watch's raw-spawn twin into it, so it is also the
+// disarm `pr-watch-with-update.js` runs on the first red.
 // ---------------------------------------------------------------------------
 
 describe('disarmAutoMerge', () => {
@@ -450,20 +449,22 @@ describe('disarmAutoMerge', () => {
       },
       progress: (tag, msg) => lines.push(`${tag} ${msg}`),
     });
-    assert.equal(disarmed, true);
+    assert.deepEqual(disarmed, {
+      disarmed: true,
+      alreadyUnarmed: false,
+      detail: 'disarmed',
+    });
     assert.deepEqual(calls, [['1850', ['--disable-auto']]]);
     assert.match(lines.join('\n'), /DISARMED/);
   });
 
   it('does not require a progress channel', async () => {
     // The merge wait passes one; `deliver-recover` and the resume CLI may not.
-    assert.equal(
-      await disarmAutoMerge({
-        prNumber: 1850,
-        gh: { pr: { merge: async () => {} } },
-      }),
-      true,
-    );
+    const result = await disarmAutoMerge({
+      prNumber: 1850,
+      gh: { pr: { merge: async () => {} } },
+    });
+    assert.equal(result.disarmed, true);
   });
 
   it('is best-effort: a failed disarm reports false and warns that GitHub may still land it', async () => {
@@ -481,7 +482,9 @@ describe('disarmAutoMerge', () => {
       },
       progress: (tag, msg) => lines.push(`${tag} ${msg}`),
     });
-    assert.equal(disarmed, false);
+    assert.equal(disarmed.disarmed, false);
+    assert.equal(disarmed.alreadyUnarmed, false);
+    assert.match(disarmed.detail, /gh exploded/);
     assert.match(lines.join('\n'), /Disarm by hand/);
   });
 
@@ -498,7 +501,63 @@ describe('disarmAutoMerge', () => {
       },
       progress: (tag, msg) => lines.push(`${tag} ${msg}`),
     });
-    assert.equal(disarmed, false);
+    assert.equal(disarmed.disarmed, false);
     assert.match(lines.join('\n'), /gh: rate limited/);
+  });
+
+  it('separates a never-armed PR from a genuine failure', async () => {
+    // The recovery watch treats an un-disarmable armed PR as a blocker, and a
+    // never-armed PR as the posture it wanted — so the two must not collapse.
+    const notArmedErr = Object.assign(new Error('gh exited with code 1'), {
+      stderr: 'auto-merge is not enabled for this pull request\n',
+    });
+    const notArmed = await disarmAutoMerge({
+      prRef: '1',
+      gh: {
+        pr: {
+          merge: async () => {
+            throw notArmedErr;
+          },
+        },
+      },
+    });
+    assert.equal(notArmed.disarmed, true);
+    assert.equal(notArmed.alreadyUnarmed, true);
+    assert.match(notArmed.detail, /not armed/);
+
+    const forbidden = await disarmAutoMerge({
+      prRef: '1',
+      gh: {
+        pr: {
+          merge: async () => {
+            throw Object.assign(new Error('gh exited with code 1'), {
+              stderr: 'HTTP 403: forbidden',
+            });
+          },
+        },
+      },
+    });
+    assert.equal(forbidden.disarmed, false);
+    assert.match(forbidden.detail, /HTTP 403/);
+  });
+
+  it('passes a canonical PR URL ref through verbatim', async () => {
+    // The watch CLI addresses a cross-repo PR by URL — `gh` has no
+    // `<owner/repo>#<n>` form — so the ref must reach `gh` untouched.
+    const calls = [];
+    await disarmAutoMerge({
+      prRef: 'https://github.com/o/r/pull/7',
+      prNumber: 7,
+      gh: {
+        pr: {
+          merge: async (ref, args) => {
+            calls.push([ref, args]);
+          },
+        },
+      },
+    });
+    assert.deepEqual(calls, [
+      ['https://github.com/o/r/pull/7', ['--disable-auto']],
+    ]);
   });
 });

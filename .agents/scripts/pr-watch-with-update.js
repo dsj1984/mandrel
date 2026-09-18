@@ -92,7 +92,6 @@ import {
   blockStoryDelivery,
   classifyFailure,
   classifyGreenVerdict,
-  disarmAutoMerge,
   formatRerunViolation,
   readCiDigest,
   resolveDigestScope,
@@ -101,7 +100,10 @@ import {
   writeCiDigest,
 } from './lib/orchestration/ci-rerun-guard.js';
 import { watchPrToTerminal } from './lib/orchestration/pr-watch.js';
-import { enableAutoMergeWith } from './lib/orchestration/single-story-close/phases/auto-merge.js';
+import {
+  disarmAutoMerge,
+  enableAutoMergeWith,
+} from './lib/orchestration/single-story-close/phases/auto-merge.js';
 import { sleep as defaultSleep } from './lib/util/poll-loop.js';
 
 /** Exit code reserved for the slow-but-not-red `still-running` verdict. */
@@ -342,7 +344,8 @@ async function handleRedWatch({
   blockFn,
   logger,
 }) {
-  const disarm = disarmFn({ prRef, cwd });
+  // The one disarm implementation (Story #5383), shared with the merge wait.
+  const disarm = await disarmFn({ prRef });
   const scope = resolveDigestScope({ storyId });
   const headSha = scope ? headShaFn({ prRef, cwd }) : null;
   let digestPaths = null;

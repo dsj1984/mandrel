@@ -3,8 +3,10 @@
  * ci-rerun-guard.js — the machine enforcement behind the no-rerun MUST in
  * [`rules/ci-remediation.md`](../../../rules/ci-remediation.md) § Verifier
  * (Story #4865). Owns the CI failure digest (write / read / retire), the
- * head-SHA discriminator, the auto-merge disarm, and the blocked-delivery
- * escalation. `pr-watch-with-update.js` is the enforcement point; this
+ * head-SHA discriminator, and the blocked-delivery escalation. The auto-merge
+ * disarm it drives is the one implementation in `auto-merge.js` (Story #5383);
+ * the rerun decision itself is `check-state.js#isRerunPermitted`.
+ * `pr-watch-with-update.js` is the enforcement point; this
  * module is the mechanism it drives.
  *
  * **Why the first red, and not the rerun-green.** The obvious design —
@@ -57,6 +59,7 @@ import { spawnChild } from '../child-exec.js';
 import { resolveConfig } from '../config-resolver.js';
 import { Logger } from '../Logger.js';
 import { createProvider } from '../provider-factory.js';
+import { isRerunPermitted } from './check-state.js';
 import {
   STATE_LABELS,
   transitionTicketState,
@@ -213,57 +216,6 @@ export function resolvePrHeadSha({ prRef, cwd, spawnFn }) {
   } catch {
     return null;
   }
-}
-
-/**
- * A `gh` refusal that means auto-merge was never armed in the first place —
- * there is nothing to disarm, so the PR is already in the un-armed posture
- * the guard wants. Distinguishing this from a genuine disarm failure is
- * load-bearing: an armed PR that could not be disarmed is a blocker, while
- * a never-armed PR is the desired end state.
- */
-const NOT_ARMED = /not enabled|isn't enabled|is not set|no auto-?merge/i;
-
-/**
- * Disarm GitHub native auto-merge for the PR — the race-free response to the
- * first red. Never throws.
- *
- * @param {{ prRef: string, cwd: string, spawnFn?: Function }} opts
- * @returns {{ disarmed: boolean, alreadyUnarmed: boolean, detail: string }}
- *   `disarmed` is true when the PR is (now) un-armed; `alreadyUnarmed`
- *   distinguishes "there was nothing armed" from an executed disarm.
- */
-export function disarmAutoMerge({ prRef, cwd, spawnFn }) {
-  let result;
-  try {
-    result = spawnChild('gh', ['pr', 'merge', prRef, '--disable-auto'], {
-      run: spawnFn,
-      cwd,
-    });
-  } catch (err) {
-    return {
-      disarmed: false,
-      alreadyUnarmed: false,
-      detail: `gh-spawn-error: ${err?.message ?? err}`,
-    };
-  }
-  const status = result?.status ?? 1;
-  const stderr = String(result?.stderr ?? '').trim();
-  if (status === 0) {
-    return { disarmed: true, alreadyUnarmed: false, detail: 'disarmed' };
-  }
-  if (NOT_ARMED.test(stderr)) {
-    return {
-      disarmed: true,
-      alreadyUnarmed: true,
-      detail: `auto-merge was not armed: ${stderr.slice(0, 160)}`,
-    };
-  }
-  return {
-    disarmed: false,
-    alreadyUnarmed: false,
-    detail: `gh-exit-${status}: ${stderr.slice(0, 200)}`,
-  };
 }
 
 /**
@@ -531,8 +483,14 @@ export function classifyGreenVerdict({ digest, headSha }) {
     };
   }
   if (recorded === headSha) {
+    // The digest records a red on a REQUIRED check (the watch reads
+    // `gh pr checks --required`), so the shared rerun rule decides: never,
+    // unless an evidence-gated allowance was recorded for this head.
     const allowance = allowanceFor(digest, headSha);
-    return allowance
+    return isRerunPermitted({
+      required: true,
+      allowanceRecorded: allowance !== null,
+    })
       ? {
           verdict: 'rerun-permitted',
           reason: `one rerun admitted: \`${allowance.verdict}\` verdict recorded for this head SHA (${headSha})`,

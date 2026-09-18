@@ -3,10 +3,10 @@
  * orchestration body of `single-story-close.js` (Story #1827).
  *
  * The companion file `single-story-close-auto-merge.test.js` covers the
- * `parsePrNumber` + `enableAutoMerge` helpers in isolation. This file
+ * `parsePrNumber` + `enableAutoMergeWith` helpers in isolation. This file
  * exercises the two larger surfaces the standalone-close path depends on:
  *
- *   - `ensurePullRequest` — the gh-probe / gh-create branch pair, plus
+ *   - `ensurePullRequestWith` — the gh-probe / gh-create branch pair, plus
  *     the fall-through path when `gh pr list` errors and the recovery
  *     path through a successful `gh pr create`.
  *   - `runSingleStoryClose` — the orchestration sequence from
@@ -17,7 +17,7 @@
  *
  * Notes on mocking strategy:
  *   - We mock `node:child_process` (for `execFileSync` calls inside
- *     `ensurePullRequest`) and the SUT's internal dependencies
+ *     `ensurePullRequestWith`) and the SUT's internal dependencies
  *     (`./lib/git-utils.js`, `./lib/close-validation/` modules,
  *     `./lib/worktree-manager.js`). Each test re-imports the SUT with a
  *     cache-busting query string so it picks up its own mocks. The
@@ -33,6 +33,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { BASELINES_GATE_NAMES as REAL_BASELINES_GATE_NAMES } from '../.agents/scripts/lib/close-validation/gates.js';
+import { ensurePullRequestWith } from '../.agents/scripts/lib/orchestration/single-story-close/phases/pull-request.js';
 import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 
 const REPO_ROOT = path
@@ -88,11 +89,11 @@ const CONFIRM_MERGE_PHASE_URL = pathToFileURL(
 // Story #2990: the close-tail phases reach `gh` through the
 // `lib/gh-exec.js` facade rather than direct `execFileSync('gh', …)`
 // calls. Tests inject a fake `gh` facade via `injectedGh` (or pass it
-// directly to `ensurePullRequest`) instead of mocking the module URL.
+// directly to `ensurePullRequestWith`) instead of mocking the module URL.
 /**
  * Build a fake `lib/gh-exec.js` `gh` facade for direct injection into
- * `runSingleStoryClose({ injectedGh })`, `ensurePullRequest({ gh })`,
- * and `enableAutoMerge({ gh })`. The `handler(args)` callback receives
+ * `runSingleStoryClose({ injectedGh })`, `ensurePullRequestWith({ gh })`,
+ * and `enableAutoMergeWith({ gh })`. The `handler(args)` callback receives
  * the argv that would have been passed to `gh` (e.g. `['pr', 'list',
  * '--head', 'story-1234', '--state', 'open', '--json', 'url']`) and may
  * either return a value or throw. For `pr list` calls (which carry
@@ -305,10 +306,9 @@ function noopReview() {
   });
 }
 
-describe('ensurePullRequest', () => {
+describe('ensurePullRequestWith', () => {
   it('reuses an existing open PR when gh pr list returns a URL', async () => {
     const calls = [];
-    const { ensurePullRequest } = await import(`${SUT_URL}?t=ensure-reuse`);
     const gh = makeFakeGh((args) => {
       calls.push(args.slice());
       if (args[1] === 'list') {
@@ -316,7 +316,7 @@ describe('ensurePullRequest', () => {
       }
       throw new Error(`unexpected gh call: ${args.join(' ')}`);
     });
-    const url = await ensurePullRequest({
+    const url = await ensurePullRequestWith({
       cwd: '/repo',
       storyId: 1234,
       storyTitle: 'Test story',
@@ -335,7 +335,6 @@ describe('ensurePullRequest', () => {
 
   it('creates a fresh PR when gh pr list returns empty', async () => {
     const calls = [];
-    const { ensurePullRequest } = await import(`${SUT_URL}?t=ensure-create`);
     const gh = makeFakeGh((args) => {
       calls.push(args.slice());
       if (args[1] === 'list') return [];
@@ -344,7 +343,7 @@ describe('ensurePullRequest', () => {
       }
       throw new Error(`unexpected gh call: ${args.join(' ')}`);
     });
-    const url = await ensurePullRequest({
+    const url = await ensurePullRequestWith({
       cwd: '/repo',
       storyId: 1234,
       storyTitle: 'Test story',
@@ -375,13 +374,12 @@ describe('ensurePullRequest', () => {
 
   it('falls back to gh pr create when gh pr list throws', async () => {
     const calls = [];
-    const { ensurePullRequest } = await import(`${SUT_URL}?t=ensure-list-fail`);
     const gh = makeFakeGh((args) => {
       calls.push(args.slice());
       if (args[1] === 'list') throw new Error('auth required');
       return 'https://github.com/owner/repo/pull/200\n';
     });
-    const url = await ensurePullRequest({
+    const url = await ensurePullRequestWith({
       cwd: '/repo',
       storyId: 9,
       storyTitle: '',
@@ -400,16 +398,13 @@ describe('ensurePullRequest', () => {
   });
 
   it('throws when gh pr create fails', async () => {
-    const { ensurePullRequest } = await import(
-      `${SUT_URL}?t=ensure-create-fail`
-    );
     const gh = makeFakeGh((args) => {
       if (args[1] === 'list') return [];
       if (args[1] === 'create') throw new Error('rate limit');
       throw new Error('unreachable');
     });
     await assert.rejects(
-      ensurePullRequest({
+      ensurePullRequestWith({
         cwd: '/repo',
         storyId: 5,
         storyTitle: 'X',
@@ -432,10 +427,9 @@ describe('ensurePullRequest', () => {
  * only — saw no PR, opened a second one against a branch now identical to
  * base, and squash-merged a zero-file commit onto `main`.
  */
-describe('ensurePullRequest — duplicate empty PR guards (Story #4873)', () => {
+describe('ensurePullRequestWith — duplicate empty PR guards (Story #4873)', () => {
   it('AC-1: reports an already-merged PR on the head instead of opening a second one', async () => {
     const calls = [];
-    const { ensurePullRequest } = await import(`${SUT_URL}?t=ensure-merged`);
     const gh = makeFakeGh((args) => {
       calls.push(args.slice());
       if (args[1] === 'list') {
@@ -449,7 +443,7 @@ describe('ensurePullRequest — duplicate empty PR guards (Story #4873)', () => 
       }
       throw new Error(`unexpected gh call: ${args.join(' ')}`);
     });
-    const outcome = await ensurePullRequest({
+    const outcome = await ensurePullRequestWith({
       cwd: '/repo',
       storyId: 4873,
       storyTitle: 'Test story',
@@ -474,7 +468,6 @@ describe('ensurePullRequest — duplicate empty PR guards (Story #4873)', () => 
   });
 
   it('AC-1: a live PR still wins over a merged one on the same head', async () => {
-    const { ensurePullRequest } = await import(`${SUT_URL}?t=ensure-open-wins`);
     const gh = makeFakeGh((args) => {
       if (args[1] === 'list') {
         return [
@@ -488,7 +481,7 @@ describe('ensurePullRequest — duplicate empty PR guards (Story #4873)', () => 
       }
       throw new Error(`unexpected gh call: ${args.join(' ')}`);
     });
-    const outcome = await ensurePullRequest({
+    const outcome = await ensurePullRequestWith({
       cwd: '/repo',
       storyId: 4873,
       storyTitle: 'Test story',
@@ -501,7 +494,6 @@ describe('ensurePullRequest — duplicate empty PR guards (Story #4873)', () => 
   });
 
   it('AC-1: a head whose only PR was CLOSED without merging still opens a new one', async () => {
-    const { ensurePullRequest } = await import(`${SUT_URL}?t=ensure-closed`);
     const gh = makeFakeGh((args) => {
       if (args[1] === 'list') {
         return [
@@ -511,7 +503,7 @@ describe('ensurePullRequest — duplicate empty PR guards (Story #4873)', () => 
       if (args[1] === 'create') return 'https://github.com/o/r/pull/61\n';
       throw new Error(`unexpected gh call: ${args.join(' ')}`);
     });
-    const outcome = await ensurePullRequest({
+    const outcome = await ensurePullRequestWith({
       cwd: '/repo',
       storyId: 4873,
       storyTitle: 'Test story',
@@ -525,7 +517,6 @@ describe('ensurePullRequest — duplicate empty PR guards (Story #4873)', () => 
 
   it('AC-2: refuses to open a PR when the head-versus-base diff is empty, naming the empty diff', async () => {
     const calls = [];
-    const { ensurePullRequest } = await import(`${SUT_URL}?t=ensure-empty`);
     const gh = makeFakeGh((args) => {
       calls.push(args.slice());
       if (args[1] === 'list') return [];
@@ -533,7 +524,7 @@ describe('ensurePullRequest — duplicate empty PR guards (Story #4873)', () => 
       throw new Error(`unexpected gh call: ${args.join(' ')}`);
     });
     await assert.rejects(
-      ensurePullRequest({
+      ensurePullRequestWith({
         cwd: '/repo',
         storyId: 4873,
         storyTitle: 'Test story',
@@ -551,13 +542,12 @@ describe('ensurePullRequest — duplicate empty PR guards (Story #4873)', () => 
   });
 
   it('AC-2: an UNENUMERABLE diff is not an empty diff — the PR still opens', async () => {
-    const { ensurePullRequest } = await import(`${SUT_URL}?t=ensure-unknown`);
     const gh = makeFakeGh((args) => {
       if (args[1] === 'list') return [];
       if (args[1] === 'create') return 'https://github.com/o/r/pull/2\n';
       throw new Error(`unexpected gh call: ${args.join(' ')}`);
     });
-    const outcome = await ensurePullRequest({
+    const outcome = await ensurePullRequestWith({
       cwd: '/repo',
       storyId: 4873,
       storyTitle: 'Test story',

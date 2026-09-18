@@ -61,13 +61,11 @@
  * local-cleanup nor the unavailable signature and keeps blocking verbatim.
  */
 
-import { gh as defaultGh } from '../../../gh-exec.js';
+import { gh as defaultGh, describeGhFailure } from '../../../gh-exec.js';
 import { resolveAutoMergeArmCwd } from '../../auto-merge-cwd.js';
 import {
-  advisoryCheckFailedBlocksArm,
+  decideAdvisoryGateBlock,
   deriveRedHeadRuns,
-  resolveAdvisoryGateVerdict,
-  selectBlockingRedRuns,
 } from '../../merge-poll.js';
 
 /**
@@ -365,36 +363,75 @@ async function readAdvisoryProbe({ prNumber, gh }) {
 }
 
 /**
- * Disarm GitHub native auto-merge on a PR (Story #5096).
+ * A `gh` refusal that means auto-merge was never armed in the first place —
+ * there is nothing to disarm, so the PR is already in the un-armed posture the
+ * caller wants. Distinguishing this from a genuine disarm failure is
+ * load-bearing for the recovery watch: an armed PR that could not be disarmed
+ * is a blocker there, while a never-armed PR is the desired end state.
+ */
+const NOT_ARMED = /not enabled|isn't enabled|is not set|no auto-?merge/i;
+
+/**
+ * Disarm GitHub native auto-merge on a PR — the ONE implementation (Story
+ * #5096; the recovery watch's raw-spawn twin in `ci-rerun-guard.js` folded
+ * into it by Story #5383).
  *
  * Lives here, beside the arm, because `lifecycle-lint`'s merge-lockout rule
  * confines every `gh pr merge` invocation to this module: auto-merge
  * enablement — and therefore its reversal — must flow through the Story close
  * path rather than being spelled out wherever a caller happens to need it.
- * The merge wait imports this rather than shelling out itself.
+ * Both the merge wait (advisory block) and `pr-watch-with-update.js` (first
+ * red on a required check) call this.
  *
- * Best-effort by contract: the caller blocks the Story either way, and a
- * failed disarm is reported rather than thrown, because the one thing it
- * cannot do is stop GitHub from landing the PR.
+ * Never throws: a failed disarm is reported, because the one thing it cannot
+ * do is stop GitHub from landing the PR, and each caller decides what an
+ * un-disarmed PR means for it.
  *
- * @returns {Promise<boolean>} whether the disarm actually took.
+ * @param {{ prNumber?: number|string, prRef?: string, gh?: object,
+ *   progress?: (tag: string, msg: string) => void }} args `prRef` (a number
+ *   or a canonical PR URL) wins over `prNumber` when both are given.
+ * @returns {Promise<{ disarmed: boolean, alreadyUnarmed: boolean, detail: string }>}
+ *   `disarmed` is true when the PR is (now) un-armed; `alreadyUnarmed`
+ *   distinguishes "there was nothing armed" from an executed disarm.
  */
-export async function disarmAutoMerge({ prNumber, gh, progress }) {
+export async function disarmAutoMerge({ prNumber, prRef, gh, progress }) {
+  const ref = String(prRef ?? prNumber);
   try {
-    await (gh ?? defaultGh).pr.merge(String(prNumber), ['--disable-auto']);
+    await (gh ?? defaultGh).pr.merge(ref, ['--disable-auto']);
     progress?.(
       'CONFIRM',
-      `🔓 Auto-merge DISARMED on PR #${prNumber} — the PR stays open and hand-mergeable.`,
+      `🔓 Auto-merge DISARMED on PR #${ref} — the PR stays open and hand-mergeable.`,
     );
-    return true;
+    return { disarmed: true, alreadyUnarmed: false, detail: 'disarmed' };
   } catch (err) {
-    progress?.(
-      'CONFIRM',
-      `⚠️ Could not disarm auto-merge on PR #${prNumber} (${err?.message ?? err}) — ` +
-        'GitHub may still land it when the required checks pass. Disarm by hand.',
-    );
-    return false;
+    const outcome = classifyDisarmFailure(describeGhFailure(err));
+    if (!outcome.disarmed) {
+      progress?.(
+        'CONFIRM',
+        `⚠️ Could not disarm auto-merge on PR #${ref} (${outcome.detail}) — ` +
+          'GitHub may still land it when the required checks pass. Disarm by hand.',
+      );
+    }
+    return outcome;
   }
+}
+
+/**
+ * Pure: read a refused disarm. A "never armed" refusal leaves the PR in the
+ * un-armed posture the caller wanted; anything else is a genuine failure.
+ *
+ * @param {string} detail The operator-legible `gh` failure line.
+ * @returns {{ disarmed: boolean, alreadyUnarmed: boolean, detail: string }}
+ */
+function classifyDisarmFailure(detail) {
+  const alreadyUnarmed = NOT_ARMED.test(detail);
+  return {
+    disarmed: alreadyUnarmed,
+    alreadyUnarmed,
+    detail: alreadyUnarmed
+      ? `auto-merge was not armed: ${detail.slice(0, 160)}`
+      : detail.slice(0, 200),
+  };
 }
 
 async function evaluateAdvisoryGate({
@@ -423,22 +460,21 @@ async function evaluateAdvisoryGate({
     );
     return { blocked: false };
   }
-  if (!advisoryCheckFailedBlocksArm(probe, advisoryAllowlist)) {
-    return { blocked: false };
-  }
-  const blockingRuns = selectBlockingRedRuns(
-    probe.redHeadRuns,
+  // Story #5383 — the SAME evaluator the merge wait's mid-wait gate calls, so
+  // the pre-arm and mid-wait verdicts cannot drift. Story #5266 — the class
+  // travels with the reason; this pre-arm gate classifies on the text the
+  // ROLLUP carried (a legacy StatusContext's `description`), while the merge
+  // wait additionally reads the check-run output. Either way a run whose
+  // failure cannot be read as "never finished" keeps `advisory-gate-red`.
+  const verdict = decideAdvisoryGateBlock({
+    probe,
+    blockOnAdvisoryFailure,
     advisoryAllowlist,
-  );
-  // Story #5266 — the class travels with the reason. This pre-arm gate
-  // classifies on the text the ROLLUP carried (a legacy StatusContext's
-  // `description`); the merge wait, which owns the common case, additionally
-  // reads the check-run output. Either way a run whose failure cannot be read
-  // as "never finished" keeps the `advisory-gate-red` verdict.
-  const verdict = resolveAdvisoryGateVerdict({ blockingRuns });
+  });
+  if (!verdict) return { blocked: false };
   return {
     blocked: true,
-    blockingRuns,
+    blockingRuns: verdict.blockingRuns,
     blockClass: verdict.blockClass,
     reason: verdict.reason,
   };

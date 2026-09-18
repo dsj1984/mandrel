@@ -3,9 +3,10 @@
  *
  * Story #4017 collapsed the historical three-module split (a whole-tree
  * fork, a scoped changed-file fork, and a shared plumbing module) into
- * this single module. The two entry points differ only in file-scope,
- * commit subject, and log level; the git/formatter plumbing is shared
- * below.
+ * this single module. Story #5383 then deleted the whole-tree entry point,
+ * which had no production caller left; the scoped entry point and the
+ * git/formatter plumbing it shares with `baseline-upward-writeback.js`
+ * remain.
  *
  * Background. The pre-merge `biome format` gate is check-only — it fails
  * the close when the working tree has any format drift. In practice
@@ -15,12 +16,8 @@
  * `style:` commit before the close can resume. That manual loop is
  * trivially automatable.
  *
- * Entry points:
+ * Entry point:
  *
- *   - {@link runFormatAutofix} — whole-tree heal (`biome format --write .`)
- *     before the pre-merge gate chain, for resume/legacy callers that have
- *     no Epic→Story diff anchor. Bounded by a wall-clock timeout
- *     (Story #2165).
  *   - {@link runScopedFormatAutofix} — Story #2533: scopes the formatter to
  *     the changed-file set between the Epic branch and the Story branch and
  *     folds auto-fixed paths into a dedicated `fix(story-close):` commit,
@@ -37,18 +34,7 @@ import { diffNameOnly } from '../../changed-files.js';
 import { resolveFormatWriteCommand } from '../../close-validation/commands.js';
 import { Logger as DefaultLogger } from '../../Logger.js';
 
-const TAG = '[format-autofix]';
 const SCOPED_TAG = '[format-autofix-scoped]';
-
-/**
- * Story #2165 — exit code surfaced when the bounded `npx biome format
- * --write` spawn is killed by the timeout watchdog. Matches the GNU
- * `timeout(1)` convention so the close orchestrator can branch on "hang"
- * (124) vs. "formatter exited non-zero" (any other status) without
- * inspecting signal names. Mirrors `COVERAGE_TIMEOUT_EXIT_CODE` from
- * `coverage-capture.js` (Story #2142).
- */
-export const FORMAT_AUTOFIX_TIMEOUT_EXIT_CODE = 124;
 
 /**
  * Run `git status --porcelain` and return the list of changed paths.
@@ -84,23 +70,18 @@ export function listDirtyPaths(cwd, git) {
  * (falling back to the historical `npx biome format --write .`) and split
  * it into an executable + argv pair ready for `execFileSync`.
  *
- * The whole-tree entry point runs the command verbatim (keeping the
- * trailing `.` so biome formats the entire tree). The scoped entry point
- * appends an explicit changed-file set, so it passes
- * `dropTrailingDot: true` to strip the `.` before its file list.
+ * The scoped entry point appends an explicit changed-file set, so a trailing
+ * `.` (the whole-tree target) is stripped before its file list.
  *
- * @param {{
- *   commands?: object,
- *   dropTrailingDot?: boolean,
- * }} [opts]
+ * @param {{ commands?: object }} [opts]
  * @returns {{ writeCmdString: string, writeCmd: string, writeArgs: string[] }}
  */
-function resolveFormatterCmd({ commands, dropTrailingDot = false } = {}) {
+function resolveFormatterCmd({ commands } = {}) {
   // `resolveFormatWriteCommand` reads `config.project.commands`; wrap the
   // caller-supplied `commands` map into that canonical shape.
   const writeCmdString = resolveFormatWriteCommand({ project: { commands } });
   const parts = writeCmdString.split(/\s+/).filter(Boolean);
-  if (dropTrailingDot && parts[parts.length - 1] === '.') parts.pop();
+  if (parts[parts.length - 1] === '.') parts.pop();
   const [writeCmd, ...writeArgs] = parts;
   return { writeCmdString, writeCmd, writeArgs };
 }
@@ -155,161 +136,6 @@ export function commitDirtyPaths({ cwd, git, subject }) {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'ignore'],
   }).trim();
-}
-
-/**
- * Story #2165 — the framework timeout (ms) for the format-autofix spawn. Fixed
- * since Story #5382 folded the never-set
- * `delivery.quality.formatAutofix.timeoutMs` key into it.
- */
-const FORMAT_AUTOFIX_TIMEOUT_MS = 60_000;
-
-/**
- * Resolve the format-autofix spawn timeout: an explicit caller-supplied
- * positive integer wins over {@link FORMAT_AUTOFIX_TIMEOUT_MS}.
- */
-function resolveFormatTimeoutMs(timeoutMs) {
-  return typeof timeoutMs === 'number' &&
-    Number.isInteger(timeoutMs) &&
-    timeoutMs > 0
-    ? timeoutMs
-    : FORMAT_AUTOFIX_TIMEOUT_MS;
-}
-
-/**
- * Run `npx biome format --write .` then, if anything changed, commit
- * the result on the Story branch with a `style:` subject. Returns a
- * structured envelope so callers can log a single line.
- *
- * Story #2165: the formatter spawn is bounded by a wall-clock timeout
- * ({@link FORMAT_AUTOFIX_TIMEOUT_MS}, 60 s). A SIGKILL fired at the budget boundary is translated to the
- * `timedOut: true` envelope below so the close orchestrator can flip the
- * Story to `agent::blocked` with a friction comment naming the spawn,
- * mirroring the coverage-capture pattern from Story #2142.
- *
- * The step is a no-op when:
- *   - biome rewrites nothing (clean tree),
- *   - the working tree is dirty for unrelated reasons (we refuse to
- *     opportunistically commit those — operator intent is unclear), or
- *   - `npx biome format --write` exits non-zero (we surface the error
- *     and let the existing format gate report it with the canonical
- *     hint).
- *
- * @param {{
- *   cwd: string,
- *   storyId: number|string,
- *   config?: object,
- *   timeoutMs?: number,
- *   logger?: object,
- *   spawnSync?: typeof execFileSync,
- *   gitSync?: (args: string[], opts: object) => string,
- * }} opts
- * @returns {{
- *   ran: boolean,
- *   committed: boolean,
- *   sha?: string,
- *   dirtyPathsBefore?: string[],
- *   timedOut?: boolean,
- *   timeoutMs?: number,
- *   exitCode?: number,
- *   writeCmdString?: string,
- * }}
- */
-export function runFormatAutofix({
-  cwd,
-  storyId,
-  config,
-  timeoutMs,
-  logger = DefaultLogger,
-  spawnSync = execFileSync,
-  gitSync,
-} = {}) {
-  if (!cwd) throw new Error('runFormatAutofix: cwd is required');
-
-  const git = gitSync ?? ((args, opts) => spawnSync('git', args, opts));
-  // Resolve the formatter command from `project.commands.formatWrite` so
-  // Prettier / dprint repos use their own formatter. Falls back to the
-  // historical `npx biome format --write .` for repos that haven't opted in.
-  // The whole-tree entry point keeps the trailing `.` (formats the tree).
-  const { writeCmdString, writeCmd, writeArgs } = resolveFormatterCmd({
-    commands: config?.project?.commands,
-  });
-
-  // Refuse to act when the tree is already dirty for unrelated reasons —
-  // we don't want to absorb stray edits into a `style:` commit.
-  const dirtyBefore = listDirtyPaths(cwd, git);
-  if (dirtyBefore.length) {
-    logger.info?.(
-      `${TAG} skipped — working tree dirty before autofix (${dirtyBefore.length} paths). ` +
-        'The format check gate will report any drift with the canonical hint.',
-    );
-    return { ran: false, committed: false, dirtyPathsBefore: dirtyBefore };
-  }
-
-  // Story #2165 — bounded wall-clock for the formatter spawn.
-  // execFileSync's contract: on a SIGKILL trip the thrown error carries
-  // `err.signal === 'SIGKILL'` and `err.status === null`, so we branch on
-  // that to surface the 124 envelope below — same shape coverage-capture
-  // returns to its caller (Story #2142).
-  const resolvedTimeoutMs = resolveFormatTimeoutMs(timeoutMs);
-  const spawnOpts = {
-    cwd,
-    stdio: ['ignore', 'pipe', 'pipe'],
-    encoding: 'utf8',
-    killSignal: 'SIGKILL',
-  };
-  if (Number.isInteger(resolvedTimeoutMs) && resolvedTimeoutMs > 0) {
-    spawnOpts.timeout = resolvedTimeoutMs;
-  }
-  // Run the configured formatter in write mode. We tolerate a non-zero exit
-  // because the existing format gate downstream is the source of truth for
-  // "did formatting succeed" — our job is only to opportunistically heal
-  // drift that *would* have failed the gate.
-  let writeFailed = false;
-  try {
-    spawnSync(writeCmd, writeArgs, spawnOpts);
-  } catch (err) {
-    if (err?.signal === 'SIGKILL') {
-      logger.warn?.(
-        `${TAG} ⏱ \`${writeCmdString}\` exceeded ${resolvedTimeoutMs}ms — killed (SIGKILL). ` +
-          `Returning exit ${FORMAT_AUTOFIX_TIMEOUT_EXIT_CODE}; story-close will flip Story #${storyId} to agent::blocked.`,
-      );
-      return {
-        ran: true,
-        committed: false,
-        timedOut: true,
-        timeoutMs: resolvedTimeoutMs,
-        exitCode: FORMAT_AUTOFIX_TIMEOUT_EXIT_CODE,
-        writeCmdString,
-      };
-    }
-    writeFailed = true;
-    logger.warn?.(
-      `${TAG} \`${writeCmdString}\` exited non-zero (${err?.status ?? 'unknown'}); ` +
-        'falling through to the format check gate to report drift.',
-    );
-  }
-
-  const dirtyAfter = listDirtyPaths(cwd, git);
-  if (!dirtyAfter.length) {
-    logger.info?.(
-      writeFailed
-        ? `${TAG} no autofix changes produced (formatter write failed).`
-        : `${TAG} no format drift — tree clean after \`${writeCmdString}\`.`,
-    );
-    return { ran: true, committed: false };
-  }
-
-  // Stage every modified path and commit. Hooks must run; do not pass
-  // --no-verify (project policy: never skip git hooks).
-  const subject = `style: biome format autofix on story-close (story #${storyId})`;
-  const sha = commitDirtyPaths({ cwd, git, subject });
-
-  logger.info?.(
-    `${TAG} healed ${dirtyAfter.length} path(s) with \`${writeCmdString}\`; ` +
-      `committed as ${sha} on story branch.`,
-  );
-  return { ran: true, committed: true, sha };
 }
 
 /**
@@ -434,7 +260,6 @@ export function runScopedFormatAutofix({
   // We drop a trailing `.` so we can append the changed-file set explicitly.
   const { writeCmdString, writeCmd, writeArgs } = resolveFormatterCmd({
     commands: config?.project?.commands,
-    dropTrailingDot: true,
   });
 
   const changed = listChangedFiles({

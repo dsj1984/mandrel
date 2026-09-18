@@ -26,7 +26,6 @@ import path from 'node:path';
 import { describe, it } from 'node:test';
 import {
   classifyGreenVerdict,
-  disarmAutoMerge,
   formatRerunViolation,
   recordRerunAllowance,
   resolvePrHeadSha,
@@ -479,47 +478,6 @@ describe('ci-rerun-guard units', () => {
       }),
       null,
     );
-  });
-
-  it('disarmAutoMerge separates a never-armed PR from a genuine failure', () => {
-    assert.deepEqual(
-      disarmAutoMerge({
-        prRef: '1',
-        cwd: '.',
-        spawnFn: () => ({ status: 0, stdout: '', stderr: '' }),
-      }),
-      { disarmed: true, alreadyUnarmed: false, detail: 'disarmed' },
-    );
-
-    const notArmed = disarmAutoMerge({
-      prRef: '1',
-      cwd: '.',
-      spawnFn: () => ({
-        status: 1,
-        stdout: '',
-        stderr: 'auto-merge is not enabled for this pull request',
-      }),
-    });
-    assert.equal(notArmed.disarmed, true);
-    assert.equal(notArmed.alreadyUnarmed, true);
-
-    const failed = disarmAutoMerge({
-      prRef: '1',
-      cwd: '.',
-      spawnFn: () => ({ status: 1, stdout: '', stderr: 'HTTP 403: forbidden' }),
-    });
-    assert.equal(failed.disarmed, false);
-    assert.match(failed.detail, /gh-exit-1/);
-
-    const threw = disarmAutoMerge({
-      prRef: '1',
-      cwd: '.',
-      spawnFn: () => {
-        throw new Error('ENOENT');
-      },
-    });
-    assert.equal(threw.disarmed, false);
-    assert.match(threw.detail, /gh-spawn-error/);
   });
 
   it('formatRerunViolation carries the run link and failure signature', () => {

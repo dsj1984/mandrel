@@ -15,21 +15,21 @@
 import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
+import { classifyMergeBlock } from '../../../.agents/scripts/lib/orchestration/merge-block-class.js';
 import {
   ADVISORY_GATE_INCONCLUSIVE_CLASS,
   ADVISORY_GATE_RED_CLASS,
-  advisoryCheckFailedBlocksArm,
   decideAdvisoryGateBlock,
   decideMergeWaitFailFast,
   deriveChecksStatus,
   deriveRedHeadRuns,
   deriveRequiredRunEvidence,
   failingChecksBlockMerge,
+  isPrMerged,
   parseWorkflowRunId,
   readRunSummary,
   requiredCheckFailedBlocksMerge,
   resolveAdvisoryGateVerdict,
-  selectBlockingRedRuns,
 } from '../../../.agents/scripts/lib/orchestration/merge-poll.js';
 
 describe('deriveChecksStatus', () => {
@@ -70,6 +70,31 @@ describe('deriveChecksStatus', () => {
   it('reports unknown for an empty or non-array rollup (checks-less repo)', () => {
     assert.equal(deriveChecksStatus([]), 'unknown');
     assert.equal(deriveChecksStatus(undefined), 'unknown');
+  });
+});
+
+describe('deriveChecksStatus — legacy StatusContext entries (Story #5383)', () => {
+  // A StatusContext carries its verdict on `state` and has no `status`. The
+  // shared classifier reads it, so the rollup reader and the `--required`
+  // reader agree on what a legacy context means.
+  it('reads a StatusContext verdict from `state`', () => {
+    assert.equal(deriveChecksStatus([{ state: 'SUCCESS' }]), 'success');
+    assert.equal(deriveChecksStatus([{ state: 'ERROR' }]), 'failure');
+    assert.equal(deriveChecksStatus([{ state: 'PENDING' }]), 'still-running');
+    assert.equal(deriveChecksStatus([{ state: 'EXPECTED' }]), 'still-running');
+  });
+});
+
+describe('isPrMerged — the one merged predicate (Story #5383)', () => {
+  it('is true on a MERGED state or a mergedAt stamp, false otherwise', () => {
+    assert.equal(isPrMerged({ state: 'MERGED', mergedAt: null }), true);
+    assert.equal(isPrMerged({ state: 'OPEN', mergedAt: '2026-01-01' }), true);
+    assert.equal(isPrMerged({ state: 'OPEN', mergedAt: null }), false);
+    // Closed without merging is not merged — and a closed ISSUE is not an
+    // input at all.
+    assert.equal(isPrMerged({ state: 'CLOSED', mergedAt: null }), false);
+    assert.equal(isPrMerged(null), false);
+    assert.equal(isPrMerged(undefined), false);
   });
 });
 
@@ -387,13 +412,30 @@ describe('decideMergeWaitFailFast (Story #4710)', () => {
     });
     assert.equal(second.failFast, true);
     assert.equal(second.evidencePath, 'consecutive-probe');
-    // The synthesized evidence routes both paths through the SAME classifier
-    // gate downstream.
-    assert.deepEqual(second.prProbe.requiredRunEvidence, {
-      requiredRunFailed: true,
-      requiredRunInFlight: false,
-    });
+    // Story #5383 — the decided verdict is carried forward; the probe is the
+    // observed one, never stamped with invented evidence to steer the
+    // classifier into agreeing.
+    assert.equal(second.blockClass, 'checks-failed');
+    assert.match(second.reason, /evidence=consecutive-probe/);
+    assert.equal(second.prProbe.requiredRunEvidence, undefined);
     assert.equal(second.prProbe.evidencePath, 'consecutive-probe');
+  });
+
+  it('carries the per-run verdict with the same class and wording the classifier uses', () => {
+    const probe = {
+      ...redBlockedProbe,
+      requiredRunEvidence: {
+        requiredRunFailed: true,
+        requiredRunInFlight: false,
+      },
+    };
+    const decision = decideMergeWaitFailFast({
+      probe,
+      consecutiveRequiredFailSnapshots: 0,
+    });
+    const classified = classifyMergeBlock({ prProbe: decision.prProbe });
+    assert.equal(decision.blockClass, classified.blockClass);
+    assert.equal(decision.reason, classified.reason);
   });
 
   it('resets the counter on any non-failing probe', () => {
@@ -481,6 +523,24 @@ describe('deriveRedHeadRuns', () => {
     );
   });
 });
+
+/**
+ * `selectBlockingRedRuns` and `advisoryCheckFailedBlocksArm` are module-private
+ * since Story #5383: `decideAdvisoryGateBlock` is the ONE advisory evaluator
+ * both the pre-arm gate and the mid-wait gate call. These shims score the two
+ * predicates through that door — which is also how production reaches them.
+ */
+const advisoryVerdict = (probe, allowlist) =>
+  decideAdvisoryGateBlock({
+    probe,
+    blockOnAdvisoryFailure: true,
+    advisoryAllowlist: allowlist,
+  });
+const advisoryCheckFailedBlocksArm = (probe, allowlist) =>
+  advisoryVerdict(probe, allowlist) !== null;
+const selectBlockingRedRuns = (redHeadRuns, allowlist) =>
+  advisoryVerdict({ mergeStateStatus: 'UNSTABLE', redHeadRuns }, allowlist)
+    ?.blockingRuns ?? [];
 
 describe('selectBlockingRedRuns', () => {
   const red = [
