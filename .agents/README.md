@@ -653,14 +653,13 @@ contract are documented once in
 
 ## Feedback loop — verification-results auto-graduation
 
-When a Story (or plan-run) finalize path runs, non-blocking findings that
-survived merge are auto-graduated into follow-up issues in a single pass over
-the unified `verification-results` structured comment, routed by source
+When a Story (or plan-run) finalize path runs, the retro's actionable routed
+proposals can be auto-graduated into follow-up issues, routed by source
 classification into the framework or consumer repo. The toggle
-(`delivery.feedbackLoop.auditResultsAutoFile`, default `false` since
-Story #5341), the opt-in example, and the idempotency-marker behaviour are
-documented once in
-[`docs/configuration.md` § delivery.feedbackLoop](docs/configuration.md#deliveryfeedbackloop--verification-results-auto-graduation).
+(`delivery.feedbackLoop.retroProposals`, default `false` since Story #5341),
+the opt-in example, and the idempotency-marker behaviour are documented once
+in
+[`docs/configuration.md` § delivery.feedbackLoop](docs/configuration.md#deliveryfeedbackloop--retro-auto-graduation).
 
 ## Worktree dependency strategies
 

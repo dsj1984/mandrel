@@ -452,20 +452,26 @@ const REVIEW_SCHEMA = {
 };
 
 /**
- * `delivery.feedbackLoop` — **opt-in** toggles consumed by the auto-file
- * graduators (`lib/feedback-loop/*-graduator.js`, read via
- * `graduator-core.js#makeIsAutoFileEnabled`). Both default to `false`; set one
- * to `true` to auto-file the corresponding non-blocking findings as follow-up
- * issues.
+ * `delivery.feedbackLoop` — the **opt-in** toggle consumed by the retro
+ * auto-file graduator (`lib/feedback-loop/retro-proposals-graduator.js`, read
+ * via `graduator-core.js#makeIsAutoFileEnabled`), plus the friction window.
  *
- * They defaulted to `true` until Story #5341, which flipped them on the
- * measured record of what the channel produced: Story #5324's roll-up carried
- * 116 signals and filed nothing, and issues #4653, #4833, #4834 and #4836 are
+ * `auditResultsAutoFile` used to sit beside `retroProposals` here. Its
+ * graduator was deleted two releases ago, so by Story #5341 — which flipped
+ * its default from `true` to `false` on the measured record of what the
+ * channel produced — there was nothing left to switch either way. Story #5366
+ * removed the key: a toggle with no runtime reader reads as a live control,
+ * and a consumer that set it was configuring nothing. The
+ * `2.60.0-retire-audit-results-autofile` migration strips it from both config
+ * surfaces, because this block is closed to additional properties and a
+ * surviving key is a hard validation failure on upgrade.
+ *
+ * `retroProposals` (Story #4418) governs the retro auto-filer, and defaults to
+ * `false` for the same Story #5341 reasons: Story #5324's roll-up carried 116
+ * signals and filed nothing, and issues #4653, #4833, #4834 and #4836 are
  * filings that were false or leaked from test fixtures. An auto-filer whose
  * output is dominated by noise costs triage on every run and buys nothing, so
- * a consumer that wants it now asks for it.
- *
- * `retroProposals` (Story #4418) governs the retro auto-filer: when `true` the
+ * a consumer that wants it now asks for it. When `true` the
  * retro's actionable routed proposals are filed as
  * `meta::<framework-gap|consumer-improvement>` + `friction::<category>`
  * issues via the graduator pre-parsed-findings seam, and the rendered retro
@@ -482,14 +488,8 @@ const REVIEW_SCHEMA = {
 const FEEDBACK_LOOP_SCHEMA = {
   type: 'object',
   description:
-    'Opt-in toggles for the close-time auto-file graduators. Both default to auto-filing OFF (Story #5341).',
+    'Opt-in toggle for the close-time retro auto-file graduator, plus the friction recurrence window. Auto-filing defaults to OFF (Story #5341).',
   properties: {
-    auditResultsAutoFile: {
-      type: 'boolean',
-      description:
-        'When true, the close-time audit-results graduator auto-files non-blocking audit-results findings as follow-up issues routed by source classification. Defaults to false (Story #5341); findings remain accessible in the structured comments on the Story either way.',
-      default: false,
-    },
     retroProposals: {
       type: 'boolean',
       description:

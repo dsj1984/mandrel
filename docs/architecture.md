@@ -843,12 +843,13 @@ changing its shape (full per-field reference:
   post-green refactor checkpoint in Story delivery (the
   `core/code-review-and-quality` skill's Post-Green Refactor Pass); never
   alters close-validation gate semantics.
-- **`delivery.feedbackLoop.auditResultsAutoFile`** — opt-in, **default
-  `false`** since Story #5341: set it `true` to auto-file non-blocking
-  code-review / audit findings as follow-up issues (routed via
-  `lib/feedback-loop/`). Left off, findings stay in structured comments and
-  run artifacts. `retroProposals` defaults `false` for the same reason — the
-  unattended filings the channel produced were dominated by noise.
+- **`delivery.feedbackLoop.retroProposals`** — opt-in, **default `false`**
+  since Story #5341: set it `true` to auto-file the retro's actionable routed
+  proposals as follow-up issues (routed via `lib/feedback-loop/`). Left off,
+  they render as paste-ready `gh` stanzas — the unattended filings the channel
+  produced were dominated by noise. The sibling `auditResultsAutoFile` key was
+  removed by Story #5366: its graduator had already been deleted, so the
+  toggle had no runtime reader at all.
 - **`delivery.ci`** — exactly two keys (`additionalProperties: false`, so a
   third fails AJV validation): `autoMerge` (`"trust-ci"` default arms once
   every *required* check is green; `"strict"` restores the clean-sprint

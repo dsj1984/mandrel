@@ -299,8 +299,7 @@ Everything `/mandrel-deliver` and `single-story-close` consume: execution timeou
 | `refactorStage.enabled` | No | `boolean` | `false` | When true, story-deliver runs an advisory post-green refactor stage (core/code-review-and-quality skill, Post-Green Refactor Pass) after the suite is green. Default false — when unset the stage is skipped and close-validation gate semantics are unchanged. |
 | `acceptanceEval` | No | `object` | — | Story #3819. Bounded per-Story acceptance self-eval loop. After the implementation commits land and before the Story-implementation phase flips to `closing`, an independent (fresh-context) critic pass scores the caller-injected change set against each inline `acceptance[]` item, redrafts the unmet items, and re-evaluates — capped at `maxRounds` redraft rounds (0 = scored once, no redraft), then escalates to `agent::blocked` when criteria remain unmet. There is no `enabled` flag: the scoring pass is a hard cutover (always on). |
 | `acceptanceEval.maxRounds` | No | `integer` | `2` | Maximum number of redraft rounds before escalation. Default 2; 0 means the verdict is scored once with no redraft round (Story #5313 dropped the hard ceiling and the floor-of-one clamp). |
-| `feedbackLoop` | No | `object` | — | Opt-in toggles for the close-time auto-file graduators. Both default to auto-filing OFF (Story #5341). |
-| `feedbackLoop.auditResultsAutoFile` | No | `boolean` | `false` | When true, the close-time audit-results graduator auto-files non-blocking audit-results findings as follow-up issues routed by source classification. Defaults to false (Story #5341); findings remain accessible in the structured comments on the Story either way. |
+| `feedbackLoop` | No | `object` | — | Opt-in toggle for the close-time retro auto-file graduator, plus the friction recurrence window. Auto-filing defaults to OFF (Story #5341). |
 | `feedbackLoop.retroProposals` | No | `boolean` | `false` | When true, the retro auto-files its actionable routed proposals as meta::<framework-gap\|consumer-improvement> + friction::<category> issues via the graduator pre-parsed-findings seam, and the rendered retro sections list the filed issue numbers instead of paste-ready gh command stanzas. Defaults to false (Story #5341), which renders the command stanzas instead. |
 | `feedbackLoop.frictionWindowDays` | No | `integer` | — | How many days back the run-scope friction recurrence window reaches (Story #4850). The window spans every surviving per-Story signal stream rather than the triggering run's own Stories, so that a defect firing once per Story can reach the actionable threshold; this bounds it by age so a defect fixed weeks ago stops re-routing. Rows older than the bound — and rows carrying no readable timestamp — are excluded and counted on the roll-up step result. Default 30. |
 | `auditToStories` | No | `object` | — | Knobs for the `/audit-to-stories` unattended (`--auto`) sweep (Story #4626). |
@@ -489,16 +488,19 @@ non-Claude consumers can pin the same `.agents/` version unmodified. The fix
 budget (`maxFixAttempts` / `maxFixScopeFiles`) uses the same values for every
 Story in a run — there is no per-Story override.
 
-#### `delivery.feedbackLoop` — verification-results auto-graduation
+#### `delivery.feedbackLoop` — retro auto-graduation
 
-`auditResultsAutoFile` auto-graduates surviving non-blocking findings from the
-unified `verification-results` comment into follow-up issues; the graduator
-embeds a content-derived idempotency marker so re-runs skip findings that
-already have an issue (re-enabling after a manual-triage window is safe). It
-and `retroProposals` both default to `false` (Story #5341) — set either to
-`true` to opt in. The
-former `codeReviewAutoFile` key was retired when Story #4411 unified the pass —
-a config carrying it fails validation; delete it.
+`retroProposals` auto-graduates the retro's actionable routed proposals into
+follow-up issues; the graduator embeds a content-derived idempotency marker so
+re-runs skip proposals that already have an issue (re-enabling after a
+manual-triage window is safe). It defaults to `false` (Story #5341) — set it
+to `true` to opt in.
+
+Two sibling keys were retired and a config carrying either fails validation;
+delete it. `codeReviewAutoFile` went when Story #4411 unified the pass.
+`auditResultsAutoFile` went in Story #5366: its graduator had already been
+deleted, so the toggle had no runtime reader and Story #5341's flip of its
+default changed nothing. `mandrel update` strips it for you.
 
 ---
 

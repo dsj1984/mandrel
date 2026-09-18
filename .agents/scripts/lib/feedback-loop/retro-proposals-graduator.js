@@ -47,7 +47,9 @@ import {
 
 /**
  * Resolve the toggle from the resolved agentrc config. Defaults to `false`
- * — the feature is opt-in (mirrors auditResultsAutoFile).
+ * — the feature is opt-in (Story #5341). It is now the only such toggle: the
+ * audit-results sibling was removed by Story #5366, its graduator having been
+ * deleted two releases earlier.
  *
  * @param {object|undefined|null} config
  * @returns {boolean}
