@@ -1,58 +1,10 @@
 #!/usr/bin/env node
 /**
- * .agents/scripts/generate-config-docs.js — the `.agentrc` config surface
- * generator (Story #5007).
- *
- * **One annotated source, three generated artifacts.** The runtime AJV schema
- * (`AGENTRC_SCHEMA`, composed from `lib/config-settings-schema*.js` and
- * `lib/config/gates/*`) is the single hand-authored enumeration of the
- * `.agentrc.json` surface. `description` and `default` annotations live on
- * those literals — AJV ignores both — and this generator emits everything
- * downstream of them:
- *
- *   1. `.agents/schemas/agentrc.schema.json` — the JSON-Schema mirror every
- *      consumer `.agentrc.json` points `$schema` at. Serialized 2020-12,
- *      fully inlined (no `$defs`): it IS the runtime schema, so the class of
- *      bug where a key exists in the mirror but not in the runtime AJV — and
- *      a consumer's whole config is therefore dead on arrival (Epic #4131) —
- *      cannot be expressed any more.
- *   2. `.agents/docs/agentrc-reference.json` — the defaults inventory
- *      `lib/config/defaults.js` reads for `mandrel explain` and the
- *      sync-agentrc redundancy advisory. Built from the `default`
- *      annotations: a node carrying one contributes its value verbatim and is
- *      not descended into; a node carrying none contributes nothing.
- *   3. The bounded key-table region inside `.agents/docs/configuration.md`,
- *      delimited by:
- *
- *          <!-- BEGIN GENERATED:agentrc -->
- *          ...generated tables...
- *          <!-- END GENERATED:agentrc -->
- *
- *      One Markdown section per top-level schema key, each table columned
- *      `| Key | Required | Type | Default | Description |`, with nested
- *      properties flattened into dot-paths (`paths.agentRoot`,
- *      `branchProtection.requiredChecks[]`).
- *
- * Until this Story the first two were hand-maintained alongside the runtime
- * schema and reconciled by two parity suites; those suites are now
- * generator-fidelity checks.
- *
- * Modes:
- *   (default)  — rewrite any artifact whose content is stale.
- *   --check    — exit 0 when all three are current, exit 1 naming the stale
- *                ones. Wired into `npm run docs:check`, hence `npm run lint`.
- *
- * **Whitespace is not content.** The two JSON artifacts are re-formatted by
- * Biome via lint-staged after they are written, so comparing raw bytes would
- * make the check fail on formatting alone. Both comparison and write go
- * through {@link canonicalJson}: parse, re-serialize, compare. That is
- * insensitive to whitespace and *sensitive* to key order, which is what
- * actually matters — key order drives the doc-table order and the ordering a
- * consumer's editor offers completions in.
- *
- * Per `docs/contributing/orchestration-error-handling.md`, unrecoverable
- * failures surface via `throw new Error(...)` so `runAsCli` can map the
- * throw to `process.exit(1)` deterministically (no `Logger.fatal`).
+ * Generates the `.agentrc` config surface from the annotated runtime AJV
+ * schema (the single source): the JSON-Schema mirror (fully inlined, so it
+ * cannot disagree with runtime), the defaults inventory, and the key-table
+ * region of `configuration.md`. JSON artifacts compare canonically — Biome
+ * reformats them after write, so whitespace is ignored but key order counts.
  */
 
 import fs from 'node:fs';
@@ -82,7 +34,6 @@ const DOC_PATH = path.join(PROJECT_ROOT, '.agents', 'docs', 'configuration.md');
 const REGION_BEGIN = '<!-- BEGIN GENERATED:agentrc -->';
 const REGION_END = '<!-- END GENERATED:agentrc -->';
 
-/** Envelope keys prepended to the serialized runtime schema. */
 const MIRROR_ENVELOPE = {
   $schema: 'https://json-schema.org/draft/2020-12/schema',
   $id: 'https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/agentrc.schema.json',
@@ -91,16 +42,12 @@ const MIRROR_ENVELOPE = {
     'GENERATED — do not edit. Emitted by `node .agents/scripts/generate-config-docs.js` from the runtime AJV schema in `.agents/scripts/lib/config-settings-schema.js` (plus its `-delivery` / `-quality` / `config/gates/*` modules), which is the single source of truth for the `.agentrc.json` surface. This file exists for editor tooling and human readers; because it is a serialization of the runtime schema rather than a hand-kept mirror, the two cannot disagree. Edit the annotated schema literals and re-run `npm run docs:gen`.',
 };
 
-/** `$schema` pointer written into the generated defaults inventory. */
 const REFERENCE_SCHEMA_POINTER = '../schemas/agentrc.schema.json';
 
-// Order matters — drives the per-section emission sequence.
+// Order drives section emission.
 const TOP_LEVEL_KEYS = ['project', 'github', 'planning', 'delivery', 'qa'];
 
 /**
- * Canonical JSON text for comparison and for writing. Key order is preserved
- * (and therefore compared); whitespace is normalized away.
- *
  * @param {unknown} value
  * @returns {string}
  */
@@ -109,10 +56,7 @@ function canonicalJson(value) {
 }
 
 /**
- * Read a JSON artifact and return its canonical text, or `null` when the file
- * is absent (first generation) or unparseable (a hand-mangled artifact is
- * treated as stale, not as a crash).
- *
+ * `null` when absent or unparseable — a mangled artifact is stale, not a crash.
  * @param {string} file
  * @returns {string | null}
  */
@@ -126,16 +70,7 @@ function readCanonicalJson(file) {
 }
 
 /**
- * Build the shipped JSON-Schema mirror: the 2020-12 envelope followed by the
- * runtime schema verbatim.
- *
- * The runtime schema is a plain, cycle-free object literal (no RegExp or
- * function values), so `structuredClone` is a faithful serialization. Shared
- * sub-schema objects — `TOLERANCE_SCHEMA` and friends, referenced by several
- * gates — are inlined at each use rather than hoisted into `$defs`. The
- * inlined document is smaller than the hand-maintained `$defs` mirror it
- * replaces, and it removes the naming heuristic a hoisting pass would need.
- *
+ * Shared sub-schemas are inlined at each use rather than hoisted to `$defs`.
  * @param {object} schema
  * @returns {object}
  */
@@ -144,17 +79,10 @@ function buildMirrorSchema(schema) {
 }
 
 /**
- * Collect the `default` annotations under `node` into a nested plain object.
- *
- * A node carrying `default` contributes that value verbatim and is NOT
- * descended into — that is what lets an object-shaped or array-shaped default
- * (`github.branchProtection.requiredChecks`, `qa.environments`) be declared in
- * one place. A properties-bearing node with no `default` contributes an object
- * built from whichever children contributed something, or nothing at all when
- * none did.
- *
+ * A node carrying `default` contributes it verbatim and is not descended
+ * into, so an object- or array-shaped default is declared in one place.
  * @param {object} node
- * @returns {unknown} The built value, or `undefined` for "contributes nothing".
+ * @returns {unknown} `undefined` when nothing is contributed.
  */
 function collectDefaults(node) {
   if (!node || typeof node !== 'object') return undefined;
@@ -169,8 +97,6 @@ function collectDefaults(node) {
 }
 
 /**
- * Build the defaults inventory shipped as `.agents/docs/agentrc-reference.json`.
- *
  * @param {object} schema
  * @returns {object}
  */
@@ -182,11 +108,9 @@ function buildReferenceInventory(schema) {
 }
 
 /**
- * Collapse an `allOf` envelope down onto its base node. The schema uses
- * `allOf` only to hang a conditional (`if`/`then`) constraint off a block, so
- * the merged view carries the base type for documentation purposes.
- *
- * @param {object} node The schema node to flatten.
+ * `allOf` only hangs `if`/`then` constraints off a block, so the base type is
+ * what the docs need.
+ * @param {object} node
  * @returns {object}
  */
 function flattenAllOf(node) {
@@ -203,11 +127,7 @@ function flattenAllOf(node) {
 }
 
 /**
- * Render the "Type" cell for an `array`-typed node by inspecting its `items`
- * schema: an enum item renders `array<enum>`, a typed item renders
- * `array<type>`, and anything else collapses to a bare `array`.
- *
- * @param {object} flat Flattened array node.
+ * @param {object} flat
  * @returns {string}
  */
 function renderArrayType(flat) {
@@ -224,11 +144,7 @@ function renderArrayType(flat) {
 }
 
 /**
- * Render the "Type" cell for an `object`-typed node — `object<map>` when it
- * carries an `additionalProperties` schema (the map form), `object`
- * otherwise.
- *
- * @param {object} flat Flattened object node.
+ * @param {object} flat
  * @returns {string}
  */
 function renderObjectType(flat) {
@@ -242,20 +158,12 @@ function renderObjectType(flat) {
 }
 
 /**
- * Ordered dispatch table for the "Type" cell. Each rule pairs a `when(flat)`
- * predicate with a `render(flat)` producer; {@link renderType} walks the
- * table once and returns the first match, so a new schema shape becomes a new
- * row here rather than another nested branch.
- *
- * Order is load-bearing — `oneOf` and `enum` are matched before the plain
- * `type` rules.
- *
+ * First match wins; `oneOf` and `enum` must precede the plain `type` rules.
  * @type {Array<{ when: (flat: object) => boolean, render: (flat: object) => string }>}
  */
 const TYPE_RULES = [
   {
-    // The list-or-extender union: a plain `string[]` (replace) or an
-    // `{ append?, prepend? }` object that deep-merges with the framework list.
+    // List-or-extender union: replace, or deep-merge with the framework list.
     when: (flat) =>
       Array.isArray(flat.oneOf) &&
       flat.oneOf.some((m) => m?.properties?.append || m?.properties?.prepend),
@@ -290,10 +198,7 @@ const TYPE_RULES = [
 ];
 
 /**
- * Render the "Type" cell for a schema node. Anything the table does not match
- * falls through to a `?` so missing coverage is visible rather than silently
- * wrong.
- *
+ * An unmatched shape renders `?` so the gap is visible.
  * @param {object} node
  * @returns {string}
  */
@@ -305,10 +210,6 @@ function renderType(node) {
 }
 
 /**
- * Render the "Default" cell. Nodes without an explicit `default` annotation
- * get an em dash — see the annotation contract in `config-settings-schema.js`
- * for why a key can have a runtime default and no annotation.
- *
  * @param {object} node
  * @returns {string}
  */
@@ -328,8 +229,6 @@ function renderDefault(node) {
 }
 
 /**
- * Escape pipe characters so they survive Markdown table cell parsing.
- *
  * @param {string} text
  * @returns {string}
  */
@@ -338,11 +237,7 @@ function escapeCell(text) {
 }
 
 /**
- * Emit the rows for a nested-object property: a header row carrying the
- * parent's description followed by the recursively-flattened child rows.
- * Returns `null` when `flat` is not a properties-bearing object, so the
- * caller can fall through to the next row shape.
- *
+ * `null` when not a properties-bearing object, so the next builder runs.
  * @param {{flat: object, keyPath: string, pathParts: string[], propName: string, isRequired: boolean, description: string}} ctx
  * @returns {Array<object> | null}
  */
@@ -365,10 +260,7 @@ function nestedObjectRows(ctx) {
 }
 
 /**
- * Emit the single `[]`-suffixed row for an array-of-objects property,
- * describing the item shape in the Description cell. Returns `null` when the
- * property is not an array whose items are a properties-bearing object.
- *
+ * One `[]`-suffixed row per array of objects, item keys in the Description.
  * @param {{flat: object, keyPath: string, isRequired: boolean, description: string}} ctx
  * @returns {Array<object> | null}
  */
@@ -393,10 +285,6 @@ function arrayOfObjectsRows(ctx) {
 }
 
 /**
- * Emit the leaf (scalar / non-recursed) row for a property. Always matches —
- * it is the fallthrough shape when neither the nested-object nor the
- * array-of-objects builder applied.
- *
  * @param {{flat: object, keyPath: string, isRequired: boolean, description: string}} ctx
  * @returns {Array<object>}
  */
@@ -413,24 +301,13 @@ function leafRow(ctx) {
   ];
 }
 
-// Ordered row-shape builders for one property. The loop in flattenObject
-// returns the first builder that yields rows (non-null): nested-object first,
-// array-of-objects next, scalar leaf as the always-matching fallthrough.
+// First builder returning non-null wins; leafRow always matches.
 const ROW_BUILDERS = [nestedObjectRows, arrayOfObjectsRows, leafRow];
 
 /**
- * Flatten one object-typed schema node into table rows. Recurses into nested
- * `object` properties so dot-paths like `paths.agentRoot` and
- * `branchProtection.requiredChecks` show up as individual rows.
- *
- * Arrays of objects (`requiredChecks[]`, `routes[]`, `bundles[]`) are emitted
- * as a single row whose Key column carries a `[]` suffix; the item shape is
- * captured in the Description cell. This keeps the output legible without
- * exploding into per-item-property rows.
- *
- * @param {object} node       Schema node to flatten.
- * @param {string[]} pathParts Dot-path accumulator.
- * @param {Set<string>} required Required-property names on the parent.
+ * @param {object} node
+ * @param {string[]} pathParts
+ * @param {Set<string>} required
  * @returns {Array<{key:string, required:string, type:string, def:string, description:string}>}
  */
 function flattenObject(node, pathParts, required) {
@@ -463,8 +340,6 @@ function flattenObject(node, pathParts, required) {
 }
 
 /**
- * Render the Markdown body for one top-level section.
- *
  * @param {object} schema
  * @param {string} topKey
  * @returns {string}
@@ -508,8 +383,6 @@ function renderSection(schema, topKey) {
 }
 
 /**
- * Render the full bounded-region body (excluding the markers themselves).
- *
  * @param {object} schema
  * @returns {string}
  */
@@ -533,14 +406,10 @@ function renderRegion(schema) {
 }
 
 /**
- * Substitute the bounded region inside `original`. If the markers are
- * absent, inject them just after the "## Top-level shape" section's
- * trailing horizontal rule (the first `---` after that heading) so the
- * generated reference lands before the hand-authored per-section docs.
- * If no anchor is found, prepend the markers above the first `## ` heading.
- *
+ * Absent markers are inserted after the "## Top-level shape" block's `---`,
+ * else above the first `## ` heading, else appended.
  * @param {string} original
- * @param {string} body Region body including leading/trailing blank lines.
+ * @param {string} body
  * @returns {string}
  */
 function spliceRegion(original, body) {
@@ -564,11 +433,9 @@ function spliceRegion(original, body) {
     );
   }
 
-  // Markers absent — insert them after the "## Top-level shape" block.
   const anchor = '## Top-level shape';
   const anchorIdx = original.indexOf(anchor);
   if (anchorIdx !== -1) {
-    // Find the next `---` separator after the anchor.
     const ruleIdx = original.indexOf('\n---\n', anchorIdx);
     if (ruleIdx !== -1) {
       const insertAt = ruleIdx + '\n---\n'.length;
@@ -579,7 +446,6 @@ function spliceRegion(original, body) {
     }
   }
 
-  // Fallback: insert above the first `## ` heading.
   const headingMatch = original.match(/^## /m);
   if (headingMatch && headingMatch.index !== undefined) {
     const before = original.slice(0, headingMatch.index);
@@ -588,18 +454,12 @@ function spliceRegion(original, body) {
     return `${before}${block}${after}`;
   }
 
-  // Last-ditch: append.
   return `${original}\n${REGION_BEGIN}\n${body}\n${REGION_END}\n`;
 }
 
 /**
- * Build every generated artifact from `schema` and pair each with what is on
- * disk today.
- *
- * The JSON artifacts compare canonically (see the module header); the
- * Markdown artifact compares raw, because its region is spliced into
- * hand-authored prose that must survive byte-for-byte.
- *
+ * The Markdown artifact compares raw: its hand-authored prose must survive
+ * byte-for-byte.
  * @param {{ schema?: object, schemaPath?: string, referencePath?: string,
  *   docPath?: string }} [opts]
  * @returns {Array<{ name: string, file: string, generated: string,

@@ -1,29 +1,9 @@
 #!/usr/bin/env node
 // .agents/scripts/lint-issue-body.js
 /**
- * Issue-body conformance lint (Story #4227).
- *
- * Runs the canonical `story-body.parse()` against a human-opened
- * `type::story` issue body and reports whether the body
- * round-trips. This is the drift guard between the generated GitHub Issue
- * Forms (`lib/bootstrap/issue-forms-template.js`) and the parser: if a
- * human files a ticket whose body `parse()` rejects (or which lacks the
- * binding `goal` / `acceptance` / `verify` sections), the lint surfaces a
- * **comment** on the issue rather than failing silently — the supported
- * human entry points (`/mandrel-plan` from an existing Epic ID, the qa-assist →
- * `/mandrel-plan` handoff) depend on a parseable body.
- *
- * ## Design
- *
- * - `evaluateIssueBody(body)` is **pure** (no I/O): it parses the body and
- *   returns a structured conformance verdict. This is the unit-tested core.
- * - The CLI wrapper reads the issue body + labels (via `gh` or env), runs
- *   the evaluator, and posts/updates a single marker comment when the body
- *   is non-conformant. Network-touching, exercised in CI.
- *
- * GitHub Issue Forms render a skipped optional field as the literal
- * `_No response_`; the evaluator strips that sentinel so an empty optional
- * section does not masquerade as content.
+ * Drift guard between the generated Issue Forms and the Story-body parser:
+ * a human-filed Story whose body does not round-trip gets an informational
+ * marker comment (never a CI failure).
  *
  * @module lint-issue-body
  */
@@ -32,17 +12,9 @@ import { spawnSync } from 'node:child_process';
 import { runAsCli } from './lib/cli-utils.js';
 import { parse, StoryBodyParseError } from './lib/story-body/story-body.js';
 
-/**
- * Marker that identifies the lint's own comment so re-runs update rather
- * than duplicate it.
- */
 export const LINT_COMMENT_MARKER = '<!-- mandrel:issue-body-conformance -->';
 
-/**
- * The binding sections every conformant ticket body MUST carry. `changes`
- * and `references` are advisory (per the Engineer persona's implementation
- * latitude), so they are not required here.
- */
+/** `changes` and `references` are advisory, so not required. */
 const REQUIRED_SECTIONS = [
   { field: 'goal', label: 'Goal' },
   { field: 'acceptance', label: 'Acceptance' },
@@ -50,9 +22,7 @@ const REQUIRED_SECTIONS = [
 ];
 
 /**
- * Strip the GitHub Issue Form empty-field sentinel so a skipped optional
- * field is treated as absent rather than literal content.
- *
+ * Issue Forms render a skipped field as `_No response_`; treat it as absent.
  * @param {string} body
  * @returns {string}
  */
@@ -65,22 +35,16 @@ function stripNoResponseSentinel(body) {
 
 /**
  * @typedef {object} ConformanceVerdict
- * @property {boolean}  conformant   - True when the body parses AND carries
- *   every required section with non-empty content.
- * @property {string[]} problems     - Human-readable problem statements
- *   (empty when conformant).
- * @property {string[]} warnings     - Non-fatal parser warnings surfaced for
- *   transparency (e.g. legacy-path-entry).
- * @property {boolean}  parseFailed  - True when `parse()` threw (fail-closed).
+ * @property {boolean}  conformant
+ * @property {string[]} problems
+ * @property {string[]} warnings
+ * @property {boolean}  parseFailed
  */
 
 /**
- * Evaluate an issue body for conformance with the canonical Story-body
- * schema. Pure — no I/O. Fail-closed parse errors are caught and reported
- * as a non-conformant verdict (never thrown), because the caller's job is
- * to *comment*, not to crash CI.
- *
- * @param {string} body - Raw issue-body markdown.
+ * Pure. Parse errors become a non-conformant verdict, never a throw: the
+ * caller's job is to comment, not crash CI.
+ * @param {string} body
  * @returns {ConformanceVerdict}
  */
 export function evaluateIssueBody(body) {
@@ -114,8 +78,6 @@ export function evaluateIssueBody(body) {
 
   const problems = [];
 
-  // An unstructured body parses but carries no structured sections — that
-  // is exactly the human-filed shape this lint exists to catch.
   if (result.info.isUnstructuredBody) {
     problems.push(
       'The body has no recognised `## Goal` / `## Acceptance` / `## Verify` sections. ' +
@@ -145,9 +107,6 @@ export function evaluateIssueBody(body) {
 }
 
 /**
- * Render the markdown comment body the lint posts on a non-conformant
- * issue. Carries {@link LINT_COMMENT_MARKER} so re-runs update in place.
- *
  * @param {ConformanceVerdict} verdict
  * @returns {string}
  */
@@ -179,9 +138,6 @@ export function renderConformanceComment(verdict) {
 }
 
 /**
- * Thin `gh` wrapper. Returns the trimmed stdout, throwing on a non-zero
- * exit so the CLI surfaces the failure (orchestration-error-handling rule).
- *
  * @param {string[]} args
  * @returns {string}
  */
@@ -196,8 +152,6 @@ function gh(args) {
 }
 
 /**
- * Stage 5: only `type::story` tickets are in scope (type::epic retired).
- *
  * @param {string[]} labelNames
  * @returns {boolean}
  */
@@ -206,10 +160,6 @@ export function isStoryTicket(labelNames) {
 }
 
 /**
- * Evaluate an issue payload and optionally post a conformance comment.
- * Pure with respect to GitHub when `ghFn` is injected — the CLI `main`
- * is a thin argv wrapper around this helper.
- *
  * @param {{
  *   issue: string|number,
  *   repo?: string,
@@ -266,12 +216,6 @@ export function runLintIssueBody({
   return { conformant: false, problems: verdict.problems };
 }
 
-/**
- * CLI entry. Reads the target issue (number from `--issue` or the
- * `ISSUE_NUMBER` env), fetches its body + labels, and — when the body is
- * non-conformant — upserts a single marker comment. Always exits 0 (the
- * lint *informs*, it does not block), unless an unexpected I/O error occurs.
- */
 async function main() {
   const args = process.argv.slice(2);
   const get = (flag) => {

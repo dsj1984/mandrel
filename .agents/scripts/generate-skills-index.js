@@ -1,43 +1,10 @@
 #!/usr/bin/env node
-// .agents/scripts/generate-skills-index.js
-//
-// Walk `.agents/skills/{core,stack}/**/SKILL.md` via the shared parser
-// helper, project each parsed result into an index entry, and write the
-// aggregated manifest to `.agents/skills/skills.index.json`. Supports a
-// `--check` mode that compares the on-disk manifest against fresh
-// generator output (ignoring the volatile `generatedAt` field) and exits
-// non-zero with a diff-style message if they diverge.
-//
-// Two indexes, never one (Story #5135). The shipped manifest above is a
-// committed payload file that `mandrel doctor` / `mandrel sync-agents`
-// compare byte-for-byte against the installed package, so consumer-authored
-// skills under the `.agents/local/skills/` zone MUST NOT be folded into it —
-// a merged index would read as payload drift in every consumer that authored
-// a skill, and those commands would refuse. Local skills are therefore
-// indexed into their own `.agents/local/skills/skills.index.json`, inside
-// the zone sync never prunes and drift never walks.
-//
-// CLI surface:
-//
-//   node generate-skills-index.js [--check] [--root <dir>] [--out <file>]
-//
-//   --check        Read the on-disk manifest, compare to generator output
-//                  modulo `generatedAt`. Exit 0 on match, non-zero on
-//                  drift. Does not write.
-//   --root <dir>   Use <dir> as the repo root (defaults to the project
-//                  root containing `.agents/skills`). Useful for tests
-//                  staging fixture trees outside the real repo.
-//   --out <file>   Override the manifest output path (defaults to
-//                  `<root>/.agents/skills/skills.index.json`).
-//
-// Written output is passed through the project formatter (Biome) so that
-// regenerating on a clean tree leaves no format drift behind; the step is
-// best-effort and degrades to plain `JSON.stringify` output where Biome is
-// not installed. See `lib/format-generated-json.js`.
-//
-// Honors AGENT_LOG_LEVEL via the shared `Logger`. Stdout is reserved for
-// the diff text in --check failure mode; informational progress goes to
-// stderr.
+// Writes `.agents/skills/skills.index.json` from every payload SKILL.md;
+// `--check` compares modulo `generatedAt`. Consumer skills under
+// `.agents/local/skills/` get their own index and must never be merged into
+// the payload one: doctor/sync-agents compare it byte-for-byte against the
+// package and would read a merged index as drift. Stdout is reserved for the
+// `--check` diff; progress goes to stderr.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -72,11 +39,7 @@ function defaultRepoRoot() {
   return path.resolve(here, '..', '..');
 }
 
-/**
- * Parse CLI flags. Returns `{ check, root, out }`. Unknown flags trigger
- * a thrown Error (from the shared parser) so the runAsCli boundary can
- * surface a clean message.
- */
+/** Unknown flags throw, for runAsCli to surface. */
 export function parseArgs(argv) {
   if (argv.some((t) => t === '--help' || t === '-h')) {
     return { check: false, root: null, out: null, help: true };
@@ -92,15 +55,7 @@ export function parseArgs(argv) {
   return { check: values.check, root: values.root, out: values.out };
 }
 
-/**
- * Project a parseSkill result into an index entry shaped by
- * `.agents/schemas/skills-index.schema.json`.
- *
- * Post-Wave-2 every SKILL.md carries a 5–12-bullet Policy Capsule.
- * `policyCapsuleBullets` records that count for the manifest entry.
- * A value of `0` means the parser did not find the capsule section and
- * is a validator-rejected condition (see validate-skills.js).
- */
+/** `policyCapsuleBullets: 0` means no capsule was found (validator-rejected). */
 function projectEntry(parsed) {
   return {
     name: parsed.name,
@@ -119,10 +74,6 @@ function projectEntry(parsed) {
   };
 }
 
-/**
- * Build the manifest object (without `generatedAt`) by walking the tree
- * and projecting each parsed SKILL.md into an index entry.
- */
 export function buildManifestBody(repoRoot, collect = collectSkillFiles) {
   const skillFiles = collect(repoRoot);
   const skills = skillFiles.map((absPath) =>
@@ -134,10 +85,6 @@ export function buildManifestBody(repoRoot, collect = collectSkillFiles) {
   };
 }
 
-/**
- * Build the full manifest with `generatedAt`. `nowIso` is injected so
- * tests can pin the timestamp deterministically.
- */
 export function buildManifest(repoRoot, { nowIso, collect } = {}) {
   const body = buildManifestBody(repoRoot, collect);
   return {
@@ -148,44 +95,24 @@ export function buildManifest(repoRoot, { nowIso, collect } = {}) {
 }
 
 /**
- * Serialize a manifest object as canonical JSON: 2-space indent,
- * trailing newline. Two runs against an unchanged corpus produce
- * byte-identical output modulo `generatedAt`.
- *
- * This is the *pre-format* shape. `JSON.stringify` expands every array
- * across multiple lines, while Biome collapses short ones that fit
- * inside `lineWidth` (`"allowedTools": ["Read", "Bash"]`). Writing this
- * text verbatim therefore leaves the tree format-dirty on every run —
- * see `lib/format-generated-json.js`, which reconciles the two.
+ * Pre-format shape: Biome collapses short arrays this expands, so writes go
+ * through `formatGeneratedJson` or the tree is format-dirty on every run.
  */
 export function serializeManifest(manifest) {
   return `${JSON.stringify(manifest, null, 2)}\n`;
 }
 
-/**
- * Resolve the manifest output path given (root, optional explicit
- * override).
- */
 function resolveOutPath(root, override) {
   return override
     ? path.resolve(override)
     : indexPathFor(root, PAYLOAD_SKILLS_SEGMENTS);
 }
 
-/**
- * Resolve the local-zone manifest path. Deliberately NOT overridable by
- * `--out`: that flag redirects the payload manifest (tests stage fixture
- * trees with it), and letting it also move the local manifest would let one
- * invocation write both indexes to the same file.
- */
+/** Not overridable by `--out`, or one run could write both indexes to one file. */
 function resolveLocalOutPath(root) {
   return indexPathFor(root, LOCAL_SKILLS_SEGMENTS);
 }
 
-/**
- * Write one manifest through the project formatter so a regeneration on a
- * clean tree leaves no format drift behind.
- */
 function writeManifest(manifest, outPath, root) {
   const serialized = serializeManifest(manifest);
   const opts = { cwd: root, filename: INDEX_FILENAME };
@@ -196,12 +123,7 @@ function writeManifest(manifest, outPath, root) {
   );
 }
 
-/**
- * Write (or reap) the local-zone manifest. A consumer who deletes their last
- * local skill would otherwise be left with a stale index reporting skills
- * that no longer exist, so an emptied zone removes the artifact rather than
- * leaving it behind.
- */
+/** An emptied local zone removes its index rather than leave a stale one. */
 function writeLocalManifest(localFresh, localOutPath, root) {
   const rel = path.relative(root, localOutPath).split(path.sep).join('/');
   if (localFresh === null) {
@@ -215,11 +137,6 @@ function writeLocalManifest(localFresh, localOutPath, root) {
   Logger.info(`wrote ${rel} (${localFresh.skills.length} entries)`);
 }
 
-/**
- * Compare the local-zone manifest against fresh generator output. Returns
- * null when in sync (including the common case of no local skills and no
- * artifact), or a diff-style message.
- */
 function checkLocalManifest(localFresh, localOutPath) {
   const exists = fs.existsSync(localOutPath);
   if (localFresh === null) {
@@ -240,13 +157,7 @@ function checkLocalManifest(localFresh, localOutPath) {
 }
 
 /**
- * Build the local zone's manifest plan for this invocation: its output path,
- * and a fresh manifest when the consumer has authored any local skill (null
- * otherwise, which is the signal to reap a stale artifact).
- *
- * Split out of `run` so the payload path and the local path each read as one
- * step there rather than interleaving.
- *
+ * A null `localFresh` signals reaping a stale artifact.
  * @param {string} root
  * @param {Date} now
  * @returns {{ localFresh: object | null, localOutPath: string }}
@@ -264,9 +175,6 @@ function buildLocalPlan(root, now) {
 }
 
 /**
- * Render the freshness line's entry counts, naming the local zone only when
- * one exists.
- *
  * @param {object} fresh
  * @param {object | null} localFresh
  * @returns {string}
@@ -279,13 +187,7 @@ function describeCounts(fresh, localFresh) {
 }
 
 /**
- * `--check` mode: compare both manifests against fresh generator output and
- * report the first drift found, payload first.
- *
- * Lives outside `run` so the entry point reads as "resolve inputs, then check
- * or write" — and so the check path's branches are not charged to a function
- * that also owns argument resolution.
- *
+ * Reports the first drift found, payload first.
  * @param {{ outPath: string, fresh: object, localOutPath: string, localFresh: object | null }} plan
  * @returns {{ status: number, output: string }}
  */

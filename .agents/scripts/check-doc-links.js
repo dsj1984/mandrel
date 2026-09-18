@@ -1,40 +1,9 @@
 #!/usr/bin/env node
 
-// .agents/scripts/check-doc-links.js
-//
-// Story #2662 — Internal-link and slash-command resolver for active docs.
-//
-// Scans every `*.md` under `docs/` and `.agents/` (excluding
-// `docs/CHANGELOG.md`) and validates:
-//
-//   1. Every Markdown relative-path link `[text](relative/path[#anchor])`
-//      resolves to a real file on disk (anchors are not validated, only
-//      stripped). Absolute URLs (http(s)://, mailto:, etc.) and pure
-//      in-document anchors (`#section`) are skipped.
-//
-//   2. Every `/<slash-command>` token in prose resolves to
-//      `.agents/workflows/<command>.md`. A small allowlist tolerates
-//      non-slash-command tokens such as `/temp/`, `/dev/`, and common URL
-//      path fragments (e.g. `/issues/`, `/blob/`, `/pulls/`).
-//
-//   3. No active doc mentions any retired slash command. The retired-command
-//      blocklist is seeded with `agents-bootstrap-github`,
-//      `single-story-plan` (renamed to `/mandrel-plan`), and `mandrel`
-//      (retired in favor of the generated `.agents/docs/workflows.md`
-//      catalog) and takes precedence over the workflow-resolution check —
-//      a retired token is always a non-zero exit even if a stale workflow
-//      file happens to exist.
-//
-//   4. Story #4801 — every relative link originating under `.agents/**`
-//      resolves to a target that still exists once the tree is materialized
-//      into a *consumer* project. See `escapesPayload` for the boundary rule.
-//
-// Exit codes:
-//   0  every link and slash-command token resolves cleanly.
-//   1  at least one violation; details are written to stderr (file:line).
-//
-// Helpers (region scanner, token tokenizer, etc.) are intentionally inlined
-// per the parent Story's design constraint.
+// Resolves relative Markdown links and `/slash-command` tokens across active
+// docs (anchors stripped, not validated), rejects retired commands even when a
+// stale workflow file exists, and rejects `.agents/**` links that escape the
+// materialized payload.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -48,39 +17,23 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 
-// --- Static config ---------------------------------------------------------
-
-// Retired slash-command tokens that MUST NOT appear in any active doc.
-// Tokens are stored WITHOUT the leading slash.
+// Stored without the leading slash, as are the sets below.
 export const RETIRED_COMMANDS = new Set([
   'agents-bootstrap-github',
   'single-story-plan',
   'mandrel',
-  // #4482 — dead workflow surface retired (host-native equivalents).
   'explain',
   'git-merge-pr',
 ]);
 
-// Command spellings a *historical* record may still name, keyed by the file
-// allowed to name them. A decisions log that cannot quote the name a command
-// had is a broken record: an ADR describes the world as it was, so freezing
-// its prose is the point. Scoped per-file and per-token rather than
-// allowlisted globally — everywhere else these are simply wrong, and a typo
-// like `/mandrl-plan` must still fail here. Story #5126 renamed `/plan` →
-// `/mandrel-plan` and `/deliver` → `/mandrel-deliver`; the ADRs that decided
-// the Story-only model still name them as they were called then.
+// Old command names a historical record (an ADR) may still quote, scoped
+// per-file and per-token so a typo elsewhere still fails.
 export const SUPERSEDED_COMMAND_SPELLINGS = new Map([
   ['docs/decisions.md', new Set(['plan', 'deliver'])],
 ]);
 
-// Tokens that look like `/foo` in prose but are not slash commands. Tokens
-// are stored WITHOUT the leading slash. The list focuses on common URL path
-// fragments and on-disk path roots that appear in tutorial prose. The
-// scanner additionally suppresses tokens whose surrounding context makes
-// them obviously non-command (see `isCodeFence` and the URL-context heuristic
-// in `extractSlashTokens`).
+// `/foo` tokens in prose that are path roots or URL fragments, not commands.
 export const SLASH_ALLOWLIST = new Set([
-  // workspace/conventional roots
   'temp',
   'dev',
   'tmp',
@@ -97,7 +50,6 @@ export const SLASH_ALLOWLIST = new Set([
   'proc',
   'sys',
   'c',
-  // common GitHub / git URL path fragments
   'issues',
   'pull',
   'pulls',
@@ -121,7 +73,6 @@ export const SLASH_ALLOWLIST = new Set([
   'milestones',
   'projects',
   'tags',
-  // generic URL path fragments
   'docs',
   'guide',
   'reference',
@@ -136,33 +87,18 @@ export const SLASH_ALLOWLIST = new Set([
   'src',
   'lib',
   'node_modules',
-  // common framework / tool URL roots
   'workflows',
   'features',
   'main',
 ]);
 
-// --- Payload boundary (Story #4801) ----------------------------------------
-
-// `mandrel sync` materializes ONLY the package's `.agents/` payload into a
-// consumer's project, at `<projectRoot>/.agents` (see `lib/cli/sync.js`:
-// `destRoot = path.join(projectRoot, '.agents')`). `bin/` and `lib/` ship
-// inside the npm tarball but stay under `node_modules/mandrel/`, and the
-// framework's own `tests/`, `docs/` (bar the CHANGELOG) and `.claude/` trees
-// ship nowhere at all. So a relative link that escapes `.agents/` resolves
-// cleanly in THIS repo and dangles in every consumer — which is exactly why
-// the checker cannot catch this class by `fs.existsSync` alone.
-//
-// This is why the boundary is `.agents/` and NOT `package.json#files`: the
-// latter lists `lib/` and `bin/`, which are packaged but never materialized
-// at a consumer's repo root.
+// `mandrel sync` materializes only `.agents/` into a consumer (`bin/`, `lib/`
+// stay in node_modules; tests/docs ship nowhere), so a link escaping it
+// resolves here yet dangles for every consumer — existence alone can't catch it.
 export const MATERIALIZED_ROOT = '.agents';
 
-// Repo-root-relative paths OUTSIDE `.agents/` that a Mandrel *consumer*
-// legitimately owns, so a doc under `.agents/**` may still link to them.
-// Deliberately explicit rather than pattern-derived: whether a given repo-root
-// path is consumer-owned or framework-only is a judgment per path, not a rule.
-// A new escaping link fails closed until it is justified and added here.
+// Consumer-owned paths outside `.agents/`, listed explicitly so a new escaping
+// link fails closed until justified here.
 export const CONSUMER_OWNED_PATHS = new Set([
   'package.json',
   '.agentrc.json',
@@ -171,19 +107,12 @@ export const CONSUMER_OWNED_PATHS = new Set([
   'docs/decisions.md',
 ]);
 
-// Directory prefixes (repo-root-relative, trailing slash) whose whole subtree
-// is consumer-owned.
 export const CONSUMER_OWNED_PREFIXES = Object.freeze(['baselines/']);
 
 /**
- * True when `relTarget` is unreachable from a materialized consumer tree.
- *
- * Only links whose SOURCE lives under `.agents/**` are subject to the rule —
- * `docs/**` is framework-repo-only, ships nowhere, and keeps today's
- * existence-only semantics.
- *
- * @param {string} relFile   repo-relative POSIX path of the linking document
- * @param {string} relTarget repo-relative POSIX path the link resolves to
+ * Only links whose source is under `.agents/**` are subject to the rule.
+ * @param {string} relFile
+ * @param {string} relTarget
  */
 export function escapesPayload(relFile, relTarget) {
   if (!relFile.startsWith(`${MATERIALIZED_ROOT}/`)) return false;
@@ -198,8 +127,6 @@ export function escapesPayload(relFile, relTarget) {
     return false;
   return true;
 }
-
-// --- File discovery --------------------------------------------------------
 
 function isExcludedRelPath(relPath) {
   if (relPath === 'docs/CHANGELOG.md') return true;
@@ -226,12 +153,9 @@ function walkMarkdown(dirAbs, repoRoot, out) {
 }
 
 /**
- * Collect every non-excluded `*.md` under each `scanRoots` entry.
- *
- * @param {string}   rootAbs     absolute repo root
- * @param {string[]} scanRoots   repo-relative subtrees to walk
- * @param {string[]} [exclude]   minimatch globs; a repo-relative POSIX path
- *                               matching any of them is dropped from the scan
+ * @param {string}   rootAbs
+ * @param {string[]} scanRoots
+ * @param {string[]} [exclude] minimatch globs over repo-relative POSIX paths
  */
 export function discoverMarkdown(rootAbs, scanRoots, exclude = []) {
   const out = [];
@@ -249,13 +173,8 @@ export function discoverMarkdown(rootAbs, scanRoots, exclude = []) {
   return filtered;
 }
 
-// --- Region masking --------------------------------------------------------
-
-// Returns a copy of `source` where the contents of every fenced code block
-// and every inline code span are replaced by spaces. Newlines are preserved
-// so that line numbers stay aligned for downstream tokenizers. Fenced blocks
-// are matched on `` ``` `` or `~~~` openers at column 0 (with optional
-// indentation) and the closing fence MUST match the opener marker.
+// Blanks fenced blocks and inline code spans, preserving newlines so line
+// numbers stay aligned; a closing fence must match its opener's marker.
 export function maskCodeRegions(source) {
   const lines = source.split('\n');
   const out = new Array(lines.length);
@@ -265,7 +184,6 @@ export function maskCodeRegions(source) {
     const line = lines[i];
     const fenceMatch = line.match(/^(\s{0,3})(`{3,}|~{3,})/);
     if (inFence) {
-      // Blank the line; keep an empty string so newline survives the join.
       out[i] = '';
       if (
         fenceMatch?.[2].startsWith(fenceMarker[0]) &&
@@ -282,17 +200,11 @@ export function maskCodeRegions(source) {
       out[i] = '';
       continue;
     }
-    // Strip inline code spans (`...`). We do not need to honor escaped
-    // backticks for this checker — slash tokens inside inline code are not
-    // command references regardless.
     out[i] = line.replace(/`[^`\n]*`/g, (m) => ' '.repeat(m.length));
   }
   return out.join('\n');
 }
 
-// --- Link extraction -------------------------------------------------------
-
-// Returns absolute char offset → 1-indexed line number lookup.
 function offsetToLine(source, offset) {
   let line = 1;
   for (let i = 0; i < offset && i < source.length; i++) {
@@ -301,10 +213,7 @@ function offsetToLine(source, offset) {
   return line;
 }
 
-// Match Markdown inline links `[text](target)`. We deliberately keep the
-// regex simple: `text` may not contain `]`, and `target` may not contain
-// whitespace or `)`. Reference-style links are out of scope for this
-// checker (the repo uses inline links exclusively).
+// Inline links only; reference-style links are out of scope.
 const LINK_RE = /\[([^\]]*)\]\(([^)\s]+)\)/g;
 
 export function extractLinks(masked) {
@@ -337,13 +246,8 @@ function stripAnchorAndQuery(target) {
   return t;
 }
 
-// Percent-decode a link target's path portion (Story #5090). A correctly
-// encoded Markdown destination escapes URL-reserved characters — a
-// file-based router's `[token]` segment is written `%5Btoken%5D`, the form
-// CommonMark renderers require — but the filesystem knows only the decoded
-// name. The decode is one-way and total: a malformed escape (`%zz`) degrades
-// to the raw string instead of throwing `URIError`, so an undecodable target
-// is resolved exactly as it was before.
+// The filesystem knows only decoded names (`%5Btoken%5D` → `[token]`); a
+// malformed escape falls back to the raw string instead of throwing.
 function decodeLinkPath(pathOnly) {
   if (!pathOnly.includes('%')) return pathOnly;
   try {
@@ -353,25 +257,9 @@ function decodeLinkPath(pathOnly) {
   }
 }
 
-// --- Slash-token extraction ------------------------------------------------
-
-// Tokens look like `/<lowercase-alphanum-with-hyphens>`. We exclude tokens
-// preceded by a word character or another slash (URL paths, `http://...`),
-// and tokens immediately followed by a word/`-` character (so we match the
-// whole command, not a prefix).
-// A slash token is `/<name>` where:
-//   - the preceding char is NOT a word char, `/`, `:`, `.`, `>`, `]`, `)`,
-//     so we don't match URL path segments or fragments embedded in paths
-//     like `temp/run-<id>/lifecycle.ndjson` (preceded by `>`) or
-//     `temp/run-[ID]/tickets.json` (preceded by `]`).
-//   - the following char is NOT a word char, `-`, or `.`, so file
-//     extensions like `/tickets.json` and identifier suffixes don't match.
-// The optional `(?::[a-z][a-z0-9-]*)?` tail captures the namespaced
-// `/loops:<name>` command form (Story #4289). Without it the matcher would
-// stop at `loops` and try to resolve `.agents/workflows/loops.md`, which does
-// not exist — loop units live under `loops/<name>.md`. The resolver below
-// splits the captured `loops:<name>` token on the `:` to resolve the
-// namespaced path.
+// The lookbehind rejects path segments (`run-<id>/x`, `run-[ID]/x`, URLs);
+// the lookahead rejects extensions and prefixes. The optional `:name` tail
+// captures namespaced `/loops:<name>` commands.
 const SLASH_TOKEN_RE =
   /(?<![\w/:.>\])])\/([a-z][a-z0-9-]*(?::[a-z][a-z0-9-]*)?)(?![\w.-])/g;
 
@@ -389,15 +277,9 @@ export function extractSlashTokens(masked) {
   return out;
 }
 
-// --- Per-file check --------------------------------------------------------
-
 /**
- * The slash tokens `relFile` may name without resolving to a workflow: the
- * global allowlist, plus any superseded spelling this particular file is
- * allowed to quote.
- *
- * @param {string} relFile Repo-relative path of the file being checked.
- * @returns {Set<string>} Tokens to skip, stored without the leading slash.
+ * @param {string} relFile
+ * @returns {Set<string>}
  */
 function slashAllowlistFor(relFile) {
   const superseded = SUPERSEDED_COMMAND_SPELLINGS.get(relFile);
@@ -413,15 +295,9 @@ export function checkFile(absPath, repoRoot) {
   const relFile = path.relative(repoRoot, absPath).split(path.sep).join('/');
   const workflowsDir = path.join(repoRoot, '.agents', 'workflows');
 
-  // Tokenize the masked source once and reuse the array across both the
-  // retired-command sweep and the slash-command resolution pass below.
   const slashTokens = extractSlashTokens(masked);
 
-  // 1. Retired-command sweep — runs against the masked source so command
-  //    references inside fenced examples don't trip us, but we still catch
-  //    every prose mention. Retired-command checks ALWAYS take precedence:
-  //    even if the token would otherwise be allowlisted or resolved, a hit
-  //    here is a non-zero exit.
+  // Retired commands win over the allowlist and over resolution.
   for (const { token, line } of slashTokens) {
     if (RETIRED_COMMANDS.has(token)) {
       violations.push({
@@ -433,26 +309,19 @@ export function checkFile(absPath, repoRoot) {
     }
   }
 
-  // 2. Relative-link resolution.
   for (const { target, line } of extractLinks(masked)) {
     if (isExternalOrInternalAnchor(target)) continue;
     const rawPathOnly = stripAnchorAndQuery(target);
-    if (!rawPathOnly) continue; // pure anchor that survived earlier check
-    // Decode AFTER anchor/query stripping — so an escaped `%23` cannot
-    // collapse into an anchor delimiter and truncate the target — and BEFORE
-    // resolution, so the payload-boundary branch below reports the decoded
-    // path rather than the escaped one.
+    if (!rawPathOnly) continue;
+    // Decode after stripping, so an escaped `%23` cannot become an anchor.
     const pathOnly = decodeLinkPath(rawPathOnly);
     let resolved;
     if (pathOnly.startsWith('/')) {
-      // Treat root-absolute paths as repo-root relative.
       resolved = path.join(repoRoot, pathOnly);
     } else {
       resolved = path.resolve(fileDir, pathOnly);
     }
-    // Payload boundary (Story #4801) takes precedence over existence: a link
-    // that escapes the materialized tree is a defect even when the target
-    // exists here, and reporting both kinds for one link would double-count.
+    // Boundary wins over existence; one link reports one kind.
     const relTarget = path
       .relative(repoRoot, resolved)
       .split(path.sep)
@@ -480,19 +349,11 @@ export function checkFile(absPath, repoRoot) {
     }
   }
 
-  // 3. Slash-command resolution. Skip retired hits (already reported),
-  //    allowlisted tokens, and a superseded spelling in the one file allowed
-  //    to quote it (SUPERSEDED_COMMAND_SPELLINGS). A command is valid if it resolves to a top-level
-  //    workflow file OR to a helpers/ module (helpers are not projected into
-  //    the `.claude/commands/` tree but are still legitimate named workflows
-  //    that parent workflows invoke by prose reference).
+  // A helpers/ module is a valid command target too.
   const slashAllowlist = slashAllowlistFor(relFile);
   for (const { token, line } of slashTokens) {
     if (RETIRED_COMMANDS.has(token)) continue;
     if (slashAllowlist.has(token)) continue;
-    // Namespaced loop commands (`/loops:<name>`, Story #4289) resolve to a
-    // loop unit under `.agents/workflows/loops/<name>.md`. Split on the `:`
-    // and resolve the namespaced path rather than a flat `loops:<name>.md`.
     if (token.includes(':')) {
       const [ns, name] = token.split(':');
       const nsFile = path.join(workflowsDir, ns, `${name}.md`);
@@ -521,18 +382,13 @@ export function checkFile(absPath, repoRoot) {
   return violations;
 }
 
-// --- Public entry point ----------------------------------------------------
-
 export const DEFAULT_SCAN_ROOTS = Object.freeze(['docs', '.agents']);
 
 /**
- * Run the checker programmatically. Returns `{ exitCode, violations }`.
- * `exitCode` is 0 when every doc is clean, 1 otherwise.
- *
  * @param {object} [options]
- * @param {string} [options.repoRoot] Defaults to the framework repo root.
- * @param {string[]} [options.scanRoots] Defaults to `['docs', '.agents']`.
- * @param {string[]} [options.exclude] minimatch globs dropped from the scan.
+ * @param {string} [options.repoRoot]
+ * @param {string[]} [options.scanRoots]
+ * @param {string[]} [options.exclude]
  */
 export function runCheck(options = {}) {
   const repoRoot = options.repoRoot ?? REPO_ROOT;
@@ -555,11 +411,7 @@ function formatViolation(v) {
   return `${v.file}:${v.line}: [${v.kind}] ${v.message}`;
 }
 
-/**
- * Translate argv into `runCheck` options. Repeatable `--scan-root` replaces
- * the default scan set entirely; repeatable `--exclude` filters whatever was
- * scanned. Absent flags reproduce the pre-#4801 defaults exactly.
- */
+/** `--scan-root` replaces the default set; `--exclude` filters what was scanned. */
 export function parseArgs(argv) {
   const { values } = parseStandardCliArgs({
     argv,

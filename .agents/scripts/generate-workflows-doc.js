@@ -1,33 +1,8 @@
 #!/usr/bin/env node
 /**
- * .agents/scripts/generate-workflows-doc.js — Catalog-backed workflows index
- *
- * Renders the consumer-shipped slash-command catalog at
- * `.agents/docs/workflows.md` from the on-disk workflow set under
- * `.agents/workflows/*.md` (top-level only — `helpers/` are path-included
- * modules, not runnable slash commands). The catalog logic is shared with
- * the in-process backend in `lib/mandrel-catalog.js`, so the generated doc
- * and any programmatic catalog reader never drift from one another.
- *
- * Why generated (Story #3708): `workflows.md` used to be hand-maintained and
- * was *not* drift-gated, so it could silently fall out of sync with the
- * actual workflow set. The retired `/mandrel` discoverability command was
- * always accurate because it rendered the catalog live. Rather than keep the
- * drift-prone hand-authored doc and the accurate-but-ephemeral command, this
- * generator makes the doc itself a rendering of the same catalog, gates it via
- * `--check`, and ships it to consumers under `.agents/docs/`.
- *
- * Modes:
- *   (default)  — rewrites `.agents/docs/workflows.md` in full from the
- *                current workflow set.
- *   --check    — exits 0 when the on-disk file matches the freshly generated
- *                content, throws (→ exit 1) with a regeneration hint otherwise.
- *   --root     — read and write under another checkout's `.agents/` tree.
- *                See {@link resolveTargets} for why this seam exists.
- *
- * Per `docs/contributing/orchestration-error-handling.md`, unrecoverable failures
- * surface via `throw new Error(...)` so `runAsCli` maps the throw to
- * `process.exit(1)` deterministically (no `Logger.fatal`).
+ * Renders `.agents/docs/workflows.md` from the top-level workflow set via the
+ * shared `lib/mandrel-catalog.js`, so the doc and programmatic readers cannot
+ * drift; `--check` gates it.
  */
 
 import fs from 'node:fs';
@@ -43,28 +18,9 @@ const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
 
 /**
- * Resolve the workflow source directory and the generated doc for one
- * repository root.
- *
- * The `--root` seam this backs exists for the drift gate's own test. That
- * test used to prove the gate by editing the *real*
- * `.agents/workflows/mandrel-deliver.md`, running `--check`, and restoring
- * the file in `afterEach`. The proof was sound; the blast radius was not.
- * `node --test` runs test files in parallel against one shared checkout, so
- * for the ~1s the real file sat mutated, every other test file observed a
- * dirty tree — and `tests/enforcement/workflow-script-help.test.js`, whose
- * final assertion is a repo-wide `git status --porcelain`, reported it as
- * "`--help` mutated the working tree" on the Windows Smoke job, where the
- * wider process-spawn cost stretches that window far enough to collide.
- *
- * A generator that can only ever be pointed at its own checkout forces that
- * choice. Pointing it at a fixture root removes it.
- *
- * The `--root` default is applied here rather than at the call site so the
- * one branch it costs lives with the resolution it belongs to.
- *
- * @param {string} [root] Repository root to render against; defaults to this
- *   checkout. A relative path is resolved against the process cwd.
+ * The `--root` seam lets the drift gate's test use a fixture root: mutating
+ * the real workflow file dirties the shared checkout for parallel test files.
+ * @param {string} [root]
  * @returns {{ root: string, workflowsDir: string, docPath: string }}
  */
 export function resolveTargets(root) {
@@ -76,21 +32,11 @@ export function resolveTargets(root) {
   };
 }
 
-/** This checkout's own targets — the default when `--root` is absent. */
 const { workflowsDir: WORKFLOWS_DIR, docPath: DOC_PATH } = resolveTargets();
 
 /**
- * Collapse a catalog description to a single Markdown table-cell-safe line.
- * The catalog already normalizes whitespace; this neutralizes:
- *   - pipe characters (`|`) so a description can never break the table grid;
- *   - stray newlines;
- *   - bare emphasis markers (`*`, `_`) so a glob like `audit-*` in a
- *     description is rendered literally instead of being parsed as emphasis
- *     (which trips markdownlint MD037 in the generated doc).
- *
- * Framework workflow descriptions do not embed `*`/`_` inside inline code
- * spans, so a global escape is safe and keeps the generator pure.
- *
+ * Escapes `*`/`_` so a glob like `audit-*` is not parsed as emphasis (MD037);
+ * safe globally because descriptions put neither inside code spans.
  * @param {string | null} description
  * @returns {string}
  */
@@ -103,9 +49,6 @@ function cellEscape(description) {
 }
 
 /**
- * Render the full generated `workflows.md` content from the flat command
- * catalog and the loop-unit catalog.
- *
  * @param {Array<{ name: string, description: string | null, vague: boolean }>} catalog
  * @param {Array<{ name: string, description: string | null, vague: boolean }>} [loopCatalog]
  * @returns {string}
@@ -184,10 +127,7 @@ export function renderWorkflowsDoc(catalog, loopCatalog = []) {
 }
 
 /**
- * Build the canonical generated content and read the on-disk file (if any).
- *
- * @param {string} [root] Repository root to render against; see
- *   {@link resolveTargets}.
+ * @param {string} [root]
  * @returns {{
  *   generated: string,
  *   original: string | null,

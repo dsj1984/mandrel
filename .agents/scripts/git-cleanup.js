@@ -2,41 +2,9 @@
 /* node:coverage ignore file -- multi-phase repo-cleanup CLI; thin shell over `git` + `gh` */
 
 /**
- * git-cleanup.js — Story #2466 thin CLI shell over the multi-phase
- * cleanup pipeline.
+ * Thin CLI shell over the `lib/orchestration/git-cleanup/phases/` pipeline.
  *
- * The pipeline lives under `lib/orchestration/git-cleanup/phases/`:
- *
- *   1. parse-args   — argv → normalized opts bag (`parseCleanupArgs`).
- *   2. filters      — pure glob + protected-branch helpers.
- *   3. git-probes   — every `gitSpawn` / `gh` subprocess wrapper plus
- *                     small parsers (`probeMergedPr`, etc).
- *   4. branches     — merged-branch reap (`planCleanup`,
- *                     `executeCleanup`).
- *   5. fast-forward — fast-forward-main phase.
- *   6. prune        — prune-remotes phase + `parsePrunedRefs`.
- *   7. stashes      — stash triage (`parseStashList`, `planStashes`,
- *                     `executeStashes`, `stashRefIndex`,
- *                     `buildAllowlistDecider`).
- *   8. render       — operator-facing renderers + `buildJsonEnvelope`,
- *                     `computeExitCode`.
- *   9. cli          — interactive prompts + per-phase drivers + `main`.
- *
- * Public CLI surface, named exports, and exit codes are byte-identical
- * to the pre-refactor implementation. See the original module docstring
- * (preserved below) for the operator-facing flag + phase contract.
- *
- * Phases (selectable, run sequentially when no narrowing flag set):
- *   1. fast-forward-main — `git fetch origin <base>` → `git merge --ff-only`.
- *   2. prune-remotes     — `git fetch --prune <remote>`.
- *   3. branches          — enumerate merged local branches via `gh pr list`
- *                          + `git branch --merged <base>` and reap.
- *   4. stashes           — `git stash list` → optional per-stash drops.
- *
- * Exit codes:
- *   0 — clean (dry-run preview, or every active phase succeeded).
- *   1 — at least one phase reported a failure.
- *   2 — every active phase produced nothing to do (informational).
+ * Exit codes: 0 clean or dry-run, 1 a phase failed, 2 nothing to do.
  */
 
 import { runAsCli } from './lib/cli-utils.js';

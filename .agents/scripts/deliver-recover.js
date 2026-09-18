@@ -1,40 +1,13 @@
 #!/usr/bin/env node
 
 /**
- * deliver-recover.js — probe a stranded Story's live state and print the ONE
- * command that resumes it (Story #4543).
+ * Read-only: probes a stranded Story's live state and prints the ONE command
+ * that resumes it — never a menu, and never a re-dispatch, which would re-run
+ * init under live work and put a second close on one PR. Covers the
+ * merged-but-label-stale Story that `/mandrel-deliver` refuses outright.
  *
- * Read-only by construction. This CLI mutates nothing: it reads the ticket's
- * labels and lease, the Story branch locally and via its tracking ref, the
- * worktree, and the PR (state + checks), then walks a fixed decision table
- * and prints one command with the evidence it was derived from. It never
- * prints a menu — a menu of options is what the operator already has, and it
- * is the thing they cannot act on.
- *
- * The strand this exists for above all others is the **merged-but-label-stale**
- * Story: a `/mandrel-deliver` re-run refuses it outright, because
- * `single-story-init.js` hard-errors on an already-closed Story. Before this
- * surface, that Story had no automated way back.
- *
- * Every command it prints **resumes** — it re-enters the in-flight worker or
- * close, or closes the branch that is already pushed. None of them re-dispatch
- * the Story, and that is deliberate: since Story #4876 the close-and-land tail
- * belongs to the dispatching orchestrator, so a worker returning without a
- * terminal envelope is the expected shape rather than evidence the Story never
- * ran. Answering it with a fresh dispatch re-runs `single-story-init.js`
- * underneath live work and puts a second close on one PR.
- *
- * Usage:
- *   node .agents/scripts/deliver-recover.js --story <STORY_ID> [--cwd <main-repo>]
- *                                           [--json]
- *
- * Exit codes:
- *   0 — a recovery shape was resolved and its next command printed (including
- *       the "nothing to recover" shapes). Reading state is not a failure.
- *   1 — the probe itself could not run (unreadable ticket, bad input).
- *
- * @see .agents/scripts/lib/orchestration/deliver-recover.js
- * @see .agents/schemas/story-deliver-terminal.schema.json
+ * Exit codes: 0 a shape resolved (including nothing-to-recover), 1 the probe
+ * itself could not run.
  */
 
 import { parseArgs } from 'node:util';
@@ -94,15 +67,6 @@ export function parseArgv(argv) {
 }
 
 /**
- * Probe and report. Exported for testing.
- *
- * The optional final `deps` parameter is the module's injectable seam
- * (`docs/contributing/test-seams.md` rules 1-2): config resolution, provider
- * construction, the probe itself, the renderer, and the log sink each default
- * to the real implementation, so the CLI path and every production caller are
- * unchanged. The pre-existing `injected*` fields on the first argument stay
- * supported for callers already threading a resolved provider/config.
- *
  * @param {object} [args]
  * @param {{
  *   resolveConfigImpl?: typeof resolveConfig,
