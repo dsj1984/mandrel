@@ -212,22 +212,13 @@ describe('planning.* shape', () => {
     assert.equal(validate({ ...REQ, planning: {} }), true);
   });
 
-  it('accepts planning.memoryPool.indexByteCeiling (Story #5285)', () => {
-    // The one surviving arm's knob. The precompiled validator is what every runtime
-    // path actually calls, so accepting it here is the assertion that the
-    // key survived the mirror + `validator:gen` regeneration — a schema edit
-    // that skips either leaves the key rejected at runtime while
-    // `generate-config-docs.js --check` still passes.
-    assert.equal(
-      validate({
-        ...REQ,
-        planning: { memoryPool: { indexByteCeiling: 20000 } },
-      }),
-      true,
-    );
+  it('rejects planning.memoryPool, folded into INDEX_BYTE_CEILING (Story #5382)', () => {
+    // The precompiled validator is what every runtime path calls, so this
+    // is the assertion that the removal survived the mirror + `validator:gen`
+    // regeneration; the `strip-removed-agentrc-keys` migration strips it.
     expectErrors(
-      { ...REQ, planning: { memoryPool: { indexByteCeiling: 0 } } },
-      /must be >= 1/,
+      { ...REQ, planning: { memoryPool: { indexByteCeiling: 20000 } } },
+      /must NOT have additional properties/,
     );
   });
 
@@ -356,17 +347,17 @@ describe('delivery.* shape', () => {
     assert.equal(validate({ ...REQ, delivery: {} }), true);
   });
 
-  it('accepts execution.timeoutMs', () => {
-    assert.equal(
-      validate({ ...REQ, delivery: { execution: { timeoutMs: 600000 } } }),
-      true,
+  it('rejects execution.timeoutMs, folded into a constant (Story #5382)', () => {
+    expectErrors(
+      { ...REQ, delivery: { execution: { timeoutMs: 600000 } } },
+      /additional properties/,
     );
   });
 
-  it('rejects execution.timeoutMs below 1', () => {
-    expectErrors(
-      { ...REQ, delivery: { execution: { timeoutMs: 0 } } },
-      /timeoutMs/,
+  it('keeps execution.fullSuiteLock, the operator opt-out', () => {
+    assert.equal(
+      validate({ ...REQ, delivery: { execution: { fullSuiteLock: false } } }),
+      true,
     );
   });
 
@@ -486,12 +477,6 @@ describe('delivery.* shape', () => {
 
 describe('delivery.quality.* shape — uniform gates (Story #1737)', () => {
   const POPULATED_GATES = {
-    lint: {
-      enabled: true,
-      baselinePath: 'baselines/lint.json',
-      tolerance: { kind: 'absolute', value: 0 },
-      floors: { '*': { errors: 0 } },
-    },
     coverage: {
       enabled: true,
       baselinePath: 'baselines/coverage.json',
@@ -521,13 +506,6 @@ describe('delivery.quality.* shape — uniform gates (Story #1737)', () => {
       tolerance: { kind: 'percent', value: 5 },
       floors: { '*': { score: 60 } },
     },
-    lighthouse: {
-      enabled: true,
-      baselinePath: 'baselines/lighthouse.json',
-      tolerance: { kind: 'percent', value: 5 },
-      floors: { '*': { performance: 80 } },
-      routes: [],
-    },
     'bundle-size': {
       enabled: true,
       baselinePath: 'baselines/bundle-size.json',
@@ -537,28 +515,54 @@ describe('delivery.quality.* shape — uniform gates (Story #1737)', () => {
     },
   };
 
-  it('accepts the populated gates block with all seven tiers', () => {
+  it('accepts the populated gates block with all six tiers', () => {
     assert.equal(
       validate({
         ...REQ,
         delivery: {
           quality: {
-            gateScoping: { scope: 'diff', diffRef: 'main' },
             gates: POPULATED_GATES,
-            codingGuardrails: {
-              cyclomaticFlag: 8,
-              requireSiblingTest: false,
-            },
-            autoRefresh: {
-              enabled: true,
-              crapJumpCap: 5,
-              scope: 'diff',
-            },
+            autoRefresh: { enabled: true },
           },
         },
       }),
       true,
     );
+  });
+
+  it('rejects the removed lint and lighthouse gates by name (Story #5382)', () => {
+    for (const gate of ['lint', 'lighthouse']) {
+      const ok = validate({
+        ...REQ,
+        delivery: { quality: { gates: { [gate]: { enabled: true } } } },
+      });
+      assert.equal(ok, false, gate);
+      assert.ok(
+        validate.errors.some(
+          (e) =>
+            e.instancePath === '/delivery/quality/gates' &&
+            e.params?.additionalProperty === gate,
+        ),
+        `the error names the ${gate} gate`,
+      );
+    }
+  });
+
+  it('rejects the folded quality tuning blocks and keys (Story #5382)', () => {
+    for (const quality of [
+      { codingGuardrails: { cyclomaticFlag: 8 } },
+      { baselineEpsilon: { crap: 0.5 } },
+      { formatAutofix: { timeoutMs: 60000 } },
+      { gateScoping: { scope: 'diff' } },
+      { autoRefresh: { crapJumpCap: 5 } },
+      { autoRefresh: { scope: 'diff' } },
+      { gates: { crap: { refreshTag: 'baseline-refresh:' } } },
+      { gates: { maintainability: { refreshTimeoutMs: 60000 } } },
+      { gates: { coverage: { timeoutMs: 600000 } } },
+      { gates: { mutation: { strykerConfigPath: null } } },
+    ]) {
+      expectErrors({ ...REQ, delivery: { quality } }, /additional properties/);
+    }
   });
 
   it('rejects the retired miDropMustRefactor / miDropCap keys (Story #4531)', () => {
@@ -571,7 +575,7 @@ describe('delivery.quality.* shape — uniform gates (Story #1737)', () => {
           },
         },
       },
-      /codingGuardrails/,
+      /additional properties/,
     );
     expectErrors(
       {
@@ -804,20 +808,6 @@ describe('delivery.quality.* shape — uniform gates (Story #1737)', () => {
     );
   });
 
-  it('accepts gateScoping at the quality-block root', () => {
-    assert.equal(
-      validate({
-        ...REQ,
-        delivery: {
-          quality: {
-            gateScoping: { scope: 'diff', diffRef: 'main' },
-          },
-        },
-      }),
-      true,
-    );
-  });
-
   // Story #4981 (AC-6) — the new opt-in key validates through the FULL
   // AGENTRC_SCHEMA chain (config-settings-schema-delivery.js's DELIVERY_SCHEMA
   // → config-settings-schema-quality.js's QUALITY_SCHEMA → config/gates/
@@ -833,7 +823,10 @@ describe('delivery.quality.* shape — uniform gates (Story #1737)', () => {
             quality: {
               gates: {
                 crap: {
-                  incrementalCoverage: { enabled: true, baseRef: 'main' },
+                  incrementalCoverage: {
+                    skipWhenUnchanged: true,
+                    baseRef: 'main',
+                  },
                 },
               },
             },
@@ -843,7 +836,7 @@ describe('delivery.quality.* shape — uniform gates (Story #1737)', () => {
       );
     });
 
-    // Story #5173 — the split pair, and the deprecated alias alongside it.
+    // Story #5173 — the split pair (the deprecated `enabled` alias went in #5382).
     it('accepts the split switches, together and apart', () => {
       for (const incrementalCoverage of [
         { skipWhenUnchanged: true },
@@ -853,7 +846,6 @@ describe('delivery.quality.* shape — uniform gates (Story #1737)', () => {
           baselineJoin: true,
           baseRef: 'origin/main',
         },
-        { enabled: true, baselineJoin: false },
       ]) {
         assert.equal(
           validate({
@@ -882,17 +874,17 @@ describe('delivery.quality.* shape — uniform gates (Story #1737)', () => {
       );
     });
 
-    it('accepts enabled alone (baseRef optional)', () => {
-      assert.equal(
-        validate({
+    it('rejects the removed enabled alias (Story #5382)', () => {
+      expectErrors(
+        {
           ...REQ,
           delivery: {
             quality: {
               gates: { crap: { incrementalCoverage: { enabled: false } } },
             },
           },
-        }),
-        true,
+        },
+        /additional properties/,
       );
     });
 
@@ -965,27 +957,10 @@ describe('AGENTRC_SCHEMA — delivery.codeReview.providers (Story #2871)', () =>
     assert.equal(validate({ ...REQ, delivery: {} }), true);
   });
 
-  it('accepts an empty providerConfig object', () => {
-    assert.equal(
-      validate({
-        ...REQ,
-        delivery: { codeReview: { providerConfig: {} } },
-      }),
-      true,
-    );
-  });
-
-  it('accepts a populated providerConfig (open shape)', () => {
-    assert.equal(
-      validate({
-        ...REQ,
-        delivery: {
-          codeReview: {
-            providerConfig: { anyAdapterKey: 'value', nested: { a: 1 } },
-          },
-        },
-      }),
-      true,
+  it('rejects providerConfig, removed for having no reader (Story #5382)', () => {
+    expectErrors(
+      { ...REQ, delivery: { codeReview: { providerConfig: {} } } },
+      /additional properties/,
     );
   });
 
@@ -1013,13 +988,6 @@ describe('AGENTRC_SCHEMA — delivery.codeReview.providers (Story #2871)', () =>
     );
   });
 
-  it('rejects providerConfig of the wrong type (must be object)', () => {
-    expectErrors(
-      { ...REQ, delivery: { codeReview: { providerConfig: 'no' } } },
-      /must be object/,
-    );
-  });
-
   it('rejects unknown sibling keys on codeReview (typo guard)', () => {
     expectErrors(
       {
@@ -1030,27 +998,25 @@ describe('AGENTRC_SCHEMA — delivery.codeReview.providers (Story #2871)', () =>
     );
   });
 
-  it('preserves maxFixAttempts validation and rejects the retired maxFixScopeFiles', () => {
+  it('keeps autoFixSeverity and rejects the retired maxFixScopeFiles / maxFixAttempts', () => {
     assert.equal(
       validate({
         ...REQ,
         delivery: {
           codeReview: {
             providers: [{ name: 'native' }],
-            providerConfig: {},
-            maxFixAttempts: 3,
+            autoFixSeverity: 'high',
           },
         },
       }),
       true,
     );
-    expectErrors(
-      {
-        ...REQ,
-        delivery: { codeReview: { maxFixScopeFiles: 5 } },
-      },
-      /additional properties/,
-    );
+    for (const codeReview of [{ maxFixScopeFiles: 5 }, { maxFixAttempts: 3 }]) {
+      expectErrors(
+        { ...REQ, delivery: { codeReview } },
+        /additional properties/,
+      );
+    }
   });
 
   it('rejects the retired feedbackLoop.auditResultsAutoFile, keeping its siblings (Story #5366)', () => {
@@ -1070,7 +1036,7 @@ describe('AGENTRC_SCHEMA — delivery.codeReview.providers (Story #2871)', () =>
       validate({
         ...REQ,
         delivery: {
-          feedbackLoop: { retroProposals: true, frictionWindowDays: 14 },
+          feedbackLoop: { retroProposals: true },
         },
       }),
       true,
@@ -1256,22 +1222,10 @@ describe('close-validation gate economy — populated blocks are accepted', () =
     );
   });
 
-  it('accepts delivery.execution.requireCreditedCapture', () => {
-    for (const requireCreditedCapture of [true, false]) {
-      assert.equal(
-        validate({
-          ...REQ,
-          delivery: { execution: { requireCreditedCapture } },
-        }),
-        true,
-      );
-    }
-  });
-
-  it('rejects a non-boolean requireCreditedCapture', () => {
+  it('rejects delivery.execution.requireCreditedCapture, folded away (Story #5382)', () => {
     expectErrors(
-      { ...REQ, delivery: { execution: { requireCreditedCapture: 'yes' } } },
-      /must be boolean/,
+      { ...REQ, delivery: { execution: { requireCreditedCapture: true } } },
+      /additional properties/,
     );
   });
 });
@@ -1305,4 +1259,46 @@ describe('qa.environments.*.signInSeam.skill — id pattern (Story #5285)', () =
   it('rejects a single-segment id, which names no tier', () => {
     assert.equal(validate(withSkill('consumer-sign-in')), false);
   });
+});
+
+describe('the Story #5382 removed keys fail validation naming the key', () => {
+  /** Build a config setting `dotted` to `value` on top of `REQ`. */
+  const withKey = (dotted, value) => {
+    const doc = structuredClone(REQ);
+    const segments = dotted.split('.');
+    let cursor = doc;
+    for (const segment of segments.slice(0, -1)) {
+      cursor[segment] ??= {};
+      cursor = cursor[segment];
+    }
+    cursor[segments[segments.length - 1]] = value;
+    return doc;
+  };
+
+  for (const [dotted, value] of [
+    ['delivery.quality.gates.lint', { enabled: true }],
+    ['delivery.quality.gates.lighthouse', { enabled: true }],
+    ['delivery.quality.gates.mutation.strykerConfigPath', null],
+    ['delivery.auditToStories', { autoComment: true }],
+    ['delivery.review', { lensDiffFloor: 40 }],
+    ['delivery.ci.watch', { pollIntervalMs: 10000 }],
+    ['delivery.execution.timeoutMs', 600000],
+    ['delivery.tempRetention.staleDays', 7],
+    ['delivery.mergeWatch.intervalSeconds', 30],
+    ['delivery.mergeWatch.updateAttempts', 3],
+    ['delivery.feedbackLoop.frictionWindowDays', 30],
+    ['delivery.codeReview.maxFixAttempts', 3],
+    ['delivery.quality.baselineEpsilon', { crap: 0.5 }],
+    ['github.defaultTimeoutMs', 60000],
+    ['planning.memoryPool', { indexByteCeiling: 24576 }],
+  ]) {
+    const key = dotted.split('.').at(-1);
+    it(`rejects ${dotted}`, () => {
+      assert.equal(validate(withKey(dotted, value)), false);
+      assert.ok(
+        validate.errors.some((e) => e.params?.additionalProperty === key),
+        `an error names '${key}': ${JSON.stringify(validate.errors)}`,
+      );
+    });
+  }
 });

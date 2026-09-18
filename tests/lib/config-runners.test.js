@@ -83,21 +83,15 @@ describe('getRunners', () => {
   it('returns documented defaults for delivery.codeReview (Story #2611)', () => {
     for (const input of [null, undefined, {}, { delivery: {} }]) {
       const r = getRunners(input);
-      assert.deepEqual(r.codeReview, {
-        maxFixAttempts: 3,
-        autoFixSeverity: 'medium',
-      });
+      assert.deepEqual(r.codeReview, { autoFixSeverity: 'medium' });
     }
   });
 
-  it('reads delivery.codeReview overrides from config', () => {
+  it('ignores the removed maxFixAttempts key (Story #5382 — no reader)', () => {
     const r = getRunners({
       delivery: { codeReview: { maxFixAttempts: 0 } },
     });
-    assert.deepEqual(r.codeReview, {
-      maxFixAttempts: 0,
-      autoFixSeverity: 'medium',
-    });
+    assert.deepEqual(r.codeReview, { autoFixSeverity: 'medium' });
   });
 
   it('reads delivery.codeReview.autoFixSeverity override (Story #4399)', () => {

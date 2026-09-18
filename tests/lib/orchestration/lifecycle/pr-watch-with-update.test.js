@@ -494,31 +494,24 @@ describe('runPrWatch — required-context attach window (Stories #4873, #4890)',
   });
 });
 
-describe('resolveWatchKnobs — attachWindowMs ladder (Story #4890 AC-4)', () => {
-  const withWindow = (attachWindowMs) => ({
-    delivery: { ci: { watch: { attachWindowMs } } },
-  });
-
-  it('falls back to the framework default when neither flag nor config supplies one', () => {
+describe('resolveWatchKnobs — attachWindowMs ladder (Story #4890 AC-4, #5382)', () => {
+  it('falls back to the framework default when no flag supplies one', () => {
     assert.equal(
-      resolveWatchKnobs({ config: null }).attachWindowMs,
+      resolveWatchKnobs({}).attachWindowMs,
       WATCH_DEFAULTS.attachWindowMs,
     );
   });
 
-  it('reads delivery.ci.watch.attachWindowMs from config', () => {
-    assert.equal(
-      resolveWatchKnobs({ config: withWindow(300_000) }).attachWindowMs,
-      300_000,
-    );
+  it('ignores a leftover delivery.ci.watch block — the config rung was removed', () => {
+    const resolved = resolveWatchKnobs({
+      config: { delivery: { ci: { watch: { attachWindowMs: 300_000 } } } },
+    });
+    assert.equal(resolved.attachWindowMs, WATCH_DEFAULTS.attachWindowMs);
   });
 
-  it('lets a CLI flag override config', () => {
+  it('lets a CLI flag override the default', () => {
     assert.equal(
-      resolveWatchKnobs({
-        config: withWindow(300_000),
-        flags: { attachWindowMs: '45000' },
-      }).attachWindowMs,
+      resolveWatchKnobs({ flags: { attachWindowMs: '45000' } }).attachWindowMs,
       45_000,
     );
   });

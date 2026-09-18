@@ -106,6 +106,10 @@ const tasks = [
   // be named by a consumer surface, and nothing under `.agents/` may import
   // from outside it — the ratchet that keeps contributor tooling in `scripts/`.
   nodeGate('payload-boundary', 'scripts/check-payload-boundary.js'),
+  // `.agentrc` leaf-key ceiling (Story #5382). The schema was cut from 183
+  // leaf keys to 128; a new key must displace an old one or raise the
+  // ceiling deliberately.
+  nodeGate('agentrc-key-ceiling', 'scripts/check-agentrc-key-ceiling.js'),
   // Static Gherkin corpus gate (Story #5013): must-compile with the real
   // parser, then must-bind scoped per step root. Opt-in behind
   // `qa.gherkinLint`, so it exits 0 as "not configured" in this repo. Here

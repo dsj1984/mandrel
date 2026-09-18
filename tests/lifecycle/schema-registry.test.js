@@ -173,7 +173,7 @@ describe('lifecycle/schema-registry', () => {
     assert.equal(ok, false);
   });
 
-  it('agentrc.schema accepts delivery.mergeWatch.intervalSeconds and maxBudgetSeconds', () => {
+  it('agentrc.schema accepts delivery.mergeWatch.maxBudgetSeconds', () => {
     const ajv = new Ajv2020({ allErrors: true });
     addFormats(ajv);
     const validate = ajv.compile(AGENTRC_SCHEMA);
@@ -186,13 +186,13 @@ describe('lifecycle/schema-registry', () => {
         },
       },
       delivery: {
-        mergeWatch: { intervalSeconds: 60, maxBudgetSeconds: 7200 },
+        mergeWatch: { maxBudgetSeconds: 7200 },
       },
     });
     assert.equal(ok, true, JSON.stringify(validate.errors));
   });
 
-  it('agentrc.schema rejects non-integer delivery.mergeWatch.intervalSeconds', () => {
+  it('agentrc.schema rejects the folded delivery.mergeWatch.intervalSeconds (Story #5382)', () => {
     const ajv = new Ajv2020({ allErrors: true });
     addFormats(ajv);
     const validate = ajv.compile(AGENTRC_SCHEMA);
@@ -211,7 +211,7 @@ describe('lifecycle/schema-registry', () => {
     assert.equal(ok, false);
   });
 
-  it('agentrc.schema rejects negative delivery.mergeWatch.intervalSeconds', () => {
+  it('agentrc.schema rejects negative delivery.mergeWatch.maxBudgetSeconds', () => {
     const ajv = new Ajv2020({ allErrors: true });
     addFormats(ajv);
     const validate = ajv.compile(AGENTRC_SCHEMA);
@@ -224,7 +224,7 @@ describe('lifecycle/schema-registry', () => {
         },
       },
       delivery: {
-        mergeWatch: { intervalSeconds: -1 },
+        mergeWatch: { maxBudgetSeconds: -1 },
       },
     });
     assert.equal(ok, false);

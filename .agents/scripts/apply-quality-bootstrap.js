@@ -15,7 +15,7 @@
  * `applyQualityBootstrap` — copies the code-quality-guardrails helper,
  * installs the `.husky/pre-commit` quality:preview line, backfills the
  * `quality:preview` / `quality:watch` npm scripts, seeds the
- * `delivery.quality.{codingGuardrails,autoRefresh}` defaults, and prunes a
+ * `delivery.quality.autoRefresh` default, and prunes a
  * committed pre-v2 `baselines/epic/` tree.
  *
  * Story #5007 retired the second step. `migrateBaselinesLayout` relocated

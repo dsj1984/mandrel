@@ -23,13 +23,6 @@ import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 const FIXED_TIMESTAMP = '2026-05-15T00:00:00Z';
 
 const FIXTURES = {
-  lint: {
-    kind: 'lint',
-    rows: [
-      { path: 'src/b.js', errorCount: 0, warningCount: 1 },
-      { path: 'src/a.js', errorCount: 2, warningCount: 0 },
-    ],
-  },
   coverage: {
     kind: 'coverage',
     rows: [
@@ -55,18 +48,6 @@ const FIXTURES = {
   mutation: {
     kind: 'mutation',
     rows: [{ path: 'src/a.js', score: 80, killed: 8, survived: 2 }],
-  },
-  lighthouse: {
-    kind: 'lighthouse',
-    rows: [
-      {
-        route: '/',
-        performance: 90,
-        accessibility: 95,
-        bestPractices: 92,
-        seo: 100,
-      },
-    ],
   },
   'bundle-size': {
     kind: 'bundle-size',
@@ -103,10 +84,14 @@ describe('write() — idempotency', () => {
 
   it('row-order in the input does not affect the output', () => {
     const shuffled = {
-      ...FIXTURES.lint,
-      rows: [...FIXTURES.lint.rows].reverse(),
+      ...FIXTURES.maintainability,
+      rows: [...FIXTURES.maintainability.rows].reverse(),
     };
-    const a = JSON.stringify(buildWithFixedClock(FIXTURES.lint), null, 2);
+    const a = JSON.stringify(
+      buildWithFixedClock(FIXTURES.maintainability),
+      null,
+      2,
+    );
     const b = JSON.stringify(buildWithFixedClock(shuffled), null, 2);
     assert.equal(a, b);
   });
@@ -142,8 +127,8 @@ describe('write() — canonicalisation at the boundary', () => {
     assert.throws(
       () =>
         buildWithFixedClock({
-          kind: 'lint',
-          rows: [{ path: '/abs/path', errorCount: 0, warningCount: 0 }],
+          kind: 'maintainability',
+          rows: [{ path: '/abs/path', mi: 80 }],
         }),
       /absolute paths/,
     );
@@ -153,10 +138,10 @@ describe('write() — canonicalisation at the boundary', () => {
     assert.throws(
       () =>
         buildWithFixedClock({
-          kind: 'lint',
+          kind: 'maintainability',
           rows: [
-            { path: 'src/a.js', errorCount: 0, warningCount: 0 },
-            { path: '/bad', errorCount: 0, warningCount: 0 },
+            { path: 'src/a.js', mi: 80 },
+            { path: '/bad', mi: 80 },
           ],
         }),
       /index 1/,
@@ -166,13 +151,13 @@ describe('write() — canonicalisation at the boundary', () => {
 
 describe('write() — rollup["*"] presence', () => {
   it('emits rollup["*"] even when components is undefined', () => {
-    const env = buildWithFixedClock(FIXTURES.lint);
+    const env = buildWithFixedClock(FIXTURES.maintainability);
     assert.ok(Object.hasOwn(env.rollup, '*'));
   });
 
   it('emits rollup["*"] when components is an empty array', () => {
     const env = write({
-      ...FIXTURES.lint,
+      ...FIXTURES.maintainability,
       components: [],
       generatedAt: FIXED_TIMESTAMP,
     });
@@ -181,7 +166,7 @@ describe('write() — rollup["*"] presence', () => {
 
   it('emits a component bucket alongside "*" when components are supplied', () => {
     const env = write({
-      ...FIXTURES.lint,
+      ...FIXTURES.maintainability,
       components: [{ name: 'core', includes: 'src' }],
       generatedAt: FIXED_TIMESTAMP,
     });
@@ -234,28 +219,36 @@ describe('writeFile()', () => {
   });
 
   it('terminates the file with a trailing newline', () => {
-    const env = buildWithFixedClock(FIXTURES.lint);
-    const filePath = path.join(workDir, 'lint.json');
+    const env = buildWithFixedClock(FIXTURES.maintainability);
+    const filePath = path.join(workDir, 'maintainability.json');
     writeFile(filePath, env);
     const onDisk = readFileSync(filePath, 'utf8');
     assert.equal(onDisk.at(-1), '\n');
   });
 
   it('rejects a relative destination path', () => {
-    const env = buildWithFixedClock(FIXTURES.lint);
-    assert.throws(() => writeFile('baselines/lint.json', env), /absolute path/);
+    const env = buildWithFixedClock(FIXTURES.maintainability);
+    assert.throws(
+      () => writeFile('baselines/maintainability.json', env),
+      /absolute path/,
+    );
   });
 
   it('re-validates the envelope at the disk seam', () => {
-    const env = buildWithFixedClock(FIXTURES.lint);
+    const env = buildWithFixedClock(FIXTURES.maintainability);
     env.kernelVersion = 'not-semver';
-    const filePath = path.join(workDir, 'lint.json');
+    const filePath = path.join(workDir, 'maintainability.json');
     assert.throws(() => writeFile(filePath, env), /schema validation/);
   });
 
   it('creates the parent directory when it does not yet exist', () => {
-    const env = buildWithFixedClock(FIXTURES.lint);
-    const filePath = path.join(workDir, 'nested', 'deep', 'lint.json');
+    const env = buildWithFixedClock(FIXTURES.maintainability);
+    const filePath = path.join(
+      workDir,
+      'nested',
+      'deep',
+      'maintainability.json',
+    );
     assert.doesNotThrow(() => writeFile(filePath, env));
     assert.ok(readFileSync(filePath, 'utf8').length > 0);
   });
@@ -281,11 +274,14 @@ describe('writeFile() — fsImpl seam (Story #2135 / Task #2146)', () => {
   }
 
   it('routes mkdirSync/writeFileSync/renameSync through fsImpl when provided', () => {
-    const env = write({ ...FIXTURES.lint, generatedAt: FIXED_TIMESTAMP });
+    const env = write({
+      ...FIXTURES.maintainability,
+      generatedAt: FIXED_TIMESTAMP,
+    });
     const target = path.join(
       tmpdir(),
       'mandrel-fsimpl-never-touched',
-      'lint.json',
+      'maintainability.json',
     );
     const { calls, impl } = makeRecorder();
     writeFile(target, env, { fsImpl: impl });
@@ -302,7 +298,10 @@ describe('writeFile() — fsImpl seam (Story #2135 / Task #2146)', () => {
   });
 
   it('does not touch disk when fsImpl is supplied', () => {
-    const env = write({ ...FIXTURES.lint, generatedAt: FIXED_TIMESTAMP });
+    const env = write({
+      ...FIXTURES.maintainability,
+      generatedAt: FIXED_TIMESTAMP,
+    });
     // A path that demonstrably does not exist; writing to it via real fs
     // would fail (ENOENT on the parent). With the seam, the test passes.
     const target = path.join(
@@ -310,17 +309,20 @@ describe('writeFile() — fsImpl seam (Story #2135 / Task #2146)', () => {
       'mandrel-fsimpl-no-disk',
       'deep',
       'never',
-      'lint.json',
+      'maintainability.json',
     );
     const { impl } = makeRecorder();
     assert.doesNotThrow(() => writeFile(target, env, { fsImpl: impl }));
   });
 
   it('treats a two-argument call as the default (real fs) path', () => {
-    const env = write({ ...FIXTURES.lint, generatedAt: FIXED_TIMESTAMP });
+    const env = write({
+      ...FIXTURES.maintainability,
+      generatedAt: FIXED_TIMESTAMP,
+    });
     const workDir = makeTempDir('mandrel-writer-bc-');
     try {
-      const target = path.join(workDir, 'lint.json');
+      const target = path.join(workDir, 'maintainability.json');
       assert.doesNotThrow(() => writeFile(target, env));
       assert.ok(readFileSync(target, 'utf8').length > 0);
     } finally {

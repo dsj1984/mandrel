@@ -217,14 +217,14 @@ describe('buildScopeInventory — targetDirs kinds read the gate block', () => {
 
   test('a non-file-keyed kind resolves to no inventory at all', () => {
     const inventory = buildScopeInventory({
-      kind: 'lighthouse',
+      kind: 'bundle-size',
       cwd: fixture({ files: { 'src/a.js': SOURCE } }),
-      quality: { gates: { lighthouse: { targetDirs: ['src'] } } },
+      quality: { gates: { 'bundle-size': { targetDirs: ['src'] } } },
     });
 
     assert.equal(inventory.files, null);
     assert.equal(inventory.degraded, false);
-    assert.equal(inventory.keyField, 'route');
+    assert.equal(inventory.keyField, 'bundle');
     assert.match(inventory.reason, /not file-keyed/);
   });
 });

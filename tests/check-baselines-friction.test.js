@@ -42,12 +42,14 @@ function coverageEnvelope({ rollup, rows, kernelVersion } = {}) {
   };
 }
 
-function lintEnvelope({ rollup, rows, kernelVersion } = {}) {
+function mutationEnvelope({ rollup, rows, kernelVersion } = {}) {
   return {
-    $schema: 'lint.schema.json',
-    kernelVersion: kernelVersion ?? currentKernelVersion('lint'),
+    $schema: 'mutation.schema.json',
+    kernelVersion: kernelVersion ?? currentKernelVersion('mutation'),
     generatedAt: '2026-01-01T00:00:00.000Z',
-    rollup: rollup ?? { '*': { errorCount: 0, warningCount: 0 } },
+    rollup: rollup ?? {
+      '*': { score: 90, killed: 9, survived: 1, noCoverage: 0 },
+    },
     rows: rows ?? [],
   };
 }
@@ -65,7 +67,6 @@ function setupTmpRepo() {
     github: { owner: 'x', repo: 'y', operatorHandle: '@ci' },
     delivery: {
       quality: {
-        gateScoping: { scope: 'diff', diffRef: 'main' },
         gates: {
           coverage: {
             enabled: true,
@@ -73,11 +74,11 @@ function setupTmpRepo() {
             tolerance: { kind: 'absolute', value: 0 },
             floors: { '*': { lines: 90, branches: 85, functions: 90 } },
           },
-          lint: {
+          mutation: {
             enabled: true,
-            baselinePath: 'baselines/lint.json',
+            baselinePath: 'baselines/mutation.json',
             tolerance: { kind: 'absolute', value: 0 },
-            floors: { '*': { errorCount: 0, warningCount: 5 } },
+            floors: { '*': { score: 0 } },
           },
         },
       },
@@ -112,10 +113,9 @@ describe('check-baselines — friction emission (Task #1976)', () => {
       }),
     );
     writeJson(
-      path.join(root, 'baselines', 'lint.json'),
-      lintEnvelope({
-        rollup: { '*': { errorCount: 0, warningCount: 0 } },
-        rows: [{ path: 'src/b.js', errorCount: 5, warningCount: 0 }],
+      path.join(root, 'baselines', 'mutation.json'),
+      mutationEnvelope({
+        rows: [{ path: 'src/b.js', score: 50, killed: 5, survived: 5 }],
       }),
     );
 
@@ -126,9 +126,9 @@ describe('check-baselines — friction emission (Task #1976)', () => {
         rows: [{ path: 'src/a.js', lines: 95, branches: 95, functions: 95 }],
       }),
     );
-    const baseLint = JSON.stringify(
-      lintEnvelope({
-        rows: [{ path: 'src/b.js', errorCount: 0, warningCount: 0 }],
+    const baseMutation = JSON.stringify(
+      mutationEnvelope({
+        rows: [{ path: 'src/b.js', score: 90, killed: 9, survived: 1 }],
       }),
     );
     __setSpawnRunner({
@@ -138,8 +138,8 @@ describe('check-baselines — friction emission (Task #1976)', () => {
         if (spec.endsWith(':baselines/coverage.json')) {
           return { status: 0, stdout: baseCoverage, stderr: '' };
         }
-        if (spec.endsWith(':baselines/lint.json')) {
-          return { status: 0, stdout: baseLint, stderr: '' };
+        if (spec.endsWith(':baselines/mutation.json')) {
+          return { status: 0, stdout: baseMutation, stderr: '' };
         }
         return { status: 128, stdout: '', stderr: 'fatal: not found' };
       },
@@ -156,7 +156,7 @@ describe('check-baselines — friction emission (Task #1976)', () => {
       `expected exactly two regression friction events; got ${regressionEvents.length}: ${JSON.stringify(regressionEvents)}`,
     );
     const kinds = regressionEvents.map((e) => e.kind).sort();
-    assert.deepEqual(kinds, ['coverage', 'lint']);
+    assert.deepEqual(kinds, ['coverage', 'mutation']);
 
     // Canonical payload shape.
     for (const ev of regressionEvents) {
@@ -177,8 +177,8 @@ describe('check-baselines — friction emission (Task #1976)', () => {
       coverageEnvelope({ kernelVersion: '9.9.9' }),
     );
     writeJson(
-      path.join(root, 'baselines', 'lint.json'),
-      lintEnvelope({ kernelVersion: '9.9.9' }),
+      path.join(root, 'baselines', 'mutation.json'),
+      mutationEnvelope({ kernelVersion: '9.9.9' }),
     );
     // Block git so compare emits no regressions.
     __setSpawnRunner({
@@ -191,7 +191,7 @@ describe('check-baselines — friction emission (Task #1976)', () => {
     );
     assert.equal(kernelEvents.length, 2);
     const kinds = kernelEvents.map((e) => e.kind).sort();
-    assert.deepEqual(kinds, ['coverage', 'lint']);
+    assert.deepEqual(kinds, ['coverage', 'mutation']);
     for (const ev of kernelEvents) {
       assert.equal(ev.tool, 'check-baselines');
       assert.equal(ev.severity, 'kernel-mismatch');
@@ -205,9 +205,9 @@ describe('check-baselines — friction emission (Task #1976)', () => {
       $schema: 'coverage.schema.json',
       rows: 'not-an-array',
     });
-    // Lint: also malformed.
-    writeJson(path.join(root, 'baselines', 'lint.json'), {
-      $schema: 'lint.schema.json',
+    // Mutation: also malformed.
+    writeJson(path.join(root, 'baselines', 'mutation.json'), {
+      $schema: 'mutation.schema.json',
       rows: 'not-an-array',
     });
     __setSpawnRunner({
@@ -220,7 +220,7 @@ describe('check-baselines — friction emission (Task #1976)', () => {
     );
     assert.equal(schemaEvents.length, 2);
     const kinds = schemaEvents.map((e) => e.kind).sort();
-    assert.deepEqual(kinds, ['coverage', 'lint']);
+    assert.deepEqual(kinds, ['coverage', 'mutation']);
   });
 
   it('--no-friction suppresses every emission', async () => {
@@ -231,7 +231,10 @@ describe('check-baselines — friction emission (Task #1976)', () => {
         rollup: { '*': { lines: 50, branches: 50, functions: 50 } },
       }),
     );
-    writeJson(path.join(root, 'baselines', 'lint.json'), lintEnvelope());
+    writeJson(
+      path.join(root, 'baselines', 'mutation.json'),
+      mutationEnvelope(),
+    );
     __setSpawnRunner({
       spawn: () => ({ status: 128, stdout: '', stderr: 'no base' }),
     });

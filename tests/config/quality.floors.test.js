@@ -91,28 +91,28 @@ describe('gates.crap.incrementalCoverage (Story #5173)', () => {
     });
   });
 
-  it('AC-2: the deprecated `enabled: true` alias sets both switches', () => {
+  // Story #5382 removed the deprecated `enabled` alias: the schema rejects it,
+  // and a value that reaches the resolver anyway moves neither switch.
+  it('AC-2: the removed `enabled: true` alias sets neither switch', () => {
     assert.deepEqual(resolveCrap({ incrementalCoverage: { enabled: true } }), {
       skipWhenUnchanged: true,
-      baselineJoin: true,
-      baseRef: null,
-    });
-  });
-
-  it('AC-2: `enabled: false` is an explicit opt-out of both', () => {
-    assert.deepEqual(resolveCrap({ incrementalCoverage: { enabled: false } }), {
-      skipWhenUnchanged: false,
       baselineJoin: false,
       baseRef: null,
     });
   });
 
-  it('AC-2: an explicit switch overrides the alias on its own axis only', () => {
+  it('AC-2: the removed `enabled: false` alias opts out of neither', () => {
+    assert.deepEqual(resolveCrap({ incrementalCoverage: { enabled: false } }), {
+      skipWhenUnchanged: true,
+      baselineJoin: false,
+      baseRef: null,
+    });
+  });
+
+  it('AC-2: an explicit switch still overrides its own axis only', () => {
     assert.deepEqual(
-      resolveCrap({
-        incrementalCoverage: { enabled: true, baselineJoin: false },
-      }),
-      { skipWhenUnchanged: true, baselineJoin: false, baseRef: null },
+      resolveCrap({ incrementalCoverage: { baselineJoin: true } }),
+      { skipWhenUnchanged: true, baselineJoin: true, baseRef: null },
     );
   });
 

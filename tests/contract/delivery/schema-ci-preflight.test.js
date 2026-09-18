@@ -40,7 +40,7 @@ describe('contract/delivery/schema-ci-preflight', () => {
       assert.equal(ok, true, JSON.stringify(validate.errors));
     });
 
-    it('accepts delivery.ci.watch poll-loop tuning', () => {
+    it('rejects the folded delivery.ci.watch poll-loop tuning (Story #5382)', () => {
       const validate = getAgentrcValidator();
       const doc = {
         project: MINIMAL_PROJECT,
@@ -50,8 +50,11 @@ describe('contract/delivery/schema-ci-preflight', () => {
           },
         },
       };
-      const ok = validate(doc);
-      assert.equal(ok, true, JSON.stringify(validate.errors));
+      assert.equal(validate(doc), false);
+      assert.ok(
+        validate.errors.some((e) => e.params?.additionalProperty === 'watch'),
+        JSON.stringify(validate.errors),
+      );
     });
 
     it('rejects retired delivery.ci.skipForStoryPushes', () => {
@@ -162,11 +165,11 @@ describe('contract/delivery/schema-ci-preflight', () => {
       assert.equal(merged.autoMerge, 'strict');
     });
 
-    it('getCiDelivery passes through delivery.ci.watch', () => {
+    it('getCiDelivery no longer surfaces delivery.ci.watch (Story #5382)', () => {
       const merged = getCiDelivery({
         delivery: { ci: { watch: { maxPolls: 42 } } },
       });
-      assert.deepEqual(merged.watch, { maxPolls: 42 });
+      assert.equal('watch' in merged, false);
     });
   });
 });

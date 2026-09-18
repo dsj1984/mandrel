@@ -2,8 +2,8 @@
  * Limits accessors (Epic #1720 Story #1739 — top-level reshape).
  *
  * Pre-reshape, every runtime ceiling lived under the legacy `agentSettings.limits.*` bag.
- * Post-reshape, the surviving operator-configurable key is
- * `delivery.execution.timeoutMs` (per-process execution timeout).
+ * The last operator-configurable key, `delivery.execution.timeoutMs`, was
+ * folded into a constant by Story #5382.
  *
  * Dropped entirely: `maxTickets` (Story #5312 — the reviewability budget
  * never fired on a real plan and duplicated the default-single split policy),
@@ -19,48 +19,26 @@
  * v2 cutover; the live bound on planner-context size is the fixed
  * `PLAN_CONTEXT_ENVELOPE_BYTE_CEILING` in `lib/orchestration/plan-context.js`).
  *
- * The historic combined accessor `getLimits(config)` is preserved as a
- * compatibility surface: it returns a wrapper carrying the surviving
- * subset so existing call sites that destructured `getLimits` keep
- * working. New call sites should prefer the specific accessors below.
+ * The historic combined accessor `getLimits()` is preserved as a
+ * compatibility surface so existing call sites that destructured it keep
+ * working.
  */
 
 /**
- * Framework defaults for the surviving limits surface.
+ * The per-process execution timeout (ms) for the long-running spawns
+ * delivery drives. Fixed since Story #5382 folded the never-set
+ * `delivery.execution.timeoutMs` key into it.
  */
 export const LIMITS_DEFAULTS = Object.freeze({
   executionTimeoutMs: 600000,
 });
 
 /**
- * Resolve the surviving limits surface against a `.agentrc.json` shape
- * (post-reshape): `executionTimeoutMs` from `delivery.execution.*`.
+ * Read the limits surface. The config argument is accepted for call-site
+ * compatibility; no limit is operator-configurable any more.
  *
- * @param {object|undefined} config
  * @returns {{ executionTimeoutMs: number }}
  */
-export function resolveLimits(config) {
-  const delivery =
-    config?.delivery && typeof config.delivery === 'object'
-      ? config.delivery
-      : {};
-  const execution =
-    delivery.execution && typeof delivery.execution === 'object'
-      ? delivery.execution
-      : {};
-  return {
-    executionTimeoutMs:
-      execution.timeoutMs ?? LIMITS_DEFAULTS.executionTimeoutMs,
-  };
-}
-
-/**
- * Read the merged limits surface. Accepts the full resolved config bag.
- * Returns the wrapper described in `resolveLimits`.
- *
- * @param {object | null | undefined} config
- * @returns {ReturnType<typeof resolveLimits>}
- */
-export function getLimits(config) {
-  return resolveLimits(config ?? undefined);
+export function getLimits() {
+  return { executionTimeoutMs: LIMITS_DEFAULTS.executionTimeoutMs };
 }

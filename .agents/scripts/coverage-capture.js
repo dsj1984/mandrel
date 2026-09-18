@@ -21,13 +21,11 @@
  *      cost is never paid unannounced.
  *
  * **`--require-credited` is an argument, not a config read (Story #5278).**
- * `delivery.execution.requireCreditedCapture` is a policy about *close*: the
- * close gate must not silently pay for a suite the worker was supposed to
- * have deposited. Reading it here applied the refusal to every invocation
- * including the worker's depositing one, so turning the policy on left no
- * path that could ever deposit and bricked the CRAP gate outright. The policy
- * now lives where it is enforced — `close-validation/gates.js` passes this
- * flag when the consumer sets it — and a bare invocation always runs.
+ * Reading a policy here applied the refusal to every invocation including the
+ * worker's depositing one, which left no path that could ever deposit and
+ * bricked the CRAP gate outright. The flag is an operator opt-in for one
+ * invocation (Story #5382 retired the never-set config key that had close
+ * pass it); a bare invocation always runs.
  *
  * Step 3 is preceded by the changed-file skip when
  * `delivery.quality.gates.crap.incrementalCoverage.skipWhenUnchanged` is on

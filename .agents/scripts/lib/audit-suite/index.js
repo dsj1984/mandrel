@@ -23,7 +23,6 @@ export { buildDispatchChecklist } from './dispatch-checklist.js';
 export {
   countChangedLines,
   evaluateLensDiffFloor,
-  resolveLensDiffFloor,
 } from './lens-diff-floor.js';
 export { runAuditSuite } from './runner.js';
 export {

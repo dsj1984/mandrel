@@ -101,7 +101,7 @@ count the directory, never the plan. The stamp is the operator's record of
 the pass; nothing in the framework reads it back.
 
 The `/mandrel-plan` Phase 0 advisory re-arms on exactly one condition:
-`MEMORY.md` exceeding `planning.memoryPool.indexByteCeiling` (24576) bytes —
+`MEMORY.md` exceeding the fixed 24576-byte index ceiling —
 the harness cap past which the index it loads is truncated. Pool size and
 stamp age never trigger it (Story #5312 retired those arms): a pass that
 rewrites long index lines short quiets it without pruning an entry.

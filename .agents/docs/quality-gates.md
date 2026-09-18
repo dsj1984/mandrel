@@ -1,8 +1,8 @@
 # Quality Gates
 
 This is the consumer-facing reference for the quality gates the framework
-runs against your repo: the lint baseline ratchet, the maintainability
-ratchet, the CRAP per-method gate, the **absolute quality floors**
+runs against your repo: the maintainability ratchet, the CRAP per-method
+gate, the **absolute quality floors**
 (90/85/90 coverage, MI ≥ 70, CRAP ≤ 20), the anti-thrashing protocol,
 and the concurrent close-safety retry that protects Story-branch pushes
 when multiple Stories close in quick succession.
@@ -167,8 +167,8 @@ baseline still trips the gate.
 - **Pre-push** (`.husky/pre-push`): diff-scoped, fast path only —
   `coverage-capture.js` first, then
   `quality-preview.js --changed-since origin/main` (MI + CRAP preview)
-  and `npm run crap:check` (unified dispatcher, diff-scoped via
-  `delivery.quality.gateScoping`). Capture leads because the preview's
+  and `npm run crap:check` (unified dispatcher, diff-scoped against `main`
+  unless `BASELINE_SCOPE` / `BASELINE_REF` say otherwise). Capture leads because the preview's
   CRAP half scores `coverage/coverage-final.json` off disk, so previewing
   first scores whatever artifact an earlier run happened to leave there
   (Story #5356). Full-repo
@@ -252,37 +252,16 @@ the `delivery.acceptanceEval` field reference is in
 
 ---
 
-## Lint baseline ratchet
+## Removed gates — `lint` and `lighthouse`
 
-> Baseline envelope, axes, and component model: see the
-> [Baseline reference](#baseline-reference) section below.
-
-The `lint` baseline kind enforces zero-deterioration during Story
-delivery: `check-baselines.js --gate lint` fails if new lint warnings are
-introduced, and the baseline tightens when the codebase improves.
-
-The canonical baseline file lives at `baselines/lint.json` (override via
-`delivery.quality.gates.lint.baselinePath`).
-
-**There is no framework capture CLI.** Story #5004 retired the
-`lint-baseline.js` shell that used to write this file: it spawned a
-configured lint command and parsed the linter's JSON, a shape only
-ESLint-style output satisfies, and this repo's own `npm run lint`
-(Biome + markdownlint fan-out) never produced it, so the gate was
-configured-but-unfed. A consumer that wants the kind writes
-`baselines/lint.json` from its own linter in the envelope shape documented
-under [Baseline reference](#baseline-reference); a consumer that does not is
-unaffected, because an absent baseline leaves the gate unconfigured.
-
-> **Upgrading?** The `project.commands.lintBaseline` key that fed the retired
-> shell is gone from the config schema, which is `additionalProperties: false`
-> — a `.agentrc.json` still carrying it now **fails validation** rather than
-> being silently ignored. Delete the key.
-
-Refresh commits should use a `baseline-refresh:` subject + non-empty body so
-the operator can spot baseline edits in review — same convention as the CRAP
-and maintainability ratchets. There is no CI guardrail enforcing the
-convention; the operator is the gate.
+Story #5382 removed the `lint` and `lighthouse` baseline gates end to end —
+config schema, baseline kind, baseline schema and registry. Neither had a
+consumer: the framework never shipped a writer for `baselines/lint.json`, and
+the lighthouse gate needed a running deployment no surveyed project wired up.
+`npm run lint` still runs as a close gate; only the *baseline ratchet* over lint
+counts is gone. A `.agentrc.json` still naming either gate fails validation
+with an error naming it; `mandrel update` runs the `strip-removed-agentrc-keys`
+migration first, which deletes the block and reports it.
 
 ---
 
@@ -335,8 +314,7 @@ The scan reuses `delivery.quality.gates.maintainability.targetDirs` /
 `ignoreGlobs` — both instruments read the same coverage-free escomplex
 surface, so a separate scope declaration could only ever restate it.
 
-`cyclomaticFlag` (default `8`) is the one advisory knob: it is not gated, and
-names the ceiling `quality:preview` counts new methods against in its
+The advisory flag (a fixed `8`) is not gated, and names the ceiling `quality:preview` counts new methods against in its
 `new-method count over c=<flag>` column. The preview also lists every scanned
 method at cyclomatic 12 or above as an advisory and exits 0 on it.
 
@@ -715,10 +693,10 @@ Two design constraints are worth knowing before reading a report:
 - **Only dense kinds assert `missing`.** `coverage` and `maintainability`
   emit one row per in-scope file, so a file with no row is a real hole. `crap`
   (per-method, coverage-gated), `duplication` (rows only where clones exist),
-  `lint` and `mutation` are sparse by construction — asserting `missing`
+  and `mutation` are sparse by construction — asserting `missing`
   against them yields hundreds of phantom findings on a healthy tree, so they
-  assert `extra` only. `lighthouse` (`route`) and `bundle-size` (`bundle`) are
-  not file-keyed and are excluded from both.
+  assert `extra` only. `bundle-size` (`bundle`) is not file-keyed and is
+  excluded from both.
 - **A PR is blocked only for divergence it created.** Whole-tree equality
   would red every open PR the moment anyone lands an in-scope file, so the
   gate blocks on divergence attributable to `merge-base(base, HEAD)..HEAD` and
@@ -840,8 +818,8 @@ sole runtime HITL pause point is `agent::blocked`. The full model is owned by
 ## Baseline reference
 
 This is the authoritative reference for the canonical baseline shape used
-by every quality gate in the framework — `lint`, `coverage`, `crap`,
-`maintainability`, `mutation`, `lighthouse`, and `bundle-size`. It covers
+by every quality gate in the framework — `coverage`, `crap`,
+`maintainability`, `mutation`, `bundle-size`, and `duplication`. It covers
 the envelope, the per-kind shapes, the component model, how paths are
 canonicalised, the writer/reader contract, how consumers override floors,
 and how kernel-version drift surfaces as friction. The runbook sections
@@ -950,17 +928,15 @@ authoritative declarations live in the per-kind modules at
 
 | Kind              | Key field | Row axes                                                       | Rollup axes                              |
 | ----------------- | --------- | -------------------------------------------------------------- | ---------------------------------------- |
-| `lint`            | `path`    | `errorCount`, `warningCount`                                   | `errorCount`, `warningCount`             |
 | `coverage`        | `path`    | `lines`, `branches`, `functions`, `statements`                 | `lines`, `branches`, `functions`         |
 | `crap`            | `path`    | `method`, `startLine`, `crap`                                  | `max`, `p95`, `methodsAboveCeiling`      |
 | `maintainability` | `path`    | `maintainability`                                              | `min`, `p50`, `p95`                      |
 | `mutation`        | `path`    | `score`, `killed`, `survived`, `noCoverage`, `timeout`, `total`| `score`, `survived`, `noCoverage`        |
-| `lighthouse`      | `route`   | `route`, `performance`, `accessibility`, `bestPractices`, `seo`| per-category scores                      |
 | `bundle-size`     | `bundle`  | `bundle`, `bytes`, `gzippedBytes`                              | `bytes`, `gzippedBytes`                  |
 
 The `keyField` is the per-row identifier the writer canonicalises and the
-component grouper matches against (see below). Lighthouse keys rows on
-`route`; bundle-size keys on `bundle`; every other kind keys on `path`.
+component grouper matches against (see below). Bundle-size keys rows on
+`bundle`; every other kind keys on `path`.
 
 ### Component model
 
@@ -1042,7 +1018,7 @@ Every gate reads through this module — the unified
 [`check-baselines.js`](../scripts/check-baselines.js) dispatcher
 (whose per-kind gate logic lives in
 [`.agents/scripts/lib/baselines/kinds/`](../scripts/lib/baselines/kinds/)
-— `lint.js`, `coverage.js`, `crap.js`, `maintainability.js`,
+— `coverage.js`, `crap.js`, `maintainability.js`,
 `mutation.js`, etc.), the audit-suite delta emitter, and the
 per-component drift signals. No gate opens
 `JSON.parse(readFileSync(...))` of a baseline directly.
@@ -1169,8 +1145,6 @@ Refresh paths:
   `baselines/crap.json`.
 - `node .agents/scripts/update-maintainability-baseline.js` — rewrites
   `baselines/maintainability.json`.
-- `baselines/lint.json` has no framework refresh CLI — see
-  [Lint baseline ratchet](#lint-baseline-ratchet).
 
 After a kernel bump, regenerate every baseline whose `kernelVersion`
 drifted, then commit the refreshed files. The writer guarantees

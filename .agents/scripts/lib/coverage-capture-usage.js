@@ -37,7 +37,7 @@ const COVERAGE_CAPTURE_USAGE = {
     ],
     [
       '--require-credited',
-      'Refuse (exit 1) instead of spawning when no credited capture stamp covers this tree. Passed by the close gate when delivery.execution.requireCreditedCapture is set; a bare invocation always runs, so the deposit path stays open.',
+      'Refuse (exit 1) instead of spawning when no credited capture stamp covers this tree. An operator opt-in for one invocation; a bare invocation always runs, so the deposit path stays open.',
     ],
     [
       '--ref <git-ref>',

@@ -58,7 +58,7 @@ function dispatchPerKind({ wanted, quality, env, cwd, configPath }) {
   return Promise.all(
     wanted.map((kind) => {
       const gateBlock = quality.gates[kind];
-      const scope = resolveDispatchScope({ kind, quality, env });
+      const scope = resolveDispatchScope({ kind, env });
       return evaluateKind({ kind, gateBlock, scope, cwd, configPath, env });
     }),
   );

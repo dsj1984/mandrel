@@ -25,12 +25,9 @@ function baselineRelativePath(kind, gateBlock) {
   return configured ?? DEFAULT_BASELINE_PATHS[kind];
 }
 
-export function resolveDispatchScope({ kind, quality, env }) {
-  const cfg = quality?.gateScoping ?? {};
+export function resolveDispatchScope({ kind, env }) {
   return resolveScope({
     kind,
-    configScope: cfg.scope,
-    configRef: cfg.diffRef,
     envScope: env?.BASELINE_SCOPE,
     envRef: env?.BASELINE_REF,
   });

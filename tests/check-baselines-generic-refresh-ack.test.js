@@ -57,7 +57,6 @@ function setupTmpRepo({ floors } = {}) {
     github: { owner: 'x', repo: 'y', operatorHandle: '@ci' },
     delivery: {
       quality: {
-        gateScoping: { scope: 'diff', diffRef: 'main' },
         gates: {
           coverage: {
             enabled: true,
@@ -277,7 +276,6 @@ describe('check-baselines — generic refresh acknowledgment (#4802)', () => {
       github: { owner: 'x', repo: 'y', operatorHandle: '@ci' },
       delivery: {
         quality: {
-          gateScoping: { scope: 'diff', diffRef: 'main' },
           gates: {
             // No baselinePath — the default (baselines/coverage.json) applies.
             coverage: {
@@ -685,7 +683,6 @@ function setupDupRepo() {
     github: { owner: 'x', repo: 'y', operatorHandle: '@ci' },
     delivery: {
       quality: {
-        gateScoping: { scope: 'diff', diffRef: 'main' },
         gates: {
           duplication: {
             enabled: true,
@@ -856,7 +853,6 @@ function setupCrapRepo() {
     github: { owner: 'x', repo: 'y', operatorHandle: '@ci' },
     delivery: {
       quality: {
-        gateScoping: { scope: 'diff', diffRef: 'main' },
         gates: {
           crap: {
             enabled: true,

@@ -446,24 +446,15 @@ function coverageCaptureRunsSuite({
 }
 
 /**
- * The `coverage-capture` gate's argv.
- *
- * Story #5278 — `--require-credited` is passed here, and only here, when the
- * consumer has set `delivery.execution.requireCreditedCapture`. The CLI no
- * longer reads that key, so the worker's pre-push deposit invocation always
- * runs while the close gate refuses to pay for a suite the worker should
- * already have banked.
- *
- * @param {object} [config]
- * @returns {string[]}
+ * The `coverage-capture` gate's argv. Story #5278 added an opt-in
+ * `--require-credited` refusal here, keyed on
+ * `delivery.execution.requireCreditedCapture`; Story #5382 folded that
+ * never-set key away, so close always runs the capture it is owed. The CLI
+ * flag stays for an operator who wants the refusal on one invocation.
  */
-function buildCoverageCaptureArgs(config) {
-  const args = ['.agents/scripts/coverage-capture.js'];
-  if (config?.delivery?.execution?.requireCreditedCapture === true) {
-    args.push('--require-credited');
-  }
-  return args;
-}
+const COVERAGE_CAPTURE_ARGS = Object.freeze([
+  '.agents/scripts/coverage-capture.js',
+]);
 
 /** The close gate that replays the `pre-push` hook's CRAP-scope preview. */
 const QUALITY_PREVIEW_GATE_NAME = 'quality-preview';
@@ -663,7 +654,7 @@ export function buildDefaultGates({
           {
             name: 'coverage-capture',
             cmd: 'node',
-            args: buildCoverageCaptureArgs(config),
+            args: [...COVERAGE_CAPTURE_ARGS],
             hint: 'Coverage capture failed — `npm run test:coverage` exited non-zero. Fix failing tests or coverage-threshold breaches, then re-run close.',
             ...(captureSkipPredicted
               ? { skip: { reason: 'incremental-no-crap-changes' } }

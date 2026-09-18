@@ -2,9 +2,8 @@
  * `delivery.quality` accessor (Epic #1720 Story #1737 — uniform gate shape).
  *
  * The quality block under `delivery.quality.*` is now organised as a
- * `gates.<tier>` object where every tier (lint, coverage, crap,
- * maintainability, mutation, lighthouse, bundle-size) shares the same
- * four-field base:
+ * `gates.<tier>` object where every tier (coverage, crap, maintainability,
+ * mutation, bundle-size, duplication) shares the same four-field base:
  *
  *   - `enabled`      — when `false`, the checker exits 0 with a skip line.
  *   - `baselinePath` — repo-root-relative path to the gate's baseline file.
@@ -13,10 +12,9 @@
  *
  * Story #1737 changes (vs the Story #1739 mechanical relocation):
  *
- *   - `gateScoping` is the single source of truth for diff scope / ref.
- *     The duplicate `defaultScope` / `diffRef` keys on crap and
- *     maintainability are gone — resolvers carry the scope through from
- *     the lifted block.
+ *   - Diff scope / ref is one fixed constant (`GATE_SCOPING`, Story #5382
+ *     folded the never-set `gateScoping` config block into it) — resolvers
+ *     carry it through to crap and maintainability.
  *   - Scalar `tolerance` values became `{ kind, value }` objects.
  *   - `coveragePath` moved from `gates.crap` to `gates.coverage`. CRAP
  *     reads from the coverage gate instead of carrying its own.
@@ -33,7 +31,21 @@
 import { Logger } from '../Logger.js';
 import { resolveListValue } from './shared.js';
 
-const DEFAULT_GATE_SCOPING = Object.freeze({ scope: 'diff', diffRef: 'main' });
+/**
+ * Story #5382 — the tuning constants below replaced `.agentrc` keys no
+ * surveyed config ever set (`gateScoping.*`, the crap/MI refresh tag,
+ * `coverage.timeoutMs`, the `codingGuardrails` and
+ * `autoRefresh` tuning, `baselineEpsilon.*`). Each is the value the key's
+ * default always resolved to, so behaviour is unchanged;
+ * `lib/migrations/steps/strip-removed-agentrc-keys.js` strips a leftover key
+ * from a consumer config and names the constant that replaced it. The crap/MI
+ * `refreshTimeoutMs` and `crap.friction.markerKey` keys had no reader at all
+ * and were dropped outright.
+ */
+const GATE_SCOPING = Object.freeze({ scope: 'diff', diffRef: 'main' });
+
+/** Commit-subject substring acknowledging a deliberate baseline refresh. */
+const BASELINE_REFRESH_TAG = 'baseline-refresh:';
 
 /**
  * Default object-shape tolerance for each gate. Values match the historical
@@ -105,13 +117,7 @@ export const CRAP_GATE_DEFAULTS = Object.freeze({
   targetDirs: Object.freeze(['src']),
   newMethodCeiling: 30,
   requireCoverage: true,
-  friction: Object.freeze({ markerKey: 'crap-baseline-regression' }),
-  refreshTag: 'baseline-refresh:',
-  // Story #2165 — bounded timeout (ms) for `npm run crap:update` spawned by
-  // the baseline-attribution refresh path. Defaults to 60 s; mirrors
-  // `gates.coverage.timeoutMs` (Story #2142) for shape and SIGKILL → 124
-  // semantics.
-  refreshTimeoutMs: 60_000,
+  refreshTag: BASELINE_REFRESH_TAG,
   ignoreGlobs: Object.freeze([]),
   // Story #4775 — fail-closed floor on the per-method coverage JOIN. The
   // fraction of methods that must resolve a coverage entry, counted only over
@@ -151,10 +157,7 @@ export const MAINTAINABILITY_GATE_DEFAULTS = Object.freeze({
   // (floors still enforced) when a range commit carrying this tag touches the
   // baseline file. Kept identical to the CRAP default so one refresh commit
   // can acknowledge both gates.
-  refreshTag: 'baseline-refresh:',
-  // Story #2165 — bounded timeout (ms) for `npm run maintainability:update`
-  // spawned by the baseline-attribution refresh path. Defaults to 60 s.
-  refreshTimeoutMs: 60_000,
+  refreshTag: BASELINE_REFRESH_TAG,
   ignoreGlobs: Object.freeze([]),
   // Story #4775 — fail-closed floor on the per-method coverage JOIN. The
   // fraction of methods that must resolve a coverage entry, counted only over
@@ -167,15 +170,6 @@ export const MAINTAINABILITY_GATE_DEFAULTS = Object.freeze({
   minMethodResolutionRate: 0.75,
 });
 
-/**
- * Story #2165 — framework defaults for the close-time `npx biome format
- * --write` autofix spawn. The SIGKILL → exit 124 mapping mirrors
- * `gates.coverage.timeoutMs` (Story #2142).
- */
-const FORMAT_AUTOFIX_DEFAULTS = Object.freeze({
-  timeoutMs: 60_000,
-});
-
 const CRAP_GATE_KEYS = new Set([
   'enabled',
   'baselinePath',
@@ -184,9 +178,6 @@ const CRAP_GATE_KEYS = new Set([
   'targetDirs',
   'newMethodCeiling',
   'requireCoverage',
-  'friction',
-  'refreshTag',
-  'refreshTimeoutMs',
   'ignoreGlobs',
   'minMethodResolutionRate',
   'incrementalCoverage',
@@ -198,7 +189,6 @@ const COVERAGE_GATE_KEYS = new Set([
   'tolerance',
   'floors',
   'coveragePath',
-  'timeoutMs',
 ]);
 
 const MI_GATE_KEYS = new Set([
@@ -207,8 +197,6 @@ const MI_GATE_KEYS = new Set([
   'tolerance',
   'floors',
   'targetDirs',
-  'refreshTag',
-  'refreshTimeoutMs',
   'ignoreGlobs',
 ]);
 
@@ -244,10 +232,9 @@ function warnUnknownKeys(userBlock, knownKeys, blockLabel) {
 /**
  * Resolve the CRAP gate. Accepts both the new `gates.crap.*` shape and
  * the resolved `coverage` gate (for the `coveragePath` cross-read). The
- * lifted `gateScoping` carries the diff scope and ref.
+ * fixed `GATE_SCOPING` carries the diff scope and ref.
  *
  * @param {object | undefined} userCrap raw `delivery.quality.gates.crap`
- * @param {{ scope: string, diffRef: string }} gateScoping resolved scoping
  * @param {{ coveragePath: string }} coverageGate resolved coverage gate
  * @returns {object} flattened legacy-bag view that existing callers read
  */
@@ -270,24 +257,20 @@ function resolveResolutionRate(value, fallback) {
 /**
  * Resolve `gates.crap.incrementalCoverage` (Story #4981, split by #5173).
  *
- * Precedence, lowest to highest: the framework defaults
- * (`skipWhenUnchanged: true`, `baselineJoin: false`), then the deprecated
- * `enabled` alias which sets **both** switches to its value, then either
- * explicit switch. A malformed or absent user block resolves to the defaults,
- * so a consumer that never sets the key inherits the saving without the
- * loosening.
+ * Each explicit switch overrides its framework default (`skipWhenUnchanged:
+ * true`, `baselineJoin: false`); a malformed or absent user block resolves to
+ * the defaults, so a consumer that never sets the key inherits the saving
+ * without the loosening. The deprecated `enabled` alias that set both was
+ * removed in Story #5382.
  *
- * @param {{ skipWhenUnchanged?: boolean, baselineJoin?: boolean, enabled?: boolean, baseRef?: string } | undefined} user
+ * @param {{ skipWhenUnchanged?: boolean, baselineJoin?: boolean, baseRef?: string } | undefined} user
  * @param {{ skipWhenUnchanged: boolean, baselineJoin: boolean, baseRef: string | null }} defaults
  * @returns {{ skipWhenUnchanged: boolean, baselineJoin: boolean, baseRef: string | null }}
  */
 function resolveIncrementalCoverage(user, defaults) {
   if (user == null || typeof user !== 'object') return { ...defaults };
-  const alias = typeof user.enabled === 'boolean' ? user.enabled : null;
-  const pick = (explicit, fallback) => {
-    if (typeof explicit === 'boolean') return explicit;
-    return alias === null ? fallback : alias;
-  };
+  const pick = (explicit, fallback) =>
+    typeof explicit === 'boolean' ? explicit : fallback;
   return {
     skipWhenUnchanged: pick(user.skipWhenUnchanged, defaults.skipWhenUnchanged),
     baselineJoin: pick(user.baselineJoin, defaults.baselineJoin),
@@ -298,17 +281,14 @@ function resolveIncrementalCoverage(user, defaults) {
   };
 }
 
-export function resolveMaintainabilityCrap(
-  userCrap,
-  gateScoping,
-  coverageGate,
-) {
+export function resolveMaintainabilityCrap(userCrap, coverageGate) {
   const defaults = CRAP_GATE_DEFAULTS;
-  const scoping = {
-    defaultScope: gateScoping?.scope ?? DEFAULT_GATE_SCOPING.scope,
-    diffRef: gateScoping?.diffRef ?? DEFAULT_GATE_SCOPING.diffRef,
-  };
   const coverage = coverageGate ?? COVERAGE_GATE_DEFAULTS;
+  const fixed = {
+    refreshTag: defaults.refreshTag,
+    defaultScope: GATE_SCOPING.scope,
+    diffRef: GATE_SCOPING.diffRef,
+  };
   if (userCrap == null || typeof userCrap !== 'object') {
     return {
       enabled: defaults.enabled,
@@ -321,13 +301,9 @@ export function resolveMaintainabilityCrap(
       ),
       requireCoverage: defaults.requireCoverage,
       minMethodResolutionRate: defaults.minMethodResolutionRate,
-      friction: { ...defaults.friction },
-      refreshTag: defaults.refreshTag,
-      refreshTimeoutMs: defaults.refreshTimeoutMs,
       ignoreGlobs: [...defaults.ignoreGlobs],
       incrementalCoverage: { ...defaults.incrementalCoverage },
-      defaultScope: scoping.defaultScope,
-      diffRef: scoping.diffRef,
+      ...fixed,
     };
   }
 
@@ -347,12 +323,6 @@ export function resolveMaintainabilityCrap(
       userCrap.minMethodResolutionRate,
       defaults.minMethodResolutionRate,
     ),
-    friction: { ...defaults.friction, ...(userCrap.friction ?? {}) },
-    refreshTag: userCrap.refreshTag ?? defaults.refreshTag,
-    refreshTimeoutMs: resolvePositiveIntegerMs(
-      userCrap.refreshTimeoutMs,
-      defaults.refreshTimeoutMs,
-    ),
     ignoreGlobs: Array.isArray(userCrap.ignoreGlobs)
       ? userCrap.ignoreGlobs.slice()
       : [...defaults.ignoreGlobs],
@@ -360,48 +330,35 @@ export function resolveMaintainabilityCrap(
       userCrap.incrementalCoverage,
       defaults.incrementalCoverage,
     ),
-    defaultScope: scoping.defaultScope,
-    diffRef: scoping.diffRef,
+    ...fixed,
   };
 }
 
 /**
  * Resolve the maintainability gate. Returns the legacy-bag shape with
- * `targetDirs` + a scalar `tolerance` (when set) + scoping inherited
- * from `gateScoping`.
+ * `targetDirs` + a scalar `tolerance` (when set) + the fixed scoping.
  */
-function resolveMaintainabilityQuality(userBlock, gateScoping) {
+function resolveMaintainabilityQuality(userBlock) {
   const defaults = MAINTAINABILITY_GATE_DEFAULTS;
-  const scoping = {
-    defaultScope: gateScoping?.scope ?? DEFAULT_GATE_SCOPING.scope,
-    diffRef: gateScoping?.diffRef ?? DEFAULT_GATE_SCOPING.diffRef,
+  const fixed = {
+    refreshTag: defaults.refreshTag,
+    defaultScope: GATE_SCOPING.scope,
+    diffRef: GATE_SCOPING.diffRef,
   };
   if (userBlock == null || typeof userBlock !== 'object') {
     return {
       targetDirs: [...defaults.targetDirs],
-      refreshTag: defaults.refreshTag,
-      refreshTimeoutMs: defaults.refreshTimeoutMs,
       ignoreGlobs: [...defaults.ignoreGlobs],
-      defaultScope: scoping.defaultScope,
-      diffRef: scoping.diffRef,
+      ...fixed,
     };
   }
   warnUnknownKeys(userBlock, MI_GATE_KEYS, 'quality.gates.maintainability');
   const out = {
     targetDirs: resolveListValue(defaults.targetDirs, userBlock.targetDirs),
-    refreshTag:
-      typeof userBlock.refreshTag === 'string' && userBlock.refreshTag.length
-        ? userBlock.refreshTag
-        : defaults.refreshTag,
-    refreshTimeoutMs: resolvePositiveIntegerMs(
-      userBlock.refreshTimeoutMs,
-      defaults.refreshTimeoutMs,
-    ),
     ignoreGlobs: Array.isArray(userBlock.ignoreGlobs)
       ? userBlock.ignoreGlobs.slice()
       : [...defaults.ignoreGlobs],
-    defaultScope: scoping.defaultScope,
-    diffRef: scoping.diffRef,
+    ...fixed,
   };
   if (userBlock.tolerance !== undefined) {
     out.tolerance = toleranceScalar(
@@ -412,46 +369,7 @@ function resolveMaintainabilityQuality(userBlock, gateScoping) {
   return out;
 }
 
-/**
- * Story #2165 — accept a user-supplied positive-integer ms budget, falling
- * back to `defaultMs` when the value is missing, non-integer, or non-positive.
- * Mirrors the inlined guard in `resolveCoverageGate`.
- *
- * @param {*} value
- * @param {number} defaultMs
- * @returns {number}
- */
-function resolvePositiveIntegerMs(value, defaultMs) {
-  if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
-    return value;
-  }
-  return defaultMs;
-}
-
-/**
- * Story #2165 — resolve `delivery.quality.formatAutofix`. Owns the bounded
- * timeout for the close-time `npx biome format --write` spawn.
- *
- * @param {object | undefined} userBlock
- * @returns {{ timeoutMs: number }}
- */
-const FORMAT_AUTOFIX_KEYS = new Set(['timeoutMs']);
-
-function resolveFormatAutofix(userBlock) {
-  const defaults = FORMAT_AUTOFIX_DEFAULTS;
-  if (userBlock == null || typeof userBlock !== 'object') {
-    return { timeoutMs: defaults.timeoutMs };
-  }
-  warnUnknownKeys(userBlock, FORMAT_AUTOFIX_KEYS, 'quality.formatAutofix');
-  return {
-    timeoutMs: resolvePositiveIntegerMs(
-      userBlock.timeoutMs,
-      defaults.timeoutMs,
-    ),
-  };
-}
-
-/** Resolve the coverage gate. Owns `coveragePath` and `timeoutMs`. */
+/** Resolve the coverage gate. Owns `coveragePath` and the fixed `timeoutMs`. */
 function resolveCoverageGate(userBlock) {
   const defaults = COVERAGE_GATE_DEFAULTS;
   if (userBlock == null || typeof userBlock !== 'object') {
@@ -472,109 +390,53 @@ function resolveCoverageGate(userBlock) {
       userBlock.tolerance,
       toleranceScalar(defaults.tolerance, 0),
     ),
-    timeoutMs:
-      typeof userBlock.timeoutMs === 'number' &&
-      Number.isInteger(userBlock.timeoutMs) &&
-      userBlock.timeoutMs > 0
-        ? userBlock.timeoutMs
-        : defaults.timeoutMs,
+    timeoutMs: defaults.timeoutMs,
   };
 }
 
 /**
- * Framework defaults for `delivery.quality.codingGuardrails`.
- *
- * `miDropMustRefactor` was retired in Story #4531: schema-validated,
- * defaulted, and resolved, but never consumed — the gate it named
- * (`quality-preview.js`'s `computeExitCode`) short-circuits on `miExit`
- * (derived from the already-consumed `gates.maintainability.tolerance`)
- * before this value is ever read. `maintainability.tolerance` is the one
- * documented MI-drop control now; see `lib/migrations/index.js` for the
- * consumer-config migration that strips a leftover key on upgrade.
- *
- * `cyclomaticMustFix` was retired in Story #5313: the cyclomatic ratchet
- * (`check-cyclomatic.js`) keeps a fixed ceiling of 12
- * (`lib/cyclomatic-ceiling.js#CYCLOMATIC_CEILING`), and `cyclomaticFlag` is
- * the one advisory knob left — `quality-preview.js` reports over-flag
- * methods without failing on them.
+ * Authoring-time cyclomatic advisory thresholds (Story #5382 folded the
+ * never-set `delivery.quality.codingGuardrails` block into this constant).
+ * `cyclomaticFlag` is the advisory knob `quality-preview.js` reports over-flag
+ * methods against without failing on them; the ratchet ceiling is fixed in
+ * `lib/cyclomatic-ceiling.js#CYCLOMATIC_CEILING`. `requireSiblingTest` stays
+ * off: nothing enforces a colocated test.
  */
-export const CODING_GUARDRAILS_DEFAULTS = Object.freeze({
+export const CODING_GUARDRAILS = Object.freeze({
   cyclomaticFlag: 8,
   requireSiblingTest: false,
 });
 
-const CODING_GUARDRAILS_KEYS = new Set(Object.keys(CODING_GUARDRAILS_DEFAULTS));
-
-export function resolveCodingGuardrails(userBlock) {
-  const defaults = CODING_GUARDRAILS_DEFAULTS;
-  if (userBlock == null || typeof userBlock !== 'object') {
-    return { ...defaults };
-  }
-  warnUnknownKeys(
-    userBlock,
-    CODING_GUARDRAILS_KEYS,
-    'quality.codingGuardrails',
-  );
-  return {
-    cyclomaticFlag: userBlock.cyclomaticFlag ?? defaults.cyclomaticFlag,
-    requireSiblingTest:
-      typeof userBlock.requireSiblingTest === 'boolean'
-        ? userBlock.requireSiblingTest
-        : defaults.requireSiblingTest,
-  };
-}
-
-// autoRefresh.miDropCap was retired alongside codingGuardrails.
-// miDropMustRefactor in Story #4531 — same unconsumed-knob shape, same fix.
+/**
+ * Baseline-attribution auto-refresh. Only `enabled` is an operator switch;
+ * the jump cap and the rescore scope are fixed (Story #5382).
+ */
 const AUTO_REFRESH_DEFAULTS = Object.freeze({
   enabled: true,
   crapJumpCap: 5,
   scope: 'diff',
 });
 
-const AUTO_REFRESH_KEYS = new Set(Object.keys(AUTO_REFRESH_DEFAULTS));
-
 function resolveAutoRefresh(userBlock) {
-  const defaults = AUTO_REFRESH_DEFAULTS;
-  if (userBlock == null || typeof userBlock !== 'object') {
-    return {
-      enabled: defaults.enabled,
-      crapJumpCap: defaults.crapJumpCap,
-      scope: defaults.scope,
-    };
-  }
-
-  warnUnknownKeys(userBlock, AUTO_REFRESH_KEYS, 'quality.autoRefresh');
-
   return {
+    ...AUTO_REFRESH_DEFAULTS,
     enabled:
-      typeof userBlock.enabled === 'boolean'
+      typeof userBlock?.enabled === 'boolean'
         ? userBlock.enabled
-        : defaults.enabled,
-    crapJumpCap:
-      typeof userBlock.crapJumpCap === 'number' &&
-      Number.isFinite(userBlock.crapJumpCap) &&
-      userBlock.crapJumpCap >= 0
-        ? userBlock.crapJumpCap
-        : defaults.crapJumpCap,
-    scope:
-      userBlock.scope === 'diff' || userBlock.scope === 'full'
-        ? userBlock.scope
-        : defaults.scope,
+        : AUTO_REFRESH_DEFAULTS.enabled,
   };
 }
 
 /**
  * Resolve the merged baselines block. Baselines now live alongside their
  * gates (`gates.<tier>.baselinePath`); this helper preserves the
- * historical flat `baselines.{lint, crap, maintainability}` shape so
+ * historical flat `baselines.{crap, maintainability}` shape so
  * existing readers (`getBaselines(config)` in `config-resolver.js`)
  * stay untouched. Each entry is synthesised from the resolved gate's
  * `baselinePath`.
  */
 function resolveBaselinesFromGates(gates) {
   return {
-    lint: { path: gates?.lint?.baselinePath ?? 'baselines/lint.json' },
     crap: {
       path: gates?.crap?.baselinePath ?? CRAP_GATE_DEFAULTS.baselinePath,
     },
@@ -591,7 +453,7 @@ function resolveBaselinesFromGates(gates) {
  *
  * Returns the historical flattened bag (so the existing call sites that
  * read `q.crap.coveragePath`, `q.maintainability.targetDirs`, etc. keep
- * working) plus the new `gates` resolved object and `gateScoping`.
+ * working) plus the new `gates` resolved object.
  *
  * @param {object|undefined} userQuality
  */
@@ -666,106 +528,48 @@ export function resolveQuality(userQuality) {
     userQuality && typeof userQuality === 'object' ? userQuality : {};
   const gates =
     block.gates && typeof block.gates === 'object' ? block.gates : {};
-  const gateScoping = {
-    scope: block.gateScoping?.scope ?? DEFAULT_GATE_SCOPING.scope,
-    diffRef: block.gateScoping?.diffRef ?? DEFAULT_GATE_SCOPING.diffRef,
-  };
   const coverage = resolveCoverageGate(gates.coverage);
   const resolvedGates = resolveGatesWithFloors(gates);
   return {
-    maintainability: resolveMaintainabilityQuality(
-      gates.maintainability,
-      gateScoping,
-    ),
-    crap: resolveMaintainabilityCrap(gates.crap, gateScoping, coverage),
+    maintainability: resolveMaintainabilityQuality(gates.maintainability),
+    crap: resolveMaintainabilityCrap(gates.crap, coverage),
     coverage,
     baselines: resolveBaselinesFromGates(gates),
-    codingGuardrails: resolveCodingGuardrails(block.codingGuardrails),
+    codingGuardrails: { ...CODING_GUARDRAILS },
     autoRefresh: resolveAutoRefresh(block.autoRefresh),
-    baselineEpsilon: resolveBaselineEpsilon(block.baselineEpsilon),
-    // Story #2165 — `delivery.quality.formatAutofix.timeoutMs` for the
-    // close-time `npx biome format --write` spawn.
-    formatAutofix: resolveFormatAutofix(block.formatAutofix),
-    gateScoping,
+    baselineEpsilon: { ...BASELINE_EPSILON },
     gates: resolvedGates,
   };
 }
 
 /**
- * Framework defaults for `delivery.quality.baselineEpsilon` (Story #1964 —
- * s-stability-epsilon). The writer folds sub-epsilon row deltas back to
- * the prior bytes so env variance never rewrites the on-disk baseline.
- *
- * Defaults match the AC: MI 0.5, CRAP 0.5, coverage 0.1, mutation 0.5,
- * lint 0 (counts are integer), lighthouse 1, bundle-size 1024 (bytes),
- * duplication 0.5 (percentage points, Story #3664).
+ * Per-kind baseline epsilon (Story #1964 — s-stability-epsilon). The writer
+ * folds sub-epsilon row deltas back to the prior bytes so env variance never
+ * rewrites the on-disk baseline. MI 0.5, CRAP 0.5, coverage 0.1, mutation
+ * 0.5, bundle-size 1024 (bytes), duplication 0.5 (percentage points). Fixed
+ * constants since Story #5382 folded the never-set
+ * `delivery.quality.baselineEpsilon` block.
  */
-export const BASELINE_EPSILON_DEFAULTS = Object.freeze({
+const BASELINE_EPSILON = Object.freeze({
   maintainability: 0.5,
   crap: 0.5,
   coverage: 0.1,
   mutation: 0.5,
-  lint: 0,
-  lighthouse: 1,
   'bundle-size': 1024,
   duplication: 0.5,
 });
 
-const BASELINE_EPSILON_KINDS = new Set(Object.keys(BASELINE_EPSILON_DEFAULTS));
-
 /**
- * Resolve the merged `delivery.quality.baselineEpsilon` block. Returns a
- * frozen per-kind map keyed by the same kind names used by the per-kind
- * modules. Unknown keys raise a warning. Negative or non-numeric overrides
- * throw an `EXIT_CONFIG`-style error so a misconfigured project halts at
- * startup rather than silently dropping the override.
- *
- * @param {object | undefined} userBlock
- * @returns {{ [kind: string]: number }}
- */
-function assertEpsilonValue(kind, v) {
-  if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) {
-    const err = new Error(
-      `[config] quality.baselineEpsilon.${kind} must be a non-negative finite number (got ${JSON.stringify(v)})`,
-    );
-    err.code = 'EXIT_CONFIG';
-    err.exitCode = 3;
-    throw err;
-  }
-}
-
-export function resolveBaselineEpsilon(userBlock) {
-  if (userBlock == null || typeof userBlock !== 'object') {
-    return { ...BASELINE_EPSILON_DEFAULTS };
-  }
-  warnUnknownKeys(userBlock, BASELINE_EPSILON_KINDS, 'quality.baselineEpsilon');
-  const out = { ...BASELINE_EPSILON_DEFAULTS };
-  for (const kind of BASELINE_EPSILON_KINDS) {
-    if (!Object.hasOwn(userBlock, kind)) continue;
-    assertEpsilonValue(kind, userBlock[kind]);
-    out[kind] = userBlock[kind];
-  }
-  return out;
-}
-
-/**
- * Convenience accessor: resolve a single kind's epsilon from a config
- * (project override or framework default). Returns the framework default
- * when the user block is absent or omits the kind. Throws when the kind
- * is unknown.
+ * One kind's baseline epsilon. Throws when the kind is unknown.
  *
  * @param {string} kind
- * @param {object | null | undefined} config full resolved config OR
- *   a `{ delivery: { quality: ... } }` / `{ quality: ... }` shape.
  * @returns {number}
  */
-export function getBaselineEpsilon(kind, config) {
-  if (!BASELINE_EPSILON_KINDS.has(kind)) {
+export function getBaselineEpsilon(kind) {
+  if (!Object.hasOwn(BASELINE_EPSILON, kind)) {
     throw new Error(`[config] getBaselineEpsilon: unknown kind '${kind}'`);
   }
-  const userBlock = config?.delivery?.quality?.baselineEpsilon;
-  const resolved = resolveBaselineEpsilon(userBlock);
-  return resolved[kind];
+  return BASELINE_EPSILON[kind];
 }
 
 /**

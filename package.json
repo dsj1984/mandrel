@@ -53,6 +53,7 @@
     "check:knip-entries": "node scripts/check-knip-entries.js",
     "validator:gen": "node scripts/check-generated-validator.js",
     "validator:check": "node scripts/check-generated-validator.js --check",
+    "config:ceiling": "node scripts/check-agentrc-key-ceiling.js",
     "check:schema-refs": "node scripts/check-schema-references.js",
     "check:workflow-citations": "node scripts/check-workflow-citations.js",
     "crap:check": "node .agents/scripts/check-baselines.js --gate crap",

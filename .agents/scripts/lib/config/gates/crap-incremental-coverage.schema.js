@@ -21,8 +21,7 @@
  *     row instead of requiring fresh coverage for it.
  *
  * Bundling them under one `enabled` switch is what forced the earlier default
- * flip to be reverted. `enabled` survives as a deprecated alias that sets
- * both.
+ * flip to be reverted; that deprecated alias was removed in Story #5382.
  *
  * Neither switch narrows the capture run itself: a capture that does happen is
  * the ordinary full `npm run test:coverage` (Story #5065).
@@ -43,11 +42,6 @@ export const INCREMENTAL_COVERAGE_SCHEMA = {
       description:
         'Let the CRAP join resolve a method in a file the diff did not touch from its committed baseline row instead of requiring fresh coverage for it. A gate loosening, not a saving — defaults to false.',
       default: false,
-    },
-    enabled: {
-      type: 'boolean',
-      description:
-        'DEPRECATED alias for setting both `skipWhenUnchanged` and `baselineJoin`. Prefer the two switches: they are not equally safe, and bundling them is why the earlier default flip was reverted. Either explicit switch overrides this alias.',
     },
     baseRef: {
       type: 'string',

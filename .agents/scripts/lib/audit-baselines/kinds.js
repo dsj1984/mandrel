@@ -129,7 +129,7 @@ function envelopeRows(idKey, metric) {
  * Fold `{ id, value }` rows into one whole-repo number.
  *
  * `TOTAL` is for **additive** metrics — dead-export symbols, context bytes,
- * lint errors — where the sum is the quantity the instrument measures.
+ * cycle memberships — where the sum is the quantity the instrument measures.
  * `TALLY` is for **non-additive** ones — percentages, indices, scores — where
  * summing per-file values would fabricate a statistic; the honest whole-repo
  * number is how many rows are tracked, and the unit name says so.
@@ -154,8 +154,6 @@ const TREND_UNITS = Object.freeze({
   coverage: ['filesTracked', TALLY],
   crap: ['filesTracked', TALLY],
   duplication: ['filesTracked', TALLY],
-  lighthouse: ['routesTracked', TALLY],
-  lint: ['errorCount', TOTAL],
   maintainability: ['filesTracked', TALLY],
   mutation: ['filesTracked', TALLY],
   'arch-cycles': ['cycleMemberships', TOTAL],
@@ -173,9 +171,8 @@ const TREND_UNITS = Object.freeze({
  * - `rows`    — baseline → `{ id, value }` pairs, already aggregated where
  *               the on-disk grain is finer than the file (dead exports,
  *               cycles).
- * - `idKind`  — what the cluster key names. Every kind but `lighthouse`
- *               (routes) and `bundle-size` (bundle names) keys on a
- *               repository file path.
+ * - `idKind`  — what the cluster key names. Every kind but `bundle-size`
+ *               (bundle names) keys on a repository file path.
  */
 export const KIND_SPECS = Object.freeze({
   'bundle-size': {
@@ -201,18 +198,6 @@ export const KIND_SPECS = Object.freeze({
     worse: 'higher',
     idKind: 'path',
     rows: envelopeRows('path', 'percentage'),
-  },
-  lighthouse: {
-    metric: 'performance',
-    worse: 'lower',
-    idKind: 'route',
-    rows: envelopeRows('route', 'performance'),
-  },
-  lint: {
-    metric: 'errorCount',
-    worse: 'higher',
-    idKind: 'path',
-    rows: envelopeRows('path', 'errorCount'),
   },
   maintainability: {
     metric: 'mi',

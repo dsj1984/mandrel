@@ -25,7 +25,7 @@
  * the repo-wide recent-comments feed.
  */
 
-import { createGh, gh as defaultGh } from '../lib/gh-exec.js';
+import { createGh } from '../lib/gh-exec.js';
 import { ITicketingProvider } from '../lib/ITicketingProvider.js';
 import { resolveToken } from './github/auth.js';
 import { createInlineTicketCache } from './github/cache.js';
@@ -47,6 +47,14 @@ export {
   isTransientStatus,
 };
 
+/**
+ * Timeout (ms) applied to every `gh` subprocess the provider facade spawns, so
+ * a stalled socket or long-poll cannot hang an orchestration indefinitely. A
+ * `GhExecTimeoutError` from a hit ceiling is classified `transient` and
+ * retried by `withTransientRetry` (Story #2860).
+ */
+const GH_DEFAULT_TIMEOUT_MS = 60_000;
+
 export class GitHubProvider extends ITicketingProvider {
   constructor(config, opts = {}) {
     super();
@@ -58,20 +66,13 @@ export class GitHubProvider extends ITicketingProvider {
     this.operatorHandle = config.operatorHandle ?? null;
     this._explicitToken = opts.token ?? null;
     this._memoizedToken = opts.token ?? null;
-    // Resolve the gh-exec default timeout (Story #2860). When the operator
-    // sets `github.defaultTimeoutMs` in `.agentrc.json`, every `gh`
-    // subprocess this provider spawns inherits that timeout ceiling. An
+    // Every `gh` subprocess this provider spawns inherits the fixed
+    // `GH_DEFAULT_TIMEOUT_MS` ceiling (Story #2860; the never-set
+    // `github.defaultTimeoutMs` key was folded into it by Story #5382). An
     // injected `opts.gh` is honored as-is so tests can drive the facade
-    // without going through this fallback. Unset → 60_000 ms in code.
-    if (opts.gh) {
-      this._gh = opts.gh;
-    } else {
-      const defaultTimeoutMs = config.defaultTimeoutMs ?? 60_000;
-      this._gh =
-        defaultTimeoutMs > 0
-          ? createGh(undefined, { timeoutMs: defaultTimeoutMs })
-          : defaultGh;
-    }
+    // without going through this fallback.
+    this._gh =
+      opts.gh ?? createGh(undefined, { timeoutMs: GH_DEFAULT_TIMEOUT_MS });
     this._cache = createInlineTicketCache();
     composeGateways(this);
   }

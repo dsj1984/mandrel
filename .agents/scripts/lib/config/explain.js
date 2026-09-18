@@ -88,8 +88,6 @@ const KEY_MEANINGS = Object.freeze({
   'github.projectOwner': 'Owner of the GitHub Projects board.',
   'github.operatorHandle':
     'GitHub @handle mentioned when a run needs operator attention.',
-  'github.defaultTimeoutMs':
-    'Default timeout (ms) for GitHub CLI / API calls when a caller does not supply one.',
   'github.branchProtection.enforce':
     'Whether the framework applies branch-protection rules.',
   'github.branchProtection.requiredChecks':
@@ -118,14 +116,6 @@ const KEY_MEANINGS = Object.freeze({
     'Tokens identifying the nav-registry SSOT a route-adding Story is expected to reference.',
 
   // delivery.*
-  'delivery.execution.timeoutMs':
-    'Per-execution timeout for orchestrated delivery steps.',
-  'delivery.ci.watch.pollIntervalMs':
-    'Poll cadence (ms) for the merge/CI watch loop.',
-  'delivery.ci.watch.maxPolls':
-    'Maximum number of poll probes before the CI watch gives up.',
-  'delivery.ci.watch.maxResumes':
-    'Maximum times the CI watch may resume after a transient stall.',
   'delivery.ci.autoMerge':
     'Merge posture: trust-ci merges on green checks; strict also requires a clean review gate.',
   'delivery.docsFreshness.paths':
@@ -146,14 +136,10 @@ const KEY_MEANINGS = Object.freeze({
     'Whether a worktree is removed after a Story closes cleanly.',
   'delivery.worktreeIsolation.bootstrapFiles':
     'Files copied into each new worktree (e.g. .env, .mcp.json, local overrides).',
-  'delivery.mergeWatch.intervalSeconds':
-    'Poll cadence (seconds) for the close-and-land merge wait after the arm.',
   'delivery.mergeWatch.maxBudgetSeconds':
     'Cumulative wall-clock budget (seconds) across resumes before the merge wait gives up and blocks.',
   'delivery.codeReview.providers':
     'Ordered provider chain the code-review phase consults.',
-  'delivery.codeReview.maxFixAttempts':
-    'Maximum auto-fix attempts the code-review phase makes.',
   'delivery.codeReview.autoFixSeverity':
     'Severity threshold for on-branch code-review remediation (medium fixes 🔴/🟠/🟡, high fixes 🔴/🟠 only; default medium).',
   'delivery.routing.roleScopedAgents':
@@ -164,8 +150,6 @@ const KEY_MEANINGS = Object.freeze({
     'When true, single-story-close lands through merge in one close (opt out with --no-wait-merge).',
   'delivery.feedbackLoop.retroProposals':
     'When true, auto-file actionable retro proposals as follow-up issues.',
-  'delivery.quality.formatAutofix.timeoutMs':
-    'Bounded timeout (ms) for the close-time format autofix spawn.',
   'delivery.quality.requireBaselines':
     'When true, absent baseline artifacts fail close-validation instead of skipping cleanly.',
   'delivery.quality.navigability.routeGlobs':
@@ -199,19 +183,11 @@ const PREFIX_MEANINGS = Object.freeze([
     'Quality-gate threshold/configuration for the delivery close gate.',
   ],
   [
-    'delivery.quality.codingGuardrails',
-    'Per-commit coding-guardrail threshold.',
-  ],
-  [
     'delivery.quality.autoRefresh',
     'Auto-refresh policy for ratcheted baselines.',
   ],
-  [
-    'delivery.quality.baselineEpsilon',
-    'Tolerance epsilon applied when comparing a quality baseline.',
-  ],
   ['delivery.quality', 'Delivery-time quality configuration.'],
-  ['delivery.mergeWatch', 'Merge-wait poll cadence and wall-clock budget.'],
+  ['delivery.mergeWatch', 'Merge-wait posture and wall-clock budget.'],
   [
     'delivery.feedbackLoop',
     'Opt-out toggles for auto-filing non-blocking findings.',
@@ -220,7 +196,7 @@ const PREFIX_MEANINGS = Object.freeze([
     'delivery.routing',
     'Delivery-spawn routing and acceptance-ceremony profile.',
   ],
-  ['delivery.ci', 'CI-aware delivery namespace (watch, auto-merge).'],
+  ['delivery.ci', 'CI-aware delivery namespace (auto-merge, advisory checks).'],
   [
     'planning.navigation',
     'Plan-time navigability reachability gate (route globs + nav registry).',

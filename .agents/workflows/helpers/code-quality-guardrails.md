@@ -5,11 +5,11 @@ this framework cites. Reviewers, prescriptive auditors, and writing agents all
 read the same numbers from here so a "high cyclomatic complexity" finding in
 `/audit-clean-code` and a pre-commit refusal cite the same threshold.
 
-> Tunable via `delivery.quality.codingGuardrails` in `.agentrc.json` —
-> see [`agentrc-reference.json`](../../docs/agentrc-reference.json) for the framework
-> defaults and [`schemas/agentrc.schema.json`](../../schemas/agentrc.schema.json)
-> for the validated shape. Override per-project; never fork this helper to
-> change a number.
+> The cyclomatic thresholds are fixed framework constants (Story #5382 folded
+> the never-set `delivery.quality.codingGuardrails` block); the MI tolerance
+> is `delivery.quality.gates.maintainability.tolerance` — see
+> [`agentrc-reference.json`](../../docs/agentrc-reference.json). Never fork
+> this helper to change a number.
 
 ## At-keyboard verification
 
@@ -28,14 +28,14 @@ hook calls the same script.
 
 Cyclomatic complexity (CC) is measured per function by `escomplex` (the same
 engine the maintainability axis of `check-baselines.js` runs). Two
-thresholds — the advisory `delivery.quality.codingGuardrails.cyclomaticFlag`
-and the fixed ceiling of 12 (`cyclomaticMustFix` was retired as a config
-key in Story #5313):
+thresholds — the advisory flag of 8 and the fixed ceiling of 12, both
+constants (`cyclomaticMustFix` was retired as a config key in Story #5313,
+`cyclomaticFlag` in Story #5382):
 
 | CC range | Action |
 | --- | --- |
 | ≤ 8 | Pass — no annotation required. |
-| > 8 (default `cyclomaticFlag`) | **Flag** — `quality:preview` counts the function in its `new-method count over c=<flag>` column. The function is allowed to land but the report names it. |
+| > 8 (the advisory flag) | **Flag** — `quality:preview` counts the function in its `new-method count over c=<flag>` column. The function is allowed to land but the report names it. |
 | ≥ 12 | **Advisory in `quality:preview`** — listed by file, method and reading; the preview exits 0 on it. **Ratchet in `check-cyclomatic.js`**: fails when a file gains a function above 12, or when its worst function gets worse than the recorded baseline. |
 
 `check-cyclomatic.js` is a **ratchet**, not a cliff: `baselines/cyclomatic.json`
@@ -57,11 +57,8 @@ source under `tests/<mirrored-path>/<basename>.test.js`. Same-commit pairing
 keeps the bisect honest — a regression and the test that would have caught
 it land or revert together.
 
-When `delivery.quality.codingGuardrails.requireSiblingTest` is `true`,
-the pre-commit hook refuses to commit a staged new source file that
-lacks a sibling test. Default is `false` so legacy repos opt in
-deliberately; once enabled, the structural check replaces the
-review-time prose rule.
+No structural check enforces the pairing — it is a review-time rule
+(Story #5382 removed the never-read `requireSiblingTest` switch).
 
 ## Maintainability-Index drop refactor rule
 
@@ -84,7 +81,7 @@ the commit lands (scoped to `HEAD` by default — the alias passes no
 Renaming a file (or moving it across `src/` directories) detaches its MI and
 CRAP history from the baseline keys. The correct response is a **baseline
 refresh**, not a regression entry: include `baseline-refresh:` (the
-`delivery.quality.crap.refreshTag` default) in the commit subject so the
+fixed refresh tag) in the commit subject so the
 ratchet treats the new key as a clean entry instead of comparing it to
 nothing.
 

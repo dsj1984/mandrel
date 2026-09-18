@@ -5,7 +5,7 @@ import { Volume } from 'memfs';
 import { CRAP_GATE_DEFAULTS } from '../../.agents/scripts/lib/config/quality.js';
 import {
   BASELINES_DEFAULTS,
-  CODING_GUARDRAILS_DEFAULTS,
+  CODING_GUARDRAILS,
   COMMANDS_DEFAULTS,
   defaultNodeModulesStrategy,
   getBaselines,
@@ -16,7 +16,6 @@ import {
   LIMITS_DEFAULTS,
   NOTIFICATIONS_DEFAULTS,
   PROJECT_ROOT,
-  resolveCodingGuardrails,
   resolveConfig,
   resolveListValue,
   resolveMaintainabilityCrap,
@@ -94,15 +93,15 @@ describe('config-resolver — loading + legacy shim', () => {
       JSON.stringify({
         project: { ...REQ.project, baseBranch: 'develop' },
         github: { owner: 'org', repo: 'repo', operatorHandle: '@me' },
-        planning: { memoryPool: { indexByteCeiling: 20000 } },
-        delivery: { execution: { timeoutMs: 100000 } },
+        planning: { navigation: { routeGlobs: ['app/**'] } },
+        delivery: { execution: { fullSuiteLock: false } },
       }),
     );
     const config = resolveConfig({ bustCache: true });
     assert.equal(config.project.baseBranch, 'develop');
     assert.equal(config.github.owner, 'org');
-    assert.deepEqual(config.planning.memoryPool, { indexByteCeiling: 20000 });
-    assert.equal(config.delivery.execution.timeoutMs, 100000);
+    assert.deepEqual(config.planning.navigation.routeGlobs, ['app/**']);
+    assert.equal(config.delivery.execution.fullSuiteLock, false);
   });
 
   it('caches per resolved root path', () => {
@@ -214,7 +213,8 @@ describe('helper accessors against the post-reshape shape', () => {
     // maxTickets is a framework constant, not configurable; maxTokenBudget retired.
     assert.equal(lim.maxTickets, LIMITS_DEFAULTS.maxTickets);
     assert.equal('maxTokenBudget' in lim, false);
-    assert.equal(lim.executionTimeoutMs, 1234);
+    // Story #5382 folded execution.timeoutMs: a leftover value tunes nothing.
+    assert.equal(lim.executionTimeoutMs, LIMITS_DEFAULTS.executionTimeoutMs);
     assert.equal('signals' in lim, false);
   });
 
@@ -240,7 +240,7 @@ describe('helper accessors against the post-reshape shape', () => {
     assert.equal(q.crap.enabled, CRAP_GATE_DEFAULTS.enabled);
     assert.equal(
       q.codingGuardrails.cyclomaticFlag,
-      CODING_GUARDRAILS_DEFAULTS.cyclomaticFlag,
+      CODING_GUARDRAILS.cyclomaticFlag,
     );
   });
 
@@ -248,12 +248,13 @@ describe('helper accessors against the post-reshape shape', () => {
     const b = getBaselines({
       delivery: {
         quality: {
-          gates: { lint: { baselinePath: 'custom/lint.json' } },
+          gates: { maintainability: { baselinePath: 'custom/mi.json' } },
         },
       },
     });
-    assert.equal(b.lint.path, 'custom/lint.json');
+    assert.equal(b.maintainability.path, 'custom/mi.json');
     assert.equal(b.crap.path, BASELINES_DEFAULTS.crap.path);
+    assert.equal('lint' in b, false, 'the lint gate was removed (Story #5382)');
   });
 });
 
@@ -272,7 +273,7 @@ describe('resolveListValue (extender pattern)', () => {
   });
 });
 
-describe('resolveQuality / resolveMaintainabilityCrap / resolveCodingGuardrails', () => {
+describe('resolveQuality / resolveMaintainabilityCrap / CODING_GUARDRAILS', () => {
   it('resolveQuality returns a fully populated bag for empty input', () => {
     const q = resolveQuality(undefined);
     assert.ok(q.crap);
@@ -280,7 +281,7 @@ describe('resolveQuality / resolveMaintainabilityCrap / resolveCodingGuardrails'
     assert.ok(q.codingGuardrails);
     assert.ok(q.autoRefresh);
     assert.ok(q.baselines);
-    assert.ok(q.gateScoping);
+    assert.equal('gateScoping' in q, false, 'folded into a constant (#5382)');
   });
 
   describe('resolveQuality floors injection (Story #2125)', () => {
@@ -403,18 +404,27 @@ describe('resolveQuality / resolveMaintainabilityCrap / resolveCodingGuardrails'
     });
   });
 
-  it('resolveMaintainabilityCrap applies gateScoping when crap omits the scope keys', () => {
-    const crap = resolveMaintainabilityCrap(
-      { enabled: true },
-      { scope: 'full', diffRef: 'develop' },
-    );
-    assert.equal(crap.defaultScope, 'full');
-    assert.equal(crap.diffRef, 'develop');
+  it('resolveMaintainabilityCrap ignores an unknown key rather than resolving it', () => {
+    const crap = resolveMaintainabilityCrap({
+      enabled: false,
+      refreshTag: 'x',
+    });
+    assert.equal(crap.enabled, false);
+    assert.equal(crap.refreshTag, 'baseline-refresh:');
   });
 
-  it('resolveCodingGuardrails drops the retired miDropMustRefactor key (Story #4531)', () => {
-    const guard = resolveCodingGuardrails({ miDropMustRefactor: 2.0 });
-    assert.equal('miDropMustRefactor' in guard, false);
+  it('resolveMaintainabilityCrap carries the fixed diff scope (Story #5382)', () => {
+    const crap = resolveMaintainabilityCrap({ enabled: true });
+    assert.equal(crap.defaultScope, 'diff');
+    assert.equal(crap.diffRef, 'main');
+  });
+
+  it('resolveQuality ignores leftover codingGuardrails keys (Stories #4531, #5382)', () => {
+    const q = resolveQuality({
+      codingGuardrails: { miDropMustRefactor: 2.0, cyclomaticFlag: 3 },
+    });
+    assert.equal('miDropMustRefactor' in q.codingGuardrails, false);
+    assert.deepEqual(q.codingGuardrails, { ...CODING_GUARDRAILS });
   });
 });
 

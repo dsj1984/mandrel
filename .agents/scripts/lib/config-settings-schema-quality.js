@@ -8,148 +8,29 @@
 // ---------------------------------------------------------------------------
 
 import { GATES_SCHEMA } from './config/gates/index.js';
+import { DEFAULT_CODE_REVIEW } from './config/runners.js';
+
 // `delivery.quality.gates.<tier>` sub-schemas live in their own module
-// (Story #1737); see `config/gates/index.js` for the seven gate shapes
+// (Story #1737); see `config/gates/index.js` for the six gate shapes
 // and the shared { kind, value } tolerance + workspace-keyed floors
 // fragments. Story #2987 split the former `config-gates-schema.js`
 // aggregate into per-gate files under `config/gates/`.
-import {
-  BASELINE_EPSILON_DEFAULTS,
-  CODING_GUARDRAILS_DEFAULTS,
-} from './config/quality.js';
-import { DEFAULT_CODE_REVIEW } from './config/runners.js';
 
-// Story #4531: miDropMustRefactor (here) and autoRefresh.miDropCap (below)
-// were retired. Both were schema-validated, defaulted, and resolved, but
-// never consumed by the gate they were named for — quality-preview.js's
-// computeExitCode short-circuits on miExit (derived from the ALREADY-
-// consumed delivery.quality.gates.maintainability.tolerance) before either
-// knob is ever read. maintainability.tolerance is now the single documented
-// MI-drop control. See lib/migrations/index.js for the consumer-config
-// migration that strips these keys on upgrade (additionalProperties: false
-// below means a leftover key is a hard AJV failure, not a silent no-op).
-const CODING_GUARDRAILS_SCHEMA = {
-  type: 'object',
-  description:
-    'Authoring-time cyclomatic-complexity advisories surfaced by the quality-preview pre-commit gate.',
-  properties: {
-    cyclomaticFlag: {
-      type: 'integer',
-      minimum: 1,
-      description:
-        'Cyclomatic complexity at which a new or changed method is flagged for a refactor look.',
-      default: CODING_GUARDRAILS_DEFAULTS.cyclomaticFlag,
-    },
-    requireSiblingTest: {
-      type: 'boolean',
-      description:
-        'When true, a new source file with no colocated sibling test is reported by the guardrails pass.',
-      default: CODING_GUARDRAILS_DEFAULTS.requireSiblingTest,
-    },
-  },
-  additionalProperties: false,
-};
-
+// Story #5382 folded the never-set tuning keys of this block — and the
+// whole `gateScoping`, `formatAutofix`, `codingGuardrails` and
+// `baselineEpsilon` blocks — into constants in `config/quality.js`. The
+// block is closed (`additionalProperties: false`), so a leftover key is a
+// validation error; the `strip-removed-agentrc-keys` migration removes it.
 const AUTO_REFRESH_SCHEMA = {
   type: 'object',
   description:
-    'Baseline-attribution auto-refresh: when a gate can prove a regression is a legitimate consequence of the diff, it rewrites the baseline instead of blocking.',
+    'Baseline-attribution auto-refresh: when a gate can prove a regression is a legitimate consequence of the diff, it rewrites the baseline instead of blocking. The single-row CRAP jump cap (5) and the rescore scope (`diff`) are fixed.',
   properties: {
     enabled: {
       type: 'boolean',
       description:
         'Master switch for the auto-refresh path. When false, every baseline refresh is a deliberate operator action.',
       default: true,
-    },
-    crapJumpCap: {
-      type: 'number',
-      minimum: 0,
-      description:
-        'Largest single-row CRAP jump the auto-refresh will absorb. A larger jump is reported as a regression rather than rewritten.',
-      default: 5,
-    },
-    scope: {
-      type: 'string',
-      enum: ['diff', 'full'],
-      description:
-        'Whether an auto-refresh rescores only the changed files (`diff`) or every file in the target dirs (`full`).',
-      default: 'diff',
-    },
-  },
-  additionalProperties: false,
-};
-
-/**
- * `delivery.quality.baselineEpsilon` — per-kind epsilon for
- * s-stability-epsilon (Story #1964). Sub-epsilon row deltas resolve to
- * the prior bytes so env variance never rewrites the on-disk baseline.
- */
-const BASELINE_EPSILON_SCHEMA = {
-  type: 'object',
-  description:
-    'Per-kind epsilon for s-stability-epsilon (Story #1964). Sub-epsilon row deltas resolve to prior bytes so env variance does not rewrite the on-disk baseline.',
-  properties: {
-    maintainability: {
-      type: 'number',
-      minimum: 0,
-      default: BASELINE_EPSILON_DEFAULTS.maintainability,
-    },
-    crap: {
-      type: 'number',
-      minimum: 0,
-      default: BASELINE_EPSILON_DEFAULTS.crap,
-    },
-    coverage: {
-      type: 'number',
-      minimum: 0,
-      default: BASELINE_EPSILON_DEFAULTS.coverage,
-    },
-    mutation: {
-      type: 'number',
-      minimum: 0,
-      default: BASELINE_EPSILON_DEFAULTS.mutation,
-    },
-    lint: {
-      type: 'number',
-      minimum: 0,
-      default: BASELINE_EPSILON_DEFAULTS.lint,
-    },
-    lighthouse: {
-      type: 'number',
-      minimum: 0,
-      default: BASELINE_EPSILON_DEFAULTS.lighthouse,
-    },
-    'bundle-size': {
-      type: 'number',
-      minimum: 0,
-      default: BASELINE_EPSILON_DEFAULTS['bundle-size'],
-    },
-    duplication: {
-      type: 'number',
-      minimum: 0,
-      default: BASELINE_EPSILON_DEFAULTS.duplication,
-    },
-  },
-  additionalProperties: false,
-};
-
-/**
- * `delivery.quality.formatAutofix` — bounded-timeout knob for the
- * close-time `npx biome format --write` spawn (Story #2165). Mirrors
- * `gates.coverage.timeoutMs` (Story #2142): a SIGKILL fired at the budget
- * boundary maps to exit 124 so the close orchestrator can flip the Story
- * to `agent::blocked` with a friction comment.
- */
-const FORMAT_AUTOFIX_SCHEMA = {
-  type: 'object',
-  description:
-    'Bounded-timeout knob for the close-time `npx biome format --write` spawn (Story #2165). A SIGKILL fired at the budget boundary maps to exit 124 so the close orchestrator can flip the Story to `agent::blocked` with a friction comment.',
-  properties: {
-    timeoutMs: {
-      type: 'integer',
-      minimum: 1,
-      description: 'Timeout (ms) for the format-write spawn.',
-      default: 60000,
     },
   },
   additionalProperties: false,
@@ -160,41 +41,17 @@ const FORMAT_AUTOFIX_SCHEMA = {
  *
  * Every gate lives under `gates.<tier>` and shares the four-field base:
  * `{ enabled, baselinePath, tolerance: { kind, value }, floors: { "*": {...} } }`.
- * Shared scoping lives at the block root (`gateScoping`). The legacy
+ * The diff scope is a fixed constant (Story #5382). The legacy
  * top-level `crap`, `maintainability`, `qualityFloors`, and `baselines`
  * keys are gone — replaced by the gate-shaped equivalents.
  */
 export const QUALITY_SCHEMA = {
   type: 'object',
   description:
-    'Quality-gate configuration. Every gate lives under `gates.<tier>` and shares the same `{ enabled, baselinePath, tolerance, floors, components }` base; shared scoping lives at this block root.',
+    'Quality-gate configuration. Every gate lives under `gates.<tier>` and shares the same `{ enabled, baselinePath, tolerance, floors, components }` base.',
   properties: {
-    gateScoping: {
-      type: 'object',
-      description:
-        'Shared scope applied to every gate that supports one, unless the gate overrides it.',
-      properties: {
-        scope: {
-          type: 'string',
-          enum: ['diff', 'full'],
-          description:
-            'Score only the files changed against `diffRef` (`diff`) or every file in the gate target dirs (`full`).',
-          default: 'diff',
-        },
-        diffRef: {
-          type: 'string',
-          minLength: 1,
-          description: 'Git ref the `diff` scope is computed against.',
-          default: 'main',
-        },
-      },
-      additionalProperties: false,
-    },
     gates: GATES_SCHEMA,
-    formatAutofix: FORMAT_AUTOFIX_SCHEMA,
-    codingGuardrails: CODING_GUARDRAILS_SCHEMA,
     autoRefresh: AUTO_REFRESH_SCHEMA,
-    baselineEpsilon: BASELINE_EPSILON_SCHEMA,
     // Story #4495. Fail-closed baseline-enforcement policy for the unified
     // check-baselines close-validation gate. Default false: a consumer that
     // enables baseline gates but has not committed baseline artifacts under
@@ -245,26 +102,26 @@ export const QUALITY_SCHEMA = {
 };
 
 /**
- * `delivery.codeReview` — review-provider chain + bounded-retry knobs for
- * the /mandrel-deliver code-review ceremony (Story-close and plan-run close).
+ * `delivery.codeReview` — the review-provider chain and the on-branch
+ * remediation threshold for the /mandrel-deliver code-review ceremony.
  *
- * `autoFixSeverity` (Story #4399) is the threshold that governs which
- * findings the host-LLM focused-fix routing remediates on-branch —
- * `medium` (default) routes 🔴/🟠/🟡 while 🟢 still graduates, `high`
- * reproduces the pre-4399 Critical/High-only routing.
+ * `autoFixSeverity` (Story #4399) governs which findings the host-LLM
+ * focused-fix routing remediates on-branch — `medium` (default) routes
+ * 🔴/🟠/🟡 while 🟢 still graduates, `high` reproduces the pre-4399
+ * Critical/High-only routing. Story #5382 removed `maxFixAttempts` and the
+ * reserved `providerConfig` escape hatch: neither had a reader.
  */
 export const CODE_REVIEW_SCHEMA = {
   type: 'object',
   description:
-    'Review-provider chain plus bounded-retry knobs for the /mandrel-deliver code-review ceremony.',
+    'Review-provider chain and on-branch remediation threshold for the /mandrel-deliver code-review ceremony.',
   properties: {
     // Story #2825 (Epic #2815) seeded the pluggable review backend
     // with `native`; Story #2830 added `codex` (the
     // `openai/codex-plugin-cc` Claude Code plugin). The codex
     // adapter probes for `/codex:review` at factory construction and
     // hard-fails with remediation when absent — there is no silent
-    // fallback to native. `providerConfig` is an open-shape escape
-    // hatch reserved for adapter-specific options.
+    // fallback to native.
     //
     // Story #2871 added `security-review` to the inline registry plus
     // the `providers: []` chain shape. Chain entries can also reference
@@ -335,19 +192,6 @@ export const CODE_REVIEW_SCHEMA = {
           when: { label: 'risk::high' },
         },
       ],
-    },
-    providerConfig: {
-      type: 'object',
-      additionalProperties: true,
-      description:
-        'Optional escape hatch for adapter-specific configuration. No documented keys in Epic #2815; reserved so future adapters can be configured without another schema migration.',
-    },
-    maxFixAttempts: {
-      type: 'integer',
-      minimum: 0,
-      description:
-        'Maximum auto-fix retry attempts per finding in /mandrel-deliver Phase 5 (code-review). 0 disables auto-fix. Default 3.',
-      default: DEFAULT_CODE_REVIEW.maxFixAttempts,
     },
     autoFixSeverity: {
       type: 'string',

@@ -44,11 +44,10 @@ describe('rowIdentity — kind-module protocol', () => {
 
   it('every kind actually computes an identity from a row of its own shape', () => {
     // Asserting `typeof` alone leaves the implementations uninvoked — and the
-    // kinds this repo ships no baseline for (lint, mutation, lighthouse,
-    // bundle-size) would then have an identity function nothing ever ran.
+    // kinds this repo ships no baseline for (mutation, bundle-size) would
+    // then have an identity function nothing ever ran.
     const sampleRow = {
       path: 'a/b.js',
-      route: '/a/b',
       bundle: 'main',
       method: 'fn',
       startLine: 7,

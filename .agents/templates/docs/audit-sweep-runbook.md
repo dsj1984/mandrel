@@ -23,7 +23,7 @@ has to be settled here instead.
 | --- | --- |
 | Cadence | _e.g. weekly, Sunday 02:00_ |
 | Lenses in scope | _e.g. security, clean-code, quality, dependencies_ |
-| Severity floor | _`delivery.auditToStories.severityFloor`, default `high`_ |
+| Severity floor | _`--severity`, default `high`_ |
 | Ledger reviewer | _e.g. @your-handle_ |
 | Story triage owner | _e.g. the on-call maintainer_ |
 
@@ -88,9 +88,8 @@ to every finding.
 `--dry-run` performs zero GitHub writes and skips the ledger write, printing
 only the run summary. Read `totals.create` before you let the sweep file
 anything: a first full-scope run over an un-audited repository can propose more
-Stories than your team can triage in a quarter. Raise `--severity` (or
-`delivery.auditToStories.severityFloor`) until the create count is a batch you
-would actually take on, then go live.
+Stories than your team can triage in a quarter. Raise `--severity` until the
+create count is a batch you would actually take on, then go live.
 
 ## Step 4 — Go live, and persist the ledger
 

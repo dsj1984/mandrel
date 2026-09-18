@@ -17,16 +17,22 @@ describe('listKinds()', () => {
   it('exposes every shipped kind', () => {
     const kinds = listKinds();
     for (const expected of [
-      'lint',
       'coverage',
       'crap',
       'maintainability',
       'mutation',
-      'lighthouse',
       'bundle-size',
+      'duplication',
     ]) {
       assert.ok(kinds.includes(expected), `missing kind: ${expected}`);
     }
+  });
+
+  it('no longer ships the lint or lighthouse kinds (Story #5382)', () => {
+    const kinds = listKinds();
+    assert.equal(kinds.includes('lint'), false);
+    assert.equal(kinds.includes('lighthouse'), false);
+    assert.throws(() => getKindModule('lint'), /unknown kind/);
   });
 });
 
@@ -68,7 +74,7 @@ describe('currentKernelVersion()', () => {
   });
 
   it("returns the static '1.0.0' for kinds with a static kernel", () => {
-    for (const kind of ['lint', 'coverage', 'lighthouse', 'bundle-size']) {
+    for (const kind of ['coverage', 'bundle-size']) {
       assert.equal(currentKernelVersion(kind), '1.0.0');
     }
   });
@@ -84,14 +90,14 @@ describe('currentKernelVersion()', () => {
 
 describe('checkKernelVersion()', () => {
   it('returns { match: true, current } when the baseline matches the running kernel', () => {
-    const current = currentKernelVersion('lint');
-    const result = checkKernelVersion('lint', current);
+    const current = currentKernelVersion('coverage');
+    const result = checkKernelVersion('coverage', current);
     assert.equal(result.match, true);
     assert.equal(result.current, current);
   });
 
   it('returns { match: false, current } when versions differ', () => {
-    const result = checkKernelVersion('lint', '0.0.1');
+    const result = checkKernelVersion('coverage', '0.0.1');
     assert.equal(result.match, false);
     assert.equal(typeof result.current, 'string');
     assert.notEqual(result.current, '0.0.1');
@@ -100,8 +106,8 @@ describe('checkKernelVersion()', () => {
 
 describe('getKindModule()', () => {
   it('exposes the expected per-kind contract surface', () => {
-    const mod = getKindModule('lint');
-    assert.equal(mod.name, 'lint');
+    const mod = getKindModule('coverage');
+    assert.equal(mod.name, 'coverage');
     assert.equal(mod.keyField, 'path');
     assert.equal(typeof mod.kernelVersion, 'function');
     assert.equal(typeof mod.projectRow, 'function');

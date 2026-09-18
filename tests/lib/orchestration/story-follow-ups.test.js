@@ -418,7 +418,7 @@ describe('friction recurrence window is age-bounded (Story #4850)', () => {
     assert.equal(window.excludedUnparseable, 0);
   });
 
-  it('AC-4: honours delivery.feedbackLoop.frictionWindowDays', async () => {
+  it('AC-4: a leftover frictionWindowDays no longer moves the fixed 30-day window (Story #5382)', async () => {
     const now = Date.parse('2026-07-30T12:00:00.000Z');
     await seedRow(8701, daysAgo(now, 3));
     await seedRow(8702, daysAgo(now, 10));
@@ -430,12 +430,9 @@ describe('friction recurrence window is age-bounded (Story #4850)', () => {
     const { signals, window } = await gatherRunFrictionSignals([8701], tuned, {
       now,
     });
-    assert.deepEqual(
-      signals.map((s) => s.storyId),
-      [8701],
-    );
-    assert.equal(window.days, 7);
-    assert.equal(window.excludedStale, 1);
+    assert.deepEqual(signals.map((s) => s.storyId).sort(), [8701, 8702]);
+    assert.equal(window.days, 30);
+    assert.equal(window.excludedStale, 0);
   });
 
   it('AC-4: excludes an undateable row rather than aging it in', async () => {

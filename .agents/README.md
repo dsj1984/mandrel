@@ -594,8 +594,8 @@ Module boundary rules:
 ## Baselines
 
 The framework's quality gates compare against per-kind baseline files under
-`baselines/<kind>.json` (lint, coverage, crap, maintainability, mutation,
-lighthouse, bundle-size), all sharing one envelope and funnelled through a
+`baselines/<kind>.json` (coverage, crap, maintainability, mutation,
+bundle-size, duplication), all sharing one envelope and funnelled through a
 shared reader / writer
 ([`reader.js`](scripts/lib/baselines/reader.js) /
 [`writer.js`](scripts/lib/baselines/writer.js)). The full reference — envelope

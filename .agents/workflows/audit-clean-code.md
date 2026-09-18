@@ -46,7 +46,7 @@ run the tools first.
    `check-baselines.js` gate enforces. Treat any per-file MI drop beyond
    `delivery.quality.gates.maintainability.tolerance` (default 0.5pt) as a
    grounded must-fix finding, and any cyclomatic reading over the
-   `codingGuardrails.cyclomaticFlag` (> 8) or the fixed ratchet ceiling
+   advisory flag (> 8) or the fixed ratchet ceiling
    (≥ 12, reported by `quality:preview` as an advisory) as measured, not
    guessed.
 
@@ -98,7 +98,7 @@ Analyze the repository with a focus on:
 - **Logic Complexity:** Apply the cyclomatic / Maintainability-Index ceilings
   from
   [`helpers/code-quality-guardrails.md`](helpers/code-quality-guardrails.md):
-  cyclomatic complexity > 8 (`delivery.quality.codingGuardrails.cyclomaticFlag`)
+  cyclomatic complexity > 8 (the advisory flag)
   is **flag in review** (annotate or split); ≥ 12 is the fixed ratchet
   ceiling `check-cyclomatic.js` enforces on new breaches.
   A per-file MI drop beyond the configured

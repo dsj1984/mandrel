@@ -149,7 +149,6 @@ const HEAD_BASELINE = {
 async function compareAgainstRef(dir, ref) {
   const scope = resolveDispatchScope({
     kind: KIND,
-    quality: {},
     env: { BASELINE_REF: ref },
   });
   assert.equal(scope.ref, ref, 'scope ref should reflect BASELINE_REF');

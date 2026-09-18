@@ -50,10 +50,9 @@ import { scanDirectory } from '../../../.agents/scripts/lib/maintainability-util
  * `duplication` (a row exists only where a clone was found). A gate that
  * reports 638 phantom findings on a healthy tree is a gate nobody reads.
  *
- * `lint` and `mutation` are sparse for the same reason — a clean file has no
- * lint row, an untested file has no mutation row. `lighthouse` (keyed on
- * `route`) and `bundle-size` (keyed on `bundle`) are not file-keyed at all, so
- * neither direction is meaningful: their keys name artefacts, not paths on
+ * `mutation` is sparse for the same reason — an untested file has no
+ * mutation row. `bundle-size` (keyed on `bundle`) is not file-keyed at all, so
+ * neither direction is meaningful: its keys name artefacts, not paths on
  * disk, and a directory walk can say nothing about them.
  *
  * @type {Readonly<Record<string, { keyField: string, directions: readonly string[] }>>}
@@ -75,17 +74,9 @@ export const KIND_SCOPE_POLICY = Object.freeze({
     keyField: 'path',
     directions: Object.freeze(['extra']),
   }),
-  lint: Object.freeze({
-    keyField: 'path',
-    directions: Object.freeze(['extra']),
-  }),
   mutation: Object.freeze({
     keyField: 'path',
     directions: Object.freeze(['extra']),
-  }),
-  lighthouse: Object.freeze({
-    keyField: 'route',
-    directions: Object.freeze([]),
   }),
   'bundle-size': Object.freeze({
     keyField: 'bundle',
@@ -109,8 +100,8 @@ export function directionsFor(kind) {
 }
 
 /**
- * The row field `kind` keys on — `path` for the file-keyed kinds, `route` for
- * lighthouse, `bundle` for bundle-size. Mirrors `kinds/<kind>.js#keyField`;
+ * The row field `kind` keys on — `path` for the file-keyed kinds, `bundle`
+ * for bundle-size. Mirrors `kinds/<kind>.js#keyField`;
  * kept here so a caller can classify without importing the kernel.
  *
  * @param {string} kind

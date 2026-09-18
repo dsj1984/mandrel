@@ -35,7 +35,6 @@ import { execFileSync } from 'node:child_process';
 
 import { diffNameOnly } from '../../changed-files.js';
 import { resolveFormatWriteCommand } from '../../close-validation/commands.js';
-import { getQuality } from '../../config-resolver.js';
 import { Logger as DefaultLogger } from '../../Logger.js';
 
 const TAG = '[format-autofix]';
@@ -159,34 +158,22 @@ export function commitDirtyPaths({ cwd, git, subject }) {
 }
 
 /**
- * Story #2165 — resolve the format-autofix spawn timeout. An explicit
- * caller-supplied positive integer wins over both
- * `delivery.quality.formatAutofix.timeoutMs` and the framework default
- * (60 s). Any resolver failure surfaces as `null`; the caller treats that
- * as "no timeout" and the spawn runs unbounded — same fail-open contract
- * coverage-capture uses.
+ * Story #2165 — the framework timeout (ms) for the format-autofix spawn. Fixed
+ * since Story #5382 folded the never-set
+ * `delivery.quality.formatAutofix.timeoutMs` key into it.
  */
-function resolveFormatTimeoutMs({ timeoutMs, config }) {
-  if (
-    typeof timeoutMs === 'number' &&
+const FORMAT_AUTOFIX_TIMEOUT_MS = 60_000;
+
+/**
+ * Resolve the format-autofix spawn timeout: an explicit caller-supplied
+ * positive integer wins over {@link FORMAT_AUTOFIX_TIMEOUT_MS}.
+ */
+function resolveFormatTimeoutMs(timeoutMs) {
+  return typeof timeoutMs === 'number' &&
     Number.isInteger(timeoutMs) &&
     timeoutMs > 0
-  ) {
-    return timeoutMs;
-  }
-  try {
-    const resolved = getQuality(config)?.formatAutofix?.timeoutMs;
-    if (
-      typeof resolved === 'number' &&
-      Number.isInteger(resolved) &&
-      resolved > 0
-    ) {
-      return resolved;
-    }
-  } catch {
-    // resolver failure → fall through to "no timeout"
-  }
-  return null;
+    ? timeoutMs
+    : FORMAT_AUTOFIX_TIMEOUT_MS;
 }
 
 /**
@@ -195,8 +182,7 @@ function resolveFormatTimeoutMs({ timeoutMs, config }) {
  * structured envelope so callers can log a single line.
  *
  * Story #2165: the formatter spawn is bounded by a wall-clock timeout
- * (resolved from `delivery.quality.formatAutofix.timeoutMs`, default
- * 60 s). A SIGKILL fired at the budget boundary is translated to the
+ * ({@link FORMAT_AUTOFIX_TIMEOUT_MS}, 60 s). A SIGKILL fired at the budget boundary is translated to the
  * `timedOut: true` envelope below so the close orchestrator can flip the
  * Story to `agent::blocked` with a friction comment naming the spawn,
  * mirroring the coverage-capture pattern from Story #2142.
@@ -265,10 +251,7 @@ export function runFormatAutofix({
   // `err.signal === 'SIGKILL'` and `err.status === null`, so we branch on
   // that to surface the 124 envelope below — same shape coverage-capture
   // returns to its caller (Story #2142).
-  const resolvedTimeoutMs = resolveFormatTimeoutMs({
-    timeoutMs,
-    config,
-  });
+  const resolvedTimeoutMs = resolveFormatTimeoutMs(timeoutMs);
   const spawnOpts = {
     cwd,
     stdio: ['ignore', 'pipe', 'pipe'],

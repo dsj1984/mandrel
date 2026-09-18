@@ -84,7 +84,7 @@ function main() {
   const refreshOpts = {
     kind: 'coverage',
     writePath: absBaselinePath,
-    epsilon: getBaselineEpsilon('coverage', null),
+    epsilon: getBaselineEpsilon('coverage'),
     scorer: buildCoverageUpdaterScorer(cwd, {
       readCoverage: readCoverageFinal,
       loadScope: loadC8Scope,

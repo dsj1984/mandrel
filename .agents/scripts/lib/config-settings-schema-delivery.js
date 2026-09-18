@@ -11,7 +11,6 @@
 import { ACCEPTANCE_EVAL_DEFAULTS } from './config/acceptance-eval.js';
 import { CI_DELIVERY_DEFAULTS } from './config/ci.js';
 import { DELIVERY_ROUTING_DEFAULTS } from './config/delivery-routing.js';
-import { LIMITS_DEFAULTS } from './config/limits.js';
 import { DEFAULT_CODE_REVIEW } from './config/runners.js';
 import { WORKTREE_ISOLATION_DEFAULTS } from './config/worktree-isolation.js';
 import { SHELL_INJECTION_PATTERN_STRING } from './config-schema-shared.js';
@@ -28,28 +27,20 @@ const SAFE_STRING = {
   not: { pattern: SHELL_INJECTION_PATTERN_STRING },
 };
 
+// Story #5382 folded `execution.timeoutMs` (600000, now
+// `LIMITS_DEFAULTS.executionTimeoutMs`) and the opt-in
+// `execution.requireCreditedCapture` into constants; neither was ever set by a
+// surveyed config. `fullSuiteLock` stays: it is the config half of an
+// operator opt-out whose env half is `MANDREL_FULL_SUITE_LOCK=0`.
 const EXECUTION_SCHEMA = {
   type: 'object',
-  description: 'Wall-clock bounds on the subprocesses delivery spawns.',
+  description: 'Serialization of the full-suite spawns delivery drives.',
   properties: {
-    timeoutMs: {
-      type: 'integer',
-      minimum: 1,
-      description:
-        'Per-command timeout (ms) for the long-running spawns delivery drives — the close-validation chain and the gate CLIs.',
-      default: LIMITS_DEFAULTS.executionTimeoutMs,
-    },
     fullSuiteLock: {
       type: 'boolean',
       description:
         'Serialize full-suite spawns (`npm test` / `npm run test:coverage`) behind a host-level advisory lock, so two concurrent deliveries on one checkout do not run two suites against the same cores. Best-effort: a wait that expires spawns anyway, so the lock can never fail a delivery. Set false — or export `MANDREL_FULL_SUITE_LOCK=0` for one invocation — to disable.',
       default: true,
-    },
-    requireCreditedCapture: {
-      type: 'boolean',
-      description:
-        'Refuse a full-suite coverage capture that no committed stamp covers, instead of paying for it. Default false — the run is announced (a warning naming the crediting invocation, emitted before the spawn) and then executed, which is the pre-existing behaviour. Set true when the whole-suite cost is large enough that a close should stop at zero seconds rather than absorb it silently.',
-      default: false,
     },
   },
   additionalProperties: false,
@@ -176,8 +167,7 @@ const WORKTREE_ISOLATION_SCHEMA = {
 /**
  * `delivery.mergeWatch` — knobs consumed by the close-and-land merge wait
  * listener (Story #2896, Epic #2880) and by the close-and-land merge wait
- * (`single-story-close/phases/confirm-merge.js`). `intervalSeconds` is the
- * poll cadence between `gh pr view` probes after the arm.
+ * (`single-story-close/phases/confirm-merge.js`).
  *
  * The two budgets are deliberately separate axes (Story #4543):
  *
@@ -192,10 +182,9 @@ const WORKTREE_ISOLATION_SCHEMA = {
  *     restart the clock. Exhausting *this* is the genuine give-up condition
  *     that classifies and blocks.
  *
- * `updateAttempts` caps how many times the wait will bring a
- * behind-the-base PR up to date before giving the branch up as unwinnable,
- * rather than waiting out the budget behind a base it could have merged.
- * All keys default in the consumer when omitted (30s / 300s / 3600s / 3).
+ * The poll cadence (30s) and the behind-the-base update cap (3) are fixed
+ * constants in `confirm-merge.js` since Story #5382 folded the never-set
+ * `intervalSeconds` / `updateAttempts` keys.
  *
  * `mode` selects the close-time merge posture (Story #4698). Default `sync`
  * keeps the in-close foreground wait unchanged. `async` caps the per-invocation
@@ -208,19 +197,13 @@ const WORKTREE_ISOLATION_SCHEMA = {
 const MERGE_WATCH_SCHEMA = {
   type: 'object',
   description:
-    "Knobs consumed by the close-and-land merge wait (Story #4543; defaults in `lib/orchestration/merge-poll.js`). `mode` (Story #4698) selects the close-time merge posture. `intervalSeconds` is the poll cadence between `gh pr view` probes after the arm. `maxWaitSeconds` bounds ONE invocation of the merge wait and its expiry returns a resumable `pending` terminal with no label mutation; `maxBudgetSeconds` bounds the CUMULATIVE wait across resumes (anchored at the PR's createdAt, so a resume does not restart the clock) and exhausting it is the genuine give-up that classifies and blocks. `updateAttempts` caps the bounded update of a behind-the-base PR.",
+    "Knobs consumed by the close-and-land merge wait (Story #4543). `mode` (Story #4698) selects the close-time merge posture. `maxWaitSeconds` bounds ONE invocation of the merge wait and its expiry returns a resumable `pending` terminal with no label mutation; `maxBudgetSeconds` bounds the CUMULATIVE wait across resumes (anchored at the PR's createdAt, so a resume does not restart the clock) and exhausting it is the genuine give-up that classifies and blocks. The 30s poll cadence and the cap of 3 behind-the-base updates are fixed.",
   properties: {
     mode: {
       type: 'string',
       enum: ['sync', 'async'],
       description:
         'Close-time merge-wait posture (Story #4698). `sync` (default) keeps the in-close foreground merge wait unchanged. `async` caps the per-invocation wait to a short ~60s probe window — long enough to catch an instant merge and, via the head-anchored required-check predicate, an instantly-red required check — then returns the resumable `pending` terminal (exit 3) with a `nextCommand`. Opt in when slow CI makes the foreground wait routinely expire: the worker launches `nextCommand` in the background instead of burning the host tool slot polling. `maxBudgetSeconds` (the cumulative give-up) is unchanged.',
-    },
-    intervalSeconds: {
-      type: 'integer',
-      minimum: 1,
-      description: 'Seconds between merge-wait polls. Default 30.',
-      default: 30,
     },
     maxWaitSeconds: {
       type: 'integer',
@@ -234,12 +217,6 @@ const MERGE_WATCH_SCHEMA = {
       description:
         "Cumulative wall-clock budget (seconds) across merge-wait resumes, anchored at the PR's createdAt. Default 3600 (60 minutes). Exhausting this classifies the block and transitions the Story to agent::blocked.",
       default: 3600,
-    },
-    updateAttempts: {
-      type: 'integer',
-      minimum: 0,
-      description:
-        'Maximum times the merge wait will bring a behind-the-base PR up to date before giving up on the branch. Default 3. Set 0 to disable the update.',
     },
   },
   additionalProperties: false,
@@ -288,61 +265,17 @@ const ROUTING_SCHEMA = {
   additionalProperties: false,
 };
 
-// Story #4356 (Epic #4355) — CI-aware delivery namespace. `watch.*` tunes
-// the merge/CI watch poll loop; `autoMerge` selects the merge posture.
-// Retired: `earlyPr` (Epic early-PR warmup) and `requireChecks` (no
-// AutomergePredicate reader on v2).
-// Story #4890 added `attachWindowMs`: how long the watch keeps re-resolving an
-// EMPTY required-check set before it stops waiting for one. This block is
-// `additionalProperties: false`, so the knob is inert unless it lands here AND
-// in the `.agents/schemas/agentrc.schema.json` mirror.
-// The four `watch.*` defaults below mirror WATCH_DEFAULTS in
-// `pr-watch-with-update.js`. Restated rather than imported: that module is a
-// CLI, and importing it behind a schema declaration would drag its
-// `runAsCli` wiring into every config read. The rewritten parity suite
-// asserts the two agree.
-const CI_WATCH_SCHEMA = {
-  type: 'object',
-  description:
-    'Story #4356 (Epic #4355). Poll-loop tuning for the merge/CI watch. pollIntervalMs is the cadence between check probes; maxPolls caps total probes before the watcher gives up; maxResumes caps how many times the watcher may resume after a transient stall; attachWindowMs bounds the wait for a required context to attach at all.',
-  properties: {
-    pollIntervalMs: {
-      type: 'integer',
-      minimum: 1,
-      description: 'Milliseconds between check probes.',
-      default: 10000,
-    },
-    maxPolls: {
-      type: 'integer',
-      minimum: 1,
-      description:
-        'Total probes before the watcher gives up on one invocation.',
-      default: 180,
-    },
-    maxResumes: {
-      type: 'integer',
-      minimum: 0,
-      description:
-        'How many times the watcher may resume after a transient stall. 0 disables resuming.',
-      default: 3,
-    },
-    attachWindowMs: {
-      type: 'integer',
-      minimum: 1,
-      description:
-        'Story #4890. How long (ms) the watch keeps re-resolving an EMPTY `gh pr checks --required` set before it stops waiting for a required context to attach. A ruleset attaches its contexts asynchronously and the arrival latency is set by the slowest one, so a required context that is an aggregator job gated on every other tier is the last to appear — measured at 16m52s on this repository. Default 1200000 (20 minutes). Raise it for a repository whose contexts arrive later still; exhausting the window is never reported as a red check (the watch exits 2, not-yet-started).',
-      default: 1200000,
-    },
-  },
-  additionalProperties: false,
-};
-
+// Story #4356 (Epic #4355) — CI-aware delivery namespace: the merge posture
+// and the advisory-check policy. The `watch.*` poll-loop tuning keys
+// (`pollIntervalMs`, `maxPolls`, `maxResumes`, `attachWindowMs`) were never
+// set by any surveyed config; Story #5382 fixed them as `WATCH_DEFAULTS` in
+// `pr-watch-with-update.js`, whose `--poll-interval-ms` / `--max-polls` /
+// `--max-resumes` / `--attach-window-ms` flags still override per invocation.
 const CI_DELIVERY_SCHEMA = {
   type: 'object',
   description:
-    'CI-aware delivery namespace (Story #4356, Epic #4355): the merge/CI watch poll loop and the merge posture.',
+    'CI-aware delivery namespace (Story #4356, Epic #4355): the merge posture and the advisory-check policy.',
   properties: {
-    watch: CI_WATCH_SCHEMA,
     autoMerge: {
       type: 'string',
       enum: ['trust-ci', 'strict'],
@@ -430,28 +363,6 @@ const ACCEPTANCE_EVAL_SCHEMA = {
 };
 
 /**
- * `delivery.review` — close-scope review tuning (Story #4699). `lensDiffFloor`
- * is the changed-line floor below which the Story-scope local-lens pass skips
- * lens materialization for a diff with zero sensitive-path hits (default 40
- * via `lib/audit-suite/lens-diff-floor.js`; `0` disables the skip). The
- * maker-blind code-review pass and all hard gates are untouched by the floor.
- */
-const REVIEW_SCHEMA = {
-  type: 'object',
-  description:
-    'Close-scope review tuning (Story #4699). Governs the Story-scope local-lens pass that runs inside the close subprocess; the maker-blind code-review pass and all hard gates are unaffected.',
-  properties: {
-    lensDiffFloor: {
-      type: 'integer',
-      minimum: 0,
-      description:
-        'Changed-line floor for the close-scope lens walk (Story #4699). A diff strictly below this many changed lines (additions + deletions) with zero sensitive-path hits skips lens materialization and records the skip in the findings-yield ledger. Default 40; 0 disables the skip. Hard gates and the maker-blind code-review pass are unaffected.',
-    },
-  },
-  additionalProperties: false,
-};
-
-/**
  * `delivery.feedbackLoop` — the **opt-in** toggle consumed by the retro
  * auto-file graduator (`lib/feedback-loop/retro-proposals-graduator.js`, read
  * via `graduator-core.js#makeIsAutoFileEnabled`), plus the friction window.
@@ -478,57 +389,19 @@ const REVIEW_SCHEMA = {
  * sections list the filed issue numbers instead of paste-ready `gh` command
  * stanzas; left `false` it renders the command stanzas.
  *
- * `frictionWindowDays` (Story #4850) bounds the run-scope friction recurrence
- * window by row age. The window deliberately spans every surviving signal
- * stream rather than the triggering run's own Stories — that is what lets a
- * once-per-Story systemic defect reach the ≥ 2 actionable threshold — which
- * left it unbounded in time, so a defect fixed weeks ago kept re-routing. An
- * integer ≥ 1; unset means 30 days.
+ * The friction recurrence window (Story #4850) is a fixed 30 days since Story
+ * #5382 folded the never-set `frictionWindowDays` key.
  */
 const FEEDBACK_LOOP_SCHEMA = {
   type: 'object',
   description:
-    'Opt-in toggle for the close-time retro auto-file graduator, plus the friction recurrence window. Auto-filing defaults to OFF (Story #5341).',
+    'Opt-in toggle for the close-time retro auto-file graduator. Auto-filing defaults to OFF (Story #5341).',
   properties: {
     retroProposals: {
       type: 'boolean',
       description:
         'When true, the retro auto-files its actionable routed proposals as meta::<framework-gap|consumer-improvement> + friction::<category> issues via the graduator pre-parsed-findings seam, and the rendered retro sections list the filed issue numbers instead of paste-ready gh command stanzas. Defaults to false (Story #5341), which renders the command stanzas instead.',
       default: false,
-    },
-    frictionWindowDays: {
-      type: 'integer',
-      minimum: 1,
-      description:
-        "How many days back the run-scope friction recurrence window reaches (Story #4850). The window spans every surviving per-Story signal stream rather than the triggering run's own Stories, so that a defect firing once per Story can reach the actionable threshold; this bounds it by age so a defect fixed weeks ago stops re-routing. Rows older than the bound — and rows carrying no readable timestamp — are excluded and counted on the roll-up step result. Default 30.",
-    },
-  },
-  additionalProperties: false,
-};
-
-/**
- * `delivery.auditToStories` — knobs for the `/audit-to-stories` unattended
- * (`--auto`) sweep (Story #4626). `severityFloor` is the minimum severity a
- * finding must meet to be proposed as a Story on an unattended run (default
- * `high`); `autoComment`, when true (default), lets `--auto` post a
- * "re-detected" comment on an already-open matched Issue instead of silently
- * skipping it.
- */
-const AUDIT_TO_STORIES_SCHEMA = {
-  type: 'object',
-  description:
-    'Knobs for the `/audit-to-stories` unattended (`--auto`) sweep (Story #4626).',
-  properties: {
-    severityFloor: {
-      type: 'string',
-      enum: ['critical', 'high', 'medium', 'low', 'all'],
-      description:
-        'Minimum severity a finding must meet to be proposed as a Story on an unattended `/audit-to-stories --auto` sweep (Story #4626). Default high.',
-    },
-    autoComment: {
-      type: 'boolean',
-      description:
-        'When true (default), `/audit-to-stories --auto` posts a re-detected comment on an already-open matched Issue instead of silently skipping it.',
     },
   },
   additionalProperties: false,
@@ -539,9 +412,9 @@ const AUDIT_TO_STORIES_SCHEMA = {
  *
  * `enabled` defaults to `true`: reclaiming a landed Story's gate transcripts
  * and evidence is the behaviour, and the knob exists to turn it off. `classes`
- * lets an operator keep one family while purging the rest; `staleDays` is the
- * age floor for the families no Story id can be recovered from (audit reports,
- * abandoned `plan-<slug>/` dirs).
+ * lets an operator keep one family while purging the rest. The age floor for
+ * the families no Story id can be recovered from (audit reports, abandoned
+ * `plan-<slug>/` dirs) is a fixed 7 days since Story #5382.
  */
 const TEMP_RETENTION_SCHEMA = {
   type: 'object',
@@ -558,16 +431,6 @@ const TEMP_RETENTION_SCHEMA = {
         'transcripts and validation evidence is the behaviour, and this knob ' +
         'turns it off. When false every purge path is a reported no-op.',
       default: true,
-    },
-    staleDays: {
-      type: 'integer',
-      minimum: 1,
-      description:
-        'Age floor (days, default 7) for the families no Story id can be ' +
-        'recovered from — roster-level audit reports and abandoned ' +
-        'plan-<slug>/ dirs. Story-keyed artifacts do not wait for it: they are ' +
-        'purged as soon as their merge is confirmed.',
-      default: 7,
     },
     classes: {
       type: 'object',
@@ -611,7 +474,7 @@ const TEMP_RETENTION_SCHEMA = {
 export const DELIVERY_SCHEMA = {
   type: 'object',
   description:
-    'Everything `/mandrel-deliver` and `single-story-close` consume: execution timeouts, worktree isolation, runner concurrency, docs freshness, quality gates, merge/CI watch, review ceremony, and the feedback loop.',
+    'Everything `/mandrel-deliver` and `single-story-close` consume: worktree isolation, runner concurrency, docs freshness, quality gates, merge/CI watch, review ceremony, and the feedback loop.',
   properties: {
     execution: EXECUTION_SCHEMA,
     docsFreshness: DOCS_FRESHNESS_SCHEMA,
@@ -627,11 +490,9 @@ export const DELIVERY_SCHEMA = {
     quality: QUALITY_SCHEMA,
     mergeWatch: MERGE_WATCH_SCHEMA,
     codeReview: CODE_REVIEW_SCHEMA,
-    review: REVIEW_SCHEMA,
     refactorStage: REFACTOR_STAGE_SCHEMA,
     acceptanceEval: ACCEPTANCE_EVAL_SCHEMA,
     feedbackLoop: FEEDBACK_LOOP_SCHEMA,
-    auditToStories: AUDIT_TO_STORIES_SCHEMA,
     ci: CI_DELIVERY_SCHEMA,
     routing: ROUTING_SCHEMA,
   },

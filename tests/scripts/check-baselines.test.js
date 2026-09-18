@@ -106,14 +106,14 @@ describe('check-baselines — selectEnabledGates', () => {
       gates: {
         coverage: { enabled: true, floors: {} },
         crap: { enabled: false, floors: {} },
-        lint: { enabled: true, floors: {} },
+        mutation: { enabled: true, floors: {} },
         maintainability: { enabled: true, floors: {} },
       },
     };
     assert.deepEqual(selectEnabledGates(quality), [
-      'lint',
       'coverage',
       'maintainability',
+      'mutation',
     ]);
   });
 

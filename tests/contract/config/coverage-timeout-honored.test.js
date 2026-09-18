@@ -1,24 +1,16 @@
 // tests/contract/config/coverage-timeout-honored.test.js
 /**
- * Contract test — Story #2959.
+ * Contract test — Story #2959, updated by Story #5382.
  *
- * Pins the two-part fix that makes operator-set
- * `delivery.quality.gates.coverage.timeoutMs` reach the resolver:
+ * Story #2959 made an operator-set `delivery.quality.gates.coverage.timeoutMs`
+ * reach the resolver: the schema used to strip the key silently, so a config
+ * asking for 30 minutes still SIGKILL'd at the 600_000 ms default.
  *
- *   1. AJV `coverageGate` schema accepts a positive integer `timeoutMs`
- *      and rejects non-integer / non-positive values (previously
- *      `additionalProperties: false` silently stripped the key).
- *   2. `getQuality(config)` reads from the canonical
- *      `config.delivery.quality.*` path so an operator override
- *      propagates to `quality.coverage.timeoutMs` instead of being
- *      lost to framework defaults.
- *
- * The bug was diagnosed during Epic #2880 delivery: a `.agentrc.json`
- * carrying `timeoutMs: 1_800_000` still SIGKILL'd at the 600_000 ms
- * default because the schema dropped the key and several internal
- * callers passed `getQuality({ agentSettings })` — `agentSettings` is
- * not part of the post-Epic-#2880 resolver output, so the read
- * returned framework defaults.
+ * Story #5382 removed the key — no surveyed config ever set it — and fixed the
+ * capture timeout at `COVERAGE_GATE_DEFAULTS.timeoutMs`. The contract that
+ * survives is the one #2959 was really about: a timeout the operator writes is
+ * never *silently* dropped. The key is now rejected loudly at load, naming
+ * itself, and the resolver always reports the constant.
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -32,7 +24,7 @@ import {
 import { getAgentrcValidator } from '../../../.agents/scripts/lib/config-schema.js';
 import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
 
-const CANONICAL_TIMEOUT = 1_800_000;
+const PATHS = { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' };
 
 function writeAgentrc(root, doc) {
   fs.writeFileSync(
@@ -43,7 +35,7 @@ function writeAgentrc(root, doc) {
 }
 
 describe('contract/config/coverage-timeout-honored', () => {
-  describe('resolver — getQuality reads operator timeoutMs', () => {
+  describe('resolver — the capture timeout is the fixed constant', () => {
     let tmpRoot;
 
     beforeEach(() => {
@@ -56,128 +48,44 @@ describe('contract/config/coverage-timeout-honored', () => {
       }
     });
 
-    it('propagates delivery.quality.gates.coverage.timeoutMs to getQuality(config).coverage.timeoutMs', () => {
+    it('refuses a config that still sets coverage.timeoutMs, loudly', () => {
       writeAgentrc(tmpRoot, {
-        project: {
-          paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
-        },
+        project: { paths: PATHS },
         delivery: {
-          quality: {
-            gates: {
-              coverage: { timeoutMs: CANONICAL_TIMEOUT },
-            },
-          },
+          quality: { gates: { coverage: { timeoutMs: 1_800_000 } } },
         },
       });
-
-      const config = resolveConfig({ cwd: tmpRoot, bustCache: true });
-      const quality = getQuality(config);
-
-      assert.equal(
-        quality.coverage.timeoutMs,
-        CANONICAL_TIMEOUT,
-        'operator-set coverage.timeoutMs must round-trip through the resolver',
+      assert.throws(
+        () => resolveConfig({ cwd: tmpRoot, bustCache: true }),
+        /gates\/coverage must NOT have additional properties/,
       );
     });
 
-    it('falls back to the framework default when timeoutMs is omitted', () => {
-      writeAgentrc(tmpRoot, {
-        project: {
-          paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
-        },
-      });
-
+    it('resolves the framework constant when the key is absent', () => {
+      writeAgentrc(tmpRoot, { project: { paths: PATHS } });
       const config = resolveConfig({ cwd: tmpRoot, bustCache: true });
-      const quality = getQuality(config);
-
       assert.equal(
-        quality.coverage.timeoutMs,
+        getQuality(config).coverage.timeoutMs,
         COVERAGE_GATE_DEFAULTS.timeoutMs,
       );
+      assert.equal(COVERAGE_GATE_DEFAULTS.timeoutMs, 600_000);
     });
   });
 
-  describe('AJV — coverageGate.timeoutMs validation', () => {
-    it('accepts a positive integer timeoutMs', () => {
+  describe('AJV — coverageGate.timeoutMs is rejected by name', () => {
+    it('rejects every value, naming the key', () => {
       const validate = getAgentrcValidator();
-      const doc = {
-        project: {
-          paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
-        },
-        delivery: {
-          quality: {
-            gates: {
-              coverage: { timeoutMs: CANONICAL_TIMEOUT },
-            },
-          },
-        },
-      };
-
-      const ok = validate(doc);
-
-      assert.equal(
-        ok,
-        true,
-        `AJV must accept integer timeoutMs — errors: ${JSON.stringify(
-          validate.errors,
-        )}`,
-      );
-    });
-
-    it('rejects a non-integer timeoutMs (e.g. floating-point)', () => {
-      const validate = getAgentrcValidator();
-      const doc = {
-        project: {
-          paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
-        },
-        delivery: {
-          quality: {
-            gates: {
-              coverage: { timeoutMs: 1.5 },
-            },
-          },
-        },
-      };
-
-      const ok = validate(doc);
-
-      assert.equal(ok, false, 'AJV must reject non-integer timeoutMs');
-      const messages = (validate.errors ?? [])
-        .map((e) => `${e.instancePath} ${e.message}`)
-        .join(' | ');
-      assert.match(
-        messages,
-        /must be integer|integer/i,
-        `expected integer-type error, got: ${messages}`,
-      );
-    });
-
-    it('rejects a zero or negative timeoutMs', () => {
-      const validate = getAgentrcValidator();
-      for (const bad of [0, -1, -1000]) {
-        const doc = {
-          project: {
-            paths: {
-              agentRoot: '.agents',
-              docsRoot: 'docs',
-              tempRoot: 'temp',
-            },
-          },
-          delivery: {
-            quality: {
-              gates: {
-                coverage: { timeoutMs: bad },
-              },
-            },
-          },
-        };
-
-        const ok = validate(doc);
-
-        assert.equal(
-          ok,
-          false,
-          `AJV must reject timeoutMs=${bad} (must be >= 1)`,
+      for (const timeoutMs of [1_800_000, 1.5, 0]) {
+        const ok = validate({
+          project: { paths: PATHS },
+          delivery: { quality: { gates: { coverage: { timeoutMs } } } },
+        });
+        assert.equal(ok, false, `timeoutMs=${timeoutMs} must be rejected`);
+        assert.ok(
+          validate.errors.some(
+            (e) => e.params?.additionalProperty === 'timeoutMs',
+          ),
+          JSON.stringify(validate.errors),
         );
       }
     });

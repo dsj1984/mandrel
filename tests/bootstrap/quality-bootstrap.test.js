@@ -112,8 +112,13 @@ describe('quality-bootstrap — fresh tmp project', () => {
     // Every quality leaf is reported under skippedKeys so callers can
     // surface why the seed was a no-op.
     const skipped = first.config.skippedKeys ?? [];
-    assert.ok(skipped.some((k) => k.endsWith('cyclomaticFlag')));
     assert.ok(skipped.some((k) => k.endsWith('autoRefresh.enabled')));
+    // Story #5382 fixed the codingGuardrails block as a constant, so the
+    // seed must never write it — it would be a validation error.
+    assert.equal(
+      skipped.some((k) => k.includes('codingGuardrails')),
+      false,
+    );
 
     // Helper landed where the bootstrap step says it should.
     assert.ok(
@@ -213,11 +218,7 @@ describe('quality-bootstrap — preserves operator overrides', () => {
         project: { baseBranch: 'main' },
         delivery: {
           quality: {
-            codingGuardrails: { cyclomaticFlag: 6 },
-            // autoRefresh entirely absent. Under the Story #2281
-            // contract, absent keys whose intended value equals the
-            // framework default are NOT seeded — the runtime layers
-            // defaults at read time.
+            autoRefresh: { enabled: false },
           },
         },
       },
@@ -227,24 +228,14 @@ describe('quality-bootstrap — preserves operator overrides', () => {
     assert.equal(result.action, 'no-change');
     // Custom override survives.
     const cfg = readJson(path.join(projectRoot, '.agentrc.json'));
-    assert.equal(cfg.delivery.quality.codingGuardrails.cyclomaticFlag, 6);
-    // Default-equal siblings were NOT seeded; the runtime resolves them
-    // at read time.
-    assert.equal(
-      cfg.delivery.quality.codingGuardrails.requireSiblingTest,
-      undefined,
-    );
-    assert.equal(cfg.delivery.quality.autoRefresh, undefined);
-    // Default-equal writes are reported under skippedKeys.
+    assert.equal(cfg.delivery.quality.autoRefresh.enabled, false);
+    // Story #5382 folded codingGuardrails into a constant: never seeded.
+    assert.equal(cfg.delivery.quality.codingGuardrails, undefined);
     assert.ok(
-      result.skippedKeys.some((k) => k.endsWith('requireSiblingTest')),
-      'requireSiblingTest should be reported as skipped (matches framework default)',
+      !result.skippedKeys.some((k) => k.endsWith('autoRefresh.enabled')),
+      'an operator-set autoRefresh.enabled is preserved, not reported as a default seed',
     );
-    assert.ok(
-      result.skippedKeys.some((k) => k.endsWith('autoRefresh.enabled')),
-      'autoRefresh.enabled should be reported as skipped (matches framework default)',
-    );
-    // addedKeys stays empty because every would-be write is default-equal.
+    // addedKeys stays empty: the one seedable key is already set.
     assert.deepEqual(result.addedKeys, []);
   });
 });

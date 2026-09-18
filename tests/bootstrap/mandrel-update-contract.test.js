@@ -193,12 +193,12 @@ describe('mandrel-update contract — Helper B does not seed Helper A redundancy
     // workflow can surface why the seed was a no-op.
     const skipped = result.skippedKeys ?? [];
     assert.ok(
-      skipped.some(
-        (k) => k === 'delivery.quality.codingGuardrails.cyclomaticFlag',
-      ),
-    );
-    assert.ok(
       skipped.some((k) => k === 'delivery.quality.autoRefresh.enabled'),
+    );
+    // Story #5382 folded codingGuardrails into a constant: never a seed.
+    assert.equal(
+      skipped.some((k) => k.startsWith('delivery.quality.codingGuardrails')),
+      false,
     );
   });
 });

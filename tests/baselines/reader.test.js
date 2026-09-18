@@ -35,16 +35,12 @@ function defaultRollupFor(kind) {
   switch (kind) {
     case 'coverage':
       return { lines: 80, branches: 70, functions: 90 };
-    case 'lint':
-      return { errorCount: 0, warningCount: 0 };
     case 'crap':
       return { p50: 1, p95: 5, max: 10, methodsAbove20: 0 };
     case 'maintainability':
       return { min: 50, p50: 80, p95: 95 };
     case 'mutation':
       return { score: 80, killed: 100, survived: 25, noCoverage: 0 };
-    case 'lighthouse':
-      return { performance: 90, accessibility: 90, bestPractices: 90, seo: 90 };
     case 'bundle-size':
       return { totalKb: 100, gzippedKb: 30 };
     default:
@@ -156,14 +152,14 @@ describe('baselines/reader — loadFile', () => {
     // permits an explicit `opts.kind` to override the inference path (e.g.
     // when a caller already knows the kind via context).
     const file = path.join(tmp, 'override.json');
-    writeJson(file, envelope('lint'));
-    const out = loadFile(file, { kind: 'lint' });
-    assert.equal(out.rollup['*'].errorCount, 0);
+    writeJson(file, envelope('mutation', { $schema: 'unknown.schema.json' }));
+    const out = loadFile(file, { kind: 'mutation' });
+    assert.equal(out.rollup['*'].score, 80);
   });
 
   it('throws when kind cannot be inferred and no override is provided', () => {
     const file = path.join(tmp, 'no-schema.json');
-    const env = envelope('lint', { $schema: 'unknown.schema.json' });
+    const env = envelope('mutation', { $schema: 'unknown.schema.json' });
     writeJson(file, env);
     assert.throws(() => loadFile(file), /cannot infer kind/);
   });

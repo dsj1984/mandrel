@@ -65,7 +65,7 @@ sibling-test convention, the per-file Maintainability-Index drop ceiling
 (refactor when > 1.5pt), and the rename = baseline-refresh rule. Verify
 at-keyboard with `npm run quality:preview` (the same diff-scoped MI + CRAP
 preview the `.husky/pre-commit` hook runs) **before** committing. The
-thresholds are tunable via `agentSettings.quality.codingGuardrails` in
-`.agentrc.json` — never fork the helper to change a number.
+thresholds are fixed framework constants — never fork the helper to change
+a number.
 
 ---

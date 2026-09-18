@@ -163,12 +163,6 @@
           "description": "The human the framework escalates to, `@`-prefixed. Used for HITL @-mentions on `agent::blocked`.",
           "default": "@[USERNAME]"
         },
-        "defaultTimeoutMs": {
-          "type": "integer",
-          "minimum": 1000,
-          "description": "Default `timeoutMs` applied to every `gh` subprocess the provider facade spawns, so a stalled socket or long-poll cannot hang an orchestration indefinitely. A `GhExecTimeoutError` from a hit ceiling is classified `transient` and retried by `withTransientRetry`. Story #2860.",
-          "default": 60000
-        },
         "followUpRepos": {
           "type": "object",
           "description": "Repository slugs for the non-consumer follow-up ownership buckets, used when a CI gap, retro proposal, or audit finding belongs to someone other than the repo that surfaced it.",
@@ -327,21 +321,8 @@
     },
     "planning": {
       "type": "object",
-      "description": "Inputs to `/mandrel-plan`: the memory-hygiene advisory ceiling and the opt-in navigability reachability gate.",
+      "description": "Inputs to `/mandrel-plan`: the opt-in navigability reachability gate.",
       "properties": {
-        "memoryPool": {
-          "type": "object",
-          "description": "Threshold for the memory-hygiene advisory `/mandrel-plan` surfaces at Gate #1. Advisory only: it recommends `/memory-consolidate` and never gates, reroutes, or mutates the memory pool.",
-          "properties": {
-            "indexByteCeiling": {
-              "type": "integer",
-              "minimum": 1,
-              "description": "Recommend a consolidation pass once the pool's `MEMORY.md` index exceeds this many bytes. The harness truncates the index it loads into each session at its own byte cap, so an oversized index is a loss already happening — every entry listed after the cut is invisible — rather than a hygiene forecast. Default 24576, the harness cap itself.",
-              "default": 24576
-            }
-          },
-          "additionalProperties": false
-        },
         "navigation": {
           "type": "object",
           "description": "Opt-in navigability reachability gate. Absent or empty routeGlobs is a silent no-op.",
@@ -370,27 +351,16 @@
     },
     "delivery": {
       "type": "object",
-      "description": "Everything `/mandrel-deliver` and `single-story-close` consume: execution timeouts, worktree isolation, runner concurrency, docs freshness, quality gates, merge/CI watch, review ceremony, and the feedback loop.",
+      "description": "Everything `/mandrel-deliver` and `single-story-close` consume: worktree isolation, runner concurrency, docs freshness, quality gates, merge/CI watch, review ceremony, and the feedback loop.",
       "properties": {
         "execution": {
           "type": "object",
-          "description": "Wall-clock bounds on the subprocesses delivery spawns.",
+          "description": "Serialization of the full-suite spawns delivery drives.",
           "properties": {
-            "timeoutMs": {
-              "type": "integer",
-              "minimum": 1,
-              "description": "Per-command timeout (ms) for the long-running spawns delivery drives — the close-validation chain and the gate CLIs.",
-              "default": 600000
-            },
             "fullSuiteLock": {
               "type": "boolean",
               "description": "Serialize full-suite spawns (`npm test` / `npm run test:coverage`) behind a host-level advisory lock, so two concurrent deliveries on one checkout do not run two suites against the same cores. Best-effort: a wait that expires spawns anyway, so the lock can never fail a delivery. Set false — or export `MANDREL_FULL_SUITE_LOCK=0` for one invocation — to disable.",
               "default": true
-            },
-            "requireCreditedCapture": {
-              "type": "boolean",
-              "description": "Refuse a full-suite coverage capture that no committed stamp covers, instead of paying for it. Default false — the run is announced (a warning naming the crediting invocation, emitted before the spawn) and then executed, which is the pre-existing behaviour. Set true when the whole-suite cost is large enough that a close should stop at zero seconds rather than absorb it silently.",
-              "default": false
             }
           },
           "additionalProperties": false
@@ -422,12 +392,6 @@
               "type": "boolean",
               "description": "Master switch. Default true — reclaiming a landed Story's gate transcripts and validation evidence is the behaviour, and this knob turns it off. When false every purge path is a reported no-op.",
               "default": true
-            },
-            "staleDays": {
-              "type": "integer",
-              "minimum": 1,
-              "description": "Age floor (days, default 7) for the families no Story id can be recovered from — roster-level audit reports and abandoned plan-<slug>/ dirs. Story-keyed artifacts do not wait for it: they are purged as soon as their merge is confirmed.",
-              "default": 7
             },
             "classes": {
               "type": "object",
@@ -549,100 +513,12 @@
         },
         "quality": {
           "type": "object",
-          "description": "Quality-gate configuration. Every gate lives under `gates.<tier>` and shares the same `{ enabled, baselinePath, tolerance, floors, components }` base; shared scoping lives at this block root.",
+          "description": "Quality-gate configuration. Every gate lives under `gates.<tier>` and shares the same `{ enabled, baselinePath, tolerance, floors, components }` base.",
           "properties": {
-            "gateScoping": {
-              "type": "object",
-              "description": "Shared scope applied to every gate that supports one, unless the gate overrides it.",
-              "properties": {
-                "scope": {
-                  "type": "string",
-                  "enum": ["diff", "full"],
-                  "description": "Score only the files changed against `diffRef` (`diff`) or every file in the gate target dirs (`full`).",
-                  "default": "diff"
-                },
-                "diffRef": {
-                  "type": "string",
-                  "minLength": 1,
-                  "description": "Git ref the `diff` scope is computed against.",
-                  "default": "main"
-                }
-              },
-              "additionalProperties": false
-            },
             "gates": {
               "type": "object",
-              "description": "The eight quality gates, each sharing the `{ enabled, baselinePath, tolerance, floors, components }` base.",
+              "description": "The six quality gates, each sharing the `{ enabled, baselinePath, tolerance, floors, components }` base.",
               "properties": {
-                "lint": {
-                  "type": "object",
-                  "description": "Lint-count ratchet. Floors are absolute error/warning counts; the baseline pins the current count so a regression is visible even while the floor is not yet met.",
-                  "properties": {
-                    "enabled": {
-                      "type": "boolean",
-                      "description": "When false, the checker exits 0 with a skip line and the gate is reported as `skipped`, never omitted.",
-                      "default": true
-                    },
-                    "baselinePath": {
-                      "type": "string",
-                      "not": {
-                        "pattern": "([;&|`]|\\$\\()"
-                      },
-                      "minLength": 1,
-                      "description": "Repo-root-relative path to the gate's committed baseline artifact.",
-                      "default": "baselines/lint.json"
-                    },
-                    "tolerance": {
-                      "type": "object",
-                      "description": "How much a rollup may drift from the committed baseline before the gate reports a regression.",
-                      "required": ["kind", "value"],
-                      "properties": {
-                        "kind": {
-                          "type": "string",
-                          "enum": ["absolute", "percent"],
-                          "description": "Whether `value` is read as raw metric units (`absolute`) or as a percentage of the baseline (`percent`)."
-                        },
-                        "value": {
-                          "type": "number",
-                          "minimum": 0,
-                          "description": "The tolerance magnitude. 0 means no drift is allowed."
-                        }
-                      },
-                      "additionalProperties": false,
-                      "default": {
-                        "kind": "absolute",
-                        "value": 0
-                      }
-                    },
-                    "floors": {
-                      "type": "object",
-                      "description": "Workspace-keyed absolute floors: `{ \"<workspace>\": { \"<metric>\": number } }`. `\"*\"` is the project-wide catch-all; the metric keyset is open so per-rollup keys flow through without each gate enumerating them. Floors are absolute — unlike `tolerance`, they are enforced regardless of the baseline.",
-                      "additionalProperties": {
-                        "type": "object",
-                        "additionalProperties": {
-                          "type": "number"
-                        }
-                      },
-                      "default": {
-                        "*": {
-                          "errorCount": 0
-                        }
-                      }
-                    },
-                    "components": {
-                      "type": "object",
-                      "description": "Per-gate component map — component name to the glob list whose files roll up under it. Defaults to `{ \"*\": [\"**\"] }` at the resolver layer.",
-                      "additionalProperties": {
-                        "type": "array",
-                        "items": {
-                          "type": "string",
-                          "minLength": 1
-                        }
-                      }
-                    }
-                  },
-                  "additionalProperties": false
-                },
                 "coverage": {
                   "type": "object",
                   "description": "Line/branch/function coverage ratchet, read from the Istanbul JSON summary the project test run emits.",
@@ -719,12 +595,6 @@
                       "minLength": 1,
                       "description": "Repo-relative path to the Istanbul `coverage-final.json` the capture step writes and the gate reads.",
                       "default": "coverage/coverage-final.json"
-                    },
-                    "timeoutMs": {
-                      "type": "integer",
-                      "minimum": 1,
-                      "description": "Bounded timeout (ms) for the `npm run test:coverage` capture spawn. A SIGKILL at the budget boundary maps to exit 124 so close-validation can tell a hang from a test failure.",
-                      "default": 600000
                     }
                   },
                   "additionalProperties": false
@@ -844,36 +714,6 @@
                       "maximum": 1,
                       "description": "Fail-closed floor on the per-method coverage JOIN (Story #4775): the fraction of methods that must resolve a coverage entry, counted only over files that HAVE one, before `update-crap-baseline.js` will persist. A broken join is silent by construction — unresolved methods are simply absent — so the updater refuses rather than writing a thin baseline and logging it as success. Not enforced below 25 joinable methods, where a diff-scoped run’s rate is noise. Default 0.75; a healthy repo resolves ~98%."
                     },
-                    "friction": {
-                      "type": "object",
-                      "description": "Friction-signal wiring for a CRAP baseline regression, so a recurring one can reach the actionable threshold.",
-                      "properties": {
-                        "markerKey": {
-                          "type": "string",
-                          "minLength": 1,
-                          "description": "Signal marker key the regression is recorded under."
-                        }
-                      },
-                      "additionalProperties": false,
-                      "default": {
-                        "markerKey": "crap-baseline-regression"
-                      }
-                    },
-                    "refreshTag": {
-                      "type": "string",
-                      "not": {
-                        "pattern": "([;&|`]|\\$\\()"
-                      },
-                      "minLength": 1,
-                      "description": "Commit-subject substring that acknowledges a deliberate CRAP baseline refresh in the compared range. A range commit carrying it that also touches the baseline file demotes head-vs-base regressions; floors stay enforced.",
-                      "default": "baseline-refresh:"
-                    },
-                    "refreshTimeoutMs": {
-                      "type": "integer",
-                      "minimum": 1,
-                      "description": "Bounded timeout (ms) for `npm run crap:update` spawned by the baseline-attribution refresh path. Mirrors `coverage.timeoutMs`: a SIGKILL fired at the budget boundary maps to exit 124 so the close orchestrator can flip the Story to `agent::blocked`. Default 60000 (Story #2165).",
-                      "default": 60000
-                    },
                     "ignoreGlobs": {
                       "type": "array",
                       "items": {
@@ -896,10 +736,6 @@
                           "type": "boolean",
                           "description": "Let the CRAP join resolve a method in a file the diff did not touch from its committed baseline row instead of requiring fresh coverage for it. A gate loosening, not a saving — defaults to false.",
                           "default": false
-                        },
-                        "enabled": {
-                          "type": "boolean",
-                          "description": "DEPRECATED alias for setting both `skipWhenUnchanged` and `baselineJoin`. Prefer the two switches: they are not equally safe, and bundling them is why the earlier default flip was reverted. Either explicit switch overrides this alias."
                         },
                         "baseRef": {
                           "type": "string",
@@ -1008,20 +844,6 @@
                       "description": "Directories whose JS sources the maintainability gate scores. Mandrel ships a `src/`-centric default; projects whose executable code lives elsewhere (e.g. this repo's `.agents/scripts/` plus `tests/`) override here. The framework default is intentionally not auto-discovered, so an override is the explicit, auditable signal.",
                       "default": []
                     },
-                    "refreshTag": {
-                      "type": "string",
-                      "not": {
-                        "pattern": "([;&|`]|\\$\\()"
-                      },
-                      "minLength": 1,
-                      "description": "Commit-subject substring that acknowledges a deliberate maintainability baseline refresh in the compared range. Mirrors the CRAP gate's `refreshTag`; a range commit carrying it that touches the baseline file demotes head-vs-base regressions (floors still enforced)."
-                    },
-                    "refreshTimeoutMs": {
-                      "type": "integer",
-                      "minimum": 1,
-                      "description": "Bounded timeout (ms) for `npm run maintainability:update` spawned by the baseline-attribution refresh path. Mirrors `coverage.timeoutMs`: a SIGKILL fired at the budget boundary maps to exit 124 so the close orchestrator can flip the Story to `agent::blocked`. Default 60000 (Story #2165).",
-                      "default": 60000
-                    },
                     "ignoreGlobs": {
                       "type": "array",
                       "items": {
@@ -1099,121 +921,6 @@
                           "minLength": 1
                         }
                       }
-                    },
-                    "strykerConfigPath": {
-                      "type": ["string", "null"],
-                      "minLength": 1,
-                      "not": {
-                        "type": "string",
-                        "pattern": "([;&|`]|\\$\\()"
-                      },
-                      "description": "Repo-relative path to the Stryker config. `null` lets Stryker resolve its own default.",
-                      "default": null
-                    }
-                  },
-                  "additionalProperties": false
-                },
-                "lighthouse": {
-                  "type": "object",
-                  "description": "Lighthouse category-score ratchet for web targets. Off by default — it needs a running deployment.",
-                  "properties": {
-                    "enabled": {
-                      "type": "boolean",
-                      "description": "When false, the checker exits 0 with a skip line and the gate is reported as `skipped`, never omitted.",
-                      "default": false
-                    },
-                    "baselinePath": {
-                      "type": "string",
-                      "not": {
-                        "pattern": "([;&|`]|\\$\\()"
-                      },
-                      "minLength": 1,
-                      "description": "Repo-root-relative path to the gate's committed baseline artifact.",
-                      "default": "baselines/lighthouse.json"
-                    },
-                    "tolerance": {
-                      "type": "object",
-                      "description": "How much a rollup may drift from the committed baseline before the gate reports a regression.",
-                      "required": ["kind", "value"],
-                      "properties": {
-                        "kind": {
-                          "type": "string",
-                          "enum": ["absolute", "percent"],
-                          "description": "Whether `value` is read as raw metric units (`absolute`) or as a percentage of the baseline (`percent`)."
-                        },
-                        "value": {
-                          "type": "number",
-                          "minimum": 0,
-                          "description": "The tolerance magnitude. 0 means no drift is allowed."
-                        }
-                      },
-                      "additionalProperties": false,
-                      "default": {
-                        "kind": "absolute",
-                        "value": 0
-                      }
-                    },
-                    "floors": {
-                      "type": "object",
-                      "description": "Workspace-keyed absolute floors: `{ \"<workspace>\": { \"<metric>\": number } }`. `\"*\"` is the project-wide catch-all; the metric keyset is open so per-rollup keys flow through without each gate enumerating them. Floors are absolute — unlike `tolerance`, they are enforced regardless of the baseline.",
-                      "additionalProperties": {
-                        "type": "object",
-                        "additionalProperties": {
-                          "type": "number"
-                        }
-                      },
-                      "default": {
-                        "*": {
-                          "performance": 0,
-                          "accessibility": 0,
-                          "bestPractices": 0,
-                          "seo": 0
-                        }
-                      }
-                    },
-                    "components": {
-                      "type": "object",
-                      "description": "Per-gate component map — component name to the glob list whose files roll up under it. Defaults to `{ \"*\": [\"**\"] }` at the resolver layer.",
-                      "additionalProperties": {
-                        "type": "array",
-                        "items": {
-                          "type": "string",
-                          "minLength": 1
-                        }
-                      }
-                    },
-                    "baseUrl": {
-                      "type": ["string", "null"],
-                      "minLength": 1,
-                      "not": {
-                        "type": "string",
-                        "pattern": "([;&|`]|\\$\\()"
-                      },
-                      "description": "Origin the routes are resolved against. `null` leaves the gate unusable, which is why it ships disabled.",
-                      "default": null
-                    },
-                    "routes": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "description": "One route the Lighthouse run scores.",
-                        "required": ["path"],
-                        "properties": {
-                          "path": {
-                            "type": "string",
-                            "minLength": 1,
-                            "description": "Route path appended to `baseUrl`."
-                          },
-                          "formFactor": {
-                            "type": "string",
-                            "enum": ["mobile", "desktop"],
-                            "description": "Emulated form factor for this route."
-                          }
-                        },
-                        "additionalProperties": false
-                      },
-                      "description": "Routes to score on each run.",
-                      "default": []
                     }
                   },
                   "additionalProperties": false
@@ -1315,7 +1022,7 @@
                 },
                 "duplication": {
                   "type": "object",
-                  "description": "Code-duplication (DRY) gate (Story #3664). Shares the gate base and adds the scan-scope extras: the `targetDirs` the duplication scanner walks, a bounded refresh timeout mirroring crap/MI, and `ignoreGlobs` to exclude files from the scan.",
+                  "description": "Code-duplication (DRY) gate (Story #3664). Shares the gate base and adds the scan-scope extras: the `targetDirs` the duplication scanner walks and `ignoreGlobs` to exclude files from the scan.",
                   "properties": {
                     "enabled": {
                       "type": "boolean",
@@ -1409,12 +1116,6 @@
                       "description": "Directories whose JS sources the duplication (DRY) gate scans for copy-paste clones. Mandrel ships a `src/`-centric default; projects whose executable code lives elsewhere (e.g. this repo's `.agents/scripts/`) override here. The framework default is intentionally not auto-discovered, so an override is the explicit, auditable signal (Story #3664).",
                       "default": ["src"]
                     },
-                    "refreshTimeoutMs": {
-                      "type": "integer",
-                      "minimum": 1,
-                      "description": "Bounded timeout (ms) for `npm run duplication:update` spawned by the baseline-attribution refresh path. Mirrors `crap.refreshTimeoutMs` / `coverage.timeoutMs`: a SIGKILL fired at the budget boundary maps to exit 124. Default 60000 (Story #3664).",
-                      "default": 60000
-                    },
                     "ignoreGlobs": {
                       "type": "array",
                       "items": {
@@ -1430,104 +1131,14 @@
               },
               "additionalProperties": false
             },
-            "formatAutofix": {
-              "type": "object",
-              "description": "Bounded-timeout knob for the close-time `npx biome format --write` spawn (Story #2165). A SIGKILL fired at the budget boundary maps to exit 124 so the close orchestrator can flip the Story to `agent::blocked` with a friction comment.",
-              "properties": {
-                "timeoutMs": {
-                  "type": "integer",
-                  "minimum": 1,
-                  "description": "Timeout (ms) for the format-write spawn.",
-                  "default": 60000
-                }
-              },
-              "additionalProperties": false
-            },
-            "codingGuardrails": {
-              "type": "object",
-              "description": "Authoring-time cyclomatic-complexity advisories surfaced by the quality-preview pre-commit gate.",
-              "properties": {
-                "cyclomaticFlag": {
-                  "type": "integer",
-                  "minimum": 1,
-                  "description": "Cyclomatic complexity at which a new or changed method is flagged for a refactor look.",
-                  "default": 8
-                },
-                "requireSiblingTest": {
-                  "type": "boolean",
-                  "description": "When true, a new source file with no colocated sibling test is reported by the guardrails pass.",
-                  "default": false
-                }
-              },
-              "additionalProperties": false
-            },
             "autoRefresh": {
               "type": "object",
-              "description": "Baseline-attribution auto-refresh: when a gate can prove a regression is a legitimate consequence of the diff, it rewrites the baseline instead of blocking.",
+              "description": "Baseline-attribution auto-refresh: when a gate can prove a regression is a legitimate consequence of the diff, it rewrites the baseline instead of blocking. The single-row CRAP jump cap (5) and the rescore scope (`diff`) are fixed.",
               "properties": {
                 "enabled": {
                   "type": "boolean",
                   "description": "Master switch for the auto-refresh path. When false, every baseline refresh is a deliberate operator action.",
                   "default": true
-                },
-                "crapJumpCap": {
-                  "type": "number",
-                  "minimum": 0,
-                  "description": "Largest single-row CRAP jump the auto-refresh will absorb. A larger jump is reported as a regression rather than rewritten.",
-                  "default": 5
-                },
-                "scope": {
-                  "type": "string",
-                  "enum": ["diff", "full"],
-                  "description": "Whether an auto-refresh rescores only the changed files (`diff`) or every file in the target dirs (`full`).",
-                  "default": "diff"
-                }
-              },
-              "additionalProperties": false
-            },
-            "baselineEpsilon": {
-              "type": "object",
-              "description": "Per-kind epsilon for s-stability-epsilon (Story #1964). Sub-epsilon row deltas resolve to prior bytes so env variance does not rewrite the on-disk baseline.",
-              "properties": {
-                "maintainability": {
-                  "type": "number",
-                  "minimum": 0,
-                  "default": 0.5
-                },
-                "crap": {
-                  "type": "number",
-                  "minimum": 0,
-                  "default": 0.5
-                },
-                "coverage": {
-                  "type": "number",
-                  "minimum": 0,
-                  "default": 0.1
-                },
-                "mutation": {
-                  "type": "number",
-                  "minimum": 0,
-                  "default": 0.5
-                },
-                "lint": {
-                  "type": "number",
-                  "minimum": 0,
-                  "default": 0
-                },
-                "lighthouse": {
-                  "type": "number",
-                  "minimum": 0,
-                  "default": 1
-                },
-                "bundle-size": {
-                  "type": "number",
-                  "minimum": 0,
-                  "default": 1024
-                },
-                "duplication": {
-                  "type": "number",
-                  "minimum": 0,
-                  "default": 0.5
                 }
               },
               "additionalProperties": false
@@ -1569,18 +1180,12 @@
         },
         "mergeWatch": {
           "type": "object",
-          "description": "Knobs consumed by the close-and-land merge wait (Story #4543; defaults in `lib/orchestration/merge-poll.js`). `mode` (Story #4698) selects the close-time merge posture. `intervalSeconds` is the poll cadence between `gh pr view` probes after the arm. `maxWaitSeconds` bounds ONE invocation of the merge wait and its expiry returns a resumable `pending` terminal with no label mutation; `maxBudgetSeconds` bounds the CUMULATIVE wait across resumes (anchored at the PR's createdAt, so a resume does not restart the clock) and exhausting it is the genuine give-up that classifies and blocks. `updateAttempts` caps the bounded update of a behind-the-base PR.",
+          "description": "Knobs consumed by the close-and-land merge wait (Story #4543). `mode` (Story #4698) selects the close-time merge posture. `maxWaitSeconds` bounds ONE invocation of the merge wait and its expiry returns a resumable `pending` terminal with no label mutation; `maxBudgetSeconds` bounds the CUMULATIVE wait across resumes (anchored at the PR's createdAt, so a resume does not restart the clock) and exhausting it is the genuine give-up that classifies and blocks. The 30s poll cadence and the cap of 3 behind-the-base updates are fixed.",
           "properties": {
             "mode": {
               "type": "string",
               "enum": ["sync", "async"],
               "description": "Close-time merge-wait posture (Story #4698). `sync` (default) keeps the in-close foreground merge wait unchanged. `async` caps the per-invocation wait to a short ~60s probe window — long enough to catch an instant merge and, via the head-anchored required-check predicate, an instantly-red required check — then returns the resumable `pending` terminal (exit 3) with a `nextCommand`. Opt in when slow CI makes the foreground wait routinely expire: the worker launches `nextCommand` in the background instead of burning the host tool slot polling. `maxBudgetSeconds` (the cumulative give-up) is unchanged."
-            },
-            "intervalSeconds": {
-              "type": "integer",
-              "minimum": 1,
-              "description": "Seconds between merge-wait polls. Default 30.",
-              "default": 30
             },
             "maxWaitSeconds": {
               "type": "integer",
@@ -1592,18 +1197,13 @@
               "minimum": 1,
               "description": "Cumulative wall-clock budget (seconds) across merge-wait resumes, anchored at the PR's createdAt. Default 3600 (60 minutes). Exhausting this classifies the block and transitions the Story to agent::blocked.",
               "default": 3600
-            },
-            "updateAttempts": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "Maximum times the merge wait will bring a behind-the-base PR up to date before giving up on the branch. Default 3. Set 0 to disable the update."
             }
           },
           "additionalProperties": false
         },
         "codeReview": {
           "type": "object",
-          "description": "Review-provider chain plus bounded-retry knobs for the /mandrel-deliver code-review ceremony.",
+          "description": "Review-provider chain and on-branch remediation threshold for the /mandrel-deliver code-review ceremony.",
           "properties": {
             "providers": {
               "type": "array",
@@ -1683,34 +1283,11 @@
                 }
               ]
             },
-            "providerConfig": {
-              "type": "object",
-              "additionalProperties": true,
-              "description": "Optional escape hatch for adapter-specific configuration. No documented keys in Epic #2815; reserved so future adapters can be configured without another schema migration."
-            },
-            "maxFixAttempts": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "Maximum auto-fix retry attempts per finding in /mandrel-deliver Phase 5 (code-review). 0 disables auto-fix. Default 3.",
-              "default": 3
-            },
             "autoFixSeverity": {
               "type": "string",
               "enum": ["high", "medium"],
               "description": "Severity threshold for on-branch remediation in /mandrel-deliver Phase 5 (code-review). `medium` (default) routes 🔴/🟠/🟡 findings into the host-LLM focused-fix routing (Mediums batched per lens: one commit per lens, a single validation + rescan at the end) while 🟢 suggestions still graduate to follow-up issues; `high` reproduces the pre-4399 Critical/High-only routing. Hard cutover — no back-compat flag.",
               "default": "medium"
-            }
-          },
-          "additionalProperties": false
-        },
-        "review": {
-          "type": "object",
-          "description": "Close-scope review tuning (Story #4699). Governs the Story-scope local-lens pass that runs inside the close subprocess; the maker-blind code-review pass and all hard gates are unaffected.",
-          "properties": {
-            "lensDiffFloor": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "Changed-line floor for the close-scope lens walk (Story #4699). A diff strictly below this many changed lines (additions + deletions) with zero sensitive-path hits skips lens materialization and records the skip in the findings-yield ledger. Default 40; 0 disables the skip. Hard gates and the maker-blind code-review pass are unaffected."
             }
           },
           "additionalProperties": false
@@ -1742,72 +1319,20 @@
         },
         "feedbackLoop": {
           "type": "object",
-          "description": "Opt-in toggle for the close-time retro auto-file graduator, plus the friction recurrence window. Auto-filing defaults to OFF (Story #5341).",
+          "description": "Opt-in toggle for the close-time retro auto-file graduator. Auto-filing defaults to OFF (Story #5341).",
           "properties": {
             "retroProposals": {
               "type": "boolean",
               "description": "When true, the retro auto-files its actionable routed proposals as meta::<framework-gap|consumer-improvement> + friction::<category> issues via the graduator pre-parsed-findings seam, and the rendered retro sections list the filed issue numbers instead of paste-ready gh command stanzas. Defaults to false (Story #5341), which renders the command stanzas instead.",
               "default": false
-            },
-            "frictionWindowDays": {
-              "type": "integer",
-              "minimum": 1,
-              "description": "How many days back the run-scope friction recurrence window reaches (Story #4850). The window spans every surviving per-Story signal stream rather than the triggering run's own Stories, so that a defect firing once per Story can reach the actionable threshold; this bounds it by age so a defect fixed weeks ago stops re-routing. Rows older than the bound — and rows carrying no readable timestamp — are excluded and counted on the roll-up step result. Default 30."
-            }
-          },
-          "additionalProperties": false
-        },
-        "auditToStories": {
-          "type": "object",
-          "description": "Knobs for the `/audit-to-stories` unattended (`--auto`) sweep (Story #4626).",
-          "properties": {
-            "severityFloor": {
-              "type": "string",
-              "enum": ["critical", "high", "medium", "low", "all"],
-              "description": "Minimum severity a finding must meet to be proposed as a Story on an unattended `/audit-to-stories --auto` sweep (Story #4626). Default high."
-            },
-            "autoComment": {
-              "type": "boolean",
-              "description": "When true (default), `/audit-to-stories --auto` posts a re-detected comment on an already-open matched Issue instead of silently skipping it."
             }
           },
           "additionalProperties": false
         },
         "ci": {
           "type": "object",
-          "description": "CI-aware delivery namespace (Story #4356, Epic #4355): the merge/CI watch poll loop and the merge posture.",
+          "description": "CI-aware delivery namespace (Story #4356, Epic #4355): the merge posture and the advisory-check policy.",
           "properties": {
-            "watch": {
-              "type": "object",
-              "description": "Story #4356 (Epic #4355). Poll-loop tuning for the merge/CI watch. pollIntervalMs is the cadence between check probes; maxPolls caps total probes before the watcher gives up; maxResumes caps how many times the watcher may resume after a transient stall; attachWindowMs bounds the wait for a required context to attach at all.",
-              "properties": {
-                "pollIntervalMs": {
-                  "type": "integer",
-                  "minimum": 1,
-                  "description": "Milliseconds between check probes.",
-                  "default": 10000
-                },
-                "maxPolls": {
-                  "type": "integer",
-                  "minimum": 1,
-                  "description": "Total probes before the watcher gives up on one invocation.",
-                  "default": 180
-                },
-                "maxResumes": {
-                  "type": "integer",
-                  "minimum": 0,
-                  "description": "How many times the watcher may resume after a transient stall. 0 disables resuming.",
-                  "default": 3
-                },
-                "attachWindowMs": {
-                  "type": "integer",
-                  "minimum": 1,
-                  "description": "Story #4890. How long (ms) the watch keeps re-resolving an EMPTY `gh pr checks --required` set before it stops waiting for a required context to attach. A ruleset attaches its contexts asynchronously and the arrival latency is set by the slowest one, so a required context that is an aggregator job gated on every other tier is the last to appear — measured at 16m52s on this repository. Default 1200000 (20 minutes). Raise it for a repository whose contexts arrive later still; exhausting the window is never reported as a red check (the watch exits 2, not-yet-started).",
-                  "default": 1200000
-                }
-              },
-              "additionalProperties": false
-            },
             "autoMerge": {
               "type": "string",
               "enum": ["trust-ci", "strict"],

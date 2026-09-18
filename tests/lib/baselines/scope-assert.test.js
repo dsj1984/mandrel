@@ -160,7 +160,7 @@ describe('assertScope — both directions (Story #5012 AC-2)', () => {
 });
 
 describe('assertScope — sparse producers never report phantom missing rows (AC-3)', () => {
-  for (const kind of ['crap', 'duplication', 'lint', 'mutation']) {
+  for (const kind of ['crap', 'duplication', 'mutation']) {
     test(`${kind} asserts EXTRA only`, () => {
       assert.deepEqual([...directionsFor(kind)], ['extra']);
 
@@ -173,8 +173,8 @@ describe('assertScope — sparse producers never report phantom missing rows (AC
         rows: [{ path: 'src/a.js' }, { path: 'src/gone.js' }],
       });
 
-      // Sparse by construction: a file with no clone, no lint error, no
-      // scorable method or no mutant legitimately has no row.
+      // Sparse by construction: a file with no clone, no scorable method or
+      // no mutant legitimately has no row.
       assert.deepEqual(found.missing, []);
       // The EXTRA direction still works — sparse does not mean unassertable.
       assert.deepEqual(
@@ -184,7 +184,7 @@ describe('assertScope — sparse producers never report phantom missing rows (AC
     });
   }
 
-  for (const kind of ['lighthouse', 'bundle-size']) {
+  for (const kind of ['bundle-size']) {
     test(`${kind} is excluded from both directions`, () => {
       assert.deepEqual([...directionsFor(kind)], []);
       assert.notEqual(KIND_SCOPE_POLICY[kind].keyField, 'path');
@@ -196,7 +196,7 @@ describe('assertScope — sparse producers never report phantom missing rows (AC
           files: ['src/a.js'],
           directions: [],
         }),
-        rows: [{ route: '/pricing' }],
+        rows: [{ bundle: 'main' }],
       });
 
       assert.equal(found.skipped, true);

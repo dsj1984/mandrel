@@ -8,8 +8,8 @@
  *   - **Full mode** (`scope.mode === 'full'`, or `scope` omitted/null) —
  *     regenerated wins everywhere; prior is ignored.
  *   - **Diff mode** (`scope.mode === 'diff'`) — rows whose scope key
- *     (`path` for coverage/crap/maintainability/mutation/lint, `route`
- *     for lighthouse, `bundle` for bundle-size) is INSIDE `scope.files`
+ *     (`path` for coverage/crap/maintainability/mutation, `bundle` for
+ *     bundle-size) is INSIDE `scope.files`
  *     come from regenerated; rows whose scope key is OUTSIDE
  *     `scope.files` are preserved from prior verbatim.
  *   - **Missing-prior** — regenerated wins regardless of mode (prior is
@@ -23,8 +23,6 @@ import * as bundleSize from '../../../.agents/scripts/lib/baselines/kinds/bundle
 import * as coverage from '../../../.agents/scripts/lib/baselines/kinds/coverage.js';
 import * as crap from '../../../.agents/scripts/lib/baselines/kinds/crap.js';
 import * as duplication from '../../../.agents/scripts/lib/baselines/kinds/duplication.js';
-import * as lighthouse from '../../../.agents/scripts/lib/baselines/kinds/lighthouse.js';
-import * as lint from '../../../.agents/scripts/lib/baselines/kinds/lint.js';
 import * as maintainability from '../../../.agents/scripts/lib/baselines/kinds/maintainability.js';
 import * as mutation from '../../../.agents/scripts/lib/baselines/kinds/mutation.js';
 
@@ -33,8 +31,6 @@ const ALL_KINDS = [
   ['crap', crap],
   ['maintainability', maintainability],
   ['mutation', mutation],
-  ['lint', lint],
-  ['lighthouse', lighthouse],
   ['bundle-size', bundleSize],
   ['duplication', duplication],
 ];
@@ -51,7 +47,7 @@ describe('mergeRows export — every kind', () => {
   }
 });
 
-// -- Path-keyed kinds (coverage / maintainability / mutation / lint) ---------
+// -- Path-keyed kinds (coverage / maintainability / mutation) ---------------
 
 const PATH_KINDS = [
   [
@@ -88,18 +84,6 @@ const PATH_KINDS = [
     [
       { path: 'src/a.js', score: 95, killed: 10, survived: 0 },
       { path: 'src/b.js', score: 60, killed: 6, survived: 4 },
-    ],
-  ],
-  [
-    'lint',
-    lint,
-    [
-      { path: 'src/a.js', errorCount: 0, warningCount: 1 },
-      { path: 'src/b.js', errorCount: 0, warningCount: 0 },
-    ],
-    [
-      { path: 'src/a.js', errorCount: 0, warningCount: 2 },
-      { path: 'src/b.js', errorCount: 5, warningCount: 5 },
     ],
   ],
 ];
@@ -200,67 +184,6 @@ describe('mergeRows — crap (composite identity, path-scoped)', () => {
       mode: 'diff',
       files: new Set(['src/a.js']),
     });
-    assert.deepEqual(out, regen);
-  });
-});
-
-// -- Lighthouse (route-keyed) ------------------------------------------------
-
-describe('mergeRows — lighthouse (route-keyed)', () => {
-  const prior = [
-    {
-      route: '/',
-      performance: 90,
-      accessibility: 95,
-      bestPractices: 92,
-      seo: 88,
-    },
-    {
-      route: '/dashboard',
-      performance: 70,
-      accessibility: 80,
-      bestPractices: 85,
-      seo: 80,
-    },
-  ];
-  const regen = [
-    {
-      route: '/',
-      performance: 95,
-      accessibility: 95,
-      bestPractices: 95,
-      seo: 90,
-    },
-    {
-      route: '/dashboard',
-      performance: 50,
-      accessibility: 60,
-      bestPractices: 70,
-      seo: 70,
-    },
-  ];
-
-  it('full mode: regenerated wins everywhere', () => {
-    const out = lighthouse.mergeRows(prior, regen, {
-      mode: 'full',
-      files: new Set(),
-    });
-    assert.deepEqual(out, regen);
-  });
-
-  it('diff mode: prior wins for routes outside scope', () => {
-    const out = lighthouse.mergeRows(prior, regen, {
-      mode: 'diff',
-      files: new Set(['/']),
-    });
-    assert.equal(out.length, 2);
-    const byRoute = Object.fromEntries(out.map((r) => [r.route, r]));
-    assert.deepEqual(byRoute['/'], regen[0]);
-    assert.deepEqual(byRoute['/dashboard'], prior[1]);
-  });
-
-  it('missing-prior: regenerated wins', () => {
-    const out = lighthouse.mergeRows([], regen);
     assert.deepEqual(out, regen);
   });
 });

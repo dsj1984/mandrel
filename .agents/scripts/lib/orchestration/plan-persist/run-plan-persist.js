@@ -346,7 +346,7 @@ function analyzeAssembledStories({ stories, rawFindings }) {
  * Story #4794 folded the age-floored reap into the shared temp-retention
  * engine — `planDirs` is one of its declared classes, so the plan path and
  * the delivery path now converge on one classifier and one staleness floor
- * (`delivery.tempRetention.staleDays`, still 7 days by default) instead of
+ * (`TEMP_RETENTION_DEFAULTS.staleDays`, 7 days) instead of
  * this module owning a private constant. Behaviour is unchanged: only
  * `plan-*` directories are considered, the age test is the directory's own
  * mtime, and the current run's `planDir` is excluded.

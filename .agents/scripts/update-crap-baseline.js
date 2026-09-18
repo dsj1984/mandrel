@@ -96,7 +96,7 @@ async function main() {
   const refreshOpts = {
     kind: 'crap',
     writePath: options.absBaselinePath,
-    epsilon: getBaselineEpsilon('crap', config),
+    epsilon: getBaselineEpsilon('crap'),
     scorer: buildCrapUpdaterScorer(options, { loadCoverage }),
   };
   // No flag -> scopeFiles=null + fullScope=false -> the service derives the

@@ -36,6 +36,7 @@
  */
 
 import path from 'node:path';
+import { CODING_GUARDRAILS } from './config/quality.js';
 import { selectFilesToScore } from './cyclomatic-scope.js';
 import { calculateReportForFile } from './maintainability-engine.js';
 import { scanDirectory } from './maintainability-utils.js';
@@ -57,19 +58,18 @@ const CYCLOMATIC_BASELINE_SCHEMA =
 /**
  * Resolve the enforcement policy from a resolved `delivery.quality` block.
  *
- * `mustFix` is the fixed {@link CYCLOMATIC_CEILING}; `flag` comes from
- * `resolveCodingGuardrails` (advisory only). `targetDirs` / `ignoreGlobs`
+ * `mustFix` is the fixed {@link CYCLOMATIC_CEILING}; `flag` is the fixed
+ * advisory `CODING_GUARDRAILS.cyclomaticFlag` (Story #5382). `targetDirs` / `ignoreGlobs`
  * are borrowed from the maintainability gate (see the module note).
  *
  * @param {object | null | undefined} quality resolved `delivery.quality`
  * @returns {{ mustFix: number, flag: number, targetDirs: string[], ignoreGlobs: string[] }}
  */
 export function resolveCyclomaticPolicy(quality) {
-  const guardrails = quality?.codingGuardrails ?? {};
   const mi = quality?.maintainability ?? {};
   return {
     mustFix: CYCLOMATIC_CEILING,
-    flag: Number(guardrails.cyclomaticFlag ?? 8),
+    flag: CODING_GUARDRAILS.cyclomaticFlag,
     targetDirs: Array.isArray(mi.targetDirs) ? mi.targetDirs : [],
     ignoreGlobs: Array.isArray(mi.ignoreGlobs) ? mi.ignoreGlobs : [],
   };

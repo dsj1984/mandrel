@@ -17,12 +17,10 @@
  */
 
 /**
- * Default poll interval and cumulative budget for the merge wait. The schema
- * in `.agents/schemas/agentrc.schema.json` exposes these as
- * `delivery.mergeWatch.intervalSeconds` (default 30) and
- * `delivery.mergeWatch.maxBudgetSeconds` (default 3600). Hard-coding the same
- * numbers here keeps the close path self-contained when no config is wired in
- * (e.g. unit tests).
+ * Poll interval and default cumulative budget for the merge wait. The interval
+ * is fixed (Story #5382 folded the never-set
+ * `delivery.mergeWatch.intervalSeconds` key); the budget is the default for
+ * `delivery.mergeWatch.maxBudgetSeconds` (3600).
  */
 export const DEFAULT_INTERVAL_SECONDS = 30;
 export const DEFAULT_MAX_BUDGET_SECONDS = 3600;

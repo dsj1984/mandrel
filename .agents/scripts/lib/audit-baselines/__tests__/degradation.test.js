@@ -89,7 +89,7 @@ describe('engine over a repo with no git, no friction ledger, no import graph', 
     const missing = envelope.gateSurface
       .filter((entry) => !entry.baselineExists)
       .map((entry) => entry.kind);
-    assert.ok(missing.includes('lint'));
+    assert.ok(missing.includes('mutation'));
     assert.ok(missing.includes('arch-cycles'));
     // A missing baseline is not a stub — there is no instrument to call dead.
     for (const entry of envelope.gateSurface) {
