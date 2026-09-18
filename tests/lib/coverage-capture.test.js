@@ -704,28 +704,34 @@ describe('the suite is a process group (Story #5377)', {
     );
   });
 
-  it('AC-1: a lock holder takes its suite down and releases the lock within 5s of SIGTERM', async () => {
-    const pidFile = path.join(dir, 'worker.pid');
-    const lockFile = path.join(dir, '.git', 'mandrel-full-suite.lock');
-    const holder = spawn(
-      process.execPath,
-      [path.join(fixtures, 'capture-holder.mjs'), dir],
-      { stdio: 'ignore' },
-    );
-    await waitForFile(pidFile);
-    assert.equal(fs.existsSync(lockFile), true, 'the holder holds the lock');
-    const worker = Number(fs.readFileSync(pidFile, 'utf8'));
-    const exited = waitForExit(holder);
-    holder.kill('SIGTERM');
-    const { code, signal, ms } = await exited;
-    assert.ok(ms < 5_000, `holder took ${ms}ms to exit`);
-    assert.ok(
-      signal === 'SIGTERM' || (code !== null && code !== 0),
-      'exits non-zero',
-    );
-    assert.equal(fs.existsSync(lockFile), false, 'the lockfile is released');
-    assert.equal(await waitForDeath(worker), true, 'the suite worker is gone');
-  });
+  for (const sent of ['SIGTERM', 'SIGINT']) {
+    it(`AC-1: a lock holder takes its suite down and releases the lock within 5s of ${sent}`, async () => {
+      const pidFile = path.join(dir, 'worker.pid');
+      const lockFile = path.join(dir, '.git', 'mandrel-full-suite.lock');
+      const holder = spawn(
+        process.execPath,
+        [path.join(fixtures, 'capture-holder.mjs'), dir],
+        { stdio: 'ignore' },
+      );
+      await waitForFile(pidFile);
+      assert.equal(fs.existsSync(lockFile), true, 'the holder holds the lock');
+      const worker = Number(fs.readFileSync(pidFile, 'utf8'));
+      const exited = waitForExit(holder);
+      holder.kill(sent);
+      const { code, signal, ms } = await exited;
+      assert.ok(ms < 5_000, `holder took ${ms}ms to exit`);
+      assert.ok(
+        signal === sent || (code !== null && code !== 0),
+        'exits non-zero',
+      );
+      assert.equal(fs.existsSync(lockFile), false, 'the lockfile is released');
+      assert.equal(
+        await waitForDeath(worker),
+        true,
+        'the suite worker is gone',
+      );
+    });
+  }
 });
 
 describe('filterFilesUnderTargets', () => {

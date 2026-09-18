@@ -118,7 +118,8 @@ function stopForwarding() {
  * (reported through `timedOut`), when `abortSignal` fires, or when this
  * process takes SIGINT/SIGTERM. Call `release()` once the child has exited.
  *
- * @param {import('node:child_process').ChildProcess} child
+ * @param {{ pid?: number, kill?: (signal?: string) => void }} child A spawned
+ *   child process.
  * @param {{
  *   timeoutMs?: number,
  *   abortSignal?: AbortSignal,

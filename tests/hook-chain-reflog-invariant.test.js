@@ -27,6 +27,7 @@
 
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
+import { EventEmitter } from 'node:events';
 import { rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
@@ -127,13 +128,15 @@ describe('hook chain unit guard: readBaseFromGit (pre-push via check-baselines)'
 });
 
 describe('hook chain unit guard: runCapture (pre-push, coverage capture)', () => {
-  it('spawns npm, never git, when capturing coverage', () => {
+  it('spawns npm, never git, when capturing coverage', async () => {
     const calls = [];
-    const mockRunner = (cmd, args) => {
+    const mockSpawn = (cmd, args) => {
       calls.push([cmd, ...args]);
-      return { status: 0 };
+      const child = new EventEmitter();
+      setImmediate(() => child.emit('exit', 0, null));
+      return child;
     };
-    runCapture({ cwd: '/tmp/fake', runner: mockRunner });
+    await runCapture({ cwd: '/tmp/fake', spawnImpl: mockSpawn });
     assert.equal(calls.length, 1);
     const [cmd, ...args] = calls[0];
     assert.equal(cmd, 'npm', 'runCapture must spawn npm, not git');
