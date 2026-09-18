@@ -13,16 +13,21 @@ import {
   describeFreshness,
   stampCapturedTree,
 } from './coverage-capture.js';
+import { resolveCaptureRef } from './coverage-capture-incremental.js';
 
 /**
  * Run the `--skip-when-no-crap-files` check (when requested), the
  * content-digest freshness probe, and — when stale — the full-repo
  * `npm run test:coverage` capture + stamp write.
  *
+ * The skip check scores the ref `resolveCaptureRef` resolves — the same rule,
+ * and the same answer, incremental mode applies, so a fall-through from it
+ * cannot change scope mid-run (Story #5365).
+ *
  * @param {{
  *   crap: object,
  *   coverage: object,
- *   args: { skipWhenNoCrapFiles: boolean, ref: string, cwd: string },
+ *   args: { skipWhenNoCrapFiles: boolean, ref: string | null, cwd: string },
  *   getChangedFilesImpl: Function,
  *   isCoverageFreshImpl: Function,
  *   runCaptureImpl: Function,
@@ -46,7 +51,10 @@ export function runFullScopeCapture({
   if (args.skipWhenNoCrapFiles) {
     let changed;
     try {
-      changed = getChangedFilesImpl({ ref: args.ref, cwd: args.cwd });
+      changed = getChangedFilesImpl({
+        ref: resolveCaptureRef({ crap, args }),
+        cwd: args.cwd,
+      });
     } catch (err) {
       // A bad ref must not silently relax the gate. Fall through to the
       // freshness check so coverage still gets captured if needed.

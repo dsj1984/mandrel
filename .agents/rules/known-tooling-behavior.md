@@ -161,3 +161,40 @@ hand-edit `baselines/dead-exports*.json`: a hand-written row set is the one
 input no gate re-derives. `.agents/rules/test-seams.md` governs which seams
 are sanctioned. Never remove the `!` suffixes from `knip.json` to quieten the
 production pass.
+
+## 4. A green pre-push is only evidence the two scopes agreed because `--ref` outranks config
+
+**Behavior.** `.husky/pre-push` captures coverage and then scores it, both
+against a literal `origin/main`. The CRAP half of `quality-preview.js` is a
+function of complexity **and** coverage, so the preview is only reading its
+own tree if the artifact under it was captured over the same change set.
+`coverage-capture.js` resolves that set through **one** rule, stated once in
+`resolveCaptureRef` (`.agents/scripts/lib/coverage-capture-incremental.js`):
+a `--ref` the caller named wins, and
+`delivery.quality.gates.crap.incrementalCoverage.baseRef` is the default for a
+caller that names none — the close-validation gate, which passes no `--ref`.
+The shell resolves it once per invocation and hands the value to both capture
+paths, so no run can resolve two refs.
+
+Before Story #5365 the configured value outranked the flag. The preview has
+no config ref to consult, so a consumer that set `baseRef` captured against
+one ref while the preview scored another, and the preview could read an
+artifact whose scope was not its own — the stale-artifact read the
+capture-before-preview ordering (Story #5356) exists to prevent, reopened by
+configuration rather than by editing the hook. **This repository sets no
+`baseRef`**, so the divergence was invisible here: a green local run proved
+nothing about a consumer's.
+
+**Reproduce.**
+
+```bash
+node -e "import('./.agents/scripts/lib/coverage-capture-incremental.js').then(({ resolveCaptureRef }) => { const crap = { incrementalCoverage: { baseRef: 'develop' } }; console.log(resolveCaptureRef({ crap, args: { ref: 'origin/main', refExplicit: true } })); console.log(resolveCaptureRef({ crap, args: { ref: 'main', refExplicit: false } })); })"
+# → origin/main   (the hook's flag wins over a configured baseRef)
+# → develop       (config still answers a caller that named no ref)
+grep -n 'origin/main' .husky/pre-push   # the same literal on both steps
+```
+
+**Safe move.** Read a green pre-push as evidence about CRAP only when both
+hook steps still carry the same literal ref. Moving one means moving the
+other; adding a third consumer of the change set means routing it through
+`resolveCaptureRef` rather than reading `baseRef` directly.

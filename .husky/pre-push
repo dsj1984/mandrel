@@ -30,6 +30,14 @@ cat > /dev/null
 # the preview's CRAP scope is empty too, so it scores no file rather than
 # reading the artifact a prior, unrelated run left behind. Changing one
 # ref without the other reopens exactly that hole.
+#
+# `origin/main` below is literal on both lines because capture honours the
+# ref it is handed: a `--ref` the caller names outranks
+# `delivery.quality.gates.crap.incrementalCoverage.baseRef` (Story #5365,
+# `resolveCaptureRef`). The preview has no config ref to consult, so before
+# that rule a consumer who set `baseRef` captured against one ref while the
+# preview scored another — the same stale read, reopened by configuration
+# rather than by editing this file.
 node .agents/scripts/coverage-capture.js --skip-when-no-crap-files --ref origin/main
 node .agents/scripts/quality-preview.js --changed-since origin/main
 if [ "${PREPUSH_AUDIT:-0}" = "1" ]; then

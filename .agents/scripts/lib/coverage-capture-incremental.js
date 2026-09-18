@@ -12,6 +12,38 @@ import path from 'node:path';
 import { stampCapturedTree } from './coverage-capture.js';
 
 /**
+ * Resolve the ONE git ref a single `coverage-capture.js` invocation computes
+ * its changed-file set against — the whole rule, stated once (Story #5365).
+ *
+ * **A ref the caller named wins (`args.ref`); `incrementalCoverage.baseRef` is
+ * the default for a caller that named none, and `main` the default for
+ * neither.** `.husky/pre-push` runs capture and then
+ * `quality-preview.js --changed-since <ref>`, and the preview has no config
+ * ref to consult — it scores exactly the ref it was handed. Letting the
+ * configured value outrank the hook's `--ref` therefore captured against one
+ * ref while the preview scored CRAP against another, so the preview could
+ * read an artifact whose scope was not its own: precisely the stale-artifact
+ * hole the capture-before-preview ordering (Story #5356) closed. This
+ * repository sets no `baseRef`, so that divergence was invisible locally and
+ * only a consumer that configured one would have paid for it.
+ *
+ * Callers that name no ref — the close-validation gate
+ * (`close-validation/gates.js` builds its argv without `--ref`) — still get
+ * the configured value, so the key keeps the meaning it was added with.
+ *
+ * Both capture paths of one invocation call this one function —
+ * `runFullScopeCapture` imports it from here — so they cannot resolve two
+ * refs, and a new consumer of the change set routes through it rather than
+ * reading `baseRef` directly.
+ *
+ * @param {{ crap: object, args: { ref: string | null } }} opts
+ * @returns {string}
+ */
+export function resolveCaptureRef({ crap, args }) {
+  return args.ref ?? crap?.incrementalCoverage?.baseRef ?? 'main';
+}
+
+/**
  * Run the skip-aware capture path when
  * `delivery.quality.gates.crap.incrementalCoverage.skipWhenUnchanged` is true
  * (the default since Story #5173).
@@ -38,7 +70,7 @@ import { stampCapturedTree } from './coverage-capture.js';
  * @param {{
  *   crap: object,
  *   coverage: object,
- *   args: { ref: string, cwd: string },
+ *   args: { ref: string | null, cwd: string },
  *   getChangedFilesImpl: Function,
  *   filterFilesUnderTargetsImpl: Function,
  *   isCoverageFreshImpl: Function,
@@ -63,7 +95,7 @@ export function tryIncrementalCapture({
 }) {
   if (crap.incrementalCoverage?.skipWhenUnchanged !== true) return null;
 
-  const ref = crap.incrementalCoverage.baseRef || args.ref;
+  const ref = resolveCaptureRef({ crap, args });
   let changed = null;
   try {
     changed = getChangedFilesImpl({ ref, cwd: args.cwd });
