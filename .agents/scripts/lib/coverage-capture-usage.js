@@ -39,7 +39,10 @@ const COVERAGE_CAPTURE_USAGE = {
       '--require-credited',
       'Refuse (exit 1) instead of spawning when no credited capture stamp covers this tree. Passed by the close gate when delivery.execution.requireCreditedCapture is set; a bare invocation always runs, so the deposit path stays open.',
     ],
-    ['--ref <git-ref>', 'Git ref the changed-file set is computed against.'],
+    [
+      '--ref <git-ref>',
+      'Git ref the changed-file set is computed against. Passing it wins over delivery.quality.gates.crap.incrementalCoverage.baseRef, so a caller that anchors another gate on the same ref gets one scope for both.',
+    ],
     ['--cwd <path>', 'Repository root the capture runs in.'],
   ],
 };

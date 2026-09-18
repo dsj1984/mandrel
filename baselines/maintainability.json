@@ -384,7 +384,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/crap-preview-incremental.js",
-      "mi": 113.043
+      "mi": 110.76
     },
     {
       "path": ".agents/scripts/lib/baselines/crap-preview-scan.js",
@@ -608,7 +608,7 @@
     },
     {
       "path": ".agents/scripts/lib/changed-files.js",
-      "mi": 100.02
+      "mi": 101.447
     },
     {
       "path": ".agents/scripts/lib/checks/core-bare-clean.js",
@@ -796,11 +796,11 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-capture-fullscope.js",
-      "mi": 95.649
+      "mi": 94.734
     },
     {
       "path": ".agents/scripts/lib/coverage-capture-incremental.js",
-      "mi": 93.159
+      "mi": 92.697
     },
     {
       "path": ".agents/scripts/lib/coverage-capture-usage.js",
