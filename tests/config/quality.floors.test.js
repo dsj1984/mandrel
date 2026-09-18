@@ -168,11 +168,33 @@ describe('gates.crap.incrementalCoverage (Story #5173)', () => {
       assert.equal(ctx.baselineRows.length, 1);
     });
 
-    it('prefers its own baseRef over the caller diffRef', () => {
+    // Story #5365 inverted this. It used to prefer its own `baseRef` over the
+    // caller's `diffRef`, which meant `.husky/pre-push` — which captures at
+    // `--ref origin/main` and previews at `--changed-since origin/main` — could
+    // resolve two different change sets one line apart in any consumer that
+    // configured `baseRef`. The ref the caller named now wins, through the one
+    // shared `resolveChangedFilesRef` rule; `baseRef` still answers a caller
+    // that named none, which is the case the key was added for.
+    it('prefers the caller diffRef over its own baseRef', () => {
       const seen = [];
       resolveCrapPreviewIncremental({
         crap: { incrementalCoverage: { baselineJoin: true, baseRef: 'v1' } },
         diffRef: 'main',
+        cwd: '/repo',
+        baselineRows: [],
+        getChangedFilesImpl: (args) => {
+          seen.push(args.ref);
+          return [];
+        },
+      });
+      assert.deepEqual(seen, ['main']);
+    });
+
+    it('falls back to its own baseRef when the caller named no ref', () => {
+      const seen = [];
+      resolveCrapPreviewIncremental({
+        crap: { incrementalCoverage: { baselineJoin: true, baseRef: 'v1' } },
+        diffRef: null,
         cwd: '/repo',
         baselineRows: [],
         getChangedFilesImpl: (args) => {
