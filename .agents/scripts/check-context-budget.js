@@ -1,74 +1,16 @@
 /**
- * CLI: ratchet-down gate for the always-loaded documentation context budget
- * (Story #4438, Epic #4430 — Context Economy).
+ * CLI: ratchet gate for documentation context bytes against
+ * `baselines/context-budget.json`. Measures `alwaysLoaded` (the `CLAUDE.md`
+ * `@`-import closure), `mandatoryRead` (`project.docsContextFiles`) and
+ * `workflow` (entry points + `mandatoryReads:` closure).
  *
- * Follows the standalone `check-arch-cycles.js` / `check-dead-exports.js`
- * precedent — a pure-Node, baseline-aware, sub-second checker wired into the
- * CI `baselines` job — rather than a `baselines/kinds/` metric. It measures the
- * live byte total of three documentation read-tiers against a single committed
- * budget in `baselines/context-budget.json`:
+ * Only `alwaysLoaded` gates — every session and subagent spawn pays it. Exit 1
+ * when it grows past `totalBytes + toleranceBytes` or a recorded row names a
+ * path it no longer contains; every other drift, and all shrinkage, is
+ * reported with exit 0 (the close writes a lower total back). An empty tier or
+ * a missing baseline is a no-op. Tolerance lives only in the baseline JSON.
  *
- *   - `alwaysLoaded`  — the `CLAUDE.md` `@`-import closure re-paid on every
- *                       session and every subagent spawn (instructions.md § 4).
- *   - `mandatoryRead` — the resolved `project.docsContextFiles` set.
- *   - `workflow`      — the workflow **mandatory closure** (Story #4752): every
- *                       `.agents/workflows/**` entry point plus the transitive
- *                       closure of its `mandatoryReads:` frontmatter edges. The
- *                       companion **reachable** closure (per entry point) is
- *                       recorded under the top-level `workflowClosure` key.
- *
- * **One tier gates: `alwaysLoaded`.** It is the only tier every session and
- * every subagent spawn pays unconditionally, so growth there is a real tax on
- * every future turn. The other tiers are measured, recorded and printed, and
- * never fail the command (Story #5340). Demoting them is what makes workflow
- * prose editable again: under the old rule a prose fix had to be paid for with
- * an unrelated trim in the same commit, and that is how three reference
- * sections came to describe mechanisms the code had already retired. The
- * measurement is still worth seeing on every change, so it is kept as a
- * report rather than deleted. See `docs/decisions.md`, ADR 20260917-5340.
- *
- * The role-scoped agent-boot tier (`.agents/agents/*.md`) is recorded the same
- * way. Its former per-file 8 KB ceiling and the row-vs-tree drift gate are
- * gone with the same ADR — nothing enforces a per-file ceiling or a minimum
- * headroom on a workflow or agent file any more.
- *
- * A read-tier that resolves **empty** is skipped silently (the `docsContextFiles`
- * half skips when unconfigured / its files are absent), so a repo with no
- * `CLAUDE.md` and no context docs is a clean no-op.
- *
- * Ratchet semantics (mirroring the sibling ratchets):
- *   - The `alwaysLoaded` tier grows beyond `baseline.tiers.alwaysLoaded
- *     .totalBytes + baseline.toleranceBytes` → exit 1, naming the tier and its
- *     delta. Growth in any other measured tier is printed and exits 0.
- *   - A measured tier shrinks below its baseline total → **exit 0**, reported
- *     as an informational `-` line (Story #5313). This deliberately reverses
- *     Story #4872's "shrink fails" rule: that rule made every trim a red gate
- *     whose only remedy was a hand-run `--update`, so the gain was paid for
- *     twice. The concern it answered — a stale total silently absorbing the
- *     next growth — is now met by the close's write-back seam
- *     (`story-close/context-budget-writeback.js`), which rewrites the lower
- *     total into `baselines/context-budget.json` on the Story branch so the
- *     gain locks in without a failing gate. Shrinkage stays zero-tolerance
- *     in the *report* (every byte under the total is listed) so a sub-
- *     tolerance gain is never discarded by the write-back either.
- *   - A recorded `alwaysLoaded` row naming a path the measured tier no longer
- *     contains → exit 1. The row describes a file that has been deleted or
- *     de-listed, so the bytes it contributes to the recorded total are fiction.
- *     The same drift in a report-only tier is printed, not failed.
- *   - Within tolerance / clean → exit 0.
- *   - Baseline file absent → warn + exit 0 (no-op; nothing to ratchet against).
- *
- * Tolerance lives in the baseline JSON (`toleranceBytes`) — there is **no**
- * `.agentrc.json` config key; this is a framework-internal dogfooding ratchet,
- * like arch-cycles.
- *
- * Flags:
- *   --baseline <path>  override the budget path (default
- *                      `baselines/context-budget.json`, resolved from cwd).
- *   --root <path>      resolve tiers against an explicit repo root (default cwd).
- *   --update           reseed the baseline from the current measurement (keeps
- *                      the existing `toleranceBytes`, or defaults it) and exit 0.
- *   --json             write the structured envelope to stdout.
+ * Flags: --baseline <path>, --root <path>, --update (keeps tolerance), --json.
  */
 
 import fs from 'node:fs';
@@ -79,34 +21,24 @@ import { resolveConfig } from './lib/config-resolver.js';
 import { resolveDocTiers, tierTotalBytes } from './lib/doc-tiers.js';
 
 /**
- * The tiers this command measures and records (in report order).
- * `digestVisible`, `onDemand` and `workflowOnDemand` are resolved by the tier
- * map for the lens, but the byte budget intentionally measures only the tiers
- * a session is *forced* to read.
+ * Measured tiers, in report order — only those a session is forced to read.
  * @type {Array<'alwaysLoaded' | 'mandatoryRead' | 'workflow'>}
  */
 export const MEASURED_TIERS = ['alwaysLoaded', 'mandatoryRead', 'workflow'];
 
 /**
- * The tiers whose drift fails the command (Story #5340). Only `alwaysLoaded`
- * is paid by every session and every subagent spawn unconditionally, so it is
- * the one tier where growth is a tax nobody opted into. Everything else in
- * {@link MEASURED_TIERS} is a report.
+ * Tiers whose drift fails the command; the rest are report-only.
  * @type {Array<'alwaysLoaded'>}
  */
 export const ENFORCED_TIERS = ['alwaysLoaded'];
 
 /**
- * Default tolerance (bytes) seeded into a fresh baseline by `--update` when the
- * existing baseline carries none.
+ * Seeded by `--update` when the baseline carries none.
  * @type {number}
  */
 export const DEFAULT_TOLERANCE_BYTES = 2048;
 
 /**
- * Parse argv for `--baseline <path>`, `--root <path>`, `--update`, `--json`.
- * Exported so unit tests can pin the parser.
- *
  * @param {string[]} argv
  * @returns {{ baselinePath: string|null, rootPath: string|null, update: boolean, json: boolean }}
  */
@@ -139,8 +71,7 @@ export function parseArgv(argv = []) {
 }
 
 /**
- * Read the committed budget envelope from disk. Returns the parsed object or
- * `null` when the file is missing or unparseable.
+ * `null` when missing or unparseable.
  *
  * @param {string} baselinePath
  * @returns {{ toleranceBytes?: number, tiers?: Record<string, { totalBytes: number, files?: Array<{ path: string, bytes: number }> }> } | null}
@@ -157,9 +88,6 @@ export function loadBaseline(baselinePath) {
 }
 
 /**
- * Build the committed-baseline envelope from a resolved tier map. Only the
- * measured tiers are recorded (each as `{ totalBytes, files }`).
- *
  * @param {{ tiers: Record<string, Array<{ path: string, bytes: number }>> }} tierMap
  * @param {number} toleranceBytes
  * @returns {object}
@@ -170,10 +98,7 @@ export function buildBaseline(tierMap, toleranceBytes) {
     const files = tierMap.tiers[name] ?? [];
     tiers[name] = { totalBytes: tierTotalBytes(files), files };
   }
-  // The agent-boot tier is recorded top-level (not under `tiers`) because it
-  // carries no recorded total to diff against — it is a per-file size record
-  // the audit instruments read as hotspot rows. Keeping it out of `tiers`
-  // keeps the ratchet diff loop unambiguous.
+  // Top-level, not under `tiers`: a per-file size record with no total to diff.
   const agentBootFiles = (tierMap.tiers.agentBoot ?? []).map((f) => ({
     path: f.path,
     bytes: f.bytes,
@@ -186,8 +111,7 @@ export function buildBaseline(tierMap, toleranceBytes) {
     agentBoot: {
       files: agentBootFiles,
     },
-    // Recorded, never gated (#4752): the total reachable closure per workflow
-    // entry point.
+    // Recorded, never gated.
     workflowClosure: {
       reachableTotalBytes: tierMap.workflowClosure?.reachableTotalBytes ?? 0,
       entryPoints: tierMap.workflowClosure?.entryPoints ?? [],
@@ -196,11 +120,8 @@ export function buildBaseline(tierMap, toleranceBytes) {
 }
 
 /**
- * Collect the recorded rows of one measured tier that name a path the measured
- * tier no longer contains (Story #4872). A deleted file drops out of the
- * resolved tier, and so does one that has been de-listed from the read set —
- * either way the row's bytes are counted into a recorded total that no live
- * file backs, so the row is drift and not a detail.
+ * Recorded rows naming a path the tier no longer contains (deleted or
+ * de-listed) — their bytes inflate the total against nothing.
  *
  * @param {string} tier
  * @param {Array<{ path: string, bytes: number }>} files live tier measurement
@@ -222,12 +143,7 @@ function absentRows(tier, files, baseTier) {
 }
 
 /**
- * Pure diff: compare the current tier map against the committed baseline. A
- * measured tier with no current files is skipped; a tier absent from the
- * baseline is skipped. `grown` and `absent` entries in an {@link
- * ENFORCED_TIERS} tier fail the gate; every other entry — and every `shrunk`
- * entry — is reported (Story #5340, Story #5313) and `shrunk` is what the
- * close writes back. See the ratchet semantics in the module header.
+ * Pure diff against the baseline; empty or unrecorded tiers are skipped.
  *
  * @param {{ tiers: Record<string, Array<{ path: string, bytes: number }>> }} tierMap
  * @param {{ toleranceBytes?: number, tiers?: Record<string, { totalBytes: number }> }} baseline
@@ -268,9 +184,7 @@ export function diffBudget(tierMap, baseline) {
         delta: current - baselineBytes,
       });
     } else if (current < baselineBytes) {
-      // Deliberately zero-tolerance in the report: `tolerance` guards against
-      // churn from a trivial *addition*; mirroring it downward would hide a
-      // gain from the write-back that locks it in (Story #5313).
+      // Zero-tolerance downward, so the write-back never misses a small gain.
       shrunk.push({
         tier,
         current,
@@ -284,8 +198,6 @@ export function diffBudget(tierMap, baseline) {
 }
 
 /**
- * True when a diff entry belongs to a tier whose drift still fails the gate.
- *
  * @param {{ tier?: string }} entry
  * @returns {boolean}
  */
@@ -294,11 +206,7 @@ function isEnforced(entry) {
 }
 
 /**
- * Count the drift entries that fail the gate: growth past tolerance and a
- * recorded row the tree no longer backs, **in an {@link ENFORCED_TIERS} tier
- * only** (Story #5340). Shrinkage is not in the set (Story #5313 — the close
- * writes it back instead). This is the one place the failure set is defined
- * and both the summary tag and the exit code read it.
+ * The single definition of the failure set: enforced-tier `grown` + `absent`.
  *
  * @param {ReturnType<typeof diffBudget>} diff
  * @returns {number}
@@ -309,25 +217,11 @@ export function budgetFailureCount(diff) {
   return grown + absent;
 }
 
-/**
- * Render the human-readable diff. `+` lines are enforced tiers that grew
- * beyond tolerance; `-` lines are tiers that shrank below their recorded total
- * (informational — the close writes the lower total back) or rows naming a
- * path the tree no longer carries. Drift in a report-only tier is prefixed
- * with `~` and says so on the line, so a reader never has to cross-reference
- * {@link ENFORCED_TIERS} to know whether it broke the build. A one-line
- * summary always follows.
- *
- * @param {ReturnType<typeof diffBudget>} diff
- * @returns {string}
- */
 const REPORT_ONLY_NOTE = ' — reported, never gated';
 
 /**
- * Marker prefix and trailing note for one diff row. An enforced tier keeps the
- * caller's `+` / `-` marker and adds no note; a report-only tier is prefixed
- * with `~` and says so inline, so a reader never has to cross-reference
- * {@link ENFORCED_TIERS} to know whether the line broke the build.
+ * A report-only row is marked `~` with an inline note, so the line itself
+ * says whether it broke the build.
  *
  * @param {{ tier: string }} row
  * @param {string} enforcedPrefix
@@ -339,6 +233,10 @@ function gateMarks(row, enforcedPrefix) {
     : { prefix: '~', note: REPORT_ONLY_NOTE };
 }
 
+/**
+ * @param {ReturnType<typeof diffBudget>} diff
+ * @returns {string}
+ */
 export function renderDiff(diff) {
   const lines = [];
   for (const g of diff.grown) {
@@ -366,9 +264,7 @@ export function renderDiff(diff) {
 }
 
 /**
- * Render the workflow **reachable** closure line — recorded, never gated
- * (Story #4752). Returns `''` when there is no workflow tier to report, so the
- * caller can stay a one-liner.
+ * The workflow reachable-closure line, or `''`.
  *
  * @param {{ workflowClosure?: { reachableTotalBytes?: number, entryPoints?: unknown[] } }} tierMap
  * @param {{ workflowClosure?: { reachableTotalBytes?: number } } | null} [baseline]
@@ -385,11 +281,7 @@ export function renderReachable(tierMap, baseline) {
 }
 
 /**
- * Render the role-scoped agent-boot line — a pure size report since Story
- * #5340 removed the per-file ceiling. It names the largest boot context
- * because that is the number an author sizing a role-def edit wants, and the
- * total because that is what the whole role surface costs. Returns `''` when
- * the tree carries no role defs.
+ * The agent-boot size line (total and largest role def), or `''`.
  *
  * @param {{ tiers?: { agentBoot?: Array<{ path: string, bytes: number }> } }} tierMap
  * @returns {string}
@@ -402,23 +294,7 @@ function renderAgentBoot(tierMap) {
 }
 
 /**
- * Top-level CLI entry. Exported so tests can drive the full pipeline against a
- * tmpdir fixture with an injected config and sinks.
- *
- * @param {{
- *   argv?: string[],
- *   cwd?: string,
- *   config?: object,
- *   stdout?: { write: (s: string) => void },
- *   stderr?: { write: (s: string) => void },
- * }} [opts]
- * @returns {Promise<number>} 0 = clean / within tolerance / shrink-only / no-op;
- *   1 = the always-loaded tier grew beyond tolerance or one of its recorded
- *   rows is unbacked
- */
-/**
- * Write a fresh budget, preserving the recorded tolerance so `--update` never
- * silently widens the gate it is refreshing.
+ * Preserves the recorded tolerance so `--update` never widens the gate.
  *
  * @param {object} params
  * @returns {0}
@@ -447,9 +323,6 @@ function writeUpdatedBaseline({ tierMap, resolvedBaselinePath, json, stdout }) {
 }
 
 /**
- * An absent budget is a no-op, not a failure: a consumer that has never
- * recorded one has nothing to regress against.
- *
  * @param {object} params
  * @returns {0}
  */
@@ -473,9 +346,7 @@ function reportMissingBaseline({
 }
 
 /**
- * Score the tree against the recorded budget. Pure — every verdict the two
- * renderers below present is decided here, so they cannot disagree about what
- * failed or drift apart in which fields they surface.
+ * Every verdict is decided here, so the two renderers cannot disagree.
  *
  * @param {{ tierMap: object, baseline: object }} params
  * @returns {{ diff: object, exitCode: 0 | 1 }}
@@ -519,10 +390,7 @@ function renderJsonReport({
 }
 
 /**
- * Each failing condition gets its own remediation line: they are fixed
- * differently, so a single generic message would leave the author guessing
- * which applies. Only {@link ENFORCED_TIERS} drift speaks here — the report-
- * only lines are already marked `~` in the preview above.
+ * One remediation line per failing condition (each is fixed differently).
  *
  * @param {object} params
  * @returns {void}
@@ -542,14 +410,6 @@ function renderFailureDiagnostics({ report, stderr }) {
 }
 
 /**
- * @param {object} params
- * @returns {void}
- */
-/**
- * The optional closure lines, in print order, with the empty ones dropped.
- * Both renderers return `''` when they have nothing to say, so filtering here
- * keeps {@link renderTextReport} free of one branch per optional line.
- *
  * @param {{ tierMap: object, baseline: object | null }} params
  * @returns {string[]}
  */
@@ -559,6 +419,10 @@ function optionalReportLines({ tierMap, baseline }) {
   );
 }
 
+/**
+ * @param {object} params
+ * @returns {void}
+ */
 function renderTextReport({ tierMap, baseline, report, stdout, stderr }) {
   const { diff, exitCode } = report;
   stdout.write(`\n--- context-budget preview ---\n`);
@@ -569,6 +433,16 @@ function renderTextReport({ tierMap, baseline, report, stdout, stderr }) {
   if (exitCode === 1) renderFailureDiagnostics({ report, stderr });
 }
 
+/**
+ * @param {{
+ *   argv?: string[],
+ *   cwd?: string,
+ *   config?: object,
+ *   stdout?: { write: (s: string) => void },
+ *   stderr?: { write: (s: string) => void },
+ * }} [opts]
+ * @returns {Promise<number>} 1 only for enforced-tier drift.
+ */
 export async function runCli({
   argv = process.argv.slice(2),
   cwd = process.cwd(),

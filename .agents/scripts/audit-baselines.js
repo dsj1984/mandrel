@@ -1,29 +1,13 @@
 #!/usr/bin/env node
 
 /**
- * CLI: baseline hotspot engine for the `/audit-baselines` lens (Story #4902).
- *
- * Turns the committed `baselines/` folder into ranked hotspot clusters,
- * gate-surface health signals, trend deltas, and floor-tightening headroom —
- * the deterministic evidence half of a baseline review, so the lens spends
- * its judgment on findings instead of re-deriving the numbers by hand.
- *
- * Read-only by contract: nothing under `baselines/` is written, and no test,
- * coverage, or mutation suite is run. The only file this process creates is
- * the envelope at `--out`.
- *
- * Exit 0 whenever evidence was assembled — findings are evidence, not a gate.
- * A missing git history, absent friction ledger, or unresolvable import graph
- * are reported as degradations and still exit 0. Only an unwritable `--out`
- * (or a missing one) is a failure.
- *
- * Usage:
- *   node .agents/scripts/audit-baselines.js --out temp/audit-baselines/envelope.json
+ * CLI: the deterministic evidence half of `/audit-baselines` — ranked hotspot
+ * clusters, gate health, trends and floor headroom from `baselines/`.
+ * Read-only: writes only the `--out` envelope. Degraded inputs still exit 0;
+ * only a missing or unwritable `--out` fails.
  */
 
-// Fail-fast if the framework's runtime deps are not installed — must be the
-// first import so the check runs before any third-party-importing sibling
-// module is evaluated (Story #3432).
+// Must be the first import: fail fast before any third-party import evaluates.
 import './lib/runtime-deps/ensure-installed.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -49,9 +33,7 @@ const FLAG_SPEC = {
 };
 
 /**
- * Validate the envelope against its shipped schema through the shared
- * baseline schema registry. Throws with the AJV error list on mismatch —
- * a malformed envelope is an engine bug, not evidence.
+ * Throws on a schema mismatch — a malformed envelope is an engine bug.
  *
  * @param {object} envelope
  * @returns {void}
@@ -73,9 +55,6 @@ export function assertEnvelope(envelope) {
 }
 
 /**
- * Assemble the envelope, validate it, write it, and return the stdout
- * summary. Exported so tests drive the whole pipeline without spawning.
- *
  * @param {{ argv?: string[], cwd?: string, stdout?: { write: (s: string) => void } }} [opts]
  * @returns {Promise<number>} exit code
  */
