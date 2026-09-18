@@ -14,9 +14,7 @@ import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import {
   COMMENT_RATIO_CEILING,
   commentBytes,
-  extractComments,
   findProvenance,
-  isDirectiveComment,
   isScannedSource,
   normalizedCode,
   typeTags,
@@ -75,7 +73,10 @@ describe('scanner', () => {
       'const re = /\\/\\*[^/]*\\//g;',
       'const d = a / b / c; /* real block */',
     ].join('\n');
-    assert.deepEqual(extractComments(src), ['// real', '/* real block */']);
+    assert.equal(
+      commentBytes(src).comment,
+      '// real'.length + '/* real block */'.length,
+    );
   });
 
   it('counts comment bytes against total bytes', () => {
@@ -88,13 +89,6 @@ describe('scanner', () => {
     assert.equal(isScannedSource('.agents/scripts/a.test.js'), false);
     assert.equal(isScannedSource('.agents/scripts/lib/generated/v.js'), false);
     assert.equal(isScannedSource('.agents/scripts/README.md'), false);
-  });
-
-  it('recognises tool directives', () => {
-    assert.equal(isDirectiveComment('// biome-ignore lint/x: why'), true);
-    assert.equal(isDirectiveComment('/* node:coverage ignore next */'), true);
-    assert.equal(isDirectiveComment('// cli-opt-out: bespoke guard'), true);
-    assert.equal(isDirectiveComment('// ordinary prose'), false);
   });
 });
 
@@ -112,9 +106,18 @@ describe('normalizedCode', () => {
     assert.notEqual(normalizedCode('return x'), normalizedCode('returnx'));
   });
 
-  it('treats deleting a directive comment as a code change', () => {
-    const before = '// biome-ignore lint/x: why\nf();';
-    assert.notEqual(normalizedCode(before), normalizedCode('f();'));
+  it('treats deleting a tool directive as a code change', () => {
+    for (const directive of [
+      '// biome-ignore lint/x: why',
+      '/* node:coverage ignore next */',
+      '// cli-opt-out: bespoke guard',
+    ]) {
+      assert.notEqual(
+        normalizedCode(`${directive}\nf();`),
+        normalizedCode('f();'),
+      );
+    }
+    assert.equal(normalizedCode('// prose\nf();'), normalizedCode('f();'));
   });
 });
 

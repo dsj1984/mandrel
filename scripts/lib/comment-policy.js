@@ -31,11 +31,11 @@ export const RATIO_ROOT = '.agents/scripts';
  * A comment citing a ticket, pull request or decision record: `Story #N`,
  * `PR #N`, `Epic #N`, `ADR <date-id>`, or a bare `#NN…` issue reference.
  */
-export const PROVENANCE_PATTERN =
+const PROVENANCE_PATTERN =
   /\b(?:Story|Stories|PR|PRs|Epic|Epics|Issue|Issues)\s*#\d+|\bADR[ -]?\d{6,}|(?<![\w&/#])#\d{2,}\b/;
 
 /** JSDoc tags that form the type surface and must survive a trim. */
-export const TYPE_TAGS = ['param', 'returns', 'typedef', 'throws'];
+const TYPE_TAGS = ['param', 'returns', 'typedef', 'throws'];
 
 const KEYWORDS_BEFORE_EXPRESSION = new Set([
   'return',
@@ -140,7 +140,7 @@ function endOfRegex(s, start) {
  * @param {string} source
  * @returns {Array<{ kind: 'code' | 'comment' | 'literal', text: string }>}
  */
-export function tokenizeComments(source) {
+function tokenizeComments(source) {
   const s = String(source ?? '');
   /** @type {Array<{ kind: 'code' | 'comment' | 'literal', text: string }>} */
   const parts = [];
@@ -247,7 +247,7 @@ export function tokenizeComments(source) {
  * @param {string} source
  * @returns {string[]}
  */
-export function extractComments(source) {
+function extractComments(source) {
   return tokenizeComments(source)
     .filter((p) => p.kind === 'comment')
     .map((p) => p.text);
@@ -290,8 +290,8 @@ export function normalizedCode(source) {
  * @param {string} comment
  * @returns {boolean}
  */
-export function isDirectiveComment(comment) {
-  return /^\/[/*]\s*(?:biome-ignore|eslint-|@ts-|node:coverage|c8 |istanbul |cli-opt-out|@license|@preserve)/.test(
+function isDirectiveComment(comment) {
+  return /^\/[/*]\s*(?:biome-ignore|eslint-|@ts-|node:coverage|c8 |istanbul |cli-opt-out|test-temp-allow|@license|@preserve)/.test(
     comment,
   );
 }
