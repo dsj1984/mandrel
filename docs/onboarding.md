@@ -36,7 +36,7 @@ mandrel/
 ├── .agentrc.json             # Root config for this repo (dogfooding)
 ├── baselines/                # Committed quality/ratchet baselines
 ├── docs/                     # Implementation plans and changelog
-│   └── contributing/         # Contributor-only rules (known-tooling-behavior, test-seams, orchestration-error-handling)
+│   └── contributing/         # Contributor-only rules (known-tooling-behavior, test-seams, orchestration-error-handling, comment-policy)
 ├── scripts/                  # Contributor-only CLIs (lint/verify aggregates, CI ratchets) — not distributed
 ├── tests/                    # Framework tests
 ├── package.json              # Tooling: biome, markdownlint, husky
@@ -76,9 +76,10 @@ mandrel/
    likewise split into an always-on core (`security-baseline.md`,
    `git-conventions.md`) and an on-demand set (`testing-standards.md`,
    `api-conventions.md`, and the domain rules) read only when the task
-   engages them. Three rules that only govern mandrel's own tooling —
-   `known-tooling-behavior.md`, `test-seams.md` and
-   `orchestration-error-handling.md` — live under
+   engages them. The rules that only govern mandrel's own tooling —
+   `known-tooling-behavior.md`, `test-seams.md`,
+   `orchestration-error-handling.md` and
+   [`comment-policy.md`](contributing/comment-policy.md) — live under
    [`docs/contributing/`](contributing/) instead and do not ship. See
    [`.agents/README.md` § What to always-load vs read on-demand](../.agents/README.md)
    and [`.agents/instructions.md` § 1.F](../.agents/instructions.md) for the
@@ -285,3 +286,4 @@ consulted at release time, not on every task.
 | [`.agentrc.json`](../.agentrc.json)                         | Runtime configuration               |
 | [`CHANGELOG.md`](CHANGELOG.md)                              | Release history                     |
 | [`claude-coupling-review.md`](claude-coupling-review.md)    | Where the Claude Code coupling lives |
+| [`contributing/comment-policy.md`](contributing/comment-policy.md) | What a source comment may say, and the ratchets that hold it |

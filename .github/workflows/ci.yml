@@ -352,6 +352,7 @@ jobs:
           node .agents/scripts/check-cyclomatic.js
           node scripts/check-schema-references.js
           node scripts/check-baseline-scope.js
+          node scripts/check-comment-policy.js
 
   e2e:
     # Story #5111 — the real-binary tier, as its own job.
