@@ -1,17 +1,17 @@
 // tests/scripts/check-payload-boundary.test.js
 //
 // Story #5381 — the payload-boundary ratchet. Every rule is driven against a
-// planted tree under the OS temp dir, so no case touches the shared checkout;
+// planted tree in a registered temp dir, so no case touches the shared checkout;
 // one case runs the real CLI against this repository.
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import { after, describe, it } from 'node:test';
+import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import {
   checkPayloadBoundary,
   renderPayloadBoundaryReport,
@@ -21,11 +21,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const CLI = path.join(REPO_ROOT, 'scripts', 'check-payload-boundary.js');
 
-const roots = [];
-after(() => {
-  for (const root of roots) fs.rmSync(root, { recursive: true, force: true });
-});
-
 /**
  * Plant a repository tree from a `{ relPath: content }` map.
  *
@@ -33,8 +28,7 @@ after(() => {
  * @returns {string} absolute root
  */
 function plant(files) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'payload-boundary-'));
-  roots.push(root);
+  const root = makeTempDir('payload-boundary-');
   for (const [rel, content] of Object.entries(files)) {
     const abs = path.join(root, ...rel.split('/'));
     fs.mkdirSync(path.dirname(abs), { recursive: true });
