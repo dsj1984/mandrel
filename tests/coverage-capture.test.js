@@ -6,8 +6,8 @@ import {
   parseArgs,
   runCoverageCapture,
 } from '../.agents/scripts/coverage-capture.js';
+import { resolveChangedFilesRef } from '../.agents/scripts/lib/changed-files.js';
 import { getQuality } from '../.agents/scripts/lib/config-resolver.js';
-import { resolveCaptureRef } from '../.agents/scripts/lib/coverage-capture-incremental.js';
 import { handleCoverageCaptureHelp } from '../.agents/scripts/lib/coverage-capture-usage.js';
 
 /**
@@ -118,10 +118,10 @@ describe('coverage-capture parseArgs', () => {
     const parsed = parseArgs(argv());
     assert.equal(parsed.skipWhenNoCrapFiles, false);
     // Story #5365 — `null` is "the caller named no ref", which is what lets
-    // `resolveCaptureRef` apply the configured baseRef and then `main`.
+    // `resolveChangedFilesRef` apply the configured baseRef and then `main`.
     assert.equal(parsed.ref, null);
     assert.equal(
-      resolveCaptureRef({ crap: {}, args: parsed }),
+      resolveChangedFilesRef({ crap: {}, ref: parsed.ref }),
       'main',
       'the gate default still applies when nothing names a ref',
     );

@@ -168,13 +168,13 @@ production pass.
 against a literal `origin/main`. The CRAP half of `quality-preview.js` is a
 function of complexity **and** coverage, so the preview is only reading its
 own tree if the artifact under it was captured over the same change set.
-`coverage-capture.js` resolves that set through **one** rule, stated once in
-`resolveCaptureRef` (`.agents/scripts/lib/coverage-capture-incremental.js`):
-a `--ref` the caller named wins, and
+Both steps resolve that set through **one** rule, stated once in
+`resolveChangedFilesRef` (`.agents/scripts/lib/changed-files.js`): the ref the
+caller named wins, and
 `delivery.quality.gates.crap.incrementalCoverage.baseRef` is the default for a
 caller that names none — the close-validation gate, which passes no `--ref`.
-The shell resolves it once per invocation and hands the value to both capture
-paths, so no run can resolve two refs.
+Both `coverage-capture` paths and the preview's CRAP baseline join call it, so
+one hook invocation cannot resolve two refs.
 
 Before Story #5365 the configured value outranked the flag. The preview has
 no config ref to consult, so a consumer that set `baseRef` captured against
@@ -188,7 +188,7 @@ nothing about a consumer's.
 **Reproduce.**
 
 ```bash
-node -e "import('./.agents/scripts/lib/coverage-capture-incremental.js').then(({ resolveCaptureRef }) => { const crap = { incrementalCoverage: { baseRef: 'develop' } }; console.log(resolveCaptureRef({ crap, args: { ref: 'origin/main', refExplicit: true } })); console.log(resolveCaptureRef({ crap, args: { ref: 'main', refExplicit: false } })); })"
+node -e "import('./.agents/scripts/lib/changed-files.js').then(({ resolveChangedFilesRef }) => { const crap = { incrementalCoverage: { baseRef: 'develop' } }; console.log(resolveChangedFilesRef({ crap, ref: 'origin/main' })); console.log(resolveChangedFilesRef({ crap, ref: null })); })"
 # → origin/main   (the hook's flag wins over a configured baseRef)
 # → develop       (config still answers a caller that named no ref)
 grep -n 'origin/main' .husky/pre-push   # the same literal on both steps
@@ -196,5 +196,5 @@ grep -n 'origin/main' .husky/pre-push   # the same literal on both steps
 
 **Safe move.** Read a green pre-push as evidence about CRAP only when both
 hook steps still carry the same literal ref. Moving one means moving the
-other; adding a third consumer of the change set means routing it through
-`resolveCaptureRef` rather than reading `baseRef` directly.
+other; adding another consumer of the change set means routing it through
+`resolveChangedFilesRef` rather than reading `baseRef` directly.

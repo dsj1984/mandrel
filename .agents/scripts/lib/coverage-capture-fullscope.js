@@ -8,19 +8,19 @@
  * logic; behaviour is byte-for-byte the pre-#4981 body.
  */
 import path from 'node:path';
+import { resolveChangedFilesRef } from './changed-files.js';
 import {
   anyChangedUnderTargets,
   describeFreshness,
   stampCapturedTree,
 } from './coverage-capture.js';
-import { resolveCaptureRef } from './coverage-capture-incremental.js';
 
 /**
  * Run the `--skip-when-no-crap-files` check (when requested), the
  * content-digest freshness probe, and — when stale — the full-repo
  * `npm run test:coverage` capture + stamp write.
  *
- * The skip check scores the ref `resolveCaptureRef` resolves — the same rule,
+ * The skip check scores the ref `resolveChangedFilesRef` resolves — the rule,
  * and the same answer, incremental mode applies, so a fall-through from it
  * cannot change scope mid-run (Story #5365).
  *
@@ -52,7 +52,7 @@ export function runFullScopeCapture({
     let changed;
     try {
       changed = getChangedFilesImpl({
-        ref: resolveCaptureRef({ crap, args }),
+        ref: resolveChangedFilesRef({ crap, ref: args.ref }),
         cwd: args.cwd,
       });
     } catch (err) {

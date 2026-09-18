@@ -32,7 +32,7 @@
  * Step 3 is preceded by the changed-file skip when
  * `delivery.quality.gates.crap.incrementalCoverage.skipWhenUnchanged` is on
  * (the default): no changed file under `crap.targetDirs` versus the ref
- * `resolveCaptureRef` resolves means no capture at all (Story #5365).
+ * `resolveChangedFilesRef` resolves means no capture at all (Story #5365).
  *
  * Exit codes:
  *   0 — coverage is fresh (or capture skipped/succeeded).
@@ -64,8 +64,8 @@ import { hasNpmScript, readPackageScripts } from './lib/npm-scripts.js';
 /**
  * Parse the full `process.argv` (index 2 onward) into the capture options.
  *
- * A `ref` of `null` means the caller named none; `resolveCaptureRef` owns the
- * fallback (Story #5365).
+ * A `ref` of `null` means the caller named none; `resolveChangedFilesRef` owns
+ * the fallback (Story #5365).
  *
  * @param {string[]} argv
  * @returns {{ skipWhenNoCrapFiles: boolean, requireCredited: boolean, ref: string | null, cwd: string }}

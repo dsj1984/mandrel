@@ -14,8 +14,9 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { runCoverageCapture } from '../.agents/scripts/coverage-capture.js';
+import { resolveCrapPreviewIncremental } from '../.agents/scripts/lib/baselines/crap-preview-incremental.js';
 import { computeCrapPreviewScan } from '../.agents/scripts/lib/baselines/crap-preview-scan.js';
-import { resolveCaptureRef } from '../.agents/scripts/lib/coverage-capture-incremental.js';
+import { resolveChangedFilesRef } from '../.agents/scripts/lib/changed-files.js';
 import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 
 const REPO_ROOT = path.resolve(
@@ -239,19 +240,46 @@ test('pre-push — a configured baseRef cannot desynchronize capture from the pr
   }
 });
 
-test('resolveCaptureRef states the rule once: a named ref wins, config is the default', () => {
+test("pre-push — the preview's CRAP baseline join scores the hook's ref too", () => {
+  // The preview resolves a ref of its own whenever `baselineJoin` is on: the
+  // touched-file set that decides which methods may be answered from the
+  // committed baseline. It read `baseRef` first, the same inversion capture
+  // had, so the same configuration desynchronized it from the scope the hook
+  // handed the preview one line earlier.
+  const asked = [];
+  const result = resolveCrapPreviewIncremental({
+    crap: {
+      incrementalCoverage: { baselineJoin: true, baseRef: RIVAL_REF },
+    },
+    diffRef: previewRefFromHook(),
+    cwd: '/repo',
+    baselineRows: [],
+    getChangedFilesImpl: ({ ref }) => {
+      asked.push(ref);
+      return ['.agents/scripts/a.js'];
+    },
+  });
+  assert.ok(result, 'the join must resolve when baselineJoin is on');
+  assert.deepEqual(
+    asked,
+    [previewRefFromHook()],
+    'the ref the preview was handed wins over the configured baseRef',
+  );
+});
+
+test('resolveChangedFilesRef states the rule once: a named ref wins, config is the default', () => {
   const crap = { incrementalCoverage: { baseRef: RIVAL_REF } };
   assert.equal(
-    resolveCaptureRef({ crap, args: { ref: 'origin/main' } }),
+    resolveChangedFilesRef({ crap, ref: 'origin/main' }),
     'origin/main',
   );
   assert.equal(
-    resolveCaptureRef({ crap, args: { ref: null } }),
+    resolveChangedFilesRef({ crap, ref: null }),
     RIVAL_REF,
     'a caller that names no ref — the close-validation gate — still gets the configured value',
   );
   assert.equal(
-    resolveCaptureRef({ crap: {}, args: { ref: null } }),
+    resolveChangedFilesRef({ crap: {}, ref: null }),
     'main',
     'no config and no named ref falls back to the gate default',
   );
