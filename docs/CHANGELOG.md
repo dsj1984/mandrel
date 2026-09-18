@@ -15,6 +15,31 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.61.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.60.0...mandrel-v2.61.0) (2026-09-18)
+
+
+### ⚠ BREAKING CHANGES
+
+* these .agentrc keys are removed and now fail validation (mandrel update strips them first): delivery.quality.gates.lint, delivery.quality.gates.lighthouse, delivery.quality.gateScoping, delivery.quality.formatAutofix, delivery.quality.codingGuardrails, delivery.quality.baselineEpsilon, delivery.quality.autoRefresh.crapJumpCap, delivery.quality.autoRefresh.scope, delivery.quality.gates.crap.friction, delivery.quality.gates.crap.refreshTag, delivery.quality.gates.crap.refreshTimeoutMs, delivery.quality.gates.crap.incrementalCoverage.enabled, delivery.quality.gates.maintainability.refreshTag, delivery.quality.gates.maintainability.refreshTimeoutMs, delivery.quality.gates.duplication.refreshTimeoutMs, delivery.quality.gates.coverage.timeoutMs, delivery.quality.gates.mutation.strykerConfigPath, delivery.ci.watch, delivery.execution.timeoutMs, delivery.execution.requireCreditedCapture, delivery.tempRetention.staleDays, delivery.mergeWatch.intervalSeconds, delivery.mergeWatch.updateAttempts, delivery.review, delivery.feedbackLoop.frictionWindowDays, delivery.auditToStories, delivery.codeReview.providerConfig, delivery.codeReview.maxFixAttempts, github.defaultTimeoutMs, planning.memoryPool. The lint and lighthouse baseline kinds are gone from check-baselines.
+* removed from the shipped payload (now repo-root scripts/, not distributed): .agents/scripts/test-isolate.js, .agents/scripts/check-test-portability.js, .agents/scripts/install-matrix-assert.js, .agents/scripts/check-audit-attribution.js, .agents/scripts/check-pinned-override-notes.js, .agents/scripts/check-action-pinning.js, .agents/scripts/check-baseline-drift.js, .agents/scripts/check-baseline-scope.js, .agents/scripts/check-generated-validator.js, .agents/scripts/check-knip-entries.js, .agents/scripts/check-lifecycle-lint.js, .agents/scripts/check-schema-references.js, .agents/scripts/check-workflow-citations.js, .agents/scripts/check-workflow-cli-lint.js, .agents/scripts/check-workflow-timeouts.js, .agents/scripts/lint-label-vocabulary.js, .agents/scripts/provision-git-hooks.js, .agents/scripts/run-coverage.js, .agents/scripts/run-lint.js, .agents/scripts/run-test-profile.js, .agents/scripts/run-verify.js, .agents/scripts/update-dead-exports-baseline.js, .agents/scripts/prune-baseline-orphans.js, .agents/scripts/post-structured-comment.js, plus .agents/scripts/lib/test-isolate/, .agents/scripts/lib/test-profile/, .agents/scripts/lib/dynamic-workflow/ and the rules .agents/rules/known-tooling-behavior.md, .agents/rules/test-seams.md and .agents/rules/orchestration-error-handling.md (now docs/contributing/).
+
+### Added
+
+* adopt a contract-once comment policy and trim source comments to it ([#5384](https://github.com/dsj1984/mandrel/issues/5384)) ([#5391](https://github.com/dsj1984/mandrel/issues/5391)) ([13b98de](https://github.com/dsj1984/mandrel/commit/13b98de474019fd61935f8e95b855b8c6f923d7d))
+* cut the unused .agentrc config surface and migrate consumers off it ([#5382](https://github.com/dsj1984/mandrel/issues/5382)) ([#5389](https://github.com/dsj1984/mandrel/issues/5389)) ([660a71c](https://github.com/dsj1984/mandrel/commit/660a71cf5b1acd77a44a4460c4424e43746bf738))
+* stop close re-running the suite after base-sync and failing at pre-push on CRAP scope ([#5378](https://github.com/dsj1984/mandrel/issues/5378)) ([#5379](https://github.com/dsj1984/mandrel/issues/5379)) ([83bda93](https://github.com/dsj1984/mandrel/commit/83bda93942a909bd18307ae0dedabf3c814768af))
+
+
+### Fixed
+
+* make the full-suite lock and close's suite spawns signal-safe, bounded and visible ([#5377](https://github.com/dsj1984/mandrel/issues/5377)) ([#5387](https://github.com/dsj1984/mandrel/issues/5387)) ([e3a32cb](https://github.com/dsj1984/mandrel/commit/e3a32cb6f773892b8cbfd0d4b9bbc81256038777))
+* move contributor-only tooling out of the .agents payload ([#5381](https://github.com/dsj1984/mandrel/issues/5381)) ([#5388](https://github.com/dsj1984/mandrel/issues/5388)) ([984352b](https://github.com/dsj1984/mandrel/commit/984352b0cdcdd5707c8ed0c49e728bc9875634c6))
+
+
+### Changed
+
+* make each close-path merge decision once ([#5383](https://github.com/dsj1984/mandrel/issues/5383)) ([#5390](https://github.com/dsj1984/mandrel/issues/5390)) ([027da2e](https://github.com/dsj1984/mandrel/commit/027da2efe4719c0dc2a6a5065afc710bd0f796a0))
+
 ## [2.60.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.59.0...mandrel-v2.60.0) (2026-09-18)
 
 
