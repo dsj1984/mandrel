@@ -1,28 +1,13 @@
 /**
- * runtime-deps/preflight — pure helpers for the dependency-presence check's
- * *messaging* half.
- *
- * The check itself moved to `dep-resolution.js`, which owns resolving a
- * declared dependency, judging its major, and explaining a mismatch. What is
- * left here holds no side effects and stays unit-testable in isolation:
- * `detectPackageManager` takes an injected `exists` seam and
- * `formatMissingDepsMessage` is a pure string builder. The side-effecting
- * guard that wires them to the real process lives in `ensure-installed.js`.
- *
- * Builtins only — this module runs *before* any third-party package is
- * imported, so importing a third-party here would defeat its own purpose.
+ * runtime-deps/preflight — pure messaging helpers for the dependency check.
+ * Builtins only: it runs before any third-party package is imported.
  */
 
 import fs from 'node:fs';
 import { detectPackageManager as detectPm } from '../detect-package-manager.js';
 
 /**
- * Detect the consumer's package manager from lockfile presence so the
- * remediation message names the right install command. Defaults to `npm`.
- *
- * Delegates to the shared `detectPackageManager` helper
- * (Story #4048 B3 — one implementation per concept). The `exists` seam
- * is forwarded directly; `null` (no manifest) coerces to `'npm'`.
+ * Lockfile-based, so the message names the right install command.
  *
  * @param {string} root
  * @param {(p: string) => boolean} [exists=fs.existsSync]
@@ -32,7 +17,6 @@ export function detectPackageManager(root, exists = fs.existsSync) {
   return detectPm(root, exists) ?? 'npm';
 }
 
-/** Map a detected package manager to its install command. */
 function installCommand(packageManager) {
   if (packageManager === 'pnpm') return 'pnpm install';
   if (packageManager === 'yarn') return 'yarn install';
@@ -40,9 +24,7 @@ function installCommand(packageManager) {
 }
 
 /**
- * Build the actionable remediation message naming the missing packages and
- * the consumer's install command. This is what replaces the opaque raw
- * `ERR_MODULE_NOT_FOUND` stack trace.
+ * Replaces the opaque `ERR_MODULE_NOT_FOUND` stack with an actionable message.
  *
  * @param {string[]} missing
  * @param {{ root: string, packageManager: 'pnpm'|'yarn'|'npm' }} opts

@@ -1,26 +1,8 @@
 // .agents/scripts/lib/skills/parse-skill.js
 //
-// Shared SKILL.md parser used by the skills index generator and the skills
-// validator. Pure I/O on top of a single fs.readFileSync — no network, no
-// child processes, no env reads. Tolerant of CRLF and LF line endings.
-//
-// Public API:
-//
-//   parseSkill(absolutePath, options?) -> {
-//     path,            // repo-relative POSIX path (string)
-//     tier,            // 'core' | 'stack'
-//     category,        // bucket directly under the tier (string)
-//     name,            // parent directory name of SKILL.md (string)
-//     frontmatter,     // YAML-parsed object from between the leading '---' markers
-//     policyCapsule: {
-//       found,         // boolean — true iff a '## Policy Capsule' heading exists
-//       bulletCount,   // integer — count of contiguous top-level '- ' bullets
-//       sectionStart,  // 1-based line number of the heading (null when absent)
-//     },
-//   }
-//
-// The parser asserts that frontmatter.name equals the parent directory name
-// and throws a descriptive Error when the two diverge.
+// Shared SKILL.md parser (CRLF/LF tolerant) returning
+// { path, tier, category, name, frontmatter, policyCapsule }. Throws when
+// frontmatter.name differs from the parent directory name.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -30,14 +12,11 @@ const FRONTMATTER_DELIMITER = '---';
 const POLICY_HEADING_RE = /^## Policy Capsule\s*$/;
 const ANY_H2_RE = /^## /;
 const BULLET_RE = /^- /;
-/** An indented (wrapped) continuation of the bullet above it. */
 const CONTINUATION_RE = /^\s+\S/;
 
 /**
- * Repo root resolver. Walks up from the SKILL.md path until we find a
- * directory that contains an `.agents/skills` folder — that's the canonical
- * marker. Falls back to the file's grandparent's grandparent if no marker
- * is found, which is good enough for tests using temp fixtures.
+ * Nearest ancestor holding `.agents/skills`; fixture trees fall back to four
+ * levels up.
  */
 function resolveRepoRoot(absoluteSkillPath) {
   let dir = path.dirname(absoluteSkillPath);
@@ -47,7 +26,6 @@ function resolveRepoRoot(absoluteSkillPath) {
     }
     dir = path.dirname(dir);
   }
-  // Fallback for fixture trees rooted outside a real .agents layout.
   return path.resolve(path.dirname(absoluteSkillPath), '..', '..', '..', '..');
 }
 
@@ -55,19 +33,11 @@ function toPosix(p) {
   return p.split(path.sep).join('/');
 }
 
-/**
- * Split the source on either CRLF or LF without normalizing line endings.
- * The returned array's length and indices match the original file's line
- * count, which lets callers report 1-based line numbers verbatim.
- */
+/** Indices match the file's lines, so 1-based line numbers report verbatim. */
 function splitLines(src) {
   return src.split(/\r\n|\n/);
 }
 
-/**
- * Extract the YAML frontmatter block sitting between the first two '---'
- * lines. Throws when the file lacks a leading delimiter or never closes it.
- */
 function extractFrontmatterBlock(lines, skillPath) {
   if (lines[0] !== FRONTMATTER_DELIMITER) {
     throw new Error(
@@ -85,16 +55,10 @@ function extractFrontmatterBlock(lines, skillPath) {
 }
 
 /**
- * Scan the body for the '## Policy Capsule' heading and count contiguous
- * top-level '- ' bullets that follow it, stopping at the next '## ' heading
- * or end-of-file. Blank lines inside the bullet run do not reset the count.
- *
- * An **indented** continuation line belongs to the bullet above it — capsule
- * bullets routinely wrap at the document's prose width — so it neither counts
- * as a new bullet nor terminates the run. Only a **flush-left**, non-blank,
- * non-bullet line after the run terminates it (Story #4546: treating any
- * non-bullet line as a terminator counted a wrapped 5-bullet capsule as 1 and
- * tripped the floor in validate-skills.js).
+ * Count top-level `- ` bullets under `## Policy Capsule` up to the next H2.
+ * Blank lines and indented (wrapped) continuations stay inside the run; only
+ * a flush-left non-bullet line after it terminates — otherwise a wrapped
+ * capsule would count as one bullet and trip the validator's floor.
  */
 function findPolicyCapsule(lines, bodyStart) {
   let headingIndex = -1;
@@ -119,19 +83,15 @@ function findPolicyCapsule(lines, bodyStart) {
       continue;
     }
     if (line.trim() === '') {
-      // Blank lines inside or before the bullet run are tolerated.
       continue;
     }
     if (sawBulletRun && CONTINUATION_RE.test(line)) {
-      // Indented continuation of the bullet above — same bullet, not a
-      // terminator. Wrapped capsule bullets are the norm, not an error.
       continue;
     }
     if (sawBulletRun) {
-      // Flush-left, non-blank, non-bullet line after the run terminates it.
       break;
     }
-    // Leading prose between heading and the first bullet is allowed.
+    // Leading prose before the first bullet is allowed.
   }
 
   return {
@@ -141,9 +101,6 @@ function findPolicyCapsule(lines, bodyStart) {
   };
 }
 
-/**
- * Parse a SKILL.md file. See module-level docstring for the return shape.
- */
 export function parseSkill(absolutePath, options = {}) {
   if (typeof absolutePath !== 'string' || absolutePath.length === 0) {
     throw new TypeError('parseSkill: absolutePath must be a non-empty string');
@@ -187,11 +144,8 @@ export function parseSkill(absolutePath, options = {}) {
     );
   }
 
-  // Derive tier / category from the path. Layout is:
-  //   <repo>/.agents/skills/<tier>/<...buckets>/<name>/SKILL.md
-  // For core skills the bucket is the literal 'core' (one level deep);
-  // for stack skills the bucket is the first segment under 'stack'
-  // (e.g. 'backend', 'frontend', 'qa').
+  // <repo>/.agents/skills/<tier>/<...buckets>/<name>/SKILL.md — core's
+  // category is 'core'; stack's is the first bucket under 'stack'.
   const relPath = toPosix(path.relative(repoRoot, absolutePath));
   const parts = relPath.split('/');
   const skillsIdx = parts.indexOf('skills');

@@ -5,43 +5,13 @@ import {
 import { BODY_FORMAT_LINTS } from '../story-body/body-format-lints.js';
 
 /**
- * The story-author system prompt (Story #5312 — rendered from the draft's
- * Story count).
- *
- * **Single source of the prompt body (Story #4162).** This module is the sole
- * carrier of the story-author system prompt, delivered to the host LLM in the
- * `systemPrompts.story` field of the `/mandrel-plan` context envelope (via
- * `lib/orchestration/plan-context.js#buildSystemPrompts`), so no second
- * verbatim copy can drift.
- *
- * Two layers, composed by {@link renderStoryAuthorPrompt}:
- *
- *   - **The N=1 core** ({@link renderStoryAuthorCore}) — what every draft
- *     needs: the body schema, the contract-level Spec rule, the deterministic
- *     body-format lints, and acceptance defined as outcomes a PR reviewer can
- *     confirm from the diff and the verify output. It carries no delivery
- *     schedule, no per-file behavior paragraphs, no reviewability budget and
- *     no verify-tier suffix — every one of those either scored a shape the
- *     authoring model already judges or prescribed a proxy that became the
- *     goal.
- *   - **The N>1 rules** ({@link renderStorySplitRules}) — the schedule rules
- *     that only mean anything once a draft has siblings: every Story must
- *     earn its slot in the wave schedule, and no same-wave pair may collide
- *     on a declared path (Story #5332 replaced the acceptance partition with
- *     the dispatcher's own collision predicate, armed as a refusal).
- *   - **The tickets-mode rules** ({@link ticketsModePromptField}, Story
- *     #5323) — what to re-derive rather than carry when the seed is an
- *     existing ticket whose body is already in Story shape.
- *
- * The envelope carries the core as `systemPrompts.story`, the split rules as
- * `systemPrompts.storySplitRules` and the tickets rules as
- * `systemPrompts.storyTicketsRules`; a planner reads the second only when the
- * default-single split policy clears, and the third only in tickets mode.
+ * The sole source of the story-author system prompt, shipped in the
+ * `/mandrel-plan` envelope as `systemPrompts.story` (the N=1 core),
+ * `storySplitRules` (read only at N>1) and `storyTicketsRules` (tickets mode
+ * only).
  */
 
 /**
- * The N=1 core of the story-author prompt.
- *
  * @returns {string}
  */
 export function renderStoryAuthorCore() {
@@ -55,11 +25,8 @@ export function renderStoryAuthorCore() {
     advisoryCaveat,
     newFileContract,
   } = AUTHORING_ALTITUDE_GUIDANCE;
-  // The deterministic body-format lints (structured `## Changes` bullet shape,
-  // non-empty sections) rendered example-first from their single source
-  // (`lib/story-body/body-format-lints.js`) so an authored draft is lint-clean
-  // by construction rather than discovered as a persist dry-run failure and
-  // re-authored at resident-context prices (Story #4684).
+  // Rendered example-first so a draft is lint-clean by construction rather
+  // than re-authored after a persist dry-run failure.
   const bodyFormatLintChecklist = BODY_FORMAT_LINTS.map(
     (lint) =>
       `- **${lint.id}** — ${lint.summary} Example: \`${lint.goodExample}\``,
@@ -192,10 +159,6 @@ IMPORTANT DEPENDENCY RULE: Story-to-Story dependencies are expressed via \`depen
 }
 
 /**
- * The rules that only apply once a draft has more than one Story: the
- * delivery-schedule simulation that makes each Story earn its slot, and the
- * same-wave collision refusal persist enforces at N>1.
- *
  * @returns {string}
  */
 export function renderStorySplitRules() {
@@ -221,16 +184,9 @@ Each Story carries its **own** \`## Spec\`; a shared \`techspec.md\` cannot be f
 }
 
 /**
- * The rules that only apply when the seed is an existing ticket (Story
- * #5323).
- *
- * A `--tickets` seed arrives already in Story shape — rendered `AC-<n>:`
- * checkboxes, a `## Verify` list, a `## Changes` footprint — and an author
- * reading it as a template carries that shape forward instead of re-deriving
- * it. The observed failure (swarm-os #2707 / #2708, planned from #2542 under
- * mandrel 2.57.0) was a Story whose acceptance list was the source's, handles
- * and all, and whose verify entries carried a tier suffix retired two
- * releases earlier. The source ticket is **evidence**, not a draft.
+ * A `--tickets` seed already arrives in Story shape, and an author reading it
+ * as a template carries stale handles and retired suffixes forward; the
+ * source is evidence, not a draft.
  *
  * @returns {string}
  */
@@ -247,10 +203,6 @@ You are planning from one or more existing tickets. Read them for **what the wor
 }
 
 /**
- * Render the story-author prompt for a draft of `storyCount` Stories: the
- * N=1 core, plus the schedule and partition rules when the draft has
- * siblings.
- *
  * @param {{ storyCount?: number }} [args]
  * @returns {string}
  */
@@ -260,14 +212,8 @@ export function renderStoryAuthorPrompt({ storyCount = 1 } = {}) {
 }
 
 /**
- * The mode-conditional slice of `systemPrompts`.
- *
- * `storyTicketsRules` only means anything when the seed is an existing
- * ticket, and an envelope carrying it in every mode teaches the author to
- * look for a source ticket a `--seed` run does not have. Returning a
- * spreadable object rather than a nullable string keeps the decision here,
- * beside the prompt it selects, instead of as a branch in the envelope
- * builder.
+ * Spreadable into `systemPrompts`: present only in tickets mode, since
+ * elsewhere it would send the author looking for a source ticket.
  *
  * @param {string|undefined} mode The plan-context mode.
  * @returns {{ storyTicketsRules?: string }}

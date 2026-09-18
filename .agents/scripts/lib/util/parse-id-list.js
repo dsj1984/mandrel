@@ -1,51 +1,25 @@
 /**
- * parse-id-list — expand a Story-id list that may contain dash ranges.
- *
- * Operators name a contiguous span of Stories the way they read one — as a
- * range: `/mandrel-deliver 4922 - 4926`. Enumerating it by hand is the kind of
- * transcription step that silently drops or invents an id, so the range is a
- * first-class shape of every delivery id list rather than something the host
- * expands from prose.
- *
- * Accepted tokens, comma-separated:
- *   - a single id, with an optional `#` — `4922`, `#4922`
- *   - an inclusive range — `4922-4926`, `4922 - 4926`, `#4922-#4926`
- *     (hyphen-minus, en dash, or em dash; whitespace around it is fine)
- *
- * Everything else is a hard error, never a silent drop: a wrong id list
- * co-dispatches against the wrong graph, so it must fail where it is typed.
- * Two range-specific guards exist for the same reason — a backwards range is
- * refused rather than expanded to nothing, and a span above `MAX_RANGE_SPAN`
- * is refused rather than resolving thousands of issues off a typo.
+ * parse-id-list — expand a Story-id list that may contain dash ranges
+ * (an id with optional `#` prefix, or `A - B`, en/em dash accepted). Anything else is a
+ * hard error, never a silent drop: a wrong list dispatches against the wrong
+ * graph. Backwards ranges and spans above the cap are refused too.
  */
 
-/**
- * Inclusive-span ceiling for a single range token. Generous against any real
- * plan run (a handful of Stories) and tight enough that `1-4926` is caught as
- * the typo it is rather than fanning out into a live resolution sweep.
- *
- * Deliberately module-private: the cap is a published contract
- * (`helpers/deliver-reference.md` § Ranges), so a test that imported it could
- * not notice the number silently moving out from under the doc.
- */
+// Catches `1-4926` as the typo it is. Module-private because the number is a
+// published contract (`helpers/deliver-reference.md` § Ranges).
 const MAX_RANGE_SPAN = 50;
 
-/** Hyphen-minus, en dash, em dash — whichever the operator's keyboard emits. */
 const DASH = '[-–—]';
 const SINGLE_RE = /^#?(\d+)$/;
 const RANGE_RE = new RegExp(`^#?(\\d+)\\s*${DASH}\\s*#?(\\d+)$`);
 
 /**
- * Parse a comma-separated Story-id list, expanding any `A-B` range token.
- *
- * Absent or empty input is not an error here — it yields an empty list, and
- * the caller decides whether that is a usage error (`--ids`) or a legitimate
- * empty set (`--done`).
+ * Empty input yields `[]`; the caller decides whether that is an error.
  *
  * @param {string|undefined|null} raw
  * @param {object} [options]
  * @param {string} [options.flag] Flag name, for the error message.
- * @param {string} [options.prefix] Message prefix, for the caller's log tag.
+ * @param {string} [options.prefix] Message prefix.
  * @param {number} [options.maxSpan] Inclusive-span ceiling per range token.
  * @returns {{ ids: number[]|null, error: string|null }}
  */

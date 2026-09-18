@@ -1,14 +1,9 @@
 /**
- * detectors/common.js — shared helpers for the signals layer.
- *
- * Hoisted out of the detector modules (retry, rework) plus
- * the since-deleted `signals/read.js`, and `signals/schema.js`, all of which shipped
- * byte-equivalent copies of these predicates. See Story #2464.
+ * detectors/common.js — shared predicates for the signals layer.
  */
 
 /**
- * Return true when `v` is a positive (strictly > 0) integer. Used by every
- * signal writer and reader as the canonical numeric-id guard.
+ * The canonical numeric-id guard for signal writers and readers.
  *
  * @param {unknown} v
  * @returns {boolean}
@@ -18,9 +13,7 @@ export function isPositiveInt(v) {
 }
 
 /**
- * Pull the tool name from a trace record. The hook writes the tool name
- * into `emitter.tool` (canonical provenance) and, defensively, into
- * `details.tool` — we accept either.
+ * `emitter.tool` is canonical; `details.tool` is accepted defensively.
  *
  * @param {object} rec
  * @returns {string|null}
@@ -36,35 +29,17 @@ export function extractTool(rec) {
 }
 
 /**
- * Validate and normalize the shared detector argument preamble.
- *
- * `detectRework` and `detectRetry` previously shipped a near-identical
- * guard block: the `args` object-shape `TypeError`, the `nowFn`
- * function-type `TypeError`, the positive-integer `RangeError`s for the id
- * fields, the non-empty-string `tracesPath` check, and the
- * non-negative-integer `threshold` check. Story #4077 hoists that preamble
- * here so the detectors share one error-message contract.
- *
- * Error wording stays per-detector-accurate by prefixing every message with
- * `fnName` (e.g. `detectRework: …`). Error *types* are preserved exactly:
- * the `args`/`tracesPath`/`nowFn` guards throw `TypeError`; the id and
- * `threshold` guards throw `RangeError`.
- *
- * The validated fields are gated by the `require*` flags so the same helper
- * serves both the Story-scoped detectors (rework/retry — full preamble) and
- * the Epic-scoped hotspot detector (only `epicId` + `nowFn`). A field that
- * is not required is neither validated nor read.
+ * Shared detector argument guard. Messages are prefixed with `fnName`;
+ * shape/`tracesPath`/`nowFn` failures throw `TypeError`, id and `threshold`
+ * failures `RangeError`. A field whose `require*` flag is off is neither
+ * validated nor returned.
  *
  * @param {object} args — the detector's raw argument object.
  * @param {object} opts
- * @param {string} opts.fnName — the calling detector's name, used verbatim as
- *   the prefix on every thrown error message (e.g. `'detectRework'`).
- * @param {boolean} [opts.requireTracesPath=true] — validate + return
- *   `tracesPath` (non-empty string).
- * @param {boolean} [opts.requireStoryId=true] — validate + return `storyId`
- *   (positive integer) and the optional `taskId` (positive integer or null).
- * @param {boolean} [opts.requireThreshold=true] — validate + return
- *   `threshold` (non-negative integer).
+ * @param {string} opts.fnName — error-message prefix (e.g. `'detectRework'`).
+ * @param {boolean} [opts.requireTracesPath=true]
+ * @param {boolean} [opts.requireStoryId=true] — also gates the optional `taskId`.
+ * @param {boolean} [opts.requireThreshold=true]
  * @returns {{
  *   tracesPath: string|undefined,
  *   epicId: number,
@@ -72,8 +47,7 @@ export function extractTool(rec) {
  *   taskId: number|null|undefined,
  *   threshold: number|undefined,
  *   nowFn: () => string,
- * }} the normalized argument set. Fields gated off by a `require*` flag are
- *   omitted (left `undefined`).
+ * }}
  */
 export function validateDetectorArgs(args, opts) {
   const { fnName } = opts;

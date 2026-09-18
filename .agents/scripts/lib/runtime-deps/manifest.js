@@ -1,18 +1,7 @@
 /**
- * runtime-deps/manifest — loader for the framework's vendored runtime-dep SSOT.
- *
- * `.agents/runtime-deps.json` is the single source of truth for the
- * third-party npm packages the framework scripts import at runtime
- * (Story #3432). It ships *inside* `.agents/` so it travels with the
- * `mandrel` package into consumer projects. This module is the only reader of that
- * file — the bootstrap seeder (`project-bootstrap.js`), the preflight guard
- * (`ensure-installed.js`), and the import-vs-manifest drift test all derive
- * their dependency lists from `loadRuntimeDepsManifest()` so there is exactly
- * one place the list lives.
- *
- * The loader stays on Node builtins only (`node:fs`, `node:path`,
- * `node:url`) so it can run inside the preflight guard *before* any
- * third-party package is imported — that is the whole point of the guard.
+ * runtime-deps/manifest — the only reader of `.agents/runtime-deps.json`, the
+ * SSOT for the framework's runtime npm packages. Builtins only, because the
+ * preflight guard loads it before any third-party import.
  */
 
 import fs from 'node:fs';
@@ -21,30 +10,21 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
-/**
- * Absolute path to the vendored manifest. `HERE` is
- * `.agents/scripts/lib/runtime-deps/`; the manifest sits at the `.agents/`
- * root, three directories up.
- */
 const MANIFEST_PATH = path.resolve(HERE, '..', '..', '..', 'runtime-deps.json');
 
 /**
  * @typedef {object} RuntimeDepsManifest
- * @property {Record<string,string>} dependencies        — required runtime
- *   packages (name → semver range). Fail-fast enforced by the preflight.
- * @property {Record<string,string>} optionalDependencies — packages imported
- *   behind graceful-degradation paths; declared but never preflight-blocked.
- * @property {string[]} required — `Object.keys(dependencies)`.
- * @property {string[]} optional — `Object.keys(optionalDependencies)`.
+ * @property {Record<string,string>} dependencies        — required; preflight-enforced.
+ * @property {Record<string,string>} optionalDependencies — graceful-degradation
+ *   imports; never preflight-blocked.
+ * @property {string[]} required
+ * @property {string[]} optional
  * @property {Set<string>} declared — union of required + optional names.
  */
 
 /**
- * Read, parse, and structurally validate the runtime-deps manifest.
- *
- * Throws a clear `Error` when the file is missing or malformed so the
- * drift test and bootstrap seeder fail loudly on a packaging regression,
- * rather than silently treating the dependency set as empty.
+ * Throws on a missing or malformed file rather than yielding an empty set,
+ * so a packaging regression fails loudly.
  *
  * @param {string} [manifestPath=MANIFEST_PATH]
  * @returns {RuntimeDepsManifest}

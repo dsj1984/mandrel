@@ -1,17 +1,9 @@
 /**
- * runtime-deps/parser-major — which `@babel/parser` major the complexity
- * kernel can actually parse with, and how to say so when it is wrong.
- *
- * Its own module because two very different callers need the same answer and
- * neither should drag the other in: the kernel asserts it at load, and
- * `mandrel doctor` reports it to a consumer. Importing the kernel into doctor
- * to ask one version question would pull the whole metric core and install the
- * AST compatibility patch as a side effect.
- *
- * `.agents/` materializes into the consumer's repository root, so
- * `@babel/parser` resolves from *their* `node_modules`. A range in
- * `runtime-deps.json` documents the requirement; it cannot enforce it. This is
- * the enforcement.
+ * runtime-deps/parser-major — whether the resolved `@babel/parser` major is
+ * one the complexity kernel can parse with. Separate so `mandrel doctor` can
+ * ask without importing the kernel (and its AST patch side effect). The
+ * parser resolves from the consumer's tree, so this is the enforcement of the
+ * declared range.
  *
  * @module lib/runtime-deps/parser-major
  */
@@ -19,36 +11,20 @@
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 
-/**
- * The only `@babel/parser` major the kernel supports.
- *
- * Module-local, with `describeParserMajorError` as the single public door:
- * every caller wants the verdict and the remedy, not the number.
- *
- * 8.x removed several plugin names from the kernel's fixed list (they became
- * default syntax), so it does not merely warn — it throws on the plugin list
- * itself. Adopting it is a deliberate change with a baseline recut attached,
- * not something to absorb from a consumer's resolution.
- */
+// 8.x throws on the kernel's fixed plugin list; adopting it is a deliberate
+// change with a baseline recut, not something to absorb from a consumer.
 const SUPPORTED_PARSER_MAJOR = 7;
 
-/** Package whose resolved major gates the kernel. */
 const PARSER_PACKAGE = '@babel/parser';
 
-/** Memoised resolved parser version: `undefined` unread, `null` unresolvable. */
+/** Memoised: `undefined` unread, `null` unresolvable. */
 let parserVersion;
 
 /**
- * Read the resolved `@babel/parser` version from its own manifest.
- *
- * The package exports no version, so its `package.json` is the only source.
- * This is the one non-static resolution in the file and it deliberately
- * targets a manifest rather than code: `@babel/parser` itself is reached by a
- * static import above, so it is declared and preflighted like every other
- * dependency.
+ * The package exports no version, so its manifest is the only source.
  *
  * @returns {string|null} The resolved version, or `null` when the manifest
- *   cannot be read (a layout that hides `package.json` behind `exports`, say).
+ *   cannot be read.
  */
 function resolveParserVersion() {
   if (parserVersion !== undefined) return parserVersion;
@@ -64,10 +40,7 @@ function resolveParserVersion() {
 }
 
 /**
- * The resolved parser's major version.
- *
- * @returns {number|null} `null` when the version could not be resolved or
- *   does not lead with an integer.
+ * @returns {number|null}
  */
 function resolveParserMajor() {
   const version = resolveParserVersion();
@@ -77,21 +50,12 @@ function resolveParserMajor() {
 }
 
 /**
- * Describe the resolved-parser problem, if there is one.
- *
- * Single-sourced so the load-time assertion below and the preflight guard
- * (`runtime-deps/ensure-installed.js`) emit the *same* named, actionable
- * message — the point of AC-5 is that a consumer never meets this as a
- * plugin-list syntax error mid-scan.
- *
- * An unresolvable version is **not** a problem: a consumer layout that hides
- * the manifest still resolves the parser itself, and refusing to score would
- * be a worse answer than scoring with an unverified parser. Only a
- * *known-wrong* major is reported.
+ * One message shared by the kernel's load-time assertion and the preflight
+ * guard. An unknowable version is not reported — scoring with an unverified
+ * parser beats refusing to score; only a known-wrong major is.
  *
  * @param {{major?: number|null, version?: string|null}} [resolved] Overrides
- *   the resolved parser, so the message a consumer on an unsupported major
- *   would read is assertable without installing one.
+ *   the resolved parser (test seam).
  * @returns {string|null} The message, or `null` when the resolved parser is
  *   supported (or its version is unknowable).
  */

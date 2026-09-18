@@ -1,41 +1,14 @@
 /**
- * resolve-selection.js — scenario-selection resolver for the agent-driven
- * QA harness (Epic #3214, Story #3296).
+ * resolve-selection.js — turns a QA harness selector into a concrete,
+ * deterministic scenario set under `featureRoot`:
  *
- * The harness is invoked with a single selector that scopes a sweep to a
- * concrete set of `.feature` files (and, for tag selectors, the specific
- * scenarios within them) under the contract's `featureRoot`. This module
- * turns one of three selector shapes into that concrete set:
+ *   - `{ kind: 'feature', id }` — one file whose stem or root-relative path
+ *     equals `id` (case-insensitive; ambiguity throws);
+ *   - `{ kind: 'tag', expression }` — scenarios satisfying a cucumber-style
+ *     `@tag` / and / or / not / parens expression;
+ *   - `{ kind: 'domain', name }` — every scenario at or below `<root>/<name>/`.
  *
- *   - **feature id** — `{ kind: 'feature', id: 'login' }` resolves to the
- *     single `.feature` file whose path stem (basename without the
- *     `.feature` extension) equals the id, or whose `featureRoot`-relative
- *     POSIX path (with or without the extension) equals the id. Matching is
- *     exact and case-insensitive; ambiguous ids (more than one match) throw.
- *
- *   - **tag expression** — `{ kind: 'tag', expression: '@smoke and not @wip' }`
- *     resolves to the scenario set whose tag list satisfies the boolean
- *     expression. The expression grammar is the cucumber-common subset:
- *     `@tag` atoms, `and` / `or` / `not` operators (case-insensitive), and
- *     parentheses. A scenario inherits no implicit tags; only the tags the
- *     scanner attached to it (feature-level + scenario-level, as collected
- *     by `parseFeatureBody`) participate.
- *
- *   - **domain** — `{ kind: 'domain', name: 'billing' }` resolves to every
- *     scenario under the `featureRoot`-relative subdirectory `name`. A
- *     domain is a first-level (or nested) directory grouping beneath the
- *     feature root; the selector matches any scenario whose file lives at
- *     or below `<featureRoot>/<name>/`.
- *
- * Determinism is load-bearing — the QA harness re-runs the same selector
- * across sweeps and must scope the identical scenario set each time. All
- * outputs are sorted by `(file, line)` so the order never depends on
- * filesystem iteration order.
- *
- * This module is pure resolution: it does no browser work, reads no config
- * beyond the `featureRoot` passed in, and never mutates state. The harness
- * workflow (Story #3297) consumes the resolved set; this layer only answers
- * "which scenarios does this selector name?".
+ * Output is sorted by `(file, line)` so re-runs scope the identical set.
  */
 
 import path from 'node:path';
@@ -43,9 +16,6 @@ import path from 'node:path';
 import { listFeatureFiles, scanBddScenarios } from '../bdd-scenario-scanner.js';
 
 /**
- * Normalise a path to POSIX separators so `featureRoot`-relative matching
- * behaves identically on Windows and POSIX hosts.
- *
  * @param {string} p
  * @returns {string}
  */
@@ -54,10 +24,6 @@ function toPosix(p) {
 }
 
 /**
- * Compute a scenario's `featureRoot`-relative POSIX path. Used by the
- * feature-id and domain matchers so selectors are written against the
- * stable, repo-relative shape rather than absolute worktree paths.
- *
  * @param {string} featureRoot - Absolute path to the feature root.
  * @param {string} file - Absolute path to a `.feature` file.
  * @returns {string} POSIX-style path relative to `featureRoot`.
@@ -67,9 +33,6 @@ function relFromRoot(featureRoot, file) {
 }
 
 /**
- * Strip the trailing `.feature` extension (case-insensitive) from a
- * relative path, leaving the path stem the feature-id selector matches on.
- *
  * @param {string} relPath
  * @returns {string}
  */
@@ -77,15 +40,7 @@ function stripFeatureExt(relPath) {
   return relPath.replace(/\.feature$/i, '');
 }
 
-// ---------------------------------------------------------------------------
-// Tag-expression evaluation
-// ---------------------------------------------------------------------------
-
 /**
- * Classify a single matched lexeme into a token. `@tag` atoms keep their
- * raw value; `(` / `)` / `and` / `or` / `not` produce structural tokens.
- * Anything else is a malformed expression and throws.
- *
  * @param {string} raw
  * @returns {{ type: string, value?: string }}
  */
@@ -106,10 +61,6 @@ function classifyToken(raw) {
 }
 
 /**
- * Tokenise a cucumber-style tag expression into a flat token stream.
- * Recognised tokens: `(`, `)`, `and`, `or`, `not`, and `@tag` atoms.
- * Whitespace separates tokens; parentheses need no surrounding space.
- *
  * @param {string} expression
  * @returns {Array<{ type: string, value?: string }>}
  */
@@ -122,7 +73,6 @@ function tokenizeTagExpression(expression) {
     match !== null;
     match = re.exec(expression)
   ) {
-    // Guard against runs of unmatched garbage between tokens.
     const between = expression.slice(lastIndex, match.index).trim();
     if (between.length > 0) {
       throw new Error(
@@ -142,15 +92,13 @@ function tokenizeTagExpression(expression) {
 }
 
 /**
- * Recursive-descent parser for the tag-expression grammar:
+ * Recursive descent:
  *
  *   expr   := term  ( 'or'  term  )*
  *   term   := factor( 'and' factor)*
  *   factor := 'not' factor | '(' expr ')' | tag
  *
- * Produces a predicate `(tagSet: Set<string>) => boolean`. Tag atoms match
- * case-insensitively against the scenario's tag set (which carries the
- * leading `@`).
+ * Tag atoms match case-insensitively (with the leading `@`).
  *
  * @param {string} expression
  * @returns {(tags: Set<string>) => boolean}
@@ -226,9 +174,6 @@ export function parseTagExpression(expression) {
 }
 
 /**
- * Build a lower-cased tag `Set` for a scanned scenario so the predicate can
- * test membership case-insensitively.
- *
  * @param {{ tags?: string[] }} scenario
  * @returns {Set<string>}
  */
@@ -236,13 +181,7 @@ function tagSetOf(scenario) {
   return new Set((scenario.tags ?? []).map((t) => t.toLowerCase()));
 }
 
-// ---------------------------------------------------------------------------
-// Public resolver
-// ---------------------------------------------------------------------------
-
 /**
- * Sort scanned scenarios deterministically by `(file, line)`.
- *
  * @param {Array<{ file: string, line: number }>} scenarios
  * @returns {Array<object>}
  */
@@ -255,21 +194,15 @@ function sortScenarios(scenarios) {
 }
 
 /**
- * Resolve a selector into a concrete scenario set under `featureRoot`.
- *
  * @param {object} args
  * @param {string} args.featureRoot - Absolute path to the contract's
- *   `.feature` root. The harness prefers the `qa.featureRoot` contract
- *   value over auto-detection; this resolver takes it as given.
- * @param {object} args.selector - One of the three selector shapes:
- *   `{ kind: 'feature', id }`, `{ kind: 'tag', expression }`, or
- *   `{ kind: 'domain', name }`.
+ *   `.feature` root.
+ * @param {object} args.selector - `{ kind: 'feature', id }`,
+ *   `{ kind: 'tag', expression }`, or `{ kind: 'domain', name }`.
  * @param {{ logger?: object }} [opts]
  * @returns {{ kind: string, featureRoot: string, files: string[], scenarios: Array<object> }}
- *   `files` is the deduped, sorted set of absolute `.feature` paths the
- *   selection touches; `scenarios` is the sorted scenario rows (for tag
- *   selection it is the satisfying subset, for feature/domain it is every
- *   scenario in the matched files).
+ *   `scenarios` is the satisfying subset for tags, every scenario in the
+ *   matched files otherwise.
  */
 export function resolveSelection(args = {}, opts = {}) {
   const { featureRoot, selector } = args;
@@ -351,8 +284,7 @@ function resolveDomain(featureRoot, selector, opts) {
       '[resolve-selection] domain selector requires a non-empty name',
     );
   }
-  // Normalise to a trailing-slash POSIX prefix so "billing" matches
-  // "billing/checkout.feature" but not "billing-archive/x.feature".
+  // Trailing slash so "billing" never matches "billing-archive/".
   const prefix = `${toPosix(name.trim()).replace(/\/+$/, '')}/`;
   const all = scanBddScenarios({ featureRoots: [featureRoot], ...opts });
   const scenarios = sortScenarios(

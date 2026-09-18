@@ -1,25 +1,15 @@
 // .agents/scripts/lib/skills/skills-index.js
 //
-// Shared I/O for the two skills manifests (Story #5135).
-//
-// Each skills root carries its own `skills.index.json`: the package payload's
-// at `.agents/skills/`, and the consumer-writable zone's at
-// `.agents/local/skills/`. The shipped one is a committed payload file that
-// `mandrel doctor` / `mandrel sync-agents` compare byte-for-byte against the
-// installed package, so the two manifests must never be merged — but they are
-// read, compared and reported identically, and both CLIs need that logic.
-// Before this module `generate-skills-index.js` and `validate-skills.js`
-// each carried their own near-identical reader.
+// Shared I/O for the two skills manifests (payload and local zone). They are
+// read, compared and audited identically but never merged: the shipped one is
+// compared byte-for-byte against the installed package.
 
 import fs from 'node:fs';
 import path from 'node:path';
 
-/** Manifest filename, shared by both roots. */
 export const INDEX_FILENAME = 'skills.index.json';
 
 /**
- * Absolute path of the manifest for one skills root.
- *
  * @param {string} repoRoot
  * @param {readonly string[]} rootSegments From `walk-skill-files.js`.
  * @returns {string}
@@ -29,9 +19,7 @@ export function indexPathFor(repoRoot, rootSegments) {
 }
 
 /**
- * Read a manifest from disk. Distinguishes "missing" from "unparseable" via
- * the `reason` channel so callers can report which drift they hit rather than
- * collapsing both into "not fresh".
+ * `reason` separates "missing" from "unparseable" so callers can say which.
  *
  * @param {string} indexPath
  * @returns {{ manifest: object | null, reason: string | null }}
@@ -54,9 +42,6 @@ export function readManifest(indexPath) {
 }
 
 /**
- * Read a manifest and project its entry paths into a Set, the shape the
- * validator's membership check consumes.
- *
  * @param {string} indexPath
  * @returns {{ exists: boolean, paths: Set<string> | null, manifest: object | null, indexPath: string, parseError?: string }}
  */
@@ -83,9 +68,7 @@ export function readIndexPaths(indexPath) {
 }
 
 /**
- * Compare two manifests ignoring `generatedAt` — the one volatile field, which
- * changes on every write and is not content. Returns null when they match, or
- * a diff-style message naming the entry counts.
+ * Ignores the volatile `generatedAt`; `null` when the manifests match.
  *
  * @param {object | null} diskManifest
  * @param {object} freshManifest
@@ -111,12 +94,10 @@ export function diffManifests(diskManifest, freshManifest, label) {
 }
 
 /**
- * Render a manifest's schema violations as field-named findings. The compiled
- * AJV validator is passed in so this module stays free of the schema-loading
- * side effects the validator CLI owns.
+ * The validator is injected so this module avoids schema-loading side effects.
  *
  * @param {object} manifest
- * @param {string} indexRelPath Repo-relative manifest path, for the message.
+ * @param {string} indexRelPath
  * @param {(m: object) => boolean} validateManifest Compiled AJV validator.
  * @returns {string[]}
  */
@@ -133,9 +114,7 @@ function validateManifestSchema(manifest, indexRelPath, validateManifest) {
 }
 
 /**
- * Audit one root's manifest: present, parseable, and schema-valid. Shared by
- * both skills roots so a consumer-authored index is held to the same bar as
- * the shipped one.
+ * Present, parseable and schema-valid — the same bar for both roots.
  *
  * @param {{ exists: boolean, paths: Set<string> | null, manifest: object | null, parseError?: string }} indexInfo
  * @param {string} indexRelPath
