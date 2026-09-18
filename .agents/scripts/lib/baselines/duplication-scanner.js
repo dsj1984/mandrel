@@ -1,28 +1,5 @@
 /**
- * duplication-scanner.js — code-duplication (DRY) scanner for the
- * duplication baseline (Story #3664).
- *
- * Wraps the jscpd clone detector behind two pure-ish seams so the
- * refresh script and its unit tests can exercise the parse→envelope path
- * without spawning a real scan:
- *
- *   - `buildDuplicationRows(clones, fileLineCounts, cwd)` — PURE. Folds
- *     jscpd's clone-pair output into per-file `{ path, duplicatedLines,
- *     totalLines, percentage }` rows. Overlapping clones on the same file
- *     are unioned (line-set), so a line duplicated by two different clones
- *     counts once. Every file the scan visited gets a row — files with no
- *     clones land at `duplicatedLines: 0` so the baseline records the full
- *     denominator and a later regression on a previously-clean file is
- *     visible.
- *
- *   - `scanDuplication({ targetDirs, cwd, minTokens, detect, readLineCount })`
- *     — the I/O wrapper. Walks `targetDirs`, runs the injected `detect`
- *     (jscpd's `detectClones` by default), reads per-file line counts, and
- *     returns the projected rows. The `detect` and `readLineCount` seams
- *     are injectable so tests run fully offline.
- *
- * Lower duplication is better — see `kinds/duplication.js` and the gate's
- * `lte` floor direction in `check-baselines/phases/floors.js`.
+ * jscpd-backed scanner for the duplication baseline (lower is better).
  */
 
 import { readFileSync } from 'node:fs';
@@ -35,16 +12,9 @@ const DEFAULT_FORMATS = Object.freeze(['javascript']);
 const require = createRequire(import.meta.url);
 
 /**
- * Resolve jscpd's `detectClones` lazily. The jscpd ESM entrypoint has a
- * broken transitive `colors/safe` specifier under Node's strict ESM
- * resolver, so we load the CJS build via `createRequire`. Isolated behind a
- * function so the rest of the module stays import-pure and testable — no
- * importer of this file pays the jscpd load unless it actually scans.
- *
- * Lives here rather than in `update-duplication-baseline.js` since Story
- * #4944: the refresh service's default duplication scorer needs the same
- * seam, and a second copy in the CLI would be the classic "two
- * implementations of one probe" divergence.
+ * Lazy CJS load: jscpd's ESM entry has a broken transitive `colors/safe`
+ * specifier under strict ESM resolution, and importers that never scan should
+ * not pay the load.
  *
  * @returns {(opts: object) => Promise<Array<object>>}
  */
@@ -59,9 +29,7 @@ export function resolveDetectClones() {
 }
 
 /**
- * Normalise a jscpd `sourceId` (or any path) to a canonical POSIX
- * repo-relative path. jscpd already emits cwd-relative paths, but a future
- * jscpd bump (or an absolute `sourceId`) is defended against here.
+ * POSIX repo-relative path, defending against an absolute `sourceId`.
  *
  * @param {string} sourceId
  * @param {string} cwd
@@ -76,9 +44,6 @@ export function relativisePath(sourceId, cwd) {
 }
 
 /**
- * Count the inclusive line span a clone covers: `end.line - start.line + 1`.
- * jscpd reports 1-based line numbers; a single-line clone spans one line.
- *
  * @param {{ start?: { line?: number }, end?: { line?: number } }} dup
  * @returns {Array<number>} the 1-based line numbers the clone covers
  */
@@ -94,16 +59,12 @@ function cloneLineNumbers(dup) {
 }
 
 /**
- * PURE: fold jscpd clone pairs + per-file line counts into canonical
- * duplication rows. Both sides of every clone pair (`duplicationA` and
- * `duplicationB`) contribute their covered lines to their respective
- * file's duplicated-line set, so a file that is only ever the "B" side of
- * a clone still accrues duplication.
+ * Pure. Both sides of each clone pair accrue lines; overlapping clones are
+ * unioned per file so a line counts once. Every counted file gets a row.
  *
  * @param {Array<{duplicationA?: object, duplicationB?: object}>} clones
  * @param {Map<string, number>|Record<string, number>} fileLineCounts
- *   per-file total line counts keyed by canonical POSIX repo-relative path
- * @param {string} [cwd] used to relativise absolute sourceIds
+ * @param {string} [cwd]
  * @returns {Array<{path: string, duplicatedLines: number, totalLines: number, percentage: number}>}
  */
 export function buildDuplicationRows(
@@ -155,10 +116,6 @@ function toLineCountMap(fileLineCounts) {
 }
 
 /**
- * Default per-file line counter — reads the file off disk and counts
- * newline-delimited lines. Injectable via `scanDuplication`'s
- * `readLineCount` seam so tests never touch the filesystem.
- *
  * @param {string} absPath
  * @returns {number}
  */
@@ -166,15 +123,12 @@ export function readLineCount(absPath) {
   const text = readFileSync(absPath, 'utf8');
   if (text.length === 0) return 0;
   const lines = text.split(/\r\n|\r|\n/);
-  // A trailing newline produces a final empty element — drop it so the
-  // count matches the editor's line count.
+  // Drop the empty element after a trailing newline.
   if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
   return lines.length;
 }
 
 /**
- * Run a duplication scan over `targetDirs` and return canonical rows.
- *
  * @param {{
  *   targetDirs: string[],
  *   cwd?: string,
@@ -224,11 +178,8 @@ export async function scanDuplication({
 }
 
 /**
- * Collect the set of files that appear on either side of any clone pair.
- * jscpd's `detectClones` only reports files that participate in at least
- * one clone, so the scanned-but-clean files are not enumerable from the
- * clone list alone — the baseline therefore records exactly the files
- * with detected duplication. Pure helper, exported for tests.
+ * Files on either side of any clone. jscpd reports only participating files,
+ * so the baseline records exactly the files with detected duplication.
  *
  * @param {Array<object>} clones
  * @param {string} cwd

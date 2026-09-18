@@ -1,21 +1,13 @@
 /**
- * lib/audit-suite/workflow-loader.js — Filesystem IO for audit workflows.
- *
- * Extracted from `.agents/scripts/run-audit-suite.js` (Story #963, Epic #946).
- *
- * The runner injects either {@link loadWorkflow} (production) or a stub (tests)
- * via `injectedLoadWorkflow`. Same for {@link defaultWriteArtifact} and
- * `injectedWriteArtifact`. Keeping the IO bound here lets the runner module
- * stay free of `node:fs` imports and stay easy to unit-test.
+ * Filesystem IO for audit workflows, kept out of the runner so tests can
+ * inject stubs.
  */
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
 /**
- * Read an audit workflow markdown file. Returns `null` when the file is
- * missing — the runner converts that into a `low`-severity finding rather
- * than throwing, so a missing workflow doesn't fail the suite.
+ * `null` when missing; the runner records a finding rather than failing.
  *
  * @param {string} auditName
  * @param {string} workflowsDir absolute path to the workflows root
@@ -32,10 +24,6 @@ export async function loadWorkflow(auditName, workflowsDir) {
 }
 
 /**
- * Default artifact writer used when the caller passes a `--run-id` /
- * `artifactPrefix`. Creates the artifacts dir on demand and returns the
- * absolute path of the file written.
- *
  * @param {string} artifactsDir
  * @param {string} fileName
  * @param {string} content

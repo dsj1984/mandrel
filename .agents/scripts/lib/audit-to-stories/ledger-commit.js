@@ -1,31 +1,6 @@
 /**
- * lib/audit-to-stories/ledger-commit.js — persist the cross-run audit ledger.
- *
- * The `--auto` sweep's whole value is memory: `baselines/audit-ledger.json`
- * is what lets the next run tell a re-detection from a fresh finding and an
- * accepted risk from an unseen one. A scheduled sweep, though, typically runs
- * on an ephemeral checkout — a fresh clone that is deleted when the job ends —
- * so the ledger `--auto` writes is discarded and every later sweep starts from
- * an empty memory. The sweep is then permanently amnesiac, and the ledger's
- * suppression and regression signals never fire.
- *
- * This module closes that hole from both ends:
- *
- *   - {@link runLedgerCommit} (`--auto --ledger-commit`) commits the changed
- *     ledger onto a `chore/audit-ledger-<YYYY-MM-DD>-<shortsha>` branch cut
- *     from `origin/<base>`, pushes it, and opens a PR against
- *     `project.baseBranch` through the `gh` wrapper.
- *     Auto-merge is never requested: a ledger PR records machine-derived state
- *     a human should glance at, so landing it stays an operator decision.
- *   - {@link resolveLedgerSummary} answers the question the *unflagged* sweep
- *     needs — "would this ledger survive?" — so a run that cannot persist (no
- *     `origin`, or HEAD parked off the base branch) says so in its summary,
- *     and on stderr, instead of silently discarding the state.
- *
- * Both take injectable `git` / `gh` seams (`docs/contributing/test-seams.md`) so
- * the branch/commit/push/PR argv shape is assertable without a live remote.
- * The logic lives here rather than in `audit-to-stories.js` so the CLI file's
- * complexity budget does not absorb a git driver.
+ * Persist the cross-run audit ledger, which an ephemeral checkout would
+ * otherwise discard.
  */
 
 import { DEFAULT_LEDGER_PATH } from '../findings/audit-ledger.js';
@@ -33,12 +8,9 @@ import { gh as defaultGh } from '../gh-exec.js';
 import { gitSync } from '../git-utils.js';
 import { openLedgerPullRequest, probeGit } from './ledger-pr.js';
 
-/** Fallback base branch when config carries no `project.baseBranch`. */
 const DEFAULT_BASE_BRANCH = 'main';
 
 /**
- * Render the `YYYY-MM-DD` stamp both the branch name and the commit subject
- * carry, so one sweep produces one identifiable ledger branch per day.
  * @param {Date|string|number} [now]
  * @returns {string}
  */
@@ -48,9 +20,8 @@ function isoDate(now) {
 }
 
 /**
- * Resolve `project.baseBranch` defensively: an explicit value wins, then
- * config, then `main`. A failed config resolve must never break a sweep that
- * has already done its real work.
+ * Explicit, then config, then `main`; a failed config resolve must never break
+ * a sweep that has already done its work.
  * @param {string} [explicit]
  * @returns {Promise<string>}
  */
@@ -67,18 +38,12 @@ async function resolveBaseBranch(explicit) {
 }
 
 /**
- * Inspect whether the ledger changed and whether this checkout could persist
- * it at all. Module-local: the two exported entry points below are the whole
- * public surface, so a probe helper never becomes a second way in.
- *
- * `unpersisted` is the signal the unflagged `--auto` summary carries: the
- * sweep produced new memory, and this checkout has nowhere to put it — either
- * there is no `origin` to push to or HEAD is not on the base branch, so a
- * commit here would not reach the repository's shared state.
+ * `unpersisted`: the ledger changed but there is no `origin` or HEAD is off
+ * the base branch, so a commit here would not reach shared state.
  *
  * @param {object} [params]
- * @param {string} [params.ledgerPath] — defaults to `baselines/audit-ledger.json`.
- * @param {string} [params.baseBranch] — defaults to resolved `project.baseBranch`.
+ * @param {string} [params.ledgerPath]
+ * @param {string} [params.baseBranch]
  * @param {string} [params.cwd]
  * @param {(cwd: string, ...args: string[]) => string} [params.git]
  * @returns {Promise<{ ledgerPath: string, baseBranch: string, changed: boolean,
@@ -109,8 +74,7 @@ async function assessLedgerPersistence({
 }
 
 /**
- * Has the sweep actually written new memory? Scoped to the ledger pathspec, so
- * unrelated dirt in the checkout is never mistaken for it.
+ * Pathspec-scoped, so unrelated dirt never counts.
  * @param {(args: string[]) => string} probe
  * @param {string} ledgerPath
  * @returns {boolean}
@@ -120,8 +84,6 @@ function ledgerIsDirty(probe, ledgerPath) {
 }
 
 /**
- * Is there an `origin` to push to at all? The ephemeral-clone shape that makes
- * a sweep amnesiac usually has none.
  * @param {(args: string[]) => string} probe
  * @returns {boolean}
  */
@@ -133,9 +95,7 @@ function hasOriginRemote(probe) {
 }
 
 /**
- * The branch HEAD is on, or `''` when the checkout is detached or has no
- * commits — both of which read as "not the base branch", which is the answer
- * the callers need.
+ * `''` when detached or commitless — both read as "not the base branch".
  * @param {(args: string[]) => string} probe
  * @returns {string}
  */
@@ -144,8 +104,6 @@ function headBranchOf(probe) {
 }
 
 /**
- * Warn that the reconciled ledger has nowhere to go. Names the file, because
- * "state will be lost" is unactionable without knowing which state.
  * @param {{ ledgerPath: string, baseBranch: string, hasOrigin: boolean, headBranch: string }} state
  * @returns {string}
  */
@@ -157,19 +115,14 @@ function unpersistedWarning(state) {
 }
 
 /**
- * Resolve the `--auto` summary's `ledger` field, annotating it with
- * `unpersisted: true` (and warning on stderr) when the sweep produced memory
- * this checkout cannot keep.
- *
- * The whole decision lives here rather than in the CLI so `runAuto` stays a
- * straight-line assembly of its summary: `dryRun` and `ledgerCommit` are
- * passed through raw and branched on once, in one place.
+ * Marks the summary `unpersisted: true` (and warns) when the checkout cannot
+ * keep the new memory.
  *
  * @param {object} [params]
- * @param {object|null} [params.ledger] — the plan's ledger summary, or null.
+ * @param {object|null} [params.ledger]
  * @param {string} [params.ledgerPath]
- * @param {boolean} [params.dryRun] — nothing was written, so nothing is at risk.
- * @param {boolean} [params.ledgerCommit] — a PR is about to persist it.
+ * @param {boolean} [params.dryRun]
+ * @param {boolean} [params.ledgerCommit]
  * @param {string} [params.cwd]
  * @param {(cwd: string, ...args: string[]) => string} [params.git]
  * @param {{ warn: Function }} [params.logger]
@@ -192,13 +145,8 @@ export async function resolveLedgerSummary({
 }
 
 /**
- * Commit the changed ledger onto a unique branch cut from the remote base and
- * open a PR for it.
- *
- * Assesses the checkout, then hands the whole write sequence to
- * {@link openLedgerPullRequest}. Every git/`gh` failure is fatal and names its
- * step; the caller runs this *after* printing the run summary, so a broken
- * remote never costs the operator the sweep's findings.
+ * Failures are fatal and name their step; callers run this after printing the
+ * run summary so a broken remote never costs the sweep's findings.
  *
  * @param {object} [params]
  * @param {string} [params.ledgerPath]

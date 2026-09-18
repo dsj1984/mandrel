@@ -1,24 +1,6 @@
 /**
- * lib/audit-to-stories/ledger-record.js — record what a run actually filed.
- *
- * The cross-run ledger can only suppress an already-filed finding if something
- * tells it the finding was filed. Until Story #5305 nothing did: the reconcile
- * ran *during* the scan, before any Issue existed, and its `issueStates` were
- * derived from `matchedIssues` — the Issues dedup FOUND. A group classified
- * `create` has none, so a freshly opened Issue contributed nothing and its
- * entry persisted as `status: "new", issue: null` forever. On a host where
- * GitHub-search dedup works that is invisible; on one where it cannot run,
- * nothing suppresses anything and every sweep re-files everything.
- *
- * The missing input is the `groupKey → issueNumber` map, which exists only
- * after the Issues are opened. `--wire-edges` already takes exactly that map
- * and is already a required pass, which is why the record rides along with it
- * rather than arriving as a second command an operator must remember.
- *
- * Nothing here reaches the network: the caller hands over the map it already
- * holds, and the only I/O is the ledger read/write this module delegates to
- * `ledger.js`. That is what lets the record run BEFORE the provider is loaded,
- * so a host whose provider cannot be constructed still records what it filed.
+ * Record what a run filed onto the ledger so the next run suppresses it even
+ * without search dedup. No network: runs before the provider loads.
  */
 
 import {
@@ -33,27 +15,13 @@ import {
 } from './finding-adapter.js';
 
 /**
- * Project the opened-issue map onto the `{ fingerprint → issueState }` shape
- * `reconcileLedger` reads, and collect the findings those groups carry.
- *
- * Only groups present in the map contribute. A group the map does not mention
- * was not opened — deduped, ledger-suppressed, or simply skipped — and
- * inventing an Issue state for it is how a finding gets suppressed against an
- * Issue that does not exist.
- *
- * Every recorded state is `open`: the map names Issues this run just created,
- * and a just-created Issue is open. A later close is learned from the live
- * lookup on the next run, where it outranks this record (`decideStatus` reads
- * the closed-Issue branch first).
+ * Only mapped groups contribute; inventing a state for an unopened group would
+ * suppress a finding against an Issue that does not exist. Every state is
+ * `open` — a later close is learned live next run and outranks this record.
  *
  * @param {object} params
  * @param {Array<object>} params.groups — the `create`-eligible groups.
  * @param {Record<string, number>} params.issueByGroupKey — group key → issue number.
- * Module-internal: `recordFiledIssues` is the only production entrypoint, and
- * exporting this for tests alone trips the CI-only `dead-exports:production`
- * gate. It is covered through `recordFiledIssues`, which is the seam that
- * actually ships.
- *
  * @returns {{ findings: Array<object>, issueStates: Record<string, { state: string, number: number }>, groupsRecorded: number }}
  */
 function issueStatesFromIssueMap({ groups, issueByGroupKey }) {
@@ -78,18 +46,14 @@ function issueStatesFromIssueMap({ groups, issueByGroupKey }) {
 }
 
 /**
- * Fold the just-opened Issues onto the committed ledger.
- *
- * Only the mapped groups' findings are passed to `reconcileLedger`, so every
- * other entry survives untouched — `reconcileLedger` copies the prior index
- * forward and rewrites only what this scan hands it.
+ * Other ledger entries survive untouched: `reconcileLedger` rewrites only the
+ * findings it is handed.
  *
  * @param {object} params
  * @param {string} [params.ledgerPath]
  * @param {Array<object>} params.groups — the `create`-eligible groups.
  * @param {Record<string, number>} params.issueByGroupKey
- * @param {boolean} [params.write=true] — `false` computes the record without
- *   persisting it, which is what `--dry-run` needs.
+ * @param {boolean} [params.write=true] — `false` for `--dry-run`.
  * @param {{ readLedgerImpl?: Function, writeLedgerImpl?: Function }} [seams]
  * @returns {{ path: string, written: boolean, groupsRecorded: number, findingsRecorded: number, filed: number }}
  */
@@ -109,10 +73,8 @@ export function recordFiledIssues(
     issueStates,
     toCanonical: toCanonicalFinding,
   });
-  // Nothing to record means nothing to write. The ledger is committed consumer
-  // state and `--ledger-commit` opens a PR only when it changed, so rewriting
-  // it with a fresh `generatedAt` and no new memory would manufacture a diff
-  // that says nothing.
+  // No findings → no write: a fresh `generatedAt` alone would make
+  // `--ledger-commit` open an empty PR.
   const wrote = Boolean(write) && findings.length > 0;
   if (wrote) writeLedgerImpl(path, next);
 

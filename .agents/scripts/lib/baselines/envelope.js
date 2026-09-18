@@ -1,41 +1,5 @@
 /**
- * envelope.js — assemble and validate baseline envelopes (Story #1891,
- * Epic #1786).
- *
- * Every committed Mandrel baseline ships an envelope-shaped JSON with five
- * top-level keys:
- *
- *   {
- *     "$schema": ".agents/schemas/baselines/<kind>.schema.json",
- *     "kernelVersion": "<semver>",
- *     "generatedAt": "<ISO-8601>",
- *     "rollup":  { "*": { ... }, [component]: { ... } },
- *     "rows":    [ ... ]
- *   }
- *
- * The envelope contract is declared in
- * `.agents/schemas/baselines/baseline-envelope.schema.json` and the
- * per-kind schemas extend it via `allOf` (Story #1888).
- *
- * This module exposes:
- *
- *   buildEnvelope({ kind, rollup, rows, kernelVersion, generatedAt? })
- *     Stamps `$schema`, `kernelVersion`, and `generatedAt` onto a freshly
- *     constructed envelope. When `generatedAt` is omitted, the
- *     `MANDREL_BASELINE_GENERATED_AT` env var overrides any other clock
- *     reading — this lets reproducible-build tests pin the timestamp
- *     without monkey-patching `Date`. When neither is provided, the
- *     envelope stamps `new Date().toISOString()`.
- *
- *   assertEnvelope(envelope)
- *     Compiles every per-kind schema once (AJV) and validates the envelope
- *     against the schema named in its `$schema`. Throws on schema
- *     mismatch, missing top-level keys, or a `$schema` that doesn't
- *     correspond to one of the seven known per-kind schemas.
- *
- * The writer (`writer.js`) calls `buildEnvelope` then `assertEnvelope`
- * before serialising — so every baseline written through the shared
- * pipeline is schema-valid by construction.
+ * Build and validate baseline envelopes.
  *
  * @module lib/baselines/envelope
  */
@@ -46,15 +10,7 @@ import {
 } from '../baseline-schema-registry.js';
 
 /**
- * Canonical list of kinds the shared envelope supports, **derived** from the
- * schema registry rather than restated (Story #5002).
- *
- * It used to be a hand-kept literal that happened to mirror
- * `BASELINE_KIND_SCHEMA_FILES` name for name. Deriving it makes
- * "`kind` is known" and "`kind`'s schema is registered" the same fact, so
- * `getValidator` below cannot be handed a kind the AJV instance never
- * compiled — the not-registered branch is gone because the state is
- * unreachable, not because it was hidden.
+ * Derived from the schema registry, so every known kind has a compiled schema.
  */
 export const KNOWN_KINDS = Object.freeze(
   BASELINE_KIND_SCHEMA_FILES.map((file) => file.replace(/\.schema\.json$/, '')),
@@ -69,23 +25,13 @@ function kernelVersionPattern() {
 }
 
 function isoTimestampPattern() {
-  // RFC 3339 / ISO 8601 with optional fractional seconds and a `Z` or
-  // `±HH:MM` offset. AJV's `date-time` format does the heavy validation;
-  // this is a cheap pre-check so we can throw a friendlier error before
-  // AJV ever runs.
+  // Cheap pre-check for a friendlier error; AJV's `date-time` is authoritative.
   return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
 }
 
 /**
- * Resolve the effective `generatedAt` for an envelope. Priority:
- *
- *   1. Caller-supplied `generatedAt`.
- *   2. `MANDREL_BASELINE_GENERATED_AT` env var (reproducible-build hook).
- *   3. `new Date().toISOString()`.
- *
- * Validates the resulting string against an ISO-8601 shape and throws a
- * clear error if it doesn't match — operators get the failure at write
- * time, not when AJV runs.
+ * Explicit value, else `MANDREL_BASELINE_GENERATED_AT` (reproducible builds),
+ * else now.
  *
  * @param {string|undefined} explicit
  * @returns {string}
@@ -104,9 +50,6 @@ function resolveGeneratedAt(explicit) {
 }
 
 /**
- * Construct an envelope. The caller supplies the per-kind row + rollup
- * shape; this module stamps the envelope-level keys.
- *
  * @param {{
  *   kind: string,
  *   rollup: Record<string, object>,
@@ -158,10 +101,8 @@ export function buildEnvelope({
     throw new TypeError('envelope.buildEnvelope: rows must be an array');
   }
 
-  // Per-kind envelope-level stamps (Story #4775). A kind whose SCORING
-  // SEMANTICS can change independently of its kernel version contributes them
-  // here; `assertEnvelope` still validates the result against the kind's
-  // schema, so an unrecognised extra fails closed rather than being persisted.
+  // `extras` carries per-kind stamps (scoring semantics that change
+  // independently of the kernel); unknown extras fail `assertEnvelope`.
   return {
     $schema: schemaRefFor(kind),
     kernelVersion,
@@ -173,18 +114,8 @@ export function buildEnvelope({
 }
 
 /**
- * Lazy AJV instance, built by the canonical
- * [`baseline-schema-registry`](../baseline-schema-registry.js) — the ONE
- * place a baselines-directory schema is read off disk and compiled
- * (Story #5002). This module used to keep its own `SCHEMAS_DIR` + AJV +
- * per-kind compile cache alongside the registry's, so the writer and
- * `baselines/reader.js` validated the same envelope through two independently
- * configured instances; a registration added to one was invisible to the
- * other. One builder means the writer and the reader cannot disagree about
- * what a valid envelope is.
- *
- * Memoised: building it reads eleven schema files, and a single baseline
- * regeneration calls `assertEnvelope` once per write plus once per re-read.
+ * Memoised registry-built AJV — one builder, so writer and reader cannot
+ * disagree about what a valid envelope is.
  */
 let _ajv = null;
 function ajv() {
@@ -195,10 +126,6 @@ function ajv() {
 }
 
 /**
- * Look up the pre-registered validator for a per-kind schema. Total over
- * `KNOWN_KINDS` — that list is derived from the registry's own filenames, so
- * every kind reaching here has a compiled schema.
- *
  * @param {string} kind
  * @returns {import('ajv').ValidateFunction}
  */
@@ -206,11 +133,7 @@ function getValidator(kind) {
   return ajv().getSchema(`${kind}.schema.json`);
 }
 
-/**
- * The five top-level keys every envelope MUST carry. Pre-checked before
- * AJV runs so the error names the missing key directly instead of
- * surfacing as an AJV "required" violation.
- */
+/** Pre-checked so the error names the missing key directly. */
 const REQUIRED_TOP_LEVEL_KEYS = Object.freeze([
   '$schema',
   'kernelVersion',
@@ -219,30 +142,7 @@ const REQUIRED_TOP_LEVEL_KEYS = Object.freeze([
   'rows',
 ]);
 
-// ---------------------------------------------------------------------------
-// Shared baseline compatibility axes (Story #2467, Task #2492).
-//
-// Every baseline-kind compatibility check shares the same universal
-// invariants: the envelope must exist, its kernelVersion must match the
-// running scorer, and (when published) its `generatedAt` must be monotonic
-// vs the running clock. Per-kind axis tables (e.g. `CRAP_COMPAT_AXES`)
-// compose these into their kind-specific axis list so the hoisted axes
-// live in exactly one place.
-//
-// Each axis exposes `{ name, severity, check }`:
-//   - `name`     — stable label used as `kind` in the failure envelope.
-//   - `severity` — `'fatal'` (short-circuit, exitCode 1) or `'warn'`
-//                  (accumulate into `warnings`).
-//   - `check`    — pure function over the compat context. Returns `null`
-//                  when the axis passes, or a string message describing
-//                  the failure.
-// ---------------------------------------------------------------------------
-
 /**
- * Universal "missing baseline" axis. Fires when the loader returned `null`
- * / `undefined`. The operator message is parametrised by the kind label
- * supplied at composition time so each kind keeps its own bootstrap hint.
- *
  * @param {string} kindLabel — operator-facing label (e.g. `CRAP`, `MI`).
  * @returns {{name: string, severity: 'fatal', check: (ctx: {baseline: unknown}) => string|null}}
  */
@@ -258,10 +158,7 @@ export function missingBaselineAxis(kindLabel) {
 }
 
 /**
- * Universal "kernel-version drift" axis. Fires when the baseline's
- * recorded `kernelVersion` differs from the running scorer's
- * `kernelVersion`. Warn-only by default — kernel drift surfaces as a
- * baseline-refresh nudge, not a close-validation failure.
+ * Warn-only: kernel drift is a refresh nudge, not a validation failure.
  *
  * @param {string} kindLabel
  * @returns {{name: string, severity: 'warn', check: (ctx: {baseline: {kernelVersion?: string}|null|undefined, runningKernelVersion: string}) => string|null}}
@@ -279,13 +176,7 @@ export function kernelDriftAxis(kindLabel) {
 }
 
 /**
- * Reduce an axis list against a compat context, emitting either a fatal
- * envelope `{ ok: false, exitCode: 1, kind, message }` (on the first
- * 'fatal' match) or an accumulating `{ ok: true, warnings }` envelope.
- *
- * Shared by every per-kind `evaluateBaselineCompatibility` caller so the
- * reduce body lives in one place and stays well below the project's
- * cyclomatic-complexity ceiling.
+ * First fatal axis short-circuits; warn axes accumulate.
  *
  * @template {object} Ctx
  * @param {Array<{name: string, severity: 'fatal'|'warn', check: (ctx: Ctx) => string|null}>} axes
@@ -309,14 +200,7 @@ export function reduceCompatAxes(axes, ctx) {
 }
 
 /**
- * Validate an envelope against its per-kind schema.
- *
- * Two-phase check:
- *   1. Cheap structural pre-check — every top-level key present, `$schema`
- *      points at one of the seven known kinds. Throws with a clear
- *      message when violated.
- *   2. AJV schema validation against the per-kind schema named in `$schema`.
- *      Throws with the AJV error list serialised as JSON.
+ * Structural pre-check, then AJV against the schema named in `$schema`.
  *
  * @param {object} envelope
  * @returns {void}

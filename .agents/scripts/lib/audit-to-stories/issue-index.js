@@ -1,23 +1,7 @@
 /**
- * lib/audit-to-stories/issue-index.js — a local index of the audit Issues a
- * sweep must dedupe against.
- *
- * Dedup used to answer every finding with a **search** round-trip: one
- * `findIssuesByFingerprint(sha)` per finding, plus a meaning-first semantic
- * search on top. GitHub's search endpoint is rate-limited an order of magnitude
- * harder than the list endpoint, so a full-scope sweep — hundreds of findings —
- * spent its whole budget re-discovering the same few dozen Issues, and then
- * degraded the rest of the run to `create`, which is how a sweep opens
- * duplicates of Issues it already filed.
- *
- * The Issues that can possibly match are exactly those carrying an `audit::*`
- * label, and there are tens of them, not hundreds. Listing them **once per run**
- * and indexing their provenance footers answers every exact-fingerprint lookup
- * locally, for free. The search API is then spent only where it is the only
- * thing that can help: a finding with no exact hit, whose fingerprint may have
- * drifted under a rewording.
- *
- * Pure: the caller injects the list port and this module performs no I/O.
+ * Local index of `audit::*` Issues by provenance footer, listed once per run.
+ * Search is far more rate-limited than list, so exact-fingerprint lookups are
+ * answered here and search is spent only on findings with no exact hit. Pure.
  */
 
 import {
@@ -26,8 +10,6 @@ import {
 } from '../findings/route-finding.js';
 
 /**
- * Add `record` to the list `map` keys under `key`.
- *
  * @param {Map<string, object[]>} map
  * @param {string} key
  * @param {object} record
@@ -39,10 +21,7 @@ function push(map, key, record) {
 }
 
 /**
- * Index issues by both provenance footers the audit filers stamp.
- *
- * An issue carrying neither footer is indexed under nothing — it can never
- * confirm a match, exactly as it could not when it came back from a search.
+ * An issue with neither footer is indexed under nothing.
  *
  * @param {Array<{ number: number, state: string, body?: string }>} issues
  * @returns {{ byFingerprint: Map<string, object[]>, bySemanticKey: Map<string, object[]>, size: number }}
@@ -65,11 +44,8 @@ export function buildIssueIndex(issues) {
 }
 
 /**
- * The union of the two local lookups for one finding, fingerprint hits first.
- *
- * Order matters downstream: `routeFinding` keeps the first record contributed
- * for an issue number, and the record retrieved by exact identity is the one
- * that should survive into confirmation.
+ * Fingerprint hits first: `routeFinding` keeps the first record per issue
+ * number, and the exact-identity one should survive into confirmation.
  *
  * @param {{ byFingerprint: Map, bySemanticKey: Map }} index
  * @param {string} sha

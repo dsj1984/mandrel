@@ -1,16 +1,6 @@
 /**
- * lib/audit-to-stories/finding-adapter.js — Project audit findings onto the
- * shared findings identity.
- *
- * `/audit-to-stories` parses `audit-*-results.md` into findings shaped as
- * `{ dimension, severity, title, normalisedTitle, files, ... }`. The shared
- * dedup/route helper (`lib/findings/route-finding.js`) fingerprints over the
- * canonical identity `{ title, area, primaryFile, severity, labels }`. This
- * module is the thin, audit-specific adapter that maps the former onto the
- * latter and reuses the shared helper's primitives — it contains **no**
- * fingerprint or dedup logic of its own. The single dedup/route
- * implementation lives in `lib/findings/route-finding.js`, shared verbatim
- * with `qa-explore`.
+ * Project parsed audit findings onto the shared findings identity. No
+ * fingerprint or dedup logic of its own — that lives in `route-finding.js`.
  */
 
 import {
@@ -21,13 +11,8 @@ import {
 } from '../findings/route-finding.js';
 
 /**
- * Map an audit finding onto the canonical identity the shared helper
- * fingerprints over. The audit pipeline already lower-cases `dimension` and
- * normalises the title; `files[0]` is the primary file the parser pulled
- * from the finding body. `dimension` is the identity axis (carried as
- * `area`) and also the sole label so two findings in the same dimension that
- * are otherwise identical collide exactly as the legacy
- * `(dimension, normalisedTitle, primaryFile)` key did.
+ * `dimension` is both `area` and the sole label, so identity stays
+ * `(dimension, normalisedTitle, primaryFile)`; severity is excluded.
  *
  * @param {{ dimension?: string, normalisedTitle?: string, files?: string[] }} finding
  * @returns {{ title: string, area: string, primaryFile: string, severity: string, labels: string[] }}
@@ -48,8 +33,6 @@ export function toCanonicalFinding(finding) {
 }
 
 /**
- * Compute the shared-helper fingerprint for a single audit finding.
- *
  * @param {object} finding
  * @returns {{ short: string, full: string, components: object }}
  */
@@ -58,13 +41,7 @@ export function fingerprintAuditFinding(finding) {
 }
 
 /**
- * Compute the location-based semantic key for a single audit finding via the
- * shared helper. Stable across a reworded title; used to confirm a dedup
- * match when the fingerprint has drifted (Story #4626).
- *
- * Module-internal since the ledger moved to the shared findings layer and takes
- * its projection injected: `renderSemanticKeyFooter` below is the only caller,
- * and re-exporting it for none would trip `dead-exports:production`.
+ * Location-based key, stable across a reworded title.
  *
  * @param {object} finding
  * @returns {string}
@@ -74,10 +51,6 @@ function semanticKeyForAuditFinding(finding) {
 }
 
 /**
- * Stamp every audit finding with its shared-helper fingerprint and return a
- * new array. Mirrors the legacy `withFingerprints` contract so downstream
- * grouping / story-body / dedupe consumers keep reading `finding.fingerprint`.
- *
  * @template T
  * @param {Array<T>} findings
  * @returns {Array<T & { fingerprint: { short: string, full: string } }>}
@@ -93,9 +66,7 @@ export function withFingerprints(findings) {
 }
 
 /**
- * Render the machine-readable fingerprint footer for a group of findings,
- * via the shared helper's single footer renderer. Findings must already
- * carry `fingerprint.full` (set by {@link withFingerprints}).
+ * Findings must already carry `fingerprint.full` ({@link withFingerprints}).
  *
  * @param {Array<{ fingerprint?: { full?: string } }>} findings
  * @returns {string}
@@ -111,11 +82,7 @@ export function renderFingerprintFooter(findings) {
 }
 
 /**
- * Render the location-based semantic-key footer for a group of findings, via
- * the shared helper's single footer renderer. Stamped alongside the
- * fingerprint footer so a later reworded finding at the same location still
- * confirms a dedup match (Story #4626). Findings do not need a precomputed
- * key — it is derived from each finding's canonical projection here.
+ * Lets a reworded finding at the same location still confirm a dedup match.
  *
  * @param {Array<object>} findings
  * @returns {string}

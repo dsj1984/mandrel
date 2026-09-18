@@ -1,30 +1,15 @@
 /**
- * lib/audit-to-stories/parse-audit-md.js — Parse `audit-*-results.md` reports.
- *
- * Extracts the `## Detailed Findings` section of an audit report and turns
- * every `### <title>` block into a normalised finding record. Every audit lens
- * report now shares one findings contract (Story #4625): a `Critical | High |
- * Medium | Low` severity scale, a mandated `Location:` path anchor, and a
- * dimension axis. Lenses still label the axes slightly differently — `Severity`
- * vs `Impact`, `Dimension` vs `Category` vs `Type` — so the parser captures
- * every key/value pair the block carries and normalises the two axes the
- * downstream pipeline relies on (severity + dimension), harvesting the
- * `Location:` field into `files[]` ahead of prose scraping.
- *
- * Pure: no filesystem I/O. The caller supplies the report text and source
- * path; the parser returns plain objects.
+ * Parse `## Detailed Findings` of audit reports into normalised findings.
+ * Pure.
  */
 
 import path from 'node:path';
 
 import { normalizeSeverity } from '../findings/severity.js';
 
-// A lens writes its field bullets either way round — `- **Severity:** High`
-// (colon inside the bold run) or `- **Severity**: High` (colon outside it).
-// Accepting only the first silently dropped the axis of every finding written
-// the second way: it parsed as prose, so the block carried no severity, and the
-// grouping-header rule below then read the whole finding as an organisational
-// heading. Both spellings are the same field.
+// Accept the colon inside or outside the bold run (`**Severity:**` and
+// `**Severity**:`); missing either drops the axis and misreads the finding as a
+// grouping header.
 const KEY_LINE = /^\s*-\s*\*\*([^:*]+?)\s*(?::\*\*|\*\*\s*:)\s*(.*)$/;
 const HEADING_FINDING = /^(#{3,4})\s+(.+?)\s*$/;
 const SEVERITY_KEY_LINE =
@@ -49,22 +34,9 @@ function unwrapInlineCode(value) {
 }
 
 /**
- * Resolve a raw severity/impact token to a canonical level, or `null` when the
- * token carries no recognisable severity at all.
- *
- * The vocabulary itself is NOT written down here (Story #4877). This module used
- * to carry its own alias table covering `critical|high|medium|mod|moderate|low`
- * — four of the canonical five levels, missing `info`. A lens that graded a
- * finding `Info` or `Informational` (which the shared severity scale now
- * sanctions) therefore parsed to `null`, tallied as `unknown`, and was dropped
- * by every severity-filtered run, `--severity low` included. Delegating to the
- * canonical normaliser in `lib/findings/severity.js` means this parser cannot
- * know a narrower vocabulary than the rest of the pipeline.
- *
- * `null` — rather than the normaliser's `info` fallback — remains the
- * no-severity answer, because {@link deriveSeverity} walks several candidate
- * keys and needs to distinguish "this key had no severity" from "this key said
- * `info`".
+ * Delegates to the canonical normaliser so this parser never knows a narrower
+ * vocabulary than the pipeline. Returns `null` (not `info`) for no severity,
+ * so {@link deriveSeverity} can tell "no severity" from "said `info`".
  *
  * @param {unknown} token
  * @returns {string|null}
@@ -98,36 +70,13 @@ function deriveDimension(fields, fallbackDimension) {
 }
 
 /**
- * Harvest the mandated `Location:` field into concrete file paths. Every
- * non-retired lens template now carries a `- **Location:** <path>:<line>`
- * bullet (Story #4625); extracting it here — ahead of the heuristic prose
- * scrape — gives a finding a deterministic identity anchor instead of relying
- * on whatever path text happens to appear in the prose. The value may wrap the
- * path in backticks and/or append a `:line` (or `:line:col`) suffix; both are
- * stripped. Only tokens that look like paths (containing a separator) survive.
+ * Repo-relative path, or `null` for an absolute (outside `repoRoot`) or
+ * degenerate token. A bare root-level file (`AGENTS.md`) is accepted in
+ * structured fields; `requireSeparator` rejects it in prose, where it is more
+ * likely a word.
  *
- * @param {Record<string, string>} fields
- * @returns {string[]}
- */
-/**
- * Normalise a raw path token to a repo-relative path, or `null` when the
- * token is not a usable file reference.
- *
- * Three shapes historically leaked through and poisoned grouping downstream:
- * an **absolute** path (which can never match a repo-relative group key), a
- * **degenerate** token such as a bare `/`, and — most damagingly — a
- * **root-level** file such as `AGENTS.md`, which the old slash-only guard
- * discarded outright even when it was the finding's explicit `Location:`.
- *
- * `requireSeparator` is what keeps that third fix from over-reaching. In the
- * **structured** fields — the title anchor and `Location:` — a bare
- * `AGENTS.md` is unambiguously a file, so the separator is not required. In
- * free **prose**, a bare `description.md` is far more likely to be a word than
- * a path, so the separator stays mandatory there.
- *
- * @param {string} raw — the token as it appeared in the report.
- * @param {string} [repoRoot] — absolute repo root; absolute tokens beneath it
- *   are relativised. Omitted (the pure default) leaves absolutes to be dropped.
+ * @param {string} raw
+ * @param {string} [repoRoot] Absolute tokens beneath it are relativised.
  * @param {{ requireSeparator?: boolean }} [options]
  * @returns {string|null}
  */
@@ -151,8 +100,7 @@ function normalisePathToken(raw, repoRoot, { requireSeparator = false } = {}) {
       }
     }
   }
-  // A path that is still absolute lives outside the repo — it can never be a
-  // valid group key, so drop it rather than let it become one.
+  // Still absolute ⇒ outside the repo; never a valid group key.
   if (out.startsWith('/') || out.startsWith('\\') || /^[A-Za-z]:/.test(out)) {
     return null;
   }
@@ -163,10 +111,8 @@ function normalisePathToken(raw, repoRoot, { requireSeparator = false } = {}) {
 }
 
 /**
- * The finding-block skeleton mandates that a title lead with the primary file
- * the finding lives in (``### `path/to/file.ext` — title``). That anchor is
- * the most reliable primary-file signal a block carries, so it seeds `files[]`
- * ahead of `Location:` and prose scraping — `pickPrimaryFile` takes `files[0]`.
+ * The mandated title anchor (``### `path` — title``) is the strongest
+ * primary-file signal, so it seeds `files[0]` ahead of `Location:` and prose.
  */
 function deriveTitleFile(title, repoRoot) {
   const match = TITLE_ANCHOR.exec(typeof title === 'string' ? title : '');
@@ -175,6 +121,12 @@ function deriveTitleFile(title, repoRoot) {
   return normalised ? [normalised] : [];
 }
 
+/**
+ * `Location:` paths with `:line` suffixes and backticks stripped.
+ *
+ * @param {Record<string, string>} fields
+ * @returns {string[]}
+ */
 function deriveLocationFiles(fields, repoRoot) {
   const raw = fields.location;
   if (typeof raw !== 'string' || raw.trim().length === 0) return [];
@@ -265,10 +217,6 @@ function splitFindingBlocks(reportText) {
 }
 
 /**
- * Does this block carry the axis line that makes it a finding rather than a
- * section header? The skeleton mandates `Severity` (or its `Impact` alias), so
- * its absence is the signal that a heading is organisational.
- *
  * @param {{ bodyLines: string[] }} block
  * @returns {boolean}
  */
@@ -277,12 +225,6 @@ function carriesSeverity(block) {
 }
 
 /**
- * Does this block carry any `- **Key:** value` field bullet at all? A finding
- * block is a field record; a grouping header is a heading with prose (or
- * nothing) under it. Read together with {@link carriesSeverity} this is what
- * lets an axis-less heading be recognised as organisational **without** having
- * to see `####` children under it.
- *
  * @param {{ bodyLines: string[] }} block
  * @returns {boolean}
  */
@@ -291,10 +233,8 @@ function carriesFieldBullet(block) {
 }
 
 /**
- * A block that declares nothing: no severity axis and no field bullets. A
- * `### Robust` header whose whole body is `_No findings._` is the canonical
- * case — it used to parse as a severity-less finding with no files and no
- * recommendation, which an unattended sweep then filed as an empty Story.
+ * No severity and no field bullets (e.g. a header over `_No findings._`) —
+ * never a finding, or an unattended sweep files an empty Story.
  *
  * @param {{ bodyLines: string[] }} block
  * @returns {boolean}
@@ -304,29 +244,10 @@ function isEmptyBlock(block) {
 }
 
 /**
- * Decide whether a `###` block is a **grouping header** rather than a finding,
- * reading its **whole subtree** — its own body and its `####` children.
- *
- * Several lenses nest their findings one level deeper: a `###` per dimension
- * (`### Perceivable`), each holding `####` finding blocks. Read flat, that
- * report parsed as one severity-less finding per dimension, and the unattended
- * sweep filed those empties. The subtree rule this applies, in order:
- *
- *   1. A block whose own body carries the severity axis **or any field
- *      bullet** is a finding. Its `####` sub-sections fold back into its body
- *      rather than splitting into phantom findings, so flat reports parse
- *      exactly as before.
- *   2. A block whose title leads with a backticked path — the anchor the
- *      finding-block skeleton mandates — is a finding even when its own body
- *      is empty, because its fields live under a `#### Evidence`-style
- *      sub-section. Folding is what stops that sub-section's heading from
- *      becoming the finding's title.
- *   3. Otherwise it is a grouping header when its children look like findings:
- *      any child carrying its own path anchor, or more than one child carrying
- *      the severity axis. A **single** axis-bearing child under an anchorless
- *      header is the `#### Evidence` shape again, so it folds.
- *   4. A block with no children at all and nothing declared is a grouping
- *      header (or a stray heading) either way — it yields no finding.
+ * Is a `###` block a grouping header over `####` findings? Not if it declares
+ * fields or leads with a path anchor (its `#### Evidence` children fold in).
+ * Otherwise yes when it has no children, any anchored child, or more than one
+ * severity-bearing child; a single such child is the Evidence shape and folds.
  *
  * @param {{ title: string, bodyLines: string[] }} parent
  * @param {Array<{ title: string, bodyLines: string[] }>} children
@@ -341,10 +262,6 @@ function isGroupingHeader(parent, children) {
 }
 
 /**
- * Fold the flat heading stream into findings: emit a grouping header's
- * children, fold a finding's sub-sections into its own body, and drop every
- * block that declares nothing.
- *
  * @param {Array<{ level: number, title: string, bodyLines: string[] }>} blocks
  * @returns {Array<{ level: number, title: string, bodyLines: string[] }>}
  */
@@ -383,11 +300,6 @@ function foldGroupingHeaders(blocks) {
 }
 
 /**
- * Slice the `## Executive Summary` section out of a report, or `null` when the
- * report declares none. The tally the cross-check trusts is the one the report
- * envelope mandates *there*; a `Severity tally:` string anywhere else is prose
- * quoting the format, not a declaration.
- *
  * @param {string} markdown
  * @returns {{ start: number, end: number }|null} character offsets.
  */
@@ -403,22 +315,12 @@ function executiveSummaryRange(markdown) {
 }
 
 /**
- * Read every `Severity tally:` line the report carries, scoped to its
- * Executive Summary and failing closed on more than one.
+ * The declared severity tally, for cross-checking the parse against what the
+ * lens says it found. Fails closed (`duplicate`) on more than one tally line,
+ * since adopting either would make the cross-check arbitrary. `Info` is never
+ * counted.
  *
- * The tally is what lets a consumer cross-check what the lens says it found
- * against what the parser actually extracted — a parse that silently drops
- * findings is otherwise indistinguishable from a clean report. That only holds
- * while exactly one line claims to be the tally. A report whose prose quotes
- * the format a second time (a remediation section restating a lens's output,
- * say) used to have whichever line the regex reached first silently adopted as
- * the declaration, so the cross-check compared the parse against an arbitrary
- * one of two numbers. Both are now reported and the report fails.
- *
- * `Info` is never counted (the severity scale already excludes it from
- * scheduled work).
- *
- * @param {string} markdown — full report text.
+ * @param {string} markdown
  * @returns {{ tally: {critical:number,high:number,medium:number,low:number}|null,
  *   matches: string[], duplicate: boolean }}
  */
@@ -430,8 +332,6 @@ export function readSeverityTally(markdown) {
   const matches = [];
   TALLY_LINE_GLOBAL.lastIndex = 0;
   for (const hit of markdown.matchAll(TALLY_LINE_GLOBAL)) {
-    // Outside an Executive Summary the whole document is the scope; with one,
-    // a line beyond it is a stray that must not be adopted silently.
     matches.push({ text: hit[0].trim(), groups: hit, index: hit.index });
   }
   const scoped = range
@@ -483,14 +383,9 @@ function parseBlockFields(bodyLines) {
 }
 
 /**
- * Parse a single audit report's markdown text into a list of normalised
- * findings.
- *
  * @param {object} params
- * @param {string} params.markdown — full report text.
- * @param {string} params.sourceReport — path used for `sourceReport` field
- *   and dimension inference when the report omits a `Dimension:` / `Category:`
- *   / `Type:` line.
+ * @param {string} params.markdown
+ * @param {string} params.sourceReport Also the fallback dimension source.
  * @returns {Array<{
  *   dimension: string,
  *   severity: 'critical'|'high'|'medium'|'low'|null,
@@ -547,13 +442,10 @@ export function parseAuditReport({ markdown, sourceReport, repoRoot }) {
 }
 
 /**
- * Parse N audit reports and return a flat findings array. Reports without a
- * `## Detailed Findings` section yield zero entries rather than throwing —
- * an audit can legitimately come back empty.
+ * A report without `## Detailed Findings` yields no entries (legitimately empty).
  *
  * @param {Array<{ markdown: string, sourceReport: string }>} reports
- * @param {{ repoRoot?: string }} [options] — `repoRoot` relativises absolute
- *   paths quoted in a report so they can match repo-relative group keys.
+ * @param {{ repoRoot?: string }} [options]
  * @returns {Array<ReturnType<typeof parseAuditReport>[number]>}
  */
 export function parseAuditReports(reports, { repoRoot } = {}) {
