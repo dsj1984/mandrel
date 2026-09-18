@@ -135,110 +135,153 @@ function endOfRegex(s, start) {
 }
 
 /**
- * Split JavaScript source into code and comment segments. Literals are code.
+ * Index just past the comment opening at `i`, or -1 when none opens there.
  *
- * @param {string} source
- * @returns {Array<{ kind: 'code' | 'comment' | 'literal', text: string }>}
+ * @param {string} s
+ * @param {number} i
+ * @returns {number}
  */
-function tokenizeComments(source) {
-  const s = String(source ?? '');
-  /** @type {Array<{ kind: 'code' | 'comment' | 'literal', text: string }>} */
-  const parts = [];
-  let code = '';
-  let codeSoFar = '';
-  // Only the tail matters to the regex-versus-division decision.
-  const remember = (text) => {
-    codeSoFar = (codeSoFar + text).slice(-64);
-  };
-  const pushCode = (text) => {
-    code += text;
-    remember(text);
-  };
-  const flushCode = () => {
-    if (code) parts.push({ kind: 'code', text: code });
-    code = '';
-  };
-  const pushOther = (kind, text) => {
-    flushCode();
-    parts.push({ kind, text });
-    if (kind === 'literal') remember(text);
-  };
-  // Each entry is the brace depth at which a template `${` expression opened.
-  const templateStack = [];
-  let braceDepth = 0;
-  let i = 0;
+function endOfComment(s, i) {
+  if (s[i] !== '/') return -1;
+  if (s[i + 1] === '/') {
+    const nl = s.indexOf('\n', i);
+    return nl === -1 ? s.length : nl;
+  }
+  if (s[i + 1] === '*') {
+    const close = s.indexOf('*/', i + 2);
+    return close === -1 ? s.length : close + 2;
+  }
+  return -1;
+}
+
+/**
+ * A single-pass scanner. `templateStack` holds the brace depth at which each
+ * open template `${` expression began, so its closing `}` resumes the template.
+ */
+class CommentScanner {
+  /** @param {string} s */
+  constructor(s) {
+    this.s = s;
+    /** @type {Array<{ kind: 'code' | 'comment' | 'literal', text: string }>} */
+    this.parts = [];
+    this.code = '';
+    this.tail = '';
+    this.templateStack = [];
+    this.braceDepth = 0;
+  }
+
+  /** @param {string} text */
+  remember(text) {
+    this.tail = (this.tail + text).slice(-64);
+  }
+
+  /** @param {string} ch */
+  pushCode(ch) {
+    this.code += ch;
+    this.remember(ch);
+  }
 
   /**
-   * Scan template text from `start` (just past a backtick or a closing `}`)
-   * until the closing backtick or the next `${`.
+   * @param {'comment' | 'literal'} kind
+   * @param {number} start
+   * @param {number} end
+   * @returns {number}
+   */
+  pushOther(kind, start, end) {
+    if (this.code) this.parts.push({ kind: 'code', text: this.code });
+    this.code = '';
+    const text = this.s.slice(start, end);
+    this.parts.push({ kind, text });
+    if (kind === 'literal') this.remember(text);
+    return end;
+  }
+
+  /**
+   * Scan template text from `start` to the closing backtick or the next `${`.
    *
    * @param {number} start
    * @returns {number}
    */
-  const scanTemplate = (start) => {
+  endOfTemplate(start) {
+    const s = this.s;
     let j = start;
     while (j < s.length) {
       if (s[j] === '\\') j += 2;
       else if (s[j] === '`') return j + 1;
       else if (s[j] === '$' && s[j + 1] === '{') {
-        templateStack.push(braceDepth);
-        braceDepth += 1;
+        this.templateStack.push(this.braceDepth);
+        this.braceDepth += 1;
         return j + 2;
       } else j += 1;
     }
     return s.length;
-  };
-
-  while (i < s.length) {
-    const ch = s[i];
-    const next = s[i + 1];
-    if (ch === '/' && next === '/') {
-      const nl = s.indexOf('\n', i);
-      const end = nl === -1 ? s.length : nl;
-      pushOther('comment', s.slice(i, end));
-      i = end;
-    } else if (ch === '/' && next === '*') {
-      const close = s.indexOf('*/', i + 2);
-      const end = close === -1 ? s.length : close + 2;
-      pushOther('comment', s.slice(i, end));
-      i = end;
-    } else if (ch === '/' && slashOpensRegex(codeSoFar)) {
-      const end = endOfRegex(s, i);
-      pushOther('literal', s.slice(i, end));
-      i = end;
-    } else if (ch === "'" || ch === '"') {
-      const end = endOfString(s, i);
-      pushOther('literal', s.slice(i, end));
-      i = end;
-    } else if (ch === '`') {
-      const end = scanTemplate(i + 1);
-      pushOther('literal', s.slice(i, end));
-      i = end;
-    } else if (ch === '{') {
-      braceDepth += 1;
-      pushCode(ch);
-      i += 1;
-    } else if (ch === '}') {
-      braceDepth -= 1;
-      if (
-        templateStack.length > 0 &&
-        templateStack[templateStack.length - 1] === braceDepth
-      ) {
-        templateStack.pop();
-        const end = scanTemplate(i + 1);
-        pushOther('literal', s.slice(i, end));
-        i = end;
-      } else {
-        pushCode(ch);
-        i += 1;
-      }
-    } else {
-      pushCode(ch);
-      i += 1;
-    }
   }
-  flushCode();
-  return parts;
+
+  /**
+   * End of the literal opening at `i`, or -1 when none opens there.
+   *
+   * @param {number} i
+   * @returns {number}
+   */
+  endOfLiteral(i) {
+    const ch = this.s[i];
+    if (ch === "'" || ch === '"') return endOfString(this.s, i);
+    if (ch === '`') return this.endOfTemplate(i + 1);
+    if (ch === '/' && slashOpensRegex(this.tail)) return endOfRegex(this.s, i);
+    return -1;
+  }
+
+  /**
+   * Consume a brace at `i`; a `}` closing a template expression resumes the
+   * template as a literal.
+   *
+   * @param {number} i
+   * @returns {number}
+   */
+  brace(i) {
+    const ch = this.s[i];
+    if (ch === '{') this.braceDepth += 1;
+    else {
+      this.braceDepth -= 1;
+      const top = this.templateStack[this.templateStack.length - 1];
+      if (this.templateStack.length > 0 && top === this.braceDepth) {
+        this.templateStack.pop();
+        return this.pushOther('literal', i, this.endOfTemplate(i + 1));
+      }
+    }
+    this.pushCode(ch);
+    return i + 1;
+  }
+
+  /**
+   * Consume one token at `i`.
+   *
+   * @param {number} i
+   * @returns {number}
+   */
+  step(i) {
+    const commentEnd = endOfComment(this.s, i);
+    if (commentEnd !== -1) return this.pushOther('comment', i, commentEnd);
+    const literalEnd = this.endOfLiteral(i);
+    if (literalEnd !== -1) return this.pushOther('literal', i, literalEnd);
+    if (this.s[i] === '{' || this.s[i] === '}') return this.brace(i);
+    this.pushCode(this.s[i]);
+    return i + 1;
+  }
+}
+
+/**
+ * Split JavaScript source into code, comment and literal segments.
+ *
+ * @param {string} source
+ * @returns {Array<{ kind: 'code' | 'comment' | 'literal', text: string }>}
+ */
+function tokenizeComments(source) {
+  const scanner = new CommentScanner(String(source ?? ''));
+  let i = 0;
+  while (i < scanner.s.length) i = scanner.step(i);
+  if (scanner.code) scanner.parts.push({ kind: 'code', text: scanner.code });
+  return scanner.parts;
 }
 
 /**
