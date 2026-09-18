@@ -1,79 +1,18 @@
 /**
- * standard-args.js — shared CLI flag parser for the dispatcher's
- * top-level scripts (Story #2460, Epic #2453 — CLI thinning pilot).
+ * Shared CLI flag parser: one canonical spec for the standard dispatcher
+ * flags plus declarative per-script `extras`
+ * (`{ type, alias?, default?, required? }`, alias defaults to camelCase).
  *
- * Replaces the per-CLI hand-rolled flag dispatch with a single
- * declarative entrypoint that the refactored scripts (story-close,
- * epic-deliver, check-baselines) all call. The helper
- * covers the flags every dispatcher CLI shares (`--epic`, `--story`,
- * `--changed-since`, `--json`, `--full-scope`, `--dry-run`)
- * and — via the `extras` schema entry — caller-defined extras (e.g.
- * `--root`, `--scope`, `--check`) so a script can replace its local
- * argv walker with a single declarative call.
- *
- * Contract
- * --------
- *   parseStandardCliArgs({ argv, schema?, extras? }) → { values, positionals }
- *
- *   - `argv`    — `process.argv.slice(2)` shape; the helper does NOT strip
- *     the leading `node` + script-path entries on the caller's behalf.
- *   - `schema`  — optional, declarative override of which standard flags
- *     are required. Shape: `{ [flagName]: { required?: boolean } }`.
- *     Unknown keys are rejected so a typo doesn't silently disable the
- *     required-field check.
- *   - `extras`  — optional, declarative map of caller-defined flags.
- *     Shape: `{ [flagName]: { type, alias?, default?, required? } }`.
- *     `type` is one of `'string' | 'boolean' | 'ticket' | 'integer' |
- *     'string-multi'`. `alias` defaults to the camelCased flag name.
- *     Extras flow through the same `defineFlags` machinery as the
- *     standard set and are emitted on `values` under their `alias`.
- *
- *   `values` is always returned with every known flag present:
- *
- *     { epicId, storyId, changedSince, json, fullScope, dryRun,
- *       ...extras }
- *
- *   Ticket-shaped flags (`--epic`, `--story`) parse via
- *   `parseTicketId` (positive integer; leading `#` stripped; `null` on
- *   anything invalid). The string-shaped `--changed-since` keeps the raw
- *   string (or `null` when absent). Boolean flags coerce to `false` when
- *   absent and `true` when present (with or without a value).
- *
- * Failure modes
- * -------------
- *   - **Unknown flag**: an argv token shaped like `--foo` whose name is
- *     not in the supported set (standard + extras) throws an `Error`
- *     with a stable `code: 'UNKNOWN_FLAG'` plus the offending flag name.
- *   - **Missing required flag**: when `schema[flag].required === true`
- *     (or `extras[flag].required === true`) and the resolved value is
- *     absent (ticket flags → `null`; string flags → `null`/empty;
- *     boolean flags → `false`), the parser throws with
- *     `code: 'MISSING_REQUIRED_FLAG'` and the flag name.
- *   - **Unsupported extras type**: a typo in `extras[flag].type` throws
- *     with `code: 'UNKNOWN_EXTRAS_TYPE'`.
- *
- * Why a thin shim and not a re-export of `defineFlags`
- * ----------------------------------------------------
- *   `defineFlags` is a powerful declarative parser, but every dispatcher
- *   CLI hand-rolls its own option spec — duplicated `--epic` / `--story`
- *   blocks across four scripts, each subtly different. `parseStandardCliArgs`
- *   collapses that duplication into one canonical spec with a small
- *   `extras` surface for the per-script flags.
+ * `argv` is `process.argv.slice(2)`. `values` always carries every known
+ * flag. Throws with a stable `code`: `UNKNOWN_FLAG`, `MISSING_REQUIRED_FLAG`,
+ * `UNKNOWN_FLAG_IN_SCHEMA`, `UNKNOWN_EXTRAS_TYPE`, `EXTRAS_FLAG_COLLISION`.
  *
  * @module lib/cli/standard-args
  */
 
 import { defineFlags, parseTicketId } from '../cli-args.js';
 
-/**
- * Canonical spec passed to `defineFlags`. Every key in `SUPPORTED_FLAGS`
- * is what the parser will accept; anything else triggers `UNKNOWN_FLAG`
- * unless it is declared via `extras`.
- *
- * Each entry below maps the kebab-cased CLI flag to:
- *   - `key`:  the camelCased output key on `values`
- *   - `type`: 'ticket' | 'string' | 'boolean'
- */
+/** Kebab-case flag → `{ key` on `values`, `type }`. */
 const SUPPORTED_FLAGS = Object.freeze({
   epic: { key: 'epicId', type: 'ticket' },
   story: { key: 'storyId', type: 'ticket' },
@@ -98,9 +37,6 @@ function camelCase(name) {
 }
 
 /**
- * Validate the call signature. Only the object form
- * `({ argv, schema, extras })` is accepted.
- *
  * @param {unknown} opts
  * @returns {{ argv: string[], schema: object | undefined, extras: object | undefined }}
  */
@@ -114,12 +50,6 @@ function normaliseCallSignature(opts) {
   return { argv: argv ?? [], schema, extras };
 }
 
-/**
- * Build the `defineFlags` spec from the canonical flag table plus any
- * caller-supplied extras. Extras are merged after the standard set; a
- * collision (e.g. extras declaring `--story`) is rejected up-front in
- * `validateExtras`.
- */
 function buildDefineFlagsSpec(extras) {
   const spec = {};
   for (const [flag, { key, type }] of Object.entries(SUPPORTED_FLAGS)) {
@@ -134,19 +64,11 @@ function buildDefineFlagsSpec(extras) {
   return spec;
 }
 
-/**
- * Collect every flag name the parser recognises (standard + extras).
- * Used by the unknown-flag walker.
- */
 function knownFlagNames(extras) {
   if (!extras) return FLAG_NAMES;
   return FLAG_NAMES.concat(Object.keys(extras));
 }
 
-/**
- * Scan the raw argv for `--foo` tokens whose name is not in the known
- * set. Returns the first offender or `null`.
- */
 function findUnknownFlag(argv, known) {
   for (const tok of argv) {
     if (typeof tok !== 'string') continue;
@@ -160,10 +82,7 @@ function findUnknownFlag(argv, known) {
   return null;
 }
 
-/**
- * Validate the caller-supplied `schema`. Reject any key that is not a
- * supported standard flag.
- */
+/** Reject unknown keys so a typo cannot silently disable a required check. */
 function validateSchema(schema) {
   if (schema === undefined || schema === null) return;
   if (typeof schema !== 'object') {
@@ -181,11 +100,6 @@ function validateSchema(schema) {
   }
 }
 
-/**
- * Validate the caller-supplied `extras`. Each entry must declare a
- * supported type; declaring a flag name that collides with a standard
- * flag is rejected (use the `schema` for required-marking instead).
- */
 function validateExtras(extras) {
   if (extras === undefined || extras === null) return;
   if (typeof extras !== 'object') {
@@ -216,10 +130,6 @@ function validateExtras(extras) {
   }
 }
 
-/**
- * "Absent" test parameterised by flag type. Mirrored across the
- * standard and extras enforcement passes.
- */
 function isAbsent(type, cur) {
   if (type === 'ticket') return cur === null || cur === undefined;
   if (type === 'string') return cur === null || cur === undefined || cur === '';
@@ -238,10 +148,6 @@ function throwMissing(flag) {
   throw err;
 }
 
-/**
- * Apply the per-flag `required` constraints from `schema` against the
- * resolved `values`.
- */
 function enforceRequired(values, schema) {
   if (!schema) return;
   for (const [flag, rule] of Object.entries(schema)) {
@@ -251,9 +157,6 @@ function enforceRequired(values, schema) {
   }
 }
 
-/**
- * Apply the per-flag `required` constraints declared on `extras`.
- */
 function enforceExtrasRequired(values, extras) {
   if (!extras) return;
   for (const [flag, def] of Object.entries(extras)) {
@@ -263,14 +166,7 @@ function enforceExtrasRequired(values, extras) {
   }
 }
 
-/**
- * Coerce the raw `defineFlags` output into the canonical shape the
- * dispatcher CLIs consume. `defineFlags` already applies the alias
- * (`epic` → `epicId`, …) and runs `parseTicketId` for the ticket-typed
- * entries; we normalise absent strings / booleans into a stable
- * JSON-friendly shape for the standard set and pass extras through
- * with light coercion (string → null on empty, boolean → strict false).
- */
+/** Absent strings become `null` and booleans strict `false`. */
 function normaliseValues(raw, extras) {
   const out = {};
   for (const [, { key, type }] of Object.entries(SUPPORTED_FLAGS)) {
@@ -305,9 +201,6 @@ function normaliseValues(raw, extras) {
 }
 
 /**
- * Parse the dispatcher's shared CLI flag surface. See module docstring
- * for the full contract.
- *
  * @param {{ argv?: string[], schema?: object, extras?: object }} [opts]
  * @returns {{ values: Record<string, unknown>, positionals: string[] }}
  */

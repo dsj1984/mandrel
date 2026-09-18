@@ -1,47 +1,8 @@
 /**
- * bootstrap/issue-forms-template — Story #4227 (framework-gap)
- *
- * Generates the GitHub **Story Issue Form**
- * (`.github/ISSUE_TEMPLATE/story.yml`) derived from the canonical Story-body SSOT
- * (`lib/story-body/story-body.js`). The forms exist so a human filing a
- * Story in the GitHub web UI produces a body that round-trips through
- * the same `story-body.parse()` agents rely on — closing the
- * human↔agent ticket-shape gap.
- *
- * ## Why generated, not hand-authored
- *
- * Hand-authoring the forms would let the field headings drift from what
- * `parse()` expects. Instead the form field set is derived from a single
- * `HUMAN_INTENT_FIELDS` table here, and each field's heading is the exact
- * section name the parser maps (`goal` → `## Goal`, etc.). The CI
- * conformance lint (`lint-issue-body.js`) runs the real `parse()` against
- * human-opened issues so the form and the parser cannot silently drift.
- *
- * ## Form fields ⊆ body schema
- *
- * The forms expose only the human **intent subset** — `goal`, `changes`,
- * `acceptance`, `verify`, `references`. Machine-managed sections (the
- * `<!-- meta: … -->` block, the frozen dispatch manifest, `agent::*`
- * transitions) are deliberately absent; the runtime fills those. The
- * relationship is "form fields ⊆ body schema," not "form == body."
- *
- * ## GitHub serialization contract (the lossy seam)
- *
- * GitHub Issue Forms render every `textarea`/`input` field as:
- *
- * ```text
- * ### {label}
- *
- * {value}
- * ```
- *
- * i.e. the field label becomes a level-3 heading (`###`), not the level-2
- * (`##`) the canonical serializer emits. `story-body.parse()` accepts both
- * heading levels (Story #4227 widened its heading regex), so a body
- * assembled from form output round-trips. This is the single point where
- * the form shape and the canonical serializer differ, and it is covered by
- * the round-trip test that feeds simulated GitHub output back through
- * `parse()`.
+ * Generates the Story Issue Form from the Story-body SSOT so a human-filed
+ * body round-trips through `story-body.parse()`. Fields are only the human
+ * intent subset; the runtime fills machine-managed sections. GitHub renders
+ * labels as `###` headings, not `##` — `parse()` accepts both levels.
  *
  * @module bootstrap/issue-forms-template
  */
@@ -49,29 +10,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-/**
- * Directory (relative to a project root) GitHub reads issue forms from.
- * Internal — the per-form path constants below are the exported surface.
- */
 const ISSUE_TEMPLATE_RELATIVE_DIR = '.github/ISSUE_TEMPLATE';
 
-/**
- * Relative path of the generated Story form, surfaced as a constant so tests
- * and the bootstrap caller assert the canonical write target without
- * re-deriving it.
- */
 export const STORY_FORM_RELATIVE_PATH = `${ISSUE_TEMPLATE_RELATIVE_DIR}/story.yml`;
 
 /**
- * The human **intent subset** of the Story-body schema, in canonical
- * `parse()` section order. Each entry drives one form field. `heading` is
- * the exact section name `story-body.parse()` maps (case-insensitive); the
- * generated YAML uses it verbatim as the field `label` so GitHub's
- * `### {label}` render produces a heading the parser recognises.
- *
- * Machine-managed body fields (`wide`, `reason_to_exist`, `depends_on`
- * meta) are intentionally absent — the runtime fills those. `depends_on` is exposed as a free-text input
- * that serializes to the `blocked by #N` footer `parse()` already reads.
+ * Intent fields in `parse()` section order. `heading` must be the exact
+ * section name `parse()` maps, since GitHub renders the label as the heading.
  *
  * @type {Array<{
  *   id: string,
@@ -143,11 +88,7 @@ export const HUMAN_INTENT_FIELDS = [
 ];
 
 /**
- * Escape a string for safe embedding inside a double-quoted YAML scalar.
- * The generated YAML only ever quotes single-line scalars (labels,
- * descriptions, placeholders), so we escape backslashes, double quotes,
- * and collapse embedded newlines into the literal `\n` placeholder GitHub
- * renders verbatim in the form preview.
+ * Double-quoted single-line YAML scalar; newlines become literal `\n`.
  *
  * @param {string} value
  * @returns {string}
@@ -161,10 +102,6 @@ function yamlQuote(value) {
 }
 
 /**
- * Render a single Issue-Form field block (a `textarea` or `input`) from a
- * {@link HUMAN_INTENT_FIELDS} descriptor. Indented to sit under the
- * top-level `body:` sequence.
- *
  * @param {(typeof HUMAN_INTENT_FIELDS)[number]} field
  * @returns {string}
  */
@@ -182,10 +119,7 @@ function renderFieldBlock(field) {
 }
 
 /**
- * Render the shared `depends_on` input. Its value serializes (by the
- * conformance lint / body assembler) into the `blocked by #N` footer lines
- * `parse()` already extracts, so it stays out of the heading-mapped field
- * set above.
+ * `depends_on` serializes to `blocked by` footer lines, not a heading.
  *
  * @returns {string}
  */
@@ -204,17 +138,11 @@ function renderDependsOnBlock() {
 
 /**
  * @typedef {object} IssueFormOptions
- * @property {string} [entryStateLabel='agent::review-spec'] - Lifecycle
- *   entry-state label auto-applied alongside the `type::*` label so
- *   human-filed tickets land in the same lane as agent-created ones.
- * @property {string} [projectName] - Optional repo/project name woven into
- *   the form description. Purely cosmetic.
+ * @property {string} [entryStateLabel='agent::review-spec'] - Puts human-filed
+ *   tickets in the same lane as agent-created ones.
+ * @property {string} [projectName] - Cosmetic.
  */
 
-/**
- * Shared header banner stamped on every generated form so the provenance
- * (and the "regenerate, don't hand-edit" rule) travels with the file.
- */
 const GENERATED_BANNER =
   '# Generated by agents-bootstrap-github (Story #4227) from the Story-body SSOT\n' +
   '# (.agents/scripts/lib/story-body/story-body.js). Do NOT hand-edit the\n' +
@@ -223,12 +151,7 @@ const GENERATED_BANNER =
   '# (lint-issue-body.js) is the drift guard between this form and the parser.';
 
 /**
- * Render the GitHub Issue Form YAML for Stories. Epics are no longer a
- * ticket type in the label taxonomy, so the generated human-entry surface
- * is story-only.
- *
- * The output is deterministic so the round-trip + idempotency tests assert
- * on its exact shape.
+ * Deterministic Story form YAML.
  *
  * @param {'story'} ticketType
  * @param {IssueFormOptions} [opts]
@@ -268,12 +191,7 @@ ${renderDependsOnBlock()}
 }
 
 /**
- * Assemble a canonical Story-body markdown string from the per-field values
- * a GitHub Issue Form yields (keyed by field `id`). This is the inverse of
- * the form: it reconstructs what GitHub *would* serialize, using the
- * canonical `## {Heading}` form so the result feeds straight into
- * `story-body.parse()`. The conformance lint and the round-trip test use it
- * to prove the form → parser contract without a live GitHub call.
+ * Inverse of the form: canonical `## {Heading}` body from field values.
  *
  * @param {Record<string, string>} values - Field id → raw textarea/input value.
  * @returns {string} Canonical markdown body.
@@ -302,21 +220,11 @@ export function assembleBodyFromFormValues(values = {}) {
   return body;
 }
 
-/**
- * Relative path of the issue-body conformance workflow — the drift guard
- * that runs `story-body.parse()` against human-opened tickets.
- */
+/** The drift guard between the form and `story-body.parse()`. */
 export const CONFORMANCE_WORKFLOW_RELATIVE_PATH =
   '.github/workflows/issue-body-conformance.yml';
 
 /**
- * Render the CI workflow that runs the issue-body conformance lint
- * (`lint-issue-body.js`) on opened/edited `type::story` issues. This is
- * the mechanism that prevents the generated form and
- * `story-body.parse()` from silently drifting (Story #4227 acceptance).
- * Deterministic so the bootstrap test asserts its exact shape. Internal —
- * exposed to consumers only through {@link ensureIssueForms}.
- *
  * @returns {string}
  */
 function renderConformanceWorkflow() {
@@ -364,22 +272,13 @@ jobs:
 }
 
 /**
- * Write (or refresh) the Story issue form into a project checkout. Idempotent at
- * the byte level:
- *
- * - file absent → `created`
- * - byte-identical → `unchanged`
- * - operator-edited (differs from the rendered template) → `custom-skip`
- *   (the existing file is preserved; `rendered` is returned so the caller
- *   can offer a diff)
- *
- * Network-free; safe under tests with a tmp `projectRoot`.
+ * Write the form and its conformance workflow; an operator-edited file is
+ * preserved (`custom-skip`).
  *
  * @param {object} args
  * @param {string} args.projectRoot
  * @param {IssueFormOptions} [args.options]
- * @param {boolean} [args.write=true] - When `false`, compute the would-be
- *   actions without touching disk (dry-run).
+ * @param {boolean} [args.write=true] - `false` is a dry run.
  * @returns {{ forms: Array<{ type: 'story'|'conformance-workflow',
  *             action: 'created'|'unchanged'|'custom-skip',
  *             path: string, rendered: string }> }}
@@ -389,9 +288,6 @@ export function ensureIssueForms(args) {
   const options = args.options ?? {};
   const write = args.write !== false;
 
-  // Each target pairs a type key with the rendered body. The conformance
-  // workflow is materialized alongside the form because it is the form's
-  // drift guard — they ship as one unit.
   const targets = [
     {
       type: 'story',

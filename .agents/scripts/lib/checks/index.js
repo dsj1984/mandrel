@@ -1,49 +1,8 @@
 /**
- * checks/index.js — Discovery-based registry + runner for self-healing checks.
- *
- * This module is the single entry point for every consumer surface that
- * runs checks (preflight guards at `single-story-close.js` and
- * `mandrel-update-preflight.js`, the
- * `npm test` wrapper, the `diagnose.js` CLI viewer, and the retro hook in
- * `retro-runner.js`). Each surface calls `runChecks({ scope, autoFix, state })`
- * with its own scope and gets back `{ findings, fixed }`.
- *
- * Registry shape (each sibling module exports):
- *
- *   {
- *     id: string,
- *     severity: 'blocker' | 'warning' | 'info',
- *     scope: string[],                              // may include 'retro'
- *     autoCorrect: 'auto' | 'refuse-and-print',
- *     detect(state): Promise<Finding | null>,
- *     fix?(state): Promise<{ ok: boolean, message: string }>,
- *   }
- *
- * Invariants enforced here (defense-in-depth — see README for the full
- * contract):
- *
- *   1. `scope === 'retro'` is read-only. `runChecks({ scope: 'retro',
- *      autoFix: true })` throws `'retro scope is read-only: autoFix must
- *      be false'` before any check runs. The retro-runner relies on this
- *      to keep retro stateless even if a future call site flips the flag.
- *
- *   2. `autoCorrect: 'refuse-and-print'` is hard-refusal. The runner will
- *      NEVER invoke a check's `fix()` unless `autoCorrect === 'auto'`,
- *      even if the check author later adds a `fix` body. This is what
- *      makes new fix implementations harmless until their author also
- *      opts in.
- *
- *   3. Phase split: `detect()` invocations fan out concurrently via
- *      `Promise.all` (Story #2463 — preflight subprocess batching), while
- *      `fix()` invocations remain strictly serial. `detect()` is
- *      read-only against the frozen `assembleState` object, so concurrent
- *      reads cannot race it; `fix()` may mutate the worktree, so its
- *      ordering is preserved by walking the registry-ordered findings
- *      array sequentially.
- *
- * Discovery happens once per process via `loadRegistry()`. The result is
- * cached; `clearRegistryCache()` is exported for tests that want to
- * exercise a different fixture directory.
+ * Discovery-based registry and runner for self-healing checks; every surface
+ * calls `runChecks({ scope, autoFix, state })`. Invariants: `retro` scope is
+ * read-only; `fix()` runs only when `autoCorrect === 'auto'`; `detect()` fans
+ * out concurrently, `fix()` stays serial.
  */
 
 import { readdirSync, statSync } from 'node:fs';
@@ -85,40 +44,24 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 /**
- * Module-local registry cache. Keyed by the absolute directory it was
- * loaded from so tests with fixture directories don't poison the cache
- * for the real `lib/checks/` directory.
+ * Keyed by absolute directory so fixture registries never poison the real one.
  *
  * @type {Map<string, Check[]>}
  */
 const registryCache = new Map();
 
-/**
- * Module names that are part of the runner infrastructure, not checks.
- * `loadRegistry()` filters these out of the readdir scan.
- *
- * @type {Set<string>}
- */
+/** @type {Set<string>} */
 const NON_CHECK_FILES = new Set(['index.js', 'state.js']);
 
-/**
- * Clear the registry cache. Tests call this between cases that load from
- * a fixture directory so a fresh registry is observed.
- */
 export function clearRegistryCache() {
   registryCache.clear();
 }
 
 /**
- * Load all check modules in a directory. Defaults to the directory this
- * module lives in (`lib/checks/`). Synchronously enumerates `.js` files,
- * filters out the runner infrastructure (`index.js`, `state.js`), and
- * dynamically imports each remaining file. Each module must default-export
- * a check object (see contract above).
+ * Import every check module in `dir`; each must default-export a {@link Check}.
  *
  * @param {object} [opts]
- * @param {string} [opts.dir]  Override directory — used by tests to load
- *   from a fixture directory.
+ * @param {string} [opts.dir]
  * @returns {Promise<Check[]>}
  */
 export async function loadRegistry({ dir = __dirname } = {}) {
@@ -130,10 +73,7 @@ export async function loadRegistry({ dir = __dirname } = {}) {
   try {
     entries = readdirSync(absDir);
   } catch {
-    // No directory → empty registry. The runner is still callable; it just
-    // returns `{ findings: [], fixed: [] }` for every scope. This is the
-    // shape the diagnose viewer expects when invoked on a fresh checkout
-    // before any check modules have been authored.
+    // No directory → empty registry, not an error.
     registryCache.set(absDir, []);
     return [];
   }
@@ -162,9 +102,6 @@ export async function loadRegistry({ dir = __dirname } = {}) {
 }
 
 /**
- * Look up a single check by id from the default registry. Returns
- * `undefined` if no check has that id.
- *
  * @param {string} id
  * @param {object} [opts]
  * @param {string} [opts.dir]
@@ -176,19 +113,12 @@ export async function getCheck(id, opts) {
 }
 
 /**
- * Run all checks matching `scope` against `state`. The retro-readonly and
- * refuse-and-print invariants are enforced here, not in the check
- * modules — see the JSDoc on the file for the rationale.
- *
  * @param {object} opts
- * @param {string} [opts.scope]      Surface scope, e.g. 'story-close',
- *   'story-close', 'npm-test', 'retro', 'diagnose'. When omitted, every check runs.
- * @param {boolean} [opts.autoFix=false]  Invoke `fix()` for checks with
- *   `autoCorrect: 'auto'`. Forbidden when `scope === 'retro'`.
- * @param {object} opts.state        Probed state from `assembleState()`.
- * @param {object} [opts.registry]   Pre-loaded registry — bypasses
- *   `loadRegistry()`. Used by tests with fixture checks.
- * @param {string} [opts.dir]        Fixture directory for `loadRegistry`.
+ * @param {string} [opts.scope]      Omitted runs every check.
+ * @param {boolean} [opts.autoFix=false]  Forbidden when `scope === 'retro'`.
+ * @param {object} opts.state        From `assembleState()`.
+ * @param {object} [opts.registry]   Pre-loaded registry.
+ * @param {string} [opts.dir]
  * @returns {Promise<{ findings: Finding[], fixed: Array<Finding & { fixResult: FixResult }> }>}
  */
 export async function runChecks({
@@ -206,12 +136,8 @@ export async function runChecks({
     ? checks.filter((c) => Array.isArray(c.scope) && c.scope.includes(scope))
     : checks;
 
-  // Phase 1 (read-only fan-out, Story #2463): run every `detect()` in
-  // parallel via Promise.all. `state` is the frozen object returned by
-  // `assembleState()`, so concurrent reads are race-free. Promise.all
-  // preserves input order in its resolved array, so the
-  // findings-by-registry-order contract that downstream consumers rely on
-  // is upheld even though the detects themselves overlap in flight.
+  // `state` is frozen, so concurrent detects are race-free; Promise.all keeps
+  // registry order.
   const detected = await Promise.all(
     filtered.map((check) => Promise.resolve(check.detect(state))),
   );
@@ -221,16 +147,12 @@ export async function runChecks({
   /** @type {Array<Finding & { fixResult: FixResult }>} */
   const fixed = [];
 
-  // Phase 2 (mutation-bearing serial pass): walk the registry-ordered
-  // detection results and apply fix() one at a time. fix() may mutate the
-  // worktree (delete branches, rewrite refs), so running it concurrently
-  // would race those mutations and scramble logs.
+  // fix() mutates the worktree, so it runs serially.
   for (let i = 0; i < filtered.length; i += 1) {
     const check = filtered[i];
     const finding = detected[i];
     if (!finding) continue;
-    // Invariant #2: refuse-and-print is hard-refusal — never invoke fix(),
-    // regardless of whether the author defined one. The flag is the gate.
+    // refuse-and-print never runs fix(), even if one is defined.
     if (
       autoFix &&
       check.autoCorrect === 'auto' &&
@@ -241,8 +163,6 @@ export async function runChecks({
         fixed.push({ ...finding, fixResult: result });
         continue;
       }
-      // fix() ran and failed → surface the finding as unfixed so the
-      // operator sees both the original problem AND the failure detail.
       findings.push({
         ...finding,
         detail: [
@@ -260,9 +180,6 @@ export async function runChecks({
 }
 
 /**
- * Shape-validate a check module. Used by `loadRegistry()` to fail fast on
- * malformed modules rather than crashing later inside `runChecks()`.
- *
  * @param {unknown} candidate
  * @returns {candidate is Check}
  */

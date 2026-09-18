@@ -1,26 +1,8 @@
 /**
- * bootstrap/hitl-confirm — Epic #1235 Story 5; consent-first opt-in (#3526)
- *
- * Renders a structured diff to stdout and prompts the operator y/N when
- * stdout is a TTY. When not a TTY (CI, sub-agent, redirected pipe), the
- * gate returns `false` and logs the canonical abort message to stderr —
- * silent-apply is a non-feature. The `opts.assume` override lets tests
- * and automation pin the answer deterministically:
- *
- *   - `opts.assume === 'yes'` → returns true, skips the prompt entirely.
- *   - `opts.assume === 'no'`  → returns false, skips the prompt.
- *
- * The default render is intentionally simple: a single-line summary
- * followed by a JSON dump of `{ current, proposed }`. Callers that want
- * a richer view (per-field colour, contextual unified diff) can wrap
- * `confirm` and render their own preamble before calling.
- *
- * Consent-first install (Story #3526): the GitHub-admin phase group — the
- * irreversible remote mutations (labels, Projects V2, branch protection,
- * merge methods) — is gated by an explicit opt-in, not merely a TTY. A
- * non-TTY run that has not opted in records every group as declined, so the
- * abort hint names BOTH the dedicated `--approve-github-admin` flag (consent
- * to just the remote mutations) and `--assume-yes` (accept every group).
+ * y/N confirm of a `{ current, proposed }` diff. Without a TTY it returns
+ * `false` and logs the abort hint — never a silent apply. `opts.assume` pins
+ * the answer. Irreversible GitHub-admin mutations need an explicit opt-in,
+ * so the hint names both `--approve-github-admin` and `--assume-yes`.
  */
 
 import { createInterface } from 'node:readline';
@@ -39,9 +21,7 @@ const ABORT_MESSAGE =
  *   stdout?: NodeJS.WritableStream,
  *   stderr?: NodeJS.WritableStream,
  *   isTTY?: boolean,
- * }} [opts] - Overrides for tests / automation. `isTTY` defaults to
- *   `process.stdout.isTTY`. `stdin`/`stdout`/`stderr` default to the
- *   respective `process.*` streams.
+ * }} [opts]
  * @returns {Promise<boolean>} - true ⇒ apply, false ⇒ abort.
  */
 export async function confirm({ summary, current, proposed }, opts = {}) {
@@ -58,9 +38,6 @@ export async function confirm({ summary, current, proposed }, opts = {}) {
     return false;
   }
 
-  // Render the diff. Single-line summary, then a JSON block so the
-  // operator can pipe the prompt to a logger and still recover the
-  // structured shape.
   stdout.write(`\nHITL confirm: ${summary}\n`);
   stdout.write(
     `  current:  ${JSON.stringify(current ?? null, null, 2)
@@ -84,6 +61,4 @@ export async function confirm({ summary, current, proposed }, opts = {}) {
   }
 }
 
-// Re-export the abort message so tests can assert against the single
-// source of truth.
 export { ABORT_MESSAGE };

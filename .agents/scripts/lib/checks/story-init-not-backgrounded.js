@@ -1,29 +1,8 @@
 /**
- * story-init-not-backgrounded — refuse-and-print check.
- *
- * Detects orchestration call sites that invoke `single-story-init.js` via
- * the Bash tool's `run_in_background: true` mode (with subsequent `Monitor`
- * waiting on completion) instead of a synchronous Bash call with a
- * 10-minute timeout. This guards the failure mode where `Monitor`'s wait
- * is not equivalent to script exit — a sub-agent that exits during a
- * Monitor wait kills `single-story-init.js` mid-run, leaving a
- * half-initialized worktree.
- *
- * Scope: 'story-close', 'retro'. The check runs at every
- * preflight surface that has the opportunity to invoke Story init —
- * primarily `/mandrel-deliver`'s init step — and surfaces as a retro audit
- * signal if the failure mode resurfaces during a sprint.
- *
- * The check is `refuse-and-print`. Auto-rewriting an orchestration call
- * site would change runtime behavior on a script the operator may be
- * actively iterating on; the fixCommand prints the canonical
- * synchronous-call replacement pattern so they can apply it deliberately.
- *
- * Implementation note: we scan `.agents/` (markdown + js) for the
- * juxtaposition of a `story-init.js` reference (which also matches
- * `single-story-init.js` as a suffix) and a backgrounding token
- * (`run_in_background: true`, the literal `Monitor` tool name as a
- * fan-out target, or `&` shell backgrounding) within a small line window.
+ * Flags call sites that background `single-story-init.js` instead of calling
+ * it synchronously: a sub-agent exiting during a `Monitor` wait kills init
+ * mid-run and leaves a half-initialized worktree. Refuse-and-print, since
+ * rewriting a call site would change behaviour the operator may be editing.
  */
 
 import nodeFs from 'node:fs';
@@ -33,15 +12,8 @@ const SCAN_ROOT_DEFAULT = '.agents';
 const WINDOW_LINES = 20;
 
 /**
- * Backgrounding tokens. We only match shapes that are unambiguously
- * *invocation* syntax, never narrative prose like "do not use Monitor"
- * (which legitimately appears in docs warning against the antipattern).
- *
- * - `run_in_background: true` — Bash tool's backgrounding flag.
- * - `detached: true` — child_process.spawn options that detach the
- *   subprocess from the parent's lifecycle, equivalent to backgrounding.
- * - `single-story-init.js &` — POSIX shell ampersand backgrounding
- *   (the pattern matches the `story-init.js` suffix of both names).
+ * Invocation syntax only, never prose like "do not use Monitor" that docs
+ * legitimately carry.
  */
 const BACKGROUND_TOKENS = [
   /run_in_background\s*:\s*true/,
@@ -50,15 +22,6 @@ const BACKGROUND_TOKENS = [
 ];
 
 /**
- * Walk a directory recursively, yielding absolute file paths for `.js`
- * and `.md` sources. Skips `node_modules`, `.worktrees`, and directories
- * starting with `.git`.
- *
- * The optional final `fsImpl` parameter defaults to the real `node:fs`
- * (`docs/contributing/test-seams.md` rule 1) and is forwarded to the recursive
- * call rather than re-acquired there (rule 4), so a test drives the whole walk
- * through a plain stub object instead of module mocking (rule 5).
- *
  * @param {string} dir
  * @param {typeof nodeFs} [fsImpl]
  * @returns {string[]}
@@ -92,16 +55,7 @@ export function walkSources(dir, fsImpl = nodeFs) {
 }
 
 /**
- * For one file, return an array of `{ line, kind }` offences: every line
- * referencing `story-init.js` (including `single-story-init.js`) that has
- * a backgrounding token in the same ±WINDOW_LINES window.
- *
- * The check explicitly excludes the `single-story-init.js` file itself and
- * any dedicated check module (this file): the source-of-truth
- * implementation legitimately mentions itself.
- *
- * Pure: it is handed the already-read source, so it needs no filesystem seam
- * of its own.
+ * Every `story-init.js` line with a backgrounding token within ±WINDOW_LINES.
  *
  * @param {string} file
  * @param {string} src
@@ -109,11 +63,8 @@ export function walkSources(dir, fsImpl = nodeFs) {
  */
 export function scanFile(file, src) {
   const offences = [];
-  // Don't flag the actual story-init script, self-references, or the
-  // parallel-tooling helper — the helper documents both Rule 2
-  // (run_in_background) and the story-init backgrounding anti-pattern in
-  // adjacent bullets, which collides with the scanner's ±20-line window
-  // even though there is no real invocation in the prose.
+  // Skip the script, this check, and parallel-tooling.md, whose adjacent
+  // prose bullets fall inside one window with no real invocation.
   const basename = path.basename(file);
   if (
     basename === 'single-story-init.js' ||
@@ -160,9 +111,7 @@ export default {
 
   /**
    * @param {{ cwd?: string, scanRoot?: string, scope?: string }} [state]
-   * @param {typeof nodeFs} [fsImpl] Optional final filesystem seam; defaults
-   *   to the real `node:fs` (`docs/contributing/test-seams.md` rule 1) and is
-   *   forwarded to {@link walkSources} rather than re-acquired (rule 4).
+   * @param {typeof nodeFs} [fsImpl]
    */
   detect(state, fsImpl = nodeFs) {
     const cwd = state?.cwd ?? process.cwd();

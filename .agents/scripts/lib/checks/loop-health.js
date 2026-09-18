@@ -1,34 +1,8 @@
 /**
- * loop-health.js — read-only retro-scope check for the feedback-loop
- * substrate (Epic #4406 / Story #4419, the terminal slice).
- *
- * The original feedback-loop drift shipped silently because an empty
- * feedback report is indistinguishable from a healthy one. This standing
- * self-check closes that gap: at retro time it samples the on-disk signal
- * substrate the sibling Stories established and surfaces the two ways the
- * repaired loop can regress without anyone noticing:
- *
- *   1. **Schema-invalid signal lines.** It tails the most recent
- *      {@link MAX_SAMPLE_LINES} lines of every `signals.ndjson` stream under
- *      the run temp tree and validates each against the canonical
- *      `signal-event.schema.json` (via `validateSignal`, the same validator
- *      the writer uses — no hand-rolled drift).
- *   2. **Un-actioned retro proposals.** It reads the retro mirror
- *      (`temp/run-<id>/retro.md`, Story #4418) and flags any actionable
- *      "Proposed issues" item that carries neither a filed-issue reference
- *      (`Filed: [#N](url)`) nor lives under the explicit "One-off /
- *      discarded" record.
- *
- * Contract:
- *   - Scope `retro`, `autoCorrect: 'refuse-and-print'` — read-only by
- *     construction; the runner refuses `autoFix` under the retro scope.
- *   - A clean substrate (valid lines, every proposal filed or
- *     discarded) yields **zero findings**, preserving the compact retro
- *     shape. Only when a concern is non-zero does `detect` return a single
- *     combined finding naming every non-clean dimension.
- *   - No new provider plumbing: `detect(state)` reads `state.cwd` from the
- *     existing cwd-scoped checks-registry state, anchors it to the main
- *     checkout root, and reads the temp tree directly.
+ * Read-only retro check for the feedback-loop substrate — an empty feedback
+ * report looks healthy, so this surfaces schema-invalid signal samples
+ * (validated with the writer's own validator) and actionable retro
+ * proposals neither filed nor discarded. A clean substrate yields no finding.
  */
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -37,18 +11,11 @@ import path from 'node:path';
 import { mainCheckoutRoot, tempRootFrom } from '../config/temp-paths.js';
 import { validateSignal } from '../observability/signal-validator.js';
 
-/**
- * Lines sampled from the tail of each `signals.ndjson` stream. The check is
- * a health probe, not an exhaustive audit — the most recent window is a
- * representative sample that keeps the read bounded on long streams.
- */
+/** Tail window per stream: a bounded health probe, not an audit. */
 const MAX_SAMPLE_LINES = 200;
 
 /**
- * Locate the most-recently-touched `run-<id>` temp tree under
- * `<baseDir>/<tempRoot>` (the layout `lib/config/temp-paths.js` creates).
- * Returns `{ epicId, epicDir }` or `null` when no run temp tree exists (a
- * fresh checkout, or a context with no run in flight).
+ * Most-recently-touched `run-<id>` temp tree, or `null`.
  *
  * @param {string} baseDir  The main checkout root.
  * @param {{ tempRoot?: string, fsImpl?: { readdirSync: typeof readdirSync, statSync: typeof statSync } }} [opts]
@@ -87,8 +54,7 @@ export function resolveEpicTempTree(
 }
 
 /**
- * Enumerate every `signals.ndjson` stream under an Epic temp tree: the
- * Epic-level wave-lifecycle stream plus each per-Story stream.
+ * The run-level stream plus each per-Story stream.
  *
  * @param {string} epicDir
  * @param {{ fsImpl?: { readdirSync: typeof readdirSync, statSync: typeof statSync } }} [opts]
@@ -123,9 +89,7 @@ export function findSignalStreams(epicDir, { fsImpl } = {}) {
 }
 
 /**
- * Tail `maxLines` of a single stream and count how many sampled lines fail
- * the canonical schema (a JSON parse failure counts as invalid). A missing
- * or unreadable stream contributes zero — absence is not invalidity.
+ * Unparseable lines count as invalid; an unreadable stream counts zero.
  *
  * @param {string} streamPath
  * @param {{ validate?: typeof validateSignal, maxLines?: number, readImpl?: typeof readFileSync }} [opts]
@@ -165,12 +129,8 @@ export function sampleStreamInvalidCount(
 }
 
 /**
- * Scan a retro mirror body for actionable proposals that were neither filed
- * nor discarded. An actionable proposal is a `- **Title**` item under a
- * `### Proposed issues` heading whose body carries a paste-ready
- * `gh issue create` stanza (the un-filed fallback) instead of a
- * `Filed: [#N](url)` reference. Discarded proposals live under the separate
- * "### One-off / discarded" heading and are never scanned here.
+ * Unfiled = a `### Proposed issues` item carrying a `gh issue create` stanza
+ * and no `Filed:` line. Discarded proposals sit under another heading.
  *
  * @param {string} retroText
  * @returns {string[]}  Titles of unfiled actionable proposals.
@@ -211,9 +171,7 @@ export function scanRetroMirror(retroText) {
 }
 
 /**
- * Core detection: locate the Epic temp tree under `baseDir`, sample its
- * signal streams, and scan its retro mirror. Returns a single combined
- * finding when either dimension is non-clean, else `null`.
+ * One combined finding when either dimension is non-clean, else `null`.
  *
  * @param {string} baseDir
  * @param {{

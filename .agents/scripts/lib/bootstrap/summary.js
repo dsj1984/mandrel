@@ -1,11 +1,4 @@
-/**
- * bootstrap/summary — Bootstrap result formatting + summary printing
- *
- * Pure formatting helpers (`format*Summary`) and the `printSummary`
- * presenter extracted from `agents-bootstrap-github.js` (Story #3349).
- * These render the `runBootstrap` result envelope into operator-facing
- * lines; they hold no provider coupling and no orchestration logic.
- */
+/** Renders the `runBootstrap` result envelope into operator-facing lines. */
 
 import { Logger } from '../Logger.js';
 

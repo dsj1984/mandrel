@@ -1,24 +1,8 @@
 // .agents/scripts/lib/close-validation/projections/advisories.js
 /**
- * advisories.js — the projection layer's single call site (Story #4776).
- *
- * `projections/maintainability.js` shipped fully written, fully unit-tested
- * and imported by nothing: the v2 Epic-tier collapse removed its caller and
- * left the module behind. The practical consequence was that the advisory
- * telling an operator to run `npm run maintainability:update` and commit a
- * `baseline-refresh:` subject had never fired in v2 — consumers refreshed
- * their baselines by hand or not at all.
- *
- * This module is that caller, for both projections. It is deliberately the
- * only door: `close-validation/runner.js` invokes `runProjectionAdvisories`
- * once, after the gate chain has passed, and every per-kind concern (gate
- * enablement, baseline path resolution, scorer construction, formatting)
- * lives here rather than being re-derived at the runner boundary.
- *
- * **Advisory, always.** Nothing in here can fail a close. `check-baselines`
- * already fails closed on a real regression; the projections add the refresh
- * half of the loop, not a second gate. Every projection is wrapped so a
- * throw becomes a logged skip.
+ * The projection layer's single call site, run once after the gate chain
+ * passes; owns every per-kind concern. Advisory only — nothing here can fail
+ * a close (`check-baselines` is the gate); a throw becomes a logged skip.
  */
 
 import path from 'node:path';
@@ -33,15 +17,12 @@ import {
   projectMaintainabilityRegressions,
 } from './maintainability.js';
 
-/** Default on-disk baseline locations, mirroring the per-gate defaults. */
 const DEFAULT_BASELINE_PATHS = Object.freeze({
   maintainability: 'baselines/maintainability.json',
   crap: 'baselines/crap.json',
 });
 
 /**
- * Resolve a gate's baseline file to an absolute path.
- *
  * @param {string} kind
  * @param {object} gate resolved `delivery.quality.gates.<kind>` block
  * @param {string} cwd
@@ -56,9 +37,7 @@ function resolveBaselinePath(kind, gate, cwd) {
 }
 
 /**
- * A gate is projected unless it is explicitly disabled. An absent gate
- * block means "framework defaults", which enable it — the same reading
- * `buildDefaultGates` applies.
+ * An absent gate block means defaults, which enable it.
  *
  * @param {object|undefined} gate
  * @returns {boolean}
@@ -68,9 +47,7 @@ function isEnabled(gate) {
 }
 
 /**
- * Run one projection with its formatter, swallowing every failure into a
- * logged skip. Returns the projection result (or `null` when it threw) so
- * callers and tests can inspect what happened without parsing log lines.
+ * `null` when the projection threw.
  *
  * @param {{ kind: string, log: (m: string) => void, run: () => Promise<object>|object, format: (r: object) => string|null }} opts
  * @returns {Promise<object|null>}
@@ -99,9 +76,6 @@ async function runOne({ kind, log, run, format }) {
 }
 
 /**
- * Run the maintainability and CRAP pre-merge projections and log their
- * advisories. Never throws; never affects the close verdict.
- *
  * @param {{
  *   cwd: string,
  *   baseBranch: string,

@@ -1,66 +1,21 @@
 /**
- * bootstrap/workflow-audit — audit the GitHub Projects v2 built-in
- * workflows for the project board, classifying each enabled workflow
- * against an allowlist (Story #2845).
+ * Audit the board's Projects v2 built-in workflows. `ColumnSync` owns the
+ * Status column; built-ins that also write it land after the orchestrator
+ * and leave closed Stories stuck `In Progress`.
  *
- * Motivation:
- *   The orchestrator's `ColumnSync` writes the Status column at every
- *   `transitionTicketState` call and documents "I own Status" at
- *   [`column-sync.js:21-27`]. GitHub Projects v2 ships several built-in
- *   workflows that *also* write the Status column as side-effects of
- *   issue / PR events. When both are enabled, the bot frequently gets
- *   the last write on `agent::done` transitions (PR merged ~2 minutes
- *   after the orchestrator's flip), leaving closed Stories stuck at
- *   `In Progress` on the board even though the issue is closed and
- *   labeled `agent::done`. Reproduced on Story #2813.
- *
- * Surface:
- *   - {@link CONFLICTING_WORKFLOWS} / {@link COMPATIBLE_WORKFLOWS} —
- *     frozen allowlists keyed by GitHub's built-in workflow `name`
- *     field.
- *   - {@link auditProjectWorkflows} — pure-ish (one GraphQL read) that
- *     classifies the project's currently-enabled workflows and returns
- *     a structured envelope.
- *   - {@link reapConflictingWorkflows} — opt-in destructive helper
- *     that issues `deleteProjectV2Workflow` for every entry in the
- *     audit's `conflicting` set. Fails fast on the first mutation
- *     error (no partial-reap state).
- *
- * GraphQL surface note:
- *   `ProjectV2Workflow` exposes `enabled` as `NON_NULL` but **read-only**
- *   — GraphQL ships no `updateProjectV2Workflow` mutation at the time
- *   of this Story. The only programmatic action is
- *   `deleteProjectV2Workflow`, which is irreversible from the API
- *   (the operator must re-create deleted built-ins from the GitHub UI).
- *   If GitHub later adds a toggle mutation, swap delete for toggle in
- *   {@link reapConflictingWorkflows}.
+ * GraphQL exposes `enabled` read-only, so the only remedy is the irreversible
+ * `deleteProjectV2Workflow`; swap to a toggle if GitHub ever adds one.
  */
 
 import { resolveProjectMeta } from '../orchestration/project-meta-resolver.js';
 
-/**
- * Workflows that **must not** be enabled when the orchestrator owns
- * the Status column. Each entry writes Status as a side-effect of an
- * event the orchestrator already handles (close, PR merge, PR link),
- * and the bot's write typically arrives *after* the orchestrator's
- * — clobbering the intended terminal state.
- *
- * Names match GitHub's built-in `ProjectV2Workflow.name` literals.
- */
+/** Built-ins whose Status writes clobber the orchestrator's; `ProjectV2Workflow.name` literals. */
 export const CONFLICTING_WORKFLOWS = Object.freeze([
   'Pull request merged',
   'Pull request linked to issue',
 ]);
 
-/**
- * Workflows that are safe to leave on. Either they don't touch the
- * Status column, or they touch it in a way the orchestrator's writes
- * agree with (`Item closed` sets Status to `Done`, which matches
- * `agent::done`).
- *
- * Surfaced informationally in the audit envelope so operators can see
- * what was inspected without re-querying.
- */
+/** Built-ins that leave Status alone or agree with the orchestrator. */
 export const COMPATIBLE_WORKFLOWS = Object.freeze([
   'Item closed',
   'Item added to project',
@@ -91,10 +46,6 @@ const DELETE_WORKFLOW_MUTATION = `
   }`;
 
 /**
- * Classify a single workflow row against the allowlists.
- *
- * Pure helper — exported for test pinning.
- *
  * @param {{ name: string, enabled: boolean }} workflow
  * @returns {'conflicting'|'compatible'|'unknown'|'disabled-conflicting'|'disabled-other'}
  */
@@ -111,10 +62,6 @@ export function classifyWorkflow(workflow) {
 }
 
 /**
- * Query the project's built-in workflows and classify each one. Returns
- * a structured envelope the bootstrap step can render and the reap
- * helper can act on.
- *
  * @param {{
  *   provider: { graphql: Function },
  *   projectId: string,
@@ -163,15 +110,8 @@ export async function auditProjectWorkflows(args) {
 }
 
 /**
- * Delete every workflow in the audit's `conflicting` set. Fails fast on
- * the first mutation error — leaves the remaining workflows untouched
- * rather than producing a partially-reaped board, because the operator
- * cannot easily tell which workflows were deleted versus which were
- * preserved when looking at the post-failure board state.
- *
- * Returns the per-workflow outcome so callers can log a deterministic
- * summary even on partial success (the failure path will throw, but the
- * happy path returns the full ordered list for printing).
+ * Delete every conflicting workflow; fails fast, naming what was already
+ * deleted, since the board alone cannot tell the operator.
  *
  * @param {{
  *   provider: { graphql: Function },
@@ -209,18 +149,8 @@ export async function reapConflictingWorkflows(args) {
 }
 
 /**
- * Resolve a Project v2 node id from a project number. Used by the
- * bootstrap CLI to convert the resolver's `projectNumber` into the node
- * id required by {@link auditProjectWorkflows}.
- *
- * Walks the shared owner-type ladder — `organization(login:$owner)` →
- * `user(login:$owner)` → `viewer` — via {@link resolveProjectMeta}, so an
- * **org-owned** board resolves here the same way it does for `ColumnSync`
- * (Story #4237). The owner login is read from `provider.projectOwner`
- * (explicit board owner) and falls back to `provider.owner` (the repo
- * owner) so org boards resolve even when no separate `projectOwner` is
- * configured. Returns `null` when no owner scope can see the project
- * (e.g. missing scope) so the caller can degrade gracefully.
+ * Walks the shared org → user → viewer ladder so org-owned boards resolve as
+ * they do for `ColumnSync`. `null` when no owner scope sees the project.
  *
  * @param {{
  *   provider: { graphql: Function, owner?: string|null, projectOwner?: string|null },
@@ -254,9 +184,6 @@ export async function resolveProjectIdByNumber(args) {
 }
 
 /**
- * Render a human-readable summary line for the audit. Pure — exported
- * so the bootstrap CLI and tests share the same formatting.
- *
  * @param {Awaited<ReturnType<typeof auditProjectWorkflows>>} audit
  * @returns {string}
  */
