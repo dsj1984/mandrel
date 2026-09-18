@@ -75,19 +75,22 @@ export const DEFAULT_DIFF_WIDTH = Object.freeze({
  * `audit-rules.json`?
  *
  * This is the **single source** of the derived level — the review depth
- * ({@link resolveDepth}), the acceptance-critic fresh-vs-inline routing
- * (`ceremony-routing.js#resolveCeremonyForRisk`), and the dispatch-side
- * complexity routing (`complexity-gate.js#deriveStoryShape`, Story #4722)
- * all consume what this returns, so no ceremony decision can disagree about
- * how risky a change is. Dispatch reads the **predicted** shape (the Story's
- * declared `changes[]` footprint) and close reads the **actual** diff — one
- * taxonomy, two read points, which is what keeps a lite-shaped Story whose
- * footprint touches a sensitive path on the full route with its fresh critic.
+ * ({@link resolveDepth}) and the dispatch-side complexity routing
+ * (`complexity-gate.js#deriveStoryShape`, Story #4722) both consume what this
+ * returns, so no risk decision can disagree about how risky a change is.
+ * Dispatch reads the **predicted** shape (the Story's declared `changes[]`
+ * footprint) and close reads the **actual** diff — one taxonomy, two read
+ * points, which is what keeps a lite-shaped Story whose footprint touches a
+ * sensitive path on the full route and under a deep review.
+ *
+ * The acceptance verdict owner is **not** downstream of this level: Story
+ * #5343 re-based `ceremony-routing.js#resolveCeremonyForRisk` on the ceremony
+ * profile alone, and Story #5366 removed the level from its signature.
  *
  * Returns `null` — the fail-safe "no derivable signal" level — when the change
- * set is empty/unknown or the manifest cannot be read. Both downstream
- * consumers treat `null` as the more thorough posture (`standard` depth, a
- * `fresh` critic), so a derivation failure never buys a change less checking.
+ * set is empty/unknown or the manifest cannot be read. Both consumers treat
+ * `null` as the more thorough posture (`standard` depth, the conservative
+ * `full` route), so a derivation failure never buys a change less checking.
  *
  * Total: never throws.
  *

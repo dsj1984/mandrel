@@ -42,7 +42,7 @@ hand-mirrored, so a key cannot exist in one artifact and not another.
   "$schema": "./.agents/schemas/agentrc.schema.json",
   "project":  { /* paths, commands, baseBranch, docsContextFiles */ },
   "github":   { /* owner, repo, branchProtection, mergeMethods, notifications */ },
-  "planning": { /* riskHeuristics, conflict gates, complexityGate, navigation */ },
+  "planning": { /* memoryPool, navigation */ },
   "delivery": { /* execution, quality, worktreeIsolation, deliverRunner, ... */ },
   "qa":       { /* featureRoot, fixturesManifest, environments, personas */ }
 }
@@ -399,38 +399,17 @@ pre-computed inventory added a second, staler answer to the same question.
 A config still carrying the retired key is a hard validation failure; the
 2.20.0 retirement migration strips it on upgrade.
 
-- **`complexityGate`.** Shape-derived ceremony-lite routing (Story #4722,
-  superseding the word-count gate of Stories #4683/#4707). The full ceremony
-  buys measurable quality on capability-sized work but imposes a large fixed
-  cost premium on genuinely trivial scopes — and seed word count is the wrong
-  proxy in both directions (a detailed prompt can describe trivial work, a
-  terse one complex work), so `maxSeedWords` was **removed** in the hard
-  cutover (a config still setting it is rejected as an additional property).
-  Routing is now staged on the objective shape of the work: `/mandrel-plan`'s context
-  envelope emits advisory `complexitySignals` (enumerated-artifact count,
-  risk-heuristic hits, repo state of predicted paths, sensitive-path classes)
-  with **no routing authority**; the planner authors the trivial-vs-standard
-  verdict via `plan-persist.js --route-downgrade-reason "<why>"` (recorded on
-  every created Story's `story-plan-state` checkpoint); persist validates a
-  lite claim against each authored Story's own shape (`changes[]` count,
-  acceptance count, creates-vs-refactors mix, sensitive-path classes — the
-  framework constants `STORY_SHAPE_CEILINGS`) and **fails closed to `full`**
-  when the shape exceeds the ceilings; and `/mandrel-deliver` re-derives the route
-  from the fetched Story body via the same shape function at dispatch. The
-  `route::lite` label is a human-visible hint only — a lost label cannot
-  misroute delivery. A lite-shaped Story executes inline (no story-worker or
-  acceptance-critic sub-agent fan-out); sensitivity always wins — a footprint
-  intersecting a sensitive-path class routes `full` and keeps its fresh
-  critic. The lite path **never** relaxes a non-negotiable: it still produces
-  a Story ticket, still lands via a PR to `main`, still runs every repo
-  quality gate, and still honours `rules/security-baseline.md` — those gates
-  run in `single-story-close.js` regardless of route. **Knobs:** `enabled`
-  (default `true`; `false` disables lite routing everywhere) and
-  `maxArtifacts` (default `1` — a signal threshold, not a router). Defaults
-  live on `DEFAULT_COMPLEXITY_GATE` in
-  [`lib/orchestration/complexity-gate.js`](../scripts/lib/orchestration/complexity-gate.js);
-  a malformed or negative value falls back to the default rather than
-  widening the lite path.
+- **`complexityGate`.** **Retired** (Story #5312). The planner's authored
+  lite claim (`plan-persist.js --route-downgrade-reason`), the persist-time
+  shape backstop that validated it against `STORY_SHAPE_CEILINGS`, the
+  `route::lite` hint label and this whole knob block are gone. Persist no
+  longer routes: every Story lands through the same engine and the same close
+  gates, and a config still setting `planning.complexityGate` is a hard
+  validation failure the `2.57.0` retirement migration strips on upgrade.
+  What survives is delivery-side and reads evidence rather than a declaration
+  — `/mandrel-plan`'s advisory `complexitySignals` (no routing authority), the
+  `/deliver-light` suitability gate's two absolute risk rules, and that path's
+  diff backstop against the actual change set.
 
 ### `delivery`
 

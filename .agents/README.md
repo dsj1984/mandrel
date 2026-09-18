@@ -644,7 +644,8 @@ Schema conventions:
 ## Code review providers (pluggable chain)
 
 `runCodeReview()` (invoked from `helpers/deliver-story` and `/mandrel-deliver`'s
-risk-routed ceremony) loads its review backend through a pluggable registry
+review pass, at the depth `review-depth.js` derives) loads its review backend
+through a pluggable registry
 configured via `delivery.codeReview.providers` — an array of entries iterated
 in declaration order. The chain-entry field semantics (`name`, `scopes`,
 `optional`, `manualPrompt`, `when`), the fix budget, and the cross-runtime

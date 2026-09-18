@@ -192,21 +192,21 @@ anything, read the Story's `dispatchMode` from the resolver envelope
 `lib/orchestration/complexity-gate.js`, which decides on the resolved set size
 alone — it does not read the Story body). A Story with `dispatchMode: "inline"`
 executes [`deliver-story.md`](deliver-story.md) **inline in this session** — no
-`story-worker` sub-agent boot and no fresh acceptance-critic sub-agents
-(sub-agent boots are the dominant deliver-phase token cost at trivial scope) —
-threading the same `docsDigestPath` / `checklistPath` / change-set discipline
-as a spawned worker. Inline removes model-side fan-out only: every
-`single-story-close.js` gate, the PR to `main`, and the terminal envelope are
-identical.
+`story-worker` sub-agent boot (sub-agent boots are the dominant deliver-phase
+token cost at trivial scope) — threading the same `docsDigestPath` /
+`checklistPath` / change-set discipline as a spawned worker. It does not touch
+the acceptance verdict owner, which the ceremony profile alone names
+([`deliver-digest.md`](deliver-digest.md) § 3). Every `single-story-close.js`
+gate, the PR to `main`, and the terminal envelope are identical.
 
 **A trivial shape does not buy that session.** Only the
 one-Story rule above yields `inline`; every Story of a multi-Story run comes
 back `subagent` however lite its body, because the ready set below may offer
 several Stories on one beat and a session cannot be split between them. The
-Story's derived shape is still reported (it sets ceremony, and a sensitive
-footprint keeps the fresh acceptance critic), and the `route::lite` label
-remains a human-visible hint only, never the control signal — a lost or
-never-written label cannot misroute delivery.
+Story's shape does not enter the decision at all — `resolveStoryDispatchMode`
+reads the resolved set size and nothing else, and the `route::lite` hint label
+was retired with the plan-side route claim (Story #5312), so there is no label
+left to lose or misread.
 
 **Issue a beat's spawns in one turn.** A beat hands you a ready set, not a
 queue: those Stories have no dependency edge between them (the resolver already
@@ -384,7 +384,7 @@ row of the scope table below:
 | Scope | What runs | Mechanism |
 | --- | --- | --- |
 | **Per-Story (always)** | Gates, branch discipline, close-and-land | `deliver-story` / `single-story-close` |
-| **Per-Story (profile)** | Acceptance verdict owner | `ceremony-routing.js` |
+| **Per-Story (profile)** | Acceptance verdict owner (the rule: digest § 3) | `ceremony-routing.js` |
 | **Per-Story (derived level)** | Review depth | `review-depth.js` + `code-review.js` |
 | **Per-run (N>1)** | Follow-up roll-up · container-Epic report (· audit roster on `--audit-roster`) | `plan-run-epilogue.js` once at run end |
 | **Per-Story land tail** | Follow-up capture · status resync · Epic rollup · ref cleanup · base fast-forward | `single-story-close/phases/post-land.js` (in-process, per-step reported) |

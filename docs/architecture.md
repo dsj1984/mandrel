@@ -613,22 +613,24 @@ deterministic CLIs, not as sub-agents:
   — its own system prompt with no CLAUDE.md / `instructions.md` closure,
   re-importing only `rules/security-baseline.md`; with routing off it
   falls back to a generic sub-agent carrying the full closure.
-- **Depth 2 — `acceptance-critic`** (maker-blind, per AC-cluster). Spawned
-  from Step 1a of `helpers/deliver-story` only for clusters the ceremony
-  router resolves to `fresh` (see below). Requires nested Agent dispatch
-  (verified depth 2); where nesting is unavailable the critic is authored
-  inline — same gate, schema, and round cap, weaker isolation.
+- **Depth 2 — `acceptance-critic`** (maker-blind, one per Story). Spawned
+  from Step 1a of `helpers/deliver-story` only when the ceremony router
+  resolves `fresh` (see below). Requires nested Agent dispatch (verified
+  depth 2); where nesting is unavailable the critic is authored inline —
+  same gate, schema, and round cap, weaker isolation.
 
 **Ceremony routing (fresh vs. inline).** `resolveCeremonyForRisk`
-(`lib/orchestration/ceremony-routing.js`) routes each acceptance-criteria
-cluster: profile `minimal` → always inline, `strict` → always fresh, and
-the default `standard` routes by the same `deriveChangeLevel` signal that
-sets review depth — sensitive-path (`high`) clusters go fresh, `low`
-clusters stay inline, and an unknown level fails safe to fresh (the
-`freshCriticSampleRate` sampling floor was retired in Story #5313).
+(`lib/orchestration/ceremony-routing.js`) names the Story's **single** verdict
+owner from the ceremony profile and nothing else: `minimal` / `standard` →
+inline self-eval, `strict` → fresh critic. Story #5343 removed the
+derived-level routing the `standard` profile used to do (and the
+`freshCriticSampleRate` floor with it); Story #5366 removed the level from the
+function's signature, so a sensitive footprint escalates **review depth**
+(`review-depth.js#resolveDepth` → `deep`) rather than the verdict owner, and
+nothing about the diff or the dispatch mode can move that owner.
 `ceremony-derive.js` is the one-call derivation the deliver path runs. The
-cluster count is owned by the dispatching caller and handed to the router
-as an input; routing never changes it.
+per-cluster split the router used to make was retired with #5343: the verdict
+is one file per Story, scored in one gate call.
 
 **Evidence share.** A fresh critic re-runs the Story's `verify[]`
 commands itself as required evidence; its byte-identical `lint` /
@@ -716,10 +718,11 @@ Either way, required status checks gate the squash onto `main`.
 
 Inside each Story delivery (`helpers/deliver-story` Step 1a), a bounded
 **acceptance self-eval** loop runs after the implementation commits land and
-before the Story proceeds to close. Each acceptance-criteria cluster is
-scored either by a **fresh-context critic** sub-agent — independent of
-the implementing turn — or inline, per the ceremony routing described
-under **Sub-agent topology** above; the critic scores the change set its
+before the Story proceeds to close. Every `acceptance[]` item is scored in
+**one** verdict file by **one** owner — a **fresh-context critic** sub-agent
+independent of the implementing turn, or the inline self-eval, per the
+ceremony routing described under **Sub-agent topology** above; the owner
+scores the change set its
 caller computed once via `change-set.js` and injected — it must not
 re-derive one (Story #4593) — against each inline `acceptance[]` item,
 using `verify[]` as evidence, and `acceptance-eval.js` records the

@@ -1,7 +1,7 @@
 ---
 description:
   Execute one Story end-to-end: story-<id> from main, implemented in a worktree
-  (optional ## Slicing checkpoints), derived-level ceremony, PR against main.
+  (optional ## Slicing checkpoints), profile-resolved ceremony, PR against main.
 mandatoryReads: [deliver-digest.md]
 ---
 
@@ -18,7 +18,7 @@ mandatoryReads: [deliver-digest.md]
 The **one** delivery engine in v2:
 
 ```text
-single-story-init.js → implement + commits → derived-level ceremony → push
+single-story-init.js → implement + commits → ceremony → push
   ──hand-off──▶ single-story-close.js (gates, PR → main, agent::closing)
   → CI watch + merge → single-story-confirm-merge.js (agent::done)
 ```
@@ -84,14 +84,15 @@ live in [`acceptance-self-eval.md`](acceptance-self-eval.md). **`proceed`** →
 Step 2. **`block`** → **do not close**: post a `friction` comment and flip
 `agent::blocked` (reference § Step 1a).
 
-## Step 2 — Ceremony (profile + derived level)
+## Step 2 — Ceremony (the profile alone)
 
-Ceremony is `delivery.routing.ceremonyProfile` × the **derived change level**,
-never a planner-authored verdict. **Digest § 3** is the incantation (change set
-once, derive the level, resolve critics with `ceremony-routing.js`); edge cases
-are reference § Step 2. Hard gates always run in Step 3 — the derived level
-never disables them; do **not** pre-run the chain here — Step 2.5's credited
-suite run is the sole exception.
+The acceptance verdict owner comes from `delivery.routing.ceremonyProfile` and
+nothing else — not the diff, not the dispatch mode, never a planner-authored
+verdict. **Digest § 3** is the incantation (change set once, derive the level
+for review depth, resolve the owner with `ceremony-routing.js`) and the one
+home of the rule; edge cases are reference § Step 2. Hard gates always run in
+Step 3 — nothing here disables them; do **not** pre-run the chain here —
+Step 2.5's credited suite run is the sole exception.
 
 ### Step 2.5 — The one credited suite run, the push, then hand off
 

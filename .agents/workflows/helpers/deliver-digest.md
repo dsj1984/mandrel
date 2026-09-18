@@ -25,12 +25,13 @@ rule produces it:
    shape — sub-agent isolation only matters against a *concurrent* sibling
    racing the same checkout, and a one-Story run has none.
 2. **Every other run is `subagent`.** A multi-Story run dispatches every Story
-   as a sub-agent however trivial its shape. Shape still sets ceremony; the
-   `route::lite` label is a human-visible hint, never the control signal.
+   as a sub-agent however trivial its shape — the run's size is the whole
+   premise, and nothing about a Story's own shape enters it.
 
-`inline` removes model-side fan-out only — no `story-worker` boot, no fresh
-acceptance-critic spawn. **`subagent` and `inline` run the same engine**: same
-gates, same PR to `main`, same terminal envelope, byte for byte.
+`inline` removes the `story-worker` boot and nothing else. It does **not**
+change the acceptance verdict owner — that is § 3's decision, and the profile
+alone makes it. **`subagent` and `inline` run the same engine**: same gates,
+same PR to `main`, same terminal envelope, byte for byte.
 
 ## 2. Engine invariants
 
@@ -63,10 +64,20 @@ handed (`null` when the diff could not be enumerated) — plus `level` and
 from `ceremony-routing.js`. Level rules: a sensitive path registered in
 `audit-rules.json` → `high`, none → `low`, an unenumerable diff → `null`.
 The level drives **review depth** only; close's `review-depth.js` reads the
-same derived level, so the two cannot disagree. Ceremony rules are the
-profile alone (Story #5343): `minimal` / `standard` → `inline`, `strict` →
-`fresh`. An `inline` dispatch mode changes nothing it has not already
-decided. `--base <ref>` overrides `project.baseBranch`.
+same derived level, so the two cannot disagree. A sensitive footprint
+therefore buys a **deep review**, not a fresh acceptance critic.
+
+> **The ceremony rule, stated once.** The **profile alone** names the verdict
+> owner (Story #5343, narrowed to that one input by #5366): `minimal` /
+> `standard` → `inline`, `strict` → `fresh`. Nothing else moves it — not the
+> derived change level, not the footprint's sensitivity, and **not the
+> dispatch mode**: an `inline` Story under `strict` still spawns the fresh
+> maker-blind critic, one nesting level shallower than a dispatched one. The
+> only sanctioned inline authoring under `strict` is the harness fallback in
+> [`acceptance-self-eval.md`](acceptance-self-eval.md) — a host that cannot
+> spawn the critic at all, noted in the friction comment if you block.
+
+`--base <ref>` overrides `project.baseBranch`.
 
 ## 4. Acceptance self-eval (Step 1a, required)
 
