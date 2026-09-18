@@ -318,6 +318,24 @@ describe('deliver-digest § 5 — the one credited run (#5174, #5313, #5324)', (
     );
   });
 
+  // Story #5378 — close's base-sync merges `origin/<baseBranch>` before its
+  // gates; when that merge moves the tree, both the worker's test credit and
+  // the push's coverage stamp go stale and close re-runs the whole suite.
+  // Merging first makes that sync a no-op.
+  it('merges the base into the Story branch ahead of the credited run and the push', () => {
+    const doc = digest();
+    assertDocMentions(
+      doc,
+      /merge\s+`origin\/<baseBranch>` into the Story branch \*\*first\*\*, ahead of this run and\s+the push/,
+      'the digest must bring the branch level with the base before the credited run',
+    );
+    assertDocMentions(
+      doc,
+      /base-sync then no-ops/,
+      'the digest must say why: a no-op base-sync keeps the stamp creditable',
+    );
+  });
+
   it('states the verify[] reuse rule so the suite is not spawned a third time', () => {
     assertDocMentions(
       digest(),

@@ -103,10 +103,12 @@ Per-round mechanics: [`acceptance-self-eval.md`](acceptance-self-eval.md).
 
 ## 5. The one credited suite run
 
-After the self-eval loop's last fix commit, run the suite **once** in the
-worktree through the depositor — it spawns the project's own `npm test`,
-whatever that resolves to, and stamps the result, so any runner earns the
-credit:
+After the self-eval loop's last fix commit, fetch and merge
+`origin/<baseBranch>` into the Story branch **first**, ahead of this run and
+the push: close's base-sync then no-ops, so neither stamp goes stale. Then
+run the suite **once** in the worktree through the depositor — it spawns the
+project's own `npm test`, whatever that resolves to, and stamps the result,
+so any runner earns the credit:
 
 ```bash
 node <main-repo>/.agents/scripts/evidence-gate.js --standalone \
