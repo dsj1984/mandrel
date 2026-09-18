@@ -616,6 +616,38 @@ describe('merge wait — blocked terminals', () => {
     ]);
   });
 
+  it('an enqueued PR at budget exhaustion is reported as queued, not human-required (Story #5395)', async () => {
+    // GitHub clears the auto-merge request on enqueue and the PR can read
+    // BLOCKED with every check green — the pre-#5395 classifier said a human
+    // had to act, though the queue would land it unattended.
+    const provider = makeFakeProvider();
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        provider,
+        config: {
+          delivery: {
+            mergeWatch: {
+              intervalSeconds: 30,
+              maxWaitSeconds: 3600,
+              maxBudgetSeconds: 60,
+            },
+          },
+        },
+        nowMsFn: makeClock(40_000),
+        readPrWaitProbeFn: async () =>
+          openProbe({
+            checksStatus: 'success',
+            mergeStateStatus: 'BLOCKED',
+            inMergeQueue: true,
+          }),
+        emitMergeUnlandedFn: () => {},
+      }),
+    );
+    assert.equal(outcome.terminal, 'blocked');
+    assert.equal(outcome.blockClass, 'checks-pending-timeout');
+    assert.match(outcome.reason, /merge queue/);
+  });
+
   it('an un-armed PR blocks immediately as arm-failure', async () => {
     const provider = makeFakeProvider();
     const emitted = [];
@@ -1141,6 +1173,64 @@ describe('readPrWaitProbe — one probe carries every field the loop needs', () 
       requiredRunFailed: false,
       requiredRunInFlight: true,
     });
+  });
+
+  it('reads merge-queue membership only for a green open PR (Story #5395)', async () => {
+    const view = (rollup) => ({
+      pr: {
+        view: async () => ({
+          id: 'PR_node',
+          state: 'OPEN',
+          mergeStateStatus: 'BLOCKED',
+          statusCheckRollup: rollup,
+        }),
+      },
+    });
+    const queueReads = [];
+    const readMergeQueueStateFn = async (args) => {
+      queueReads.push(args.prNodeId);
+      return { queueRequired: true, inQueue: true, prNodeId: args.prNodeId };
+    };
+
+    const green = await readPrWaitProbe({
+      prNumber: 99,
+      gh: view([{ status: 'COMPLETED', conclusion: 'SUCCESS' }]),
+      readMergeQueueStateFn,
+    });
+    assert.equal(green.inMergeQueue, true);
+    assert.deepEqual(queueReads, ['PR_node']);
+
+    const running = await readPrWaitProbe({
+      prNumber: 99,
+      gh: view([{ status: 'IN_PROGRESS' }]),
+      readMergeQueueStateFn,
+    });
+    assert.equal(running.inMergeQueue, undefined);
+    assert.equal(queueReads.length, 1, 'a pending PR pays no queue read');
+  });
+
+  it('a failed merge-queue read leaves the probe verdict intact (Story #5395)', async () => {
+    const probe = await readPrWaitProbe({
+      prNumber: 99,
+      gh: {
+        pr: {
+          view: async () => ({
+            id: 'PR_node',
+            state: 'OPEN',
+            statusCheckRollup: [{ status: 'COMPLETED', conclusion: 'SUCCESS' }],
+          }),
+        },
+      },
+      readMergeQueueStateFn: async () => ({
+        queueRequired: null,
+        inQueue: null,
+        prNodeId: 'PR_node',
+        error: 'HTTP 502',
+      }),
+    });
+    assert.equal(probe.checksStatus, 'success');
+    assert.equal(probe.inMergeQueue, undefined);
+    assert.equal(probe.error, undefined);
   });
 
   it('degrades to a conservative pending probe when the read itself fails', async () => {

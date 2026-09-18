@@ -11,10 +11,13 @@
  *   - Story #4282: the arm runs from the primary (base-branch) worktree
  *     root so `gh`'s `--delete-branch` local checkout cannot collide with
  *     the base branch occupied by the primary worktree.
+ *   - Story #5395: a merge-queue base arms with a bare `--auto`, never falls
+ *     back to a direct merge, and an enqueued PR is disarmed by dequeueing.
  */
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { readMergeQueueState } from '../.agents/scripts/lib/orchestration/merge-queue.js';
 import {
   disarmAutoMerge,
   enableAutoMergeWith,
@@ -559,5 +562,301 @@ describe('disarmAutoMerge', () => {
     assert.deepEqual(calls, [
       ['https://github.com/o/r/pull/7', ['--disable-auto']],
     ]);
+  });
+});
+
+/** A `gh` facade answering the merge-queue GraphQL read with `node`. */
+function ghWithQueueNode(node, { mutations = [], mergeCalls = [] } = {}) {
+  return {
+    pr: {
+      view: async (_ref, fields) => {
+        assert.deepEqual(fields, ['id']);
+        return { id: 'PR_node' };
+      },
+      merge: async (ref, flags) => {
+        mergeCalls.push([ref, flags]);
+      },
+    },
+    api: async ({ body }) => {
+      if (body.query.startsWith('mutation')) {
+        mutations.push(body);
+        return { stdout: JSON.stringify({ data: { dequeuePullRequest: {} } }) };
+      }
+      return { stdout: JSON.stringify({ data: { node } }) };
+    },
+  };
+}
+
+describe('readMergeQueueState (Story #5395)', () => {
+  it('reads queue requirement and membership off the PR node', async () => {
+    const state = await readMergeQueueState({
+      prNumber: 7,
+      gh: ghWithQueueNode({ isMergeQueueEnabled: true, isInMergeQueue: false }),
+    });
+    assert.deepEqual(state, {
+      queueRequired: true,
+      inQueue: false,
+      prNodeId: 'PR_node',
+    });
+  });
+
+  it('reports a non-queue base as not required', async () => {
+    const state = await readMergeQueueState({
+      prNumber: 7,
+      gh: ghWithQueueNode({
+        isMergeQueueEnabled: false,
+        isInMergeQueue: false,
+      }),
+    });
+    assert.equal(state.queueRequired, false);
+  });
+
+  it('skips the id lookup when handed a node id', async () => {
+    const state = await readMergeQueueState({
+      prNodeId: 'PR_given',
+      gh: {
+        pr: {
+          view: async () => assert.fail('the node id was already known'),
+        },
+        api: async ({ body }) => {
+          assert.equal(body.variables.id, 'PR_given');
+          return {
+            stdout: JSON.stringify({
+              data: {
+                node: { isMergeQueueEnabled: true, isInMergeQueue: true },
+              },
+            }),
+          };
+        },
+      },
+    });
+    assert.equal(state.inQueue, true);
+  });
+
+  it('never throws: a failed read, GraphQL errors, or absent fields read as unknown', async () => {
+    const failures = [
+      {
+        pr: { view: async () => ({ id: 'X' }) },
+        api: async () => {
+          throw new Error('HTTP 502');
+        },
+      },
+      {
+        pr: { view: async () => ({ id: 'X' }) },
+        api: async () => ({
+          stdout: JSON.stringify({ errors: [{ message: 'no access' }] }),
+        }),
+      },
+      {
+        pr: { view: async () => ({ id: 'X' }) },
+        api: async () => ({
+          stdout: JSON.stringify({ data: { node: {} } }),
+        }),
+      },
+      { pr: { view: async () => ({}) } },
+    ];
+    for (const gh of failures) {
+      const state = await readMergeQueueState({ prNumber: 7, gh });
+      assert.equal(state.queueRequired, null);
+      assert.equal(state.inQueue, null);
+      assert.equal(typeof state.error, 'string');
+    }
+  });
+});
+
+describe('enableAutoMergeWith — merge-queue base (Story #5395)', () => {
+  it('arms with a bare --auto: no strategy, no --delete-branch', async () => {
+    const calls = [];
+    const result = await enableAutoMergeWith({
+      cwd: '/repo',
+      prNumber: 42,
+      queueRequired: true,
+      resolveArmCwd: (cwd) => cwd,
+      runner: (args) => {
+        calls.push(args);
+        return { status: 0, stdout: '', stderr: '' };
+      },
+    });
+    assert.deepEqual(result, { enabled: true, mergeQueue: true });
+    assert.deepEqual(calls, [['pr', 'merge', '42', '--auto']]);
+  });
+
+  it('never falls back to a direct merge that would bypass the queue', async () => {
+    const calls = [];
+    const result = await enableAutoMergeWith({
+      cwd: '/repo',
+      prNumber: 42,
+      queueRequired: true,
+      resolveArmCwd: (cwd) => cwd,
+      runner: (args) => {
+        calls.push(args);
+        return {
+          status: 1,
+          stdout: '',
+          stderr: 'GraphQL: Auto merge is not allowed for this repository',
+        };
+      },
+    });
+    assert.equal(result.enabled, false);
+    assert.equal(result.mergeQueue, true);
+    assert.match(result.reason, /merge-queue arm failed; gh-exit-1/);
+    assert.equal(calls.length, 1, 'no direct-merge retry');
+  });
+
+  it('retries once in the queued spelling when gh names the queue', async () => {
+    const calls = [];
+    const result = await enableAutoMergeWith({
+      cwd: '/repo',
+      prNumber: 42,
+      resolveArmCwd: (cwd) => cwd,
+      runner: (args) => {
+        calls.push(args);
+        return calls.length === 1
+          ? {
+              status: 1,
+              stdout: '',
+              stderr:
+                'X Cannot use `-d` or `--delete-branch` when merge queue enabled',
+            }
+          : { status: 0, stdout: '', stderr: '' };
+      },
+    });
+    assert.deepEqual(result, { enabled: true, mergeQueue: true });
+    assert.deepEqual(calls, [
+      ['pr', 'merge', '42', '--auto', '--squash', '--delete-branch'],
+      ['pr', 'merge', '42', '--auto'],
+    ]);
+  });
+});
+
+describe('runAutoMergePhase — merge-queue detection (Story #5395)', () => {
+  const armArgs = (overrides) => ({
+    cwd: '/tmp',
+    prNumber: 42,
+    prUrl: 'https://github.com/o/r/pull/42',
+    noAutoMerge: false,
+    blockOnAdvisoryFailure: false,
+    progress: () => {},
+    ...overrides,
+  });
+
+  it('a queue-protected base arms with the queued spelling and says so', async () => {
+    const mergeCalls = [];
+    const lines = [];
+    const result = await runAutoMergePhase(
+      armArgs({
+        gh: ghWithQueueNode(
+          { isMergeQueueEnabled: true, isInMergeQueue: false },
+          { mergeCalls },
+        ),
+        progress: (_tag, msg) => lines.push(msg),
+      }),
+    );
+    assert.equal(result.autoMergeEnabled, true);
+    assert.equal(result.mergeQueue, true);
+    assert.deepEqual(mergeCalls, [['42', ['--auto']]]);
+    assert.match(lines.join('\n'), /merge queue/);
+  });
+
+  it('a non-queue base keeps --auto --squash --delete-branch', async () => {
+    const mergeCalls = [];
+    const result = await runAutoMergePhase(
+      armArgs({
+        gh: ghWithQueueNode(
+          { isMergeQueueEnabled: false, isInMergeQueue: false },
+          { mergeCalls },
+        ),
+      }),
+    );
+    assert.equal(result.autoMergeEnabled, true);
+    assert.deepEqual(mergeCalls, [
+      ['42', ['--auto', '--squash', '--delete-branch']],
+    ]);
+  });
+
+  it('a failed queue probe falls back to the non-queue spelling', async () => {
+    const mergeCalls = [];
+    const result = await runAutoMergePhase(
+      armArgs({
+        gh: {
+          pr: {
+            merge: async (ref, flags) => {
+              mergeCalls.push([ref, flags]);
+            },
+          },
+        },
+        readMergeQueueStateFn: async () => ({
+          queueRequired: null,
+          inQueue: null,
+          prNodeId: null,
+          error: 'HTTP 502',
+        }),
+      }),
+    );
+    assert.equal(result.autoMergeEnabled, true);
+    assert.deepEqual(mergeCalls, [
+      ['42', ['--auto', '--squash', '--delete-branch']],
+    ]);
+  });
+});
+
+describe('disarmAutoMerge — enqueued PR (Story #5395)', () => {
+  it('dequeues an enqueued PR instead of the no-op --disable-auto', async () => {
+    const mutations = [];
+    const mergeCalls = [];
+    const lines = [];
+    const result = await disarmAutoMerge({
+      prNumber: 42,
+      gh: ghWithQueueNode(
+        { isMergeQueueEnabled: true, isInMergeQueue: true },
+        { mutations, mergeCalls },
+      ),
+      progress: (_tag, msg) => lines.push(msg),
+    });
+    assert.deepEqual(result, {
+      disarmed: true,
+      alreadyUnarmed: false,
+      detail: 'dequeued',
+    });
+    assert.equal(mutations.length, 1);
+    assert.match(mutations[0].query, /dequeuePullRequest/);
+    assert.equal(mutations[0].variables.id, 'PR_node');
+    assert.deepEqual(mergeCalls, []);
+    assert.match(lines.join('\n'), /removed from the merge queue/);
+  });
+
+  it('a failed dequeue reports not-disarmed and warns', async () => {
+    const lines = [];
+    const result = await disarmAutoMerge({
+      prNumber: 42,
+      gh: {
+        pr: { merge: async () => assert.fail('must not --disable-auto') },
+        api: async () => {
+          throw new Error('HTTP 403: forbidden');
+        },
+      },
+      readMergeQueueStateFn: async () => ({
+        queueRequired: true,
+        inQueue: true,
+        prNodeId: 'PR_node',
+      }),
+      progress: (_tag, msg) => lines.push(msg),
+    });
+    assert.equal(result.disarmed, false);
+    assert.match(result.detail, /merge-queue dequeue failed: .*HTTP 403/);
+    assert.match(lines.join('\n'), /Disarm by hand/);
+  });
+
+  it('an armed-but-not-yet-enqueued PR on a queue base keeps --disable-auto', async () => {
+    const mergeCalls = [];
+    const result = await disarmAutoMerge({
+      prNumber: 42,
+      gh: ghWithQueueNode(
+        { isMergeQueueEnabled: true, isInMergeQueue: false },
+        { mergeCalls },
+      ),
+    });
+    assert.equal(result.disarmed, true);
+    assert.deepEqual(mergeCalls, [['42', ['--disable-auto']]]);
   });
 });

@@ -626,13 +626,16 @@ describe('runSingleStoryClose orchestration', () => {
     // Story #5096 — the arm now READS the PR's check conclusions before
     // arming (a `pr view` for `mergeStateStatus` + `statusCheckRollup`), so a
     // red ADVISORY gate is refused instead of merged straight past. That
-    // probe is the 4th gh call; the arm itself is unchanged and still last.
-    assert.equal(ghCalls.length, 4);
+    // probe is the 3rd gh call. Story #5395 adds the merge-queue probe (a
+    // `pr view --json id` ahead of its GraphQL read); this fake refuses both
+    // reads, so they fail open and the arm keeps the non-queue spelling, last.
+    assert.equal(ghCalls.length, 5);
     assert.equal(ghCalls[2][1], 'view');
-    assert.equal(ghCalls[3][1], 'merge');
-    assert.ok(ghCalls[3].includes('--auto'));
-    assert.ok(ghCalls[3].includes('--squash'));
-    assert.ok(ghCalls[3].includes('--delete-branch'));
+    assert.deepEqual(ghCalls[3].slice(1), ['view', '123', '--json', 'id']);
+    assert.equal(ghCalls[4][1], 'merge');
+    assert.ok(ghCalls[4].includes('--auto'));
+    assert.ok(ghCalls[4].includes('--squash'));
+    assert.ok(ghCalls[4].includes('--delete-branch'));
 
     // Story #3385 — the close path now rests the Story at `agent::closing`,
     // NOT `agent::done`. The flip still routes through

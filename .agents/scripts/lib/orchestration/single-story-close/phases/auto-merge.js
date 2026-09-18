@@ -3,6 +3,10 @@
  * Non-fatal: a failure returns `{ enabled: false, reason }`. The arm runs from
  * the primary worktree so `--delete-branch`'s local `git checkout <base>`
  * cannot collide with a worktree holding the base.
+ *
+ * A merge-queue base is armed with a bare `--auto` instead: `gh` refuses
+ * `--delete-branch` under a queue, the queue rule picks the strategy, and the
+ * repo's `delete_branch_on_merge` owns the remote branch reap.
  */
 
 import { gh as defaultGh, describeGhFailure } from '../../../gh-exec.js';
@@ -11,6 +15,12 @@ import {
   decideAdvisoryGateBlock,
   deriveRedHeadRuns,
 } from '../../merge-poll.js';
+import {
+  armForMergeQueue,
+  disarmByDequeue,
+  MERGE_QUEUE_REFUSAL,
+  readMergeQueueState,
+} from '../../merge-queue.js';
 
 /**
  * The operator deliberately owns the merge, so close does not wait for it;
@@ -104,8 +114,9 @@ async function directMergeFallback({ exec, prNumber, armCwd, autoReason }) {
  *   gh?: ReturnType<typeof import('../../../gh-exec.js').createGh>,
  *   runner?: (args: string[], opts: object) => ({ status: number, stdout?: string, stderr?: string } | Promise<{ status: number, stdout?: string, stderr?: string }>),
  *   resolveArmCwd?: (cwd: string) => string,
- * }} opts
- * @returns {Promise<{ enabled: boolean, reason?: string, localCleanupDeferred?: boolean, directMerged?: boolean }>}
+ *   queueRequired?: boolean,
+ * }} opts `queueRequired`: the base requires a merge queue.
+ * @returns {Promise<{ enabled: boolean, reason?: string, localCleanupDeferred?: boolean, directMerged?: boolean, mergeQueue?: boolean }>}
  */
 export async function enableAutoMergeWith({
   cwd,
@@ -113,9 +124,19 @@ export async function enableAutoMergeWith({
   gh,
   runner,
   resolveArmCwd = resolveAutoMergeArmCwd,
+  queueRequired = false,
 }) {
   const exec = runner ?? makeDefaultGhAutoMergeRunner(gh ?? defaultGh);
   const armCwd = resolveArmCwd(cwd);
+  const arm = queueRequired ? armForMergeQueue : armNativeAutoMerge;
+  return arm({ exec, prNumber, armCwd });
+}
+
+/**
+ * `--auto --squash --delete-branch`, falling back to a direct squash-merge
+ * only when native auto-merge is unavailable.
+ */
+async function armNativeAutoMerge({ exec, prNumber, armCwd }) {
   try {
     const result = await exec(
       [
@@ -133,6 +154,10 @@ export async function enableAutoMergeWith({
     if (isLocalCleanupOnlyFailure(result.stderr)) {
       // The remote side stands; the land tail finishes the local ref reap.
       return { enabled: true, localCleanupDeferred: true, reason: detail };
+    }
+    if (MERGE_QUEUE_REFUSAL.test(String(result.stderr ?? ''))) {
+      // The detection probe missed the queue; the refusal names it.
+      return armForMergeQueue({ exec, prNumber, armCwd });
     }
     if (isAutoMergeUnavailable(result.stderr)) {
       return directMergeFallback({
@@ -218,15 +243,32 @@ const NOT_ARMED = /not enabled|isn't enabled|is not set|no auto-?merge/i;
 
 /**
  * Lives here because `lifecycle-lint` confines `gh pr merge` to this module.
- * Never throws.
+ * An enqueued PR is dequeued instead. Never throws.
  *
  * @param {{ prNumber?: number|string, prRef?: string, gh?: object,
- *   progress?: (tag: string, msg: string) => void }} args `prRef` wins over
- *   `prNumber` when both are given.
+ *   progress?: (tag: string, msg: string) => void,
+ *   readMergeQueueStateFn?: typeof readMergeQueueState }} args `prRef` wins
+ *   over `prNumber` when both are given.
  * @returns {Promise<{ disarmed: boolean, alreadyUnarmed: boolean, detail: string }>}
  */
-export async function disarmAutoMerge({ prNumber, prRef, gh, progress }) {
+export async function disarmAutoMerge({
+  prNumber,
+  prRef,
+  gh,
+  progress,
+  readMergeQueueStateFn = readMergeQueueState,
+}) {
   const ref = String(prRef ?? prNumber);
+  const queue = await readMergeQueueStateFn({ prNumber, prRef, gh });
+  const outcome =
+    queue?.inQueue === true && queue.prNodeId
+      ? await disarmByDequeue({ prNodeId: queue.prNodeId, ref, gh, progress })
+      : await disableNativeAutoMerge({ ref, gh, progress });
+  warnIfStillArmed({ outcome, ref, progress });
+  return outcome;
+}
+
+async function disableNativeAutoMerge({ ref, gh, progress }) {
   try {
     await (gh ?? defaultGh).pr.merge(ref, ['--disable-auto']);
     progress?.(
@@ -235,9 +277,7 @@ export async function disarmAutoMerge({ prNumber, prRef, gh, progress }) {
     );
     return { disarmed: true, alreadyUnarmed: false, detail: 'disarmed' };
   } catch (err) {
-    const outcome = classifyDisarmFailure(describeGhFailure(err));
-    warnIfStillArmed({ outcome, ref, progress });
-    return outcome;
+    return classifyDisarmFailure(describeGhFailure(err));
   }
 }
 
@@ -308,6 +348,62 @@ async function evaluateAdvisoryGate({
 }
 
 /**
+ * Report an arm that stood, naming how it will land.
+ *
+ * @returns {{ autoMergeEnabled: true, autoMergeReason: null, localCleanupDeferred: boolean, directMerged?: boolean, mergeQueue?: boolean }}
+ */
+function reportArmed({ result, prNumber, progress }) {
+  if (result.mergeQueue) {
+    progress(
+      'PR',
+      `✅ Auto-merge enabled on PR #${prNumber} (merge queue — the queue rule picks the strategy).`,
+    );
+    return {
+      autoMergeEnabled: true,
+      autoMergeReason: null,
+      localCleanupDeferred: false,
+      mergeQueue: true,
+    };
+  }
+  if (result.directMerged) {
+    progress(
+      'PR',
+      `✅ Native auto-merge unavailable on PR #${prNumber} — direct squash-merge landed it` +
+        (result.localCleanupDeferred
+          ? " (gh's LOCAL branch cleanup deferred to the land tail; the merge stands)."
+          : '.'),
+    );
+    return {
+      autoMergeEnabled: true,
+      autoMergeReason: null,
+      directMerged: true,
+      localCleanupDeferred: Boolean(result.localCleanupDeferred),
+    };
+  }
+  if (result.localCleanupDeferred) {
+    progress(
+      'PR',
+      `⚠️ Auto-merge armed on PR #${prNumber}, but gh's LOCAL branch cleanup failed ` +
+        `(${result.reason}) — deferring the local ref reap to the land tail; the merge stands.`,
+    );
+    return {
+      autoMergeEnabled: true,
+      autoMergeReason: null,
+      localCleanupDeferred: true,
+    };
+  }
+  progress(
+    'PR',
+    `✅ Auto-merge enabled on PR #${prNumber} (squash, delete-branch).`,
+  );
+  return {
+    autoMergeEnabled: true,
+    autoMergeReason: null,
+    localCleanupDeferred: false,
+  };
+}
+
+/**
  * Dispatch auto-merge enablement.
  *
  * @param {{
@@ -319,7 +415,7 @@ async function evaluateAdvisoryGate({
  *   gh?: ReturnType<typeof import('../../../gh-exec.js').createGh>,
  *   progress: (tag: string, msg: string) => void,
  * }} args
- * @returns {Promise<{ autoMergeEnabled: boolean, autoMergeReason: string|null, localCleanupDeferred?: boolean, directMerged?: boolean }>}
+ * @returns {Promise<{ autoMergeEnabled: boolean, autoMergeReason: string|null, localCleanupDeferred?: boolean, directMerged?: boolean, mergeQueue?: boolean }>}
  *   `localCleanupDeferred`: the arm stands but the land tail owns the local
  *   ref reap. `directMerged`: landed by direct squash-merge instead.
  */
@@ -334,6 +430,7 @@ export async function runAutoMergePhase({
   gh,
   progress,
   readPrWaitProbeFn = readAdvisoryProbe,
+  readMergeQueueStateFn = readMergeQueueState,
 }) {
   if (noAutoMerge) {
     progress('PR', '⏭  Auto-merge disabled (--no-auto-merge).');
@@ -384,45 +481,14 @@ export async function runAutoMergePhase({
       },
     };
   }
-  const result = await enableAutoMergeWith({ cwd, prNumber, gh });
-  if (result.enabled) {
-    if (result.directMerged) {
-      progress(
-        'PR',
-        `✅ Native auto-merge unavailable on PR #${prNumber} — direct squash-merge landed it` +
-          (result.localCleanupDeferred
-            ? " (gh's LOCAL branch cleanup deferred to the land tail; the merge stands)."
-            : '.'),
-      );
-      return {
-        autoMergeEnabled: true,
-        autoMergeReason: null,
-        directMerged: true,
-        localCleanupDeferred: Boolean(result.localCleanupDeferred),
-      };
-    }
-    if (result.localCleanupDeferred) {
-      progress(
-        'PR',
-        `⚠️ Auto-merge armed on PR #${prNumber}, but gh's LOCAL branch cleanup failed ` +
-          `(${result.reason}) — deferring the local ref reap to the land tail; the merge stands.`,
-      );
-      return {
-        autoMergeEnabled: true,
-        autoMergeReason: null,
-        localCleanupDeferred: true,
-      };
-    }
-    progress(
-      'PR',
-      `✅ Auto-merge enabled on PR #${prNumber} (squash, delete-branch).`,
-    );
-    return {
-      autoMergeEnabled: true,
-      autoMergeReason: null,
-      localCleanupDeferred: false,
-    };
-  }
+  const queue = await readMergeQueueStateFn({ prNumber, gh });
+  const result = await enableAutoMergeWith({
+    cwd,
+    prNumber,
+    gh,
+    queueRequired: queue?.queueRequired === true,
+  });
+  if (result.enabled) return reportArmed({ result, prNumber, progress });
   progress(
     'PR',
     `⚠️ Auto-merge enablement failed (${result.reason}) — operator can merge manually.`,

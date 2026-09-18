@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-09-18T16:33:30.265Z",
+  "generatedAt": "2026-09-18T19:38:20.219Z",
   "rollup": {
     "*": {
       "lines": 96.03,
       "branches": 88.05,
-      "functions": 89.45
+      "functions": 89.46
     }
   },
   "rows": [
@@ -1841,6 +1841,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestration/merge-queue.js",
+      "lines": 96.2,
+      "branches": 82.93,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/pinned-identifier-lint.js",
       "lines": 100,
       "branches": 85,
@@ -2166,8 +2172,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/auto-merge.js",
-      "lines": 99.54,
-      "branches": 83,
+      "lines": 99.6,
+      "branches": 86.32,
       "functions": 100
     },
     {
@@ -2190,9 +2196,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
-      "lines": 96.13,
-      "branches": 79.78,
-      "functions": 96.97
+      "lines": 96.28,
+      "branches": 80.83,
+      "functions": 97.14
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/conventional-subject.js",

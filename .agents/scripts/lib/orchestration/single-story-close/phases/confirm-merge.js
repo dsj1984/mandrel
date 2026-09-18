@@ -49,6 +49,7 @@ import {
   readRunSummary,
   resolveAdvisoryGateVerdict,
 } from '../../merge-poll.js';
+import { readMergeQueueState } from '../../merge-queue.js';
 import { NEXT_COMMANDS } from '../../story-deliver-terminal.js';
 import {
   postStructuredComment,
@@ -118,6 +119,30 @@ function readString(value, absent = undefined) {
 }
 
 /**
+ * `inMergeQueue` for a green open PR, the only state GitHub enqueues from;
+ * `undefined` otherwise, so the common poll pays no extra call. An enqueued
+ * PR has no auto-merge request and can read BLOCKED — neither is a disarm.
+ */
+async function readInMergeQueue({
+  view,
+  checksStatus,
+  gh,
+  ghTimeoutMs,
+  readMergeQueueStateFn,
+}) {
+  const prNodeId = readString(view?.id);
+  if (view?.state !== 'OPEN' || checksStatus !== 'success' || !prNodeId) {
+    return undefined;
+  }
+  const queue = await readMergeQueueStateFn({
+    prNodeId,
+    gh,
+    timeoutMs: ghTimeoutMs,
+  });
+  return typeof queue?.inQueue === 'boolean' ? queue.inQueue : undefined;
+}
+
+/**
  * One probe per poll iteration. A failed or timed-out read degrades to
  * `{ checksStatus: 'pending', error }` so a flaky read is never a verdict.
  *
@@ -127,10 +152,12 @@ export async function readPrWaitProbe({
   prNumber,
   gh = defaultGh,
   ghTimeoutMs = MERGE_WAIT_GH_TIMEOUT_MS,
+  readMergeQueueStateFn = readMergeQueueState,
 }) {
   try {
     const view = await withGhTimeout(
       gh.pr.view(prNumber, [
+        'id',
         'state',
         'mergedAt',
         'createdAt',
@@ -142,13 +169,21 @@ export async function readPrWaitProbe({
       ghTimeoutMs,
       `gh pr view ${prNumber}`,
     );
+    const checksStatus = deriveChecksStatus(view?.statusCheckRollup);
     return {
       state: readString(view?.state, null),
       mergedAt: readString(view?.mergedAt, null),
       createdAt: readString(view?.createdAt, null),
       mergeStateStatus: readString(view?.mergeStateStatus),
       reviewDecision: readString(view?.reviewDecision),
-      checksStatus: deriveChecksStatus(view?.statusCheckRollup),
+      checksStatus,
+      inMergeQueue: await readInMergeQueue({
+        view,
+        checksStatus,
+        gh,
+        ghTimeoutMs,
+        readMergeQueueStateFn,
+      }),
       // Head-anchored, so superseded/pending runs don't read as red; `null`
       // when the rollup is empty (the consecutive-probe fallback owns that).
       requiredRunEvidence: deriveRequiredRunEvidence(view?.statusCheckRollup),
@@ -644,6 +679,18 @@ async function resolveAdvisoryUnlanded({
   };
 }
 
+/**
+ * An enqueued PR reads BLOCKED with every check green, which the classifier
+ * would call human-required — but the queue lands it unattended.
+ */
+function queuedExhaustionVerdict(probe, cumulativeMs) {
+  if (probe?.inMergeQueue !== true) return {};
+  return {
+    blockClassOverride: 'checks-pending-timeout',
+    reasonOverride: `PR is still in the merge queue after ${Math.round(cumulativeMs / 1000)} seconds — GitHub merges it when the queue's checks pass; a queued base may need a larger delivery.mergeWatch.maxBudgetSeconds`,
+  };
+}
+
 /** Classify, emit `merge.unlanded`, post friction, block — all best-effort. */
 async function blockOnUnlanded({
   storyId,
@@ -1126,6 +1173,7 @@ export async function runConfirmMergePhase({
             exhausted: true,
             elapsedSeconds: Math.round(cumulativeMs / 1000),
           },
+          ...queuedExhaustionVerdict(probe, cumulativeMs),
         };
       }
     }
