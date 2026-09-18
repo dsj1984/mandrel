@@ -3,45 +3,14 @@ import { install as installAstCompat } from './escomplex-ast-compat.js';
 import { analyzeModule } from './escomplex-kernel.js';
 import { transpileIfNeeded } from './transpile.js';
 
-/**
- * Calculates the maintainability score of a JavaScript source file or string.
- * Uses `typhonjs-escomplex` internally, which provides a maintainability index
- * based on the Halstead Volume, Cyclomatic Complexity, and Lines of Code.
- *
- * The kernel's code generator predates the Babel AST its own parser emits, so
- * ordinary modern syntax (`?.`, `await` in a loop head, a regex in a loop
- * head, object spread in a default parameter) aborts the whole analysis.
- * `escomplex-ast-compat` repairs that before any scoring runs — see that
- * module for the defect and the upstream status.
- */
 installAstCompat();
 
-/**
- * Sentinel score for a file the kernel cannot analyse.
- *
- * A real maintainability index never reaches 0 for runnable code — the
- * escomplex floor is ~10–20 — so 0 has long been used as an out-of-band
- * "unscorable" marker. That overload is the bug: consumers drop `mi === 0`
- * rows, so an unscorable file silently vanishes from the baseline instead of
- * being reported, and no amount of re-seeding can ever give it a row.
- *
- * Deliberately module-private. The numeric return is kept for backwards
- * compatibility, but the *value* is not something a caller should branch on —
- * that is the overload this change exists to stop propagating. Callers that
- * need to tell "unscorable" from "genuinely terrible" read the `unscorable`
- * flag from {@link scoreSource} / {@link scoreFile}.
- */
+/** Branch on the `unscorable` flag, never on this value. */
 const UNSCORABLE = 0;
 
 /**
- * Score a raw string, distinguishing "the kernel could not analyse this" from
- * "this scored badly".
- *
- * @param {string} sourceCode The JavaScript source code.
+ * @param {string} sourceCode
  * @returns {{ score: number, unscorable: boolean, reason: string|null }}
- *   `score` is {@link UNSCORABLE} when `unscorable` is true; `reason` carries
- *   the kernel's own error message so a consumer can report *why* rather than
- *   just omitting the file.
  */
 export function scoreSource(sourceCode) {
   try {
@@ -65,42 +34,28 @@ function unscorable(reason) {
 }
 
 /**
- * Calculate score for a raw string of source code.
+ * Ambiguous 0 when unscorable — prefer {@link scoreSource}.
  *
- * Returns 0 for unscorable input, which is ambiguous by construction — see
- * {@link UNSCORABLE}. Prefer {@link scoreSource} in new code.
- *
- * @param {string} sourceCode The JavaScript source code.
- * @returns {number} Score between 0 and 171. Higher is better.
+ * @param {string} sourceCode
+ * @returns {number}
  */
 export function calculateForSource(sourceCode) {
   return scoreSource(sourceCode).score;
 }
 
 /**
- * Calculate score for a given file. TypeScript and TSX sources are
- * pre-transpiled in memory via `transpileIfNeeded` before being fed to
- * the JS-only escomplex kernel; the score for a TS file is identical to
- * the score the same logic would produce as plain JS, because TS type
- * annotations introduce no control flow.
- *
- * @param {string} filePath Path to the JS/TS source file.
- * @returns {number} Maintainability index, or 0 when the source cannot
- *   be parsed (escomplex parse error or TS transpile failure).
+ * @param {string} filePath
+ * @returns {number}
  */
 export function calculateForFile(filePath) {
   return scoreFile(filePath).score;
 }
 
 /**
- * Score a file, distinguishing "unscorable" from "scored badly".
+ * TS is transpiled first. Transpile and kernel failures need different
+ * fixes, so they are reported separately.
  *
- * The transpile-failure and kernel-failure cases are reported separately
- * because they need different fixes: a transpile failure is usually the
- * consumer's own syntax or `tsconfig`, whereas a kernel failure is the
- * upstream generator gap described in `escomplex-ast-compat.js`.
- *
- * @param {string} filePath Path to the JS/TS source file.
+ * @param {string} filePath
  * @returns {{ score: number, unscorable: boolean, reason: string|null }}
  */
 export function scoreFile(filePath) {
@@ -120,15 +75,7 @@ export function scoreFile(filePath) {
 }
 
 /**
- * Produce a richer maintainability report that includes per-method scores.
- *
- * The module-level index from escomplex is heavily penalised by Halstead
- * volume, which means well-structured but long files (many small helpers)
- * score as "critical" even when no single function is complex. Consumers
- * that need to tier findings by real complexity should use `worstMethod`
- * (the lowest per-method maintainability) and fall back to `moduleScore`
- * for files that contain no methods (scripts that are purely top-level
- * statements).
+ * The module index is Halstead-volume dominated, so tier by `worstMethod`.
  *
  * @param {string} sourceCode
  * @returns {{
@@ -176,9 +123,6 @@ export function calculateReport(sourceCode) {
 }
 
 /**
- * Convenience wrapper that reads a file from disk and produces a report.
- * TypeScript and TSX sources are transpiled in memory before scoring.
- *
  * @param {string} filePath
  * @returns {ReturnType<typeof calculateReport>}
  */
@@ -205,19 +149,7 @@ export function calculateReportForFile(filePath) {
 }
 
 /**
- * Classify a maintainability report into a severity tier.
- *
- * Tiering rules (chosen after the v5.11 calibration issue where clean
- * multi-hundred-line scripts scored 0 at the module level):
- *
- *   - 🔴 critical  — a real hotspot: some method scores < 20, OR the file
- *                    contains no methods and the module scores < 40.
- *   - 🟡 warning   — size- or volume-driven signal: worst method < 50
- *                    OR module score < 65 (but no critical method).
- *   - 🟢 healthy   — every method scores ≥ 50 and module ≥ 65.
- *
- * File-size-driven module-score drops land in the warning tier, not the
- * critical tier — they should nudge the reviewer, not block the sprint.
+ * Size-driven module drops only reach `warning`; `critical` is a real hotspot.
  *
  * @param {ReturnType<typeof calculateReport>} report
  * @returns {'critical' | 'warning' | 'healthy' | 'parse-error'}

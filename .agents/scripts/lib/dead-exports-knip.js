@@ -1,9 +1,6 @@
 /**
- * dead-exports-knip.js — the knip driver behind the dead-export ratchet.
- *
- * Owns everything about talking to knip and normalising what comes back:
- * spawning it, reading a pre-captured report, and flattening its report into
- * `{ file, symbol }` rows. `check-dead-exports.js` stays a thin CLI over this.
+ * dead-exports-knip.js — run knip and flatten its report into
+ * `{ file, symbol }` rows for the dead-export ratchet.
  *
  * @module lib/dead-exports-knip
  */
@@ -13,19 +10,12 @@ import fs from 'node:fs';
 import process from 'node:process';
 
 /**
- * Spawn `npx knip --reporter json --no-progress` and return the parsed
- * envelope. Never throws — the caller logs the error and treats current rows as
- * empty, which surfaces every baseline row as "removed": loud, but safe.
+ * Never throws; on error the caller treats current rows as empty, which
+ * surfaces every baseline row as removed — loud but safe.
  *
- * `production` adds knip's `--production` flag, which restricts analysis to
- * entry/project patterns carrying the `!` suffix in `knip.json`. The test globs
- * deliberately lack that suffix, so production mode drops them as entry points
- * and an export reachable only from a test reads as dead. Without those
- * suffixes production mode has no entry patterns at all and reports nothing —
- * `knip.json` and this flag are a matched pair.
- *
- * Exported as a hook so tests can stub the spawn without a working knip
- * workspace.
+ * `production` requires the `!`-suffixed entry patterns in `knip.json`
+ * (test globs deliberately lack it, so test-only exports read as dead);
+ * without them production mode silently reports nothing.
  *
  * @param {{ cwd?: string, spawn?: typeof spawnSync, production?: boolean }} [opts]
  * @returns {{ ok: true, envelope: unknown } | { ok: false, error: string }}
@@ -61,9 +51,6 @@ export function runKnip({
 }
 
 /**
- * Read a pre-captured knip JSON envelope from disk (the `--knip-output` test
- * seam). Returns the parsed envelope or `null` on failure.
- *
  * @param {string} filePath
  * @returns {unknown}
  */
@@ -75,26 +62,15 @@ export function readKnipOutput(filePath) {
   }
 }
 
-/**
- * Sentinel `symbol` recorded for a **whole-file death** row.
- *
- * Knip's `files` category names a module nothing in the graph imports. There
- * is no per-export identity to record — the whole file is the finding — so the
- * ratchet encodes exactly one row per dead file carrying this symbol. `*` is
- * not a legal JavaScript identifier, so a whole-file row can never collide
- * with a real export row for the same path.
- */
+/** Whole-file death row symbol; not a legal identifier, so it cannot collide. */
 const WHOLE_FILE_SYMBOL = '*';
 
 /**
- * Pull the dead-file paths out of one knip issue's `files` category.
- *
- * Knip emits `files: [{ name: '<path>' }]`, but tolerate a bare string and
- * fall back to the issue's own `file` so a reporter-shape change degrades to
- * "one row for this path" rather than to silence.
+ * Tolerates bare strings and falls back to the issue's own `file`, so a
+ * reporter-shape change degrades to one row rather than silence.
  *
  * @param {{ files?: unknown }} issue
- * @param {string} fallbackFile The issue's own `file` path.
+ * @param {string} fallbackFile
  * @returns {string[]}
  */
 function extractDeadFileNames(issue, fallbackFile) {
@@ -111,8 +87,7 @@ function extractDeadFileNames(issue, fallbackFile) {
 }
 
 /**
- * Pull the dead-export symbol names out of one knip issue's `exports`
- * category. Knip emits `exports: [{ name, ... }]`; older shapes used `symbol`.
+ * Accepts `name` or the older `symbol` field.
  *
  * @param {{ exports?: unknown }} issue
  * @returns {string[]}
@@ -131,26 +106,13 @@ function extractDeadExportSymbols(issue) {
 }
 
 /**
- * Flatten knip's `--reporter json` output into `{ file, symbol }` rows. Knip
- * emits `{ issues: [{ file, files: [...], exports: [{ name, ... }], ... }] }`.
+ * Maps `exports` (one row per unused export) and `files` (one `'*'` row per
+ * unimported module, de-duplicated). The `files` leg is required: knip
+ * suppresses a dead module's per-export rows, so an export-only reading is
+ * blind to whole-file death. Dependency issues are not code death and are
+ * ignored.
  *
- * Two categories are mapped, and the ratchet treats their rows identically:
- *
- * - **`exports`** → one row per unused export, `{ file, symbol: '<name>' }`.
- * - **`files`** → one row per module nothing imports,
- *   `{ file, symbol: '*' }`. Story #5001 added this leg: mapping only
- *   `exports` made the ratchet structurally blind to *whole-file* death, so a
- *   module could lose its last caller and every one of its exports go unused
- *   without a single row changing. Knip reports such a module once, under
- *   `files`, and suppresses its per-export rows — which is exactly why the
- *   export-only reading saw nothing.
- *
- * Whole-file rows are de-duplicated by path so the row set is stable across
- * runs regardless of how many issue records mention the same file. Dependency-
- * and duplicate-level issues stay ignored; knip surfaces those under their own
- * `rules` keys and they are not a code-death signal.
- *
- * @param {unknown} knipEnvelope The parsed knip JSON report.
+ * @param {unknown} knipEnvelope
  * @returns {Array<{ file: string, symbol: string }>}
  */
 export function extractRowsFromKnip(knipEnvelope) {

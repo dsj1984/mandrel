@@ -1,26 +1,14 @@
 /**
- * git-branch-lifecycle.js — Shared git branch state machine helpers.
- *
- * Consolidates the "does this branch exist locally / remotely?" and
- * "ensure this branch exists and is checked out" logic that
- * `single-story-init.js` centralizes (formerly duplicated across the deleted
- * `story-init.js` and `dispatch-engine.js` entry seams).
- *
- * All helpers take an explicit `cwd`. Callers with worktree isolation
- * enabled pass the worktree path; single-tree callers pass `PROJECT_ROOT`.
- *
- * No helper here reads config, spawns its own logger, or knows about
- * GitHub. They are pure git-subprocess wrappers with validation on the
- * branch names they forward to git.
+ * git-branch-lifecycle.js — branch existence and seed/checkout helpers;
+ * names are validated before they reach git.
  */
 
 import { assertBranchSafe } from './branch-name-guard.js';
 import { gitPullWithRetry, gitSpawn, gitSync } from './git-utils.js';
 
 /**
- * Return the current branch name, or null if in detached HEAD state.
  * @param {string} cwd
- * @returns {string|null}
+ * @returns {string|null} null in detached HEAD state
  */
 export function currentBranch(cwd) {
   const result = gitSpawn(cwd, 'branch', '--show-current');
@@ -29,8 +17,6 @@ export function currentBranch(cwd) {
 }
 
 /**
- * Return true iff the given branch exists as a local ref in `cwd`'s repo.
- *
  * @param {string} branch
  * @param {string} cwd
  * @returns {boolean}
@@ -44,10 +30,7 @@ export function branchExistsLocally(branch, cwd) {
 }
 
 /**
- * Return true iff the given branch exists on the `origin` remote.
- *
- * Issues a network `ls-remote` call. Prefer `branchExistsViaTrackingRef`
- * after a `git fetch` has already populated the remote-tracking refs.
+ * Network call; prefer `branchExistsViaTrackingRef` after a fetch.
  *
  * @param {string} branch
  * @param {string} cwd
@@ -60,14 +43,7 @@ export function branchExistsRemotely(branch, cwd) {
 }
 
 /**
- * Return true iff the given branch exists on `origin` according to the
- * local remote-tracking ref (`refs/remotes/origin/<branch>`).
- *
- * This is a purely-local check (no network) that is authoritative whenever
- * a `git fetch origin` has already been run — e.g. inside `bootstrapWorktree`
- * and `bootstrapBranch` which always call `cachedGitFetch` first. Use this
- * instead of `branchExistsRemotely` in those paths to avoid a redundant
- * network round-trip.
+ * Local-only; authoritative once `git fetch origin` has run.
  *
  * @param {string} branch
  * @param {string} cwd
@@ -87,25 +63,10 @@ export function branchExistsViaTrackingRef(branch, cwd) {
 }
 
 /**
- * Pure: classify how a `story-<id>` branch should be seeded from the (local,
- * remote) ref-presence matrix. This is the single source of truth for
- * `single-story-init.js#decideStoryBranchSeed` (v2 `/mandrel-deliver` path).
- *
- * The init path previously re-implemented the same `local → no-op, remote →
- * fetch, else create` decision tree; it now delegates here so the branching
- * logic lives in exactly one place. The caller keeps its own keyword for
- * the "local ref already exists" outcome (`reuse` vs `none`) — synonyms for
- * "do not re-create / do not re-seed" preserved for its existing public/test
- * contract — so this classifier returns the neutral `'local'` keyword and
- * the caller maps it onto its own vocabulary.
+ * On `local`, do not `git branch` (it throws on an existing ref) or fetch.
  *
  * @param {{ localHas: boolean, remoteHas: boolean }} presence
  * @returns {'local'|'fetch'|'create'}
- *   - `local`  — a local ref already exists; the caller must not run
- *                `git branch` (which throws on the existing ref) and must not
- *                fetch.
- *   - `fetch`  — only the remote ref exists; materialise the local ref.
- *   - `create` — neither exists; branch from the base/Epic branch.
  */
 export function classifyBranchSeed({ localHas, remoteHas }) {
   if (localHas) return 'local';
@@ -114,39 +75,13 @@ export function classifyBranchSeed({ localHas, remoteHas }) {
 }
 
 /**
- * Single-home for the story-branch seed-action *switch shell* that
- * `single-story-init.js#seedStoryBranch` owns (Story #4255). The deleted
- * Epic `story-init/branch-initializer.js` path had duplicated the same
- * shell before v2 cutover.
- *
- * The two callers differ in exactly two behavioural axes, both of which are
- * parameters here — no other conditional branching is introduced:
- *   - **`baseRef`** — the ref to branch from on `create` (`main` for v2
- *     `/mandrel-deliver`; pre-v2 Epic close used the Epic branch).
- *   - **`swallowCreateRace`** — when `true`, a `git branch` that exits
- *     non-zero with an "already exists" stderr is treated as reuse rather
- *     than a fatal error (pre-v2 concurrent wave dispatch). When `false`, any create failure
- *     throws (the v2 standalone path has no concurrent creator to race).
- *
- * The asymmetric surrounding wrappers (merged-sweep, fast-forward,
- * donor-prime, workspace-verify) are deliberately NOT folded in — they stay
- * in their respective callers.
- *
- * Caller-specific log lines and error text are passed in as the `messages`
- * data bag so behaviour stays byte-identical to the pre-extraction switches.
- * The git seams (`spawn`, `existsLocally`, `existsRemotely`) are injectable so
- * each caller can bind its own cwd (and tests can substitute stubs through the
- * parameter rather than by module mocking). Per
- * `docs/contributing/test-seams.md` rule 1 each seam **defaults to the real
- * implementation** bound to `cwd`, so a caller that only knows its checkout
- * passes `cwd` and nothing else; `single-story-init.js` keeps passing its own
- * pre-bound seams and is unaffected.
+ * Git seams default to the real implementation bound to `cwd`.
  *
  * @param {object} opts
  * @param {string} opts.storyBranch
- * @param {string} opts.baseRef            Ref to branch from on `create`.
- * @param {string} [opts.cwd]              Checkout the default seams bind to.
- * @param {boolean} [opts.swallowCreateRace=false]
+ * @param {string} opts.baseRef
+ * @param {string} [opts.cwd]
+ * @param {boolean} [opts.swallowCreateRace=false] "already exists" = reuse.
  * @param {(args: string[]) => { status: number, stdout?: string, stderr?: string }} [opts.spawn]
  * @param {(branch: string) => boolean} [opts.existsLocally]
  * @param {(branch: string) => boolean} [opts.existsRemotely]
@@ -155,11 +90,10 @@ export function classifyBranchSeed({ localHas, remoteHas }) {
  * @param {(b: string) => string} opts.messages.reuse
  * @param {(b: string) => string} opts.messages.fetch
  * @param {(b: string, ref: string) => string} opts.messages.create
- * @param {(b: string) => string} [opts.messages.createRace]  Used when `swallowCreateRace`.
+ * @param {(b: string) => string} [opts.messages.createRace]
  * @param {(b: string, ref: string, stderr: string) => string} opts.messages.createError
  * @param {(b: string, stderr: string) => string} [opts.messages.fetchError]
- *   When provided, a non-zero `fetch` exit throws with this message; when
- *   omitted, the fetch exit status is not inspected.
+ *   When absent, the fetch exit status is not inspected.
  */
 export function seedStoryBranchRef({
   storyBranch,
@@ -193,7 +127,6 @@ export function seedStoryBranchRef({
     return;
   }
 
-  // action === 'create'
   progress('GIT', messages.create(storyBranch, baseRef));
   const r = spawn(['branch', storyBranch, baseRef]);
   if (r.status !== 0) {
@@ -207,9 +140,8 @@ export function seedStoryBranchRef({
 }
 
 /**
- * Check out a Story branch, creating it from `epicBranch` if neither local
- * nor remote exists. Non-destructive: if the branch already exists, this
- * plain-`checkout`s it rather than `-B`-resetting.
+ * Check out a Story branch, creating it from `epicBranch` when absent.
+ * Non-destructive: an existing branch is plain-checked-out, never `-B`-reset.
  *
  * @param {string} storyBranch
  * @param {string} epicBranch
@@ -225,7 +157,6 @@ export async function checkoutStoryBranch(
   assertBranchSafe(storyBranch, epicBranch);
   const progress = opts.progress ?? (() => {});
 
-  // Short-circuit: already on the story branch — just sync.
   if (currentBranch(cwd) === storyBranch) {
     const remote = branchExistsRemotely(storyBranch, cwd);
     if (remote) {
@@ -261,10 +192,8 @@ export async function checkoutStoryBranch(
 }
 
 /**
- * Ensure an arbitrary branch exists locally, creating from `baseBranch` if
- * missing. Used by the dispatcher's task-dispatch path where the expected
- * side-effect is "branch ref exists"; the caller does not want HEAD to
- * move. After creation, HEAD is restored to `baseBranch`.
+ * Ensure a branch ref exists, creating it from `baseBranch`; HEAD is left on
+ * `baseBranch`.
  *
  * @param {string} branchName
  * @param {string} baseBranch

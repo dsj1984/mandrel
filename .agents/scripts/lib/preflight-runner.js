@@ -1,23 +1,7 @@
 /**
- * preflight-runner.js — Shared preflight wrapper around the checks registry.
- *
- * This module is the single implementation of the "run the registry, fail
- * fast on blockers, log auto-fixes" pattern. The consumer entry points
- * (`single-story-close.js`, `mandrel-update-preflight.js`, the npm test wrapper, and
- * the bootstrap scripts) call `runPreflight({ scope })` instead of
- * re-implementing the same assemble+run+format+exit-2 dance.
- *
- * Exit-code contract (shared by every consumer):
- *   - 0 → no blocker findings (warnings/info may have been printed).
- *   - 2 → at least one `severity: 'blocker'` finding survived after
- *         auto-fixes. The wrapper prints a human-readable blocker table
- *         (`id · summary · fixCommand`) before returning. Code 2 is the
- *         project-wide "preflight refused" reservation — see
- *         `.agents/workflows/helpers/deliver-story.md` for the rationale.
- *
- * Auto-fixes are logged via `logFixes` before the blocker check so the
- * operator sees the "we corrected X" line even when a separate blocker
- * later trips the exit. Auto-fixes never themselves block.
+ * preflight-runner.js — run the checks registry, log auto-fixes (which never
+ * block) before the blocker table, and report `blocked` so the consumer
+ * exits {@link PREFLIGHT_REFUSED_EXIT_CODE}.
  */
 
 import { runChecks } from './checks/index.js';
@@ -29,15 +13,9 @@ import { Logger } from './Logger.js';
  * @property {Array<object>} findings  Unfixed findings (any severity).
  * @property {Array<object>} fixed     Findings that were auto-corrected.
  * @property {boolean} blocked         True iff `findings` contains a
- *   `severity: 'blocker'`. When `true`, the consumer must exit with code 2.
+ *   `severity: 'blocker'`; the consumer must then exit 2.
  */
 
-/**
- * Default logger adapter — routes info/warn/error through the project
- * Logger. Kept as a module-local constant so the runner has a single seam
- * tests can swap with a spy that captures lines without going through
- * Logger's stdout/stderr.
- */
 const DEFAULT_LOGGER = {
   info: (msg) => Logger.info(msg),
   warn: (msg) => Logger.warn(msg),
@@ -45,26 +23,14 @@ const DEFAULT_LOGGER = {
 };
 
 /**
- * Run preflight checks for `scope` against an assembled state probe.
- *
- * The consumer surface is intentionally tiny: pass a `scope` string and
- * (optionally) a `cwd`. The runner handles state assembly, the autoFix
- * flag, finding/fix routing, and pretty-print of the blocker table.
- *
  * @param {object} opts
- * @param {string} opts.scope          Consumer surface — `'story-close'`,
- *   `'npm-test'`, `'diagnose'`, etc.
- * @param {boolean} [opts.autoFix=true] Forwarded to `runChecks`. Defaults
- *   to `true` because every wiring call site at this Story's level wants
- *   auto-correction (the `retro` consumer that needs `autoFix:false` does
- *   NOT use this helper — it calls `runChecks` directly).
+ * @param {string} opts.scope          e.g. `'story-close'`, `'npm-test'`.
+ * @param {boolean} [opts.autoFix=true]
  * @param {string} [opts.cwd=process.cwd()]
- * @param {object} [opts.probes]       Test-only probe injection forwarded
- *   to `assembleState`. Production callers omit this.
- * @param {object} [opts.registry]     Test-only — bypass `loadRegistry()`.
- * @param {string} [opts.dir]          Test-only fixture directory.
+ * @param {object} [opts.probes]       Test-only.
+ * @param {object} [opts.registry]     Test-only.
+ * @param {string} [opts.dir]          Test-only.
  * @param {{ info?: Function, warn?: Function, error?: Function }} [opts.logger]
- *   Defaults to the project Logger. Tests pass a spy that captures lines.
  * @returns {Promise<PreflightResult>}
  */
 export async function runPreflight({
@@ -79,9 +45,7 @@ export async function runPreflight({
   if (!scope || typeof scope !== 'string') {
     throw new Error('runPreflight: scope is required');
   }
-  // `retro` is reserved by the runner and is never a preflight scope.
-  // Catch it here so the failure mode is obvious instead of routing into
-  // the runner's autoFix throw.
+  // `retro` is read-only; fail here rather than in runChecks' autoFix throw.
   if (scope === 'retro') {
     throw new Error(
       'runPreflight: retro scope is read-only — call runChecks directly',
@@ -99,18 +63,12 @@ export async function runPreflight({
   const blockers = findings.filter((f) => f.severity === 'blocker');
   const blocked = blockers.length > 0;
   if (blocked) logBlockers(scope, blockers, logger);
-  // Surface non-blocker findings as well so operators see warnings/info.
   const nonBlockerFindings = findings.filter((f) => f.severity !== 'blocker');
   if (nonBlockerFindings.length > 0) logNonBlockers(nonBlockerFindings, logger);
   return { findings, fixed, blocked };
 }
 
-/**
- * Pick the logger method for `level` — falls back through the project
- * Logger if the supplied logger is missing the level. Keeps the
- * console-allowlist test happy (no direct console.* fallback here) and
- * still lets tests swap the entire logger out.
- */
+/** Falls back to the project Logger — never to `console.*` directly. */
 function pick(logger, level) {
   if (logger && typeof logger[level] === 'function') {
     return (msg) => logger[level](msg);
@@ -119,8 +77,6 @@ function pick(logger, level) {
 }
 
 /**
- * Print the auto-fixed findings as a one-line-per-fix summary.
- *
  * @param {Array<object>} fixed
  * @param {object} [logger]
  */
@@ -134,9 +90,6 @@ function logFixes(fixed, logger = DEFAULT_LOGGER) {
 }
 
 /**
- * Print the blocker table the operator sees on `exit 2`. Each row carries
- * `id · summary · fixCommand`; details (if present) wrap underneath.
- *
  * @param {string} scope
  * @param {Array<object>} blockers
  * @param {object} [logger]
@@ -152,10 +105,7 @@ function logBlockers(scope, blockers, logger = DEFAULT_LOGGER) {
     '  --------------------------  --------  ----------------------------------------',
   );
   for (const b of blockers) {
-    // Pad short IDs to align the column; never TRUNCATE — the operator
-    // needs the full id to find the check module on disk and to grep the
-    // codebase for the failure mode. Long ids just push the severity
-    // column right, which is fine for terminal output.
+    // Pad, never truncate — the operator needs the full id to find the check.
     const id = String(b.id).padEnd(26);
     const sev = String(b.severity).padEnd(8);
     error(`  ${id}  ${sev}  ${b.summary ?? ''}`);
@@ -175,8 +125,6 @@ function logBlockers(scope, blockers, logger = DEFAULT_LOGGER) {
 }
 
 /**
- * Print warning/info findings as one line each. These never block.
- *
  * @param {Array<object>} findings
  * @param {object} [logger]
  */
@@ -188,9 +136,5 @@ function logNonBlockers(findings, logger = DEFAULT_LOGGER) {
   }
 }
 
-/**
- * The reserved exit code for "preflight refused". Re-exported so consumer
- * scripts can `process.exit(PREFLIGHT_REFUSED_EXIT_CODE)` instead of
- * hard-coding the magic number.
- */
+/** Project-wide "preflight refused" exit code. */
 export const PREFLIGHT_REFUSED_EXIT_CODE = 2;

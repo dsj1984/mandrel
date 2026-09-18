@@ -1,40 +1,19 @@
 /**
- * format-generated-json.js — run generated JSON through the project
- * formatter (Biome) so a generator's output matches what the repo's
- * commit-time formatting would have produced anyway.
- *
- * Why this exists. Generators serialize with `JSON.stringify`, which
- * expands every array across multiple lines. Biome collapses short ones
- * that fit inside `lineWidth` (`"allowedTools": ["Read", "Bash"]`), and
- * lint-staged runs `biome format --write` over staged JSON at commit
- * time — so the committed artifact is Biome-shaped while a fresh
- * generator run is not. The gap means regenerating on a clean tree
- * always leaves format drift, and a `<generate>` → `lint` sequence fails
- * on `biome ci` even when the generator's own `--check` reports the
- * artifact semantically fresh (Story #4546).
- *
- * Running the real formatter, rather than hand-matching its array
- * collapsing, keeps this correct by construction across future formatter
- * and `lineWidth` changes.
- *
- * Stdin mode is deliberate: Biome's configured `formatWrite` command is
- * whole-tree (`biome format --write .`), which is a far broader side
- * effect than a generator should have. `--stdin-file-path` makes this a
- * pure content transform with no filesystem writes.
+ * format-generated-json.js — run generated JSON through Biome so a fresh
+ * generator run matches the Biome-shaped committed artifact (lint-staged
+ * formats at commit; `JSON.stringify` does not collapse short arrays).
+ * Stdin mode keeps it a pure transform — the configured `formatWrite` is
+ * whole-tree.
  */
 
 import { spawnSync } from 'node:child_process';
 import process from 'node:process';
 import { Logger } from './Logger.js';
 
-/** Wall-clock ceiling for the formatter spawn, so a hung child cannot wedge a generator run. */
+/** A hung formatter must not wedge a generator run. */
 const FORMATTER_TIMEOUT_MS = 30_000;
 
-/**
- * Warn once about a fallback and return null for the caller to act on.
- * Owning the message here keeps every caller's write path a single
- * `formatGeneratedJson(...) ?? serialized` expression.
- */
+/** Callers write `formatGeneratedJson(...) ?? serialized`. */
 function fallback(filename) {
   Logger.warn(
     `project formatter (biome) unavailable — writing unformatted ${filename}; ` +
@@ -44,20 +23,10 @@ function fallback(filename) {
 }
 
 /**
- * Format `source` as JSON using the project formatter.
- *
- * Best-effort by design: `.agents/` is materialized into consumer
- * projects that need not have Biome installed, so an unavailable or
- * failing formatter warns and returns `null` for the caller to fall back
- * on its own serialization rather than failing the generator. That is
- * safe wherever the artifact's freshness check compares parsed objects
- * rather than bytes — formatting carries no semantic content.
- *
- * `--no` keeps npx from reaching the network to install a missing Biome.
- * `filename` is passed as a bare basename: Biome only needs it to infer
- * the language and match config overrides, and a basename cannot carry
- * the spaces that would break arg quoting under the Windows `shell:
- * true` spawn.
+ * Best-effort: consumers may lack Biome, so failure warns and returns `null`
+ * — safe where freshness compares parsed objects, not bytes. `--no` stops
+ * npx installing from the network; `filename` is a bare basename so it
+ * cannot carry spaces that break Windows shell quoting.
  *
  * @param {string} source Text to format.
  * @param {object} opts
@@ -79,8 +48,7 @@ export function formatGeneratedJson(
         cwd,
         input: source,
         encoding: 'utf8',
-        // npm/npx ship as `.cmd` shims on Windows, which Node refuses to
-        // spawn without a shell since CVE-2024-27980.
+        // `.cmd` shims need a shell on Windows since CVE-2024-27980.
         shell: process.platform === 'win32',
         timeout: FORMATTER_TIMEOUT_MS,
       },

@@ -1,15 +1,12 @@
 import path from 'node:path';
 
 /**
- * Assert that `target` resolves inside `root`. Prevents "../" traversal and
- * absolute-path escapes in configuration-supplied paths.
+ * Reject `..` traversal and absolute escapes in config-supplied paths.
  *
  * @param {string} root    absolute path of the containing directory
  * @param {string} target  absolute path to validate
- * @param {string} label   human-readable identifier for the error message
- * @param {{ allowEmpty?: boolean }} [opts]
- *   - `allowEmpty`: when false, `path.relative(root, target) === ''` is also
- *     rejected (target equals root). Default: true.
+ * @param {string} label   identifier for the error message
+ * @param {{ allowEmpty?: boolean }} [opts] false also rejects target === root.
  * @returns {string} the path relative to `root`
  * @throws {Error} when target escapes root
  */

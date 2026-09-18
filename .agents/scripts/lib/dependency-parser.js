@@ -1,31 +1,14 @@
 /**
- * dependency-parser.js — Shared Dependency & Metadata Parsing Utilities
- *
- * Canonical implementation of dependency-related regex parsing and
- * ticket metadata extraction, shared by the ticketing provider and the
- * orchestration layer (e.g. providers/github/tickets.js,
- * lib/story-adjacency.js, lib/branch-name-guard.js).
+ * dependency-parser.js — dependency-edge and ticket-metadata parsing shared
+ * by the ticketing provider and orchestration layer.
  */
 
 import { parseFooterBlockedByIds } from './story-body/footer-block.js';
 
 /**
- * Parse a body's declared blocker issue numbers — **footer-scoped and
- * strict**.
- *
- * Only a `blocked by #N` line standing alone inside the `---` footer block
- * declares an edge. The unanchored predecessor scanned the whole body for
- * `blocked by|depends on #N` anywhere, so a Story whose prose merely mentioned
- * a blocker — an example, a changelog note, an acceptance criterion describing
- * this very defect — minted a real dispatch gate that withheld the Story until
- * an unrelated issue closed.
- *
- * The behaviour change is deliberate and user-visible: prose-only mentions
- * outside the footer no longer gate. Every machine-authored body already
- * carries the canonical footer form (`plan-persist` has always serialized it),
- * so only hand-written prose edges are affected — those must be moved into the
- * footer block to keep gating. The grammar itself lives in
- * `lib/story-body/footer-block.js`, shared with the body parser.
+ * Footer-scoped and strict: only a standalone `blocked by #N` line in the
+ * `---` footer declares an edge. Prose mentions elsewhere never gate, so a
+ * hand-written edge must live in the footer.
  *
  * @param {string} body - Issue body or freeform text.
  * @returns {number[]} Array of issue numbers this body declares as blockers.
@@ -35,8 +18,6 @@ export function parseBlockedBy(body) {
 }
 
 /**
- * Parse `blocks #NNN` references from text.
- *
  * @param {string} body - Issue body or freeform text.
  * @returns {number[]} Array of issue numbers this text declares as blocked.
  */
@@ -47,11 +28,7 @@ export function parseBlocks(body) {
 }
 
 /**
- * Extract the parent Epic id from a ticket body. Matches `Epic: #NNN`
- * anchored to the start of a line (multiline + case-insensitive). The
- * anchored form prevents accidental matches inside prose ("...this Epic:
- * #...follow-on..."). Used during state-transition notification dispatch
- * and Story-level execution planning.
+ * Line-anchored `Epic: #N`, so prose like "this Epic: #…" cannot match.
  *
  * @param {string|null|undefined} body
  * @returns {number|null}
@@ -63,22 +40,15 @@ export function extractEpicIdFromBody(body) {
 }
 
 /**
- * Validates that a string is safe to use as a git branch name component.
- * Rejects shell metacharacters, whitespace, and other dangerous patterns.
+ * Allow-list: alphanumerics, `.`, `_`, `-`, `/`.
  *
  * @param {string} value - The value to validate.
  * @returns {boolean} True if safe for use in branch names.
  */
 export function isSafeBranchComponent(value) {
-  // Allow: alphanumeric, hyphens, underscores, dots, forward slashes
-  // Reject: everything else (shell metacharacters, spaces, etc.)
   return /^[a-zA-Z0-9._\-/]+$/.test(value);
 }
 
-/**
- * Pre-compiled `**Key**: value` matchers for every metadata key we extract.
- * Construction cost is paid once at module load rather than per task.
- */
 const METADATA_FIELD_KEYS = [
   'Persona',
   'Mode',
@@ -94,9 +64,7 @@ const METADATA_FIELD_RES = new Map(
 );
 
 /**
- * Parse task execution metadata from the `## Metadata` section of a ticket body.
- * Returns a plain object with `persona`, `mode`, `skills`, `focusAreas`,
- * and `protocolVersion`.
+ * Parse the `## Metadata` section's `**Key**: value` fields.
  *
  * @param {string} body - Issue body text.
  * @returns {{ persona: string, mode: string, skills: string[], focusAreas: string[], protocolVersion: string }}

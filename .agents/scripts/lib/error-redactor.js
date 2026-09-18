@@ -1,13 +1,6 @@
 /**
- * Story #1651 (CWE-209): error-envelope redactor for CLI scripts.
- *
- * Rewrites absolute filesystem paths to repo-relative form, elides
- * `$HOME` / `$USERPROFILE` segments outside the repo, and scrubs
- * token-shaped substrings before error envelopes hit the public CI log.
- *
- * Pure and dependency-free so callers (tests, ad-hoc loggers, the
- * runAsCli default handler) can reuse it without standing up the rest
- * of the cli-utils harness.
+ * Error-envelope redactor (CWE-209): repo-relative paths, elided home dir,
+ * scrubbed token-shaped strings. Dependency-free.
  */
 
 import path from 'node:path';
@@ -16,10 +9,7 @@ import { fileURLToPath } from 'node:url';
 const REPO_ROOT_CACHE = { value: null };
 
 /**
- * Resolve the repository root the redactor rewrites against. The
- * heuristic walks up from this file's directory; consumers may override
- * via the `repoRoot` option on `redactErrorMessage`. The result is
- * memoised because the redactor runs in the hot path of error-printing.
+ * Memoised — the redactor runs on the error-printing hot path.
  *
  * @returns {string}
  */
@@ -34,10 +24,7 @@ export function resolveRepoRoot() {
 const TOKEN_SHAPED = /\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|[A-Fa-f0-9]{32,})\b/g;
 
 /**
- * Normalise both Windows-style and POSIX-style absolute paths in
- * `message` to repo-relative form, elide `$HOME` / `$USERPROFILE`
- * outside the repo, and scrub token-shaped substrings (`ghp_*`,
- * `gho_*`, `ghs_*`, `ghu_*`, `ghr_*`, 32+ hex chars).
+ * Handles both Windows and POSIX path separators.
  *
  * @param {string|undefined} message
  * @param {object} [options]
@@ -80,15 +67,8 @@ function pathVariants(p) {
 }
 
 /**
- * Determine whether error-message redaction is enabled for this process.
- *
- * Precedence (any one is enough to opt in):
- *   1. Explicit `--quiet-errors` flag in `argv`.
- *   2. `AGENT_CLI_QUIET_ERRORS=1` (or `true`) in `env`.
- *   3. `CI=true` (or any other truthy non-empty value) in `env`.
- *
- * Operator workstations stay verbose by default; CI runs (where logs
- * are public on OSS forks) get redaction automatically.
+ * On with `--quiet-errors`, `AGENT_CLI_QUIET_ERRORS`, or a truthy `CI` —
+ * CI logs are public on OSS forks; workstations stay verbose.
  *
  * @param {string[]} [argv]      Defaults to `process.argv.slice(2)`.
  * @param {NodeJS.ProcessEnv} [env]  Defaults to `process.env`.
@@ -111,11 +91,6 @@ function isTruthyEnv(value) {
 }
 
 /**
- * Format a thrown error for stderr, applying redaction when
- * `parseQuietErrorsFlag()` says we should. Extracted from `runAsCli` so
- * the cli-utils default error handler stays a single expression and the
- * redaction logic lives next to the redactor itself.
- *
  * @param {unknown} err
  * @returns {string}
  */
