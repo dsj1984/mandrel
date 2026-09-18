@@ -228,21 +228,36 @@ function parsePathEntry(raw, warnings) {
 
   const entry = pathEntryFromHumanized(str) ?? pathEntryFromInlineJson(str);
   if (entry) return entry;
-  // Story #5342: the bare path bullet. `assumption: null` records only what
-  // the author said — persist derives the rest by probing the base branch.
-  // A `{`-leading string got here because it failed to parse as the inline
-  // JSON object it announced itself as, so it is malformed JSON rather than a
-  // path and must keep failing closed.
+  return pathEntryFromBare(str);
+}
+
+/**
+ * Parse the bare path bullet — the default authored form since Story #5342 —
+ * or refuse the bullet. This is the last shape `parsePathEntry` tries, so it
+ * owns the rejection too.
+ *
+ * `assumption: null` records only what the author said; persist derives the
+ * rest by probing the base branch. A `{`-leading string reached here because
+ * it failed to parse as the inline JSON object it announced itself as, so it
+ * is malformed JSON rather than a path and keeps failing closed.
+ *
+ * Story #5361: the two failures need different fixes, so they get different
+ * refusals — rewrite a sentence as a path, versus fix a token that is not one.
+ *
+ * @param {string} str
+ * @returns {PathEntry}
+ */
+function pathEntryFromBare(str) {
   const bare = str.startsWith('{') ? null : matchBarePathToken(str);
   if (bare !== null) return { path: bare, assumption: null };
 
-  // Story #5361: the two failures need different fixes, so they get different
-  // refusals — rewrite a sentence as a path, versus fix a token that is not
-  // one.
+  const shape = isProseBullet(str)
+    ? 'is prose, not a path'
+    : 'names no usable path';
   throw new StoryBodyParseError(
-    isProseBullet(str)
-      ? `changes/references entry is prose, not a path — a bullet must be a single whitespace-free path token, or a { path, assumption } object: ${str.slice(0, 120)}${pathEntryFixIt(str)}`
-      : `changes/references entry names no usable path — a bullet must be a single whitespace-free path token, or a { path, assumption } object: ${str.slice(0, 120)}${pathEntryFixIt(str)}`,
+    `changes/references entry ${shape} — a bullet must be a single ` +
+      `whitespace-free path token, or a { path, assumption } object: ` +
+      `${str.slice(0, 120)}${pathEntryFixIt(str)}`,
     { field: 'changes', raw: str },
   );
 }
