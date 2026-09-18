@@ -1,58 +1,18 @@
 /**
- * framework-repo.js — the follow-up **ownership routing** SSOT: which
- * repository a finding, a retro proposal, or a CI-gap intake issue is filed
- * in, and what to say when that question has no answer.
- *
- * ## Three buckets, not two
- *
- * A defect surfaced by one repository's CI is not necessarily that
- * repository's to fix. Ownership splits three ways:
- *
- *   - `consumer`  — the repo the run is standing in (`github.owner`/`repo`).
- *   - `framework` — the Mandrel framework itself
- *     (`github.followUpRepos.framework`, defaulted to the mirror constant).
- *   - `platform`  — a shared platform / infrastructure repo that neither of
- *     the other two owns: a shared base config, a runner fleet, a
- *     cross-repo toolchain (`github.followUpRepos.platform`, **no default**
- *     — nothing can guess a shared repo's slug).
- *
- * ## Why there is no `?? currentRepo` fallback
- *
- * The two-bucket predecessor resolved a framework-tagged item with
- * `frameworkRepo ? frameworkRepo : currentRepo`. When the config key was
- * absent that expression filed framework-owned work into the **consumer's**
- * repo while the rendered retro claimed it went to the framework repo — a
- * silent mis-file, recorded in `retro-proposals-graduator.js`'s own file-top
- * comment. The failure was invisible in this repository precisely because
- * consumer === framework here.
- *
- * So an unresolvable bucket is a first-class outcome, never a fallback:
- * `routeOwnership` returns `routable: false` plus the `missingKey` that
- * would fix it, and every caller must decide **out loud** what to do with
- * that — file locally and say so in the body (the CI-gap filer), or defer
- * and surface it where an operator will see it (the graduators). What no
- * caller may do is route it somewhere plausible and stay quiet.
+ * framework-repo.js — ownership routing SSOT across `consumer`, `framework`
+ * and `platform` buckets. Deliberately no `?? currentRepo` fallback: an
+ * unresolvable bucket is `routable: false` + `missingKey`, and the caller must
+ * say out loud what it did instead of silently mis-filing.
  */
 
-/**
- * Canonical framework repository slug, used when the consumer config does
- * not supply `github.followUpRepos.framework`. The `framework` bucket is the
- * one bucket with a knowable default: it is this framework.
- */
 export const DEFAULT_FRAMEWORK_REPO = 'dsj1984/mandrel';
 
-/** The closed ownership-bucket set. */
 export const OWNERSHIP_BUCKETS = Object.freeze([
   'consumer',
   'framework',
   'platform',
 ]);
 
-/**
- * The `.agentrc.json` key behind each bucket, quoted verbatim when a bucket
- * is unroutable so the operator is told which key to set rather than that
- * "routing failed".
- */
 const OWNERSHIP_CONFIG_KEYS = Object.freeze({
   consumer: 'github.owner / github.repo',
   framework: 'github.followUpRepos.framework',
@@ -60,11 +20,6 @@ const OWNERSHIP_CONFIG_KEYS = Object.freeze({
 });
 
 /**
- * Parse an `"<owner>/<repo>"` slug into `{ owner, repo }`, or `null` when the
- * slug is absent, empty, or malformed. A `null` return is the signal an
- * unroutable bucket is built from — never a reason to substitute another
- * repo.
- *
  * @param {string|null|undefined} slug
  * @returns {{ owner: string, repo: string } | null}
  */
@@ -78,9 +33,6 @@ export function parseRepoSlug(slug) {
 }
 
 /**
- * Render a `{ owner, repo }` pair back to its slug, or `null` when the pair
- * is absent/malformed.
- *
  * @param {{ owner?: string, repo?: string }|null|undefined} repo
  * @returns {string|null}
  */
@@ -95,15 +47,7 @@ export function formatRepoSlug(repo) {
 }
 
 /**
- * Resolve every ownership bucket from a resolved `.agentrc` config.
- *
- * `framework` falls back to {@link DEFAULT_FRAMEWORK_REPO}; `platform` has no
- * default and stays `null` when unconfigured; `consumer` is `null` when
- * `github.owner`/`github.repo` are unset. A `null` bucket is an honest
- * "unknown", which {@link routeOwnership} turns into a named, reportable
- * outcome.
- *
- * @param {object} [config] — resolved `.agentrc` config.
+ * @param {object} [config]
  * @returns {{ consumer: ({owner: string, repo: string}|null), framework: ({owner: string, repo: string}|null), platform: ({owner: string, repo: string}|null) }}
  */
 export function resolveOwnershipRepos(config) {
@@ -121,19 +65,12 @@ export function resolveOwnershipRepos(config) {
 }
 
 /**
- * Route one ownership bucket to the repository its work belongs in.
- *
- * Total: an unknown bucket, an absent repos map, and an unconfigured bucket
- * all resolve to `routable: false` with the `missingKey` that would fix it —
- * never to a substituted repository.
+ * Total: never a substituted repo.
  *
  * @param {object} opts
- * @param {string} opts.bucket — one of {@link OWNERSHIP_BUCKETS}.
+ * @param {string} opts.bucket
  * @param {{consumer?: object|null, framework?: object|null, platform?: object|null}} opts.repos
- *   — resolved buckets, from {@link resolveOwnershipRepos} or assembled by a
- *   caller that already holds the repo objects.
- * @param {{owner: string, repo: string}|null} [opts.currentRepo] — the repo
- *   the run is standing in, used only to report `crossRepo`.
+ * @param {{owner: string, repo: string}|null} [opts.currentRepo] — for `crossRepo`.
  * @returns {{ bucket: string, routedRepo: ({owner: string, repo: string}|null), routable: boolean, missingKey: (string|null), crossRepo: boolean }}
  */
 export function routeOwnership({ bucket, repos, currentRepo = null } = {}) {

@@ -1,66 +1,24 @@
 /**
- * lib/findings/promote-finding.js — Promote clustered ledger items to tickets.
- *
- * The `f1-shared-qa-core` promotion step (Epic #3798, Feature #3803). It is the
- * tail of the exploratory-QA Triage path: once an operator has dispositioned a
- * session's ledger items (see `.agents/schemas/qa-ledger.schema.json` and
- * `lib/qa/qa-session.js`), the still-untriaged backlog is clustered and each
- * cluster is promoted to a follow-up ticket — a single Story (via `/mandrel-plan`)
- * for a tight, one-deliverable cluster, or a multi-Story plan-seed (via `/mandrel-plan --seed`) for
- * a broad cluster that spans multiple coverage surfaces. Each contributing
- * ledger item then has the resulting `routedTo` issue link written back onto it
- * so a resume run sees the item as filed rather than re-promoting it.
- *
- * Routing **reuses the shared findings/route logic** — `routeFinding` from
- * `route-finding.js`, the single dedup/route implementation `audit-to-stories`
- * and `qa-explore` already share. It does NOT call `audit-to-stories`: that
- * workflow parses `audit-*-results.md` markdown and is a different intake path.
- * Here a cluster is adapted onto the canonical finding identity, routed against
- * existing Issues, and only a `new` decision opens a fresh ticket; an
- * `update-existing` / `duplicate` / `regression-of-closed` decision links back
- * to the matched Issue without creating a duplicate.
- *
- * Pure orchestration: **no network I/O lives here.** Every GitHub side-effect
- * (issue search, ticket creation) flows through INJECTED PORTS so the unit test
- * runs with no network. Production wires the ports to the GitHub provider /
- * `/mandrel-plan` / `/mandrel-plan` surfaces; tests pass in-memory stubs.
+ * lib/findings/promote-finding.js — promote clustered untriaged QA ledger
+ * items to a Story or plan-seed via `routeFinding`, stamping `routedTo` on
+ * each item so a resume does not re-promote. Ports are injected.
  */
 
 import { fingerprintFinding, routeFinding } from './route-finding.js';
 import { highestSeverity as highestSeverityOf } from './severity.js';
 
-/** Triaged dispositions, mirrored from the `disposition` enum in the schema. */
 const TRIAGED_DISPOSITIONS = Object.freeze(['file', 'defer', 'dismiss']);
 
-/**
- * The two promotion targets a cluster routes to.
- *
- * `PLAN_SEED` promotes a broad cluster by seeding a multi-Story `/mandrel-plan`
- * run (`/mandrel-plan --seed`). Its persisted wire token is the legacy string
- * `'epic'`: archived qa-ledger records (and the distributed
- * `qa-ledger.schema.json` `routedTo.kind` enum) still carry `'epic'`, so
- * the value is kept read-compatible while the write-side constant name is
- * modernised.
- */
+/** `PLAN_SEED` stays `'epic'` on the wire: archived ledgers and the schema enum carry it. */
 export const PROMOTION_TARGETS = Object.freeze({
   STORY: 'story',
   PLAN_SEED: 'epic',
 });
 
-/**
- * A cluster of more than this many distinct coverage surfaces is broad enough
- * to warrant a plan-seed (`/mandrel-plan --seed`) rather than a single Story
- * (`/mandrel-plan`). One or two surfaces is a tight, single-deliverable cluster.
- */
+/** More distinct coverage surfaces than this → plan-seed instead of a Story. */
 const EPIC_COVERAGE_THRESHOLD = 2;
 
 /**
- * True when a ledger item has NOT yet been promoted — i.e. it is part of the
- * rolling backlog. An item is untriaged when its `disposition` is not one of
- * the canonical triaged values, OR it is explicitly dispositioned `file` but
- * has not yet been routed (`routedTo` absent). A `defer` / `dismiss` item, or
- * an already-`routedTo` item, is skipped.
- *
  * @param {{ disposition?: unknown, routedTo?: unknown }} item
  * @returns {boolean}
  */
@@ -69,20 +27,12 @@ export function isPromotable(item) {
   if (item.routedTo) return false;
   const disposition = item.disposition;
   if (disposition === 'defer' || disposition === 'dismiss') return false;
-  // `file` items are promotable; anything not in the triaged set (pending,
-  // untriaged, null, absent) is the rolling backlog and also promotable.
   if (disposition === 'file') return true;
   return !TRIAGED_DISPOSITIONS.includes(disposition);
 }
 
 /**
- * Stable cluster key for a ledger item: its `class`. Items sharing a class
- * describe the same kind of signal (a product bug, a tooling-DX gap, …) and
- * merge into one follow-up ticket. A class whose items span many distinct
- * coverage surfaces is broad enough to promote to a plan-seed (see
- * {@link targetForCluster}); a class confined to one or two surfaces is a
- * single-deliverable Story. Coverage is therefore a *secondary* signal that
- * sizes the cluster rather than splitting it.
+ * Coverage sizes a cluster; it never splits one.
  *
  * @param {{ class?: string }} item
  * @returns {string}
@@ -94,27 +44,15 @@ function clusterKeyFor(item) {
 }
 
 /**
- * The highest severity present across a cluster's items, resolved through the
- * shared canonical {@link ./severity.js} vocabulary (Story #3816). This module
- * no longer declares its own severity rank table — the ordering lives in one
- * place so a cluster severity and a `classify-finding` severity for the same
- * input are identical, keeping the `fingerprintFinding` identity stable.
- *
  * @param {Array<{ severity?: string }>} items
- * @returns {string} one of the canonical severities.
+ * @returns {string}
  */
 function highestSeverity(items) {
   return highestSeverityOf(items.map((item) => item?.severity));
 }
 
 /**
- * Cluster the promotable (untriaged / unrouted) ledger items by coverage
- * surface + class. Returns one cluster per distinct key, each carrying the
- * contributing items, the distinct coverage surfaces it spans, the highest
- * severity in the merge, and a synthesized title. Deterministic: clusters and
- * their items preserve first-seen order.
- *
- * @param {Array<object>} items — ledger items (the full session ledger).
+ * @param {Array<object>} items
  * @returns {Array<{
  *   key: string,
  *   class: string,
@@ -166,11 +104,6 @@ export function clusterLedgerItems(items) {
 }
 
 /**
- * Decide a cluster's promotion target. A cluster that spans more than
- * {@link EPIC_COVERAGE_THRESHOLD} distinct coverage surfaces is broad enough to
- * warrant a plan-seed (`/mandrel-plan --seed`); otherwise it is a single-deliverable
- * Story (`/mandrel-plan`).
- *
  * @param {{ coverages: string[] }} cluster
  * @returns {'story'|'epic'}
  */
@@ -184,10 +117,8 @@ export function targetForCluster(cluster) {
 }
 
 /**
- * Adapt a cluster onto the canonical finding identity that `routeFinding`
- * fingerprints over (`title`, `area`, `primaryFile`, `severity`, `labels`).
- * The coverage surface stands in for `area`; the class becomes a label so two
- * clusters with the same title but different classes fingerprint distinctly.
+ * The class is a label so same-titled clusters of different classes
+ * fingerprint distinctly.
  *
  * @param {{ title: string, coverages: string[], class: string, severity: string }} cluster
  * @returns {{ title: string, area: string, primaryFile: string, severity: string, labels: string[] }}
@@ -203,13 +134,7 @@ function clusterToFinding(cluster) {
 }
 
 /**
- * Build the `routedTo` link the schema stamps onto a promoted ledger item.
- *
- * The `routedTo.url` field is `minLength: 1` in `qa-ledger.schema.json`,
- * and the search/create port contract requires a
- * routed issue to carry its canonical URL. So rather than silently stamp an
- * empty string (which would persist a schema-invalid ledger item), this guards
- * the url and throws when it is absent or blank (Story #3816, AC #4).
+ * `routedTo.url` is `minLength: 1` in the schema, so an empty url throws.
  *
  * @param {{ number: number, url?: string }} issue
  * @param {'story'|'epic'|'issue'} kind
@@ -233,35 +158,15 @@ function routedToLink(issue, kind) {
 }
 
 /**
- * Promote the clustered untriaged ledger items into Stories / plan-seeds via the
- * shared findings/route logic, then write the resulting `routedTo` issue link
- * back onto each contributing ledger item.
+ * On `new`, create via the target's port; otherwise link to the matched
+ * Issue. Items are mutated in place so a `qa-session` append persists the link.
  *
- * For each cluster:
- *   1. Adapt the cluster onto the canonical finding shape and route it with the
- *      shared `routeFinding` against existing Issues (via the injected search
- *      port). This dedups against work already filed.
- *   2. On a `new` decision, open the follow-up ticket through the injected
- *      `createStory` (`/mandrel-plan`) or `createPlanSeed` (`/mandrel-plan --seed`) port,
- *      chosen by {@link targetForCluster}. On any other decision, link back to
- *      the matched Issue rather than creating a duplicate.
- *   3. Stamp the resolved `routedTo` link onto every contributing ledger item
- *      (mutating the item objects in place, so a `qa-session` append persists
- *      the link).
- *
- * All GitHub side-effects flow through the injected ports — there is no network
- * I/O in this module, so the unit test runs offline.
- *
- * @param {Array<object>} ledgerItems — the full session ledger.
+ * @param {Array<object>} ledgerItems
  * @param {object} ports
  * @param {(sha: string) => Promise<Array<{ number: number, state: string, body?: string }>>} [ports.searchIssues]
- *   Fingerprint-keyed lookup over open+closed issues, forwarded to `routeFinding`.
  * @param {(finding: object) => Promise<Array<{ number: number, state: string, title?: string, body?: string }>>} [ports.searchCandidates]
- *   Optional semantic candidate search, forwarded to `routeFinding`.
  * @param {(cluster: object) => Promise<{ number: number, url?: string }>} ports.createStory
- *   Opens a single Story (`/mandrel-plan`) for a tight cluster.
  * @param {(cluster: object) => Promise<{ number: number, url?: string }>} ports.createPlanSeed
- *   Opens a plan-seed (`/mandrel-plan --seed`) run for a broad cluster.
  * @returns {Promise<{
  *   promotions: Array<{
  *     clusterKey: string,
@@ -312,8 +217,6 @@ export async function promoteFindings(ledgerItems, ports = {}) {
       issue = await createPort(cluster);
       created = true;
     } else {
-      // Already filed (open match, duplicate, or regression of a closed
-      // ticket) — link back to the matched Issue instead of duplicating.
       issue = {
         number: route.matchedIssue.number,
         url: route.matchedIssue.url,
@@ -323,7 +226,6 @@ export async function promoteFindings(ledgerItems, ports = {}) {
     const kind = created ? target : 'issue';
     const link = routedToLink(issue, kind);
 
-    // Write the routedTo link back onto each contributing ledger item.
     for (const item of cluster.items) {
       item.routedTo = { ...link };
     }
