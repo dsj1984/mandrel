@@ -97,7 +97,12 @@ to an attended run.
    - **0** — spawn one `story-worker` per `ready[]` entry, **all in one turn**,
      each with that entry's `promptPath` file as its prompt; run each `close[]`
      entry's command foreground and serialized as hand-offs arrive. An empty
-     `ready` with work in flight means "waiting", so beat again;
+     `ready` with work in flight means "waiting", so beat again — **unless
+     `stalledDispatch[]` is non-empty**: those ids were dispatched but still
+     read `agent::ready`, which is a live init window the first beats or two
+     and a spawn that never started one after that. Beating again cannot
+     clear it. Relay `stalledDispatchReason` — it carries the recovery — and
+     let the operator decide; never edit the ledger for them.
      `done: true` means every Story is landed — step 4.
    - **2 / 3 / 4** — `cycleError` / `wedged` / `blocked`: stop the loop and
      route per reference. **4** is the protocol's HITL pause

@@ -222,7 +222,6 @@ describe('workflow-invoked scripts are self-describing', () => {
 
     const plan = readDoc(path.join(WORKFLOWS_DIR, 'mandrel-plan.md'));
     for (const flag of [
-      '--chain-on-clean',
       '--no-close-superseded',
       '--route-downgrade-reason',
       '--allow-over-budget',

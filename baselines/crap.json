@@ -21250,19 +21250,6 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
-      "method": "assertSupersedePartition",
-      "startLine": 290,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
-      "method": "<anon assertSupersedePartition/(e)#0>",
-      "startLine": 334,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "buildSupersedeCommentBody",
       "startLine": 349,
       "crap": 2
@@ -25753,26 +25740,6 @@
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "<anon validateAcFreshness/(m)#0>",
       "startLine": 283,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "validateAcceptanceSubjectPrefix",
-      "startLine": 357,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "<anon validateAcceptanceSubjectPrefix/(t)#0>",
-      "startLine": 359,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "<anon validateAcceptanceSubjectPrefix/(v)#0>",
-      "startLine": 385,
       "crap": 1,
       "anonymous": true
     },

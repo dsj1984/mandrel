@@ -629,6 +629,18 @@ const GRAPHQL_PROBE_TIMEOUT_MS = 15_000;
  * rare late failure for a common early one. Such a probe reports `available`
  * with `reason: 'probe-inconclusive'`, so the log still shows it happened.
  *
+ * A **rate limit is that same fail-open case wearing a 403** (Story #5362).
+ * GitHub answers both its primary and its secondary rate limits with HTTP
+ * 403, and a throttled session says nothing about whether GraphQL is
+ * reachable from here — so the rate-limit test runs *before* the bare status
+ * match, and it accepts either shape the evidence arrives in: the typed
+ * {@link GhRateLimitError} the shared classifier already produces, or
+ * rate-limit text riding on an otherwise untyped 403. Classifying it
+ * `unavailable` would block the Story behind a remedy that cannot work —
+ * "re-run from a local session" is an instruction to go reproduce the same
+ * throttle. A 403 with no rate-limit evidence is still the web-session shape
+ * this preflight was built for and still refuses.
+ *
  * @param {unknown} err The rejection `gh.api` produced.
  * @returns {{ verdict: 'available'|'unavailable'|'auth-failed', reason: string }}
  */
@@ -641,6 +653,10 @@ function classifyGraphqlProbeFailure(err) {
       haystack,
     );
   if (authShaped) return { verdict: 'auth-failed', reason: 'auth' };
+  const rateLimited =
+    err instanceof GhRateLimitError || /rate[ -]?limit/.test(haystack);
+  if (rateLimited)
+    return { verdict: 'available', reason: 'rate-limited-inconclusive' };
   if (/http 403|403 forbidden/.test(haystack))
     return { verdict: 'unavailable', reason: 'http-403' };
   return { verdict: 'available', reason: 'probe-inconclusive' };
@@ -652,8 +668,9 @@ function classifyGraphqlProbeFailure(err) {
  * One `gh api graphql` read, three verdicts:
  *
  *   - `available`    — GraphQL answered (or the probe failed in a way that
- *                      says nothing about reachability; see the fail-open
- *                      note on {@link classifyGraphqlProbeFailure}).
+ *                      says nothing about reachability — an ambiguous error
+ *                      or a rate limit; see the fail-open note on
+ *                      {@link classifyGraphqlProbeFailure}).
  *   - `unavailable`  — GraphQL answered HTTP 403. This is the Claude Code
  *                      web-session shape: the token is fine, the endpoint
  *                      is simply not reachable from here, so the entire

@@ -111,6 +111,27 @@ never the run. The run id is a stable digest of the Story id set, so every beat
 of one run finds the same ledger and two concurrent runs never share one;
 `--run-id` pins it explicitly.
 
+**A spawn that never reached init is the ledger's one sharp edge.** Append-only
+is what makes the list safe to keep, and it is also why a bad entry never
+leaves: if a spawn dies before `single-story-init.js` runs, the id stays
+ledgered, is withheld as in flight on every later beat, and the run returns an
+empty `ready[]` with a non-zero `inFlight` forever — which reads exactly like a
+healthy wait. The beat names it instead: every ledgered id live state still
+reports as `agent::ready` appears in `stalledDispatch[]`, with the recovery in
+`stalledDispatchReason`. That is its **own** reason — not a footprint withhold
+(which names a blocking peer and the colliding paths) and not a foreign lease
+(which names a holder and clears itself when their run ends).
+
+It is a report, not a release. A slow init and a dead spawn are the same
+observation at the beat's altitude, and auto-releasing would re-dispatch a live
+Story onto its own branch — the failure the ledger exists to prevent. So the
+operator owns the call: confirm no worker is running, remove the id from
+`dispatched` in `<tempRoot>/run-<id>/ledger.json` (deleting the file works too,
+at the cost of reopening the init window for the rest), and beat again with
+`--run-id <id>` so the same run directory is reused. An id that has since
+picked up `agent::executing`, `agent::closing` or `agent::done` is never
+reported here — live state has moved on and the ledger entry is already inert.
+
 **Cross-run de-confliction is automatic.** A Story another
 operator is delivering is withheld without any bookkeeping from you: the probe
 reads the Story's assignee lease and, when it belongs to a different operator,
