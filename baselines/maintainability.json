@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-18T14:15:49.445Z",
+  "generatedAt": "2026-09-18T14:25:50.622Z",
   "rollup": {
     "*": {
       "min": 76.381,
@@ -984,7 +984,7 @@
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
-      "mi": 105.155
+      "mi": 107.558
     },
     {
       "path": ".agents/scripts/lib/full-suite-queue.js",
@@ -1572,7 +1572,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
-      "mi": 90.606
+      "mi": 92.614
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
