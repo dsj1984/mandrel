@@ -1,20 +1,8 @@
 #!/usr/bin/env node
 /**
- * Refresh `baselines/coverage.json` from the most recent
- * `coverage/coverage-final.json`. Run this when you intentionally add,
- * remove, or change scope of `.agents/scripts/**` files and the
- * resulting per-file coverage shifts are expected.
- *
- * Story #3658 (Epic #2173): this CLI is now a thin wrapper around
- * `refreshBaseline({ kind: 'coverage' })` from
- * `.agents/scripts/lib/baselines/refresh-service.js`. All scoring, scope
- * resolution, envelope assembly, and persistence flows through the unified
- * service.
- *
- * The script does NOT run the test suite itself — invoke
- * `npm run test:coverage` first (or rely on its prior run-on-disk
- * artifact). This keeps the refresh idempotent and lets operators
- * inspect coverage output before locking it in.
+ * Refresh the coverage baseline from the `coverage-final.json` on disk via
+ * `refreshBaseline({ kind: 'coverage' })`. Never runs the suite, so the
+ * refresh is idempotent and the output can be inspected first.
  */
 
 import { createRequire } from 'node:module';
@@ -34,12 +22,7 @@ import {
 } from './lib/coverage-baseline.js';
 import { Logger } from './lib/Logger.js';
 
-/**
- * Usage block for `--help`. This CLI *writes* on invocation, so the help
- * branch must short-circuit before `main` runs rather than inside it —
- * `runAsCli` answers help first, which makes "a usage probe never mutates a
- * baseline" structural instead of a check `main` has to remember.
- */
+/** `runAsCli` answers `--help` before `main`, so a usage probe never writes. */
 const USAGE = {
   invocation:
     'node .agents/scripts/update-coverage-baseline.js [--full-scope | --diff-scope <ref>]',

@@ -1,38 +1,12 @@
 /**
- * bdd-step-index.js — scoped discovery and matching for BDD step definitions.
+ * Scoped discovery and matching of BDD step definitions for
+ * `check-gherkin-corpus.js`. Feature discovery reuses the scenario scanner's
+ * `listFeatureFiles` so both agree on what a feature file is.
  *
- * `check-gherkin-corpus.js` answers one question per Gherkin step: does a step
- * definition **under this step's own scope** claim it? That question has two
- * halves, and this module owns both so the corpus gate never re-implements
- * either inline:
- *
- *   1. **Discovery** — which files under a scope's `stepRoots` hold step
- *      definitions, and which `.feature` files sit under its `featureRoots`.
- *      Feature discovery is delegated to `listFeatureFiles` in
- *      `bdd-scenario-scanner.js` rather than copied: /mandrel-plan's scenario index and
- *      this gate must agree on what counts as a feature file, and two walkers
- *      would eventually disagree.
- *   2. **Matching** — turn each definition's Cucumber expression or regular
- *      expression into one `RegExp`, and test a step's text against the index.
- *
- * ## Heuristic index, exact parser
- *
- * The parser half of the gate is exact: `@cucumber/gherkin` decides what
- * compiles. This half is deliberately **not**. Reading step definitions
- * without executing them means a regex scan over source text, and a scan
- * cannot see a definition assembled at runtime, registered through a wrapper,
- * or parameterised by a custom `defineParameterType`. That asymmetry is why
- * the gate ships a step-waiver list: a false "unbound" must always have an
- * escape that does not require switching the whole gate off.
- *
- * Supported Cucumber-expression constructs are the ones the built-in parameter
- * types and the optional/alternation syntax cover — `{int}`, `{float}`,
- * `{word}`, `{string}`, an anonymous `{}`, `text(s)` optionals, and `a/an`
- * word alternation. An unrecognised `{custom}` degrades to `(.*)` rather than
- * failing to match, because over-matching produces a missed finding while
- * under-matching produces a false one, and a false one blocks a delivery.
- *
- * Nothing here reads configuration or exits a process; the CLI owns both.
+ * The index is a heuristic source scan (it cannot see runtime-built or
+ * wrapped definitions), hence the gate's step-waiver list. An unknown
+ * `{custom}` parameter degrades to `(.*)`: over-matching misses a finding,
+ * under-matching blocks a delivery with a false one.
  */
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -42,7 +16,6 @@ import { listFeatureFiles } from './bdd-scenario-scanner.js';
 
 export { listFeatureFiles };
 
-/** Extensions a step-definition module may carry. */
 const STEP_FILE_EXTENSIONS = Object.freeze([
   '.js',
   '.mjs',
@@ -53,15 +26,12 @@ const STEP_FILE_EXTENSIONS = Object.freeze([
   '.tsx',
 ]);
 
-/** Directory names never walked when looking for step definitions. */
 const SKIPPED_DIRECTORIES = Object.freeze(
   new Set(['node_modules', '.git', 'dist', 'build', '.next', 'coverage']),
 );
 
 /**
- * Regular expressions for the built-in Cucumber parameter types, keyed by the
- * name inside the braces. The empty key is the anonymous `{}` parameter and
- * doubles as the fallback for a custom type this scan cannot resolve.
+ * Built-in parameter types; `''` is `{}` and the fallback for custom types.
  *
  * @type {Readonly<Record<string, string>>}
  */
@@ -73,27 +43,16 @@ const PARAMETER_PATTERNS = Object.freeze({
   string: '("[^"]*"|\'[^\']*\')',
 });
 
-/**
- * Step-registration call sites this scan recognises. `Step` and `defineStep`
- * cover the generic registrars playwright-bdd and cucumber-js both expose.
- *
- * Group 2/3 capture a quoted expression, group 4/5 a regular-expression
- * literal with its flags.
- */
+/** Groups 2/3: quoted expression; 4/5: regex literal and flags. */
 const STEP_CALL_PATTERN =
   /\b(Given|When|Then|And|But|Step|defineStep)\s*\(\s*(?:(['"`])((?:\\.|(?!\2)[^\\])*)\2|\/((?:\\.|\[(?:\\.|[^\]\\])*\]|[^/\\[])+)\/([dgimsuvy]*))/g;
 
-/** Escape one character for literal use inside a regular expression. */
 function escapeRegExp(text) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**
- * Render one alternation-free segment of a Cucumber expression: parameter
- * placeholders become capture groups, `(optional)` runs become optional
- * groups, and everything else is escaped literal text.
- *
- * @param {string} segment
+ * @param {string} segment An alternation-free piece of an expression.
  * @returns {string}
  */
 function renderSegment(segment) {
@@ -130,10 +89,7 @@ function renderSegment(segment) {
 }
 
 /**
- * Split a word on unescaped `/` so `a/an` becomes two alternatives. Escaped
- * `\/` stays literal.
- *
- * @param {string} word
+ * @param {string} word Split on unescaped `/`.
  * @returns {string[]}
  */
 function splitAlternation(word) {
@@ -158,12 +114,8 @@ function splitAlternation(word) {
 }
 
 /**
- * Compile a Cucumber expression into an anchored `RegExp`.
- *
- * Alternation is resolved per whitespace-separated word, which is what the
- * real expression grammar does. Resolving it across the whole string instead
- * would turn `I have a/an apple` into `^I have a|an apple$` — two anchored
- * alternatives, neither of them the intended step.
+ * Alternation is per word, as in the real grammar; whole-string alternation
+ * would anchor the wrong alternatives.
  *
  * @param {string} expression
  * @returns {RegExp}
@@ -183,18 +135,11 @@ function expressionToRegExp(expression) {
 }
 
 /**
- * Recursively list step-definition source files under the given roots.
+ * Not `fs-walk.js`: that walker takes one extension, descends into
+ * `node_modules`, and rethrows readdir failures, whereas an unreadable scope
+ * here must surface as "zero step definitions" (the gate's fail-closed path).
  *
- * Deliberately not `walkFilesByExtension` from `fs-walk.js`, which is the
- * shared walker for the lint surfaces. That one matches a single extension and
- * walks everything below the root, so reusing it here would mean seven passes
- * — one per accepted extension — each of them descending into a `node_modules`
- * a consumer's step root may well contain. It also rethrows every non-ENOENT
- * `readdir` failure, where this walker must skip an unreadable directory: an
- * unreadable *scope* has to surface as "zero step definitions", the gate's
- * fail-closed path, which names the scope and its step roots.
- *
- * @param {string[]} roots absolute or cwd-relative directories
+ * @param {string[]} roots
  * @returns {string[]} absolute paths, sorted
  */
 export function listStepFiles(roots) {
@@ -214,8 +159,7 @@ function walkStepDir(dir, acc) {
   }
   for (const entry of entries) {
     const full = path.join(dir, entry.name);
-    // `withFileTypes` reports a symlink as neither file nor directory, so
-    // fall back to a stat for those rather than dropping them silently.
+    // A symlink is neither file nor directory to `withFileTypes`; stat it.
     const isDir =
       entry.isDirectory() || (entry.isSymbolicLink() && isDirAt(full));
     if (isDir) {
@@ -235,10 +179,8 @@ function isDirAt(target) {
 }
 
 /**
- * Extract every step registration in one source file.
- *
- * @param {string} source file contents
- * @param {string} file absolute path, recorded on each entry
+ * @param {string} source
+ * @param {string} file
  * @returns {Array<{ file: string, line: number, source: string, regex: RegExp }>}
  */
 function parseStepDefinitions(source, file) {
@@ -255,12 +197,7 @@ function parseStepDefinitions(source, file) {
   return entries;
 }
 
-/**
- * Build one matcher from a captured registration. A malformed regular
- * expression yields `null` — the definition is skipped rather than crashing
- * the scan, and the steps it would have claimed surface as unbound, which is
- * the safe direction.
- */
+/** A malformed pattern yields `null`: its steps surface as unbound, the safe direction. */
 function compileMatcher({ quoted, pattern, flags }) {
   if (typeof quoted === 'string') {
     try {
@@ -270,8 +207,7 @@ function compileMatcher({ quoted, pattern, flags }) {
     }
   }
   try {
-    // `g` and `y` are stateful across `.test()` calls; strip them so the index
-    // cannot depend on how many times it has been consulted.
+    // `g`/`y` make `.test()` stateful.
     return new RegExp(pattern, (flags ?? '').replace(/[gy]/g, ''));
   } catch {
     return null;
@@ -279,8 +215,6 @@ function compileMatcher({ quoted, pattern, flags }) {
 }
 
 /**
- * Build the step index for one scope.
- *
  * @param {{ files: string[], readFile?: (p: string) => string }} params
  * @returns {{ entries: Array<{ file: string, line: number, source: string, regex: RegExp }>, files: string[] }}
  */
@@ -300,11 +234,9 @@ export function buildStepIndex({ files, readFile }) {
 }
 
 /**
- * Find the first definition in the index claiming `text`.
- *
  * @param {{ entries: Array<{ regex: RegExp }> }} index
- * @param {string} text the step text, keyword already stripped by the parser
- * @returns {object | null} the matching entry, or `null` when nothing claims it
+ * @param {string} text Step text without its keyword.
+ * @returns {object | null}
  */
 export function matchStep(index, text) {
   for (const entry of index?.entries ?? []) {
@@ -313,13 +245,7 @@ export function matchStep(index, text) {
   return null;
 }
 
-/**
- * Module-private helpers the suite drives directly. Bundled rather than
- * exported individually — the same seam `knip-entry-sync.js` and
- * `source-classifier.js` use — so test-only symbols cost one production
- * dead-export row instead of one each, and so private helpers do not read as
- * API.
- */
+/** Test-only helpers, bundled so they cost one dead-export row. */
 export const __testing = Object.freeze({
   expressionToRegExp,
   parseStepDefinitions,

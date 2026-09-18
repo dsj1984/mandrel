@@ -1,13 +1,6 @@
-/**
- * Graph.js
- * Extracted mathematical DAG logic for topological sorting, cycle detection,
- * transitive reduction, and auto-serialization of concurrent task overlaps.
- */
+/** DAG utilities: cycle detection, layering, reduction, topological sort. */
 
-/**
- * Builds an adjacency list from the manifest tasks.
- * Returns { adjacency: Map<id, id[]>, taskMap: Map<id, task> }
- */
+/** Returns { adjacency: Map<id, id[]>, taskMap: Map<id, task> }. */
 export function buildGraph(tasks) {
   const adjacency = new Map();
   const taskMap = new Map();
@@ -20,10 +13,7 @@ export function buildGraph(tasks) {
   return { adjacency, taskMap };
 }
 
-/**
- * Detects cycles using DFS. Returns the first cycle found as an array of ids,
- * or null if the graph is acyclic.
- */
+/** The first cycle found as an array of ids, or null. */
 export function detectCycle(adjacency) {
   const WHITE = 0,
     _GRAY = 1,
@@ -50,7 +40,7 @@ function dfsVisit(u, adjacency, color, parent) {
 
   for (const v of adjacency.get(u) || []) {
     if (color.get(v) === 1) {
-      // Back edge → cycle. Reconstruct.
+      // Back edge: reconstruct the cycle.
       const cycle = [v, u];
       let cur = u;
       while (parent.has(cur) && parent.get(cur) !== v) {
@@ -70,10 +60,7 @@ function dfsVisit(u, adjacency, color, parent) {
   return null;
 }
 
-/**
- * Assigns each task a layer (depth from root). Root tasks (no dependencies)
- * are layer 0. Returns Map<id, layer>.
- */
+/** Depth from root (roots are layer 0) as Map<id, layer>. */
 export function assignLayers(adjacency) {
   const layers = new Map();
   const memo = new Map();
@@ -101,36 +88,18 @@ export function assignLayers(adjacency) {
 }
 
 /**
- * Performs transitive reduction on a DAG.
+ * Remove edge (u→v) iff another direct dependency of u already reaches v.
  *
- * Removes edge (u→v) iff some *other* direct dependency w of u satisfies
- * v ∈ reach(w) — i.e. v is reachable from u via a path of length > 1 that
- * does not use the edge (u→v) itself.
- *
- * Two-arg form (preferred on hot paths): callers that already hold a
- * reachability matrix for the same `adjacency` (e.g. the dispatch
- * pipeline, which also feeds it to `autoSerializeOverlaps`) pass it in
- * via `reachable` so we skip the O(V·(V+E)) re-derivation. The per-edge
- * check is then O(1) (`reach(w).has(v)`), making the overall reduction
- * O(V+E) on top of the (amortized) cost of producing `reachable` once.
- *
- * Single-arg form (back-compat): when `reachable` is omitted we compute
- * it locally via `computeReachability(adjacency)` so the function stays
- * a drop-in replacement for the historical single-argument signature.
- * Output is byte-identical between the two forms.
- *
- * @param {Map<*, *[]>} adjacency  Dependency map (node → deps[]).
- * @param {Map<*, Set<*>>} [reachable]  Optional pre-computed reachability
- *   matrix matching `adjacency`. When supplied it MUST cover every node
- *   in `adjacency` — passing a partial map will silently corrupt output.
- * @returns {Map<*, *[]>}  Reduced adjacency map.
+ * @param {Map<*, *[]>} adjacency node → deps[].
+ * @param {Map<*, Set<*>>} [reachable] Precomputed reachability; when given it
+ *   MUST cover every node, or output is silently corrupt.
+ * @returns {Map<*, *[]>}
  */
 export function transitiveReduction(adjacency, reachable) {
   const reach = reachable ?? computeReachability(adjacency);
   const result = new Map();
 
   for (const [node, deps] of adjacency.entries()) {
-    // Early-return: nodes with zero or one dependency cannot have redundant edges
     if (deps.length <= 1) {
       result.set(node, [...deps]);
       continue;
@@ -138,8 +107,6 @@ export function transitiveReduction(adjacency, reachable) {
 
     const kept = [];
     for (const dep of deps) {
-      // Edge (node → dep) is redundant iff some other direct dep `other`
-      // of `node` already reaches `dep` transitively.
       let isRedundant = false;
       for (const other of deps) {
         if (other === dep) continue;
@@ -156,12 +123,8 @@ export function transitiveReduction(adjacency, reachable) {
   return result;
 }
 
-/**
- * Computes which Chat Sessions each Chat Session depends on.
- * Returns a Map<chatNumber, chatNumber[]>.
- */
+/** Returns a transitively reduced Map<chatNumber, chatNumber[]>. */
 export function computeChatDependencies(chatSessions, _adjacency) {
-  // Build a reverse lookup: taskId → chatNumber
   const taskToChat = new Map();
   for (const session of chatSessions) {
     for (const task of session.tasks) {
@@ -186,22 +149,16 @@ export function computeChatDependencies(chatSessions, _adjacency) {
     );
   }
 
-  // Apply transitive reduction to chat-level dependencies
   return transitiveReduction(chatDeps);
 }
 
-/**
- * Computes the transitive closure (reachability matrix) for the DAG.
- * Returns a Map<id, Set<id>> where each key maps to a set of all tasks it can reach.
- */
+/** Transitive closure as Map<id, Set<id>>, by memoized DFS: O(V·(V+E)). */
 export function computeReachability(adjacency) {
-  // Memoized DFS: each node's reachable set is computed once and cached.
-  // Complexity: O(V·(V+E)) — avoids the O(N³) Floyd-Warshall triple loop.
   const memo = new Map();
 
   function reach(id) {
     if (memo.has(id)) return memo.get(id);
-    // Seed with a placeholder to handle cycles defensively
+    // Placeholder first, so a cycle cannot recurse forever.
     const set = new Set();
     memo.set(id, set);
     for (const neighbour of adjacency.get(id) || []) {
@@ -221,17 +178,14 @@ export function computeReachability(adjacency) {
 }
 
 /**
- * Performs a topological sort on the DAG using Kahn's algorithm.
- * Returns tasks ordered such that all dependencies precede their dependents.
- * Deterministic: ties are broken by task ID (ascending) for stable output.
+ * Kahn's algorithm; ties break by ascending id for stable output.
  *
- * @param {Map<number, number[]>} adjacency - Dependency map (id → blockedBy[]).
- * @param {Map<number, object>} taskMap - Full task objects keyed by id.
- * @returns {object[]} Tasks in topological order.
- * @throws {Error} If a cycle is detected (should be caught before calling this).
+ * @param {Map<number, number[]>} adjacency id → blockedBy[].
+ * @param {Map<number, object>} taskMap
+ * @returns {object[]}
+ * @throws {Error} On a cycle (run `detectCycle` first).
  */
 export function topologicalSort(adjacency, taskMap) {
-  // Pre-compute reverse adjacency and in-degree for O(V+E)
   const inDegree = new Map();
   const reverseAdj = new Map();
 
@@ -250,7 +204,6 @@ export function topologicalSort(adjacency, taskMap) {
     inDegree.set(nodeId, activeDeps);
   }
 
-  // Seed queue with zero-in-degree nodes (tasks with no active dependencies), sorted by id for determinism
   const queue = [...inDegree.entries()]
     .filter(([, deg]) => deg === 0)
     .map(([id]) => id)
@@ -259,17 +212,15 @@ export function topologicalSort(adjacency, taskMap) {
   const sorted = [];
 
   while (queue.length > 0) {
-    // Take smallest ID for determinism (queue is kept sorted)
+    // The queue is kept sorted, so this is the smallest id.
     const id = queue.shift();
     sorted.push(taskMap.get(id));
 
-    // Decrement in-degree for dependents using pre-computed reverse map
     for (const dependent of reverseAdj.get(id) ?? []) {
       const newDeg = (inDegree.get(dependent) ?? 0) - 1;
       inDegree.set(dependent, newDeg);
       if (newDeg === 0) {
-        // Binary insertion to maintain sorted order — O(log N) per insert
-        // instead of re-sorting the entire queue each iteration.
+        // Binary insertion keeps the queue sorted without a re-sort.
         let lo = 0,
           hi = queue.length;
         while (lo < hi) {
@@ -292,18 +243,11 @@ export function topologicalSort(adjacency, taskMap) {
 }
 
 /**
- * Groups tasks into sequential execution waves.
+ * Group tasks by layer; each wave's dependencies are all in earlier waves.
  *
- * A wave contains all tasks whose dependencies are fully satisfied by
- * previously completed waves. Tasks within the same wave can run concurrently
- * (subject to focus-area serialization in the Dispatcher).
- *
- * Uses `assignLayers` to compute depth, then groups by layer value.
- * The returned array is sorted by wave index (wave 0 = roots).
- *
- * @param {Map<number, number[]>} adjacency - Dependency map (id → blockedBy[]).
- * @param {Map<number, object>} taskMap - Full task objects keyed by id.
- * @returns {object[][]} Array of waves, each wave is an array of task objects.
+ * @param {Map<number, number[]>} adjacency id → blockedBy[].
+ * @param {Map<number, object>} taskMap
+ * @returns {object[][]}
  */
 export function computeWaves(adjacency, taskMap) {
   const layers = assignLayers(adjacency);
@@ -314,7 +258,6 @@ export function computeWaves(adjacency, taskMap) {
     waveMap.get(layer).push(taskMap.get(id));
   }
 
-  // Sort waves by layer, sort tasks within each wave by id for determinism
   const maxLayer = Math.max(...waveMap.keys());
   const waves = [];
   for (let i = 0; i <= maxLayer; i++) {
