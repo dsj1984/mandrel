@@ -5,9 +5,9 @@
   "rollup": {
     "*": {
       "percentage": 6.96,
-      "duplicatedLines": 1528,
-      "totalLines": 21942,
-      "filesWithDuplication": 74
+      "duplicatedLines": 1510,
+      "totalLines": 21684,
+      "filesWithDuplication": 72
     }
   },
   "rows": [
@@ -76,18 +76,6 @@
       "duplicatedLines": 14,
       "totalLines": 192,
       "percentage": 7.29
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/kinds/lighthouse.js",
-      "duplicatedLines": 12,
-      "totalLines": 86,
-      "percentage": 13.95
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/kinds/lint.js",
-      "duplicatedLines": 6,
-      "totalLines": 172,
-      "percentage": 3.49
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/maintainability.js",
