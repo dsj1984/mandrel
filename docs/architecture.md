@@ -229,7 +229,7 @@ graph TB
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `plan-context.js`                | Single authoring-envelope emitter for `/mandrel-plan`: Story brief + docs digest + duplicate search + clarity + rendered system prompts. |
 | `plan-critics.js`                | Single critic-dispatch evaluation point for `/mandrel-plan`, run between Author and Persist: prints the consolidation + pre-mortem verdict as JSON (advisory — exits 0 on any verdict) and ledgers every skip. Exits 1 on a usage/IO error, where no critic ran and no skip was ledgered: do not proceed to Persist. |
-| `plan-persist.js`                | Single GitHub-write surface for `/mandrel-plan`: section gate, ticket validator + file-assumption + DAG + budget gates, Story creation, terminal `agent::ready` flip, one `story-plan-state` comment per Story (checkpoint + plan summary). |
+| `plan-persist.js`                | Single GitHub-write surface for `/mandrel-plan`: section gate, ticket validator + file-assumption + DAG + budget gates, Story creation, terminal `agent::ready` flip, one `story-plan-state` comment per Story (the plan summary). |
 | `single-story-init.js`           | Validates a standalone Story, branches from `main`, creates the worktree, flips `agent::executing`. |
 | `stories-wave-tick.js`           | Ready-set planner for multi-Story `/mandrel-deliver` (shared `planReadySet` core; default concurrency 3). |
 | `single-story-close.js`          | Close-validation gate chain, opens PR to `main` with auto-merge armed, rests Story at `agent::closing`. |

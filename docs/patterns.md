@@ -381,8 +381,7 @@ accumulate as clutter.
 
 | Type                        | Writer                                                                 | Purpose                                                                 |
 | --------------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `story-plan-state`          | `plan-persist.js` (`writeCheckpointV2`)                                | Per-Story planning checkpoint (persist receipt) + the plan summary.     |
-| `story-init`                | `single-story-init.js`                                                 | Init snapshot (worktree, deps, remote probe).                           |
+| `story-plan-state`          | `plan-persist.js` (`writePlanSummaryComment`)                          | The plan summary — story set, delivery order, deliver command.          |
 | `friction`                  | single-story init/close phases                                         | Blockers / HITL telemetry on the Story issue.                           |
 | `verification-results`      | `lib/orchestration/code-review.js`                                     | Unified code-review / lens findings (often on the PR).                  |
 | `notification`              | `single-story-close` code-review phase                                 | Story-issue cross-link to PR-side verification results.                 |
