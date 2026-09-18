@@ -211,6 +211,52 @@ describe('probeLiveState — done and in-flight come from live state', () => {
     assert.equal(inFlight, 0);
   });
 
+  it('names a dispatched id live state still reports as ready (Story #5363)', async () => {
+    // The same observation covers a live init window and a spawn that died
+    // before reaching init. The probe cannot tell them apart, so it reports
+    // the fact and withholds the id either way.
+    const provider = stubProvider({
+      101: issue(101),
+      102: issue(102, { labels: ['agent::executing'] }),
+      103: issue(103, { labels: ['agent::closing'] }),
+      104: issue(104, { labels: ['agent::done'] }),
+      105: issue(105),
+    });
+
+    const { stalledDispatch, inFlight } = await probeLiveState({
+      ids: [101, 102, 103, 104, 105],
+      provider,
+      owner: 'dsj1984',
+      repo: 'mandrel',
+      dispatched: [101, 102, 103, 104],
+    });
+
+    assert.deepEqual(
+      stalledDispatch,
+      [101],
+      'only the claimed id whose live label never arrived',
+    );
+    assert.equal(inFlight, 3, '#104 is done; #105 was never claimed');
+  });
+
+  it('reports a foreign lease under its own reason, never as a stalled dispatch', async () => {
+    const provider = stubProvider({
+      101: issue(101, { assignees: ['bob'] }),
+    });
+
+    const { stalledDispatch, foreignHeld } = await probeLiveState({
+      ids: [101],
+      provider,
+      owner: 'dsj1984',
+      repo: 'mandrel',
+      dispatched: [101],
+      self: 'dsj1984',
+    });
+
+    assert.deepEqual(stalledDispatch, []);
+    assert.deepEqual(foreignHeld, [{ id: 101, holder: 'bob' }]);
+  });
+
   it('ignores a dispatched id outside the probed set', async () => {
     const provider = stubProvider({ 101: issue(101) });
 

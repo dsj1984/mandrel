@@ -29,6 +29,15 @@
  * error · 2 cycle · 3 wedged · 4 blocked — because the loop's stopping rules
  * are the tick's and this script must not invent a second dialect of them.
  *
+ * The ledger is append-only on purpose, which is also its one sharp edge: an
+ * id whose spawn never reached `single-story-init.js` stays in it, is withheld
+ * as in flight on every later beat, and the run reads as "waiting" forever.
+ * The beat therefore reports every ledgered id live state still calls
+ * `agent::ready` in `stalledDispatch[]` with the recovery in
+ * `stalledDispatchReason`. It never auto-releases one: a slow init and a dead
+ * spawn are indistinguishable at this altitude, and releasing the first joins
+ * a second worker to a live branch (Story #5363).
+ *
  * Scheduling itself is untouched: the ready set, the concurrency cap, the
  * footprint guard and the foreign-lease withholding all come from
  * `stories-wave-tick.js#runProbedStoriesWaveTick`. This is a ledger, a
@@ -76,6 +85,7 @@ const USAGE = {
   ],
   notes: [
     'The run ledger (<tempRoot>/run-<id>/ledger.json) records every id handed out\nas ready, so a repeat beat withholds it with no --dispatched bookkeeping from\nthe caller. It is additive: the tick still filters it against live state, so a\nledgered id that has since gone agent::done is dropped for you.',
+    'A ledgered id that live state still reports as agent::ready is named in\nstalledDispatch[], with stalledDispatchReason carrying the recovery. It is a\nreport, never a release: a slow init and a dead spawn read alike here, so the\noperator edits the ledger and re-beats with --run-id.',
     '--merge-watch-mode async is added to every close command when the run holds\nmore than one Story, and omitted for a run of one. Close sees a single Story\nand cannot make that call for itself.',
     'Exit codes:\n  0  beat emitted\n  1  input error\n  2  dependency cycle (cycleError)\n  3  wedged\n  4  blocked — the HITL pause; stop the loop, do not poll',
   ],
@@ -338,6 +348,39 @@ function collectWithheld(envelope) {
 }
 
 /**
+ * Render the operator-facing reason for the ledgered ids live state still
+ * reports as `agent::ready`.
+ *
+ * **Report, do not release.** A slow `single-story-init.js` and a spawn that
+ * died before reaching one look identical from here, and releasing the first
+ * re-dispatches a live Story onto its own branch — the exact failure the
+ * ledger exists to prevent. So the beat names the id and hands the operator
+ * the two things the call needs: where the ledger lives, and the flag that
+ * pins the run directory once they have edited it. Neither is derivable from
+ * the envelope's other fields, which is why both are spelled out here rather
+ * than left to a reader of the source.
+ *
+ * @param {number[]} ids
+ * @param {{ ledgerPath: string, runId: string }} run
+ * @returns {string|null} null when nothing is stalled
+ */
+export function renderStalledDispatchReason(ids, { ledgerPath, runId }) {
+  if (!Array.isArray(ids) || ids.length === 0) return null;
+  const list = ids.map((id) => `#${id}`).join(', ');
+  const subject = ids.length === 1 ? 'it' : 'they';
+  return (
+    `${list}: handed out as ready on an earlier beat, but live state still ` +
+    `reports ${subject} as agent::ready. Either single-story-init.js is still ` +
+    'running, or the spawn never reached it and the id is pinned in flight ' +
+    'for every later beat. This beat does not release it — re-dispatching a ' +
+    'live Story onto its own branch is the failure the ledger prevents. ' +
+    'Confirm no worker is running, then remove the id from "dispatched" in ' +
+    `${ledgerPath} and beat again with --run-id ${runId} so the same run ` +
+    'directory is reused.'
+  );
+}
+
+/**
  * The input-error result, shaped like a beat envelope so a caller branching on
  * `kind` never has to special-case the failure.
  *
@@ -462,6 +505,10 @@ export async function runDeliverRunBeat(
 
   if (tick?.inputError) return inputError(tick.inputError);
 
+  const stalledDispatch = Array.isArray(tick.stalledDispatch)
+    ? tick.stalledDispatch
+    : [];
+
   const readyIds = Array.isArray(tick.ready) ? tick.ready : [];
   const digest = await ensureDocsDigestFn({
     docsContextFiles: resolved?.project?.docsContextFiles,
@@ -516,6 +563,15 @@ export async function runDeliverRunBeat(
       blocked: tick.blocked ?? [],
       blockedReason: tick.blockedReason ?? null,
       foreignHeld: tick.foreignHeld ?? [],
+      // Its own reason, deliberately beside `withheld[]` rather than inside
+      // it: a footprint withhold names a blocking peer Story and its colliding
+      // paths, and a stalled dispatch has neither — it names a recovery the
+      // operator owns.
+      stalledDispatch,
+      stalledDispatchReason: renderStalledDispatchReason(stalledDispatch, {
+        ledgerPath,
+        runId,
+      }),
       withheld: collectWithheld(tick),
     },
     exitCode,
@@ -537,7 +593,6 @@ function parseArgv(argv) {
       concurrency: { type: 'string' },
       'run-id': { type: 'string' },
       cwd: { type: 'string' },
-      help: { type: 'boolean', short: 'h' },
     },
     strict: false,
     allowPositionals: false,

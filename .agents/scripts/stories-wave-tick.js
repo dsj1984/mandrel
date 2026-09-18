@@ -1209,6 +1209,10 @@ export function runStoriesWaveTick({
  *     the run-end signal for `plan-run-epilogue.js`.
  *   - `blocked` — ids carrying `agent::blocked` (Story #4601). Non-empty means
  *     the loop must END, not poll: see `BLOCKED_EXIT_CODE`.
+ *   - `stalledDispatch` — `--dispatched` ids live state still reports as
+ *     `agent::ready`. They stay withheld; the field exists so a caller keeping
+ *     an append-only dispatched list can see an id that is pinned rather than
+ *     merely initializing (Story #5363).
  *
  * @param {object} args
  * @param {string} args.stories        Raw `--stories` CSV of Story ids.
@@ -1287,6 +1291,7 @@ export async function runProbedStoriesWaveTick({
     doneIds,
     inFlight,
     blockedIds = [],
+    stalledDispatch = [],
     foreignHeld = [],
     inFlightRecords = [],
   } = probed;
@@ -1314,6 +1319,12 @@ export async function runProbedStoriesWaveTick({
       epilogueDue,
       blocked: blockedIds,
       blockedReason: blockedReasonFor(blockedIds),
+      // Ids the caller listed in `--dispatched` that live state still reports
+      // as `agent::ready`. Withheld as in flight (that is the flag's whole
+      // job) and named here, because the same reading covers a healthy init
+      // window and a spawn that died before init — and only the caller, who
+      // owns the dispatched list, can tell those apart (Story #5363).
+      stalledDispatch,
       // Stories another operator's lease holds — withheld from dispatch this
       // beat (folded into in-flight) and surfaced so the run can report
       // "#<id> held by @<holder>" instead of dispatching into an init refusal.
