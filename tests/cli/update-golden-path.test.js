@@ -67,9 +67,9 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'node:test';
+import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import {
   defaultDetectLockfile,
   defaultGitStatus,
@@ -636,8 +636,11 @@ describe('update drift heal — the re-materialized payload is reported', () => 
 
 describe('update staging report — lockfile detection', () => {
   /** Minimal `existsSync`-only fs seam over an explicit path allowlist. */
+  // `path.basename`, not a `/`-suffix match: `path.join` emits `\` separators
+  // on Windows, where a hardcoded forward slash never matches and both cases
+  // fail for a reason that has nothing to do with lockfile detection.
   const fakeFs = (present) => ({
-    existsSync: (p) => present.some((name) => String(p).endsWith(`/${name}`)),
+    existsSync: (p) => present.includes(path.basename(String(p))),
   });
 
   // AC-3: `detectPackageManager` flattens bun → npm so the install-command
@@ -684,7 +687,7 @@ describe('update staging report — lockfile detection', () => {
  * @param {(repo: string, git: (...args: string[]) => void) => void} body
  */
 function withGitRepo(body) {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'mandrel-update-probe-'));
+  const repo = makeTempDir('mandrel-update-probe-');
   const git = (...args) => {
     const r = spawnSync('git', args, { cwd: repo, encoding: 'utf8' });
     assert.equal(r.status, 0, `git ${args.join(' ')} failed: ${r.stderr}`);
@@ -792,7 +795,7 @@ describe('defaultGitStatus — the real git probe', () => {
   });
 
   it('degrades to ok:false outside a repository, never throwing (AC-7)', () => {
-    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'mandrel-no-repo-'));
+    const outside = makeTempDir('mandrel-no-repo-');
     try {
       const state = defaultGitStatus({
         cwd: outside,
