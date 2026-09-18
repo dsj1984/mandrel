@@ -462,7 +462,6 @@ the lint ratchet, and the CRAP/MI gates.
 
 | File                              | Owner                                | Refresh                                                                |
 | --------------------------------- | ------------------------------------ | ---------------------------------------------------------------------- |
-| `baselines/lint.json`             | the consumer's own linter            | No framework CLI — see [Lint baseline ratchet](https://github.com/dsj1984/mandrel/blob/main/docs/quality-gates.md#lint-baseline-ratchet) |
 | `baselines/coverage.json`         | `update-coverage-baseline.js`        | `node .agents/scripts/update-coverage-baseline.js`                     |
 | `baselines/crap.json`             | `update-crap-baseline.js`            | `npm run crap:update`                                                   |
 | `baselines/duplication.json`      | `update-duplication-baseline.js`     | `node .agents/scripts/update-duplication-baseline.js`                  |
