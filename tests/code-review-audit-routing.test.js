@@ -190,13 +190,9 @@ describe('depth and the acceptance critic read the same derived level', () => {
     );
     // Story #5343 — the level feeds review depth alone. It cannot buy (or
     // avoid) a fresh acceptance critic any more.
+    assert.equal(resolveCeremonyForRisk({}).verdictOwner, 'inline-self-eval');
     assert.equal(
-      resolveCeremonyForRisk({ derivedLevel: level }).verdictOwner,
-      'inline-self-eval',
-    );
-    assert.equal(
-      resolveCeremonyForRisk({ derivedLevel: level, ceremonyProfile: 'strict' })
-        .verdictOwner,
+      resolveCeremonyForRisk({ ceremonyProfile: 'strict' }).verdictOwner,
       'fresh-critic',
     );
   });
@@ -210,20 +206,14 @@ describe('depth and the acceptance critic read the same derived level', () => {
       resolveDepth({ derivedLevel: level, changedFileCount: 1 }),
       'light',
     );
-    assert.equal(
-      resolveCeremonyForRisk({ derivedLevel: level }).mode,
-      'inline',
-    );
+    assert.equal(resolveCeremonyForRisk({}).mode, 'inline');
   });
 
   test('an underivable level fails REVIEW DEPTH toward more ceremony', () => {
     const { level } = deriveChangeLevel({ changedFiles: [] });
     assert.equal(resolveDepth({ derivedLevel: level }), 'standard');
-    // The acceptance owner has no fail-safe to take: it never read the level.
-    assert.equal(
-      resolveCeremonyForRisk({ derivedLevel: level }).verdictOwner,
-      'inline-self-eval',
-    );
+    // The acceptance owner has no fail-safe to take: it cannot read the level.
+    assert.equal(resolveCeremonyForRisk({}).verdictOwner, 'inline-self-eval');
   });
 });
 

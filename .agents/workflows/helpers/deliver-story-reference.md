@@ -128,7 +128,7 @@ The v2 engine's trait table:
 | Branch        | `story-<id>` seeded from `project.baseBranch` (`main`)                   |
 | Merge target  | `main` via PR (squash + required checks)                                 |
 | Spec / slices | Folded `## Spec` + optional `## Slicing` checkpoints in-session          |
-| Ceremony      | Per-Story, routed off the derived change level via `ceremony-routing.js` |
+| Ceremony      | Per-Story, resolved from the ceremony profile alone via `ceremony-routing.js` (digest § 3) |
 
 **A cheap shape never buys a cheaper landing.** A small Story collapses only
 the _advisory_ ceremony — the fresh-critic / Tech-Spec authoring a
@@ -139,15 +139,15 @@ is no gate bypass to opt into, and nothing in the ticket can declare one:
 Story #5312 retired the plan-side lite claim, its `route::lite` hint and the
 machine-readable field that used to enumerate the non-negotiables.
 
-**Ceremony comes from the landed diff; the dispatch mode comes from the
-run.** Persist stamps no route label. Ceremony is resolved from the **derived
-change level** (`deriveChangeLevel` over the computed change set — digest § 3),
-not from a body-shape read: a footprint intersecting a sensitive-path class
-derives `high`, so the Story keeps its fresh acceptance critic. The light path
-is the one caller that reads the authored body's shape, through
-`deriveStoryShape` (`lib/orchestration/complexity-gate.js`).
+**The ceremony rule has one home: digest § 3.** The profile alone names the
+verdict owner; the derived change level (`deriveChangeLevel` over the computed
+change set) sets **review depth**, so a footprint intersecting a sensitive-path
+class buys a deep review rather than a fresh acceptance critic. Persist stamps
+no route label. The light path is the one caller that reads the authored body's
+shape, through `deriveStoryShape`
+(`lib/orchestration/complexity-gate.js`).
 
-That derived level sets ceremony. It does **not** set the dispatch mode,
+The derived level does **not** set the dispatch mode either,
 because `inline` names one indivisible resource — the router's own session —
 and only run topology can say whether it is free: a **single-Story run**
 executes inline, and every Story of a multi-Story run dispatches as a
@@ -246,8 +246,8 @@ directly.
 
 **One verdict owner per Story.** The ceremony decision names it
 (`verdictOwner: 'fresh-critic' | 'inline-self-eval'` from
-`resolveCeremonyForRisk`), and since Story #5343 it follows the **ceremony
-profile alone**: the contract-identical inline self-eval under `minimal` /
+`resolveCeremonyForRisk`), and it follows the **ceremony profile alone**
+(digest § 3): the contract-identical inline self-eval under `minimal` /
 `standard` (the default), the fresh maker-blind critic under `strict`.
 Exactly one pass authors the verdict — never both, and never a preliminary
 self-assessment before dispatching a fresh critic (the redundant pre-pass
@@ -306,17 +306,10 @@ one that routed it.
 The derived level drives **review depth** and nothing else: `review-depth.js`
 reads it inside close and still resolves `deep` for any sensitive class.
 `mode` / `verdictOwner` come from
-[`resolveCeremonyForRisk`](../../scripts/lib/orchestration/ceremony-routing.js)
-and follow the profile alone (Story #5343): `minimal` / `standard` → `inline`,
-`strict` → `fresh`.
-
-**Inline-dispatch override.** When the Story dispatches
-`inline` (`resolveStoryDispatchMode` → `inline`, which is exactly a
-single-Story run — the function reads the resolved set size and nothing
-else), author the verdict **inline** — do not spawn a fresh-context critic
-even under `strict`. The self-eval rigor (scoring each `acceptance[]` item
-against the one computed change set, with `verify[]` output as evidence) is
-unchanged; only the sub-agent boot is removed. Hard gates are untouched.
+[`resolveCeremonyForRisk`](../../scripts/lib/orchestration/ceremony-routing.js),
+which since Story #5366 accepts the profile and nothing else. The rule — and
+what an `inline` dispatch does and does not change about it — is stated once
+in **digest § 3**; do not restate it here.
 
 ---
 

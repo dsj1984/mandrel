@@ -153,7 +153,8 @@ template's pre-resolved `changes[]` and the `/prototype` offer, nothing else.
 Story #5312 deleted the plan-side lite claim that used to read them
 (`--route-downgrade-reason`, the persist shape backstop, the `route::lite`
 hint): every Story lands through the same engine and the same close gates,
-and ceremony is derived from the landed diff at close.
+and the acceptance verdict owner follows the operator's ceremony profile —
+never anything a plan authored.
 
 ## Correct-by-construction authoring template
 

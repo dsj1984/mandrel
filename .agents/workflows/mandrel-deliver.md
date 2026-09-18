@@ -146,9 +146,11 @@ envelope — `landed` | `pending` | `blocked` | `failed`; statuses, exits and
 fields are digest § 5. `pending` is **not** a failure — run its `nextCommand`.
 
 **Branch model (authoritative).** `story-<id>` → PR → `main` (squash +
-required checks), per digest § 2; dependent Stories land sequentially. Ceremony
-depth (profiles + the derived level via `ceremony-routing.js`, which review
-depth reads): reference § Ceremony.
+required checks), per digest § 2; dependent Stories land sequentially. The
+acceptance verdict owner follows the ceremony profile alone
+(`ceremony-routing.js`); the **derived level** feeds review depth instead
+(`review-depth.js`). The rule and its one home are digest § 3; the profile
+table is reference § Ceremony.
 
 ## Constraints
 

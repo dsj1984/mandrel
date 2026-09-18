@@ -51,7 +51,6 @@ import {
   parseCsvPaths,
   runGateMode,
   runLightGate,
-  synthesizeAcceptance,
 } from '../../../.agents/scripts/deliver-light.js';
 import { TEST_TEMP_ROOT_ENV } from '../../../.agents/scripts/lib/config/temp-paths.js';
 import {
@@ -113,7 +112,6 @@ const LITE_VERDICT = { reason: 'one-file additive helper' };
 describe('resolveLedgeredVerdict — light only with a recorded reason (AC-2)', () => {
   test('a verdict with a recorded reason is honored', () => {
     const v = resolveLedgeredVerdict(LITE_VERDICT);
-    assert.equal(v.route, 'lite');
     assert.equal(v.recorded, true);
     assert.equal(v.reason, 'one-file additive helper');
   });
@@ -121,22 +119,31 @@ describe('resolveLedgeredVerdict — light only with a recorded reason (AC-2)', 
   test('a verdict WITHOUT a recorded reason fails closed to full', () => {
     for (const reason of ['', '   ', undefined, null, 42]) {
       const v = resolveLedgeredVerdict({ reason });
-      assert.equal(v.route, 'full', `reason ${JSON.stringify(reason)}`);
-      assert.equal(v.recorded, false);
+      assert.equal(v.recorded, false, `reason ${JSON.stringify(reason)}`);
       assert.equal(v.reason, null);
     }
   });
 
   test('Story #5344: the route half is gone — a stray route key decides nothing', () => {
     assert.equal(
-      resolveLedgeredVerdict({ route: 'full', reason: 'why' }).route,
-      'lite',
+      resolveLedgeredVerdict({ route: 'full', reason: 'why' }).recorded,
+      true,
     );
   });
 
-  test('is total: missing verdict yields a full route, never a throw', () => {
-    assert.equal(resolveLedgeredVerdict().route, 'full');
-    assert.equal(resolveLedgeredVerdict({}).route, 'full');
+  test('Story #5366: the verdict carries no route field restating `recorded`', () => {
+    for (const v of [
+      resolveLedgeredVerdict(LITE_VERDICT),
+      resolveLedgeredVerdict({}),
+    ]) {
+      assert.equal('route' in v, false);
+      assert.deepEqual(Object.keys(v).sort(), ['note', 'reason', 'recorded']);
+    }
+  });
+
+  test('is total: a missing verdict fails closed, never throws', () => {
+    assert.equal(resolveLedgeredVerdict().recorded, false);
+    assert.equal(resolveLedgeredVerdict({}).recorded, false);
   });
 });
 
@@ -148,14 +155,14 @@ describe('deriveLightSuitability — only risk and the ledger decide (AC-2, Stor
   test('a clearly-small prompt with a ledgered verdict is suitable', () => {
     const s = deriveLightSuitability({
       predictedChanges: [{ path: 'bin/hello.js', assumption: 'creates' }],
-      predictedAcceptance: ['prints hello and exits 0'],
       verdict: LITE_VERDICT,
       injectedRules: RULES,
     });
     assert.equal(s.suitable, true);
-    assert.equal(s.route, 'lite');
     assert.equal(s.shape.route, 'lite');
-    assert.equal(s.ledger.route, 'lite');
+    assert.equal(s.ledger.recorded, true);
+    // Story #5366 — `suitable` is the whole verdict; nothing restates it.
+    assert.equal('route' in s, false);
   });
 
   test('Story #5344: a multi-deployable footprint proceeds light — span is not a rule any more', () => {
@@ -164,19 +171,16 @@ describe('deriveLightSuitability — only risk and the ledger decide (AC-2, Stor
         { path: 'apps/api/src/a.js', assumption: 'refactors-existing' },
         { path: 'apps/web/src/b.js', assumption: 'refactors-existing' },
       ],
-      predictedAcceptance: ['does a', 'does b', 'does c', 'does d'],
       verdict: LITE_VERDICT,
       injectedRules: RULES,
     });
     assert.equal(s.shape.route, 'lite', 'no absolute risk rule fires');
     assert.equal(s.suitable, true);
-    assert.equal(s.route, 'lite');
   });
 
   test('Story #5344: no decision carries a warnings[] any more', () => {
     const s = deriveLightSuitability({
       predictedChanges: [{ path: 'bin/hello.js', assumption: 'creates' }],
-      predictedAcceptance: ['prints hello and exits 0'],
       verdict: LITE_VERDICT,
       injectedRules: RULES,
     });
@@ -189,7 +193,6 @@ describe('deriveLightSuitability — only risk and the ledger decide (AC-2, Stor
       predictedChanges: [
         { path: 'src/reporting.js', assumption: 'refactors-existing' },
       ],
-      predictedAcceptance: ['the report renders identically'],
       verdict: LITE_VERDICT,
       injectedRules: RULES,
     };
@@ -211,7 +214,6 @@ describe('deriveLightSuitability — only risk and the ledger decide (AC-2, Stor
         path: `src/${p}.js`,
         assumption: 'refactors-existing',
       })),
-      predictedAcceptance: ['every call site passes the new flag'],
       verdict: LITE_VERDICT,
       injectedRules: RULES,
     });
@@ -224,7 +226,6 @@ describe('deriveLightSuitability — only risk and the ledger decide (AC-2, Stor
         path: `src/widgets/${p}.js`,
         assumption: 'refactors-existing',
       })),
-      predictedAcceptance: ['a', 'b', 'c', 'd'],
       verdict: LITE_VERDICT,
       injectedRules: RULES,
     });
@@ -242,7 +243,6 @@ describe('deriveLightSuitability — only risk and the ledger decide (AC-2, Stor
         { path: 'package.json', assumption: 'refactors-existing' },
         { path: 'tests/server.test.js', assumption: 'creates' },
       ],
-      predictedAcceptance: ['200', 'hello world', 'port', 'npm test passes'],
       verdict: LITE_VERDICT,
       injectedRules: RULES,
     });
@@ -254,12 +254,11 @@ describe('deriveLightSuitability — only risk and the ledger decide (AC-2, Stor
       predictedChanges: [
         { path: 'src/auth/session.js', assumption: 'creates' },
       ],
-      predictedAcceptance: ['session refresh works'],
       verdict: LITE_VERDICT,
       injectedRules: RULES,
     });
     assert.equal(s.suitable, false);
-    assert.equal(s.route, 'full');
+    assert.equal(s.suitable, false);
     assert.equal(s.unwaivable.present, true);
     assert.deepEqual(s.unwaivable.classes, ['security']);
   });
@@ -269,7 +268,6 @@ describe('deriveLightSuitability — only risk and the ledger decide (AC-2, Stor
       predictedChanges: [
         { path: 'src/billing/invoice.js', assumption: 'refactors-existing' },
       ],
-      predictedAcceptance: ['the invoice total is right'],
       verdict: LITE_VERDICT,
       injectedRules: RULES,
     });
@@ -283,7 +281,6 @@ describe('deriveLightSuitability — only risk and the ledger decide (AC-2, Stor
         { path: 'db/migrations/003_add_col.sql', assumption: 'creates' },
         { path: 'src/repo/user.js', assumption: 'refactors-existing' },
       ],
-      predictedAcceptance: ['the column is read'],
       injectedRules: { sensitivePaths: {} },
       verdict: LITE_VERDICT,
     });
@@ -295,18 +292,17 @@ describe('deriveLightSuitability — only risk and the ledger decide (AC-2, Stor
   test('a small shape with an UNLEDGERED verdict is not suitable (verdict wins)', () => {
     const s = deriveLightSuitability({
       predictedChanges: [{ path: 'bin/hello.js', assumption: 'creates' }],
-      predictedAcceptance: ['prints hello'],
       verdict: { reason: '' },
       injectedRules: RULES,
     });
     assert.equal(s.suitable, false);
-    assert.equal(s.ledger.route, 'full');
+    assert.equal(s.ledger.recorded, false);
   });
 
   test('is total: empty args yield a non-suitable full decision, never a throw', () => {
     const s = deriveLightSuitability();
     assert.equal(s.suitable, false);
-    assert.equal(s.route, 'full');
+    assert.equal(s.suitable, false);
   });
 });
 
@@ -434,7 +430,6 @@ describe('checkLightDiffBackstop — blocks over-magnitude actual diffs (AC-4)',
           path,
           assumption: 'refactors-existing',
         })),
-        predictedAcceptance: ['works'],
         verdict: LITE_VERDICT,
         injectedRules: RULES,
       }).suitable,
@@ -569,12 +564,6 @@ describe('deliver-light entry helpers', () => {
       { path: 'b.js', assumption: 'refactors-existing' },
     ]);
   });
-
-  test('synthesizeAcceptance yields at least one criterion', () => {
-    assert.equal(synthesizeAcceptance(3).length, 3);
-    assert.equal(synthesizeAcceptance(0).length, 1);
-    assert.equal(synthesizeAcceptance(undefined).length, 1);
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -586,7 +575,6 @@ describe('runLightGate — end-to-end gate over the entry inputs (AC-3, AC-6)', 
     const gate = runLightGate({
       prompt: 'add a bin/hello.js greeter',
       creates: ['bin/hello.js'],
-      acceptance: 1,
       reason: 'single additive file',
       injectedRules: RULES,
     });
@@ -597,7 +585,6 @@ describe('runLightGate — end-to-end gate over the entry inputs (AC-3, AC-6)', 
     const gate = runLightGate({
       prompt: 'rework the whole billing pipeline',
       refactors: ['src/billing/a.js', 'src/billing/b.js', 'src/billing/c.js'],
-      acceptance: 5,
       reason: 'claims small but is not',
       injectedRules: RULES,
     });
@@ -609,7 +596,6 @@ describe('runLightGate — end-to-end gate over the entry inputs (AC-3, AC-6)', 
     const gate = runLightGate({
       prompt: 'fix the off-by-one in the counter',
       refactors: ['src/counter.js'],
-      acceptance: 1,
       reason: 'one-line fix in an existing file',
       amends: '#4200',
       injectedRules: RULES,
@@ -621,7 +607,6 @@ describe('runLightGate — end-to-end gate over the entry inputs (AC-3, AC-6)', 
     const gate = runLightGate({
       prompt: 'make the counter configurable somehow',
       refactors: ['src/counter.js'],
-      acceptance: 1,
       kinds: ['a', 'b', 'c', 'd'],
       magnitude: 'substantial',
       uncertainty: 'needs-design',
@@ -632,14 +617,12 @@ describe('runLightGate — end-to-end gate over the entry inputs (AC-3, AC-6)', 
     assert.equal('warnings' in gate.outcome, false);
   });
 
-  test('--amends: a HEAVY amendment escalates to /mandrel-plan under --yes', () => {
+  test('--amends: a HEAVY amendment escalates to /mandrel-plan', () => {
     const gate = runLightGate({
       prompt: 'amend: overhaul auth and add a migration',
       creates: ['src/auth/new.js'],
-      acceptance: 2,
       reason: 'claims small but touches auth',
       amends: '#4200',
-      yes: true,
       injectedRules: RULES,
     });
     assert.equal(gate.action, 'escalate-plan');
@@ -827,7 +810,6 @@ describe('deliver-light.js is a thin entry point, not a second engine (AC-8)', (
 const OVER_SCOPE = {
   prompt: 'rework the whole billing pipeline end to end',
   refactors: 'src/billing/report.js,src/billing/ledger.js',
-  acceptance: '5',
   reason: 'claims small but is not',
 };
 
@@ -866,7 +848,6 @@ describe('escalate-plan emits a terminal envelope and exits non-zero (AC-1)', ()
   test('the envelope is schema-valid, escalated, and names the /mandrel-plan next command', async () => {
     const { code, terminals, gateEnvelopes } = await driveGate({
       ...OVER_SCOPE,
-      yes: true,
     });
 
     assert.equal(terminals.length, 1, 'exactly one terminal envelope');
@@ -888,7 +869,7 @@ describe('escalate-plan emits a terminal envelope and exits non-zero (AC-1)', ()
   });
 
   test('the gate reasons survive verbatim into the envelope', async () => {
-    const { terminals } = await driveGate({ ...OVER_SCOPE, yes: true });
+    const { terminals } = await driveGate({ ...OVER_SCOPE });
     const reasons = terminals[0].escalation.reasons.join(' ');
     assert.match(reasons, /un-waivable/);
     assert.match(reasons, /sensitive-path class\(es\) billing/);
@@ -900,7 +881,6 @@ describe('an escalated run starts nothing (AC-2)', () => {
   test('never reaches the receipt-Story call site', async () => {
     const { created, providers } = await driveGate({
       ...OVER_SCOPE,
-      yes: true,
     });
     assert.equal(created, 0, 'no receipt Story may be authored');
     assert.equal(
@@ -911,7 +891,7 @@ describe('an escalated run starts nothing (AC-2)', () => {
   });
 
   test('the envelope records no Story, no branch, and no worktree', async () => {
-    const { terminals } = await driveGate({ ...OVER_SCOPE, yes: true });
+    const { terminals } = await driveGate({ ...OVER_SCOPE });
     const env = terminals[0];
     assert.equal(env.storyId, null, 'an escalated run names no Story');
     assert.deepEqual(env.escalation.created, {
@@ -935,11 +915,8 @@ describe('an escalated run starts nothing (AC-2)', () => {
         OVER_SCOPE.prompt,
         '--refactors',
         OVER_SCOPE.refactors,
-        '--acceptance',
-        OVER_SCOPE.acceptance,
         '--reason',
         OVER_SCOPE.reason,
-        '--yes',
       ],
       { cwd, encoding: 'utf8' },
     );
@@ -963,7 +940,6 @@ describe('attended and unattended over-scope both escalate (Story #5313)', () =>
   test('an attended risk refusal is the same terminal — there is no question to wait for', async () => {
     const { code, terminals, gateEnvelopes, created } = await driveGate({
       ...OVER_SCOPE,
-      yes: false,
     });
     assert.equal(terminals.length, 1);
     assert.equal(terminals[0].status, 'escalated');
@@ -976,9 +952,7 @@ describe('attended and unattended over-scope both escalate (Story #5313)', () =>
     const { code, terminals, gateEnvelopes, created } = await driveGate({
       prompt: 'add a bin/hello.js greeter',
       creates: 'bin/hello.js',
-      acceptance: '1',
       reason: 'single additive file',
-      yes: true,
     });
     assert.equal(code, 0);
     assert.equal(created, 1);
@@ -992,7 +966,6 @@ describe('attended and unattended over-scope both escalate (Story #5313)', () =>
       prompt: 'raise the webServer boot timeout',
       refactors:
         'apps/web/playwright.config.ts,apps/staff/playwright.config.ts',
-      acceptance: '1',
       reason: 'one constant, two identical call sites',
     });
     assert.equal(code, 0);
@@ -1193,7 +1166,6 @@ const SPANNING_SCOPE = Object.freeze({
       assumption: 'refactors-existing',
     },
   ],
-  predictedAcceptance: ['the boot timeout is raised at every call site'],
   verdict: LITE_VERDICT,
   injectedRules: RULES,
 });
@@ -1213,7 +1185,6 @@ describe('the predicted shape no longer objects at all (Story #5344 AC-2)', () =
         'glob-footprint',
         { predictedChanges: [{ path: 'src/**/*.ts', assumption: 'creates' }] },
       ],
-      ['no-acceptance', { predictedAcceptance: [] }],
     ]) {
       const s = deriveLightSuitability({ ...SPANNING_SCOPE, ...overrides });
       assert.equal(s.shape.code, code, `fixture yields ${code}`);
@@ -1263,10 +1234,8 @@ describe('deliver-light.js CLI — the retired flags are gone (Story #5344 AC-1)
       '--prompt',
       '--creates',
       '--refactors',
-      '--acceptance',
       '--reason',
       '--amends',
-      '--yes',
     ]) {
       assert.ok(result.stdout.includes(flag), `--help must document ${flag}`);
     }
@@ -1274,10 +1243,19 @@ describe('deliver-light.js CLI — the retired flags are gone (Story #5344 AC-1)
     assert.doesNotMatch(result.stdout, /ask-operator/);
     assert.doesNotMatch(result.stdout, /--kinds|--magnitude|--uncertainty/);
     assert.doesNotMatch(result.stdout, /--route\b/);
+    // Story #5366 — the acceptance-count flag and the unattended marker.
+    assert.doesNotMatch(result.stdout, /--acceptance\b/);
+    assert.doesNotMatch(result.stdout, /--yes\b/);
   });
 
   test('each retired flag is REJECTED as unknown, not silently ignored', () => {
-    for (const flag of ['--kinds', '--magnitude', '--uncertainty', '--route']) {
+    for (const flag of [
+      '--kinds',
+      '--magnitude',
+      '--uncertainty',
+      '--route',
+      '--acceptance',
+    ]) {
       const result = spawnSync(
         process.execPath,
         [DELIVER_LIGHT_SRC, '--prompt', 'x', '--reason', 'y', flag, 'z'],
@@ -1292,7 +1270,14 @@ describe('deliver-light.js CLI — the retired flags are gone (Story #5344 AC-1)
     assert.doesNotMatch(src, /operator-proceed-light/);
     assert.doesNotMatch(src, /ask-operator/);
     const options = src.slice(src.indexOf('const { values } = parseArgs('));
-    for (const key of ['kinds', 'magnitude', 'uncertainty', 'route']) {
+    for (const key of [
+      'kinds',
+      'magnitude',
+      'uncertainty',
+      'route',
+      'acceptance',
+      'yes',
+    ]) {
       assert.doesNotMatch(
         options,
         new RegExp(`\\b${key}: \\{ type:`),
@@ -1491,7 +1476,6 @@ describe('light-path rejections are telemetered (Story #4856)', () => {
       {
         prompt: 'rework the whole reporting pipeline end to end',
         refactors: 'apps/api/x.js,apps/web/y.js',
-        acceptance: '1',
         reason: 'claims small but is not',
         amends: '#4321',
       },
@@ -1568,7 +1552,6 @@ const DOUBLE_OBJECTION_SCOPE = Object.freeze({
     { path: 'src/report.ts', assumption: 'creates' },
     { path: 'docs/notes.md', assumption: 'documents' },
   ],
-  predictedAcceptance: ['sessions rotate and the report renders'],
   verdict: LITE_VERDICT,
   injectedRules: RULES,
 });
@@ -1587,7 +1570,7 @@ describe('the prediction gate names the un-waivable class up front (AC-1, AC-2)'
   test('a seed that will hit the un-waivable verdict is unsuitable for the light path', () => {
     const s = deriveLightSuitability(DOUBLE_OBJECTION_SCOPE);
     assert.equal(s.suitable, false);
-    assert.equal(s.route, 'full');
+    assert.equal(s.suitable, false);
   });
 
   test('every objection is a reason string, in one voice', () => {

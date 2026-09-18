@@ -317,7 +317,6 @@
       "maxRounds": 2
     },
     "feedbackLoop": {
-      "auditResultsAutoFile": false,
       "retroProposals": false
     },
     "ci": {

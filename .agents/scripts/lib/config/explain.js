@@ -159,11 +159,9 @@ const KEY_MEANINGS = Object.freeze({
   'delivery.routing.roleScopedAgents':
     'Whether delivery spawns boot on role-scoped .claude/agents/<role>.md contexts.',
   'delivery.routing.ceremonyProfile':
-    'Acceptance-ceremony depth: minimal (always inline), standard (derived-level routed), or strict (always fresh).',
+    'Who authors the Story acceptance verdict: minimal and standard = the inline self-eval, strict = a fresh maker-blind critic.',
   'delivery.routing.closeAndLand':
     'When true, single-story-close lands through merge in one close (opt out with --no-wait-merge).',
-  'delivery.feedbackLoop.auditResultsAutoFile':
-    'When true, auto-file non-blocking audit findings as follow-up issues.',
   'delivery.feedbackLoop.retroProposals':
     'When true, auto-file actionable retro proposals as follow-up issues.',
   'delivery.quality.formatAutofix.timeoutMs':

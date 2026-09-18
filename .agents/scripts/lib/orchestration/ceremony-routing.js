@@ -21,14 +21,17 @@
  * not already reach. `strict` keeps the fresh-context critic for
  * high-assurance surfaces, and is the one profile that spawns one.
  *
- * **`derivedLevel` no longer routes.** It is still accepted (and still
- * derived, and still printed by `ceremony-derive.js`) because **review
- * depth** reads the same signal — `review-depth.js#resolveDepth` continues to
- * resolve `deep` for any sensitive class, and that is untouched. What changed
- * is only which of the two decisions the level feeds: review depth, not the
- * verdict owner. An unenumerable diff is therefore no longer a fail-safe
- * escalation here; it escalates review depth instead, where the evidence it
- * withholds actually matters.
+ * **The derived change level is not an input here (Story #5366).** It is
+ * still derived and still printed by `ceremony-derive.js`, because **review
+ * depth** reads it — `review-depth.js#resolveDepth` continues to resolve
+ * `deep` for any sensitive class, and that is untouched. What changed with
+ * #5343 is which of the two decisions the level feeds: review depth, not the
+ * verdict owner. Story #5366 finished the job by removing it (and the
+ * per-cluster index beside it) from this function's signature: a decision
+ * function that accepts what it ignores reads, to every caller and every
+ * reviewer, as though the input still mattered. An unenumerable diff is
+ * therefore not a fail-safe escalation here at all; it escalates review
+ * depth instead, where the evidence it withholds actually matters.
  *
  * ## One verdict-owner per Story (Story #4723, narrowed by #5343)
  *
@@ -48,7 +51,6 @@
  *
  * @typedef {'fresh'|'inline'} CeremonyMode
  * @typedef {'fresh-critic'|'inline-self-eval'} VerdictOwner
- * @typedef {import('./review-depth.js').ChangeLevel} ChangeLevel
  * @typedef {(typeof CEREMONY_PROFILES)[number]} CeremonyProfile
  */
 
@@ -113,16 +115,13 @@ function normalizeCeremonyProfile(value) {
 }
 
 /**
- * Resolve the acceptance ceremony for one Story from the ceremony profile.
- * See the module header for the profile table and why the derived level no
- * longer routes it.
+ * Resolve the acceptance ceremony for one Story from the ceremony profile —
+ * its one and only input. See the module header for the profile table and why
+ * the derived change level is not among them.
  *
  * @param {{
- *   derivedLevel?: (ChangeLevel|string|null|undefined),
- *   clusterIndex?: (number|null|undefined),
  *   ceremonyProfile?: (CeremonyProfile|string|null|undefined),
- * }} [input] `derivedLevel` and `clusterIndex` are accepted for call-site
- *   compatibility only — neither changes the outcome (Story #5343).
+ * }} [input]
  * @returns {{
  *   mode: CeremonyMode,
  *   reason: string,

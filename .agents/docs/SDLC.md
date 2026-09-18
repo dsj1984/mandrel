@@ -264,12 +264,12 @@ Dependent Stories land sequentially so each builds on the previous merge to
 
 ### Ceremony
 
-Ceremony depth is selected by `delivery.routing.ceremonyProfile`
-(`minimal` | `standard` | `strict`, default `standard`) and the Story's
-own planning risk. Hard gates (lint / test / format / coverage / CRAP /
-maintainability) always run at close — risk never disables them; it only
-tunes acceptance-critic mode, review depth, and audit-lens selection. The
-full profile × scope matrix lives in
+Who authors a Story's acceptance verdict is selected by
+`delivery.routing.ceremonyProfile` (`minimal` | `standard` | `strict`, default
+`standard`) and by nothing else. The **derived change level** is a separate
+decision and tunes review depth and audit-lens selection. Hard gates (lint /
+test / format / coverage / CRAP / maintainability) always run at close —
+neither decision disables them. The full profile × scope matrix lives in
 [`mandrel-deliver.md` § Ceremony](../workflows/mandrel-deliver.md).
 
 ### State sync

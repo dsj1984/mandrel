@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-18T00:06:10.488Z",
+  "generatedAt": "2026-09-18T00:27:56.178Z",
   "rollup": {
     "*": {
       "min": 76.381,
@@ -1192,7 +1192,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/complexity-gate.js",
-      "mi": 101.602
+      "mi": 103.244
     },
     {
       "path": ".agents/scripts/lib/orchestration/deliver-recover.js",
@@ -2429,6 +2429,10 @@
     {
       "path": "lib/migrations/steps/2.57.0-retire-planning-limit-knobs.js",
       "mi": 113.131
+    },
+    {
+      "path": "lib/migrations/steps/2.60.0-retire-audit-results-autofile.js",
+      "mi": 117.829
     }
   ]
 }

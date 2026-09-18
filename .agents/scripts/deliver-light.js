@@ -47,7 +47,7 @@
  *
  * Usage:
  *   node .agents/scripts/deliver-light.js --prompt "<text>" \
- *     --creates path,path --acceptance 1 --reason "<why>"
+ *     --creates path,path --reason "<why>"
  *   node .agents/scripts/deliver-light.js --prompt "<text>" --amends '#123' --reason "<why>"
  *   node .agents/scripts/deliver-light.js --backstop --story 4741
  *
@@ -81,7 +81,7 @@ import { createProvider } from './lib/provider-factory.js';
 const HELP = `\
 Usage:
   deliver-light.js --prompt <text> [--creates csv] [--refactors csv]
-                   [--acceptance n] --reason <text> [--amends '#id'] [--yes]
+                   --reason <text> [--amends '#id']
   deliver-light.js --backstop --story <id>
 
 The thin /deliver-light entry point: suitability gate → inline receipt Story →
@@ -98,13 +98,9 @@ Gate options:
   --prompt <text>    Operator prompt describing the change. Required for the gate.
   --creates <csv>    Predicted NEW file paths (comma-separated).
   --refactors <csv>  Predicted edited/existing file paths (comma-separated).
-  --acceptance <n>   Predicted acceptance-criteria count (default 1). Not capped.
   --reason <text>    Recorded reason for taking the light path. Required: an
                      un-ledgered verdict escalates.
   --amends <#id>     Mark this as an amendment of an existing issue.
-  --yes              Unattended marker. Escalation is terminal either way;
-                     the flag is accepted so unattended callers keep their
-                     invocation shape.
 
 Backstop options:
   --backstop         Re-check the ACTUAL diff after implementation. Bounds the
@@ -147,23 +143,6 @@ export function buildPredictedChanges({ creates = [], refactors = [] } = {}) {
 }
 
 /**
- * Synthesize a predicted-acceptance array of the requested length — the shape
- * gate reads the count, not the text, so placeholder strings suffice. A count
- * below 1 yields a single-item array (a Story with no contract cannot be judged
- * trivial, and the shape derivation rejects a zero-length acceptance anyway).
- *
- * @param {unknown} count
- * @returns {string[]}
- */
-export function synthesizeAcceptance(count) {
-  const n =
-    typeof count === 'number' && Number.isFinite(count) && count >= 1
-      ? Math.floor(count)
-      : 1;
-  return Array.from({ length: n }, (_v, i) => `AC-${i + 1}`);
-}
-
-/**
  * Run the suitability gate purely — no I/O. Returns the outcome envelope the
  * CLI serializes. The prompt text and `--amends` target are deliberately **not**
  * inputs: routing is shape-checked identically whether or not the change is an
@@ -173,25 +152,24 @@ export function synthesizeAcceptance(count) {
  * @param {{
  *   creates?: string[],
  *   refactors?: string[],
- *   acceptance?: number,
  *   reason?: string,
  *   injectedRules?: object,
  * }} args `reason` is the ledgered verdict (Story #5344: the `--route` half is
  *   gone, and so are the declared effort axes it sat beside — the recorded
- *   reason and the predicted paths are what the gate reads).
+ *   reason and the predicted paths are what the gate reads. Story #5366
+ *   removed the last of them, `--acceptance`, whose value the gate clamped to
+ *   a floor of one before reading it).
  * @returns {{ action: string, suitability: object, outcome: object }}
  */
 export function runLightGate({
   creates = [],
   refactors = [],
-  acceptance,
   reason,
   injectedRules,
 } = {}) {
   const predictedChanges = buildPredictedChanges({ creates, refactors });
   const suitability = deriveLightSuitability({
     predictedChanges,
-    predictedAcceptance: synthesizeAcceptance(acceptance),
     verdict: { reason },
     injectedRules,
   });
@@ -337,9 +315,6 @@ export async function runGateMode(values, deps = {}) {
   const gate = runLightGate({
     creates: parseCsvPaths(values.creates),
     refactors: parseCsvPaths(values.refactors),
-    acceptance: values.acceptance
-      ? Number.parseInt(String(values.acceptance), 10)
-      : 1,
     reason: values.reason,
   });
 
@@ -391,10 +366,8 @@ async function main() {
       prompt: { type: 'string' },
       creates: { type: 'string' },
       refactors: { type: 'string' },
-      acceptance: { type: 'string' },
       reason: { type: 'string' },
       amends: { type: 'string' },
-      yes: { type: 'boolean', default: false },
       backstop: { type: 'boolean', default: false },
       story: { type: 'string' },
       pretty: { type: 'boolean', default: false },

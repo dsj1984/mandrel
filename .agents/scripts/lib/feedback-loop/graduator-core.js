@@ -296,7 +296,8 @@ export function runChild({
  * noise (see `config-settings-schema-delivery.js` for the measured record).
  *
  * @param {string} toggleKey — key under `config.delivery.feedbackLoop`
- *   (e.g. "auditResultsAutoFile", "retroProposals")
+ *   (today, only "retroProposals" — the factory stays keyed so the next
+ *   graduator does not have to reinvent the resolution)
  * @returns {(config: object|undefined|null) => boolean}
  */
 export function makeIsAutoFileEnabled(toggleKey) {

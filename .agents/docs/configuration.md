@@ -42,7 +42,7 @@ hand-mirrored, so a key cannot exist in one artifact and not another.
   "$schema": "./.agents/schemas/agentrc.schema.json",
   "project":  { /* paths, commands, baseBranch, docsContextFiles */ },
   "github":   { /* owner, repo, branchProtection, mergeMethods, notifications */ },
-  "planning": { /* riskHeuristics, conflict gates, complexityGate, navigation */ },
+  "planning": { /* memoryPool, navigation */ },
   "delivery": { /* execution, quality, worktreeIsolation, deliverRunner, ... */ },
   "qa":       { /* featureRoot, fixturesManifest, environments, personas */ }
 }
@@ -299,8 +299,7 @@ Everything `/mandrel-deliver` and `single-story-close` consume: execution timeou
 | `refactorStage.enabled` | No | `boolean` | `false` | When true, story-deliver runs an advisory post-green refactor stage (core/code-review-and-quality skill, Post-Green Refactor Pass) after the suite is green. Default false — when unset the stage is skipped and close-validation gate semantics are unchanged. |
 | `acceptanceEval` | No | `object` | — | Story #3819. Bounded per-Story acceptance self-eval loop. After the implementation commits land and before the Story-implementation phase flips to `closing`, an independent (fresh-context) critic pass scores the caller-injected change set against each inline `acceptance[]` item, redrafts the unmet items, and re-evaluates — capped at `maxRounds` redraft rounds (0 = scored once, no redraft), then escalates to `agent::blocked` when criteria remain unmet. There is no `enabled` flag: the scoring pass is a hard cutover (always on). |
 | `acceptanceEval.maxRounds` | No | `integer` | `2` | Maximum number of redraft rounds before escalation. Default 2; 0 means the verdict is scored once with no redraft round (Story #5313 dropped the hard ceiling and the floor-of-one clamp). |
-| `feedbackLoop` | No | `object` | — | Opt-in toggles for the close-time auto-file graduators. Both default to auto-filing OFF (Story #5341). |
-| `feedbackLoop.auditResultsAutoFile` | No | `boolean` | `false` | When true, the close-time audit-results graduator auto-files non-blocking audit-results findings as follow-up issues routed by source classification. Defaults to false (Story #5341); findings remain accessible in the structured comments on the Story either way. |
+| `feedbackLoop` | No | `object` | — | Opt-in toggle for the close-time retro auto-file graduator, plus the friction recurrence window. Auto-filing defaults to OFF (Story #5341). |
 | `feedbackLoop.retroProposals` | No | `boolean` | `false` | When true, the retro auto-files its actionable routed proposals as meta::<framework-gap\|consumer-improvement> + friction::<category> issues via the graduator pre-parsed-findings seam, and the rendered retro sections list the filed issue numbers instead of paste-ready gh command stanzas. Defaults to false (Story #5341), which renders the command stanzas instead. |
 | `feedbackLoop.frictionWindowDays` | No | `integer` | — | How many days back the run-scope friction recurrence window reaches (Story #4850). The window spans every surviving per-Story signal stream rather than the triggering run's own Stories, so that a defect firing once per Story can reach the actionable threshold; this bounds it by age so a defect fixed weeks ago stops re-routing. Rows older than the bound — and rows carrying no readable timestamp — are excluded and counted on the roll-up step result. Default 30. |
 | `auditToStories` | No | `object` | — | Knobs for the `/audit-to-stories` unattended (`--auto`) sweep (Story #4626). |
@@ -400,38 +399,17 @@ pre-computed inventory added a second, staler answer to the same question.
 A config still carrying the retired key is a hard validation failure; the
 2.20.0 retirement migration strips it on upgrade.
 
-- **`complexityGate`.** Shape-derived ceremony-lite routing (Story #4722,
-  superseding the word-count gate of Stories #4683/#4707). The full ceremony
-  buys measurable quality on capability-sized work but imposes a large fixed
-  cost premium on genuinely trivial scopes — and seed word count is the wrong
-  proxy in both directions (a detailed prompt can describe trivial work, a
-  terse one complex work), so `maxSeedWords` was **removed** in the hard
-  cutover (a config still setting it is rejected as an additional property).
-  Routing is now staged on the objective shape of the work: `/mandrel-plan`'s context
-  envelope emits advisory `complexitySignals` (enumerated-artifact count,
-  risk-heuristic hits, repo state of predicted paths, sensitive-path classes)
-  with **no routing authority**; the planner authors the trivial-vs-standard
-  verdict via `plan-persist.js --route-downgrade-reason "<why>"` (recorded on
-  every created Story's `story-plan-state` checkpoint); persist validates a
-  lite claim against each authored Story's own shape (`changes[]` count,
-  acceptance count, creates-vs-refactors mix, sensitive-path classes — the
-  framework constants `STORY_SHAPE_CEILINGS`) and **fails closed to `full`**
-  when the shape exceeds the ceilings; and `/mandrel-deliver` re-derives the route
-  from the fetched Story body via the same shape function at dispatch. The
-  `route::lite` label is a human-visible hint only — a lost label cannot
-  misroute delivery. A lite-shaped Story executes inline (no story-worker or
-  acceptance-critic sub-agent fan-out); sensitivity always wins — a footprint
-  intersecting a sensitive-path class routes `full` and keeps its fresh
-  critic. The lite path **never** relaxes a non-negotiable: it still produces
-  a Story ticket, still lands via a PR to `main`, still runs every repo
-  quality gate, and still honours `rules/security-baseline.md` — those gates
-  run in `single-story-close.js` regardless of route. **Knobs:** `enabled`
-  (default `true`; `false` disables lite routing everywhere) and
-  `maxArtifacts` (default `1` — a signal threshold, not a router). Defaults
-  live on `DEFAULT_COMPLEXITY_GATE` in
-  [`lib/orchestration/complexity-gate.js`](../scripts/lib/orchestration/complexity-gate.js);
-  a malformed or negative value falls back to the default rather than
-  widening the lite path.
+- **`complexityGate`.** **Retired** (Story #5312). The planner's authored
+  lite claim (`plan-persist.js --route-downgrade-reason`), the persist-time
+  shape backstop that validated it against `STORY_SHAPE_CEILINGS`, the
+  `route::lite` hint label and this whole knob block are gone. Persist no
+  longer routes: every Story lands through the same engine and the same close
+  gates, and a config still setting `planning.complexityGate` is a hard
+  validation failure the `2.57.0` retirement migration strips on upgrade.
+  What survives is delivery-side and reads evidence rather than a declaration
+  — `/mandrel-plan`'s advisory `complexitySignals` (no routing authority), the
+  `/deliver-light` suitability gate's two absolute risk rules, and that path's
+  diff backstop against the actual change set.
 
 ### `delivery`
 
@@ -489,16 +467,19 @@ non-Claude consumers can pin the same `.agents/` version unmodified. The fix
 budget (`maxFixAttempts` / `maxFixScopeFiles`) uses the same values for every
 Story in a run — there is no per-Story override.
 
-#### `delivery.feedbackLoop` — verification-results auto-graduation
+#### `delivery.feedbackLoop` — retro auto-graduation
 
-`auditResultsAutoFile` auto-graduates surviving non-blocking findings from the
-unified `verification-results` comment into follow-up issues; the graduator
-embeds a content-derived idempotency marker so re-runs skip findings that
-already have an issue (re-enabling after a manual-triage window is safe). It
-and `retroProposals` both default to `false` (Story #5341) — set either to
-`true` to opt in. The
-former `codeReviewAutoFile` key was retired when Story #4411 unified the pass —
-a config carrying it fails validation; delete it.
+`retroProposals` auto-graduates the retro's actionable routed proposals into
+follow-up issues; the graduator embeds a content-derived idempotency marker so
+re-runs skip proposals that already have an issue (re-enabling after a
+manual-triage window is safe). It defaults to `false` (Story #5341) — set it
+to `true` to opt in.
+
+Two sibling keys were retired and a config carrying either fails validation;
+delete it. `codeReviewAutoFile` went when Story #4411 unified the pass.
+`auditResultsAutoFile` went in Story #5366: its graduator had already been
+deleted, so the toggle had no runtime reader and Story #5341's flip of its
+default changed nothing. `mandrel update` strips it for you.
 
 ---
 

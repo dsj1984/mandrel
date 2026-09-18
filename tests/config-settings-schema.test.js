@@ -1053,6 +1053,31 @@ describe('AGENTRC_SCHEMA — delivery.codeReview.providers (Story #2871)', () =>
     );
   });
 
+  it('rejects the retired feedbackLoop.auditResultsAutoFile, keeping its siblings (Story #5366)', () => {
+    // The graduator this toggle switched was deleted two releases ago, so the
+    // key had no runtime reader: a consumer setting it was configuring
+    // nothing. `feedbackLoop` is closed to additional properties, which is
+    // what makes the removal a hard validation failure on upgrade — and why
+    // the 2.60.0 migration strips it from both config surfaces.
+    expectErrors(
+      {
+        ...REQ,
+        delivery: { feedbackLoop: { auditResultsAutoFile: false } },
+      },
+      /additional properties/,
+    );
+    assert.equal(
+      validate({
+        ...REQ,
+        delivery: {
+          feedbackLoop: { retroProposals: true, frictionWindowDays: 14 },
+        },
+      }),
+      true,
+      'the retro toggle has a live reader and must survive',
+    );
+  });
+
   it('rejects the retired codingGuardrails.cyclomaticMustFix and routing.freshCriticSampleRate (Story #5313)', () => {
     expectErrors(
       {

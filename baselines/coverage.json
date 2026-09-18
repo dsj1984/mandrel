@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-09-17T17:09:04.498Z",
+  "generatedAt": "2026-09-18T00:27:55.969Z",
   "rollup": {
     "*": {
-      "lines": 96.34,
-      "branches": 87.29,
-      "functions": 88.34
+      "lines": 96.35,
+      "branches": 87.33,
+      "functions": 88.2
     }
   },
   "rows": [
@@ -204,8 +204,8 @@
     },
     {
       "path": ".agents/scripts/deliver-light.js",
-      "lines": 96.91,
-      "branches": 76.74,
+      "lines": 96.45,
+      "branches": 75,
       "functions": 100
     },
     {
@@ -1440,8 +1440,8 @@
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "lines": 98.18,
-      "branches": 83.4,
+      "lines": 98.32,
+      "branches": 83.48,
       "functions": 100
     },
     {
@@ -1452,8 +1452,8 @@
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/retro-proposals-graduator.js",
-      "lines": 95.53,
-      "branches": 72.31,
+      "lines": 94.33,
+      "branches": 70.31,
       "functions": 100
     },
     {
@@ -1741,7 +1741,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/ceremony-routing.js",
       "lines": 100,
-      "branches": 88.89,
+      "branches": 100,
       "functions": 100
     },
     {
@@ -1824,8 +1824,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/complexity-gate.js",
-      "lines": 99.71,
-      "branches": 93.41,
+      "lines": 99.62,
+      "branches": 96.55,
       "functions": 100
     },
     {
@@ -2034,8 +2034,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/light-suitability.js",
-      "lines": 99.74,
-      "branches": 91.8,
+      "lines": 99.71,
+      "branches": 92.45,
       "functions": 100
     },
     {
@@ -2269,7 +2269,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/review-depth.js",
       "lines": 100,
-      "branches": 84.85,
+      "branches": 85.29,
       "functions": 100
     },
     {
@@ -3636,6 +3636,12 @@
     },
     {
       "path": "lib/migrations/steps/2.57.0-retire-planning-limit-knobs.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 0
+    },
+    {
+      "path": "lib/migrations/steps/2.60.0-retire-audit-results-autofile.js",
       "lines": 100,
       "branches": 100,
       "functions": 0
