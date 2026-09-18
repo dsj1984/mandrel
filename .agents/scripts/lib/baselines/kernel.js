@@ -1,27 +1,7 @@
 /**
- * kernel.js — per-kind kernel-version resolution (Story #1891, Epic #1786).
- *
- * Every committed baseline stamps a `kernelVersion` semver string in its
- * envelope. The version tracks the in-repo (or upstream) kernel that
- * produced the rows — a bump invalidates every committed baseline of
- * that kind, signalling consumers to regenerate. The version source is
- * **per-kind**:
- *
- *   - CRAP and Maintainability share the `typhonjs-escomplex` upstream
- *     package version; both modules' `kernelVersion()` read it from the
- *     nearest `node_modules/typhonjs-escomplex/package.json`.
- *   - Coverage, Mutation, Bundle-Size, Duplication carry a static
- *     in-repo semver bumped by hand whenever the scoring/rollup math
- *     changes. Their `kernelVersion()` just returns the constant.
- *
- * This module is the public surface: callers ask
- * `currentKernelVersion(kind)` and get a single string back, no matter
- * which strategy the kind uses internally.
- *
- * `checkKernelVersion(kind, baselineVersion)` is the drift-detection
- * helper. It returns `{ match, current }` so a CI gate can compare the
- * baseline's stamp against the running kernel and decide whether to
- * regenerate or fail.
+ * Kind-module registry and kernel-version resolution. CRAP and MI stamp the
+ * installed scorer package version; the other kinds stamp a static semver
+ * bumped by hand when their scoring or rollup math changes.
  *
  * @module lib/baselines/kernel
  */
@@ -103,14 +83,8 @@ import {
 } from './kinds/mutation.js';
 
 /**
- * Assemble the kind-module protocol from named imports.
- *
- * Prefer named imports over `import * as kind` here: knip (and the
- * dead-exports ratchet) cannot see members reached only through
- * `getKindModule(kind).projectRow(...)` after a namespace import, so
- * star-imports of `kinds/*.js` produced systematic false-positive dead
- * exports for the protocol surface (`name`, `keyField`, `kernelVersion`,
- * `projectRow`, `sortRows`, `rollup`, …).
+ * Named imports, not `import * as`: knip cannot see members reached through
+ * a namespace, which reports the protocol surface as dead exports.
  *
  * @param {object} members
  * @returns {object}
@@ -119,8 +93,7 @@ function bindKindModule(members) {
   return Object.freeze({
     name: members.name,
     keyField: members.keyField,
-    // Story #5215: the merge identity, distinct from the `keyField`
-    // grouping key above — CRAP groups by file and identifies by method.
+    // Merge identity; distinct from the `keyField` grouping key.
     rowIdentity: members.rowIdentity,
     kernelVersion: members.kernelVersion,
     projectRow: members.projectRow,
@@ -129,19 +102,13 @@ function bindKindModule(members) {
     compare: members.compare,
     applyEpsilon: members.applyEpsilon,
     mergeRows: members.mergeRows,
-    // Optional per-kind hooks (Story #4775). `envelopeExtras` contributes
-    // envelope-level stamps the shared writer would not otherwise know about;
-    // `assertBaselineCompatible` lets a kind refuse a loaded baseline whose
-    // scoring semantics predate the running scorer.
+    // Optional hooks: extra envelope stamps; refusal of an incompatible baseline.
     envelopeExtras: members.envelopeExtras,
     assertBaselineCompatible: members.assertBaselineCompatible,
   });
 }
 
-/**
- * Registry of every shipped kind module. Keys mirror the per-kind schema
- * filenames so a future "list all kinds" iterator can stay declarative.
- */
+/** Keys mirror the per-kind schema filenames. */
 const KIND_MODULES = Object.freeze({
   coverage: bindKindModule({
     name: coverageName,
@@ -221,8 +188,7 @@ const KIND_MODULES = Object.freeze({
 });
 
 /**
- * Look up a kind module by name. Throws when the kind isn't registered so
- * callers can't silently fall through to undefined behaviour.
+ * Throws on an unregistered kind.
  *
  * @param {string} kind
  * @returns {{ name: string, keyField: string, kernelVersion: () => string,
@@ -242,10 +208,6 @@ export function getKindModule(kind) {
 }
 
 /**
- * Resolve the running kernel version for `kind`. Delegates to the per-kind
- * module's `kernelVersion()` — see the module preamble for which strategy
- * each kind uses.
- *
  * @param {string} kind
  * @returns {string}
  */
@@ -254,10 +216,6 @@ export function currentKernelVersion(kind) {
 }
 
 /**
- * Resolve a kind module, or null when the kind is not registered. Lets the
- * optional-hook callers below stay expression-shaped instead of threading a
- * mutable binding through a try/catch.
- *
  * @param {string} kind
  * @returns {object|null}
  */
@@ -270,10 +228,8 @@ function tryGetKindModule(kind) {
 }
 
 /**
- * Ask a kind whether a loaded baseline is compatible with the running
- * scorer's SEMANTICS — a dimension `kernelVersion` cannot express, because a
- * kind's scoring can change while the upstream package it stamps does not
- * (Story #4775). Kinds without the hook always answer "compatible".
+ * Semantic compatibility, which `kernelVersion` cannot express: scoring can
+ * change while the stamped package does not. Kinds without the hook pass.
  *
  * @param {string} kind
  * @param {object|null} baseline
@@ -286,10 +242,6 @@ export function checkBaselineSemantics(kind, baseline) {
 }
 
 /**
- * Compare a baseline's stamped version against the currently running
- * kernel for the same kind. Returns `{ match, current }` so callers can
- * format a drift signal or trigger a regenerate.
- *
  * @param {string} kind
  * @param {string} baselineVersion
  * @returns {{ match: boolean, current: string }}
@@ -303,10 +255,6 @@ export function checkKernelVersion(kind, baselineVersion) {
 }
 
 /**
- * List every kind registered with the kernel. Useful for the writer's
- * envelope sanity check and for tests that want to iterate all shipped
- * kinds.
- *
  * @returns {string[]}
  */
 export function listKinds() {

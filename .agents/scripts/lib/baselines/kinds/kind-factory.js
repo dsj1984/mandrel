@@ -1,30 +1,13 @@
-/**
- * kinds/kind-factory.js — shared scaffold factory for per-kind baseline
- * modules (Story #3983).
- *
- * The five row-metric kinds (coverage, mutation, maintainability,
- * lighthouse, duplication) used to hand-roll the same scaffold each:
- * `kernelVersion`, `sortRows`, a component-aware `rollup`, a
- * `compare(head, base)` that diffs rows by key into
- * `{regressions, improvements, unchanged, additions}`, an
- * `applyEpsilon` stabilizer (Story #1964), and a scope-aware
- * `mergeRows` (Story #1974). Only the axis list, direction-of-better,
- * aggregate math, and the missing/removed-row policies differ per kind.
- *
- * `makeBaselineKind` generates the scaffold once; each kind module stays
- * a thin parameterization with a byte-identical exported surface. The
- * Story #2012 class of fix ("new paths must land in `additions`, never
- * the regression arm") lives here exactly once.
- *
- * All generated functions are pure: no I/O, no process exit, no
- * friction emission.
- */
+/** Pure scaffold factory for the row-metric baseline kinds. */
 
 import { componentMatches } from '../component-matcher.js';
 import { mergeRowsByScope } from '../scope.js';
 
 /**
- * Build the shared scaffold for a per-kind baseline module.
+ * `missingBasePolicy`: a head row with no base row is an `'addition'`
+ * (default; never a regression) or is classified against a `'perfect'` base.
+ * `removedRowPolicy`: a base row with no head row is classified against a
+ * perfect head, or is an improvement when `when(baseRow)` holds.
  *
  * @param {{
  *   keyField: string,
@@ -38,26 +21,6 @@ import { mergeRowsByScope } from '../scope.js';
  *     | { kind: 'improvement-when', when: (row: object) => boolean },
  *   perfectRow?: (key: string) => object,
  * }} opts
- *   - `keyField`          — row grouping property (`'path'` or `'route'`):
- *                           the rollup/scope key. The generated
- *                           `rowIdentity` derives from it, but the two are
- *                           distinct concepts — see `rowIdentity` below.
- *   - `kernelVersion`     — static semver, or a thunk for kinds that pin
- *                           to another kind's kernel (MI → CRAP)
- *   - `axes`              — metric property names compared per row
- *   - `betterWhen`        — `'higher'` (coverage, MI, …) or `'lower'`
- *                           (duplication): decides which delta sign is a
- *                           regression
- *   - `aggregate`         — per-kind rollup math over a row set
- *   - `missingBasePolicy` — head row with no base row: `'addition'`
- *                           (default; Story #2012 bucket) or `'perfect'`
- *                           (classify against a perfect base — lighthouse,
- *                           where a new route must meet the bar)
- *   - `removedRowPolicy`  — base row with no head row: `'perfect-head'`
- *                           classifies against a perfect head row;
- *                           `'improvement-when'` pushes an improvement
- *                           when `when(baseRow)` holds, else unchanged
- *   - `perfectRow`        — builds the perfect row for the policies above
  * @returns {{
  *   kernelVersion: () => string,
  *   rowIdentity: (row: object) => string,
@@ -83,17 +46,8 @@ export function makeBaselineKind({
     typeof kernelVersion === 'function' ? kernelVersion : () => kernelVersion;
 
   /**
-   * Canonical row identity (Story #5215) — the string a 3-way merge keys a
-   * row on, and the contract every kind module must satisfy.
-   *
-   * Deliberately a separate concept from `keyField`, even though the five
-   * scaffold kinds derive one from the other. `keyField` answers "which
-   * component does this row roll up into", so a kind is free to declare a
-   * grouping key coarser than a row (CRAP declares `'path'` while shipping
-   * one row per method). Identity answers "is this the same row", and a
-   * merge that confuses the two silently drops every sibling sharing a key.
-   * Callers therefore read `rowIdentity` off the kind module and never
-   * rebuild a key from `keyField` themselves.
+   * "Is this the same row" — distinct from `keyField` ("which component"),
+   * though derived from it here. Callers must never rebuild it from `keyField`.
    *
    * @param {object} row
    * @returns {string}

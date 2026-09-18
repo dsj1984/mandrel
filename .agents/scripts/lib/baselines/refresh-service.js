@@ -1,77 +1,8 @@
 /**
- * refresh-service.js — Unified Baseline Refresh Service entry point
- * (Story #2197, Epic #2173).
- *
- * `refreshBaseline()` is the single funnel through which every baseline
- * regeneration (maintainability, crap, coverage, duplication) must flow.
- * Callers that previously assembled their own envelopes and called
- * `fs.writeFileSync` MUST migrate to this entry point — Stories 3/4/5 of
- * Epic #2173 do that migration; Story #2197 only lands the service surface
- * and tests. Story #4944 migrated the last holdout, `duplication`.
- *
- * The service is **scoring-agnostic**: it does not itself walk the
- * filesystem to compute MI / CRAP / coverage / duplication scores. Scoring
- * is provided by the per-kind default scorers resolved lazily via
- * `resolveDefaultScorer`
- * (built with the project config resolved against `cwd`) and, in tests or
- * production wiring, injected via the `scorer` option for hermetic
- * determinism. The service is the policy layer:
- *
- *   1. Validate the input contract.
- *   2. Resolve the scope (explicit list / diff-derived / full).
- *   3. Read the prior envelope from `writePath` (if present).
- *   4. Run the kind's scorer over the in-scope file list.
- *   5. Canonicalize every persisted row path via `canonicalizeBaselinePath()`
- *      (Story #2192) before handing off to the shared `writer.write()`.
- *   6. Pass `prior` + `scope` to `writer.write()` so out-of-scope rows are
- *      preserved byte-for-byte (Task #2209) and structural-equality
- *      short-circuits return the prior envelope unchanged.
- *   7. Atomically serialise the resulting envelope to `writePath`.
- *
- * Public API (Task #2203, AC-1 / AC-2 / AC-7):
- *
- *   refreshBaseline({
- *     kind,        // 'maintainability' | 'crap' | 'coverage'
- *                  //   | 'duplication'                       REQUIRED
- *     baseRef,     // git ref to diff against; default 'origin/main'
- *     headRef,     // git ref under inspection; default 'HEAD'
- *     scopeFiles,  // Array<string> | null
- *                  //   - Array: use verbatim as the in-scope file set.
- *                  //   - null + !fullScope: derive via `git diff
- *                  //     --name-only baseRef..headRef` filtered by kind
- *                  //     predicate (Task #2207).
- *                  //   - null + fullScope=true: ignore scope, regenerate
- *                  //     every row.
- *     epsilon,     // per-kind stabilization tolerance (number | undefined)
- *     fullScope,   // boolean; default false. When true, scopeFiles MUST
- *                  // be null and the whole baseline is regenerated.
- *     writePath,   // absolute path to baselines/<kind>.json  REQUIRED
- *     scorer,      // INTERNAL/TESTING: override the kind's scorer.
- *                  // Signature: (files: string[], opts) =>
- *                  //   Promise<Array<row>> | Array<row>
- *     fs,          // INTERNAL/TESTING: inject fs impl for read/write.
- *     gitDiff,     // INTERNAL/TESTING: inject diff-derivation impl with
- *                  // signature ({ baseRef, headRef, cwd }) =>
- *                  //   Iterable<string>
- *     cwd,         // working directory for git diff; default process.cwd()
- *     generatedAt, // optional pinned timestamp (test determinism); falls
- *                  // back to MANDREL_BASELINE_GENERATED_AT, then now().
- *     requireRowsForScopeFiles, // optional fail-loud guard for Story-close
- *     requiredScopeFilePredicate, // optional predicate to narrow guarded files
- *   }) -> Promise<{
- *     kind, writePath, scope: { mode, ref?, files: string[] },
- *     envelope, wrote: boolean
- *   }>
- *
- * Acceptance contract:
- *
- *   AC-1: All callers that produce a maintainability/crap/coverage/
- *         duplication baseline go through refreshBaseline(). Enforced by
- *         the Task #2208 invariant.
- *   AC-2: scopeFiles=null && !fullScope -> diff-derived scope (Task #2207).
- *   AC-4: Out-of-scope rows + their updatedAt fields are preserved byte-
- *         for-byte (Task #2209).
- *   AC-7: All persisted paths go through canonicalizeBaselinePath().
+ * Baseline refresh service: `refreshBaseline()` is the single funnel for
+ * every baseline regeneration. It is scoring-agnostic policy — resolve scope,
+ * score via the kind's (default or injected) scorer, canonicalize paths, and
+ * write through `writer.write()` so out-of-scope rows survive byte-for-byte.
  *
  * @module .agents/scripts/lib/baselines/refresh-service
  */
@@ -106,10 +37,6 @@ import {
 
 const nodeRequire = createRequire(import.meta.url);
 
-/**
- * Kinds the refresh service knows how to dispatch. Stays in lockstep with
- * the per-kind modules under `.agents/scripts/lib/baselines/kinds/`.
- */
 const SUPPORTED_KINDS = Object.freeze([
   'maintainability',
   'crap',
@@ -118,13 +45,7 @@ const SUPPORTED_KINDS = Object.freeze([
 ]);
 
 /**
- * Per-kind file-extension predicate for diff-scope derivation (Task #2207).
- * Only files whose extension matches the kind's scorer surface are admitted
- * into the diff-derived scope; this prevents unrelated diffs (docs, JSON
- * fixtures, schema files) from triggering a no-op rescore.
- *
- * The predicates intentionally accept canonical, forward-slash POSIX paths
- * only — every caller funnels through `canonicalizeBaselinePath()` first.
+ * Per-kind extension filter for diff-derived scope, over canonical POSIX paths.
  *
  * @type {Record<string, (p: string) => boolean>}
  */
@@ -132,25 +53,14 @@ const KIND_FILE_PREDICATES = Object.freeze({
   maintainability: (p) => /\.(?:m?[jt]sx?)$/i.test(p),
   crap: (p) => /\.(?:m?[jt]sx?)$/i.test(p),
   coverage: (p) => /\.(?:m?[jt]sx?)$/i.test(p),
-  // Duplication shares the source-extension filter deliberately. jscpd is
-  // configured for the `javascript` format only, so a changed `.ts` file
-  // admitted here simply yields no row on either side of the merge —
-  // over-inclusive is inert, under-inclusive would silently pin a changed
-  // file's prior row. Erring wide is the safe direction.
+  // Over-inclusive is inert for JS-only jscpd; under-inclusive would pin a
+  // changed file's prior row.
   duplication: (p) => /\.(?:m?[jt]sx?)$/i.test(p),
 });
 
 /**
- * Resolve the normalized quality block for a kind from a `config` /
- * `quality` pair. The default scorers MUST read the same canonical,
- * defaulted shape that the production scorers (`refresh-commit.js#buildKindScorer`,
- * `update-crap-baseline.js`) consume — i.e. the `getQuality(config)` output,
- * not the raw `config.delivery.quality.gates.<kind>` path. The raw path is
- * un-defaulted (e.g. it lacks `requireCoverage` / `coveragePath`), so reading
- * it directly is exactly the construction inconsistency Story #3694 fixes.
- *
- * Precedence: an explicitly supplied `quality` block wins; otherwise derive
- * it from `config` via `getQuality`; otherwise fall back to `{}`.
+ * The defaulted `getQuality(config)` shape the production scorers read — never
+ * the raw, un-defaulted gates path. Explicit `quality` wins over `config`.
  *
  * @param {{ quality?: object, config?: object }} opts
  * @returns {object}
@@ -162,23 +72,10 @@ function resolveQualityBlock({ quality, config } = {}) {
 }
 
 /**
- * Build the default CRAP scorer. Scans configured target directories
- * (full-scope) or the diff-derived file list, loads coverage-final.json,
- * and runs `scanAndScore` to produce row-shape objects ready for the writer.
- *
- * Reads its `targetDirs` / `ignoreGlobs` / `requireCoverage` / `coveragePath`
- * from the normalized quality block (Story #3694). The lazy default resolver
- * (`resolveDefaultScorer`) passes the resolved project quality block so the
- * config-less default no longer silently drops rows.
- *
- * Exposed for unit tests that need to inspect the built scorer shape; the
- * production caller is the internal `resolveDefaultScorer` resolver below.
- *
  * @param {{ cwd: string, config?: object, quality?: object }} opts
  * @returns {(files: string[], opts: object) => Promise<object[]>}
  */
 function buildDefaultCrapScorer({ cwd, config, quality } = {}) {
-  // Config is optional: callers that don't pass it get reasonable defaults.
   const crapCfg = resolveQualityBlock({ quality, config })?.crap ?? {};
   const targetDirs = Array.isArray(crapCfg.targetDirs)
     ? crapCfg.targetDirs
@@ -205,8 +102,6 @@ function buildDefaultCrapScorer({ cwd, config, quality } = {}) {
       ignoreGlobs,
       scopeFiles,
     });
-    // Stamp version probes (satisfies coverage even when caller doesn't need
-    // the values — the writer stamps kernelVersion from the crap kind module).
     resolveEscomplexVersion(effectiveCwd);
     resolveTsTranspilerVersion();
     return (rows ?? []).filter(
@@ -216,12 +111,7 @@ function buildDefaultCrapScorer({ cwd, config, quality } = {}) {
 }
 
 /**
- * Build the default coverage scorer. Reads coverage-final.json, applies
- * the c8 scope predicate from `.c8rc.cjs`, and converts the per-file
- * coverage percentages into rows in the `{ path, lines, branches,
- * functions }` shape the writer expects.
- *
- * `.c8rc.cjs` is optional: when absent the scorer admits all files.
+ * Coverage rows from coverage-final.json, scoped by the optional `.c8rc.cjs`.
  *
  * @param {{ cwd: string }} opts
  * @returns {(files: string[], opts: object) => object[]}
@@ -255,8 +145,6 @@ function buildDefaultCoverageScorer({ cwd } = {}) {
       cwd: effectiveCwd,
       scope: c8Scope,
     });
-    // In diff mode, further narrow to the in-scope file list so only changed
-    // files are re-scored (out-of-scope rows are preserved by the service).
     const inScope =
       !opts?.fullScope && Array.isArray(files) && files.length > 0
         ? new Set(files)
@@ -273,13 +161,6 @@ function buildDefaultCoverageScorer({ cwd } = {}) {
 }
 
 /**
- * Build the default maintainability scorer. Full-scope walks all configured
- * target directories; diff-scope resolves just the in-scope files.
- *
- * Reads its `targetDirs` / `ignoreGlobs` from the normalized quality block
- * (Story #3694), mirroring `buildDefaultCrapScorer` and the production
- * `refresh-commit.js#buildKindScorer`.
- *
  * @param {{ cwd: string, config?: object, quality?: object }} opts
  * @returns {(files: string[], opts: object) => Promise<object[]>}
  */
@@ -305,12 +186,8 @@ function buildDefaultMaintainabilityScorer({ cwd, config, quality } = {}) {
         const underTarget = targetAbsDirs.some(
           (root) => abs === root || abs.startsWith(`${root}${path.sep}`),
         );
-        // Apply `ignoreGlobs` here too — the full-scope walk drops
-        // ignore-matched files via `scanDirectoryMi`, so the diff-scope path
-        // must do the same or an ignored-but-changed file (e.g. one matched by
-        // `config-settings-schema*.js`) enters `rows` and drags the
-        // `rollup["*"].min` below the maintainability floor. Reuse the same
-        // matcher `scanDirectoryMi` uses so behaviour is identical.
+        // Same ignore matcher as the full-scope walk, or an ignored-but-changed
+        // file enters `rows` and drags the rollup min below the floor.
         if (
           underTarget &&
           !isIgnoredByGlobsMi(abs, ignoreGlobs, effectiveCwd)
@@ -330,20 +207,8 @@ function buildDefaultMaintainabilityScorer({ cwd, config, quality } = {}) {
 }
 
 /**
- * Per-kind default-scorer builders. Story #3658 completes the Epic #2173
- * migration by wiring real default scorers for all three kinds so the service
- * is self-contained: callers may still inject a `scorer` via the options bag
- * (used by auto-refresh-runner and tests), but no scorer injection is required
- * for production invocations.
- *
- * Story #3694: the builders are invoked **lazily** by `resolveDefaultScorer`
- * with the project config resolved against the call's `cwd`, rather than being
- * frozen once at module-load with `{ cwd: process.cwd() }` and no `config`.
- * The previous eager table built every scorer with no config, so the crap and
- * maintainability scorers ran with empty `targetDirs`/`ignoreGlobs` and
- * silently dropped valid rows. Lazy resolution honours both the call's `cwd`
- * and the resolved `crap.targetDirs`/`ignoreGlobs`/`requireCoverage` (and the
- * maintainability equivalents).
+ * Built lazily per call so each scorer sees the config resolved against the
+ * call's `cwd`; an unconfigured scorer silently drops valid rows.
  *
  * @type {Record<string, (input: { cwd: string, config?: object, quality?: object }) => ((files: string[], opts: object) => Promise<object[]> | object[])>}
  */
@@ -355,25 +220,10 @@ const KIND_SCORER_BUILDERS = Object.freeze({
 });
 
 /**
- * Resolve the default scorer for `kind`, building it with the project config
- * resolved against `cwd` (Story #3694). This is the production replacement for
- * the old eager `KIND_SCORERS` table: it guarantees the crap and
- * maintainability defaults are constructed with the resolved
- * `targetDirs`/`ignoreGlobs`/`requireCoverage`, so a config-less
- * `refreshBaseline({ kind: 'crap', ... })` call produces the same rows as the
- * `update-crap-baseline.js` CLI rather than silently dropping them.
- *
- * Config resolution is best-effort: if `resolveConfig` throws (e.g. a
- * malformed `.agentrc.json` under a tmp `cwd` in tests), we fall back to a
- * config-less builder so the service still produces a valid (empty) envelope
- * rather than crashing the refresh. The production crap/maintainability paths
- * never rely on this fallback — they inject an explicit, configured scorer.
- *
- * Exported since Story #4776 so the full-scope drift detector
- * (`check-baseline-drift.js`) re-scores through the *same* scorer that
- * writes the baseline. A drift check scoring by a second, parallel
- * implementation would report the two implementations' disagreement as
- * drift, which is exactly the false signal it exists to rule out.
+ * Default scorer for `kind`, configured from `cwd`. Config resolution is
+ * best-effort (a throw yields a config-less scorer). Exported so the drift
+ * detector re-scores through the same scorer that writes the baseline; a
+ * parallel implementation would report its own disagreement as drift.
  *
  * @param {string} kind
  * @param {{ cwd: string }} opts
@@ -393,9 +243,10 @@ export function resolveDefaultScorer(kind, { cwd } = {}) {
 }
 
 /**
- * Refresh the on-disk baseline for `kind`. See module preamble for the
- * full contract. Returns the resulting envelope plus the resolved scope
- * so callers (and tests) can assert what actually got scored.
+ * Refresh the on-disk baseline for `kind`. `scopeFiles: null` without
+ * `fullScope` derives scope from `git diff baseRef..headRef`; `fullScope`
+ * requires `scopeFiles: null`. `requireRowsForScopeFiles` fails loud when a
+ * scoped file produced no row.
  *
  * @param {{
  *   kind: 'maintainability' | 'crap' | 'coverage' | 'duplication',
@@ -441,10 +292,6 @@ export async function refreshBaseline(opts = {}) {
 
   validateOptions({ kind, scopeFiles, fullScope, writePath });
 
-  // Resolve the kind's scorer. Tests / production wiring inject via
-  // `opts.scorer`; otherwise build the default scorer lazily with the project
-  // config resolved against `cwd` (Story #3694) so the crap/maintainability
-  // defaults honour the configured targetDirs/ignoreGlobs.
   const resolvedScorer = scorer ?? resolveDefaultScorer(kind, { cwd });
   if (typeof resolvedScorer !== 'function') {
     throw new Error(
@@ -452,7 +299,6 @@ export async function refreshBaseline(opts = {}) {
     );
   }
 
-  // Resolve the in-scope file set.
   const scope = await resolveScope({
     kind,
     scopeFiles,
@@ -463,10 +309,7 @@ export async function refreshBaseline(opts = {}) {
     cwd,
   });
 
-  // Score every in-scope file. For full-scope refreshes the scorer
-  // receives an empty `files` list and is expected to scan the whole
-  // target tree itself (the scorer owns the directory walk — the service
-  // does not, by design).
+  // On full scope `files` is empty: the scorer owns the directory walk.
   const scoredRows = await resolvedScorer(scope.files, {
     kind,
     fullScope: scope.mode === 'full',
@@ -480,12 +323,7 @@ export async function refreshBaseline(opts = {}) {
     );
   }
 
-  // Canonicalize every row path (Story #2192 / AC-7). The shared
-  // `writer.write()` already runs each row through the per-kind
-  // `projectRow` which calls `canonicalise()` internally, but funnelling
-  // through `canonicalizeBaselinePath()` here is the explicit
-  // service-level contract: rows leave the service with canonical keys,
-  // regardless of which scorer produced them.
+  // Rows leave the service canonical whatever scorer produced them.
   const canonicalRows = scoredRows.map((row) => ({
     ...row,
     path: canonicalizeBaselinePath(row.path ?? row.file),
@@ -499,12 +337,8 @@ export async function refreshBaseline(opts = {}) {
     requiredScopeFilePredicate,
   });
 
-  // Read the prior envelope so out-of-scope rows survive (Task #2209) and
-  // the structural-equality short-circuit can fire.
   const priorEnvelope = readPriorEnvelope(writePath, fs);
 
-  // Hand off to the shared writer. It applies `mergeRows` (scope), then
-  // `applyEpsilon` (stability), then sort + rollup + envelope stamping.
   const envelope = writeEnvelope({
     kind,
     rows: canonicalRows,
@@ -518,10 +352,8 @@ export async function refreshBaseline(opts = {}) {
     generatedAt: generatedAt ?? process.env.MANDREL_BASELINE_GENERATED_AT,
   });
 
-  // Persist iff the envelope changed. The writer's structural-equality
-  // short-circuit returns the prior envelope object identity-equal when
-  // nothing changed; in that case we skip the disk write so the on-disk
-  // bytes (including `generatedAt`) are preserved verbatim.
+  // The writer returns the prior object itself when nothing changed; skip the
+  // write so on-disk bytes (including `generatedAt`) stay verbatim.
   let wrote = false;
   if (priorEnvelope === null || envelope !== priorEnvelope) {
     writeEnvelopeFile(writePath, envelope, { fsImpl: fs });
@@ -571,11 +403,8 @@ function assertRequiredScopeRows({
 }
 
 /**
- * Default git-diff derivation for the diff-scope path. Runs through the shared
- * child-process surface ([`child-exec.js`](../child-exec.js)) — `execFile`,
- * never a shell — and only the canonical two-dot range `baseRef..headRef`:
- * triple-dot is intentionally avoided so the result reflects exactly the
- * files that differ between the two refs at the time of the call.
+ * Two-dot range (not triple-dot): exactly the files that differ between the
+ * two refs now. `execFile`, never a shell.
  *
  * @param {{ baseRef: string, headRef: string, cwd: string }} args
  * @returns {Promise<string[]>}
@@ -593,8 +422,6 @@ async function defaultGitDiff({ baseRef, headRef, cwd }) {
       .map((line) => line.trim())
       .filter((line) => line.length > 0);
   } catch (err) {
-    // A missing ref or corrupt repo is the operator's signal to inspect
-    // the working tree. Best-effort: emit a friction-friendly error.
     throw new Error(
       `refreshBaseline: git diff --name-only ${range} failed in ${cwd}: ${err.message}`,
     );
@@ -602,15 +429,7 @@ async function defaultGitDiff({ baseRef, headRef, cwd }) {
 }
 
 /**
- * Derive an in-scope file list from `git diff --name-only baseRef..headRef`
- * filtered by `predicate` (Story #2197, Task #2207). Exposed as a named
- * export so the diff-scope behaviour can be exercised in isolation. Every
- * file returned is canonicalized via `canonicalizeBaselinePath()` before
- * the predicate runs, so the predicate may assume POSIX, repo-relative
- * input regardless of what shape `git diff` printed on the host platform.
- *
- * Pure-by-design: `gitDiff` is injected by the caller (defaults to
- * `defaultGitDiff` which uses `execFile`, never a shell).
+ * Diff-derived scope; paths are canonicalized before `predicate` sees them.
  *
  * @param {{
  *   baseRef: string,
@@ -642,10 +461,6 @@ export async function deriveScopeFromDiff({
 }
 
 /**
- * Look up the file predicate for `kind`. Exposed so external tests can
- * verify the per-kind extension filter without depending on the private
- * `KIND_FILE_PREDICATES` table.
- *
  * @param {string} kind
  * @returns {(p: string) => boolean}
  */
@@ -659,18 +474,7 @@ export function fileFilterFor(kind) {
   return pred;
 }
 
-/**
- * Resolve the in-scope file set for this refresh call. Returns a flat
- * `{ mode, ref?, files }` record so callers can branch on the resolution
- * mode without re-deriving it from the input shape.
- *
- * Resolution order:
- *
- *   1. `fullScope === true` -> `{ mode: 'full', files: [] }`.
- *   2. `scopeFiles` is an array -> `{ mode: 'explicit', files }`.
- *   3. `scopeFiles === null` -> derive via `gitDiff` filtered by the kind's
- *      predicate -> `{ mode: 'diff', ref: baseRef..headRef, files }`.
- */
+/** Full, then explicit list, then diff-derived. */
 async function resolveScope({
   kind,
   scopeFiles,
@@ -689,7 +493,6 @@ async function resolveScope({
       files: scopeFiles.map((p) => canonicalizeBaselinePath(p)),
     };
   }
-  // Diff-derived (Task #2207).
   const files = await deriveScopeFromDiff({
     baseRef,
     headRef,
@@ -701,9 +504,7 @@ async function resolveScope({
 }
 
 /**
- * Read + JSON-parse the prior envelope at `writePath`. Returns `null` on
- * any I/O or parse failure — the caller treats "no prior" as "fresh
- * write" (regression-fail-safe).
+ * `null` on any read/parse/shape failure, which the caller treats as a fresh write.
  *
  * @param {string} writePath
  * @param {typeof nodeFs} fs
@@ -734,10 +535,6 @@ function readPriorEnvelope(writePath, fs) {
   }
 }
 
-/**
- * Validate the option bag up-front. Throws on any contract violation so a
- * misuse never silently produces an empty / wrong baseline.
- */
 function validateOptions({ kind, scopeFiles, fullScope, writePath }) {
   if (typeof kind !== 'string' || !SUPPORTED_KINDS.includes(kind)) {
     throw new Error(
@@ -762,24 +559,10 @@ function validateOptions({ kind, scopeFiles, fullScope, writePath }) {
 }
 
 /**
- * Build the default duplication scorer.
- *
- * **This scorer always scans the whole target tree, in every scope mode.**
- * That is not an oversight — duplication is the only kind here whose metric
- * is *pairwise*: a clone is a relationship between two files, and jscpd can
- * only report it if both sides are in the corpus it was handed. Narrowing the
- * scan to the diff would drop every clone between a changed file and an
- * unchanged one, i.e. exactly the duplication a refactor is most likely to
- * introduce. So the `files` argument is intentionally unused: scope narrowing
- * for this kind is a **write-side** concern, applied by the service handing
- * `scope` to `writer.write()`, where `mergeRowsByScope` keeps the freshly
- * scanned rows for in-scope files and preserves the prior rows verbatim for
- * everything else.
- *
- * Reads `targetDirs` / `ignoreGlobs` off `gates.duplication`, not off a
- * flattened accessor: `resolveQuality` never lifted duplication into the
- * legacy bag (the kind post-dates it), so `quality.duplication` is always
- * `undefined` and reading it would silently scan nothing.
+ * Always scans the whole tree: duplication is pairwise, so a diff-narrowed
+ * scan would miss clones between changed and unchanged files. Scope applies
+ * write-side only. Config comes from `gates.duplication`; `quality.duplication`
+ * is always undefined.
  *
  * @param {{ cwd: string, config?: object, quality?: object, detect?: (opts: object) => Promise<object[]> }} opts
  * @returns {(files: string[], opts: object) => Promise<object[]>}

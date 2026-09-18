@@ -3,11 +3,8 @@ import path from 'node:path';
 import { Logger } from '../Logger.js';
 
 /**
- * Story #1895: project the canonical maintainability envelope back to the
- * legacy flat `{ path: mi }` map so existing gate consumers keep working
- * without churn — Story #1912 will replace this shim with the shared
- * reader. Returns the parsed input unchanged when it doesn't look like an
- * envelope (legacy flat shape stays flat).
+ * Project an envelope to the flat `{ path: mi }` map the gate consumers read;
+ * a non-envelope passes through unchanged.
  */
 function projectMaintainabilityEnvelopeToFlat(parsed) {
   if (
@@ -29,13 +26,9 @@ function projectMaintainabilityEnvelopeToFlat(parsed) {
 }
 
 /**
- * Loads the current maintainability baseline from disk. The on-disk path is
- * resolved by the caller via {@link getBaselines}; passing it explicitly
- * removes the silent-default behaviour the framework dropped in Epic #730
- * Story 5.5.
+ * No default path: the caller resolves it via {@link getBaselines}.
  *
- * @param {string} baselinePath  Repo-relative or absolute path to the baseline
- *   JSON. Required.
+ * @param {string} baselinePath  Repo-relative or absolute.
  * @returns {Record<string, number>}
  */
 export function getBaseline(baselinePath) {

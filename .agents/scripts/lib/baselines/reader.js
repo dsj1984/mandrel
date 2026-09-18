@@ -1,27 +1,5 @@
-// .agents/scripts/lib/baselines/reader.js
-//
-// Story #1892 / Task #1903 — single read entry point for every baseline.
-//
-// Every gate that compares against a committed baseline file (`coverage`,
-// `crap`, `maintainability`, `mutation`, `bundle-size`, `duplication`) MUST go through this module rather than open-coding
-// `JSON.parse(readFileSync(...))`. The reader:
-//
-//   1. Resolves the on-disk path for the given kind from the resolved
-//      agentrc (or falls back to the canonical default under `baselines/`).
-//   2. Parses the file as JSON.
-//   3. Validates it against the per-kind baseline schema via the shared
-//      AJV instance (built by `buildBaselineSchemaAjv` from the
-//      `.agents/schemas/baselines/` registry).
-//   4. Defensively canonicalises path-like row fields — strips
-//      `.worktrees/<name>/` prefixes that creep in when a baseline is
-//      hand-edited while inside a story worktree — so downstream
-//      consumers see canonical repo-relative paths.
-//   5. Returns the envelope's headline fields plus rows/rollup as a
-//      narrow contract: `{ rollup, rows, kernelVersion, generatedAt,
-//      scoringSemantics }`.
-//
-// Reader-only: the writer side lives in a sibling module (Story #1891).
-// No I/O happens here beyond reading the JSON file itself.
+// The single read entry point for every baseline: resolve path, parse,
+// schema-validate, canonicalise row paths, and return a narrow envelope.
 
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -33,12 +11,7 @@ import {
 import { getBaselines } from '../config/baselines.js';
 import { resolveConfig } from '../config-resolver.js';
 
-// ---------------------------------------------------------------------------
-// Kind → default path. The kinds not surfaced by `getBaselines` (which
-// only exposes crap/maintainability for historical reasons) fall
-// through this table. Repos that relocate a baseline should set
-// `delivery.quality.gates.<kind>.baselinePath` in `.agentrc.json`.
-// ---------------------------------------------------------------------------
+// Overridden by `delivery.quality.gates.<kind>.baselinePath`.
 const DEFAULT_PATHS = Object.freeze({
   coverage: 'baselines/coverage.json',
   crap: 'baselines/crap.json',
@@ -57,8 +30,7 @@ const KIND_TO_SCHEMA_FILE = Object.freeze({
   duplication: 'duplication.schema.json',
 });
 
-// Lazy singleton — building the AJV instance reads the schema files off
-// disk; doing it once per process keeps `load()` cheap to call in a loop.
+// Lazy: building AJV reads schema files off disk.
 let _ajv = null;
 function ajv() {
   if (_ajv === null) {
@@ -68,8 +40,6 @@ function ajv() {
 }
 
 /**
- * Resolve the on-disk path for a baseline kind.
- *
  * @param {string} kind
  * @param {{ configPath?: string, cwd?: string }} [opts]
  * @returns {string} absolute path
@@ -92,7 +62,6 @@ function resolveBaselinePath(kind, opts = {}) {
       }
     }
   } catch {
-    // Config resolution failures fall back to the canonical default.
     configured = null;
   }
   const rel = configured ?? DEFAULT_PATHS[kind];
@@ -100,28 +69,19 @@ function resolveBaselinePath(kind, opts = {}) {
 }
 
 /**
- * Defensively strip a `.worktrees/<name>/` prefix from a row's path-like
- * field. A baseline file committed on `main` should never carry such a
- * prefix, but hand-edits made from inside a story worktree occasionally
- * smuggle one in; the reader canonicalises so downstream consumers don't
- * have to special-case it.
- *
- * Pure; exported for tests.
+ * Strip a `.worktrees/<name>/` prefix that hand-edits inside a worktree can
+ * smuggle into a committed baseline.
  *
  * @param {string} value
  * @returns {string}
  */
 export function canonicaliseRowPath(value) {
   if (typeof value !== 'string' || value.length === 0) return value;
-  // Normalise Windows backslashes first so the regex matches both forms.
   const forward = value.replace(/\\/g, '/');
   return forward.replace(/^\.worktrees\/[^/]+\//, '');
 }
 
 /**
- * Apply `canonicaliseRowPath` to whichever field the kind keys on. Mutates
- * a shallow clone — the input row is never modified. Pure.
- *
  * @param {string} kind
  * @param {Record<string, unknown>} row
  * @returns {Record<string, unknown>}
@@ -137,11 +97,6 @@ function canonicaliseRow(kind, row) {
 }
 
 /**
- * Validate a parsed baseline against its per-kind schema. Throws when
- * validation fails; the thrown Error carries the AJV error message in its
- * `.message` so callers can surface a meaningful diagnostic without
- * digging into AJV's `.errors` array.
- *
  * @param {string} kind
  * @param {unknown} parsed
  * @param {string} sourceHint  Path or descriptor included in error text.
@@ -173,21 +128,9 @@ function validate(kind, parsed, sourceHint) {
 }
 
 /**
- * Internal: the ONE narrowing projection every loaded envelope passes through.
- *
- * `load` and `loadFile` reach a validated `parsed` envelope by different routes
- * — one resolves the path from config, the other infers the kind from
- * `$schema` — but the shape they hand back is the same narrow contract, so it
- * is built here rather than written out at each exit.
- *
- * **That single-sourcing is the point, not tidiness.** The projection is an
- * ALLOW-LIST: a field absent from it is silently dropped, and the envelope
- * stamps below are read off the LOADED object by compat axes that fail closed
- * when a stamp reads `undefined`. While the list was duplicated at the two
- * exits, adding a stamp to one and not the other produced a gate that rejected
- * every baseline in the repo for a stamp that was present on disk — which is
- * exactly what happened to `provenanceStamped` between Story #4901 and this
- * fix. One list means a new stamp cannot be half-added.
+ * The one narrowing projection for every loaded envelope. It is an
+ * allow-list: compat axes read stamps off the loaded object and fail closed
+ * on `undefined`, so every envelope stamp must be carried through here.
  *
  * @param {string} kind
  * @param {object} parsed A validated baseline envelope.
@@ -202,30 +145,13 @@ function shapeEnvelope(kind, parsed) {
     rows,
     kernelVersion: parsed.kernelVersion,
     generatedAt: parsed.generatedAt,
-    // Story #4775 — carry the per-kind scoring-semantics stamp through the
-    // narrowing. The gate's compat check reads it off the LOADED envelope, so
-    // dropping it here would make every baseline look unstamped and fail the
-    // whole repo closed on a stamp that is actually present on disk.
     scoringSemantics: parsed.scoringSemantics,
-    // Story #4866 — same contract for the transpiler stamp. Dropping it here
-    // would leave the ts-transpiler compat axis reachable but blind: it would
-    // read `undefined` off every loaded envelope and pass vacuously, which is
-    // the exact deadness this Story exists to end.
     tsTranspilerVersion: parsed.tsTranspilerVersion,
-    // Story #4901 — the coordinate-provenance marker, and the stamp that proved
-    // the warnings above were not hypothetical. Its `provenance-unstamped` axis
-    // keys on `!== true`, so while this line was missing the axis read
-    // `undefined` off every envelope and rejected each one with "baseline
-    // predates coordinate-provenance stamping" — un-satisfiable, because
-    // re-deriving the baseline writes the marker the reader then drops.
     provenanceStamped: parsed.provenanceStamped,
   };
 }
 
 /**
- * Internal: parse + validate + canonicalise. Used by both `load` and
- * `loadFile`.
- *
  * @param {string} kind
  * @param {string} absolutePath
  * @returns {{ rollup: object, rows: Array<object>, kernelVersion: string, generatedAt: string }}
@@ -252,10 +178,7 @@ function readAndShape(kind, absolutePath) {
 }
 
 /**
- * Inferred kind from the schema file name `<kind>.schema.json`. The
- * envelope's `$schema` field stores the per-kind file (per the writer
- * contract). Returns null when the value cannot be resolved to a known
- * kind; `loadFile` falls back to the caller-provided hint.
+ * Kind from a `$schema` ending in `<kind>.schema.json`, or null.
  *
  * @param {unknown} schemaValue
  * @returns {string | null}
@@ -270,11 +193,7 @@ function inferKindFromSchema(schemaValue) {
 }
 
 /**
- * Load the canonical baseline for `kind` from its configured (or default)
- * on-disk path.
- *
- * @param {string} kind  One of coverage | crap | maintainability |
- *   mutation | bundle-size | duplication.
+ * @param {string} kind
  * @param {{ configPath?: string, cwd?: string }} [opts]
  * @returns {{ rollup: object, rows: Array<object>, kernelVersion: string, generatedAt: string }}
  */
@@ -291,9 +210,7 @@ export function load(kind, opts = {}) {
 }
 
 /**
- * Load a baseline from an explicit absolute path. The kind is inferred
- * from the file's `$schema` field; an explicit `opts.kind` overrides the
- * inference (useful for fixtures that ship without a `$schema` pointer).
+ * Kind is inferred from `$schema` unless `opts.kind` is given.
  *
  * @param {string} absolutePath
  * @param {{ kind?: string }} [opts]

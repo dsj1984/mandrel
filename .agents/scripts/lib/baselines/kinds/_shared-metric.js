@@ -1,32 +1,11 @@
-/**
- * kinds/_shared-metric.js — shared metric helpers for per-kind baseline
- * modules (Story #3646).
- *
- * Both `crap.js` and `maintainability.js` duplicate the same
- * percentile/rollup/compare/epsilon algorithm verbatim. This module
- * extracts the parametrised core so each kind imports the factories
- * and passes only what differs (aggregate fields, identity key function,
- * better-is-higher polarity, metric field name).
- *
- * Exports (all pure, no I/O):
- *   - percentile(sortedValues, p)                     — verbatim shared
- *   - makeRollup({ aggregate })                       — rollup factory
- *   - makeAggregate({ fields })                       — aggregate factory
- *   - makeCompare({ identity, betterIsHigher })       — compare factory
- *   - makeEpsilon({ identity, metricField })          — epsilon factory
- */
+/** Pure metric factories shared by the per-kind baseline modules. */
 
 import { componentMatches } from '../component-matcher.js';
 
-// ---------------------------------------------------------------------------
-// percentile
-// ---------------------------------------------------------------------------
-
 /**
- * Nearest-rank percentile over a **pre-sorted** ascending numeric array.
- * Keeps rollup values integer-friendly without pulling in a stats dep.
+ * Nearest-rank percentile over a pre-sorted ascending array.
  *
- * @param {number[]} sortedValues - ascending-sorted array of numbers
+ * @param {number[]} sortedValues
  * @param {number} p - percentile in [0, 100]
  * @returns {number}
  */
@@ -39,12 +18,8 @@ export function percentile(sortedValues, p) {
   return sortedValues[idx];
 }
 
-// ---------------------------------------------------------------------------
-// makeAggregate
-// ---------------------------------------------------------------------------
-
 /**
- * Build an aggregate-stats function for a set of metric fields.
+ * Empty rows yield 0 for every percentile and extras key.
  *
  * @param {{
  *   fields: Array<{
@@ -55,16 +30,6 @@ export function percentile(sortedValues, p) {
  *   }>
  * }} opts
  * @returns {(rows: object[]) => Record<string, number>}
- *
- * Each `fields` entry describes one metric:
- *   - `name`        — key in the returned stats object (e.g. `'p50'`)
- *   - `rowKey`      — property name on each row (e.g. `'crap'`, `'mi'`)
- *   - `percentiles` — list of percentile values to compute (e.g. `[50, 95]`)
- *   - `extras`      — optional function over the sorted values that returns
- *                     extra keys (e.g. `{ max, methodsAbove20 }`)
- *
- * The return value when `rows` is empty is built from the field list:
- * every percentile resolves to 0 and every extras key resolves to 0.
  */
 export function makeAggregate({ fields }) {
   return function aggregate(rows) {
@@ -99,13 +64,7 @@ export function makeAggregate({ fields }) {
   };
 }
 
-// ---------------------------------------------------------------------------
-// makeRollup
-// ---------------------------------------------------------------------------
-
 /**
- * Build a rollup function that groups rows by component.
- *
  * @param {{ aggregate: (rows: object[]) => Record<string, number> }} opts
  * @returns {(rows: object[], components?: object[]) => Record<string, object>}
  */
@@ -120,12 +79,9 @@ export function makeRollup({ aggregate }) {
   };
 }
 
-// ---------------------------------------------------------------------------
-// makeCompare
-// ---------------------------------------------------------------------------
-
 /**
- * Build a compare(head, base) function for a per-kind baseline.
+ * A removed base row is an improvement only when `removedIsImprovement` says
+ * so; otherwise it is unchanged.
  *
  * @param {{
  *   identity: (row: object) => string,
@@ -133,13 +89,6 @@ export function makeRollup({ aggregate }) {
  *   metricField: string,
  *   removedIsImprovement?: (row: object) => boolean
  * }} opts
- *   - `identity`           — row → composite key string
- *   - `betterIsHigher`     — when true, delta > 0 is an improvement (MI);
- *                            when false, delta > 0 is a regression (CRAP)
- *   - `metricField`        — name of the numeric metric property on each row
- *   - `removedIsImprovement` — optional predicate deciding whether a removed
- *                              base row counts as an improvement; defaults to
- *                              `() => false` (no removal is auto-improvement)
  * @returns {(head: object, base: object) => {
  *   regressions: object[], improvements: object[],
  *   unchanged: object[], additions: object[]
@@ -189,12 +138,8 @@ export function makeCompare({
   };
 }
 
-// ---------------------------------------------------------------------------
-// makeEpsilon
-// ---------------------------------------------------------------------------
-
 /**
- * Build an applyEpsilon(prior, regenerated, epsilon) function.
+ * Within epsilon, the prior row object is returned so its bytes are kept.
  *
  * @param {{
  *   identity: (row: object) => string,

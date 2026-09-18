@@ -141,11 +141,8 @@ export async function applyBranchProtection({
     return { status: 'skipped', reason: 'no-checks' };
   }
 
-  // Story #2018 (Bug 3): on a fresh-empty repo with no commits yet, the
-  // base branch hasn't been pushed and the protection PUT would 404 with
-  // a confusing transport error. Probe for existence first so operators
-  // get a clear "no-base-branch" skip rather than discovering the
-  // `enforce: false` opt-out by reading the failure message.
+  // On an empty repo the protection PUT 404s confusingly; probe first so the
+  // skip reads "no base branch".
   if (typeof provider.branchExists === 'function') {
     let exists = true;
     try {

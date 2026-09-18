@@ -1,8 +1,6 @@
 /**
- * kinds/bundle-size.js — per-kind module for the bundle-size baseline
- * (Story #1891). Row shape: `{ bundle, rawKb, gzippedKb }`. Bundle names
- * are opaque identifiers (`main`, `vendor`, etc.) rather than file paths,
- * so they bypass the canonicaliser.
+ * Per-kind module for the bundle-size baseline. Row shape:
+ * `{ bundle, rawKb, gzippedKb }`; bundle names are opaque, not paths.
  */
 
 import { mergeRowsByScope } from '../scope.js';
@@ -29,9 +27,7 @@ export function projectRow(row) {
 }
 
 /**
- * Canonical row identity (Story #5215). This kind does not use the shared
- * factory scaffold, so it declares the protocol member itself; `bundle` is
- * unique per row here, which a shipped-baseline injectivity test pins.
+ * `bundle` is unique per row.
  *
  * @param {{bundle: string, rawKb: number, gzippedKb: number}} row
  * @returns {string}
@@ -59,13 +55,8 @@ function aggregate(rows) {
 }
 
 /**
- * Pure compare(head, base) for the bundle-size kind. Diffs rows by
- * `bundle`. A row regresses when rawKb or gzippedKb increases; improves
- * when either decreases without the other increasing; otherwise
- * unchanged. New bundles count as regressions when they carry any size;
- * removed bundles count as improvements when they had any size.
- *
- * No I/O. No process exit. No friction emission.
+ * Any size increase regresses. Unlike the scaffold kinds, a new non-empty
+ * bundle is a regression, and a removed one an improvement.
  */
 export function compare(head, base) {
   const headRows = Array.isArray(head?.rows) ? head.rows : [];
@@ -116,10 +107,7 @@ export function rollup(rows, components = []) {
 }
 
 /**
- * Pure stabilizer for s-stability-epsilon (Story #1964). Bundle-size rows
- * match by `bundle`. The metric is the maximum absolute KB delta across
- * `rawKb` and `gzippedKb`. Sub-epsilon deltas resolve to the prior bytes;
- * missing-prior rows fall through.
+ * The delta is the larger of the raw and gzipped KB deltas.
  *
  * @param {Array<{bundle: string, rawKb: number, gzippedKb: number}>} prior
  * @param {Array<{bundle: string, rawKb: number, gzippedKb: number}>} regenerated
@@ -142,17 +130,8 @@ export function applyEpsilon(prior, regenerated, epsilon) {
 }
 
 /**
- * Pure scope-aware merge for s-diff-scoped-writes (Story #1974). Bundle
- * rows match by `bundle`. In diff mode, rows whose `bundle` name is
- * OUTSIDE `scope.files` are preserved from `prior` verbatim; in-scope
- * rows come from `regenerated`. In full mode (or no scope), regenerated
- * wins everywhere.
- *
- * Note: bundle names are not file paths. The scope filter only narrows
- * naturally when callers seed `scope.files` with bundle names. Auto-
- * refresh callers using a Story file diff will see no in-scope rows and
- * therefore preserve every prior row — the safe default for a baseline
- * whose identity is not file-derived.
+ * Bundle names are not paths, so a file-diff scope matches nothing and every
+ * prior row is preserved — the safe default.
  *
  * @param {Array<{bundle: string, rawKb: number, gzippedKb: number}>} prior
  * @param {Array<{bundle: string, rawKb: number, gzippedKb: number}>} regenerated
