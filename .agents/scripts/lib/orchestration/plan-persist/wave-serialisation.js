@@ -1,11 +1,6 @@
 /**
- * wave-serialisation.js — what the dispatcher will actually do with the wave
- * table plan-persist prints (Story #5265).
- *
- * Kept out of `summary.js` because it answers a different question. The
- * summary module renders receipts persist already computed; this one runs the
- * *runtime's* collision predicate over the assembled Story bodies to work out
- * which of the table's promises the next tick will refuse to keep.
+ * wave-serialisation.js — predicts which of the wave table's parallelism
+ * promises the dispatcher will refuse to keep.
  *
  * @module lib/orchestration/plan-persist/wave-serialisation
  */
@@ -13,20 +8,9 @@
 import { detectCollision } from '../../wave-runner/footprint.js';
 
 /**
- * Predict which same-wave pairs the dispatch guard will actually refuse to
- * co-dispatch (Story #5265).
- *
- * The wave table answers a `depends_on` question, and the runtime answers a
- * different one: `stories-wave-tick.js` withholds on {@link detectCollision}
- * over the declared `changes[]` (Story #5313 retired the text scrape), so
- * two same-wave Stories that both declare a path — a shared generated
- * baseline, say — are shown in one order and dispatched one at a time. The
- * table promised parallelism the next tick refused, with nothing anywhere
- * reconciling the two.
- *
- * This runs the runtime's own exported predicate — not a reimplementation of
- * it — pairwise within each wave, so the prediction cannot drift from the
- * behaviour it predicts.
+ * Same-wave pairs the dispatch guard will refuse to co-dispatch, computed by
+ * running the runtime's own {@link detectCollision} pairwise — never a
+ * reimplementation — so the prediction cannot drift from the behaviour.
  *
  * @param {ReturnType<typeof buildWaveTable>} waveTable
  * @param {Array<{ slug: string, title?: string, body?: string, spec?: string, changes?: Array }>} stories
@@ -61,13 +45,8 @@ export function predictWaveSerialisation(waveTable, stories, options = {}) {
 }
 
 /**
- * Render the predicted serialisation beside the wave table (Story #5265).
- *
- * Same shape as {@link renderSharedEditorLines} on purpose: both are caveats
- * against the same promise, and an operator should read them the same way.
- * The difference is what they know — the shared-editor pass names paths two
- * Stories both *write*, this one names every pair the dispatcher will refuse
- * to run together, glob declarations included.
+ * Same shape as {@link renderSharedEditorLines} on purpose: both caveat the
+ * same promise.
  *
  * @param {ReturnType<typeof predictWaveSerialisation>} collisions
  * @returns {string[]}

@@ -1,45 +1,7 @@
 /**
- * supersede-ops.js — close the `/mandrel-plan --tickets` source issues that the
- * authored Stories supersede (Story #4535).
- *
- * `plan-context.js` fetches the source issues, emits `sourceTickets[]` on the
- * `/mandrel-plan` envelope, and (with `--out`) writes that envelope to disk.
- * `resolveSourceTicketIds` below reads the id set back off it, so the normal
- * `/mandrel-plan --tickets` path needs no flag; an explicit `--source-tickets` still
- * wins when passed, as the override for hand-driven runs (Story #4554).
- * Before that thread existed the ids reached
- * this module *solely* via the hand-passed flag, so a forgotten flag left
- * `sourceTicketIds` empty — the partition below then passed **vacuously** (an
- * empty set trivially partitions), the close phase short-circuited, and the
- * run reported success while every source issue stayed open.
- *
- * Two halves, deliberately separated by the `createIssue` boundary:
- *
- *   1. **`resolveSupersedePartition`** — the plan-time completion pass that
- *      runs *before* any GitHub write. No id may be claimed by two Stories
- *      and no Story may claim an id that was not a source ticket — both fail
- *      closed. A source id nobody claimed is assigned to the primary Story
- *      with a warning (Story #5342): the plan is replacing it either way, so
- *      the only open question was bookkeeping.
- *   2. **`closeSupersededTickets`** — the bookkeeping pass that runs *after*
- *      the Stories exist. It **never throws**: a throw here would leave the
- *      run half-done with Stories already live. An already-closed, deleted,
- *      or inaccessible source ticket is a clean skip-and-report, and a
- *      partial failure reports which tickets were and were not closed so the
- *      operator can finish by hand.
- *
- * The close also strips the source ticket's `agent::*` label (Story #5255).
- * A retired ticket has no agent state, and the one it kept was read as live
- * work: `agent::blocked` is the state a Story must be in to be re-planned, so
- * this path closes exactly the tickets carrying it, and a closed-but-blocked
- * child pinned its container Epic open on every rollup thereafter. The
- * derivation in `ticketing/bulk.js` now ignores closed children's labels too —
- * that half covers the tickets already closed and the ones closed by hand;
- * this one stops new ones being written.
- *
- * Idempotency is keyed off the `superseded-by` structured-comment marker
- * (`upsertStructuredComment`), not a bare `postComment`, so a re-run cannot
- * double-comment.
+ * supersede-ops.js — close the `/mandrel-plan --tickets` source issues the
+ * authored Stories supersede. The `superseded-by` marker makes re-runs
+ * idempotent.
  *
  * @module lib/orchestration/plan-persist/supersede-ops
  */
@@ -53,41 +15,20 @@ import {
 import { rollUpEpicForStory } from '../epic-rollup.js';
 import { upsertStructuredComment } from '../ticketing.js';
 
-/** Structured-comment type marking a source issue as superseded. */
 const SUPERSEDED_BY_COMMENT_TYPE = 'superseded-by';
 
-/**
- * GitHub `state_reason` used when closing a superseded source issue.
- *
- * At persist time nothing has shipped — the issue will not be actioned in
- * its own right, so `not_planned` (not `completed`) is the honest reason.
- * The repo history was inconsistent here (#4211 used `completed`, #2870
- * `not_planned`); this constant settles it.
- */
+/** Nothing has shipped at persist time, so `not_planned`, not `completed`. */
 export const SUPERSEDE_CLOSE_REASON = 'not_planned';
 
 /**
- * Every `agent::*` label, as the set the supersede close strips.
- *
- * A retired ticket has no agent state. `agent::done` would be the wrong
- * substitute — the work was re-planned, never delivered — so the label is
- * removed rather than rewritten, and the ticket ends carrying only its
- * `type::`/domain labels and the supersede comment that explains it.
+ * Stripped, not rewritten to `agent::done`: a retired ticket has no agent
+ * state, and a lingering `agent::blocked` pins its container Epic open.
  */
 const AGENT_STATE_LABELS = Object.freeze(Object.values(AGENT_LABELS));
 
 /**
- * The single `updateTicket` mutation that retires a source ticket.
- *
- * Closing and clearing the state ride one write: two calls could leave the
- * ticket closed but still wearing `agent::blocked`, which is the shape that
- * pinned a container Epic open forever (Story #5255).
- *
- * A ticket with no `agent::*` label gets the bare close, unchanged from before
- * that Story — `updateTicket` merges a `labels` mutation by reading the issue
- * back, so an unconditional empty `remove` would buy a wasted round-trip per
- * superseded ticket. `_ticketSnapshot` feeds that merge the copy
- * `probeSourceTicket` already fetched.
+ * Close and strip `agent::*` in ONE write, so the ticket never ends closed
+ * but still blocked. No agent label → bare close, sparing a read-back.
  *
  * @param {{ labels?: unknown }} ticket The probe's fresh copy.
  * @returns {object} Mutations for `provider.updateTicket`.
@@ -101,12 +42,7 @@ function supersedeCloseMutations(ticket) {
 }
 
 /**
- * Coerce one `supersedes[]` entry into `{ id, note }`.
- *
- * Accepts a bare issue number (`4525`), a numeric string (`"4525"`, `"#4525"`),
- * or an object carrying an optional per-supersede note
- * (`{ id: 4525, note: "…" }`). The note is what lets a Story record a
- * *correction* to the source issue's analysis rather than template-only prose.
+ * Coerce a number, `"#N"` string, or `{ id, note }` into `{ id, note }`.
  *
  * @param {unknown} entry
  * @param {string} slug Story slug, for error reporting.
@@ -137,9 +73,6 @@ function normalizeSupersedeEntry(entry, slug) {
 }
 
 /**
- * Normalize a plan Story ticket's `supersedes[]` into `{ id, note }[]`.
- * Absent / empty is a no-op returning `[]`.
- *
  * @param {object} ticket
  * @param {string} slug
  * @returns {Array<{ id: number, note: string|null }>}
@@ -167,11 +100,8 @@ export function normalizeSupersedes(ticket, slug) {
 }
 
 /**
- * Normalize a source-ticket id list into deduped positive integers.
- *
  * @param {unknown} ids
- * @param {string} [label] Channel name used in the error message, so an
- *   envelope-derived failure does not blame the `--source-tickets` flag.
+ * @param {string} [label] Channel named in the error message.
  * @returns {number[]}
  */
 export function normalizeSourceTicketIds(ids, label = '--source-tickets') {
@@ -197,12 +127,6 @@ export function normalizeSourceTicketIds(ids, label = '--source-tickets') {
 }
 
 /**
- * Pull the `--tickets` id set out of a `plan-context.js` envelope.
- *
- * The envelope's `sourceTickets[]` carries whole ticket records
- * (`{ id, title, body, … }`); only the ids matter here. A non-`tickets`-mode
- * envelope (seed / seed-file) has no source tickets and yields `[]`.
- *
  * @param {object|null} envelope
  * @returns {number[]}
  */
@@ -222,21 +146,9 @@ function sameIdSet(a, b) {
 }
 
 /**
- * Resolve which source-ticket ids reach the partition and the close phase.
- *
- * Precedence — an explicit flag wins, the envelope is the default channel
- * (Story #4554):
- *
- *   1. `--source-tickets` when supplied — the explicit override for
- *      hand-driven runs. A disagreement with the envelope is warned about
- *      loudly (the operator is overriding what the run actually fetched)
- *      but honoured.
- *   2. otherwise the envelope's `sourceTickets[]` — so the common
- *      `/mandrel-plan --tickets` path needs no flag at all.
- *   3. otherwise empty, reported as `origin: 'none'`.
- *
- * `origin` is surfaced on the persist envelope so a run that superseded
- * nothing says *why* rather than looking like a clean no-op.
+ * Resolve the source-ticket ids: an explicit `--source-tickets` wins (warned
+ * when it disagrees with the envelope), else the envelope's
+ * `sourceTickets[]`. `origin` lets a run that superseded nothing say why.
  *
  * @param {object} [args]
  * @param {unknown} [args.explicitIds] Raw `--source-tickets` value.
@@ -279,8 +191,6 @@ function describeStoryIds(entries) {
 }
 
 /**
- * Index which Story claims each source id.
- *
  * @param {Array<{ slug: string, supersedes?: Array<{ id: number }> }>} list
  * @returns {Map<number, string[]>} id → claiming slugs, in draft order.
  */
@@ -298,31 +208,9 @@ function indexSupersedeClaims(list) {
 }
 
 /**
- * Complete the supersede map, refusing only what the plan gets wrong.
- *
- * Two halves, split by who can be right (Story #5342):
- *
- *   - **Refused.** A Story claiming an id that was never a source ticket, and
- *     two Stories claiming the same id. Both name an intent the run cannot
- *     act on — the first would comment on and close an issue nobody asked
- *     about, the second cannot say which Story replaced it — so they fail
- *     closed, **before** `createIssue`, and no Story goes live against an
- *     inconsistent tracker.
- *   - **Assigned with a warning.** A source id no Story claimed. Every id
- *     passed to `--tickets` is being replaced by this plan by construction;
- *     which Story records it is a bookkeeping detail, and the primary Story
- *     is the answer the operator would have given. Refusing cost a whole
- *     re-author round to type back a fact the run already knew.
- *
- * Mutates the unclaimed ids onto the primary Story's `supersedes[]`.
- *
- * **`stories[0]` is the primary, and it is the *only* derivation of it**
- * (Story #5361): `assemblePlanStories` hands this list over already sorted by
- * `orderStoriesByDependencies`, which is the same order the create loop files
- * the Stories in — so the `superseded-by` comment this assignment produces
- * can never name a different Story from the checkpoint and the plan summary.
- * A non-empty list is the caller's contract (assembly refuses an empty
- * draft before it gets here).
+ * Runs before `createIssue`. A non-source or doubly-claimed id throws; an
+ * unclaimed source id goes to the primary Story (`stories[0]`, as the list
+ * arrives in create order) with a warning.
  *
  * @param {Array<{ slug: string, supersedes: Array<{ id: number, note: string|null }> }>} stories
  *   Dependency-ordered and non-empty.
@@ -371,12 +259,9 @@ export function resolveSupersedePartition(stories, sourceTicketIds = []) {
 }
 
 /**
- * Render the supersede comment posted on a source issue.
- *
  * @param {object} args
  * @param {{ id: number, title: string }} args.story The claiming Story.
- * @param {string|null} [args.note] Optional per-supersede note authored on
- *   the Story — carries a correction to this issue's analysis.
+ * @param {string|null} [args.note] Correction to this issue's analysis.
  * @param {number[]} args.sourceTicketIds Full `--tickets` argument.
  * @returns {string}
  */
@@ -385,8 +270,6 @@ export function buildSupersedeCommentBody({
   note = null,
   sourceTicketIds,
 }) {
-  // Story #4540 retired the plan-run label, which used to be listed here
-  // alongside the type/state labels.
   const labels = ['`type::story`', '`agent::ready`'];
 
   const lines = [
@@ -406,12 +289,7 @@ export function buildSupersedeCommentBody({
 }
 
 /**
- * Resolve the live state of a source ticket.
- *
- * The ticket itself rides along so the close can strip the `agent::*` label
- * without a second read: `updateTicket`'s label merge takes a
- * `_ticketSnapshot` for exactly this, and this probe has already paid for the
- * fresh copy.
+ * The ticket rides along so the close needs no second read.
  *
  * @returns {Promise<{ ok: true, state: string, ticket: object } | { ok: false, reason: string }>}
  */
@@ -470,18 +348,13 @@ async function closeOneSupersededTicket({
  * @property {boolean} enabled
  * @property {boolean} dryRun
  * @property {string|null} reason  Why the phase was skipped wholesale.
- * @property {'flag'|'envelope'|'none'} [sourceTicketOrigin] Which channel the
- *   source ids came from. Stamped by `runPlanPersist`, not this module.
+ * @property {'flag'|'envelope'|'none'} [sourceTicketOrigin] Stamped by `runPlanPersist`.
  * @property {number[]} closed
  * @property {Array<{ ticket: number, storySlug: string }>} planned Dry-run
- *   only. Keyed by slug, not id: under `--dry-run` no issue was created, so
- *   `createStoryIssues` hands back a synthetic negative placeholder id. The
- *   slug is the only identifier that means anything before the writes land.
+ *   only; keyed by slug because dry-run Story ids are placeholders.
  * @property {Array<{ ticket: number, reason: string }>} skipped
  * @property {Array<{ ticket: number, reason: string }>} failed
- * @property {{ closed: number[], pending: number[] }} epicRollup Container
- *   Epics this phase's closes resolved. Empty on a dry run and on a phase that
- *   closed nothing.
+ * @property {{ closed: number[], pending: number[] }} epicRollup
  */
 
 function emptyReport(overrides) {
@@ -499,22 +372,10 @@ function emptyReport(overrides) {
 }
 
 /**
- * Re-derive the container Epic above every ticket this phase just closed.
- *
- * Closing a source ticket is a child state change like any other, and it was
- * the one edge with no rollup behind it. Superseding a cohort therefore left
- * its container open indefinitely: every child was closed, so no delivery
- * would ever run and no land tail would ever fire the derivation. The Epic sat
- * open above finished work until someone noticed.
- *
- * Runs **after** the closes land, never alongside them: the rollup reads each
- * child's state back, so racing it against the writes it is meant to observe
- * would derive from a tree half of which has not been written yet.
- *
- * Sequential, sharing one `skipEpicIds` set, because siblings share a
- * container — without it the second ticket re-derives, and re-closes, the Epic
- * the first already closed. `rollUpEpicForStory` never throws, so no guard is
- * needed here beyond the phase-level one the caller already holds.
+ * Re-derive the container Epic above every closed ticket — no delivery will
+ * ever fire that rollup for a superseded cohort. Runs after the closes land
+ * (it reads child state back), and sequentially with one shared `skipEpicIds`
+ * so siblings do not re-close the same Epic.
  *
  * @param {{ closedIds: number[], provider: object, config?: object }} opts
  * @returns {Promise<{ closed: number[], pending: number[] }>}
@@ -541,11 +402,8 @@ async function rollUpContainersFor({ closedIds, provider, config }) {
 }
 
 /**
- * Comment on and close every superseded source ticket.
- *
- * **Never throws** and never fails the run — Stories are already live by the
- * time this executes, so bookkeeping failures degrade to a report the
- * operator can act on.
+ * Comment on and close every superseded source ticket. Never throws: Stories
+ * are already live, so failures degrade to a report.
  *
  * @param {object} args
  * @param {object} args.provider
@@ -579,12 +437,9 @@ export async function closeSupersededTickets({
   );
   const units = collectSupersedeUnits(stories, createdBySlug);
 
-  // Story #4952 — one bounded fan-out across distinct source tickets. The
-  // mapper inherits `closeOneSupersededTicket`'s never-throw contract (and
-  // resolves the two pre-write outcomes itself), so `concurrentMap`'s
-  // first-rejection-wins policy can never fire and no unit is abandoned
-  // because a sibling failed. Input order is preserved, so the report arrays
-  // below read exactly as the serial nested loop wrote them.
+  // The mapper never throws, so no unit is abandoned for a sibling's failure.
+  // Units are distinct tickets (the partition refused duplicates); within one
+  // the probe → comment → close sequence stays strictly ordered.
   const outcomes = await concurrentMap(
     units,
     ({ id, note, createdStory }) => {
@@ -600,13 +455,6 @@ export async function closeSupersededTickets({
         sourceTicketIds: sources,
       });
     },
-    // The per-source-ticket close (Story #4952) fans out across **distinct**
-    // tickets — `resolveSupersedePartition` has already failed the run closed
-    // if two Stories claim the same id, so no two units in flight can touch
-    // the same issue. Within one unit the probe → comment → close sequence
-    // stays strictly ordered: commenting on an issue the probe reported
-    // closed, or closing one the comment never landed on, is the whole
-    // failure mode this phase is careful about.
     { concurrency: FANOUT_CONCURRENCY },
   );
 
@@ -628,9 +476,6 @@ export async function closeSupersededTickets({
 }
 
 /**
- * Flatten the per-Story `supersedes[]` maps into one list of close units, in
- * the nested iteration order the report arrays are expected to follow.
- *
  * @param {Array<{ slug: string, supersedes?: Array<{ id: number, note: string|null }> }>|undefined} stories
  * @param {Map<string, { slug: string, id: number, title: string }>} createdBySlug
  * @returns {Array<{ id: number, note: string|null, createdStory: object|undefined }>}
@@ -647,8 +492,6 @@ function collectSupersedeUnits(stories, createdBySlug) {
 }
 
 /**
- * File one unit's outcome onto the report.
- *
  * @param {SupersedeReport} report
  * @param {{ id: number, createdStory: object|undefined }} unit
  * @param {{ outcome: string, reason?: string }} result
@@ -674,9 +517,6 @@ function recordSupersedeOutcome(report, unit, result) {
 }
 
 /**
- * Surface the supersede outcome on the console so a partial failure is
- * visible without reading the JSON envelope.
- *
  * @param {SupersedeReport} report
  */
 function logSupersedeReport(report) {

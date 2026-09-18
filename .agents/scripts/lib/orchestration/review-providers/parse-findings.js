@@ -1,47 +1,15 @@
 /**
- * review-providers/parse-findings.js — shared JSON-findings parser.
- *
- * Story #3981 — extracts the verbatim-duplicated parsing logic from
- * `parseCodexFindings` (codex.js) and `parseSecurityReviewFindings`
- * (security-review.js) into one templated parser. Both adapters emit
- * JSON; the parser is liberal in what it accepts:
- *   - A bare array of finding objects.
- *   - An object with a `findings` array.
- *   - Either shape wrapped in an outer envelope with a `result` or
- *     `data` key (covers minor wire-format drift across versions
- *     without re-shimming).
- *
- * Each entry's severity is funnelled through the caller-supplied
- * `mapSeverity` so the canonical enum is the only thing that reaches
- * the renderer. Entries without a `title` or `body` are skipped — the
- * orchestrator cannot post an empty finding, and silently dropping the
- * entry is safer than fabricating one.
- *
- * Per-provider deltas ride in as options:
- *   - `errorPrefix`     — prefix for the JSON-parse failure message.
- *   - `mapSeverity`     — provider severity vocabulary → canonical enum.
- *   - `defaultCategory` — when set, entries missing a `category` get
- *     this value (security-review defaults to `'security'`); when
- *     omitted, `category` is only set when present (codex behavior).
- *
- * Story #4074 — the parser body was a CC-30 ternary thicket. The
- * per-field branching now lives in three small, independently-testable
- * pure helpers (`unwrapEnvelope`, `coerceString`, `buildFinding`), so the
- * orchestration body collapses to: unwrap → `Array.isArray` guard →
- * `map(buildFinding).filter(Boolean)`.
+ * review-providers/parse-findings.js — the JSON-findings parser shared by the
+ * LLM-backed providers. Entries without a title or body are dropped rather
+ * than fabricated.
  *
  * @typedef {import('./types.js').Finding}  Finding
  * @typedef {import('./types.js').Severity} Severity
  */
 
 /**
- * Unwrap up to two layers of envelope around a findings array.
- *
- * Accepts a bare array unchanged, an object with a `findings` array, or
- * either shape nested one level deep under a `result` / `data` key. The
- * second pass resolves `{ result: { findings: [] } }`-style
- * double-envelopes. Anything that does not resolve to an array is
- * returned as-is for the caller's `Array.isArray` guard to reject.
+ * Unwrap a bare array, `{ findings }`, or either under `result`/`data`.
+ * A non-array result is returned for the caller to reject.
  *
  * @param {unknown} parsed
  * @returns {unknown}
@@ -60,11 +28,6 @@ export function unwrapEnvelope(parsed) {
 }
 
 /**
- * Coerce a value to a non-empty trimmed string, or null.
- *
- * Returns the trimmed string when `value` is a string with
- * non-whitespace content; otherwise null.
- *
  * @param {unknown} value
  * @returns {string | null}
  */
@@ -75,14 +38,8 @@ export function coerceString(value) {
 }
 
 /**
- * Build a single `Finding` from a raw entry, or null when the entry is
- * unusable (not an object, or missing a title/body).
- *
- * `title` is trimmed; `body` falls back to a non-empty `message` alias
- * and is preserved verbatim (untrimmed) to match the historical
- * behavior. `category` is set from the entry when present, else from
- * `defaultCategory` when supplied. `file` / `line` are included only
- * when present and well-formed.
+ * `body` (or its `message` alias) is kept untrimmed; `category` falls back
+ * to `defaultCategory`.
  *
  * @param {unknown} entry
  * @param {{
@@ -121,8 +78,6 @@ export function buildFinding(entry, { mapSeverity, defaultCategory }) {
 }
 
 /**
- * Parse a provider's raw stdout into `Finding[]`.
- *
  * @param {string} rawStdout
  * @param {{
  *   errorPrefix: string,

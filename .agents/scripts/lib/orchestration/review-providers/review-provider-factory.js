@@ -1,27 +1,7 @@
 /**
- * review-providers/review-provider-factory.js — resolve
- * `codeReview.providers` to a concrete `ReviewProvider` instance.
- *
- * Story #2825 (Epic #2815) — the factory is the only entry point.
- * `runCodeReview()` never references a specific adapter directly;
- * adding a backend is (1) implement the interface, (2) register here,
- * (3) extend the schema enum.
- *
- * Story #2871 — the factory always returns a `ChainProvider` that
- * fans out `runReview` across every inline entry (merging `Finding[]`
- * in declaration order) and exposes `getPromptMessages` so the
- * orchestrator can render the trailing "Manual review suggestions"
- * section without knowing about per-provider mechanics.
- *
- * Behaviour:
- *   - Unset / empty `codeReview.providers` defaults to a single-entry
- *     chain `[{ name: 'native' }]`.
- *   - Unknown provider name throws an Error with remediation text
- *     naming the supported values.
- *   - Adapters that throw at construction time (e.g. `codex` probing
- *     for an absent plugin command) bubble their error verbatim —
- *     EXCEPT when the chain entry carries `optional: true`, in which
- *     case the chain logs a warning and skips that entry.
+ * review-providers/review-provider-factory.js — resolves
+ * `codeReview.providers` into a `ChainProvider`. A failing entry throws
+ * unless it is `optional`.
  *
  * @typedef {import('./types.js').ReviewProvider}        ReviewProvider
  * @typedef {import('./types.js').ManualPromptProvider}  ManualPromptProvider
@@ -40,12 +20,7 @@ import { createNativeProviderForRegistry } from './native.js';
 import { createSecurityReviewProviderForRegistry } from './security-review.js';
 import { createUltrareviewProviderForRegistry } from './ultrareview.js';
 
-/**
- * Inline provider registry — entries return a `ReviewProvider` that
- * produces `Finding[]` from a git diff.
- *
- * @type {Readonly<Record<string, () => ReviewProvider>>}
- */
+/** @type {Readonly<Record<string, () => ReviewProvider>>} */
 const INLINE_PROVIDERS = Object.freeze({
   codex: createCodexProviderForRegistry,
   native: createNativeProviderForRegistry,
@@ -53,9 +28,7 @@ const INLINE_PROVIDERS = Object.freeze({
 });
 
 /**
- * Manual-prompt provider registry — entries return a
- * `ManualPromptProvider` that contributes a non-blocking operator
- * suggestion to the structured comment without running a review.
+ * Non-blocking operator suggestions; they run no review.
  *
  * @type {Readonly<Record<string, () => ManualPromptProvider>>}
  */
@@ -63,18 +36,10 @@ const PROMPT_PROVIDERS = Object.freeze({
   ultrareview: createUltrareviewProviderForRegistry,
 });
 
-/**
- * The inline provider name used when `codeReview.providers` is unset,
- * empty, or the `codeReview` block is absent entirely.
- */
 export const DEFAULT_PROVIDER_NAME = 'native';
 
 /**
- * Pure: build a gate predicate from a chain entry's `when` clause.
- * Currently supports `label` (single string) and `labelAny`
- * (string[]); other keys are rejected at the schema layer.
- *
- * `when` absent → gate is "always true".
+ * Gate predicate from a `when` clause (`label` / `labelAny`); absent → always true.
  *
  * @param {{ label?: string, labelAny?: string[] }|undefined} when
  * @returns {ProviderGate}
@@ -100,10 +65,7 @@ export function buildGate(when) {
 }
 
 /**
- * Pure: scope filter — true when the entry's declared scope list
- * includes the current invocation scope. Default (no `scopes`) is
- * "fires on both" so unattended chains keep working at story-close
- * and epic-finalize alike.
+ * No declared `scopes` fires on every scope.
  *
  * @param {string[]|undefined} declaredScopes
  * @param {string} currentScope
@@ -117,12 +79,7 @@ export function isScopeApplicable(declaredScopes, currentScope) {
 }
 
 /**
- * Resolve a `ReviewProvider` instance from the resolved agentrc
- * config block. Pass the `codeReview` sub-object (not the full
- * config) so callers can compose with their own config readers.
- *
- * Always returns a `ChainProvider`. When `codeReviewConfig.providers`
- * is unset or empty, the chain defaults to `[{ name: 'native' }]`.
+ * Takes the `codeReview` sub-object; unset/empty `providers` defaults to native.
  *
  * @param {{
  *   providers?: Array<object>,
@@ -159,11 +116,6 @@ export function createReviewProvider(codeReviewConfig, opts = {}) {
 }
 
 /**
- * Build the inline + prompt entry list from a `providers: []` config.
- * Pure with respect to registry inputs — the registry is the only
- * side-effectful surface (provider constructors may probe disk or
- * spawn binaries).
- *
  * @param {Array<object>} entries
  * @param {{
  *   inlineRegistry: Readonly<Record<string, () => ReviewProvider>>,
@@ -242,10 +194,8 @@ export function buildProviderChain(entries, ctx) {
 }
 
 /**
- * Wrap a resolved chain in a single `ReviewProvider`-compatible
- * object that the orchestrator can call uniformly. Inline adapters
- * fan out via `runReview`; prompt adapters fan out via
- * `getPromptMessages` (a method the orchestrator feature-detects).
+ * Inline findings merge in declaration order; prompt entries render via
+ * `getPromptMessages`.
  *
  * @param {ProviderChain} chain
  * @param {{ logger?: { info?: Function, warn?: Function } }} [opts]
@@ -290,8 +240,7 @@ export function createChainProvider(chain, opts = {}) {
       return merged;
     },
     /**
-     * Degraded gates across the inline chain (Story #4839). Called after
-     * `runReview`.
+     * Called after `runReview`.
      *
      * @returns {Promise<Array<object>>}
      */
@@ -337,9 +286,6 @@ export function createChainProvider(chain, opts = {}) {
 }
 
 /**
- * Expose the registered provider names — primarily for diagnostics
- * and test fixtures. Lists both inline and prompt providers.
- *
  * @returns {string[]}
  */
 export function listRegisteredProviders() {
@@ -351,10 +297,6 @@ export function listRegisteredProviders() {
 }
 
 /**
- * Expose the inline-only provider names — used by adapter tests that
- * need to assert against the inline registry without coupling to
- * manual-prompt entries.
- *
  * @returns {string[]}
  */
 export function listInlineProviders() {
@@ -362,8 +304,6 @@ export function listInlineProviders() {
 }
 
 /**
- * Expose the manual-prompt-only provider names.
- *
  * @returns {string[]}
  */
 export function listPromptProviders() {
