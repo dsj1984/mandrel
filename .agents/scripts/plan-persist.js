@@ -10,9 +10,8 @@
  *   changes[] repair → ticket validator / DAG → reachability →
  *   split-policy partition → fold Spec into each Story body →
  *   createIssue(s) with type::story, resumably by plan fingerprint (NOT
- *   agent::ready) → story-plan-state on every Story;
- *   story-plan-state (checkpoint + plan summary) on every Story → flip every
- *   Story to agent::ready →
+ *   agent::ready) → one `story-plan-state` comment (the plan summary) on
+ *   every Story → flip every Story to agent::ready →
  *   comment + close superseded source tickets → temp cleanup + stale reap.
  *
  * Story #4542 retired the authored risk verdict: persist neither requires nor
@@ -37,12 +36,10 @@
  *   --no-close-superseded     Keep the source tickets open (no comment, no
  *                             close) — for a genuinely partial supersede
  *   --dry-run                 Assemble + validate without GitHub writes
- *   --chain-on-clean          Accepted no-op alias (Story #5342) — chaining
- *                             is what the bare invocation already does
  *   --force-review            Operator-forced review stop before persist lands
  *
- * **Persist is one command (Story #5342).** With neither `--dry-run` nor
- * `--chain-on-clean` the CLI runs the write-free dry-run first — the
+ * **Persist is one command (Story #5342).** Without `--dry-run` the CLI runs
+ * the write-free dry-run first — the
  * changes[] repair, the validator, DAG, reachability, split/supersede
  * partition, Spec fold — and, when the gate list comes back clean, chains
  * straight into the real persist in the SAME invocation. A dry-run failure
@@ -81,7 +78,7 @@ import {
 } from './lib/orchestration/plan-persist/plan-context-source.js';
 import {
   runPlanPersist,
-  writeCheckpointV2,
+  writePlanSummaryComment,
 } from './lib/orchestration/plan-persist/run-plan-persist.js';
 import {
   buildPlanSummaryCommentBody,
@@ -94,7 +91,7 @@ export {
   buildPlanSummaryCommentBody,
   buildWaveTable,
   runPlanPersist,
-  writeCheckpointV2,
+  writePlanSummaryComment,
 };
 
 const CLI_OPTIONS = {
@@ -106,7 +103,6 @@ const CLI_OPTIONS = {
   'close-superseded': { type: 'boolean', default: true },
   'no-close-superseded': { type: 'boolean', default: false },
   'dry-run': { type: 'boolean', default: false },
-  'chain-on-clean': { type: 'boolean', default: false },
   'force-review': { type: 'boolean', default: false },
   'epic-title': { type: 'string' },
   'epic-goal': { type: 'string' },
@@ -117,7 +113,7 @@ const USAGE =
   'Usage: plan-persist.js --stories <file> ' +
   '[--tech-spec <file>] [--plan-dir <dir>] [--plan-context <file>] ' +
   '[--source-tickets <ids>] [--no-close-superseded] ' +
-  '[--dry-run] [--chain-on-clean] [--force-review] ' +
+  '[--dry-run] [--force-review] ' +
   '[--epic-title <text> --epic-goal <text> | --epic <id>]';
 
 async function readOptional(filePath, { required }) {
@@ -332,6 +328,14 @@ async function runPersistInvocation({
  *      to gate this step went with the plan-side lite claim: a clean dry-run
  *      is the review the chain exists to fold.
  *
+ * The caller reads the **second** pass's envelope, so the first pass's
+ * evidence has to be carried onto it (Story #5361). The repair pass mutates
+ * the loaded tickets in place, which is what makes replaying the identical
+ * artifacts possible at all — and it is also why pass 2 recomputes an empty
+ * `repairs[]`: by then there is nothing left to repair. The evidence is
+ * preserved rather than re-derived, because re-running the repair pass would
+ * report repairs the persisting pass did not make.
+ *
  * Exported for tests — this is where the round-trip collapse lives, so a
  * regression here silently re-opens the second operator round-trip (or
  * worse, persists a plan the dry-run never gated).
@@ -364,6 +368,14 @@ export async function runPersistChain({
     metricsSince,
     dryRun: false,
   });
+  persistResult.repairs = mergeEvidence(
+    dryResult.repairs,
+    persistResult.repairs,
+  );
+  persistResult.warnings = mergeEvidence(
+    dryResult.warnings,
+    persistResult.warnings,
+  );
   persistResult.chain = {
     attempted: true,
     persisted: true,
@@ -373,14 +385,40 @@ export async function runPersistChain({
 }
 
 /**
+ * Union two evidence lists, dry-run first, dropping an entry the second pass
+ * reported identically. Order is the operator's reading order; the dedupe is
+ * by rendered content because a repair is a plain record and a warning is a
+ * string, so two passes that noticed the same thing noticed it byte-for-byte.
+ *
+ * @param {unknown} first
+ * @param {unknown} second
+ * @returns {unknown[]}
+ */
+function mergeEvidence(first, second) {
+  const merged = [];
+  const seen = new Set();
+  for (const entry of [
+    ...(Array.isArray(first) ? first : []),
+    ...(Array.isArray(second) ? second : []),
+  ]) {
+    const key = JSON.stringify(entry);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(entry);
+  }
+  return merged;
+}
+
+/**
  * Decide whether this invocation persists after its gates, or only validates.
  *
  * Story #5342: chaining is the default, not a flag. Every invocation that is
  * not an explicit `--dry-run` runs the gate list and then persists what it
  * passed, so the two operator round-trips collapse without anyone having to
- * remember an opt-in. `--chain-on-clean` survives as a no-op alias so
- * existing call-sites keep working — it can no longer turn anything on,
- * because nothing is off.
+ * remember an opt-in. Story #5361 removed the no-op alias Story #5342 had
+ * kept for existing call-sites, rather than accepting and ignoring it: a flag
+ * that cannot change an outcome is a shim, and `parseArgs` refuses an unknown
+ * option, so passing it now fails loudly instead of reading as honoured.
  *
  * Exported for tests: this one predicate is what makes the CLI one command.
  *
@@ -507,10 +545,6 @@ runAsCli(import.meta.url, main, {
       ],
       ['--source-tickets <ids>', 'Ticket ids this plan supersedes.'],
       ['--dry-run', 'Validate and report; create nothing.'],
-      [
-        '--chain-on-clean',
-        'No-op alias — a bare invocation already persists on a clean dry run.',
-      ],
       ['--no-close-superseded', 'Leave superseded source tickets open.'],
       [
         '--force-review',

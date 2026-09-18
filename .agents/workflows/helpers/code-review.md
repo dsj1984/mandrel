@@ -87,8 +87,10 @@ review yourself, honor the `depth` semantics above directly.
 1. Resolve `[TICKET_ID]` from `ticketId` (the Story for live `scope: story`).
 2. Resolve `[BASE_REF]` from `baseRef` and `[HEAD_REF]` from `headRef`.
 3. Fetch the Story ticket and resolve the planning context from its own
-   body: folded `## Spec` / `## Slicing`, acceptance criteria, and the
-   `story-plan-state` structured comment when present.
+   body: folded `## Spec` / `## Slicing`, and acceptance criteria. The
+   `story-plan-state` comment beside it carries the operator's plan summary
+   (story set, delivery order, deliver command), not planning context — it
+   holds no machine payload to read.
 4. Read that Spec fully to understand the intended scope, architectural
    decisions, and acceptance criteria. Do **not** look for a parent Epic.
 

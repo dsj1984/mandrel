@@ -6,13 +6,17 @@
  * so the Story's opt-in wiring lands as new code, not a same-file expansion
  * of the pre-existing preview runner.
  */
-import { getChangedFiles } from '../changed-files.js';
+import { getChangedFiles, resolveChangedFilesRef } from '../changed-files.js';
 
 /**
  * Resolve the `incremental` option `scanAndScore` (`crap-utils.js`) expects,
  * or `null` when incremental mode is disabled or the changed-files ref could
  * not be resolved — a resolution failure falls back to full-scope rather
  * than silently relaxing the gate.
+ *
+ * The join's ref comes from `resolveChangedFilesRef` (Story #5365), the same
+ * rule capture applies: the `--changed-since` ref the preview was handed wins
+ * over a configured `baseRef`, so one hook invocation cannot resolve two.
  *
  * Gated by `incrementalCoverage.baselineJoin` alone (Story #5173). It MUST
  * NOT consult `skipWhenUnchanged`: the join loosens what the gate demands,
@@ -36,7 +40,7 @@ export function resolveCrapPreviewIncremental({
   getChangedFilesImpl = getChangedFiles,
 }) {
   if (crap.incrementalCoverage?.baselineJoin !== true) return null;
-  const baseRef = crap.incrementalCoverage.baseRef || diffRef || 'main';
+  const baseRef = resolveChangedFilesRef({ crap, ref: diffRef });
   try {
     const touchedFiles = new Set(getChangedFilesImpl({ ref: baseRef, cwd }));
     return { touchedFiles, baselineRows };

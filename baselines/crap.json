@@ -8,7 +8,7 @@
   "rollup": {
     "*": {
       "p50": 2,
-      "p95": 8.56681290745828,
+      "p95": 8.455166135639509,
       "max": 27.003399884259263,
       "methodsAbove20": 2
     }
@@ -19437,97 +19437,6 @@
       "crap": 6
     },
     {
-      "path": ".agents/scripts/lib/orchestration/model-attribution.js",
-      "method": "deriveFamily",
-      "startLine": 60,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/model-attribution.js",
-      "method": "resolveModelIdentity",
-      "startLine": 85,
-      "crap": 10.002332361516036
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/model-attribution.js",
-      "method": "buildModelAttributionPayload",
-      "startLine": 133,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/model-attribution.js",
-      "method": "validateKind",
-      "startLine": 162,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/model-attribution.js",
-      "method": "validateTicketId",
-      "startLine": 168,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/model-attribution.js",
-      "method": "validateModel",
-      "startLine": 174,
-      "crap": 9.13189497252188
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/model-attribution.js",
-      "method": "validateSource",
-      "startLine": 192,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/model-attribution.js",
-      "method": "validateRecordedAt",
-      "startLine": 198,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/model-attribution.js",
-      "method": "validateSdkMetadata",
-      "startLine": 205,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/model-attribution.js",
-      "method": "validateModelAttributionPayload",
-      "startLine": 240,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/model-attribution.js",
-      "method": "<anon validateModelAttributionPayload/(validate)#0>",
-      "startLine": 248,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/model-attribution.js",
-      "method": "renderModelAttributionBody",
-      "startLine": 263,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/model-attribution.js",
-      "method": "emitModelAttribution",
-      "startLine": 292,
-      "crap": 6.0641121963436015
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/model-attribution.js",
-      "method": "parseModelAttributionComment",
-      "startLine": 338,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/model-attribution.js",
-      "method": "rollupModelAttribution",
-      "startLine": 375,
-      "crap": 8.020285499624343
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/pinned-identifier-lint.js",
       "method": "codeSpans",
       "startLine": 69,
@@ -21245,19 +21154,6 @@
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "<anon describeStoryIds/(e)#0>",
       "startLine": 278,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
-      "method": "assertSupersedePartition",
-      "startLine": 290,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
-      "method": "<anon assertSupersedePartition/(e)#0>",
-      "startLine": 334,
       "crap": 1,
       "anonymous": true
     },
@@ -25374,12 +25270,6 @@
       "crap": 3.077681687149143
     },
     {
-      "path": ".agents/scripts/lib/orchestration/story-plan-state.js",
-      "method": "readStoryPlanState",
-      "startLine": 21,
-      "crap": 3
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-reachability.js",
       "method": "computeStoryReachability",
       "startLine": 29,
@@ -25391,18 +25281,6 @@
       "startLine": 40,
       "crap": 1,
       "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/structured-comment-parser.js",
-      "method": "parseFencedJson",
-      "startLine": 43,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/structured-comment-parser.js",
-      "method": "parseFencedJsonComment",
-      "startLine": 64,
-      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/task-body-validator.js",
@@ -25753,26 +25631,6 @@
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "<anon validateAcFreshness/(m)#0>",
       "startLine": 283,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "validateAcceptanceSubjectPrefix",
-      "startLine": 357,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "<anon validateAcceptanceSubjectPrefix/(t)#0>",
-      "startLine": 359,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "<anon validateAcceptanceSubjectPrefix/(v)#0>",
-      "startLine": 385,
       "crap": 1,
       "anonymous": true
     },

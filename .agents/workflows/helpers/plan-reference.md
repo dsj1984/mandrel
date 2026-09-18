@@ -397,9 +397,12 @@ that is not a path, a label, a kebab token, a flag or a command, which the
 advisory `changes[]` is free to reshape out from under the criterion. The
 list also names every **repair** the run applied — a plain-string bullet or a
 trailing parenthetical rewritten into `{ path, assumption }` by probing base,
-and an `AC-<n>:` handle normalised off an acceptance item. The same list rides the result
-envelope as `warnings[]` and `repairs[]`, so a `--chain-on-clean` run loses
-nothing.
+and an `AC-<n>:` handle normalised off an acceptance item. The same list rides
+the result envelope as `warnings[]` and `repairs[]` — and because the repairs
+are applied in the write-free pass, the chained run carries that pass's
+`repairs[]` and `warnings[]` onto the envelope it returns, so the evidence
+survives the hand-off rather than being re-derived from an already-repaired
+draft.
 
 A dry run that comes back clean has paid for every deterministic refusal, so
 the real persist has nothing left to discover except network failure — which
@@ -515,13 +518,13 @@ state.
 
 `agent::ready` is the **terminal** step, not part of the creating POST.
 The order is: create unlabelled → upsert `story-plan-state` on every Story —
-since Story #5343 one comment carrying the checkpoint **and** the plan summary
-(story set, delivery order, deliver command) — → flip every Story to
-`agent::ready`.
+since Story #5343 one comment, carrying the plan summary (story set, delivery
+order, deliver command) and nothing else, since Story #5367 deleted the machine
+checkpoint no reader consumed — → flip every Story to `agent::ready`.
 
 This is what lets `/mandrel-deliver` trust the label: a Story carrying
-`agent::ready` always has its persist receipt on the ticket, so nothing can
-pick it up mid-write and read a half-persisted plan.
+`agent::ready` always has the operator's delivery instructions on the ticket,
+so nothing can pick it up mid-write and act on a half-persisted plan.
 
 ## Resuming a failed persist
 

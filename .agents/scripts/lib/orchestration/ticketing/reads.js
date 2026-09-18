@@ -82,17 +82,14 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   'epic-plan-state',
   // `parked-follow-ons` retired in Story #5114 with the module that was its
   // only writer, and `plan-run-sibling-coherence` in Story #5341 with the
-  // epilogue step that was its. A kind the reader still recognises but
-  // nothing emits is the same dead wiring in a new place.
+  // epilogue step that was its. Story #5367 retired two more on the same
+  // rule: `story-init` (its write went away in #5343 — the receipt is read
+  // off disk now) and `model-attribution` (its writer went with the per-Task
+  // progress writer in #3157, and its reader modules are deleted). A kind the
+  // reader still recognises but nothing emits is the same dead wiring in a
+  // new place.
   // Story #566 — per-phase wall-clock summary posted by single-story-close.js.
   'phase-timings',
-  // Story #831 — `single-story-init.js` used to upsert a `story-init` receipt
-  // comment. Story #5343 retired that write: the init envelope on stdout and
-  // on disk already carried every field it restated, and the run-scoped config
-  // pin moved to that envelope (`story-init-envelope.js`). Nothing writes one
-  // now; the type stays in the enum only so a reader probing an older ticket
-  // that still carries one is not refused by the type validator.
-  'story-init',
   // Story #2128 — Phase 6 Epic Clarity Gate (CLI retired). Historical
   // `clarity-gate-update` comments may still exist on older tickets.
   'clarity-gate-update',
@@ -102,16 +99,6 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // operator can correct drift before Phase 8 decomposes from a stale
   // spec. Advisory: the run continues regardless of the report contents.
   'spec-freshness',
-  // Story #2813 — the per-Task progress writer (since retired under
-  // #3157) upserted a `model-attribution` comment on a Task ticket at
-  // the moment it transitioned to `agent::executing`, recording which
-  // Claude model was actively executing the work. One entry per Task
-  // (upsert is idempotent across resume re-runs). Story- and Epic-level
-  // rollups are computed at query time by `rollupModelAttribution` in
-  // `lib/orchestration/model-attribution.js` — no Story/Epic-scope
-  // emissions are written. Schema:
-  // `.agents/schemas/model-attribution.schema.json`.
-  'model-attribution',
   // Story #2894 — `finalize/post-handoff-comment.js` upserts an
   // `epic-handoff` comment on the Epic at the end of the bus-owned
   // finalize flow (after `open-or-locate-pr`
@@ -159,12 +146,13 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // `graduator="<name>"` attr so independent graduators do not clobber each
   // other's comment; re-runs upsert in place.
   'cross-repo-deferred',
-  // v2 Stage 3 — flat Story persist checkpoint on every created Story
+  // v2 Stage 3 — the flat Story persist comment on every created Story
   // (replaces epic-plan-state for new plans). Since Story #5343 it is the
   // ONLY comment persist posts: the primary-Story-only `plan-summary` marker
   // was retired and its content — story set, delivery order, deliver command
-  // — is appended below the checkpoint on every Story. A re-persist upserts
-  // in place.
+  // — rides this marker on every Story. Story #5367 deleted the machine
+  // checkpoint that used to lead the body; the marker remains, and it is what
+  // makes a re-persist upsert in place.
   'story-plan-state',
   // Story #4535 — `plan-persist.js` upserts a `superseded-by` comment on
   // each `/mandrel-plan --tickets` source issue at persist time, naming the single

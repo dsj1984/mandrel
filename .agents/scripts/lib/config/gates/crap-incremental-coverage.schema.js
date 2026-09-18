@@ -53,7 +53,7 @@ export const INCREMENTAL_COVERAGE_SCHEMA = {
       type: 'string',
       minLength: 1,
       description:
-        'Git ref the changed-file set is computed against. Omitted falls back to the gate’s own `--ref` (`main`).',
+        'Default git ref the changed-file set is computed against, for a caller that passes no `--ref`. A `--ref` the caller named wins over this value, so a caller that anchors another gate on the same ref — `.husky/pre-push`, which passes `--ref origin/main` and then previews `--changed-since origin/main` — resolves ONE scope for both steps (Story #5365). Omitted and unpassed, the gate’s own default `main` applies.',
     },
   },
   additionalProperties: false,

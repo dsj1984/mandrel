@@ -51,9 +51,9 @@ describe('structured-comment ID cache (Story #1795)', () => {
 
   it('first upsert hits getTicketComments; second upsert skips it', async () => {
     const provider = makeProvider();
-    await upsertStructuredComment(provider, 1795, 'story-init', 'body-A');
+    await upsertStructuredComment(provider, 1795, 'story-plan-state', 'body-A');
     assert.equal(provider.getCommentsCalls.length, 1);
-    await upsertStructuredComment(provider, 1795, 'story-init', 'body-B');
+    await upsertStructuredComment(provider, 1795, 'story-plan-state', 'body-B');
     assert.equal(
       provider.getCommentsCalls.length,
       1,
@@ -64,11 +64,16 @@ describe('structured-comment ID cache (Story #1795)', () => {
   });
 
   it('first upsert finds an existing comment via getTicketComments (legacy seed path)', async () => {
-    const marker = structuredCommentMarker('story-init');
+    const marker = structuredCommentMarker('story-plan-state');
     const provider = makeProvider({
       existingComments: [{ id: 42, body: `${marker}\n\nold body` }],
     });
-    await upsertStructuredComment(provider, 1795, 'story-init', 'new body');
+    await upsertStructuredComment(
+      provider,
+      1795,
+      'story-plan-state',
+      'new body',
+    );
     // The first call DID hit getTicketComments — it had to discover the
     // pre-existing comment.
     assert.equal(provider.getCommentsCalls.length, 1);
@@ -80,14 +85,14 @@ describe('structured-comment ID cache (Story #1795)', () => {
 
   it('delete-then-repost sequence updates the cached id to the new comment id', async () => {
     const provider = makeProvider();
-    await upsertStructuredComment(provider, 1795, 'story-init', 'v1');
+    await upsertStructuredComment(provider, 1795, 'story-plan-state', 'v1');
     const firstId = provider.postCalls.length;
-    await upsertStructuredComment(provider, 1795, 'story-init', 'v2');
+    await upsertStructuredComment(provider, 1795, 'story-plan-state', 'v2');
     // After the second upsert: the cache row must point at the v2 comment.
     // We can probe by issuing a findStructuredComment — if the cache lost
     // sync the provider would receive another getTicketComments call.
     const before = provider.getCommentsCalls.length;
-    const row = await findStructuredComment(provider, 1795, 'story-init');
+    const row = await findStructuredComment(provider, 1795, 'story-plan-state');
     assert.equal(provider.getCommentsCalls.length, before);
     assert.ok(row, 'findStructuredComment should return the cached row');
     assert.ok(row.body.includes('v2'), 'cached row should reflect v2 body');

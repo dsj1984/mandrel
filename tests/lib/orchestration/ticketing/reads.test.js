@@ -69,10 +69,30 @@ describe('ticketing/reads — constants and validators', () => {
       'progress',
       'friction',
       'notification',
-      'story-init',
+      'story-plan-state',
       'verification-results',
     ]) {
       assert.ok(STRUCTURED_COMMENT_TYPES.includes(t), `expected ${t} in enum`);
+    }
+  });
+
+  // Story #5367 — `story-init` and `model-attribution` joined the retired
+  // set: neither has had a writer for releases (the init receipt is read off
+  // disk, and the attribution writer went with the per-Task progress writer),
+  // and the modules that read attribution back are deleted. Pin the removal on
+  // the same rule as #4545 below.
+  it('STRUCTURED_COMMENT_TYPES excludes the reader-less types (Story #5367)', () => {
+    for (const t of ['story-init', 'model-attribution']) {
+      assert.equal(
+        STRUCTURED_COMMENT_TYPES.includes(t),
+        false,
+        `retired type ${t} must not be in the enum`,
+      );
+      assert.equal(
+        isValidStructuredCommentType(t),
+        false,
+        `retired type ${t} must not validate`,
+      );
     }
   });
 

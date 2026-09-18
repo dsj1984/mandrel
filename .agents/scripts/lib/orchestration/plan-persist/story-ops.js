@@ -157,7 +157,7 @@ const PLAN_FINGERPRINT_LENGTH = 16;
  *
  *   1. A later, unrelated plan that reused a slug **and** title adopted the
  *      stale open Story — never rewriting its body or Spec, and landing this
- *      run's checkpoints, ready-flip, and supersede comments on the wrong
+ *      run's plan comments, ready-flip, and supersede comments on the wrong
  *      issue.
  *   2. A legitimate resume after the operator edited `stories.json` adopted
  *      the pre-edit Story and kept its stale body, discarding the edit.
@@ -513,7 +513,17 @@ function assertSharedSpecAllowed(tickets, sharedSpec) {
 
 /**
  * Assemble markdown bodies for every Story: normalize → fold spec →
- * resolveSupersedePartition → serialize.
+ * order by dependency → resolveSupersedePartition → serialize.
+ *
+ * **The dependency sort runs here, once** (Story #5361). It used to run again
+ * inside the create loop, which meant "the primary Story" was derived twice
+ * from two different orderings: supersede assignment took the first *authored*
+ * Story, while the plan summary took the first *created*
+ * one. A draft whose authoring order differed from its dependency order made
+ * the `superseded-by` comment name a different Story from the summary. One
+ * sort, one ordered list threaded on to every consumer, so `stories[0]` is the
+ * only primary there is. The sort also refuses an unknown sibling or a cycle,
+ * which now fails the write-free pass rather than the first create.
  *
  * The partition pass runs **before** any GitHub write so a mis-authored
  * plan never leaves Stories live against an inconsistent tracker. Story #5332
@@ -537,8 +547,8 @@ export function assemblePlanStories(tickets, opts = {}) {
 
   assertSharedSpecAllowed(tickets, opts.sharedSpec);
 
-  const stories = tickets.map(
-    (ticket) => assembleOnePlanStory(ticket, opts).story,
+  const stories = orderStoriesByDependencies(
+    tickets.map((ticket) => assembleOnePlanStory(ticket, opts).story),
   );
 
   const warnings = resolveSupersedePartition(
@@ -904,12 +914,13 @@ async function ensurePersistLabel({
  * Create Story issues via `provider.createIssue`, resumably.
  *
  * **Stories are born without `agent::ready`** (Story #4541). They used to
- * carry it in the creating POST while the `story-plan-state` checkpoint was
+ * carry it in the creating POST while the `story-plan-state` comment was
  * upserted afterwards, so anything that picked a Story up inside that window —
- * or after a comment failure aborted the loop — read the checkpoint as `null`.
- * Creation now applies `type::story` plus the sanitized authored labels only;
- * `markStoriesReady` performs the flip as the terminal step, once every
- * checkpoint is on the ticket.
+ * or after a comment failure aborted the loop — found a ready Story carrying
+ * none of the operator's delivery instructions. Creation now applies
+ * `type::story` plus the sanitized authored labels only; `markStoriesReady`
+ * performs the flip as the terminal step, once every plan comment is on the
+ * ticket.
  *
  * **The loop is resumable, and adoption is content-keyed.** Each body carries
  * a plan-fingerprint marker, and the open `type::story` backlog is indexed by
@@ -1005,7 +1016,10 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
   const created = [];
   const idBySlug = new Map();
 
-  for (const story of orderStoriesByDependencies(list)) {
+  // Already in dependency order: `assemblePlanStories` sorted once, and
+  // sorting again here is what gave the run a second, disagreeing notion of
+  // which Story is primary (Story #5361).
+  for (const story of list) {
     const already = byFingerprint.get(story.fingerprint);
     if (!already) warnOnDivergentSameTitleStory(story, idsByTitle);
     if (already) {
@@ -1090,8 +1104,8 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
  * (Story #4541).
  *
  * This is what makes `agent::ready` *mean* "fully persisted": by the time it
- * lands, the Story's `story-plan-state` checkpoint is already on the ticket, so
- * a `/mandrel-deliver` that picks it up cannot read a null checkpoint.
+ * lands, the Story's `story-plan-state` comment is already on the ticket, so a
+ * `/mandrel-deliver` that picks it up always has the plan summary beside it.
  *
  * Fails closed: an un-flipped Story is invisible to `/mandrel-deliver`, which is the
  * safe direction — the operator is told exactly which ids need the label.
@@ -1147,7 +1161,7 @@ export async function markStoriesReady({ provider, created }) {
   if (failed.length > 0) {
     throw new Error(
       `[plan-persist] ${failed.length} Story(ies) were created with their ` +
-        'checkpoints but could not be flipped to agent::ready:\n' +
+        'plan comments but could not be flipped to agent::ready:\n' +
         `${failed.map((f) => `  - ${f}`).join('\n')}\n` +
         'They are invisible to /mandrel-deliver until the label lands. Re-run persist ' +
         '(it resumes rather than duplicating) or add the label by hand.',
