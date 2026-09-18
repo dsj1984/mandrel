@@ -13,9 +13,12 @@
  */
 
 import assert from 'node:assert/strict';
+import { rmSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
 import { buildDefaultGates } from '../../../.agents/scripts/lib/close-validation/gates.js';
+import { runCloseValidation } from '../../../.agents/scripts/lib/close-validation/runner.js';
+import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
 
 const names = (gates) => gates.map((g) => g.name);
 
@@ -235,6 +238,144 @@ describe('buildDefaultGates — the test gate never vanishes (Story #5278)', () 
     });
     assert.equal(spawned, false, 'DEFAULT_GATES must not shell out on import');
     assert.ok(!names(gates).includes('test'));
+  });
+});
+
+describe('buildDefaultGates — the pre-push CRAP-scope preview is a close gate (Story #5378)', () => {
+  const CRAP_ON = {
+    delivery: {
+      quality: {
+        gates: {
+          crap: {
+            enabled: true,
+            targetDirs: ['.agents/scripts'],
+            incrementalCoverage: { skipWhenUnchanged: true },
+          },
+        },
+      },
+    },
+  };
+  const SCRIPTS = { 'test:coverage': 'c8 node --test' };
+  const preview = (gates) => gates.find((g) => g.name === 'quality-preview');
+
+  it('AC-3: registers after coverage-capture and before the coverage-consuming baselines gate', () => {
+    const gates = buildDefaultGates({
+      config: CRAP_ON,
+      packageScripts: SCRIPTS,
+      baseBranch: 'main',
+      presentBaselines: ['crap'],
+    });
+    const order = names(gates);
+    const at = order.indexOf('quality-preview');
+    assert.ok(at > order.indexOf('coverage-capture'), order.join(','));
+    assert.ok(at < order.indexOf('check-baselines-coverage'), order.join(','));
+    const gate = preview(gates);
+    assert.deepEqual(
+      [gate.cmd, ...gate.args],
+      [
+        'node',
+        '.agents/scripts/quality-preview.js',
+        '--changed-since',
+        'origin/main',
+      ],
+    );
+    assert.ok(gate.hint, 'a red preview replays with a remediation hint');
+    assert.equal(gate.skip, undefined);
+  });
+
+  it('AC-3: scopes the preview to the close run base branch', () => {
+    const gate = preview(
+      buildDefaultGates({
+        config: CRAP_ON,
+        packageScripts: SCRIPTS,
+        baseBranch: 'develop',
+      }),
+    );
+    assert.equal(gate.args.at(-1), 'origin/develop');
+  });
+
+  it('AC-3: stays registered, unskipped, when the capture takes its incremental skip', () => {
+    const gates = buildDefaultGates({
+      config: CRAP_ON,
+      packageScripts: SCRIPTS,
+      cwd: '/repo',
+      baseBranch: 'main',
+      getChangedFilesImpl: () => ['tests/a.test.js'],
+    });
+    assert.ok(gates.find((g) => g.name === 'coverage-capture').skip);
+    assert.equal(preview(gates).skip, undefined);
+  });
+
+  // The gate as registered, run through the real close runner with a fake
+  // spawn: the preview is the only gate here, so the verdict is its alone.
+  const runPreview = ({ status = 0, cwd = '/repo', calls = [], log } = {}) =>
+    runCloseValidation({
+      cwd,
+      gates: [
+        preview(
+          buildDefaultGates({
+            config: CRAP_ON,
+            packageScripts: SCRIPTS,
+            baseBranch: 'main',
+          }),
+        ),
+      ],
+      storyId: 5378,
+      standalone: true,
+      getHeadSha: () => 'c'.repeat(40),
+      getTreeFingerprint: () => `tree:${'a'.repeat(40)}`,
+      runner: async (_cmd, args) => {
+        calls.push(args);
+        return { status };
+      },
+      ...(log ? { log } : {}),
+    });
+
+  it('AC-5: a red preview fails close-validation, naming the gate with its hint', async () => {
+    const lines = [];
+    const result = await runPreview({ status: 1, log: (m) => lines.push(m) });
+    assert.equal(result.ok, false);
+    assert.deepEqual(
+      result.failed.map((f) => f.gate.name),
+      ['quality-preview'],
+    );
+    assert.ok(lines.some((l) => /✖ quality-preview failed \(exit 1\)/.test(l)));
+    assert.ok(lines.some((l) => l.includes('hint: Quality preview failed')));
+  });
+
+  it('AC-6: a pass records schema-valid evidence and a re-close at unchanged HEAD skips it', async () => {
+    const cwd = makeTempDir('story-5378-');
+    try {
+      const calls = [];
+      assert.equal((await runPreview({ cwd, calls })).ok, true);
+      assert.equal(calls.length, 1);
+      const again = await runPreview({ cwd, calls });
+      assert.equal(again.ok, true);
+      assert.equal(calls.length, 1, 'the re-close must not respawn the gate');
+      assert.deepEqual(
+        again.skipped.map((s) => s.gate.name),
+        ['quality-preview'],
+      );
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it('AC-4: absent when coverage-capture is not registered', () => {
+    const crapOff = buildDefaultGates({
+      config: {
+        delivery: { quality: { gates: { crap: { enabled: false } } } },
+      },
+      packageScripts: SCRIPTS,
+    });
+    const noScript = buildDefaultGates({
+      config: CRAP_ON,
+      packageScripts: { test: 'node --test' },
+    });
+    for (const gates of [crapOff, noScript]) {
+      assert.ok(!names(gates).includes('coverage-capture'));
+      assert.equal(preview(gates), undefined);
+    }
   });
 });
 

@@ -465,11 +465,41 @@ function buildCoverageCaptureArgs(config) {
   return args;
 }
 
+/** The close gate that replays the `pre-push` hook's CRAP-scope preview. */
+const QUALITY_PREVIEW_GATE_NAME = 'quality-preview';
+
+const QUALITY_PREVIEW_HINT =
+  "Quality preview failed — the same per-file maintainability / CRAP check the `pre-push` hook runs, scored against the base branch. Reduce the flagged methods' complexity or cover them, then re-run close; a close that skipped this gate would have died at push instead.";
+
+/**
+ * The `quality-preview` gate (Story #5378): the `pre-push` hook's
+ * `quality-preview.js --changed-since origin/main`, run at close with the
+ * same scope so a CRAP breach it would reject fails close-validation instead
+ * of the push after it. Registered exactly when `coverage-capture` is, and
+ * placed after it so it scores a fresh artifact — including when the capture
+ * takes its incremental skip, since the preview's CRAP scope is then empty too.
+ *
+ * @param {{ coverageCaptureActive: boolean, baseBranch?: string }} opts
+ * @returns {Gate[]}
+ */
+function buildQualityPreviewGateEntry({ coverageCaptureActive, baseBranch }) {
+  if (!coverageCaptureActive) return [];
+  const ref = `origin/${baseBranch || 'main'}`;
+  return [
+    {
+      name: QUALITY_PREVIEW_GATE_NAME,
+      cmd: 'node',
+      args: ['.agents/scripts/quality-preview.js', '--changed-since', ref],
+      hint: QUALITY_PREVIEW_HINT,
+    },
+  ];
+}
+
 /**
  * Build the canonical close-validation gate list.
  *
  * Ordering (cheapest fast-fail first): typecheck → lint → [test] →
- * format → [coverage-capture] → check-baselines. The standalone `test`
+ * format → [coverage-capture → quality-preview] → check-baselines. The standalone `test`
  * gate is dropped when coverage-capture is the active test runner — i.e.
  * `crap.enabled === true` (Story #1798) AND a `test:coverage` script
  * exists (Story #4473) — because coverage-capture then carries
@@ -641,6 +671,7 @@ export function buildDefaultGates({
           },
         ]
       : []),
+    ...buildQualityPreviewGateEntry({ coverageCaptureActive, baseBranch }),
     // Story #2210 — unified `check-baselines` gate is the only path for
     // per-kind regression enforcement. The legacy per-kind in-process gates
     // were retired because their regression-compare semantics are fully
