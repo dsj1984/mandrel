@@ -5,8 +5,8 @@
   "rollup": {
     "*": {
       "min": 76.381,
-      "p50": 99.173,
-      "p95": 122.902
+      "p50": 99.169,
+      "p95": 122.565
     }
   },
   "rows": [
@@ -1343,10 +1343,6 @@
       "mi": 99.269
     },
     {
-      "path": ".agents/scripts/lib/orchestration/model-attribution.js",
-      "mi": 93.266
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/pinned-identifier-lint.js",
       "mi": 109.931
     },
@@ -1687,16 +1683,8 @@
       "mi": 108.95
     },
     {
-      "path": ".agents/scripts/lib/orchestration/story-plan-state.js",
-      "mi": 128.134
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-reachability.js",
       "mi": 105.753
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/structured-comment-parser.js",
-      "mi": 116.269
     },
     {
       "path": ".agents/scripts/lib/orchestration/task-body-validator.js",

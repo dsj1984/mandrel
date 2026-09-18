@@ -69,11 +69,13 @@
  * that same reader, in that same document. An allowlist elsewhere in the repo
  * would leave the file itself still lying.
  *
- * Story #4938 left the tree with exactly one: `friction-event.schema.json` was
- * deleted outright (its shape preserved field-for-field in
+ * Story #4938 left the tree with two: `friction-event.schema.json` was deleted
+ * outright (its shape preserved field-for-field in
  * `docs/archive/data-dictionary-2026-08.md`), and
  * `model-attribution.schema.json` — a documented SSOT with a hand-rolled
- * validator behind it — declared the marker.
+ * validator behind it — declared the marker. Story #5367 deleted that one too,
+ * with the module whose validator was the gate, so the marker is now a
+ * facility with no current user rather than a practice with a live example.
  *
  * The gate answers "is anything compiling this?", not "is what compiles it
  * faithful to it?". A schema whose hand-rolled mirror has silently drifted

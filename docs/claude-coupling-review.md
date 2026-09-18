@@ -122,8 +122,9 @@ any real effort starts by revising ADR `20260512-coupling-stance`.
    the `.claude/` paths as one adapter's output mapping.
 2. **Generalize env detection** behind a single `host-runtime` resolver
    wrapping the `CLAUDE_CODE_*` / `CC_*` vars in neutral names.
-3. **Generalize `model-attribution.js`** — family map plus env-var list. Cheap;
-   it is already a single choke point.
+3. ~~**Generalize the model-attribution module**~~ — moot: Story #5367 deleted
+   it. Nothing wrote the comment and nothing read it back, so the Claude family
+   map and its `CLAUDE_MODEL` / `ANTHROPIC_MODEL` fallbacks went with it.
 4. **Neutralize host tool names in skills** (`AskUserQuestion` → "the host's
    structured-question tool"), reusing the § 1.C live-docs phrasing.
 5. **Leave the review providers alone** — already correctly isolated and

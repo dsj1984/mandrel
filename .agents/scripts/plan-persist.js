@@ -10,9 +10,8 @@
  *   changes[] repair → ticket validator / DAG → reachability →
  *   split-policy partition → fold Spec into each Story body →
  *   createIssue(s) with type::story, resumably by plan fingerprint (NOT
- *   agent::ready) → story-plan-state on every Story;
- *   story-plan-state (checkpoint + plan summary) on every Story → flip every
- *   Story to agent::ready →
+ *   agent::ready) → one `story-plan-state` comment (the plan summary) on
+ *   every Story → flip every Story to agent::ready →
  *   comment + close superseded source tickets → temp cleanup + stale reap.
  *
  * Story #4542 retired the authored risk verdict: persist neither requires nor
@@ -79,7 +78,7 @@ import {
 } from './lib/orchestration/plan-persist/plan-context-source.js';
 import {
   runPlanPersist,
-  writeCheckpointV2,
+  writePlanSummaryComment,
 } from './lib/orchestration/plan-persist/run-plan-persist.js';
 import {
   buildPlanSummaryCommentBody,
@@ -92,7 +91,7 @@ export {
   buildPlanSummaryCommentBody,
   buildWaveTable,
   runPlanPersist,
-  writeCheckpointV2,
+  writePlanSummaryComment,
 };
 
 const CLI_OPTIONS = {

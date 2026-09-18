@@ -157,16 +157,14 @@ call site.
 
 | Type                        | Writer                                                                 | Purpose                                                                  |
 | --------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `story-plan-state`          | `lib/orchestration/plan-persist/run-plan-persist.js`                    | Per-Story persist checkpoint, upserted on every Story `/mandrel-plan` creates, carrying the plan summary (story set, `depends_on` order table, deliver command) below it. |
+| `story-plan-state`          | `lib/orchestration/plan-persist/run-plan-persist.js`                    | The plan summary (story set, `depends_on` order table, deliver command), upserted on every Story `/mandrel-plan` creates. Prose only — Story #5367 deleted the machine checkpoint that used to lead the body, since nothing read it back. |
 | `superseded-by`             | `lib/orchestration/plan-persist/supersede-ops.js`                       | Names the Story claiming a `/mandrel-plan --tickets` source issue, posted immediately before closing it `not_planned`. The marker is what makes a re-run non-double-commenting. |
-| `story-init`                | `single-story-init.js`                                                  | Initial Story metadata snapshot (incl. `dependenciesInstalled`).         |
 | `verification-results`      | `lib/orchestration/code-review.js` (`runCodeReview`)                    | Unified review + lens findings on the Story; critical findings block close. Read by the feedback-loop graduators and the auto-merge integration gate. |
 | `notification`              | `notify.js`; `lib/orchestration/single-story-close/phases/code-review.js` | Operator-facing severity-tiered notification.                          |
 | `progress`                  | `lib/orchestration/ticketing/bulk.js` (`cascadeCompletion`)             | Cascade-completion note on a parent ticket.                              |
 | `friction`                  | `lib/orchestration/story-init-remote.js`; `single-story-close/phases/` (`base-sync`, `review-block`, `confirm-merge`, `wrong-tree-guard`) | Blocker observation posted on the Story. Distinct from the on-disk `friction` **signal** (`signals-writer.appendSignal` → `signals.ndjson`), which `diagnose-friction.js` writes and never posts. |
 | `follow-ups`                | `lib/orchestration/run-epilogue.js`; `lib/orchestration/story-follow-ups.js` | Actionable follow-ups distilled from friction signals at Story closeout. |
 | `plan-run-audit-roster`     | `lib/orchestration/run-epilogue.js`                                     | Audit lenses selected for the run, grounded in the landed diff; opt-in (`--audit-roster`). |
-| `model-attribution`         | `lib/orchestration/model-attribution.js`                                | Which model executed the work. Shape SSOT: `.agents/schemas/model-attribution.schema.json` — documented, not AJV-compiled; the runtime gate is the hand-rolled `validateModelAttributionPayload` in the same writer. |
 | `cross-repo-deferred`       | `lib/feedback-loop/graduator-core.js`                                   | Findings routed to another repository and therefore not filed here. Discriminated by a `graduator` attr so independent graduators upsert without clobbering each other. |
 
 **Graduation off `verification-results` is retired.** Story #5003 deleted the
@@ -179,11 +177,13 @@ The `mcp__mandrel__post_structured_comment` tool is **gone**; the
 direct CLI is the only path. Earlier dispatcher snapshots referencing the MCP
 tool are obsolete.
 
-Readers consuming any of the comment types above should parse the JSON fence
-through the shared `parseFencedJsonComment(comment)` helper in
-`lib/orchestration/structured-comment-parser.js`. Three open-coded regex
-parsers were consolidated onto this helper in Epic #946 (v5.31.1); new
-readers should not re-implement the fence-extraction logic inline.
+**No structured comment is read back as a machine payload.** Epic #946
+consolidated three open-coded fence parsers onto a shared
+`parseFencedJsonComment` helper; Story #5367 deleted that helper along with its
+last two callers, because every fenced payload left on these comments is
+written for a human reader and parsed by nobody. A comment is an operator
+surface here — state a reader needs belongs in the on-disk envelopes under
+`temp/`, where it is not one hand-edit away from unparseable.
 
 ---
 

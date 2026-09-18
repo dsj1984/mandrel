@@ -4,9 +4,9 @@
   "generatedAt": "2026-09-18T00:27:55.969Z",
   "rollup": {
     "*": {
-      "lines": 96.36,
-      "branches": 87.37,
-      "functions": 88.26
+      "lines": 96.35,
+      "branches": 87.33,
+      "functions": 88.2
     }
   },
   "rows": [
@@ -2051,12 +2051,6 @@
       "functions": 100
     },
     {
-      "path": ".agents/scripts/lib/orchestration/model-attribution.js",
-      "lines": 97.61,
-      "branches": 83.02,
-      "functions": 100
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/pinned-identifier-lint.js",
       "lines": 100,
       "branches": 85,
@@ -2567,21 +2561,9 @@
       "functions": 100
     },
     {
-      "path": ".agents/scripts/lib/orchestration/story-plan-state.js",
-      "lines": 100,
-      "branches": 100,
-      "functions": 100
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-reachability.js",
       "lines": 100,
       "branches": 91.67,
-      "functions": 100
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/structured-comment-parser.js",
-      "lines": 100,
-      "branches": 100,
       "functions": 100
     },
     {
