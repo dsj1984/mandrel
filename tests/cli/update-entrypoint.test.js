@@ -158,8 +158,9 @@ function makeDeps(fsFake, cap, { onNpmView, onNpmInstall } = {}) {
       // the fixture ⇒ the npm default, `package-lock.json`).
       gitStatus: () => ({
         ok: true,
-        staged: [],
-        unstaged: ['package.json', 'package-lock.json'],
+        stagedManifest: false,
+        stagedLockfile: false,
+        stagedPayload: false,
         tracksAgents: false,
       }),
       // Downstream materialize/migrate/verify phases run through the spawn
