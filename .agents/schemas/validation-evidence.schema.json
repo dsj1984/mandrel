@@ -40,10 +40,11 @@
               "check-baselines",
               "check-baselines-independent",
               "check-baselines-coverage",
+              "quality-preview",
               "check-maintainability",
               "check-crap"
             ],
-            "description": "Stable gate identifier. Closed enum — additions require a schema bump. Must be a superset of every gate name buildDefaultGates() can emit (lib/close-validation/gates.js); tests/close-validation-gates-enum.test.js pins that gate-list ⊆ enum invariant. `coverage-capture` and `check-baselines` are the real close-validation gates (Story #4697); `check-baselines-independent` / `check-baselines-coverage` are the split pair the gate registers as when its enabled-kind set resolves (Story #5172), with `check-baselines` kept as both the unsplit fail-closed fallback and the historical name; `check-maintainability` / `check-crap` are the retired per-kind gates (Story #2210) kept so historical evidence records still validate."
+            "description": "Stable gate identifier. Closed enum — additions require a schema bump. Must be a superset of every gate name buildDefaultGates() can emit (lib/close-validation/gates.js); tests/close-validation-gates-enum.test.js pins that gate-list ⊆ enum invariant. `coverage-capture` and `check-baselines` are the real close-validation gates (Story #4697); `check-baselines-independent` / `check-baselines-coverage` are the split pair the gate registers as when its enabled-kind set resolves (Story #5172), with `check-baselines` kept as both the unsplit fail-closed fallback and the historical name; `quality-preview` replays the pre-push CRAP-scope preview at close, registered beside `coverage-capture` (Story #5378); `check-maintainability` / `check-crap` are the retired per-kind gates (Story #2210) kept so historical evidence records still validate."
           },
           "commitSha": {
             "type": "string",

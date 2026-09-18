@@ -136,6 +136,12 @@ test('AC-1: evidence for coverage-capture and check-baselines validates against 
   );
 });
 
+test('Story #5378: evidence for the quality-preview close gate validates against the schema', () => {
+  const validate = makeValidator();
+  const ok = validate(evidenceDoc([evidenceRecord('quality-preview')]));
+  assert.equal(ok, true, JSON.stringify(validate.errors));
+});
+
 test('AC-2: every close-validation gate name is a member of the schema gateName enum', () => {
   const enumValues = new Set(gateNameEnum());
   const gateNames = deriveCloseValidationGateNames();
@@ -147,7 +153,10 @@ test('AC-2: every close-validation gate name is a member of the schema gateName 
     gateNames.includes('coverage-capture'),
     'coverage-capture must be derivable from buildDefaultGates()',
   );
-  for (const name of Object.values(BASELINES_GATE_NAMES)) {
+  for (const name of [
+    ...Object.values(BASELINES_GATE_NAMES),
+    'quality-preview',
+  ]) {
     assert.ok(
       gateNames.includes(name),
       `${name} must be derivable from buildDefaultGates()`,
