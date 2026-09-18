@@ -203,7 +203,7 @@ function skipStringLiteral(src, start) {
  * literals alone.
  *
  * A specifier's own characters are not a path expression: without this,
- * `import('../.agents/lib/auto-merge-cwd.js')` matches the `cwd` name signal on a
+ * `import('../lib/auto-merge-cwd.js')` matches the `cwd` name signal on a
  * filename. Template literals are left intact because their `${…}` bodies are
  * exactly what both rules need to read.
  *
