@@ -1,9 +1,5 @@
 /**
- * filters.js — pure branch-filter helpers for git-cleanup (Story #2466).
- *
- * Exports `buildGlobFilter`, `computeProtectedSet`, and
- * `computeProtectedReason` — extracted verbatim from `git-cleanup.js`
- * so the named-export contract stays byte-identical.
+ * Pure branch-filter and protected-branch helpers for git-cleanup.
  *
  * @module lib/orchestration/git-cleanup/phases/filters
  */

@@ -1,15 +1,7 @@
 /**
- * epic-ops.js — create the optional container Epic for a plan-persist run.
- *
- * Story #5139. When `/mandrel-plan` authors more than two Stories it offers to
- * group them under one container Epic. The Epic is **not** a work item: it
- * holds a `## Goal` paragraph and a child checklist, carries `type::epic` and
- * nothing else, and is never branched, implemented or delivered.
- *
- * Ordering matters — the Epic is created **after** the Stories, because its
- * body embeds their issue numbers and its sub-issue edges need their database
- * ids. A container that exists before its contents would have to be written
- * twice.
+ * The optional container Epic: a goal plus a child checklist, never
+ * delivered. Created after the Stories, since it embeds their numbers and
+ * database ids.
  *
  * @module lib/orchestration/plan-persist/epic-ops
  */
@@ -21,32 +13,22 @@ import { Logger } from '../../Logger.js';
 import { LABEL_COLORS, TYPE_LABELS } from '../../label-constants.js';
 import { composeEpicBody } from '../epic-container.js';
 
-/**
- * The Story count at or above which `/mandrel-plan` offers a container Epic.
- *
- * Three, i.e. "more than two" — at two Stories a pair of ids is as easy to
- * carry as one, and the container earns nothing.
- */
+/** Story count at which `/mandrel-plan` offers a container Epic. */
 export const EPIC_SUGGESTION_THRESHOLD = 3;
 
-/** Length of the truncated hex digest stamped into the Epic marker. */
 const EPIC_FINGERPRINT_LENGTH = 8;
 
-/** Marker prefix identifying a persist-authored Epic in an issue body. */
 const EPIC_FINGERPRINT_MARKER_PREFIX = 'mandrel-epic-fingerprint';
 
 /**
- * Derive the Epic's resume identity from its title and the exact child set.
- *
- * Keyed on the children, not just the title: two runs that group *different*
- * Stories are different containers even under the same title, and adopting
- * one for the other would silently leave a cohort unlinked.
+ * Resume identity over title and the exact child set — a different cohort
+ * under the same title is a different container.
  *
  * Fields join on NUL, written as the `\u0000` escape and never as a raw byte
  * — a literal NUL makes git classify the file binary and drop its diffs.
  *
  * @param {{ title: string, childIds: number[] }} opts
- * @returns {string} Hex digest.
+ * @returns {string}
  */
 function epicFingerprint({ title, childIds }) {
   const ids = [...childIds].sort((a, b) => a - b).join(',');
@@ -57,8 +39,6 @@ function epicFingerprint({ title, childIds }) {
 }
 
 /**
- * Render the invisible HTML-comment marker carrying the Epic's fingerprint.
- *
  * @param {string} fingerprint
  * @returns {string}
  */
@@ -67,15 +47,9 @@ function epicFingerprintMarker(fingerprint) {
 }
 
 /**
- * Ensure the `type::epic` label exists, **failing closed**.
- *
- * This is deliberately the opposite posture to the cohort and route labels
- * (`ensurePersistLabel` in `story-ops.js`), which degrade to "create without
- * the label" because they are cosmetic. `type::epic` is not cosmetic: it is
- * the sole marker `isEpicTicket` reads, so an Epic created without it is not
- * an Epic — it is a stray issue that `/mandrel-deliver` will hard-error on and
- * no expansion will ever find. Skipping creation leaves the Stories, which
- * are the part that matters, perfectly deliverable by id.
+ * Fails closed, unlike the cosmetic cohort label: `type::epic` is the sole
+ * Epic marker, so an Epic without it is a stray issue. Skipping leaves the
+ * Stories deliverable by id.
  *
  * @param {{ provider: object }} opts
  * @returns {Promise<boolean>} Whether creation may proceed.
@@ -113,11 +87,8 @@ async function ensureEpicLabel({ provider }) {
 }
 
 /**
- * Find an already-created Epic carrying this fingerprint, so a resumed
- * persist adopts it instead of opening a second container.
- *
- * Non-fatal: a search failure returns `null` and the caller creates. A
- * duplicate Epic is cosmetic; a crash mid-persist is not.
+ * Non-fatal: a failed lookup returns `null` and the caller creates — a
+ * duplicate Epic is cosmetic, a mid-persist crash is not.
  *
  * @param {{ provider: object, fingerprint: string }} opts
  * @returns {Promise<{ id: number, url?: string }|null>}
@@ -134,9 +105,7 @@ async function findExistingEpic({ provider, fingerprint }) {
       String(issue?.body ?? '').includes(marker),
     );
     if (!hit) return null;
-    // The declared ticket shape: `id` is the issue number. The `number`-then-
-    // `id` fallback this replaced would have adopted the resumed container by
-    // database id — a number that exists, resolves to nothing, fails no guard.
+    // `id` is the issue number here; never fall back to a database id.
     const id = Number(hit.id);
     if (!Number.isInteger(id) || id <= 0) return null;
     return { id, url: hit.url ?? undefined };
@@ -149,11 +118,8 @@ async function findExistingEpic({ provider, fingerprint }) {
 }
 
 /**
- * Index a cohort's already-known database ids by issue number.
- *
- * A resumed run's adopted Stories carry no `internalId` — they were found by
- * listing, not created — so they are simply absent from the map and fall
- * through to the lookup. Absence means "not known here", never "has none".
+ * Known database ids by issue number. Adopted Stories are absent (they carry
+ * no `internalId`) and fall through to a lookup.
  *
  * @param {Array<{ id?: number, internalId?: number }>|undefined} created
  * @returns {Map<number, number>}
@@ -169,18 +135,9 @@ function internalIdsFrom(created) {
 }
 
 /**
- * Link the created Stories under the Epic as native sub-issue edges.
- *
- * Non-fatal by design — the body checklist is the durable mirror, and
- * `getSubTickets` reads it as a first-class child source. A lost edge costs
- * the GitHub UI's nesting, not the grouping itself.
- *
- * Exported since Story #5155 so the adoption path (`epic-adoption.js`) links
- * children exactly the way creation does — one mirroring rule, not two that
- * drift.
- *
- * `created` is optional and carries the cohort's `createIssue` responses, so
- * the linker can skip the id lookup for every child this run made itself.
+ * Native sub-issue edges, shared with the adoption path. Non-fatal: the body
+ * checklist is the durable child source. `created` lets the linker skip the
+ * id lookup for children this run made.
  *
  * @param {{ provider: object, epicNumber: number, childIds: number[], created?: Array<{ id: number, internalId?: number }> }} opts
  * @returns {Promise<{ added: number, skipped: number, failed: number }|null>}
@@ -236,16 +193,8 @@ export async function mirrorSubIssueEdges({
 }
 
 /**
- * Create the container Epic for a persisted cohort.
- *
- * Returns `null` whenever no Epic was created — not requested, too few
- * Stories, or the label could not be ensured. Callers treat `null` as the
- * ordinary no-Epic outcome, never as a failure.
- *
- * **The Epic never receives an `agent::*` label.** Its labels are exactly
- * `[type::epic]`. That absence is load-bearing: it keeps the container out
- * of the bare `/mandrel-deliver` ready list and outside `lint-issue-body.js`,
- * which scopes itself to `type::story`.
+ * `null` is the ordinary no-Epic outcome, never a failure. Labels are exactly
+ * `[type::epic]` — no `agent::*`, which keeps it out of the deliver ready list.
  *
  * @param {{
  *   provider: object,
@@ -283,9 +232,7 @@ export async function createContainerEpic({
     .map((s) => s.id)
     .filter((id) => Number.isInteger(id) && id > 0);
 
-  // Dry-run reports the intended container write-free. `created` carries
-  // negative placeholder ids there, so `childIds` is empty by construction —
-  // report the count from `created` itself rather than from the filtered list.
+  // Dry-run ids are negative placeholders, so report from `created` itself.
   if (dryRun) {
     return {
       id: -1,
@@ -336,8 +283,6 @@ export async function createContainerEpic({
     labels: [TYPE_LABELS.EPIC],
   });
 
-  // `createIssue` declares both `id` and `number` and sets them to the same
-  // issue number; reading one of them is the whole contract.
   const epicNumber = result.id;
   const edges = await mirrorSubIssueEdges({
     provider,

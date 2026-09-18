@@ -1,42 +1,17 @@
 /**
- * external-deps.js — `depends_on` entries that point outside this plan run.
- *
- * Story #5155. A `depends_on[]` entry has always been a **sibling slug**: a
- * name resolvable only inside the `stories.json` being persisted. That makes
- * every ordering edge intra-plan by construction, and leaves the cross-plan
- * case — a new Story that must wait for an open Story from an earlier run —
- * expressible only by hand-editing the issue body after persist.
- *
- * An entry of the form `#1234` is that missing case: an **external** blocker,
- * already live on the tracker. The two forms are distinguished lexically and
- * totally, so nothing has to guess:
- *
- *   - `some-slug` → a sibling, resolved against this run's slug map;
- *   - `#1234`     → an existing issue, resolved against the tracker.
- *
- * External refs are excluded from sibling ordering and cycle detection. They
- * cannot participate in either: a Story already open is not scheduled by this
- * run, so it has no position in the topological sort, and it cannot close a
- * cycle back into a Story that does not exist yet. Treating them as siblings
- * is what would break — the unknown-slug guard would reject every one.
- *
- * They are validated strictly, and **before any create**: an unresolvable
- * blocker that surfaced after the fact would leave a live Story gated on
- * something that can never satisfy it, which the delivery engine reads as a
- * permanent wedge rather than an error.
+ * `depends_on` entries naming an existing issue (`#<id>`) rather than a
+ * sibling slug. They take no part in sibling ordering or cycle detection, and
+ * are validated before any create — an unresolvable blocker on a live Story
+ * reads to delivery as a permanent wedge, not an error.
  *
  * @module lib/orchestration/plan-persist/external-deps
- * @see Story #5155
  */
 
 import { TYPE_LABELS } from '../../label-constants.js';
 
-/** A `depends_on` entry naming an existing issue: `#` followed by digits. */
 const EXTERNAL_REF_RE = /^#(\d+)$/;
 
 /**
- * Is this `depends_on` entry an external issue reference?
- *
  * @param {unknown} entry
  * @returns {boolean}
  */
@@ -45,8 +20,6 @@ export function isExternalDependencyRef(entry) {
 }
 
 /**
- * The issue number an external ref names, or `null` for a sibling slug.
- *
  * @param {unknown} entry
  * @returns {number|null}
  */
@@ -59,9 +32,6 @@ export function externalDependencyId(entry) {
 }
 
 /**
- * Every distinct external id declared across a plan's Stories, in first-seen
- * order.
- *
  * @param {Array<{ depends_on?: string[] }>} stories
  * @returns {number[]}
  */
@@ -80,8 +50,6 @@ export function collectExternalDependencyIds(stories) {
 }
 
 /**
- * Normalize an issue's labels to plain strings.
- *
  * @param {unknown} raw
  * @returns {string[]}
  */
@@ -93,8 +61,6 @@ function labelNames(raw) {
 }
 
 /**
- * Explain why one external blocker is unusable, or `null` when it is fine.
- *
  * @param {number} id
  * @param {object|null} issue
  * @returns {string|null}
@@ -116,13 +82,10 @@ function rejectionReason(id, issue) {
 }
 
 /**
- * Verify every external `depends_on` ref resolves to an open Story.
- *
- * Hard-errors listing **every** bad ref rather than the first, so an operator
- * fixing a plan sees the whole set in one pass.
+ * Every external ref must be an open Story; the error lists every bad ref.
  *
  * @param {{ provider: object, stories: Array<{ slug: string, depends_on?: string[] }> }} args
- * @returns {Promise<number[]>} The validated external ids (possibly empty).
+ * @returns {Promise<number[]>}
  * @throws {Error} When any ref is missing, closed, an Epic, or not a Story.
  */
 export async function assertExternalDependenciesResolvable({

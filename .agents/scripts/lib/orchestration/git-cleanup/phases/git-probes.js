@@ -1,14 +1,6 @@
 /**
- * git-probes.js — branch / worktree / PR probe wrappers for git-cleanup
- * (Story #2466).
- *
- * Owns the wrappers the branches-phase planner calls to enumerate local
- * + remote branches, walk worktrees, and probe `gh pr list` for merged
- * PRs. Fast-forward / cleanup probes live in `git-probes-ff.js`.
- *
- * Re-exports the FF probes so consumers that previously imported the
- * unified surface (`isWorkingTreeClean`, etc) keep working without
- * touching their import paths.
+ * Branch / worktree / PR probes for the git-cleanup branches planner; also
+ * re-exports the fast-forward probes from `git-probes-ff.js`.
  *
  * @module lib/orchestration/git-cleanup/phases/git-probes
  */
@@ -46,26 +38,11 @@ export function listLocalBranches(cwd) {
 }
 
 /**
- * Pure: strip the `<remote>/` prefix off a remote-ref listing and drop the
- * symbolic `HEAD` entry.
- *
- * `HEAD` arrives under two spellings. `%(refname:lstrip=3)` renders
- * `refs/remotes/origin/HEAD` as the literal `HEAD`, but
- * `%(refname:short)` — what both callers ask for — shortens it to the bare
- * remote name `origin`, because git keeps the remote segment only when the
- * result would otherwise be ambiguous. Missing that second spelling leaked
- * a phantom `origin` candidate into the remote-only sweep, which the reap
- * phase then reported as `already gone`.
- *
- * Both spellings are rejected **before** the prefix strip, because the
- * strip is what makes them ambiguous: a real branch named `origin` lists
- * as `origin/origin` and strips to `origin` too. Discriminating on the raw
- * line keeps that branch reapable while still dropping the symbolic ref.
- *
- * Shared by {@link listRemoteBranches} and {@link listRemoteMergedBranches}
- * so both enumerations speak the same short-name vocabulary the planner's
- * remote-only walk keys on — a divergence there would make the ancestry
- * signal miss every branch by name (Story #5188).
+ * Strip the `<remote>/` prefix and drop the symbolic HEAD, which
+ * `%(refname:short)` may render as the bare remote name. Both spellings are
+ * rejected on the raw line, before the strip, so a real branch named
+ * `origin` (`origin/origin`) stays reapable. Shared by both remote listers so
+ * their names match.
  *
  * @param {string} stdout
  * @param {string} remoteName
@@ -95,24 +72,14 @@ export function listRemoteBranches(cwd, remoteName = 'origin') {
 }
 
 /**
- * The remote-only walk's ancestry source (Story #5188).
- *
- * {@link listMergedBranches} runs `git branch --merged` with no `-r`, so it
- * enumerates **local** heads only and can never contain a remote branch
- * name — feeding it the remote-only walk classified every orphaned remote
- * ref as unmerged no matter how thoroughly it had landed. This is the `-r`
- * twin: `git branch -r --merged <base>`, with the `<remote>/` prefix
- * stripped so its names match the short names {@link listRemoteBranches}
- * enumerates.
- *
- * Answered entirely from the local object database against the
- * already-fetched remote-tracking refs — the sweep stays offline and adds
- * no per-branch network call.
+ * The remote-only walk's ancestry source: the `-r` twin of
+ * {@link listMergedBranches} (which sees local heads only). Offline — reads
+ * the already-fetched remote-tracking refs.
  *
  * @param {string} cwd
- * @param {string} base  Rev the ancestry is taken against (`main`, `origin/main`).
+ * @param {string} base
  * @param {string} [remoteName]
- * @returns {string[]}  Short branch names, remote prefix stripped.
+ * @returns {string[]}
  */
 /* node:coverage ignore next */
 export function listRemoteMergedBranches(cwd, base, remoteName = 'origin') {
@@ -145,16 +112,9 @@ export function listMergedBranches(cwd, base) {
 }
 
 /**
- * Story #4395's fresh ancestry anchor, factored out here so the local and
- * remote-only walks cannot drift apart on it (Story #5188): the merged
- * listing taken against the local base is unioned with the one taken
- * against `<remote>/<base>` whenever that ref exists, so a stale local
- * base cannot hide a branch already merged on the remote.
- *
- * `lister` picks the namespace — {@link listMergedBranches} (local heads)
- * for the local walk, {@link listRemoteMergedBranches} (remote-tracking
- * refs) for the remote-only one. `remoteName` is forwarded as the listers'
- * third argument, which the local lister ignores.
+ * Union the merged listing against the local base with the one against
+ * `<remote>/<base>` (when it exists), so a stale local base cannot hide a
+ * branch already merged on the remote. Shared by both walks.
  *
  * @param {{ lister: Function, cwd: string, baseBranch: string, remoteBaseRef: string, refExistsFn: Function, remoteName?: string }} args
  * @returns {Set<string>}
@@ -205,25 +165,14 @@ export function worktreesByBranch(cwd) {
 }
 
 /* node:coverage ignore next */
-// Story #2990: this `gh` probe stays on synchronous `execFileSync` (not
-// the `lib/gh-exec.js` async facade) because `planCleanup` is a
-// synchronous planner and `prProbe` is invoked inside a sync `for`
-// loop. Converting the planner to async would ripple into every
-// `git-cleanup` caller and is out of scope for the callers-only
-// provider migration.
+// Synchronous on purpose: `planCleanup` is a sync planner.
 export function defaultGhRunner(args, { cwd }) {
   return execFileSync('gh', args, { cwd, encoding: 'utf8' });
 }
 
 /**
- * Check whether a branch has a merged PR via `gh`.
- *
- * Legacy probe: queries `--state merged` and returns the first merged row's
- * `{ number, mergedAt }`. Kept exported so older call sites and tests that
- * predate the latest-PR-state model continue to work — the planner now
- * defaults to {@link probeLatestPr} for the bug-A correctness fix, but a
- * caller can still inject this as `prProbe` to opt into the historical
- * "any merge on this head" semantics.
+ * "Any merged PR on this head" — injectable as `prProbe`; the planner
+ * defaults to {@link probeLatestPr}.
  */
 export function probeMergedPr(branch, cwd, runGh = defaultGhRunner) {
   const out = runGh(
@@ -258,20 +207,9 @@ export function probeMergedPr(branch, cwd, runGh = defaultGhRunner) {
 }
 
 /**
- * Probe the most-recent PR on a branch head ref, regardless of state.
- *
- * Replaces {@link probeMergedPr} as the planner's default merge signal so
- * branches with reused names (release-please, dependabot, renovate, manual
- * reuse) cannot be silently reaped on a stale historical merge. The right
- * question is "is the *latest* PR on this head ref a merge?" — not "did
- * *any* PR ever merge on this head ref?". Returning the full state lets
- * the planner skip OPEN and CLOSED-not-merged refs with operator-visible
- * reasons.
- *
- * `headRefOid` is included so the planner can cross-check the current
- * branch tip against the commit the PR actually merged (or pointed at);
- * post-merge force-pushes flip the tip out from under a historical merge
- * signal and would otherwise still reap.
+ * The latest PR on a head ref, any state — so a reused branch name is never
+ * reaped on a stale historical merge. `headRefOid` lets the planner catch a
+ * post-merge force-push.
  *
  * @param {string} branch
  * @param {string} cwd
@@ -316,44 +254,17 @@ export function probeLatestPr(branch, cwd, runGh = defaultGhRunner) {
 }
 
 /**
- * Bulk-probe every open/closed/merged PR in one `gh` spawn, indexed by
- * head ref name.
+ * Every PR in one `gh` spawn, indexed by head ref in {@link probeLatestPr}'s
+ * shape. Rows are newest-first, so the first row per head wins.
  *
- * Replaces the N per-branch {@link probeLatestPr} spawns the planner used
- * to fire inside its branch loops (Story #3333, f-performance). A single
- * `gh pr list --state all` page is parsed into a `Map<headRefName,
- * prInfo>` whose values carry the **same** shape {@link probeLatestPr}
- * returns, so `classifyLatestPr` reads them without translation.
- *
- * When a head ref appears more than once on the page (multiple PRs share a
- * head — reused branch names), the **first** row wins. `gh pr list`
- * returns rows newest-first, so the first row is the latest PR on that
- * head — exactly the "latest PR" signal {@link probeLatestPr} resolves
- * per-branch. The planner keeps {@link probeLatestPr} as a per-branch
- * fallback for head refs absent from this page (a branch whose PR fell
- * outside the `--limit` window).
- *
- * Returns an empty index on any failure (non-array, empty, or malformed
- * JSON) so the caller transparently falls back to per-branch probing.
- *
- * ## `complete` — when absence from the page is proof (Story #5283)
- *
- * The returned `complete` flag says whether the page enumerated **every**
- * PR in the repository: true when `gh` returned fewer rows than the
- * `--limit` it was given, which is the only way to know the window did
- * not truncate. On a complete page a head ref's absence is not "the PR
- * fell outside the window" — it is proof that no PR covers that ref at
- * all, so the caller's per-branch fallback can only re-derive the same
- * `null` at the cost of one `gh` spawn per PR-less branch.
- *
- * Every failure mode reports `complete: false`, because an unusable page
- * proves nothing: empty stdout (a degraded `gh`), unparseable JSON, and a
- * non-array payload must all leave the fallback armed. A *parsed* empty
- * array is genuinely complete — a repository with no PRs at all.
+ * `complete` is true only when fewer rows than `limit` came back: then a
+ * head's absence proves it has no PR and the per-branch fallback can be
+ * skipped. Every failure reports `complete: false` so the fallback stays
+ * armed; a parsed empty array is genuinely complete.
  *
  * @param {string} cwd
  * @param {(args: string[], opts: { cwd: string }) => string} runGh
- * @param {number} limit  Max rows to fetch in the single page (default 1000).
+ * @param {number} limit
  * @returns {{ index: Map<string, { number: number, state: string, mergedAt: string|null, closedAt: string|null, headRefOid: string|null }>, complete: boolean }}
  */
 export function probeAllPrs(cwd, runGh = defaultGhRunner, limit = 1000) {
@@ -401,10 +312,6 @@ export function probeAllPrs(cwd, runGh = defaultGhRunner, limit = 1000) {
 const SHA_RE = /^[0-9a-f]{7,40}$/i;
 
 /**
- * Normalise a raw git SHA string: trim it and return it only when it
- * matches the 7–40 hex-char shape, else `null`. Shared by both the local
- * and remote-only resolution paths so the validation lives in one place.
- *
  * @param {string} raw
  * @returns {string | null}
  */
@@ -414,10 +321,6 @@ function validSha(raw) {
 }
 
 /**
- * Extract the leading SHA token from `git ls-remote` stdout. Returns the
- * first non-empty line's first whitespace-delimited field, or `''` when
- * stdout carries no usable line.
- *
  * @param {string} stdout
  * @returns {string}
  */
@@ -430,14 +333,8 @@ function firstLsRemoteSha(stdout) {
 }
 
 /**
- * Resolve the current tip SHA of a branch.
- *
- * For branches that exist locally (`localExists: true`), reads
- * `refs/heads/<branch>` via `git rev-parse`. For remote-only branches,
- * reads the SHA from `git ls-remote --heads <remote> <branch>`. Returns
- * `null` when the ref cannot be resolved — callers treat that as "no
- * tip cross-check available" and skip the divergence guard rather than
- * failing the candidate.
+ * Local ref via rev-parse, remote-only via ls-remote. `null` means "no tip
+ * cross-check available", not a failure.
  *
  * @param {{ cwd: string, branch: string, remoteName?: string, localExists?: boolean }} args
  * @returns {string | null}
@@ -457,28 +354,18 @@ export function branchTipSha({
 }
 
 /* node:coverage ignore next */
-// Story #4395: ancestry-anchor freshness check. `planCleanup` calls this
-// before unioning `git branch --merged origin/<base>` into the ancestry
-// signal so a stale local `<base>` (fast-forward phase skipped or
-// `--branches` run alone) doesn't hide a branch that's already merged on
-// the remote.
+// Guards the `<remote>/<base>` ancestry union.
 export function refExists(cwd, ref) {
   const res = gitSpawn(cwd, 'rev-parse', '--verify', '--quiet', ref);
   return res.status === 0;
 }
 
 /**
- * Story #4395: last-commit timestamp for the dry-run `not-merged`
- * skip-visibility line (branch name + last-commit age).
- *
- * Story #5188 adds the remote-only arm. Remote branches are enumerated
- * with the `<remote>/` prefix stripped, so the short name resolves to no
- * `refs/heads/` ref at all: passing `localExists: false` reads
- * `refs/remotes/<remote>/<branch>` instead, so an orphaned remote ref's
- * skip line carries a real age rather than a silent `unknown`.
+ * Last-commit time for the `not-merged` skip line; `localExists: false`
+ * reads `refs/remotes/<remote>/<branch>`.
  *
  * @param {string} cwd
- * @param {string} branch  Short branch name, remote prefix stripped.
+ * @param {string} branch
  * @param {{ localExists?: boolean, remoteName?: string }} [opts]
  * @returns {string | null}
  */
@@ -494,9 +381,6 @@ export function branchLastCommitAt(cwd, branch, opts = {}) {
 }
 
 /**
- * First non-empty trimmed stdout line — the resulting tree OID on a clean
- * `git merge-tree --write-tree` run.
- *
  * @param {string} stdout
  * @returns {string}
  */
@@ -509,20 +393,10 @@ function firstStdoutLine(stdout) {
 }
 
 /**
- * Probe content-equivalence between `base` and `branch` via
- * `git merge-tree --write-tree <base> <branch>` (git >= 2.38, Story #4395).
- *
- * A clean merge (exit 0) whose resulting tree OID equals `<base>`'s own
- * tree OID means applying `branch`'s changes on top of `base` is a no-op —
- * `branch`'s content already lives in `base` by another route (a
- * squash-merged Epic PR, a cherry-pick, a manual `merge --squash`) that
- * neither the PR probe nor the ancestry check can see.
- *
- * Both the "unsupported" case (git < 2.38 rejects `--write-tree`) and the
- * "real conflict" case (branch and base diverge and cannot auto-merge)
- * surface as a non-zero exit. This probe treats them identically — the
- * signal is inconclusive, so the caller keeps the branch's current
- * `not-merged` classification rather than guessing.
+ * `branch` is content-equivalent when `git merge-tree --write-tree` (git
+ * >= 2.38) merges it cleanly into `base`'s own tree — its content landed by
+ * another route (squash, cherry-pick). A non-zero exit (old git or a real
+ * conflict) is inconclusive and reported as unsupported.
  *
  * @param {{ cwd: string, base: string, branch: string, spawn?: typeof gitSpawn }} args
  * @returns {{ supported: false } | { supported: true, equivalent: boolean }}
@@ -558,32 +432,9 @@ export const __testing = {
 };
 
 /**
- * Pure-ish: classify a latest-PR probe row into a planner verdict.
- *
- * Centralizes the state-machine that decides whether a branch with a PR
- * row is reapable. Pulled out of {@link planCleanup} so the local and
- * remote-only branch walks share one source of truth.
- *
- * Inputs:
- *   - `prInfo`: the row from `prProbe` — may be the new latest-PR shape
- *     ({@link probeLatestPr}) carrying `state` + `headRefOid`, or the
- *     legacy shape ({@link probeMergedPr}) carrying only `number` +
- *     `mergedAt`. The absence of `state` is treated as MERGED so legacy
- *     callers and historical tests keep working.
- *   - `branch`, `localExists`, `remoteName`, `cwd`, `branchTipShaFn`: used
- *     to resolve the branch's current tip for the divergence cross-check.
- *
- * Returns either:
- *   - `{ kind: 'candidate', prInfo }` — caller appends a candidate.
- *   - `{ kind: 'skip', reason: <new-reason>, prNumber? }` — caller pushes
- *     into `skipped[]` and continues.
- *   - `{ kind: 'no-pr' }` — caller continues without skipping.
- *
- * A MERGED PR whose `headRefOid` differs from the branch tip is handed
- * to {@link resolveMergedTip}, which resolves it by ancestry — see that
- * module for the `tip-behind-merge` / `tip-diverged-from-merge` /
- * `unverifiable` taxonomy and why a bare SHA inequality could not
- * express it.
+ * Classify a PR probe row into a planner verdict, shared by the local and
+ * remote-only walks. A row without `state` ({@link probeMergedPr}'s shape)
+ * counts as MERGED; a MERGED row's tip check is {@link resolveMergedTip}'s.
  *
  * @param {{
  *   prInfo: { number?: number, state?: string, mergedAt?: string|null, headRefOid?: string|null } | null,

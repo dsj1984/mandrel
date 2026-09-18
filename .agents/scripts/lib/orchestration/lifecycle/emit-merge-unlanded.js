@@ -1,52 +1,10 @@
 /**
- * emit-merge-unlanded.js — Story #4426 (Epic #4425, slice 1: foundation).
- *
- * Programmatic helper that appends a single `merge.unlanded` NDJSON
- * record to the lifecycle ledger whenever a headless delivery run
- * finishes its work without a confirmed merge. Direct schema validation via
- * Ajv followed by a synchronous `appendFileSync`: it fires from the standalone
- * `single-story-close` flow, and a bare append keeps the call site simple and
- * dependency-free. This was the shape that outlived the lifecycle bus — Story
- * #5024 retired the bus, leaving this path the only lifecycle-ledger writer.
- *
- * Ledger destination (Story #4426 AC4): `storyLedgerPath(null, ticketId)`
- * — the standalone story-scope destination
- * `temp/standalone/stories/story-<id>/lifecycle.ndjson`, where `ticketId`
- * is the storyId. The `single-story-close` path has no parent Epic to
- * anchor a run directory to, mirroring the `eid === null` standalone
- * convention `signalsFile` already uses for Story-level signals.
- *
- * A caller may always override the destination via `ledgerPath` (tests,
- * or a future caller with a non-default temp layout).
- *
- * Distinct from:
- *   - `epic.merge.blocked` — AutomergePredicate's "not safe to arm yet"
- *     signal, evaluated BEFORE arming. `merge.unlanded` fires AFTER a
- *     delivery flow has already finished trying and gives up.
- *   - `epic.blocked` / `story.blocked` — the generic `agent::blocked`
- *     transition signal. `merge.unlanded` is the merge-specific
- *     diagnosis a `*.blocked` transition is typically paired with, not a
- *     replacement for it.
- *
- * The emit is best-effort in the sense that a failure to append MUST NOT
- * mask the underlying blocked-state transition the caller is already
- * driving — callers should treat this the same way
- * `emitStoryHeartbeat` documents: catch, log, and proceed with the label
- * flip / friction comment regardless.
- *
- * Schema contract (merge.unlanded.schema.json):
- *   { event, scope, ticketId, prNumber, blockClass, reason,
- *     elapsedSeconds, timestamp? }
- *
- * The schema declares `additionalProperties: false`, so this emitter's
- * signature is deliberately narrow: only the schema-allowed fields are
- * accepted. `blockClass` MUST be a valid `merge.unlanded` attribution from
- * `merge-block-class.js` (`MERGE_UNLANDED_BLOCK_CLASSES` — the four
- * `classifyMergeBlock` outputs plus the directly-emitted `predicate-refused`,
- * Story #4472). For a post-arm poll-exhaustion block, pass the classifier's
- * verdict straight through (`classifyMergeBlock(...)` returns
- * `{ blockClass, reason }`); the predicate/armer refusal paths pass
- * `predicate-refused` / a classified arm failure directly.
+ * Append one `merge.unlanded` record to the Story's lifecycle ledger when a
+ * delivery run gives up without a confirmed merge (after arming, unlike the
+ * pre-arm `epic.merge.blocked`). Callers must catch a failed append and still
+ * drive the blocked-state transition. The schema forbids extra properties, so
+ * the signature is narrow; `blockClass` must be a `merge-block-class.js`
+ * value.
  */
 
 import { isValidBlockClass } from '../merge-block-class.js';
@@ -56,27 +14,16 @@ import {
 } from './emit-ledger-event.js';
 
 /**
- * Append exactly one `merge.unlanded` NDJSON record to the resolved
- * lifecycle ledger.
- *
  * @param {object} opts
- * @param {'story'} opts.scope         Which delivery path is reporting the
- *                                     unlanded merge.
- * @param {number} opts.ticketId       The storyId.
- * @param {number} opts.prNumber       The PR number that did not land.
- * @param {string} opts.blockClass     A valid `merge.unlanded` attribution
- *                                     (`MERGE_UNLANDED_BLOCK_CLASSES` in
- *                                     `merge-block-class.js`).
- * @param {string} opts.reason         Free-form diagnosis detail — pass
- *                                     the classifier's `reason`.
- * @param {number} opts.elapsedSeconds Elapsed watch/poll time when the
- *                                     run gave up.
- * @param {string} [opts.timestamp]    ISO-8601 wall clock. Defaults to
- *                                     now().
- * @param {object} [opts.config]       Optional resolved config for
- *                                     tempRoot.
- * @param {string} [opts.ledgerPath]   Override for tests / non-default
- *                                     layouts.
+ * @param {'story'} opts.scope
+ * @param {number} opts.ticketId
+ * @param {number} opts.prNumber
+ * @param {string} opts.blockClass
+ * @param {string} opts.reason
+ * @param {number} opts.elapsedSeconds
+ * @param {string} [opts.timestamp]
+ * @param {object} [opts.config]
+ * @param {string} [opts.ledgerPath]
  * @returns {{ ledgerPath: string, record: object }}
  */
 export function emitMergeUnlanded(opts) {

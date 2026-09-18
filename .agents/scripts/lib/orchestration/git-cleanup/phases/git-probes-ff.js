@@ -1,10 +1,5 @@
 /**
- * git-probes-ff.js — fast-forward / worktree / prune subprocess wrappers
- * for git-cleanup (Story #2466).
- *
- * Split out of `git-probes.js` so each phase file stays under Story
- * #2466's 200-LOC ceiling. Owns the wrappers the fast-forward-main,
- * prune-remotes, and worktree-reap paths call.
+ * Fast-forward / worktree / prune git wrappers for git-cleanup.
  *
  * @module lib/orchestration/git-cleanup/phases/git-probes-ff
  */
@@ -12,21 +7,16 @@
 import { gitSpawn } from '../../../git-utils.js';
 
 /**
- * Windows file-lock-class failure signatures. Mirrors the regex in
- * `worktree/lifecycle/reap.js` — a `git worktree remove` that fails with
- * one of these is an OS-level lock on the worktree directory (open
- * `node_modules` handles, AV/indexer, test/coverage artifacts), not a
- * git-state problem. Lock-class removal failures degrade to a deferred
- * `pending-cleanup` handoff instead of aborting the candidate's ref reap.
+ * OS file-lock signatures (mirrors `worktree/lifecycle/reap.js`). A lock-class
+ * worktree removal failure defers to pending-cleanup instead of aborting the
+ * ref reap.
  */
 const WORKTREE_LOCK_RE =
   /(permission denied|access is denied|directory not empty|resource busy|device or resource busy|sharing violation|used by another process|EACCES|EBUSY|ENOTEMPTY)/i;
 
 /**
- * Classify a worktree-removal stderr as Windows-lock-class or not.
- *
  * @param {string} stderr
- * @returns {boolean} `true` when the failure looks like an OS file lock.
+ * @returns {boolean}
  */
 export function isWorktreeLockFailure(stderr) {
   return WORKTREE_LOCK_RE.test(stderr ?? '');
@@ -58,15 +48,8 @@ export function mergeFastForward(cwd, ref) {
 }
 
 /**
- * Build the fast-forward probe bundle bound to a `gitSpawn`.
- *
- * This is the **single implementation** of the FF/base-sync git wrappers.
- * The standalone exports above delegate to a default instance bound to the
- * shared `gitSpawn`; callers that need to inject their own spawn for testing
- * (e.g. the epic-cleanup runner) call this factory directly instead of
- * hand-rolling a parallel copy (framework-gap #4379). The bundle also carries
- * `currentBranch` so an injecting caller gets the whole FF surface from one
- * place.
+ * The single implementation of the FF git wrappers; callers needing an
+ * injected spawn use this factory rather than a parallel copy.
  *
  * @param {(cwd: string, ...args: string[]) => { status: number, stdout: string, stderr: string }} [spawn]
  * @returns {{
@@ -131,8 +114,6 @@ export function makeFfProbes(spawn = gitSpawn) {
   };
 }
 
-// Default instance bound to the shared gitSpawn; the standalone wrappers
-// above delegate to it so there is exactly one FF-probe implementation.
 const defaultFfProbes = makeFfProbes(gitSpawn);
 
 /* node:coverage ignore next */
@@ -153,14 +134,8 @@ export function removeWorktree(worktreePath, cwd) {
 }
 
 /**
- * Prune the clone's stale remote-tracking refs and report which ones went.
- *
- * The fetch MUST NOT be `--quiet` (Story #4772). `--quiet` still prunes, but
- * suppresses the `- [deleted] (none) -> <remote>/<ref>` progress lines that
- * are the *only* record of what was dropped — `parsePruneFn` then reports an
- * empty list for work that really happened, and `computeExitCode` reads the
- * run as "nothing to do" (exit 2). The output is captured, not shown, so
- * `--quiet` bought nothing to begin with.
+ * Never `--quiet`: it suppresses the `[deleted]` lines that are the only
+ * record of what was pruned, making real work read as "nothing to do".
  *
  * @param {string} cwd
  * @param {string} remoteName

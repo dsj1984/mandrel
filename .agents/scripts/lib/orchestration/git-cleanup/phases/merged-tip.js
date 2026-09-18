@@ -1,11 +1,5 @@
 /**
- * merged-tip.js — resolve a MERGED PR's head against the branch tip
- * (Story #5086).
- *
- * Owns the ancestry probe and the taxonomy the branches-phase classifier
- * applies when a merged PR's `headRefOid` and the branch tip disagree.
- * Split out of `git-probes.js` so the classifier reads as one call and
- * the taxonomy's own documentation sits next to the code it governs.
+ * Resolve a MERGED PR's head against the branch tip by ancestry.
  *
  * @module lib/orchestration/git-cleanup/phases/merged-tip
  */
@@ -13,23 +7,9 @@
 import { gitSpawn } from '../../../git-utils.js';
 
 /**
- * Tri-state ancestry probe: is `ancestorSha` reachable from
- * `descendantSha`?
- *
- * Mirrors the contract `checkHeadAncestor` in
- * `lib/worktree/lifecycle/merge-reachability.js` proved out for the
- * worktree-reap gate — the two cannot share an implementation because
- * that one takes a `ctx.git.gitSpawn` / `ctx.repoRoot` bag while
- * git-cleanup's probes take a bare `cwd`.
- *
- * `git merge-base --is-ancestor` exits **0** (ancestor), **1** (not an
- * ancestor) or **128** (a rev it cannot resolve). Folding 128 into
- * "not an ancestor" is the bug this probe exists to prevent: a merged
- * head absent from the local object DB would silently read as a
- * divergence and re-emit the wrong post-merge-force-push diagnosis. Both
- * revs are therefore resolved with `git rev-parse -q --verify` first, and
- * any failure fails closed to the `error` arm — so `merge-base` never
- * runs against a rev git cannot resolve.
+ * Tri-state: is `ancestorSha` reachable from `descendantSha`? Both revs are
+ * verified first so an unresolvable rev (merge-base exit 128) fails closed to
+ * `error` rather than reading as a divergence.
  *
  * @param {{ cwd: string, ancestorSha: string, descendantSha: string, spawn?: typeof gitSpawn }} args
  * @returns {{ outcome: 'ancestor' } | { outcome: 'not-ancestor' } | { outcome: 'error', reason: string }}
@@ -68,27 +48,11 @@ export function probeAncestry({
 }
 
 /**
- * Resolve a MERGED PR's `headRefOid` against the branch's current tip.
- *
- * Returns `null` when there is nothing to resolve — the PR row carries no
- * `headRefOid`, the tip cannot be read, or the tip already matches the
- * merged head — leaving the caller's plain-candidate path untouched.
- *
- * Otherwise the tip is classified by **ancestry**, never by the bare SHA
- * inequality this replaced. That inequality could not tell a branch that
- * is *behind* the merged head from one force-pushed *past* it, and
- * reported both as the latter — advising the operator to push a follow-up
- * commit that, for a stale pre-merge snapshot, does not exist. The three
- * arms:
- *
- *   - **ancestor** — 0 commits ahead, every commit landed with the PR:
- *     a reap candidate tagged `reason: 'tip-behind-merge'`.
- *   - **not-ancestor** — equivalently "≥1 commit ahead", which is why one
- *     probe settles the whole taxonomy and no `rev-list` count is needed:
- *     the unchanged `tip-diverged-from-merge` force-push skip.
- *   - **error** — a rev the local object DB cannot resolve:
- *     `reason: 'unverifiable'` carrying the probe's `detail`. Never a
- *     silent pass, and never a force-push label.
+ * `null` when nothing to resolve (no head, unreadable tip, or tips match).
+ * Otherwise by ancestry, since SHA inequality cannot tell "behind" from
+ * "force-pushed past": ancestor → `tip-behind-merge` candidate;
+ * not-ancestor (≥1 commit ahead) → `tip-diverged-from-merge` skip;
+ * error → `unverifiable` skip.
  *
  * @param {object} args
  * @returns {{ kind: 'candidate', prInfo: object, reason: string, tipSha: string, mergedSha: string } | { kind: 'skip', reason: string, prNumber: number|null, tipSha: string, mergedSha: string, detail?: string } | null}

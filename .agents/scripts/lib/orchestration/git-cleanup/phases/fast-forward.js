@@ -1,8 +1,5 @@
 /**
- * fast-forward.js — fast-forward-main phase of git-cleanup (Story #2466).
- *
- * Owns `planFastForward(ctx)` and `executeFastForward(ctx)`. Extracted
- * verbatim from `git-cleanup.js`.
+ * Fast-forward-main phase of git-cleanup.
  *
  * @module lib/orchestration/git-cleanup/phases/fast-forward
  */

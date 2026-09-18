@@ -1,18 +1,6 @@
 /**
- * summary.js — plan-persist terminal summary (v2 Stage 3).
- *
- * Renders the persist receipts — the created Story set, whether the operator
- * forced a review stop, the `depends_on` ordering table and the exact deliver
- * command. Story #5343 moved that rendering onto the **`story-plan-state`**
- * marker every created Story already carries: it used to be a second,
- * primary-Story-only `plan-summary` comment, which cost one more write per
- * plan and split the operator's reading between two markers. Story #5367
- * deleted the machine checkpoint that shared the marker with it, so this
- * rendering is now the whole body of the one comment persist posts.
- *
- * Story #4542 removed the risk / review-routing line: no risk level, gate
- * decision, or acceptance disposition is computed at plan time any more, so
- * reporting one here would document a mechanism that does not run.
+ * The plan summary — the whole body of each Story's `story-plan-state`
+ * comment: created Stories, delivery order, and the deliver command.
  *
  * @module lib/orchestration/plan-persist/summary
  */
@@ -21,8 +9,6 @@ import { computeStoryWaves } from '../dependency-analyzer.js';
 import { renderPredictedSerialisationLines } from './wave-serialisation.js';
 
 /**
- * Compute the dry-run wave assignment for a validated ticket set.
- *
  * @param {Array<{ slug: string, title?: string, depends_on?: string[] }>} tickets
  * @returns {Array<{ wave: number, stories: Array<{ slug: string, title: string }> }>}
  */
@@ -66,21 +52,11 @@ function renderWaveTableLines(waveTable) {
 }
 
 /**
- * Render the shared-editor collisions beside the wave table (Story #5045).
- *
- * The wave table is a promise about parallelism — "these Stories can run
- * together". `computeSharedEditorFindings` knows exactly where that promise
- * breaks down: a path two same-wave Stories both write will conflict on every
- * merge after the first. Until now those findings degraded to a `Logger.warn`
- * on stderr and were discarded, so the comment carried the optimistic half of
- * the analysis and none of the caveat. Rendering them here puts the promise
- * and its known exceptions on one durable surface.
- *
- * Advisory by default and labelled as such — `planning.failOnSharedEditors`
- * is the knob that makes a collision refuse the plan, and it stays off.
+ * Same-wave Stories writing one path — the caveat to the wave table's
+ * parallelism promise, kept on the same durable surface. Advisory.
  *
  * @param {object[]|null} conflictFindings
- * @returns {string[]} Lines to splice after the wave table, or `[]`.
+ * @returns {string[]}
  */
 function renderSharedEditorLines(conflictFindings) {
   const shared = (
@@ -113,9 +89,6 @@ function renderSharedEditorLines(conflictFindings) {
 }
 
 /**
- * Build the body of each Story's `story-plan-state` comment (Story #5343;
- * Story #5367 made it the whole body).
- *
  * @param {object} input
  * @returns {string}
  */
@@ -131,7 +104,7 @@ export function buildPlanSummaryCommentBody({
   stories = null,
   conflictFindings = null,
   waveCollisions = null,
-  // legacy unused knobs kept so older test call sites don't crash mid-migration
+  // Unused; accepted so older call sites don't crash.
   single = null,
   amend = null,
 }) {
@@ -154,15 +127,12 @@ export function buildPlanSummaryCommentBody({
       ? stories.map((s) => `#${s.id} (\`${s.slug}\`)`).join(', ')
       : `${ticketCount} Story(ies)`;
 
-  // The only planning-time review gate left (Story #4542): an explicit
-  // operator flag, never a value derived from a self-authored risk verdict.
+  // An explicit operator flag, never derived from a risk verdict.
   const reviewLines = forceReview
     ? ['- ⚠️ Review: operator-forced via `--force-review`.']
     : [];
 
-  // The exact command to run — Story #4540. This comment is posted to
-  // GitHub on every plan, so it is the operator's primary instruction: it
-  // must name real ids, not a batch token that no longer exists.
+  // The operator's primary instruction: must name real ids.
   const deliverCommand =
     Array.isArray(stories) && stories.length > 0
       ? `/mandrel-deliver ${stories.map((s) => s.id).join(' ')}`
