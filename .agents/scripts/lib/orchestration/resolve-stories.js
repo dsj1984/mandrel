@@ -1,28 +1,7 @@
 /**
- * lib/orchestration/resolve-stories.js — resolve a set of Story ids into the
- * `{ stories, dag, done }` envelope the delivery scheduler consumes.
- *
- * This is the ONE resolution step for `/mandrel-deliver`. It generalizes the
- * envelope shaping proven by the retired `resolve-plan-run.js` and fixes the
- * two defects that shipped with it:
- *
- *   - it fetched with `state: 'open'`, so an already-landed sibling vanished
- *     from the envelope and `done[]` could never be populated;
- *   - `done[]` was computed only over label-fetched issues, so a dependency
- *     outside the fetched set could never be satisfied.
- *
- * Both made cross-run, over-time delivery structurally impossible. Here every
- * dependency — in-set or foreign — is resolved against live issue state, so a
- * Story whose blocker landed weeks ago in another plan run is simply ready.
- *
- * Two contracts differ deliberately from the label-scoped ancestor:
- *
- *   1. **Id-scoped fetch means a named non-Story is an ERROR, not a filter.**
- *      `toStoryRecord` used to return `null` for a non-Story, which is right
- *      when a label query returns incidental noise and wrong when an operator
- *      names an id explicitly: silently dropping it yields a partial envelope
- *      that under-delivers without saying so.
- *   2. **The native-edge read fails loud.** See {@link readNativeBlockedBy}.
+ * lib/orchestration/resolve-stories.js — resolve Story ids into the
+ * `{ stories, dag, done }` delivery envelope. Every dependency resolves
+ * against live state, so a long-landed foreign blocker is satisfied.
  *
  * @module lib/orchestration/resolve-stories
  */
@@ -37,21 +16,12 @@ import {
 import { expandIdList } from '../util/parse-id-list.js';
 import { resolveStoryDispatchMode } from './complexity-gate.js';
 
-/** Labels/state that mean a blocker no longer gates its dependents. */
 const DONE_LABEL = 'agent::done';
 
-/**
- * The lifecycle-label prefix a deliverable Story carries. Any `agent::*` label
- * will do — the resolver is not a state machine and does not care WHICH state a
- * Story is in, only that it has been through the step that assigns one.
- */
+/** Any `agent::*` label proves the Story has been through planning. */
 const AGENT_LABEL_PREFIX = 'agent::';
 
 /**
- * Module-private: `toStoryRecord` and `isSatisfiedBlocker` are its only
- * callers. The ancestor exported it with no external consumer, which is how
- * a symbol ends up baselined as a dead export.
- *
  * @param {object} issue
  * @returns {string[]}
  */
@@ -65,15 +35,12 @@ function normalizeIssueLabels(issue) {
 
 /**
  * Map one fetched issue into a Story record, or throw naming the id and the
- * remedy. Unlike the label-scoped ancestor this **never** returns `null`:
- * under `--ids` the operator named this issue, so dropping it silently would
- * emit a partial envelope.
+ * remedy — never `null`, since the operator named this issue.
  *
  * @param {object} issue
  * @param {number} [requestedId] The id the operator asked for, for error text.
  * @param {{ allowUnlabelled?: boolean }} [options] `allowUnlabelled` waives the
- *   `agent::*` guard below — the deliberate escape hatch for delivering a Story
- *   whose state label is absent for a reason the operator knows about.
+ *   `agent::*` guard (deliberate escape hatch).
  * @returns {{ id, title, body, url, labels, state, assignees }}
  */
 export function toStoryRecord(issue, requestedId, { allowUnlabelled } = {}) {
@@ -98,8 +65,7 @@ export function toStoryRecord(issue, requestedId, { allowUnlabelled } = {}) {
         `v2 is Story-only — re-plan it as a v2 Story or finish it on a pre-v2 checkout.`,
     );
   }
-  // Last, so the two shape refusals above — not a Story at all, and a v1 body —
-  // keep naming their own remedy rather than being masked by a missing label.
+  // Last, so the shape refusals above keep naming their own remedy.
   assertDispatchable(id, labels, allowUnlabelled);
   return {
     id,
@@ -108,11 +74,8 @@ export function toStoryRecord(issue, requestedId, { allowUnlabelled } = {}) {
     url: issue?.html_url ?? issue?.url ?? null,
     labels,
     state: String(issue?.state ?? 'open').toLowerCase(),
-    // The assignee list carries the Story lease (`ticket-lease.js`): its sole
-    // assignee is the operator that owns the in-flight run. The probe reads it
-    // to withhold a Story another operator holds (`live-probe.js`), so it is
-    // threaded onto the record here rather than dropped. `issueToTicket`
-    // already reduces assignees to bare login strings; keep only those.
+    // The sole assignee is the Story lease holder; the live probe reads it to
+    // withhold a Story another operator holds.
     assignees: Array.isArray(issue?.assignees)
       ? issue.assignees.filter((a) => typeof a === 'string' && a.length > 0)
       : [],
@@ -120,19 +83,7 @@ export function toStoryRecord(issue, requestedId, { allowUnlabelled } = {}) {
 }
 
 /**
- * Refuse a Story that has never been through planning.
- *
- * The audit sweep files Stories deliberately WITHOUT an `agent::*` label: their
- * bodies are audit prose — a symptom and a recommendation — not a scoped change
- * with acceptance criteria a worker can verify against, and the sweep's runbook
- * says so. But `/mandrel-deliver` takes ids, and nothing downstream re-checked the
- * label, so naming a freshly-filed audit Story dispatched a worker at an
- * unenriched body: the run then either invented its own acceptance criteria or
- * blocked several minutes in, having taken the Story's lease and flipped it to
- * `agent::executing` on the way.
- *
- * The label is the cheap, honest signal that the enrich step ran — no state
- * machine is consulted, only that SOME `agent::*` label exists.
+ * Refuse an unplanned Story (audit sweeps file them unlabelled on purpose).
  *
  * @param {number} id
  * @param {string[]} labels
@@ -150,7 +101,7 @@ function assertDispatchable(id, labels, allowUnlabelled) {
 }
 
 /**
- * A blocker stops gating once its issue is closed or carries `agent::done`.
+ * A blocker stops gating once closed or labelled `agent::done`.
  *
  * @param {{ state?: string, labels?: string[] }} issue
  * @returns {boolean}
@@ -162,34 +113,17 @@ export function isSatisfiedBlocker(issue) {
 }
 
 /**
- * Footprint emitted when a Story's declared changes cannot be READ. It is a
- * glob, so `storiesOverlap` (`lib/wave-runner/ready-set.js`) treats it as
- * overlapping every other **declared** footprint and the Story takes its
- * beat alone. (A Story declaring nothing still overlaps nothing — the guard
- * short-circuits on an empty footprint either side, which is the deliberate
- * permissive escape hatch that keeps undeclared work parallel.)
- *
- * Deliberately NOT `[]`. An empty footprint means "declares nothing", which
- * the guard reads as "overlaps nothing" and never withholds — correct for a
- * Story that genuinely declares no changes, and wrong for one whose changes
- * we failed to parse. Those are different facts: the second is *unknown*
- * width, and the same argument that makes a glob overlap everything
- * ("unknown width is not no width") applies to a body we could not read.
+ * Footprint for a Story whose changes could not be READ: a glob, so the
+ * overlap guard serializes it against every declared footprint. Not `[]` —
+ * empty means "declares nothing" and never withholds; unknown width is not
+ * no width.
  */
 const UNKNOWN_FOOTPRINT = Object.freeze(['**']);
 
 /**
- * Extract a Story's declared file footprint as **plain path strings**.
- *
- * The shape matters: `stories-wave-tick.js`'s `parseDag` rejects any `files`
- * entry that is not a string, while `extractChangePaths` returns
- * `{ path, isGlob }` objects — so forwarding its output verbatim fails every
- * multi-Story run with an input error. Map to `.path`.
- *
- * Never throws — these are live, human-editable issue bodies, and one
- * malformed body must not take the whole resolution down. It fails **safe**
- * rather than open: an unreadable footprint yields {@link UNKNOWN_FOOTPRINT},
- * serializing that Story instead of silently letting it race.
+ * A Story's declared footprint as plain path strings (`parseDag` rejects the
+ * `{ path, isGlob }` objects `extractChangePaths` returns). Never throws on a
+ * malformed body; fails safe to {@link UNKNOWN_FOOTPRINT}.
  *
  * @param {string} body
  * @param {number} [id] Story id, for the warning.
@@ -209,8 +143,7 @@ export function storyFootprintPaths(body, id, warn) {
     return [...UNKNOWN_FOOTPRINT];
   }
   try {
-    // An empty `changes` is a real declaration of "no files", not a read
-    // failure — it keeps the permissive empty footprint.
+    // An empty `changes` is a real "no files" declaration, not a read failure.
     return extractChangePaths(parsed?.changes ?? [])
       .map((entry) => entry?.path)
       .filter((p) => typeof p === 'string' && p.trim().length > 0)
@@ -225,16 +158,10 @@ export function storyFootprintPaths(body, id, warn) {
 }
 
 /**
- * Build the DAG nodes. `dependsOn` is the **union of the two declared-edge
- * channels**: the Story body's `---` footer (`blocked by #N`) and the native
- * GitHub `blocked_by` relations threaded in via `nativeEdges`. `files` is a
- * plain `string[]`.
- *
- * The body channel is footer-scoped and strict (`parseBlockedBy`, Story
- * #5046) — a `blocked by #123` mention in prose no longer mints a dispatch
- * gate. Only `{ id, dependsOn }` is handed to the adjacency builder, never the
- * body: the edge set is decided here, once, so the builder's own body parse
- * cannot re-derive a different one behind this function's back.
+ * DAG nodes. `dependsOn` is the union of the body footer's strict
+ * `blocked by` edges and the native `blocked_by` relations. Only
+ * `{ id, dependsOn }` reaches the adjacency builder, so it cannot re-derive a
+ * different edge set from the body.
  *
  * @param {object[]} stories
  * @param {Map<number, number[]>} [nativeEdges]
@@ -251,9 +178,7 @@ export function storiesToDag(stories, nativeEdges = new Map(), warn) {
       ]),
     ],
   }));
-  // dropForeign:false — a dependency outside the requested set is a real
-  // gate, not noise. What changes here is that such a gate is now
-  // *satisfiable*: `done[]` carries foreign blockers resolved from live state.
+  // A foreign dependency is a real gate, satisfiable via `done[]`.
   const adjacency = buildStoryAdjacency(withNative, { dropForeign: false });
   return stories.map((s) => ({
     id: s.id,
@@ -263,22 +188,8 @@ export function storiesToDag(stories, nativeEdges = new Map(), warn) {
 }
 
 /**
- * Project the dependencies API response onto issue **numbers**.
- *
- * The API returns both `id` (database id) and `number` (issue number); the
- * write path (`providers/github/blocked-by-add.js`) reads `id` because its
- * POST body needs `issue_id`. Reusing that projection here would build
- * `dependsOn: [4902374986]` for a blocker whose issue number is 4530 — an id
- * matching no Story, foreign to the set, never satisfiable, and (because
- * foreign edges are real gates) a silent permanent wedge.
- *
- * A cross-repo blocker is **dropped with a loud warning**, never matched:
- * another repo's #4530 is not this repo's #4530, and treating it as one could
- * satisfy a gate that is still open. It used to throw, which failed the WHOLE
- * resolution — one Story's unsupported edge took every sibling down with it
- * (Story #5046). The degrade is now scoped to the Story carrying the edge:
- * its siblings resolve normally, and the operator is told, by number, which
- * Story lost which edge.
+ * Issue NUMBERS, not database `id`s (which match no Story and wedge the gate).
+ * A cross-repo blocker is dropped with a warning, scoped to its Story.
  *
  * @param {unknown} data Parsed API response.
  * @param {{ owner: string, repo: string, issueNumber: number, warn?: (msg: string) => void }} ctx
@@ -313,29 +224,9 @@ export function nativeBlockedByNumbers(
 }
 
 /**
- * Read an issue's native `blocked_by` edges as issue numbers, **paginated to
- * exhaustion**.
- *
- * The read used to take the first page only, so a Story with more than a
- * page of blockers silently lost every edge past the boundary — the exact
- * failure this function's fail-loud contract exists to prevent, arriving
- * through the one door that never raised (Story #5046). `paginate` is
- * injected (the CLI passes `paginateRest`) so the lib layer stays free of a
- * provider import and the page walk stays testable without a live round-trip.
- *
- * **Fails loud on every non-OK read**, deliberately inverting the write path's
- * non-fatal contract. A dropped write-side edge is cosmetic (the ordering
- * still lives in the `blocked by #N` body footer); a dropped READ-side edge
- * silently removes a dispatch gate, so one failure would erase every native
- * edge at once and co-dispatch the run against unlanded blockers.
- *
- * **A 404 is not an empty result.** It used to be treated as "this issue has
- * no dependencies", which is how GitHub answers an issue that genuinely has
- * none — but it is *also* how GitHub answers a token that cannot see the
- * dependencies API at all. Reading the second as the first erases every
- * native edge in the run under a mis-scoped token, silently, with a clean
- * exit code. An issue with no dependencies returns `200 []`, so the empty
- * case needs no 404 escape hatch and the ambiguity resolves loud.
+ * Paginated to exhaustion; fails loud, since a dropped edge silently removes
+ * a gate. A 404 is NOT "no dependencies" (that is `200 []`) — it can mean a
+ * token that cannot see the API.
  *
  * @param {{ gh: object, owner: string, repo: string, issueNumber: number,
  *   paginate: (gh: object, endpoint: string, opts?: object) => Promise<unknown[]>,
@@ -375,8 +266,6 @@ export async function readNativeBlockedBy({
 }
 
 /**
- * Assemble the envelope from resolved records.
- *
  * @param {object[]} stories
  * @param {Map<number, number[]>} nativeEdges
  * @param {number[]} foreignDone Ids outside the set already satisfied.
@@ -393,24 +282,9 @@ export function buildStoriesEnvelope({
   const inSetDone = sorted.filter(isSatisfiedBlocker).map((s) => s.id);
   return {
     kind: 'stories',
-    // `dispatchMode` (Story #4722, #4736, #4829): the resolver reports the
-    // per-Story execution mode so `/mandrel-deliver` reads one field — `inline` (run
-    // deliver-story in the router's own session: no story-worker /
-    // acceptance-critic sub-agent boots) or `subagent` (the conservative
-    // default). Model-side fan-out only; close gates are untouched.
-    //
-    // `storyCount` is the ONLY premise that decides it, and it is this call
-    // site's whole argument: `inline` names the router's ONE session, so it is
-    // granted only to a run resolving exactly ONE Story, which has no
-    // concurrent sibling to share that session with. Passing the resolved set
-    // size here is therefore what makes the envelope self-consistent with the
-    // ready set `stories-wave-tick.js` computes from the same `dag`: a set of
-    // more than one can never come back with a Story claiming the session
-    // (Story #4829 — it previously could, whenever the body was lite-shaped).
-    // It is the resolved set size, NOT the undelivered remainder, so the mode
-    // a caller reads for a given `--ids` list never changes as siblings land
-    // mid-run. The `route::lite` label is a human-visible hint only, never the
-    // control signal.
+    // `inline` (the router's own session) only for a single-Story set, so no
+    // sibling can claim that session. Decided on the resolved set size, not
+    // the undelivered remainder, so the mode never changes mid-run.
     stories: sorted.map(({ id, title, url, labels, state }) => ({
       id,
       title,
@@ -426,12 +300,7 @@ export function buildStoriesEnvelope({
 }
 
 /**
- * Parse and validate the `--ids` list, expanding any `A-B` dash range.
- *
- * A contiguous span is how an operator names a plan run — `/mandrel-deliver 4922 -
- * 4926` — so the range is expanded here rather than transcribed by the host.
- * `stories-wave-tick.js --stories` reads through this same function, which is
- * what keeps the sequencing set identical to the resolved one.
+ * Expands `A-B` ranges; shared with `stories-wave-tick.js --stories`.
  *
  * @param {string|undefined} raw
  * @param {string} [flag] Flag name, for the error message.

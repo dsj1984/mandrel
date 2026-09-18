@@ -1,20 +1,7 @@
 /**
- * plan-context.js — single planner-context envelope build for `/mandrel-plan`.
- *
- * Folds the authoring-context builders plus the cross-Story dup search into
- * ONE JSON envelope, so the authoring middle reads a single file instead of
- * shim-scripting library imports.
- *
- * Two operator modes (v2 Story-only):
- *   - `seed` / `seed-file` — freeform text (chat or on-disk). Carries
- *     `seed` plus `duplicates[]` (open-Story dup search).
- *   - `tickets` — one or more existing issue ids to analyze into proper
- *     Stories. Carries `sourceTickets[]` plus `duplicates[]` (excluding
- *     the source ids themselves).
- *
- * All fields are JSON-serialisable; the module performs no GitHub writes.
- * The only I/O surfaces are the injected `provider` (reads) and the
- * best-effort local scans the folded builders already perform.
+ * plan-context.js — builds the single JSON planner-context envelope for
+ * `/mandrel-plan` (modes: seed, seed-file, tickets, amends). No GitHub
+ * writes; I/O is the injected provider's reads plus best-effort local scans.
  */
 
 import { readFile } from 'node:fs/promises';
@@ -39,43 +26,17 @@ import { findOpenEpicCandidates } from './epic-candidates.js';
 import { buildAuthoringContext } from './planning/authoring-context.js';
 
 /**
- * Envelope byte ceiling (regression guard for the design's named PR2 risk:
- * two envelopes → one bigger one). This is the **only** live bound on
- * envelope size: Story #4541 removed the `applyBudget` pass from
- * `buildAuthoringContext`, because both builders below discard that budgeted
- * body and ship the raw seed on `seed.content` instead — the budget bounded
- * a field that never left the function.
- *
- * A measured seed-mode envelope on this repo (a thin `.feature` corpus) is
- * ~120 KB, dominated by the digest-first `docsContext` (~63 KB inline
- * digest) and the rendered `systemPrompts` (~54 KB); every other field is
- * under 1 KB. Story #4811 retired the tier-capped codebase snapshot that
- * used to sit alongside them (~35 KB skinny here). This measurement is
- * **not** representative of every consumer, though: Story #4977 found
- * `bddScenarios` at 118 KB on a consumer with a mature Gherkin corpus —
- * larger than `docsContext` and `systemPrompts` combined, consuming nearly
- * all of the ceiling's headroom on its own, because the scanner applied no
- * cap. `bddScenarios` is now truncated to `BDD_SCENARIOS_BYTE_BUDGET`
- * (`lib/bdd-scenario-budget.js`, ≤24 KB) before it reaches this envelope,
- * so the seed remains the only field this ceiling leaves genuinely
- * unbounded. 256 KB (~64K tokens at the ≈4-chars/token estimate) leaves
- * roughly 2× headroom over the fixed-floor measurement above while staying
- * well under the session budget. An envelope over it is truncated with a
- * `truncated` note rather than refused (Story #5312) — raise the ceiling
- * only with a measured justification.
+ * The only bound on envelope size: ~2× a measured ~120 KB seed-mode envelope.
+ * Raise only with a measured justification.
  */
 export const PLAN_CONTEXT_ENVELOPE_BYTE_CEILING = 256_000;
 
-/** Marker appended to a string field the cap had to cut. */
 const TRUNCATION_MARKER =
   '\n\n[… truncated by plan-context: PLAN_CONTEXT_ENVELOPE_BYTE_CEILING …]';
 
-/** Bounded number of cap rounds — each round cuts the current largest field. */
 const MAX_TRUNCATION_ROUNDS = 8;
 
 /**
- * Byte length of a JSON-serialised value.
- *
  * @param {unknown} value
  * @returns {number}
  */
@@ -84,9 +45,6 @@ function jsonBytes(value) {
 }
 
 /**
- * Cut a string to fit `excess` fewer bytes, keeping a leading prefix and
- * appending the truncation marker.
- *
  * @param {string} text
  * @param {number} excess
  * @returns {string}
@@ -104,11 +62,8 @@ function truncateString(text, excess) {
 }
 
 /**
- * Cut one envelope field down by roughly `excess` bytes. Three shapes are
- * cuttable: a string (cut to a prefix), an array (drop tail entries until it
- * fits), and an object whose largest string property is cut in place — which
- * covers `seed.content`, `docsContext.digest` and every list field. Returns
- * `null` for a shape nothing here can shrink.
+ * Cut one field by ~`excess` bytes: a string to a prefix, an array by tail
+ * entries, an object by its largest string property. `null` if uncuttable.
  *
  * @param {unknown} value
  * @param {number} excess
@@ -149,28 +104,12 @@ function truncateField(value, excess) {
 }
 
 /**
- * Fit an assembled envelope under {@link PLAN_CONTEXT_ENVELOPE_BYTE_CEILING}
- * by truncating its largest fields, recording every cut on a `truncated`
- * field so the planner can see what it did not get.
- *
- * Until Story #5312 this refused the envelope outright and exited non-zero
- * naming what to trim. That was the wrong direction for a bound whose only
- * job is to keep the planner's context readable: an oversize seed or
- * `--tickets` body is an operator's real input, and refusing to plan from it
- * cost a re-run for a ceiling the operator had no way to act on (the seed is
- * carried verbatim by design). A truncated envelope with a note is a plan
- * that runs on the part that fits and says so; a refusal is no plan at all.
- * The bound itself stays a fixed framework constant — a cap the operator can
- * raise past what the model can read fails silently again.
- *
- * Deliberately **not** exported: its only external caller would be a test, and
- * a test-only export is a production-dead one. It is reachable end to end
- * through {@link buildPlanContext}, which is where the behaviour matters.
+ * Truncate the largest fields to fit, rather than refuse: an oversize seed is
+ * the operator's real input, and a partial plan that says so beats none.
  *
  * @param {object} envelope
  * @param {{ ceiling?: number }} [opts]
- * @returns {object} `envelope` unchanged when it fits; otherwise a truncated
- *   copy carrying `truncated: Array<{ field, originalBytes, keptBytes, note }>`.
+ * @returns {object} unchanged when it fits, else a copy with `truncated[]`.
  */
 function capPlanContextEnvelope(envelope, opts = {}) {
   const ceiling = opts.ceiling ?? PLAN_CONTEXT_ENVELOPE_BYTE_CEILING;
@@ -181,13 +120,9 @@ function capPlanContextEnvelope(envelope, opts = {}) {
   for (let round = 0; round < MAX_TRUNCATION_ROUNDS; round += 1) {
     const total = jsonBytes({ ...next, truncated });
     if (total <= ceiling) break;
-    // JSON escaping of the marker and the note itself cost a few bytes the
-    // raw cut cannot see; over-cut by a small margin so the dominant field
-    // absorbs the whole excess rather than a residual spilling onto the next
-    // largest one (which is the planner's own prompt).
+    // Over-cut slightly (JSON escaping of marker/note) so the dominant field
+    // absorbs the whole excess instead of spilling onto the system prompts.
     const excess = total - ceiling + 128;
-    // The largest field that can be cut — re-cut on a later round rather than
-    // moving on to a smaller field it never had to touch.
     const candidates = Object.entries(next)
       .map(([field, value]) => [field, jsonBytes(value)])
       .sort((a, b) => b[1] - a[1]);
@@ -222,13 +157,7 @@ function capPlanContextEnvelope(envelope, opts = {}) {
   return { ...next, truncated };
 }
 
-/**
- * Compact, machine-readable descriptor of the `tickets.json` array the
- * authoring pass writes and `validateAndNormalizeTickets` gates at persist
- * time. A descriptor, not a validator: the deterministic gate stays in the
- * persist half (design § 1 step 3); this field exists so the authoring
- * middle knows the shape without re-reading the decomposer prompt prose.
- */
+/** Shape descriptor only; persist's validator is the gate. */
 export const TICKET_SCHEMA_DESCRIPTOR = Object.freeze({
   shape: 'array',
   itemFields: Object.freeze({
@@ -248,22 +177,11 @@ export const TICKET_SCHEMA_DESCRIPTOR = Object.freeze({
     'validateAndNormalizeTickets (lib/orchestration/ticket-validator.js) at persist time',
 });
 
-/**
- * Filename of the ready-to-fill Story authoring template `plan-context.js`
- * writes next to the captured envelope (Story #4707).
- */
 export const STORIES_TEMPLATE_FILENAME = 'stories.template.json';
 
 /**
- * Build the template's `changes[]` entries from the envelope's advisory
- * complexity signals (Story #4723). Each seed-predicted path is emitted as a
- * **bare path string** — the default authored form since Story #5342. The
- * template used to pre-resolve each one to a creates-vs-refactors assumption
- * against the repo snapshot; persist re-derives it against the base-branch
- * ref, which is the authoritative probe, so the skeleton no longer carries a
- * second answer for the author to keep in sync. Order follows
- * `predictedPaths` (first appearance in the seed). Falls back to the
- * single instructive placeholder entry when the seed predicted no paths.
+ * Template `changes[]`: the seed-predicted paths as bare strings (persist
+ * derives each assumption against the base branch), or one placeholder.
  *
  * @param {{ predictedPaths?: string[] }|null|undefined} complexitySignals
  * @returns {string[]}
@@ -278,31 +196,10 @@ function buildTemplateChanges(complexitySignals) {
 }
 
 /**
- * Render the ready-to-fill `stories.json` authoring template (Story #4707).
+ * Ready-to-fill `stories.json` template. Uses the structured-object body
+ * persist serializes itself, so authors never reverse-engineer the markdown.
  *
- * One-shot authoring: the planner copies this file to `stories.json`, fills
- * the placeholder values, and runs persist — no step requires reading
- * `story-body.js` source or re-poking the envelope for format discovery
- * (bench: ~7 of 17 plan turns were format discovery). The template uses the
- * **structured-object body** shape, which persist parses and serializes to
- * the canonical markdown itself (`parse` accepts an object;
- * `assembleOnePlanStory` re-serializes canonically), so the serializer
- * contract never has to be reverse-engineered by the author. `acceptance[]`
- * / `verify[]` live at the ticket's top level — the machine contract persist
- * syncs into the body.
- *
- * Correct-by-construction skeleton (Story #4723): when the envelope's
- * `complexitySignals` predicted a footprint the `changes[]` entries arrive
- * already filled in, as the bare paths Story #5342 made the default form —
- * a faithfully-filled skeleton passes the persist ticket validators without a
- * mechanical round-trip. Persist derives each assumption by probing the base
- * branch ref and reports the derivation.
- *
- * Pure and deterministic; the output is valid JSON (parseable as-is), with
- * instructive placeholder values rather than comments.
- *
- * @param {{ complexitySignals?: object|null }} [opts] Envelope signals to
- *   pre-resolve the skeleton against; omit for the bare placeholder shape.
+ * @param {{ complexitySignals?: object|null }} [opts]
  * @returns {string} Pretty-printed JSON template content.
  */
 export function renderStoriesTemplate({ complexitySignals = null } = {}) {
@@ -313,12 +210,8 @@ export function renderStoriesTemplate({ complexitySignals = null } = {}) {
       title: 'Fill: short descriptive title',
       body: {
         goal: 'Fill: one sentence stating why this Story exists.',
-        // A filled, multi-checkpoint example rather than a placeholder
-        // (Story #5332): `## Slicing` is how one cohesive sweep stays one
-        // Story, so the skeleton has to show an author what a checkpoint
-        // list looks like. Each line is a stage of the work — a commit
-        // boundary inside one session — never a restatement of an
-        // acceptance item, which states what is true once the Story lands.
+        // A filled example: each line is a commit-boundary stage of the
+        // work, never a restated acceptance item.
         slicing:
           '1. Re-anchor the shared constant and its consumers.\n' +
           '2. Move the gate ahead of the first write and arm the refusal.\n' +
@@ -347,9 +240,7 @@ export function renderStoriesTemplate({ complexitySignals = null } = {}) {
 }
 
 /**
- * Count top-level enumerated items (`- `, `* `, `1. `) anywhere in a
- * free-form seed text. Unlike {@link countScopeItems} this does not require
- * a scope-shaped heading — a raw `--seed` text rarely has one.
+ * Count enumerated lines (`- `, `* `, `1. `) anywhere — no heading required.
  *
  * @param {string} text
  * @returns {number}
@@ -361,24 +252,13 @@ function countEnumeratedItems(text) {
     .filter((line) => /^\s*(?:[-*]|\d+\.)\s+\S/.test(line)).length;
 }
 
-/**
- * Delta-shaped change-request verbs — a change request naming one of these
- * stays a Story by default when the footprint stays inside Story width.
- */
+/** Change-request verbs: such a seed stays a Story within Story width. */
 const DELTA_VERB_RE =
   /\b(fix(?:es)?|tweak(?:s)?|extend(?:s)?|update(?:s)?|adjust(?:s)?|rename(?:s)?|correct(?:s)?|patch(?:es)?|bug|regression|flaky)\b/i;
 
 /**
- * Deterministic, CLI-applied scope signal over a raw `--seed` text
- * (#4496 fix 6). Embedding it in the `--seed` envelope keeps the headless
- * path from needing a judgment pass of its own.
- *
- * The heuristics anchor to the granularity SSOT —
- * `DELIVERABLE_GRANULARITY_GUIDANCE` in `ticket-validator-sizing.js` (one
- * Story = one coherent capability slice; multiple independent capabilities =
- * an Epic) — and to the change-request delta rubric above. The verdict is
- * **advisory**: being wrong in the `epic` direction is cheap, and
- * `borderline` is a first-class output, not a forced call.
+ * Advisory scope signal over raw seed text (one capability = one Story).
+ * Erring toward `epic` is cheap; `borderline` is a real verdict.
  *
  * @param {{ seedText?: string }} args
  * @returns {{ verdict: 'epic'|'story'|'borderline', reasons: string[], advisory: true, appliedBy: 'cli' }}
@@ -440,27 +320,17 @@ export function buildScopeTriageSignal({ seedText = '' } = {}) {
   };
 }
 
-/**
- * The `audit-rules.json` lens `target` value marking a lens applicable only to
- * a project with a rendered frontend.
- */
 const WEB_LENS_TARGET = 'web';
 
 /**
- * How many matched UI paths the `uiSurface` signal carries. The signal rides the
- * `--out` stdout digest, which has a ~2KB contract, and a seed can predict up to
- * `MAX_PREDICTED_PATHS` paths — enumerating all of them would let one UI-heavy
- * seed blow that budget. The full count travels beside the sample as
- * `matchedPathCount`, so nothing is silently lost.
+ * Sample size of matched UI paths: the signal rides the ~2KB `--out` stdout
+ * digest; `matchedPathCount` carries the full total.
  */
 const UI_MATCHED_PATH_SAMPLE = 5;
 
 /**
- * Union of the `triggers.filePatterns` globs every `target: "web"` lens
- * registers in `audit-rules.json` — the framework's shipped declaration of
- * "this path is part of a rendered UI surface". Read from the manifest rather
- * than re-listed here: a second copy of the glob set would be a second thing to
- * keep in sync, and the manifest is already the place an operator extends it.
+ * Union of every `target: "web"` lens's `triggers.filePatterns` — read from
+ * the manifest, never re-listed, so there is one glob set to extend.
  *
  * @param {{ audits?: Record<string, object> }} rules
  * @returns {string[]} Deduplicated globs, in manifest order.
@@ -477,12 +347,8 @@ function resolveWebFilePatterns(rules) {
 }
 
 /**
- * Which predicted paths sit on a UI surface, per the web lens globs.
- *
- * An unreadable manifest is **indeterminate**, not "no match": the signal fails
- * OPEN in the same direction {@link hasWebSurface} does, because a spurious
- * mention of an operator-invoked command costs nothing while a missed one costs
- * the whole point of the offer.
+ * Predicted paths on a UI surface. An unreadable manifest is indeterminate and
+ * fails OPEN: a spurious offer costs nothing, a missed one defeats it.
  *
  * @param {string[]} predictedPaths
  * @returns {{ matchedPaths: string[], indeterminate: boolean }}
@@ -503,9 +369,6 @@ function resolveWebFootprintMatch(predictedPaths) {
 }
 
 /**
- * The one sentence a `uiSurface` signal carries — why the offer fires, or why it
- * does not. Kept in one place so the fired and unfired shapes stay one object.
- *
  * @param {{
  *   detected: boolean,
  *   webSurface: boolean,
@@ -537,22 +400,8 @@ function uiSurfaceReason({
 }
 
 /**
- * Derive the advisory **UI-surface** signal from a seed's predicted footprint.
- *
- * Two observables, both already shipped, ANDed together:
- *
- *   1. the project is web-capable at all (`hasWebSurface` — the same
- *      applicability predicate the `target: "web"` audit lenses gate on), and
- *   2. at least one predicted path matches a web lens `filePattern`.
- *
- * No new detection surface and no new `.agentrc.json` key: both halves are
- * derived from the consumer's own checkout, so a frontend-less project — this
- * repository included — resolves falsey and the offer never fires.
- *
- * The signal carries **no routing authority** (`automatic: false`): `/mandrel-plan`
- * may say that a plan touches UI and that `/prototype` exists, and must never
- * invoke it. Pure over its inputs and total — a malformed signal bag or an
- * unreadable manifest degrades, never throws.
+ * Advisory: web-capable project AND a predicted path matches a web lens glob.
+ * The planner may mention `/prototype`, never invoke it. Never throws.
  *
  * @param {{
  *   complexitySignals?: object|null,
@@ -567,8 +416,7 @@ function uiSurfaceReason({
  *   matchedPaths: string[],
  *   matchedPathCount: number,
  *   reasons: string[],
- * }} `matchedPaths` is a bounded sample
- *   ({@link UI_MATCHED_PATH_SAMPLE}); `matchedPathCount` is the full total.
+ * }}
  */
 function buildUiSurfaceSignal({ complexitySignals, config, cwd } = {}) {
   const predictedPaths = Array.isArray(complexitySignals?.predictedPaths)
@@ -609,10 +457,8 @@ function buildUiSurfaceSignal({ complexitySignals, config, cwd } = {}) {
 }
 
 /**
- * Attach the advisory routing/offer signals to a complexity-signals bag as
- * **nested** fields (Story #4741). Nesting — rather than new top-level envelope
- * keys — keeps every existing per-mode envelope key set byte-stable: both are
- * derived from the signals they ride on.
+ * Nest the advisory signals inside `complexitySignals` so the per-mode
+ * top-level envelope key sets stay stable.
  *
  * @param {object} complexitySignals
  * @param {{ config?: object, cwd?: string }} [context]
@@ -626,21 +472,8 @@ function withAdvisorySignals(complexitySignals, { config, cwd } = {}) {
 }
 
 /**
- * Render the authoring system prompts the collapsed pipeline's single
- * authoring pass consumes: the N=1 core from
- * `lib/templates/decomposer-prompts.js`, with the schedule rules and the
- * collision refusal a planner reads only when the default-single split policy
- * clears carried separately as `storySplitRules` (Story #5312).
- *
- * Story #5332 deleted the `spec` / `acceptance` fields with the module that
- * rendered them: nothing read either, and both contradicted the current
- * contract — one asserting Spec budgets that no longer exist, the other
- * demanding the verify tier suffixes tickets mode now strips.
- *
- * `storyTicketsRules` is the one mode-conditional field (Story #5323): it
- * only means anything when the seed is an existing ticket, and an envelope
- * that carries it in every mode teaches the author to look for a source
- * ticket that a `--seed` run does not have.
+ * `storyTicketsRules` only in tickets mode: a `--seed` run has no source
+ * ticket to look for.
  *
  * @param {{ mode?: string }} [args]
  * @returns {{ story: string, storySplitRules: string, storyTicketsRules?: string }}
@@ -654,8 +487,7 @@ export function buildSystemPrompts({ mode } = {}) {
 }
 
 /**
- * Run the open-Story duplicate search. Failures degrade to [] — triage
- * signal, not a gate.
+ * Open-Story duplicate search; failures degrade to [] (triage, not a gate).
  *
  * @param {{
  *   seed: string,
@@ -688,20 +520,9 @@ async function searchStoryDuplicates({
 }
 
 /**
- * Gather the independent envelope inputs — the open-Story duplicate search,
- * the folded authoring context, the inline docs digest, and (Story #5155) the
- * open-Epic and cross-plan-dependency candidate lists — under bounded
- * concurrency (Story #4952).
- *
- * None of them reads a value the others produce, so the result is a pure
- * function of `seed` and the injected config: the assembled envelope is
- * **byte-identical** to the serial build for the same inputs, whichever order
- * the three happen to settle in. `concurrentMap` preserves input order, so the
- * destructuring below is positional and stable.
- *
- * `docsContextFiles` is emptied for the `buildAuthoringContext` call: the
- * per-plan digest-file path needs a plan id that does not exist yet — the
- * inline digest gathered alongside it replaces that pointer.
+ * Gather independent envelope inputs concurrently; order-preserving, so the
+ * result matches a serial build. `docsContextFiles` is emptied because no
+ * plan id exists yet for a digest file — the inline digest replaces it.
  *
  * @param {{
  *   seed: string,
@@ -756,10 +577,6 @@ async function gatherEnvelopeInputs({
           docsContextFiles: settings?.docsContextFiles,
           docsRoot: paths.docsRoot,
         }),
-      // Story #5155 — the two cross-plan lookups. Both are advisory triage
-      // lists offered at Gate #3, independent of every other gather and of
-      // each other, so they join the same bounded fan-out rather than adding
-      // two more serial round-trips to the operator's wait.
       () =>
         findOpenEpicCandidates({
           seed,
@@ -777,10 +594,6 @@ async function gatherEnvelopeInputs({
         }),
     ],
     (gather) => gather(),
-    // The per-mode envelope gathers (Story #4952): the duplicate search, the
-    // authoring-context fold and the docs digest have no data dependency on
-    // one another, so their serialization was incidental and `/mandrel-plan` paid it
-    // with the operator waiting at Gate #1.
     { concurrency: FANOUT_CONCURRENCY },
   );
 
@@ -796,12 +609,7 @@ async function gatherEnvelopeInputs({
   };
 }
 
-/**
- * Build the seed-file (ideation) envelope. No parent ticket
- * exists yet — creation moves to the persist half — so the open-Story
- * dup search is the mode's gating input. `docsContext` is inline-digest:
- * there is no plan temp directory to anchor a digest file to yet.
- */
+/** Seed-file envelope; also the base for seed mode. */
 async function buildSeedFileModeEnvelope({
   seedFilePath,
   seedFileContent,
@@ -819,18 +627,12 @@ async function buildSeedFileModeEnvelope({
     );
   }
 
-  // Hoisted above the gather (Story #5155): the dependency-candidate lookup
-  // intersects against `predictedPaths`, so the signals have to exist before
-  // the fan-out starts. `buildComplexitySignals` is synchronous and reads
-  // nothing the gather produces, so hoisting it changes cost, not output.
+  // Before the gather: dependency candidates intersect `predictedPaths`.
   const complexitySignals = withAdvisorySignals(
     buildComplexitySignals({ seedText: content, cwd }),
     { config, cwd },
   );
 
-  // Dup search, the authoring-context fold grounded in the seed prose, the
-  // inline docs digest and the two cross-plan candidate lists are independent
-  // — gathered concurrently (Story #4952, Story #5155).
   const {
     duplicates,
     authoring,
@@ -850,9 +652,7 @@ async function buildSeedFileModeEnvelope({
   return {
     mode: modeLabel,
     seed: { path: seedFilePath ?? null, content },
-    // Advisory complexity signals only: no route, no routing authority. The
-    // nested `uiSurface` is the advisory /prototype offer — never an
-    // automatic reroute.
+    // Advisory only — no routing authority.
     complexitySignals,
     duplicates,
     epicCandidates,
@@ -865,16 +665,11 @@ async function buildSeedFileModeEnvelope({
     ticketSchema: TICKET_SCHEMA_DESCRIPTOR,
     systemPrompts: buildSystemPrompts(),
     planState: null,
-    // N=1 default: author one Story; skip Epic-scale decompose ceremony.
     planProfile: 'story-default',
   };
 }
 
-/**
- * Build the seed-mode (chat text) envelope. The seed-file does not exist
- * yet: the dup search and the authoring-context fold both run off the raw
- * seed text (N=1 default — no Epic-scale decompose).
- */
+/** Seed-mode (chat text) envelope. */
 async function buildSeedModeEnvelope({
   seedText,
   provider,
@@ -905,9 +700,6 @@ async function buildSeedModeEnvelope({
 }
 
 /**
- * Fetch source tickets for `--tickets` mode.
- * Hydrates ids concurrently (bounded) while preserving input order.
- *
  * @param {number[]} ticketIds
  * @param {object} provider
  * @returns {Promise<Array<{ id:number, title:string, body:string, labels:string[], url?:string }>>}
@@ -938,16 +730,11 @@ async function fetchSourceTickets(ticketIds, provider) {
         state: ticket.state ?? undefined,
       };
     },
-    // `--tickets` source-ticket hydration: one independent read per id.
     { concurrency: FANOUT_CONCURRENCY },
   );
 }
 
-/**
- * Build the tickets-mode envelope — analyze existing issue(s) into proper
- * Stories. Dup search excludes the source ids so a ticket is not reported
- * as a duplicate of itself.
- */
+/** Dup search excludes the source ids: a ticket is not its own duplicate. */
 async function buildTicketsModeEnvelope({
   ticketIds,
   provider,
@@ -965,15 +752,11 @@ async function buildTicketsModeEnvelope({
     .map((t) => `# ${t.title}\n\n${t.body}`)
     .join('\n\n---\n\n');
 
-  // Hoisted for the same reason as seed-file mode (Story #5155).
   const complexitySignals = withAdvisorySignals(
     buildComplexitySignals({ seedText: seed, cwd }),
     { config, cwd },
   );
 
-  // Same independent gathers as seed-file mode, concurrent under the same
-  // bound (Story #4952); only the source-ticket hydration above is a genuine
-  // data dependency, because `seed` is derived from it.
   const {
     duplicates,
     authoring,
@@ -1018,9 +801,8 @@ async function buildTicketsModeEnvelope({
 }
 
 /**
- * Parse a prior Story body into its acceptance criteria and delivered file
- * map. Total: an unparseable body degrades to empty lists (a delta envelope
- * grounded on whatever survived), never a throw.
+ * Prior Story's acceptance and delivered files; an unparseable body degrades
+ * to empty lists, never a throw.
  *
  * @param {string} priorBody
  * @returns {{ priorAcceptance: string[], deliveredFiles: string[] }}
@@ -1044,20 +826,8 @@ function extractPriorArtifacts(priorBody) {
 }
 
 /**
- * Build the amendment (delta) envelope — `plan-context --amends #<id>`
- * (Story #4741 AC-4, R3-A). The heavy-amendment counterpart to routing a
- * light amendment through the light path: instead of re-interrogating the
- * repo from scratch (`buildAuthoringContext`'s codebase snapshot and the BDD /
- * memory / feedback probes), the envelope composes a DELTA from what already
- * exists — the prior Story's body, its acceptance criteria (the real
- * contract), and its delivered file map — so a follow-up change plans from the
- * shape already shipped.
- *
- * The semantic steps that reach the ticket are preserved: the open-Story
- * duplicate search (excluding the amended Story itself) and the authoring
- * system prompts still ride the envelope. What is
- * dropped is only the from-scratch repo interrogation the prior artifacts
- * already stand in for — that is the round-trip diet, not an amputation.
+ * `--amends` envelope: a delta grounded on the prior Story instead of a
+ * from-scratch repo interrogation.
  *
  * @param {{
  *   amendsId: number,
@@ -1089,12 +859,7 @@ async function buildAmendmentModeEnvelope({
   const priorBody = typeof prior.body === 'string' ? prior.body : '';
   const { priorAcceptance, deliveredFiles } = extractPriorArtifacts(priorBody);
 
-  // Story #4952 — this builder's independent-gather set has exactly one
-  // member. `provider.getTicket` above is a hard data dependency (the prior
-  // body IS the seed), and the mode deliberately carries no authoring-context
-  // fold and no docs digest — the prior artifacts are the grounding. It still
-  // goes through the same bounded gather as the other two builders so one file
-  // does not carry two ways of gathering independent envelope inputs.
+  // A one-member gather, kept on the same path as the other builders.
   const [duplicates] = await concurrentMap(
     [
       () =>
@@ -1106,7 +871,6 @@ async function buildAmendmentModeEnvelope({
         }),
     ],
     (gather) => gather(),
-    // Same independent-gather fan-out as the seed-mode envelope above.
     { concurrency: FANOUT_CONCURRENCY },
   );
 
@@ -1119,15 +883,12 @@ async function buildAmendmentModeEnvelope({
       priorAcceptance,
       deliveredFiles,
     },
-    // The prior body is the seed the delta is authored against.
     seed: { text: priorBody, path: null },
     complexitySignals: withAdvisorySignals(
       buildComplexitySignals({ seedText: priorBody, cwd }),
       { config, cwd },
     ),
     duplicates,
-    // No plan temp dir and no from-scratch repo interrogation — the prior
-    // artifacts are the grounding, so there is no docs digest to anchor.
     docsContext: null,
     ticketSchema: TICKET_SCHEMA_DESCRIPTOR,
     systemPrompts: buildSystemPrompts(),
@@ -1137,11 +898,7 @@ async function buildAmendmentModeEnvelope({
 }
 
 /**
- * Build the single planner-context envelope.
- *
- * Every mode returns through here, which makes this the one place the
- * envelope's total size is decided — and therefore the only honest place to
- * bound it (see {@link capPlanContextEnvelope}).
+ * Build the planner-context envelope — the one place every mode is capped.
  *
  * @param {{
  *   mode: 'seed-file'|'seed'|'tickets'|'amends',
@@ -1185,10 +942,6 @@ export async function buildPlanContext({
   );
 }
 
-/**
- * Mode dispatch for {@link buildPlanContext}. Split out so the ceiling cap
- * wraps every mode exactly once.
- */
 async function buildPlanContextEnvelope({
   mode,
   seedFilePath,

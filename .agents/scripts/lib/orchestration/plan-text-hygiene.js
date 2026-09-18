@@ -1,30 +1,9 @@
 /**
- * plan-text-hygiene.js — the advisory draft-Story lints: `open-question`
- * over body prose (Story #4599; narrowed to one lint by Story #5312) and
- * `pinned-identifier` over `acceptance[]` (Story #5323).
- *
- * A Story is executed by a non-interactive sub-agent, so an operator-directed
- * open question persisted into its body ("Flag if…", "TBD", "confirm with the
- * operator", a trailing `?`) can never be answered where it is read. This
- * module makes that class checkable at the one point a re-author loop exists —
- * the persist dry-run, which lists every match as a **warning** and proceeds.
- *
- * Story #5312 deleted the sibling `dangling-citation` and `slicing-mass`
- * lints with the critic gate that surfaced them: both scored prose shape the
- * authoring model already judges, and neither ever changed a persisted body.
- *
- * `pinned-identifier` is the one lint that scores the **binding** half of the
- * ticket; its classifier lives in
- * [`pinned-identifier-lint.js`](pinned-identifier-lint.js), which shares no
- * vocabulary with the prose heuristic here.
- *
- * Advisory by contract: findings are deterministic text for the dry-run's
- * warning list. They never gate persist and spawn nothing.
- *
- * Pure, synchronous, no I/O. Operates on the draft `stories.json` array,
- * reusing `parse()` from `lib/story-body/story-body.js` for section access.
- * An unparseable draft body is skipped, not failed — hygiene is advisory
- * and the persist validators own structural rejection.
+ * plan-text-hygiene.js — advisory draft-Story lints for the persist dry-run:
+ * `open-question` over body prose (a non-interactive sub-agent can never
+ * answer "TBD" or "confirm with the operator") and `pinned-identifier` over
+ * `acceptance[]`. Findings are warnings only; an unparseable body is skipped,
+ * since structural rejection belongs to the persist validators. Pure, no I/O.
  *
  * @module lib/orchestration/plan-text-hygiene
  */
@@ -32,14 +11,8 @@
 import { parse } from '../story-body/story-body.js';
 import { findPinnedIdentifiers } from './pinned-identifier-lint.js';
 
-/** Truncation length for the `evidence` excerpt on each finding. */
 const EVIDENCE_MAX_CHARS = 160;
 
-/**
- * Operator-directed open-question phrasings. Each match is an instruction
- * or question aimed at a human, which a non-interactive delivery sub-agent
- * can never answer.
- */
 const OPEN_QUESTION_MARKERS = [
   /\bflag if\b/i,
   /\bTBD\b/,
@@ -55,16 +28,13 @@ const OPEN_QUESTION_MARKERS = [
  */
 
 /**
- * Private-use sentinel standing in for one extracted inline code span. It
- * carries no question marker and no sentence boundary, so it is inert for
- * the heuristic while keeping the sentence split where the span sat.
+ * Private-use stand-in for an inline code span: inert to the heuristic but
+ * keeps the sentence split where the span sat.
  */
 const CODE_SLOT = '\uE000';
 
 /**
- * Replace fenced code blocks with a space and each inline code span with a
- * positional slot, so code content (shell snippets, grep patterns, JSON)
- * never trips a prose heuristic.
+ * Remove code so shell snippets or patterns never trip a prose heuristic.
  *
  * @param {string} text
  * @returns {string}
@@ -74,8 +44,7 @@ function stripCodeSpans(text) {
 }
 
 /**
- * Split prose into sentence-ish units with code content removed. Newlines
- * are boundaries too, so a bullet list yields one unit per bullet.
+ * Newlines are boundaries too: one unit per bullet.
  *
  * @param {string} text
  * @returns {string[]}
@@ -88,8 +57,6 @@ function splitSentences(text) {
 }
 
 /**
- * Truncate an excerpt for the finding's `evidence` field.
- *
  * @param {string} text
  * @returns {string}
  */
@@ -101,9 +68,6 @@ function excerpt(text) {
 }
 
 /**
- * open-question: operator-directed phrasing (or a trailing `?`) in prose a
- * non-interactive sub-agent executes.
- *
  * @param {string} prose - Raw Goal/Spec prose.
  * @param {string} slug
  * @returns {TextHygieneFinding[]}
@@ -130,12 +94,8 @@ function findOpenQuestions(prose, slug) {
 }
 
 /**
- * Evaluate the advisory lints over a draft Story array.
- *
  * @param {{ draftStories?: Array<object>|null }} args - The draft
- *   `stories.json` array (raw Story objects with top-level `slug` /
- *   `body`). Null/absent evaluates to zero findings (the single-delivery
- *   shape authors no draft tickets).
+ *   `stories.json` array; null/absent yields no findings.
  * @returns {{ findings: TextHygieneFinding[] }}
  */
 export function evaluateTextHygiene({ draftStories = null } = {}) {
@@ -147,8 +107,6 @@ export function evaluateTextHygiene({ draftStories = null } = {}) {
     try {
       body = parse(story?.body).body;
     } catch {
-      // Advisory lint: an unparseable body is the persist validators'
-      // rejection to make, not this evaluator's.
       continue;
     }
     const goal = typeof body.goal === 'string' ? body.goal : '';

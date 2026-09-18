@@ -1,86 +1,47 @@
 /**
- * plan-critic-conditions.js — the pre-mortem critic's dispatch decision for
- * the `/mandrel-plan` critic CLI (Epic #4474 PR6, design §4; narrowed to one
- * arm by Story #5312).
- *
- * The critic is a fresh-context sub-agent dispatch, and the dispatch is
- * **conditional**: the dominant plan cost is turns × standing context, and an
- * unconditional critic pays a full sub-agent spawn even when it provably has
- * nothing to find. This module computes the decision deterministically so
- * the workflow never judges its own dispatch condition.
- *
- * One trigger survives: the **external-dependency probe** (Story #4700),
- * which finds an out-of-repo marker in the plan text — a scoped package the
- * plan names that no manifest declares, a cross-repo reference, an external
- * service prerequisite — so a plan-time discoverable blocker does not reach
- * delivery unquestioned (the swarm-os #757 shape). The probe is deliberately
- * **conservative**: it matches only explicit markers (npm scoped-package
- * specs, `github.com/<owner>/<repo>` URLs, prerequisite-keyword-anchored
- * endpoints), never NLP guesswork.
- *
- * Story #5312 deleted the two triggers that sat beside it — the ticket count
- * reaching half a `maxTickets` budget, and a `planning.riskHeuristics` phrase
- * matching the plan text — with the constants they read. The count trigger
- * was unreachable at the default N=1; the phrase list was empty in every
- * consumer that resolved it. The consolidation critic went with them: its
- * one deterministic input was a `## Delivery Slicing` table no Story carries.
- *
- * Under-firing risk (design PR6 note): the persist validators are unchanged
- * hard gates; every skip decision this module produces is logged to the
- * plan-metrics ledger (`appendCriticSkip`) by the caller so under-firing is
- * auditable.
- *
- * Pure, synchronous, no I/O. The single caller is `plan-critics-evaluate.js`,
- * driven by the `plan-critics.js` CLI the operator runs between Author and
- * Persist when they want the critic; the CLI owns reading the authored
- * artifacts and the resolved config.
+ * plan-critic-conditions.js — the pre-mortem critic's deterministic dispatch
+ * decision. A spawn is costly, so the critic fires only when the
+ * external-dependency probe finds an out-of-repo marker a plan-time review
+ * could catch. The probe is conservative: explicit markers only, never NLP.
+ * Skips are logged by the caller (`appendCriticSkip`) so under-firing is
+ * auditable. Pure, synchronous, no I/O.
  */
 
 /**
  * @typedef {Object} CriticDispatchDecision
  * @property {'pre-mortem'} critic
  * @property {boolean} dispatch
- * @property {string[]} reasons Why the critic fires — or why it is safe to
- *   skip. Never empty: a skip's reasons are the audit trail the
- *   plan-metrics ledger records.
+ * @property {string[]} reasons Never empty — a skip's reasons are its audit
+ *   trail.
  */
 
 /**
- * Explicit npm scoped-package marker: `@scope/name`. Requires the leading `@`
- * and an interior `/`, so bare GitHub handles (`@dsj1984`) and the
- * `@[USERNAME]` operator-handle placeholder never match.
+ * `@scope/name`: the interior `/` keeps bare handles and the `@[USERNAME]`
+ * placeholder from matching.
  */
 const SCOPED_PACKAGE_MARKER = /@[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*/gi;
 
-/** Explicit cross-repo marker: a `github.com/<owner>/<repo>` URL. */
 const GITHUB_REPO_MARKER =
   /github\.com\/([a-z0-9][a-z0-9._-]*)\/([a-z0-9][a-z0-9._-]*)/gi;
 
 /**
- * Explicit external-service prerequisite marker: a prerequisite keyword
- * followed, within the same clause, by an http(s) endpoint. The keyword gate
- * is what keeps casual documentation links from matching — only an endpoint
- * named as a precondition counts.
+ * A prerequisite keyword then an http(s) endpoint in the same clause; the
+ * keyword gate keeps casual doc links from matching.
  */
 const SERVICE_PREREQ_MARKER =
   /\b(?:requires?|required|prerequisite|provision(?:ed|ing)?|depends?\s+on|credentials?\s+for)\b[^.\n]*?\bhttps?:\/\/([a-z0-9][a-z0-9.-]*)/gi;
 
-/** Order-preserving de-duplication. */
 function uniquePreserveOrder(values) {
   return [...new Set(values)];
 }
 
-/** Quote each item for an evidence reason string. */
 function quoteList(values) {
   return values.map((v) => `"${v}"`).join(', ');
 }
 
 /**
- * Scoped packages named in the plan that no repo manifest declares.
- *
  * @param {string} planText
- * @param {string[]} knownPackages - Package specifiers the repo's own
- *   manifests declare (own name + dependency maps + workspace package names).
+ * @param {string[]} knownPackages - Specifiers the repo's own manifests declare.
  * @returns {string[]}
  */
 function matchExternalScopedPackages(planText, knownPackages) {
@@ -97,9 +58,8 @@ function matchExternalScopedPackages(planText, knownPackages) {
 }
 
 /**
- * `github.com/<owner>/<repo>` references outside the configured repo. When the
- * owner is unknown (no `github.owner` configured) the arm stays silent rather
- * than flag every URL as foreign.
+ * References outside the configured repo; silent when no owner is configured
+ * rather than flag every URL as foreign.
  *
  * @param {string} planText
  * @param {{ owner?: string|null, repo?: string|null }|null} ownerRepo
@@ -125,8 +85,6 @@ function matchCrossRepoRefs(planText, ownerRepo) {
 }
 
 /**
- * Endpoints named as prerequisites in the plan text.
- *
  * @param {string} planText
  * @returns {string[]}
  */
@@ -139,19 +97,12 @@ function matchExternalServicePrereqs(planText) {
 }
 
 /**
- * The external-dependency probe (Story #4700): a conservative, marker-only
- * scan of the draft plan text for artifacts outside the current repo that the
- * plan depends on. A match is the pre-mortem's dispatch condition; a no-match
- * plan skips the critic.
+ * Marker-only scan of the plan text for out-of-repo dependencies.
  *
  * @param {object} input
- * @param {string} [input.planText] - Concatenated plan text (tech spec +
- *   serialized tickets).
- * @param {string[]} [input.knownPackages] - Package specifiers the repo's own
- *   manifests declare, used to tell an external scoped package from a local one.
- * @param {{ owner?: string|null, repo?: string|null }|null} [input.ownerRepo] -
- *   The configured `github.owner`/`github.repo` a cross-repo reference is
- *   measured against.
+ * @param {string} [input.planText] - Tech spec + serialized tickets.
+ * @param {string[]} [input.knownPackages]
+ * @param {{ owner?: string|null, repo?: string|null }|null} [input.ownerRepo]
  * @returns {{ matched: boolean, reasons: string[] }}
  */
 export function evaluateExternalDependencyProbe({
@@ -188,18 +139,10 @@ export function evaluateExternalDependencyProbe({
 }
 
 /**
- * Decide the pre-mortem dispatch: an external-dependency probe match
- * (Story #4700) — the one deterministic trigger left after Story #5312.
- *
  * @param {object} input
- * @param {string} [input.planText] - Concatenated plan text the probe
- *   matches against (tech spec + serialized tickets).
- * @param {string[]} [input.knownPackages] - Package specifiers the repo's own
- *   manifests declare (own name + dependency maps + workspace package names),
- *   passed to the external-dependency probe.
- * @param {{ owner?: string|null, repo?: string|null }|null} [input.ownerRepo] -
- *   The configured `github.owner`/`github.repo`, passed to the
- *   external-dependency probe's cross-repo arm.
+ * @param {string} [input.planText]
+ * @param {string[]} [input.knownPackages]
+ * @param {{ owner?: string|null, repo?: string|null }|null} [input.ownerRepo]
  * @returns {CriticDispatchDecision}
  */
 export function evaluatePremortemDispatch({
