@@ -25,8 +25,8 @@ A comment states what a reader cannot get from the code: the **contract**, the
   `@type`, `@property` and `@template` are the type surface. Their prose may be
   short, but the tag, the `{type}` and the name are kept.
 - **Tool directives stay.** `biome-ignore`, `eslint-*`, `@ts-*`,
-  `node:coverage`, `// cli-opt-out: <reason>`, shebangs and license headers
-  are read by tools, not people.
+  `node:coverage`, `// cli-opt-out: <reason>`, `// test-temp-allow:`,
+  shebangs and license headers are read by tools, not people.
 
 Delete a comment that restates the code, lists a function's callers, or walks
 through a trivial example. Rewrite a comment that carries an invariant even

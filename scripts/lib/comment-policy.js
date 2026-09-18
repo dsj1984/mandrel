@@ -19,7 +19,7 @@
  * The landed ceiling on comment bytes as a fraction of script bytes. It may
  * only be lowered.
  */
-export const COMMENT_RATIO_CEILING = 0.35;
+export const COMMENT_RATIO_CEILING = 0.3;
 
 /** Directories whose comments the provenance lint reads. */
 export const PROVENANCE_ROOTS = ['.agents/scripts', 'bin', 'lib'];
