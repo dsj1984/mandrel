@@ -30,6 +30,8 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const SCRIPTS_DIR = path.join(REPO_ROOT, '.agents', 'scripts');
+/** Contributor-only CLIs moved out of the payload (Story #5381). */
+const CONTRIB_SCRIPTS_DIR = path.join(REPO_ROOT, 'scripts');
 
 /**
  * Entry points that route through `runAsCli` but pass no `usage` block, so
@@ -49,10 +51,14 @@ const KNOWN_HELP_GAPS = new Set([
 const CLI_OPT_OUT_MARKER = 'cli-opt-out';
 
 function entryPoints() {
-  return readdirSync(SCRIPTS_DIR)
-    .filter((f) => f.endsWith('.js'))
-    .filter((f) => f.startsWith('check-') || f.startsWith('update-'))
-    .sort();
+  return [SCRIPTS_DIR, CONTRIB_SCRIPTS_DIR]
+    .flatMap((dir) =>
+      readdirSync(dir)
+        .filter((f) => f.endsWith('.js'))
+        .filter((f) => f.startsWith('check-') || f.startsWith('update-'))
+        .map((f) => ({ file: f, abs: path.join(dir, f) })),
+    )
+    .sort((a, b) => a.file.localeCompare(b.file));
 }
 
 /**
@@ -95,8 +101,8 @@ describe('CLI --help contract', () => {
 
   it('no new entry point omits its usage block', () => {
     const observed = new Set();
-    for (const file of entryPoints()) {
-      const source = readFileSync(path.join(SCRIPTS_DIR, file), 'utf8');
+    for (const { file, abs } of entryPoints()) {
+      const source = readFileSync(abs, 'utf8');
       if (source.includes(CLI_OPT_OUT_MARKER)) continue;
       const passesUsage = passesUsageToRunAsCli(source);
       if (passesUsage === false) observed.add(file);
@@ -120,8 +126,10 @@ describe('CLI --help contract', () => {
   it('every write-capable baseline updater guards --help', () => {
     // The destructive half of the family: these mutate baselines/ when given
     // a mode flag, so a --help that reached main would be the costly case.
-    for (const file of entryPoints().filter((f) => f.startsWith('update-'))) {
-      const source = readFileSync(path.join(SCRIPTS_DIR, file), 'utf8');
+    for (const { file, abs } of entryPoints().filter(({ file: f }) =>
+      f.startsWith('update-'),
+    )) {
+      const source = readFileSync(abs, 'utf8');
       const guarded = source.includes(CLI_OPT_OUT_MARKER)
         ? source.includes('respondToHelp')
         : passesUsageToRunAsCli(source);

@@ -37,7 +37,7 @@ const CLI_OPTIONS = {
  *   runPlanRunEpilogueImpl?: typeof runPlanRunEpilogue,
  *   logger?: { info: Function, warn: Function },
  * }} [deps] Injectable seams; every entry defaults to the real
- *   implementation (`.agents/rules/test-seams.md` rules 1-2), so the CLI path
+ *   implementation (`docs/contributing/test-seams.md` rules 1-2), so the CLI path
  *   and every production caller are unchanged.
  * @returns {Promise<object>}
  */

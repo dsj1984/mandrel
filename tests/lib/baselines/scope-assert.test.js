@@ -35,23 +35,23 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test, { after, describe } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { currentKernelVersion } from '../../../.agents/scripts/lib/baselines/kernel.js';
+import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
 import {
   formatReport,
   runScopeCheck,
-} from '../../../.agents/scripts/check-baseline-scope.js';
-import { currentKernelVersion } from '../../../.agents/scripts/lib/baselines/kernel.js';
+} from '../../../scripts/check-baseline-scope.js';
 import {
   assertScope,
   attributeDivergence,
   EXTRA_REASONS,
   resolveStrictness,
   STRICT_REASONS,
-} from '../../../.agents/scripts/lib/baselines/scope-assert.js';
+} from '../../../scripts/lib/baselines/scope-assert.js';
 import {
   directionsFor,
   KIND_SCOPE_POLICY,
-} from '../../../.agents/scripts/lib/baselines/scope-inventory.js';
-import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
+} from '../../../scripts/lib/baselines/scope-inventory.js';
 import { seedGitIdentity } from '../../fixtures/git-fixture.js';
 
 /**
@@ -363,7 +363,7 @@ describe('attributeDivergence — a PR is blocked only for what it created (AC-5
 // ---------------------------------------------------------------------------
 
 const CLI = fileURLToPath(
-  new URL('../../../.agents/scripts/check-baseline-scope.js', import.meta.url),
+  new URL('../../../scripts/check-baseline-scope.js', import.meta.url),
 );
 const TMP = fs.realpathSync(makeTempDir('scope-assert-cli-'));
 

@@ -14,8 +14,8 @@ import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { runCheck } from '../.agents/scripts/check-pinned-override-notes.js';
-import { auditPinnedOverrideNotes } from '../.agents/scripts/lib/pinned-override-notes.js';
+import { runCheck } from '../scripts/check-pinned-override-notes.js';
+import { auditPinnedOverrideNotes } from '../scripts/lib/pinned-override-notes.js';
 
 const REPO_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),

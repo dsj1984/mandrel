@@ -14,7 +14,7 @@ import {
  *
  * Config resolution, provider construction, the probe, the renderer, and the
  * log sink are all injected through the optional final `deps` parameter
- * (`.agents/rules/test-seams.md` rules 1 and 5): no GitHub call, no git
+ * (`docs/contributing/test-seams.md` rules 1 and 5): no GitHub call, no git
  * spawn, no module mocking.
  */
 

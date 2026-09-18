@@ -17,15 +17,15 @@ import { fileURLToPath } from 'node:url';
 import {
   parseArgs,
   runAttribution,
-} from '../.agents/scripts/check-audit-attribution.js';
-import { extractBlockingAdvisories } from '../.agents/scripts/lib/audit-advisories.js';
+} from '../scripts/check-audit-attribution.js';
+import { extractBlockingAdvisories } from '../scripts/lib/audit-advisories.js';
 import {
   attributionExitCode,
   deriveVerdict,
   diffAdvisories,
   renderAttribution,
   UNKNOWN,
-} from '../.agents/scripts/lib/audit-attribution.js';
+} from '../scripts/lib/audit-attribution.js';
 
 // The verdict strings are asserted as literals on purpose: they are printed
 // verbatim into the CI log an operator reads, so a rename must break these

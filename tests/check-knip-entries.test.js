@@ -2,14 +2,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
-import { runCli } from '../.agents/scripts/check-knip-entries.js';
+import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
+import { runCli } from '../scripts/check-knip-entries.js';
 import {
   __testing,
   countDivergences,
   renderEntrySyncReport,
   resolveEntrySync,
-} from '../.agents/scripts/lib/knip-entry-sync.js';
-import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
+} from '../scripts/lib/knip-entry-sync.js';
 
 /**
  * Unit + invariant coverage for the knip entry-sync gate.

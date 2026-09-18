@@ -406,7 +406,7 @@ export function formatDiffText(diff) {
  * the real stdout.
  *
  * Both seams on the optional final `deps` parameter default to the real
- * implementation (`.agents/rules/test-seams.md` rules 1-2, 4 — `readJsonArray`
+ * implementation (`docs/contributing/test-seams.md` rules 1-2, 4 — `readJsonArray`
  * forwards `fsImpl` rather than re-acquiring `fs`), so `main` and every
  * production invocation are unchanged.
  *

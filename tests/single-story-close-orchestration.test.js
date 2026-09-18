@@ -1604,7 +1604,7 @@ describe('runSingleStoryClose — lease release on recoverable-blocked exits (St
    * A review halt with ≥1 critical blocker throws from `openAndReviewPr`
    * before the clean-close lease release. The lease must be released
    * best-effort BEFORE the throw propagates, and the original throw must
-   * still surface (per `rules/orchestration-error-handling.md`).
+   * still surface (per `docs/contributing/orchestration-error-handling.md`).
    */
   it('releases the lease then re-throws on a review-critical halt', async (t) => {
     const gh = makeFakeGh((args) => {

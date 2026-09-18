@@ -63,9 +63,7 @@ shapes, commit subjects, push/hygiene MUSTs) — and an **on-demand set**,
 read **before** the matching work (each opens with a one-line "applies
 when…" scope header): `git-conventions-reference.md`,
 `testing-standards.md`, `ci-remediation.md`, `api-conventions.md`,
-`gherkin-standards.md`; plus `orchestration-error-handling.md`,
-`known-tooling-behavior.md`, `test-seams.md`
-(**mandrel contributors only** — consumers skip). Read when unsure;
+`gherkin-standards.md`. Read when unsure;
 on-demand loading does not lower a rule's authority (§ 1.K).
 
 ### G. Structured Configuration

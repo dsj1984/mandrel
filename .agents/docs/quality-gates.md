@@ -56,7 +56,7 @@ filesystem-race surface from shared FS fixtures (`memfs` mounts, `temp/`
 snapshot dirs, the `coverage/` artifact directory shared with the CRAP gate).
 
 The coverage run is the exception: `npm run test:coverage`
-([`.agents/scripts/run-coverage.js`](../scripts/run-coverage.js)) pins
+(`scripts/run-coverage.js` in mandrel's own repository) pins
 `--test-concurrency=8` so coverage timings stay comparable across hosts. Any
 change to the clamp bounds or the coverage pin should be validated on both a
 Windows dev host and a GitHub Actions runner to confirm it doesn't reintroduce
@@ -70,7 +70,7 @@ concurrency flakes.
 > [Baseline reference](#baseline-reference) section below.
 
 `npm run test:coverage` drives
-[`.agents/scripts/run-coverage.js`](../scripts/run-coverage.js),
+`scripts/run-coverage.js` in mandrel's own repository,
 which runs the unit-test suite with `NODE_V8_COVERAGE` set, post-processes
 the V8 dumps with `c8 report`, then delegates to
 [`.agents/scripts/check-baselines.js`](../scripts/check-baselines.js)
@@ -647,9 +647,9 @@ complex, coverage moving underneath a method — stays invisible indefinitely.
 Full-scope scoring on every push is far too expensive to be the answer.
 
 ```bash
-node .agents/scripts/check-baseline-drift.js                     # both kinds
-node .agents/scripts/check-baseline-drift.js --gate crap         # one kind
-node .agents/scripts/check-baseline-drift.js --tolerance 1 --json
+node scripts/check-baseline-drift.js                     # both kinds
+node scripts/check-baseline-drift.js --gate crap         # one kind
+node scripts/check-baseline-drift.js --tolerance 1 --json
 ```
 
 It re-scores full-scope through the *same* scorer that writes the baseline
@@ -706,8 +706,8 @@ producers cannot disagree about scope:
 
 ```bash
 npm run baselines:scope                                  # every kind
-node .agents/scripts/check-baseline-scope.js --kind coverage --json
-node .agents/scripts/check-baseline-scope.js --strict     # skip attribution
+node scripts/check-baseline-scope.js --kind coverage --json
+node scripts/check-baseline-scope.js --strict     # skip attribution
 ```
 
 Two design constraints are worth knowing before reading a report:
@@ -738,7 +738,7 @@ deletion, done as arithmetic:
 
 ```bash
 npm run baselines:prune                                   # write the prune
-node .agents/scripts/prune-baseline-orphans.js --check     # report only, exit 1
+node scripts/prune-baseline-orphans.js --check     # report only, exit 1
 ```
 
 It removes exactly two provably-inert row classes across every file-keyed
@@ -1160,8 +1160,11 @@ workflow for the kind in question.
 
 Refresh paths:
 
-- `npm run test:coverage` then `npm run coverage:update` — rewrites
+- `npm run test:coverage` then `npm run coverage:update`
+  (`node .agents/scripts/update-coverage-baseline.js`) — rewrites
   `baselines/coverage.json`.
+- `node .agents/scripts/update-duplication-baseline.js` — rewrites
+  `baselines/duplication.json`.
 - `node .agents/scripts/update-crap-baseline.js` — rewrites
   `baselines/crap.json`.
 - `node .agents/scripts/update-maintainability-baseline.js` — rewrites

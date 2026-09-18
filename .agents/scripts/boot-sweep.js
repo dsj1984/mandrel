@@ -225,7 +225,7 @@ export function buildSummaryLine(result) {
  * spawning a real sweep against a real git tree.
  *
  * Both seams on the optional final `deps` parameter default to the real
- * implementation (`.agents/rules/test-seams.md` rules 1-2), so `main` and any
+ * implementation (`docs/contributing/test-seams.md` rules 1-2), so `main` and any
  * production caller are unchanged.
  *
  * @param {string[]} [argv]

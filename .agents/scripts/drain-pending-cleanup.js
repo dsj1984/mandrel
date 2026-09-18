@@ -57,7 +57,7 @@ const escalateFrom = (value) => value !== false && value !== 'false';
  * without a real worktree ledger or a real process kill.
  *
  * Every seam on the optional final `deps` parameter defaults to the real
- * implementation (`.agents/rules/test-seams.md` rules 1-2, 4), so `main` and
+ * implementation (`docs/contributing/test-seams.md` rules 1-2, 4), so `main` and
  * every production caller are unchanged.
  *
  * @param {string[]} [argv]

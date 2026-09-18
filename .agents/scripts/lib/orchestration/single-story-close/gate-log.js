@@ -14,7 +14,7 @@
  * re-derive output it already had.
  *
  * Story #4708 set the contract this restores compliance with (see
- * `rules/orchestration-error-handling.md` § Output Contract): compact digest
+ * `docs/contributing/orchestration-error-handling.md` § Output Contract): compact digest
  * plus an on-disk artifact path, ≤ ~2KB on the **default success path**.
  *
  * ## The shape

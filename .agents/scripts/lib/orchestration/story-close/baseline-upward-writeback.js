@@ -20,7 +20,7 @@
  * scope to the branch's changed-file set, fold the writes into one dedicated
  * commit ahead of the gates, log the paths touched, and inject every
  * git / baseline / scoring collaborator so the unit tests never spawn git
- * (`.agents/rules/test-seams.md`).
+ * (`docs/contributing/test-seams.md`).
  *
  * Four constraints bind the design, and every one of them is a "must not":
  *

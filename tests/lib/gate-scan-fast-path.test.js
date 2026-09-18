@@ -30,11 +30,6 @@ import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { minimatch } from 'minimatch';
-
-import {
-  GENERATED_VALIDATOR_PATH,
-  runCli as runGeneratedValidatorCli,
-} from '../../.agents/scripts/check-generated-validator.js';
 import {
   getQuality,
   resolveConfig,
@@ -53,6 +48,10 @@ import {
 } from '../../.agents/scripts/lib/maintainability-utils.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import { resolveTsTranspilerVersion } from '../../.agents/scripts/lib/transpile.js';
+import {
+  GENERATED_VALIDATOR_PATH,
+  runCli as runGeneratedValidatorCli,
+} from '../../scripts/check-generated-validator.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');

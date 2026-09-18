@@ -10,8 +10,8 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { createProgressLogger } from '../../../.agents/scripts/lib/test-isolate/progress-log.js';
-import { runTestIsolate } from '../../../.agents/scripts/lib/test-isolate/run-isolate.js';
+import { createProgressLogger } from '../../../scripts/lib/test-isolate/progress-log.js';
+import { runTestIsolate } from '../../../scripts/lib/test-isolate/run-isolate.js';
 
 /** A report with nothing wrong in it. */
 function okReport(over = {}) {

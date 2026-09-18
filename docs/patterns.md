@@ -456,7 +456,7 @@ surfaced via `Logger.fatal()` at the CLI boundary.
     when the error has already been logged in a structured form and a
     raw stack trace would add noise. Orchestration scripts MUST `throw`
     instead — see
-    [`rules/orchestration-error-handling.md`](../.agents/rules/orchestration-error-handling.md).
+    [`docs/contributing/orchestration-error-handling.md`](contributing/orchestration-error-handling.md).
 
 ### Quick sweep
 

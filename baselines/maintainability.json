@@ -47,24 +47,8 @@
       "mi": 90.24
     },
     {
-      "path": ".agents/scripts/check-action-pinning.js",
-      "mi": 95.351
-    },
-    {
       "path": ".agents/scripts/check-arch-cycles.js",
       "mi": 95.163
-    },
-    {
-      "path": ".agents/scripts/check-audit-attribution.js",
-      "mi": 94.177
-    },
-    {
-      "path": ".agents/scripts/check-baseline-drift.js",
-      "mi": 96.931
-    },
-    {
-      "path": ".agents/scripts/check-baseline-scope.js",
-      "mi": 90.044
     },
     {
       "path": ".agents/scripts/check-baselines.js",
@@ -87,32 +71,8 @@
       "mi": 89.966
     },
     {
-      "path": ".agents/scripts/check-generated-validator.js",
-      "mi": 97.187
-    },
-    {
       "path": ".agents/scripts/check-gherkin-corpus.js",
       "mi": 98.082
-    },
-    {
-      "path": ".agents/scripts/check-knip-entries.js",
-      "mi": 95.873
-    },
-    {
-      "path": ".agents/scripts/check-lifecycle-lint.js",
-      "mi": 97.514
-    },
-    {
-      "path": ".agents/scripts/check-pinned-override-notes.js",
-      "mi": 98.349
-    },
-    {
-      "path": ".agents/scripts/check-schema-references.js",
-      "mi": 99.343
-    },
-    {
-      "path": ".agents/scripts/check-test-portability.js",
-      "mi": 90.279
     },
     {
       "path": ".agents/scripts/check-test-temp-hygiene.js",
@@ -121,18 +81,6 @@
     {
       "path": ".agents/scripts/check-windows-git-perf.js",
       "mi": 95.062
-    },
-    {
-      "path": ".agents/scripts/check-workflow-citations.js",
-      "mi": 101
-    },
-    {
-      "path": ".agents/scripts/check-workflow-cli-lint.js",
-      "mi": 89.165
-    },
-    {
-      "path": ".agents/scripts/check-workflow-timeouts.js",
-      "mi": 95.66
     },
     {
       "path": ".agents/scripts/cleanup-repo-test-temp.js",
@@ -193,18 +141,6 @@
     {
       "path": ".agents/scripts/git-cleanup.js",
       "mi": 116.866
-    },
-    {
-      "path": ".agents/scripts/install-matrix-assert.js",
-      "mi": 90.439
-    },
-    {
-      "path": ".agents/scripts/lib/audit-advisories.js",
-      "mi": 105.717
-    },
-    {
-      "path": ".agents/scripts/lib/audit-attribution.js",
-      "mi": 114.93
     },
     {
       "path": ".agents/scripts/lib/audit-baselines/engine.js",
@@ -399,10 +335,6 @@
       "mi": 106.344
     },
     {
-      "path": ".agents/scripts/lib/baselines/drift-detector.js",
-      "mi": 91.641
-    },
-    {
       "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
       "mi": 92.1
     },
@@ -483,10 +415,6 @@
       "mi": 93.09
     },
     {
-      "path": ".agents/scripts/lib/baselines/orphan-pruner.js",
-      "mi": 96.982
-    },
-    {
       "path": ".agents/scripts/lib/baselines/path-canon.js",
       "mi": 96.667
     },
@@ -501,14 +429,6 @@
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
       "mi": 95.979
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/scope-assert.js",
-      "mi": 102.204
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/scope-inventory.js",
-      "mi": 90.034
     },
     {
       "path": ".agents/scripts/lib/baselines/scope.js",
@@ -601,10 +521,6 @@
     {
       "path": ".agents/scripts/lib/branch-name-guard.js",
       "mi": 96.228
-    },
-    {
-      "path": ".agents/scripts/lib/c8-cli-path.js",
-      "mi": 122.902
     },
     {
       "path": ".agents/scripts/lib/changed-files.js",
@@ -879,42 +795,6 @@
       "mi": 98.772
     },
     {
-      "path": ".agents/scripts/lib/dynamic-workflow/architecture-report-contract.js",
-      "mi": 120.402
-    },
-    {
-      "path": ".agents/scripts/lib/dynamic-workflow/audit-orchestrator.js",
-      "mi": 106.127
-    },
-    {
-      "path": ".agents/scripts/lib/dynamic-workflow/clean-code-report-contract.js",
-      "mi": 116.629
-    },
-    {
-      "path": ".agents/scripts/lib/dynamic-workflow/degraded-coverage.js",
-      "mi": 113.559
-    },
-    {
-      "path": ".agents/scripts/lib/dynamic-workflow/documentation-report-contract.js",
-      "mi": 113.542
-    },
-    {
-      "path": ".agents/scripts/lib/dynamic-workflow/performance-report-contract.js",
-      "mi": 120.402
-    },
-    {
-      "path": ".agents/scripts/lib/dynamic-workflow/quality-report-contract.js",
-      "mi": 113.542
-    },
-    {
-      "path": ".agents/scripts/lib/dynamic-workflow/report-contract-core.js",
-      "mi": 120.807
-    },
-    {
-      "path": ".agents/scripts/lib/dynamic-workflow/security-report-contract.js",
-      "mi": 116.629
-    },
-    {
       "path": ".agents/scripts/lib/env-loader.js",
       "mi": 98.699
     },
@@ -977,10 +857,6 @@
     {
       "path": ".agents/scripts/lib/format-generated-json.js",
       "mi": 105.423
-    },
-    {
-      "path": ".agents/scripts/lib/fs-walk.js",
-      "mi": 102.83
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
@@ -1049,14 +925,6 @@
     {
       "path": ".agents/scripts/lib/json-utils.js",
       "mi": 95.486
-    },
-    {
-      "path": ".agents/scripts/lib/knip-config-resolver.js",
-      "mi": 93.327
-    },
-    {
-      "path": ".agents/scripts/lib/knip-entry-sync.js",
-      "mi": 93.513
     },
     {
       "path": ".agents/scripts/lib/label-constants.js",
@@ -1747,14 +1615,6 @@
       "mi": 117.206
     },
     {
-      "path": ".agents/scripts/lib/pinned-override-notes.js",
-      "mi": 112.738
-    },
-    {
-      "path": ".agents/scripts/lib/pinned-override-resolve.js",
-      "mi": 99.325
-    },
-    {
       "path": ".agents/scripts/lib/plan-phase-cleanup.js",
       "mi": 97.185
     },
@@ -1915,46 +1775,6 @@
       "mi": 113.742
     },
     {
-      "path": ".agents/scripts/lib/test-isolate/cli-options.js",
-      "mi": 100.79
-    },
-    {
-      "path": ".agents/scripts/lib/test-isolate/env-snapshot-loader.js",
-      "mi": 90.179
-    },
-    {
-      "path": ".agents/scripts/lib/test-isolate/list-files.js",
-      "mi": 105.26
-    },
-    {
-      "path": ".agents/scripts/lib/test-isolate/parse-tap.js",
-      "mi": 90.055
-    },
-    {
-      "path": ".agents/scripts/lib/test-isolate/progress-log.js",
-      "mi": 126.384
-    },
-    {
-      "path": ".agents/scripts/lib/test-isolate/render-report.js",
-      "mi": 100.581
-    },
-    {
-      "path": ".agents/scripts/lib/test-isolate/run-isolate.js",
-      "mi": 96.619
-    },
-    {
-      "path": ".agents/scripts/lib/test-isolate/runner.js",
-      "mi": 96.777
-    },
-    {
-      "path": ".agents/scripts/lib/test-profile/parse-tap.js",
-      "mi": 88.111
-    },
-    {
-      "path": ".agents/scripts/lib/test-profile/render-report.js",
-      "mi": 99.299
-    },
-    {
       "path": ".agents/scripts/lib/test-run-credit.js",
       "mi": 89.592
     },
@@ -2103,10 +1923,6 @@
       "mi": 98.874
     },
     {
-      "path": ".agents/scripts/lint-label-vocabulary.js",
-      "mi": 88.767
-    },
-    {
       "path": ".agents/scripts/mandrel-update-preflight.js",
       "mi": 88.701
     },
@@ -2137,10 +1953,6 @@
     {
       "path": ".agents/scripts/plan-run-epilogue.js",
       "mi": 98.61
-    },
-    {
-      "path": ".agents/scripts/post-structured-comment.js",
-      "mi": 95.413
     },
     {
       "path": ".agents/scripts/pr-watch-with-update.js",
@@ -2231,14 +2043,6 @@
       "mi": 97.023
     },
     {
-      "path": ".agents/scripts/provision-git-hooks.js",
-      "mi": 99.801
-    },
-    {
-      "path": ".agents/scripts/prune-baseline-orphans.js",
-      "mi": 94.372
-    },
-    {
       "path": ".agents/scripts/prune-plan-run-labels.js",
       "mi": 93.491
     },
@@ -2263,24 +2067,8 @@
       "mi": 94.096
     },
     {
-      "path": ".agents/scripts/run-coverage.js",
-      "mi": 98.949
-    },
-    {
-      "path": ".agents/scripts/run-lint.js",
-      "mi": 112.164
-    },
-    {
-      "path": ".agents/scripts/run-test-profile.js",
-      "mi": 84.205
-    },
-    {
       "path": ".agents/scripts/run-tests.js",
       "mi": 93.79
-    },
-    {
-      "path": ".agents/scripts/run-verify.js",
-      "mi": 101.048
     },
     {
       "path": ".agents/scripts/single-story-close.js",
@@ -2311,10 +2099,6 @@
       "mi": 99.917
     },
     {
-      "path": ".agents/scripts/test-isolate.js",
-      "mi": 112.896
-    },
-    {
       "path": ".agents/scripts/test-wrapper.js",
       "mi": 115.673
     },
@@ -2325,10 +2109,6 @@
     {
       "path": ".agents/scripts/update-crap-baseline.js",
       "mi": 96.013
-    },
-    {
-      "path": ".agents/scripts/update-dead-exports-baseline.js",
-      "mi": 93.247
     },
     {
       "path": ".agents/scripts/update-duplication-baseline.js",
@@ -2445,6 +2225,238 @@
     {
       "path": "lib/migrations/steps/2.60.0-retire-audit-results-autofile.js",
       "mi": 117.829
+    },
+    {
+      "path": "scripts/check-action-pinning.js",
+      "mi": 95.351
+    },
+    {
+      "path": "scripts/check-audit-attribution.js",
+      "mi": 94.177
+    },
+    {
+      "path": "scripts/check-baseline-drift.js",
+      "mi": 96.931
+    },
+    {
+      "path": "scripts/check-baseline-scope.js",
+      "mi": 90.044
+    },
+    {
+      "path": "scripts/check-generated-validator.js",
+      "mi": 97.187
+    },
+    {
+      "path": "scripts/check-knip-entries.js",
+      "mi": 95.873
+    },
+    {
+      "path": "scripts/check-lifecycle-lint.js",
+      "mi": 97.514
+    },
+    {
+      "path": "scripts/check-payload-boundary.js",
+      "mi": 107.036
+    },
+    {
+      "path": "scripts/check-pinned-override-notes.js",
+      "mi": 98.349
+    },
+    {
+      "path": "scripts/check-schema-references.js",
+      "mi": 99.343
+    },
+    {
+      "path": "scripts/check-test-portability.js",
+      "mi": 90.279
+    },
+    {
+      "path": "scripts/check-version-sync.js",
+      "mi": 97.827
+    },
+    {
+      "path": "scripts/check-workflow-citations.js",
+      "mi": 101
+    },
+    {
+      "path": "scripts/check-workflow-cli-lint.js",
+      "mi": 89.165
+    },
+    {
+      "path": "scripts/check-workflow-timeouts.js",
+      "mi": 95.66
+    },
+    {
+      "path": "scripts/install-matrix-assert.js",
+      "mi": 90.439
+    },
+    {
+      "path": "scripts/lib/audit-advisories.js",
+      "mi": 105.717
+    },
+    {
+      "path": "scripts/lib/audit-attribution.js",
+      "mi": 114.93
+    },
+    {
+      "path": "scripts/lib/baselines/drift-detector.js",
+      "mi": 91.641
+    },
+    {
+      "path": "scripts/lib/baselines/orphan-pruner.js",
+      "mi": 96.982
+    },
+    {
+      "path": "scripts/lib/baselines/scope-assert.js",
+      "mi": 102.204
+    },
+    {
+      "path": "scripts/lib/baselines/scope-inventory.js",
+      "mi": 90.034
+    },
+    {
+      "path": "scripts/lib/c8-cli-path.js",
+      "mi": 122.902
+    },
+    {
+      "path": "scripts/lib/dynamic-workflow/architecture-report-contract.js",
+      "mi": 120.402
+    },
+    {
+      "path": "scripts/lib/dynamic-workflow/audit-orchestrator.js",
+      "mi": 106.127
+    },
+    {
+      "path": "scripts/lib/dynamic-workflow/clean-code-report-contract.js",
+      "mi": 116.629
+    },
+    {
+      "path": "scripts/lib/dynamic-workflow/degraded-coverage.js",
+      "mi": 113.559
+    },
+    {
+      "path": "scripts/lib/dynamic-workflow/documentation-report-contract.js",
+      "mi": 113.542
+    },
+    {
+      "path": "scripts/lib/dynamic-workflow/performance-report-contract.js",
+      "mi": 120.402
+    },
+    {
+      "path": "scripts/lib/dynamic-workflow/quality-report-contract.js",
+      "mi": 113.542
+    },
+    {
+      "path": "scripts/lib/dynamic-workflow/report-contract-core.js",
+      "mi": 120.807
+    },
+    {
+      "path": "scripts/lib/dynamic-workflow/security-report-contract.js",
+      "mi": 116.629
+    },
+    {
+      "path": "scripts/lib/fs-walk.js",
+      "mi": 102.83
+    },
+    {
+      "path": "scripts/lib/knip-config-resolver.js",
+      "mi": 93.327
+    },
+    {
+      "path": "scripts/lib/knip-entry-sync.js",
+      "mi": 93.513
+    },
+    {
+      "path": "scripts/lib/payload-boundary.js",
+      "mi": 102.547
+    },
+    {
+      "path": "scripts/lib/pinned-override-notes.js",
+      "mi": 112.738
+    },
+    {
+      "path": "scripts/lib/pinned-override-resolve.js",
+      "mi": 99.325
+    },
+    {
+      "path": "scripts/lib/test-isolate/cli-options.js",
+      "mi": 100.79
+    },
+    {
+      "path": "scripts/lib/test-isolate/env-snapshot-loader.js",
+      "mi": 90.179
+    },
+    {
+      "path": "scripts/lib/test-isolate/list-files.js",
+      "mi": 105.26
+    },
+    {
+      "path": "scripts/lib/test-isolate/parse-tap.js",
+      "mi": 90.055
+    },
+    {
+      "path": "scripts/lib/test-isolate/progress-log.js",
+      "mi": 126.384
+    },
+    {
+      "path": "scripts/lib/test-isolate/render-report.js",
+      "mi": 100.581
+    },
+    {
+      "path": "scripts/lib/test-isolate/run-isolate.js",
+      "mi": 96.619
+    },
+    {
+      "path": "scripts/lib/test-isolate/runner.js",
+      "mi": 96.777
+    },
+    {
+      "path": "scripts/lib/test-profile/parse-tap.js",
+      "mi": 88.111
+    },
+    {
+      "path": "scripts/lib/test-profile/render-report.js",
+      "mi": 99.299
+    },
+    {
+      "path": "scripts/lint-label-vocabulary.js",
+      "mi": 88.767
+    },
+    {
+      "path": "scripts/post-structured-comment.js",
+      "mi": 95.413
+    },
+    {
+      "path": "scripts/provision-git-hooks.js",
+      "mi": 99.801
+    },
+    {
+      "path": "scripts/prune-baseline-orphans.js",
+      "mi": 94.372
+    },
+    {
+      "path": "scripts/run-coverage.js",
+      "mi": 98.949
+    },
+    {
+      "path": "scripts/run-lint.js",
+      "mi": 112.164
+    },
+    {
+      "path": "scripts/run-test-profile.js",
+      "mi": 84.205
+    },
+    {
+      "path": "scripts/run-verify.js",
+      "mi": 101.048
+    },
+    {
+      "path": "scripts/test-isolate.js",
+      "mi": 112.896
+    },
+    {
+      "path": "scripts/update-dead-exports-baseline.js",
+      "mi": 93.247
     }
   ]
 }

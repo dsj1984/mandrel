@@ -11,7 +11,7 @@ import { main } from '../.agents/scripts/plan-run-epilogue.js';
  * unreached.
  *
  * Config, provider, epilogue engine and log sink are injected through the
- * optional final `deps` parameter (`.agents/rules/test-seams.md` rules 1 and
+ * optional final `deps` parameter (`docs/contributing/test-seams.md` rules 1 and
  * 5) — no GitHub call, no module mocking.
  */
 

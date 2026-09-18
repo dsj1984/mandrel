@@ -37,7 +37,7 @@
         },
         "crap": {
           "floors": { "*": { "methodsAbove20": 2 } },
-          "targetDirs": [".agents/scripts", "bin", "lib"],
+          "targetDirs": [".agents/scripts", "bin", "lib", "scripts"],
           "ignoreGlobs": [
             ".agents/scripts/**/__tests__/**",
             ".agents/scripts/lib/generated/**",
@@ -46,7 +46,7 @@
         },
         "maintainability": {
           "floors": { "*": { "min": 76 } },
-          "targetDirs": [".agents/scripts", "bin", "lib"],
+          "targetDirs": [".agents/scripts", "bin", "lib", "scripts"],
           "tolerance": { "kind": "absolute", "value": 0.5 },
           "ignoreGlobs": [
             ".agents/scripts/lib/config-settings-schema*.js",
@@ -58,7 +58,7 @@
         },
         "duplication": {
           "floors": { "*": { "percentage": 8 } },
-          "targetDirs": [".agents/scripts", "bin", "lib"],
+          "targetDirs": [".agents/scripts", "bin", "lib", "scripts"],
           "tolerance": { "kind": "absolute", "value": 1 },
           "ignoreGlobs": [
             ".agents/scripts/**/__tests__/**",

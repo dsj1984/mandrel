@@ -11,7 +11,7 @@ name: Install Matrix
 # in-tree code, not whatever is currently on the npm registry), installs it
 # into a throwaway consumer project with the leg's package manager, and then
 # asserts the three golden-path invariants via
-# `.agents/scripts/install-matrix-assert.js` (one cross-platform Node script
+# `scripts/install-matrix-assert.js` (one cross-platform Node script
 # instead of divergent PowerShell/bash snippets, which diverge on quoting,
 # `$?`, and path separators):
 #
@@ -338,7 +338,7 @@ jobs:
       - name: Assert materialization + clean consumer manifest
         shell: bash
         run: |
-          node "$GITHUB_WORKSPACE/.agents/scripts/install-matrix-assert.js" \
+          node "$GITHUB_WORKSPACE/scripts/install-matrix-assert.js" \
             --consumer "$CONSUMER_DIR" \
             --check materialized \
             --check manifest-clean
@@ -349,7 +349,7 @@ jobs:
         run: |
           set -o pipefail
           node "$MANDREL_BIN" doctor 2>&1 | tee "$RUNNER_TEMP/doctor-output.txt"
-          node "$GITHUB_WORKSPACE/.agents/scripts/install-matrix-assert.js" \
+          node "$GITHUB_WORKSPACE/scripts/install-matrix-assert.js" \
             --consumer "$CONSUMER_DIR" \
             --check doctor-ready \
             --doctor-output "$RUNNER_TEMP/doctor-output.txt"
@@ -500,7 +500,7 @@ jobs:
         if: matrix.leg == 'postinstall-materialization'
         shell: bash
         run: |
-          node "$GITHUB_WORKSPACE/.agents/scripts/install-matrix-assert.js" \
+          node "$GITHUB_WORKSPACE/scripts/install-matrix-assert.js" \
             --consumer "$CONSUMER_DIR" \
             --check materialized \
             --check manifest-clean
@@ -512,7 +512,7 @@ jobs:
         run: |
           set -o pipefail
           node "$MANDREL_BIN" doctor 2>&1 | tee "$RUNNER_TEMP/doctor-output.txt"
-          node "$GITHUB_WORKSPACE/.agents/scripts/install-matrix-assert.js" \
+          node "$GITHUB_WORKSPACE/scripts/install-matrix-assert.js" \
             --consumer "$CONSUMER_DIR" \
             --check doctor-ready \
             --doctor-output "$RUNNER_TEMP/doctor-output.txt"
@@ -548,7 +548,7 @@ jobs:
         if: matrix.leg == 'cold-start'
         shell: bash
         run: |
-          node "$GITHUB_WORKSPACE/.agents/scripts/install-matrix-assert.js" \
+          node "$GITHUB_WORKSPACE/scripts/install-matrix-assert.js" \
             --consumer "$CONSUMER_DIR" \
             --check materialized
 
@@ -559,7 +559,7 @@ jobs:
         run: |
           set -o pipefail
           node "$MANDREL_BIN" doctor 2>&1 | tee "$RUNNER_TEMP/doctor-output.txt"
-          node "$GITHUB_WORKSPACE/.agents/scripts/install-matrix-assert.js" \
+          node "$GITHUB_WORKSPACE/scripts/install-matrix-assert.js" \
             --consumer "$CONSUMER_DIR" \
             --check doctor-ready \
             --doctor-output "$RUNNER_TEMP/doctor-output.txt"
@@ -616,7 +616,7 @@ jobs:
         run: |
           set -o pipefail
           node "$MANDREL_BIN" doctor 2>&1 | tee "$RUNNER_TEMP/doctor-output.txt"
-          node "$GITHUB_WORKSPACE/.agents/scripts/install-matrix-assert.js" \
+          node "$GITHUB_WORKSPACE/scripts/install-matrix-assert.js" \
             --consumer "$CONSUMER_DIR" \
             --check doctor-ready \
             --doctor-output "$RUNNER_TEMP/doctor-output.txt"
@@ -736,7 +736,7 @@ jobs:
         # Proves resolveNewBinPath resolved a RUNNABLE binary under pnpm: the
         # re-exec'd `sync` from node_modules/.bin/mandrel materialized .agents/.
         run: |
-          node "$GITHUB_WORKSPACE/.agents/scripts/install-matrix-assert.js" \
+          node "$GITHUB_WORKSPACE/scripts/install-matrix-assert.js" \
             --consumer "$CONSUMER_DIR" \
             --check materialized \
             --check manifest-clean
@@ -749,7 +749,7 @@ jobs:
         run: |
           set -o pipefail
           node "$MANDREL_BIN" doctor 2>&1 | tee "$RUNNER_TEMP/doctor-output.txt"
-          node "$GITHUB_WORKSPACE/.agents/scripts/install-matrix-assert.js" \
+          node "$GITHUB_WORKSPACE/scripts/install-matrix-assert.js" \
             --consumer "$CONSUMER_DIR" \
             --check doctor-ready \
             --doctor-output "$RUNNER_TEMP/doctor-output.txt"

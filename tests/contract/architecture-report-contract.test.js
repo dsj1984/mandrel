@@ -19,18 +19,18 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
-  assertReportContract,
-  FINDING_FIELDS,
-  REPORT_ARTIFACT_BASENAME,
-  REPORT_TITLE,
-  REQUIRED_SECTIONS,
-} from '../../.agents/scripts/lib/dynamic-workflow/architecture-report-contract.js';
-import {
   buildScopeClause,
   buildSynthesisPrompt,
   DIMENSION_FINDING_FIELDS,
   DIMENSIONS,
 } from '../../.claude/workflows/audit-architecture.workflow.js';
+import {
+  assertReportContract,
+  FINDING_FIELDS,
+  REPORT_ARTIFACT_BASENAME,
+  REPORT_TITLE,
+  REQUIRED_SECTIONS,
+} from '../../scripts/lib/dynamic-workflow/architecture-report-contract.js';
 
 const REPO_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),

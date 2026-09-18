@@ -673,7 +673,7 @@ resolve configuration, so the compile was being paid over and over to
 re-derive a function from a literal that is already in the repository.
 
 The artifact is generated — never hand-edited — by
-[`check-generated-validator.js`](../scripts/check-generated-validator.js):
+`scripts/check-generated-validator.js` (mandrel's own repository):
 
 ```bash
 npm run validator:gen     # rewrite it after a deliberate schema change

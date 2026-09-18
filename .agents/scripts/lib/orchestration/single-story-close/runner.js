@@ -502,7 +502,7 @@ async function releaseLease({
  * that gap.
  *
  * The original throw is preserved verbatim (per
- * `rules/orchestration-error-handling.md` — throw, never `Logger.fatal`),
+ * `docs/contributing/orchestration-error-handling.md` — throw, never `Logger.fatal`),
  * so the CLI boundary still maps it to a non-zero exit; the lease release
  * must not swallow it. `releaseLease` is itself best-effort and never
  * throws, so it cannot mask the real failure. Fail-closed re-acquire

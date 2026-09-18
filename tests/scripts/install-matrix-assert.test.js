@@ -27,7 +27,7 @@ import {
   checkMaterialized,
   parseArgs,
   runAssertions,
-} from '../../.agents/scripts/install-matrix-assert.js';
+} from '../../scripts/install-matrix-assert.js';
 
 /**
  * Build an in-memory fs from a path→content map.

@@ -40,7 +40,7 @@
  * the refuse-by-throw boundary that the three guards previously each
  * re-implemented.
  *
- * Per `.agents/rules/orchestration-error-handling.md`, failures surface via
+ * Per `docs/contributing/orchestration-error-handling.md`, failures surface via
  * `throw new Error(...)`, never `Logger.fatal`.
  */
 

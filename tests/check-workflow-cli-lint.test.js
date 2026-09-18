@@ -18,13 +18,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
+import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 import {
   lintWorkflowSource,
   runCheck,
   stripFences,
   toParagraphs,
-} from '../.agents/scripts/check-workflow-cli-lint.js';
-import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
+} from '../scripts/check-workflow-cli-lint.js';
 
 describe('workflow-cli-lint — flags the retired no-CLI instruction shapes', () => {
   it('flags the imperative "Call `fn(...)` exported from" paragraph (retired Phase 2 shape)', () => {

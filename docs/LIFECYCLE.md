@@ -130,7 +130,7 @@ taxonomy are different vocabularies, and `merge.unlanded` / `merge.flip-failed`
 are allowlistable for webhooks without having a `notify()` dispatcher today.
 
 The merge-lockout lint
-([`.agents/scripts/check-lifecycle-lint.js`](../.agents/scripts/check-lifecycle-lint.js))
+([`scripts/check-lifecycle-lint.js`](../scripts/check-lifecycle-lint.js))
 enforces that the literal `gh pr merge` call lives only inside
 `single-story-close/phases/auto-merge.js`. Any other module that re-introduces
 the string fails lint.

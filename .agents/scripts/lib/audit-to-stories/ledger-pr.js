@@ -9,7 +9,7 @@
  *
  * Every refusal in this module happens **before** its first write, so a refused
  * run cannot have left a branch or a commit behind. The git and `gh` seams are
- * injected (`.agents/rules/test-seams.md`), so the whole retry matrix is
+ * injected (`docs/contributing/test-seams.md`), so the whole retry matrix is
  * assertable without a live remote.
  */
 

@@ -15,7 +15,7 @@ import {
  * shipped green.
  *
  * The sweep engine and the log sink are injected through the optional final
- * `deps` parameter (`.agents/rules/test-seams.md` rules 1 and 5), so no real
+ * `deps` parameter (`docs/contributing/test-seams.md` rules 1 and 5), so no real
  * branch is ever reaped by this suite.
  */
 

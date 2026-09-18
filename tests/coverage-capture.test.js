@@ -15,7 +15,7 @@ import { handleCoverageCaptureHelp } from '../.agents/scripts/lib/coverage-captu
  * `npm run test:coverage` runs before the CRAP gate fires had no unit test,
  * because the module used to `process.exit()` on import. It is now guarded by
  * a direct-invocation check, and its decision table is driven entirely
- * through the optional final `deps` parameter (`.agents/rules/test-seams.md`
+ * through the optional final `deps` parameter (`docs/contributing/test-seams.md`
  * rules 1 and 5) — no suite is ever spawned by this file.
  */
 

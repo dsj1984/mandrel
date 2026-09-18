@@ -1,7 +1,7 @@
 /**
  * cli-options.test.js — the `test-isolate` argv parse (Story #5316).
  *
- * This logic used to live in `.agents/scripts/test-isolate.js`, which no test
+ * This logic used to live in `scripts/test-isolate.js`, which no test
  * imports, so it sat at 0% coverage and scored CRAP 210 — the formula's
  * untested maximum at cyclomatic 14. These cases exist to make that number a
  * measurement of tested code rather than of silence, so they cover every
@@ -10,7 +10,7 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { parseIsolateArgv } from '../../../.agents/scripts/lib/test-isolate/cli-options.js';
+import { parseIsolateArgv } from '../../../scripts/lib/test-isolate/cli-options.js';
 
 describe('parseIsolateArgv — defaults', () => {
   it('returns the documented defaults for an empty argv', () => {

@@ -114,7 +114,7 @@ const VERDICT_SCHEMA_PATH = path.resolve(
  * Deliberately **not** memoised in a module-level variable: a module-level
  * cache is reset only on re-import, so it silently defeats the `io` seam below
  * (the second caller's injected reader is never consulted) and makes parallel
- * test isolation impossible — `.agents/rules/test-seams.md` rule 3. The gate
+ * test isolation impossible — `docs/contributing/test-seams.md` rule 3. The gate
  * compiles the schema once per CLI run, so there is nothing to memoise.
  *
  * @param {string} [schemaPath]
@@ -479,7 +479,7 @@ export async function runAcceptanceEval(
  * reachable without spawning the CLI or writing a real verdict file.
  *
  * Every seam on the optional final `deps` parameter defaults to the real
- * implementation (`.agents/rules/test-seams.md` rules 1-2, 4), so `main` and
+ * implementation (`docs/contributing/test-seams.md` rules 1-2, 4), so `main` and
  * every production invocation are unchanged.
  *
  * @param {string[]} [argv]

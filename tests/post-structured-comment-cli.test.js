@@ -4,7 +4,7 @@ import { upsertStructuredComment } from '../.agents/scripts/lib/orchestration/ti
 import {
   runPostStructuredComment,
   validateRequiredArgs,
-} from '../.agents/scripts/post-structured-comment.js';
+} from '../scripts/post-structured-comment.js';
 
 /**
  * In-memory provider mirroring the surface `upsertStructuredComment` uses:

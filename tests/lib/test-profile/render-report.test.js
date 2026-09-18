@@ -4,8 +4,8 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { parseTapOutput } from '../../../.agents/scripts/lib/test-profile/parse-tap.js';
-import { renderProfileReport } from '../../../.agents/scripts/lib/test-profile/render-report.js';
+import { parseTapOutput } from '../../../scripts/lib/test-profile/parse-tap.js';
+import { renderProfileReport } from '../../../scripts/lib/test-profile/render-report.js';
 
 const fixturePath = path.join(
   path.dirname(fileURLToPath(import.meta.url)),

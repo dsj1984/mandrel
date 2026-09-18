@@ -29,21 +29,18 @@ import test, { after, describe } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { currentKernelVersion } from '../../../.agents/scripts/lib/baselines/kernel.js';
+import { load } from '../../../.agents/scripts/lib/baselines/reader.js';
+import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
 import {
   PRUNABLE_KINDS,
   planPrune,
   pruneEnvelope,
   runPrune,
-} from '../../../.agents/scripts/lib/baselines/orphan-pruner.js';
-import { load } from '../../../.agents/scripts/lib/baselines/reader.js';
-import { EXTRA_REASONS } from '../../../.agents/scripts/lib/baselines/scope-assert.js';
-import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
+} from '../../../scripts/lib/baselines/orphan-pruner.js';
+import { EXTRA_REASONS } from '../../../scripts/lib/baselines/scope-assert.js';
 
 const CLI = fileURLToPath(
-  new URL(
-    '../../../.agents/scripts/prune-baseline-orphans.js',
-    import.meta.url,
-  ),
+  new URL('../../../scripts/prune-baseline-orphans.js', import.meta.url),
 );
 
 const TMP = fs.realpathSync(makeTempDir('orphan-pruner-'));

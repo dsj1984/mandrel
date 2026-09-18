@@ -19,7 +19,7 @@ import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..');
-const GUARD = path.join(REPO_ROOT, '.agents/scripts/check-test-portability.js');
+const GUARD = path.join(REPO_ROOT, 'scripts/check-test-portability.js');
 
 /**
  * Plant a synthetic repo root holding `files` (repo-relative path → source)
@@ -61,7 +61,7 @@ describe('check-test-portability — the real tree', () => {
       encoding: 'utf8',
     });
     assert.equal(result.status, 0);
-    assert.match(result.stdout, /^Usage: node \.agents\/scripts/);
+    assert.match(result.stdout, /^Usage: node scripts\//);
     assert.doesNotMatch(result.stdout, /OK —|FAIL —/);
   });
 });

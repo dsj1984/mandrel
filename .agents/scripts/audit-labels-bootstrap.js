@@ -18,7 +18,7 @@
  *
  * Delegates to `gh label create` so the script works without any
  * provider plumbing — `gh auth status` is the only prerequisite. Per
- * .agents/rules/orchestration-error-handling.md, the CLI surface throws
+ * docs/contributing/orchestration-error-handling.md, the CLI surface throws
  * rather than calling Logger.fatal.
  */
 

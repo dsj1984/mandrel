@@ -5,12 +5,11 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-
+import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import {
   findMergeLockoutViolations,
   findPromiseAllViolations,
-} from '../../.agents/scripts/check-lifecycle-lint.js';
-import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
+} from '../../scripts/check-lifecycle-lint.js';
 
 describe('lifecycle-lint/no-promise-all-lifecycle', () => {
   let dir;
@@ -76,12 +75,7 @@ const REPO_ROOT = path.resolve(
   '..',
   '..',
 );
-const SCRIPT_PATH = path.join(
-  REPO_ROOT,
-  '.agents',
-  'scripts',
-  'check-lifecycle-lint.js',
-);
+const SCRIPT_PATH = path.join(REPO_ROOT, 'scripts', 'check-lifecycle-lint.js');
 
 describe('lifecycle-lint/cli', () => {
   // Story #5024: `main()` was the whole uncovered surface of this script — the
@@ -236,7 +230,7 @@ describe('lifecycle-lint/cli', () => {
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.match(
       result.stdout,
-      /^Usage: node \.agents\/scripts\/check-lifecycle-lint\.js /m,
+      /^Usage: node scripts\/check-lifecycle-lint\.js /m,
       'usage block did not print the invocation line',
     );
     assert.match(result.stdout, /--root <dir>/);

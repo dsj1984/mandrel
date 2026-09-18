@@ -5,7 +5,7 @@ import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import {
   parseProfileArgv,
   runTestProfile,
-} from '../../.agents/scripts/run-test-profile.js';
+} from '../../scripts/run-test-profile.js';
 
 test('parseProfileArgv defaults outDir and top', () => {
   const parsed = parseProfileArgv(['--grep', 'foo']);

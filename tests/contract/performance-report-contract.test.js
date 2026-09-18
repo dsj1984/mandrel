@@ -19,13 +19,6 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
-  assertReportContract,
-  FINDING_FIELDS,
-  REPORT_ARTIFACT_BASENAME,
-  REPORT_TITLE,
-  REQUIRED_SECTIONS,
-} from '../../.agents/scripts/lib/dynamic-workflow/performance-report-contract.js';
-import {
   buildDimensionPrompt,
   buildScopeClause,
   buildSynthesisPrompt,
@@ -33,6 +26,13 @@ import {
   MEASUREMENT_TOOLS,
   READ_ONLY_TOOLS,
 } from '../../.claude/workflows/audit-performance.workflow.js';
+import {
+  assertReportContract,
+  FINDING_FIELDS,
+  REPORT_ARTIFACT_BASENAME,
+  REPORT_TITLE,
+  REQUIRED_SECTIONS,
+} from '../../scripts/lib/dynamic-workflow/performance-report-contract.js';
 
 const REPO_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),

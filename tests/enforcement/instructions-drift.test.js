@@ -81,7 +81,7 @@ test('scanInstructions: flags retired MCP tool names', () => {
 });
 
 test('scanInstructions: ignores hyphenated CLI script names', () => {
-  const sample = '`node .agents/scripts/post-structured-comment.js --ticket 1`';
+  const sample = '`node scripts/post-structured-comment.js --ticket 1`';
   const { retiredMcpOffenses } = scanInstructions(sample);
   assert.strictEqual(retiredMcpOffenses.length, 0);
 });

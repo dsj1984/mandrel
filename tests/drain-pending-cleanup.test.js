@@ -12,7 +12,7 @@ import { runDrainPendingCleanup } from '../.agents/scripts/drain-pending-cleanup
  *
  * Everything it touches — config, the manifest reader, the holder probe, the
  * drain engine, git, and the progress sink — is injected through the optional
- * final `deps` parameter (`.agents/rules/test-seams.md` rules 1 and 5).
+ * final `deps` parameter (`docs/contributing/test-seams.md` rules 1 and 5).
  */
 
 const ROOT = path.resolve(path.sep, 'repo');

@@ -102,7 +102,7 @@ export function parseArgs(argv) {
  * `npm run test:coverage` or touching the real filesystem.
  *
  * Every seam on the optional final `deps` parameter defaults to the real
- * implementation (`.agents/rules/test-seams.md` rules 1-2, 4), so the CLI
+ * implementation (`docs/contributing/test-seams.md` rules 1-2, 4), so the CLI
  * shell below and any production caller are unchanged.
  *
  * @param {string[]} [argv] Full `process.argv`-shaped array.

@@ -88,7 +88,7 @@ superseded — open it before citing it.
 | [`20260828-5077e`](#adr-20260828-5077e-agentrcjson-has-a-closed-five-block-top-level-there-is-no-agentsettings-namespace) | `.agentrc.json` has a closed five-block top level | `.agents/schemas/agentrc.schema.json` | Accepted |
 | [`20260828-5077f`](#adr-20260828-5077f-dependency-ordering-has-two-channels--declared-edges-and-the-delivery-time-footprint-guard) | Two ordering channels — declared edges + footprint guard | `.agents/scripts/stories-wave-tick.js` | Accepted |
 | [`20260806-lifecycle-bus-retired`](#adr-20260806-lifecycle-bus-retired-delete-the-lifecycle-bus-the-close-path-owns-its-side-effects-directly) | Delete the lifecycle bus; the close path owns its side effects directly | `.agents/scripts/lib/orchestration/lifecycle/emit-ledger-event.js` | Accepted |
-| [`20260802-4938-schema-compilers`](#adr-20260802-4938-schema-compilers-a-schema-is-compiled-by-code-or-declares-in-file-why-not) | A schema is compiled by code, or declares in-file why not | `.agents/scripts/check-schema-references.js` | Accepted |
+| [`20260802-4938-schema-compilers`](#adr-20260802-4938-schema-compilers-a-schema-is-compiled-by-code-or-declares-in-file-why-not) | A schema is compiled by code, or declares in-file why not | `scripts/check-schema-references.js` | Accepted |
 | [`20260726-v2-story-collapse`](#adr-20260726-v2-story-collapse-story-only-ticket-model-one-plan-one-deliver-one-engine) | Story-only ticket model; one /plan, one /deliver, one engine | `.agents/workflows/mandrel-deliver.md` | Accepted in part |
 | [`20260624-loop-units-division-of-labor`](#adr-20260624-loop-units-division-of-labor-mandrel-owns-content--oracle--contract-the-host-owns-cadence--iteration) | mandrel owns content + oracle + contract; the host owns cadence +… | `.agents/scripts/sync-claude-commands.js` | Accepted |
 | [`20260610-planning-determinism-dispositions`](#adr-20260610-planning-determinism-dispositions-per-layer-dispositions-for-the-deterministic-planning-proxies) | Per-layer dispositions for the deterministic planning proxies | `.agents/scripts/lib/orchestration/ticket-validator.js` | Accepted in part |
@@ -100,7 +100,7 @@ superseded — open it before citing it.
 | [`20260426-829a`](#adr-20260426-829a-strip-then-analyze-for-typescript-scoring-keep-typhonjs-escomplex) | Strip-then-analyze for TypeScript scoring; keep typhonjs-escomplex | `.agents/scripts/lib/transpile.js` | Accepted |
 | [`20260425-773a`](#adr-20260425-773a-crap-gate-becomes-hard-enforcing) | CRAP gate becomes hard-enforcing | `baselines/crap.json` | Accepted |
 | [`20260425-773b`](#adr-20260425-773b-decompose-two-further-large-modules-behind-byte-identical-facades) | Decompose two further large modules behind byte-identical facades | `.agents/scripts/lib/worktree/lifecycle-manager.js` | Accepted |
-| [`20260424-702a`](#adr-20260424-702a-retire-mandrel-mcp) | Retire mandrel MCP | `.agents/scripts/post-structured-comment.js` | Accepted |
+| [`20260424-702a`](#adr-20260424-702a-retire-mandrel-mcp) | Retire mandrel MCP | `scripts/post-structured-comment.js` | Accepted |
 | [`20260424-668a`](#adr-20260424-668a-resolve-worktreeisolationenabled-from-environment-not-config) | Resolve `worktreeIsolation.enabled` from environment, not config | `.agents/scripts/lib/config/runtime.js` | Accepted |
 | [`004`](#adr-004-gherkin-standards-as-sole-ssot-for-bdd-tags--forbidden-patterns) | Gherkin Standards as Sole SSOT for BDD Tags & Forbidden Patterns | `.agents/rules/gherkin-standards.md` | Accepted |
 | [`20260420-297`](#adr-20260420-297-decompose-oversized-orchestration-modules-via-facade-pattern) | Decompose oversized orchestration modules via facade pattern | `.agents/scripts/lib/worktree-manager.js` | Accepted |
@@ -1404,7 +1404,7 @@ and a grep cannot see state shared through a helper.
 
 **Status:** Accepted
 **Date:** 2026-08-02
-**Surface:** `.agents/scripts/check-schema-references.js`
+**Surface:** `scripts/check-schema-references.js`
 
 ### Context
 
@@ -2614,7 +2614,7 @@ Reorganised an `agentSettings` namespace into four typed sub-blocks (`paths`, `c
 
 **Status:** Accepted
 **Date:** 2026-04-24
-**Surface:** `.agents/scripts/post-structured-comment.js`
+**Surface:** `scripts/post-structured-comment.js`
 **Materially dead (in part):** the core decision holds — the framework ships no
 MCP server — but its "one entry point per capability" consequence does not.
 The Surface file has **no production importer**: `code-review.js`,

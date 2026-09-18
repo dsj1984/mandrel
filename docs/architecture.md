@@ -116,6 +116,10 @@ mandrel/
 ├── .agentrc.json             ← Runtime configuration (dogfooding)
 ├── .github/workflows/        ← CI/CD pipeline (ci.yml)
 ├── docs/                     ← Project documentation
+│   └── contributing/         ←   Contributor-only rules (not shipped)
+├── scripts/                  ← Contributor-only CLIs: lint/verify aggregates,
+│                                 CI-only ratchets, test diagnostics (not shipped;
+│                                 check-payload-boundary.js keeps them out of .agents/)
 ├── tests/                    ← Framework test suite
 │   └── lib/                  ←   Library-specific unit tests
 ├── temp/                     ← Ephemeral runtime artifacts (git-ignored)

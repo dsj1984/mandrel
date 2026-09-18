@@ -10,11 +10,11 @@ import {
 } from '../../.agents/scripts/lib/test-runner-contract.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import { FULL_TIER_GLOBS } from '../../.agents/scripts/lib/test-tiers.js';
+import { buildNodeTestArgs } from '../../.agents/scripts/run-tests.js';
 import {
   buildCoverageTestArgs,
   runCoveragePipeline,
-} from '../../.agents/scripts/run-coverage.js';
-import { buildNodeTestArgs } from '../../.agents/scripts/run-tests.js';
+} from '../../scripts/run-coverage.js';
 
 // ---------------------------------------------------------------------------
 // buildCoverageTestArgs — host-aware --test-concurrency (Story #4254): the
@@ -70,7 +70,7 @@ test('buildCoverageTestArgs runs the full tier and ignores positional file argum
     process.argv = [
       ...argvBefore.slice(0, 2),
       '.agents/scripts/coverage-capture.js',
-      '.agents/scripts/run-coverage.js',
+      'scripts/run-coverage.js',
     ];
     assert.deepEqual(
       buildCoverageTestArgs(),
@@ -208,7 +208,7 @@ test('neither runner restates a flag literal of its own', () => {
     'utf8',
   );
   const coverageSrc = fs.readFileSync(
-    new URL('../../.agents/scripts/run-coverage.js', import.meta.url),
+    new URL('../../scripts/run-coverage.js', import.meta.url),
     'utf8',
   );
   for (const [label, src] of [

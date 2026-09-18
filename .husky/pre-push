@@ -54,4 +54,4 @@ npm run crap:check
 # They stay because the numbers are worth reading before a push, not because
 # they can stop one.
 node .agents/scripts/check-context-budget.js
-node .agents/scripts/check-workflow-citations.js
+node scripts/check-workflow-citations.js

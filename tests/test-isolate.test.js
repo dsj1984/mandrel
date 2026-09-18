@@ -2,15 +2,15 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { resolveTestFiles } from '../.agents/scripts/lib/test-isolate/list-files.js';
+import { resolveTestFiles } from '../scripts/lib/test-isolate/list-files.js';
 import {
   parseSingleFileTap,
   parseSuiteTap,
-} from '../.agents/scripts/lib/test-isolate/parse-tap.js';
+} from '../scripts/lib/test-isolate/parse-tap.js';
 import {
   bisectFlipper,
   diagnoseIsolation,
-} from '../.agents/scripts/lib/test-isolate/runner.js';
+} from '../scripts/lib/test-isolate/runner.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..');

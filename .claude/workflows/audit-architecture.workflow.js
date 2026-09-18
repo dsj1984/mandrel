@@ -72,7 +72,7 @@
  * re-declaring (and drifting from) the runtime contract. The lens-specific
  * `inputs` keys this entry point reads are documented by {@link ArchitectureInputs}.
  *
- * @typedef {import('../../.agents/scripts/lib/dynamic-workflow/audit-orchestrator.js').WorkflowContext} WorkflowContext
+ * @typedef {import('../../scripts/lib/dynamic-workflow/audit-orchestrator.js').WorkflowContext} WorkflowContext
  *
  * @typedef {object} ArchitectureInputs
  * @property {string} [changedFiles]  Scoped-run change-set list (newline-delimited).
@@ -87,8 +87,8 @@ import {
   REPORT_ARTIFACT_BASENAME,
   REPORT_TITLE,
   REQUIRED_SECTIONS,
-} from '../../.agents/scripts/lib/dynamic-workflow/architecture-report-contract.js';
-import { runAuditOrchestration } from '../../.agents/scripts/lib/dynamic-workflow/audit-orchestrator.js';
+} from '../../scripts/lib/dynamic-workflow/architecture-report-contract.js';
+import { runAuditOrchestration } from '../../scripts/lib/dynamic-workflow/audit-orchestrator.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..', '..');

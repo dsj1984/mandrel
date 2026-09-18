@@ -9,7 +9,7 @@ import { parseArgv, runCli } from '../.agents/scripts/resolve-doc-tiers.js';
  * ratchet and the documentation lens read) were unverified.
  *
  * `runCli`'s collaborators are injected through its optional final `deps`
- * parameter (`.agents/rules/test-seams.md` rules 1 and 5) — plain functions,
+ * parameter (`docs/contributing/test-seams.md` rules 1 and 5) — plain functions,
  * no module mocking.
  */
 

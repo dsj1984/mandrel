@@ -10,7 +10,7 @@ const ORCHESTRATORS_DIR = path.join(ROOT, '.agents', 'scripts');
 
 /**
  * Regression test for the orchestration-error-handling rule
- * (`.agents/rules/orchestration-error-handling.md`).
+ * (`docs/contributing/orchestration-error-handling.md`).
  *
  * The rule says: orchestrator entry points under `.agents/scripts/*.js` MUST
  * surface unrecoverable failures with `throw new Error(...)` rather than
@@ -69,7 +69,7 @@ describe('Orchestrator entry points: no Logger.fatal callsites', () => {
     assert.deepEqual(
       offenders,
       [],
-      `Orchestrator(s) regressed to Logger.fatal — replace with \`throw new Error(...)\` per .agents/rules/orchestration-error-handling.md:\n  ${offenders.join('\n  ')}`,
+      `Orchestrator(s) regressed to Logger.fatal — replace with \`throw new Error(...)\` per docs/contributing/orchestration-error-handling.md:\n  ${offenders.join('\n  ')}`,
     );
   });
 });

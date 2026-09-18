@@ -38,7 +38,7 @@ module.exports = {
   all: true,
   // Coverage target roots — keep in lockstep with
   // `delivery.quality.gates.coverage.targetDirs` in `.agentrc.json`.
-  include: ['.agents/scripts/**', 'bin/**', 'lib/**'],
+  include: ['.agents/scripts/**', 'bin/**', 'lib/**', 'scripts/**'],
   exclude: [
     // --- Colocated test sources (test code, not production source) ------
     // Story #4125 — colocated test files under lib/ are test sources, not
@@ -71,7 +71,7 @@ module.exports = {
     // Desktop/terminal notification glue — pure side effect.
     '.agents/scripts/notify.js',
     // Structured-comment CLI shell over the ticketing provider.
-    '.agents/scripts/post-structured-comment.js',
+    'scripts/post-structured-comment.js',
     // Long-lived dev watcher (one-shot, interactive).
     '.agents/scripts/quality-watch.js',
     // Test-tier driver: spawns `node --test`; the tier logic it delegates

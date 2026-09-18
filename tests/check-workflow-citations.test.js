@@ -21,7 +21,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-
+import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 import {
   collectMarkdownFiles,
   countCitations,
@@ -29,8 +29,7 @@ import {
   renderReport,
   runCli,
   tallyCitations,
-} from '../.agents/scripts/check-workflow-citations.js';
-import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
+} from '../scripts/check-workflow-citations.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..');

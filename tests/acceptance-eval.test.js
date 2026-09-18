@@ -30,7 +30,7 @@ import {
  *
  * The verdict reader, config resolver, decision core, and log sink are
  * injected through the optional final `deps` parameter
- * (`.agents/rules/test-seams.md` rules 1 and 5) — no file is written, no
+ * (`docs/contributing/test-seams.md` rules 1 and 5) — no file is written, no
  * signal is appended, and nothing is module-mocked.
  */
 

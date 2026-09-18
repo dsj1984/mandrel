@@ -4,7 +4,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { runVerifySteps } from '../../.agents/scripts/run-verify.js';
+import { runVerifySteps } from '../../scripts/run-verify.js';
 
 const REPO_ROOT = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -49,15 +49,15 @@ test('runVerifySteps runs audit, lint, test, baselines, then the ratchets in ord
     // knip.json's entry list both gates fail, but only this one names the cause
     // (Story #5012 read the ratchet's diff first and nearly recorded live CLIs
     // as expected-dead).
-    ['node', '.agents/scripts/check-knip-entries.js'],
+    ['node', 'scripts/check-knip-entries.js'],
     ['node', '.agents/scripts/check-dead-exports.js'],
     ['node', '.agents/scripts/check-dead-exports.js', '--production'],
     ['node', '.agents/scripts/check-context-budget.js'],
     // A report since Story #5340, and mirrored here from the same Story: the
     // test that used to re-run its ratchet no longer does.
-    ['node', '.agents/scripts/check-workflow-citations.js'],
+    ['node', 'scripts/check-workflow-citations.js'],
     ['node', '.agents/scripts/check-cyclomatic.js'],
-    ['node', '.agents/scripts/check-schema-references.js'],
+    ['node', 'scripts/check-schema-references.js'],
   ]);
 });
 
@@ -118,9 +118,13 @@ test('every ratchet CI’s `baselines` job runs is mirrored locally or exempted'
 
   const ciScripts = [
     ...new Set(
-      [...baselinesJob.matchAll(/\.agents\/scripts\/([\w-]+\.js)/g)].map(
-        (m) => m[1],
-      ),
+      // Contributor-only ratchets live under repo-root `scripts/` since Story
+      // #5381; the rest still ship under `.agents/scripts/`.
+      [
+        ...baselinesJob.matchAll(
+          /(?:^|[\s/])(?:\.agents\/)?scripts\/([\w-]+\.js)/gm,
+        ),
+      ].map((m) => m[1]),
     ),
   ];
   // A shape guard: if the regex ever stops matching, the assertions below pass
@@ -131,11 +135,11 @@ test('every ratchet CI’s `baselines` job runs is mirrored locally or exempted'
   );
 
   const verifySource = readFileSync(
-    path.join(REPO_ROOT, '.agents/scripts/run-verify.js'),
+    path.join(REPO_ROOT, 'scripts/run-verify.js'),
     'utf8',
   );
   const lintSource = readFileSync(
-    path.join(REPO_ROOT, '.agents/scripts/run-lint.js'),
+    path.join(REPO_ROOT, 'scripts/run-lint.js'),
     'utf8',
   );
   const STEPS_ONLY = verifySource.slice(
@@ -215,7 +219,7 @@ test('runVerifySteps does not re-run arch-cycles, which the lint step already co
 // run-lint.js is a top-level-await driver that would spawn biome on import.
 test('run-lint.js still carries the arch-cycles ratchet verify relies on it for', () => {
   const source = readFileSync(
-    path.join(REPO_ROOT, '.agents/scripts/run-lint.js'),
+    path.join(REPO_ROOT, 'scripts/run-lint.js'),
     'utf8',
   );
   assert.ok(

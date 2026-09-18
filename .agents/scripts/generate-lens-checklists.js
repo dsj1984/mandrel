@@ -26,7 +26,7 @@
  *   --check    — exits 0 when every on-disk file matches the freshly generated
  *                content and no strays exist, throws (→ exit 1) otherwise.
  *
- * Per `.agents/rules/orchestration-error-handling.md`, unrecoverable failures
+ * Per `docs/contributing/orchestration-error-handling.md`, unrecoverable failures
  * surface via `throw new Error(...)` so `runAsCli` maps the throw to
  * `process.exit(1)` deterministically (no `Logger.fatal`).
  */
@@ -127,7 +127,7 @@ function relChecklist(
  * touching the real `.agents/audit-checklists` tree.
  *
  * Every seam on the optional final `deps` parameter defaults to the real
- * implementation (`.agents/rules/test-seams.md` rules 1-2, 4), so `main` and
+ * implementation (`docs/contributing/test-seams.md` rules 1-2, 4), so `main` and
  * `npm run docs:check` are unchanged.
  *
  * @param {string[]} [argv]

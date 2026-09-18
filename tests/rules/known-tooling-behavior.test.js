@@ -1,6 +1,6 @@
 /**
  * tests/rules/known-tooling-behavior.test.js — the anti-rot ratchet for
- * `.agents/rules/known-tooling-behavior.md` (Story #4825, AC-1 / AC-2 / AC-3).
+ * `docs/contributing/known-tooling-behavior.md` (Story #4825, AC-1 / AC-2 / AC-3).
  *
  * The rule's whole value is that an agent can trust it without re-measuring.
  * That trust is only earned if two properties hold structurally rather than by
@@ -29,11 +29,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const RULE_PATH = path.join(
   REPO_ROOT,
-  '.agents',
-  'rules',
+  'docs',
+  'contributing',
   'known-tooling-behavior.md',
 );
-const RULE_REL = '.agents/rules/known-tooling-behavior.md';
+const RULE_REL = 'docs/contributing/known-tooling-behavior.md';
 
 const source = readFileSync(RULE_PATH, 'utf8');
 
@@ -160,15 +160,16 @@ describe('every path an entry names still exists (AC-3)', () => {
 });
 
 describe('the rule stays on-demand, not resident (AC-4 / AC-5 / AC-7)', () => {
-  it('is registered in the § 1.F on-demand list', () => {
+  it('is contributor documentation, absent from the § 1.F rule list (Story #5381)', () => {
     const instructions = readFileSync(
       path.join(REPO_ROOT, '.agents', 'instructions.md'),
       'utf8',
     );
     assert.ok(
-      instructions.includes('known-tooling-behavior.md'),
-      '.agents/instructions.md § 1.F must list known-tooling-behavior.md — an ' +
-        'unlisted rule is a file nobody opens',
+      !instructions.includes('known-tooling-behavior.md'),
+      '.agents/instructions.md § 1.F must not list known-tooling-behavior.md — it ' +
+        "describes mandrel's own gates, lives under docs/contributing/, and does " +
+        'not ship in the .agents payload',
     );
   });
 
