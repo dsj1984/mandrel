@@ -208,8 +208,8 @@
     },
     {
       "path": ".agents/scripts/lib/audit-baselines/kinds.js",
-      "lines": 99.19,
-      "branches": 81.82,
+      "lines": 99.21,
+      "branches": 80.77,
       "functions": 100
     },
     {
@@ -225,9 +225,15 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/audit-baselines/rollup.js",
+      "lines": 100,
+      "branches": 83.33,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/audit-baselines/staleness.js",
       "lines": 100,
-      "branches": 90.32,
+      "branches": 90.91,
       "functions": 100
     },
     {
@@ -484,8 +490,8 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/envelope.js",
-      "lines": 95.83,
-      "branches": 95,
+      "lines": 96.92,
+      "branches": 95.74,
       "functions": 100
     },
     {
@@ -574,8 +580,8 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/merge-envelopes.js",
-      "lines": 97.16,
-      "branches": 72.38,
+      "lines": 96.66,
+      "branches": 73.33,
       "functions": 100
     },
     {
@@ -593,13 +599,13 @@
     {
       "path": ".agents/scripts/lib/baselines/reader.js",
       "lines": 92.25,
-      "branches": 74.63,
+      "branches": 75.76,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "lines": 84.64,
-      "branches": 76.67,
+      "lines": 84.51,
+      "branches": 76.07,
       "functions": 73.68
     },
     {
@@ -610,8 +616,8 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/writer.js",
-      "lines": 93.94,
-      "branches": 90.91,
+      "lines": 95.27,
+      "branches": 91.07,
       "functions": 100
     },
     {
@@ -1139,7 +1145,7 @@
     {
       "path": ".agents/scripts/lib/cyclomatic-ceiling.js",
       "lines": 100,
-      "branches": 77.78,
+      "branches": 82,
       "functions": 85.71
     },
     {
@@ -1534,8 +1540,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/evaluate.js",
-      "lines": 95.27,
-      "branches": 67.57,
+      "lines": 96.45,
+      "branches": 69.23,
       "functions": 100
     },
     {
@@ -3321,6 +3327,12 @@
       "functions": 0
     },
     {
+      "path": "lib/migrations/steps/2.63.0-baseline-merge-queue-shape.js",
+      "lines": 97.92,
+      "branches": 77.27,
+      "functions": 100
+    },
+    {
       "path": "lib/migrations/steps/strip-removed-agentrc-keys.js",
       "lines": 100,
       "branches": 89.66,
@@ -3461,7 +3473,7 @@
     {
       "path": "scripts/lib/baselines/orphan-pruner.js",
       "lines": 100,
-      "branches": 90.48,
+      "branches": 91.89,
       "functions": 100
     },
     {
@@ -3652,8 +3664,8 @@
     },
     {
       "path": "scripts/prune-baseline-orphans.js",
-      "lines": 95.58,
-      "branches": 81.4,
+      "lines": 95.48,
+      "branches": 82.93,
       "functions": 100
     },
     {
@@ -3688,9 +3700,9 @@
     },
     {
       "path": "scripts/update-dead-exports-baseline.js",
-      "lines": 99.04,
-      "branches": 97.83,
-      "functions": 88.89
+      "lines": 99.03,
+      "branches": 97.78,
+      "functions": 87.5
     }
   ]
 }
