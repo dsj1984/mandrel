@@ -25,6 +25,7 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import {
+  blockStoryDelivery,
   classifyGreenVerdict,
   formatRerunViolation,
   recordRerunAllowance,
@@ -668,5 +669,46 @@ describe('one rerun after a recorded verdict (Story #5343)', () => {
       assert.equal(code, 1);
       assert.equal(blocks.length, 1);
     });
+  });
+});
+
+describe('blockStoryDelivery — the escalation the red path takes', () => {
+  const quiet = () => {
+    const errors = [];
+    return { errors, logger: { error: (m) => errors.push(m) } };
+  };
+
+  it('cannot block without a Story id, and says the exit code is the only stop', async () => {
+    const { errors, logger } = quiet();
+    const outcome = await blockStoryDelivery({
+      storyId: null,
+      body: 'x',
+      logger,
+    });
+    assert.deepEqual(outcome, { blocked: false, commented: false });
+    assert.match(errors[0], /no Story id/);
+  });
+
+  it('reports each failed step rather than throwing', async () => {
+    const { errors, logger } = quiet();
+    const fail = async () => {
+      throw new Error('API 500');
+    };
+    const provider = {
+      getTicket: fail,
+      getTicketComments: fail,
+      postComment: fail,
+      updateComment: fail,
+      updateTicket: fail,
+    };
+    const outcome = await blockStoryDelivery({
+      storyId: 5383,
+      body: 'x',
+      provider,
+      logger,
+    });
+    assert.deepEqual(outcome, { blocked: false, commented: false });
+    assert.ok(errors.some((m) => /friction comment/.test(m)));
+    assert.ok(errors.some((m) => /flip Story #5383 to blocked/.test(m)));
   });
 });

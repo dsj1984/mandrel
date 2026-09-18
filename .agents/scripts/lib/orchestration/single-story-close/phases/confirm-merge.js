@@ -786,6 +786,20 @@ async function rerunAdvisoryRuns({ blockingRuns, gh, ghTimeoutMs, progress }) {
 }
 
 /**
+ * The rerun allowance this wait may still spend on an ADVISORY red, as the
+ * shared rerun rule (Story #5383) permits it. The advisory gate's runs are red
+ * on an `UNSTABLE` PR, so by construction none is required and the rule
+ * permits the rerun; a red REQUIRED check never reaches the rerun path — the
+ * wait fails fast on it and records `checks-failed` instead.
+ *
+ * @param {{ remaining: number }} rerunState
+ * @returns {number}
+ */
+function advisoryRerunsLeft(rerunState) {
+  return isRerunPermitted({ required: false }) ? rerunState.remaining : 0;
+}
+
+/**
  * Spend one unit of the rerun allowance, if there is one and the rerun takes.
  * Records the observation signature of every run it re-ran, so the stale
  * pre-rerun snapshot the next poll reads does not re-block on the same job.
@@ -806,13 +820,7 @@ async function maybeRerunAdvisory({
   ghTimeoutMs,
   progress,
 }) {
-  // The shared rerun rule (Story #5383): the advisory gate's runs are red on
-  // an `UNSTABLE` PR, so by construction none is required — the rule permits
-  // the rerun. A red REQUIRED check never reaches here: the wait fails fast on
-  // it and records `checks-failed` instead.
-  if (rerunState.remaining <= 0 || !isRerunPermitted({ required: false })) {
-    return false;
-  }
+  if (advisoryRerunsLeft(rerunState) <= 0) return false;
   const rerun = await rerunAdvisoryRuns({
     blockingRuns,
     gh,
@@ -1107,10 +1115,7 @@ async function onMergeObserved({
     // The poll already read the PR as merged; hand that observation down so
     // confirmation does not spend a second `gh pr view` re-reading it
     // (Story #5383).
-    prState: {
-      state: prProbe?.state ?? null,
-      mergedAt: prProbe?.mergedAt ?? null,
-    },
+    prState: prProbe,
   });
 
   if (confirmation.merged && confirmation.action === 'flip-failed') {

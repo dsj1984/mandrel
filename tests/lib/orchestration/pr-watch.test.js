@@ -290,3 +290,31 @@ describe('watchPrToTerminal (bus-free)', () => {
     assert.match(verdict.error, /gh-checks-empty/);
   });
 });
+
+describe('watchPrToTerminal — the default sleeper', () => {
+  it('polls through a real zero-delay sleep when no sleepFn is injected', async () => {
+    // The CLI injects no sleeper; this is the path it takes.
+    const probes = [
+      {
+        status: 8,
+        stdout: JSON.stringify([{ name: 'test', state: 'PENDING' }]),
+      },
+      {
+        status: 0,
+        stdout: JSON.stringify([{ name: 'test', state: 'SUCCESS' }]),
+      },
+    ];
+    let i = 0;
+    const result = await watchPrToTerminal({
+      prUrl: '1',
+      cwd: '.',
+      maxPolls: 3,
+      maxUpdates: 0,
+      pollIntervalMs: 0,
+      ghPrChecksFn: () => probes[Math.min(i++, probes.length - 1)],
+      logger: quietLogger(),
+    });
+    assert.equal(result.green, true);
+    assert.equal(result.polls, 1);
+  });
+});

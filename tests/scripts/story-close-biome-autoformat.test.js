@@ -13,9 +13,10 @@
  *       content (commit was created with the expected subject).
  *   (c) `Logger.warn` fires naming the auto-fixed files.
  *
- * The fixture uses dependency-injected `gitSync` + `spawnSync` stubs in
- * the style of `tests/story-close/format-autofix.test.js` so the test
- * runs deterministically without spawning real git or biome processes.
+ * The fixture uses dependency-injected `gitSync` + `spawnSync` stubs so the
+ * test runs deterministically without spawning real git or biome processes.
+ * Since Story #5383 deleted the whole-tree `runFormatAutofix` (no production
+ * caller), this suite is the only coverage of the module's shared plumbing.
  */
 
 import assert from 'node:assert/strict';
@@ -284,5 +285,73 @@ describe('runScopedFormatAutofix — Story #2533 (Task #2536)', () => {
     );
     assert.equal(logger.logs.warn.length, 1);
     assert.match(logger.logs.warn[0], /refusing to commit/);
+  });
+
+  const scopedArgs = (gitStub, spawn, logger, overrides = {}) => ({
+    cwd: '/tmp/main-checkout',
+    worktreePath: '/tmp/.worktrees/story-2533',
+    storyId: 2533,
+    baseBranch: 'main',
+    storyBranch: 'story-2533',
+    logger,
+    spawnSync: spawn,
+    gitSync: gitStub.git,
+    ...overrides,
+  });
+
+  it('refuses to run without cwd, baseBranch or storyBranch', () => {
+    const gitStub = makeGitStub();
+    const spawn = makeBiomeSpawn(gitStub.state);
+    const logger = makeLogger();
+    for (const [key, pattern] of [
+      ['cwd', /cwd is required/],
+      ['baseBranch', /baseBranch is required/],
+      ['storyBranch', /storyBranch is required/],
+    ]) {
+      assert.throws(
+        () =>
+          runScopedFormatAutofix(
+            scopedArgs(gitStub, spawn, logger, { [key]: undefined }),
+          ),
+        pattern,
+      );
+    }
+  });
+
+  it('falls through to the check gate when the formatter exits non-zero', () => {
+    const logger = makeLogger();
+    const gitStub = makeGitStub({ statusAfter: '' });
+    const spawn = (cmd) => {
+      if (cmd === 'npx') {
+        const err = new Error('biome blew up');
+        err.status = 2;
+        throw err;
+      }
+      return '';
+    };
+    const result = runScopedFormatAutofix(scopedArgs(gitStub, spawn, logger));
+    assert.deepEqual(result, { ran: true, committed: false });
+    assert.match(logger.logs.warn[0], /exited non-zero \(2\)/);
+  });
+
+  it('refuses to commit on a detached HEAD or an unreadable branch', () => {
+    for (const branchRead of [
+      () => 'HEAD\n',
+      () => {
+        throw new Error('not a git repository');
+      },
+    ]) {
+      const logger = makeLogger();
+      const gitStub = makeGitStub();
+      const git = (args, opts) =>
+        args[0] === 'rev-parse' && args[1] === '--abbrev-ref'
+          ? branchRead()
+          : gitStub.git(args, opts);
+      const result = runScopedFormatAutofix(
+        scopedArgs({ git }, makeBiomeSpawn(gitStub.state), logger),
+      );
+      assert.equal(result.reason, 'wrong-branch');
+      assert.match(logger.logs.warn[0], /on "unknown"/);
+    }
   });
 });

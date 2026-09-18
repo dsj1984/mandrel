@@ -58,7 +58,10 @@ import {
   terminalFromWaitOutcome,
   validateTerminalEnvelope,
 } from '../.agents/scripts/lib/orchestration/story-deliver-terminal.js';
-import { confirmStoryMerged } from '../.agents/scripts/lib/single-story/confirm-merge.js';
+import {
+  confirmStoryMerged,
+  readPrMergeState,
+} from '../.agents/scripts/lib/single-story/confirm-merge.js';
 import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 
 /**
@@ -2430,5 +2433,21 @@ describe('merge wait — decisions made once (Story #5383)', () => {
     );
     assert.equal(outcome.blockClass, 'checks-failed');
     assert.deepEqual(posts, [], 'no rerun request for a required red');
+  });
+
+  it('AC-4: readPrMergeState is the one gh read the standalone confirm spends', async () => {
+    const calls = [];
+    const gh = {
+      pr: {
+        view: async (n, fields) => {
+          calls.push([n, fields]);
+          return { state: 'MERGED', mergedAt: 7 };
+        },
+      },
+    };
+    const state = await readPrMergeState({ cwd: '/repo', prNumber: 99, gh });
+    assert.deepEqual(calls, [[99, ['state', 'mergedAt']]]);
+    // A non-string field is not a timestamp.
+    assert.deepEqual(state, { state: 'MERGED', mergedAt: null });
   });
 });
