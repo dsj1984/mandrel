@@ -15,6 +15,41 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.60.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.59.0...mandrel-v2.60.0) (2026-09-18)
+
+
+### ⚠ BREAKING CHANGES
+
+* `delivery.feedbackLoop.auditResultsAutoFile` is no longer a valid `.agentrc.json` key. `mandrel update` strips it automatically.
+* deliver-light.js no longer accepts --kinds, --magnitude, --uncertainty or --route; STORY_SHAPE_CEILINGS and the four ceiling SHAPE_CODES are removed, and no gate envelope carries warnings[].
+* under delivery.routing.ceremonyProfile standard the acceptance verdict is authored inline; set strict to keep a fresh-context critic.
+* plan-persist.js persists on a clean dry-run by default — pass --dry-run to validate only; the "Commit subject begins with '<prefix>:'" acceptance validator is removed; an empty verify[] is a warning, not a refusal.
+* delivery.feedbackLoop.retroProposals and delivery.feedbackLoop.auditResultsAutoFile now default to false; a consumer that relied on auto-filed follow-up issues sets both to true in .agentrc.json.
+
+### Added
+
+* add deliver-run.js so a multi-Story run is one script beat plus spawns and closes, not a hand-driven protocol ([#5345](https://github.com/dsj1984/mandrel/issues/5345)) ([#5354](https://github.com/dsj1984/mandrel/issues/5354)) ([591dad7](https://github.com/dsj1984/mandrel/commit/591dad75923133bef9e3a9d095ac47442464943b))
+* clamp deliver-runner concurrency to one when worktree isolation resolves off, so two workers can never share a checkout ([#5357](https://github.com/dsj1984/mandrel/issues/5357)) ([#5360](https://github.com/dsj1984/mandrel/issues/5360)) ([1f3f651](https://github.com/dsj1984/mandrel/commit/1f3f6515e4a7a4fd2c730001dc6dd4cdb44f251e))
+* close fails fast with a named blocker when GitHub GraphQL is unavailable, instead of a raw 403 after the full gate chain ([#5355](https://github.com/dsj1984/mandrel/issues/5355)) ([#5359](https://github.com/dsj1984/mandrel/issues/5359)) ([b46c263](https://github.com/dsj1984/mandrel/commit/b46c26329dd7cc1e968e607ccaae9d51a9f1ef84))
+* collapse the ceremony decision to what it decides and delete the inert layer around it ([#5366](https://github.com/dsj1984/mandrel/issues/5366)) ([#5375](https://github.com/dsj1984/mandrel/issues/5375)) ([54d0ece](https://github.com/dsj1984/mandrel/commit/54d0ece864d8cb3ec824228dc097999781f7b29f))
+* collapse the light path to one gate and let an escalation continue in-session ([#5344](https://github.com/dsj1984/mandrel/issues/5344)) ([#5353](https://github.com/dsj1984/mandrel/issues/5353)) ([c09acd6](https://github.com/dsj1984/mandrel/commit/c09acd69a8525dd33073922a7541bb9488929249))
+* cut the restated delivery rules, the v1 refusals and the sibling-coherence step, and turn auto-filing off by default ([#5341](https://github.com/dsj1984/mandrel/issues/5341)) ([#5350](https://github.com/dsj1984/mandrel/issues/5350)) ([349d346](https://github.com/dsj1984/mandrel/commit/349d3468c11a23504b510ac80d0716b5dd709853))
+* delivery ceremony diet: one inline verdict per Story, opt-in fresh critics and audit roster, fewer Story comments, and one CI rerun after a recorded verdict ([#5343](https://github.com/dsj1984/mandrel/issues/5343)) ([#5352](https://github.com/dsj1984/mandrel/issues/5352)) ([1ac35c4](https://github.com/dsj1984/mandrel/commit/1ac35c40745bd1d6f0945f9a5ffd3f975452dbff))
+* loosen plan authoring: one persist command, bare paths in changes[], empty verify[] as a warning, and the fossil validators removed ([#5342](https://github.com/dsj1984/mandrel/issues/5342)) ([#5351](https://github.com/dsj1984/mandrel/issues/5351)) ([c7534a5](https://github.com/dsj1984/mandrel/commit/c7534a523cf39b24324d26f2cad81b2ec4fb22df))
+* make a dispatch that never reached init visible in the beat envelope ([#5363](https://github.com/dsj1984/mandrel/issues/5363)) ([#5370](https://github.com/dsj1984/mandrel/issues/5370)) ([ab3c755](https://github.com/dsj1984/mandrel/commit/ab3c7553975ef5dce8c60112d7f8c278c5dd0d8d))
+
+
+### Fixed
+
+* `mandrel update` reports whether the bump is actually staged instead of asserting it ([#5339](https://github.com/dsj1984/mandrel/issues/5339)) ([#5349](https://github.com/dsj1984/mandrel/issues/5349)) ([07f63c7](https://github.com/dsj1984/mandrel/commit/07f63c79bdb19a532e82d413de719a194c170504))
+* anchor pre-push coverage capture and the CRAP preview on one resolved ref ([#5365](https://github.com/dsj1984/mandrel/issues/5365)) ([#5373](https://github.com/dsj1984/mandrel/issues/5373)) ([cb189e3](https://github.com/dsj1984/mandrel/commit/cb189e3a005749305cc0ce2075ea17793493bb0e))
+* capture coverage before the pre-push quality preview (refs [#5356](https://github.com/dsj1984/mandrel/issues/5356)) ([#5358](https://github.com/dsj1984/mandrel/issues/5358)) ([14ef1dd](https://github.com/dsj1984/mandrel/commit/14ef1dde384455f16f3ddd502881c132fd6ae056))
+* close the three correctness holes the plan-authoring loosening left in persist ([#5361](https://github.com/dsj1984/mandrel/issues/5361)) ([#5372](https://github.com/dsj1984/mandrel/issues/5372)) ([aef03bd](https://github.com/dsj1984/mandrel/commit/aef03bd90e14cc2dac68ea4d7a04f0f262e2494e))
+* delete the write-only plan checkpoint payload and the three unreachable modules ([#5367](https://github.com/dsj1984/mandrel/issues/5367)) ([#5374](https://github.com/dsj1984/mandrel/issues/5374)) ([4c0c835](https://github.com/dsj1984/mandrel/commit/4c0c835d9eded8e993bb7ebd3e66e86bec4d2377))
+* demote the workflow prose ratchets to reports and delete the reference sections that describe retired mechanisms ([#5340](https://github.com/dsj1984/mandrel/issues/5340)) ([#5347](https://github.com/dsj1984/mandrel/issues/5347)) ([8d76329](https://github.com/dsj1984/mandrel/commit/8d76329e3aacc726e39d1839f01e618fb7361662))
+* report the index mandrel update actually observes, from one read ([#5364](https://github.com/dsj1984/mandrel/issues/5364)) ([#5371](https://github.com/dsj1984/mandrel/issues/5371)) ([12af953](https://github.com/dsj1984/mandrel/commit/12af95383f7ddbfe137715aa10bce3b25a7b95a3))
+* treat a rate-limited GraphQL probe as fail-open rather than unreachable (refs [#5362](https://github.com/dsj1984/mandrel/issues/5362)) ([#5369](https://github.com/dsj1984/mandrel/issues/5369)) ([db6a9e0](https://github.com/dsj1984/mandrel/commit/db6a9e08441baf40281962e0b226575f9c7b1846))
+
 ## [2.59.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.58.0...mandrel-v2.59.0) (2026-09-14)
 
 
