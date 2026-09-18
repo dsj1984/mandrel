@@ -67,7 +67,7 @@
     ".agents/scripts/update-maintainability-baseline.js!",
     ".agents/scripts/update-ticket-state.js!",
     ".agents/scripts/validate-skills.js!",
-    "scripts/**/*.js!",
+    "scripts/*.js!",
     "tests/**/*.{js,mjs,cjs}",
     ".agents/scripts/**/__tests__/**/*.test.js",
     ".agents/scripts/**/__tests__/fixtures/**/*.js",

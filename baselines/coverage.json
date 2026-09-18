@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-09-18T00:27:55.969Z",
+  "generatedAt": "2026-09-18T14:27:10.973Z",
   "rollup": {
     "*": {
-      "lines": 96.35,
-      "branches": 87.33,
-      "functions": 88.2
+      "lines": 96.37,
+      "branches": 87.47,
+      "functions": 88.29
     }
   },
   "rows": [
@@ -42,9 +42,9 @@
     },
     {
       "path": ".agents/scripts/boot-sweep.js",
-      "lines": 98.92,
-      "branches": 84.31,
-      "functions": 57.14
+      "lines": 98.94,
+      "branches": 86.54,
+      "functions": 71.43
     },
     {
       "path": ".agents/scripts/bootstrap.js",
@@ -59,34 +59,10 @@
       "functions": 75
     },
     {
-      "path": "scripts/check-action-pinning.js",
-      "lines": 98.08,
-      "branches": 95.56,
-      "functions": 87.5
-    },
-    {
       "path": ".agents/scripts/check-arch-cycles.js",
       "lines": 99.07,
       "branches": 90.91,
       "functions": 83.33
-    },
-    {
-      "path": "scripts/check-audit-attribution.js",
-      "lines": 89.74,
-      "branches": 84.21,
-      "functions": 61.54
-    },
-    {
-      "path": "scripts/check-baseline-drift.js",
-      "lines": 94.79,
-      "branches": 96.97,
-      "functions": 75
-    },
-    {
-      "path": "scripts/check-baseline-scope.js",
-      "lines": 98.9,
-      "branches": 85.53,
-      "functions": 100
     },
     {
       "path": ".agents/scripts/check-baselines.js",
@@ -119,45 +95,9 @@
       "functions": 86.67
     },
     {
-      "path": "scripts/check-generated-validator.js",
-      "lines": 98.51,
-      "branches": 83.33,
-      "functions": 60
-    },
-    {
       "path": ".agents/scripts/check-gherkin-corpus.js",
       "lines": 97.85,
       "branches": 84.85,
-      "functions": 100
-    },
-    {
-      "path": "scripts/check-knip-entries.js",
-      "lines": 100,
-      "branches": 92.59,
-      "functions": 75
-    },
-    {
-      "path": "scripts/check-lifecycle-lint.js",
-      "lines": 100,
-      "branches": 93.1,
-      "functions": 100
-    },
-    {
-      "path": "scripts/check-pinned-override-notes.js",
-      "lines": 97.06,
-      "branches": 75,
-      "functions": 50
-    },
-    {
-      "path": "scripts/check-schema-references.js",
-      "lines": 98.91,
-      "branches": 88.41,
-      "functions": 100
-    },
-    {
-      "path": "scripts/check-test-portability.js",
-      "lines": 99.79,
-      "branches": 91.94,
       "functions": 100
     },
     {
@@ -171,24 +111,6 @@
       "lines": 0,
       "branches": 0,
       "functions": 0
-    },
-    {
-      "path": "scripts/check-workflow-citations.js",
-      "lines": 97.89,
-      "branches": 93.65,
-      "functions": 90
-    },
-    {
-      "path": "scripts/check-workflow-cli-lint.js",
-      "lines": 91.97,
-      "branches": 96,
-      "functions": 85.71
-    },
-    {
-      "path": "scripts/check-workflow-timeouts.js",
-      "lines": 98.28,
-      "branches": 94.64,
-      "functions": 87.5
     },
     {
       "path": ".agents/scripts/cleanup-repo-test-temp.js",
@@ -228,9 +150,9 @@
     },
     {
       "path": ".agents/scripts/drain-pending-cleanup.js",
-      "lines": 98.57,
-      "branches": 96.88,
-      "functions": 80
+      "lines": 98.68,
+      "branches": 97.06,
+      "functions": 83.33
     },
     {
       "path": ".agents/scripts/evidence-gate.js",
@@ -246,8 +168,8 @@
     },
     {
       "path": ".agents/scripts/generate-config-docs.js",
-      "lines": 92.63,
-      "branches": 83.08,
+      "lines": 94.27,
+      "branches": 83.21,
       "functions": 100
     },
     {
@@ -264,26 +186,8 @@
     },
     {
       "path": ".agents/scripts/generate-workflows-doc.js",
-      "lines": 96.26,
-      "branches": 87.5,
-      "functions": 100
-    },
-    {
-      "path": "scripts/install-matrix-assert.js",
-      "lines": 96.93,
-      "branches": 90.91,
-      "functions": 77.78
-    },
-    {
-      "path": "scripts/lib/audit-advisories.js",
-      "lines": 86.15,
-      "branches": 82.5,
-      "functions": 75
-    },
-    {
-      "path": "scripts/lib/audit-attribution.js",
       "lines": 100,
-      "branches": 95.24,
+      "branches": 100,
       "functions": 100
     },
     {
@@ -575,12 +479,6 @@
       "functions": 37.5
     },
     {
-      "path": "scripts/lib/baselines/drift-detector.js",
-      "lines": 93.16,
-      "branches": 87.5,
-      "functions": 84.62
-    },
-    {
       "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
       "lines": 92.27,
       "branches": 66.67,
@@ -701,12 +599,6 @@
       "functions": 100
     },
     {
-      "path": "scripts/lib/baselines/orphan-pruner.js",
-      "lines": 100,
-      "branches": 90.48,
-      "functions": 100
-    },
-    {
       "path": ".agents/scripts/lib/baselines/path-canon.js",
       "lines": 98.47,
       "branches": 96,
@@ -729,18 +621,6 @@
       "lines": 88.29,
       "branches": 76.67,
       "functions": 73.68
-    },
-    {
-      "path": "scripts/lib/baselines/scope-assert.js",
-      "lines": 100,
-      "branches": 93.75,
-      "functions": 100
-    },
-    {
-      "path": "scripts/lib/baselines/scope-inventory.js",
-      "lines": 100,
-      "branches": 89.36,
-      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/baselines/scope.js",
@@ -879,12 +759,6 @@
       "lines": 100,
       "branches": 96.43,
       "functions": 100
-    },
-    {
-      "path": "scripts/lib/c8-cli-path.js",
-      "lines": 100,
-      "branches": 100,
-      "functions": 0
     },
     {
       "path": ".agents/scripts/lib/changed-files.js",
@@ -1236,8 +1110,8 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-capture-incremental.js",
-      "lines": 96.12,
-      "branches": 88.89,
+      "lines": 100,
+      "branches": 94.74,
       "functions": 100
     },
     {
@@ -1355,60 +1229,6 @@
       "functions": 100
     },
     {
-      "path": "scripts/lib/dynamic-workflow/architecture-report-contract.js",
-      "lines": 100,
-      "branches": 100,
-      "functions": 100
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/audit-orchestrator.js",
-      "lines": 100,
-      "branches": 92.31,
-      "functions": 100
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/clean-code-report-contract.js",
-      "lines": 100,
-      "branches": 100,
-      "functions": 100
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/degraded-coverage.js",
-      "lines": 100,
-      "branches": 81.82,
-      "functions": 100
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/documentation-report-contract.js",
-      "lines": 100,
-      "branches": 100,
-      "functions": 100
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/performance-report-contract.js",
-      "lines": 100,
-      "branches": 100,
-      "functions": 100
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/quality-report-contract.js",
-      "lines": 100,
-      "branches": 100,
-      "functions": 100
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/report-contract-core.js",
-      "lines": 100,
-      "branches": 83.33,
-      "functions": 100
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/security-report-contract.js",
-      "lines": 100,
-      "branches": 100,
-      "functions": 100
-    },
-    {
       "path": ".agents/scripts/lib/env-loader.js",
       "lines": 100,
       "branches": 95.45,
@@ -1505,12 +1325,6 @@
       "functions": 100
     },
     {
-      "path": "scripts/lib/fs-walk.js",
-      "lines": 100,
-      "branches": 100,
-      "functions": 100
-    },
-    {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "lines": 98.39,
       "branches": 95.65,
@@ -1604,18 +1418,6 @@
       "path": ".agents/scripts/lib/json-utils.js",
       "lines": 100,
       "branches": 100,
-      "functions": 100
-    },
-    {
-      "path": "scripts/lib/knip-config-resolver.js",
-      "lines": 100,
-      "branches": 97.14,
-      "functions": 100
-    },
-    {
-      "path": "scripts/lib/knip-entry-sync.js",
-      "lines": 98.01,
-      "branches": 91.43,
       "functions": 100
     },
     {
@@ -1998,8 +1800,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/lease-guard-shared.js",
-      "lines": 99.16,
-      "branches": 80,
+      "lines": 100,
+      "branches": 91.67,
       "functions": 100
     },
     {
@@ -2502,9 +2304,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
-      "lines": 97.08,
-      "branches": 84.93,
-      "functions": 85.71
+      "lines": 98.05,
+      "branches": 85.37,
+      "functions": 94.12
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/context-budget-writeback.js",
@@ -2642,18 +2444,6 @@
       "path": ".agents/scripts/lib/path-security.js",
       "lines": 100,
       "branches": 100,
-      "functions": 100
-    },
-    {
-      "path": "scripts/lib/pinned-override-notes.js",
-      "lines": 100,
-      "branches": 100,
-      "functions": 100
-    },
-    {
-      "path": "scripts/lib/pinned-override-resolve.js",
-      "lines": 100,
-      "branches": 94.87,
       "functions": 100
     },
     {
@@ -2891,66 +2681,6 @@
       "functions": 100
     },
     {
-      "path": "scripts/lib/test-isolate/cli-options.js",
-      "lines": 100,
-      "branches": 100,
-      "functions": 100
-    },
-    {
-      "path": "scripts/lib/test-isolate/env-snapshot-loader.js",
-      "lines": 96.15,
-      "branches": 81.25,
-      "functions": 0
-    },
-    {
-      "path": "scripts/lib/test-isolate/list-files.js",
-      "lines": 88.89,
-      "branches": 88,
-      "functions": 100
-    },
-    {
-      "path": "scripts/lib/test-isolate/parse-tap.js",
-      "lines": 100,
-      "branches": 95.24,
-      "functions": 100
-    },
-    {
-      "path": "scripts/lib/test-isolate/progress-log.js",
-      "lines": 100,
-      "branches": 100,
-      "functions": 100
-    },
-    {
-      "path": "scripts/lib/test-isolate/render-report.js",
-      "lines": 100,
-      "branches": 100,
-      "functions": 100
-    },
-    {
-      "path": "scripts/lib/test-isolate/run-isolate.js",
-      "lines": 100,
-      "branches": 100,
-      "functions": 66.67
-    },
-    {
-      "path": "scripts/lib/test-isolate/runner.js",
-      "lines": 88.61,
-      "branches": 59.09,
-      "functions": 92.31
-    },
-    {
-      "path": "scripts/lib/test-profile/parse-tap.js",
-      "lines": 98.53,
-      "branches": 88.46,
-      "functions": 100
-    },
-    {
-      "path": "scripts/lib/test-profile/render-report.js",
-      "lines": 97.78,
-      "branches": 45.45,
-      "functions": 100
-    },
-    {
       "path": ".agents/scripts/lib/test-run-credit.js",
       "lines": 99.25,
       "branches": 92.59,
@@ -3167,12 +2897,6 @@
       "functions": 62.5
     },
     {
-      "path": "scripts/lint-label-vocabulary.js",
-      "lines": 95.79,
-      "branches": 89.47,
-      "functions": 100
-    },
-    {
       "path": ".agents/scripts/mandrel-update-preflight.js",
       "lines": 72.54,
       "branches": 95.83,
@@ -3347,18 +3071,6 @@
       "functions": 100
     },
     {
-      "path": "scripts/provision-git-hooks.js",
-      "lines": 88.24,
-      "branches": 60,
-      "functions": 100
-    },
-    {
-      "path": "scripts/prune-baseline-orphans.js",
-      "lines": 95.58,
-      "branches": 81.4,
-      "functions": 100
-    },
-    {
       "path": ".agents/scripts/prune-plan-run-labels.js",
       "lines": 98.62,
       "branches": 95.24,
@@ -3387,30 +3099,6 @@
       "lines": 79.89,
       "branches": 82.35,
       "functions": 83.33
-    },
-    {
-      "path": "scripts/run-coverage.js",
-      "lines": 98.98,
-      "branches": 55.56,
-      "functions": 100
-    },
-    {
-      "path": "scripts/run-lint.js",
-      "lines": 0,
-      "branches": 0,
-      "functions": 0
-    },
-    {
-      "path": "scripts/run-test-profile.js",
-      "lines": 93.65,
-      "branches": 66.67,
-      "functions": 66.67
-    },
-    {
-      "path": "scripts/run-verify.js",
-      "lines": 94.74,
-      "branches": 66.67,
-      "functions": 66.67
     },
     {
       "path": ".agents/scripts/single-story-close.js",
@@ -3449,12 +3137,6 @@
       "functions": 100
     },
     {
-      "path": "scripts/test-isolate.js",
-      "lines": 0,
-      "branches": 0,
-      "functions": 0
-    },
-    {
       "path": ".agents/scripts/update-coverage-baseline.js",
       "lines": 69.3,
       "branches": 100,
@@ -3465,12 +3147,6 @@
       "lines": 71.77,
       "branches": 100,
       "functions": 0
-    },
-    {
-      "path": "scripts/update-dead-exports-baseline.js",
-      "lines": 99.04,
-      "branches": 97.83,
-      "functions": 88.89
     },
     {
       "path": ".agents/scripts/update-duplication-baseline.js",
@@ -3645,6 +3321,348 @@
       "lines": 100,
       "branches": 100,
       "functions": 0
+    },
+    {
+      "path": "scripts/check-action-pinning.js",
+      "lines": 98.08,
+      "branches": 95.56,
+      "functions": 87.5
+    },
+    {
+      "path": "scripts/check-audit-attribution.js",
+      "lines": 89.74,
+      "branches": 84.21,
+      "functions": 61.54
+    },
+    {
+      "path": "scripts/check-baseline-drift.js",
+      "lines": 94.79,
+      "branches": 96.97,
+      "functions": 75
+    },
+    {
+      "path": "scripts/check-baseline-scope.js",
+      "lines": 97.24,
+      "branches": 84.62,
+      "functions": 100
+    },
+    {
+      "path": "scripts/check-generated-validator.js",
+      "lines": 98.51,
+      "branches": 83.33,
+      "functions": 60
+    },
+    {
+      "path": "scripts/check-knip-entries.js",
+      "lines": 100,
+      "branches": 92.59,
+      "functions": 75
+    },
+    {
+      "path": "scripts/check-lifecycle-lint.js",
+      "lines": 100,
+      "branches": 93.1,
+      "functions": 100
+    },
+    {
+      "path": "scripts/check-payload-boundary.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
+      "path": "scripts/check-pinned-override-notes.js",
+      "lines": 97.06,
+      "branches": 75,
+      "functions": 50
+    },
+    {
+      "path": "scripts/check-schema-references.js",
+      "lines": 98.91,
+      "branches": 88.41,
+      "functions": 100
+    },
+    {
+      "path": "scripts/check-test-portability.js",
+      "lines": 99.79,
+      "branches": 91.94,
+      "functions": 100
+    },
+    {
+      "path": "scripts/check-version-sync.js",
+      "lines": 86.54,
+      "branches": 81.82,
+      "functions": 100
+    },
+    {
+      "path": "scripts/check-workflow-citations.js",
+      "lines": 96.79,
+      "branches": 90.32,
+      "functions": 87.5
+    },
+    {
+      "path": "scripts/check-workflow-cli-lint.js",
+      "lines": 91.97,
+      "branches": 96,
+      "functions": 85.71
+    },
+    {
+      "path": "scripts/check-workflow-timeouts.js",
+      "lines": 98.28,
+      "branches": 94.64,
+      "functions": 87.5
+    },
+    {
+      "path": "scripts/install-matrix-assert.js",
+      "lines": 96.93,
+      "branches": 90.91,
+      "functions": 77.78
+    },
+    {
+      "path": "scripts/lib/audit-advisories.js",
+      "lines": 86.15,
+      "branches": 82.5,
+      "functions": 75
+    },
+    {
+      "path": "scripts/lib/audit-attribution.js",
+      "lines": 100,
+      "branches": 95.24,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/baselines/drift-detector.js",
+      "lines": 93.16,
+      "branches": 87.5,
+      "functions": 84.62
+    },
+    {
+      "path": "scripts/lib/baselines/orphan-pruner.js",
+      "lines": 100,
+      "branches": 90.48,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/baselines/scope-assert.js",
+      "lines": 100,
+      "branches": 93.62,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/baselines/scope-inventory.js",
+      "lines": 100,
+      "branches": 89.36,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/c8-cli-path.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 0
+    },
+    {
+      "path": "scripts/lib/dynamic-workflow/architecture-report-contract.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/dynamic-workflow/audit-orchestrator.js",
+      "lines": 100,
+      "branches": 92.31,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/dynamic-workflow/clean-code-report-contract.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/dynamic-workflow/degraded-coverage.js",
+      "lines": 100,
+      "branches": 81.82,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/dynamic-workflow/documentation-report-contract.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/dynamic-workflow/performance-report-contract.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/dynamic-workflow/quality-report-contract.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/dynamic-workflow/report-contract-core.js",
+      "lines": 100,
+      "branches": 83.33,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/dynamic-workflow/security-report-contract.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/fs-walk.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/knip-config-resolver.js",
+      "lines": 100,
+      "branches": 97.14,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/knip-entry-sync.js",
+      "lines": 98.1,
+      "branches": 91.55,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/payload-boundary.js",
+      "lines": 99.22,
+      "branches": 95.83,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/pinned-override-notes.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/pinned-override-resolve.js",
+      "lines": 100,
+      "branches": 94.87,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/test-isolate/cli-options.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/test-isolate/env-snapshot-loader.js",
+      "lines": 96.15,
+      "branches": 81.25,
+      "functions": 0
+    },
+    {
+      "path": "scripts/lib/test-isolate/list-files.js",
+      "lines": 88.89,
+      "branches": 88,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/test-isolate/parse-tap.js",
+      "lines": 100,
+      "branches": 95.24,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/test-isolate/progress-log.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/test-isolate/render-report.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/test-isolate/run-isolate.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 66.67
+    },
+    {
+      "path": "scripts/lib/test-isolate/runner.js",
+      "lines": 88.61,
+      "branches": 59.09,
+      "functions": 92.31
+    },
+    {
+      "path": "scripts/lib/test-profile/parse-tap.js",
+      "lines": 98.53,
+      "branches": 88.89,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/test-profile/render-report.js",
+      "lines": 100,
+      "branches": 75,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lint-label-vocabulary.js",
+      "lines": 95.79,
+      "branches": 89.47,
+      "functions": 100
+    },
+    {
+      "path": "scripts/provision-git-hooks.js",
+      "lines": 91.76,
+      "branches": 71.43,
+      "functions": 100
+    },
+    {
+      "path": "scripts/prune-baseline-orphans.js",
+      "lines": 95.58,
+      "branches": 81.4,
+      "functions": 100
+    },
+    {
+      "path": "scripts/run-coverage.js",
+      "lines": 98.98,
+      "branches": 55.56,
+      "functions": 100
+    },
+    {
+      "path": "scripts/run-lint.js",
+      "lines": 0,
+      "branches": 0,
+      "functions": 0
+    },
+    {
+      "path": "scripts/run-test-profile.js",
+      "lines": 93.8,
+      "branches": 66.67,
+      "functions": 66.67
+    },
+    {
+      "path": "scripts/run-verify.js",
+      "lines": 95.35,
+      "branches": 66.67,
+      "functions": 66.67
+    },
+    {
+      "path": "scripts/test-isolate.js",
+      "lines": 0,
+      "branches": 0,
+      "functions": 0
+    },
+    {
+      "path": "scripts/update-dead-exports-baseline.js",
+      "lines": 99.04,
+      "branches": 97.83,
+      "functions": 88.89
     }
   ]
 }

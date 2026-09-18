@@ -1,13 +1,9 @@
 {
   "$schema": "https://mandrel.dev/baselines/dead-exports.schema.json",
   "kernelVersion": "6.17.1",
-  "generatedAt": "2026-09-18T00:20:41.405Z",
+  "generatedAt": "2026-09-18T14:30:32.899Z",
   "mode": "production",
   "rows": [
-    {
-      "file": "scripts/lib/audit-advisories.js",
-      "symbol": "extractBlockingAdvisories"
-    },
     {
       "file": ".agents/scripts/lib/audit-suite/checklist-threading.js",
       "symbol": "DEFAULT_CHECKLIST_TOKEN_BUDGET"
@@ -225,14 +221,6 @@
       "symbol": "MI_REPORT_KERNEL_VERSION"
     },
     {
-      "file": "scripts/lib/baselines/orphan-pruner.js",
-      "symbol": "planPrune"
-    },
-    {
-      "file": "scripts/lib/baselines/orphan-pruner.js",
-      "symbol": "pruneEnvelope"
-    },
-    {
       "file": ".agents/scripts/lib/baselines/preview-gates.js",
       "symbol": "MI_PREVIEW_DEFAULT_TOLERANCE"
     },
@@ -255,26 +243,6 @@
     {
       "file": ".agents/scripts/lib/baselines/refresh-service.js",
       "symbol": "fileFilterFor"
-    },
-    {
-      "file": "scripts/lib/baselines/scope-assert.js",
-      "symbol": "STRICT_REASONS"
-    },
-    {
-      "file": "scripts/lib/baselines/scope-inventory.js",
-      "symbol": "deriveWalkRoots"
-    },
-    {
-      "file": "scripts/lib/baselines/scope-inventory.js",
-      "symbol": "directionsFor"
-    },
-    {
-      "file": "scripts/lib/baselines/scope-inventory.js",
-      "symbol": "keyFieldFor"
-    },
-    {
-      "file": "scripts/lib/baselines/scope-inventory.js",
-      "symbol": "KIND_SCOPE_POLICY"
     },
     {
       "file": ".agents/scripts/lib/bdd-runner-detect.js",
@@ -833,42 +801,6 @@
       "symbol": "pickSearchTokens"
     },
     {
-      "file": "scripts/lib/dynamic-workflow/architecture-report-contract.js",
-      "symbol": "*"
-    },
-    {
-      "file": "scripts/lib/dynamic-workflow/audit-orchestrator.js",
-      "symbol": "*"
-    },
-    {
-      "file": "scripts/lib/dynamic-workflow/clean-code-report-contract.js",
-      "symbol": "*"
-    },
-    {
-      "file": "scripts/lib/dynamic-workflow/degraded-coverage.js",
-      "symbol": "*"
-    },
-    {
-      "file": "scripts/lib/dynamic-workflow/documentation-report-contract.js",
-      "symbol": "*"
-    },
-    {
-      "file": "scripts/lib/dynamic-workflow/performance-report-contract.js",
-      "symbol": "*"
-    },
-    {
-      "file": "scripts/lib/dynamic-workflow/quality-report-contract.js",
-      "symbol": "*"
-    },
-    {
-      "file": "scripts/lib/dynamic-workflow/report-contract-core.js",
-      "symbol": "*"
-    },
-    {
-      "file": "scripts/lib/dynamic-workflow/security-report-contract.js",
-      "symbol": "*"
-    },
-    {
       "file": ".agents/scripts/lib/error-redactor.js",
       "symbol": "parseQuietErrorsFlag"
     },
@@ -1067,10 +999,6 @@
     {
       "file": ".agents/scripts/lib/Graph.js",
       "symbol": "transitiveReduction"
-    },
-    {
-      "file": "scripts/lib/knip-entry-sync.js",
-      "symbol": "__testing"
     },
     {
       "file": ".agents/scripts/lib/label-constants.js",
@@ -1754,10 +1682,6 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
-      "symbol": "assertValidStructuredCommentType"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "symbol": "buildStorylessTicketSnapshot"
     },
     {
@@ -2001,18 +1925,6 @@
       "symbol": "ensureTestScratchTempRoot"
     },
     {
-      "file": "scripts/lib/test-isolate/env-snapshot-loader.js",
-      "symbol": "*"
-    },
-    {
-      "file": "scripts/lib/test-isolate/list-files.js",
-      "symbol": "walkTestFiles"
-    },
-    {
-      "file": "scripts/lib/test-isolate/runner.js",
-      "symbol": "bisectFlipper"
-    },
-    {
       "file": ".agents/scripts/lib/test-run-credit.js",
       "symbol": "depositTestRunCredit"
     },
@@ -2121,10 +2033,6 @@
       "symbol": "*"
     },
     {
-      "file": ".agents/scripts/lib/worktree/git-hooks.js",
-      "symbol": "resolveCommonCheckout"
-    },
-    {
       "file": ".agents/scripts/lib/worktree/lifecycle-manager.js",
       "symbol": "findByPath"
     },
@@ -2221,10 +2129,6 @@
       "symbol": "selectInstallCommand"
     },
     {
-      "file": "scripts/post-structured-comment.js",
-      "symbol": "*"
-    },
-    {
       "file": ".agents/scripts/providers/github.js",
       "symbol": "classifyGithubError"
     },
@@ -2305,8 +2209,88 @@
       "symbol": "addSubIssueEdges"
     },
     {
-      "file": "scripts/provision-git-hooks.js",
+      "file": "scripts/lib/audit-advisories.js",
+      "symbol": "extractBlockingAdvisories"
+    },
+    {
+      "file": "scripts/lib/baselines/orphan-pruner.js",
+      "symbol": "planPrune"
+    },
+    {
+      "file": "scripts/lib/baselines/orphan-pruner.js",
+      "symbol": "pruneEnvelope"
+    },
+    {
+      "file": "scripts/lib/baselines/scope-assert.js",
+      "symbol": "STRICT_REASONS"
+    },
+    {
+      "file": "scripts/lib/baselines/scope-inventory.js",
+      "symbol": "deriveWalkRoots"
+    },
+    {
+      "file": "scripts/lib/baselines/scope-inventory.js",
+      "symbol": "directionsFor"
+    },
+    {
+      "file": "scripts/lib/baselines/scope-inventory.js",
+      "symbol": "keyFieldFor"
+    },
+    {
+      "file": "scripts/lib/baselines/scope-inventory.js",
+      "symbol": "KIND_SCOPE_POLICY"
+    },
+    {
+      "file": "scripts/lib/dynamic-workflow/architecture-report-contract.js",
       "symbol": "*"
+    },
+    {
+      "file": "scripts/lib/dynamic-workflow/audit-orchestrator.js",
+      "symbol": "*"
+    },
+    {
+      "file": "scripts/lib/dynamic-workflow/clean-code-report-contract.js",
+      "symbol": "*"
+    },
+    {
+      "file": "scripts/lib/dynamic-workflow/degraded-coverage.js",
+      "symbol": "*"
+    },
+    {
+      "file": "scripts/lib/dynamic-workflow/documentation-report-contract.js",
+      "symbol": "*"
+    },
+    {
+      "file": "scripts/lib/dynamic-workflow/performance-report-contract.js",
+      "symbol": "*"
+    },
+    {
+      "file": "scripts/lib/dynamic-workflow/quality-report-contract.js",
+      "symbol": "*"
+    },
+    {
+      "file": "scripts/lib/dynamic-workflow/report-contract-core.js",
+      "symbol": "*"
+    },
+    {
+      "file": "scripts/lib/dynamic-workflow/security-report-contract.js",
+      "symbol": "*"
+    },
+    {
+      "file": "scripts/lib/knip-entry-sync.js",
+      "symbol": "__testing"
+    },
+    {
+      "file": "scripts/lib/test-isolate/env-snapshot-loader.js",
+      "symbol": "*"
+    },
+    {
+      "file": "scripts/lib/test-isolate/list-files.js",
+      "symbol": "walkTestFiles"
+    },
+    {
+      "file": "scripts/lib/test-isolate/runner.js",
+      "symbol": "bisectFlipper"
     }
   ]
 }

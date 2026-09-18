@@ -1,7 +1,7 @@
 {
   "$schema": "https://mandrel.dev/baselines/dead-exports.schema.json",
   "kernelVersion": "6.17.1",
-  "generatedAt": "2026-09-18T00:20:40.960Z",
+  "generatedAt": "2026-09-18T14:30:32.121Z",
   "rows": [
     {
       "file": ".agents/scripts/lib/baseline-schema-registry.js",
@@ -92,10 +92,6 @@
       "symbol": "__test"
     },
     {
-      "file": "scripts/lib/dynamic-workflow/report-contract-core.js",
-      "symbol": "escapeRegExp"
-    },
-    {
       "file": ".agents/scripts/lib/findings/classify-finding.js",
       "symbol": "__testing"
     },
@@ -156,32 +152,12 @@
       "symbol": "*"
     },
     {
-      "file": "scripts/lib/test-isolate/env-snapshot-loader.js",
-      "symbol": "*"
-    },
-    {
-      "file": "scripts/lib/test-isolate/list-files.js",
-      "symbol": "walkTestFiles"
-    },
-    {
       "file": ".agents/scripts/lib/ticket-body-sections.js",
       "symbol": "DELIVERY_SLICING_RE"
     },
     {
-      "file": ".agents/scripts/lib/worktree/git-hooks.js",
-      "symbol": "resolveCommonCheckout"
-    },
-    {
       "file": ".agents/scripts/lib/worktree/lifecycle-manager.js",
       "symbol": "findByPath"
-    },
-    {
-      "file": "scripts/post-structured-comment.js",
-      "symbol": "main"
-    },
-    {
-      "file": "scripts/post-structured-comment.js",
-      "symbol": "parseArgv"
     },
     {
       "file": ".agents/scripts/providers/github.js",
@@ -244,8 +220,16 @@
       "symbol": "DEFAULT_PER_PAGE"
     },
     {
-      "file": "scripts/provision-git-hooks.js",
+      "file": "scripts/lib/dynamic-workflow/report-contract-core.js",
+      "symbol": "escapeRegExp"
+    },
+    {
+      "file": "scripts/lib/test-isolate/env-snapshot-loader.js",
       "symbol": "*"
+    },
+    {
+      "file": "scripts/lib/test-isolate/list-files.js",
+      "symbol": "walkTestFiles"
     }
   ]
 }

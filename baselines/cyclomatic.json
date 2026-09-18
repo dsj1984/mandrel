@@ -1,6 +1,6 @@
 {
   "$schema": "https://mandrel.dev/baselines/cyclomatic.schema.json",
-  "generatedAt": "2026-09-17T14:47:46.169Z",
+  "generatedAt": "2026-09-18T14:27:17.855Z",
   "ceiling": 12,
   "rollup": {
     "*": {
@@ -176,11 +176,6 @@
       "maxCyclomatic": 20
     },
     {
-      "file": "scripts/lib/test-profile/parse-tap.js",
-      "methodsAboveCeiling": 1,
-      "maxCyclomatic": 16
-    },
-    {
       "file": ".agents/scripts/lib/validation-evidence.js",
       "methodsAboveCeiling": 1,
       "maxCyclomatic": 13
@@ -209,6 +204,11 @@
       "file": "lib/cli/uninstall.js",
       "methodsAboveCeiling": 1,
       "maxCyclomatic": 14
+    },
+    {
+      "file": "scripts/lib/test-profile/parse-tap.js",
+      "methodsAboveCeiling": 1,
+      "maxCyclomatic": 16
     }
   ]
 }

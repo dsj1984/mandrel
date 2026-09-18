@@ -14,8 +14,6 @@ import { fileURLToPath } from 'node:url';
 
 import {
   checkPayloadBoundary,
-  findEscapingImports,
-  findUnnamedClis,
   renderPayloadBoundaryReport,
 } from '../../scripts/lib/payload-boundary.js';
 
@@ -45,77 +43,62 @@ function plant(files) {
   return root;
 }
 
-describe('findUnnamedClis', () => {
+describe('rule 1 — every CLI is named by a consumer surface', () => {
+  const unnamedIn = (files) =>
+    checkPayloadBoundary({ repoRoot: plant(files) }).unnamed;
+
   it('reports a CLI no surface names', () => {
-    const unnamed = findUnnamedClis({
-      clis: ['used.js', 'orphan.js'],
-      surfaces: [{ path: '.agents/workflows/a.md', text: 'run `used.js`' }],
+    const unnamed = unnamedIn({
+      '.agents/scripts/used.js': 'export {};\n',
+      '.agents/scripts/orphan.js': 'export {};\n',
+      '.agents/workflows/a.md': 'run `used.js`\n',
     });
     assert.deepEqual(unnamed, ['orphan.js']);
   });
 
   it('never lets a CLI vouch for itself', () => {
-    const unnamed = findUnnamedClis({
-      clis: ['self.js'],
-      surfaces: [{ path: '.agents/scripts/self.js', text: "'self.js'" }],
+    const unnamed = unnamedIn({
+      '.agents/scripts/self.js': "export const NAME = 'self.js';\n",
     });
     assert.deepEqual(unnamed, ['self.js']);
   });
 
   it('matches the basename as a whole token, not as a suffix', () => {
-    const unnamed = findUnnamedClis({
-      clis: ['notify.js'],
-      surfaces: [{ path: 'lib/x.js', text: "spawn('my-notify.js')" }],
+    const unnamed = unnamedIn({
+      '.agents/scripts/notify.js': 'export {};\n',
+      'lib/x.js': "spawn('my-notify.js');\n",
     });
     assert.deepEqual(unnamed, ['notify.js']);
   });
 
-  it('accepts a path-qualified mention', () => {
-    const unnamed = findUnnamedClis({
-      clis: ['notify.js'],
-      surfaces: [
-        { path: 'bin/x.js', text: "join(root, '.agents/scripts/notify.js')" },
-      ],
+  it('accepts a path-qualified mention from bin/', () => {
+    const unnamed = unnamedIn({
+      '.agents/scripts/notify.js': 'export {};\n',
+      'bin/x.js': "join(root, '.agents/scripts/notify.js');\n",
     });
     assert.deepEqual(unnamed, []);
   });
 });
 
-describe('findEscapingImports', () => {
-  it('reports a relative import that resolves outside .agents/', () => {
-    const escapes = findEscapingImports({
-      files: [
-        {
-          path: '.agents/scripts/a.js',
-          text: "import { x } from '../../scripts/lib/x.js';",
-        },
-      ],
-    });
-    assert.deepEqual(escapes, [
-      { file: '.agents/scripts/a.js', specifier: '../../scripts/lib/x.js' },
-    ]);
-  });
+describe('rule 2 — nothing under .agents/ imports from outside it', () => {
+  const escapesIn = (files) =>
+    checkPayloadBoundary({ repoRoot: plant(files) }).escapes;
 
   it('catches dynamic import() and require()', () => {
-    const escapes = findEscapingImports({
-      files: [
-        {
-          path: '.agents/scripts/lib/a.js',
-          text: "await import('../../../lib/y.js'); require('../../../bin/z.js');",
-        },
-      ],
+    const escapes = escapesIn({
+      '.agents/scripts/lib/a.js':
+        "await import('../../../lib/y.js');\nrequire('../../../bin/z.js');\n",
     });
-    assert.equal(escapes.length, 2);
+    assert.deepEqual(
+      escapes.map((e) => e.specifier),
+      ['../../../lib/y.js', '../../../bin/z.js'],
+    );
   });
 
   it('ignores package specifiers and imports that stay inside .agents/', () => {
-    const escapes = findEscapingImports({
-      files: [
-        {
-          path: '.agents/scripts/lib/a.js',
-          text: "import fs from 'node:fs';\nimport { b } from '../b.js';",
-        },
-      ],
+    const escapes = escapesIn({
+      '.agents/scripts/lib/a.js':
+        "import fs from 'node:fs';\nimport { b } from '../b.js';\n",
     });
     assert.deepEqual(escapes, []);
   });

@@ -169,7 +169,7 @@ function collectConsumerSurfaces({ repoRoot, fsImpl = fs }) {
  * @param {{ clis: string[], surfaces: Array<{ path: string, text: string }> }} input
  * @returns {string[]} sorted basenames
  */
-export function findUnnamedClis({ clis, surfaces }) {
+function findUnnamedClis({ clis, surfaces }) {
   return clis.filter((cli) => {
     const own = `${SCRIPTS_DIR}/${cli}`;
     const escaped = cli.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -185,7 +185,7 @@ export function findUnnamedClis({ clis, surfaces }) {
  *   payload source files, comment-stripped
  * @returns {Array<{ file: string, specifier: string }>}
  */
-export function findEscapingImports({ files }) {
+function findEscapingImports({ files }) {
   const escapes = [];
   for (const { path: rel, text } of files) {
     for (const m of text.matchAll(IMPORT_RE)) {
