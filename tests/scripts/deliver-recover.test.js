@@ -15,6 +15,8 @@
  *     refuses outright, because init hard-errors on an already-closed Story)
  *   - done with a drifted board → resync
  *   - blocked → the class-specific remediation the friction comment names
+ *   - blocked on a red required check → the ci-remediation watcher, never
+ *     this probe again (Story #5405)
  *
  * Two invariants are pinned beyond the rows themselves: every shape yields
  * exactly one command (never a menu), and that command comes from the SAME
@@ -149,6 +151,23 @@ describe('deliver-recover — the decision table', () => {
       command: NEXT_COMMANDS.recover(STORY_ID),
     },
     {
+      name: 'blocked on checks-failed → the watcher, never this probe again',
+      probes: {
+        ticket: ticket('agent::blocked'),
+        branch: BRANCH_PRESENT,
+        pr: { number: 99, state: 'OPEN', checksStatus: 'failure' },
+        closeArtifacts: {
+          envelope: {
+            status: 'blocked',
+            phase: 'confirm-merge',
+            blocked: { blockClass: 'checks-failed' },
+          },
+        },
+      },
+      shape: 'blocked-checks-failed',
+      command: NEXT_COMMANDS.watchCi(STORY_ID, 99),
+    },
+    {
       name: 'executing with a PR → close died before the label flip',
       probes: {
         ticket: ticket('agent::executing'),
@@ -199,6 +218,61 @@ describe('deliver-recover — the decision table', () => {
     }
     // Every row is a distinct documented strand shape.
     assert.equal(byShape.size, rows.length);
+  });
+
+  it('blocked on checks-failed names both ci-remediation routes, including file-ci-gap', () => {
+    const decision = decideRecovery({
+      storyId: STORY_ID,
+      ticket: ticket('agent::blocked'),
+      branch: BRANCH_PRESENT,
+      pr: { number: 99, state: 'OPEN', checksStatus: 'failure' },
+      closeArtifacts: {
+        envelope: {
+          status: 'blocked',
+          blocked: { blockClass: 'checks-failed' },
+        },
+      },
+    });
+    assert.notEqual(decision.nextCommand, NEXT_COMMANDS.recover(STORY_ID));
+    assert.match(decision.detail, /push a new\s+commit/);
+    assert.match(
+      decision.detail,
+      /file-ci-gap\.js --story 4543 --pr 99 --verdict/,
+    );
+    assert.match(decision.detail, /story-4543-ci-digest\.json/);
+  });
+
+  it('blocked on checks-failed with no PR to watch falls back to the class-specific answer', () => {
+    const decision = decideRecovery({
+      storyId: STORY_ID,
+      ticket: ticket('agent::blocked'),
+      branch: BRANCH_PRESENT,
+      pr: null,
+      closeArtifacts: {
+        envelope: {
+          status: 'blocked',
+          blocked: { blockClass: 'checks-failed' },
+        },
+      },
+    });
+    assert.equal(decision.shape, 'blocked');
+  });
+
+  it('other blocked classes keep the class-specific answer', () => {
+    const decision = decideRecovery({
+      storyId: STORY_ID,
+      ticket: ticket('agent::blocked'),
+      branch: BRANCH_PRESENT,
+      pr: { number: 99, state: 'OPEN', checksStatus: 'pending' },
+      closeArtifacts: {
+        envelope: {
+          status: 'blocked',
+          blocked: { blockClass: 'checks-pending-timeout' },
+        },
+      },
+    });
+    assert.equal(decision.shape, 'blocked');
+    assert.equal(decision.nextCommand, NEXT_COMMANDS.recover(STORY_ID));
   });
 
   it('the next-command vocabulary is shared with the terminal envelope, not a second dialect', () => {

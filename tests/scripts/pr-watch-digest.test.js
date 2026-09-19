@@ -17,7 +17,9 @@ import assert from 'node:assert/strict';
 import { readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
+import { recordRequiredRed } from '../../.agents/scripts/lib/orchestration/ci-red-handling.js';
 import {
+  readCiDigest,
   resolveDigestScope,
   writeCiDigest,
 } from '../../.agents/scripts/lib/orchestration/ci-rerun-guard.js';
@@ -322,5 +324,95 @@ describe('the default gh probes (Story #5009)', () => {
       assert.equal(lines[0], 'l20');
       assert.equal(lines.at(-1), 'l59');
     });
+  });
+});
+
+describe('recordRequiredRed — the one first-red handling (Story #5405)', () => {
+  const DISARMED = {
+    disarmed: true,
+    alreadyUnarmed: false,
+    detail: 'disarmed',
+  };
+  const stubWrite = (w) =>
+    writeCiDigest({
+      ...w,
+      checkRunFn: () => ({ runId: '9', url: 'https://example.test/runs/9' }),
+      logTailFn: () => 'boom',
+    });
+
+  it('disarms BEFORE writing the digest', async () => {
+    const dir = makeTempDir('mandrel-digest-');
+    try {
+      const order = [];
+      await recordRequiredRed({
+        storyId: 7,
+        prNumber: 1,
+        prRef: '1',
+        failures: FAILURES,
+        tempRoot: dir,
+        cwd: dir,
+        disarmFn: async () => {
+          order.push('disarm');
+          return DISARMED;
+        },
+        headShaFn: () => 'sha-probed',
+        writeDigestFn: (w) => {
+          order.push('write');
+          return stubWrite(w);
+        },
+      });
+      assert.deepEqual(order, ['disarm', 'write']);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('keys the digest to an already-observed head SHA without probing', async () => {
+    const dir = makeTempDir('mandrel-digest-');
+    try {
+      const out = await recordRequiredRed({
+        storyId: 7,
+        prNumber: 1,
+        prRef: '1',
+        failures: FAILURES,
+        tempRoot: dir,
+        cwd: dir,
+        headSha: 'sha-observed',
+        disarmFn: async () => DISARMED,
+        headShaFn: () => {
+          throw new Error('must not probe');
+        },
+        writeDigestFn: stubWrite,
+      });
+      assert.equal(out.headSha, 'sha-observed');
+      assert.equal(out.digestError, null);
+      const digest = readCiDigest({ storyId: 7, tempRoot: dir, cwd: dir });
+      assert.equal(digest.headSha, 'sha-observed');
+      assert.equal(digest.runUrl, 'https://example.test/runs/9');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('returns a write failure as digestError instead of throwing', async () => {
+    const warned = [];
+    const out = await recordRequiredRed({
+      storyId: 7,
+      prNumber: 1,
+      prRef: '1',
+      failures: FAILURES,
+      tempRoot: '/nonexistent',
+      cwd: '/nonexistent',
+      headSha: 'sha',
+      disarmFn: async () => DISARMED,
+      writeDigestFn: () => {
+        throw new Error('EROFS');
+      },
+      logger: { warn: (m) => warned.push(m) },
+    });
+    assert.equal(out.digestPaths, null);
+    assert.equal(out.digestError, 'EROFS');
+    assert.equal(out.disarm, DISARMED);
+    assert.match(warned[0], /failed to write CI digest \(non-fatal\): EROFS/);
   });
 });

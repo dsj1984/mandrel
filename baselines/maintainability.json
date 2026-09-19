@@ -1043,6 +1043,10 @@
       "mi": 88.737
     },
     {
+      "path": ".agents/scripts/lib/orchestration/ci-red-handling.js",
+      "mi": 96.193
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "mi": 92.372
     },
@@ -1060,7 +1064,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/deliver-recover.js",
-      "mi": 83.564
+      "mi": 84.824
     },
     {
       "path": ".agents/scripts/lib/orchestration/dependency-analyzer.js",

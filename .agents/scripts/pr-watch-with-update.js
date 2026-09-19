@@ -20,6 +20,7 @@ import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
 import { gh as defaultGh } from './lib/gh-exec.js';
 import { Logger } from './lib/Logger.js';
+import { recordRequiredRed } from './lib/orchestration/ci-red-handling.js';
 import {
   blockStoryDelivery,
   classifyFailure,
@@ -229,25 +230,18 @@ async function handleRedWatch({
   blockFn,
   logger,
 }) {
-  const disarm = await disarmFn({ prRef });
-  const scope = resolveDigestScope({ storyId });
-  const headSha = scope ? headShaFn({ prRef, cwd }) : null;
-  let digestPaths = null;
-  try {
-    digestPaths = writeDigestFn({
-      storyId,
-      prNumber,
-      headSha,
-      failures,
-      tempRoot,
-      cwd,
-      prRef,
-    });
-  } catch (err) {
-    logger.warn?.(
-      `[pr-watch] failed to write CI digest (non-fatal): ${err?.message ?? err}`,
-    );
-  }
+  const { headSha, disarm, digestPaths } = await recordRequiredRed({
+    storyId,
+    prNumber,
+    prRef,
+    failures,
+    tempRoot,
+    cwd,
+    disarmFn,
+    headShaFn,
+    writeDigestFn,
+    logger,
+  });
   let blocked = false;
   if (!disarm.disarmed) {
     logger.error?.(
