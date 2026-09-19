@@ -336,6 +336,27 @@ function decideBlockedChecksFailed({ storyId, pr, closeArtifacts, evidence }) {
 }
 
 /**
+ * A blocked Story: the checks-failed route when it applies, else the
+ * class-specific remediation the friction comment already carries.
+ *
+ * @returns {{ shape: string, nextCommand: string, detail: string, evidence: string[] }}
+ */
+function decideBlocked({ storyId, pr, closeArtifacts, evidence }) {
+  return (
+    decideBlockedChecksFailed({ storyId, pr, closeArtifacts, evidence }) ?? {
+      shape: 'blocked',
+      nextCommand: NEXT_COMMANDS.recover(storyId),
+      detail:
+        `Story is at \`agent::blocked\`. The block was already classified when it was ` +
+        `filed — read the \`friction\` comment on #${storyId} for the class-specific ` +
+        `remediation, resolve it, then transition back to \`agent::executing\`. ` +
+        `Re-run this probe afterwards to confirm the strand cleared.`,
+      evidence,
+    }
+  );
+}
+
+/**
  * The pure decision table: exactly one verdict, never a list.
  *
  * @param {{
@@ -390,23 +411,7 @@ export function decideRecovery({
   }
 
   if (label === STATE_LABELS.BLOCKED) {
-    const checksFailed = decideBlockedChecksFailed({
-      storyId,
-      pr,
-      closeArtifacts,
-      evidence,
-    });
-    if (checksFailed) return checksFailed;
-    return {
-      shape: 'blocked',
-      nextCommand: NEXT_COMMANDS.recover(storyId),
-      detail:
-        `Story is at \`agent::blocked\`. The block was already classified when it was ` +
-        `filed — read the \`friction\` comment on #${storyId} for the class-specific ` +
-        `remediation, resolve it, then transition back to \`agent::executing\`. ` +
-        `Re-run this probe afterwards to confirm the strand cleared.`,
-      evidence,
-    };
+    return decideBlocked({ storyId, pr, closeArtifacts, evidence });
   }
 
   if (label === STATE_LABELS.DONE) {
