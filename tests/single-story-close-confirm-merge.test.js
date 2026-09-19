@@ -2804,6 +2804,53 @@ describe('runConfirmMergePhase — checks-failed writes the CI digest (Story #54
     }
   });
 
+  it('red handling that throws still blocks, reporting no disarm and no digest', async () => {
+    const tempRoot = makeTempDir('mandrel-5405-');
+    try {
+      const ctx = run({
+        tempRoot,
+        overrides: {
+          recordRequiredRedFn: async () => {
+            throw new Error('gh unavailable');
+          },
+        },
+      });
+      const outcome = await runConfirmMergePhase(ctx.args);
+      assert.equal(outcome.blockClass, 'checks-failed');
+      assert.equal(outcome.redRecord.digestError, 'gh unavailable');
+      assert.ok(ctx.provider._story().labels.includes('agent::blocked'));
+      const friction = ctx.provider._comments()[0].payload.body;
+      assert.match(
+        friction,
+        /could \*\*not\*\* be disarmed \(gh unavailable\)/,
+      );
+      assert.match(friction, /No CI digest was written \(gh unavailable\)/);
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('a PR that was never armed is reported as already un-armed', async () => {
+    const tempRoot = makeTempDir('mandrel-5405-');
+    try {
+      const ctx = run({
+        tempRoot,
+        overrides: {
+          disarmAutoMergeFn: async () => ({
+            disarmed: true,
+            alreadyUnarmed: true,
+            detail: 'auto-merge was not armed',
+          }),
+        },
+      });
+      await runConfirmMergePhase(ctx.args);
+      const friction = ctx.provider._comments()[0].payload.body;
+      assert.match(friction, /Auto-merge was already un-armed\./);
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it('an advisory-gate block writes no CI digest', async () => {
     const tempRoot = makeTempDir('mandrel-5405-');
     try {

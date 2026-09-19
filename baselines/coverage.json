@@ -1593,6 +1593,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestration/ci-red-handling.js",
+      "lines": 100,
+      "branches": 85.71,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "lines": 99.23,
       "branches": 80.39,
@@ -1618,9 +1624,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/deliver-recover.js",
-      "lines": 99.34,
-      "branches": 85.71,
-      "functions": 92.86
+      "lines": 99.39,
+      "branches": 86.23,
+      "functions": 93.75
     },
     {
       "path": ".agents/scripts/lib/orchestration/dependency-analyzer.js",
@@ -2194,9 +2200,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
-      "lines": 96.28,
-      "branches": 80.83,
-      "functions": 97.14
+      "lines": 96.56,
+      "branches": 80.37,
+      "functions": 97.37
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/conventional-subject.js",
@@ -2944,8 +2950,8 @@
     },
     {
       "path": ".agents/scripts/pr-watch-with-update.js",
-      "lines": 94.89,
-      "branches": 89.26,
+      "lines": 95.36,
+      "branches": 89.83,
       "functions": 86.36
     },
     {
