@@ -13,7 +13,11 @@ import {
 } from '../config/temp-paths.js';
 import { gh as defaultGh } from '../gh-exec.js';
 import { gitSpawn as defaultGitSpawn, getStoryBranch } from '../git-utils.js';
-import { deriveChecksStatus, isPrMerged } from './merge-poll.js';
+import {
+  CHECKS_FAILED_CLASS,
+  deriveChecksStatus,
+  isPrMerged,
+} from './merge-poll.js';
 import { NEXT_COMMANDS } from './story-deliver-terminal.js';
 import { STATE_LABELS } from './ticketing.js';
 
@@ -303,6 +307,35 @@ function decideExecuting({ storyId, branch, pr, closeArtifacts, evidence }) {
 }
 
 /**
+ * A close that blocked on a red required check disarmed auto-merge and wrote
+ * the CI digest, so the next step is the ci-remediation loop — never this
+ * probe again. `null` for every other blocked class (or with no PR to watch).
+ *
+ * @returns {{ shape: string, nextCommand: string, detail: string, evidence: string[] } | null}
+ */
+function decideBlockedChecksFailed({ storyId, pr, closeArtifacts, evidence }) {
+  const envelope = closeArtifacts?.envelope;
+  if (envelope?.blocked?.blockClass !== CHECKS_FAILED_CLASS) return null;
+  const prNumber = pr?.number ?? envelope?.pr?.number ?? null;
+  if (!prNumber) return null;
+  return {
+    shape: 'blocked-checks-failed',
+    nextCommand: NEXT_COMMANDS.watchCi(storyId, prNumber),
+    detail:
+      `Story is \`agent::blocked\` because a required check on PR #${prNumber} went red. ` +
+      `The close disarmed auto-merge and wrote the CI digest ` +
+      `(\`story-${storyId}-ci-digest.json\` under the configured tempRoot). Per ` +
+      `\`.agents/rules/ci-remediation.md\`, either fix the failure at source and push a new ` +
+      `commit on \`story-${storyId}\`, or — when the root cause is outside this delivery — run ` +
+      `\`node .agents/scripts/file-ci-gap.js --story ${storyId} --pr ${prNumber} --verdict <verdict> ` +
+      `--owner <consumer|framework|platform> --evidence "<proof reading>"\`. Then run the watcher: ` +
+      `a green on a new head SHA, or the one rerun a filed capacity / unreproducible-tier verdict ` +
+      `admits, re-arms auto-merge.`,
+    evidence,
+  };
+}
+
+/**
  * The pure decision table: exactly one verdict, never a list.
  *
  * @param {{
@@ -357,6 +390,13 @@ export function decideRecovery({
   }
 
   if (label === STATE_LABELS.BLOCKED) {
+    const checksFailed = decideBlockedChecksFailed({
+      storyId,
+      pr,
+      closeArtifacts,
+      evidence,
+    });
+    if (checksFailed) return checksFailed;
     return {
       shape: 'blocked',
       nextCommand: NEXT_COMMANDS.recover(storyId),

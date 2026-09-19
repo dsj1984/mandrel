@@ -24,16 +24,22 @@
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { readdirSync, readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, rmSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { runFileCiGap } from '../.agents/scripts/file-ci-gap.js';
 import {
   parseSprintArgs,
   parseSprintArgsTolerant,
 } from '../.agents/scripts/lib/cli-args.js';
 import { TEST_TEMP_ROOT_ENV } from '../.agents/scripts/lib/config/temp-paths.js';
+import { recordRequiredRed } from '../.agents/scripts/lib/orchestration/ci-red-handling.js';
+import {
+  readCiDigest,
+  writeCiDigest,
+} from '../.agents/scripts/lib/orchestration/ci-rerun-guard.js';
 import {
   enableAutoMergeWith,
   runAutoMergePhase,
@@ -139,6 +145,27 @@ function openProbe(overrides = {}) {
 }
 
 /**
+ * Stand-in for the shared first-red handling: runs the injected disarm (so a
+ * harness counting disarms still sees it) and reports a written digest,
+ * without touching `gh` or the filesystem.
+ */
+async function fakeRecordRequiredRed({ disarmFn, headSha = null }) {
+  const disarm = await disarmFn({ prRef: 'fake' });
+  return {
+    headSha,
+    disarm:
+      disarm && typeof disarm === 'object'
+        ? disarm
+        : { disarmed: true, alreadyUnarmed: false, detail: 'disarmed' },
+    digestPaths: {
+      jsonPath: '/repo/temp/story-0-ci-digest.json',
+      mdPath: '/repo/temp/story-0-ci-digest.md',
+    },
+    digestError: null,
+  };
+}
+
+/**
  * Base args for the phase. Every collaborator is injected so the suite never
  * touches git, GitHub, or a real clock.
  */
@@ -169,6 +196,12 @@ function phaseArgs(overrides = {}) {
     }),
     emitMergeUnlandedFn: () => {},
     emitMergeFlipFailedFn: () => {},
+    disarmAutoMergeFn: async () => ({
+      disarmed: true,
+      alreadyUnarmed: false,
+      detail: 'disarmed',
+    }),
+    recordRequiredRedFn: fakeRecordRequiredRed,
     ...overrides,
   };
 }
@@ -1903,6 +1936,7 @@ describe('runConfirmMergePhase — in-poll advisory disarm (Story #5096)', () =>
         disarms.push(a.prNumber);
         return true;
       },
+      recordRequiredRedFn: fakeRecordRequiredRed,
       sleepFn: async () => {},
       nowMsFn: makeClock(0),
       ...overrides,
@@ -1989,7 +2023,7 @@ describe('runConfirmMergePhase — in-poll advisory disarm (Story #5096)', () =>
     assert.deepEqual(ctx.disarms, []);
   });
 
-  it('never disarms a PR GitHub is already gating (BLOCKED keeps checks-failed)', async () => {
+  it('a PR GitHub is already gating stays checks-failed, disarmed once by the red handling', async () => {
     const ctx = runWith({
       readPrWaitProbeFn: async () =>
         advisoryProbe({
@@ -2001,7 +2035,9 @@ describe('runConfirmMergePhase — in-poll advisory disarm (Story #5096)', () =>
         }),
     });
     await runConfirmMergePhase(ctx.args);
-    assert.deepEqual(ctx.disarms, [], 'the required-check path owns this case');
+    // Story #5405: the required-check path owns this case and disarms through
+    // the shared first-red handling, not the advisory branch.
+    assert.deepEqual(ctx.disarms, [1850]);
     assert.equal(ctx.emitted[0].blockClass, 'checks-failed');
   });
 
@@ -2589,5 +2625,215 @@ describe('merge wait — decisions made once (Story #5383)', () => {
     );
     assert.equal(outcome.blockClass, 'merged-flip-failed');
     assert.match(outcome.reason, /agent::done label write failed/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Story #5405 — the close-and-land red path reaches `file-ci-gap.js`.
+//
+// Since close-and-land became the default, nothing in a normal delivery runs
+// `pr-watch-with-update.js`, so a `checks-failed` block used to leave no CI
+// digest and `file-ci-gap.js` refused to file. The fail-fast now runs the
+// same first-red handling as the watcher: disarm, then write the digest.
+// ---------------------------------------------------------------------------
+
+describe('runConfirmMergePhase — checks-failed writes the CI digest (Story #5405)', () => {
+  const STORY = 5405;
+  const PR = 3032;
+  const HEAD = 'feedface0000000000000000000000000000cafe';
+  const RUN_URL = 'https://github.com/o/r/actions/runs/777/job/1';
+
+  const redProbe = () =>
+    openProbe({
+      mergeStateStatus: 'BLOCKED',
+      checksStatus: 'failure',
+      headSha: HEAD,
+      requiredRunEvidence: {
+        requiredRunFailed: true,
+        requiredRunInFlight: false,
+      },
+      redHeadRuns: [{ name: 'Astro build', conclusion: 'FAILURE', runId: 777 }],
+    });
+
+  /** The REAL shared red handling, with only its `gh` probes stubbed. */
+  const realRecordRed = (args) =>
+    recordRequiredRed({
+      ...args,
+      writeDigestFn: (w) =>
+        writeCiDigest({
+          ...w,
+          checkRunFn: () => ({ runId: '777', url: RUN_URL }),
+          logTailFn: () =>
+            '##[error]The runner has received a shutdown signal.\n',
+        }),
+    });
+
+  function run({ tempRoot, overrides = {} }) {
+    const disarms = [];
+    const provider = makeFakeProvider();
+    const args = phaseArgs({
+      storyId: STORY,
+      prNumber: PR,
+      cwd: tempRoot,
+      provider,
+      config: {
+        project: { paths: { tempRoot } },
+        delivery: { mergeWatch: { intervalSeconds: 5 } },
+      },
+      readPrWaitProbeFn: async () => redProbe(),
+      disarmAutoMergeFn: async ({ prNumber }) => {
+        disarms.push(prNumber);
+        return { disarmed: true, alreadyUnarmed: false, detail: 'disarmed' };
+      },
+      recordRequiredRedFn: realRecordRed,
+      ...overrides,
+    });
+    return { args, disarms, provider };
+  }
+
+  it('disarms and writes the digest, then file-ci-gap files a capacity verdict with no watcher run', async () => {
+    const tempRoot = makeTempDir('mandrel-5405-');
+    try {
+      const ctx = run({ tempRoot });
+      const outcome = await runConfirmMergePhase(ctx.args);
+
+      assert.equal(outcome.terminal, 'blocked');
+      assert.equal(outcome.blockClass, 'checks-failed');
+      assert.deepEqual(ctx.disarms, [PR], 'auto-merge disarmed at the red');
+
+      const digest = readCiDigest({ storyId: STORY, tempRoot, cwd: tempRoot });
+      assert.ok(digest, 'the digest exists where file-ci-gap reads it');
+      assert.equal(digest.headSha, HEAD);
+      assert.equal(digest.failingCheck, 'Astro build');
+      assert.equal(digest.runUrl, RUN_URL);
+      assert.equal(
+        outcome.redRecord.digestPaths.jsonPath.endsWith(
+          `story-${STORY}-ci-digest.json`,
+        ),
+        true,
+      );
+
+      const friction = ctx.provider._comments()[0].payload.body;
+      assert.match(friction, /Auto-merge was \*\*disarmed\*\*/);
+      assert.match(friction, /ci-digest\.json/);
+      assert.match(friction, /file-ci-gap\.js --story 5405 --pr 3032/);
+
+      // No `digest` injected: the filer reads the one the close wrote.
+      const filed = await runFileCiGap({
+        storyId: STORY,
+        verdict: 'capacity',
+        owner: 'platform',
+        evidence: '##[error]The runner has received a shutdown signal.',
+        prNumber: PR,
+        dryRun: true,
+        tempRoot,
+        cwd: tempRoot,
+        config: {
+          github: {
+            owner: 'o',
+            repo: 'r',
+            followUpRepos: { platform: 'o/platform' },
+          },
+        },
+        ports: {
+          searchIssues: async () => [],
+          createIssue: async () => ({ url: null, number: null, error: null }),
+          updateIssue: async () => ({ url: null, error: null }),
+        },
+        logger: { warn() {}, info() {}, error() {} },
+      });
+      assert.equal(filed.storyId, STORY);
+      assert.equal(filed.verdict, 'capacity');
+      assert.deepEqual(filed.errors, []);
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('a digest-write failure still blocks, flips agent::blocked, and says the digest is missing', async () => {
+    const tempRoot = makeTempDir('mandrel-5405-');
+    try {
+      const ctx = run({
+        tempRoot,
+        overrides: {
+          recordRequiredRedFn: (args) =>
+            recordRequiredRed({
+              ...args,
+              writeDigestFn: () => {
+                throw new Error('EACCES: temp is read-only');
+              },
+              logger: { warn() {} },
+            }),
+        },
+      });
+      const outcome = await runConfirmMergePhase(ctx.args);
+
+      assert.equal(outcome.terminal, 'blocked');
+      assert.equal(outcome.blockClass, 'checks-failed');
+      assert.ok(
+        ctx.provider._story().labels.includes('agent::blocked'),
+        'the block stands',
+      );
+      const friction = ctx.provider._comments()[0].payload.body;
+      assert.match(friction, /No CI digest was written \(EACCES/);
+      assert.match(friction, /pr-watch-with-update\.js --pr 3032 --story 5405/);
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('a failed disarm is reported, never claimed as done', async () => {
+    const tempRoot = makeTempDir('mandrel-5405-');
+    try {
+      const ctx = run({
+        tempRoot,
+        overrides: {
+          disarmAutoMergeFn: async () => ({
+            disarmed: false,
+            alreadyUnarmed: false,
+            detail: 'HTTP 502',
+          }),
+        },
+      });
+      await runConfirmMergePhase(ctx.args);
+      const friction = ctx.provider._comments()[0].payload.body;
+      assert.match(friction, /could \*\*not\*\* be disarmed \(HTTP 502\)/);
+      assert.doesNotMatch(friction, /Auto-merge was \*\*disarmed\*\*/);
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('an advisory-gate block writes no CI digest', async () => {
+    const tempRoot = makeTempDir('mandrel-5405-');
+    try {
+      let recorded = 0;
+      const ctx = run({
+        tempRoot,
+        overrides: {
+          readPrWaitProbeFn: async () =>
+            openProbe({
+              mergeStateStatus: 'UNSTABLE',
+              checksStatus: 'failure',
+              redHeadRuns: [
+                { name: 'Bundle-size ratchet', conclusion: 'FAILURE' },
+              ],
+            }),
+          recordRequiredRedFn: async (args) => {
+            recorded += 1;
+            return realRecordRed(args);
+          },
+        },
+      });
+      const outcome = await runConfirmMergePhase(ctx.args);
+      assert.equal(outcome.blockClass, 'advisory-gate-red');
+      assert.equal(recorded, 0);
+      assert.equal(
+        readCiDigest({ storyId: STORY, tempRoot, cwd: tempRoot }),
+        null,
+      );
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
   });
 });

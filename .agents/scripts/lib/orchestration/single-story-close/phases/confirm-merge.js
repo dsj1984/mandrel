@@ -27,6 +27,7 @@ import {
 import { pollUntil } from '../../../util/poll-loop.js';
 import { applyBehindUpdate } from '../../behind-recovery.js';
 import { isRerunPermitted } from '../../check-state.js';
+import { recordRequiredRed as defaultRecordRequiredRed } from '../../ci-red-handling.js';
 import {
   emitMergeFlipFailed as defaultEmitMergeFlipFailed,
   MERGED_FLIP_FAILED_BLOCK_CLASS,
@@ -36,6 +37,7 @@ import { classifyMergeBlock as defaultClassifyMergeBlock } from '../../merge-blo
 import {
   ADVISORY_GATE_INCONCLUSIVE_CLASS,
   ADVISORY_GATE_RED_CLASS,
+  CHECKS_FAILED_CLASS,
   DEFAULT_INTERVAL_SECONDS,
   DEFAULT_MAX_BUDGET_SECONDS,
   decideAdvisoryGateBlock,
@@ -297,14 +299,9 @@ function advisoryGateRemedy({ storyId, blockClass }) {
  * @param {{ storyId: number, prNumber: number|null, blockClass: string }} args
  * @returns {string}
  */
-function unlandedRemedy({ storyId, prNumber, blockClass }) {
-  if (blockClass === 'checks-failed') {
-    return (
-      `A required check is **red**. Fix the failure and push a new commit on \`story-${storyId}\`; ` +
-      `the red disarms auto-merge, and only a green on a new head SHA re-arms it — ` +
-      `re-running the failed job is forbidden. Watch the checks with:\n\n` +
-      `\`\`\`bash\n${NEXT_COMMANDS.watchCi(storyId, prNumber)}\n\`\`\``
-    );
+function unlandedRemedy({ storyId, prNumber, blockClass, redRecord }) {
+  if (blockClass === CHECKS_FAILED_CLASS) {
+    return checksFailedRemedy({ storyId, prNumber, redRecord });
   }
   if (
     blockClass === ADVISORY_GATE_INCONCLUSIVE_CLASS ||
@@ -319,6 +316,35 @@ function unlandedRemedy({ storyId, prNumber, blockClass }) {
   );
 }
 
+/**
+ * States what the red handling actually did — never claims a disarm or a
+ * digest that did not happen — then names both ci-remediation routes.
+ *
+ * @param {{ storyId: number, prNumber: number|null, redRecord?: object }} args
+ * @returns {string}
+ */
+function checksFailedRemedy({ storyId, prNumber, redRecord }) {
+  const disarm = redRecord?.disarm;
+  const armLine = disarm?.disarmed
+    ? disarm.alreadyUnarmed
+      ? 'Auto-merge was already un-armed.'
+      : 'Auto-merge was **disarmed**; only a green on a new head SHA, or the one rerun a filed `capacity` / `unreproducible-tier` verdict admits, re-arms it.'
+    : `⚠️ Auto-merge could **not** be disarmed (${disarm?.detail ?? 'the red handling did not run'}) — GitHub may still land the PR when the checks read green. Disarm it by hand.`;
+  const watch = NEXT_COMMANDS.watchCi(storyId, prNumber);
+  const digestLine = redRecord?.digestPaths
+    ? `CI digest (run link + failure signature): \`${redRecord.digestPaths.jsonPath}\`.`
+    : `⚠️ No CI digest was written (${redRecord?.digestError ?? 'no Story scope'}); \`${watch}\` rewrites it.`;
+  return (
+    `A required check is **red**. ${armLine}\n\n${digestLine}\n\n` +
+    `Per \`.agents/rules/ci-remediation.md\`, either fix the failure and push a new commit on ` +
+    `\`story-${storyId}\` (re-running the failed job is forbidden), or — when the root cause is ` +
+    `outside this delivery — file it:\n\n` +
+    `\`\`\`bash\nnode .agents/scripts/file-ci-gap.js --story ${storyId} --pr ${prNumber} ` +
+    `--verdict <verdict> --owner <consumer|framework|platform> --evidence "<proof reading>"\n\`\`\`\n\n` +
+    `Then watch the checks with:\n\n\`\`\`bash\n${watch}\n\`\`\``
+  );
+}
+
 function formatUnlandedFriction({
   storyId,
   prNumber,
@@ -326,12 +352,13 @@ function formatUnlandedFriction({
   blockClass,
   reason,
   elapsedSeconds,
+  redRecord,
 }) {
   const prLabel =
     Number.isInteger(prNumber) && prNumber > 0
       ? `PR #${prNumber}${prUrl ? ` (${prUrl})` : ''}`
       : (prUrl ?? 'the PR');
-  const remedy = unlandedRemedy({ storyId, prNumber, blockClass });
+  const remedy = unlandedRemedy({ storyId, prNumber, blockClass, redRecord });
   return (
     `### close-and-land: merge did not land\n\n` +
     `Story #${storyId}: the close polled ${prLabel} for merge confirmation and ` +
@@ -691,6 +718,61 @@ function queuedExhaustionVerdict(probe, cumulativeMs) {
   };
 }
 
+/**
+ * A `checks-failed` fail-fast is a required-check red, so it gets the same
+ * first-red handling as the watcher: disarm, then write the CI digest
+ * `file-ci-gap.js` reads. Never throws — the block stands regardless.
+ *
+ * @returns {Promise<object>} the `recordRequiredRed` outcome.
+ */
+async function recordChecksFailedRed({
+  storyId,
+  prNumber,
+  probe,
+  cwd,
+  config,
+  gh,
+  progress,
+  disarmAutoMergeFn,
+  recordRequiredRedFn,
+}) {
+  const failures = (probe?.redHeadRuns ?? []).map((run) => ({
+    name: run.name ?? 'unknown',
+    outcome: String(run.conclusion ?? 'failure').toLowerCase(),
+  }));
+  try {
+    const record = await recordRequiredRedFn({
+      storyId,
+      prNumber,
+      prRef: String(prNumber),
+      failures,
+      tempRoot: config?.project?.paths?.tempRoot ?? 'temp',
+      cwd,
+      headSha: probe?.headSha ?? null,
+      disarmFn: () => disarmAutoMergeFn({ prNumber, gh, progress }),
+    });
+    if (record.digestPaths) {
+      progress?.(
+        'CONFIRM',
+        `🧾 CI failure digest → ${record.digestPaths.jsonPath}`,
+      );
+    }
+    return record;
+  } catch (err) {
+    const detail = String(err?.message ?? err);
+    progress?.(
+      'CONFIRM',
+      `⚠️ Red-check handling failed (continuing to block): ${detail}`,
+    );
+    return {
+      headSha: probe?.headSha ?? null,
+      disarm: { disarmed: false, alreadyUnarmed: false, detail },
+      digestPaths: null,
+      digestError: detail,
+    };
+  }
+}
+
 /** Classify, emit `merge.unlanded`, post friction, block — all best-effort. */
 async function blockOnUnlanded({
   storyId,
@@ -705,6 +787,7 @@ async function blockOnUnlanded({
   emitMergeUnlandedFn,
   blockClassOverride,
   reasonOverride,
+  redRecord,
 }) {
   // A verdict decided at detection is emitted as-is, never re-derived (the
   // classifier reads an advisory-gate PR as healthy); the classifier runs
@@ -757,6 +840,7 @@ async function blockOnUnlanded({
       blockClass,
       reason,
       elapsedSeconds,
+      redRecord,
     }),
     progress,
   });
@@ -781,6 +865,7 @@ async function blockOnUnlanded({
     reason,
     frictionCommentId,
     elapsedSeconds,
+    ...(redRecord ? { redRecord } : {}),
     // The envelope's `pr.state` / `pr.checksStatus` come from here.
     prProbe,
   };
@@ -933,6 +1018,8 @@ async function onMergeObserved({
  * @param {Function} [args.classifyMergeBlockFn]
  * @param {Function} [args.emitMergeUnlandedFn]
  * @param {Function} [args.runPostLandTailFn]
+ * @param {Function} [args.disarmAutoMergeFn]
+ * @param {Function} [args.recordRequiredRedFn] The shared first-red handling (disarm + CI digest).
  * @param {(ms: number) => Promise<void>} [args.sleepFn]
  * @param {() => number} [args.nowMsFn]
  * @param {number} [args.ghTimeoutMs] Test seam only, not config.
@@ -964,6 +1051,7 @@ export async function runConfirmMergePhase({
   emitMergeFlipFailedFn = defaultEmitMergeFlipFailed,
   runPostLandTailFn = defaultRunPostLandTail,
   disarmAutoMergeFn = disarmAutoMerge,
+  recordRequiredRedFn = defaultRecordRequiredRed,
   sleepFn = defaultSleep,
   nowMsFn = Date.now,
   ghTimeoutMs = MERGE_WAIT_GH_TIMEOUT_MS,
@@ -1127,6 +1215,17 @@ export async function runConfirmMergePhase({
           },
           blockClassOverride: decision.blockClass,
           reasonOverride: decision.reason,
+          redRecord: await recordChecksFailedRed({
+            storyId,
+            prNumber,
+            probe,
+            cwd,
+            config,
+            gh: injectedGh,
+            progress,
+            disarmAutoMergeFn,
+            recordRequiredRedFn,
+          }),
         };
       }
 
