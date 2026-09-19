@@ -15,6 +15,13 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.64.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.63.0...mandrel-v2.64.0) (2026-09-19)
+
+
+### Fixed
+
+* close-and-land: a checks-failed stop disarms auto-merge and writes the CI digest ([#5405](https://github.com/dsj1984/mandrel/issues/5405)) ([#5406](https://github.com/dsj1984/mandrel/issues/5406)) ([5819d52](https://github.com/dsj1984/mandrel/commit/5819d52a834a6973b3e138961d9735e477f6cb48))
+
 ## [2.63.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.62.0...mandrel-v2.63.0) (2026-09-18)
 
 
