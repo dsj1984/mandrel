@@ -110,44 +110,21 @@ The pipeline will:
 - Run a focused lint check on the change set.
 - Post a structured summary report to the `[TICKET_ID]` issue.
 
-### Step 1a — Story-scope local-lens pass (`scope: story` only)
+### Story scope runs no lens pass
 
-When `scope === 'story'`, the shared review spine
-[`runStoryReviewCore`](../../scripts/lib/orchestration/story-close/phases/review-core.js)
-runs a **shift-left local-lens pass** in the same close subprocess, *before*
-returning the review envelope. It:
-
-1. Enumerates the actual Story diff (`baseRef...headRef` via
-   `git diff --name-only`).
-2. Selects the **local-tier** lenses that own a concern decidable from a single
-   Story's diff — `resolveLensTier(lens) === 'local'` **plus** the pure
-   `matchesAnyFilePattern` matcher against the diff (the audit-suite SDK's
-   [`selectLocalLenses`](../../scripts/lib/audit-suite/selector.js)). This is
-   deliberately **not** `selectAudits`: `selectAudits` unions in keyword and
-   gate matches and has no per-tier gate, so it would widen the roster past the
-   footprint-matched local set this tier owns.
-3. Materializes the matched roster at **`light`** depth
-   (`STORY_SCOPE_LENS_DEPTH`) via `runAuditSuite`, surfacing the outcome on the
-   review envelope's `localLensReview` field.
-
-A diff that matches no local lens adds **no** lens work (the roster is empty and
-`runAuditSuite` is never invoked). The pass is advisory and best-effort: a git
-or materialization failure degrades to a skipped envelope and never blocks the
-close.
-
-The live close entry point —
-[`runStoryScopeReview`](../../scripts/lib/orchestration/single-story-close/phases/code-review.js)
-— reaches this pass through the shared `runStoryReviewCore` spine. Because
-the pass lives inside the close subprocess (invoked after the delivering
-child exits), it honors the maker-blind invariant above: a maker never runs
-its own local-lens review.
+Close runs **no** audit-lens pass of its own (Story #5416 retired it: it
+materialized prompt files no workflow read, then armed auto-merge without
+waiting). The Story-scope review is this pipeline plus CI. Local-tier lens
+concerns are covered shift-left by the write-time authoring checklists
+threaded into the Story prompt; the on-demand `/audit-*` workflows remain the
+way to run a full lens over a change.
 
 ## Step 2 — Review Pillars
 
 For each changed file, execute a strict review against four pillars. The
 second pillar (**Integration Review**) deliberately defers the security /
 performance / quality / coverage sweeps to the change-set-scoped lenses —
-those ran shift-left in the Story-scope local-lens pass (Step 1a).
+those are covered shift-left by the write-time lens checklists.
 Re-walking those sweeps a second time in this pillar is duplication, not
 defense-in-depth.
 
@@ -173,9 +150,9 @@ Does the implementation match the Story's acceptance criteria and folded Spec?
 
 The diff under review is `baseRef..headRef`
 (`main..story-<storyId>`, or the configured base branch to the Story
-branch). The Story-scope local-lens pass (Step 1a) has already covered the
-local-tier concerns. Lens findings and pillar findings share the single
-`verification-results` comment this pass posts. The
+branch). The write-time lens checklists have already covered the local-tier
+concerns. Pillar findings land in the single `verification-results` comment
+this pass posts. The
 integration view here focuses on cross-cutting ripple within the Story and
 contract drift against the base branch. Look for:
 
@@ -260,7 +237,7 @@ prior baseline before merging.
 
 Findings are **persisted as a `verification-results` structured comment on
 the `[TICKET_ID]` issue** by `runCodeReview` (the unified findings contract —
-this single comment carries the Story-scope lens findings). The target
+this single comment carries the Story-scope review findings). The target
 ticket is the Story. The comment
 is idempotent — re-runs replace the prior one — and its body includes
 severity-tier counts plus the full findings list so downstream workflows

@@ -56,8 +56,6 @@ async function invokeStoryReviewCore({
   prNumber,
   provider,
   runCodeReviewFn,
-  runLocalLensReviewFn,
-  appendFindingsYieldFn,
   gitSpawnFn,
   progress,
 }) {
@@ -71,8 +69,6 @@ async function invokeStoryReviewCore({
     progressTag: 'REVIEW',
     runCodeReviewFn,
     gitSpawnFn,
-    ...(runLocalLensReviewFn ? { runLocalLensReviewFn } : {}),
-    ...(appendFindingsYieldFn ? { appendFindingsYieldFn } : {}),
   });
 }
 
@@ -131,8 +127,6 @@ async function postStoryReviewCrossRef({
  *   prNumber: number|null,
  *   provider: object,
  *   runCodeReviewFn: Function,
- *   runLocalLensReviewFn?: Function,
- *   appendFindingsYieldFn?: Function,
  *   gitSpawnFn?: Function,
  *   progress: (tag: string, msg: string) => void,
  * }} args
@@ -145,7 +139,6 @@ async function postStoryReviewCrossRef({
  *   degraded?: boolean,
  *   degradations?: Array<object>,
  *   crossRefPosted?: boolean,
- *   localLensReview?: object,
  * }>}
  */
 export async function runStoryScopeReview({
@@ -157,8 +150,6 @@ export async function runStoryScopeReview({
   prNumber,
   provider,
   runCodeReviewFn,
-  runLocalLensReviewFn,
-  appendFindingsYieldFn,
   gitSpawnFn,
   progress,
 }) {
@@ -192,8 +183,6 @@ export async function runStoryScopeReview({
     prNumber,
     provider,
     runCodeReviewFn,
-    runLocalLensReviewFn,
-    appendFindingsYieldFn,
     gitSpawnFn,
     progress,
   });
@@ -229,6 +218,5 @@ export async function runStoryScopeReview({
     postedCommentId: result.postedCommentId ?? null,
     ...degradationEnvelope(result.degradations),
     crossRefPosted,
-    localLensReview: result.localLensReview,
   };
 }

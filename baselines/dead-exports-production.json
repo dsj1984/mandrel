@@ -20,10 +20,6 @@
       "symbol": "aggregateBaselineDelta"
     },
     {
-      "file": ".agents/scripts/lib/audit-suite/frontmatter.js",
-      "symbol": "firstProseParagraph"
-    },
-    {
       "file": ".agents/scripts/lib/audit-suite/index.js",
       "symbol": "buildChecklistPayload"
     },
@@ -68,10 +64,6 @@
       "symbol": "resolveDescription"
     },
     {
-      "file": ".agents/scripts/lib/audit-suite/lens-diff-floor.js",
-      "symbol": "DEFAULT_LENS_DIFF_FLOOR"
-    },
-    {
       "file": ".agents/scripts/lib/audit-suite/selector.js",
       "symbol": "_resetPersistenceLayerCache"
     },
@@ -90,18 +82,6 @@
     {
       "file": ".agents/scripts/lib/audit-suite/selector.js",
       "symbol": "matchesFilePattern"
-    },
-    {
-      "file": ".agents/scripts/lib/audit-suite/substitutions.js",
-      "symbol": "applyImplicitSubstitutions"
-    },
-    {
-      "file": ".agents/scripts/lib/audit-suite/substitutions.js",
-      "symbol": "BUILT_IN_SUBSTITUTION_KEYS"
-    },
-    {
-      "file": ".agents/scripts/lib/audit-suite/substitutions.js",
-      "symbol": "parseSubstitutionPairs"
     },
     {
       "file": ".agents/scripts/lib/audit-to-stories/audit-lenses.js",

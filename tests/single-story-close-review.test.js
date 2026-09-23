@@ -18,12 +18,11 @@
  */
 
 import assert from 'node:assert/strict';
-import { rmSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { BASELINES_GATE_NAMES as REAL_BASELINES_GATE_NAMES } from '../.agents/scripts/lib/close-validation/gates.js';
-import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 
 const REPO_ROOT = path
   .resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -363,7 +362,6 @@ describe('runStoryScopeReview (direct)', () => {
           halted: false,
         };
       },
-      runLocalLensReviewFn: async () => ({ skipped: true }),
       progress: () => {},
     });
     assert.equal(commentsRead, false, 'no checkpoint read on the depth path');
@@ -448,7 +446,6 @@ describe('shared base ref (Story #5325)', () => {
     const { runStoryScopeReview } = await import(SUT_URL);
     const recorder = fakeProviderRecorder();
     const seen = {};
-    const lensCalls = [];
     const lines = [];
     await runStoryScopeReview({
       cwd: '/repo',
@@ -462,17 +459,10 @@ describe('shared base ref (Story #5325)', () => {
         diff: { 'origin/main...story-2839': [STORY_FILE] },
       }),
       runCodeReviewFn: recordingReview(seen),
-      runLocalLensReviewFn: async (args) => {
-        lensCalls.push(args);
-        return { depth: 'light', lenses: [], skipped: true };
-      },
       progress: (_tag, msg) => lines.push(msg),
     });
 
     assert.equal(seen.baseRef, 'origin/main');
-    // AC-1: both arms of the review — the provider pillar and the local lens
-    // pass — are measured against the same remote ref.
-    assert.equal(lensCalls[0].baseRef, 'origin/main');
     // AC-3: the progress line names the ref the diff actually used.
     assert.ok(
       lines.some((m) => m.includes('origin/main...story-2839')),
@@ -484,7 +474,6 @@ describe('shared base ref (Story #5325)', () => {
     const { runStoryScopeReview } = await import(SUT_URL);
     const recorder = fakeProviderRecorder();
     const seen = {};
-    const lensCalls = [];
     await runStoryScopeReview({
       cwd: '/repo',
       storyId: 2839,
@@ -502,10 +491,6 @@ describe('shared base ref (Story #5325)', () => {
         },
       }),
       runCodeReviewFn: recordingReview(seen),
-      runLocalLensReviewFn: async (args) => {
-        lensCalls.push(args);
-        return { depth: 'light', lenses: [], skipped: true };
-      },
       progress: () => {},
     });
 
@@ -514,7 +499,6 @@ describe('shared base ref (Story #5325)', () => {
       [STORY_FILE],
       "the review scores the Story's own change set, not the stale local diff",
     );
-    assert.deepEqual(lensCalls[0].changedFiles, [STORY_FILE]);
     assert.ok(
       !seen.changedFiles.includes(FOREIGN_FILE),
       'a commit this Story never made must not reach the review',
@@ -566,193 +550,47 @@ describe('shared base ref (Story #5325)', () => {
   });
 });
 
-describe('findings-yield ledger (Story #4699, AC-3)', () => {
-  const cleanReview = async () => ({
-    status: 'ok',
-    severity: { critical: 0, high: 0, medium: 0, suggestion: 0 },
-    posted: true,
-    postedCommentId: 9001,
-    commentTargetId: 123,
-    halted: false,
-    blockerReason: null,
-  });
-
-  it('records per-lens findings counts into the metrics ledger on close review', async () => {
+describe('Story-scope lens pass retired (Story #5416)', () => {
+  it('writes no lens prompt artifacts, prints no lens roster, and drops localLensReview', async () => {
     const { runStoryScopeReview } = await import(SUT_URL);
     const recorder = fakeProviderRecorder();
-    const appended = [];
-    await runStoryScopeReview({
+    const lines = [];
+    const out = await runStoryScopeReview({
       cwd: '/repo',
       storyId: 2839,
       storyBranch: 'story-2839',
       baseBranch: 'main',
-      gitSpawnFn: gitSpawnStub(),
+      gitSpawnFn: gitSpawnStub({
+        diff: { 'origin/main...story-2839': ['lib/util.js'] },
+      }),
       prUrl: 'https://github.com/owner/repo/pull/123',
       prNumber: 123,
       provider: recorder.provider,
-      runCodeReviewFn: cleanReview,
-      runLocalLensReviewFn: async () => ({
-        depth: 'light',
-        lenses: ['audit-clean-code', 'audit-performance'],
-        skipped: false,
-        floorSkip: {
-          skip: false,
-          reason: 'at-or-above-floor',
-          floor: 40,
-          changedLineCount: 120,
-          sensitiveClasses: [],
-        },
-        materialized: {
-          metadata: {},
-          findings: [
-            { audit: 'audit-clean-code', severity: 'low', message: 'x' },
-          ],
-          workflows: [],
-        },
-        artifactPaths: [],
+      runCodeReviewFn: async () => ({
+        status: 'ok',
+        severity: { critical: 0, high: 0, medium: 0, suggestion: 0 },
+        posted: true,
+        postedCommentId: 9001,
+        commentTargetId: 123,
+        halted: false,
+        blockerReason: null,
       }),
-      appendFindingsYieldFn: async (entry) => {
-        appended.push(entry);
-        return true;
-      },
-      progress: () => {},
+      progress: (_tag, msg) => lines.push(msg),
     });
 
-    assert.equal(appended.length, 1, 'one findings-yield record per close');
-    const [entry] = appended;
-    assert.equal(entry.storyId, 2839);
-    assert.deepEqual(entry.lenses, [
-      { lens: 'audit-clean-code', findings: 1, skippedByFloor: false },
-      { lens: 'audit-performance', findings: 0, skippedByFloor: false },
-    ]);
-    assert.equal(entry.diffFloor.skip, false);
-    assert.equal(entry.diffFloor.reason, 'at-or-above-floor');
-  });
-
-  it('records diff-floor skips with the skipped-by-floor flag set', async () => {
-    const { runStoryScopeReview } = await import(SUT_URL);
-    const recorder = fakeProviderRecorder();
-    const appended = [];
-    await runStoryScopeReview({
-      cwd: '/repo',
-      storyId: 2839,
-      storyBranch: 'story-2839',
-      baseBranch: 'main',
-      gitSpawnFn: gitSpawnStub(),
-      prUrl: 'https://github.com/owner/repo/pull/123',
-      prNumber: 123,
-      provider: recorder.provider,
-      runCodeReviewFn: cleanReview,
-      runLocalLensReviewFn: async () => ({
-        depth: 'light',
-        lenses: ['audit-clean-code'],
-        skipped: true,
-        floorSkip: {
-          skip: true,
-          reason: 'below-floor',
-          floor: 40,
-          changedLineCount: 9,
-          sensitiveClasses: [],
-        },
-        materialized: null,
-        artifactPaths: [],
-      }),
-      appendFindingsYieldFn: async (entry) => {
-        appended.push(entry);
-        return true;
-      },
-      progress: () => {},
-    });
-
-    assert.equal(appended.length, 1);
-    assert.deepEqual(appended[0].lenses, [
-      { lens: 'audit-clean-code', findings: 0, skippedByFloor: true },
-    ]);
-    assert.equal(appended[0].diffFloor.skip, true);
-    assert.equal(appended[0].diffFloor.reason, 'below-floor');
-  });
-
-  it('writes no record when the lens roster is empty', async () => {
-    const { runStoryScopeReview } = await import(SUT_URL);
-    const recorder = fakeProviderRecorder();
-    const appended = [];
-    await runStoryScopeReview({
-      cwd: '/repo',
-      storyId: 2839,
-      storyBranch: 'story-2839',
-      baseBranch: 'main',
-      gitSpawnFn: gitSpawnStub(),
-      prUrl: 'https://github.com/owner/repo/pull/123',
-      prNumber: 123,
-      provider: recorder.provider,
-      runCodeReviewFn: cleanReview,
-      runLocalLensReviewFn: async () => ({
-        depth: 'light',
-        lenses: [],
-        skipped: true,
-        floorSkip: null,
-        materialized: null,
-        artifactPaths: [],
-      }),
-      appendFindingsYieldFn: async (entry) => {
-        appended.push(entry);
-        return true;
-      },
-      progress: () => {},
-    });
-    assert.equal(appended.length, 0, 'an empty roster records nothing');
-  });
-
-  it('appendFindingsYield persists a kinded record that never inflates invocation tallies', async () => {
-    const { appendFindingsYield } = await import(
-      pathToFileURL(
-        path.resolve(
-          REPO_ROOT,
-          '.agents/scripts/lib/observability/metrics-ledger.js',
-        ),
-      ).href
+    assert.equal('localLensReview' in out, false, 'envelope drops the field');
+    assert.ok(
+      !lines.some((m) => /lens prompts materialized|audit-story-/i.test(m)),
+      `no lens roster or artifact line, got ${JSON.stringify(lines)}`,
     );
-    const { readPlanMetrics, summarizePlanMetrics } = await import(
-      pathToFileURL(
-        path.resolve(
-          REPO_ROOT,
-          '.agents/scripts/lib/orchestration/plan-metrics.js',
-        ),
-      ).href
+  });
+
+  it('ships no close-time lens module', () => {
+    const lensModule = path.resolve(
+      REPO_ROOT,
+      '.agents/scripts/lib/orchestration/story-close/phases/local-lens-review.js',
     );
-    const tempRoot = makeTempDir('findings-yield-');
-    const config = { project: { paths: { tempRoot } } };
-    try {
-      const ok = await appendFindingsYield(
-        {
-          storyId: 4699,
-          cli: 'story-close-review',
-          lenses: [
-            { lens: 'audit-clean-code', findings: 1, skippedByFloor: false },
-          ],
-          diffFloor: { skip: false, reason: 'at-or-above-floor', floor: 40 },
-        },
-        config,
-      );
-      assert.equal(ok, true);
-
-      const ledger = await readPlanMetrics(null, config);
-      assert.equal(ledger.entries.length, 1);
-      const [record] = ledger.entries;
-      assert.equal(record.kind, 'findings-yield');
-      assert.equal(record.storyId, 4699);
-      assert.deepEqual(record.lenses, [
-        { lens: 'audit-clean-code', findings: 1, skippedByFloor: false },
-      ]);
-      assert.equal(typeof record.at, 'string');
-
-      // The kinded record must not count as a (failed) plan invocation.
-      const summary = summarizePlanMetrics(ledger);
-      assert.equal(summary.invocations, 0);
-      assert.equal(summary.failures, 0);
-    } finally {
-      rmSync(tempRoot, { recursive: true, force: true });
-    }
+    assert.equal(existsSync(lensModule), false);
   });
 });
 
