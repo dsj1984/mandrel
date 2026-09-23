@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://mandrel.dev/schemas/audit-rules.schema.json",
   "title": "AuditRulesManifest",
-  "description": "Schema describing the audit-rules.json manifest read by lib/audit-suite/selector.js and lib/audit-suite/runner.js. The manifest enumerates registered audit workflows and the triggers / substitution keys each one accepts, plus the sensitive-path classes that derive review depth from a change set.",
+  "description": "Schema describing the audit-rules.json manifest read by lib/audit-suite/selector.js and lib/audit-suite/checklist-threading.js. The manifest enumerates registered audit workflows and the triggers / substitution keys each one accepts, plus the sensitive-path classes that derive review depth from a change set.",
   "type": "object",
   "required": ["version", "audits"],
   "additionalProperties": false,

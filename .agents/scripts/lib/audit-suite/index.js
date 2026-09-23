@@ -7,7 +7,6 @@ export {
   readAuditRules,
 } from './checklist-threading.js';
 export { buildDispatchChecklist } from './dispatch-checklist.js';
-export { runAuditSuite } from './runner.js';
 export {
   LENS_TIERS,
   matchesAnyFilePattern,

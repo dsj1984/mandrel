@@ -1,26 +1,10 @@
 /**
- * Findings severity histogram and per-component baseline rollup deltas.
+ * The surviving-Critical halting rule and per-component baseline rollup deltas.
  * Deltas are per rollup, not per row: row churn that moves no rollup is noise.
  * Pure, no I/O.
  */
 
 import { groupRows, resolveComponents } from '../baselines/components.js';
-
-/**
- * Non-standard severities are ignored.
- *
- * @param {Array<{ severity?: string }>|null|undefined} findings
- * @returns {{ critical: number, high: number, medium: number, low: number }}
- */
-export function aggregateSummary(findings) {
-  const summary = { critical: 0, high: 0, medium: 0, low: 0 };
-  for (const finding of findings ?? []) {
-    if (Object.hasOwn(summary, finding.severity)) {
-      summary[finding.severity] += 1;
-    }
-  }
-  return summary;
-}
 
 /**
  * The single halting rule: a surviving Critical finding halts delivery. Every
