@@ -1291,6 +1291,10 @@ describe('runSingleStoryClose orchestration', () => {
     });
 
     assert.deepEqual(terminal.lockWait, { waitedSeconds: 42, expired: false });
+    assert.ok(
+      stderr.some((l) => l.includes('⏱  close-validation:')),
+      'each phase ending logs its elapsed time (Story #5417)',
+    );
     for (const needle of ['holding pid 4711', 'still waiting', 'waited 42s']) {
       assert.ok(
         stderr.some((l) => l.includes(needle)),
@@ -1947,6 +1951,19 @@ describe('runSingleStoryClose — the lease is held until the merge confirms (St
       [],
       'the runner itself never releases on the clean path — the tail owns it',
     );
+    // Story #5417: per-phase durations ride the landed envelope and validate.
+    for (const p of [
+      'wrong-tree-guard',
+      'push',
+      'auto-merge',
+      'confirm-merge',
+    ]) {
+      assert.equal(typeof terminal.phaseDurations?.[p], 'number', p);
+    }
+    const { validateTerminalEnvelope } = await import(
+      '../.agents/scripts/lib/orchestration/story-deliver-terminal.js'
+    );
+    assert.equal(validateTerminalEnvelope(terminal).valid, true);
   });
 });
 

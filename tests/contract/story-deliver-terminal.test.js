@@ -977,3 +977,32 @@ describe('persistTerminalEnvelope — the envelope outlives its turn (#4816)', (
     assert.deepEqual(calls[0].opts.config, { marker: true });
   });
 });
+
+describe('story-deliver-terminal — phaseDurations (Story #5417)', () => {
+  it('is optional: an envelope without it stays valid and omits the key', () => {
+    const env = buildTerminalEnvelope({
+      storyId: 5417,
+      status: 'pending',
+      phase: 'auto-merge',
+      nextCommand: NEXT_COMMANDS.confirmMerge(5417),
+    });
+    assert.equal('phaseDurations' in env, false);
+  });
+
+  it('carries per-phase seconds and rejects a negative or non-numeric one', () => {
+    const env = buildTerminalEnvelope({
+      storyId: 5417,
+      status: 'pending',
+      phase: 'auto-merge',
+      nextCommand: NEXT_COMMANDS.confirmMerge(5417),
+      phaseDurations: { push: 1.2, 'close-validation': 40 },
+    });
+    assert.deepEqual(env.phaseDurations, { push: 1.2, 'close-validation': 40 });
+    for (const bad of [{ push: -1 }, { push: 'fast' }]) {
+      assert.equal(
+        validateTerminalEnvelope({ ...env, phaseDurations: bad }).valid,
+        false,
+      );
+    }
+  });
+});

@@ -8,6 +8,22 @@ import { checkVerdict, classifyRollupEntry } from './check-state.js';
 
 /** Fixed poll interval; default for `delivery.mergeWatch.maxBudgetSeconds`. */
 export const DEFAULT_INTERVAL_SECONDS = 30;
+
+/** Checks green, PR unmerged: the merge is imminent, so observe it sooner. */
+const GREEN_INTERVAL_SECONDS = 10;
+
+/**
+ * @param {string|undefined} checksStatus
+ * @param {number} intervalSeconds The in-flight cadence.
+ * @returns {number} Milliseconds until the next poll.
+ */
+export function pollIntervalMs(checksStatus, intervalSeconds) {
+  const seconds =
+    checksStatus === 'success'
+      ? Math.min(GREEN_INTERVAL_SECONDS, intervalSeconds)
+      : intervalSeconds;
+  return seconds * 1000;
+}
 export const DEFAULT_MAX_BUDGET_SECONDS = 3600;
 
 /** Bounds every `gh` spawn so a hang degrades to the probe-error path. */

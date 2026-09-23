@@ -204,6 +204,11 @@
       },
       "additionalProperties": false
     },
+    "phaseDurations": {
+      "type": ["object", "null"],
+      "description": "Story #5417 — wall-clock seconds per close phase that ran (wrong-tree-guard, base-sync, close-validation, push, pull-request, code-review, auto-merge, confirm-merge, post-land). Optional and additive; absent or null when no phase was timed.",
+      "additionalProperties": { "type": "number", "minimum": 0 }
+    },
     "timestamp": { "type": "string", "format": "date-time" }
   },
   "allOf": [

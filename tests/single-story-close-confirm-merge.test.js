@@ -296,6 +296,27 @@ describe('merge wait — the confirmed path', () => {
     assert.equal(sleepCalls, 2, 'slept between the two pending polls');
   });
 
+  it('Story #5417: polls at most 10s apart once checks are green, at most 30s while they run', async () => {
+    const states = [
+      openProbe({ checksStatus: 'still-running' }),
+      openProbe({ checksStatus: 'success' }),
+      openProbe({ checksStatus: 'success' }),
+      { state: 'MERGED', mergedAt: 'x' },
+    ];
+    const sleeps = [];
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        sleepFn: async (ms) => {
+          sleeps.push(ms);
+        },
+        readPrWaitProbeFn: async () => states.shift(),
+        confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
+      }),
+    );
+    assert.equal(outcome.confirmed, true);
+    assert.deepEqual(sleeps, [30_000, 10_000, 10_000]);
+  });
+
   it('carries the OBSERVED checks rollup, not an assumed success', async () => {
     // A merge can land by admin override, or with non-required checks red.
     // Stamping 'success' would report a green run nobody observed — the same
