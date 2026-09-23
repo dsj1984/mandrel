@@ -2,7 +2,8 @@
  * tests/bootstrap/always-on-closure.test.js — the always-on residency budget
  * (Story #4708, AC-1 / AC-2 / AC-4).
  *
- * The `CLAUDE.md` @-closure (instructions.md + the always-on rules) is
+ * The entry-doc @-closure (AGENTS.md here — Claude Code loads CLAUDE.md
+ * when it exists, AGENTS.md otherwise — plus instructions.md + the always-on rules) is
  * re-paid on every session and every subagent spawn, so its byte total is a
  * per-turn tax. Story #4708 dieted it from ~25.7KB to under 16KB; this test
  * is the ratchet that keeps it there — growth above the budget fails and
@@ -33,7 +34,7 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..');
  *
  * Story #4821 widened what this charges. The previous regex matched only
  * `@.agents/**.md`, so `AGENTS.md` and `.agentrc.json` — both @-imported by
- * CLAUDE.md and both re-paid on every spawn — were invisible to the ratchet
+ * the entry doc and both re-paid on every spawn — were invisible to the ratchet
  * and could grow for free. The ceiling rose to cover them; it is NOT slack
  * for the files that were already charged.
  */
@@ -45,7 +46,7 @@ const CLOSURE_BUDGET_BYTES = 21 * 1024;
  * `resolveAlwaysLoadedClosure`). Sharing the resolver is the point: two
  * private definitions of "always loaded" drifted ~5KB apart before #4821,
  * and a ratchet that disagrees with the gate it backstops reports a number
- * nobody can act on. Every `@`-import of CLAUDE.md is charged transitively —
+ * nobody can act on. Every `@`-import of the entry doc is charged transitively —
  * promoting a rule into the always-on core is billed automatically.
  */
 function alwaysOnClosureEntries() {
@@ -53,10 +54,9 @@ function alwaysOnClosureEntries() {
 }
 
 describe('always-on closure budget (Story #4708, AC-1; widened by #4821)', () => {
-  it('charges every CLAUDE.md @-import, not just the .agents/ ones', () => {
+  it('charges every entry-doc @-import, not just the .agents/ ones', () => {
     const files = alwaysOnClosureEntries().map((e) => e.path);
     for (const required of [
-      'CLAUDE.md',
       '.agents/instructions.md',
       '.agents/rules/security-baseline.md',
       '.agents/rules/git-conventions.md',
@@ -65,17 +65,35 @@ describe('always-on closure budget (Story #4708, AC-1; widened by #4821)', () =>
     ]) {
       assert.ok(
         files.includes(required),
-        `${required} is @-imported by CLAUDE.md but is not charged against the closure budget — ` +
+        `${required} is @-imported by AGENTS.md but is not charged against the closure budget — ` +
           'it would be re-paid every spawn while growing for free',
       );
     }
+  });
+
+  it('resolves from AGENTS.md alone — this repo carries no CLAUDE.md', () => {
+    const files = alwaysOnClosureEntries().map((e) => e.path);
+    assert.ok(
+      !files.includes('CLAUDE.md'),
+      'CLAUDE.md must not be in the closure',
+    );
+    assert.deepEqual(
+      [...files].sort(),
+      [
+        '.agentrc.json',
+        '.agents/instructions.md',
+        '.agents/rules/git-conventions.md',
+        '.agents/rules/security-baseline.md',
+        'AGENTS.md',
+      ].sort(),
+    );
   });
 
   it('keeps the security baseline resident', () => {
     const files = alwaysOnClosureEntries().map((e) => e.path);
     assert.ok(
       files.includes('.agents/rules/security-baseline.md'),
-      'CLAUDE.md must @-import the security baseline — it is always-on by contract (AC-2)',
+      'AGENTS.md must @-import the security baseline — it is always-on by contract (AC-2)',
     );
   });
 

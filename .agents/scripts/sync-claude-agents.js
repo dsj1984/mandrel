@@ -4,7 +4,7 @@
  * Project `.agents/agents/` and `.agents/local/agents/` into a flat
  * `.claude/agents/` tree — the sibling of `sync-claude-commands.js`, with the
  * same payload-wins shadowing and orphan-reap. A role agent runs on its own
- * system prompt (no `CLAUDE.md` closure), which is the point of routing to it.
+ * system prompt (no entry-doc `@`-import closure), which is the point of routing to it.
  */
 
 // cli-opt-out: top-level-await script with no main() function — runAsCli wraps an async main, which doesn't apply here.

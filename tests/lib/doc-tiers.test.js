@@ -110,8 +110,37 @@ test('resolveAlwaysLoadedClosure drops @-tokens that do not resolve to a file', 
   assert.deepEqual(paths, ['AGENTS.md', 'CLAUDE.md']);
 });
 
-test('resolveAlwaysLoadedClosure returns [] when CLAUDE.md is absent', () => {
-  const root = makeRepo({ 'AGENTS.md': 'orphan\n' });
+test('resolveAlwaysLoadedClosure falls back to AGENTS.md when CLAUDE.md is absent', () => {
+  const root = makeRepo({ 'AGENTS.md': '@a.md\n', 'a.md': 'x\n' });
+  const paths = resolveAlwaysLoadedClosure(root).map((e) => e.path);
+  assert.deepEqual(paths, ['a.md', 'AGENTS.md']);
+});
+
+test('resolveAlwaysLoadedClosure uses CLAUDE.md alone when only it exists', () => {
+  const root = makeRepo({ 'CLAUDE.md': '@a.md\n', 'a.md': 'x\n' });
+  const paths = resolveAlwaysLoadedClosure(root).map((e) => e.path);
+  assert.deepEqual(paths, ['a.md', 'CLAUDE.md']);
+});
+
+test('resolveAlwaysLoadedClosure prefers CLAUDE.md when both entry docs exist', () => {
+  const root = makeRepo({
+    'CLAUDE.md': '@a.md\n',
+    'AGENTS.md': 'unread\n',
+    'a.md': 'x\n',
+  });
+  const paths = resolveAlwaysLoadedClosure(root).map((e) => e.path);
+  assert.deepEqual(paths, ['a.md', 'CLAUDE.md']);
+});
+
+test('resolveAlwaysLoadedClosure treats an AGENTS.md self-import as a cycle', () => {
+  const root = makeRepo({ 'AGENTS.md': '@AGENTS.md\n' });
+  const closure = resolveAlwaysLoadedClosure(root);
+  assert.equal(closure.length, 1);
+  assert.equal(closure[0].path, 'AGENTS.md');
+});
+
+test('resolveAlwaysLoadedClosure returns [] when neither entry doc exists', () => {
+  const root = makeRepo({ 'README.md': 'x\n' });
   assert.deepEqual(resolveAlwaysLoadedClosure(root), []);
 });
 

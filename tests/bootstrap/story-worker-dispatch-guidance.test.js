@@ -2,7 +2,7 @@
  * tests/bootstrap/story-worker-dispatch-guidance.test.js — the worker's
  * long-command dispatch contract.
  *
- * A `story-worker` boots on its own system prompt with no `CLAUDE.md` /
+ * A `story-worker` boots on its own system prompt with no entry-doc /
  * `instructions.md` closure, so anything it is not told — or cannot reach
  * from its own boot context — it improvises. The credited full-suite run is
  * the longest command in a worker's life and routinely outruns the host's

@@ -1002,8 +1002,8 @@ printed.
 **The always-loaded gate is the one that stays.** `check-context-budget.js`
 still exits 1 when the `alwaysLoaded` tier exceeds its recorded total plus the
 committed `toleranceBytes`, and when a recorded `alwaysLoaded` row names a
-path the tree no longer carries. That tier is the `CLAUDE.md` `@`-import
-closure every session and every subagent spawn re-pays unconditionally, so
+path the tree no longer carries. That tier is the entry-doc `@`-import closure (`AGENTS.md`, or `CLAUDE.md`
+when present) every session and every subagent spawn re-pays unconditionally, so
 growth there is a tax nobody opted into — unlike a workflow file, which is
 read only by the sessions that invoke it. The Story #5313 write-back seam is
 unchanged: a shrink is reported and committed back on the Story branch.

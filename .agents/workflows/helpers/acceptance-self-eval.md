@@ -69,7 +69,7 @@ per-criterion, mid-delivery, and evaluates the actual work product.
    > `delivery.routing.roleScopedAgents` is enabled (the **default**), use
    > `subagent_type: acceptance-critic`: it boots on the role-scoped
    > [`acceptance-critic`](../../agents/acceptance-critic.md) context (its own
-   > system prompt, no `CLAUDE.md` @-closure) carrying the maker-blind
+   > system prompt, no entry-doc @-closure) carrying the maker-blind
    > invariant and the verdict schema standalone. With the kill-switch off
    > (`roleScopedAgents: false`), fall back to
    > `subagent_type: general-purpose`. This loop already runs inside a Story

@@ -181,7 +181,7 @@ describe('the rule stays on-demand, not resident (AC-4 / AC-5 / AC-7)', () => {
     assert.ok(
       worker.includes('known-tooling-behavior.md'),
       '.agents/agents/story-worker.md must name the rule — role-scoped agents boot ' +
-        'without the CLAUDE.md closure, so a § 1.F listing alone never reaches the ' +
+        'without the entry-doc closure, so a § 1.F listing alone never reaches the ' +
         'agent that actually runs close-validation',
     );
     assert.ok(
@@ -191,11 +191,11 @@ describe('the rule stays on-demand, not resident (AC-4 / AC-5 / AC-7)', () => {
     );
   });
 
-  it('is absent from the always-on CLAUDE.md closure', () => {
-    const claudeMd = readFileSync(path.join(REPO_ROOT, 'CLAUDE.md'), 'utf8');
+  it('is absent from the always-on entry-doc closure', () => {
+    const entryDoc = readFileSync(path.join(REPO_ROOT, 'AGENTS.md'), 'utf8');
     assert.ok(
-      !claudeMd.includes('known-tooling-behavior'),
-      'CLAUDE.md must not @-import the rule — it is on-demand, and the always-loaded ' +
+      !entryDoc.includes('known-tooling-behavior'),
+      'AGENTS.md must not @-import the rule — it is on-demand, and the always-loaded ' +
         'closure is re-paid on every session and every subagent spawn',
     );
   });

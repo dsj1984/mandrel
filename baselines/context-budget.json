@@ -1,10 +1,10 @@
 {
   "$schema": "https://mandrel.dev/baselines/context-budget.schema.json",
-  "generatedAt": "2026-09-23T21:29:54.697Z",
+  "generatedAt": "2026-09-23T22:00:33.636Z",
   "toleranceBytes": 2048,
   "tiers": {
     "alwaysLoaded": {
-      "totalBytes": 21119,
+      "totalBytes": 19744,
       "files": [
         {
           "path": ".agentrc.json",
@@ -24,16 +24,12 @@
         },
         {
           "path": "AGENTS.md",
-          "bytes": 2677
-        },
-        {
-          "path": "CLAUDE.md",
-          "bytes": 531
+          "bytes": 1833
         }
       ]
     },
     "mandatoryRead": {
-      "totalBytes": 443330,
+      "totalBytes": 443371,
       "files": [
         {
           "path": "docs/architecture.md",
@@ -45,7 +41,7 @@
         },
         {
           "path": "docs/decisions.md",
-          "bytes": 259696
+          "bytes": 259737
         },
         {
           "path": "docs/patterns.md",
@@ -187,24 +183,24 @@
     "files": [
       {
         "path": ".agents/agents/acceptance-critic.md",
-        "bytes": 6732
+        "bytes": 6738
       },
       {
         "path": ".agents/agents/auditor.md",
-        "bytes": 7933
+        "bytes": 7939
       },
       {
         "path": ".agents/agents/plan-critic.md",
-        "bytes": 4847
+        "bytes": 4853
       },
       {
         "path": ".agents/agents/story-worker.md",
-        "bytes": 7603
+        "bytes": 7609
       }
     ]
   },
   "workflowClosure": {
-    "reachableTotalBytes": 460893,
+    "reachableTotalBytes": 460887,
     "entryPoints": [
       {
         "path": ".agents/workflows/audit-accessibility.md",
@@ -214,7 +210,7 @@
       {
         "path": ".agents/workflows/audit-adrs.md",
         "mandatoryBytes": 13410,
-        "reachableBytes": 295993
+        "reachableBytes": 295987
       },
       {
         "path": ".agents/workflows/audit-architecture.md",
@@ -249,7 +245,7 @@
       {
         "path": ".agents/workflows/audit-documentation.md",
         "mandatoryBytes": 12519,
-        "reachableBytes": 295993
+        "reachableBytes": 295987
       },
       {
         "path": ".agents/workflows/audit-mobile.md",
@@ -294,7 +290,7 @@
       {
         "path": ".agents/workflows/audit-to-stories.md",
         "mandatoryBytes": 22140,
-        "reachableBytes": 270064
+        "reachableBytes": 270058
       },
       {
         "path": ".agents/workflows/audit-ux-ui.md",
@@ -309,22 +305,22 @@
       {
         "path": ".agents/workflows/git-deliver.md",
         "mandatoryBytes": 7764,
-        "reachableBytes": 294940
+        "reachableBytes": 294934
       },
       {
         "path": ".agents/workflows/helpers/deliver-story.md",
         "mandatoryBytes": 16775,
-        "reachableBytes": 270064
+        "reachableBytes": 270058
       },
       {
         "path": ".agents/workflows/mandrel-deliver.md",
         "mandatoryBytes": 9017,
-        "reachableBytes": 270064
+        "reachableBytes": 270058
       },
       {
         "path": ".agents/workflows/mandrel-plan.md",
         "mandatoryBytes": 7927,
-        "reachableBytes": 270064
+        "reachableBytes": 270058
       },
       {
         "path": ".agents/workflows/mandrel-update.md",
@@ -334,27 +330,27 @@
       {
         "path": ".agents/workflows/memory-consolidate.md",
         "mandatoryBytes": 5950,
-        "reachableBytes": 270064
+        "reachableBytes": 270058
       },
       {
         "path": ".agents/workflows/prototype.md",
         "mandatoryBytes": 5180,
-        "reachableBytes": 270064
+        "reachableBytes": 270058
       },
       {
         "path": ".agents/workflows/qa-assist.md",
         "mandatoryBytes": 13933,
-        "reachableBytes": 329969
+        "reachableBytes": 329963
       },
       {
         "path": ".agents/workflows/qa-explore.md",
         "mandatoryBytes": 11074,
-        "reachableBytes": 329969
+        "reachableBytes": 329963
       },
       {
         "path": ".agents/workflows/qa-run.md",
         "mandatoryBytes": 12872,
-        "reachableBytes": 329969
+        "reachableBytes": 329963
       }
     ]
   }

@@ -555,12 +555,15 @@ describe('formatClosureReport', () => {
     assert.ok(line.endsWith('\n'));
   });
 
-  it('degrades to a neutral line when no CLAUDE.md closure exists', () => {
+  it('degrades to a neutral line when no entry-doc closure exists', () => {
     const line = formatClosureReport({
       cwd: () => '/x',
       resolveClosure: () => [],
     });
-    assert.match(line, /no CLAUDE\.md closure found/);
+    assert.match(
+      line,
+      /no entry-doc closure found \(CLAUDE\.md or AGENTS\.md\)/,
+    );
   });
 
   it('never throws — a resolver failure yields an "unavailable" line', () => {

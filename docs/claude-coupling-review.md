@@ -50,8 +50,8 @@ Everything outside them is prose or a centralized constant.
    CLI, the doctor checks, the upgrade path, uninstall, and consumer bootstrap
    all orbit this projection.
 2. **`Agent` / `subagent_type` dispatch semantics** — `roleScopedAgents` boots
-   converted spawns on `.claude/agents/<role>.md` instead of the `CLAUDE.md`
-   closure, and Claude Code nesting-depth facts are hardcoded.
+   converted spawns on `.claude/agents/<role>.md` instead of the entry-doc
+   (`AGENTS.md` or `CLAUDE.md`) closure, and Claude Code nesting-depth facts are hardcoded.
    **Already mitigated:** every converted spawn falls back to
    `subagent_type: general-purpose`, documented as the escape for hosts that
    ignore `.claude/agents/`, and `roleScopedAgents: false` is a kill-switch.
@@ -94,8 +94,8 @@ Two things worth recording because they look coupled and are not:
 
 These already do the host-agnostic thing and are the template for extending it:
 
-1. **`AGENTS.md` is the canonical instruction pointer**; `CLAUDE.md` is a thin
-   `@AGENTS.md` importer. `AGENTS.md` is the emerging cross-tool standard.
+1. **`AGENTS.md` is the canonical instruction pointer**; a root `CLAUDE.md`,
+   when a project keeps one, wins the host precedence and should `@AGENTS.md`. `AGENTS.md` is the emerging cross-tool standard.
 2. **"Host's best available X" language** —
    [`.agents/instructions.md`](../.agents/instructions.md) § 1.C (live docs),
    § 4 subagents ("name no specific model — let the host and operator own the

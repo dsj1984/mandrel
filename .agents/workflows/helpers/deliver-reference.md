@@ -175,7 +175,7 @@ into batches of `cap` and dispatch each batch in its own turn.
 exposes agent dispatch, spawn each ready Story as its own
 `subagent_type: story-worker` sub-agent — it boots on the role-scoped
 [`story-worker`](../../agents/story-worker.md) context (its own system prompt, no
-`CLAUDE.md` @-closure) carrying the load-bearing delivery MUSTs standalone. The
+entry-doc @-closure) carrying the load-bearing delivery MUSTs standalone. The
 sub-agent executes [`deliver-story.md`](deliver-story.md) Steps 0–2.5
 (init → implement → acceptance self-eval → **push**) and stops there; **you**
 own Step 3, serialized — see `/mandrel-deliver` § Closing what the workers hand back.

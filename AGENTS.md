@@ -1,55 +1,41 @@
 # AGENTS.md
 
-> **Canonical Instructions:** All behavioral rules, guardrails, and execution
-> protocols are defined in [`.agents/instructions.md`](.agents/instructions.md).
-> You **MUST** load and follow that file as your primary system prompt. This
-> file provides repository-level orientation only — it does not redefine any
-> rules, and conflicts resolve by the ordering in
-> [`.agents/instructions.md` § 1.K](.agents/instructions.md).
+Mandrel is a Claude Code-first workflow framework: instructions, skills,
+rules, and SDLC workflows that govern AI coding assistants. It ships as the
+[`mandrel`](https://www.npmjs.com/package/mandrel) npm package, which
+`mandrel sync` materializes into a consumer project's `.agents/` directory.
 
----
+## Always-loaded context
 
-## Project Overview
+@.agentrc.json
+@.agents/instructions.md
+@.agents/rules/security-baseline.md
+@.agents/rules/git-conventions.md
 
-**Mandrel** is a Claude Code-first opinionated workflow framework: a
-collection of instructions, skills, rules, and SDLC workflows that govern AI
-coding assistants. The `.claude/` / hook / skill surface leans in on Claude
-Code as the reference runtime, and the orchestration library under
-`.agents/scripts/` treats the Story issue's body and structured comments as
-the cross-runtime contract. The framework is distributed as the
-[`mandrel`](https://www.npmjs.com/package/mandrel) npm package and
-materialized into consumer projects' `.agents/` directories by
-`mandrel sync`.
+`.agents/instructions.md` is the canonical system prompt. This file adds
+repository orientation only; where the two disagree, the ordering in
+`.agents/instructions.md` § 1.K decides.
 
-- **Current Version:** the `version` field of the root
-  [`package.json`](package.json) (run `npm ls mandrel` in a consumer project)
-- **License:** MIT
+## What ships vs. what is internal
 
-> **Key distinction:** the package ships `.agents/`, `bin/`, `lib/`, and
-> `docs/CHANGELOG.md` (the `files` array in [`package.json`](package.json)) —
-> the rest of this repository is internal development tooling.
+The published package is the `files` array in [`package.json`](package.json):
+`.agents/`, `bin/`, `lib/`, and `docs/CHANGELOG.md`. Everything else in this
+repository (`tests/`, `scripts/`, `baselines/`, the rest of `docs/`) is
+development tooling for Mandrel itself. A change under `.agents/`, `bin/`, or
+`lib/` reaches consumers; weigh it accordingly.
 
----
+## Where things live
 
-## Working in this repo — read on demand
-
-[`docs/onboarding.md`](docs/onboarding.md) carries the repository-level
-reference this file used to inline: the repository layout, the getting-started
-sequence, the development-standards and key-commands tables, slow-test
-profiling, the contribution workflow, release operations, and the
-reference-document index. Read it when you need one of those — it is linked,
-not `@`-imported, so it is not re-paid on every session and subagent spawn.
-
-Two orientation pointers are load-bearing often enough to keep here:
-
-- **Configuration** lives in [`.agentrc.json`](.agentrc.json) — this repo's
-  file carries `project`, `github`, and `delivery`; every key the schema
-  accepts is documented in
+- **Configuration:** [`.agentrc.json`](.agentrc.json) (`project`, `github`,
+  `delivery`). Every accepted key is documented in
   [`.agents/docs/configuration.md`](.agents/docs/configuration.md).
-  Project-specific technology choices are
-  deliberately kept out of it — the Tech Stack inventory lives under the
-  **Tech Stack** heading in [`docs/architecture.md`](docs/architecture.md).
-- **Skills and rules are read on demand**, not preloaded — each `SKILL.md`
-  leads with its Policy Capsule, and `.agents/rules/` splits into an always-on
-  core and an on-demand set. See
-  [`.agents/instructions.md` § 1.B / § 1.F](.agents/instructions.md).
+- **Tech Stack:** the **Tech Stack** section of
+  [`docs/architecture.md`](docs/architecture.md). Technology choices are kept
+  out of `.agentrc.json` on purpose.
+- **Skills and rules:** read on demand, not preloaded. Each `SKILL.md` opens
+  with its Policy Capsule; `.agents/rules/` splits into the always-on core
+  imported above and an on-demand set.
+- **Everything else:** [`docs/onboarding.md`](docs/onboarding.md) covers the
+  repository layout, getting started, key commands, slow-test profiling, the
+  contribution workflow, and release operations. Read it when you need one of
+  those.

@@ -258,6 +258,8 @@ const UNRESOLVED_BY_DESIGN = Object.freeze({
   '.mcp.json': 'gitignored local MCP config',
   'traces.ndjson': 'runtime artifact written under temp/',
   'temp/test-profile.tap': 'runtime artifact written under temp/ (gitignored)',
+  'CLAUDE.md':
+    'host entry doc a consumer may keep; this repo carries only AGENTS.md (Story #5409)',
   // --- Not this repository's files ----------------------------------------
   'src/index.ts': 'file in release-please-action v5.0.0, an external repo',
   'pnpm-lock.yaml': "a consumer project's lockfile, not this repo's",
