@@ -7,6 +7,7 @@ description: >-
   charter and returns findings, without seeing the planner's authoring
   transcript. Dispatched on an operator-requested plan-critics.js verdict
   when delivery.routing.roleScopedAgents is enabled (the default).
+effort: medium
 ---
 
 <!--

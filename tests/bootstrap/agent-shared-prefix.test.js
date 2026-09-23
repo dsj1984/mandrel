@@ -137,3 +137,22 @@ describe('role-scoped agent boots share a byte-identical common-core prefix (Sto
     }
   });
 });
+
+/** Story #5426: evaluators run at a pinned effort; delivery inherits the session's. */
+const PINNED_EFFORT = Object.freeze({
+  'plan-critic.md': 'medium',
+  'acceptance-critic.md': 'medium',
+  'auditor.md': 'medium',
+  'story-worker.md': null,
+});
+
+describe('role frontmatter pins evaluator effort (Story #5426)', () => {
+  for (const [file, expected] of Object.entries(PINNED_EFFORT)) {
+    it(`${file} declares effort ${expected ?? '(none)'}`, () => {
+      const content = readFileSync(path.join(AGENTS_DIR, file), 'utf8');
+      const frontmatter = content.slice(4, content.indexOf('\n---\n', 4));
+      const match = /^effort:\s*(\S+)\s*$/m.exec(frontmatter);
+      assert.equal(match?.[1] ?? null, expected);
+    });
+  }
+});
