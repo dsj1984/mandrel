@@ -200,7 +200,7 @@
     },
     {
       "path": ".agents/scripts/lib/audit-suite/frontmatter.js",
-      "mi": 92.913
+      "mi": 91.889
     },
     {
       "path": ".agents/scripts/lib/audit-suite/index.js",
@@ -211,20 +211,8 @@
       "mi": 87.088
     },
     {
-      "path": ".agents/scripts/lib/audit-suite/runner.js",
-      "mi": 98.141
-    },
-    {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
       "mi": 98.886
-    },
-    {
-      "path": ".agents/scripts/lib/audit-suite/substitutions.js",
-      "mi": 110.092
-    },
-    {
-      "path": ".agents/scripts/lib/audit-suite/workflow-loader.js",
-      "mi": 115.677
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/audit-label-taxonomy.js",

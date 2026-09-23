@@ -297,27 +297,9 @@
       "functions": 100
     },
     {
-      "path": ".agents/scripts/lib/audit-suite/runner.js",
-      "lines": 58.54,
-      "branches": 60,
-      "functions": 62.5
-    },
-    {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
       "lines": 96.53,
       "branches": 89.01,
-      "functions": 100
-    },
-    {
-      "path": ".agents/scripts/lib/audit-suite/substitutions.js",
-      "lines": 100,
-      "branches": 94.74,
-      "functions": 100
-    },
-    {
-      "path": ".agents/scripts/lib/audit-suite/workflow-loader.js",
-      "lines": 100,
-      "branches": 100,
       "functions": 100
     },
     {
