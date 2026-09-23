@@ -1,8 +1,6 @@
 /**
- * required-checks.js — GitHub's per-PR required-check attribution for the
- * merge wait. Required-ness comes from GraphQL `isRequired`, never from
- * `.agentrc` `github.branchProtection.requiredChecks` (local command names,
- * not the status-check contexts GitHub enforces).
+ * GitHub's per-PR required-check attribution (GraphQL `isRequired`), not
+ * `.agentrc` requiredChecks, which are local command names.
  */
 
 import {
@@ -15,10 +13,7 @@ import {
 } from './merge-poll.js';
 
 /**
- * Scoped to GitHub's per-PR required attribution: a required run is red, and
- * the in-flight guard only counts a re-run of that SAME check (the one case a
- * red can still turn green). `runInFlight` keeps "anything still running" for
- * the block classifier's pending evidence.
+ * A required run is red and no re-run of that same check is in flight.
  *
  * @param {Array<object>} statusCheckRollup non-empty
  * @param {Set<string>} requiredNames
@@ -80,8 +75,7 @@ function parseRequiredNames(result) {
 const requiredNamesCache = new Map();
 
 /**
- * Required check names for the PR head, keyed on the PR node. Cached per `prNodeId@headSha` so a merge wait pays a bounded cost. Never
- * throws: any failure returns `null` (fall back to the unscoped rule).
+ * Required check names, cached per PR head. `null` on any failure.
  *
  * @param {{ prNodeId?: string, prNumber: number|string, headSha?: string,
  *   gh: { api: Function }, timeoutMs?: number }} args
@@ -117,9 +111,8 @@ async function readRequiredCheckNames({
 }
 
 /**
- * The probe's per-run evidence: scoped to GitHub's required attribution when
- * a red gates the merge (the one probe it can change) and the read succeeds;
- * otherwise the unscoped rule, so a failed read never yields a verdict alone.
+ * Scoped evidence when a red gates the merge and attribution reads; else
+ * the unscoped rule.
  *
  * @param {{ view?: object, checksStatus?: string, prNumber: number|string,
  *   gh: object, ghTimeoutMs?: number, readFn?: Function }} args
