@@ -17,7 +17,6 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
-  appendFindingsYield,
   MAX_LEDGER_BYTES,
   PLAN_METRICS_BASENAME,
   PLAN_METRICS_SCHEMA_VERSION,
@@ -223,17 +222,6 @@ describe('single ledger-append implementation (Story #4712)', () => {
           reasons: ['x'],
           cli: 'plan-critics',
           epicId: 4712,
-        },
-        config,
-        { maxBytes: 64 },
-      ),
-    );
-    await seedAndAssertRotation(() =>
-      appendFindingsYield(
-        {
-          storyId: 4712,
-          epicId: 4712,
-          lenses: [{ lens: 'audit-clean-code', findings: 0 }],
         },
         config,
         { maxBytes: 64 },

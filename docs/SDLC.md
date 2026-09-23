@@ -112,7 +112,7 @@ on-disk layout resolved by
 | State Store | Owner (canonical writer) | Mutation API | Idempotency key | Conflict resolution |
 | --- | --- | --- | --- | --- |
 | GitHub labels | `transitionTicketState` via `ticketing.js` | `gh issue edit --add-label / --remove-label`, wrapped in `update-ticket-state.js` | `(ticketId, label-set)` — set-equality before write | Authoritative for current ticket lifecycle state; if a label disagrees with the lifecycle ledger, the **ledger wins on resume** and the label is re-derived. |
-| `verification-results` comment | `lib/orchestration/code-review.js` | `post-structured-comment.js` (upsert by `kind`) | `(storyId, kind='verification-results')` | Authoritative for the Story-scope review + lens findings; critical findings block close. |
+| `verification-results` comment | `lib/orchestration/code-review.js` | `post-structured-comment.js` (upsert by `kind`) | `(storyId, kind='verification-results')` | Authoritative for the Story-scope review findings; critical findings block close. |
 | Lifecycle ledger NDJSON | `appendLedgerEvent` (`lib/orchestration/lifecycle/emit-ledger-event.js`) — a bare `appendFileSync` from the close path; Story #5024 retired the `LedgerWriter` listener that preceded it | Append-only line write to the scope-resolved `lifecycle.ndjson` | `(storyId, event)` — one record per merge-terminal outcome | Records the two merge-terminal outcomes (`merge.unlanded`, `merge.flip-failed`) for post-hoc attribution. Labels remain authoritative for current ticket state. |
 | Validation evidence cache | `evidence-gate.js` | JSON cache file under the run temp tree, keyed by HEAD SHA | `(gate, git rev-parse HEAD)` | Pure cache: a missing entry triggers a re-run; presence is a fast-path skip. Cache eviction is safe. |
 | PR / auto-merge state | `single-story-close.js` (sole authorized caller of `gh pr merge`) | `gh pr merge --auto --squash --delete-branch`; PR open via the close pipeline's `gh pr create` | `(prNumber, head-branch SHA)` — `gh pr list --head` probes before create | GitHub is authoritative for PR + auto-merge arming state; the ledger records the *intent* to arm, GitHub records the outcome. |
@@ -411,17 +411,17 @@ pass — the tiers below *are* the audit machinery.
 | Tier | When | What runs | Blocking? |
 | --- | --- | --- | --- |
 | Tier 1 — write-time | During Story implementation | Footprint-matched **local**-lens authoring checklists threaded into the Story prompt (`checklistPath`) | advisory |
-| Tier 2 — Story-scope | `single-story-close.js` (maker-blind subprocess) | Local-tier lens roster over the Story diff (`selectLocalLenses`) + review pillars, posted as `verification-results` | blocking on 🔴 |
+| Tier 2 — Story-scope | `single-story-close.js` (maker-blind subprocess) | Review pillars over the Story diff, posted as `verification-results` — no lens pass (retired by Story #5416) | blocking on 🔴 |
 | Tier 3 — run closeout | `/mandrel-deliver` per-run epilogue (`plan-run-epilogue.js`, N>1 only) | Cumulative + global lenses (`selectAudits`) over the combined landed tip | blocking |
 
 - **`local`** lenses (decidable from a single Story's diff) are verified at
-  Tiers 1–2 and are **not** re-run at run closeout.
+  Tier 1 and are **not** re-run at run closeout.
 - **`cumulative`** lenses (only decidable across a run's combined diff)
   and **`global`** lenses (whole-product properties) are verified at Tier 3.
 
 There is no risk-routed lens tier. Story #4542 deleted the risk→lens router:
 it had zero callers while this document claimed it ran inside close. Lens
-selection is change-set-matched (`selectAudits` / `selectLocalLenses`); the
+selection is change-set-matched (`selectAudits` / `matchLocalLenses`); the
 `sensitivePaths` classes in `audit-rules.json` route review **depth**, not
 lenses.
 

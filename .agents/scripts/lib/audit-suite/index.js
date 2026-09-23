@@ -7,10 +7,6 @@ export {
   readAuditRules,
 } from './checklist-threading.js';
 export { buildDispatchChecklist } from './dispatch-checklist.js';
-export {
-  countChangedLines,
-  evaluateLensDiffFloor,
-} from './lens-diff-floor.js';
 export { runAuditSuite } from './runner.js';
 export {
   LENS_TIERS,
@@ -18,5 +14,4 @@ export {
   matchesFilePattern,
   resolveLensTier,
   selectAudits,
-  selectLocalLenses,
 } from './selector.js';
