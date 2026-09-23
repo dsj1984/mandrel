@@ -21,3 +21,6 @@ Self-check your change against this lens's concerns before you ship:
 - [ ] Unwired Seams — Coverage Without a Caller (mandatory).
 - [ ] A produced-but-never-consumed artifact
 - [ ] An optional field nothing populates
+- [ ] Property-Based Coverage — Invariants Tested Only by Examples.
+- [ ] Toolchain by ecosystem, never one library.
+- [ ] Name the property.
