@@ -138,9 +138,7 @@ export class IssuesGateway {
 
   /**
    * Resolve an issue's container parent in one request via `Issue.parent`.
-   * `null` is authoritative "no parent"; a degraded lookup (transport error,
-   * sub-issues unavailable) THROWS after the transient retries, so a caller
-   * can tell the two apart — the epic rollup keys its cheap scan on that.
+   * `null` means "no parent"; a degraded lookup throws after retries.
    *
    * @param {number} number Issue number whose parent to resolve.
    * @returns {Promise<object|null>} Mapped parent ticket, or null.

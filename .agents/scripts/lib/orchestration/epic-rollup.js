@@ -303,9 +303,7 @@ async function rollUpOneEpic({
 
 /**
  * Resolve this Story's container in one request via the native parent edge.
- * `authoritative` is true only when the lookup answered: then a missing
- * parent means no native edge exists, and the only linkage left to find is a
- * body checklist row. A throw (or a provider without the port) is degraded.
+ * `authoritative`: the lookup answered, so no parent means no native edge.
  *
  * @param {{ storyId: number, provider: object }} opts
  * @returns {Promise<{ parent: object|null, authoritative: boolean }>}
@@ -356,10 +354,7 @@ async function scanContainerEpics({ provider }) {
 }
 
 /**
- * Scan candidates. With an authoritative "no native parent", only an Epic
- * whose body checklist names the Story can hold it, so the rest are dropped
- * here with zero per-Epic requests; a degraded lookup keeps every Epic so the
- * native read can still find a natively-linked Story.
+ * `bodyOnly` keeps only Epics whose checklist names the Story (no requests).
  *
  * @param {{ storyId: number, provider: object, bodyOnly: boolean }} opts
  * @returns {Promise<object[]>}
