@@ -14,6 +14,8 @@
  * @typedef {import('./types.js').ProviderChain}         ProviderChain
  */
 
+import { DEFAULT_REVIEW_PROVIDERS } from '../../config/review-chain-default.js';
+import { createCodeReviewProviderForRegistry } from './code-review.js';
 import { createCodexProviderForRegistry } from './codex.js';
 import { mergeChainDegradations } from './degraded-gates.js';
 import { createNativeProviderForRegistry } from './native.js';
@@ -22,6 +24,7 @@ import { createUltrareviewProviderForRegistry } from './ultrareview.js';
 
 /** @type {Readonly<Record<string, () => ReviewProvider>>} */
 const INLINE_PROVIDERS = Object.freeze({
+  'code-review': createCodeReviewProviderForRegistry,
   codex: createCodexProviderForRegistry,
   native: createNativeProviderForRegistry,
   'security-review': createSecurityReviewProviderForRegistry,
@@ -35,8 +38,6 @@ const INLINE_PROVIDERS = Object.freeze({
 const PROMPT_PROVIDERS = Object.freeze({
   ultrareview: createUltrareviewProviderForRegistry,
 });
-
-export const DEFAULT_PROVIDER_NAME = 'native';
 
 /**
  * Gate predicate from a `when` clause (`label` / `labelAny`); absent → always true.
@@ -79,7 +80,8 @@ export function isScopeApplicable(declaredScopes, currentScope) {
 }
 
 /**
- * Takes the `codeReview` sub-object; unset/empty `providers` defaults to native.
+ * Takes the `codeReview` sub-object; unset/empty `providers` falls back to
+ * `DEFAULT_REVIEW_PROVIDERS`.
  *
  * @param {{
  *   providers?: Array<object>,
@@ -105,7 +107,7 @@ export function createReviewProvider(codeReviewConfig, opts = {}) {
     Array.isArray(codeReviewConfig.providers) &&
     codeReviewConfig.providers.length > 0
       ? codeReviewConfig.providers
-      : [{ name: DEFAULT_PROVIDER_NAME }];
+      : DEFAULT_REVIEW_PROVIDERS;
 
   const chain = buildProviderChain(entries, {
     inlineRegistry,

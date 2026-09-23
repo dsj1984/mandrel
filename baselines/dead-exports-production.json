@@ -1393,10 +1393,6 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/review-providers/review-provider-factory.js",
-      "symbol": "DEFAULT_PROVIDER_NAME"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/review-providers/review-provider-factory.js",
       "symbol": "isScopeApplicable"
     },
     {

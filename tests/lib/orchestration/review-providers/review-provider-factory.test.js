@@ -2,8 +2,8 @@
  * Unit tests for `review-provider-factory.js`.
  *
  * Story #2825 (Epic #2815) — verifies:
- *   - Unset / empty `codeReview.providers` defaults to a single-entry
- *     `native` chain.
+ *   - Unset / empty `codeReview.providers` falls back to the default
+ *     chain (`native` + optional `code-review`).
  *   - Unknown provider name throws an Error whose message names the
  *     unknown value, lists the supported values, and points the
  *     operator at `.agentrc.json` for remediation.
@@ -19,24 +19,37 @@ import {
 } from '../../../../.agents/scripts/lib/orchestration/review-providers/codex.js';
 import {
   createReviewProvider,
-  DEFAULT_PROVIDER_NAME,
   listRegisteredProviders,
 } from '../../../../.agents/scripts/lib/orchestration/review-providers/review-provider-factory.js';
 
-test('createReviewProvider: defaults to native chain when codeReview is unset', () => {
-  const provider = createReviewProvider(undefined);
-  assert.equal(typeof provider.runReview, 'function');
-  assert.equal(typeof provider.getPromptMessages, 'function');
-  assert.equal(provider.chain.inline.length, 1);
-  assert.equal(provider.chain.inline[0].name, 'native');
+// Stub registry: the real `code-review` constructor probes the `claude` CLI,
+// and no test may spawn it.
+const STUB_DEFAULT_REGISTRY = Object.freeze({
+  native: () => ({ runReview: async () => [] }),
+  'code-review': () => ({ runReview: async () => [] }),
 });
 
-test('createReviewProvider: defaults to native chain when providers is missing or empty', () => {
+test('createReviewProvider: unset codeReview falls back to the default chain', () => {
+  const provider = createReviewProvider(undefined, {
+    registry: STUB_DEFAULT_REGISTRY,
+  });
+  assert.equal(typeof provider.runReview, 'function');
+  assert.equal(typeof provider.getPromptMessages, 'function');
+  assert.deepEqual(
+    provider.chain.inline.map((e) => e.name),
+    ['native', 'code-review'],
+  );
+});
+
+test('createReviewProvider: missing or empty providers falls back to the default chain', () => {
   for (const config of [{ providerConfig: {} }, { providers: [] }]) {
-    const provider = createReviewProvider(config);
-    assert.equal(typeof provider.runReview, 'function');
-    assert.equal(provider.chain.inline.length, 1);
-    assert.equal(provider.chain.inline[0].name, 'native');
+    const provider = createReviewProvider(config, {
+      registry: STUB_DEFAULT_REGISTRY,
+    });
+    assert.deepEqual(
+      provider.chain.inline.map((e) => e.name),
+      ['native', 'code-review'],
+    );
   }
 });
 
@@ -122,8 +135,8 @@ test('createReviewProvider: honors injected registry for adapter tests', async (
   assert.deepEqual(findings, []);
 });
 
-test('DEFAULT_PROVIDER_NAME is native', () => {
-  assert.equal(DEFAULT_PROVIDER_NAME, 'native');
+test('listRegisteredProviders includes code-review', () => {
+  assert.ok(listRegisteredProviders().includes('code-review'));
 });
 
 test('listRegisteredProviders returns the registered names sorted', () => {

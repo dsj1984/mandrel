@@ -116,12 +116,17 @@ function resolveScopeEnvelope(opts, config) {
  *   blockerReason: string|null,
  * }>}
  */
-/** Display name: the single entry's name, `chain[a,b]`, or `'native'`. */
-function resolveProviderName(codeReviewConfig) {
+/**
+ * Display name: the single entry's name, `chain[a,b]`, or `'native'`. An
+ * unset chain names the entries the factory actually built, so a skipped
+ * optional provider is not reported as having run.
+ */
+function resolveProviderName(codeReviewConfig, reviewProvider) {
+  const configured = Array.isArray(codeReviewConfig?.providers)
+    ? codeReviewConfig.providers
+    : [];
   const providers =
-    codeReviewConfig && Array.isArray(codeReviewConfig.providers)
-      ? codeReviewConfig.providers
-      : [];
+    configured.length > 0 ? configured : (reviewProvider?.chain?.inline ?? []);
   if (providers.length === 1) {
     return providers[0]?.name ?? 'native';
   }
@@ -236,9 +241,9 @@ async function executeReviewPipeline({ opts, config, envelope }) {
   const { scope, ticketId, baseRef, headRef, commentTargetId } = envelope;
 
   const codeReviewConfig = config?.delivery?.codeReview ?? null;
-  const providerName = resolveProviderName(codeReviewConfig);
   const reviewProvider =
     injectedReviewProvider ?? createReviewProviderFn(codeReviewConfig);
+  const providerName = resolveProviderName(codeReviewConfig, reviewProvider);
 
   logger?.info?.(
     `[code-review] Running ${providerName} adapter for Story #${ticketId} (${baseRef}...${headRef})...`,

@@ -223,17 +223,9 @@
           "name": "native"
         },
         {
-          "name": "security-review",
+          "name": "code-review",
           "scopes": ["story"],
           "optional": true
-        },
-        {
-          "name": "ultrareview",
-          "scopes": ["story"],
-          "manualPrompt": true,
-          "when": {
-            "label": "risk::high"
-          }
         }
       ],
       "autoFixSeverity": "medium"

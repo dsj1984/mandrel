@@ -16,7 +16,10 @@
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
-
+import { DEFAULT_REVIEW_PROVIDERS } from '../../../../.agents/scripts/lib/config/review-chain-default.js';
+import { getAgentrcValidator } from '../../../../.agents/scripts/lib/config-settings-schema.js';
+import { CODE_REVIEW_SCHEMA } from '../../../../.agents/scripts/lib/config-settings-schema-quality.js';
+import { createCodeReviewProviderForRegistry } from '../../../../.agents/scripts/lib/orchestration/review-providers/code-review.js';
 import {
   buildGate,
   buildProviderChain,
@@ -27,6 +30,9 @@ import {
   listPromptProviders,
   listRegisteredProviders,
 } from '../../../../.agents/scripts/lib/orchestration/review-providers/review-provider-factory.js';
+
+const DELIVERY_SCHEMA_PROVIDERS_DEFAULT =
+  CODE_REVIEW_SCHEMA.properties.providers.default;
 
 function inlineRegistry(map) {
   return Object.freeze(map);
@@ -80,12 +86,79 @@ test('isScopeApplicable: filters by declared list', () => {
   assert.equal(isScopeApplicable(['story', 'epic'], 'story'), true);
 });
 
-test('createReviewProvider: empty providers defaults to native chain', async () => {
-  const provider = createReviewProvider({ providers: [] });
-  assert.equal(typeof provider.runReview, 'function');
-  assert.equal(typeof provider.getPromptMessages, 'function');
-  assert.equal(provider.chain.inline.length, 1);
-  assert.equal(provider.chain.inline[0].name, 'native');
+/**
+ * The real `code-review` constructor over injected probe/diff/invoke seams —
+ * no test spawns the `claude` binary.
+ */
+function defaultChainRegistry({ cliPresent, order }) {
+  return inlineRegistry({
+    native: () => ({
+      runReview: async () => {
+        order.push('native');
+        return [];
+      },
+    }),
+    'code-review': () =>
+      createCodeReviewProviderForRegistry({
+        probeFn: () => cliPresent,
+        readDiffFn: () => ({
+          status: 0,
+          stdout: 'diff --git a/x b/x\n',
+          stderr: '',
+        }),
+        invokeFn: () => {
+          order.push('code-review');
+          return { status: 0, stdout: '[]', stderr: '' };
+        },
+      }),
+  });
+}
+
+const STORY_INPUT = { ...INPUT, scope: 'story', headRef: 'story-42' };
+
+test('default chain: unset config with the claude CLI runs native then code-review', async () => {
+  const order = [];
+  const provider = createReviewProvider(undefined, {
+    inlineRegistry: defaultChainRegistry({ cliPresent: true, order }),
+    promptRegistry: promptRegistry({}),
+  });
+  assert.deepEqual(
+    provider.chain.inline.map((e) => e.name),
+    ['native', 'code-review'],
+  );
+  assert.deepEqual(await provider.runReview(STORY_INPUT), []);
+  assert.deepEqual(order, ['native', 'code-review']);
+});
+
+test('default chain: without the claude CLI code-review is skipped and native runs alone', async () => {
+  const order = [];
+  const warnings = [];
+  const provider = createReviewProvider(
+    { providers: [] },
+    {
+      inlineRegistry: defaultChainRegistry({ cliPresent: false, order }),
+      promptRegistry: promptRegistry({}),
+      logger: { warn: (m) => warnings.push(m) },
+    },
+  );
+  assert.deepEqual(
+    provider.chain.inline.map((e) => e.name),
+    ['native'],
+  );
+  await provider.runReview(STORY_INPUT);
+  assert.deepEqual(order, ['native']);
+  assert.ok(warnings.some((m) => /code-review unavailable/.test(m)));
+});
+
+test('default chain: the factory fallback is the shared DEFAULT_REVIEW_PROVIDERS constant', () => {
+  assert.deepEqual(JSON.parse(JSON.stringify(DEFAULT_REVIEW_PROVIDERS)), [
+    { name: 'native' },
+    { name: 'code-review', scopes: ['story'], optional: true },
+  ]);
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(DELIVERY_SCHEMA_PROVIDERS_DEFAULT)),
+    JSON.parse(JSON.stringify(DEFAULT_REVIEW_PROVIDERS)),
+  );
 });
 
 test('createReviewProvider: providers chain returns ChainProvider', async () => {
@@ -312,9 +385,28 @@ test('createChainProvider: inline returning non-array throws TypeError', async (
   await assert.rejects(() => provider.runReview(INPUT), TypeError);
 });
 
-test('listInlineProviders: includes native + codex + security-review', () => {
+test('runtime .agentrc validator accepts a codeReview.providers block naming code-review', () => {
+  const validate = getAgentrcValidator();
+  const ok = validate({
+    project: {
+      paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+    },
+    delivery: {
+      codeReview: {
+        providers: [
+          { name: 'native' },
+          { name: 'code-review', scopes: ['story'], optional: true },
+        ],
+      },
+    },
+  });
+  assert.equal(ok, true, JSON.stringify(validate.errors));
+});
+
+test('listInlineProviders: includes native + code-review + codex + security-review', () => {
   const names = listInlineProviders();
   assert.ok(names.includes('native'));
+  assert.ok(names.includes('code-review'));
   assert.ok(names.includes('codex'));
   assert.ok(names.includes('security-review'));
 });
