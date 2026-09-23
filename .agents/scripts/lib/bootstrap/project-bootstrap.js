@@ -34,8 +34,6 @@ export { SYSTEM_PROMPT_BLOCK, SYSTEM_PROMPT_IMPORT };
 /** Install template for a fresh AGENTS.md (also the legacy CLAUDE.md one). */
 export const SYSTEM_PROMPT_AGENTS_MD = SYSTEM_PROMPT_ENTRY_DOC;
 
-/** Legacy alias — uninstall still reverts an un-migrated CLAUDE.md. */
-export const SYSTEM_PROMPT_CLAUDE_MD = SYSTEM_PROMPT_ENTRY_DOC;
 
 export const GITIGNORE_BLOCKS = Object.freeze({
   commands: {

@@ -35,7 +35,6 @@ import {
   SYNC_COMMAND,
   SYSTEM_PROMPT_AGENTS_MD,
   SYSTEM_PROMPT_BLOCK,
-  SYSTEM_PROMPT_CLAUDE_MD,
   SYSTEM_PROMPT_IMPORT,
 } from '../../.agents/scripts/lib/bootstrap/project-bootstrap.js';
 import {
@@ -160,7 +159,7 @@ function seedFreshInstall(root) {
   fs.mkdirSync(root, { recursive: true });
   fs.writeFileSync(
     path.join(root, 'CLAUDE.md'),
-    SYSTEM_PROMPT_CLAUDE_MD,
+    SYSTEM_PROMPT_AGENTS_MD,
     'utf8',
   );
   writeJson(path.join(root, '.claude', 'settings.json'), {
@@ -500,7 +499,7 @@ describe('runUninstall — heading-only and comment-only operator content (Story
     fs.mkdirSync(tmpRoot, { recursive: true });
     fs.writeFileSync(
       path.join(tmpRoot, 'CLAUDE.md'),
-      SYSTEM_PROMPT_CLAUDE_MD,
+      SYSTEM_PROMPT_AGENTS_MD,
       'utf8',
     );
     writeLedger(tmpRoot, {
@@ -993,7 +992,7 @@ describe('runUninstall — corrupt target file guard (Story #3544)', () => {
     );
     fs.writeFileSync(
       path.join(tmpRoot, 'CLAUDE.md'),
-      SYSTEM_PROMPT_CLAUDE_MD,
+      SYSTEM_PROMPT_AGENTS_MD,
       'utf8',
     );
     writeJson(path.join(tmpRoot, '.agentrc.json'), {

@@ -21,7 +21,6 @@ import { afterEach, beforeEach, describe, it, mock } from 'node:test';
 
 import { offerCommitPush } from '../../.agents/scripts/bootstrap.js';
 import {
-  BOOTSTRAP_REMOVED_PATHS,
   stageLegacyEntryDocRemoval,
 } from '../../.agents/scripts/lib/bootstrap/agents-md-fold.js';
 import {
@@ -186,7 +185,6 @@ describe('stageBootstrapFiles', () => {
   it('names AGENTS.md (not CLAUDE.md) in the commit allowlist', () => {
     assert.ok(BOOTSTRAP_COMMIT_PATHS.includes('AGENTS.md'));
     assert.ok(!BOOTSTRAP_COMMIT_PATHS.includes('CLAUDE.md'));
-    assert.ok(BOOTSTRAP_REMOVED_PATHS.includes('CLAUDE.md'));
   });
 
   it('is a no-op (no git call) when nothing resolves', () => {

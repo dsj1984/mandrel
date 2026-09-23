@@ -24,7 +24,7 @@ export const SYSTEM_PROMPT_ENTRY_DOC = `# Agent Protocols
 
 ${SYSTEM_PROMPT_BLOCK}`;
 
-export const ENTRY_DOC = 'AGENTS.md';
+const ENTRY_DOC = 'AGENTS.md';
 export const LEGACY_ENTRY_DOC = 'CLAUDE.md';
 
 const SELF_IMPORT = '@AGENTS.md';
@@ -36,7 +36,7 @@ const SELF_IMPORT = '@AGENTS.md';
  *
  * @type {readonly string[]}
  */
-export const BOOTSTRAP_REMOVED_PATHS = Object.freeze([LEGACY_ENTRY_DOC]);
+const BOOTSTRAP_REMOVED_PATHS = Object.freeze([LEGACY_ENTRY_DOC]);
 
 /**
  * @param {string} text
@@ -68,7 +68,7 @@ function dedupeImport(lines) {
  * @param {{ claude: string, agents?: string|null }} input
  * @returns {string} the resulting AGENTS.md content
  */
-export function foldEntryDocs({ claude, agents = null }) {
+function foldEntryDocs({ claude, agents = null }) {
   const claudeBody = claude
     .split('\n')
     .filter((line) => line.trim() !== SELF_IMPORT)
