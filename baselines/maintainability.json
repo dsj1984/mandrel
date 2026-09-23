@@ -1500,7 +1500,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
-      "mi": 79.707
+      "mi": 80.229
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-lease-guard.js",
