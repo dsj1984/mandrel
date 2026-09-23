@@ -25,7 +25,7 @@ const ENTRY_DOC_PRECEDENCE = ['CLAUDE.md', 'AGENTS.md'];
  * @param {{ fs?: FsLike }} [opts]
  * @returns {string | null}
  */
-export function resolveEntryDoc(root, { fs = nodeFs } = {}) {
+function resolveEntryDoc(root, { fs = nodeFs } = {}) {
   return (
     ENTRY_DOC_PRECEDENCE.find((name) =>
       fs.existsSync(path.resolve(root, name)),

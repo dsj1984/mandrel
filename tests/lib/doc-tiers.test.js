@@ -7,7 +7,6 @@ import {
   parseImportSpecifiers,
   resolveAlwaysLoadedClosure,
   resolveDocTiers,
-  resolveEntryDoc,
   tierTotalBytes,
 } from '../../.agents/scripts/lib/doc-tiers.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
@@ -113,14 +112,12 @@ test('resolveAlwaysLoadedClosure drops @-tokens that do not resolve to a file', 
 
 test('resolveAlwaysLoadedClosure falls back to AGENTS.md when CLAUDE.md is absent', () => {
   const root = makeRepo({ 'AGENTS.md': '@a.md\n', 'a.md': 'x\n' });
-  assert.equal(resolveEntryDoc(root), 'AGENTS.md');
   const paths = resolveAlwaysLoadedClosure(root).map((e) => e.path);
   assert.deepEqual(paths, ['a.md', 'AGENTS.md']);
 });
 
 test('resolveAlwaysLoadedClosure uses CLAUDE.md alone when only it exists', () => {
   const root = makeRepo({ 'CLAUDE.md': '@a.md\n', 'a.md': 'x\n' });
-  assert.equal(resolveEntryDoc(root), 'CLAUDE.md');
   const paths = resolveAlwaysLoadedClosure(root).map((e) => e.path);
   assert.deepEqual(paths, ['a.md', 'CLAUDE.md']);
 });
@@ -131,7 +128,6 @@ test('resolveAlwaysLoadedClosure prefers CLAUDE.md when both entry docs exist', 
     'AGENTS.md': 'unread\n',
     'a.md': 'x\n',
   });
-  assert.equal(resolveEntryDoc(root), 'CLAUDE.md');
   const paths = resolveAlwaysLoadedClosure(root).map((e) => e.path);
   assert.deepEqual(paths, ['a.md', 'CLAUDE.md']);
 });
@@ -145,7 +141,6 @@ test('resolveAlwaysLoadedClosure treats an AGENTS.md self-import as a cycle', ()
 
 test('resolveAlwaysLoadedClosure returns [] when neither entry doc exists', () => {
   const root = makeRepo({ 'README.md': 'x\n' });
-  assert.equal(resolveEntryDoc(root), null);
   assert.deepEqual(resolveAlwaysLoadedClosure(root), []);
 });
 
