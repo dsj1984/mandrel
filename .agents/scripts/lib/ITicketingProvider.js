@@ -105,9 +105,7 @@ export class ITicketingProvider {
   }
 
   /**
-   * Resolve a container parent in one call. Returns `null` (never throws) when
-   * there is no parent or the backend cannot answer, so a degraded lookup
-   * never fails a lifecycle edge.
+   * `null` means "no parent"; throws when the lookup cannot answer.
    *
    * @param {number} _number
    * @returns {Promise<object|null>}

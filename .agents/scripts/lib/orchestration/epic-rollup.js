@@ -24,6 +24,7 @@ import { ColumnSync, LABEL_TO_COLUMN } from './column-sync.js';
 import {
   isEpicTicket,
   nativeChildReader,
+  readEpicChildIds,
   readEpicChildIdsFrom,
 } from './epic-container.js';
 import { resolveOperatorFromCandidates } from './lease-guard-shared.js';
@@ -302,26 +303,29 @@ async function rollUpOneEpic({
 
 /**
  * Resolve this Story's container in one request via the native parent edge.
- * `null` (never throws) means "no answer here" — linkage may still exist as
- * a body checklist row, which the caller's scan covers.
+ * `authoritative`: the lookup answered, so no parent means no native edge.
  *
  * @param {{ storyId: number, provider: object }} opts
- * @returns {Promise<object|null>} Mapped parent Epic, or null.
+ * @returns {Promise<{ parent: object|null, authoritative: boolean }>}
  */
 async function parentEpicFor({ storyId, provider }) {
-  if (typeof provider?.getParentIssue !== 'function') return null;
+  if (typeof provider?.getParentIssue !== 'function') {
+    return { parent: null, authoritative: false };
+  }
   let parent;
   try {
     parent = await provider.getParentIssue(storyId);
   } catch (err) {
     Logger.warn(
       `[epic-rollup] Parent lookup for Story #${storyId} degraded ` +
-        `(${err?.message ?? err}); falling back to the label scan.`,
+        `(${err?.message ?? err}); falling back to the full label scan.`,
     );
-    return null;
+    return { parent: null, authoritative: false };
   }
-  if (!parent || !isEpicTicket(parent)) return null;
-  return parent;
+  return {
+    parent: parent && isEpicTicket(parent) ? parent : null,
+    authoritative: true,
+  };
 }
 
 /**
@@ -350,6 +354,18 @@ async function scanContainerEpics({ provider }) {
 }
 
 /**
+ * `bodyOnly` keeps only Epics whose checklist names the Story (no requests).
+ *
+ * @param {{ storyId: number, provider: object, bodyOnly: boolean }} opts
+ * @returns {Promise<object[]>}
+ */
+async function candidateEpics({ storyId, provider, bodyOnly }) {
+  const epics = await scanContainerEpics({ provider });
+  if (!bodyOnly) return epics;
+  return epics.filter((epic) => readEpicChildIds(epic?.body).includes(storyId));
+}
+
+/**
  * Find the container Epics holding a Story (Story bodies carry no parent
  * pointer). Native edge first, scan otherwise; a scanned Epic must prove it
  * lists the Story, a native parent need not.
@@ -358,9 +374,10 @@ async function scanContainerEpics({ provider }) {
  * @returns {Promise<Array<{ epic: object, childIds: number[], nativeReadFailed: boolean, bodyOnlyIds: number[] }>>}
  */
 async function findEpicsForStory({ storyId, provider, skipEpicIds }) {
-  const parent = await parentEpicFor({ storyId, provider });
-  const epics = parent ? [parent] : await scanContainerEpics({ provider });
-  const authoritative = parent !== null;
+  const { parent, authoritative } = await parentEpicFor({ storyId, provider });
+  const epics = parent
+    ? [parent]
+    : await candidateEpics({ storyId, provider, bodyOnly: authoritative });
 
   const matches = [];
   for (const epic of epics) {
@@ -378,7 +395,7 @@ async function findEpicsForStory({ storyId, provider, skipEpicIds }) {
       readNativeChildIds: nativeChildReader(provider),
       onWarn: (message) => Logger.warn(message),
     });
-    if (!authoritative && !childIds.includes(storyId)) {
+    if (!parent && !childIds.includes(storyId)) {
       // A degraded read may have truncated this Story out; skip, but say so.
       if (nativeReadFailed) {
         Logger.warn(

@@ -291,7 +291,9 @@ confirm instead (`captureStoryFollowUps`).
   reopen the issue.
 - The parent lookup resolves the native parent edge in **one** call
   (`getParentIssue`), falling back to a `type::epic` scan for a child linked by
-  checklist alone. Children are the body checklist **union** the native
+  checklist alone. An authoritative "no parent" narrows that scan to Epics
+  whose body checklist names the Story (no per-Epic native read); only a
+  degraded lookup reads every scanned Epic's native children. Children are the body checklist **union** the native
   sub-issue edges — the same reader `/mandrel-deliver`'s expansion uses.
 - A checklist row citing an id that resolves to nothing is **dropped with a
   warning** when the native read succeeded; an unresolvable *native* edge
