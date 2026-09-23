@@ -138,38 +138,31 @@ export class IssuesGateway {
 
   /**
    * Resolve an issue's container parent in one request via `Issue.parent`.
-   * Never throws: no parent, an odd shape, or sub-issues being unavailable all
-   * return `null`, leaving the caller's checklist fallback to run.
+   * `null` is authoritative "no parent"; a degraded lookup (transport error,
+   * sub-issues unavailable) THROWS after the transient retries, so a caller
+   * can tell the two apart — the epic rollup keys its cheap scan on that.
    *
    * @param {number} number Issue number whose parent to resolve.
    * @returns {Promise<object|null>} Mapped parent ticket, or null.
+   * @throws {Error} When the lookup degrades.
    * @field-manifest GraphQL Issue.parent: number, id, title, body, state,
    *                 labels.nodes.name, assignees.nodes.login
    */
   async getParentIssue(number) {
     const issueNumber = Number(number);
     if (!Number.isInteger(issueNumber) || issueNumber <= 0) return null;
-    let data;
-    try {
-      data = await withTransientRetry(
-        () =>
-          this.ghGraphql(
-            PARENT_ISSUE_QUERY,
-            { owner: this.owner, repo: this.repo, number: issueNumber },
-            { headers: { 'GraphQL-Features': 'sub_issues' } },
-          ),
-        {
-          label: `getParentIssue #${issueNumber}`,
-          onRetry: defaultRetryWarn,
-        },
-      );
-    } catch (err) {
-      Logger.warn(
-        `[GitHubProvider] parent lookup for #${issueNumber} degraded to none ` +
-          `(${err?.message ?? err}).`,
-      );
-      return null;
-    }
+    const data = await withTransientRetry(
+      () =>
+        this.ghGraphql(
+          PARENT_ISSUE_QUERY,
+          { owner: this.owner, repo: this.repo, number: issueNumber },
+          { headers: { 'GraphQL-Features': 'sub_issues' } },
+        ),
+      {
+        label: `getParentIssue #${issueNumber}`,
+        onRetry: defaultRetryWarn,
+      },
+    );
     return subIssueNodeToTicket(data?.repository?.issue?.parent ?? null);
   }
 
