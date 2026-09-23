@@ -50,8 +50,8 @@ Everything outside them is prose or a centralized constant.
    CLI, the doctor checks, the upgrade path, uninstall, and consumer bootstrap
    all orbit this projection.
 2. **`Agent` / `subagent_type` dispatch semantics** — `roleScopedAgents` boots
-   converted spawns on `.claude/agents/<role>.md` instead of the `CLAUDE.md`
-   closure, and Claude Code nesting-depth facts are hardcoded.
+   converted spawns on `.claude/agents/<role>.md` instead of the entry-doc
+   (`AGENTS.md` or `CLAUDE.md`) closure, and Claude Code nesting-depth facts are hardcoded.
    **Already mitigated:** every converted spawn falls back to
    `subagent_type: general-purpose`, documented as the escape for hosts that
    ignore `.claude/agents/`, and `roleScopedAgents: false` is a kill-switch.

@@ -31,7 +31,6 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..');
 
 /** The files that make up the always-on @-closure a session boots on. */
 const CLOSURE_FILES = [
-  'CLAUDE.md',
   'AGENTS.md',
   '.agentrc.json',
   '.agents/instructions.md',

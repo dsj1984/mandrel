@@ -116,7 +116,6 @@ name: Install Matrix
 # workflow:
 #       install (npm / ubuntu-latest)
 #       install (yarn / windows-latest)
-# (See CLAUDE.md → "Two-package release topology" for the same operator note.)
 # The internal `select-matrix` setup job is plumbing and must NOT be added to
 # branch protection.
 # The `install-contract` job (extra legs) is nightly-coverage and must NOT be

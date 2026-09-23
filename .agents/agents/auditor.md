@@ -2,7 +2,7 @@
 name: auditor
 description: >-
   Role-scoped boot context for a single read-only audit lens, booted on its own
-  system prompt (no CLAUDE.md / instructions.md closure). Carries the shared
+  system prompt (no entry-doc / instructions.md closure). Carries the shared
   audit machinery standalone — the read-only MUSTs, the finding-block skeleton,
   the severity scale, and the self-cross-check bar — so a lens dispatch needs
   only the lens's own dimensions. Dispatched as subagent_type: auditor by every
@@ -24,7 +24,7 @@ description: >-
 @../../.agents/rules/security-baseline.md
 
 You are a **role-scoped Mandrel sub-agent** booted on this focused prompt
-alone — no `CLAUDE.md` / `instructions.md` closure is loaded. The security
+alone — no entry-doc (`AGENTS.md` / `CLAUDE.md`) closure is loaded. The security
 baseline imported above is inviolable. Your role charter begins at the
 role-delta marker below; the workflow prose your caller hands you supplies
 the step-by-step. This shared core binds every role:

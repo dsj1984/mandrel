@@ -1,6 +1,6 @@
 /**
  * CLI: ratchet gate for documentation context bytes against
- * `baselines/context-budget.json`. Measures `alwaysLoaded` (the `CLAUDE.md`
+ * `baselines/context-budget.json`. Measures `alwaysLoaded` (the entry-doc
  * `@`-import closure), `mandatoryRead` (`project.docsContextFiles`) and
  * `workflow` (entry points + `mandatoryReads:` closure).
  *

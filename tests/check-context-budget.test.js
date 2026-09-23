@@ -741,8 +741,8 @@ test('runCli is a no-op (exit 0) when the baseline is absent', async () => {
   assert.match(stderr.text(), /budget not found/);
 });
 
-test('runCli no-ops (exit 0) against a fixture with no CLAUDE.md — every measured tier empty', async () => {
-  // No CLAUDE.md → alwaysLoaded empty; no docsContextFiles → mandatoryRead empty.
+test('runCli no-ops (exit 0) against a fixture with no entry doc — every measured tier empty', async () => {
+  // No CLAUDE.md or AGENTS.md → alwaysLoaded empty; no docsContextFiles → mandatoryRead empty.
   const { root, config } = makeRepo({
     withClaude: false,
     docsContextFiles: [],

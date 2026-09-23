@@ -613,7 +613,7 @@ deterministic CLIs, not as sub-agents:
   `concurrencyCap`). When `delivery.routing.roleScopedAgents` is enabled
   (the default) the spawn uses the role-scoped boot context at
   [`.agents/agents/story-worker.md`](../.agents/agents/story-worker.md)
-  — its own system prompt with no CLAUDE.md / `instructions.md` closure,
+  — its own system prompt with no entry-doc / `instructions.md` closure,
   re-importing only `rules/security-baseline.md`; with routing off it
   falls back to a generic sub-agent carrying the full closure.
 - **Depth 2 — `acceptance-critic`** (maker-blind, one per Story). Spawned

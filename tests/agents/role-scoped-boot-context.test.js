@@ -81,7 +81,7 @@ before(() => {
 /**
  * Assemble the FULL boot context a role agent runs on: the materialized role
  * body plus the resolved content of its `@`-imported security-baseline. This is
- * the context a real spawn boots on — no CLAUDE.md closure — so asserting a MUST
+ * the context a real spawn boots on — no entry-doc closure — so asserting a MUST
  * is present here proves the worker still carries it on the diet.
  */
 function bootContext(fileName) {

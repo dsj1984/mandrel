@@ -1,7 +1,7 @@
 /**
  * Doc-tier resolver: partition the repo's docs into read-tiers with byte
- * sizes for the context-budget ratchet (`alwaysLoaded` = CLAUDE.md's
- * `@`-import closure; `agentBoot` and `workflowOnDemand` are recorded, not
+ * sizes for the context-budget ratchet (`alwaysLoaded` = the host entry
+ * doc's `@`-import closure; `agentBoot` and `workflowOnDemand` are recorded, not
  * gated). A path lives only in its highest tier. Emits paths and byte
  * counts, never file contents.
  */
@@ -11,9 +11,27 @@ import path from 'node:path';
 import { resolveWorkflowClosures } from './workflow-closure.js';
 
 /**
- * @type {string}
+ * Claude Code's project-root entry precedence: it reads `CLAUDE.md` when
+ * present and falls back to `AGENTS.md` only when `CLAUDE.md` is absent.
+ *
+ * @type {string[]}
  */
-const ENTRY_DOC = 'CLAUDE.md';
+const ENTRY_DOC_PRECEDENCE = ['CLAUDE.md', 'AGENTS.md'];
+
+/**
+ * The root entry doc the host loads, or null when neither exists.
+ *
+ * @param {string} root
+ * @param {{ fs?: FsLike }} [opts]
+ * @returns {string | null}
+ */
+export function resolveEntryDoc(root, { fs = nodeFs } = {}) {
+  return (
+    ENTRY_DOC_PRECEDENCE.find((name) =>
+      fs.existsSync(path.resolve(root, name)),
+    ) ?? null
+  );
+}
 
 /**
  * @type {string[]}
@@ -89,8 +107,9 @@ function fileEntry(root, rel, fs) {
  * @returns {Array<{ path: string, bytes: number }>}
  */
 export function resolveAlwaysLoadedClosure(root, { fs = nodeFs } = {}) {
-  const entryAbs = path.resolve(root, ENTRY_DOC);
-  if (!fs.existsSync(entryAbs)) return [];
+  const entry = resolveEntryDoc(root, { fs });
+  if (entry === null) return [];
+  const entryAbs = path.resolve(root, entry);
 
   const visited = new Set();
   const entries = new Map();

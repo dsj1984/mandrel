@@ -339,7 +339,7 @@ On `dispatch: true`, dispatch **one fresh-context, maker-blind sub-agent**.
 When `delivery.routing.roleScopedAgents` is enabled (the **default**), use
 `subagent_type: plan-critic` — it boots on the role-scoped
 [`plan-critic`](../../agents/plan-critic.md) context (its own system prompt,
-no `CLAUDE.md` @-closure) that carries the maker-blind invariant, the
+no entry-doc @-closure) that carries the maker-blind invariant, the
 `pre-mortem` charter, and the output shape standalone. When the kill-switch
 is off (`roleScopedAgents: false`) or the host cannot spawn at this depth,
 fall back to a generic sub-agent and hand it the same charter. Either way the
