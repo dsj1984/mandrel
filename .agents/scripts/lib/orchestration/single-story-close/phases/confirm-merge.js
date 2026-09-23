@@ -47,6 +47,7 @@ import {
   isPrMerged,
   MERGE_WAIT_GH_TIMEOUT_MS,
   parseWorkflowRunId,
+  pollIntervalMs,
   readRunSummary,
   resolveAdvisoryGateVerdict,
 } from '../../merge-poll.js';
@@ -1113,7 +1114,7 @@ export async function runConfirmMergePhase({
     remaining: rerunAllowance,
     issued: new Set(),
   };
-  const intervalMs = intervalSeconds * 1000;
+  let intervalMs = intervalSeconds * 1000;
   const startedAtMs = nowMsFn();
   let anchorMs = startedAtMs;
   let updatesUsed = 0;
@@ -1137,6 +1138,7 @@ export async function runConfirmMergePhase({
       ghTimeoutMs,
     });
     polls += 1;
+    intervalMs = pollIntervalMs(probe.checksStatus, intervalSeconds);
 
     anchorMs = resolveBudgetAnchorMs({
       createdAt: probe.createdAt,
@@ -1155,12 +1157,7 @@ export async function runConfirmMergePhase({
     // Heartbeat: a backgrounded close's output-file growth is its liveness signal.
     progress?.(
       'CONFIRM',
-      `⏱  poll ${polls}: PR #${prNumber} state=${probe.state ?? 'unknown'} ` +
-        `checks=${probe.checksStatus ?? 'unknown'} ` +
-        `mergeState=${probe.mergeStateStatus ?? 'unknown'} ` +
-        `(${waitBudget.waitedSeconds}s of ${maxWaitSeconds}s this invocation; ` +
-        `${waitBudget.cumulativeSeconds}s of ${maxBudgetSeconds}s cumulative)` +
-        (probe.error ? ` — probe error: ${probe.error}` : ''),
+      pollHeartbeat({ polls, prNumber, probe, waitBudget }),
     );
 
     if (isPrMerged(probe)) {
@@ -1332,11 +1329,22 @@ export async function runConfirmMergePhase({
     },
     predicate: (result) => result?.done === true,
     intervalMs,
-    // No pollUntil timeout: the tick owns both bounds and their classification.
-    sleepFn: (ms) => sleepFn(ms),
+    // No pollUntil timeout: the tick owns both bounds and the cadence.
+    sleepFn: () => sleepFn(intervalMs),
   });
   if (tick.thrown) throw tick.thrown;
   return tick.outcome;
+}
+
+function pollHeartbeat({ polls, prNumber, probe, waitBudget }) {
+  return (
+    `⏱  poll ${polls}: PR #${prNumber} state=${probe.state ?? 'unknown'} ` +
+    `checks=${probe.checksStatus ?? 'unknown'} ` +
+    `mergeState=${probe.mergeStateStatus ?? 'unknown'} ` +
+    `(${waitBudget.waitedSeconds}s of ${waitBudget.maxWaitSeconds}s this invocation; ` +
+    `${waitBudget.cumulativeSeconds}s of ${waitBudget.maxBudgetSeconds}s cumulative)` +
+    (probe.error ? ` — probe error: ${probe.error}` : '')
+  );
 }
 
 function doneWith(outcome) {

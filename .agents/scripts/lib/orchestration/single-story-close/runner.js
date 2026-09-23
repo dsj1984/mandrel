@@ -33,6 +33,7 @@ import { runConfirmMergePhase } from './phases/confirm-merge.js';
 import { runGraphqlPreflight } from './phases/graphql-preflight.js';
 import { lockWaitPending } from './phases/lock-wait-pending.js';
 import { parseCloseOptions, resolveWaitForMerge } from './phases/options.js';
+import { runPostLandTail } from './phases/post-land.js';
 import { ensurePullRequestWith } from './phases/pull-request.js';
 import { pushStoryBranch } from './phases/push.js';
 import { handleCriticalReviewBlock } from './phases/review-block.js';
@@ -43,11 +44,53 @@ import { runWrongTreeGuardPhase } from './phases/wrong-tree-guard.js';
 const progress = Logger.createProgress('single-story-close', { stderr: true });
 
 /**
+ * Wall-clock seconds per named phase; each transition logs the phase it ends.
+ *
+ * @param {() => number} [nowMs]
+ */
+function createPhaseTimer(nowMs = Date.now) {
+  const durations = {};
+  let current = null;
+  let since = 0;
+  const end = () => {
+    if (current === null) return;
+    const seconds = Math.round((nowMs() - since) / 100) / 10;
+    durations[current] = (durations[current] ?? 0) + seconds;
+    progress('TIMING', `⏱  ${current}: ${seconds}s`);
+    current = null;
+  };
+  return {
+    enter(phase) {
+      end();
+      if (phase === 'init') return;
+      current = phase;
+      since = nowMs();
+    },
+    finish() {
+      end();
+      return Object.keys(durations).length > 0 ? { ...durations } : null;
+    },
+    stamp(terminal) {
+      const phaseDurations = this.finish();
+      if (phaseDurations) terminal.phaseDurations = phaseDurations;
+    },
+  };
+}
+
+const UNTIMED = Object.freeze({ stamp() {} });
+
+/**
  * The single terminal writer: the result summary, the envelope callers parse,
  * and terminal friction — so no ending can forget one. Must be awaited: the
  * CLI `process.exit`s as soon as `main` resolves.
  */
-async function emitTerminal({ terminal, result, config }) {
+async function emitTerminal({
+  terminal,
+  result,
+  config,
+  phaseTimer = UNTIMED,
+}) {
+  phaseTimer.stamp(terminal);
   if (result) {
     emitTerseResult({
       label: 'STORY CLOSE RESULT',
@@ -516,8 +559,10 @@ export async function runSingleStoryClose({
   // builds the `failed` envelope from those tags.
   let phase = 'init';
   let observedGates = null;
+  const phaseTimer = createPhaseTimer();
   const setPhase = (next) => {
     phase = next;
+    phaseTimer.enter(next);
   };
   const setObservedGates = (gates) => {
     observedGates = gates;
@@ -527,6 +572,7 @@ export async function runSingleStoryClose({
       options,
       setPhase,
       setObservedGates,
+      phaseTimer,
       injectedProvider,
       injectedConfig,
       injectedNotify,
@@ -539,6 +585,7 @@ export async function runSingleStoryClose({
     });
   } catch (err) {
     if (err && typeof err === 'object') {
+      err.closePhaseDurations = phaseTimer.finish();
       if (!err.closePhase) err.closePhase = phase;
       if (!err.closeGates && observedGates) err.closeGates = observedGates;
     }
@@ -617,6 +664,10 @@ async function finishWithMergeWait(prCtx, deps) {
     progress,
     injectedGh: deps.injectedGh,
     injectedNotify: deps.injectedNotify,
+    runPostLandTailFn: (args) => {
+      deps.setPhase('post-land');
+      return runPostLandTail(args);
+    },
   });
   const terminal = terminalFromWaitOutcome({
     waitOutcome,
@@ -650,7 +701,12 @@ async function finishWithMergeWait(prCtx, deps) {
     }),
     landCompleted: waitOutcome.confirmed === true,
   });
-  await emitTerminal({ terminal, result, config: prCtx.config });
+  await emitTerminal({
+    terminal,
+    result,
+    config: prCtx.config,
+    phaseTimer: prCtx.phaseTimer,
+  });
   reportWaitTerminal(terminal, { storyId: prCtx.storyId, prUrl: prCtx.prUrl });
   return { success: terminal.status === 'landed', result, terminal };
 }
@@ -698,7 +754,12 @@ async function finishWithoutMergeWait(prCtx, waitForMergeReason) {
     nextCommand: NEXT_COMMANDS.confirmMerge(prCtx.storyId),
     elapsedSeconds: elapsedSecondsSince(prCtx.startedAtMs),
   });
-  await emitTerminal({ terminal, result, config: prCtx.config });
+  await emitTerminal({
+    terminal,
+    result,
+    config: prCtx.config,
+    phaseTimer: prCtx.phaseTimer,
+  });
   progress(
     'DONE',
     `✅ Story #${prCtx.storyId}: PR ready → ${prCtx.prUrl} (${waitForMergeReason})`,
@@ -714,13 +775,16 @@ async function finishWithoutMergeWait(prCtx, waitForMergeReason) {
  *   config: object, startedAtMs: number }} ctx
  * @returns {Promise<{ success: false, result: object, terminal: object }>}
  */
-async function finishDeferred(lockWait, { config, startedAtMs, ...ids }) {
+async function finishDeferred(
+  lockWait,
+  { config, startedAtMs, phaseTimer, ...ids },
+) {
   const { result, terminal, note } = lockWaitPending({
     ...ids,
     lockWait,
     elapsedSeconds: elapsedSecondsSince(startedAtMs),
   });
-  await emitTerminal({ terminal, result, config });
+  await emitTerminal({ terminal, result, config, phaseTimer });
   progress('PENDING', note);
   return { success: false, result, terminal };
 }
@@ -759,6 +823,7 @@ async function runClosePipeline({
   options,
   setPhase,
   setObservedGates,
+  phaseTimer,
   injectedProvider,
   injectedConfig,
   injectedNotify,
@@ -848,6 +913,7 @@ async function runClosePipeline({
       baseBranch,
       config,
       startedAtMs,
+      phaseTimer,
     });
   }
 
@@ -943,6 +1009,7 @@ async function runClosePipeline({
     directMerged,
     config,
     startedAtMs,
+    phaseTimer,
     lockWait: prePush.lockWait,
     gates: closeEnvelopeGates(options, prePush.validationGates, reviewOverride),
   };

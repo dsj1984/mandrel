@@ -282,11 +282,61 @@ async function stepPlanRunLabelReap({
 }
 
 /**
- * Run the post-land tail, sequentially. The ref reap and fast-forward (the
- * local-checkout mutations, reap first) run under a cross-process lock on the
- * main checkout, since concurrent closes race on the base ref and worktree
- * registry; GitHub steps stay outside it. The lock is best-effort: on
- * timeout the mutations run anyway.
+ * The local-checkout mutations (ref reap first, then fast-forward) under a
+ * cross-process lock on the main checkout, since concurrent closes race on
+ * the base ref and worktree registry. Best-effort: on timeout they run anyway.
+ */
+async function runLockedLocalSteps({
+  storyId,
+  storyBranch,
+  baseBranch,
+  cwd,
+  config,
+  progress,
+  gitSpawnFn,
+  planFastForwardFn,
+  executeFastForwardFn,
+  acquireLockWithWaitFn,
+}) {
+  const lockCfg = config?.delivery?.postLandLock ?? {};
+  const lock = await acquireLockWithWaitFn({
+    lockPath: postLandLockPath(cwd),
+    waitMs: lockCfg.waitMs,
+    pollMs: lockCfg.pollMs,
+    timeoutMs: lockCfg.timeoutMs,
+    ownerId: `post-land-${storyId}`,
+  });
+  if (!lock.acquired) {
+    progress?.(
+      'POST-LAND',
+      `⚠️ post-land lock not acquired (${lock.reason}); proceeding unserialized.`,
+    );
+  }
+  try {
+    const refCleanup = await step(
+      () => stepRefCleanup({ cwd, storyBranch, progress, gitSpawnFn }),
+      { name: 'local ref cleanup', progress },
+    );
+    const baseFastForward = await step(
+      () =>
+        stepBaseFastForward({
+          cwd,
+          baseBranch,
+          progress,
+          planFastForwardFn,
+          executeFastForwardFn,
+        }),
+      { name: 'base fast-forward', progress },
+    );
+    return { refCleanup, baseFastForward };
+  } finally {
+    if (lock.acquired) lock.release();
+  }
+}
+
+/**
+ * Run the post-land tail: friction markers, then the GitHub steps and the
+ * locked local steps concurrently, then temp purge, then lease release.
  *
  * @param {object} args
  * @param {number} args.storyId
@@ -348,87 +398,67 @@ export async function runPostLandTail({
     config,
   });
 
-  const followUps = await step(
-    () =>
-      stepFollowUps({
-        storyId,
-        provider,
-        config,
-        cwd,
-        progress,
-        captureStoryFollowUpsFn,
-      }),
-    { name: 'follow-up capture', progress },
-  );
-  const statusResync = await step(
-    () =>
-      stepStatusResync({
-        storyId,
-        provider,
-        config,
-        progress,
-        reassertStatusColumnFn,
-      }),
-    { name: 'status-column resync', progress },
-  );
-  await step(
-    () =>
-      stepPlanRunLabelReap({
-        storyId,
-        provider,
-        progress,
-        reapPlanRunLabelsForStoryFn,
-      }),
-    { name: 'plan-run label reap', progress },
-  );
-
-  const epicRollup = await step(
-    () =>
-      stepEpicRollup({
-        storyId,
-        provider,
-        config,
-        progress,
-        rollUpEpicForStoryFn,
-      }),
-    { name: 'epic rollup', progress },
-  );
-
-  const lockCfg = config?.delivery?.postLandLock ?? {};
-  const lock = await acquireLockWithWaitFn({
-    lockPath: postLandLockPath(cwd),
-    waitMs: lockCfg.waitMs,
-    pollMs: lockCfg.pollMs,
-    timeoutMs: lockCfg.timeoutMs,
-    ownerId: `post-land-${storyId}`,
-  });
-  if (!lock.acquired) {
-    progress?.(
-      'POST-LAND',
-      `⚠️ post-land lock not acquired (${lock.reason}); proceeding unserialized.`,
-    );
-  }
-  let refCleanup;
-  let baseFastForward;
-  try {
-    refCleanup = await step(
-      () => stepRefCleanup({ cwd, storyBranch, progress, gitSpawnFn }),
-      { name: 'local ref cleanup', progress },
-    );
-    baseFastForward = await step(
+  // The GitHub steps are independent of each other and of the local
+  // lock-held mutations, so all of them run concurrently.
+  const [followUps, statusResync, , epicRollup, local] = await Promise.all([
+    step(
       () =>
-        stepBaseFastForward({
+        stepFollowUps({
+          storyId,
+          provider,
+          config,
           cwd,
-          baseBranch,
           progress,
-          planFastForwardFn,
-          executeFastForwardFn,
+          captureStoryFollowUpsFn,
         }),
-      { name: 'base fast-forward', progress },
-    );
-  } finally {
-    if (lock.acquired) lock.release();
-  }
+      { name: 'follow-up capture', progress },
+    ),
+    step(
+      () =>
+        stepStatusResync({
+          storyId,
+          provider,
+          config,
+          progress,
+          reassertStatusColumnFn,
+        }),
+      { name: 'status-column resync', progress },
+    ),
+    step(
+      () =>
+        stepPlanRunLabelReap({
+          storyId,
+          provider,
+          progress,
+          reapPlanRunLabelsForStoryFn,
+        }),
+      { name: 'plan-run label reap', progress },
+    ),
+    step(
+      () =>
+        stepEpicRollup({
+          storyId,
+          provider,
+          config,
+          progress,
+          rollUpEpicForStoryFn,
+        }),
+      { name: 'epic rollup', progress },
+    ),
+    runLockedLocalSteps({
+      storyId,
+      storyBranch,
+      baseBranch,
+      cwd,
+      config,
+      progress,
+      gitSpawnFn,
+      planFastForwardFn,
+      executeFastForwardFn,
+      acquireLockWithWaitFn,
+    }),
+  ]);
+  const { refCleanup, baseFastForward } = local;
 
   // After every step that reads the temp artifacts; `signals.ndjson` survives.
   const tempPurge = await step(

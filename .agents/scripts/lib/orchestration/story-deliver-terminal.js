@@ -116,6 +116,7 @@ function compact(obj) {
  * @param {object|null} [args.waitBudget]
  * @param {{ waitedSeconds: number, expired: boolean }|null} [args.lockWait]
  *   Full-suite lock wait; `waitBudget` is merge-wait only.
+ * @param {Record<string, number>|null} [args.phaseDurations] Seconds per phase.
  * @param {string} [args.timestamp]
  * @param {{ schema: object|null, error: string|null }} [args.schemaSource]
  *   Test seam.
@@ -137,6 +138,7 @@ export function buildTerminalEnvelope({
   elapsedSeconds = 0,
   waitBudget,
   lockWait,
+  phaseDurations,
   timestamp = new Date().toISOString(),
   schemaSource,
 }) {
@@ -158,6 +160,7 @@ export function buildTerminalEnvelope({
     elapsedSeconds: Math.max(0, Number(elapsedSeconds) || 0),
     waitBudget: waitBudget ?? null,
     lockWait: lockWait ?? null,
+    phaseDurations,
     timestamp,
   });
 

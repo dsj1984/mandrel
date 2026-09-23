@@ -107,6 +107,7 @@ export function failedTerminalFor(err, args = {}) {
       failure: { reason: String(err?.message ?? err) },
       nextCommand: NEXT_COMMANDS.recover(storyId),
       elapsedSeconds: 0,
+      phaseDurations: err?.closePhaseDurations ?? undefined,
     });
   } catch (buildErr) {
     Logger.error(

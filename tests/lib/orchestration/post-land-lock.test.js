@@ -146,8 +146,9 @@ describe('runPostLandTail — lock scope (Story #4622)', () => {
     // The close-recovery marker is emitted FIRST (Story #4649): follow-up
     // capture reads the signal stream, so a marker written after it would
     // arrive too late to net the failure it cancels out of this very run.
-    // GitHub steps then precede the lock; both mutations are inside it.
-    // The temp purge (Story #4794) is outside the lock: it touches only the
+    // Story #5417: the GitHub steps and the locked mutations then run
+    // concurrently (this order is their start order); both mutations stay
+    // inside the lock. The temp purge (Story #4794) is outside the lock: it touches only the
     // temp tree, so it contends with nothing, and running it after every
     // other step means no step can still be reading what it deletes. The
     // lease release (Story #4860) is last and also outside — it is a pure
@@ -299,5 +300,61 @@ describe('runPostLandTail — real cross-process serialization (Story #4622)', (
       1,
       'the lock kept every critical section mutually exclusive',
     );
+  });
+
+  it('Story #5417: GitHub steps run concurrently; purge and lease release wait for all of them', async () => {
+    const events = [];
+    let inFlight = 0;
+    let peak = 0;
+    const slow = (name, value) => async () => {
+      inFlight += 1;
+      peak = Math.max(peak, inFlight);
+      await new Promise((r) => setTimeout(r, 10));
+      inFlight -= 1;
+      events.push(name);
+      return value;
+    };
+    await runPostLandTail({
+      storyId: 5417,
+      storyBranch: 'story-5417',
+      baseBranch: 'main',
+      cwd: tmpDir,
+      provider: {},
+      ...baseSeams(events),
+      captureStoryFollowUpsFn: slow('followUps', { ok: true }),
+      reassertStatusColumnFn: slow('statusResync', { status: 'synced' }),
+      rollUpEpicForStoryFn: slow('epicRollup', { epics: [], closed: [] }),
+      reapPlanRunLabelsForStoryFn: slow('reap', { deleted: [], failed: [] }),
+    });
+    assert.equal(peak, 4, 'all four GitHub steps were in flight at once');
+    assert.equal(events.at(-1), 'leaseRelease', 'lease release runs last');
+    assert.equal(events.at(-2), 'tempPurge', 'purge follows every reader');
+  });
+
+  it('Story #5417: a throwing concurrent step degrades only its own boolean', async () => {
+    const tail = await runPostLandTail({
+      storyId: 5417,
+      storyBranch: 'story-5417',
+      baseBranch: 'main',
+      cwd: tmpDir,
+      provider: {},
+      ...baseSeams([]),
+      reassertStatusColumnFn: async () => {
+        throw new Error('boom');
+      },
+      reapPlanRunLabelsForStoryFn: async () => ({ deleted: [], failed: [] }),
+    });
+    assert.equal(tail.statusResync, false);
+    assert.equal(tail.details.statusResync, 'boom');
+    for (const key of [
+      'followUps',
+      'refCleanup',
+      'baseFastForward',
+      'tempPurge',
+      'leaseRelease',
+      'epicRollup',
+    ]) {
+      assert.equal(tail[key], true, key);
+    }
   });
 });

@@ -140,7 +140,7 @@ const WORKTREE_ISOLATION_SCHEMA = {
 const MERGE_WATCH_SCHEMA = {
   type: 'object',
   description:
-    "Knobs consumed by the close-and-land merge wait (Story #4543). `mode` (Story #4698) selects the close-time merge posture. `maxWaitSeconds` bounds ONE invocation of the merge wait and its expiry returns a resumable `pending` terminal with no label mutation; `maxBudgetSeconds` bounds the CUMULATIVE wait across resumes (anchored at the PR's createdAt, so a resume does not restart the clock) and exhausting it is the genuine give-up that classifies and blocks. The 30s poll cadence and the cap of 3 behind-the-base updates are fixed.",
+    "Knobs consumed by the close-and-land merge wait (Story #4543). `mode` (Story #4698) selects the close-time merge posture. `maxWaitSeconds` bounds ONE invocation of the merge wait and its expiry returns a resumable `pending` terminal with no label mutation; `maxBudgetSeconds` bounds the CUMULATIVE wait across resumes (anchored at the PR's createdAt, so a resume does not restart the clock) and exhausting it is the genuine give-up that classifies and blocks. The poll cadence is internal (at most 30s while checks run, at most 10s once they are green and the PR is unmerged); it and the cap of 3 behind-the-base updates are not configurable.",
   properties: {
     mode: {
       type: 'string',
