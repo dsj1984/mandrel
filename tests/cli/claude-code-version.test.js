@@ -106,6 +106,24 @@ describe('claude-code-version', () => {
     assert.equal(parseClaudeVersion('Claude 2.1.300'), null);
   });
 
+  it('skips when no runner is injected', () => {
+    const r = runClaudeCodeVersion({
+      projectRoot: ROOT,
+      existsSync: project(['AGENTS.md']),
+    });
+    assert.equal(r.ok, true);
+    assert.match(r.detail, /skipped/);
+  });
+
+  it('the registered wrapper injects a claude runner that reaches the check', () => {
+    const entry = registry.find((c) => c.name === 'claude-code-version');
+    const r = entry.run({
+      projectRoot: ROOT,
+      existsSync: project(['AGENTS.md']),
+    });
+    assert.equal(typeof r.detail, 'string');
+  });
+
   it('is registered as a fatal doctor check', () => {
     const entry = registry.find((c) => c.name === 'claude-code-version');
     assert.ok(entry);

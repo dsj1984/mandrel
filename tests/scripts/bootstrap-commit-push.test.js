@@ -235,6 +235,21 @@ describe('offerCommitPush phase', () => {
     assert.deepEqual(pushCall.args, ['push', '-u', 'origin', 'main']);
   });
 
+  it('a failed git add → stage-failed, skipping the CLAUDE.md removal and the commit', async () => {
+    const dir = makeTmpDir();
+    seed(dir, ['.agentrc.json', 'AGENTS.md']);
+    const { runGit, calls } = makeRunGit({
+      add: { ok: false, status: 1, stdout: '', stderr: 'boom' },
+    });
+    const res = await offerCommitPush(baseState(dir), {
+      runGit,
+      confirm: async () => true,
+    });
+    assert.equal(res.payload.commitPush.action, 'stage-failed');
+    assert.ok(!calls.some((c) => c.args.includes('rm')));
+    assert.ok(!calls.some((c) => c.args.includes('commit')));
+  });
+
   it('decline → prints instructions and performs NO git mutation', async () => {
     const dir = makeTmpDir();
     seed(dir, ['.agentrc.json']);
