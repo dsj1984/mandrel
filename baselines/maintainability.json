@@ -940,7 +940,7 @@
     },
     {
       "path": ".agents/scripts/lib/observability/metrics-ledger.js",
-      "mi": 97.86
+      "mi": 105.855
     },
     {
       "path": ".agents/scripts/lib/observability/runtime-friction.js",
@@ -1436,7 +1436,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
-      "mi": 87.426
+      "mi": 88.944
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
@@ -1524,7 +1524,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/review-core.js",
-      "mi": 97.967
+      "mi": 111.975
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-deliver-terminal-schema.js",
