@@ -1847,7 +1847,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/merge-poll.js",
       "lines": 100,
-      "branches": 98.14,
+      "branches": 98.76,
       "functions": 100
     },
     {
