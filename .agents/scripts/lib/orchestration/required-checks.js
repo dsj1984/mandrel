@@ -23,7 +23,7 @@ import {
  * @param {Array<object>} statusCheckRollup non-empty
  * @param {Set<string>} requiredNames
  */
-export function deriveAttributedEvidence(statusCheckRollup, requiredNames) {
+function deriveAttributedEvidence(statusCheckRollup, requiredNames) {
   const failedRequired = new Set();
   for (const check of statusCheckRollup) {
     const name = readRunName(check);
@@ -87,7 +87,7 @@ const requiredNamesCache = new Map();
  *   gh: { api: Function }, timeoutMs?: number }} args
  * @returns {Promise<Set<string>|null>}
  */
-export async function readRequiredCheckNames({
+async function readRequiredCheckNames({
   prNodeId,
   prNumber,
   headSha,
