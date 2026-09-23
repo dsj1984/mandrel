@@ -44,7 +44,6 @@ import {
   decideMergeWaitFailFast,
   deriveChecksStatus,
   deriveRedHeadRuns,
-  deriveRequiredRunEvidence,
   isPrMerged,
   MERGE_WAIT_GH_TIMEOUT_MS,
   parseWorkflowRunId,
@@ -52,6 +51,7 @@ import {
   resolveAdvisoryGateVerdict,
 } from '../../merge-poll.js';
 import { readMergeQueueState } from '../../merge-queue.js';
+import { readProbeRunEvidence } from '../../required-checks.js';
 import { NEXT_COMMANDS } from '../../story-deliver-terminal.js';
 import {
   postStructuredComment,
@@ -155,6 +155,7 @@ export async function readPrWaitProbe({
   gh = defaultGh,
   ghTimeoutMs = MERGE_WAIT_GH_TIMEOUT_MS,
   readMergeQueueStateFn = readMergeQueueState,
+  readRequiredCheckNamesFn,
 }) {
   try {
     const view = await withGhTimeout(
@@ -188,7 +189,14 @@ export async function readPrWaitProbe({
       }),
       // Head-anchored, so superseded/pending runs don't read as red; `null`
       // when the rollup is empty (the consecutive-probe fallback owns that).
-      requiredRunEvidence: deriveRequiredRunEvidence(view?.statusCheckRollup),
+      requiredRunEvidence: await readProbeRunEvidence({
+        view,
+        checksStatus,
+        prNumber,
+        gh,
+        ghTimeoutMs,
+        readFn: readRequiredCheckNamesFn,
+      }),
       redHeadRuns: deriveRedHeadRuns(view?.statusCheckRollup),
       headSha: readString(view?.headRefOid),
     };

@@ -1840,14 +1840,14 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/merge-block-class.js",
-      "lines": 98.82,
-      "branches": 82.35,
+      "lines": 98.92,
+      "branches": 84.21,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/orchestration/merge-poll.js",
       "lines": 100,
-      "branches": 98.74,
+      "branches": 98.76,
       "functions": 100
     },
     {
@@ -2052,6 +2052,12 @@
       "path": ".agents/scripts/lib/orchestration/remote-verifier.js",
       "lines": 100,
       "branches": 75,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/required-checks.js",
+      "lines": 100,
+      "branches": 94.44,
       "functions": 100
     },
     {

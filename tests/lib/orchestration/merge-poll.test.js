@@ -31,6 +31,7 @@ import {
   requiredCheckFailedBlocksMerge,
   resolveAdvisoryGateVerdict,
 } from '../../../.agents/scripts/lib/orchestration/merge-poll.js';
+import { readProbeRunEvidence } from '../../../.agents/scripts/lib/orchestration/required-checks.js';
 
 describe('deriveChecksStatus', () => {
   it('reports failure for a red check regardless of whether it is required', () => {
@@ -238,6 +239,13 @@ describe('deriveRequiredRunEvidence (Story #4695)', () => {
     assert.deepEqual(deriveRequiredRunEvidence([{ state: 'EXPECTED' }]), {
       requiredRunFailed: false,
       requiredRunInFlight: true,
+    });
+  });
+
+  it('treats an entry with neither status nor state as settled and green', () => {
+    assert.deepEqual(deriveRequiredRunEvidence([{}]), {
+      requiredRunFailed: false,
+      requiredRunInFlight: false,
     });
   });
 
@@ -909,5 +917,191 @@ describe('decideAdvisoryGateBlock — the class travels with the decision', () =
       }),
       null,
     );
+  });
+});
+
+describe('GitHub required-check attribution (Story #5415)', () => {
+  const required = new Set(['lint', 'test']);
+  const gated = async (rollup, names) => {
+    const checksStatus = deriveChecksStatus(rollup);
+    return {
+      checksStatus,
+      mergeStateStatus: 'BLOCKED',
+      requiredRunEvidence: await readProbeRunEvidence({
+        view: {
+          id: 'PR_x',
+          headRefOid: 'h',
+          mergeStateStatus: 'BLOCKED',
+          statusCheckRollup: rollup,
+        },
+        checksStatus,
+        prNumber: 1,
+        gh: {},
+        readFn: async () => names,
+      }),
+    };
+  };
+  const failFast = (probe) =>
+    decideMergeWaitFailFast({ probe, consecutiveRequiredFailSnapshots: 0 })
+      .failFast;
+  const blockClass = (probe) =>
+    classifyMergeBlock({ prProbe: probe }).blockClass;
+
+  it('AC-1: a red required check fails fast while an unrelated required check runs', async () => {
+    const probe = await gated(
+      [
+        { name: 'lint', status: 'COMPLETED', conclusion: 'FAILURE' },
+        { name: 'test', status: 'IN_PROGRESS' },
+        { name: 'e2e', status: 'QUEUED' },
+      ],
+      required,
+    );
+    assert.deepEqual(probe.requiredRunEvidence, {
+      requiredRunFailed: true,
+      requiredRunInFlight: false,
+      runInFlight: true,
+      attribution: 'github',
+    });
+    assert.equal(failFast(probe), true);
+    assert.equal(blockClass(probe), 'checks-failed');
+  });
+
+  it('AC-2: a red non-required check alone never fails fast', async () => {
+    for (const rollup of [
+      [
+        { name: 'lint', status: 'COMPLETED', conclusion: 'SUCCESS' },
+        { name: 'e2e', status: 'COMPLETED', conclusion: 'FAILURE' },
+      ],
+      [
+        { name: 'test', status: 'IN_PROGRESS' },
+        { context: 'e2e', state: 'FAILURE' },
+      ],
+    ]) {
+      const probe = await gated(rollup, required);
+      assert.equal(probe.requiredRunEvidence.requiredRunFailed, false);
+      assert.equal(failFast(probe), false);
+      assert.notEqual(blockClass(probe), 'checks-failed');
+    }
+  });
+
+  it('AC-3: a re-run of the failed required check in flight keeps polling', async () => {
+    const probe = await gated(
+      [
+        { name: 'lint', status: 'COMPLETED', conclusion: 'FAILURE' },
+        { name: 'lint', status: 'QUEUED' },
+      ],
+      required,
+    );
+    assert.equal(probe.requiredRunEvidence.requiredRunInFlight, true);
+    assert.equal(failFast(probe), false);
+    assert.notEqual(blockClass(probe), 'checks-failed');
+  });
+
+  it('AC-4: without attribution the unscoped rule applies (red and nothing in flight)', async () => {
+    const running = await gated(
+      [
+        { name: 'lint', status: 'COMPLETED', conclusion: 'FAILURE' },
+        { name: 'test', status: 'IN_PROGRESS' },
+      ],
+      null,
+    );
+    assert.deepEqual(running.requiredRunEvidence, {
+      requiredRunFailed: true,
+      requiredRunInFlight: true,
+    });
+    assert.equal(failFast(running), false);
+    const settled = await gated(
+      [{ name: 'lint', status: 'COMPLETED', conclusion: 'FAILURE' }],
+      null,
+    );
+    assert.equal(failFast(settled), true);
+  });
+
+  it('skips the attribution read when no red gates the merge', async () => {
+    let calls = 0;
+    const evidence = await readProbeRunEvidence({
+      view: {
+        mergeStateStatus: 'CLEAN',
+        statusCheckRollup: [{ status: 'IN_PROGRESS' }],
+      },
+      checksStatus: 'still-running',
+      prNumber: 1,
+      gh: {},
+      readFn: async () => {
+        calls += 1;
+        return new Set();
+      },
+    });
+    assert.equal(calls, 0);
+    assert.equal(evidence.requiredRunInFlight, true);
+  });
+});
+
+describe('required-check GraphQL read (Story #5415)', () => {
+  const rollup = [
+    { name: 'lint', status: 'COMPLETED', conclusion: 'FAILURE' },
+    { name: 'e2e', status: 'IN_PROGRESS' },
+  ];
+  const read = (gh, id = 'PR_a', headRefOid = 'sha1') =>
+    readProbeRunEvidence({
+      view: {
+        id,
+        headRefOid,
+        mergeStateStatus: 'BLOCKED',
+        statusCheckRollup: rollup,
+      },
+      checksStatus: 'failure',
+      prNumber: 7,
+      gh,
+    });
+  const response = (nodes) =>
+    JSON.stringify({
+      data: {
+        node: {
+          commits: {
+            nodes: [{ commit: { statusCheckRollup: { contexts: { nodes } } } }],
+          },
+        },
+      },
+    });
+
+  it('attributes CheckRun and StatusContext names, read once per head', async () => {
+    let calls = 0;
+    const gh = {
+      api: async ({ body }) => {
+        calls += 1;
+        assert.equal(body.variables.n, 7);
+        return response([
+          { name: 'lint', isRequired: true },
+          { name: 'e2e', isRequired: false },
+          { context: 'ci/legacy', isRequired: true },
+        ]);
+      },
+    };
+    const evidence = await read(gh);
+    assert.equal(evidence.attribution, 'github');
+    assert.equal(evidence.requiredRunFailed, true);
+    assert.equal(evidence.requiredRunInFlight, false);
+    await read(gh);
+    assert.equal(calls, 1);
+  });
+
+  it('falls back to the unscoped rule on a failed read, GraphQL errors, or missing ids', async () => {
+    const unscoped = { requiredRunFailed: true, requiredRunInFlight: true };
+    const failing = {
+      api: async () => {
+        throw new Error('HTTP 403');
+      },
+    };
+    assert.deepEqual(await read(failing, 'PR_b'), unscoped);
+    const errors = {
+      api: async () => JSON.stringify({ errors: [{ message: 'x' }] }),
+    };
+    assert.deepEqual(await read(errors, 'PR_c'), unscoped);
+    const empty = {
+      api: async () => JSON.stringify({ data: { node: null } }),
+    };
+    assert.deepEqual(await read(empty, 'PR_d'), unscoped);
+    assert.deepEqual(await read(failing, ''), unscoped);
   });
 });

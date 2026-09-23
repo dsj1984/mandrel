@@ -78,6 +78,25 @@ function describeApiRaceFallback(prProbe, budget) {
 }
 
 /**
+ * Positive evidence a check is still running. Attributed evidence scopes
+ * `requiredRunInFlight` to re-runs; `runInFlight` still says "something is
+ * running".
+ *
+ * @param {object} [prProbe]
+ * @returns {boolean}
+ */
+function hasChecksPendingEvidence(prProbe) {
+  const status = prProbe?.checksStatus;
+  const evidence = prProbe?.requiredRunEvidence;
+  return (
+    status === 'pending' ||
+    status === 'still-running' ||
+    evidence?.requiredRunInFlight === true ||
+    evidence?.runInFlight === true
+  );
+}
+
+/**
  * Classify why a delivery run finished without a confirmed merge. First match
  * wins: (1) arm failure (a protection rejection at arm time still routes to
  * human-required); (1b) a red required check; (2) budget exhausted with
@@ -123,10 +142,7 @@ export function classifyMergeBlock(input) {
   // Positive evidence only: `unknown` routes to the fallback; `undefined`
   // (no probe) keeps the step-2 mapping.
   const checksStatus = prProbe?.checksStatus;
-  const checksPendingEvidence =
-    checksStatus === 'pending' ||
-    checksStatus === 'still-running' ||
-    prProbe?.requiredRunEvidence?.requiredRunInFlight === true;
+  const checksPendingEvidence = hasChecksPendingEvidence(prProbe);
 
   // 1b. Definitive, and before step 3 since it also presents as BLOCKED.
   // Head-anchored evidence, not the raw rollup (optional/superseded runs).

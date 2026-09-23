@@ -105,7 +105,7 @@
     {
       "file": ".agents/scripts/lib/orchestration/merge-block-class.js",
       "methodsAboveCeiling": 1,
-      "maxCyclomatic": 17
+      "maxCyclomatic": 15
     },
     {
       "file": ".agents/scripts/lib/orchestration/plan-metrics.js",
