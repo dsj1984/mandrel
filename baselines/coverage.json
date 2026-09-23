@@ -40,8 +40,8 @@
     },
     {
       "path": ".agents/scripts/bootstrap.js",
-      "lines": 93.14,
-      "branches": 78.95,
+      "lines": 93.51,
+      "branches": 79.41,
       "functions": 87.23
     },
     {
@@ -645,6 +645,12 @@
       "functions": 90.91
     },
     {
+      "path": ".agents/scripts/lib/bootstrap/agents-md-fold.js",
+      "lines": 100,
+      "branches": 96.3,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/bootstrap/baseline-merge-driver.js",
       "lines": 99.23,
       "branches": 83.87,
@@ -658,8 +664,8 @@
     },
     {
       "path": ".agents/scripts/lib/bootstrap/commit-push.js",
-      "lines": 94.44,
-      "branches": 83.33,
+      "lines": 100,
+      "branches": 84.62,
       "functions": 100
     },
     {
@@ -712,8 +718,8 @@
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "lines": 85.19,
-      "branches": 86,
+      "lines": 85.38,
+      "branches": 86.27,
       "functions": 51.43
     },
     {
@@ -3195,6 +3201,12 @@
       "functions": 66.67
     },
     {
+      "path": "lib/cli/claude-code-version.js",
+      "lines": 100,
+      "branches": 89.47,
+      "functions": 75
+    },
+    {
       "path": "lib/cli/doctor.js",
       "lines": 98.67,
       "branches": 92.86,
@@ -3220,9 +3232,9 @@
     },
     {
       "path": "lib/cli/registry.js",
-      "lines": 96.13,
-      "branches": 88.15,
-      "functions": 94.74
+      "lines": 96.16,
+      "branches": 88.26,
+      "functions": 95
     },
     {
       "path": "lib/cli/sync-agents.js",
@@ -3244,8 +3256,8 @@
     },
     {
       "path": "lib/cli/uninstall.js",
-      "lines": 94.93,
-      "branches": 84.62,
+      "lines": 95.14,
+      "branches": 85.07,
       "functions": 100
     },
     {
@@ -3336,6 +3348,12 @@
       "path": "lib/migrations/steps/2.63.0-baseline-merge-queue-shape.js",
       "lines": 97.92,
       "branches": 77.27,
+      "functions": 100
+    },
+    {
+      "path": "lib/migrations/steps/2.65.0-fold-claude-md-into-agents-md.js",
+      "lines": 100,
+      "branches": 60,
       "functions": 100
     },
     {

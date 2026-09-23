@@ -443,6 +443,10 @@
       "mi": 94.261
     },
     {
+      "path": ".agents/scripts/lib/bootstrap/agents-md-fold.js",
+      "mi": 104.74
+    },
+    {
       "path": ".agents/scripts/lib/bootstrap/baseline-merge-driver.js",
       "mi": 96.53
     },
@@ -2135,6 +2139,10 @@
       "mi": 103.888
     },
     {
+      "path": "lib/cli/claude-code-version.js",
+      "mi": 96.661
+    },
+    {
       "path": "lib/cli/doctor.js",
       "mi": 104.154
     },
@@ -2152,7 +2160,7 @@
     },
     {
       "path": "lib/cli/registry.js",
-      "mi": 95.766
+      "mi": 96.401
     },
     {
       "path": "lib/cli/sync-agents.js",
@@ -2168,7 +2176,7 @@
     },
     {
       "path": "lib/cli/uninstall.js",
-      "mi": 81.335
+      "mi": 82.775
     },
     {
       "path": "lib/cli/update.js",
@@ -2229,6 +2237,10 @@
     {
       "path": "lib/migrations/steps/2.63.0-baseline-merge-queue-shape.js",
       "mi": 89.762
+    },
+    {
+      "path": "lib/migrations/steps/2.65.0-fold-claude-md-into-agents-md.js",
+      "mi": 102.14
     },
     {
       "path": "lib/migrations/steps/strip-removed-agentrc-keys.js",
