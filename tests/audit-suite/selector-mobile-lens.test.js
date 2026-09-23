@@ -26,13 +26,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-
+import { matchLocalLenses } from '../../.agents/scripts/lib/audit-suite/index.js';
 import {
   _resetWebSurfaceCache,
   selectAudits,
-  selectLocalLenses,
 } from '../../.agents/scripts/lib/audit-suite/selector.js';
 import { MockProvider } from '../fixtures/mock-provider.js';
+
+// The close-time `selectLocalLenses` retired with the Story-scope lens pass
+// (Story #5416); the write-time matcher reads the same manifest routing.
+const selectLocalLenses = ({ changedFiles }) =>
+  matchLocalLenses({ footprint: changedFiles }).map((l) => `audit-${l}`);
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const LENS_PATH = path.resolve(

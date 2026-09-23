@@ -8,8 +8,6 @@
 // biome-ignore-start lint/complexity/useRegexLiterals: typhonjs-escomplex MI workaround
 const FRONTMATTER_RE = new RegExp(String.raw`^---\r?\n([\s\S]*?)\r?\n---\r?\n`);
 const NEWLINE_SPLIT_RE = new RegExp(String.raw`\r?\n`);
-const PARAGRAPH_SPLIT_RE = new RegExp(String.raw`\r?\n\s*\r?\n`);
-const COLLAPSE_WS_RE = new RegExp(String.raw`\s+`, 'g');
 const SENTENCE_RE = new RegExp(String.raw`[^.!?\n]+[.!?]+`, 'g');
 // biome-ignore-end lint/complexity/useRegexLiterals: typhonjs-escomplex MI workaround
 
@@ -43,22 +41,6 @@ export function extractFrontmatter(content) {
 }
 
 /**
- * @param {string} content
- * @returns {string}
- */
-export function firstProseParagraph(content) {
-  const stripped = content.replace(FRONTMATTER_RE, '');
-  for (const block of stripped.split(PARAGRAPH_SPLIT_RE)) {
-    const trimmed = block.trim();
-    if (!trimmed) continue;
-    if (trimmed.startsWith('#')) continue;
-    if (trimmed.startsWith('---')) continue;
-    return trimmed.replace(COLLAPSE_WS_RE, ' ');
-  }
-  return '';
-}
-
-/**
  * @param {string} text
  * @returns {string}
  */
@@ -73,14 +55,4 @@ export function clampSummary(text) {
     result = `${result.slice(0, SUMMARY_MAX_CHARS - 1).trimEnd()}…`;
   }
   return result;
-}
-
-/**
- * @param {string} content
- * @returns {string}
- */
-export function summarizeWorkflow(content) {
-  const fm = extractFrontmatter(content);
-  const candidate = fm.description?.trim() || firstProseParagraph(content);
-  return clampSummary(candidate);
 }

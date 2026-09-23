@@ -4,8 +4,6 @@ import test from 'node:test';
 import {
   clampSummary,
   extractFrontmatter,
-  firstProseParagraph,
-  summarizeWorkflow,
 } from '../../.agents/scripts/lib/audit-suite/frontmatter.js';
 
 test('extractFrontmatter: returns {} when no leading --- block is present', () => {
@@ -37,30 +35,6 @@ test('extractFrontmatter: tolerates CRLF line endings', () => {
   assert.deepEqual(extractFrontmatter(md), { description: 'crlf-safe' });
 });
 
-test('firstProseParagraph: skips frontmatter, headings, and rules', () => {
-  const md = [
-    '---',
-    'description: x',
-    '---',
-    '',
-    '# Title',
-    '',
-    '## Sub',
-    '',
-    'First real paragraph.\nWith two lines.',
-    '',
-    'Second paragraph (ignored).',
-  ].join('\n');
-  assert.equal(
-    firstProseParagraph(md),
-    'First real paragraph. With two lines.',
-  );
-});
-
-test('firstProseParagraph: returns "" when only headings are present', () => {
-  assert.equal(firstProseParagraph('# only\n\n## headings\n'), '');
-});
-
 test('clampSummary: trims to three sentences max', () => {
   const text = 'One. Two. Three. Four.';
   const out = clampSummary(text);
@@ -85,23 +59,4 @@ test('clampSummary: returns text verbatim when no sentence terminator', () => {
     clampSummary('one paragraph no period'),
     'one paragraph no period',
   );
-});
-
-test('summarizeWorkflow: prefers frontmatter description over body', () => {
-  const md = [
-    '---',
-    'description: From frontmatter.',
-    '---',
-    '',
-    'Body should be ignored.',
-  ].join('\n');
-  assert.equal(summarizeWorkflow(md), 'From frontmatter.');
-});
-
-test('summarizeWorkflow: falls back to first paragraph when no description', () => {
-  const md = ['# Title', '', 'Body sentence one. Body sentence two.'].join(
-    '\n',
-  );
-  const out = summarizeWorkflow(md);
-  assert.match(out, /Body sentence one\./);
 });

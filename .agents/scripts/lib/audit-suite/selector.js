@@ -46,37 +46,6 @@ export function resolveLensTier(lens) {
 }
 
 /**
- * Local-tier lenses whose `filePatterns` hit the change set (not
- * {@link selectAudits}, which would widen it with keyword matches).
- *
- * @param {{
- *   changedFiles?: string[],
- *   injectedRules?: { audits?: Record<string, object> },
- *   resolveLensTierFn?: typeof resolveLensTier,
- * }} [params]
- * @returns {string[]} The matched local-lens identifiers, in manifest order.
- */
-export function selectLocalLenses({
-  changedFiles,
-  injectedRules,
-  resolveLensTierFn = resolveLensTier,
-} = {}) {
-  const files = Array.isArray(changedFiles) ? changedFiles : [];
-  if (files.length === 0) return [];
-
-  const rules = injectedRules ?? readAuditRulesSync();
-  const selected = [];
-  for (const [lens, entry] of Object.entries(rules.audits ?? {})) {
-    if (resolveLensTierFn(lens) !== 'local') continue;
-    const patterns = entry?.triggers?.filePatterns ?? [];
-    if (matchesAnyFilePattern(patterns, files)) {
-      selected.push(lens);
-    }
-  }
-  return selected;
-}
-
-/**
  * Manifest `sensitivePaths` classes the change set touches (review depth).
  *
  * @param {{
