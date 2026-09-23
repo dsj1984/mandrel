@@ -24,11 +24,12 @@ export const SECURITY_REVIEW_REMEDIATIONS = Object.freeze({
 
 /**
  * Synchronous so a missing CLI surfaces at construction, not mid-review.
+ * Shared by every `claude --print` provider.
  *
  * @param {{ spawnFn?: typeof spawnSync }} [opts]
  * @returns {boolean}
  */
-function defaultProbeClaudeCli(opts = {}) {
+export function probeClaudeCli(opts = {}) {
   const spawnFn = opts.spawnFn ?? spawnSync;
   try {
     const result = spawnFn('claude', ['--version'], {
@@ -173,7 +174,7 @@ export function buildUnparseableFallbackFinding() {
  * @returns {ReviewProvider}
  */
 export function createSecurityReviewProvider(deps = {}) {
-  const probeFn = deps.probeFn ?? defaultProbeClaudeCli;
+  const probeFn = deps.probeFn ?? probeClaudeCli;
   if (!probeFn()) {
     throw buildSecurityReviewUnavailableError();
   }
