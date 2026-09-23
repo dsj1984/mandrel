@@ -202,6 +202,43 @@ describe('merge-block-class (Story #4426)', () => {
       expected: 'api-race-other',
     },
     {
+      // Story #5415 — attributed evidence: a non-required red while required
+      // runs are still going is pending, not a human gate.
+      name: 'attributed: non-required red, required run in flight → NOT checks-failed',
+      input: {
+        prProbe: {
+          checksStatus: 'failure',
+          mergeStateStatus: 'BLOCKED',
+          requiredRunEvidence: {
+            requiredRunFailed: false,
+            requiredRunInFlight: false,
+            runInFlight: true,
+            attribution: 'github',
+          },
+        },
+        budget: { exhausted: true, elapsedSeconds: 60 },
+      },
+      expected: 'checks-pending-timeout',
+    },
+    {
+      // Story #5415 AC-5 — a required red with unrelated runs still going is
+      // checks-failed, agreeing with the merge wait's fail-fast.
+      name: 'attributed: required red, unrelated run in flight → checks-failed',
+      input: {
+        prProbe: {
+          checksStatus: 'failure',
+          mergeStateStatus: 'BLOCKED',
+          requiredRunEvidence: {
+            requiredRunFailed: true,
+            requiredRunInFlight: false,
+            runInFlight: true,
+            attribution: 'github',
+          },
+        },
+      },
+      expected: 'checks-failed',
+    },
+    {
       // Story #4695 AC-2 — a genuine red required check (a run concluded
       // failure, none in flight) still classifies `checks-failed`, even with
       // no budget signal at all (the first evidence-bearing probe).

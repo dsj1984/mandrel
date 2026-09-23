@@ -126,7 +126,10 @@ export function classifyMergeBlock(input) {
   const checksPendingEvidence =
     checksStatus === 'pending' ||
     checksStatus === 'still-running' ||
-    prProbe?.requiredRunEvidence?.requiredRunInFlight === true;
+    prProbe?.requiredRunEvidence?.requiredRunInFlight === true ||
+    // Attributed evidence scopes requiredRunInFlight to re-runs; runInFlight
+    // still says "something is running".
+    prProbe?.requiredRunEvidence?.runInFlight === true;
 
   // 1b. Definitive, and before step 3 since it also presents as BLOCKED.
   // Head-anchored evidence, not the raw rollup (optional/superseded runs).

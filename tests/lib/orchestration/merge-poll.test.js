@@ -31,6 +31,10 @@ import {
   requiredCheckFailedBlocksMerge,
   resolveAdvisoryGateVerdict,
 } from '../../../.agents/scripts/lib/orchestration/merge-poll.js';
+import {
+  deriveAttributedEvidence,
+  readRequiredCheckNames,
+} from '../../../.agents/scripts/lib/orchestration/required-checks.js';
 
 describe('deriveChecksStatus', () => {
   it('reports failure for a red check regardless of whether it is required', () => {
@@ -907,6 +911,189 @@ describe('decideAdvisoryGateBlock — the class travels with the decision', () =
         blockOnAdvisoryFailure: true,
         advisoryAllowlist: ['a11y scan'],
       }),
+      null,
+    );
+  });
+});
+
+describe('GitHub required-check attribution (Story #5415)', () => {
+  const required = new Set(['lint', 'test']);
+  const gated = (rollup, names) => ({
+    checksStatus: deriveChecksStatus(rollup),
+    mergeStateStatus: 'BLOCKED',
+    requiredRunEvidence: names
+      ? deriveAttributedEvidence(rollup, names)
+      : deriveRequiredRunEvidence(rollup),
+  });
+
+  it('AC-1: a red required check fails fast while an unrelated required check runs', () => {
+    const probe = gated(
+      [
+        { name: 'lint', status: 'COMPLETED', conclusion: 'FAILURE' },
+        { name: 'test', status: 'IN_PROGRESS' },
+        { name: 'e2e', status: 'QUEUED' },
+      ],
+      required,
+    );
+    assert.deepEqual(probe.requiredRunEvidence, {
+      requiredRunFailed: true,
+      requiredRunInFlight: false,
+      runInFlight: true,
+      attribution: 'github',
+    });
+    const verdict = decideMergeWaitFailFast({
+      probe,
+      consecutiveRequiredFailSnapshots: 0,
+    });
+    assert.equal(verdict.failFast, true);
+    assert.equal(verdict.blockClass, 'checks-failed');
+    assert.equal(
+      classifyMergeBlock({ prProbe: probe }).blockClass,
+      'checks-failed',
+    );
+  });
+
+  it('AC-2: a red non-required check alone never fails fast', () => {
+    for (const rollup of [
+      [
+        { name: 'lint', status: 'COMPLETED', conclusion: 'SUCCESS' },
+        { name: 'e2e', status: 'COMPLETED', conclusion: 'FAILURE' },
+      ],
+      [
+        { name: 'test', status: 'IN_PROGRESS' },
+        { name: 'e2e', status: 'COMPLETED', conclusion: 'FAILURE' },
+      ],
+    ]) {
+      const probe = gated(rollup, required);
+      assert.equal(probe.requiredRunEvidence.requiredRunFailed, false);
+      assert.equal(
+        decideMergeWaitFailFast({ probe, consecutiveRequiredFailSnapshots: 5 })
+          .failFast,
+        false,
+      );
+      assert.notEqual(
+        classifyMergeBlock({ prProbe: probe }).blockClass,
+        'checks-failed',
+      );
+    }
+  });
+
+  it('AC-3: a re-run of the failed required check in flight keeps polling', () => {
+    const probe = gated(
+      [
+        { name: 'lint', status: 'COMPLETED', conclusion: 'FAILURE' },
+        { name: 'lint', status: 'QUEUED' },
+      ],
+      required,
+    );
+    assert.equal(probe.requiredRunEvidence.requiredRunInFlight, true);
+    assert.equal(
+      decideMergeWaitFailFast({ probe, consecutiveRequiredFailSnapshots: 0 })
+        .failFast,
+      false,
+    );
+    assert.notEqual(
+      classifyMergeBlock({ prProbe: probe }).blockClass,
+      'checks-failed',
+    );
+  });
+
+  it('AC-4: without attribution the unscoped rule applies (red and nothing in flight)', () => {
+    const running = [
+      { name: 'lint', status: 'COMPLETED', conclusion: 'FAILURE' },
+      { name: 'test', status: 'IN_PROGRESS' },
+    ];
+    const settled = [
+      { name: 'lint', status: 'COMPLETED', conclusion: 'FAILURE' },
+    ];
+    assert.equal(
+      decideMergeWaitFailFast({
+        probe: gated(running, null),
+        consecutiveRequiredFailSnapshots: 0,
+      }).failFast,
+      false,
+    );
+    assert.equal(
+      decideMergeWaitFailFast({
+        probe: gated(settled, null),
+        consecutiveRequiredFailSnapshots: 0,
+      }).failFast,
+      true,
+    );
+  });
+});
+
+describe('readRequiredCheckNames (Story #5415)', () => {
+  const response = (nodes) =>
+    JSON.stringify({
+      data: {
+        node: {
+          commits: {
+            nodes: [{ commit: { statusCheckRollup: { contexts: { nodes } } } }],
+          },
+        },
+      },
+    });
+
+  it('returns required CheckRun and StatusContext names, cached per head', async () => {
+    let calls = 0;
+    const gh = {
+      api: async ({ body }) => {
+        calls += 1;
+        assert.equal(body.variables.n, 7);
+        return response([
+          { name: 'lint', isRequired: true },
+          { name: 'e2e', isRequired: false },
+          { context: 'ci/legacy', isRequired: true },
+        ]);
+      },
+    };
+    const args = { prNodeId: 'PR_a', prNumber: 7, headSha: 'sha1', gh };
+    const names = await readRequiredCheckNames(args);
+    assert.deepEqual([...names].sort(), ['ci/legacy', 'lint']);
+    await readRequiredCheckNames(args);
+    assert.equal(calls, 1);
+  });
+
+  it('returns null on a failed read, GraphQL errors, or missing ids', async () => {
+    const failing = {
+      api: async () => {
+        throw new Error('HTTP 403');
+      },
+    };
+    assert.equal(
+      await readRequiredCheckNames({
+        prNodeId: 'PR_b',
+        prNumber: 1,
+        headSha: 's',
+        gh: failing,
+      }),
+      null,
+    );
+    const errors = {
+      api: async () => JSON.stringify({ errors: [{ message: 'x' }] }),
+    };
+    assert.equal(
+      await readRequiredCheckNames({
+        prNodeId: 'PR_c',
+        prNumber: 1,
+        headSha: 's',
+        gh: errors,
+      }),
+      null,
+    );
+    const empty = { api: async () => JSON.stringify({ data: { node: null } }) };
+    assert.equal(
+      await readRequiredCheckNames({
+        prNodeId: 'PR_d',
+        prNumber: 1,
+        headSha: 's',
+        gh: empty,
+      }),
+      null,
+    );
+    assert.equal(
+      await readRequiredCheckNames({ prNumber: 1, headSha: 's', gh: failing }),
       null,
     );
   });

@@ -14,7 +14,7 @@ export const DEFAULT_MAX_BUDGET_SECONDS = 3600;
 export const MERGE_WAIT_GH_TIMEOUT_MS = 60_000;
 
 /**
- * Aggregate over EVERY check (the rollup has no `isRequired`): `failure`
+ * Aggregate over EVERY check (the view rollup has no `isRequired`): `failure`
  * means "something is red", not "blocked" — see {@link failingChecksBlockMerge}.
  */
 export function deriveChecksStatus(statusCheckRollup) {
@@ -47,7 +47,7 @@ export function isPrMerged(pr) {
  * @param {{ conclusion?: string, state?: string }} [check]
  * @returns {string|null}
  */
-function redConclusionOf(check) {
+export function redConclusionOf(check) {
   const conclusion = String(check?.conclusion ?? '').toUpperCase();
   if (conclusion === 'FAILURE' || conclusion === 'ERROR') return conclusion;
   const state = String(check?.state ?? '').toUpperCase();
@@ -61,7 +61,7 @@ function redConclusionOf(check) {
  * @param {{ name?: string, context?: string }} [check]
  * @returns {string|null}
  */
-function readRunName(check) {
+export function readRunName(check) {
   for (const value of [check?.name, check?.context]) {
     if (typeof value === 'string' && value) return value;
   }
@@ -69,9 +69,21 @@ function readRunName(check) {
 }
 
 /**
+ * @param {{ status?: string, state?: string }} [check]
+ * @returns {boolean}
+ */
+export function isRunInFlight(check) {
+  const status = String(check?.status ?? '').toUpperCase();
+  // `status` is empty on a StatusContext, so it falls to the `state` branch.
+  if (status) return status !== 'COMPLETED';
+  const state = String(check?.state ?? '').toUpperCase();
+  return state === 'PENDING' || state === 'EXPECTED';
+}
+
+/**
  * Head-anchored evidence; `null` on an empty rollup (the caller falls back
- * to consecutive probes). Reads EVERY run despite the names — required-ness
- * is attributed via `BLOCKED` in {@link requiredCheckFailedBlocksMerge}.
+ * to consecutive probes). Reads EVERY run — the unscoped rule used when
+ * GitHub's required attribution is unavailable (see `required-checks.js`).
  *
  * @param {Array<{status?: string, conclusion?: string, state?: string}>} statusCheckRollup
  * @returns {{ requiredRunFailed: boolean, requiredRunInFlight: boolean } | null}
@@ -80,22 +92,12 @@ export function deriveRequiredRunEvidence(statusCheckRollup) {
   if (!Array.isArray(statusCheckRollup) || statusCheckRollup.length === 0) {
     return null;
   }
-  let requiredRunFailed = false;
-  let requiredRunInFlight = false;
-  for (const check of statusCheckRollup) {
-    const status = String(check?.status ?? '').toUpperCase();
-    const state = String(check?.state ?? '').toUpperCase();
-    // `status` is empty on a StatusContext, so it falls to the `state` branch.
-    if (status && status !== 'COMPLETED') {
-      requiredRunInFlight = true;
-    } else if (state === 'PENDING' || state === 'EXPECTED') {
-      requiredRunInFlight = true;
-    }
-    if (redConclusionOf(check)) {
-      requiredRunFailed = true;
-    }
-  }
-  return { requiredRunFailed, requiredRunInFlight };
+  return {
+    requiredRunFailed: statusCheckRollup.some(
+      (c) => redConclusionOf(c) !== null,
+    ),
+    requiredRunInFlight: statusCheckRollup.some(isRunInFlight),
+  };
 }
 
 /** The `mergeStateStatus` meaning GitHub itself gates the merge. */
@@ -139,7 +141,8 @@ export function formatChecksFailedReason(prProbe, evidencePath) {
 
 /**
  * A genuinely red REQUIRED check: gated, no review owns `BLOCKED`, a run is
- * red and none in flight. No evidence → false (consecutive-probe path).
+ * red and none in flight — with GitHub attribution, a required run is red and
+ * no re-run of it is in flight. No evidence → false (consecutive-probe path).
  *
  * @param {{ checksStatus?: string, mergeStateStatus?: string,
  *   reviewDecision?: string,
