@@ -242,6 +242,13 @@ describe('deriveRequiredRunEvidence (Story #4695)', () => {
     });
   });
 
+  it('treats an entry with neither status nor state as settled and green', () => {
+    assert.deepEqual(deriveRequiredRunEvidence([{}]), {
+      requiredRunFailed: false,
+      requiredRunInFlight: false,
+    });
+  });
+
   it('returns null for an empty or non-array rollup (evidence unavailable)', () => {
     assert.equal(deriveRequiredRunEvidence([]), null);
     assert.equal(deriveRequiredRunEvidence(undefined), null);
