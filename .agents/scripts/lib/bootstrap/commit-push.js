@@ -19,7 +19,7 @@ import path from 'node:path';
 export const BOOTSTRAP_COMMIT_PATHS = Object.freeze([
   '.agents',
   '.agentrc.json',
-  'CLAUDE.md',
+  'AGENTS.md',
   '.claude/settings.json',
   '.gitignore',
   'package.json',

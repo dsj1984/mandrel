@@ -11,6 +11,13 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { isCommandExcluded } from '../command-header.js';
 import { detectPackageManager as detectPm } from '../detect-package-manager.js';
+import {
+  ENTRY_DOC,
+  foldClaudeMdIntoAgentsMd,
+  SYSTEM_PROMPT_BLOCK,
+  SYSTEM_PROMPT_ENTRY_DOC,
+  SYSTEM_PROMPT_IMPORT,
+} from './agents-md-fold.js';
 import { LEDGER_RELATIVE_PATH } from './install-ledger.js';
 import { ensureIssueForms } from './issue-forms-template.js';
 import { PHASE_GROUPS } from './manifest.js';
@@ -23,17 +30,13 @@ export const SYNC_AGENTS_COMMAND = 'node .agents/scripts/sync-claude-agents.js';
 
 export const BOOTSTRAP_COMMAND = 'node .agents/scripts/bootstrap.js';
 
-/** `CLAUDE.md` wiring keys idempotence off this exact import path. */
-export const SYSTEM_PROMPT_IMPORT = '@.agents/instructions.md';
+export { SYSTEM_PROMPT_BLOCK, SYSTEM_PROMPT_IMPORT };
 
-export const SYSTEM_PROMPT_BLOCK = `## System Prompt
+/** Install template for a fresh AGENTS.md (also the legacy CLAUDE.md one). */
+export const SYSTEM_PROMPT_AGENTS_MD = SYSTEM_PROMPT_ENTRY_DOC;
 
-${SYSTEM_PROMPT_IMPORT}
-`;
-
-export const SYSTEM_PROMPT_CLAUDE_MD = `# Agent Protocols
-
-${SYSTEM_PROMPT_BLOCK}`;
+/** Legacy alias — uninstall still reverts an un-migrated CLAUDE.md. */
+export const SYSTEM_PROMPT_CLAUDE_MD = SYSTEM_PROMPT_ENTRY_DOC;
 
 export const GITIGNORE_BLOCKS = Object.freeze({
   commands: {
@@ -420,18 +423,23 @@ export function checkParity(ctx) {
 }
 
 /**
- * Ensure `CLAUDE.md` imports the system prompt — without it the framework
- * never loads on cold start. Creates, appends, or no-ops.
+ * Ensure `AGENTS.md` imports the system prompt — without it the framework
+ * never loads on cold start. A pre-existing `CLAUDE.md` is folded in first
+ * (the host would otherwise read it instead). Creates, appends, or no-ops.
  *
  * @param {object} ctx
  * @param {typeof fs} [ctx.fsImpl]
  */
 export function ensureSystemPromptWiring(ctx) {
   const { fsImpl = fs } = ctx;
-  const target = path.join(ctx.projectRoot, 'CLAUDE.md');
+  const folded = foldClaudeMdIntoAgentsMd(ctx.projectRoot, fsImpl);
+  const target = path.join(ctx.projectRoot, ENTRY_DOC);
   if (!fsImpl.existsSync(target)) {
-    fsImpl.writeFileSync(target, SYSTEM_PROMPT_CLAUDE_MD, 'utf8');
+    fsImpl.writeFileSync(target, SYSTEM_PROMPT_ENTRY_DOC, 'utf8');
     return { action: 'created', path: target };
+  }
+  if (folded.action === 'folded') {
+    return { action: 'folded', path: target };
   }
   const existing = fsImpl.readFileSync(target, 'utf8');
   if (existing.includes(SYSTEM_PROMPT_IMPORT)) {

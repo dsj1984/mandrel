@@ -62,10 +62,10 @@ export function buildMutationManifest(ctx = {}) {
   entries.push(
     {
       phaseGroup: PHASE_GROUPS.IDE_WIRING,
-      target: rel('CLAUDE.md'),
+      target: rel('AGENTS.md'),
       action: 'merge',
       detail:
-        'Wire the @.agents/instructions.md system-prompt import so Claude Code hydrates the framework on cold start.',
+        'Wire the @.agents/instructions.md system-prompt import into AGENTS.md (folding any CLAUDE.md into it) so Claude Code hydrates the framework on cold start.',
       reversible: true,
     },
     {

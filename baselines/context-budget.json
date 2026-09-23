@@ -1,6 +1,6 @@
 {
   "$schema": "https://mandrel.dev/baselines/context-budget.schema.json",
-  "generatedAt": "2026-09-18T18:06:09.219Z",
+  "generatedAt": "2026-09-23T21:29:54.697Z",
   "toleranceBytes": 2048,
   "tiers": {
     "alwaysLoaded": {
@@ -33,7 +33,7 @@
       ]
     },
     "mandatoryRead": {
-      "totalBytes": 440720,
+      "totalBytes": 443330,
       "files": [
         {
           "path": "docs/architecture.md",
@@ -41,11 +41,11 @@
         },
         {
           "path": "docs/data-dictionary.md",
-          "bytes": 36606
+          "bytes": 36695
         },
         {
           "path": "docs/decisions.md",
-          "bytes": 257175
+          "bytes": 259696
         },
         {
           "path": "docs/patterns.md",
@@ -54,7 +54,7 @@
       ]
     },
     "workflow": {
-      "totalBytes": 285306,
+      "totalBytes": 285499,
       "files": [
         {
           "path": ".agents/workflows/audit-accessibility.md",
@@ -70,7 +70,7 @@
         },
         {
           "path": ".agents/workflows/audit-baselines.md",
-          "bytes": 16262
+          "bytes": 16340
         },
         {
           "path": ".agents/workflows/audit-clean-code.md",
@@ -158,7 +158,7 @@
         },
         {
           "path": ".agents/workflows/mandrel-update.md",
-          "bytes": 13704
+          "bytes": 13819
         },
         {
           "path": ".agents/workflows/memory-consolidate.md",
@@ -204,7 +204,7 @@
     ]
   },
   "workflowClosure": {
-    "reachableTotalBytes": 460700,
+    "reachableTotalBytes": 460893,
     "entryPoints": [
       {
         "path": ".agents/workflows/audit-accessibility.md",
@@ -223,8 +223,8 @@
       },
       {
         "path": ".agents/workflows/audit-baselines.md",
-        "mandatoryBytes": 16262,
-        "reachableBytes": 46531
+        "mandatoryBytes": 16340,
+        "reachableBytes": 46609
       },
       {
         "path": ".agents/workflows/audit-clean-code.md",
@@ -328,8 +328,8 @@
       },
       {
         "path": ".agents/workflows/mandrel-update.md",
-        "mandatoryBytes": 13704,
-        "reachableBytes": 25960
+        "mandatoryBytes": 13819,
+        "reachableBytes": 26075
       },
       {
         "path": ".agents/workflows/memory-consolidate.md",
