@@ -827,9 +827,12 @@ changing its shape (full per-field reference:
 
 - **`delivery.codeReview.providers`** —
   pluggable review backend for Story close. `providers: []` sequences one or
-  more of `native` / `codex` / `security-review` (plus optional
-  `ultrareview` manual-prompt entries) with per-entry scopes and label
-  conditions; unset/empty defaults to `[{ name: "native" }]`.
+  more of `native` / `code-review` / `codex` / `security-review` (plus
+  optional `ultrareview` manual-prompt entries) with per-entry scopes and
+  label conditions; unset/empty defaults to `native` plus an optional
+  story-scoped `code-review` — a low-effort `claude --print` bug review
+  handed the diff (never `acceptance[]`), whose every finding is critical
+  and halts close before auto-merge. Hosts without the `claude` CLI skip it.
 - **`delivery.mergeWatch.{mode,maxWaitSeconds,maxBudgetSeconds}`** — posture
   and wall-clock budgets for merge confirmation after auto-merge is armed
   (the poll cadence is a fixed 30s; the cumulative budget defaults to

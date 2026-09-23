@@ -74,8 +74,8 @@ How each tier changes the review protocol:
   adversarial pass over the diff hunting for integration regressions and
   security-relevant edges before findings are finalized.
 
-The LLM-backed review providers (codex, security-review, ultrareview) render
-the resolved `depth` into the prompt/instructions they emit so the underlying
+The LLM-backed review providers (code-review, codex, security-review,
+ultrareview) render the resolved `depth` into the prompt/instructions they emit so the underlying
 model actually changes thoroughness. The native provider deliberately ignores
 `depth` — its mechanical lint + maintainability sweep already scales with diff
 size, and there is no "review harder" knob a deterministic scorer can turn (its
