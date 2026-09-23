@@ -70,17 +70,27 @@ function createPhaseTimer(nowMs = Date.now) {
       end();
       return Object.keys(durations).length > 0 ? { ...durations } : null;
     },
+    stamp(terminal) {
+      const phaseDurations = this.finish();
+      if (phaseDurations) terminal.phaseDurations = phaseDurations;
+    },
   };
 }
+
+const UNTIMED = Object.freeze({ stamp() {} });
 
 /**
  * The single terminal writer: the result summary, the envelope callers parse,
  * and terminal friction — so no ending can forget one. Must be awaited: the
  * CLI `process.exit`s as soon as `main` resolves.
  */
-async function emitTerminal({ terminal, result, config, phaseTimer }) {
-  const phaseDurations = phaseTimer?.finish();
-  if (terminal && phaseDurations) terminal.phaseDurations = phaseDurations;
+async function emitTerminal({
+  terminal,
+  result,
+  config,
+  phaseTimer = UNTIMED,
+}) {
+  phaseTimer.stamp(terminal);
   if (result) {
     emitTerseResult({
       label: 'STORY CLOSE RESULT',
@@ -575,9 +585,7 @@ export async function runSingleStoryClose({
     });
   } catch (err) {
     if (err && typeof err === 'object') {
-      if (!err.closePhaseDurations) {
-        err.closePhaseDurations = phaseTimer.finish();
-      }
+      err.closePhaseDurations = phaseTimer.finish();
       if (!err.closePhase) err.closePhase = phase;
       if (!err.closeGates && observedGates) err.closeGates = observedGates;
     }
