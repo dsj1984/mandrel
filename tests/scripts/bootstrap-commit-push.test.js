@@ -20,6 +20,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it, mock } from 'node:test';
 
 import { offerCommitPush } from '../../.agents/scripts/bootstrap.js';
+import { stageLegacyEntryDocRemoval } from '../../.agents/scripts/lib/bootstrap/agents-md-fold.js';
 import {
   BOOTSTRAP_COMMIT_PATHS,
   buildManualInstructions,
@@ -90,11 +91,11 @@ afterEach(() => {
 describe('resolveStagePaths — allowlist + secret exclusion', () => {
   it('returns only the allowlist files that exist on disk', () => {
     const dir = makeTmpDir();
-    seed(dir, ['.agentrc.json', 'CLAUDE.md', 'package.json']);
+    seed(dir, ['.agentrc.json', 'AGENTS.md', 'package.json']);
     const resolved = resolveStagePaths(dir);
     assert.deepEqual(resolved.sort(), [
       '.agentrc.json',
-      'CLAUDE.md',
+      'AGENTS.md',
       'package.json',
     ]);
   });
@@ -153,6 +154,37 @@ describe('stageBootstrapFiles', () => {
     assert.ok(!calls[0].args.includes('-A'));
   });
 
+  it('stages the CLAUDE.md removal (AGENTS.md fold) via git rm --cached --ignore-unmatch', () => {
+    const dir = makeTmpDir();
+    seed(dir, ['.agentrc.json', 'AGENTS.md']);
+    const { runGit, calls } = makeRunGit();
+    const res = stageLegacyEntryDocRemoval({ projectRoot: dir, runGit });
+    assert.equal(res.ok, true);
+    assert.deepEqual(res.removed, ['CLAUDE.md']);
+    assert.deepEqual(calls[0].args, [
+      'rm',
+      '--cached',
+      '--ignore-unmatch',
+      '--quiet',
+      '--',
+      'CLAUDE.md',
+    ]);
+  });
+
+  it('does not unstage a CLAUDE.md still on disk', () => {
+    const dir = makeTmpDir();
+    seed(dir, ['CLAUDE.md']);
+    const { runGit, calls } = makeRunGit();
+    const res = stageLegacyEntryDocRemoval({ projectRoot: dir, runGit });
+    assert.deepEqual(res, { ok: true, removed: [] });
+    assert.equal(calls.length, 0);
+  });
+
+  it('names AGENTS.md (not CLAUDE.md) in the commit allowlist', () => {
+    assert.ok(BOOTSTRAP_COMMIT_PATHS.includes('AGENTS.md'));
+    assert.ok(!BOOTSTRAP_COMMIT_PATHS.includes('CLAUDE.md'));
+  });
+
   it('is a no-op (no git call) when nothing resolves', () => {
     const dir = makeTmpDir();
     const { runGit, calls } = makeRunGit();
@@ -175,7 +207,7 @@ describe('offerCommitPush phase', () => {
 
   it('accept → stages, commits, and pushes the base branch', async () => {
     const dir = makeTmpDir();
-    seed(dir, ['.agents/scripts/x.js', '.agentrc.json', 'CLAUDE.md']);
+    seed(dir, ['.agents/scripts/x.js', '.agentrc.json', 'AGENTS.md']);
     const { runGit, calls } = makeRunGit();
     const res = await offerCommitPush(baseState(dir), {
       runGit,
@@ -190,11 +222,28 @@ describe('offerCommitPush phase', () => {
           ? 'push'
           : c.args.includes('add')
             ? 'add'
-            : '?',
+            : c.args.includes('rm')
+              ? 'rm'
+              : '?',
     );
-    assert.deepEqual(subcommands, ['add', 'commit', 'push']);
+    assert.deepEqual(subcommands, ['add', 'rm', 'commit', 'push']);
     const pushCall = calls.find((c) => c.args.includes('push'));
     assert.deepEqual(pushCall.args, ['push', '-u', 'origin', 'main']);
+  });
+
+  it('a failed git add → stage-failed, skipping the CLAUDE.md removal and the commit', async () => {
+    const dir = makeTmpDir();
+    seed(dir, ['.agentrc.json', 'AGENTS.md']);
+    const { runGit, calls } = makeRunGit({
+      add: { ok: false, status: 1, stdout: '', stderr: 'boom' },
+    });
+    const res = await offerCommitPush(baseState(dir), {
+      runGit,
+      confirm: async () => true,
+    });
+    assert.equal(res.payload.commitPush.action, 'stage-failed');
+    assert.ok(!calls.some((c) => c.args.includes('rm')));
+    assert.ok(!calls.some((c) => c.args.includes('commit')));
   });
 
   it('decline → prints instructions and performs NO git mutation', async () => {

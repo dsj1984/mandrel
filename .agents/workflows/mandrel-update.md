@@ -200,13 +200,15 @@ non-optional.
 
 ## Step 4 — Review the surfaced changelog and update consumer-side guidance
 
-Framework upgrades change behaviour the consumer's own `AGENTS.md` /
-`CLAUDE.md` and runbooks often encode. Step 1 already printed the changelog
+Framework upgrades change behaviour the consumer's own `AGENTS.md` and
+runbooks often encode. Step 1 already printed the changelog
 for the applied range — that output is your source of truth (re-read the
 transcript or the GitHub Releases page if it scrolled past). For each entry
 between the installed and target versions:
 
-1. **Consumer `AGENTS.md` / `CLAUDE.md`.** Update instructions so a fresh
+1. **Consumer `AGENTS.md`.** It is the entry doc — `mandrel update` folds a
+   root `CLAUDE.md` into it and deletes `CLAUDE.md`, so reconcile the folded
+   content here. Update instructions so a fresh
    agent reading them in isolation produces output that passes the
    framework's new validators; remove or rewrite instructions that
    contradict a tightened rule.
