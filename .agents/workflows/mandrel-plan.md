@@ -71,13 +71,16 @@ assumed; a **HITL** unknown goes to Gate #1. Under `--yes` do not ask free-form
 operator questions — AFK unknowns are still researched; only HITL unknowns land
 in Key Assumptions, each a decision-made-by-default.
 
-**Gate #1** — STOP for exactly two things: confirm the sharpened plan intent,
-and settle any HITL unknown the operator owns. Everything else the envelope
-surfaced — `duplicates[]`, open `intake` rows, a truthy
-`memoryPoolAdvisory.recommend`, a truthy `complexitySignals.uiSurface` naming
-[`/prototype`](prototype.md) (never invoke it here) — collapses to
-**one advisory line** under the gate; none of it stops the run or reroutes
-it ([ref](helpers/plan-reference.md)). Under `--yes`, auto-proceed.
+**Gate #1** — STOP only when a HITL unknown the operator owns exists or
+`duplicates[]` is non-empty (planning a duplicate of open work stays the
+operator's call): confirm the sharpened plan intent and settle it. Otherwise
+announce the sharpened intent and the advisory line, and continue to
+authoring. Everything else the envelope surfaced — `duplicates[]`, open
+`intake` rows, a truthy `memoryPoolAdvisory.recommend`, a truthy
+`complexitySignals.uiSurface` naming [`/prototype`](prototype.md) (never
+invoke it here) — collapses to **one advisory line** under the gate, which
+never reroutes the run ([ref](helpers/plan-reference.md)).
+Under `--yes`, auto-proceed.
 
 ### 2. Author
 

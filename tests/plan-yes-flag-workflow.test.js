@@ -107,11 +107,31 @@ describe('/mandrel-plan --yes headless flag — gate #1', () => {
       'gate #1 must confirm the sharpened plan intent',
     );
     // Story #5312: duplicates are named on the one advisory line under the
-    // gate, never a stop of their own.
+    // gate.
     assert.match(
       interrogate,
       /`duplicates\[\]`[\s\S]*one advisory line/i,
       'gate #1 must name duplicates on its advisory line',
+    );
+  });
+
+  // Story #5427: the gate is conditional — it stops only for a HITL unknown
+  // or a duplicate open Story, and otherwise announces and continues.
+  it('stops only for a HITL unknown or a non-empty duplicates[]', () => {
+    assertDocMentions(
+      interrogate,
+      /STOP only when a HITL unknown the operator owns exists or `duplicates\[\]` is non-empty/,
+      'gate #1 must name its two stop conditions',
+    );
+    assertDocMentions(
+      interrogate,
+      /Otherwise announce the sharpened intent and the advisory line, and continue to authoring/,
+      'gate #1 must continue to authoring when neither condition holds',
+    );
+    assertDocOmits(
+      interrogate,
+      /STOP for exactly two things/,
+      'the unconditional stop must be gone',
     );
   });
 
