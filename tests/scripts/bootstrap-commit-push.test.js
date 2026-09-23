@@ -20,9 +20,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it, mock } from 'node:test';
 
 import { offerCommitPush } from '../../.agents/scripts/bootstrap.js';
-import {
-  stageLegacyEntryDocRemoval,
-} from '../../.agents/scripts/lib/bootstrap/agents-md-fold.js';
+import { stageLegacyEntryDocRemoval } from '../../.agents/scripts/lib/bootstrap/agents-md-fold.js';
 import {
   BOOTSTRAP_COMMIT_PATHS,
   buildManualInstructions,
