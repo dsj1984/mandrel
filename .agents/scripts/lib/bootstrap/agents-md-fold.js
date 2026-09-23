@@ -112,16 +112,49 @@ export function foldClaudeMdIntoAgentsMd(projectRoot, fsImpl = fs) {
 }
 
 /**
+ * Wire the system-prompt import into AGENTS.md, folding a CLAUDE.md in first.
+ * Creates, folds, appends, or no-ops.
+ *
+ * @param {string} projectRoot
+ * @param {typeof fs} [fsImpl]
+ * @returns {{ action: 'created'|'folded'|'appended'|'already-present', path: string }}
+ */
+export function wireEntryDoc(projectRoot, fsImpl = fs) {
+  const folded = foldClaudeMdIntoAgentsMd(projectRoot, fsImpl);
+  const target = folded.path;
+  if (folded.action === 'folded') return folded;
+  if (!fsImpl.existsSync(target)) {
+    fsImpl.writeFileSync(target, SYSTEM_PROMPT_ENTRY_DOC, 'utf8');
+    return { action: 'created', path: target };
+  }
+  const existing = fsImpl.readFileSync(target, 'utf8');
+  if (existing.includes(SYSTEM_PROMPT_IMPORT)) {
+    return { action: 'already-present', path: target };
+  }
+  const separator = existing.length > 0 && !existing.endsWith('\n') ? '\n' : '';
+  fsImpl.writeFileSync(
+    target,
+    `${existing}${separator}\n${SYSTEM_PROMPT_BLOCK}`,
+    'utf8',
+  );
+  return { action: 'appended', path: target };
+}
+
+/**
  * Stage the deletion of each folded-away entry doc that is gone from disk.
  *
- * @param {{ projectRoot: string, runGit: (args: string[], cwd: string) => { ok: boolean, stderr?: string }, fsImpl?: typeof fs }} args
+ * `after` is the preceding `git add` outcome; a failed one is returned as-is.
+ *
+ * @param {{ after?: { ok: boolean, error?: string }, projectRoot: string, runGit: (args: string[], cwd: string) => { ok: boolean, stderr?: string }, fsImpl?: typeof fs }} args
  * @returns {{ ok: boolean, error?: string, removed: string[] }}
  */
 export function stageLegacyEntryDocRemoval({
   projectRoot,
   runGit,
   fsImpl = fs,
+  after = { ok: true },
 }) {
+  if (!after.ok) return after;
   const removed = BOOTSTRAP_REMOVED_PATHS.filter(
     (rel) => !fsImpl.existsSync(path.join(projectRoot, rel)),
   );

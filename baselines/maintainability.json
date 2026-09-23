@@ -444,7 +444,7 @@
     },
     {
       "path": ".agents/scripts/lib/bootstrap/agents-md-fold.js",
-      "mi": 104.74
+      "mi": 100.147
     },
     {
       "path": ".agents/scripts/lib/bootstrap/baseline-merge-driver.js",
@@ -492,7 +492,7 @@
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "mi": 94.883
+      "mi": 95.992
     },
     {
       "path": ".agents/scripts/lib/bootstrap/prompt.js",

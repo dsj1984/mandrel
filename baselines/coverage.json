@@ -40,8 +40,8 @@
     },
     {
       "path": ".agents/scripts/bootstrap.js",
-      "lines": 93.51,
-      "branches": 79.41,
+      "lines": 93.52,
+      "branches": 79.28,
       "functions": 87.23
     },
     {
@@ -647,7 +647,7 @@
     {
       "path": ".agents/scripts/lib/bootstrap/agents-md-fold.js",
       "lines": 100,
-      "branches": 96.3,
+      "branches": 97.37,
       "functions": 100
     },
     {
@@ -718,8 +718,8 @@
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "lines": 85.38,
-      "branches": 86.27,
+      "lines": 84.88,
+      "branches": 85.26,
       "functions": 51.43
     },
     {

@@ -12,11 +12,10 @@ import { pathToFileURL } from 'node:url';
 import { isCommandExcluded } from '../command-header.js';
 import { detectPackageManager as detectPm } from '../detect-package-manager.js';
 import {
-  ENTRY_DOC,
-  foldClaudeMdIntoAgentsMd,
   SYSTEM_PROMPT_BLOCK,
   SYSTEM_PROMPT_ENTRY_DOC,
   SYSTEM_PROMPT_IMPORT,
+  wireEntryDoc,
 } from './agents-md-fold.js';
 import { LEDGER_RELATIVE_PATH } from './install-ledger.js';
 import { ensureIssueForms } from './issue-forms-template.js';
@@ -431,27 +430,7 @@ export function checkParity(ctx) {
  * @param {typeof fs} [ctx.fsImpl]
  */
 export function ensureSystemPromptWiring(ctx) {
-  const { fsImpl = fs } = ctx;
-  const folded = foldClaudeMdIntoAgentsMd(ctx.projectRoot, fsImpl);
-  const target = path.join(ctx.projectRoot, ENTRY_DOC);
-  if (!fsImpl.existsSync(target)) {
-    fsImpl.writeFileSync(target, SYSTEM_PROMPT_ENTRY_DOC, 'utf8');
-    return { action: 'created', path: target };
-  }
-  if (folded.action === 'folded') {
-    return { action: 'folded', path: target };
-  }
-  const existing = fsImpl.readFileSync(target, 'utf8');
-  if (existing.includes(SYSTEM_PROMPT_IMPORT)) {
-    return { action: 'already-present', path: target };
-  }
-  const separator = existing.length > 0 && !existing.endsWith('\n') ? '\n' : '';
-  fsImpl.writeFileSync(
-    target,
-    `${existing}${separator}\n${SYSTEM_PROMPT_BLOCK}`,
-    'utf8',
-  );
-  return { action: 'appended', path: target };
+  return wireEntryDoc(ctx.projectRoot, ctx.fsImpl);
 }
 
 /**

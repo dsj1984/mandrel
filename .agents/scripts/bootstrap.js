@@ -1070,9 +1070,11 @@ export async function offerCommitPush(state, deps = {}) {
 
   const added = stageBootstrapFiles({ projectRoot: cwd, runGit: runGitImpl });
   // The folded-away CLAUDE.md deletion rides the same commit.
-  const staged = added.ok
-    ? stageLegacyEntryDocRemoval({ projectRoot: cwd, runGit: runGitImpl })
-    : added;
+  const staged = stageLegacyEntryDocRemoval({
+    projectRoot: cwd,
+    runGit: runGitImpl,
+    after: added,
+  });
   if (!staged.ok) {
     Logger.warn(`[Bootstrap] Could not stage the wiring: ${staged.error}`);
     Logger.info(`\n[Bootstrap] ${instructions}`);
