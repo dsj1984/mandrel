@@ -946,6 +946,146 @@ describe('rollUpEpicForStory — the parent resolves in one call (Story #5280)',
   });
 });
 
+describe('rollUpEpicForStory — an authoritative "no parent" narrows the scan (Story #5414)', () => {
+  /** 130 Epics, none listing Story 1 except (optionally) one. */
+  function manyEpics(extra = []) {
+    const epics = [];
+    for (let i = 0; i < 130; i++) epics.push(container(1000 + i, [2000 + i]));
+    return [...epics, ...extra];
+  }
+
+  it('issues zero native reads for Epics whose checklist does not name the Story', async () => {
+    const provider = fakeProvider({
+      parent: async () => null,
+      epics: manyEpics(),
+      nativeChildren: [],
+      children: [child(1, 'agent::executing')],
+    });
+
+    const result = await rollUpEpicForStory({
+      storyId: 1,
+      provider,
+      config: {},
+      columnSync: fakeColumnSync(),
+    });
+
+    assert.equal(result.reason, 'no-container-epic');
+    assert.equal(provider.calls.getParentIssue, 1);
+    assert.equal(provider.calls.listTicketsByLabel, 1);
+    assert.equal(provider.nativeCalls.length, 0, 'no per-Epic native read');
+    assert.equal(provider.calls.getTicket, 0);
+  });
+
+  it('still finds a checklist-linked Epic and reads its full body-plus-native child list', async () => {
+    const provider = fakeProvider({
+      parent: async () => null,
+      epics: manyEpics([container(90, [1])]),
+      nativeChildren: [2],
+      children: [child(1, 'agent::done'), child(2, 'agent::executing')],
+    });
+
+    const result = await rollUpEpicForStory({
+      storyId: 1,
+      provider,
+      config: {},
+      columnSync: fakeColumnSync(),
+    });
+
+    assert.deepEqual(
+      provider.nativeCalls.map((c) => c.parentId),
+      [90],
+      'only the matching Epic pays a native read',
+    );
+    assert.equal(result.epics[0].epicId, 90);
+    assert.deepEqual(
+      result.pending,
+      [90],
+      'the native-only open child holds it',
+    );
+    assert.deepEqual(result.closed, []);
+  });
+
+  it('never closes the checklist-matched Epic when its native read failed', async () => {
+    const provider = fakeProvider({
+      parent: async () => null,
+      epics: manyEpics([container(90, [1])]),
+      nativeChildrenError: new Error('HTTP 502'),
+      children: [child(1, 'agent::done')],
+    });
+
+    const result = await rollUpEpicForStory({
+      storyId: 1,
+      provider,
+      config: {},
+      columnSync: fakeColumnSync(),
+    });
+
+    assert.deepEqual(result.closed, []);
+    assert.equal(result.epics[0].detail, 'child-read-degraded');
+    assert.equal(
+      provider.updates.some((u) => u.mutations?.state === 'closed'),
+      false,
+    );
+  });
+
+  it('reads every scanned Epic natively when the parent lookup degrades', async () => {
+    const epics = manyEpics();
+    const provider = fakeProvider({
+      parentError: new Error('HTTP 502'),
+      epics,
+      nativeChildren: [],
+      children: [child(1, 'agent::executing')],
+    });
+
+    await rollUpEpicForStory({
+      storyId: 1,
+      provider,
+      config: {},
+      columnSync: fakeColumnSync(),
+    });
+
+    assert.equal(provider.nativeCalls.length, epics.length);
+  });
+
+  it('finds a natively-linked Story through the scan on a degraded lookup', async () => {
+    // The body does not name Story 1; only the native edge does.
+    const provider = fakeProvider({
+      parentError: new Error('HTTP 502'),
+      epics: [container(90, [2])],
+      nativeChildren: [1],
+      children: [child(1, 'agent::executing'), child(2, 'agent::done')],
+    });
+
+    const result = await rollUpEpicForStory({
+      storyId: 1,
+      provider,
+      config: {},
+      columnSync: fakeColumnSync(),
+    });
+
+    assert.equal(result.epics[0].epicId, 90);
+  });
+
+  it('never closes a native parent whose child read failed', async () => {
+    const provider = fakeProvider({
+      parent: container(90, [1]),
+      epics: [],
+      nativeChildrenError: new Error('HTTP 502'),
+      children: [child(1, 'agent::done')],
+    });
+
+    const result = await rollUpEpicForStory({
+      storyId: 1,
+      provider,
+      config: {},
+      columnSync: fakeColumnSync(),
+    });
+
+    assert.deepEqual(result.closed, []);
+    assert.equal(result.epics[0].detail, 'child-read-degraded');
+  });
+});
+
 describe('rollUpEpicForStory — a reopened child pulls a closed Epic back', () => {
   it('moves the closed container to In Progress without reopening the issue', async () => {
     // The scan path, because the double exposes no `getParentIssue` — which is
