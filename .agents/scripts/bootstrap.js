@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
-
+import { stageLegacyEntryDocRemoval } from './lib/bootstrap/agents-md-fold.js';
 import {
   buildManualInstructions,
   COMMIT_SUBJECT,
@@ -1068,7 +1068,13 @@ export async function offerCommitPush(state, deps = {}) {
     return { ok: true, payload: { commitPush: { action: 'declined' } } };
   }
 
-  const staged = stageBootstrapFiles({ projectRoot: cwd, runGit: runGitImpl });
+  const added = stageBootstrapFiles({ projectRoot: cwd, runGit: runGitImpl });
+  // The folded-away CLAUDE.md deletion rides the same commit.
+  const staged = stageLegacyEntryDocRemoval({
+    projectRoot: cwd,
+    runGit: runGitImpl,
+    after: added,
+  });
   if (!staged.ok) {
     Logger.warn(`[Bootstrap] Could not stage the wiring: ${staged.error}`);
     Logger.info(`\n[Bootstrap] ${instructions}`);

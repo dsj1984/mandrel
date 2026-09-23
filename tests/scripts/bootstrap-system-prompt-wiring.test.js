@@ -5,7 +5,7 @@
  * step for cold-start onboarding:
  *
  *   1. `ensureSystemPromptWiring` — creates / appends / no-ops the
- *      `@.agents/instructions.md` import inside a consumer `CLAUDE.md`,
+ *      `@.agents/instructions.md` import inside a consumer `AGENTS.md` (folding any `CLAUDE.md`),
  *      keyed off the literal import path so a re-run never duplicates it.
  *   2. `ensurePackageJson` — seeds a discoverable `bootstrap` npm script
  *      when absent, and never overwrites an operator-defined one.
@@ -52,60 +52,72 @@ afterEach(() => {
 });
 
 describe('ensureSystemPromptWiring', () => {
-  it('creates a CLAUDE.md carrying the import when none exists', () => {
+  const agents = () => path.join(tmpRoot, 'AGENTS.md');
+  const claude = () => path.join(tmpRoot, 'CLAUDE.md');
+  const readAgents = () => fs.readFileSync(agents(), 'utf8');
+
+  it('creates an AGENTS.md carrying the import and no CLAUDE.md on a fresh project', () => {
     const outcome = ensureSystemPromptWiring({ projectRoot: tmpRoot });
     assert.equal(outcome.action, 'created');
-    const body = fs.readFileSync(path.join(tmpRoot, 'CLAUDE.md'), 'utf8');
-    assert.ok(body.includes(SYSTEM_PROMPT_IMPORT));
-    assert.equal(countOccurrences(body, SYSTEM_PROMPT_IMPORT), 1);
+    assert.equal(countOccurrences(readAgents(), SYSTEM_PROMPT_IMPORT), 1);
+    assert.equal(fs.existsSync(claude()), false);
   });
 
-  it('appends the import block when CLAUDE.md exists without it', () => {
-    writeFile(
-      path.join(tmpRoot, 'CLAUDE.md'),
-      '# My Project\n\nSome existing operator notes.\n',
-    );
+  it('appends the import block when AGENTS.md exists without it', () => {
+    writeFile(agents(), '# My Project\n\nSome existing operator notes.\n');
     const outcome = ensureSystemPromptWiring({ projectRoot: tmpRoot });
     assert.equal(outcome.action, 'appended');
-    const body = fs.readFileSync(path.join(tmpRoot, 'CLAUDE.md'), 'utf8');
-    // Operator content is preserved.
+    const body = readAgents();
     assert.ok(body.includes('Some existing operator notes.'));
-    assert.ok(body.includes(SYSTEM_PROMPT_IMPORT));
     assert.equal(countOccurrences(body, SYSTEM_PROMPT_IMPORT), 1);
   });
 
-  it('inserts a newline separator when the existing file lacks a trailing newline', () => {
-    writeFile(path.join(tmpRoot, 'CLAUDE.md'), '# No trailing newline');
+  it('inserts a newline separator when AGENTS.md lacks a trailing newline', () => {
+    writeFile(agents(), '# No trailing newline');
     ensureSystemPromptWiring({ projectRoot: tmpRoot });
-    const body = fs.readFileSync(path.join(tmpRoot, 'CLAUDE.md'), 'utf8');
+    const body = readAgents();
     assert.ok(body.startsWith('# No trailing newline\n'));
     assert.ok(body.includes(SYSTEM_PROMPT_IMPORT));
   });
 
-  it('is a no-op on an already-wired CLAUDE.md (no duplicate import line)', () => {
-    // First run wires it.
+  it('is a no-op on an already-wired AGENTS.md (no duplicate import line)', () => {
     ensureSystemPromptWiring({ projectRoot: tmpRoot });
-    const afterFirst = fs.readFileSync(path.join(tmpRoot, 'CLAUDE.md'), 'utf8');
-    // Second run must not change a single byte.
+    const afterFirst = readAgents();
     const outcome = ensureSystemPromptWiring({ projectRoot: tmpRoot });
-    const afterSecond = fs.readFileSync(
-      path.join(tmpRoot, 'CLAUDE.md'),
-      'utf8',
-    );
     assert.equal(outcome.action, 'already-present');
-    assert.equal(afterSecond, afterFirst);
-    assert.equal(countOccurrences(afterSecond, SYSTEM_PROMPT_IMPORT), 1);
+    assert.equal(readAgents(), afterFirst);
   });
 
-  it('recognises the import inside an operator-authored CLAUDE.md and does not duplicate it', () => {
+  it('folds a CLAUDE.md into an absent AGENTS.md and deletes CLAUDE.md', () => {
+    writeFile(claude(), '# My Project\n\nOperator notes.\n');
+    const outcome = ensureSystemPromptWiring({ projectRoot: tmpRoot });
+    assert.equal(outcome.action, 'folded');
+    assert.equal(fs.existsSync(claude()), false);
+    const body = readAgents();
+    assert.ok(body.startsWith('# My Project\n\nOperator notes.\n'));
+    assert.equal(countOccurrences(body, SYSTEM_PROMPT_IMPORT), 1);
+  });
+
+  it('folds CLAUDE.md after an existing AGENTS.md, dropping its @AGENTS.md line', () => {
+    writeFile(agents(), '# Orientation\n');
+    writeFile(claude(), '@AGENTS.md\n\n# Extra\n');
+    ensureSystemPromptWiring({ projectRoot: tmpRoot });
+    const body = readAgents();
+    assert.equal(fs.existsSync(claude()), false);
+    assert.ok(body.startsWith('# Orientation\n\n'));
+    assert.ok(body.includes('# Extra'));
+    assert.ok(!body.includes('@AGENTS.md'));
+    assert.equal(countOccurrences(body, SYSTEM_PROMPT_IMPORT), 1);
+  });
+
+  it('keeps a single import when CLAUDE.md already carries it', () => {
     writeFile(
-      path.join(tmpRoot, 'CLAUDE.md'),
+      claude(),
       `# Custom\n\n## System Prompt\n\n${SYSTEM_PROMPT_IMPORT}\n\n## Other\n`,
     );
-    const outcome = ensureSystemPromptWiring({ projectRoot: tmpRoot });
-    assert.equal(outcome.action, 'already-present');
-    const body = fs.readFileSync(path.join(tmpRoot, 'CLAUDE.md'), 'utf8');
-    assert.equal(countOccurrences(body, SYSTEM_PROMPT_IMPORT), 1);
+    ensureSystemPromptWiring({ projectRoot: tmpRoot });
+    assert.equal(fs.existsSync(claude()), false);
+    assert.equal(countOccurrences(readAgents(), SYSTEM_PROMPT_IMPORT), 1);
   });
 
   it('is registered in BOOTSTRAP_PHASES after validation (Story #4527/#4530: claudeSettings phase retired)', () => {

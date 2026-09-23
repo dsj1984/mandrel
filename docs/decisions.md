@@ -88,6 +88,7 @@ superseded — open it before citing it.
 | [`20260828-5077d`](#adr-20260828-5077d-agentsreadmemd-is-the-bundles-single-homed-reference-not-a-150-line-pointer) | `.agents/README.md` is single-homed; no line ceiling | `.agents/README.md` | Accepted |
 | [`20260828-5077e`](#adr-20260828-5077e-agentrcjson-has-a-closed-five-block-top-level-there-is-no-agentsettings-namespace) | `.agentrc.json` has a closed five-block top level | `.agents/schemas/agentrc.schema.json` | Accepted |
 | [`20260828-5077f`](#adr-20260828-5077f-dependency-ordering-has-two-channels--declared-edges-and-the-delivery-time-footprint-guard) | Two ordering channels — declared edges + footprint guard | `.agents/scripts/stories-wave-tick.js` | Accepted |
+| [`20260923-5410`](#adr-20260923-5410-agentsmd-is-the-consumer-entry-doc-claudemd-is-folded-in-and-deleted) | AGENTS.md is the entry doc; CLAUDE.md folded in; Claude Code ≥ 2.1.277 | `.agents/scripts/lib/bootstrap/agents-md-fold.js` | Accepted |
 | [`20260806-lifecycle-bus-retired`](#adr-20260806-lifecycle-bus-retired-delete-the-lifecycle-bus-the-close-path-owns-its-side-effects-directly) | Delete the lifecycle bus; the close path owns its side effects directly | `.agents/scripts/lib/orchestration/lifecycle/emit-ledger-event.js` | Accepted |
 | [`20260802-4938-schema-compilers`](#adr-20260802-4938-schema-compilers-a-schema-is-compiled-by-code-or-declares-in-file-why-not) | A schema is compiled by code, or declares in-file why not | `scripts/check-schema-references.js` | Accepted |
 | [`20260726-v2-story-collapse`](#adr-20260726-v2-story-collapse-story-only-ticket-model-one-plan-one-deliver-one-engine) | Story-only ticket model; one /plan, one /deliver, one engine | `.agents/workflows/mandrel-deliver.md` | Accepted in part |
@@ -4317,3 +4318,51 @@ and markdown-link URL interiors.
   declares an edge — the case `enforce` exists for.
 - A false `scraped-overlap` costs a beat, never correctness. The remedy is to
   declare the real footprint in `changes[]`, not to disable the guard.
+
+## ADR 20260923-5410: AGENTS.md is the consumer entry doc; CLAUDE.md is folded in and deleted
+
+**Status:** Accepted
+**Date:** 2026-09-23
+**Surface:** `.agents/scripts/lib/bootstrap/agents-md-fold.js`
+**Story:** #5410
+
+### Context
+
+Bootstrap wired the `@.agents/instructions.md` system-prompt import into a
+consumer's root `CLAUDE.md`. Claude Code now loads a root `AGENTS.md`
+directly, and the cross-runtime convention is `AGENTS.md`. But the host reads
+`CLAUDE.md` exclusively whenever it exists, so wiring `AGENTS.md` while any
+`CLAUDE.md` survives would silently shadow the framework.
+
+### Decision
+
+- **`AGENTS.md` is the entry doc.** Bootstrap creates / appends / no-ops the
+  import in `AGENTS.md`; the mutation manifest and the bootstrap commit name
+  it, and the commit stages the `CLAUDE.md` removal.
+- **Fold everything.** Bootstrap and the `2.65.0` update migration fold a root
+  `CLAUDE.md` into `AGENTS.md` (appended after any existing `AGENTS.md`
+  content, `@AGENTS.md` self-imports dropped, the system-prompt import kept
+  exactly once) and delete `CLAUDE.md`. Operator content is kept verbatim.
+- **Fail the check below Claude Code 2.1.277.** The `claude-code-version`
+  doctor check fails an `AGENTS.md`-only project on an older host, because
+  that host never loads the framework at all. It skips (passes) when `claude`
+  is absent or unparseable, so headless/CI hosts are never blocked.
+- This repo's own always-loaded closure follows the host precedence
+  (`CLAUDE.md` when present, else `AGENTS.md`) via the resolver the sibling
+  Story #5409 lands.
+
+### Alternatives considered
+
+- **Keep `CLAUDE.md` as a one-line `@AGENTS.md` shim.** Rejected — any surviving
+  `CLAUDE.md` is what the host reads, so a shim keeps the shadowing risk and
+  two files to reconcile.
+- **Advisory version check.** Rejected — below the floor the framework is not
+  degraded but absent, which is a Not-ready verdict, not a warning.
+
+### Consequences
+
+- **Breaking:** consumers need Claude Code ≥ 2.1.277, and `mandrel update`
+  deletes `CLAUDE.md` after folding it.
+- `mandrel uninstall` reverts the wiring in `AGENTS.md` (deleting it only when
+  byte-identical to the install template), still reverts an un-migrated
+  `CLAUDE.md`, and never recreates `CLAUDE.md`.

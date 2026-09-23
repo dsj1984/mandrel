@@ -33,8 +33,8 @@ import {
   BOOTSTRAP_COMMAND,
   GITIGNORE_BLOCKS,
   SYNC_COMMAND,
+  SYSTEM_PROMPT_AGENTS_MD,
   SYSTEM_PROMPT_BLOCK,
-  SYSTEM_PROMPT_CLAUDE_MD,
   SYSTEM_PROMPT_IMPORT,
 } from '../../.agents/scripts/lib/bootstrap/project-bootstrap.js';
 import {
@@ -159,7 +159,7 @@ function seedFreshInstall(root) {
   fs.mkdirSync(root, { recursive: true });
   fs.writeFileSync(
     path.join(root, 'CLAUDE.md'),
-    SYSTEM_PROMPT_CLAUDE_MD,
+    SYSTEM_PROMPT_AGENTS_MD,
     'utf8',
   );
   writeJson(path.join(root, '.claude', 'settings.json'), {
@@ -499,7 +499,7 @@ describe('runUninstall — heading-only and comment-only operator content (Story
     fs.mkdirSync(tmpRoot, { recursive: true });
     fs.writeFileSync(
       path.join(tmpRoot, 'CLAUDE.md'),
-      SYSTEM_PROMPT_CLAUDE_MD,
+      SYSTEM_PROMPT_AGENTS_MD,
       'utf8',
     );
     writeLedger(tmpRoot, {
@@ -992,7 +992,7 @@ describe('runUninstall — corrupt target file guard (Story #3544)', () => {
     );
     fs.writeFileSync(
       path.join(tmpRoot, 'CLAUDE.md'),
-      SYSTEM_PROMPT_CLAUDE_MD,
+      SYSTEM_PROMPT_AGENTS_MD,
       'utf8',
     );
     writeJson(path.join(tmpRoot, '.agentrc.json'), {
@@ -1189,5 +1189,61 @@ describe('runUninstall — --dry-run', () => {
     });
     assert.equal(result.ledgerFound, true);
     assert.equal(result.revertedCount, 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Story #5410 — AGENTS.md is the wired entry doc
+// ---------------------------------------------------------------------------
+
+describe('runUninstall — AGENTS.md wiring (Story #5410)', () => {
+  const run = () =>
+    runUninstall({ projectRoot: tmpRoot, write: () => {}, exit: () => {} });
+  const agentsPath = () => path.join(tmpRoot, 'AGENTS.md');
+
+  it('deletes an AGENTS.md byte-identical to the install template', () => {
+    fs.mkdirSync(tmpRoot, { recursive: true });
+    fs.writeFileSync(agentsPath(), SYSTEM_PROMPT_AGENTS_MD, 'utf8');
+    writeLedger(tmpRoot, {
+      entries: [{ target: 'AGENTS.md', reversible: true }],
+    });
+    run();
+    assert.equal(fs.existsSync(agentsPath()), false);
+    assert.equal(fs.existsSync(path.join(tmpRoot, 'CLAUDE.md')), false);
+  });
+
+  it('keeps an operator AGENTS.md and strips only the import block', () => {
+    fs.mkdirSync(tmpRoot, { recursive: true });
+    fs.writeFileSync(
+      agentsPath(),
+      `# Orientation\n\nNotes.\n\n${SYSTEM_PROMPT_BLOCK}`,
+      'utf8',
+    );
+    writeLedger(tmpRoot, {
+      entries: [{ target: 'AGENTS.md', reversible: true }],
+    });
+    run();
+    const after = fs.readFileSync(agentsPath(), 'utf8');
+    assert.match(after, /Orientation/);
+    assert.equal(after.includes(SYSTEM_PROMPT_IMPORT), false);
+    assert.equal(fs.existsSync(path.join(tmpRoot, 'CLAUDE.md')), false);
+  });
+
+  it('a legacy CLAUDE.md ledger entry reverts AGENTS.md once the migration folded CLAUDE.md away', () => {
+    fs.mkdirSync(tmpRoot, { recursive: true });
+    fs.writeFileSync(
+      agentsPath(),
+      `# Folded\n\n${SYSTEM_PROMPT_BLOCK}`,
+      'utf8',
+    );
+    writeLedger(tmpRoot, {
+      entries: [{ target: 'CLAUDE.md', reversible: true }],
+    });
+    run();
+    assert.equal(
+      fs.readFileSync(agentsPath(), 'utf8').includes(SYSTEM_PROMPT_IMPORT),
+      false,
+    );
+    assert.equal(fs.existsSync(path.join(tmpRoot, 'CLAUDE.md')), false);
   });
 });

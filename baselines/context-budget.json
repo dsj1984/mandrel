@@ -1,6 +1,6 @@
 {
   "$schema": "https://mandrel.dev/baselines/context-budget.schema.json",
-  "generatedAt": "2026-09-23T21:26:37.019Z",
+  "generatedAt": "2026-09-23T22:00:33.636Z",
   "toleranceBytes": 2048,
   "tiers": {
     "alwaysLoaded": {
@@ -29,7 +29,7 @@
       ]
     },
     "mandatoryRead": {
-      "totalBytes": 440809,
+      "totalBytes": 443371,
       "files": [
         {
           "path": "docs/architecture.md",
@@ -41,7 +41,7 @@
         },
         {
           "path": "docs/decisions.md",
-          "bytes": 257175
+          "bytes": 259737
         },
         {
           "path": "docs/patterns.md",
@@ -50,7 +50,7 @@
       ]
     },
     "workflow": {
-      "totalBytes": 285384,
+      "totalBytes": 285499,
       "files": [
         {
           "path": ".agents/workflows/audit-accessibility.md",
@@ -154,7 +154,7 @@
         },
         {
           "path": ".agents/workflows/mandrel-update.md",
-          "bytes": 13704
+          "bytes": 13819
         },
         {
           "path": ".agents/workflows/memory-consolidate.md",
@@ -200,7 +200,7 @@
     ]
   },
   "workflowClosure": {
-    "reachableTotalBytes": 460772,
+    "reachableTotalBytes": 460887,
     "entryPoints": [
       {
         "path": ".agents/workflows/audit-accessibility.md",
@@ -324,8 +324,8 @@
       },
       {
         "path": ".agents/workflows/mandrel-update.md",
-        "mandatoryBytes": 13704,
-        "reachableBytes": 25960
+        "mandatoryBytes": 13819,
+        "reachableBytes": 26075
       },
       {
         "path": ".agents/workflows/memory-consolidate.md",

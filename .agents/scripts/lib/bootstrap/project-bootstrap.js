@@ -11,6 +11,12 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { isCommandExcluded } from '../command-header.js';
 import { detectPackageManager as detectPm } from '../detect-package-manager.js';
+import {
+  SYSTEM_PROMPT_BLOCK,
+  SYSTEM_PROMPT_ENTRY_DOC,
+  SYSTEM_PROMPT_IMPORT,
+  wireEntryDoc,
+} from './agents-md-fold.js';
 import { LEDGER_RELATIVE_PATH } from './install-ledger.js';
 import { ensureIssueForms } from './issue-forms-template.js';
 import { PHASE_GROUPS } from './manifest.js';
@@ -23,17 +29,10 @@ export const SYNC_AGENTS_COMMAND = 'node .agents/scripts/sync-claude-agents.js';
 
 export const BOOTSTRAP_COMMAND = 'node .agents/scripts/bootstrap.js';
 
-/** `CLAUDE.md` wiring keys idempotence off this exact import path. */
-export const SYSTEM_PROMPT_IMPORT = '@.agents/instructions.md';
+export { SYSTEM_PROMPT_BLOCK, SYSTEM_PROMPT_IMPORT };
 
-export const SYSTEM_PROMPT_BLOCK = `## System Prompt
-
-${SYSTEM_PROMPT_IMPORT}
-`;
-
-export const SYSTEM_PROMPT_CLAUDE_MD = `# Agent Protocols
-
-${SYSTEM_PROMPT_BLOCK}`;
+/** Install template for a fresh AGENTS.md (also the legacy CLAUDE.md one). */
+export const SYSTEM_PROMPT_AGENTS_MD = SYSTEM_PROMPT_ENTRY_DOC;
 
 export const GITIGNORE_BLOCKS = Object.freeze({
   commands: {
@@ -420,30 +419,15 @@ export function checkParity(ctx) {
 }
 
 /**
- * Ensure `CLAUDE.md` imports the system prompt — without it the framework
- * never loads on cold start. Creates, appends, or no-ops.
+ * Ensure `AGENTS.md` imports the system prompt — without it the framework
+ * never loads on cold start. A pre-existing `CLAUDE.md` is folded in first
+ * (the host would otherwise read it instead). Creates, appends, or no-ops.
  *
  * @param {object} ctx
  * @param {typeof fs} [ctx.fsImpl]
  */
 export function ensureSystemPromptWiring(ctx) {
-  const { fsImpl = fs } = ctx;
-  const target = path.join(ctx.projectRoot, 'CLAUDE.md');
-  if (!fsImpl.existsSync(target)) {
-    fsImpl.writeFileSync(target, SYSTEM_PROMPT_CLAUDE_MD, 'utf8');
-    return { action: 'created', path: target };
-  }
-  const existing = fsImpl.readFileSync(target, 'utf8');
-  if (existing.includes(SYSTEM_PROMPT_IMPORT)) {
-    return { action: 'already-present', path: target };
-  }
-  const separator = existing.length > 0 && !existing.endsWith('\n') ? '\n' : '';
-  fsImpl.writeFileSync(
-    target,
-    `${existing}${separator}\n${SYSTEM_PROMPT_BLOCK}`,
-    'utf8',
-  );
-  return { action: 'appended', path: target };
+  return wireEntryDoc(ctx.projectRoot, ctx.fsImpl);
 }
 
 /**
