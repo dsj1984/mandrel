@@ -97,6 +97,29 @@ test('lens markdown references the impact taxonomy', () => {
   }
 });
 
+// --- the Test Strategy Assessment table carries the property-based row -----
+
+test('lens Test Strategy Assessment table pins a Property-Based Testing row with N/A', () => {
+  const row = LENS.split('\n').find((line) =>
+    /^\|\s*Property-Based Testing\s*\|/.test(line),
+  );
+  assert.ok(row, 'lens table missing the Property-Based Testing row');
+  assert.match(row, /N\/A/, 'Property-Based Testing row must offer N/A');
+  assert.match(
+    LENS,
+    /`Property-Based Testing` reads `N\/A` when the repo has no candidate module/,
+    'lens must state the N/A rule for a repo with no candidate modules',
+  );
+});
+
+test('lens property-based dimension files findings under Coverage and seeds under Flakiness', () => {
+  assert.match(LENS, /Property-Based Coverage/);
+  assert.match(LENS, /file under `Coverage`/);
+  assert.match(LENS, /goes under `Flakiness`/);
+  assert.ok(FINDING_CATEGORIES.includes('Coverage'));
+  assert.ok(FINDING_CATEGORIES.includes('Flakiness'));
+});
+
 // --- assertReportContract distinguishes conformant from broken reports -----
 
 test('assertReportContract: a fully-formed report is conformant', () => {
