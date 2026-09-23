@@ -1,9 +1,6 @@
 /**
- * CLAUDE.md → AGENTS.md fold, shared by bootstrap and the update migration.
- * The host reads CLAUDE.md exclusively whenever it exists, so a surviving
- * CLAUDE.md would shadow the wired AGENTS.md — the fold leaves one AGENTS.md
- * and no CLAUDE.md. Operator content is kept verbatim; only `@AGENTS.md`
- * self-imports are dropped and the system-prompt import is kept exactly once.
+ * CLAUDE.md → AGENTS.md fold for bootstrap and the update migration: a
+ * surviving CLAUDE.md would shadow AGENTS.md, since the host prefers it.
  *
  * @module bootstrap/agents-md-fold
  */
@@ -19,7 +16,7 @@ export const SYSTEM_PROMPT_BLOCK = `## System Prompt
 ${SYSTEM_PROMPT_IMPORT}
 `;
 
-/** Install template for a freshly created entry doc (AGENTS.md, or legacy CLAUDE.md). */
+/** Install template for a fresh entry doc. */
 export const SYSTEM_PROMPT_ENTRY_DOC = `# Agent Protocols
 
 ${SYSTEM_PROMPT_BLOCK}`;
@@ -29,13 +26,7 @@ export const LEGACY_ENTRY_DOC = 'CLAUDE.md';
 
 const SELF_IMPORT = '@AGENTS.md';
 
-/**
- * Paths the bootstrap deletes (CLAUDE.md is folded into AGENTS.md); their
- * removal is staged with `git rm --cached --ignore-unmatch`, a no-op when the
- * path was never tracked.
- *
- * @type {readonly string[]}
- */
+/** @type {readonly string[]} */
 const BOOTSTRAP_REMOVED_PATHS = Object.freeze([LEGACY_ENTRY_DOC]);
 
 /**
@@ -63,7 +54,7 @@ function dedupeImport(lines) {
 }
 
 /**
- * Pure fold. `agents` null/undefined means AGENTS.md is absent.
+ * `agents` null means AGENTS.md is absent.
  *
  * @param {{ claude: string, agents?: string|null }} input
  * @returns {string} the resulting AGENTS.md content
@@ -141,9 +132,7 @@ export function wireEntryDoc(projectRoot, fsImpl = fs) {
 }
 
 /**
- * Stage the deletion of each folded-away entry doc that is gone from disk.
- *
- * `after` is the preceding `git add` outcome; a failed one is returned as-is.
+ * Stage removal of folded-away entry docs; a failed `after` passes through.
  *
  * @param {{ after?: { ok: boolean, error?: string }, projectRoot: string, runGit: (args: string[], cwd: string) => { ok: boolean, stderr?: string }, fsImpl?: typeof fs }} args
  * @returns {{ ok: boolean, error?: string, removed: string[] }}
