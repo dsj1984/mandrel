@@ -22,6 +22,7 @@ import {
   renderStoriesTemplate,
   STORIES_TEMPLATE_FILENAME,
 } from '../../../.agents/scripts/lib/orchestration/plan-context.js';
+import { BODY_FORMAT_LINTS } from '../../../.agents/scripts/lib/story-body/body-format-lints.js';
 import { parse as parseStoryBody } from '../../../.agents/scripts/lib/story-body/story-body.js';
 import {
   renderStoryAuthorCore,
@@ -125,6 +126,61 @@ describe('story-author prompt — the N=1 core (Story #5312 AC-2)', () => {
   });
 });
 
+describe('story-author prompt — raw-API-era scaffolding retired (Story #5427)', () => {
+  const core = renderStoryAuthorCore();
+
+  test('AC-1: the persona, JSON-only output, inline schema and emphasis labels are gone', () => {
+    for (const retired of [
+      'Senior Project Manager',
+      'respond ONLY with a valid JSON array',
+      'No prose, no markdown blocks',
+      '### OUTPUT FORMAT',
+      '### JSON SCHEMA',
+      'NO Epic parent ticket',
+      'CRITICAL:',
+      'IMPORTANT DEPENDENCY RULE',
+      'Never stop mid-array',
+    ]) {
+      assert.ok(
+        !core.includes(retired),
+        `core must not contain ${JSON.stringify(retired)}`,
+      );
+    }
+  });
+
+  test('AC-1: the rendered core is at least 1,000 bytes under its 17,024-byte predecessor', () => {
+    assert.ok(
+      Buffer.byteLength(core) <= 17024 - 1000,
+      `core is ${Buffer.byteLength(core)} bytes`,
+    );
+  });
+
+  test('AC-2: the load-bearing sections survive', () => {
+    for (const kept of [
+      'STORY BODY SCHEMA',
+      'STORY BODY RULES',
+      'SPEC PROSE CONTRACT',
+      'AUTHORING ALTITUDE',
+      'STORY SIZING',
+      'UI AND COPY WORK',
+      '## Goal',
+      '## Slicing',
+      '## Spec',
+      '## Changes',
+      '## Non-Goals',
+    ]) {
+      assert.ok(core.includes(kept), `core must keep ${JSON.stringify(kept)}`);
+    }
+    for (const lint of BODY_FORMAT_LINTS) {
+      assert.ok(core.includes(`**${lint.id}**`), `core must list ${lint.id}`);
+    }
+    assert.match(core, /Underscores are rejected by the validator/);
+    assert.match(core, /\^\[a-z0-9\]\[a-z0-9-\]\*\$/);
+    assert.match(core, /ordering between Stories with `depends_on`/);
+    assert.match(core, /Never emit a parent field/);
+  });
+});
+
 describe('story-author prompt — the N>1 rules (Story #5312 AC-2)', () => {
   const prompt = renderStoryAuthorPrompt({ storyCount: 2 });
 
@@ -181,7 +237,7 @@ describe('story-author prompt — orders only output the parser accepts (#5005)'
   test('the UI and copy rules point at their contracts instead of restating them (Story #5342)', () => {
     const start = prompt.indexOf('#### UI AND COPY WORK');
     assert.ok(start >= 0, 'the pointer section must exist');
-    const section = prompt.slice(start, prompt.indexOf('CRITICAL:', start));
+    const section = prompt.slice(start, prompt.indexOf('#### ORDERING', start));
     assert.match(section, /states the `data-testid` contract in `acceptance/);
     assert.match(section, /\.agents\/skills\/stack\/qa\/playwright\/SKILL\.md/);
     assert.match(section, /docs\/style-guide\.md/);

@@ -31,13 +31,11 @@ export function renderStoryAuthorCore() {
     (lint) =>
       `- **${lint.id}** — ${lint.summary} Example: \`${lint.goodExample}\``,
   ).join('\n');
-  return `You are an expert Senior Project Manager and Orchestrator.
-Your job is to turn a plan seed / Tech Spec into a Story ticket array for an AI Agent to execute.
+  return `Turn a plan seed / Tech Spec into Story tickets for an AI agent to execute. The emitted stories template (see STORY BODY SCHEMA) is the ticket shape.
 
 ### HIERARCHY RULES (v2 default-single):
 1. **Emit exactly one Story by default.** Split into N>1 only when pieces have near-zero overlap or sit across an architectural seam. Coupled work stays one Story — put intra-session checkpoints in \`## Slicing\` and fold the Tech Spec into \`## Spec\`.
 2. **Stories**: Specific user-facing or architectural capabilities (e.g., "Implement JWT Token Exchange").
-   - There is NO Epic parent ticket, NO Feature tier, and NO Task layer.
    - **Story-Level Execution**: Each Story is executed end-to-end on a single branch by a single agent. Acceptance criteria and verification commands live as top-level \`acceptance[]\` / \`verify[]\` arrays on the Story ticket (see STORY BODY SCHEMA below).
    - Thematic grouping is prose in the Story's folded \`## Spec\` / \`## Slicing\`, never sibling tickets for coupled work.
 
@@ -46,27 +44,10 @@ Your job is to turn a plan seed / Tech Spec into a Story ticket array for an AI 
 - \`labels[]\` is **optional**. Emit it only to request an *additional* label; persist sanitizes the list before applying it.
 - Do **not** emit \`agent::*\` labels — lifecycle state is runtime-owned, and persist applies \`agent::ready\` itself once every checkpoint is on the ticket.
 
-### OUTPUT FORMAT:
-You MUST respond ONLY with a valid JSON array of objects. No prose, no markdown blocks.
-
-### JSON SCHEMA:
-[
-  {
-    "slug": "hyphen-case-id",
-    "type": "story",
-    "title": "Short descriptive title",
-    "body": <string — see STORY BODY SCHEMA below>,
-    "acceptance": ["<outcome a PR reviewer can confirm>", ...],
-    "verify": ["<exact command or test path>", ...],
-    "labels": ["<extra-label>"] (optional — type::story is applied automatically; omit this field unless you need an additional label),
-    "depends_on": ["slug-of-blocking-dependency"] (optional array of Story slugs that block execution)
-  }
-]
-
 **Slug format**: \`^[a-z0-9][a-z0-9-]*$\` — hyphen-case only. Underscores are rejected by the validator.
 
 ### STORY BODY SCHEMA (REQUIRED FOR EVERY STORY):
-\`body\` is either the serialized markdown **string** (the section format below) or a **structured object** carrying the same fields (\`goal\`, optional \`slicing\` / \`spec\`, \`changes\`, optional \`non_goals\`) — persist parses either shape and serializes the canonical markdown itself, so you never need to read \`story-body.js\` or hand-assemble the markdown (the \`stories.template.json\` file emitted next to the plan-context envelope is a ready-to-fill structured-object skeleton). Stories are consumed by non-interactive sub-agents that must self-verify from the Story ticket alone — so the ticket must carry everything an agent needs to execute and self-verify.
+\`body\` is either the serialized markdown **string** (the section format below) or a **structured object** carrying the same fields (\`goal\`, optional \`slicing\` / \`spec\`, \`changes\`, optional \`non_goals\`) — persist parses either shape and serializes the canonical markdown itself, so you never need to read \`story-body.js\` or hand-assemble the markdown (the \`stories.template.json\` file emitted next to the plan-context envelope is a ready-to-fill structured-object skeleton). The executing sub-agent is non-interactive and self-verifies from the ticket alone, so the ticket carries everything it needs.
 
 The \`acceptance[]\` and \`verify[]\` arrays live at the **top level** of the Story ticket object — that is the machine contract the validator reads. Author each list **once, at top level**, and **omit** the \`## Acceptance\` / \`## Verify\` sections from the authored \`body\` string: persist syncs the top-level arrays into those sections so the GitHub issue stays a complete executable document. The validator resolves both fields from the top level, so an omitted section is the expected shape, not a violation.
 
@@ -153,9 +134,9 @@ ${envelopeFloor}
 - A Story touching UI (\`*.tsx\`, \`*.astro\`, \`*.svelte\`, \`*.vue\`, a components folder) states the \`data-testid\` contract in \`acceptance[]\` per the testid contract in \`.agents/skills/stack/qa/playwright/SKILL.md\`.
 - A Story touching user-visible copy, brand assets or visual style cites the relevant section of \`docs/style-guide.md\` in \`acceptance[]\` when that file exists.
 
-CRITICAL: Dependencies should follow execution blockers. There is no parent ticket — never emit a 'parent_slug' field.
-IMPORTANT DEPENDENCY RULE: Story-to-Story dependencies are expressed via \`depends_on\` (one Story depends_on another Story's slug). Use this to express execution ordering across the plan.
-**Never stop mid-array.** Always emit complete JSON — partial arrays are rejected by the validator.`;
+#### ORDERING:
+
+Express execution ordering between Stories with \`depends_on\` — the slugs of the Stories that must land first. Never emit a parent field.`;
 }
 
 /**
