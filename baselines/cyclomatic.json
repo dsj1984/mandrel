@@ -18,11 +18,6 @@
       "maxCyclomatic": 13
     },
     {
-      "file": ".agents/scripts/lib/audit-suite/lens-diff-floor.js",
-      "methodsAboveCeiling": 1,
-      "maxCyclomatic": 13
-    },
-    {
       "file": ".agents/scripts/lib/audit-to-stories/group-findings.js",
       "methodsAboveCeiling": 1,
       "maxCyclomatic": 15

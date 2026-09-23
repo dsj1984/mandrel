@@ -68,10 +68,6 @@
       "symbol": "resolveDescription"
     },
     {
-      "file": ".agents/scripts/lib/audit-suite/lens-diff-floor.js",
-      "symbol": "DEFAULT_LENS_DIFF_FLOOR"
-    },
-    {
       "file": ".agents/scripts/lib/audit-suite/selector.js",
       "symbol": "_resetPersistenceLayerCache"
     },

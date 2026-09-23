@@ -297,12 +297,6 @@
       "functions": 100
     },
     {
-      "path": ".agents/scripts/lib/audit-suite/lens-diff-floor.js",
-      "lines": 100,
-      "branches": 93.75,
-      "functions": 100
-    },
-    {
       "path": ".agents/scripts/lib/audit-suite/runner.js",
       "lines": 58.54,
       "branches": 60,
@@ -2328,12 +2322,6 @@
       "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
       "lines": 100,
       "branches": 93.02,
-      "functions": 100
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/local-lens-review.js",
-      "lines": 99.15,
-      "branches": 86.84,
       "functions": 100
     },
     {

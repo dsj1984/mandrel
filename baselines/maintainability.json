@@ -211,10 +211,6 @@
       "mi": 87.088
     },
     {
-      "path": ".agents/scripts/lib/audit-suite/lens-diff-floor.js",
-      "mi": 99.64
-    },
-    {
       "path": ".agents/scripts/lib/audit-suite/runner.js",
       "mi": 98.141
     },
@@ -1533,10 +1529,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
       "mi": 93.879
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/local-lens-review.js",
-      "mi": 100.788
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/review-core.js",

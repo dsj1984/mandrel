@@ -3914,32 +3914,6 @@
       "anonymous": true
     },
     {
-      "path": ".agents/scripts/lib/audit-suite/lens-diff-floor.js",
-      "method": "countChangedLines",
-      "startLine": 29,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/audit-suite/lens-diff-floor.js",
-      "method": "<anon countChangedLines/(total,row)#0>",
-      "startLine": 37,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/audit-suite/lens-diff-floor.js",
-      "method": "evaluateLensDiffFloor",
-      "startLine": 59,
-      "crap": 13
-    },
-    {
-      "path": ".agents/scripts/lib/audit-suite/lens-diff-floor.js",
-      "method": "<anon evaluateLensDiffFloor/(skip,reason,sensitiveClasses)#0>",
-      "startLine": 71,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
       "path": ".agents/scripts/lib/audit-suite/runner.js",
       "method": "loadRules",
       "startLine": 15,
@@ -23435,71 +23409,6 @@
       "method": "<anon runScopedFormatAutofix/(args,opts)#0>",
       "startLine": 175,
       "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/local-lens-review.js",
-      "method": "renderLensArtifactRoster",
-      "startLine": 29,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/local-lens-review.js",
-      "method": "<anon renderLensArtifactRoster/(w)#0>",
-      "startLine": 31,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/local-lens-review.js",
-      "method": "<anon renderLensArtifactRoster/(p)#0>",
-      "startLine": 32,
-      "crap": 2,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/local-lens-review.js",
-      "method": "<anon renderLensArtifactRoster/(p)#1>",
-      "startLine": 36,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/local-lens-review.js",
-      "method": "buildLensSubstitutions",
-      "startLine": 46,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/local-lens-review.js",
-      "method": "enumerateChangedFiles",
-      "startLine": 65,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/local-lens-review.js",
-      "method": "resolveLensChangeSet",
-      "startLine": 82,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/local-lens-review.js",
-      "method": "runLocalLensReview",
-      "startLine": 126,
-      "crap": 5.000154436696012
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/local-lens-review.js",
-      "method": "<anon runLocalLensReview/(w)#0>",
-      "startLine": 203,
-      "crap": 1.0000061774678406,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/local-lens-review.js",
-      "method": "<anon runLocalLensReview/(p)#0>",
-      "startLine": 204,
-      "crap": 2.000024709871362,
       "anonymous": true
     },
     {
