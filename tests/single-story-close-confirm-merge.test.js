@@ -1208,6 +1208,59 @@ describe('readPrWaitProbe — one probe carries every field the loop needs', () 
     });
   });
 
+  it('scopes evidence to GitHub required attribution when a red gates the merge (Story #5415)', async () => {
+    const view = {
+      id: 'PR_node',
+      state: 'OPEN',
+      mergeStateStatus: 'BLOCKED',
+      headRefOid: 'abc',
+      statusCheckRollup: [
+        { name: 'lint', status: 'COMPLETED', conclusion: 'FAILURE' },
+        { name: 'test', status: 'IN_PROGRESS' },
+      ],
+    };
+    const seen = [];
+    const probe = await readPrWaitProbe({
+      prNumber: 12,
+      gh: { pr: { view: async () => view } },
+      readRequiredCheckNamesFn: async (args) => {
+        seen.push(args);
+        return new Set(['lint', 'test']);
+      },
+    });
+    assert.equal(seen.length, 1);
+    assert.equal(seen[0].prNodeId, 'PR_node');
+    assert.equal(seen[0].headSha, 'abc');
+    assert.equal(probe.requiredRunEvidence.requiredRunFailed, true);
+    assert.equal(probe.requiredRunEvidence.requiredRunInFlight, false);
+
+    // Unavailable attribution → today's unscoped rule, never a verdict alone.
+    const fallback = await readPrWaitProbe({
+      prNumber: 12,
+      gh: { pr: { view: async () => view } },
+      readRequiredCheckNamesFn: async () => null,
+    });
+    assert.deepEqual(fallback.requiredRunEvidence, {
+      requiredRunFailed: true,
+      requiredRunInFlight: true,
+    });
+
+    // No gating red → no attribution read.
+    await readPrWaitProbe({
+      prNumber: 12,
+      gh: {
+        pr: {
+          view: async () => ({ ...view, mergeStateStatus: 'CLEAN' }),
+        },
+      },
+      readRequiredCheckNamesFn: async (args) => {
+        seen.push(args);
+        return new Set();
+      },
+    });
+    assert.equal(seen.length, 1);
+  });
+
   it('reads merge-queue membership only for a green open PR (Story #5395)', async () => {
     const view = (rollup) => ({
       pr: {

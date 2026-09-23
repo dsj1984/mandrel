@@ -1192,11 +1192,11 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/merge-block-class.js",
-      "mi": 100.311
+      "mi": 102.35
     },
     {
       "path": ".agents/scripts/lib/orchestration/merge-poll.js",
-      "mi": 102.319
+      "mi": 104.028
     },
     {
       "path": ".agents/scripts/lib/orchestration/merge-queue.js",
@@ -1333,6 +1333,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/remote-verifier.js",
       "mi": 87.938
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/required-checks.js",
+      "mi": 89.391
     },
     {
       "path": ".agents/scripts/lib/orchestration/resolve-stories.js",
