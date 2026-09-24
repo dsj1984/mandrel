@@ -15,6 +15,37 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.65.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.64.0...mandrel-v2.65.0) (2026-09-24)
+
+
+### ⚠ BREAKING CHANGES
+
+* consumers must run Claude Code >= 2.1.277, which loads a root AGENTS.md; `mandrel update` folds the root CLAUDE.md into AGENTS.md and deletes CLAUDE.md.
+
+### Added
+
+* add a low-effort model bug review to close and pin role-agent effort ([#5426](https://github.com/dsj1984/mandrel/issues/5426)) ([#5431](https://github.com/dsj1984/mandrel/issues/5431)) ([ec39643](https://github.com/dsj1984/mandrel/commit/ec3964390210e140ebaa324bbfe27b67fd470fa4))
+* **audit-quality:** add a property-based coverage dimension (refs [#5425](https://github.com/dsj1984/mandrel/issues/5425)) ([#5428](https://github.com/dsj1984/mandrel/issues/5428)) ([f78fd62](https://github.com/dsj1984/mandrel/commit/f78fd62edda9060580b1cbacaec1cc82875040d1))
+* cut consumers over to AGENTS.md: bootstrap wiring, CLAUDE.md fold migration, uninstall revert, Claude Code version doctor check ([#5410](https://github.com/dsj1984/mandrel/issues/5410)) ([#5411](https://github.com/dsj1984/mandrel/issues/5411)) ([df69d59](https://github.com/dsj1984/mandrel/commit/df69d59e7ced7342f321b8435ab50b317655f7f3))
+* make AGENTS.md mandrel's always-loaded entry doc: host-faithful closure resolver, delete CLAUDE.md, rewrite AGENTS.md ([#5409](https://github.com/dsj1984/mandrel/issues/5409)) ([#5413](https://github.com/dsj1984/mandrel/issues/5413)) ([929e5bb](https://github.com/dsj1984/mandrel/commit/929e5bb6834e1a25152163ac34a87d327034ce05))
+* trim legacy story-author scaffolding and drop two needless workflow stops ([#5427](https://github.com/dsj1984/mandrel/issues/5427)) ([#5429](https://github.com/dsj1984/mandrel/issues/5429)) ([7b39d36](https://github.com/dsj1984/mandrel/commit/7b39d3637b4911ad7122d6cbaef3c19c88704101))
+
+
+### Fixed
+
+* merge wait: fail fast on a red required check without waiting for unrelated jobs ([#5415](https://github.com/dsj1984/mandrel/issues/5415)) ([#5420](https://github.com/dsj1984/mandrel/issues/5420)) ([381d8ff](https://github.com/dsj1984/mandrel/commit/381d8ff4145ec3210d984936904368d51cde426a))
+
+
+### Performance
+
+* close: per-phase timing, faster merge observation, concurrent post-land GitHub steps ([#5417](https://github.com/dsj1984/mandrel/issues/5417)) ([#5423](https://github.com/dsj1984/mandrel/issues/5423)) ([2d3c537](https://github.com/dsj1984/mandrel/commit/2d3c5373402ad0e212951b70ca2880204da3a8f3))
+* epic rollup: stop reading every Epic's sub-issues when a Story has no native parent ([#5414](https://github.com/dsj1984/mandrel/issues/5414)) ([#5419](https://github.com/dsj1984/mandrel/issues/5419)) ([025c650](https://github.com/dsj1984/mandrel/commit/025c650409a757b47be9847a4584e5e45fdef8e8))
+
+
+### Changed
+
+* retire the Story-scope local-lens pass from close ([#5416](https://github.com/dsj1984/mandrel/issues/5416)) ([#5422](https://github.com/dsj1984/mandrel/issues/5422)) ([ecd86da](https://github.com/dsj1984/mandrel/commit/ecd86daa1a9d1ddff7f58e7f832e491a9c58cb68))
+
 ## [2.64.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.63.0...mandrel-v2.64.0) (2026-09-19)
 
 
