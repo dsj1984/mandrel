@@ -235,3 +235,33 @@ describe('/mandrel-deliver takes only Story ids (Story #4540)', () => {
     assert.match(md, /cycleError/);
   });
 });
+
+describe('multi-Story order and Slicing resume (Story #5427)', () => {
+  it('announces a multi-Story order and proceeds, while a bare invocation still asks', () => {
+    const md = readFileSync(DELIVER_MD, 'utf8');
+    assertDocMentions(
+      md,
+      /Present the resolved order and proceed — do not wait for confirmation/,
+      'step 2 must present the order and continue',
+    );
+    assertDocOmits(
+      md,
+      /Present the order; wait unless `--yes`/,
+      'the confirmation wait must be gone',
+    );
+    assertDocMentions(
+      md,
+      /List the open `agent::ready` Stories and ask which to deliver/,
+      'a bare invocation must still ask',
+    );
+  });
+
+  it('deliver-story Step 1 re-derives Slicing progress from git log after a context summary', () => {
+    const md = readFileSync(DELIVER_STORY_MD, 'utf8');
+    assertDocMentions(
+      md,
+      /After a context summary, re-derive progress from `git log` on `story-<id>` against the `## Slicing` rows/,
+      'Step 1 must name the post-summary re-derive',
+    );
+  });
+});

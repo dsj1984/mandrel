@@ -72,6 +72,9 @@ One branch, one PR to `main`, commits against the inline `acceptance[]` /
 1. Read the Story body; its acceptance criteria are the contract. Docs are
    digest-first; read a caller-provided `checklistPath` first, and walk any
    `## Slicing` rows as **intra-session checkpoints** (reference § Step 1).
+   After a context summary, re-derive progress from `git log` on
+   `story-<id>` against the `## Slicing` rows (each checkpoint is a commit
+   boundary) before continuing.
 2. Implement and commit on the Story branch, iterating with quick advisory
    gates (`typecheck`, `lint`, scoped tests) — the full chain runs in Step 3,
    and the **one** full-suite run at Step 2.5.
