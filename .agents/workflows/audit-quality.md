@@ -12,7 +12,8 @@ the Story under audit. The shared lens machinery lives in
 `{{auditOutputDir}}/audit-quality-results.md`. Each finding carries a
 **Category:** (`Flakiness | Coverage | Performance | Mocking | Test Plans`); the
 report adds a **Test Strategy Assessment** table (Unit / Integration / E2E /
-Test Plans: Healthy / Needs Work / Missing).
+Test Plans / Property-Based Testing: Healthy / Needs Work / Missing, or `N/A`
+for Property-Based Testing when no module is a candidate).
 
 ## Scope
 
@@ -130,6 +131,36 @@ Evaluate the gathered context against the following test quality dimensions:
    finding here. Route the *architectural* framing of the same defect to
    [`audit-architecture`](audit-architecture.md)'s Shipped-But-Never-Wired
    dimension; this lens owns the **missing-test** framing.
+8. **Property-Based Coverage — Invariants Tested Only by Examples.** Flag a
+   module whose correctness rests on an invariant but whose tests are all
+   hand-picked examples, which structurally cannot reach the inputs nobody
+   thought to pick. A module is a candidate **only** on code evidence: a
+   documented invariant or "never"/"always" claim in a header comment; an
+   explicit state machine or status/label transition table; an
+   encode/decode, parse/serialize or normalise pair (round-trip); a
+   merge/dedup/sort/scheduler function; bounded-concurrency or retry
+   coordination over async I/O; or an idempotency claim. A module with no
+   stated or implied invariant is **never** a finding. Rank candidates by
+   Step 0's churn × coverage gap and cite their `baselines/` coverage/CRAP row
+   where one exists.
+
+   - **Toolchain by ecosystem, never one library.** Detect an existing
+     property-testing library from the consumer's manifests (e.g.
+     `fast-check` for JS/TS, `hypothesis` for Python, `proptest`/`quickcheck`
+     for Rust, `jqwik` for the JVM, `rapid`/`gopter` for Go); recommend the
+     ecosystem-idiomatic one only when none is present.
+   - Severity: an async/concurrency coordinator, or a guard whose
+     invariant protects an irreversible write, tested only by examples →
+     **High**; any other invariant-bearing module with example-only tests →
+     **Medium**; toolchain absent with no High/Medium candidate → **one Low**
+     roll-up finding, not one per module.
+   - Category: file under `Coverage`. A property test whose seed is
+     neither pinned nor printed on failure goes under `Flakiness`: a red that
+     cannot be reproduced breaks the reproducibility the rubric demands.
+   - **Name the property.** Each finding states the invariant as a testable
+     property (e.g. `decode(encode(x)) === x`; "no transition leaves a
+     terminal state") plus its generator shape (the input domain to draw
+     from) — never a bare "add property tests".
 
 ## Constraint (lens-specific carve-out)
 
@@ -150,10 +181,14 @@ table:
 
 ## Test Strategy Assessment
 
-| Layer               | Status                           | Notes          |
-| ------------------- | -------------------------------- | -------------- |
-| Unit Testing        | [Healthy / Needs Work / Missing] | [Brief reason] |
-| Integration Testing | [Healthy / Needs Work / Missing] | [Brief reason] |
-| E2E Testing         | [Healthy / Needs Work / Missing] | [Brief reason] |
-| Test Plans          | [Healthy / Needs Work / Missing] | [Brief reason] |
+| Layer                  | Status                                 | Notes          |
+| ---------------------- | -------------------------------------- | -------------- |
+| Unit Testing           | [Healthy / Needs Work / Missing]       | [Brief reason] |
+| Integration Testing    | [Healthy / Needs Work / Missing]       | [Brief reason] |
+| E2E Testing            | [Healthy / Needs Work / Missing]       | [Brief reason] |
+| Test Plans             | [Healthy / Needs Work / Missing]       | [Brief reason] |
+| Property-Based Testing | [Healthy / Needs Work / Missing / N/A] | [Brief reason] |
 ```
+
+`Property-Based Testing` reads `N/A` when the repo has no candidate module
+(dimension 8), so a repo with no invariant-bearing code is not nagged.
