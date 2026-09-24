@@ -57,7 +57,7 @@ node .agents/scripts/check-context-budget.js
 node scripts/check-workflow-citations.js
 
 # The comment policy, the one check here that can fail the push: the
-# comment-byte ratio ceiling and the ticket-citation ban. It also runs in
-# `npm run lint`, which this hook does not run, so without this line a breach
-# first shows up in CI.
+# comment-byte ratio ceiling and the ticket-citation ban. It is also a lint
+# task, and this hook runs no lint, so without this line a breach would first
+# show up in CI.
 node scripts/check-comment-policy.js
