@@ -94,10 +94,10 @@ describe('/mandrel-plan critic workflow — the pre-mortem is operator-invoked, 
     assert.match(planSource, /only when the operator asks/);
   });
 
-  it('Gate #1 stops for the sharpened intent and HITL unknowns only, with the offers on one advisory line', () => {
+  it('Gate #1 stops only for a HITL unknown or a duplicate, with the offers on one advisory line (Story #5427)', () => {
     const interrogate = section('### 1\\. Interrogate');
     assert.match(interrogate, /\*\*Gate #1\*\*/);
-    assert.match(interrogate, /exactly two things/);
+    assert.match(interrogate, /STOP only when/);
     assert.match(interrogate, /sharpened plan intent/);
     assert.match(interrogate, /HITL unknown/);
     assert.match(interrogate, /\*\*one advisory line\*\*/);

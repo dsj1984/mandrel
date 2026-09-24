@@ -76,7 +76,8 @@ to an attended run.
    it cannot read — a missing gate would co-dispatch against an unlanded
    blocker.
 
-2. **Confirm (N>1).** Present the order; wait unless `--yes`.
+2. **Announce (N>1).** Present the resolved order and proceed — do not wait
+   for confirmation; the operator can interject mid-run to change it.
 
 3. **Run the beat.** One command per beat, repeated until the envelope reports
    the run `done`:
