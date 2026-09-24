@@ -100,19 +100,20 @@ not re-deriving which assumptions were really the agent's to make.
 
 ## Gate #1 → the one advisory line
 
-Gate #1 stops for exactly two things — the sharpened plan intent and any HITL
-unknown — and everything else the envelope surfaced collapses to **one
-advisory line** beneath it. Nothing on that line stops the run,
-reroutes it, or is invoked by `/mandrel-plan`; each item names something the
-operator may prefer to do instead, and the run proceeds either way. Under
+Gate #1 stops only when there is at least one HITL unknown or
+`duplicates[]` is non-empty; otherwise the run announces the sharpened plan
+intent plus the advisory line and continues to authoring. Everything else the
+envelope surfaced collapses to **one advisory line** beneath the gate.
+Nothing on that line reroutes the run or is invoked by `/mandrel-plan`; each
+item names something the operator may prefer to do instead. Under
 `--yes` the line is recorded and planning continues — an unattended run has
 nobody to take an offer.
 
 The line names, in order, whichever of these the envelope carries:
 
 - **`duplicates[]`** — open Stories the seed resembles (never Epics). Name
-  the top one or two by id and title; a plan that duplicates open work is
-  still the operator's call.
+  the top one or two by id and title. A plan that duplicates open work is
+  still the operator's call, so a non-empty list also stops Gate #1.
 - **Open `intake` rows** (`priorFeedback`) — CI-gap intake filings written by
   [`file-ci-gap.js`](../../scripts/file-ci-gap.js) when a delivery reached an
   Option-2 verdict in [`ci-remediation.md`](../../rules/ci-remediation.md).
