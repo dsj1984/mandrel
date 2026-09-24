@@ -35,7 +35,10 @@ when it also cites a ticket — deleting it loses the invariant.
 ## The ratchets
 
 [`scripts/check-comment-policy.js`](../../scripts/check-comment-policy.js)
-enforces two rules in CI (the `baselines` job):
+enforces two rules. It is a `scripts/run-lint.js` task, so the close `lint`
+gate, CI's required `lint` check and `npm run verify` all run it, and the
+`pre-push` hook runs it directly. A breach fails locally, naming the check,
+before it can reach CI:
 
 | Ratchet | Fails when |
 | --- | --- |

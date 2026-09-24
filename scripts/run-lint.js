@@ -116,6 +116,11 @@ const tasks = [
   // rather than in run-verify.js so it reaches CI through the same `lint`
   // required check as arch-cycles; listing it in both would double-pay it.
   nodeGate('gherkin-corpus', '.agents/scripts/check-gherkin-corpus.js'),
+  // Comment policy: the comment-byte ratio ceiling and the ban on ticket/PR
+  // citations in comments. Here so the close `lint` gate, CI's required
+  // `lint` check and `npm run verify` all hold it; a breach found only in
+  // CI costs a full push round-trip.
+  nodeGate('comment-policy', 'scripts/check-comment-policy.js'),
 ];
 
 function runTask({ name, cmd, args }) {

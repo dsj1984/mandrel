@@ -92,7 +92,6 @@ const STEPS = [
   gate('workflow-citations', 'scripts/check-workflow-citations.js'),
   gate('cyclomatic', '.agents/scripts/check-cyclomatic.js'),
   gate('schema-references', 'scripts/check-schema-references.js'),
-  gate('comment-policy', 'scripts/check-comment-policy.js'),
 ];
 
 export function runVerifySteps({
