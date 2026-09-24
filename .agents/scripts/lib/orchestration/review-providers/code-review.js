@@ -62,32 +62,19 @@ function buildPrompt(input, diff) {
 }
 
 /**
- * @param {string} baseRef
- * @param {string} headRef
- * @returns {{ status: number, stdout: string, stderr: string }}
- */
-function defaultReadDiff(baseRef, headRef) {
-  return gitSpawn(
-    PROJECT_ROOT,
-    'diff',
-    '--no-color',
-    `${baseRef}...${headRef}`,
-  );
-}
-
-/**
  * The prompt rides stdin so no shell ever quotes it.
  *
- * @param {readonly string[]} args
  * @param {string} prompt
+ * @param {Function} [run] - `spawnSync`-shaped seam for tests.
  * @returns {{ status: number, stdout: string, stderr: string }}
  */
-function defaultInvoke(args, prompt) {
-  return spawnCapture('claude', [...args], {
+function invokeClaude(prompt, run) {
+  return spawnCapture('claude', [...CLAUDE_ARGS], {
     cwd: PROJECT_ROOT,
     input: prompt,
     shell: process.platform === 'win32',
     timeout: INVOKE_TIMEOUT_MS,
+    ...(run ? { run } : {}),
   });
 }
 
@@ -154,10 +141,10 @@ function assertInput(input) {
 /**
  * @param {{
  *   probeFn?: () => boolean,
- *   readDiffFn?: typeof defaultReadDiff,
- *   invokeFn?: typeof defaultInvoke,
+ *   gitSpawnFn?: typeof gitSpawn,
+ *   spawnFn?: Function,
  *   logger?: { info?: Function, warn?: Function },
- * }} [deps]
+ * }} [deps] - `spawnFn` replaces `spawnSync` for the `claude` call.
  * @returns {ReviewProvider}
  */
 export function createCodeReviewProviderForRegistry(deps = {}) {
@@ -170,15 +157,19 @@ export function createCodeReviewProviderForRegistry(deps = {}) {
         'without it skip the model bug review.',
     );
   }
-  const readDiffFn = deps.readDiffFn ?? defaultReadDiff;
-  const invokeFn = deps.invokeFn ?? defaultInvoke;
-  const logger = deps.logger;
+  const gitSpawnFn = deps.gitSpawnFn ?? gitSpawn;
+  const { spawnFn, logger } = deps;
 
   return {
     async runReview(input) {
       assertInput(input);
       const { baseRef, headRef, ticketId } = input;
-      const diff = readDiffFn(baseRef, headRef);
+      const diff = gitSpawnFn(
+        PROJECT_ROOT,
+        'diff',
+        '--no-color',
+        `${baseRef}...${headRef}`,
+      );
       if (diff.status !== 0) {
         return [
           advisory(
@@ -192,7 +183,7 @@ export function createCodeReviewProviderForRegistry(deps = {}) {
       logger?.info?.(
         `[code-review] Invoking claude --print --effort low for Story #${ticketId} (${baseRef}...${headRef})...`,
       );
-      const result = invokeFn(CLAUDE_ARGS, buildPrompt(input, diff.stdout));
+      const result = invokeClaude(buildPrompt(input, diff.stdout), spawnFn);
       if (result.status !== 0) {
         logger?.warn?.(
           `[code-review] claude exited ${result.status}; emitting advisory.`,

@@ -101,12 +101,12 @@ function defaultChainRegistry({ cliPresent, order }) {
     'code-review': () =>
       createCodeReviewProviderForRegistry({
         probeFn: () => cliPresent,
-        readDiffFn: () => ({
+        gitSpawnFn: () => ({
           status: 0,
           stdout: 'diff --git a/x b/x\n',
           stderr: '',
         }),
-        invokeFn: () => {
+        spawnFn: () => {
           order.push('code-review');
           return { status: 0, stdout: '[]', stderr: '' };
         },

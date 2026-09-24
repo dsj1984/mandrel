@@ -1,8 +1,8 @@
 /**
  * Unit tests for `review-providers/code-review.js` — Story #5426.
  *
- * Every test injects the probe, diff-read and invoke seams: none spawns the
- * real `claude` binary.
+ * Every test injects the probe, git and `claude` spawn seams: none spawns
+ * the real `claude` binary.
  */
 
 import assert from 'node:assert/strict';
@@ -29,12 +29,12 @@ function harness(opts = {}) {
   const calls = [];
   const provider = createCodeReviewProviderForRegistry({
     probeFn: () => true,
-    readDiffFn: (baseRef, headRef) => {
-      calls.push({ kind: 'diff', baseRef, headRef });
+    gitSpawnFn: (cwd, ...args) => {
+      calls.push({ kind: 'diff', cwd, args });
       return opts.diff ?? { status: 0, stdout: DIFF, stderr: '' };
     },
-    invokeFn: (args, prompt) => {
-      calls.push({ kind: 'invoke', args: [...args], prompt });
+    spawnFn: (file, args, options) => {
+      calls.push({ kind: 'invoke', file, args: [...args], options });
       return {
         status: opts.status ?? 0,
         stdout: opts.stdout ?? '[]',
@@ -46,7 +46,8 @@ function harness(opts = {}) {
 }
 
 function invokeCall(calls) {
-  return calls.find((c) => c.kind === 'invoke');
+  const call = calls.find((c) => c.kind === 'invoke');
+  return call && { ...call, prompt: call.options.input };
 }
 
 function countSeverity(findings) {
@@ -66,7 +67,15 @@ test('invokes claude --print --effort low with the diff range and Story id', asy
   const { provider, calls } = harness();
   await provider.runReview(INPUT);
   const call = invokeCall(calls);
+  assert.equal(call.file, 'claude');
   assert.deepEqual(call.args, ['--print', '--effort', 'low']);
+  assert.ok(call.options.timeout > 0, 'bounded timeout');
+  const diffCall = calls.find((c) => c.kind === 'diff');
+  assert.deepEqual(diffCall.args, [
+    'diff',
+    '--no-color',
+    'origin/main...story-5426',
+  ]);
   assert.ok(!call.args.includes('--model'), 'no model pin');
   assert.match(call.prompt, /origin\/main\.\.\.story-5426/);
   assert.match(call.prompt, /Story #5426/);
@@ -191,4 +200,22 @@ test('runReview rejects a missing range or a bad ticket id', async () => {
     () => provider.runReview({ ...INPUT, ticketId: 0 }),
     TypeError,
   );
+});
+
+test('the logger hears the invocation and a failed run', async () => {
+  const lines = [];
+  const logger = {
+    info: (m) => lines.push(['info', m]),
+    warn: (m) => lines.push(['warn', m]),
+  };
+  const provider = createCodeReviewProviderForRegistry({
+    probeFn: () => true,
+    gitSpawnFn: () => ({ status: 0, stdout: DIFF, stderr: '' }),
+    spawnFn: () => ({ status: 2, stdout: '', stderr: '' }),
+    logger,
+  });
+  const findings = await provider.runReview(INPUT);
+  assert.match(findings[0].body, /<no output>/);
+  assert.ok(lines.some(([lvl, m]) => lvl === 'info' && /--effort low/.test(m)));
+  assert.ok(lines.some(([lvl, m]) => lvl === 'warn' && /exited 2/.test(m)));
 });
