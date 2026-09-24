@@ -156,3 +156,49 @@ path (`qa-run.md`, `loops/<name>.md`) matching the sync script's own keys.
 `tests/qa-run-rename.test.js`, `tests/qa-assist-rename.test.js`,
 `tests/run-bdd-suite-retired.test.js`,
 `tests/audit-suite/audit-fan-out-retirement.test.js`.
+
+---
+
+## `fast-check-config.js`
+
+The one source of run parameters for every
+[`fast-check`](https://fast-check.dev/) property in the suite.
+
+### Why it exists
+
+The repository does not rerun flaky tests — a red is root-caused. A property
+drawing a fresh random seed per run could go red once and green on the retry,
+so every property runs from a **pinned default seed** and a **bounded default
+run count**. A failure prints the seed, the replay path and the shrunk
+counterexample, which is everything needed to reproduce it.
+
+### API
+
+```js
+import fc from 'fast-check';
+import { fcParams } from '../helpers/fast-check-config.js';
+
+fc.assert(fc.property(arb, predicate), fcParams());
+```
+
+- `fcParams(overrides?)` → `{ seed, numRuns }`, with `overrides` merged last
+  (for extras such as `examples`). Never override `seed` in a test — that
+  defeats the env override below.
+- `resolveRunParameters(env?)` → the same pair resolved from an explicit env
+  object (defaults to `process.env`).
+- `DEFAULT_SEED`, `DEFAULT_NUM_RUNS` — the pinned defaults.
+
+### Env overrides
+
+```bash
+MANDREL_FC_SEED=1 MANDREL_FC_NUM_RUNS=500 node --test tests/wave-runner/ready-set.property.test.js
+```
+
+`MANDREL_FC_SEED` takes any safe integer; `MANDREL_FC_NUM_RUNS` any positive
+integer. A malformed value throws rather than silently falling back, so a
+request for 5000 runs never quietly runs 100.
+
+### Users
+
+`tests/lib/orchestration/epic-rollup.property.test.js`,
+`tests/wave-runner/ready-set.property.test.js`.

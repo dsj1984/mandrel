@@ -1451,6 +1451,17 @@ conventions to follow.
   floors enforced per-file: lines ≥ 90, branches ≥ 85, functions ≥ 90,
   MI ≥ 70, CRAP ≤ 20. See [`docs/quality-gates.md`](quality-gates.md) for the
   ratchet-plus-floor policy.
+- **Property / model-based tests:** `fast-check` (devDependency only — never
+  in the shipped `files` surface). `*.property.test.js` suites run under the
+  same `node --test` tiers; today they cover the Epic rollup
+  (`tests/lib/orchestration/epic-rollup.property.test.js` — fault-injected
+  command sequences plus an `fc.scheduler()` liveness property) and the
+  ready-set scheduler (`tests/wave-runner/ready-set.property.test.js` — an
+  `fc.commands` multi-beat model). Every property takes its run parameters
+  from `tests/helpers/fast-check-config.js`: a pinned default seed and a
+  bounded run count, so a red is always reproducible and never a flake.
+  `MANDREL_FC_SEED` / `MANDREL_FC_NUM_RUNS` override both for local
+  exploration without editing a test.
 
 ### Key Scripts
 
