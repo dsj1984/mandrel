@@ -55,9 +55,10 @@ Everything outside them is prose or a centralized constant.
    **Already mitigated:** every converted spawn falls back to
    `subagent_type: general-purpose`, documented as the escape for hosts that
    ignore `.claude/agents/`, and `roleScopedAgents: false` is a kill-switch.
-3. **`claude` CLI shell-outs (review providers)** — the `security-review`,
+3. **`claude` CLI shell-outs (review providers)** — the `code-review` (in
+   the default chain, `claude --print --effort low`), `security-review`,
    `codex`, and `ultrareview` providers spawn or probe the `claude` binary.
-   **Already mitigated, and the pattern to copy elsewhere:** all three sit
+   **Already mitigated, and the pattern to copy elsewhere:** all four sit
    behind `review-provider-factory.js` with `optional: true` skip semantics and
    injectable `invokeFn` / `probeFn` / `spawnFn` seams. The `native` provider is
    fully host-agnostic.

@@ -1,6 +1,6 @@
 {
   "$schema": "https://mandrel.dev/baselines/context-budget.schema.json",
-  "generatedAt": "2026-09-23T23:55:11.393Z",
+  "generatedAt": "2026-09-24T00:05:40.385Z",
   "toleranceBytes": 2048,
   "tiers": {
     "alwaysLoaded": {
@@ -29,11 +29,11 @@
       ]
     },
     "mandatoryRead": {
-      "totalBytes": 443336,
+      "totalBytes": 443579,
       "files": [
         {
           "path": "docs/architecture.md",
-          "bytes": 95005
+          "bytes": 95248
         },
         {
           "path": "docs/data-dictionary.md",
@@ -183,15 +183,15 @@
     "files": [
       {
         "path": ".agents/agents/acceptance-critic.md",
-        "bytes": 6738
+        "bytes": 6753
       },
       {
         "path": ".agents/agents/auditor.md",
-        "bytes": 7939
+        "bytes": 7954
       },
       {
         "path": ".agents/agents/plan-critic.md",
-        "bytes": 4853
+        "bytes": 4868
       },
       {
         "path": ".agents/agents/story-worker.md",

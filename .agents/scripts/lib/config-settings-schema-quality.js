@@ -4,6 +4,7 @@
 // live in `config/gates/`.
 
 import { GATES_SCHEMA } from './config/gates/index.js';
+import { DEFAULT_REVIEW_PROVIDERS } from './config/review-chain-default.js';
 import { DEFAULT_CODE_REVIEW } from './config/runners.js';
 
 const AUTO_REFRESH_SCHEMA = {
@@ -80,9 +81,15 @@ export const CODE_REVIEW_SCHEMA = {
         properties: {
           name: {
             type: 'string',
-            enum: ['native', 'codex', 'security-review', 'ultrareview'],
+            enum: [
+              'native',
+              'code-review',
+              'codex',
+              'security-review',
+              'ultrareview',
+            ],
             description:
-              'Registered provider key. Inline: native, codex, security-review. Manual-prompt: ultrareview.',
+              'Registered provider key. Inline: native, code-review, codex, security-review. Manual-prompt: ultrareview.',
           },
           scopes: {
             type: 'array',
@@ -125,17 +132,8 @@ export const CODE_REVIEW_SCHEMA = {
         additionalProperties: false,
       },
       description:
-        'Review-provider chain (Story #2871). When unset or empty, defaults to [{ name: "native" }]. The orchestrator iterates inline entries in declaration order and merges their Finding[] before posting one structured comment; manual-prompt entries (e.g. ultrareview) contribute a trailing \'Manual review suggestions\' section. Selecting an adapter whose probe fails hard-fails at factory construction unless declared `optional: true` in the chain.',
-      default: [
-        { name: 'native' },
-        { name: 'security-review', scopes: ['story'], optional: true },
-        {
-          name: 'ultrareview',
-          scopes: ['story'],
-          manualPrompt: true,
-          when: { label: 'risk::high' },
-        },
-      ],
+        "Review-provider chain (Story #2871). When unset or empty, falls back to this default: `native` (scoped lint + MI) then an optional story-scoped `code-review` — a low-effort `claude --print` bug review whose every finding is critical and halts close before auto-merge; hosts without the `claude` CLI skip it. `security-review` and `ultrareview` are opt-in. The orchestrator iterates inline entries in declaration order and merges their Finding[] before posting one structured comment; manual-prompt entries (e.g. ultrareview) contribute a trailing 'Manual review suggestions' section. Selecting an adapter whose probe fails hard-fails at factory construction unless declared `optional: true` in the chain.",
+      default: DEFAULT_REVIEW_PROVIDERS,
     },
     autoFixSeverity: {
       type: 'string',

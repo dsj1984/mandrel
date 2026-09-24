@@ -1011,6 +1011,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/config/review-chain-default.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 0
+    },
+    {
       "path": ".agents/scripts/lib/config/runners.js",
       "lines": 100,
       "branches": 100,
@@ -1588,8 +1594,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
-      "lines": 95.57,
-      "branches": 78.46,
+      "lines": 95.64,
+      "branches": 80,
       "functions": 100
     },
     {
@@ -2061,6 +2067,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
+      "lines": 100,
+      "branches": 82.93,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/review-providers/codex.js",
       "lines": 87.44,
       "branches": 75,
@@ -2116,7 +2128,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
-      "lines": 86.13,
+      "lines": 86.61,
       "branches": 64.52,
       "functions": 70
     },

@@ -655,6 +655,10 @@
       "mi": 88.089
     },
     {
+      "path": ".agents/scripts/lib/config/review-chain-default.js",
+      "mi": 111.71
+    },
+    {
       "path": ".agents/scripts/lib/config/runners.js",
       "mi": 111.489
     },
@@ -1353,6 +1357,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/review-depth.js",
       "mi": 96.376
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
+      "mi": 100.524
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/codex.js",

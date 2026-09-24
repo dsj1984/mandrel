@@ -210,3 +210,28 @@ test('runCodeReview: provider name in comment reflects chain shape when configur
   const [, , , body] = upsert.calls[0];
   assert.match(body, /chain\[native,ultrareview\]/);
 });
+
+test('runCodeReview: an unset chain is named after the entries the factory built (Story #5426)', async () => {
+  const entry = (name) => ({
+    name,
+    provider: { runReview: async () => [] },
+    gate: () => true,
+  });
+  const cases = [
+    [[entry('native'), entry('code-review')], /chain\[native,code-review\]/],
+    [[entry('native')], /Provider[^\n]*native/],
+  ];
+  for (const [inline, expected] of cases) {
+    const upsert = recordingUpsert();
+    await runCodeReview({
+      ticketId: 42,
+      headRef: 'story-42',
+      provider: {},
+      reviewProvider: createChainProvider({ inline, prompts: [] }),
+      resolveConfigFn: () => ({ project: { baseBranch: 'main' } }),
+      upsertCommentFn: upsert.fn,
+    });
+    const [, , , body] = upsert.calls[0];
+    assert.match(body, expected);
+  }
+});

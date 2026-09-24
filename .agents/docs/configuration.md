@@ -234,7 +234,7 @@ Everything `/mandrel-deliver` and `single-story-close` consume: worktree isolati
 | `mergeWatch.maxWaitSeconds` | No | `integer` | — | Per-invocation merge-wait bound (seconds). Default 300 (5 minutes) — chosen to fit inside a single host tool invocation (~10 min ceiling) alongside the close gates that precede the wait. Expiry yields `pending` (exit 3), never a block. Headless callers with no host ceiling raise this to land in one block. |
 | `mergeWatch.maxBudgetSeconds` | No | `integer` | `3600` | Cumulative wall-clock budget (seconds) across merge-wait resumes, anchored at the PR's createdAt. Default 3600 (60 minutes). Exhausting this classifies the block and transitions the Story to agent::blocked. |
 | `codeReview` | No | `object` | — | Review-provider chain and on-branch remediation threshold for the /mandrel-deliver code-review ceremony. |
-| `codeReview.providers[]` | No | `array<object>` | `[{"name":"native"},{"name":"security-review","scopes":["story"],"optional":true},{"name":"ultrareview","scopes":["story"],"manualPrompt":true,"when":{"label":"risk::high"}}]` | Review-provider chain (Story #2871). When unset or empty, defaults to [{ name: "native" }]. The orchestrator iterates inline entries in declaration order and merges their Finding[] before posting one structured comment; manual-prompt entries (e.g. ultrareview) contribute a trailing 'Manual review suggestions' section. Selecting an adapter whose probe fails hard-fails at factory construction unless declared `optional: true` in the chain. Each item has: name, scopes, optional, manualPrompt, when. |
+| `codeReview.providers[]` | No | `array<object>` | `[{"name":"native"},{"name":"code-review","scopes":["story"],"optional":true}]` | Review-provider chain (Story #2871). When unset or empty, falls back to this default: `native` (scoped lint + MI) then an optional story-scoped `code-review` — a low-effort `claude --print` bug review whose every finding is critical and halts close before auto-merge; hosts without the `claude` CLI skip it. `security-review` and `ultrareview` are opt-in. The orchestrator iterates inline entries in declaration order and merges their Finding[] before posting one structured comment; manual-prompt entries (e.g. ultrareview) contribute a trailing 'Manual review suggestions' section. Selecting an adapter whose probe fails hard-fails at factory construction unless declared `optional: true` in the chain. Each item has: name, scopes, optional, manualPrompt, when. |
 | `codeReview.autoFixSeverity` | No | `"high"` \| `"medium"` | `"medium"` | Severity threshold for on-branch remediation in /mandrel-deliver Phase 5 (code-review). `medium` (default) routes 🔴/🟠/🟡 findings into the host-LLM focused-fix routing (Mediums batched per lens: one commit per lens, a single validation + rescan at the end) while 🟢 suggestions still graduate to follow-up issues; `high` reproduces the pre-4399 Critical/High-only routing. Hard cutover — no back-compat flag. |
 | `refactorStage` | No | `object` | — | Opt-in, config-gated post-green refactor checkpoint wired into story-deliver (Story #3430, Epic #3418). Strictly additive and default-OFF: when disabled, story-deliver behaves exactly as before. Advisory only — never changes existing close-validation gate semantics. |
 | `refactorStage.enabled` | No | `boolean` | `false` | When true, story-deliver runs an advisory post-green refactor stage (core/code-review-and-quality skill, Post-Green Refactor Pass) after the suite is green. Default false — when unset the stage is skipped and close-validation gate semantics are unchanged. |
@@ -386,15 +386,16 @@ then skips `npm ci` and junctions/symlinks the donor's `node_modules`.
 
 #### `delivery.codeReview` — provider chain
 
-`providers[]` is iterated in declaration order (unset/empty →
-`[{ name: "native" }]`). Beyond the field list in the generated table: `scopes`
+`providers[]` is iterated in declaration order (unset/empty → `native` plus
+an optional story-scoped `code-review`, the low-effort `claude --print` bug
+review whose every finding is critical and halts close). Beyond the field list in the generated table: `scopes`
 defaults to both `story` and `epic`; `when` is a label predicate (`when.label`
 / `when.labelAny`) that silently skips the entry when false; `manualPrompt`
 entries contribute a one-line suggestion and do **not** affect severity counts
 or the `halted` gate. **Cross-runtime contract:** manual-prompt providers emit
 Markdown only and MUST NEVER throw under any host; inline providers that shell
-out to a host-specific binary (e.g. `security-review` →
-`claude --print /security-review`) SHOULD be declared `optional: true` so
+out to a host-specific binary (e.g. `code-review` / `security-review` →
+`claude --print`) SHOULD be declared `optional: true` so
 non-Claude consumers can pin the same `.agents/` version unmodified. The fix
 budget (`maxFixAttempts` / `maxFixScopeFiles`) uses the same values for every
 Story in a run — there is no per-Story override.
