@@ -72,6 +72,10 @@ commands** the script knows nothing about, so a locally green
 | `check-knip-entries.js` | no | no | **yes** |
 | `check-baseline-scope.js` | no | no | **no** |
 
+`check-comment-policy.js` left this table when it moved out of the
+`baselines` job into `npm run lint` (and the `pre-push` hook), so a
+comment-ratio breach now fails at close instead of first in CI.
+
 One is still in **no** local aggregate command — `check-baseline-scope.js`,
 reachable only as its own npm script (`baselines:scope`) or a direct
 invocation. `check-workflow-citations.js` joined `verify` when Story #5340

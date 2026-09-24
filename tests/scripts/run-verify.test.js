@@ -58,7 +58,6 @@ test('runVerifySteps runs audit, lint, test, baselines, then the ratchets in ord
     ['node', 'scripts/check-workflow-citations.js'],
     ['node', '.agents/scripts/check-cyclomatic.js'],
     ['node', 'scripts/check-schema-references.js'],
-    ['node', 'scripts/check-comment-policy.js'],
   ]);
 });
 
