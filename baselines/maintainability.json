@@ -2323,30 +2323,6 @@
       "mi": 114.93
     },
     {
-      "path": "scripts/lib/baselines/drift-detector.js",
-      "mi": 91.641
-    },
-    {
-      "path": "scripts/lib/baselines/orphan-pruner.js",
-      "mi": 98.873
-    },
-    {
-      "path": "scripts/lib/baselines/scope-assert.js",
-      "mi": 102.204
-    },
-    {
-      "path": "scripts/lib/baselines/scope-inventory.js",
-      "mi": 91.309
-    },
-    {
-      "path": "scripts/lib/c8-cli-path.js",
-      "mi": 122.902
-    },
-    {
-      "path": "scripts/lib/comment-policy.js",
-      "mi": 99.175
-    },
-    {
       "path": "scripts/lib/audit-report-contracts/architecture-report-contract.js",
       "mi": 120.402
     },
@@ -2373,6 +2349,30 @@
     {
       "path": "scripts/lib/audit-report-contracts/security-report-contract.js",
       "mi": 116.629
+    },
+    {
+      "path": "scripts/lib/baselines/drift-detector.js",
+      "mi": 91.641
+    },
+    {
+      "path": "scripts/lib/baselines/orphan-pruner.js",
+      "mi": 98.873
+    },
+    {
+      "path": "scripts/lib/baselines/scope-assert.js",
+      "mi": 102.204
+    },
+    {
+      "path": "scripts/lib/baselines/scope-inventory.js",
+      "mi": 91.309
+    },
+    {
+      "path": "scripts/lib/c8-cli-path.js",
+      "mi": 122.902
+    },
+    {
+      "path": "scripts/lib/comment-policy.js",
+      "mi": 99.175
     },
     {
       "path": "scripts/lib/fs-walk.js",

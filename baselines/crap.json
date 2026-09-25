@@ -33485,6 +33485,61 @@
       "crap": 6
     },
     {
+      "path": "scripts/lib/audit-report-contracts/architecture-report-contract.js",
+      "method": "assertReportContract",
+      "startLine": 65,
+      "crap": 1
+    },
+    {
+      "path": "scripts/lib/audit-report-contracts/clean-code-report-contract.js",
+      "method": "assertReportContract",
+      "startLine": 75,
+      "crap": 1
+    },
+    {
+      "path": "scripts/lib/audit-report-contracts/documentation-report-contract.js",
+      "method": "assertReportContract",
+      "startLine": 82,
+      "crap": 1
+    },
+    {
+      "path": "scripts/lib/audit-report-contracts/performance-report-contract.js",
+      "method": "assertReportContract",
+      "startLine": 69,
+      "crap": 1
+    },
+    {
+      "path": "scripts/lib/audit-report-contracts/quality-report-contract.js",
+      "method": "assertReportContract",
+      "startLine": 85,
+      "crap": 1
+    },
+    {
+      "path": "scripts/lib/audit-report-contracts/report-contract-core.js",
+      "method": "assertSectionsContract",
+      "startLine": 23,
+      "crap": 3
+    },
+    {
+      "path": "scripts/lib/audit-report-contracts/report-contract-core.js",
+      "method": "<anon assertSectionsContract/(heading)#0>",
+      "startLine": 30,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/audit-report-contracts/report-contract-core.js",
+      "method": "escapeRegExp",
+      "startLine": 41,
+      "crap": 1
+    },
+    {
+      "path": "scripts/lib/audit-report-contracts/security-report-contract.js",
+      "method": "assertReportContract",
+      "startLine": 78,
+      "crap": 1
+    },
+    {
       "path": "scripts/lib/baselines/drift-detector.js",
       "method": "<anon (row)#0>",
       "startLine": 57,
@@ -33899,61 +33954,6 @@
       "method": "typeTags",
       "startLine": 404,
       "crap": 4
-    },
-    {
-      "path": "scripts/lib/audit-report-contracts/architecture-report-contract.js",
-      "method": "assertReportContract",
-      "startLine": 65,
-      "crap": 1
-    },
-    {
-      "path": "scripts/lib/audit-report-contracts/clean-code-report-contract.js",
-      "method": "assertReportContract",
-      "startLine": 75,
-      "crap": 1
-    },
-    {
-      "path": "scripts/lib/audit-report-contracts/documentation-report-contract.js",
-      "method": "assertReportContract",
-      "startLine": 82,
-      "crap": 1
-    },
-    {
-      "path": "scripts/lib/audit-report-contracts/performance-report-contract.js",
-      "method": "assertReportContract",
-      "startLine": 69,
-      "crap": 1
-    },
-    {
-      "path": "scripts/lib/audit-report-contracts/quality-report-contract.js",
-      "method": "assertReportContract",
-      "startLine": 85,
-      "crap": 1
-    },
-    {
-      "path": "scripts/lib/audit-report-contracts/report-contract-core.js",
-      "method": "assertSectionsContract",
-      "startLine": 23,
-      "crap": 3
-    },
-    {
-      "path": "scripts/lib/audit-report-contracts/report-contract-core.js",
-      "method": "<anon assertSectionsContract/(heading)#0>",
-      "startLine": 30,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "scripts/lib/audit-report-contracts/report-contract-core.js",
-      "method": "escapeRegExp",
-      "startLine": 41,
-      "crap": 1
-    },
-    {
-      "path": "scripts/lib/audit-report-contracts/security-report-contract.js",
-      "method": "assertReportContract",
-      "startLine": 78,
-      "crap": 1
     },
     {
       "path": "scripts/lib/fs-walk.js",

@@ -3477,42 +3477,6 @@
       "functions": 100
     },
     {
-      "path": "scripts/lib/baselines/drift-detector.js",
-      "lines": 93.16,
-      "branches": 87.5,
-      "functions": 84.62
-    },
-    {
-      "path": "scripts/lib/baselines/orphan-pruner.js",
-      "lines": 100,
-      "branches": 91.89,
-      "functions": 100
-    },
-    {
-      "path": "scripts/lib/baselines/scope-assert.js",
-      "lines": 100,
-      "branches": 93.62,
-      "functions": 100
-    },
-    {
-      "path": "scripts/lib/baselines/scope-inventory.js",
-      "lines": 100,
-      "branches": 89.36,
-      "functions": 100
-    },
-    {
-      "path": "scripts/lib/c8-cli-path.js",
-      "lines": 100,
-      "branches": 100,
-      "functions": 0
-    },
-    {
-      "path": "scripts/lib/comment-policy.js",
-      "lines": 99.28,
-      "branches": 91.94,
-      "functions": 100
-    },
-    {
       "path": "scripts/lib/audit-report-contracts/architecture-report-contract.js",
       "lines": 100,
       "branches": 100,
@@ -3552,6 +3516,42 @@
       "path": "scripts/lib/audit-report-contracts/security-report-contract.js",
       "lines": 100,
       "branches": 100,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/baselines/drift-detector.js",
+      "lines": 93.16,
+      "branches": 87.5,
+      "functions": 84.62
+    },
+    {
+      "path": "scripts/lib/baselines/orphan-pruner.js",
+      "lines": 100,
+      "branches": 91.89,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/baselines/scope-assert.js",
+      "lines": 100,
+      "branches": 93.62,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/baselines/scope-inventory.js",
+      "lines": 100,
+      "branches": 89.36,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/c8-cli-path.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 0
+    },
+    {
+      "path": "scripts/lib/comment-policy.js",
+      "lines": 99.28,
+      "branches": 91.94,
       "functions": 100
     },
     {
