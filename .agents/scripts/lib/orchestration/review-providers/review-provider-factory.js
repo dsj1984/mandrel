@@ -196,6 +196,16 @@ export function buildProviderChain(entries, ctx) {
 }
 
 /**
+ * @param {Record<string, number>} tally
+ * @param {string} name
+ * @param {Finding[]} findings
+ */
+function recordCritical(tally, name, findings) {
+  const critical = findings.filter((f) => f?.severity === 'critical').length;
+  if (critical > 0) tally[name] = critical;
+}
+
+/**
  * Inline findings merge in declaration order; prompt entries render via
  * `getPromptMessages`.
  *
@@ -242,13 +252,7 @@ export function createChainProvider(chain, opts = {}) {
           );
         }
         for (const f of findings) merged.push(f);
-        const critical = findings.filter(
-          (f) => f?.severity === 'critical',
-        ).length;
-        if (critical > 0) {
-          criticalByProvider[entry.name] =
-            (criticalByProvider[entry.name] ?? 0) + critical;
-        }
+        recordCritical(criticalByProvider, entry.name, findings);
       }
       return merged;
     },
