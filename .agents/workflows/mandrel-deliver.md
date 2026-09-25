@@ -144,7 +144,7 @@ resume what it names.
 
 **Reading the outcome.** Each close ends the Story in one schema-validated
 envelope — `landed` | `pending` | `blocked` | `failed`; statuses, exits and
-fields are digest § 5. `pending` is **not** a failure — run its `nextCommand`.
+fields are digest § 6. `pending` is **not** a failure — run its `nextCommand`.
 
 **Branch model (authoritative).** `story-<id>` → PR → `main` (squash +
 required checks), per digest § 2; dependent Stories land sequentially. The

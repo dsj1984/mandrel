@@ -32,8 +32,8 @@ per-criterion, mid-delivery, and evaluates the actual work product.
    authors the Story's verdict, and it covers **every** `acceptance[]` item in
    one file. Which pass is named by the ceremony decision
    (`verdictOwner: 'fresh-critic' | 'inline-self-eval'` from
-   `resolveCeremonyForRisk`), and since Story #5343 that follows the
-   **ceremony profile alone**:
+   `resolveCeremonyForRisk`), which follows the **ceremony profile
+   alone**:
 
    > ```bash
    > node <main-repo>/.agents/scripts/ceremony-derive.js --story <storyId> --cwd <workCwd>
@@ -43,9 +43,8 @@ per-criterion, mid-delivery, and evaluates the actual work product.
    > classes **for review depth**, and resolves the owner (`mode`, `reason`,
    > `verdictOwner`): **`minimal` / `standard` → `inline`** (the default — you
    > author the verdict yourself), **`strict` → `fresh`** (dispatch the
-   > maker-blind critic). The derived level no longer routes this decision;
-   > it escalates `review-depth.js` instead, which still resolves `deep` for
-   > any sensitive path.
+   > maker-blind critic). The derived level feeds `review-depth.js`, not
+   > this decision; review depth resolves `deep` for any sensitive path.
 
    **Never run both**, and never run a preliminary self-assessment before
    dispatching a fresh critic — the redundant pre-pass buys no measurable
@@ -72,9 +71,10 @@ per-criterion, mid-delivery, and evaluates the actual work product.
    > system prompt, no entry-doc @-closure) carrying the maker-blind
    > invariant and the verdict schema standalone. With the kill-switch off
    > (`roleScopedAgents: false`), fall back to
-   > `subagent_type: general-purpose`. This loop already runs inside a Story
-   > delivery sub-agent, so the critic sits at nesting depth 2 — supported by
-   > any harness that carries `Agent` into sub-agents (Claude Code ≥ 2.1.202).
+   > `subagent_type: general-purpose`. Under sub-agent dispatch this loop
+   > runs inside a `story-worker`, so the critic sits at nesting depth 2
+   > (depth 1 inline) — supported by any harness that carries `Agent` into
+   > sub-agents (Claude Code ≥ 2.1.202).
 
    Whichever pass owns it, the verdict:
    + Inspects the **change set it was handed** — the one `files` list above —

@@ -137,9 +137,9 @@ run — a blind fix to a suite nobody exercised is how the gap compounds.
 
 `capacity` and `unreproducible-tier` name failures that are proven properties
 of the **environment**: no commit on the branch can move the head SHA to clear
-them, so the no-rerun rule used to strand a correct delivery until a human
-cleared it by hand. Those two verdicts — and only those two — now buy exactly
-one rerun:
+them, so without an allowance the no-rerun rule would strand a correct
+delivery until a human cleared it by hand. Those two verdicts — and only those
+two — buy exactly one rerun:
 
 1. Reach the verdict with its required readings (§ above). A green on re-run is
    never one of those readings.
