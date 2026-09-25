@@ -658,7 +658,8 @@ async function executeFollowUpRollup({
     graduateFn,
   });
   const categories = summarizeSignalCategories(signals);
-  const telemetry = await gatherRunTelemetrySafely(stories, config);
+  // Step result only, never the roll-up comment: telemetry stays local.
+  const telemetry = await gatherRunTelemetry(stories, config);
   const proposalCount = proposals.framework.length + proposals.consumer.length;
   const outcome = assessRollupOutcome({
     signalCount: signals.length,
@@ -691,25 +692,6 @@ async function executeFollowUpRollup({
     frictionWindow,
     telemetry,
   });
-}
-
-/**
- * On the step result only, never the roll-up comment: telemetry stays local.
- * A read failure is a missing metric (`null`), never a failed step.
- *
- * @param {Array<string|number>} stories
- * @param {object} [config]
- * @returns {Promise<object|null>}
- */
-async function gatherRunTelemetrySafely(stories, config) {
-  try {
-    return await gatherRunTelemetry(stories, config);
-  } catch (err) {
-    Logger.warn(
-      `[run-epilogue] run telemetry unavailable: ${err?.message ?? err}`,
-    );
-    return null;
-  }
 }
 
 /**

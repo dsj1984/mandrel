@@ -215,7 +215,7 @@ export async function runStoryScopeReview({
   return {
     halted: !!result.halted,
     severity: sev,
-    criticalByProvider: result.criticalByProvider ?? {},
+    criticalByProvider: result.criticalByProvider,
     posted: result.posted,
     postedCommentId: result.postedCommentId ?? null,
     ...degradationEnvelope(result.degradations),
