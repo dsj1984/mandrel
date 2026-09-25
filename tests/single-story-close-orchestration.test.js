@@ -33,6 +33,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { BASELINES_GATE_NAMES as REAL_BASELINES_GATE_NAMES } from '../.agents/scripts/lib/close-validation/gates.js';
+import { forEachLine } from '../.agents/scripts/lib/observability/signals-writer.js';
 import { ensurePullRequestWith } from '../.agents/scripts/lib/orchestration/single-story-close/phases/pull-request.js';
 import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 
@@ -1657,6 +1658,72 @@ describe('runSingleStoryClose — lease release on recoverable-blocked exits (St
       [4257],
       'lease must be released exactly once on the review-critical exit',
     );
+  });
+
+  /**
+   * Story #5435 AC-2 — the halt is attributed to the review provider(s) that
+   * raised the critical findings, on the Story's own signal stream.
+   */
+  it('emits review-blocked friction naming each contributing provider on a halt', async (t) => {
+    const gh = makeFakeGh((args) => {
+      if (args[1] === 'list') return [];
+      if (args[1] === 'create') {
+        return 'https://github.com/owner/repo/pull/5435\n';
+      }
+      throw new Error('gh merge must not run when review halts');
+    });
+    t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
+    mockCloseValidation(t, defaultCloseValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
+
+    const config = fakeConfig();
+    const { runSingleStoryClose } = await import(`${SUT_URL}?t=review-attr`);
+    await assert.rejects(
+      () =>
+        runSingleStoryClose({
+          storyId: 5435,
+          cwd: '/repo',
+          skipValidation: true,
+          skipSync: true,
+          noWaitForMerge: true,
+          injectedProvider: makeFakeProvider({
+            initialStory: {
+              id: 5435,
+              state: 'open',
+              title: 'review halt attribution',
+              labels: ['agent::executing'],
+            },
+          }),
+          injectedConfig: config,
+          injectedGh: gh,
+          injectedRunCodeReview: async () => ({
+            status: 'ok',
+            severity: { critical: 3, high: 0, medium: 0, suggestion: 0 },
+            criticalByProvider: { 'code-review': 2, native: 1 },
+            posted: true,
+            postedCommentId: 'c-1',
+            commentTargetId: 5435,
+            halted: true,
+            blockerReason: 'critical blockers',
+          }),
+          injectedReleaseLease: async () => ({
+            released: true,
+            owner: 'alice',
+            reason: 'released',
+          }),
+        }),
+      /Story-scope review reported 3 critical blocker/,
+    );
+
+    const rows = [];
+    await forEachLine(null, 5435, (parsed) => rows.push(parsed), config);
+    const halts = rows.filter((r) => r.category === 'review-blocked');
+    assert.equal(halts.length, 1);
+    assert.deepEqual(halts[0].details.criticalByProvider, {
+      'code-review': 2,
+      native: 1,
+    });
+    assert.equal(halts[0].details.criticalCount, 3);
   });
 
   /**

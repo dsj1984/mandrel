@@ -10,6 +10,7 @@ import { selectAudits } from '../audit-suite/index.js';
 import { graduateRetroProposals } from '../feedback-loop/retro-proposals-graduator.js';
 import { gitSpawn } from '../git-utils.js';
 import { Logger } from '../Logger.js';
+import { gatherRunTelemetry } from '../observability/close-telemetry.js';
 import { isEpicTicket } from './epic-container.js';
 import { composeRoutedProposals } from './retro-proposals.js';
 import {
@@ -657,6 +658,7 @@ async function executeFollowUpRollup({
     graduateFn,
   });
   const categories = summarizeSignalCategories(signals);
+  const telemetry = await gatherRunTelemetrySafely(stories, config);
   const proposalCount = proposals.framework.length + proposals.consumer.length;
   const outcome = assessRollupOutcome({
     signalCount: signals.length,
@@ -687,7 +689,29 @@ async function executeFollowUpRollup({
     categories,
     outcome,
     frictionWindow,
+    telemetry,
   });
+}
+
+/**
+ * Run-level retry causes, acceptance rounds, and per-provider review halts /
+ * overrides over the run's own Stories. Reported on the step result only —
+ * never on the roll-up comment (ADR 20260828-5077c keeps telemetry local).
+ * A read failure is a missing metric (`null`), never a failed step.
+ *
+ * @param {Array<string|number>} stories
+ * @param {object} [config]
+ * @returns {Promise<object|null>}
+ */
+async function gatherRunTelemetrySafely(stories, config) {
+  try {
+    return await gatherRunTelemetry(stories, config);
+  } catch (err) {
+    Logger.warn(
+      `[run-epilogue] run telemetry unavailable: ${err?.message ?? err}`,
+    );
+    return null;
+  }
 }
 
 /**
@@ -743,6 +767,7 @@ function buildRollupStepResult({
   categories,
   outcome,
   frictionWindow,
+  telemetry = null,
 }) {
   return {
     kind: 'follow-up-rollup',
@@ -766,6 +791,7 @@ function buildRollupStepResult({
       fingerprint: item.fingerprint ?? null,
     })),
     emptyRollupSuspect: signals.length === 0 && storyCount > 1,
+    telemetry,
   };
 }
 

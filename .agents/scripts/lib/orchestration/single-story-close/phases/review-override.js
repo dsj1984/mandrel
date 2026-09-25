@@ -65,6 +65,7 @@ async function postAuditRecord({ post, surface }) {
  *   prUrl: string,
  *   prNumber: number|null,
  *   criticalCount: number,
+ *   criticalByProvider?: Record<string, number>,
  *   reason: string,
  *   config?: object,
  *   emitFrictionFn?: typeof emitRuntimeFriction,
@@ -77,6 +78,7 @@ export async function handleOverriddenReviewBlock({
   prUrl,
   prNumber,
   criticalCount,
+  criticalByProvider = {},
   reason,
   config,
   emitFrictionFn = emitRuntimeFriction,
@@ -104,6 +106,8 @@ export async function handleOverriddenReviewBlock({
     details: {
       prUrl,
       criticalCount,
+      // The false-positive proxy: attributed like the halt it rejected.
+      criticalByProvider,
       reason: reason.slice(0, REASON_SIGNAL_LIMIT),
     },
     config,

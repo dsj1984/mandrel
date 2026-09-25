@@ -114,8 +114,13 @@ Do not open the PR or compose a terminal envelope.
 serialized against sibling Stories:
 
 ```bash
-node <main-repo>/.agents/scripts/single-story-close.js --story <storyId> --cwd <main-repo>
+node <main-repo>/.agents/scripts/single-story-close.js --story <storyId> --cwd <main-repo> \
+  [--worker-tokens <n>]
 ```
+
+When the host reported a total-token figure for the story-worker's Agent
+dispatch, pass it as `--worker-tokens <n>` — close records it in its
+result's local `telemetry`; omit it when the host reports none.
 
 **The whole delivery tail** — gates, PR, merge wait, `agent::done` flip,
 post-land tail in one process. Never background it, never delegate it to a

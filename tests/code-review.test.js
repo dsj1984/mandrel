@@ -186,6 +186,7 @@ test('runCodeReview: output envelope keys are byte-compatible across depths', as
     'postedCommentId',
     'commentTargetId',
     'halted',
+    'criticalByProvider',
     'degraded',
     'degradations',
     'blockerReason',
