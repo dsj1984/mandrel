@@ -32,7 +32,6 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..');
 /** The files that make up the always-on @-closure a session boots on. */
 const CLOSURE_FILES = [
   'AGENTS.md',
-  '.agentrc.json',
   '.agents/instructions.md',
   '.agents/rules/security-baseline.md',
   '.agents/rules/git-conventions.md',

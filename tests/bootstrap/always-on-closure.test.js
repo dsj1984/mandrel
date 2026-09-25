@@ -33,10 +33,11 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..');
  * AC-1: the whole always-loaded closure must fit under this ceiling.
  *
  * Story #4821 widened what this charges. The previous regex matched only
- * `@.agents/**.md`, so `AGENTS.md` and `.agentrc.json` — both @-imported by
- * the entry doc and both re-paid on every spawn — were invisible to the ratchet
- * and could grow for free. The ceiling rose to cover them; it is NOT slack
- * for the files that were already charged.
+ * `@.agents/**.md`, so `AGENTS.md` and `.agentrc.json` — then both re-paid on
+ * every spawn — were invisible to the ratchet and could grow for free. The
+ * ceiling rose to cover them; it is NOT slack for the files that were already
+ * charged. Story #5437 then dropped the `.agentrc.json` import: gate config
+ * is read on demand, never resent every turn.
  */
 const CLOSURE_BUDGET_BYTES = 21 * 1024;
 
@@ -61,7 +62,6 @@ describe('always-on closure budget (Story #4708, AC-1; widened by #4821)', () =>
       '.agents/rules/security-baseline.md',
       '.agents/rules/git-conventions.md',
       'AGENTS.md',
-      '.agentrc.json',
     ]) {
       assert.ok(
         files.includes(required),
@@ -69,6 +69,14 @@ describe('always-on closure budget (Story #4708, AC-1; widened by #4821)', () =>
           'it would be re-paid every spawn while growing for free',
       );
     }
+  });
+
+  it('does not resend .agentrc.json every turn (Story #5437)', () => {
+    const files = alwaysOnClosureEntries().map((e) => e.path);
+    assert.ok(
+      !files.includes('.agentrc.json'),
+      '.agentrc.json must be read on demand, not @-imported into the always-on closure',
+    );
   });
 
   it('resolves from AGENTS.md alone — this repo carries no CLAUDE.md', () => {
@@ -80,7 +88,6 @@ describe('always-on closure budget (Story #4708, AC-1; widened by #4821)', () =>
     assert.deepEqual(
       [...files].sort(),
       [
-        '.agentrc.json',
         '.agents/instructions.md',
         '.agents/rules/git-conventions.md',
         '.agents/rules/security-baseline.md',

@@ -72,11 +72,12 @@ and schema mechanics are in [§ Friction telemetry](#friction-telemetry) above.
 ## FinOps & token budgeting (economic guardrails)
 
 Mandrel does **not** enforce live LLM spend from response metadata. It bounds
-two things, both **fixed framework constants** rather than operator knobs, and
-both **fail closed**: the assembled `/mandrel-plan` context envelope, and plan-time
-Story sizing. Your host runtime (editor / CLI) owns session quota and hard
-stops. Consult this section when reasoning about why `/mandrel-plan` refused an
-over-ceiling envelope or an over-budget Story count.
+one thing, a **fixed framework constant** rather than an operator knob that
+**fails closed**: the assembled `/mandrel-plan` context envelope. Plan-time
+Story sizing is not bounded (retired by Story #5312). Your host runtime
+(editor / CLI) owns session quota and hard stops. Consult this section when
+reasoning about why `/mandrel-plan` refused an over-ceiling envelope, or when
+choosing the session effort and model for a command.
 
 > **There is no configurable context budget.** `planning.context.maxBytes` /
 > `summaryMode` were removed outright in Story #4541, along with the
@@ -126,3 +127,24 @@ over-ceiling envelope or an over-budget Story count.
   nothing at plan time scores its authored mass.
 - **Host runtime**: session billing, quota exhaustion, and operator overrides
   are enforced by your provider (e.g. Claude Code), not by Mandrel scripts.
+
+### Session effort and model
+
+Effort is the operator's dial, set once per session. Pick it deliberately up
+front, because changing effort mid-session invalidates the prompt cache for
+everything that follows.
+
+- **Recommended session effort.** `medium` for `/mandrel-deliver`: Stories
+  are well-scoped by construction, so delivery rarely needs more. `high` for
+  `/mandrel-plan`: a Spec defect costs a redraft or a blocked Story
+  downstream, which is dearer than the planning turn.
+- **Role agents.** `story-worker` declares no effort and inherits the
+  session's (Story #5426). The evaluator roles (`acceptance-critic`,
+  `plan-critic`, `auditor`) pin `medium`.
+- **Where pins live.** Effort and model pins belong only on role agents under
+  `.agents/agents/`, never in workflow or command frontmatter: a command that
+  pinned its own effort would change effort mid-session and break the prompt
+  cache.
+- **Escalation is an operator step.** The Agent tool takes no per-call
+  effort, so no workflow can escalate on its own. Before resuming a blocked
+  Story, raise session effort one step; raise effort before switching models.

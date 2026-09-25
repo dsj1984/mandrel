@@ -12,8 +12,8 @@ effort: medium
 
 <!--
   Shared common core — byte-identical across every `.agents/agents/*.md` role
-  context, ordered FIRST so all role boots share one prompt-cache prefix
-  (prompt-cache is keyed on the exact byte prefix; the role delta comes last).
+  context, ordered FIRST so every role binds the same baseline rules (the
+  roles pin different effort levels and share no cache prefix; delta last).
   Edit it in every role file at once —
   tests/bootstrap/agent-shared-prefix.test.js fails on any divergence.
   security-baseline stays inviolable and single-sourced — @-import it, never
