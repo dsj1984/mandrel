@@ -2266,6 +2266,18 @@
     {
       "file": "scripts/lib/test-isolate/runner.js",
       "symbol": "bisectFlipper"
+    },
+    {
+      "file": ".agents/scripts/lib/observability/close-telemetry.js",
+      "symbol": "emitReviewBlockedFriction"
+    },
+    {
+      "file": ".agents/scripts/lib/observability/close-telemetry.js",
+      "symbol": "recordCloseTelemetry"
+    },
+    {
+      "file": ".agents/scripts/lib/observability/close-telemetry.js",
+      "symbol": "resolveWorkerTokens"
     }
   ]
 }

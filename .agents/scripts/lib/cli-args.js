@@ -134,6 +134,30 @@ function tolerantOverrideReviewBlock(value) {
 }
 
 /**
+ * Best-effort: absent or junk is `null` plus a warning, never a throw.
+ *
+ * @param {unknown} value
+ * @returns {{ tokens: number|null, warning: string|null }}
+ */
+export function parseWorkerTokens(value) {
+  if (value == null) {
+    return {
+      tokens: null,
+      warning:
+        '--worker-tokens not supplied; telemetry.workerTokens records null.',
+    };
+  }
+  const raw = String(value).trim();
+  if (/^\d+$/.test(raw) && Number.isSafeInteger(Number(raw))) {
+    return { tokens: Number(raw), warning: null };
+  }
+  return {
+    tokens: null,
+    warning: `--worker-tokens must be a non-negative integer (got ${JSON.stringify(value)}); telemetry.workerTokens records null.`,
+  };
+}
+
+/**
  * Throws when a validating flag parser rejects a value; error handlers use
  * {@link parseSprintArgsTolerant} instead of re-calling this.
  *
@@ -164,6 +188,7 @@ export function parseSprintArgs(
       'merge-watch-mode': { type: 'string' },
       'rerun-advisory': { type: 'string' },
       'override-review-block': { type: 'string' },
+      'worker-tokens': { type: 'string' },
       executor: { type: 'string' },
       cwd: { type: 'string' },
       'recut-of': { type: 'string' },
@@ -194,6 +219,7 @@ export function parseSprintArgs(
     overrideReviewBlock: tolerant
       ? tolerantOverrideReviewBlock(values['override-review-block'])
       : parseOverrideReviewBlock(values['override-review-block']),
+    workerTokens: values['worker-tokens'],
     executor: values.executor ?? null,
     cwd:
       (typeof values.cwd === 'string' && values.cwd.trim()) ||

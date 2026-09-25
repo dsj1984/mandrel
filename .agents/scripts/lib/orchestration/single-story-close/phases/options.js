@@ -26,6 +26,17 @@ function resolveFlag(paramValue, parsedValue) {
 }
 
 /**
+ * A boolean flag: param beats parsed arg, absent reads as `false`.
+ *
+ * @param {unknown} paramValue
+ * @param {unknown} parsedValue
+ * @returns {boolean}
+ */
+function booleanFlag(paramValue, parsedValue) {
+  return !!resolveFlag(paramValue, parsedValue);
+}
+
+/**
  * Junk reads as absent (so the config default applies), never coerced.
  *
  * @param {unknown} value
@@ -102,8 +113,8 @@ function assertNoRetiredFlags(argv) {
 /**
  * Returns raw wait-for-merge intent; the runner resolves it after the arm.
  *
- * @param {{ storyIdParam, cwdParam, skipValidationParam, skipSyncParam, noAutoMergeParam, waitForMergeParam, noWaitForMergeParam, maxWaitSecondsParam, mergeWatchModeParam, rerunAdvisoryParam, overrideReviewBlockParam }} raw
- * @returns {{ storyId, cwd, skipValidation, skipSync, noAutoMerge, waitForMergeExplicit, noWaitForMerge, maxWaitSeconds, mergeWatchMode, rerunAdvisory, overrideReviewBlock }}
+ * @param {{ storyIdParam, cwdParam, skipValidationParam, skipSyncParam, noAutoMergeParam, waitForMergeParam, noWaitForMergeParam, maxWaitSecondsParam, mergeWatchModeParam, rerunAdvisoryParam, overrideReviewBlockParam, workerTokensParam }} raw
+ * @returns {{ storyId, cwd, skipValidation, skipSync, noAutoMerge, waitForMergeExplicit, noWaitForMerge, maxWaitSeconds, mergeWatchMode, rerunAdvisory, overrideReviewBlock, workerTokens }}
  */
 export function parseCloseOptions({
   storyIdParam,
@@ -117,6 +128,7 @@ export function parseCloseOptions({
   mergeWatchModeParam,
   rerunAdvisoryParam,
   overrideReviewBlockParam,
+  workerTokensParam,
 }) {
   // An injecting caller never reads argv (the host's flags are not its
   // business), so `parsed` stays empty and the retired-flag guard is skipped.
@@ -145,17 +157,19 @@ export function parseCloseOptions({
       resolveFlag(mergeWatchModeParam, parsed.mergeWatchMode),
     ),
     rerunAdvisory: intAtLeast(rerunAdvisory, 0),
-    skipValidation: !!resolveFlag(skipValidationParam, parsed.skipValidation),
-    skipSync: !!resolveFlag(skipSyncParam, parsed.skipSync),
-    noAutoMerge: !!resolveFlag(noAutoMergeParam, parsed.noAutoMerge),
+    skipValidation: booleanFlag(skipValidationParam, parsed.skipValidation),
+    skipSync: booleanFlag(skipSyncParam, parsed.skipSync),
+    noAutoMerge: booleanFlag(noAutoMergeParam, parsed.noAutoMerge),
     waitForMergeExplicit:
       typeof waitForMergeExplicit === 'boolean'
         ? waitForMergeExplicit
         : undefined,
-    noWaitForMerge: !!resolveFlag(noWaitForMergeParam, parsed.noWaitForMerge),
+    noWaitForMerge: booleanFlag(noWaitForMergeParam, parsed.noWaitForMerge),
     // Both doors validate, so neither can arm a reasonless override.
     overrideReviewBlock: parseOverrideReviewBlock(
       resolveFlag(overrideReviewBlockParam, parsed.overrideReviewBlock),
     ),
+    // Raw: validated best-effort by the runner, never thrown on.
+    workerTokens: resolveFlag(workerTokensParam, parsed.workerTokens),
   };
 }

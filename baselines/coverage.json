@@ -778,8 +778,8 @@
     },
     {
       "path": ".agents/scripts/lib/cli-args.js",
-      "lines": 97.34,
-      "branches": 89.57,
+      "lines": 97.49,
+      "branches": 90.06,
       "functions": 100
     },
     {
@@ -1443,6 +1443,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/observability/close-telemetry.js",
+      "lines": 98.48,
+      "branches": 86.67,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/observability/metrics-ledger.js",
       "lines": 90.45,
       "branches": 83.87,
@@ -1450,8 +1456,8 @@
     },
     {
       "path": ".agents/scripts/lib/observability/runtime-friction.js",
-      "lines": 96.21,
-      "branches": 83,
+      "lines": 96.23,
+      "branches": 86.54,
       "functions": 100
     },
     {
@@ -1594,8 +1600,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
-      "lines": 95.64,
-      "branches": 80,
+      "lines": 95.92,
+      "branches": 84.62,
       "functions": 100
     },
     {
@@ -2116,8 +2122,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/review-provider-factory.js",
-      "lines": 94.21,
-      "branches": 89.29,
+      "lines": 94.58,
+      "branches": 89.66,
       "functions": 100
     },
     {
@@ -2146,7 +2152,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
-      "lines": 97.07,
+      "lines": 97.09,
       "branches": 82.1,
       "functions": 100
     },
@@ -2194,8 +2200,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
-      "lines": 95.73,
-      "branches": 91.3,
+      "lines": 100,
+      "branches": 100,
       "functions": 100
     },
     {
@@ -2230,8 +2236,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/options.js",
-      "lines": 98.76,
-      "branches": 96.55,
+      "lines": 98.86,
+      "branches": 96.67,
       "functions": 100
     },
     {
@@ -2272,8 +2278,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/review-override.js",
-      "lines": 95.54,
-      "branches": 85.71,
+      "lines": 95.69,
+      "branches": 87.5,
       "functions": 100
     },
     {
@@ -2290,9 +2296,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
-      "lines": 97.92,
-      "branches": 88.46,
-      "functions": 88.46
+      "lines": 98.29,
+      "branches": 89.83,
+      "functions": 96.77
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-lease-guard.js",

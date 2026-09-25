@@ -7,6 +7,7 @@ import { readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { orchestrationLogDir } from '../../../.agents/scripts/lib/config/temp-paths.js';
+import { recordCloseTelemetry } from '../../../.agents/scripts/lib/observability/close-telemetry.js';
 import {
   emitRuntimeFriction,
   RUNTIME_FRICTION_CATEGORIES,
@@ -1237,5 +1238,80 @@ describe('epic-close — the epilogue reports containers, it does not derive the
     );
 
     assert.deepEqual(step, { kind: 'epic-close', closed: [], pending: [] });
+  });
+});
+
+describe('follow-up-rollup — run-level close telemetry (Story #5435)', () => {
+  it('AC-5: tallies retry causes and per-provider review halts/overrides, posting none of it', async () => {
+    const comments = [];
+    const tempRoot = makeTempDir('rollup-telemetry-');
+    const config = {
+      github: { owner: 'o', repo: 'r' },
+      project: { paths: { tempRoot } },
+    };
+    const provider = {
+      getTicket: async (id) => ({
+        id,
+        title: `Story ${id}`,
+        body: '',
+        labels: ['type::story'],
+      }),
+      getTicketComments: async () => [],
+      postComment: async (ticketId, payload) => {
+        comments.push({ ticketId, body: payload.body });
+        return { commentId: comments.length };
+      },
+      deleteComment: async () => {},
+    };
+    try {
+      for (const storyId of [1, 2]) {
+        await recordCloseTelemetry({
+          terminal: {
+            storyId,
+            status: 'blocked',
+            phase: 'confirm-merge',
+            blocked: { blockClass: 'checks-failed', reason: 'red' },
+          },
+          config,
+        });
+        await emitRuntimeFriction({
+          storyId,
+          category: RUNTIME_FRICTION_CATEGORIES.REVIEW_BLOCKED,
+          tool: 'single-story-close',
+          details: { criticalByProvider: { 'code-review': 1 } },
+          config,
+        });
+      }
+      await emitRuntimeFriction({
+        storyId: 2,
+        category: RUNTIME_FRICTION_CATEGORIES.REVIEW_BLOCK_OVERRIDDEN,
+        tool: 'single-story-close',
+        details: { criticalByProvider: { 'code-review': 1 } },
+        config,
+      });
+
+      const result = await runPlanRunEpilogue({
+        planRunId: 'adhoc-1-2',
+        stories: [1, 2],
+        provider,
+        config,
+        cwd: process.cwd(),
+      });
+      const rollup = result.results.find((r) => r.kind === 'follow-up-rollup');
+      assert.equal(rollup.telemetry.storyCount, 2);
+      assert.deepEqual(rollup.telemetry.retries, {
+        total: 2,
+        byCause: { 'ci-red': 2 },
+      });
+      assert.deepEqual(rollup.telemetry.review, {
+        haltsByProvider: { 'code-review': 2 },
+        overridesByProvider: { 'code-review': 1 },
+      });
+      for (const { body } of comments) {
+        assert.doesNotMatch(body, /byCause|haltsByProvider|workerTokens/);
+      }
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
   });
 });

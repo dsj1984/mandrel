@@ -112,6 +112,7 @@ function resolveScopeEnvelope(opts, config) {
  *   postedCommentId: number|null,
  *   commentTargetId: number,
  *   halted: boolean,
+ *   criticalByProvider?: Record<string, number>,
  *   degraded: boolean, degradations: Array<object>,
  *   blockerReason: string|null,
  * }>}
@@ -229,6 +230,21 @@ async function postReviewComment({
   }
 }
 
+/**
+ * Which review provider(s) raised the critical findings. A chain reports its
+ * own per-entry attribution; any other provider owns every critical.
+ *
+ * @param {{ reviewProvider: object, providerName: string,
+ *   severity: { critical: number } }} args
+ * @returns {Record<string, number>}
+ */
+function resolveCriticalByProvider({ reviewProvider, providerName, severity }) {
+  if (typeof reviewProvider?.getCriticalByProvider === 'function') {
+    return reviewProvider.getCriticalByProvider();
+  }
+  return severity.critical > 0 ? { [providerName]: severity.critical } : {};
+}
+
 async function executeReviewPipeline({ opts, config, envelope }) {
   const {
     provider,
@@ -277,6 +293,11 @@ async function executeReviewPipeline({ opts, config, envelope }) {
   );
   const severity = countBySeverity(findings);
   const halted = hasSurvivingCritical(severity);
+  const criticalByProvider = resolveCriticalByProvider({
+    reviewProvider,
+    providerName,
+    severity,
+  });
   const report = renderFindingsFn({
     scope,
     ticketId,
@@ -304,6 +325,7 @@ async function executeReviewPipeline({ opts, config, envelope }) {
     postedCommentId,
     commentTargetId,
     halted,
+    criticalByProvider,
     ...degradationEnvelope(degradations),
     blockerReason: halted
       ? `code-review reported ${severity.critical} critical blocker(s)`

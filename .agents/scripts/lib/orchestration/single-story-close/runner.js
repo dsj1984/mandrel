@@ -9,6 +9,11 @@ import { getCiDelivery } from '../../config/ci.js';
 import { resolveConfig } from '../../config-resolver.js';
 import { getStoryBranch, gitSpawn, gitSync } from '../../git-utils.js';
 import { Logger } from '../../Logger.js';
+import {
+  emitReviewBlockedFriction,
+  recordCloseTelemetry,
+  resolveWorkerTokens,
+} from '../../observability/close-telemetry.js';
 import { emitTerminalFriction } from '../../observability/runtime-friction.js';
 import { emitTerseResult } from '../../observability/terse-result.js';
 import { createProvider } from '../../provider-factory.js';
@@ -80,17 +85,20 @@ function createPhaseTimer(nowMs = Date.now) {
 const UNTIMED = Object.freeze({ stamp() {} });
 
 /**
- * The single terminal writer: the result summary, the envelope callers parse,
- * and terminal friction — so no ending can forget one. Must be awaited: the
- * CLI `process.exit`s as soon as `main` resolves.
+ * The single terminal writer: the retry signal, the result summary (with its
+ * `telemetry`), the envelope callers parse, and terminal friction — so no
+ * ending can forget one. Must be awaited: the CLI `process.exit`s as soon as
+ * `main` resolves.
  */
 async function emitTerminal({
   terminal,
   result,
   config,
   phaseTimer = UNTIMED,
+  workerTokens = null,
 }) {
   phaseTimer.stamp(terminal);
+  await recordCloseTelemetry({ terminal, result, config, workerTokens });
   if (result) {
     emitTerseResult({
       label: 'STORY CLOSE RESULT',
@@ -110,22 +118,31 @@ async function emitTerminal({
 }
 
 /**
+ * @param {number} storyId
+ * @param {string} reason
+ * @returns {{ storyId: number, standalone: true, action: 'noop', reason: string }}
+ */
+function noopResult(storyId, reason) {
+  return { storyId, standalone: true, action: 'noop', reason };
+}
+
+/**
  * Terminal for an already-closed Story. `not_planned` means nothing merged,
  * so it fails rather than reporting `landed` (which would also unblock
  * dependents); `completed` or null (GitHub's default) reads as landed.
  */
-async function alreadyClosedResult(storyId, stateReason = null, config) {
+async function alreadyClosedResult(
+  storyId,
+  stateReason = null,
+  config,
+  workerTokens = null,
+) {
   if (stateReason === 'not_planned') {
     progress(
       'NOOP',
       `Story #${storyId} is closed as not planned — nothing to land.`,
     );
-    const result = {
-      storyId,
-      standalone: true,
-      action: 'noop',
-      reason: 'closed-not-planned',
-    };
+    const result = noopResult(storyId, 'closed-not-planned');
     const terminal = buildTerminalEnvelope({
       storyId,
       status: 'failed',
@@ -138,17 +155,12 @@ async function alreadyClosedResult(storyId, stateReason = null, config) {
       nextCommand: null,
       elapsedSeconds: 0,
     });
-    await emitTerminal({ terminal, result, config });
+    await emitTerminal({ terminal, result, config, workerTokens });
     return { success: false, result, terminal };
   }
 
   progress('NOOP', `Story #${storyId} is already closed. Nothing to do.`);
-  const result = {
-    storyId,
-    standalone: true,
-    action: 'noop',
-    reason: 'already-closed',
-  };
+  const result = noopResult(storyId, 'already-closed');
   const terminal = buildTerminalEnvelope({
     storyId,
     status: 'landed',
@@ -156,7 +168,7 @@ async function alreadyClosedResult(storyId, stateReason = null, config) {
     nextCommand: null,
     elapsedSeconds: 0,
   });
-  await emitTerminal({ terminal, result, config });
+  await emitTerminal({ terminal, result, config, workerTokens });
   return { success: true, result, terminal };
 }
 
@@ -179,13 +191,9 @@ async function preflightBlockedResult({
   preflight,
   config,
   startedAtMs,
+  workerTokens = null,
 }) {
-  const result = {
-    storyId,
-    standalone: true,
-    action: 'noop',
-    reason: `graphql-preflight-${preflight.verdict}`,
-  };
+  const result = noopResult(storyId, `graphql-preflight-${preflight.verdict}`);
   const terminal = buildTerminalEnvelope({
     storyId,
     status: 'blocked',
@@ -198,7 +206,7 @@ async function preflightBlockedResult({
     nextCommand: NEXT_COMMANDS.close(storyId),
     elapsedSeconds: elapsedSecondsSince(startedAtMs),
   });
-  await emitTerminal({ terminal, result, config });
+  await emitTerminal({ terminal, result, config, workerTokens });
   return { success: false, result, terminal };
 }
 
@@ -264,8 +272,8 @@ async function runPrePushPhases({
   skipSync,
   injectedSync,
   injectedGitSpawn,
-  setPhase = () => {},
-  setObservedGates = () => {},
+  setPhase,
+  setObservedGates,
 }) {
   setPhase('wrong-tree-guard');
   await runWrongTreeGuardPhase({
@@ -339,7 +347,7 @@ async function openAndReviewPr({
   overrideReviewBlock,
   injectedGh,
   injectedRunCodeReview,
-  setPhase = () => {},
+  setPhase,
 }) {
   setPhase('push');
   // Push from the worktree so `pre-push` measures the tree being sent; the
@@ -384,6 +392,7 @@ async function openAndReviewPr({
         prUrl,
         prNumber,
         criticalCount,
+        criticalByProvider: reviewOutcome.criticalByProvider,
         reason: overrideReviewBlock,
         config,
       });
@@ -394,6 +403,13 @@ async function openAndReviewPr({
         reviewOverride: override,
       };
     }
+    await emitReviewBlockedFriction({
+      storyId,
+      prNumber,
+      criticalCount,
+      criticalByProvider: reviewOutcome.criticalByProvider,
+      config,
+    });
     await handleCriticalReviewBlock({
       provider,
       storyId,
@@ -525,6 +541,7 @@ export async function runSingleStoryClose({
   mergeWatchMode: mergeWatchModeParam,
   rerunAdvisory: rerunAdvisoryParam,
   overrideReviewBlock: overrideReviewBlockParam,
+  workerTokens: workerTokensParam,
   injectedProvider,
   injectedConfig,
   injectedNotify,
@@ -547,10 +564,11 @@ export async function runSingleStoryClose({
     mergeWatchModeParam,
     rerunAdvisoryParam,
     overrideReviewBlockParam,
+    workerTokensParam,
   });
   if (!options.storyId) {
     throw new Error(
-      'Usage: node single-story-close.js --story <STORY_ID> [--cwd <main-repo>] [--skip-validation] [--skip-sync] [--no-auto-merge] [--wait-merge|--no-wait-merge] [--max-wait-seconds <n>] [--merge-watch-mode <sync|async>] [--rerun-advisory <n>] [--override-review-block <reason>]',
+      'Usage: node single-story-close.js --story <STORY_ID> [--cwd <main-repo>] [--skip-validation] [--skip-sync] [--no-auto-merge] [--wait-merge|--no-wait-merge] [--max-wait-seconds <n>] [--merge-watch-mode <sync|async>] [--rerun-advisory <n>] [--override-review-block <reason>] [--worker-tokens <n>]',
     );
   }
 
@@ -706,6 +724,7 @@ async function finishWithMergeWait(prCtx, deps) {
     result,
     config: prCtx.config,
     phaseTimer: prCtx.phaseTimer,
+    workerTokens: prCtx.workerTokens,
   });
   reportWaitTerminal(terminal, { storyId: prCtx.storyId, prUrl: prCtx.prUrl });
   return { success: terminal.status === 'landed', result, terminal };
@@ -759,6 +778,7 @@ async function finishWithoutMergeWait(prCtx, waitForMergeReason) {
     result,
     config: prCtx.config,
     phaseTimer: prCtx.phaseTimer,
+    workerTokens: prCtx.workerTokens,
   });
   progress(
     'DONE',
@@ -777,14 +797,14 @@ async function finishWithoutMergeWait(prCtx, waitForMergeReason) {
  */
 async function finishDeferred(
   lockWait,
-  { config, startedAtMs, phaseTimer, ...ids },
+  { config, startedAtMs, phaseTimer, workerTokens, ...ids },
 ) {
   const { result, terminal, note } = lockWaitPending({
     ...ids,
     lockWait,
     elapsedSeconds: elapsedSecondsSince(startedAtMs),
   });
-  await emitTerminal({ terminal, result, config, phaseTimer });
+  await emitTerminal({ terminal, result, config, phaseTimer, workerTokens });
   progress('PENDING', note);
   return { success: false, result, terminal };
 }
@@ -838,6 +858,7 @@ async function runClosePipeline({
   const config = injectedConfig || resolveConfig({ cwd: options.cwd });
   const provider = injectedProvider || createProvider(config);
   const storyBranch = getStoryBranch(options.storyId);
+  const workerTokens = resolveWorkerTokens(options.workerTokens);
 
   progress('INIT', `Closing standalone Story #${options.storyId}...`);
   const story = await provider.getTicket(options.storyId);
@@ -846,6 +867,7 @@ async function runClosePipeline({
       options.storyId,
       story.stateReason,
       config,
+      workerTokens,
     );
   }
 
@@ -871,6 +893,7 @@ async function runClosePipeline({
       preflight,
       config,
       startedAtMs,
+      workerTokens,
     });
   }
 
@@ -914,6 +937,7 @@ async function runClosePipeline({
       config,
       startedAtMs,
       phaseTimer,
+      workerTokens,
     });
   }
 
@@ -1010,6 +1034,7 @@ async function runClosePipeline({
     config,
     startedAtMs,
     phaseTimer,
+    workerTokens,
     lockWait: prePush.lockWait,
     gates: closeEnvelopeGates(options, prePush.validationGates, reviewOverride),
   };

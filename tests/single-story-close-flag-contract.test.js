@@ -93,6 +93,7 @@ const FLAG_TO_OPTION = Object.freeze({
   '--merge-watch-mode': 'mergeWatchMode',
   '--rerun-advisory': 'rerunAdvisory',
   '--override-review-block': 'overrideReviewBlock',
+  '--worker-tokens': 'workerTokens',
 });
 
 /** Answered by `runAsCli` before `main`, so no pipeline option backs it. */

@@ -16,7 +16,11 @@
  *                              [--merge-watch-mode <sync|async>]
  *                              [--rerun-advisory <n>]
  *                              [--override-review-block <reason>]
+ *                              [--worker-tokens <n>]
  *
+ * `--worker-tokens <n>` is the story-worker's host-reported token total,
+ * recorded best-effort in the close result's `telemetry` (absent or invalid →
+ * `null` plus a warning; never a change of status or exit code).
  * `--override-review-block <reason>` is the audited escape past a code-review
  * CRITICAL blocker (instead of a hand-merge with no record).
  * `--merge-watch-mode async` is passed per close by the orchestrator, the only
@@ -35,7 +39,7 @@ import { parseSprintArgsTolerant } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { formatCliError } from './lib/error-redactor.js';
 import { Logger } from './lib/Logger.js';
-import { emitTerminalFriction } from './lib/observability/runtime-friction.js';
+import { emitCloseTerminalSignals } from './lib/observability/close-telemetry.js';
 import { resolveRunScopedConfig } from './lib/orchestration/run-scoped-config.js';
 import {
   failedTerminalFor,
@@ -91,7 +95,7 @@ async function main() {
     // Mirrors runAsCli's default error line, which this catch pre-empts.
     Logger.error(`[single-story-close] Fatal error: ${formatCliError(err)}`);
     emitTerminalEnvelope(terminal);
-    await emitTerminalFriction({ envelope: terminal });
+    await emitCloseTerminalSignals({ envelope: terminal });
     return exitCodeForTerminal(terminal);
   }
 }
@@ -129,6 +133,10 @@ runAsCli(import.meta.url, main, {
         // Must not spell the merge CLI invocation: `check-lifecycle-lint.js`
         // forbids that literal outside `phases/auto-merge.js`.
         'Land despite a Story-scope code-review CRITICAL blocker you have reviewed and judged wrong. The reason is mandatory (≥12 chars) and is recorded on the Story, on the PR, and as a `review-block-overridden` friction signal; the terminal envelope reports `gates.codeReview: "overridden"`. Use this instead of merging the PR by hand with the GitHub CLI — a hand-merge bypasses the gate with no record at all.',
+      ],
+      [
+        '--worker-tokens <n>',
+        'The story-worker’s host-reported total tokens, recorded in the close result’s `telemetry.workerTokens`. Best-effort: an absent or non-integer value records null with a warning and never changes the status or exit code.',
       ],
     ],
     notes: [

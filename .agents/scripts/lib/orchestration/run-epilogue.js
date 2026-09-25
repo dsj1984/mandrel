@@ -10,6 +10,7 @@ import { selectAudits } from '../audit-suite/index.js';
 import { graduateRetroProposals } from '../feedback-loop/retro-proposals-graduator.js';
 import { gitSpawn } from '../git-utils.js';
 import { Logger } from '../Logger.js';
+import { gatherRunTelemetry } from '../observability/close-telemetry.js';
 import { isEpicTicket } from './epic-container.js';
 import { composeRoutedProposals } from './retro-proposals.js';
 import {
@@ -657,6 +658,8 @@ async function executeFollowUpRollup({
     graduateFn,
   });
   const categories = summarizeSignalCategories(signals);
+  // Step result only, never the roll-up comment: telemetry stays local.
+  const telemetry = await gatherRunTelemetry(stories, config);
   const proposalCount = proposals.framework.length + proposals.consumer.length;
   const outcome = assessRollupOutcome({
     signalCount: signals.length,
@@ -687,6 +690,7 @@ async function executeFollowUpRollup({
     categories,
     outcome,
     frictionWindow,
+    telemetry,
   });
 }
 
@@ -743,6 +747,7 @@ function buildRollupStepResult({
   categories,
   outcome,
   frictionWindow,
+  telemetry = null,
 }) {
   return {
     kind: 'follow-up-rollup',
@@ -766,6 +771,7 @@ function buildRollupStepResult({
       fingerprint: item.fingerprint ?? null,
     })),
     emptyRollupSuspect: signals.length === 0 && storyCount > 1,
+    telemetry,
   };
 }
 

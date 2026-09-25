@@ -134,6 +134,7 @@ async function postStoryReviewCrossRef({
  *   halted: boolean,
  *   skipped?: boolean,
  *   severity?: { critical: number, high: number, medium: number, suggestion: number },
+ *   criticalByProvider?: Record<string, number>,
  *   posted?: boolean,
  *   postedCommentId?: number|null,
  *   degraded?: boolean,
@@ -214,6 +215,7 @@ export async function runStoryScopeReview({
   return {
     halted: !!result.halted,
     severity: sev,
+    criticalByProvider: result.criticalByProvider,
     posted: result.posted,
     postedCommentId: result.postedCommentId ?? null,
     ...degradationEnvelope(result.degradations),

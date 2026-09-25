@@ -23,6 +23,8 @@ export const RUNTIME_FRICTION_CATEGORIES = Object.freeze({
   /** A tool failed to execute — kept out of code-finding severity tiers. */
   TOOL_DEGRADED: 'tool-degraded',
   LIGHT_SCOPE_REJECTED: 'light-scope-rejected',
+  /** A critical code-review halt, attributed to the provider(s) that raised it. */
+  REVIEW_BLOCKED: 'review-blocked',
   /** A human shipped over a review blocker; a rising count means miscalibration. */
   REVIEW_BLOCK_OVERRIDDEN: 'review-block-overridden',
 });
