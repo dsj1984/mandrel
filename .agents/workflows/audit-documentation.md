@@ -62,11 +62,11 @@ with the config-driven target set above.
 
 ## Execution strategy
 
-This is a **heavyweight lens**: dispatch it as a single `subagent_type: auditor`
-call, or fan its per-doc / per-dimension verification out across parallel
-`auditor` subagents (parallel-tooling Rule 3) and merge under the
-self-cross-check. Sequential inline execution is the fallback (see the core's
-Execution strategy).
+Dispatch this lens as one `subagent_type: auditor` call. Fan its per-doc /
+per-dimension verification out across parallel `auditor` subagents
+(parallel-tooling Rule 3), merging under the self-cross-check, only when the
+operator explicitly asks for per-dimension fan-out. Sequential inline
+execution is the fallback (see the core's Execution strategy).
 
 ## Step 1: Deterministic Signal First
 

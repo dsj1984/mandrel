@@ -1,11 +1,11 @@
-// scripts/lib/dynamic-workflow/report-contract-core.js
+// scripts/lib/audit-report-contracts/report-contract-core.js
 /**
  * Shared markdown section contract assertions for audit report lenses.
  *
  * Individual lens modules own their report title and required section list;
  * this helper owns the invariant string-analysis mechanics.
  *
- * @module dynamic-workflow/report-contract-core
+ * @module audit-report-contracts/report-contract-core
  */
 
 /**

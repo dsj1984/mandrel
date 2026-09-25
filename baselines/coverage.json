@@ -3477,6 +3477,48 @@
       "functions": 100
     },
     {
+      "path": "scripts/lib/audit-report-contracts/architecture-report-contract.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/audit-report-contracts/clean-code-report-contract.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/audit-report-contracts/documentation-report-contract.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/audit-report-contracts/performance-report-contract.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/audit-report-contracts/quality-report-contract.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/audit-report-contracts/report-contract-core.js",
+      "lines": 100,
+      "branches": 83.33,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/audit-report-contracts/security-report-contract.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
       "path": "scripts/lib/baselines/drift-detector.js",
       "lines": 93.16,
       "branches": 87.5,
@@ -3510,60 +3552,6 @@
       "path": "scripts/lib/comment-policy.js",
       "lines": 99.28,
       "branches": 91.94,
-      "functions": 100
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/architecture-report-contract.js",
-      "lines": 100,
-      "branches": 100,
-      "functions": 100
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/audit-orchestrator.js",
-      "lines": 100,
-      "branches": 92.31,
-      "functions": 100
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/clean-code-report-contract.js",
-      "lines": 100,
-      "branches": 100,
-      "functions": 100
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/degraded-coverage.js",
-      "lines": 100,
-      "branches": 81.82,
-      "functions": 100
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/documentation-report-contract.js",
-      "lines": 100,
-      "branches": 100,
-      "functions": 100
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/performance-report-contract.js",
-      "lines": 100,
-      "branches": 100,
-      "functions": 100
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/quality-report-contract.js",
-      "lines": 100,
-      "branches": 100,
-      "functions": 100
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/report-contract-core.js",
-      "lines": 100,
-      "branches": 83.33,
-      "functions": 100
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/security-report-contract.js",
-      "lines": 100,
-      "branches": 100,
       "functions": 100
     },
     {

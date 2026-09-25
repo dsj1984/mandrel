@@ -2224,39 +2224,31 @@
       "symbol": "KIND_SCOPE_POLICY"
     },
     {
-      "file": "scripts/lib/dynamic-workflow/architecture-report-contract.js",
+      "file": "scripts/lib/audit-report-contracts/architecture-report-contract.js",
       "symbol": "*"
     },
     {
-      "file": "scripts/lib/dynamic-workflow/audit-orchestrator.js",
+      "file": "scripts/lib/audit-report-contracts/clean-code-report-contract.js",
       "symbol": "*"
     },
     {
-      "file": "scripts/lib/dynamic-workflow/clean-code-report-contract.js",
+      "file": "scripts/lib/audit-report-contracts/documentation-report-contract.js",
       "symbol": "*"
     },
     {
-      "file": "scripts/lib/dynamic-workflow/degraded-coverage.js",
+      "file": "scripts/lib/audit-report-contracts/performance-report-contract.js",
       "symbol": "*"
     },
     {
-      "file": "scripts/lib/dynamic-workflow/documentation-report-contract.js",
+      "file": "scripts/lib/audit-report-contracts/quality-report-contract.js",
       "symbol": "*"
     },
     {
-      "file": "scripts/lib/dynamic-workflow/performance-report-contract.js",
+      "file": "scripts/lib/audit-report-contracts/report-contract-core.js",
       "symbol": "*"
     },
     {
-      "file": "scripts/lib/dynamic-workflow/quality-report-contract.js",
-      "symbol": "*"
-    },
-    {
-      "file": "scripts/lib/dynamic-workflow/report-contract-core.js",
-      "symbol": "*"
-    },
-    {
-      "file": "scripts/lib/dynamic-workflow/security-report-contract.js",
+      "file": "scripts/lib/audit-report-contracts/security-report-contract.js",
       "symbol": "*"
     },
     {

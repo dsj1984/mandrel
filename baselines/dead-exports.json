@@ -219,7 +219,7 @@
       "symbol": "DEFAULT_PER_PAGE"
     },
     {
-      "file": "scripts/lib/dynamic-workflow/report-contract-core.js",
+      "file": "scripts/lib/audit-report-contracts/report-contract-core.js",
       "symbol": "escapeRegExp"
     },
     {

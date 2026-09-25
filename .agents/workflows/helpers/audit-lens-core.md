@@ -123,9 +123,9 @@ dropped finding is indistinguishable from a finding you never wrote.
 You are your own adversarial reviewer. After you have drafted the Detailed
 Findings but **before** you write the report artifact, re-open every finding
 and hold it to the bar below. This pass is **read-only** — it filters and
-tightens the findings you already have; it never invents new ones. It gives the
-sequential single-pass path the same false-positive filter the orchestrated
-path's independent adversarial reviewer applies.
+tightens the findings you already have; it never invents new ones. It is the
+one false-positive filter every execution path applies — no separate
+adversarial reviewer runs after it.
 
 ### Per-finding evidence bar (keep or drop)
 
@@ -261,55 +261,35 @@ available; every path emits the **identical** report contract (the finding-block
 skeleton above), so downstream consumers (`audit-to-stories`) are agnostic to
 which path produced it.
 
-1. **Subagent dispatch (first-class).** Dispatch the lens as a single
+1. **One auditor per lens (the default).** Dispatch the lens as exactly one
    `subagent_type: auditor` call — the standalone boot context in
    [`../../agents/auditor.md`](../../agents/auditor.md) carries the read-only
    MUSTs, the finding-block skeleton, the severity scale, and the
    self-cross-check bar, so the child needs only the lens's own dimensions to
    run. The subagent returns the **report path plus the Executive Summary**
    (including the self-cross-check line); the parent never needs the full
-   findings inline. This is the default: the auditor boots without the full
-   project closure, so the spawn is cheap relative to running the lens inline
-   in the parent's context.
+   findings inline. One auditor reads the repo once; per-dimension agents each
+   re-read it, so the single dispatch is the cheap path, not a compromise.
 
-   - **Per-dimension fan-out (heavyweight lenses).** `audit-architecture`,
-     `audit-performance`, and `audit-documentation` carry enough independent
-     dimensions to be worth fanning out: dispatch one `subagent_type: auditor`
-     call **per dimension** in a single turn via
-     [`parallel-tooling.md`](parallel-tooling.md) Rule 3, then **merge** the
+   - **Per-dimension fan-out (operator request only).** Fan a lens out only
+     when the operator's invocation explicitly asks for it. Then dispatch one
+     `subagent_type: auditor` call **per dimension** in a single turn via
+     [`parallel-tooling.md`](parallel-tooling.md) Rule 3, and **merge** the
      per-dimension findings under this file's self-cross-check (the merge is
-     where cross-dimension duplicates and false positives are dropped). Respect
-     the nesting-depth budget and the concurrency cap that Rule 3 documents.
+     where cross-dimension duplicates and false positives are dropped). Never
+     fan out on your own judgment of a lens's size.
+   - **No nested fan-out.** An auditor never dispatches sub-agents of its own.
+     The fan-out, when requested, happens once, at the caller.
 
 2. **Sequential inline execution (documented fallback).** When subagent
    dispatch is unavailable, run the lens's steps turn-by-turn in the current
    context exactly as written, ending with the self-cross-check. This changes
    nothing about the report contract.
 
-> **Orchestrated dynamic-workflow path (optimization note).** Six lenses ship a
-> saved project workflow at `.claude/workflows/audit-<lens>.workflow.js` that,
-> **when Claude Code dynamic workflows are available** (runtime is Claude Code,
-> `disableWorkflows` unset, version `>= 2.1.154`), fans the dimensions out as
-> parallel read-only subagents and runs an independent adversarial cross-check
-> stage before synthesising the report. It derives its per-dimension prompts
-> from the *lens* markdown at run time — the lens stays the single source of
-> truth. This is a performance optimization over path 1, **not** a separate
-> contract, and it is not covered by the No-Shim / hard-cutover rule in
-> [`../../rules/git-conventions.md`](../../rules/git-conventions.md) because
-> there is one report contract and only the execution strategy varies — the
-> same capability-degradation pattern the protocol endorses for live-docs
-> fallback. **The host owns the choice.** Mandrel ships no in-repo strategy
-> selector and no force-override env var: Claude Code launches the saved
-> workflow when it can, and you get path 1 or 2 above when it cannot.
-> Suppress the orchestrated path with `CLAUDE_CODE_DISABLE_WORKFLOWS=1`
-> or `disableWorkflows: true` in `.claude/settings.json`. On the orchestrated
-> path the analysis subagents are granted only read/search tools (`Read`,
-> `Grep`, `Glob`) — the single write is the final report artifact.
-
 ## Parallel tooling {#parallel-tooling}
 
 When a lens batches independent reads/greps, runs a long shell (a scanner, a
-profiler, a suite time), or fans out per-dimension, apply
-[`parallel-tooling.md`](parallel-tooling.md): batch independent reads in one
-turn (Rule 1), run long shells via `run_in_background` + `Monitor` (Rule 2),
-and dispatch N independent units as N `Agent` calls in one turn (Rule 3).
+profiler, a suite time), apply [`parallel-tooling.md`](parallel-tooling.md):
+batch independent reads in one turn (Rule 1) and run long shells via
+`run_in_background` + `Monitor` (Rule 2). Rule 3 applies only to the caller of
+an operator-requested per-dimension fan-out — never inside an auditor.
