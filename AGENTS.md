@@ -7,7 +7,6 @@ rules, and SDLC workflows that govern AI coding assistants. It ships as the
 
 ## Always-loaded context
 
-@.agentrc.json
 @.agents/instructions.md
 @.agents/rules/security-baseline.md
 @.agents/rules/git-conventions.md
