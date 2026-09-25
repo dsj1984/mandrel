@@ -118,7 +118,7 @@ truncates with a note naming what was cut:
 
 ## 3. Core Philosophy
 
-1. **Context First.** **Digest-first reading (Story #4433):** never
+1. **Context First.** **Digest-first reading:** never
    ingest the whole `project.docsContextFiles` set up front — read the
    docs digest and pull files on demand at the section it names. No
    digest (ad hoc task, `docsContextFiles` unset, null `docsDigestPath`)
@@ -127,8 +127,10 @@ truncates with a note naming what was cut:
    present. Always read the current Story's body (`## Spec` +
    `acceptance[]` / `verify[]`); prefer targeted retrieval over broad
    reads.
-2. **Plan First.** For non-trivial tasks (3+ steps or architectural
-   decisions), update the Story's `## Spec` via `/mandrel-plan` before code.
+2. **Plan First.** Planned work carries its plan in the Story's
+   `## Spec`, authored via `/mandrel-plan`; an unplanned prompt takes
+   `/mandrel-deliver`'s light path, which escalates to `/mandrel-plan`
+   when its gate trips.
 3. **Artifacts over Chat.** Write test/build/debug output to log
    files, not into chat.
 4. **Idempotency.** Scripts must be safe to run repeatedly.
@@ -137,16 +139,13 @@ truncates with a note naming what was cut:
 
 ## 4. Execution & Quality Discipline
 
-- **Re-Plan on Failure.** If a strategy fails, STOP and re-plan.
 - **Subagent Strategy.** Each spawn re-pays the full always-loaded
   context — a cost decision. Prefer inline search for small lookups;
   spawn only when the work justifies replicating context. One objective
   per subagent; depth compounds the cost (every nested level re-pays).
-- **Anti-Laziness / No Dead Code.** NEVER use placeholder comments like
-  `// ... existing code ...`; every edit must leave complete, runnable code.
-  Remove unused imports, commented-out code, and dead branches before
+- **No Dead Code.** Every edit leaves complete, runnable code. Remove
+  unused imports, commented-out code, and dead branches before
   finalizing.
-- **Verification.** Include explicit verification steps in every plan.
 
 ---
 
@@ -191,7 +190,6 @@ anything under it.
 `/mandrel-plan` sizes each Story as a **capability slice a frontier model
 delivers and self-verifies in one pass** — a broad footprint is normal
 when the change is cohesive, and no plan-time ceiling scores it; do not
-re-slice it into per-module fragments. On an out-of-scope task: **plan
-first** in numbered cohesive sub-steps, **commit incrementally** per
-sub-step, and **fail fast** — STOP and report if any sub-step fails
-validation.
+re-slice it into per-module fragments. On an out-of-scope task,
+**commit incrementally** per cohesive sub-step, and when a sub-step
+fails validation, stop and apply § 1.I (re-plan or yield).

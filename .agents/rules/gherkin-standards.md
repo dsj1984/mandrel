@@ -143,8 +143,9 @@ authored:
    widen the regex, updating every call site in the same PR.
 4. **Add a new definition only when no reasonable match exists**, in the
    correct domain directory. Never copy-paste a step implementation to support
-   a paraphrased scenario, and never author new step definitions during
-   scenario authoring — record the missing step as a named gap instead.
+   a paraphrased scenario. A prose-only authoring pass (one whose scope
+   excludes step-definition code) records the missing step as a named gap
+   instead of writing it.
 
 When a step is superseded, mark it deprecated and migrate every call site in
 the same PR; do not leave two near-identical steps live.

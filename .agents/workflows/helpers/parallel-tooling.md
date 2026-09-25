@@ -29,15 +29,17 @@ the batch in parallel; serial calls cost N round-trips for no gain.
 - **Bounded fan-out:** keep the batch ≤ 10 calls per turn. Larger batches
   blow the context budget and obscure the failure surface if one call errors.
 
-## Rule 2 — `run_in_background` + `Monitor` for long shells
+## Rule 2 — `run_in_background` for long shells
 
-Shell commands that exceed roughly 30 seconds (test suites, installs,
-multi-file lints, `git fetch --all`, container builds) **must** use the
-`Bash` tool's `run_in_background: true` flag and stream events via the
-`Monitor` tool. A synchronous `Bash` call holds the assistant turn open for
-the full duration and blocks every other parallel opportunity.
+A shell command that can outrun the host's synchronous Bash ceiling, or that
+would idle the turn while independent work waits (test suites, installs,
+multi-file lints, `git fetch --all`, container builds), runs with the `Bash`
+tool's `run_in_background: true` flag; its completion notification is the
+signal to proceed. Attach `Monitor` only when you must act on output before
+the command exits.
 
-- **Tool primitives:** `Bash(run_in_background: true)` + `Monitor`.
+- **Tool primitives:** `Bash(run_in_background: true)`; `Monitor` only when
+  mid-run output matters.
 - **When:** `npm test`, `npm ci`, full-repo `eslint`/`biome` runs, long
   fetches, anything you would have prefixed with `nohup` in a terminal.
 - **Anti-pattern:** synchronous `Bash` with a 600 000 ms timeout used as a
@@ -90,9 +92,7 @@ the same shape as Rule 1 but at the sub-agent layer.
 ## When the rules conflict
 
 If a unit of work is both long (Rule 2) and independent (Rule 1 or 3),
-prefer the higher-numbered rule — the parallelism gain compounds the
-background-shell gain. Concretely: dispatch the `Agent` calls in one turn
-(Rule 3), and **inside** each sub-agent let it apply Rule 2 to its own
+dispatch the `Agent` calls in one turn (Rule 3), and **inside** each sub-agent let it apply Rule 2 to its own
 long-running shells. A sub-agent does **not** fan out again on its own
 initiative: every nesting level re-pays the always-loaded context (see
 [`instructions.md` § 4](../../instructions.md)), and the cost compounds with

@@ -156,13 +156,14 @@ behaviour (`sets status to completed`, not `works`).
 
 A file that passes alone but fails inside the full `npm test` suite is **test
 pollution** — one test leaks shared state (env vars, temp files, the
-mock-module registry, global singletons) and a later test trips on it. Reach
-for `npm run test:isolate` before manually bisecting: it runs every matching
-file individually under `--test-concurrency=1`, then all together, flags files
-that pass alone but fail in the suite (**flippers**), binary-bisects the
-smallest reproducing subset, and reports any file that exited with leftover
-`process.env` mutations. The fix is almost always missing teardown — wrap the
-mutation in a `t.before` / `t.after` pair, or restore the prior value in
+mock-module registry, global singletons) and a later test trips on it. Run
+every matching file alone, then all together; the files that pass alone but
+fail in the suite (**flippers**) bound the search, and bisecting them finds
+the smallest reproducing subset. Mandrel's own repository automates this as
+`npm run test:isolate`, which also reports leftover `process.env`
+mutations; a consumer uses its runner's equivalent. The fix is almost
+always missing teardown — wrap the mutation in a `t.before` / `t.after`
+pair, or restore the prior value in
 `try` / `finally`.
 
 For browser-based changes, pair the cycle with runtime verification via Chrome

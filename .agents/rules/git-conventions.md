@@ -16,9 +16,8 @@ Every Story lands on a dedicated **Story branch** named
 `story-<storyId>`, seeded from `project.baseBranch` (`main` by default),
 isolated in its own worktree at `.worktrees/story-<id>/`. The runtime
 owns both via `single-story-init.js`; agents commit there only. Close
-opens a PR against `main` (squash + required checks). No `epic/<id>`
-integration branch, no `--no-ff` wave merge, no child tickets: commits
-land on `story-<storyId>` directly, the
+opens a PR against `main` (squash + required checks). Commits land on
+`story-<storyId>` directly, the
 subject referencing the Story via `(refs #<storyId>)` — see
 [`.agents/instructions.md` § 5.B](../instructions.md).
 
@@ -38,15 +37,18 @@ subject referencing the Story via `(refs #<storyId>)` — see
 
 ## Push Validation & Reliability (MUSTs)
 
-1. Run the configured validation commands locally **before** `git push`.
+1. Validate locally **before** `git push`. On a Story branch that is the
+   one credited suite run (`deliver-digest.md` § 5); close runs every
+   other gate, so do not pre-run them. Elsewhere, run the configured
+   validation commands.
 2. Do NOT assume a push succeeded unless the output confirms the remote
    ref was updated (`[new branch]`, `[up to date]`, `... -> ...`).
 3. If a `pre-push` hook rejects, fix the cause and create a NEW follow-up
    commit — never amend the rejected commit.
 4. **Never bypass hooks** (`--no-verify`, `--no-gpg-sign`, …) without
-   explicit operator authorization. The one recognized exception — a
-   Biome zero-match failure under a harness-managed worktree path — is a
-   consumer-tooling gap, **not** authorization; see
+   explicit operator authorization. A Biome zero-match failure under a
+   harness-managed worktree path is a known false negative — a
+   consumer-tooling gap, **not** authorization to bypass; see
    [`git-conventions-reference.md` § Push Validation](git-conventions-reference.md).
 
 ## Local checkout hygiene

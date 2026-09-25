@@ -22,12 +22,12 @@ description:
 
 ## Activation
 
-Called from [`/mandrel-plan`](../../../workflows/mandrel-plan.md) during ideation when the
-operator supplies `--seed "<text>"` (or runs ideation with no seed and the host
-collects one interactively). The skill sharpens freeform intent into the
-canonical planning sections that `/mandrel-plan` then folds into a Story. There is no
-separate Epic Clarity Gate path in v2 — N=1 Story authoring with a folded
-`## Spec` is the lean default.
+Invoked directly by the operator (`idea-refine` / `ideate`), ahead of
+planning — it is not a step of
+[`/mandrel-plan`](../../../workflows/mandrel-plan.md), whose Gate #1 stops only
+for a HITL unknown or a duplicate. The skill sharpens freeform intent into the
+canonical planning sections, so a saved one-pager feeds
+`/mandrel-plan <path>` (seed-file mode) directly.
 
 ## Detailed Instructions
 

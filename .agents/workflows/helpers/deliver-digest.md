@@ -68,8 +68,8 @@ same derived level, so the two cannot disagree. A sensitive footprint
 therefore buys a **deep review**, not a fresh acceptance critic.
 
 > **The ceremony rule, stated once.** The **profile alone** names the verdict
-> owner (Story #5343, narrowed to that one input by #5366): `minimal` /
-> `standard` → `inline`, `strict` → `fresh`. Nothing else moves it — not the
+> owner: `minimal` / `standard` → `inline`, `strict` → `fresh`. Nothing else
+> moves it — not the
 > derived change level, not the footprint's sensitivity, and **not the
 > dispatch mode**: an `inline` Story under `strict` still spawns the fresh
 > maker-blind critic, one nesting level shallower than a dispatched one. The

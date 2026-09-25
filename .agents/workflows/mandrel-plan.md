@@ -75,11 +75,12 @@ in Key Assumptions, each a decision-made-by-default.
 `duplicates[]` is non-empty (planning a duplicate of open work stays the
 operator's call): confirm the sharpened plan intent and settle it. Otherwise
 announce the sharpened intent and the advisory line, and continue to
-authoring. Everything else the envelope surfaced — `duplicates[]`, open
-`intake` rows, a truthy `memoryPoolAdvisory.recommend`, a truthy
-`complexitySignals.uiSurface` naming [`/prototype`](prototype.md) (never
-invoke it here) — collapses to **one advisory line** under the gate, which
-never reroutes the run ([ref](helpers/plan-reference.md)).
+authoring. The advisory line names what the envelope surfaced — any
+`duplicates[]` (the stop above), open `intake` rows, a truthy
+`memoryPoolAdvisory.recommend`, a truthy `complexitySignals.uiSurface`
+naming [`/prototype`](prototype.md) (never invoke it here) — as
+**one advisory line** under the gate; the line itself never reroutes the run
+([ref](helpers/plan-reference.md)).
 Under `--yes`, auto-proceed.
 
 ### 2. Author

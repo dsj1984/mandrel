@@ -15,7 +15,9 @@ Mandrel ships as the `mandrel` npm package, whose consumers pin an
 exact lockfile version; they opt into breaks at upgrade time. Operator policy
 for any contract change (config shape, baseline shape, schema, lifecycle
 payload, ticket label, dispatch artifact, public API of a script) is
-therefore:
+therefore as follows. It governs Mandrel's own framework contracts; a
+consumer's product API keeps the expand–contract rule in
+[`api-conventions.md`](api-conventions.md).
 
 1. **Hard cutovers only.** Contract changes ship as a single in-tree
    migration of every producer and consumer. There is no parallel
@@ -154,10 +156,10 @@ different hazards:
 
 ## Meta Labels (Retrospective Signal Routing)
 
-Two `meta::*` labels route retrospective signals into durable substrates so
+Three `meta::*` labels route retrospective signals into durable substrates so
 the `/mandrel-plan` Phase 0 fetcher (see
 [`prior-feedback-fetcher.js`](../scripts/lib/feedback-loop/prior-feedback-fetcher.js))
-can surface open feedback issues to the planner. Both labels live in
+can surface open feedback issues to the planner. All three live in
 [`label-constants.js`](../scripts/lib/label-constants.js) under the
 `META_LABELS` export — reference them by symbol from scripts rather than
 hard-coding the string.
@@ -180,3 +182,10 @@ project-local automation). The work is scoped to the consumer's
 framework changes. Issues that span both axes should carry both labels —
 `fetchPriorFeedback` dedupes by issue number so a dual-labeled issue
 appears exactly once in the planner context.
+
+### `meta::platform-gap`
+
+Apply this label to a GitHub issue whose fault lies in a shared base
+config, runner fleet, or cross-repo toolchain that neither the framework
+nor the consumer owns — the `--owner platform` bucket of
+[`ci-remediation.md`](ci-remediation.md).
