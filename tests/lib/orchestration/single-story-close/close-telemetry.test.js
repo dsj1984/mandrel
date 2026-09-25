@@ -31,6 +31,7 @@ import {
 } from '../../../../.agents/scripts/lib/observability/signals-writer.js';
 import { runCodeReview } from '../../../../.agents/scripts/lib/orchestration/code-review.js';
 import { createChainProvider } from '../../../../.agents/scripts/lib/orchestration/review-providers/review-provider-factory.js';
+import { runStoryScopeReview } from '../../../../.agents/scripts/lib/orchestration/single-story-close/phases/code-review.js';
 import { handleOverriddenReviewBlock } from '../../../../.agents/scripts/lib/orchestration/single-story-close/phases/review-override.js';
 import { runSingleStoryClose } from '../../../../.agents/scripts/lib/orchestration/single-story-close/runner.js';
 import { makeTempDir } from '../../../../.agents/scripts/lib/test-temp.js';
@@ -202,6 +203,37 @@ describe('AC-2: review halts and overrides name the contributing provider', () =
     assert.deepEqual(Object.values(result.criticalByProvider), [1]);
   });
 
+  it('the review phase relays attribution, defaulting a severity-less result', async () => {
+    const lines = [];
+    const outcome = await runStoryScopeReview({
+      cwd: tempRoot,
+      storyId: 7114,
+      storyBranch: 'story-7114',
+      baseBranch: 'main',
+      prUrl: 'https://github.com/o/r/pull/9',
+      prNumber: 9,
+      provider: {
+        ...inertProvider(),
+        postComment: async () => {
+          throw 'offline';
+        },
+      },
+      runCodeReviewFn: async () => ({
+        halted: true,
+        posted: true,
+        postedCommentId: 5,
+        criticalByProvider: { native: 1 },
+      }),
+      gitSpawnFn: () => ({ status: 0, stdout: 'abc\n', stderr: '' }),
+      progress: (_tag, msg) => lines.push(msg),
+    });
+    assert.equal(outcome.halted, true);
+    assert.deepEqual(outcome.criticalByProvider, { native: 1 });
+    assert.equal(outcome.severity.critical, 0);
+    assert.equal(outcome.crossRefPosted, false);
+    assert.ok(lines.some((l) => l.includes('offline')));
+  });
+
   it('a critical halt emits review-blocked friction naming each provider and count', async () => {
     await emitReviewBlockedFriction({
       storyId: 7103,
@@ -241,6 +273,13 @@ describe('AC-2: review halts and overrides name the contributing provider', () =
 });
 
 describe('AC-3: --worker-tokens is best-effort', () => {
+  it('the close usage names the flag', async () => {
+    await assert.rejects(
+      runSingleStoryClose({ storyId: 0, injectedConfig: config }),
+      /--worker-tokens <n>/,
+    );
+  });
+
   it('accepts a non-negative integer', () => {
     assert.deepEqual(parseWorkerTokens('184233'), {
       tokens: 184233,

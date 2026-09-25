@@ -2152,8 +2152,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
-      "lines": 96.58,
-      "branches": 81.71,
+      "lines": 97.09,
+      "branches": 82.1,
       "functions": 100
     },
     {
@@ -2200,8 +2200,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
-      "lines": 95.54,
-      "branches": 90,
+      "lines": 100,
+      "branches": 100,
       "functions": 100
     },
     {
@@ -2296,9 +2296,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
-      "lines": 97.91,
-      "branches": 88.89,
-      "functions": 88.24
+      "lines": 98.29,
+      "branches": 89.83,
+      "functions": 96.77
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-lease-guard.js",

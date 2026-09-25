@@ -272,8 +272,8 @@ async function runPrePushPhases({
   skipSync,
   injectedSync,
   injectedGitSpawn,
-  setPhase = () => {},
-  setObservedGates = () => {},
+  setPhase,
+  setObservedGates,
 }) {
   setPhase('wrong-tree-guard');
   await runWrongTreeGuardPhase({
@@ -347,7 +347,7 @@ async function openAndReviewPr({
   overrideReviewBlock,
   injectedGh,
   injectedRunCodeReview,
-  setPhase = () => {},
+  setPhase,
 }) {
   setPhase('push');
   // Push from the worktree so `pre-push` measures the tree being sent; the
