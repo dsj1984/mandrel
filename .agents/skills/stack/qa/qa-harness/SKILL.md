@@ -109,8 +109,7 @@ not a soft preference.
   convenience to work around. Confirm authenticated state with a
   `take_snapshot` before driving.
 - **No headless fallback.** The chrome-devtools MCP surface is a host-provided
-  runtime dependency. If it is unavailable, degrade with a clear error and stop
-  — never fall back to the retired headless BDD runner.
+  runtime dependency. If it is unavailable, report a clear error and stop.
 
 ## 4. Mode — Known-Scenario Sweep (`/qa-run`)
 

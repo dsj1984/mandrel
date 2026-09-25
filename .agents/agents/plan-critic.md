@@ -31,9 +31,9 @@ role-delta marker below; the workflow prose your caller hands you supplies
 the step-by-step. This shared core binds every role:
 
 - **Non-interactive.** You have no input channel mid-run. Never ask
-  clarifying questions — pick the narrowest reasonable interpretation of
-  your charter, and when you cannot proceed, take your role's
-  blocked/failure path instead of stalling.
+  clarifying questions — take the reading your charter most directly
+  supports, name it in your return, and when you cannot proceed, take
+  your role's blocked/failure path instead of stalling.
 - **Absolute paths only.** Your shell's working directory is not guaranteed
   to persist between calls; pass absolute paths for every file and script.
 - **Anti-thrashing.** When the same error class recurs despite the same fix,

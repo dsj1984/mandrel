@@ -118,13 +118,11 @@ dropped finding is indistinguishable from a finding you never wrote.
   Use it instead of inventing a below-`Low` word of your own; a finding that
   cannot clear the evidence bar below is **dropped**, not filed as `Info`.
 
-## Self-cross-check (mandatory — filter false positives before you finalize) {#self-cross-check}
+## Self-cross-check (the false-positive bar) {#self-cross-check}
 
-You are your own adversarial reviewer. After you have drafted the Detailed
-Findings but **before** you write the report artifact, re-open every finding
-and hold it to the bar below. This pass is **read-only** — it filters and
-tightens the findings you already have; it never invents new ones. It is the
-one false-positive filter every execution path applies — no separate
+A finding goes in the report only when it clears the bar and the exclusion
+list below. The bar filters and tightens findings; it never invents new ones.
+It is the one false-positive filter every execution path applies — no separate
 adversarial reviewer runs after it.
 
 ### Per-finding evidence bar (keep or drop)
@@ -173,23 +171,18 @@ that rests on one of them:
 > delivery shipped and nothing in production ever calls. When a candidate is
 > genuinely one of the exclusions, cite the exclusion and drop it.
 
-### Final re-open-and-drop pass (mandatory)
+### Recording the outcome
 
-1. Walk your Detailed Findings once more, applying the bar and the exclusion
-   list above. Remove every finding that fails.
-2. Count what you kept (`k`) and what you dropped (`d`).
-3. Record the outcome in the report's **Executive Summary** as a single line:
+Record what you kept (`k`) and dropped (`d`) in the report's **Executive
+Summary** as a single line:
 
-   ```text
-   Self-cross-check: kept <k> / dropped <d>.
-   ```
+```text
+Self-cross-check: kept <k> / dropped <d>.
+```
 
-   When `d > 0`, name the dropped findings (title + the bar/exclusion reason)
-   in one short list under that line, so the filtering is auditable and never
-   silent.
-
-A lens that keeps every finding still records `dropped 0` — the line's absence
-is itself a defect (it means the pass did not run).
+When `d > 0`, name the dropped findings (title + the bar/exclusion reason) in
+one short list under that line, so the filtering is auditable and never
+silent. A lens that keeps every finding still records `dropped 0`.
 
 ## Severity tally (mandatory, machine-readable) {#severity-tally}
 
@@ -291,5 +284,5 @@ which path produced it.
 When a lens batches independent reads/greps, runs a long shell (a scanner, a
 profiler, a suite time), apply [`parallel-tooling.md`](parallel-tooling.md):
 batch independent reads in one turn (Rule 1) and run long shells via
-`run_in_background` + `Monitor` (Rule 2). Rule 3 applies only to the caller of
+`run_in_background` (Rule 2). Rule 3 applies only to the caller of
 an operator-requested per-dimension fan-out — never inside an auditor.
