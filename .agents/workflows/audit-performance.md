@@ -27,18 +27,18 @@ Per the core's Scope interpretation:
 
 ## Execution strategy
 
-This is a **heavyweight lens**: dispatch it as a single `subagent_type: auditor`
-call, or fan its resource dimensions out per-dimension across parallel `auditor`
-subagents (parallel-tooling Rule 3) and merge under the self-cross-check.
-Sequential inline execution is the fallback (see the core's Execution strategy).
+Dispatch this lens as one `subagent_type: auditor` call. Fan its resource
+dimensions out across parallel `auditor` subagents (parallel-tooling Rule 3),
+merging under the self-cross-check, only when the operator explicitly asks for
+per-dimension fan-out. Sequential inline execution is the fallback (see the
+core's Execution strategy).
 
 > **Measurement is non-mutating, not forbidden.** This lens is read-only with
-> respect to source, but it MUST be allowed to *run* measurements. The
-> orchestrated path grants its measurement agents a `Bash` tool restricted to a
-> **non-mutating command allowlist** (profilers, timers, bundle-stat and
-> file-size probes — never a command that writes source, installs, or mutates
-> git/labels). See the allowlist in the harness-generated
-> `.claude/workflows/audit-performance.workflow.js`.
+> respect to source, but the auditor MUST be allowed to *run* measurements. It
+> runs only **non-mutating** commands — profilers, timers, bundle-stat and
+> file-size probes — and never a command that writes source, installs
+> packages, or mutates git state or labels. The one write is the report
+> artifact.
 
 ## Step 0: Measure before you judge (mandatory)
 

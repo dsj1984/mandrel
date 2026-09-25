@@ -1,23 +1,21 @@
-// scripts/lib/dynamic-workflow/performance-report-contract.js
+// scripts/lib/audit-report-contracts/performance-report-contract.js
 import { assertSectionsContract } from './report-contract-core.js';
 
 /**
  * The `audit-performance` report contract (Epic #3597, Story #3611).
  *
- * This is the **single source of truth** for the report shape that BOTH the
- * sequential lens (`.agents/workflows/audit-performance.md` Step 3) and the
- * orchestrated dynamic-workflow path
- * (`.claude/workflows/audit-performance.workflow.js`) MUST emit to
+ * This is the **single source of truth** for the report shape the lens
+ * (`.agents/workflows/audit-performance.md` Step 3) MUST emit to
  * `{{auditOutputDir}}/audit-performance-results.md`. Keeping it here lets the
  * contract-tier test assert report conformance against one definition rather
- * than re-deriving headings from prose in two places.
+ * than re-deriving headings from prose.
  *
  * The report shape is declared by the lens markdown's Step 4 template. Story
  * #4631 added the mandatory per-finding **Evidence** field (a repro command
  * plus a `measured`/`estimated` tag) so measurement-first evidence is part of
- * the contract both paths must emit, not just prose in the lens.
+ * the contract the lens must emit, not just prose in the lens.
  *
- * @module dynamic-workflow/performance-report-contract
+ * @module audit-report-contracts/performance-report-contract
  */
 
 /** The artifact filename the lens writes under `auditOutputDir`. */
@@ -26,11 +24,10 @@ export const REPORT_ARTIFACT_BASENAME = 'audit-performance-results.md';
 /**
  * The required top-level (`##`) section headings, in document order, that the
  * lens markdown's Step 3 template defines. A conformant report MUST contain
- * each of these headings; the orchestrated path assembles its cross-checked
- * sub-agent findings into exactly this skeleton.
+ * each of these headings.
  *
  * The `Low-Hanging Fruit` section is the performance lens's distinguishing
- * section — the quick-win backlog the synthesis stage must always emit.
+ * section — the quick-win backlog the report must always carry.
  */
 export const REQUIRED_SECTIONS = Object.freeze([
   'Executive Summary',
@@ -58,8 +55,8 @@ export const FINDING_FIELDS = Object.freeze([
 /**
  * Assert that a rendered markdown report conforms to the contract: it has the
  * H1 title and every required `##` section heading. Returns a structured
- * result rather than throwing, so callers (tests, the orchestrated path's
- * self-check) can report precisely which sections are missing.
+ * result rather than throwing, so callers (the
+ * contract tests) can report precisely which sections are missing.
  *
  * Pure function — string analysis only.
  *

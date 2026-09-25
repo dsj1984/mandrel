@@ -60,12 +60,13 @@ the floor-vs-ratchet policy are tooling commitments rather than ADRs and live in
 
 <!-- ADR-INDEX:START -->
 
-**In force (52).** Each governs the surface named beside it.
+**In force (53).** Each governs the surface named beside it.
 A `Status` of `Accepted in part` means some clause of the entry has been
 superseded — open it before citing it.
 
 | Decision | Governs | Surface | Status |
 | --- | --- | --- | --- |
+| [`20260925-5436`](#adr-20260925-5436-one-auditor-per-lens-is-the-default-execution-path-the-dynamic-workflow-audit-path-is-retired) | One auditor per lens by default; the dynamic-workflow audit path is retired | `.agents/workflows/helpers/audit-lens-core.md` | Accepted |
 | [`20260918-5382`](#adr-20260918-5382-the-agentrc-surface-carries-only-keys-someone-sets-tuning-constants-live-at-their-read-site) | The `.agentrc` surface carries only keys someone sets; tuning constants live at their read site | `scripts/lib/agentrc-key-ceiling.js` | Accepted |
 | [`20260917-5357`](#adr-20260917-5357-concurrent-dispatch-requires-per-story-worktrees-the-cap-is-clamped-to-1-when-isolation-resolves-off) | Concurrent dispatch requires per-Story worktrees; the cap clamps to 1 when isolation is off | `.agents/scripts/lib/config/runners.js` | Accepted |
 | [`20260917-5355`](#adr-20260917-5355-probe-graphql-reachability-at-close-init-defer-the-gh-pr-rest-migration) | Probe GraphQL reachability at close init; defer the `gh pr` REST migration | `.agents/scripts/lib/gh-exec.js` | Accepted |
@@ -158,6 +159,67 @@ at the release tag named in the entry.
 - [Earlier ADRs (001 / 002 / 003)](#earlier-adrs-001--002--003)
 
 <!-- ADR-INDEX:END -->
+
+## ADR 20260925-5436: One auditor per lens is the default execution path; the dynamic-workflow audit path is retired
+
+**Status:** Accepted
+**Date:** 2026-09-25
+**Surface:** `.agents/workflows/helpers/audit-lens-core.md`
+**Story:** #5436
+
+### Context
+
+An audit lens had three execution paths. The default dispatched one `auditor`
+sub-agent. Three heavyweight lenses (architecture, performance, documentation)
+also invited per-dimension fan-out on the caller's own judgment, and the
+auditor role let each child fan out again beneath itself. A third path — six
+saved Claude Code dynamic workflows plus an in-repo orchestrator engine —
+fanned every dimension out as its own agent and then ran an independent
+adversarial cross-check before a synthesis agent wrote the report.
+
+Two costs compounded. **Tokens:** every per-dimension agent re-reads the
+repository, so a lens fanned out across D dimensions pays for D reads of the
+same tree, and the dynamic path ran 2D+1 agents per lens — up to 23 for the
+clean-code lens. **Duplication:** the dynamic path's adversarial cross-check
+repeated the auditor's own self-cross-check, which already demands a read
+`path:line` and reproducible evidence for every kept finding, and
+`/audit-to-stories` and `/mandrel-plan` filter findings again downstream. The
+dynamic path also never reached a consumer: its workflow scripts and engine
+lived outside the package's `files` array, yet shipped lens prose described
+them.
+
+### Decision
+
+- **One auditor per lens is the default.** A lens runs as exactly one
+  `subagent_type: auditor` dispatch. Per-dimension fan-out happens only when
+  the operator's invocation explicitly asks for it; then the caller dispatches
+  one auditor per dimension and merges under the self-cross-check.
+- **No nested fan-out.** An auditor never dispatches sub-agents of its own,
+  and the shared parallel-tooling rule no longer encourages a sub-agent to fan
+  out again on its own initiative. A dispatch a workflow names explicitly —
+  the `strict`-profile acceptance critic — stays legal.
+- **The dynamic-workflow audit path is retired.** The six saved audit
+  workflows, the orchestrator engine and its coverage-degradation helper are
+  deleted. Sequential inline execution remains the fallback when sub-agent
+  dispatch is unavailable.
+- **The report contracts stay guarded.** The six per-lens report-contract
+  modules and their shared core move to `scripts/lib/audit-report-contracts/`,
+  and the contract tests keep asserting lens-template parity and
+  `audit-to-stories` parse parity. The report contract itself is unchanged.
+- **The performance lens keeps its measurement rule.** Its auditor runs only
+  non-mutating measurement commands; the rule no longer points at a
+  workflow-script allowlist.
+
+### Consequences
+
+- A default lens run reads the repository once instead of once per dimension,
+  and the cross-check runs once, inside the auditor.
+- One execution contract is documented, and every word of it reaches
+  consumers; nothing in the shipped prose describes an unshipped path.
+- An operator who wants the breadth of per-dimension agents still gets it by
+  asking, at the price of the extra reads.
+- The dynamic-workflow feature gating drops out of the Claude-coupling
+  inventory.
 
 ## ADR 20260918-5382: The .agentrc surface carries only keys someone sets; tuning constants live at their read site
 

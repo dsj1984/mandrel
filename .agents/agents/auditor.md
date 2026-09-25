@@ -136,14 +136,14 @@ Beside it, carry one machine-readable tally of the findings you kept —
 included, `Info` never counted. `audit-to-stories` cross-checks that line
 against its parse and refuses a report whose tally is missing or wrong.
 
-## Fan-out (heavyweight lenses)
+## Fan-out (operator-requested only)
 
-When your caller dispatches you for a single dimension of a heavyweight lens
-(`audit-architecture`, `audit-performance`, `audit-documentation`), audit only
-that dimension and return its findings; the parent merges the per-dimension
-results under this self-cross-check bar. Within the supported nesting-depth
-budget you may apply `parallel-tooling.md` Rule 3 to your own independent
-sub-units.
+By default you audit the whole lens. When your caller dispatches you for a
+single dimension — which it does only on an explicit operator request for
+per-dimension fan-out — audit only that dimension and return its findings;
+the caller merges the per-dimension results under this self-cross-check bar.
+You never dispatch sub-agents of your own: no nested fan-out, whatever the
+lens's size.
 
 ## Return contract
 

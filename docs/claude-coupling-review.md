@@ -66,10 +66,10 @@ Everything outside them is prose or a centralized constant.
    harness's hook contract; remote/web detection keys entirely on
    `CLAUDE_CODE_REMOTE*`. Story #5003 removed the tool-trace hook and the
    `CC_*` propagation channel it was the only reader of.
-5. **Dynamic-workflows feature gating** — a Claude Code-only, paid-plan,
-   research-preview feature gated on `CLAUDE_CODE_*` env flags and a
-   `not-claude-runtime` reason sentinel, with per-lens workflow blocks mirrored
-   in the report-contract files.
+5. **Dynamic-workflows feature gating** — **retired** (Story #5436). The
+   Claude Code-only saved audit workflows and their orchestrator engine were
+   deleted; every lens now runs as one `auditor` sub-agent dispatch, so this
+   cluster no longer couples anything.
 6. **`~/.claude/projects/<repo>/memory/` reads** — planning authoring-context
    and memory-freshness both read the host's memory directory.
 7. **Host tool-name assumptions in skills and schemas** — `AskUserQuestion` is

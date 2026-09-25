@@ -1,14 +1,11 @@
 // tests/contract/quality-report-contract.test.js
 //
 // Contract tier (Epic #3597, Story #3614): the `audit-quality` report
-// contract is the boundary both execution paths cross. These tests assert
-// that:
+// contract is the boundary between the lens and its downstream consumer.
+// These tests assert that:
 //   1. The contract definition matches the lens markdown's Step 3 template
-//      (so the sequential path emits it).
-//   2. The orchestrated dynamic-workflow synthesis prompt assembles exactly
-//      that skeleton (so the absent-feature path and present-feature path
-//      produce the same shape).
-//   3. The contract's required headings/fields match what the downstream
+//      (so the auditor emits it).
+//   2. The contract's required headings/fields match what the downstream
 //      `audit-to-stories` consumer parses.
 //
 // Report-shape conformance is a contract-tier concern per
@@ -20,10 +17,6 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
-  buildScopeClause,
-  buildSynthesisPrompt,
-} from '../../.claude/workflows/audit-quality.workflow.js';
-import {
   assertReportContract,
   FINDING_CATEGORIES,
   FINDING_FIELDS,
@@ -31,7 +24,7 @@ import {
   REPORT_ARTIFACT_BASENAME,
   REPORT_TITLE,
   REQUIRED_SECTIONS,
-} from '../../scripts/lib/dynamic-workflow/quality-report-contract.js';
+} from '../../scripts/lib/audit-report-contracts/quality-report-contract.js';
 
 const REPO_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -54,7 +47,7 @@ const CORE = readFileSync(
 const SOURCE = `${LENS}
 ${CORE}`;
 
-// --- the lens markdown declares the contract the sequential path emits -----
+// --- the lens markdown declares the contract the auditor emits -----
 
 test('lens markdown writes the canonical artifact basename', () => {
   assert.ok(
@@ -151,45 +144,6 @@ test('assertReportContract: a report missing the title is non-conformant', () =>
   const result = assertReportContract(report);
   assert.equal(result.conformant, false);
   assert.equal(result.hasTitle, false);
-});
-
-// --- the orchestrated path assembles the same contract skeleton ------------
-
-test('orchestrated synthesis prompt names every required section in order', () => {
-  const prompt = buildSynthesisPrompt(
-    ['### Sample\n- **Category:** Coverage'],
-    'temp/audits',
-  );
-  for (const heading of REQUIRED_SECTIONS) {
-    assert.ok(prompt.includes(heading), `synthesis prompt omits ${heading}`);
-  }
-  assert.ok(prompt.includes(REPORT_TITLE));
-});
-
-test('orchestrated synthesis prompt targets the canonical artifact path', () => {
-  const prompt = buildSynthesisPrompt([], 'temp/audits');
-  assert.ok(prompt.includes(`temp/audits/${REPORT_ARTIFACT_BASENAME}`));
-});
-
-test('orchestrated synthesis prompt tolerates a trailing slash on the output dir', () => {
-  const prompt = buildSynthesisPrompt([], 'temp/audits/');
-  assert.ok(prompt.includes(`temp/audits/${REPORT_ARTIFACT_BASENAME}`));
-  assert.ok(!prompt.includes('audits//'));
-});
-
-// --- scope parity: both paths honour the {{changedFiles}} contract ---------
-
-test('buildScopeClause: unsubstituted token → full codebase-wide scan', () => {
-  assert.match(buildScopeClause('{{changedFiles}}'), /full codebase/i);
-  assert.match(buildScopeClause(''), /full codebase/i);
-  assert.match(buildScopeClause(undefined), /full codebase/i);
-});
-
-test('buildScopeClause: a real file list → scoped analysis', () => {
-  const clause = buildScopeClause('src/a.js\nsrc/b.js');
-  assert.match(clause, /Restrict analysis/i);
-  assert.ok(clause.includes('src/a.js'));
-  assert.ok(clause.includes('src/b.js'));
 });
 
 // --- downstream consumer parity --------------------------------------------
