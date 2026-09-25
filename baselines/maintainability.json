@@ -1396,7 +1396,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/review-provider-factory.js",
-      "mi": 96.362
+      "mi": 97.359
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/scoped-lint.js",
