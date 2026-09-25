@@ -78,7 +78,9 @@ but not a cycle.
 unblocked it:
 `node .agents/scripts/update-ticket-state.js --ticket <id> --state agent::ready`.
 Do not poll the label yourself while waiting — the HITL pause is the operator's
-turn, not a slow beat.
+turn, not a slow beat. Before resuming, the operator raises session effort one
+step, and raises effort before switching models
+([effort escalation](../../docs/execution-reference.md#session-effort-and-model)).
 
 Each beat re-probes live state: it re-resolves the graph, classifies **done**
 (`agent::done` or a closed issue — including foreign blockers that landed in

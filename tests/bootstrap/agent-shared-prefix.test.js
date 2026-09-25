@@ -2,18 +2,16 @@
  * tests/bootstrap/agent-shared-prefix.test.js — shared-prefix agent boots
  * (Story #4708, AC-3).
  *
- * Prompt-cache is keyed on the exact byte prefix of the assembled system
- * prompt, so every `.agents/agents/*.md` role context must begin (after its
- * role-specific YAML frontmatter, which the host strips) with a
- * BYTE-IDENTICAL shared common core, with role-specific content strictly
- * after the `<!-- role-delta:` marker. One diverged byte in the shared block
- * — or a role section reordered ahead of it — silently forfeits the cache
- * hit for every spawn of that role, so this structural test fails on any
- * divergence rather than leaving the regression invisible.
- *
- * The materialized `.claude/agents/` copies inherit the property: the sync
- * header `sync-claude-agents.js` injects is a single static constant shared
- * by all payload agents, so `HEADER + shared core` stays a common prefix.
+ * Every role binds the same baseline rules, so every `.agents/agents/*.md`
+ * role context must begin (after its role-specific YAML frontmatter, which
+ * the host strips) with a BYTE-IDENTICAL shared common core, with
+ * role-specific content strictly after the `<!-- role-delta:` marker. The
+ * rationale is consistency, not prompt-cache sharing: since Story #5426 the
+ * roles pin different effort levels, so their spawns no longer share a cache
+ * prefix. One diverged byte in the shared block — or a role section reordered
+ * ahead of it — means one role silently runs under a different baseline, so
+ * this structural test fails on any divergence rather than leaving the drift
+ * invisible.
  */
 
 import assert from 'node:assert/strict';
@@ -89,7 +87,7 @@ describe('role-scoped agent boots share a byte-identical common-core prefix (Sto
       assert.equal(
         prefix,
         refPrefix,
-        `${file} shared core diverges from ${refFile} — the byte-identical prefix is what makes every role spawn cache-hit; edit the shared block in ALL role files at once`,
+        `${file} shared core diverges from ${refFile} — every role must bind the same baseline rules; edit the shared block in ALL role files at once`,
       );
     }
   });
