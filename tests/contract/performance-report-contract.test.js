@@ -1,13 +1,11 @@
 // tests/contract/performance-report-contract.test.js
 //
 // Contract tier (Epic #3597, Story #3611): the `audit-performance` report
-// contract is the boundary both execution paths cross. These tests assert that:
+// contract is the boundary between the lens and its downstream consumer.
+// These tests assert that:
 //   1. The contract definition matches the lens markdown's Step 3 template
-//      (so the sequential path emits it).
-//   2. The orchestrated dynamic-workflow synthesis prompt assembles exactly
-//      that skeleton (so the absent-feature path and present-feature path
-//      produce the same shape).
-//   3. The contract's required headings/fields match what the downstream
+//      (so the auditor emits it).
+//   2. The contract's required headings/fields match what the downstream
 //      `audit-to-stories` consumer parses.
 //
 // Report-shape conformance is a contract-tier concern per
@@ -19,20 +17,12 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
-  buildDimensionPrompt,
-  buildScopeClause,
-  buildSynthesisPrompt,
-  MEASUREMENT_COMMAND_ALLOWLIST,
-  MEASUREMENT_TOOLS,
-  READ_ONLY_TOOLS,
-} from '../../.claude/workflows/audit-performance.workflow.js';
-import {
   assertReportContract,
   FINDING_FIELDS,
   REPORT_ARTIFACT_BASENAME,
   REPORT_TITLE,
   REQUIRED_SECTIONS,
-} from '../../scripts/lib/dynamic-workflow/performance-report-contract.js';
+} from '../../scripts/lib/audit-report-contracts/performance-report-contract.js';
 
 const REPO_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -55,7 +45,7 @@ const CORE = readFileSync(
 const SOURCE = `${LENS}
 ${CORE}`;
 
-// --- the lens markdown declares the contract the sequential path emits -----
+// --- the lens markdown declares the contract the auditor emits -----
 
 test('lens markdown writes the canonical artifact basename', () => {
   assert.ok(
@@ -83,19 +73,28 @@ test('lens markdown declares every per-finding field label', () => {
   }
 });
 
-test('composed source documents the execution strategy incl. the demoted orchestrated path', () => {
-  // Story #4665: the shared dual-path prose moved into the core's Execution
-  // strategy, where the orchestrated dynamic-workflow path is demoted to an
-  // optimization note over the first-class subagent-dispatch path. The lens
-  // still declares subagent dispatch as its execution section.
+test('composed source documents the single-auditor execution strategy', () => {
+  // Story #5436: a lens runs as one auditor dispatch by default; the retired
+  // dynamic-workflow path is no longer documented anywhere in the lens prose.
   assert.ok(
     /^##\s+Execution strategy\s*$/m.test(LENS),
     'performance lens missing its "## Execution strategy" section',
   );
   assert.ok(
-    /subagent_type: auditor/.test(SOURCE) &&
-      /orchestrated|dynamic-workflow/i.test(SOURCE),
-    'composed source does not document subagent dispatch + the demoted orchestrated path',
+    /subagent_type: auditor/.test(SOURCE),
+    'composed source does not document the subagent_type: auditor dispatch',
+  );
+  assert.ok(
+    !/\.claude\/workflows|dynamic-workflow/i.test(SOURCE),
+    'composed source still documents the retired dynamic-workflow path',
+  );
+});
+
+test('lens binds the auditor to non-mutating measurement commands', () => {
+  assert.match(LENS, /non-mutating/i);
+  assert.ok(
+    !/allowlist/i.test(LENS),
+    'lens must not point at a workflow-script command allowlist',
   );
 });
 
@@ -130,103 +129,6 @@ test('assertReportContract: a report missing the title is non-conformant', () =>
   const result = assertReportContract(report);
   assert.equal(result.conformant, false);
   assert.equal(result.hasTitle, false);
-});
-
-// --- the orchestrated path assembles the same contract skeleton ------------
-
-test('orchestrated synthesis prompt names every required section in order', () => {
-  const prompt = buildSynthesisPrompt(
-    ['### Sample\n- **Dimension:** Latency'],
-    'temp/audits',
-  );
-  for (const heading of REQUIRED_SECTIONS) {
-    assert.ok(prompt.includes(heading), `synthesis prompt omits ${heading}`);
-  }
-  assert.ok(prompt.includes(REPORT_TITLE));
-});
-
-test('orchestrated synthesis prompt targets the canonical artifact path', () => {
-  const prompt = buildSynthesisPrompt([], 'temp/audits');
-  assert.ok(prompt.includes(`temp/audits/${REPORT_ARTIFACT_BASENAME}`));
-});
-
-test('orchestrated synthesis prompt tolerates a trailing slash on the output dir', () => {
-  const prompt = buildSynthesisPrompt([], 'temp/audits/');
-  assert.ok(prompt.includes(`temp/audits/${REPORT_ARTIFACT_BASENAME}`));
-  assert.ok(!prompt.includes('audits//'));
-});
-
-// --- scope parity: both paths honour the {{changedFiles}} contract ---------
-
-test('buildScopeClause: unsubstituted token → full codebase-wide scan', () => {
-  assert.match(buildScopeClause('{{changedFiles}}'), /full codebase/i);
-  assert.match(buildScopeClause(''), /full codebase/i);
-  assert.match(buildScopeClause(undefined), /full codebase/i);
-});
-
-test('buildScopeClause: a real file list → scoped analysis', () => {
-  const clause = buildScopeClause('src/a.js\nsrc/b.js');
-  assert.match(clause, /Restrict analysis/i);
-  assert.ok(clause.includes('src/a.js'));
-  assert.ok(clause.includes('src/b.js'));
-});
-
-// --- AC-5: the orchestrated path can EXECUTE measurements -------------------
-
-test('measurement agents are granted Bash on top of the read-only trio', () => {
-  assert.ok(
-    MEASUREMENT_TOOLS.includes('Bash'),
-    'measurement agents must be granted Bash to run Step 0 measurements',
-  );
-  for (const tool of READ_ONLY_TOOLS) {
-    assert.ok(
-      MEASUREMENT_TOOLS.includes(tool),
-      `measurement allowlist dropped read-only tool ${tool}`,
-    );
-  }
-});
-
-test('the command allowlist is non-empty and holds only non-mutating commands', () => {
-  assert.ok(
-    MEASUREMENT_COMMAND_ALLOWLIST.length > 0,
-    'measurement command allowlist is empty — execution was stripped, not restricted',
-  );
-  // The measurement toolkit the lens Step 0 names must be present.
-  for (const cmd of ['hyperfine', 'node --cpu-prof']) {
-    assert.ok(
-      MEASUREMENT_COMMAND_ALLOWLIST.includes(cmd),
-      `measurement allowlist omits the Step 0 command "${cmd}"`,
-    );
-  }
-  // No mutating command may leak into a "non-mutating" allowlist.
-  const joined = MEASUREMENT_COMMAND_ALLOWLIST.join('\n');
-  for (const forbidden of [
-    'rm ',
-    'git commit',
-    'git push',
-    'git checkout',
-    'npm install',
-    'npm ci',
-    'sed -i',
-    'mv ',
-  ]) {
-    assert.ok(
-      !joined.includes(forbidden),
-      `measurement allowlist must not contain the mutating command "${forbidden.trim()}"`,
-    );
-  }
-});
-
-test('every dimension prompt embeds the allowlist and the Evidence requirement', () => {
-  const prompt = buildDimensionPrompt('CPU & algorithmic hot paths', LENS, '');
-  for (const cmd of MEASUREMENT_COMMAND_ALLOWLIST) {
-    assert.ok(
-      prompt.includes(cmd),
-      `dimension prompt does not surface allowlisted command "${cmd}"`,
-    );
-  }
-  assert.match(prompt, /Evidence field/i);
-  assert.match(prompt, /measured|estimated/i);
 });
 
 // --- downstream consumer parity --------------------------------------------

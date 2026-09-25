@@ -33901,169 +33901,56 @@
       "crap": 4
     },
     {
-      "path": "scripts/lib/dynamic-workflow/architecture-report-contract.js",
+      "path": "scripts/lib/audit-report-contracts/architecture-report-contract.js",
       "method": "assertReportContract",
       "startLine": 65,
       "crap": 1
     },
     {
-      "path": "scripts/lib/dynamic-workflow/audit-orchestrator.js",
-      "method": "defaultContractError",
-      "startLine": 140,
-      "crap": 3
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/audit-orchestrator.js",
-      "method": "describeRejection",
-      "startLine": 154,
-      "crap": 2
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/audit-orchestrator.js",
-      "method": "partitionSettled",
-      "startLine": 170,
-      "crap": 1
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/audit-orchestrator.js",
-      "method": "<anon partitionSettled/(result,index)#0>",
-      "startLine": 173,
-      "crap": 2,
-      "anonymous": true
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/audit-orchestrator.js",
-      "method": "runAuditOrchestration",
-      "startLine": 199,
-      "crap": 4
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/audit-orchestrator.js",
-      "method": "<anon runAuditOrchestration/(report)#0>",
-      "startLine": 209,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/audit-orchestrator.js",
-      "method": "<anon runAuditOrchestration/()#0>",
-      "startLine": 216,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/audit-orchestrator.js",
-      "method": "<anon runAuditOrchestration/()#0/(dimension)#0>",
-      "startLine": 218,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/audit-orchestrator.js",
-      "method": "<anon runAuditOrchestration/(entry)#0>",
-      "startLine": 233,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/audit-orchestrator.js",
-      "method": "<anon runAuditOrchestration/()#1>",
-      "startLine": 234,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/audit-orchestrator.js",
-      "method": "<anon runAuditOrchestration/()#1/(dimension,findings)#0>",
-      "startLine": 236,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/audit-orchestrator.js",
-      "method": "<anon runAuditOrchestration/(f)#0>",
-      "startLine": 253,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/audit-orchestrator.js",
-      "method": "<anon runAuditOrchestration/()#2>",
-      "startLine": 261,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/clean-code-report-contract.js",
+      "path": "scripts/lib/audit-report-contracts/clean-code-report-contract.js",
       "method": "assertReportContract",
       "startLine": 75,
       "crap": 1
     },
     {
-      "path": "scripts/lib/dynamic-workflow/degraded-coverage.js",
-      "method": "formatDegradedCoverageNote",
-      "startLine": 45,
-      "crap": 3
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/degraded-coverage.js",
-      "method": "<anon formatDegradedCoverageNote/(f)#0>",
-      "startLine": 47,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/degraded-coverage.js",
-      "method": "withDegradedCoverageNote",
-      "startLine": 71,
-      "crap": 4
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/degraded-coverage.js",
-      "method": "<anon withDegradedCoverageNote/(line)#0>",
-      "startLine": 75,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/documentation-report-contract.js",
+      "path": "scripts/lib/audit-report-contracts/documentation-report-contract.js",
       "method": "assertReportContract",
       "startLine": 82,
       "crap": 1
     },
     {
-      "path": "scripts/lib/dynamic-workflow/performance-report-contract.js",
+      "path": "scripts/lib/audit-report-contracts/performance-report-contract.js",
       "method": "assertReportContract",
       "startLine": 69,
       "crap": 1
     },
     {
-      "path": "scripts/lib/dynamic-workflow/quality-report-contract.js",
+      "path": "scripts/lib/audit-report-contracts/quality-report-contract.js",
       "method": "assertReportContract",
       "startLine": 85,
       "crap": 1
     },
     {
-      "path": "scripts/lib/dynamic-workflow/report-contract-core.js",
+      "path": "scripts/lib/audit-report-contracts/report-contract-core.js",
       "method": "assertSectionsContract",
       "startLine": 23,
       "crap": 3
     },
     {
-      "path": "scripts/lib/dynamic-workflow/report-contract-core.js",
+      "path": "scripts/lib/audit-report-contracts/report-contract-core.js",
       "method": "<anon assertSectionsContract/(heading)#0>",
       "startLine": 30,
       "crap": 1,
       "anonymous": true
     },
     {
-      "path": "scripts/lib/dynamic-workflow/report-contract-core.js",
+      "path": "scripts/lib/audit-report-contracts/report-contract-core.js",
       "method": "escapeRegExp",
       "startLine": 41,
       "crap": 1
     },
     {
-      "path": "scripts/lib/dynamic-workflow/security-report-contract.js",
+      "path": "scripts/lib/audit-report-contracts/security-report-contract.js",
       "method": "assertReportContract",
       "startLine": 78,
       "crap": 1

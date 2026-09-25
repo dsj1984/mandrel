@@ -1,22 +1,19 @@
-// scripts/lib/dynamic-workflow/clean-code-report-contract.js
+// scripts/lib/audit-report-contracts/clean-code-report-contract.js
 import { assertSectionsContract } from './report-contract-core.js';
 
 /**
  * The `audit-clean-code` report contract (Story #3278).
  *
- * This is the **single source of truth** for the report shape that BOTH the
- * sequential lens (`.agents/workflows/audit-clean-code.md` Step 3) and the
- * orchestrated dynamic-workflow path
- * (`.claude/workflows/audit-clean-code.workflow.js`) MUST emit to
+ * This is the **single source of truth** for the report shape the lens
+ * (`.agents/workflows/audit-clean-code.md` Step 3) MUST emit to
  * `{{auditOutputDir}}/audit-clean-code-results.md`. Keeping it here lets the
  * contract-tier test assert report conformance against one definition rather
- * than re-deriving headings from prose in two places.
+ * than re-deriving headings from prose.
  *
  * This module documents the **existing** report shape; it does not introduce
- * a new one. Changing the report contract is a separate, deliberate decision —
- * not a side effect of the dual-path orchestration work.
+ * a new one. Changing the report contract is a separate, deliberate decision.
  *
- * @module dynamic-workflow/clean-code-report-contract
+ * @module audit-report-contracts/clean-code-report-contract
  */
 
 /** The artifact filename the lens writes under `auditOutputDir`. */
@@ -25,8 +22,7 @@ export const REPORT_ARTIFACT_BASENAME = 'audit-clean-code-results.md';
 /**
  * The required top-level (`##`) section headings, in document order, that the
  * lens markdown's Step 3 template defines. A conformant report MUST contain
- * each of these headings; the orchestrated path assembles its sub-agent
- * findings into exactly this skeleton.
+ * each of these headings.
  */
 export const REQUIRED_SECTIONS = Object.freeze([
   'Executive Summary',
@@ -64,8 +60,8 @@ export const DEAD_CODE_COLUMNS = Object.freeze([
 /**
  * Assert that a rendered markdown report conforms to the contract: it has the
  * H1 title and every required `##` section heading. Returns a structured
- * result rather than throwing, so callers (tests, the orchestrated path's
- * self-check) can report precisely which sections are missing.
+ * result rather than throwing, so callers (the
+ * contract tests) can report precisely which sections are missing.
  *
  * Pure function — string analysis only.
  *

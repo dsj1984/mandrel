@@ -1,22 +1,16 @@
-// scripts/lib/dynamic-workflow/security-report-contract.js
+// scripts/lib/audit-report-contracts/security-report-contract.js
 import { assertSectionsContract } from './report-contract-core.js';
 
 /**
  * The `audit-security` report contract (Epic #3597, Story #3613).
  *
- * This is the **single source of truth** for the report shape that BOTH the
- * sequential lens (`.agents/workflows/audit-security.md` Step 3) and the
- * orchestrated dynamic-workflow path
- * (`.claude/workflows/audit-security.workflow.js`) MUST emit to
+ * This is the **single source of truth** for the report shape the lens
+ * (`.agents/workflows/audit-security.md` Step 3) MUST emit to
  * `{{auditOutputDir}}/audit-security-results.md`. Keeping it here lets the
  * contract-tier test assert report conformance against one definition rather
- * than re-deriving headings from prose in two places.
+ * than re-deriving headings from prose.
  *
- * Generalising the orchestrated dual path to the security lens is explicitly
- * **report-contract-preserving** — this module documents the existing shape the
- * sequential lens already emits, it does not introduce a new one.
- *
- * @module dynamic-workflow/security-report-contract
+ * @module audit-report-contracts/security-report-contract
  */
 
 /** The artifact filename the lens writes under `auditOutputDir`. */
@@ -25,8 +19,7 @@ export const REPORT_ARTIFACT_BASENAME = 'audit-security-results.md';
 /**
  * The required top-level (`##`) section headings, in document order, that the
  * lens markdown's Step 3 template defines. A conformant report MUST contain
- * each of these headings; the orchestrated path assembles its cross-checked
- * findings into exactly this skeleton.
+ * each of these headings.
  */
 export const REQUIRED_SECTIONS = Object.freeze([
   'Executive Summary',
@@ -67,8 +60,8 @@ export const SEVERITY_LEVELS = Object.freeze([
 /**
  * Assert that a rendered markdown report conforms to the contract: it has the
  * H1 title and every required `##` section heading. Returns a structured
- * result rather than throwing, so callers (tests, the orchestrated path's
- * self-check) can report precisely which sections are missing.
+ * result rather than throwing, so callers (the
+ * contract tests) can report precisely which sections are missing.
  *
  * Pure function — string analysis only.
  *

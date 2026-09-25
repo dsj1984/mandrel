@@ -2347,39 +2347,31 @@
       "mi": 99.175
     },
     {
-      "path": "scripts/lib/dynamic-workflow/architecture-report-contract.js",
+      "path": "scripts/lib/audit-report-contracts/architecture-report-contract.js",
       "mi": 120.402
     },
     {
-      "path": "scripts/lib/dynamic-workflow/audit-orchestrator.js",
-      "mi": 106.127
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/clean-code-report-contract.js",
+      "path": "scripts/lib/audit-report-contracts/clean-code-report-contract.js",
       "mi": 116.629
     },
     {
-      "path": "scripts/lib/dynamic-workflow/degraded-coverage.js",
-      "mi": 113.559
-    },
-    {
-      "path": "scripts/lib/dynamic-workflow/documentation-report-contract.js",
+      "path": "scripts/lib/audit-report-contracts/documentation-report-contract.js",
       "mi": 113.542
     },
     {
-      "path": "scripts/lib/dynamic-workflow/performance-report-contract.js",
+      "path": "scripts/lib/audit-report-contracts/performance-report-contract.js",
       "mi": 120.402
     },
     {
-      "path": "scripts/lib/dynamic-workflow/quality-report-contract.js",
+      "path": "scripts/lib/audit-report-contracts/quality-report-contract.js",
       "mi": 113.542
     },
     {
-      "path": "scripts/lib/dynamic-workflow/report-contract-core.js",
+      "path": "scripts/lib/audit-report-contracts/report-contract-core.js",
       "mi": 120.807
     },
     {
-      "path": "scripts/lib/dynamic-workflow/security-report-contract.js",
+      "path": "scripts/lib/audit-report-contracts/security-report-contract.js",
       "mi": 116.629
     },
     {
