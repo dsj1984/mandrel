@@ -943,6 +943,10 @@
       "mi": 114.854
     },
     {
+      "path": ".agents/scripts/lib/observability/close-telemetry.js",
+      "mi": 97.291
+    },
+    {
       "path": ".agents/scripts/lib/observability/metrics-ledger.js",
       "mi": 105.855
     },
@@ -1468,7 +1472,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/options.js",
-      "mi": 100.763
+      "mi": 102.144
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/post-land.js",

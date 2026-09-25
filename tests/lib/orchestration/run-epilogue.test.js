@@ -7,7 +7,7 @@ import { readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { orchestrationLogDir } from '../../../.agents/scripts/lib/config/temp-paths.js';
-import { emitCloseRetrySignal } from '../../../.agents/scripts/lib/observability/close-telemetry.js';
+import { recordCloseTelemetry } from '../../../.agents/scripts/lib/observability/close-telemetry.js';
 import {
   emitRuntimeFriction,
   RUNTIME_FRICTION_CATEGORIES,
@@ -1265,8 +1265,8 @@ describe('follow-up-rollup — run-level close telemetry (Story #5435)', () => {
     };
     try {
       for (const storyId of [1, 2]) {
-        await emitCloseRetrySignal({
-          envelope: {
+        await recordCloseTelemetry({
+          terminal: {
             storyId,
             status: 'blocked',
             phase: 'confirm-merge',

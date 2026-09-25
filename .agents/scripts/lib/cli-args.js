@@ -134,11 +134,9 @@ function tolerantOverrideReviewBlock(value) {
 }
 
 /**
- * The story-worker's host-reported token total, best-effort: absent or junk
- * records `null` with a warning and never fails the close. Only a
- * non-negative decimal integer is accepted — never coerced from `12.5k`.
+ * Best-effort: absent or junk is `null` plus a warning, never a throw.
  *
- * @param {unknown} value The raw `--worker-tokens` value.
+ * @param {unknown} value
  * @returns {{ tokens: number|null, warning: string|null }}
  */
 export function parseWorkerTokens(value) {
@@ -190,7 +188,6 @@ export function parseSprintArgs(
       'merge-watch-mode': { type: 'string' },
       'rerun-advisory': { type: 'string' },
       'override-review-block': { type: 'string' },
-      // Raw; validated best-effort by parseWorkerTokens, never thrown on.
       'worker-tokens': { type: 'string' },
       executor: { type: 'string' },
       cwd: { type: 'string' },

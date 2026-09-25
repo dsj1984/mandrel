@@ -15,11 +15,10 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import { parseWorkerTokens } from '../../../../.agents/scripts/lib/cli-args.js';
 import {
-  buildCloseTelemetry,
-  emitCloseRetrySignal,
   emitCloseTerminalSignals,
   emitReviewBlockedFriction,
   gatherRunTelemetry,
+  recordCloseTelemetry,
 } from '../../../../.agents/scripts/lib/observability/close-telemetry.js';
 import {
   emitRuntimeFriction,
@@ -126,11 +125,7 @@ describe('AC-1: one retry signal per non-landed close, with its cause', () => {
 
   for (const [label, overrides, cause] of cases) {
     it(`${label} → exactly one retry record, cause ${cause}`, async () => {
-      const appended = await emitCloseRetrySignal({
-        envelope: envelope(overrides),
-        config,
-      });
-      assert.equal(appended, true);
+      await recordCloseTelemetry({ terminal: envelope(overrides), config });
       const retries = retryRows(await readStorySignals(7101));
       assert.equal(retries.length, 1);
       assert.equal(retries[0].details.cause, cause);
@@ -141,11 +136,7 @@ describe('AC-1: one retry signal per non-landed close, with its cause', () => {
 
   for (const status of ['landed', 'pending']) {
     it(`a ${status} close appends no retry record`, async () => {
-      const appended = await emitCloseRetrySignal({
-        envelope: envelope({ status }),
-        config,
-      });
-      assert.equal(appended, false);
+      await recordCloseTelemetry({ terminal: envelope({ status }), config });
       assert.equal(retryRows(await readStorySignals(7101)).length, 0);
     });
   }
@@ -285,8 +276,8 @@ describe('AC-4: the telemetry summary', () => {
         },
       });
     }
-    await emitCloseRetrySignal({
-      envelope: envelope({
+    await recordCloseTelemetry({
+      terminal: envelope({
         storyId,
         status: 'failed',
         phase: 'code-review',
@@ -312,13 +303,14 @@ describe('AC-4: the telemetry summary', () => {
 
   it('reports acceptance rounds, retries by cause, halts/overrides by provider and worker tokens', async () => {
     await seedStory(7105);
-    const telemetry = await buildCloseTelemetry({
-      storyId: 7105,
+    const result = { storyId: 7105 };
+    await recordCloseTelemetry({
+      terminal: envelope({ storyId: 7105, status: 'landed' }),
+      result,
       config,
       workerTokens: 5000,
-      landed: true,
     });
-    assert.deepEqual(telemetry, {
+    assert.deepEqual(result.telemetry, {
       acceptanceRounds: 2,
       retries: { total: 1, byCause: { 'review-block': 1 } },
       review: {
@@ -333,11 +325,13 @@ describe('AC-4: the telemetry summary', () => {
 
   it('an unlanded Story confirms no halt; invalid tokens record null', async () => {
     await seedStory(7106);
-    const telemetry = await buildCloseTelemetry({
-      storyId: 7106,
+    const result = { storyId: 7106 };
+    await recordCloseTelemetry({
+      terminal: envelope({ storyId: 7106, status: 'pending' }),
+      result,
       config,
-      workerTokens: null,
     });
+    const { telemetry } = result;
     assert.deepEqual(telemetry.review.confirmedHaltsByProvider, {});
     assert.equal(telemetry.workerTokens, null);
   });
@@ -405,26 +399,18 @@ describe('AC-3/AC-4/AC-6: through the close runner', () => {
 });
 
 describe('AC-6: a telemetry write failure never changes the close', () => {
-  it('a throwing retry append resolves false', async () => {
-    const appended = await emitCloseRetrySignal({
-      envelope: envelope({ status: 'failed', phase: 'push' }),
-      config,
-      appendFn: async () => {
-        throw new Error('disk full');
-      },
-    });
-    assert.equal(appended, false);
-  });
-
   it('a throwing signal read yields an empty summary, not a throw', async () => {
-    const telemetry = await buildCloseTelemetry({
-      storyId: 7111,
+    const result = { storyId: 7111 };
+    await recordCloseTelemetry({
+      terminal: envelope({ storyId: 7111, status: 'landed' }),
+      result,
       config,
       workerTokens: 1,
       readFn: async () => {
         throw new Error('EIO');
       },
     });
+    const { telemetry } = result;
     assert.equal(telemetry.acceptanceRounds, 0);
     assert.equal(telemetry.retries.total, 0);
     assert.equal(telemetry.workerTokens, 1);
@@ -437,10 +423,11 @@ describe('AC-6: a telemetry write failure never changes the close', () => {
     const broken = { project: { paths: { tempRoot: blocker } } };
     const failed = envelope({ status: 'failed', phase: 'push' });
 
-    assert.equal(
-      await emitCloseRetrySignal({ envelope: failed, config: broken }),
-      false,
+    const result = { storyId: 7101 };
+    await assert.doesNotReject(
+      recordCloseTelemetry({ terminal: failed, result, config: broken }),
     );
+    assert.equal(result.telemetry.retries.total, 0);
     assert.equal(
       await emitReviewBlockedFriction({
         storyId: 7112,

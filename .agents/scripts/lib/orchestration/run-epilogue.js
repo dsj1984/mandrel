@@ -694,9 +694,7 @@ async function executeFollowUpRollup({
 }
 
 /**
- * Run-level retry causes, acceptance rounds, and per-provider review halts /
- * overrides over the run's own Stories. Reported on the step result only —
- * never on the roll-up comment (ADR 20260828-5077c keeps telemetry local).
+ * On the step result only, never the roll-up comment: telemetry stays local.
  * A read failure is a missing metric (`null`), never a failed step.
  *
  * @param {Array<string|number>} stories
