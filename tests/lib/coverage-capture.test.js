@@ -645,6 +645,17 @@ describe('reportCaptureFailure (Story #5377)', () => {
     assert.match(lines.info[0], /no suite ran/);
   });
 
+  it('Story #5471: reports a timeout as a timeout, never as failing tests', () => {
+    const { lines, logger } = recorder();
+    assert.equal(
+      reportCaptureFailure(COVERAGE_TIMEOUT_EXIT_CODE, logger),
+      COVERAGE_TIMEOUT_EXIT_CODE,
+    );
+    assert.equal(lines.error.length, 1);
+    assert.match(lines.error[0], /timed out/);
+    assert.doesNotMatch(lines.error[0], /Fix failing tests/);
+  });
+
   it('reports any other non-zero exit as a suite failure', () => {
     const { lines, logger } = recorder();
     assert.equal(reportCaptureFailure(2, logger), 2);
