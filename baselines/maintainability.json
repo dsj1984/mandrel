@@ -715,6 +715,10 @@
       "mi": 98.303
     },
     {
+      "path": ".agents/scripts/lib/coverage-capture-delta.js",
+      "mi": 101.801
+    },
+    {
       "path": ".agents/scripts/lib/coverage-capture-fullscope.js",
       "mi": 94.734
     },
