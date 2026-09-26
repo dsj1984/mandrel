@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process';
 
 import {
   LOCK_WAIT_EXPIRED_EXIT_CODE,
+  resolveFullSuiteLockBudget,
   withFullSuiteLockAsync,
 } from '../full-suite-lock.js';
 import {
@@ -98,8 +99,10 @@ export function defaultGateRunner(cmd, args, opts = {}) {
   );
 }
 
+/** The wait is bounded by the same kill bound that bounds the holder. */
 function gateLockOptions(opts) {
   return {
+    ...resolveFullSuiteLockBudget(opts.timeoutMs),
     cwd: opts.cwd,
     log: opts.log,
     skipIfSatisfied: opts.skipIfSatisfied,

@@ -13,6 +13,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { getQuality } from './config/quality.js';
 import { mainCheckoutRoot } from './config/temp-paths.js';
 import { isFirstInLine, waitInLine } from './full-suite-queue.js';
 import { acquireSweepLock } from './single-story-sweep/sweep-lock.js';
@@ -29,11 +30,8 @@ export const LOCK_WAIT_EXPIRED_EXIT_CODE = 75;
 /** Under the main checkout's `.git`, so every worktree shares one file. */
 const FULL_SUITE_LOCK_FILENAME = 'mandrel-full-suite.lock';
 
-/** Well under close's ten-minute foreground ceiling. */
-const DEFAULT_WAIT_MS = 300_000;
-
-/** Never above the wait budget. */
-const DEFAULT_STALE_MS = 240_000;
+/** The wait floor, and the budget when no kill bound is known. */
+const MIN_WAIT_MS = 300_000;
 
 const DEFAULT_POLL_MS = 2_000;
 
@@ -47,15 +45,29 @@ const LOCK_TAG = '[full-suite-lock]';
 const LOCK_DEFAULTS = Object.freeze({
   enabled: true,
   log: () => {},
-  waitMs: DEFAULT_WAIT_MS,
+  ...resolveFullSuiteLockBudget(),
   pollMs: DEFAULT_POLL_MS,
-  staleMs: DEFAULT_STALE_MS,
   reportMs: DEFAULT_REPORT_MS,
   fsImpl: fs,
   nowFn: Date.now,
   sleepFn: (ms) => defaultSleep(ms),
   acquireOnceFn: (opts) => acquireSweepLock(opts),
 });
+
+/**
+ * The one wait budget every full-suite lock taker uses. A holder's suite is
+ * killed at its supervisor's `killBoundMs` (the coverage gate's `timeoutMs`),
+ * so waiting that long always observes a release or a death. The stale
+ * threshold is four fifths of the wait: never above the budget, and a live
+ * holder (heartbeating at a third of its own threshold) is never read stale.
+ *
+ * @param {number} [killBoundMs]
+ * @returns {{ waitMs: number, staleMs: number }}
+ */
+export function resolveFullSuiteLockBudget(killBoundMs) {
+  const waitMs = Math.max(MIN_WAIT_MS, Number(killBoundMs) || 0);
+  return { waitMs, staleMs: waitMs - waitMs / 5 };
+}
 
 /**
  * Both hatches (env, then config) can only turn the lock off.
@@ -229,6 +241,7 @@ export function lockedCapture(
   lockOptions = {},
 ) {
   const policy = {
+    ...resolveFullSuiteLockBudget(getQuality(config).coverage?.timeoutMs),
     enabled: isFullSuiteLockEnabled({ config, env }),
     onWaitExpired: deferredCaptureExit(env),
     ...lockOptions,
