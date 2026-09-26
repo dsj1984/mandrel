@@ -80,7 +80,7 @@ const ALLOWLIST = new Set([
   '.agents/scripts/lib/config/temp-paths.js',
   '.agents/scripts/lib/coverage-capture.js',
   '.agents/scripts/lib/dead-exports-knip.js',
-  '.agents/scripts/lib/feedback-loop/graduator-core.js',
+  '.agents/scripts/lib/feedback-loop/graduator-gh.js',
   '.agents/scripts/lib/format-generated-json.js',
   '.agents/scripts/lib/gh-exec.js',
   '.agents/scripts/lib/git-utils.js',
