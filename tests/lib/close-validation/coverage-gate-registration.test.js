@@ -13,14 +13,22 @@
  */
 
 import assert from 'node:assert/strict';
-import { rmSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, it } from 'node:test';
 
+import { runCoverageCapture } from '../../../.agents/scripts/coverage-capture.js';
 import {
   buildDefaultGates,
   partitionGates,
 } from '../../../.agents/scripts/lib/close-validation/gates.js';
 import { runCloseValidation } from '../../../.agents/scripts/lib/close-validation/runner.js';
+import {
+  computeContentDigest,
+  isCoverageFresh,
+  writeCaptureStamp,
+} from '../../../.agents/scripts/lib/coverage-capture.js';
 import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
 
 const names = (gates) => gates.map((g) => g.name);
@@ -404,4 +412,152 @@ describe('buildDefaultGates — the pre-push quality preview runs at close as tw
       assert.equal(find(gates, CRAP), undefined);
     }
   });
+});
+
+// Story #5477 — digest § 5 makes the worker's one credited run the coverage
+// capture on a capture-active project. That only pays off if close, which
+// still registers `coverage-capture` (its gate list is unchanged), finds the
+// worker's stamp fresh and skips the suite. This drives the registered gate
+// through the real close runner into the real capture CLI over a real git
+// worktree, so the stamp digest is the one `computeContentDigest` computes
+// for the tree — only the `test:coverage` spawn itself is a spy.
+describe('close honours a fresh worker-side capture stamp (Story #5477)', () => {
+  const COVERAGE_PATH = 'coverage/coverage-final.json';
+  const TARGET_DIRS = ['lib'];
+  const SCRIPTS = { 'test:coverage': 'c8 node --test' };
+
+  /** A git worktree with one tracked source under the CRAP target dirs. */
+  const makeWorktree = () => {
+    const cwd = makeTempDir('story-5477-');
+    const git = (...args) => {
+      const res = spawnSync('git', args, { cwd, encoding: 'utf8' });
+      assert.equal(res.status, 0, res.stderr);
+    };
+    git('init', '-q');
+    mkdirSync(path.join(cwd, 'lib'));
+    writeFileSync(path.join(cwd, 'lib', 'a.js'), 'export const a = 1;\n');
+    git('add', 'lib/a.js');
+    mkdirSync(path.join(cwd, 'coverage'));
+    writeFileSync(path.join(cwd, COVERAGE_PATH), '{}\n');
+    return cwd;
+  };
+
+  /** What the worker's credited `coverage-capture.js --cwd` run leaves. */
+  const writeWorkerStamp = (cwd, extra = {}) => {
+    const digest = computeContentDigest(cwd, TARGET_DIRS);
+    assert.equal(typeof digest, 'string');
+    assert.ok(
+      writeCaptureStamp({ cwd, coveragePath: COVERAGE_PATH, digest, ...extra }),
+    );
+  };
+
+  /**
+   * Close's registered gate list for this worktree, run through the close
+   * runner; the `coverage-capture` gate executes the capture CLI in-process.
+   */
+  const closeOver = async (cwd, { incremental = false } = {}) => {
+    const crap = {
+      enabled: true,
+      coveragePath: COVERAGE_PATH,
+      targetDirs: TARGET_DIRS,
+      incrementalCoverage: { skipWhenUnchanged: incremental },
+    };
+    const config = { delivery: { quality: { gates: { crap } } } };
+    const changed = () => ['lib/a.js'];
+    const gates = buildDefaultGates({
+      config,
+      packageScripts: SCRIPTS,
+      cwd,
+      baseBranch: 'main',
+      getChangedFilesImpl: changed,
+    });
+    const gate = gates.find((g) => g.name === 'coverage-capture');
+    assert.ok(gate, 'close registers coverage-capture (gate list unchanged)');
+    assert.equal(
+      gate.skip,
+      undefined,
+      'no pre-decided skip: the probe decides',
+    );
+
+    const spawned = [];
+    const logs = [];
+    const result = await runCloseValidation({
+      cwd,
+      gates: [gate],
+      runner: async (cmd, args, { gateName }) => {
+        assert.equal(gateName, 'coverage-capture');
+        assert.equal(cmd, 'node');
+        const status = await runCoverageCapture(
+          ['node', ...args, '--cwd', cwd],
+          {
+            resolveConfigImpl: () => config,
+            getQualityImpl: () => ({ crap, coverage: {} }),
+            readPackageScriptsImpl: () => SCRIPTS,
+            getChangedFilesImpl: changed,
+            isCoverageFreshImpl: isCoverageFresh,
+            computeContentDigestImpl: computeContentDigest,
+            runCaptureImpl: async () => {
+              spawned.push('npm run test:coverage');
+              return 0;
+            },
+            logger: {
+              info: (m) => logs.push(m),
+              warn: (m) => logs.push(m),
+              error: (m) => logs.push(m),
+            },
+          },
+        );
+        return { status };
+      },
+    });
+    return { result, spawned, logs };
+  };
+
+  for (const incremental of [false, true]) {
+    const mode = incremental ? 'incremental' : 'full';
+    const stampScope = incremental ? { scope: 'incremental' } : {};
+
+    it(`AC-3 (${mode}): a stamp matching the tree skips the capture without spawning test:coverage`, async () => {
+      const cwd = makeWorktree();
+      try {
+        writeWorkerStamp(cwd, stampScope);
+        const { result, spawned, logs } = await closeOver(cwd, { incremental });
+        assert.equal(result.ok, true);
+        assert.deepEqual(
+          spawned,
+          [],
+          'close re-ran the suite the worker credited',
+        );
+        assert.ok(
+          logs.some((l) => /is fresh.* — skipping capture/.test(l)),
+          JSON.stringify(logs),
+        );
+        assert.ok(
+          !logs.some((l) => /no credited capture stamp/.test(l)),
+          'a credited close must not announce an uncredited run',
+        );
+      } finally {
+        rmSync(cwd, { recursive: true, force: true });
+      }
+    });
+
+    it(`AC-3 (${mode}): a stamp that no longer matches the tree still spawns test:coverage`, async () => {
+      const cwd = makeWorktree();
+      try {
+        writeWorkerStamp(cwd, stampScope);
+        // A commit after the credited run (or a base-sync merge under the
+        // target dirs) moves the digest and spends the stamp.
+        writeFileSync(path.join(cwd, 'lib', 'a.js'), 'export const a = 2;\n');
+        const { result, spawned, logs } = await closeOver(cwd, { incremental });
+        assert.equal(result.ok, true);
+        assert.deepEqual(spawned, ['npm run test:coverage']);
+        assert.ok(
+          logs.some((l) => /no credited capture stamp/.test(l)),
+          JSON.stringify(logs),
+        );
+      } finally {
+        rmSync(cwd, { recursive: true, force: true });
+      }
+    });
+  }
 });

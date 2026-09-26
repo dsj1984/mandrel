@@ -173,7 +173,7 @@ describe('story-worker boot context carries every delivery MUST (default-true ga
     assertDocOmits(
       body,
       /coverage-capture\.js --cwd <workCwd>/,
-      'the retired capture invocation must not survive',
+      'the capture invocation lives in deliver-digest.md § 5 alone (#5477)',
     );
     assertDocOmits(
       body,

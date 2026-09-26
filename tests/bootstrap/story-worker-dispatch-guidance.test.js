@@ -53,6 +53,7 @@ const read = (rel) => readFileSync(path.join(REPO_ROOT, rel), 'utf8');
 const WORKER = '.agents/agents/story-worker.md';
 const RULE2 = '.agents/workflows/helpers/parallel-tooling.md';
 const DIGEST = '.agents/workflows/helpers/deliver-digest.md';
+const REFERENCE = '.agents/workflows/helpers/deliver-reference.md';
 
 /**
  * The worker's credited-run section: from its `## Close gates` heading to the
@@ -240,6 +241,10 @@ describe('the bundled delivery read pins the same dispatch shape', () => {
     );
   });
 
+  // Story #5477 moved the situational half (runner shapes, background
+  // dispatch, redraft rounds) to deliver-reference.md § Credited run to keep
+  // the digest inside its budget. § 5 keeps the no-credit outcome and the
+  // output-over-exit-code rule, and must point at the relocated prose.
   it('names the legitimate skip in the credited-full-suite section', () => {
     const src = read(DIGEST);
     const start = src.indexOf('## 5.');
@@ -259,8 +264,13 @@ describe('the bundled delivery read pins the same dispatch shape', () => {
     );
     assertDocMentions(
       section,
-      /Run the scoped projects for the roots you changed plus `verify\[\]`/i,
-      'digest § 5 must send a skipped run back through the scoped projects plus verify[], not the whole suite',
+      /deliver-reference\.md`\]\(deliver-reference\.md\) § Credited run/,
+      'digest § 5 must point at the relocated redraft-round and runner-shape prose',
+    );
+    assertDocMentions(
+      read(REFERENCE),
+      /Run the scoped projects for the roots you changed plus\s+`verify\[\]`/i,
+      'the reference must send a redraft round through the scoped projects plus verify[], not the whole suite',
     );
     assertDocOmits(
       section,
