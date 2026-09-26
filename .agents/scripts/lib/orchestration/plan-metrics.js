@@ -231,73 +231,86 @@ function recordTimestamp(entry) {
  * }|null}
  */
 export function summarizePlanMetrics(ledger, opts = {}) {
-  const all = ledger?.entries ?? [];
-  const since = typeof opts.since === 'string' ? opts.since : null;
-  // ISO-8601 UTC strings compare correctly as strings.
-  const entries =
-    since === null
-      ? all
-      : all.filter((e) => {
-          const stamp = recordTimestamp(e);
-          return stamp !== null && stamp >= since;
-        });
+  const entries = scopeEntries(ledger?.entries ?? [], opts.since);
   if (entries.length === 0) return null;
-  const byCli = {};
-  const byMode = {};
-  const criticSkipsByCritic = {};
-  let criticSkips = 0;
-  let failures = 0;
-  let totalDurationMs = 0;
-  let firstStartedAt = null;
-  let lastEndedAt = null;
-  const invocationEntries = [];
-  for (const e of entries) {
-    if (e.kind === PLAN_METRICS_KIND_CRITIC_SKIP) {
-      criticSkips += 1;
-      if (typeof e.critic === 'string') {
-        criticSkipsByCritic[e.critic] =
-          (criticSkipsByCritic[e.critic] ?? 0) + 1;
-      }
-      continue;
-    }
-    if (typeof e.kind === 'string') {
-      // Other kinded records (e.g. `findings-yield`) are not invocations.
-      continue;
-    }
-    invocationEntries.push(e);
-    byCli[e.cli] = (byCli[e.cli] ?? 0) + 1;
-    if (typeof e.mode === 'string') byMode[e.mode] = (byMode[e.mode] ?? 0) + 1;
-    if (e.ok !== true) failures += 1;
-    if (typeof e.durationMs === 'number') totalDurationMs += e.durationMs;
-    if (typeof e.startedAt === 'string') {
-      if (firstStartedAt === null || e.startedAt < firstStartedAt) {
-        firstStartedAt = e.startedAt;
-      }
-    }
-    if (typeof e.endedAt === 'string') {
-      if (lastEndedAt === null || e.endedAt > lastEndedAt) {
-        lastEndedAt = e.endedAt;
-      }
-    }
-  }
-  let spanMs = null;
-  if (firstStartedAt !== null && lastEndedAt !== null) {
-    const span = Date.parse(lastEndedAt) - Date.parse(firstStartedAt);
-    if (Number.isFinite(span)) spanMs = Math.max(0, span);
-  }
+  const skips = tallyCriticSkips(entries);
+  const invocations = tallyInvocations(
+    entries.filter((e) => typeof e.kind !== 'string'),
+  );
   return {
-    invocations: invocationEntries.length,
-    failures,
-    byCli,
-    byMode,
-    criticSkips,
-    criticSkipsByCritic,
-    firstStartedAt,
-    lastEndedAt,
-    spanMs,
-    totalDurationMs,
+    invocations: invocations.count,
+    failures: invocations.failures,
+    byCli: invocations.byCli,
+    byMode: invocations.byMode,
+    criticSkips: skips.count,
+    criticSkipsByCritic: skips.byCritic,
+    firstStartedAt: invocations.firstStartedAt,
+    lastEndedAt: invocations.lastEndedAt,
+    spanMs: spanBetween(invocations.firstStartedAt, invocations.lastEndedAt),
+    totalDurationMs: invocations.totalDurationMs,
     malformedLines: ledger?.malformedLines ?? 0,
   };
+}
+
+function scopeEntries(all, since) {
+  if (typeof since !== 'string') return all;
+  // ISO-8601 UTC strings compare correctly as strings.
+  return all.filter((e) => {
+    const stamp = recordTimestamp(e);
+    return stamp !== null && stamp >= since;
+  });
+}
+
+function increment(counts, key) {
+  counts[key] = (counts[key] ?? 0) + 1;
+}
+
+function tallyCriticSkips(entries) {
+  const byCritic = {};
+  let count = 0;
+  for (const e of entries) {
+    if (e.kind !== PLAN_METRICS_KIND_CRITIC_SKIP) continue;
+    count += 1;
+    if (typeof e.critic === 'string') increment(byCritic, e.critic);
+  }
+  return { count, byCritic };
+}
+
+function earlierStamp(current, candidate) {
+  if (typeof candidate !== 'string') return current;
+  return current === null || candidate < current ? candidate : current;
+}
+
+function laterStamp(current, candidate) {
+  if (typeof candidate !== 'string') return current;
+  return current === null || candidate > current ? candidate : current;
+}
+
+function tallyInvocations(entries) {
+  const tally = {
+    count: entries.length,
+    failures: 0,
+    byCli: {},
+    byMode: {},
+    totalDurationMs: 0,
+    firstStartedAt: null,
+    lastEndedAt: null,
+  };
+  for (const e of entries) {
+    increment(tally.byCli, e.cli);
+    if (typeof e.mode === 'string') increment(tally.byMode, e.mode);
+    if (e.ok !== true) tally.failures += 1;
+    if (typeof e.durationMs === 'number') tally.totalDurationMs += e.durationMs;
+    tally.firstStartedAt = earlierStamp(tally.firstStartedAt, e.startedAt);
+    tally.lastEndedAt = laterStamp(tally.lastEndedAt, e.endedAt);
+  }
+  return tally;
+}
+
+function spanBetween(first, last) {
+  if (first === null || last === null) return null;
+  const span = Date.parse(last) - Date.parse(first);
+  return Number.isFinite(span) ? Math.max(0, span) : null;
 }
 
 /**

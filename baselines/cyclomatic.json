@@ -58,11 +58,6 @@
       "maxCyclomatic": 13
     },
     {
-      "file": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "methodsAboveCeiling": 1,
-      "maxCyclomatic": 14
-    },
-    {
       "file": ".agents/scripts/lib/json-utils.js",
       "methodsAboveCeiling": 1,
       "maxCyclomatic": 14
@@ -86,11 +81,6 @@
       "file": ".agents/scripts/lib/orchestration/merge-block-class.js",
       "methodsAboveCeiling": 1,
       "maxCyclomatic": 15
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/plan-metrics.js",
-      "methodsAboveCeiling": 1,
-      "maxCyclomatic": 19
     },
     {
       "file": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
@@ -126,16 +116,6 @@
       "file": ".agents/scripts/lib/orchestration/review-providers/parse-findings.js",
       "methodsAboveCeiling": 1,
       "maxCyclomatic": 14
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "methodsAboveCeiling": 1,
-      "maxCyclomatic": 17
-    },
-    {
-      "file": ".agents/scripts/lib/signals/detectors/common.js",
-      "methodsAboveCeiling": 1,
-      "maxCyclomatic": 20
     },
     {
       "file": ".agents/scripts/lib/validation-evidence.js",

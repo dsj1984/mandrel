@@ -51,9 +51,12 @@ export function extractTool(rec) {
  */
 export function validateDetectorArgs(args, opts) {
   const { fnName } = opts;
-  const requireTracesPath = opts.requireTracesPath ?? true;
-  const requireStoryId = opts.requireStoryId ?? true;
-  const requireThreshold = opts.requireThreshold ?? true;
+  const gates = {
+    always: true,
+    requireTracesPath: opts.requireTracesPath ?? true,
+    requireStoryId: opts.requireStoryId ?? true,
+    requireThreshold: opts.requireThreshold ?? true,
+  };
 
   if (args == null || typeof args !== 'object') {
     throw new TypeError(
@@ -61,57 +64,66 @@ export function validateDetectorArgs(args, opts) {
     );
   }
 
-  const { tracesPath, epicId, storyId, threshold } = args;
-  const taskId = args.taskId ?? null;
-
-  if (args.nowFn != null && typeof args.nowFn !== 'function') {
-    throw new TypeError(
-      `${fnName}: nowFn, when provided, must be a function (got ${typeof args.nowFn})`,
-    );
-  }
-  const nowFn = args.nowFn ?? (() => new Date().toISOString());
-
-  if (requireTracesPath) {
-    if (typeof tracesPath !== 'string' || tracesPath.length === 0) {
-      throw new TypeError(
-        `${fnName}: tracesPath must be a non-empty string (got ${tracesPath})`,
-      );
-    }
-  }
-
-  if (!isPositiveInt(epicId)) {
-    throw new RangeError(
-      `${fnName}: epicId must be a positive integer (got ${epicId})`,
-    );
-  }
-
-  if (requireStoryId) {
-    if (!isPositiveInt(storyId)) {
-      throw new RangeError(
-        `${fnName}: storyId must be a positive integer (got ${storyId})`,
-      );
-    }
-    if (taskId !== null && !isPositiveInt(taskId)) {
-      throw new RangeError(
-        `${fnName}: taskId must be a positive integer or null (got ${taskId})`,
-      );
-    }
-  }
-
-  if (requireThreshold) {
-    if (!Number.isInteger(threshold) || threshold < 0) {
-      throw new RangeError(
-        `${fnName}: threshold must be a non-negative integer (got ${threshold})`,
-      );
+  const values = { ...args, taskId: args.taskId ?? null };
+  for (const rule of DETECTOR_ARG_RULES) {
+    const value = values[rule.field];
+    if (gates[rule.gate] && rule.invalid(value)) {
+      throw new rule.Error(`${fnName}: ${rule.message(value)}`);
     }
   }
 
   return {
-    tracesPath: requireTracesPath ? tracesPath : undefined,
-    epicId,
-    storyId: requireStoryId ? storyId : undefined,
-    taskId: requireStoryId ? taskId : undefined,
-    threshold: requireThreshold ? threshold : undefined,
-    nowFn,
+    tracesPath: gates.requireTracesPath ? values.tracesPath : undefined,
+    epicId: values.epicId,
+    storyId: gates.requireStoryId ? values.storyId : undefined,
+    taskId: gates.requireStoryId ? values.taskId : undefined,
+    threshold: gates.requireThreshold ? values.threshold : undefined,
+    nowFn: args.nowFn ?? (() => new Date().toISOString()),
   };
 }
+
+const DETECTOR_ARG_RULES = [
+  {
+    field: 'nowFn',
+    gate: 'always',
+    invalid: (v) => v != null && typeof v !== 'function',
+    Error: TypeError,
+    message: (v) =>
+      `nowFn, when provided, must be a function (got ${typeof v})`,
+  },
+  {
+    field: 'tracesPath',
+    gate: 'requireTracesPath',
+    invalid: (v) => typeof v !== 'string' || v.length === 0,
+    Error: TypeError,
+    message: (v) => `tracesPath must be a non-empty string (got ${v})`,
+  },
+  {
+    field: 'epicId',
+    gate: 'always',
+    invalid: (v) => !isPositiveInt(v),
+    Error: RangeError,
+    message: (v) => `epicId must be a positive integer (got ${v})`,
+  },
+  {
+    field: 'storyId',
+    gate: 'requireStoryId',
+    invalid: (v) => !isPositiveInt(v),
+    Error: RangeError,
+    message: (v) => `storyId must be a positive integer (got ${v})`,
+  },
+  {
+    field: 'taskId',
+    gate: 'requireStoryId',
+    invalid: (v) => v !== null && !isPositiveInt(v),
+    Error: RangeError,
+    message: (v) => `taskId must be a positive integer or null (got ${v})`,
+  },
+  {
+    field: 'threshold',
+    gate: 'requireThreshold',
+    invalid: (v) => !Number.isInteger(v) || v < 0,
+    Error: RangeError,
+    message: (v) => `threshold must be a non-negative integer (got ${v})`,
+  },
+];
