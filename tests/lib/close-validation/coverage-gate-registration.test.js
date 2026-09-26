@@ -16,7 +16,10 @@ import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
-import { buildDefaultGates } from '../../../.agents/scripts/lib/close-validation/gates.js';
+import {
+  buildDefaultGates,
+  partitionGates,
+} from '../../../.agents/scripts/lib/close-validation/gates.js';
 import { runCloseValidation } from '../../../.agents/scripts/lib/close-validation/runner.js';
 import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
 
@@ -241,7 +244,7 @@ describe('buildDefaultGates — the test gate never vanishes (Story #5278)', () 
   });
 });
 
-describe('buildDefaultGates — the pre-push CRAP-scope preview is a close gate (Story #5378)', () => {
+describe('buildDefaultGates — the pre-push quality preview runs at close as two halves (Stories #5378, #5471)', () => {
   const CRAP_ON = {
     delivery: {
       quality: {
@@ -256,112 +259,135 @@ describe('buildDefaultGates — the pre-push CRAP-scope preview is a close gate 
     },
   };
   const SCRIPTS = { 'test:coverage': 'c8 node --test' };
-  const preview = (gates) => gates.find((g) => g.name === 'quality-preview');
-
-  it('AC-3: registers after coverage-capture and before the coverage-consuming baselines gate', () => {
-    const gates = buildDefaultGates({
+  const MI = 'quality-preview-mi';
+  const CRAP = 'quality-preview-crap';
+  const find = (gates, name) => gates.find((g) => g.name === name);
+  const gatesFor = (overrides = {}) =>
+    buildDefaultGates({
       config: CRAP_ON,
       packageScripts: SCRIPTS,
       baseBranch: 'main',
       presentBaselines: ['crap'],
+      ...overrides,
     });
-    const order = names(gates);
-    const at = order.indexOf('quality-preview');
-    assert.ok(at > order.indexOf('coverage-capture'), order.join(','));
-    assert.ok(at < order.indexOf('check-baselines-coverage'), order.join(','));
-    const gate = preview(gates);
+
+  it('#5471 AC-1: the MI half sits in the parallel partition, ahead of coverage-capture', () => {
+    const gates = gatesFor();
+    const { independent, serial } = partitionGates(gates);
+    assert.ok(names(independent).includes(MI), names(independent).join(','));
+    assert.ok(!names(serial).includes(MI));
+    assert.ok(names(serial).includes('coverage-capture'));
+    const gate = find(gates, MI);
     assert.deepEqual(
       [gate.cmd, ...gate.args],
       [
         'node',
         '.agents/scripts/quality-preview.js',
+        '--only',
+        'mi',
         '--changed-since',
         'origin/main',
       ],
     );
-    assert.ok(gate.hint, 'a red preview replays with a remediation hint');
-    assert.equal(gate.skip, undefined);
+    assert.match(gate.hint, /Maintainability preview failed/);
   });
 
-  it('AC-3: scopes the preview to the close run base branch', () => {
-    const gate = preview(
-      buildDefaultGates({
-        config: CRAP_ON,
-        packageScripts: SCRIPTS,
-        baseBranch: 'develop',
-      }),
-    );
-    assert.equal(gate.args.at(-1), 'origin/develop');
+  it('#5471 AC-2: the CRAP half stays serial, after coverage-capture and before the coverage-consuming baselines gate', () => {
+    const gates = gatesFor();
+    const { serial } = partitionGates(gates);
+    const order = names(serial);
+    const at = order.indexOf(CRAP);
+    assert.ok(at > order.indexOf('coverage-capture'), order.join(','));
+    assert.ok(at < order.indexOf('check-baselines-coverage'), order.join(','));
+    const gate = find(gates, CRAP);
+    assert.deepEqual(gate.args.slice(1, 3), ['--only', 'crap']);
+    assert.match(gate.hint, /CRAP preview failed/);
+    assert.equal(find(gates, 'quality-preview'), undefined);
   });
 
-  it('AC-3: stays registered, unskipped, when the capture takes its incremental skip', () => {
-    const gates = buildDefaultGates({
-      config: CRAP_ON,
-      packageScripts: SCRIPTS,
+  it('scopes both halves to the close run base branch', () => {
+    const gates = gatesFor({ baseBranch: 'develop' });
+    for (const name of [MI, CRAP]) {
+      assert.equal(find(gates, name).args.at(-1), 'origin/develop');
+    }
+  });
+
+  it('both halves stay registered, unskipped, when the capture takes its incremental skip', () => {
+    const gates = gatesFor({
       cwd: '/repo',
-      baseBranch: 'main',
       getChangedFilesImpl: () => ['tests/a.test.js'],
     });
-    assert.ok(gates.find((g) => g.name === 'coverage-capture').skip);
-    assert.equal(preview(gates).skip, undefined);
+    assert.ok(find(gates, 'coverage-capture').skip);
+    assert.equal(find(gates, MI).skip, undefined);
+    assert.equal(find(gates, CRAP).skip, undefined);
   });
 
-  // The gate as registered, run through the real close runner with a fake
-  // spawn: the preview is the only gate here, so the verdict is its alone.
-  const runPreview = ({ status = 0, cwd = '/repo', calls = [], log } = {}) =>
+  // The registered gate list through the real close runner, with a fake spawn
+  // that fails exactly the named gate. `format` is dropped: its changed-file
+  // scope would shell out to git against the fake cwd.
+  const runClose = ({ failing, cwd = '/repo', calls = [], log } = {}) =>
     runCloseValidation({
       cwd,
-      gates: [
-        preview(
-          buildDefaultGates({
-            config: CRAP_ON,
-            packageScripts: SCRIPTS,
-            baseBranch: 'main',
-          }),
-        ),
-      ],
-      storyId: 5378,
+      gates: gatesFor().filter((g) => g.name !== 'format'),
+      storyId: 5471,
       standalone: true,
       getHeadSha: () => 'c'.repeat(40),
       getTreeFingerprint: () => `tree:${'a'.repeat(40)}`,
-      runner: async (_cmd, args) => {
-        calls.push(args);
-        return { status };
+      runner: async (_cmd, _args, { gateName }) => {
+        calls.push(gateName);
+        return { status: gateName === failing ? 1 : 0 };
       },
       ...(log ? { log } : {}),
     });
 
-  it('AC-5: a red preview fails close-validation, naming the gate with its hint', async () => {
+  it('#5471 AC-1: an MI regression fails close in the parallel phase, before coverage-capture spawns', async () => {
     const lines = [];
-    const result = await runPreview({ status: 1, log: (m) => lines.push(m) });
+    const calls = [];
+    const result = await runClose({
+      failing: MI,
+      calls,
+      log: (m) => lines.push(m),
+    });
+    assert.equal(result.ok, false);
+    assert.deepEqual(
+      result.failed.map((f) => [f.gate.name, f.outcome]),
+      [[MI, 'failed']],
+    );
+    assert.ok(!calls.includes('coverage-capture'), calls.join(','));
+    assert.ok(lines.some((l) => l.includes(`✖ ${MI} failed (exit 1)`)));
+    assert.ok(lines.some((l) => l.includes('hint: Maintainability preview')));
+  });
+
+  it('#5471 AC-2: a CRAP regression still fails close, from the gate after coverage-capture', async () => {
+    const calls = [];
+    const result = await runClose({ failing: CRAP, calls });
     assert.equal(result.ok, false);
     assert.deepEqual(
       result.failed.map((f) => f.gate.name),
-      ['quality-preview'],
+      [CRAP],
     );
-    assert.ok(lines.some((l) => /✖ quality-preview failed \(exit 1\)/.test(l)));
-    assert.ok(lines.some((l) => l.includes('hint: Quality preview failed')));
+    assert.ok(
+      calls.indexOf('coverage-capture') < calls.indexOf(CRAP),
+      calls.join(','),
+    );
   });
 
-  it('AC-6: a pass records schema-valid evidence and a re-close at unchanged HEAD skips it', async () => {
-    const cwd = makeTempDir('story-5378-');
+  it('a pass records schema-valid evidence for both halves and a re-close at unchanged HEAD skips them', async () => {
+    const cwd = makeTempDir('story-5471-');
     try {
       const calls = [];
-      assert.equal((await runPreview({ cwd, calls })).ok, true);
-      assert.equal(calls.length, 1);
-      const again = await runPreview({ cwd, calls });
-      assert.equal(again.ok, true);
-      assert.equal(calls.length, 1, 'the re-close must not respawn the gate');
-      assert.deepEqual(
-        again.skipped.map((s) => s.gate.name),
-        ['quality-preview'],
-      );
+      assert.equal((await runClose({ cwd, calls })).ok, true);
+      assert.ok(calls.includes(MI) && calls.includes(CRAP));
+      const again = [];
+      const second = await runClose({ cwd, calls: again });
+      assert.equal(second.ok, true);
+      assert.ok(!again.includes(MI) && !again.includes(CRAP), again.join(','));
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
   });
 
-  it('AC-4: absent when coverage-capture is not registered', () => {
+  it('absent when coverage-capture is not registered', () => {
     const crapOff = buildDefaultGates({
       config: {
         delivery: { quality: { gates: { crap: { enabled: false } } } },
@@ -374,27 +400,8 @@ describe('buildDefaultGates — the pre-push CRAP-scope preview is a close gate 
     });
     for (const gates of [crapOff, noScript]) {
       assert.ok(!names(gates).includes('coverage-capture'));
-      assert.equal(preview(gates), undefined);
-    }
-  });
-});
-
-describe('buildDefaultGates — --require-credited is a gate argument (Stories #5278, #5382)', () => {
-  const captureArgs = (config) =>
-    buildDefaultGates({
-      config,
-      packageScripts: { 'test:coverage': 'c8 node --test' },
-    }).find((g) => g.name === 'coverage-capture').args;
-
-  it('AC-1: close never passes the flag — the policy key was folded away', () => {
-    for (const execution of [
-      undefined,
-      { requireCreditedCapture: true },
-      { requireCreditedCapture: false },
-    ]) {
-      assert.deepEqual(captureArgs({ delivery: { execution, quality: {} } }), [
-        '.agents/scripts/coverage-capture.js',
-      ]);
+      assert.equal(find(gates, MI), undefined);
+      assert.equal(find(gates, CRAP), undefined);
     }
   });
 });

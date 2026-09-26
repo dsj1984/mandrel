@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 
 import { _internals as baselineReaderInternals } from '../baselines/reader.js';
 import { getChangedFiles } from '../changed-files.js';
-import { getQuality } from '../config/quality.js';
+import { COVERAGE_GATE_DEFAULTS, getQuality } from '../config/quality.js';
 import { filterFilesUnderTargets } from '../coverage-capture.js';
 import { hasNpmScript, readPackageScripts } from '../npm-scripts.js';
 import { KNOWN_KINDS } from '../orchestration/check-baselines/phases/parse-args.js';
@@ -294,37 +294,64 @@ const COVERAGE_CAPTURE_ARGS = Object.freeze([
   '.agents/scripts/coverage-capture.js',
 ]);
 
-/** The close gate that replays the `pre-push` hook's CRAP-scope preview. */
-const QUALITY_PREVIEW_GATE_NAME = 'quality-preview';
+/**
+ * The `pre-push` hook's quality preview, split at close into its two halves.
+ * The MI half needs no coverage artifact, so it fails in the parallel phase;
+ * the CRAP half stays serial behind coverage-capture. Every name MUST be in
+ * the `gateName` enum of `validation-evidence.schema.json`.
+ */
+const QUALITY_PREVIEW_GATE_NAMES = Object.freeze({
+  maintainability: 'quality-preview-mi',
+  crap: 'quality-preview-crap',
+});
 
-const QUALITY_PREVIEW_HINT =
-  "Quality preview failed — the same per-file maintainability / CRAP check the `pre-push` hook runs, scored against the base branch. Reduce the flagged methods' complexity or cover them, then re-run close; a close that skipped this gate would have died at push instead.";
+const QUALITY_PREVIEW_HINTS = Object.freeze({
+  maintainability:
+    'Maintainability preview failed — the per-file MI check the `pre-push` hook runs, scored against the base branch. Simplify the flagged file(s), then re-run close; this gate runs before coverage-capture, so no suite was spent.',
+  crap: "CRAP preview failed — the per-file CRAP check the `pre-push` hook runs, scored against the base branch and the fresh coverage artifact. Reduce the flagged methods' complexity or cover them, then re-run close; a close that skipped this gate would have died at push instead.",
+});
 
 /**
- * Replays the `pre-push` CRAP-scope preview so its breach fails close, not
- * the push. Registered exactly when coverage-capture is, and after it, so it
- * scores a fresh artifact.
+ * Replays the `pre-push` quality preview as two single-half gates, so an MI
+ * breach fails close before the suite runs and a CRAP breach fails it, not
+ * the push. Registered exactly when coverage-capture is.
  *
  * @param {{ coverageCaptureActive: boolean, baseBranch?: string }} opts
- * @returns {Gate[]}
+ * @returns {{ maintainability: Gate[], crap: Gate[] }}
  */
-function buildQualityPreviewGateEntry({ coverageCaptureActive, baseBranch }) {
-  if (!coverageCaptureActive) return [];
+function buildQualityPreviewGateEntries({ coverageCaptureActive, baseBranch }) {
+  if (!coverageCaptureActive) return { maintainability: [], crap: [] };
   const ref = `origin/${baseBranch || 'main'}`;
-  return [
+  const entry = (half, only) => [
     {
-      name: QUALITY_PREVIEW_GATE_NAME,
+      name: QUALITY_PREVIEW_GATE_NAMES[half],
       cmd: 'node',
-      args: ['.agents/scripts/quality-preview.js', '--changed-since', ref],
-      hint: QUALITY_PREVIEW_HINT,
+      args: [
+        '.agents/scripts/quality-preview.js',
+        '--only',
+        only,
+        '--changed-since',
+        ref,
+      ],
+      hint: QUALITY_PREVIEW_HINTS[half],
     },
   ];
+  return {
+    maintainability: entry('maintainability', 'mi'),
+    crap: entry('crap', 'crap'),
+  };
 }
 
 /**
+ * Shown instead of a gate's own hint when it exits `COVERAGE_TIMEOUT_EXIT_CODE`
+ * — a killed suite, not a failing one.
+ */
+export const GATE_TIMEOUT_HINT = `The gate outran the suite timeout (\`delivery.quality.gates.coverage.timeoutMs\`, ${COVERAGE_GATE_DEFAULTS.timeoutMs} ms) and its process group was killed — no test verdict exists. This is usually host contention (sibling suites or a peer close sharing the machine), not a failing test: re-run close once the host is quieter.`;
+
+/**
  * Build the close-validation gate list, cheapest fast-fail first: typecheck →
- * lint → [test] → format → [coverage-capture → quality-preview] →
- * check-baselines. Coverage-capture registers only when CRAP is enabled AND a
+ * lint → [test] → format → [quality-preview-mi] → [coverage-capture →
+ * quality-preview-crap] → check-baselines. Coverage-capture registers only when CRAP is enabled AND a
  * `test:coverage` script exists; it then carries test-failure signalling and
  * the plain `test` gate is dropped, so there is always exactly one test gate.
  *
@@ -392,6 +419,10 @@ export function buildDefaultGates({
     enabledKinds: baselineKinds,
     presentBaselines,
   });
+  const qualityPreview = buildQualityPreviewGateEntries({
+    coverageCaptureActive,
+    baseBranch,
+  });
   if (!baselinesDecision.register && baselinesDecision.reason) {
     log?.(`[close-validation] ${baselinesDecision.reason}`);
   }
@@ -421,6 +452,7 @@ export function buildDefaultGates({
         ? { changedFileScope: formatChangedFileScope }
         : {}),
     },
+    ...qualityPreview.maintainability,
     ...(coverageCaptureActive
       ? [
           {
@@ -434,7 +466,7 @@ export function buildDefaultGates({
           },
         ]
       : []),
-    ...buildQualityPreviewGateEntry({ coverageCaptureActive, baseBranch }),
+    ...qualityPreview.crap,
     ...buildBaselinesGateEntries({
       decision: baselinesDecision,
       kinds: baselineKinds,
@@ -459,6 +491,7 @@ const INDEPENDENT_GATE_NAMES = new Set([
   'format',
   'typecheck',
   BASELINES_GATE_NAMES.independent,
+  QUALITY_PREVIEW_GATE_NAMES.maintainability,
 ]);
 
 /**

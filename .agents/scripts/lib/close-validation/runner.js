@@ -16,6 +16,7 @@ import {
   isFormatterEligible,
   listChangedFilesForFormatGate,
 } from './commands.js';
+import { reportGateExit } from './gate-exit.js';
 import { DEFAULT_GATES, partitionGates } from './gates.js';
 import { defaultGateRunner } from './process.js';
 import { runProjectionAdvisories as defaultRunProjections } from './projections/advisories.js';
@@ -98,7 +99,8 @@ function applyChangedFileScope({ gate, spawnCwd, log }) {
  *   deferOnLockExpiry?: boolean,
  * }} opts `deferOnLockExpiry`: an expired full-suite lock wait spawns
  *   nothing (here or in any gate child) and reports `LOCK_WAIT_EXPIRED_EXIT_CODE`.
- * @returns {{ ok: boolean, failed: Array<{ gate: Gate, status: number, cwd: string }>, skipped: Array<{ gate: Gate, reason: string }> }}
+ * @returns {{ ok: boolean, failed: Array<{ gate: Gate, status: number, cwd: string, outcome: 'deferred'|'timeout'|'failed' }>, skipped: Array<{ gate: Gate, reason: string }> }}
+ *   `outcome` classifies the exit: `deferred` (75), `timeout` (124), else `failed`.
  */
 export async function runCloseValidation({
   cwd,
@@ -228,7 +230,7 @@ export async function runCloseValidation({
       execution = applyChangedFileScope({ gate, spawnCwd, log });
     } catch (err) {
       if (!firstIndepFailure) {
-        firstIndepFailure = { gate, status: 1, cwd: spawnCwd };
+        firstIndepFailure = { gate, status: 1 };
         log(
           `[close-validation] ✖ ${gate.name} failed to resolve changed-file scope: ${err?.message ?? err}`,
         );
@@ -271,7 +273,7 @@ export async function runCloseValidation({
     }
     if (result.status !== 0) {
       if (!firstIndepFailure) {
-        firstIndepFailure = { gate, status: result.status, cwd: spawnCwd };
+        firstIndepFailure = { gate, status: result.status };
         ac.abort();
       }
       return;
@@ -287,13 +289,8 @@ export async function runCloseValidation({
   await Promise.all(indepTasks);
 
   if (firstIndepFailure) {
-    failed.push(firstIndepFailure);
-    log(
-      `[close-validation] ✖ ${firstIndepFailure.gate.name} failed (exit ${firstIndepFailure.status}) in ${spawnCwd}`,
-    );
-    if (firstIndepFailure.gate.hint) {
-      log(`[close-validation]   hint: ${firstIndepFailure.gate.hint}`);
-    }
+    const { gate, status } = firstIndepFailure;
+    failed.push(reportGateExit({ gate, status, cwd: spawnCwd, log }));
     return { ok: false, failed, skipped };
   }
 
@@ -368,21 +365,18 @@ async function runSerialGates(
     dispatchGate,
   },
 ) {
-  const failGate = (gate, status, message) => {
-    failed.push({ gate, status, cwd: spawnCwd });
-    log(message);
-    if (gate.hint) log(`[close-validation]   hint: ${gate.hint}`);
+  const failGate = (gate, status) => {
+    failed.push(reportGateExit({ gate, status, cwd: spawnCwd, log }));
   };
   for (const gate of serial) {
     let execution;
     try {
       execution = applyChangedFileScope({ gate, spawnCwd, log });
     } catch (err) {
-      failGate(
-        gate,
-        1,
+      log(
         `[close-validation] ✖ ${gate.name} failed to resolve changed-file scope: ${err?.message ?? err}`,
       );
+      failGate(gate, 1);
       return;
     }
     if (execution.skip) {
@@ -414,11 +408,7 @@ async function runSerialGates(
       configHash,
     );
     if (result.status !== 0) {
-      failGate(
-        gate,
-        result.status,
-        `[close-validation] ✖ ${gate.name} failed (exit ${result.status}) in ${spawnCwd}`,
-      );
+      failGate(gate, result.status);
       return;
     }
     log(`[close-validation] ✓ ${gate.name}`);

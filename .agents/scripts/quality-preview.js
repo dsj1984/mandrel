@@ -18,7 +18,7 @@ import { CODING_GUARDRAILS } from './lib/config/quality.js';
 
 const USAGE = {
   invocation:
-    'node .agents/scripts/quality-preview.js [--staged | --changed-since <ref>] [--json]',
+    'node .agents/scripts/quality-preview.js [--staged | --changed-since <ref>] [--only mi|crap] [--json]',
   summary:
     'Preview the per-file maintainability and CRAP deltas for the change set, and exit non-zero on any threshold violation.',
   flags: [
@@ -29,6 +29,10 @@ const USAGE = {
     [
       '--changed-since <ref>',
       'Score the diff against <ref> (default: HEAD). Last occurrence wins.',
+    ],
+    [
+      '--only mi|crap',
+      'Run one half only — maintainability (`mi`) or CRAP (`crap`); the other half is reported as not run. Default: both, serially.',
     ],
     ['--json', 'Emit both gate envelopes plus the merged table as JSON.'],
   ],
@@ -71,6 +75,64 @@ export function parseJsonFlag(argv) {
  */
 export function parseStagedFlag(argv) {
   return argv.includes('--staged');
+}
+
+/** The halves `--only` can select. */
+const PREVIEW_HALVES = new Set(['mi', 'crap']);
+
+/**
+ * `--only <half>` (last occurrence wins); `null` runs both halves. A value
+ * outside {@link PREVIEW_HALVES} is returned as-is for the caller to refuse.
+ *
+ * @param {string[]} argv
+ * @returns {string | null}
+ */
+function parseOnlyArg(argv) {
+  const at = argv.lastIndexOf('--only');
+  return at === -1 ? null : (argv[at + 1] ?? '');
+}
+
+/**
+ * @param {string|null} only
+ * @returns {boolean}
+ */
+function isUnknownHalf(only) {
+  return only !== null && !PREVIEW_HALVES.has(only);
+}
+
+/**
+ * Run `half` unless `--only` selected the other one.
+ *
+ * @param {{ only: string|null, half: 'mi'|'crap', run: () => Promise<{exitCode: number, envelope: object|null}> }} opts
+ * @returns {Promise<{exitCode: number, envelope: object|null}>}
+ */
+function runHalf({ only, half, run }) {
+  return only === null || only === half ? run() : Promise.resolve(NOT_RUN);
+}
+
+/** A half `--only` left out: clean, with no envelope to merge. */
+const NOT_RUN = Object.freeze({ exitCode: 0, envelope: null });
+
+/**
+ * Run the selected halves serially, not via Promise.all: each runner sizes its
+ * own pool to availableParallelism, so overlapping them oversubscribes 2x and
+ * stacks two escomplex heaps (>1 GB RSS).
+ *
+ * @param {{ only: string|null, args: object, runMi: Function, runCrap: Function, stderr: { write: (s: string) => void } }} opts
+ * @returns {Promise<{ miResult: {exitCode: number, envelope: object|null}, crapResult: {exitCode: number, envelope: object|null} }>}
+ */
+async function runHalves({ only, args, runMi, runCrap, stderr }) {
+  const miResult = await runHalf({
+    only,
+    half: 'mi',
+    run: () => runGateSafely(runMi, args, 'MI', stderr),
+  });
+  const crapResult = await runHalf({
+    only,
+    half: 'crap',
+    run: () => runGateSafely(runCrap, args, 'CRAP', stderr),
+  });
+  return { miResult, crapResult };
 }
 
 /**
@@ -325,6 +387,7 @@ function stagedScopeLine({ staged, ref, cwd }) {
  *
  * @param {{
  *   json: boolean,
+ *   only: string|null,
  *   staged: boolean,
  *   ref: string|null,
  *   cwd: string,
@@ -338,6 +401,7 @@ function stagedScopeLine({ staged, ref, cwd }) {
  */
 function emitReport({
   json,
+  only,
   staged,
   ref,
   cwd,
@@ -355,6 +419,7 @@ function emitReport({
         {
           ref: staged ? null : ref,
           staged,
+          ...(only ? { only } : {}),
           mi: { exit: miExit, envelope: miResult.envelope },
           crap: { exit: crapExit, envelope: crapResult.envelope },
           merged,
@@ -366,6 +431,7 @@ function emitReport({
     return;
   }
   stdout.write('\n--- quality:preview ---\n');
+  if (only) stdout.write(`half=${only} only — the other half was not run\n`);
   stdout.write(stagedScopeLine({ staged, ref, cwd }));
   stdout.write(`${renderTable(merged)}\n`);
   writeAdvisories(merged.advisories, stdout);
@@ -400,22 +466,21 @@ export async function runCli({
   const json = parseJsonFlag(argv);
   const staged = parseStagedFlag(argv);
   const ref = staged ? null : (parseChangedSinceArg(argv) ?? 'HEAD');
+  const only = parseOnlyArg(argv);
+  if (isUnknownHalf(only)) {
+    stderr.write(
+      `[quality:preview] --only takes mi or crap (got "${only}").\n`,
+    );
+    return { exitCode: 2, merged: mergeEnvelopes(null, null) };
+  }
 
-  // Serial, not Promise.all: each runner sizes its own pool to
-  // availableParallelism, so overlapping them oversubscribes 2x and stacks
-  // two escomplex heaps (>1 GB RSS).
-  const miResult = await runGateSafely(
+  const { miResult, crapResult } = await runHalves({
+    only,
+    args: { cwd, staged, changedSinceRef: ref },
     runMi,
-    { cwd, staged, changedSinceRef: ref },
-    'MI',
-    stderr,
-  );
-  const crapResult = await runGateSafely(
     runCrap,
-    { cwd, staged, changedSinceRef: ref },
-    'CRAP',
     stderr,
-  );
+  });
 
   const merged = mergeEnvelopes(miResult.envelope, crapResult.envelope, {
     cyclomaticFlag: DEFAULT_CYCLOMATIC_FLAG,
@@ -423,6 +488,7 @@ export async function runCli({
 
   emitReport({
     json,
+    only,
     staged,
     ref,
     cwd,

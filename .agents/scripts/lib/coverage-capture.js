@@ -486,7 +486,8 @@ export function runCapture({
 }
 
 /**
- * Report a non-zero capture; an expired lock wait is not a failing suite.
+ * Report a non-zero capture; an expired lock wait or a timeout is not a
+ * failing suite, so neither prints the failing-tests line.
  *
  * @param {number} code
  * @param {{ info: Function, error: Function }} logger
@@ -496,6 +497,12 @@ export function reportCaptureFailure(code, logger) {
   if (code === LOCK_WAIT_EXPIRED_EXIT_CODE) {
     logger.info(
       `[coverage-capture] ⏸ the full-suite lock wait expired and this capture was deferred — no suite ran. Exiting ${code}.`,
+    );
+    return code;
+  }
+  if (code === COVERAGE_TIMEOUT_EXIT_CODE) {
+    logger.error(
+      `[coverage-capture] ⏱ npm run test:coverage timed out and was killed (exit ${code}) — no test verdict exists. This is usually host contention, not a failing test; re-run once the host is quieter.`,
     );
     return code;
   }
