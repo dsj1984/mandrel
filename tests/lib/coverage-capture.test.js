@@ -891,6 +891,22 @@ describe('writeCaptureStamp — incremental scope (Story #4981)', () => {
     const parsed = JSON.parse(writes[0].body);
     assert.deepEqual(Object.keys(parsed).sort(), ['capturedAt', 'digest']);
   });
+
+  it('Story #5487 AC-1: records the measured commit only when one is supplied', () => {
+    const writes = [];
+    const write = (commit) =>
+      writeCaptureStamp({
+        cwd: FAKE_REPO,
+        coveragePath: 'coverage/coverage-final.json',
+        digest: 'abc123',
+        commit,
+        writeFileSync: (_p, body) => writes.push(JSON.parse(body)),
+      });
+    write('a'.repeat(40));
+    write(null);
+    assert.equal(writes[0].commit, 'a'.repeat(40));
+    assert.equal('commit' in writes[1], false);
+  });
 });
 
 describe('isCoverageFresh — scope asymmetry (Story #4981, AC-4)', () => {
@@ -977,6 +993,26 @@ describe('isCoverageFresh — scope asymmetry (Story #4981, AC-4)', () => {
       assert.deepEqual(r, expected);
     });
   }
+
+  it('Story #5487 AC-1: a stamp with no commit is judged exactly as one with it', () => {
+    for (const digest of ['abc123', 'moved']) {
+      const judge = (stamp) =>
+        isCoverageFresh({
+          coveragePath,
+          targetDirs,
+          cwd,
+          requireScope: 'affected',
+          ...baseFs(),
+          readFileSync: () => JSON.stringify(stamp),
+          computeDigest: () => digest,
+        });
+      const legacy = { digest: 'abc123', scope: 'affected' };
+      assert.deepEqual(
+        judge(legacy),
+        judge({ ...legacy, commit: 'c'.repeat(40) }),
+      );
+    }
+  });
 
   it('a legacy stamp with no scope field behaves as full-scope (AC-5 back-compat)', () => {
     const stampJson = JSON.stringify({ digest: 'abc123' });

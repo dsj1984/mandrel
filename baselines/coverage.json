@@ -1091,19 +1091,25 @@
     {
       "path": ".agents/scripts/lib/coverage-capture-affected.js",
       "lines": 100,
-      "branches": 97.37,
-      "functions": 77.78
+      "branches": 98.11,
+      "functions": 87.5
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-delta.js",
+      "lines": 100,
+      "branches": 87.32,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/coverage-capture-fullscope.js",
       "lines": 100,
-      "branches": 93.75,
+      "branches": 94.44,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/coverage-capture-incremental.js",
       "lines": 100,
-      "branches": 95,
+      "branches": 95.83,
       "functions": 100
     },
     {
@@ -1114,8 +1120,8 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-capture.js",
-      "lines": 98.5,
-      "branches": 91.18,
+      "lines": 98.45,
+      "branches": 91.3,
       "functions": 100
     },
     {

@@ -290,6 +290,13 @@ function coverageCaptureRunsSuite({
   return coverageCaptureActive && !captureSkipPredicted && !testCredited;
 }
 
+/**
+ * Names every suite the capture can run: under `captureScope: "affected"` a
+ * red may come from a delta refresh the base-sync triggered, not the Story.
+ */
+const COVERAGE_CAPTURE_HINT =
+  'Coverage capture failed — its suite run (`npm run test:coverage`, or `npm run test:coverage:affected` under `captureScope: "affected"`, including a delta refresh keyed on the stamped commit after a base-sync) exited non-zero. The coverage-capture log names which ran; fix the failing tests or coverage-threshold breaches, then re-run close.';
+
 const COVERAGE_CAPTURE_ARGS = Object.freeze([
   '.agents/scripts/coverage-capture.js',
 ]);
@@ -459,7 +466,7 @@ export function buildDefaultGates({
             name: 'coverage-capture',
             cmd: 'node',
             args: [...COVERAGE_CAPTURE_ARGS],
-            hint: 'Coverage capture failed — `npm run test:coverage` exited non-zero. Fix failing tests or coverage-threshold breaches, then re-run close.',
+            hint: COVERAGE_CAPTURE_HINT,
             ...(captureSkipPredicted
               ? { skip: { reason: 'incremental-no-crap-changes' } }
               : {}),

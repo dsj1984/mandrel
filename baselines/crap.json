@@ -9870,6 +9870,19 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
+      "method": "buildQualityPreviewGateEntries",
+      "startLine": 329,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/gates.js",
+      "method": "<anon buildQualityPreviewGateEntries/(half,only)#0>",
+      "startLine": 332,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/gates.js",
       "method": "buildDefaultGates",
       "startLine": 336,
       "crap": 11.000093434201087
@@ -11039,6 +11052,243 @@
       "crap": 11
     },
     {
+      "path": ".agents/scripts/lib/coverage-capture-affected.js",
+      "method": "shouldCaptureAffected",
+      "startLine": 25,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-affected.js",
+      "method": "tryScopedCapture",
+      "startLine": 45,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-affected.js",
+      "method": "mergeCoverageArtifacts",
+      "startLine": 65,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-affected.js",
+      "method": "<anon mergeCoverageArtifacts/(f)#0>",
+      "startLine": 66,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-affected.js",
+      "method": "readArtifact",
+      "startLine": 74,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-affected.js",
+      "method": "overlayScoped",
+      "startLine": 77,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-affected.js",
+      "method": "<anon overlayScoped/(abs)#0>",
+      "startLine": 78,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-affected.js",
+      "method": "readPriorArtifact",
+      "startLine": 83,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-affected.js",
+      "method": "readChangedFiles",
+      "startLine": 90,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-affected.js",
+      "method": "snapshotTree",
+      "startLine": 102,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-affected.js",
+      "method": "runScoped",
+      "startLine": 120,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-affected.js",
+      "method": "<anon runScoped/(m)#0>",
+      "startLine": 143,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-affected.js",
+      "method": "<anon runScoped/()#0>",
+      "startLine": 144,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-affected.js",
+      "method": "writeMerged",
+      "startLine": 154,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-affected.js",
+      "method": "captureAndMerge",
+      "startLine": 178,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-affected.js",
+      "method": "affectedProbe",
+      "startLine": 196,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-affected.js",
+      "method": "<anon affectedProbe/()#0>",
+      "startLine": 197,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-affected.js",
+      "method": "probeAndReport",
+      "startLine": 211,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-affected.js",
+      "method": "skipsUnchanged",
+      "startLine": 227,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-affected.js",
+      "method": "resolveRunBase",
+      "startLine": 246,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-affected.js",
+      "method": "runAffectedCapture",
+      "startLine": 277,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-delta.js",
+      "method": "isCoverageConfigFile",
+      "startLine": 17,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-delta.js",
+      "method": "git",
+      "startLine": 22,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-delta.js",
+      "method": "readHeadCommit",
+      "startLine": 28,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-delta.js",
+      "method": "readCaptureStamp",
+      "startLine": 35,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-delta.js",
+      "method": "stampScopeOf",
+      "startLine": 48,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-delta.js",
+      "method": "formatFreshnessDetail",
+      "startLine": 54,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-delta.js",
+      "method": "describeStampFreshness",
+      "startLine": 66,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-delta.js",
+      "method": "treeIneligibility",
+      "startLine": 80,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-delta.js",
+      "method": "deltaIneligibility",
+      "startLine": 97,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-delta.js",
+      "method": "<anon deltaIneligibility/(f)#0>",
+      "startLine": 100,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-delta.js",
+      "method": "parseNames",
+      "startLine": 107,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-delta.js",
+      "method": "<anon parseNames/(l)#0>",
+      "startLine": 110,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-delta.js",
+      "method": "<anon parseNames/(l)#1>",
+      "startLine": 111,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-delta.js",
+      "method": "classifyDeltaRefresh",
+      "startLine": 115,
+      "crap": 9
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-delta.js",
+      "method": "<anon classifyDeltaRefresh/(reason)#0>",
+      "startLine": 125,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-delta.js",
+      "method": "planDeltaRefresh",
+      "startLine": 148,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-fullscope.js",
+      "method": "noCrapFilesChanged",
+      "startLine": 21,
+      "crap": 2
+    },
+    {
       "path": ".agents/scripts/lib/coverage-capture-fullscope.js",
       "method": "runFullScopeCapture",
       "startLine": 29,
@@ -11059,6 +11309,19 @@
       "anonymous": true
     },
     {
+      "path": ".agents/scripts/lib/coverage-capture-fullscope.js",
+      "method": "<anon runFullScopeCapture/()#1>",
+      "startLine": 109,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-incremental.js",
+      "method": "readChanged",
+      "startLine": 16,
+      "crap": 2
+    },
+    {
       "path": ".agents/scripts/lib/coverage-capture-incremental.js",
       "method": "tryIncrementalCapture",
       "startLine": 27,
@@ -11075,6 +11338,13 @@
       "path": ".agents/scripts/lib/coverage-capture-incremental.js",
       "method": "<anon tryIncrementalCapture/()#0>",
       "startLine": 82,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-incremental.js",
+      "method": "<anon tryIncrementalCapture/()#1>",
+      "startLine": 110,
       "crap": 1,
       "anonymous": true
     },
@@ -11133,6 +11403,32 @@
       "path": ".agents/scripts/lib/coverage-capture.js",
       "method": "<anon computeContentDigest/(line)#0>",
       "startLine": 143,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture.js",
+      "method": "<anon (value)#0>",
+      "startLine": 157,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture.js",
+      "method": "optionalStampFields",
+      "startLine": 160,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture.js",
+      "method": "definedOnly",
+      "startLine": 170,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture.js",
+      "method": "<anon definedOnly/(value)#0>",
+      "startLine": 172,
       "crap": 1,
       "anonymous": true
     },
@@ -11240,6 +11536,12 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-capture.js",
+      "method": "dropCaptureStamp",
+      "startLine": 458,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture.js",
       "method": "<anon runCapture/(resolve)#0>",
       "startLine": 462,
       "crap": 1,
@@ -11261,9 +11563,41 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-capture.js",
+      "method": "<anon runCapture/()#0>",
+      "startLine": 490,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture.js",
       "method": "reportCaptureFailure",
       "startLine": 495,
       "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture.js",
+      "method": "<anon runCapture/()#1>",
+      "startLine": 498,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture.js",
+      "method": "lockWaitExpiredMessage",
+      "startLine": 506,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture.js",
+      "method": "timeoutMessage",
+      "startLine": 511,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture.js",
+      "method": "failingSuiteMessage",
+      "startLine": 516,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/coverage-utils.js",
