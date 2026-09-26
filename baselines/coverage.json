@@ -455,7 +455,7 @@
     {
       "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
       "lines": 100,
-      "branches": 93.33,
+      "branches": 92.98,
       "functions": 100
     },
     {
@@ -605,7 +605,7 @@
     {
       "path": ".agents/scripts/lib/baselines/seat-missing.js",
       "lines": 96.49,
-      "branches": 86.11,
+      "branches": 88.89,
       "functions": 90.91
     },
     {
