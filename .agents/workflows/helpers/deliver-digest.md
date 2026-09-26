@@ -125,7 +125,7 @@ the push: close's base-sync then no-ops, so neither stamp goes stale. Then run
 
 **Seat, then push.** CRAP or MI gate on → run
 `update-crap-baseline.js --seat-missing` and its maintainability twin (signal
-`seated: N`); commit any change as `baseline-refresh:`.
+`seated: N`); commit it as `chore(baselines): baseline-refresh: …`.
 
 A later commit voids either credit; a baseline-JSON seat keeps the stamp. Read
 the **output**, not the exit code: a run that prints no signal deposits

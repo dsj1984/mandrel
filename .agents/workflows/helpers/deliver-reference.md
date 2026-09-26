@@ -407,7 +407,7 @@ Digest § 5 states the rule and both invocations; this is what surrounds them.
   merge-base and writes **only** rows whose (path, method) key is absent —
   every existing row stays byte-identical, including rows whose scores moved
   (re-scoring stays close's auto-refresh). It prints `seated: N`; `seated: 0`
-  writes nothing. Commit any change with a `baseline-refresh:` subject.
+  writes nothing. Commit a change as `chore(baselines): baseline-refresh: …`.
 - **Seat refusals.** The CRAP seat exits non-zero and writes nothing unless
   the coverage-capture stamp is fresh for the tree **and** method resolution
   over the in-scope files is exactly 100% — a lower rate means the artifact's
