@@ -107,18 +107,6 @@
       "symbol": "defaultGhRunner"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/review-block.js",
-      "symbol": "*"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/review-override.js",
-      "symbol": "*"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
-      "symbol": "*"
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
       "symbol": "commitDirtyPaths"
     },
@@ -145,10 +133,6 @@
     {
       "file": ".agents/scripts/lib/runtime-deps/scan-imports.js",
       "symbol": "listJsFiles"
-    },
-    {
-      "file": ".agents/scripts/lib/single-story/story-merged-notify.js",
-      "symbol": "*"
     },
     {
       "file": ".agents/scripts/lib/ticket-body-sections.js",
