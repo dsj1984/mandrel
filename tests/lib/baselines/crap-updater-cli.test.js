@@ -18,6 +18,7 @@ import {
   buildCrapUpdaterScorer,
   parseCrapUpdaterArgs,
   resolveCrapUpdaterOptions,
+  seatCrapBaseline,
 } from '../../../.agents/scripts/lib/baselines/crap-updater-cli.js';
 
 /** A logger that records instead of printing. */
@@ -424,6 +425,13 @@ describe('--seat-missing flag contract (Story #5486)', () => {
       resolveCrapUpdaterOptions({ seatMissing: true }, CONFIG, '/repo')
         .seatMissing,
       true,
+    );
+  });
+
+  it('seatCrapBaseline refuses the --full-scope pairing before seating', () => {
+    assert.throws(
+      () => seatCrapBaseline(['--seat-missing', '--full-scope']),
+      /--full-scope is incompatible with --seat-missing/,
     );
   });
 
