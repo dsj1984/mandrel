@@ -2,6 +2,10 @@
  * signal-validator.js — write-time validation of signal records against the
  * on-disk `signal-event.schema.json`, compiled once so the writer and the
  * contract test validate against the same document. Never throws.
+ *
+ * The schema is compiled on the first `validateSignal` call, not at import:
+ * every CLI that imports the signals writer (including for `--help`) would
+ * otherwise pay the AJV compile at start-up.
  */
 
 import { readFileSync } from 'node:fs';
@@ -45,7 +49,14 @@ function buildValidator() {
   }
 }
 
-const _validate = buildValidator();
+/** `undefined` until the first `validateSignal` call builds it. */
+let _validate;
+
+/** @returns {import('ajv').ValidateFunction | null} */
+function getValidator() {
+  if (_validate === undefined) _validate = buildValidator();
+  return _validate;
+}
 
 /**
  * @param {import('ajv').ErrorObject[] | null | undefined} errors
@@ -74,7 +85,8 @@ function violatingFieldOf(errors) {
  * @returns {{ valid: boolean, violatingField: string|null, message: string|null }}
  */
 export function validateSignal(record) {
-  if (_validate === null) {
+  const validate = getValidator();
+  if (validate === null) {
     return { valid: true, violatingField: null, message: null };
   }
   if (record === null || typeof record !== 'object' || Array.isArray(record)) {
@@ -84,9 +96,9 @@ export function validateSignal(record) {
       message: 'signal record must be a plain object',
     };
   }
-  const valid = _validate(record);
+  const valid = validate(record);
   if (valid) return { valid: true, violatingField: null, message: null };
-  const field = violatingFieldOf(_validate.errors);
-  const message = _validate.errors?.[0]?.message ?? 'schema validation failed';
+  const field = violatingFieldOf(validate.errors);
+  const message = validate.errors?.[0]?.message ?? 'schema validation failed';
   return { valid: false, violatingField: field, message };
 }
