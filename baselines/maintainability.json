@@ -1863,6 +1863,10 @@
       "mi": 94.023
     },
     {
+      "path": ".agents/scripts/lib/wave-runner/cross-run-overlap.js",
+      "mi": 106.926
+    },
+    {
       "path": ".agents/scripts/lib/wave-runner/footprint.js",
       "mi": 105.311
     },

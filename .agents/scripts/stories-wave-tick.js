@@ -183,6 +183,15 @@ delivery.deliverRunner.footprintGuard: under "advisory" the collisions are
 detected and listed in "advisory" but never withhold, and dispatch follows the
 declared depends_on edges alone.
 
+crossRunOverlaps (probe mode only) is ADVISORY: each probed Story that is
+ready or in flight and shares a concrete path with an open Story in flight in
+ANOTHER session (outside --stories) — { id, otherId, holder, paths } — plus one
+stderr warning line per pair. It never withholds, reorders or delays dispatch
+and never changes the exit code; it uses the same concrete-path rule as
+inFlightReservation. When the outside query fails the envelope carries
+crossRunOverlapProbe: "unavailable" and crossRunOverlapProbeReason instead of
+the list, so "no overlap" is never inferred from a failed read.
+
 Exit codes:
   0 - Success, ready set emitted
   1 - Invalid input (missing/malformed DAG, invalid --concurrency/--in-flight/--done)
@@ -890,6 +899,7 @@ export function runStoriesWaveTick({
  * @param {NodeJS.ProcessEnv} [args.env]
  * @param {Function} [args.probe]   Test seam.
  * @param {Function} [args.context] Test seam.
+ * @param {Function} [args.warn]  Test seam.
  * @returns {Promise<{ envelope: object, exitCode: number, records: object[] }>}
  *   `records` are the probed nodes, kept off stdout.
  */
@@ -902,6 +912,7 @@ export async function runProbedStoriesWaveTick({
   env,
   probe = probeLiveState,
   context = createProbeContext,
+  warn = Logger.warn,
 } = {}) {
   const { value: override, error: concurrencyError } =
     parseConcurrencyOverride(concurrency);
@@ -956,6 +967,8 @@ export async function runProbedStoriesWaveTick({
     foreignHeld = [],
     inFlightRecords = [],
   } = probed;
+  const crossRun = crossRunFields(probed);
+  for (const line of crossRunWarnings(crossRun.crossRunOverlaps)) warn(line);
   const { envelope, exitCode } = buildReadySetEnvelope(nodes, {
     concurrencyCap,
     capPrecedence,
@@ -979,6 +992,7 @@ export async function runProbedStoriesWaveTick({
       stalledDispatch,
       foreignHeld,
       foreignHeldReason: foreignHeldReasonFor(foreignHeld),
+      ...crossRun,
     },
     records: nodes,
     // Blocked outranks a wedge (its blockers are moot while a human owes a
@@ -988,6 +1002,39 @@ export async function runProbedStoriesWaveTick({
         ? BLOCKED_EXIT_CODE
         : exitCode,
   };
+}
+
+/**
+ * Exactly one advisory shape passes through; a failed read never becomes [].
+ *
+ * @param {object} probed
+ * @returns {object}
+ */
+function crossRunFields(probed) {
+  if (Array.isArray(probed.crossRunOverlaps)) {
+    return { crossRunOverlaps: probed.crossRunOverlaps };
+  }
+  if (probed.crossRunOverlapProbe === 'unavailable') {
+    return {
+      crossRunOverlapProbe: 'unavailable',
+      crossRunOverlapProbeReason: probed.crossRunOverlapProbeReason ?? null,
+    };
+  }
+  return {};
+}
+
+/**
+ * @param {object[]} [overlaps]
+ * @returns {string[]}
+ */
+function crossRunWarnings(overlaps = []) {
+  return overlaps.map(({ id, otherId, holder, paths }) => {
+    const who = holder ? `held by @${holder}` : 'holder unknown';
+    return (
+      `stories-wave-tick: #${id} overlaps #${otherId} (in flight in another session, ${who}) ` +
+      `on ${paths.join(', ')} — expect a rebase conflict at close. Advisory only; dispatch is unchanged.`
+    );
+  });
 }
 
 /**
