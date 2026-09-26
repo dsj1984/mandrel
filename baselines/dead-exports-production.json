@@ -600,18 +600,6 @@
       "symbol": "meaningFor"
     },
     {
-      "file": ".agents/scripts/lib/config/gates/shared.js",
-      "symbol": "COMPONENTS_SCHEMA"
-    },
-    {
-      "file": ".agents/scripts/lib/config/gates/shared.js",
-      "symbol": "FLOORS_SCHEMA"
-    },
-    {
-      "file": ".agents/scripts/lib/config/gates/shared.js",
-      "symbol": "TOLERANCE_SCHEMA"
-    },
-    {
       "file": ".agents/scripts/lib/config/qa.js",
       "symbol": "__testing"
     },

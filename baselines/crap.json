@@ -11730,261 +11730,315 @@
       "crap": 1
     },
     {
+      "path": ".agents/scripts/lib/feedback-loop/graduate-steps.js",
+      "method": "probeFindingPath",
+      "startLine": 17,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduate-steps.js",
+      "method": "routeFinding",
+      "startLine": 37,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduate-steps.js",
+      "method": "dedupFinding",
+      "startLine": 75,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduate-steps.js",
+      "method": "<anon dedupFinding/(marker)#0>",
+      "startLine": 83,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduate-steps.js",
+      "method": "recordRecurrence",
+      "startLine": 104,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduate-steps.js",
+      "method": "strongReadExisting",
+      "startLine": 141,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduate-steps.js",
+      "method": "fileFinding",
+      "startLine": 156,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
+      "method": "probeMarkerExists",
+      "startLine": 36,
+      "crap": 1
+    },
+    {
       "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
       "method": "resolveFilingContext",
-      "startLine": 43,
+      "startLine": 62,
       "crap": 8
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
       "method": "contentFingerprint",
-      "startLine": 75,
+      "startLine": 94,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
       "method": "<anon contentFingerprint/(v)#0>",
-      "startLine": 76,
+      "startLine": 95,
       "crap": 3,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "method": "runChild",
-      "startLine": 94,
-      "crap": 1.0000694057072057
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "method": "<anon runChild/(resolve)#0>",
-      "startLine": 101,
-      "crap": 3.0006246513648502,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "method": "<anon runChild/(resolve)#0/(result)#0>",
-      "startLine": 123,
-      "crap": 3,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "method": "<anon runChild/(resolve)#0/()#0>",
-      "startLine": 130,
-      "crap": 1.0000694057072057,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "method": "<anon runChild/(resolve)#0/(chunk)#0>",
-      "startLine": 153,
-      "crap": 1.0000694057072057,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "method": "<anon runChild/(resolve)#0/(chunk)#1>",
-      "startLine": 156,
-      "crap": 1.0000694057072057,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "method": "<anon runChild/(resolve)#0/(err)#0>",
-      "startLine": 159,
-      "crap": 1.0000694057072057,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "method": "<anon runChild/(resolve)#0/(code)#0>",
-      "startLine": 162,
-      "crap": 1.0000694057072057,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
       "method": "makeIsAutoFileEnabled",
-      "startLine": 175,
+      "startLine": 107,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
       "method": "isAutoFileEnabled",
-      "startLine": 176,
+      "startLine": 108,
       "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "method": "probePathStatus",
-      "startLine": 193,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "method": "normalizeMarkerQuery",
-      "startLine": 220,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "method": "toFollowUpRef",
-      "startLine": 232,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "method": "searchFollowUpByMarker",
-      "startLine": 247,
-      "crap": 7.011962890625
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "method": "probeMarkerExists",
-      "startLine": 281,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "method": "findExistingFollowUp",
-      "startLine": 303,
-      "crap": 9.005184
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "method": "<anon findExistingFollowUp/(m)#0>",
-      "startLine": 314,
-      "crap": 2.000256,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "method": "<anon findExistingFollowUp/(issue)#0>",
-      "startLine": 342,
-      "crap": 2.000256,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "method": "<anon findExistingFollowUp/(issue)#0/(token)#0>",
-      "startLine": 344,
-      "crap": 1.000064,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "method": "<anon findExistingFollowUp/(issue)#1>",
-      "startLine": 349,
-      "crap": 1.000064,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "method": "updateFollowUpIssue",
-      "startLine": 360,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "method": "describeMintedLabel",
-      "startLine": 404,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "method": "readLiveLabelNames",
-      "startLine": 422,
-      "crap": 12.028549962434258
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "method": "ensureIssueLabels",
-      "startLine": 484,
-      "crap": 12
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "method": "<anon ensureIssueLabels/(name)#0>",
-      "startLine": 495,
-      "crap": 2,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "method": "createFollowUpIssue",
-      "startLine": 554,
-      "crap": 7
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
       "method": "checkGraduatePreconditions",
-      "startLine": 596,
+      "startLine": 118,
       "crap": 7
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "method": "resolveAlreadyFiled",
-      "startLine": 618,
-      "crap": 5
+      "method": "makeSkip",
+      "startLine": 135,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "method": "<anon resolveAlreadyFiled/(marker)#0>",
-      "startLine": 629,
+      "method": "<anon makeSkip/(reason)#0>",
+      "startLine": 136,
       "crap": 1,
       "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "method": "resolveFollowUpRecurrence",
-      "startLine": 659,
-      "crap": 6
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
       "method": "processGraduateFinding",
-      "startLine": 711,
-      "crap": 14.003017018075386
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "method": "<anon processGraduateFinding/(reason)#0>",
-      "startLine": 731,
-      "crap": 1,
-      "anonymous": true
+      "startLine": 151,
+      "crap": 5
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
       "method": "renderCrossRepoDeferredBody",
-      "startLine": 913,
+      "startLine": 180,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
       "method": "<anon renderCrossRepoDeferredBody/(finding,routedRepo,logLine,missingKey)#0>",
-      "startLine": 917,
+      "startLine": 184,
       "crap": 4,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
       "method": "persistCrossRepoDeferred",
-      "startLine": 934,
+      "startLine": 201,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
       "method": "graduate",
-      "startLine": 990,
+      "startLine": 257,
       "crap": 8
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
       "method": "<anon graduate/(record)#0>",
-      "startLine": 1016,
+      "startLine": 283,
       "crap": 1,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
+      "method": "runChild",
+      "startLine": 25,
+      "crap": 1.0000694057072057
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
+      "method": "<anon runChild/(resolve)#0>",
+      "startLine": 32,
+      "crap": 3.0006246513648502,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
+      "method": "<anon runChild/(resolve)#0/(result)#0>",
+      "startLine": 54,
+      "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
+      "method": "<anon runChild/(resolve)#0/()#0>",
+      "startLine": 61,
+      "crap": 1.0000694057072057,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
+      "method": "<anon runChild/(resolve)#0/(chunk)#0>",
+      "startLine": 84,
+      "crap": 1.0000694057072057,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
+      "method": "<anon runChild/(resolve)#0/(chunk)#1>",
+      "startLine": 87,
+      "crap": 1.0000694057072057,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
+      "method": "<anon runChild/(resolve)#0/(err)#0>",
+      "startLine": 90,
+      "crap": 1.0000694057072057,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
+      "method": "<anon runChild/(resolve)#0/(code)#0>",
+      "startLine": 93,
+      "crap": 1.0000694057072057,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
+      "method": "runWith",
+      "startLine": 99,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
+      "method": "runGh",
+      "startLine": 109,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
+      "method": "childFailed",
+      "startLine": 113,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
+      "method": "probePathStatus",
+      "startLine": 131,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
+      "method": "normalizeMarkerQuery",
+      "startLine": 146,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
+      "method": "toFollowUpRef",
+      "startLine": 158,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
+      "method": "searchFollowUpByMarker",
+      "startLine": 173,
+      "crap": 5.021595939963287
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
+      "method": "findExistingFollowUp",
+      "startLine": 209,
+      "crap": 7.004301783264746
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
+      "method": "<anon findExistingFollowUp/(m)#0>",
+      "startLine": 217,
+      "crap": 2.0003511659807955,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
+      "method": "<anon findExistingFollowUp/(issue)#0>",
+      "startLine": 243,
+      "crap": 2.0003511659807955,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
+      "method": "<anon findExistingFollowUp/(issue)#0/(token)#0>",
+      "startLine": 245,
+      "crap": 1.0000877914951989,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
+      "method": "<anon findExistingFollowUp/(issue)#1>",
+      "startLine": 250,
+      "crap": 1.0000877914951989,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
+      "method": "issueWriteError",
+      "startLine": 255,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
+      "method": "updateFollowUpIssue",
+      "startLine": 267,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
+      "method": "describeMintedLabel",
+      "startLine": 296,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
+      "method": "readLiveLabelNames",
+      "startLine": 314,
+      "crap": 9.864360491579427
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
+      "method": "ensureIssueLabels",
+      "startLine": 367,
+      "crap": 10
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
+      "method": "<anon ensureIssueLabels/(name)#0>",
+      "startLine": 376,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
+      "method": "createFollowUpIssue",
+      "startLine": 423,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/prior-feedback-fetcher.js",
@@ -18433,39 +18487,88 @@
       "path": ".agents/scripts/lib/orchestration/plan-metrics.js",
       "method": "summarizePlanMetrics",
       "startLine": 233,
-      "crap": 19
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-metrics.js",
       "method": "<anon summarizePlanMetrics/(e)#0>",
-      "startLine": 240,
-      "crap": 2,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/plan-metrics.js",
-      "method": "renderPlanMetricsSummaryLine",
-      "startLine": 307,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/plan-metrics.js",
-      "method": "<anon renderPlanMetricsSummaryLine/(cli,count)#0>",
-      "startLine": 310,
+      "startLine": 238,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-metrics.js",
-      "method": "<anon renderPlanMetricsSummaryLine/(critic,count)#0>",
+      "method": "scopeEntries",
+      "startLine": 255,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-metrics.js",
+      "method": "<anon scopeEntries/(e)#0>",
+      "startLine": 258,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-metrics.js",
+      "method": "increment",
+      "startLine": 264,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-metrics.js",
+      "method": "tallyCriticSkips",
+      "startLine": 268,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-metrics.js",
+      "method": "earlierStamp",
+      "startLine": 279,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-metrics.js",
+      "method": "laterStamp",
+      "startLine": 284,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-metrics.js",
+      "method": "tallyInvocations",
+      "startLine": 289,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-metrics.js",
+      "method": "spanBetween",
+      "startLine": 310,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-metrics.js",
+      "method": "renderPlanMetricsSummaryLine",
+      "startLine": 320,
+      "crap": 7
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-metrics.js",
+      "method": "<anon renderPlanMetricsSummaryLine/(cli,count)#0>",
       "startLine": 323,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-metrics.js",
+      "method": "<anon renderPlanMetricsSummaryLine/(critic,count)#0>",
+      "startLine": 336,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-metrics.js",
       "method": "formatSpan",
-      "startLine": 338,
+      "startLine": 351,
       "crap": 3.0987654320987654
     },
     {
@@ -24347,172 +24450,184 @@
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "collectTaskChangesPaths",
       "startLine": 61,
-      "crap": 17.002969096737075
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
+      "method": "resolveChangesSource",
+      "startLine": 73,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
+      "method": "collectChangesItem",
+      "startLine": 83,
+      "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "defaultGitRunner",
-      "startLine": 108,
+      "startLine": 91,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "makeMemoizedGitRunner",
-      "startLine": 124,
+      "startLine": 107,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "memoizedGitRunner",
-      "startLine": 126,
+      "startLine": 109,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "validateAcFreshness",
-      "startLine": 148,
+      "startLine": 131,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "<anon validateAcFreshness/(t)#0>",
-      "startLine": 159,
+      "startLine": 142,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "<anon validateAcFreshness/(m)#0>",
-      "startLine": 183,
+      "startLine": 166,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "renderMissLine",
-      "startLine": 186,
+      "startLine": 169,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "indexTicketsBySlug",
-      "startLine": 205,
+      "startLine": 188,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "<anon indexTicketsBySlug/(d)#0>",
-      "startLine": 221,
+      "startLine": 204,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "assertAllTicketsAreStories",
-      "startLine": 229,
+      "startLine": 212,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "<anon assertAllTicketsAreStories/(t)#0>",
-      "startLine": 230,
+      "startLine": 213,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "<anon assertAllTicketsAreStories/(t)#1>",
-      "startLine": 233,
+      "startLine": 216,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "hasInlineAcceptance",
-      "startLine": 250,
+      "startLine": 233,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "assertEveryStoryHasInlineContract",
-      "startLine": 256,
+      "startLine": 239,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "<anon assertEveryStoryHasInlineContract/(s)#0>",
-      "startLine": 257,
+      "startLine": 240,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "<anon assertEveryStoryHasInlineContract/(s)#1>",
-      "startLine": 259,
+      "startLine": 242,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "collectMissingVerifyWarnings",
-      "startLine": 269,
+      "startLine": 252,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "<anon collectMissingVerifyWarnings/(s)#0>",
-      "startLine": 271,
+      "startLine": 254,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "<anon collectMissingVerifyWarnings/(s)#1>",
-      "startLine": 273,
+      "startLine": 256,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "assertStoryProvenanceShape",
-      "startLine": 288,
+      "startLine": 271,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "assertNoUnknownDeps",
-      "startLine": 306,
+      "startLine": 289,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "<anon assertNoUnknownDeps/(u)#0>",
-      "startLine": 319,
+      "startLine": 302,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "assertAcyclic",
-      "startLine": 326,
+      "startLine": 309,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "attachFindingsAndErrors",
-      "startLine": 335,
+      "startLine": 318,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "validateAndNormalizeTickets",
-      "startLine": 354,
+      "startLine": 337,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "<anon validateAndNormalizeTickets/(e)#0>",
-      "startLine": 402,
+      "startLine": 385,
       "crap": 1,
       "anonymous": true
     },
@@ -25838,12 +25953,96 @@
       "path": ".agents/scripts/lib/signals/detectors/common.js",
       "method": "validateDetectorArgs",
       "startLine": 52,
-      "crap": 20
+      "crap": 9
     },
     {
       "path": ".agents/scripts/lib/signals/detectors/common.js",
       "method": "<anon validateDetectorArgs/()#0>",
-      "startLine": 72,
+      "startLine": 81,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/signals/detectors/common.js",
+      "method": "<anon (v)#0>",
+      "startLine": 89,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/signals/detectors/common.js",
+      "method": "<anon (v)#1>",
+      "startLine": 91,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/signals/detectors/common.js",
+      "method": "<anon (v)#2>",
+      "startLine": 97,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/signals/detectors/common.js",
+      "method": "<anon (v)#3>",
+      "startLine": 99,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/signals/detectors/common.js",
+      "method": "<anon (v)#4>",
+      "startLine": 104,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/signals/detectors/common.js",
+      "method": "<anon (v)#5>",
+      "startLine": 106,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/signals/detectors/common.js",
+      "method": "<anon (v)#6>",
+      "startLine": 111,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/signals/detectors/common.js",
+      "method": "<anon (v)#7>",
+      "startLine": 113,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/signals/detectors/common.js",
+      "method": "<anon (v)#8>",
+      "startLine": 118,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/signals/detectors/common.js",
+      "method": "<anon (v)#9>",
+      "startLine": 120,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/signals/detectors/common.js",
+      "method": "<anon (v)#10>",
+      "startLine": 125,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/signals/detectors/common.js",
+      "method": "<anon (v)#11>",
+      "startLine": 127,
       "crap": 1,
       "anonymous": true
     },

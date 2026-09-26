@@ -795,8 +795,16 @@
       "mi": 88.947
     },
     {
+      "path": ".agents/scripts/lib/feedback-loop/graduate-steps.js",
+      "mi": 85.174
+    },
+    {
       "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "mi": 86.165
+      "mi": 95.023
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
+      "mi": 97.225
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/prior-feedback-fetcher.js",
@@ -1228,7 +1236,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-metrics.js",
-      "mi": 87.153
+      "mi": 94.993
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-navigation.js",
@@ -1580,7 +1588,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "mi": 97.666
+      "mi": 99.651
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing.js",
@@ -1684,7 +1692,7 @@
     },
     {
       "path": ".agents/scripts/lib/signals/detectors/common.js",
-      "mi": 97.534
+      "mi": 111.34
     },
     {
       "path": ".agents/scripts/lib/signals/index.js",

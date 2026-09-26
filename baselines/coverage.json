@@ -977,7 +977,7 @@
     {
       "path": ".agents/scripts/lib/config/gates/shared.js",
       "lines": 100,
-      "branches": 33.33,
+      "branches": 100,
       "functions": 100
     },
     {
@@ -1221,9 +1221,21 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/feedback-loop/graduate-steps.js",
+      "lines": 100,
+      "branches": 92,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "lines": 97.82,
-      "branches": 83.48,
+      "lines": 100,
+      "branches": 93.26,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
+      "lines": 95.77,
+      "branches": 76.79,
       "functions": 100
     },
     {
@@ -1870,8 +1882,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-metrics.js",
-      "lines": 99.42,
-      "branches": 90.57,
+      "lines": 99.44,
+      "branches": 93.28,
       "functions": 100
     },
     {
@@ -2398,8 +2410,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "lines": 99.76,
-      "branches": 87.1,
+      "lines": 100,
+      "branches": 88.71,
       "functions": 100
     },
     {
