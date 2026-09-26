@@ -77,8 +77,6 @@ therefore buys a **deep review**, not a fresh acceptance critic.
 > [`acceptance-self-eval.md`](acceptance-self-eval.md) — a host that cannot
 > spawn the critic at all, noted in the friction comment if you block.
 
-`--base <ref>` overrides `project.baseBranch`.
-
 ## 4. Acceptance self-eval (Step 1a, required)
 
 **One verdict owner per Story** — named by `verdictOwner`: the inline
@@ -93,9 +91,9 @@ scored in **one** gate call. Bounded by `delivery.acceptanceEval.maxRounds`
 --verdict <verdict-path>`
 
 The gate reads the Story's `acceptance[]` count itself and rejects a verdict
-whose `criteria[]` length differs **before** scoring, consuming no round;
-`--expected-criteria` is accepted but redundant. A second gate call in the
-same round spends a round for nothing and races the Story-scoped ledger.
+whose `criteria[]` length differs **before** scoring, consuming no round. A
+second gate call in the same round spends a round for nothing and races the
+Story-scoped ledger.
 
 `proceed` → close. `redraft` → one more round inside the cap. `block` → **do
 not close**: post a `friction` comment and flip `agent::blocked`.
@@ -125,10 +123,14 @@ the push: close's base-sync then no-ops, so neither stamp goes stale. Then run
   --standalone --scope-id <storyId> --gate test --worktree <workCwd> -- npm test`.
   Signal: `✓ test passed` — the `test` evidence close reads, keyed on the tree.
 
-A later commit voids either credit. Read the **output**, not the exit code: a
-run that prints no signal deposits nothing. `mandrel doctor`'s
-`test-credit-path` check names this project's depositor. Runner shapes,
-background dispatch and redraft rounds:
+**Seat, then push.** CRAP or MI gate on → run
+`update-crap-baseline.js --seat-missing` and its maintainability twin (signal
+`seated: N`); commit any change as `baseline-refresh:`.
+
+A later commit voids either credit; a baseline-JSON seat keeps the stamp. Read
+the **output**, not the exit code: a run that prints no signal deposits
+nothing. `mandrel doctor`'s `test-credit-path` check names this project's
+depositor. Seat order, runner shapes, background dispatch, redraft rounds:
 [`deliver-reference.md`](deliver-reference.md) § Credited run.
 
 `verify[]` is scoped entries **plus** this one run: an entry that is itself a

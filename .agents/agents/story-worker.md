@@ -92,8 +92,9 @@ the authoritative gate — do not pre-run it. Two exceptions, both run in
 [`deliver-digest.md`](../workflows/helpers/deliver-digest.md) § 5 states them:
 the **blocking** lint + quality-preview preflight, then the one credited run
 (the coverage capture or the test depositor, as § 5 picks), once after the
-self-eval loop's last fix commit. That section is their only home, so read the
-invocations there rather than from a copy here.
+self-eval loop's last fix commit, then the `--seat-missing` baseline seat
+before push. That section is their only home, so read the invocations there
+rather than from a copy here.
 
 If the run outruns the host's sync Bash ceiling, dispatch it in the
 **background**: its completion re-invokes you. Never spawn a task to poll or
