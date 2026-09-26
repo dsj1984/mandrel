@@ -411,16 +411,7 @@ describe('buildCrapUpdaterScorer — rows and reporting', () => {
 });
 
 describe('--seat-missing flag contract (Story #5486)', () => {
-  it('resolveCrapUpdaterOptions refuses --seat-missing with --full-scope', () => {
-    assert.throws(
-      () =>
-        resolveCrapUpdaterOptions(
-          { fullScope: true, seatMissing: true },
-          CONFIG,
-          '/repo',
-        ),
-      /--full-scope is incompatible with --seat-missing/,
-    );
+  it('resolveCrapUpdaterOptions carries --seat-missing through', () => {
     assert.equal(
       resolveCrapUpdaterOptions({ seatMissing: true }, CONFIG, '/repo')
         .seatMissing,
@@ -428,8 +419,8 @@ describe('--seat-missing flag contract (Story #5486)', () => {
     );
   });
 
-  it('seatCrapBaseline refuses the --full-scope pairing before seating', () => {
-    assert.throws(
+  it('seatCrapBaseline refuses the --full-scope pairing before seating', async () => {
+    await assert.rejects(
       () => seatCrapBaseline(['--seat-missing', '--full-scope']),
       /--full-scope is incompatible with --seat-missing/,
     );

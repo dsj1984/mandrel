@@ -53,9 +53,9 @@ export function parseCrapUpdaterArgs(argv = []) {
 }
 
 /**
- * Flag → config → default. Throws on `--full-scope` with `--diff-scope` or
- * `--seat-missing`: silently preferring one would write a baseline nobody
- * asked for.
+ * Flag → config → default. Throws on `--full-scope` with `--diff-scope`:
+ * silently preferring one would write a baseline nobody asked for
+ * (`runSeatMissing` refuses the `--seat-missing` pairing).
  *
  * @param {{baselinePath?: string, coveragePath?: string, fullScope?: boolean,
  *   diffScopeRef?: string|null, seatMissing?: boolean}} args
@@ -74,11 +74,6 @@ export function resolveCrapUpdaterOptions(
   if (args.fullScope && args.diffScopeRef != null) {
     throw new Error(
       '[CRAP] --full-scope is incompatible with --diff-scope; pick one',
-    );
-  }
-  if (args.fullScope && args.seatMissing) {
-    throw new Error(
-      '[CRAP] --full-scope is incompatible with --seat-missing; pick one',
     );
   }
   const baselinePath = args.baselinePath ?? baselines?.crap?.path;
@@ -269,6 +264,7 @@ export function seatCrapBaseline(argv, { config = resolveConfig() } = {}) {
     label: 'CRAP',
     writePath: options.absBaselinePath,
     diffScopeRef: options.diffScopeRef,
+    fullScope: options.fullScope,
     baseBranch: config.project.baseBranch,
     score: buildCrapSeatScorer(options, { loadCoverage: loadCoverageDefault }),
   });
