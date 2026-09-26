@@ -1,7 +1,6 @@
 /**
- * lib/wave-runner/cross-run-overlap.js — advisory report of probed Stories
- * whose declared footprint shares a concrete path with a Story another
- * session has in flight. Read-only and advisory: nothing here feeds
+ * Advisory report of probed Stories whose declared footprint shares a
+ * concrete path with a Story another session has in flight. Never feeds
  * selection, ordering or the exit code.
  *
  * @module lib/wave-runner/cross-run-overlap
@@ -14,9 +13,8 @@ import { detectCollision } from './footprint.js';
 import { classifyStory, storyIdOf } from './ready-set.js';
 
 /**
- * Every open Story in one labelled list query. Never rejects: a failed or
- * unsupported read resolves to `{ error }`, so the beat proceeds and the
- * envelope says the advisory is unavailable rather than empty.
+ * One labelled list query. Never rejects, so a failed read reports
+ * "unavailable" instead of an empty list.
  *
  * @param {object} provider
  * @returns {Promise<{ tickets?: object[], error?: string }>}
@@ -37,10 +35,6 @@ async function listOpenStories(provider) {
 }
 
 /**
- * Outside Stories in flight (`agent::executing` or the closing label), with
- * footprints from the ready-set's `## Changes` parser and the assignee lease
- * as holder (`null` when unassigned — never a reason to drop the record).
- *
  * @param {object[]} tickets
  * @param {Set<number>} inSetIds
  * @returns {Array<{id: number, files: string[], holder: string|null}>}
@@ -61,14 +55,12 @@ function outsideInFlight(tickets, inSetIds) {
 }
 
 /**
- * Each probed Story paired with each outside Story sharing a concrete path.
- * Uses the cross-beat reservation guard's rule (`concreteOnly`), so the
- * advisory and the guard never disagree about what overlaps — a glob or the
- * UNKNOWN sentinel on either side reports nothing.
+ * The reservation guard's `concreteOnly` rule, so advisory and guard never
+ * disagree: a glob or the UNKNOWN sentinel reports nothing.
  *
  * @param {Array<{id: number}>} probed
  * @param {Array<{id: number, holder: string|null}>} outside
- * @returns {Array<{id: number, otherId: number, holder: string|null, paths: string[]}>}
+ * @returns {object[]}
  */
 function findCrossRunOverlaps(probed, outside) {
   const overlaps = [];
@@ -89,7 +81,7 @@ function findCrossRunOverlaps(probed, outside) {
 
 /**
  * @param {{ tickets?: object[], error?: string }} listing
- * @param {Array<{id: number, files: string[], labels: string[]}>} nodes
+ * @param {object[]} nodes
  * @param {Set<number>} inSetIds
  * @returns {object}
  */
@@ -113,14 +105,11 @@ function buildReport(listing, nodes, inSetIds) {
 }
 
 /**
- * Start the outside read now, so it overlaps the per-Story reads, and score
- * it once the probed nodes are known. Stories inside the probed set are
- * excluded — their overlap is the ready-set guard's job.
+ * Starts the read now so it overlaps the per-Story reads; probed-set Stories
+ * are excluded (their overlap is the ready-set guard's job).
  *
  * @param {object} provider
- * @returns {{ report: (nodes: Array<{id: number, files: string[], labels: string[]}>) => Promise<object> }}
- *   `{ crossRunOverlaps }` on success, else
- *   `{ crossRunOverlapProbe: 'unavailable', crossRunOverlapProbeReason }`.
+ * @returns {{ report: (nodes: object[]) => Promise<object> }}
  */
 export function startCrossRunProbe(provider) {
   const listing = listOpenStories(provider);

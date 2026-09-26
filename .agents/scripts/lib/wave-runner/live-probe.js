@@ -145,9 +145,7 @@ export function createProbeContext({
  *   blockedIds: number[],
  *   stalledDispatch: number[],
  *   foreignHeld: Array<{id: number, holder: string}>,
- *   crossRunOverlaps?: Array<{id: number, otherId: number, holder: string|null, paths: string[]}>,
- *   crossRunOverlapProbe?: 'unavailable',
- *   crossRunOverlapProbeReason?: string
+ *   crossRunOverlaps?: object[]
  * }>}
  */
 export async function probeLiveState({

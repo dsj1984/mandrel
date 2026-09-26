@@ -899,8 +899,7 @@ export function runStoriesWaveTick({
  * @param {NodeJS.ProcessEnv} [args.env]
  * @param {Function} [args.probe]   Test seam.
  * @param {Function} [args.context] Test seam.
- * @param {(msg: string) => void} [args.warn] Stderr sink for the cross-run
- *   overlap lines. Test seam.
+ * @param {Function} [args.warn]  Test seam.
  * @returns {Promise<{ envelope: object, exitCode: number, records: object[] }>}
  *   `records` are the probed nodes, kept off stdout.
  */
@@ -1006,9 +1005,7 @@ export async function runProbedStoriesWaveTick({
 }
 
 /**
- * The probe's cross-run advisory, advisory-only: it never reaches selection or
- * the exit code. Exactly one of the two shapes passes through, so a failed
- * outside read is never flattened into an empty (reads-as-clear) list.
+ * Exactly one advisory shape passes through; a failed read never becomes [].
  *
  * @param {object} probed
  * @returns {object}
@@ -1027,9 +1024,7 @@ function crossRunFields(probed) {
 }
 
 /**
- * One stderr line per overlapping pair.
- *
- * @param {Array<{id: number, otherId: number, holder: string|null, paths: string[]}>} [overlaps]
+ * @param {object[]} [overlaps]
  * @returns {string[]}
  */
 function crossRunWarnings(overlaps = []) {
