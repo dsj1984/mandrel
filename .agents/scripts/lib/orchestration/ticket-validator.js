@@ -60,49 +60,32 @@ function collectTaskPathReferences(task) {
  */
 function collectTaskChangesPaths(task) {
   const paths = new Set();
-  const body = task.body;
+  const source = resolveChangesSource(task);
+  if (source === null) return paths;
+  for (const arrName of ['changes', 'references']) {
+    const arr = source[arrName];
+    if (!Array.isArray(arr)) continue;
+    for (const item of arr) collectChangesItem(item, paths);
+  }
+  return paths;
+}
 
+function resolveChangesSource(task) {
+  const body = task.body;
   // A parse failure throws rather than yielding an empty whitelist, which
   // would misreport every declared path as missing.
   if (typeof body === 'string' && body.trim().length > 0) {
-    const parsed = parseStoryBodyOrThrow(task);
-    for (const arrName of ['changes', 'references']) {
-      const arr = parsed[arrName];
-      if (!Array.isArray(arr)) continue;
-      for (const item of arr) {
-        if (typeof item === 'string') {
-          collectPathsFromText(item, paths);
-        } else if (
-          item !== null &&
-          typeof item === 'object' &&
-          typeof item.path === 'string' &&
-          item.path.length > 0
-        ) {
-          paths.add(item.path);
-        }
-      }
-    }
-    return paths;
+    return parseStoryBodyOrThrow(task);
   }
+  return body !== null && typeof body === 'object' ? body : null;
+}
 
-  if (body === null || typeof body !== 'object') return paths;
-  for (const arrName of ['changes', 'references']) {
-    const arr = body[arrName];
-    if (!Array.isArray(arr)) continue;
-    for (const item of arr) {
-      if (typeof item === 'string') {
-        collectPathsFromText(item, paths);
-      } else if (
-        item !== null &&
-        typeof item === 'object' &&
-        typeof item.path === 'string' &&
-        item.path.length > 0
-      ) {
-        paths.add(item.path);
-      }
-    }
+function collectChangesItem(item, paths) {
+  if (typeof item === 'string') {
+    collectPathsFromText(item, paths);
+  } else if (typeof item?.path === 'string' && item.path.length > 0) {
+    paths.add(item.path);
   }
-  return paths;
 }
 
 function defaultGitRunner({ baseBranchRef, path, cwd }) {
