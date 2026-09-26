@@ -23,7 +23,7 @@
  */
 
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -32,9 +32,11 @@ import {
   buildDuplicationRows,
   collectVisitedFiles,
   relativisePath,
+  resolveDetectClones,
   scanDuplication,
 } from '../../.agents/scripts/lib/baselines/duplication-scanner.js';
 import { write } from '../../.agents/scripts/lib/baselines/writer.js';
+import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
@@ -106,6 +108,62 @@ describe('duplication-scanner.buildDuplicationRows() (pure)', () => {
     const rows = buildDuplicationRows(clones, counts, REPO_ROOT);
     const a = rows.find((r) => r.path === 'src/a.js');
     assert.equal(a.percentage, 0);
+  });
+
+  it('never widens an inverted clone side (end.line < start.line) into a span', () => {
+    // Shape observed from real jscpd 4 output: one side of the pair reports
+    // start 341 / end 161 while its partner spans 7 lines. Widening to
+    // [161, 341] recorded 181 phantom lines; the inverted side counts nothing.
+    const clones = [
+      clone('scripts/scope.js', 341, 161, 'lib/other.js', 47, 53),
+      clone('scripts/scope.js', 89, 95, 'lib/other.js', 10, 16),
+    ];
+    const counts = new Map([
+      ['scripts/scope.js', 362],
+      ['lib/other.js', 100],
+    ]);
+    const rows = buildDuplicationRows(clones, counts, REPO_ROOT);
+    const scope = rows.find((r) => r.path === 'scripts/scope.js');
+    const other = rows.find((r) => r.path === 'lib/other.js');
+    assert.equal(scope.duplicatedLines, 7, 'only the well-formed 89-95 side');
+    assert.equal(other.duplicatedLines, 14, 'both partner sides still count');
+  });
+});
+
+describe('duplication-scanner.resolveDetectClones()', () => {
+  it('names the resolved version and the supported major when detectClones is missing', () => {
+    const dir = makeTempDir('jscpd-v5-');
+    try {
+      const manifest = path.join(dir, 'package.json');
+      writeFileSync(
+        manifest,
+        JSON.stringify({ name: 'jscpd', version: '5.0.2' }),
+      );
+      const fakeRequire = Object.assign(() => ({ version: '5.0.2' }), {
+        resolve: () => manifest,
+      });
+      assert.throws(
+        () => resolveDetectClones(fakeRequire),
+        (err) => {
+          assert.match(err.message, /jscpd 5\.0\.2/);
+          assert.match(err.message, /\^4/);
+          assert.doesNotMatch(err.message, /npm install'/);
+          return true;
+        },
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('returns detectClones from a supported jscpd', () => {
+    const detectClones = async () => [];
+    const fakeRequire = Object.assign(() => ({ detectClones }), {
+      resolve: () => {
+        throw new Error('unused');
+      },
+    });
+    assert.equal(resolveDetectClones(fakeRequire), detectClones);
   });
 });
 

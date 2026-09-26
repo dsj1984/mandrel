@@ -53,6 +53,7 @@
     ".agents/scripts/resync-status-column.js!",
     ".agents/scripts/run-tests.js!",
     ".agents/scripts/single-story-close.js!",
+    ".agents/scripts/lib/orchestration/single-story-close/runner.js!",
     ".agents/scripts/single-story-confirm-merge.js!",
     ".agents/scripts/single-story-init.js!",
     ".agents/scripts/stories-wave-tick.js!",

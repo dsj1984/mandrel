@@ -79,9 +79,12 @@ here so Someday stays aspirational):
   recut. **Trip-wire:** a CVE against it, or install/parse
   failure under a future Node major. Renovate is pinned off
   (`renovate.json`).
-- **`typescript` peer floor `>=5.0.0`** 🔒 — a permissive floor, not a pin;
-  raising it is a consumer-visible break. **Watch:** only relevant if the
-  maintainability transpiler config ever adopts a TS-6-removed flag.
+- **`typescript` peer range `>=5.0.0 <7`** 🔒 — a permissive floor with a
+  ceiling at the first major whose main entry drops the JS compiler API (TS 7
+  moved `transpileModule` under `unstable/*`); raising the floor is a
+  consumer-visible break. **Watch:** lifting the ceiling means adopting TS 7's
+  `unstable/*` API, and the floor matters only if the maintainability
+  transpiler config ever adopts a TS-6-removed flag.
 
 **Historical anchors.** Doc comments and prose across the tree cite sections
 of earlier roadmaps that this file no longer carries. Their content is
