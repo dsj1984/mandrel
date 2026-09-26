@@ -99,7 +99,7 @@ const RETIRED_FLAGS = Object.freeze({
  * @param {string[]} argv
  * @throws {Error}
  */
-function assertNoRetiredFlags(argv) {
+export function assertNoRetiredFlags(argv) {
   for (const [flag, why] of Object.entries(RETIRED_FLAGS)) {
     const present = argv.some((a) => a === flag || a.startsWith(`${flag}=`));
     if (!present) continue;

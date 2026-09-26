@@ -796,8 +796,8 @@
     },
     {
       "path": ".agents/scripts/lib/cli/standard-args.js",
-      "lines": 94.47,
-      "branches": 88.99,
+      "lines": 96.35,
+      "branches": 91.49,
       "functions": 100
     },
     {
@@ -2218,9 +2218,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
-      "lines": 96.56,
-      "branches": 80.37,
-      "functions": 97.37
+      "lines": 96.8,
+      "branches": 82.05,
+      "functions": 97.92
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/conventional-subject.js",
@@ -2308,9 +2308,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
-      "lines": 98.29,
-      "branches": 89.83,
-      "functions": 96.77
+      "lines": 99.81,
+      "branches": 93.28,
+      "functions": 97.56
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-lease-guard.js",
@@ -3130,8 +3130,8 @@
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
-      "lines": 83.84,
-      "branches": 53.23,
+      "lines": 89.86,
+      "branches": 68.12,
       "functions": 88.89
     },
     {
@@ -3225,6 +3225,12 @@
       "functions": 42.86
     },
     {
+      "path": "lib/cli/guarded-sync.js",
+      "lines": 93.1,
+      "branches": 94.74,
+      "functions": 66.67
+    },
+    {
       "path": "lib/cli/init.js",
       "lines": 81.52,
       "branches": 81.25,
@@ -3246,13 +3252,13 @@
       "path": "lib/cli/sync-agents.js",
       "lines": 100,
       "branches": 100,
-      "functions": 80
+      "functions": 100
     },
     {
       "path": "lib/cli/sync-commands.js",
       "lines": 100,
       "branches": 100,
-      "functions": 80
+      "functions": 100
     },
     {
       "path": "lib/cli/sync.js",

@@ -544,7 +544,7 @@
     },
     {
       "path": ".agents/scripts/lib/cli/standard-args.js",
-      "mi": 90.522
+      "mi": 102.861
     },
     {
       "path": ".agents/scripts/lib/close-validation/commands.js",
@@ -1460,7 +1460,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
-      "mi": 90.664
+      "mi": 91.412
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/conventional-subject.js",
@@ -1520,7 +1520,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
-      "mi": 80.229
+      "mi": 85.13
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-lease-guard.js",
@@ -2084,7 +2084,7 @@
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
-      "mi": 76.381
+      "mi": 87.436
     },
     {
       "path": ".agents/scripts/single-story-init.js",
@@ -2155,6 +2155,10 @@
       "mi": 109.415
     },
     {
+      "path": "lib/cli/guarded-sync.js",
+      "mi": 102.081
+    },
+    {
       "path": "lib/cli/init.js",
       "mi": 94.901
     },
@@ -2168,11 +2172,11 @@
     },
     {
       "path": "lib/cli/sync-agents.js",
-      "mi": 102.282
+      "mi": 135.605
     },
     {
       "path": "lib/cli/sync-commands.js",
-      "mi": 102.282
+      "mi": 135.605
     },
     {
       "path": "lib/cli/sync.js",

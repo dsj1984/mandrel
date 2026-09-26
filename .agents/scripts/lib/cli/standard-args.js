@@ -24,13 +24,26 @@ const SUPPORTED_FLAGS = Object.freeze({
 
 const FLAG_NAMES = Object.keys(SUPPORTED_FLAGS);
 
-const SUPPORTED_EXTRAS_TYPES = new Set([
-  'string',
-  'boolean',
-  'ticket',
-  'integer',
-  'string-multi',
-]);
+const isNullish = (v) => v === null || v === undefined;
+
+/** Per-type rules shared by built-in and extra flags. */
+const FLAG_TYPES = Object.freeze({
+  string: {
+    normalise: (v, orDefault) =>
+      typeof v === 'string' && v.length > 0 ? v : orDefault(null),
+    isAbsent: (v) => isNullish(v) || v === '',
+  },
+  boolean: { normalise: (v) => v === true, isAbsent: (v) => !v },
+  ticket: { normalise: (v) => parseTicketId(v), isAbsent: isNullish },
+  integer: {
+    normalise: (v, orDefault) => (v === undefined ? orDefault(undefined) : v),
+    isAbsent: (v) => v === undefined || Number.isNaN(v),
+  },
+  'string-multi': {
+    normalise: (v, orDefault) => (Array.isArray(v) ? v : orDefault([])),
+    isAbsent: (v) => !Array.isArray(v) || v.length === 0,
+  },
+});
 
 function camelCase(name) {
   return name.replace(/-([a-z])/g, (_m, c) => c.toUpperCase());
@@ -50,16 +63,33 @@ function normaliseCallSignature(opts) {
   return { argv: argv ?? [], schema, extras };
 }
 
-function buildDefineFlagsSpec(extras) {
-  const spec = {};
-  for (const [flag, { key, type }] of Object.entries(SUPPORTED_FLAGS)) {
-    spec[flag] = { type, alias: key };
+function flagEntries(schema, extras) {
+  const entries = Object.entries(SUPPORTED_FLAGS).map(
+    ([flag, { key, type }]) => ({
+      flag,
+      key,
+      type,
+      def: {},
+      required: schema?.[flag]?.required === true,
+    }),
+  );
+  for (const [flag, def] of Object.entries(extras ?? {})) {
+    entries.push({
+      flag,
+      key: def.alias ?? camelCase(flag),
+      type: def.type,
+      def,
+      required: def.required === true,
+    });
   }
-  if (!extras) return spec;
-  for (const [flag, def] of Object.entries(extras)) {
-    const entry = { type: def.type, alias: def.alias ?? camelCase(flag) };
-    if ('default' in def) entry.default = def.default;
-    spec[flag] = entry;
+  return entries;
+}
+
+function buildDefineFlagsSpec(entries) {
+  const spec = {};
+  for (const { flag, key, type, def } of entries) {
+    spec[flag] = { type, alias: key };
+    if ('default' in def) spec[flag].default = def.default;
   }
   return spec;
 }
@@ -119,24 +149,15 @@ function validateExtras(extras) {
         `parseStandardCliArgs: extras["${flag}"] must be an object`,
       );
     }
-    if (!SUPPORTED_EXTRAS_TYPES.has(def.type)) {
+    if (!Object.hasOwn(FLAG_TYPES, def.type)) {
       const err = new Error(
         `parseStandardCliArgs: extras["${flag}"].type "${def.type}" is unsupported. ` +
-          `Supported: ${[...SUPPORTED_EXTRAS_TYPES].join(', ')}.`,
+          `Supported: ${Object.keys(FLAG_TYPES).join(', ')}.`,
       );
       err.code = 'UNKNOWN_EXTRAS_TYPE';
       throw err;
     }
   }
-}
-
-function isAbsent(type, cur) {
-  if (type === 'ticket') return cur === null || cur === undefined;
-  if (type === 'string') return cur === null || cur === undefined || cur === '';
-  if (type === 'boolean') return !cur;
-  if (type === 'integer') return cur === undefined || Number.isNaN(cur);
-  if (type === 'string-multi') return !Array.isArray(cur) || cur.length === 0;
-  return cur === undefined || cur === null;
 }
 
 function throwMissing(flag) {
@@ -148,56 +169,19 @@ function throwMissing(flag) {
   throw err;
 }
 
-function enforceRequired(values, schema) {
-  if (!schema) return;
-  for (const [flag, rule] of Object.entries(schema)) {
-    if (!rule || rule.required !== true) continue;
-    const meta = SUPPORTED_FLAGS[flag];
-    if (isAbsent(meta.type, values[meta.key])) throwMissing(flag);
-  }
-}
-
-function enforceExtrasRequired(values, extras) {
-  if (!extras) return;
-  for (const [flag, def] of Object.entries(extras)) {
-    if (!def || def.required !== true) continue;
-    const key = def.alias ?? camelCase(flag);
-    if (isAbsent(def.type, values[key])) throwMissing(flag);
-  }
-}
-
-/** Absent strings become `null` and booleans strict `false`. */
-function normaliseValues(raw, extras) {
+function normaliseValues(raw, entries) {
   const out = {};
-  for (const [, { key, type }] of Object.entries(SUPPORTED_FLAGS)) {
-    let v = raw[key];
-    if (type === 'ticket') {
-      v = parseTicketId(v);
-    } else if (type === 'string') {
-      v = typeof v === 'string' && v.length > 0 ? v : null;
-    } else if (type === 'boolean') {
-      v = v === true;
-    }
-    out[key] = v;
-  }
-  if (!extras) return out;
-  for (const [flag, def] of Object.entries(extras)) {
-    const key = def.alias ?? camelCase(flag);
-    let v = raw[key];
-    if (def.type === 'boolean') {
-      v = v === true;
-    } else if (def.type === 'string') {
-      if (v === undefined) v = 'default' in def ? def.default : null;
-    } else if (def.type === 'ticket') {
-      v = parseTicketId(v);
-    } else if (def.type === 'string-multi') {
-      if (!Array.isArray(v)) v = 'default' in def ? def.default : [];
-    } else if (def.type === 'integer') {
-      if (v === undefined && 'default' in def) v = def.default;
-    }
-    out[key] = v;
+  for (const { key, type, def } of entries) {
+    const orDefault = (empty) => ('default' in def ? def.default : empty);
+    out[key] = FLAG_TYPES[type].normalise(raw[key], orDefault);
   }
   return out;
+}
+
+function enforceRequired(values, entries) {
+  for (const { flag, key, type, required } of entries) {
+    if (required && FLAG_TYPES[type].isAbsent(values[key])) throwMissing(flag);
+  }
 }
 
 /**
@@ -222,13 +206,13 @@ export function parseStandardCliArgs(opts = {}) {
     err.flag = unknown;
     throw err;
   }
+  const entries = flagEntries(schema, extras);
   const { values: raw, positionals } = defineFlags(
-    buildDefineFlagsSpec(extras),
+    buildDefineFlagsSpec(entries),
     argv,
   );
-  const values = normaliseValues(raw, extras);
-  enforceRequired(values, schema);
-  enforceExtrasRequired(values, extras);
+  const values = normaliseValues(raw, entries);
+  enforceRequired(values, entries);
   return { values, positionals };
 }
 

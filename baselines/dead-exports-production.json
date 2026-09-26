@@ -1401,6 +1401,14 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "symbol": "createMergeWaitState"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "symbol": "decideMergeWaitPoll"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "symbol": "DEFAULT_MAX_WAIT_SECONDS"
     },
     {
@@ -1426,6 +1434,10 @@
     {
       "file": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "symbol": "resolveMergeWaitConfig"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/options.js",
+      "symbol": "parseCloseOptions"
     },
     {
       "file": ".agents/scripts/lib/orchestration/single-story-close/phases/wrong-tree-guard.js",
