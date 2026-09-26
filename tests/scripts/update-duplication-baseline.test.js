@@ -23,8 +23,7 @@
  */
 
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -37,6 +36,7 @@ import {
   scanDuplication,
 } from '../../.agents/scripts/lib/baselines/duplication-scanner.js';
 import { write } from '../../.agents/scripts/lib/baselines/writer.js';
+import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
@@ -132,7 +132,7 @@ describe('duplication-scanner.buildDuplicationRows() (pure)', () => {
 
 describe('duplication-scanner.resolveDetectClones()', () => {
   it('names the resolved version and the supported major when detectClones is missing', () => {
-    const dir = mkdtempSync(path.join(tmpdir(), 'jscpd-v5-'));
+    const dir = makeTempDir('jscpd-v5-');
     try {
       const manifest = path.join(dir, 'package.json');
       writeFileSync(
