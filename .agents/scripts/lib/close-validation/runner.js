@@ -5,10 +5,7 @@
 
 import { getQuality } from '../config/quality.js';
 import { COVERAGE_TIMEOUT_EXIT_CODE } from '../coverage-capture.js';
-import {
-  FULL_SUITE_LOCK_EXPIRY_ENV,
-  LOCK_WAIT_EXPIRED_EXIT_CODE,
-} from '../full-suite-lock.js';
+import { LOCK_WAIT_EXPIRED_EXIT_CODE } from '../full-suite-lock.js';
 import { gitSpawn } from '../git-utils.js';
 import {
   recordPass as defaultRecordPass,
@@ -135,9 +132,8 @@ function applyChangedFileScope({ gate, spawnCwd, log }) {
  *   getTreeFingerprint?: (cwd: string) => string|null,
  *   recordPass?: typeof defaultRecordPass,
  *   shouldSkip?: typeof defaultShouldSkip,
- *   deferOnLockExpiry?: boolean,
- * }} opts `deferOnLockExpiry`: an expired full-suite lock wait spawns
- *   nothing (here or in any gate child) and reports `LOCK_WAIT_EXPIRED_EXIT_CODE`.
+ * }} opts An expired full-suite lock wait spawns nothing (here or in any gate
+ *   child) and reports `LOCK_WAIT_EXPIRED_EXIT_CODE`.
  * @returns {{ ok: boolean, failed: Array<{ gate: Gate, status: number, cwd: string, outcome: 'deferred'|'timeout'|'failed' }>, skipped: Array<{ gate: Gate, reason: string }> }}
  *   `outcome` classifies the exit: `deferred` (75), `timeout` (124), else `failed`.
  */
@@ -161,10 +157,9 @@ export async function runCloseValidation({
     defaultTreeFingerprint(resolvedCwd, gitSpawn),
   recordPass = defaultRecordPass,
   shouldSkip = defaultShouldSkip,
-  deferOnLockExpiry = false,
 } = {}) {
   const failed = [];
-  const lockOpts = fullSuiteLockOptions({ config, deferOnLockExpiry });
+  const lockOpts = fullSuiteLockOptions({ config });
   const skipped = [];
   const evidenceActive = useEvidence && storyId != null && standalone;
   const evidenceStoreOpts = { cwd, standalone };
@@ -360,28 +355,34 @@ export async function runCloseValidation({
 }
 
 /**
- * The `fullSuiteLock` gate shares coverage capture's timeout so a hung suite
- * fails instead of holding the host lock; the same figure bounds its lock
- * wait (`resolveFullSuiteLockBudget`), so it outwaits any live holder. Under `deferOnLockExpiry` every
- * gate child inherits the defer opt-in via env.
+ * The `fullSuiteLock` gate shares coverage capture's timeout
+ * (`coverage.timeoutMs`) so a hung suite fails instead of holding the host
+ * lock; the same figure bounds its lock wait (`resolveFullSuiteLockBudget`).
  *
- * @param {{ config: object|null, deferOnLockExpiry: boolean }} args
+ * @param {{ config: object|null }} args
  * @returns {{ forGate: (gate: object) => object }}
  */
-function fullSuiteLockOptions({ config, deferOnLockExpiry }) {
+function fullSuiteLockOptions({ config }) {
   const timeoutMs = getQuality(config).coverage?.timeoutMs;
-  const deferEnv = deferOnLockExpiry
-    ? { [FULL_SUITE_LOCK_EXPIRY_ENV]: 'defer' }
-    : null;
   return {
     forGate(gate) {
-      const env = deferEnv ? { ...gate.env, ...deferEnv } : gate.env;
       return {
-        ...(env ? { env } : {}),
-        ...(gate.fullSuiteLock ? { timeoutMs, deferOnLockExpiry } : {}),
+        ...(gate.env ? { env: gate.env } : {}),
+        ...(gate.fullSuiteLock ? fullSuiteGateOptions(gate, timeoutMs) : {}),
       };
     },
   };
+}
+
+/**
+ * A full-suite gate's kill bound, and the command its lock-expiry line names.
+ *
+ * @param {{ cmd: string, args?: string[] }} gate
+ * @param {number} timeoutMs
+ */
+function fullSuiteGateOptions(gate, timeoutMs) {
+  const rerunCommand = [gate.cmd, ...(gate.args ?? [])].join(' ');
+  return { timeoutMs, lockOptions: { rerunCommand } };
 }
 
 /**

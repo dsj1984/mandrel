@@ -94,9 +94,12 @@ test('runEvidenceGate: runs the runner and records evidence on pass', async () =
     },
     {
       gitSpawnFn: fakeGitSpawnHead('abc1234567890abcdef0000000000000000fffff'),
-      spawnFn: (cmd, args, opts) => {
-        spawnCalls.push({ cmd, args, opts });
-        return { status: 0 };
+      spawnFn: () => {
+        throw new Error('the test gate runs through runSuiteFn');
+      },
+      runSuiteFn: async (run) => {
+        spawnCalls.push({ cmd: run.cmd, args: run.args, opts: run });
+        return 0;
       },
       shouldSkipFn: () => ({ skip: false }),
       recordPassFn: (rec) => {
@@ -267,7 +270,7 @@ test('runEvidenceGate: recordPass exception is swallowed (gate still passes)', a
     },
     {
       gitSpawnFn: fakeGitSpawnHead('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),
-      spawnFn: () => ({ status: 0 }),
+      runSuiteFn: async () => 0,
       shouldSkipFn: () => ({ skip: false }),
       recordPassFn: () => {
         throw new Error('disk full');
@@ -402,4 +405,31 @@ test('runEvidenceGate: HEAD-resolution failure bypasses evidence (no skip, no re
     0,
     'recordPass must not run when HEAD did not resolve',
   );
+});
+
+test('runEvidenceGate: a deferred test gate (exit 75) records nothing and says why (Story #5485)', async () => {
+  const logger = makeLogger();
+  const recordCalls = [];
+  const priorExitCode = process.exitCode;
+  const out = await runEvidenceGate(
+    {
+      scopeId: 5485,
+      standalone: true,
+      gate: 'test',
+      useEvidence: true,
+      cwd: '/repo',
+      runnerArgs: ['npm', 'test'],
+    },
+    {
+      gitSpawnFn: fakeGitSpawnHead('bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'),
+      runSuiteFn: async () => 75,
+      shouldSkipFn: () => ({ skip: false }),
+      recordPassFn: (rec) => recordCalls.push(rec),
+      logger,
+    },
+  );
+  process.exitCode = priorExitCode;
+  assert.deepEqual(out, { status: 75, skipped: false });
+  assert.equal(recordCalls.length, 0);
+  assert.ok(logger.calls.info.some((m) => /deferred \(exit 75\)/.test(m)));
 });

@@ -268,6 +268,7 @@ function resolveWorktreePath({ cwd, config, storyId }) {
  * @returns {Promise<{
  *   validationGates: Record<string, string>|null,
  *   lockWait: { waitedSeconds: number, expired: boolean }|null,
+ *   suiteTimings: object|null,
  *   pending: boolean,
  * }>} `validationGates` is null when skipped; `pending` means a full-suite
  *   lock wait expired and the gates deferred.
@@ -304,7 +305,12 @@ async function runPrePushPhases(ctx, deps) {
   }
   if (options.skipValidation) {
     progress('VALIDATE', '⏭ Skipped (--skip-validation).');
-    return { validationGates: null, lockWait: null, pending: false };
+    return {
+      validationGates: null,
+      lockWait: null,
+      suiteTimings: null,
+      pending: false,
+    };
   }
   setPhase('close-validation');
   let validation;
@@ -345,6 +351,7 @@ async function runPrePushPhases(ctx, deps) {
   return {
     validationGates: gates,
     lockWait: validation?.lockWait ?? null,
+    suiteTimings: validation?.suiteTimings ?? null,
     pending: validation?.pending === true,
   };
 }
@@ -718,6 +725,7 @@ async function finishWithMergeWait(prCtx, deps) {
     autoMergeEnabled: prCtx.autoMergeEnabled,
     gates: prCtx.gates,
     lockWait: prCtx.lockWait,
+    suiteTimings: prCtx.suiteTimings,
     elapsedSeconds: elapsedSecondsSince(prCtx.startedAtMs),
   });
   const result = closeResult({
@@ -791,6 +799,7 @@ async function finishWithoutMergeWait(prCtx, waitForMergeReason) {
     },
     gates: prCtx.gates,
     lockWait: prCtx.lockWait,
+    suiteTimings: prCtx.suiteTimings,
     nextCommand: NEXT_COMMANDS.confirmMerge(prCtx.storyId),
     elapsedSeconds: elapsedSecondsSince(prCtx.startedAtMs),
   });
@@ -1020,6 +1029,7 @@ async function finishPhase(ctx, deps) {
     phaseTimer: ctx.phaseTimer,
     workerTokens: ctx.workerTokens,
     lockWait: ctx.prePush.lockWait,
+    suiteTimings: ctx.prePush.suiteTimings,
     gates: closeEnvelopeGates(
       options,
       ctx.prePush.validationGates,

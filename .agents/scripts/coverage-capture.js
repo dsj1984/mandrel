@@ -10,8 +10,9 @@
  * it also refused the depositing run, leaving no path that could deposit.
  *
  * Exit codes: 0 fresh/skipped/captured; 1 capture failed or refused (callers
- * MUST surface it); 75 lock wait expired and deferred (only under
- * `MANDREL_FULL_SUITE_LOCK_ON_EXPIRY=defer`); 124 suite timed out.
+ * MUST surface it); 75 lock wait expired with a live holder, so nothing was
+ * spawned (re-run it); 124 suite timed out. A run that spawned a suite ends
+ * on its timing line: lock wait, host wait and test run as three figures.
  */
 import { getChangedFiles } from './lib/changed-files.js';
 import { isDirectInvocation } from './lib/cli-utils.js';
@@ -28,9 +29,9 @@ import { tryScopedCapture } from './lib/coverage-capture-affected.js';
 import { runFullScopeCapture } from './lib/coverage-capture-fullscope.js';
 import { handleCoverageCaptureHelp } from './lib/coverage-capture-usage.js';
 import { lockedCapture } from './lib/full-suite-lock.js';
-
 import { Logger } from './lib/Logger.js';
 import { hasNpmScript, readPackageScripts } from './lib/npm-scripts.js';
+import { formatSuiteTimings } from './lib/supervised-suite.js';
 
 /**
  * A `null` ref defers the fallback to `resolveChangedFilesRef`.
@@ -68,7 +69,8 @@ export function parseArgs(argv) {
  *   writeCaptureStampImpl?: typeof writeCaptureStamp,
  *   filterFilesUnderTargetsImpl?: typeof filterFilesUnderTargets,
  *   logger?: { info: Function, warn: Function, error: Function },
- * }} [deps]
+ *   lockOptions?: object,
+ * }} [deps] `lockOptions` is a test seam over the full-suite lock policy.
  * @returns {Promise<number>}
  */
 export async function runCoverageCapture(argv = process.argv, deps = {}) {
@@ -84,6 +86,7 @@ export async function runCoverageCapture(argv = process.argv, deps = {}) {
     writeCaptureStampImpl = writeCaptureStamp,
     filterFilesUnderTargetsImpl = filterFilesUnderTargets,
     logger = Logger,
+    lockOptions = {},
   } = deps;
   const args = parseArgs(argv);
   const config = resolveConfigImpl({ cwd: args.cwd });
@@ -106,10 +109,69 @@ export async function runCoverageCapture(argv = process.argv, deps = {}) {
 
   // Outermost first: the credit probe announces or refuses the run, and only
   // a surviving run reaches the host-level full-suite lock.
-  const capture = creditedCapture(lockedCapture(runCaptureImpl, config), {
+  const locked = lockedCapture(runCaptureImpl, config, process.env, {
+    rerunCommand: rerunCommandFor(argv),
+    ...lockOptions,
+  });
+  const credited = creditedCapture(locked, {
     requireCredited: args.requireCredited,
     logger,
   });
+  let timings = null;
+  const capture = (captureOpts) =>
+    credited({
+      ...captureOpts,
+      onTimings: (t) => {
+        timings = t;
+      },
+    });
+  const code = await runCaptureScopes({
+    crap,
+    coverage,
+    args,
+    capture,
+    deps: {
+      getChangedFilesImpl,
+      isCoverageFreshImpl,
+      computeContentDigestImpl,
+      writeCaptureStampImpl,
+      filterFilesUnderTargetsImpl,
+      readPackageScriptsImpl,
+      hasNpmScriptImpl,
+      logger,
+    },
+  });
+  if (timings) logger.info(`[coverage-capture] ${formatSuiteTimings(timings)}`);
+  return code;
+}
+
+/**
+ * The command that re-runs this capture, for the lock's expiry line.
+ *
+ * @param {string[]} argv
+ * @returns {string}
+ */
+function rerunCommandFor(argv) {
+  return ['node', ...argv.slice(1)].join(' ');
+}
+
+/**
+ * The scoped path first (a `null` means not applicable), then full scope.
+ *
+ * @param {{ crap: object, coverage: object, args: object, capture: Function, deps: object }} opts
+ * @returns {Promise<number>}
+ */
+async function runCaptureScopes({ crap, coverage, args, capture, deps }) {
+  const {
+    getChangedFilesImpl,
+    isCoverageFreshImpl,
+    computeContentDigestImpl,
+    writeCaptureStampImpl,
+    filterFilesUnderTargetsImpl,
+    readPackageScriptsImpl,
+    hasNpmScriptImpl,
+    logger,
+  } = deps;
 
   // Shared so a new seam cannot reach one capture path and miss the other.
   // A scoped `null` means not applicable: fall through to full scope.

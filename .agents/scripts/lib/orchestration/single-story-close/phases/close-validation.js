@@ -5,13 +5,15 @@
  * host's tool-result ceiling): a pass reports one digest line, a failure
  * replays its tail inline. Full-suite lock-wait lines are also teed to
  * `progress()` so a long wait doesn't read as a hang, and an expired wait
- * defers to `pending` rather than failing.
+ * defers to `pending` rather than failing. The suite's timing line (lock
+ * wait, host wait, test run) is parsed from the same log into `suiteTimings`.
  */
 
 import { buildDefaultGates as defaultBuildDefaultGates } from '../../../close-validation/gates.js';
 import { runCloseValidation as defaultRunCloseValidation } from '../../../close-validation/runner.js';
 import { LOCK_WAIT_EXPIRED_EXIT_CODE } from '../../../full-suite-lock.js';
 import { parseLockWaitOutcome } from '../../../full-suite-queue.js';
+import { parseSuiteTimings } from '../../../supervised-suite.js';
 import { createGateLogSink as defaultCreateGateLogSink } from '../gate-log.js';
 import { runPreGateSteps as defaultRunPreGateSteps } from './pre-gate-steps.js';
 
@@ -39,10 +41,12 @@ import { runPreGateSteps as defaultRunPreGateSteps } from './pre-gate-steps.js';
  * }} args
  * @returns {Promise<{
  *   gates: Record<string, 'passed'|'skipped'>|null,
- *   lockWait: { waitedSeconds: number, expired: boolean }|null,
+ *   lockWait: { waitedSeconds: number, expired: boolean, holder?: object }|null,
+ *   suiteTimings: { lockWaitMs: number, hostWaitMs: number|null, testRunMs: number }|null,
  *   pending: boolean,
  * }>} `pending` (with `gates: null`) when a lock wait expired; any other
- *   failure throws with `err.closeGate` naming the gate.
+ *   failure throws with `err.closeGate` naming the gate. `suiteTimings` is
+ *   null when no full suite ran in this close (credited, or skipped).
  */
 export async function runCloseValidationPhase({
   cwd,
@@ -105,7 +109,6 @@ export async function runCloseValidationPhase({
       baseBranch,
       storyBranch,
       config,
-      deferOnLockExpiry: true,
     });
   } finally {
     // The sink is async-buffered; settle it before anything reads it, on
@@ -120,6 +123,7 @@ export async function runCloseValidationPhase({
   return {
     gates: gateOutcomes(gateList, validation),
     lockWait,
+    suiteTimings: lockWaits.suiteTimings(),
     pending: false,
   };
 }
@@ -133,7 +137,7 @@ export async function runCloseValidationPhase({
  *   gateLog: { replay: () => void },
  *   progress: (tag: string, msg: string) => void,
  * }} args
- * @returns {{ gates: null, lockWait: object, pending: true }}
+ * @returns {{ gates: null, lockWait: object, suiteTimings: null, pending: true }}
  */
 function settleFailedValidation({ validation, lockWait, gateLog, progress }) {
   const [first] = validation.failed;
@@ -143,7 +147,7 @@ function settleFailedValidation({ validation, lockWait, gateLog, progress }) {
       'VALIDATE',
       `⏸ ${gate.name} deferred: the full-suite lock wait expired after ${lockWait.waitedSeconds}s. Nothing was spawned; close will report pending.`,
     );
-    return { gates: null, lockWait, pending: true };
+    return { gates: null, lockWait, suiteTimings: null, pending: true };
   }
   gateLog.replay();
   const err = new Error(
@@ -155,27 +159,33 @@ function settleFailedValidation({ validation, lockWait, gateLog, progress }) {
 }
 
 /**
- * Parsed from the gate log because it is the one place that sees waits both
- * in-process and in gate children.
+ * Parsed from the gate log because it is the one place that sees waits and
+ * suite timings both in-process and in gate children. The last timing line
+ * wins: close runs exactly one full suite.
  *
  * @param {{ sink: (m: string) => void, progress: (tag: string, msg: string) => void }} args
- * @returns {{ log: (m: string) => void, summary: () => { waitedSeconds: number, expired: boolean }|null }}
+ * @returns {{ log: (m: string) => void, summary: () => { waitedSeconds: number, expired: boolean, holder?: object }|null, suiteTimings: () => object|null }}
  */
 function trackLockWaits({ sink, progress }) {
   let tally = null;
+  let timings = null;
   return {
     log(line) {
       sink(line);
+      timings = parseSuiteTimings(line) ?? timings;
       if (!String(line).includes('[full-suite-lock]')) return;
       progress('LOCK', line);
       const outcome = parseLockWaitOutcome(line);
       if (!outcome) return;
+      const holder = outcome.holder ?? tally?.holder;
       tally = {
         waitedSeconds: (tally?.waitedSeconds ?? 0) + outcome.waitedSeconds,
         expired: Boolean(tally?.expired) || outcome.expired,
+        ...(holder ? { holder } : {}),
       };
     },
     summary: () => tally,
+    suiteTimings: () => timings,
   };
 }
 

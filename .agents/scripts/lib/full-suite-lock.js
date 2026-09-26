@@ -3,12 +3,15 @@
  * worktrees (they contend for cores and a shared coverage artifact), over
  * the `sweep-lock.js` primitive.
  *
- * Best-effort: any failure to acquire spawns anyway — a stale lockfile must
- * never fail a delivery. Only close opts in to defer on an expired wait
- * ({@link LOCK_WAIT_EXPIRED_EXIT_CODE}). Waits are async so the holder's
- * heartbeat and signal release keep working, and FIFO via
- * `full-suite-queue.js`. The lock covers only the spawn, never the
- * freshness checks before it.
+ * The lock queues, it never overlaps: a wait that expires with a live holder
+ * spawns nothing and stands in {@link LOCK_WAIT_EXPIRED_EXIT_CODE} (the
+ * caller's `onWaitExpired` shape), naming the holder and the command to
+ * re-run. A dead or non-heartbeating holder is still taken over, and a hard
+ * lockfile I/O error still proceeds unserialized — a broken lockfile must
+ * never fail a delivery. Waits are async so the holder's heartbeat and signal
+ * release keep working, and FIFO via `full-suite-queue.js`. The lock covers
+ * only the spawn, never the freshness checks before it; the spawn receives
+ * the measured `lockWaitMs` so it can report it apart from its own run.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -20,9 +23,6 @@ import { acquireSweepLock } from './single-story-sweep/sweep-lock.js';
 
 /** Environment escape hatch: set to `0`/`false`/`off`/`no` to disable. */
 export const FULL_SUITE_LOCK_ENV = 'MANDREL_FULL_SUITE_LOCK';
-
-/** Close sets it to `defer` on its gate children; nothing else does. */
-export const FULL_SUITE_LOCK_EXPIRY_ENV = 'MANDREL_FULL_SUITE_LOCK_ON_EXPIRY';
 
 /** `EX_TEMPFAIL`. */
 export const LOCK_WAIT_EXPIRED_EXIT_CODE = 75;
@@ -52,6 +52,8 @@ const LOCK_DEFAULTS = Object.freeze({
   nowFn: Date.now,
   sleepFn: (ms) => defaultSleep(ms),
   acquireOnceFn: (opts) => acquireSweepLock(opts),
+  onWaitExpired: () => LOCK_WAIT_EXPIRED_EXIT_CODE,
+  rerunCommand: 'the same command',
 });
 
 /**
@@ -152,7 +154,8 @@ function consult(probe, applies) {
 
 /**
  * Never throws on the lock's account and spawns at most once — a lock defect
- * can slow a suite, never duplicate it.
+ * can slow a suite, never duplicate it. An expired wait never spawns: it
+ * returns `onWaitExpired(holder)` (default {@link LOCK_WAIT_EXPIRED_EXIT_CODE}).
  *
  * @template T
  * @param {{
@@ -169,9 +172,10 @@ function consult(probe, applies) {
  *   acquireOnceFn?: typeof acquireSweepLock,
  *   lockPath?: string,
  *   skipIfSatisfied?: () => T|undefined,
- *   onWaitExpired?: () => T|undefined,
- * }} opts A non-`undefined` return from either hook stands in for the spawn.
- * @param {() => Promise<T>} spawn
+ *   onWaitExpired?: (holder: import('./full-suite-queue.js').LockHolder) => T,
+ *   rerunCommand?: string,
+ * }} opts A non-`undefined` `skipIfSatisfied` return stands in for the spawn.
+ * @param {(timing: { lockWaitMs: number }) => Promise<T>} spawn
  * @returns {Promise<T>}
  */
 export async function withFullSuiteLockAsync(options, spawn) {
@@ -179,8 +183,8 @@ export async function withFullSuiteLockAsync(options, spawn) {
   const { lock, lockPath } = beginLock(opts);
   const wait =
     lock === null && lockPath !== null
-      ? await waitInLine({ ...opts, lockPath, expiryNote: expiryNote(opts) })
-      : { held: lock, expired: false, waited: false };
+      ? await waitInLine({ ...opts, lockPath })
+      : { held: lock, expired: false, waited: false, waitedMs: 0 };
   try {
     return await spawnOrStandIn(opts, wait, spawn);
   } finally {
@@ -196,12 +200,6 @@ function withDefaults(options) {
   return opts;
 }
 
-function expiryNote({ onWaitExpired }) {
-  return typeof onWaitExpired === 'function'
-    ? 'not spawning; the caller reports the wait instead'
-    : 'spawning anyway';
-}
-
 async function spawnOrStandIn(opts, wait, spawn) {
   const probe = consult(opts.skipIfSatisfied, wait.waited);
   if (probe.satisfied) {
@@ -210,8 +208,8 @@ async function spawnOrStandIn(opts, wait, spawn) {
     );
     return probe.value;
   }
-  const deferred = consult(opts.onWaitExpired, wait.expired);
-  return deferred.satisfied ? deferred.value : await spawn();
+  if (wait.expired) return opts.onWaitExpired(wait.holder);
+  return await spawn({ lockWaitMs: wait.waitedMs ?? 0 });
 }
 
 /**
@@ -225,13 +223,31 @@ function defaultSleep(ms) {
 }
 
 /**
+ * The lock policy every numeric-exit full-suite taker shares: the wait
+ * budget from the coverage kill bound, the two opt-out switches, and exit
+ * {@link LOCK_WAIT_EXPIRED_EXIT_CODE} on an expired wait.
+ *
+ * @param {object} [config]
+ * @param {Record<string, string|undefined>} [env]
+ * @returns {{ waitMs: number, staleMs: number, enabled: boolean, onWaitExpired: () => number }}
+ */
+export function fullSuiteLockPolicy(config, env = process.env) {
+  return {
+    ...resolveFullSuiteLockBudget(getQuality(config).coverage?.timeoutMs),
+    enabled: isFullSuiteLockEnabled({ config, env }),
+    onWaitExpired: () => LOCK_WAIT_EXPIRED_EXIT_CODE,
+  };
+}
+
+/**
  * Serialize a capture runner's spawn. Wrapped at the one call site below
- * every skip/freshness decision, so a credited capture never waits.
+ * every skip/freshness decision, so a credited capture never waits. The
+ * runner receives the measured `lockWaitMs` alongside its own options.
  *
  * @param {Function} runCaptureFn
  * @param {object} [config]
  * @param {Record<string, string|undefined>} [env]
- * @param {object} [lockOptions] Test seam only.
+ * @param {object} [lockOptions] Test seam, plus `rerunCommand`.
  * @returns {(opts?: object) => Promise<number>}
  */
 export function lockedCapture(
@@ -240,12 +256,7 @@ export function lockedCapture(
   env = process.env,
   lockOptions = {},
 ) {
-  const policy = {
-    ...resolveFullSuiteLockBudget(getQuality(config).coverage?.timeoutMs),
-    enabled: isFullSuiteLockEnabled({ config, env }),
-    onWaitExpired: deferredCaptureExit(env),
-    ...lockOptions,
-  };
+  const policy = { ...fullSuiteLockPolicy(config, env), ...lockOptions };
   return (captureOpts = {}) =>
     withFullSuiteLockAsync(
       {
@@ -254,18 +265,8 @@ export function lockedCapture(
         log: captureOpts.log,
         skipIfSatisfied: freshnessProbe(captureOpts),
       },
-      () => runCaptureFn(captureOpts),
+      ({ lockWaitMs }) => runCaptureFn({ ...captureOpts, lockWaitMs }),
     );
-}
-
-/**
- * @param {Record<string, string|undefined>} env
- * @returns {(() => number)|undefined}
- */
-function deferredCaptureExit(env) {
-  return env[FULL_SUITE_LOCK_EXPIRY_ENV] === 'defer'
-    ? () => LOCK_WAIT_EXPIRED_EXIT_CODE
-    : undefined;
 }
 
 /**

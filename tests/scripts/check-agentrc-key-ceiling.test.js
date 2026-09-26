@@ -87,8 +87,8 @@ describe('checkLeafKeyCeiling', () => {
     assert.equal(checkLeafKeyCeiling(schema, 2).ok, false);
   });
 
-  it('the landed ceiling is 130 (183 before Story #5382, +1 for #5459 scratch, +1 for #5472 captureScope)', () => {
-    assert.equal(AGENTRC_LEAF_KEY_CEILING, 130);
+  it('the landed ceiling is 131 (183 before Story #5382, +1 for #5459 scratch, +1 for #5472 captureScope, +1 for #5485 coverage.timeoutMs)', () => {
+    assert.equal(AGENTRC_LEAF_KEY_CEILING, 131);
   });
 
   it('holds the real schema at the landed ceiling', () => {

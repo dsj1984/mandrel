@@ -27,7 +27,7 @@ export function groupSpawnOptions(platform = process.platform) {
  * @param {{ platform?: string, killFn?: (pid: number, signal: string) => void }} [opts]
  * @returns {boolean}
  */
-function killProcessGroup(
+export function killProcessGroup(
   child,
   signal = 'SIGKILL',
   { platform = process.platform, killFn = process.kill.bind(process) } = {},

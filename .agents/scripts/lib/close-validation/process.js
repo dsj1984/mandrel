@@ -7,11 +7,8 @@ import {
   resolveFullSuiteLockBudget,
   withFullSuiteLockAsync,
 } from '../full-suite-lock.js';
-import {
-  groupSpawnOptions,
-  superviseGroup,
-  TIMEOUT_EXIT_CODE,
-} from '../process-group.js';
+import { groupSpawnOptions, TIMEOUT_EXIT_CODE } from '../process-group.js';
+import { gateSupervision } from '../supervised-suite.js';
 
 /**
  * Emit each line with `prefix`; the unterminated tail flushes on `end`.
@@ -81,21 +78,23 @@ function isBiomeNoFilesProcessed(output) {
  *
  * `fullSuiteLock` serializes the spawn behind the host lock (async, so
  * sibling gates on this event loop are not stalled). An expired wait spawns
- * anyway unless `deferOnLockExpiry`, which returns
- * `LOCK_WAIT_EXPIRED_EXIT_CODE` so close ends `pending`. Each child leads its
- * own process group so a timeout, abort or parent signal kills its workers too.
+ * nothing and returns `LOCK_WAIT_EXPIRED_EXIT_CODE`, so close ends
+ * `pending`. A full-suite gate's timeout is armed at spawn, re-armed on the
+ * suite-ready handshake, and its lock wait, host wait and test run are logged
+ * as three figures. Each child leads its own process group so a timeout,
+ * abort or parent signal kills its workers too.
  *
  * @param {string} cmd
  * @param {string[]} args
- * @param {{ cwd: string, signal?: AbortSignal, gateName?: string, log?: (m: string) => void, env?: Record<string, string>, tolerateNoFilesProcessed?: boolean, fullSuiteLock?: boolean, deferOnLockExpiry?: boolean, timeoutMs?: number, lockOptions?: object, skipIfSatisfied?: () => {status: number}|undefined }} opts
+ * @param {{ cwd: string, signal?: AbortSignal, gateName?: string, log?: (m: string) => void, env?: Record<string, string>, tolerateNoFilesProcessed?: boolean, fullSuiteLock?: boolean, timeoutMs?: number, lockOptions?: object, skipIfSatisfied?: () => {status: number}|undefined }} opts
  * @returns {Promise<{ status: number }>}
  */
 export function defaultGateRunner(cmd, args, opts = {}) {
   if (!opts.fullSuiteLock) return spawnGate(cmd, args, opts);
   // `skipIfSatisfied` re-probes after the wait: evidence another suite
   // deposited meanwhile is returned instead of spawning.
-  return withFullSuiteLockAsync(gateLockOptions(opts), () =>
-    spawnGate(cmd, args, opts),
+  return withFullSuiteLockAsync(gateLockOptions(opts), (lock) =>
+    spawnGate(cmd, args, opts, lock),
   );
 }
 
@@ -106,8 +105,8 @@ function gateLockOptions(opts) {
     cwd: opts.cwd,
     log: opts.log,
     skipIfSatisfied: opts.skipIfSatisfied,
-    onWaitExpired: opts.deferOnLockExpiry ? deferredGateStatus : undefined,
-    ...opts.lockOptions, // test seam only
+    onWaitExpired: deferredGateStatus,
+    ...opts.lockOptions, // `rerunCommand`, plus test seams
   };
 }
 
@@ -119,20 +118,16 @@ function deferredGateStatus() {
  * @param {string} cmd
  * @param {string[]} args
  * @param {Parameters<typeof defaultGateRunner>[2]} opts
+ * @param {{ lockWaitMs?: number }} [lock] How long the full-suite lock queued it.
  * @returns {Promise<{ status: number }>}
  */
-function spawnGate(cmd, args, opts) {
-  const child = spawnGateChild(cmd, args, opts);
+function spawnGate(cmd, args, opts, lock) {
+  const supervision = gateSupervision(opts, lock);
+  const child = spawnGateChild(cmd, args, opts.cwd, supervision.env);
   const output = gateOutput(opts);
   pipePrefixed(child.stdout, output.prefix, output.tap);
   pipePrefixed(child.stderr, output.prefix, output.tap);
-  // A bare suite has nothing to clean up, so it gets SIGKILL; other gates
-  // (a capture holding the lock) get SIGTERM to release and kill their suite.
-  const supervisor = superviseGroup(child, {
-    timeoutMs: opts.timeoutMs,
-    abortSignal: opts.signal,
-    signalOnParentSignal: opts.fullSuiteLock ? 'SIGKILL' : 'SIGTERM',
-  });
+  const supervisor = supervision.supervise(child, output);
   return new Promise((resolve) => {
     // 'close', not 'exit': only 'close' waits for both pipes to drain.
     child.on('close', (code, sig) => {
@@ -151,9 +146,10 @@ function spawnGate(cmd, args, opts) {
 /**
  * @param {string} cmd
  * @param {string[]} args
- * @param {{ cwd: string, env?: Record<string, string> }} opts
+ * @param {string} cwd
+ * @param {Record<string, string>} [env]
  */
-function spawnGateChild(cmd, args, { cwd, env }) {
+function spawnGateChild(cmd, args, cwd, env) {
   return spawn(cmd, args, {
     cwd,
     shell: process.platform === 'win32',

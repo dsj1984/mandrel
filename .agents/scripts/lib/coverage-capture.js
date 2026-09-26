@@ -3,20 +3,17 @@
  * reads it: the scorer skips uncovered methods, so a stale artifact silently
  * weakens the gate.
  */
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { LOCK_WAIT_EXPIRED_EXIT_CODE } from './full-suite-lock.js';
-import {
-  groupSpawnOptions,
-  superviseGroup,
-  TIMEOUT_EXIT_CODE,
-} from './process-group.js';
+import { TIMEOUT_EXIT_CODE } from './process-group.js';
 import {
   isScorableSourceFile,
   SCORABLE_SOURCE_EXT_RE,
 } from './source-extensions.js';
+import { runSupervisedSuite } from './supervised-suite.js';
 
 /**
  * Newest mtime across the scorable sources the CRAP scanner walks; unreadable
@@ -446,50 +443,35 @@ export const COVERAGE_TIMEOUT_EXIT_CODE = TIMEOUT_EXIT_CODE;
  * forwarded source file as a test instead of filtering the suite. Scope a
  * run through `env` instead.
  *
+ * `timeoutMs` is armed at spawn — the lock wait before it (`lockWaitMs`,
+ * supplied by `lockedCapture`) never spends it — and re-armed when the suite
+ * signals `MANDREL_SUITE_READY_FILE`. `onTimings` receives the three figures;
+ * the remaining options are {@link runSupervisedSuite}'s.
+ *
  * @param {{
  *   cwd: string,
  *   timeoutMs?: number,
  *   script?: string,
  *   env?: Record<string, string>,
- *   spawnImpl?: typeof spawn,
+ *   spawnImpl?: Function,
  *   log?: (m: string) => void,
+ *   lockWaitMs?: number,
+ *   onTimings?: (timings: import('./supervised-suite.js').SuiteTimings) => void,
  * }} opts
  * @returns {Promise<number>}
  */
-export function runCapture({
-  cwd,
-  timeoutMs,
-  script = 'test:coverage',
-  env = {},
-  spawnImpl = spawn,
-  log = () => {},
-} = {}) {
+export function runCapture(opts = {}) {
+  const { script = 'test:coverage', log = () => {} } = opts;
   const args = ['run', script];
   log(`[coverage-capture] ▶ npm ${args.join(' ')}`);
-  return new Promise((resolve) => {
-    const child = spawnImpl('npm', args, {
-      cwd,
-      env: { ...process.env, ...env },
-      stdio: 'inherit',
-      shell: process.platform === 'win32',
-      ...groupSpawnOptions(),
-    });
-    const supervisor = superviseGroup(child, { timeoutMs });
-    child.on('error', () => {
-      supervisor.release();
-      resolve(1);
-    });
-    child.on('exit', (code) => {
-      supervisor.release();
-      if (!supervisor.timedOut) {
-        resolve(code ?? 1);
-        return;
-      }
+  return runSupervisedSuite({
+    ...opts,
+    cmd: 'npm',
+    args,
+    onTimeout: () =>
       log(
-        `[coverage-capture] ⏱ npm run ${script} exceeded ${timeoutMs}ms — killed its process group. Returning exit ${COVERAGE_TIMEOUT_EXIT_CODE}.`,
-      );
-      resolve(COVERAGE_TIMEOUT_EXIT_CODE);
-    });
+        `[coverage-capture] ⏱ npm run ${script} exceeded ${opts.timeoutMs}ms — killed its process group. Returning exit ${COVERAGE_TIMEOUT_EXIT_CODE}.`,
+      ),
   });
 }
 
@@ -501,7 +483,7 @@ const NON_FAILURE_CAPTURE_EXITS = Object.freeze({
   [LOCK_WAIT_EXPIRED_EXIT_CODE]: [
     'info',
     (code) =>
-      `[coverage-capture] ⏸ the full-suite lock wait expired and this capture was deferred — no suite ran. Exiting ${code}.`,
+      `[coverage-capture] ⏸ the full-suite lock wait expired with another suite still running, so this capture was deferred — no suite ran. Exiting ${code}; re-run it once that suite finishes.`,
   ],
   [COVERAGE_TIMEOUT_EXIT_CODE]: [
     'error',
