@@ -23,7 +23,7 @@ export const LIST_OR_EXTENDER_OF_STRINGS = {
   ],
 };
 
-export const TOLERANCE_SCHEMA = {
+const TOLERANCE_SCHEMA = {
   type: 'object',
   description:
     'How much a rollup may drift from the committed baseline before the gate reports a regression.',
@@ -47,7 +47,7 @@ export const TOLERANCE_SCHEMA = {
 /**
  * `"*"` is optional: the resolver injects the framework default when absent.
  */
-export const FLOORS_SCHEMA = {
+const FLOORS_SCHEMA = {
   type: 'object',
   description:
     'Workspace-keyed absolute floors: `{ "<workspace>": { "<metric>": number } }`. `"*"` is the project-wide catch-all; the metric keyset is open so per-rollup keys flow through without each gate enumerating them. Floors are absolute — unlike `tolerance`, they are enforced regardless of the baseline.',
@@ -57,7 +57,7 @@ export const FLOORS_SCHEMA = {
   },
 };
 
-export const COMPONENTS_SCHEMA = {
+const COMPONENTS_SCHEMA = {
   type: 'object',
   description:
     'Per-gate component map — component name to the glob list whose files roll up under it. Defaults to `{ "*": ["**"] }` at the resolver layer.',
