@@ -55,8 +55,7 @@ const progress = Logger.createProgress('single-story-close', { stderr: true });
 
 /**
  * Wall-clock seconds per named phase; each transition logs the phase it ends.
- * An untimed phase stops the clock; work that overlaps other phases (the
- * held review) `record`s its own wall time instead.
+ * Overlapping work `record`s its own time; an untimed phase stops the clock.
  *
  * @param {() => number} [nowMs]
  */
@@ -319,7 +318,6 @@ async function runPrePushPhases(ctx, deps) {
       progress,
       runCloseValidation,
       buildDefaultGates,
-      // The tree is final once the self-heal commits land: review it now.
       onPreGateStepsDone: () => {
         ctx.heldReview = startHeldReview({
           cwd,

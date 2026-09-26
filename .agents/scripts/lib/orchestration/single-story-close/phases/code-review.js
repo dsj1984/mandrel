@@ -92,26 +92,10 @@ async function postStoryReviewCrossRef({
 }
 
 /**
- * Compute the Story-scope review without knowing the PR: resolve the shared
- * base, run the review core against `headRef`, and hold the rendered report.
- * `deferPost` holds the post for {@link settleStoryScopeReview}; otherwise
- * the review core posts to `commentTargetId` itself.
+ * Run the review against `headRef`; `deferPost` holds the report unposted.
  *
- * @param {{
- *   cwd: string,
- *   storyId: number,
- *   headRef: string,
- *   baseBranch: string,
- *   commentTargetId?: number|null,
- *   deferPost?: boolean,
- *   provider: object,
- *   runCodeReviewFn: Function,
- *   gitSpawnFn?: Function,
- *   progress: (tag: string, msg: string) => void,
- * }} args
- * @returns {Promise<{ outcome: object }|{ result: object }>} `outcome` is a
- *   final envelope (unresolvable base: nothing to post); `result` is the
- *   review core's result, to settle.
+ * @returns {Promise<{ outcome: object }|{ result: object }>} a final
+ *   `outcome` (unresolvable base), or the `result` to settle.
  */
 export async function computeStoryScopeReview({
   cwd,
@@ -151,7 +135,6 @@ export async function computeStoryScopeReview({
     provider,
     progress,
     progressTag: 'REVIEW',
-    // Deferred: compute and render only; the settle step posts the report.
     runCodeReviewFn: deferPost
       ? (opts) => runCodeReviewFn({ ...opts, deferPost: true })
       : runCodeReviewFn,
@@ -161,20 +144,10 @@ export async function computeStoryScopeReview({
 }
 
 /**
- * Settle a computed review against the open PR: post a held report when
- * `postReportFn` is given, report the tally, and cross-reference the Story.
+ * Settle a computed review on the PR: post a held report via `postReportFn`,
+ * report the tally, cross-reference the Story.
  *
- * @param {{
- *   computed: { outcome: object }|{ result: object },
- *   storyId: number,
- *   prUrl: string,
- *   prNumber: number,
- *   provider: object,
- *   progress: (tag: string, msg: string) => void,
- *   postReportFn?: ((args: object) => Promise<{ posted: boolean,
- *     postedCommentId: number|null }>)|null,
- * }} args
- * @returns {Promise<object>} the review outcome (see {@link runStoryScopeReview}).
+ * @returns {Promise<object>} the review outcome.
  */
 export async function settleStoryScopeReview({
   computed,
@@ -234,8 +207,7 @@ export async function settleStoryScopeReview({
 }
 
 /**
- * The serial review: compute against the Story branch, posting to the PR.
- * Skips on an unparseable PR number or an unresolvable base (recording a
+ * The serial review, posting to the PR. Skips on an unparseable PR number or an unresolvable base (recording a
  * degradation); a runner throw propagates and fails the close.
  *
  * @param {{

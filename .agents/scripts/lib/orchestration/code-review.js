@@ -197,18 +197,8 @@ async function resolvePromptMessages(reviewProvider, reviewInput, logger) {
 }
 
 /**
- * Posting failure is non-fatal and surfaces as `posted: false`. Exported so a
- * review computed with `deferPost` can post its held report later, once the
- * comment target (the PR) exists.
- *
- * @param {{
- *   upsertCommentFn: typeof upsertStructuredComment,
- *   provider: object,
- *   commentTargetId: number,
- *   report: string,
- *   logger?: { info?: Function, warn?: Function },
- * }} args
- * @returns {Promise<{ posted: boolean, postedCommentId: number|null }>}
+ * Posting failure is non-fatal and surfaces as `posted: false`. Also posts a
+ * `deferPost` review's held report.
  */
 export async function postReviewComment({
   upsertCommentFn,
@@ -321,8 +311,6 @@ async function executeReviewPipeline({ opts, config, envelope }) {
     degradations,
   });
 
-  // A deferred review computes and renders but posts nothing; the caller
-  // posts the held `report` once its target exists.
   const { posted, postedCommentId } = opts.deferPost
     ? { posted: false, postedCommentId: null }
     : await postReviewComment({
