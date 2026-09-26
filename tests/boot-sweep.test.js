@@ -8,6 +8,12 @@ import {
   storyIdsFromBranches,
 } from '../.agents/scripts/boot-sweep.js';
 
+/** Keep the closed-Story worktree sweep (and its lockfile) out of these cases. */
+const NO_WORKTREE_SWEEP = {
+  worktreeSweepFn: async () => ({ reaped: [], skipped: [] }),
+  acquireLockFn: () => ({ acquired: true, release: () => {} }),
+};
+
 /**
  * Story #4780 — the boot sweep's CLI shell scored CRAP 72: the argv →
  * sweep → render path (the one `/mandrel-deliver` and `/mandrel-plan` call at boot) was
@@ -154,6 +160,7 @@ describe('runBootSweep', () => {
     const warns = [];
     const result = await runBootSweep({
       cwd: '/repo',
+      ...NO_WORKTREE_SWEEP,
       injectedConfig: { project: { baseBranch: 'main' } },
       injectedProvider: {},
       injectedSweep: () => {
@@ -171,6 +178,7 @@ describe('runBootSweep', () => {
     let seen;
     await runBootSweep({
       cwd: '/repo',
+      ...NO_WORKTREE_SWEEP,
       current: 'story-4780',
       injectedConfig: { project: { baseBranch: 'main' } },
       injectedProvider: {},
@@ -219,6 +227,7 @@ describe('runBootSweep — temp-retention catch-up (Story #4794)', () => {
     let seen = null;
     const result = await runBootSweep({
       cwd: '/repo',
+      ...NO_WORKTREE_SWEEP,
       injectedConfig: { project: { baseBranch: 'main' } },
       injectedProvider: {},
       injectedSweep: async () => ({
@@ -247,6 +256,7 @@ describe('runBootSweep — temp-retention catch-up (Story #4794)', () => {
     let called = false;
     await runBootSweep({
       cwd: '/repo',
+      ...NO_WORKTREE_SWEEP,
       injectedConfig: { project: { baseBranch: 'main' } },
       injectedProvider: {},
       injectedSweep: async () => ({ ok: true, reaped: [] }),
@@ -268,6 +278,7 @@ describe('runBootSweep — temp-retention catch-up (Story #4794)', () => {
     const warns = [];
     const result = await runBootSweep({
       cwd: '/repo',
+      ...NO_WORKTREE_SWEEP,
       injectedConfig: { project: { baseBranch: 'main' } },
       injectedProvider: {},
       injectedSweep: async () => ({ ok: true, reaped: [] }),

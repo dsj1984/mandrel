@@ -7,6 +7,11 @@
  * always skips a branch with unpushed work, a dirty worktree or an open
  * parent Story. Best-effort: failures land in the envelope, exit is always 0.
  *
+ * After the branch sweep it runs the closed-Story worktree sweep
+ * (`sweepStaleStoryWorktrees`) under the same lock: `.worktrees/story-<id>`
+ * trees whose Story is closed or `agent::done` are removed; an open Story's
+ * tree and the tree this process runs from are never touched.
+ *
  * `content-merged` branches (merge-tree equivalence — no merge check ever
  * validated their exact diff) are never reaped here, only reported for
  * `/git-cleanup`.
@@ -18,9 +23,13 @@ import { parseArgs } from 'node:util';
 import { runAsCli } from './lib/cli-utils.js';
 import { PROJECT_ROOT, resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
+import { sweepStaleStoryWorktrees } from './lib/orchestration/plan-runner/worktree-sweep.js';
 import { createProvider } from './lib/provider-factory.js';
 import { buildProtectionCtx } from './lib/single-story-sweep/protection-ctx.js';
-import { resolveSweepLockPath } from './lib/single-story-sweep/sweep-lock.js';
+import {
+  acquireSweepLock,
+  resolveSweepLockPath,
+} from './lib/single-story-sweep/sweep-lock.js';
 import { sweepMergedBranches } from './lib/single-story-sweep.js';
 import { sweepTempRetention } from './lib/temp-retention.js';
 
@@ -46,6 +55,9 @@ Runs the protected merged-branch boot sweep non-interactively: reaps every
 local branch whose PR is MERGED and whose HEAD matches the merged headRefOid,
 skipping any candidate the protection partition flags (unpushed work, dirty
 worktree, still-open parent Story), then fast-forwards the base branch.
+Then removes every .worktrees/story-<id> tree whose Story is closed or
+agent::done (never an open Story's, never the tree this process runs from);
+the outcome lands under "worktreeSweep".
 Branches detected only via the weaker content-equivalence signal
 (detectedBy: 'content-merged') are never reaped here — they are reported
 under "contentMerged" (and a routing hint in the summary line) for the
@@ -61,6 +73,54 @@ Options:
 `;
 
 /**
+ * The closed-Story worktree sweep under the shared sweep lock; never throws.
+ * A contended lock skips it — the holder's next boot picks the trees up.
+ *
+ * @param {{
+ *   root: string,
+ *   provider: object,
+ *   lockPath: string,
+ *   lockTimeoutMs: number,
+ *   sweepFn: Function,
+ *   acquireLockFn: Function,
+ *   logger: object,
+ * }} args
+ * @returns {Promise<object>} `{ ok, reaped, skipped, reason?, error? }`.
+ */
+async function runWorktreeSweep({
+  root,
+  provider,
+  lockPath,
+  lockTimeoutMs,
+  sweepFn,
+  acquireLockFn,
+  logger,
+}) {
+  const lock = acquireLockFn({ lockPath, timeoutMs: lockTimeoutMs });
+  if (!lock.acquired) {
+    return { ok: true, reason: `lock-${lock.reason}`, reaped: [], skipped: [] };
+  }
+  try {
+    const result = await sweepFn({
+      provider,
+      repoRoot: root,
+      logger: {
+        info: (m) => logger.info?.(`[boot-sweep] ${m}`),
+        warn: (m) => logger.warn?.(`[boot-sweep] ${m}`),
+        error: (m) => logger.warn?.(`[boot-sweep] ${m}`),
+      },
+    });
+    return { ok: true, ...result };
+  } catch (err) {
+    const msg = err?.message ?? String(err);
+    logger.warn?.(`[boot-sweep] worktree sweep threw (host continues): ${msg}`);
+    return { ok: false, error: msg, reaped: [], skipped: [] };
+  } finally {
+    lock.release();
+  }
+}
+
+/**
  * Run the protected boot sweep; never throws.
  *
  * @param {{
@@ -73,11 +133,13 @@ Options:
  *   injectedConfig?: object,
  *   injectedProvider?: object,
  *   injectedSweep?: Function,
+ *   worktreeSweepFn?: Function,
+ *   acquireLockFn?: Function,
  *   purgeFn?: Function,
  *   logger?: { info?: Function, warn?: Function },
  * }} [args]
  * @returns {Promise<object>} the {@link sweepMergedBranches} envelope plus
- *   `tempPurge`.
+ *   `worktreeSweep` and `tempPurge`.
  */
 export async function runBootSweep({
   cwd,
@@ -89,6 +151,8 @@ export async function runBootSweep({
   injectedConfig,
   injectedProvider,
   injectedSweep,
+  worktreeSweepFn = sweepStaleStoryWorktrees,
+  acquireLockFn = acquireSweepLock,
   purgeFn = sweepTempRetention,
   logger = Logger,
 } = {}) {
@@ -130,6 +194,16 @@ export async function runBootSweep({
       lockTimeoutMs,
     });
 
+    const worktreeSweep = await runWorktreeSweep({
+      root,
+      provider,
+      lockPath,
+      lockTimeoutMs,
+      sweepFn: worktreeSweepFn,
+      acquireLockFn,
+      logger,
+    });
+
     // Temp-retention catch-up: reaped branches are confirmed merges, so their
     // artifacts are spent; the age floor collects the rest.
     const purge = await purgeFn({
@@ -138,7 +212,7 @@ export async function runBootSweep({
       label: 'boot-sweep',
       logger,
     });
-    return { ...result, tempPurge: purge };
+    return { ...result, worktreeSweep, tempPurge: purge };
   } catch (err) {
     const msg = err?.message ?? String(err);
     logger.warn?.(`[boot-sweep] sweep threw (host continues): ${msg}`);
@@ -165,11 +239,16 @@ export async function runBootSweep({
 export function buildSummaryLine(result) {
   const protectedCount = result.protected?.length ?? 0;
   const contentMergedCount = result.contentMerged?.length ?? 0;
+  const worktreesReaped = result.worktreeSweep?.reaped?.length ?? 0;
+  const worktreeSuffix =
+    worktreesReaped > 0
+      ? `; removed ${worktreesReaped} closed-Story worktree(s)`
+      : '';
   const contentMergedSuffix =
     contentMergedCount > 0
       ? `; ${contentMergedCount} content-merged branch(es) left for /git-cleanup`
       : '';
-  return `[boot-sweep] reaped ${result.localDeleted} local + ${result.remoteDeleted} remote; protected ${protectedCount}${contentMergedSuffix}.`;
+  return `[boot-sweep] reaped ${result.localDeleted} local + ${result.remoteDeleted} remote; protected ${protectedCount}${worktreeSuffix}${contentMergedSuffix}.`;
 }
 
 /**

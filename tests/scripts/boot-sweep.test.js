@@ -7,11 +7,20 @@ import {
   buildSummaryLine,
   runBootSweep,
 } from '../../.agents/scripts/boot-sweep.js';
+import { gitSpawn } from '../../.agents/scripts/lib/git-utils.js';
+import { sweepStaleStoryWorktrees } from '../../.agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js';
 import {
   acquireSweepLock,
   resolveSweepLockPath,
 } from '../../.agents/scripts/lib/single-story-sweep/sweep-lock.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
+import { makeGitRepo } from '../fixtures/git-fixture.js';
+
+/** Keep the closed-Story worktree sweep (and its lockfile) out of these cases. */
+const NO_WORKTREE_SWEEP = {
+  worktreeSweepFn: async () => ({ reaped: [], skipped: [] }),
+  acquireLockFn: () => ({ acquired: true, release: () => {} }),
+};
 
 const CONFIG = {
   project: { baseBranch: 'main', paths: { tempRoot: 'temp' } },
@@ -40,6 +49,7 @@ describe('runBootSweep', () => {
     let seen = null;
     await runBootSweep({
       cwd: '/tmp/repo',
+      ...NO_WORKTREE_SWEEP,
       injectedConfig: CONFIG,
       injectedProvider: makeProvider(),
       injectedSweep: (args) => {
@@ -74,6 +84,7 @@ describe('runBootSweep', () => {
     let seen = null;
     await runBootSweep({
       cwd: '/tmp/repo',
+      ...NO_WORKTREE_SWEEP,
       current: 'story-999',
       exclude: ['epic/*'],
       injectedConfig: CONFIG,
@@ -90,6 +101,7 @@ describe('runBootSweep', () => {
     let seen = null;
     await runBootSweep({
       cwd: '/tmp/repo',
+      ...NO_WORKTREE_SWEEP,
       include: ['feat/*'],
       fastForward: false,
       injectedConfig: CONFIG,
@@ -107,6 +119,7 @@ describe('runBootSweep', () => {
     const warns = [];
     const result = await runBootSweep({
       cwd: '/tmp/repo',
+      ...NO_WORKTREE_SWEEP,
       injectedConfig: CONFIG,
       injectedProvider: makeProvider(),
       logger: { warn: (m) => warns.push(m) },
@@ -128,6 +141,7 @@ describe('runBootSweep', () => {
     const envelope = okEnvelope({ localDeleted: 3, remoteDeleted: 3 });
     const result = await runBootSweep({
       cwd: '/tmp/repo',
+      ...NO_WORKTREE_SWEEP,
       injectedConfig: CONFIG,
       injectedProvider: makeProvider(),
       injectedSweep: () => envelope,
@@ -142,6 +156,7 @@ describe('runBootSweep', () => {
     });
     const result = await runBootSweep({
       cwd: '/tmp/repo',
+      ...NO_WORKTREE_SWEEP,
       injectedConfig: CONFIG,
       injectedProvider: makeProvider(),
       injectedSweep: () => envelope,
@@ -226,6 +241,12 @@ describe('boot-sweep — one lock with the init sweep (Story #5112)', () => {
     assert.equal(result.ok, true, 'contention never fails the host');
     assert.equal(result.localDeleted, 0);
     assert.equal(result.remoteDeleted, 0);
+    assert.equal(
+      result.worktreeSweep.reason,
+      'lock-contended',
+      'the worktree sweep contends on the same lock',
+    );
+    assert.deepEqual(result.worktreeSweep.reaped, []);
 
     held.release();
   });
@@ -253,5 +274,93 @@ describe('boot-sweep — one lock with the init sweep (Story #5112)', () => {
 
     assert.equal(seenLockPath, lockPath);
     assert.equal(result.skipped, false);
+  });
+});
+
+describe('boot-sweep — closed-Story worktree sweep (Story #5460)', () => {
+  const tmpDirs = [];
+
+  afterEach(() => {
+    while (tmpDirs.length > 0) {
+      try {
+        fs.rmSync(tmpDirs.pop(), { recursive: true, force: true });
+      } catch {
+        /* best-effort */
+      }
+    }
+  });
+
+  function addStoryWorktree(repo, id) {
+    const wt = path.join(repo, '.worktrees', `story-${id}`);
+    const res = gitSpawn(repo, 'worktree', 'add', '-b', `story-${id}`, wt);
+    assert.equal(res.status, 0, res.stderr);
+    return wt;
+  }
+
+  it('removes a closed Story worktree; keeps an open one and the running one', async () => {
+    const repo = fs.realpathSync(makeGitRepo({ prefix: 'boot-wt-sweep-' }));
+    tmpDirs.push(repo);
+    const closed = addStoryWorktree(repo, 11);
+    const open = addStoryWorktree(repo, 12);
+    const running = addStoryWorktree(repo, 13);
+    // Residue in a done Story's tree is noise, not work: it goes too.
+    fs.writeFileSync(path.join(closed, 'residue.log'), 'x');
+
+    const tickets = {
+      11: { id: 11, state: 'closed', labels: ['agent::done'] },
+      12: { id: 12, state: 'open', labels: ['agent::executing'] },
+      13: { id: 13, state: 'closed', labels: ['agent::done'] },
+    };
+    const result = await runBootSweep({
+      cwd: repo,
+      injectedConfig: CONFIG,
+      injectedProvider: { getTicket: async (id) => tickets[id] },
+      injectedSweep: () => okEnvelope(),
+      purgeFn: async () => ({ purged: [] }),
+      logger: { info: () => {}, warn: () => {} },
+      // Stand in for "this process was loaded from story-13".
+      worktreeSweepFn: (args) =>
+        sweepStaleStoryWorktrees({ ...args, runningPaths: [running] }),
+    });
+
+    assert.equal(result.worktreeSweep.ok, true);
+    assert.deepEqual(
+      result.worktreeSweep.reaped.map((r) => r.storyId),
+      [11],
+    );
+    assert.equal(fs.existsSync(closed), false, 'closed Story tree removed');
+    assert.equal(fs.existsSync(open), true, 'open Story tree kept');
+    assert.equal(fs.existsSync(running), true, 'running tree kept');
+    const reasons = Object.fromEntries(
+      result.worktreeSweep.skipped.map((s) => [s.storyId, s.reason]),
+    );
+    assert.deepEqual(reasons, {
+      12: 'story-open',
+      13: 'running-from-target-tree',
+    });
+    const list = gitSpawn(repo, 'worktree', 'list', '--porcelain').stdout;
+    assert.equal(list.includes('story-11'), false, 'registration pruned');
+    assert.match(buildSummaryLine(result), /removed 1 closed-Story worktree/);
+  });
+
+  it('degrades a throwing worktree sweep into the envelope; boot never fails', async () => {
+    const warns = [];
+    const result = await runBootSweep({
+      cwd: '/tmp/repo',
+      injectedConfig: CONFIG,
+      injectedProvider: makeProvider(),
+      injectedSweep: () => okEnvelope({ localDeleted: 2 }),
+      purgeFn: async () => ({ purged: [] }),
+      acquireLockFn: () => ({ acquired: true, release: () => {} }),
+      worktreeSweepFn: async () => {
+        throw new Error('worktree list exploded');
+      },
+      logger: { info: () => {}, warn: (m) => warns.push(m) },
+    });
+    assert.equal(result.ok, true, 'the branch sweep envelope survives');
+    assert.equal(result.localDeleted, 2);
+    assert.equal(result.worktreeSweep.ok, false);
+    assert.match(result.worktreeSweep.error, /worktree list exploded/);
+    assert.ok(warns.some((w) => /worktree sweep threw/.test(w)));
   });
 });

@@ -441,15 +441,22 @@ function runningCodePaths() {
  * The running-code path inside `wtPath`, or `null`. Reaping the tree the
  * running script was loaded from kills the process later, at its first lazy
  * read or dynamic `import()`; refusing only defers the tree to the next sweep.
+ * Shared by every reaper (close, the boot worktree sweep, `/clean-worktrees`).
  *
- * @param {object} ctx
+ * @param {{ platform?: string }} ctx
  * @param {string} wtPath
+ * @param {string[]} [extraPaths] Further paths to guard (e.g. `process.cwd()`).
  * @returns {string|null}
  */
-function findRunningCodeInside(ctx, wtPath) {
+export function findRunningCodeInside(ctx, wtPath, extraPaths = []) {
+  const guarded = [...runningCodePaths(), ...extraPaths];
   return (
-    runningCodePaths().find((p) => isInsideWorktree(p, wtPath, ctx.platform)) ??
-    null
+    guarded.find(
+      (p) =>
+        typeof p === 'string' &&
+        p !== '' &&
+        isInsideWorktree(p, wtPath, ctx.platform),
+    ) ?? null
   );
 }
 
