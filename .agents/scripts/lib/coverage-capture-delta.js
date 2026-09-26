@@ -9,10 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { captureStampPath, computeContentDigest } from './coverage-capture.js';
 
-/**
- * Files whose change can move coverage for sources the delta does not name,
- * matched on basename: manifests, lockfiles, TypeScript and test-runner config.
- */
+/** Basenames whose change moves coverage beyond the files it names. */
 const COVERAGE_CONFIG_RE =
   /^(package\.json|package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb?|tsconfig.*\.json|(vitest|vite|jest|nyc)\.(config|workspace)\.[cm]?[jt]s|\.c8rc.*|\.nycrc.*)$/;
 
@@ -21,41 +18,21 @@ export function isCoverageConfigFile(file) {
   return COVERAGE_CONFIG_RE.test(path.posix.basename(String(file)));
 }
 
-/**
- * `null` on any git failure — the caller treats it as "unknown".
- *
- * @param {string} cwd
- * @param {string[]} args
- * @param {typeof spawnSync} spawn
- * @returns {{ status: number, stdout: string } | null}
- */
+/** `null` on any spawn failure, which callers read as "unknown". */
 function git(cwd, args, spawn) {
   const res = spawn('git', args, { cwd, encoding: 'utf8' });
   if (res?.error || typeof res?.status !== 'number') return null;
   return { status: res.status, stdout: res.stdout ?? '' };
 }
 
-/**
- * The HEAD sha a capture is about to measure, or `null` when unavailable.
- *
- * @param {string} cwd
- * @param {{ spawnSync?: typeof spawnSync }} [io]
- * @returns {string | null}
- */
+/** @returns {string | null} The HEAD sha, or `null` when unavailable. */
 export function readHeadCommit(cwd, io = {}) {
   const res = git(cwd, ['rev-parse', 'HEAD'], io.spawnSync ?? spawnSync);
   const sha = res?.status === 0 ? res.stdout.trim() : '';
   return /^[0-9a-f]{40,64}$/.test(sha) ? sha : null;
 }
 
-/**
- * The parsed capture stamp, or `null` when absent or unreadable.
- *
- * @param {string} cwd
- * @param {string} coveragePath
- * @param {{ readFileSync?: typeof fs.readFileSync }} [io]
- * @returns {Record<string, unknown> | null}
- */
+/** @returns {Record<string, unknown> | null} */
 function readCaptureStamp(cwd, coveragePath, io = {}) {
   const readFileSync = io.readFileSync ?? fs.readFileSync;
   try {
@@ -68,29 +45,13 @@ function readCaptureStamp(cwd, coveragePath, io = {}) {
   }
 }
 
-/**
- * A stamp without `scope` is full-scope; no stamp at all is `none`.
- *
- * @param {Record<string, unknown> | null} stamp
- * @returns {string}
- */
+/** A stamp without `scope` is full-scope; no stamp at all is `none`. */
 function stampScopeOf(stamp) {
   if (!stamp) return 'none';
   return typeof stamp.scope === 'string' ? stamp.scope : 'full';
 }
 
-/**
- * The diagnostic suffix every freshness log line carries, so a stamp going
- * stale is explainable from the log alone.
- *
- * @param {{
- *   stamp: Record<string, unknown> | null,
- *   requiredScope: string,
- *   verdict: string,
- *   deltaFiles?: number,
- * }} opts
- * @returns {string}
- */
+/** The suffix every freshness log line carries, so staleness is explainable from the log. */
 export function formatFreshnessDetail({
   stamp,
   requiredScope,
@@ -102,12 +63,7 @@ export function formatFreshnessDetail({
   return `(stamp scope: ${stampScopeOf(stamp)}, required scope: ${requiredScope}, verdict: ${verdict}${delta})`;
 }
 
-/**
- * Read the stamp and render its freshness detail in one step.
- *
- * @param {{ cwd: string, coveragePath: string, requiredScope: string, verdict: string }} opts
- * @returns {string}
- */
+/** {@link formatFreshnessDetail} for the stamp on disk. */
 export function describeStampFreshness({
   cwd,
   coveragePath,
@@ -121,12 +77,7 @@ export function describeStampFreshness({
   });
 }
 
-/**
- * Tree-level preconditions: a clean worktree (a dirty file is in no git
- * delta) and a stamped commit that is an ancestor of HEAD.
- *
- * @returns {string | null} The failing condition, or `null` when all hold.
- */
+/** A dirty file is in no git delta, so a dirty tree is ineligible. */
 function treeIneligibility({ cwd, commit, spawn }) {
   if (typeof commit !== 'string' || commit.length === 0) {
     return 'stamp records no commit';
@@ -144,12 +95,6 @@ function treeIneligibility({ cwd, commit, spawn }) {
   return null;
 }
 
-/**
- * The delta's own disqualifiers: empty, overlapping the Story's change set,
- * or touching coverage-determining config.
- *
- * @returns {string | null}
- */
 function deltaIneligibility({ delta, storyFiles }) {
   if (delta.length === 0) return 'no committed delta since the stamp';
   const story = new Set(storyFiles);
@@ -160,10 +105,6 @@ function deltaIneligibility({ delta, storyFiles }) {
   return null;
 }
 
-/**
- * @param {string} stdout
- * @returns {string[]}
- */
 function parseNames(stdout) {
   return stdout
     .split('\n')
@@ -171,24 +112,7 @@ function parseNames(stdout) {
     .filter((l) => l.length > 0);
 }
 
-/**
- * Is a stale affected-scope capture eligible for a delta refresh? Every
- * input the rule needs is checked here; any git error or unresolvable input
- * is ineligible, so the caller runs today's capture.
- *
- * @param {{
- *   cwd: string,
- *   crap: { coveragePath: string, targetDirs: string[] },
- *   storyFiles: string[] | null,
- *   prior: object | null,
- *   spawnSync?: typeof spawnSync,
- *   readFileSync?: typeof fs.readFileSync,
- *   computeContentDigestImpl?: typeof computeContentDigest,
- * }} opts `storyFiles` is the Story's change set; `prior` the artifact the
- *   refresh would merge over.
- * @returns {{ eligible: true, commit: string, delta: string[], stamp: object }
- *   | { eligible: false, reason: string, stamp: object | null }}
- */
+/** Any git error or unresolvable input is ineligible. */
 function classifyDeltaRefresh({
   cwd,
   crap,
@@ -217,19 +141,9 @@ function classifyDeltaRefresh({
 }
 
 /**
- * A stale stamp whose staleness is wholly main's delta (a base-sync) runs
- * the affected script keyed on the stamped commit; `null` means ineligible
- * and the caller captures the Story's affected scope as usual.
+ * A stale stamp whose staleness is wholly main's delta is re-measured keyed
+ * on the stamped commit; `null` means capture the Story's scope as usual.
  *
- * @param {{
- *   freshness: { reason: string },
- *   crap: { coveragePath: string, targetDirs: string[] },
- *   args: { cwd: string },
- *   changed: string[] | null,
- *   prior: object | null,
- *   classifyDeltaRefreshImpl?: typeof classifyDeltaRefresh,
- *   logger: { info: Function },
- * }} opts
  * @returns {{ baseRef: string, dropFiles: string[] } | null}
  */
 export function planDeltaRefresh({
