@@ -18,12 +18,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
-import { runLockedSuite } from '../../.agents/scripts/evidence-gate.js';
+import {
+  runEvidenceGate,
+  runLockedSuite,
+} from '../../.agents/scripts/evidence-gate.js';
 import { runCapture } from '../../.agents/scripts/lib/coverage-capture.js';
 import {
   LOCK_WAIT_EXPIRED_EXIT_CODE,
   lockedCapture,
 } from '../../.agents/scripts/lib/full-suite-lock.js';
+import { readLockHolder } from '../../.agents/scripts/lib/full-suite-queue.js';
+import { lockWaitPending } from '../../.agents/scripts/lib/orchestration/single-story-close/phases/lock-wait-pending.js';
 import { TIMEOUT_EXIT_CODE } from '../../.agents/scripts/lib/process-group.js';
 import { acquireSweepLock } from '../../.agents/scripts/lib/single-story-sweep/sweep-lock.js';
 import {
@@ -270,5 +275,103 @@ describe('suite timing line (Story #5485)', () => {
     assert.match(line, /hostWaitMs=n\/a/);
     assert.equal(parseSuiteTimings(line).hostWaitMs, null);
     assert.equal(parseSuiteTimings('unrelated'), null);
+  });
+});
+
+describe('branch coverage for the lock holder and the evidence-gate runner (Story #5485)', () => {
+  it('readLockHolder reports unknowns for a missing or malformed lockfile', () => {
+    const dir = makeTempDir('mandrel-holder-');
+    try {
+      const missing = readLockHolder(path.join(dir, 'none.lock'));
+      assert.deepEqual(missing, { ownerId: null, pid: null, ageSeconds: null });
+      const lockPath = path.join(dir, 'bad.lock');
+      fs.writeFileSync(lockPath, 'owner-x\nnot-a-date\nnope\n');
+      assert.deepEqual(readLockHolder(lockPath), {
+        ownerId: 'owner-x',
+        pid: null,
+        ageSeconds: null,
+      });
+      fs.writeFileSync(
+        lockPath,
+        `owner-y\n${new Date(1_000).toISOString()}\n42\n`,
+      );
+      assert.deepEqual(readLockHolder(lockPath, { nowFn: () => 11_000 }), {
+        ownerId: 'owner-y',
+        pid: 42,
+        ageSeconds: 10,
+      });
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('lockWaitPending names an unknown holder and omits an absent one', () => {
+    const args = {
+      storyId: 5485,
+      storyBranch: 'story-5485',
+      baseBranch: 'main',
+      elapsedSeconds: 1,
+    };
+    const unknown = lockWaitPending({
+      ...args,
+      lockWait: {
+        waitedSeconds: 1,
+        expired: true,
+        holder: { ownerId: null, pid: null, ageSeconds: null },
+      },
+    });
+    assert.match(unknown.note, /unknown owner, pid unknown, lock age unknowns/);
+    const absent = lockWaitPending({ ...args, lockWait: null });
+    assert.match(absent.note, /another full suite held the host lock/);
+  });
+
+  it('runLockedSuite reports timings and a timeout through its log', async () => {
+    const lines = [];
+    const code = await runLockedSuite(
+      {
+        cmd: 'npm',
+        args: ['test'],
+        cwd: process.cwd(),
+        log: (m) => lines.push(m),
+      },
+      {
+        config: { delivery: { execution: { fullSuiteLock: false } } },
+        runSuiteImpl: async (opts) => {
+          opts.onTimings({ lockWaitMs: 0, hostWaitMs: 5, testRunMs: 9 });
+          opts.onTimeout();
+          return TIMEOUT_EXIT_CODE;
+        },
+      },
+    );
+    assert.equal(code, TIMEOUT_EXIT_CODE);
+    assert.ok(lines.some((l) => /hostWaitMs=5 testRunMs=9/.test(l)));
+    assert.ok(lines.some((l) => /exceeded 600000ms/.test(l)));
+  });
+
+  it('runEvidenceGate hands the test gate a logger-backed log', async () => {
+    const infos = [];
+    const out = await runEvidenceGate(
+      {
+        scopeId: 1,
+        standalone: true,
+        gate: 'test',
+        useEvidence: false,
+        cwd: process.cwd(),
+        runnerArgs: ['npm', 'test'],
+      },
+      {
+        logger: {
+          info: (m) => infos.push(m),
+          error: () => {},
+          fatal: () => {},
+        },
+        runSuiteFn: async ({ log }) => {
+          log('from the suite');
+          return 0;
+        },
+      },
+    );
+    assert.equal(out.status, 0);
+    assert.ok(infos.includes('from the suite'));
   });
 });
