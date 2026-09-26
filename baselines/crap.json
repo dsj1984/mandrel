@@ -9026,93 +9026,171 @@
     },
     {
       "path": ".agents/scripts/lib/cli/standard-args.js",
-      "method": "camelCase",
-      "startLine": 35,
-      "crap": 1
+      "method": "<anon (v)#0>",
+      "startLine": 27,
+      "crap": 2,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/cli/standard-args.js",
-      "method": "<anon camelCase/(_m,c)#0>",
+      "method": "<anon (v,orDefault)#0>",
+      "startLine": 32,
+      "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/cli/standard-args.js",
+      "method": "<anon (v)#1>",
+      "startLine": 34,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/cli/standard-args.js",
+      "method": "<anon (v)#2/(v)#0>",
       "startLine": 36,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/cli/standard-args.js",
-      "method": "normaliseCallSignature",
+      "method": "<anon (v)#2>",
+      "startLine": 36,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/cli/standard-args.js",
+      "method": "<anon (v)#3>",
+      "startLine": 37,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/cli/standard-args.js",
+      "method": "<anon (v,orDefault)#1>",
+      "startLine": 39,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/cli/standard-args.js",
+      "method": "<anon (v)#4>",
+      "startLine": 40,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/cli/standard-args.js",
+      "method": "<anon (v,orDefault)#2>",
       "startLine": 43,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/cli/standard-args.js",
+      "method": "<anon (v)#5>",
+      "startLine": 44,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/cli/standard-args.js",
+      "method": "camelCase",
+      "startLine": 48,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/cli/standard-args.js",
+      "method": "<anon camelCase/(_m,c)#0>",
+      "startLine": 49,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/cli/standard-args.js",
+      "method": "normaliseCallSignature",
+      "startLine": 56,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/cli/standard-args.js",
+      "method": "flagEntries",
+      "startLine": 66,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/cli/standard-args.js",
+      "method": "<anon flagEntries/(flag,key,type)#0>",
+      "startLine": 68,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/cli/standard-args.js",
       "method": "buildDefineFlagsSpec",
-      "startLine": 53,
-      "crap": 3
+      "startLine": 88,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/cli/standard-args.js",
       "method": "knownFlagNames",
-      "startLine": 67,
+      "startLine": 97,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/cli/standard-args.js",
       "method": "findUnknownFlag",
-      "startLine": 72,
+      "startLine": 102,
       "crap": 7
     },
     {
       "path": ".agents/scripts/lib/cli/standard-args.js",
       "method": "validateSchema",
-      "startLine": 86,
+      "startLine": 116,
       "crap": 5.048828125
     },
     {
       "path": ".agents/scripts/lib/cli/standard-args.js",
       "method": "validateExtras",
-      "startLine": 103,
+      "startLine": 133,
       "crap": 8.56681290745828
     },
     {
       "path": ".agents/scripts/lib/cli/standard-args.js",
-      "method": "isAbsent",
-      "startLine": 133,
-      "crap": 14.25
-    },
-    {
-      "path": ".agents/scripts/lib/cli/standard-args.js",
       "method": "throwMissing",
-      "startLine": 142,
+      "startLine": 163,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/cli/standard-args.js",
-      "method": "enforceRequired",
-      "startLine": 151,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/cli/standard-args.js",
-      "method": "enforceExtrasRequired",
-      "startLine": 160,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/cli/standard-args.js",
       "method": "normaliseValues",
-      "startLine": 170,
-      "crap": 18.2669677734375
+      "startLine": 172,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/cli/standard-args.js",
+      "method": "<anon normaliseValues/(empty)#0>",
+      "startLine": 175,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/cli/standard-args.js",
+      "method": "enforceRequired",
+      "startLine": 181,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/cli/standard-args.js",
       "method": "parseStandardCliArgs",
-      "startLine": 207,
+      "startLine": 191,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/cli/standard-args.js",
       "method": "<anon parseStandardCliArgs/(n)#0>",
-      "startLine": 219,
+      "startLine": 203,
       "crap": 1,
       "anonymous": true
     },
@@ -31782,6 +31860,31 @@
       "crap": 1.2962962962962963
     },
     {
+      "path": "lib/cli/guarded-sync.js",
+      "method": "resolveOwnPackageVersion",
+      "startLine": 23,
+      "crap": 2
+    },
+    {
+      "path": "lib/cli/guarded-sync.js",
+      "method": "refusalReason",
+      "startLine": 30,
+      "crap": 4
+    },
+    {
+      "path": "lib/cli/guarded-sync.js",
+      "method": "<anon refusalReason/()#0>",
+      "startLine": 40,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/guarded-sync.js",
+      "method": "runGuardedSync",
+      "startLine": 53,
+      "crap": 3
+    },
+    {
       "path": "lib/cli/init.js",
       "method": "getRunInitTail",
       "startLine": 22,
@@ -32284,41 +32387,15 @@
     },
     {
       "path": "lib/cli/sync-agents.js",
-      "method": "resolveOwnPackageVersion",
-      "startLine": 31,
-      "crap": 1
-    },
-    {
-      "path": "lib/cli/sync-agents.js",
       "method": "run",
-      "startLine": 51,
-      "crap": 5
-    },
-    {
-      "path": "lib/cli/sync-agents.js",
-      "method": "<anon run/()#0>",
-      "startLine": 77,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/sync-commands.js",
-      "method": "resolveOwnPackageVersion",
-      "startLine": 40,
+      "startLine": 12,
       "crap": 1
     },
     {
       "path": "lib/cli/sync-commands.js",
       "method": "run",
-      "startLine": 60,
-      "crap": 5
-    },
-    {
-      "path": "lib/cli/sync-commands.js",
-      "method": "<anon run/()#0>",
-      "startLine": 86,
-      "crap": 1,
-      "anonymous": true
+      "startLine": 12,
+      "crap": 1
     },
     {
       "path": "lib/cli/sync.js",

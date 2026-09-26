@@ -43,11 +43,6 @@
       "maxCyclomatic": 13
     },
     {
-      "file": ".agents/scripts/lib/cli/standard-args.js",
-      "methodsAboveCeiling": 1,
-      "maxCyclomatic": 18
-    },
-    {
       "file": ".agents/scripts/lib/config-resolver.js",
       "methodsAboveCeiling": 2,
       "maxCyclomatic": 14
