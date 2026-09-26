@@ -2206,9 +2206,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
-      "lines": 96.56,
-      "branches": 80.37,
-      "functions": 97.37
+      "lines": 96.8,
+      "branches": 82.05,
+      "functions": 97.92
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/conventional-subject.js",
@@ -2296,9 +2296,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
-      "lines": 98.29,
-      "branches": 89.83,
-      "functions": 96.77
+      "lines": 99.81,
+      "branches": 93.28,
+      "functions": 97.56
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-lease-guard.js",
@@ -3118,8 +3118,8 @@
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
-      "lines": 83.84,
-      "branches": 53.23,
+      "lines": 89.86,
+      "branches": 68.12,
       "functions": 88.89
     },
     {
