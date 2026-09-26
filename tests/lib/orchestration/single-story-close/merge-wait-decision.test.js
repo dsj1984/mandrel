@@ -204,3 +204,101 @@ describe('decideMergeWaitPoll — state and clock', () => {
     assert.equal(decide({ state, probe: openProbe() }).state.updatesUsed, 2);
   });
 });
+
+/**
+ * Story #5479 — the async posture probes once: a probe that is neither
+ * definitive nor green settles `single-probe` (a resumable pending) instead of
+ * sleeping through a window that cannot observe a merge whose checks have not
+ * started.
+ */
+describe('decideMergeWaitPoll — async single probe (Story #5479)', () => {
+  const ASYNC_LIMITS = Object.freeze({
+    ...LIMITS,
+    maxWaitSeconds: 60,
+    singleProbe: true,
+  });
+
+  it('settles single-probe on a first probe whose checks are unstarted or still running', () => {
+    for (const checksStatus of ['unknown', 'still-running', 'pending']) {
+      const decision = decide({
+        probe: openProbe({ checksStatus }),
+        limits: ASYNC_LIMITS,
+      });
+      assert.equal(decision.verdict, 'single-probe', checksStatus);
+      assert.deepEqual(decision.waitBudget, {
+        maxWaitSeconds: 60,
+        waitedSeconds: 0,
+        cumulativeSeconds: 0,
+        maxBudgetSeconds: 3600,
+      });
+    }
+  });
+
+  it('keeps polling at the green cadence when the first probe reads success', () => {
+    const decision = decide({
+      probe: openProbe({ checksStatus: 'success' }),
+      limits: ASYNC_LIMITS,
+    });
+    assert.equal(decision.verdict, 'continue');
+    assert.equal(decision.state.intervalMs, 10_000);
+  });
+
+  it('keeps definitive verdicts definitive', () => {
+    assert.equal(
+      decide({ probe: openProbe({ state: 'MERGED' }), limits: ASYNC_LIMITS })
+        .verdict,
+      'merged',
+    );
+    assert.equal(
+      decide({ probe: openProbe({ state: 'CLOSED' }), limits: ASYNC_LIMITS })
+        .verdict,
+      'closed',
+    );
+    assert.equal(
+      decide({
+        probe: failingProbe({
+          requiredRunEvidence: {
+            requiredRunFailed: true,
+            requiredRunInFlight: false,
+          },
+        }),
+        limits: ASYNC_LIMITS,
+      }).verdict,
+      'checks-failed',
+    );
+  });
+
+  it('an evidence-free red probe polls on for its confirming probe, then fails fast', () => {
+    const first = decide({ probe: failingProbe(), limits: ASYNC_LIMITS });
+    assert.equal(first.verdict, 'continue');
+    const second = decide({
+      state: first.state,
+      probe: failingProbe(),
+      limits: ASYNC_LIMITS,
+    });
+    assert.equal(second.verdict, 'checks-failed');
+    assert.equal(second.failFast.evidencePath, 'consecutive-probe');
+  });
+
+  it('an over-budget resume polls on so the poll floor still reaches the budget block', () => {
+    const createdAt = new Date(START_MS - 7_200_000).toISOString();
+    const first = decide({
+      probe: openProbe({ createdAt }),
+      limits: ASYNC_LIMITS,
+    });
+    assert.equal(first.verdict, 'continue');
+    const second = decide({
+      state: first.state,
+      probe: openProbe({ createdAt }),
+      limits: ASYNC_LIMITS,
+    });
+    assert.equal(second.verdict, 'budget-exhausted');
+  });
+
+  it('sync limits never settle on a single probe', () => {
+    assert.equal(
+      decide({ probe: openProbe({ checksStatus: 'still-running' }) }).verdict,
+      'continue',
+    );
+  });
+});

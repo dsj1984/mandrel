@@ -7,8 +7,9 @@
  * resumable `pending` with no mutation; `maxBudgetSeconds` bounds the
  * cumulative wait, anchored at the PR's `createdAt` so resumes don't restart
  * it, and exhausting it is the real give-up (classify, emit, block). The
- * poll is stateless and re-entrant. Async mode only shortens the
- * per-invocation window. Checks are probed every iteration so a red required
+ * poll is stateless and re-entrant. Async mode shortens the per-invocation
+ * window and settles `pending` on its first non-green, non-definitive probe
+ * (see ASYNC_PROBE_WINDOW_SECONDS). Checks are probed every iteration so a red required
  * check fails fast instead of burning the budget.
  *
  * Terminals: `landed` (confirmed, post-land tail ran); `pending` (nothing
@@ -48,6 +49,7 @@ import {
   MERGE_WAIT_GH_TIMEOUT_MS,
   parseWorkflowRunId,
   pollIntervalMs,
+  probeSettlesAsyncWait,
   readRunSummary,
   resolveAdvisoryGateVerdict,
 } from '../../merge-poll.js';
@@ -65,7 +67,11 @@ import { runPostLandTail as defaultRunPostLandTail } from './post-land.js';
 /** Per-invocation bound; fits the host's ~10-min tool ceiling after the gates. */
 export const DEFAULT_MAX_WAIT_SECONDS = 300;
 
-/** Async-mode per-invocation cap: long enough to catch an instant merge or red check. */
+/**
+ * Async-mode per-invocation cap. The wait probes once and settles `pending`
+ * unless that probe is definitive or green; only a green rollup (merge
+ * imminent) or a red one awaiting confirmation polls on inside it.
+ */
 export const ASYNC_PROBE_WINDOW_SECONDS = 60;
 
 export const DEFAULT_UPDATE_ATTEMPTS = 3;
@@ -218,12 +224,12 @@ export async function readPrWaitProbe({
  * (`--max-wait-seconds`, `--merge-watch-mode`) win over config; the mode flag
  * exists because only the orchestrator knows whether a foreground wait is
  * cheap (solo) or serialized dead time (a wave). An explicit max-wait
- * override also beats the async cap.
+ * override also beats the async cap and its single-probe posture.
  *
  * @param {object} [config]
  * @param {number} [maxWaitSecondsOverride]
  * @param {'sync'|'async'} [modeOverride]
- * @returns {{ mode: 'sync'|'async', intervalSeconds: number, maxWaitSeconds: number, maxBudgetSeconds: number, updateAttempts: number }}
+ * @returns {{ mode: 'sync'|'async', singleProbe: boolean, intervalSeconds: number, maxWaitSeconds: number, maxBudgetSeconds: number, updateAttempts: number }}
  */
 export function resolveMergeWaitConfig(
   config,
@@ -239,15 +245,16 @@ export function resolveMergeWaitConfig(
     maxWaitSecondsOverride,
     int(mergeWatch.maxWaitSeconds, DEFAULT_MAX_WAIT_SECONDS),
   );
-  const maxWaitSeconds =
-    mode === 'async' && maxWaitSecondsOverride == null
-      ? Math.min(configuredMaxWait, ASYNC_PROBE_WINDOW_SECONDS)
-      : configuredMaxWait;
+  const singleProbe = mode === 'async' && maxWaitSecondsOverride == null;
+  const maxWaitSeconds = singleProbe
+    ? Math.min(configuredMaxWait, ASYNC_PROBE_WINDOW_SECONDS)
+    : configuredMaxWait;
   // An interval longer than the bound would expire every invocation on poll
   // 1, so MIN_POLLS_BEFORE_BUDGET_BLOCK and the budget could never be reached.
   const intervalSeconds = Math.min(DEFAULT_INTERVAL_SECONDS, maxWaitSeconds);
   return {
     mode,
+    singleProbe,
     intervalSeconds,
     maxWaitSeconds,
     maxBudgetSeconds: int(
@@ -1015,25 +1022,34 @@ export function createMergeWaitState({ startedAtMs, intervalSeconds }) {
   };
 }
 
-/** Budget first — it is the real give-up. */
+/**
+ * Budget first — it is the real give-up. The async single probe yields to an
+ * over-budget wait so the poll floor can still reach the budget block.
+ */
 function provisionalVerdict(
   { polls, intervalMs, waitedMs, cumulativeMs },
   limits,
+  checksStatus,
 ) {
-  if (
-    polls >= MIN_POLLS_BEFORE_BUDGET_BLOCK &&
-    cumulativeMs + intervalMs > limits.maxBudgetSeconds * 1000
-  ) {
+  const overBudget = cumulativeMs + intervalMs > limits.maxBudgetSeconds * 1000;
+  if (polls >= MIN_POLLS_BEFORE_BUDGET_BLOCK && overBudget) {
     return 'budget-exhausted';
   }
   if (waitedMs + intervalMs > limits.maxWaitSeconds * 1000) return 'wait-bound';
+  if (
+    limits.singleProbe &&
+    !overBudget &&
+    probeSettlesAsyncWait(checksStatus)
+  ) {
+    return 'single-probe';
+  }
   return 'continue';
 }
 
 /**
  * Pure: state + probe + clock → next state and verdict. `merged`, `closed`
- * and `checks-failed` are definitive; `budget-exhausted`, `wait-bound` and
- * `continue` hold only if the loop's advisory check does not block first.
+ * and `checks-failed` are definitive; `budget-exhausted`, `wait-bound`,
+ * `single-probe` and `continue` hold only if the loop's advisory check does not block first.
  * The two clock reads (wait bound, then budget) keep a stepping test clock's
  * call sequence.
  *
@@ -1090,7 +1106,11 @@ export function decideMergeWaitPoll({
   }
   return {
     state: next,
-    verdict: provisionalVerdict({ ...next, waitedMs, cumulativeMs }, limits),
+    verdict: provisionalVerdict(
+      { ...next, waitedMs, cumulativeMs },
+      limits,
+      probe.checksStatus,
+    ),
     ...timing,
   };
 }
@@ -1158,13 +1178,20 @@ const DEFINITIVE_SETTLERS = Object.freeze({
   'checks-failed': settleChecksFailed,
 });
 
-/** Invocation bound reached: resumable `pending`, no mutation. */
+/**
+ * Invocation bound reached, or the async single probe settled: resumable
+ * `pending`, no mutation, the same envelope fields either way.
+ */
 function pendingAtWaitBound(ctx, decision, probe) {
   const { waitBudget } = decision;
   const checks = probe.checksStatus ?? 'unknown';
+  const why =
+    decision.verdict === 'single-probe'
+      ? 'Async single probe settled'
+      : 'Merge wait bound reached';
   ctx.progress?.(
     'CONFIRM',
-    `⏸  Merge wait bound reached (${waitBudget.waitedSeconds}s of ${waitBudget.maxWaitSeconds}s this invocation; ` +
+    `⏸  ${why} (${waitBudget.waitedSeconds}s of ${waitBudget.maxWaitSeconds}s this invocation; ` +
       `${waitBudget.cumulativeSeconds}s of ${waitBudget.maxBudgetSeconds}s cumulative). PR #${ctx.prNumber} still in flight ` +
       `(checks=${checks}). Story stays at agent::closing — resumable.`,
   );
@@ -1223,7 +1250,10 @@ async function settleProvisional(ctx, decision, probe) {
     });
     return { state, outcome };
   }
-  if (decision.verdict === 'wait-bound') {
+  if (
+    decision.verdict === 'wait-bound' ||
+    decision.verdict === 'single-probe'
+  ) {
     return { state, outcome: pendingAtWaitBound(ctx, decision, probe) };
   }
   return { state, outcome: null };

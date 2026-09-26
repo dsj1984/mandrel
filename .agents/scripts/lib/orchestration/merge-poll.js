@@ -26,6 +26,20 @@ export function pollIntervalMs(checksStatus, intervalSeconds) {
 }
 export const DEFAULT_MAX_BUDGET_SECONDS = 3600;
 
+/**
+ * Async single-probe posture: CI never reddens in the first minute after
+ * PR-open, so a second probe of an unstarted or running rollup cannot change
+ * the outcome — it only holds the orchestrator's serialized slot. Green (the
+ * merge is imminent) and red (fail-fast may need its confirming probe) keep
+ * polling.
+ *
+ * @param {string|undefined} checksStatus
+ * @returns {boolean} true when this probe settles an async wait as `pending`.
+ */
+export function probeSettlesAsyncWait(checksStatus) {
+  return checksStatus !== 'success' && checksStatus !== 'failure';
+}
+
 /** Bounds every `gh` spawn so a hang degrades to the probe-error path. */
 export const MERGE_WAIT_GH_TIMEOUT_MS = 60_000;
 
