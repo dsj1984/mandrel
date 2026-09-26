@@ -292,6 +292,19 @@ describe('parseStandardCliArgs — extras (caller-defined flags)', () => {
     );
   });
 
+  it('treats an empty extras string exactly like an empty built-in string', () => {
+    const { values } = parseStandardCliArgs({
+      argv: ['--changed-since', '', '--root', '', '--scope='],
+      extras: {
+        root: { type: 'string' },
+        scope: { type: 'string', default: 'diagnose' },
+      },
+    });
+    assert.equal(values.changedSince, null);
+    assert.equal(values.root, values.changedSince);
+    assert.equal(values.scope, 'diagnose');
+  });
+
   it('mixes a standard required flag with caller extras', () => {
     const { values } = parseStandardCliArgs({
       argv: ['--story', '2989', '--scope', 'diagnose', '--json'],
