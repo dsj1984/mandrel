@@ -7,6 +7,7 @@
 
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { resolveUpdaterRefreshScope } from './lib/baselines/coverage-refresh-scope.js';
 import {
   buildCoverageUpdaterScorer,
   resolveCoverageUpdaterScope,
@@ -40,6 +41,7 @@ const USAGE = {
   ],
   notes: [
     'Run `npm run test:coverage` first — this script never runs the suite itself.',
+    'Against an `affected`-stamped artifact only measured rows are rewritten; rows the scoped run skipped are kept.',
   ],
 };
 
@@ -75,16 +77,19 @@ function main() {
       score: scoreCoverageFinal,
     }),
   };
-  // No flag -> scopeFiles=null + fullScope=false -> the service derives the
-  // diff via `origin/main..HEAD` (its default baseRef/headRef).
-  if (fullScope) refreshOpts.fullScope = true;
-  else if (diffScopeRef) refreshOpts.baseRef = diffScopeRef;
-
-  return refreshBaseline(refreshOpts).then((result) => {
-    Logger.info(
-      `[Coverage] ✅ Baseline updated: ${result.envelope.rows.length} file(s) recorded at ${COVERAGE_BASELINE_PATH} (${absBaselinePath}). scope=${result.scope.mode}, wrote=${result.wrote}.`,
-    );
-  });
+  // No flag and a full artifact -> the service derives the diff via
+  // `origin/main..HEAD` (its default baseRef/headRef).
+  return resolveUpdaterRefreshScope(cwd, {
+    fullScope,
+    diffScopeRef,
+    loadScope: loadC8Scope,
+  })
+    .then((scope) => refreshBaseline({ ...refreshOpts, ...scope }))
+    .then((result) => {
+      Logger.info(
+        `[Coverage] ✅ Baseline updated: ${result.envelope.rows.length} file(s) recorded at ${COVERAGE_BASELINE_PATH} (${absBaselinePath}). scope=${result.scope.mode}, wrote=${result.wrote}.`,
+      );
+    });
 }
 
 runAsCli(import.meta.url, main, {

@@ -1,12 +1,15 @@
 import assert from 'node:assert';
+import path from 'node:path';
 import { test } from 'node:test';
 import {
   axisToleranceFor,
   buildScopePredicate,
   COVERAGE_TOLERANCE,
   compareScores,
+  readArtifactCaptureScope,
   readBaseline,
   readCoverageFinal,
+  resolveCoverageRefreshScope,
   scoreCoverageFinal,
   scoreEntry,
   writeBaseline,
@@ -324,4 +327,258 @@ test('compareScores — null axes are no-ops (skipped, not regressions)', () => 
   const baseline = { 'foo.js': { lines: 100, branches: 80, functions: 90 } };
   const result = compareScores(current, baseline);
   assert.strictEqual(result.regressions.length, 0);
+});
+
+// Story #5472 — an `affected` artifact measures only what the scoped run
+// instrumented, so an absent baseline row is unmeasured, not removed.
+const FULL = { lines: 100, branches: 100, functions: 100 };
+
+test('compareScores AC-5 — affected artifact: unmeasured baseline rows are not removed files', () => {
+  const current = { 'a.js': FULL };
+  const baseline = { 'a.js': FULL, 'untouched.js': FULL };
+  const result = compareScores(current, baseline, undefined, {
+    artifactScope: 'affected',
+    changedFiles: ['a.js'],
+  });
+  assert.deepStrictEqual(result.removedFiles, []);
+  assert.deepStrictEqual(result.newFiles, []);
+});
+
+test('compareScores AC-6 — affected artifact: a changed file it did not measure fails as new', () => {
+  const baseline = { 'changed.js': FULL };
+  const result = compareScores({}, baseline, undefined, {
+    artifactScope: 'affected',
+    changedFiles: ['changed.js', 'brand-new.js'],
+  });
+  assert.deepStrictEqual(
+    result.newFiles.map((f) => f.file),
+    ['changed.js', 'brand-new.js'],
+  );
+  assert.strictEqual(result.newFiles[0].reason, 'unmeasured');
+  assert.deepStrictEqual(result.removedFiles, []);
+});
+
+test('compareScores — a full artifact keeps reporting absent rows as removed', () => {
+  const result = compareScores({}, { 'gone.js': FULL }, undefined, {
+    artifactScope: 'full',
+    changedFiles: ['gone.js'],
+  });
+  assert.deepStrictEqual(result.removedFiles, [{ file: 'gone.js' }]);
+  assert.deepStrictEqual(result.newFiles, []);
+});
+
+test('readArtifactCaptureScope — reads the stamp scope, full when absent or unscoped', () => {
+  const stampFs = (body) => ({
+    readFileSync: () => {
+      if (body === null) throw new Error('ENOENT');
+      return body;
+    },
+  });
+  const read = (body) =>
+    readArtifactCaptureScope('/cwd', undefined, stampFs(body));
+  assert.strictEqual(read(JSON.stringify({ scope: 'affected' })), 'affected');
+  assert.strictEqual(read(JSON.stringify({ digest: 'x' })), 'full');
+  assert.strictEqual(read(null), 'full');
+});
+
+test('writeBaseline AC-5 — a write scoped to measured rows leaves unmeasured rows in place', () => {
+  let written = null;
+  const fakeFs = {
+    mkdirSync: () => {},
+    writeFileSync: (_p, body) => {
+      written = body;
+    },
+    readFileSync: () => {
+      throw new Error('unused: prior is passed');
+    },
+  };
+  const prior = [
+    { path: 'a.js', lines: 50, branches: 50, functions: 50 },
+    { path: 'untouched.js', lines: 80, branches: 80, functions: 80 },
+  ];
+  writeBaseline('/cwd', { 'a.js': FULL }, fakeFs, {
+    prior,
+    scope: {
+      mode: 'diff',
+      files: new Set(['a.js']),
+    },
+  });
+  const rows = JSON.parse(written).rows;
+  assert.deepStrictEqual(
+    rows.map((r) => [r.path, r.lines]),
+    [
+      ['a.js', 100],
+      ['untouched.js', 80],
+    ],
+  );
+});
+
+test('resolveCoverageRefreshScope AC-5 — an affected artifact narrows every refresh to measured rows', async () => {
+  const base = {
+    cwd: '/cwd',
+    listMeasured: () => ['a.js', 'b.js'],
+    inCoverageScope: (f) => f === 'changed-unmeasured.js',
+    deriveDiffFiles: async () => [
+      'a.js',
+      'skipped.js',
+      'changed-unmeasured.js',
+    ],
+  };
+  const affected = { ...base, readCaptureScope: () => 'affected' };
+  assert.deepStrictEqual(
+    await resolveCoverageRefreshScope({
+      ...affected,
+      fullScope: true,
+      diffScopeRef: null,
+    }),
+    {
+      scopeFiles: ['a.js', 'b.js'],
+      requireRowsForScopeFiles: true,
+      requiredScopeFilePredicate: affected.inCoverageScope,
+    },
+  );
+  assert.deepStrictEqual(
+    await resolveCoverageRefreshScope({
+      ...affected,
+      fullScope: false,
+      diffScopeRef: null,
+    }),
+    {
+      scopeFiles: ['a.js', 'changed-unmeasured.js'],
+      requireRowsForScopeFiles: true,
+      requiredScopeFilePredicate: affected.inCoverageScope,
+    },
+  );
+  const full = { ...base, readCaptureScope: () => 'full' };
+  assert.deepStrictEqual(
+    await resolveCoverageRefreshScope({
+      ...full,
+      fullScope: true,
+      diffScopeRef: null,
+    }),
+    { fullScope: true },
+  );
+  assert.deepStrictEqual(
+    await resolveCoverageRefreshScope({
+      ...full,
+      fullScope: false,
+      diffScopeRef: 'origin/x',
+    }),
+    { baseRef: 'origin/x' },
+  );
+  assert.deepStrictEqual(
+    await resolveCoverageRefreshScope({
+      ...full,
+      fullScope: false,
+      diffScopeRef: null,
+    }),
+    {},
+  );
+});
+
+test('refreshBaseline AC-5/AC-6 — affected scope keeps unmeasured rows and refuses a changed file with no row', async () => {
+  const { refreshBaseline } = await import(
+    '../.agents/scripts/lib/baselines/refresh-service.js'
+  );
+  const writes = [];
+  const priorRows = [
+    { path: 'a.js', lines: 50, branches: 50, functions: 50 },
+    { path: 'untouched.js', lines: 80, branches: 80, functions: 80 },
+  ];
+  const memFs = {
+    readFileSync: () =>
+      JSON.stringify({
+        $schema: 'https://mandrel.dev/baselines/coverage.schema.json',
+        kernelVersion: '1.0.0',
+        rows: priorRows,
+      }),
+    writeFileSync: (_p, body) => writes.push(JSON.parse(body)),
+    mkdirSync: () => {},
+    renameSync: () => {},
+    existsSync: () => true,
+  };
+  const scope = await resolveCoverageRefreshScope({
+    cwd: '/cwd',
+    fullScope: true,
+    diffScopeRef: null,
+    readCaptureScope: () => 'affected',
+    listMeasured: () => ['a.js'],
+    inCoverageScope: () => true,
+    deriveDiffFiles: async () => [],
+  });
+  const scorer = () => [
+    { path: 'a.js', lines: 100, branches: 100, functions: 100 },
+  ];
+  await refreshBaseline({
+    kind: 'coverage',
+    writePath: '/cwd/baselines/coverage.json',
+    fs: memFs,
+    scorer,
+    ...scope,
+  });
+  const rows = writes.at(-1).rows.map((r) => [r.path, r.lines]);
+  assert.deepStrictEqual(rows, [
+    ['a.js', 100],
+    ['untouched.js', 80],
+  ]);
+
+  const diffScope = await resolveCoverageRefreshScope({
+    cwd: '/cwd',
+    fullScope: false,
+    diffScopeRef: null,
+    readCaptureScope: () => 'affected',
+    listMeasured: () => ['a.js'],
+    inCoverageScope: () => true,
+    deriveDiffFiles: async () => ['a.js', 'changed.js'],
+  });
+  await assert.rejects(
+    refreshBaseline({
+      kind: 'coverage',
+      writePath: '/cwd/baselines/coverage.json',
+      fs: memFs,
+      scorer,
+      ...diffScope,
+    }),
+    /changed\.js/,
+  );
+});
+
+test('resolveUpdaterRefreshScope — wires the artifact, c8 scope and file existence into the affected scope', async () => {
+  const { resolveUpdaterRefreshScope } = await import(
+    '../.agents/scripts/lib/baselines/coverage-refresh-scope.js'
+  );
+  const cwd = '/cwd';
+  const deps = {
+    loadScope: () => ({ include: ['src/**'], exclude: [] }),
+    readCaptureScope: () => 'affected',
+    readCoverage: () => ({
+      [path.resolve(cwd, 'src/a.js')]: { s: { 0: 1 } },
+      [path.resolve(cwd, 'other/x.js')]: { s: { 0: 1 } },
+    }),
+    existsSync: (abs) => abs !== path.resolve(cwd, 'src/deleted.js'),
+    deriveDiff: async ({ baseRef }) => {
+      assert.strictEqual(baseRef, 'origin/main');
+      return ['src/a.js', 'src/changed.js', 'src/deleted.js', 'docs/x.md'];
+    },
+  };
+  const diff = await resolveUpdaterRefreshScope(cwd, {
+    fullScope: false,
+    diffScopeRef: null,
+    ...deps,
+  });
+  assert.deepStrictEqual(diff.scopeFiles, ['src/a.js', 'src/changed.js']);
+  assert.strictEqual(diff.requireRowsForScopeFiles, true);
+  const full = await resolveUpdaterRefreshScope(cwd, {
+    fullScope: true,
+    diffScopeRef: null,
+    ...deps,
+  });
+  assert.deepStrictEqual(full.scopeFiles, ['src/a.js']);
+  const unscoped = await resolveUpdaterRefreshScope(cwd, {
+    fullScope: true,
+    diffScopeRef: null,
+    ...deps,
+    readCaptureScope: () => 'full',
+  });
+  assert.deepStrictEqual(unscoped, { fullScope: true });
 });

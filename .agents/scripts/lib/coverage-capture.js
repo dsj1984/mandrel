@@ -165,7 +165,7 @@ export function computeContentDigest(cwd, targetDirs, io = {}) {
  *   cwd: string,
  *   coveragePath: string,
  *   digest: string,
- *   scope?: 'full' | 'incremental',
+ *   scope?: 'full' | 'incremental' | 'affected',
  *   files?: string[],
  *   ref?: string,
  *   writeFileSync?: typeof fs.writeFileSync,
@@ -197,9 +197,12 @@ export function writeCaptureStamp({
   }
 }
 
+/** Stamp scopes narrower than `full`; each satisfies only its own probe. */
+const PARTIAL_STAMP_SCOPES = new Set(['incremental', 'affected']);
+
 /**
  * @param {{digest?: unknown, scope?: unknown} | null} stamp
- * @param {'full' | 'incremental'} requireScope
+ * @param {'full' | 'incremental' | 'affected'} requireScope
  * @returns {{ digest: string } | { scopeMismatch: true } | null} `null`
  *   falls through to the mtime heuristic.
  */
@@ -207,8 +210,7 @@ function readStampForScope(stamp, requireScope) {
   if (typeof stamp?.digest !== 'string' || stamp.digest.length === 0) {
     return null;
   }
-  const stampScope = stamp.scope === 'incremental' ? 'incremental' : 'full';
-  if (stampScope === 'incremental' && requireScope !== 'incremental') {
+  if (PARTIAL_STAMP_SCOPES.has(stamp.scope) && stamp.scope !== requireScope) {
     return { scopeMismatch: true };
   }
   return { digest: stamp.digest };
@@ -218,14 +220,14 @@ function readStampForScope(stamp, requireScope) {
  * Stamp digest vs current digest when a stamp exists; otherwise artifact
  * mtime vs newest source. IO errors resolve stale. Both paths fail closed
  * (`no-sources`) on an empty source set — "found nothing" is not "nothing
- * changed". An incremental stamp never satisfies a full-scope probe; a stamp
- * with no `scope` is full-scope.
+ * changed". A partial (incremental / affected) stamp satisfies only a probe
+ * of its own scope; a stamp with no `scope` is full-scope.
  *
  * @param {{
  *   coveragePath: string,
  *   targetDirs: string[],
  *   cwd: string,
- *   requireScope?: 'full' | 'incremental',
+ *   requireScope?: 'full' | 'incremental' | 'affected',
  *   statSync?: typeof fs.statSync,
  *   readdirSync?: typeof fs.readdirSync,
  *   existsSync?: typeof fs.existsSync,
@@ -358,7 +360,7 @@ export function creditedCapture(runCaptureFn, { requireCredited, logger }) {
  *   cwd: string,
  *   targetDirs: string[],
  *   coveragePath: string,
- *   scope?: 'full' | 'incremental',
+ *   scope?: 'full' | 'incremental' | 'affected',
  *   files?: string[],
  *   ref?: string,
  *   computeContentDigestImpl: typeof computeContentDigest,
@@ -438,14 +440,17 @@ export function anyChangedUnderTargets(changedFiles, targetDirs) {
 export const COVERAGE_TIMEOUT_EXIT_CODE = TIMEOUT_EXIT_CODE;
 
 /**
- * Spawn `npm run test:coverage` asynchronously as its own process group, so
+ * Spawn `npm run <script>` asynchronously as its own process group, so
  * the lock heartbeat keeps running and a timeout or signal kills every
  * worker. Takes no positional file args: node's runner would execute a
- * forwarded source file as a test instead of filtering the suite.
+ * forwarded source file as a test instead of filtering the suite. Scope a
+ * run through `env` instead.
  *
  * @param {{
  *   cwd: string,
  *   timeoutMs?: number,
+ *   script?: string,
+ *   env?: Record<string, string>,
  *   spawnImpl?: typeof spawn,
  *   log?: (m: string) => void,
  * }} opts
@@ -454,14 +459,17 @@ export const COVERAGE_TIMEOUT_EXIT_CODE = TIMEOUT_EXIT_CODE;
 export function runCapture({
   cwd,
   timeoutMs,
+  script = 'test:coverage',
+  env = {},
   spawnImpl = spawn,
   log = () => {},
 } = {}) {
-  const args = ['run', 'test:coverage'];
+  const args = ['run', script];
   log(`[coverage-capture] ▶ npm ${args.join(' ')}`);
   return new Promise((resolve) => {
     const child = spawnImpl('npm', args, {
       cwd,
+      env: { ...process.env, ...env },
       stdio: 'inherit',
       shell: process.platform === 'win32',
       ...groupSpawnOptions(),
@@ -478,7 +486,7 @@ export function runCapture({
         return;
       }
       log(
-        `[coverage-capture] ⏱ npm run test:coverage exceeded ${timeoutMs}ms — killed its process group. Returning exit ${COVERAGE_TIMEOUT_EXIT_CODE}.`,
+        `[coverage-capture] ⏱ npm run ${script} exceeded ${timeoutMs}ms — killed its process group. Returning exit ${COVERAGE_TIMEOUT_EXIT_CODE}.`,
       );
       resolve(COVERAGE_TIMEOUT_EXIT_CODE);
     });

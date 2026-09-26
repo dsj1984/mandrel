@@ -621,6 +621,23 @@ describe('runCapture', () => {
   // suite never runs. `run-coverage.js` discarded the list, which is the only
   // reason it never bit. The argv is pinned here so the plumbing cannot come
   // back by way of an `opts.files` that looks harmless.
+  // Story #5472 — the affected scope names its script and hands the base ref
+  // through env, never as positional arguments.
+  it('spawns a named script with extra env merged over process.env', async () => {
+    const calls = [];
+    await runCapture({
+      cwd: '/repo',
+      script: 'test:coverage:affected',
+      env: { MANDREL_COVERAGE_BASE_REF: 'origin/main' },
+      spawnImpl: fakeSpawn(calls),
+    });
+    assert.deepEqual(calls[0].args, ['run', 'test:coverage:affected']);
+    assert.equal(calls[0].opts.env.MANDREL_COVERAGE_BASE_REF, 'origin/main');
+    // A key read back from process.env keeps its platform casing (`Path` on Windows).
+    const [inheritedKey, inheritedValue] = Object.entries(process.env)[0];
+    assert.equal(calls[0].opts.env[inheritedKey], inheritedValue);
+  });
+
   describe('no positional file scope (Story #5065)', () => {
     it('spawns the bare `npm run test:coverage` argv, whatever opts are passed', async () => {
       const calls = [];
@@ -869,6 +886,29 @@ describe('isCoverageFresh — scope asymmetry (Story #4981, AC-4)', () => {
     });
     assert.deepEqual(r, { fresh: true, reason: 'fresh' });
   });
+
+  // Story #5472 AC-4 — an affected stamp mirrors the incremental asymmetry.
+  for (const [stampScope, requireScope, expected] of [
+    ['affected', 'full', { fresh: false, reason: 'scope-mismatch' }],
+    ['affected', 'incremental', { fresh: false, reason: 'scope-mismatch' }],
+    ['incremental', 'affected', { fresh: false, reason: 'scope-mismatch' }],
+    ['affected', 'affected', { fresh: true, reason: 'fresh' }],
+    ['full', 'affected', { fresh: true, reason: 'fresh' }],
+  ]) {
+    it(`a ${stampScope} stamp against a ${requireScope} probe → ${expected.reason}`, () => {
+      const r = isCoverageFresh({
+        coveragePath,
+        targetDirs,
+        cwd,
+        requireScope,
+        ...baseFs(),
+        readFileSync: () =>
+          JSON.stringify({ digest: 'abc123', scope: stampScope }),
+        computeDigest: () => 'abc123',
+      });
+      assert.deepEqual(r, expected);
+    });
+  }
 
   it('a legacy stamp with no scope field behaves as full-scope (AC-5 back-compat)', () => {
     const stampJson = JSON.stringify({ digest: 'abc123' });
