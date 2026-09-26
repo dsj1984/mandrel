@@ -956,7 +956,7 @@
     },
     {
       "path": ".agents/scripts/lib/observability/signal-validator.js",
-      "mi": 92.168
+      "mi": 94.879
     },
     {
       "path": ".agents/scripts/lib/observability/signals-writer.js",
