@@ -1028,14 +1028,13 @@ function provisionalVerdict(
     return 'budget-exhausted';
   }
   if (waitedMs + intervalMs > limits.maxWaitSeconds * 1000) return 'wait-bound';
-  if (
-    limits.singleProbe &&
-    !overBudget &&
-    probeSettlesAsyncWait(checksStatus)
-  ) {
-    return 'single-probe';
-  }
-  return 'continue';
+  return singleProbeOrContinue(limits, overBudget, checksStatus);
+}
+
+function singleProbeOrContinue(limits, overBudget, checksStatus) {
+  const settles =
+    limits.singleProbe && !overBudget && probeSettlesAsyncWait(checksStatus);
+  return settles ? 'single-probe' : 'continue';
 }
 
 /**
@@ -1170,14 +1169,17 @@ const DEFINITIVE_SETTLERS = Object.freeze({
   'checks-failed': settleChecksFailed,
 });
 
+/** The verdicts that settle a resumable `pending`, keyed to their headline. */
+const PENDING_HEADLINES = Object.freeze({
+  'wait-bound': 'Merge wait bound reached',
+  'single-probe': 'Async single probe settled',
+});
+
 /** Invocation bound or single probe: resumable `pending`, no mutation. */
 function pendingAtWaitBound(ctx, decision, probe) {
   const { waitBudget } = decision;
   const checks = probe.checksStatus ?? 'unknown';
-  const why =
-    decision.verdict === 'single-probe'
-      ? 'Async single probe settled'
-      : 'Merge wait bound reached';
+  const why = PENDING_HEADLINES[decision.verdict];
   ctx.progress?.(
     'CONFIRM',
     `⏸  ${why} (${waitBudget.waitedSeconds}s of ${waitBudget.maxWaitSeconds}s this invocation; ` +
@@ -1239,10 +1241,7 @@ async function settleProvisional(ctx, decision, probe) {
     });
     return { state, outcome };
   }
-  if (
-    decision.verdict === 'wait-bound' ||
-    decision.verdict === 'single-probe'
-  ) {
+  if (Object.hasOwn(PENDING_HEADLINES, decision.verdict)) {
     return { state, outcome: pendingAtWaitBound(ctx, decision, probe) };
   }
   return { state, outcome: null };
