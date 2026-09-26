@@ -100,10 +100,10 @@ async function main() {
 }
 
 runAsCli(import.meta.url, main, {
-  source: 'git-cleanup',
+  source: 'clean-git',
   usage: {
     invocation:
-      'node .agents/scripts/git-cleanup.js [--execute] [--yes] [--json] [phase flags] [filters]',
+      'node .agents/scripts/clean-git.js [--execute] [--yes] [--json] [phase flags] [filters]',
     summary:
       'Tidy the local checkout in four phases — fast-forward the base branch, prune stale remote refs, reap merged branches, triage stashes. Dry-run unless --execute.',
     flags: [

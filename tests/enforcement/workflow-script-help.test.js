@@ -233,11 +233,11 @@ describe('workflow-invoked scripts are self-describing', () => {
       );
     }
 
-    const gitCleanup = readDoc(path.join(WORKFLOWS_DIR, 'git-cleanup.md'));
+    const cleanGit = readDoc(path.join(WORKFLOWS_DIR, 'clean-git.md'));
     assertDocMentions(
-      gitCleanup,
-      /git-cleanup\.js --help/,
-      'git-cleanup.md must point at the script for its flag list',
+      cleanGit,
+      /clean-git\.js --help/,
+      'clean-git.md must point at the script for its flag list',
     );
   });
 

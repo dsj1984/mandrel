@@ -23,6 +23,9 @@ import { materializeBaseBranch } from '../../.agents/scripts/single-story-init.j
 /** Stub sweep — always no-op so only the fetch path is exercised. */
 const noopSweep = async () => ({});
 
+/** Keeps the closed-Story worktree sweep off the real checkout (Story #5461). */
+const noopWorktreeSweep = async () => ({ reaped: [], skipped: [] });
+
 /** Stub config — minimal shape the function needs. */
 const stubConfig = {};
 
@@ -108,6 +111,7 @@ describe('materializeBaseBranch — cachedGitFetch coalescing (Story #3654)', ()
         config: stubConfig,
         provider: stubProvider,
         injectedSweep: noopSweep,
+        worktreeSweepFn: noopWorktreeSweep,
         progress,
         fetchCache: cache,
       });
@@ -149,6 +153,7 @@ describe('materializeBaseBranch — cachedGitFetch coalescing (Story #3654)', ()
         config: stubConfig,
         provider: stubProvider,
         injectedSweep: noopSweep,
+        worktreeSweepFn: noopWorktreeSweep,
         progress,
         fetchCache: cache,
       });

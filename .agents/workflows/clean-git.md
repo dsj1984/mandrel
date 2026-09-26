@@ -5,9 +5,9 @@ description: >-
   `git stash` entries — each step gated by operator confirmation.
 ---
 
-# /git-cleanup [--fast-forward-main] [--prune-remotes] [--branches] [--stashes] [--execute] [--remote] [--yes] [--include-content-merged] [--drop-stashes <ref>] [--exclude <pattern>] [--json]
+# /clean-git [--fast-forward-main] [--prune-remotes] [--branches] [--stashes] [--execute] [--remote] [--yes] [--include-content-merged] [--drop-stashes <ref>] [--exclude <pattern>] [--json]
 
-`/git-cleanup` folds the four cleanup steps operators routinely run by hand
+`/clean-git` folds the four cleanup steps operators routinely run by hand
 after a busy session into a single pipeline with per-step confirmation. It is a
 **recovery tool**, not a routine chore: the delivering flows already reap their
 own merged refs and fast-forward the base branch (see
@@ -22,13 +22,13 @@ Reach for it when the automated hygiene left an unusual state behind.
 > skill citation.
 
 The enumeration + reap logic lives in
-[`git-cleanup.js`](../scripts/git-cleanup.js) — it computes the candidate list,
+[`clean-git.js`](../scripts/clean-git.js) — it computes the candidate list,
 the skip taxonomy, the detection signals, and the JSON envelope, and prints them
 itself. Without `--execute` the script is a **dry-run preview**; nothing is
 mutated. When no phase flag is passed, **all four phases run** sequentially; a
 phase flag narrows the run. A failure in one phase does not short-circuit the
 others — each runs and reports independently. The script documents its own
-flags: `node .agents/scripts/git-cleanup.js --help`.
+flags: `node .agents/scripts/clean-git.js --help`.
 
 ## Phases
 
@@ -65,24 +65,24 @@ merged-PR branch in scope unless `--exclude`d.
 
 ```bash
 # Preview all four phases (no mutation).
-node .agents/scripts/git-cleanup.js
+node .agents/scripts/clean-git.js
 
 # Run everything non-interactively, including origin refs. Branches detected
 # only by content-equivalence keep their origin ref — see the note below.
-node .agents/scripts/git-cleanup.js --execute --remote --yes
+node .agents/scripts/clean-git.js --execute --remote --yes
 
 # Same, but also delete the origin refs of content-merged branches. Nobody is
 # watching, so opting in is the whole confirmation this delete ever gets.
-node .agents/scripts/git-cleanup.js --execute --remote --yes \
+node .agents/scripts/clean-git.js --execute --remote --yes \
   --include-content-merged
 
 # Only fast-forward main.
-node .agents/scripts/git-cleanup.js --fast-forward-main --execute
+node .agents/scripts/clean-git.js --fast-forward-main --execute
 
 # Only sweep merged branches + their origin refs.
-node .agents/scripts/git-cleanup.js --branches --execute --remote
+node .agents/scripts/clean-git.js --branches --execute --remote
 
 # Drop specific stashes under --yes.
-node .agents/scripts/git-cleanup.js --stashes --execute --yes \
+node .agents/scripts/clean-git.js --stashes --execute --yes \
   --drop-stashes 'stash@{0}' --drop-stashes 'stash@{2}'
 ```

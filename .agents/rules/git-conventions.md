@@ -56,7 +56,7 @@ subject referencing the Story via `(refs #<storyId>)` — see
 **The delivering flow owns tidying the local checkout** — it
 fast-forwards the base branch itself and reaps its own merged refs on
 the next workflow boot (the `boot-sweep.js` protected sweep).
-`/git-cleanup` is a recovery tool, not a routine chore — never end a
+`/clean-git` is a recovery tool, not a routine chore — never end a
 workflow by telling the operator to run it. Scope rules and the
 shared-checkout contention guard:
 [`git-conventions-reference.md` § Local checkout hygiene](git-conventions-reference.md).

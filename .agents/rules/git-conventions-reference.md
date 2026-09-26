@@ -96,13 +96,13 @@ signature is worth naming:
 
 **Invariant (stated in the core): the delivering flow owns tidying the local
 checkout — reaping its own merged refs and fast-forwarding the base branch.
-`/git-cleanup` is a recovery tool, not a routine chore.** The outcome every
+`/clean-git` is a recovery tool, not a routine chore.** The outcome every
 delivering flow (`/mandrel-deliver`, `/git-deliver`) guarantees, with the mechanics
-owned by `boot-sweep.js` / `git-cleanup.js`:
+owned by `boot-sweep.js` / `clean-git.js`:
 
 - **`main` is fast-forwarded** by the flow itself in its cleanup phase, so the
   next init seeds from a current base. No workflow ends by telling the operator
-  to run `/git-cleanup` to catch up.
+  to run `/clean-git` to catch up.
 - **Merged local refs are reaped** at the next workflow boot's protected sweep
   (`boot-sweep.js`) — every local branch whose PR is already merged, skipping
   any candidate with unpushed work, a dirty worktree, or a still-open parent
@@ -112,9 +112,9 @@ owned by `boot-sweep.js` / `git-cleanup.js`:
   weaker content-equivalence signal (`detectedBy: 'content-merged'` — content
   already landed in the base by another route, with no merged PR or git
   ancestry of its own) is **never** reaped by the boot sweep; it is surfaced
-  under `contentMerged` for the operator to send to `/git-cleanup` for a
+  under `contentMerged` for the operator to send to `/clean-git` for a
   confirmed, eyeballed reap.
-- **`/git-cleanup` is recovery, not routine.** Run it by hand only for a state
+- **`/clean-git` is recovery, not routine.** Run it by hand only for a state
   the automated hygiene does not cover — triaging stashes, reaping across
   non-standard namespaces, or `--remote` pruning after a force-push. Reaching
   for it after every routine delivery signals the owning flow's hygiene step

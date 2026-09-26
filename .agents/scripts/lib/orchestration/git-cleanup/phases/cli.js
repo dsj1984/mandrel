@@ -1,5 +1,5 @@
 /**
- * git-cleanup `main()`: argv, base-branch resolution, the four phases, and
+ * `clean-git.js` `main()`: argv, base-branch resolution, the four phases, and
  * the optional JSON envelope.
  *
  * @module lib/orchestration/git-cleanup/phases/cli

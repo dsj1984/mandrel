@@ -195,7 +195,7 @@ describe('buildSummaryLine (Story #4396)', () => {
     });
     assert.equal(
       line,
-      '[boot-sweep] reaped 1 local + 1 remote; protected 0; 2 content-merged branch(es) left for /git-cleanup.',
+      '[boot-sweep] reaped 1 local + 1 remote; protected 0; 2 content-merged branch(es) left for /clean-git.',
     );
   });
 });

@@ -75,6 +75,10 @@
       "mi": 95.062
     },
     {
+      "path": ".agents/scripts/clean-git.js",
+      "mi": 116.866
+    },
+    {
       "path": ".agents/scripts/clean-temp.js",
       "mi": 117.315
     },
@@ -137,10 +141,6 @@
     {
       "path": ".agents/scripts/generate-workflows-doc.js",
       "mi": 90.422
-    },
-    {
-      "path": ".agents/scripts/git-cleanup.js",
-      "mi": 116.866
     },
     {
       "path": ".agents/scripts/lib/audit-baselines/engine.js",

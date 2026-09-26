@@ -3,7 +3,7 @@
 
 /**
  * boot-sweep.js — non-interactive *protected* merged-branch sweep over
- * `sweepMergedBranches` (flags: see HELP). Unlike `git-cleanup --branches` it
+ * `sweepMergedBranches` (flags: see HELP). Unlike `clean-git --branches` it
  * always skips a branch with unpushed work, a dirty worktree or an open
  * parent Story. Best-effort: failures land in the envelope, exit is always 0.
  *
@@ -14,7 +14,7 @@
  *
  * `content-merged` branches (merge-tree equivalence — no merge check ever
  * validated their exact diff) are never reaped here, only reported for
- * `/git-cleanup`.
+ * `/clean-git`.
  */
 
 import path from 'node:path';
@@ -61,7 +61,7 @@ the outcome lands under "worktreeSweep".
 Branches detected only via the weaker content-equivalence signal
 (detectedBy: 'content-merged') are never reaped here — they are reported
 under "contentMerged" (and a routing hint in the summary line) for the
-operator to send to /git-cleanup.
+operator to send to /clean-git.
 
 Options:
   --include <glob>     Branch glob to sweep (repeatable). Default: story-*
@@ -75,26 +75,34 @@ Options:
 /**
  * The closed-Story worktree sweep under the shared sweep lock; never throws.
  * A contended lock skips it — the holder's next boot picks the trees up.
+ * Shared with `single-story-init.js`, whose boot never reaches
+ * {@link runBootSweep}: one sweep, one lock, two callers. `keepPaths` joins
+ * the sweep's running-tree guard — init passes the tree it is about to
+ * work in, so the Story being initialized is never removed.
  *
  * @param {{
  *   root: string,
  *   provider: object,
  *   lockPath: string,
  *   lockTimeoutMs: number,
- *   sweepFn: Function,
- *   acquireLockFn: Function,
+ *   sweepFn?: Function,
+ *   acquireLockFn?: Function,
  *   logger: object,
+ *   logTag?: string,
+ *   keepPaths?: string[],
  * }} args
  * @returns {Promise<object>} `{ ok, reaped, skipped, reason?, error? }`.
  */
-async function runWorktreeSweep({
+export async function runWorktreeSweep({
   root,
   provider,
   lockPath,
   lockTimeoutMs,
-  sweepFn,
-  acquireLockFn,
+  sweepFn = sweepStaleStoryWorktrees,
+  acquireLockFn = acquireSweepLock,
   logger,
+  logTag = '[boot-sweep]',
+  keepPaths = [],
 }) {
   const lock = acquireLockFn({ lockPath, timeoutMs: lockTimeoutMs });
   if (!lock.acquired) {
@@ -104,16 +112,17 @@ async function runWorktreeSweep({
     const result = await sweepFn({
       provider,
       repoRoot: root,
+      runningPaths: keepPaths,
       logger: {
-        info: (m) => logger.info?.(`[boot-sweep] ${m}`),
-        warn: (m) => logger.warn?.(`[boot-sweep] ${m}`),
-        error: (m) => logger.warn?.(`[boot-sweep] ${m}`),
+        info: (m) => logger.info?.(`${logTag} ${m}`),
+        warn: (m) => logger.warn?.(`${logTag} ${m}`),
+        error: (m) => logger.warn?.(`${logTag} ${m}`),
       },
     });
     return { ok: true, ...result };
   } catch (err) {
     const msg = err?.message ?? String(err);
-    logger.warn?.(`[boot-sweep] worktree sweep threw (host continues): ${msg}`);
+    logger.warn?.(`${logTag} worktree sweep threw (host continues): ${msg}`);
     return { ok: false, error: msg, reaped: [], skipped: [] };
   } finally {
     lock.release();
@@ -231,7 +240,7 @@ export async function runBootSweep({
 }
 
 /**
- * One-line summary; a nonzero `contentMerged` count adds a `/git-cleanup` hint.
+ * One-line summary; a nonzero `contentMerged` count adds a `/clean-git` hint.
  *
  * @param {{ localDeleted: number, remoteDeleted: number, protected?: Array, contentMerged?: Array }} result
  * @returns {string}
@@ -246,7 +255,7 @@ export function buildSummaryLine(result) {
       : '';
   const contentMergedSuffix =
     contentMergedCount > 0
-      ? `; ${contentMergedCount} content-merged branch(es) left for /git-cleanup`
+      ? `; ${contentMergedCount} content-merged branch(es) left for /clean-git`
       : '';
   return `[boot-sweep] reaped ${result.localDeleted} local + ${result.remoteDeleted} remote; protected ${protectedCount}${worktreeSuffix}${contentMergedSuffix}.`;
 }

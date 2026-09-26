@@ -60,4 +60,4 @@ an unmerged branch, a dirty tree, unpushed commits, a tree in use.
 - **Removal goes through the worktree removal seam** (Windows lock retry and
   the pending-cleanup hand-off), never raw deletion.
 - **Branches are untouched.** Deleting local or remote branches is
-  [`/git-cleanup`](git-cleanup.md)'s job.
+  [`/clean-git`](clean-git.md)'s job.

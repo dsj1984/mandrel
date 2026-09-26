@@ -56,14 +56,14 @@ describe('buildSummaryLine', () => {
     );
   });
 
-  it('appends the /git-cleanup routing hint when content-merged branches exist', () => {
+  it('appends the /clean-git routing hint when content-merged branches exist', () => {
     assert.match(
       buildSummaryLine({
         localDeleted: 0,
         remoteDeleted: 0,
         contentMerged: ['x', 'y'],
       }),
-      /2 content-merged branch\(es\) left for \/git-cleanup/,
+      /2 content-merged branch\(es\) left for \/clean-git/,
     );
   });
 
