@@ -18,6 +18,7 @@ import { runPreGateSteps as defaultRunPreGateSteps } from './pre-gate-steps.js';
 /**
  * Pre-gate self-heal steps, then the gates (throws on first failure). The
  * steps commit in the worktree before scoring, so the gates see their output.
+ * `onPreGateStepsDone` (must not throw) runs once the tree is final.
  *
  * @param {{
  *   cwd: string,
@@ -34,6 +35,7 @@ import { runPreGateSteps as defaultRunPreGateSteps } from './pre-gate-steps.js';
  *   runBaselineUpwardWriteback?: Function,
  *   runContextBudgetWriteback?: Function,
  *   createGateLogSink?: typeof defaultCreateGateLogSink,
+ *   onPreGateStepsDone?: () => void,
  * }} args
  * @returns {Promise<{
  *   gates: Record<string, 'passed'|'skipped'>|null,
@@ -57,6 +59,7 @@ export async function runCloseValidationPhase({
   runBaselineUpwardWriteback,
   runContextBudgetWriteback,
   createGateLogSink = defaultCreateGateLogSink,
+  onPreGateStepsDone,
 }) {
   await runPreGateSteps({
     cwd,
@@ -70,6 +73,7 @@ export async function runCloseValidationPhase({
     runBaselineUpwardWriteback,
     runContextBudgetWriteback,
   });
+  onPreGateStepsDone?.();
 
   progress(
     'VALIDATE',

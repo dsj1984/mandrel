@@ -279,3 +279,46 @@ test('runCodeReview: no critical findings does not halt at any depth', async () 
     assert.equal(result.blockerReason, null);
   }
 });
+
+// --- Deferred posting (Story #5473) ----------------------------------------
+
+test('runCodeReview: deferPost computes and renders but never posts', async () => {
+  const upserts = [];
+  const findings = [
+    { severity: 'critical', title: 't', file: 'a.js', line: 1, body: 'b' },
+  ];
+  const opts = {
+    ...buildOpts({ findings, changedFiles: ['a.js'], changedFileCount: 1 }),
+    deferPost: true,
+    upsertCommentFn: async (...args) => {
+      upserts.push(args);
+      return { commentId: 1 };
+    },
+  };
+  const out = await runCodeReview(opts);
+  assert.equal(upserts.length, 0, 'nothing posted');
+  assert.equal(out.posted, false);
+  assert.equal(out.postedCommentId, null);
+  assert.equal(out.report, fakeRenderFindings(), 'the report is held');
+  assert.equal(out.halted, true, 'severity still scored');
+});
+
+test('postReviewComment: posts a held report to the given target', async () => {
+  const { postReviewComment } = await import(
+    '../.agents/scripts/lib/orchestration/code-review.js'
+  );
+  const upserts = [];
+  const out = await postReviewComment({
+    upsertCommentFn: async (_provider, target, type, body) => {
+      upserts.push({ target, type, body });
+      return { commentId: 77 };
+    },
+    provider: {},
+    commentTargetId: 123,
+    report: 'held body',
+  });
+  assert.deepEqual(upserts, [
+    { target: 123, type: 'verification-results', body: 'held body' },
+  ]);
+  assert.deepEqual(out, { posted: true, postedCommentId: 77 });
+});

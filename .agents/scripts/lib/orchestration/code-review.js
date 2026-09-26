@@ -103,6 +103,7 @@ function resolveScopeEnvelope(opts, config) {
  *   createReviewProviderFn?: typeof createReviewProvider,
  *   upsertCommentFn?: typeof upsertStructuredComment,
  *   renderFindingsFn?: typeof renderFindings,
+ *   deferPost?: boolean,
  * }} opts
  * @returns {Promise<{
  *   status: 'ok'|'no-changes'|'invalid',
@@ -196,9 +197,10 @@ async function resolvePromptMessages(reviewProvider, reviewInput, logger) {
 }
 
 /**
- * Posting failure is non-fatal and surfaces as `posted: false`.
+ * Posting failure is non-fatal and surfaces as `posted: false`. Also posts a
+ * `deferPost` review's held report.
  */
-async function postReviewComment({
+export async function postReviewComment({
   upsertCommentFn,
   provider,
   commentTargetId,
@@ -228,6 +230,12 @@ async function postReviewComment({
     );
     return { posted: false, postedCommentId: null };
   }
+}
+
+/** A `deferPost` review holds its report for the caller to post. */
+async function postUnlessDeferred(opts, post) {
+  if (opts.deferPost) return { posted: false, postedCommentId: null };
+  return postReviewComment(post);
 }
 
 /**
@@ -309,7 +317,7 @@ async function executeReviewPipeline({ opts, config, envelope }) {
     degradations,
   });
 
-  const { posted, postedCommentId } = await postReviewComment({
+  const { posted, postedCommentId } = await postUnlessDeferred(opts, {
     upsertCommentFn,
     provider,
     commentTargetId,
