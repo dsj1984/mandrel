@@ -5,24 +5,34 @@
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { resolveDependencyVersion } from '../dependency-version.js';
 
 const DEFAULT_MIN_TOKENS = 50;
 const DEFAULT_FORMATS = Object.freeze(['javascript']);
 
 const require = createRequire(import.meta.url);
 
+/** jscpd 5 is a Rust rewrite with no Node API; only major 4 exposes one. */
+const SUPPORTED_JSCPD_MAJOR = '^4';
+
 /**
  * Lazy CJS load: jscpd's ESM entry has a broken transitive `colors/safe`
  * specifier under strict ESM resolution, and importers that never scan should
  * not pay the load.
  *
+ * A resolved jscpd without `detectClones` is an unsupported major, not a
+ * missing install — the error names the version so the fix is obvious.
+ *
+ * @param {NodeJS.Require} [requireFn] substitutes the module resolver
  * @returns {(opts: object) => Promise<Array<object>>}
  */
-export function resolveDetectClones() {
-  const jscpd = require('jscpd');
-  if (typeof jscpd.detectClones !== 'function') {
+export function resolveDetectClones(requireFn = require) {
+  const jscpd = requireFn('jscpd');
+  if (typeof jscpd?.detectClones !== 'function') {
+    const version = resolveDependencyVersion('jscpd', requireFn) ?? 'unknown';
     throw new Error(
-      "[Duplication] jscpd.detectClones is not available — run 'npm install'",
+      `[Duplication] jscpd ${version} exposes no detectClones Node API — ` +
+        `the duplication gate supports jscpd ${SUPPORTED_JSCPD_MAJOR}; install jscpd@${SUPPORTED_JSCPD_MAJOR}`,
     );
   }
   return jscpd.detectClones;
@@ -44,6 +54,11 @@ export function relativisePath(sourceId, cwd) {
 }
 
 /**
+ * jscpd occasionally reports a side with `end.line < start.line` (its `range`
+ * and `fragment` are inverted too). The real span is unrecoverable, and
+ * widening it to `[end, start]` recorded hundreds of phantom lines, so such a
+ * side counts nothing — under-counting one clone beats inventing a span.
+ *
  * @param {{ start?: { line?: number }, end?: { line?: number } }} dup
  * @returns {Array<number>} the 1-based line numbers the clone covers
  */
@@ -51,10 +66,8 @@ function cloneLineNumbers(dup) {
   const start = dup?.start?.line;
   const end = dup?.end?.line;
   if (!Number.isInteger(start) || !Number.isInteger(end)) return [];
-  const lo = Math.min(start, end);
-  const hi = Math.max(start, end);
   const lines = [];
-  for (let n = lo; n <= hi; n += 1) lines.push(n);
+  for (let n = start; n <= end; n += 1) lines.push(n);
   return lines;
 }
 
