@@ -2278,6 +2278,18 @@
     {
       "file": ".agents/scripts/lib/observability/close-telemetry.js",
       "symbol": "resolveWorkerTokens"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "symbol": "createMergeWaitState"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "symbol": "decideMergeWaitPoll"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/options.js",
+      "symbol": "parseCloseOptions"
     }
   ]
 }

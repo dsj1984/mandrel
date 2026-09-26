@@ -654,13 +654,11 @@ async function maybeRerunAdvisory({
 }
 
 /**
- * Advisory-gate terminal for one poll; passes a decided `unlanded` through so
- * the caller stays branch-free (`runMergePoll` is at the cyclomatic ceiling).
- * Skips runs already re-ran, enriches the rest, spends any rerun allowance,
- * and disarms BEFORE returning a block so the PR cannot merge out from under it.
+ * Advisory-gate terminal for one poll, or `null` to keep polling. Skips runs
+ * already re-ran, enriches the rest, spends any rerun allowance, and disarms
+ * BEFORE returning a block so the PR cannot merge out from under it.
  */
 async function resolveAdvisoryUnlanded({
-  unlanded,
   probe,
   blockOnAdvisoryFailure,
   advisoryAllowlist,
@@ -672,7 +670,6 @@ async function resolveAdvisoryUnlanded({
   disarmAutoMergeFn,
   elapsedSeconds,
 }) {
-  if (unlanded) return unlanded;
   const advisory = decideAdvisoryGateBlock({
     probe,
     blockOnAdvisoryFailure,
@@ -1002,6 +999,353 @@ async function onMergeObserved({
 }
 
 /**
+ * @typedef {object} MergeWaitState
+ * @property {number} startedAtMs This invocation's start (the wait-bound anchor).
+ * @property {number} polls Probes taken so far.
+ * @property {number} intervalMs The next sleep; tightens once checks are green.
+ * @property {number} updatesUsed BEHIND updates spent against `updateAttempts`.
+ * @property {number} consecutiveRequiredFailSnapshots Failing probes in a row
+ *   without per-run evidence; two fail fast, any other probe resets it.
+ */
+
+/**
+ * The merge wait's explicit state — everything one poll hands the next.
+ *
+ * @param {{ startedAtMs: number, intervalSeconds: number }} args
+ * @returns {MergeWaitState}
+ */
+export function createMergeWaitState({ startedAtMs, intervalSeconds }) {
+  return {
+    startedAtMs,
+    polls: 0,
+    intervalMs: intervalSeconds * 1000,
+    updatesUsed: 0,
+    consecutiveRequiredFailSnapshots: 0,
+  };
+}
+
+/**
+ * The verdict the probe leaves open: the budget give-up, the invocation
+ * bound, or another poll. Budget first — it is the real give-up.
+ */
+function provisionalVerdict(
+  { polls, intervalMs, waitedMs, cumulativeMs },
+  limits,
+) {
+  if (
+    polls >= MIN_POLLS_BEFORE_BUDGET_BLOCK &&
+    cumulativeMs + intervalMs > limits.maxBudgetSeconds * 1000
+  ) {
+    return 'budget-exhausted';
+  }
+  if (waitedMs + intervalMs > limits.maxWaitSeconds * 1000) return 'wait-bound';
+  return 'continue';
+}
+
+/**
+ * The merge wait's pure decision: given the state, one probe and the clock,
+ * the next state and a verdict. No timers, no `gh`, no mutation — the loop in
+ * {@link runConfirmMergePhase} owns every effect.
+ *
+ * Verdicts: `merged`, `closed` and `checks-failed` are definitive, decided by
+ * the probe alone. `budget-exhausted`, `wait-bound` and `continue` are
+ * provisional: the loop first runs the advisory-gate check (which may still
+ * block) and the BEHIND update, then honours them.
+ *
+ * `nowMs` and `cumulativeNowMs` are the poll's two clock reads — the
+ * invocation-bound read, then the budget read — kept apart so an injected
+ * stepping clock sees the sequence it always has.
+ *
+ * @param {{
+ *   state: MergeWaitState,
+ *   probe: object,
+ *   nowMs: number,
+ *   cumulativeNowMs?: number,
+ *   limits: { intervalSeconds: number, maxWaitSeconds: number, maxBudgetSeconds: number },
+ * }} args
+ * @returns {{
+ *   state: MergeWaitState,
+ *   verdict: 'merged'|'closed'|'checks-failed'|'budget-exhausted'|'wait-bound'|'continue',
+ *   waitedMs: number,
+ *   cumulativeMs: number,
+ *   elapsedSeconds: number,
+ *   waitBudget: { maxWaitSeconds: number, waitedSeconds: number, cumulativeSeconds: number, maxBudgetSeconds: number },
+ *   failFast?: object,
+ * }}
+ */
+export function decideMergeWaitPoll({
+  state,
+  probe,
+  nowMs,
+  cumulativeNowMs = nowMs,
+  limits,
+}) {
+  const anchorMs = resolveBudgetAnchorMs({
+    createdAt: probe.createdAt,
+    fallbackMs: state.startedAtMs,
+  });
+  const waitedMs = nowMs - state.startedAtMs;
+  const cumulativeMs = Math.max(cumulativeNowMs - anchorMs, waitedMs);
+  const polled = {
+    ...state,
+    polls: state.polls + 1,
+    intervalMs: pollIntervalMs(probe.checksStatus, limits.intervalSeconds),
+  };
+  const timing = {
+    waitedMs,
+    cumulativeMs,
+    elapsedSeconds: Math.round(waitedMs / 1000),
+    waitBudget: {
+      maxWaitSeconds: limits.maxWaitSeconds,
+      waitedSeconds: Math.round(waitedMs / 1000),
+      cumulativeSeconds: Math.round(cumulativeMs / 1000),
+      maxBudgetSeconds: limits.maxBudgetSeconds,
+    },
+  };
+  if (isPrMerged(probe)) return { state: polled, verdict: 'merged', ...timing };
+  if (probe.state === 'CLOSED') {
+    return { state: polled, verdict: 'closed', ...timing };
+  }
+  // No remaining budget turns a red required check green; fail fast.
+  const failFast = decideMergeWaitFailFast({
+    probe,
+    consecutiveRequiredFailSnapshots: state.consecutiveRequiredFailSnapshots,
+  });
+  const next = {
+    ...polled,
+    consecutiveRequiredFailSnapshots: failFast.consecutiveRequiredFailSnapshots,
+  };
+  if (failFast.failFast) {
+    return { state: next, verdict: 'checks-failed', failFast, ...timing };
+  }
+  return {
+    state: next,
+    verdict: provisionalVerdict({ ...next, waitedMs, cumulativeMs }, limits),
+    ...timing,
+  };
+}
+
+/** Block on a decided `unlanded` verdict. */
+function blockWith(ctx, unlanded) {
+  return blockOnUnlanded({
+    storyId: ctx.storyId,
+    prNumber: ctx.prNumber,
+    prUrl: ctx.prUrl,
+    ...unlanded,
+    provider: ctx.provider,
+    progress: ctx.progress,
+    classifyMergeBlockFn: ctx.classifyMergeBlockFn,
+    emitMergeUnlandedFn: ctx.emitMergeUnlandedFn,
+  });
+}
+
+/** `merged`: the flip, then the post-land tail. */
+function settleMerged(ctx, decision, probe) {
+  return onMergeObserved({
+    ...ctx,
+    prProbe: probe,
+    elapsedSeconds: decision.elapsedSeconds,
+  });
+}
+
+/** `closed`: a PR closed without merging is decided by the wait itself. */
+function settleClosed(ctx, decision, probe) {
+  return blockWith(ctx, {
+    prProbe: probe,
+    budget: { exhausted: true, elapsedSeconds: decision.elapsedSeconds },
+    blockClassOverride: CLOSED_UNMERGED_BLOCK_CLASS,
+    reasonOverride: CLOSED_UNMERGED_REASON,
+  });
+}
+
+/** `checks-failed`: the first-red handling, then the block. */
+async function settleChecksFailed(ctx, decision, probe) {
+  const { failFast } = decision;
+  ctx.progress?.(
+    'CONFIRM',
+    failFast.evidencePath === 'per-run'
+      ? `🛑 PR #${ctx.prNumber}: a required check concluded failure with none in flight — failing fast (evidence=per-run).`
+      : `🛑 PR #${ctx.prNumber}: two consecutive failing check probes without per-run evidence — failing fast (evidence=consecutive-probe).`,
+  );
+  return blockWith(ctx, {
+    prProbe: failFast.prProbe,
+    budget: { exhausted: false, elapsedSeconds: decision.elapsedSeconds },
+    blockClassOverride: failFast.blockClass,
+    reasonOverride: failFast.reason,
+    redRecord: await recordChecksFailedRed({
+      storyId: ctx.storyId,
+      prNumber: ctx.prNumber,
+      probe,
+      cwd: ctx.cwd,
+      config: ctx.config,
+      gh: ctx.injectedGh,
+      progress: ctx.progress,
+      disarmAutoMergeFn: ctx.disarmAutoMergeFn,
+      recordRequiredRedFn: ctx.recordRequiredRedFn,
+    }),
+  });
+}
+
+const DEFINITIVE_SETTLERS = Object.freeze({
+  merged: settleMerged,
+  closed: settleClosed,
+  'checks-failed': settleChecksFailed,
+});
+
+/** Invocation bound reached: resumable `pending`, no mutation. */
+function pendingAtWaitBound(ctx, decision, probe) {
+  const { waitBudget } = decision;
+  const checks = probe.checksStatus ?? 'unknown';
+  ctx.progress?.(
+    'CONFIRM',
+    `⏸  Merge wait bound reached (${waitBudget.waitedSeconds}s of ${waitBudget.maxWaitSeconds}s this invocation; ` +
+      `${waitBudget.cumulativeSeconds}s of ${waitBudget.maxBudgetSeconds}s cumulative). PR #${ctx.prNumber} still in flight ` +
+      `(checks=${checks}). Story stays at agent::closing — resumable.`,
+  );
+  return {
+    confirmed: false,
+    terminal: 'pending',
+    reason: `merge wait bound reached with the PR still in flight (checks=${checks})`,
+    prProbe: probe,
+    waitBudget,
+    elapsedSeconds: waitBudget.waitedSeconds,
+  };
+}
+
+/**
+ * A provisional verdict: the advisory gate may still block (advisory gates
+ * are usually still QUEUED at arm time, so they redden here, mid-wait,
+ * before auto-merge lands over them); otherwise update a BEHIND PR, then
+ * honour the verdict.
+ *
+ * @returns {Promise<{ state: MergeWaitState, outcome: object|null }>}
+ */
+async function settleProvisional(ctx, decision, probe) {
+  const advisory = await resolveAdvisoryUnlanded({
+    probe,
+    blockOnAdvisoryFailure: ctx.blockOnAdvisoryFailure,
+    advisoryAllowlist: ctx.advisoryAllowlist,
+    rerunState: ctx.rerunState,
+    prNumber: ctx.prNumber,
+    gh: ctx.injectedGh,
+    ghTimeoutMs: ctx.ghTimeoutMs,
+    progress: ctx.progress,
+    disarmAutoMergeFn: ctx.disarmAutoMergeFn,
+    elapsedSeconds: decision.elapsedSeconds,
+  });
+  if (advisory) {
+    return { state: decision.state, outcome: await blockWith(ctx, advisory) };
+  }
+  const updated = await maybeUpdateBehindPr({
+    probe,
+    prNumber: ctx.prNumber,
+    updatesUsed: decision.state.updatesUsed,
+    updateAttempts: ctx.limits.updateAttempts,
+    gh: ctx.injectedGh,
+    ghTimeoutMs: ctx.ghTimeoutMs,
+    progress: ctx.progress,
+  });
+  const state = updated
+    ? { ...decision.state, updatesUsed: decision.state.updatesUsed + 1 }
+    : decision.state;
+  if (decision.verdict === 'budget-exhausted') {
+    const outcome = await blockWith(ctx, {
+      prProbe: probe,
+      budget: {
+        exhausted: true,
+        elapsedSeconds: Math.round(decision.cumulativeMs / 1000),
+      },
+      ...queuedExhaustionVerdict(probe, decision.cumulativeMs),
+    });
+    return { state, outcome };
+  }
+  if (decision.verdict === 'wait-bound') {
+    return { state, outcome: pendingAtWaitBound(ctx, decision, probe) };
+  }
+  return { state, outcome: null };
+}
+
+/**
+ * One poll's effects around the pure decision: probe, decide, heartbeat,
+ * settle.
+ *
+ * @returns {Promise<{ state: MergeWaitState, done: boolean, outcome?: object }>}
+ */
+async function runMergePoll(ctx, state) {
+  const probe = await ctx.readPrWaitProbeFn({
+    prNumber: ctx.prNumber,
+    gh: ctx.injectedGh,
+    ghTimeoutMs: ctx.ghTimeoutMs,
+  });
+  const decision = decideMergeWaitPoll({
+    state,
+    probe,
+    nowMs: ctx.nowMsFn(),
+    cumulativeNowMs: ctx.nowMsFn(),
+    limits: ctx.limits,
+  });
+  // Heartbeat: a backgrounded close's output-file growth is its liveness signal.
+  ctx.progress?.(
+    'CONFIRM',
+    pollHeartbeat({
+      polls: decision.state.polls,
+      prNumber: ctx.prNumber,
+      probe,
+      waitBudget: decision.waitBudget,
+    }),
+  );
+  const definitive = DEFINITIVE_SETTLERS[decision.verdict];
+  const settled = definitive
+    ? {
+        state: decision.state,
+        outcome: await definitive(ctx, decision, probe),
+      }
+    : await settleProvisional(ctx, decision, probe);
+  return settled.outcome
+    ? { state: settled.state, done: true, outcome: settled.outcome }
+    : { state: settled.state, done: false };
+}
+
+/**
+ * Never armed: nothing to poll, but a terminal is still required. Carries the
+ * arm phase's advisory verdict and class (which may be `inconclusive`) rather
+ * than a generic `arm-failure`.
+ */
+function blockNeverArmed({
+  storyId,
+  prNumber,
+  prUrl,
+  autoMergeReason,
+  advisoryGate,
+  provider,
+  progress,
+  classifyMergeBlockFn,
+  emitMergeUnlandedFn,
+}) {
+  progress?.(
+    'CONFIRM',
+    `⚠️ Auto-merge not enabled (${autoMergeReason ?? 'unknown'}) — cannot wait for a merge that was never armed.`,
+  );
+  return blockOnUnlanded({
+    storyId,
+    prNumber,
+    prUrl,
+    armResult: { armed: false, reason: autoMergeReason },
+    budget: { elapsedSeconds: 0 },
+    provider,
+    progress,
+    classifyMergeBlockFn,
+    emitMergeUnlandedFn,
+    ...(autoMergeReason === 'advisory-gate-red'
+      ? {
+          blockClassOverride: advisoryGate?.blockClass ?? 'advisory-gate-red',
+          reasonOverride: advisoryGate?.reason,
+        }
+      : {}),
+  });
+}
+
+/**
  * Poll an armed Story PR to merge confirmation, a resumable `pending`
  * expiry, or a classified `agent::blocked` terminal.
  *
@@ -1035,23 +1379,9 @@ async function onMergeObserved({
  * @returns {Promise<object>}
  */
 export async function runConfirmMergePhase({
-  cwd,
-  storyId,
-  storyBranch,
-  baseBranch,
-  prNumber,
-  prUrl,
-  autoMergeEnabled,
-  autoMergeReason,
-  advisoryGate,
-  provider,
-  config,
   maxWaitSeconds: maxWaitSecondsOverride,
   mergeWatchMode: mergeWatchModeOverride,
   rerunAdvisory: rerunAdvisoryOverride,
-  progress,
-  injectedGh,
-  injectedNotify,
   confirmStoryMergedFn = defaultConfirmStoryMerged,
   readPrWaitProbeFn = readPrWaitProbe,
   readPrMergeStateFn = defaultReadPrMergeState,
@@ -1064,273 +1394,78 @@ export async function runConfirmMergePhase({
   sleepFn = defaultSleep,
   nowMsFn = Date.now,
   ghTimeoutMs = MERGE_WAIT_GH_TIMEOUT_MS,
+  ...args
 }) {
-  // Never armed: nothing to poll, but a terminal is still required.
-  if (!autoMergeEnabled) {
-    progress?.(
-      'CONFIRM',
-      `⚠️ Auto-merge not enabled (${autoMergeReason ?? 'unknown'}) — cannot wait for a merge that was never armed.`,
-    );
-    return blockOnUnlanded({
-      storyId,
-      prNumber,
-      prUrl,
-      armResult: { armed: false, reason: autoMergeReason },
-      budget: { elapsedSeconds: 0 },
-      provider,
-      progress,
+  if (!args.autoMergeEnabled) {
+    return blockNeverArmed({
+      ...args,
       classifyMergeBlockFn,
       emitMergeUnlandedFn,
-      // Carry the arm phase's advisory verdict and class (which may be
-      // `inconclusive`) rather than a generic `arm-failure`.
-      ...(autoMergeReason === 'advisory-gate-red'
-        ? {
-            blockClassOverride: advisoryGate?.blockClass ?? 'advisory-gate-red',
-            reasonOverride: advisoryGate?.reason,
-          }
-        : {}),
     });
   }
 
-  const {
-    mode,
-    intervalSeconds,
-    maxWaitSeconds,
-    maxBudgetSeconds,
-    updateAttempts,
-  } = resolveMergeWaitConfig(
-    config,
+  const limits = resolveMergeWaitConfig(
+    args.config,
     maxWaitSecondsOverride,
     mergeWatchModeOverride,
   );
-  const { blockOnAdvisoryFailure, advisoryAllowlist } = getCiDelivery(config);
+  const { blockOnAdvisoryFailure, advisoryAllowlist } = getCiDelivery(
+    args.config,
+  );
   // Spent across the whole wait, not per poll, so `n` bounds CI minutes.
   const rerunAllowance = resolveAdvisoryRerunAllowance(
-    config,
+    args.config,
     rerunAdvisoryOverride,
   );
-  const rerunState = {
-    allowance: rerunAllowance,
-    remaining: rerunAllowance,
-    issued: new Set(),
+  const ctx = {
+    ...args,
+    limits,
+    blockOnAdvisoryFailure,
+    advisoryAllowlist,
+    rerunState: {
+      allowance: rerunAllowance,
+      remaining: rerunAllowance,
+      issued: new Set(),
+    },
+    confirmStoryMergedFn,
+    readPrWaitProbeFn,
+    readPrMergeStateFn,
+    classifyMergeBlockFn,
+    emitMergeUnlandedFn,
+    emitMergeFlipFailedFn,
+    runPostLandTailFn,
+    disarmAutoMergeFn,
+    recordRequiredRedFn,
+    nowMsFn,
+    ghTimeoutMs,
   };
-  let intervalMs = intervalSeconds * 1000;
-  const startedAtMs = nowMsFn();
-  let anchorMs = startedAtMs;
-  let updatesUsed = 0;
-  let polls = 0;
-  // Without per-run evidence, fail fast only after two consecutive failing
-  // probes an interval apart; reset on any other probe.
-  let consecutiveRequiredFailSnapshots = 0;
+  let state = createMergeWaitState({
+    startedAtMs: nowMsFn(),
+    intervalSeconds: limits.intervalSeconds,
+  });
 
-  progress?.(
+  args.progress?.(
     'CONFIRM',
-    `⏳ Close-and-land: polling PR #${prNumber} for merge confirmation ` +
-      `(mode=${mode}, wait=${maxWaitSeconds}s this invocation, ` +
-      `cumulative budget=${maxBudgetSeconds}s)...`,
+    `⏳ Close-and-land: polling PR #${args.prNumber} for merge confirmation ` +
+      `(mode=${limits.mode}, wait=${limits.maxWaitSeconds}s this invocation, ` +
+      `cumulative budget=${limits.maxBudgetSeconds}s)...`,
   );
-
-  /** One iteration: `{ done: false }` or `{ done: true, outcome }`. */
-  async function runMergePoll() {
-    const probe = await readPrWaitProbeFn({
-      prNumber,
-      gh: injectedGh,
-      ghTimeoutMs,
-    });
-    polls += 1;
-    intervalMs = pollIntervalMs(probe.checksStatus, intervalSeconds);
-
-    anchorMs = resolveBudgetAnchorMs({
-      createdAt: probe.createdAt,
-      fallbackMs: startedAtMs,
-    });
-
-    const waitedMs = nowMsFn() - startedAtMs;
-    const cumulativeMs = Math.max(nowMsFn() - anchorMs, waitedMs);
-    const waitBudget = {
-      maxWaitSeconds,
-      waitedSeconds: Math.round(waitedMs / 1000),
-      cumulativeSeconds: Math.round(cumulativeMs / 1000),
-      maxBudgetSeconds,
-    };
-
-    // Heartbeat: a backgrounded close's output-file growth is its liveness signal.
-    progress?.(
-      'CONFIRM',
-      pollHeartbeat({ polls, prNumber, probe, waitBudget }),
-    );
-
-    if (isPrMerged(probe)) {
-      return doneWith(
-        await onMergeObserved({
-          storyId,
-          storyBranch,
-          baseBranch,
-          prNumber,
-          prUrl,
-          cwd,
-          config,
-          provider,
-          progress,
-          injectedGh,
-          injectedNotify,
-          readPrMergeStateFn,
-          confirmStoryMergedFn,
-          runPostLandTailFn,
-          emitMergeFlipFailedFn,
-          prProbe: probe,
-          elapsedSeconds: Math.round(waitedMs / 1000),
-        }),
-      );
-    }
-
-    // Each definitive condition fills `unlanded`; one call site below blocks.
-    let unlanded = null;
-
-    if (probe.state === 'CLOSED') {
-      unlanded = {
-        prProbe: probe,
-        budget: {
-          exhausted: true,
-          elapsedSeconds: Math.round(waitedMs / 1000),
-        },
-        blockClassOverride: CLOSED_UNMERGED_BLOCK_CLASS,
-        reasonOverride: CLOSED_UNMERGED_REASON,
-      };
-    } else {
-      // No remaining budget turns a red required check green; fail fast.
-      const decision = decideMergeWaitFailFast({
-        probe,
-        consecutiveRequiredFailSnapshots,
-      });
-      consecutiveRequiredFailSnapshots =
-        decision.consecutiveRequiredFailSnapshots;
-      if (decision.failFast) {
-        progress?.(
-          'CONFIRM',
-          decision.evidencePath === 'per-run'
-            ? `🛑 PR #${prNumber}: a required check concluded failure with none in flight — failing fast (evidence=per-run).`
-            : `🛑 PR #${prNumber}: two consecutive failing check probes without per-run evidence — failing fast (evidence=consecutive-probe).`,
-        );
-        unlanded = {
-          prProbe: decision.prProbe,
-          budget: {
-            exhausted: false,
-            elapsedSeconds: Math.round(waitedMs / 1000),
-          },
-          blockClassOverride: decision.blockClass,
-          reasonOverride: decision.reason,
-          redRecord: await recordChecksFailedRed({
-            storyId,
-            prNumber,
-            probe,
-            cwd,
-            config,
-            gh: injectedGh,
-            progress,
-            disarmAutoMergeFn,
-            recordRequiredRedFn,
-          }),
-        };
-      }
-
-      // Advisory gates are usually still QUEUED at arm time, so they redden
-      // here, mid-wait, before auto-merge lands over them.
-      unlanded = await resolveAdvisoryUnlanded({
-        unlanded,
-        probe,
-        blockOnAdvisoryFailure,
-        advisoryAllowlist,
-        rerunState,
-        prNumber,
-        gh: injectedGh,
-        ghTimeoutMs,
-        progress,
-        disarmAutoMergeFn,
-        elapsedSeconds: Math.round(waitedMs / 1000),
-      });
-    }
-
-    if (!unlanded) {
-      if (
-        await maybeUpdateBehindPr({
-          probe,
-          prNumber,
-          updatesUsed,
-          updateAttempts,
-          gh: injectedGh,
-          ghTimeoutMs,
-          progress,
-        })
-      ) {
-        updatesUsed += 1;
-      }
-
-      // Cumulative budget exhausted, behind the poll floor.
-      if (
-        polls >= MIN_POLLS_BEFORE_BUDGET_BLOCK &&
-        cumulativeMs + intervalMs > maxBudgetSeconds * 1000
-      ) {
-        unlanded = {
-          prProbe: probe,
-          budget: {
-            exhausted: true,
-            elapsedSeconds: Math.round(cumulativeMs / 1000),
-          },
-          ...queuedExhaustionVerdict(probe, cumulativeMs),
-        };
-      }
-    }
-
-    if (unlanded) {
-      return doneWith(
-        await blockOnUnlanded({
-          storyId,
-          prNumber,
-          prUrl,
-          ...unlanded,
-          provider,
-          progress,
-          classifyMergeBlockFn,
-          emitMergeUnlandedFn,
-        }),
-      );
-    }
-
-    // Invocation bound reached: resumable `pending`, no mutation.
-    if (waitedMs + intervalMs > maxWaitSeconds * 1000) {
-      progress?.(
-        'CONFIRM',
-        `⏸  Merge wait bound reached (${waitBudget.waitedSeconds}s of ${maxWaitSeconds}s this invocation; ` +
-          `${waitBudget.cumulativeSeconds}s of ${maxBudgetSeconds}s cumulative). PR #${prNumber} still in flight ` +
-          `(checks=${probe.checksStatus ?? 'unknown'}). Story stays at agent::closing — resumable.`,
-      );
-      return doneWith({
-        confirmed: false,
-        terminal: 'pending',
-        reason: `merge wait bound reached with the PR still in flight (checks=${probe.checksStatus ?? 'unknown'})`,
-        prProbe: probe,
-        waitBudget,
-        elapsedSeconds: waitBudget.waitedSeconds,
-      });
-    }
-
-    return { done: false };
-  }
 
   const tick = await pollUntil({
     fn: async () => {
       try {
-        return await runMergePoll();
+        const step = await runMergePoll(ctx, state);
+        state = step.state;
+        return step;
       } catch (err) {
         // pollUntil treats a throw as a non-match and would spin; carry it out.
         return { done: true, thrown: err };
       }
     },
     predicate: (result) => result?.done === true,
-    intervalMs,
+    intervalMs: state.intervalMs,
     // No pollUntil timeout: the tick owns both bounds and the cadence.
-    sleepFn: () => sleepFn(intervalMs),
+    sleepFn: () => sleepFn(state.intervalMs),
   });
   if (tick.thrown) throw tick.thrown;
   return tick.outcome;
@@ -1345,8 +1480,4 @@ function pollHeartbeat({ polls, prNumber, probe, waitBudget }) {
     `${waitBudget.cumulativeSeconds}s of ${waitBudget.maxBudgetSeconds}s cumulative)` +
     (probe.error ? ` — probe error: ${probe.error}` : '')
   );
-}
-
-function doneWith(outcome) {
-  return { done: true, outcome };
 }
