@@ -638,15 +638,23 @@ is one file per Story, scored in one gate call.
 **Evidence share.** A fresh critic re-runs the Story's `verify[]`
 commands itself as required evidence; its byte-identical `lint` /
 `typecheck` runs go through `evidence-gate.js --standalone` so close can
-short-circuit those two gates at unchanged HEAD. The `test` credit is
-deposited the same way, by running the suite through that wrapper
-(`--gate test -- npm test`), which is runner-agnostic because it stamps only
-what it just ran. A bare `npm test` deposits it as a bonus only where the
-project's `test` script routes through mandrel's own runner
-(`run-tests.js` → `lib/test-run-credit.js`, Story #5313); `mandrel doctor`'s
-`test-credit-path` check reports which shape a project is. Coverage and
-CRAP evidence are deliberately excluded from the share and re-captured at
-close when the artifact is stale.
+short-circuit those two gates at unchanged HEAD. The worker's **one credited
+run** (`deliver-digest.md` § 5, the rule's one home) is picked by the same
+predicate close registers `coverage-capture` on — CRAP gate enabled **and** a
+`test:coverage` script. On such a capture-active project close runs
+`coverage-capture` instead of the plain `test` gate, so the credited run is the
+coverage capture itself: it writes the content-digest stamp in the worktree,
+and close's capture exits on that stamp's freshness probe without spawning
+`test:coverage` (Story #5477). Otherwise the `test` credit is deposited by
+running the suite through `evidence-gate.js` (`--gate test`), which is
+runner-agnostic because it stamps only what it just ran; a bare `npm test`
+deposits it as a bonus only where the project's `test` script routes through
+mandrel's own runner (`run-tests.js` → `lib/test-run-credit.js`, Story #5313).
+`mandrel doctor`'s `test-credit-path` check reports which depositor a project
+takes and whether its pre-push hook runs typecheck or lint outside
+`evidence-gate.js` — such a hook deposits nothing, so close re-runs those
+gates. The report is advisory and reads files only. A base-sync that merges a
+path under `crap.targetDirs` spends the stamp, and close re-captures.
 
 ### State machine (Story labels)
 

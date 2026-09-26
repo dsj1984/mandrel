@@ -90,11 +90,12 @@ names. A null digest path means no docs mandate.
 the authoritative gate — do not pre-run it. Two exceptions, both run in
 `<workCwd>` exactly as
 [`deliver-digest.md`](../workflows/helpers/deliver-digest.md) § 5 states them:
-the **blocking** lint + quality-preview preflight, then the full suite, run
-once after the self-eval loop's last fix commit. That section is their only
-home, so read the invocations there rather than from a copy here.
+the **blocking** lint + quality-preview preflight, then the one credited run
+(the coverage capture or the test depositor, as § 5 picks), once after the
+self-eval loop's last fix commit. That section is their only home, so read the
+invocations there rather than from a copy here.
 
-If the suite outruns the host's sync Bash ceiling, dispatch it in the
+If the run outruns the host's sync Bash ceiling, dispatch it in the
 **background**: its completion re-invokes you. Never spawn a task to poll or
 `sleep`-loop against it; a waiter with a wrong condition outlives the agent.
 An exit code is never evidence a gate did work — its **output** is. Redraft
