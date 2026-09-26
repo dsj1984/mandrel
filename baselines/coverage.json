@@ -106,9 +106,9 @@
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
-      "lines": 92.14,
-      "branches": 84.48,
-      "functions": 77.14
+      "lines": 91.74,
+      "branches": 84.39,
+      "functions": 76.47
     },
     {
       "path": ".agents/scripts/cleanup-repo-test-temp.js",
@@ -2015,7 +2015,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
       "lines": 100,
-      "branches": 83.08,
+      "branches": 82.26,
       "functions": 100
     },
     {
@@ -2851,6 +2851,12 @@
       "lines": 100,
       "branches": 85.71,
       "functions": 83.33
+    },
+    {
+      "path": ".agents/scripts/lib/worktree/canonical-path.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/worktree/git-hooks.js",

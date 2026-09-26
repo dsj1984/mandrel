@@ -2184,349 +2184,343 @@
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "<anon (m)#0>",
-      "startLine": 49,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/clean-worktrees.js",
-      "method": "<anon (m)#1>",
       "startLine": 50,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
-      "method": "<anon (m)#2>",
+      "method": "<anon (m)#1>",
       "startLine": 51,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
-      "method": "<anon (text)#0>",
-      "startLine": 54,
+      "method": "<anon (m)#2>",
+      "startLine": 52,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
-      "method": "canonical",
-      "startLine": 90,
-      "crap": 1
+      "method": "<anon (text)#0>",
+      "startLine": 55,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "isWithin",
-      "startLine": 98,
+      "startLine": 85,
       "crap": 1
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "listProcessCwds",
-      "startLine": 109,
+      "startLine": 100,
       "crap": 3
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "linuxProcessCwds",
-      "startLine": 119,
+      "startLine": 110,
       "crap": 1.0016283329940974
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "<anon linuxProcessCwds/(d)#0>",
-      "startLine": 122,
+      "startLine": 113,
       "crap": 1.0016283329940974,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "darwinProcessCwds",
-      "startLine": 137,
+      "startLine": 128,
       "crap": 4
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "<anon darwinProcessCwds/(line)#0>",
-      "startLine": 142,
+      "startLine": 133,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "<anon darwinProcessCwds/(line)#1>",
-      "startLine": 143,
+      "startLine": 134,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "dirSizeBytes",
-      "startLine": 154,
+      "startLine": 145,
       "crap": 4
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "walkSize",
-      "startLine": 166,
+      "startLine": 157,
       "crap": 2
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "enumerateWorktrees",
-      "startLine": 188,
+      "startLine": 179,
       "crap": 6.442421483841602
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "<anon enumerateWorktrees/(r)#0>",
-      "startLine": 198,
+      "startLine": 189,
       "crap": 1.0122894856622666,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "<anon enumerateWorktrees/(d)#0>",
-      "startLine": 204,
+      "startLine": 195,
       "crap": 1.0122894856622666,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "<anon enumerateWorktrees/(d)#1>",
-      "startLine": 205,
+      "startLine": 196,
       "crap": 1.0122894856622666,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "<anon enumerateWorktrees/(name)#0>",
-      "startLine": 210,
+      "startLine": 201,
       "crap": 1.0122894856622666,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "<anon enumerateWorktrees/(p)#0/(k)#0>",
-      "startLine": 211,
+      "startLine": 202,
       "crap": 1.0122894856622666,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "<anon enumerateWorktrees/(p)#0>",
-      "startLine": 211,
+      "startLine": 202,
       "crap": 1.0122894856622666,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "liveUseReason",
-      "startLine": 216,
+      "startLine": 207,
       "crap": 3
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "<anon liveUseReason/(c)#0>",
-      "startLine": 221,
+      "startLine": 212,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "uniqueWorkReason",
-      "startLine": 228,
+      "startLine": 219,
       "crap": 6
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "isStoryDone",
-      "startLine": 247,
+      "startLine": 238,
       "crap": 3
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "classifyStory",
-      "startLine": 253,
+      "startLine": 244,
       "crap": 2
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "classifyBranch",
-      "startLine": 264,
+      "startLine": 255,
       "crap": 2
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "<anon classifyBranch/(pr)#0>",
-      "startLine": 271,
+      "startLine": 262,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "storyIdOf",
-      "startLine": 278,
-      "crap": 4
+      "startLine": 269,
+      "crap": 4.096168294515402
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "localKeepReason",
-      "startLine": 289,
+      "startLine": 282,
       "crap": 4
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "classifyRegistered",
-      "startLine": 303,
+      "startLine": 296,
       "crap": 4
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "classifyWorktrees",
-      "startLine": 319,
+      "startLine": 312,
       "crap": 2
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "entryOf",
-      "startLine": 334,
+      "startLine": 327,
       "crap": 4
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "decide",
-      "startLine": 353,
+      "startLine": 348,
       "crap": 7
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "executeRemovals",
-      "startLine": 373,
+      "startLine": 368,
       "crap": 4
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "makeRemoveFn",
-      "startLine": 393,
+      "startLine": 388,
       "crap": 1
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "<anon makeRemoveFn/(wtPath)#0>",
-      "startLine": 402,
+      "startLine": 397,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "makeTicketReader",
-      "startLine": 405,
+      "startLine": 400,
       "crap": 2
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "<anon makeTicketReader/(id)#0>",
-      "startLine": 407,
+      "startLine": 402,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "makePrLookup",
-      "startLine": 413,
+      "startLine": 408,
       "crap": 2
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "<anon makePrLookup/(branch)#0>",
-      "startLine": 415,
+      "startLine": 410,
       "crap": 6,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "buildEnv",
-      "startLine": 438,
+      "startLine": 433,
       "crap": 2
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "<anon buildEnv/(p)#0>",
-      "startLine": 455,
+      "startLine": 450,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "runCleanWorktrees",
-      "startLine": 478,
+      "startLine": 473,
       "crap": 3
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "formatBytes",
-      "startLine": 501,
+      "startLine": 496,
       "crap": 6
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "renderTable",
-      "startLine": 519,
+      "startLine": 514,
       "crap": 2
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "<anon renderTable/(e)#0>",
-      "startLine": 520,
+      "startLine": 515,
       "crap": 4,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "<anon renderTable/(h,i)#0>",
-      "startLine": 528,
+      "startLine": 523,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "<anon renderTable/(h,i)#0/(r)#0>",
-      "startLine": 529,
+      "startLine": 524,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "<anon renderTable/(cells)#0>",
-      "startLine": 531,
+      "startLine": 526,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "<anon renderTable/(cells)#0/(c,i)#0>",
-      "startLine": 533,
+      "startLine": 528,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "promptConfirm",
-      "startLine": 543,
+      "startLine": 538,
       "crap": 2
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "runCleanWorktreesCli",
-      "startLine": 562,
+      "startLine": 557,
       "crap": 5.020599365234375
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
       "method": "<anon ()#0>",
-      "startLine": 595,
+      "startLine": 590,
       "crap": 1,
       "anonymous": true
     },
@@ -15115,49 +15109,49 @@
     {
       "path": ".agents/scripts/lib/observability/source-classifier.js",
       "method": "toScanString",
-      "startLine": 99,
+      "startLine": 100,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/observability/source-classifier.js",
       "method": "containsFrameworkPrefix",
-      "startLine": 110,
+      "startLine": 111,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/observability/source-classifier.js",
       "method": "containsFrameworkScriptBasename",
-      "startLine": 124,
+      "startLine": 125,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/observability/source-classifier.js",
       "method": "namesFrameworkSurface",
-      "startLine": 137,
+      "startLine": 138,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/observability/source-classifier.js",
       "method": "classifyPathSource",
-      "startLine": 149,
+      "startLine": 150,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/observability/source-classifier.js",
       "method": "isSupplied",
-      "startLine": 172,
+      "startLine": 173,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/observability/source-classifier.js",
       "method": "detailsScanText",
-      "startLine": 180,
+      "startLine": 181,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/observability/source-classifier.js",
       "method": "classifySignalSource",
-      "startLine": 200,
+      "startLine": 201,
       "crap": 11
     },
     {
@@ -20586,51 +20580,45 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
-      "method": "canonical",
-      "startLine": 48,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
       "method": "storyIdFromPath",
-      "startLine": 66,
-      "crap": 3
+      "startLine": 51,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
       "method": "resolveSweepOptions",
-      "startLine": 81,
+      "startLine": 63,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
       "method": "readStoryTickets",
-      "startLine": 114,
+      "startLine": 96,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
       "method": "<anon readStoryTickets/(entry)#0>",
-      "startLine": 117,
+      "startLine": 99,
       "crap": 3,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
       "method": "keepReason",
-      "startLine": 139,
+      "startLine": 121,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
       "method": "removeOne",
-      "startLine": 157,
+      "startLine": 139,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
       "method": "sweepStaleStoryWorktrees",
-      "startLine": 191,
+      "startLine": 173,
       "crap": 7
     },
     {
@@ -29037,6 +29025,12 @@
       "anonymous": true
     },
     {
+      "path": ".agents/scripts/lib/worktree/canonical-path.js",
+      "method": "canonicalPath",
+      "startLine": 20,
+      "crap": 2
+    },
+    {
       "path": ".agents/scripts/lib/worktree/git-hooks.js",
       "method": "readHooksPath",
       "startLine": 29,
@@ -29466,206 +29460,206 @@
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "isSafeToRemove",
-      "startLine": 36,
+      "startLine": 37,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "isBranchMergedIntoBase",
-      "startLine": 59,
+      "startLine": 60,
       "crap": 5.0984108470622544
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "<anon isBranchMergedIntoBase/(l)#0>",
-      "startLine": 74,
+      "startLine": 75,
       "crap": 1.00393643388249,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "<anon isBranchMergedIntoBase/(line)#0>",
-      "startLine": 76,
+      "startLine": 77,
       "crap": 1.00393643388249,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "collectDirtyPaths",
-      "startLine": 79,
+      "startLine": 80,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "<anon collectDirtyPaths/(line)#0>",
-      "startLine": 84,
+      "startLine": 85,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "<anon collectDirtyPaths/(line)#1>",
-      "startLine": 86,
+      "startLine": 87,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "discardWorktreeChanges",
-      "startLine": 89,
+      "startLine": 90,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "fsRmWithRetry",
-      "startLine": 97,
+      "startLine": 98,
       "crap": 4.018661612479954
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "<anon fsRmWithRetry/(r)#0>",
-      "startLine": 110,
+      "startLine": 111,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "classifyRemoveStderr",
-      "startLine": 117,
+      "startLine": 118,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "finalizeGitWorktreeRemove",
-      "startLine": 124,
+      "startLine": 125,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "handleRemoveFailure",
-      "startLine": 129,
+      "startLine": 130,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "runGitWorktreeRemoveLoop",
-      "startLine": 150,
+      "startLine": 151,
       "crap": 8
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "tryForceRemoveFallback",
-      "startLine": 175,
+      "startLine": 176,
       "crap": 7.006125
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "tryStage15WindowsFsRm",
-      "startLine": 216,
+      "startLine": 217,
       "crap": 1.0314914710599212
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "recordPendingCleanupSafe",
-      "startLine": 255,
+      "startLine": 256,
       "crap": 3.274658203125
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "handleFsRmFailure",
-      "startLine": 272,
+      "startLine": 273,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "removeWorktreeWithRecovery",
-      "startLine": 324,
+      "startLine": 325,
       "crap": 8
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "reapDeleteLocal",
-      "startLine": 385,
+      "startLine": 386,
       "crap": 6.036
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "reapDeleteRemote",
-      "startLine": 396,
+      "startLine": 397,
       "crap": 6.141711619769646
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "deleteBranchAfterReap",
-      "startLine": 416,
+      "startLine": 417,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "runningCodePaths",
-      "startLine": 428,
+      "startLine": 429,
       "crap": 3.0540946656649135
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "findRunningCodeInside",
-      "startLine": 451,
+      "startLine": 454,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "<anon findRunningCodeInside/(p)#0>",
-      "startLine": 455,
+      "startLine": 459,
       "crap": 3,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "firstReapRefusal",
-      "startLine": 471,
+      "startLine": 475,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "<anon firstReapRefusal/(r)#0>",
-      "startLine": 473,
+      "startLine": 477,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "checkReapPreconditions",
-      "startLine": 493,
+      "startLine": 497,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "ensureSafeOrForceDiscard",
-      "startLine": 506,
+      "startLine": 510,
       "crap": 8.263770191585273
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "escapeWorktreeCwd",
-      "startLine": 551,
+      "startLine": 555,
       "crap": 3.372
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "postRemoveBeltSweep",
-      "startLine": 562,
+      "startLine": 566,
       "crap": 3.2099125364431487
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "buildReapSuccess",
-      "startLine": 577,
+      "startLine": 581,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "reap",
-      "startLine": 589,
+      "startLine": 593,
       "crap": 8.442284850448116
     },
     {

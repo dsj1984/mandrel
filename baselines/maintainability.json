@@ -1887,6 +1887,10 @@
       "mi": 121.595
     },
     {
+      "path": ".agents/scripts/lib/worktree/canonical-path.js",
+      "mi": 108.205
+    },
+    {
       "path": ".agents/scripts/lib/worktree/git-hooks.js",
       "mi": 100.09
     },
