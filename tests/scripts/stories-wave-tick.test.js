@@ -34,6 +34,7 @@ import {
 } from '../../.agents/scripts/lib/findings/route-finding.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import {
+  BLOCKED_EXIT_CODE,
   buildReadySetEnvelope,
   detectWedge,
   parseConcurrencyOverride,
@@ -663,6 +664,12 @@ describe('CLI', () => {
     });
     assert.strictEqual(result.status, 0);
     assert.ok(result.stdout.includes('stories-wave-tick'));
+    // Story #5488: the cross-session advisory is documented as advisory.
+    assert.match(
+      result.stdout,
+      /crossRunOverlaps \(probe mode only\) is ADVISORY/,
+    );
+    assert.match(result.stdout, /crossRunOverlapProbe: "unavailable"/);
   });
 
   // The one real-spawn smoke case: proves argv reaches runStoriesWaveTick,
@@ -1656,5 +1663,83 @@ describe('the withheld entry names declared paths only (Story #5313)', () => {
     assert.match(envelope.footprintGuard.note, /declared-overlap\)/);
     assert.doesNotMatch(envelope.footprintGuard.note, /scraped/);
     assert.equal('attribution' in envelope.footprintGuard.withheld[0], false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Story #5488 — cross-session overlap is reported, never acted on
+// ---------------------------------------------------------------------------
+
+describe('runProbedStoriesWaveTick — crossRunOverlaps pass-through (#5488)', () => {
+  const CONFIG = { delivery: { deliverRunner: { concurrencyCap: 3 } } };
+
+  const tick = (probed, warnings = []) =>
+    runProbedStoriesWaveTick({
+      stories: '1,2',
+      config: CONFIG,
+      context: () => ({ provider: {}, owner: 'o', repo: 'r', self: null }),
+      probe: async () => probed,
+      warn: (m) => warnings.push(m),
+    });
+
+  const base = {
+    nodes: [
+      { id: 1, dependsOn: [], files: ['lib/a.js'], body: '', labels: [] },
+      { id: 2, dependsOn: [], files: ['lib/b.js'], body: '', labels: [] },
+    ],
+    inFlightRecords: [],
+    doneIds: new Set(),
+    inFlight: 0,
+    blockedIds: [],
+    foreignHeld: [],
+  };
+  const overlap = { id: 1, otherId: 9, holder: 'alice', paths: ['lib/a.js'] };
+
+  it('carries the overlaps onto the envelope and warns once per pair', async () => {
+    const warnings = [];
+    const { envelope, exitCode } = await tick(
+      {
+        ...base,
+        crossRunOverlaps: [overlap, { ...overlap, id: 2, holder: null }],
+      },
+      warnings,
+    );
+
+    assert.deepEqual(envelope.crossRunOverlaps, [
+      overlap,
+      { ...overlap, id: 2, holder: null },
+    ]);
+    assert.equal(warnings.length, 2);
+    assert.match(warnings[0], /#1 overlaps #9 .*held by @alice.*lib\/a\.js/);
+    assert.match(warnings[1], /#2 overlaps #9 .*holder unknown/);
+    assert.deepEqual(envelope.ready, [1, 2], 'dispatch is untouched');
+    assert.strictEqual(exitCode, 0);
+  });
+
+  it('never changes the exit code — a blocked beat still exits 4', async () => {
+    const { exitCode } = await tick({
+      ...base,
+      blockedIds: [2],
+      crossRunOverlaps: [overlap],
+    });
+    assert.strictEqual(exitCode, BLOCKED_EXIT_CODE);
+  });
+
+  it('passes an unavailable probe through with its reason and no list', async () => {
+    const warnings = [];
+    const { envelope, exitCode } = await tick(
+      {
+        ...base,
+        crossRunOverlapProbe: 'unavailable',
+        crossRunOverlapProbeReason: 'HTTP 502',
+      },
+      warnings,
+    );
+    assert.equal(envelope.crossRunOverlapProbe, 'unavailable');
+    assert.equal(envelope.crossRunOverlapProbeReason, 'HTTP 502');
+    assert.equal('crossRunOverlaps' in envelope, false);
+    assert.deepEqual(warnings, []);
+    assert.deepEqual(envelope.ready, [1, 2]);
+    assert.strictEqual(exitCode, 0);
   });
 });

@@ -19,6 +19,7 @@ import {
   currentOwner,
   normalizeOperatorHandle,
 } from '../orchestration/ticket-lease.js';
+import { startCrossRunProbe } from './cross-run-overlap.js';
 import { classifyStory, storyIdOf } from './ready-set.js';
 
 /**
@@ -143,7 +144,8 @@ export function createProbeContext({
  *   inFlight: number,
  *   blockedIds: number[],
  *   stalledDispatch: number[],
- *   foreignHeld: Array<{id: number, holder: string}>
+ *   foreignHeld: Array<{id: number, holder: string}>,
+ *   crossRunOverlaps?: object[]
  * }>}
  */
 export async function probeLiveState({
@@ -156,6 +158,7 @@ export async function probeLiveState({
   self,
   warn,
 }) {
+  const crossRun = startCrossRunProbe(provider);
   // The `agent::*` guard is an admission check; a just-dispatched Story is
   // legitimately unlabelled until init flips it, so a per-beat probe allows it.
   const stories = await fetchStories(provider, ids, { allowUnlabelled: true });
@@ -207,6 +210,7 @@ export async function probeLiveState({
       .filter((id) => !foreignHeld.has(id))
       .sort((a, b) => a - b),
     foreignHeld: [...foreignHeld].map(([id, holder]) => ({ id, holder })),
+    ...(await crossRun.report(nodes)),
   };
 }
 
