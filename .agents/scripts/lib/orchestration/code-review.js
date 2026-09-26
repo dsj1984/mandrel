@@ -232,6 +232,12 @@ export async function postReviewComment({
   }
 }
 
+/** A `deferPost` review holds its report for the caller to post. */
+async function postUnlessDeferred(opts, post) {
+  if (opts.deferPost) return { posted: false, postedCommentId: null };
+  return postReviewComment(post);
+}
+
 /**
  * Which review provider(s) raised the critical findings. A chain reports its
  * own per-entry attribution; any other provider owns every critical.
@@ -311,15 +317,13 @@ async function executeReviewPipeline({ opts, config, envelope }) {
     degradations,
   });
 
-  const { posted, postedCommentId } = opts.deferPost
-    ? { posted: false, postedCommentId: null }
-    : await postReviewComment({
-        upsertCommentFn,
-        provider,
-        commentTargetId,
-        report,
-        logger,
-      });
+  const { posted, postedCommentId } = await postUnlessDeferred(opts, {
+    upsertCommentFn,
+    provider,
+    commentTargetId,
+    report,
+    logger,
+  });
 
   return {
     status: 'ok',

@@ -119,7 +119,8 @@ export async function reviewAfterPrOpen(args) {
   if (held && args.prNumber != null) {
     const pushedSha = resolveBranchSha(args);
     if (pushedSha === held.sha) {
-      setPhase('code-review', { timed: false });
+      setPhase('code-review');
+      args.pauseTimer();
       progress(
         'REVIEW',
         `Posting the held Story-scope review of ${held.sha.slice(0, 12)} → PR #${args.prNumber}...`,

@@ -207,7 +207,8 @@ describe('reviewAfterPrOpen (direct)', () => {
         provider: recorder.provider,
         runCodeReviewFn,
         gitSpawnFn,
-        setPhase: (phase, opts) => phases.push({ phase, opts }),
+        setPhase: (phase) => phases.push(phase),
+        pauseTimer: () => phases.push('pause'),
         recordDuration: (phase, ms) => durations.push({ phase, ms }),
         postReportFn: async (args) => {
           postCalls.push(args);
@@ -244,9 +245,7 @@ describe('reviewAfterPrOpen (direct)', () => {
     assert.match(recorder.posted[0].payload.body, /issuecomment-9100/);
     // The phase is tagged for failure attribution but left untimed: the
     // review records its own wall time instead.
-    assert.deepEqual(phases, [
-      { phase: 'code-review', opts: { timed: false } },
-    ]);
+    assert.deepEqual(phases, ['code-review', 'pause']);
     assert.equal(durations.length, 1);
     assert.equal(durations[0].phase, 'code-review');
   });
@@ -322,7 +321,7 @@ describe('reviewAfterPrOpen (direct)', () => {
     assert.equal(serial.commentTargetId, 123);
     assert.notEqual(serial.deferPost, true);
     assert.equal(outcome.postedCommentId, 4242);
-    assert.deepEqual(phases, [{ phase: 'code-review', opts: undefined }]);
+    assert.deepEqual(phases, ['code-review'], 'timed, never paused');
     assert.ok(lines.some((m) => /discarded/.test(m)));
   });
 
@@ -342,7 +341,7 @@ describe('reviewAfterPrOpen (direct)', () => {
       recorder,
     });
     await assert.rejects(reviewAfterPrOpen(args), /review provider down/);
-    assert.equal(phases.at(-1).phase, 'code-review');
+    assert.equal(phases[0], 'code-review');
     assert.equal(postCalls.length, 0);
   });
 });

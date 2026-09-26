@@ -55,7 +55,7 @@ const progress = Logger.createProgress('single-story-close', { stderr: true });
 
 /**
  * Wall-clock seconds per named phase; each transition logs the phase it ends.
- * Overlapping work `record`s its own time; an untimed phase stops the clock.
+ * Overlapping work `pause`s the clock and `record`s its own time.
  *
  * @param {() => number} [nowMs]
  */
@@ -74,13 +74,14 @@ function createPhaseTimer(nowMs = Date.now) {
     current = null;
   };
   return {
-    enter(phase, { timed = true } = {}) {
+    enter(phase) {
       end();
-      if (phase === 'init' || !timed) return;
+      if (phase === 'init') return;
       current = phase;
       since = nowMs();
     },
     record,
+    pause: end,
     finish() {
       end();
       return Object.keys(durations).length > 0 ? { ...durations } : null;
@@ -435,6 +436,7 @@ async function openAndReviewPr(ctx, deps) {
     gitSpawnFn: gitSpawn,
     progress,
     setPhase: ctx.setPhase,
+    pauseTimer: ctx.phaseTimer.pause,
     recordDuration: ctx.phaseTimer.record,
   });
   const reviewOverride = reviewOutcome.halted
@@ -607,9 +609,9 @@ export async function runSingleStoryClose({
   let phase = 'init';
   let observedGates = null;
   const phaseTimer = createPhaseTimer();
-  const setPhase = (next, opts) => {
+  const setPhase = (next) => {
     phase = next;
-    phaseTimer.enter(next, opts);
+    phaseTimer.enter(next);
   };
   const setObservedGates = (gates) => {
     observedGates = gates;
