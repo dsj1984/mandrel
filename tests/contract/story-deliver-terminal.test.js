@@ -46,6 +46,7 @@ import {
   TERMINAL_ENVELOPE_KIND,
   TERMINAL_EXIT_CODES,
   TERMINAL_STATUSES,
+  terminalFromWaitOutcome,
   validateTerminalEnvelope,
 } from '../../.agents/scripts/lib/orchestration/story-deliver-terminal.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
@@ -1004,5 +1005,66 @@ describe('story-deliver-terminal — phaseDurations (Story #5417)', () => {
         false,
       );
     }
+  });
+});
+
+describe('story-deliver-terminal — suite timings and lock holder (Story #5485)', () => {
+  const TIMINGS = { lockWaitMs: 42_000, hostWaitMs: null, testRunMs: 51_000 };
+
+  it('AC-7: a landed close carries lockWaitMs, hostWaitMs and testRunMs as separate fields', () => {
+    const env = terminalFromWaitOutcome({
+      waitOutcome: {
+        terminal: 'landed',
+        prProbe: { checksStatus: 'success' },
+        tail: CLEAN_TAIL,
+      },
+      storyId: 5485,
+      storyBranch: 'story-5485',
+      baseBranch: 'main',
+      prNumber: 7,
+      prUrl: 'https://x/7',
+      autoMergeEnabled: true,
+      gates: { validation: 'passed' },
+      lockWait: { waitedSeconds: 42, expired: false },
+      suiteTimings: TIMINGS,
+      elapsedSeconds: 100,
+    });
+    assert.equal(env.status, 'landed');
+    assert.deepEqual(env.suiteTimings, TIMINGS);
+    assert.equal(env.storyId, 5485);
+  });
+
+  it('defaults suiteTimings to null and rejects a malformed one', () => {
+    const base = {
+      storyId: 5485,
+      status: 'pending',
+      phase: 'close-validation',
+      nextCommand: NEXT_COMMANDS.close(5485),
+      elapsedSeconds: 1,
+    };
+    assert.equal(buildTerminalEnvelope(base).suiteTimings, null);
+    assert.throws(
+      () =>
+        buildTerminalEnvelope({
+          ...base,
+          suiteTimings: { lockWaitMs: 1, testRunMs: 2 },
+        }),
+      /hostWaitMs/,
+    );
+  });
+
+  it('AC-7: a lock-expiry pending envelope names the holder and validates', () => {
+    const holder = { ownerId: 'pid-9-1', pid: 9, ageSeconds: 310 };
+    const { terminal, note } = lockWaitPending({
+      storyId: 5485,
+      storyBranch: 'story-5485',
+      baseBranch: 'main',
+      lockWait: { waitedSeconds: 600, expired: true, holder },
+      elapsedSeconds: 601,
+    });
+    assert.equal(terminal.status, 'pending');
+    assert.deepEqual(terminal.lockWait.holder, holder);
+    assert.equal(validateTerminalEnvelope(terminal).valid, true);
+    assert.match(note, /pid-9-1, pid 9, lock age 310s/);
   });
 });
