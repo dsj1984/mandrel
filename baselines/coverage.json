@@ -1061,8 +1061,8 @@
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "lines": 100,
-      "branches": 97.83,
-      "functions": 96
+      "branches": 97.85,
+      "functions": 96.15
     },
     {
       "path": ".agents/scripts/lib/config/validate-orchestration.js",
@@ -2103,6 +2103,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestration/review-deposit.js",
+      "lines": 98.17,
+      "branches": 64.71,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/review-depth.js",
       "lines": 100,
       "branches": 85.29,
@@ -2111,7 +2117,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "lines": 100,
-      "branches": 82.93,
+      "branches": 83.33,
       "functions": 100
     },
     {
@@ -2332,14 +2338,14 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/review-overlap.js",
-      "lines": 98.65,
-      "branches": 89.29,
+      "lines": 100,
+      "branches": 100,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "lines": 99.81,
-      "branches": 94.2,
+      "branches": 93.48,
       "functions": 97.67
     },
     {
@@ -3181,6 +3187,12 @@
       "lines": 98.63,
       "branches": 92.9,
       "functions": 100
+    },
+    {
+      "path": ".agents/scripts/story-review-compute.js",
+      "lines": 94.69,
+      "branches": 71.43,
+      "functions": 85.71
     },
     {
       "path": ".agents/scripts/sync-agentrc.js",

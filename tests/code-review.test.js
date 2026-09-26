@@ -178,9 +178,13 @@ test('runCodeReview: output envelope keys are byte-compatible across depths', as
   // close pipeline can tell "a gate ran and found nothing" from "a gate never
   // ran". The invariant this test guards is unchanged: the key set must be
   // identical across every depth, and `depth` must never leak into it.
+  // `findings` / `providerName` were added by Story #5480 so a worker can
+  // deposit the held review close adopts.
   const EXPECTED_KEYS = [
     'status',
     'severity',
+    'findings',
+    'providerName',
     'report',
     'posted',
     'postedCommentId',

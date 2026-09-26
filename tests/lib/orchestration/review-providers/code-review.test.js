@@ -7,8 +7,8 @@
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
-
 import { hasSurvivingCritical } from '../../../../.agents/scripts/lib/audit-suite/findings.js';
+import { spawnCaptureAsync } from '../../../../.agents/scripts/lib/child-exec.js';
 import { createCodeReviewProviderForRegistry } from '../../../../.agents/scripts/lib/orchestration/review-providers/code-review.js';
 
 const INPUT = Object.freeze({
@@ -218,4 +218,41 @@ test('the logger hears the invocation and a failed run', async () => {
   assert.match(findings[0].body, /<no output>/);
   assert.ok(lines.some(([lvl, m]) => lvl === 'info' && /--effort low/.test(m)));
   assert.ok(lines.some(([lvl, m]) => lvl === 'warn' && /exited 2/.test(m)));
+});
+
+test('the claude call never blocks the event loop: a concurrent gate child drains while the reviewer runs (Story #5480)', async () => {
+  const order = [];
+  const provider = createCodeReviewProviderForRegistry({
+    probeFn: () => true,
+    gitSpawnFn: () => ({ status: 0, stdout: DIFF, stderr: '' }),
+    // The real async runner, with a stand-in reviewer that reads the prompt
+    // from stdin and answers after 600ms.
+    spawnFn: (_file, _args, options) =>
+      spawnCaptureAsync(
+        process.execPath,
+        [
+          '-e',
+          "process.stdin.resume();process.stdin.on('end',()=>setTimeout(()=>process.stdout.write('[]'),600));",
+        ],
+        // No shell: the stand-in's argv must reach node verbatim on Windows.
+        { ...options, shell: false },
+      ),
+  });
+  const review = provider.runReview(INPUT).then((findings) => {
+    order.push('review');
+    return findings;
+  });
+  // A gate child started after the reviewer, with more output than a pipe
+  // buffer holds: it finishes only if its output drains meanwhile.
+  const gate = spawnCaptureAsync(process.execPath, [
+    '-e',
+    "process.stdout.write('g'.repeat(512 * 1024))",
+  ]).then((r) => {
+    order.push('gate');
+    return r.stdout.length;
+  });
+  const [findings, gateBytes] = await Promise.all([review, gate]);
+  assert.deepEqual(findings, []);
+  assert.equal(gateBytes, 512 * 1024);
+  assert.deepEqual(order, ['gate', 'review']);
 });

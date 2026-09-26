@@ -108,6 +108,8 @@ function resolveScopeEnvelope(opts, config) {
  * @returns {Promise<{
  *   status: 'ok'|'no-changes'|'invalid',
  *   severity: { critical: number, high: number, medium: number, suggestion: number },
+ *   findings?: Array<object>,
+ *   providerName?: string,
  *   report?: string,
  *   posted: boolean,
  *   postedCommentId: number|null,
@@ -328,6 +330,8 @@ async function executeReviewPipeline({ opts, config, envelope }) {
   return {
     status: 'ok',
     severity,
+    findings,
+    providerName,
     report,
     posted,
     postedCommentId,

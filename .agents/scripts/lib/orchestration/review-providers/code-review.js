@@ -15,7 +15,7 @@
  * @typedef {import('./types.js').ReviewProvider} ReviewProvider
  */
 
-import { spawnCapture } from '../../child-exec.js';
+import { spawnCaptureAsync } from '../../child-exec.js';
 import { gitSpawn } from '../../git-utils.js';
 import { PROJECT_ROOT } from '../../project-root.js';
 import { parseProviderFindings } from './parse-findings.js';
@@ -62,14 +62,15 @@ function buildPrompt(input, diff) {
 }
 
 /**
- * The prompt rides stdin so no shell ever quotes it.
+ * The prompt rides stdin so no shell ever quotes it. Asynchronous: the
+ * review overlaps close's gate children, whose output must keep draining.
  *
  * @param {string} prompt
- * @param {Function} [run] - `spawnSync`-shaped seam for tests.
- * @returns {{ status: number, stdout: string, stderr: string }}
+ * @param {Function} [run] - `(file, args, options)` seam for tests.
+ * @returns {Promise<{ status: number, stdout: string, stderr: string }>}
  */
 function invokeClaude(prompt, run) {
-  return spawnCapture('claude', [...CLAUDE_ARGS], {
+  return spawnCaptureAsync('claude', [...CLAUDE_ARGS], {
     cwd: PROJECT_ROOT,
     input: prompt,
     shell: process.platform === 'win32',
@@ -144,7 +145,7 @@ function assertInput(input) {
  *   gitSpawnFn?: typeof gitSpawn,
  *   spawnFn?: Function,
  *   logger?: { info?: Function, warn?: Function },
- * }} [deps] - `spawnFn` replaces `spawnSync` for the `claude` call.
+ * }} [deps] - `spawnFn` replaces the async runner for the `claude` call.
  * @returns {ReviewProvider}
  */
 export function createCodeReviewProviderForRegistry(deps = {}) {
@@ -183,7 +184,10 @@ export function createCodeReviewProviderForRegistry(deps = {}) {
       logger?.info?.(
         `[code-review] Invoking claude --print --effort low for Story #${ticketId} (${baseRef}...${headRef})...`,
       );
-      const result = invokeClaude(buildPrompt(input, diff.stdout), spawnFn);
+      const result = await invokeClaude(
+        buildPrompt(input, diff.stdout),
+        spawnFn,
+      );
       if (result.status !== 0) {
         logger?.warn?.(
           `[code-review] claude exited ${result.status}; emitting advisory.`,
