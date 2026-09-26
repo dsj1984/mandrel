@@ -427,6 +427,15 @@ export function anyChangedUnderTargets(changedFiles, targetDirs) {
   return filterFilesUnderTargets(changedFiles, targetDirs).length > 0;
 }
 
+/**
+ * @param {{ cwd: string, coveragePath?: string }} opts No `coveragePath`,
+ *   no stamp to drop.
+ */
+function dropCaptureStamp({ cwd, coveragePath }) {
+  if (!coveragePath) return;
+  fs.rmSync(captureStampPath(cwd, coveragePath), { force: true });
+}
+
 /** GNU `timeout(1)` code, so callers tell a hang (124) from failing tests. */
 export const COVERAGE_TIMEOUT_EXIT_CODE = TIMEOUT_EXIT_CODE;
 
@@ -455,9 +464,7 @@ export const COVERAGE_TIMEOUT_EXIT_CODE = TIMEOUT_EXIT_CODE;
  */
 export function runCapture(opts = {}) {
   const { script = 'test:coverage', log = () => {} } = opts;
-  if (opts.coveragePath) {
-    fs.rmSync(captureStampPath(opts.cwd, opts.coveragePath), { force: true });
-  }
+  dropCaptureStamp(opts);
   const args = ['run', script];
   log(`[coverage-capture] ▶ npm ${args.join(' ')}`);
   return runSupervisedSuite({
