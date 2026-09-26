@@ -874,6 +874,177 @@ describe('merge wait — async mode (Story #4698)', () => {
     assert.equal(outcome.confirmed, true);
   });
 
+  it('Story #5479 AC-1: a still-running first probe settles pending after that one probe, with no sleep', async () => {
+    const provider = makeFakeProvider();
+    let probes = 0;
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        provider,
+        config: { delivery: { mergeWatch: { mode: 'async' } } },
+        // A frozen clock: only the posture, never the window, can end it.
+        nowMsFn: makeClock(0),
+        sleepFn: async () => {
+          throw new Error('slept before settling');
+        },
+        readPrWaitProbeFn: async () => {
+          probes += 1;
+          return openProbe({ checksStatus: 'still-running' });
+        },
+      }),
+    );
+    assert.equal(outcome.terminal, 'pending');
+    assert.equal(probes, 1, 'exactly one probe');
+    assert.equal(provider._updates().length, 0, 'no label mutation');
+    // The same wait-budget fields the expired window carried.
+    assert.deepEqual(Object.keys(outcome.waitBudget).sort(), [
+      'cumulativeSeconds',
+      'maxBudgetSeconds',
+      'maxWaitSeconds',
+      'waitedSeconds',
+    ]);
+    assert.equal(outcome.waitBudget.maxWaitSeconds, ASYNC_PROBE_WINDOW_SECONDS);
+    const terminal = terminalFromWaitOutcome({
+      waitOutcome: outcome,
+      storyId: 4428,
+      storyBranch: 'story-4428',
+      baseBranch: 'main',
+      prNumber: 99,
+      prUrl: 'https://github.com/o/r/pull/99',
+      autoMergeEnabled: true,
+      gates: { validation: 'passed', baseSync: 'passed', codeReview: 'passed' },
+      elapsedSeconds: 1,
+    });
+    assert.equal(terminal.status, 'pending');
+    assert.equal(
+      terminal.nextCommand,
+      'node .agents/scripts/single-story-confirm-merge.js --story 4428 --wait',
+    );
+  });
+
+  it('Story #5479 AC-2: a closed PR on the first async probe blocks exactly as today', async () => {
+    let probes = 0;
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        config: { delivery: { mergeWatch: { mode: 'async' } } },
+        readPrWaitProbeFn: async () => {
+          probes += 1;
+          return openProbe({ state: 'CLOSED' });
+        },
+      }),
+    );
+    assert.equal(outcome.terminal, 'blocked');
+    assert.equal(probes, 1);
+  });
+
+  it('Story #5479 AC-2: a blocking advisory red on the first async probe disarms and blocks', async () => {
+    const disarms = [];
+    const emitted = [];
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        config: { delivery: { mergeWatch: { mode: 'async' } } },
+        readPrWaitProbeFn: async () =>
+          openProbe({
+            mergeStateStatus: 'UNSTABLE',
+            checksStatus: 'failure',
+            redHeadRuns: [
+              { name: 'Bundle-size ratchet', conclusion: 'FAILURE' },
+            ],
+          }),
+        disarmAutoMergeFn: async (a) => {
+          disarms.push(a.prNumber);
+          return true;
+        },
+        emitMergeUnlandedFn: (rec) => emitted.push(rec),
+      }),
+    );
+    assert.equal(outcome.terminal, 'blocked');
+    assert.deepEqual(disarms, [99]);
+    assert.equal(emitted[0].blockClass, 'advisory-gate-red');
+  });
+
+  it('Story #5479 AC-3: a green first probe keeps polling at the green cadence and lands on the merge', async () => {
+    const states = [
+      openProbe({ checksStatus: 'success' }),
+      openProbe({ checksStatus: 'success' }),
+      { state: 'MERGED', mergedAt: 'x' },
+    ];
+    const sleeps = [];
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        config: { delivery: { mergeWatch: { mode: 'async' } } },
+        nowMsFn: makeClock(1000),
+        sleepFn: async (ms) => {
+          sleeps.push(ms);
+        },
+        readPrWaitProbeFn: async () => states.shift(),
+        confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
+      }),
+    );
+    assert.equal(outcome.terminal, 'landed');
+    assert.deepEqual(sleeps, [10_000, 10_000]);
+  });
+
+  it('Story #5479 AC-3: a green-then-running rollup still settles pending inside the window', async () => {
+    const states = [
+      openProbe({ checksStatus: 'success' }),
+      openProbe({ checksStatus: 'still-running' }),
+    ];
+    let probes = 0;
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        config: { delivery: { mergeWatch: { mode: 'async' } } },
+        readPrWaitProbeFn: async () => {
+          probes += 1;
+          return states.shift();
+        },
+      }),
+    );
+    assert.equal(outcome.terminal, 'pending');
+    assert.equal(probes, 2);
+  });
+
+  it('Story #5479 AC-4: an over-budget async resume still reaches the cumulative-budget block', async () => {
+    const provider = makeFakeProvider();
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        provider,
+        config: {
+          delivery: { mergeWatch: { mode: 'async', maxBudgetSeconds: 60 } },
+        },
+        nowMsFn: makeClock(1000, Date.parse('2026-07-16T00:00:00Z')),
+        readPrWaitProbeFn: async () =>
+          openProbe({ createdAt: '2026-07-01T00:00:00Z' }),
+      }),
+    );
+    assert.equal(outcome.terminal, 'blocked');
+    assert.deepEqual(provider._updates()[0].patch.labels.add, [
+      'agent::blocked',
+    ]);
+  });
+
+  it('Story #5479 AC-4: an explicit --max-wait-seconds override keeps the multi-poll wait under async', async () => {
+    const states = [
+      openProbe(),
+      openProbe(),
+      { state: 'MERGED', mergedAt: 'x' },
+    ];
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        maxWaitSeconds: 600,
+        config: { delivery: { mergeWatch: { mode: 'async' } } },
+        readPrWaitProbeFn: async () => states.shift(),
+        confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
+      }),
+    );
+    assert.equal(outcome.terminal, 'landed');
+    assert.equal(
+      resolveMergeWaitConfig({}, undefined, 'async').singleProbe,
+      true,
+    );
+    assert.equal(resolveMergeWaitConfig({}, 600, 'async').singleProbe, false);
+    assert.equal(resolveMergeWaitConfig({}).singleProbe, false);
+  });
+
   it('an explicit --max-wait-seconds override wins over the async cap (headless single-block)', () => {
     const config = { delivery: { mergeWatch: { mode: 'async' } } };
     // No override → clamped to the async probe window.

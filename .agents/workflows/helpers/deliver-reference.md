@@ -326,11 +326,15 @@ diff selects **review depth**.
 
 ## Async merge-confirm mode (`delivery.mergeWatch.mode: "async"`)
 
-In async mode the close arms auto-merge, probes for ~60s (catching an instant
-merge or, via the head-anchored required-check predicate, an instantly-red
-required check) and then returns `pending` with a `nextCommand`, instead of
-holding the host tool slot for a merge that lands after the wait would have
-expired anyway. When a close returns that `pending` envelope, launch its
+In async mode the close arms auto-merge and probes the PR **once**. A
+definitive probe settles as in sync mode — merged lands, closed or a red
+required check (the head-anchored predicate) blocks, a red advisory gate
+blocks. A probe whose checks have not started or are still running returns
+`pending` with a `nextCommand` at once, no sleep: CI never reddens inside the
+first minute, so a second probe could only hold the serialized slot. Two
+shapes poll on inside the ~60s window: checks already **green** (the merge is
+imminent — observed at the green cadence, it saves a whole confirm
+invocation) and a red rollup still awaiting its confirming probe. When a close returns that `pending` envelope, launch its
 `nextCommand` (`single-story-confirm-merge.js … --wait`) as a **background**
 invocation (host background Bash — its completion re-invokes the agent) and
 move on to the next Story; `single-story-confirm-merge.js` is idempotent and

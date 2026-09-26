@@ -26,6 +26,11 @@ export function pollIntervalMs(checksStatus, intervalSeconds) {
 }
 export const DEFAULT_MAX_BUDGET_SECONDS = 3600;
 
+/** CI never reddens in the first minute, so only green or red polls on. */
+export function probeSettlesAsyncWait(checksStatus) {
+  return checksStatus !== 'success' && checksStatus !== 'failure';
+}
+
 /** Bounds every `gh` spawn so a hang degrades to the probe-error path. */
 export const MERGE_WAIT_GH_TIMEOUT_MS = 60_000;
 
