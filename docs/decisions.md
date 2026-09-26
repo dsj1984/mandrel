@@ -320,6 +320,11 @@ that records why.
 `temp/scratch/` class, so it is the same kind of key as the `classes.*`
 deletion opt-outs kept above, and no existing key displaces it.
 
+**Raised to 130 (2026-09-26, Story #5472)** for
+`delivery.quality.gates.coverage.captureScope`: it switches close's coverage
+capture to a consumer-owned scoped script, a per-project fact about whether CI
+already enforces coverage on the full suite. No existing key displaces it.
+
 ### Consequences
 
 - A tuning value is changed by editing the constant and shipping a release,

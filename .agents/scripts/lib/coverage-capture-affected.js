@@ -12,18 +12,7 @@ import { tryIncrementalCapture } from './coverage-capture-incremental.js';
 const AFFECTED_CAPTURE_SCRIPT = 'test:coverage:affected';
 const COVERAGE_BASE_REF_ENV = 'MANDREL_COVERAGE_BASE_REF';
 
-/**
- * `true` when the affected path should run. A configured scope with no
- * script warns and returns `false`, so the caller runs full scope.
- *
- * @param {{
- *   coverage: { captureScope?: string } | undefined,
- *   scripts: Record<string, string>,
- *   hasNpmScriptImpl: (scripts: object, name: string) => boolean,
- *   logger: { warn: Function },
- * }} opts
- * @returns {boolean}
- */
+/** A configured scope with no script warns, and the caller runs full scope. */
 function shouldCaptureAffected({
   coverage,
   scripts,
@@ -42,10 +31,6 @@ function shouldCaptureAffected({
  * Affected capture when it applies, else incremental mode; `null` means
  * neither applies and the caller runs full scope.
  *
- * @param {Parameters<typeof runAffectedCapture>[0] & {
- *   readPackageScriptsImpl: (cwd: string) => Record<string, string>,
- *   hasNpmScriptImpl: (scripts: object, name: string) => boolean,
- * }} opts
  * @returns {Promise<number | null>}
  */
 export async function tryScopedCapture({
@@ -65,17 +50,8 @@ export async function tryScopedCapture({
 }
 
 /**
- * Scoped rows win; a prior row survives only when its file is neither
- * re-measured nor in `dropFiles` (the change set), so a changed file the
- * scoped run skipped stays absent and fails closed downstream.
- *
- * @param {{
- *   prior: Record<string, object> | null,
- *   scoped: Record<string, object>,
- *   cwd: string,
- *   dropFiles: string[],
- * }} opts Artifact maps are keyed by absolute path; `dropFiles` are repo-relative.
- * @returns {Record<string, object>}
+ * Scoped rows win; a prior row of a changed file is dropped, so a changed
+ * file the scoped run skipped stays absent and fails closed downstream.
  */
 function mergeCoverageArtifacts({ prior, scoped, cwd, dropFiles }) {
   const drop = new Set(dropFiles.map((f) => path.resolve(cwd, f)));
@@ -86,11 +62,6 @@ function mergeCoverageArtifacts({ prior, scoped, cwd, dropFiles }) {
   return Object.assign(merged, scoped);
 }
 
-/**
- * @param {string} abs
- * @param {typeof fs} fsImpl
- * @returns {Record<string, object> | null} `null` when absent or unparseable.
- */
 function readArtifact(abs, fsImpl) {
   try {
     return JSON.parse(fsImpl.readFileSync(abs, 'utf8'));
@@ -99,9 +70,6 @@ function readArtifact(abs, fsImpl) {
   }
 }
 
-/**
- * @returns {string[] | null} `null` when the change set cannot be read.
- */
 function readChangedFiles({ getChangedFilesImpl, ref, cwd, logger }) {
   try {
     return getChangedFilesImpl({ ref, cwd });
@@ -114,25 +82,9 @@ function readChangedFiles({ getChangedFilesImpl, ref, cwd, logger }) {
 }
 
 /**
- * Spawn the scoped script with the base ref in env, merge over the prior
- * artifact and stamp it `affected`. Honours `skipWhenUnchanged` exactly as
- * incremental mode does. With an unreadable change set nothing prior is
- * merged: a stale row for a changed file must never read as fresh.
- *
- * @param {{
- *   crap: object,
- *   coverage: object,
- *   args: { ref: string | null, cwd: string },
- *   getChangedFilesImpl: Function,
- *   filterFilesUnderTargetsImpl: Function,
- *   isCoverageFreshImpl: Function,
- *   runCaptureImpl: Function,
- *   computeContentDigestImpl: Function,
- *   writeCaptureStampImpl: Function,
- *   logger: { info: Function, warn: Function, error: Function },
- *   fsImpl?: typeof fs,
- * }} opts
- * @returns {Promise<number>} process exit code
+ * Honours `skipWhenUnchanged` as incremental mode does. With an unreadable
+ * change set nothing prior is merged: a stale row for a changed file must
+ * never read as fresh.
  */
 async function runAffectedCapture({
   crap,

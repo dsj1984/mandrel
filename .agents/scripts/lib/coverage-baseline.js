@@ -203,15 +203,7 @@ export function axisToleranceFor(
   return Math.max(baseTolerance, eventResolution * NOISE_EVENT_HEADROOM);
 }
 
-/**
- * Scope the capture stamp beside the artifact records; `full` when the stamp
- * is absent, unreadable or unscoped.
- *
- * @param {string} cwd
- * @param {string} [coveragePath]
- * @param {typeof fs} [fsImpl]
- * @returns {string}
- */
+/** The capture stamp's scope; `full` when absent, unreadable or unscoped. */
 export function readArtifactCaptureScope(
   cwd,
   coveragePath = COVERAGE_FINAL_PATH,
@@ -227,15 +219,7 @@ export function readArtifactCaptureScope(
   }
 }
 
-/**
- * Under an `affected` artifact a refresh may only rewrite rows it measured:
- * narrow the scope (`null` = full) to measured files, so unmeasured rows are
- * preserved by the scope merge instead of deleted.
- *
- * @param {string[] | null} scopeFiles
- * @param {string[]} measuredFiles
- * @returns {string[]}
- */
+/** Narrow a refresh scope (`null` = full) to the files the artifact measured. */
 function narrowScopeToMeasured(scopeFiles, measuredFiles) {
   if (scopeFiles === null) return [...measuredFiles];
   const measured = new Set(measuredFiles);
@@ -318,18 +302,8 @@ export function compareScores(
 
 /**
  * `refreshBaseline` scope options. Under an `affected` artifact the scope is
- * narrowed to measured files, so a row the scoped run skipped is preserved,
- * never deleted.
- *
- * @param {{
- *   cwd: string,
- *   fullScope: boolean,
- *   diffScopeRef: string | null,
- *   readCaptureScope: (cwd: string) => string,
- *   listMeasured: (cwd: string) => string[],
- *   deriveDiffFiles: (baseRef: string) => Promise<string[]>,
- * }} opts
- * @returns {Promise<{ fullScope?: true, baseRef?: string, scopeFiles?: string[] }>}
+ * narrowed to measured files, so the scope merge preserves a row the scoped
+ * run skipped instead of deleting it.
  */
 export async function resolveCoverageRefreshScope({
   cwd,
