@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* node:coverage ignore file -- thin CLI shell; the engine is lib/clean-temp.js */
 
 /**
  * `/clean-temp` — preview (default) or delete spent entries under the

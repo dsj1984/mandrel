@@ -32,7 +32,7 @@ Every top-level entry under tempRoot lands in exactly one:
 An id is a standalone run of up to seven digits in the basename. A basename
 naming two ids is never attributed to either — it is treated as id-less.
 
-## Safety contract
+## Constraint
 
 > [!WARNING] `--execute` deletes files. Interactive runs confirm each bucket;
 > `--yes` deletes the framework and closed-issue buckets only.
