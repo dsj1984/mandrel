@@ -5,25 +5,20 @@
  * refresh is idempotent and the output can be inspected first.
  */
 
-import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { resolveUpdaterRefreshScope } from './lib/baselines/coverage-refresh-scope.js';
 import {
   buildCoverageUpdaterScorer,
   resolveCoverageUpdaterScope,
 } from './lib/baselines/coverage-updater-cli.js';
-import {
-  deriveScopeFromDiff,
-  refreshBaseline,
-} from './lib/baselines/refresh-service.js';
+import { refreshBaseline } from './lib/baselines/refresh-service.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { getBaselineEpsilon } from './lib/config/quality.js';
 import {
   buildScopePredicate,
   COVERAGE_BASELINE_PATH,
-  readArtifactCaptureScope,
   readCoverageFinal,
-  resolveCoverageRefreshScope,
   scoreCoverageFinal,
 } from './lib/coverage-baseline.js';
 import { Logger } from './lib/Logger.js';
@@ -63,29 +58,7 @@ function loadC8Scope(cwd) {
   return require(path.resolve(cwd, '.c8rc.cjs'));
 }
 
-function c8ScopePredicate(cwd) {
-  const c8Config = loadC8Scope(cwd);
-  return buildScopePredicate({
-    include: c8Config.include ?? [],
-    exclude: c8Config.exclude ?? [],
-  });
-}
-
-/** Repo-relative in-scope files the artifact on disk measured. */
-function listMeasured(cwd) {
-  const scope = c8ScopePredicate(cwd);
-  return Object.keys(
-    scoreCoverageFinal({ raw: readCoverageFinal(cwd), cwd, scope }),
-  );
-}
-
-/** A live file the c8 scope instruments, so it must carry a row. */
-function inCoverageScopeFor(cwd) {
-  const scope = c8ScopePredicate(cwd);
-  return (file) => scope(file) && fs.existsSync(path.resolve(cwd, file));
-}
-
-async function main() {
+function main() {
   const cwd = process.cwd();
   const { fullScope, diffScopeRef } = resolveCoverageUpdaterScope(
     process.argv.slice(2),
@@ -106,29 +79,17 @@ async function main() {
   };
   // No flag and a full artifact -> the service derives the diff via
   // `origin/main..HEAD` (its default baseRef/headRef).
-  Object.assign(
-    refreshOpts,
-    await resolveCoverageRefreshScope({
-      cwd,
-      fullScope,
-      diffScopeRef,
-      readCaptureScope: readArtifactCaptureScope,
-      listMeasured,
-      inCoverageScope: inCoverageScopeFor(cwd),
-      deriveDiffFiles: (baseRef) =>
-        deriveScopeFromDiff({
-          baseRef,
-          headRef: 'HEAD',
-          predicate: () => true,
-          cwd,
-        }),
-    }),
-  );
-
-  const result = await refreshBaseline(refreshOpts);
-  Logger.info(
-    `[Coverage] ✅ Baseline updated: ${result.envelope.rows.length} file(s) recorded at ${COVERAGE_BASELINE_PATH} (${absBaselinePath}). scope=${result.scope.mode}, wrote=${result.wrote}.`,
-  );
+  return resolveUpdaterRefreshScope(cwd, {
+    fullScope,
+    diffScopeRef,
+    loadScope: loadC8Scope,
+  })
+    .then((scope) => refreshBaseline({ ...refreshOpts, ...scope }))
+    .then((result) => {
+      Logger.info(
+        `[Coverage] ✅ Baseline updated: ${result.envelope.rows.length} file(s) recorded at ${COVERAGE_BASELINE_PATH} (${absBaselinePath}). scope=${result.scope.mode}, wrote=${result.wrote}.`,
+      );
+    });
 }
 
 runAsCli(import.meta.url, main, {

@@ -1,4 +1,5 @@
 import assert from 'node:assert';
+import path from 'node:path';
 import { test } from 'node:test';
 import {
   axisToleranceFor,
@@ -540,4 +541,44 @@ test('refreshBaseline AC-5/AC-6 — affected scope keeps unmeasured rows and ref
     }),
     /changed\.js/,
   );
+});
+
+test('resolveUpdaterRefreshScope — wires the artifact, c8 scope and file existence into the affected scope', async () => {
+  const { resolveUpdaterRefreshScope } = await import(
+    '../.agents/scripts/lib/baselines/coverage-refresh-scope.js'
+  );
+  const cwd = '/cwd';
+  const deps = {
+    loadScope: () => ({ include: ['src/**'], exclude: [] }),
+    readCaptureScope: () => 'affected',
+    readCoverage: () => ({
+      [path.resolve(cwd, 'src/a.js')]: { s: { 0: 1 } },
+      [path.resolve(cwd, 'other/x.js')]: { s: { 0: 1 } },
+    }),
+    existsSync: (abs) => abs !== path.resolve(cwd, 'src/deleted.js'),
+    deriveDiff: async ({ baseRef }) => {
+      assert.strictEqual(baseRef, 'origin/main');
+      return ['src/a.js', 'src/changed.js', 'src/deleted.js', 'docs/x.md'];
+    },
+  };
+  const diff = await resolveUpdaterRefreshScope(cwd, {
+    fullScope: false,
+    diffScopeRef: null,
+    ...deps,
+  });
+  assert.deepStrictEqual(diff.scopeFiles, ['src/a.js', 'src/changed.js']);
+  assert.strictEqual(diff.requireRowsForScopeFiles, true);
+  const full = await resolveUpdaterRefreshScope(cwd, {
+    fullScope: true,
+    diffScopeRef: null,
+    ...deps,
+  });
+  assert.deepStrictEqual(full.scopeFiles, ['src/a.js']);
+  const unscoped = await resolveUpdaterRefreshScope(cwd, {
+    fullScope: true,
+    diffScopeRef: null,
+    ...deps,
+    readCaptureScope: () => 'full',
+  });
+  assert.deepStrictEqual(unscoped, { fullScope: true });
 });
