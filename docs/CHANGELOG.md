@@ -15,6 +15,32 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.68.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.67.0...mandrel-v2.68.0) (2026-09-26)
+
+
+### Added
+
+* baselines: add an insert-only `--seat-missing` refresh and have the story-worker seat rows for methods its diff adds before push ([#5486](https://github.com/dsj1984/mandrel/issues/5486)) ([#5492](https://github.com/dsj1984/mandrel/issues/5492)) ([325d7bb](https://github.com/dsj1984/mandrel/commit/325d7bbbc0bb08bb6fe3f05287d959f2b42d4da2))
+* close-validation: fail cheap gates before coverage capture and report lock expiry / timeout honestly ([#5471](https://github.com/dsj1984/mandrel/issues/5471)) ([#5474](https://github.com/dsj1984/mandrel/issues/5474)) ([ece115d](https://github.com/dsj1984/mandrel/commit/ece115d7961566c21de45f79f44b3957389e7623))
+* coverage-capture: after a base-sync, re-measure only main's delta instead of re-running the whole suite ([#5487](https://github.com/dsj1984/mandrel/issues/5487)) ([#5496](https://github.com/dsj1984/mandrel/issues/5496)) ([03694a4](https://github.com/dsj1984/mandrel/commit/03694a4bfa970ba122c1f508a7ed4b1271ccb222))
+* coverage-capture: opt-in `affected` scope that runs a consumer-owned scoped coverage script ([#5472](https://github.com/dsj1984/mandrel/issues/5472)) ([#5483](https://github.com/dsj1984/mandrel/issues/5483)) ([50bf942](https://github.com/dsj1984/mandrel/commit/50bf9424d38e776270cfaf19935dd265bb950625))
+* coverage-capture: spend the suite timeout on tests, queue on the full-suite lock, and make the cap configurable ([#5485](https://github.com/dsj1984/mandrel/issues/5485)) ([#5493](https://github.com/dsj1984/mandrel/issues/5493)) ([6a5bc69](https://github.com/dsj1984/mandrel/commit/6a5bc6929138e70ca66a9aea0e4354dcf5319ed7))
+* deliver: compute the Story-scope review at worker push time, keyed on the diff digest, so close posts a held result and a CRITICAL is fixed before hand-off ([#5480](https://github.com/dsj1984/mandrel/issues/5480)) ([#5490](https://github.com/dsj1984/mandrel/issues/5490)) ([c43b6bf](https://github.com/dsj1984/mandrel/commit/c43b6bf3beca4aeb0dc6350f3fe1f5c9cdcda250))
+* deliver: make the worker's one credited run the coverage capture close will otherwise re-pay, and let doctor name the credit gaps ([#5477](https://github.com/dsj1984/mandrel/issues/5477)) ([#5482](https://github.com/dsj1984/mandrel/issues/5482)) ([67e8d06](https://github.com/dsj1984/mandrel/commit/67e8d0687a6254f8ff8ab9957867c69588642aad))
+* deliver: warn in the beat envelope when a Story's footprint overlaps another session's in-flight Story ([#5488](https://github.com/dsj1984/mandrel/issues/5488)) ([#5491](https://github.com/dsj1984/mandrel/issues/5491)) ([be68220](https://github.com/dsj1984/mandrel/commit/be682205dc5959e12819bd2f2463c352449acd09))
+
+
+### Fixed
+
+* close: in async merge-watch mode return `pending` after one probe instead of burning the 60s window ([#5479](https://github.com/dsj1984/mandrel/issues/5479)) ([#5484](https://github.com/dsj1984/mandrel/issues/5484)) ([440b8bf](https://github.com/dsj1984/mandrel/commit/440b8bf70ed53d973c635662a12791a1d9f51953))
+* **close:** bound the full-suite lock wait by the suite's kill bound (refs [#5478](https://github.com/dsj1984/mandrel/issues/5478)) ([#5481](https://github.com/dsj1984/mandrel/issues/5481)) ([c7b7719](https://github.com/dsj1984/mandrel/commit/c7b7719bf50f7bc557c1979505ebab6a6851345b))
+* coverage-capture: a red capture must never leave an artifact a later pr… ([#5494](https://github.com/dsj1984/mandrel/issues/5494)) ([#5495](https://github.com/dsj1984/mandrel/issues/5495)) ([fa72738](https://github.com/dsj1984/mandrel/commit/fa72738d486626e892b5fd89e0350f745d925cfc))
+
+
+### Performance
+
+* close: run the Story-scope code review concurrently with the validation gates ([#5473](https://github.com/dsj1984/mandrel/issues/5473)) ([#5476](https://github.com/dsj1984/mandrel/issues/5476)) ([e098205](https://github.com/dsj1984/mandrel/commit/e09820592d70ba600df288c4e4b5ae1abd5b9aa1))
+
 ## [2.67.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.66.0...mandrel-v2.67.0) (2026-09-26)
 
 
