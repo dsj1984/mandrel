@@ -156,7 +156,8 @@ export function computeContentDigest(cwd, targetDirs, io = {}) {
 /**
  * Best-effort: a write failure returns `false` (next check falls back to
  * mtime). Full-scope callers omit `scope`, keeping the `{ digest, capturedAt }`
- * shape.
+ * shape. `commit` is the HEAD sha the run measured; a stamp without it reads
+ * exactly as before and is never delta-refresh eligible.
  *
  * @param {{
  *   cwd: string,
@@ -165,6 +166,7 @@ export function computeContentDigest(cwd, targetDirs, io = {}) {
  *   scope?: 'full' | 'incremental' | 'affected',
  *   files?: string[],
  *   ref?: string,
+ *   commit?: string | null,
  *   writeFileSync?: typeof fs.writeFileSync,
  * }} opts
  * @returns {boolean} True when the stamp was written.
@@ -176,6 +178,7 @@ export function writeCaptureStamp({
   scope,
   files,
   ref,
+  commit,
   writeFileSync = fs.writeFileSync,
 }) {
   if (typeof digest !== 'string' || digest.length === 0) return false;
@@ -183,6 +186,7 @@ export function writeCaptureStamp({
   if (scope !== undefined) payload.scope = scope;
   if (Array.isArray(files)) payload.files = [...files].sort();
   if (typeof ref === 'string' && ref.length > 0) payload.ref = ref;
+  if (typeof commit === 'string' && commit.length > 0) payload.commit = commit;
   try {
     writeFileSync(
       captureStampPath(cwd, coveragePath),
@@ -360,6 +364,7 @@ export function creditedCapture(runCaptureFn, { requireCredited, logger }) {
  *   scope?: 'full' | 'incremental' | 'affected',
  *   files?: string[],
  *   ref?: string,
+ *   commit?: string | null,
  *   computeContentDigestImpl: typeof computeContentDigest,
  *   writeCaptureStampImpl: typeof writeCaptureStamp,
  *   logger: { info: Function, warn: Function, error: Function },
@@ -374,6 +379,7 @@ export function stampCapturedTree({
   scope,
   files,
   ref,
+  commit,
   computeContentDigestImpl,
   writeCaptureStampImpl,
   logger,
@@ -395,6 +401,7 @@ export function stampCapturedTree({
     ...(scope === undefined ? {} : { scope }),
     ...(files === undefined ? {} : { files }),
     ...(ref === undefined ? {} : { ref }),
+    ...(commit ? { commit } : {}),
   });
   if (written) {
     logger.info(

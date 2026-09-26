@@ -2,6 +2,26 @@
 import path from 'node:path';
 import { resolveChangedFilesRef } from './changed-files.js';
 import { reportCaptureFailure, stampCapturedTree } from './coverage-capture.js';
+import {
+  describeStampFreshness,
+  readHeadCommit,
+} from './coverage-capture-delta.js';
+
+/**
+ * The changed-file set, or `null` (warned) when the ref cannot be resolved.
+ *
+ * @returns {{ changed: string[] } | null}
+ */
+function readChanged({ getChangedFilesImpl, ref, args, logger }) {
+  try {
+    return { changed: getChangedFilesImpl({ ref, cwd: args.cwd }) };
+  } catch (err) {
+    logger.warn(
+      `[coverage-capture] ⚠ incremental mode: ${err?.message ?? err} — falling back to full-scope capture.`,
+    );
+    return null;
+  }
+}
 
 /**
  * Under `skipWhenUnchanged`: the changed-file set decides whether to capture,
@@ -20,6 +40,7 @@ import { reportCaptureFailure, stampCapturedTree } from './coverage-capture.js';
  *   runCaptureImpl: Function,
  *   computeContentDigestImpl: Function,
  *   writeCaptureStampImpl: Function,
+ *   readHeadCommitImpl?: typeof readHeadCommit,
  *   logger: { info: Function, warn: Function, error: Function },
  * }} opts
  * @returns {Promise<number | null>}
@@ -34,22 +55,19 @@ export async function tryIncrementalCapture({
   runCaptureImpl,
   computeContentDigestImpl,
   writeCaptureStampImpl,
+  readHeadCommitImpl = readHeadCommit,
   logger,
 }) {
   if (crap.incrementalCoverage?.skipWhenUnchanged !== true) return null;
 
   const ref = resolveChangedFilesRef({ crap, ref: args.ref });
-  let changed = null;
-  try {
-    changed = getChangedFilesImpl({ ref, cwd: args.cwd });
-  } catch (err) {
-    logger.warn(
-      `[coverage-capture] ⚠ incremental mode: ${err?.message ?? err} — falling back to full-scope capture.`,
-    );
-    return null;
-  }
+  const read = readChanged({ getChangedFilesImpl, ref, args, logger });
+  if (read === null) return null;
 
-  const scopedFiles = filterFilesUnderTargetsImpl(changed, crap.targetDirs);
+  const scopedFiles = filterFilesUnderTargetsImpl(
+    read.changed,
+    crap.targetDirs,
+  );
   if (scopedFiles.length === 0) {
     logger.info(
       `[coverage-capture] Incremental mode: no changed files under [${crap.targetDirs.join(', ')}] vs ${ref} — skipping capture.`,
@@ -57,35 +75,38 @@ export async function tryIncrementalCapture({
     return 0;
   }
 
-  const freshness = isCoverageFreshImpl({
-    coveragePath: crap.coveragePath,
-    targetDirs: crap.targetDirs,
+  const probe = () =>
+    isCoverageFreshImpl({
+      coveragePath: crap.coveragePath,
+      targetDirs: crap.targetDirs,
+      cwd: args.cwd,
+      requireScope: 'incremental',
+    });
+  const freshness = probe();
+  const detail = describeStampFreshness({
     cwd: args.cwd,
-    requireScope: 'incremental',
+    coveragePath: crap.coveragePath,
+    requiredScope: 'incremental',
+    verdict: freshness.reason,
   });
   if (freshness.fresh) {
     logger.info(
-      `[coverage-capture] Coverage at ${path.resolve(args.cwd, crap.coveragePath)} is ${freshness.reason} (incremental) — skipping capture.`,
+      `[coverage-capture] Coverage at ${path.resolve(args.cwd, crap.coveragePath)} is ${freshness.reason} (incremental) — skipping capture. ${detail}`,
     );
     return 0;
   }
 
   logger.info(
-    `[coverage-capture] Incremental mode: ${scopedFiles.length} changed file(s) under [${crap.targetDirs.join(', ')}] — capturing…`,
+    `[coverage-capture] Incremental mode: ${scopedFiles.length} changed file(s) under [${crap.targetDirs.join(', ')}] — capturing… ${detail}`,
   );
-  // Pre-spawn digest; see `stampCapturedTree`.
+  // Pre-spawn digest and commit; see `stampCapturedTree`.
   const preDigest = computeContentDigestImpl(args.cwd, crap.targetDirs);
+  const commit = readHeadCommitImpl(args.cwd);
   const code = await runCaptureImpl({
     cwd: args.cwd,
     timeoutMs: coverage?.timeoutMs,
     log: (m) => logger.info(m),
-    recheckFresh: () =>
-      isCoverageFreshImpl({
-        coveragePath: crap.coveragePath,
-        targetDirs: crap.targetDirs,
-        cwd: args.cwd,
-        requireScope: 'incremental',
-      }).fresh === true,
+    recheckFresh: () => probe().fresh === true,
   });
   if (code !== 0) return reportCaptureFailure(code, logger);
 
@@ -97,6 +118,7 @@ export async function tryIncrementalCapture({
     scope: 'incremental',
     files: scopedFiles,
     ref,
+    commit,
     computeContentDigestImpl,
     writeCaptureStampImpl,
     logger,

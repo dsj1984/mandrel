@@ -640,6 +640,10 @@
       "symbol": "writeBaseline"
     },
     {
+      "file": ".agents/scripts/lib/coverage-capture-delta.js",
+      "symbol": "isCoverageConfigFile"
+    },
+    {
       "file": ".agents/scripts/lib/coverage-capture.js",
       "symbol": "newestSourceMtime"
     },

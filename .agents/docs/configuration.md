@@ -367,6 +367,39 @@ A config still carrying the retired key is a hard validation failure; the
   Extend the list-valued gate keys with the deep-merge extender form (see
   [How to extend](#how-to-extend)).
 
+#### `delivery.quality.gates.coverage.captureScope` — delta refresh
+
+Under `captureScope: "affected"`, a capture stamp records the commit it
+measured. When close's base-sync merges `main` into the Story branch, the
+next capture re-measures only the merged commits' tests instead of the
+Story's whole affected scope: it runs `npm run test:coverage:affected` with
+`MANDREL_COVERAGE_BASE_REF` set to the **stamped commit**, drops the prior
+rows of the delta's files, merges the new rows over the prior artifact and
+stamps the merged tree fresh. It holds the full-suite lock like any capture,
+and a red delta refresh fails the capture — it never falls back to a wider
+run.
+
+A delta refresh runs only when **every** condition holds; otherwise the
+capture behaves exactly as before (the Story's affected scope, or the full
+suite when the script is absent):
+
+- the stamp is stale by content digest, and records a `commit` (a stamp
+  written before this field existed never qualifies) that is an ancestor of
+  `HEAD`;
+- `captureScope` is `affected` and the `test:coverage:affected` script
+  exists;
+- the worktree is clean, and the delta (`git diff --name-only <commit> HEAD`)
+  is non-empty and shares no path with the Story's change set;
+- the delta touches no coverage-determining config: `package.json`, a
+  lockfile, `tsconfig*.json`, or a vitest / jest / c8 / nyc config;
+- a prior artifact exists to merge over.
+
+Any git error or unresolvable input fails closed to the ordinary capture.
+Every freshness log line names the stamp's scope, the required scope and the
+verdict (`fresh`, `stale`, `scope-mismatch`, `missing`, or `delta-refresh`
+with the delta's file count), so an unexpected full re-run is explainable
+from the log alone. `captureScope: "full"` is unaffected.
+
 #### `delivery.worktreeIsolation` — node_modules strategies
 
 When `enabled: true`, each Story runs in its own worktree under

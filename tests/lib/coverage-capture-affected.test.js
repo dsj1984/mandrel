@@ -187,6 +187,48 @@ describe('tryScopedCapture — capture', () => {
     assert.equal(h.calls.stamp.length, 0);
   });
 
+  it('Story #5487: an eligible stale stamp keys the run on the stamped commit and drops only the delta', async () => {
+    const h = affectedHarness({
+      prior: {
+        [abs('src/a.js')]: { s: { 0: 7 } },
+        [abs('src/b.js')]: { s: { 0: 5 } },
+      },
+      scoped: {},
+    });
+    h.opts.isCoverageFreshImpl = () => ({ fresh: false, reason: 'stale' });
+    h.opts.readHeadCommitImpl = () => 'f'.repeat(40);
+    h.opts.classifyDeltaRefreshImpl = () => ({
+      eligible: true,
+      commit: 'c'.repeat(40),
+      delta: ['src/b.js'],
+      stamp: { digest: 'd0', scope: 'affected' },
+    });
+    assert.equal(await tryScopedCapture(h.opts), 0);
+    assert.equal(h.calls.capture[0].env[COVERAGE_BASE_REF_ENV], 'c'.repeat(40));
+    const merged = JSON.parse(h.fsImpl.files.get(ARTIFACT));
+    // The Story's own file keeps its prior row; main's delta is re-measured.
+    assert.deepEqual(merged[abs('src/a.js')], { s: { 0: 7 } });
+    assert.equal(merged[abs('src/b.js')], undefined);
+    assert.equal(h.calls.stamp[0].commit, 'f'.repeat(40));
+    assert.match(
+      h.log.info.join('\n'),
+      /verdict: delta-refresh, delta: 1 file/,
+    );
+  });
+
+  it('Story #5487: an ineligible stale stamp captures the Story scope as before', async () => {
+    const h = affectedHarness();
+    h.opts.isCoverageFreshImpl = () => ({ fresh: false, reason: 'stale' });
+    h.opts.classifyDeltaRefreshImpl = () => ({
+      eligible: false,
+      reason: 'worktree is dirty',
+      stamp: null,
+    });
+    assert.equal(await tryScopedCapture(h.opts), 0);
+    assert.equal(h.calls.capture[0].env[COVERAGE_BASE_REF_ENV], 'main');
+    assert.match(h.log.info.join('\n'), /not eligible \(worktree is dirty\)/);
+  });
+
   it('fails closed when the scoped run wrote no artifact', async () => {
     const h = affectedHarness({ scoped: null });
     assert.equal(await tryScopedCapture(h.opts), 1);
