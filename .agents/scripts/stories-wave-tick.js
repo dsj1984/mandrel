@@ -913,7 +913,7 @@ export async function runProbedStoriesWaveTick({
   env,
   probe = probeLiveState,
   context = createProbeContext,
-  warn = (m) => Logger.warn(m),
+  warn = Logger.warn,
 } = {}) {
   const { value: override, error: concurrencyError } =
     parseConcurrencyOverride(concurrency);

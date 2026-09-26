@@ -2811,6 +2811,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/wave-runner/cross-run-overlap.js",
+      "lines": 100,
+      "branches": 92.59,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/wave-runner/footprint.js",
       "lines": 100,
       "branches": 100,
