@@ -22176,100 +22176,100 @@
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "createMergeWaitState",
-      "startLine": 1017,
+      "startLine": 1008,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "provisionalVerdict",
-      "startLine": 1031,
+      "startLine": 1019,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "decideMergeWaitPoll",
-      "startLine": 1076,
+      "startLine": 1046,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "blockWith",
-      "startLine": 1129,
+      "startLine": 1098,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "settleMerged",
-      "startLine": 1143,
+      "startLine": 1111,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "settleClosed",
-      "startLine": 1152,
+      "startLine": 1119,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "settleChecksFailed",
-      "startLine": 1162,
+      "startLine": 1128,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "pendingAtWaitBound",
-      "startLine": 1196,
+      "startLine": 1162,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "settleProvisional",
-      "startLine": 1223,
+      "startLine": 1187,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "runMergePoll",
-      "startLine": 1274,
+      "startLine": 1233,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "blockNeverArmed",
-      "startLine": 1314,
+      "startLine": 1269,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "runConfirmMergePhase",
-      "startLine": 1381,
+      "startLine": 1336,
       "crap": 3.000312063368127
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "<anon runConfirmMergePhase/()#0>",
-      "startLine": 1455,
+      "startLine": 1410,
       "crap": 1.027,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "<anon runConfirmMergePhase/(result)#0>",
-      "startLine": 1465,
+      "startLine": 1420,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "<anon runConfirmMergePhase/()#1>",
-      "startLine": 1468,
+      "startLine": 1423,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "pollHeartbeat",
-      "startLine": 1474,
+      "startLine": 1429,
       "crap": 2
     },
     {
@@ -23029,180 +23029,180 @@
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "resolveReviewHalt",
-      "startLine": 337,
+      "startLine": 336,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "openAndReviewPr",
-      "startLine": 384,
-      "crap": 3.000971817298348
+      "startLine": 377,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "releaseLease",
-      "startLine": 432,
+      "startLine": 420,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "releaseLeaseOnBlock",
-      "startLine": 466,
+      "startLine": 452,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "deriveObservedMerge",
-      "startLine": 482,
+      "startLine": 468,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "closeResult",
-      "startLine": 490,
+      "startLine": 476,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "resolveCloseDeps",
-      "startLine": 556,
+      "startLine": 528,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "runSingleStoryClose",
-      "startLine": 571,
+      "startLine": 543,
       "crap": 7
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "<anon runSingleStoryClose/(next)#0>",
-      "startLine": 612,
+      "startLine": 584,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "<anon runSingleStoryClose/(gates)#0>",
-      "startLine": 616,
+      "startLine": 588,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "resolveAutoMergeOutcome",
-      "startLine": 642,
-      "crap": 3.1851851851851856
+      "startLine": 614,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "reportWaitTerminal",
-      "startLine": 660,
+      "startLine": 632,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "finishWithMergeWait",
-      "startLine": 686,
+      "startLine": 658,
       "crap": 1.0000265990165014
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "<anon finishWithMergeWait/(args)#0>",
-      "startLine": 706,
+      "startLine": 678,
       "crap": 1.125,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "finishWithoutMergeWait",
-      "startLine": 762,
+      "startLine": 734,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "finishDeferred",
-      "startLine": 819,
+      "startLine": 791,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "elapsedSecondsSince",
-      "startLine": 837,
+      "startLine": 809,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "reportOperatorMergeSkip",
-      "startLine": 846,
-      "crap": 3.474609375
+      "startLine": 818,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "loadStoryPhase",
-      "startLine": 884,
+      "startLine": 835,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "graphqlPreflightPhase",
-      "startLine": 897,
+      "startLine": 848,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "resolveBasePhase",
-      "startLine": 920,
+      "startLine": 871,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "prePushPhase",
-      "startLine": 937,
+      "startLine": 887,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "<anon prePushPhase/()#0>",
-      "startLine": 939,
+      "startLine": 889,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "openPrPhase",
-      "startLine": 955,
+      "startLine": 905,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "<anon openPrPhase/()#0>",
-      "startLine": 957,
+      "startLine": 907,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "reapWorktreePhaseStep",
-      "startLine": 969,
+      "startLine": 919,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "armPhase",
-      "startLine": 986,
+      "startLine": 932,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "finishPhase",
-      "startLine": 1021,
+      "startLine": 963,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "runClosePipeline",
-      "startLine": 1094,
+      "startLine": 1032,
       "crap": 2
     },
     {
@@ -30637,109 +30637,109 @@
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
       "method": "positiveIntOrUndefined",
-      "startLine": 86,
+      "startLine": 81,
       "crap": 3
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
       "method": "parseConfirmMergeArgv",
-      "startLine": 101,
+      "startLine": 93,
       "crap": 1
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
       "method": "resolvePrNumber",
-      "startLine": 124,
+      "startLine": 116,
       "crap": 5
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
       "method": "logConfirmResult",
-      "startLine": 146,
+      "startLine": 138,
       "crap": 1
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
       "method": "confirmPrState",
-      "startLine": 167,
+      "startLine": 156,
       "crap": 3
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
       "method": "confirmPr",
-      "startLine": 177,
+      "startLine": 162,
       "crap": 3
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
       "method": "confirmBlocked",
-      "startLine": 189,
+      "startLine": 167,
       "crap": 2
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
       "method": "confirmOutcomeFields",
-      "startLine": 206,
+      "startLine": 180,
       "crap": 9.583984375
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
       "method": "buildConfirmTerminal",
-      "startLine": 240,
+      "startLine": 213,
       "crap": 1
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
       "method": "resolveConfirmPrNumber",
-      "startLine": 259,
+      "startLine": 232,
       "crap": 5.5830903790087465
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
       "method": "elapsedSeconds",
-      "startLine": 268,
+      "startLine": 240,
       "crap": 1
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
       "method": "confirmWithoutPr",
-      "startLine": 273,
+      "startLine": 244,
       "crap": 2
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
       "method": "resumeMergeWait",
-      "startLine": 306,
+      "startLine": 277,
       "crap": 1
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
       "method": "probeMergeOnce",
-      "startLine": 351,
+      "startLine": 321,
       "crap": 3.000576
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
       "method": "runConfirmMerge",
-      "startLine": 411,
+      "startLine": 373,
       "crap": 6
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
       "method": "failWithEnvelope",
-      "startLine": 467,
+      "startLine": 426,
       "crap": 4
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
       "method": "runConfirmMergeCli",
-      "startLine": 498,
+      "startLine": 455,
       "crap": 1
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
       "method": "main",
-      "startLine": 513,
+      "startLine": 470,
       "crap": 1
     },
     {

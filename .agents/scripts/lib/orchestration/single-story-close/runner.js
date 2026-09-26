@@ -252,8 +252,8 @@ function resolveWorktreePath({ cwd, config, storyId }) {
  * the validated tree is the pushed tree (base-sync's merge commit included),
  * and a cheap conflict is found before the expensive gates.
  *
- * @param {CloseContext} ctx
- * @param {CloseDeps} deps
+ * @param {object} ctx
+ * @param {object} deps
  * @returns {Promise<{
  *   validationGates: Record<string, string>|null,
  *   lockWait: { waitedSeconds: number, expired: boolean }|null,
@@ -326,13 +326,12 @@ async function runPrePushPhases(ctx, deps) {
 }
 
 /**
- * A critical review halt: an overridden Story proceeds, anything else emits
- * friction, blocks, and throws.
+ * An overridden Story proceeds; anything else emits friction, blocks, throws.
  *
- * @param {CloseContext} ctx
- * @param {CloseDeps} deps
+ * @param {object} ctx
+ * @param {object} deps
  * @param {{ prUrl: string, prNumber: number|null, reviewOutcome: object }} pr
- * @returns {Promise<object>} the override record.
+ * @returns {Promise<object>}
  */
 async function resolveReviewHalt(
   ctx,
@@ -375,12 +374,6 @@ async function resolveReviewHalt(
   );
 }
 
-/**
- * @param {CloseContext} ctx
- * @param {CloseDeps} deps
- * @returns {Promise<{ prUrl: string, prNumber: number|null,
- *   alreadyMerged: boolean, reviewOverride?: object|null }>}
- */
 async function openAndReviewPr(ctx, deps) {
   const { options, worktreePath, story, storyId, storyBranch, baseBranch } =
     ctx;
@@ -424,11 +417,6 @@ async function openAndReviewPr(ctx, deps) {
   return { prUrl, prNumber, alreadyMerged: false, reviewOverride };
 }
 
-/**
- * @param {{ storyId: number }} ctx
- * @param {CloseDeps} deps
- * @returns {Promise<boolean>} whether the lease was released.
- */
 async function releaseLease({ storyId }, deps) {
   try {
     const outcome = await deps.releaseLease({
@@ -459,8 +447,6 @@ async function releaseLease({ storyId }, deps) {
  *
  * @template T
  * @param {() => Promise<T>} run
- * @param {CloseContext} ctx
- * @param {CloseDeps} deps
  * @returns {Promise<T>}
  */
 async function releaseLeaseOnBlock(run, ctx, deps) {
@@ -532,26 +518,12 @@ function closeResult({
 }
 
 /**
- * @typedef {object} CloseDeps The pipeline's collaborators, resolved once.
- * @property {object} config
- * @property {object} provider
- * @property {Function} [notify]
- * @property {Function} [sync]
- * @property {Function} runCodeReview
- * @property {object} [gh]
- * @property {Function} [gitSpawn]
- * @property {Function} releaseLease
- * @property {Function} [graphqlProbe]
- */
-
-/**
- * Resolve every double once: an injected one wins, else the real one. An
- * absent optional seam stays `undefined` so the phase it feeds applies its
- * own default.
+ * An injected double wins, else the real one; an absent optional seam stays
+ * `undefined` so its phase applies its own default.
  *
  * @param {{ cwd: string }} options
- * @param {object} injected The `injected*` params of {@link runSingleStoryClose}.
- * @returns {CloseDeps}
+ * @param {object} injected
+ * @returns {object}
  */
 function resolveCloseDeps(options, injected) {
   const config = injected.injectedConfig || resolveConfig({ cwd: options.cwd });
@@ -860,27 +832,6 @@ function reportOperatorMergeSkip({
   );
 }
 
-/**
- * @typedef {object} CloseContext The shared state the phases read and extend.
- * @property {object} options Parsed close options.
- * @property {(phase: string) => void} setPhase
- * @property {(gates: object|null) => void} setObservedGates
- * @property {object} phaseTimer
- * @property {number} startedAtMs
- * @property {number} storyId
- * @property {string} storyBranch
- * @property {number|null} workerTokens
- * @property {object} [story] Set by `loadStory`.
- * @property {string} [baseBranch] Set by `resolveBase`.
- * @property {boolean} [baseConfirmed] Set by `resolveBase`.
- * @property {string|null} [worktreePath] Set by `resolveBase`.
- * @property {object} [prePush] Set by `prePush`.
- * @property {object} [pr] Set by `openPr`.
- * @property {boolean} [worktreeReaped] Set by `reapWorktree`.
- * @property {object} [arm] Set by `arm`.
- */
-
-/** An already-closed Story ends here; otherwise the ticket is kept for the PR. */
 async function loadStoryPhase(ctx, deps) {
   progress('INIT', `Closing standalone Story #${ctx.storyId}...`);
   ctx.story = await deps.provider.getTicket(ctx.storyId);
@@ -893,7 +844,7 @@ async function loadStoryPhase(ctx, deps) {
   );
 }
 
-/** `gh pr` needs GraphQL; one cheap read here beats the gate chain plus a push. */
+/** One cheap GraphQL read here beats the gate chain plus a push. */
 async function graphqlPreflightPhase(ctx, deps) {
   const preflight = await runGraphqlPreflight({
     storyId: ctx.storyId,
@@ -933,7 +884,6 @@ async function resolveBasePhase(ctx, deps) {
   return null;
 }
 
-/** An expired full-suite lock wait ends here as `pending`, nothing pushed. */
 async function prePushPhase(ctx, deps) {
   ctx.prePush = await releaseLeaseOnBlock(
     () => runPrePushPhases(ctx, deps),
@@ -978,11 +928,7 @@ async function reapWorktreePhaseStep(ctx, deps) {
   return null;
 }
 
-/**
- * Arm auto-merge, then flip the label. No lease release here: only the
- * post-land tail (confirmed merge) releases it; every non-merged ending
- * keeps the claim while the PR is open.
- */
+/** No lease release here: only the post-land tail releases it. */
 async function armPhase(ctx, deps) {
   ctx.setPhase('auto-merge');
   const ciDelivery = getCiDelivery(deps.config);
@@ -1013,11 +959,7 @@ async function armPhase(ctx, deps) {
   return null;
 }
 
-/**
- * The wait-for-merge decision is resolved now, not at parse time: it needs
- * the config and the arm outcome (an un-armed PR rests at `agent::closing`
- * rather than waiting).
- */
+/** Wait-for-merge needs the arm outcome, so it is resolved here. */
 async function finishPhase(ctx, deps) {
   const { options, arm } = ctx;
   const { waitForMerge, reason: waitForMergeReason } = resolveWaitForMerge({
@@ -1070,10 +1012,7 @@ async function finishPhase(ctx, deps) {
   });
 }
 
-/**
- * The close, in order. Each phase reads and extends the shared context and
- * returns `null` to continue, or the run's result to end it there.
- */
+/** Each phase extends the shared context; a non-null return ends the run. */
 const CLOSE_PIPELINE = Object.freeze([
   loadStoryPhase,
   graphqlPreflightPhase,
@@ -1086,13 +1025,11 @@ const CLOSE_PIPELINE = Object.freeze([
 ]);
 
 /**
- * @param {{ options: object, setPhase: Function, setObservedGates: Function,
- *   phaseTimer: object, startedAtMs: number }} run
- * @param {CloseDeps} deps
+ * @param {object} run
+ * @param {object} deps
  * @returns {Promise<{ success: boolean, result: object, terminal: object }>}
  */
 async function runClosePipeline(run, deps) {
-  /** @type {CloseContext} */
   const ctx = {
     ...run,
     storyId: run.options.storyId,

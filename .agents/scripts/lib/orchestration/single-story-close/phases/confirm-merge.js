@@ -999,20 +999,11 @@ async function onMergeObserved({
 }
 
 /**
- * @typedef {object} MergeWaitState
- * @property {number} startedAtMs This invocation's start (the wait-bound anchor).
- * @property {number} polls Probes taken so far.
- * @property {number} intervalMs The next sleep; tightens once checks are green.
- * @property {number} updatesUsed BEHIND updates spent against `updateAttempts`.
- * @property {number} consecutiveRequiredFailSnapshots Failing probes in a row
- *   without per-run evidence; two fail fast, any other probe resets it.
- */
-
-/**
- * The merge wait's explicit state — everything one poll hands the next.
+ * Everything one poll hands the next.
  *
  * @param {{ startedAtMs: number, intervalSeconds: number }} args
- * @returns {MergeWaitState}
+ * @returns {{ startedAtMs: number, polls: number, intervalMs: number,
+ *   updatesUsed: number, consecutiveRequiredFailSnapshots: number }}
  */
 export function createMergeWaitState({ startedAtMs, intervalSeconds }) {
   return {
@@ -1024,10 +1015,7 @@ export function createMergeWaitState({ startedAtMs, intervalSeconds }) {
   };
 }
 
-/**
- * The verdict the probe leaves open: the budget give-up, the invocation
- * bound, or another poll. Budget first — it is the real give-up.
- */
+/** Budget first — it is the real give-up. */
 function provisionalVerdict(
   { polls, intervalMs, waitedMs, cumulativeMs },
   limits,
@@ -1043,35 +1031,17 @@ function provisionalVerdict(
 }
 
 /**
- * The merge wait's pure decision: given the state, one probe and the clock,
- * the next state and a verdict. No timers, no `gh`, no mutation — the loop in
- * {@link runConfirmMergePhase} owns every effect.
+ * Pure: state + probe + clock → next state and verdict. `merged`, `closed`
+ * and `checks-failed` are definitive; `budget-exhausted`, `wait-bound` and
+ * `continue` hold only if the loop's advisory check does not block first.
+ * The two clock reads (wait bound, then budget) keep a stepping test clock's
+ * call sequence.
  *
- * Verdicts: `merged`, `closed` and `checks-failed` are definitive, decided by
- * the probe alone. `budget-exhausted`, `wait-bound` and `continue` are
- * provisional: the loop first runs the advisory-gate check (which may still
- * block) and the BEHIND update, then honours them.
- *
- * `nowMs` and `cumulativeNowMs` are the poll's two clock reads — the
- * invocation-bound read, then the budget read — kept apart so an injected
- * stepping clock sees the sequence it always has.
- *
- * @param {{
- *   state: MergeWaitState,
- *   probe: object,
- *   nowMs: number,
- *   cumulativeNowMs?: number,
- *   limits: { intervalSeconds: number, maxWaitSeconds: number, maxBudgetSeconds: number },
- * }} args
- * @returns {{
- *   state: MergeWaitState,
- *   verdict: 'merged'|'closed'|'checks-failed'|'budget-exhausted'|'wait-bound'|'continue',
- *   waitedMs: number,
- *   cumulativeMs: number,
- *   elapsedSeconds: number,
- *   waitBudget: { maxWaitSeconds: number, waitedSeconds: number, cumulativeSeconds: number, maxBudgetSeconds: number },
- *   failFast?: object,
- * }}
+ * @param {{ state: object, probe: object, nowMs: number,
+ *   cumulativeNowMs?: number, limits: object }} args
+ * @returns {{ state: object, verdict: string, waitedMs: number,
+ *   cumulativeMs: number, elapsedSeconds: number, waitBudget: object,
+ *   failFast?: object }}
  */
 export function decideMergeWaitPoll({
   state,
@@ -1125,7 +1095,6 @@ export function decideMergeWaitPoll({
   };
 }
 
-/** Block on a decided `unlanded` verdict. */
 function blockWith(ctx, unlanded) {
   return blockOnUnlanded({
     storyId: ctx.storyId,
@@ -1139,7 +1108,6 @@ function blockWith(ctx, unlanded) {
   });
 }
 
-/** `merged`: the flip, then the post-land tail. */
 function settleMerged(ctx, decision, probe) {
   return onMergeObserved({
     ...ctx,
@@ -1148,7 +1116,6 @@ function settleMerged(ctx, decision, probe) {
   });
 }
 
-/** `closed`: a PR closed without merging is decided by the wait itself. */
 function settleClosed(ctx, decision, probe) {
   return blockWith(ctx, {
     prProbe: probe,
@@ -1158,7 +1125,6 @@ function settleClosed(ctx, decision, probe) {
   });
 }
 
-/** `checks-failed`: the first-red handling, then the block. */
 async function settleChecksFailed(ctx, decision, probe) {
   const { failFast } = decision;
   ctx.progress?.(
@@ -1213,12 +1179,10 @@ function pendingAtWaitBound(ctx, decision, probe) {
 }
 
 /**
- * A provisional verdict: the advisory gate may still block (advisory gates
- * are usually still QUEUED at arm time, so they redden here, mid-wait,
- * before auto-merge lands over them); otherwise update a BEHIND PR, then
- * honour the verdict.
+ * Advisory gates are usually still QUEUED at arm time, so they redden here,
+ * mid-wait, before auto-merge lands over them.
  *
- * @returns {Promise<{ state: MergeWaitState, outcome: object|null }>}
+ * @returns {Promise<{ state: object, outcome: object|null }>}
  */
 async function settleProvisional(ctx, decision, probe) {
   const advisory = await resolveAdvisoryUnlanded({
@@ -1265,12 +1229,7 @@ async function settleProvisional(ctx, decision, probe) {
   return { state, outcome: null };
 }
 
-/**
- * One poll's effects around the pure decision: probe, decide, heartbeat,
- * settle.
- *
- * @returns {Promise<{ state: MergeWaitState, done: boolean, outcome?: object }>}
- */
+/** @returns {Promise<{ state: object, done: boolean, outcome?: object }>} */
 async function runMergePoll(ctx, state) {
   const probe = await ctx.readPrWaitProbeFn({
     prNumber: ctx.prNumber,
@@ -1306,11 +1265,7 @@ async function runMergePoll(ctx, state) {
     : { state: settled.state, done: false };
 }
 
-/**
- * Never armed: nothing to poll, but a terminal is still required. Carries the
- * arm phase's advisory verdict and class (which may be `inconclusive`) rather
- * than a generic `arm-failure`.
- */
+/** Carries the arm phase's advisory class rather than a generic `arm-failure`. */
 function blockNeverArmed({
   storyId,
   prNumber,

@@ -69,34 +69,26 @@ const USAGE =
   '                      over delivery.mergeWatch.maxWaitSeconds and the async\n' +
   '                      probe-window cap; only meaningful with --wait)';
 
-/** This CLI's flags beyond the standard `--story`, for `parseStandardCliArgs`. */
 const CONFIRM_MERGE_FLAGS = Object.freeze({
   pr: { type: 'string' },
-  // `--wait` resumes the bounded merge wait (`resumeLand`); without it the
-  // CLI probes once, a fast flip for a merge that already happened.
+  // Resume the bounded wait; without it the CLI probes once.
   wait: { type: 'boolean' },
   'max-wait-seconds': { type: 'string' },
   cwd: { type: 'string' },
 });
 
-/**
- * @param {unknown} value
- * @returns {number|undefined} a positive integer, else `undefined`.
- */
+/** @returns {number|undefined} */
 function positiveIntOrUndefined(value) {
   const parsed = Number.parseInt(String(value), 10);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 /**
- * The one argv read, called only by `main()`; the library entry point takes
- * the values it returns. The close's shared vocabulary is validated first so
- * a malformed close flag (`--merge-watch-mode bogus`) fails `init` with the
- * close's own message (Story #4959), exactly as the close CLI does.
+ * The close's vocabulary is validated first, so a malformed close flag fails
+ * `init` with the close's own message.
  *
- * @param {string[]} fullArgv `process.argv`.
- * @returns {{ storyId: number|null, cwd: string|null, pr: string|null,
- *   wait: boolean, maxWaitSeconds: number|undefined }}
+ * @param {string[]} fullArgv
+ * @returns {object}
  */
 function parseConfirmMergeArgv(fullArgv) {
   const argv = fullArgv.slice(2);
@@ -160,32 +152,18 @@ async function logConfirmResult(result, terminal, config) {
   return { success: terminal.status !== 'failed', result, terminal };
 }
 
-/**
- * @param {{ merged?: boolean, reason?: string }} confirmation
- * @returns {'MERGED'|'CLOSED'|'OPEN'}
- */
+/** @returns {'MERGED'|'CLOSED'|'OPEN'} */
 function confirmPrState(confirmation) {
   if (confirmation.merged) return 'MERGED';
   return confirmation.reason === 'pr-not-merged' ? 'CLOSED' : 'OPEN';
 }
 
-/**
- * @param {number|null} prNumber
- * @param {object} confirmation
- * @returns {{ number: number, state: string }|null}
- */
+/** @returns {{ number: number, state: string }|null} */
 function confirmPr(prNumber, confirmation) {
   if (!Number.isInteger(prNumber) || prNumber <= 0) return null;
   return { number: prNumber, state: confirmPrState(confirmation) };
 }
 
-/**
- * A `blocked` envelope's fields at the confirm-merge phase.
- *
- * @param {string} blockClass
- * @param {string} reason
- * @param {string} nextCommand
- */
 function confirmBlocked(blockClass, reason, nextCommand) {
   return {
     status: 'blocked',
@@ -196,12 +174,8 @@ function confirmBlocked(blockClass, reason, nextCommand) {
 }
 
 /**
- * The status-bearing envelope fields for a confirmation: done/noop → landed;
- * flip-failed → blocked (re-run this command); pr-not-merged → blocked (needs
- * a human); otherwise pending.
- *
- * @param {{ storyId: number, confirmation: object, tail: object|null }} args
- * @returns {object}
+ * done/noop → landed; flip-failed → blocked (re-run this command);
+ * pr-not-merged → blocked (needs a human); otherwise pending.
  */
 function confirmOutcomeFields({ storyId, confirmation, tail }) {
   if (confirmation.action === 'done' || confirmation.action === 'noop') {
@@ -236,7 +210,6 @@ function confirmOutcomeFields({ storyId, confirmation, tail }) {
   };
 }
 
-/** Map a confirmation onto the shared terminal envelope. */
 function buildConfirmTerminal({
   storyId,
   storyBranch,
@@ -264,12 +237,10 @@ async function resolveConfirmPrNumber({ pr, storyBranch, gh }) {
   return Number.isInteger(prNumber) && prNumber > 0 ? prNumber : null;
 }
 
-/** @param {{ startedAtMs: number }} ctx */
 function elapsedSeconds(ctx) {
   return Math.round((Date.now() - ctx.startedAtMs) / 1000);
 }
 
-/** No PR for the branch: the Story stays at `agent::closing`. */
 async function confirmWithoutPr(ctx) {
   progress(
     'CONFIRM',
@@ -347,7 +318,6 @@ async function resumeMergeWait(ctx) {
   );
 }
 
-/** Probe once and flip; the fast path for a merge that already happened. */
 async function probeMergeOnce(ctx) {
   const { storyId, storyBranch, baseBranch, prNumber, cwd, provider, config } =
     ctx;
@@ -399,15 +369,7 @@ async function probeMergeOnce(ctx) {
   );
 }
 
-/**
- * Library entry point. Reads no argv: `main()` parses it once and passes the
- * values in.
- *
- * @param {{ storyId?: number|null, cwd?: string|null, pr?: string|number|null,
- *   wait?: boolean, maxWaitSeconds?: number, injectedProvider?: object,
- *   injectedConfig?: object, injectedGh?: object, injectedNotify?: Function,
- *   injectedReadPrMergeState?: Function, runConfirmMergePhaseFn?: Function }} [args]
- */
+/** Reads no argv: `main()` parses it and passes the values in. */
 export async function runConfirmMerge({
   storyId,
   cwd,
@@ -456,12 +418,9 @@ export async function runConfirmMerge({
 }
 
 /**
- * A throw (e.g. a transient `gh` error) still emits a `failed` envelope: the
- * envelope is the landing surface's contract.
+ * A throw still emits a `failed` envelope: it is the landing surface's
+ * contract.
  *
- * @param {unknown} err
- * @param {'init'|'confirm-merge'} phase
- * @param {string[]} fullArgv `process.argv`, for the story id only.
  * @returns {Promise<number>}
  */
 async function failWithEnvelope(err, phase, fullArgv) {
@@ -488,12 +447,10 @@ async function failWithEnvelope(err, phase, fullArgv) {
 }
 
 /**
- * The CLI, given `process.argv` by `main()` (the only argv reader). Exit code
- * comes from the terminal envelope's status; `--help` is answered by
- * `runAsCli` before this runs.
+ * Exit code comes from the envelope's status; `runAsCli` answers `--help`.
  *
- * @param {string[]} fullArgv `process.argv`.
- * @returns {Promise<number>} the process exit code.
+ * @param {string[]} fullArgv
+ * @returns {Promise<number>}
  */
 export async function runConfirmMergeCli(fullArgv) {
   let options;

@@ -2306,3 +2306,100 @@ describe('runSingleStoryClose — merged is what the run observed (Story #5279)'
     assert.match(result.note, /NOT merged/);
   });
 });
+
+describe('runSingleStoryClose — pipeline endings past the PR phase', () => {
+  it('an already-merged PR skips the review and the arm, and hands the land to confirm', async (t) => {
+    const ghCalls = [];
+    const gh = makeFakeGh((args) => {
+      ghCalls.push(args.slice());
+      if (args[1] === 'list') {
+        return [
+          {
+            url: 'https://github.com/owner/repo/pull/88',
+            state: 'MERGED',
+            mergedAt: '2026-09-25T10:00:00Z',
+          },
+        ];
+      }
+      throw new Error(`unexpected gh: ${args.join(' ')}`);
+    });
+    t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
+    mockCloseValidation(t, defaultCloseValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
+
+    const { runSingleStoryClose } = await import(`${SUT_URL}?t=already-merged`);
+    let reviewRan = false;
+    const { result, terminal } = await runSingleStoryClose({
+      storyId: 88,
+      cwd: '/repo',
+      skipValidation: true,
+      skipSync: true,
+      noWaitForMerge: true,
+      injectedProvider: makeFakeProvider({
+        initialStory: {
+          id: 88,
+          state: 'open',
+          title: 'Landed between invocations',
+          labels: ['agent::executing'],
+        },
+      }),
+      injectedConfig: fakeConfig(),
+      injectedRunCodeReview: async () => {
+        reviewRan = true;
+        return { halted: false };
+      },
+      injectedGh: gh,
+    });
+
+    assert.equal(reviewRan, false, 'an already-merged PR is never reviewed');
+    assert.equal(
+      ghCalls.length,
+      1,
+      'only the PR probe runs — no create, no merge',
+    );
+    assert.equal(result.prNumber, 88);
+    assert.equal(result.autoMergeEnabled, true);
+    assert.equal(terminal.status, 'pending');
+    assert.equal(
+      terminal.nextCommand,
+      'node .agents/scripts/single-story-confirm-merge.js --story 88',
+    );
+  });
+
+  it('an un-armed PR under autoMerge=strict rests at agent::closing even with --wait-merge', async (t) => {
+    const gh = makeFakeGh((args) => {
+      if (args[1] === 'list') return [];
+      if (args[1] === 'create')
+        return 'https://github.com/owner/repo/pull/89\n';
+      throw new Error(`unexpected gh: ${args.join(' ')}`);
+    });
+    t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
+    mockCloseValidation(t, defaultCloseValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
+
+    const { runSingleStoryClose } = await import(`${SUT_URL}?t=operator-merge`);
+    const { result, terminal } = await runSingleStoryClose({
+      storyId: 89,
+      cwd: '/repo',
+      skipValidation: true,
+      skipSync: true,
+      waitForMerge: true,
+      injectedProvider: makeFakeProvider({
+        initialStory: {
+          id: 89,
+          state: 'open',
+          title: 'Operator merges',
+          labels: ['agent::executing'],
+        },
+      }),
+      injectedConfig: fakeConfig({ autoMerge: 'strict' }),
+      injectedRunCodeReview: noopReview(),
+      injectedGh: gh,
+    });
+
+    assert.equal(result.autoMergeEnabled, false);
+    assert.equal(result.waitedForMerge, false);
+    assert.equal(terminal.status, 'pending');
+    assert.equal(terminal.phase, 'auto-merge');
+  });
+});

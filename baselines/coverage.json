@@ -2206,7 +2206,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
-      "lines": 96.9,
+      "lines": 96.8,
       "branches": 82.05,
       "functions": 97.92
     },
@@ -2296,8 +2296,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
-      "lines": 98.37,
-      "branches": 90.84,
+      "lines": 99.81,
+      "branches": 93.28,
       "functions": 97.56
     },
     {
@@ -3118,7 +3118,7 @@
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
-      "lines": 90.67,
+      "lines": 89.86,
       "branches": 68.12,
       "functions": 88.89
     },
