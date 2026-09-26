@@ -1,12 +1,20 @@
 /**
  * The Story-scope review, overlapped with the close-validation gates: started
- * once the pre-gate self-heal commits land, pinned to that HEAD SHA, and held
- * (computed, never posted) until the PR exists. A pushed HEAD that differs
- * discards it for a serial review. The held promise never rejects, so an
- * abandoned review leaves no unhandled rejection.
+ * once the pre-gate self-heal commits land and held (computed, never posted)
+ * until the PR exists. A worker deposit whose diff digest matches the diff at
+ * that point **is** the held result, so nothing is computed. After PR-open a
+ * pushed diff with a different digest discards it for a serial review — a
+ * clean base-sync merge moves HEAD without changing the digest. The held
+ * promise never rejects, so an abandoned review leaves no unhandled rejection.
  */
 
 import { postReviewComment } from '../code-review.js';
+import {
+  computeReviewDiffDigest,
+  depositAsComputedReview,
+  probeHeldReviewDiff,
+  resolveRefSha,
+} from '../review-deposit.js';
 import { upsertStructuredComment } from '../ticketing.js';
 import {
   computeStoryScopeReview,
@@ -14,37 +22,40 @@ import {
   settleStoryScopeReview,
 } from './phases/code-review.js';
 
-/** @typedef {{ sha: string, startedAtMs: number, settled: Promise<object> }} HeldReview */
+/** @typedef {{ sha: string, baseRef: string|null, diffDigest: string|null, adopted: boolean, startedAtMs: number, settled: Promise<object> }} HeldReview */
 
 /** @returns {string|null} the commit `storyBranch` points at. */
 function resolveBranchSha({ cwd, storyBranch, gitSpawnFn }) {
-  try {
-    const probe = gitSpawnFn(
-      cwd,
-      'rev-parse',
-      '--verify',
-      '--quiet',
-      `${storyBranch}^{commit}`,
-    );
-    const sha = probe?.status === 0 ? String(probe.stdout ?? '').trim() : '';
-    return sha.length > 0 ? sha : null;
-  } catch {
-    return null;
-  }
+  return resolveRefSha({ cwd, ref: storyBranch, gitSpawnFn });
 }
 
-/** @returns {HeldReview|null} null when the SHA is unresolvable. */
-export function startHeldReview({
-  cwd,
-  storyId,
-  storyBranch,
-  baseBranch,
-  provider,
-  runCodeReviewFn,
-  gitSpawnFn,
-  progress,
-  nowMs = Date.now,
-}) {
+/** A held result already in hand: the worker deposit. */
+function adoptedSettlement(deposit, atMs) {
+  const value = depositAsComputedReview(deposit);
+  return Promise.resolve({ ok: true, value, endedAtMs: atMs });
+}
+
+/** Compute the review of `sha`, held unposted; never rejects. */
+function computeHeldReview({ sha, nowMs, ...args }) {
+  return computeStoryScopeReview({
+    ...args,
+    headRef: sha,
+    deferPost: true,
+  }).then(
+    (value) => ({ ok: true, value, endedAtMs: nowMs() }),
+    (error) => ({ ok: false, error, endedAtMs: nowMs() }),
+  );
+}
+
+/**
+ * @param {{ cwd: string, storyId: number, storyBranch: string,
+ *   baseBranch: string, provider: object, runCodeReviewFn: Function,
+ *   gitSpawnFn: Function, progress: Function, config?: object,
+ *   readDepositFn?: Function, nowMs?: () => number }} args
+ * @returns {HeldReview|null} null when the SHA is unresolvable.
+ */
+export function startHeldReview(args) {
+  const { cwd, storyBranch, gitSpawnFn, progress, nowMs = Date.now } = args;
   const sha = resolveBranchSha({ cwd, storyBranch, gitSpawnFn });
   if (!sha) {
     progress(
@@ -53,22 +64,18 @@ export function startHeldReview({
     );
     return null;
   }
+  const { baseRef, diffDigest, deposit } = probeHeldReviewDiff({
+    ...args,
+    sha,
+  });
   const startedAtMs = nowMs();
-  const settled = computeStoryScopeReview({
-    cwd,
-    storyId,
-    headRef: sha,
-    baseBranch,
-    deferPost: true,
-    provider,
-    runCodeReviewFn,
-    gitSpawnFn,
-    progress,
-  }).then(
-    (value) => ({ ok: true, value, endedAtMs: nowMs() }),
-    (error) => ({ ok: false, error, endedAtMs: nowMs() }),
-  );
-  return { sha, startedAtMs, settled };
+  const held = { sha, baseRef, diffDigest, adopted: !!deposit, startedAtMs };
+  if (deposit) {
+    progress('REVIEW', `♻️ Adopting the worker's held review; none computed.`);
+    return { ...held, settled: adoptedSettlement(deposit, startedAtMs) };
+  }
+  const settled = computeHeldReview({ ...args, sha, nowMs });
+  return { ...held, settled };
 }
 
 /** Drop a held review unposted. */
@@ -109,27 +116,32 @@ async function postHeldReview(held, args) {
 }
 
 /**
- * Post a held review of the pushed HEAD (phase untimed: it records its own
- * wall time), else run the serial review.
+ * Post a held review whose diff digest matches the pushed diff (phase
+ * untimed: it records its own wall time), else run the serial review.
  *
  * @returns {Promise<object>} the review outcome.
  */
 export async function reviewAfterPrOpen(args) {
   const { held, setPhase, progress } = args;
   if (held && args.prNumber != null) {
-    const pushedSha = resolveBranchSha(args);
-    if (pushedSha === held.sha) {
+    const pushedDigest = computeReviewDiffDigest({
+      cwd: args.cwd,
+      baseRef: held.baseRef,
+      headRef: resolveBranchSha(args),
+      gitSpawnFn: args.gitSpawnFn,
+    });
+    if (pushedDigest !== null && pushedDigest === held.diffDigest) {
       setPhase('code-review');
       args.pauseTimer();
       progress(
         'REVIEW',
-        `Posting the held Story-scope review of ${held.sha.slice(0, 12)} → PR #${args.prNumber}...`,
+        `Posting the held Story-scope review → PR #${args.prNumber}...`,
       );
       return await postHeldReview(held, args);
     }
     discardHeldReview(
       held,
-      `pushed HEAD ${pushedSha ?? 'unresolved'} is not the reviewed ${held.sha}; re-running serially`,
+      'the pushed diff is not the reviewed diff; re-running serially',
       progress,
     );
   }

@@ -40,7 +40,10 @@ import {
   probeLiveState,
   validateProbeFlags,
 } from '../../.agents/scripts/lib/wave-runner/live-probe.js';
-import { runProbedStoriesWaveTick } from '../../.agents/scripts/stories-wave-tick.js';
+import {
+  runProbedStoriesWaveTick,
+  runStoriesWaveTick,
+} from '../../.agents/scripts/stories-wave-tick.js';
 
 const CONFIG = { delivery: { deliverRunner: { concurrencyCap: 3 } } };
 
@@ -948,5 +951,172 @@ describe('probeLiveState — inFlightRecords feed the footprint reservation', ()
       envelope.inFlightReservation.note,
       /another operator's lease holds/,
     );
+  });
+});
+
+describe('probeLiveState — cross-session overlap advisory (Story #5488)', () => {
+  /** An open Story as `listTicketsByLabel` returns it (mapped, not raw). */
+  function outside(
+    id,
+    { labels = ['agent::executing'], assignees = [], changes },
+  ) {
+    return {
+      id,
+      body: storyBody({ changes }),
+      labels: ['type::story', ...labels],
+      assignees,
+      state: 'open',
+    };
+  }
+
+  /** Probe-mode tick whose provider also answers the one labelled list query. */
+  async function crossTick(issues, listing, { ids } = {}) {
+    const provider = {
+      ...stubProvider(issues),
+      listTicketsByLabel: async (opts) => {
+        calls.push(opts);
+        if (listing instanceof Error) throw listing;
+        return listing;
+      },
+    };
+    const calls = [];
+    const warnings = [];
+    const result = await runProbedStoriesWaveTick({
+      stories: ids ?? Object.keys(issues).join(','),
+      config: CONFIG,
+      context: () => ({ provider, owner: 'dsj1984', repo: 'mandrel' }),
+      warn: (m) => warnings.push(m),
+    });
+    return { ...result, warnings, calls };
+  }
+
+  /** The envelope minus the advisory fields — what dispatch depends on. */
+  function withoutAdvisory(envelope) {
+    const {
+      crossRunOverlaps: _o,
+      crossRunOverlapProbe: _p,
+      crossRunOverlapProbeReason: _r,
+      ...rest
+    } = envelope;
+    return rest;
+  }
+
+  const probedSet = () => ({
+    101: issue(101, { changes: ['lib/a.js', 'lib/c.js'] }),
+    102: issue(102, { changes: ['lib/z.js'] }),
+  });
+
+  it('AC-1: names both ids, the shared paths and the holder, with one stderr line per pair', async () => {
+    const { envelope, warnings, calls } = await crossTick(probedSet(), [
+      outside(900, { changes: ['lib/a.js', 'lib/q.js'], assignees: ['alice'] }),
+    ]);
+
+    assert.deepEqual(envelope.crossRunOverlaps, [
+      { id: 101, otherId: 900, holder: 'alice', paths: ['lib/a.js'] },
+    ]);
+    assert.equal(envelope.crossRunOverlapProbe, undefined);
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0], /#101 overlaps #900/);
+    assert.match(warnings[0], /@alice/);
+    assert.match(warnings[0], /lib\/a\.js/);
+    assert.deepEqual(calls, [{ state: 'open', labels: 'type::story' }]);
+  });
+
+  it('AC-1: keeps the record when no lease holder is readable', async () => {
+    const { envelope } = await crossTick(probedSet(), [
+      outside(900, { changes: ['lib/a.js'] }),
+    ]);
+    assert.deepEqual(envelope.crossRunOverlaps, [
+      { id: 101, otherId: 900, holder: null, paths: ['lib/a.js'] },
+    ]);
+  });
+
+  it('AC-1: counts agent::closing as in flight, and skips outside Stories not in flight', async () => {
+    const { envelope } = await crossTick(probedSet(), [
+      outside(900, { labels: ['agent::closing'], changes: ['lib/a.js'] }),
+      outside(901, { labels: ['agent::ready'], changes: ['lib/a.js'] }),
+      outside(902, { labels: ['agent::blocked'], changes: ['lib/a.js'] }),
+    ]);
+    assert.deepEqual(
+      envelope.crossRunOverlaps.map((o) => o.otherId),
+      [900],
+    );
+  });
+
+  it('AC-2: ready set, dispatch order and exit code match a run without the outside Story', async () => {
+    const withOverlap = await crossTick(probedSet(), [
+      outside(900, { changes: ['lib/a.js'], assignees: ['alice'] }),
+    ]);
+    const without = await crossTick(probedSet(), []);
+
+    assert.deepEqual(withOverlap.envelope.ready, [101, 102]);
+    assert.deepEqual(
+      withoutAdvisory(withOverlap.envelope),
+      withoutAdvisory(without.envelope),
+    );
+    assert.equal(withOverlap.exitCode, without.exitCode);
+    assert.equal(withOverlap.exitCode, 0);
+    assert.deepEqual(without.envelope.crossRunOverlaps, []);
+  });
+
+  it('AC-3: no entry for a disjoint footprint or a glob that covers none of the probed paths', async () => {
+    const { envelope, warnings } = await crossTick(probedSet(), [
+      outside(900, { changes: ['lib/other.js'] }),
+      outside(901, { changes: ['docs/**'] }),
+    ]);
+    assert.deepEqual(envelope.crossRunOverlaps, []);
+    assert.deepEqual(warnings, []);
+  });
+
+  it('AC-3: an unparseable outside body (the UNKNOWN glob) reserves nothing, like the guard', async () => {
+    const { envelope } = await crossTick(probedSet(), [
+      {
+        ...outside(900, { changes: ['lib/a.js'] }),
+        body: '## Changes\n- {not json',
+      },
+    ]);
+    assert.deepEqual(envelope.crossRunOverlaps, []);
+  });
+
+  it('AC-4: a failed outside query reports unavailable with a reason, and the beat proceeds', async () => {
+    const failed = await crossTick(probedSet(), new Error('HTTP 502'));
+    const healthy = await crossTick(probedSet(), []);
+
+    assert.equal(failed.envelope.crossRunOverlapProbe, 'unavailable');
+    assert.match(failed.envelope.crossRunOverlapProbeReason, /HTTP 502/);
+    assert.equal('crossRunOverlaps' in failed.envelope, false);
+    assert.deepEqual(
+      withoutAdvisory(failed.envelope),
+      withoutAdvisory(healthy.envelope),
+    );
+    assert.equal(failed.exitCode, 0);
+  });
+
+  it('AC-4: a provider that cannot list by label is unavailable, never an empty list', async () => {
+    const { envelope, exitCode } = await tick(probedSet());
+    assert.equal(envelope.crossRunOverlapProbe, 'unavailable');
+    assert.match(envelope.crossRunOverlapProbeReason, /cannot list/);
+    assert.equal('crossRunOverlaps' in envelope, false);
+    assert.equal(exitCode, 0);
+  });
+
+  it('AC-5: a Story inside the probed set never appears, even when the listing returns it', async () => {
+    const issues = {
+      101: issue(101, { changes: ['lib/a.js'] }),
+      102: issue(102, { changes: ['lib/a.js'], labels: ['agent::executing'] }),
+    };
+    const { envelope } = await crossTick(issues, [
+      outside(102, { changes: ['lib/a.js'] }),
+    ]);
+    assert.deepEqual(envelope.crossRunOverlaps, []);
+  });
+
+  it('AC-5: flag mode emits neither field', () => {
+    const { envelope } = runStoriesWaveTick({
+      dagJson: JSON.stringify([{ id: 1, dependsOn: [], files: ['lib/a.js'] }]),
+      config: CONFIG,
+    });
+    assert.equal('crossRunOverlaps' in envelope, false);
+    assert.equal('crossRunOverlapProbe' in envelope, false);
   });
 });

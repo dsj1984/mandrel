@@ -399,6 +399,35 @@ Digest § 5 states the rule and both invocations; this is what surrounds them.
 - **Redraft rounds.** Run the scoped projects for the roots you changed plus
   `verify[]`, not the whole suite; only the one run needs credit.
 
+## Held review at hand-off {#held-review}
+
+The one home of this rule; the digest and the worker contract point here.
+After the credited run **and** the push, the worker computes the Story-scope
+code review itself, before handing off:
+
+```bash
+node <main-repo>/.agents/scripts/story-review-compute.js --story <storyId> --cwd <workCwd>
+```
+
+- **What it does.** It runs close's own review computation (the configured
+  provider chain) against `origin/<baseBranch>...story-<id>`, posts nothing,
+  takes no full-suite lock, and writes
+  `temp/orchestration/story-review-<id>.json` beside the terminal envelope,
+  keyed on the **diff digest** (sha256 of the exact three-dot diff text). It
+  exits 0 whatever the findings; non-zero means the provider threw — report
+  it in the hand-off; close computes the review itself.
+- **A CRITICAL is the worker's to fix.** Fix, commit, re-run the credited
+  run (the fix commit voided its credit), push, and re-run the compute — the
+  acceptance loop's redraft discipline, bounded by
+  `delivery.acceptanceEval.maxRounds`. Still CRITICAL at the cap → take the
+  blocked path. Anything else goes in the hand-off as the severity tally.
+- **Close adopts, else computes.** When the deposit's digest equals the
+  digest of the diff at close's held-review start, close starts no review and
+  posts the deposit after PR-open. A clean base-sync merge moves HEAD without
+  changing the diff, so it keeps the deposit; a commit that changes the diff
+  does not, and close reviews as it would without one. The CRITICAL halt and
+  `--override-review-block` apply to an adopted result unchanged.
+
 ## Gate output {#gate-output}
 
 Close writes gate lines to `temp/orchestration/close-gates-<storyId>.log` and
