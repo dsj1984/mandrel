@@ -558,7 +558,6 @@ describe('delivery.quality.* shape — uniform gates (Story #1737)', () => {
       { autoRefresh: { scope: 'diff' } },
       { gates: { crap: { refreshTag: 'baseline-refresh:' } } },
       { gates: { maintainability: { refreshTimeoutMs: 60000 } } },
-      { gates: { coverage: { timeoutMs: 600000 } } },
       { gates: { mutation: { strykerConfigPath: null } } },
     ]) {
       expectErrors({ ...REQ, delivery: { quality } }, /additional properties/);

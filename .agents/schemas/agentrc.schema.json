@@ -359,7 +359,7 @@
           "properties": {
             "fullSuiteLock": {
               "type": "boolean",
-              "description": "Serialize full-suite spawns (`npm test` / `npm run test:coverage`) behind a host-level advisory lock, so two concurrent deliveries on one checkout do not run two suites against the same cores. Best-effort: a wait that expires spawns anyway, so the lock can never fail a delivery. Set false — or export `MANDREL_FULL_SUITE_LOCK=0` for one invocation — to disable.",
+              "description": "Serialize full-suite spawns (`npm test` / `npm run test:coverage`) behind a host-level advisory lock, so two concurrent deliveries on one checkout do not run two suites against the same cores. The lock queues, it never overlaps: a wait that expires with a live holder spawns nothing and exits 75 (resumable), naming the holder. A dead or non-heartbeating holder is taken over, and a broken lockfile proceeds unserialized, so the lock can never fail a delivery. Set false — or export `MANDREL_FULL_SUITE_LOCK=0` for one invocation — to disable.",
               "default": true
             }
           },
@@ -606,6 +606,13 @@
                       "enum": ["full", "affected"],
                       "description": "What coverage-capture runs. `full` (default) runs `npm run test:coverage`. `affected` runs the consumer-owned `npm run test:coverage:affected` with the base ref in `MANDREL_COVERAGE_BASE_REF`, merges its rows over the prior artifact and stamps it `affected`; baseline rows the scoped run did not measure are treated as unmeasured, never removed. Falls back to `full` with a warning when the script is absent. Meant for consumers whose CI already enforces coverage on the full suite.",
                       "default": "full"
+                    },
+                    "timeoutMs": {
+                      "type": "integer",
+                      "minimum": 60000,
+                      "maximum": 7200000,
+                      "description": "Kill bound (ms) for one full-suite run — the coverage capture, the close-validation full-suite gate and the full-suite lock-wait budget all read it. The clock starts at spawn, never while queued on the host lock; a suite that signals `MANDREL_SUITE_READY_FILE` gets a fresh bound for its test phase, so worst-case wall is lock wait + 2 × timeoutMs. On expiry the run exits 124 so callers can tell a hang from a failure.",
+                      "default": 600000
                     }
                   },
                   "additionalProperties": false

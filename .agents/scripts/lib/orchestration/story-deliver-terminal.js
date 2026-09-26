@@ -114,8 +114,9 @@ function compact(obj) {
  * @param {string|null} [args.nextCommand]
  * @param {number} args.elapsedSeconds
  * @param {object|null} [args.waitBudget]
- * @param {{ waitedSeconds: number, expired: boolean }|null} [args.lockWait]
+ * @param {{ waitedSeconds: number, expired: boolean, holder?: object }|null} [args.lockWait]
  *   Full-suite lock wait; `waitBudget` is merge-wait only.
+ * @param {{ lockWaitMs: number, hostWaitMs: number|null, testRunMs: number }|null} [args.suiteTimings]
  * @param {Record<string, number>|null} [args.phaseDurations] Seconds per phase.
  * @param {string} [args.timestamp]
  * @param {{ schema: object|null, error: string|null }} [args.schemaSource]
@@ -138,6 +139,7 @@ export function buildTerminalEnvelope({
   elapsedSeconds = 0,
   waitBudget,
   lockWait,
+  suiteTimings,
   phaseDurations,
   timestamp = new Date().toISOString(),
   schemaSource,
@@ -160,6 +162,7 @@ export function buildTerminalEnvelope({
     elapsedSeconds: Math.max(0, Number(elapsedSeconds) || 0),
     waitBudget: waitBudget ?? null,
     lockWait: lockWait ?? null,
+    suiteTimings: suiteTimings ?? null,
     phaseDurations,
     timestamp,
   });
@@ -324,34 +327,23 @@ export function emitTerminalEnvelope(
 }
 
 /**
- * Map a `runConfirmMergePhase` outcome onto the terminal envelope.
+ * Map a `runConfirmMergePhase` outcome onto the terminal envelope; the other
+ * fields pass through.
  *
  * @returns {object} A validated `story-deliver-terminal` envelope.
  */
 export function terminalFromWaitOutcome({
   waitOutcome,
-  storyId,
-  storyBranch,
-  baseBranch,
   prNumber,
   prUrl,
   autoMergeEnabled,
-  gates,
-  lockWait,
-  elapsedSeconds,
+  ...common
 }) {
+  const { storyId } = common;
   const prBase = {
     number: prNumber,
     url: prUrl ?? null,
     autoMergeEnabled: Boolean(autoMergeEnabled),
-  };
-  const common = {
-    storyId,
-    storyBranch,
-    baseBranch,
-    gates,
-    lockWait,
-    elapsedSeconds,
   };
 
   if (waitOutcome.terminal === 'landed') {

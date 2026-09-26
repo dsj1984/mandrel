@@ -346,7 +346,7 @@ function buildQualityPreviewGateEntries({ coverageCaptureActive, baseBranch }) {
  * Shown instead of a gate's own hint when it exits `COVERAGE_TIMEOUT_EXIT_CODE`
  * — a killed suite, not a failing one.
  */
-export const GATE_TIMEOUT_HINT = `The gate outran the suite timeout (\`delivery.quality.gates.coverage.timeoutMs\`, ${COVERAGE_GATE_DEFAULTS.timeoutMs} ms) and its process group was killed — no test verdict exists. This is usually host contention (sibling suites or a peer close sharing the machine), not a failing test: re-run close once the host is quieter.`;
+export const GATE_TIMEOUT_HINT = `The gate outran the suite timeout (\`delivery.quality.gates.coverage.timeoutMs\`, default ${COVERAGE_GATE_DEFAULTS.timeoutMs} ms — raise it for a slow or shared host) and its process group was killed — no test verdict exists. This is usually host contention (sibling suites or a peer close sharing the machine), not a failing test: re-run close once the host is quieter.`;
 
 /**
  * Build the close-validation gate list, cheapest fast-fail first: typecheck →

@@ -2114,6 +2114,26 @@
     {
       "file": ".agents/scripts/lib/baselines/seat-missing.js",
       "symbol": "selectMissingRows"
+    },
+    {
+      "file": ".agents/scripts/lib/config/gates/coverage.schema.js",
+      "symbol": "COVERAGE_TIMEOUT_BOUNDS"
+    },
+    {
+      "file": ".agents/scripts/lib/full-suite-queue.js",
+      "symbol": "readLockHolder"
+    },
+    {
+      "file": ".agents/scripts/lib/supervised-suite.js",
+      "symbol": "SUITE_READY_FILE_ENV"
+    },
+    {
+      "file": ".agents/scripts/lib/supervised-suite.js",
+      "symbol": "suiteReadyHandshake"
+    },
+    {
+      "file": ".agents/scripts/lib/supervised-suite.js",
+      "symbol": "superviseSuite"
     }
   ]
 }

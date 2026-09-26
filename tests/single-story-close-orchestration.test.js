@@ -1169,10 +1169,13 @@ describe('runSingleStoryClose orchestration', () => {
         opts.log(
           '[coverage-capture] [full-suite-lock] ✅ acquired the full-suite lock (waited 42s).',
         );
+        opts.log(
+          '[coverage-capture] ⏲ suite timings: lockWaitMs=42000 hostWaitMs=9000 testRunMs=51000',
+        );
         return { ok: true, failed: [], skipped: [] };
       }
       opts.log(
-        '[coverage-capture] [full-suite-lock] ⌛ gave up waiting for the full-suite lock (waited 300s, holding pid 4711) — not spawning; the caller reports the wait instead.',
+        '[coverage-capture] [full-suite-lock] ⌛ gave up waiting for the full-suite lock (waited 300s, holder pid-4711-1700000000000, pid 4711, lock age 312s) — not spawning, so two full suites never overlap. Re-run once it finishes: node .agents/scripts/coverage-capture.js --cwd /repo',
       );
       return {
         ok: false,
@@ -1242,7 +1245,12 @@ describe('runSingleStoryClose orchestration', () => {
       terminal.nextCommand,
       'node .agents/scripts/single-story-close.js --story 5377',
     );
-    assert.deepEqual(terminal.lockWait, { waitedSeconds: 300, expired: true });
+    assert.deepEqual(terminal.lockWait, {
+      waitedSeconds: 300,
+      expired: true,
+      holder: { ownerId: 'pid-4711-1700000000000', pid: 4711, ageSeconds: 312 },
+    });
+    assert.equal(terminal.suiteTimings, null, 'no suite ran');
     const { exitCodeForTerminal } = await import(
       pathToFileURL(
         path.resolve(
@@ -1252,7 +1260,7 @@ describe('runSingleStoryClose orchestration', () => {
       ).href
     );
     assert.equal(exitCodeForTerminal(terminal), 3);
-    assert.equal(runs[0].deferOnLockExpiry, true, 'close opts in to defer');
+    assert.equal(runs.length, 1);
     assert.deepEqual(provider._updates(), [], 'no label was mutated');
     assert.equal(leaseReleases, 0, 'the claim is kept for the resume');
     assert.ok(
@@ -1292,6 +1300,11 @@ describe('runSingleStoryClose orchestration', () => {
     });
 
     assert.deepEqual(terminal.lockWait, { waitedSeconds: 42, expired: false });
+    assert.deepEqual(
+      terminal.suiteTimings,
+      { lockWaitMs: 42000, hostWaitMs: 9000, testRunMs: 51000 },
+      'AC-7: the three figures ride the envelope as separate fields',
+    );
     assert.ok(
       stderr.some((l) => l.includes('⏱  close-validation:')),
       'each phase ending logs its elapsed time (Story #5417)',
