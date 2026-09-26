@@ -326,6 +326,14 @@ const TEMP_RETENTION_SCHEMA = {
             'Age-floored only; the current run is always excluded.',
           default: true,
         },
+        scratch: {
+          type: 'boolean',
+          description:
+            '<tempRoot>/scratch/ — agent-authored scratch. ' +
+            '`scratch/story-<id>/` is purged when that Story lands; any ' +
+            'other `scratch/` entry is age-floored.',
+          default: true,
+        },
       },
       additionalProperties: false,
     },
