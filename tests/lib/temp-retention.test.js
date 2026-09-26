@@ -97,12 +97,13 @@ describe('resolveTempRetention — the one knob, defaulting to on', () => {
 });
 
 describe('classification — allowlist, never a blocklist', () => {
-  it('claims the four declared classes and nothing else', async () => {
+  it('claims the declared classes and nothing else', async () => {
     const root = makeRoot();
     writeAged(path.join(root, 'orchestration', 'close-gates-4794.log'));
     writeAged(path.join(storyDir(root, 4794), 'validation-evidence.json'));
     writeAged(path.join(root, 'audits', 'audit-story-4794-audit-perf.md'));
     mkdirAged(path.join(root, 'plan-some-slug'));
+    writeAged(path.join(root, 'scratch', 'story-4794', 'notes.md'));
 
     const { entries } = await collectTempEntries({ tempRoot: root });
     const byClass = new Map(entries.map((e) => [e.className, e]));
@@ -120,6 +121,7 @@ describe('classification — allowlist, never a blocklist', () => {
       null,
       'a plan dir predates the Stories it creates, so it is never Story-keyed',
     );
+    assert.equal(byClass.get('scratch').storyId, 4794);
   });
 
   it('reports an unclaimed top-level entry as unrecognized, with its size', async () => {
@@ -441,6 +443,115 @@ describe('sweepTempRetention — the boot catch-up path', () => {
       result.unrecognized.some((u) => u.path === scratch),
       'it is surfaced for the operator rather than reaped',
     );
+  });
+});
+
+describe('the scratch class — agent-authored temp files are reapable (#5459)', () => {
+  it('a Story landing purges its scratch/story-<id>/ through the post-land path', async () => {
+    const root = makeRoot();
+    const mine = path.join(root, 'scratch', 'story-5459');
+    writeAged(path.join(mine, 'probe.js'), 'p'.repeat(20));
+    writeAged(path.join(mine, 'deep', 'out.log'), 'o'.repeat(10));
+    const sibling = writeAged(
+      path.join(root, 'scratch', 'story-5460', 'probe.js'),
+    );
+    const loose = writeAged(path.join(root, 'scratch', 'adhoc.txt'));
+
+    const result = await purgeStoryTempArtifacts({
+      storyId: 5459,
+      tempRoot: root,
+      logger: quiet,
+    });
+
+    assert.equal(existsSync(mine), false, 'the landed Story scratch went');
+    assert.equal(existsSync(sibling), true, 'an unlanded sibling stays');
+    assert.equal(existsSync(loose), true, 'post-land never age-floors');
+    assert.equal(result.bytesReclaimed, 30);
+  });
+
+  it('the boot sweep age-floors every other scratch entry', async () => {
+    const root = makeRoot();
+    const stale = mkdirAged(path.join(root, 'scratch', 'old-probe'), 0);
+    writeAged(path.join(stale, 'x.txt'), 'x', 30 * DAY);
+    mkdirAged(stale, 30 * DAY);
+    const staleFile = writeAged(
+      path.join(root, 'scratch', 'old.txt'),
+      'x',
+      30 * DAY,
+    );
+    const fresh = writeAged(path.join(root, 'scratch', 'new.txt'), 'x', DAY);
+
+    const result = await sweepTempRetention({ tempRoot: root, logger: quiet });
+
+    assert.equal(existsSync(stale), false);
+    assert.equal(existsSync(staleFile), false);
+    assert.equal(existsSync(fresh), true, 'inside the floor survives');
+    assert.ok(
+      !result.unrecognized.some((u) => u.path.includes('scratch')),
+      'scratch/ is class-owned, never reported as unrecognized',
+    );
+  });
+
+  it('spares a signals.ndjson nested anywhere inside a purged scratch dir', async () => {
+    const root = makeRoot();
+    const dir = path.join(root, 'scratch', 'story-5459');
+    const signals = writeAged(path.join(dir, 'a', 'b', 'signals.ndjson'));
+    const junk = writeAged(path.join(dir, 'a', 'junk.txt'));
+
+    const result = await purgeStoryTempArtifacts({
+      storyId: 5459,
+      tempRoot: root,
+      logger: quiet,
+    });
+
+    assert.equal(existsSync(junk), false);
+    assert.equal(existsSync(signals), true);
+    assert.ok(result.kept.includes(signals));
+  });
+
+  it('honours the scratch class opt-out', async () => {
+    const root = makeRoot();
+    const mine = writeAged(path.join(root, 'scratch', 'story-5459', 'p.js'));
+    await purgeStoryTempArtifacts({
+      storyId: 5459,
+      config: { delivery: { tempRetention: { classes: { scratch: false } } } },
+      tempRoot: root,
+      logger: quiet,
+    });
+    assert.equal(existsSync(mine), true);
+  });
+
+  it('a dry run reports what would go and deletes nothing', async () => {
+    const root = makeRoot();
+    const mine = writeAged(path.join(root, 'scratch', 'story-5459', 'p.js'));
+    const result = await sweepTempRetention({
+      tempRoot: root,
+      mergedStoryIds: [5459],
+      dryRun: true,
+      logger: quiet,
+    });
+    assert.equal(existsSync(mine), true);
+    assert.deepEqual(
+      result.purged.map((p) => p.path),
+      [path.join(root, 'scratch', 'story-5459')],
+    );
+  });
+});
+
+describe('unrecognized entries — reported for /clean-temp', () => {
+  it('reports each unrecognized entry with its own mtime', async () => {
+    const root = makeRoot();
+    const old = writeAged(path.join(root, 'old.txt'), 'x', 30 * DAY);
+    const { unrecognized } = await collectTempEntries({ tempRoot: root });
+    const row = unrecognized.find((u) => u.path === old);
+    assert.ok(Date.now() - row.mtimeMs >= 29 * DAY);
+  });
+
+  it('never reports a top-level signals.ndjson as unrecognized', async () => {
+    const root = makeRoot();
+    writeAged(path.join(root, 'signals.ndjson'));
+    const { unrecognized } = await collectTempEntries({ tempRoot: root });
+    assert.deepEqual(unrecognized, []);
   });
 });
 

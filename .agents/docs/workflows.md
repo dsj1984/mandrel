@@ -32,7 +32,7 @@ by `node .agents/scripts/generate-workflows-doc.js`; `npm run docs:check`
 fails when it drifts from the on-disk workflow set. To change a command’s
 description, edit the workflow file’s front-matter and regenerate.
 
-## Commands (29)
+## Commands (30)
 
 | Command | Description |
 | --- | --- |
@@ -55,6 +55,7 @@ description, edit the workflow file’s front-matter and regenerate.
 | `/audit-sre` | "Audit production-readiness for a release candidate: SLOs, observability, runbooks, error budgets, and rollback paths." |
 | `/audit-to-stories` | Convert findings produced by the audit-\* workflows into actionable GitHub Stories. Reads temp/audits/audit-\*-results.md, groups findings cross-audit, deduplicates against existing Issues by fingerprint, and either chains into /mandrel-plan --seed-file or opens standalone Stories. |
 | `/audit-ux-ui` | Audit UX/UI consistency and design system adherence |
+| `/clean-temp` | Clear the temp-tree backlog the land-time purge cannot attribute: sort every top-level entry under the project's tempRoot into framework, closed-issue, aged and kept buckets, preview by default, and delete only confirmed buckets. |
 | `/git-cleanup` | Tidy the local checkout in four phases: fast-forward `main`, prune stale remote-tracking refs, sweep merged branches (squash-aware), and triage `git stash` entries — each step gated by operator confirmation. |
 | `/git-deliver` | Single ad-hoc delivery command for working-tree changes. Detects the git setup and escalates to the right terminal step — commit only, commit + push, or commit + push + open a PR with native auto-merge — picking the default from observable state and letting flags pin any level explicitly. Replaces the retired git-commit-all, git-push, and git-pr-all trio. |
 | `/mandrel-deliver` | Unified delivery entry point. Takes Story ids or a plain-language prompt, derives which path the work belongs on, and lands it via the single deliver-story engine — story-<id> → PR → main. |

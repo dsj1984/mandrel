@@ -37,6 +37,7 @@ const FRAMEWORK_SCRIPT_BASENAMES = Object.freeze([
   'check-test-temp-hygiene.js',
   'check-windows-git-perf.js',
   'ceremony-derive.js',
+  'clean-temp.js',
   'cleanup-repo-test-temp.js',
   'coverage-capture.js',
   'deliver-light.js',

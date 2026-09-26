@@ -75,6 +75,10 @@
       "mi": 95.062
     },
     {
+      "path": ".agents/scripts/clean-temp.js",
+      "mi": 117.315
+    },
+    {
       "path": ".agents/scripts/cleanup-repo-test-temp.js",
       "mi": 101.974
     },
@@ -529,6 +533,10 @@
     {
       "path": ".agents/scripts/lib/child-exec.js",
       "mi": 109.336
+    },
+    {
+      "path": ".agents/scripts/lib/clean-temp.js",
+      "mi": 94.177
     },
     {
       "path": ".agents/scripts/lib/cli-args.js",
@@ -1771,8 +1779,12 @@
       "mi": 96.124
     },
     {
+      "path": ".agents/scripts/lib/temp-removal.js",
+      "mi": 91.382
+    },
+    {
       "path": ".agents/scripts/lib/temp-retention.js",
-      "mi": 89.911
+      "mi": 90.837
     },
     {
       "path": ".agents/scripts/lib/templates/decomposer-prompts.js",
