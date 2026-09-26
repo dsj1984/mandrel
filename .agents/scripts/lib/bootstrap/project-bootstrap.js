@@ -80,6 +80,10 @@ function writeJson(p, obj, fsImpl = fs) {
   fsImpl.writeFileSync(p, `${JSON.stringify(obj, null, 2)}\n`, 'utf8');
 }
 
+function agentRootOf(ctx) {
+  return ctx.agentRoot ?? path.join(ctx.projectRoot, '.agents');
+}
+
 /**
  * Node floor SSOT (`node:sqlite` stabilised at 22.22.1); import it, never
  * duplicate. Matches `package.json` `engines.node` (`>=22.22.1 <25`).
@@ -126,9 +130,36 @@ export function detectPackageManager(projectRoot, fsImpl = fs) {
   return detectPm(projectRoot, (p) => fsImpl.existsSync(p)) ?? 'npm';
 }
 
+/** @returns {'added'|'already-present'} */
+function ensureScript(scripts, key, command) {
+  if (scripts[key]) return 'already-present';
+  scripts[key] = command;
+  return 'added';
+}
+
+/** Append each projection independently so a partial prepare gains the other. */
+function ensurePrepareScript(scripts) {
+  const prepare = scripts.prepare;
+  if (!prepare) {
+    scripts.prepare = `${SYNC_COMMAND} && ${SYNC_AGENTS_COMMAND}`;
+    return 'added';
+  }
+  let next = prepare;
+  if (!next.includes('sync-claude-commands.js')) {
+    next = `${next} && ${SYNC_COMMAND}`;
+  }
+  if (!next.includes('sync-claude-agents.js')) {
+    next = `${next} && ${SYNC_AGENTS_COMMAND}`;
+  }
+  if (next === prepare) return 'already-present';
+  scripts.prepare = next;
+  return 'appended';
+}
+
 /**
  * Ensure `package.json` carries the sync/prepare/bootstrap scripts. Never
  * touches `dependencies` — framework deps arrive transitively via `mandrel`.
+ * An operator-defined `bootstrap` script always wins.
  *
  * @param {object} ctx
  * @param {typeof fs} [ctx.fsImpl]
@@ -136,62 +167,32 @@ export function detectPackageManager(projectRoot, fsImpl = fs) {
 export function ensurePackageJson(ctx) {
   const { fsImpl = fs } = ctx;
   const pkgPath = path.join(ctx.projectRoot, 'package.json');
-  const projectName = path.basename(path.resolve(ctx.projectRoot));
-  const outcomes = {
-    created: false,
-    scriptsSyncCommands: 'already-present',
-    scriptsSyncAgents: 'already-present',
-    scriptsPrepare: 'already-present',
-    scriptsBootstrap: 'already-present',
+  const existing = readJsonIfExists(pkgPath, fsImpl);
+  const pkg = existing || {
+    name: path.basename(path.resolve(ctx.projectRoot)),
+    version: '0.0.0',
+    private: true,
+    type: 'module',
   };
-  let pkg = readJsonIfExists(pkgPath, fsImpl);
-  if (!pkg) {
-    pkg = {
-      name: projectName,
-      version: '0.0.0',
-      private: true,
-      type: 'module',
-    };
-    outcomes.created = true;
-  }
   pkg.scripts = pkg.scripts ?? {};
-  if (!pkg.scripts['sync:commands']) {
-    pkg.scripts['sync:commands'] = SYNC_COMMAND;
-    outcomes.scriptsSyncCommands = 'added';
-  }
-  if (!pkg.scripts['sync:agents']) {
-    pkg.scripts['sync:agents'] = SYNC_AGENTS_COMMAND;
-    outcomes.scriptsSyncAgents = 'added';
-  }
-  const prepare = pkg.scripts.prepare;
-  if (!prepare) {
-    pkg.scripts.prepare = `${SYNC_COMMAND} && ${SYNC_AGENTS_COMMAND}`;
-    outcomes.scriptsPrepare = 'added';
-  } else {
-    // Append each projection independently so a partial prepare gains the other.
-    let next = prepare;
-    if (!next.includes('sync-claude-commands.js')) {
-      next = `${next} && ${SYNC_COMMAND}`;
-    }
-    if (!next.includes('sync-claude-agents.js')) {
-      next = `${next} && ${SYNC_AGENTS_COMMAND}`;
-    }
-    if (next !== prepare) {
-      pkg.scripts.prepare = next;
-      outcomes.scriptsPrepare = 'appended';
-    }
-  }
-  // An operator-defined `bootstrap` script always wins.
-  if (!pkg.scripts.bootstrap) {
-    pkg.scripts.bootstrap = BOOTSTRAP_COMMAND;
-    outcomes.scriptsBootstrap = 'added';
-  }
-  const mutated =
-    outcomes.created ||
-    outcomes.scriptsSyncCommands === 'added' ||
-    outcomes.scriptsSyncAgents === 'added' ||
-    outcomes.scriptsPrepare !== 'already-present' ||
-    outcomes.scriptsBootstrap === 'added';
+  const outcomes = {
+    created: !existing,
+    scriptsSyncCommands: ensureScript(
+      pkg.scripts,
+      'sync:commands',
+      SYNC_COMMAND,
+    ),
+    scriptsSyncAgents: ensureScript(
+      pkg.scripts,
+      'sync:agents',
+      SYNC_AGENTS_COMMAND,
+    ),
+    scriptsPrepare: ensurePrepareScript(pkg.scripts),
+    scriptsBootstrap: ensureScript(pkg.scripts, 'bootstrap', BOOTSTRAP_COMMAND),
+  };
+  const mutated = Object.values(outcomes).some(
+    (v) => v === true || v === 'added' || v === 'appended',
+  );
   if (mutated) writeJson(pkgPath, pkg, fsImpl);
   return { ...outcomes, path: pkgPath, mutated };
 }
@@ -246,10 +247,7 @@ export function ensureAgentrc(ctx) {
   if (fsImpl.existsSync(target)) {
     return { action: 'already-present', path: target };
   }
-  const starter = path.join(
-    ctx.agentRoot ?? path.join(ctx.projectRoot, '.agents'),
-    'starter-agentrc.json',
-  );
+  const starter = path.join(agentRootOf(ctx), 'starter-agentrc.json');
   if (!fsImpl.existsSync(starter)) {
     return { action: 'missing-starter', path: target };
   }
@@ -269,16 +267,28 @@ export function ensureAgentrc(ctx) {
   return { action: 'seeded', path: target, source: 'starter' };
 }
 
+async function loadAgentrcValidator(schemaModule) {
+  // pathToFileURL handles Windows drive letters and percent-encoding.
+  const mod = await import(pathToFileURL(schemaModule).href);
+  return mod.getAgentrcValidator();
+}
+
+function agentrcVerdict(validate, data) {
+  if (!data) return { ok: false, errors: ['.agentrc.json missing'] };
+  const ok = validate(data);
+  return { ok: !!ok, errors: ok ? [] : (validate.errors ?? []) };
+}
+
 /**
  * Validate `.agentrc.json` against the AJV schema; the caller decides whether to abort.
  *
  * @param {object} ctx
  * @param {typeof fs} [ctx.fsImpl]
  */
-export async function validateAgentrc(ctx) {
+async function validateAgentrc(ctx) {
   const { fsImpl = fs } = ctx;
   const schemaModule = path.join(
-    ctx.agentRoot ?? path.join(ctx.projectRoot, '.agents'),
+    agentRootOf(ctx),
     'scripts',
     'lib',
     'config-settings-schema.js',
@@ -286,16 +296,12 @@ export async function validateAgentrc(ctx) {
   if (!fsImpl.existsSync(schemaModule)) {
     return { ok: false, errors: ['config-settings-schema.js not found'] };
   }
-  // pathToFileURL handles Windows drive letters and percent-encoding.
-  const mod = await import(pathToFileURL(schemaModule).href);
-  const validate = mod.getAgentrcValidator();
+  const validate = await loadAgentrcValidator(schemaModule);
   const data = readJsonIfExists(
     path.join(ctx.projectRoot, '.agentrc.json'),
     fsImpl,
   );
-  if (!data) return { ok: false, errors: ['.agentrc.json missing'] };
-  const ok = validate(data);
-  return { ok: !!ok, errors: ok ? [] : (validate.errors ?? []) };
+  return agentrcVerdict(validate, data);
 }
 
 /**
@@ -347,12 +353,9 @@ function ensureIssueFormsPhase(ctx) {
  * @param {object} ctx
  * @param {typeof defaultSpawnSync} [ctx.spawnImpl]
  */
-export function runSyncCommands(ctx) {
+function runSyncCommands(ctx) {
   const { spawnImpl = defaultSpawnSync } = ctx;
-  const scriptsDir = path.join(
-    ctx.agentRoot ?? path.join(ctx.projectRoot, '.agents'),
-    'scripts',
-  );
+  const scriptsDir = path.join(agentRootOf(ctx), 'scripts');
   const projections = [
     { label: 'sync-claude-commands.js', script: 'sync-claude-commands.js' },
     { label: 'sync-claude-agents.js', script: 'sync-claude-agents.js' },
@@ -390,10 +393,7 @@ export function runSyncCommands(ctx) {
  */
 export function checkParity(ctx) {
   const { fsImpl = fs } = ctx;
-  const workflowsDir = path.join(
-    ctx.agentRoot ?? path.join(ctx.projectRoot, '.agents'),
-    'workflows',
-  );
+  const workflowsDir = path.join(agentRootOf(ctx), 'workflows');
   const commandsDir = path.join(ctx.projectRoot, '.claude', 'commands');
   const list = (dir) =>
     fsImpl.existsSync(dir)
@@ -437,13 +437,13 @@ export function ensureSystemPromptWiring(ctx) {
  * @param {typeof fs} [ctx.fsImpl]
  * @param {typeof defaultSpawnSync} [ctx.spawnImpl]
  */
-export function checkWindowsGitPerf(ctx) {
+function checkWindowsGitPerf(ctx) {
   const { fsImpl = fs, spawnImpl = defaultSpawnSync } = ctx;
-  if (os.platform() !== 'win32') {
+  if ((ctx.platform ?? os.platform()) !== 'win32') {
     return { platform: process.platform, skipped: true };
   }
   const script = path.join(
-    ctx.agentRoot ?? path.join(ctx.projectRoot, '.agents'),
+    agentRootOf(ctx),
     'scripts',
     'check-windows-git-perf.js',
   );

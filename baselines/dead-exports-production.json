@@ -309,10 +309,6 @@
     },
     {
       "file": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "symbol": "checkWindowsGitPerf"
-    },
-    {
-      "file": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "symbol": "detectPackageManager"
     },
     {
@@ -341,19 +337,11 @@
     },
     {
       "file": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "symbol": "runSyncCommands"
-    },
-    {
-      "file": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "symbol": "SYNC_AGENTS_COMMAND"
     },
     {
       "file": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "symbol": "throwIfFatal"
-    },
-    {
-      "file": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "symbol": "validateAgentrc"
     },
     {
       "file": ".agents/scripts/lib/bootstrap/prompt.js",
@@ -1434,10 +1422,6 @@
     {
       "file": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "symbol": "resolveMergeWaitConfig"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/options.js",
-      "symbol": "parseCloseOptions"
     },
     {
       "file": ".agents/scripts/lib/orchestration/single-story-close/phases/wrong-tree-guard.js",

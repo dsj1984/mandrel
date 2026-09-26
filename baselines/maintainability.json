@@ -32,7 +32,7 @@
     },
     {
       "path": ".agents/scripts/bootstrap.js",
-      "mi": 89.674
+      "mi": 90.751
     },
     {
       "path": ".agents/scripts/ceremony-derive.js",
@@ -476,7 +476,7 @@
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "mi": 95.992
+      "mi": 98.793
     },
     {
       "path": ".agents/scripts/lib/bootstrap/prompt.js",

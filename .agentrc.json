@@ -36,7 +36,7 @@
           "floors": { "*": { "lines": 96, "branches": 88, "functions": 89 } }
         },
         "crap": {
-          "floors": { "*": { "methodsAbove20": 2 } },
+          "floors": { "*": { "methodsAbove20": 1 } },
           "targetDirs": [".agents/scripts", "bin", "lib", "scripts"],
           "ignoreGlobs": [
             ".agents/scripts/**/__tests__/**",
