@@ -5823,6 +5823,39 @@
       "anonymous": true
     },
     {
+      "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
+      "method": "buildCrapSeatScorer",
+      "startLine": 206,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
+      "method": "<anon buildCrapSeatScorer/(files)#0>",
+      "startLine": 217,
+      "crap": 4,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
+      "method": "<anon buildCrapSeatScorer/(files)#0/(requireScope)#0>",
+      "startLine": 219,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
+      "method": "<anon buildCrapSeatScorer/(files)#0/(r)#0>",
+      "startLine": 249,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
+      "method": "seatCrapBaseline",
+      "startLine": 262,
+      "crap": 1
+    },
+    {
       "path": ".agents/scripts/lib/baselines/diff-scope-cli.js",
       "method": "parseDiffScopeFlag",
       "startLine": 14,
@@ -7391,6 +7424,103 @@
       "startLine": 112,
       "crap": 2.0011851851851854,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/seat-missing.js",
+      "method": "<anon (row)#0>",
+      "startLine": 38,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/seat-missing.js",
+      "method": "<anon (row)#1>",
+      "startLine": 39,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/seat-missing.js",
+      "method": "seatKeyFor",
+      "startLine": 46,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/seat-missing.js",
+      "method": "selectMissingRows",
+      "startLine": 58,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/seat-missing.js",
+      "method": "<anon selectMissingRows/(row)#0>",
+      "startLine": 61,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/seat-missing.js",
+      "method": "checkSeatResolution",
+      "startLine": 75,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/seat-missing.js",
+      "method": "<anon checkSeatResolution/(w)#0>",
+      "startLine": 80,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/seat-missing.js",
+      "method": "mergeBaseGitDiff",
+      "startLine": 96,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/seat-missing.js",
+      "method": "<anon mergeBaseGitDiff/(line)#0>",
+      "startLine": 102,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/seat-missing.js",
+      "method": "buildSeatedEnvelope",
+      "startLine": 109,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/seat-missing.js",
+      "method": "seatMissingBaseline",
+      "startLine": 128,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/seat-missing.js",
+      "method": "<anon seatMissingBaseline/(row)#0>",
+      "startLine": 147,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/seat-missing.js",
+      "method": "runSeatMissing",
+      "startLine": 173,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/seat-missing.js",
+      "method": "<anon runSeatMissing/(files)#0>",
+      "startLine": 195,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/seat-missing.js",
+      "method": "seatMaintainabilityBaseline",
+      "startLine": 215,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/baselines/writer.js",
@@ -32158,6 +32288,12 @@
       "anonymous": true
     },
     {
+      "path": ".agents/scripts/update-crap-baseline.js",
+      "method": "seat",
+      "startLine": 99,
+      "crap": 2
+    },
+    {
       "path": ".agents/scripts/update-duplication-baseline.js",
       "method": "parseCliArgs",
       "startLine": 48,
@@ -32230,6 +32366,12 @@
       "startLine": 95,
       "crap": 1.125,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/update-maintainability-baseline.js",
+      "method": "seat",
+      "startLine": 97,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/validate-skills.js",

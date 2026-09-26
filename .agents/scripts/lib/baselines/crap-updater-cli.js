@@ -6,9 +6,17 @@
  */
 
 import path from 'node:path';
+import { getBaselines, getQuality, resolveConfig } from '../config-resolver.js';
+import { isCoverageFresh } from '../coverage-capture.js';
+import { loadCoverage as loadCoverageDefault } from '../coverage-utils.js';
 import { checkResolutionFloor, scanAndScore } from '../crap-utils.js';
 import { Logger } from '../Logger.js';
 import { parseDiffScopeFlag } from './diff-scope-cli.js';
+import {
+  checkSeatResolution,
+  runSeatMissing,
+  SeatRefusal,
+} from './seat-missing.js';
 
 const DEFAULT_COVERAGE_PATH = 'coverage/coverage-final.json';
 
@@ -20,7 +28,7 @@ const DEFAULT_MIN_RESOLUTION_RATE = 0.75;
  *
  * @param {string[]} [argv]
  * @returns {{baselinePath: string|undefined, coveragePath: string|undefined,
- *   fullScope: boolean, diffScopeRef: string|null}}
+ *   fullScope: boolean, diffScopeRef: string|null, seatMissing: boolean}}
  */
 export function parseCrapUpdaterArgs(argv = []) {
   const out = {
@@ -28,6 +36,7 @@ export function parseCrapUpdaterArgs(argv = []) {
     coveragePath: undefined,
     fullScope: false,
     diffScopeRef: parseDiffScopeFlag(argv),
+    seatMissing: argv.includes('--seat-missing'),
   };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === '--baseline' && argv[i + 1]) {
@@ -45,16 +54,17 @@ export function parseCrapUpdaterArgs(argv = []) {
 
 /**
  * Flag → config → default. Throws on `--full-scope` with `--diff-scope`:
- * silently preferring one would write a baseline nobody asked for.
+ * silently preferring one would write a baseline nobody asked for
+ * (`runSeatMissing` refuses the `--seat-missing` pairing).
  *
  * @param {{baselinePath?: string, coveragePath?: string, fullScope?: boolean,
- *   diffScopeRef?: string|null}} args
+ *   diffScopeRef?: string|null, seatMissing?: boolean}} args
  * @param {{crap?: object, baselines?: object}} sources
  * @param {string} [cwd]
  * @returns {{targetDirs: string[], ignoreGlobs: string[],
  *   requireCoverage: boolean, minMethodResolutionRate: number,
  *   coveragePath: string, baselinePath: string, absBaselinePath: string,
- *   fullScope: boolean, diffScopeRef: string|null}}
+ *   fullScope: boolean, diffScopeRef: string|null, seatMissing: boolean}}
  */
 export function resolveCrapUpdaterOptions(
   args = {},
@@ -82,6 +92,7 @@ export function resolveCrapUpdaterOptions(
       : path.resolve(cwd, baselinePath),
     fullScope: Boolean(args.fullScope),
     diffScopeRef: args.diffScopeRef ?? null,
+    seatMissing: Boolean(args.seatMissing),
   };
 }
 
@@ -171,4 +182,90 @@ export function buildCrapUpdaterScorer(
       (r) => typeof r?.crap === 'number' && Number.isFinite(r.crap),
     );
   };
+}
+
+/** Stamp scopes a capture may have written; any one fresh stamp suffices. */
+const CAPTURE_SCOPES = ['full', 'incremental', 'affected'];
+
+/**
+ * The `--seat-missing` scorer: refuses (throws {@link SeatRefusal}) unless
+ * the coverage artifact is fresh for the current tree and every in-scope
+ * method resolved a coverage entry — a wrong-coordinate row stays wrong even
+ * when it is only inserted.
+ *
+ * @param {ReturnType<typeof resolveCrapUpdaterOptions>} options
+ * @param {{loadCoverage: Function, scan?: Function, isFresh?: Function,
+ *   cwd?: string, logger?: object}} deps
+ * @returns {(files: string[]) => Promise<object[]>}
+ */
+export function buildCrapSeatScorer(
+  options,
+  {
+    loadCoverage,
+    scan = scanAndScore,
+    isFresh = isCoverageFresh,
+    cwd = process.cwd(),
+    logger = Logger,
+  } = {},
+) {
+  const fixCommand = `node .agents/scripts/coverage-capture.js --cwd ${cwd}`;
+  return async (files) => {
+    const fresh = CAPTURE_SCOPES.some(
+      (requireScope) =>
+        isFresh({
+          coveragePath: options.coveragePath,
+          targetDirs: options.targetDirs,
+          cwd,
+          requireScope,
+        }).fresh,
+    );
+    const coverage = fresh
+      ? loadCoverage(path.resolve(cwd, options.coveragePath))
+      : null;
+    if (!coverage) {
+      throw new SeatRefusal(
+        `[CRAP] --seat-missing refused: no coverage artifact at ${options.coveragePath} is fresh for the current tree ` +
+          `(method resolution unmeasured; unresolved files: ${files.join(', ')}).\n` +
+          `Fix: re-capture coverage for the current tree — ${fixCommand}`,
+      );
+    }
+    const summary = await scan({
+      targetDirs: options.targetDirs,
+      coverage,
+      requireCoverage: options.requireCoverage,
+      cwd,
+      ignoreGlobs: options.ignoreGlobs,
+      scopeFiles: files,
+    });
+    reportScanSummary(summary, logger);
+    const refusal = checkSeatResolution(summary.resolution, fixCommand);
+    if (refusal) throw new SeatRefusal(refusal);
+    return (summary.rows ?? []).filter(
+      (r) => typeof r?.crap === 'number' && Number.isFinite(r.crap),
+    );
+  };
+}
+
+/**
+ * `update-crap-baseline.js --seat-missing`: seat the diff's new methods
+ * through {@link buildCrapSeatScorer}. Resolves to the exit code.
+ *
+ * @param {string[]} argv
+ * @param {{config?: object}} [deps]
+ * @returns {Promise<number>}
+ */
+export function seatCrapBaseline(argv, { config = resolveConfig() } = {}) {
+  const options = resolveCrapUpdaterOptions(parseCrapUpdaterArgs(argv), {
+    crap: getQuality(config).crap,
+    baselines: getBaselines(config),
+  });
+  return runSeatMissing({
+    kind: 'crap',
+    label: 'CRAP',
+    writePath: options.absBaselinePath,
+    diffScopeRef: options.diffScopeRef,
+    fullScope: options.fullScope,
+    baseBranch: config.project.baseBranch,
+    score: buildCrapSeatScorer(options, { loadCoverage: loadCoverageDefault }),
+  });
 }

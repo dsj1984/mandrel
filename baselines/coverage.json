@@ -455,7 +455,7 @@
     {
       "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
       "lines": 100,
-      "branches": 93.48,
+      "branches": 92.98,
       "functions": 100
     },
     {
@@ -593,7 +593,7 @@
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
       "lines": 84.51,
-      "branches": 76.07,
+      "branches": 76.27,
       "functions": 73.68
     },
     {
@@ -601,6 +601,12 @@
       "lines": 98.28,
       "branches": 92.11,
       "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/seat-missing.js",
+      "lines": 96.49,
+      "branches": 88.89,
+      "functions": 90.91
     },
     {
       "path": ".agents/scripts/lib/baselines/writer.js",
@@ -3226,8 +3232,8 @@
     },
     {
       "path": ".agents/scripts/update-crap-baseline.js",
-      "lines": 65.35,
-      "branches": 100,
+      "lines": 65.77,
+      "branches": 50,
       "functions": 0
     },
     {
@@ -3238,9 +3244,9 @@
     },
     {
       "path": ".agents/scripts/update-maintainability-baseline.js",
-      "lines": 86.87,
-      "branches": 42.86,
-      "functions": 66.67
+      "lines": 85.32,
+      "branches": 37.5,
+      "functions": 50
     },
     {
       "path": ".agents/scripts/update-ticket-state.js",

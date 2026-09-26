@@ -101,7 +101,8 @@ Step 2.5's credited suite run is the sole exception.
 
 After the self-eval loop's last fix commit, run the one credited suite run
 in the worktree — **digest § 5** is its only home and carries the
-invocation. Red → fix, commit, re-run.
+invocation. Red → fix, commit, re-run. Then, before the push, seat the
+baseline rows for methods the Story added (`--seat-missing`, digest § 5).
 
 Push `story-<storyId>` to `origin`, confirming the remote ref moved. Then
 (sub-agent dispatch only) return the hand-off — Story id, `workCwd`,
