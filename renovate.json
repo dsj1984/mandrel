@@ -50,7 +50,7 @@
       "groupName": "commit hooks"
     },
     {
-      "description": "TypeScript is declared twice. The peerDependency range stays >=5.0.0 — consumers choose their own compiler, and that is the contract this rule protects; do not bump it. The devDependency is separately caret-pinned in package.json to the major the suite is actually verified against: an unbounded >=5.0.0 there meant `npm outdated` resolved `wanted` two majors ahead, so a fresh install or a lockFileMaintenance refresh could land a new TypeScript major unreviewed. This rule keeps Renovate off both; a major adoption is a deliberate, reviewed change.",
+      "description": "TypeScript is declared twice. The peerDependency range stays >=5.0.0 <7 — consumers choose their own compiler within the majors whose main entry exposes the JS compiler API (TypeScript 7 moved transpileModule under unstable/*, and the transpile loader refuses an API-less module with one diagnostic), and that is the contract this rule protects; do not bump it. The devDependency is separately caret-pinned in package.json to the major the suite is actually verified against: an unbounded >=5.0.0 there meant `npm outdated` resolved `wanted` two majors ahead, so a fresh install or a lockFileMaintenance refresh could land a new TypeScript major unreviewed. This rule keeps Renovate off both; a major adoption is a deliberate, reviewed change.",
       "matchPackageNames": ["typescript"],
       "enabled": false
     },

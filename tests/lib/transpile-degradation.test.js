@@ -22,6 +22,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { Logger } from '../../.agents/scripts/lib/Logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TRANSPILE_PATH = path.resolve(
@@ -185,5 +186,55 @@ describe('transpile.js — TS-absent degradation (simulated)', () => {
       jsSrc,
       '.js files must pass through even when TS is absent',
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Unsupported major: a resolved module with no compiler API (TypeScript 7's
+// main entry exports only `version` / `versionMajorMinor`).
+// ---------------------------------------------------------------------------
+
+describe('transpile.js — API-less typescript major', () => {
+  it('emits ONE unsupported-major diagnostic naming the version and range', async () => {
+    const { transpileIfNeeded } = await import(
+      pathToFileURL(TRANSPILE_PATH).href
+    );
+    const ts7 = { version: '7.0.0', versionMajorMinor: '7.0' };
+    const warnings = [];
+    const originalWarn = Logger.warn;
+    Logger.warn = (msg) => warnings.push(msg);
+    try {
+      for (const file of ['a.ts', 'b.tsx', 'c.mts']) {
+        const out = transpileIfNeeded(file, 'const x: number = 1;', {
+          typescript: ts7,
+        });
+        assert.equal(out, null, `${file} must be skipped, not scored`);
+      }
+      const mapped = transpileIfNeeded('d.ts', 'const y = 2;', {
+        typescript: ts7,
+        withLineMap: true,
+      });
+      assert.equal(mapped, null);
+    } finally {
+      Logger.warn = originalWarn;
+    }
+    assert.equal(warnings.length, 1, 'one diagnostic, not one per file');
+    assert.match(warnings[0], /typescript 7\.0\.0/);
+    assert.match(warnings[0], />=5\.0\.0 <7/);
+    assert.doesNotMatch(warnings[0], /transpile failed/);
+  });
+});
+
+describe('typescript optional peer range', () => {
+  it('excludes major 7 in both package.json and runtime-deps.json', () => {
+    const root = path.resolve(__dirname, '../..');
+    const pkg = JSON.parse(
+      readFileSync(path.join(root, 'package.json'), 'utf-8'),
+    );
+    const runtimeDeps = JSON.parse(
+      readFileSync(path.join(root, '.agents/runtime-deps.json'), 'utf-8'),
+    );
+    assert.equal(pkg.peerDependencies.typescript, '>=5.0.0 <7');
+    assert.equal(runtimeDeps.optionalDependencies.typescript, '>=5.0.0 <7');
   });
 });

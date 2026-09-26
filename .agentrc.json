@@ -33,15 +33,14 @@
     "quality": {
       "gates": {
         "coverage": {
-          "floors": { "*": { "lines": 94, "branches": 85, "functions": 87 } }
+          "floors": { "*": { "lines": 96, "branches": 88, "functions": 89 } }
         },
         "crap": {
           "floors": { "*": { "methodsAbove20": 2 } },
           "targetDirs": [".agents/scripts", "bin", "lib", "scripts"],
           "ignoreGlobs": [
             ".agents/scripts/**/__tests__/**",
-            ".agents/scripts/lib/generated/**",
-            "lib/cli/update.js"
+            ".agents/scripts/lib/generated/**"
           ]
         },
         "maintainability": {

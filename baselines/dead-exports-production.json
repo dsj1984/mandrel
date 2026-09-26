@@ -449,10 +449,6 @@
     },
     {
       "file": ".agents/scripts/lib/changed-files.js",
-      "symbol": "diffNameOnly"
-    },
-    {
-      "file": ".agents/scripts/lib/changed-files.js",
       "symbol": "getStagedFiles"
     },
     {
@@ -516,40 +512,20 @@
       "symbol": "SUPPORTED_FLAGS"
     },
     {
-      "file": ".agents/scripts/lib/close-validation/commands.js",
-      "symbol": "*"
-    },
-    {
-      "file": ".agents/scripts/lib/close-validation/gates.js",
-      "symbol": "*"
-    },
-    {
       "file": ".agents/scripts/lib/close-validation/process.js",
-      "symbol": "*"
-    },
-    {
-      "file": ".agents/scripts/lib/close-validation/projections/advisories.js",
-      "symbol": "*"
+      "symbol": "gateExitCode"
     },
     {
       "file": ".agents/scripts/lib/close-validation/projections/crap.js",
-      "symbol": "*"
+      "symbol": "DEFAULT_CRAP_TOLERANCE"
     },
     {
-      "file": ".agents/scripts/lib/close-validation/projections/head-sha.js",
-      "symbol": "*"
-    },
-    {
-      "file": ".agents/scripts/lib/close-validation/projections/inputs.js",
-      "symbol": "*"
+      "file": ".agents/scripts/lib/close-validation/projections/crap.js",
+      "symbol": "DEFAULT_NEW_METHOD_CEILING"
     },
     {
       "file": ".agents/scripts/lib/close-validation/projections/maintainability.js",
-      "symbol": "*"
-    },
-    {
-      "file": ".agents/scripts/lib/close-validation/runner.js",
-      "symbol": "*"
+      "symbol": "DEFAULT_MI_TOLERANCE"
     },
     {
       "file": ".agents/scripts/lib/config-schema-shared.js",
@@ -837,23 +813,11 @@
     },
     {
       "file": ".agents/scripts/lib/full-suite-lock.js",
-      "symbol": "FULL_SUITE_LOCK_EXPIRY_ENV"
-    },
-    {
-      "file": ".agents/scripts/lib/full-suite-lock.js",
       "symbol": "isFullSuiteLockEnabled"
     },
     {
       "file": ".agents/scripts/lib/full-suite-lock.js",
       "symbol": "resolveFullSuiteLockPath"
-    },
-    {
-      "file": ".agents/scripts/lib/full-suite-lock.js",
-      "symbol": "withFullSuiteLockAsync"
-    },
-    {
-      "file": ".agents/scripts/lib/full-suite-queue.js",
-      "symbol": "parseLockWaitOutcome"
     },
     {
       "file": ".agents/scripts/lib/gates/baseline-store.js",
@@ -874,10 +838,6 @@
     {
       "file": ".agents/scripts/lib/gh-exec.js",
       "symbol": "default"
-    },
-    {
-      "file": ".agents/scripts/lib/gh-exec.js",
-      "symbol": "describeGraphqlPreflight"
     },
     {
       "file": ".agents/scripts/lib/gh-exec.js",
@@ -902,10 +862,6 @@
     {
       "file": ".agents/scripts/lib/gh-exec.js",
       "symbol": "GhScopeError"
-    },
-    {
-      "file": ".agents/scripts/lib/gh-exec.js",
-      "symbol": "probeGraphqlAvailability"
     },
     {
       "file": ".agents/scripts/lib/gh-exec.js",
@@ -946,10 +902,6 @@
     {
       "file": ".agents/scripts/lib/git/cached-fetch.js",
       "symbol": "__resetModuleCache"
-    },
-    {
-      "file": ".agents/scripts/lib/git/cached-fetch.js",
-      "symbol": "cachedGitFetchSync"
     },
     {
       "file": ".agents/scripts/lib/Graph.js",
@@ -993,10 +945,6 @@
     },
     {
       "file": ".agents/scripts/lib/Logger.js",
-      "symbol": "resolveLevel"
-    },
-    {
-      "file": ".agents/scripts/lib/Logger.js",
       "symbol": "setLevel"
     },
     {
@@ -1006,10 +954,6 @@
     {
       "file": ".agents/scripts/lib/maintainability-engine.js",
       "symbol": "calculateForFile"
-    },
-    {
-      "file": ".agents/scripts/lib/maintainability-engine.js",
-      "symbol": "calculateForSource"
     },
     {
       "file": ".agents/scripts/lib/maintainability-engine.js",
@@ -1146,10 +1090,6 @@
     {
       "file": ".agents/scripts/lib/orchestration/merge-block-class.js",
       "symbol": "MERGE_UNLANDED_BLOCK_CLASSES"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/merge-poll.js",
-      "symbol": "failingChecksBlockMerge"
     },
     {
       "file": ".agents/scripts/lib/orchestration/plan-context.js",
@@ -1464,28 +1404,20 @@
       "symbol": "RUN_EPILOGUE_STEP_KINDS"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/single-story-close/close-note.js",
-      "symbol": "*"
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/single-story-close/gate-log.js",
-      "symbol": "*"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/auto-merge.js",
-      "symbol": "runAutoMergePhase"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js",
-      "symbol": "runBaseSyncPhase"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
-      "symbol": "*"
+      "symbol": "REPLAY_TAIL_LINES"
     },
     {
       "file": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "symbol": "ASYNC_PROBE_WINDOW_SECONDS"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "symbol": "createMergeWaitState"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "symbol": "decideMergeWaitPoll"
     },
     {
       "file": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
@@ -1516,72 +1448,48 @@
       "symbol": "resolveMergeWaitConfig"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/conventional-subject.js",
-      "symbol": "*"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/graphql-preflight.js",
-      "symbol": "*"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/lock-wait-pending.js",
-      "symbol": "*"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
-      "symbol": "*"
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/single-story-close/phases/options.js",
-      "symbol": "resolveWaitForMerge"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/pre-gate-steps.js",
-      "symbol": "*"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/pull-request.js",
-      "symbol": "*"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/push.js",
-      "symbol": "*"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/review-block.js",
-      "symbol": "*"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/review-override.js",
-      "symbol": "*"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/worktree-reap.js",
-      "symbol": "*"
+      "symbol": "parseCloseOptions"
     },
     {
       "file": ".agents/scripts/lib/orchestration/single-story-close/phases/wrong-tree-guard.js",
-      "symbol": "*"
+      "symbol": "collectStoryDiffPaths"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
-      "symbol": "*"
+      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/wrong-tree-guard.js",
+      "symbol": "collectStrayTrackedPaths"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/wrong-tree-guard.js",
+      "symbol": "formatWrongTreeDowngradeFinding"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/wrong-tree-guard.js",
+      "symbol": "formatWrongTreeFinding"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/wrong-tree-guard.js",
+      "symbol": "guardApplies"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/wrong-tree-guard.js",
+      "symbol": "intersectPaths"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/wrong-tree-guard.js",
+      "symbol": "parseDiffNameOnly"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/wrong-tree-guard.js",
+      "symbol": "parsePorcelainStatus"
     },
     {
       "file": ".agents/scripts/lib/orchestration/single-story-lease-guard.js",
       "symbol": "resolveOperator"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
-      "symbol": "*"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/story-close/context-budget-writeback.js",
-      "symbol": "*"
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
-      "symbol": "*"
+      "symbol": "commitDirtyPaths"
     },
     {
       "file": ".agents/scripts/lib/orchestration/story-deliver-terminal.js",
@@ -1813,10 +1721,6 @@
     },
     {
       "file": ".agents/scripts/lib/signals/schema.js",
-      "symbol": "EVENT_KINDS"
-    },
-    {
-      "file": ".agents/scripts/lib/signals/schema.js",
       "symbol": "FIELDS"
     },
     {
@@ -1854,10 +1758,6 @@
     {
       "file": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
       "symbol": "readLockMtime"
-    },
-    {
-      "file": ".agents/scripts/lib/single-story/story-merged-notify.js",
-      "symbol": "*"
     },
     {
       "file": ".agents/scripts/lib/skills/walk-skill-files.js",
@@ -1906,10 +1806,6 @@
     {
       "file": ".agents/scripts/lib/test-run-credit.js",
       "symbol": "depositTestRunCredit"
-    },
-    {
-      "file": ".agents/scripts/lib/test-run-credit.js",
-      "symbol": "predictsTestEvidenceCredit"
     },
     {
       "file": ".agents/scripts/lib/test-run-credit.js",
@@ -2196,34 +2092,6 @@
       "symbol": "extractBlockingAdvisories"
     },
     {
-      "file": "scripts/lib/baselines/orphan-pruner.js",
-      "symbol": "planPrune"
-    },
-    {
-      "file": "scripts/lib/baselines/orphan-pruner.js",
-      "symbol": "pruneEnvelope"
-    },
-    {
-      "file": "scripts/lib/baselines/scope-assert.js",
-      "symbol": "STRICT_REASONS"
-    },
-    {
-      "file": "scripts/lib/baselines/scope-inventory.js",
-      "symbol": "deriveWalkRoots"
-    },
-    {
-      "file": "scripts/lib/baselines/scope-inventory.js",
-      "symbol": "directionsFor"
-    },
-    {
-      "file": "scripts/lib/baselines/scope-inventory.js",
-      "symbol": "keyFieldFor"
-    },
-    {
-      "file": "scripts/lib/baselines/scope-inventory.js",
-      "symbol": "KIND_SCOPE_POLICY"
-    },
-    {
       "file": "scripts/lib/audit-report-contracts/architecture-report-contract.js",
       "symbol": "*"
     },
@@ -2252,6 +2120,34 @@
       "symbol": "*"
     },
     {
+      "file": "scripts/lib/baselines/orphan-pruner.js",
+      "symbol": "planPrune"
+    },
+    {
+      "file": "scripts/lib/baselines/orphan-pruner.js",
+      "symbol": "pruneEnvelope"
+    },
+    {
+      "file": "scripts/lib/baselines/scope-assert.js",
+      "symbol": "STRICT_REASONS"
+    },
+    {
+      "file": "scripts/lib/baselines/scope-inventory.js",
+      "symbol": "deriveWalkRoots"
+    },
+    {
+      "file": "scripts/lib/baselines/scope-inventory.js",
+      "symbol": "directionsFor"
+    },
+    {
+      "file": "scripts/lib/baselines/scope-inventory.js",
+      "symbol": "keyFieldFor"
+    },
+    {
+      "file": "scripts/lib/baselines/scope-inventory.js",
+      "symbol": "KIND_SCOPE_POLICY"
+    },
+    {
       "file": "scripts/lib/knip-entry-sync.js",
       "symbol": "__testing"
     },
@@ -2266,30 +2162,6 @@
     {
       "file": "scripts/lib/test-isolate/runner.js",
       "symbol": "bisectFlipper"
-    },
-    {
-      "file": ".agents/scripts/lib/observability/close-telemetry.js",
-      "symbol": "emitReviewBlockedFriction"
-    },
-    {
-      "file": ".agents/scripts/lib/observability/close-telemetry.js",
-      "symbol": "recordCloseTelemetry"
-    },
-    {
-      "file": ".agents/scripts/lib/observability/close-telemetry.js",
-      "symbol": "resolveWorkerTokens"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
-      "symbol": "createMergeWaitState"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
-      "symbol": "decideMergeWaitPoll"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/options.js",
-      "symbol": "parseCloseOptions"
     }
   ]
 }
