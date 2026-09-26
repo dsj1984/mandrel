@@ -54,7 +54,7 @@ const STORY_EVIDENCE_BASENAMES = Object.freeze([
 const RESERVED_TOP_LEVEL = Object.freeze(['qa', 'cache']);
 
 /** Agent-authored scratch: `scratch/story-<id>/` or any other child. */
-export const SCRATCH_DIRNAME = 'scratch';
+const SCRATCH_DIRNAME = 'scratch';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 

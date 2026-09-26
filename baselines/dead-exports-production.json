@@ -1741,23 +1741,11 @@
     },
     {
       "file": ".agents/scripts/lib/temp-retention.js",
-      "symbol": "collectTempEntries"
-    },
-    {
-      "file": ".agents/scripts/lib/temp-retention.js",
-      "symbol": "formatBytes"
-    },
-    {
-      "file": ".agents/scripts/lib/temp-retention.js",
       "symbol": "KEEP_BASENAMES"
     },
     {
       "file": ".agents/scripts/lib/temp-retention.js",
       "symbol": "PURGE_CLASS_NAMES"
-    },
-    {
-      "file": ".agents/scripts/lib/temp-retention.js",
-      "symbol": "resolveTempRetention"
     },
     {
       "file": ".agents/scripts/lib/temp-retention.js",
