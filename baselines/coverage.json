@@ -454,9 +454,9 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
-      "lines": 95.27,
-      "branches": 93.22,
-      "functions": 83.33
+      "lines": 100,
+      "branches": 93.33,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/baselines/diff-scope-cli.js",
