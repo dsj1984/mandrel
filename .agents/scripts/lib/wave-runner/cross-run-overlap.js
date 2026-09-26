@@ -2,7 +2,7 @@
  * lib/wave-runner/cross-run-overlap.js — advisory report of probed Stories
  * whose declared footprint shares a concrete path with a Story another
  * session has in flight. Read-only and advisory: nothing here feeds
- * selection, ordering or the exit code (Story #5488).
+ * selection, ordering or the exit code.
  *
  * @module lib/wave-runner/cross-run-overlap
  */
