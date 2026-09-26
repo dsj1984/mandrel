@@ -9,6 +9,7 @@ import {
   isFullSuiteLockEnabled,
   LOCK_WAIT_EXPIRED_EXIT_CODE,
   lockedCapture,
+  resolveFullSuiteLockBudget,
   resolveFullSuiteLockPath,
   withFullSuiteLockAsync,
 } from '../../.agents/scripts/lib/full-suite-lock.js';
@@ -592,6 +593,158 @@ describe('full-suite lock (Story #5173)', () => {
         ),
         { waitedSeconds: 300, expired: true },
       );
+    });
+  });
+
+  // Story #5478 — the wait is bounded by the holder's own kill bound (the
+  // coverage gate's `timeoutMs`), not a fixed 300s a real suite outruns.
+  describe('lock wait budget (Story #5478)', () => {
+    const node = process.execPath;
+    const heldAt = 1_000_000;
+
+    function releasingAt(ms, holder) {
+      return fakeClock((now) => {
+        if (now >= heldAt + ms) holder.release();
+      });
+    }
+
+    it('resolves max(300s, kill bound), with a stale threshold inside the wait', () => {
+      assert.deepEqual(resolveFullSuiteLockBudget(600_000), {
+        waitMs: 600_000,
+        staleMs: 480_000,
+      });
+      assert.deepEqual(resolveFullSuiteLockBudget(200_000), {
+        waitMs: 300_000,
+        staleMs: 240_000,
+      });
+      assert.deepEqual(resolveFullSuiteLockBudget(undefined), {
+        waitMs: 300_000,
+        staleMs: 240_000,
+      });
+      for (const bound of [0, 299_999, 300_000, 450_000, 600_000, 3_600_000]) {
+        const { waitMs, staleMs } = resolveFullSuiteLockBudget(bound);
+        assert.ok(staleMs <= waitMs, `stale ${staleMs} exceeds wait ${waitMs}`);
+      }
+    });
+
+    it('AC-1/AC-2: the capture waits 600s and spawns behind a holder released at 450s', async () => {
+      const holder = acquireSweepLock({ lockPath, timeoutMs: 600_000 });
+      const lines = [];
+      let spawns = 0;
+      const wrapped = lockedCapture(
+        async () => {
+          spawns += 1;
+          return 0;
+        },
+        {},
+        { [FULL_SUITE_LOCK_EXPIRY_ENV]: 'defer' },
+        { lockPath, ...releasingAt(450_000, holder) },
+      );
+      const code = await wrapped({ cwd: dir, log: (m) => lines.push(m) });
+      holder.release();
+      assert.equal(code, 0);
+      assert.equal(spawns, 1);
+      assert.match(lines[0], /waiting up to 600s/);
+      assert.deepEqual(parseLockWaitOutcome(lines.at(-1)), {
+        waitedSeconds: 450,
+        expired: false,
+      });
+    });
+
+    it('AC-1/AC-2: the close test gate waits its 600s kill bound and spawns at 450s', async () => {
+      const holder = acquireSweepLock({ lockPath, timeoutMs: 600_000 });
+      const lines = [];
+      const result = await defaultGateRunner(node, ['-e', 'process.exit(0)'], {
+        cwd: dir,
+        gateName: 'test',
+        log: (m) => lines.push(m),
+        fullSuiteLock: true,
+        deferOnLockExpiry: true,
+        timeoutMs: 600_000,
+        lockOptions: { lockPath, ...releasingAt(450_000, holder) },
+      });
+      holder.release();
+      assert.deepEqual(result, { status: 0 });
+      assert.ok(lines.some((l) => /waiting up to 600s/.test(l)));
+      assert.ok(
+        lines.some((l) =>
+          /acquired the full-suite lock \(waited 450s\)/.test(l),
+        ),
+      );
+    });
+
+    it('AC-1/AC-4: a kill bound below 300s keeps the 300s floor, and expiry still defers with 75', async () => {
+      const holder = acquireSweepLock({ lockPath, timeoutMs: 600_000 });
+      const lines = [];
+      const result = await defaultGateRunner(node, ['-e', 'process.exit(0)'], {
+        cwd: dir,
+        gateName: 'test',
+        log: (m) => lines.push(m),
+        fullSuiteLock: true,
+        deferOnLockExpiry: true,
+        timeoutMs: 200_000,
+        lockOptions: { lockPath, ...fakeClock() },
+      });
+      holder.release();
+      assert.deepEqual(result, { status: LOCK_WAIT_EXPIRED_EXIT_CODE });
+      assert.ok(lines.some((l) => /waiting up to 300s/.test(l)));
+      const outcome = lines.map(parseLockWaitOutcome).find(Boolean);
+      assert.equal(outcome.expired, true);
+      assert.equal(outcome.waitedSeconds, 300);
+    });
+
+    it('AC-3: a live heartbeating holder is never read stale across a 600s wait', async () => {
+      // The holder's own heartbeat interval is a third of its stale threshold.
+      const { staleMs } = resolveFullSuiteLockBudget(600_000);
+      const beatMs = staleMs / 3;
+      const holder = acquireSweepLock({
+        lockPath,
+        timeoutMs: staleMs,
+        heartbeatMs: 0,
+      });
+      const clock = fakeClock((now) => {
+        // Age the lockfile by the time since the holder's last beat.
+        const sinceBeat = (now - heldAt) % beatMs;
+        const stamp = new Date(Date.now() - sinceBeat);
+        fs.utimesSync(lockPath, stamp, stamp);
+      });
+      let spawns = 0;
+      const wrapped = lockedCapture(
+        async () => {
+          spawns += 1;
+          return 0;
+        },
+        {},
+        { [FULL_SUITE_LOCK_EXPIRY_ENV]: 'defer' },
+        { lockPath, ...clock },
+      );
+      const lines = [];
+      const code = await wrapped({ cwd: dir, log: (m) => lines.push(m) });
+      holder.release();
+      assert.equal(code, LOCK_WAIT_EXPIRED_EXIT_CODE);
+      assert.equal(spawns, 0, 'the live holder was never taken over');
+      assert.deepEqual(parseLockWaitOutcome(lines.at(-1)), {
+        waitedSeconds: 600,
+        expired: true,
+      });
+    });
+
+    it('AC-3: a dead holder is still reclaimed without waiting', async () => {
+      fs.writeFileSync(lockPath, 'full-suite\n0\n999999999\n');
+      let sleeps = 0;
+      const wrapped = lockedCapture(
+        async () => 7,
+        {},
+        { [FULL_SUITE_LOCK_EXPIRY_ENV]: 'defer' },
+        {
+          lockPath,
+          sleepFn: async () => {
+            sleeps += 1;
+          },
+        },
+      );
+      assert.equal(await wrapped({ cwd: dir }), 7);
+      assert.equal(sleeps, 0);
     });
   });
 

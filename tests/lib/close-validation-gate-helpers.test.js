@@ -25,6 +25,7 @@ import { COVERAGE_GATE_DEFAULTS } from '../../.agents/scripts/lib/config/quality
 import {
   FULL_SUITE_LOCK_EXPIRY_ENV,
   LOCK_WAIT_EXPIRED_EXIT_CODE,
+  resolveFullSuiteLockBudget,
 } from '../../.agents/scripts/lib/full-suite-lock.js';
 import {
   groupSpawnOptions,
@@ -181,6 +182,11 @@ describe('the close `test` gate is bounded (Story #5377)', () => {
     const lint = seen.find((o) => o.gateName === 'lint');
     // The coverage wall clock is the fixed constant since Story #5382.
     assert.equal(test.timeoutMs, COVERAGE_GATE_DEFAULTS.timeoutMs);
+    // Story #5478 — the gate's lock wait derives from that same kill bound.
+    assert.equal(
+      resolveFullSuiteLockBudget(test.timeoutMs).waitMs,
+      Math.max(300_000, COVERAGE_GATE_DEFAULTS.timeoutMs),
+    );
     assert.equal(test.deferOnLockExpiry, true);
     assert.equal(
       lint.timeoutMs,

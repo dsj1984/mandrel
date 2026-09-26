@@ -361,7 +361,8 @@ export async function runCloseValidation({
 
 /**
  * The `fullSuiteLock` gate shares coverage capture's timeout so a hung suite
- * fails instead of holding the host lock. Under `deferOnLockExpiry` every
+ * fails instead of holding the host lock; the same figure bounds its lock
+ * wait (`resolveFullSuiteLockBudget`), so it outwaits any live holder. Under `deferOnLockExpiry` every
  * gate child inherits the defer opt-in via env.
  *
  * @param {{ config: object|null, deferOnLockExpiry: boolean }} args

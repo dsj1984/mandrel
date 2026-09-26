@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { getQuality } from '../../.agents/scripts/lib/config/quality.js';
 import {
   anyChangedUnderTargets,
   COVERAGE_TIMEOUT_EXIT_CODE,
@@ -18,7 +19,10 @@ import {
   runCapture,
   writeCaptureStamp,
 } from '../../.agents/scripts/lib/coverage-capture.js';
-import { LOCK_WAIT_EXPIRED_EXIT_CODE } from '../../.agents/scripts/lib/full-suite-lock.js';
+import {
+  LOCK_WAIT_EXPIRED_EXIT_CODE,
+  resolveFullSuiteLockBudget,
+} from '../../.agents/scripts/lib/full-suite-lock.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import {
   waitForDeath,
@@ -599,6 +603,16 @@ describe('runCapture', () => {
   // the CLI's one production call site, so the pre-push and unit-test callers
   // reaching it directly spawn unserialized with no flag to pass. What that
   // buys is pinned in tests/lib/full-suite-lock.test.js.
+
+  // Story #5478 — the capture's kill bound and the lock wait resolve from the
+  // same `coverage.timeoutMs`, so a waiter always outlasts a live holder.
+  it('waits at least as long as the capture it queues behind can run', () => {
+    const killBoundMs = getQuality({}).coverage.timeoutMs;
+    const { waitMs, staleMs } = resolveFullSuiteLockBudget(killBoundMs);
+    assert.equal(waitMs, Math.max(300_000, killBoundMs));
+    assert.ok(waitMs >= killBoundMs);
+    assert.ok(staleMs <= waitMs);
+  });
 
   // Story #5065 — the spawn takes NO positional file arguments. Story #4981
   // appended `-- <files...>` believing a test runner would read them as
