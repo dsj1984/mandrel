@@ -251,6 +251,32 @@ describe('reviewAfterPrOpen (direct)', () => {
     assert.equal(durations[0].phase, 'code-review');
   });
 
+  it('routes the held post logger through close progress', async () => {
+    const recorder = recordingProvider();
+    const gitSpawnFn = gitSpawnStub();
+    const runCodeReviewFn = reviewDouble();
+    const held = startHeldReview(
+      overlapArgs({ runCodeReviewFn, gitSpawnFn, provider: recorder.provider }),
+    );
+    const { args } = afterPrArgs({
+      held,
+      gitSpawnFn,
+      runCodeReviewFn,
+      recorder,
+    });
+    const lines = [];
+    args.progress = (tag, msg) => lines.push(`${tag} ${msg}`);
+    args.postReportFn = async ({ logger }) => {
+      logger.info('posted ok');
+      logger.warn('upsert slow');
+      return { posted: false, postedCommentId: null };
+    };
+    const outcome = await reviewAfterPrOpen(args);
+    assert.equal(outcome.posted, false);
+    assert.ok(lines.includes('REVIEW posted ok'));
+    assert.ok(lines.includes('REVIEW ⚠️ upsert slow'));
+  });
+
   it('a surviving CRITICAL in the held result still halts', async () => {
     const recorder = recordingProvider();
     const gitSpawnFn = gitSpawnStub();
