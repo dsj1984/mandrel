@@ -283,8 +283,9 @@ const TEMP_RETENTION_SCHEMA = {
   description:
     'Story #4794. Auto-purge of spent temp artifacts once their Story lands. ' +
     'Classification is an allowlist: only the declared classes below are ever ' +
-    'deleted, so operator scratch files under tempRoot are reported with their ' +
-    'size and left alone. signals.ndjson is never purged by any path.',
+    'deleted, so unrecognized files under tempRoot are reported with their ' +
+    'size and left alone (`/clean-temp` is the operator path for them). ' +
+    'signals.ndjson is never purged by any path.',
   properties: {
     enabled: {
       type: 'boolean',

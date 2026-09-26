@@ -87,7 +87,8 @@
         "orchestrationLogs": true,
         "validationEvidence": true,
         "auditResults": true,
-        "planDirs": true
+        "planDirs": true,
+        "scratch": true
       }
     },
     "deliverRunner": {
