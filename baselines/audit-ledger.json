@@ -1,5 +1,396 @@
 {
   "$schema": "https://mandrel.dev/baselines/audit-ledger.schema.json",
-  "generatedAt": "2026-07-19T00:00:00.000Z",
-  "entries": []
+  "generatedAt": "2026-09-26T00:01:52.259Z",
+  "entries": [
+    {
+      "fingerprint": "830408b0ebb45e16542187c4c6dbf5a623bc30ab",
+      "semanticKey": "major upgrade␟package.json",
+      "title": "Make the quality instruments fail loudly instead of silently mis-measuring, and reclaim floor slack",
+      "dimension": "",
+      "primaryFile": "",
+      "status": "filed",
+      "issue": {
+        "number": 5444,
+        "state": "open",
+        "stateReason": null
+      },
+      "firstSeen": "2026-09-26T00:01:52.259Z",
+      "lastSeen": "2026-09-26T00:01:52.259Z"
+    },
+    {
+      "fingerprint": "fffc56940af8cd566a8db1b6ffeb20729284cddc",
+      "semanticKey": "dry (measurement integrity)␟.agents/scripts/lib/baselines/duplication-scanner.js",
+      "title": "Make the quality instruments fail loudly instead of silently mis-measuring, and reclaim floor slack",
+      "dimension": "",
+      "primaryFile": "",
+      "status": "filed",
+      "issue": {
+        "number": 5444,
+        "state": "open",
+        "stateReason": null
+      },
+      "firstSeen": "2026-09-26T00:01:52.259Z",
+      "lastSeen": "2026-09-26T00:01:52.259Z"
+    },
+    {
+      "fingerprint": "eb122ecb44320ad08e97e14048cf621128610d90",
+      "semanticKey": "major upgrade␟.agents/scripts/lib/baselines/duplication-scanner.js",
+      "title": "Make the quality instruments fail loudly instead of silently mis-measuring, and reclaim floor slack",
+      "dimension": "",
+      "primaryFile": "",
+      "status": "filed",
+      "issue": {
+        "number": 5444,
+        "state": "open",
+        "stateReason": null
+      },
+      "firstSeen": "2026-09-26T00:01:52.259Z",
+      "lastSeen": "2026-09-26T00:01:52.259Z"
+    },
+    {
+      "fingerprint": "864e1dec3480576dd9498299146bc4fb14f09e30",
+      "semanticKey": "dead instrument␟baselines/dead-exports-production.json",
+      "title": "Make the quality instruments fail loudly instead of silently mis-measuring, and reclaim floor slack",
+      "dimension": "",
+      "primaryFile": "",
+      "status": "filed",
+      "issue": {
+        "number": 5444,
+        "state": "open",
+        "stateReason": null
+      },
+      "firstSeen": "2026-09-26T00:01:52.259Z",
+      "lastSeen": "2026-09-26T00:01:52.259Z"
+    },
+    {
+      "fingerprint": "ed2f3784651847a8ed18128bdcd7928b82cd744a",
+      "semanticKey": "staleness␟baselines/crap.json",
+      "title": "Make the quality instruments fail loudly instead of silently mis-measuring, and reclaim floor slack",
+      "dimension": "",
+      "primaryFile": "",
+      "status": "filed",
+      "issue": {
+        "number": 5444,
+        "state": "open",
+        "stateReason": null
+      },
+      "firstSeen": "2026-09-26T00:01:52.259Z",
+      "lastSeen": "2026-09-26T00:01:52.259Z"
+    },
+    {
+      "fingerprint": "b6417cf7343f47b4031b69ca20302ae95acac0b0",
+      "semanticKey": "staleness␟baselines/duplication.json",
+      "title": "Make the quality instruments fail loudly instead of silently mis-measuring, and reclaim floor slack",
+      "dimension": "",
+      "primaryFile": "",
+      "status": "filed",
+      "issue": {
+        "number": 5444,
+        "state": "open",
+        "stateReason": null
+      },
+      "firstSeen": "2026-09-26T00:01:52.259Z",
+      "lastSeen": "2026-09-26T00:01:52.259Z"
+    },
+    {
+      "fingerprint": "c6c81fb1033279a45b3d597c85fbd9fb6f477bbd",
+      "semanticKey": "tightening headroom␟.agentrc.json",
+      "title": "Make the quality instruments fail loudly instead of silently mis-measuring, and reclaim floor slack",
+      "dimension": "",
+      "primaryFile": "",
+      "status": "filed",
+      "issue": {
+        "number": 5444,
+        "state": "open",
+        "stateReason": null
+      },
+      "firstSeen": "2026-09-26T00:01:52.259Z",
+      "lastSeen": "2026-09-26T00:01:52.259Z"
+    },
+    {
+      "fingerprint": "59544fbf700560f51cdbd101c0cc3d676de006f4",
+      "semanticKey": "logic complexity (gate coverage)␟.agentrc.json",
+      "title": "Make the quality instruments fail loudly instead of silently mis-measuring, and reclaim floor slack",
+      "dimension": "",
+      "primaryFile": "",
+      "status": "filed",
+      "issue": {
+        "number": 5444,
+        "state": "open",
+        "stateReason": null
+      },
+      "firstSeen": "2026-09-26T00:01:52.259Z",
+      "lastSeen": "2026-09-26T00:01:52.259Z"
+    },
+    {
+      "fingerprint": "0afd1742ad90d75c6f361461f04ac8d7f4a00b25",
+      "semanticKey": "i/o & syscall efficiency␟tests/check-test-temp-hygiene.test.js",
+      "title": "Stop tests and CLI start-up from spending real wall-clock on host state and sleeps",
+      "dimension": "",
+      "primaryFile": "",
+      "status": "filed",
+      "issue": {
+        "number": 5445,
+        "state": "open",
+        "stateReason": null
+      },
+      "firstSeen": "2026-09-26T00:01:52.259Z",
+      "lastSeen": "2026-09-26T00:01:52.259Z"
+    },
+    {
+      "fingerprint": "044c071336d6b064a4d8740d30ac797d27a42650",
+      "semanticKey": "cpu & algorithmic hot paths (wasted wall time in the suite)␟tests/providers/github/provider-core.test.js",
+      "title": "Stop tests and CLI start-up from spending real wall-clock on host state and sleeps",
+      "dimension": "",
+      "primaryFile": "",
+      "status": "filed",
+      "issue": {
+        "number": 5445,
+        "state": "open",
+        "stateReason": null
+      },
+      "firstSeen": "2026-09-26T00:01:52.259Z",
+      "lastSeen": "2026-09-26T00:01:52.259Z"
+    },
+    {
+      "fingerprint": "6c07b42a07899f65c5bfc5224824fffb3493f32c",
+      "semanticKey": "cpu & algorithmic hot paths (cold start)␟.agents/scripts/lib/observability/signal-validator.js",
+      "title": "Stop tests and CLI start-up from spending real wall-clock on host state and sleeps",
+      "dimension": "",
+      "primaryFile": "",
+      "status": "filed",
+      "issue": {
+        "number": 5445,
+        "state": "open",
+        "stateReason": null
+      },
+      "firstSeen": "2026-09-26T00:01:52.259Z",
+      "lastSeen": "2026-09-26T00:01:52.259Z"
+    },
+    {
+      "fingerprint": "f86ca902ceb691eb0d64e015d3484ce53d0937d8",
+      "semanticKey": "hotspot cluster␟.agents/scripts/single-story-confirm-merge.js",
+      "title": "Decompose the single-story-close and confirm-merge hot path",
+      "dimension": "",
+      "primaryFile": "",
+      "status": "filed",
+      "issue": {
+        "number": 5446,
+        "state": "open",
+        "stateReason": null
+      },
+      "firstSeen": "2026-09-26T00:01:52.259Z",
+      "lastSeen": "2026-09-26T00:01:52.259Z"
+    },
+    {
+      "fingerprint": "e823b7134f528db17336af42bf8b7a50157a6c61",
+      "semanticKey": "dry / testability␟.agents/scripts/single-story-confirm-merge.js",
+      "title": "Decompose the single-story-close and confirm-merge hot path",
+      "dimension": "",
+      "primaryFile": "",
+      "status": "filed",
+      "issue": {
+        "number": 5446,
+        "state": "open",
+        "stateReason": null
+      },
+      "firstSeen": "2026-09-26T00:01:52.259Z",
+      "lastSeen": "2026-09-26T00:01:52.259Z"
+    },
+    {
+      "fingerprint": "50fd73ea10fbd065685b016589cf5b994c9366b3",
+      "semanticKey": "solid (srp) / kiss / testability␟.agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "title": "Decompose the single-story-close and confirm-merge hot path",
+      "dimension": "",
+      "primaryFile": "",
+      "status": "filed",
+      "issue": {
+        "number": 5446,
+        "state": "open",
+        "stateReason": null
+      },
+      "firstSeen": "2026-09-26T00:01:52.259Z",
+      "lastSeen": "2026-09-26T00:01:52.259Z"
+    },
+    {
+      "fingerprint": "301e3b8744ce6e863438f43ddd5391188a2c28ca",
+      "semanticKey": "solid (srp) / testability␟.agents/scripts/lib/orchestration/single-story-close/runner.js",
+      "title": "Decompose the single-story-close and confirm-merge hot path",
+      "dimension": "",
+      "primaryFile": "",
+      "status": "filed",
+      "issue": {
+        "number": 5446,
+        "state": "open",
+        "stateReason": null
+      },
+      "firstSeen": "2026-09-26T00:01:52.259Z",
+      "lastSeen": "2026-09-26T00:01:52.259Z"
+    },
+    {
+      "fingerprint": "3baf7d1260dedaafb8f4d8145e27176a3de7f653",
+      "semanticKey": "hotspot cluster␟.agents/scripts/lib/bootstrap/project-bootstrap.js",
+      "title": "Burn down the bootstrap hotspots across CRAP, cyclomatic and dead exports",
+      "dimension": "",
+      "primaryFile": "",
+      "status": "filed",
+      "issue": {
+        "number": 5447,
+        "state": "open",
+        "stateReason": null
+      },
+      "firstSeen": "2026-09-26T00:01:52.259Z",
+      "lastSeen": "2026-09-26T00:01:52.259Z"
+    },
+    {
+      "fingerprint": "8a2de1f93f7a1f91b1948c5e4b550335fc885250",
+      "semanticKey": "hotspot cluster␟.agents/scripts/bootstrap.js",
+      "title": "Burn down the bootstrap hotspots across CRAP, cyclomatic and dead exports",
+      "dimension": "",
+      "primaryFile": "",
+      "status": "filed",
+      "issue": {
+        "number": 5447,
+        "state": "open",
+        "stateReason": null
+      },
+      "firstSeen": "2026-09-26T00:01:52.259Z",
+      "lastSeen": "2026-09-26T00:01:52.259Z"
+    },
+    {
+      "fingerprint": "56ca07b5fdd159f9731f285f6dfc67b9970a93be",
+      "semanticKey": "solid (srp) / logic complexity␟.agents/scripts/bootstrap.js",
+      "title": "Burn down the bootstrap hotspots across CRAP, cyclomatic and dead exports",
+      "dimension": "",
+      "primaryFile": "",
+      "status": "filed",
+      "issue": {
+        "number": 5447,
+        "state": "open",
+        "stateReason": null
+      },
+      "firstSeen": "2026-09-26T00:01:52.259Z",
+      "lastSeen": "2026-09-26T00:01:52.259Z"
+    },
+    {
+      "fingerprint": "d1bdf0dac628074daea1d98d78be31b2e7da82ed",
+      "semanticKey": "hotspot cluster␟.agents/scripts/lib/cli/standard-args.js",
+      "title": "Collapse duplicated CLI plumbing: standard-args flag switches and the sync-agents/sync-commands clone",
+      "dimension": "",
+      "primaryFile": "",
+      "status": "filed",
+      "issue": {
+        "number": 5448,
+        "state": "open",
+        "stateReason": null
+      },
+      "firstSeen": "2026-09-26T00:01:52.259Z",
+      "lastSeen": "2026-09-26T00:01:52.259Z"
+    },
+    {
+      "fingerprint": "53a7555b913aea48abbb5d21eac4135f1776a604",
+      "semanticKey": "dry / kiss␟.agents/scripts/lib/cli/standard-args.js",
+      "title": "Collapse duplicated CLI plumbing: standard-args flag switches and the sync-agents/sync-commands clone",
+      "dimension": "",
+      "primaryFile": "",
+      "status": "filed",
+      "issue": {
+        "number": 5448,
+        "state": "open",
+        "stateReason": null
+      },
+      "firstSeen": "2026-09-26T00:01:52.259Z",
+      "lastSeen": "2026-09-26T00:01:52.259Z"
+    },
+    {
+      "fingerprint": "14fcf5f7bb34dd69791e44e95d6e2d3f24f1d00b",
+      "semanticKey": "dry␟lib/cli/sync-agents.js",
+      "title": "Collapse duplicated CLI plumbing: standard-args flag switches and the sync-agents/sync-commands clone",
+      "dimension": "",
+      "primaryFile": "",
+      "status": "filed",
+      "issue": {
+        "number": 5448,
+        "state": "open",
+        "stateReason": null
+      },
+      "firstSeen": "2026-09-26T00:01:52.259Z",
+      "lastSeen": "2026-09-26T00:01:52.259Z"
+    },
+    {
+      "fingerprint": "daaae56f644c5b690d7662bbd1fe6e8dd4a07422",
+      "semanticKey": "hotspot cluster␟.agents/scripts/lib/orchestration/plan-metrics.js",
+      "title": "Burn down the orchestration and signals complexity outliers",
+      "dimension": "",
+      "primaryFile": "",
+      "status": "filed",
+      "issue": {
+        "number": 5449,
+        "state": "open",
+        "stateReason": null
+      },
+      "firstSeen": "2026-09-26T00:01:52.259Z",
+      "lastSeen": "2026-09-26T00:01:52.259Z"
+    },
+    {
+      "fingerprint": "f8bb3c0ee4a71f1013248c363b9205a6f554c01d",
+      "semanticKey": "hotspot cluster␟.agents/scripts/lib/signals/detectors/common.js",
+      "title": "Burn down the orchestration and signals complexity outliers",
+      "dimension": "",
+      "primaryFile": "",
+      "status": "filed",
+      "issue": {
+        "number": 5449,
+        "state": "open",
+        "stateReason": null
+      },
+      "firstSeen": "2026-09-26T00:01:52.259Z",
+      "lastSeen": "2026-09-26T00:01:52.259Z"
+    },
+    {
+      "fingerprint": "882a90f13630f85917b8f518dae94c0c6ae78848",
+      "semanticKey": "dry / logic complexity␟.agents/scripts/lib/orchestration/ticket-validator.js",
+      "title": "Burn down the orchestration and signals complexity outliers",
+      "dimension": "",
+      "primaryFile": "",
+      "status": "filed",
+      "issue": {
+        "number": 5449,
+        "state": "open",
+        "stateReason": null
+      },
+      "firstSeen": "2026-09-26T00:01:52.259Z",
+      "lastSeen": "2026-09-26T00:01:52.259Z"
+    },
+    {
+      "fingerprint": "35e35faff530e5d6337aa9977feb56dae7426827",
+      "semanticKey": "solid (srp) / dry (data clump)␟.agents/scripts/lib/feedback-loop/graduator-core.js",
+      "title": "Burn down the orchestration and signals complexity outliers",
+      "dimension": "",
+      "primaryFile": "",
+      "status": "filed",
+      "issue": {
+        "number": 5449,
+        "state": "open",
+        "stateReason": null
+      },
+      "firstSeen": "2026-09-26T00:01:52.259Z",
+      "lastSeen": "2026-09-26T00:01:52.259Z"
+    },
+    {
+      "fingerprint": "7f54012a6832eab1fedc988eb61697cc26010f5b",
+      "semanticKey": "hotspot cluster␟.agents/scripts/lib/config/gates/shared.js",
+      "title": "Burn down the orchestration and signals complexity outliers",
+      "dimension": "",
+      "primaryFile": "",
+      "status": "filed",
+      "issue": {
+        "number": 5449,
+        "state": "open",
+        "stateReason": null
+      },
+      "firstSeen": "2026-09-26T00:01:52.259Z",
+      "lastSeen": "2026-09-26T00:01:52.259Z"
+    }
+  ]
 }
