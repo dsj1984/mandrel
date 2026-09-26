@@ -11084,6 +11084,19 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-capture-affected.js",
+      "method": "overlayScoped",
+      "startLine": 77,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-affected.js",
+      "method": "<anon overlayScoped/(abs)#0>",
+      "startLine": 78,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-affected.js",
       "method": "readPriorArtifact",
       "startLine": 83,
       "crap": 2
