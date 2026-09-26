@@ -3,6 +3,12 @@
 import { COVERAGE_GATE_DEFAULTS } from '../quality.js';
 import { gateBase, SAFE_STRING } from './shared.js';
 
+/** Schema bounds on `coverage.timeoutMs`: one minute to two hours. */
+export const COVERAGE_TIMEOUT_BOUNDS = Object.freeze({
+  min: 60_000,
+  max: 7_200_000,
+});
+
 export const COVERAGE_GATE = {
   type: 'object',
   description:
@@ -27,6 +33,14 @@ export const COVERAGE_GATE = {
       description:
         'What coverage-capture runs. `full` (default) runs `npm run test:coverage`. `affected` runs the consumer-owned `npm run test:coverage:affected` with the base ref in `MANDREL_COVERAGE_BASE_REF`, merges its rows over the prior artifact and stamps it `affected`; baseline rows the scoped run did not measure are treated as unmeasured, never removed. Falls back to `full` with a warning when the script is absent. Meant for consumers whose CI already enforces coverage on the full suite.',
       default: COVERAGE_GATE_DEFAULTS.captureScope,
+    },
+    timeoutMs: {
+      type: 'integer',
+      minimum: COVERAGE_TIMEOUT_BOUNDS.min,
+      maximum: COVERAGE_TIMEOUT_BOUNDS.max,
+      description:
+        'Kill bound (ms) for one full-suite run — the coverage capture, the close-validation full-suite gate and the full-suite lock-wait budget all read it. The clock starts at spawn, never while queued on the host lock; a suite that signals `MANDREL_SUITE_READY_FILE` gets a fresh bound for its test phase, so worst-case wall is lock wait + 2 × timeoutMs. On expiry the run exits 124 so callers can tell a hang from a failure.',
+      default: COVERAGE_GATE_DEFAULTS.timeoutMs,
     },
   },
   additionalProperties: false,

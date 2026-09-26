@@ -325,6 +325,17 @@ deletion opt-outs kept above, and no existing key displaces it.
 capture to a consumer-owned scoped script, a per-project fact about whether CI
 already enforces coverage on the full suite. No existing key displaces it.
 
+**Raised to 131 (2026-09-26, Story #5485)** by re-admitting
+`delivery.quality.gates.coverage.timeoutMs`, which the cut above folded into
+`COVERAGE_GATE_DEFAULTS.timeoutMs`. The removal rule keeps a key any config
+sets, and one now does: a consumer on a shared runner host, whose full suite
+legitimately outruns the 600000 ms default once sibling deliveries contend for
+its cores, needs a larger kill bound without forking the framework. It is
+bounded to [60000, 7200000] ms by the schema, and it is still the one figure
+the coverage capture, the close-validation full-suite gate and the full-suite
+lock-wait budget read. The strip migration no longer lists it, so an upgrade
+keeps a value a consumer set.
+
 ### Consequences
 
 - A tuning value is changed by editing the constant and shipping a release,

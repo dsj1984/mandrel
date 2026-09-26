@@ -126,7 +126,8 @@
             }
           },
           "coveragePath": "coverage/coverage-final.json",
-          "captureScope": "full"
+          "captureScope": "full",
+          "timeoutMs": 600000
         },
         "crap": {
           "enabled": true,
