@@ -372,6 +372,29 @@ fix commit afterwards would void that run's credit.
 - **Close stays authoritative.** Its `quality-preview-crap` gate scores a
   fresh capture after `coverage-capture`; a preflight pass never skips it.
 
+## Credited run (situational) {#credited-run}
+
+Digest § 5 states the rule and both invocations; this is what surrounds them.
+
+- **Why the capture.** On a capture-active project close registers
+  `coverage-capture` instead of the plain `test` gate, so an evidence-gate
+  `test` deposit buys nothing there: close logs `no credited capture stamp
+  covers this change set` and pays the whole suite on the serialized tail. The
+  worker's capture writes the content-digest stamp in the worktree, and
+  close's capture then exits on its freshness probe without spawning
+  `test:coverage`. A base-sync that merges a path under `crap.targetDirs`
+  spends the stamp, and close re-captures.
+- **Runner shapes.** A bare `npm test` earns the `test` credit **only** where
+  the project's test script routes through mandrel's own runner, which prints
+  the outcome. On any other runner it deposits nothing and prints nothing, so
+  silence is never evidence of credit.
+- **Background dispatch.** If the run outruns the host's sync Bash ceiling,
+  dispatch it in the **background** — its completion re-invokes you; never
+  spawn a task to poll or `sleep`-loop against it
+  ([`parallel-tooling.md`](parallel-tooling.md) Rule 2).
+- **Redraft rounds.** Run the scoped projects for the roots you changed plus
+  `verify[]`, not the whole suite; only the one run needs credit.
+
 ## Gate output {#gate-output}
 
 Close writes gate lines to `temp/orchestration/close-gates-<storyId>.log` and

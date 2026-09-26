@@ -244,7 +244,10 @@ describe('deliver-digest § 5 — the one credited run (#5174, #5313, #5324)', (
   // whatever `npm test` resolves to and stamps what it just ran — the only
   // shape a vitest or jest consumer can earn the credit with. Both surfaces
   // assert one contract; a doc that still told a worker the bare run earns it
-  // would be the defect this Story exists to remove.
+  // would be the defect this Story exists to remove. Story #5477 moved the
+  // bare-run runner-shape caveat to deliver-reference.md § Credited run (see
+  // the #5477 block below) and brought the capture back as the capture-active
+  // depositor, so neither is asserted absent here any more.
   it('AC-5: names the runner-agnostic deposit, not a bare npm test', () => {
     const doc = digest();
     assertDocMentions(doc, /npm test/, 'the digest must name the runner');
@@ -253,20 +256,10 @@ describe('deliver-digest § 5 — the one credited run (#5174, #5313, #5324)', (
       /--gate test --worktree <workCwd> -- npm test/,
       'the digest must give the deposit that works whatever the test script resolves to',
     );
-    assertDocMentions(
-      doc,
-      /routes through mandrel's own runner/,
-      'the digest must scope the bare-run deposit to the runner that performs it',
-    );
     assertDocOmits(
       doc,
       /run `npm test` exactly once/,
       "the digest must not carry #5313's bare-run instruction",
-    );
-    assertDocOmits(
-      doc,
-      /coverage-capture\.js --cwd/,
-      'the digest must not carry the retired capture invocation',
     );
     assertDocOmits(
       doc,
@@ -342,5 +335,84 @@ describe('deliver-digest § 5 — the one credited run (#5174, #5313, #5324)', (
       /full-suite command is reported credited against the same record, never\s+respawned/,
       'the digest must state that a full-suite verify[] entry is credited, not respawned',
     );
+  });
+});
+
+// Story #5477 — on a project where close registers `coverage-capture`, an
+// evidence-gate `test` deposit bought nothing: close still re-ran the whole
+// suite to capture coverage. § 5 now picks the depositor by the same predicate
+// close registers the capture on, and the situational prose moved out to keep
+// the bundle inside its budget.
+describe('deliver-digest § 5 — the credited run follows close registration (#5477)', () => {
+  const REFERENCE = path.join(WORKFLOWS, 'helpers', 'deliver-reference.md');
+  const section = () => {
+    const src = read(DIGEST);
+    const start = src.indexOf('## 5.');
+    const rest = src.slice(start + 3);
+    return rest.slice(0, rest.indexOf('\n## '));
+  };
+
+  it('AC-1: states both depositors with their invocations and signals', () => {
+    const doc = section();
+    assertDocMentions(
+      doc,
+      /CRAP gate enabled \*\*and\*\* a `test:coverage` script/,
+      'the predicate must be the one close registers coverage-capture on',
+    );
+    assertDocMentions(
+      doc,
+      /`node <main-repo>\/\.agents\/scripts\/coverage-capture\.js --cwd <workCwd>`/,
+      'the capture-active depositor must be named with its exact invocation',
+    );
+    assertDocMentions(doc, /`Wrote content-digest capture stamp`/);
+    assertDocMentions(
+      doc,
+      /evidence-gate\.js --standalone --scope-id <storyId> --gate test --worktree <workCwd> -- npm test/,
+    );
+    assertDocMentions(doc, /`✓ test passed`/);
+    assertDocMentions(doc, /No second `npm test`/);
+  });
+
+  it('AC-1: the rule has no second home in the workflow or agent prose', () => {
+    for (const rel of [
+      '.agents/workflows/helpers/deliver-story.md',
+      '.agents/workflows/helpers/deliver-reference.md',
+      '.agents/workflows/helpers/deliver-story-reference.md',
+      '.agents/workflows/helpers/acceptance-self-eval.md',
+      '.agents/workflows/mandrel-deliver.md',
+      '.agents/agents/story-worker.md',
+      'docs/architecture.md',
+    ]) {
+      const doc = read(path.join(REPO_ROOT, rel));
+      assertDocOmits(
+        doc,
+        /coverage-capture\.js --cwd <workCwd>/,
+        `${rel} restates the capture invocation that lives in digest § 5`,
+      );
+      assertDocOmits(
+        doc,
+        /--gate test --worktree <workCwd> -- npm test/,
+        `${rel} restates the test depositor that lives in digest § 5`,
+      );
+    }
+  });
+
+  it('AC-2: the relocated situational prose is reachable from a § 5 pointer', () => {
+    assertDocMentions(
+      section(),
+      /\[`deliver-reference\.md`\]\(deliver-reference\.md\) § Credited run/,
+    );
+    const ref = read(REFERENCE);
+    assertDocMentions(ref, /## Credited run \(situational\) \{#credited-run\}/);
+    for (const [what, pattern] of [
+      ['the runner shapes', /routes through mandrel's own runner/],
+      ['background dispatch', /dispatch it in the \*\*background\*\*/],
+      [
+        'the redraft rounds',
+        /Run the scoped projects for the roots you changed plus\s+`verify\[\]`/,
+      ],
+    ]) {
+      assertDocMentions(ref, pattern, `the reference must carry ${what}`);
+    }
   });
 });

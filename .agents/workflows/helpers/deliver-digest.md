@@ -101,7 +101,7 @@ same round spends a round for nothing and races the Story-scoped ledger.
 not close**: post a `friction` comment and flip `agent::blocked`.
 Per-round mechanics: [`acceptance-self-eval.md`](acceptance-self-eval.md).
 
-## 5. The one credited suite run
+## 5. The one credited run
 
 **Preflight first — blocking.** After the self-eval loop, run the configured
 `project.commands.lint` and `node <main-repo>/.agents/scripts/quality-preview.js
@@ -111,31 +111,25 @@ finding. Close's gates stay authoritative
 
 After the last fix commit, fetch and merge
 `origin/<baseBranch>` into the Story branch **first**, ahead of this run and
-the push: close's base-sync then no-ops, so neither stamp goes stale. Then
-run the suite **once** in the worktree through the depositor — it spawns the
-project's own `npm test`, whatever that resolves to, and stamps the result,
-so any runner earns the credit:
+the push: close's base-sync then no-ops, so neither stamp goes stale. Then run
+**one** depositor in the worktree, picked by the predicate close registers
+`coverage-capture` on — CRAP gate enabled **and** a `test:coverage` script:
 
-```bash
-node <main-repo>/.agents/scripts/evidence-gate.js --standalone \
-  --scope-id <storyId> --gate test --worktree <workCwd> -- npm test
-```
+- **Capture-active** →
+  `node <main-repo>/.agents/scripts/coverage-capture.js --cwd <workCwd>`.
+  It takes the host full-suite lock, runs `test:coverage` and writes the stamp
+  close's capture finds fresh. Signal: `Wrote content-digest capture stamp`.
+  Non-zero is a red suite (or the lock / timeout it names): fix, re-run. No
+  second `npm test`.
+- **Otherwise** → `node <main-repo>/.agents/scripts/evidence-gate.js
+  --standalone --scope-id <storyId> --gate test --worktree <workCwd> -- npm test`.
+  Signal: `✓ test passed` — the `test` evidence close reads, keyed on the tree.
 
-Green deposits the `test` evidence close reads, keyed on the tree, so close
-reports the gate as **credited** at unchanged HEAD — a later commit voids it.
-Read its **output**, not the exit code: `✓ test passed` is the signal. The
-CRAP gate still captures coverage itself when it needs an artifact.
-
-A bare `npm test` earns the same credit **only** where the project's test
-script routes through mandrel's own runner, which prints the outcome. On any
-other runner it deposits nothing and prints nothing, so silence is never
-evidence of credit; `mandrel doctor`'s `test-credit-path` check names which
-shape this project is. If the suite outruns the host's sync Bash ceiling,
-dispatch it in the **background** — its completion re-invokes you; never spawn
-a task to poll or `sleep`-loop against it
-([`parallel-tooling.md`](parallel-tooling.md) Rule 2). Redraft rounds run the
-scoped projects for the roots you changed plus `verify[]`, not the whole
-suite; only this run needs credit.
+A later commit voids either credit. Read the **output**, not the exit code: a
+run that prints no signal deposits nothing. `mandrel doctor`'s
+`test-credit-path` check names this project's depositor. Runner shapes,
+background dispatch and redraft rounds:
+[`deliver-reference.md`](deliver-reference.md) § Credited run.
 
 `verify[]` is scoped entries **plus** this one run: an entry that is itself a
 full-suite command is reported credited against the same record, never
