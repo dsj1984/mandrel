@@ -8,6 +8,13 @@ const require = createRequire(import.meta.url);
 
 const TS_EXTS = new Set(['.ts', '.tsx', '.mts', '.cts']);
 
+/**
+ * The `typescript` majors whose main entry exposes the JS compiler API. TS 7
+ * moved `transpileModule` under `unstable/*`, so its main entry is API-less.
+ * Mirrors the optional peer range in `package.json` / `runtime-deps.json`.
+ */
+const SUPPORTED_TS_RANGE = '>=5.0.0 <7';
+
 let _ts = null;
 let _tsLoadFailed = false;
 
@@ -21,6 +28,29 @@ function loadTypeScript() {
     _tsLoadFailed = true;
     return null;
   }
+}
+
+/** Compiler modules already diagnosed as API-less — one warning per module. */
+const _unsupportedDiagnosed = new WeakSet();
+
+/**
+ * A resolved module without `transpileModule` cannot score anything; say so
+ * once, naming the version and the supported range, instead of one
+ * "transpile failed" warning per file.
+ *
+ * @param {object} ts
+ * @returns {boolean}
+ */
+function isUsableCompiler(ts) {
+  if (typeof ts.transpileModule === 'function') return true;
+  if (!_unsupportedDiagnosed.has(ts)) {
+    _unsupportedDiagnosed.add(ts);
+    Logger.warn(
+      `[Maintainability] ⚠ typescript ${ts.version ?? 'unknown'} exposes no transpileModule API; ` +
+        `TypeScript files are not scored. Supported range: ${SUPPORTED_TS_RANGE}.`,
+    );
+  }
+  return false;
 }
 
 let _tsVersion = null;
@@ -98,9 +128,12 @@ function buildLineMapper(sourceMapText, code) {
  * through; `null` means skip. Transpiling shifts lines, so a coverage join
  * opts into `{ withLineMap: true }` → `{ code, mapLine }` (`null` for JS).
  *
+ * `opts.typescript` substitutes the compiler module (defaults to the resolved
+ * `typescript` peer).
+ *
  * @param {string} filePath
  * @param {string} source
- * @param {{withLineMap?: boolean}} [opts]
+ * @param {{withLineMap?: boolean, typescript?: object}} [opts]
  * @returns {string|null|{code: string, mapLine: ((line: number) => number|null)|null}}
  */
 export function transpileIfNeeded(filePath, source, opts = {}) {
@@ -108,14 +141,15 @@ export function transpileIfNeeded(filePath, source, opts = {}) {
   if (!isTypeScriptPath(filePath)) {
     return withLineMap ? { code: source, mapLine: null } : source;
   }
-  const ts = loadTypeScript();
+  const ts = opts?.typescript ?? loadTypeScript();
   if (!ts) {
     Logger.warn(
       `[Maintainability] ⚠ typescript package not resolvable; cannot score ${filePath}. ` +
-        "Install with 'npm install --save-dev typescript' (peer dep, >=5.0.0).",
+        `Install with 'npm install --save-dev typescript' (peer dep, ${SUPPORTED_TS_RANGE}).`,
     );
     return null;
   }
+  if (!isUsableCompiler(ts)) return null;
   try {
     const result = ts.transpileModule(source, {
       compilerOptions: {
