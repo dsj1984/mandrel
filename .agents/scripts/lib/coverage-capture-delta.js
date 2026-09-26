@@ -4,10 +4,10 @@
  * tests instead of re-running the Story's whole affected scope. Every
  * uncertainty fails closed to an ordinary capture.
  */
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { captureStampPath, computeContentDigest } from './coverage-capture.js';
+import { gitSpawn } from './git-utils.js';
 
 /** Basenames whose change moves coverage beyond the files it names. */
 const COVERAGE_CONFIG_RE =
@@ -18,16 +18,15 @@ export function isCoverageConfigFile(file) {
   return COVERAGE_CONFIG_RE.test(path.posix.basename(String(file)));
 }
 
-/** `null` on any spawn failure, which callers read as "unknown". */
+/** A spawn failure reads as a non-zero status, which callers treat as "unknown". */
 function git(cwd, args, spawn) {
-  const res = spawn('git', args, { cwd, encoding: 'utf8' });
-  if (res?.error || typeof res?.status !== 'number') return null;
-  return { status: res.status, stdout: res.stdout ?? '' };
+  const res = spawn(cwd, ...args);
+  return { status: res?.status ?? 1, stdout: res?.stdout ?? '' };
 }
 
 /** @returns {string | null} The HEAD sha, or `null` when unavailable. */
 export function readHeadCommit(cwd, io = {}) {
-  const res = git(cwd, ['rev-parse', 'HEAD'], io.spawnSync ?? spawnSync);
+  const res = git(cwd, ['rev-parse', 'HEAD'], io.gitSpawn ?? gitSpawn);
   const sha = res?.status === 0 ? res.stdout.trim() : '';
   return /^[0-9a-f]{40,64}$/.test(sha) ? sha : null;
 }
@@ -118,7 +117,7 @@ function classifyDeltaRefresh({
   crap,
   storyFiles,
   prior,
-  spawnSync: spawn = spawnSync,
+  gitSpawnImpl: spawn = gitSpawn,
   readFileSync = fs.readFileSync,
   computeContentDigestImpl = computeContentDigest,
 }) {
