@@ -303,6 +303,10 @@
       "mi": 94.127
     },
     {
+      "path": ".agents/scripts/lib/baselines/coverage-refresh-scope.js",
+      "mi": 118.099
+    },
+    {
       "path": ".agents/scripts/lib/baselines/coverage-updater-cli.js",
       "mi": 105.813
     },
@@ -700,7 +704,11 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-baseline.js",
-      "mi": 97.505
+      "mi": 99.764
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-affected.js",
+      "mi": 98.303
     },
     {
       "path": ".agents/scripts/lib/coverage-capture-fullscope.js",
@@ -2136,7 +2144,7 @@
     },
     {
       "path": ".agents/scripts/update-coverage-baseline.js",
-      "mi": 105.667
+      "mi": 108.956
     },
     {
       "path": ".agents/scripts/update-crap-baseline.js",

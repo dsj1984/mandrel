@@ -125,7 +125,8 @@
               "functions": 90
             }
           },
-          "coveragePath": "coverage/coverage-final.json"
+          "coveragePath": "coverage/coverage-final.json",
+          "captureScope": "full"
         },
         "crap": {
           "enabled": true,

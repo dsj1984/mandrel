@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import picomatch from 'picomatch';
 import { write, writeFile } from './baselines/writer.js';
+import { captureStampPath } from './coverage-capture.js';
 
 const COVERAGE_FINAL_PATH = 'coverage/coverage-final.json';
 export const COVERAGE_BASELINE_PATH = 'baselines/coverage.json';
@@ -202,20 +203,64 @@ export function axisToleranceFor(
   return Math.max(baseTolerance, eventResolution * NOISE_EVENT_HEADROOM);
 }
 
+/** The capture stamp's scope; `full` when absent, unreadable or unscoped. */
+export function readArtifactCaptureScope(
+  cwd,
+  coveragePath = COVERAGE_FINAL_PATH,
+  fsImpl = fs,
+) {
+  try {
+    const stamp = JSON.parse(
+      fsImpl.readFileSync(captureStampPath(cwd, coveragePath), 'utf8'),
+    );
+    return typeof stamp?.scope === 'string' ? stamp.scope : 'full';
+  } catch {
+    return 'full';
+  }
+}
+
+/**
+ * Narrow a refresh scope (`null` = full) to measured files, keeping any file
+ * `mustMeasure` names so its missing row fails the refresh.
+ */
+function narrowScopeToMeasured(scopeFiles, measuredFiles, mustMeasure) {
+  if (scopeFiles === null) return [...measuredFiles];
+  const measured = new Set(measuredFiles);
+  return scopeFiles.filter((file) => measured.has(file) || mustMeasure(file));
+}
+
+/**
+ * Baseline rows absent from `current`. From a full artifact they are removed
+ * files. From an `affected` artifact they are unmeasured and not reported,
+ * except a changed file: that one fails closed as new, as does a changed
+ * file with no baseline row the scoped run skipped.
+ */
+function classifyAbsent(current, baseline, { artifactScope, changedFiles }) {
+  const absent = Object.keys(baseline).filter((f) => current[f] === undefined);
+  if (artifactScope !== 'affected') {
+    return { removedFiles: absent.map((file) => ({ file })), unmeasured: [] };
+  }
+  const unmeasured = (changedFiles ?? [])
+    .filter((file) => current[file] === undefined)
+    .map((file) => ({ file, current: null, reason: 'unmeasured' }));
+  return { removedFiles: [], unmeasured };
+}
+
 /**
  * Classify files: `regressions` (an axis dropped beyond tolerance) and
  * `newFiles` (else untested code lands at 0%) fail the CLI; `removedFiles`
- * and `improvements` are reported only.
+ * and `improvements` are reported only. `opts.artifactScope: 'affected'`
+ * with the in-scope `opts.changedFiles` reads absent rows as unmeasured.
  */
 export function compareScores(
   current,
   baseline,
   tolerance = COVERAGE_TOLERANCE,
+  opts = {},
 ) {
   const regressions = [];
   const newFiles = [];
   const improvements = [];
-  const removedFiles = [];
 
   for (const [file, scores] of Object.entries(current)) {
     const base = baseline[file];
@@ -252,9 +297,37 @@ export function compareScores(
       improvements.push({ file });
     }
   }
-  for (const file of Object.keys(baseline)) {
-    if (current[file] === undefined) removedFiles.push({ file });
-  }
+  const { removedFiles, unmeasured } = classifyAbsent(current, baseline, opts);
+  newFiles.push(...unmeasured);
 
   return { regressions, newFiles, improvements, removedFiles };
+}
+
+/**
+ * `refreshBaseline` scope options. Under an `affected` artifact the scope is
+ * narrowed to measured files, so the scope merge preserves a row the scoped
+ * run skipped instead of deleting it. A changed file `inCoverageScope` names
+ * stays in scope and must produce a row: skipping it fails closed.
+ */
+export async function resolveCoverageRefreshScope({
+  cwd,
+  fullScope,
+  diffScopeRef,
+  readCaptureScope,
+  listMeasured,
+  inCoverageScope,
+  deriveDiffFiles,
+}) {
+  if (readCaptureScope(cwd) !== 'affected') {
+    if (fullScope) return { fullScope: true };
+    return diffScopeRef ? { baseRef: diffScopeRef } : {};
+  }
+  const diff = fullScope
+    ? null
+    : await deriveDiffFiles(diffScopeRef ?? 'origin/main');
+  return {
+    scopeFiles: narrowScopeToMeasured(diff, listMeasured(cwd), inCoverageScope),
+    requireRowsForScopeFiles: true,
+    requiredScopeFilePredicate: inCoverageScope,
+  };
 }

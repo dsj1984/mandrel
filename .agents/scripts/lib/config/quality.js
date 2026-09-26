@@ -66,6 +66,8 @@ export const COVERAGE_GATE_DEFAULTS = Object.freeze({
   tolerance: Object.freeze({ kind: 'absolute', value: 0 }),
   floors: DEFAULT_COVERAGE_FLOORS,
   coveragePath: 'coverage/coverage-final.json',
+  // `affected` runs the consumer's `test:coverage:affected` instead.
+  captureScope: 'full',
   // On expiry `runCapture` exits 124 so callers can tell a hang from a failure.
   timeoutMs: 600_000,
 });
@@ -101,6 +103,7 @@ const COVERAGE_GATE_KEYS = new Set([
   'tolerance',
   'floors',
   'coveragePath',
+  'captureScope',
 ]);
 
 const MI_GATE_KEYS = new Set([
@@ -265,6 +268,7 @@ function resolveCoverageGate(userBlock) {
       enabled: defaults.enabled,
       baselinePath: defaults.baselinePath,
       coveragePath: defaults.coveragePath,
+      captureScope: defaults.captureScope,
       tolerance: toleranceScalar(defaults.tolerance, 0),
       timeoutMs: defaults.timeoutMs,
     };
@@ -274,6 +278,7 @@ function resolveCoverageGate(userBlock) {
     enabled: userBlock.enabled ?? defaults.enabled,
     baselinePath: userBlock.baselinePath ?? defaults.baselinePath,
     coveragePath: userBlock.coveragePath ?? defaults.coveragePath,
+    captureScope: userBlock.captureScope ?? defaults.captureScope,
     tolerance: toleranceScalar(
       userBlock.tolerance,
       toleranceScalar(defaults.tolerance, 0),
