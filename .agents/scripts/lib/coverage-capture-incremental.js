@@ -8,11 +8,13 @@ import {
 } from './coverage-capture-delta.js';
 
 /**
- * The changed-file set, or `null` (warned) when the ref cannot be resolved.
+ * The changed-file set; `null` when incremental mode is off, or (warned)
+ * when the ref cannot be resolved.
  *
  * @returns {{ changed: string[] } | null}
  */
-function readChanged({ getChangedFilesImpl, ref, args, logger }) {
+function readChanged({ crap, getChangedFilesImpl, ref, args, logger }) {
+  if (crap.incrementalCoverage?.skipWhenUnchanged !== true) return null;
   try {
     return { changed: getChangedFilesImpl({ ref, cwd: args.cwd }) };
   } catch (err) {
@@ -58,10 +60,8 @@ export async function tryIncrementalCapture({
   readHeadCommitImpl = readHeadCommit,
   logger,
 }) {
-  if (crap.incrementalCoverage?.skipWhenUnchanged !== true) return null;
-
   const ref = resolveChangedFilesRef({ crap, ref: args.ref });
-  const read = readChanged({ getChangedFilesImpl, ref, args, logger });
+  const read = readChanged({ crap, getChangedFilesImpl, ref, args, logger });
   if (read === null) return null;
 
   const scopedFiles = filterFilesUnderTargetsImpl(
@@ -104,6 +104,7 @@ export async function tryIncrementalCapture({
   const commit = readHeadCommitImpl(args.cwd);
   const code = await runCaptureImpl({
     cwd: args.cwd,
+    coveragePath: crap.coveragePath,
     timeoutMs: coverage?.timeoutMs,
     log: (m) => logger.info(m),
     recheckFresh: () => probe().fresh === true,

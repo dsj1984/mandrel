@@ -165,7 +165,7 @@ describe('isCoverageFresh', () => {
     assert.deepEqual(r, { fresh: false, reason: 'missing' });
   });
 
-  it("flags 'fresh' when the artifact is newer than the newest source", () => {
+  it("an unstamped artifact newer than every source is 'unstamped', never fresh", () => {
     const fs = makeFsStub({
       files: {
         [repoPath('coverage/coverage-final.json')]: 1000,
@@ -174,10 +174,10 @@ describe('isCoverageFresh', () => {
       dirs: { [repoPath('src')]: [{ name: 'a.js', kind: 'file' }] },
     });
     const r = isCoverageFresh({ coveragePath, targetDirs, cwd, ...fs });
-    assert.deepEqual(r, { fresh: true, reason: 'fresh' });
+    assert.deepEqual(r, { fresh: false, reason: 'unstamped' });
   });
 
-  it("flags 'stale' when a source has been modified after the artifact", () => {
+  it("an unstamped artifact older than a source is 'unstamped'", () => {
     const fs = makeFsStub({
       files: {
         [repoPath('coverage/coverage-final.json')]: 100,
@@ -186,7 +186,7 @@ describe('isCoverageFresh', () => {
       dirs: { [repoPath('src')]: [{ name: 'a.js', kind: 'file' }] },
     });
     const r = isCoverageFresh({ coveragePath, targetDirs, cwd, ...fs });
-    assert.deepEqual(r, { fresh: false, reason: 'stale' });
+    assert.deepEqual(r, { fresh: false, reason: 'unstamped' });
   });
 
   it("fails closed with 'no-sources' when discovery finds nothing (Story #5076)", () => {
@@ -218,7 +218,7 @@ describe('isCoverageFresh', () => {
       },
     });
     const r = isCoverageFresh({ coveragePath, targetDirs, cwd, ...fs });
-    assert.deepEqual(r, { fresh: false, reason: 'stale' });
+    assert.deepEqual(r, { fresh: false, reason: 'unstamped' });
   });
 
   describe('content-digest stamp (Story #3982)', () => {
@@ -268,7 +268,7 @@ describe('isCoverageFresh', () => {
       assert.deepEqual(r, { fresh: false, reason: 'stale' });
     });
 
-    it('falls back to the mtime heuristic when the stamp is corrupt', () => {
+    it('a corrupt stamp vouches for nothing', () => {
       const r = isCoverageFresh({
         coveragePath,
         targetDirs,
@@ -277,10 +277,10 @@ describe('isCoverageFresh', () => {
         readFileSync: () => 'not-json{',
         computeDigest: () => 'abc123',
       });
-      assert.deepEqual(r, { fresh: false, reason: 'stale' });
+      assert.deepEqual(r, { fresh: false, reason: 'unstamped' });
     });
 
-    it('falls back to the mtime heuristic when the digest is unavailable', () => {
+    it('an unavailable digest confirms nothing', () => {
       const r = isCoverageFresh({
         coveragePath,
         targetDirs,
@@ -289,10 +289,10 @@ describe('isCoverageFresh', () => {
         readFileSync: () => stampJson,
         computeDigest: () => null,
       });
-      assert.deepEqual(r, { fresh: false, reason: 'stale' });
+      assert.deepEqual(r, { fresh: false, reason: 'unstamped' });
     });
 
-    it('uses the mtime heuristic when no stamp exists (existing contract)', () => {
+    it('never credits artifact mtime when no stamp exists', () => {
       const fs = makeFsStub({
         files: {
           [repoPath('coverage/coverage-final.json')]: 1000,
@@ -309,7 +309,75 @@ describe('isCoverageFresh', () => {
           throw new Error('must not compute a digest without a stamp');
         },
       });
-      assert.deepEqual(r, { fresh: true, reason: 'fresh' });
+      assert.deepEqual(r, { fresh: false, reason: 'unstamped' });
+    });
+  });
+
+  // 2026-09-26, delivering #5486: a red `test:coverage` left the artifact
+  // with no stamp, and the next probe credited it through artifact mtime.
+  describe('a red capture never leaves a fresh-reading artifact', () => {
+    let dir;
+    const artifactAbs = () => path.join(dir, coveragePath);
+    // A suite that writes the artifact, then fails.
+    const redSuite = () => (_cmd, _args, opts) => {
+      const child = new EventEmitter();
+      const out = path.join(opts.cwd, coveragePath);
+      fs.mkdirSync(path.dirname(out), { recursive: true });
+      fs.writeFileSync(out, '{}');
+      setImmediate(() => child.emit('exit', 1, null));
+      return child;
+    };
+    const capture = () =>
+      runCapture({ cwd: dir, coveragePath, spawnImpl: redSuite() });
+
+    beforeEach(() => {
+      dir = makeTempDir('mandrel-red-capture-');
+      fs.mkdirSync(path.join(dir, 'src'));
+      fs.writeFileSync(path.join(dir, 'src/a.js'), 'export const a = 1;');
+      // Sources older than anything the suite writes.
+      const past = new Date(Date.now() - 60_000);
+      fs.utimesSync(path.join(dir, 'src/a.js'), past, past);
+    });
+    afterEach(() => {
+      fs.rmSync(dir, { recursive: true, force: true });
+    });
+
+    it('with no prior stamp, the next probe is not fresh', async () => {
+      assert.equal(await capture(), 1);
+      assert.ok(fs.existsSync(artifactAbs()), 'the red run wrote an artifact');
+      const r = isCoverageFresh({
+        coveragePath,
+        targetDirs,
+        cwd: dir,
+        computeDigest: () => 'd1',
+      });
+      assert.deepEqual(r, { fresh: false, reason: 'unstamped' });
+    });
+
+    it("drops a prior stamp matching this tree, so the red artifact can't inherit it", async () => {
+      // A green run on this tree stamped it incremental; a full-scope probe
+      // reads that as scope-mismatch and re-captures.
+      fs.mkdirSync(path.dirname(artifactAbs()), { recursive: true });
+      fs.writeFileSync(artifactAbs(), '{}');
+      writeCaptureStamp({
+        cwd: dir,
+        coveragePath,
+        digest: 'd1',
+        scope: 'incremental',
+      });
+      const incremental = () =>
+        isCoverageFresh({
+          coveragePath,
+          targetDirs,
+          cwd: dir,
+          requireScope: 'incremental',
+          computeDigest: () => 'd1',
+        });
+      assert.equal(incremental().fresh, true, 'precondition: stamp credits');
+
+      assert.equal(await capture(), 1);
+      assert.equal(fs.existsSync(captureStampPath(dir, coveragePath)), false);
+      assert.deepEqual(incremental(), { fresh: false, reason: 'unstamped' });
     });
   });
 });

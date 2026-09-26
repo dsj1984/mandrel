@@ -153,6 +153,26 @@ export function computeContentDigest(cwd, targetDirs, io = {}) {
   }
 }
 
+/** @param {string} value */
+const nonEmpty = (value) => typeof value === 'string' && value.length > 0;
+
+/** Scoped-stamp fields, each written only when it carries a value. */
+function optionalStampFields({ scope, files, ref, commit }) {
+  const out = {};
+  if (scope !== undefined) out.scope = scope;
+  if (Array.isArray(files)) out.files = [...files].sort();
+  if (nonEmpty(ref)) out.ref = ref;
+  if (nonEmpty(commit)) out.commit = commit;
+  return out;
+}
+
+/** @param {Record<string, unknown>} fields */
+function definedOnly(fields) {
+  return Object.fromEntries(
+    Object.entries(fields).filter(([, value]) => value !== undefined),
+  );
+}
+
 /**
  * Best-effort: a write failure returns `false` (next check falls back to
  * mtime). Full-scope callers omit `scope`, keeping the `{ digest, capturedAt }`
@@ -182,11 +202,11 @@ export function writeCaptureStamp({
   writeFileSync = fs.writeFileSync,
 }) {
   if (typeof digest !== 'string' || digest.length === 0) return false;
-  const payload = { digest, capturedAt: new Date().toISOString() };
-  if (scope !== undefined) payload.scope = scope;
-  if (Array.isArray(files)) payload.files = [...files].sort();
-  if (typeof ref === 'string' && ref.length > 0) payload.ref = ref;
-  if (typeof commit === 'string' && commit.length > 0) payload.commit = commit;
+  const payload = {
+    digest,
+    capturedAt: new Date().toISOString(),
+    ...optionalStampFields({ scope, files, ref, commit }),
+  };
   try {
     writeFileSync(
       captureStampPath(cwd, coveragePath),
@@ -205,7 +225,7 @@ const PARTIAL_STAMP_SCOPES = new Set(['incremental', 'affected']);
  * @param {{digest?: unknown, scope?: unknown} | null} stamp
  * @param {'full' | 'incremental' | 'affected'} requireScope
  * @returns {{ digest: string } | { scopeMismatch: true } | null} `null`
- *   falls through to the mtime heuristic.
+ *   means no usable stamp: nothing vouches for the artifact.
  */
 function readStampForScope(stamp, requireScope) {
   if (typeof stamp?.digest !== 'string' || stamp.digest.length === 0) {
@@ -218,11 +238,12 @@ function readStampForScope(stamp, requireScope) {
 }
 
 /**
- * Stamp digest vs current digest when a stamp exists; otherwise artifact
- * mtime vs newest source. IO errors resolve stale. Both paths fail closed
- * (`no-sources`) on an empty source set — "found nothing" is not "nothing
- * changed". A partial (incremental / affected) stamp satisfies only a probe
- * of its own scope; a stamp with no `scope` is full-scope.
+ * Only a matching stamp vouches for the artifact, because only a green run
+ * writes one; artifact mtime says when a run wrote it, never that the run
+ * passed, so a red run's artifact must not read as fresh. Without a verdict,
+ * `no-sources` (empty source set — "found nothing" is not "nothing changed")
+ * outranks `unstamped`. A partial (incremental / affected) stamp satisfies
+ * only a probe of its own scope; a stamp with no `scope` is full-scope.
  *
  * @param {{
  *   coveragePath: string,
@@ -235,7 +256,7 @@ function readStampForScope(stamp, requireScope) {
  *   readFileSync?: typeof fs.readFileSync,
  *   computeDigest?: typeof computeContentDigest,
  * }} opts
- * @returns {{ fresh: boolean, reason: 'missing' | 'stale' | 'fresh' | 'no-sources' | 'scope-mismatch' }}
+ * @returns {{ fresh: boolean, reason: 'missing' | 'stale' | 'fresh' | 'no-sources' | 'scope-mismatch' | 'unstamped' }}
  */
 export function isCoverageFresh({
   coveragePath,
@@ -257,7 +278,7 @@ export function isCoverageFresh({
     try {
       stamp = JSON.parse(readFileSync(stampPath, 'utf8'));
     } catch {
-      // Corrupt/unreadable stamp → fall through to the mtime heuristic.
+      // Corrupt/unreadable stamp vouches for nothing.
     }
     const resolved = readStampForScope(stamp, requireScope);
     if (resolved?.scopeMismatch) {
@@ -273,21 +294,14 @@ export function isCoverageFresh({
     }
   }
 
-  let coverageMtime;
-  try {
-    coverageMtime = statSync(absCoverage).mtimeMs;
-  } catch {
-    return { fresh: false, reason: 'missing' };
-  }
-
   const newestSrc = newestSourceMtime(cwd, targetDirs, {
     statSync,
     readdirSync,
   });
-  if (newestSrc === 0) return { fresh: false, reason: 'no-sources' };
-  return coverageMtime >= newestSrc
-    ? { fresh: true, reason: 'fresh' }
-    : { fresh: false, reason: 'stale' };
+  return {
+    fresh: false,
+    reason: newestSrc === 0 ? 'no-sources' : 'unstamped',
+  };
 }
 
 /**
@@ -398,10 +412,7 @@ export function stampCapturedTree({
     cwd,
     coveragePath,
     digest: preDigest,
-    ...(scope === undefined ? {} : { scope }),
-    ...(files === undefined ? {} : { files }),
-    ...(ref === undefined ? {} : { ref }),
-    ...(commit ? { commit } : {}),
+    ...definedOnly({ scope, files, ref, commit: commit || undefined }),
   });
   if (written) {
     logger.info(
@@ -440,6 +451,15 @@ export function anyChangedUnderTargets(changedFiles, targetDirs) {
   return filterFilesUnderTargets(changedFiles, targetDirs).length > 0;
 }
 
+/**
+ * @param {{ cwd: string, coveragePath?: string }} opts No `coveragePath`,
+ *   no stamp to drop.
+ */
+function dropCaptureStamp({ cwd, coveragePath }) {
+  if (!coveragePath) return;
+  fs.rmSync(captureStampPath(cwd, coveragePath), { force: true });
+}
+
 /** GNU `timeout(1)` code, so callers tell a hang (124) from failing tests. */
 export const COVERAGE_TIMEOUT_EXIT_CODE = TIMEOUT_EXIT_CODE;
 
@@ -448,10 +468,14 @@ export const COVERAGE_TIMEOUT_EXIT_CODE = TIMEOUT_EXIT_CODE;
  * the lock heartbeat keeps running and a timeout or signal kills every
  * worker. Takes no positional file args: node's runner would execute a
  * forwarded source file as a test instead of filtering the suite. Scope a
- * run through `env` instead.
+ * run through `env` instead. Given `coveragePath`, the capture stamp is
+ * removed before the spawn: the suite is about to overwrite the artifact, so
+ * a red, killed or crashed run must leave no stamp vouching for it — only
+ * `stampCapturedTree` after a green run restores one.
  *
  * @param {{
  *   cwd: string,
+ *   coveragePath?: string,
  *   timeoutMs?: number,
  *   script?: string,
  *   env?: Record<string, string>,
@@ -464,6 +488,7 @@ export const COVERAGE_TIMEOUT_EXIT_CODE = TIMEOUT_EXIT_CODE;
  */
 export function runCapture(opts = {}) {
   const { script = 'test:coverage', log = () => {} } = opts;
+  dropCaptureStamp(opts);
   const args = ['run', script];
   log(`[coverage-capture] ▶ npm ${args.join(' ')}`);
   return runSupervisedSuite({
@@ -477,28 +502,33 @@ export function runCapture(opts = {}) {
   });
 }
 
+/** @param {number} code */
+function lockWaitExpiredMessage(code) {
+  return `[coverage-capture] ⏸ the full-suite lock wait expired with another suite still running, so this capture was deferred — no suite ran. Exiting ${code}; re-run it once that suite finishes.`;
+}
+
+/** @param {number} code */
+function timeoutMessage(code) {
+  return `[coverage-capture] ⏱ npm run test:coverage timed out and was killed (exit ${code}) — no test verdict exists. This is usually host contention, not a failing test; re-run once the host is quieter.`;
+}
+
+/** @param {number} code */
+function failingSuiteMessage(code) {
+  return `[coverage-capture] ✖ npm run test:coverage exited ${code}. Fix failing tests or coverage-threshold breaches before re-running the CRAP gate.`;
+}
+
 /**
  * Exits that are not a failing suite, each with its own report: an expired
  * lock wait ran nothing, and a timeout killed the suite before any verdict.
+ * Named functions: V8 coverage omitted an inline arrow here, so CRAP could
+ * not resolve it.
  */
 const NON_FAILURE_CAPTURE_EXITS = Object.freeze({
-  [LOCK_WAIT_EXPIRED_EXIT_CODE]: [
-    'info',
-    (code) =>
-      `[coverage-capture] ⏸ the full-suite lock wait expired with another suite still running, so this capture was deferred — no suite ran. Exiting ${code}; re-run it once that suite finishes.`,
-  ],
-  [COVERAGE_TIMEOUT_EXIT_CODE]: [
-    'error',
-    (code) =>
-      `[coverage-capture] ⏱ npm run test:coverage timed out and was killed (exit ${code}) — no test verdict exists. This is usually host contention, not a failing test; re-run once the host is quieter.`,
-  ],
+  [LOCK_WAIT_EXPIRED_EXIT_CODE]: ['info', lockWaitExpiredMessage],
+  [COVERAGE_TIMEOUT_EXIT_CODE]: ['error', timeoutMessage],
 });
 
-const FAILING_SUITE_REPORT = Object.freeze([
-  'error',
-  (code) =>
-    `[coverage-capture] ✖ npm run test:coverage exited ${code}. Fix failing tests or coverage-threshold breaches before re-running the CRAP gate.`,
-]);
+const FAILING_SUITE_REPORT = Object.freeze(['error', failingSuiteMessage]);
 
 /**
  * Report a non-zero capture; an expired lock wait or a timeout is not a
