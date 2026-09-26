@@ -120,7 +120,7 @@
     },
     {
       "path": ".agents/scripts/evidence-gate.js",
-      "mi": 90.011
+      "mi": 91.367
     },
     {
       "path": ".agents/scripts/file-ci-gap.js",
@@ -876,7 +876,7 @@
     },
     {
       "path": ".agents/scripts/lib/full-suite-queue.js",
-      "mi": 91.862
+      "mi": 93.919
     },
     {
       "path": ".agents/scripts/lib/gates/baseline-store.js",
@@ -1480,7 +1480,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
-      "mi": 93.116
+      "mi": 94.984
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
