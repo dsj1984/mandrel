@@ -387,18 +387,6 @@
       "percentage": 3.47
     },
     {
-      "path": "lib/cli/sync-agents.js",
-      "duplicatedLines": 80,
-      "totalLines": 97,
-      "percentage": 82.47
-    },
-    {
-      "path": "lib/cli/sync-commands.js",
-      "duplicatedLines": 80,
-      "totalLines": 106,
-      "percentage": 75.47
-    },
-    {
       "path": "lib/cli/sync.js",
       "duplicatedLines": 7,
       "totalLines": 307,
