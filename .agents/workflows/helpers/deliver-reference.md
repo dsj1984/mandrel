@@ -352,3 +352,31 @@ config default stays `"sync"`. A slow-CI solo consumer may opt into `"async"`
 for the same reason — a foreground wait longer than the host tool ceiling
 expires `pending` anyway. Otherwise a one-Story run keeps `sync`: there is no
 sibling to unblock, and the foreground wait is the cheapest path to `landed`.
+
+## Preflight (before close) {#preflight}
+
+Digest § 5 states the rule: before the credited suite run, the worker runs
+the configured `project.commands.lint` (falling back to `npm run lint`) and
+`quality-preview.js --changed-since origin/<baseBranch>` in the worktree, and
+fixes and commits every finding. It runs **before** the credited run because a
+fix commit afterwards would void that run's credit.
+
+- **Why.** Close runs lint and the maintainability half of the preview
+  (`quality-preview-mi`) in its parallel phase, but a regression found there
+  still costs a close round-trip. Seconds of preflight in the worktree is
+  cheaper than any close.
+- **The CRAP half never captures.** It scores whatever coverage artifact is
+  on disk — the worker's credited capture when one exists — and triggers no
+  capture of its own. With no artifact its methods report unscorable; a stale
+  one can invent a violation. `--only mi` runs the maintainability half alone.
+- **Close stays authoritative.** Its `quality-preview-crap` gate scores a
+  fresh capture after `coverage-capture`; a preflight pass never skips it.
+
+## Gate output {#gate-output}
+
+Close writes gate lines to `temp/orchestration/close-gates-<storyId>.log` and
+reports a one-line digest on success; a failed gate replays its tail inline.
+`AGENT_LOG_LEVEL=verbose` restores live streaming. A gate exiting `75` (its
+full-suite lock wait expired) logs a deferred line and the close settles
+`pending`; one exiting `124` (the suite outran its timeout) logs a timeout
+line naming host contention — neither is reported as failing tests.

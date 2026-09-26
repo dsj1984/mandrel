@@ -87,12 +87,12 @@ names. A null digest path means no docs mandate.
 
 `single-story-close.js` runs the canonical close-validation chain
 (**typecheck, lint, test, format, maintainability, coverage, crap**) and is
-the authoritative gate — do not pre-run it. The **one** exception is the
-full suite: after the self-eval loop's last fix commit, run it once in
+the authoritative gate — do not pre-run it. Two exceptions, both run in
 `<workCwd>` exactly as
-[`deliver-digest.md`](../workflows/helpers/deliver-digest.md) § 5 states it —
-that section is the rule's only home, so read the invocation there rather
-than from a copy here.
+[`deliver-digest.md`](../workflows/helpers/deliver-digest.md) § 5 states them:
+the **blocking** lint + quality-preview preflight, then the full suite, run
+once after the self-eval loop's last fix commit. That section is their only
+home, so read the invocations there rather than from a copy here.
 
 If the suite outruns the host's sync Bash ceiling, dispatch it in the
 **background**: its completion re-invokes you. Never spawn a task to poll or
