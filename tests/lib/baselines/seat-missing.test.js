@@ -1,12 +1,5 @@
 /**
- * seat-missing.test.js — the insert-only `--seat-missing` baseline mode
- * (Story #5486).
- *
- * A seat fills holes and never re-scores: every pre-existing row must come
- * out byte-identical, including rows for changed files whose scores moved.
- * The CRAP seat refuses (writes nothing) below 100% method resolution or on a
- * stale coverage artifact. A baseline-JSON-only commit must leave the
- * coverage-capture stamp fresh, or the seat commit would void the credited run.
+ * seat-missing.test.js — the insert-only `--seat-missing` baseline mode.
  */
 
 import assert from 'node:assert/strict';
@@ -112,7 +105,6 @@ describe('seatMissingBaseline — CRAP (AC-1)', () => {
       writePath,
       baseRef: 'origin/main',
       gitDiff: async () => ['src/a.js', 'docs/readme.md'],
-      // `keep` and `moves` re-score differently: a refresh would rewrite them.
       score: async (files) => {
         assert.deepEqual(files, ['src/a.js']);
         return [

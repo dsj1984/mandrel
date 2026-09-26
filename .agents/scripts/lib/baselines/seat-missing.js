@@ -1,14 +1,9 @@
 /**
- * Insert-only baseline seating (`--seat-missing`). Scores the files a diff
- * touches, then writes ONLY rows whose seat key is absent from the committed
- * baseline. Every pre-existing row keeps its parsed object, so it serialises
- * byte-identically — a seat fills holes, it never re-scores.
- *
- * The seat key mirrors how the gates decide "no baseline row": CRAP matches a
- * method by `path::method` before falling back to drift on `startLine`, so a
- * method that only moved is NOT missing; maintainability is one row per file.
- *
- * @module .agents/scripts/lib/baselines/seat-missing
+ * Insert-only baseline seating (`--seat-missing`): write ONLY rows whose seat
+ * key is absent from the committed baseline; prior rows keep their parsed
+ * objects, so they serialise byte-identically. The CRAP key is
+ * `path::method` — the gate matches a moved method by name, so it is not
+ * missing.
  */
 
 import nodeFs from 'node:fs';
@@ -123,21 +118,11 @@ function buildSeatedEnvelope({ kind, priorEnvelope, seated }) {
 }
 
 /**
- * Seat the missing rows of `kind` for the files changed in
- * `baseRef...HEAD`. `score(files)` returns scorer rows for exactly those
- * files and may throw a {@link SeatRefusal}. Writes nothing when no row is
- * missing.
+ * Seat the missing rows of `kind` for the files changed in `baseRef...HEAD`.
+ * `score(files)` may throw a {@link SeatRefusal}. No missing row, no write.
  *
- * @param {{
- *   kind: 'crap' | 'maintainability',
- *   writePath: string,
- *   score: (files: string[]) => Promise<object[]> | object[],
- *   baseRef: string,
- *   headRef?: string,
- *   cwd?: string,
- *   gitDiff?: (args: {baseRef: string, headRef: string, cwd: string}) => Promise<string[]> | string[],
- *   fs?: typeof nodeFs,
- * }} opts
+ * @param {{kind: string, writePath: string, score: Function, baseRef: string,
+ *   headRef?: string, cwd?: string, gitDiff?: Function, fs?: typeof nodeFs}} opts
  * @returns {Promise<{seated: number, wrote: boolean, files: string[]}>}
  */
 export async function seatMissingBaseline({
@@ -177,15 +162,12 @@ export async function seatMissingBaseline({
 }
 
 /**
- * The updater CLIs' `--seat-missing` entry: validates the flag pairing, seats,
- * prints `seated: N`, and maps a {@link SeatRefusal} to exit 1 with its
- * message (a refusal is an expected outcome, not a crash). `score` defaults
- * to the kind's refresh-service scorer.
+ * The updater CLIs' `--seat-missing` entry: prints `seated: N`; a
+ * {@link SeatRefusal} is an expected outcome, so exit 1 with its message.
  *
- * @param {{kind: 'crap' | 'maintainability', label: string, writePath: string,
+ * @param {{kind: string, label: string, writePath: string,
  *   diffScopeRef?: string|null, fullScope?: boolean, baseBranch?: string,
- *   score?: (files: string[]) => Promise<object[]> | object[],
- *   cwd?: string, logger?: object, seat?: typeof seatMissingBaseline}} opts
+ *   score?: Function, cwd?: string, logger?: object, seat?: Function}} opts
  * @returns {Promise<number>} The exit code.
  */
 export async function runSeatMissing({
