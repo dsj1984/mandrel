@@ -16,6 +16,7 @@ const COVERAGE_BASE_REF_ENV = 'MANDREL_COVERAGE_BASE_REF';
 
 const CWD = path.resolve('/repo');
 const ARTIFACT = path.join(CWD, 'coverage/coverage-final.json');
+const STAMP = path.join(CWD, 'coverage/.capture-stamp.json');
 const abs = (rel) => path.join(CWD, rel);
 const CRAP = {
   enabled: true,
@@ -23,10 +24,12 @@ const CRAP = {
   coveragePath: 'coverage/coverage-final.json',
 };
 
-function memFs(initial) {
+function memFs(initial, { stamped = true } = {}) {
   const files = new Map(initial ? [[ARTIFACT, JSON.stringify(initial)]] : []);
+  if (initial && stamped) files.set(STAMP, JSON.stringify({ digest: 'd0' }));
   return {
     files,
+    existsSync: (p) => files.has(p),
     readFileSync: (p) => {
       if (!files.has(p)) throw new Error(`ENOENT ${p}`);
       return files.get(p);
@@ -49,13 +52,14 @@ function logSink() {
 
 function affectedHarness({
   prior = null,
+  priorStamped = true,
   scoped = { [abs('src/a.js')]: { s: { 0: 1 } } },
   changed = ['src/a.js'],
   fresh = false,
   captureCode = 0,
   crap = CRAP,
 } = {}) {
-  const fsImpl = memFs(prior);
+  const fsImpl = memFs(prior, { stamped: priorStamped });
   const { log, logger } = logSink();
   const calls = { capture: [], stamp: [] };
   const opts = {
@@ -115,6 +119,7 @@ describe('tryScopedCapture — capture', () => {
     const call = h.calls.capture[0];
     assert.equal(call.script, AFFECTED_CAPTURE_SCRIPT);
     assert.equal(call.env[COVERAGE_BASE_REF_ENV], 'main');
+    assert.equal(call.coveragePath, CRAP.coveragePath);
     assert.equal(call.args, undefined);
     assert.equal(call.files, undefined);
   });
@@ -164,6 +169,18 @@ describe('tryScopedCapture — capture', () => {
     const merged = JSON.parse(h.fsImpl.files.get(ARTIFACT));
     assert.deepEqual(Object.keys(merged), [abs('src/a.js')]);
     assert.match(h.log.warn[0], /bad ref/);
+  });
+
+  it('merges nothing prior when no stamp vouches for the prior artifact', async () => {
+    // An unstamped artifact may be a red run's; its rows must not ride into
+    // a green capture's merge.
+    const h = affectedHarness({
+      prior: { [abs('src/old.js')]: { s: { 0: 5 } } },
+      priorStamped: false,
+    });
+    assert.equal(await tryScopedCapture(h.opts), 0);
+    const merged = JSON.parse(h.fsImpl.files.get(ARTIFACT));
+    assert.deepEqual(Object.keys(merged), [abs('src/a.js')]);
   });
 
   it('skips when nothing under targetDirs changed and skipWhenUnchanged is on', async () => {

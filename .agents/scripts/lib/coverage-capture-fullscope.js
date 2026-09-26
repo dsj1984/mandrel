@@ -78,6 +78,7 @@ export async function runFullScopeCapture({
   const preDigest = computeContentDigestImpl(args.cwd, crap.targetDirs);
   const code = await runCaptureImpl({
     cwd: args.cwd,
+    coveragePath: crap.coveragePath,
     timeoutMs: coverage?.timeoutMs,
     log: (m) => logger.info(m),
     // After queueing behind another suite, which may have stamped this tree.
