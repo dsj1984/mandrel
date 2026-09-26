@@ -143,11 +143,13 @@ the remote ref moved — then return: a turn that ends unpushed reads as
 unfinished work. The orchestrator runs
 `single-story-close.js` in its own session, serialized against your
 siblings. Do not open the PR, flip `agent::done`, or spawn a child to
-close for you. If the push fails, take the blocked path above.
+close for you. If the push fails, take the blocked path above. After
+the push, compute the held review and fix a CRITICAL before returning
+([`deliver-reference.md`](../workflows/helpers/deliver-reference.md) § Held review).
 
 ## Return contract — the hand-off report
 
 A short, literal hand-off your caller can act on: Story id, `workCwd`,
-branch, pushed head SHA, self-eval verdict, `verify[]` evidence. Say the
-branch is pushed and unclosed. Never hand-compose a terminal envelope —
-inventing one makes an unlanded Story look landed.
+branch, pushed head SHA, self-eval verdict, `verify[]` evidence, review
+tally. Say the branch is pushed and unclosed. Never hand-compose a
+terminal envelope — inventing one makes an unlanded Story look landed.

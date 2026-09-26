@@ -135,6 +135,9 @@ background dispatch and redraft rounds:
 full-suite command is reported credited against the same record, never
 respawned.
 
+After the push, compute the held review and fix a CRITICAL before hand-off:
+[`deliver-reference.md`](deliver-reference.md) § Held review.
+
 ## 6. Terminal envelope — the return contract
 
 `single-story-close.js` emits exactly one envelope on stdout between
