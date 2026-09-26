@@ -63,7 +63,7 @@ function quietLogger() {
   };
 }
 
-test('sweepStaleStoryWorktrees: force-removes worktrees for agent::done stories', async () => {
+test('sweepStaleStoryWorktrees: removes worktrees for agent::done stories through the reap seam', async () => {
   const provider = new MockProvider({
     tickets: {
       100: {
@@ -104,8 +104,73 @@ test('sweepStaleStoryWorktrees: force-removes worktrees for agent::done stories'
     (a) => a[0] === 'worktree' && a[1] === 'remove',
   );
   assert.equal(removeCalls.length, 1);
-  assert.ok(removeCalls[0].includes('--force'));
   assert.ok(removeCalls[0].includes('/repo/.worktrees/story-100'));
+  // Branches belong to the merged-branch sweep, never to this one.
+  assert.equal(
+    git.calls.some((a) => a[0] === 'branch' || a[0] === 'push'),
+    false,
+  );
+});
+
+test('sweepStaleStoryWorktrees: never removes the tree the running process uses', async () => {
+  const provider = new MockProvider({
+    tickets: {
+      700: {
+        id: 700,
+        title: 'S700',
+        labels: ['type::story', 'agent::done'],
+        state: 'closed',
+      },
+    },
+  });
+  const git = makeFakeGit({
+    listStdout: porcelain(['/repo/.worktrees/story-700']),
+  });
+  const { logger, sink } = quietLogger();
+
+  const result = await sweepStaleStoryWorktrees({
+    provider,
+    repoRoot: REPO,
+    git,
+    logger,
+    runningPaths: ['/repo/.worktrees/story-700/.agents/scripts/boot-sweep.js'],
+  });
+
+  assert.equal(result.reaped.length, 0);
+  assert.deepEqual(result.skipped, [
+    {
+      storyId: 700,
+      path: '/repo/.worktrees/story-700',
+      reason: 'running-from-target-tree',
+    },
+  ]);
+  assert.equal(
+    git.calls.some((a) => a[0] === 'worktree' && a[1] === 'remove'),
+    false,
+  );
+  assert.ok(sink.warn.some((m) => m.includes('running process')));
+});
+
+test('sweepStaleStoryWorktrees: judges only entries directly under the worktree root', async () => {
+  const provider = new MockProvider({
+    tickets: {
+      7: { id: 7, title: 'S7', labels: ['agent::done'], state: 'closed' },
+    },
+  });
+  const git = makeFakeGit({
+    listStdout: porcelain(['/repo/.claude/worktrees/story-7']),
+  });
+  const { logger } = quietLogger();
+
+  const result = await sweepStaleStoryWorktrees({
+    provider,
+    repoRoot: REPO,
+    git,
+    logger,
+  });
+
+  assert.deepEqual(result.reaped, []);
+  assert.deepEqual(result.skipped, []);
 });
 
 test('sweepStaleStoryWorktrees: reaps closed (state=closed, no agent::done label) stories', async () => {
@@ -176,49 +241,64 @@ test('sweepStaleStoryWorktrees: skips when provider.getTicket throws and logs th
 });
 
 test('sweepStaleStoryWorktrees: surfaces remove failures in skipped, keeps going', async () => {
-  const provider = new MockProvider({
-    tickets: {
-      500: {
-        id: 500,
-        title: 'S500',
-        labels: ['type::story', 'agent::done'],
-        state: 'closed',
+  const tmp = makeTempDir('sweep-remove-fail-');
+  const wtRoot = path.join(tmp, '.worktrees');
+  fs.mkdirSync(wtRoot, { recursive: true });
+  const stuck = path.join(wtRoot, 'story-500');
+  const freed = path.join(wtRoot, 'story-501');
+  try {
+    const provider = new MockProvider({
+      tickets: {
+        500: {
+          id: 500,
+          title: 'S500',
+          labels: ['type::story', 'agent::done'],
+          state: 'closed',
+        },
+        501: {
+          id: 501,
+          title: 'S501',
+          labels: ['type::story', 'agent::done'],
+          state: 'closed',
+        },
       },
-      501: {
-        id: 501,
-        title: 'S501',
-        labels: ['type::story', 'agent::done'],
-        state: 'closed',
+    });
+    const git = makeFakeGit({
+      listStdout: porcelain([stuck, freed]),
+      removeResponses: {
+        [stuck]: { status: 1, stdout: '', stderr: 'sharing violation' },
       },
-    },
-  });
-  const git = makeFakeGit({
-    listStdout: porcelain([
-      '/repo/.worktrees/story-500',
-      '/repo/.worktrees/story-501',
-    ]),
-    removeResponses: {
-      '/repo/.worktrees/story-500': {
-        status: 1,
-        stdout: '',
-        stderr: 'sharing violation',
-      },
-    },
-  });
-  const { logger } = quietLogger();
+    });
+    const { logger } = quietLogger();
 
-  const result = await sweepStaleStoryWorktrees({
-    provider,
-    repoRoot: REPO,
-    git,
-    logger,
-  });
+    const result = await sweepStaleStoryWorktrees({
+      provider,
+      repoRoot: tmp,
+      worktreeRoot: wtRoot,
+      git,
+      logger,
+      sleepFn: () => {},
+      fsRm: async (target) => {
+        if (target === stuck) throw new Error('EBUSY: sharing violation');
+      },
+    });
 
-  assert.equal(result.reaped.length, 1);
-  assert.equal(result.reaped[0].storyId, 501);
-  assert.equal(result.skipped.length, 1);
-  assert.equal(result.skipped[0].storyId, 500);
-  assert.match(result.skipped[0].reason, /sharing violation/);
+    assert.equal(result.reaped.length, 1);
+    assert.equal(result.reaped[0].storyId, 501);
+    assert.equal(result.skipped.length, 1);
+    assert.equal(result.skipped[0].storyId, 500);
+    assert.match(
+      result.skipped[0].reason,
+      /remove-failed: .*sharing violation/,
+    );
+    // The seam hands the stuck tree to the pending-cleanup ledger.
+    assert.deepEqual(
+      readManifest(wtRoot).map((e) => e.storyId),
+      [500],
+    );
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
 });
 
 test('sweepStaleStoryWorktrees: returns empty result when git worktree list fails', async () => {

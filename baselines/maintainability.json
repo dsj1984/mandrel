@@ -28,7 +28,7 @@
     },
     {
       "path": ".agents/scripts/boot-sweep.js",
-      "mi": 90.516
+      "mi": 91.655
     },
     {
       "path": ".agents/scripts/bootstrap.js",
@@ -77,6 +77,10 @@
     {
       "path": ".agents/scripts/clean-temp.js",
       "mi": 117.315
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "mi": 100.114
     },
     {
       "path": ".agents/scripts/cleanup-repo-test-temp.js",
@@ -1324,7 +1328,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
-      "mi": 82.927
+      "mi": 90.271
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-text-hygiene.js",
@@ -1881,6 +1885,10 @@
     {
       "path": ".agents/scripts/lib/worktree/bootstrapper.js",
       "mi": 121.595
+    },
+    {
+      "path": ".agents/scripts/lib/worktree/canonical-path.js",
+      "mi": 108.205
     },
     {
       "path": ".agents/scripts/lib/worktree/git-hooks.js",

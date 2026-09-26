@@ -7,6 +7,7 @@
 import fs from 'node:fs';
 import { rm as fsPromisesRm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { canonicalPath } from '../canonical-path.js';
 import { isInsideWorktree, samePath } from '../inspector.js';
 import { sleepSync } from '../node-modules-strategy.js';
 import { checkMergeReachability } from './merge-reachability.js';
@@ -441,15 +442,25 @@ function runningCodePaths() {
  * The running-code path inside `wtPath`, or `null`. Reaping the tree the
  * running script was loaded from kills the process later, at its first lazy
  * read or dynamic `import()`; refusing only defers the tree to the next sweep.
+ * Shared by every reaper (close, the boot worktree sweep, `/clean-worktrees`).
+ * Both sides are canonicalised first: a short-name or symlinked spelling of
+ * the same tree must still be recognised.
  *
- * @param {object} ctx
+ * @param {{ platform?: string }} ctx
  * @param {string} wtPath
+ * @param {string[]} [extraPaths] Further paths to guard (e.g. `process.cwd()`).
  * @returns {string|null}
  */
-function findRunningCodeInside(ctx, wtPath) {
+export function findRunningCodeInside(ctx, wtPath, extraPaths = []) {
+  const guarded = [...runningCodePaths(), ...extraPaths];
+  const target = canonicalPath(wtPath);
   return (
-    runningCodePaths().find((p) => isInsideWorktree(p, wtPath, ctx.platform)) ??
-    null
+    guarded.find(
+      (p) =>
+        typeof p === 'string' &&
+        p !== '' &&
+        isInsideWorktree(canonicalPath(p), target, ctx.platform),
+    ) ?? null
   );
 }
 

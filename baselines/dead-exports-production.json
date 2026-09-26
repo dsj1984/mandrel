@@ -1160,10 +1160,6 @@
       "symbol": "__testing"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
-      "symbol": "*"
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/pr-watch.js",
       "symbol": "allTerminal"
     },
@@ -1926,10 +1922,6 @@
     {
       "file": ".agents/scripts/lib/worktree/lifecycle/precheck.js",
       "symbol": "readWorkingBranch"
-    },
-    {
-      "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
-      "symbol": "removeWorktreeWithRecovery"
     },
     {
       "file": ".agents/scripts/lib/worktree/lifecycle/registry-sync.js",

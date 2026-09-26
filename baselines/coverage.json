@@ -34,9 +34,9 @@
     },
     {
       "path": ".agents/scripts/boot-sweep.js",
-      "lines": 98.7,
-      "branches": 86.54,
-      "functions": 71.43
+      "lines": 99.03,
+      "branches": 86.57,
+      "functions": 72.73
     },
     {
       "path": ".agents/scripts/bootstrap.js",
@@ -103,6 +103,12 @@
       "lines": 0,
       "branches": 0,
       "functions": 0
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "lines": 91.74,
+      "branches": 84.39,
+      "functions": 76.47
     },
     {
       "path": ".agents/scripts/cleanup-repo-test-temp.js",
@@ -2008,8 +2014,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
-      "lines": 99.53,
-      "branches": 75.51,
+      "lines": 100,
+      "branches": 82.26,
       "functions": 100
     },
     {
@@ -2847,6 +2853,12 @@
       "functions": 83.33
     },
     {
+      "path": ".agents/scripts/lib/worktree/canonical-path.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/worktree/git-hooks.js",
       "lines": 96.27,
       "branches": 85.29,
@@ -2908,8 +2920,8 @@
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
-      "lines": 90.05,
-      "branches": 77.06,
+      "lines": 90.16,
+      "branches": 77.91,
       "functions": 96.3
     },
     {
