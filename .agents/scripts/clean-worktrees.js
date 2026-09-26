@@ -25,6 +25,7 @@ import * as defaultGit from './lib/git-utils.js';
 import { AGENT_LABELS } from './lib/label-constants.js';
 import { createProvider } from './lib/provider-factory.js';
 import { makeGhRunner } from './lib/single-story-sweep/protection-ctx.js';
+import { canonicalPath } from './lib/worktree/canonical-path.js';
 import {
   isInsideWorktree,
   parseWorktreePorcelain,
@@ -80,23 +81,13 @@ Options:
   -h, --help  Show this help.
 `;
 
-/**
- * `realpath` when the path exists (macOS `/var` ↔ `/private/var`), else the
- * resolved form.
- *
- * @param {string} p
- * @returns {string}
- */
-function canonical(p) {
-  try {
-    return fs.realpathSync.native(p);
-  } catch {
-    return path.resolve(p);
-  }
-}
-
+/** Containment on canonical paths (8.3 short names, symlinks, case). */
 function isWithin(child, parent, platform) {
-  return isInsideWorktree(canonical(child), canonical(parent), platform);
+  return isInsideWorktree(
+    canonicalPath(child),
+    canonicalPath(parent),
+    platform,
+  );
 }
 
 /**
@@ -194,8 +185,8 @@ export function enumerateWorktrees({ cwd, git, platform, fsImpl = fs }) {
   }
   const registered = parseWorktreePorcelain(res.stdout || '');
   if (registered.length === 0) throw new Error('git listed no worktrees');
-  const projectRoot = path.resolve(registered[0].path);
-  const known = registered.map((r) => canonical(r.path));
+  const projectRoot = canonicalPath(registered[0].path);
+  const known = registered.map((r) => canonicalPath(r.path));
   const wtDir = path.join(projectRoot, WORKTREE_DIR);
   let names = [];
   try {
@@ -208,7 +199,7 @@ export function enumerateWorktrees({ cwd, git, platform, fsImpl = fs }) {
   }
   const orphans = names
     .map((name) => path.join(wtDir, name))
-    .filter((p) => !known.some((k) => samePath(k, canonical(p), platform)));
+    .filter((p) => !known.some((k) => samePath(k, canonicalPath(p), platform)));
   return { projectRoot, registered, orphans };
 }
 
@@ -278,7 +269,9 @@ function classifyBranch(rec, env) {
 function storyIdOf(rec, env) {
   const parent = path.dirname(path.resolve(rec.path));
   const wtDir = path.join(env.projectRoot, WORKTREE_DIR);
-  if (!samePath(canonical(parent), canonical(wtDir), env.platform)) return null;
+  if (!samePath(canonicalPath(parent), canonicalPath(wtDir), env.platform)) {
+    return null;
+  }
   const fromDir = defaultGit.parseStoryBranch(path.basename(rec.path));
   return fromDir !== null && fromDir === defaultGit.parseStoryBranch(rec.branch)
     ? fromDir
@@ -334,7 +327,9 @@ export async function classifyWorktrees(env) {
 function entryOf(rec, verdict, sized, env) {
   const exists = sized && fs.existsSync(rec.path);
   return {
-    path: rec.path,
+    // One spelling per tree: git's `C:/…` and a short-name `RUNNER~1` form
+    // both become the canonical native path.
+    path: canonicalPath(rec.path),
     branch: rec.branch ?? null,
     head: rec.head ?? null,
     class: verdict.class ?? null,

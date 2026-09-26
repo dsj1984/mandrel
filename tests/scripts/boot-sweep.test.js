@@ -298,13 +298,21 @@ describe('boot-sweep — closed-Story worktree sweep (Story #5460)', () => {
   }
 
   it('removes a closed Story worktree; keeps an open one and the running one', async () => {
-    const repo = fs.realpathSync(makeGitRepo({ prefix: 'boot-wt-sweep-' }));
-    tmpDirs.push(repo);
+    const repo = fs.realpathSync.native(
+      makeGitRepo({ prefix: 'boot-wt-sweep-' }),
+    );
+    const aliasRoot = makeTempDir('boot-wt-alias-');
+    tmpDirs.push(repo, aliasRoot);
     const closed = addStoryWorktree(repo, 11);
     const open = addStoryWorktree(repo, 12);
     const running = addStoryWorktree(repo, 13);
     // Residue in a done Story's tree is noise, not work: it goes too.
     fs.writeFileSync(path.join(closed, 'residue.log'), 'x');
+    // The running process names its tree by another spelling (a junction /
+    // symlink here; an 8.3 short name on Windows runners): the guard must
+    // still recognise it.
+    const alias = path.join(aliasRoot, 'running-alias');
+    fs.symlinkSync(running, alias, 'junction');
 
     const tickets = {
       11: { id: 11, state: 'closed', labels: ['agent::done'] },
@@ -320,7 +328,10 @@ describe('boot-sweep — closed-Story worktree sweep (Story #5460)', () => {
       logger: { info: () => {}, warn: () => {} },
       // Stand in for "this process was loaded from story-13".
       worktreeSweepFn: (args) =>
-        sweepStaleStoryWorktrees({ ...args, runningPaths: [running] }),
+        sweepStaleStoryWorktrees({
+          ...args,
+          runningPaths: [path.join(alias, 'index.js')],
+        }),
     });
 
     assert.equal(result.worktreeSweep.ok, true);

@@ -16,6 +16,7 @@ import {
 } from '../../.agents/scripts/clean-worktrees.js';
 import { gitSpawn } from '../../.agents/scripts/lib/git-utils.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
+import { canonicalPath } from '../../.agents/scripts/lib/worktree/canonical-path.js';
 import { makeGitRepo } from '../fixtures/git-fixture.js';
 
 const SCRIPT = path.resolve(
@@ -46,8 +47,9 @@ function git(cwd, ...args) {
  * `origin` remote so "reachable from a remote-tracking ref" is real.
  */
 function buildProject() {
-  const repo = fs.realpathSync(makeGitRepo({ prefix: 'clean-wt-' }));
-  const outside = fs.realpathSync(makeTempDir('clean-wt-outside-'));
+  // Native realpath: the long-name spelling `git worktree list` reports.
+  const repo = fs.realpathSync.native(makeGitRepo({ prefix: 'clean-wt-' }));
+  const outside = fs.realpathSync.native(makeTempDir('clean-wt-outside-'));
   tmpDirs.push(repo, outside);
   const remote = path.join(outside, 'remote.git');
   git(outside, 'init', '-q', '--bare', remote);
@@ -301,7 +303,7 @@ describe('clean-worktrees — CLI shell (AC-6)', () => {
     await runCleanWorktreesCli([], deps);
     assert.match(
       out[0],
-      /detached\s+\.worktrees\/story-1\s+2\.0KB\s+\(detached abcdef0\)/,
+      /detached\s+\.worktrees[\\/]story-1\s+2\.0KB\s+\(detached abcdef0\)/,
     );
     assert.equal(typeof calls[0].confirm, 'function', 'TTY → prompts');
 
@@ -314,6 +316,40 @@ describe('clean-worktrees — CLI shell (AC-6)', () => {
 });
 
 describe('clean-worktrees — helpers', () => {
+  it('canonicalPath maps every spelling of a tree to one identity', () => {
+    const long = path.resolve('/long/runneradmin');
+    const realpath = (p) => {
+      if (p === path.resolve('/short/RUNNER~1')) return long;
+      throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+    };
+    assert.equal(canonicalPath('/short/RUNNER~1', { realpath }), long);
+    assert.equal(
+      canonicalPath('/short/RUNNER~1/gone/file.js', { realpath }),
+      path.join(long, 'gone', 'file.js'),
+      'a missing tail canonicalises its nearest existing ancestor',
+    );
+    assert.equal(
+      canonicalPath('/nowhere', { realpath }),
+      path.resolve('/nowhere'),
+    );
+  });
+
+  it('recognises a tree reached through a link as the same tree', async () => {
+    const { paths, deps } = buildProject();
+    const aliasRoot = makeTempDir('clean-wt-alias-');
+    tmpDirs.push(aliasRoot);
+    const alias = path.join(aliasRoot, 'closed-alias');
+    fs.symlinkSync(paths.closed, alias, 'junction');
+    const result = await runCleanWorktrees({
+      ...deps,
+      runningPaths: [path.join(alias, 'index.js')],
+    });
+    assert.equal(byPath(result)[paths.closed].reason, 'running-from-tree');
+    const live = await runCleanWorktrees({ ...deps, processCwds: [alias] });
+    assert.equal(byPath(live)[paths.merged].class, CLASSES.MERGED_BRANCH);
+    assert.equal(byPath(live)[paths.closed].reason, 'live-process');
+  });
+
   it('formatBytes scales units', () => {
     assert.equal(formatBytes(null), '-');
     assert.equal(formatBytes(512), '512B');

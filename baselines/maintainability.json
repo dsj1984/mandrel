@@ -1320,7 +1320,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
-      "mi": 91.103
+      "mi": 90.271
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-text-hygiene.js",

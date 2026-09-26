@@ -14,12 +14,12 @@
  * process was loaded from or is working in (`findRunningCodeInside`).
  */
 
-import fs from 'node:fs';
 import path from 'node:path';
 import * as defaultGit from '../../git-utils.js';
 import { NOOP_LOGGER } from '../../Logger.js';
 import { AGENT_LABELS } from '../../label-constants.js';
 import { concurrentMap } from '../../util/concurrent-map.js';
+import { canonicalPath } from '../../worktree/canonical-path.js';
 import { parseWorktreePorcelain, samePath } from '../../worktree/inspector.js';
 import { forceDrainPendingCleanup } from '../../worktree/lifecycle/force-drain.js';
 import {
@@ -39,21 +39,6 @@ function isStoryDone(ticket) {
 }
 
 /**
- * `realpath` when the path exists (macOS `/var` ↔ `/private/var`), else the
- * plain resolved form.
- *
- * @param {string} p
- * @returns {string}
- */
-function canonical(p) {
-  try {
-    return fs.realpathSync.native(p);
-  } catch {
-    return path.resolve(p);
-  }
-}
-
-/**
  * The Story id of a `<worktreeRoot>/story-<id>` entry, else `null` — a
  * `story-<id>` directory anywhere else (e.g. `.claude/worktrees/`) is not
  * this sweep's to judge.
@@ -64,11 +49,8 @@ function canonical(p) {
  * @returns {number|null}
  */
 function storyIdFromPath(wtPath, worktreeRoot, platform) {
-  const parent = path.dirname(path.resolve(wtPath));
-  const underRoot =
-    samePath(parent, worktreeRoot, platform) ||
-    samePath(canonical(parent), canonical(worktreeRoot), platform);
-  if (!underRoot) return null;
+  const parent = path.dirname(canonicalPath(wtPath));
+  if (!samePath(parent, canonicalPath(worktreeRoot), platform)) return null;
   return defaultGit.parseStoryBranch(path.basename(path.resolve(wtPath)));
 }
 
