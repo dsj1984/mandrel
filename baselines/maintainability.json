@@ -1232,7 +1232,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/merge-poll.js",
-      "mi": 104.028
+      "mi": 104.587
     },
     {
       "path": ".agents/scripts/lib/orchestration/merge-queue.js",
