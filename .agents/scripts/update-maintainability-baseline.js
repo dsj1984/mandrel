@@ -9,6 +9,7 @@ import './lib/runtime-deps/ensure-installed.js';
 import path from 'node:path';
 import { parseDiffScopeFlag } from './lib/baselines/diff-scope-cli.js';
 import { refreshBaseline } from './lib/baselines/refresh-service.js';
+import { seatMaintainabilityBaseline } from './lib/baselines/seat-missing.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { getBaselineEpsilon } from './lib/config/quality.js';
 import { getBaselines, resolveConfig } from './lib/config-resolver.js';
@@ -17,7 +18,7 @@ import { Logger } from './lib/Logger.js';
 /** `runAsCli` answers `--help` before `main`, so a usage probe never writes. */
 const USAGE = {
   invocation:
-    'node .agents/scripts/update-maintainability-baseline.js [--full-scope | --diff-scope <ref>]',
+    'node .agents/scripts/update-maintainability-baseline.js [--full-scope | --diff-scope <ref>] [--seat-missing]',
   summary:
     'Score → write the maintainability baseline. With no scope flag the refresh is scoped to the files changed in `origin/main..HEAD`; out-of-scope rows are preserved verbatim.',
   flags: [
@@ -28,6 +29,10 @@ const USAGE = {
     [
       '--diff-scope <ref>',
       'Scope the refresh to files changed between <ref> and HEAD. Incompatible with --full-scope.',
+    ],
+    [
+      '--seat-missing',
+      'Insert-only: write rows ONLY for changed files (merge-base of `--diff-scope <ref>`, default `origin/<baseBranch>`) that have no baseline row; every existing row stays byte-identical. Prints `seated: N`. Incompatible with --full-scope.',
     ],
   ],
 };
@@ -89,7 +94,12 @@ async function main() {
   );
 }
 
-runAsCli(import.meta.url, main, {
+async function seat() {
+  process.exitCode = await seatMaintainabilityBaseline(process.argv.slice(2));
+}
+
+const seating = process.argv.includes('--seat-missing');
+runAsCli(import.meta.url, seating ? seat : main, {
   source: 'maintainability-baseline',
   usage: USAGE,
   onError: (err) => {

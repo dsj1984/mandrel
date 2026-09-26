@@ -507,7 +507,7 @@ async function resolveScope({
  * @param {typeof nodeFs} fs
  * @returns {object | null}
  */
-function readPriorEnvelope(writePath, fs) {
+export function readPriorEnvelope(writePath, fs) {
   let raw;
   try {
     raw = fs.readFileSync(writePath, 'utf8');

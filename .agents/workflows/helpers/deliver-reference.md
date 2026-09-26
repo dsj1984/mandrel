@@ -398,6 +398,25 @@ Digest § 5 states the rule and both invocations; this is what surrounds them.
   ([`parallel-tooling.md`](parallel-tooling.md) Rule 2).
 - **Redraft rounds.** Run the scoped projects for the roots you changed plus
   `verify[]`, not the whole suite; only the one run needs credit.
+- **Seating new methods (`--seat-missing`).** Close fails a Story whose own
+  new methods have no baseline row, so after the credited run and before the
+  push the worker runs, in `<workCwd>`, for each enabled gate:
+  `node .agents/scripts/update-crap-baseline.js --seat-missing` (CRAP) and
+  `node .agents/scripts/update-maintainability-baseline.js --seat-missing`
+  (MI). Each scores the files changed since the `origin/<baseBranch>`
+  merge-base and writes **only** rows whose (path, method) key is absent —
+  every existing row stays byte-identical, including rows whose scores moved
+  (re-scoring stays close's auto-refresh). It prints `seated: N`; `seated: 0`
+  writes nothing. Commit a change as `chore(baselines): baseline-refresh: …`.
+- **Seat refusals.** The CRAP seat exits non-zero and writes nothing unless
+  the coverage-capture stamp is fresh for the tree **and** method resolution
+  over the in-scope files is exactly 100% — a lower rate means the artifact's
+  coordinates predate the tree. The refusal names the rate, the unresolved
+  files and the fix: re-run the digest § 5 capture, then seat.
+- **Seat order vs credit.** The capture stamp digests scorable sources only,
+  so a baseline-JSON-only seat commit leaves it fresh and the capture credit
+  stands. The evidence-gate `test` credit is keyed on the tree, so on that
+  path seat first — MI is static and needs no coverage — then run the suite.
 
 ## Held review at hand-off {#held-review}
 

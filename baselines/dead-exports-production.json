@@ -216,10 +216,6 @@
       "symbol": "canonicaliseRowPath"
     },
     {
-      "file": ".agents/scripts/lib/baselines/refresh-service.js",
-      "symbol": "fileFilterFor"
-    },
-    {
       "file": ".agents/scripts/lib/bdd-runner-detect.js",
       "symbol": "BDD_RUNNER_TAG_TABLE"
     },
@@ -2102,6 +2098,22 @@
     {
       "file": "scripts/lib/test-isolate/runner.js",
       "symbol": "bisectFlipper"
+    },
+    {
+      "file": ".agents/scripts/lib/baselines/crap-updater-cli.js",
+      "symbol": "buildCrapSeatScorer"
+    },
+    {
+      "file": ".agents/scripts/lib/baselines/seat-missing.js",
+      "symbol": "seatKeyFor"
+    },
+    {
+      "file": ".agents/scripts/lib/baselines/seat-missing.js",
+      "symbol": "seatMissingBaseline"
+    },
+    {
+      "file": ".agents/scripts/lib/baselines/seat-missing.js",
+      "symbol": "selectMissingRows"
     }
   ]
 }
