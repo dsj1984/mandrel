@@ -104,6 +104,7 @@ const COVERAGE_GATE_KEYS = new Set([
   'floors',
   'coveragePath',
   'captureScope',
+  'timeoutMs',
 ]);
 
 const MI_GATE_KEYS = new Set([
@@ -283,7 +284,7 @@ function resolveCoverageGate(userBlock) {
       userBlock.tolerance,
       toleranceScalar(defaults.tolerance, 0),
     ),
-    timeoutMs: defaults.timeoutMs,
+    timeoutMs: userBlock.timeoutMs ?? defaults.timeoutMs,
   };
 }
 

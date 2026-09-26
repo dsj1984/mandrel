@@ -5,20 +5,33 @@
  * passed for the current HEAD and tree, and recording a pass for the next
  * caller. `--standalone` is required: it keys evidence by Story id, the same
  * keyspace close consults, so worker-side verify[] runs credit the close.
+ * `--gate test` takes the host full-suite lock.
  */
 
 import { spawnSync } from 'node:child_process';
 import { parseArgs } from 'node:util';
 import { runAsCli } from './lib/cli-utils.js';
+import { getQuality, resolveConfig } from './lib/config-resolver.js';
+import {
+  fullSuiteLockPolicy,
+  LOCK_WAIT_EXPIRED_EXIT_CODE,
+  withFullSuiteLockAsync,
+} from './lib/full-suite-lock.js';
 import { gitSpawn } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
 import { PROJECT_ROOT } from './lib/project-root.js';
+import {
+  formatSuiteTimings,
+  runSupervisedSuite,
+} from './lib/supervised-suite.js';
 import {
   hashCommandConfig,
   recordPass,
   shouldSkip,
   treeFingerprint,
 } from './lib/validation-evidence.js';
+
+const FULL_SUITE_GATE = 'test';
 
 export function splitOnDashDash(argv) {
   const idx = argv.indexOf('--');
@@ -90,6 +103,7 @@ function resolveEvidenceKeys({ spawnCwd, gitSpawnFn, useEvidence }) {
  * @param {Function} [deps.shouldSkipFn]
  * @param {Function} [deps.recordPassFn]
  * @param {object}   [deps.logger]
+ * @param {Function} [deps.runSuiteFn]
  * @returns {{ status: number, skipped: boolean }}
  */
 export async function runEvidenceGate(params, deps = {}) {
@@ -99,6 +113,7 @@ export async function runEvidenceGate(params, deps = {}) {
     shouldSkipFn = shouldSkip,
     recordPassFn = recordPass,
     logger = Logger,
+    runSuiteFn = runLockedSuite,
   } = deps;
   const {
     scopeId,
@@ -159,17 +174,18 @@ export async function runEvidenceGate(params, deps = {}) {
   logger.info(
     `[evidence-gate] ▶ ${gate} → ${cmd} ${cmdArgs.join(' ')} (cwd=${spawnCwd})`,
   );
-  const result = spawnFn(cmd, cmdArgs, {
-    cwd: spawnCwd,
-    stdio: 'inherit',
-    shell: process.platform === 'win32',
+  const status = await runGateCommand({
+    gate,
+    cmd,
+    cmdArgs,
+    spawnCwd,
+    logger,
+    spawnFn,
+    runSuiteFn,
   });
-  const status = result.status ?? 1;
   if (status !== 0) {
     process.exitCode = status;
-    logger.error(
-      `[evidence-gate] ✖ ${gate} failed (exit ${status}) in ${spawnCwd}`,
-    );
+    reportGateExit({ gate, status, spawnCwd, logger });
     return { status, skipped: false };
   }
 
@@ -195,6 +211,88 @@ export async function runEvidenceGate(params, deps = {}) {
     }
   }
   return { status: 0, skipped: false };
+}
+
+/**
+ * @param {{ cmd: string, args: string[], cwd: string, log: (m: string) => void }} run
+ * @param {{ config?: object|null, env?: object, lockOptions?: object, runSuiteImpl?: typeof runSupervisedSuite }} [seams]
+ * @returns {Promise<number>} 75 when the lock wait expired.
+ */
+export function runLockedSuite(
+  { cmd, args, cwd, log },
+  {
+    config = loadConfig(cwd),
+    env = process.env,
+    lockOptions = {},
+    runSuiteImpl = runSupervisedSuite,
+  } = {},
+) {
+  const timeoutMs = getQuality(config).coverage?.timeoutMs;
+  return withFullSuiteLockAsync(
+    {
+      ...fullSuiteLockPolicy(config, env),
+      cwd,
+      log,
+      rerunCommand: ['node', ...process.argv.slice(1)].join(' '),
+      ...lockOptions,
+    },
+    ({ lockWaitMs }) =>
+      runSuiteImpl({
+        cmd,
+        args,
+        cwd,
+        timeoutMs,
+        lockWaitMs,
+        onTimings: (t) => log(`[evidence-gate] ${formatSuiteTimings(t)}`),
+        onTimeout: () =>
+          log(
+            `[evidence-gate] ⏱ ${cmd} ${args.join(' ')} exceeded ${timeoutMs}ms — killed its process group.`,
+          ),
+      }),
+  );
+}
+
+/** The `test` gate runs locked and supervised; any other gate plainly. */
+async function runGateCommand({
+  gate,
+  cmd,
+  cmdArgs,
+  spawnCwd,
+  logger,
+  spawnFn,
+  runSuiteFn,
+}) {
+  if (gate === FULL_SUITE_GATE) {
+    const log = (m) => logger.info(m);
+    return await runSuiteFn({ cmd, args: cmdArgs, cwd: spawnCwd, log });
+  }
+  const result = spawnFn(cmd, cmdArgs, {
+    cwd: spawnCwd,
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  });
+  return result.status ?? 1;
+}
+
+function reportGateExit({ gate, status, spawnCwd, logger }) {
+  if (status === LOCK_WAIT_EXPIRED_EXIT_CODE) {
+    logger.info(
+      `[evidence-gate] ⏸ ${gate} deferred (exit ${status}) — another full suite still holds the host lock, so nothing ran and no evidence was recorded.`,
+    );
+    return;
+  }
+  logger.error(
+    `[evidence-gate] ✖ ${gate} failed (exit ${status}) in ${spawnCwd}`,
+  );
+}
+
+/** An unloadable config falls back to the defaults. */
+function loadConfig(cwd) {
+  try {
+    return resolveConfig({ cwd });
+  } catch {
+    return null;
+  }
 }
 
 async function main() {

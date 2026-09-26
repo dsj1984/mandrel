@@ -25,7 +25,7 @@ const EXECUTION_SCHEMA = {
     fullSuiteLock: {
       type: 'boolean',
       description:
-        'Serialize full-suite spawns (`npm test` / `npm run test:coverage`) behind a host-level advisory lock, so two concurrent deliveries on one checkout do not run two suites against the same cores. Best-effort: a wait that expires spawns anyway, so the lock can never fail a delivery. Set false — or export `MANDREL_FULL_SUITE_LOCK=0` for one invocation — to disable.',
+        'Serialize full-suite spawns (`npm test` / `npm run test:coverage`) behind a host-level advisory lock, so two concurrent deliveries on one checkout do not run two suites against the same cores. The lock queues, it never overlaps: a wait that expires with a live holder spawns nothing and exits 75 (resumable), naming the holder. A dead or non-heartbeating holder is taken over, and a broken lockfile proceeds unserialized, so the lock can never fail a delivery. Set false — or export `MANDREL_FULL_SUITE_LOCK=0` for one invocation — to disable.',
       default: true,
     },
   },

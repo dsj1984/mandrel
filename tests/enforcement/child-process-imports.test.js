@@ -94,6 +94,9 @@ const ALLOWLIST = new Set([
   '.agents/scripts/lib/orchestration/review-providers/security-review.js',
   '.agents/scripts/lib/orchestration/story-close/format-autofix.js',
   '.agents/scripts/lib/single-story-sweep/protection-ctx.js',
+  // Story #5485: streams a full suite as a supervised process group (inherit
+  // stdio, group kill, suite-ready handshake) that the wrapper cannot serve.
+  '.agents/scripts/lib/supervised-suite.js',
   '.agents/scripts/lib/test-runner-contract.js',
   '.agents/scripts/lib/worktree/git-hooks.js',
   '.agents/scripts/lib/worktree/lifecycle/force-drain.js',

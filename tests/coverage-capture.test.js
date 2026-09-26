@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 
@@ -9,6 +11,9 @@ import {
 import { resolveChangedFilesRef } from '../.agents/scripts/lib/changed-files.js';
 import { getQuality } from '../.agents/scripts/lib/config-resolver.js';
 import { handleCoverageCaptureHelp } from '../.agents/scripts/lib/coverage-capture-usage.js';
+import { acquireSweepLock } from '../.agents/scripts/lib/single-story-sweep/sweep-lock.js';
+import { parseSuiteTimings } from '../.agents/scripts/lib/supervised-suite.js';
+import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 
 /**
  * Story #4780 — `main` scored CRAP 42.7: the gate that decides whether
@@ -712,5 +717,70 @@ describe('content-keyed capture stamps (Story #5278)', () => {
     incremental.calls.fresh.length = 0;
     incremental.calls.capture[0].recheckFresh();
     assert.equal(incremental.calls.fresh[0].requireScope, 'incremental');
+  });
+});
+
+/**
+ * Story #5485 — the standalone capture queues on the host lock and never
+ * overlaps a live holder, and its closing line splits the run's time into the
+ * lock wait, the host wait and the test run.
+ */
+describe('runCoverageCapture — full-suite lock and timings (Story #5485)', () => {
+  const STALE_FRESHNESS = { fresh: false, reason: 'stale' };
+
+  it('AC-5: exits 75 behind a live holder, spawning nothing and naming the holder and the re-run', async () => {
+    const dir = makeTempDir('mandrel-cc-lock-');
+    try {
+      execFileSync('git', ['init', '-q'], { cwd: dir });
+      const lockPath = path.join(dir, '.git', 'mandrel-full-suite.lock');
+      const holder = acquireSweepLock({ lockPath, timeoutMs: 600_000 });
+      const h = harness({ fresh: STALE_FRESHNESS, lockEnabled: true });
+      const code = await runCoverageCapture(argv('--cwd', dir), {
+        ...h.deps,
+        lockOptions: { waitMs: 0 },
+      });
+      holder.release();
+      assert.equal(code, 75);
+      assert.equal(h.calls.capture.length, 0, 'no suite was spawned');
+      const all = [...h.log.info, ...h.log.warn, ...h.log.error].join('\n');
+      assert.match(
+        all,
+        new RegExp(
+          `holder ${holder.ownerId}, pid ${process.pid}, lock age \\d+s`,
+        ),
+      );
+      assert.match(
+        all,
+        /Re-run once it finishes: node coverage-capture\.js --cwd /,
+      );
+      assert.doesNotMatch(all, /spawning anyway/);
+      assert.doesNotMatch(all, /suite timings/, 'no suite, no timing line');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('AC-8: a capture that ran ends on its three timing figures', async () => {
+    const h = harness({ fresh: STALE_FRESHNESS });
+    const deps = {
+      ...h.deps,
+      runCaptureImpl: (args) => {
+        h.calls.capture.push(args);
+        args.onTimings({
+          lockWaitMs: 1500,
+          hostWaitMs: 200,
+          testRunMs: 42_000,
+        });
+        return 0;
+      },
+    };
+    assert.equal(await runCoverageCapture(argv('--cwd', '/repo'), deps), 0);
+    const closing = h.log.info.at(-1);
+    assert.deepEqual(parseSuiteTimings(closing), {
+      lockWaitMs: 1500,
+      hostWaitMs: 200,
+      testRunMs: 42_000,
+    });
+    assert.match(closing, /^\[coverage-capture\] ⏲ suite timings: /);
   });
 });

@@ -49,6 +49,8 @@ function runSyncWith(sources) {
     fs.writeFileSync(path.join(src, name), content, 'utf8');
   }
   const result = spawnSync(process.execPath, [SYNC_SCRIPT], {
+    // The local zone resolves from cwd; keep it off the shared checkout.
+    cwd: tmp,
     env: {
       ...process.env,
       SYNC_CLAUDE_COMMANDS_SRC: src,
@@ -155,6 +157,7 @@ test('sync-claude-commands: excludes the helpers/ subdirectory', () => {
     // A helper module lives under helpers/ — it must NOT become a command.
     fs.writeFileSync(path.join(helpers, 'a-helper.md'), source, 'utf8');
     const result = spawnSync(process.execPath, [SYNC_SCRIPT], {
+      cwd: tmp,
       env: {
         ...process.env,
         SYNC_CLAUDE_COMMANDS_SRC: src,
@@ -188,6 +191,7 @@ test('sync-claude-commands: re-running is idempotent (no churn)', () => {
       SYNC_CLAUDE_COMMANDS_DEST: dest,
     };
     const first = spawnSync(process.execPath, [SYNC_SCRIPT], {
+      cwd: tmp,
       env,
       encoding: 'utf8',
     });
@@ -195,6 +199,7 @@ test('sync-claude-commands: re-running is idempotent (no churn)', () => {
     const cmdPath = path.join(dest, 'fixture.md');
     const after1 = fs.readFileSync(cmdPath, 'utf8');
     const second = spawnSync(process.execPath, [SYNC_SCRIPT], {
+      cwd: tmp,
       env,
       encoding: 'utf8',
     });
@@ -256,6 +261,7 @@ test('sync-claude-commands: frontmatter `command: false` excludes the workflow a
       'utf8',
     );
     const rerun = spawnSync(process.execPath, [SYNC_SCRIPT], {
+      cwd: run.tmp,
       env: {
         ...process.env,
         SYNC_CLAUDE_COMMANDS_SRC: path.join(run.tmp, 'workflows'),

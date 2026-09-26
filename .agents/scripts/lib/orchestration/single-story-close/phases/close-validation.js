@@ -12,6 +12,7 @@ import { buildDefaultGates as defaultBuildDefaultGates } from '../../../close-va
 import { runCloseValidation as defaultRunCloseValidation } from '../../../close-validation/runner.js';
 import { LOCK_WAIT_EXPIRED_EXIT_CODE } from '../../../full-suite-lock.js';
 import { parseLockWaitOutcome } from '../../../full-suite-queue.js';
+import { parseSuiteTimings } from '../../../supervised-suite.js';
 import { createGateLogSink as defaultCreateGateLogSink } from '../gate-log.js';
 import { runPreGateSteps as defaultRunPreGateSteps } from './pre-gate-steps.js';
 
@@ -39,7 +40,8 @@ import { runPreGateSteps as defaultRunPreGateSteps } from './pre-gate-steps.js';
  * }} args
  * @returns {Promise<{
  *   gates: Record<string, 'passed'|'skipped'>|null,
- *   lockWait: { waitedSeconds: number, expired: boolean }|null,
+ *   lockWait: { waitedSeconds: number, expired: boolean, holder?: object }|null,
+ *   suiteTimings: { lockWaitMs: number, hostWaitMs: number|null, testRunMs: number }|null,
  *   pending: boolean,
  * }>} `pending` (with `gates: null`) when a lock wait expired; any other
  *   failure throws with `err.closeGate` naming the gate.
@@ -105,7 +107,6 @@ export async function runCloseValidationPhase({
       baseBranch,
       storyBranch,
       config,
-      deferOnLockExpiry: true,
     });
   } finally {
     // The sink is async-buffered; settle it before anything reads it, on
@@ -120,6 +121,7 @@ export async function runCloseValidationPhase({
   return {
     gates: gateOutcomes(gateList, validation),
     lockWait,
+    suiteTimings: lockWaits.suiteTimings(),
     pending: false,
   };
 }
@@ -133,7 +135,7 @@ export async function runCloseValidationPhase({
  *   gateLog: { replay: () => void },
  *   progress: (tag: string, msg: string) => void,
  * }} args
- * @returns {{ gates: null, lockWait: object, pending: true }}
+ * @returns {{ gates: null, lockWait: object, suiteTimings: null, pending: true }}
  */
 function settleFailedValidation({ validation, lockWait, gateLog, progress }) {
   const [first] = validation.failed;
@@ -143,7 +145,7 @@ function settleFailedValidation({ validation, lockWait, gateLog, progress }) {
       'VALIDATE',
       `⏸ ${gate.name} deferred: the full-suite lock wait expired after ${lockWait.waitedSeconds}s. Nothing was spawned; close will report pending.`,
     );
-    return { gates: null, lockWait, pending: true };
+    return { gates: null, lockWait, suiteTimings: null, pending: true };
   }
   gateLog.replay();
   const err = new Error(
@@ -155,27 +157,40 @@ function settleFailedValidation({ validation, lockWait, gateLog, progress }) {
 }
 
 /**
- * Parsed from the gate log because it is the one place that sees waits both
+ * Parsed from the gate log: the one place that sees waits and timings both
  * in-process and in gate children.
  *
  * @param {{ sink: (m: string) => void, progress: (tag: string, msg: string) => void }} args
- * @returns {{ log: (m: string) => void, summary: () => { waitedSeconds: number, expired: boolean }|null }}
+ * @returns {{ log: (m: string) => void, summary: () => { waitedSeconds: number, expired: boolean, holder?: object }|null, suiteTimings: () => object|null }}
  */
 function trackLockWaits({ sink, progress }) {
   let tally = null;
+  let timings = null;
   return {
     log(line) {
       sink(line);
+      timings = parseSuiteTimings(line) ?? timings;
       if (!String(line).includes('[full-suite-lock]')) return;
       progress('LOCK', line);
       const outcome = parseLockWaitOutcome(line);
       if (!outcome) return;
-      tally = {
-        waitedSeconds: (tally?.waitedSeconds ?? 0) + outcome.waitedSeconds,
-        expired: Boolean(tally?.expired) || outcome.expired,
-      };
+      tally = mergeLockWait(tally, outcome);
     },
     summary: () => tally,
+    suiteTimings: () => timings,
+  };
+}
+
+/**
+ * @param {{ waitedSeconds: number, expired: boolean, holder?: object }|null} tally
+ * @param {{ waitedSeconds: number, expired: boolean, holder?: object }} outcome
+ */
+function mergeLockWait(tally, outcome) {
+  const holder = outcome.holder ?? tally?.holder;
+  return {
+    waitedSeconds: (tally?.waitedSeconds ?? 0) + outcome.waitedSeconds,
+    expired: Boolean(tally?.expired) || outcome.expired,
+    ...(holder ? { holder } : {}),
   };
 }
 

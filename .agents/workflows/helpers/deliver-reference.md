@@ -455,3 +455,10 @@ reports a one-line digest on success; a failed gate replays its tail inline.
 full-suite lock wait expired) logs a deferred line and the close settles
 `pending`; one exiting `124` (the suite outran its timeout) logs a timeout
 line naming host contention — neither is reported as failing tests.
+
+Every full-suite run ends on `⏲ suite timings: lockWaitMs=… hostWaitMs=…
+testRunMs=…`, which close carries as the envelope's `suiteTimings`. The
+`coverage.timeoutMs` clock starts at spawn, never in the lock queue; a suite
+that writes `$MANDREL_SUITE_READY_FILE` when its tests start (after a
+consumer load gate) gets a fresh bound for them, so worst-case wall is lock
+wait + 2 × `timeoutMs`.

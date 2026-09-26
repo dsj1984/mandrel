@@ -132,17 +132,83 @@ export function isFirstInLine({
 }
 
 /**
+ * @typedef {{ ownerId: string|null, pid: number|null, ageSeconds: number|null }} LockHolder
+ */
+
+/**
+ * Lockfile lines: owner id, creation stamp, pid. Unreadable parts are null.
+ *
+ * @param {string} lockPath
+ * @param {{ fsImpl?: object, nowFn?: () => number }} [opts]
+ * @returns {LockHolder}
+ */
+export function readLockHolder(
+  lockPath,
+  { fsImpl = fs, nowFn = Date.now } = {},
+) {
+  let lines = [];
+  try {
+    lines = String(fsImpl.readFileSync(lockPath, 'utf8')).split('\n');
+  } catch {
+    // No lockfile.
+  }
+  const created = Date.parse(lines[1] ?? '');
+  return {
+    ownerId: lines[0] ? lines[0] : null,
+    pid: readLockHolderPid(lockPath, fsImpl),
+    ageSeconds: Number.isFinite(created)
+      ? Math.max(0, Math.round((nowFn() - created) / 1000))
+      : null,
+  };
+}
+
+/** @param {LockHolder} holder */
+function describeHolder({ ownerId, pid, ageSeconds }) {
+  return `holder ${ownerId ?? 'unknown'}, pid ${pid ?? 'unknown'}, lock age ${ageSeconds ?? 'unknown'}s`;
+}
+
+const HOLDER_RE =
+  /holder ([^,\s]+), pid (\d+|unknown), lock age (\d+|unknown)s/u;
+
+/**
  * Log lines are the one channel that reaches close from a child capture.
  *
  * @param {string} line
- * @returns {{ waitedSeconds: number, expired: boolean }|null}
+ * @returns {{ waitedSeconds: number, expired: boolean, holder?: LockHolder }|null}
  */
 export function parseLockWaitOutcome(line) {
+  const text = String(line ?? '');
   const match = /\[full-suite-lock\] (✅|⌛) [^\n]*\(waited (\d+)s[,)]/u.exec(
-    String(line ?? ''),
+    text,
   );
   if (!match) return null;
-  return { waitedSeconds: Number(match[2]), expired: match[1] === '⌛' };
+  return withHolder(
+    { waitedSeconds: Number(match[2]), expired: match[1] === '⌛' },
+    text,
+  );
+}
+
+/** An expiry line also names the holder it gave up on. */
+function withHolder(outcome, text) {
+  const holder = outcome.expired ? HOLDER_RE.exec(text) : null;
+  if (!holder) return outcome;
+  const [, ownerId, pid, ageSeconds] = holder.map(unknownAsNull);
+  return {
+    ...outcome,
+    holder: {
+      ownerId,
+      pid: numberOrNull(pid),
+      ageSeconds: numberOrNull(ageSeconds),
+    },
+  };
+}
+
+function unknownAsNull(raw) {
+  return raw === 'unknown' ? null : raw;
+}
+
+function numberOrNull(raw) {
+  return raw === null ? null : Number(raw);
 }
 
 function holderLabel(lockPath, fsImpl) {
@@ -154,9 +220,9 @@ function holderLabel(lockPath, fsImpl) {
  *   lockPath: string, waitMs: number, pollMs: number, staleMs: number,
  *   reportMs: number, fsImpl: object, nowFn: () => number,
  *   sleepFn: (ms: number) => Promise<void>, acquireOnceFn: Function,
- *   log: (m: string) => void, expiryNote: string,
+ *   log: (m: string) => void, rerunCommand: string,
  * }} opts
- * @returns {Promise<{ held: object|null, expired: boolean, waited: true }>}
+ * @returns {Promise<{ held: object|null, expired: boolean, waited: true, waitedMs: number, holder?: LockHolder }>}
  */
 export async function waitInLine(opts) {
   const { lockPath, waitMs, fsImpl, nowFn, log } = opts;
@@ -164,6 +230,7 @@ export async function waitInLine(opts) {
   const clock = {
     deadline: startedAt + Math.max(0, waitMs),
     nextReport: startedAt + opts.reportMs,
+    waitedMs: () => Math.max(0, nowFn() - startedAt),
     waited: () => Math.round((nowFn() - startedAt) / 1000),
   };
   log(
@@ -172,14 +239,22 @@ export async function waitInLine(opts) {
   const ticket = enqueueWaiter({ lockPath, nowFn, fsImpl });
   try {
     const outcome = await pollForTurn(opts, ticket, clock);
-    if (outcome) return { ...outcome, waited: true };
+    if (outcome)
+      return { ...outcome, waited: true, waitedMs: clock.waitedMs() };
   } finally {
     dequeueWaiter(ticket, { fsImpl });
   }
+  const holder = readLockHolder(lockPath, { fsImpl, nowFn });
   log(
-    `${LOCK_TAG} ⌛ gave up waiting for the full-suite lock (waited ${clock.waited()}s, ${holderLabel(lockPath, fsImpl)}) — ${opts.expiryNote}.`,
+    `${LOCK_TAG} ⌛ gave up waiting for the full-suite lock (waited ${clock.waited()}s, ${describeHolder(holder)}) — not spawning, so two full suites never overlap. Re-run once it finishes: ${opts.rerunCommand}`,
   );
-  return { held: null, expired: true, waited: true };
+  return {
+    held: null,
+    expired: true,
+    waited: true,
+    waitedMs: clock.waitedMs(),
+    holder,
+  };
 }
 
 /** `null` means the deadline passed. */

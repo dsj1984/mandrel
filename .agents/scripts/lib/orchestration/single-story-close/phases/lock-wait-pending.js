@@ -13,7 +13,7 @@ import {
  *   storyId: number,
  *   storyBranch: string,
  *   baseBranch: string,
- *   lockWait: { waitedSeconds: number, expired: boolean }|null,
+ *   lockWait: { waitedSeconds: number, expired: boolean, holder?: object }|null,
  *   elapsedSeconds: number,
  * }} args
  * @returns {{ result: object, terminal: object, note: string }} The close
@@ -44,6 +44,12 @@ export function lockWaitPending({
       nextCommand,
       elapsedSeconds,
     }),
-    note: `⏸  Story #${storyId}: another full suite held the host lock past the wait budget — resume with: ${nextCommand}`,
+    note: `⏸  Story #${storyId}: another full suite${describeHolder(lockWait?.holder)} held the host lock past the wait budget — resume with: ${nextCommand}`,
   };
+}
+
+/** @param {{ ownerId: string|null, pid: number|null, ageSeconds: number|null }} [holder] */
+function describeHolder(holder) {
+  if (!holder) return '';
+  return ` (${holder.ownerId ?? 'unknown owner'}, pid ${holder.pid ?? 'unknown'}, lock age ${holder.ageSeconds ?? 'unknown'}s)`;
 }

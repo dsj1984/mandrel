@@ -200,7 +200,29 @@
       "required": ["waitedSeconds", "expired"],
       "properties": {
         "waitedSeconds": { "type": "number", "minimum": 0 },
-        "expired": { "type": "boolean" }
+        "expired": { "type": "boolean" },
+        "holder": {
+          "type": "object",
+          "description": "Story #5485 — the live holder an expired wait gave up on, read from the lockfile: its owner id, pid and lock age. Each field is null when the lockfile did not say.",
+          "required": ["ownerId", "pid", "ageSeconds"],
+          "properties": {
+            "ownerId": { "type": ["string", "null"] },
+            "pid": { "type": ["integer", "null"], "minimum": 1 },
+            "ageSeconds": { "type": ["number", "null"], "minimum": 0 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "suiteTimings": {
+      "type": ["object", "null"],
+      "description": "Story #5485 — the close's one full-suite run split into three separate figures: lockWaitMs (queued on the host full-suite lock), hostWaitMs (spawn until the suite signalled MANDREL_SUITE_READY_FILE; null when it did not use the handshake) and testRunMs (the test phase the coverage.timeoutMs kill bound applies to). null when no full suite ran in this close.",
+      "required": ["lockWaitMs", "hostWaitMs", "testRunMs"],
+      "properties": {
+        "lockWaitMs": { "type": "number", "minimum": 0 },
+        "hostWaitMs": { "type": ["number", "null"], "minimum": 0 },
+        "testRunMs": { "type": "number", "minimum": 0 }
       },
       "additionalProperties": false
     },

@@ -23,7 +23,6 @@ import {
 import { runCloseValidation } from '../../.agents/scripts/lib/close-validation/runner.js';
 import { COVERAGE_GATE_DEFAULTS } from '../../.agents/scripts/lib/config/quality.js';
 import {
-  FULL_SUITE_LOCK_EXPIRY_ENV,
   LOCK_WAIT_EXPIRED_EXIT_CODE,
   resolveFullSuiteLockBudget,
 } from '../../.agents/scripts/lib/full-suite-lock.js';
@@ -176,48 +175,52 @@ describe('the close `test` gate is bounded (Story #5377)', () => {
         return { status: 0 };
       },
       runProjections: async () => {},
-      deferOnLockExpiry: true,
     });
     const test = seen.find((o) => o.gateName === 'test');
     const lint = seen.find((o) => o.gateName === 'lint');
-    // The coverage wall clock is the fixed constant since Story #5382.
+    // The coverage wall clock, resolved from config (Story #5485).
     assert.equal(test.timeoutMs, COVERAGE_GATE_DEFAULTS.timeoutMs);
     // Story #5478 — the gate's lock wait derives from that same kill bound.
     assert.equal(
       resolveFullSuiteLockBudget(test.timeoutMs).waitMs,
       Math.max(300_000, COVERAGE_GATE_DEFAULTS.timeoutMs),
     );
-    assert.equal(test.deferOnLockExpiry, true);
     assert.equal(
       lint.timeoutMs,
       undefined,
       'only the full-suite gate is bounded here',
     );
+    // Story #5485 — the lock-expiry line names the gate's own command.
+    assert.equal(test.lockOptions.rerunCommand, 'npm test');
+    assert.equal(lint.lockOptions, undefined);
     for (const opts of [test, lint]) {
-      assert.equal(
-        opts.env[FULL_SUITE_LOCK_EXPIRY_ENV],
-        'defer',
-        'close opts every gate child in to the defer posture',
-      );
+      assert.equal(opts.env, undefined, 'no defer opt-in env is injected');
     }
   });
 
-  it('outside close no gate child is opted in to defer', async () => {
+  it('a configured coverage.timeoutMs reaches the full-suite gate', async () => {
     const seen = [];
     await runCloseValidation({
       cwd: '/repo',
       gates: [
         { name: 'test', cmd: 'npm', args: ['test'], fullSuiteLock: true },
       ],
+      config: {
+        delivery: {
+          quality: { gates: { coverage: { timeoutMs: 1_800_000 } } },
+        },
+      },
       runner: async (_cmd, _args, opts) => {
         seen.push(opts);
         return { status: 0 };
       },
       runProjections: async () => {},
     });
-    assert.equal(seen[0].env, undefined);
-    assert.equal(seen[0].deferOnLockExpiry, false);
-    assert.equal(seen[0].timeoutMs, 600_000, 'the resolved default budget');
+    assert.equal(seen[0].timeoutMs, 1_800_000);
+    assert.equal(
+      resolveFullSuiteLockBudget(seen[0].timeoutMs).waitMs,
+      1_800_000,
+    );
   });
 
   it('a deferred full-suite gate reports the lock-expiry exit without spawning', async () => {
@@ -226,6 +229,7 @@ describe('the close `test` gate is bounded (Story #5377)', () => {
       const lockPath = path.join(lockDir, 'full-suite.lock');
       const marker = path.join(lockDir, 'spawned');
       const holder = acquireSweepLock({ lockPath, timeoutMs: 600_000 });
+      const lines = [];
       const result = await defaultGateRunner(
         process.execPath,
         [
@@ -235,15 +239,25 @@ describe('the close `test` gate is bounded (Story #5377)', () => {
         {
           cwd: lockDir,
           gateName: 'test',
-          log: () => {},
+          log: (m) => lines.push(m),
           fullSuiteLock: true,
-          deferOnLockExpiry: true,
-          lockOptions: { lockPath, waitMs: 0 },
+          lockOptions: { lockPath, waitMs: 0, rerunCommand: 'npm test' },
         },
       );
       holder.release();
       assert.deepEqual(result, { status: LOCK_WAIT_EXPIRED_EXIT_CODE });
       assert.equal(fs.existsSync(marker), false, 'nothing was spawned');
+      const expiry = lines.find((l) => l.includes('⌛'));
+      assert.ok(expiry, lines.join('\n'));
+      // AC-5: the holder and the command to re-run are named.
+      assert.match(
+        expiry,
+        new RegExp(
+          `holder ${holder.ownerId}, pid ${process.pid}, lock age \\d+s`,
+        ),
+      );
+      assert.match(expiry, /Re-run once it finishes: npm test/);
+      assert.doesNotMatch(lines.join('\n'), /spawning anyway/);
     } finally {
       fs.rmSync(lockDir, { recursive: true, force: true });
     }
