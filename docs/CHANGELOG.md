@@ -15,6 +15,32 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.66.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.65.0...mandrel-v2.66.0) (2026-09-26)
+
+
+### Added
+
+* record per-Story retry causes and per-provider review halts at close ([#5435](https://github.com/dsj1984/mandrel/issues/5435)) ([#5441](https://github.com/dsj1984/mandrel/issues/5441)) ([c7bfd5a](https://github.com/dsj1984/mandrel/commit/c7bfd5ab2be417889f45a85f92145704ac580b88))
+
+
+### Fixed
+
+* make the quality instruments fail loudly instead of silently mis-measuring, and reclaim floor slack ([#5444](https://github.com/dsj1984/mandrel/issues/5444)) ([#5452](https://github.com/dsj1984/mandrel/issues/5452)) ([54eb9fd](https://github.com/dsj1984/mandrel/commit/54eb9fd4660a0476740e0f96daae34e7f1fc754f))
+
+
+### Performance
+
+* stop tests and CLI start-up from spending real wall-clock on host state and sleeps ([#5445](https://github.com/dsj1984/mandrel/issues/5445)) ([#5451](https://github.com/dsj1984/mandrel/issues/5451)) ([8f74d51](https://github.com/dsj1984/mandrel/commit/8f74d51da489b3cc96a0c23053338a718a68708c))
+
+
+### Changed
+
+* burn down the bootstrap hotspots across CRAP, cyclomatic and dead exports ([#5447](https://github.com/dsj1984/mandrel/issues/5447)) ([#5455](https://github.com/dsj1984/mandrel/issues/5455)) ([be9e666](https://github.com/dsj1984/mandrel/commit/be9e6665011547be9396670f9a7486951ca1cd81))
+* burn down the orchestration and signals complexity outliers ([#5449](https://github.com/dsj1984/mandrel/issues/5449)) ([#5456](https://github.com/dsj1984/mandrel/issues/5456)) ([208cede](https://github.com/dsj1984/mandrel/commit/208cede77cb8186bf479cb6e190b8e2849347bbf))
+* collapse duplicated CLI plumbing: standard-args flag switches and the sync-agents/sync-commands clone ([#5448](https://github.com/dsj1984/mandrel/issues/5448)) ([#5454](https://github.com/dsj1984/mandrel/issues/5454)) ([5df933b](https://github.com/dsj1984/mandrel/commit/5df933b7c567730eae0ed47b172a8ac670d0831e))
+* decompose the single-story-close and confirm-merge hot path ([#5446](https://github.com/dsj1984/mandrel/issues/5446)) ([#5453](https://github.com/dsj1984/mandrel/issues/5453)) ([3b7a5ae](https://github.com/dsj1984/mandrel/commit/3b7a5ae2b7391e16dddfd18d64e7fe4528bdc48c))
+* trim the always-on closure and document the effort policy ([#5437](https://github.com/dsj1984/mandrel/issues/5437)) ([#5439](https://github.com/dsj1984/mandrel/issues/5439)) ([61d3c66](https://github.com/dsj1984/mandrel/commit/61d3c666637d38144cee7abcc7a50f28c332201a))
+
 ## [2.65.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.64.0...mandrel-v2.65.0) (2026-09-24)
 
 
