@@ -103,6 +103,7 @@ function resolveScopeEnvelope(opts, config) {
  *   createReviewProviderFn?: typeof createReviewProvider,
  *   upsertCommentFn?: typeof upsertStructuredComment,
  *   renderFindingsFn?: typeof renderFindings,
+ *   deferPost?: boolean,
  * }} opts
  * @returns {Promise<{
  *   status: 'ok'|'no-changes'|'invalid',
@@ -196,9 +197,20 @@ async function resolvePromptMessages(reviewProvider, reviewInput, logger) {
 }
 
 /**
- * Posting failure is non-fatal and surfaces as `posted: false`.
+ * Posting failure is non-fatal and surfaces as `posted: false`. Exported so a
+ * review computed with `deferPost` can post its held report later, once the
+ * comment target (the PR) exists.
+ *
+ * @param {{
+ *   upsertCommentFn: typeof upsertStructuredComment,
+ *   provider: object,
+ *   commentTargetId: number,
+ *   report: string,
+ *   logger?: { info?: Function, warn?: Function },
+ * }} args
+ * @returns {Promise<{ posted: boolean, postedCommentId: number|null }>}
  */
-async function postReviewComment({
+export async function postReviewComment({
   upsertCommentFn,
   provider,
   commentTargetId,
@@ -309,13 +321,17 @@ async function executeReviewPipeline({ opts, config, envelope }) {
     degradations,
   });
 
-  const { posted, postedCommentId } = await postReviewComment({
-    upsertCommentFn,
-    provider,
-    commentTargetId,
-    report,
-    logger,
-  });
+  // A deferred review computes and renders but posts nothing; the caller
+  // posts the held `report` once its target exists.
+  const { posted, postedCommentId } = opts.deferPost
+    ? { posted: false, postedCommentId: null }
+    : await postReviewComment({
+        upsertCommentFn,
+        provider,
+        commentTargetId,
+        report,
+        logger,
+      });
 
   return {
     status: 'ok',

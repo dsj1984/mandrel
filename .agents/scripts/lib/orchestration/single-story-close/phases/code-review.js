@@ -49,29 +49,6 @@ export function buildStoryReviewCrossRefBody({
   );
 }
 
-async function invokeStoryReviewCore({
-  storyId,
-  storyBranch,
-  baseRef,
-  prNumber,
-  provider,
-  runCodeReviewFn,
-  gitSpawnFn,
-  progress,
-}) {
-  return runStoryReviewCore({
-    storyId,
-    baseRef,
-    headRef: storyBranch,
-    commentTargetId: prNumber,
-    provider,
-    progress,
-    progressTag: 'REVIEW',
-    runCodeReviewFn,
-    gitSpawnFn,
-  });
-}
-
 async function postStoryReviewCrossRef({
   provider,
   storyId,
@@ -115,6 +92,149 @@ async function postStoryReviewCrossRef({
 }
 
 /**
+ * Compute the Story-scope review without knowing the PR: resolve the shared
+ * base, run the review core against `headRef`, and hold the rendered report.
+ * `deferPost` holds the post for {@link settleStoryScopeReview}; otherwise
+ * the review core posts to `commentTargetId` itself.
+ *
+ * @param {{
+ *   cwd: string,
+ *   storyId: number,
+ *   headRef: string,
+ *   baseBranch: string,
+ *   commentTargetId?: number|null,
+ *   deferPost?: boolean,
+ *   provider: object,
+ *   runCodeReviewFn: Function,
+ *   gitSpawnFn?: Function,
+ *   progress: (tag: string, msg: string) => void,
+ * }} args
+ * @returns {Promise<{ outcome: object }|{ result: object }>} `outcome` is a
+ *   final envelope (unresolvable base: nothing to post); `result` is the
+ *   review core's result, to settle.
+ */
+export async function computeStoryScopeReview({
+  cwd,
+  storyId,
+  headRef,
+  baseBranch,
+  commentTargetId = null,
+  deferPost = false,
+  provider,
+  runCodeReviewFn,
+  gitSpawnFn,
+  progress,
+}) {
+  const base = resolveSharedBaseRef({ baseBranch, cwd, gitSpawnFn });
+  if (!base.resolved) {
+    return {
+      outcome: unresolvedBaseReviewOutcome({
+        storyId,
+        baseBranch,
+        remoteRef: base.remoteRef,
+        progress,
+      }),
+    };
+  }
+  const target = deferPost
+    ? 'held until the PR exists'
+    : `→ PR #${commentTargetId}`;
+  progress(
+    'REVIEW',
+    `Running Story-scope code review for Story #${storyId} (${base.ref}...${headRef}) ${target}...`,
+  );
+  const result = await runStoryReviewCore({
+    storyId,
+    baseRef: base.ref,
+    headRef,
+    commentTargetId,
+    provider,
+    progress,
+    progressTag: 'REVIEW',
+    // Deferred: compute and render only; the settle step posts the report.
+    runCodeReviewFn: deferPost
+      ? (opts) => runCodeReviewFn({ ...opts, deferPost: true })
+      : runCodeReviewFn,
+    gitSpawnFn,
+  });
+  return { result };
+}
+
+/**
+ * Settle a computed review against the open PR: post a held report when
+ * `postReportFn` is given, report the tally, and cross-reference the Story.
+ *
+ * @param {{
+ *   computed: { outcome: object }|{ result: object },
+ *   storyId: number,
+ *   prUrl: string,
+ *   prNumber: number,
+ *   provider: object,
+ *   progress: (tag: string, msg: string) => void,
+ *   postReportFn?: ((args: object) => Promise<{ posted: boolean,
+ *     postedCommentId: number|null }>)|null,
+ * }} args
+ * @returns {Promise<object>} the review outcome (see {@link runStoryScopeReview}).
+ */
+export async function settleStoryScopeReview({
+  computed,
+  storyId,
+  prUrl,
+  prNumber,
+  provider,
+  progress,
+  postReportFn = null,
+}) {
+  if (computed.outcome) return computed.outcome;
+  const posting = postReportFn
+    ? await postReportFn({
+        provider,
+        commentTargetId: prNumber,
+        report: computed.result.report,
+        logger: {
+          info: (m) => progress('REVIEW', m),
+          warn: (m) => progress('REVIEW', `⚠️ ${m}`),
+        },
+      })
+    : {};
+  const result = { ...computed.result, ...posting };
+  const sev = result.severity ?? {
+    critical: 0,
+    high: 0,
+    medium: 0,
+    suggestion: 0,
+  };
+  const outcome = formatReviewOutcomeLines({
+    severity: sev,
+    degradations: result.degradations,
+    prNumber,
+    posted: result.posted,
+  });
+  for (const line of outcome) progress('REVIEW', line);
+
+  const crossRefPosted = await postStoryReviewCrossRef({
+    provider,
+    storyId,
+    prUrl,
+    prNumber,
+    result,
+    severity: sev,
+    progress,
+  });
+
+  return {
+    halted: !!result.halted,
+    severity: sev,
+    criticalByProvider: result.criticalByProvider,
+    posted: result.posted,
+    postedCommentId: result.postedCommentId ?? null,
+    ...degradationEnvelope(result.degradations),
+    crossRefPosted,
+  };
+}
+
+/**
+ * The serial review: compute against the Story branch, posting to the PR.
  * Skips on an unparseable PR number or an unresolvable base (recording a
  * degradation); a runner throw propagates and fails the close.
  *
@@ -161,64 +281,23 @@ export async function runStoryScopeReview({
     );
     return { halted: false, skipped: true };
   }
-
-  const base = resolveSharedBaseRef({ baseBranch, cwd, gitSpawnFn });
-  if (!base.resolved) {
-    return unresolvedBaseReviewOutcome({
-      storyId,
-      baseBranch,
-      remoteRef: base.remoteRef,
-      progress,
-    });
-  }
-
-  progress(
-    'REVIEW',
-    `Running Story-scope code review for Story #${storyId} (${base.ref}...${storyBranch}) → PR #${prNumber}...`,
-  );
-
-  const result = await invokeStoryReviewCore({
+  const computed = await computeStoryScopeReview({
+    cwd,
     storyId,
-    storyBranch,
-    baseRef: base.ref,
-    prNumber,
+    headRef: storyBranch,
+    baseBranch,
+    commentTargetId: prNumber,
     provider,
     runCodeReviewFn,
     gitSpawnFn,
     progress,
   });
-
-  const sev = result.severity ?? {
-    critical: 0,
-    high: 0,
-    medium: 0,
-    suggestion: 0,
-  };
-  const outcome = formatReviewOutcomeLines({
-    severity: sev,
-    degradations: result.degradations,
-    prNumber,
-    posted: result.posted,
-  });
-  for (const line of outcome) progress('REVIEW', line);
-
-  const crossRefPosted = await postStoryReviewCrossRef({
-    provider,
+  return settleStoryScopeReview({
+    computed,
     storyId,
     prUrl,
     prNumber,
-    result,
-    severity: sev,
+    provider,
     progress,
   });
-
-  return {
-    halted: !!result.halted,
-    severity: sev,
-    criticalByProvider: result.criticalByProvider,
-    posted: result.posted,
-    postedCommentId: result.postedCommentId ?? null,
-    ...degradationEnvelope(result.degradations),
-    crossRefPosted,
-  };
 }
