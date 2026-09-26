@@ -27,18 +27,6 @@
       "symbol": "PHASE_GROUP_VALUES"
     },
     {
-      "file": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "symbol": "checkWindowsGitPerf"
-    },
-    {
-      "file": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "symbol": "runSyncCommands"
-    },
-    {
-      "file": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "symbol": "validateAgentrc"
-    },
-    {
       "file": ".agents/scripts/lib/config-schema-shared.js",
       "symbol": "BASELINE_ENVELOPE_FILE"
     },
