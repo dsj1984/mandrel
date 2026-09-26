@@ -716,6 +716,13 @@ async function detectCreation(answers, skipGithub) {
   return creation;
 }
 
+function projectNameFor(pn, projects) {
+  const match = projects.find((p) => p.value === pn);
+  if (!match) return '(unknown)';
+  const m = /^(.*)\s+\(#\d+\)$/.exec(match.label);
+  return m ? m[1] : match.label;
+}
+
 /**
  * `{ name, number }` for the summary; the picker stores only the number, so
  * an existing project's name is looked up.
@@ -723,20 +730,78 @@ async function detectCreation(answers, skipGithub) {
 function resolveProjectDisplay(answers, skipGithub, projectsList) {
   const pn = answers.projectNumber;
   if (!pn) return { name: '(skip)', number: '(skip)' };
-  if (/^\d+$/.test(pn)) {
-    let name = '(unknown)';
-    if (!skipGithub) {
-      const projects =
-        projectsList ?? safeList(() => listProjects({ owner: answers.owner }));
-      const match = projects.find((p) => p.value === pn);
-      if (match) {
-        const m = /^(.*)\s+\(#\d+\)$/.exec(match.label);
-        name = m ? m[1] : match.label;
-      }
+  if (!/^\d+$/.test(pn)) return { name: pn, number: '(new)' };
+  if (skipGithub) return { name: '(unknown)', number: pn };
+  const projects =
+    projectsList ?? safeList(() => listProjects({ owner: answers.owner }));
+  return { name: projectNameFor(pn, projects), number: pn };
+}
+
+/** Opt-ins default off; dry-run resolves them without prompting. */
+const OPT_INS = Object.freeze([
+  {
+    key: 'withProjectBoard',
+    flag: 'with-project-board',
+    prompt: 'Set up project board fields (Status, custom)?',
+  },
+  {
+    key: 'withIssueForms',
+    flag: 'with-issue-forms',
+    prompt: 'Generate GitHub Issue Form templates?',
+  },
+  {
+    key: 'withQuality',
+    flag: 'with-quality',
+    prompt:
+      'Install local quality gates (pre-commit hook + quality:preview/watch scripts)?',
+  },
+]);
+
+async function resolveOptIns(state) {
+  const optIns = {};
+  for (const { key, flag, prompt } of OPT_INS) {
+    let on = Boolean(state.flags[flag]);
+    if (!state.flags['dry-run'] && !on) {
+      on = await confirmYesNo(prompt, state.interactive, false);
     }
-    return { name, number: pn };
+    optIns[key] = on;
   }
-  return { name: pn, number: '(new)' };
+  return optIns;
+}
+
+async function approveCreation(state, creation) {
+  if (state.flags['dry-run'] || !(creation.newRepo || creation.newProject)) {
+    return true;
+  }
+  return confirmYesNo(
+    'Create the new GitHub repo/project listed above?',
+    state.interactive,
+  );
+}
+
+async function confirmSummary(state, answers, creation, projectsList) {
+  const skipGithub = Boolean(state.flags['skip-github']);
+  const project = resolveProjectDisplay(answers, skipGithub, projectsList);
+  Logger.info(
+    renderAnswerSummary(
+      answers,
+      creation,
+      project,
+      state.gitInitialized,
+      resolveRepoVisibility(state.flags),
+    ),
+  );
+  return confirmYesNo('Is this correct?', state.interactive);
+}
+
+/** Owner repo/project lists, fetched once for pickers and summary. */
+function fetchPickerLists(state, skipGithub) {
+  const owner = resolveOwnerForPicker(state.defaults, state.flags);
+  if (skipGithub || !owner) return { reposList: [], projectsList: [] };
+  return {
+    reposList: safeList(() => listRepos({ owner }).map(bareRepoName)),
+    projectsList: safeList(() => listProjects({ owner })),
+  };
 }
 
 /**
@@ -745,22 +810,16 @@ function resolveProjectDisplay(answers, skipGithub, projectsList) {
  */
 export async function collectAndConfirm(state) {
   const skipGithub = Boolean(state.flags['skip-github']);
-  const owner = resolveOwnerForPicker(state.defaults, state.flags);
-  // Fetched once for pickers and summary, so the name never needs a second call.
-  const reposList =
-    !skipGithub && owner
-      ? safeList(() => listRepos({ owner }).map(bareRepoName))
-      : [];
-  const projectsList =
-    !skipGithub && owner ? safeList(() => listProjects({ owner })) : [];
-
+  const lists = fetchPickerLists(state, skipGithub);
   let silentAccept = state.silentAccept;
   for (;;) {
     const { answers, missing } = await collectAnswers({
-      questions: buildQuestions(state.defaults, state.flags, process.env, {
-        reposList,
-        projectsList,
-      }),
+      questions: buildQuestions(
+        state.defaults,
+        state.flags,
+        process.env,
+        lists,
+      ),
       flags: state.flags,
       interactive: state.interactive,
       assumeYes: state.assumeYes,
@@ -775,78 +834,24 @@ export async function collectAndConfirm(state) {
       );
       return { ok: false, exit: 1 };
     }
-    if (!answers.operatorHandle) answers.operatorHandle = answers.owner;
-    answers.operatorHandle = normalizeHandleAnswer(answers.operatorHandle);
+    answers.operatorHandle = normalizeHandleAnswer(
+      answers.operatorHandle || answers.owner,
+    );
 
     const creation = await detectCreation(answers, skipGithub);
-    const project = resolveProjectDisplay(answers, skipGithub, projectsList);
-    Logger.info(
-      renderAnswerSummary(
-        answers,
-        creation,
-        project,
-        state.gitInitialized,
-        resolveRepoVisibility(state.flags),
-      ),
-    );
-    const correct = await confirmYesNo('Is this correct?', state.interactive);
-    if (!correct) {
+    if (!(await confirmSummary(state, answers, creation, lists.projectsList))) {
       Logger.info('[Bootstrap] Okay — let’s try again.');
       silentAccept = [];
       continue;
     }
-
-    if (!state.flags['dry-run'] && (creation.newRepo || creation.newProject)) {
-      const approved = await confirmYesNo(
-        'Create the new GitHub repo/project listed above?',
-        state.interactive,
+    if (!(await approveCreation(state, creation))) {
+      Logger.error(
+        '[Bootstrap] Creation declined — cannot continue without the repo/project. Exiting.',
       );
-      if (!approved) {
-        Logger.error(
-          '[Bootstrap] Creation declined — cannot continue without the repo/project. Exiting.',
-        );
-        return { ok: false, exit: 1 };
-      }
+      return { ok: false, exit: 1 };
     }
-
-    // Opt-ins default off; dry-run resolves them without prompting.
-    let withProjectBoard = Boolean(state.flags['with-project-board']);
-    if (!state.flags['dry-run'] && !withProjectBoard) {
-      withProjectBoard = await confirmYesNo(
-        'Set up project board fields (Status, custom)?',
-        state.interactive,
-        false,
-      );
-    }
-
-    let withIssueForms = Boolean(state.flags['with-issue-forms']);
-    if (!state.flags['dry-run'] && !withIssueForms) {
-      withIssueForms = await confirmYesNo(
-        'Generate GitHub Issue Form templates?',
-        state.interactive,
-        false,
-      );
-    }
-
-    let withQuality = Boolean(state.flags['with-quality']);
-    if (!state.flags['dry-run'] && !withQuality) {
-      withQuality = await confirmYesNo(
-        'Install local quality gates (pre-commit hook + quality:preview/watch scripts)?',
-        state.interactive,
-        false,
-      );
-    }
-
-    return {
-      ok: true,
-      payload: {
-        answers,
-        creation,
-        withProjectBoard,
-        withIssueForms,
-        withQuality,
-      },
-    };
+    const optIns = await resolveOptIns(state);
+    return { ok: true, payload: { answers, creation, ...optIns } };
   }
 }
 
