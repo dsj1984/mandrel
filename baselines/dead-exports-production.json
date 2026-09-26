@@ -217,10 +217,6 @@
     },
     {
       "file": ".agents/scripts/lib/baselines/refresh-service.js",
-      "symbol": "deriveScopeFromDiff"
-    },
-    {
-      "file": ".agents/scripts/lib/baselines/refresh-service.js",
       "symbol": "fileFilterFor"
     },
     {
@@ -646,10 +642,6 @@
     {
       "file": ".agents/scripts/lib/coverage-baseline.js",
       "symbol": "writeBaseline"
-    },
-    {
-      "file": ".agents/scripts/lib/coverage-capture.js",
-      "symbol": "captureStampPath"
     },
     {
       "file": ".agents/scripts/lib/coverage-capture.js",

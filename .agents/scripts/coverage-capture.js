@@ -2,8 +2,9 @@
 /**
  * Ensures `coverage/coverage-final.json` is fresh before the CRAP gate: skip
  * when the gate is off, no changed file is under `crap.targetDirs`, or the
- * content-digest stamp matches; otherwise run `test:coverage` behind the
- * host-level full-suite lock and stamp on success.
+ * content-digest stamp matches; otherwise run `test:coverage` (or, under
+ * `coverage.captureScope: "affected"`, the consumer's `test:coverage:affected`)
+ * behind the host-level full-suite lock and stamp on success.
  *
  * `--require-credited` must stay an argument, never a config read: as policy
  * it also refused the depositing run, leaving no path that could deposit.
@@ -23,8 +24,8 @@ import {
   runCapture,
   writeCaptureStamp,
 } from './lib/coverage-capture.js';
+import { tryScopedCapture } from './lib/coverage-capture-affected.js';
 import { runFullScopeCapture } from './lib/coverage-capture-fullscope.js';
-import { tryIncrementalCapture } from './lib/coverage-capture-incremental.js';
 import { handleCoverageCaptureHelp } from './lib/coverage-capture-usage.js';
 import { lockedCapture } from './lib/full-suite-lock.js';
 
@@ -111,7 +112,7 @@ export async function runCoverageCapture(argv = process.argv, deps = {}) {
   });
 
   // Shared so a new seam cannot reach one capture path and miss the other.
-  // An incremental `null` means not applicable: fall through to full scope.
+  // A scoped `null` means not applicable: fall through to full scope.
   const shared = {
     crap,
     coverage,
@@ -124,9 +125,11 @@ export async function runCoverageCapture(argv = process.argv, deps = {}) {
     logger,
   };
 
-  const incrementalResult = await tryIncrementalCapture({
+  const incrementalResult = await tryScopedCapture({
     ...shared,
     filterFilesUnderTargetsImpl,
+    readPackageScriptsImpl,
+    hasNpmScriptImpl,
   });
   if (incrementalResult !== null) return incrementalResult;
 
