@@ -2164,7 +2164,7 @@
     },
     {
       "path": ".agents/scripts/update-crap-baseline.js",
-      "mi": 96.013
+      "mi": 99.049
     },
     {
       "path": ".agents/scripts/update-duplication-baseline.js",
@@ -2172,7 +2172,7 @@
     },
     {
       "path": ".agents/scripts/update-maintainability-baseline.js",
-      "mi": 98.97
+      "mi": 100.908
     },
     {
       "path": ".agents/scripts/update-ticket-state.js",
