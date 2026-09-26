@@ -136,9 +136,7 @@ export function isFirstInLine({
  */
 
 /**
- * Who holds the lock: the lockfile's owner id (first line), pid (third) and
- * age from its creation stamp (second). Advisory — any unreadable part is
- * `null`, which only makes the wait line say less.
+ * Lockfile lines: owner id, creation stamp, pid. Unreadable parts are null.
  *
  * @param {string} lockPath
  * @param {{ fsImpl?: object, nowFn?: () => number }} [opts]
@@ -152,7 +150,7 @@ export function readLockHolder(
   try {
     lines = String(fsImpl.readFileSync(lockPath, 'utf8')).split('\n');
   } catch {
-    // No lockfile: every field stays unknown.
+    // No lockfile.
   }
   const created = Date.parse(lines[1] ?? '');
   return {
@@ -164,10 +162,7 @@ export function readLockHolder(
   };
 }
 
-/**
- * @param {LockHolder} holder
- * @returns {string}
- */
+/** @param {LockHolder} holder */
 function describeHolder({ ownerId, pid, ageSeconds }) {
   return `holder ${ownerId ?? 'unknown'}, pid ${pid ?? 'unknown'}, lock age ${ageSeconds ?? 'unknown'}s`;
 }
@@ -177,7 +172,6 @@ const HOLDER_RE =
 
 /**
  * Log lines are the one channel that reaches close from a child capture.
- * An expiry line also carries the holder it gave up on.
  *
  * @param {string} line
  * @returns {{ waitedSeconds: number, expired: boolean, holder?: LockHolder }|null}

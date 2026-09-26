@@ -443,11 +443,6 @@ export const COVERAGE_TIMEOUT_EXIT_CODE = TIMEOUT_EXIT_CODE;
  * forwarded source file as a test instead of filtering the suite. Scope a
  * run through `env` instead.
  *
- * `timeoutMs` is armed at spawn — the lock wait before it (`lockWaitMs`,
- * supplied by `lockedCapture`) never spends it — and re-armed when the suite
- * signals `MANDREL_SUITE_READY_FILE`. `onTimings` receives the three figures;
- * the remaining options are {@link runSupervisedSuite}'s.
- *
  * @param {{
  *   cwd: string,
  *   timeoutMs?: number,

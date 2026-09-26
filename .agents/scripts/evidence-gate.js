@@ -5,10 +5,7 @@
  * passed for the current HEAD and tree, and recording a pass for the next
  * caller. `--standalone` is required: it keys evidence by Story id, the same
  * keyspace close consults, so worker-side verify[] runs credit the close.
- *
- * `--gate test` is a full-suite taker: it queues on the host full-suite lock,
- * runs supervised by `coverage.timeoutMs` from spawn, and on an expired wait
- * with a live holder exits 75 without spawning.
+ * `--gate test` takes the host full-suite lock.
  */
 
 import { spawnSync } from 'node:child_process';
@@ -34,7 +31,6 @@ import {
   treeFingerprint,
 } from './lib/validation-evidence.js';
 
-/** The gate whose command is the full suite, so it takes the host lock. */
 const FULL_SUITE_GATE = 'test';
 
 export function splitOnDashDash(argv) {
@@ -107,8 +103,7 @@ function resolveEvidenceKeys({ spawnCwd, gitSpawnFn, useEvidence }) {
  * @param {Function} [deps.shouldSkipFn]
  * @param {Function} [deps.recordPassFn]
  * @param {object}   [deps.logger]
- * @param {Function} [deps.runSuiteFn] The `test` gate's locked, supervised
- *   runner: `({ cmd, args, cwd, log }) => Promise<number>`.
+ * @param {Function} [deps.runSuiteFn]
  * @returns {{ status: number, skipped: boolean }}
  */
 export async function runEvidenceGate(params, deps = {}) {
@@ -232,13 +227,9 @@ export async function runEvidenceGate(params, deps = {}) {
 }
 
 /**
- * Queue on the host full-suite lock, then run the suite supervised by the
- * coverage kill bound — armed at spawn, never while queued — and print its
- * three timing figures. An expired wait spawns nothing: exit 75.
- *
  * @param {{ cmd: string, args: string[], cwd: string, log: (m: string) => void }} run
- * @param {{ config?: object|null, env?: Record<string, string|undefined>, lockOptions?: object, runSuiteImpl?: typeof runSupervisedSuite }} [seams]
- * @returns {Promise<number>}
+ * @param {{ config?: object|null, env?: object, lockOptions?: object, runSuiteImpl?: typeof runSupervisedSuite }} [seams]
+ * @returns {Promise<number>} 75 when the lock wait expired.
  */
 export function runLockedSuite(
   { cmd, args, cwd, log },
@@ -274,13 +265,7 @@ export function runLockedSuite(
   );
 }
 
-/**
- * A config that fails to load must not stop the gate: the lock and kill
- * bound fall back to their defaults.
- *
- * @param {string} cwd
- * @returns {object|null}
- */
+/** An unloadable config falls back to the defaults. */
 function loadConfig(cwd) {
   try {
     return resolveConfig({ cwd });

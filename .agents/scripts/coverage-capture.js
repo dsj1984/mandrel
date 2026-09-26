@@ -10,9 +10,7 @@
  * it also refused the depositing run, leaving no path that could deposit.
  *
  * Exit codes: 0 fresh/skipped/captured; 1 capture failed or refused (callers
- * MUST surface it); 75 lock wait expired with a live holder, so nothing was
- * spawned (re-run it); 124 suite timed out. A run that spawned a suite ends
- * on its timing line: lock wait, host wait and test run as three figures.
+ * MUST surface it); 75 lock wait expired, nothing spawned; 124 suite timed out.
  */
 import { getChangedFiles } from './lib/changed-files.js';
 import { isDirectInvocation } from './lib/cli-utils.js';
@@ -70,7 +68,7 @@ export function parseArgs(argv) {
  *   filterFilesUnderTargetsImpl?: typeof filterFilesUnderTargets,
  *   logger?: { info: Function, warn: Function, error: Function },
  *   lockOptions?: object,
- * }} [deps] `lockOptions` is a test seam over the full-suite lock policy.
+ * }} [deps]
  * @returns {Promise<number>}
  */
 export async function runCoverageCapture(argv = process.argv, deps = {}) {
@@ -145,19 +143,12 @@ export async function runCoverageCapture(argv = process.argv, deps = {}) {
   return code;
 }
 
-/**
- * The command that re-runs this capture, for the lock's expiry line.
- *
- * @param {string[]} argv
- * @returns {string}
- */
+/** @param {string[]} argv */
 function rerunCommandFor(argv) {
   return ['node', ...argv.slice(1)].join(' ');
 }
 
 /**
- * The scoped path first (a `null` means not applicable), then full scope.
- *
  * @param {{ crap: object, coverage: object, args: object, capture: Function, deps: object }} opts
  * @returns {Promise<number>}
  */

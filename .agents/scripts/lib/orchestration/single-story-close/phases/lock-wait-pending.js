@@ -1,8 +1,7 @@
 /**
  * phases/lock-wait-pending.js — a close whose full-suite lock wait expired
  * ends `pending`, not `failed`: nothing was spawned, pushed or labelled, so
- * the next command is the same close. The envelope's `lockWait.holder` names
- * the live suite it queued behind.
+ * the next command is the same close.
  */
 import {
   buildTerminalEnvelope,
@@ -14,7 +13,7 @@ import {
  *   storyId: number,
  *   storyBranch: string,
  *   baseBranch: string,
- *   lockWait: { waitedSeconds: number, expired: boolean, holder?: { ownerId: string|null, pid: number|null, ageSeconds: number|null } }|null,
+ *   lockWait: { waitedSeconds: number, expired: boolean, holder?: object }|null,
  *   elapsedSeconds: number,
  * }} args
  * @returns {{ result: object, terminal: object, note: string }} The close
@@ -49,10 +48,7 @@ export function lockWaitPending({
   };
 }
 
-/**
- * @param {{ ownerId: string|null, pid: number|null, ageSeconds: number|null }|undefined} holder
- * @returns {string}
- */
+/** @param {{ ownerId: string|null, pid: number|null, ageSeconds: number|null }} [holder] */
 function describeHolder(holder) {
   if (!holder) return '';
   return ` (${holder.ownerId ?? 'unknown owner'}, pid ${holder.pid ?? 'unknown'}, lock age ${holder.ageSeconds ?? 'unknown'}s)`;

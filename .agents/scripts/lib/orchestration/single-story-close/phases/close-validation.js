@@ -5,8 +5,7 @@
  * host's tool-result ceiling): a pass reports one digest line, a failure
  * replays its tail inline. Full-suite lock-wait lines are also teed to
  * `progress()` so a long wait doesn't read as a hang, and an expired wait
- * defers to `pending` rather than failing. The suite's timing line (lock
- * wait, host wait, test run) is parsed from the same log into `suiteTimings`.
+ * defers to `pending` rather than failing.
  */
 
 import { buildDefaultGates as defaultBuildDefaultGates } from '../../../close-validation/gates.js';
@@ -45,8 +44,7 @@ import { runPreGateSteps as defaultRunPreGateSteps } from './pre-gate-steps.js';
  *   suiteTimings: { lockWaitMs: number, hostWaitMs: number|null, testRunMs: number }|null,
  *   pending: boolean,
  * }>} `pending` (with `gates: null`) when a lock wait expired; any other
- *   failure throws with `err.closeGate` naming the gate. `suiteTimings` is
- *   null when no full suite ran in this close (credited, or skipped).
+ *   failure throws with `err.closeGate` naming the gate.
  */
 export async function runCloseValidationPhase({
   cwd,
@@ -159,9 +157,8 @@ function settleFailedValidation({ validation, lockWait, gateLog, progress }) {
 }
 
 /**
- * Parsed from the gate log because it is the one place that sees waits and
- * suite timings both in-process and in gate children. The last timing line
- * wins: close runs exactly one full suite.
+ * Parsed from the gate log: the one place that sees waits and timings both
+ * in-process and in gate children.
  *
  * @param {{ sink: (m: string) => void, progress: (tag: string, msg: string) => void }} args
  * @returns {{ log: (m: string) => void, summary: () => { waitedSeconds: number, expired: boolean, holder?: object }|null, suiteTimings: () => object|null }}

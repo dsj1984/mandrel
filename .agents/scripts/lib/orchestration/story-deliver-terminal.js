@@ -117,7 +117,6 @@ function compact(obj) {
  * @param {{ waitedSeconds: number, expired: boolean, holder?: object }|null} [args.lockWait]
  *   Full-suite lock wait; `waitBudget` is merge-wait only.
  * @param {{ lockWaitMs: number, hostWaitMs: number|null, testRunMs: number }|null} [args.suiteTimings]
- *   The close's one full-suite run, split into its three waits.
  * @param {Record<string, number>|null} [args.phaseDurations] Seconds per phase.
  * @param {string} [args.timestamp]
  * @param {{ schema: object|null, error: string|null }} [args.schemaSource]
@@ -328,9 +327,8 @@ export function emitTerminalEnvelope(
 }
 
 /**
- * Map a `runConfirmMergePhase` outcome onto the terminal envelope. Every
- * other field (`storyId`, `storyBranch`, `baseBranch`, `gates`, `lockWait`,
- * `suiteTimings`, `elapsedSeconds`) passes through to every status.
+ * Map a `runConfirmMergePhase` outcome onto the terminal envelope; the other
+ * fields pass through.
  *
  * @returns {object} A validated `story-deliver-terminal` envelope.
  */

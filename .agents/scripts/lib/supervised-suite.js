@@ -1,18 +1,8 @@
 /**
- * supervised-suite.js — one full-suite spawn, supervised as a process group
- * with the suite-ready handshake, and the one timing line every full-suite
- * taker prints: lock wait, host wait and test run as three separate figures.
- *
- * Suite-ready handshake: the supervisor passes a fresh path to the suite as
- * {@link SUITE_READY_FILE_ENV}. A suite that waits before its tests start (a
- * consumer's host-load gate) writes that file when they do; the supervisor
- * then records `hostWaitMs` and re-arms a fresh `timeoutMs` for the test
- * phase. The pre-ready phase is bounded by the same `timeoutMs`, so a suite
- * that never signals is killed exactly as before (exit 124) and the
- * worst-case wall is 2 × `timeoutMs` after the lock is held.
- *
- * The timing line is also how close learns a child capture's figures — it is
- * parsed back out of the gate log by {@link parseSuiteTimings}.
+ * A full suite supervised as a process group. The suite may write
+ * `$MANDREL_SUITE_READY_FILE` when its tests start; the kill timer then
+ * re-arms a fresh `timeoutMs`, so a pre-test wait (bounded by `timeoutMs`
+ * too) never spends the test budget. Close parses the timing line back.
  */
 import { spawn } from 'node:child_process';
 import crypto from 'node:crypto';
@@ -27,41 +17,28 @@ import {
   TIMEOUT_EXIT_CODE,
 } from './process-group.js';
 
-/**
- * @typedef {{ lockWaitMs: number, hostWaitMs: number|null, testRunMs: number }} SuiteTimings
- */
+/** @typedef {{ lockWaitMs: number, hostWaitMs: number|null, testRunMs: number }} SuiteTimings */
 
-/** Absolute path the suite writes when its tests start. */
 export const SUITE_READY_FILE_ENV = 'MANDREL_SUITE_READY_FILE';
 
 const DEFAULT_READY_POLL_MS = 250;
 
 const NO_HOST_WAIT = 'n/a';
 
-/**
- * A fresh, not-yet-existing ready-file path and the child env naming it.
- *
- * @param {{ dir?: string }} [opts]
- * @returns {{ file: string, env: Record<string, string> }}
- */
+/** @param {{ dir?: string }} [opts] */
 export function suiteReadyHandshake({ dir = os.tmpdir() } = {}) {
   const name = `mandrel-suite-ready-${process.pid}-${crypto.randomBytes(6).toString('hex')}`;
   const file = path.join(dir, name);
   return { file, env: { [SUITE_READY_FILE_ENV]: file } };
 }
 
-/**
- * @param {SuiteTimings} timings
- * @returns {string} e.g. `⏲ suite timings: lockWaitMs=0 hostWaitMs=n/a testRunMs=51234`
- */
+/** @param {SuiteTimings} timings */
 export function formatSuiteTimings({ lockWaitMs, hostWaitMs, testRunMs }) {
   const host = hostWaitMs === null ? NO_HOST_WAIT : Math.round(hostWaitMs);
   return `⏲ suite timings: lockWaitMs=${Math.round(lockWaitMs)} hostWaitMs=${host} testRunMs=${Math.round(testRunMs)}`;
 }
 
 /**
- * Inverse of {@link formatSuiteTimings}, tolerant of any line prefix.
- *
  * @param {string} line
  * @returns {SuiteTimings|null}
  */
@@ -90,14 +67,10 @@ function removeQuietly(fsImpl, file) {
   try {
     fsImpl.rmSync(file, { force: true });
   } catch {
-    // Best-effort: a leftover marker in the tmp dir is harmless.
+    // A leftover marker is harmless.
   }
 }
 
-/**
- * The kill timer: armed at spawn with the pre-ready bound, re-armed once with
- * a fresh `timeoutMs` when the ready file appears.
- */
 class SuiteClock {
   constructor({ kill, timeoutMs, readyTimeoutMs, readyFile, fsImpl, nowFn }) {
     Object.assign(this, { kill, timeoutMs, readyFile, fsImpl, nowFn });
@@ -134,14 +107,12 @@ class SuiteClock {
 
   stop() {
     this.endedAt ??= this.nowFn();
-    // Last look: a suite that signalled and exited inside one poll.
     this.checkReady();
     clearInterval(this.poller);
     clearTimeout(this.timer);
     removeQuietly(this.fsImpl, this.readyFile);
   }
 
-  /** @returns {{ hostWaitMs: number|null, testRunMs: number }} */
   timings() {
     const end = this.endedAt ?? this.nowFn();
     const testStart = this.readyAt ?? this.startedAt;
@@ -153,23 +124,11 @@ class SuiteClock {
 }
 
 /**
- * {@link superviseGroup} (abort and parent-signal forwarding) plus the
- * suite clock: `hostWaitMs` is spawn → ready (`null` when the suite never
- * signalled) and `testRunMs` runs from ready — or spawn — to exit.
+ * `hostWaitMs` is spawn → ready (null without a signal); `testRunMs` ends at
+ * exit. `readyTimeoutMs` (pre-ready bound) is a test seam over `timeoutMs`.
  *
  * @param {{ pid?: number, kill?: Function }} child
- * @param {{
- *   readyFile: string,
- *   timeoutMs?: number,
- *   readyTimeoutMs?: number,
- *   readyPollMs?: number,
- *   abortSignal?: AbortSignal,
- *   signalOnParentSignal?: string,
- *   fsImpl?: object,
- *   nowFn?: () => number,
- * }} opts `readyTimeoutMs` bounds the pre-ready phase and defaults to
- *   `timeoutMs` — every production caller leaves it there.
- * @returns {{ readonly timedOut: boolean, readonly timings: { hostWaitMs: number|null, testRunMs: number }, release: () => void }}
+ * @param {{ readyFile: string, timeoutMs?: number, readyTimeoutMs?: number, readyPollMs?: number, abortSignal?: AbortSignal, signalOnParentSignal?: string, fsImpl?: object, nowFn?: () => number }} opts
  */
 export function superviseSuite(child, opts) {
   const { readyPollMs = DEFAULT_READY_POLL_MS, fsImpl = fs } = opts;
@@ -199,15 +158,12 @@ export function superviseSuite(child, opts) {
 }
 
 /**
- * How a close gate child is supervised: its process group is killed on
- * timeout, abort or parent signal — SIGKILL for a bare suite, SIGTERM for a
- * gate with its own cleanup (a capture holding the lock). A `fullSuiteLock`
- * gate also gets the handshake env and the suite clock, and its release
- * emits the timing line through the gate's `output`.
+ * A bare suite gets SIGKILL on a parent signal; a gate with its own cleanup
+ * (a capture holding the lock) SIGTERM. A full-suite gate also gets the
+ * handshake and emits its timing line on release.
  *
  * @param {{ fullSuiteLock?: boolean, timeoutMs?: number, signal?: AbortSignal, env?: Record<string, string> }} opts
- * @param {{ lockWaitMs?: number }} [lock] The full-suite lock's measured wait.
- * @returns {{ env: Record<string, string>|undefined, supervise: (child: object, output: { prefix: string, emit: (line: string) => void }) => { readonly timedOut: boolean, release: () => void } }}
+ * @param {{ lockWaitMs?: number }} [lock]
  */
 export function gateSupervision(opts, lock = {}) {
   const base = {
@@ -238,7 +194,7 @@ export function gateSupervision(opts, lock = {}) {
 
 /**
  * @param {ReturnType<typeof superviseSuite>} supervisor
- * @param {(timings: { hostWaitMs: number|null, testRunMs: number }) => void} report
+ * @param {(timings: object) => void} report
  */
 function reportOnRelease(supervisor, report) {
   return {
@@ -253,24 +209,9 @@ function reportOnRelease(supervisor, report) {
 }
 
 /**
- * Spawn `cmd args` as its own process group with inherited stdio, bounded by
- * `timeoutMs` from spawn (never from before the lock was held) and re-armed
- * once the suite signals the ready file. Resolves the exit code — `124` when
- * the supervisor killed it — and reports the timings through `onTimings`.
+ * Resolves the exit code, or `124` when the supervisor killed the suite.
  *
- * @param {{
- *   cmd: string,
- *   args: string[],
- *   cwd: string,
- *   env?: Record<string, string>,
- *   timeoutMs?: number,
- *   readyTimeoutMs?: number,
- *   readyPollMs?: number,
- *   lockWaitMs?: number,
- *   spawnImpl?: typeof spawn,
- *   onTimings?: (timings: SuiteTimings) => void,
- *   onTimeout?: () => void,
- * }} opts `readyTimeoutMs` / `readyPollMs` are test seams.
+ * @param {{ cmd: string, args: string[], cwd: string, env?: Record<string, string>, timeoutMs?: number, readyTimeoutMs?: number, readyPollMs?: number, lockWaitMs?: number, spawnImpl?: typeof spawn, onTimings?: (timings: SuiteTimings) => void, onTimeout?: () => void }} opts
  * @returns {Promise<number>}
  */
 export function runSupervisedSuite(opts) {

@@ -3,15 +3,11 @@
  * worktrees (they contend for cores and a shared coverage artifact), over
  * the `sweep-lock.js` primitive.
  *
- * The lock queues, it never overlaps: a wait that expires with a live holder
- * spawns nothing and stands in {@link LOCK_WAIT_EXPIRED_EXIT_CODE} (the
- * caller's `onWaitExpired` shape), naming the holder and the command to
- * re-run. A dead or non-heartbeating holder is still taken over, and a hard
- * lockfile I/O error still proceeds unserialized — a broken lockfile must
- * never fail a delivery. Waits are async so the holder's heartbeat and signal
- * release keep working, and FIFO via `full-suite-queue.js`. The lock covers
- * only the spawn, never the freshness checks before it; the spawn receives
- * the measured `lockWaitMs` so it can report it apart from its own run.
+ * It queues, never overlaps: an expired wait behind a live holder spawns
+ * nothing ({@link LOCK_WAIT_EXPIRED_EXIT_CODE}). A dead holder is taken over
+ * and a lockfile I/O error proceeds unserialized. Waits are async (the
+ * holder's heartbeat keeps working) and FIFO via `full-suite-queue.js`; the
+ * lock covers only the spawn.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -154,8 +150,7 @@ function consult(probe, applies) {
 
 /**
  * Never throws on the lock's account and spawns at most once — a lock defect
- * can slow a suite, never duplicate it. An expired wait never spawns: it
- * returns `onWaitExpired(holder)` (default {@link LOCK_WAIT_EXPIRED_EXIT_CODE}).
+ * can slow a suite, never duplicate it.
  *
  * @template T
  * @param {{
@@ -223,13 +218,8 @@ function defaultSleep(ms) {
 }
 
 /**
- * The lock policy every numeric-exit full-suite taker shares: the wait
- * budget from the coverage kill bound, the two opt-out switches, and exit
- * {@link LOCK_WAIT_EXPIRED_EXIT_CODE} on an expired wait.
- *
  * @param {object} [config]
  * @param {Record<string, string|undefined>} [env]
- * @returns {{ waitMs: number, staleMs: number, enabled: boolean, onWaitExpired: () => number }}
  */
 export function fullSuiteLockPolicy(config, env = process.env) {
   return {
@@ -241,13 +231,12 @@ export function fullSuiteLockPolicy(config, env = process.env) {
 
 /**
  * Serialize a capture runner's spawn. Wrapped at the one call site below
- * every skip/freshness decision, so a credited capture never waits. The
- * runner receives the measured `lockWaitMs` alongside its own options.
+ * every skip/freshness decision, so a credited capture never waits.
  *
  * @param {Function} runCaptureFn
  * @param {object} [config]
  * @param {Record<string, string|undefined>} [env]
- * @param {object} [lockOptions] Test seam, plus `rerunCommand`.
+ * @param {object} [lockOptions]
  * @returns {(opts?: object) => Promise<number>}
  */
 export function lockedCapture(
