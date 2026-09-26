@@ -716,7 +716,7 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-capture.js",
-      "mi": 97.878
+      "mi": 99.227
     },
     {
       "path": ".agents/scripts/lib/coverage-utils.js",
@@ -2076,7 +2076,7 @@
     },
     {
       "path": ".agents/scripts/quality-preview.js",
-      "mi": 99.561
+      "mi": 101.342
     },
     {
       "path": ".agents/scripts/quality-watch.js",

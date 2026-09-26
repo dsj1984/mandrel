@@ -142,6 +142,23 @@ test('Story #5378: evidence for the quality-preview close gate validates against
   assert.equal(ok, true, JSON.stringify(validate.errors));
 });
 
+test('Story #5471: the split quality-preview gate names are distinct, stable and schema-valid', () => {
+  const names = [
+    'quality-preview',
+    'quality-preview-mi',
+    'quality-preview-crap',
+  ];
+  assert.equal(new Set(names).size, names.length);
+  const gateNames = deriveCloseValidationGateNames();
+  assert.ok(
+    !gateNames.includes('quality-preview'),
+    'the unsplit name is historical only — close registers the two halves',
+  );
+  const validate = makeValidator();
+  const ok = validate(evidenceDoc(names.map(evidenceRecord)));
+  assert.equal(ok, true, JSON.stringify(validate.errors));
+});
+
 test('AC-2: every close-validation gate name is a member of the schema gateName enum', () => {
   const enumValues = new Set(gateNameEnum());
   const gateNames = deriveCloseValidationGateNames();
@@ -155,7 +172,8 @@ test('AC-2: every close-validation gate name is a member of the schema gateName 
   );
   for (const name of [
     ...Object.values(BASELINES_GATE_NAMES),
-    'quality-preview',
+    'quality-preview-mi',
+    'quality-preview-crap',
   ]) {
     assert.ok(
       gateNames.includes(name),

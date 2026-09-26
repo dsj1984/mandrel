@@ -103,7 +103,13 @@ Per-round mechanics: [`acceptance-self-eval.md`](acceptance-self-eval.md).
 
 ## 5. The one credited suite run
 
-After the self-eval loop's last fix commit, fetch and merge
+**Preflight first — blocking.** After the self-eval loop, run the configured
+`project.commands.lint` and `node <main-repo>/.agents/scripts/quality-preview.js
+--changed-since origin/<baseBranch>` in the worktree; fix and commit every
+finding. Close's gates stay authoritative
+([`deliver-reference.md`](deliver-reference.md) § Preflight).
+
+After the last fix commit, fetch and merge
 `origin/<baseBranch>` into the Story branch **first**, ahead of this run and
 the push: close's base-sync then no-ops, so neither stamp goes stale. Then
 run the suite **once** in the worktree through the depositor — it spawns the
@@ -157,10 +163,8 @@ Required fields: `kind` (`story-deliver-terminal`), `storyId`, `status`,
 reports every gate as `passed` / `failed` / `skipped` — a skipped gate is
 reported, never omitted, so a missing gate is never read as a passing one.
 
-**Gate output is captured, not streamed.** Close writes gate lines to
-`temp/orchestration/close-gates-<storyId>.log` and reports a one-line digest on
-success; a failed gate replays its tail inline. `AGENT_LOG_LEVEL=verbose`
-restores live streaming.
+Gate output is captured to a log, not streamed
+([`deliver-reference.md`](deliver-reference.md) § Gate output).
 
 ## 7. When to leave this file
 

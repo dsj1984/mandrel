@@ -653,10 +653,6 @@
     },
     {
       "file": ".agents/scripts/lib/coverage-capture.js",
-      "symbol": "COVERAGE_TIMEOUT_EXIT_CODE"
-    },
-    {
-      "file": ".agents/scripts/lib/coverage-capture.js",
       "symbol": "newestSourceMtime"
     },
     {

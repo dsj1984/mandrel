@@ -1105,3 +1105,112 @@ test('renderAdvisories is silent without advisories and tolerates a missing list
     [],
   );
 });
+
+describe('runCli — --only selects one half (Story #5471)', () => {
+  const failingMi = () =>
+    makeMiStub(
+      makeMiEnvelope([{ file: 'lib/a.js', drop: 2.0, kind: 'regression' }]),
+      1,
+    );
+  const failingCrap = () =>
+    makeCrapStub(
+      makeCrapEnvelope({
+        newViolations: [
+          {
+            file: 'lib/b.js',
+            cyclomatic: 9,
+            crap: 35,
+            baseline: null,
+            ceiling: 30,
+            kind: 'new',
+          },
+        ],
+      }),
+      1,
+    );
+  const run = (argv, { runMi = failingMi(), runCrap = failingCrap() } = {}) => {
+    const calls = [];
+    const out = makeStreamCapture();
+    const err = makeStreamCapture();
+    const track = (label, runner) => async (opts) => {
+      calls.push(label);
+      return runner(opts);
+    };
+    return runCli({
+      argv,
+      cwd: process.cwd(),
+      stdout: out,
+      stderr: err,
+      runMi: track('mi', runMi),
+      runCrap: track('crap', runCrap),
+    }).then((result) => ({ ...result, calls, out, err }));
+  };
+
+  it('AC-5: with no --only, runs MI then CRAP and reports both, exactly as before', async () => {
+    const { exitCode, merged, calls, out } = await run([
+      '--changed-since',
+      'origin/main',
+    ]);
+    assert.deepEqual(calls, ['mi', 'crap']);
+    assert.equal(exitCode, 1);
+    assert.deepEqual(
+      merged.rows.map((r) => r.file),
+      ['lib/a.js', 'lib/b.js'],
+    );
+    const text = out.lines.join('');
+    assert.ok(
+      text.startsWith(
+        '\n--- quality:preview ---\nscope=diff ref=origin/main\n\n',
+      ),
+      'the default header carries no half line',
+    );
+    assert.doesNotMatch(text, /half=/);
+  });
+
+  it('--only mi never spawns the CRAP half and scores MI alone', async () => {
+    const { exitCode, merged, calls, out } = await run([
+      '--only',
+      'mi',
+      '--changed-since',
+      'origin/main',
+    ]);
+    assert.deepEqual(calls, ['mi']);
+    assert.equal(exitCode, 1);
+    assert.deepEqual(
+      merged.rows.map((r) => r.file),
+      ['lib/a.js'],
+    );
+    assert.match(out.lines.join(''), /half=mi only/);
+  });
+
+  it('--only crap never runs the MI half and scores CRAP alone', async () => {
+    const { exitCode, merged, calls } = await run(['--only', 'crap']);
+    assert.deepEqual(calls, ['crap']);
+    assert.equal(exitCode, 1);
+    assert.deepEqual(
+      merged.rows.map((r) => r.file),
+      ['lib/b.js'],
+    );
+  });
+
+  it('a clean selected half exits 0 even when the other half would fail', async () => {
+    const { exitCode } = await run(['--only', 'crap'], {
+      runCrap: makeCrapStub(makeCrapEnvelope()),
+    });
+    assert.equal(exitCode, 0);
+  });
+
+  it('--json names the selected half', async () => {
+    const { out } = await run(['--only', 'mi', '--json']);
+    const payload = JSON.parse(out.lines.join(''));
+    assert.equal(payload.only, 'mi');
+    assert.equal(payload.crap.envelope, null);
+  });
+
+  it('refuses an unknown half with exit 2 and runs nothing', async () => {
+    const { exitCode, calls, err } = await run(['--only', 'both']);
+    assert.equal(exitCode, 2);
+    assert.deepEqual(calls, []);
+    assert.match(err.lines.join(''), /--only takes mi or crap/);
+  });
+});
