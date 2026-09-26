@@ -12,11 +12,16 @@
  */
 
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { rmSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { BASELINES_GATE_NAMES as REAL_BASELINES_GATE_NAMES } from '../.agents/scripts/lib/close-validation/gates.js';
+import {
+  readReviewDeposit,
+  writeReviewDeposit,
+} from '../.agents/scripts/lib/orchestration/review-deposit.js';
 import { runCloseValidationPhase } from '../.agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js';
 import {
   discardHeldReview,
@@ -53,16 +58,26 @@ function deferred() {
   return { promise, resolve };
 }
 
+/** Every SHA diffs to the same text: a SHA move alone keeps the digest. */
+const SAME_DIFF = () => 'diff --git a/x.js b/x.js\n+const x = 1;';
+/** Each head diffs to its own text: a SHA move changes the digest. */
+const DIFF_PER_HEAD = (range) => `diff of ${range.split('...')[1]}`;
+
 /**
  * `rev-parse` answers `origin/<base>` always, and the Story branch with the
- * next SHA from `branchShas` (the last one repeats).
+ * next SHA from `branchShas` (the last one repeats). `diff` answers
+ * `diffFor(<range>)`; a `null` text is an unreadable diff.
  */
-function gitSpawnStub({ branchShas = [PINNED_SHA] } = {}) {
+function gitSpawnStub({ branchShas = [PINNED_SHA], diffFor = SAME_DIFF } = {}) {
   const shas = [...branchShas];
   const calls = [];
   const fn = (_cwd, ...args) => {
     calls.push(args);
     const miss = { status: 1, stdout: '', stderr: '' };
+    if (args[0] === 'diff') {
+      const text = diffFor(`${args.at(-1)}`);
+      return text === null ? miss : { status: 0, stdout: text, stderr: '' };
+    }
     if (args[0] !== 'rev-parse') return miss;
     const ref = `${args.at(-1)}`;
     if (ref.startsWith('origin/')) {
@@ -133,7 +148,38 @@ function overlapArgs(overrides = {}) {
     baseBranch: 'main',
     provider: recordingProvider().provider,
     progress: () => {},
+    readDepositFn: () => null,
     ...overrides,
+  };
+}
+
+const sha256 = (text) =>
+  createHash('sha256').update(text, 'utf8').digest('hex');
+
+/** A worker deposit for `diffText`, reviewed at `headSha`. */
+function workerDeposit({
+  diffText = SAME_DIFF(),
+  headSha = PINNED_SHA,
+  severity = CLEAN,
+  storyId = 5473,
+} = {}) {
+  return {
+    kind: 'story-review-deposit',
+    storyId,
+    headSha,
+    baseRef: 'origin/main',
+    diffDigest: sha256(diffText),
+    createdAt: '2026-09-26T00:00:00.000Z',
+    provider: 'chain[native,code-review]',
+    severity,
+    halted: severity.critical > 0,
+    criticalByProvider:
+      severity.critical > 0 ? { 'code-review': severity.critical } : {},
+    findings: [],
+    report: `worker report for ${headSha}`,
+    degraded: false,
+    degradations: [],
+    blockerReason: null,
   };
 }
 
@@ -298,7 +344,10 @@ describe('reviewAfterPrOpen (direct)', () => {
 
   it('discards a held result whose SHA is no longer the pushed HEAD and reviews serially', async () => {
     const recorder = recordingProvider();
-    const gitSpawnFn = gitSpawnStub({ branchShas: [PINNED_SHA, MOVED_SHA] });
+    const gitSpawnFn = gitSpawnStub({
+      branchShas: [PINNED_SHA, MOVED_SHA],
+      diffFor: DIFF_PER_HEAD,
+    });
     const runCodeReviewFn = reviewDouble();
     const held = startHeldReview(
       overlapArgs({ runCodeReviewFn, gitSpawnFn, provider: recorder.provider }),
@@ -343,6 +392,145 @@ describe('reviewAfterPrOpen (direct)', () => {
     await assert.rejects(reviewAfterPrOpen(args), /review provider down/);
     assert.equal(phases[0], 'code-review');
     assert.equal(postCalls.length, 0);
+  });
+});
+
+describe('worker deposit adoption (Story #5480)', () => {
+  function afterPr({ held, gitSpawnFn, runCodeReviewFn }) {
+    const recorder = recordingProvider();
+    const postCalls = [];
+    const durations = [];
+    const args = overlapArgs({
+      held,
+      prUrl: PR_URL,
+      prNumber: 123,
+      provider: recorder.provider,
+      runCodeReviewFn,
+      gitSpawnFn,
+      setPhase: () => {},
+      pauseTimer: () => {},
+      recordDuration: (phase, ms) => durations.push({ phase, ms }),
+      postReportFn: async (post) => {
+        postCalls.push(post);
+        return { posted: true, postedCommentId: 9200 };
+      },
+    });
+    return { args, postCalls, durations };
+  }
+
+  it('adopts a deposit whose diff digest matches and computes nothing', async () => {
+    const runCodeReviewFn = reviewDouble();
+    const gitSpawnFn = gitSpawnStub();
+    const reads = [];
+    const held = startHeldReview(
+      overlapArgs({
+        runCodeReviewFn,
+        gitSpawnFn,
+        readDepositFn: (id) => {
+          reads.push(id);
+          return workerDeposit();
+        },
+      }),
+    );
+    assert.equal(held.adopted, true);
+    assert.deepEqual(reads, [5473]);
+    assert.equal(held.diffDigest, sha256(SAME_DIFF()));
+    const { args, postCalls, durations } = afterPr({
+      held,
+      gitSpawnFn,
+      runCodeReviewFn,
+    });
+    const outcome = await reviewAfterPrOpen(args);
+    assert.equal(runCodeReviewFn.calls.length, 0, 'no review computed');
+    assert.equal(postCalls.length, 1);
+    assert.equal(postCalls[0].report, `worker report for ${PINNED_SHA}`);
+    assert.equal(outcome.posted, true);
+    assert.equal(durations[0].phase, 'code-review');
+  });
+
+  it('a deposit for a different diff is not adopted: close computes', async () => {
+    const runCodeReviewFn = reviewDouble();
+    const held = startHeldReview(
+      overlapArgs({
+        runCodeReviewFn,
+        gitSpawnFn: gitSpawnStub(),
+        readDepositFn: () => workerDeposit({ diffText: 'an older diff' }),
+      }),
+    );
+    assert.equal(held.adopted, false);
+    await held.settled;
+    assert.equal(runCodeReviewFn.calls.length, 1);
+    assert.equal(runCodeReviewFn.calls[0].deferPost, true);
+  });
+
+  it('an unreadable diff never adopts and never reads the deposit', () => {
+    const reads = [];
+    const held = startHeldReview(
+      overlapArgs({
+        runCodeReviewFn: reviewDouble(),
+        gitSpawnFn: gitSpawnStub({ diffFor: () => null }),
+        readDepositFn: () => {
+          reads.push(1);
+          return workerDeposit();
+        },
+      }),
+    );
+    assert.equal(held.adopted, false);
+    assert.equal(held.diffDigest, null);
+    assert.deepEqual(reads, []);
+  });
+
+  it('a base-sync merge that leaves the diff text unchanged keeps the held result', async () => {
+    // HEAD moves (the merge commit) but the three-dot diff text does not.
+    const gitSpawnFn = gitSpawnStub({ branchShas: [PINNED_SHA, MOVED_SHA] });
+    const runCodeReviewFn = reviewDouble();
+    const held = startHeldReview(overlapArgs({ runCodeReviewFn, gitSpawnFn }));
+    const { args, postCalls } = afterPr({ held, gitSpawnFn, runCodeReviewFn });
+    await reviewAfterPrOpen(args);
+    assert.equal(runCodeReviewFn.calls.length, 1, 'no serial re-review');
+    assert.equal(postCalls.length, 1);
+    assert.equal(postCalls[0].report, `report for ${PINNED_SHA}`);
+  });
+
+  it('a commit that changes the diff discards the adopted deposit and reviews the pushed tree', async () => {
+    const gitSpawnFn = gitSpawnStub({
+      branchShas: [PINNED_SHA, MOVED_SHA],
+      diffFor: DIFF_PER_HEAD,
+    });
+    const runCodeReviewFn = reviewDouble();
+    const held = startHeldReview(
+      overlapArgs({
+        runCodeReviewFn,
+        gitSpawnFn,
+        readDepositFn: () =>
+          workerDeposit({ diffText: DIFF_PER_HEAD(`x...${PINNED_SHA}`) }),
+      }),
+    );
+    assert.equal(held.adopted, true);
+    const { args, postCalls } = afterPr({ held, gitSpawnFn, runCodeReviewFn });
+    await reviewAfterPrOpen(args);
+    assert.equal(postCalls.length, 0, 'the deposit never posts');
+    assert.equal(runCodeReviewFn.calls.length, 1, 'serial review ran');
+    assert.equal(runCodeReviewFn.calls[0].headRef, 'story-5473');
+    assert.equal(runCodeReviewFn.calls[0].commentTargetId, 123);
+  });
+
+  it('a CRITICAL in an adopted deposit still halts', async () => {
+    const gitSpawnFn = gitSpawnStub();
+    const runCodeReviewFn = reviewDouble();
+    const held = startHeldReview(
+      overlapArgs({
+        runCodeReviewFn,
+        gitSpawnFn,
+        readDepositFn: () =>
+          workerDeposit({ severity: { ...CLEAN, critical: 1 } }),
+      }),
+    );
+    const { args } = afterPr({ held, gitSpawnFn, runCodeReviewFn });
+    const outcome = await reviewAfterPrOpen(args);
+    assert.equal(outcome.halted, true);
+    assert.equal(outcome.severity.critical, 1);
+    assert.deepEqual(outcome.criticalByProvider, { 'code-review': 1 });
   });
 });
 
@@ -643,7 +831,10 @@ describe('runSingleStoryClose — review overlaps close-validation', () => {
     if (skipWithoutModuleMocks(t)) return;
     const events = [];
     mockCollaborators(t, {
-      gitSpawn: gitSpawnStub({ branchShas: [PINNED_SHA, MOVED_SHA] }),
+      gitSpawn: gitSpawnStub({
+        branchShas: [PINNED_SHA, MOVED_SHA],
+        diffFor: DIFF_PER_HEAD,
+      }),
       runCloseValidation: async () => ({ ok: true, failed: [] }),
     });
     const runCodeReview = reviewDouble();
@@ -661,6 +852,62 @@ describe('runSingleStoryClose — review overlaps close-validation', () => {
     assert.equal(
       prComments(recorder).some((c) => c.payload.body.includes(PINNED_SHA)),
       false,
+    );
+  });
+
+  it('adopts a matching worker deposit: no review computed, the deposit posts, a CRITICAL blocks and the override records its reason', async (t) => {
+    if (skipWithoutModuleMocks(t)) return;
+    mockCollaborators(t, {
+      gitSpawn: gitSpawnStub(),
+      runCloseValidation: async () => ({ ok: true, failed: [] }),
+    });
+    const { runSingleStoryClose } = await import(
+      `${SUT_URL}?t=overlap-deposit`
+    );
+    const config = fakeConfig();
+    writeReviewDeposit(workerDeposit({ severity: { ...CLEAN, critical: 1 } }), {
+      config,
+    });
+    assert.ok(readReviewDeposit(5473, { config }), 'deposit readable');
+
+    const blockedEvents = [];
+    const blocked = recordingProvider();
+    const blockedReview = reviewDouble();
+    await assert.rejects(
+      runSingleStoryClose(
+        closeArgs({
+          recorder: blocked,
+          events: blockedEvents,
+          runCodeReview: blockedReview,
+          injectedConfig: config,
+        }),
+      ),
+      /reported 1 critical blocker/,
+    );
+    assert.equal(blockedReview.calls.length, 0, 'close computed nothing');
+    assert.equal(blockedEvents.includes('gh merge'), false, 'never armed');
+    const [posted] = prComments(blocked);
+    assert.match(posted.payload.body, /worker report for/);
+
+    const REASON = 'false positive: reviewed by the operator';
+    const overriddenEvents = [];
+    const overridden = recordingProvider();
+    const overriddenReview = reviewDouble();
+    const { terminal } = await runSingleStoryClose(
+      closeArgs({
+        recorder: overridden,
+        events: overriddenEvents,
+        runCodeReview: overriddenReview,
+        injectedConfig: config,
+        overrideReviewBlock: REASON,
+      }),
+    );
+    assert.equal(overriddenReview.calls.length, 0);
+    assert.ok(overriddenEvents.includes('gh merge'), 'the override arms');
+    assert.equal(terminal.gates.codeReview, 'overridden');
+    assert.ok(
+      overridden.posted.some((c) => c.payload.body.includes(REASON)),
+      'the override reason is recorded',
     );
   });
 

@@ -17,6 +17,7 @@ import nodeFs from 'node:fs';
 import path from 'node:path';
 
 import { storyReviewDepositPath } from '../config/temp-paths.js';
+import { resolveSharedBaseRef } from './review-base-ref.js';
 
 const DEPOSIT_KIND = 'story-review-deposit';
 
@@ -181,4 +182,38 @@ export function readReviewDeposit(storyId, { config, fsImpl = nodeFs } = {}) {
   } catch {
     return null;
   }
+}
+
+/**
+ * Close's held-review start point: the base ref, the diff digest of
+ * `origin/<base>...<sha>`, and the worker deposit when its digest matches.
+ *
+ * @param {{ cwd: string, storyId: number|string, sha: string,
+ *   baseBranch: string, gitSpawnFn: Function, config?: object,
+ *   readDepositFn?: typeof readReviewDeposit }} args
+ * @returns {{ baseRef: string|null, diffDigest: string|null,
+ *   deposit: object|null }}
+ */
+export function probeHeldReviewDiff({
+  cwd,
+  storyId,
+  sha,
+  baseBranch,
+  gitSpawnFn,
+  config,
+  readDepositFn = readReviewDeposit,
+}) {
+  const base = resolveSharedBaseRef({ baseBranch, cwd, gitSpawnFn });
+  const baseRef = base.resolved ? base.ref : null;
+  const diffDigest = computeReviewDiffDigest({
+    cwd,
+    baseRef,
+    headRef: sha,
+    gitSpawnFn,
+  });
+  const deposit = diffDigest
+    ? readDepositFn(Number(storyId), { config })
+    : null;
+  const matches = deposit?.diffDigest === diffDigest;
+  return { baseRef, diffDigest, deposit: matches ? deposit : null };
 }
