@@ -540,7 +540,7 @@
     },
     {
       "path": ".agents/scripts/lib/child-exec.js",
-      "mi": 109.336
+      "mi": 112.652
     },
     {
       "path": ".agents/scripts/lib/clean-temp.js",
@@ -1387,6 +1387,10 @@
       "mi": 100.527
     },
     {
+      "path": ".agents/scripts/lib/orchestration/review-deposit.js",
+      "mi": 97.217
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/review-depth.js",
       "mi": 96.376
     },
@@ -2125,6 +2129,10 @@
     {
       "path": ".agents/scripts/stories-wave-tick.js",
       "mi": 93.382
+    },
+    {
+      "path": ".agents/scripts/story-review-compute.js",
+      "mi": 92.456
     },
     {
       "path": ".agents/scripts/sync-agentrc.js",

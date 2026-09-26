@@ -101,12 +101,50 @@ export function spawnChild(file, args, opts = {}) {
  * @returns {{ status: number, stdout: string, stderr: string }}
  */
 export function spawnCapture(file, args, opts = {}) {
-  const result = spawnChild(file, args, opts);
+  return normalizeCapture(spawnChild(file, args, opts));
+}
+
+function normalizeCapture(result) {
   return {
     status: result?.status ?? 1,
     stdout: (result?.stdout ?? '').toString().trim(),
     stderr: (result?.stderr ?? '').toString().trim(),
   };
+}
+
+/**
+ * The async runner behind `spawnCaptureAsync`: `input` rides stdin; a
+ * timeout, overflow or spawn error resolves with a non-numeric status.
+ *
+ * @returns {Promise<{ status: number|null, stdout: string, stderr: string }>}
+ */
+function execCollect(file, args, { input, ...options }) {
+  return new Promise((resolve) => {
+    const child = execFile(file, args, options, (error, stdout, stderr) => {
+      const code = error ? error.code : 0;
+      const status = Number.isInteger(code) ? code : null;
+      const reason = status === null ? error.message : '';
+      resolve({ status, stdout, stderr: stderr || reason });
+    });
+    child.stdin?.on('error', () => {});
+    child.stdin?.end(input ?? '');
+  });
+}
+
+/**
+ * `spawnCapture` without blocking the event loop: concurrent children keep
+ * draining while this one runs. Same normalisation (`null` → 1, trimmed).
+ *
+ * @param {string}   file
+ * @param {string[]} args
+ * @param {object}   [opts]
+ * @param {Function} [opts.run] - async (or sync) `(file, args, options)` seam.
+ * @returns {Promise<{ status: number, stdout: string, stderr: string }>}
+ */
+export async function spawnCaptureAsync(file, args, opts = {}) {
+  return normalizeCapture(
+    await spawnChild(file, args, { run: execCollect, ...opts }),
+  );
 }
 
 /**
