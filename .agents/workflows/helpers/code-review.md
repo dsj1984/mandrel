@@ -13,10 +13,12 @@ description: >-
 This helper performs a comprehensive code review of a change set before it
 is merged to `main`. The live v2 path is **Story scope only**:
 
-- **Story scope** — reviews `main...story-<storyId>` (or
-  `project.baseBranch...story-<storyId>`) inside `single-story-close.js`
-  after the PR opens and before auto-merge. Findings post to the PR;
-  critical findings block close (`agent::blocked`).
+- **Story scope** — reviews `origin/<baseBranch>...<sha>` inside
+  `single-story-close.js`, computed alongside the close-validation gates
+  once the pre-gate self-heal commits land (`<sha>` is that HEAD) and
+  posted after the PR opens, before auto-merge; a HEAD that moved by then
+  re-reviews serially. Findings post to the PR; critical findings block
+  close (`agent::blocked`).
 
 **Invariant — Story-scope review runs outside the maker's LLM context.**
 The Story-scope review executes inside the `single-story-close.js` close
@@ -24,7 +26,7 @@ subprocess, **not** in the delivering child's (maker agent's) LLM context.
 The close pipeline invokes it after the delivering child has exited, so
 the change set is reviewed by a process the maker cannot influence. The
 enforcing code path is
-[`runStoryScopeReview`](../../scripts/lib/orchestration/single-story-close/phases/code-review.js)
+[`computeStoryScopeReview`](../../scripts/lib/orchestration/single-story-close/phases/code-review.js)
 → shared
 [`runStoryReviewCore`](../../scripts/lib/orchestration/story-close/phases/review-core.js).
 A future refactor MUST preserve this isolation: do not move Story-scope

@@ -33,7 +33,7 @@ import { deriveCloseNote } from './close-note.js';
 import { runAutoMergePhase } from './phases/auto-merge.js';
 import { runBaseSyncPhase } from './phases/base-sync.js';
 import { runCloseValidationPhase } from './phases/close-validation.js';
-import { parsePrNumber, runStoryScopeReview } from './phases/code-review.js';
+import { parsePrNumber } from './phases/code-review.js';
 import { runConfirmMergePhase } from './phases/confirm-merge.js';
 import { runGraphqlPreflight } from './phases/graphql-preflight.js';
 import { lockWaitPending } from './phases/lock-wait-pending.js';
@@ -45,11 +45,17 @@ import { handleCriticalReviewBlock } from './phases/review-block.js';
 import { handleOverriddenReviewBlock } from './phases/review-override.js';
 import { reapWorktreePhase } from './phases/worktree-reap.js';
 import { runWrongTreeGuardPhase } from './phases/wrong-tree-guard.js';
+import {
+  discardHeldReview,
+  reviewAfterPrOpen,
+  startHeldReview,
+} from './review-overlap.js';
 
 const progress = Logger.createProgress('single-story-close', { stderr: true });
 
 /**
  * Wall-clock seconds per named phase; each transition logs the phase it ends.
+ * Overlapping work `pause`s the clock and `record`s its own time.
  *
  * @param {() => number} [nowMs]
  */
@@ -57,11 +63,14 @@ function createPhaseTimer(nowMs = Date.now) {
   const durations = {};
   let current = null;
   let since = 0;
+  const record = (phase, ms) => {
+    const seconds = Math.round(Math.max(0, ms) / 100) / 10;
+    durations[phase] = (durations[phase] ?? 0) + seconds;
+    progress('TIMING', `⏱  ${phase}: ${seconds}s`);
+  };
   const end = () => {
     if (current === null) return;
-    const seconds = Math.round((nowMs() - since) / 100) / 10;
-    durations[current] = (durations[current] ?? 0) + seconds;
-    progress('TIMING', `⏱  ${current}: ${seconds}s`);
+    record(current, nowMs() - since);
     current = null;
   };
   return {
@@ -71,6 +80,8 @@ function createPhaseTimer(nowMs = Date.now) {
       current = phase;
       since = nowMs();
     },
+    record,
+    pause: end,
     finish() {
       end();
       return Object.keys(durations).length > 0 ? { ...durations } : null;
@@ -308,8 +319,21 @@ async function runPrePushPhases(ctx, deps) {
       progress,
       runCloseValidation,
       buildDefaultGates,
+      onPreGateStepsDone: () => {
+        ctx.heldReview = startHeldReview({
+          cwd,
+          storyId,
+          storyBranch,
+          baseBranch,
+          provider: deps.provider,
+          runCodeReviewFn: deps.runCodeReview,
+          gitSpawnFn: gitSpawn,
+          progress,
+        });
+      },
     });
   } catch (err) {
+    discardHeldReview(ctx.heldReview, 'validation failed', progress);
     // The gate that died is all this run observed; the envelope claims no more.
     if (typeof err?.closeGate === 'string') {
       ctx.setObservedGates({ [err.closeGate]: 'failed' });
@@ -396,10 +420,11 @@ async function openAndReviewPr(ctx, deps) {
   const prNumber = parsePrNumber(prUrl);
   // Already merged (landed between invocations): skip review and arm; confirm observes it.
   if (alreadyMerged) {
+    discardHeldReview(ctx.heldReview, 'PR already merged', progress);
     return { prUrl, prNumber, alreadyMerged: true };
   }
-  ctx.setPhase('code-review');
-  const reviewOutcome = await runStoryScopeReview({
+  const reviewOutcome = await reviewAfterPrOpen({
+    held: ctx.heldReview,
     cwd,
     storyId,
     storyBranch,
@@ -410,6 +435,9 @@ async function openAndReviewPr(ctx, deps) {
     runCodeReviewFn: deps.runCodeReview,
     gitSpawnFn: gitSpawn,
     progress,
+    setPhase: ctx.setPhase,
+    pauseTimer: ctx.phaseTimer.pause,
+    recordDuration: ctx.phaseTimer.record,
   });
   const reviewOverride = reviewOutcome.halted
     ? await resolveReviewHalt(ctx, deps, { prUrl, prNumber, reviewOutcome })
@@ -891,6 +919,7 @@ async function prePushPhase(ctx, deps) {
     deps,
   );
   if (!ctx.prePush.pending) return null;
+  discardHeldReview(ctx.heldReview, 'validation pending', progress);
   return await finishDeferred(ctx.prePush.lockWait, {
     storyId: ctx.storyId,
     storyBranch: ctx.storyBranch,

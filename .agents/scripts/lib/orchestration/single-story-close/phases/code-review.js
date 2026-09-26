@@ -49,29 +49,6 @@ export function buildStoryReviewCrossRefBody({
   );
 }
 
-async function invokeStoryReviewCore({
-  storyId,
-  storyBranch,
-  baseRef,
-  prNumber,
-  provider,
-  runCodeReviewFn,
-  gitSpawnFn,
-  progress,
-}) {
-  return runStoryReviewCore({
-    storyId,
-    baseRef,
-    headRef: storyBranch,
-    commentTargetId: prNumber,
-    provider,
-    progress,
-    progressTag: 'REVIEW',
-    runCodeReviewFn,
-    gitSpawnFn,
-  });
-}
-
 async function postStoryReviewCrossRef({
   provider,
   storyId,
@@ -115,7 +92,122 @@ async function postStoryReviewCrossRef({
 }
 
 /**
- * Skips on an unparseable PR number or an unresolvable base (recording a
+ * Run the review against `headRef`; `deferPost` holds the report unposted.
+ *
+ * @returns {Promise<{ outcome: object }|{ result: object }>} a final
+ *   `outcome` (unresolvable base), or the `result` to settle.
+ */
+export async function computeStoryScopeReview({
+  cwd,
+  storyId,
+  headRef,
+  baseBranch,
+  commentTargetId = null,
+  deferPost = false,
+  provider,
+  runCodeReviewFn,
+  gitSpawnFn,
+  progress,
+}) {
+  const base = resolveSharedBaseRef({ baseBranch, cwd, gitSpawnFn });
+  if (!base.resolved) {
+    return {
+      outcome: unresolvedBaseReviewOutcome({
+        storyId,
+        baseBranch,
+        remoteRef: base.remoteRef,
+        progress,
+      }),
+    };
+  }
+  const target = deferPost
+    ? 'held until the PR exists'
+    : `→ PR #${commentTargetId}`;
+  progress(
+    'REVIEW',
+    `Running Story-scope code review for Story #${storyId} (${base.ref}...${headRef}) ${target}...`,
+  );
+  const result = await runStoryReviewCore({
+    storyId,
+    baseRef: base.ref,
+    headRef,
+    commentTargetId,
+    provider,
+    progress,
+    progressTag: 'REVIEW',
+    runCodeReviewFn: deferPost
+      ? (opts) => runCodeReviewFn({ ...opts, deferPost: true })
+      : runCodeReviewFn,
+    gitSpawnFn,
+  });
+  return { result };
+}
+
+/**
+ * Settle a computed review on the PR: post a held report via `postReportFn`,
+ * report the tally, cross-reference the Story.
+ *
+ * @returns {Promise<object>} the review outcome.
+ */
+export async function settleStoryScopeReview({
+  computed,
+  storyId,
+  prUrl,
+  prNumber,
+  provider,
+  progress,
+  postReportFn = null,
+}) {
+  if (computed.outcome) return computed.outcome;
+  const posting = postReportFn
+    ? await postReportFn({
+        provider,
+        commentTargetId: prNumber,
+        report: computed.result.report,
+        logger: {
+          info: (m) => progress('REVIEW', m),
+          warn: (m) => progress('REVIEW', `⚠️ ${m}`),
+        },
+      })
+    : {};
+  const result = { ...computed.result, ...posting };
+  const sev = result.severity ?? {
+    critical: 0,
+    high: 0,
+    medium: 0,
+    suggestion: 0,
+  };
+  const outcome = formatReviewOutcomeLines({
+    severity: sev,
+    degradations: result.degradations,
+    prNumber,
+    posted: result.posted,
+  });
+  for (const line of outcome) progress('REVIEW', line);
+
+  const crossRefPosted = await postStoryReviewCrossRef({
+    provider,
+    storyId,
+    prUrl,
+    prNumber,
+    result,
+    severity: sev,
+    progress,
+  });
+
+  return {
+    halted: !!result.halted,
+    severity: sev,
+    criticalByProvider: result.criticalByProvider,
+    posted: result.posted,
+    postedCommentId: result.postedCommentId ?? null,
+    ...degradationEnvelope(result.degradations),
+    crossRefPosted,
+  };
+}
+
+/**
+ * The serial review, posting to the PR. Skips on an unparseable PR number or an unresolvable base (recording a
  * degradation); a runner throw propagates and fails the close.
  *
  * @param {{
@@ -161,64 +253,23 @@ export async function runStoryScopeReview({
     );
     return { halted: false, skipped: true };
   }
-
-  const base = resolveSharedBaseRef({ baseBranch, cwd, gitSpawnFn });
-  if (!base.resolved) {
-    return unresolvedBaseReviewOutcome({
-      storyId,
-      baseBranch,
-      remoteRef: base.remoteRef,
-      progress,
-    });
-  }
-
-  progress(
-    'REVIEW',
-    `Running Story-scope code review for Story #${storyId} (${base.ref}...${storyBranch}) → PR #${prNumber}...`,
-  );
-
-  const result = await invokeStoryReviewCore({
+  const computed = await computeStoryScopeReview({
+    cwd,
     storyId,
-    storyBranch,
-    baseRef: base.ref,
-    prNumber,
+    headRef: storyBranch,
+    baseBranch,
+    commentTargetId: prNumber,
     provider,
     runCodeReviewFn,
     gitSpawnFn,
     progress,
   });
-
-  const sev = result.severity ?? {
-    critical: 0,
-    high: 0,
-    medium: 0,
-    suggestion: 0,
-  };
-  const outcome = formatReviewOutcomeLines({
-    severity: sev,
-    degradations: result.degradations,
-    prNumber,
-    posted: result.posted,
-  });
-  for (const line of outcome) progress('REVIEW', line);
-
-  const crossRefPosted = await postStoryReviewCrossRef({
-    provider,
+  return settleStoryScopeReview({
+    computed,
     storyId,
     prUrl,
     prNumber,
-    result,
-    severity: sev,
+    provider,
     progress,
   });
-
-  return {
-    halted: !!result.halted,
-    severity: sev,
-    criticalByProvider: result.criticalByProvider,
-    posted: result.posted,
-    postedCommentId: result.postedCommentId ?? null,
-    ...degradationEnvelope(result.degradations),
-    crossRefPosted,
-  };
 }

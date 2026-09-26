@@ -1624,8 +1624,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
-      "lines": 95.92,
-      "branches": 84.62,
+      "lines": 96.25,
+      "branches": 86.42,
       "functions": 100
     },
     {
@@ -2319,10 +2319,16 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/review-overlap.js",
+      "lines": 98.65,
+      "branches": 89.29,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "lines": 99.81,
-      "branches": 93.28,
-      "functions": 97.56
+      "branches": 94.2,
+      "functions": 97.67
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-lease-guard.js",
