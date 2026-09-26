@@ -174,31 +174,18 @@ export async function runEvidenceGate(params, deps = {}) {
   logger.info(
     `[evidence-gate] ▶ ${gate} → ${cmd} ${cmdArgs.join(' ')} (cwd=${spawnCwd})`,
   );
-  const status =
-    gate === FULL_SUITE_GATE
-      ? await runSuiteFn({
-          cmd,
-          args: cmdArgs,
-          cwd: spawnCwd,
-          log: (m) => logger.info(m),
-        })
-      : (spawnFn(cmd, cmdArgs, {
-          cwd: spawnCwd,
-          stdio: 'inherit',
-          shell: process.platform === 'win32',
-        }).status ?? 1);
-  if (status === LOCK_WAIT_EXPIRED_EXIT_CODE) {
-    process.exitCode = status;
-    logger.info(
-      `[evidence-gate] ⏸ ${gate} deferred (exit ${status}) — another full suite still holds the host lock, so nothing ran and no evidence was recorded.`,
-    );
-    return { status, skipped: false };
-  }
+  const status = await runGateCommand({
+    gate,
+    cmd,
+    cmdArgs,
+    spawnCwd,
+    logger,
+    spawnFn,
+    runSuiteFn,
+  });
   if (status !== 0) {
     process.exitCode = status;
-    logger.error(
-      `[evidence-gate] ✖ ${gate} failed (exit ${status}) in ${spawnCwd}`,
-    );
+    reportGateExit({ gate, status, spawnCwd, logger });
     return { status, skipped: false };
   }
 
@@ -262,6 +249,40 @@ export function runLockedSuite(
             `[evidence-gate] ⏱ ${cmd} ${args.join(' ')} exceeded ${timeoutMs}ms — killed its process group.`,
           ),
       }),
+  );
+}
+
+/** The `test` gate runs locked and supervised; any other gate plainly. */
+async function runGateCommand({
+  gate,
+  cmd,
+  cmdArgs,
+  spawnCwd,
+  logger,
+  spawnFn,
+  runSuiteFn,
+}) {
+  if (gate === FULL_SUITE_GATE) {
+    const log = (m) => logger.info(m);
+    return await runSuiteFn({ cmd, args: cmdArgs, cwd: spawnCwd, log });
+  }
+  const result = spawnFn(cmd, cmdArgs, {
+    cwd: spawnCwd,
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  });
+  return result.status ?? 1;
+}
+
+function reportGateExit({ gate, status, spawnCwd, logger }) {
+  if (status === LOCK_WAIT_EXPIRED_EXIT_CODE) {
+    logger.info(
+      `[evidence-gate] ⏸ ${gate} deferred (exit ${status}) — another full suite still holds the host lock, so nothing ran and no evidence was recorded.`,
+    );
+    return;
+  }
+  logger.error(
+    `[evidence-gate] ✖ ${gate} failed (exit ${status}) in ${spawnCwd}`,
   );
 }
 

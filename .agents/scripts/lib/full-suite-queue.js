@@ -182,21 +182,33 @@ export function parseLockWaitOutcome(line) {
     text,
   );
   if (!match) return null;
-  const outcome = {
-    waitedSeconds: Number(match[2]),
-    expired: match[1] === '⌛',
-  };
+  return withHolder(
+    { waitedSeconds: Number(match[2]), expired: match[1] === '⌛' },
+    text,
+  );
+}
+
+/** An expiry line also names the holder it gave up on. */
+function withHolder(outcome, text) {
   const holder = outcome.expired ? HOLDER_RE.exec(text) : null;
   if (!holder) return outcome;
-  const known = (raw) => (raw === 'unknown' ? null : raw);
+  const [, ownerId, pid, ageSeconds] = holder.map(unknownAsNull);
   return {
     ...outcome,
     holder: {
-      ownerId: known(holder[1]),
-      pid: known(holder[2]) === null ? null : Number(holder[2]),
-      ageSeconds: known(holder[3]) === null ? null : Number(holder[3]),
+      ownerId,
+      pid: numberOrNull(pid),
+      ageSeconds: numberOrNull(ageSeconds),
     },
   };
+}
+
+function unknownAsNull(raw) {
+  return raw === 'unknown' ? null : raw;
+}
+
+function numberOrNull(raw) {
+  return raw === null ? null : Number(raw);
 }
 
 function holderLabel(lockPath, fsImpl) {

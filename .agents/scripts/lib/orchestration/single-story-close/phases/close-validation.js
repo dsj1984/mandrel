@@ -174,15 +174,23 @@ function trackLockWaits({ sink, progress }) {
       progress('LOCK', line);
       const outcome = parseLockWaitOutcome(line);
       if (!outcome) return;
-      const holder = outcome.holder ?? tally?.holder;
-      tally = {
-        waitedSeconds: (tally?.waitedSeconds ?? 0) + outcome.waitedSeconds,
-        expired: Boolean(tally?.expired) || outcome.expired,
-        ...(holder ? { holder } : {}),
-      };
+      tally = mergeLockWait(tally, outcome);
     },
     summary: () => tally,
     suiteTimings: () => timings,
+  };
+}
+
+/**
+ * @param {{ waitedSeconds: number, expired: boolean, holder?: object }|null} tally
+ * @param {{ waitedSeconds: number, expired: boolean, holder?: object }} outcome
+ */
+function mergeLockWait(tally, outcome) {
+  const holder = outcome.holder ?? tally?.holder;
+  return {
+    waitedSeconds: (tally?.waitedSeconds ?? 0) + outcome.waitedSeconds,
+    expired: Boolean(tally?.expired) || outcome.expired,
+    ...(holder ? { holder } : {}),
   };
 }
 
