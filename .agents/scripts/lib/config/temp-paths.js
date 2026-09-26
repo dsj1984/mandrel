@@ -214,6 +214,21 @@ export function storyTerminalEnvelopePath(sid, config) {
   return path.join(orchestrationLogDir(config), storyTerminalEnvelopeName(sid));
 }
 
+/**
+ * The worker's held Story-scope review, beside the terminal envelope so the
+ * close that adopts it reads it from the same anchored directory.
+ *
+ * @param {number} sid
+ * @param {object} [config]
+ * @returns {string}
+ */
+export function storyReviewDepositPath(sid, config) {
+  return path.join(
+    orchestrationLogDir(config),
+    `story-review-${storyId(sid)}.json`,
+  );
+}
+
 const runId = (id) => {
   if (!Number.isInteger(id) || id <= 0) {
     throw new Error(`[temp-paths] runId must be a positive integer; got ${id}`);

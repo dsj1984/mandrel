@@ -329,6 +329,7 @@ async function runPrePushPhases(ctx, deps) {
           runCodeReviewFn: deps.runCodeReview,
           gitSpawnFn: gitSpawn,
           progress,
+          config: deps.config,
         });
       },
     });
