@@ -100,9 +100,9 @@
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-preflight.js",
-      "duplicatedLines": 16,
+      "duplicatedLines": 13,
       "totalLines": 217,
-      "percentage": 7.37
+      "percentage": 5.99
     },
     {
       "path": ".agents/scripts/lib/bootstrap/preflight.js",
@@ -207,6 +207,12 @@
       "percentage": 6.67
     },
     {
+      "path": ".agents/scripts/lib/orchestration/merge-queue.js",
+      "duplicatedLines": 6,
+      "totalLines": 158,
+      "percentage": 3.8
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/plan-persist/persist-helpers.js",
       "duplicatedLines": 16,
       "totalLines": 140,
@@ -223,6 +229,12 @@
       "duplicatedLines": 16,
       "totalLines": 173,
       "percentage": 9.25
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/required-checks.js",
+      "duplicatedLines": 5,
+      "totalLines": 147,
+      "percentage": 3.4
     },
     {
       "path": ".agents/scripts/lib/orchestration/resolve-stories.js",
@@ -247,12 +259,6 @@
       "duplicatedLines": 16,
       "totalLines": 853,
       "percentage": 1.88
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
-      "duplicatedLines": 22,
-      "totalLines": 963,
-      "percentage": 2.28
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
@@ -406,9 +412,9 @@
     },
     {
       "path": "scripts/check-baseline-scope.js",
-      "duplicatedLines": 200,
+      "duplicatedLines": 24,
       "totalLines": 362,
-      "percentage": 55.25
+      "percentage": 6.63
     },
     {
       "path": "scripts/check-schema-references.js",
