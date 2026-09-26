@@ -6,7 +6,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { resolveChangedFilesRef } from './changed-files.js';
-import { reportCaptureFailure, stampCapturedTree } from './coverage-capture.js';
+import {
+  captureStampPath,
+  reportCaptureFailure,
+  stampCapturedTree,
+} from './coverage-capture.js';
 import { tryIncrementalCapture } from './coverage-capture-incremental.js';
 
 const AFFECTED_CAPTURE_SCRIPT = 'test:coverage:affected';
@@ -70,6 +74,14 @@ function readArtifact(abs, fsImpl) {
   }
 }
 
+/** An unstamped artifact may be a red run's: its rows are never merged. */
+function readPriorArtifact(cwd, crap, fsImpl) {
+  const stamped = fsImpl.existsSync(captureStampPath(cwd, crap.coveragePath));
+  return stamped
+    ? readArtifact(path.resolve(cwd, crap.coveragePath), fsImpl)
+    : null;
+}
+
 function readChangedFiles({ getChangedFilesImpl, ref, cwd, logger }) {
   try {
     return getChangedFilesImpl({ ref, cwd });
@@ -82,9 +94,10 @@ function readChangedFiles({ getChangedFilesImpl, ref, cwd, logger }) {
 }
 
 /**
- * Honours `skipWhenUnchanged` as incremental mode does. With an unreadable
- * change set nothing prior is merged: a stale row for a changed file must
- * never read as fresh.
+ * Honours `skipWhenUnchanged` as incremental mode does. Nothing prior is
+ * merged with an unreadable change set (a stale row for a changed file must
+ * never read as fresh) or with no stamp on disk (an unstamped artifact may
+ * be a red run's, and its rows must not ride into a green one).
  */
 async function runAffectedCapture({
   crap,
@@ -131,10 +144,11 @@ async function runAffectedCapture({
   }
 
   const artifactAbs = path.resolve(args.cwd, crap.coveragePath);
-  const prior = changed ? readArtifact(artifactAbs, fsImpl) : null;
+  const prior = changed ? readPriorArtifact(args.cwd, crap, fsImpl) : null;
   const preDigest = computeContentDigestImpl(args.cwd, crap.targetDirs);
   const code = await runCaptureImpl({
     cwd: args.cwd,
+    coveragePath: crap.coveragePath,
     timeoutMs: coverage?.timeoutMs,
     script: AFFECTED_CAPTURE_SCRIPT,
     env: { [COVERAGE_BASE_REF_ENV]: ref },

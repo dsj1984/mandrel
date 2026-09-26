@@ -204,7 +204,7 @@ const PARTIAL_STAMP_SCOPES = new Set(['incremental', 'affected']);
  * @param {{digest?: unknown, scope?: unknown} | null} stamp
  * @param {'full' | 'incremental' | 'affected'} requireScope
  * @returns {{ digest: string } | { scopeMismatch: true } | null} `null`
- *   falls through to the mtime heuristic.
+ *   means no usable stamp: nothing vouches for the artifact.
  */
 function readStampForScope(stamp, requireScope) {
   if (typeof stamp?.digest !== 'string' || stamp.digest.length === 0) {
@@ -217,11 +217,12 @@ function readStampForScope(stamp, requireScope) {
 }
 
 /**
- * Stamp digest vs current digest when a stamp exists; otherwise artifact
- * mtime vs newest source. IO errors resolve stale. Both paths fail closed
- * (`no-sources`) on an empty source set — "found nothing" is not "nothing
- * changed". A partial (incremental / affected) stamp satisfies only a probe
- * of its own scope; a stamp with no `scope` is full-scope.
+ * Only a matching stamp vouches for the artifact, because only a green run
+ * writes one; artifact mtime says when a run wrote it, never that the run
+ * passed, so a red run's artifact must not read as fresh. Without a verdict,
+ * `no-sources` (empty source set — "found nothing" is not "nothing changed")
+ * outranks `unstamped`. A partial (incremental / affected) stamp satisfies
+ * only a probe of its own scope; a stamp with no `scope` is full-scope.
  *
  * @param {{
  *   coveragePath: string,
@@ -234,7 +235,7 @@ function readStampForScope(stamp, requireScope) {
  *   readFileSync?: typeof fs.readFileSync,
  *   computeDigest?: typeof computeContentDigest,
  * }} opts
- * @returns {{ fresh: boolean, reason: 'missing' | 'stale' | 'fresh' | 'no-sources' | 'scope-mismatch' }}
+ * @returns {{ fresh: boolean, reason: 'missing' | 'stale' | 'fresh' | 'no-sources' | 'scope-mismatch' | 'unstamped' }}
  */
 export function isCoverageFresh({
   coveragePath,
@@ -256,7 +257,7 @@ export function isCoverageFresh({
     try {
       stamp = JSON.parse(readFileSync(stampPath, 'utf8'));
     } catch {
-      // Corrupt/unreadable stamp → fall through to the mtime heuristic.
+      // Corrupt/unreadable stamp vouches for nothing.
     }
     const resolved = readStampForScope(stamp, requireScope);
     if (resolved?.scopeMismatch) {
@@ -272,21 +273,14 @@ export function isCoverageFresh({
     }
   }
 
-  let coverageMtime;
-  try {
-    coverageMtime = statSync(absCoverage).mtimeMs;
-  } catch {
-    return { fresh: false, reason: 'missing' };
-  }
-
   const newestSrc = newestSourceMtime(cwd, targetDirs, {
     statSync,
     readdirSync,
   });
-  if (newestSrc === 0) return { fresh: false, reason: 'no-sources' };
-  return coverageMtime >= newestSrc
-    ? { fresh: true, reason: 'fresh' }
-    : { fresh: false, reason: 'stale' };
+  return {
+    fresh: false,
+    reason: newestSrc === 0 ? 'no-sources' : 'unstamped',
+  };
 }
 
 /**
@@ -444,10 +438,14 @@ export const COVERAGE_TIMEOUT_EXIT_CODE = TIMEOUT_EXIT_CODE;
  * the lock heartbeat keeps running and a timeout or signal kills every
  * worker. Takes no positional file args: node's runner would execute a
  * forwarded source file as a test instead of filtering the suite. Scope a
- * run through `env` instead.
+ * run through `env` instead. Given `coveragePath`, the capture stamp is
+ * removed before the spawn: the suite is about to overwrite the artifact, so
+ * a red, killed or crashed run must leave no stamp vouching for it — only
+ * `stampCapturedTree` after a green run restores one.
  *
  * @param {{
  *   cwd: string,
+ *   coveragePath?: string,
  *   timeoutMs?: number,
  *   script?: string,
  *   env?: Record<string, string>,
@@ -458,12 +456,16 @@ export const COVERAGE_TIMEOUT_EXIT_CODE = TIMEOUT_EXIT_CODE;
  */
 export function runCapture({
   cwd,
+  coveragePath,
   timeoutMs,
   script = 'test:coverage',
   env = {},
   spawnImpl = spawn,
   log = () => {},
 } = {}) {
+  if (coveragePath) {
+    fs.rmSync(captureStampPath(cwd, coveragePath), { force: true });
+  }
   const args = ['run', script];
   log(`[coverage-capture] ▶ npm ${args.join(' ')}`);
   return new Promise((resolve) => {

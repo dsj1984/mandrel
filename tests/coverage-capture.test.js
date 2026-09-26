@@ -580,6 +580,32 @@ describe('runCoverageCapture', () => {
     });
   });
 
+  // A red capture must not leave a stamp vouching for the artifact it just
+  // overwrote: every path hands the runner the artifact whose stamp it drops.
+  describe('every capture path names the artifact the runner unstamps', () => {
+    for (const [mode, crap] of [
+      ['full', CRAP],
+      [
+        'incremental',
+        { ...CRAP, incrementalCoverage: { skipWhenUnchanged: true } },
+      ],
+    ]) {
+      it(`${mode}: passes coveragePath to the runner`, async () => {
+        const h = harness({
+          crap,
+          fresh: { fresh: false, reason: 'stale' },
+          captureCode: 1,
+        });
+        assert.equal(
+          await runCoverageCapture(argv('--cwd', '/repo'), h.deps),
+          1,
+        );
+        assert.equal(h.calls.capture[0].coveragePath, CRAP.coveragePath);
+        assert.equal(h.calls.stamp.length, 0, 'a red run writes no stamp');
+      });
+    }
+  });
+
   describe("'no-sources' is diagnosable, not a silent slow path (Story #5076)", () => {
     it('names the configured targetDirs and captures anyway', async () => {
       const h = harness({ fresh: { fresh: false, reason: 'no-sources' } });
