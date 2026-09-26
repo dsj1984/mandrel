@@ -75,26 +75,34 @@ Options:
 /**
  * The closed-Story worktree sweep under the shared sweep lock; never throws.
  * A contended lock skips it — the holder's next boot picks the trees up.
+ * Shared with `single-story-init.js`, whose boot never reaches
+ * {@link runBootSweep}: one sweep, one lock, two callers. `keepPaths` joins
+ * the sweep's running-tree guard — init passes the tree it is about to
+ * work in, so the Story being initialized is never removed.
  *
  * @param {{
  *   root: string,
  *   provider: object,
  *   lockPath: string,
  *   lockTimeoutMs: number,
- *   sweepFn: Function,
- *   acquireLockFn: Function,
+ *   sweepFn?: Function,
+ *   acquireLockFn?: Function,
  *   logger: object,
+ *   logTag?: string,
+ *   keepPaths?: string[],
  * }} args
  * @returns {Promise<object>} `{ ok, reaped, skipped, reason?, error? }`.
  */
-async function runWorktreeSweep({
+export async function runWorktreeSweep({
   root,
   provider,
   lockPath,
   lockTimeoutMs,
-  sweepFn,
-  acquireLockFn,
+  sweepFn = sweepStaleStoryWorktrees,
+  acquireLockFn = acquireSweepLock,
   logger,
+  logTag = '[boot-sweep]',
+  keepPaths = [],
 }) {
   const lock = acquireLockFn({ lockPath, timeoutMs: lockTimeoutMs });
   if (!lock.acquired) {
@@ -104,16 +112,17 @@ async function runWorktreeSweep({
     const result = await sweepFn({
       provider,
       repoRoot: root,
+      runningPaths: keepPaths,
       logger: {
-        info: (m) => logger.info?.(`[boot-sweep] ${m}`),
-        warn: (m) => logger.warn?.(`[boot-sweep] ${m}`),
-        error: (m) => logger.warn?.(`[boot-sweep] ${m}`),
+        info: (m) => logger.info?.(`${logTag} ${m}`),
+        warn: (m) => logger.warn?.(`${logTag} ${m}`),
+        error: (m) => logger.warn?.(`${logTag} ${m}`),
       },
     });
     return { ok: true, ...result };
   } catch (err) {
     const msg = err?.message ?? String(err);
-    logger.warn?.(`[boot-sweep] worktree sweep threw (host continues): ${msg}`);
+    logger.warn?.(`${logTag} worktree sweep threw (host continues): ${msg}`);
     return { ok: false, error: msg, reaped: [], skipped: [] };
   } finally {
     lock.release();

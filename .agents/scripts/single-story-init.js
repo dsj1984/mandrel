@@ -229,10 +229,60 @@ export function decideStoryBranchSeed({ localHas, remoteHas }) {
 }
 
 /**
- * Reap merged `story-*` branches (excluding the current one). Never blocks
- * init. Protected candidates (unpushed work, dirty worktree, open Story) are
- * skipped; the lockfile is shared with `boot-sweep.js` via
- * `resolveSweepLockPath` so concurrent reaps cannot race.
+ * Remove closed-Story `.worktrees/story-<id>` trees through the boot sweep's
+ * own seam (`runWorktreeSweep`: same lock, same invariants). The Story being
+ * initialized is always kept, whatever its ticket state. Never throws: a
+ * failure lands in the returned outcome, which rides the init envelope.
+ *
+ * @returns {Promise<object>} `{ ok, reaped, skipped, reason?, error? }`.
+ */
+export async function reapClosedStoryWorktrees({
+  cwd,
+  storyBranch,
+  provider,
+  lockPath,
+  lockTimeoutMs,
+  worktreeSweepFn,
+  acquireLockFn,
+}) {
+  const logger = {
+    info: (m) => progress('CLEANUP', m),
+    warn: (m) => progress('CLEANUP', `⚠️ ${m}`),
+  };
+  try {
+    const { runWorktreeSweep } = await import('./boot-sweep.js');
+    const outcome = await runWorktreeSweep({
+      root: cwd,
+      provider,
+      lockPath,
+      lockTimeoutMs,
+      ...(worktreeSweepFn ? { sweepFn: worktreeSweepFn } : {}),
+      ...(acquireLockFn ? { acquireLockFn } : {}),
+      logger,
+      logTag: '[worktree-sweep]',
+      keepPaths: [path.join(cwd, '.worktrees', storyBranch)],
+    });
+    if (outcome.reaped?.length > 0) {
+      progress(
+        'CLEANUP',
+        `🧹 removed ${outcome.reaped.length} closed-Story worktree(s).`,
+      );
+    }
+    return outcome;
+  } catch (err) {
+    const msg = err?.message ?? String(err);
+    logger.warn(`worktree sweep threw (init continues): ${msg}`);
+    return { ok: false, error: msg, reaped: [], skipped: [] };
+  }
+}
+
+/**
+ * Reap merged `story-*` branches (excluding the current one), then the
+ * closed-Story worktrees. Never blocks init. Protected candidates (unpushed
+ * work, dirty worktree, open Story) are skipped; the lockfile is shared with
+ * `boot-sweep.js` via `resolveSweepLockPath` so concurrent reaps cannot race.
+ *
+ * @returns {Promise<{ worktreeSweep: object }>}
  */
 export async function reapMergedStoryBranches({
   cwd,
@@ -241,6 +291,8 @@ export async function reapMergedStoryBranches({
   config,
   provider,
   injectedSweep,
+  worktreeSweepFn,
+  acquireLockFn,
 }) {
   const sweepFn =
     injectedSweep ??
@@ -248,7 +300,37 @@ export async function reapMergedStoryBranches({
   const tempRoot = config?.project?.paths?.tempRoot ?? 'temp';
   const lockPath = resolveSweepLockPath({ cwd, tempRoot });
   const lockTimeoutMs =
-    config.delivery?.worktreeIsolation?.sweepLockMs ?? 60_000;
+    config?.delivery?.worktreeIsolation?.sweepLockMs ?? 60_000;
+  await reapMergedBranches({
+    cwd,
+    baseBranch,
+    storyBranch,
+    provider,
+    sweepFn,
+    lockPath,
+    lockTimeoutMs,
+  });
+  const worktreeSweep = await reapClosedStoryWorktrees({
+    cwd,
+    storyBranch,
+    provider,
+    lockPath,
+    lockTimeoutMs,
+    worktreeSweepFn,
+    acquireLockFn,
+  });
+  return { worktreeSweep };
+}
+
+async function reapMergedBranches({
+  cwd,
+  baseBranch,
+  storyBranch,
+  provider,
+  sweepFn,
+  lockPath,
+  lockTimeoutMs,
+}) {
   try {
     const sweep = await sweepFn({
       cwd,
@@ -300,9 +382,12 @@ export async function reapMergedStoryBranches({
  * @param {object} opts.config
  * @param {object} opts.provider
  * @param {Function|undefined} opts.injectedSweep
+ * @param {Function} [opts.worktreeSweepFn] Test override for the
+ *   closed-Story worktree sweep.
  * @param {Function} opts.progress
  * @param {import('./lib/git/cached-fetch.js').FetchCache} [opts.fetchCache]
  *   Test override; production shares the module singleton.
+ * @returns {Promise<{ worktreeSweep: object }>}
  */
 export async function materializeBaseBranch({
   cwd,
@@ -311,6 +396,7 @@ export async function materializeBaseBranch({
   config,
   provider,
   injectedSweep,
+  worktreeSweepFn,
   progress,
   fetchCache,
 }) {
@@ -326,13 +412,14 @@ export async function materializeBaseBranch({
     );
   }
 
-  await reapMergedStoryBranches({
+  const { worktreeSweep } = await reapMergedStoryBranches({
     cwd,
     baseBranch,
     storyBranch,
     config,
     provider,
     injectedSweep,
+    worktreeSweepFn,
   });
 
   if (!branchExistsLocally(baseBranch, cwd)) {
@@ -342,10 +429,19 @@ export async function materializeBaseBranch({
         `Failed to fetch base branch ${baseBranch}: ${r.stderr || '(no stderr)'}`,
       );
     }
-    return;
+    return { worktreeSweep };
   }
 
-  // `git fetch` leaves local base at the old tip until fast-forwarded.
+  fastForwardBase({ cwd, baseBranch, progress });
+  return { worktreeSweep };
+}
+
+/**
+ * `git fetch` leaves local base at the old tip until fast-forwarded.
+ *
+ * @param {{ cwd: string, baseBranch: string, progress: Function }} opts
+ */
+function fastForwardBase({ cwd, baseBranch, progress }) {
   const ffPlan = planFastForward({ cwd, baseBranch });
   const ff = executeFastForward({
     cwd,
@@ -461,6 +557,7 @@ export async function runSingleStoryInit({
   injectedProvider,
   injectedConfig,
   injectedSweep,
+  injectedWorktreeSweep,
   injectedAcquireLease,
   steal = false,
   injectedVerifyRemote,
@@ -533,6 +630,7 @@ export async function runSingleStoryInit({
   let workCwd = cwd;
   let worktreeCreated = false;
   let installStatus = { status: 'skipped', reason: 'dry-run' };
+  let worktreeSweep = null;
 
   if (!dryRun) {
     const acquire = injectedAcquireLease ?? acquireStoryLease;
@@ -563,15 +661,17 @@ export async function runSingleStoryInit({
     await rollUpContainerEpic(provider, storyId, config);
 
     try {
-      await injectedMaterialize({
-        cwd,
-        baseBranch,
-        storyBranch,
-        config,
-        provider,
-        injectedSweep,
-        progress,
-      });
+      ({ worktreeSweep } =
+        (await injectedMaterialize({
+          cwd,
+          baseBranch,
+          storyBranch,
+          config,
+          provider,
+          injectedSweep,
+          worktreeSweepFn: injectedWorktreeSweep,
+          progress,
+        })) ?? {});
       injectedSeedBranch({ cwd, storyBranch, baseBranch, progress });
       ({ workCwd, worktreeCreated, installStatus } =
         await injectedProvisionWorktree({
@@ -610,6 +710,9 @@ export async function runSingleStoryInit({
     installStatus,
     dependenciesInstalled,
     installFailed: installStatus.status === 'failed',
+    // Closed-Story worktree sweep outcome; a failure degrades here, never
+    // into an init failure. `null` under --dry-run.
+    worktreeSweep: worktreeSweep ?? null,
     dryRun,
     remoteVerified: remote.remoteVerified,
     remoteProbe: { remoteUrl: remote.remoteUrl, detail: remote.detail },
