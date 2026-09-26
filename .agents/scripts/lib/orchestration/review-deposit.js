@@ -171,7 +171,7 @@ function isDeposit(record, storyId) {
  * @returns {object|null} the Story's deposit, or `null` when absent or
  *   malformed.
  */
-export function readReviewDeposit(storyId, { config, fsImpl = nodeFs } = {}) {
+function readReviewDeposit(storyId, { config, fsImpl = nodeFs } = {}) {
   try {
     const raw = fsImpl.readFileSync(
       storyReviewDepositPath(storyId, config),

@@ -14,13 +14,23 @@ import { afterEach, beforeEach, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { storyReviewDepositPath } from '../../.agents/scripts/lib/config/temp-paths.js';
-import { readReviewDeposit } from '../../.agents/scripts/lib/orchestration/review-deposit.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import {
   computeStoryReviewDeposit,
   parseArgv,
   runStoryReviewComputeCli,
 } from '../../.agents/scripts/story-review-compute.js';
+
+/** The deposit as close reads it off disk, or `null` when absent. */
+function readReviewDeposit(storyId, { config }) {
+  try {
+    return JSON.parse(
+      readFileSync(storyReviewDepositPath(storyId, config), 'utf8'),
+    );
+  } catch {
+    return null;
+  }
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');

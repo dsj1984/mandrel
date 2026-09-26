@@ -13,15 +13,13 @@
 
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { rmSync } from 'node:fs';
+import { existsSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { BASELINES_GATE_NAMES as REAL_BASELINES_GATE_NAMES } from '../.agents/scripts/lib/close-validation/gates.js';
-import {
-  readReviewDeposit,
-  writeReviewDeposit,
-} from '../.agents/scripts/lib/orchestration/review-deposit.js';
+import { storyReviewDepositPath } from '../.agents/scripts/lib/config/temp-paths.js';
+import { writeReviewDeposit } from '../.agents/scripts/lib/orchestration/review-deposit.js';
 import { runCloseValidationPhase } from '../.agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js';
 import {
   discardHeldReview,
@@ -868,7 +866,10 @@ describe('runSingleStoryClose — review overlaps close-validation', () => {
     writeReviewDeposit(workerDeposit({ severity: { ...CLEAN, critical: 1 } }), {
       config,
     });
-    assert.ok(readReviewDeposit(5473, { config }), 'deposit readable');
+    assert.ok(
+      existsSync(storyReviewDepositPath(5473, config)),
+      'deposit written',
+    );
 
     const blockedEvents = [];
     const blocked = recordingProvider();
