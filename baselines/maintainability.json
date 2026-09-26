@@ -712,7 +712,7 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-capture-affected.js",
-      "mi": 98.303
+      "mi": 99.309
     },
     {
       "path": ".agents/scripts/lib/coverage-capture-delta.js",
@@ -720,11 +720,11 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-capture-fullscope.js",
-      "mi": 94.734
+      "mi": 97.943
     },
     {
       "path": ".agents/scripts/lib/coverage-capture-incremental.js",
-      "mi": 92.697
+      "mi": 95.817
     },
     {
       "path": ".agents/scripts/lib/coverage-capture-usage.js",
@@ -732,7 +732,7 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-capture.js",
-      "mi": 100.405
+      "mi": 101.333
     },
     {
       "path": ".agents/scripts/lib/coverage-utils.js",
