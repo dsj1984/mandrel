@@ -11,6 +11,7 @@
  */
 
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import {
@@ -48,7 +49,12 @@ describe('parseCrapUpdaterArgs', () => {
       coveragePath: undefined,
       fullScope: false,
       diffScopeRef: null,
+      seatMissing: false,
     });
+  });
+
+  it('reads --seat-missing (Story #5486)', () => {
+    assert.equal(parseCrapUpdaterArgs(['--seat-missing']).seatMissing, true);
   });
 
   it('reads --baseline and --coverage values', () => {
@@ -400,5 +406,38 @@ describe('buildCrapUpdaterScorer — rows and reporting', () => {
     });
     await scorer([], { cwd: '/elsewhere' });
     assert.equal(asked, '/abs/cov.json');
+  });
+});
+
+describe('--seat-missing flag contract (Story #5486)', () => {
+  it('resolveCrapUpdaterOptions refuses --seat-missing with --full-scope', () => {
+    assert.throws(
+      () =>
+        resolveCrapUpdaterOptions(
+          { fullScope: true, seatMissing: true },
+          CONFIG,
+          '/repo',
+        ),
+      /--full-scope is incompatible with --seat-missing/,
+    );
+    assert.equal(
+      resolveCrapUpdaterOptions({ seatMissing: true }, CONFIG, '/repo')
+        .seatMissing,
+      true,
+    );
+  });
+
+  it('--help documents --seat-missing and its --full-scope incompatibility', () => {
+    const cli = path.resolve(
+      import.meta.dirname,
+      '../../../.agents/scripts/update-crap-baseline.js',
+    );
+    const out = execFileSync(process.execPath, [cli, '--help'], {
+      encoding: 'utf8',
+    });
+    const line = out.split('\n').find((l) => l.includes('--seat-missing  '));
+    assert.ok(line, 'a --seat-missing flag row');
+    assert.match(line, /Incompatible with --full-scope/);
+    assert.match(line, /100%/);
   });
 });

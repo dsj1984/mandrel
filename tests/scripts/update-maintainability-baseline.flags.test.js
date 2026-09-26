@@ -19,6 +19,7 @@
  */
 
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
@@ -86,5 +87,23 @@ describe('update-maintainability-baseline — scope-flag defaults (Task #2214)',
       /fullScope\s*&&\s*diffScopeRef\s*!==\s*null/,
       'CLI must reject the combination of --diff-scope and --full-scope',
     );
+  });
+});
+
+describe('update-maintainability-baseline — --seat-missing (Story #5486)', () => {
+  it('--help documents --seat-missing and its --full-scope incompatibility', () => {
+    const out = execFileSync(process.execPath, [CLI_PATH, '--help'], {
+      encoding: 'utf8',
+    });
+    const line = out.split('\n').find((l) => l.includes('--seat-missing  '));
+    assert.ok(line, 'a --seat-missing flag row');
+    assert.match(line, /Incompatible with --full-scope/);
+    assert.match(line, /byte-identical/);
+  });
+
+  it('routes --seat-missing to the insert-only seat, not the refresh', () => {
+    const source = readFileSync(CLI_PATH, 'utf8');
+    assert.match(source, /seatMaintainabilityBaseline\(process\.argv/);
+    assert.match(source, /seating \? seat : main/);
   });
 });
