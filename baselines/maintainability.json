@@ -728,7 +728,7 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-capture.js",
-      "mi": 99.227
+      "mi": 100.405
     },
     {
       "path": ".agents/scripts/lib/coverage-utils.js",
