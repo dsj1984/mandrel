@@ -95,7 +95,7 @@ per-criterion, mid-delivery, and evaluates the actual work product.
      without being respawned; a stale or absent stamp reports `spawn: true` and
      the command runs for real. The credited run itself is stated once, in
      [`deliver-digest.md`](deliver-digest.md) § 5.
-   + Emits **one** verdict file under `temp/` conforming to
+   + Emits **one** verdict file under `temp/scratch/story-<id>/` conforming to
      [`acceptance-eval-verdict.schema.json`](../../schemas/acceptance-eval-verdict.schema.json):
      one `{ index, criterion, verdict: met|partial|unmet, evidence,
      verifyEvidence[] }` record per `acceptance[]` item, in acceptance-array
@@ -137,4 +137,5 @@ per-criterion, mid-delivery, and evaluates the actual work product.
      (transition to `agent::blocked`) and post a `friction` comment naming the
      unmet criteria and their evidence. Never silently proceed to close.
 
-Write the verdict under `temp/` only — it is a scratch artifact.
+Write the verdict under `temp/scratch/story-<id>/` only — a scratch artifact
+the Story's landing reaps.

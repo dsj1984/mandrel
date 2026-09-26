@@ -68,6 +68,8 @@ module.exports = {
     '.agents/scripts/diagnose-friction.js',
     // Git-manipulation CLI (branch sweeper) — integration-shaped.
     '.agents/scripts/git-cleanup.js',
+    // Temp-tree cleanup CLI; its engine is `lib/clean-temp.js`, unit-tested.
+    '.agents/scripts/clean-temp.js',
     // Desktop/terminal notification glue — pure side effect.
     '.agents/scripts/notify.js',
     // Structured-comment CLI shell over the ticketing provider.

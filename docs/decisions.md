@@ -315,6 +315,11 @@ a no-op on a second run.
 new key must displace an old one or raise `AGENTRC_LEAF_KEY_CEILING` in a change
 that records why.
 
+**Raised to 129 (2026-09-26, Story #5459)** for
+`delivery.tempRetention.classes.scratch`: it turns off the purge of the new
+`temp/scratch/` class, so it is the same kind of key as the `classes.*`
+deletion opt-outs kept above, and no existing key displaces it.
+
 ### Consequences
 
 - A tuning value is changed by editing the constant and shipping a release,

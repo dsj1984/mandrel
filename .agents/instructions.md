@@ -181,7 +181,8 @@ never delivered): `/mandrel-plan` offers one above 2 Stories and
 
 All temporary files, scratch scripts, and intermediate outputs MUST
 live in the gitignored workspace-root `/temp/` directory — do NOT commit
-anything under it.
+anything under it. Put ad-hoc scratch in `temp/scratch/story-<id>/` (or
+`temp/scratch/` with no Story), the layout the temp purge reaps.
 
 ---
 

@@ -1,6 +1,7 @@
 /**
  * Allowlisted auto-purge of spent temp artifacts: only a declared class's
- * entries are candidates; the rest are reported, never touched. Never throws
+ * entries are candidates; the rest are reported, never touched by the
+ * auto-purge (only `/clean-temp`'s operator-confirmed path). Never throws
  * — a failed purge must not fail a land, boot, or persist.
  */
 
@@ -13,6 +14,14 @@ import {
   tempRootFrom,
 } from './config/temp-paths.js';
 import { Logger } from './Logger.js';
+import {
+  KEEP_BASENAMES,
+  removeSparingKept,
+  safeReaddir,
+  sizeOf,
+} from './temp-removal.js';
+
+export { KEEP_BASENAMES };
 
 /**
  * Defaults for `delivery.tempRetention`; purge is on unless turned off.
@@ -26,18 +35,13 @@ export const TEMP_RETENTION_DEFAULTS = Object.freeze({
     validationEvidence: true,
     auditResults: true,
     planDirs: true,
+    scratch: true,
   }),
 });
 
 export const PURGE_CLASS_NAMES = Object.freeze(
   Object.keys(TEMP_RETENTION_DEFAULTS.classes),
 );
-
-/**
- * Never deleted, re-checked at the deletion site: `signals.ndjson` is read
- * long after merge and its loss is silent and unrecoverable.
- */
-export const KEEP_BASENAMES = Object.freeze(['signals.ndjson']);
 
 /** Explicit allowlist: an untaught file in a Story dir is kept. */
 const STORY_EVIDENCE_BASENAMES = Object.freeze([
@@ -48,6 +52,9 @@ const STORY_EVIDENCE_BASENAMES = Object.freeze([
 
 /** Framework-owned, never purged (`*.lock` files are also skipped). */
 const RESERVED_TOP_LEVEL = Object.freeze(['qa', 'cache']);
+
+/** Agent-authored scratch: `scratch/story-<id>/` or any other child. */
+const SCRATCH_DIRNAME = 'scratch';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -75,50 +82,6 @@ export function resolveTempRetention(config) {
     staleDays: TEMP_RETENTION_DEFAULTS.staleDays,
     classes,
   };
-}
-
-/**
- * `readdir` yielding `[]` for an absent or unreadable directory.
- *
- * @param {typeof fsPromises} fsp
- * @param {string} dir
- * @returns {Promise<import('node:fs').Dirent[]>}
- */
-async function safeReaddir(fsp, dir) {
-  try {
-    return await fsp.readdir(dir, { withFileTypes: true });
-  } catch {
-    return [];
-  }
-}
-
-/**
- * Recursive byte total; a vanished child is skipped.
- *
- * @param {typeof fsPromises} fsp
- * @param {string} target
- * @returns {Promise<number>}
- */
-async function sizeOf(fsp, target) {
-  let total = 0;
-  const stack = [target];
-  while (stack.length > 0) {
-    const current = stack.pop();
-    let stats;
-    try {
-      stats = await fsp.stat(current);
-    } catch {
-      continue;
-    }
-    if (!stats.isDirectory()) {
-      total += stats.size;
-      continue;
-    }
-    for (const child of await safeReaddir(fsp, current)) {
-      stack.push(path.join(current, child.name));
-    }
-  }
-  return total;
 }
 
 /**
@@ -257,12 +220,43 @@ async function scanPlanDirs(tempRoot, fsp) {
   return entries;
 }
 
+/**
+ * `<tempRoot>/scratch/*`: `story-<id>/` is Story-keyed, anything else is
+ * age-floored — the one place an agent's ad-hoc files are reapable.
+ */
+async function scanScratch(tempRoot, fsp) {
+  const dir = path.join(tempRoot, SCRATCH_DIRNAME);
+  const entries = [];
+  for (const dirent of await safeReaddir(fsp, dir)) {
+    const match = dirent.isDirectory()
+      ? STORY_DIR_PATTERN.exec(dirent.name)
+      : null;
+    const entry = await makeEntry(
+      fsp,
+      path.join(dir, dirent.name),
+      'scratch',
+      match ? Number(match[1]) : null,
+    );
+    if (entry) entries.push(entry);
+  }
+  return entries;
+}
+
 const SCANNERS = Object.freeze({
   orchestrationLogs: scanOrchestrationLogs,
   validationEvidence: scanValidationEvidence,
   auditResults: scanAuditResults,
   planDirs: scanPlanDirs,
+  scratch: scanScratch,
 });
+
+/** Fixed top-level dirs a class scanner walks. */
+const CLASS_OWNED_DIRNAMES = Object.freeze([
+  ORCHESTRATION_DIRNAME,
+  'standalone',
+  'audits',
+  SCRATCH_DIRNAME,
+]);
 
 /**
  * Keep in lockstep with the scanners: an entry no class walks must surface
@@ -273,29 +267,49 @@ const SCANNERS = Object.freeze({
  */
 function isClassOwnedTopLevel(name) {
   return (
-    name === ORCHESTRATION_DIRNAME ||
-    name === 'standalone' ||
-    name === 'audits' ||
+    CLASS_OWNED_DIRNAMES.includes(name) ||
     name.startsWith('plan-') ||
     RUN_DIR_PATTERN.test(name)
   );
 }
 
 /**
- * Unclaimed, non-reserved top-level entries: reported with sizes, never deleted.
+ * Top-level names no path may ever delete: the reserved trees, lock files,
+ * and the never-purged basenames.
+ *
+ * @param {string} name
+ * @returns {boolean}
+ */
+export function isReservedTopLevel(name) {
+  return (
+    RESERVED_TOP_LEVEL.includes(name) ||
+    name.endsWith('.lock') ||
+    KEEP_BASENAMES.includes(name)
+  );
+}
+
+/**
+ * Unclaimed, non-reserved top-level entries: reported with sizes and the
+ * entry's own mtime. The auto-purge never deletes one; only an operator-
+ * confirmed `purgeUnrecognizedEntries` call does.
  *
  * @param {string} tempRoot
  * @param {typeof fsPromises} fsp
- * @returns {Promise<Array<{ path: string, bytes: number }>>}
+ * @returns {Promise<Array<{ path: string, bytes: number, mtimeMs: number }>>}
  */
 async function collectUnrecognized(tempRoot, fsp) {
   const found = [];
   for (const dirent of await safeReaddir(fsp, tempRoot)) {
     const { name } = dirent;
-    if (isClassOwnedTopLevel(name)) continue;
-    if (RESERVED_TOP_LEVEL.includes(name) || name.endsWith('.lock')) continue;
-    const target = path.join(tempRoot, name);
-    found.push({ path: target, bytes: await sizeOf(fsp, target) });
+    if (isClassOwnedTopLevel(name) || isReservedTopLevel(name)) continue;
+    const entry = await makeEntry(fsp, path.join(tempRoot, name), null, null);
+    if (entry) {
+      found.push({
+        path: entry.path,
+        bytes: entry.bytes,
+        mtimeMs: entry.mtimeMs,
+      });
+    }
   }
   return found;
 }
@@ -304,7 +318,7 @@ async function collectUnrecognized(tempRoot, fsp) {
  * Classify a temp tree without deleting anything.
  *
  * @param {{ config?: object, tempRoot?: string, fsp?: typeof fsPromises }} [args]
- * @returns {Promise<{ tempRoot: string, entries: object[], unrecognized: Array<{ path: string, bytes: number }> }>}
+ * @returns {Promise<{ tempRoot: string, entries: object[], unrecognized: Array<{ path: string, bytes: number, mtimeMs: number }> }>}
  */
 export async function collectTempEntries({
   config,
@@ -353,6 +367,7 @@ function isPurgeable(entry, ctx) {
  * @param {typeof fsPromises} [args.fsp]
  * @param {{ info: Function }} [args.logger]
  * @param {string} [args.label]
+ * @param {boolean} [args.dryRun] Report what would go; delete nothing.
  * @returns {Promise<object>} Result envelope; never throws.
  */
 async function purgeTempArtifacts({
@@ -366,6 +381,7 @@ async function purgeTempArtifacts({
   fsp = fsPromises,
   logger = Logger,
   label = 'temp-retention',
+  dryRun = false,
 } = {}) {
   const policy = resolveTempRetention(config);
   const base = {
@@ -402,22 +418,55 @@ async function purgeTempArtifacts({
       if (entry.keep) result.kept.push(entry.path);
       continue;
     }
-    try {
-      await fsp.rm(entry.path, { recursive: true, force: true });
-      result.purged.push({ path: entry.path, bytes: entry.bytes });
-      result.bytesReclaimed += entry.bytes;
-    } catch (err) {
-      result.errors.push(`${entry.path}: ${String(err?.message ?? err)}`);
-    }
+    await purgeOne(fsp, entry, result, dryRun);
   }
 
-  if (result.purged.length > 0) {
-    logger?.info?.(
-      `[${label}] purged ${result.purged.length} spent temp artifact(s), ` +
-        `reclaimed ${formatBytes(result.bytesReclaimed)} under ${result.tempRoot}.`,
-    );
-  }
+  if (!dryRun) reportPurge(logger, label, result);
   return result;
+}
+
+/**
+ * One summary line for a purge that deleted something.
+ *
+ * @param {{ info?: Function }|undefined} logger
+ * @param {string} label
+ * @param {object} result
+ */
+function reportPurge(logger, label, result) {
+  if (result.purged.length === 0) return;
+  logger?.info?.(
+    `[${label}] purged ${result.purged.length} spent temp artifact(s), ` +
+      `reclaimed ${formatBytes(result.bytesReclaimed)} under ${result.tempRoot}.`,
+  );
+}
+
+/**
+ * Remove (or, on a dry run, only record) one purgeable entry into `result`.
+ *
+ * @param {typeof fsPromises} fsp
+ * @param {{ path: string, bytes: number }} entry
+ * @param {object} result Mutated in place.
+ * @param {boolean} dryRun
+ * @returns {Promise<void>}
+ */
+async function purgeOne(fsp, entry, result, dryRun) {
+  if (dryRun) {
+    result.purged.push({ path: entry.path, bytes: entry.bytes });
+    result.bytesReclaimed += entry.bytes;
+    return;
+  }
+  try {
+    const { bytes, kept } = await removeSparingKept(
+      fsp,
+      entry.path,
+      entry.bytes,
+    );
+    result.kept.push(...kept);
+    result.purged.push({ path: entry.path, bytes });
+    result.bytesReclaimed += bytes;
+  } catch (err) {
+    result.errors.push(`${entry.path}: ${String(err?.message ?? err)}`);
+  }
 }
 
 /**

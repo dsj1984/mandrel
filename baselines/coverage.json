@@ -783,6 +783,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/clean-temp.js",
+      "lines": 98.41,
+      "branches": 94.34,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/cli-args.js",
       "lines": 97.49,
       "branches": 90.06,
@@ -2691,9 +2697,15 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/temp-removal.js",
+      "lines": 98.18,
+      "branches": 93.33,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/temp-retention.js",
-      "lines": 98.73,
-      "branches": 92.11,
+      "lines": 99.21,
+      "branches": 93.1,
       "functions": 100
     },
     {

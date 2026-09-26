@@ -98,8 +98,8 @@ For each acceptance item:
 
 ## Verdict schema (MUST)
 
-Write **one** verdict file under `temp/` (e.g.
-`temp/acceptance-verdict-<storyId>-r<round>.json`) conforming to
+Write **one** verdict file under `temp/scratch/story-<storyId>/` (e.g.
+`temp/scratch/story-<storyId>/acceptance-verdict-r<round>.json`) conforming to
 [`acceptance-eval-verdict.schema.json`](../schemas/acceptance-eval-verdict.schema.json):
 one `criteria[]` record per acceptance item, in acceptance-array order, with
 `index` being the criterion's position in that array.
