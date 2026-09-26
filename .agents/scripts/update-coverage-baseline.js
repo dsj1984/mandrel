@@ -5,6 +5,7 @@
  * refresh is idempotent and the output can be inspected first.
  */
 
+import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import {
@@ -62,16 +63,26 @@ function loadC8Scope(cwd) {
   return require(path.resolve(cwd, '.c8rc.cjs'));
 }
 
-/** Repo-relative in-scope files the artifact on disk measured. */
-function listMeasured(cwd) {
+function c8ScopePredicate(cwd) {
   const c8Config = loadC8Scope(cwd);
-  const scope = buildScopePredicate({
+  return buildScopePredicate({
     include: c8Config.include ?? [],
     exclude: c8Config.exclude ?? [],
   });
+}
+
+/** Repo-relative in-scope files the artifact on disk measured. */
+function listMeasured(cwd) {
+  const scope = c8ScopePredicate(cwd);
   return Object.keys(
     scoreCoverageFinal({ raw: readCoverageFinal(cwd), cwd, scope }),
   );
+}
+
+/** A live file the c8 scope instruments, so it must carry a row. */
+function inCoverageScopeFor(cwd) {
+  const scope = c8ScopePredicate(cwd);
+  return (file) => scope(file) && fs.existsSync(path.resolve(cwd, file));
 }
 
 async function main() {
@@ -103,6 +114,7 @@ async function main() {
       diffScopeRef,
       readCaptureScope: readArtifactCaptureScope,
       listMeasured,
+      inCoverageScope: inCoverageScopeFor(cwd),
       deriveDiffFiles: (baseRef) =>
         deriveScopeFromDiff({
           baseRef,

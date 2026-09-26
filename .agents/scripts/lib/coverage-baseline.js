@@ -219,11 +219,14 @@ export function readArtifactCaptureScope(
   }
 }
 
-/** Narrow a refresh scope (`null` = full) to the files the artifact measured. */
-function narrowScopeToMeasured(scopeFiles, measuredFiles) {
+/**
+ * Narrow a refresh scope (`null` = full) to measured files, keeping any file
+ * `mustMeasure` names so its missing row fails the refresh.
+ */
+function narrowScopeToMeasured(scopeFiles, measuredFiles, mustMeasure) {
   if (scopeFiles === null) return [...measuredFiles];
   const measured = new Set(measuredFiles);
-  return scopeFiles.filter((file) => measured.has(file));
+  return scopeFiles.filter((file) => measured.has(file) || mustMeasure(file));
 }
 
 /**
@@ -303,7 +306,8 @@ export function compareScores(
 /**
  * `refreshBaseline` scope options. Under an `affected` artifact the scope is
  * narrowed to measured files, so the scope merge preserves a row the scoped
- * run skipped instead of deleting it.
+ * run skipped instead of deleting it. A changed file `inCoverageScope` names
+ * stays in scope and must produce a row: skipping it fails closed.
  */
 export async function resolveCoverageRefreshScope({
   cwd,
@@ -311,6 +315,7 @@ export async function resolveCoverageRefreshScope({
   diffScopeRef,
   readCaptureScope,
   listMeasured,
+  inCoverageScope,
   deriveDiffFiles,
 }) {
   if (readCaptureScope(cwd) !== 'affected') {
@@ -320,5 +325,9 @@ export async function resolveCoverageRefreshScope({
   const diff = fullScope
     ? null
     : await deriveDiffFiles(diffScopeRef ?? 'origin/main');
-  return { scopeFiles: narrowScopeToMeasured(diff, listMeasured(cwd)) };
+  return {
+    scopeFiles: narrowScopeToMeasured(diff, listMeasured(cwd), inCoverageScope),
+    requireRowsForScopeFiles: true,
+    requiredScopeFilePredicate: inCoverageScope,
+  };
 }

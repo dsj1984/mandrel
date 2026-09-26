@@ -416,7 +416,12 @@ test('resolveCoverageRefreshScope AC-5 — an affected artifact narrows every re
   const base = {
     cwd: '/cwd',
     listMeasured: () => ['a.js', 'b.js'],
-    deriveDiffFiles: async () => ['a.js', 'skipped.js'],
+    inCoverageScope: (f) => f === 'changed-unmeasured.js',
+    deriveDiffFiles: async () => [
+      'a.js',
+      'skipped.js',
+      'changed-unmeasured.js',
+    ],
   };
   const affected = { ...base, readCaptureScope: () => 'affected' };
   assert.deepStrictEqual(
@@ -425,7 +430,11 @@ test('resolveCoverageRefreshScope AC-5 — an affected artifact narrows every re
       fullScope: true,
       diffScopeRef: null,
     }),
-    { scopeFiles: ['a.js', 'b.js'] },
+    {
+      scopeFiles: ['a.js', 'b.js'],
+      requireRowsForScopeFiles: true,
+      requiredScopeFilePredicate: affected.inCoverageScope,
+    },
   );
   assert.deepStrictEqual(
     await resolveCoverageRefreshScope({
@@ -433,7 +442,11 @@ test('resolveCoverageRefreshScope AC-5 — an affected artifact narrows every re
       fullScope: false,
       diffScopeRef: null,
     }),
-    { scopeFiles: ['a.js'] },
+    {
+      scopeFiles: ['a.js', 'changed-unmeasured.js'],
+      requireRowsForScopeFiles: true,
+      requiredScopeFilePredicate: affected.inCoverageScope,
+    },
   );
   const full = { ...base, readCaptureScope: () => 'full' };
   assert.deepStrictEqual(
@@ -459,5 +472,72 @@ test('resolveCoverageRefreshScope AC-5 — an affected artifact narrows every re
       diffScopeRef: null,
     }),
     {},
+  );
+});
+
+test('refreshBaseline AC-5/AC-6 — affected scope keeps unmeasured rows and refuses a changed file with no row', async () => {
+  const { refreshBaseline } = await import(
+    '../.agents/scripts/lib/baselines/refresh-service.js'
+  );
+  const writes = [];
+  const priorRows = [
+    { path: 'a.js', lines: 50, branches: 50, functions: 50 },
+    { path: 'untouched.js', lines: 80, branches: 80, functions: 80 },
+  ];
+  const memFs = {
+    readFileSync: () =>
+      JSON.stringify({
+        $schema: 'https://mandrel.dev/baselines/coverage.schema.json',
+        kernelVersion: '1.0.0',
+        rows: priorRows,
+      }),
+    writeFileSync: (_p, body) => writes.push(JSON.parse(body)),
+    mkdirSync: () => {},
+    renameSync: () => {},
+    existsSync: () => true,
+  };
+  const scope = await resolveCoverageRefreshScope({
+    cwd: '/cwd',
+    fullScope: true,
+    diffScopeRef: null,
+    readCaptureScope: () => 'affected',
+    listMeasured: () => ['a.js'],
+    inCoverageScope: () => true,
+    deriveDiffFiles: async () => [],
+  });
+  const scorer = () => [
+    { path: 'a.js', lines: 100, branches: 100, functions: 100 },
+  ];
+  await refreshBaseline({
+    kind: 'coverage',
+    writePath: '/cwd/baselines/coverage.json',
+    fs: memFs,
+    scorer,
+    ...scope,
+  });
+  const rows = writes.at(-1).rows.map((r) => [r.path, r.lines]);
+  assert.deepStrictEqual(rows, [
+    ['a.js', 100],
+    ['untouched.js', 80],
+  ]);
+
+  const diffScope = await resolveCoverageRefreshScope({
+    cwd: '/cwd',
+    fullScope: false,
+    diffScopeRef: null,
+    readCaptureScope: () => 'affected',
+    listMeasured: () => ['a.js'],
+    inCoverageScope: () => true,
+    deriveDiffFiles: async () => ['a.js', 'changed.js'],
+  });
+  await assert.rejects(
+    refreshBaseline({
+      kind: 'coverage',
+      writePath: '/cwd/baselines/coverage.json',
+      fs: memFs,
+      scorer,
+      ...diffScope,
+    }),
+    /changed\.js/,
   );
 });
