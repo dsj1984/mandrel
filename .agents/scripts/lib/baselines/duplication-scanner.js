@@ -20,8 +20,7 @@ const SUPPORTED_JSCPD_MAJOR = '^4';
  * specifier under strict ESM resolution, and importers that never scan should
  * not pay the load.
  *
- * A resolved jscpd without `detectClones` is an unsupported major, not a
- * missing install — the error names the version so the fix is obvious.
+ * No `detectClones` means an unsupported major, not a missing install.
  *
  * @param {NodeJS.Require} [requireFn] substitutes the module resolver
  * @returns {(opts: object) => Promise<Array<object>>}
@@ -54,10 +53,8 @@ export function relativisePath(sourceId, cwd) {
 }
 
 /**
- * jscpd occasionally reports a side with `end.line < start.line` (its `range`
- * and `fragment` are inverted too). The real span is unrecoverable, and
- * widening it to `[end, start]` recorded hundreds of phantom lines, so such a
- * side counts nothing — under-counting one clone beats inventing a span.
+ * A side with `end.line < start.line` counts nothing: its real span is
+ * unrecoverable, and widening it recorded hundreds of phantom lines.
  *
  * @param {{ start?: { line?: number }, end?: { line?: number } }} dup
  * @returns {Array<number>} the 1-based line numbers the clone covers

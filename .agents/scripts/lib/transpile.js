@@ -8,11 +8,7 @@ const require = createRequire(import.meta.url);
 
 const TS_EXTS = new Set(['.ts', '.tsx', '.mts', '.cts']);
 
-/**
- * The `typescript` majors whose main entry exposes the JS compiler API. TS 7
- * moved `transpileModule` under `unstable/*`, so its main entry is API-less.
- * Mirrors the optional peer range in `package.json` / `runtime-deps.json`.
- */
+/** TS 7 moved `transpileModule` under `unstable/*`; mirrors the peer range. */
 const SUPPORTED_TS_RANGE = '>=5.0.0 <7';
 
 let _ts = null;
@@ -34,9 +30,7 @@ function loadTypeScript() {
 const _unsupportedDiagnosed = new WeakSet();
 
 /**
- * A resolved module without `transpileModule` cannot score anything; say so
- * once, naming the version and the supported range, instead of one
- * "transpile failed" warning per file.
+ * Warn once per API-less module rather than once per file.
  *
  * @param {object} ts
  * @returns {boolean}
@@ -127,9 +121,6 @@ function buildLineMapper(sourceMapText, code) {
  * TS/TSX → JS escomplex can parse (types add no control flow); JS passes
  * through; `null` means skip. Transpiling shifts lines, so a coverage join
  * opts into `{ withLineMap: true }` → `{ code, mapLine }` (`null` for JS).
- *
- * `opts.typescript` substitutes the compiler module (defaults to the resolved
- * `typescript` peer).
  *
  * @param {string} filePath
  * @param {string} source
