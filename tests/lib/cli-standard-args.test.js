@@ -305,6 +305,28 @@ describe('parseStandardCliArgs — extras (caller-defined flags)', () => {
     assert.equal(values.scope, 'diagnose');
   });
 
+  it('applies integer and string-multi defaults and enforces them when required', () => {
+    const { values } = parseStandardCliArgs({
+      argv: [],
+      extras: {
+        limit: { type: 'integer', default: 5 },
+        tag: { type: 'string-multi' },
+      },
+    });
+    assert.equal(values.limit, 5);
+    assert.deepEqual(values.tag, []);
+    for (const type of ['integer', 'string-multi']) {
+      assert.throws(
+        () =>
+          parseStandardCliArgs({
+            argv: [],
+            extras: { need: { type, required: true } },
+          }),
+        (err) => err.code === 'MISSING_REQUIRED_FLAG' && err.flag === 'need',
+      );
+    }
+  });
+
   it('mixes a standard required flag with caller extras', () => {
     const { values } = parseStandardCliArgs({
       argv: ['--story', '2989', '--scope', 'diagnose', '--json'],
