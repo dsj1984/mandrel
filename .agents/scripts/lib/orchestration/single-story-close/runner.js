@@ -252,6 +252,8 @@ function resolveWorktreePath({ cwd, config, storyId }) {
  * the validated tree is the pushed tree (base-sync's merge commit included),
  * and a cheap conflict is found before the expensive gates.
  *
+ * @param {CloseContext} ctx
+ * @param {CloseDeps} deps
  * @returns {Promise<{
  *   validationGates: Record<string, string>|null,
  *   lockWait: { waitedSeconds: number, expired: boolean }|null,
@@ -259,49 +261,37 @@ function resolveWorktreePath({ cwd, config, storyId }) {
  * }>} `validationGates` is null when skipped; `pending` means a full-suite
  *   lock wait expired and the gates deferred.
  */
-async function runPrePushPhases({
-  cwd,
-  worktreePath,
-  config,
-  baseBranch,
-  baseConfirmed,
-  storyBranch,
-  storyId,
-  provider,
-  skipValidation,
-  skipSync,
-  injectedSync,
-  injectedGitSpawn,
-  setPhase,
-  setObservedGates,
-}) {
+async function runPrePushPhases(ctx, deps) {
+  const { options, worktreePath, baseBranch, storyBranch, storyId, setPhase } =
+    ctx;
+  const { cwd } = options;
   setPhase('wrong-tree-guard');
   await runWrongTreeGuardPhase({
     cwd,
     worktreePath,
     baseBranch,
     storyId,
-    provider,
+    provider: deps.provider,
     progress,
-    gitSpawn: injectedGitSpawn,
+    gitSpawn: deps.gitSpawn,
   });
-  if (!skipSync) {
+  if (!options.skipSync) {
     setPhase('base-sync');
     await runBaseSyncPhase({
       cwd,
       worktreePath,
       baseBranch,
-      baseConfirmed,
+      baseConfirmed: ctx.baseConfirmed,
       storyBranch,
       storyId,
-      provider,
-      injectedSync,
+      provider: deps.provider,
+      injectedSync: deps.sync,
       progress,
     });
   } else {
     progress('SYNC', '⏭ Skipped (--skip-sync).');
   }
-  if (skipValidation) {
+  if (options.skipValidation) {
     progress('VALIDATE', '⏭ Skipped (--skip-validation).');
     return { validationGates: null, lockWait: null, pending: false };
   }
@@ -311,7 +301,7 @@ async function runPrePushPhases({
     validation = await runCloseValidationPhase({
       cwd,
       worktreePath,
-      config,
+      config: deps.config,
       baseBranch,
       storyBranch,
       storyId,
@@ -322,12 +312,12 @@ async function runPrePushPhases({
   } catch (err) {
     // The gate that died is all this run observed; the envelope claims no more.
     if (typeof err?.closeGate === 'string') {
-      setObservedGates({ [err.closeGate]: 'failed' });
+      ctx.setObservedGates({ [err.closeGate]: 'failed' });
     }
     throw err;
   }
   const gates = validation?.gates ?? null;
-  setObservedGates(gates);
+  ctx.setObservedGates(gates);
   return {
     validationGates: gates,
     lockWait: validation?.lockWait ?? null,
@@ -335,25 +325,71 @@ async function runPrePushPhases({
   };
 }
 
-async function openAndReviewPr({
-  cwd,
-  worktreePath,
-  story,
-  storyId,
-  storyBranch,
-  baseBranch,
-  provider,
-  config,
-  overrideReviewBlock,
-  injectedGh,
-  injectedRunCodeReview,
-  setPhase,
-}) {
-  setPhase('push');
+/**
+ * A critical review halt: an overridden Story proceeds, anything else emits
+ * friction, blocks, and throws.
+ *
+ * @param {CloseContext} ctx
+ * @param {CloseDeps} deps
+ * @param {{ prUrl: string, prNumber: number|null, reviewOutcome: object }} pr
+ * @returns {Promise<object>} the override record.
+ */
+async function resolveReviewHalt(
+  ctx,
+  deps,
+  { prUrl, prNumber, reviewOutcome },
+) {
+  const { storyId } = ctx;
+  const criticalCount = reviewOutcome.severity?.critical ?? 0;
+  // Checked before the blocked transition: an overridden Story proceeds.
+  if (ctx.options.overrideReviewBlock) {
+    return await handleOverriddenReviewBlock({
+      provider: deps.provider,
+      storyId,
+      prUrl,
+      prNumber,
+      criticalCount,
+      criticalByProvider: reviewOutcome.criticalByProvider,
+      reason: ctx.options.overrideReviewBlock,
+      config: deps.config,
+    });
+  }
+  await emitReviewBlockedFriction({
+    storyId,
+    prNumber,
+    criticalCount,
+    criticalByProvider: reviewOutcome.criticalByProvider,
+    config: deps.config,
+  });
+  await handleCriticalReviewBlock({
+    provider: deps.provider,
+    storyId,
+    prUrl,
+    criticalCount,
+  });
+  throw new Error(
+    `[single-story-close] Story-scope review reported ${criticalCount} critical blocker(s) on PR ${prUrl}. ` +
+      'Auto-merge was not enabled. Remediate the findings posted to the PR and re-run `/mandrel-deliver`. ' +
+      'If you have reviewed a finding and judged it wrong, re-run with ' +
+      '`--override-review-block "<reason>"` rather than merging by hand.',
+  );
+}
+
+/**
+ * @param {CloseContext} ctx
+ * @param {CloseDeps} deps
+ * @returns {Promise<{ prUrl: string, prNumber: number|null,
+ *   alreadyMerged: boolean, reviewOverride?: object|null }>}
+ */
+async function openAndReviewPr(ctx, deps) {
+  const { options, worktreePath, story, storyId, storyBranch, baseBranch } =
+    ctx;
+  const { cwd } = options;
+  ctx.setPhase('push');
   // Push from the worktree so `pre-push` measures the tree being sent; the
   // ref-based reads below resolve identically from the shared `.git`.
   pushStoryBranch({ cwd, worktreePath, storyBranch, gitSync, progress });
-  setPhase('pull-request');
+  ctx.setPhase('pull-request');
   const { url: prUrl, alreadyMerged } = await ensurePullRequestWith({
     cwd,
     storyId,
@@ -361,7 +397,7 @@ async function openAndReviewPr({
     storyBody: story.body,
     storyBranch,
     baseBranch,
-    gh: injectedGh,
+    gh: deps.gh,
     progress,
   });
   const prNumber = parsePrNumber(prUrl);
@@ -369,7 +405,7 @@ async function openAndReviewPr({
   if (alreadyMerged) {
     return { prUrl, prNumber, alreadyMerged: true };
   }
-  setPhase('code-review');
+  ctx.setPhase('code-review');
   const reviewOutcome = await runStoryScopeReview({
     cwd,
     storyId,
@@ -377,64 +413,29 @@ async function openAndReviewPr({
     baseBranch,
     prUrl,
     prNumber,
-    provider,
-    runCodeReviewFn: injectedRunCodeReview ?? runCodeReviewDefault,
+    provider: deps.provider,
+    runCodeReviewFn: deps.runCodeReview,
     gitSpawnFn: gitSpawn,
     progress,
   });
-  if (reviewOutcome.halted) {
-    const criticalCount = reviewOutcome.severity?.critical ?? 0;
-    // Checked before the blocked transition: an overridden Story proceeds.
-    if (overrideReviewBlock) {
-      const override = await handleOverriddenReviewBlock({
-        provider,
-        storyId,
-        prUrl,
-        prNumber,
-        criticalCount,
-        criticalByProvider: reviewOutcome.criticalByProvider,
-        reason: overrideReviewBlock,
-        config,
-      });
-      return {
-        prUrl,
-        prNumber,
-        alreadyMerged: false,
-        reviewOverride: override,
-      };
-    }
-    await emitReviewBlockedFriction({
-      storyId,
-      prNumber,
-      criticalCount,
-      criticalByProvider: reviewOutcome.criticalByProvider,
-      config,
-    });
-    await handleCriticalReviewBlock({
-      provider,
-      storyId,
-      prUrl,
-      criticalCount,
-    });
-    throw new Error(
-      `[single-story-close] Story-scope review reported ${criticalCount} critical blocker(s) on PR ${prUrl}. ` +
-        'Auto-merge was not enabled. Remediate the findings posted to the PR and re-run `/mandrel-deliver`. ' +
-        'If you have reviewed a finding and judged it wrong, re-run with ' +
-        '`--override-review-block "<reason>"` rather than merging by hand.',
-    );
-  }
-  return { prUrl, prNumber, alreadyMerged: false, reviewOverride: null };
+  const reviewOverride = reviewOutcome.halted
+    ? await resolveReviewHalt(ctx, deps, { prUrl, prNumber, reviewOutcome })
+    : null;
+  return { prUrl, prNumber, alreadyMerged: false, reviewOverride };
 }
 
-async function releaseLease({
-  provider,
-  storyId,
-  config,
-  injectedReleaseLease,
-}) {
+/**
+ * @param {{ storyId: number }} ctx
+ * @param {CloseDeps} deps
+ * @returns {Promise<boolean>} whether the lease was released.
+ */
+async function releaseLease({ storyId }, deps) {
   try {
-    const release = injectedReleaseLease ?? releaseStoryLease;
-    const outcome = await release({ provider, storyId, config });
+    const outcome = await deps.releaseLease({
+      provider: deps.provider,
+      storyId,
+      config: deps.config,
+    });
     progress(
       'LEASE',
       outcome.released
@@ -458,14 +459,15 @@ async function releaseLease({
  *
  * @template T
  * @param {() => Promise<T>} run
- * @param {{ provider: object, storyId: number, config: object, injectedReleaseLease?: Function }} leaseArgs
+ * @param {CloseContext} ctx
+ * @param {CloseDeps} deps
  * @returns {Promise<T>}
  */
-async function releaseLeaseOnBlock(run, leaseArgs) {
+async function releaseLeaseOnBlock(run, ctx, deps) {
   try {
     return await run();
   } catch (err) {
-    await releaseLease(leaseArgs);
+    await releaseLease(ctx, deps);
     throw err;
   }
 }
@@ -529,6 +531,43 @@ function closeResult({
   };
 }
 
+/**
+ * @typedef {object} CloseDeps The pipeline's collaborators, resolved once.
+ * @property {object} config
+ * @property {object} provider
+ * @property {Function} [notify]
+ * @property {Function} [sync]
+ * @property {Function} runCodeReview
+ * @property {object} [gh]
+ * @property {Function} [gitSpawn]
+ * @property {Function} releaseLease
+ * @property {Function} [graphqlProbe]
+ */
+
+/**
+ * Resolve every double once: an injected one wins, else the real one. An
+ * absent optional seam stays `undefined` so the phase it feeds applies its
+ * own default.
+ *
+ * @param {{ cwd: string }} options
+ * @param {object} injected The `injected*` params of {@link runSingleStoryClose}.
+ * @returns {CloseDeps}
+ */
+function resolveCloseDeps(options, injected) {
+  const config = injected.injectedConfig || resolveConfig({ cwd: options.cwd });
+  return {
+    config,
+    provider: injected.injectedProvider || createProvider(config),
+    notify: injected.injectedNotify,
+    sync: injected.injectedSync,
+    runCodeReview: injected.injectedRunCodeReview ?? runCodeReviewDefault,
+    gh: injected.injectedGh,
+    gitSpawn: injected.injectedGitSpawn,
+    releaseLease: injected.injectedReleaseLease ?? releaseStoryLease,
+    graphqlProbe: injected.injectedGraphqlProbe,
+  };
+}
+
 export async function runSingleStoryClose({
   storyId: storyIdParam,
   cwd: cwdParam,
@@ -542,15 +581,7 @@ export async function runSingleStoryClose({
   rerunAdvisory: rerunAdvisoryParam,
   overrideReviewBlock: overrideReviewBlockParam,
   workerTokens: workerTokensParam,
-  injectedProvider,
-  injectedConfig,
-  injectedNotify,
-  injectedSync,
-  injectedRunCodeReview,
-  injectedGh,
-  injectedGitSpawn,
-  injectedReleaseLease,
-  injectedGraphqlProbe,
+  ...injected
 } = {}) {
   const options = parseCloseOptions({
     storyIdParam,
@@ -586,21 +617,11 @@ export async function runSingleStoryClose({
     observedGates = gates;
   };
   try {
-    return await runClosePipeline({
-      options,
-      setPhase,
-      setObservedGates,
-      phaseTimer,
-      injectedProvider,
-      injectedConfig,
-      injectedNotify,
-      injectedSync,
-      injectedRunCodeReview,
-      injectedGh,
-      injectedGitSpawn,
-      injectedReleaseLease,
-      injectedGraphqlProbe,
-    });
+    const startedAtMs = Date.now();
+    return await runClosePipeline(
+      { options, setPhase, setObservedGates, phaseTimer, startedAtMs },
+      resolveCloseDeps(options, injected),
+    );
   } catch (err) {
     if (err && typeof err === 'object') {
       err.closePhaseDurations = phaseTimer.finish();
@@ -839,217 +860,247 @@ function reportOperatorMergeSkip({
   );
 }
 
-async function runClosePipeline({
-  options,
-  setPhase,
-  setObservedGates,
-  phaseTimer,
-  injectedProvider,
-  injectedConfig,
-  injectedNotify,
-  injectedSync,
-  injectedRunCodeReview,
-  injectedGh,
-  injectedGitSpawn,
-  injectedReleaseLease,
-  injectedGraphqlProbe,
-}) {
-  const startedAtMs = Date.now();
-  const config = injectedConfig || resolveConfig({ cwd: options.cwd });
-  const provider = injectedProvider || createProvider(config);
-  const storyBranch = getStoryBranch(options.storyId);
-  const workerTokens = resolveWorkerTokens(options.workerTokens);
+/**
+ * @typedef {object} CloseContext The shared state the phases read and extend.
+ * @property {object} options Parsed close options.
+ * @property {(phase: string) => void} setPhase
+ * @property {(gates: object|null) => void} setObservedGates
+ * @property {object} phaseTimer
+ * @property {number} startedAtMs
+ * @property {number} storyId
+ * @property {string} storyBranch
+ * @property {number|null} workerTokens
+ * @property {object} [story] Set by `loadStory`.
+ * @property {string} [baseBranch] Set by `resolveBase`.
+ * @property {boolean} [baseConfirmed] Set by `resolveBase`.
+ * @property {string|null} [worktreePath] Set by `resolveBase`.
+ * @property {object} [prePush] Set by `prePush`.
+ * @property {object} [pr] Set by `openPr`.
+ * @property {boolean} [worktreeReaped] Set by `reapWorktree`.
+ * @property {object} [arm] Set by `arm`.
+ */
 
-  progress('INIT', `Closing standalone Story #${options.storyId}...`);
-  const story = await provider.getTicket(options.storyId);
-  if (story.state === 'closed') {
-    return await alreadyClosedResult(
-      options.storyId,
-      story.stateReason,
-      config,
-      workerTokens,
-    );
-  }
-
-  const leaseArgs = {
-    provider,
-    storyId: options.storyId,
-    config,
-    injectedReleaseLease,
-  };
-
-  // `gh pr` needs GraphQL; one cheap read here beats the gate chain plus a push.
-  const preflight = await runGraphqlPreflight({
-    storyId: options.storyId,
-    provider,
-    progress,
-    ghFacade: injectedGh,
-    probe: injectedGraphqlProbe,
-  });
-  if (preflight) {
-    await releaseLease(leaseArgs);
-    return await preflightBlockedResult({
-      storyId: options.storyId,
-      preflight,
-      config,
-      startedAtMs,
-      workerTokens,
-    });
-  }
-
-  // The base the run was SEEDED from (init receipt); throws before any merge
-  // when it disagrees with current config.
-  const { values: runScoped, confirmed: baseConfirmed } =
-    await resolveRunScopedConfig({
-      storyId: options.storyId,
-      config,
-      progress,
-    });
-  const baseBranch = runScoped.baseBranch;
-
-  const worktreePath = resolveWorktreePath({
-    cwd: options.cwd,
-    config,
-    storyId: options.storyId,
-  });
-  const prePush = await releaseLeaseOnBlock(
-    () =>
-      runPrePushPhases({
-        ...options,
-        config,
-        baseBranch,
-        baseConfirmed,
-        storyBranch,
-        provider,
-        worktreePath,
-        injectedSync,
-        injectedGitSpawn,
-        setPhase,
-        setObservedGates,
-      }),
-    leaseArgs,
+/** An already-closed Story ends here; otherwise the ticket is kept for the PR. */
+async function loadStoryPhase(ctx, deps) {
+  progress('INIT', `Closing standalone Story #${ctx.storyId}...`);
+  ctx.story = await deps.provider.getTicket(ctx.storyId);
+  if (ctx.story.state !== 'closed') return null;
+  return await alreadyClosedResult(
+    ctx.storyId,
+    ctx.story.stateReason,
+    deps.config,
+    ctx.workerTokens,
   );
-  if (prePush.pending) {
-    return await finishDeferred(prePush.lockWait, {
-      storyId: options.storyId,
-      storyBranch,
-      baseBranch,
-      config,
-      startedAtMs,
-      phaseTimer,
-      workerTokens,
-    });
-  }
+}
 
-  const { prUrl, prNumber, alreadyMerged, reviewOverride } =
-    await releaseLeaseOnBlock(
-      () =>
-        openAndReviewPr({
-          cwd: options.cwd,
-          worktreePath,
-          story,
-          storyId: options.storyId,
-          storyBranch,
-          baseBranch,
-          provider,
-          config,
-          overrideReviewBlock: options.overrideReviewBlock,
-          injectedGh,
-          injectedRunCodeReview,
-          setPhase,
-        }),
-      leaseArgs,
-    );
-  // Reap BEFORE the arm: `gh pr merge --delete-branch` may merge at once and
-  // then fail deleting a branch a live worktree holds, reading as a failed
-  // arm. Safe — the work is pushed, and a dirty tree is still refused.
-  const worktreeReaped = await reapWorktreePhase({
-    cwd: options.cwd,
-    storyId: options.storyId,
-    worktreePath,
-    wtIsolation: config.delivery?.worktreeIsolation,
+/** `gh pr` needs GraphQL; one cheap read here beats the gate chain plus a push. */
+async function graphqlPreflightPhase(ctx, deps) {
+  const preflight = await runGraphqlPreflight({
+    storyId: ctx.storyId,
+    provider: deps.provider,
+    progress,
+    ghFacade: deps.gh,
+    probe: deps.graphqlProbe,
+  });
+  if (!preflight) return null;
+  await releaseLease(ctx, deps);
+  return await preflightBlockedResult({
+    storyId: ctx.storyId,
+    preflight,
+    config: deps.config,
+    startedAtMs: ctx.startedAtMs,
+    workerTokens: ctx.workerTokens,
+  });
+}
+
+/**
+ * The base the run was SEEDED from (init receipt); throws before any merge
+ * when it disagrees with current config.
+ */
+async function resolveBasePhase(ctx, deps) {
+  const { values, confirmed } = await resolveRunScopedConfig({
+    storyId: ctx.storyId,
+    config: deps.config,
+    progress,
+  });
+  ctx.baseBranch = values.baseBranch;
+  ctx.baseConfirmed = confirmed;
+  ctx.worktreePath = resolveWorktreePath({
+    cwd: ctx.options.cwd,
+    config: deps.config,
+    storyId: ctx.storyId,
+  });
+  return null;
+}
+
+/** An expired full-suite lock wait ends here as `pending`, nothing pushed. */
+async function prePushPhase(ctx, deps) {
+  ctx.prePush = await releaseLeaseOnBlock(
+    () => runPrePushPhases(ctx, deps),
+    ctx,
+    deps,
+  );
+  if (!ctx.prePush.pending) return null;
+  return await finishDeferred(ctx.prePush.lockWait, {
+    storyId: ctx.storyId,
+    storyBranch: ctx.storyBranch,
+    baseBranch: ctx.baseBranch,
+    config: deps.config,
+    startedAtMs: ctx.startedAtMs,
+    phaseTimer: ctx.phaseTimer,
+    workerTokens: ctx.workerTokens,
+  });
+}
+
+async function openPrPhase(ctx, deps) {
+  ctx.pr = await releaseLeaseOnBlock(
+    () => openAndReviewPr(ctx, deps),
+    ctx,
+    deps,
+  );
+  return null;
+}
+
+/**
+ * Reap BEFORE the arm: `gh pr merge --delete-branch` may merge at once and
+ * then fail deleting a branch a live worktree holds, reading as a failed arm.
+ * Safe — the work is pushed, and a dirty tree is still refused.
+ */
+async function reapWorktreePhaseStep(ctx, deps) {
+  ctx.worktreeReaped = await reapWorktreePhase({
+    cwd: ctx.options.cwd,
+    storyId: ctx.storyId,
+    worktreePath: ctx.worktreePath,
+    wtIsolation: deps.config.delivery?.worktreeIsolation,
     progress,
     WorktreeManager,
   });
-  setPhase('auto-merge');
-  const ciDelivery = getCiDelivery(config);
-  const {
-    autoMergeEnabled,
-    autoMergeReason,
-    localCleanupDeferred,
-    directMerged,
-    advisoryGate,
-  } = await resolveAutoMergeOutcome({
+  return null;
+}
+
+/**
+ * Arm auto-merge, then flip the label. No lease release here: only the
+ * post-land tail (confirmed merge) releases it; every non-merged ending
+ * keeps the claim while the PR is open.
+ */
+async function armPhase(ctx, deps) {
+  ctx.setPhase('auto-merge');
+  const ciDelivery = getCiDelivery(deps.config);
+  const { prUrl, prNumber, alreadyMerged } = ctx.pr;
+  ctx.arm = await resolveAutoMergeOutcome({
     alreadyMerged,
-    cwd: options.cwd,
+    cwd: ctx.options.cwd,
     prNumber,
     prUrl,
-    noAutoMerge: options.noAutoMerge,
+    noAutoMerge: ctx.options.noAutoMerge,
     autoMergePolicy: ciDelivery.autoMerge,
     blockOnAdvisoryFailure: ciDelivery.blockOnAdvisoryFailure,
     advisoryAllowlist: ciDelivery.advisoryAllowlist,
-    gh: injectedGh,
+    gh: deps.gh,
     progress,
   });
   await flipLabelAndNotify({
-    provider,
-    notifyFn: injectedNotify,
-    storyId: options.storyId,
-    story,
+    provider: deps.provider,
+    notifyFn: deps.notify,
+    storyId: ctx.storyId,
+    story: ctx.story,
     prUrl,
-    autoMergeEnabled,
-    autoMergeReason,
-    config,
+    autoMergeEnabled: ctx.arm.autoMergeEnabled,
+    autoMergeReason: ctx.arm.autoMergeReason,
+    config: deps.config,
     progress,
   });
-  // No lease release here: only the post-land tail (confirmed merge) releases
-  // it; every non-merged ending keeps the claim while the PR is open.
+  return null;
+}
 
-  // Resolved now, not at parse time: it needs the config and the arm outcome
-  // (an un-armed PR rests at `agent::closing` rather than waiting).
+/**
+ * The wait-for-merge decision is resolved now, not at parse time: it needs
+ * the config and the arm outcome (an un-armed PR rests at `agent::closing`
+ * rather than waiting).
+ */
+async function finishPhase(ctx, deps) {
+  const { options, arm } = ctx;
   const { waitForMerge, reason: waitForMergeReason } = resolveWaitForMerge({
     waitForMergeExplicit: options.waitForMergeExplicit,
     noWaitForMerge: options.noWaitForMerge,
-    config,
-    autoMergeReason,
+    config: deps.config,
+    autoMergeReason: arm.autoMergeReason,
   });
   reportOperatorMergeSkip({
     waitForMergeReason,
-    autoMergeReason,
-    storyId: options.storyId,
+    autoMergeReason: arm.autoMergeReason,
+    storyId: ctx.storyId,
     waitForMergeExplicit: options.waitForMergeExplicit,
   });
   const prCtx = {
-    storyId: options.storyId,
-    storyBranch,
-    baseBranch,
-    prNumber,
-    prUrl,
-    autoMergeEnabled,
-    autoMergeReason,
-    advisoryGate,
-    worktreeReaped,
-    localCleanupDeferred,
-    directMerged,
-    config,
-    startedAtMs,
-    phaseTimer,
-    workerTokens,
-    lockWait: prePush.lockWait,
-    gates: closeEnvelopeGates(options, prePush.validationGates, reviewOverride),
+    storyId: ctx.storyId,
+    storyBranch: ctx.storyBranch,
+    baseBranch: ctx.baseBranch,
+    prNumber: ctx.pr.prNumber,
+    prUrl: ctx.pr.prUrl,
+    autoMergeEnabled: arm.autoMergeEnabled,
+    autoMergeReason: arm.autoMergeReason,
+    advisoryGate: arm.advisoryGate,
+    worktreeReaped: ctx.worktreeReaped,
+    localCleanupDeferred: arm.localCleanupDeferred,
+    directMerged: arm.directMerged,
+    config: deps.config,
+    startedAtMs: ctx.startedAtMs,
+    phaseTimer: ctx.phaseTimer,
+    workerTokens: ctx.workerTokens,
+    lockWait: ctx.prePush.lockWait,
+    gates: closeEnvelopeGates(
+      options,
+      ctx.prePush.validationGates,
+      ctx.pr.reviewOverride,
+    ),
   };
-
-  if (waitForMerge) {
-    return await finishWithMergeWait(prCtx, {
-      cwd: options.cwd,
-      provider,
-      maxWaitSeconds: options.maxWaitSeconds,
-      mergeWatchMode: options.mergeWatchMode,
-      rerunAdvisory: options.rerunAdvisory,
-      setPhase,
-      injectedGh,
-      injectedNotify,
-    });
+  if (!waitForMerge) {
+    return await finishWithoutMergeWait(prCtx, waitForMergeReason);
   }
-  return await finishWithoutMergeWait(prCtx, waitForMergeReason);
+  return await finishWithMergeWait(prCtx, {
+    cwd: options.cwd,
+    provider: deps.provider,
+    maxWaitSeconds: options.maxWaitSeconds,
+    mergeWatchMode: options.mergeWatchMode,
+    rerunAdvisory: options.rerunAdvisory,
+    setPhase: ctx.setPhase,
+    injectedGh: deps.gh,
+    injectedNotify: deps.notify,
+  });
+}
+
+/**
+ * The close, in order. Each phase reads and extends the shared context and
+ * returns `null` to continue, or the run's result to end it there.
+ */
+const CLOSE_PIPELINE = Object.freeze([
+  loadStoryPhase,
+  graphqlPreflightPhase,
+  resolveBasePhase,
+  prePushPhase,
+  openPrPhase,
+  reapWorktreePhaseStep,
+  armPhase,
+  finishPhase,
+]);
+
+/**
+ * @param {{ options: object, setPhase: Function, setObservedGates: Function,
+ *   phaseTimer: object, startedAtMs: number }} run
+ * @param {CloseDeps} deps
+ * @returns {Promise<{ success: boolean, result: object, terminal: object }>}
+ */
+async function runClosePipeline(run, deps) {
+  /** @type {CloseContext} */
+  const ctx = {
+    ...run,
+    storyId: run.options.storyId,
+    storyBranch: getStoryBranch(run.options.storyId),
+    workerTokens: resolveWorkerTokens(run.options.workerTokens),
+  };
+  for (const phase of CLOSE_PIPELINE) {
+    const ending = await phase(ctx, deps);
+    if (ending) return ending;
+  }
 }
