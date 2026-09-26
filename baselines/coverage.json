@@ -2721,6 +2721,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/supervised-suite.js",
+      "lines": 98.38,
+      "branches": 91.04,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/temp-removal.js",
       "lines": 98.18,
       "branches": 93.33,
