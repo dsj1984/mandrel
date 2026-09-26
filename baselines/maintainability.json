@@ -419,6 +419,10 @@
       "mi": 104.379
     },
     {
+      "path": ".agents/scripts/lib/baselines/seat-missing.js",
+      "mi": 103.326
+    },
+    {
       "path": ".agents/scripts/lib/baselines/writer.js",
       "mi": 98.419
     },
