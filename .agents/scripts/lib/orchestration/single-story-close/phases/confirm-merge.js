@@ -7,9 +7,8 @@
  * resumable `pending` with no mutation; `maxBudgetSeconds` bounds the
  * cumulative wait, anchored at the PR's `createdAt` so resumes don't restart
  * it, and exhausting it is the real give-up (classify, emit, block). The
- * poll is stateless and re-entrant. Async mode shortens the per-invocation
- * window and settles `pending` on its first non-green, non-definitive probe
- * (see ASYNC_PROBE_WINDOW_SECONDS). Checks are probed every iteration so a red required
+ * poll is stateless and re-entrant. Async mode probes once (see
+ * ASYNC_PROBE_WINDOW_SECONDS). Checks are probed every iteration so a red required
  * check fails fast instead of burning the budget.
  *
  * Terminals: `landed` (confirmed, post-land tail ran); `pending` (nothing
@@ -67,11 +66,7 @@ import { runPostLandTail as defaultRunPostLandTail } from './post-land.js';
 /** Per-invocation bound; fits the host's ~10-min tool ceiling after the gates. */
 export const DEFAULT_MAX_WAIT_SECONDS = 300;
 
-/**
- * Async-mode per-invocation cap. The wait probes once and settles `pending`
- * unless that probe is definitive or green; only a green rollup (merge
- * imminent) or a red one awaiting confirmation polls on inside it.
- */
+/** Async cap; only a green or red first probe polls on inside it. */
 export const ASYNC_PROBE_WINDOW_SECONDS = 60;
 
 export const DEFAULT_UPDATE_ATTEMPTS = 3;
@@ -224,7 +219,7 @@ export async function readPrWaitProbe({
  * (`--max-wait-seconds`, `--merge-watch-mode`) win over config; the mode flag
  * exists because only the orchestrator knows whether a foreground wait is
  * cheap (solo) or serialized dead time (a wave). An explicit max-wait
- * override also beats the async cap and its single-probe posture.
+ * override also beats the async cap.
  *
  * @param {object} [config]
  * @param {number} [maxWaitSecondsOverride]
@@ -1022,10 +1017,7 @@ export function createMergeWaitState({ startedAtMs, intervalSeconds }) {
   };
 }
 
-/**
- * Budget first — it is the real give-up. The async single probe yields to an
- * over-budget wait so the poll floor can still reach the budget block.
- */
+/** Budget first — it is the real give-up; the single probe yields to it. */
 function provisionalVerdict(
   { polls, intervalMs, waitedMs, cumulativeMs },
   limits,
@@ -1178,10 +1170,7 @@ const DEFINITIVE_SETTLERS = Object.freeze({
   'checks-failed': settleChecksFailed,
 });
 
-/**
- * Invocation bound reached, or the async single probe settled: resumable
- * `pending`, no mutation, the same envelope fields either way.
- */
+/** Invocation bound or single probe: resumable `pending`, no mutation. */
 function pendingAtWaitBound(ctx, decision, probe) {
   const { waitBudget } = decision;
   const checks = probe.checksStatus ?? 'unknown';
