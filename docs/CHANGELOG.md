@@ -15,6 +15,19 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.67.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.66.0...mandrel-v2.67.0) (2026-09-26)
+
+
+### ⚠ BREAKING CHANGES
+
+* the /git-cleanup slash command is now /clean-git, and .agents/scripts/git-cleanup.js is now .agents/scripts/clean-git.js. Update any operator scripts or runbooks that invoke the old names.
+
+### Added
+
+* add /clean-temp and a reapable scratch layout for agent-authored temp files ([#5459](https://github.com/dsj1984/mandrel/issues/5459)) ([#5464](https://github.com/dsj1984/mandrel/issues/5464)) ([0e9ae9b](https://github.com/dsj1984/mandrel/commit/0e9ae9b7e53ceffc7561bea99f76c60e06bc1169))
+* add /clean-worktrees and re-wire the closed-Story worktree sweep into boot ([#5460](https://github.com/dsj1984/mandrel/issues/5460)) ([#5463](https://github.com/dsj1984/mandrel/issues/5463)) ([bbd946e](https://github.com/dsj1984/mandrel/commit/bbd946e94f636956690f07a8f29ecc64170dce02))
+* rename /git-cleanup to /clean-git ([#5461](https://github.com/dsj1984/mandrel/issues/5461)) ([#5466](https://github.com/dsj1984/mandrel/issues/5466)) ([104c60d](https://github.com/dsj1984/mandrel/commit/104c60d9c0baffece7d30c17ff7520d2f9db112e))
+
 ## [2.66.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.65.0...mandrel-v2.66.0) (2026-09-26)
 
 
