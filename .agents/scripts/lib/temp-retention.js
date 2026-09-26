@@ -250,6 +250,14 @@ const SCANNERS = Object.freeze({
   scratch: scanScratch,
 });
 
+/** Fixed top-level dirs a class scanner walks. */
+const CLASS_OWNED_DIRNAMES = Object.freeze([
+  ORCHESTRATION_DIRNAME,
+  'standalone',
+  'audits',
+  SCRATCH_DIRNAME,
+]);
+
 /**
  * Keep in lockstep with the scanners: an entry no class walks must surface
  * as unrecognized.
@@ -259,10 +267,7 @@ const SCANNERS = Object.freeze({
  */
 function isClassOwnedTopLevel(name) {
   return (
-    name === ORCHESTRATION_DIRNAME ||
-    name === 'standalone' ||
-    name === 'audits' ||
-    name === SCRATCH_DIRNAME ||
+    CLASS_OWNED_DIRNAMES.includes(name) ||
     name.startsWith('plan-') ||
     RUN_DIR_PATTERN.test(name)
   );
@@ -416,13 +421,23 @@ async function purgeTempArtifacts({
     await purgeOne(fsp, entry, result, dryRun);
   }
 
-  if (result.purged.length > 0 && !dryRun) {
-    logger?.info?.(
-      `[${label}] purged ${result.purged.length} spent temp artifact(s), ` +
-        `reclaimed ${formatBytes(result.bytesReclaimed)} under ${result.tempRoot}.`,
-    );
-  }
+  if (!dryRun) reportPurge(logger, label, result);
   return result;
+}
+
+/**
+ * One summary line for a purge that deleted something.
+ *
+ * @param {{ info?: Function }|undefined} logger
+ * @param {string} label
+ * @param {object} result
+ */
+function reportPurge(logger, label, result) {
+  if (result.purged.length === 0) return;
+  logger?.info?.(
+    `[${label}] purged ${result.purged.length} spent temp artifact(s), ` +
+      `reclaimed ${formatBytes(result.bytesReclaimed)} under ${result.tempRoot}.`,
+  );
 }
 
 /**
