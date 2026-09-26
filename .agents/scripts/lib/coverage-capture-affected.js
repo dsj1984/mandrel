@@ -61,14 +61,25 @@ export async function tryScopedCapture({
 /**
  * Scoped rows win; a prior row of a changed file is dropped, so a changed
  * file the scoped run skipped stays absent and fails closed downstream.
+ * Under `keepPrior` (a delta refresh) a narrower run replaces only the
+ * dropped files: its partial rows for a file the prior run measured in full
+ * would undercount it.
  */
-function mergeCoverageArtifacts({ prior, scoped, cwd, dropFiles }) {
+function mergeCoverageArtifacts({ prior, scoped, cwd, dropFiles, keepPrior }) {
   const drop = new Set(dropFiles.map((f) => path.resolve(cwd, f)));
   const merged = {};
   for (const [abs, entry] of Object.entries(prior ?? {})) {
     if (!drop.has(path.resolve(abs))) merged[abs] = entry;
   }
-  return Object.assign(merged, scoped);
+  return overlayScoped(merged, scoped, keepPrior);
+}
+
+function overlayScoped(merged, scoped, keepPrior) {
+  const take = ([abs]) => !keepPrior || !(abs in merged);
+  return Object.assign(
+    merged,
+    Object.fromEntries(Object.entries(scoped).filter(take)),
+  );
 }
 
 function readArtifact(abs, fsImpl) {
@@ -151,7 +162,15 @@ async function runScoped({
  *
  * @returns {boolean} False when the run wrote no readable artifact.
  */
-function writeMerged({ crap, args, prior, dropFiles, logger, fsImpl }) {
+function writeMerged({
+  crap,
+  args,
+  prior,
+  dropFiles,
+  keepPrior,
+  logger,
+  fsImpl,
+}) {
   const artifactAbs = path.resolve(args.cwd, crap.coveragePath);
   const scoped = readArtifact(artifactAbs, fsImpl);
   if (scoped === null) {
@@ -165,6 +184,7 @@ function writeMerged({ crap, args, prior, dropFiles, logger, fsImpl }) {
     scoped,
     cwd: args.cwd,
     dropFiles,
+    keepPrior,
   });
   fsImpl.writeFileSync(artifactAbs, JSON.stringify(merged));
   return true;
@@ -241,7 +261,7 @@ function skipsUnchanged({ crap, changed, scopedFiles, ref, logger }) {
  * What the run merges over and is keyed on: the stamped commit and main's
  * delta for an eligible delta refresh, else `ref` and the Story change set.
  *
- * @returns {{ prior: object | null, baseRef: string, dropFiles: string[] }}
+ * @returns {{ prior: object | null, baseRef: string, dropFiles: string[], keepPrior: boolean }}
  */
 function resolveRunBase({
   freshness,
@@ -265,6 +285,7 @@ function resolveRunBase({
     prior,
     baseRef: delta?.baseRef ?? ref,
     dropFiles: delta?.dropFiles ?? changed ?? [],
+    keepPrior: delta !== null,
   };
 }
 
