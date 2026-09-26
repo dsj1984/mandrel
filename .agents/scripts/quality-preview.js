@@ -110,6 +110,38 @@ function runHalf({ only, half, run }) {
   return only === null || only === half ? run() : Promise.resolve(NOT_RUN);
 }
 
+/**
+ * The `--json` field naming the selected half; empty for the default run so
+ * its envelope stays byte-identical.
+ *
+ * @param {string|null} only
+ * @returns {{ only?: string }}
+ */
+function onlyField(only) {
+  return only ? { only } : {};
+}
+
+/**
+ * The report line naming the selected half; empty for the default run.
+ *
+ * @param {string|null} only
+ * @returns {string}
+ */
+function halfLine(only) {
+  return only ? `half=${only} only — the other half was not run\n` : '';
+}
+
+/**
+ * `--staged` wins; otherwise `--changed-since` (absent → `HEAD`).
+ *
+ * @param {string[]} argv
+ * @param {boolean} staged
+ * @returns {string|null}
+ */
+function resolveRef(argv, staged) {
+  return staged ? null : (parseChangedSinceArg(argv) ?? 'HEAD');
+}
+
 /** A half `--only` left out: clean, with no envelope to merge. */
 const NOT_RUN = Object.freeze({ exitCode: 0, envelope: null });
 
@@ -419,7 +451,7 @@ function emitReport({
         {
           ref: staged ? null : ref,
           staged,
-          ...(only ? { only } : {}),
+          ...onlyField(only),
           mi: { exit: miExit, envelope: miResult.envelope },
           crap: { exit: crapExit, envelope: crapResult.envelope },
           merged,
@@ -431,7 +463,7 @@ function emitReport({
     return;
   }
   stdout.write('\n--- quality:preview ---\n');
-  if (only) stdout.write(`half=${only} only — the other half was not run\n`);
+  stdout.write(halfLine(only));
   stdout.write(stagedScopeLine({ staged, ref, cwd }));
   stdout.write(`${renderTable(merged)}\n`);
   writeAdvisories(merged.advisories, stdout);
@@ -465,7 +497,7 @@ export async function runCli({
 } = {}) {
   const json = parseJsonFlag(argv);
   const staged = parseStagedFlag(argv);
-  const ref = staged ? null : (parseChangedSinceArg(argv) ?? 'HEAD');
+  const ref = resolveRef(argv, staged);
   const only = parseOnlyArg(argv);
   if (isUnknownHalf(only)) {
     stderr.write(
