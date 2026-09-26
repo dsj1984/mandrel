@@ -633,7 +633,9 @@ describe('runCapture', () => {
     });
     assert.deepEqual(calls[0].args, ['run', 'test:coverage:affected']);
     assert.equal(calls[0].opts.env.MANDREL_COVERAGE_BASE_REF, 'origin/main');
-    assert.equal(calls[0].opts.env.PATH, process.env.PATH);
+    // A key read back from process.env keeps its platform casing (`Path` on Windows).
+    const [inheritedKey, inheritedValue] = Object.entries(process.env)[0];
+    assert.equal(calls[0].opts.env[inheritedKey], inheritedValue);
   });
 
   describe('no positional file scope (Story #5065)', () => {
