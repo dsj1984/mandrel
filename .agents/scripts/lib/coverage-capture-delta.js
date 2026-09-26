@@ -189,7 +189,7 @@ function parseNames(stdout) {
  * @returns {{ eligible: true, commit: string, delta: string[], stamp: object }
  *   | { eligible: false, reason: string, stamp: object | null }}
  */
-export function classifyDeltaRefresh({
+function classifyDeltaRefresh({
   cwd,
   crap,
   storyFiles,
