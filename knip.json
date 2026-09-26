@@ -21,6 +21,7 @@
     ".agents/scripts/check-gherkin-corpus.js!",
     ".agents/scripts/check-test-temp-hygiene.js!",
     ".agents/scripts/check-windows-git-perf.js!",
+    ".agents/scripts/clean-worktrees.js!",
     ".agents/scripts/ceremony-derive.js!",
     ".agents/scripts/coverage-capture.js!",
     ".agents/scripts/deliver-light.js!",
