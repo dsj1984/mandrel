@@ -58,6 +58,7 @@
     ".agents/scripts/lib/orchestration/single-story-close/runner.js!",
     ".agents/scripts/single-story-confirm-merge.js!",
     ".agents/scripts/single-story-init.js!",
+    ".agents/scripts/story-review-compute.js!",
     ".agents/scripts/stories-wave-tick.js!",
     ".agents/scripts/sync-agentrc.js!",
     ".agents/scripts/sync-claude-agents.js!",

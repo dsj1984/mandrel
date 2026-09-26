@@ -17,6 +17,7 @@ import {
   formatChildFailure,
   INTERCEPTOR_MAX_BUFFER_BYTES,
   spawnCapture,
+  spawnCaptureAsync,
   spawnChild,
 } from '../../.agents/scripts/lib/child-exec.js';
 
@@ -232,5 +233,70 @@ describe('formatChildFailure', () => {
     const message = formatChildFailure({ label: 'x', status: null });
     assert.match(message, /status=null/);
     assert.equal(message, 'x failed (status=null): ');
+  });
+});
+
+describe('spawnCaptureAsync (Story #5480)', () => {
+  const NODE = process.execPath;
+
+  it('feeds stdin, trims output and normalises the status', async () => {
+    const out = await spawnCaptureAsync(
+      NODE,
+      [
+        '-e',
+        "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{process.stdout.write('  '+d.toUpperCase()+'\\n');process.exit(3);});",
+      ],
+      { input: 'hello' },
+    );
+    assert.deepEqual(out, { status: 3, stdout: 'HELLO', stderr: '' });
+  });
+
+  it('kills a child that outlives its timeout and reports status 1', async () => {
+    const out = await spawnCaptureAsync(
+      NODE,
+      ['-e', 'setTimeout(() => {}, 10_000)'],
+      { timeout: 100 },
+    );
+    assert.equal(out.status, 1);
+  });
+
+  it('reports a missing binary as a failed result, never a rejection', async () => {
+    const out = await spawnCaptureAsync('mandrel-no-such-binary-5480', []);
+    assert.equal(out.status, 1);
+    assert.match(out.stderr, /ENOENT/);
+  });
+
+  it('applies the ceiling and routes through an injected runner', async () => {
+    let seen;
+    const out = await spawnCaptureAsync('x', ['y'], {
+      input: 'in',
+      run: async (_file, _args, options) => {
+        seen = options;
+        return { status: null, stdout: ' a ', stderr: ' b ' };
+      },
+    });
+    assert.equal(seen.maxBuffer, MAX_BUFFER_BYTES);
+    assert.equal(seen.shell, false);
+    assert.equal(seen.input, 'in');
+    assert.deepEqual(out, { status: 1, stdout: 'a', stderr: 'b' });
+  });
+
+  it('leaves the event loop free: a concurrent child drains while it runs', async () => {
+    const order = [];
+    const slow = spawnCaptureAsync(NODE, [
+      '-e',
+      "setTimeout(() => process.stdout.write('done'), 600)",
+    ]).then(() => order.push('slow'));
+    // More than a pipe buffer: it only finishes if its output is drained.
+    const chatty = spawnCaptureAsync(NODE, [
+      '-e',
+      "process.stdout.write('x'.repeat(512 * 1024))",
+    ]).then((r) => {
+      order.push('chatty');
+      return r.stdout.length;
+    });
+    const [, chattyBytes] = await Promise.all([slow, chatty]);
+    assert.equal(chattyBytes, 512 * 1024);
+    assert.deepEqual(order, ['chatty', 'slow']);
   });
 });
