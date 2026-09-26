@@ -488,22 +488,30 @@ async function failWithEnvelope(err, phase, fullArgv) {
 }
 
 /**
- * The only argv reader. Exit code comes from the terminal envelope's status;
- * `--help` is answered by `runAsCli` before this runs.
+ * The CLI, given `process.argv` by `main()` (the only argv reader). Exit code
+ * comes from the terminal envelope's status; `--help` is answered by
+ * `runAsCli` before this runs.
+ *
+ * @param {string[]} fullArgv `process.argv`.
+ * @returns {Promise<number>} the process exit code.
  */
-async function main() {
+export async function runConfirmMergeCli(fullArgv) {
   let options;
   try {
-    options = parseConfirmMergeArgv(process.argv);
+    options = parseConfirmMergeArgv(fullArgv);
   } catch (err) {
-    return await failWithEnvelope(err, 'init', process.argv);
+    return await failWithEnvelope(err, 'init', fullArgv);
   }
   try {
     const outcome = await runConfirmMerge(options);
     return exitCodeForTerminal(outcome?.terminal ?? { status: 'failed' });
   } catch (err) {
-    return await failWithEnvelope(err, 'confirm-merge', process.argv);
+    return await failWithEnvelope(err, 'confirm-merge', fullArgv);
   }
+}
+
+function main() {
+  return runConfirmMergeCli(process.argv);
 }
 
 runAsCli(import.meta.url, main, {
