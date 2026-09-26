@@ -98,9 +98,20 @@ describe('check-test-temp-hygiene — listStreamFiles / buildManifest', () => {
 });
 
 describe('check-test-temp-hygiene — snapshot + diff', () => {
+  /**
+   * A test-owned OS temp root. `writeSnapshot` records the suite-root
+   * dimension by listing the OS temp root; defaulting to the host's one makes
+   * each call enumerate whatever every other process left behind.
+   */
+  let fakeTmp;
+
+  beforeEach(() => {
+    fakeTmp = makeTempDir('fake-os-tmp-snap-');
+  });
+
   it('snapshot then unchanged tree diffs clean', () => {
     writeStream('run-1/lifecycle.ndjson', 'a\n');
-    writeSnapshot(repoRoot);
+    writeSnapshot(repoRoot, undefined, { tmpDir: fakeTmp });
     const snapshot = readSnapshot(repoRoot);
     const { added, changed } = diffAgainstSnapshot(
       tempDirFor(repoRoot),
@@ -112,7 +123,7 @@ describe('check-test-temp-hygiene — snapshot + diff', () => {
 
   it('detects an added stream file', () => {
     writeStream('run-1/lifecycle.ndjson', 'a\n');
-    writeSnapshot(repoRoot);
+    writeSnapshot(repoRoot, undefined, { tmpDir: fakeTmp });
     writeStream('run-2/stories/story-5/signals.ndjson', 'new\n');
     const { added, changed } = diffAgainstSnapshot(
       tempDirFor(repoRoot),
@@ -124,7 +135,7 @@ describe('check-test-temp-hygiene — snapshot + diff', () => {
 
   it('detects a grown / rewritten stream file', () => {
     writeStream('run-1/lifecycle.ndjson', 'a\n');
-    writeSnapshot(repoRoot);
+    writeSnapshot(repoRoot, undefined, { tmpDir: fakeTmp });
     writeStream('run-1/lifecycle.ndjson', 'a\nb\n');
     const { added, changed } = diffAgainstSnapshot(
       tempDirFor(repoRoot),
@@ -140,6 +151,17 @@ describe('check-test-temp-hygiene — snapshot + diff', () => {
 });
 
 describe('check-test-temp-hygiene — external baseline (Story #4711, AC-2)', () => {
+  /**
+   * A test-owned OS temp root. `writeSnapshot` records the suite-root
+   * dimension by listing the OS temp root; defaulting to the host's one makes
+   * each call enumerate whatever every other process left behind.
+   */
+  let fakeTmp;
+
+  beforeEach(() => {
+    fakeTmp = makeTempDir('fake-os-tmp-snap-');
+  });
+
   it('defaultBaselinePath lives outside the repo root and its temp/ tree', () => {
     const baseline = defaultBaselinePath(repoRoot);
     assert.ok(path.isAbsolute(baseline));
@@ -171,7 +193,9 @@ describe('check-test-temp-hygiene — external baseline (Story #4711, AC-2)', ()
 
   it('writeSnapshot persists to the external default and leaves temp/ clean', async () => {
     writeStream('run-1/lifecycle.ndjson', 'a\n');
-    const { snapshotPath } = writeSnapshot(repoRoot);
+    const { snapshotPath } = writeSnapshot(repoRoot, undefined, {
+      tmpDir: fakeTmp,
+    });
     assert.equal(snapshotPath, defaultBaselinePath(repoRoot));
     await fs.stat(snapshotPath);
     // Nothing snapshot-shaped was written under the protected tree.
@@ -182,7 +206,9 @@ describe('check-test-temp-hygiene — external baseline (Story #4711, AC-2)', ()
   it('writeSnapshot / readSnapshot honour an explicit external baseline path', () => {
     writeStream('run-1/lifecycle.ndjson', 'a\n');
     const custom = path.join(repoRoot, 'ci-scratch', 'hygiene.json');
-    const { snapshotPath } = writeSnapshot(repoRoot, custom);
+    const { snapshotPath } = writeSnapshot(repoRoot, custom, {
+      tmpDir: fakeTmp,
+    });
     assert.equal(snapshotPath, custom);
     const snapshot = readSnapshot(repoRoot, custom);
     assert.ok(snapshot !== null);
@@ -192,7 +218,7 @@ describe('check-test-temp-hygiene — external baseline (Story #4711, AC-2)', ()
   it('refuses a baseline path inside the protected temp/ tree', () => {
     const inTemp = path.join(tempDirFor(repoRoot), 'snapshot.json');
     assert.throws(
-      () => writeSnapshot(repoRoot, inTemp),
+      () => writeSnapshot(repoRoot, inTemp, { tmpDir: fakeTmp }),
       /must live outside the protected temp\/ tree/,
     );
     assert.throws(

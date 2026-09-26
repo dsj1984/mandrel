@@ -47,12 +47,26 @@ describe('GitHubProvider — error handling', () => {
     globalThis.fetch = originalFetch;
   });
 
-  it('includes status code in REST error messages', async () => {
+  it('includes status code in REST error messages', async (t) => {
+    // A rate-limited 403 is transient, so getTicket walks the production
+    // backoff schedule before surfacing it. Mocked timers let each backoff
+    // resolve at once instead of sleeping through it in real time.
+    t.mock.timers.enable({ apis: ['setTimeout'] });
     const gh = makeGh({
       'GET /issues/1': { status: 403, json: { message: 'rate limited' } },
     });
     const provider = createTestProvider({ gh });
-    await assert.rejects(provider.getTicket(1), /code 403/);
+    let settled = false;
+    const pending = provider.getTicket(1).finally(() => {
+      settled = true;
+    });
+    pending.catch(() => {});
+    while (!settled) {
+      await new Promise((resolve) => setImmediate(resolve));
+      t.mock.timers.runAll();
+    }
+    await assert.rejects(pending, /code 403/);
+    assert.equal(gh.__exec.calls.length, 6, 'every retry attempt ran');
   });
 
   it('error message carries the failing argv for gh-exec failures', async () => {
