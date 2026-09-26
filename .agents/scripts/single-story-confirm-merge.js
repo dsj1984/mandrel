@@ -16,8 +16,9 @@
  * @see .agents/workflows/helpers/deliver-story.md
  */
 
-import { parseArgs } from 'node:util';
-import { parseSprintArgsTolerant } from './lib/cli-args.js';
+import path from 'node:path';
+import { parseStandardCliArgs } from './lib/cli/standard-args.js';
+import { parseSprintArgs, parseSprintArgsTolerant } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
 import { formatCliError } from './lib/error-redactor.js';
@@ -30,7 +31,7 @@ import { MERGED_FLIP_FAILED_BLOCK_CLASS } from './lib/orchestration/lifecycle/em
 import { MERGE_WAIT_GH_TIMEOUT_MS } from './lib/orchestration/merge-poll.js';
 import { parsePrNumber } from './lib/orchestration/single-story-close/phases/code-review.js';
 import { runConfirmMergePhase as defaultRunConfirmMergePhase } from './lib/orchestration/single-story-close/phases/confirm-merge.js';
-import { parseCloseOptions } from './lib/orchestration/single-story-close/phases/options.js';
+import { assertNoRetiredFlags } from './lib/orchestration/single-story-close/phases/options.js';
 import { runPostLandTail } from './lib/orchestration/single-story-close/phases/post-land.js';
 import {
   buildTerminalEnvelope,
@@ -39,6 +40,7 @@ import {
   NEXT_COMMANDS,
   terminalFromWaitOutcome,
 } from './lib/orchestration/story-deliver-terminal.js';
+import { PROJECT_ROOT } from './lib/project-root.js';
 import { createProvider } from './lib/provider-factory.js';
 import { confirmStoryMerged } from './lib/single-story/confirm-merge.js';
 
@@ -67,56 +69,50 @@ const USAGE =
   '                      over delivery.mergeWatch.maxWaitSeconds and the async\n' +
   '                      probe-window cap; only meaningful with --wait)';
 
+/** This CLI's flags beyond the standard `--story`, for `parseStandardCliArgs`. */
+const CONFIRM_MERGE_FLAGS = Object.freeze({
+  pr: { type: 'string' },
+  // `--wait` resumes the bounded merge wait (`resumeLand`); without it the
+  // CLI probes once, a fast flip for a merge that already happened.
+  wait: { type: 'boolean' },
+  'max-wait-seconds': { type: 'string' },
+  cwd: { type: 'string' },
+});
+
 /**
- * @returns {string|undefined}
+ * @param {unknown} value
+ * @returns {number|undefined} a positive integer, else `undefined`.
  */
-function readPrFlag() {
-  try {
-    const { values } = parseArgs({
-      args: process.argv.slice(2),
-      options: { pr: { type: 'string' } },
-      strict: false,
-    });
-    return values.pr;
-  } catch {
-    return undefined;
-  }
+function positiveIntOrUndefined(value) {
+  const parsed = Number.parseInt(String(value), 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 /**
- * `--wait` resumes the bounded merge wait (`resumeLand`); without it the CLI
- * probes once, a fast flip for a merge that already happened.
- */
-function readWaitFlag() {
-  try {
-    const { values } = parseArgs({
-      args: process.argv.slice(2),
-      options: { wait: { type: 'boolean', default: false } },
-      strict: false,
-    });
-    return values.wait === true;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Per-run wait bound for `--wait`; `undefined` unless a positive integer.
+ * The one argv read, called only by `main()`; the library entry point takes
+ * the values it returns. The close's shared vocabulary is validated first so
+ * a malformed close flag (`--merge-watch-mode bogus`) fails `init` with the
+ * close's own message (Story #4959), exactly as the close CLI does.
  *
- * @returns {number|undefined}
+ * @param {string[]} fullArgv `process.argv`.
+ * @returns {{ storyId: number|null, cwd: string|null, pr: string|null,
+ *   wait: boolean, maxWaitSeconds: number|undefined }}
  */
-function readMaxWaitSecondsFlag() {
-  try {
-    const { values } = parseArgs({
-      args: process.argv.slice(2),
-      options: { 'max-wait-seconds': { type: 'string' } },
-      strict: false,
-    });
-    const parsed = Number.parseInt(String(values['max-wait-seconds']), 10);
-    return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
-  } catch {
-    return undefined;
-  }
+function parseConfirmMergeArgv(fullArgv) {
+  const argv = fullArgv.slice(2);
+  assertNoRetiredFlags(argv);
+  parseSprintArgs(fullArgv);
+  const { values } = parseStandardCliArgs({
+    argv,
+    extras: CONFIRM_MERGE_FLAGS,
+  });
+  return {
+    storyId: values.storyId,
+    cwd: values.cwd,
+    pr: values.pr,
+    wait: values.wait,
+    maxWaitSeconds: positiveIntOrUndefined(values.maxWaitSeconds),
+  };
 }
 
 /**
@@ -165,10 +161,82 @@ async function logConfirmResult(result, terminal, config) {
 }
 
 /**
- * Map a confirmation onto the shared terminal envelope: done/noop → landed;
+ * @param {{ merged?: boolean, reason?: string }} confirmation
+ * @returns {'MERGED'|'CLOSED'|'OPEN'}
+ */
+function confirmPrState(confirmation) {
+  if (confirmation.merged) return 'MERGED';
+  return confirmation.reason === 'pr-not-merged' ? 'CLOSED' : 'OPEN';
+}
+
+/**
+ * @param {number|null} prNumber
+ * @param {object} confirmation
+ * @returns {{ number: number, state: string }|null}
+ */
+function confirmPr(prNumber, confirmation) {
+  if (!Number.isInteger(prNumber) || prNumber <= 0) return null;
+  return { number: prNumber, state: confirmPrState(confirmation) };
+}
+
+/**
+ * A `blocked` envelope's fields at the confirm-merge phase.
+ *
+ * @param {string} blockClass
+ * @param {string} reason
+ * @param {string} nextCommand
+ */
+function confirmBlocked(blockClass, reason, nextCommand) {
+  return {
+    status: 'blocked',
+    phase: 'confirm-merge',
+    blocked: { blockClass, reason, frictionCommentId: null },
+    nextCommand,
+  };
+}
+
+/**
+ * The status-bearing envelope fields for a confirmation: done/noop → landed;
  * flip-failed → blocked (re-run this command); pr-not-merged → blocked (needs
  * a human); otherwise pending.
+ *
+ * @param {{ storyId: number, confirmation: object, tail: object|null }} args
+ * @returns {object}
  */
+function confirmOutcomeFields({ storyId, confirmation, tail }) {
+  if (confirmation.action === 'done' || confirmation.action === 'noop') {
+    return {
+      status: 'landed',
+      phase: tail ? 'post-land' : 'done',
+      tail,
+      nextCommand: null,
+    };
+  }
+  if (confirmation.action === 'flip-failed') {
+    return confirmBlocked(
+      MERGED_FLIP_FAILED_BLOCK_CLASS,
+      'merge confirmed but the agent::closing → agent::done label write failed',
+      NEXT_COMMANDS.confirmMerge(storyId),
+    );
+  }
+  if (confirmation.reason === 'pr-not-merged') {
+    return confirmBlocked(
+      'api-race-other',
+      'the PR was closed without merging (state=CLOSED)',
+      NEXT_COMMANDS.recover(storyId),
+    );
+  }
+  return {
+    status: 'pending',
+    phase: 'confirm-merge',
+    nextCommand:
+      confirmation.reason === 'no-pr'
+        ? NEXT_COMMANDS.recover(storyId)
+        : NEXT_COMMANDS.confirmMerge(storyId),
+  };
+}
+
+/** Map a confirmation onto the shared terminal envelope. */
 function buildConfirmTerminal({
   storyId,
   storyBranch,
@@ -178,185 +246,111 @@ function buildConfirmTerminal({
   tail,
   elapsedSeconds,
 }) {
-  const prState = confirmation.merged
-    ? 'MERGED'
-    : confirmation.reason === 'pr-not-merged'
-      ? 'CLOSED'
-      : 'OPEN';
-  const pr =
-    Number.isInteger(prNumber) && prNumber > 0
-      ? { number: prNumber, state: prState }
-      : null;
-  const common = { storyId, storyBranch, baseBranch, pr, elapsedSeconds };
-
-  if (confirmation.action === 'done' || confirmation.action === 'noop') {
-    return buildTerminalEnvelope({
-      ...common,
-      status: 'landed',
-      phase: tail ? 'post-land' : 'done',
-      tail,
-      nextCommand: null,
-    });
-  }
-  if (confirmation.action === 'flip-failed') {
-    return buildTerminalEnvelope({
-      ...common,
-      status: 'blocked',
-      phase: 'confirm-merge',
-      blocked: {
-        blockClass: MERGED_FLIP_FAILED_BLOCK_CLASS,
-        reason:
-          'merge confirmed but the agent::closing → agent::done label write failed',
-        frictionCommentId: null,
-      },
-      nextCommand: NEXT_COMMANDS.confirmMerge(storyId),
-    });
-  }
-  if (confirmation.reason === 'pr-not-merged') {
-    return buildTerminalEnvelope({
-      ...common,
-      status: 'blocked',
-      phase: 'confirm-merge',
-      blocked: {
-        blockClass: 'api-race-other',
-        reason: 'the PR was closed without merging (state=CLOSED)',
-        frictionCommentId: null,
-      },
-      nextCommand: NEXT_COMMANDS.recover(storyId),
-    });
-  }
   return buildTerminalEnvelope({
-    ...common,
-    status: 'pending',
-    phase: 'confirm-merge',
-    nextCommand:
-      confirmation.reason === 'no-pr'
-        ? NEXT_COMMANDS.recover(storyId)
-        : NEXT_COMMANDS.confirmMerge(storyId),
+    storyId,
+    storyBranch,
+    baseBranch,
+    pr: confirmPr(prNumber, confirmation),
+    elapsedSeconds,
+    ...confirmOutcomeFields({ storyId, confirmation, tail }),
   });
 }
 
-async function resolveConfirmPrNumber({ prParam, storyBranch, gh }) {
-  const rawPr = prParam ?? readPrFlag();
-  let prNumber = Number.parseInt(String(rawPr ?? ''), 10);
+async function resolveConfirmPrNumber({ pr, storyBranch, gh }) {
+  let prNumber = Number.parseInt(String(pr ?? ''), 10);
   if (!Number.isInteger(prNumber) || prNumber <= 0) {
     prNumber = await resolvePrNumber({ storyBranch, gh });
   }
   return Number.isInteger(prNumber) && prNumber > 0 ? prNumber : null;
 }
 
-export async function runConfirmMerge({
-  storyId: storyIdParam,
-  cwd: cwdParam,
-  pr: prParam,
-  wait: waitParam,
-  maxWaitSeconds: maxWaitSecondsParam,
-  injectedProvider,
-  injectedConfig,
-  injectedGh,
-  injectedNotify,
-  injectedReadPrMergeState,
-  runConfirmMergePhaseFn = defaultRunConfirmMergePhase,
-} = {}) {
-  const { storyId, cwd } = parseCloseOptions({
-    storyIdParam,
-    cwdParam,
-  });
+/** @param {{ startedAtMs: number }} ctx */
+function elapsedSeconds(ctx) {
+  return Math.round((Date.now() - ctx.startedAtMs) / 1000);
+}
 
-  if (!storyId) {
-    throw new Error(USAGE);
-  }
-  const wait = waitParam ?? readWaitFlag();
-  const maxWaitSeconds = maxWaitSecondsParam ?? readMaxWaitSecondsFlag();
+/** No PR for the branch: the Story stays at `agent::closing`. */
+async function confirmWithoutPr(ctx) {
+  progress(
+    'CONFIRM',
+    `⚠️ No PR found for ${ctx.storyBranch}; cannot confirm merge. Story stays at agent::closing.`,
+  );
+  const noPr = {
+    storyId: ctx.storyId,
+    standalone: true,
+    action: 'pending',
+    reason: 'no-pr',
+    merged: false,
+  };
+  return await logConfirmResult(
+    noPr,
+    buildConfirmTerminal({
+      storyId: ctx.storyId,
+      storyBranch: ctx.storyBranch,
+      baseBranch: ctx.baseBranch,
+      prNumber: null,
+      confirmation: noPr,
+      tail: null,
+      elapsedSeconds: elapsedSeconds(ctx),
+    }),
+    ctx.config,
+  );
+}
 
-  const startedAtMs = Date.now();
-  const config = injectedConfig || resolveConfig({ cwd });
-  const provider = injectedProvider || createProvider(config);
-  const gh = injectedGh ?? defaultGh;
-  const storyBranch = getStoryBranch(storyId);
-  const baseBranch = config.project?.baseBranch ?? 'main';
-
-  progress('INIT', `Confirming merge for standalone Story #${storyId}...`);
-
-  const prNumber = await resolveConfirmPrNumber({
-    prParam,
+/**
+ * `--wait` runs the SAME phase as close so the cumulative budget give-up
+ * (the only path to `merge.unlanded` / `agent::blocked`) is reachable from a
+ * resume. The budget is anchored at the PR's `createdAt`, so resuming does
+ * not restart the clock.
+ */
+async function resumeMergeWait(ctx) {
+  const { storyId, storyBranch, baseBranch, prNumber } = ctx;
+  const waitOutcome = await ctx.runConfirmMergePhaseFn({
+    cwd: ctx.cwd,
+    storyId,
     storyBranch,
-    gh,
+    baseBranch,
+    prNumber,
+    prUrl: `${storyBranch} PR #${prNumber}`,
+    // The close already armed it.
+    autoMergeEnabled: true,
+    maxWaitSeconds: ctx.maxWaitSeconds,
+    provider: ctx.provider,
+    config: ctx.config,
+    progress,
+    injectedGh: ctx.gh,
+    injectedNotify: ctx.injectedNotify,
+    readPrMergeStateFn: ctx.injectedReadPrMergeState,
   });
-  if (prNumber == null) {
-    progress(
-      'CONFIRM',
-      `⚠️ No PR found for ${storyBranch}; cannot confirm merge. Story stays at agent::closing.`,
-    );
-    const noPr = {
+  const terminal = terminalFromWaitOutcome({
+    waitOutcome,
+    storyId,
+    storyBranch,
+    baseBranch,
+    prNumber,
+    prUrl: null,
+    autoMergeEnabled: true,
+    // This CLI runs no close gates.
+    gates: undefined,
+    elapsedSeconds: elapsedSeconds(ctx),
+  });
+  return await logConfirmResult(
+    {
       storyId,
       standalone: true,
-      action: 'pending',
-      reason: 'no-pr',
-      merged: false,
-    };
-    return await logConfirmResult(
-      noPr,
-      buildConfirmTerminal({
-        storyId,
-        storyBranch,
-        baseBranch,
-        prNumber: null,
-        confirmation: noPr,
-        tail: null,
-        elapsedSeconds: Math.round((Date.now() - startedAtMs) / 1000),
-      }),
-      config,
-    );
-  }
+      action: waitOutcome.terminal,
+      resumed: true,
+      tail: waitOutcome.tail ?? null,
+    },
+    terminal,
+    ctx.config,
+  );
+}
 
-  // `--wait` runs the SAME phase as close so the cumulative budget give-up
-  // (the only path to `merge.unlanded` / `agent::blocked`) is reachable from a
-  // resume. The budget is anchored at the PR's `createdAt`, so resuming does
-  // not restart the clock.
-  if (wait) {
-    const waitOutcome = await runConfirmMergePhaseFn({
-      cwd,
-      storyId,
-      storyBranch,
-      baseBranch,
-      prNumber,
-      prUrl: `${storyBranch} PR #${prNumber}`,
-      // The close already armed it.
-      autoMergeEnabled: true,
-      maxWaitSeconds,
-      provider,
-      config,
-      progress,
-      injectedGh: gh,
-      injectedNotify,
-      readPrMergeStateFn: injectedReadPrMergeState,
-    });
-    const terminal = terminalFromWaitOutcome({
-      waitOutcome,
-      storyId,
-      storyBranch,
-      baseBranch,
-      prNumber,
-      prUrl: null,
-      autoMergeEnabled: true,
-      // This CLI runs no close gates.
-      gates: undefined,
-      elapsedSeconds: Math.round((Date.now() - startedAtMs) / 1000),
-    });
-    return await logConfirmResult(
-      {
-        storyId,
-        standalone: true,
-        action: waitOutcome.terminal,
-        resumed: true,
-        tail: waitOutcome.tail ?? null,
-      },
-      terminal,
-      config,
-    );
-  }
-
+/** Probe once and flip; the fast path for a merge that already happened. */
+async function probeMergeOnce(ctx) {
+  const { storyId, storyBranch, baseBranch, prNumber, cwd, provider, config } =
+    ctx;
   const confirmation = await confirmStoryMerged({
     provider,
     storyId,
@@ -365,9 +359,9 @@ export async function runConfirmMerge({
     cwd,
     config,
     progress,
-    injectedGh: gh,
-    injectedNotify,
-    readPrMergeStateFn: injectedReadPrMergeState,
+    injectedGh: ctx.gh,
+    injectedNotify: ctx.injectedNotify,
+    readPrMergeStateFn: ctx.injectedReadPrMergeState,
   });
 
   // The same shared land tail close runs. Gated on `merged`, not
@@ -393,7 +387,7 @@ export async function runConfirmMerge({
     prNumber,
     confirmation,
     tail,
-    elapsedSeconds: Math.round((Date.now() - startedAtMs) / 1000),
+    elapsedSeconds: elapsedSeconds(ctx),
   });
   if (confirmation.action === 'done') {
     progress('DONE', `✅ Story #${storyId} → agent::done (merged).`);
@@ -406,39 +400,109 @@ export async function runConfirmMerge({
 }
 
 /**
- * Exit code comes from the terminal envelope's status. A throw (e.g. a
- * transient `gh` error) still emits a `failed` envelope: the envelope is the
- * landing surface's contract.
+ * Library entry point. Reads no argv: `main()` parses it once and passes the
+ * values in.
+ *
+ * @param {{ storyId?: number|null, cwd?: string|null, pr?: string|number|null,
+ *   wait?: boolean, maxWaitSeconds?: number, injectedProvider?: object,
+ *   injectedConfig?: object, injectedGh?: object, injectedNotify?: Function,
+ *   injectedReadPrMergeState?: Function, runConfirmMergePhaseFn?: Function }} [args]
+ */
+export async function runConfirmMerge({
+  storyId,
+  cwd,
+  pr,
+  wait = false,
+  maxWaitSeconds,
+  injectedProvider,
+  injectedConfig,
+  injectedGh,
+  injectedNotify,
+  injectedReadPrMergeState,
+  runConfirmMergePhaseFn = defaultRunConfirmMergePhase,
+} = {}) {
+  if (!storyId) {
+    throw new Error(USAGE);
+  }
+  const startedAtMs = Date.now();
+  const resolvedCwd = path.resolve(cwd ?? PROJECT_ROOT);
+  const config = injectedConfig || resolveConfig({ cwd: resolvedCwd });
+  const storyBranch = getStoryBranch(storyId);
+  const ctx = {
+    storyId,
+    cwd: resolvedCwd,
+    startedAtMs,
+    config,
+    provider: injectedProvider || createProvider(config),
+    gh: injectedGh ?? defaultGh,
+    storyBranch,
+    baseBranch: config.project?.baseBranch ?? 'main',
+    maxWaitSeconds,
+    injectedNotify,
+    injectedReadPrMergeState,
+    runConfirmMergePhaseFn,
+  };
+
+  progress('INIT', `Confirming merge for standalone Story #${storyId}...`);
+
+  const prNumber = await resolveConfirmPrNumber({
+    pr,
+    storyBranch,
+    gh: ctx.gh,
+  });
+  if (prNumber == null) return await confirmWithoutPr(ctx);
+  const withPr = { ...ctx, prNumber };
+  return wait ? await resumeMergeWait(withPr) : await probeMergeOnce(withPr);
+}
+
+/**
+ * A throw (e.g. a transient `gh` error) still emits a `failed` envelope: the
+ * envelope is the landing surface's contract.
+ *
+ * @param {unknown} err
+ * @param {'init'|'confirm-merge'} phase
+ * @param {string[]} fullArgv `process.argv`, for the story id only.
+ * @returns {Promise<number>}
+ */
+async function failWithEnvelope(err, phase, fullArgv) {
+  // Tolerant parse: a strict one would re-throw an argv rejection here.
+  const { args, error: argvError } = parseSprintArgsTolerant(fullArgv);
+  const storyId = Number(args.storyId);
+  // No story id: nothing to report an envelope about.
+  if (!Number.isInteger(storyId) || storyId <= 0) throw err;
+  const terminal = buildTerminalEnvelope({
+    storyId,
+    status: 'failed',
+    // An argv rejection precedes every phase.
+    phase: argvError ? 'init' : phase,
+    failure: { reason: String(err?.message ?? err) },
+    nextCommand: NEXT_COMMANDS.recover(storyId),
+    elapsedSeconds: 0,
+  });
+  Logger.error(
+    `[single-story-confirm-merge] Fatal error: ${formatCliError(err)}`,
+  );
+  emitTerminalEnvelope(terminal);
+  await emitTerminalFriction({ envelope: terminal, tool: CLI_SOURCE });
+  return exitCodeForTerminal(terminal);
+}
+
+/**
+ * The only argv reader. Exit code comes from the terminal envelope's status;
+ * `--help` is answered by `runAsCli` before this runs.
  */
 async function main() {
-  if (process.argv.includes('--help')) {
-    process.stdout.write(`${USAGE}\n`);
-    return 0;
+  let options;
+  try {
+    options = parseConfirmMergeArgv(process.argv);
+  } catch (err) {
+    return await failWithEnvelope(err, 'init', process.argv);
   }
   try {
-    const outcome = await runConfirmMerge();
+    const outcome = await runConfirmMerge(options);
     return exitCodeForTerminal(outcome?.terminal ?? { status: 'failed' });
   } catch (err) {
-    // Tolerant parse: a strict one would re-throw an argv rejection here.
-    const { args, error: argvError } = parseSprintArgsTolerant();
-    const storyId = Number(args.storyId);
-    // No story id: nothing to report an envelope about.
-    if (!Number.isInteger(storyId) || storyId <= 0) throw err;
-    const terminal = buildTerminalEnvelope({
-      storyId,
-      status: 'failed',
-      // An argv rejection precedes every phase.
-      phase: argvError ? 'init' : 'confirm-merge',
-      failure: { reason: String(err?.message ?? err) },
-      nextCommand: NEXT_COMMANDS.recover(storyId),
-      elapsedSeconds: 0,
-    });
-    Logger.error(
-      `[single-story-confirm-merge] Fatal error: ${formatCliError(err)}`,
-    );
-    emitTerminalEnvelope(terminal);
-    await emitTerminalFriction({ envelope: terminal, tool: CLI_SOURCE });
-    return exitCodeForTerminal(terminal);
+    return await failWithEnvelope(err, 'confirm-merge', process.argv);
   }
 }
 
