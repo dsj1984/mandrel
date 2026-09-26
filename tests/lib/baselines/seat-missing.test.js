@@ -5,9 +5,8 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import { after, describe, it } from 'node:test';
+import { describe, it } from 'node:test';
 import {
   buildCrapSeatScorer,
   resolveCrapUpdaterOptions,
@@ -30,16 +29,10 @@ import {
   isCoverageFresh,
   writeCaptureStamp,
 } from '../../../.agents/scripts/lib/coverage-capture.js';
-
-const tempRoots = [];
-after(() => {
-  for (const dir of tempRoots) fs.rmSync(dir, { recursive: true, force: true });
-});
+import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
 
 function tempDir() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'seat-missing-'));
-  tempRoots.push(dir);
-  return dir;
+  return fs.realpathSync(makeTempDir('seat-missing-'));
 }
 
 /** Write a real envelope for `kind` and return its path and bytes. */
