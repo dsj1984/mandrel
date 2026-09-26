@@ -42,7 +42,7 @@ flags: `node .agents/scripts/clean-worktrees.js --help`.
 Everything else is **kept** with its reason: the main checkout, an open Story,
 an unmerged branch, a dirty tree, unpushed commits, a tree in use.
 
-## Safety contract
+## Constraint
 
 > [!WARNING] `--execute` deletes worktree directories. Without it the script
 > only previews.

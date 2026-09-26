@@ -1,6 +1,6 @@
 {
   "$schema": "https://mandrel.dev/baselines/context-budget.schema.json",
-  "generatedAt": "2026-09-25T23:41:33.806Z",
+  "generatedAt": "2026-09-26T13:56:23.239Z",
   "toleranceBytes": 2048,
   "tiers": {
     "alwaysLoaded": {
@@ -46,7 +46,7 @@
       ]
     },
     "workflow": {
-      "totalBytes": 288485,
+      "totalBytes": 291573,
       "files": [
         {
           "path": ".agents/workflows/audit-accessibility.md",
@@ -125,6 +125,10 @@
           "bytes": 4952
         },
         {
+          "path": ".agents/workflows/clean-worktrees.md",
+          "bytes": 3088
+        },
+        {
           "path": ".agents/workflows/git-cleanup.md",
           "bytes": 5203
         },
@@ -196,7 +200,7 @@
     ]
   },
   "workflowClosure": {
-    "reachableTotalBytes": 462292,
+    "reachableTotalBytes": 465380,
     "entryPoints": [
       {
         "path": ".agents/workflows/audit-accessibility.md",
@@ -292,6 +296,11 @@
         "path": ".agents/workflows/audit-ux-ui.md",
         "mandatoryBytes": 4952,
         "reachableBytes": 102951
+      },
+      {
+        "path": ".agents/workflows/clean-worktrees.md",
+        "mandatoryBytes": 3088,
+        "reachableBytes": 8291
       },
       {
         "path": ".agents/workflows/git-cleanup.md",

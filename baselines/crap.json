@@ -755,45 +755,72 @@
     {
       "path": ".agents/scripts/boot-sweep.js",
       "method": "storyIdsFromBranches",
-      "startLine": 34,
+      "startLine": 43,
       "crap": 2
     },
     {
       "path": ".agents/scripts/boot-sweep.js",
+      "method": "runWorktreeSweep",
+      "startLine": 90,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/boot-sweep.js",
+      "method": "<anon runWorktreeSweep/(m)#0>",
+      "startLine": 108,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/boot-sweep.js",
+      "method": "<anon runWorktreeSweep/(m)#1>",
+      "startLine": 109,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/boot-sweep.js",
+      "method": "<anon runWorktreeSweep/(m)#2>",
+      "startLine": 110,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/boot-sweep.js",
       "method": "runBootSweep",
-      "startLine": 82,
+      "startLine": 144,
       "crap": 6
     },
     {
       "path": ".agents/scripts/boot-sweep.js",
       "method": "<anon runBootSweep/(m)#0>",
-      "startLine": 125,
+      "startLine": 189,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/boot-sweep.js",
       "method": "<anon runBootSweep/(m)#1>",
-      "startLine": 126,
+      "startLine": 190,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/boot-sweep.js",
       "method": "buildSummaryLine",
-      "startLine": 165,
-      "crap": 2
+      "startLine": 239,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/boot-sweep.js",
       "method": "runBootSweepCli",
-      "startLine": 182,
+      "startLine": 261,
       "crap": 8
     },
     {
       "path": ".agents/scripts/boot-sweep.js",
       "method": "main",
-      "startLine": 223,
+      "startLine": 302,
       "crap": 2
     },
     {
@@ -2155,6 +2182,355 @@
       "anonymous": true
     },
     {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "<anon (m)#0>",
+      "startLine": 49,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "<anon (m)#1>",
+      "startLine": 50,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "<anon (m)#2>",
+      "startLine": 51,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "<anon (text)#0>",
+      "startLine": 54,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "canonical",
+      "startLine": 90,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "isWithin",
+      "startLine": 98,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "listProcessCwds",
+      "startLine": 109,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "linuxProcessCwds",
+      "startLine": 119,
+      "crap": 1.0016283329940974
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "<anon linuxProcessCwds/(d)#0>",
+      "startLine": 122,
+      "crap": 1.0016283329940974,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "darwinProcessCwds",
+      "startLine": 137,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "<anon darwinProcessCwds/(line)#0>",
+      "startLine": 142,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "<anon darwinProcessCwds/(line)#1>",
+      "startLine": 143,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "dirSizeBytes",
+      "startLine": 154,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "walkSize",
+      "startLine": 166,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "enumerateWorktrees",
+      "startLine": 188,
+      "crap": 6.442421483841602
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "<anon enumerateWorktrees/(r)#0>",
+      "startLine": 198,
+      "crap": 1.0122894856622666,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "<anon enumerateWorktrees/(d)#0>",
+      "startLine": 204,
+      "crap": 1.0122894856622666,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "<anon enumerateWorktrees/(d)#1>",
+      "startLine": 205,
+      "crap": 1.0122894856622666,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "<anon enumerateWorktrees/(name)#0>",
+      "startLine": 210,
+      "crap": 1.0122894856622666,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "<anon enumerateWorktrees/(p)#0/(k)#0>",
+      "startLine": 211,
+      "crap": 1.0122894856622666,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "<anon enumerateWorktrees/(p)#0>",
+      "startLine": 211,
+      "crap": 1.0122894856622666,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "liveUseReason",
+      "startLine": 216,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "<anon liveUseReason/(c)#0>",
+      "startLine": 221,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "uniqueWorkReason",
+      "startLine": 228,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "isStoryDone",
+      "startLine": 247,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "classifyStory",
+      "startLine": 253,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "classifyBranch",
+      "startLine": 264,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "<anon classifyBranch/(pr)#0>",
+      "startLine": 271,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "storyIdOf",
+      "startLine": 278,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "localKeepReason",
+      "startLine": 289,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "classifyRegistered",
+      "startLine": 303,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "classifyWorktrees",
+      "startLine": 319,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "entryOf",
+      "startLine": 334,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "decide",
+      "startLine": 353,
+      "crap": 7
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "executeRemovals",
+      "startLine": 373,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "makeRemoveFn",
+      "startLine": 393,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "<anon makeRemoveFn/(wtPath)#0>",
+      "startLine": 402,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "makeTicketReader",
+      "startLine": 405,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "<anon makeTicketReader/(id)#0>",
+      "startLine": 407,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "makePrLookup",
+      "startLine": 413,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "<anon makePrLookup/(branch)#0>",
+      "startLine": 415,
+      "crap": 6,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "buildEnv",
+      "startLine": 438,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "<anon buildEnv/(p)#0>",
+      "startLine": 455,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "runCleanWorktrees",
+      "startLine": 478,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "formatBytes",
+      "startLine": 501,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "renderTable",
+      "startLine": 519,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "<anon renderTable/(e)#0>",
+      "startLine": 520,
+      "crap": 4,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "<anon renderTable/(h,i)#0>",
+      "startLine": 528,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "<anon renderTable/(h,i)#0/(r)#0>",
+      "startLine": 529,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "<anon renderTable/(cells)#0>",
+      "startLine": 531,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "<anon renderTable/(cells)#0/(c,i)#0>",
+      "startLine": 533,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "promptConfirm",
+      "startLine": 543,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "runCleanWorktreesCli",
+      "startLine": 562,
+      "crap": 5.020599365234375
+    },
+    {
+      "path": ".agents/scripts/clean-worktrees.js",
+      "method": "<anon ()#0>",
+      "startLine": 595,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
       "path": ".agents/scripts/cleanup-repo-test-temp.js",
       "method": "isReservedTestEpicTempDirName",
       "startLine": 27,
@@ -2509,90 +2885,90 @@
     {
       "path": ".agents/scripts/drain-pending-cleanup.js",
       "method": "<anon (value)#0>",
-      "startLine": 52,
+      "startLine": 53,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/drain-pending-cleanup.js",
       "method": "runDrainPendingCleanup",
-      "startLine": 76,
+      "startLine": 77,
       "crap": 10
     },
     {
       "path": ".agents/scripts/drain-pending-cleanup.js",
       "method": "<anon runDrainPendingCleanup/(e)#0>",
-      "startLine": 124,
+      "startLine": 125,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/drain-pending-cleanup.js",
       "method": "<anon runDrainPendingCleanup/(h)#0>",
-      "startLine": 135,
+      "startLine": 136,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/drain-pending-cleanup.js",
       "method": "<anon runDrainPendingCleanup/(m)#0>",
-      "startLine": 148,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/drain-pending-cleanup.js",
-      "method": "<anon runDrainPendingCleanup/(m)#1>",
       "startLine": 149,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/drain-pending-cleanup.js",
-      "method": "<anon runDrainPendingCleanup/(m)#2>",
+      "method": "<anon runDrainPendingCleanup/(m)#1>",
       "startLine": 150,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/drain-pending-cleanup.js",
+      "method": "<anon runDrainPendingCleanup/(m)#2>",
+      "startLine": 151,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/drain-pending-cleanup.js",
       "method": "<anon runDrainPendingCleanup/(id)#0>",
-      "startLine": 158,
+      "startLine": 159,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/drain-pending-cleanup.js",
       "method": "<anon runDrainPendingCleanup/(id)#1>",
-      "startLine": 164,
+      "startLine": 165,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/drain-pending-cleanup.js",
       "method": "<anon runDrainPendingCleanup/(id)#2>",
-      "startLine": 172,
+      "startLine": 173,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/drain-pending-cleanup.js",
       "method": "<anon runDrainPendingCleanup/(id)#3>",
-      "startLine": 182,
+      "startLine": 183,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/drain-pending-cleanup.js",
       "method": "<anon runDrainPendingCleanup/(id)#4>",
-      "startLine": 190,
+      "startLine": 191,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/drain-pending-cleanup.js",
       "method": "main",
-      "startLine": 204,
+      "startLine": 205,
       "crap": 2
     },
     {
@@ -14739,49 +15115,49 @@
     {
       "path": ".agents/scripts/lib/observability/source-classifier.js",
       "method": "toScanString",
-      "startLine": 98,
+      "startLine": 99,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/observability/source-classifier.js",
       "method": "containsFrameworkPrefix",
-      "startLine": 109,
+      "startLine": 110,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/observability/source-classifier.js",
       "method": "containsFrameworkScriptBasename",
-      "startLine": 123,
+      "startLine": 124,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/observability/source-classifier.js",
       "method": "namesFrameworkSurface",
-      "startLine": 136,
+      "startLine": 137,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/observability/source-classifier.js",
       "method": "classifyPathSource",
-      "startLine": 148,
+      "startLine": 149,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/observability/source-classifier.js",
       "method": "isSupplied",
-      "startLine": 171,
+      "startLine": 172,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/observability/source-classifier.js",
       "method": "detailsScanText",
-      "startLine": 179,
+      "startLine": 180,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/observability/source-classifier.js",
       "method": "classifySignalSource",
-      "startLine": 199,
+      "startLine": 200,
       "crap": 11
     },
     {
@@ -20205,27 +20581,57 @@
     {
       "path": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
       "method": "isStoryDone",
-      "startLine": 23,
+      "startLine": 34,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
-      "method": "storyIdFromPath",
-      "startLine": 30,
+      "method": "canonical",
+      "startLine": 48,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
-      "method": "sweepStaleStoryWorktrees",
-      "startLine": 49,
-      "crap": 16.000127975940522
+      "method": "storyIdFromPath",
+      "startLine": 66,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
-      "method": "<anon sweepStaleStoryWorktrees/(entry)#0>",
-      "startLine": 96,
+      "method": "resolveSweepOptions",
+      "startLine": 81,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
+      "method": "readStoryTickets",
+      "startLine": 114,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
+      "method": "<anon readStoryTickets/(entry)#0>",
+      "startLine": 117,
       "crap": 3,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
+      "method": "keepReason",
+      "startLine": 139,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
+      "method": "removeOne",
+      "startLine": 157,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
+      "method": "sweepStaleStoryWorktrees",
+      "startLine": 191,
+      "crap": 7
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-text-hygiene.js",
@@ -29203,63 +29609,63 @@
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "findRunningCodeInside",
-      "startLine": 449,
+      "startLine": 451,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "<anon findRunningCodeInside/(p)#0>",
-      "startLine": 451,
-      "crap": 1,
+      "startLine": 455,
+      "crap": 3,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "firstReapRefusal",
-      "startLine": 464,
+      "startLine": 471,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "<anon firstReapRefusal/(r)#0>",
-      "startLine": 466,
+      "startLine": 473,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "checkReapPreconditions",
-      "startLine": 486,
+      "startLine": 493,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "ensureSafeOrForceDiscard",
-      "startLine": 499,
+      "startLine": 506,
       "crap": 8.263770191585273
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "escapeWorktreeCwd",
-      "startLine": 544,
+      "startLine": 551,
       "crap": 3.372
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "postRemoveBeltSweep",
-      "startLine": 555,
+      "startLine": 562,
       "crap": 3.2099125364431487
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "buildReapSuccess",
-      "startLine": 570,
+      "startLine": 577,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "reap",
-      "startLine": 582,
+      "startLine": 589,
       "crap": 8.442284850448116
     },
     {
