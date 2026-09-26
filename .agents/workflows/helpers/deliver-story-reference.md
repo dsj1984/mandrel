@@ -48,7 +48,7 @@ presence, so re-running init on a partially-initialized Story is idempotent.
 ### Merged-`story-*` sweep
 
 Between the fetch and the branch seed, init runs the same primitive as
-`<agentRoot>/scripts/git-cleanup.js` scoped to `story-*` in
+`<agentRoot>/scripts/clean-git.js` scoped to `story-*` in
 `--execute --remote` mode, excluding this run's `story-<id>`, reaping merged
 siblings' local refs, `origin/` refs and stale tracking refs in one pass.
 
@@ -539,7 +539,7 @@ once per project to delete the conflicting bot workflows entirely.
 > cause), or after a manual merge on a `--no-wait-merge` run:
 
 ```bash
-node .agents/scripts/git-cleanup.js \
+node .agents/scripts/clean-git.js \
   --execute \
   --remote \
   --yes \

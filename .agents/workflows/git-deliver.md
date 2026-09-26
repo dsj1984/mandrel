@@ -77,7 +77,7 @@ node .agents/scripts/boot-sweep.js \
   --current "$(git rev-parse --abbrev-ref HEAD)"
 ```
 
-The safe subset of the `/git-cleanup` phases: fast-forwards the base branch,
+The safe subset of the `/clean-git` phases: fast-forwards the base branch,
 prunes stale remote-tracking refs, and reaps merged branches. It never
 touches the stash, never reaps a candidate with unpushed work / dirty
 worktree / open parent ticket, and always exits `0` — a failed sweep is

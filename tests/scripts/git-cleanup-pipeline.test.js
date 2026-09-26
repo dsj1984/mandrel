@@ -34,7 +34,7 @@ import {
   renderExecutionSummary,
   renderPruneLine,
   stashRefIndex,
-} from '../../.agents/scripts/git-cleanup.js';
+} from '../../.agents/scripts/clean-git.js';
 
 describe('git-cleanup pipeline — public exports (Story #2466)', () => {
   it('re-exports the legacy named surface', () => {

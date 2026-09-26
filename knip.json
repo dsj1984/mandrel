@@ -37,7 +37,7 @@
     ".agents/scripts/generate-lens-checklists.js!",
     ".agents/scripts/generate-skills-index.js!",
     ".agents/scripts/generate-workflows-doc.js!",
-    ".agents/scripts/git-cleanup.js!",
+    ".agents/scripts/clean-git.js!",
     ".agents/scripts/lint-issue-body.js!",
     ".agents/scripts/mandrel-update-preflight.js!",
     ".agents/scripts/merge-baseline.js!",

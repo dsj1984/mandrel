@@ -146,7 +146,7 @@ describe('deleteBranchRemote', () => {
 
   /**
    * Regression guard for the false-positive observed on 2026-05-18 during a
-   * `/git-cleanup --execute --remote --yes` run: a child of the pre-push
+   * `/clean-git --execute --remote --yes` run: a child of the pre-push
    * hook (`run-lint.js`) emits Node's DEP0190 `shell: true` deprecation
    * warning to stderr, which bubbles up through `git push --delete`'s
    * stderr. The DEP0190 banner is informational only — when git exits 0

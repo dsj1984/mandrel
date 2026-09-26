@@ -53,7 +53,7 @@ const FRAMEWORK_SCRIPT_BASENAMES = Object.freeze([
   'generate-lens-checklists.js',
   'generate-skills-index.js',
   'generate-workflows-doc.js',
-  'git-cleanup.js',
+  'clean-git.js',
   'lint-issue-body.js',
   'mandrel-update-preflight.js',
   'merge-baseline.js',

@@ -133,8 +133,8 @@
           "bytes": 3088
         },
         {
-          "path": ".agents/workflows/git-cleanup.md",
-          "bytes": 5203
+          "path": ".agents/workflows/clean-git.md",
+          "bytes": 5181
         },
         {
           "path": ".agents/workflows/git-deliver.md",
@@ -312,9 +312,9 @@
         "reachableBytes": 8291
       },
       {
-        "path": ".agents/workflows/git-cleanup.md",
-        "mandatoryBytes": 5203,
-        "reachableBytes": 5203
+        "path": ".agents/workflows/clean-git.md",
+        "mandatoryBytes": 5181,
+        "reachableBytes": 5181
       },
       {
         "path": ".agents/workflows/git-deliver.md",

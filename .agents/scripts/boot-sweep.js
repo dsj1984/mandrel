@@ -3,7 +3,7 @@
 
 /**
  * boot-sweep.js — non-interactive *protected* merged-branch sweep over
- * `sweepMergedBranches` (flags: see HELP). Unlike `git-cleanup --branches` it
+ * `sweepMergedBranches` (flags: see HELP). Unlike `clean-git --branches` it
  * always skips a branch with unpushed work, a dirty worktree or an open
  * parent Story. Best-effort: failures land in the envelope, exit is always 0.
  *
@@ -14,7 +14,7 @@
  *
  * `content-merged` branches (merge-tree equivalence — no merge check ever
  * validated their exact diff) are never reaped here, only reported for
- * `/git-cleanup`.
+ * `/clean-git`.
  */
 
 import path from 'node:path';
@@ -61,7 +61,7 @@ the outcome lands under "worktreeSweep".
 Branches detected only via the weaker content-equivalence signal
 (detectedBy: 'content-merged') are never reaped here — they are reported
 under "contentMerged" (and a routing hint in the summary line) for the
-operator to send to /git-cleanup.
+operator to send to /clean-git.
 
 Options:
   --include <glob>     Branch glob to sweep (repeatable). Default: story-*
@@ -231,7 +231,7 @@ export async function runBootSweep({
 }
 
 /**
- * One-line summary; a nonzero `contentMerged` count adds a `/git-cleanup` hint.
+ * One-line summary; a nonzero `contentMerged` count adds a `/clean-git` hint.
  *
  * @param {{ localDeleted: number, remoteDeleted: number, protected?: Array, contentMerged?: Array }} result
  * @returns {string}
@@ -246,7 +246,7 @@ export function buildSummaryLine(result) {
       : '';
   const contentMergedSuffix =
     contentMergedCount > 0
-      ? `; ${contentMergedCount} content-merged branch(es) left for /git-cleanup`
+      ? `; ${contentMergedCount} content-merged branch(es) left for /clean-git`
       : '';
   return `[boot-sweep] reaped ${result.localDeleted} local + ${result.remoteDeleted} remote; protected ${protectedCount}${worktreeSuffix}${contentMergedSuffix}.`;
 }

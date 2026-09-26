@@ -32,7 +32,7 @@ import {
   renderNotMergedSkipLine,
   renderPruneLine,
   stashRefIndex,
-} from '../../.agents/scripts/git-cleanup.js';
+} from '../../.agents/scripts/clean-git.js';
 import { decideBranchPhase } from '../../.agents/scripts/lib/orchestration/git-cleanup/phases/phase-drivers.js';
 import { renderCandidateList } from '../../.agents/scripts/lib/orchestration/git-cleanup/phases/render.js';
 
@@ -3360,7 +3360,7 @@ describe('git-cleanup weak-signal remote guard (Story #5283)', () => {
   it('AC-2: the flag is advertised in --help', () => {
     const help = execFileSync(
       process.execPath,
-      [path.join(REPO_ROOT, '.agents/scripts/git-cleanup.js'), '--help'],
+      [path.join(REPO_ROOT, '.agents/scripts/clean-git.js'), '--help'],
       { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
     );
     assert.match(help, /^ {2}--include-content-merged/m);

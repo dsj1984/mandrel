@@ -67,7 +67,7 @@ module.exports = {
     // Friction-telemetry CLI: NDJSON append over a spawned child.
     '.agents/scripts/diagnose-friction.js',
     // Git-manipulation CLI (branch sweeper) — integration-shaped.
-    '.agents/scripts/git-cleanup.js',
+    '.agents/scripts/clean-git.js',
     // Temp-tree cleanup CLI; its engine is `lib/clean-temp.js`, unit-tested.
     '.agents/scripts/clean-temp.js',
     // Desktop/terminal notification glue — pure side effect.

@@ -11,7 +11,7 @@ import {
   executeFastForward as defaultExecuteFastForward,
   planCleanup as defaultPlanCleanup,
   planFastForward as defaultPlanFastForward,
-} from '../git-cleanup.js';
+} from '../clean-git.js';
 import { evaluateProtection as defaultEvaluateProtection } from './single-story-sweep/protection.js';
 import { acquireSweepLock as defaultAcquireSweepLock } from './single-story-sweep/sweep-lock.js';
 
@@ -175,7 +175,7 @@ export function sweepMergedStoryBranches(args = {}) {
 
 /**
  * Content-merged candidates are report-only: content equivalence is weaker
- * than a merged PR or ancestry, so only an operator-confirmed `/git-cleanup`
+ * than a merged PR or ancestry, so only an operator-confirmed `/clean-git`
  * may reap them.
  */
 function partitionContentMerged(candidates) {
