@@ -3871,7 +3871,7 @@ The Story-level verdict therefore collapses the four candidate outcomes into one
 ### Alternatives considered
 
 - **Build a homegrown `/loop` skill anyway** to own a "structured loop" artifact contract. Rejected — the framework's recurring tasks (cadence polls, dashboard regen, PR babysitting) already own their own artifacts via the underlying scripts; a wrapper would add no contract value and would directly violate the Epic's "shrink the framework's homegrown surface area" goal.
-- **Defer to a future hybrid wrapper pattern** (built-in delegated to from a homegrown entry point, as `/security-review` is delegated from `audit-security`). Rejected for `/loop` specifically — the hybrid pattern's value is when the wrapper owns a structured artifact (`audit-*-results.md`). `/loop` produces no artifact; it just re-prompts. There is nothing for a wrapper to validate or fold in, so the hybrid pattern collapses to a pass-through.
+- **Defer to a future hybrid wrapper pattern** (built-in delegated to from a homegrown entry point that owns a structured artifact). Rejected for `/loop` specifically — the hybrid pattern's value is when the wrapper owns a structured artifact (`audit-*-results.md`). `/loop` produces no artifact; it just re-prompts. There is nothing for a wrapper to validate or fold in, so the hybrid pattern collapses to a pass-through.
 
 ---
 
