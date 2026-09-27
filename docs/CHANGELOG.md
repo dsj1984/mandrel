@@ -15,6 +15,13 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.69.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.68.0...mandrel-v2.69.0) (2026-09-27)
+
+
+### Added
+
+* **audit:** ship /audit-security as a slash command (refs [#5498](https://github.com/dsj1984/mandrel/issues/5498)) ([#5499](https://github.com/dsj1984/mandrel/issues/5499)) ([7df7649](https://github.com/dsj1984/mandrel/commit/7df76496cfc35f636d117961bb7042b5aa662ec6))
+
 ## [2.68.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.67.0...mandrel-v2.68.0) (2026-09-26)
 
 
