@@ -263,18 +263,6 @@
       "mi": 108.059
     },
     {
-      "path": ".agents/scripts/lib/audit-to-stories/ledger-commit.js",
-      "mi": 107.073
-    },
-    {
-      "path": ".agents/scripts/lib/audit-to-stories/ledger-pr.js",
-      "mi": 106.828
-    },
-    {
-      "path": ".agents/scripts/lib/audit-to-stories/ledger-record.js",
-      "mi": 99.709
-    },
-    {
       "path": ".agents/scripts/lib/audit-to-stories/parse-audit-md.js",
       "mi": 93.223
     },
@@ -841,10 +829,6 @@
     {
       "path": ".agents/scripts/lib/feedback-loop/retro-proposals-graduator.js",
       "mi": 97.358
-    },
-    {
-      "path": ".agents/scripts/lib/findings/audit-ledger.js",
-      "mi": 84.799
     },
     {
       "path": ".agents/scripts/lib/findings/classify-finding.js",

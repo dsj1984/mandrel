@@ -369,24 +369,6 @@
       "functions": 100
     },
     {
-      "path": ".agents/scripts/lib/audit-to-stories/ledger-commit.js",
-      "lines": 98.37,
-      "branches": 87.5,
-      "functions": 100
-    },
-    {
-      "path": ".agents/scripts/lib/audit-to-stories/ledger-pr.js",
-      "lines": 98.92,
-      "branches": 79.59,
-      "functions": 100
-    },
-    {
-      "path": ".agents/scripts/lib/audit-to-stories/ledger-record.js",
-      "lines": 100,
-      "branches": 83.33,
-      "functions": 100
-    },
-    {
       "path": ".agents/scripts/lib/audit-to-stories/parse-audit-md.js",
       "lines": 98.52,
       "branches": 90.41,
@@ -1284,12 +1266,6 @@
       "path": ".agents/scripts/lib/feedback-loop/retro-proposals-graduator.js",
       "lines": 92.97,
       "branches": 70.31,
-      "functions": 100
-    },
-    {
-      "path": ".agents/scripts/lib/findings/audit-ledger.js",
-      "lines": 96.89,
-      "branches": 74.47,
       "functions": 100
     },
     {
