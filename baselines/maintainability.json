@@ -24,7 +24,7 @@
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
-      "mi": 97.959
+      "mi": 98.775
     },
     {
       "path": ".agents/scripts/boot-sweep.js",
@@ -1260,7 +1260,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/audit-provenance.js",
-      "mi": 106.467
+      "mi": 123.16
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/changes-repair.js",
@@ -2289,6 +2289,10 @@
     {
       "path": "lib/migrations/steps/2.65.0-fold-claude-md-into-agents-md.js",
       "mi": 102.14
+    },
+    {
+      "path": "lib/migrations/steps/2.70.0-retire-audit-ledger.js",
+      "mi": 95.457
     },
     {
       "path": "lib/migrations/steps/strip-removed-agentrc-keys.js",
