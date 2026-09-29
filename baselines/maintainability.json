@@ -24,7 +24,7 @@
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
-      "mi": 97.959
+      "mi": 98.775
     },
     {
       "path": ".agents/scripts/boot-sweep.js",
@@ -261,18 +261,6 @@
     {
       "path": ".agents/scripts/lib/audit-to-stories/issues-file.js",
       "mi": 108.059
-    },
-    {
-      "path": ".agents/scripts/lib/audit-to-stories/ledger-commit.js",
-      "mi": 107.073
-    },
-    {
-      "path": ".agents/scripts/lib/audit-to-stories/ledger-pr.js",
-      "mi": 106.828
-    },
-    {
-      "path": ".agents/scripts/lib/audit-to-stories/ledger-record.js",
-      "mi": 99.709
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/parse-audit-md.js",
@@ -843,10 +831,6 @@
       "mi": 97.358
     },
     {
-      "path": ".agents/scripts/lib/findings/audit-ledger.js",
-      "mi": 84.799
-    },
-    {
       "path": ".agents/scripts/lib/findings/classify-finding.js",
       "mi": 104.889
     },
@@ -1276,7 +1260,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/audit-provenance.js",
-      "mi": 106.467
+      "mi": 123.16
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/changes-repair.js",
@@ -2305,6 +2289,10 @@
     {
       "path": "lib/migrations/steps/2.65.0-fold-claude-md-into-agents-md.js",
       "mi": 102.14
+    },
+    {
+      "path": "lib/migrations/steps/2.70.0-retire-audit-ledger.js",
+      "mi": 95.457
     },
     {
       "path": "lib/migrations/steps/strip-removed-agentrc-keys.js",

@@ -221,9 +221,6 @@ describe('the tracked baselines directory holds no orphans', () => {
       .split('\n')
       .filter((p) => p.endsWith('.json'));
     const known = new Set(surface.map((e) => e.baselinePath));
-    // `audit-ledger.json` is the audit-suite's own run ledger, not a
-    // measurement baseline; it has no gate and no rollup.
-    known.add('baselines/audit-ledger.json');
     const orphans = tracked.filter((p) => !known.has(p));
     assert.deepEqual(
       orphans,

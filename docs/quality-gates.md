@@ -903,9 +903,12 @@ Row identity comes from the kind module's `rowIdentity(row)`, which is
 deliberately not `keyField`: CRAP groups by file (`keyField: 'path'`) but
 ships one row per method, so keying on `keyField` would drop every method in a
 file but one. `cyclomatic` and both `dead-exports` files merge by row identity
-the same way. Any other `baselines/*.json` — `arch-cycles`, `audit-ledger`,
+the same way. Any other `baselines/*.json` — `arch-cycles`,
 `context-budget` — is handed straight back to `git merge-file`, so registering
 the driver cannot change their behaviour.
+(The audit sweep keeps no baseline of its own: its cross-run dedup memory is
+the provenance footers on the Issues it filed, read from live state — there is
+no ledger to merge.)
 
 Registration has two halves:
 

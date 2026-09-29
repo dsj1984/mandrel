@@ -28,9 +28,9 @@
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
-      "lines": 99.11,
-      "branches": 86.64,
-      "functions": 98.21
+      "lines": 98.94,
+      "branches": 87.45,
+      "functions": 98
     },
     {
       "path": ".agents/scripts/boot-sweep.js",
@@ -366,24 +366,6 @@
       "path": ".agents/scripts/lib/audit-to-stories/issues-file.js",
       "lines": 100,
       "branches": 95.45,
-      "functions": 100
-    },
-    {
-      "path": ".agents/scripts/lib/audit-to-stories/ledger-commit.js",
-      "lines": 98.37,
-      "branches": 87.5,
-      "functions": 100
-    },
-    {
-      "path": ".agents/scripts/lib/audit-to-stories/ledger-pr.js",
-      "lines": 98.92,
-      "branches": 79.59,
-      "functions": 100
-    },
-    {
-      "path": ".agents/scripts/lib/audit-to-stories/ledger-record.js",
-      "lines": 100,
-      "branches": 83.33,
       "functions": 100
     },
     {
@@ -1287,12 +1269,6 @@
       "functions": 100
     },
     {
-      "path": ".agents/scripts/lib/findings/audit-ledger.js",
-      "lines": 96.89,
-      "branches": 74.47,
-      "functions": 100
-    },
-    {
       "path": ".agents/scripts/lib/findings/classify-finding.js",
       "lines": 100,
       "branches": 100,
@@ -1313,7 +1289,7 @@
     {
       "path": ".agents/scripts/lib/findings/route-finding.js",
       "lines": 100,
-      "branches": 93.44,
+      "branches": 93.65,
       "functions": 100
     },
     {
@@ -1900,8 +1876,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-context.js",
-      "lines": 96.41,
-      "branches": 75.93,
+      "lines": 96.45,
+      "branches": 76.79,
       "functions": 100
     },
     {
@@ -1937,7 +1913,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/audit-provenance.js",
       "lines": 100,
-      "branches": 89.74,
+      "branches": 95,
       "functions": 100
     },
     {
@@ -1984,8 +1960,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
-      "lines": 94.43,
-      "branches": 79.49,
+      "lines": 94.42,
+      "branches": 80.52,
       "functions": 100
     },
     {
@@ -3442,6 +3418,12 @@
     },
     {
       "path": "lib/migrations/steps/2.65.0-fold-claude-md-into-agents-md.js",
+      "lines": 100,
+      "branches": 60,
+      "functions": 100
+    },
+    {
+      "path": "lib/migrations/steps/2.70.0-retire-audit-ledger.js",
       "lines": 100,
       "branches": 60,
       "functions": 100

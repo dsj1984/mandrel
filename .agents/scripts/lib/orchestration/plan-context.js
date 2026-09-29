@@ -11,6 +11,7 @@ import {
   matchesAnyFilePattern,
 } from '../audit-suite/selector.js';
 import { findSimilarOpenStories } from '../duplicate-search.js';
+import { extractProvenanceFooters } from '../findings/route-finding.js';
 import { Logger } from '../Logger.js';
 import { parse as parseStoryBody } from '../story-body/story-body.js';
 import {
@@ -35,6 +36,12 @@ const TRUNCATION_MARKER =
   '\n\n[… truncated by plan-context: PLAN_CONTEXT_ENVELOPE_BYTE_CEILING …]';
 
 const MAX_TRUNCATION_ROUNDS = 8;
+
+/**
+ * Never cut: `seed.provenance` is the audit footers persist stamps onto every
+ * Story, and a dropped footer re-files that finding on the next sweep.
+ */
+const UNCUTTABLE_KEYS = new Set(['provenance']);
 
 /**
  * @param {unknown} value
@@ -91,6 +98,7 @@ function truncateField(value, excess) {
   }
   if (value && typeof value === 'object') {
     const [key] = Object.entries(value)
+      .filter(([k]) => !UNCUTTABLE_KEYS.has(k))
       .filter(([, v]) => typeof v === 'string')
       .map(([k, v]) => [k, Buffer.byteLength(v, 'utf-8')])
       .sort((a, b) => b[1] - a[1])[0] ?? [null];
@@ -651,7 +659,12 @@ async function buildSeedFileModeEnvelope({
 
   return {
     mode: modeLabel,
-    seed: { path: seedFilePath ?? null, content },
+    // Carried apart from `content` so a size cut cannot drop a footer.
+    seed: {
+      path: seedFilePath ?? null,
+      content,
+      provenance: extractProvenanceFooters(content),
+    },
     // Advisory only — no routing authority.
     complexitySignals,
     duplicates,

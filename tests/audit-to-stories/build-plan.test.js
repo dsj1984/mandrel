@@ -15,10 +15,9 @@ import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
  * findings into a dedup-checked plan. This file closes that gap, and covers
  * the two passes that hang off it (`runAuto`, `buildAndGateStories`).
  *
- * The provider, the classifier, and the ledger reconciler are injected
- * through `buildPlan`'s optional final `deps` parameter
- * (`docs/contributing/test-seams.md` rules 1 and 5) — plain functions, no module
- * mocking — so no GitHub lookup happens and no committed ledger is written.
+ * The provider and the classifier are injected through `buildPlan`'s
+ * optional final `deps` parameter (`docs/contributing/test-seams.md` rules 1
+ * and 5) — plain functions, no module mocking — so no GitHub lookup happens.
  * The report glob and the report reads run against a real temp directory, so
  * `collectReportPaths` and `readReports` are exercised for real.
  */
@@ -200,59 +199,15 @@ describe('buildPlan', () => {
     assert.match(warns[0], /- auth: HTTP 422/);
   });
 
-  it('reports the ledger and flips fully-suppressed groups to skip-accepted-risk', async () => {
-    const reconcileCalls = [];
-    const plan = await buildPlan(
-      { glob: reportGlob, useProvider: false, ledger: { path: '/led.json' } },
-      {
-        ...silent,
-        reconcileScanLedgerImpl: (args) => {
-          reconcileCalls.push(args);
-          return new Set(
-            args.findings.map((f) => f.fingerprint?.full).filter(Boolean),
-          );
-        },
-      },
-    );
-    assert.equal(reconcileCalls[0].ledgerPath, '/led.json');
-    assert.equal(reconcileCalls[0].write, true);
-    assert.equal(plan.summary.ledger.path, '/led.json');
-    assert.ok(plan.summary.ledger.suppressed > 0);
-    assert.ok(
-      plan.classifications.every((c) => c.action === 'skip-accepted-risk'),
-    );
-  });
-
-  it('leaves classifications alone when the ledger suppresses nothing', async () => {
-    const plan = await buildPlan(
-      { glob: reportGlob, useProvider: false, ledger: { write: false } },
-      { ...silent, reconcileScanLedgerImpl: () => new Set() },
-    );
-    assert.equal(plan.summary.ledger.suppressed, 0);
-    assert.ok(plan.classifications.every((c) => c.action === 'create'));
-  });
-
-  it('honours ledger.write === false as a read-only reconcile', async () => {
-    let seen;
-    await buildPlan(
-      { glob: reportGlob, useProvider: false, ledger: { write: false } },
-      {
-        ...silent,
-        reconcileScanLedgerImpl: (args) => {
-          seen = args;
-          return new Set();
-        },
-      },
-    );
-    assert.equal(seen.write, false);
-  });
-
-  it('omits the ledger summary entirely when no ledger is requested', async () => {
+  it('writes no cross-run record: the summary carries no ledger, no action is suppressed', async () => {
+    // Story #5502 — Issue provenance footers are the only cross-run memory,
+    // so a scan neither reports a ledger nor relabels a group it would file.
     const plan = await buildPlan(
       { glob: reportGlob, useProvider: false },
       silent,
     );
     assert.equal('ledger' in plan.summary, false);
+    assert.ok(plan.classifications.every((c) => c.action === 'create'));
   });
 });
 
@@ -286,7 +241,6 @@ describe('runAuto', () => {
       severity: 'high',
       dryRun: true,
       useProvider: false,
-      ledgerPath: path.join(workspace, 'ledger.json'),
     });
     assert.equal(summary.mode, 'auto');
     assert.equal(summary.dryRun, true);
@@ -295,11 +249,7 @@ describe('runAuto', () => {
     assert.equal(summary.totals.create, summary.totals.groups);
     assert.equal(summary.totals.skipOpen, 0);
     assert.deepEqual(summary.reDetected, []);
-    assert.equal(
-      fs.existsSync(path.join(workspace, 'ledger.json')),
-      false,
-      'a dry run must not write the ledger',
-    );
+    assert.equal('ledger' in summary, false, 'no ledger field (Story #5502)');
   });
 
   it('returns the create-eligible Story payloads outside --dry-run', async () => {
@@ -308,13 +258,18 @@ describe('runAuto', () => {
       severity: 'low',
       dryRun: false,
       useProvider: false,
-      ledgerPath: path.join(workspace, 'ledger-write.json'),
     });
     assert.equal(summary.dryRun, false);
     assert.equal(stories.length, summary.totals.create);
+    assert.deepEqual(
+      summary.createGroupKeys,
+      stories.map((s) => s.groupKey),
+      'the create keys feed the --wire-edges --ids map',
+    );
     assert.equal(
-      fs.existsSync(path.join(workspace, 'ledger-write.json')),
-      true,
+      fs.existsSync('baselines/audit-ledger.json'),
+      false,
+      'a live --auto writes no ledger (Story #5502)',
     );
   });
 
@@ -332,7 +287,6 @@ describe('runAuto', () => {
       create: 0,
       skipOpen: 0,
       skipReoccurring: 0,
-      suppressedByLedger: 0,
     });
     assert.deepEqual(stories, []);
   });
@@ -437,16 +391,7 @@ describe('runAuditToStories (sub-command dispatch)', () => {
   it('--auto persists the summary and adds a trailing newline on stdout', async () => {
     const h = harness();
     await runAuditToStories(
-      [
-        '--auto',
-        '--dry-run',
-        '--glob',
-        'g/*.md',
-        '--severity',
-        'high',
-        '--ledger',
-        'l.json',
-      ],
+      ['--auto', '--dry-run', '--glob', 'g/*.md', '--severity', 'high'],
       h.deps,
     );
     assert.deepEqual(h.seen.runAuto, {
@@ -455,12 +400,36 @@ describe('runAuditToStories (sub-command dispatch)', () => {
       dryRun: true,
       useProvider: true,
       issuesFile: undefined,
-      ledgerPath: 'l.json',
-      ledgerCommit: undefined,
     });
     assert.deepEqual(JSON.parse(h.persisted[0].text), { mode: 'auto' });
     assert.equal(h.persisted[0].outPath, undefined);
     assert.deepEqual(h.written, ['\n']);
+  });
+
+  for (const removed of [['--ledger', 'l.json'], ['--ledger-commit']]) {
+    it(`rejects the retired ${removed[0]} flag as unknown (Story #5502)`, async () => {
+      const h = harness();
+      await assert.rejects(
+        () => runAuditToStories(['--auto', '--dry-run', ...removed], h.deps),
+        { code: 'ERR_PARSE_ARGS_UNKNOWN_OPTION' },
+      );
+      assert.equal(h.seen.runAuto, undefined, 'nothing ran');
+    });
+  }
+
+  it('--severity all passes through as the explicit floor', async () => {
+    const h = harness();
+    await runAuditToStories(['--auto', '--severity', 'ALL'], h.deps);
+    assert.equal(h.seen.runAuto.severity, 'all');
+  });
+
+  it('--severity rejects a typo rather than widening the run', async () => {
+    const h = harness();
+    await assert.rejects(
+      () => runAuditToStories(['--auto', '--severity', 'Hgh'], h.deps),
+      /--severity "Hgh" is not a severity/,
+    );
+    assert.equal(h.seen.runAuto, undefined, 'nothing ran');
   });
 
   it('--auto with --out writes to the file and skips the stdout newline', async () => {
@@ -611,22 +580,12 @@ describe('wireEdges', () => {
     ],
   };
 
-  // Story #5305 — the pass also records the ledger, so every case here injects
-  // the record seam: the real one would write the repo's committed
-  // `baselines/audit-ledger.json` from a unit test.
-  const recordSeam = (sink) => (args) => {
-    sink?.push(args);
-    return { path: 'baselines/audit-ledger.json', written: true, filed: 0 };
-  };
-
   it('passes only the create-eligible groups and an updateBody bound to updateTicket', async () => {
     const patched = [];
-    const recorded = [];
     let seen;
     const summary = await wireEdges(
       { plan, issueByGroupKey: { a: 101, b: 102 } },
       {
-        recordFiledIssuesImpl: recordSeam(recorded),
         loadProviderImpl: async () => ({
           updateTicket: (issueNumber, mutations) => {
             patched.push({ issueNumber, body: mutations.body });
@@ -650,14 +609,10 @@ describe('wireEdges', () => {
     assert.deepEqual(seen.issueByGroupKey, { a: 101, b: 102 });
     assert.deepEqual(patched, [{ issueNumber: 102, body: 'NEW BODY' }]);
     assert.deepEqual(
-      recorded.map((r) => r.issueByGroupKey),
-      [{ a: 101, b: 102 }],
-      'the ledger record sees the same map the wiring does',
+      summary,
+      { storiesWired: 1 },
+      'the wiring summary alone — no ledger record (Story #5502)',
     );
-    assert.deepEqual(summary, {
-      storiesWired: 1,
-      ledger: { path: 'baselines/audit-ledger.json', written: true, filed: 0 },
-    });
   });
 
   it('fails loudly when the provider cannot rewrite a body', async () => {
@@ -667,10 +622,7 @@ describe('wireEdges', () => {
       () =>
         wireEdges(
           { plan, issueByGroupKey: { a: 101 } },
-          {
-            recordFiledIssuesImpl: recordSeam(),
-            loadProviderImpl: async () => ({}),
-          },
+          { loadProviderImpl: async () => ({}) },
         ),
       /--wire-edges needs a provider exposing updateTicket/,
     );

@@ -11,6 +11,7 @@
  */
 
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { describe, it } from 'node:test';
@@ -260,25 +261,29 @@ const PLAN = {
 };
 
 describe('wireEdges — the live provider reaches the wire step (Story #5143)', () => {
-  // Story #5305 — the pass also records the ledger. Injected in every case
-  // here: the real implementation would write the repo's committed
-  // `baselines/audit-ledger.json` from a unit test, which the read-only
-  // invariant over `baselines/` (rightly) fails on.
-  const recordFiledIssuesImpl = () => ({
-    path: 'baselines/audit-ledger.json',
-    written: true,
-    filed: 0,
-  });
-
   it('carries updateTicket/getTicket/getDependencyWriteContext through the dedup adapter (AC-1)', async () => {
     // Pre-change, `loadProvider` returned an adapter narrowed to the two dedup
     // search ports, so this threw "--wire-edges needs a provider exposing
     // updateTicket" against a correctly configured, correctly authed repo.
     const stub = new StubLiveProvider();
-    const summary = await wireEdges(
-      { plan: PLAN, issueByGroupKey: { a: 101, b: 102 } },
-      { loadProviderImpl: liveAdapter(stub), recordFiledIssuesImpl },
-    );
+    const writes = [];
+    const realWrite = fs.writeFileSync;
+    fs.writeFileSync = (...args) => {
+      writes.push(String(args[0]));
+      return realWrite(...args);
+    };
+    let summary;
+    try {
+      summary = await wireEdges(
+        { plan: PLAN, issueByGroupKey: { a: 101, b: 102 } },
+        { loadProviderImpl: liveAdapter(stub) },
+      );
+    } finally {
+      fs.writeFileSync = realWrite;
+    }
+    // Story #5502 — the wiring pass writes nothing to disk; the footers it
+    // stamps are the only cross-run record.
+    assert.deepEqual(writes, [], 'no file is written');
 
     assert.deepEqual(
       stub.patched.map((p) => p.issueNumber),
@@ -306,7 +311,6 @@ describe('wireEdges — the live provider reaches the wire step (Story #5143)', 
         wireEdges(
           { plan: PLAN, issueByGroupKey: { a: 101, b: 102 } },
           {
-            recordFiledIssuesImpl,
             loadProviderImpl: () =>
               loadProvider({ resolveConfigImpl: () => ({ github: {} }) }),
           },
@@ -328,7 +332,6 @@ describe('wireEdges — the live provider reaches the wire step (Story #5143)', 
         wireEdges(
           { plan: PLAN, issueByGroupKey: { a: 101, b: 102 } },
           {
-            recordFiledIssuesImpl,
             loadProviderImpl: () =>
               loadProvider({
                 resolveConfigImpl: () => ({
@@ -355,10 +358,7 @@ describe('wireEdges — the live provider reaches the wire step (Story #5143)', 
     try {
       await assert.rejects(
         () =>
-          wireEdges(
-            { plan: PLAN, issueByGroupKey: { a: 101, b: 102 } },
-            { recordFiledIssuesImpl },
-          ),
+          wireEdges({ plan: PLAN, issueByGroupKey: { a: 101, b: 102 } }, {}),
         (err) => {
           assert.match(
             err.message,

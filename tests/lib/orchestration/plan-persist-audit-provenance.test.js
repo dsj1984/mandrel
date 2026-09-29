@@ -1,23 +1,32 @@
 /**
- * Story #5307 — what an audit-seeded plan leaves behind for the next sweep.
+ * What an audit-seeded plan leaves behind for the next sweep: the provenance
+ * footers every Story carries — since Story #5502 the ONLY cross-run dedup
+ * memory — and the `audit::*` labels the dedup corpus is listed by.
  *
- * Two halves, both driven from the persist orchestrator: the `audit::*` labels
- * the dedup corpus is listed by, and the cross-run ledger record of what this
- * run filed. Together they close the gap that made a chained-path Story
- * invisible to the sweep that proposed it.
+ * Story #5502 retired the cross-run ledger, which made footer carriage
+ * load-bearing: a footer dropped on the way to persist is a finding silently
+ * re-filed by the next sweep. The oversize-seed cases below pin that carriage
+ * fail-closed end to end, through plan-context's real truncation.
  */
 
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import path from 'node:path';
 import { describe, it } from 'node:test';
+import { parseFingerprintFooter } from '../../../.agents/scripts/lib/findings/route-finding.js';
 import {
-  recordAuditFilings,
+  buildPlanContext,
+  PLAN_CONTEXT_ENVELOPE_BYTE_CEILING,
+} from '../../../.agents/scripts/lib/orchestration/plan-context.js';
+import {
+  resolveSeedProvenance,
   withAuditLabels,
 } from '../../../.agents/scripts/lib/orchestration/plan-persist/audit-provenance.js';
-import { assemblePlanStories } from '../../../.agents/scripts/lib/orchestration/plan-persist/story-ops.js';
+import { runPlanPersist } from '../../../.agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js';
+import {
+  assemblePlanStories,
+  createStoryIssues,
+} from '../../../.agents/scripts/lib/orchestration/plan-persist/story-ops.js';
 import { serialize } from '../../../.agents/scripts/lib/story-body/story-body.js';
-import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
 
 const SHA_A = 'a'.repeat(40);
 const SHA_B = 'b'.repeat(40);
@@ -26,8 +35,6 @@ const SEED = [
   '<!-- audit-semantic-keys: clean-code␟lib/a.js,performance␟lib/b.js -->',
   '<!-- audit-labels: audit::clean-code,audit::performance -->',
 ].join('\n');
-
-const quietLogger = { warn: () => {} };
 
 function ticket(slug, overrides = {}) {
   return {
@@ -50,180 +57,6 @@ function plan(tickets) {
   const { stories } = assemblePlanStories(tickets, { provenanceSource: SEED });
   return { tickets, stories };
 }
-
-/** Persist receipts for an assembled plan, numbered from 701. */
-function receipts(stories) {
-  return stories.map((s, i) => ({ slug: s.slug, id: 701 + i }));
-}
-
-function withTempLedger(run) {
-  // makeTempDir mints under the suite temp root and registers its own
-  // teardown — a raw os.tmpdir() mkdtemp fails the CI temp-hygiene lint.
-  return run(path.join(makeTempDir('audit-provenance-'), 'audit-ledger.json'));
-}
-
-describe('recordAuditFilings — the ledger record', () => {
-  it('records each attributed Story against its own issue number', () => {
-    withTempLedger((ledgerPath) => {
-      const { tickets, stories } = plan([
-        ticket('a', { provenance: { fingerprints: [SHA_A] } }),
-        ticket('b', { provenance: { fingerprints: [SHA_B] } }),
-      ]);
-      const result = recordAuditFilings({
-        stories,
-        created: receipts(stories),
-        tickets,
-        ledgerPath,
-        logger: quietLogger,
-      });
-
-      assert.equal(result.recorded, 2);
-      const byFp = new Map(
-        JSON.parse(fs.readFileSync(ledgerPath, 'utf8')).entries.map((e) => [
-          e.fingerprint,
-          e,
-        ]),
-      );
-      assert.equal(byFp.get(SHA_A).status, 'filed');
-      assert.equal(byFp.get(SHA_A).issue.number, 701);
-      assert.equal(byFp.get(SHA_B).issue.number, 702, 'each owns its own');
-    });
-  });
-
-  it('records NOTHING when the seed carried footers but no Story attributed them', () => {
-    withTempLedger((ledgerPath) => {
-      const warnings = [];
-      const { tickets, stories } = plan([ticket('a'), ticket('b')]);
-      const result = recordAuditFilings({
-        stories,
-        created: receipts(stories),
-        tickets,
-        ledgerPath,
-        logger: { warn: (m) => warnings.push(m) },
-      });
-
-      assert.equal(result.recorded, 0);
-      assert.ok(result.ambiguous > 0);
-      assert.equal(
-        fs.existsSync(ledgerPath),
-        false,
-        'a coin-flip binding is worse than none — nothing is written',
-      );
-      assert.ok(
-        warnings.some((w) => /ambiguous/.test(w)),
-        'the cost is named on stderr, never silent',
-      );
-    });
-  });
-
-  it('writes no ledger at all for a plan carrying no provenance', () => {
-    withTempLedger((ledgerPath) => {
-      const { stories } = assemblePlanStories([ticket('a')]);
-      const result = recordAuditFilings({
-        stories,
-        created: receipts(stories),
-        tickets: [ticket('a')],
-        ledgerPath,
-        logger: quietLogger,
-      });
-      assert.equal(result.recorded, 0);
-      assert.equal(result.ambiguous, 0);
-      assert.equal(fs.existsSync(ledgerPath), false);
-    });
-  });
-
-  it('is idempotent: a re-run records one entry per fingerprint, not two', () => {
-    withTempLedger((ledgerPath) => {
-      for (const _ of [1, 2]) {
-        const { tickets, stories } = plan([
-          ticket('a', { provenance: { fingerprints: [SHA_A] } }),
-        ]);
-        recordAuditFilings({
-          stories,
-          created: receipts(stories),
-          tickets,
-          ledgerPath,
-          logger: quietLogger,
-        });
-      }
-      const entries = JSON.parse(fs.readFileSync(ledgerPath, 'utf8')).entries;
-      assert.equal(entries.length, 1);
-      assert.equal(entries[0].fingerprint, SHA_A);
-    });
-  });
-
-  it('never resurrects a finding whose Issue was closed', () => {
-    withTempLedger((ledgerPath) => {
-      fs.writeFileSync(
-        ledgerPath,
-        JSON.stringify({
-          entries: [
-            {
-              fingerprint: SHA_A,
-              semanticKey: 'clean-code␟lib/a.js',
-              status: 'accepted-risk',
-              issue: {
-                number: 11,
-                state: 'closed',
-                stateReason: 'not_planned',
-              },
-            },
-          ],
-        }),
-      );
-      const { tickets, stories } = plan([
-        ticket('a', { provenance: { fingerprints: [SHA_A] } }),
-      ]);
-      recordAuditFilings({
-        stories,
-        created: receipts(stories),
-        tickets,
-        ledgerPath,
-        logger: quietLogger,
-      });
-      const entry = JSON.parse(fs.readFileSync(ledgerPath, 'utf8')).entries[0];
-      assert.equal(entry.status, 'accepted-risk', 'the close still outranks');
-      assert.equal(entry.issue.number, 11);
-    });
-  });
-});
-
-describe('recordAuditFilings — the dry-run contract', () => {
-  it('records nothing and writes nothing under --dry-run', () => {
-    withTempLedger((ledgerPath) => {
-      const { tickets, stories } = plan([
-        ticket('a', { provenance: { fingerprints: [SHA_A] } }),
-      ]);
-      const result = recordAuditFilings({
-        stories,
-        created: receipts(stories),
-        tickets,
-        ledgerPath,
-        logger: quietLogger,
-        dryRun: true,
-      });
-      assert.deepEqual(result, { recorded: 0, ambiguous: 0 });
-      assert.equal(fs.existsSync(ledgerPath), false);
-    });
-  });
-
-  it('skips a Story the create pass never opened', () => {
-    withTempLedger((ledgerPath) => {
-      const { tickets, stories } = plan([
-        ticket('a', { provenance: { fingerprints: [SHA_A] } }),
-      ]);
-      const result = recordAuditFilings({
-        stories,
-        created: [],
-        tickets,
-        ledgerPath,
-        logger: quietLogger,
-      });
-      assert.equal(result.recorded, 0);
-      assert.equal(fs.existsSync(ledgerPath), false);
-    });
-  });
-});
 
 describe('withAuditLabels — the corpus labels', () => {
   it('stamps the seed audit::* labels on every Story', () => {
@@ -249,5 +82,156 @@ describe('withAuditLabels — the corpus labels', () => {
     const twice = withAuditLabels(once, SEED);
     const audit = twice[0].labels.filter((l) => l === 'audit::clean-code');
     assert.equal(audit.length, 1);
+  });
+});
+
+describe('resolveSeedProvenance', () => {
+  it('prefers the carried seed.provenance over the seed text', () => {
+    const envelope = { seed: { content: 'no footers here', provenance: SEED } };
+    assert.equal(resolveSeedProvenance(envelope), SEED);
+  });
+
+  it('falls back to an untruncated seed text', () => {
+    assert.equal(resolveSeedProvenance({ seed: { content: SEED } }), SEED);
+  });
+
+  it('is empty for a --tickets run with no envelope seed', () => {
+    assert.equal(resolveSeedProvenance(null), '');
+    assert.equal(resolveSeedProvenance({ seed: { text: 'chat' } }), '');
+  });
+
+  it('refuses a truncated seed whose footers were not carried', () => {
+    const envelope = {
+      seed: { content: SEED.slice(0, 20) },
+      truncated: [{ field: 'seed', note: '.content cut to a prefix' }],
+    };
+    assert.throws(
+      () => resolveSeedProvenance(envelope),
+      /truncated the seed and carries no seed\.provenance.*No Issue was created/s,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AC-5 — an audit seed large enough for plan-context to truncate.
+// ---------------------------------------------------------------------------
+
+const GROUPS = 125;
+const shaFor = (i) => i.toString(16).padStart(40, '0');
+
+/**
+ * A seed shaped like a real oversize `/audit-to-stories --emit-plan-seed`
+ * output: one footer group per finding group, interleaved with prose, well
+ * past the envelope ceiling so the tail groups sit after the cut.
+ */
+function oversizeAuditSeed() {
+  const filler =
+    'Evidence and remediation prose for this finding group. '.repeat(
+      Math.ceil((PLAN_CONTEXT_ENVELOPE_BYTE_CEILING * 1.5) / GROUPS / 55),
+    );
+  const parts = ['# Audit seed\n'];
+  for (let i = 1; i <= GROUPS; i += 1) {
+    parts.push(
+      `## Group ${i}\n\n${filler}\n`,
+      `<!-- audit-fingerprints: ${shaFor(i)} -->`,
+      `<!-- audit-semantic-keys: clean-code␟lib/g${i}.js -->`,
+      '<!-- audit-labels: audit::clean-code -->\n',
+    );
+  }
+  return parts.join('\n');
+}
+
+function envelopeProvider() {
+  return {
+    getEpic: async (id) => ({ id, title: 'Epic', body: '' }),
+    getTicket: async (id) => ({
+      id,
+      number: id,
+      title: 'T',
+      body: '',
+      labels: [],
+    }),
+    getTickets: async () => [],
+    listIssuesByLabel: async () => [],
+    getTicketComments: async () => [],
+  };
+}
+
+async function oversizeEnvelope() {
+  return buildPlanContext({
+    mode: 'seed-file',
+    seedFileContent: oversizeAuditSeed(),
+    seedFilePath: 'temp/audit-seed.md',
+    provider: envelopeProvider(),
+    config: { github: { owner: 'o', repo: 'r' } },
+    settings: {},
+  });
+}
+
+describe('AC-5: footer carriage survives a truncated audit seed', () => {
+  it('plan-context cuts the seed text but carries every footer apart from it', async () => {
+    const env = await oversizeEnvelope();
+    assert.ok(
+      (env.truncated ?? []).some((t) => t.field === 'seed'),
+      'precondition: the seed really was truncated',
+    );
+    assert.ok(
+      parseFingerprintFooter(env.seed.content).length < GROUPS,
+      'precondition: the cut seed text lost footer groups',
+    );
+    assert.equal(parseFingerprintFooter(env.seed.provenance).length, GROUPS);
+  });
+
+  it('every seed footer reaches the persisted Story bodies', async () => {
+    const env = await oversizeEnvelope();
+    const provenanceSource = resolveSeedProvenance(env);
+    const { stories } = assemblePlanStories([ticket('a'), ticket('b')], {
+      provenanceSource,
+    });
+    const posted = [];
+    await createStoryIssues({
+      provider: {
+        createIssue: async (payload) => {
+          posted.push(payload.body);
+          return { id: 300 + posted.length };
+        },
+      },
+      stories: withAuditLabels(stories, provenanceSource),
+    });
+    assert.equal(posted.length, 2);
+    for (const body of posted) {
+      const carried = new Set(parseFingerprintFooter(body));
+      for (let i = 1; i <= GROUPS; i += 1) {
+        assert.ok(carried.has(shaFor(i)), `group ${i} footer dropped`);
+      }
+    }
+  });
+
+  it('persist refuses a truncated envelope without carried footers, before any create', async () => {
+    const env = await oversizeEnvelope();
+    const { provenance: _dropped, ...seed } = env.seed;
+    let creates = 0;
+    await assert.rejects(
+      () =>
+        runPlanPersist({
+          provider: {
+            createIssue: async () => {
+              creates += 1;
+              return { id: 1 };
+            },
+          },
+          artifacts: {
+            stories: [ticket('a')],
+            planContextEnvelope: { ...env, seed },
+          },
+          opts: { dryRun: true, skipCleanup: true },
+        }),
+      /truncated the seed and carries no seed\.provenance/,
+    );
+    assert.equal(creates, 0, 'no Issue was created');
+  });
+
+  it('writes no ledger file', () => {
+    assert.equal(fs.existsSync('baselines/audit-ledger.json'), false);
   });
 });

@@ -170,19 +170,22 @@ MVP Scope section carries each group's `audit-fingerprints` and
 `audit-semantic-keys` footers as HTML comments (invisible in the rendered
 one-pager, and per-group even though the visible list is flat — they are the
 identity the next sweep matches on). `plan-persist` harvests them out of the seed on the
-`plan-context.json` envelope and appends them to **every** Story body it
-persists, via `carryProvenanceFooters`
+`plan-context.json` envelope — which carries them apart from the seed text as
+`seed.provenance`, so an oversize seed cut for size keeps every footer — and
+appends them to **every** Story body it persists, via `carryProvenanceFooters`
 ([`lib/findings/route-finding.js`](../scripts/lib/findings/route-finding.js)).
 The carry is additive, union-preserving and idempotent, so a resumed persist
 cannot stack footers and a hand-authored fingerprint is never dropped.
 
-**Persist records the ledger and the labels too.** It stamps the seed's
-`audit::<dimension>` labels — the dedup corpus is listed by them, and an indexed
-run answers lookups from that pool without reaching the provider, so a footer
-alone leaves a plan-path Story invisible — and records each Story's
-**attributed** identities. Union-only identities are not recorded: every sibling
-carries every fingerprint, so an owner would be a coin flip; persist says so on
-stderr. Author per-Story `provenance` to record them.
+**The carry is fail-closed.** The footers are the only cross-run dedup memory,
+so a dropped one is a finding silently re-filed by the next sweep. An envelope
+whose seed was truncated and that carries no `seed.provenance` makes persist
+refuse before creating any Issue, naming the cause — regenerate the envelope.
+
+**Persist stamps the labels too.** It adds the seed's `audit::<dimension>`
+labels — the dedup corpus is listed by them, and an indexed run answers lookups
+from that pool without reaching the provider, so a footer alone leaves a
+plan-path Story invisible. Persist writes no file.
 
 This is deliberately not an authoring step. If you find yourself copying a
 footer by hand, the carry is broken — fix it there rather than papering over it
@@ -239,16 +242,10 @@ Each entry in the emitted `--json` payload carries its own `groupKey` and
 `dependsOn`, so the map is a lookup, not a reconstruction. The pass re-renders
 every Story that has a resolvable blocker with a canonical
 `---` / `blocked by #N` footer **and** mirrors the same edges as native
-GitHub `blocked_by` relations. An edge whose target was never opened (deduped,
-ledger-suppressed) drops rather than becoming a `blocked by #undefined`.
-
-**This pass also records the ledger.** The `--ids` map is the only artifact
-carrying the numbers just opened, so `--wire-edges` folds in the cross-run
-record: each mapped group's findings are written `filed` against its Issue
-(`--ledger <path>`, default `baselines/audit-ledger.json`; `--dry-run`
-suppresses the write). The record runs **before** the provider loads, so a host
-with no `gh` still remembers what it filed. Without it nothing ever writes
-`filed` and the ledger suppresses nothing.
+GitHub `blocked_by` relations. An edge whose target was never opened
+(deduped) drops rather than becoming a `blocked by #undefined`. The pass writes
+no file: the fingerprint footers each Issue was opened with are what the next
+sweep recognises it by.
 
 **Do not skip this.** `/mandrel-deliver` has no other source for this cohort's order:
 its footprint guard ignores the shared provenance footers, so an unwired cohort
@@ -324,23 +321,17 @@ are read. An unreadable file is a hard error, never a silent fall-back to an
 unchecked run; an **empty** array — a valid first sweep — is reported with its
 count so it cannot pass for a failed fetch.
 
-### Cross-run ledger
+### Cross-run memory is the Issues themselves
 
-The `--scan` classifications only see *live* issues. To decay findings across
-runs — recognizing re-detections, suppressing deliberately-rejected findings,
-and flagging genuine regressions — the sweep folds each scan onto a committed
-**ledger** (`baselines/audit-ledger.json`, the arch-cycles-baseline envelope
-shape). Each entry is keyed by the finding's fingerprint plus a location-based
-`semanticKey` and carries a lifecycle `status`
-(`new | filed | fixed | accepted-risk | regressed`). A finding whose tracking
-Issue was closed as `not_planned` becomes `accepted-risk` and is **suppressed**
-on every later scan; a `fixed` finding that re-appears becomes `regressed`. The
-ledger is written by the unattended `--auto` sweep, by any `--scan --ledger`
-run, by the Phase 5c `--wire-edges` pass, and by `plan-persist` on the Phase 5a
-chained path — the two filing paths both record what they filed; the
-plain `--scan` path leaves it untouched. A finding whose resolved Issue is open
-is recorded `filed` and is known on re-detection; a closed Issue still outranks
-that.
+There is no ledger. Every verdict a cross-run record could hold is derived from
+live GitHub state through the provenance footers each filed Story carries: an
+**open** Issue whose `audit-fingerprints` / `audit-semantic-keys` footer matches
+a finding classifies it `skip-open`; a **closed** one — completed or
+`not_planned` — classifies it `skip-reoccurring`, skipped by default and
+surfaced in the summary; a finding reworded at an unmoved location still
+matches on its semantic key. So a run commits nothing and opens no PR of its
+own; the footers stamped at filing time (Phase 5a's carry, Phase 5b's
+`fingerprintFooter`) are the whole of what the next sweep remembers.
 
 ## Phase 7 — Summary & cleanup
 
@@ -398,11 +389,11 @@ writing their `temp/audits/audit-*-results.md` reports, then (2) invokes the
 CLI's **`--auto` mode** over those results:
 
 ```bash
-node .agents/scripts/audit-to-stories.js --auto [--dry-run] [--ledger-commit] \
+node .agents/scripts/audit-to-stories.js --auto [--dry-run] \
   [--glob "temp/audits/audit-*-results.md"] [--severity <floor>]
 ```
 
-The routine shape is **lenses full-scope → dry-run → live with a ledger PR**:
+The routine shape is **lenses full-scope → dry-run → live**:
 
 1. Run the `audit-*` lenses with no `--paths` and no change-set filter. A
    sweep scoped to a change set re-reports the same recent files every cycle
@@ -410,45 +401,27 @@ The routine shape is **lenses full-scope → dry-run → live with a ledger PR**
 2. `--auto --dry-run` for the first cycles — zero writes, summary only. Read
    `totals.create` and raise the severity floor until it is a batch the team
    would actually take on.
-3. `--auto --ledger-commit` once the tallies stop surprising you.
+3. `--auto` once the tallies stop surprising you, filing the `create` groups
+   and wiring them (Phase 5c).
 
 `--auto` runs with **no interactive gates**: it resolves the severity floor
-from `--severity` (default `high`), applies the two-stage dedup, reconciles the cross-run ledger,
-and prints a run-summary JSON (create / skip-open / skip-reoccurring /
-suppressed-by-ledger tallies, the `create`-classified group keys the `--ids`
-map is built from, plus the re-detected open Issue numbers an operator may want
-a "re-detected" comment on). It opens no Issues itself, so run Phase 5c after
-filing or the sweep's memory stays empty. `--dry-run` performs zero GitHub
-writes and skips the ledger write, emitting only the summary.
+from `--severity` (default `high`), applies the two-stage dedup, and prints a
+run-summary JSON (create / skip-open / skip-reoccurring tallies, the
+`create`-classified group keys the `--ids` map is built from, plus the
+re-detected open Issue numbers an operator may want a "re-detected" comment
+on). It opens no Issues and writes no file itself; file the `create` groups
+with their fingerprint footers and run Phase 5c. `--dry-run` emits only the
+summary.
 
 `--auto` **fails closed on any `summary.reportFailures[]` entry** (Phase 1): an
 unattended sweep has no operator to read a warning, so a missing or mismatched
 `Severity tally:` line — or a finding whose severity did not resolve — exits
-non-zero having opened no Issue and written no ledger. `--allow-missing-tally`
+non-zero having opened no Issue. `--allow-missing-tally`
 is a `--scan` affordance that `--auto` ignores. A red sweep means the report is
 untrustworthy: re-run the lens. The host scheduler owns the cadence; this
 workflow owns the routing.
 
-### The ledger is consumer state — commit it
-
-`baselines/audit-ledger.json` is **committed consumer state, not scratch
-output**. A scheduled sweep normally runs on an ephemeral checkout, so unless
-the reconciled ledger is committed back it dies with the clone: every later
-sweep starts amnesiac, re-proposing findings already filed and re-surfacing
-findings a human already rejected.
-
-`--ledger-commit` closes that loop. After the summary prints — and only when
-the ledger changed — it creates `chore/audit-ledger-<YYYY-MM-DD>` from HEAD,
-commits **only** the ledger file, pushes it, and opens a PR against
-`project.baseBranch`. **Auto-merge is never requested**: a human glance at the
-`accepted-risk` / `regressed` flips before it lands is the point. A git or `gh`
-failure is fatal and names its step, but only after the summary is printed, so
-a broken remote never costs the operator the run's findings. `--dry-run` skips
-the tail. Without the flag, a changed ledger on a checkout that cannot persist
-it — no `origin`, or HEAD off the base branch — sets `ledger.unpersisted: true`
-in the summary and warns on stderr naming the file.
-
-The full sweep procedure — tally cross-check, the ledger PR, the
+The full sweep procedure — tally cross-check, filing and wiring, the
 enrich-before-deliver step and the label convention — ships as a
 consumer-copyable template at
 [`templates/docs/audit-sweep-runbook.md`](../templates/docs/audit-sweep-runbook.md).

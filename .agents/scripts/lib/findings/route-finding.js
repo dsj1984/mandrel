@@ -191,6 +191,21 @@ function parseAllFooterValues(text, pattern, isValid) {
 }
 
 /**
+ * Every provenance footer in `text`, verbatim, one per line — the whole of
+ * what `carryProvenanceFooters` and `parseAuditLabelFooter` read from a seed,
+ * small enough to survive a seed that is cut for size.
+ *
+ * @param {unknown} text
+ * @returns {string}
+ */
+export function extractProvenanceFooters(text) {
+  if (typeof text !== 'string') return '';
+  const pattern =
+    /<!--\s*audit-(?:fingerprints|semantic-keys|labels):[^>]*-->/g;
+  return [...text.matchAll(pattern)].map((m) => m[0]).join('\n');
+}
+
+/**
  * Append the seed's provenance footers missing from `into`, so the next
  * sweep recognises the Story. Additive and idempotent.
  *

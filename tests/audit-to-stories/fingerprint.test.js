@@ -15,7 +15,6 @@ import path from 'node:path';
 import { test } from 'node:test';
 import url from 'node:url';
 import {
-  fingerprintAuditFinding,
   renderFingerprintFooter,
   withFingerprints,
 } from '../../.agents/scripts/lib/audit-to-stories/finding-adapter.js';
@@ -25,6 +24,11 @@ import { parseFingerprintFooter } from '../../.agents/scripts/lib/findings/route
 const __filename = url.fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const FIXTURES = path.join(__dirname, 'fixtures');
+
+/** The adapter's fingerprint for one finding, through its public seam. */
+function fingerprintAuditFinding(finding) {
+  return withFingerprints([finding])[0].fingerprint;
+}
 
 function loadReport(name) {
   return parseAuditReport({
