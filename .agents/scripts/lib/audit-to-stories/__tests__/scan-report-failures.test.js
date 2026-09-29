@@ -149,14 +149,11 @@ describe('report cross-check — mismatched tally', () => {
     });
   });
 
-  it('AC-3: --auto exits non-zero, emitting no Issue payload and no ledger', () => {
+  it('AC-3: --auto exits non-zero, emitting no Issue payload', () => {
     const cwd = plant('mismatch-auto', MISMATCHED);
-    const ledger = path.join(cwd, 'ledger.json');
     const { status, stdout, stderr } = run(cwd, [
       '--auto',
       '--no-provider',
-      '--ledger',
-      ledger,
       '--glob',
       'audits/*.md',
     ]);
@@ -164,30 +161,21 @@ describe('report cross-check — mismatched tally', () => {
     assert.notEqual(status, 0, '--auto fails closed on a report failure');
     assert.equal(stdout.trim(), '', 'no Issue payload reaches stdout');
     assert.match(stderr, /audit report cross-check FAILED/);
-    assert.equal(
-      fs.existsSync(ledger),
-      false,
-      'a refused run must not write the ledger',
-    );
   });
 });
 
 describe('report cross-check — missing tally line', () => {
   it('AC-4: --auto refuses a report that declares no tally', () => {
     const cwd = plant('missing-auto', MISSING);
-    const ledger = path.join(cwd, 'ledger.json');
     const { status, stderr } = run(cwd, [
       '--auto',
       '--no-provider',
-      '--ledger',
-      ledger,
       '--glob',
       'audits/*.md',
     ]);
 
     assert.notEqual(status, 0);
     assert.match(stderr, /missing-tally/);
-    assert.equal(fs.existsSync(ledger), false);
   });
 
   it('AC-4: --auto ignores --allow-missing-tally', () => {

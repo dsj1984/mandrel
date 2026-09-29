@@ -13,20 +13,12 @@ import { parseArgs } from 'node:util';
 import { buildStoryBody } from './lib/audit-to-stories/build-story-body.js';
 import { classifyGroupsAgainstGitHub } from './lib/audit-to-stories/dedupe-against-github.js';
 import { formatEpicGrouping } from './lib/audit-to-stories/epic-grouping-directive.js';
-import {
-  toCanonicalFinding,
-  withFingerprints,
-} from './lib/audit-to-stories/finding-adapter.js';
+import { withFingerprints } from './lib/audit-to-stories/finding-adapter.js';
 import { groupFindings } from './lib/audit-to-stories/group-findings.js';
 import {
   loadIssuesFile,
   normaliseIssueHit,
 } from './lib/audit-to-stories/issues-file.js';
-import {
-  resolveLedgerSummary,
-  runLedgerCommit,
-} from './lib/audit-to-stories/ledger-commit.js';
-import { recordFiledIssues } from './lib/audit-to-stories/ledger-record.js';
 import {
   parseAuditReports,
   readSeverityTally,
@@ -34,12 +26,6 @@ import {
 import { buildPlanSeedMarkdown } from './lib/audit-to-stories/seed-from-findings.js';
 import { wireAuditStoryEdges } from './lib/audit-to-stories/wire-dependencies.js';
 import { runAsCli } from './lib/cli-utils.js';
-import {
-  DEFAULT_LEDGER_PATH,
-  readLedger,
-  reconcileLedger,
-  writeLedger,
-} from './lib/findings/audit-ledger.js';
 import { searchSemanticCandidates } from './lib/findings/semantic-issue-search.js';
 import {
   normalizeSeverity,
@@ -125,7 +111,7 @@ function formatTally(tally) {
 
 /**
  * Cross-check the reports, warn on stderr, and throw under
- * `failOnReportFailures` (`--auto`) BEFORE any ledger or GitHub write; `--scan`
+ * `failOnReportFailures` (`--auto`) BEFORE any GitHub write; `--scan`
  * carries the failures on the plan envelope instead.
  *
  * @param {object} params
@@ -602,17 +588,17 @@ function dedupPhaseWarnings({ issues, summary }) {
 }
 
 /**
- * Scan → group → dedup → (optionally) reconcile the cross-run ledger.
+ * Scan → group → dedup. Cross-run memory is the Issues' provenance footers,
+ * which dedup reads from live state — nothing is persisted here.
  *
  * @param {{ glob?: string, severity?: string, useProvider?: boolean,
- *   issuesFile?: string, ledger?: object }} params
+ *   issuesFile?: string }} params
  * @param {{
  *   collectReportPathsImpl?: typeof collectReportPaths,
  *   readReportsImpl?: typeof readReports,
  *   loadProviderImpl?: typeof loadProviderOrNull,
  *   classifyGroupsImpl?: typeof classifyGroupsAgainstGitHub,
  *   loadIssuesFileImpl?: typeof loadIssuesFile,
- *   reconcileScanLedgerImpl?: typeof reconcileScanLedger,
  *   logger?: { warn: Function },
  * }} [deps]
  * @returns {Promise<object>} the plan envelope.
@@ -623,7 +609,6 @@ async function buildPlan(
     severity,
     useProvider,
     issuesFile,
-    ledger,
     allowMissingTally,
     failOnReportFailures,
   },
@@ -635,7 +620,6 @@ async function buildPlan(
     loadProviderImpl = loadProviderOrNull,
     classifyGroupsImpl = classifyGroupsAgainstGitHub,
     loadIssuesFileImpl = loadIssuesFile,
-    reconcileScanLedgerImpl = reconcileScanLedger,
     logger = Logger,
   } = deps;
   // Before reading reports: an unusable corpus is a usage error, not a fallback.
@@ -680,32 +664,6 @@ async function buildPlan(
     { loadProviderImpl, classifyGroupsImpl, logger },
   );
 
-  // Opt-in: plain --scan never mutates the committed ledger.
-  let ledgerSummary;
-  if (ledger) {
-    const suppressed = reconcileScanLedgerImpl({
-      ledgerPath: ledger.path ?? DEFAULT_LEDGER_PATH,
-      findings: stamped,
-      classifications,
-      write: ledger.write !== false,
-    });
-    if (suppressed.size > 0) {
-      for (const c of classifications) {
-        const findings = c.group?.findings ?? [];
-        if (
-          findings.length > 0 &&
-          findings.every((f) => suppressed.has(f?.fingerprint?.full))
-        ) {
-          c.action = 'skip-accepted-risk';
-        }
-      }
-    }
-    ledgerSummary = {
-      path: ledger.path ?? DEFAULT_LEDGER_PATH,
-      suppressed: suppressed.size,
-    };
-  }
-
   return {
     generatedAt: new Date().toISOString(),
     sourceReports: reportPaths,
@@ -720,60 +678,9 @@ async function buildPlan(
       tally: tallyBySeverity(filtered),
       reportFailures,
       dedupApplied,
-      ...(ledgerSummary ? { ledger: ledgerSummary } : {}),
       ...summary,
     },
   };
-}
-
-/**
- * Fold the scan onto the ledger, persist it, and return the accepted-risk
- * fingerprints to suppress.
- *
- * @param {object} params
- * @param {string} params.ledgerPath
- * @param {Array<object>} params.findings — stamped scan findings.
- * @param {Array<{ group?: object, matchedIssues?: Array<{ number: number, state: string }>, matchedFingerprints?: string[] }>} params.classifications
- * @param {boolean} [params.write=true]
- * @returns {Set<string>}
- */
-function reconcileScanLedger({ ledgerPath, findings, classifications, write }) {
-  const prior = readLedger(ledgerPath);
-  const issueStates = issueStatesFromClassifications(classifications);
-  const { ledger: next } = reconcileLedger({
-    ledger: prior,
-    findings,
-    issueStates,
-    // Passed in: the ledger importing the audit adapter would close a cycle.
-    toCanonical: toCanonicalFinding,
-  });
-  if (write !== false) writeLedger(ledgerPath, next);
-  return new Set(
-    next.entries
-      .filter((e) => e.status === 'accepted-risk')
-      .map((e) => e.fingerprint),
-  );
-}
-
-/**
- * @param {Array<object>} classifications
- * @returns {Record<string, { state: string, number: number|null }>}
- */
-function issueStatesFromClassifications(classifications) {
-  const states = {};
-  for (const c of classifications ?? []) {
-    const issue = (c.matchedIssues ?? [])[0];
-    if (!issue) continue;
-    const state = String(issue.state ?? '')
-      .toLowerCase()
-      .includes('closed')
-      ? 'closed'
-      : 'open';
-    for (const fp of c.matchedFingerprints ?? []) {
-      states[fp] = { state, number: issue.number ?? null };
-    }
-  }
-  return states;
 }
 
 function loadPlan(planPath) {
@@ -793,43 +700,25 @@ function severityFloorOf(explicit) {
 }
 
 /**
- * Unattended `--auto` sweep: build the plan with ledger reconciliation and
- * return a summary plus the create-eligible Story payloads (none under
- * `--dry-run`, which writes nothing). Never prompts.
+ * Unattended `--auto` sweep: build the plan and return a summary plus the
+ * create-eligible Story payloads (none under `--dry-run`). Writes nothing and
+ * never prompts.
  *
  * @param {object} params
  * @param {string} [params.glob]
  * @param {string} [params.severity] — explicit floor override.
  * @param {boolean} [params.dryRun]
  * @param {boolean} [params.useProvider]
- * @param {string} [params.ledgerPath]
- * @param {boolean} [params.ledgerCommit] — the operator asked for a ledger PR,
- *   so an unpersistable checkout is not a warning: it is about to be fixed.
- * @param {(cwd: string, ...args: string[]) => string} [params.git] — probe seam.
- * @param {string} [params.cwd]
- * @param {{ warn: Function }} [params.logger]
+ * @param {string} [params.issuesFile]
  * @returns {Promise<{ summary: object, stories: Array<object> }>}
  */
-async function runAuto({
-  glob,
-  severity,
-  dryRun,
-  useProvider,
-  issuesFile,
-  ledgerPath,
-  ledgerCommit,
-  git,
-  cwd,
-  logger = Logger,
-}) {
+async function runAuto({ glob, severity, dryRun, useProvider, issuesFile }) {
   const floor = severityFloorOf(severity);
-  const resolvedLedgerPath = ledgerPath ?? DEFAULT_LEDGER_PATH;
   const plan = await buildPlan({
     glob,
     severity: floor,
     useProvider,
     issuesFile,
-    ledger: { path: resolvedLedgerPath, write: !dryRun },
     // No operator reads warnings unattended, so every report failure is fatal.
     allowMissingTally: false,
     failOnReportFailures: true,
@@ -839,13 +728,11 @@ async function runAuto({
     create: [],
     skipOpen: [],
     skipReoccurring: [],
-    suppressed: [],
   };
   for (const c of plan.classifications ?? []) {
     if (c.action === 'create') byAction.create.push(c);
     else if (c.action === 'skip-open') byAction.skipOpen.push(c);
     else if (c.action === 'skip-reoccurring') byAction.skipReoccurring.push(c);
-    else if (c.action === 'skip-accepted-risk') byAction.suppressed.push(c);
   }
 
   const eligible = byAction.create.map((c) => c.group);
@@ -863,25 +750,14 @@ async function runAuto({
       create: byAction.create.length,
       skipOpen: byAction.skipOpen.length,
       skipReoccurring: byAction.skipReoccurring.length,
-      suppressedByLedger: byAction.suppressed.length,
     },
     // The caller opens the Issues; these keys feed its `--wire-edges --ids`
-    // map, without which the ledger never records what was filed.
+    // map, which resolves the group edges to `blocked by #N`.
     createGroupKeys: eligible.map((g) => g?.groupKey).filter(Boolean),
     reDetected: byAction.skipOpen
       .flatMap((c) => c.matchedIssues ?? [])
       .map((i) => i.number)
       .filter((n) => typeof n === 'number'),
-    // An ephemeral clone may not be able to keep the ledger it just wrote.
-    ledger: await resolveLedgerSummary({
-      ledger: plan.summary?.ledger ?? null,
-      ledgerPath: resolvedLedgerPath,
-      dryRun,
-      ledgerCommit,
-      cwd,
-      git,
-      logger,
-    }),
   };
 
   return { summary, stories };
@@ -953,43 +829,22 @@ function wireEdgesPreconditionError(reason, detail) {
 /**
  * Second pass after `--emit-stories`: given the opened `groupKey →
  * issueNumber` map, re-render each Story with `blocked by #N` footers, mirror
- * them as native `blocked_by`, and record the filed issues in the ledger.
+ * them as native `blocked_by`. Writes nothing to disk.
  *
  * @param {object} params
  * @param {object} params.plan   A `--scan` plan envelope.
  * @param {Record<string, number>} params.issueByGroupKey
- * @param {string} [params.ledgerPath] — ledger to record into; defaults to
- *   `DEFAULT_LEDGER_PATH` inside the record.
- * @param {boolean} [params.write] — `false` computes the record without
- *   persisting it (what `--dry-run` passes).
  * @param {object} [deps]
  * @param {Function} [deps.loadProviderImpl]
  * @param {Function} [deps.wireImpl]
- * @param {Function} [deps.recordFiledIssuesImpl]
- * @returns {Promise<object>} the wiring summary, with the ledger record on
- *   `ledger`.
+ * @returns {Promise<object>} the wiring summary.
  */
-async function wireEdges(
-  { plan, issueByGroupKey, ledgerPath, write },
-  deps = {},
-) {
-  const {
-    loadProviderImpl = loadProvider,
-    wireImpl = wireAuditStoryEdges,
-    recordFiledIssuesImpl = recordFiledIssues,
-  } = deps;
+async function wireEdges({ plan, issueByGroupKey }, deps = {}) {
+  const { loadProviderImpl = loadProvider, wireImpl = wireAuditStoryEdges } =
+    deps;
   const groups = (plan.classifications ?? [])
     .filter((c) => c.action === 'create')
     .map((c) => c.group);
-
-  // Record before loading the provider: a `gh`-less host, whose only duplicate
-  // protection is the ledger, must still remember what it filed.
-  const ledger = recordFiledIssuesImpl({
-    ledgerPath,
-    groups,
-    issueByGroupKey,
-    write,
-  });
 
   let provider;
   try {
@@ -1000,7 +855,7 @@ async function wireEdges(
   if (typeof provider?.updateTicket !== 'function') {
     throw wireEdgesPreconditionError('fixture-no-write-port');
   }
-  const wired = await wireImpl({
+  return wireImpl({
     groups,
     edges: plan.edges ?? [],
     issueByGroupKey,
@@ -1008,7 +863,6 @@ async function wireEdges(
     updateBody: (issueNumber, body) =>
       provider.updateTicket(issueNumber, { body }),
   });
-  return { ...wired, ledger };
 }
 
 /**
@@ -1066,8 +920,6 @@ export const __testing = {
   dedupIndexDegradedWarning,
   buildAndGateStories,
   runAuto,
-  reconcileScanLedger,
-  issueStatesFromClassifications,
   wireEdges,
   parseIssueMap,
 };
@@ -1087,40 +939,6 @@ export const __testing = {
  * }} [deps]
  * @returns {Promise<void>}
  */
-/**
- * The one-line `--ledger-commit` outcome: branch and PR, or the skip reason.
- *
- * @param {{ committed?: boolean, reason?: string, branch?: string,
- *   prUrl?: string|null, resumed?: boolean, ledgerPath?: string }} [result]
- * @returns {string}
- */
-function describeLedgerCommit(result) {
-  return result?.committed
-    ? ledgerCommittedLine(result)
-    : ledgerSkippedLine(result);
-}
-
-/**
- * @param {object} result
- * @returns {string}
- */
-function ledgerCommittedLine(result) {
-  const resumed = result.resumed ? ' (resumed an unpushed ledger branch)' : '';
-  const pr = result.prUrl ?? '(no URL reported by gh)';
-  return `--ledger-commit: pushed ${result.branch}${resumed} and opened ${pr}.`;
-}
-
-/**
- * Names the ledger file: its state is still only in the working tree.
- * @param {object} [result]
- * @returns {string}
- */
-function ledgerSkippedLine(result) {
-  const reason = result?.reason ?? 'no result';
-  const ledgerPath = result?.ledgerPath ?? 'the ledger';
-  return `--ledger-commit: skipped (${reason}) — ${ledgerPath} was not committed.`;
-}
-
 /**
  * Reject an unknown `--severity`: `meetsSeverity` would read a typo as rank 0
  * and silently widen the run to every finding. Absent stays absent.
@@ -1153,7 +971,6 @@ export async function runAuditToStories(
     wireEdgesImpl = wireEdges,
     parseIssueMapImpl = parseIssueMap,
     persistImpl = persist,
-    runLedgerCommitImpl = runLedgerCommit,
     stdout = process.stdout,
   } = deps;
   const { values } = parseArgs({
@@ -1168,8 +985,6 @@ export async function runAuditToStories(
       ids: { type: 'string' },
       glob: { type: 'string' },
       severity: { type: 'string' },
-      ledger: { type: 'string' },
-      'ledger-commit': { type: 'boolean' },
       plan: { type: 'string' },
       out: { type: 'string' },
       'no-provider': { type: 'boolean' },
@@ -1177,7 +992,9 @@ export async function runAuditToStories(
       'allow-missing-tally': { type: 'boolean' },
       json: { type: 'boolean' },
     },
-    strict: false,
+    // Strict: a retired flag (the 2.70 ledger pair) must error, not be
+    // silently ignored by a sweep that still passes it.
+    strict: true,
   });
 
   values.severity = validateSeverityFlag(values.severity);
@@ -1192,21 +1009,8 @@ export async function runAuditToStories(
         dryRun: values['dry-run'],
         useProvider: !values['no-provider'],
         issuesFile: values['issues-file'],
-        ledgerPath: values.ledger,
-        ledgerCommit: values['ledger-commit'],
       })
     ).summary;
-
-  // Runs after the summary is persisted: a broken remote must not cost the
-  // sweep's findings.
-  const commitLedger = async () => {
-    if (!values['ledger-commit'] || values['dry-run']) return;
-    Logger.warn(
-      describeLedgerCommit(
-        await runLedgerCommitImpl({ ledgerPath: values.ledger }),
-      ),
-    );
-  };
 
   const scanPlan = () =>
     buildPlanImpl({
@@ -1239,14 +1043,11 @@ export async function runAuditToStories(
     wireEdgesImpl({
       plan: loadPlanImpl(values.plan),
       issueByGroupKey: parseIssueMapImpl(values.ids),
-      ledgerPath: values.ledger,
-      // The Issues really exist here, so recording defaults on.
-      write: !values['dry-run'],
     });
 
-  // [flag, render, newlineOnStdout, afterPersist?]
+  // [flag, render, newlineOnStdout]
   const subcommands = [
-    ['auto', async () => json(await runAutoSummary()), true, commitLedger],
+    ['auto', async () => json(await runAutoSummary()), true],
     ['scan', async () => json(await scanPlan()), true],
     ['emit-plan-seed', () => seedMarkdown(), false],
     ['emit-stories', () => emittedStories(), true],
@@ -1259,10 +1060,9 @@ export async function runAuditToStories(
       'Usage: node audit-to-stories.js (--scan | --emit-plan-seed | --emit-stories | --wire-edges) [options]',
     );
   }
-  const [, render, newlineOnStdout, after] = entry;
+  const [, render, newlineOnStdout] = entry;
   persistImpl(await render(), values.out);
   if (newlineOnStdout && !values.out) stdout.write('\n');
-  if (after) await after();
 }
 
 /**
@@ -1305,7 +1105,7 @@ runAsCli(import.meta.url, main, {
       ['--emit-stories', 'Emit the Story drafts as JSON.'],
       [
         '--wire-edges',
-        'Second pass: resolve the detected group edges to blocked by #N footers plus native blocked_by relations, and record the mapped issues in the cross-run ledger as filed. Needs --plan and --ids; --dry-run suppresses the ledger write.',
+        'Second pass: resolve the detected group edges to blocked by #N footers plus native blocked_by relations. Needs --plan and --ids.',
       ],
       [
         '--ids <json|path>',
@@ -1313,14 +1113,6 @@ runAsCli(import.meta.url, main, {
       ],
       ['--glob <pattern>', 'Override the audit-results glob.'],
       ['--severity <level>', 'Lowest severity to include (high|medium|low).'],
-      [
-        '--ledger <path>',
-        `Path to the cross-run dedup ledger (default ${DEFAULT_LEDGER_PATH}).`,
-      ],
-      [
-        '--ledger-commit',
-        'After the --auto summary prints, commit a changed ledger onto chore/audit-ledger-<date>, push it, and open a PR against the base branch (never auto-merged). Ignored under --dry-run.',
-      ],
       [
         '--plan <path>',
         'Read a previously emitted plan instead of re-scanning.',

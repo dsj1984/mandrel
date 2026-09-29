@@ -36,7 +36,7 @@ export function toCanonicalFinding(finding) {
  * @param {object} finding
  * @returns {{ short: string, full: string, components: object }}
  */
-export function fingerprintAuditFinding(finding) {
+function fingerprintAuditFinding(finding) {
   return fingerprintFinding(toCanonicalFinding(finding));
 }
 

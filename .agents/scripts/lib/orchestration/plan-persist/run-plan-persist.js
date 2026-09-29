@@ -33,7 +33,7 @@ import {
 } from '../ticket-validator-conflicts.js';
 import { upsertStructuredComment } from '../ticketing.js';
 import { renderRepair } from './acceptance-handle-repair.js';
-import { recordAuditFilings, withAuditLabels } from './audit-provenance.js';
+import { resolveSeedProvenance, withAuditLabels } from './audit-provenance.js';
 import {
   resolveContainerEpic,
   resolveCrossPlanLinks,
@@ -423,6 +423,8 @@ export async function runPlanPersist({
   const runStartedAt = opts.metricsSince ?? new Date().toISOString();
 
   assertPersistablePlan(rawStories);
+  // Before any write: a truncated seed that lost its footers refuses here.
+  const seedProvenance = resolveSeedProvenance(planContextEnvelope);
 
   Logger.info(
     `[plan-persist] Running cross-validation on ${rawStories.length} Story ticket(s)...`,
@@ -451,14 +453,13 @@ export async function runPlanPersist({
     epicId: opts.adoptEpicId ?? null,
   });
 
-  const seedContent = planContextEnvelope?.seed?.content ?? '';
   const { stories: assembled, warnings: supersedeWarnings } =
     assemblePlanStories(rawStories, {
       sharedSpec: techSpecContent,
       sourceTicketIds,
       // Audit footers carried onto every Story that did not attribute its own
       // `provenance`; empty for a `--tickets` run.
-      provenanceSource: seedContent,
+      provenanceSource: seedProvenance,
     });
 
   warnings.push(...supersedeWarnings);
@@ -466,7 +467,7 @@ export async function runPlanPersist({
 
   // The dedup corpus is listed by `audit::*` label; footers alone leave the
   // Story invisible to an indexed sweep.
-  const stories = withAuditLabels(assembled, seedContent);
+  const stories = withAuditLabels(assembled, seedProvenance);
 
   const assembledConflicts = analyzeAssembledStories({
     stories,
@@ -495,8 +496,6 @@ export async function runPlanPersist({
       stories,
       opts: { dryRun },
     });
-
-  recordAuditFilings({ stories, created, tickets: rawStories, dryRun });
 
   const primary = created[0];
 
