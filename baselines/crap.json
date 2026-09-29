@@ -594,6 +594,20 @@
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
+      "method": "<anon runAuditToStories/()#3/(c)#0>",
+      "startLine": 1036,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/audit-to-stories.js",
+      "method": "<anon runAuditToStories/()#3/(c)#1>",
+      "startLine": 1037,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/audit-to-stories.js",
       "method": "persist",
       "startLine": 1046,
       "crap": 2.0625
@@ -13289,6 +13303,19 @@
     },
     {
       "path": ".agents/scripts/lib/findings/route-finding.js",
+      "method": "extractProvenanceFooters",
+      "startLine": 201,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/findings/route-finding.js",
+      "method": "<anon extractProvenanceFooters/(m)#0>",
+      "startLine": 205,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/findings/route-finding.js",
       "method": "<anon carryProvenanceFooters/(sha)#0>",
       "startLine": 208,
       "crap": 1,
@@ -18786,6 +18813,13 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-context.js",
+      "method": "<anon truncateField/(k,v)#1>",
+      "startLine": 102,
+      "crap": 1.0060105184072126,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-context.js",
       "method": "capPlanContextEnvelope",
       "startLine": 114,
       "crap": 7.004301783264746
@@ -19330,9 +19364,28 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/audit-provenance.js",
+      "method": "seedWasTruncated",
+      "startLine": 14,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/audit-provenance.js",
+      "method": "<anon seedWasTruncated/(t)#0>",
+      "startLine": 15,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/audit-provenance.js",
       "method": "newAuditLedgerRecord",
       "startLine": 24,
       "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/audit-provenance.js",
+      "method": "resolveSeedProvenance",
+      "startLine": 29,
+      "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/audit-provenance.js",
