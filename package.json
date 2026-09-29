@@ -85,7 +85,7 @@
   "author": "",
   "license": "MIT",
   "bin": {
-    "mandrel": "./bin/mandrel.js"
+    "mandrel": "bin/mandrel.js"
   },
   "type": "module",
   "bugs": {
