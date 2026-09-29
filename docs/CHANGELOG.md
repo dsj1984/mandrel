@@ -15,6 +15,17 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.70.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.69.0...mandrel-v2.70.0) (2026-09-29)
+
+
+### ⚠ BREAKING CHANGES
+
+* audit-to-stories.js no longer accepts --ledger or --ledger-commit (both now fail as unknown options); the --auto run summary no longer carries the totals.suppressedByLedger or ledger fields, and no skip-accepted-risk classification exists. `mandrel update` runs the 2.70.0 migration, which deletes baselines/audit-ledger.json.
+
+### Added
+
+* retire the cross-run audit ledger: Issue provenance footers become the single dedup memory, and no sweep needs a ledger PR ([#5502](https://github.com/dsj1984/mandrel/issues/5502)) ([#5503](https://github.com/dsj1984/mandrel/issues/5503)) ([ac05436](https://github.com/dsj1984/mandrel/commit/ac05436eb5ca89c73d22fe0042d41e5cd0f717d8))
+
 ## [2.69.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.68.0...mandrel-v2.69.0) (2026-09-27)
 
 
