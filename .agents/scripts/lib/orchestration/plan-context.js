@@ -98,7 +98,8 @@ function truncateField(value, excess) {
   }
   if (value && typeof value === 'object') {
     const [key] = Object.entries(value)
-      .filter(([k, v]) => typeof v === 'string' && !UNCUTTABLE_KEYS.has(k))
+      .filter(([k]) => !UNCUTTABLE_KEYS.has(k))
+      .filter(([, v]) => typeof v === 'string')
       .map(([k, v]) => [k, Buffer.byteLength(v, 'utf-8')])
       .sort((a, b) => b[1] - a[1])[0] ?? [null];
     if (key === null) return null;

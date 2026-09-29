@@ -417,6 +417,21 @@ describe('runAuditToStories (sub-command dispatch)', () => {
     });
   }
 
+  it('--severity all passes through as the explicit floor', async () => {
+    const h = harness();
+    await runAuditToStories(['--auto', '--severity', 'ALL'], h.deps);
+    assert.equal(h.seen.runAuto.severity, 'all');
+  });
+
+  it('--severity rejects a typo rather than widening the run', async () => {
+    const h = harness();
+    await assert.rejects(
+      () => runAuditToStories(['--auto', '--severity', 'Hgh'], h.deps),
+      /--severity "Hgh" is not a severity/,
+    );
+    assert.equal(h.seen.runAuto, undefined, 'nothing ran');
+  });
+
   it('--auto with --out writes to the file and skips the stdout newline', async () => {
     const h = harness();
     await runAuditToStories(['--auto', '--out', 'summary.json'], h.deps);

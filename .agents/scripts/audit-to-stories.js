@@ -925,21 +925,6 @@ export const __testing = {
 };
 
 /**
- * The CLI core: dispatch one sub-command and persist its output.
- *
- * @param {string[]} [argv]
- * @param {{
- *   buildPlanImpl?: typeof buildPlan,
- *   runAutoImpl?: typeof runAuto,
- *   loadPlanImpl?: typeof loadPlan,
- *   buildAndGateStoriesImpl?: typeof buildAndGateStories,
- *   buildPlanSeedMarkdownImpl?: typeof buildPlanSeedMarkdown,
- *   persistImpl?: typeof persist,
- *   stdout?: { write: (s: string) => void },
- * }} [deps]
- * @returns {Promise<void>}
- */
-/**
  * Reject an unknown `--severity`: `meetsSeverity` would read a typo as rank 0
  * and silently widen the run to every finding. Absent stays absent.
  *
@@ -958,6 +943,21 @@ function validateSeverityFlag(raw) {
   return level;
 }
 
+/**
+ * The CLI core: dispatch one sub-command and persist its output.
+ *
+ * @param {string[]} [argv]
+ * @param {{
+ *   buildPlanImpl?: typeof buildPlan,
+ *   runAutoImpl?: typeof runAuto,
+ *   loadPlanImpl?: typeof loadPlan,
+ *   buildAndGateStoriesImpl?: typeof buildAndGateStories,
+ *   buildPlanSeedMarkdownImpl?: typeof buildPlanSeedMarkdown,
+ *   persistImpl?: typeof persist,
+ *   stdout?: { write: (s: string) => void },
+ * }} [deps]
+ * @returns {Promise<void>}
+ */
 export async function runAuditToStories(
   argv = process.argv.slice(2),
   deps = {},
