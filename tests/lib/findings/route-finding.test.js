@@ -7,6 +7,7 @@ import {
 import {
   __testing,
   carryProvenanceFooters,
+  extractProvenanceFooters,
   fingerprintFinding,
   fingerprintFooter,
   parseFingerprintFooter,
@@ -469,6 +470,33 @@ test('carryProvenanceFooters tolerates absent and non-string arguments', () => {
     carryProvenanceFooters({ from: 42, into: '## Goal\n' }).carried,
     false,
   );
+});
+
+test('extractProvenanceFooters keeps every audit footer verbatim and nothing else', () => {
+  const sha = 'c'.repeat(40);
+  const seed = [
+    '# Seed',
+    `<!-- audit-fingerprints: ${sha} -->`,
+    'prose <!-- unrelated: x -->',
+    '<!--audit-semantic-keys: quality␟lib/a.js -->',
+    '<!-- audit-labels: audit::quality -->',
+  ].join('\n');
+  const out = extractProvenanceFooters(seed);
+  assert.equal(
+    out,
+    [
+      `<!-- audit-fingerprints: ${sha} -->`,
+      '<!--audit-semantic-keys: quality␟lib/a.js -->',
+      '<!-- audit-labels: audit::quality -->',
+    ].join('\n'),
+  );
+  assert.deepEqual(parseFingerprintFooter(out), [sha]);
+});
+
+test('extractProvenanceFooters is empty for a non-string or footer-less seed', () => {
+  assert.equal(extractProvenanceFooters(undefined), '');
+  assert.equal(extractProvenanceFooters(42), '');
+  assert.equal(extractProvenanceFooters('# plain seed'), '');
 });
 
 test('a Story carrying carried-through provenance dedupes on the next sweep (AC-6)', async () => {

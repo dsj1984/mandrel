@@ -6,7 +6,6 @@ import { pathToFileURL } from 'node:url';
 import { __testing } from '../../.agents/scripts/audit-to-stories.js';
 import { classifyGroupsAgainstGitHub } from '../../.agents/scripts/lib/audit-to-stories/dedupe-against-github.js';
 import {
-  fingerprintAuditFinding,
   renderFingerprintFooter,
   withFingerprints,
 } from '../../.agents/scripts/lib/audit-to-stories/finding-adapter.js';
@@ -23,7 +22,7 @@ function fakeGroup(findings) {
   return { groupKey: `g-${stamped[0]?.fingerprint?.short}`, findings: stamped };
 }
 function shaOf(finding) {
-  return fingerprintAuditFinding(finding).full;
+  return withFingerprints([finding])[0].fingerprint.full;
 }
 
 function inMemoryProvider(issues) {
