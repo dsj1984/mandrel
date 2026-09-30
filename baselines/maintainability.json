@@ -223,6 +223,10 @@
       "mi": 98.886
     },
     {
+      "path": ".agents/scripts/lib/audit-suite/story-checklist.js",
+      "mi": 108.361
+    },
+    {
       "path": ".agents/scripts/lib/audit-to-stories/audit-label-taxonomy.js",
       "mi": 97.995
     },
@@ -1575,12 +1579,20 @@
       "mi": 98.792
     },
     {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "mi": 91.008
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/story-init-envelope.js",
       "mi": 113.331
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-init-remote.js",
       "mi": 108.95
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-init-result.js",
+      "mi": 93.163
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-reachability.js",
@@ -2125,6 +2137,10 @@
     {
       "path": ".agents/scripts/stories-wave-tick.js",
       "mi": 93.382
+    },
+    {
+      "path": ".agents/scripts/story-handoff.js",
+      "mi": 98.03
     },
     {
       "path": ".agents/scripts/story-review-compute.js",

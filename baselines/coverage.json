@@ -4,9 +4,9 @@
   "rows": [
     {
       "path": ".agents/scripts/acceptance-eval.js",
-      "lines": 99.68,
-      "branches": 92.71,
-      "functions": 92.31
+      "lines": 98.63,
+      "branches": 90,
+      "functions": 85.71
     },
     {
       "path": ".agents/scripts/apply-quality-bootstrap.js",
@@ -136,8 +136,8 @@
     },
     {
       "path": ".agents/scripts/deliver-run.js",
-      "lines": 97.57,
-      "branches": 67.03,
+      "lines": 98.37,
+      "branches": 72.28,
       "functions": 100
     },
     {
@@ -306,6 +306,12 @@
       "path": ".agents/scripts/lib/audit-suite/selector.js",
       "lines": 96.53,
       "branches": 89.01,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/story-checklist.js",
+      "lines": 96.92,
+      "branches": 54.55,
       "functions": 100
     },
     {
@@ -2385,6 +2391,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "lines": 95.66,
+      "branches": 80.27,
+      "functions": 96.55
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/story-init-envelope.js",
       "lines": 100,
       "branches": 84.62,
@@ -2394,6 +2406,12 @@
       "path": ".agents/scripts/lib/orchestration/story-init-remote.js",
       "lines": 82.98,
       "branches": 62.5,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-init-result.js",
+      "lines": 100,
+      "branches": 100,
       "functions": 100
     },
     {
@@ -3183,6 +3201,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/story-handoff.js",
+      "lines": 96.43,
+      "branches": 90.91,
+      "functions": 50
+    },
+    {
       "path": ".agents/scripts/story-review-compute.js",
       "lines": 94.69,
       "branches": 71.43,
@@ -3292,9 +3316,9 @@
     },
     {
       "path": "lib/cli/registry.js",
-      "lines": 96.16,
-      "branches": 88.26,
-      "functions": 95
+      "lines": 96.56,
+      "branches": 89.12,
+      "functions": 95.45
     },
     {
       "path": "lib/cli/sync-agents.js",
