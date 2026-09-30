@@ -12,12 +12,11 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
-import { buildDispatchChecklist } from './lib/audit-suite/index.js';
+import { buildStoryChecklist } from './lib/audit-suite/index.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { getPaths, resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
 import { ensureDocsDigest } from './lib/orchestration/docs-digest.js';
-import { parse as parseStoryBody } from './lib/story-body/story-body.js';
 import { expandIdList } from './lib/util/parse-id-list.js';
 import { runProbedStoriesWaveTick } from './stories-wave-tick.js';
 
@@ -136,6 +135,29 @@ export function renderCloseCommand({ storyId, mainRepo, storyCount }) {
   return parts.join(' ');
 }
 
+/** The planner handoff sections the dispatch prompt embeds verbatim. */
+const EMBEDDED_SECTIONS = Object.freeze(['Context', 'References']);
+
+/**
+ * Each of the Story body's `## Context` / `## References` sections, verbatim
+ * (heading included, trailing blank lines trimmed), in that order; an absent
+ * or empty section is omitted.
+ *
+ * @param {string} body
+ * @returns {string[]}
+ */
+export function extractBodySections(body) {
+  const lines = `${body ?? ''}`.split(/\r?\n/);
+  return EMBEDDED_SECTIONS.map((heading) => {
+    const start = lines.findIndex((l) => l.trim() === `## ${heading}`);
+    if (start === -1) return null;
+    const rest = lines.slice(start + 1);
+    const end = rest.findIndex((l) => /^##\s/.test(l));
+    const content = (end === -1 ? rest : rest.slice(0, end)).join('\n').trim();
+    return content.length > 0 ? `## ${heading}\n\n${content}` : null;
+  }).filter(Boolean);
+}
+
 /**
  * The whole spawn payload for one ready Story.
  * @param {object} args
@@ -143,6 +165,7 @@ export function renderCloseCommand({ storyId, mainRepo, storyCount }) {
  * @param {string} args.mainRepo
  * @param {string|null} args.docsDigestPath
  * @param {string|null} args.checklistPath
+ * @param {string[]} [args.bodySections] - verbatim `## Context` / `## References`.
  * @returns {string}
  */
 export function renderDispatchPrompt({
@@ -150,6 +173,7 @@ export function renderDispatchPrompt({
   mainRepo,
   docsDigestPath,
   checklistPath,
+  bodySections = [],
 }) {
   const lines = [
     `# Deliver Story #${storyId}`,
@@ -170,6 +194,7 @@ export function renderDispatchPrompt({
     `- Docs digest: ${docsDigestPath ? `\`${docsDigestPath}\`` : 'none (project.docsContextFiles is unset) — no mandatory docs read'}`,
     `- Write-time checklist: ${checklistPath ? `\`${checklistPath}\`` : 'none matched this footprint — the maker-blind close-scope pass still covers it'}`,
     '',
+    ...bodySections.flatMap((section) => [section, '']),
     '## Worktree',
     '',
     'Initialize from the main checkout, synchronously, at the maximum Bash',
@@ -213,33 +238,20 @@ export function renderDispatchPrompt({
  * @param {string} args.runTempDir
  * @param {string} args.mainRepo
  * @param {string|null} args.docsDigestPath
+ * @param {object} [args.config]
  * @param {object} [deps]
  * @returns {{ id: number, promptPath: string }}
  */
 function buildDispatchEntry(
-  { storyId, body, runTempDir, mainRepo, docsDigestPath },
-  {
-    buildChecklistFn = buildDispatchChecklist,
-    writeFileFn = fs.writeFileSync,
-  } = {},
+  { storyId, body, runTempDir, mainRepo, docsDigestPath, config },
+  { buildChecklistFn, writeFileFn = fs.writeFileSync } = {},
 ) {
-  let changes = [];
-  let references = [];
-  try {
-    // Path entries live on `.body`, not at the top level of the parse result.
-    const { body: parsed } = parseStoryBody(body ?? '');
-    changes = parsed?.changes ?? [];
-    references = parsed?.references ?? [];
-  } catch {
-    // Costs the checklist, never the dispatch: the worker reads the body itself.
-    changes = [];
-    references = [];
-  }
-  const { checklistPath } = buildChecklistFn({
+  // The same Story-scoped path single-story-init returns in its envelope.
+  const { checklistPath } = buildStoryChecklist({
     storyId,
-    changes,
-    references,
-    runTempDir,
+    body,
+    config,
+    ...(buildChecklistFn ? { buildChecklistFn } : {}),
   });
   const promptPath = path.join(runTempDir, `dispatch-${storyId}.md`);
   writeFileFn(
@@ -249,6 +261,7 @@ function buildDispatchEntry(
       mainRepo,
       docsDigestPath,
       checklistPath,
+      bodySections: extractBodySections(body),
     }),
     'utf8',
   );
@@ -436,6 +449,7 @@ export async function runDeliverRunBeat(
         runTempDir,
         mainRepo,
         docsDigestPath,
+        config: resolved,
       },
       entryDeps,
     ),

@@ -13,6 +13,7 @@
 
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { buildStoryChecklist } from './lib/audit-suite/index.js';
 import { parseSprintArgs } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
 import {
@@ -37,12 +38,12 @@ import {
   planFastForward,
 } from './lib/orchestration/git-cleanup/phases/fast-forward.js';
 import { verifyRemote } from './lib/orchestration/remote-verifier.js';
-import { pinRunScopedConfig } from './lib/orchestration/run-scoped-config.js';
 import {
   acquireStoryLease,
   releaseStoryLease,
 } from './lib/orchestration/single-story-lease-guard.js';
 import { handleRemoteVerificationFailure } from './lib/orchestration/story-init-remote.js';
+import { composeStoryInitResult } from './lib/orchestration/story-init-result.js';
 import {
   STATE_LABELS,
   transitionTicketState,
@@ -564,6 +565,7 @@ export async function runSingleStoryInit({
   injectedMaterialize = materializeBaseBranch,
   injectedSeedBranch = seedStoryBranch,
   injectedProvisionWorktree = provisionWorktree,
+  injectedBuildChecklist = buildStoryChecklist,
 } = {}) {
   const parsed =
     storyIdParam !== undefined
@@ -688,35 +690,26 @@ export async function runSingleStoryInit({
     }
   }
 
-  const dependenciesInstalled =
-    installStatus.status === 'installed'
-      ? 'true'
-      : installStatus.status === 'failed'
-        ? 'false'
-        : 'skipped';
-
-  const result = {
+  // Every path gets the checklist; `buildStoryChecklist` never throws.
+  const checklistPath = dryRun
+    ? null
+    : injectedBuildChecklist({ storyId, body: story.body, config, progress })
+        .checklistPath;
+  const { result, summary } = composeStoryInitResult({
     storyId,
-    epicId: null,
-    standalone: true,
     storyBranch,
     baseBranch,
-    // Write half of the run-scoped config pin; `baseBranch` is close's fallback.
-    runScopedConfig: pinRunScopedConfig(config),
-    storyTitle: story.title,
-    worktreeEnabled: runtime.worktreeEnabled,
+    config,
+    story,
+    runtime,
     workCwd,
     worktreeCreated,
     installStatus,
-    dependenciesInstalled,
-    installFailed: installStatus.status === 'failed',
-    // Closed-Story worktree sweep outcome; a failure degrades here, never
-    // into an init failure. `null` under --dry-run.
-    worktreeSweep: worktreeSweep ?? null,
+    worktreeSweep,
     dryRun,
-    remoteVerified: remote.remoteVerified,
-    remoteProbe: { remoteUrl: remote.remoteUrl, detail: remote.detail },
-  };
+    remote,
+    checklistPath,
+  });
 
   // The envelope (stdout + disk) is the only record; no ticket comment. Full
   // result goes to a temp log, stdout gets the fields the caller acts on.
@@ -725,15 +718,7 @@ export async function runSingleStoryInit({
     result,
     scope: storyId,
     config,
-    summary: {
-      storyId,
-      storyBranch,
-      workCwd,
-      worktreeCreated,
-      dependenciesInstalled,
-      remoteVerified: result.remoteVerified,
-      dryRun,
-    },
+    summary,
   });
   progress(
     'DONE',

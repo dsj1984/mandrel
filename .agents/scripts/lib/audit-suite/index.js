@@ -14,3 +14,4 @@ export {
   resolveLensTier,
   selectAudits,
 } from './selector.js';
+export { buildStoryChecklist } from './story-checklist.js';
