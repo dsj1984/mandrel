@@ -160,7 +160,7 @@ export function hasLegacyChangeBullets(story) {
  * (predecessor creates it), `predecessor-conflict` (unordered co-creator),
  * `present-was-removed` (base branch removed it).
  *
- * @param {{ slug: string, source: string, path: string, assumption: string, expected: string, producerSlug?: string, removedInCommit?: string, renamedTo?: string|null, derived?: boolean }} mismatch
+ * @param {{ slug: string, source: string, path: string, assumption: string, expected: string, producerSlug?: string, removedInCommit?: string, renamedTo?: string|null }} mismatch
  * @returns {string}
  */
 function renderMismatch({
@@ -172,11 +172,7 @@ function renderMismatch({
   producerSlug,
   removedInCommit,
   renamedTo,
-  derived,
 }) {
-  if (derived && expected === 'present') {
-    return `"${slug}" → body.${source} names ${path} as a read-first file but the path is absent at the base branch — fix the path or drop the entry.`;
-  }
   if (expected === 'refactors-existing') {
     return `"${slug}" → body.${source} declares assumption="${assumption}" for ${path} but predecessor Story "${producerSlug}" already creates that path — declare assumption="refactors-existing" instead (the file exists in the simulated post-predecessor tree).`;
   }
@@ -375,7 +371,7 @@ export function validateStoryFileAssumptions(opts) {
         predecessorCreator,
       });
       if (mismatch !== null) {
-        if (derived) mismatch.derived = true;
+        mismatch.derived = derived === true;
         const { kind, finding } = classifyMismatch(mismatch, probeHistory);
         if (kind === 'normalization') {
           normalizations.push(finding);
@@ -423,7 +419,19 @@ export function validateStoryFileAssumptions(opts) {
  */
 function routeMismatch(finding, { errors, warnings }) {
   const channel = finding.assumption === 'deletes' ? errors : warnings;
-  channel.push(renderMismatch(finding));
+  channel.push(
+    finding.derived ? renderAbsentRead(finding) : renderMismatch(finding),
+  );
+}
+
+/**
+ * A bare reference is derived as `exists`, so its only mismatch is absence.
+ *
+ * @param {{ slug: string, source: string, path: string }} finding
+ * @returns {string}
+ */
+function renderAbsentRead({ slug, source, path }) {
+  return `"${slug}" → body.${source} names ${path} as a read-first file but the path is absent at the base branch — fix the path or drop the entry.`;
 }
 
 /**
