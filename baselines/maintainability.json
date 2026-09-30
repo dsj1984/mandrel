@@ -900,7 +900,7 @@
     },
     {
       "path": ".agents/scripts/lib/git/sync-from-base.js",
-      "mi": 99.93
+      "mi": 102.038
     },
     {
       "path": ".agents/scripts/lib/github-url.js",
@@ -1452,7 +1452,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/failed-terminal.js",
-      "mi": 94.758
+      "mi": 97.3
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/gate-log.js",
@@ -1464,7 +1464,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js",
-      "mi": 98.328
+      "mi": 101.812
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
@@ -1752,7 +1752,7 @@
     },
     {
       "path": ".agents/scripts/lib/single-story/confirm-merge.js",
-      "mi": 94.868
+      "mi": 95.519
     },
     {
       "path": ".agents/scripts/lib/single-story/story-merged-notify.js",
