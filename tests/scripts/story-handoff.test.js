@@ -499,3 +499,44 @@ describe('story-handoff.js — the CLI', () => {
     assert.match(res.stdout, /ready \(exit 0\), fix-required \(exit 2\)/);
   });
 });
+
+describe('story-handoff — the default block writes the label and the friction comment', () => {
+  test('a blocked settle flips agent::blocked through the canonical mutator and posts friction', async () => {
+    const updates = [];
+    const comments = [];
+    const provider = {
+      async getTicketComments() {
+        return [];
+      },
+      async postComment(storyId, payload) {
+        comments.push({ storyId, body: payload.body });
+        return { id: 1 };
+      },
+      async deleteComment() {},
+      async updateTicket(storyId, payload) {
+        updates.push({ storyId, payload });
+      },
+    };
+    const h = harness({ world: gitWorld({ lsRemoteFails: true }) });
+    delete h.deps.block;
+    h.deps.createProviderFn = () => provider;
+    const { exitCode } = await h.run();
+    assert.equal(exitCode, 1);
+    assert.equal(updates.length, 1);
+    assert.deepEqual(updates[0].payload.labels.add, ['agent::blocked']);
+    assert.match(comments[0].body, /story-handoff blocked: remote-unreachable/);
+  });
+
+  test('a fix-required settle writes no label and no comment', async () => {
+    const touched = [];
+    const h = harness({ outputs: { npm: { status: 1 } } });
+    delete h.deps.block;
+    h.deps.createProviderFn = () => {
+      touched.push('provider');
+      return {};
+    };
+    const { exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.deepEqual(touched, []);
+  });
+});
