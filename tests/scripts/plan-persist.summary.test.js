@@ -22,7 +22,7 @@ import { buildPlanSummaryCommentBody } from '../../.agents/scripts/lib/orchestra
 import { predictWaveSerialisation } from '../../.agents/scripts/lib/orchestration/plan-persist/wave-serialisation.js';
 
 const BASE = {
-  epicId: 4242,
+  storyId: 4242,
   ticketCount: 2,
   freshness: { stale: 0, ambiguous: 0 },
   healthcheck: { ok: true },
@@ -61,7 +61,7 @@ describe('plan summary — review receipt (Story #4542)', () => {
 
 describe('plan summary — names the exact deliver command (Story #4540)', () => {
   const base = {
-    epicId: 101,
+    storyId: 101,
     ticketCount: 1,
     freshness: {},
     healthcheck: {},
@@ -274,6 +274,26 @@ describe('plan-summary — predicted serialisation (Story #5265, narrowed by #53
       withVerify('alpha', '.agents/scripts/check-baselines.js'),
     ]);
     assert.deepEqual(collisions, []);
+  });
+});
+
+describe('plan summary — the heading names the posted-on Story (Story #5517)', () => {
+  it('names the storyId it is built for, whichever sibling is listed first', () => {
+    const stories = [
+      { id: 4242, slug: 'a' },
+      { id: 4243, slug: 'b' },
+    ];
+    for (const { id } of stories) {
+      const body = buildPlanSummaryCommentBody({
+        ...BASE,
+        storyId: id,
+        stories,
+      });
+      assert.equal(
+        body.split('\n')[0],
+        `#### 📋 Plan Summary — Story #${id} is \`agent::ready\``,
+      );
+    }
   });
 });
 

@@ -310,10 +310,11 @@ async function enforceReachability(reachability, config) {
  * @param {object} args
  * @returns {Promise<void>}
  */
-async function persistStoryArtifacts({ provider, created, summaryBody }) {
+async function persistStoryArtifacts({ provider, created, summaryFor }) {
   await concurrentMap(
     created,
-    (story) => writePlanSummaryComment(provider, story.id, summaryBody),
+    (story) =>
+      writePlanSummaryComment(provider, story.id, summaryFor(story.id)),
     { concurrency: FANOUT_CONCURRENCY },
   );
   await markStoriesReady({ provider, created });
@@ -506,22 +507,24 @@ export async function runPlanPersist({
     mode: dryRun ? 'dry-run' : 'persist',
   });
 
-  const summaryBody = buildPlanSummaryCommentBody({
-    epicId: primary.id,
-    ticketCount: created.length,
-    forceReview,
-    freshness,
-    healthcheck: { skipped: true },
-    waveTable,
-    mode: 'stories',
-    planMetricsLine,
-    stories: created,
-    conflictFindings: assembledConflicts,
-    waveCollisions,
-  });
+  // Each Story's comment heading names that Story.
+  const summaryFor = (storyId) =>
+    buildPlanSummaryCommentBody({
+      storyId,
+      ticketCount: created.length,
+      forceReview,
+      freshness,
+      healthcheck: { skipped: true },
+      waveTable,
+      mode: 'stories',
+      planMetricsLine,
+      stories: created,
+      conflictFindings: assembledConflicts,
+      waveCollisions,
+    });
 
   if (!dryRun) {
-    await persistStoryArtifacts({ provider, created, summaryBody });
+    await persistStoryArtifacts({ provider, created, summaryFor });
   }
 
   // Last among the writes: the Epic needs the children's numbers and database

@@ -89,11 +89,12 @@ function renderSharedEditorLines(conflictFindings) {
 }
 
 /**
- * @param {object} input
+ * @param {object} input `storyId` is the Story the comment is posted on; its
+ *   heading names that Story, never a sibling.
  * @returns {string}
  */
 export function buildPlanSummaryCommentBody({
-  epicId,
+  storyId,
   ticketCount,
   forceReview = false,
   freshness,
@@ -139,7 +140,7 @@ export function buildPlanSummaryCommentBody({
       : '/mandrel-deliver <storyId> [<storyId> ...]';
 
   return [
-    `#### 📋 Plan Summary — Story #${epicId} is \`agent::ready\``,
+    `#### 📋 Plan Summary — Story #${storyId} is \`agent::ready\``,
     '',
     `- ${ticketCount} Story ticket(s) persisted: ${storyList}.`,
     ...reviewLines,
