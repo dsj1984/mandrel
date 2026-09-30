@@ -24,7 +24,6 @@ import path from 'node:path';
 import { afterEach, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { frontmatterModel } from '../../.agents/scripts/lib/config/agent-models.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -336,7 +335,9 @@ describe('sync-claude-agents — per-role model override (#5519)', () => {
       },
     });
     const modelOf = (role) =>
-      frontmatterModel(readFileSync(path.join(dest, `${role}.md`), 'utf8'));
+      readFileSync(path.join(dest, `${role}.md`), 'utf8').match(
+        /^---\r?\n[\s\S]*?^model: *(\S+)[\s\S]*?^---$/m,
+      )?.[1] ?? null;
     return { result, modelOf };
   }
 

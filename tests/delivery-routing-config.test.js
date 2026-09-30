@@ -9,10 +9,9 @@ import assert from 'node:assert/strict';
 import test, { describe } from 'node:test';
 import {
   applyAgentModel,
-  frontmatterModel,
   getAgentModels,
   ROLE_AGENT_NAMES,
-  resolveAgentModel,
+  resolveStoryWorkerModel,
 } from '../.agents/scripts/lib/config/agent-models.js';
 import {
   DELIVERY_ROUTING_DEFAULTS,
@@ -119,29 +118,31 @@ describe('delivery.routing.agentModels (Story #5519)', () => {
     assert.deepEqual(getAgentModels(withModels(['x'])), {});
   });
 
-  test('frontmatterModel reads the declared default, or null', () => {
+  test('the story-worker model: override, then frontmatter default, then inherit', () => {
+    const resolve = (content, config = MIN) =>
+      resolveStoryWorkerModel(
+        { config, mainRepo: '/repo' },
+        { readFileFn: () => content },
+      );
+    assert.equal(resolve('---\nname: a\nmodel: sonnet\n---\nb'), 'sonnet');
     assert.equal(
-      frontmatterModel('---\nname: a\nmodel: sonnet\n---\nb'),
-      'sonnet',
-    );
-    assert.equal(frontmatterModel('---\nname: a\n---\nmodel: opus\n'), null);
-    assert.equal(frontmatterModel('no frontmatter'), null);
-    assert.equal(frontmatterModel(undefined), null);
-  });
-
-  test('resolveAgentModel: override, then frontmatter, then inherit', () => {
-    const content = '---\nname: auditor\nmodel: sonnet\n---\n';
-    assert.equal(resolveAgentModel({ role: 'auditor', content }), 'sonnet');
-    assert.equal(
-      resolveAgentModel({
-        role: 'auditor',
-        content,
-        config: withModels({ auditor: 'haiku' }),
-      }),
+      resolve(
+        '---\nname: a\nmodel: sonnet\n---\n',
+        withModels({ 'story-worker': 'haiku' }),
+      ),
       'haiku',
     );
+    assert.equal(resolve('---\nname: a\n---\nmodel: opus\n'), 'inherit');
+    assert.equal(resolve('no frontmatter'), 'inherit');
     assert.equal(
-      resolveAgentModel({ role: 'plan-critic', content: '' }),
+      resolveStoryWorkerModel(
+        { config: MIN, mainRepo: '/repo' },
+        {
+          readFileFn: () => {
+            throw new Error('ENOENT');
+          },
+        },
+      ),
       'inherit',
     );
   });

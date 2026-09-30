@@ -22,7 +22,7 @@ export const ROLE_AGENT_NAMES = Object.freeze([
 export const AGENT_MODEL_PATTERN = '^[A-Za-z0-9][A-Za-z0-9._:-]*$';
 
 /** What an agent with no `model:` runs on: the operator's session model. */
-export const INHERIT_MODEL = 'inherit';
+const INHERIT_MODEL = 'inherit';
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
 const MODEL_LINE_RE = /^model:[^\r\n]*$/m;
@@ -54,7 +54,7 @@ export function getAgentModels(config) {
  * @param {string} content
  * @returns {string|null}
  */
-export function frontmatterModel(content) {
+function frontmatterModel(content) {
   const block = String(content ?? '').match(FRONTMATTER_RE);
   const line = block?.[1].match(MODEL_LINE_RE);
   const value = line?.[0].slice('model:'.length).trim();
@@ -68,7 +68,7 @@ export function frontmatterModel(content) {
  * @param {{ role: string, config?: object|null, content?: string }} args
  * @returns {string}
  */
-export function resolveAgentModel({ role, config, content }) {
+function resolveAgentModel({ role, config, content }) {
   const override = getAgentModels(config)[role];
   return override ?? frontmatterModel(content) ?? INHERIT_MODEL;
 }
