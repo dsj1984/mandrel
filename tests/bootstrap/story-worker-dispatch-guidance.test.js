@@ -194,6 +194,47 @@ describe('story-worker carries a reachable long-command dispatch contract', () =
   });
 });
 
+/**
+ * Story #5515 — `agent::closing` means "PR open, merge unconfirmed", and
+ * `single-story-close.js` is its only writer. A worker that flips it at
+ * hand-off leaves a Story at `closing` with no PR for as long as the
+ * orchestrator takes to reach its close. Asserted by omission over the whole
+ * boot context, so any rewording of the retired instruction still reds here;
+ * none of this counts toward {@link MAX_EXACT_SENTENCE_PINS}.
+ */
+describe('story-worker never writes agent::closing', () => {
+  const CLOSING_WRITES = [
+    /\b(flip|flips|flipping|transition|transitions|transitioning|move|moves|moving|set|sets|setting)\b[^.\n]{0,40}\bto\s+`?(agent::)?closing\b/i,
+    /→\s*`?(agent::)?closing\b/,
+    /--state\s+closing\b/,
+  ];
+
+  it('carries no instruction to flip or transition the Story to closing', () => {
+    const body = read(WORKER);
+    for (const pattern of CLOSING_WRITES) {
+      assertDocOmits(
+        body,
+        pattern,
+        'single-story-close.js is the only writer of agent::closing — the worker stays agent::executing through hand-off',
+      );
+    }
+  });
+
+  it('the guard itself catches the retired wording', () => {
+    for (const retired of [
+      '**Before** flipping to `closing`, run the loop',
+      '**proceed** → flip to `closing`, run the suite',
+      '`Story #<id>: implementing → closing`',
+      'transition the Story to `agent::closing`',
+    ]) {
+      assert.ok(
+        CLOSING_WRITES.some((pattern) => pattern.test(retired)),
+        `the guard must catch: ${retired}`,
+      );
+    }
+  });
+});
+
 describe('Rule 2 records the waiter traps a worker would otherwise re-discover', () => {
   const rule2 = () => read(RULE2);
 
