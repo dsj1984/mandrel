@@ -156,16 +156,13 @@ respawned.
 | `landed` | 0 | PR merged, `agent::done`, tail ran (`tail.*: false` degrades the report, not the land) | Relay it. Done. |
 | `pending` | 3 | **Resumable, not a failure** — the bounded wait expired healthy, or a human owns the merge. Nothing was mutated. | Run `nextCommand`. |
 | `blocked` | 1 | Hard block; `blocked.blockClass` names it | `checks-failed` → fix + resume; else relay |
-| `failed` | 1 | A phase crashed; `phase` names which | Diagnose, fix, re-run close |
+| `failed` | 1 | A phase crashed; `phase` names which | Diagnose, fix, re-run close. `base-sync` conflict (files in `failure.reason`): resolve in `workCwd`, commit, run `nextCommand`; block only if you cannot |
 
 Required fields: `kind` (`story-deliver-terminal`), `storyId`, `status`,
 `phase` (the schema's enum names where it stopped), `elapsedSeconds`,
 `nextCommand`. `gates`
 reports every gate as `passed` / `failed` / `skipped` — a skipped gate is
 reported, never omitted, so a missing gate is never read as a passing one.
-
-Gate output is captured to a log, not streamed
-([`deliver-reference.md`](deliver-reference.md) § Gate output).
 
 ## 7. When to leave this file
 

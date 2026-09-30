@@ -476,3 +476,28 @@ describe('docs/SDLC.md describes the handoff (#5518, AC-9)', () => {
     }
   });
 });
+
+// Story #5520 — a source conflict at close's base-sync no longer blocks: close
+// hands it back as `failed` at `phase: base-sync` with the close re-run as
+// `nextCommand`. Both the digest and the spine must route that envelope to a
+// fix in the worktree, with the blocked path only as the fallback.
+describe('base-sync conflict routing — resolve, then re-run close (#5520)', () => {
+  const spine = () => read(path.join(WORKFLOWS, 'helpers', 'deliver-story.md'));
+
+  it('AC-4: the digest routes a base-sync failure to a fix in workCwd and nextCommand', () => {
+    const doc = read(DIGEST);
+    assertDocMentions(
+      doc,
+      /`base-sync` conflict \(files in `failure\.reason`\): resolve in `workCwd`, commit, run `nextCommand`; block only if you cannot/,
+      'deliver-digest § 6 must route the base-sync failure envelope',
+    );
+  });
+
+  it('AC-4: the spine routes the same envelope, blocked only as the fallback', () => {
+    assertDocMentions(
+      spine(),
+      /`phase: base-sync` conflict comes back with labels untouched — resolve it in `workCwd`, commit, run `nextCommand`, and take the blocked path only if you cannot/,
+      'deliver-story.md Step 3 must route the base-sync failure envelope',
+    );
+  });
+});

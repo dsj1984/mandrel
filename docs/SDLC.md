@@ -288,7 +288,9 @@ filter metadata, never a resolution input — Stories deliver across plan runs.
    - **`ready`** (exit 0) — hand off to close.
    - **`fix-required`** (exit 2) — a preflight finding, a red or deferred
      suite, a base-merge conflict or a CRITICAL review, with its evidence
-     path; labels untouched. The worker fixes, commits and re-runs it.
+     path; labels untouched. The worker fixes, commits and re-runs it. A
+     merge that conflicts only on `baselines/*.json` is not one of these: it
+     resolves to the base side (see [§ Concurrent close](#concurrent-close)).
    - **`blocked`** (exit 1) — a rejected push, an unreachable remote, an
      unconfirmed base branch or an unregistered baseline merge driver; it
      flips `agent::blocked` and posts a `friction` comment.
@@ -384,10 +386,34 @@ Agents update state on GitHub, always through `update-ticket-state.js`:
 `single-story-close.js` merges `origin/<baseBranch>` into the Story branch
 before pushing and opening/locating the PR, so concurrent closes serialize
 through their own worktrees rather than racing one shared branch (the
-orchestrator also runs closes one at a time). The push is a single attempt: a
-rejected push, or a real content conflict at base-sync, aborts the merge,
-leaves the tree clean, flips the Story to `agent::blocked` with a `friction`
-comment, and exits non-zero — resolve it, then re-run `/mandrel-deliver <id>`.
+orchestrator also runs closes one at a time).
+
+`agent::blocked` means a human is needed, so close resolves or retries the
+mechanical conditions an agent or a retry can clear itself:
+
+- **Baseline-only conflict → resolved.** When every conflicted path of the
+  base merge is a `baselines/*.json` file the `mandrel-baseline` merge
+  driver owns, the shared base-sync (used by both `story-handoff.js` and
+  close) takes `origin/<baseBranch>`'s version, commits the merge, names the
+  resolved files in its output and carries on. It never keeps the Story's
+  side or hand-edits a row: the Story's own rows are re-derived by the
+  insert-only seat and judged by close's gates. A mix of baseline and other
+  paths is an ordinary conflict.
+- **Other conflict → handed back.** Against a confirmed base, close aborts
+  the merge (the tree stays clean), leaves the labels unchanged, posts a
+  `friction` comment addressed to the delivering agent naming the files and
+  the resume commands, and ends `failed` at phase `base-sync` with the files
+  in `failure.reason` and the close re-run as `nextCommand`. The agent
+  resolves it in the worktree, commits and re-runs close; only an agent that
+  cannot resolve it takes the blocked path.
+- **Failed `agent::done` flip → retried.** A merged PR whose done-label write
+  fails is retried a bounded number of times with a short backoff (the
+  transition is idempotent) before close reports `merged-flip-failed`.
+
+A rejected push, a base-sync fetch or merge failure, an unregistered baseline
+merge driver and an unconfirmed base still flip the Story to `agent::blocked`
+with a `friction` comment and exit non-zero — resolve it, then re-run
+`/mandrel-deliver <id>`.
 
 ---
 
@@ -420,7 +446,11 @@ blocker resolution. PR merge is autonomous via armed auto-merge.
 
 ### What triggers `agent::blocked`
 
-- A base-sync content conflict the automated merge cannot reconcile.
+- A base-sync failure close cannot clear itself: a fetch or merge failure,
+  an unregistered baseline merge driver, an unconfirmed base, or a content
+  conflict the delivering agent could not resolve (baseline-only conflicts
+  resolve and other conflicts go back to the agent first — see
+  [§ Concurrent close](#concurrent-close)).
 - Test failures that persist after automated remediation.
 - Ambiguity requiring a product/scope decision the agent cannot make from
   ticket context alone.

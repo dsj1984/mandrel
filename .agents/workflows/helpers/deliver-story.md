@@ -132,7 +132,10 @@ post-land tail in one process. Never background it, never delegate it to a
 child, and never end your turn while it is still running: "close is running"
 is not a return value. Branch on the envelope's `status` per **digest § 6**
 (`landed` → Step 7; `pending` → run `nextCommand`; `blocked`/`checks-failed`
-→ Step 4; `failed` → diagnose, re-run). Gate output is captured.
+→ Step 4; `failed` → diagnose, re-run; a `phase: base-sync` conflict comes
+back with labels untouched — resolve it in `workCwd`, commit, run
+`nextCommand`, and take the blocked path only if you cannot). Gate output is
+captured.
 
 Internals, merge-wait budgets, the slow-CI **async** confirm mode, the
 `autoMerge` policy and every close flag: reference § Step 3.

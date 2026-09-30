@@ -1,8 +1,10 @@
 /**
  * phases/base-sync.js — sync the Story branch from `origin/<baseBranch>`
  * before push, so a PR does not open behind a base a sibling's merge just
- * moved. Runs in the worktree (else the main checkout); a failure blocks the
- * Story and throws.
+ * moved. Runs in the worktree (else the main checkout). A baseline-only
+ * conflict resolves inside the sync; any other conflict against a confirmed
+ * base goes back to the delivering agent (friction, labels unchanged); every
+ * other failure blocks the Story. All failures throw.
  */
 
 import { getQuality } from '../../../config/quality.js';
@@ -11,6 +13,7 @@ import { filterFilesUnderTargets } from '../../../coverage-capture.js';
 import { syncBranchFromBase } from '../../../git/sync-from-base.js';
 import { Logger } from '../../../Logger.js';
 import { AGENT_LABELS } from '../../../label-constants.js';
+import { NEXT_COMMANDS } from '../../story-deliver-terminal.js';
 import {
   STATE_LABELS,
   transitionTicketState,
@@ -57,7 +60,7 @@ export async function runBaseSyncPhase({
     log: (tag, msg) => progress(tag, msg),
   });
   if (!syncResult.synced) {
-    await handleSyncFailure({
+    const { handedBack } = await handleSyncFailure({
       provider,
       storyId,
       syncCwd,
@@ -67,17 +70,18 @@ export async function runBaseSyncPhase({
       result: syncResult,
       progress,
     });
-    throw new Error(
-      `[single-story-close] Base-sync failed (${syncResult.kind})` +
-        (syncResult.conflictFiles
-          ? `: conflicting files = ${syncResult.conflictFiles.join(', ')}`
-          : syncResult.stderr
-            ? `: ${syncResult.stderr.slice(0, 200)}`
-            : '') +
-        `. Story transitioned to ${AGENT_LABELS.BLOCKED}; resolve in ${syncCwd} and re-run \`/mandrel-deliver ${storyId}\`.`,
-    );
+    throw buildSyncFailureError({ storyId, syncCwd, syncResult, handedBack });
   }
   progress('SYNC', `✅ Synced from origin/${baseBranch} (${syncResult.kind}).`);
+  const resolved = syncResult.resolvedBaselineFiles ?? [];
+  if (resolved.length > 0) {
+    progress(
+      'SYNC',
+      `♻️  Baseline-only conflict resolved to origin/${baseBranch}'s version ` +
+        `(the insert-only seat and close's gates re-derive this Story's rows): ` +
+        resolved.join(', '),
+    );
+  }
   for (const line of buildStampInvalidatedWarning({
     baseBranch,
     result: syncResult,
@@ -85,6 +89,36 @@ export async function runBaseSyncPhase({
   })) {
     progress('SYNC', line);
   }
+}
+
+/** A handed-back conflict re-runs close next (`closeNextCommand`). */
+function buildSyncFailureError({ storyId, syncCwd, syncResult, handedBack }) {
+  const err = new Error(
+    `[single-story-close] Base-sync failed (${syncResult.kind})` +
+      syncFailureDetail(syncResult) +
+      (handedBack
+        ? `. Labels unchanged — resolve the conflict in ${syncCwd}, commit, and re-run close.`
+        : `. Story transitioned to ${AGENT_LABELS.BLOCKED}; resolve in ${syncCwd} and re-run \`/mandrel-deliver ${storyId}\`.`),
+  );
+  if (handedBack) err.closeNextCommand = NEXT_COMMANDS.close(storyId);
+  return err;
+}
+
+function syncFailureDetail({ conflictFiles, stderr }) {
+  if (conflictFiles) return `: conflicting files = ${conflictFiles.join(', ')}`;
+  return stderr ? `: ${stderr.slice(0, 200)}` : '';
+}
+
+/**
+ * A source conflict against a confirmed base is the delivering agent's to
+ * resolve; every other sync failure needs a human.
+ *
+ * @param {{ kind: string }} result
+ * @param {boolean} baseConfirmed
+ * @returns {boolean}
+ */
+function isHandedBack(result, baseConfirmed) {
+  return result.kind === 'conflict' && baseConfirmed === true;
 }
 
 /**
@@ -142,7 +176,8 @@ function buildStampInvalidatedWarning({ baseBranch, result, targetDirs }) {
 }
 
 /**
- * Post a `friction` comment and block the Story; both best-effort.
+ * Post a `friction` comment, then block the Story unless the failure is
+ * handed back to the delivering agent; both best-effort.
  *
  * @param {{
  *   provider: object,
@@ -154,6 +189,7 @@ function buildStampInvalidatedWarning({ baseBranch, result, targetDirs }) {
  *   result: { kind: string, conflictFiles?: string[], stderr?: string },
  *   progress: (tag: string, msg: string) => void,
  * }} args
+ * @returns {Promise<{ handedBack: boolean }>}
  */
 export async function handleSyncFailure({
   provider,
@@ -185,6 +221,25 @@ export async function handleSyncFailure({
     );
   }
 
+  const handedBack = isHandedBack(result, baseConfirmed);
+  await settleSyncFailureLabels({ provider, storyId, handedBack, progress });
+  return { handedBack };
+}
+
+/** A handed-back conflict leaves the labels alone; anything else blocks. */
+async function settleSyncFailureLabels({
+  provider,
+  storyId,
+  handedBack,
+  progress,
+}) {
+  if (handedBack) {
+    progress(
+      'SYNC',
+      `↩️  Conflict handed back to the delivering agent; Story #${storyId} labels unchanged.`,
+    );
+    return;
+  }
   // The canonical mutator: a bare label write skips the Projects v2 sync.
   try {
     await transitionTicketState(provider, storyId, STATE_LABELS.BLOCKED, {});
@@ -194,6 +249,80 @@ export async function handleSyncFailure({
       `[single-story-close] ⚠️ Failed to flip Story #${storyId} to ${AGENT_LABELS.BLOCKED}: ${err?.message ?? err}`,
     );
   }
+}
+
+const CLOSE_RERUN = (storyId) =>
+  `node .agents/scripts/single-story-close.js --story ${storyId}`;
+
+function commentLede(handedBack, baseBranch) {
+  if (handedBack) {
+    return [
+      `**For the delivering agent:** the pre-push sync against \`origin/${baseBranch}\``,
+      'conflicts. Labels are unchanged — this is not a block. Resolve the',
+      'conflict in the worktree, commit, and re-run close:',
+    ];
+  }
+  return [
+    `The pre-push sync against \`origin/${baseBranch}\` could not complete. The`,
+    'Story has been transitioned to `agent::blocked`. To resume:',
+  ];
+}
+
+function mergeAdvice({ storyId, syncCwd, baseBranch, handedBack }) {
+  const lines = [
+    '```bash',
+    `cd ${syncCwd}`,
+    `git fetch origin ${baseBranch}`,
+    `git merge --no-edit origin/${baseBranch}`,
+    '# resolve any conflicts, then:',
+    `git add -A ; git commit --no-edit`,
+    '# re-run close:',
+    CLOSE_RERUN(storyId),
+    '```',
+  ];
+  if (!handedBack) return lines;
+  return [
+    ...lines,
+    '',
+    'Only an agent that cannot resolve it takes the blocked path: post why,',
+    `then \`node .agents/scripts/update-ticket-state.js --ticket ${storyId} --state agent::blocked\`.`,
+  ];
+}
+
+function unconfirmedBaseAdvice({ storyId, storyBranch, baseBranch }) {
+  return [
+    `⚠️ **No merge advice: \`${baseBranch}\` is unconfirmed.** This close could not`,
+    `read the base branch \`${storyBranch}\` was seeded from off the run's`,
+    'init receipt, so merging that base in could contaminate the branch',
+    'and its PR diff with an unrelated base. Establish the real base first —',
+    `check \`temp/orchestration/story-init-result-${storyId}.log\` and \`project.baseBranch\` in`,
+    '`.agentrc.json` / `.agentrc.local.json` — then merge that base and re-run:',
+    '',
+    '```bash',
+    CLOSE_RERUN(storyId),
+    '```',
+  ];
+}
+
+function failureEvidence(kind, result) {
+  const files = result.conflictFiles ?? [];
+  if (kind === 'conflict' && files.length > 0) {
+    return [
+      '',
+      '**Conflicting files:**',
+      '',
+      ...files.map((f) => `- \`${f}\``),
+    ];
+  }
+  if (!result.stderr) return [];
+  return [
+    '',
+    '**git stderr:**',
+    '',
+    '```',
+    result.stderr.slice(0, 1000),
+    '```',
+  ];
 }
 
 /**
@@ -213,54 +342,20 @@ export function buildSyncFailureCommentBody({
   result,
 }) {
   const kind = result.kind ?? 'unknown';
+  const handedBack = isHandedBack(result, baseConfirmed);
   const heading =
     kind === 'conflict'
       ? `Base-sync conflict on close: ${storyBranch} ↔ origin/${baseBranch}`
       : `Base-sync failed on close (${kind}): ${storyBranch} ↔ origin/${baseBranch}`;
-  const fileList = (result.conflictFiles ?? []).map((f) => `- \`${f}\``);
-  const lines = [
+  const advice = baseConfirmed
+    ? mergeAdvice({ storyId, syncCwd, baseBranch, handedBack })
+    : unconfirmedBaseAdvice({ storyId, storyBranch, baseBranch });
+  return [
     `### ${heading}`,
     '',
-    '`/mandrel-deliver` close-validation passed, but the pre-push',
-    `sync against \`origin/${baseBranch}\` could not complete. The Story has`,
-    `been transitioned to \`agent::blocked\`. To resume:`,
+    ...commentLede(handedBack, baseBranch),
     '',
-    ...(baseConfirmed
-      ? [
-          '```bash',
-          `cd ${syncCwd}`,
-          `git fetch origin ${baseBranch}`,
-          `git merge --no-edit origin/${baseBranch}`,
-          '# resolve any conflicts, then:',
-          `git add -A ; git commit --no-edit`,
-          '# re-run close:',
-          `node .agents/scripts/single-story-close.js --story ${storyId}`,
-          '```',
-        ]
-      : [
-          `⚠️ **No merge advice: \`${baseBranch}\` is unconfirmed.** This close could not`,
-          `read the base branch \`${storyBranch}\` was seeded from off the run's`,
-          'init receipt, so merging that base in could contaminate the branch',
-          'and its PR diff with an unrelated base. Establish the real base first —',
-          `check \`temp/orchestration/story-init-result-${storyId}.log\` and \`project.baseBranch\` in`,
-          '`.agentrc.json` / `.agentrc.local.json` — then merge that base and re-run:',
-          '',
-          '```bash',
-          `node .agents/scripts/single-story-close.js --story ${storyId}`,
-          '```',
-        ]),
-  ];
-  if (kind === 'conflict' && fileList.length > 0) {
-    lines.push('', '**Conflicting files:**', '', ...fileList);
-  } else if (result.stderr) {
-    lines.push(
-      '',
-      '**git stderr:**',
-      '',
-      '```',
-      result.stderr.slice(0, 1000),
-      '```',
-    );
-  }
-  return lines.join('\n');
+    ...advice,
+    ...failureEvidence(kind, result),
+  ].join('\n');
 }

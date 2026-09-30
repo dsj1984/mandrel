@@ -942,6 +942,7 @@ async function onMergeObserved({
   emitMergeFlipFailedFn,
   prProbe,
   elapsedSeconds,
+  sleepFn,
 }) {
   const confirmation = await confirmStoryMergedFn({
     provider,
@@ -956,6 +957,8 @@ async function onMergeObserved({
     readPrMergeStateFn,
     // Saves confirmation a second `gh pr view`.
     prState: prProbe,
+    // The done-flip retry backs off on the wait's own clock.
+    sleepFn,
   });
 
   if (confirmation.merged && confirmation.action === 'flip-failed') {
@@ -1401,6 +1404,7 @@ export async function runConfirmMergePhase({
       issued: new Set(),
     },
     confirmStoryMergedFn,
+    sleepFn,
     readPrWaitProbeFn,
     readPrMergeStateFn,
     classifyMergeBlockFn,

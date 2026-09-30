@@ -21,15 +21,10 @@ import {
  * Refuse when the declared baseline merge driver is unregistered: git would
  * text-merge generated baselines and silently land a wrong one on `main`.
  *
- * @param {string} cwd
- * @param {typeof defaultGitSpawn} gitSpawn
+ * @param {{ declared: boolean, command: string }} driver
  * @returns {{ synced: false, kind: 'merge-driver-missing', stderr: string, remedy: string }|null}
  */
-function refuseWithoutMergeDriver(cwd, gitSpawn) {
-  const { declared, command } = probeBaselineMergeDriver({
-    projectRoot: cwd,
-    runGit: (args) => gitSpawn(cwd, ...args),
-  });
+function refuseWithoutMergeDriver({ declared, command }) {
   if (!declared || command.length > 0) return null;
   return {
     synced: false,
@@ -76,8 +71,41 @@ function diffPaths(gitSpawn, cwd, fromSha) {
     .filter((s) => s.length > 0);
 }
 
+/** The paths `.gitattributes` routes through the driver: `baselines/*.json`. */
+const DRIVER_OWNED_BASELINE = /^baselines\/[^/]+\.json$/;
+
 /**
- * A conflict is aborted before returning; the caller surfaces it.
+ * Take `origin/<base>`'s side of each conflicted baseline and commit the
+ * merge; the seat and close's gates re-derive the Story's rows. False on any
+ * failed step.
+ *
+ * @param {typeof defaultGitSpawn} gitSpawn
+ * @param {string} cwd
+ * @param {string} baseBranch
+ * @param {string[]} files
+ * @returns {boolean}
+ */
+function resolveBaselinesToBase(gitSpawn, cwd, baseBranch, files) {
+  const steps = [
+    ['checkout', `origin/${baseBranch}`, '--', ...files],
+    ['add', '--', ...files],
+    ['commit', '--no-edit'],
+  ];
+  return steps.every((args) => gitSpawn(cwd, ...args).status === 0);
+}
+
+function unmergedPaths(gitSpawn, cwd) {
+  const unmerged = gitSpawn(cwd, 'diff', '--name-only', '--diff-filter=U');
+  return (unmerged.stdout ?? '')
+    .toString()
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
+/**
+ * A baseline-only conflict resolves to the base (`resolvedBaselineFiles`);
+ * any other conflict is aborted for the caller to surface.
  *
  * @param {object} opts
  * @param {string} opts.cwd Branch must already be checked out.
@@ -89,7 +117,7 @@ function diffPaths(gitSpawn, cwd, fromSha) {
  * @returns {Promise<
  *   | { synced: true, kind: 'noop-already-current', changedPaths: string[] }
  *   | { synced: true, kind: 'fast-forward', changedPaths: string[] }
- *   | { synced: true, kind: 'merge-commit', changedPaths: string[] }
+ *   | { synced: true, kind: 'merge-commit', changedPaths: string[], resolvedBaselineFiles?: string[] }
  *   | { synced: false, kind: 'fetch-failed', stderr: string }
  *   | { synced: false, kind: 'conflict', conflictFiles: string[] }
  *   | { synced: false, kind: 'merge-failed', stderr: string }
@@ -111,7 +139,11 @@ export async function syncBranchFromBase({
     );
   }
 
-  const driverGap = refuseWithoutMergeDriver(cwd, gitSpawn);
+  const driver = probeBaselineMergeDriver({
+    projectRoot: cwd,
+    runGit: (args) => gitSpawn(cwd, ...args),
+  });
+  const driverGap = refuseWithoutMergeDriver(driver);
   if (driverGap) {
     log('SYNC', driverGap.stderr);
     return driverGap;
@@ -166,16 +198,56 @@ export async function syncBranchFromBase({
     };
   }
 
-  const unmerged = gitSpawn(cwd, 'diff', '--name-only', '--diff-filter=U');
-  const conflictFiles = (unmerged.stdout ?? '')
-    .toString()
-    .split(/\r?\n/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
+  const conflictFiles = unmergedPaths(gitSpawn, cwd);
+  const resolved = resolveBaselineOnlyConflict({
+    gitSpawn,
+    cwd,
+    baseBranch,
+    driver,
+    conflictFiles,
+    preMergeHead,
+    log,
+  });
+  if (resolved) return resolved;
 
-  // Always abort: a half-merged worktree blocks the next recovery.
+  // A half-merged worktree blocks the next recovery.
   gitSpawn(cwd, 'merge', '--abort');
+  return failedMergeResult(conflictFiles, merge);
+}
 
+/** The resolved merge-commit result, or null for any other conflict. */
+function resolveBaselineOnlyConflict({
+  gitSpawn,
+  cwd,
+  baseBranch,
+  driver,
+  conflictFiles,
+  preMergeHead,
+  log,
+}) {
+  const baselineOnly =
+    driver.declared &&
+    conflictFiles.length > 0 &&
+    conflictFiles.every((f) => DRIVER_OWNED_BASELINE.test(f));
+  if (
+    !baselineOnly ||
+    !resolveBaselinesToBase(gitSpawn, cwd, baseBranch, conflictFiles)
+  ) {
+    return null;
+  }
+  log(
+    'SYNC',
+    `Resolved baseline-only conflict to origin/${baseBranch}: ${conflictFiles.join(', ')}`,
+  );
+  return {
+    synced: true,
+    kind: 'merge-commit',
+    changedPaths: diffPaths(gitSpawn, cwd, preMergeHead),
+    resolvedBaselineFiles: conflictFiles,
+  };
+}
+
+function failedMergeResult(conflictFiles, merge) {
   if (conflictFiles.length > 0) {
     return { synced: false, kind: 'conflict', conflictFiles };
   }
