@@ -205,9 +205,17 @@ async function stepBaseMerge(ctx) {
   });
   if (sync.synced) {
     ctx.head = headSha(ctx) ?? ctx.head;
-    return sync.kind === 'noop-already-current'
-      ? skipped(name, `origin/${ctx.baseBranch} already merged`)
-      : ran(name, `${sync.kind} from origin/${ctx.baseBranch}`);
+    if (sync.kind === 'noop-already-current') {
+      return skipped(name, `origin/${ctx.baseBranch} already merged`);
+    }
+    const resolved = sync.resolvedBaselineFiles ?? [];
+    return ran(
+      name,
+      `${sync.kind} from origin/${ctx.baseBranch}` +
+        (resolved.length > 0
+          ? `; baseline-only conflict resolved to the base: ${resolved.join(', ')}`
+          : ''),
+    );
   }
   if (sync.kind === 'merge-driver-missing') {
     return blocked(name, 'merge-driver-unregistered', sync.stderr);

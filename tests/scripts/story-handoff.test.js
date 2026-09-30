@@ -387,6 +387,26 @@ describe('story-handoff — fix-required hands the failure back (AC-4)', () => {
     assert.equal(h.blocks.length, 0);
   });
 
+  // Story #5520 AC-2 — the shared sync resolved a baseline-only conflict, so
+  // the handoff proceeds and names what it took from the base.
+  test('a baseline-only conflict the sync resolved proceeds and is named', async () => {
+    const h = harness({
+      sync: {
+        synced: true,
+        kind: 'merge-commit',
+        changedPaths: ['baselines/coverage.json'],
+        resolvedBaselineFiles: ['baselines/coverage.json'],
+      },
+    });
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 0);
+    assert.equal(envelope.status, 'ready');
+    const merge = envelope.steps.find((s) => s.name === 'base-merge');
+    assert.match(merge.detail, /baseline-only conflict resolved/);
+    assert.match(merge.detail, /baselines\/coverage\.json/);
+    assert.equal(h.blocks.length, 0);
+  });
+
   test('a CRITICAL held review is fix-required with the deposit as evidence', async () => {
     const h = harness({
       deposit: { halted: true, severity: { critical: 1 } },
