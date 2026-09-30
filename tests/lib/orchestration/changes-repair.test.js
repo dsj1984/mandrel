@@ -274,3 +274,34 @@ describe('repairChangeEntries — totality and reporting', () => {
     );
   });
 });
+
+describe('repairChangeEntries — bare references[] entries (Story #5516)', () => {
+  it('derives a structured bare reference present at base as `exists`, leaving an absent one bare', () => {
+    const story = objectStory(['src/existing.js']);
+    story.body.references = ['lib/old.js', 'docs/absent.md'];
+    const repairs = repairChangeEntries([story], { existsAtBase });
+    assert.deepEqual(story.body.references, [
+      { path: 'lib/old.js', assumption: 'exists' },
+      'docs/absent.md',
+    ]);
+    const derived = repairs.filter((r) => r.reason === 'derived-read');
+    assert.equal(derived.length, 1);
+    assert.match(
+      renderChangeRepair(derived[0]),
+      /references\[\] entry "lib\/old\.js" derived as a read of an existing path/,
+    );
+  });
+
+  it('rewrites a serialized bare References bullet and leaves pinned ones alone', () => {
+    const story = stringStory(['- src/existing.js']);
+    story.body +=
+      '\n\n## References\n- lib/old.js\n- `src/existing.js` — exists\n- docs/absent.md';
+    repairChangeEntries([story], { existsAtBase });
+    const { body } = parseStoryBody(story.body);
+    assert.deepEqual(body.references, [
+      { path: 'lib/old.js', assumption: 'exists' },
+      { path: 'src/existing.js', assumption: 'exists' },
+      { path: 'docs/absent.md', assumption: null },
+    ]);
+  });
+});

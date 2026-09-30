@@ -1128,7 +1128,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/file-assumptions.js",
-      "mi": 84.95
+      "mi": 86.666
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/branches-detect.js",
@@ -1264,7 +1264,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/changes-repair.js",
-      "mi": 84.583
+      "mi": 90.843
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/cross-plan-links.js",
@@ -1592,7 +1592,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/task-body-validator.js",
-      "mi": 98.961
+      "mi": 100.683
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-lease.js",

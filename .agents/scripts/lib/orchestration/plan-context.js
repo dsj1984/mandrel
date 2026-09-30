@@ -219,20 +219,27 @@ export function renderStoriesTemplate({ complexitySignals = null } = {}) {
       body: {
         goal: 'Fill: one sentence stating why this Story exists.',
         // A filled example: each line is a commit-boundary stage of the
-        // work, never a restated acceptance item.
+        // work, never a restated acceptance item, ending in the command that
+        // proves the stage before the next one starts.
         slicing:
-          '1. Re-anchor the shared constant and its consumers.\n' +
-          '2. Move the gate ahead of the first write and arm the refusal.\n' +
-          '3. Delete the superseded module, its test and its flag.\n' +
-          '4. Regenerate the affected baselines; run the full gate chain.',
+          '1. Re-anchor the shared constant and its consumers — verify: node --test tests/constants.test.js\n' +
+          '2. Move the gate ahead of the first write and arm the refusal — verify: node --test tests/gate.test.js\n' +
+          '3. Delete the superseded module, its test and its flag — verify: npm run lint\n' +
+          '4. Regenerate the affected baselines; run the full gate chain — verify: npm test',
         spec:
-          'Optional — contract and invariants only: interfaces, status ' +
-          'codes, security invariants, and load-bearing constraints with ' +
-          'their why. Implementation choices belong to the deliverer unless ' +
-          'load-bearing. No per-file behavior paragraphs, no current-state ' +
-          'narration. As long as the work needs. ' +
+          'Optional — the decided approach: choose every load-bearing ' +
+          'mechanism and state it with its why; leave a choice open only ' +
+          'when it is genuinely not load-bearing. Contract and invariants ' +
+          'only — interfaces, status codes, security invariants — no ' +
+          'per-file behavior paragraphs. As long as the work needs. ' +
           'Delete this field when acceptance[] carries the whole contract.',
+        context:
+          'Optional — the facts you verified while planning, tersely: entry ' +
+          'points (`path/to/file.ext` + symbol), the existing pattern to ' +
+          'mirror, the test file or harness to extend, known traps, the ' +
+          'scoped test command. Never a walkthrough. Delete when empty.',
         changes: buildTemplateChanges(complexitySignals),
+        references: ['path/to/read-first.ext'],
         non_goals: [],
       },
       acceptance: [

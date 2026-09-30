@@ -202,6 +202,7 @@ function bodyObjectFromTicket(ticket) {
     goal: ticket.goal ?? '',
     slicing: ticket.slicing ?? '',
     spec: ticket.spec ?? '',
+    context: ticket.context ?? '',
     changes: ticket.changes ?? [],
     acceptance: ticket.acceptance ?? [],
     verify: ticket.verify ?? [],

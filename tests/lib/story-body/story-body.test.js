@@ -1064,3 +1064,96 @@ describe('Story #5312 — the retired meta block and wide line are skipped, neve
     assert.doesNotMatch(md, /\*\*Wide:\*\*/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Story #5516 — optional `## Context` handoff section
+// ---------------------------------------------------------------------------
+
+describe('parse()/serialize() — `## Context` section (Story #5516)', () => {
+  const CONTEXT_MARKDOWN = `## Goal
+Hand the deliverer the planner's verified facts.
+
+## Spec
+Register the section after Spec.
+
+## Context
+- Entry point: \`.agents/scripts/lib/story-body/story-body.js\` — \`HEADING_TO_FIELD\`.
+- Mirror: the \`slicing\` text block.
+
+### Traps
+- A body without it must round-trip byte-identically.
+
+## Changes
+- \`.agents/scripts/lib/story-body/story-body.js\` — refactors-existing
+
+## Acceptance
+- [ ] AC-1: context round-trips
+
+## Verify
+- node --test tests/lib/story-body/story-body.test.js`;
+
+  it('AC-1: parses the section as a text block, keeping its sub-headings', () => {
+    const { body, info } = parse(CONTEXT_MARKDOWN);
+    assert.equal(info.hasContextSection, true);
+    assert.match(body.context, /^- Entry point: /);
+    assert.match(body.context, /### Traps\n- A body without it/);
+    assert.equal(body.spec, 'Register the section after Spec.');
+  });
+
+  it('AC-1: serializes Context between Spec and Changes and round-trips', () => {
+    const { body } = parse(CONTEXT_MARKDOWN);
+    const md = serialize(body);
+    assert.equal(md, CONTEXT_MARKDOWN);
+    assert.ok(md.indexOf('## Spec') < md.indexOf('## Context'));
+    assert.ok(md.indexOf('## Context') < md.indexOf('## Changes'));
+  });
+
+  it('AC-1: a body without Context parses to an empty field and serializes byte-identically', () => {
+    const { body, info } = parse(CANONICAL_MARKDOWN);
+    assert.equal(body.context, '');
+    assert.equal(info.hasContextSection, false);
+    assert.equal(serialize(body), CANONICAL_MARKDOWN);
+    assert.equal(
+      serialize({ ...CANONICAL_BODY, context: '' }),
+      serialize(CANONICAL_BODY),
+    );
+  });
+
+  it('a `### Context` sub-heading inside a Spec stays Spec prose', () => {
+    const markdown = `## Goal
+g
+
+## Spec
+Intro.
+
+### Context
+Spec-internal background.
+
+## Acceptance
+- [ ] a
+
+## Verify
+- npm test`;
+    const { body, info } = parse(markdown);
+    assert.equal(info.hasContextSection, false);
+    assert.match(body.spec, /### Context\nSpec-internal background\./);
+    assert.equal(serialize(body), markdown.replace('- [ ] a', '- [ ] AC-1: a'));
+  });
+
+  it('AC-2: the structured-object shape carries a context field into the rendered body', () => {
+    const { body, info } = parse({
+      goal: 'g',
+      spec: 's',
+      context: '- Entry point: `src/a.ts` — `run`',
+      changes: ['src/a.ts'],
+      acceptance: ['a'],
+      verify: ['npm test'],
+    });
+    assert.equal(info.hasContextSection, true);
+    assert.equal(body.context, '- Entry point: `src/a.ts` — `run`');
+    assert.match(
+      serialize(body),
+      /## Spec\ns\n\n## Context\n- Entry point: `src\/a\.ts` — `run`\n\n## Changes/,
+    );
+  });
+});

@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { validateTickets } from '../../../.agents/scripts/lib/orchestration/plan-persist/persist-helpers.js';
 import {
   validateAcFreshness,
   validateAndNormalizeTickets,
 } from '../../../.agents/scripts/lib/orchestration/ticket-validator.js';
+import { serialize } from '../../../.agents/scripts/lib/story-body/story-body.js';
 
 /**
  * Build a fake gitRunner whose existence map is keyed by repo-relative
@@ -445,4 +447,50 @@ test('validateAcFreshness: mixed string + object form in the same body.changes a
       gitRunner: () => false,
     }),
   );
+});
+
+// Story #5516 AC-3: backticked repo paths inside `## Context` are probed at
+// persist and warn — never refuse — when absent at base.
+const CONTEXT_WITH_STALE_PATH =
+  '- Entry point: `src/present.js` — `run`.\n' +
+  '- Mirror the pattern in `docs/gone.md`; run `npm test` after.';
+
+function contextStory(bodyShape) {
+  const fields = {
+    goal: 'Hand off the planner facts.',
+    context: CONTEXT_WITH_STALE_PATH,
+    changes: [{ path: 'src/present.js', assumption: 'refactors-existing' }],
+  };
+  return makeStory('ctx', bodyShape === 'string' ? serialize(fields) : fields, {
+    acceptance: ['the handoff lands'],
+    verify: ['npm test'],
+  });
+}
+
+for (const shape of ['object', 'string']) {
+  test(`AC-3: a ${shape} body's Context path absent at base is a warning and persist proceeds`, () => {
+    const gitRunner = fakeGitRunner(['src/present.js']);
+    let validated;
+    assert.doesNotThrow(() => {
+      validated = validateTickets([contextStory(shape)], {}, { gitRunner });
+    });
+    assert.deepEqual(validated.errors, []);
+    const hits = validated.warnings.filter((w) => w.includes('docs/gone.md'));
+    assert.equal(hits.length, 1, JSON.stringify(validated.warnings));
+    assert.match(hits[0], /Story "ctx" references docs\/gone\.md/);
+    // Present paths and non-path backticks (`run`, `npm test`) stay silent.
+    assert.ok(!validated.warnings.some((w) => w.includes('src/present.js')));
+    assert.ok(!validated.warnings.some((w) => w.includes('npm test')));
+  });
+}
+
+test('AC-3: a Context path the Story declares in changes[] is exempt from the probe', () => {
+  const story = contextStory('object');
+  story.body.changes.push({ path: 'docs/gone.md', assumption: 'creates' });
+  const warnings = validateAcFreshness({
+    tickets: [story],
+    baseBranchRef: 'main',
+    gitRunner: fakeGitRunner(['src/present.js']),
+  });
+  assert.deepEqual(warnings, []);
 });
