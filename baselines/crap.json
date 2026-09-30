@@ -25372,6 +25372,12 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "pushFailure",
+      "startLine": 457,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "reviewVerdict",
       "startLine": 479,
       "crap": 2
