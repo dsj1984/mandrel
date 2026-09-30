@@ -229,14 +229,28 @@ export async function handleSyncFailure({
   }
 
   const handedBack = isHandedBack(result, baseConfirmed);
+  await settleSyncFailureLabels({ provider, storyId, handedBack, progress });
+  return { handedBack };
+}
+
+/**
+ * A handed-back conflict leaves the labels alone; anything else blocks.
+ *
+ * @param {{ provider: object, storyId: number, handedBack: boolean, progress: (tag: string, msg: string) => void }} args
+ */
+async function settleSyncFailureLabels({
+  provider,
+  storyId,
+  handedBack,
+  progress,
+}) {
   if (handedBack) {
     progress(
       'SYNC',
       `↩️  Conflict handed back to the delivering agent; Story #${storyId} labels unchanged.`,
     );
-    return { handedBack };
+    return;
   }
-
   // The canonical mutator: a bare label write skips the Projects v2 sync.
   try {
     await transitionTicketState(provider, storyId, STATE_LABELS.BLOCKED, {});
@@ -246,7 +260,6 @@ export async function handleSyncFailure({
       `[single-story-close] ⚠️ Failed to flip Story #${storyId} to ${AGENT_LABELS.BLOCKED}: ${err?.message ?? err}`,
     );
   }
-  return { handedBack };
 }
 
 const CLOSE_RERUN = (storyId) =>

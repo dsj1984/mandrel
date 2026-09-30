@@ -103,7 +103,7 @@ export async function confirmStoryMerged({
   }
 
   // Best-effort: a flaky API must not crash confirmation; re-runs are idempotent.
-  const flipped = await flipDone({
+  const flipped = await flipDoneWithRetry({
     provider,
     storyId,
     story,
@@ -138,15 +138,21 @@ function pendingResult({ storyId, prNumber, state, progress }) {
 }
 
 /** Only a write that fails every bounded attempt reports the flip failed. */
-async function flipDone({ provider, storyId, story, progress, sleepFn }) {
+async function flipDoneWithRetry({
+  provider,
+  storyId,
+  story,
+  progress,
+  sleepFn,
+}) {
   for (const delayMs of [0, ...DONE_FLIP_RETRY_DELAYS_MS]) {
     if (delayMs > 0) await sleepFn(delayMs);
-    if (await tryFlipDone(provider, storyId, story, progress)) return true;
+    if (await flipDone(provider, storyId, story, progress)) return true;
   }
   return false;
 }
 
-async function tryFlipDone(provider, storyId, story, progress) {
+async function flipDone(provider, storyId, story, progress) {
   try {
     await transitionTicketState(provider, storyId, STATE_LABELS.DONE, {
       ticketSnapshot: story,

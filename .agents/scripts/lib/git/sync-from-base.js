@@ -206,29 +206,65 @@ export async function syncBranchFromBase({
   }
 
   const conflictFiles = unmergedPaths(gitSpawn, cwd);
+  const resolved = resolveBaselineOnlyConflict({
+    gitSpawn,
+    cwd,
+    baseBranch,
+    driver,
+    conflictFiles,
+    preMergeHead,
+    log,
+  });
+  if (resolved) return resolved;
+
+  // Otherwise always abort: a half-merged worktree blocks the next recovery.
+  gitSpawn(cwd, 'merge', '--abort');
+  return failedMergeResult(conflictFiles, merge);
+}
+
+/**
+ * The merge-commit result for a conflict confined to driver-owned
+ * baselines, once resolved to the base; null for any other conflict.
+ *
+ * @returns {{ synced: true, kind: 'merge-commit', changedPaths: string[], resolvedBaselineFiles: string[] }|null}
+ */
+function resolveBaselineOnlyConflict({
+  gitSpawn,
+  cwd,
+  baseBranch,
+  driver,
+  conflictFiles,
+  preMergeHead,
+  log,
+}) {
   const baselineOnly =
     driver.declared &&
     conflictFiles.length > 0 &&
     conflictFiles.every((f) => DRIVER_OWNED_BASELINE.test(f));
   if (
-    baselineOnly &&
-    resolveBaselinesToBase(gitSpawn, cwd, baseBranch, conflictFiles)
+    !baselineOnly ||
+    !resolveBaselinesToBase(gitSpawn, cwd, baseBranch, conflictFiles)
   ) {
-    log(
-      'SYNC',
-      `Resolved baseline-only conflict to origin/${baseBranch}: ${conflictFiles.join(', ')}`,
-    );
-    return {
-      synced: true,
-      kind: 'merge-commit',
-      changedPaths: diffPaths(gitSpawn, cwd, preMergeHead),
-      resolvedBaselineFiles: conflictFiles,
-    };
+    return null;
   }
+  log(
+    'SYNC',
+    `Resolved baseline-only conflict to origin/${baseBranch}: ${conflictFiles.join(', ')}`,
+  );
+  return {
+    synced: true,
+    kind: 'merge-commit',
+    changedPaths: diffPaths(gitSpawn, cwd, preMergeHead),
+    resolvedBaselineFiles: conflictFiles,
+  };
+}
 
-  // Otherwise always abort: a half-merged worktree blocks the next recovery.
-  gitSpawn(cwd, 'merge', '--abort');
-
+/**
+ * @param {string[]} conflictFiles
+ * @param {{ stderr?: unknown }} merge
+ * @returns {{ synced: false, kind: 'conflict', conflictFiles: string[] }|{ synced: false, kind: 'merge-failed', stderr: string }}
+ */
+function failedMergeResult(conflictFiles, merge) {
   if (conflictFiles.length > 0) {
     return { synced: false, kind: 'conflict', conflictFiles };
   }
