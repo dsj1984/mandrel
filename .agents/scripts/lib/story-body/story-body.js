@@ -33,6 +33,7 @@ import { isFooterSeparator, parseFooterBlockedByRefs } from './footer-block.js';
  * @property {string}        goal
  * @property {string}        slicing             - Intra-Story slice plan; '' when absent.
  * @property {string}        spec                - Folded Tech Spec; '' when absent.
+ * @property {string}        context             - Planner handoff facts; '' when absent.
  * @property {PathEntry[]}   changes
  * @property {string[]}      acceptance
  * @property {string[]}      verify
@@ -58,6 +59,7 @@ import { isFooterSeparator, parseFooterBlockedByRefs } from './footer-block.js';
  * @property {boolean} hasNonGoalsSection
  * @property {boolean} hasSlicingSection
  * @property {boolean} hasSpecSection
+ * @property {boolean} hasContextSection
  * @property {boolean} isUnstructuredBody   - True when no structured sections were found.
  */
 
@@ -87,13 +89,17 @@ const HEADING_TO_FIELD = new Map([
   ['goal', 'goal'],
   ['slicing', 'slicing'],
   ['spec', 'spec'],
+  ['context', 'context'],
   ['changes', 'changes'],
   ['acceptance', 'acceptance'],
   ['verify', 'verify'],
   ['references', 'references'],
   ['non_goals', 'non_goals'],
 ]);
-const TEXT_BLOCK_FIELDS = new Set(['slicing', 'spec']);
+const TEXT_BLOCK_FIELDS = new Set(['slicing', 'spec', 'context']);
+// Recognized only at `##`: a `### Context` sub-heading inside a Spec stays
+// Spec prose. Context is planner-authored, never an Issue Form label.
+const H2_ONLY_FIELDS = new Set(['context']);
 
 /**
  * @param {string} line
@@ -278,9 +284,11 @@ function splitSections(markdown) {
     // `##` or `###` (GitHub Issue Forms render labels as level 3). The token
     // is a single `[\w-]+` word so `Non-Goals` matches; multi-word headings
     // fall through to the terminator branch below.
-    const fieldHeadingMatch = line.match(/^#{2,3}\s+([\w-]+)\s*$/i);
-    const fieldName = fieldHeadingMatch?.[1]?.toLowerCase().replace(/-/g, '_');
-    if (HEADING_TO_FIELD.has(fieldName)) {
+    const fieldHeadingMatch = line.match(/^(#{2,3})\s+([\w-]+)\s*$/i);
+    const fieldName = fieldHeadingMatch?.[2]?.toLowerCase().replace(/-/g, '_');
+    const levelOk =
+      !H2_ONLY_FIELDS.has(fieldName) || fieldHeadingMatch[1] === '##';
+    if (HEADING_TO_FIELD.has(fieldName) && levelOk) {
       inPreamble = false;
       currentSection = fieldName;
       if (!sections.has(currentSection)) sections.set(currentSection, []);
@@ -354,6 +362,7 @@ function parseUnstructuredBody(input, preamble, footer) {
     goal: preamble || input.trim(),
     slicing: '',
     spec: '',
+    context: '',
     changes: [],
     acceptance: [],
     verify: [],
@@ -373,6 +382,7 @@ function parseUnstructuredBody(input, preamble, footer) {
       hasNonGoalsSection: false,
       hasSlicingSection: false,
       hasSpecSection: false,
+      hasContextSection: false,
       isUnstructuredBody: true,
     },
   };
@@ -481,6 +491,7 @@ export function parse(input) {
   const hasNonGoalsSection = sections.has('non_goals');
   const hasSlicingSection = sections.has('slicing');
   const hasSpecSection = sections.has('spec');
+  const hasContextSection = sections.has('context');
 
   const isUnstructuredBody =
     !hasGoalSection &&
@@ -495,6 +506,7 @@ export function parse(input) {
   const goal = parseGoalSection(sections.get('goal') ?? []);
   const slicing = parseTextBlockSection(sections.get('slicing') ?? []);
   const spec = parseTextBlockSection(sections.get('spec') ?? []);
+  const context = parseTextBlockSection(sections.get('context') ?? []);
   const changes = parsePathEntrySection(
     sections.get('changes') ?? [],
     warnings,
@@ -514,6 +526,7 @@ export function parse(input) {
     goal,
     slicing,
     spec,
+    context,
     changes,
     acceptance,
     verify,
@@ -534,6 +547,7 @@ export function parse(input) {
       hasNonGoalsSection,
       hasSlicingSection,
       hasSpecSection,
+      hasContextSection,
       isUnstructuredBody: false,
     },
   };
@@ -565,6 +579,7 @@ function parseStructuredObject(obj) {
       hasNonGoalsSection: 'non_goals' in obj,
       hasSlicingSection: 'slicing' in obj,
       hasSpecSection: 'spec' in obj,
+      hasContextSection: 'context' in obj,
       isUnstructuredBody: false,
     },
   };
@@ -579,6 +594,7 @@ const STRUCTURED_FIELD_SPECS = [
   { name: 'goal', kind: 'text' },
   { name: 'slicing', kind: 'text' },
   { name: 'spec', kind: 'text' },
+  { name: 'context', kind: 'text' },
   { name: 'changes', kind: 'pathEntryList' },
   { name: 'acceptance', kind: 'stringList' },
   { name: 'verify', kind: 'stringList' },
@@ -645,6 +661,13 @@ const SERIALIZE_SECTIONS = [
         : null,
   },
   {
+    field: 'context',
+    render: (context) =>
+      typeof context === 'string' && context.trim().length > 0
+        ? `## Context\n${context.trim()}`
+        : null,
+  },
+  {
     field: 'changes',
     render: (changes) =>
       Array.isArray(changes) && changes.length > 0
@@ -690,7 +713,7 @@ function serializeFooter(body, opts) {
   if (!opts.includeFooter) return '';
   const footerLines = ['---'];
   if (opts.footer?.parent) footerLines.push(`parent: #${opts.footer.parent}`);
-  // Never an `Epic: #N` line: pr-base-guard.js refuses a body carrying one.
+  // Never an `Epic: #N` line: resolve-stories.js refuses a body carrying one.
   if (Array.isArray(body.depends_on)) {
     for (const dep of body.depends_on) {
       footerLines.push(`blocked by ${dep}`);

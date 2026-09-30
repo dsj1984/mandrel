@@ -1556,3 +1556,46 @@ describe('normalizeAcceptanceHandles (Story #5323)', () => {
     assert.deepEqual(bodyObject.acceptance, ['the outcome']);
   });
 });
+
+describe('assemblePlanStories — the `## Context` handoff (Story #5516 AC-2)', () => {
+  const context = '- Entry point: `src/alpha.js` — `run`.';
+
+  it('renders a structured-object body context into the posted body', () => {
+    const { stories } = assemblePlanStories([
+      {
+        slug: 'alpha',
+        type: 'story',
+        title: 'Story alpha',
+        body: {
+          goal: 'Goal of alpha.',
+          spec: 'Decide the mechanism.',
+          context,
+          changes: [{ path: 'src/alpha.js', assumption: 'creates' }],
+        },
+        acceptance: ['alpha works'],
+        verify: ['npm test'],
+      },
+    ]);
+    assert.match(
+      stories[0].body,
+      /## Spec\nDecide the mechanism\.\n\n## Context\n- Entry point: `src\/alpha\.js` — `run`\.\n\n## Changes/,
+    );
+    assert.equal(parse(stories[0].body).body.context, context);
+  });
+
+  it('accepts context as a top-level structured field too', () => {
+    const { stories } = assemblePlanStories([
+      {
+        slug: 'alpha',
+        type: 'story',
+        title: 'Story alpha',
+        goal: 'Goal of alpha.',
+        context,
+        changes: [{ path: 'src/alpha.js', assumption: 'creates' }],
+        acceptance: ['alpha works'],
+        verify: ['npm test'],
+      },
+    ]);
+    assert.match(stories[0].body, /## Context\n- Entry point/);
+  });
+});
