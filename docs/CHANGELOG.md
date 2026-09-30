@@ -15,6 +15,25 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.71.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.70.0...mandrel-v2.71.0) (2026-09-30)
+
+
+### Added
+
+* close resolves baseline-only merge conflicts, hands other conflicts back to the delivering agent, and retries a failed done-label write instead of blocking for a human ([#5520](https://github.com/dsj1984/mandrel/issues/5520)) ([#5527](https://github.com/dsj1984/mandrel/issues/5527)) ([2e56566](https://github.com/dsj1984/mandrel/commit/2e565668bf0f02fc0c84b71779a50bec72ff84f4))
+* deliver: the worker's tail is one story-handoff command that hands fixable failures back instead of blocking, the worker never writes agent::closing, and self-eval starts from a verdict skeleton ([#5518](https://github.com/dsj1984/mandrel/issues/5518)) ([#5524](https://github.com/dsj1984/mandrel/issues/5524)) ([74d2ef2](https://github.com/dsj1984/mandrel/commit/74d2ef2411efcb6a5a116401af5a52448cbd78fe))
+* notify on agent::blocked, refuse agent::review-spec Stories at delivery, drop the native reviewer's duplicate lint pass, and correct the drift the SDLC review found ([#5517](https://github.com/dsj1984/mandrel/issues/5517)) ([#5523](https://github.com/dsj1984/mandrel/issues/5523)) ([7330307](https://github.com/dsj1984/mandrel/commit/7330307013a1678287dd0192a3f9042abca92432))
+* plan: author Stories as a grounded handoff — decided Spec, References, a probed Context section and verifiable Slicing checkpoints, in a prompt no longer than today's ([#5516](https://github.com/dsj1984/mandrel/issues/5516)) ([#5522](https://github.com/dsj1984/mandrel/issues/5522)) ([f7b8388](https://github.com/dsj1984/mandrel/commit/f7b8388524737cf230eaa6a3bf19860b45d10ce5))
+* role agents declare a model default, delivery.routing.agentModels overrides it per role, and close records the dispatched worker's model ([#5519](https://github.com/dsj1984/mandrel/issues/5519)) ([#5526](https://github.com/dsj1984/mandrel/issues/5526)) ([39a93d8](https://github.com/dsj1984/mandrel/commit/39a93d86942c2814cdea5b0074e7f352e3db832e))
+* story-handoff preflight runs the standalone ratchets CI's baselines job runs, so a dead-export or cycle is fix-required at handoff instead of a CI red ([#5528](https://github.com/dsj1984/mandrel/issues/5528)) ([#5530](https://github.com/dsj1984/mandrel/issues/5530)) ([23c44d0](https://github.com/dsj1984/mandrel/commit/23c44d062b9a771373bf82b32ea7a70839af6446))
+
+
+### Fixed
+
+* **agents:** stop story-worker flipping agent::closing at hand-off (refs [#5515](https://github.com/dsj1984/mandrel/issues/5515)) ([#5521](https://github.com/dsj1984/mandrel/issues/5521)) ([1f5b564](https://github.com/dsj1984/mandrel/commit/1f5b5649747b9dad826205f9819bc12738bbe55e))
+* **deps:** clear brace-expansion, fast-uri, and markdown-it advisories ([#5508](https://github.com/dsj1984/mandrel/issues/5508)) ([fd97225](https://github.com/dsj1984/mandrel/commit/fd972259f111390d9ca1515d1a5cde45995c1709)), closes [#5507](https://github.com/dsj1984/mandrel/issues/5507)
+* story-handoff: a non-fast-forward push rejection is fix-required, not blocked ([#5525](https://github.com/dsj1984/mandrel/issues/5525)) ([#5529](https://github.com/dsj1984/mandrel/issues/5529)) ([332389c](https://github.com/dsj1984/mandrel/commit/332389c03fcaf9497b134d4574ae7a1a712d62b6))
+
 ## [2.70.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.69.0...mandrel-v2.70.0) (2026-09-29)
 
 
