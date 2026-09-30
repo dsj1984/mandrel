@@ -503,6 +503,31 @@ export async function runAcceptanceEval(
   return { envelope, exitCode };
 }
 
+/** @param {number|null} storyId */
+function requireStoryId(storyId) {
+  if (storyId) return;
+  throw new Error(
+    'Usage: node acceptance-eval.js --story <id> --verdict <path> [--expected-criteria <n>] [--no-signal]',
+  );
+}
+
+/**
+ * `--init`: write the skeleton and print its summary; scores nothing.
+ *
+ * @param {{ storyId: number, cwd: string|null, resolveConfigImpl: typeof resolveConfig, logger: { info: Function }, deps: { initSkeletonImpl?: typeof initVerdictSkeleton } }} args
+ * @returns {Promise<object>}
+ */
+async function runInitCli({ storyId, cwd, resolveConfigImpl, logger, deps }) {
+  const workCwd = path.resolve(cwd ?? process.cwd());
+  const skeleton = await (deps.initSkeletonImpl ?? initVerdictSkeleton)({
+    storyId,
+    cwd: workCwd,
+    config: resolveConfigImpl({ cwd: workCwd }),
+  });
+  logger.info(JSON.stringify(skeleton));
+  return skeleton;
+}
+
 /**
  * CLI core: argv → verdict → validation → coverage → decision → envelope.
  *
@@ -534,21 +559,9 @@ export async function runAcceptanceEvalCli(
     parseCliArgs(argv);
   const flagged = resolveExpectedCriteria(expectedCriteria);
 
-  if (!storyId) {
-    throw new Error(
-      'Usage: node acceptance-eval.js --story <id> --verdict <path> [--expected-criteria <n>] [--no-signal]',
-    );
-  }
-  if (init) {
-    const workCwd = path.resolve(cwd ?? process.cwd());
-    const skeleton = await (deps.initSkeletonImpl ?? initVerdictSkeleton)({
-      storyId,
-      cwd: workCwd,
-      config: resolveConfigImpl({ cwd: workCwd }),
-    });
-    logger.info(JSON.stringify(skeleton));
-    return skeleton;
-  }
+  requireStoryId(storyId);
+  if (init)
+    return runInitCli({ storyId, cwd, resolveConfigImpl, logger, deps });
   if (!verdictPath) {
     throw new Error('acceptance-eval: --verdict <path> is required.');
   }

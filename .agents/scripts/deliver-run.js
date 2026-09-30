@@ -159,6 +159,14 @@ export function extractBodySections(body) {
 }
 
 /**
+ * @param {string[]} [sections]
+ * @returns {string[]} each section followed by a blank line.
+ */
+function embeddedSectionLines(sections = []) {
+  return sections.flatMap((section) => [section, '']);
+}
+
+/**
  * The whole spawn payload for one ready Story.
  * @param {object} args
  * @param {number} args.storyId
@@ -173,7 +181,7 @@ export function renderDispatchPrompt({
   mainRepo,
   docsDigestPath,
   checklistPath,
-  bodySections = [],
+  bodySections,
 }) {
   const lines = [
     `# Deliver Story #${storyId}`,
@@ -193,7 +201,7 @@ export function renderDispatchPrompt({
     `- Docs digest: ${docsDigestPath ? `\`${docsDigestPath}\`` : 'none (project.docsContextFiles is unset) — no mandatory docs read'}`,
     `- Write-time checklist: ${checklistPath ? `\`${checklistPath}\`` : 'none matched this footprint — the maker-blind close-scope pass still covers it'}`,
     '',
-    ...bodySections.flatMap((section) => [section, '']),
+    ...embeddedSectionLines(bodySections),
     '## Worktree',
     '',
     'Initialize from the main checkout, synchronously, at the maximum Bash',
@@ -254,7 +262,8 @@ function buildDispatchEntry(
     storyId,
     body,
     config,
-    ...(buildChecklistFn ? { buildChecklistFn } : {}),
+    // `undefined` falls through to the helper's own default builder.
+    buildChecklistFn,
   });
   const promptPath = path.join(runTempDir, `dispatch-${storyId}.md`);
   writeFileFn(
