@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
 import {
@@ -1111,6 +1112,29 @@ describe('--init — the verdict skeleton (Story #5518)', () => {
         [2, 'AC-3 holds', '', ''],
       ],
     );
+  });
+
+  it('the default writer and HEAD reader land a readable skeleton on disk', async () => {
+    const out = await initVerdictSkeleton(
+      {
+        storyId: 5518,
+        cwd: process.cwd(),
+        config: {
+          project: { baseBranch: 'main', paths: { tempRoot: 'temp' } },
+        },
+      },
+      {
+        readAcceptanceImpl: async () => acceptance,
+        deriveCeremonyImpl: () => ({
+          files: [],
+          verdictOwner: 'inline-self-eval',
+        }),
+        resolveRoundImpl: () => ({ round: 1, replay: false }),
+      },
+    );
+    const skeleton = JSON.parse(readFileSync(out.verdictPath, 'utf8'));
+    assert.equal(skeleton.criteria.length, 3);
+    assert.match(skeleton.commitSha ?? '', /^[0-9a-f]{7,64}$/);
   });
 
   it('refuses to write a skeleton when acceptance[] is unreadable', async () => {

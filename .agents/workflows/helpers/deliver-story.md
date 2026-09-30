@@ -95,7 +95,7 @@ Step 2. **`block`** → **do not close**: post a `friction` comment and flip
 
 The acceptance verdict owner comes from `delivery.routing.ceremonyProfile` and
 nothing else — not the diff, not the dispatch mode, never a planner-authored
-verdict; `--init` prints it (**digest § 3** is the rule's one home; edge cases
+verdict; `--init` prints it, resolved by `ceremony-routing.js` (**digest § 3** is the rule's one home; edge cases
 are reference § Step 2). Hard gates always run in Step 3 — do **not** pre-run
 the chain here; Step 2.5's credited suite run is the sole exception.
 
