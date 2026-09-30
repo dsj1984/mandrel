@@ -5,6 +5,11 @@
  * the operator's session model.
  */
 
+import fs from 'node:fs';
+import path from 'node:path';
+
+import { getDeliveryRouting } from './delivery-routing.js';
+
 /** The role-scoped agents `.agents/agents/` ships — the `agentModels` keys. */
 export const ROLE_AGENT_NAMES = Object.freeze([
   'story-worker',
@@ -83,4 +88,30 @@ export function applyAgentModel(content, model) {
     ? block[1].replace(MODEL_LINE_RE, `model: ${model}`)
     : `${block[1]}\nmodel: ${model}`;
   return `---\n${inner}\n---\n${content.slice(block[0].length)}`;
+}
+
+/**
+ * The model a dispatched story-worker runs on: its `agentModels` override,
+ * else the role file's default. With role-scoped agents off, the worker is a
+ * `general-purpose` spawn on the session model.
+ *
+ * @param {{ config?: object, mainRepo: string }} args
+ * @param {{ readFileFn?: typeof fs.readFileSync }} [deps]
+ * @returns {string}
+ */
+export function resolveStoryWorkerModel(
+  { config, mainRepo },
+  { readFileFn = fs.readFileSync } = {},
+) {
+  if (!getDeliveryRouting(config).roleScopedAgents) return INHERIT_MODEL;
+  let content = '';
+  try {
+    content = readFileFn(
+      path.join(mainRepo, '.agents', 'agents', 'story-worker.md'),
+      'utf8',
+    );
+  } catch {
+    // An absent role file declares no default: the resolver falls to inherit.
+  }
+  return resolveAgentModel({ role: 'story-worker', config, content });
 }

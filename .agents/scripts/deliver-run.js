@@ -14,6 +14,7 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { buildStoryChecklist } from './lib/audit-suite/index.js';
 import { runAsCli } from './lib/cli-utils.js';
+import { resolveStoryWorkerModel } from './lib/config/agent-models.js';
 import { getPaths, resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
 import { ensureDocsDigest } from './lib/orchestration/docs-digest.js';
@@ -121,17 +122,27 @@ function writeLedger(
 /**
  * `--merge-watch-mode async` is a run-topology call close cannot make: with
  * siblings, sync closes serialize every merge wait; alone, sync lands fastest.
- * @param {{ storyId: number, mainRepo: string, storyCount: number }} args
+ * `--worker-model` rides only a multi-Story close — a one-Story run is inline.
+ * @param {{ storyId: number, mainRepo: string, storyCount: number,
+ *   workerModel?: string|null }} args
  * @returns {string}
  */
-export function renderCloseCommand({ storyId, mainRepo, storyCount }) {
+export function renderCloseCommand({
+  storyId,
+  mainRepo,
+  storyCount,
+  workerModel = null,
+}) {
   const parts = [
     'node',
     path.join(mainRepo, '.agents', 'scripts', 'single-story-close.js'),
     `--story ${storyId}`,
     `--cwd ${mainRepo}`,
   ];
-  if (storyCount > 1) parts.push('--merge-watch-mode async');
+  if (storyCount > 1) {
+    parts.push('--merge-watch-mode async');
+    if (workerModel) parts.push(`--worker-model ${workerModel}`);
+  }
   return parts.join(' ');
 }
 
@@ -443,6 +454,10 @@ export async function runDeliverRunBeat(
     : [];
 
   const readyIds = Array.isArray(tick.ready) ? tick.ready : [];
+  const workerModel =
+    handoffIds.length > 0
+      ? resolveStoryWorkerModel({ config: resolved, mainRepo }, entryDeps)
+      : null;
   const digest = await ensureDocsDigestFn({
     docsContextFiles: resolved?.project?.docsContextFiles,
     docsRoot: getPaths(resolved).docsRoot,
@@ -485,6 +500,7 @@ export async function runDeliverRunBeat(
           storyId,
           mainRepo,
           storyCount: ids.length,
+          workerModel,
         }),
       })),
       done: tick.epilogueDue === true,

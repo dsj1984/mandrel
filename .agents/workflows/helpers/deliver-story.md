@@ -119,12 +119,13 @@ serialized against sibling Stories:
 
 ```bash
 node <main-repo>/.agents/scripts/single-story-close.js --story <storyId> --cwd <main-repo> \
-  [--worker-tokens <n>]
+  [--worker-tokens <n>] [--worker-model <model>]
 ```
 
 When the host reported a total-token figure for the story-worker's Agent
 dispatch, pass it as `--worker-tokens <n>` — close records it in its
-result's local `telemetry`; omit it when the host reports none.
+result's local `telemetry`; omit it when the host reports none. A
+multi-Story close command from deliver-run already carries `--worker-model`.
 
 **The whole delivery tail** — gates, PR, merge wait, `agent::done` flip,
 post-land tail in one process. Never background it, never delegate it to a

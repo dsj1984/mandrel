@@ -13,7 +13,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
-import { parseWorkerTokens } from '../../../../.agents/scripts/lib/cli-args.js';
+import {
+  parseWorkerModel,
+  parseWorkerTokens,
+} from '../../../../.agents/scripts/lib/cli-args.js';
 import {
   emitCloseTerminalSignals,
   emitReviewBlockedFriction,
@@ -348,6 +351,7 @@ describe('AC-4: the telemetry summary', () => {
       result,
       config,
       workerTokens: 5000,
+      workerModel: 'sonnet',
     });
     assert.deepEqual(result.telemetry, {
       acceptanceRounds: 2,
@@ -359,6 +363,7 @@ describe('AC-4: the telemetry summary', () => {
         confirmedHaltsByProvider: { native: 1 },
       },
       workerTokens: 5000,
+      workerModel: 'sonnet',
     });
   });
 
@@ -373,6 +378,8 @@ describe('AC-4: the telemetry summary', () => {
     const { telemetry } = result;
     assert.deepEqual(telemetry.review.confirmedHaltsByProvider, {});
     assert.equal(telemetry.workerTokens, null);
+    // No --worker-model: an inline close records null.
+    assert.equal(telemetry.workerModel, null);
   });
 
   it('run-level tallies sum per-Story ones', async () => {
@@ -416,10 +423,37 @@ describe('AC-3/AC-4/AC-6: through the close runner', () => {
     assert.equal(outcome.terminal.status, 'failed');
     assert.equal(retryRows(await readStorySignals(7109)).length, 1);
     assert.equal(outcome.result.telemetry.workerTokens, 4242);
+    assert.equal(outcome.result.telemetry.workerModel, null);
     assert.deepEqual(outcome.result.telemetry.retries, {
       total: 1,
       byCause: { other: 1 },
     });
+  });
+
+  it('a multi-Story close records the dispatched worker model beside its tokens (#5519)', async () => {
+    const outcome = await runSingleStoryClose({
+      storyId: 7112,
+      cwd: tempRoot,
+      workerTokens: '900',
+      workerModel: 'sonnet',
+      injectedConfig: config,
+      injectedProvider: closedStoryProvider('completed'),
+    });
+    assert.equal(outcome.terminal.status, 'landed');
+    assert.equal(outcome.result.telemetry.workerTokens, 900);
+    assert.equal(outcome.result.telemetry.workerModel, 'sonnet');
+  });
+
+  it('an invalid worker model records null and leaves the status unchanged', async () => {
+    const outcome = await runSingleStoryClose({
+      storyId: 7113,
+      cwd: tempRoot,
+      workerModel: 'bad model; rm',
+      injectedConfig: config,
+      injectedProvider: closedStoryProvider('completed'),
+    });
+    assert.equal(outcome.terminal.status, 'landed');
+    assert.equal(outcome.result.telemetry.workerModel, null);
   });
 
   it('a landed close appends no retry; an invalid token value leaves the status unchanged', async () => {
@@ -480,5 +514,26 @@ describe('AC-6: a telemetry write failure never changes the close', () => {
     await assert.doesNotReject(
       emitCloseTerminalSignals({ envelope: failed, config: broken }),
     );
+  });
+});
+
+describe('parseWorkerModel (#5519)', () => {
+  it('absence is the inline case: null with no warning', () => {
+    assert.deepEqual(parseWorkerModel(undefined), {
+      model: null,
+      warning: null,
+    });
+  });
+
+  it('accepts an alias, a full id and inherit', () => {
+    for (const value of ['sonnet', 'claude-opus-4-1', 'inherit', ' haiku ']) {
+      assert.equal(parseWorkerModel(value).model, value.trim());
+    }
+  });
+
+  it('rejects a shell-unsafe value with a warning', () => {
+    const { model, warning } = parseWorkerModel('x $(y)');
+    assert.equal(model, null);
+    assert.match(warning, /--worker-model/);
   });
 });
