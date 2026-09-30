@@ -1006,6 +1006,9 @@ describe('renderStoriesTemplate — correct-by-construction skeleton (Story #472
     story.body.goal = 'Harden the widget pipeline against stale snapshots.';
     story.body.spec =
       'Contract: lib/existing/module.js keeps its exported signature.';
+    story.body.context =
+      '- Entry point: `lib/existing/module.js` — the exported `run`.';
+    story.body.references = ['lib/existing/module.js'];
     story.acceptance = [
       'The hardened pipeline resolves the snapshot and the pinned test passes',
     ];
@@ -1028,7 +1031,13 @@ describe('renderStoriesTemplate — correct-by-construction skeleton (Story #472
         ['lib/existing/module.js', 'refactors-existing'],
         ['lib/new/feature.js', 'creates'],
         ['tests/new/feature.test.js', 'creates'],
+        // Story #5516: the filled bare reference is derived as a read.
+        ['lib/existing/module.js', 'exists'],
       ],
+    );
+    assert.deepEqual(
+      validated.warnings.filter((w) => w.includes('lib/existing/module.js')),
+      [],
     );
   });
 

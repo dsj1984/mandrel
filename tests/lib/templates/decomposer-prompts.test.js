@@ -277,8 +277,9 @@ describe('renderStoriesTemplate — ready-to-fill authoring skeleton (AC-5)', ()
 
   test('the template Spec placeholder restates the prose contract, not implementation prose', () => {
     const [story] = JSON.parse(renderStoriesTemplate());
-    assert.match(story.body.spec, /contract and invariants only/i);
-    assert.match(story.body.spec, /belong to the deliverer/i);
+    assert.match(story.body.spec, /contract and invariants/i);
+    assert.match(story.body.spec, /choose every load-bearing mechanism/i);
+    assert.doesNotMatch(story.body.spec, /belong to the deliverer/i);
     assert.doesNotMatch(story.body.spec, /250 words|350/);
   });
 
@@ -304,6 +305,27 @@ describe('renderStoriesTemplate — ready-to-fill authoring skeleton (AC-5)', ()
       `template ## Slicing must show multiple checkpoints, got ${checkpoints.length}`,
     );
     assert.doesNotMatch(body.slicing, /^Fill:/im);
+  });
+
+  test('AC-7: carries fillable context and references slots, and slicing rows ending in a verify command', () => {
+    const [story] = JSON.parse(renderStoriesTemplate());
+    assert.match(story.body.context, /entry\s+points/i);
+    assert.match(story.body.context, /scoped test command/);
+    assert.deepEqual(story.body.references, ['path/to/read-first.ext']);
+    const { body } = parseStoryBody(story.body);
+    assert.equal(body.context, story.body.context);
+    assert.deepEqual(body.references, [
+      { path: 'path/to/read-first.ext', assumption: null },
+    ]);
+    const rows = body.slicing.split('\n').filter((l) => /^\d+\.\s/.test(l));
+    assert.ok(rows.length >= 3);
+    for (const row of rows) {
+      assert.match(
+        row,
+        / — verify: \S.*$/,
+        `row must end in a verify command: ${row}`,
+      );
+    }
   });
 
   test('deterministic — two renders are byte-identical', () => {

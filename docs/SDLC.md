@@ -192,8 +192,11 @@ This section states the contract the rest of the SDLC depends on.
   operator — or, under `--yes`, becomes a declarative
   *decision-made-by-default* Key Assumption.
 - **One Story by default.** The author writes `stories.json` in one pass: a
-  body (`## Goal`, optional `## Slicing`, `## Spec`, `## Changes`,
-  `## Non-Goals`) plus top-level `acceptance[]` / `verify[]`. Specs are inline
+  body (`## Goal`, optional `## Slicing`, `## Spec`, `## Context`,
+  `## Changes`, `## References`, `## Non-Goals`) plus top-level
+  `acceptance[]` / `verify[]`. The Spec decides every load-bearing mechanism
+  and `## Context` hands the deliverer the facts verified while planning, so
+  a smaller delivery model need not rediscover them. Specs are inline
   at any length, never spilled to `docs/`. It splits into N>1 siblings
   **only** on near-zero overlap or a genuine architectural seam; coupled work
   stays one Story, staged by `## Slicing` checkpoints.

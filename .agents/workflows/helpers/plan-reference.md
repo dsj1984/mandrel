@@ -173,9 +173,23 @@ anything a plan authored.
   is then a dry-run **warning**, not a rejection. `deletes` stays explicit —
   a bare path can never express a removal — and a `deletes` naming a path
   absent at base is the one `changes[]` shape still refused.
-- **Keep `## Spec` at contract-level prose** — interfaces, invariants,
-  load-bearing constraints; no per-file behavior narration — and as long as
-  the work needs. There is no word or token budget.
+- **`## Spec` decides.** Every load-bearing mechanism is chosen there with
+  its why; a choice is left to the deliverer only when it is genuinely not
+  load-bearing. It stays contract-level — no per-file behavior narration —
+  and as long as the work needs. There is no word or token budget.
+- **`## Context` is the handoff.** An optional text section after `## Spec`:
+  entry points (file + symbol), the pattern to mirror, the test file or
+  harness to extend, known traps, the scoped test command — verified facts,
+  tersely, never a walkthrough. Backticked repo paths in it are probed at
+  persist and **warn** when absent at base.
+- **`references[]` names the read-first files.** Author the files the
+  deliverer should read before editing. A bare path is the default: persist
+  derives `exists` by probing base and warns, never refuses, on an absent one.
+- **Slicing checkpoints may end `— verify: <exact command>`** — encouraged
+  past two checkpoints, so each stage is proven before the next starts.
+
+Context, References and checkpoint verify commands are advisory like
+`changes[]`; `acceptance[]` / `verify[]` stay the only binding contract.
 
 A faithfully-filled skeleton — placeholders replaced, pre-resolved entries
 kept — passes the persist ticket validators with no round-trip.
@@ -183,10 +197,10 @@ kept — passes the persist ticket validators with no round-trip.
 ### Authored entry shape
 
 Each `stories.json` entry: `slug` (`^[a-z0-9][a-z0-9-]*$`), `type: "story"`,
-`title`, `body` (`goal`, optional `spec`, `changes[]` — a **bare path string**
-by default, or `{path, assumption}` with
-`creates|refactors-existing|deletes` to pin one, `non_goals`,
-`reason_to_exist`), top-level `acceptance[]`, `verify[]` (each a **bare
+`title`, `body` (`goal`, optional `slicing` / `spec` / `context`, `changes[]`
+— a **bare path string** by default, or `{path, assumption}` with
+`creates|refactors-existing|deletes` to pin one, optional `references[]` and
+`non_goals`), top-level `acceptance[]`, `verify[]` (each a **bare
 command** — there is no tier suffix), and `depends_on[]` (a sibling slug, or
 `#<id>` for an existing open Story).
 
@@ -368,7 +382,8 @@ Commit subjects are not scanned — the `commit-msg` hook and
 **Warnings — listed, then the persist proceeds:** a `creates` on a path that
 exists at base or a `refactors-existing` on one that does not (including a
 path the base branch deleted or renamed, named with the removing commit), a
-goal or acceptance path absent at base, an empty `verify[]`, a source id
+goal, acceptance or `## Context` path absent at base, a bare `references[]`
+entry absent at base, an empty `verify[]`, a source id
 assigned to the primary Story by default, a `verify[]` command naming an
 absent test file, an `open-question` in a body (`Flag if…`, `TBD`, a trailing
 `?`), and a `pinned-identifier` in an acceptance item — a backticked bare symbol
@@ -376,7 +391,7 @@ that is not a path, a label, a kebab token, a flag or a command, which the
 advisory `changes[]` is free to reshape out from under the criterion. The
 list also names every **repair** the run applied — a plain-string bullet or a
 trailing parenthetical rewritten into `{ path, assumption }` by probing base,
-and an `AC-<n>:` handle normalised off an acceptance item. The same list rides
+a bare reference present at base derived as `exists`, and an `AC-<n>:` handle normalised off an acceptance item. The same list rides
 the result envelope as `warnings[]` and `repairs[]`, carried from the
 write-free pass onto the chained run's envelope.
 
