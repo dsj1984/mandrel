@@ -347,6 +347,19 @@ describe('story-handoff — fix-required hands the failure back (AC-4)', () => {
       { outputs: { 'update-crap-baseline.js': { status: 1 } } },
       'seat',
     ],
+    ...['fetch first', 'non-fast-forward'].map((why) => [
+      `a ${why} push rejection`,
+      {
+        outputs: {
+          git: {
+            status: 1,
+            stdout: ` ! [rejected]        story-5518 -> story-5518 (${why})`,
+          },
+        },
+      },
+      'push',
+      /git fetch origin story-\d+, git merge origin\/story-\d+/,
+    ]),
     [
       'a failing pre-push hook',
       {
@@ -442,13 +455,26 @@ describe('story-handoff — fix-required hands the failure back (AC-4)', () => {
 describe('story-handoff — blocked only on what the worker cannot change (AC-5)', () => {
   const cases = [
     [
-      'a rejected push',
+      'a remote-rejected hook decline',
       {
         outputs: {
           git: {
             status: 1,
             stdout:
-              ' ! [rejected]        story-5518 -> story-5518 (fetch first)',
+              ' ! [remote rejected] story-5518 -> story-5518 (pre-receive hook declined)',
+          },
+        },
+      },
+      'push-rejected',
+    ],
+    [
+      'a permission denial',
+      {
+        outputs: {
+          git: {
+            status: 1,
+            stdout:
+              'remote: Permission to o/r.git denied to bot.\nfatal: unable to access: The requested URL returned error: 403',
           },
         },
       },
