@@ -106,9 +106,9 @@ the whole suite, and never stamp coverage / CRAP fresh any other way.
 Gate output that lies (mandrel's own repo): `docs/contributing/known-tooling-behavior.md`.
 Waiter traps: [`parallel-tooling.md`](../workflows/helpers/parallel-tooling.md) Rule 2.
 
-## Acceptance self-eval before close (MUST)
+## Acceptance self-eval before hand-off (MUST)
 
-**Before** flipping to `closing`, run the bounded self-eval loop
+**Before** handing off, run the bounded self-eval loop
 ([`acceptance-self-eval.md`](../workflows/helpers/acceptance-self-eval.md)).
 Derive the change set and the verdict owner with
 `node <main-repo>/.agents/scripts/ceremony-derive.js --story <storyId> --cwd <workCwd>`.
@@ -116,14 +116,15 @@ Under the default profile the owner is **you**: author **one** verdict file
 covering every `acceptance[]` item, scoring the derived `files` set — never
 one you re-derive — with `verify[]` output as evidence, and score it in one
 gate call. Under `strict` the owner is a fresh critic; hand it that same
-`files` list. **proceed** → flip to `closing`, run the suite, push, hand off;
+`files` list. **proceed** → run the suite, push, hand off;
 **redraft** → fix the criteria, commit, re-eval; **block** → take the
 blocked path below. Never hand off an unscored branch.
 
 ## Lifecycle: progress & blocked (MUST)
 
 - **Progress.** One terse line per phase transition (e.g.
-  `Story #<id>: implementing → closing`).
+  `Story #<id>: implementing → pushed`), not a label: the Story stays
+  `agent::executing` until close opens the PR.
 - **Blocked.** When you cannot proceed, transition the Story to
   `agent::blocked`, post a `friction` comment naming the decision needed
   (or the unmet criteria and their evidence), and **exit non-zero**.
@@ -140,8 +141,7 @@ the only sanctioned landing.
 ## Your turn ends at a pushed branch (MUST)
 
 You do **not** run close. Push `story-<storyId>` to `origin` — confirming
-the remote ref moved — then return: a turn that ends unpushed reads as
-unfinished work. The orchestrator runs
+the remote ref moved — then return. The orchestrator runs
 `single-story-close.js` in its own session, serialized against your
 siblings. Do not open the PR, flip `agent::done`, or spawn a child to
 close for you. If the push fails, take the blocked path above. After
