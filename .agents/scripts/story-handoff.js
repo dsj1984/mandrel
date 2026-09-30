@@ -2,9 +2,9 @@
 
 /**
  * story-handoff.js — the story-worker's whole post-implementation tail in one
- * command: preflight (lint + quality-preview) → merge origin/<base> → the one
- * credited run → `--seat-missing` baseline seating → push + remote-ref check
- * → held Story-scope review. Prints one JSON envelope on stdout.
+ * command: preflight (lint + quality-preview + baselined ratchets) → merge
+ * origin/<base> → the one credited run → `--seat-missing` baseline seating →
+ * push + remote-ref check → held Story-scope review. Prints one JSON envelope on stdout.
  *
  * Exit 0 `ready` (hand off) · 2 `fix-required` (fix, commit, re-run; labels
  * untouched) · 1 `blocked` (flips agent::blocked + posts friction) or a usage

@@ -364,8 +364,11 @@ sibling to unblock, and the foreground wait is the cheapest path to `landed`.
 
 Digest § 5 states the rule: `story-handoff.js` runs, before the credited
 suite run, the configured `project.commands.lint` (falling back to
-`npm run lint`) and `quality-preview.js --changed-since origin/<baseBranch>`
-in the worktree; a finding is `fix-required` — fix, commit, re-run it. It runs **before** the credited run because a
+`npm run lint`), `quality-preview.js --changed-since origin/<baseBranch>`,
+then the shipped standalone ratchets CI's `baselines` job runs —
+`check-dead-exports.js` (default and `--production`), `check-arch-cycles.js`
+and `check-cyclomatic.js` — in the worktree; a finding is `fix-required` —
+fix, commit, re-run it. It runs **before** the credited run because a
 fix commit afterwards would void that run's credit.
 
 - **Why.** Close runs lint and the maintainability half of the preview
@@ -376,6 +379,11 @@ fix commit afterwards would void that run's credit.
   on disk — the worker's credited capture when one exists — and triggers no
   capture of its own. With no artifact its methods report unscorable; a stale
   one can invent a violation. `--only mi` runs the maintainability half alone.
+- **Ratchets run only when seeded.** Each runs only when its committed
+  baseline (`baselines/dead-exports.json`, `dead-exports-production.json`,
+  `arch-cycles.json`, `cyclomatic.json`) exists, and is judged by its exit
+  code and `(gate fail)` line; the finding names the offending `+` / `!`
+  rows. Close does not run them — CI stays their backstop.
 - **Close stays authoritative.** Its `quality-preview-crap` gate scores a
   fresh capture after `coverage-capture`; a preflight pass never skips it.
 

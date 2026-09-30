@@ -279,7 +279,9 @@ filter metadata, never a resolution input — Stories deliver across plan runs.
    `proceed` / `redraft` / `block`. An unfilled record is refused without
    consuming a round.
 4. **Handoff** — one command, `story-handoff.js --story <id> --cwd
-   <workCwd>`, runs the worker's whole tail: lint + `quality-preview.js`,
+   <workCwd>`, runs the worker's whole tail: lint, `quality-preview.js`
+   and the standalone ratchets CI's `baselines` job runs (dead exports, import
+   cycles, cyclomatic — each only when its baseline is committed),
    merge the base branch in, the **one** credited full-suite run
    (`coverage-capture.js` or `evidence-gate.js`, by the same predicate close
    registers `coverage-capture` on), seat baseline rows for new methods, push
