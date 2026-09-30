@@ -251,7 +251,8 @@
     "routing": {
       "roleScopedAgents": true,
       "ceremonyProfile": "standard",
-      "closeAndLand": true
+      "closeAndLand": true,
+      "agentModels": {}
     }
   },
   "qa": {

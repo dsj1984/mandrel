@@ -8,6 +8,7 @@ description: >-
   only the lens's own dimensions. Dispatched as subagent_type: auditor by every
   audit-<lens> workflow's first-class execution path.
 effort: medium
+model: sonnet
 ---
 
 <!--

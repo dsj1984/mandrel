@@ -5,6 +5,7 @@
  * `.claude/agents/` tree — the sibling of `sync-claude-commands.js`, with the
  * same payload-wins shadowing and orphan-reap. A role agent runs on its own
  * system prompt (no entry-doc `@`-import closure), which is the point of routing to it.
+ * A `delivery.routing.agentModels` entry overrides the role's `model:` default.
  */
 
 // cli-opt-out: top-level-await script with no main() function — runAsCli wraps an async main, which doesn't apply here.
@@ -12,6 +13,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { applyHeader } from './lib/command-header.js';
+import { applyAgentModel, getAgentModels } from './lib/config/agent-models.js';
+import { resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
 
 // cwd, never `__dirname/../..`, which lands inside node_modules when installed.
@@ -90,6 +93,19 @@ for (const name of listExistingAgents()) {
   }
 }
 
+// Resolved once: an invalid override (an unknown role) fails the sync here.
+const agentModels = getAgentModels(resolveConfig({ cwd: PROJECT_ROOT }));
+
+/**
+ * @param {string} name
+ * @param {string} content
+ * @returns {string}
+ */
+function withModelOverride(name, content) {
+  const model = agentModels[name.replace(/\.md$/, '')];
+  return model ? applyAgentModel(content, model) : content;
+}
+
 // The header goes after any frontmatter, so `---` stays on line 1.
 let synced = 0;
 const resolvedEntries = Array.from(byName.values());
@@ -99,7 +115,7 @@ await Promise.all(
     const header = isLocal ? LOCAL_HEADER : HEADER;
     const content = await fs.promises.readFile(path.join(dir, name), 'utf8');
     const dest = path.join(DEST_DIR, name);
-    const target = applyHeader(content, header);
+    const target = applyHeader(withModelOverride(name, content), header);
 
     try {
       const existingContent = await fs.promises.readFile(dest, 'utf8');

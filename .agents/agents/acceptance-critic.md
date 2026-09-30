@@ -8,6 +8,7 @@ description: >-
   helpers/deliver-story Step 1a under ceremonyProfile strict, the one profile
   whose verdict owner is a fresh critic.
 effort: medium
+model: inherit
 ---
 
 <!--

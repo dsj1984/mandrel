@@ -8,9 +8,17 @@
 import assert from 'node:assert/strict';
 import test, { describe } from 'node:test';
 import {
+  applyAgentModel,
+  frontmatterModel,
+  getAgentModels,
+  ROLE_AGENT_NAMES,
+  resolveAgentModel,
+} from '../.agents/scripts/lib/config/agent-models.js';
+import {
   DELIVERY_ROUTING_DEFAULTS,
   getDeliveryRouting,
 } from '../.agents/scripts/lib/config/delivery-routing.js';
+import { getAgentrcValidator } from '../.agents/scripts/lib/config-settings-schema.js';
 
 describe('getDeliveryRouting — defaults', () => {
   test('does not expose the retired singleDelivery kill-switch', () => {
@@ -65,5 +73,88 @@ describe('getDeliveryRouting — freshCriticSampleRate is retired (Story #5313)'
     });
     assert.equal('freshCriticSampleRate' in routing, false);
     assert.equal(routing.ceremonyProfile, 'standard');
+  });
+});
+
+describe('delivery.routing.agentModels (Story #5519)', () => {
+  const MIN = {
+    project: {
+      paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+    },
+  };
+  const withModels = (agentModels) => ({
+    ...MIN,
+    delivery: { routing: { agentModels } },
+  });
+
+  test('defaults to an empty map — every role keeps its frontmatter default', () => {
+    assert.deepEqual(getAgentModels({}), {});
+    assert.deepEqual(getAgentModels(null), {});
+  });
+
+  test('the known roles are the four shipped role files', () => {
+    assert.deepEqual([...ROLE_AGENT_NAMES].sort(), [
+      'acceptance-critic',
+      'auditor',
+      'plan-critic',
+      'story-worker',
+    ]);
+  });
+
+  test('the validator accepts a known role and rejects an unknown one', () => {
+    const validate = getAgentrcValidator();
+    assert.equal(validate(withModels({ 'story-worker': 'sonnet' })), true);
+    assert.equal(validate(withModels({ auditor: 'claude-opus-4-1' })), true);
+    assert.equal(validate(withModels({ 'story-wroker': 'sonnet' })), false);
+    assert.equal(validate(withModels({ auditor: 'x $(y)' })), false);
+  });
+
+  test('the accessor drops an unknown role or unsafe value', () => {
+    assert.deepEqual(
+      getAgentModels(
+        withModels({ 'story-worker': 'sonnet', bogus: 'opus', auditor: 'a b' }),
+      ),
+      { 'story-worker': 'sonnet' },
+    );
+    assert.deepEqual(getAgentModels(withModels(['x'])), {});
+  });
+
+  test('frontmatterModel reads the declared default, or null', () => {
+    assert.equal(
+      frontmatterModel('---\nname: a\nmodel: sonnet\n---\nb'),
+      'sonnet',
+    );
+    assert.equal(frontmatterModel('---\nname: a\n---\nmodel: opus\n'), null);
+    assert.equal(frontmatterModel('no frontmatter'), null);
+    assert.equal(frontmatterModel(undefined), null);
+  });
+
+  test('resolveAgentModel: override, then frontmatter, then inherit', () => {
+    const content = '---\nname: auditor\nmodel: sonnet\n---\n';
+    assert.equal(resolveAgentModel({ role: 'auditor', content }), 'sonnet');
+    assert.equal(
+      resolveAgentModel({
+        role: 'auditor',
+        content,
+        config: withModels({ auditor: 'haiku' }),
+      }),
+      'haiku',
+    );
+    assert.equal(
+      resolveAgentModel({ role: 'plan-critic', content: '' }),
+      'inherit',
+    );
+  });
+
+  test('applyAgentModel replaces a declared model or appends one', () => {
+    assert.equal(
+      applyAgentModel('---\nname: a\nmodel: inherit\n---\nbody\n', 'sonnet'),
+      '---\nname: a\nmodel: sonnet\n---\nbody\n',
+    );
+    assert.equal(
+      applyAgentModel('---\nname: a\n---\nbody\n', 'opus'),
+      '---\nname: a\nmodel: opus\n---\nbody\n',
+    );
+    assert.equal(applyAgentModel('body only\n', 'opus'), 'body only\n');
   });
 });
