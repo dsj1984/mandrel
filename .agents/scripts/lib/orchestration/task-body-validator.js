@@ -180,6 +180,14 @@ function bareObjectPath(entry) {
 }
 
 /**
+ * @param {unknown} entry
+ * @returns {boolean} A pinned `{ path, assumption }` object or a bare path.
+ */
+function isValidReferenceEntry(entry) {
+  return isObjectPathEntry(entry) || bareReferencePath(entry) !== null;
+}
+
+/**
  * @param {string} prefix
  * @param {unknown} rawReferences
  * @returns {string[]}
@@ -193,7 +201,7 @@ function collectReferencesErrors(prefix, rawReferences) {
   }
   const errors = [];
   for (const entry of rawReferences) {
-    if (!isObjectPathEntry(entry) && bareReferencePath(entry) === null) {
+    if (!isValidReferenceEntry(entry)) {
       errors.push(
         `${prefix}: body.references entry must be a bare path or declare { path: <string>, assumption: one of ${FILE_ASSUMPTION_VALUES.join('|')} }. Got: ${JSON.stringify(entry)}.`,
       );

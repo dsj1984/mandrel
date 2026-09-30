@@ -300,10 +300,25 @@ function repairTicket(ticket, existsAtBase) {
  * @param {{ slug: string, from: string, path: string, assumption: string, reason: string }} repair
  * @returns {string}
  */
-export function renderChangeRepair({ slug, from, path, assumption, reason }) {
-  if (reason === 'derived-read') {
-    return `Story "${slug}": references[] entry "${from}" derived as a read of an existing path — {"path":"${path}","assumption":"exists"} by probing base.`;
-  }
+export function renderChangeRepair(repair) {
+  return repair.reason === 'derived-read'
+    ? renderDerivedRead(repair)
+    : renderPathRepair(repair);
+}
+
+/**
+ * @param {{ slug: string, from: string, path: string }} repair
+ * @returns {string}
+ */
+function renderDerivedRead({ slug, from, path }) {
+  return `Story "${slug}": references[] entry "${from}" derived as a read of an existing path — {"path":"${path}","assumption":"exists"} by probing base.`;
+}
+
+/**
+ * @param {{ slug: string, from: string, path: string, assumption: string, reason: string }} repair
+ * @returns {string}
+ */
+function renderPathRepair({ slug, from, path, assumption, reason }) {
   const why =
     reason === 'plain-string'
       ? 'plain-string bullet'

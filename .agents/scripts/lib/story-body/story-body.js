@@ -284,11 +284,8 @@ function splitSections(markdown) {
     // `##` or `###` (GitHub Issue Forms render labels as level 3). The token
     // is a single `[\w-]+` word so `Non-Goals` matches; multi-word headings
     // fall through to the terminator branch below.
-    const fieldHeadingMatch = line.match(/^(#{2,3})\s+([\w-]+)\s*$/i);
-    const fieldName = fieldHeadingMatch?.[2]?.toLowerCase().replace(/-/g, '_');
-    const levelOk =
-      !H2_ONLY_FIELDS.has(fieldName) || fieldHeadingMatch[1] === '##';
-    if (HEADING_TO_FIELD.has(fieldName) && levelOk) {
+    const fieldName = matchFieldHeading(line);
+    if (fieldName !== null) {
       inPreamble = false;
       currentSection = fieldName;
       if (!sections.has(currentSection)) sections.set(currentSection, []);
@@ -313,6 +310,21 @@ function splitSections(markdown) {
     footerStart >= 0 ? lines.slice(footerStart + 1).join('\n') : '';
   const preamble = preambleLines.join('\n').trim();
   return { sections, footer, preamble };
+}
+
+/**
+ * The canonical field a `##` / `###` heading opens, or `null`. The token is a
+ * single `[\w-]+` word, lower-cased with `-` folded to `_`.
+ *
+ * @param {string} line
+ * @returns {string|null}
+ */
+function matchFieldHeading(line) {
+  const match = line.match(/^(#{2,3})\s+([\w-]+)\s*$/);
+  if (match === null) return null;
+  const fieldName = match[2].toLowerCase().replace(/-/g, '_');
+  if (!HEADING_TO_FIELD.has(fieldName)) return null;
+  return H2_ONLY_FIELDS.has(fieldName) && match[1] !== '##' ? null : fieldName;
 }
 
 /**

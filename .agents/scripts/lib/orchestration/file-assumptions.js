@@ -419,9 +419,15 @@ export function validateStoryFileAssumptions(opts) {
  */
 function routeMismatch(finding, { errors, warnings }) {
   const channel = finding.assumption === 'deletes' ? errors : warnings;
-  channel.push(
-    finding.derived ? renderAbsentRead(finding) : renderMismatch(finding),
-  );
+  channel.push(renderFinding(finding));
+}
+
+/**
+ * @param {object} finding
+ * @returns {string}
+ */
+function renderFinding(finding) {
+  return finding.derived ? renderAbsentRead(finding) : renderMismatch(finding);
 }
 
 /**
