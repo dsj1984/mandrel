@@ -438,3 +438,123 @@ for (const [label, content] of [
     fs.rmSync(cwd, { recursive: true, force: true });
   });
 }
+
+// Baseline-only conflicts resolve to the base; any other path aborts.
+
+const DRIVER_COMMAND = 'node .agents/scripts/merge-baseline.js %O %A %B %P';
+
+/** `failOn` names a git verb whose resolution step exits non-zero. */
+function conflictingMerge({ unmerged, declared = true, failOn = null }) {
+  const cwd = worktreeWith(declared ? DRIVER_ATTRIBUTE : null);
+  const base = makeFakeRunners({
+    originAlreadyMergedStatus: 1,
+    headBehindOriginStatus: 1,
+    mergeStatus: 1,
+    mergeStderr: 'CONFLICT (content)',
+    unmergedStdout: `${unmerged.join('\n')}\n`,
+    changedStdout: 'lib/a.js\nbaselines/coverage.json\n',
+  });
+  const gitSpawn = (spawnCwd, ...args) => {
+    if (args[0] === 'config' && args[1] === '--get') {
+      base.calls.push({ tool: 'spawn', cwd: spawnCwd, args });
+      return { status: 0, stdout: `${DRIVER_COMMAND}\n`, stderr: '' };
+    }
+    if (failOn && args[0] === failOn) {
+      base.calls.push({ tool: 'spawn', cwd: spawnCwd, args });
+      return { status: 1, stdout: '', stderr: `${failOn} failed` };
+    }
+    return base.gitSpawn(spawnCwd, ...args);
+  };
+  return { cwd, runners: { ...base, gitSpawn } };
+}
+
+function callsOf(runners, verb) {
+  return runners.calls.filter((c) => c.args?.[0] === verb);
+}
+
+test('syncBranchFromBase: a baseline-only conflict resolves to origin and commits the merge', async () => {
+  const files = ['baselines/coverage.json', 'baselines/crap.json'];
+  const { cwd, runners } = conflictingMerge({ unmerged: files });
+  const logged = [];
+  const out = await syncBranchFromBase({
+    cwd,
+    baseBranch: 'main',
+    log: (_tag, msg) => logged.push(msg),
+    ...runners,
+  });
+
+  assert.equal(out.synced, true);
+  assert.equal(out.kind, 'merge-commit');
+  assert.deepEqual(out.resolvedBaselineFiles, files);
+  assert.deepEqual(out.changedPaths, ['lib/a.js', 'baselines/coverage.json']);
+  // The base side wins, by name — never `--ours`, never a hand-edited row.
+  assert.deepEqual(callsOf(runners, 'checkout')[0].args, [
+    'checkout',
+    'origin/main',
+    '--',
+    ...files,
+  ]);
+  assert.deepEqual(callsOf(runners, 'add')[0].args, ['add', '--', ...files]);
+  assert.deepEqual(callsOf(runners, 'commit')[0].args, ['commit', '--no-edit']);
+  assert.equal(
+    runners.calls.find((c) => c.args[0] === 'merge' && c.args[1] === '--abort'),
+    undefined,
+    'a resolved merge is committed, not aborted',
+  );
+  assert.match(logged.join('\n'), /baselines\/coverage\.json/);
+  fs.rmSync(cwd, { recursive: true, force: true });
+});
+
+for (const [label, unmerged, declared] of [
+  [
+    'a mix of baseline and source paths',
+    ['baselines/coverage.json', 'src/foo.js'],
+    true,
+  ],
+  ['a nested path the driver does not own', ['baselines/sub/x.json'], true],
+  ['a repo that never declared the driver', ['baselines/coverage.json'], false],
+]) {
+  test(`syncBranchFromBase: ${label} stays an ordinary conflict`, async () => {
+    const { cwd, runners } = conflictingMerge({ unmerged, declared });
+    const out = await syncBranchFromBase({
+      cwd,
+      baseBranch: 'main',
+      ...runners,
+    });
+    assert.equal(out.synced, false);
+    assert.equal(out.kind, 'conflict');
+    assert.deepEqual(out.conflictFiles, unmerged);
+    assert.equal(callsOf(runners, 'checkout').length, 0);
+    assert.equal(callsOf(runners, 'commit').length, 0);
+    assert.ok(
+      runners.calls.find(
+        (c) => c.args[0] === 'merge' && c.args[1] === '--abort',
+      ),
+    );
+    fs.rmSync(cwd, { recursive: true, force: true });
+  });
+}
+
+for (const verb of ['checkout', 'add', 'commit']) {
+  test(`syncBranchFromBase: a failing ${verb} during resolution aborts and reports the conflict`, async () => {
+    const files = ['baselines/coverage.json'];
+    const { cwd, runners } = conflictingMerge({
+      unmerged: files,
+      failOn: verb,
+    });
+    const out = await syncBranchFromBase({
+      cwd,
+      baseBranch: 'main',
+      ...runners,
+    });
+    assert.equal(out.kind, 'conflict');
+    assert.deepEqual(out.conflictFiles, files);
+    assert.ok(
+      runners.calls.find(
+        (c) => c.args[0] === 'merge' && c.args[1] === '--abort',
+      ),
+      'a half-resolved merge must not be left behind',
+    );
+    fs.rmSync(cwd, { recursive: true, force: true });
+  });
+}

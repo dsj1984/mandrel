@@ -16,6 +16,14 @@ import {
   STATE_LABELS,
   transitionTicketState,
 } from '../orchestration/ticketing.js';
+import { sleep as defaultSleep } from '../util/poll-loop.js';
+
+/**
+ * Backoff before each RETRY of the post-merge done flip (so attempts =
+ * length + 1). A transient label write is the common failure; the transition
+ * is idempotent, so a retry cannot double-apply.
+ */
+const DONE_FLIP_RETRY_DELAYS_MS = Object.freeze([500, 2000]);
 
 /**
  * @param {{ cwd: string, prNumber: number, gh?: object }} args
@@ -47,6 +55,8 @@ export async function readPrMergeState({ cwd, prNumber, gh = defaultGh }) {
  * @param {{ state: string|null, mergedAt: string|null }} [args.prState] The
  *   merge state the caller already read, so a land reads it once; omitted,
  *   it is read here.
+ * @param {(ms: number) => Promise<void>} [args.sleepFn] Backoff between
+ *   done-flip attempts; injectable so tests do not sleep.
  * @returns {Promise<object>} `done` | `noop` (already-done) | `pending`
  *   (pr-open / pr-not-merged) | `flip-failed`.
  */
@@ -62,6 +72,7 @@ export async function confirmStoryMerged({
   injectedNotify,
   readPrMergeStateFn = readPrMergeState,
   prState,
+  sleepFn = defaultSleep,
 }) {
   progress?.('CONFIRM', `Confirming merge for standalone Story #${storyId}...`);
 
@@ -88,16 +99,17 @@ export async function confirmStoryMerged({
     }));
 
   if (!isPrMerged({ state, mergedAt })) {
-    const reason = state === 'CLOSED' ? 'pr-not-merged' : 'pr-open';
-    progress?.(
-      'CONFIRM',
-      `⏳ PR #${prNumber} not yet merged (state=${state ?? 'unknown'}). Story stays at agent::closing.`,
-    );
-    return { storyId, action: 'pending', reason, merged: false };
+    return pendingResult({ storyId, prNumber, state, progress });
   }
 
   // Best-effort: a flaky API must not crash confirmation; re-runs are idempotent.
-  const flipped = await flipDone(provider, storyId, story, progress);
+  const flipped = await flipDoneWithRetry({
+    provider,
+    storyId,
+    story,
+    progress,
+    sleepFn,
+  });
   if (flipped) {
     await fireStoryMergedNotify({
       notifyFn: injectedNotify ?? defaultNotify,
@@ -113,6 +125,31 @@ export async function confirmStoryMerged({
     action: flipped ? 'done' : 'flip-failed',
     merged: true,
   };
+}
+
+/** The PR is not merged yet: the Story stays at `agent::closing`. */
+function pendingResult({ storyId, prNumber, state, progress }) {
+  const reason = state === 'CLOSED' ? 'pr-not-merged' : 'pr-open';
+  progress?.(
+    'CONFIRM',
+    `⏳ PR #${prNumber} not yet merged (state=${state ?? 'unknown'}). Story stays at agent::closing.`,
+  );
+  return { storyId, action: 'pending', reason, merged: false };
+}
+
+/** Only a write that fails every bounded attempt reports the flip failed. */
+async function flipDoneWithRetry({
+  provider,
+  storyId,
+  story,
+  progress,
+  sleepFn,
+}) {
+  for (const delayMs of [0, ...DONE_FLIP_RETRY_DELAYS_MS]) {
+    if (delayMs > 0) await sleepFn(delayMs);
+    if (await flipDone(provider, storyId, story, progress)) return true;
+  }
+  return false;
 }
 
 async function flipDone(provider, storyId, story, progress) {

@@ -195,6 +195,16 @@ async function stepPreflight(ctx) {
   return ran(name, 'lint and quality-preview clean');
 }
 
+/** A baseline-only conflict the shared sync resolved is named. */
+function mergedDetail(sync, baseBranch) {
+  const resolved = sync.resolvedBaselineFiles ?? [];
+  const suffix =
+    resolved.length > 0
+      ? `; baseline-only conflict resolved to the base: ${resolved.join(', ')}`
+      : '';
+  return `${sync.kind} from origin/${baseBranch}${suffix}`;
+}
+
 /** @param {object} ctx @returns {Promise<StepResult>} */
 async function stepBaseMerge(ctx) {
   const name = 'base-merge';
@@ -207,7 +217,7 @@ async function stepBaseMerge(ctx) {
     ctx.head = headSha(ctx) ?? ctx.head;
     return sync.kind === 'noop-already-current'
       ? skipped(name, `origin/${ctx.baseBranch} already merged`)
-      : ran(name, `${sync.kind} from origin/${ctx.baseBranch}`);
+      : ran(name, mergedDetail(sync, ctx.baseBranch));
   }
   if (sync.kind === 'merge-driver-missing') {
     return blocked(name, 'merge-driver-unregistered', sync.stderr);

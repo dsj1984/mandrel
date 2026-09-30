@@ -18,6 +18,7 @@ import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { BASELINES_GATE_NAMES as REAL_BASELINES_GATE_NAMES } from '../.agents/scripts/lib/close-validation/gates.js';
 import { pinRunScopedConfig } from '../.agents/scripts/lib/orchestration/run-scoped-config.js';
+import { failedTerminalFor } from '../.agents/scripts/lib/orchestration/single-story-close/failed-terminal.js';
 import { runBaseSyncPhase } from '../.agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js';
 import { validateTerminalEnvelope } from '../.agents/scripts/lib/orchestration/story-deliver-terminal.js';
 import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
@@ -276,6 +277,35 @@ describe('buildSyncFailureCommentBody', () => {
     );
   });
 
+  it('addresses a confirmed-base conflict to the delivering agent, not a human', () => {
+    const body = buildSyncFailureCommentBody({
+      storyId: 100,
+      storyBranch: 'story-100',
+      baseBranch: 'main',
+      baseConfirmed: true,
+      syncCwd: '/repo/.worktrees/story-100',
+      result: { kind: 'conflict', conflictFiles: ['src/foo.js'] },
+    });
+    assert.match(body, /For the delivering agent/);
+    assert.match(body, /Labels are unchanged/);
+    assert.match(body, /cd \/repo\/\.worktrees\/story-100/);
+    assert.match(body, /--state agent::blocked/);
+    assert.doesNotMatch(body, /has been transitioned/);
+  });
+
+  it('tells the operator the Story is blocked on a non-conflict failure', () => {
+    const body = buildSyncFailureCommentBody({
+      storyId: 7,
+      storyBranch: 'story-7',
+      baseBranch: 'main',
+      baseConfirmed: true,
+      syncCwd: '/repo',
+      result: { kind: 'merge-failed', stderr: 'boom' },
+    });
+    assert.match(body, /has been transitioned to `agent::blocked`/);
+    assert.doesNotMatch(body, /For the delivering agent/);
+  });
+
   it('includes truncated stderr when kind=fetch-failed', () => {
     const body = buildSyncFailureCommentBody({
       storyId: 7,
@@ -377,6 +407,55 @@ describe('handleSyncFailure', () => {
       'final label set must include agent::blocked',
     );
   });
+
+  it('hands a confirmed-base conflict back without touching labels (Story #5520)', async () => {
+    const provider = fakeProvider();
+    const out = await handleSyncFailure({
+      provider,
+      storyId: 4242,
+      syncCwd: '/repo',
+      baseBranch: 'main',
+      baseConfirmed: true,
+      storyBranch: 'story-4242',
+      result: { kind: 'conflict', conflictFiles: ['src/x.js'] },
+      progress: () => {},
+    });
+    assert.deepEqual(out, { handedBack: true });
+    assert.equal(
+      provider._updates().find((u) => u.patch.labels),
+      undefined,
+      'no label write on a handed-back conflict',
+    );
+    assert.ok(provider._posted().some((c) => c.type === 'friction'));
+  });
+
+  // Story #5520 AC-5 — everything but a confirmed-base conflict still blocks.
+  for (const [label, result, baseConfirmed] of [
+    ['fetch failure', { kind: 'fetch-failed', stderr: 'boom' }, true],
+    ['merge failure', { kind: 'merge-failed', stderr: 'boom' }, true],
+    [
+      'missing merge driver',
+      { kind: 'merge-driver-missing', stderr: 'x' },
+      true,
+    ],
+    ['unconfirmed base', { kind: 'conflict', conflictFiles: ['a.js'] }, false],
+  ]) {
+    it(`still flips agent::blocked on a ${label}`, async () => {
+      const provider = fakeProvider();
+      const out = await handleSyncFailure({
+        provider,
+        storyId: 4242,
+        syncCwd: '/repo',
+        baseBranch: 'main',
+        baseConfirmed,
+        storyBranch: 'story-4242',
+        result,
+        progress: () => {},
+      });
+      assert.deepEqual(out, { handedBack: false });
+      assert.ok(provider._labels().includes('agent::blocked'));
+    });
+  }
 
   it('does not throw when comment upsert fails (best-effort)', async () => {
     const provider = {
@@ -860,6 +939,63 @@ describe('runSingleStoryClose — run-scoped base pin (Story #4891)', () => {
     assert.match(friction.body, /git merge --no-edit origin\/trunk/);
   });
 
+  // Story #5520 AC-3 — a source conflict against a confirmed base is the
+  // delivering agent's to resolve: friction, labels unchanged, and a `failed`
+  // envelope at base-sync whose next command re-runs close.
+  it('hands a confirmed-base conflict back to the agent: labels unchanged, close re-run next', async (t) => {
+    t.mock.module(GIT_UTILS_URL, gitUtilsMock());
+    mockCloseValidation(t, closeValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, worktreeManagerMock());
+
+    const { runSingleStoryClose } = await import(`${SUT_URL}?t=hand-back`);
+    const provider = fakeProvider();
+    const before = provider._labels();
+    let thrown = null;
+    try {
+      await runSingleStoryClose({
+        storyId: 4242,
+        noWaitForMerge: true,
+        cwd: REPO_ROOT,
+        injectedProvider: provider,
+        injectedConfig: pinnedConfig('trunk'),
+        injectedSync: async () => ({
+          synced: false,
+          kind: 'conflict',
+          conflictFiles: ['src/x.js', 'lib/y.js'],
+        }),
+        injectedGh: makeFakeGh(() => {
+          throw new Error('gh must not be invoked when sync fails');
+        }),
+      });
+    } catch (err) {
+      thrown = err;
+    }
+    assert.ok(thrown, 'close must still end failed');
+    assert.deepEqual(provider._labels(), before, 'labels are unchanged');
+    assert.ok(!provider._labels().includes('agent::blocked'));
+
+    const friction = provider._posted().find((c) => c.type === 'friction');
+    assert.ok(friction, 'a friction comment must be posted');
+    assert.match(friction.body, /For the delivering agent/);
+    assert.match(friction.body, /`src\/x\.js`/);
+    assert.match(friction.body, /`lib\/y\.js`/);
+    assert.match(
+      friction.body,
+      /node \.agents\/scripts\/single-story-close\.js --story 4242/,
+    );
+    assert.doesNotMatch(friction.body, /has been transitioned/);
+
+    const terminal = failedTerminalFor(thrown, { storyId: 4242 });
+    validateTerminalEnvelope(terminal);
+    assert.equal(terminal.status, 'failed');
+    assert.equal(terminal.phase, 'base-sync');
+    assert.match(terminal.failure.reason, /src\/x\.js, lib\/y\.js/);
+    assert.equal(
+      terminal.nextCommand,
+      'node .agents/scripts/single-story-close.js --story 4242',
+    );
+  });
+
   // AC-4 — no receipt: close still runs, but on the announced fallback, and
   // AC-3 — an unconfirmed base withholds the merge advice.
   /** A config whose tempRoot holds no init envelope at all. */
@@ -993,6 +1129,23 @@ describe('runSingleStoryClose — pre-push phase order (Story #5172)', () => {
   it('runs base-sync before close-validation', async (t) => {
     const h = orderHarness(t, {
       syncResult: { synced: true, kind: 'merge-commit' },
+      gh: happyGh(),
+    });
+    const out = await h.run();
+    assert.equal(out.success, true);
+    assert.deepEqual(h.order, ['base-sync', 'close-validation', 'push']);
+  });
+
+  // Story #5520 AC-1 — a baseline-only conflict the sync resolved is a clean
+  // merge: close-validation runs and the Story is never blocked.
+  it('continues to close-validation after resolving a baseline-only conflict', async (t) => {
+    const h = orderHarness(t, {
+      syncResult: {
+        synced: true,
+        kind: 'merge-commit',
+        changedPaths: ['baselines/coverage.json'],
+        resolvedBaselineFiles: ['baselines/coverage.json'],
+      },
       gh: happyGh(),
     });
     const out = await h.run();
@@ -1149,6 +1302,32 @@ describe('runBaseSyncPhase — the spent-credit warning (Story #5267/#5278)', ()
   }
 
   const warnings = (lines) => lines.filter((l) => l.startsWith('⚠️'));
+
+  // Story #5520 AC-1 — a baseline-only conflict the sync resolved is named.
+  it('names the baselines a resolved conflict took from the base', async () => {
+    const lines = await runWithSync({
+      synced: true,
+      kind: 'merge-commit',
+      changedPaths: ['baselines/coverage.json'],
+      resolvedBaselineFiles: ['baselines/coverage.json'],
+    });
+    const named = lines.find((l) => l.includes('Baseline-only conflict'));
+    assert.ok(named, 'the resolution must be reported');
+    assert.match(named, /baselines\/coverage\.json/);
+    assert.match(named, /origin\/main/);
+  });
+
+  it('reports no resolution when nothing was resolved', async () => {
+    const lines = await runWithSync({
+      synced: true,
+      kind: 'merge-commit',
+      changedPaths: ['lib/a.js'],
+    });
+    assert.equal(
+      lines.find((l) => l.includes('Baseline-only conflict')),
+      undefined,
+    );
+  });
 
   it('warns loudly, naming the paths, when a merge commit changed content', async () => {
     const lines = await runWithSync({
