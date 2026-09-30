@@ -2726,6 +2726,12 @@
     },
     {
       "path": ".agents/scripts/deliver-run.js",
+      "method": "multiStoryCloseFlags",
+      "startLine": 150,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/deliver-run.js",
       "method": "<anon extractBodySections/(heading)#0>",
       "startLine": 151,
       "crap": 4,
@@ -9225,6 +9231,12 @@
     },
     {
       "path": ".agents/scripts/lib/cli-args.js",
+      "method": "parseWorkerModel",
+      "startLine": 168,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/cli-args.js",
       "method": "parseSprintArgs",
       "startLine": 169,
       "crap": 6
@@ -10227,6 +10239,43 @@
       "method": "getAcceptanceEval",
       "startLine": 29,
       "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/config/agent-models.js",
+      "method": "getAgentModels",
+      "startLine": 37,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/config/agent-models.js",
+      "method": "<anon getAgentModels/(role,model)#0>",
+      "startLine": 43,
+      "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/config/agent-models.js",
+      "method": "frontmatterModel",
+      "startLine": 57,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/config/agent-models.js",
+      "method": "resolveAgentModel",
+      "startLine": 71,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/config/agent-models.js",
+      "method": "applyAgentModel",
+      "startLine": 84,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/config/agent-models.js",
+      "method": "resolveStoryWorkerModel",
+      "startLine": 102,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/config/baselines.js",
@@ -15226,6 +15275,12 @@
       "path": ".agents/scripts/lib/observability/close-telemetry.js",
       "method": "resolveWorkerTokens",
       "startLine": 293,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/observability/close-telemetry.js",
+      "method": "resolveWorkerModel",
+      "startLine": 306,
       "crap": 2
     },
     {
@@ -23536,6 +23591,12 @@
       "crap": 3
     },
     {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/options.js",
+      "method": "workerFlags",
+      "startLine": 122,
+      "crap": 1
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/post-land.js",
       "method": "postLandLockPath",
       "startLine": 38,
@@ -24057,6 +24118,13 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
+      "method": "<anon createPhaseTimer/(phase,ms)#0>",
+      "startLine": 67,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "emitTerminal",
       "startLine": 93,
       "crap": 2
@@ -24102,6 +24170,13 @@
       "method": "runPrePushPhases",
       "startLine": 264,
       "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
+      "method": "<anon runPrePushPhases/()#0>",
+      "startLine": 332,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
@@ -32520,6 +32595,18 @@
     },
     {
       "path": ".agents/scripts/sync-claude-agents.js",
+      "method": "agentEntriesIn",
+      "startLine": 65,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/sync-claude-agents.js",
+      "method": "toAgentEntry",
+      "startLine": 69,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/sync-claude-agents.js",
       "method": "listExistingAgents",
       "startLine": 78,
       "crap": 1.0233236151603498
@@ -32530,6 +32617,18 @@
       "startLine": 80,
       "crap": 1.0233236151603498,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/sync-claude-agents.js",
+      "method": "withModelOverride",
+      "startLine": 114,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/sync-claude-agents.js",
+      "method": "syncEntry",
+      "startLine": 127,
+      "crap": 4
     },
     {
       "path": ".agents/scripts/sync-claude-commands.js",
