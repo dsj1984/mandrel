@@ -615,6 +615,10 @@
       "mi": 125.295
     },
     {
+      "path": ".agents/scripts/lib/config/agent-models.js",
+      "mi": 106.136
+    },
+    {
       "path": ".agents/scripts/lib/config/baselines.js",
       "mi": 111.856
     },
