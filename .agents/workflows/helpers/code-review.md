@@ -79,7 +79,7 @@ How each tier changes the review protocol:
 The LLM-backed review providers (code-review, codex, security-review,
 ultrareview) render the resolved `depth` into the prompt/instructions they emit so the underlying
 model actually changes thoroughness. The native provider deliberately ignores
-`depth` — its mechanical lint + maintainability sweep already scales with diff
+`depth` — its mechanical maintainability sweep already scales with diff
 size, and there is no "review harder" knob a deterministic scorer can turn (its
 module JSDoc documents this). When you (the host LLM) perform the Step 2 pillar
 review yourself, honor the `depth` semantics above directly.
@@ -108,8 +108,8 @@ diff `baseRef..headRef`, with the LLM-backed providers honoring `depth`
 The pipeline will:
 
 - Generate a `git diff baseRef..headRef`.
-- Calculate maintainability scores for all new/modified files.
-- Run a focused lint check on the change set.
+- Calculate maintainability scores for all new/modified files (lint is a
+  close-validation gate, so the review does not re-run it).
 - Post a structured summary report to the `[TICKET_ID]` issue.
 
 ### Story scope runs no lens pass

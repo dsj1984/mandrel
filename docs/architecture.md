@@ -1234,8 +1234,8 @@ ticket id anyway. `story-closing` is allowlistable for comments but absent
 from the shipped `NOTIFICATIONS_DEFAULTS` (`lib/config/github.js`).
 
 `transitionTicketState` skips the dispatch for low-severity transitions
-(`eventSeverity` rates only a Story/Epic reaching `agent::done` as `medium`;
-everything else is `low`). Severity — `low` | `medium` | `high` — is envelope
+(`eventSeverity` rates a Story/Epic entering `agent::blocked` as `high` and
+one reaching `agent::done` as `medium`; everything else is `low`). Severity — `low` | `medium` | `high` — is envelope
 metadata driving `@mention` behavior (`high` always; `medium` when
 `mentionOperator` is set), never routing. Webhook subscribers receive
 `{ text, severity, ticketId?, event?, level?, epicId?, phase? }`.

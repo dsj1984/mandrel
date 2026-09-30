@@ -7,8 +7,9 @@
 #   npm run verify
 # That runs audit → lint (biome + docs:check) → npm test → unified
 # check-baselines → the standalone ratchets. CI (.github/workflows/ci.yml)
-# remains the authoritative full gate on every PR; `.agents/rules/
-# known-tooling-behavior.md` entry 2 carries the current coverage table.
+# remains the authoritative full gate on every PR;
+# `docs/contributing/known-tooling-behavior.md` entry 2 carries the current
+# coverage table.
 #
 # Optional: PREPUSH_AUDIT=1 re-enables npm audit (CI still audits on PR/push).
 

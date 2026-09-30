@@ -202,7 +202,7 @@ const CI_DELIVERY_SCHEMA = {
       type: 'string',
       enum: ['trust-ci', 'strict'],
       description:
-        "Story #4356 (Epic #4355). Merge posture. 'trust-ci' (default) merges once required checks pass; 'strict' additionally requires a clean review gate.",
+        "Story #4356 (Epic #4355). Merge posture. 'trust-ci' (default) merges once required checks pass; 'strict' skips arming auto-merge, so the operator owns the merge; it adds no review gate.",
       default: CI_DELIVERY_DEFAULTS.autoMerge,
     },
     blockOnAdvisoryFailure: {

@@ -129,8 +129,8 @@ pushing `story-<id>` and opening a PR. Two guards remain, and they cover
 different hazards:
 
 - **Per-Story lease** (`lib/orchestration/single-story-lease-guard.js`). The
-  standalone path has no Epic-scoped dispatch manifest to serialize two
-  operators driving the **same** Story, so `single-story-init.js` takes an
+  standalone path has nothing else to serialize two operators driving the
+  **same** Story, so `single-story-init.js` takes an
   exclusive, time-bounded lease on the Story ticket (assignee-as-lease) and
   clears it at close. It **fails closed** on a foreign assignee — there is no
   heartbeat ledger to judge staleness from — so a foreign holder always blocks

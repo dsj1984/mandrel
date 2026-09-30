@@ -143,8 +143,8 @@ function resolveProviderName(codeReviewConfig, reviewProvider) {
 /**
  * `opts.changedFiles` has three states: an array is used verbatim; `null`
  * means the caller already found the diff unenumerable (fail-safe tier, no
- * retry); absent means enumerate here. The close path always injects, so
- * review and lens pass agree on what changed.
+ * retry); absent means enumerate here. The close path always injects the
+ * change set it derived, so the review scores the same files close routed.
  */
 function resolveInjectedChangedFiles({ opts, baseRef, headRef }) {
   if (opts.changedFiles === undefined) {

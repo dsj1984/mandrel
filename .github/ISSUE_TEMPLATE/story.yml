@@ -15,7 +15,7 @@ body:
       value: |
         Fill the fields below. They serialize to the canonical Story body
         the framework parses — keep each section's content under its own
-        heading. Machine-managed sections (dispatch manifest, lifecycle
+        heading. Machine-managed sections (the plan summary, lifecycle
         transitions) are added by the runtime; you do not author them here.
   - type: textarea
     id: goal
