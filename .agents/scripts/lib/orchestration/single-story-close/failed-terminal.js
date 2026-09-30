@@ -83,9 +83,21 @@ export function gatesForFailedPhase(phase, args = {}) {
 }
 
 /**
+ * @param {unknown} err
+ * @param {number} storyId
+ * @returns {string}
+ */
+function nextCommandFor(err, storyId) {
+  const tagged = err?.closeNextCommand;
+  return typeof tagged === 'string' ? tagged : NEXT_COMMANDS.recover(storyId);
+}
+
+/**
  * Never throws: a build failure here must not replace the original error as
  * the run's reported cause, so it returns null and the caller rethrows.
- * `err.closePhase` and `err.closeGates` are tagged by the runner.
+ * `err.closePhase` and `err.closeGates` are tagged by the runner; a phase
+ * that knows its own resume (a handed-back base-sync conflict re-runs close)
+ * tags `err.closeNextCommand`.
  *
  * @param {unknown} err
  * @param {{ storyId?: string|number, skipValidation?: boolean, skipSync?: boolean }} args
@@ -105,7 +117,7 @@ export function failedTerminalFor(err, args = {}) {
         observedGates: err?.closeGates ?? null,
       }),
       failure: { reason: String(err?.message ?? err) },
-      nextCommand: NEXT_COMMANDS.recover(storyId),
+      nextCommand: nextCommandFor(err, storyId),
       elapsedSeconds: 0,
       phaseDurations: err?.closePhaseDurations ?? undefined,
     });
