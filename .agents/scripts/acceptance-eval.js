@@ -18,7 +18,7 @@
  * @see .agents/schemas/acceptance-eval-verdict.schema.json
  */
 
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -26,8 +26,12 @@ import { parseArgs } from 'node:util';
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 
+import { deriveCeremony } from './ceremony-derive.js';
 import { runAsCli } from './lib/cli-utils.js';
+import { getDeliveryRouting } from './lib/config/delivery-routing.js';
+import { resolvedTempRoot } from './lib/config/temp-paths.js';
 import { getAcceptanceEval, resolveConfig } from './lib/config-resolver.js';
+import { gitSpawn } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
 import { appendSignal } from './lib/observability/signals-writer.js';
 import {
@@ -101,12 +105,16 @@ function parseCliArgs(argv) {
       verdict: { type: 'string' },
       'expected-criteria': { type: 'string' },
       'no-signal': { type: 'boolean', default: false },
+      init: { type: 'boolean', default: false },
+      cwd: { type: 'string' },
     },
     strict: false,
   });
   const storyId = Number.parseInt(values.story ?? '', 10);
   return {
     storyId: Number.isInteger(storyId) && storyId > 0 ? storyId : null,
+    init: values.init === true,
+    cwd: values.cwd ?? null,
     verdictPath: values.verdict ?? null,
     expectedCriteria: values['expected-criteria'] ?? null,
     emitSignal: values['no-signal'] !== true,
@@ -119,14 +127,13 @@ const MERGE_CONTRACT =
   'before scoring.';
 
 /**
- * The Story body's `acceptance[]` count; any failure yields `null`, never a
- * manufactured count.
+ * The Story body's `acceptance[]` items, in order; any failure yields `null`.
  *
  * @param {{ storyId: number, config: object }} args
  * @param {{ createProviderFn?: typeof createProvider, parseBodyFn?: typeof parseStoryBody }} [deps]
- * @returns {Promise<number|null>}
+ * @returns {Promise<string[]|null>}
  */
-export async function readStoryAcceptanceCount(
+export async function readStoryAcceptance(
   { storyId, config },
   { createProviderFn = createProvider, parseBodyFn = parseStoryBody } = {},
 ) {
@@ -136,11 +143,153 @@ export async function readStoryAcceptanceCount(
     if (body === null) return null;
     const acceptance = parseBodyFn(body)?.body?.acceptance;
     return Array.isArray(acceptance) && acceptance.length > 0
-      ? acceptance.length
+      ? acceptance
       : null;
   } catch {
     return null;
   }
+}
+
+/**
+ * The Story body's `acceptance[]` count; any failure yields `null`, never a
+ * manufactured count.
+ *
+ * @param {{ storyId: number, config: object }} args
+ * @param {Parameters<typeof readStoryAcceptance>[1]} [deps]
+ * @returns {Promise<number|null>}
+ */
+export async function readStoryAcceptanceCount(args, deps) {
+  const acceptance = await readStoryAcceptance(args, deps);
+  return acceptance ? acceptance.length : null;
+}
+
+/**
+ * The `--init` skeleton: one record per `acceptance[]` item, in order, with
+ * `index` and `criterion` filled and `verdict` / `evidence` left empty for
+ * the verdict owner. Deliberately schema-invalid until filled.
+ *
+ * @param {{ storyId: number, acceptance: string[], round: number, commitSha: string|null }} args
+ * @returns {object}
+ */
+export function buildVerdictSkeleton({
+  storyId,
+  acceptance,
+  round,
+  commitSha,
+}) {
+  return {
+    storyId,
+    schemaVersion: 1,
+    round,
+    commitSha,
+    criteria: acceptance.map((criterion, index) => ({
+      index,
+      criterion,
+      verdict: '',
+      evidence: '',
+    })),
+  };
+}
+
+/**
+ * Indices of records still carrying the skeleton's empty `verdict` or
+ * `evidence`.
+ *
+ * @param {unknown} verdict
+ * @returns {number[]}
+ */
+export function findUnfilledCriteria(verdict) {
+  const criteria = Array.isArray(verdict?.criteria) ? verdict.criteria : [];
+  const blank = (v) => typeof v !== 'string' || v.trim().length === 0;
+  return criteria
+    .map((c, i) =>
+      blank(c?.verdict) || blank(c?.evidence) ? (c?.index ?? i) : null,
+    )
+    .filter((i) => i !== null);
+}
+
+/**
+ * Refuse a verdict with unfilled records before schema validation or
+ * scoring, so the mistake costs no round.
+ *
+ * @param {unknown} verdict
+ * @returns {void}
+ */
+export function assertVerdictFilled(verdict) {
+  const unfilled = findUnfilledCriteria(verdict);
+  if (unfilled.length === 0) return;
+  throw new Error(
+    `acceptance-eval: verdict record(s) at index ${unfilled.join(', ')} are unfilled — ` +
+      'every record needs a verdict (met|partial|unmet) and evidence before scoring. No round was consumed.',
+  );
+}
+
+/** @param {string} cwd @returns {string|null} */
+function readHeadSha(cwd) {
+  const res = gitSpawn(cwd, 'rev-parse', 'HEAD');
+  const sha = res.status === 0 ? `${res.stdout ?? ''}`.trim() : '';
+  return /^[0-9a-f]{7,64}$/.test(sha) ? sha : null;
+}
+
+/**
+ * `--init`: derive the change set and verdict owner with ceremony-derive's
+ * own function, write the skeleton under `<tempRoot>/scratch/story-<id>/`,
+ * and return what the owner needs to fill it.
+ *
+ * @param {{ storyId: number, cwd: string, config: object }} input
+ * @param {{
+ *   readAcceptanceImpl?: typeof readStoryAcceptance,
+ *   deriveCeremonyImpl?: typeof deriveCeremony,
+ *   resolveRoundImpl?: typeof resolveAcceptanceEvalRound,
+ *   readHeadImpl?: typeof readHeadSha,
+ *   writeFileImpl?: (file: string, text: string) => void,
+ * }} [deps]
+ * @returns {Promise<{ verdictPath: string, files: string[]|null, verdictOwner: string, round: number, criteria: number }>}
+ */
+export async function initVerdictSkeleton({ storyId, cwd, config }, deps = {}) {
+  const {
+    readAcceptanceImpl = readStoryAcceptance,
+    deriveCeremonyImpl = deriveCeremony,
+    resolveRoundImpl = resolveAcceptanceEvalRound,
+    readHeadImpl = readHeadSha,
+    writeFileImpl = (file, text) => {
+      mkdirSync(path.dirname(file), { recursive: true });
+      writeFileSync(file, text, 'utf8');
+    },
+  } = deps;
+  const acceptance = await readAcceptanceImpl({ storyId, config });
+  if (!acceptance) {
+    throw new Error(
+      `acceptance-eval --init: Story #${storyId}'s acceptance[] could not be read — no skeleton written.`,
+    );
+  }
+  const ceremony = deriveCeremonyImpl({
+    storyId,
+    baseRef: config?.project?.baseBranch ?? 'main',
+    cwd,
+    ceremonyProfile: getDeliveryRouting(config).ceremonyProfile,
+  });
+  const { round } = resolveRoundImpl({ epicId: null, storyId, config });
+  const skeleton = buildVerdictSkeleton({
+    storyId,
+    acceptance,
+    round,
+    commitSha: readHeadImpl(cwd),
+  });
+  const verdictPath = path.join(
+    resolvedTempRoot(config),
+    'scratch',
+    `story-${storyId}`,
+    `acceptance-verdict-round-${round}.json`,
+  );
+  writeFileImpl(verdictPath, `${JSON.stringify(skeleton, null, 2)}\n`);
+  return {
+    verdictPath,
+    files: ceremony.files,
+    verdictOwner: ceremony.verdictOwner,
+    round,
+    criteria: acceptance.length,
+  };
 }
 
 /**
@@ -364,9 +513,10 @@ export async function runAcceptanceEval(
  *   validateVerdictImpl?: typeof validateVerdict,
  *   runAcceptanceEvalImpl?: typeof runAcceptanceEval,
  *   readAcceptanceCountImpl?: typeof readStoryAcceptanceCount,
+ *   initSkeletonImpl?: typeof initVerdictSkeleton,
  *   logger?: { info: Function, warn?: Function },
  * }} [deps]
- * @returns {Promise<object>} the emitted envelope.
+ * @returns {Promise<object>} the emitted envelope (the skeleton summary under `--init`).
  */
 export async function runAcceptanceEvalCli(
   argv = process.argv.slice(2),
@@ -380,7 +530,7 @@ export async function runAcceptanceEvalCli(
     readAcceptanceCountImpl = readStoryAcceptanceCount,
     logger = Logger,
   } = deps;
-  const { storyId, verdictPath, expectedCriteria, emitSignal } =
+  const { storyId, init, cwd, verdictPath, expectedCriteria, emitSignal } =
     parseCliArgs(argv);
   const flagged = resolveExpectedCriteria(expectedCriteria);
 
@@ -388,6 +538,16 @@ export async function runAcceptanceEvalCli(
     throw new Error(
       'Usage: node acceptance-eval.js --story <id> --verdict <path> [--expected-criteria <n>] [--no-signal]',
     );
+  }
+  if (init) {
+    const workCwd = path.resolve(cwd ?? process.cwd());
+    const skeleton = await (deps.initSkeletonImpl ?? initVerdictSkeleton)({
+      storyId,
+      cwd: workCwd,
+      config: resolveConfigImpl({ cwd: workCwd }),
+    });
+    logger.info(JSON.stringify(skeleton));
+    return skeleton;
   }
   if (!verdictPath) {
     throw new Error('acceptance-eval: --verdict <path> is required.');
@@ -415,6 +575,7 @@ export async function runAcceptanceEvalCli(
     );
   }
 
+  assertVerdictFilled(parsed);
   const verdict = validateVerdictImpl(parsed);
 
   const config = resolveConfigImpl();
@@ -470,11 +631,16 @@ runAsCli(import.meta.url, main, {
   source: 'acceptance-eval',
   usage: {
     invocation:
-      'node .agents/scripts/acceptance-eval.js --story <id> --verdict <path> [--expected-criteria <n>] [--no-signal]',
+      'node .agents/scripts/acceptance-eval.js --story <id> (--init [--cwd <workCwd>] | --verdict <path> [--expected-criteria <n>] [--no-signal])',
     summary:
-      "Score an authored acceptance verdict against the Story's acceptance[] criteria and emit the bounded loop's proceed / redraft / block decision.",
+      "Score an authored acceptance verdict against the Story's acceptance[] criteria and emit the bounded loop's proceed / redraft / block decision; --init writes the verdict skeleton to fill first.",
     flags: [
       ['--story <id>', 'GitHub issue number of the Story (required).'],
+      [
+        '--init',
+        'Write the verdict skeleton (one empty record per acceptance[] item, the next round, HEAD) under <tempRoot>/scratch/story-<id>/ and print its path, the derived change set `files` and the `verdictOwner`. Scoring a skeleton with an unfilled record is refused without consuming a round.',
+      ],
+      ['--cwd <workCwd>', 'Worktree the --init change set is derived in.'],
       ['--verdict <path>', 'Path to the authored verdict JSON (required).'],
       [
         '--expected-criteria <n>',
