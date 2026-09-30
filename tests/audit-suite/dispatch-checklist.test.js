@@ -8,16 +8,15 @@
  * the run temp dir, and returns the `checklistPath` the spawned Story worker
  * receives. An empty match writes nothing and threads a null path.
  *
- * Imported from the audit-suite barrel — the same entry point the deliver
- * dispatch (`helpers/deliver-story.md`) imports — so this is a real consumer of
- * the public export, not a colocated project file.
+ * Imported from its module: the delivery paths reach it through the
+ * barrel's `buildStoryChecklist` (Story #5518), which delegates here.
  */
 
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import test from 'node:test';
 
-import { buildDispatchChecklist } from '../../.agents/scripts/lib/audit-suite/index.js';
+import { buildDispatchChecklist } from '../../.agents/scripts/lib/audit-suite/dispatch-checklist.js';
 
 /** A payload-builder spy that records the footprint it received. */
 function payloadSpy(returnValue) {

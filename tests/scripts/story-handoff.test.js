@@ -15,11 +15,7 @@ import { afterEach, beforeEach, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { buildDefaultGates } from '../../.agents/scripts/lib/close-validation/gates.js';
-import {
-  HANDOFF_STATUS,
-  runStoryHandoff,
-  selectCreditedDepositor,
-} from '../../.agents/scripts/lib/orchestration/story-handoff.js';
+import { runStoryHandoff } from '../../.agents/scripts/lib/orchestration/story-handoff.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import { runStoryHandoffCli } from '../../.agents/scripts/story-handoff.js';
 
@@ -162,7 +158,7 @@ describe('story-handoff — the happy path (AC-1)', () => {
     const h = harness();
     const { envelope, exitCode } = await h.run();
     assert.equal(exitCode, 0);
-    assert.equal(envelope.status, HANDOFF_STATUS.READY);
+    assert.equal(envelope.status, 'ready');
     assert.deepEqual(stepNames(envelope), [
       'preflight',
       'base-merge',
@@ -241,22 +237,24 @@ describe('story-handoff — the happy path (AC-1)', () => {
 });
 
 describe('story-handoff — one depositor predicate (AC-2)', () => {
-  test('CRAP on + test:coverage → coverage capture; anything else → the evidence-gate test run', () => {
-    assert.equal(
-      selectCreditedDepositor({ config: {}, scripts: CAPTURE_SCRIPTS }),
-      'coverage-capture',
-    );
-    assert.equal(
-      selectCreditedDepositor({ config: {}, scripts: { test: 'x' } }),
-      'test',
-    );
-    const crapOff = {
+  test('CRAP on + test:coverage → coverage capture; anything else → the evidence-gate test run', async () => {
+    const crapOff = configFor({
       delivery: { quality: { gates: { crap: { enabled: false } } } },
-    };
-    assert.equal(
-      selectCreditedDepositor({ config: crapOff, scripts: CAPTURE_SCRIPTS }),
-      'test',
-    );
+    });
+    for (const [scripts, config, depositor, script] of [
+      [CAPTURE_SCRIPTS, configFor(), 'coverage-capture', 'coverage-capture.js'],
+      [{ test: 'x' }, configFor(), 'test', 'evidence-gate.js'],
+      [CAPTURE_SCRIPTS, crapOff, 'test', 'evidence-gate.js'],
+    ]) {
+      const h = harness({ scripts, config });
+      const { envelope } = await h.run();
+      assert.equal(envelope.depositor, depositor);
+      assert.ok(spawned(h.runCommand).includes(script));
+      rmSync(path.join(tempRoot, 'orchestration'), {
+        recursive: true,
+        force: true,
+      });
+    }
   });
 
   test('close registers the gate that credits the same depositor', () => {
@@ -356,7 +354,7 @@ describe('story-handoff — fix-required hands the failure back (AC-4)', () => {
       const h = harness(opts);
       const { envelope, exitCode } = await h.run();
       assert.equal(exitCode, 2);
-      assert.equal(envelope.status, HANDOFF_STATUS.FIX_REQUIRED);
+      assert.equal(envelope.status, 'fix-required');
       assert.equal(envelope.failedStep, failedStep);
       assert.ok(envelope.evidencePath, 'names the evidence log');
       if (detail) {
@@ -455,7 +453,7 @@ describe('story-handoff — blocked only on what the worker cannot change (AC-5)
       const h = harness(opts);
       const { envelope, exitCode } = await h.run();
       assert.equal(exitCode, 1);
-      assert.equal(envelope.status, HANDOFF_STATUS.BLOCKED);
+      assert.equal(envelope.status, 'blocked');
       assert.equal(envelope.reason, reason);
       assert.equal(h.blocks.length, 1);
       assert.equal(h.blocks[0].storyId, STORY);

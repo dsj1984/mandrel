@@ -49,7 +49,7 @@ const SCRIPTS_DIR = path.resolve(
   '..',
 );
 
-export const HANDOFF_STATUS = Object.freeze({
+const HANDOFF_STATUS = Object.freeze({
   READY: 'ready',
   FIX_REQUIRED: 'fix-required',
   BLOCKED: 'blocked',
@@ -235,7 +235,7 @@ async function stepBaseMerge(ctx) {
  * @param {{ config: object, scripts: Record<string, string>|null }} args
  * @returns {'coverage-capture'|'test'}
  */
-export function selectCreditedDepositor({ config, scripts }) {
+function selectCreditedDepositor({ config, scripts }) {
   return isCoverageCaptureActive(config, scripts) ? 'coverage-capture' : 'test';
 }
 
