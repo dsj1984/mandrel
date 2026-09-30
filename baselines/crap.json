@@ -14484,9 +14484,49 @@
     },
     {
       "path": ".agents/scripts/lib/git/sync-from-base.js",
+      "method": "resolveBaselinesToBase",
+      "startLine": 89,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/git/sync-from-base.js",
+      "method": "<anon resolveBaselinesToBase/(args)#0>",
+      "startLine": 95,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/git/sync-from-base.js",
       "method": "syncBranchFromBase",
       "startLine": 98,
       "crap": 12
+    },
+    {
+      "path": ".agents/scripts/lib/git/sync-from-base.js",
+      "method": "unmergedPaths",
+      "startLine": 103,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/git/sync-from-base.js",
+      "method": "<anon unmergedPaths/(s)#0>",
+      "startLine": 108,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/git/sync-from-base.js",
+      "method": "<anon unmergedPaths/(s)#1>",
+      "startLine": 109,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/git/sync-from-base.js",
+      "method": "<anon syncBranchFromBase/(args)#0>",
+      "startLine": 151,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/git/sync-from-base.js",
@@ -14499,6 +14539,13 @@
       "path": ".agents/scripts/lib/git/sync-from-base.js",
       "method": "<anon syncBranchFromBase/(s)#1>",
       "startLine": 174,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/git/sync-from-base.js",
+      "method": "<anon syncBranchFromBase/(f)#0>",
+      "startLine": 212,
       "crap": 1,
       "anonymous": true
     },
@@ -22697,6 +22744,12 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/failed-terminal.js",
+      "method": "nextCommandFor",
+      "startLine": 90,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/failed-terminal.js",
       "method": "failedTerminalFor",
       "startLine": 94,
       "crap": 3.0813802083333335
@@ -22885,9 +22938,27 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js",
+      "method": "buildSyncFailureError",
+      "startLine": 101,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js",
+      "method": "syncFailureDetail",
+      "startLine": 114,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js",
       "method": "buildStampInvalidatedWarning",
       "startLine": 116,
       "crap": 7
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js",
+      "method": "isHandedBack",
+      "startLine": 127,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js",
@@ -22912,6 +22983,44 @@
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js",
       "method": "<anon buildSyncFailureCommentBody/(f)#0>",
       "startLine": 220,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js",
+      "method": "<anon (storyId)#0>",
+      "startLine": 252,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js",
+      "method": "commentLede",
+      "startLine": 256,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js",
+      "method": "mergeAdvice",
+      "startLine": 271,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js",
+      "method": "unconfirmedBaseAdvice",
+      "startLine": 293,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js",
+      "method": "failureEvidence",
+      "startLine": 309,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js",
+      "method": "<anon failureEvidence/(f)#0>",
+      "startLine": 316,
       "crap": 1,
       "anonymous": true
     },
@@ -23254,6 +23363,12 @@
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "provisionalVerdict",
       "startLine": 1019,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "method": "singleProbeOrContinue",
+      "startLine": 1037,
       "crap": 4
     },
     {
@@ -27569,9 +27684,21 @@
     },
     {
       "path": ".agents/scripts/lib/single-story/confirm-merge.js",
+      "method": "pendingResult",
+      "startLine": 131,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/single-story/confirm-merge.js",
       "method": "fireStoryMergedNotify",
       "startLine": 136,
       "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/single-story/confirm-merge.js",
+      "method": "tryFlipDone",
+      "startLine": 149,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/single-story/story-merged-notify.js",
