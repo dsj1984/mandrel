@@ -25,14 +25,14 @@ import {
   resolveAdvisoryRerunAllowance,
   resolveMergeWaitConfig,
 } from '../.agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js';
-import {
-  confirmStoryMerged,
-  DONE_FLIP_RETRY_DELAYS_MS,
-} from '../.agents/scripts/lib/single-story/confirm-merge.js';
+import { confirmStoryMerged } from '../.agents/scripts/lib/single-story/confirm-merge.js';
 import {
   resolvePrNumber,
   runConfirmMerge,
 } from '../.agents/scripts/single-story-confirm-merge.js';
+
+/** The done-flip back-off `flipDone` sleeps between attempts. */
+const DONE_FLIP_RETRY_DELAYS_MS = [500, 2000];
 
 /**
  * Fake ticketing provider. Records every `updateTicket` patch and applies

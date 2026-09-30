@@ -23,7 +23,7 @@ import { sleep as defaultSleep } from '../util/poll-loop.js';
  * length + 1). A transient label write is the common failure; the transition
  * is idempotent, so a retry cannot double-apply.
  */
-export const DONE_FLIP_RETRY_DELAYS_MS = Object.freeze([500, 2000]);
+const DONE_FLIP_RETRY_DELAYS_MS = Object.freeze([500, 2000]);
 
 /**
  * @param {{ cwd: string, prNumber: number, gh?: object }} args
