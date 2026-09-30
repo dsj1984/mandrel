@@ -131,7 +131,7 @@ export function renderCloseCommand({
   storyId,
   mainRepo,
   storyCount,
-  workerModel = null,
+  workerModel,
 }) {
   const parts = [
     'node',
@@ -139,11 +139,18 @@ export function renderCloseCommand({
     `--story ${storyId}`,
     `--cwd ${mainRepo}`,
   ];
-  if (storyCount > 1) {
-    parts.push('--merge-watch-mode async');
-    if (workerModel) parts.push(`--worker-model ${workerModel}`);
-  }
+  if (storyCount > 1) parts.push(...multiStoryCloseFlags(workerModel));
   return parts.join(' ');
+}
+
+/**
+ * @param {string|null|undefined} workerModel
+ * @returns {string[]}
+ */
+function multiStoryCloseFlags(workerModel) {
+  const flags = ['--merge-watch-mode async'];
+  if (workerModel) flags.push(`--worker-model ${workerModel}`);
+  return flags;
 }
 
 /** The planner handoff sections the dispatch prompt embeds verbatim. */
@@ -454,10 +461,10 @@ export async function runDeliverRunBeat(
     : [];
 
   const readyIds = Array.isArray(tick.ready) ? tick.ready : [];
-  const workerModel =
-    handoffIds.length > 0
-      ? resolveStoryWorkerModel({ config: resolved, mainRepo }, entryDeps)
-      : null;
+  const workerModel = resolveStoryWorkerModel(
+    { config: resolved, mainRepo },
+    entryDeps,
+  );
   const digest = await ensureDocsDigestFn({
     docsContextFiles: resolved?.project?.docsContextFiles,
     docsRoot: getPaths(resolved).docsRoot,

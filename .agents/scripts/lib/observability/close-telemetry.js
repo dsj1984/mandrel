@@ -267,7 +267,7 @@ async function buildCloseTelemetry({
       confirmedHaltsByProvider: confirmedHalts(tally, landed),
     },
     workerTokens: Number.isInteger(workerTokens) ? workerTokens : null,
-    workerModel: typeof workerModel === 'string' ? workerModel : null,
+    workerModel,
   };
 }
 
