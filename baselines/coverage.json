@@ -2157,12 +2157,6 @@
       "functions": 100
     },
     {
-      "path": ".agents/scripts/lib/orchestration/review-providers/scoped-lint.js",
-      "lines": 94.49,
-      "branches": 90,
-      "functions": 90.91
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
       "lines": 86.61,
       "branches": 64.52,

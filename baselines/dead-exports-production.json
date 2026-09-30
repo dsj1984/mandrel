@@ -1237,10 +1237,6 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/review-providers/native.js",
-      "symbol": "buildLintFindings"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/review-providers/native.js",
       "symbol": "classifyChangedFile"
     },
     {
@@ -1249,19 +1245,7 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/review-providers/native.js",
-      "symbol": "parseLintOutput"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/review-providers/native.js",
-      "symbol": "partitionFilesForLint"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/review-providers/native.js",
       "symbol": "readHeadSource"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/review-providers/native.js",
-      "symbol": "runScopedLint"
     },
     {
       "file": ".agents/scripts/lib/orchestration/review-providers/native.js",

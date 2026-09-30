@@ -1,7 +1,8 @@
 /**
- * review-providers/native.js — in-process ReviewProvider: scoped lint plus
- * maintainability scoring of the changed files. MI honours the gate's
- * exemptions (lint has its own); `input.depth` is ignored by design.
+ * review-providers/native.js — in-process ReviewProvider: maintainability
+ * scoring of the changed files, honouring the gate's exemptions. It runs no
+ * lint — lint is a close-validation gate the worker's preflight also runs.
+ * `input.depth` is ignored by design.
  *
  * @typedef {import('./types.js').Finding} Finding
  * @typedef {import('./types.js').ReviewInput} ReviewInput
@@ -15,23 +16,12 @@ import {
   calculateReport,
   classifyReport,
 } from '../../maintainability-engine.js';
-import {
-  emitRuntimeFriction,
-  RUNTIME_FRICTION_CATEGORIES,
-} from '../../observability/runtime-friction.js';
 import { PROJECT_ROOT } from '../../project-root.js';
 import { transpileIfNeeded } from '../../transpile.js';
 import {
   resolveMaintainabilityIgnoreGlobs,
   scopeMaintainabilityFiles,
 } from './mi-exemptions.js';
-import {
-  parseLintOutput,
-  partitionFilesForLint,
-  runScopedLint,
-} from './scoped-lint.js';
-
-export { parseLintOutput, partitionFilesForLint, runScopedLint };
 
 const MAINTAINABILITY_REPORT_WORKER_URL = new URL(
   '../../workers/maintainability-report-worker.js',
@@ -245,137 +235,28 @@ export async function analyzeChangedFiles(
 }
 
 /**
- * Findings come from parsed counts, never `executionFailed` (an OR across
- * surfaces), so one absent runner cannot discard the other's errors.
- *
- * @param {{ errors: number, warnings: number, parsed?: boolean, skipped?: boolean, mode?: string, executionFailed?: boolean, evidenceSkipped?: boolean }} lintSummary
- * @returns {Finding[]}
- */
-export function buildLintFindings(lintSummary) {
-  if (lintSummary.mode === 'off') return [];
-  if (lintSummary.evidenceSkipped) return [];
-  if (lintSummary.skipped) return [];
-  if (lintSummary.parsed === false) return [];
-  const findings = [];
-  if (lintSummary.errors > 0) {
-    findings.push({
-      severity: 'high',
-      title: `Lint check failed (${lintSummary.errors} error(s))`,
-      body:
-        `Scoped lint reported ${lintSummary.errors} error(s) and ` +
-        `${lintSummary.warnings} warning(s) on the changed surface. ` +
-        'Fix errors before merging.',
-      category: 'lint',
-    });
-  } else if (lintSummary.warnings > 0) {
-    findings.push({
-      severity: 'suggestion',
-      title: `Lint check passed with ${lintSummary.warnings} warning(s)`,
-      body:
-        `Scoped lint reported ${lintSummary.warnings} warning(s) on the ` +
-        'changed surface. Treat as suggestions.',
-      category: 'lint',
-    });
-  }
-  return findings;
-}
-
-async function runLintPhase({
-  scopeLint,
-  changedFiles,
-  runScopedLintFn,
-  logger,
-}) {
-  if (scopeLint === 'off') {
-    logger?.info?.(
-      '[native-review] Lint scoped off (scopeLint=off); skipping.',
-    );
-    return {
-      errors: 0,
-      warnings: 0,
-      parsed: false,
-      skipped: true,
-      mode: 'off',
-      executionFailed: false,
-      degradations: [],
-      surfaces: [],
-    };
-  }
-  logger?.info?.(
-    '[native-review] Linting changed files only (biome + markdownlint, scoped to diff)...',
-  );
-  return runScopedLintFn(changedFiles, PROJECT_ROOT);
-}
-
-/**
- * Degradation records for an `executionFailed` summary; one without
- * per-surface rows degrades to a single gate-wide record, never silence.
- *
- * @param {{ executionFailed?: boolean, degradations?: Array<{ surface: string, reason: string }> }} lintSummary
- * @returns {Array<{ tool: string, gate: string, surface: string, reason: string }>}
- */
-function buildLintDegradations(lintSummary) {
-  if (!lintSummary.executionFailed) return [];
-  const rows = Array.isArray(lintSummary.degradations)
-    ? lintSummary.degradations
-    : [];
-  const surfaces =
-    rows.length > 0
-      ? rows
-      : [{ surface: 'scoped-lint', reason: 'unparseable-output' }];
-  return surfaces.map((row) => ({
-    tool: 'native-review-lint',
-    gate: 'scoped-lint',
-    surface: row.surface,
-    reason: row.reason,
-  }));
-}
-
-/**
  * @param {{
  *   gitSpawnFn?: typeof gitSpawn,
- *   runScopedLintFn?: typeof runScopedLint,
  *   analyzeChangedFilesFn?: typeof analyzeChangedFiles,
- *   buildLintFindingsFn?: typeof buildLintFindings,
- *   emitToolDegradationFn?: typeof emitRuntimeFriction,
  *   resolveIgnoreGlobsFn?: typeof resolveMaintainabilityIgnoreGlobs,
  *   logger?: { info?: Function, warn?: Function, error?: Function },
- *   scopeLint?: 'changed-only'|'off',
  * }} [deps]
  * @returns {ReviewProvider}
  */
 export function createNativeProvider(deps = {}) {
   const {
     gitSpawnFn = gitSpawn,
-    runScopedLintFn = runScopedLint,
     analyzeChangedFilesFn = analyzeChangedFiles,
-    buildLintFindingsFn = buildLintFindings,
-    emitToolDegradationFn = emitRuntimeFriction,
     resolveIgnoreGlobsFn = resolveMaintainabilityIgnoreGlobs,
     logger,
-    scopeLint = 'changed-only',
   } = deps;
 
-  /**
-   * Degradations from the latest `runReview`, travelling beside findings.
-   *
-   * @type {Array<{ tool: string, gate: string, surface: string, reason: string }>}
-   */
-  let recordedDegradations = [];
-
   return {
-    /**
-     * @returns {Array<{ tool: string, gate: string, surface: string, reason: string }>}
-     */
-    getDegradations() {
-      return recordedDegradations;
-    },
     /**
      * @param {ReviewInput} input
      * @returns {Promise<Finding[]>}
      */
     async runReview(input) {
-      recordedDegradations = [];
       const { scope, ticketId, baseRef, headRef } = input ?? {};
       if (!baseRef || !headRef) {
         throw new TypeError(
@@ -427,49 +308,8 @@ export function createNativeProvider(deps = {}) {
         gitSpawnFn,
       });
 
-      const lintSummary = await runLintPhase({
-        scopeLint,
-        changedFiles,
-        runScopedLintFn,
-        logger,
-      });
-
-      if (lintSummary.executionFailed) {
-        // A tool that could not execute is a degradation, recorded on the
-        // outcome and in friction telemetry — never a finding.
-        recordedDegradations = buildLintDegradations(lintSummary);
-        logger?.warn?.(
-          `[native-review] Lint runner could not execute (${recordedDegradations
-            .map((d) => `${d.surface}: ${d.reason}`)
-            .join(
-              '; ',
-            )}) — reported as a degraded gate on the review outcome and recorded as friction telemetry; the degradation itself is never a finding, and any surface that did run still reports its own errors. Verify with the canonical \`npm run lint\` before merging.`,
-        );
-        try {
-          await emitToolDegradationFn({
-            storyId: ticketId,
-            category: RUNTIME_FRICTION_CATEGORIES.TOOL_DEGRADED,
-            tool: 'native-review-lint',
-            details: {
-              surface: 'scoped-lint',
-              reason:
-                'lint runner produced no parseable output (binary missing, parse failure, or environment issue)',
-            },
-          });
-        } catch {
-          // Observability must never fail the review.
-        }
-      }
-
-      const lintFindings = buildLintFindingsFn(lintSummary);
-
       // Severity order; only matters for fixture stability.
-      return [
-        ...results.criticalFindings,
-        ...lintFindings.filter((f) => f.severity === 'high'),
-        ...results.mediumFindings,
-        ...lintFindings.filter((f) => f.severity === 'suggestion'),
-      ];
+      return [...results.criticalFindings, ...results.mediumFindings];
     },
   };
 }

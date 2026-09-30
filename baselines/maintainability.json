@@ -1423,10 +1423,6 @@
       "mi": 97.359
     },
     {
-      "path": ".agents/scripts/lib/orchestration/review-providers/scoped-lint.js",
-      "mi": 99.154
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
       "mi": 97.844
     },

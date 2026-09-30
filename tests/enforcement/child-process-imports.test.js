@@ -90,7 +90,6 @@ const ALLOWLIST = new Set([
   '.agents/scripts/lib/orchestration/pr-watch.js',
   '.agents/scripts/lib/orchestration/remote-verifier.js',
   '.agents/scripts/lib/orchestration/review-providers/codex.js',
-  '.agents/scripts/lib/orchestration/review-providers/scoped-lint.js',
   '.agents/scripts/lib/orchestration/review-providers/security-review.js',
   '.agents/scripts/lib/orchestration/story-close/format-autofix.js',
   '.agents/scripts/lib/single-story-sweep/protection-ctx.js',
