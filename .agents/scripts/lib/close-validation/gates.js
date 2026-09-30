@@ -60,10 +60,25 @@ function buildBaselinesGateEnv(baseBranch) {
  * @param {object|undefined|null} config - Canonical resolved config.
  * @returns {boolean}
  */
-function isCrapGateEnabled(config) {
+export function isCrapGateEnabled(config) {
   if (!config || typeof config !== 'object') return true;
   const enabled = config?.delivery?.quality?.gates?.crap?.enabled;
   return typeof enabled === 'boolean' ? enabled : true;
+}
+
+/**
+ * The credited-run depositor predicate — the ONE home, shared by close's gate
+ * registration and the worker's `story-handoff.js`, so the two cannot pick
+ * different depositors: coverage-capture runs the suite when the CRAP gate is
+ * on AND a `test:coverage` script exists; any other project takes the plain
+ * `test` gate (the evidence-gate `npm test` credit).
+ *
+ * @param {object|undefined|null} config - Canonical resolved config.
+ * @param {Record<string, string>|null|undefined} scripts - `package.json` scripts.
+ * @returns {boolean}
+ */
+export function isCoverageCaptureActive(config, scripts) {
+  return isCrapGateEnabled(config) && hasNpmScript(scripts, 'test:coverage');
 }
 
 /**
@@ -381,8 +396,7 @@ export function buildDefaultGates({
   shouldSkipImpl,
 } = {}) {
   const scripts = packageScripts ?? readPackageScripts(cwd);
-  const coverageCaptureActive =
-    isCrapGateEnabled(config) && hasNpmScript(scripts, 'test:coverage');
+  const coverageCaptureActive = isCoverageCaptureActive(config, scripts);
   // A credited bare `npm test` registers the plain `test` gate beside the
   // capture so the credit is reported, never re-spent.
   const testCredited = resolveTestCredited({
