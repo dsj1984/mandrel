@@ -73,11 +73,7 @@ const SIGNALS = Object.freeze({
   offending: /^[+!] /,
 });
 
-/**
- * The shipped standalone ratchets CI's `baselines` job runs after
- * `check-baselines.js`, each gated on its committed baseline so a consumer
- * that never seeded one pays nothing.
- */
+/** CI's standalone ratchets; each runs only when its baseline is committed. */
 const RATCHETS = Object.freeze([
   {
     key: 'dead-exports',
@@ -199,36 +195,56 @@ function describeSuiteFailure(status) {
 }
 
 /**
- * Run each seeded ratchet in the worktree; the first failure — a non-zero
- * exit or a `(gate fail)` line — is fix-required with its offending rows.
+ * Lint, quality-preview, then each ratchet whose baseline is committed.
  *
  * @param {object} ctx
- * @returns {Promise<{ failure: StepResult|null, ran: string[] }>}
+ * @returns {Array<{ key: string, cmd: string, args: string[], gated?: boolean }>}
  */
-async function runRatchets(ctx) {
-  const seeded = RATCHETS.filter((r) =>
+function preflightChecks(ctx) {
+  const [lintCmd, ...lintArgs] = resolveLintCommand(ctx.config)
+    .split(/\s+/)
+    .filter(Boolean);
+  const ratchets = RATCHETS.filter((r) =>
     fs.existsSync(path.join(ctx.cwd, r.baseline)),
-  );
-  for (const ratchet of seeded) {
-    const run = await runLogged(ctx, `preflight-${ratchet.key}`, 'node', [
-      path.join(SCRIPTS_DIR, ratchet.script),
-      ...ratchet.args,
-    ]);
-    if (run.status !== 0 || SIGNALS.gateFail.test(run.output)) {
-      const offending = run.output
+  ).map((r) => ({
+    key: r.key,
+    cmd: 'node',
+    args: [path.join(SCRIPTS_DIR, r.script), ...r.args],
+    gated: true,
+  }));
+  return [
+    { key: 'lint', cmd: lintCmd, args: lintArgs },
+    {
+      key: 'quality-preview',
+      cmd: 'node',
+      args: [
+        path.join(SCRIPTS_DIR, 'quality-preview.js'),
+        '--changed-since',
+        `origin/${ctx.baseBranch}`,
+      ],
+    },
+    ...ratchets,
+  ];
+}
+
+/**
+ * A ratchet also fails on `(gate fail)`; its finding names the `+`/`!` rows.
+ *
+ * @param {{ key: string, gated?: boolean }} check
+ * @param {{ status: number, output: string }} run
+ * @returns {string|null} the finding, `null` when the check passed.
+ */
+function preflightFinding(check, run) {
+  const gateFailed = check.gated === true && SIGNALS.gateFail.test(run.output);
+  if (run.status === 0 && !gateFailed) return null;
+  const offending = check.gated
+    ? run.output
         .split(/\r?\n/)
         .filter((line) => SIGNALS.offending.test(line))
-        .slice(0, MAX_OFFENDING_LINES);
-      const rows = offending.length > 0 ? `: ${offending.join('; ')}` : '';
-      const failure = fixRequired(
-        'preflight',
-        `${ratchet.key} ratchet finding${rows} — fix and commit, then re-run`,
-        { evidencePath: run.evidencePath },
-      );
-      return { failure, ran: [] };
-    }
-  }
-  return { failure: null, ran: seeded.map((r) => r.key) };
+        .slice(0, MAX_OFFENDING_LINES)
+    : [];
+  const rows = offending.length > 0 ? `: ${offending.join('; ')}` : '';
+  return `${check.key}${check.gated ? ' ratchet' : ''} finding${rows} — fix and commit, then re-run`;
 }
 
 /** @param {object} ctx @returns {Promise<StepResult>} */
@@ -240,32 +256,21 @@ async function stepPreflight(ctx) {
       `preflight already passed at ${ctx.head.slice(0, 12)}`,
     );
   }
-  const [lintCmd, ...lintArgs] = resolveLintCommand(ctx.config)
-    .split(/\s+/)
-    .filter(Boolean);
-  const lint = await runLogged(ctx, 'preflight-lint', lintCmd, lintArgs);
-  if (lint.status !== 0) {
-    return fixRequired(name, 'lint finding — fix and commit, then re-run', {
-      evidencePath: lint.evidencePath,
-    });
-  }
-  const preview = await runLogged(ctx, 'preflight-quality-preview', 'node', [
-    path.join(SCRIPTS_DIR, 'quality-preview.js'),
-    '--changed-since',
-    `origin/${ctx.baseBranch}`,
-  ]);
-  if (preview.status !== 0) {
-    return fixRequired(
-      name,
-      'quality-preview finding — fix and commit, then re-run',
-      { evidencePath: preview.evidencePath },
+  const checks = preflightChecks(ctx);
+  for (const check of checks) {
+    const run = await runLogged(
+      ctx,
+      `preflight-${check.key}`,
+      check.cmd,
+      check.args,
     );
+    const finding = preflightFinding(check, run);
+    if (finding) {
+      return fixRequired(name, finding, { evidencePath: run.evidencePath });
+    }
   }
-  const ratchets = await runRatchets(ctx);
-  if (ratchets.failure) return ratchets.failure;
   ctx.state.preflightHead = ctx.head;
-  const also = ratchets.ran.length > 0 ? `, ${ratchets.ran.join(', ')}` : '';
-  return ran(name, `lint, quality-preview${also} clean`);
+  return ran(name, `${checks.map((c) => c.key).join(', ')} clean`);
 }
 
 /** A baseline-only conflict the shared sync resolved is named. */
