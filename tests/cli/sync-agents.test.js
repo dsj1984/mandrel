@@ -19,9 +19,12 @@
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
+
+import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
@@ -297,5 +300,66 @@ describe('mandrel sync-agents — bin dispatch integration', () => {
       0,
       `mandrel sync-agents exited ${result.status}\nstdout: ${result.stdout}\nstderr: ${result.stderr}`,
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Story #5519 — delivery.routing.agentModels overrides a role's model at sync
+// ---------------------------------------------------------------------------
+
+describe('sync-claude-agents — per-role model override (#5519)', () => {
+  const PAYLOAD = path.join(REPO_ROOT, '.agents', 'agents');
+
+  /** Project the shipped role files into a temp project carrying `routing`. */
+  function syncWith(routing) {
+    const project = makeTempDir('sync-agent-models-');
+    const config = {
+      project: {
+        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+      },
+      delivery: { routing },
+    };
+    writeFileSync(
+      path.join(project, '.agentrc.json'),
+      JSON.stringify(config),
+      'utf8',
+    );
+    const dest = path.join(project, '.claude', 'agents');
+    const result = spawnSync(process.execPath, [SYNC_SCRIPT], {
+      cwd: project,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        SYNC_CLAUDE_AGENTS_SRC: PAYLOAD,
+        SYNC_CLAUDE_AGENTS_DEST: dest,
+      },
+    });
+    const modelOf = (role) =>
+      readFileSync(path.join(dest, `${role}.md`), 'utf8').match(
+        /^---\r?\n[\s\S]*?^model: *(\S+)[\s\S]*?^---$/m,
+      )?.[1] ?? null;
+    return { result, modelOf };
+  }
+
+  it('an agentModels entry overrides that role and leaves the rest on their defaults', () => {
+    const { result, modelOf } = syncWith({
+      agentModels: { 'story-worker': 'sonnet' },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(modelOf('story-worker'), 'sonnet');
+    assert.equal(modelOf('acceptance-critic'), 'inherit');
+    assert.equal(modelOf('plan-critic'), 'inherit');
+    assert.equal(modelOf('auditor'), 'sonnet');
+  });
+
+  it('the projected frontmatter keeps one model line and the header after it', () => {
+    const { modelOf } = syncWith({ agentModels: { auditor: 'haiku' } });
+    assert.equal(modelOf('auditor'), 'haiku');
+  });
+
+  it('an unknown role name fails config validation and the sync', () => {
+    const { result } = syncWith({ agentModels: { 'story-wroker': 'sonnet' } });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /agentModels/);
   });
 });

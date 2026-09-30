@@ -615,6 +615,10 @@
       "mi": 125.295
     },
     {
+      "path": ".agents/scripts/lib/config/agent-models.js",
+      "mi": 106.136
+    },
+    {
       "path": ".agents/scripts/lib/config/baselines.js",
       "mi": 111.856
     },
@@ -1496,7 +1500,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/options.js",
-      "mi": 102.144
+      "mi": 103.091
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/post-land.js",

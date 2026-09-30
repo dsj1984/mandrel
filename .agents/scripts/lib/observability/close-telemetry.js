@@ -8,7 +8,7 @@
 
 import crypto from 'node:crypto';
 
-import { parseWorkerTokens } from '../cli-args.js';
+import { parseWorkerModel, parseWorkerTokens } from '../cli-args.js';
 import { Logger } from '../Logger.js';
 import { EVENT_KINDS } from '../signals/schema.js';
 import {
@@ -246,13 +246,15 @@ async function readStoryTally({ storyId, config, readFn = forEachLine }) {
 
 /**
  * @param {{ storyId: number, config?: object, workerTokens?: number|null,
- *   landed?: boolean, readFn?: typeof forEachLine }} args
+ *   workerModel?: string|null, landed?: boolean,
+ *   readFn?: typeof forEachLine }} args
  * @returns {Promise<object>}
  */
 async function buildCloseTelemetry({
   storyId,
   config,
   workerTokens = null,
+  workerModel = null,
   landed = false,
   readFn,
 }) {
@@ -265,6 +267,7 @@ async function buildCloseTelemetry({
       confirmedHaltsByProvider: confirmedHalts(tally, landed),
     },
     workerTokens: Number.isInteger(workerTokens) ? workerTokens : null,
+    workerModel,
   };
 }
 
@@ -297,11 +300,22 @@ export function resolveWorkerTokens(raw) {
 }
 
 /**
+ * @param {unknown} raw
+ * @returns {string|null}
+ */
+export function resolveWorkerModel(raw) {
+  const { model, warning } = parseWorkerModel(raw);
+  if (warning) Logger.warn(`[single-story-close] ${warning}`);
+  return model;
+}
+
+/**
  * The retry goes first so the summary counts it; a failure leaves
  * `telemetry: null` and the close's status untouched.
  *
  * @param {{ terminal: object, result?: object|null, config?: object,
- *   workerTokens?: number|null, readFn?: typeof forEachLine }} args
+ *   workerTokens?: number|null, workerModel?: string|null,
+ *   readFn?: typeof forEachLine }} args
  * @returns {Promise<void>}
  */
 export async function recordCloseTelemetry({
@@ -309,6 +323,7 @@ export async function recordCloseTelemetry({
   result,
   config,
   workerTokens = null,
+  workerModel = null,
   readFn,
 }) {
   await emitCloseRetrySignal({ envelope: terminal, config });
@@ -318,6 +333,7 @@ export async function recordCloseTelemetry({
       storyId: result.storyId,
       config,
       workerTokens,
+      workerModel,
       landed: terminal?.status === 'landed',
       readFn,
     });
