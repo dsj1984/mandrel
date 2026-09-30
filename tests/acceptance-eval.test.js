@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
 import {
   assertCriteriaCoverage,
+  buildVerdictSkeleton,
   collectFullSuiteVerifyCommands,
+  findUnfilledCriteria,
+  initVerdictSkeleton,
   readStoryAcceptanceCount,
   reconcileExpectedCriteria,
   resolveExpectedCriteria,
@@ -1055,5 +1059,144 @@ describe('verify[] credit — the fail-closed edges (#5174)', () => {
 
   it('treats a missing verify[] array as nothing to plan', () => {
     assert.deepEqual(planVerifyExecution(undefined, { worktree: '/x' }), []);
+  });
+});
+
+describe('--init — the verdict skeleton (Story #5518)', () => {
+  const acceptance = ['AC-1 holds', 'AC-2 holds', 'AC-3 holds'];
+  const initDeps = (writes) => ({
+    readAcceptanceImpl: async () => acceptance,
+    deriveCeremonyImpl: (input) => ({
+      files: ['a.js', 'b.js'],
+      verdictOwner: 'inline-self-eval',
+      input,
+    }),
+    resolveRoundImpl: () => ({ round: 2, replay: false }),
+    readHeadImpl: () => 'abcdef1234567',
+    writeFileImpl: (file, text) => writes.push({ file, text }),
+  });
+
+  it('writes one empty record per acceptance item and returns the change set and owner', async () => {
+    const writes = [];
+    const out = await initVerdictSkeleton(
+      {
+        storyId: 5518,
+        cwd: '/work',
+        config: { project: { baseBranch: 'main' } },
+      },
+      initDeps(writes),
+    );
+    assert.deepEqual(out.files, ['a.js', 'b.js']);
+    assert.equal(out.verdictOwner, 'inline-self-eval');
+    assert.equal(out.round, 2);
+    assert.match(
+      out.verdictPath,
+      /scratch[\\/]story-5518[\\/]acceptance-verdict-round-2\.json$/,
+    );
+    assert.equal(writes.length, 1);
+    const skeleton = JSON.parse(writes[0].text);
+    assert.equal(skeleton.storyId, 5518);
+    assert.equal(skeleton.schemaVersion, 1);
+    assert.equal(skeleton.round, 2);
+    assert.equal(skeleton.commitSha, 'abcdef1234567');
+    assert.deepEqual(
+      skeleton.criteria.map((c) => [
+        c.index,
+        c.criterion,
+        c.verdict,
+        c.evidence,
+      ]),
+      [
+        [0, 'AC-1 holds', '', ''],
+        [1, 'AC-2 holds', '', ''],
+        [2, 'AC-3 holds', '', ''],
+      ],
+    );
+  });
+
+  it('the default writer and HEAD reader land a readable skeleton on disk', async () => {
+    const out = await initVerdictSkeleton(
+      {
+        storyId: 5518,
+        cwd: process.cwd(),
+        config: {
+          project: { baseBranch: 'main', paths: { tempRoot: 'temp' } },
+        },
+      },
+      {
+        readAcceptanceImpl: async () => acceptance,
+        deriveCeremonyImpl: () => ({
+          files: [],
+          verdictOwner: 'inline-self-eval',
+        }),
+        resolveRoundImpl: () => ({ round: 1, replay: false }),
+      },
+    );
+    const skeleton = JSON.parse(readFileSync(out.verdictPath, 'utf8'));
+    assert.equal(skeleton.criteria.length, 3);
+    assert.match(skeleton.commitSha ?? '', /^[0-9a-f]{7,64}$/);
+  });
+
+  it('refuses to write a skeleton when acceptance[] is unreadable', async () => {
+    const writes = [];
+    await assert.rejects(
+      () =>
+        initVerdictSkeleton(
+          { storyId: 5518, cwd: '/work', config: {} },
+          { ...initDeps(writes), readAcceptanceImpl: async () => null },
+        ),
+      /acceptance\[\] could not be read/,
+    );
+    assert.equal(writes.length, 0);
+  });
+
+  it('the CLI --init prints the skeleton summary and scores nothing', async () => {
+    const h = harness();
+    h.deps.initSkeletonImpl = async (input) => ({
+      verdictPath: '/v.json',
+      files: ['a.js'],
+      verdictOwner: 'inline-self-eval',
+      cwd: input.cwd,
+    });
+    const out = await runAcceptanceEvalCli(
+      ['--story', '5518', '--init', '--cwd', '/work'],
+      h.deps,
+    );
+    assert.equal(out.verdictPath, '/v.json');
+    assert.equal(h.seen.length, 0, 'no scoring call');
+    assert.match(h.infos[0], /"verdictOwner":"inline-self-eval"/);
+  });
+
+  it('scoring a skeleton with unfilled records names them and consumes no round', async () => {
+    const skeleton = buildVerdictSkeleton({
+      storyId: 4780,
+      acceptance: ['AC-1 holds', 'AC-2 holds', 'AC-3 holds'],
+      round: 1,
+      commitSha: null,
+    });
+    skeleton.criteria[1].verdict = 'met';
+    skeleton.criteria[1].evidence = 'test passes';
+    const h = harness({ verdict: skeleton });
+    await assert.rejects(
+      () =>
+        runAcceptanceEvalCli(
+          ['--story', '4780', '--verdict', 'v.json'],
+          h.deps,
+        ),
+      /record\(s\) at index 0, 2 are unfilled.*No round was consumed/,
+    );
+    assert.equal(h.seen.length, 0, 'the scorer never ran');
+  });
+
+  it('findUnfilledCriteria treats whitespace as unfilled', () => {
+    assert.deepEqual(
+      findUnfilledCriteria({
+        criteria: [
+          { index: 0, verdict: 'met', evidence: ' ' },
+          { index: 1, verdict: 'met', evidence: 'ok' },
+        ],
+      }),
+      [0],
+    );
   });
 });

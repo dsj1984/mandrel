@@ -36,15 +36,20 @@ per-criterion, mid-delivery, and evaluates the actual work product.
    alone**:
 
    > ```bash
-   > node <main-repo>/.agents/scripts/ceremony-derive.js --story <storyId> --cwd <workCwd>
+   > node <main-repo>/.agents/scripts/acceptance-eval.js --story <storyId> --init --cwd <workCwd>
    > ```
    >
-   > One call computes the change set once (`files`), derives the level and
-   > classes **for review depth**, and resolves the owner (`mode`, `reason`,
-   > `verdictOwner`): **`minimal` / `standard` → `inline`** (the default — you
-   > author the verdict yourself), **`strict` → `fresh`** (dispatch the
-   > maker-blind critic). The derived level feeds `review-depth.js`, not
-   > this decision; review depth resolves `deep` for any sensitive path.
+   > One call writes the verdict **skeleton** — one record per
+   > `acceptance[]` item, in order, `index` and `criterion` filled, `verdict`
+   > and `evidence` empty, plus `storyId`, `schemaVersion`, the next `round`
+   > and HEAD — under `temp/scratch/story-<id>/`, and prints its path, the
+   > change set computed once (`files`) and the `verdictOwner`, derived by the
+   > same function `ceremony-derive.js` uses: **`minimal` / `standard` →
+   > `inline`** (the default — you fill the skeleton yourself), **`strict` →
+   > `fresh`** (dispatch the maker-blind critic with that `files` list).
+   > `ceremony-derive.js` stays for close and for a critic hand-off outside
+   > this loop; the level it derives feeds `review-depth.js`, not this
+   > decision.
 
    **Never run both**, and never run a preliminary self-assessment before
    dispatching a fresh critic — the redundant pre-pass buys no measurable
@@ -95,13 +100,11 @@ per-criterion, mid-delivery, and evaluates the actual work product.
      without being respawned; a stale or absent stamp reports `spawn: true` and
      the command runs for real. The credited run itself is stated once, in
      [`deliver-digest.md`](deliver-digest.md) § 5.
-   + Emits **one** verdict file under `temp/scratch/story-<id>/` conforming to
+   + **Fills the skeleton** into **one** verdict file conforming to
      [`acceptance-eval-verdict.schema.json`](../../schemas/acceptance-eval-verdict.schema.json):
-     one `{ index, criterion, verdict: met|partial|unmet, evidence,
-     verifyEvidence[] }` record per `acceptance[]` item, in acceptance-array
-     order, under a single top-level `storyId`, `schemaVersion`, `round` and
-     `commitSha`. A fresh critic **returns that path to you** rather than
-     calling the gate itself.
+     every `{ index, criterion, verdict: met|partial|unmet, evidence,
+     verifyEvidence[] }` record, in acceptance-array order. A fresh critic
+     **returns that path to you** rather than calling the gate itself.
 2. **Decide — exactly one gate call per round.** Run the gate against that one
    verdict file (the caller's Step 1a names the exact invocation — omit
    `--epic`). The gate **scores the verdict the round produced** — schema
@@ -115,8 +118,10 @@ per-criterion, mid-delivery, and evaluates the actual work product.
    The gate reads the Story's `acceptance[]` count itself (Story #5313): a
    verdict whose `criteria[]` length differs — one covering only part of the
    Story — is rejected **before scoring**, with an error naming the count and
-   consuming **no round**. `--expected-criteria` is still accepted but
-   redundant; when passed it must agree with that count.
+   consuming **no round**. A skeleton record left unfilled (empty `verdict`
+   or `evidence`) is likewise rejected before scoring, naming the unfilled
+   indices, with no round consumed. `--expected-criteria` is still accepted
+   but redundant; when passed it must agree with that count.
 
    > **Why one call per round and not several.** The round counter is
    > **Story-scoped** — derived by counting `acceptance-eval` signals in the
@@ -127,11 +132,12 @@ per-criterion, mid-delivery, and evaluates the actual work product.
    The gate validates the verdict against the schema, applies the round cap,
    emits the per-criterion `acceptance-eval` signal into the retro / feedback
    substrate, prints a JSON envelope, and exits with one of three decisions:
-   + **`decision: "proceed"`** (every criterion `met`) → exit 0. Proceed to
-     close.
+   + **`decision: "proceed"`** (every criterion `met`) → exit 0. Run the one
+     tail command, `story-handoff.js` ([`deliver-digest.md`](deliver-digest.md)
+     § 5).
    + **`decision: "redraft"`** (some `partial`/`unmet`, rounds remaining) →
      exit 0. Redraft the flagged criteria (named in `unmetCriteria[]`), commit
-     the fix, and start another round.
+     the fix, re-run `--init` for the next round's skeleton, and score again.
    + **`decision: "block"`** (round cap reached, criteria still unmet) → exit
      non-zero. **Do not proceed to close.** Take the caller's blocked path
      (transition to `agent::blocked`) and post a `friction` comment naming the

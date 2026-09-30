@@ -17,20 +17,16 @@ description: >-
 
 ## 1. Dispatch — where the engine runs
 
-Read `stories[].dispatchMode` from the `resolve-stories.js` envelope.
-`inline` names one indivisible resource — **the router's own session** — so one
+Read `stories[].dispatchMode` from the `resolve-stories.js` envelope. One
 rule produces it:
 
-1. **Run topology.** A run resolving **one** Story is `inline` whatever its
-   shape — sub-agent isolation only matters against a *concurrent* sibling
-   racing the same checkout, and a one-Story run has none.
-2. **Every other run is `subagent`.** A multi-Story run dispatches every Story
-   as a sub-agent however trivial its shape — the run's size is the whole
-   premise, and nothing about a Story's own shape enters it.
+1. **Run topology.** A one-Story run is `inline` (the router's own session)
+   whatever its shape — isolation only matters against a *concurrent*
+   sibling, and a one-Story run has none.
+2. **Every other run is `subagent`**, however trivial each Story's shape.
 
-`inline` removes the `story-worker` boot and nothing else. It does **not**
-change the acceptance verdict owner — that is § 3's decision, and the profile
-alone makes it. **`subagent` and `inline` run the same engine**: same gates,
+`inline` removes the `story-worker` boot and nothing else — not the verdict
+owner, which the profile alone names (§ 3). **`subagent` and `inline` run the same engine**: same gates,
 same PR to `main`, same terminal envelope, byte for byte.
 
 ## 2. Engine invariants
@@ -49,10 +45,10 @@ the only sanctioned landing. A silent local build is not a delivery.
 
 ## 3. Change set — computed once, handed to everyone
 
-One enumeration per Story. A critic that re-runs its own `git diff`
-can score a different set than the one that routed it. Derive the change
-set, the level and the ceremony with **one script** — never a hand-carried
-import block:
+One enumeration per Story: a critic that re-runs its own `git diff` can
+score a different set than the one that routed it. **One script** derives
+the change set, the level and the ceremony (close and critic hand-offs call
+it; the worker gets it from § 4's `--init`):
 
 ```bash
 node <main-repo>/.agents/scripts/ceremony-derive.js --story <storyId> --cwd <workCwd>
@@ -63,90 +59,96 @@ handed (`null` when the diff could not be enumerated) — plus `level` and
 `classes` from `review-depth.js`, and `mode`, `reason` and `verdictOwner`
 from `ceremony-routing.js`. Level rules: a sensitive path registered in
 `audit-rules.json` → `high`, none → `low`, an unenumerable diff → `null`.
-The level drives **review depth** only; close's `review-depth.js` reads the
-same derived level, so the two cannot disagree. A sensitive footprint
-therefore buys a **deep review**, not a fresh acceptance critic.
+The level drives **review depth** only (close reads the same level): a
+sensitive footprint buys a **deep review**, not a fresh acceptance critic.
 
 > **The ceremony rule, stated once.** The **profile alone** names the verdict
 > owner: `minimal` / `standard` → `inline`, `strict` → `fresh`. Nothing else
-> moves it — not the
-> derived change level, not the footprint's sensitivity, and **not the
-> dispatch mode**: an `inline` Story under `strict` still spawns the fresh
-> maker-blind critic, one nesting level shallower than a dispatched one. The
-> only sanctioned inline authoring under `strict` is the harness fallback in
-> [`acceptance-self-eval.md`](acceptance-self-eval.md) — a host that cannot
-> spawn the critic at all, noted in the friction comment if you block.
+> moves it — not the change level, not sensitivity, **not the dispatch
+> mode**: an `inline` Story under `strict` still spawns the fresh critic. The
+> only inline authoring under `strict` is the harness fallback in
+> [`acceptance-self-eval.md`](acceptance-self-eval.md), noted in any friction
+> comment.
 
 ## 4. Acceptance self-eval (Step 1a, required)
 
 **One verdict owner per Story** — named by `verdictOwner`: the inline
 self-eval under `minimal` / `standard` (the default), a fresh maker-blind
-critic under `strict`. Never both, and never a warm-up pass. The owner
-authors **one** verdict file covering every `acceptance[]` item, scored
-against the change set above with `verify[]` output as evidence, and it is
-scored in **one** gate call. Bounded by `delivery.acceptanceEval.maxRounds`
+critic under `strict`. Never both, and never a warm-up pass. Start from the
+skeleton — it derives § 3's `files` and `verdictOwner` with the same function:
+
+`node <main-repo>/.agents/scripts/acceptance-eval.js --story <storyId> --init
+--cwd <workCwd>`
+
+It writes one empty record per `acceptance[]` item (plus the next round and
+HEAD) under `temp/scratch/story-<id>/`. The owner fills **every** record,
+scored against that change set with `verify[]` output as evidence, and scores
+it in **one** gate call. Bounded by `delivery.acceptanceEval.maxRounds`
 (default 2; `0` scores once with no redraft).
 
 `node <main-repo>/.agents/scripts/acceptance-eval.js --story <storyId>
 --verdict <verdict-path>`
 
-The gate reads the Story's `acceptance[]` count itself and rejects a verdict
-whose `criteria[]` length differs **before** scoring, consuming no round. A
-second gate call in the same round spends a round for nothing and races the
-Story-scoped ledger.
+The gate reads the Story's `acceptance[]` count itself and rejects, **before**
+scoring and consuming no round, a verdict whose `criteria[]` length differs
+or with an unfilled record (naming its indices). A second gate call in the
+same round spends a round for nothing and races the Story-scoped ledger.
 
-`proceed` → close. `redraft` → one more round inside the cap. `block` → **do
+`proceed` → § 5. `redraft` → one more round inside the cap. `block` → **do
 not close**: post a `friction` comment and flip `agent::blocked`.
 Per-round mechanics: [`acceptance-self-eval.md`](acceptance-self-eval.md).
 
-## 5. The one credited run
+## 5. The one credited run — `story-handoff.js`
 
-**Preflight first — blocking.** After the self-eval loop, run the configured
-`project.commands.lint` and `node <main-repo>/.agents/scripts/quality-preview.js
---changed-since origin/<baseBranch>` in the worktree; fix and commit every
-finding. Close's gates stay authoritative
-([`deliver-reference.md`](deliver-reference.md) § Preflight).
+After the self-eval loop's last fix commit the worker runs **one** command,
+which performs this section in order and prints one envelope:
 
-After the last fix commit, fetch and merge
-`origin/<baseBranch>` into the Story branch **first**, ahead of this run and
-the push: close's base-sync then no-ops, so neither stamp goes stale. Then run
-**one** depositor in the worktree, picked by the predicate close registers
-`coverage-capture` on — CRAP gate enabled **and** a `test:coverage` script:
+`node <main-repo>/.agents/scripts/story-handoff.js --story <storyId> --cwd <workCwd>`
 
-- **Capture-active** →
-  `node <main-repo>/.agents/scripts/coverage-capture.js --cwd <workCwd>`.
-  It takes the host full-suite lock, runs `test:coverage` and writes the stamp
-  close's capture finds fresh. Signal: `Wrote content-digest capture stamp`.
-  Non-zero is a red suite (or the lock / timeout it names): fix, re-run. No
-  second `npm test`.
-- **Otherwise** → `node <main-repo>/.agents/scripts/evidence-gate.js
-  --standalone --scope-id <storyId> --gate test --worktree <workCwd> -- npm test`.
-  Signal: `✓ test passed` — the `test` evidence close reads, keyed on the tree.
+`ready` (exit 0) → hand off. `fix-required` (exit 2) → a finding, a red or
+deferred suite, a base-merge conflict (files named) or a CRITICAL: fix,
+commit, re-run; labels untouched. `blocked` (exit 1) → only a rejected push,
+an unreachable remote, an unconfirmed base branch or an unregistered merge
+driver: it flips `agent::blocked` and posts `friction`. A re-run skips every
+step still valid for HEAD. It never runs close, opens a PR or writes another
+label. Outruns the sync Bash ceiling → dispatch it in the **background**.
 
-**Seat, then push.** CRAP or MI gate on → run
-`update-crap-baseline.js --seat-missing` and its maintainability twin (signal
-`seated: N`); commit it as `chore(baselines): baseline-refresh: …`.
+1. **Preflight — blocking.** `project.commands.lint` and
+   `quality-preview.js --changed-since origin/<baseBranch>`
+   ([`deliver-reference.md`](deliver-reference.md) § Preflight).
+2. **Base merge.** It will merge `origin/<baseBranch>` into the Story branch
+   **first**, ahead of this run and the push: close's base-sync then no-ops,
+   so neither stamp goes stale.
+3. **One depositor**, by the predicate close registers `coverage-capture` on
+   (one shared function) — CRAP gate enabled **and** a `test:coverage` script:
+   - **Capture-active** →
+     `node <main-repo>/.agents/scripts/coverage-capture.js --cwd <workCwd>`,
+     behind the host full-suite lock. Signal: `Wrote content-digest capture
+     stamp`. No second `npm test`.
+   - **Otherwise** → `node <main-repo>/.agents/scripts/evidence-gate.js
+     --standalone --scope-id <storyId> --gate test --worktree <workCwd> -- npm test`.
+     Signal: `✓ test passed` — the `test` evidence close reads.
+4. **Seat.** CRAP or MI gate on → `--seat-missing` for each (signal
+   `seated: N`), committed as `chore(baselines): baseline-refresh: …`.
+5. **Push** `story-<id>`; the remote ref must equal HEAD.
+6. **Held review** — [`deliver-reference.md`](deliver-reference.md)
+   § Held review.
 
-A later commit voids either credit; a baseline-JSON seat keeps the stamp. Read
-the **output**, not the exit code: a run that prints no signal deposits
-nothing. `mandrel doctor`'s `test-credit-path` check names this project's
-depositor. Seat order, runner shapes, background dispatch, redraft rounds:
+A later commit voids either credit; a baseline-JSON seat keeps the stamp. The
+handoff reads the **output**, not the exit code: a run that prints no signal
+deposits nothing. Seat order, runner shapes, redraft rounds:
 [`deliver-reference.md`](deliver-reference.md) § Credited run.
 
 `verify[]` is scoped entries **plus** this one run: an entry that is itself a
 full-suite command is reported credited against the same record, never
 respawned.
 
-After the push, compute the held review and fix a CRITICAL before hand-off:
-[`deliver-reference.md`](deliver-reference.md) § Held review.
-
 ## 6. Terminal envelope — the return contract
 
 `single-story-close.js` emits exactly one envelope on stdout between
 `--- STORY DELIVER TERMINAL ---` markers, schema-validated against
 [`story-deliver-terminal.schema.json`](../../schemas/story-deliver-terminal.schema.json)
-— the SSOT; read the JSON only when you need a field this table omits.
-Relay it verbatim; never hand-compose one, never substitute prose.
+— the SSOT. Relay it verbatim; never hand-compose one or substitute prose.
 
 | `status` | Exit | Meaning | You do |
 | --- | --- | --- | --- |
@@ -156,9 +158,8 @@ Relay it verbatim; never hand-compose one, never substitute prose.
 | `failed` | 1 | A phase crashed; `phase` names which | Diagnose, fix, re-run close |
 
 Required fields: `kind` (`story-deliver-terminal`), `storyId`, `status`,
-`phase`, `elapsedSeconds`, `nextCommand`. `phase` is one of `init`,
-`wrong-tree-guard`, `base-sync`, `close-validation`, `push`, `pull-request`,
-`code-review`, `auto-merge`, `confirm-merge`, `post-land`, `done`. `gates`
+`phase` (the schema's enum names where it stopped), `elapsedSeconds`,
+`nextCommand`. `gates`
 reports every gate as `passed` / `failed` / `skipped` — a skipped gate is
 reported, never omitted, so a missing gate is never read as a passing one.
 

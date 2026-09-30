@@ -6,7 +6,6 @@ export {
   matchLocalLenses,
   readAuditRules,
 } from './checklist-threading.js';
-export { buildDispatchChecklist } from './dispatch-checklist.js';
 export {
   LENS_TIERS,
   matchesAnyFilePattern,
@@ -14,3 +13,4 @@ export {
   resolveLensTier,
   selectAudits,
 } from './selector.js';
+export { buildStoryChecklist } from './story-checklist.js';

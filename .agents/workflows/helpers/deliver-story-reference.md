@@ -144,18 +144,18 @@ body/issue edit plus a fresh `resolve-stories.js` run.
 context points you at one; prefer a caller-provided `docsDigestPath` and pull
 individual files on demand. See [`.agents/instructions.md` § 3](../../instructions.md).
 
-**Write-time audit checklists.** When the caller provides a `checklistPath`
-(footprint-matched **local**-lens authoring checklists), read it before you
-write and self-check as you author. When absent, lens-aware coverage still
-runs maker-blind at Story-scope review inside the close subprocess. The
-dispatch step produces `checklistPath` from the Story's predicted footprint
-before it spawns the worker — see [`/mandrel-deliver`](../mandrel-deliver.md).
+**Write-time audit checklists.** `single-story-init.js` returns a
+`checklistPath` (footprint-matched **local**-lens authoring checklists built
+from the Story's declared `changes[]` / `references[]`; null when no lens
+matches) on every path, and a multi-Story dispatch prompt names the same
+path. Read it before you write and self-check as you author.
 
 **Full-suite discipline (spine Step 2.5).** Repo-invariant guards —
 drift-guard and schema tests outside the Story's scoped greps — are the
 failure class that bounces deliveries, and close-validation discovers them
-only after the whole close pipeline has run. The run itself is stated once,
-in [`deliver-digest.md`](deliver-digest.md) § 5.
+only after the whole close pipeline has run. `story-handoff.js` runs the one
+credited suite before hand-off; what it runs is stated once, in
+[`deliver-digest.md`](deliver-digest.md) § 5.
 
 **Conflict with `main` mid-implementation** → resolve as you would any branch
 rebase; the rebase base is `main` directly.
@@ -189,7 +189,9 @@ node .agents/scripts/update-ticket-state.js --ticket <storyId> --state agent::bl
 derivation ([`deriveChangeLevel`](../../scripts/lib/orchestration/review-depth.js))
 and the ceremony resolution
 ([`resolveCeremonyForRisk`](../../scripts/lib/orchestration/ceremony-routing.js))
-in one call. Hand the **same** `files` list to the verdict owner (Step 1a) —
+in one call; the worker receives the same derivation from
+`acceptance-eval.js --init`. Hand the **same** `files` list to the verdict
+owner (Step 1a) —
 an evaluator that re-ran its own `git diff` could score a different set than
 the one that routed it.
 

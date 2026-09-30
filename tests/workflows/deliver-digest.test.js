@@ -152,22 +152,27 @@ describe('deliver-digest § 3 — the ceremony derivation is scripted (#5313)', 
   // digest cites `ceremony-derive.js`, which computes the composition itself.
   const digest = () => read(DIGEST);
 
-  it('AC-3: cites ceremony-derive.js and carries no --input-type=module block', () => {
-    for (const [label, file] of [
-      ['the digest', DIGEST],
+  // Story #5518 — the worker's derivation now rides the verdict skeleton
+  // (`acceptance-eval.js --init`, same function); the digest keeps the
+  // ceremony-derive.js citation for close and the critic hand-off.
+  it('AC-3: cites the scripted derivation and carries no --input-type=module block', () => {
+    for (const [label, file, derivation] of [
+      ['the digest', DIGEST, /ceremony-derive\.js --story <storyId>/],
       [
         'the self-eval helper',
         path.join(WORKFLOWS, 'helpers', 'acceptance-self-eval.md'),
+        /acceptance-eval\.js --story <storyId> --init/,
       ],
       [
         'the story-worker context',
         path.join(REPO_ROOT, '.agents', 'agents', 'story-worker.md'),
+        /acceptance-eval\.js --story <storyId> --init/,
       ],
     ]) {
       const doc = read(file);
       assertDocMentions(
         doc,
-        /ceremony-derive\.js --story <storyId>/,
+        derivation,
         `${label} must cite the scripted derivation`,
       );
       assertDocOmits(
@@ -413,6 +418,61 @@ describe('deliver-digest § 5 — the credited run follows close registration (#
       ],
     ]) {
       assertDocMentions(ref, pattern, `the reference must carry ${what}`);
+    }
+  });
+});
+
+// Story #5518 — the worker's post-implementation tail is the skeleton-scored
+// self-eval followed by ONE deterministic command. Every surface that
+// describes the tail must say so, or a worker reading any one of them falls
+// back to hand-running the steps the command now owns.
+describe('the worker tail is the skeleton self-eval, then story-handoff.js (#5518)', () => {
+  const SURFACES = [
+    '.agents/agents/story-worker.md',
+    '.agents/workflows/helpers/deliver-story.md',
+    '.agents/workflows/helpers/deliver-digest.md',
+    '.agents/workflows/helpers/deliver-reference.md',
+    '.agents/workflows/helpers/deliver-light.md',
+    '.agents/workflows/helpers/acceptance-self-eval.md',
+  ];
+
+  it('AC-8: every tail surface names the skeleton init and the handoff command', () => {
+    for (const rel of SURFACES) {
+      const doc = read(path.join(REPO_ROOT, rel));
+      assertDocMentions(
+        doc,
+        /--init/,
+        `${rel} must start the self-eval from the verdict skeleton`,
+      );
+      assertDocMentions(
+        doc,
+        /story-handoff\.js/,
+        `${rel} must name the one tail command`,
+      );
+    }
+  });
+
+  it('AC-8: digest § 5 carries the handoff and its three statuses', () => {
+    const src = read(DIGEST);
+    const start = src.indexOf('## 5.');
+    const rest = src.slice(start + 3);
+    const section = rest.slice(0, rest.indexOf('\n## '));
+    assertDocMentions(
+      section,
+      /story-handoff\.js --story <storyId> --cwd <workCwd>/,
+    );
+    for (const status of ['ready', 'fix-required', 'blocked']) {
+      assertDocMentions(section, new RegExp(`\`${status}\``));
+    }
+  });
+});
+
+describe('docs/SDLC.md describes the handoff (#5518, AC-9)', () => {
+  it('names story-handoff.js and its three statuses', () => {
+    const doc = read(path.join(REPO_ROOT, 'docs', 'SDLC.md'));
+    assertDocMentions(doc, /story-handoff\.js --story <id> --cwd\s+<workCwd>/);
+    for (const status of ['ready', 'fix-required', 'blocked']) {
+      assertDocMentions(doc, new RegExp(`\\*\\*\`${status}\`\\*\\*`));
     }
   });
 });

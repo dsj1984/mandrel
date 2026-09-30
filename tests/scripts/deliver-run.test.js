@@ -27,6 +27,7 @@ import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
   deriveRunId,
+  extractBodySections,
   readLedgerDispatched,
   renderCloseCommand,
   renderDispatchPrompt,
@@ -34,6 +35,7 @@ import {
   resolveRunIds,
   runDeliverRunBeat,
 } from '../../.agents/scripts/deliver-run.js';
+import { buildStoryChecklist } from '../../.agents/scripts/lib/audit-suite/index.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import { classifyStory } from '../../.agents/scripts/lib/wave-runner/ready-set.js';
 
@@ -287,7 +289,11 @@ describe('deliver-run — the dispatch prompt (AC-3)', () => {
     const prompt = readFileSync(envelope.ready[0].promptPath, 'utf8');
     assert.match(prompt, /Deliver Story #101/);
     assert.match(prompt, /single-story-init\.js --story 101/);
-    assert.match(prompt, /ceremony-derive\.js --story 101/);
+    assert.match(
+      prompt,
+      /acceptance-eval\.js --story 101 --init --cwd <workCwd>/,
+    );
+    assert.match(prompt, /story-handoff\.js --story 101 --cwd <workCwd>/);
     assert.match(prompt, /prefix \*\*every\*\* path-based/);
     assert.match(prompt, /Docs digest: none/);
   });
@@ -316,6 +322,77 @@ describe('deliver-run — the dispatch prompt (AC-3)', () => {
     );
     const prompt = readFileSync(envelope.ready[0].promptPath, 'utf8');
     assert.match(prompt, /story-101-checklist\.md/);
+  });
+
+  it('names the same Story-scoped checklist path single-story-init returns (Story #5518)', async () => {
+    const cwd = makeTempDir('deliver-run-');
+    const probed = node(101, {
+      files: ['.agents/scripts/lib/orchestration/code-review.js'],
+    });
+    const { envelope } = await beat(
+      { nodes: [probed] },
+      { stories: '101', cwd },
+    );
+    const { checklistPath } = buildStoryChecklist({
+      storyId: 101,
+      body: probed.body,
+      config: CONFIG,
+    });
+    assert.ok(checklistPath, 'a lens matched this footprint');
+    const prompt = readFileSync(envelope.ready[0].promptPath, 'utf8');
+    assert.ok(prompt.includes(checklistPath), 'the prompt names that path');
+  });
+
+  it("embeds the Story's Context and References sections verbatim (Story #5518)", async () => {
+    const cwd = makeTempDir('deliver-run-');
+    const probed = node(101);
+    probed.body = [
+      probed.body,
+      '',
+      '## Context',
+      'The probe found `foo()` at lib/a.js:12.',
+      '',
+      '## References',
+      '- `lib/a.js` — exists',
+      '',
+      '## Non-Goals',
+      '- nothing else',
+    ].join('\n');
+    const { envelope } = await beat(
+      { nodes: [probed] },
+      { stories: '101', cwd },
+    );
+    const prompt = readFileSync(envelope.ready[0].promptPath, 'utf8');
+    assert.match(
+      prompt,
+      /## Context\n\nThe probe found `foo\(\)` at lib\/a\.js:12\./,
+    );
+    assert.match(prompt, /## References\n\n- `lib\/a\.js` — exists/);
+    assert.doesNotMatch(prompt, /Non-Goals/, 'only the two sections embed');
+  });
+
+  it('embeds nothing when the body carries neither section', () => {
+    assert.deepEqual(extractBodySections(bodyFor(1, 'lib/a.js')), []);
+    assert.deepEqual(extractBodySections('## Context\n\n## Goal\nx'), []);
+  });
+
+  it('lists no workflow doc as a mandatory read (Story #5518)', () => {
+    const prompt = renderDispatchPrompt({
+      storyId: 7,
+      mainRepo: '/repo',
+      docsDigestPath: null,
+      checklistPath: null,
+    });
+    const reads = prompt.slice(
+      prompt.indexOf('## Reads'),
+      prompt.indexOf('## Worktree'),
+    );
+    assert.doesNotMatch(
+      reads,
+      /\.agents\/workflows\/|deliver-digest|deliver-story/,
+    );
+    assert.doesNotMatch(prompt, /ceremony-derive\.js/);
+    assert.doesNotMatch(prompt, /Steps 0 through 2\.5/);
   });
 
   it('says so plainly when nothing matched the footprint', () => {

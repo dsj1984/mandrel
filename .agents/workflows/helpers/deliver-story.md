@@ -18,7 +18,8 @@ mandatoryReads: [deliver-digest.md]
 The **one** delivery engine in v2:
 
 ```text
-single-story-init.js → implement + commits → ceremony → push
+single-story-init.js → implement + commits → acceptance-eval.js --init
+  → score → story-handoff.js (preflight, credited run, push, review)
   ──hand-off──▶ single-story-close.js (gates, PR → main, agent::closing)
   → CI watch + merge → single-story-confirm-merge.js (agent::done)
 ```
@@ -33,8 +34,8 @@ that dispatched the work**, never to a spawned worker.
 - **Inline dispatch** (a one-Story run — digest § 1): one session is both
   roles and walks Steps 0→7, no hand-off.
 - **Sub-agent dispatch**: the `story-worker` boots on the `promptPath`
-  `deliver-run.js` wrote for it, stops at Step 2.5 with the branch pushed and
-  returns a hand-off; the dispatching `/mandrel-deliver` session runs Step 3
+  `deliver-run.js` wrote for it (its role file carries every worker MUST),
+  stops at Step 2.5 with `story-handoff.js` `ready` and returns a hand-off; the dispatching `/mandrel-deliver` session runs Step 3
   **in its own turn** and **serializes the tail — one close at a time across
   the run**, even though implementation ran in parallel (reference § Step 3).
 
@@ -81,9 +82,12 @@ One branch, one PR to `main`, commits against the inline `acceptance[]` /
 
 ### Step 1a — Bounded acceptance self-eval loop (**required**)
 
-Run the loop and score it with `acceptance-eval.js` — **digest § 4** carries
-the invocation and the proceed / redraft / block contract; per-round mechanics
-live in [`acceptance-self-eval.md`](acceptance-self-eval.md). **`proceed`** →
+Start from the skeleton — `acceptance-eval.js --story <storyId> --init --cwd
+<workCwd>` writes one empty record per `acceptance[]` item and prints the
+change set and verdict owner — fill it, and score it with `acceptance-eval.js`;
+**digest § 4** carries the invocations and the proceed / redraft / block
+contract; per-round mechanics live in
+[`acceptance-self-eval.md`](acceptance-self-eval.md). **`proceed`** →
 Step 2. **`block`** → **do not close**: post a `friction` comment and flip
 `agent::blocked` (reference § Step 1a).
 
@@ -91,23 +95,22 @@ Step 2. **`block`** → **do not close**: post a `friction` comment and flip
 
 The acceptance verdict owner comes from `delivery.routing.ceremonyProfile` and
 nothing else — not the diff, not the dispatch mode, never a planner-authored
-verdict. **Digest § 3** is the incantation (change set once, derive the level
-for review depth, resolve the owner with `ceremony-routing.js`) and the one
-home of the rule; edge cases are reference § Step 2. Hard gates always run in
-Step 3 — nothing here disables them; do **not** pre-run the chain here —
-Step 2.5's credited suite run is the sole exception.
+verdict; `--init` prints it, resolved by `ceremony-routing.js` (**digest § 3** is the rule's one home; edge cases
+are reference § Step 2). Hard gates always run in Step 3 — do **not** pre-run
+the chain here; Step 2.5's credited suite run is the sole exception.
 
-### Step 2.5 — The one credited suite run, the push, then hand off
+### Step 2.5 — `story-handoff.js`, then hand off
 
-After the self-eval loop's last fix commit, run the one credited suite run
-in the worktree — **digest § 5** is its only home and carries the
-invocation. Red → fix, commit, re-run. Then, before the push, seat the
-baseline rows for methods the Story added (`--seat-missing`, digest § 5).
+After the self-eval loop's last fix commit, run the one tail command —
+**digest § 5** is its only home: preflight, base merge, the one credited
+suite run, `--seat-missing`, the push with its remote-ref check, and the held
+review, settling `ready`, `fix-required` (fix, commit, re-run it) or
+`blocked` (it flips `agent::blocked`).
 
-Push `story-<storyId>` to `origin`, confirming the remote ref moved. Then
-(sub-agent dispatch only) return the hand-off — Story id, `workCwd`,
-branch, pushed head SHA, self-eval verdict, `verify[]` evidence — and stop.
-Do not open the PR or compose a terminal envelope.
+On `ready` (sub-agent dispatch only) return the hand-off — its envelope
+(Story id, branch, pushed head SHA, review tally), `workCwd`, self-eval
+verdict, `verify[]` evidence — and stop. Do not open the PR or compose a
+terminal envelope.
 
 ## Step 3 — Close and land (`single-story-close.js`)
 

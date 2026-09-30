@@ -177,9 +177,10 @@ into batches of `cap` and dispatch each batch in its own turn.
 exposes agent dispatch, spawn each ready Story as its own
 `subagent_type: story-worker` sub-agent — it boots on the role-scoped
 [`story-worker`](../../agents/story-worker.md) context (its own system prompt, no
-entry-doc @-closure) carrying the load-bearing delivery MUSTs standalone. The
-sub-agent executes [`deliver-story.md`](deliver-story.md) Steps 0–2.5
-(init → implement → acceptance self-eval → **push**) and stops there; **you**
+entry-doc @-closure) carrying every worker MUST standalone. The sub-agent
+runs init → implement → the skeleton-scored self-eval (`acceptance-eval.js
+--init`, then one scoring call) → the one `story-handoff.js` command, and
+stops at its `ready` envelope with the branch pushed; **you**
 own Step 3, serialized — see `/mandrel-deliver` § Closing what the workers hand back.
 
 **The beat writes the prompt; you pass the file.** Each `ready[]` entry carries
@@ -187,10 +188,12 @@ a `promptPath` under `<tempRoot>/run-<id>/`, and that file is the whole spawn
 payload: the Story id, the `workCwd` conventions, the `docsDigestPath` (null
 when `project.docsContextFiles` is unset), the `checklistPath` — the
 footprint-matched write-time audit checklist built from the Story's declared
-`changes[]` / `references[]`, empty when nothing matched — and the
-**change-set discipline** (derive the change set once with `ceremony-derive.js`
-and hand that one list to the verdict owner; never let a critic re-derive the
-diff). An unmatched checklist costs nothing: the maker-blind close-scope pass
+`changes[]` / `references[]`, null when nothing matched, at the same
+Story-scoped path `single-story-init.js` returns in its envelope — the Story's
+`## Context` and `## References` sections verbatim when present, and the tail
+(`acceptance-eval.js --init`, whose one `files` list goes to the verdict
+owner — never let a critic re-derive the diff — then `story-handoff.js`). It
+names no workflow doc as a mandatory read. An unmatched checklist costs nothing: the maker-blind close-scope pass
 still covers the Story.
 
 **Inline fallback (`roleScopedAgents: false` / no-nesting harness).** When the
@@ -359,10 +362,10 @@ sibling to unblock, and the foreground wait is the cheapest path to `landed`.
 
 ## Preflight (before close) {#preflight}
 
-Digest § 5 states the rule: before the credited suite run, the worker runs
-the configured `project.commands.lint` (falling back to `npm run lint`) and
-`quality-preview.js --changed-since origin/<baseBranch>` in the worktree, and
-fixes and commits every finding. It runs **before** the credited run because a
+Digest § 5 states the rule: `story-handoff.js` runs, before the credited
+suite run, the configured `project.commands.lint` (falling back to
+`npm run lint`) and `quality-preview.js --changed-since origin/<baseBranch>`
+in the worktree; a finding is `fix-required` — fix, commit, re-run it. It runs **before** the credited run because a
 fix commit afterwards would void that run's credit.
 
 - **Why.** Close runs lint and the maintainability half of the preview
@@ -392,22 +395,23 @@ Digest § 5 states the rule and both invocations; this is what surrounds them.
   the project's test script routes through mandrel's own runner, which prints
   the outcome. On any other runner it deposits nothing and prints nothing, so
   silence is never evidence of credit.
-- **Background dispatch.** If the run outruns the host's sync Bash ceiling,
+- **Background dispatch.** If the handoff outruns the host's sync Bash ceiling,
   dispatch it in the **background** — its completion re-invokes you; never
   spawn a task to poll or `sleep`-loop against it
   ([`parallel-tooling.md`](parallel-tooling.md) Rule 2).
 - **Redraft rounds.** Run the scoped projects for the roots you changed plus
   `verify[]`, not the whole suite; only the one run needs credit.
 - **Seating new methods (`--seat-missing`).** Close fails a Story whose own
-  new methods have no baseline row, so after the credited run and before the
-  push the worker runs, in `<workCwd>`, for each enabled gate:
+  new methods have no baseline row, so `story-handoff.js` runs, in
+  `<workCwd>`, for each enabled gate:
   `node .agents/scripts/update-crap-baseline.js --seat-missing` (CRAP) and
   `node .agents/scripts/update-maintainability-baseline.js --seat-missing`
   (MI). Each scores the files changed since the `origin/<baseBranch>`
   merge-base and writes **only** rows whose (path, method) key is absent —
   every existing row stays byte-identical, including rows whose scores moved
   (re-scoring stays close's auto-refresh). It prints `seated: N`; `seated: 0`
-  writes nothing. Commit a change as `chore(baselines): baseline-refresh: …`.
+  writes nothing. The handoff commits a change as `chore(baselines):
+  baseline-refresh: seat rows for new methods (refs #<id>)`.
 - **Seat refusals.** The CRAP seat exits non-zero and writes nothing unless
   the coverage-capture stamp is fresh for the tree **and** method resolution
   over the in-scope files is exactly 100% — a lower rate means the artifact's
@@ -416,13 +420,16 @@ Digest § 5 states the rule and both invocations; this is what surrounds them.
 - **Seat order vs credit.** The capture stamp digests scorable sources only,
   so a baseline-JSON-only seat commit leaves it fresh and the capture credit
   stands. The evidence-gate `test` credit is keyed on the tree, so on that
-  path seat first — MI is static and needs no coverage — then run the suite.
+  path the handoff seats first — MI is static and needs no coverage — then
+  runs the suite.
 
 ## Held review at hand-off {#held-review}
 
 The one home of this rule; the digest and the worker contract point here.
-After the credited run **and** the push, the worker computes the Story-scope
-code review itself, before handing off:
+After the credited run **and** the push, `story-handoff.js` computes the
+Story-scope code review as its last step, skipping it when a deposit already
+matches the diff digest. The same computation stands alone for a manual
+re-run:
 
 ```bash
 node <main-repo>/.agents/scripts/story-review-compute.js --story <storyId> --cwd <workCwd>
@@ -433,10 +440,11 @@ node <main-repo>/.agents/scripts/story-review-compute.js --story <storyId> --cwd
   takes no full-suite lock, and writes
   `temp/orchestration/story-review-<id>.json` beside the terminal envelope,
   keyed on the **diff digest** (sha256 of the exact three-dot diff text). It
-  exits 0 whatever the findings; non-zero means the provider threw — report
-  it in the hand-off; close computes the review itself.
-- **A CRITICAL is the worker's to fix.** Fix, commit, re-run the credited
-  run (the fix commit voided its credit), push, and re-run the compute — the
+  never stops the handoff on a provider throw — the step reports `error`
+  and close computes the review itself.
+- **A CRITICAL is the worker's to fix.** The handoff settles `fix-required`
+  naming the deposit; fix, commit, and re-run the handoff (the fix commit
+  voided the credit, so it re-runs the suite, pushes and re-computes) — the
   acceptance loop's redraft discipline, bounded by
   `delivery.acceptanceEval.maxRounds`. Still CRITICAL at the cap → take the
   blocked path. Anything else goes in the hand-off as the severity tally.
