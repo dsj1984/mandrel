@@ -429,6 +429,11 @@ const REMOTE_REJECTED =
 const REF_BEHIND = /\[rejected\].*\((non-fast-forward|fetch first)\)/;
 const REMOTE_UNREACHABLE =
   /could not resolve host|unable to access|could not read from remote|connection (refused|timed out|reset)|network is unreachable/i;
+const PUSH_FAILURES = [
+  [REMOTE_REJECTED, 'push-rejected'],
+  [REMOTE_UNREACHABLE, 'remote-unreachable'],
+  [REF_BEHIND, 'ref-behind'],
+];
 
 /**
  * A push the remote refused or could not be reached is blocked; a branch
@@ -438,10 +443,34 @@ const REMOTE_UNREACHABLE =
  * @returns {'push-rejected'|'remote-unreachable'|'ref-behind'|null}
  */
 function classifyPushFailure(output) {
-  if (REMOTE_REJECTED.test(output)) return 'push-rejected';
-  if (REMOTE_UNREACHABLE.test(output)) return 'remote-unreachable';
-  if (REF_BEHIND.test(output)) return 'ref-behind';
+  for (const [pattern, reason] of PUSH_FAILURES) {
+    if (pattern.test(output)) return reason;
+  }
   return null;
+}
+
+/**
+ * @param {object} ctx
+ * @param {{ output: string, evidencePath: string|null }} push
+ * @returns {StepResult}
+ */
+function pushFailure(ctx, push) {
+  const reason = classifyPushFailure(push.output);
+  const evidence = { evidencePath: push.evidencePath };
+  if (reason === 'ref-behind') {
+    return fixRequired(
+      'push',
+      `origin/${ctx.branch} has commits HEAD lacks — git fetch origin ${ctx.branch}, git merge origin/${ctx.branch}, re-run`,
+      evidence,
+    );
+  }
+  return reason
+    ? blocked('push', reason, `git push failed (${reason})`, evidence)
+    : fixRequired(
+        'push',
+        'git push failed locally (a pre-push hook?) — fix the cause with a NEW commit, re-run',
+        evidence,
+      );
 }
 
 /** @param {object} ctx @returns {Promise<StepResult>} */
@@ -460,24 +489,7 @@ async function stepPush(ctx) {
     'origin',
     ctx.branch,
   ]);
-  if (push.status !== 0) {
-    const reason = classifyPushFailure(push.output);
-    const evidence = { evidencePath: push.evidencePath };
-    if (reason === 'ref-behind') {
-      return fixRequired(
-        name,
-        `origin/${ctx.branch} has commits HEAD lacks — git fetch origin ${ctx.branch}, git merge origin/${ctx.branch}, re-run`,
-        evidence,
-      );
-    }
-    return reason
-      ? blocked(name, reason, `git push failed (${reason})`, evidence)
-      : fixRequired(
-          name,
-          'git push failed locally (a pre-push hook?) — fix the cause with a NEW commit, re-run',
-          evidence,
-        );
-  }
+  if (push.status !== 0) return pushFailure(ctx, push);
   const after = remoteBranchSha(ctx);
   if (after.sha !== ctx.head) {
     return blocked(
