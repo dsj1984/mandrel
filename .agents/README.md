@@ -510,14 +510,13 @@ ticketing provider is GitHub, resolved by `provider-factory.js` from the
 `orchestration.provider` config key. CLI scripts receive provider
 instances from the SDK surface rather than importing provider
 implementations directly. Execution is Claude-Code-in-session — there is
-no separate adapter abstraction; `manifest-builder.js` synthesizes the
-dispatch record inline and the dispatch manifest (md + structured
-comment) is the cross-runtime contract.
+no separate adapter abstraction; a Story's GitHub labels and structured
+comments are the cross-runtime contract.
 
-The SDK barrel is `scripts/lib/orchestration/index.js`; its exports are
-the source of truth for the public in-process surface. Key families
-include dispatch (`dispatch-engine.js`, `manifest-builder.js`), context
-hydration, planning state, label transitions, Story-close internals,
+There is no SDK barrel: callers import each module directly, with
+`scripts/lib/orchestration/ticketing.js` as the authoritative ticketing SDK.
+Key families include Story resolution and delivery (`single-story-init.js`
+/ `single-story-close.js` internals), planning state, label transitions,
 retro proposals, and structured error capture.
 
 ### GitHub authentication
@@ -615,7 +614,7 @@ and per-kind CLI deletion are tracked in **Epic #1943**.
 
 `schemas/` contains JSON Schema draft 2020-12 contracts consumed by the
 orchestration layer. Each schema describes one structured artefact:
-configuration, runtime reports, dispatch manifests, or persisted state.
+configuration, runtime reports, or persisted state.
 Where a runtime AJV schema also exists, the JSON file is a mirror kept
 in sync by a drift test.
 

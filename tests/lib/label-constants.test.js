@@ -229,3 +229,26 @@ test('every shipped label description fits inside the cap', () => {
     );
   }
 });
+
+// ── Story #5517 — one description per label, matching its runtime meaning ──
+test('a label both taxonomies create carries the repo-wide description', () => {
+  const repoWide = new Map(LABEL_TAXONOMY.map((row) => [row.name, row]));
+  const shared = AUDIT_LABEL_TAXONOMY.filter((row) =>
+    row.name.startsWith('agent::'),
+  );
+  assert.ok(shared.length > 0, 'the audit taxonomy creates an agent:: label');
+  for (const row of shared) {
+    assert.equal(row.description, repoWide.get(row.name)?.description);
+  }
+});
+
+test('agent::review-spec and agent::ready describe planning, not a manifest', () => {
+  const byName = new Map(LABEL_TAXONOMY.map((row) => [row.name, row]));
+  assert.match(
+    byName.get('agent::review-spec').description,
+    /awaiting planning before delivery/,
+  );
+  for (const row of [...LABEL_TAXONOMY, ...AUDIT_LABEL_TAXONOMY]) {
+    assert.doesNotMatch(row.description ?? '', /manifest/i, row.name);
+  }
+});

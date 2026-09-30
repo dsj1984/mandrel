@@ -32,13 +32,12 @@ export const LABEL_TAXONOMY = [
     name: AGENT_LABELS.REVIEW_SPEC,
     color: LABEL_COLORS.AGENT,
     description:
-      'Parking state — Tech Spec exists; awaiting human review before decomposition',
+      'Parking state — awaiting planning before delivery; run /mandrel-plan <id>',
   },
   {
     name: AGENT_LABELS.READY,
     color: LABEL_COLORS.AGENT,
-    description:
-      'Parking state — frozen dispatch manifest exists; awaiting local /mandrel-deliver',
+    description: 'Parking state — planned; awaiting local /mandrel-deliver',
   },
   {
     name: AGENT_LABELS.EXECUTING,
@@ -75,6 +74,17 @@ export const LABEL_TAXONOMY = [
       'Historical operator override for the retired post-plan healthcheck',
   },
 ];
+
+/**
+ * The repo-wide description for `name`, so another taxonomy that creates the
+ * same label carries this one instead of its own copy.
+ *
+ * @param {string} name
+ * @returns {string|undefined}
+ */
+export function labelDescription(name) {
+  return LABEL_TAXONOMY.find((row) => row.name === name)?.description;
+}
 
 /** @type {Array<{ name: string, type: 'single_select', options?: string[] }>} */
 export const PROJECT_FIELD_DEFS = [

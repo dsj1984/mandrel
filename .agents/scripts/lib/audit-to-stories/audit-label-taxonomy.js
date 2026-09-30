@@ -11,6 +11,7 @@ import {
   RISK_LABELS,
   TYPE_LABELS,
 } from '../label-constants.js';
+import { labelDescription } from '../label-taxonomy.js';
 import { AUDIT_LENSES, auditLabelsForFindings } from './audit-lenses.js';
 
 /** A lens absent here falls back to {@link DEFAULT_LENS_META}. */
@@ -106,8 +107,7 @@ const AUDIT_STORY_AXIS_LABELS = Object.freeze([
   {
     name: AGENT_LABELS.READY,
     color: hex(LABEL_COLORS.AGENT),
-    description:
-      'Parking state — frozen dispatch manifest exists; awaiting local /mandrel-deliver',
+    description: labelDescription(AGENT_LABELS.READY),
   },
   {
     name: RISK_LABELS.HIGH,

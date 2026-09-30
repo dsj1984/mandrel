@@ -7,7 +7,7 @@
  */
 
 import { extractEpicIdFromBody, parseBlockedBy } from '../dependency-parser.js';
-import { TYPE_LABELS } from '../label-constants.js';
+import { AGENT_LABELS, TYPE_LABELS } from '../label-constants.js';
 import { buildStoryAdjacency } from '../story-adjacency.js';
 import {
   extractChangePaths,
@@ -83,13 +83,21 @@ export function toStoryRecord(issue, requestedId, { allowUnlabelled } = {}) {
 }
 
 /**
- * Refuse an unplanned Story (audit sweeps file them unlabelled on purpose).
+ * Refuse a Story still awaiting planning (`agent::review-spec`, which the
+ * issue form applies) or an unplanned one (audit sweeps file them unlabelled
+ * on purpose).
  *
  * @param {number} id
  * @param {string[]} labels
  * @param {boolean} [allowUnlabelled]
  */
 function assertDispatchable(id, labels, allowUnlabelled) {
+  if (labels.includes(AGENT_LABELS.REVIEW_SPEC)) {
+    throw new Error(
+      `[resolve-stories] Story #${id} is labelled ${AGENT_LABELS.REVIEW_SPEC}, so it is awaiting ` +
+        `planning before delivery. Run /mandrel-plan ${id} first, which applies agent::ready.`,
+    );
+  }
   if (allowUnlabelled) return;
   if (labels.some((l) => l.startsWith(AGENT_LABEL_PREFIX))) return;
   throw new Error(

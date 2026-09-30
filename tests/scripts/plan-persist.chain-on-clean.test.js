@@ -368,15 +368,20 @@ describe('AC-4: one primary Story, whatever the authoring order (Story #5361)', 
       const consumerId = result.stories.find((s) => s.slug === 'consumer').id;
       assert.notEqual(blockerId, consumerId);
 
-      // The plan comment and the envelope: the dependency-order first Story.
+      // The envelope: the dependency-order first Story.
       assert.equal(result.primaryStoryId, blockerId);
-      const planComment = provider.comments
-        .map((c) => c.body)
-        .find((b) => b.includes('story-plan-state'));
-      assert.match(
-        planComment,
-        new RegExp(`Plan Summary — Story #${blockerId}`),
-      );
+      // Each Story's plan comment heading names that Story, not a sibling
+      // (Story #5517).
+      for (const id of [blockerId, consumerId]) {
+        const planComment = provider.comments.find(
+          (c) => c.issueNumber === id && c.body.includes('story-plan-state'),
+        );
+        assert.ok(planComment, `Story #${id} carries a plan comment`);
+        assert.match(
+          planComment.body,
+          new RegExp(`Plan Summary — Story #${id} is`),
+        );
+      }
 
       // The supersede comment on the unclaimed source id must name it too.
       const supersedeComment = provider.comments.find(

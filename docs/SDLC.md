@@ -333,7 +333,9 @@ Agents update state on GitHub, always through `update-ticket-state.js`:
   `agent::done` flip happens only after the merge is confirmed (in-process
   under close-and-land, or via `single-story-confirm-merge.js` in async
   mode). Issues filed through the `story.yml` form start at
-  `agent::review-spec`. When a `projectNumber` is configured, the Projects v2
+  `agent::review-spec` — awaiting planning — and `/mandrel-deliver` refuses
+  them before dispatch, naming the `/mandrel-plan <id>` remedy that moves
+  them to `agent::ready`. When a `projectNumber` is configured, the Projects v2
   Status column is synced on each transition and re-asserted after merge.
 - **Acceptance/verify**: the agent works the Story's inline `acceptance[]` /
   `verify[]`; `verify[]` output is the evidence the self-eval scores.
@@ -391,10 +393,11 @@ blocker resolution. PR merge is autonomous via armed auto-merge.
    (`--no-auto-merge` per run, or `delivery.ci.autoMerge: "strict"`), and
    becomes a touchpoint when required checks fail and need remediation.
 
-> **Blocked Stories are not pushed to you.** An `agent::blocked` transition
-> rates `low` severity and is not notified on either channel (see
-> [§ Notification system](#notification-system)). Watch the board or the
-> Story's `friction` comment.
+> **Blocked Stories notify you.** A Story or Epic entering `agent::blocked`
+> rates `high` severity: the ticket comment @mentions the operator and the
+> webhook message is prefixed `[Action Required]` under the default
+> allowlists (see [§ Notification system](#notification-system)). The
+> Story's `friction` comment names the decision needed.
 
 ### What triggers `agent::blocked`
 
@@ -492,7 +495,7 @@ the maker's reasoning context:
   surviving 🔴 Critical finding (`--override-review-block <reason>` is the
   audited escape).
 
-The provider chain (default: `native` scoped lint + MI, then an optional
+The provider chain (default: `native` maintainability scoring, then an optional
 low-effort `claude --print` bug review) is owned by
 [`README.md` § Code review providers](../.agents/README.md#code-review-providers-pluggable-chain);
 the walk-through is in [`helpers/code-review.md`](../.agents/workflows/helpers/code-review.md).
@@ -532,9 +535,9 @@ Severity vocabulary:
 
 | Severity | Used for | Webhook prefix |
 | --- | --- | --- |
-| `low` | Every state transition except a Story/Epic reaching `agent::done` — including `agent::blocked`. Suppressed at the emit point. | `[low]` |
+| `low` | Every state transition except a Story/Epic reaching `agent::done` or `agent::blocked`. Suppressed at the emit point. | `[low]` |
 | `medium` | A Story or Epic reaching `agent::done`. | `[medium]` |
-| `high` | Reserved for explicit operator-action `notify()` calls (e.g. the `notify.js` CLI); no state transition emits it. | `[Action Required]` |
+| `high` | A Story or Epic entering `agent::blocked` — the one runtime pause point — plus explicit operator-action `notify()` calls (e.g. the `notify.js` CLI). | `[Action Required]` |
 
 Two optional event allowlists in `github.notifications` filter each channel
 independently (no fallback chain; set an array to `[]` to silence a channel):

@@ -932,7 +932,7 @@
     },
     {
       "path": ".agents/scripts/lib/label-taxonomy.js",
-      "mi": 94.327
+      "mi": 104.511
     },
     {
       "path": ".agents/scripts/lib/Logger.js",
@@ -956,7 +956,7 @@
     },
     {
       "path": ".agents/scripts/lib/notifications/notifier.js",
-      "mi": 111.988
+      "mi": 114.807
     },
     {
       "path": ".agents/scripts/lib/npm-scripts.js",
@@ -1292,7 +1292,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
-      "mi": 95.798
+      "mi": 96.505
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/soft-findings.js",
@@ -1421,10 +1421,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/review-provider-factory.js",
       "mi": 97.359
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/review-providers/scoped-lint.js",
-      "mi": 99.154
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
