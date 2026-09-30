@@ -195,13 +195,7 @@ async function stepPreflight(ctx) {
   return ran(name, 'lint and quality-preview clean');
 }
 
-/**
- * A baseline-only conflict the shared sync resolved is named, not hidden.
- *
- * @param {{ kind: string, resolvedBaselineFiles?: string[] }} sync
- * @param {string} baseBranch
- * @returns {string}
- */
+/** A baseline-only conflict the shared sync resolved is named. */
 function mergedDetail(sync, baseBranch) {
   const resolved = sync.resolvedBaselineFiles ?? [];
   const suffix =

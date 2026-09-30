@@ -95,11 +95,6 @@ function resolveBaselinesToBase(gitSpawn, cwd, baseBranch, files) {
   return steps.every((args) => gitSpawn(cwd, ...args).status === 0);
 }
 
-/**
- * @param {typeof defaultGitSpawn} gitSpawn
- * @param {string} cwd
- * @returns {string[]}
- */
 function unmergedPaths(gitSpawn, cwd) {
   const unmerged = gitSpawn(cwd, 'diff', '--name-only', '--diff-filter=U');
   return (unmerged.stdout ?? '')
@@ -222,12 +217,7 @@ export async function syncBranchFromBase({
   return failedMergeResult(conflictFiles, merge);
 }
 
-/**
- * The merge-commit result for a conflict confined to driver-owned
- * baselines, once resolved to the base; null for any other conflict.
- *
- * @returns {{ synced: true, kind: 'merge-commit', changedPaths: string[], resolvedBaselineFiles: string[] }|null}
- */
+/** The resolved merge-commit result, or null for any other conflict. */
 function resolveBaselineOnlyConflict({
   gitSpawn,
   cwd,
@@ -259,11 +249,6 @@ function resolveBaselineOnlyConflict({
   };
 }
 
-/**
- * @param {string[]} conflictFiles
- * @param {{ stderr?: unknown }} merge
- * @returns {{ synced: false, kind: 'conflict', conflictFiles: string[] }|{ synced: false, kind: 'merge-failed', stderr: string }}
- */
 function failedMergeResult(conflictFiles, merge) {
   if (conflictFiles.length > 0) {
     return { synced: false, kind: 'conflict', conflictFiles };

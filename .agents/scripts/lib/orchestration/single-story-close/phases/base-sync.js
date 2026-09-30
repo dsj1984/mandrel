@@ -91,13 +91,7 @@ export async function runBaseSyncPhase({
   }
 }
 
-/**
- * A handed-back conflict names the files and re-runs close as its next
- * command (`closeNextCommand`, read by the failed-terminal builder).
- *
- * @param {{ storyId: number, syncCwd: string, syncResult: { kind: string, conflictFiles?: string[], stderr?: string }, handedBack: boolean }} args
- * @returns {Error}
- */
+/** A handed-back conflict re-runs close next (`closeNextCommand`). */
 function buildSyncFailureError({ storyId, syncCwd, syncResult, handedBack }) {
   const err = new Error(
     `[single-story-close] Base-sync failed (${syncResult.kind})` +
@@ -110,7 +104,6 @@ function buildSyncFailureError({ storyId, syncCwd, syncResult, handedBack }) {
   return err;
 }
 
-/** @returns {string} */
 function syncFailureDetail({ conflictFiles, stderr }) {
   if (conflictFiles) return `: conflicting files = ${conflictFiles.join(', ')}`;
   return stderr ? `: ${stderr.slice(0, 200)}` : '';
@@ -233,11 +226,7 @@ export async function handleSyncFailure({
   return { handedBack };
 }
 
-/**
- * A handed-back conflict leaves the labels alone; anything else blocks.
- *
- * @param {{ provider: object, storyId: number, handedBack: boolean, progress: (tag: string, msg: string) => void }} args
- */
+/** A handed-back conflict leaves the labels alone; anything else blocks. */
 async function settleSyncFailureLabels({
   provider,
   storyId,
@@ -265,7 +254,6 @@ async function settleSyncFailureLabels({
 const CLOSE_RERUN = (storyId) =>
   `node .agents/scripts/single-story-close.js --story ${storyId}`;
 
-/** @returns {string[]} */
 function commentLede(handedBack, baseBranch) {
   if (handedBack) {
     return [
@@ -280,7 +268,6 @@ function commentLede(handedBack, baseBranch) {
   ];
 }
 
-/** @returns {string[]} */
 function mergeAdvice({ storyId, syncCwd, baseBranch, handedBack }) {
   const lines = [
     '```bash',
@@ -302,7 +289,6 @@ function mergeAdvice({ storyId, syncCwd, baseBranch, handedBack }) {
   ];
 }
 
-/** @returns {string[]} */
 function unconfirmedBaseAdvice({ storyId, storyBranch, baseBranch }) {
   return [
     `⚠️ **No merge advice: \`${baseBranch}\` is unconfirmed.** This close could not`,
@@ -318,7 +304,6 @@ function unconfirmedBaseAdvice({ storyId, storyBranch, baseBranch }) {
   ];
 }
 
-/** @returns {string[]} */
 function failureEvidence(kind, result) {
   const files = result.conflictFiles ?? [];
   if (kind === 'conflict' && files.length > 0) {
