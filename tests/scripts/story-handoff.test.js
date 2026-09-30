@@ -9,7 +9,7 @@
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { rmSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -108,7 +108,8 @@ function commandDouble(world, outputs = {}) {
     git: { status: 0, stdout: '' },
   };
   const run = async (cmd, args) => {
-    const key = cmd === 'node' ? path.basename(args[0]) : cmd;
+    const production = args.includes('--production') ? ' --production' : '';
+    const key = cmd === 'node' ? `${path.basename(args[0])}${production}` : cmd;
     calls.push({ key, cmd, args });
     const out = outputs[key] ?? defaults[key] ?? { status: 0, stdout: '' };
     if (key === 'git' && out.status === 0) world.remote = world.head;
@@ -132,6 +133,7 @@ function harness({
     severity: { critical: 0, high: 0, medium: 1, suggestion: 2 },
   },
   config = configFor(),
+  cwd = '/work',
 } = {}) {
   const runCommand = commandDouble(world, outputs);
   const blocks = [];
@@ -151,8 +153,7 @@ function harness({
     },
     logDir: path.join(tempRoot, 'orchestration'),
   };
-  const run = () =>
-    runStoryHandoff({ storyId: STORY, cwd: '/work', config }, deps);
+  const run = () => runStoryHandoff({ storyId: STORY, cwd, config }, deps);
   return { run, runCommand, blocks, reviews, world, deps };
 }
 
@@ -241,6 +242,130 @@ describe('story-handoff — the happy path (AC-1)', () => {
       'npm',
       'test',
     ]);
+  });
+});
+
+describe('story-handoff — the preflight runs the standalone ratchets (#5528)', () => {
+  const RATCHET_BASELINES = {
+    'check-dead-exports.js': 'dead-exports.json',
+    'check-dead-exports.js --production': 'dead-exports-production.json',
+    'check-arch-cycles.js': 'arch-cycles.json',
+    'check-cyclomatic.js': 'cyclomatic.json',
+  };
+
+  /** A worktree seeded with the named ratchets' committed baselines. */
+  function seededWorktree(keys = Object.keys(RATCHET_BASELINES)) {
+    const cwd = path.join(tempRoot, 'wt');
+    mkdirSync(path.join(cwd, 'baselines'), { recursive: true });
+    for (const key of keys) {
+      writeFileSync(
+        path.join(cwd, 'baselines', RATCHET_BASELINES[key]),
+        '{}',
+        'utf8',
+      );
+    }
+    return cwd;
+  }
+
+  const ratchetCalls = (runCommand) =>
+    spawned(runCommand).filter((k) => k in RATCHET_BASELINES);
+
+  test('every seeded ratchet runs in the worktree after lint and quality-preview', async () => {
+    const h = harness({ cwd: seededWorktree() });
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 0);
+    assert.deepEqual(spawned(h.runCommand).slice(0, 6), [
+      'npm',
+      'quality-preview.js',
+      ...Object.keys(RATCHET_BASELINES),
+    ]);
+    assert.match(envelope.steps[0].detail, /dead-exports-production/);
+  });
+
+  test('a test-only export ends fix-required at preflight with the production evidence, before the suite or the push (AC-1)', async () => {
+    const h = harness({
+      cwd: seededWorktree(),
+      outputs: {
+        'check-dead-exports.js --production': {
+          status: 1,
+          stdout:
+            '+ lib/x.js: onlyForTests\n[dead-exports:production] added=1 removed=0 (gate fail)',
+        },
+      },
+    });
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.equal(envelope.failedStep, 'preflight');
+    assert.match(envelope.evidencePath, /preflight-dead-exports-production/);
+    assert.match(envelope.steps.at(-1).detail, /lib\/x\.js: onlyForTests/);
+    const keys = spawned(h.runCommand);
+    assert.ok(!keys.includes('coverage-capture.js'), 'no credited run');
+    assert.ok(!keys.includes('git'), 'no push');
+  });
+
+  const failing = [
+    [
+      'an added import cycle',
+      'check-arch-cycles.js',
+      '+ a.js -> b.js -> a.js\n[arch-cycles] added=1 removed=0 (gate fail)',
+      /arch-cycles ratchet finding: \+ a\.js -> b\.js -> a\.js/,
+    ],
+    [
+      'a worsened over-ceiling function',
+      'check-cyclomatic.js',
+      '! lib/y.js: worst function c=20 (recorded 14)\n[cyclomatic] ceiling=12 added=0 worsened=1 improved=0 removed=0 (gate fail)',
+      /cyclomatic ratchet finding: ! lib\/y\.js/,
+    ],
+  ];
+  for (const [label, key, stdout, detail] of failing) {
+    test(`${label} is fix-required at preflight with that ratchet's evidence (AC-2)`, async () => {
+      const h = harness({
+        cwd: seededWorktree(),
+        outputs: { [key]: { status: 1, stdout } },
+      });
+      const { envelope, exitCode } = await h.run();
+      assert.equal(exitCode, 2);
+      assert.equal(envelope.failedStep, 'preflight');
+      assert.ok(envelope.evidencePath, 'names the evidence log');
+      assert.match(envelope.steps.at(-1).detail, detail);
+    });
+  }
+
+  test('a `(gate fail)` line is a finding even on exit 0', async () => {
+    const h = harness({
+      cwd: seededWorktree(),
+      outputs: {
+        'check-dead-exports.js': {
+          status: 0,
+          stdout: '[dead-exports] added=1 removed=0 (gate fail)',
+        },
+      },
+    });
+    const { envelope } = await h.run();
+    assert.equal(envelope.failedStep, 'preflight');
+  });
+
+  test('a ratchet whose baseline is absent is not run (AC-3)', async () => {
+    const h = harness({ cwd: seededWorktree(['check-cyclomatic.js']) });
+    await h.run();
+    assert.deepEqual(ratchetCalls(h.runCommand), ['check-cyclomatic.js']);
+    const bare = harness();
+    await bare.run();
+    assert.deepEqual(ratchetCalls(bare.runCommand), []);
+  });
+
+  test('a clean branch reaches ready and an unchanged HEAD skips the ratchets on re-run (AC-3)', async () => {
+    const h = harness({
+      cwd: seededWorktree(),
+      sync: { synced: true, kind: 'noop-already-current' },
+    });
+    const first = await h.run();
+    assert.equal(first.envelope.status, 'ready');
+    h.runCommand.calls.length = 0;
+    const { envelope } = await h.run();
+    assert.equal(envelope.status, 'ready');
+    assert.equal(envelope.steps[0].outcome, 'skipped');
+    assert.deepEqual(ratchetCalls(h.runCommand), []);
   });
 });
 

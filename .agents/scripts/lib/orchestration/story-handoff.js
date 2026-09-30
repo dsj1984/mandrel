@@ -1,7 +1,8 @@
 /**
  * story-handoff.js — the story-worker's whole post-implementation tail as one
- * deterministic sequence: blocking preflight → base merge → the one credited
- * run → baseline seating → push + remote-ref check → held review. It runs
+ * deterministic sequence: blocking preflight (lint, quality-preview, baselined
+ * ratchets) → base merge → the one credited run → baseline seating → push +
+ * remote-ref check → held review. It runs
  * exactly what deliver-digest § 5 and deliver-reference § Held review define,
  * changing nothing close credits or adopts, and settles one envelope:
  *
@@ -68,7 +69,43 @@ const SIGNALS = Object.freeze({
   testRan: /✓ test passed/,
   testFresh: /⏭ test skipped/,
   seated: /seated:\s*(\d+)/,
+  gateFail: /\(gate fail\)/,
+  offending: /^[+!] /,
 });
+
+/**
+ * The shipped standalone ratchets CI's `baselines` job runs after
+ * `check-baselines.js`, each gated on its committed baseline so a consumer
+ * that never seeded one pays nothing.
+ */
+const RATCHETS = Object.freeze([
+  {
+    key: 'dead-exports',
+    script: 'check-dead-exports.js',
+    args: [],
+    baseline: 'baselines/dead-exports.json',
+  },
+  {
+    key: 'dead-exports-production',
+    script: 'check-dead-exports.js',
+    args: ['--production'],
+    baseline: 'baselines/dead-exports-production.json',
+  },
+  {
+    key: 'arch-cycles',
+    script: 'check-arch-cycles.js',
+    args: [],
+    baseline: 'baselines/arch-cycles.json',
+  },
+  {
+    key: 'cyclomatic',
+    script: 'check-cyclomatic.js',
+    args: [],
+    baseline: 'baselines/cyclomatic.json',
+  },
+]);
+
+const MAX_OFFENDING_LINES = 10;
 
 const SEAT_SCRIPTS = Object.freeze({
   crap: 'update-crap-baseline.js',
@@ -161,6 +198,39 @@ function describeSuiteFailure(status) {
   return `red suite (exit ${status}) — fix the failing tests, commit, re-run`;
 }
 
+/**
+ * Run each seeded ratchet in the worktree; the first failure — a non-zero
+ * exit or a `(gate fail)` line — is fix-required with its offending rows.
+ *
+ * @param {object} ctx
+ * @returns {Promise<{ failure: StepResult|null, ran: string[] }>}
+ */
+async function runRatchets(ctx) {
+  const seeded = RATCHETS.filter((r) =>
+    fs.existsSync(path.join(ctx.cwd, r.baseline)),
+  );
+  for (const ratchet of seeded) {
+    const run = await runLogged(ctx, `preflight-${ratchet.key}`, 'node', [
+      path.join(SCRIPTS_DIR, ratchet.script),
+      ...ratchet.args,
+    ]);
+    if (run.status !== 0 || SIGNALS.gateFail.test(run.output)) {
+      const offending = run.output
+        .split(/\r?\n/)
+        .filter((line) => SIGNALS.offending.test(line))
+        .slice(0, MAX_OFFENDING_LINES);
+      const rows = offending.length > 0 ? `: ${offending.join('; ')}` : '';
+      const failure = fixRequired(
+        'preflight',
+        `${ratchet.key} ratchet finding${rows} — fix and commit, then re-run`,
+        { evidencePath: run.evidencePath },
+      );
+      return { failure, ran: [] };
+    }
+  }
+  return { failure: null, ran: seeded.map((r) => r.key) };
+}
+
 /** @param {object} ctx @returns {Promise<StepResult>} */
 async function stepPreflight(ctx) {
   const name = 'preflight';
@@ -191,8 +261,11 @@ async function stepPreflight(ctx) {
       { evidencePath: preview.evidencePath },
     );
   }
+  const ratchets = await runRatchets(ctx);
+  if (ratchets.failure) return ratchets.failure;
   ctx.state.preflightHead = ctx.head;
-  return ran(name, 'lint and quality-preview clean');
+  const also = ratchets.ran.length > 0 ? `, ${ratchets.ran.join(', ')}` : '';
+  return ran(name, `lint, quality-preview${also} clean`);
 }
 
 /** A baseline-only conflict the shared sync resolved is named. */

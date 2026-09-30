@@ -27,7 +27,7 @@ rule produces it:
 
 `inline` removes the `story-worker` boot and nothing else — not the verdict
 owner, which the profile alone names (§ 3). **`subagent` and `inline` run the same engine**: same gates,
-same PR to `main`, same terminal envelope, byte for byte.
+same PR to `main`, same terminal envelope.
 
 ## 2. Engine invariants
 
@@ -41,7 +41,7 @@ same PR to `main`, same terminal envelope, byte for byte.
 | Paths | Prefix every path-based tool with the absolute `workCwd` — `cd` does not scope them |
 
 **Land or block.** Worktree → `story-<id>` → close-validation → PR to `main` is
-the only sanctioned landing. A silent local build is not a delivery.
+the only sanctioned landing.
 
 ## 3. Change set — computed once, handed to everyone
 
@@ -92,7 +92,7 @@ it in **one** gate call. Bounded by `delivery.acceptanceEval.maxRounds`
 The gate reads the Story's `acceptance[]` count itself and rejects, **before**
 scoring and consuming no round, a verdict whose `criteria[]` length differs
 or with an unfilled record (naming its indices). A second gate call in the
-same round spends a round for nothing and races the Story-scoped ledger.
+same round wastes it and races the Story ledger.
 
 `proceed` → § 5. `redraft` → one more round inside the cap. `block` → **do
 not close**: post a `friction` comment and flip `agent::blocked`.
@@ -114,9 +114,9 @@ or an unregistered merge driver: it flips `agent::blocked` and posts
 close, opens a PR or writes another label. Outruns the sync Bash ceiling → run
 it in the **background**.
 
-1. **Preflight — blocking.** `project.commands.lint` and
-   `quality-preview.js --changed-since origin/<baseBranch>`
-   ([`deliver-reference.md`](deliver-reference.md) § Preflight).
+1. **Preflight — blocking.** `project.commands.lint`,
+   `quality-preview.js --changed-since origin/<baseBranch>`, then each
+   baselined standalone ratchet (dead exports, cycles, cyclomatic) — [`deliver-reference.md`](deliver-reference.md) § Preflight.
 2. **Base merge.** It will merge `origin/<baseBranch>` into the Story branch
    **first**, ahead of this run and the push: close's base-sync then no-ops,
    so neither stamp goes stale.
