@@ -106,12 +106,13 @@ which performs this section in order and prints one envelope:
 `node <main-repo>/.agents/scripts/story-handoff.js --story <storyId> --cwd <workCwd>`
 
 `ready` (exit 0) → hand off. `fix-required` (exit 2) → a finding, a red or
-deferred suite, a base-merge conflict (files named) or a CRITICAL: fix,
-commit, re-run; labels untouched. `blocked` (exit 1) → only a rejected push,
-an unreachable remote, an unconfirmed base branch or an unregistered merge
-driver: it flips `agent::blocked` and posts `friction`. A re-run skips every
-step still valid for HEAD. It never runs close, opens a PR or writes another
-label. Outruns the sync Bash ceiling → dispatch it in the **background**.
+deferred suite, a base-merge conflict (files named), a non-fast-forward push
+or a CRITICAL: fix, commit, re-run; labels untouched. `blocked` (exit 1) →
+only a remote-refused push, an unreachable remote, an unconfirmed base branch
+or an unregistered merge driver: it flips `agent::blocked` and posts
+`friction`. A re-run skips every step still valid for HEAD. It never runs
+close, opens a PR or writes another label. Outruns the sync Bash ceiling →
+dispatch it in the **background**.
 
 1. **Preflight — blocking.** `project.commands.lint` and
    `quality-preview.js --changed-since origin/<baseBranch>`

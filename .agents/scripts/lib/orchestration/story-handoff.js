@@ -414,20 +414,23 @@ function remoteBranchSha(ctx) {
 
 const PORCELAIN_STATUS = /^\s*[ MADRCUT?!]{1,2}\s/;
 
-const REMOTE_REJECTED = /\[(remote )?rejected\]/;
+const REMOTE_REJECTED =
+  /\[remote rejected\]|permission to \S+ denied|returned error: 403/i;
+const REF_BEHIND = /\[rejected\].*\((non-fast-forward|fetch first)\)/;
 const REMOTE_UNREACHABLE =
   /could not resolve host|unable to access|could not read from remote|connection (refused|timed out|reset)|network is unreachable/i;
 
 /**
- * A push the remote rejected or could not be reached is blocked; anything
- * else (a failing `pre-push` hook) is the worker's to fix.
+ * A push the remote refused or could not be reached is blocked; a branch
+ * behind its remote or a failing `pre-push` hook is the worker's to fix.
  *
  * @param {string} output
- * @returns {'push-rejected'|'remote-unreachable'|null}
+ * @returns {'push-rejected'|'remote-unreachable'|'ref-behind'|null}
  */
 function classifyPushFailure(output) {
   if (REMOTE_REJECTED.test(output)) return 'push-rejected';
   if (REMOTE_UNREACHABLE.test(output)) return 'remote-unreachable';
+  if (REF_BEHIND.test(output)) return 'ref-behind';
   return null;
 }
 
@@ -449,14 +452,20 @@ async function stepPush(ctx) {
   ]);
   if (push.status !== 0) {
     const reason = classifyPushFailure(push.output);
+    const evidence = { evidencePath: push.evidencePath };
+    if (reason === 'ref-behind') {
+      return fixRequired(
+        name,
+        `origin/${ctx.branch} has commits HEAD lacks — git fetch origin ${ctx.branch}, git merge origin/${ctx.branch}, re-run`,
+        evidence,
+      );
+    }
     return reason
-      ? blocked(name, reason, `git push failed (${reason})`, {
-          evidencePath: push.evidencePath,
-        })
+      ? blocked(name, reason, `git push failed (${reason})`, evidence)
       : fixRequired(
           name,
           'git push failed locally (a pre-push hook?) — fix the cause with a NEW commit, re-run',
-          { evidencePath: push.evidencePath },
+          evidence,
         );
   }
   const after = remoteBranchSha(ctx);
