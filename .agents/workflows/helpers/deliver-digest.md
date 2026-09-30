@@ -111,8 +111,8 @@ or a CRITICAL: fix, commit, re-run; labels untouched. `blocked` (exit 1) →
 only a remote-refused push, an unreachable remote, an unconfirmed base branch
 or an unregistered merge driver: it flips `agent::blocked` and posts
 `friction`. A re-run skips every step still valid for HEAD. It never runs
-close, opens a PR or writes another label. Outruns the sync Bash ceiling →
-dispatch it in the **background**.
+close, opens a PR or writes another label. Outruns the sync Bash ceiling → run
+it in the **background**.
 
 1. **Preflight — blocking.** `project.commands.lint` and
    `quality-preview.js --changed-since origin/<baseBranch>`
