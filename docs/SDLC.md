@@ -45,8 +45,9 @@ From zero to shipped:
    (the [light path](#the-unplanned-light-path)). Every Story runs through the
    one delivery engine,
    [`helpers/deliver-story`](../.agents/workflows/helpers/deliver-story.md):
-   init → implement → acceptance self-eval → credited suite run → push →
-   close (gates, PR, review, auto-merge) → merge confirm.
+   init → implement → acceptance self-eval → `story-handoff.js` (credited
+   suite run, push, held review) → close (gates, PR, review, auto-merge) →
+   merge confirm.
 
 That is the whole happy path. Everything below is **detail** you only need
 when the default flow requires adjustment. It **links** to
@@ -264,19 +265,37 @@ filter metadata, never a resolution input — Stories deliver across plan runs.
 
 1. **Init** — `single-story-init.js` validates the Story, takes the
    assignee lease, seeds `story-<id>` from the base branch, materializes the
-   worktree at `.worktrees/story-<id>/`, and flips `agent::executing`.
+   worktree at `.worktrees/story-<id>/`, flips `agent::executing`, and
+   returns the footprint-matched write-time `checklistPath` (null when no
+   lens matches) — the same path a multi-Story dispatch prompt names.
 2. **Implement** — against the Story's `## Spec`, `acceptance[]` and
    `verify[]`, walking any `## Slicing` rows as intra-session commit
    checkpoints.
-3. **Acceptance self-eval (required)** — one verdict file covering every
-   `acceptance[]` item, scored by `acceptance-eval.js` with `verify[]` output
-   as evidence, bounded by `delivery.acceptanceEval.maxRounds` (default 2):
-   `proceed` / `redraft` / `block`.
-4. **Preflight, credited run, push** — lint + `quality-preview.js`, merge the
-   base branch in, then the **one** credited full-suite run
-   (`coverage-capture.js` or `evidence-gate.js`), seat baseline rows for new
-   methods, push `story-<id>`, and compute the held Story-scope review
-   (`story-review-compute.js`), fixing any CRITICAL before hand-off.
+3. **Acceptance self-eval (required)** — `acceptance-eval.js --init` writes
+   the verdict skeleton (one empty record per `acceptance[]` item) and prints
+   the change set and verdict owner; the owner fills it with `verify[]`
+   output as evidence and `acceptance-eval.js` scores it once per round,
+   bounded by `delivery.acceptanceEval.maxRounds` (default 2):
+   `proceed` / `redraft` / `block`. An unfilled record is refused without
+   consuming a round.
+4. **Handoff** — one command, `story-handoff.js --story <id> --cwd
+   <workCwd>`, runs the worker's whole tail: lint + `quality-preview.js`,
+   merge the base branch in, the **one** credited full-suite run
+   (`coverage-capture.js` or `evidence-gate.js`, by the same predicate close
+   registers `coverage-capture` on), seat baseline rows for new methods, push
+   `story-<id>` and confirm the remote ref, and compute the held Story-scope
+   review. It prints one envelope with one of three statuses:
+   - **`ready`** (exit 0) — hand off to close.
+   - **`fix-required`** (exit 2) — a preflight finding, a red or deferred
+     suite, a base-merge conflict or a CRITICAL review, with its evidence
+     path; labels untouched. The worker fixes, commits and re-runs it.
+   - **`blocked`** (exit 1) — a rejected push, an unreachable remote, an
+     unconfirmed base branch or an unregistered baseline merge driver; it
+     flips `agent::blocked` and posts a `friction` comment.
+
+   A re-run on an unchanged tree spawns no suite, seats nothing, pushes
+   nothing and recomputes no review. The handoff never runs close, opens a
+   PR or writes any other label — the Story stays `agent::executing`.
 5. **Close** (`single-story-close.js`, the orchestrator's step) — close-
    validation gates → base-sync → push → PR → Story-scope code review →
    arm auto-merge → `agent::closing` → worktree reap → merge wait →
@@ -318,7 +337,7 @@ execution while keeping every gate
    An escalation emits an `escalated` terminal envelope naming the
    `/mandrel-plan` command that owns the work, and creates nothing.
 2. Otherwise it authors a minimal **receipt Story**, and the work runs through
-   the same `single-story-init.js` engine, self-eval and credited run.
+   the same `single-story-init.js` engine, self-eval and `story-handoff.js`.
 3. A **diff backstop** (`deliver-light.js --backstop`) re-checks the actual
    committed diff against `LIGHT_DIFF_CEILINGS`; an over-ceiling or sensitive
    diff blocks and recycles the receipt into `/mandrel-plan <storyId>`.
@@ -484,10 +503,11 @@ lens concern is verified at one tier, chosen by the lens's `scope` field in
 The Story-scope review runs over `origin/<baseBranch>...story-<id>`, outside
 the maker's reasoning context:
 
-- **Held review at hand-off.** After the credited run and push, the worker
-  runs `story-review-compute.js`, which computes the configured provider
-  chain's review, posts nothing, and deposits the result keyed on the diff
-  digest. A CRITICAL is the worker's to fix before hand-off
+- **Held review at hand-off.** After the credited run and push,
+  `story-handoff.js` computes the configured provider chain's review (what
+  `story-review-compute.js` runs standalone), posts nothing, and deposits the
+  result keyed on the diff digest. A CRITICAL settles `fix-required` — the
+  worker's to fix before hand-off
   ([`deliver-reference.md` § Held review](../.agents/workflows/helpers/deliver-reference.md)).
 - **Close adopts, else computes.** When the deposit's digest matches the
   diff at close, close posts it after PR-open; otherwise it reviews itself.
@@ -578,8 +598,8 @@ Each Story runs in `.worktrees/story-<id>/`, which checks out the **Story
 branch's own copy** of every tracked file — including `.agentrc.json` — and
 receives a **copy** of `.agentrc.local.json` at provisioning. Edits made in
 the main checkout afterwards do **not** reach worker-side scripts that run
-against the worktree (`ceremony-derive.js`, `coverage-capture.js`,
-`evidence-gate.js`). Close runs with `--cwd <main-repo>` and reads the main
+against the worktree (`acceptance-eval.js --init`, `story-handoff.js`,
+`coverage-capture.js`, `evidence-gate.js`). Close runs with `--cwd <main-repo>` and reads the main
 checkout's config directly. When tuning knobs mid-Story:
 
 1. **Prefer an env-var override** when the knob exposes one (timeouts,

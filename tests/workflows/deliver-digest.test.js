@@ -466,3 +466,13 @@ describe('the worker tail is the skeleton self-eval, then story-handoff.js (#551
     }
   });
 });
+
+describe('docs/SDLC.md describes the handoff (#5518, AC-9)', () => {
+  it('names story-handoff.js and its three statuses', () => {
+    const doc = read(path.join(REPO_ROOT, 'docs', 'SDLC.md'));
+    assertDocMentions(doc, /story-handoff\.js --story <id> --cwd\s+<workCwd>/);
+    for (const status of ['ready', 'fix-required', 'blocked']) {
+      assertDocMentions(doc, new RegExp(`\\*\\*\`${status}\`\\*\\*`));
+    }
+  });
+});
