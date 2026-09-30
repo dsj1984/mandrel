@@ -1028,6 +1028,52 @@ describe('the agent::* dispatch guard', () => {
     }
   });
 
+  it('refuses an agent::review-spec Story, naming the id and the /mandrel-plan remedy', () => {
+    for (const opts of [{}, { allowUnlabelled: true }]) {
+      assert.throws(
+        () =>
+          toStoryRecord(
+            issue({
+              labels: [{ name: 'type::story' }, { name: 'agent::review-spec' }],
+            }),
+            101,
+            opts,
+          ),
+        (err) => {
+          assert.match(
+            err.message,
+            /Story #101 is labelled agent::review-spec/,
+          );
+          assert.match(err.message, /\/mandrel-plan 101/);
+          return true;
+        },
+      );
+    }
+  });
+
+  it('the CLI refuses an agent::review-spec Story before dispatch', async () => {
+    const pending = {
+      number: 101,
+      title: 'Filed from the issue form',
+      body: storyBody(),
+      labels: [{ name: 'type::story' }, { name: 'agent::review-spec' }],
+      state: 'open',
+    };
+    const written = [];
+    await assert.rejects(
+      runResolveStories(
+        { ids: '101', native: false },
+        {
+          provider: { getTicket: async () => pending },
+          config: { github: { owner: 'o', repo: 'r' } },
+          stdout: { write: (s) => written.push(s) },
+        },
+      ),
+      /\/mandrel-plan 101/,
+    );
+    assert.deepEqual(written, []);
+  });
+
   it('the CLI exits non-zero for an unlabelled Story and proceeds with the flag', async () => {
     const unlabelled = {
       number: 101,
