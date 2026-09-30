@@ -297,13 +297,14 @@ async function stepCreditedRun(ctx) {
  * @returns {string[]} paths `git status` reports changed.
  */
 function changedPaths(git, cwd) {
-  // Untrimmed: porcelain's first column may be a space (` M path`).
   const res = git(cwd, 'status', '--porcelain');
   if (res?.status !== 0) return [];
+  // The runner trims stdout, so the first ` M path` line may arrive as
+  // `M path`: strip the status code by shape, never by a fixed width.
   return (res.stdout ?? '')
     .toString()
     .split(/\r?\n/)
-    .map((line) => line.slice(3).trim())
+    .map((line) => line.replace(PORCELAIN_STATUS, '').trim())
     .filter((p) => p.length > 0);
 }
 
@@ -410,6 +411,8 @@ function remoteBranchSha(ctx) {
   const sha = (res.stdout ?? '').toString().trim().split(/\s+/)[0] || null;
   return { reachable: true, sha, detail: '' };
 }
+
+const PORCELAIN_STATUS = /^\s*[ MADRCUT?!]{1,2}\s/;
 
 const REMOTE_REJECTED = /\[(remote )?rejected\]/;
 const REMOTE_UNREACHABLE =

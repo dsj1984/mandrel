@@ -64,7 +64,13 @@ function gitWorld({
     if (verb === 'branch') return ok(`${branch}\n`);
     if (verb === 'rev-parse') return ok(`${world.head}\n`);
     if (verb === 'status') {
-      return ok(world.dirty.map((p) => ` M ${p}`).join('\n'));
+      // gitSpawn trims stdout, so the first ` M` line loses its space.
+      return ok(
+        world.dirty
+          .map((p) => ` M ${p}`)
+          .join('\n')
+          .trim(),
+      );
     }
     if (verb === 'ls-remote') {
       if (lsRemoteFails) {
@@ -207,6 +213,8 @@ describe('story-handoff — the happy path (AC-1)', () => {
       },
     });
     const { envelope } = await h.run();
+    const add = h.world.calls.find((c) => c[0] === 'add');
+    assert.deepEqual(add, ['add', '--', 'baselines/crap.json']);
     const commit = h.world.calls.find((c) => c[0] === 'commit');
     assert.match(
       commit.join(' '),
