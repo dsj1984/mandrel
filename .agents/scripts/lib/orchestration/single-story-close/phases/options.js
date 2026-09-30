@@ -111,10 +111,26 @@ export function assertNoRetiredFlags(argv) {
 }
 
 /**
+ * The story-worker figures close records in its telemetry. Raw: validated
+ * best-effort by the runner, never thrown on.
+ *
+ * @param {unknown} tokensParam
+ * @param {unknown} modelParam
+ * @param {{ workerTokens?: unknown, workerModel?: unknown }} parsed
+ * @returns {{ workerTokens: unknown, workerModel: unknown }}
+ */
+function workerFlags(tokensParam, modelParam, parsed) {
+  return {
+    workerTokens: resolveFlag(tokensParam, parsed.workerTokens),
+    workerModel: resolveFlag(modelParam, parsed.workerModel),
+  };
+}
+
+/**
  * Returns raw wait-for-merge intent; the runner resolves it after the arm.
  *
- * @param {{ storyIdParam, cwdParam, skipValidationParam, skipSyncParam, noAutoMergeParam, waitForMergeParam, noWaitForMergeParam, maxWaitSecondsParam, mergeWatchModeParam, rerunAdvisoryParam, overrideReviewBlockParam, workerTokensParam }} raw
- * @returns {{ storyId, cwd, skipValidation, skipSync, noAutoMerge, waitForMergeExplicit, noWaitForMerge, maxWaitSeconds, mergeWatchMode, rerunAdvisory, overrideReviewBlock, workerTokens }}
+ * @param {{ storyIdParam, cwdParam, skipValidationParam, skipSyncParam, noAutoMergeParam, waitForMergeParam, noWaitForMergeParam, maxWaitSecondsParam, mergeWatchModeParam, rerunAdvisoryParam, overrideReviewBlockParam, workerTokensParam, workerModelParam }} raw
+ * @returns {{ storyId, cwd, skipValidation, skipSync, noAutoMerge, waitForMergeExplicit, noWaitForMerge, maxWaitSeconds, mergeWatchMode, rerunAdvisory, overrideReviewBlock, workerTokens, workerModel }}
  */
 export function parseCloseOptions({
   storyIdParam,
@@ -129,6 +145,7 @@ export function parseCloseOptions({
   rerunAdvisoryParam,
   overrideReviewBlockParam,
   workerTokensParam,
+  workerModelParam,
 }) {
   // An injecting caller never reads argv (the host's flags are not its
   // business), so `parsed` stays empty and the retired-flag guard is skipped.
@@ -169,7 +186,6 @@ export function parseCloseOptions({
     overrideReviewBlock: parseOverrideReviewBlock(
       resolveFlag(overrideReviewBlockParam, parsed.overrideReviewBlock),
     ),
-    // Raw: validated best-effort by the runner, never thrown on.
-    workerTokens: resolveFlag(workerTokensParam, parsed.workerTokens),
+    ...workerFlags(workerTokensParam, workerModelParam, parsed),
   };
 }

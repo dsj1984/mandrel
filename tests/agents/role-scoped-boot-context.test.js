@@ -473,3 +473,23 @@ describe('acceptance-critic boot context produces a valid maker-blind verdict (d
     );
   });
 });
+
+// Story #5519 — each role declares a model default the host dispatches on.
+describe('every projected role file carries its model default (#5519)', () => {
+  const DEFAULTS = {
+    'story-worker.md': 'inherit',
+    'acceptance-critic.md': 'inherit',
+    'plan-critic.md': 'inherit',
+    'auditor.md': 'sonnet',
+  };
+  for (const [file, model] of Object.entries(DEFAULTS)) {
+    test(`${file} declares model: ${model} in its frontmatter`, () => {
+      const body = materialized.get(file);
+      assert.ok(body, `${file} was not materialized`);
+      const frontmatter = body.match(/^---\n([\s\S]*?)\n---\n/);
+      assert.ok(frontmatter, `${file} lost its frontmatter`);
+      const models = frontmatter[1].match(/^model:.*$/gm) ?? [];
+      assert.deepEqual(models, [`model: ${model}`]);
+    });
+  }
+});

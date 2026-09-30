@@ -36,6 +36,7 @@ import {
   runDeliverRunBeat,
 } from '../../.agents/scripts/deliver-run.js';
 import { buildStoryChecklist } from '../../.agents/scripts/lib/audit-suite/index.js';
+import { resolveStoryWorkerModel } from '../../.agents/scripts/lib/config/agent-models.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import { classifyStory } from '../../.agents/scripts/lib/wave-runner/ready-set.js';
 
@@ -465,6 +466,95 @@ describe('deliver-run — the close command (AC-4)', () => {
     assert.strictEqual(
       command,
       `node ${closeScript} --story 5 --cwd /main/repo`,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Story #5519 — the close command carries the dispatched worker's model
+// ---------------------------------------------------------------------------
+
+describe('deliver-run — the worker model on the close command (#5519)', () => {
+  it('a multi-Story close carries the resolved story-worker model', async () => {
+    const { envelope } = await beat(
+      { nodes: [node(101), node(102)] },
+      { stories: '101,102', handoff: ['101'] },
+    );
+    // The temp checkout ships no role file, so the default resolves to inherit.
+    assert.match(envelope.close[0].command, /--worker-model inherit$/);
+  });
+
+  it('a one-Story run stays inline: no --worker-model', async () => {
+    const { envelope } = await beat(
+      { nodes: [node(101)] },
+      { stories: '101', handoff: ['101'] },
+    );
+    assert.doesNotMatch(envelope.close[0].command, /--worker-model/);
+  });
+
+  it('renders the model only beside the multi-Story async flag', () => {
+    const multi = renderCloseCommand({
+      storyId: 5,
+      mainRepo: '/r',
+      storyCount: 2,
+      workerModel: 'sonnet',
+    });
+    assert.match(multi, /--merge-watch-mode async --worker-model sonnet$/);
+    const single = renderCloseCommand({
+      storyId: 5,
+      mainRepo: '/r',
+      storyCount: 1,
+      workerModel: 'sonnet',
+    });
+    assert.doesNotMatch(single, /--worker-model/);
+  });
+
+  it('resolves the shipped role default, then an agentModels override', () => {
+    assert.equal(
+      resolveStoryWorkerModel({ config: CONFIG, mainRepo: REPO_ROOT }),
+      'inherit',
+    );
+    const overridden = {
+      ...CONFIG,
+      delivery: { routing: { agentModels: { 'story-worker': 'sonnet' } } },
+    };
+    assert.equal(
+      resolveStoryWorkerModel({ config: overridden, mainRepo: REPO_ROOT }),
+      'sonnet',
+    );
+  });
+
+  it('reads the frontmatter default and falls to inherit without a role file', () => {
+    const readFileFn = () =>
+      '---\nname: story-worker\nmodel: haiku\n---\nbody\n';
+    assert.equal(
+      resolveStoryWorkerModel(
+        { config: CONFIG, mainRepo: '/r' },
+        { readFileFn },
+      ),
+      'haiku',
+    );
+    const missing = () => {
+      throw Object.assign(new Error('nope'), { code: 'ENOENT' });
+    };
+    assert.equal(
+      resolveStoryWorkerModel(
+        { config: CONFIG, mainRepo: '/r' },
+        { readFileFn: missing },
+      ),
+      'inherit',
+    );
+  });
+
+  it('a general-purpose fallback worker runs on the session model', () => {
+    const readFileFn = () => '---\nmodel: haiku\n---\n';
+    const config = {
+      ...CONFIG,
+      delivery: { routing: { roleScopedAgents: false } },
+    };
+    assert.equal(
+      resolveStoryWorkerModel({ config, mainRepo: '/r' }, { readFileFn }),
+      'inherit',
     );
   });
 });

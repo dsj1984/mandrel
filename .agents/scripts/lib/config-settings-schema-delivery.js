@@ -3,6 +3,10 @@
 // delivery.* sub-schemas of AGENTRC_SCHEMA.
 
 import { ACCEPTANCE_EVAL_DEFAULTS } from './config/acceptance-eval.js';
+import {
+  AGENT_MODEL_PATTERN,
+  ROLE_AGENT_NAMES,
+} from './config/agent-models.js';
 import { CI_DELIVERY_DEFAULTS } from './config/ci.js';
 import { DELIVERY_ROUTING_DEFAULTS } from './config/delivery-routing.js';
 import { DEFAULT_CODE_REVIEW } from './config/runners.js';
@@ -188,6 +192,14 @@ const ROUTING_SCHEMA = {
       description:
         'When true (default), single-story-close lands through merge in one close. Opt out per-run with --no-wait-merge.',
       default: DELIVERY_ROUTING_DEFAULTS.closeAndLand,
+    },
+    agentModels: {
+      type: 'object',
+      description:
+        'Per-role model override for the role-scoped agents, keyed by role name (`story-worker`, `acceptance-critic`, `plan-critic`, `auditor`; any other key is a validation error). A value is a Claude Code agent model: an alias (`sonnet`, `opus`, `haiku`), a full model id, or `inherit` (the operator\'s session model). It replaces the role file\'s `model:` frontmatter default when `sync-claude-agents` projects `.claude/agents/<role>.md`. Defaults: story-worker, acceptance-critic and plan-critic `inherit` (a checker runs at least as strong as the maker); auditor `sonnet` (a read-heavy lens sweep). Nothing here selects or changes the operator\'s session model, and a one-Story run stays inline in that session. A multi-Story close records the dispatched story-worker\'s resolved model as `telemetry.workerModel` beside `workerTokens` (null for an inline close), so opting workers down, e.g. `{ "story-worker": "sonnet" }`, is decided from measured outcomes.',
+      propertyNames: { enum: [...ROLE_AGENT_NAMES] },
+      additionalProperties: { type: 'string', pattern: AGENT_MODEL_PATTERN },
+      default: {},
     },
   },
   additionalProperties: false,

@@ -1,4 +1,5 @@
 import { parseArgs } from 'node:util';
+import { AGENT_MODEL_PATTERN } from './config/agent-models.js';
 
 /**
  * Positive integer with an optional leading `#`; `null` when invalid.
@@ -158,6 +159,25 @@ export function parseWorkerTokens(value) {
 }
 
 /**
+ * Best-effort, like {@link parseWorkerTokens}, except that absence is the
+ * normal inline case and carries no warning.
+ *
+ * @param {unknown} value
+ * @returns {{ model: string|null, warning: string|null }}
+ */
+export function parseWorkerModel(value) {
+  if (value == null) return { model: null, warning: null };
+  const raw = String(value).trim();
+  if (new RegExp(AGENT_MODEL_PATTERN).test(raw)) {
+    return { model: raw, warning: null };
+  }
+  return {
+    model: null,
+    warning: `--worker-model must be an agent model value (got ${JSON.stringify(value)}); telemetry.workerModel records null.`,
+  };
+}
+
+/**
  * Throws when a validating flag parser rejects a value; error handlers use
  * {@link parseSprintArgsTolerant} instead of re-calling this.
  *
@@ -189,6 +209,7 @@ export function parseSprintArgs(
       'rerun-advisory': { type: 'string' },
       'override-review-block': { type: 'string' },
       'worker-tokens': { type: 'string' },
+      'worker-model': { type: 'string' },
       executor: { type: 'string' },
       cwd: { type: 'string' },
       'recut-of': { type: 'string' },
@@ -220,6 +241,7 @@ export function parseSprintArgs(
       ? tolerantOverrideReviewBlock(values['override-review-block'])
       : parseOverrideReviewBlock(values['override-review-block']),
     workerTokens: values['worker-tokens'],
+    workerModel: values['worker-model'],
     executor: values.executor ?? null,
     cwd:
       (typeof values.cwd === 'string' && values.cwd.trim()) ||

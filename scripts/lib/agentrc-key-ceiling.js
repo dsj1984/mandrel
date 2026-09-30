@@ -22,7 +22,7 @@
  * The landed leaf-key count. Raise it only in a change that also records why
  * the new key earns its place (docs/decisions.md).
  */
-const AGENTRC_LEAF_KEY_CEILING = 131;
+const AGENTRC_LEAF_KEY_CEILING = 132;
 
 /**
  * Composition branches a JSON-Schema node may carry.

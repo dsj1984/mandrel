@@ -17,10 +17,14 @@
  *                              [--rerun-advisory <n>]
  *                              [--override-review-block <reason>]
  *                              [--worker-tokens <n>]
+ *                              [--worker-model <model>]
  *
  * `--worker-tokens <n>` is the story-worker's host-reported token total,
  * recorded best-effort in the close result's `telemetry` (absent or invalid →
  * `null` plus a warning; never a change of status or exit code).
+ * `--worker-model <model>` is the dispatched story-worker's resolved model,
+ * which deliver-run renders on a multi-Story close (`telemetry.workerModel`;
+ * an inline close omits it and records `null`).
  * `--override-review-block <reason>` is the audited escape past a code-review
  * CRITICAL blocker (instead of a hand-merge with no record).
  * `--merge-watch-mode async` is passed per close by the orchestrator, the only
@@ -137,6 +141,10 @@ runAsCli(import.meta.url, main, {
       [
         '--worker-tokens <n>',
         'The story-worker’s host-reported total tokens, recorded in the close result’s `telemetry.workerTokens`. Best-effort: an absent or non-integer value records null with a warning and never changes the status or exit code.',
+      ],
+      [
+        '--worker-model <model>',
+        'The dispatched story-worker’s resolved model, recorded in the close result’s `telemetry.workerModel` beside `workerTokens`. deliver-run renders it on every close of a multi-Story run; an inline close omits it and records null. Best-effort: an invalid value records null with a warning and never changes the status or exit code.',
       ],
     ],
     notes: [

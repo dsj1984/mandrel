@@ -12,6 +12,7 @@ import { Logger } from '../../Logger.js';
 import {
   emitReviewBlockedFriction,
   recordCloseTelemetry,
+  resolveWorkerModel,
   resolveWorkerTokens,
 } from '../../observability/close-telemetry.js';
 import { emitTerminalFriction } from '../../observability/runtime-friction.js';
@@ -95,6 +96,9 @@ function createPhaseTimer(nowMs = Date.now) {
 
 const UNTIMED = Object.freeze({ stamp() {} });
 
+/** No worker figures: an inline close, or an ending before they resolve. */
+const NO_WORKER = Object.freeze({ workerTokens: null, workerModel: null });
+
 /**
  * The single terminal writer: the retry signal, the result summary (with its
  * `telemetry`), the envelope callers parse, and terminal friction — so no
@@ -106,10 +110,10 @@ async function emitTerminal({
   result,
   config,
   phaseTimer = UNTIMED,
-  workerTokens = null,
+  worker = NO_WORKER,
 }) {
   phaseTimer.stamp(terminal);
-  await recordCloseTelemetry({ terminal, result, config, workerTokens });
+  await recordCloseTelemetry({ terminal, result, config, ...worker });
   if (result) {
     emitTerseResult({
       label: 'STORY CLOSE RESULT',
@@ -146,7 +150,7 @@ async function alreadyClosedResult(
   storyId,
   stateReason = null,
   config,
-  workerTokens = null,
+  worker = NO_WORKER,
 ) {
   if (stateReason === 'not_planned') {
     progress(
@@ -166,7 +170,7 @@ async function alreadyClosedResult(
       nextCommand: null,
       elapsedSeconds: 0,
     });
-    await emitTerminal({ terminal, result, config, workerTokens });
+    await emitTerminal({ terminal, result, config, worker });
     return { success: false, result, terminal };
   }
 
@@ -179,7 +183,7 @@ async function alreadyClosedResult(
     nextCommand: null,
     elapsedSeconds: 0,
   });
-  await emitTerminal({ terminal, result, config, workerTokens });
+  await emitTerminal({ terminal, result, config, worker });
   return { success: true, result, terminal };
 }
 
@@ -202,7 +206,7 @@ async function preflightBlockedResult({
   preflight,
   config,
   startedAtMs,
-  workerTokens = null,
+  worker = NO_WORKER,
 }) {
   const result = noopResult(storyId, `graphql-preflight-${preflight.verdict}`);
   const terminal = buildTerminalEnvelope({
@@ -217,7 +221,7 @@ async function preflightBlockedResult({
     nextCommand: NEXT_COMMANDS.close(storyId),
     elapsedSeconds: elapsedSecondsSince(startedAtMs),
   });
-  await emitTerminal({ terminal, result, config, workerTokens });
+  await emitTerminal({ terminal, result, config, worker });
   return { success: false, result, terminal };
 }
 
@@ -589,6 +593,7 @@ export async function runSingleStoryClose({
   rerunAdvisory: rerunAdvisoryParam,
   overrideReviewBlock: overrideReviewBlockParam,
   workerTokens: workerTokensParam,
+  workerModel: workerModelParam,
   ...injected
 } = {}) {
   const options = parseCloseOptions({
@@ -604,10 +609,11 @@ export async function runSingleStoryClose({
     rerunAdvisoryParam,
     overrideReviewBlockParam,
     workerTokensParam,
+    workerModelParam,
   });
   if (!options.storyId) {
     throw new Error(
-      'Usage: node single-story-close.js --story <STORY_ID> [--cwd <main-repo>] [--skip-validation] [--skip-sync] [--no-auto-merge] [--wait-merge|--no-wait-merge] [--max-wait-seconds <n>] [--merge-watch-mode <sync|async>] [--rerun-advisory <n>] [--override-review-block <reason>] [--worker-tokens <n>]',
+      'Usage: node single-story-close.js --story <STORY_ID> [--cwd <main-repo>] [--skip-validation] [--skip-sync] [--no-auto-merge] [--wait-merge|--no-wait-merge] [--max-wait-seconds <n>] [--merge-watch-mode <sync|async>] [--rerun-advisory <n>] [--override-review-block <reason>] [--worker-tokens <n>] [--worker-model <model>]',
     );
   }
 
@@ -754,7 +760,7 @@ async function finishWithMergeWait(prCtx, deps) {
     result,
     config: prCtx.config,
     phaseTimer: prCtx.phaseTimer,
-    workerTokens: prCtx.workerTokens,
+    worker: prCtx.worker,
   });
   reportWaitTerminal(terminal, { storyId: prCtx.storyId, prUrl: prCtx.prUrl });
   return { success: terminal.status === 'landed', result, terminal };
@@ -809,7 +815,7 @@ async function finishWithoutMergeWait(prCtx, waitForMergeReason) {
     result,
     config: prCtx.config,
     phaseTimer: prCtx.phaseTimer,
-    workerTokens: prCtx.workerTokens,
+    worker: prCtx.worker,
   });
   progress(
     'DONE',
@@ -828,14 +834,14 @@ async function finishWithoutMergeWait(prCtx, waitForMergeReason) {
  */
 async function finishDeferred(
   lockWait,
-  { config, startedAtMs, phaseTimer, workerTokens, ...ids },
+  { config, startedAtMs, phaseTimer, worker, ...ids },
 ) {
   const { result, terminal, note } = lockWaitPending({
     ...ids,
     lockWait,
     elapsedSeconds: elapsedSecondsSince(startedAtMs),
   });
-  await emitTerminal({ terminal, result, config, phaseTimer, workerTokens });
+  await emitTerminal({ terminal, result, config, phaseTimer, worker });
   progress('PENDING', note);
   return { success: false, result, terminal };
 }
@@ -878,7 +884,7 @@ async function loadStoryPhase(ctx, deps) {
     ctx.storyId,
     ctx.story.stateReason,
     deps.config,
-    ctx.workerTokens,
+    ctx.worker,
   );
 }
 
@@ -898,7 +904,7 @@ async function graphqlPreflightPhase(ctx, deps) {
     preflight,
     config: deps.config,
     startedAtMs: ctx.startedAtMs,
-    workerTokens: ctx.workerTokens,
+    worker: ctx.worker,
   });
 }
 
@@ -937,7 +943,7 @@ async function prePushPhase(ctx, deps) {
     config: deps.config,
     startedAtMs: ctx.startedAtMs,
     phaseTimer: ctx.phaseTimer,
-    workerTokens: ctx.workerTokens,
+    worker: ctx.worker,
   });
 }
 
@@ -1028,7 +1034,7 @@ async function finishPhase(ctx, deps) {
     config: deps.config,
     startedAtMs: ctx.startedAtMs,
     phaseTimer: ctx.phaseTimer,
-    workerTokens: ctx.workerTokens,
+    worker: ctx.worker,
     lockWait: ctx.prePush.lockWait,
     suiteTimings: ctx.prePush.suiteTimings,
     gates: closeEnvelopeGates(
@@ -1074,7 +1080,10 @@ async function runClosePipeline(run, deps) {
     ...run,
     storyId: run.options.storyId,
     storyBranch: getStoryBranch(run.options.storyId),
-    workerTokens: resolveWorkerTokens(run.options.workerTokens),
+    worker: {
+      workerTokens: resolveWorkerTokens(run.options.workerTokens),
+      workerModel: resolveWorkerModel(run.options.workerModel),
+    },
   };
   for (const phase of CLOSE_PIPELINE) {
     const ending = await phase(ctx, deps);

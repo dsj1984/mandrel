@@ -136,8 +136,8 @@
     },
     {
       "path": ".agents/scripts/deliver-run.js",
-      "lines": 98.37,
-      "branches": 72.28,
+      "lines": 98.44,
+      "branches": 72.55,
       "functions": 100
     },
     {
@@ -790,8 +790,8 @@
     },
     {
       "path": ".agents/scripts/lib/cli-args.js",
-      "lines": 97.49,
-      "branches": 90.06,
+      "lines": 97.83,
+      "branches": 92.31,
       "functions": 100
     },
     {
@@ -898,6 +898,12 @@
     },
     {
       "path": ".agents/scripts/lib/config/acceptance-eval.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/config/agent-models.js",
       "lines": 100,
       "branches": 100,
       "functions": 100
@@ -1474,8 +1480,8 @@
     },
     {
       "path": ".agents/scripts/lib/observability/close-telemetry.js",
-      "lines": 98.48,
-      "branches": 86.67,
+      "lines": 98.55,
+      "branches": 87.18,
       "functions": 100
     },
     {
@@ -3220,8 +3226,8 @@
     },
     {
       "path": ".agents/scripts/sync-claude-agents.js",
-      "lines": 93.28,
-      "branches": 73.68,
+      "lines": 94.07,
+      "branches": 79.17,
       "functions": 100
     },
     {

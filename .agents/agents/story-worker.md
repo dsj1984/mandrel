@@ -5,6 +5,7 @@ description: >-
   system prompt (no entry-doc / instructions.md closure). Carries the
   load-bearing delivery MUSTs standalone. Dispatched by helpers/deliver-story
   when delivery.routing.roleScopedAgents is enabled (the default).
+model: inherit
 ---
 
 <!--

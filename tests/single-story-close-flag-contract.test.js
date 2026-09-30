@@ -94,6 +94,7 @@ const FLAG_TO_OPTION = Object.freeze({
   '--rerun-advisory': 'rerunAdvisory',
   '--override-review-block': 'overrideReviewBlock',
   '--worker-tokens': 'workerTokens',
+  '--worker-model': 'workerModel',
 });
 
 /** Answered by `runAsCli` before `main`, so no pipeline option backs it. */

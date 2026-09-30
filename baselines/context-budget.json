@@ -187,19 +187,19 @@
     "files": [
       {
         "path": ".agents/agents/acceptance-critic.md",
-        "bytes": 6805
+        "bytes": 6820
       },
       {
         "path": ".agents/agents/auditor.md",
-        "bytes": 7815
+        "bytes": 7829
       },
       {
         "path": ".agents/agents/plan-critic.md",
-        "bytes": 4882
+        "bytes": 4897
       },
       {
         "path": ".agents/agents/story-worker.md",
-        "bytes": 7960
+        "bytes": 7945
       }
     ]
   },

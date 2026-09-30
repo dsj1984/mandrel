@@ -8,6 +8,7 @@ description: >-
   transcript. Dispatched on an operator-requested plan-critics.js verdict
   when delivery.routing.roleScopedAgents is enabled (the default).
 effort: medium
+model: inherit
 ---
 
 <!--

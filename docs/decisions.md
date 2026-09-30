@@ -336,6 +336,15 @@ the coverage capture, the close-validation full-suite gate and the full-suite
 lock-wait budget read. The strip migration no longer lists it, so an upgrade
 keeps a value a consumer set.
 
+**Raised to 132 (2026-09-30, Story #5519)** for
+`delivery.routing.agentModels`, a role name → agent model map that overrides
+the `model:` default each role file declares when `sync-claude-agents`
+projects `.claude/agents/`. It is one open map (it counts once however many
+roles a consumer sets), its keys are validated against the four shipped role
+names, and it is the only per-project lever for moving a role such as the
+story-worker onto a cheaper model once close's `workerModel` telemetry shows
+the outcome holds. No existing key displaces it.
+
 ### Consequences
 
 - A tuning value is changed by editing the constant and shipping a release,
