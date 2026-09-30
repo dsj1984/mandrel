@@ -1,25 +1,27 @@
 # Software Development Life Cycle (SDLC) Workflow
 
 Mandrel uses **Story-centric GitHub orchestration** — GitHub Issues,
-Labels, and Projects V2 are the Single Source of Truth. Plans persist as
-`type::story` tickets ordered by `depends_on` edges;
-each Story is delivered on its own `story-<id>` branch and reaches `main`
-through its own PR.
+Labels, and Projects V2 are the Single Source of Truth. Planned work
+persists as `type::story` tickets, optionally ordered by `depends_on`
+edges; each Story is delivered on its own `story-<id>` branch and reaches
+`main` through its own PR.
 
-An Epic may still exist as an **optional untyped human umbrella issue**
-(the only shipped issue form is `.github/ISSUE_TEMPLATE/story.yml`), and
-**delivery and planning orchestration are Story-only**: there is no Epic
-wave loop, no `epic/<id>` integration branch, no `epic.yaml` reconciler,
-and any ticket that still carries an `Epic: #N` footer is **refused** by
-`/mandrel-deliver` (close it or re-plan it as a v2 Story). `type::epic`
-exists as a **container only** — a grouping ticket with no execution
-payload, expanded to its children at delivery (ADR `20260905-5139`).
+**Execution is Story-only.** The Story is the one executable ticket: it
+carries its folded Tech Spec in `## Spec` and its binding contract as
+`acceptance[]` / `verify[]`. `type::epic` exists as a **container only** —
+a goal plus a child checklist, no `agent::*` label, never delivered itself
+(ADR `20260905-5139`). `/mandrel-plan` can adopt or create one (Gate #3),
+`/mandrel-deliver <epicId>` expands it to its open children, and every close
+rolls the container's status up from its children. Linkage runs
+parent→child only. There is no Epic wave loop, no `epic/<id>` integration
+branch, and a ticket still carrying a v1 `Epic: #N` footer is **refused** by
+`/mandrel-deliver` (see [§ Troubleshooting](#epic-n-refusal)).
 
-The framework is **Claude Code-first**: `.claude/`, hooks, skills, and
-the slash-command surface lean in on Claude Code as the reference
-runtime, and the dispatcher (`.agents/scripts/`) treats the dispatch
-manifest (md + structured comment) as the cross-runtime contract. See
-ADR 20260512-coupling-stance in [`../docs/decisions.md`](decisions.md).
+The framework is **Claude Code-first**: `.claude/`, hooks, skills, role-scoped
+agents, and the slash-command surface lean in on Claude Code as the reference
+runtime (ADR `20260512-coupling-stance` in [`decisions.md`](decisions.md)).
+Workflows are projected into `.claude/commands/` by `sync-claude-commands.js`;
+role contexts under `.agents/agents/` are projected into `.claude/agents/`.
 
 ---
 
@@ -27,100 +29,80 @@ ADR 20260512-coupling-stance in [`../docs/decisions.md`](decisions.md).
 
 From zero to shipped:
 
-1. **Plan the work.** Run [`/mandrel-plan`](../.agents/workflows/mandrel-plan.md) in your agentic IDE.
-   The framework authors **one Story by default** (folded Tech Spec in
-   `## Spec`), splitting into N>1 only under the default-single split policy.
-   Three operator modes are the **only** accepted entries — `/mandrel-plan --seed
-   "<text>"` (ideate from chat text), `/mandrel-plan --seed-file <path>` (author from
-   on-disk notes / a plan seed — the [`/audit-to-stories`](../.agents/workflows/audit-to-stories.md)
-   handoff via `--emit-plan-seed`), and `/mandrel-plan --tickets 123[,456…]` (analyze
-   existing issue(s), preferring an N=1 rewrite). `/mandrel-plan` is a **single path**
-   — interrogate → author → persist, bracketed by two HITL gates and a single
-   critic gate — with no Epic/Story router, split-routing verdict, or
-   `deliveryShape`. Duplicate search targets open **Stories**, never Epics. The
-   step-by-step lives in [`mandrel-plan.md`](../.agents/workflows/mandrel-plan.md).
+1. **Plan the work.** Run [`/mandrel-plan`](../.agents/workflows/mandrel-plan.md)
+   and say what you want — there are no operator flags. The workflow derives
+   the mode from what you typed and announces it: prose → **seed**, an existing
+   file → **seed-file**, issue ids → **tickets** (re-plan existing issues,
+   preferring an N=1 rewrite), a delivered Story's id → **amends**, nothing →
+   it asks. It then runs **interrogate → author → persist**, authoring **one
+   Story by default** and splitting into N>1 only under the default-single
+   split policy.
 
-2. **Deliver the Story.** Run [`/mandrel-deliver <storyId>`](../.agents/workflows/mandrel-deliver.md)
-   (or `/mandrel-deliver <a> <b> …` for several). `/mandrel-deliver` takes only Story ids and
-   resolves their dependency graph from live state — body edges union native
-   GitHub `blocked_by` edges, every blocker checked against its real issue
-   state, so a Story whose blocker landed in an earlier plan run is simply
-   ready. `/mandrel-deliver` owns input resolution and dispatch order — the declared
-   `depends_on` edges plus a delivery-time file-overlap guard that withholds
-   two Stories whose footprints would race the same path (see
-   [`architecture.md` § Scheduler safety mechanics](architecture.md));
-   every Story runs through the single v2 delivery engine
-   [`helpers/deliver-story`](../.agents/workflows/helpers/deliver-story.md) —
-   init → implement → acceptance self-eval → ceremony → close → CI watch →
-   confirm-merge — which owns its own per-step detail. For a multi-Story run,
-   `/mandrel-deliver` sequences ready Stories by `depends_on` — plus that footprint
-   guard — and runs the per-run epilogue (audit roster · follow-up roll-up ·
-   sibling coherence) once after the last Story lands.
+2. **Deliver the Story.** Run
+   [`/mandrel-deliver <storyId>`](../.agents/workflows/mandrel-deliver.md). It
+   also takes several ids, an inclusive range (`4712 - 4716`), a container
+   Epic id, or — for genuinely small unplanned work — a plain-language prompt
+   (the [light path](#the-unplanned-light-path)). Every Story runs through the
+   one delivery engine,
+   [`helpers/deliver-story`](../.agents/workflows/helpers/deliver-story.md):
+   init → implement → acceptance self-eval → credited suite run → push →
+   close (gates, PR, review, auto-merge) → merge confirm.
 
-That is the whole happy path. Everything below is **detail** — branching
-conventions, HITL escalation, audit lenses — that you only need when the
-default flow requires adjustment. It intentionally **links** to
-[`mandrel-plan.md`](../.agents/workflows/mandrel-plan.md) and [`mandrel-deliver.md`](../.agents/workflows/mandrel-deliver.md)
-rather than re-documenting the ceremony they own.
+That is the whole happy path. Everything below is **detail** you only need
+when the default flow requires adjustment. It **links** to
+[`mandrel-plan.md`](../.agents/workflows/mandrel-plan.md) and
+[`mandrel-deliver.md`](../.agents/workflows/mandrel-deliver.md) rather than
+re-documenting the ceremony they own.
 
 ## Core Principles
 
-- **Layered state stores with explicit precedence.** Ticket status lives
-  in GitHub Issues and Labels; the lifecycle ledger
-  (`lifecycle.ndjson`) records merge-terminal outcomes for post-hoc
-  attribution; structured comments (`verification-results`, retro) are
-  the operator-visible rollup. The
-  stores, their owners, and their conflict-resolution rules are listed in
-  [§ State stores](#state-stores) — that matrix is the single source of
-  truth for "who owns which write."
+- **GitHub is the state of record.** Ticket lifecycle state lives in GitHub
+  labels; structured comments (`story-plan-state`, `verification-results`,
+  `follow-ups`, `friction`) are the operator-visible record. Local run
+  artifacts under `temp/` are caches and ledgers, never the authority. See
+  [§ State stores](#state-stores).
 - **Provider Abstraction.** Orchestration flows through
   `ITicketingProvider`, an abstract interface with a shipped GitHub
   implementation.
-- **Story-level branching.** All work for a Story lands on the shared
-  `story-<id>` branch. Each Story reaches `main` through its own PR
-  (squash + required checks); there is **no** `epic/<id>` integration
-  branch and **no** `--no-ff` wave merge.
-- **One delivery engine.** `/mandrel-deliver` resolves and sequences a Story set;
-  `helpers/deliver-story` executes each Story identically (trivial or
-  large). Story sub-agents run inside the operator's Claude session via
-  the Agent tool — worktree filesystem isolation is preserved; only the
-  subprocess boundary is gone.
-- **PR is the sole promotion gate.** Delivery ends with a PR open against
-  `main` and (by default) GitHub native auto-merge armed; the workflow
-  itself never executes `git merge` against `main`. Branch protection on
-  `main` enforces required checks before the merge button (auto or
-  manual) fires.
-- **HITL-minimal by default.** Exactly one mandatory operator touchpoint
-  on the happy path — blocker resolution mid-run. PR merge is autonomous
-  via the armed auto-merge; the operator becomes a second touchpoint only
-  when they disarm auto-merge (`--no-auto-merge` / `delivery.ci.autoMerge:
-  "strict"`) or when required checks fail and need remediation.
+- **Story-level branching.** All work for a Story lands on its
+  `story-<id>` branch, seeded from `project.baseBranch` (`main` by default).
+  Each Story reaches the base branch through its own PR (squash + required
+  checks).
+- **One delivery engine.** `/mandrel-deliver` resolves and sequences a Story
+  set; `helpers/deliver-story` executes each Story identically. A one-Story
+  run executes **inline** in the operator's session; a multi-Story run spawns
+  one `story-worker` sub-agent per ready Story (worktree filesystem isolation
+  either way) and closes their hand-offs serially in the orchestrating
+  session.
+- **PR is the sole promotion gate.** Delivery opens a PR against the base
+  branch and (by default) arms GitHub native auto-merge; no workflow runs
+  `git merge` into `main`. Branch protection enforces required checks before
+  the merge fires.
+- **HITL-minimal by default.** On the delivery happy path the only mandatory
+  operator touchpoint is blocker resolution. See
+  [§ HITL model](#hitl-human-in-the-loop-model).
 
 ---
 
 ## State stores
 
-Mandrel writes orchestration state across several distinct stores. Each
-store has one canonical writer and one well-defined idempotency key;
-conflicts are resolved in the **Conflict resolution** column. Run-scoped
-artifacts live under `temp/run-<id>/` (standalone Stories under
-`temp/standalone/stories/story-<id>/`); the `run-<id>` directory naming is
-historical (it predates the Story-centric cutover) but remains the live
-on-disk layout resolved by
+Each store has one canonical writer and a well-defined idempotency key.
+Run-scoped artifacts live under `temp/run-<id>/` (standalone Stories under
+`temp/standalone/stories/story-<id>/`), resolved by
 [`lib/config/temp-paths.js`](../.agents/scripts/lib/config/temp-paths.js).
 
-| State Store | Owner (canonical writer) | Mutation API | Idempotency key | Conflict resolution |
+| State Store | Owner (canonical writer) | Mutation API | Idempotency key | Authority |
 | --- | --- | --- | --- | --- |
-| GitHub labels | `transitionTicketState` via `ticketing.js` | `gh issue edit --add-label / --remove-label`, wrapped in `update-ticket-state.js` | `(ticketId, label-set)` — set-equality before write | Authoritative for current ticket lifecycle state; if a label disagrees with the lifecycle ledger, the **ledger wins on resume** and the label is re-derived. |
-| `verification-results` comment | `lib/orchestration/code-review.js` | `post-structured-comment.js` (upsert by `kind`) | `(storyId, kind='verification-results')` | Authoritative for the Story-scope review findings; critical findings block close. |
-| Lifecycle ledger NDJSON | `appendLedgerEvent` (`lib/orchestration/lifecycle/emit-ledger-event.js`) — a bare `appendFileSync` from the close path; Story #5024 retired the `LedgerWriter` listener that preceded it | Append-only line write to the scope-resolved `lifecycle.ndjson` | `(storyId, event)` — one record per merge-terminal outcome | Records the two merge-terminal outcomes (`merge.unlanded`, `merge.flip-failed`) for post-hoc attribution. Labels remain authoritative for current ticket state. |
-| Validation evidence cache | `evidence-gate.js` | JSON cache file under the run temp tree, keyed by HEAD SHA | `(gate, git rev-parse HEAD)` | Pure cache: a missing entry triggers a re-run; presence is a fast-path skip. Cache eviction is safe. |
-| PR / auto-merge state | `single-story-close.js` (sole authorized caller of `gh pr merge`) | `gh pr merge --auto --squash --delete-branch`; PR open via the close pipeline's `gh pr create` | `(prNumber, head-branch SHA)` — `gh pr list --head` probes before create | GitHub is authoritative for PR + auto-merge arming state; the ledger records the *intent* to arm, GitHub records the outcome. |
-| Worktree cleanup state | `WorktreeManager.reap` (via `single-story-close.js` / `clean-git.js`) | `git worktree remove` + on-disk pending-cleanup JSON under the run temp tree | `(storyId, worktree-path)` | Filesystem is authoritative for "is the worktree gone?"; the pending-cleanup JSON only tracks stale-registry entries needing a follow-up sweep. |
+| GitHub labels | `transitionTicketState` (`lib/orchestration/ticketing/transition.js`, re-exported by `ticketing.js`) | `update-ticket-state.js` | `(ticketId, label-set)` — set-equality before write | **Authoritative** for current ticket lifecycle state. Nothing re-derives labels from a local ledger. |
+| Structured comments | `upsertStructuredComment` (`ticketing.js`); `verification-results` via `lib/orchestration/code-review.js` | Upsert by comment `type` marker | `(ticketId, type)` | Authoritative for the record each type carries (plan summary, review findings, follow-ups, friction). Critical review findings block close. |
+| Lifecycle ledger NDJSON | `appendLedgerEvent` (`lib/orchestration/lifecycle/emit-ledger-event.js`) — a bare `appendFileSync` from the close path | Append-only, schema-validated line write | One record per merge-terminal outcome | Records only `merge.unlanded` and `merge.flip-failed` for post-hoc attribution. See [`LIFECYCLE.md`](LIFECYCLE.md). |
+| Run ledger | `deliver-run.js` | JSON under `temp/run-<id>/` | `(runId, storyId)` — every id the beat hands out | Local dispatch bookkeeping for a multi-Story run; each beat re-probes live GitHub state. |
+| Validation evidence cache | `evidence-gate.js` | JSON cache under the run temp tree | `(storyId, gate, HEAD, tree fingerprint, command-config hash)` | Pure cache: a miss re-runs the gate; eviction is safe. |
+| PR / auto-merge state | `single-story-close.js` (`phases/auto-merge.js`) | `gh pr create`; `gh pr merge --auto --squash --delete-branch` | `(prNumber, head SHA)` — `gh pr list --head` probes before create | GitHub is authoritative for PR and auto-merge state. |
+| Worktree cleanup state | `WorktreeManager.reap` (via `single-story-close` `phases/worktree-reap.js`) | `git worktree remove` + pending-cleanup JSON | `(storyId, worktree-path)` | Filesystem is authoritative; the pending-cleanup JSON only tracks entries needing a follow-up sweep. |
 
-> The `gh pr merge` merge-lockout lint rule keeps the merge command
-> confined to the sanctioned close path; no other production caller may
-> shell it.
+> A lint rule in `scripts/check-lifecycle-lint.js` confines the literal
+> `gh pr merge` command to the sanctioned close path.
 
 ---
 
@@ -134,29 +116,29 @@ graph LR
 
     subgraph Phase0 ["Phase 0: Bootstrap"]
         direction TB
-        Z["👤 npx mandrel init<br/>(install → sync → bootstrap.js → onboarding tail → /mandrel-plan handoff)"]:::manual
+        Z["👤 npx mandrel init<br/>(install → sync → bootstrap.js → onboarding tail)"]:::manual
     end
 
     subgraph Phase1 ["Phase 1: Plan"]
         direction TB
-        A["👤 /mandrel-plan --seed | --seed-file | --tickets"]:::manual
-        B["🤖 interrogate → author → persist"]:::agentic
+        A["👤 /mandrel-plan &lt;what you want&gt;"]:::manual
+        B["🤖 interrogate → author → persist<br/>(Gates #1–#3 stop only when needed)"]:::agentic
         A --> B
-        B -.-> B_Art["📄 type::story issue(s)<br/>(+ depends_on edges)"]:::artifact
+        B -.-> B_Art["📄 type::story issue(s) at agent::ready<br/>(+ depends_on edges, optional type::epic)"]:::artifact
     end
 
     subgraph Phase2 ["Phase 2: Deliver"]
         direction TB
-        E["👤 /mandrel-deliver &lt;storyId&gt; [&lt;storyId&gt;…]"]:::manual
-        F["🤖 deliver-story: story-&lt;id&gt; from main<br/>implement → self-eval → ceremony → close"]:::agentic
-        G["🤖 close-validation → code-review → open PR"]:::agentic
+        E["👤 /mandrel-deliver &lt;ids | epic | prompt&gt;"]:::manual
+        F["🤖 deliver-story: init worktree → implement<br/>→ self-eval → credited run → push"]:::agentic
+        G["🤖 close: gates → base-sync → PR<br/>→ review → arm auto-merge"]:::agentic
         E --> F --> G
         G -.-> G_Art["📄 PR open against main"]:::artifact
     end
 
-    subgraph Phase3 ["Phase 3: PR merge (auto by default)"]
+    subgraph Phase3 ["Phase 3: Merge (auto by default)"]
         direction TB
-        H["🤖 Auto-merge armed → PR lands when checks pass<br/>(👤 operator may disarm to merge manually)"]:::agentic
+        H["🤖 PR lands when checks pass → agent::done<br/>(👤 operator may own the merge instead)"]:::agentic
     end
 
     Z --> A
@@ -170,87 +152,136 @@ graph LR
 
 Before any workflow, bootstrap your project to seed `.agentrc.json`, wire the
 framework system prompt, and create the GitHub labels, Projects V2 fields, and
-(when enabled) main-branch protection the orchestration engine depends on. The
-canonical cold-start path is a single command:
+(when enabled) main-branch protection the orchestration engine depends on:
 
 ```bash
 npx mandrel init
 ```
 
 `mandrel init` installs `mandrel` (when `./.agents/` is absent), materializes
-`./.agents/` via `mandrel sync`, then presents a two-option prompt: **configure
-now** (runs `node .agents/scripts/bootstrap.js`) or **just the files** (re-run
-`mandrel init` later). `--assume-yes` skips the prompt; a non-TTY run without
-it defaults to files-only so GitHub provisioning never runs unattended. The
-`bootstrap.js` pipeline (cold-start repo/board provisioning, the `.agentrc.json`
-seed, the label taxonomy + Projects V2 fields + branch protection) and the
-onboarding tail are documented in
-[`README.md` § Activation](../.agents/README.md#activation). Bootstrap runs once per
-repository and is safe to re-run — existing labels, fields, and
-branch-protection entries are preserved; missing ones are added.
+`./.agents/` via `mandrel sync`, then asks **"Begin interactive setup?
+[Y/n]"**. Yes runs `node .agents/scripts/bootstrap.js`; no leaves just the
+files (re-run `mandrel init` later). `--assume-yes` skips the prompt; a non-TTY
+run without it stays files-only so GitHub provisioning never runs unattended.
+The `bootstrap.js` pipeline and the onboarding tail are documented in
+[`README.md` § Activation](../.agents/README.md#activation). Bootstrap is safe
+to re-run — existing labels, fields, and branch-protection entries are
+preserved; missing ones are added.
 
 ---
 
 ## Phase 1: Planning
 
-Planning is owned end-to-end by [`/mandrel-plan`](../.agents/workflows/mandrel-plan.md). Rather than
-re-document the ceremony here, this section states the contract the rest of
-the SDLC depends on:
+Planning is owned end-to-end by
+[`/mandrel-plan`](../.agents/workflows/mandrel-plan.md); on-demand detail is in
+[`helpers/plan-reference.md`](../.agents/workflows/helpers/plan-reference.md).
+This section states the contract the rest of the SDLC depends on.
 
-- **Entry is text or tickets, never Epic.** The only accepted invocations
-  are `--seed`, `--seed-file`, and `--tickets`. There is no `--idea`, no
-  `--one-pager`, no `--from-notes`, and no positional `/mandrel-plan <epicId>`.
-- **One Story by default.** `/mandrel-plan` authors a single `type::story` issue
-  whose body carries a folded `## Spec` (inline only — never spilled to
-  `docs/`) plus top-level `acceptance[]` / `verify[]`. It splits into N>1
-  siblings (ordered by `depends_on` edges) **only**
-  under the default-single split policy: near-zero overlap or a genuine
-  architectural seam. Coupled work stays one Story and is decomposed inside
-  `## Slicing` as intra-session checkpoints, not sibling tickets.
-- **No Epic-scale ceremony on the default path.** N=1 skips the
-  Epic-era Tech Spec / Acceptance Table / clarity-gate / decompose /
-  reconciler machinery. `plan-persist.js` runs the deterministic gates
-  (ticket validator, split policy, reachability, budget) and — for N>1 —
-  the same-wave collision refusal, so a split whose siblings the dispatcher
-  would serialize anyway is rejected before the first `createIssue`.
-- **Handoff.** Persist creates the Story issue(s) at `agent::ready` and
-  names the delivery command: `/mandrel-deliver <storyId> [<storyId> ...]`.
+- **Modes are derived, not typed.** The operator states intent; the workflow
+  derives `ask` / `seed` / `seed-file` / `tickets` / `amends` and fills in the
+  `plan-context.js` flags (`--seed`, `--seed-file`, `--tickets`, `--amends`).
+  A bare id is resolved from live state: an `agent::done` Story can only be
+  amended, an open unplanned issue only planned. `--yes` is runner-set
+  (cron, `/loop`, headless) and means nobody is at the keyboard.
+- **Interrogate.** `plan-context.js` writes the planning envelope (docs
+  context, the story-author system prompt, duplicate candidates, Epic and
+  dependency candidates, prior feedback, advisory complexity signals) and a
+  `stories.template.json` skeleton to `temp/plan-<slug>/`. Each open unknown
+  is triaged: an **AFK** unknown (research settles it) is resolved before
+  authoring; a **HITL** unknown (a product or architecture call) goes to the
+  operator — or, under `--yes`, becomes a declarative
+  *decision-made-by-default* Key Assumption.
+- **One Story by default.** The author writes `stories.json` in one pass: a
+  body (`## Goal`, optional `## Slicing`, `## Spec`, `## Changes`,
+  `## Non-Goals`) plus top-level `acceptance[]` / `verify[]`. Specs are inline
+  at any length, never spilled to `docs/`. It splits into N>1 siblings
+  **only** on near-zero overlap or a genuine architectural seam; coupled work
+  stays one Story, staged by `## Slicing` checkpoints.
+- **Three conditional gates.**
+  - **Gate #1** stops only for a HITL unknown or a non-empty `duplicates[]`;
+    otherwise the run announces the sharpened intent and one advisory line.
+  - **Gate #2** stops for approval only when the draft has more than one
+    Story, or the operator asked to review.
+  - **Gate #3** offers to adopt an open `type::epic` (any N) or create a new
+    container (N>2). Never unasked.
+  - The maker-blind **pre-mortem critic** (`plan-critics.js`) is not a gate;
+    it runs only when the operator asks for it.
+- **Persist is one command.** `plan-persist.js` runs every deterministic gate
+  write-free first — body parse and plan shape, seed-provenance carriage,
+  the ticket validator, reachability, cross-plan links (`--epic`, `#<id>`
+  blockers), the tickets-mode `supersedes[]` map, and at N>1 the
+  **same-wave collision refusal** (siblings declaring a common path must be
+  merged or ordered by `depends_on`). On a clean list it creates the issues,
+  posts a `story-plan-state` summary, writes `blocked by #<id>` footers and
+  native `blocked_by` edges, and flips every Story to `agent::ready` as the
+  **terminal** step. Warnings are listed but never stop the persist.
+  Tickets mode closes the superseded source issues as `not_planned`.
+- **Handoff.** The `story-plan-state` comment names the delivery command:
+  `/mandrel-deliver <storyId> [<storyId> ...]`.
 
-There is no `epic|story` routing verdict, scorer, schema field, or label
-transition anywhere on the path: sizing is the authoring model's cohesion
-judgment, and the one deterministic split gate is the collision refusal.
+There is no `epic|story` routing verdict, scorer, or token budget anywhere on
+the path: sizing is the authoring model's cohesion judgment, and the one
+deterministic split gate is the collision refusal.
 
 Audit findings enter planning through
 [`/audit-to-stories`](../.agents/workflows/audit-to-stories.md), which groups and
 deduplicates findings and hands off via `--emit-plan-seed` →
-`/mandrel-plan --seed-file <path>`.
+`/mandrel-plan <seed-file>`.
 
 ---
 
 ## Phase 2: Delivery
 
-Delivery is owned end-to-end by [`/mandrel-deliver`](../.agents/workflows/mandrel-deliver.md), which
-delegates every Story to
-[`helpers/deliver-story`](../.agents/workflows/helpers/deliver-story.md). This
-section states the contract; the per-Story step detail (init, implement,
-self-eval, ceremony, close, CI watch, confirm-merge, cleanup) lives in the
-`deliver-story` workflow and its
-[reference](../.agents/workflows/helpers/deliver-story-reference.md).
+Delivery is owned end-to-end by
+[`/mandrel-deliver`](../.agents/workflows/mandrel-deliver.md), which delegates
+every Story to
+[`helpers/deliver-story`](../.agents/workflows/helpers/deliver-story.md). Every
+delivery reads [`helpers/deliver-digest.md`](../.agents/workflows/helpers/deliver-digest.md)
+once; situational detail is in
+[`deliver-reference.md`](../.agents/workflows/helpers/deliver-reference.md) and
+[`deliver-story-reference.md`](../.agents/workflows/helpers/deliver-story-reference.md).
 
 ### Invocation modes
 
-| Mode | Entry point | When to use |
-| --- | --- | --- |
-| **Single Story** | `/mandrel-deliver <storyId>` | Deliver one Story end-to-end; ends with a PR open to `main`. |
-| **Story set** | `/mandrel-deliver <storyId> [<storyId>…]` | Deliver multiple Stories in `depends_on` order (default concurrency **3**), resolved from live state so edges may point at Stories from earlier plan runs; a delivery-time file-overlap guard additionally withholds two Stories whose footprints would race the same path (`delivery.deliverRunner.footprintGuard`). Each lands through its own PR, and the per-run epilogue runs after the set lands. |
-| **Story worker (internal)** | *helper* `helpers/deliver-story <storyId>` | Per-Story engine invoked internally by `/mandrel-deliver`; not an operator slash command. |
+| Invocation | What happens |
+| --- | --- |
+| `/mandrel-deliver` | Lists open `agent::ready` Stories and asks which to deliver. |
+| `/mandrel-deliver <storyId>` | One Story, **inline** in this session — no `story-worker` spawn. |
+| `/mandrel-deliver <a> <b> …` / `<a> - <b>` | A Story set or inclusive range. `deliver-run.js` beats sequence it by the dependency graph discovered from live state (body edges ∪ native `blocked_by`, each blocker checked against its real issue state), dispatching up to `delivery.deliverRunner.concurrencyCap` (default **3**) `story-worker`s at once. A file-overlap guard (`delivery.deliverRunner.footprintGuard`, `enforce` by default) withholds two Stories whose footprints would race the same path. |
+| `/mandrel-deliver <epicId>` | The container Epic's **open** child Stories; mixes with Story ids. |
+| `/mandrel-deliver <prompt>` | Unplanned small work — the [light path](#the-unplanned-light-path). |
 
-The single operator-facing entry point is `/mandrel-deliver`. It performs no
-git/label mutations itself — `deliver-story` owns every script invocation
-per Story. A `type::epic` id expands to its open child Stories before
-resolution. Any ticket that is neither of those two types, or that still
-carries an `Epic: #N` reference, is a hard error naming the ID and the fix
-(close or re-plan as a v2 Story).
+`resolve-stories.js` hard-errors on an id that is neither `type::story` nor
+`type::epic`, an Epic with no open children, a Story still carrying an
+`Epic: #N` footer, a Story with no `agent::*` label (unless
+`--allow-unlabelled`), or edges it cannot read. `plan-run::<id>` labels are
+filter metadata, never a resolution input — Stories deliver across plan runs.
+
+### The per-Story engine
+
+1. **Init** — `single-story-init.js` validates the Story, takes the
+   assignee lease, seeds `story-<id>` from the base branch, materializes the
+   worktree at `.worktrees/story-<id>/`, and flips `agent::executing`.
+2. **Implement** — against the Story's `## Spec`, `acceptance[]` and
+   `verify[]`, walking any `## Slicing` rows as intra-session commit
+   checkpoints.
+3. **Acceptance self-eval (required)** — one verdict file covering every
+   `acceptance[]` item, scored by `acceptance-eval.js` with `verify[]` output
+   as evidence, bounded by `delivery.acceptanceEval.maxRounds` (default 2):
+   `proceed` / `redraft` / `block`.
+4. **Preflight, credited run, push** — lint + `quality-preview.js`, merge the
+   base branch in, then the **one** credited full-suite run
+   (`coverage-capture.js` or `evidence-gate.js`), seat baseline rows for new
+   methods, push `story-<id>`, and compute the held Story-scope review
+   (`story-review-compute.js`), fixing any CRITICAL before hand-off.
+5. **Close** (`single-story-close.js`, the orchestrator's step) — close-
+   validation gates → base-sync → push → PR → Story-scope code review →
+   arm auto-merge → `agent::closing` → worktree reap → merge wait →
+   `agent::done` → post-land tail. It emits one schema-validated terminal
+   envelope: `landed` | `pending` | `blocked` | `failed`.
+6. **Per-run epilogue (N>1)** — `plan-run-epilogue.js` after the last Story
+   lands: the `follow-ups` roll-up and a container-Epic report; the audit
+   roster is opt-in (`--audit-roster`).
 
 ### Branch model (authoritative)
 
@@ -259,107 +290,128 @@ story-<id>  →  PR  →  main (squash + required checks)
 ```
 
 There is no `epic/<id>` integration branch and no `--no-ff` wave merge.
-Dependent Stories land sequentially so each builds on the previous merge to
-`main`.
+Dependent Stories land sequentially so each builds on the previous merge.
 
 ### Ceremony
 
 Who authors a Story's acceptance verdict is selected by
 `delivery.routing.ceremonyProfile` (`minimal` | `standard` | `strict`, default
-`standard`) and by nothing else. The **derived change level** is a separate
-decision and tunes review depth and audit-lens selection. Hard gates (lint /
-test / format / coverage / CRAP / maintainability) always run at close —
-neither decision disables them. The full profile × scope matrix lives in
-[`mandrel-deliver.md` § Ceremony](../.agents/workflows/mandrel-deliver.md).
+`standard`) and by nothing else: `minimal` / `standard` → the implementing
+agent's inline self-eval; `strict` → a fresh maker-blind `acceptance-critic`.
+The **derived change level** (`ceremony-derive.js`: a registered sensitive
+path → `high`) is a separate decision that tunes **review depth** only. Hard
+gates (lint / test / format / coverage / CRAP / maintainability) always run at
+close. The profile table lives in
+[`deliver-reference.md` § Ceremony](../.agents/workflows/helpers/deliver-reference.md).
+
+### The unplanned (light) path
+
+`/mandrel-deliver "<prompt>"` takes genuinely small, unplanned work straight to
+execution while keeping every gate
+([`helpers/deliver-light.md`](../.agents/workflows/helpers/deliver-light.md)):
+
+1. `deliver-light.js` judges the predicted footprint for **risk only** — a
+   sensitive-path class or a migration paired with its consumers escalates.
+   An escalation emits an `escalated` terminal envelope naming the
+   `/mandrel-plan` command that owns the work, and creates nothing.
+2. Otherwise it authors a minimal **receipt Story**, and the work runs through
+   the same `single-story-init.js` engine, self-eval and credited run.
+3. A **diff backstop** (`deliver-light.js --backstop`) re-checks the actual
+   committed diff against `LIGHT_DIFF_CEILINGS`; an over-ceiling or sensitive
+   diff blocks and recycles the receipt into `/mandrel-plan <storyId>`.
+4. Close is the unchanged `single-story-close.js`.
 
 ### State sync
 
-Agents update their state in real time on GitHub, always through
-`update-ticket-state.js`:
+Agents update state on GitHub, always through `update-ticket-state.js`:
 
 - **Labels**: `agent::ready` → `agent::executing` → `agent::closing` →
-  `agent::done`. The `agent::done` flip happens only after
-  `single-story-confirm-merge.js` confirms the PR merged. When a
-  `projectNumber` is configured, the Projects v2 Status column is synced on
-  each transition (and re-asserted after merge to beat the board's late
-  built-in write).
-- **Acceptance/verify**: the agent works the Story's inline `acceptance[]`
-  / `verify[]` arrays; `verify[]` commands are consumed as required
-  evidence by the acceptance self-eval loop.
-- **Friction**: friction is posted as a structured comment on the **Story**
-  (`diagnose-friction.js`), and rolls up into the retro and, for N>1, the
-  per-run follow-up roll-up.
+  `agent::done`, with `agent::blocked` reachable from any live state. The
+  `agent::done` flip happens only after the merge is confirmed (in-process
+  under close-and-land, or via `single-story-confirm-merge.js` in async
+  mode). Issues filed through the `story.yml` form start at
+  `agent::review-spec`. When a `projectNumber` is configured, the Projects v2
+  Status column is synced on each transition and re-asserted after merge.
+- **Acceptance/verify**: the agent works the Story's inline `acceptance[]` /
+  `verify[]`; `verify[]` output is the evidence the self-eval scores.
+- **Friction and follow-ups**: a blocked Story gets a structured `friction`
+  comment naming the decision needed (posted by the blocking agent or by the
+  close phase that stopped — base-sync conflict, review block, wrong-tree
+  guard). Out-of-scope discoveries become a `follow-ups` comment, rolled up
+  per run at the epilogue. `diagnose-friction.js` is separate: it wraps a
+  command and records a local NDJSON signal, never a ticket comment.
 
 ### Cross-clone coordination
 
-Concurrent runs are serialised by **two distinct layers**:
-
-- **Filesystem locks are same-machine-only.** The single-story sweep lock
-  (`sweep-lock.js`) is a single-file rendezvous keyed on a local process
-  PID + mtime TTL. Because a PID is only meaningful on its own machine and
-  `.git/` is never committed, these locks coordinate only the worktrees and
-  sessions on **one** clone.
-- **The assignee-as-lease is the cross-clone layer.** To stop two clones
-  from both *starting* the same Story, `deliver-story` takes an exclusive,
-  time-bounded claim on the ticket via
-  [`ticket-lease.js`](../.agents/scripts/lib/orchestration/ticket-lease.js), riding
-  the ticket's GitHub `assignees` field so a live foreign claim is visible
-  to every clone. The standalone lease **fails closed** on a foreign
-  assignee; `--steal` is the only override. See
+- **The assignee-as-lease is the cross-clone layer.** To stop two clones from
+  both starting the same Story, init takes an exclusive, time-bounded claim
+  via [`ticket-lease.js`](../.agents/scripts/lib/orchestration/ticket-lease.js),
+  riding the ticket's GitHub `assignees` field so a live foreign claim is
+  visible to every clone. It **fails closed** on a foreign assignee; `--steal`
+  is the only override. See
   [`README.md` § Multi-developer coordination](../.agents/README.md#multi-developer-coordination).
+- **Filesystem locks are same-machine-only.** The merged-branch sweep lock
+  (`lib/single-story-sweep/sweep-lock.js`, PID + mtime heartbeat under
+  `temp/`) and the host full-suite lock coordinate only the sessions on one
+  machine.
 
 ### Concurrent close
 
-`single-story-close.js` syncs the Story branch from `origin/main` before
-pushing and opening/locating the PR, so concurrent closes serialize through
-their own worktrees rather than racing one shared branch. The push does not
-retry: a rejected push, or a real content conflict at base-sync, aborts with
-a clear error, leaves the tree clean, and exits non-zero for manual
-resolution.
+`single-story-close.js` merges `origin/<baseBranch>` into the Story branch
+before pushing and opening/locating the PR, so concurrent closes serialize
+through their own worktrees rather than racing one shared branch (the
+orchestrator also runs closes one at a time). The push is a single attempt: a
+rejected push, or a real content conflict at base-sync, aborts the merge,
+leaves the tree clean, flips the Story to `agent::blocked` with a `friction`
+comment, and exits non-zero — resolve it, then re-run `/mandrel-deliver <id>`.
 
 ---
 
 ## HITL (Human-in-the-Loop) model
 
-On the happy path there is exactly **one** mandatory operator touchpoint
-after `/mandrel-deliver` fires (blocker resolution). PR merge is autonomous via
-armed auto-merge; the operator becomes a second touchpoint only by
-exception.
+**Planning** stops only when it needs you: Gate #1 for a HITL unknown or a
+likely duplicate, Gate #2 for a multi-Story split, Gate #3 for an Epic offer.
+**Delivery** has exactly one mandatory touchpoint on the happy path —
+blocker resolution. PR merge is autonomous via armed auto-merge.
 
-1. **Blocker resolution (mandatory when triggered).** If a Story hits an
-   unresolvable condition, it flips to `agent::blocked`, posts a structured
-   friction comment, and fires the notification webhook (fire-and-forget).
-   The operator resolves the underlying issue (a hand-fix commit on the
-   Story branch, or a scope edit on the ticket) and flips the Story back to
-   `agent::executing` to resume.
-2. **PR merge (autonomous by default; operator-gated by exception).** At
-   close, `deliver-story` opens a PR to `main` and arms GitHub native
-   auto-merge. When required checks pass, the PR lands without a second
-   operator visit and the standard label transition flips the Story to
-   `agent::done`. The operator becomes a touchpoint only when they (a)
-   disarm auto-merge (`--no-auto-merge` per run, or
-   `delivery.ci.autoMerge: "strict"`) to inspect checks / the
-   `verification-results` comment / the retro before merging by hand, or
-   (b) checks fail and need remediation.
+1. **Blocker resolution (mandatory when triggered).** A Story that hits an
+   unresolvable condition flips to `agent::blocked` and gets a `friction`
+   comment naming the decision needed. The operator resolves the cause (a
+   hand-fix commit on the Story branch, or a scope edit on the ticket), then
+   runs `node .agents/scripts/deliver-recover.js --story <id>` — it prints the
+   one command that resumes the Story — or re-runs `/mandrel-deliver <id>`.
+   Flipping the label back by hand does nothing on its own; nothing watches
+   for it.
+2. **PR merge (autonomous by default).** Close opens a PR and arms native
+   auto-merge; when required checks pass the PR lands and the Story flips to
+   `agent::done`. The operator owns the merge instead when they disarm it
+   (`--no-auto-merge` per run, or `delivery.ci.autoMerge: "strict"`), and
+   becomes a touchpoint when required checks fail and need remediation.
+
+> **Blocked Stories are not pushed to you.** An `agent::blocked` transition
+> rates `low` severity and is not notified on either channel (see
+> [§ Notification system](#notification-system)). Watch the board or the
+> Story's `friction` comment.
 
 ### What triggers `agent::blocked`
 
-- Unresolvable merge conflict automated strategies cannot reconcile.
+- A base-sync content conflict the automated merge cannot reconcile.
 - Test failures that persist after automated remediation.
 - Ambiguity requiring a product/scope decision the agent cannot make from
   ticket context alone.
 - A destructive action not pre-authorized by the ticket body.
-- External-service failure preventing progress (GitHub API 5xx loop, npm
-  registry down).
-- Acceptance self-eval exhausting its bounded round cap with criteria still
-  unmet.
+- `remoteVerified: false` at init, or an external-service failure preventing
+  progress.
+- Acceptance self-eval exhausting its round cap with criteria still unmet, or
+  a CRITICAL review finding that survives the fix loop.
+- A light-path diff backstop refusal.
 
 ### What is *not* gated at runtime
 
 - `risk::high` Stories **run without pause.** The label is planning/audit
-  metadata and retro telemetry only; the sole runtime pause point is
-  `agent::blocked`. Branch protection on `main` and blocker escalation are
-  the runtime defenses for destructive actions.
+  metadata only; the sole runtime pause point is `agent::blocked`. Branch
+  protection and blocker escalation are the runtime defenses for destructive
+  actions.
 - Individual Story completion — no per-Story approval prompt beyond the PR
   merge gate.
 
@@ -372,12 +424,12 @@ belongs to exactly one tier — **unit**, **contract**, or **e2e /
 acceptance**. The canonical tier definitions, assertion-placement rules,
 and coverage thresholds live in
 [`rules/testing-standards.md`](../.agents/rules/testing-standards.md); Gherkin
-authoring for the acceptance tier is governed by
+authoring for `.feature` files is governed by
 [`rules/gherkin-standards.md`](../.agents/rules/gherkin-standards.md).
 
-Write a Story's acceptance criteria in Gherkin-compatible `Given / When /
-Then` form so the acceptance suite can lift them into executable `.feature`
-files.
+A Story's `acceptance[]` items are **outcomes a PR reviewer can confirm** from
+the diff and the `verify[]` output; mechanical checks (a command exiting 0, a
+scoped test run) belong in `verify[]` as exact commands.
 
 ### QA workflows: explore, assist, and run-harness
 
@@ -386,14 +438,16 @@ reading the consumer's `qa.*` contract through
 [`resolve-qa-contract.js`](../.agents/scripts/lib/qa/resolve-qa-contract.js) (which
 fails loudly when no `qa` block is bound):
 
-- **[`/qa-explore`](../.agents/workflows/qa-explore.md)** — **agent-led** open-ended
+- **[`/qa-explore`](../.agents/workflows/qa-explore.md)** — **agent-led**
   Plan → Capture → Triage sweep of a named surface (read-only capture; every
   state-changing action lands in Triage after operator confirmation).
-- **[`/qa-assist`](../.agents/workflows/qa-assist.md)** — the **human-led** sibling: a
-  single-observation Intake → Enrich → Record loop, same ledger contract.
-- **[`/qa-run`](../.agents/workflows/qa-run.md)** — the **automated complement**: steps
-  a *known* set of Gherkin `.feature` scenarios through a real browser into
-  structured `F#` findings.
+- **[`/qa-assist`](../.agents/workflows/qa-assist.md)** — the **human-led**
+  sibling: a rolling, resumable multi-observation session (Intake → Enrich →
+  Record per observation), ending in Triage & Plan that hands off to
+  `/mandrel-plan`.
+- **[`/qa-run`](../.agents/workflows/qa-run.md)** — the **automated
+  complement**: steps a known set of Gherkin `.feature` scenarios through a
+  real browser into structured `F#` findings.
 
 Consumer adoption steps are in
 [`README.md` § Adopting the QA harness](../.agents/README.md#adopting-the-qa-harness).
@@ -402,114 +456,95 @@ Consumer adoption steps are in
 
 ## Static analysis & audit orchestration
 
-Audit lenses are woven into delivery as a **shift-left, three-tier**
-verification model in which each lens concern is verified at exactly one
-tier, chosen by the lens's `scope` field in `audit-rules.json` (resolved by
-`resolveLensTier`). There is **no** separate Epic-lifecycle-gate delivery
-pass — the tiers below *are* the audit machinery.
+Audit lenses are woven into delivery as a **shift-left** model in which each
+lens concern is verified at one tier, chosen by the lens's `scope` field in
+`audit-rules.json` (resolved by `resolveLensTier`).
 
 | Tier | When | What runs | Blocking? |
 | --- | --- | --- | --- |
-| Tier 1 — write-time | During Story implementation | Footprint-matched **local**-lens authoring checklists threaded into the Story prompt (`checklistPath`) | advisory |
-| Tier 2 — Story-scope | `single-story-close.js` (maker-blind subprocess) | Review pillars over the Story diff, posted as `verification-results` — no lens pass (retired by Story #5416) | blocking on 🔴 |
-| Tier 3 — run closeout | `/mandrel-deliver` per-run epilogue (`plan-run-epilogue.js`, N>1 only) | Cumulative + global lenses (`selectAudits`) over the combined landed tip | blocking |
+| Tier 1 — write-time | During implementation of a **sub-agent-dispatched** Story (multi-Story runs) | Footprint-matched **local**-lens authoring checklists written into the worker's dispatch prompt (`checklistPath`) | advisory |
+| Tier 2 — Story-scope | Worker push (held review) and `single-story-close.js` | Review pillars over the Story diff via the provider chain, posted as `verification-results` — no lens pass (retired by Story #5416) | blocking on 🔴 |
+| Tier 3 — run closeout | `plan-run-epilogue.js --audit-roster` (N>1, **opt-in**) | Cumulative + global lenses (`selectAudits`) over the run's combined landed change, posted as a `plan-run-audit-roster` comment for the host to walk | advisory |
 
-- **`local`** lenses (decidable from a single Story's diff) are verified at
-  Tier 1 and are **not** re-run at run closeout.
-- **`cumulative`** lenses (only decidable across a run's combined diff)
-  and **`global`** lenses (whole-product properties) are verified at Tier 3.
-
-There is no risk-routed lens tier. Story #4542 deleted the risk→lens router:
-it had zero callers while this document claimed it ran inside close. Lens
-selection is change-set-matched (`selectAudits` / `matchLocalLenses`); the
-`sensitivePaths` classes in `audit-rules.json` route review **depth**, not
-lenses.
-
-The run-closeout roster is deliberately **slim**: it excludes every
-local-tier change-set lens so the outermost tier — where a fix is most
-expensive — does not re-verify a concern already covered shift-left.
+- **`local`** lenses are decidable from one Story's diff; **`cumulative`**
+  lenses only across a run's combined diff; **`global`** lenses are
+  whole-product properties. The run-closeout roster excludes local lenses.
+- There is no risk-routed lens tier. The `sensitivePaths` classes in
+  `audit-rules.json` route review **depth**, not lenses.
+- A one-Story (inline) run receives no Tier 1 checklist.
 
 ### Code review
 
-The Story-scope code review runs **outside the maker's context**, inside the
-`single-story-close.js` close subprocess, over `main...story-<id>`: it walks
-the Story diff once (change-set-matched local lenses as review dimensions
-alongside the review pillars) and posts the unified `verification-results`
-comment, halting on surviving 🔴 Critical findings. The provider chain and
-remediation knobs are owned by
+The Story-scope review runs over `origin/<baseBranch>...story-<id>`, outside
+the maker's reasoning context:
+
+- **Held review at hand-off.** After the credited run and push, the worker
+  runs `story-review-compute.js`, which computes the configured provider
+  chain's review, posts nothing, and deposits the result keyed on the diff
+  digest. A CRITICAL is the worker's to fix before hand-off
+  ([`deliver-reference.md` § Held review](../.agents/workflows/helpers/deliver-reference.md)).
+- **Close adopts, else computes.** When the deposit's digest matches the
+  diff at close, close posts it after PR-open; otherwise it reviews itself.
+  Either way it posts one `verification-results` comment and halts on a
+  surviving 🔴 Critical finding (`--override-review-block <reason>` is the
+  audited escape).
+
+The provider chain (default: `native` scoped lint + MI, then an optional
+low-effort `claude --print` bug review) is owned by
 [`README.md` § Code review providers](../.agents/README.md#code-review-providers-pluggable-chain);
 the walk-through is in [`helpers/code-review.md`](../.agents/workflows/helpers/code-review.md).
 
 ### Quality ratchets
 
-The maintainability and CRAP ratchets — and the other baseline gates — run
-through `check-baselines.js` at close-validation, `ci.yml`, and
-`.husky/pre-push`; the `baseline-refresh:` commit-trailer convention governs
-baseline edits. The runbooks (bootstrap, refresh, floor policy) are owned by
-[`quality-gates.md`](quality-gates.md).
+The maintainability, CRAP and other baseline gates run through
+`check-baselines.js` at close-validation and in `ci.yml`; `.husky/pre-push`
+runs the CRAP gate plus `quality-preview.js`. Baseline edits are committed
+with a `baseline-refresh:` commit-subject tag. The runbooks (bootstrap,
+refresh, floor policy) are owned by [`quality-gates.md`](quality-gates.md).
 
 ### Audits → Stories
 
 The standalone `/audit-<dimension>` workflows write
 `audit-<dimension>-results.md` under `temp/audits/`;
-[`/audit-to-stories`](../.agents/workflows/audit-to-stories.md) groups and deduplicates
-those findings and hands off to `/mandrel-plan --seed-file` (or opens standalone
-Stories), closing the loop back into planning.
+[`/audit-to-stories`](../.agents/workflows/audit-to-stories.md) groups and
+deduplicates those findings against existing Issues (by provenance footer)
+and either hands off a plan seed to `/mandrel-plan` or opens standalone
+Stories, closing the loop back into planning.
 
 ---
 
 ## Notification system
 
-Two independent notification surfaces, both living in `.agents/` so they
-ship to consuming projects.
-
-### 1. Unified `notify()` dispatcher
-
-Every notification — whether a manual orchestration milestone (Story
-merged, HITL gate triggered) or an auto-fired ticket-state transition —
-routes through [`notify.js`](../.agents/scripts/notify.js). Two delivery channels:
+Every notification routes through the unified
+[`notify.js`](../.agents/scripts/notify.js) dispatcher — both explicit
+`notify()` calls and auto-fired ticket-state transitions. It lives in
+`.agents/` so it ships to consuming projects.
 
 | Channel | What it does |
 | --- | --- |
-| GitHub comment | Posts to the targeted ticket; @mentions the operator for `medium`/`high`. |
-| Webhook | Fire-and-forget POST to the configured URL (Make.com / Slack / Discord). |
+| GitHub comment | Posts to the targeted ticket; @mentions the operator for `high`, and for `medium` only when `github.notifications.mentionOperator` is true (default false). |
+| Webhook | Fire-and-forget POST to `NOTIFICATION_WEBHOOK_URL` (Make.com / Slack / Discord), HMAC-signed with `X-Signature-256` when `WEBHOOK_SECRET` is set. Failures never block execution. |
 
-Severity vocabulary (`eventSeverity()` derives it for state transitions):
+Severity vocabulary:
 
 | Severity | Used for | Webhook prefix |
 | --- | --- | --- |
-| `low` | Intermediate transitions, audit reports. | `[low]` |
-| `medium` | Operator-visible milestones: Story state transitions, story merged, run complete. | `[medium]` |
-| `high` | Operator must act (HITL gates, Story blockers, autonomous-chain failures); body leads with `🚨 Action Required:`. | `[Action Required]` |
+| `low` | Every state transition except a Story/Epic reaching `agent::done` — including `agent::blocked`. Suppressed at the emit point. | `[low]` |
+| `medium` | A Story or Epic reaching `agent::done`. | `[medium]` |
+| `high` | Reserved for explicit operator-action `notify()` calls (e.g. the `notify.js` CLI); no state transition emits it. | `[Action Required]` |
 
-Two independent event-allowlist knobs in `github.notifications` (both
-mandatory) filter each channel independently — there is no fallback chain:
+Two optional event allowlists in `github.notifications` filter each channel
+independently (no fallback chain; set an array to `[]` to silence a channel):
 
-- `commentEvents` — allowlist for GitHub-ticket comment posting. Default:
-  `["state-transition", "story-merged", "operator-message"]`.
-- `webhookEvents` — allowlist for `NOTIFICATION_WEBHOOK_URL` deliveries.
+- `commentEvents` — default `["state-transition", "story-merged", "operator-message"]`.
+- `webhookEvents` — default `["state-transition", "story-merged", "story-closing", "operator-message", "merge.unlanded", "merge.flip-failed"]`.
 
-`transitionTicketState` suppresses the `notify()` dispatch for low-severity
-transitions so the comment channel sees only the medium-severity
-Story-level events operators expect. To suppress a channel entirely, set
-its array to `[]`.
-
-**Webhook URL resolution.** `NOTIFICATION_WEBHOOK_URL` process env var only
-— loaded from `.env` at the project root. It is **not** sourced from
-`.agentrc.json` or `.mcp.json`.
-
-Because `notify()` is called in-band from the orchestration SDK, it
-captures state changes from `deliver-story`, the per-Story scripts
-(`single-story-init.js`, `single-story-close.js`,
-`single-story-confirm-merge.js`), and any script that routes through
-`transitionTicketState`. It does **not** capture manual label clicks in the
-GitHub UI.
-
-### 2. Blocker / HITL notifications
-
-Fire-and-forget webhooks fire on blocker-escalation events
-(`agent::blocked`) and operator-attention events (PR-open hand-off, run
-cancellation). Webhook failures never block execution.
+The events that exist are `state-transition`, `story-closing` (PR open,
+merge pending), `story-merged`, `operator-message` (the `notify.js` CLI), and
+the two merge-terminal ledger events. **Webhook URL resolution** is the
+`NOTIFICATION_WEBHOOK_URL` process env var only (loaded from `.env`), never
+`.agentrc.json` or `.mcp.json`. Because `notify()` is called in-band, it does
+**not** capture manual label clicks in the GitHub UI.
 
 ---
 
@@ -517,10 +552,9 @@ cancellation). Webhook failures never block execution.
 
 ### Sub-agent CI workflow editing
 
-Sub-agents operating under the framework's default `GITHUB_TOKEN` **cannot
-edit files under `.github/workflows/**`** — the token does not carry the
-`workflows` permission scope, so a push touching a workflow file is
-rejected with:
+A token without GitHub's workflows permission (a GitHub App installation
+token, or a PAT without the `workflow` scope / "Workflows: Read and write")
+**cannot push changes under `.github/workflows/**`**:
 
 > refusing to allow a GitHub App to create or update workflow
 > `.github/workflows/<file>.yml` without `workflows` permission
@@ -529,47 +563,38 @@ This is a hard constraint, not a transient failure. **When a Story plans a
 new CI gate**, route the check through a `package.json` script (add it to
 `npm run lint` / `npm run docs:check` / `npm test`, or wire a new
 `npm run check:<name>` script) so an existing CI job picks it up by
-transitivity. **When a workflow file genuinely must change** (a new job, a
-trigger change, a runner bump), the edit must be made by an operator with
-`Workflows: Read and write` PAT permissions — see
-[`docs/release-operations.md` § One-time PAT setup](https://github.com/dsj1984/mandrel/blob/main/docs/release-operations.md#one-time-pat-setup).
+transitivity. **When a workflow file genuinely must change**, an operator
+whose token carries the workflows permission makes that edit.
 
 ### Worktree config shadow
 
-`helpers/deliver-story` runs inside per-Story worktrees under
-`.worktrees/story-<id>/`. A worktree checks out the **Story branch's own
-copy** of every repo-tracked file — including `.agentrc.json`. **Operator
-edits made in the main checkout do NOT propagate to an already-active
-worktree.** Symptom: you bump a runtime knob in `<main-repo>/.agentrc.json`,
-re-run `single-story-close.js --cwd <worktree>`, and the script still uses
-the old value. When tuning knobs mid-Story:
+Each Story runs in `.worktrees/story-<id>/`, which checks out the **Story
+branch's own copy** of every tracked file — including `.agentrc.json` — and
+receives a **copy** of `.agentrc.local.json` at provisioning. Edits made in
+the main checkout afterwards do **not** reach worker-side scripts that run
+against the worktree (`ceremony-derive.js`, `coverage-capture.js`,
+`evidence-gate.js`). Close runs with `--cwd <main-repo>` and reads the main
+checkout's config directly. When tuning knobs mid-Story:
 
 1. **Prefer an env-var override** when the knob exposes one (timeouts,
-   `AGENT_LOG_LEVEL`, concurrency caps) — env vars are read from your shell,
-   bypassing worktree shadow entirely.
-2. **Edit the file inside the worktree** (`.worktrees/story-<id>/.agentrc.json`)
-   so the script sees the bump on its next read.
-3. **Use `.agentrc.local.json`** for per-machine tuning you never commit
-   (see
-   [`configuration.md`](../.agents/docs/configuration.md#per-machine-local-overrides)) —
-   place it inside the worktree, or invoke the script with
-   `--cwd <main-repo>` so the resolver reads the main checkout's override.
-
-Editing the main checkout's `.agentrc.json` only affects **the next**
-`single-story-init.js` invocation, because new Story branches fork from
-`main`'s current tip.
+   `AGENT_LOG_LEVEL`, concurrency caps) — env vars bypass the shadow.
+2. **Edit the file inside the worktree** (`.worktrees/story-<id>/.agentrc.json`
+   or its `.agentrc.local.json`) so the next worker-side read sees it.
+3. Put per-machine tuning you never commit in `.agentrc.local.json` (see
+   [`configuration.md`](../.agents/docs/configuration.md#per-machine-local-overrides))
+   **before** init, so it is copied into new worktrees.
 
 ### `Epic: #N` refusal
 
-`/mandrel-deliver` refuses any ticket that still carries an `Epic: #N` footer,
-or that is neither `type::story` nor `type::epic`. This is expected — v2 has
-no Epic *delivery* path. Close the ticket or re-plan the work as a v2 Story
-via `/mandrel-plan --tickets <id>`.
+`/mandrel-deliver` refuses any ticket that still carries an `Epic: #N`
+footer, or that is neither `type::story` nor `type::epic`. This is expected —
+v2 has no Epic *delivery* path. Close the ticket or re-plan it as a v2 Story
+with `/mandrel-plan <id>` (tickets mode).
 
 The container Epic (ADR `20260905-5139`) does **not** soften this. Its linkage
 runs parent→child only — the Epic body lists its children, and no Story body
-ever gains a footer pointing back — so a ticket carrying `Epic: #N` is still a
-v1 ticket and still refused.
+gains a footer pointing back — so a ticket carrying `Epic: #N` is still a v1
+ticket and still refused.
 
 ---
 
@@ -577,14 +602,20 @@ v1 ticket and still refused.
 
 | Command | Purpose |
 | --- | --- |
-| `npx mandrel init` | Cold-start — install `mandrel` (if absent), `mandrel sync`, `bootstrap.js` (provisions repo + Projects V2 board, labels, branch protection), then the onboarding tail (stack detection, docs scaffolding, doctor gate, `/mandrel-plan` handoff). |
-| `/mandrel-plan --seed "<text>"` | Plan from chat text — interrogate → author **one Story by default** → persist `type::story`. |
-| `/mandrel-plan --seed-file <path>` | Plan from on-disk notes / a plan seed (the `/audit-to-stories` handoff). |
-| `/mandrel-deliver <epicId>` | Deliver every open Story under a container Epic — the id expands before resolution. |
-| `/mandrel-plan --tickets <ids>` | Analyze existing issue(s) into proper Stories (prefer an N=1 rewrite). |
-| `/mandrel-deliver <storyId>` | Deliver one Story via `helpers/deliver-story` — `story-<id>` → PR → `main`. |
-| `/mandrel-deliver <storyId> [<storyId>…]` | Deliver multiple Stories in `depends_on` order (resolved from live state), then run the per-run epilogue. |
-| *helper* `helpers/deliver-story` | Per-Story engine invoked by `/mandrel-deliver`; not an operator slash command. See [`deliver-story.md`](../.agents/workflows/helpers/deliver-story.md). |
-| `/audit-to-stories` | Convert audit findings into a plan seed / Stories → `/mandrel-plan --seed-file`. |
+| `npx mandrel init` | Cold-start — install `mandrel` (if absent), `mandrel sync`, then optionally `bootstrap.js` (repo + Projects V2 board, labels, branch protection) and the onboarding tail. |
+| `/mandrel-update` | Upgrade a consumer: newest version → install → re-materialize `.agents/` → migrate → doctor → changelog. |
+| `/mandrel-plan <what you want>` | Plan from prose, a notes file, or issue ids — interrogate → author **one Story by default** → persist at `agent::ready`. |
+| `/mandrel-plan <doneStoryId>` | Amend a delivered Story from a delta envelope. |
+| `/mandrel-deliver <storyId> [<storyId>…]` | Deliver one Story inline, or a set / range in `depends_on` order, then the per-run epilogue. |
+| `/mandrel-deliver <epicId>` | Deliver every open Story under a container Epic. |
+| `/mandrel-deliver <prompt>` | Unplanned small work via the light path — risk gate, receipt Story, same close. |
+| `/git-deliver` | Ad-hoc delivery of working-tree changes — escalates to commit, commit + push, or commit + push + PR (auto-merge armed). |
+| `/prototype` | Operator-invoked single-file UI prototype before UI acceptance criteria are frozen. |
+| `/audit-<dimension>` · `/audit-to-stories` | Run an audit lens; convert findings into a plan seed or Stories. |
 | `/qa-explore` · `/qa-assist` · `/qa-run` | Agent-led / human-led exploratory QA and the automated Gherkin harness. |
-| `/git-deliver` | Ad-hoc delivery of working-tree changes — detects the git setup and escalates to commit, commit + push, or commit + push + PR (auto-merge armed). |
+| `/memory-consolidate` | Attended consolidation of the agent memory pool. |
+| `/clean-git` · `/clean-temp` · `/clean-worktrees` | Recovery tools for the checkout, the temp tree, and dead worktrees. |
+| *helper* `helpers/deliver-story` | Per-Story engine invoked by `/mandrel-deliver`; not an operator slash command. |
+
+The full generated command index is
+[`.agents/docs/workflows.md`](../.agents/docs/workflows.md).
