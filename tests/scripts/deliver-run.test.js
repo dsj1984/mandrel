@@ -289,7 +289,11 @@ describe('deliver-run — the dispatch prompt (AC-3)', () => {
     const prompt = readFileSync(envelope.ready[0].promptPath, 'utf8');
     assert.match(prompt, /Deliver Story #101/);
     assert.match(prompt, /single-story-init\.js --story 101/);
-    assert.match(prompt, /ceremony-derive\.js --story 101/);
+    assert.match(
+      prompt,
+      /acceptance-eval\.js --story 101 --init --cwd <workCwd>/,
+    );
+    assert.match(prompt, /story-handoff\.js --story 101 --cwd <workCwd>/);
     assert.match(prompt, /prefix \*\*every\*\* path-based/);
     assert.match(prompt, /Docs digest: none/);
   });
@@ -370,6 +374,25 @@ describe('deliver-run — the dispatch prompt (AC-3)', () => {
   it('embeds nothing when the body carries neither section', () => {
     assert.deepEqual(extractBodySections(bodyFor(1, 'lib/a.js')), []);
     assert.deepEqual(extractBodySections('## Context\n\n## Goal\nx'), []);
+  });
+
+  it('lists no workflow doc as a mandatory read (Story #5518)', () => {
+    const prompt = renderDispatchPrompt({
+      storyId: 7,
+      mainRepo: '/repo',
+      docsDigestPath: null,
+      checklistPath: null,
+    });
+    const reads = prompt.slice(
+      prompt.indexOf('## Reads'),
+      prompt.indexOf('## Worktree'),
+    );
+    assert.doesNotMatch(
+      reads,
+      /\.agents\/workflows\/|deliver-digest|deliver-story/,
+    );
+    assert.doesNotMatch(prompt, /ceremony-derive\.js/);
+    assert.doesNotMatch(prompt, /Steps 0 through 2\.5/);
   });
 
   it('says so plainly when nothing matched the footprint', () => {

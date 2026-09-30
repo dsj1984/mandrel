@@ -182,10 +182,30 @@ describe('story-worker boot context carries every delivery MUST (default-true ga
     );
   });
 
-  test('AC-3: cites ceremony-derive.js and carries no import block (#5313)', () => {
+  // Story #5518 superseded #5313's worker-side ceremony-derive call: the
+  // skeleton init derives the change set and owner with the same function,
+  // so the worker makes one call, not two. ceremony-derive.js stays for close
+  // and the critic hand-off.
+  test('derives the change set through the verdict skeleton, with no import block (#5313, #5518)', () => {
     const { body } = bootContext('story-worker.md');
-    assertDocMentions(body, /ceremony-derive\.js --story <storyId>/);
+    assertDocMentions(body, /acceptance-eval\.js --story <storyId> --init/);
+    assertDocOmits(body, /ceremony-derive\.js --story <storyId>/);
     assertDocOmits(body, /--input-type=module/);
+  });
+
+  test('the tail is the skeleton-scored self-eval, then the one story-handoff command (#5518)', () => {
+    const { body } = bootContext('story-worker.md');
+    assertDocMentions(
+      body,
+      /story-handoff\.js --story <storyId> --cwd <workCwd>/,
+    );
+    for (const status of ['ready', 'fix-required', 'blocked']) {
+      assertDocMentions(body, new RegExp(`\`${status}\``));
+    }
+    assert.ok(
+      body.indexOf('--init') < body.indexOf('story-handoff.js --story'),
+      'the self-eval precedes the handoff',
+    );
   });
 
   test('permits the credited run without licensing ad-hoc stamping (#5174)', () => {

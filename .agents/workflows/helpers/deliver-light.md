@@ -104,13 +104,15 @@ is not being loosened.
    This is [`/mandrel-deliver`](../mandrel-deliver.md)'s worktree/branch/lease/label engine,
    invoked, not reimplemented.
 
-3. **Implement + self-eval.** `cd` into `workCwd`, implement the change, run
-   the full suite once in the worktree **so close can credit it** — the
-   crediting invocation and the freshness contract are
-   [`deliver-digest.md`](deliver-digest.md) § 5, unchanged here — then run
-   the bounded acceptance self-eval loop
-   ([`deliver-story.md`](deliver-story.md) Step 1a). Commit
-   on `story-<id>` with `(refs #<storyId>)`.
+3. **Implement + self-eval + handoff.** `cd` into `workCwd`, implement the
+   change and commit on `story-<id>` with `(refs #<storyId>)`. Then the
+   skeleton-scored self-eval — `acceptance-eval.js --story <storyId> --init
+   --cwd <workCwd>`, fill every record, score it once
+   ([`deliver-story.md`](deliver-story.md) Step 1a) — followed by the one
+   tail command, `story-handoff.js --story <storyId> --cwd <workCwd>`: its
+   credited suite run is what close credits
+   ([`deliver-digest.md`](deliver-digest.md) § 5, unchanged here).
+   `fix-required` → fix, commit, re-run it.
 
 4. **Diff backstop.** Before close, re-check the ACTUAL diff:
 

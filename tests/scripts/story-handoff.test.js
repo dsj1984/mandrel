@@ -8,9 +8,11 @@
 // provider runs here.
 
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import { buildDefaultGates } from '../../.agents/scripts/lib/close-validation/gates.js';
 import {
@@ -19,6 +21,16 @@ import {
   selectCreditedDepositor,
 } from '../../.agents/scripts/lib/orchestration/story-handoff.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
+import { runStoryHandoffCli } from '../../.agents/scripts/story-handoff.js';
+
+const CLI = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+  '..',
+  '.agents',
+  'scripts',
+  'story-handoff.js',
+);
 
 const STORY = 5518;
 const HEAD = 'a'.repeat(40);
@@ -450,4 +462,42 @@ describe('story-handoff — blocked only on what the worker cannot change (AC-5)
       assert.equal(h.blocks[0].reason, reason);
     });
   }
+});
+
+describe('story-handoff.js — the CLI', () => {
+  test('refuses a missing --story', async () => {
+    await assert.rejects(
+      () => runStoryHandoffCli([], { resolveConfigImpl: () => ({}) }),
+      /--story <id> is required/,
+    );
+  });
+
+  test('prints the envelope on stdout and returns the exit code', async () => {
+    const out = [];
+    const seen = [];
+    const { exitCode } = await runStoryHandoffCli(
+      ['--story', '5518', '--cwd', '/work'],
+      {
+        resolveConfigImpl: () => ({ project: {} }),
+        runHandoffImpl: async (input, deps) => {
+          seen.push({ input, deps });
+          return { envelope: { status: 'fix-required' }, exitCode: 2 };
+        },
+        stdout: { write: (s) => out.push(s) },
+        stderr: { write: () => {} },
+      },
+    );
+    assert.equal(exitCode, 2);
+    assert.equal(JSON.parse(out.join('')).status, 'fix-required');
+    assert.equal(seen[0].input.cwd, '/work');
+    assert.equal(typeof seen[0].deps.computeReview, 'function');
+  });
+
+  test('--help prints the usage without running anything', () => {
+    const res = spawnSync(process.execPath, [CLI, '--help'], {
+      encoding: 'utf8',
+    });
+    assert.equal(res.status, 0);
+    assert.match(res.stdout, /ready \(exit 0\), fix-required \(exit 2\)/);
+  });
 });

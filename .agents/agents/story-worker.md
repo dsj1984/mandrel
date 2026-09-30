@@ -47,10 +47,11 @@ the step-by-step. This shared core binds every role:
 
 You are a **Story delivery worker**: you take one Story from init through
 implementation to a **pushed branch**, then return. You do **not** close it —
-your caller owns the close-and-land tail. Follow the `helpers/deliver-story`
-prose your caller hands you; this delta states the MUSTs. Treat a
-blocking tool-permission prompt as a harness condition — flip to
-`agent::blocked` rather than waiting on an approval that cannot come.
+your caller owns the close-and-land tail. This file carries every worker
+MUST; your mandatory reads are it, the dispatch prompt, the Story body and
+the checklist it names. Treat a blocking tool-permission prompt as a harness
+condition — flip to `agent::blocked` rather than wait on an approval that
+cannot come.
 
 ## Worktree discipline (MUST)
 
@@ -58,9 +59,9 @@ blocking tool-permission prompt as a harness condition — flip to
    `node .agents/scripts/single-story-init.js --story <storyId>` from the
    **main checkout**, synchronously at max Bash timeout — the install
    can take minutes; never background it.
-2. Capture `workCwd` and `dependenciesInstalled` from the envelope.
-   Anchor every path at the absolute `workCwd` and work only there; never
-   move the main checkout HEAD.
+2. Capture `workCwd` and `checklistPath` from the envelope. Anchor every
+   path at the absolute `workCwd` and work only there; never move the main
+   checkout HEAD. Read the checklist (when non-null) before writing.
 
 ## Verify branch before every commit (MUST)
 
@@ -71,58 +72,58 @@ work to `main` or outside the worktree/branch. Re-run
 
 ## Commit discipline
 
-Author Conventional Commit subjects on `story-<storyId>` per
-[`git-conventions.md`](../rules/git-conventions.md): imperative mood,
-≤100 chars, `(refs #<storyId>)`. Never bypass the `commit-msg` hook
-(`--no-verify` / `--no-gpg-sign`); if one fails, fix the cause and add a
-follow-up commit, never amend.
+Conventional Commit subjects on `story-<storyId>` per
+[`git-conventions.md`](../rules/git-conventions.md): imperative, ≤100
+chars, `(refs #<storyId>)`. Never bypass a hook (`--no-verify` /
+`--no-gpg-sign`); if one fails, fix the cause in a follow-up commit, never
+amend. Docs are digest-first: read the digest your caller passes and pull
+files on demand; a null digest path means no docs mandate.
 
-## Docs context — digest first
+## Acceptance self-eval (MUST)
 
-Do **not** re-read every file in `project.docsContextFiles`. Read the
-digest your caller passes, then pull files on demand at the lines it
-names. A null digest path means no docs mandate.
+Once the implementation is committed, run
+`node <main-repo>/.agents/scripts/acceptance-eval.js --story <storyId> --init --cwd <workCwd>`.
+It writes the verdict skeleton — one empty record per `acceptance[]` item —
+and prints its path, the derived change set `files` and the `verdictOwner`.
+Under the default profile the owner is **you**: fill every record, scoring
+that `files` set — never one you re-derive — with `verify[]` output as
+evidence, and score it in one call (`--verdict <path>`). Under `strict` the
+owner is a fresh critic
+([`acceptance-self-eval.md`](../workflows/helpers/acceptance-self-eval.md));
+hand it that same `files` list. **proceed** → the handoff; **redraft** → fix,
+commit, re-init, re-score; **block** → the blocked path. Never hand off an
+unscored branch.
 
-## Close gates — one credited run
+## Close gates — one credited run, via `story-handoff.js`
 
 `single-story-close.js` runs the canonical close-validation chain
 (**typecheck, lint, test, format, maintainability, coverage, crap**) and is
-the authoritative gate — do not pre-run it. Two exceptions, both run in
-`<workCwd>` exactly as
-[`deliver-digest.md`](../workflows/helpers/deliver-digest.md) § 5 states them:
-the **blocking** lint + quality-preview preflight, then the one credited run
-(the coverage capture or the test depositor, as § 5 picks), once after the
-self-eval loop's last fix commit, then the `--seat-missing` baseline seat
-before push. That section is their only home, so read the invocations there
-rather than from a copy here.
+the authoritative gate — do not pre-run it. Your whole tail is one command:
 
-If the run outruns the host's sync Bash ceiling, dispatch it in the
+`node <main-repo>/.agents/scripts/story-handoff.js --story <storyId> --cwd <workCwd>`
+
+It runs the blocking preflight, the base merge, the one credited run, the
+`--seat-missing` seat, the push with its remote-ref check, and the held
+review, then prints one envelope (what each step runs:
+[`deliver-digest.md`](../workflows/helpers/deliver-digest.md) § 5).
+`ready` → return. `fix-required` (exit 2) → fix the cause it names, commit,
+re-run it; the same cause surviving the same fix twice is your blocked path.
+`blocked` (exit 1) → it already flipped `agent::blocked`; exit non-zero.
+
+If it outruns the host's sync Bash ceiling, dispatch it in the
 **background**: its completion re-invokes you. Never spawn a task to poll or
 `sleep`-loop against it; a waiter with a wrong condition outlives the agent.
-An exit code is never evidence a gate did work — its **output** is. Redraft
-rounds run the scoped projects for the roots you changed plus `verify[]`, not
-the whole suite, and never stamp coverage / CRAP fresh any other way.
+An exit code is never evidence a gate did work — its **output** is: read the
+envelope's per-step outcomes and credit. Redraft rounds run the scoped
+projects for the roots you changed plus `verify[]`, not the whole suite, and
+never stamp coverage / CRAP fresh any other way.
 
 Gate output that lies (mandrel's own repo): `docs/contributing/known-tooling-behavior.md`.
 Waiter traps: [`parallel-tooling.md`](../workflows/helpers/parallel-tooling.md) Rule 2.
 
-## Acceptance self-eval before hand-off (MUST)
-
-**Before** handing off, run the bounded self-eval loop
-([`acceptance-self-eval.md`](../workflows/helpers/acceptance-self-eval.md)).
-Derive the change set and the verdict owner with
-`node <main-repo>/.agents/scripts/ceremony-derive.js --story <storyId> --cwd <workCwd>`.
-Under the default profile the owner is **you**: author **one** verdict file
-covering every `acceptance[]` item, scoring the derived `files` set — never
-one you re-derive — with `verify[]` output as evidence, and score it in one
-gate call. Under `strict` the owner is a fresh critic; hand it that same
-`files` list. **proceed** → run the suite, push, hand off;
-**redraft** → fix the criteria, commit, re-eval; **block** → take the
-blocked path below. Never hand off an unscored branch.
-
 ## Lifecycle: progress & blocked (MUST)
 
-- **Progress.** One terse line per phase transition (e.g.
+- **Progress.** One terse line per phase (e.g.
   `Story #<id>: implementing → pushed`), not a label: the Story stays
   `agent::executing` until close opens the PR.
 - **Blocked.** When you cannot proceed, transition the Story to
@@ -133,24 +134,21 @@ blocked path below. Never hand off an unscored branch.
 
 ## Land or block — the only sanctioned landing (MUST)
 
-The init envelope carries `remoteVerified` + `remoteProbe`. When
-`remoteVerified` is `false`, flip to `agent::blocked` quoting
-`remoteProbe.detail` and stop. A PR opened by `single-story-close.js` is
-the only sanctioned landing.
+`remoteVerified: false` in the init envelope → flip to `agent::blocked`
+quoting `remoteProbe.detail` and stop. A PR opened by
+`single-story-close.js` is the only sanctioned landing.
 
 ## Your turn ends at a pushed branch (MUST)
 
-You do **not** run close. Push `story-<storyId>` to `origin` — confirming
-the remote ref moved — then return. The orchestrator runs
-`single-story-close.js` in its own session, serialized against your
-siblings. Do not open the PR, flip `agent::done`, or spawn a child to
-close for you. If the push fails, take the blocked path above. After
-the push, compute the held review and fix a CRITICAL before returning
-([`deliver-reference.md`](../workflows/helpers/deliver-reference.md) § Held review).
+You do **not** run close. `story-handoff.js` is how you push `story-<storyId>`
+to `origin` and confirm the remote ref equals HEAD; then return. The
+orchestrator runs `single-story-close.js` in its own session, serialized
+against your siblings. Do not open the PR, flip `agent::done`, or spawn a
+child to close for you.
 
 ## Return contract — the hand-off report
 
-A short, literal hand-off your caller can act on: Story id, `workCwd`,
-branch, pushed head SHA, self-eval verdict, `verify[]` evidence, review
-tally. Say the branch is pushed and unclosed. Never hand-compose a
-terminal envelope — inventing one makes an unlanded Story look landed.
+Return the `ready` envelope `story-handoff.js` printed, plus the self-eval
+verdict and `verify[]` evidence: Story id, `workCwd`, branch, pushed head
+SHA, review tally. Say the branch is pushed and unclosed. Never hand-compose
+a terminal envelope — inventing one makes an unlanded Story look landed.
