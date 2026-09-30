@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { validateTickets } from '../../../.agents/scripts/lib/orchestration/plan-persist/persist-helpers.js';
 import {
   _internal,
   validateAndNormalizeTickets,
@@ -283,5 +284,70 @@ describe('ticket-validator: the inline contract (Story #5342)', () => {
       },
     ];
     assert.doesNotThrow(() => validateAndNormalizeTickets(backlog));
+  });
+});
+
+describe('ticket-validator: bare-path References entries (Story #5516 AC-4)', () => {
+  const AT_BASE = new Set(['src/refs.js', 'docs/read-me.md']);
+  const gitRunner = ({ path }) => AT_BASE.has(path);
+
+  function referencing(references, shape) {
+    const fields = {
+      goal: 'Name the read-first files.',
+      changes: [{ path: 'src/refs.js', assumption: 'refactors-existing' }],
+      references,
+    };
+    return {
+      slug: 'refs',
+      type: 'story',
+      title: 'Story refs',
+      acceptance: ['refs land'],
+      verify: ['npm test'],
+      body: shape === 'string' ? serialize(fields) : fields,
+    };
+  }
+
+  for (const shape of ['object', 'string']) {
+    it(`accepts a ${shape} body's bare reference and derives it as a read of an existing path`, () => {
+      const story = referencing(['docs/read-me.md'], shape);
+      const validated = validateTickets([story], {}, { gitRunner });
+      assert.deepEqual(validated.errors, []);
+      assert.deepEqual(validated.warnings, []);
+      const derived = validated.repairs.filter(
+        (r) => r.reason === 'derived-read',
+      );
+      assert.deepEqual(
+        derived.map((r) => [r.path, r.assumption]),
+        [['docs/read-me.md', 'exists']],
+      );
+    });
+
+    it(`warns, never refuses, on a ${shape} body's bare reference absent at base`, () => {
+      const story = referencing(['docs/missing.md'], shape);
+      let validated;
+      assert.doesNotThrow(() => {
+        validated = validateTickets([story], {}, { gitRunner });
+      });
+      assert.deepEqual(validated.errors, []);
+      const hits = validated.warnings.filter((w) =>
+        w.includes('docs/missing.md'),
+      );
+      assert.equal(hits.length, 1, JSON.stringify(validated.warnings));
+      assert.match(
+        hits[0],
+        /body\.references names docs\/missing\.md as a read-first file/,
+      );
+    });
+  }
+
+  it('still refuses a References object carrying an unknown assumption', () => {
+    const story = referencing(
+      [{ path: 'docs/read-me.md', assumption: 'reads' }],
+      'object',
+    );
+    assert.throws(
+      () => validateTickets([story], {}, { gitRunner }),
+      /body\.references entry must be a bare path or declare/,
+    );
   });
 });
