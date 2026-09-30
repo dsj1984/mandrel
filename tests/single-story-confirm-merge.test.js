@@ -25,7 +25,10 @@ import {
   resolveAdvisoryRerunAllowance,
   resolveMergeWaitConfig,
 } from '../.agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js';
-import { confirmStoryMerged } from '../.agents/scripts/lib/single-story/confirm-merge.js';
+import {
+  confirmStoryMerged,
+  DONE_FLIP_RETRY_DELAYS_MS,
+} from '../.agents/scripts/lib/single-story/confirm-merge.js';
 import {
   resolvePrNumber,
   runConfirmMerge,
@@ -43,14 +46,21 @@ function makeFakeProvider({
     labels: ['agent::closing'],
   },
   updateThrows = false,
+  // Story #5520 — fail only the first N writes (a transient label API fault).
+  updateFailures = 0,
 } = {}) {
   let story = { ...initialStory };
   const updates = [];
+  let failuresLeft = updateFailures;
   return {
     getTicket: async () => ({ ...story }),
     updateTicket: async (id, patch) => {
       updates.push({ id, patch });
       if (updateThrows) throw new Error('provider failure');
+      if (failuresLeft > 0) {
+        failuresLeft -= 1;
+        throw new Error('labels API 502');
+      }
       const labels = patch.labels
         ? [
             ...(story.labels ?? []).filter(
@@ -254,9 +264,10 @@ describe('confirmStoryMerged', () => {
     assert.equal(notifyCalls[0].payload.event, 'story-merged');
   });
 
-  it('reports flip-failed and skips the notify when the done transition throws', async () => {
+  it('reports flip-failed and skips the notify when every bounded attempt throws', async () => {
     const provider = makeFakeProvider({ updateThrows: true });
     const notifyCalls = [];
+    const slept = [];
     const result = await confirmStoryMerged({
       provider,
       storyId: 3385,
@@ -264,15 +275,42 @@ describe('confirmStoryMerged', () => {
       cwd: '/repo',
       injectedNotify: async (...a) => notifyCalls.push(a),
       readPrMergeStateFn: fakeMergeState('MERGED', 'x'),
+      sleepFn: async (ms) => slept.push(ms),
     });
 
     assert.equal(result.action, 'flip-failed');
+    // Story #5520 AC-6 — bounded: one attempt plus one per backoff step.
+    assert.deepEqual(slept, [...DONE_FLIP_RETRY_DELAYS_MS]);
+    assert.equal(
+      provider._updates().length,
+      DONE_FLIP_RETRY_DELAYS_MS.length + 1,
+    );
     assert.equal(result.merged, true);
     assert.equal(
       notifyCalls.length,
       0,
       'notify must not fire on a failed flip',
     );
+  });
+
+  // Story #5520 AC-6 — a transient label fault that clears on retry lands done.
+  it('retries a failed done flip and reports done when a retry succeeds', async () => {
+    const provider = makeFakeProvider({ updateFailures: 1 });
+    const notifyCalls = [];
+    const slept = [];
+    const result = await confirmStoryMerged({
+      provider,
+      storyId: 3385,
+      prNumber: 42,
+      cwd: '/repo',
+      injectedNotify: async (...a) => notifyCalls.push(a),
+      readPrMergeStateFn: fakeMergeState('MERGED', 'x'),
+      sleepFn: async (ms) => slept.push(ms),
+    });
+    assert.equal(result.action, 'done');
+    assert.deepEqual(slept, [DONE_FLIP_RETRY_DELAYS_MS[0]]);
+    assert.ok(provider._story().labels.includes('agent::done'));
+    assert.equal(notifyCalls.length, 1, 'the merged notify fires once');
   });
 
   it('swallows notify failures and still reports done', async () => {

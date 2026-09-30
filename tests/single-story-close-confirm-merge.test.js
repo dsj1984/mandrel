@@ -770,6 +770,41 @@ describe('merge wait — blocked terminals', () => {
     );
   });
 
+  // Story #5520 AC-6 — the shared confirmation retries the done flip on the
+  // wait's own injected clock, so a transient label fault lands, not blocks.
+  it('a merged PR whose agent::done write fails once lands done on retry, no block', async () => {
+    const provider = makeFakeProvider();
+    const write = provider.updateTicket;
+    let failuresLeft = 1;
+    provider.updateTicket = async (...a) => {
+      if (failuresLeft > 0) {
+        failuresLeft -= 1;
+        throw new Error('labels API 502');
+      }
+      return write(...a);
+    };
+    const slept = [];
+    const flipFailed = [];
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        provider,
+        injectedNotify: async () => {},
+        sleepFn: async (ms) => slept.push(ms),
+        readPrWaitProbeFn: async () => ({ state: 'MERGED', mergedAt: 'x' }),
+        emitMergeFlipFailedFn: (rec) => flipFailed.push(rec),
+      }),
+    );
+    assert.equal(outcome.terminal, 'landed');
+    assert.ok(provider._story().labels.includes('agent::done'));
+    assert.ok(!provider._story().labels.includes('agent::blocked'));
+    assert.equal(
+      flipFailed.length,
+      0,
+      'no merged-flip-failed on a retried flip',
+    );
+    assert.ok(slept.length >= 1, 'the retry backed off on the injected clock');
+  });
+
   it('carries the friction comment id so the operator can be pointed at the remediation', async () => {
     const outcome = await runConfirmMergePhase(
       phaseArgs({
