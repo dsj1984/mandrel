@@ -1,8 +1,10 @@
 /**
  * Story body schema validator. String bodies (the canonical serialized form)
  * are parsed before checking. Requires a non-empty `goal`, `acceptance`, and
- * `changes` of `{ path, assumption }` objects; `references` is optional, same
- * shape. `verify` is not scored. Errors are batched into one throw.
+ * `changes` of `{ path, assumption }` objects; `references` is optional and
+ * may also hold bare paths (persist derives `exists`, and the file-assumption
+ * probe warns when one is absent). `verify` is not scored. Errors are batched
+ * into one throw.
  */
 
 import { suggestPathEntryFix } from '../story-body/body-format-lints.js';
@@ -158,6 +160,26 @@ function collectChangesErrors(prefix, rawChanges) {
 }
 
 /**
+ * A bare `references[]` entry: a path string, or an object with no
+ * assumption (the parser's shape for a bare bullet).
+ *
+ * @param {unknown} entry
+ * @returns {string|null} The path, or `null` when the entry is not bare.
+ */
+export function bareReferencePath(entry) {
+  const raw = typeof entry === 'string' ? entry : bareObjectPath(entry);
+  return typeof raw === 'string' && raw.trim() !== '' ? raw.trim() : null;
+}
+
+/**
+ * @param {unknown} entry
+ * @returns {unknown} The `path` of an assumption-less object, else `null`.
+ */
+function bareObjectPath(entry) {
+  return entry?.assumption == null ? entry?.path : null;
+}
+
+/**
  * @param {string} prefix
  * @param {unknown} rawReferences
  * @returns {string[]}
@@ -166,14 +188,14 @@ function collectReferencesErrors(prefix, rawReferences) {
   if (rawReferences === undefined || rawReferences === null) return [];
   if (!Array.isArray(rawReferences)) {
     return [
-      `${prefix}: body.references must be an array of { path, assumption } objects when present, got ${typeof rawReferences}.`,
+      `${prefix}: body.references must be an array of paths or { path, assumption } objects when present, got ${typeof rawReferences}.`,
     ];
   }
   const errors = [];
   for (const entry of rawReferences) {
-    if (!isObjectPathEntry(entry)) {
+    if (!isObjectPathEntry(entry) && bareReferencePath(entry) === null) {
       errors.push(
-        `${prefix}: body.references entry must declare { path: <string>, assumption: one of ${FILE_ASSUMPTION_VALUES.join('|')} }. Got: ${JSON.stringify(entry)}.`,
+        `${prefix}: body.references entry must be a bare path or declare { path: <string>, assumption: one of ${FILE_ASSUMPTION_VALUES.join('|')} }. Got: ${JSON.stringify(entry)}.`,
       );
     }
   }

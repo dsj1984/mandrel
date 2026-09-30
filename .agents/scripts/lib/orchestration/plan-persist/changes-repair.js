@@ -4,7 +4,10 @@
  * `{ path, assumption }` (probed at base: present → `refactors-existing`,
  * absent → `creates`), and a trailing parenthetical on a path is stripped.
  * Repairs are reported, not refused; an unsalvageable string is left for the
- * validator. Kept apart from the validator, whose collectors are pure.
+ * validator. A bare `references[]` entry naming a path present at base is
+ * derived as a read (`exists`); an absent one stays bare for the
+ * file-assumption probe to warn on. Kept apart from the validator, whose
+ * collectors are pure.
  *
  * @module lib/orchestration/plan-persist/changes-repair
  */
@@ -13,6 +16,8 @@ import { matchBarePathToken } from '../../story-body/body-format-lints.js';
 import { FILE_ASSUMPTION_VALUES } from '../file-assumption-enum.js';
 
 const CHANGES_HEADING_RE = /^#{2,3}\s+Changes\s*$/i;
+
+const REFERENCES_HEADING_RE = /^#{2,3}\s+References\s*$/i;
 
 const ANY_HEADING_RE = /^#{1,6}\s+\S/;
 
@@ -150,7 +155,64 @@ function repairSectionLine(line, existsAtBase) {
 }
 
 /**
- * Touches only the `## Changes` section; the rest stays byte-identical.
+ * A bare reference present at base becomes `exists`; anything else is left.
+ *
+ * @param {unknown} item
+ * @param {(path: string) => boolean} existsAtBase
+ * @returns {{ entry: { path: string, assumption: 'exists' }, repair: object }|null}
+ */
+function deriveReferenceItem(item, existsAtBase) {
+  const raw = typeof item === 'string' ? item : null;
+  const bareObject =
+    item !== null &&
+    typeof item === 'object' &&
+    item.assumption == null &&
+    typeof item.path === 'string';
+  const from = raw ?? (bareObject ? item.path : null);
+  if (from === null) return null;
+  const path = salvagePath(from);
+  if (path === null || !existsAtBase(path)) return null;
+  return {
+    entry: { path, assumption: 'exists' },
+    repair: {
+      field: 'references',
+      from,
+      path,
+      assumption: 'exists',
+      reason: 'derived-read',
+    },
+  };
+}
+
+/**
+ * @param {string} line
+ * @param {(path: string) => boolean} existsAtBase
+ * @returns {{ line: string, repair: object }|null}
+ */
+function deriveReferenceLine(line, existsAtBase) {
+  const marker = line.match(/^(\s*[-*]\s+)/);
+  if (!marker) return null;
+  const content = line.slice(marker[1].length).trim();
+  if (content === '' || HUMANIZED_RE.test(content) || content.startsWith('{')) {
+    return null;
+  }
+  const derived = deriveReferenceItem(content, existsAtBase);
+  if (derived === null) return null;
+  return {
+    line: `${marker[1]}\`${derived.entry.path}\` — exists`,
+    repair: derived.repair,
+  };
+}
+
+/** Section repairers for the serialized body, keyed by heading. */
+const SECTION_REPAIRERS = [
+  { heading: CHANGES_HEADING_RE, repairLine: repairSectionLine },
+  { heading: REFERENCES_HEADING_RE, repairLine: deriveReferenceLine },
+];
+
+/**
+ * Touches only the `## Changes` / `## References` sections; the rest stays
+ * byte-identical.
  *
  * @param {string} body
  * @param {(path: string) => boolean} existsAtBase
@@ -159,24 +221,57 @@ function repairSectionLine(line, existsAtBase) {
 function repairSerializedBody(body, existsAtBase) {
   const lines = body.split('\n');
   const repairs = [];
-  let inChanges = false;
+  let repairer = null;
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
-    if (CHANGES_HEADING_RE.test(line.trim())) {
-      inChanges = true;
+    const opened = SECTION_REPAIRERS.find((r) => r.heading.test(line.trim()));
+    if (opened) {
+      repairer = opened;
       continue;
     }
-    if (!inChanges) continue;
+    if (repairer === null) continue;
     if (ANY_HEADING_RE.test(line) || line.trim().startsWith('---')) {
-      inChanges = false;
+      repairer = null;
       continue;
     }
-    const repaired = repairSectionLine(line, existsAtBase);
+    const repaired = repairer.repairLine(line, existsAtBase);
     if (repaired === null) continue;
     lines[i] = repaired.line;
     repairs.push(repaired.repair);
   }
   return { body: lines.join('\n'), repairs };
+}
+
+/**
+ * @param {unknown[]|null} list Mutated in place.
+ * @param {(item: unknown) => ({ entry: object, repair: object }|null)} repairItem
+ * @returns {object[]}
+ */
+function repairList(list, repairItem) {
+  if (list === null) return [];
+  const repairs = [];
+  for (let i = 0; i < list.length; i += 1) {
+    const repaired = repairItem(list[i]);
+    if (repaired === null) continue;
+    list[i] = repaired.entry;
+    repairs.push(repaired.repair);
+  }
+  return repairs;
+}
+
+/**
+ * The body's own array when it has one, else the top-level field.
+ *
+ * @param {object} ticket
+ * @param {'changes'|'references'} field
+ * @returns {unknown[]|null}
+ */
+function structuredList(ticket, field) {
+  const body = ticket.body;
+  if (body && typeof body === 'object' && Array.isArray(body[field])) {
+    return body[field];
+  }
+  return Array.isArray(ticket[field]) ? ticket[field] : null;
 }
 
 /**
@@ -191,21 +286,14 @@ function repairTicket(ticket, existsAtBase) {
     if (repairs.length > 0) ticket.body = next;
     return repairs;
   }
-  const changes =
-    body && typeof body === 'object' && Array.isArray(body.changes)
-      ? body.changes
-      : Array.isArray(ticket.changes)
-        ? ticket.changes
-        : null;
-  if (changes === null) return [];
-  const repairs = [];
-  for (let i = 0; i < changes.length; i += 1) {
-    const repaired = repairStructuredItem(changes[i], existsAtBase);
-    if (repaired === null) continue;
-    changes[i] = repaired.entry;
-    repairs.push(repaired.repair);
-  }
-  return repairs;
+  return [
+    ...repairList(structuredList(ticket, 'changes'), (item) =>
+      repairStructuredItem(item, existsAtBase),
+    ),
+    ...repairList(structuredList(ticket, 'references'), (item) =>
+      deriveReferenceItem(item, existsAtBase),
+    ),
+  ];
 }
 
 /**
@@ -213,6 +301,9 @@ function repairTicket(ticket, existsAtBase) {
  * @returns {string}
  */
 export function renderChangeRepair({ slug, from, path, assumption, reason }) {
+  if (reason === 'derived-read') {
+    return `Story "${slug}": references[] entry "${from}" derived as a read of an existing path — {"path":"${path}","assumption":"exists"} by probing base.`;
+  }
   const why =
     reason === 'plain-string'
       ? 'plain-string bullet'

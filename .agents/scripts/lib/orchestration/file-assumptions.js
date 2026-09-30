@@ -12,7 +12,7 @@ import { gitSpawn } from '../git-utils.js';
 import { parse as parseStoryBody } from '../story-body/story-body.js';
 import { FILE_ASSUMPTION_VALUES } from './file-assumption-enum.js';
 import { computeStoryReachability } from './story-reachability.js';
-import { isObjectPathEntry } from './task-body-validator.js';
+import { bareReferencePath, isObjectPathEntry } from './task-body-validator.js';
 
 /**
  * Existence probe at `baseBranchRef`; same semantics as
@@ -82,8 +82,11 @@ function defaultHistoryRunner({ baseBranchRef, path, cwd }) {
 }
 
 /**
+ * A bare `references[]` entry is a read, so it is derived as `exists` and
+ * flagged `derived` — the probe then warns, never refuses, when it is absent.
+ *
  * @param {object} story
- * @returns {Array<{ path: string, assumption: string, source: 'changes' | 'references' }>}
+ * @returns {Array<{ path: string, assumption: string, source: 'changes' | 'references', derived?: true }>}
  */
 export function collectStoryAssumptionEntries(story) {
   const out = [];
@@ -116,16 +119,28 @@ export function collectStoryAssumptionEntries(story) {
   }
   if (Array.isArray(structuredBody.references)) {
     for (const entry of structuredBody.references) {
-      if (isObjectPathEntry(entry)) {
-        out.push({
-          path: entry.path,
-          assumption: entry.assumption,
-          source: 'references',
-        });
-      }
+      const read = referenceAssumptionEntry(entry);
+      if (read !== null) out.push(read);
     }
   }
   return out;
+}
+
+/**
+ * @param {unknown} entry
+ * @returns {{ path: string, assumption: string, source: 'references', derived?: true }|null}
+ */
+function referenceAssumptionEntry(entry) {
+  if (isObjectPathEntry(entry)) {
+    return {
+      path: entry.path,
+      assumption: entry.assumption,
+      source: 'references',
+    };
+  }
+  const path = bareReferencePath(entry);
+  if (path === null) return null;
+  return { path, assumption: 'exists', source: 'references', derived: true };
 }
 
 /**
@@ -145,7 +160,7 @@ export function hasLegacyChangeBullets(story) {
  * (predecessor creates it), `predecessor-conflict` (unordered co-creator),
  * `present-was-removed` (base branch removed it).
  *
- * @param {{ slug: string, source: string, path: string, assumption: string, expected: string, producerSlug?: string, removedInCommit?: string, renamedTo?: string|null }} mismatch
+ * @param {{ slug: string, source: string, path: string, assumption: string, expected: string, producerSlug?: string, removedInCommit?: string, renamedTo?: string|null, derived?: boolean }} mismatch
  * @returns {string}
  */
 function renderMismatch({
@@ -157,7 +172,11 @@ function renderMismatch({
   producerSlug,
   removedInCommit,
   renamedTo,
+  derived,
 }) {
+  if (derived && expected === 'present') {
+    return `"${slug}" → body.${source} names ${path} as a read-first file but the path is absent at the base branch — fix the path or drop the entry.`;
+  }
   if (expected === 'refactors-existing') {
     return `"${slug}" → body.${source} declares assumption="${assumption}" for ${path} but predecessor Story "${producerSlug}" already creates that path — declare assumption="refactors-existing" instead (the file exists in the simulated post-predecessor tree).`;
   }
@@ -326,7 +345,7 @@ export function validateStoryFileAssumptions(opts) {
 
     const predecessors = reach.get(slug) ?? new Set();
 
-    for (const { path, assumption, source } of entries) {
+    for (const { path, assumption, source, derived } of entries) {
       let baseExists = probeCache.get(path);
       if (baseExists === undefined) {
         baseExists = Boolean(gitRunner({ baseBranchRef, path, cwd }));
@@ -356,6 +375,7 @@ export function validateStoryFileAssumptions(opts) {
         predecessorCreator,
       });
       if (mismatch !== null) {
+        if (derived) mismatch.derived = true;
         const { kind, finding } = classifyMismatch(mismatch, probeHistory);
         if (kind === 'normalization') {
           normalizations.push(finding);

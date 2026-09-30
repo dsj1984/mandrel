@@ -31,8 +31,25 @@ function collectPathsFromText(text, paths) {
   }
 }
 
+/**
+ * A backticked token that reads as a repo-relative path: at least one `/`,
+ * no whitespace, glob, scheme or `:line` suffix, and not absolute.
+ */
+const BACKTICKED_TOKEN_RE = /`([^`\s]+)`/g;
+const REPO_RELATIVE_PATH_RE = /^(?!\/)[\w.@-]+(?:\/[\w.@-]+)+$/;
+
+function collectBacktickedPaths(text, paths) {
+  if (!text || typeof text !== 'string') return;
+  for (const [, token] of text.matchAll(BACKTICKED_TOKEN_RE)) {
+    if (REPO_RELATIVE_PATH_RE.test(token)) paths.add(token);
+  }
+}
+
 function collectTaskPathReferences(task) {
   const paths = new Set();
+  // `## Context` names read-first files by any extension, so every
+  // backticked path in it is probed, not only the code-asset roots.
+  collectBacktickedPaths(resolveChangesSource(task)?.context, paths);
   const body = task.body;
   if (typeof body === 'string') {
     collectPathsFromText(body, paths);
@@ -118,8 +135,9 @@ function makeMemoizedGitRunner(runner) {
 }
 
 /**
- * Warn (never refuse) on Story-referenced code paths absent at the base:
- * narrative paths are prose, not a contract the validator can enforce.
+ * Warn (never refuse) on Story-referenced code paths absent at the base —
+ * goal / acceptance / verify code-asset paths and every backticked path in
+ * `## Context`: narrative paths are prose, not a contract to enforce.
  *
  * @param {object}   opts
  * @param {object[]} opts.tickets
