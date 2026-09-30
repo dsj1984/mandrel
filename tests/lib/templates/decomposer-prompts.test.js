@@ -101,10 +101,7 @@ describe('story-author prompt — the N=1 core (Story #5312 AC-2)', () => {
     assert.match(prompt, /## Changes/);
     assert.match(prompt, /SPEC PROSE CONTRACT/);
     assert.match(prompt, /Spec states the contract and invariants/i);
-    assert.match(prompt, /Implementation choices belong to the deliverer/i);
     assert.match(prompt, /No per-file behavior paragraphs/i);
-    assert.match(prompt, /No current-state narration/i);
-    assert.match(prompt, /Do not author a `## References` section/i);
     assert.match(prompt, /Acceptance criteria remain the binding contract/i);
     assert.ok(!prompt.includes('## References\n    - {"path"'));
   });
@@ -348,5 +345,72 @@ describe('tickets-mode addendum (Story #5323)', () => {
     assert.match(core, /omit generated artifacts/i);
     assert.match(core, /baselines/i);
     assert.match(core, /serializes sibling Stories at dispatch/i);
+  });
+});
+
+describe('story-author prompt — the grounded handoff (Story #5516)', () => {
+  const prompt = renderStoryAuthorCore();
+
+  test('AC-5: the Spec decides every load-bearing mechanism', () => {
+    assert.match(
+      prompt,
+      /\*\*Spec decides\.\*\* Choose every load-bearing mechanism/,
+    );
+    assert.match(prompt, /only when it is genuinely not load-bearing/);
+  });
+
+  test('AC-5: References are authored for read-first files, Context carries the handoff, checkpoints carry verify commands', () => {
+    assert.match(
+      prompt,
+      /\*\*references\*\* \(optional\): The files the deliverer should read before editing/,
+    );
+    assert.match(
+      prompt,
+      /## References\n {4}- <file the deliverer reads before editing>/,
+    );
+    assert.match(
+      prompt,
+      /\*\*context\*\* \(optional\): The facts you verified while planning/,
+    );
+    assert.match(prompt, /entry points \(file \+ symbol\)/);
+    assert.match(prompt, /## Spec[\s\S]*## Context[\s\S]*## Changes/);
+    assert.match(prompt, /End a checkpoint with `— verify: <exact command>`/);
+  });
+
+  test('AC-5: the retired rules are deleted, not left beside the new ones', () => {
+    for (const retired of [
+      'Do not author a `## References` section',
+      'reads the codebase itself',
+      'Implementation choices belong to the deliverer',
+      'No current-state narration',
+      'discoverable from the contract and the footprint',
+    ]) {
+      assert.ok(!prompt.includes(retired), `must not contain ${retired}`);
+    }
+    const tickets = ticketsModePromptField('tickets').storyTicketsRules;
+    assert.doesNotMatch(tickets, /the deliverer reads the code/);
+  });
+
+  test('AC-5: the altitude guidance agrees with the prompt about References', () => {
+    const start = prompt.indexOf('#### AUTHORING ALTITUDE');
+    const altitude = prompt.slice(
+      start,
+      prompt.indexOf('#### STORY SIZING', start),
+    );
+    assert.match(
+      altitude,
+      /`references\[\]` \(the files to read before editing — author them\)/,
+    );
+    assert.match(altitude, /advisory implementation sketch/);
+  });
+
+  test('AC-6: the rendered story-author prompt stays at or under 15,891 characters', () => {
+    // The pre-#5516 length. The prompt is re-read on every plan, so growth is
+    // paid on every run: replace a rule rather than add one beside it.
+    const STORY_AUTHOR_PROMPT_MAX_CHARS = 15891;
+    assert.ok(
+      renderStoryAuthorPrompt().length <= STORY_AUTHOR_PROMPT_MAX_CHARS,
+      `story-author prompt is ${renderStoryAuthorPrompt().length} characters`,
+    );
   });
 });
