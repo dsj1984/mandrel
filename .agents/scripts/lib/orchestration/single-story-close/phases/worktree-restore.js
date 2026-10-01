@@ -63,16 +63,33 @@ function createManager({ WorktreeManager, cwd, wtIsolation, progress }) {
 }
 
 /** `ensure` the worktree from the (fetched if needed) local story ref. */
+/**
+ * A deleted-but-registered worktree makes `ensure` take its reuse branch and
+ * return a path that is not there, so the stale entry is pruned first.
+ */
+async function ensureFresh(args) {
+  const wm = createManager(args);
+  await wm.prune();
+  return await wm.ensure(args.storyId, args.storyBranch);
+}
+
+function onDisk(ensured, existsSync = nodeFs.existsSync) {
+  return Boolean(ensured?.path) && existsSync(ensured.path);
+}
+
+function notRecreated(storyBranch, ensured) {
+  return new Error(
+    `[worktree-restore] worktree isolation is enabled but the ${storyBranch} worktree ` +
+      `could not be recreated (${ensured?.reason ?? 'no path on disk'}) — refusing to run in the main checkout.`,
+  );
+}
+
 async function recreateWorktree(args) {
-  const { storyId, storyBranch, progress } = args;
+  const { storyBranch, progress } = args;
   ensureLocalStoryRef(args);
-  const ensured = await createManager(args).ensure(storyId, storyBranch);
-  if (!ensured?.path) {
-    throw new Error(
-      `[worktree-restore] worktree isolation is enabled but the ${storyBranch} worktree ` +
-        `could not be recreated (${ensured?.reason ?? 'no path returned'}) — refusing to run in the main checkout.`,
-    );
-  }
+  const ensured = await ensureFresh(args);
+  if (!onDisk(ensured, args.existsSync))
+    throw notRecreated(storyBranch, ensured);
   progress(
     'WORKTREE',
     `♻️  Recreated the missing ${storyBranch} worktree at ${ensured.path}.`,
@@ -110,6 +127,7 @@ export async function resolveStoryWorktree({
       wtIsolation,
       gitSpawn,
       WorktreeManager,
+      ...(existsSync ? { existsSync } : {}),
     }));
   return catchUpWithOrigin({ ...args, worktreePath, gitSpawn });
 }

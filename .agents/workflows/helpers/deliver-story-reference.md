@@ -465,6 +465,7 @@ from origin when only the remote copy is left. To fix CI by hand first:
 ```bash
 cd <main-repo>
 git fetch origin story-<storyId>:story-<storyId>
+git worktree prune   # a deleted-but-registered entry blocks the add
 git worktree add .worktrees/story-<storyId> story-<storyId>
 cd .worktrees/story-<storyId>
 ```

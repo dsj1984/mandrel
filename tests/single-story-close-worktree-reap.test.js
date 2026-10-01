@@ -296,8 +296,10 @@ describe('resolveStoryWorktree — the working copy close runs in (Story #5533)'
 
   function harness({ localRef = true, fetchStatus = 0, ensured } = {}) {
     const calls = [];
-    return {
+    const h = {
       calls,
+      created: new Set(),
+      ghost: false,
       gitSpawn: (_cwd, ...args) => {
         calls.push(args.join(' '));
         if (args[0] === 'show-ref') return { status: localRef ? 0 : 1 };
@@ -310,14 +312,21 @@ describe('resolveStoryWorktree — the working copy close runs in (Story #5533)'
         constructor(opts) {
           calls.push(`new WorktreeManager root=${opts.config?.root}`);
         }
+        async prune() {
+          calls.push('prune');
+          return { pruned: true };
+        }
         async ensure(id, branch) {
           calls.push(`ensure ${id} ${branch}`);
+          const made = ensured?.path ?? `/repo/.worktrees/story-${id}`;
+          if (!h.ghost) h.created.add(made);
           return (
             ensured ?? { path: `/repo/.worktrees/story-${id}`, created: true }
           );
         }
       },
     };
+    return h;
   }
 
   function resolve(h, { config = ENABLED, exists = false } = {}) {
@@ -329,7 +338,8 @@ describe('resolveStoryWorktree — the working copy close runs in (Story #5533)'
       progress: NOOP_PROGRESS,
       gitSpawn: h.gitSpawn,
       WorktreeManager: h.WorktreeManager,
-      existsSync: () => exists,
+      // An ensured path is on disk — unless the harness is a ghost entry.
+      existsSync: (p) => exists || h.created.has(p),
       env: {},
     });
   }
@@ -373,6 +383,23 @@ describe('resolveStoryWorktree — the working copy close runs in (Story #5533)'
     const fetchAt = h.calls.indexOf('fetch origin story-5533:story-5533');
     assert.ok(fetchAt >= 0, `fetched the remote ref; got ${h.calls}`);
     assert.ok(fetchAt < h.calls.indexOf('ensure 5533 story-5533'));
+  });
+
+  it('prunes a deleted-but-registered worktree before ensure, and refuses a path ensure did not create', async () => {
+    const h = harness();
+    await resolve(h);
+    assert.ok(
+      h.calls.indexOf('prune') < h.calls.indexOf('ensure 5533 story-5533'),
+      `prune precedes ensure; got ${h.calls}`,
+    );
+    // `ensure`'s reuse branch on a stale registry entry returns a path that
+    // is not on disk; that is a failed recreation, never a working tree.
+    const ghost = harness();
+    ghost.ghost = true;
+    await assert.rejects(
+      () => resolve(ghost),
+      /could not be recreated.*refusing to run in the main checkout/,
+    );
   });
 
   it('refuses rather than falling back to the main checkout', async () => {

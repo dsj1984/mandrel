@@ -1033,6 +1033,9 @@ describe('runSingleStoryClose orchestration', () => {
     t.mock.module(WORKTREE_MANAGER_URL, {
       namedExports: {
         WorktreeManager: class {
+          async prune() {
+            return { pruned: true };
+          }
           async ensure(id, branch) {
             order.push(`ensure ${id} ${branch}`);
             mkdirSync(wtPath, { recursive: true });
@@ -2245,6 +2248,9 @@ describe('runSingleStoryClose — the lease is held until the merge confirms (St
       t.mock.module(WORKTREE_MANAGER_URL, {
         namedExports: {
           WorktreeManager: class {
+            async prune() {
+              return { pruned: true };
+            }
             async ensure() {
               order.push('ensure');
               mkdirSync(wtPath, { recursive: true });
