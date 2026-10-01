@@ -1468,7 +1468,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/auto-merge.js",
-      "mi": 90.552
+      "mi": 91.348
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js",
@@ -1548,7 +1548,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/worktree-restore.js",
-      "mi": 107.107
+      "mi": 108.947
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/wrong-tree-guard.js",
@@ -1560,7 +1560,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
-      "mi": 86.499
+      "mi": 87.667
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-lease-guard.js",
@@ -2148,7 +2148,7 @@
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
-      "mi": 87.436
+      "mi": 88.507
     },
     {
       "path": ".agents/scripts/single-story-init.js",
