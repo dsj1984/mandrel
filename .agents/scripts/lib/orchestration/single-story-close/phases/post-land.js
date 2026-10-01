@@ -28,6 +28,8 @@ import { reapPlanRunLabelsForStory as defaultReapPlanRunLabelsForStory } from '.
 import { reassertStatusColumn as defaultReassertStatusColumn } from '../../reassert-status-column.js';
 import { releaseStoryLease as defaultReleaseStoryLease } from '../../single-story-lease-guard.js';
 import { captureStoryFollowUps as defaultCaptureStoryFollowUps } from '../../story-follow-ups.js';
+import { reapWorktreePhase as defaultReapWorktreePhase } from './worktree-reap.js';
+import { existingWorktreePath } from './worktree-restore.js';
 
 /**
  * Under the MAIN checkout's `.git`, so every concurrent close contends on one file.
@@ -116,6 +118,31 @@ async function stepStatusResync({
   return {
     ok: false,
     detail: `status column ${outcome?.status ?? 'unknown'} (target=${outcome?.column ?? 'n/a'}, attempts=${outcome?.attempts ?? 0})`,
+  };
+}
+
+/**
+ * The one place the Story worktree is reaped. Nothing to reap is success
+ * (detail says why); a refusal degrades. `detail` is null only on removal.
+ */
+async function stepWorktreeReap({
+  cwd,
+  storyId,
+  config,
+  progress,
+  reapWorktreePhaseFn,
+}) {
+  const wtIsolation = config?.delivery?.worktreeIsolation;
+  const outcome = await reapWorktreePhaseFn({
+    cwd,
+    storyId,
+    worktreePath: existingWorktreePath({ cwd, wtIsolation, storyId }),
+    wtIsolation,
+    progress: (tag, msg) => progress?.(tag, msg),
+  });
+  return {
+    ok: outcome?.removed === true || outcome?.skipped === true,
+    detail: outcome?.removed === true ? null : (outcome?.reason ?? 'unknown'),
   };
 }
 
@@ -282,9 +309,11 @@ async function stepPlanRunLabelReap({
 }
 
 /**
- * The local-checkout mutations (ref reap first, then fast-forward) under a
- * cross-process lock on the main checkout, since concurrent closes race on
- * the base ref and worktree registry. Best-effort: on timeout they run anyway.
+ * The local-checkout mutations (worktree reap, then ref reap, then
+ * fast-forward) under a cross-process lock on the main checkout, since
+ * concurrent closes race on the base ref and worktree registry. The worktree
+ * goes first: `git branch -D` refuses a branch a live worktree holds.
+ * Best-effort: on timeout they run anyway.
  */
 async function runLockedLocalSteps({
   storyId,
@@ -297,6 +326,7 @@ async function runLockedLocalSteps({
   planFastForwardFn,
   executeFastForwardFn,
   acquireLockWithWaitFn,
+  reapWorktreePhaseFn,
 }) {
   const lockCfg = config?.delivery?.postLandLock ?? {};
   const lock = await acquireLockWithWaitFn({
@@ -313,6 +343,17 @@ async function runLockedLocalSteps({
     );
   }
   try {
+    const worktreeReap = await step(
+      () =>
+        stepWorktreeReap({
+          cwd,
+          storyId,
+          config,
+          progress,
+          reapWorktreePhaseFn,
+        }),
+      { name: 'worktree reap', progress },
+    );
     const refCleanup = await step(
       () => stepRefCleanup({ cwd, storyBranch, progress, gitSpawnFn }),
       { name: 'local ref cleanup', progress },
@@ -328,7 +369,7 @@ async function runLockedLocalSteps({
         }),
       { name: 'base fast-forward', progress },
     );
-    return { refCleanup, baseFastForward };
+    return { worktreeReap, refCleanup, baseFastForward };
   } finally {
     if (lock.acquired) lock.release();
   }
@@ -358,7 +399,8 @@ async function runLockedLocalSteps({
  * @param {Function} [args.releaseStoryLeaseFn]
  * @param {Function} [args.reapPlanRunLabelsForStoryFn]
  * @param {Function} [args.rollUpEpicForStoryFn]
- * @returns {Promise<{ followUps: boolean, statusResync: boolean, refCleanup: boolean, baseFastForward: boolean, tempPurge: boolean, leaseRelease: boolean, epicRollup: boolean, details: Record<string, string|null> }>}
+ * @param {Function} [args.reapWorktreePhaseFn]
+ * @returns {Promise<{ followUps: boolean, statusResync: boolean, worktreeReap: boolean, refCleanup: boolean, baseFastForward: boolean, tempPurge: boolean, leaseRelease: boolean, epicRollup: boolean, details: Record<string, string|null> }>}
  */
 export async function runPostLandTail({
   storyId,
@@ -380,6 +422,7 @@ export async function runPostLandTail({
   releaseStoryLeaseFn = defaultReleaseStoryLease,
   reapPlanRunLabelsForStoryFn = defaultReapPlanRunLabelsForStory,
   rollUpEpicForStoryFn = defaultRollUpEpicForStory,
+  reapWorktreePhaseFn = defaultReapWorktreePhase,
 }) {
   progress?.('POST-LAND', `🧾 Running land tail for Story #${storyId}...`);
 
@@ -456,9 +499,10 @@ export async function runPostLandTail({
       planFastForwardFn,
       executeFastForwardFn,
       acquireLockWithWaitFn,
+      reapWorktreePhaseFn,
     }),
   ]);
-  const { refCleanup, baseFastForward } = local;
+  const { worktreeReap, refCleanup, baseFastForward } = local;
 
   // After every step that reads the temp artifacts; `signals.ndjson` survives.
   const tempPurge = await step(
@@ -481,6 +525,7 @@ export async function runPostLandTail({
   const tail = {
     followUps: followUps.ok,
     statusResync: statusResync.ok,
+    worktreeReap: worktreeReap.ok,
     refCleanup: refCleanup.ok,
     baseFastForward: baseFastForward.ok,
     tempPurge: tempPurge.ok,
@@ -489,6 +534,7 @@ export async function runPostLandTail({
     details: {
       followUps: followUps.detail,
       statusResync: statusResync.detail,
+      worktreeReap: worktreeReap.detail,
       refCleanup: refCleanup.detail,
       baseFastForward: baseFastForward.detail,
       tempPurge: tempPurge.detail,

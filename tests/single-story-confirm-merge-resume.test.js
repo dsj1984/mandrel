@@ -141,6 +141,7 @@ describe('single-story-confirm-merge --wait', () => {
         tail: {
           followUps: true,
           statusResync: true,
+          worktreeReap: true,
           refCleanup: true,
           baseFastForward: true,
           tempPurge: true,
@@ -245,5 +246,102 @@ describe('confirm-merge friction attribution', () => {
     assert.equal(rows.length, 1, 'the exhausted budget must be recorded');
     assert.equal(rows[0].category, 'merge-wait-exhausted');
     assert.equal(rows[0].emitter.tool, 'single-story-confirm-merge');
+  });
+});
+
+/**
+ * Story #5533 — the `--wait` resume enters the same wait close does, so it
+ * gets the same recovery: the Story worktree (recreated when missing) for a
+ * DIRTY sync, and the re-arm of a PR a new head disarmed.
+ */
+describe('single-story-confirm-merge --wait — the shared wait recovery (Story #5533)', () => {
+  let tempRoot;
+  beforeEach(async () => {
+    tempRoot = await makeTempDir('confirm-merge-rearm-');
+  });
+  afterEach(async () => {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  });
+
+  it('AC-3: resolves the Story worktree the way close does and hands it to the wait', async () => {
+    const resolved = [];
+    const calls = [];
+    await runConfirmMerge({
+      storyId: 555,
+      cwd: tempRoot,
+      pr: 77,
+      wait: true,
+      injectedProvider: makeProvider(OPEN_STORY),
+      injectedConfig: {
+        ...fakeConfig(),
+        project: { baseBranch: 'main', paths: { tempRoot } },
+      },
+      injectedGh: makeGh(),
+      injectedNotify: async () => {},
+      resolveWorktreeFn: async (args) => {
+        resolved.push(args);
+        return '/repo/.worktrees/story-555';
+      },
+      runConfirmMergePhaseFn: async (args) => {
+        calls.push(args);
+        return {
+          confirmed: false,
+          terminal: 'pending',
+          waitBudget: {
+            maxWaitSeconds: 300,
+            waitedSeconds: 300,
+            cumulativeSeconds: 300,
+            maxBudgetSeconds: 3600,
+          },
+          prProbe: { state: 'OPEN', checksStatus: 'still-running' },
+        };
+      },
+    });
+    assert.equal(resolved.length, 1);
+    assert.equal(resolved[0].storyId, 555);
+    assert.equal(resolved[0].storyBranch, 'story-555');
+    assert.equal(calls[0].worktreePath, '/repo/.worktrees/story-555');
+  });
+
+  it('AC-5: a resumed wait on an open, un-armed, not-red PR re-arms auto-merge', async () => {
+    const merges = [];
+    const gh = {
+      pr: {
+        list: async () => [{ number: 77, url: 'https://example/pull/77' }],
+        view: async () => ({
+          state: 'OPEN',
+          mergedAt: null,
+          createdAt: new Date().toISOString(),
+          mergeStateStatus: 'BLOCKED',
+          statusCheckRollup: [],
+          headRefOid: 'feedface',
+          autoMergeRequest: null,
+        }),
+        merge: async (id, flags) => {
+          merges.push([id, ...flags]);
+          return { stdout: '', stderr: '' };
+        },
+      },
+    };
+    const { terminal } = await runConfirmMerge({
+      storyId: 555,
+      cwd: tempRoot,
+      pr: 77,
+      wait: true,
+      maxWaitSeconds: 1,
+      injectedProvider: makeProvider(OPEN_STORY),
+      injectedConfig: {
+        ...fakeConfig(),
+        project: { baseBranch: 'main', paths: { tempRoot } },
+      },
+      injectedGh: gh,
+      injectedNotify: async () => {},
+    });
+    assert.equal(terminal.status, 'pending', 'a re-arm is not a terminal');
+    assert.deepEqual(
+      merges,
+      [['77', '--auto', '--squash', '--delete-branch']],
+      'armed once for the one head it saw',
+    );
   });
 });

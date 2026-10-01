@@ -457,6 +457,33 @@ describe('handleSyncFailure', () => {
     });
   }
 
+  // Story #5533 — the merge wait's PR is already open, so every sync failure
+  // it meets is handed back: re-running close is the remedy, not a human.
+  for (const result of [
+    { kind: 'merge-failed', stderr: 'boom' },
+    { kind: 'push-failed', stderr: 'pre-push rejected' },
+    { kind: 'conflict', conflictFiles: ['a.js'] },
+  ]) {
+    it(`handBack leaves the labels alone on a ${result.kind}`, async () => {
+      const provider = fakeProvider();
+      const out = await handleSyncFailure({
+        provider,
+        storyId: 4242,
+        syncCwd: '/repo/.worktrees/story-4242',
+        baseBranch: 'main',
+        baseConfirmed: true,
+        storyBranch: 'story-4242',
+        result,
+        handBack: true,
+        progress: () => {},
+      });
+      assert.deepEqual(out, { handedBack: true });
+      assert.equal(provider._labels().includes('agent::blocked'), false);
+      const friction = provider._posted().find((c) => c.type === 'friction');
+      assert.ok(friction, 'friction still names the remedy');
+    });
+  }
+
   it('does not throw when comment upsert fails (best-effort)', async () => {
     const provider = {
       // upsertStructuredComment indirectly calls findCommentByMarker /

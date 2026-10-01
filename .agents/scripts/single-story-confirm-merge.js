@@ -33,6 +33,7 @@ import { parsePrNumber } from './lib/orchestration/single-story-close/phases/cod
 import { runConfirmMergePhase as defaultRunConfirmMergePhase } from './lib/orchestration/single-story-close/phases/confirm-merge.js';
 import { assertNoRetiredFlags } from './lib/orchestration/single-story-close/phases/options.js';
 import { runPostLandTail } from './lib/orchestration/single-story-close/phases/post-land.js';
+import { resolveStoryWorktree } from './lib/orchestration/single-story-close/phases/worktree-restore.js';
 import {
   buildTerminalEnvelope,
   emitTerminalEnvelope,
@@ -268,22 +269,29 @@ async function confirmWithoutPr(ctx) {
   );
 }
 
+function resolveWaitWorktree({ cwd, config, storyId, storyBranch, ...ctx }) {
+  return ctx.resolveWorktreeFn({ cwd, config, storyId, storyBranch, progress });
+}
+
 /**
  * `--wait` runs the SAME phase as close so the cumulative budget give-up
  * (the only path to `merge.unlanded` / `agent::blocked`) is reachable from a
  * resume. The budget is anchored at the PR's `createdAt`, so resuming does
- * not restart the clock.
+ * not restart the clock. The Story worktree is resolved (and recreated when
+ * missing) exactly as close does, so a DIRTY PR syncs there.
  */
 async function resumeMergeWait(ctx) {
   const { storyId, storyBranch, baseBranch, prNumber } = ctx;
   const waitOutcome = await ctx.runConfirmMergePhaseFn({
     cwd: ctx.cwd,
+    worktreePath: await resolveWaitWorktree(ctx),
     storyId,
     storyBranch,
     baseBranch,
     prNumber,
     prUrl: `${storyBranch} PR #${prNumber}`,
-    // The close already armed it.
+    // Not an assumption that it is still armed: the wait re-arms a PR a new
+    // head disarmed (once per head, behind the red-fix guard).
     autoMergeEnabled: true,
     maxWaitSeconds: ctx.maxWaitSeconds,
     provider: ctx.provider,
@@ -382,6 +390,7 @@ export async function runConfirmMerge({
   injectedNotify,
   injectedReadPrMergeState,
   runConfirmMergePhaseFn = defaultRunConfirmMergePhase,
+  resolveWorktreeFn = resolveStoryWorktree,
 } = {}) {
   if (!storyId) {
     throw new Error(USAGE);
@@ -403,6 +412,7 @@ export async function runConfirmMerge({
     injectedNotify,
     injectedReadPrMergeState,
     runConfirmMergePhaseFn,
+    resolveWorktreeFn,
   };
 
   progress('INIT', `Confirming merge for standalone Story #${storyId}...`);

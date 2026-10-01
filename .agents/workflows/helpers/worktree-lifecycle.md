@@ -50,9 +50,9 @@ root, and shell-metacharacter injection in `root`.
 | **Sweep**       | Operator-driven (`WorktreeManager.sweepStaleLocks`)                           | Stale `*.lock` files under `.git/` (older than 5 min) are removed before GC.                                                                                |
 | **GC**          | Operator-driven (`WorktreeManager.gc`)                                        | Orphan `.worktrees/story-*` whose Stories are closed are reaped if clean.                                                                                   |
 | **Force-drain** | Operator-driven (`drain-pending-cleanup.js`)                                  | Retries `.worktrees/.pending-cleanup.json` (`git worktree remove` then `fs.rm`); Windows-only escalation enumerates user-mode handle holders and `taskkill`s them before re-trying. |
-| **Ensure**      | `single-story-init.js` (entry for `/mandrel-deliver`)                                 | `git worktree add .worktrees/story-<id>/` on the `story-<id>` branch.                                                                                       |
+| **Ensure**      | `single-story-init.js` (entry for `/mandrel-deliver`); close and the `--wait` resume when it is missing | `git worktree add .worktrees/story-<id>/` on the `story-<id>` branch (fetched from origin when no local ref remains). |
 | **Run**         | During Story execution                                                        | Agent runs inside the worktree; HEAD/reflog activity is isolated.                                                                                           |
-| **Reap**        | After successful Story merge (in `single-story-close`)                        | `git worktree remove` — refuses to delete dirty trees or unmerged branches.                                                                                 |
+| **Reap**        | After a confirmed merge, in the post-land tail (`tail.worktreeReap`)          | `git worktree remove`, before the local ref reap — refuses a dirty tree. A `pending`, `blocked` or `failed` close keeps the worktree.                       |
 
 The `WorktreeManager` (`.agents/scripts/lib/worktree-manager.js`) is the single
 authority for `ensure`, `reap`, `list`, `isSafeToRemove`, `gc`, `prune`, and
@@ -86,7 +86,7 @@ epic-runner. The lifecycle surfaces that do run automatically are:
 | Entry point                       | Script / caller                                                      | What it cleans                                                                                                          |
 | --------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | Story init (`/mandrel-deliver <storyId>`) | `single-story-init.js` boot sweep (`sweepMergedStoryBranches`)        | Merged/closed `story-*` branches (local + origin) from prior runs; it then creates only its own worktree.                 |
-| Story close (`/mandrel-deliver` close)    | `single-story-close.js` worktree-reap phase (`WorktreeManager.reap`)  | The per-Story worktree; on a Windows EBUSY-class lock the entry is deferred into `.worktrees/.pending-cleanup.json`.       |
+| Story land (close's wait, or `--wait`)    | The post-land tail's worktree-reap step (`WorktreeManager.reap`)      | The per-Story worktree; on a Windows EBUSY-class lock the entry is deferred into `.worktrees/.pending-cleanup.json`.       |
 | Drain pending-cleanup (operator)  | `drain-pending-cleanup.js` (run directly — see below)                 | The pending-cleanup ledger, with optional Windows handle-holder escalation. This is the only path that drains the ledger. |
 
 Operator takeaway: if worktrees or stale locks accumulate, run
@@ -95,8 +95,8 @@ Operator takeaway: if worktrees or stale locks accumulate, run
 
 ## Draining the pending-cleanup ledger
 
-`.worktrees/.pending-cleanup.json` accumulates entries when
-`single-story-close.js` cannot remove a worktree on Windows because of
+`.worktrees/.pending-cleanup.json` accumulates entries when the
+post-land tail cannot remove a worktree on Windows because of
 an EBUSY-class lock. If the holder is a long-lived user-mode process (a
 stranded test runner, a lingering biome/tsc, a node REPL), the lock
 never clears and the entry pins.

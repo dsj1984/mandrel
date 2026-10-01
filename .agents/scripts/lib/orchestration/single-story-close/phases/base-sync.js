@@ -111,14 +111,16 @@ function syncFailureDetail({ conflictFiles, stderr }) {
 
 /**
  * A source conflict against a confirmed base is the delivering agent's to
- * resolve; every other sync failure needs a human.
+ * resolve; every other sync failure needs a human — unless the caller hands
+ * every failure back (`handBack`: the merge wait, whose PR is already open).
  *
  * @param {{ kind: string }} result
  * @param {boolean} baseConfirmed
+ * @param {boolean} [handBack]
  * @returns {boolean}
  */
-function isHandedBack(result, baseConfirmed) {
-  return result.kind === 'conflict' && baseConfirmed === true;
+function isHandedBack(result, baseConfirmed, handBack = false) {
+  return handBack || (result.kind === 'conflict' && baseConfirmed === true);
 }
 
 /**
@@ -187,8 +189,9 @@ function buildStampInvalidatedWarning({ baseBranch, result, targetDirs }) {
  *   baseConfirmed?: boolean,
  *   storyBranch: string,
  *   result: { kind: string, conflictFiles?: string[], stderr?: string },
+ *   handBack?: boolean,
  *   progress: (tag: string, msg: string) => void,
- * }} args
+ * }} args `handBack` leaves the labels alone for every failure kind.
  * @returns {Promise<{ handedBack: boolean }>}
  */
 export async function handleSyncFailure({
@@ -199,6 +202,7 @@ export async function handleSyncFailure({
   baseConfirmed = false,
   storyBranch,
   result,
+  handBack = false,
   progress,
 }) {
   const body = buildSyncFailureCommentBody({
@@ -208,6 +212,7 @@ export async function handleSyncFailure({
     baseConfirmed,
     syncCwd,
     result,
+    handBack,
   });
 
   // Comment first so the recovery surface lands even if the flip fails; a
@@ -221,7 +226,7 @@ export async function handleSyncFailure({
     );
   }
 
-  const handedBack = isHandedBack(result, baseConfirmed);
+  const handedBack = isHandedBack(result, baseConfirmed, handBack);
   await settleSyncFailureLabels({ provider, storyId, handedBack, progress });
   return { handedBack };
 }
@@ -330,7 +335,7 @@ function failureEvidence(kind, result) {
  * advice: merging a base the Story was not seeded from contaminates the
  * branch and PR diff, so an unconfirmed base gets "establish it first".
  *
- * @param {{ storyId: number, storyBranch: string, baseBranch: string, baseConfirmed?: boolean, syncCwd: string, result: { kind: string, conflictFiles?: string[], stderr?: string } }} args
+ * @param {{ storyId: number, storyBranch: string, baseBranch: string, baseConfirmed?: boolean, syncCwd: string, result: { kind: string, conflictFiles?: string[], stderr?: string }, handBack?: boolean }} args
  * @returns {string}
  */
 export function buildSyncFailureCommentBody({
@@ -340,9 +345,10 @@ export function buildSyncFailureCommentBody({
   baseConfirmed = false,
   syncCwd,
   result,
+  handBack = false,
 }) {
   const kind = result.kind ?? 'unknown';
-  const handedBack = isHandedBack(result, baseConfirmed);
+  const handedBack = isHandedBack(result, baseConfirmed, handBack);
   const heading =
     kind === 'conflict'
       ? `Base-sync conflict on close: ${storyBranch} ↔ origin/${baseBranch}`

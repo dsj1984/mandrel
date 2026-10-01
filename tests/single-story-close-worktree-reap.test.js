@@ -24,15 +24,16 @@ import path from 'node:path';
 import { describe, it } from 'node:test';
 
 import { reapWorktreePhase } from '../.agents/scripts/lib/orchestration/single-story-close/phases/worktree-reap.js';
+import { resolveStoryWorktree } from '../.agents/scripts/lib/orchestration/single-story-close/phases/worktree-restore.js';
 import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 import { WorktreeManager } from '../.agents/scripts/lib/worktree-manager.js';
 
 const NOOP_PROGRESS = () => {};
 
 /**
- * Fake git for a clean `story-<id>` worktree whose branch is pushed but
- * NOT yet merged into the base — the exact state at close time, since the
- * reap phase runs before the merge confirms.
+ * Fake git for a clean `story-<id>` worktree whose branch is NOT reachable
+ * from the base — the state after a squash merge, which never makes the
+ * branch an ancestor of the base, so the reap must not gate on it.
  */
 function makeGit({ dirty = false, wtPath, removeStatus = 0 }) {
   const calls = [];
@@ -57,8 +58,7 @@ function makeGit({ dirty = false, wtPath, removeStatus = 0 }) {
       if (key.startsWith('rev-parse HEAD')) {
         return { status: 0, stdout: 'abc1234\n', stderr: '' };
       }
-      // Not merged into the base — true for every close, which reaps
-      // before the PR lands.
+      // Not reachable from the base — true after every squash merge.
       if (key.startsWith('merge-base --is-ancestor')) {
         return { status: 1, stdout: '', stderr: '' };
       }
@@ -102,7 +102,7 @@ describe('reapWorktreePhase — the close-path call shape (Story #4539)', () => 
         },
       });
       assert.equal(
-        reaped,
+        reaped.removed,
         true,
         'a clean worktree must reap at close time; the work is already on origin',
       );
@@ -155,7 +155,11 @@ describe('reapWorktreePhase — the close-path call shape (Story #4539)', () => 
           }
         },
       });
-      assert.equal(reaped, false, 'a dirty tree is refused, and says so');
+      assert.equal(
+        reaped.removed,
+        false,
+        'a dirty tree is refused, and says so',
+      );
       assert.ok(
         messages.some((m) => /not reaped/.test(m) && /uncommitted/.test(m)),
         `the refusal reason is surfaced; got: ${JSON.stringify(messages)}`,
@@ -204,7 +208,11 @@ describe('reapWorktreePhase — the close-path call shape (Story #4539)', () => 
             }
           },
         });
-        assert.equal(reaped, false, 'the reap is refused, not performed');
+        assert.equal(
+          reaped.removed,
+          false,
+          'the reap is refused, not performed',
+        );
         assert.equal(
           git.calls.some((c) => c.startsWith('worktree remove')),
           false,
@@ -244,7 +252,7 @@ describe('reapWorktreePhase — the close-path call shape (Story #4539)', () => 
             }
           },
         });
-        assert.equal(reaped, true);
+        assert.equal(reaped.removed, true);
       } finally {
         process.argv[1] = realArgv1;
       }
@@ -266,8 +274,110 @@ describe('reapWorktreePhase — the close-path call shape (Story #4539)', () => 
           }
         },
       });
-      assert.equal(reaped, false);
+      assert.deepEqual(reaped, {
+        removed: false,
+        skipped: true,
+        reason: 'reap-disabled',
+      });
       assert.equal(git.calls.length, 0);
     });
+  });
+});
+
+/**
+ * Story #5533 AC-3 — a close (or `--wait` resume) whose Story worktree is
+ * missing recreates it from `story-<id>` before any git operation, and never
+ * falls back to the main checkout while isolation is enabled.
+ */
+describe('resolveStoryWorktree — the working copy close runs in (Story #5533)', () => {
+  const ENABLED = {
+    delivery: { worktreeIsolation: { enabled: true, root: '.worktrees' } },
+  };
+
+  function harness({ localRef = true, fetchStatus = 0, ensured } = {}) {
+    const calls = [];
+    return {
+      calls,
+      gitSpawn: (_cwd, ...args) => {
+        calls.push(args.join(' '));
+        if (args[0] === 'show-ref') return { status: localRef ? 0 : 1 };
+        if (args[0] === 'fetch') {
+          return { status: fetchStatus, stderr: 'fatal: no such ref' };
+        }
+        return { status: 0 };
+      },
+      WorktreeManager: class {
+        constructor(opts) {
+          calls.push(`new WorktreeManager root=${opts.config?.root}`);
+        }
+        async ensure(id, branch) {
+          calls.push(`ensure ${id} ${branch}`);
+          return (
+            ensured ?? { path: `/repo/.worktrees/story-${id}`, created: true }
+          );
+        }
+      },
+    };
+  }
+
+  function resolve(h, { config = ENABLED, exists = false } = {}) {
+    return resolveStoryWorktree({
+      cwd: '/repo',
+      config,
+      storyId: 5533,
+      storyBranch: 'story-5533',
+      progress: NOOP_PROGRESS,
+      gitSpawn: h.gitSpawn,
+      WorktreeManager: h.WorktreeManager,
+      existsSync: () => exists,
+      env: {},
+    });
+  }
+
+  it('returns a live worktree untouched — no git, no ensure', async () => {
+    const h = harness();
+    const wt = await resolve(h, { exists: true });
+    assert.equal(wt, path.resolve('/repo', '.worktrees', 'story-5533'));
+    assert.deepEqual(h.calls, []);
+  });
+
+  it('recreates a missing worktree from the local story ref', async () => {
+    const h = harness();
+    const wt = await resolve(h);
+    assert.equal(wt, '/repo/.worktrees/story-5533');
+    assert.ok(h.calls.includes('ensure 5533 story-5533'));
+    assert.equal(
+      h.calls.some((c) => c.startsWith('fetch')),
+      false,
+      'a local ref needs no fetch',
+    );
+  });
+
+  it('fetches origin story-<id> first when no local ref exists', async () => {
+    const h = harness({ localRef: false });
+    await resolve(h);
+    const fetchAt = h.calls.indexOf('fetch origin story-5533:story-5533');
+    assert.ok(fetchAt >= 0, `fetched the remote ref; got ${h.calls}`);
+    assert.ok(fetchAt < h.calls.indexOf('ensure 5533 story-5533'));
+  });
+
+  it('refuses rather than falling back to the main checkout', async () => {
+    await assert.rejects(
+      () => resolve(harness({ localRef: false, fetchStatus: 128 })),
+      /cannot recreate the story-5533 worktree.*no such ref/,
+    );
+    await assert.rejects(
+      () => resolve(harness({ ensured: { path: null, reason: 'boom' } })),
+      /refusing to run in the main checkout/,
+    );
+  });
+
+  it('with isolation off and no worktree, the main checkout is the working tree', async () => {
+    const h = harness();
+    const wt = await resolve(h, {
+      config: { delivery: { worktreeIsolation: { enabled: false } } },
+    });
+    assert.equal(wt, null);
+    assert.deepEqual(h.calls, []);
   });
 });

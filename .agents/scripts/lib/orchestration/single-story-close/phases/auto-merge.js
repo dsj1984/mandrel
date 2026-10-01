@@ -132,6 +132,38 @@ export async function enableAutoMergeWith({
   return arm({ exec, prNumber, armCwd });
 }
 
+/** The hand-run equivalent of the arm, for an operator-facing remedy. */
+export function manualArmCommand({ prNumber, queueRequired = false }) {
+  return queueRequired
+    ? `gh pr merge ${prNumber} --auto`
+    : `gh pr merge ${prNumber} --auto --squash --delete-branch`;
+}
+
+/**
+ * Re-arm a PR a new head disarmed, from the merge wait. Same merge-queue
+ * detection as the arm phase, so a queue base gets the bare `--auto`. Lives
+ * here because `lifecycle-lint` confines `gh pr merge` to this module.
+ * Non-fatal, like the arm.
+ *
+ * @param {{ cwd: string, prNumber: number, gh?: object,
+ *   readMergeQueueStateFn?: typeof readMergeQueueState }} args
+ * @returns {Promise<{ enabled: boolean, reason?: string }>}
+ */
+export async function rearmAutoMerge({
+  cwd,
+  prNumber,
+  gh,
+  readMergeQueueStateFn = readMergeQueueState,
+}) {
+  const queue = await readMergeQueueStateFn({ prNumber, gh });
+  return enableAutoMergeWith({
+    cwd,
+    prNumber,
+    gh,
+    queueRequired: queue?.queueRequired === true,
+  });
+}
+
 /**
  * `--auto --squash --delete-branch`, falling back to a direct squash-merge
  * only when native auto-merge is unavailable.
