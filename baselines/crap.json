@@ -24951,9 +24951,21 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
+      "method": "storyBranchSurvives",
+      "startLine": 958,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "finishPhase",
       "startLine": 963,
       "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
+      "method": "findLandedPr",
+      "startLine": 983,
+      "crap": 3.021333333333333
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
