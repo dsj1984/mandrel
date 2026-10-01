@@ -23819,8 +23819,21 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
+      "method": "syncDirtyHead",
+      "startLine": 86,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
       "method": "<anon handBackDirty/(tag,msg)#0>",
       "startLine": 90,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
+      "method": "<anon syncDirtyHead/(tag,msg)#0>",
+      "startLine": 97,
       "crap": 1,
       "anonymous": true
     },
@@ -24334,6 +24347,18 @@
       "anonymous": true
     },
     {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/story-branch-catch-up.js",
+      "method": "integrateRemoteStoryBranch",
+      "startLine": 15,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/story-branch-catch-up.js",
+      "method": "catchUpWithOrigin",
+      "startLine": 31,
+      "crap": 2.0625
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/worktree-reap.js",
       "method": "skippedOutcome",
       "startLine": 10,
@@ -24431,9 +24456,42 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/worktree-restore.js",
+      "method": "createManager",
+      "startLine": 53,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/worktree-restore.js",
+      "method": "<anon createManager/(m)#0>",
+      "startLine": 58,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/worktree-restore.js",
       "method": "resolveStoryWorktree",
       "startLine": 58,
       "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/worktree-restore.js",
+      "method": "<anon createManager/(m)#1>",
+      "startLine": 59,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/worktree-restore.js",
+      "method": "<anon createManager/(m)#2>",
+      "startLine": 60,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/worktree-restore.js",
+      "method": "recreateWorktree",
+      "startLine": 66,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/worktree-restore.js",
