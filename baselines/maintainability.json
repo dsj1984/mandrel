@@ -1539,6 +1539,10 @@
       "mi": 107.61
     },
     {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/story-branch-catch-up.js",
+      "mi": 103.943
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/worktree-reap.js",
       "mi": 113.344
     },
