@@ -31,6 +31,7 @@ const SUT_URL = new URL(
 const TAIL = Object.freeze({
   followUps: true,
   statusResync: true,
+  worktreeReap: true,
   refCleanup: true,
   baseFastForward: true,
   tempPurge: true,

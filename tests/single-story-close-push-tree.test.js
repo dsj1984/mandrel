@@ -159,12 +159,12 @@ function fakeProvider() {
  * pointing it at a temp directory gives a deterministic worktree path without
  * writing anything into the repository checkout.
  */
-function fakeConfig(worktreeRoot) {
+function fakeConfig(worktreeRoot, { enabled = true } = {}) {
   return {
     agentSettings: { baseBranch: 'main', commands: {} },
     delivery: {
       worktreeIsolation: {
-        enabled: true,
+        enabled,
         root: worktreeRoot,
         reapOnSuccess: false,
       },
@@ -268,7 +268,9 @@ describe('single-story-close — which tree the close-time push runs in', () => 
     );
   });
 
-  it('falls back to the main checkout when no Story worktree exists on disk', async (t) => {
+  // Story #5533: only single-tree mode pushes from the main checkout; with
+  // isolation on, close recreates a missing worktree instead.
+  it('pushes from the main checkout in single-tree mode (isolation off, no worktree)', async (t) => {
     const worktreeRoot = tempWorktreeRoot();
 
     const calls = [];
@@ -278,7 +280,10 @@ describe('single-story-close — which tree the close-time push runs in', () => 
       `${SUT_URL}?t=push-single-tree`
     );
     await runSingleStoryClose(
-      closeArgs({ cwd: REPO_ROOT, config: fakeConfig(worktreeRoot) }),
+      closeArgs({
+        cwd: REPO_ROOT,
+        config: fakeConfig(worktreeRoot, { enabled: false }),
+      }),
     );
 
     const push = findPush(calls);

@@ -577,8 +577,9 @@ function fakeConfig() {
   return {
     project: { baseBranch: 'main', commands: {}, paths: { tempRoot } },
     delivery: {
+      // Off: with isolation on, close would recreate the missing worktree.
       worktreeIsolation: {
-        enabled: true,
+        enabled: false,
         root: '.no-such-worktree-root',
         reapOnSuccess: false,
       },

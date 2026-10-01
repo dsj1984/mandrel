@@ -1660,9 +1660,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/deliver-recover.js",
-      "lines": 99.39,
-      "branches": 86.23,
-      "functions": 93.75
+      "lines": 99.49,
+      "branches": 87.98,
+      "functions": 95.45
     },
     {
       "path": ".agents/scripts/lib/orchestration/dependency-analyzer.js",
@@ -2224,15 +2224,15 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/auto-merge.js",
-      "lines": 99.6,
-      "branches": 86.32,
+      "lines": 99.62,
+      "branches": 86.78,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js",
-      "lines": 99.7,
-      "branches": 82.98,
-      "functions": 83.33
+      "lines": 100,
+      "branches": 86.84,
+      "functions": 93.75
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
@@ -2248,9 +2248,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
-      "lines": 96.8,
-      "branches": 82.05,
-      "functions": 97.92
+      "lines": 97.15,
+      "branches": 83.72,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/conventional-subject.js",
@@ -2271,6 +2271,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
+      "lines": 100,
+      "branches": 89.66,
+      "functions": 85.71
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
       "lines": 100,
       "branches": 83.87,
@@ -2284,9 +2290,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/post-land.js",
-      "lines": 98.96,
-      "branches": 90.38,
-      "functions": 87.5
+      "lines": 99.46,
+      "branches": 89.57,
+      "functions": 89.29
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pre-gate-steps.js",
@@ -2325,10 +2331,22 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/story-branch-catch-up.js",
+      "lines": 90,
+      "branches": 84.62,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/worktree-reap.js",
-      "lines": 93.75,
-      "branches": 92.31,
-      "functions": 75
+      "lines": 93.42,
+      "branches": 94.74,
+      "functions": 80
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/worktree-restore.js",
+      "lines": 100,
+      "branches": 89.66,
+      "functions": 62.5
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/wrong-tree-guard.js",
@@ -2344,9 +2362,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
-      "lines": 99.81,
-      "branches": 93.48,
-      "functions": 97.67
+      "lines": 99.82,
+      "branches": 92.59,
+      "functions": 97.83
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-lease-guard.js",
@@ -2392,8 +2410,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-deliver-terminal.js",
-      "lines": 99.51,
-      "branches": 89.87,
+      "lines": 99.53,
+      "branches": 88.51,
       "functions": 100
     },
     {
@@ -3202,9 +3220,9 @@
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
-      "lines": 89.86,
-      "branches": 68.12,
-      "functions": 88.89
+      "lines": 90.06,
+      "branches": 68.57,
+      "functions": 89.47
     },
     {
       "path": ".agents/scripts/stories-wave-tick.js",

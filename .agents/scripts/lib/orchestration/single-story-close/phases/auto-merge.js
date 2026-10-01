@@ -40,6 +40,19 @@ export function isOperatorMergeReason(reason) {
 }
 
 /**
+ * Positive evidence that close itself armed this PR — never an operator-owned
+ * merge (`--no-auto-merge`, `strict`), and never an envelope that says nothing.
+ *
+ * @param {{ autoMergeEnabled?: boolean|null, autoMergeReason?: string|null }|null|undefined} pr
+ * @returns {boolean}
+ */
+export function closeArmedPr(pr) {
+  return (
+    pr?.autoMergeEnabled === true && !isOperatorMergeReason(pr?.autoMergeReason)
+  );
+}
+
+/**
  * A `gh pr merge --delete-branch` failure whose only casualty is the LOCAL
  * head-branch delete after the remote merge/arm already happened. Deliberately
  * narrow: a refused remote merge, and the `'<base>' is already used by
@@ -130,6 +143,38 @@ export async function enableAutoMergeWith({
   const armCwd = resolveArmCwd(cwd);
   const arm = queueRequired ? armForMergeQueue : armNativeAutoMerge;
   return arm({ exec, prNumber, armCwd });
+}
+
+/** The hand-run equivalent of the arm, for an operator-facing remedy. */
+export function manualArmCommand({ prNumber, queueRequired = false }) {
+  return queueRequired
+    ? `gh pr merge ${prNumber} --auto`
+    : `gh pr merge ${prNumber} --auto --squash --delete-branch`;
+}
+
+/**
+ * Re-arm a PR a new head disarmed, from the merge wait. Same merge-queue
+ * detection as the arm phase, so a queue base gets the bare `--auto`. Lives
+ * here because `lifecycle-lint` confines `gh pr merge` to this module.
+ * Non-fatal, like the arm.
+ *
+ * @param {{ cwd: string, prNumber: number, gh?: object,
+ *   readMergeQueueStateFn?: typeof readMergeQueueState }} args
+ * @returns {Promise<{ enabled: boolean, reason?: string }>}
+ */
+export async function rearmAutoMerge({
+  cwd,
+  prNumber,
+  gh,
+  readMergeQueueStateFn = readMergeQueueState,
+}) {
+  const queue = await readMergeQueueStateFn({ prNumber, gh });
+  return enableAutoMergeWith({
+    cwd,
+    prNumber,
+    gh,
+    queueRequired: queue?.queueRequired === true,
+  });
 }
 
 /**

@@ -15,12 +15,12 @@ import { buildPullRequestFields } from './normalize-pr-title.js';
 /**
  * OPEN wins, then the first MERGED; CLOSED-only resolves to null. A row with
  * no recognizable `state` reads as live, since guessing "no PR" opens a
- * duplicate. Module-private: a test-only export would trip dead-exports.
+ * duplicate. Close's landed short-circuit reads heads the same way.
  *
  * @param {Array<{url?: string, state?: string, mergedAt?: string}>} rows
  * @returns {{ url: string, state: 'OPEN'|'MERGED' }|null}
  */
-function pickHeadPullRequest(rows) {
+export function pickHeadPullRequest(rows) {
   if (!Array.isArray(rows)) return null;
   let merged = null;
   for (const row of rows) {

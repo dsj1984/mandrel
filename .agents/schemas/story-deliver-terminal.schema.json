@@ -67,7 +67,11 @@
             null
           ]
         },
-        "autoMergeEnabled": { "type": ["boolean", "null"] }
+        "autoMergeEnabled": { "type": ["boolean", "null"] },
+        "autoMergeReason": {
+          "type": ["string", "null"],
+          "description": "Story #5533 — why close did not arm (disabled-by-flag, disabled-by-policy-strict, an arm failure), or null when it armed. With autoMergeEnabled it is the evidence a resumed wait needs before it may re-arm a PR a new head disarmed: an operator-owned merge is never re-armed."
+        }
       },
       "additionalProperties": false
     },
@@ -85,6 +89,7 @@
       "required": [
         "followUps",
         "statusResync",
+        "worktreeReap",
         "refCleanup",
         "baseFastForward",
         "tempPurge",
@@ -94,6 +99,10 @@
       "properties": {
         "followUps": { "type": "boolean" },
         "statusResync": { "type": "boolean" },
+        "worktreeReap": {
+          "type": "boolean",
+          "description": "Story #5533 — the Story worktree was reaped. Worktree lifetime is Story lifetime: the close pipeline no longer reaps, so a pending, blocked or failed close keeps its working copy, and this step — run under the post-land lock BEFORE refCleanup, because git branch -D refuses a branch a live worktree holds — is the one place it is removed. Nothing to reap, or delivery.worktreeIsolation.reapOnSuccess false, reports true (details.worktreeReap says which); a refused reap (a dirty tree) reports false, and like every tail step that degrades the report, never the land."
+        },
         "refCleanup": { "type": "boolean" },
         "baseFastForward": { "type": "boolean" },
         "tempPurge": {

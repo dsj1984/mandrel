@@ -327,6 +327,34 @@ export function emitTerminalEnvelope(
 }
 
 /**
+ * The PR facts every wait ending carries. `autoMergeReason` rides along only
+ * when the caller knows it — it is the evidence a later re-arm reads.
+ */
+function prBaseFor({ prNumber, prUrl, autoMergeEnabled, autoMergeReason }) {
+  const base = {
+    number: prNumber,
+    url: prUrl ?? null,
+    autoMergeEnabled: Boolean(autoMergeEnabled),
+  };
+  return autoMergeReason === undefined ? base : { ...base, autoMergeReason };
+}
+
+/**
+ * A DIRTY PR the wait could not sync: labels untouched, and re-running close
+ * (which re-syncs in the worktree) is the remedy.
+ */
+function failedFromWaitOutcome(waitOutcome, prBase, common) {
+  return buildTerminalEnvelope({
+    ...common,
+    status: 'failed',
+    phase: waitOutcome.phase ?? 'base-sync',
+    pr: { ...prBase, state: waitOutcome.prProbe?.state ?? 'OPEN' },
+    failure: { reason: waitOutcome.reason },
+    nextCommand: NEXT_COMMANDS.close(common.storyId),
+  });
+}
+
+/**
  * Map a `runConfirmMergePhase` outcome onto the terminal envelope; the other
  * fields pass through.
  *
@@ -337,14 +365,16 @@ export function terminalFromWaitOutcome({
   prNumber,
   prUrl,
   autoMergeEnabled,
+  autoMergeReason,
   ...common
 }) {
   const { storyId } = common;
-  const prBase = {
-    number: prNumber,
-    url: prUrl ?? null,
-    autoMergeEnabled: Boolean(autoMergeEnabled),
-  };
+  const prBase = prBaseFor({
+    prNumber,
+    prUrl,
+    autoMergeEnabled,
+    autoMergeReason,
+  });
 
   if (waitOutcome.terminal === 'landed') {
     return buildTerminalEnvelope({
@@ -377,7 +407,17 @@ export function terminalFromWaitOutcome({
     });
   }
 
-  // blocked — mirror the classifier's remediation, never a second opinion.
+  if (waitOutcome.terminal === 'failed') {
+    return failedFromWaitOutcome(waitOutcome, prBase, common);
+  }
+
+  return blockedFromWaitOutcome(waitOutcome, prBase, common);
+}
+
+/** Mirrors the classifier's remediation, never a second opinion. */
+function blockedFromWaitOutcome(waitOutcome, prBase, common) {
+  const { storyId } = common;
+  const prNumber = prBase.number;
   const nextCommand =
     waitOutcome.blockClass === 'checks-failed'
       ? NEXT_COMMANDS.watchCi(storyId, prNumber)

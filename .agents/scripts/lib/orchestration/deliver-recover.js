@@ -18,6 +18,11 @@ import {
   deriveChecksStatus,
   isPrMerged,
 } from './merge-poll.js';
+import { readMergeQueueState as defaultReadMergeQueueState } from './merge-queue.js';
+import {
+  closeArmedPr,
+  manualArmCommand,
+} from './single-story-close/phases/auto-merge.js';
 import { NEXT_COMMANDS } from './story-deliver-terminal.js';
 import { STATE_LABELS } from './ticketing.js';
 
@@ -88,24 +93,81 @@ export function probeBranch({ cwd, storyBranch, config, gitSpawnFn }) {
 }
 
 /**
+ * Whether the row carries an auto-merge request; `undefined` when the field
+ * was not returned, so an unread field never reads as a disarm.
+ *
+ * @param {object|null|undefined} row
+ * @returns {boolean|undefined}
+ */
+function readAutoMergeArmed(row) {
+  if (!row || !Object.hasOwn(row, 'autoMergeRequest')) return undefined;
+  return row.autoMergeRequest != null;
+}
+
+/**
+ * Merge-queue facts for an open, un-armed PR only: GitHub clears the
+ * auto-merge request on enqueue, so a queued PR looks un-armed. A read.
+ *
+ * @returns {Promise<{ inMergeQueue?: boolean|null, queueRequired?: boolean|null }>}
+ */
+async function probePrQueue({ pr, nodeId, gh, readMergeQueueStateFn }) {
+  if (pr.state !== 'OPEN' || pr.autoMergeArmed !== false) return {};
+  const queue = await readMergeQueueStateFn({
+    prNumber: pr.number,
+    prNodeId: typeof nodeId === 'string' && nodeId ? nodeId : undefined,
+    gh,
+  });
+  return {
+    inMergeQueue: queue?.inQueue ?? null,
+    queueRequired: queue?.queueRequired ?? null,
+  };
+}
+
+/**
  * `--state all`: the merged-but-label-stale strand needs the merged PR.
  *
  * @returns {Promise<object|null>}
  */
-export async function probePr({ storyBranch, gh = defaultGh }) {
+export async function probePr({
+  storyBranch,
+  gh = defaultGh,
+  readMergeQueueStateFn = defaultReadMergeQueueState,
+}) {
   try {
     const rows = await gh.pr.list(
       ['--head', storyBranch, '--state', 'all'],
-      ['number', 'url', 'state', 'mergedAt', 'statusCheckRollup'],
+      [
+        'number',
+        'url',
+        'state',
+        'mergedAt',
+        'statusCheckRollup',
+        'mergeStateStatus',
+        'autoMergeRequest',
+        'headRefOid',
+        'id',
+      ],
     );
     if (!Array.isArray(rows) || rows.length === 0) return null;
     const row = rows[0];
-    return {
+    const pr = {
       number: Number(row?.number) || null,
       url: row?.url ?? null,
       state: row?.state ?? null,
       mergedAt: row?.mergedAt ?? null,
       checksStatus: deriveChecksStatus(row?.statusCheckRollup),
+      mergeStateStatus: row?.mergeStateStatus ?? null,
+      autoMergeArmed: readAutoMergeArmed(row),
+      headSha: row?.headRefOid ?? null,
+    };
+    return {
+      ...pr,
+      ...(await probePrQueue({
+        pr,
+        nodeId: row?.id,
+        gh,
+        readMergeQueueStateFn,
+      })),
     };
   } catch (err) {
     return { error: String(err?.message ?? err) };
@@ -380,6 +442,8 @@ export function decideRecovery({
     `issue=${ticket?.issueState ?? 'unknown'}`,
     `pr=${pr?.number ? `#${pr.number} ${pr.state ?? '?'}` : 'none'}`,
     `checks=${pr?.checksStatus ?? 'n/a'}`,
+    `mergeState=${pr?.mergeStateStatus ?? 'n/a'}`,
+    `autoMerge=${pr?.autoMergeArmed === undefined ? 'n/a' : pr.autoMergeArmed ? 'armed' : 'unarmed'}`,
     `branch.local=${branch?.local ?? false}`,
     `branch.remote=${branch?.remote ?? false}`,
     `worktree=${branch?.worktreePath ?? 'none'}`,
@@ -427,37 +491,7 @@ export function decideRecovery({
   }
 
   if (label === STATE_LABELS.CLOSING) {
-    if (pr?.checksStatus === 'failure') {
-      return {
-        shape: 'closing-pr-red',
-        nextCommand: NEXT_COMMANDS.watchCi(storyId, pr.number),
-        detail:
-          `PR #${pr.number} has a red required check. Waiting cannot help — fix the ` +
-          `failure and push a new commit on \`story-${storyId}\`; the red disarmed ` +
-          `auto-merge, and only a green on a new head SHA re-arms it.`,
-        evidence,
-      };
-    }
-    if (pr?.number) {
-      return {
-        shape: 'closing-pr-pending',
-        nextCommand: NEXT_COMMANDS.resumeLand(storyId),
-        detail:
-          `PR #${pr.number} is open and healthy. This is the normal resumable shape after ` +
-          `a bounded merge wait returned \`pending\`. The confirm CLI polls it to a ` +
-          `confirmed merge and runs the land tail.`,
-        evidence,
-      };
-    }
-    return {
-      shape: 'closing-no-pr',
-      nextCommand: NEXT_COMMANDS.close(storyId),
-      detail:
-        `Story is at \`agent::closing\` but no PR exists for \`story-${storyId}\`. The ` +
-        `close did not reach the pull-request phase; re-run it (close is idempotent and ` +
-        `reuses an existing PR when one is found).`,
-      evidence,
-    };
+    return decideClosing({ storyId, branch, pr, closeArtifacts, evidence });
   }
 
   if (label === STATE_LABELS.EXECUTING) {
@@ -470,6 +504,104 @@ export function decideRecovery({
     detail:
       `Story is at \`${label ?? 'no agent:: state label'}\` — not mid-delivery, so there ` +
       `is no strand to recover. Deliver it normally via /mandrel-deliver ${storyId}.`,
+    evidence,
+  };
+}
+
+/**
+ * `main` moved under the PR and it no longer merges cleanly. Close re-syncs
+ * in the Story worktree (recreating it when missing).
+ */
+function conflictedVerdict({ storyId, branch, pr, evidence }) {
+  const worktree = branch?.worktreePath ?? `.worktrees/story-${storyId}`;
+  return {
+    shape: 'closing-pr-conflicted',
+    nextCommand: NEXT_COMMANDS.close(storyId),
+    detail:
+      `PR #${pr.number} is DIRTY: its base moved and it no longer merges cleanly, so ` +
+      `waiting cannot land it. Re-run close: it merges origin/<base> into \`story-${storyId}\` ` +
+      `in the Story worktree (\`${worktree}\`), recreating that worktree when it is missing, ` +
+      `and pushes a clean merge. If close reports conflicted files, resolve exactly those in ` +
+      `the worktree, commit, and re-run close.`,
+    evidence,
+  };
+}
+
+/** A new head disarmed auto-merge; the resumed wait re-arms it. */
+function unarmedVerdict({ storyId, pr, evidence }) {
+  const command = `\`${manualArmCommand({ prNumber: pr.number, queueRequired: pr.queueRequired === true })}\``;
+  const manual =
+    pr.queueRequired === true
+      ? `${command} (the base requires a merge queue, so the queue rule picks the strategy)`
+      : command;
+  return {
+    shape: 'closing-pr-unarmed',
+    nextCommand: NEXT_COMMANDS.resumeLand(storyId),
+    detail:
+      `PR #${pr.number} is open with no red check, but it has NO auto-merge request — a new ` +
+      `head disarmed it, so nothing will ever merge it. The resumed merge wait re-arms it ` +
+      `(once per head SHA, unless a CI red was recorded against this same head). The manual ` +
+      `equivalent is ${manual}.`,
+    evidence,
+  };
+}
+
+/**
+ * Un-armed by a new head — only when the last close's envelope proves close
+ * armed it; an operator-owned PR (`--no-auto-merge`, `strict`) is never one.
+ */
+function isUnarmed(pr, closeArtifacts) {
+  const envelope = closeArtifacts?.envelope;
+  return (
+    closeArmedPr(envelope?.pr) &&
+    pr?.state === 'OPEN' &&
+    pr.autoMergeArmed === false &&
+    pr.inMergeQueue !== true &&
+    pr.checksStatus !== 'failure'
+  );
+}
+
+/**
+ * The `agent::closing` rows; conflicted and un-armed come before red.
+ *
+ * @returns {{ shape: string, nextCommand: string, detail: string, evidence: string[] }}
+ */
+function decideClosing({ storyId, branch, pr, closeArtifacts, evidence }) {
+  if (pr?.number && pr.mergeStateStatus === 'DIRTY') {
+    return conflictedVerdict({ storyId, branch, pr, evidence });
+  }
+  if (pr?.number && isUnarmed(pr, closeArtifacts)) {
+    return unarmedVerdict({ storyId, pr, evidence });
+  }
+  if (pr?.checksStatus === 'failure') {
+    return {
+      shape: 'closing-pr-red',
+      nextCommand: NEXT_COMMANDS.watchCi(storyId, pr.number),
+      detail:
+        `PR #${pr.number} has a red required check. Waiting cannot help — fix the ` +
+        `failure and push a new commit on \`story-${storyId}\`; the red disarmed ` +
+        `auto-merge, and only a green on a new head SHA re-arms it.`,
+      evidence,
+    };
+  }
+  if (pr?.number) {
+    return {
+      shape: 'closing-pr-pending',
+      nextCommand: NEXT_COMMANDS.resumeLand(storyId),
+      detail:
+        `PR #${pr.number} is open and healthy. This is the normal resumable shape after ` +
+        `a bounded merge wait returned \`pending\`. The confirm CLI polls it to a ` +
+        `confirmed merge and runs the land tail.`,
+      evidence,
+    };
+  }
+  return {
+    shape: 'closing-no-pr',
+    nextCommand: NEXT_COMMANDS.close(storyId),
+    detail:
+      `Story is at \`agent::closing\` but no PR exists for \`story-${storyId}\`. The ` +
+      `close did not reach the pull-request phase; re-run it (close is idempotent and ` +
+      `reuses an existing PR when one is found).`,
     evidence,
   };
 }

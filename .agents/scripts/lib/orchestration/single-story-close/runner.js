@@ -1,12 +1,12 @@
-import nodeFs from 'node:fs';
-import path from 'node:path';
 import {
   BASELINES_GATE_NAMES,
   buildDefaultGates,
 } from '../../close-validation/gates.js';
 import { runCloseValidation } from '../../close-validation/runner.js';
 import { getCiDelivery } from '../../config/ci.js';
+import { resolveWorktreeEnabled } from '../../config/runtime.js';
 import { resolveConfig } from '../../config-resolver.js';
+import { gh as defaultGh } from '../../gh-exec.js';
 import { getStoryBranch, gitSpawn, gitSync } from '../../git-utils.js';
 import { Logger } from '../../Logger.js';
 import {
@@ -31,7 +31,7 @@ import {
   terminalFromWaitOutcome,
 } from '../story-deliver-terminal.js';
 import { deriveCloseNote } from './close-note.js';
-import { runAutoMergePhase } from './phases/auto-merge.js';
+import { closeArmedPr, runAutoMergePhase } from './phases/auto-merge.js';
 import { runBaseSyncPhase } from './phases/base-sync.js';
 import { runCloseValidationPhase } from './phases/close-validation.js';
 import { parsePrNumber } from './phases/code-review.js';
@@ -40,11 +40,17 @@ import { runGraphqlPreflight } from './phases/graphql-preflight.js';
 import { lockWaitPending } from './phases/lock-wait-pending.js';
 import { parseCloseOptions, resolveWaitForMerge } from './phases/options.js';
 import { runPostLandTail } from './phases/post-land.js';
-import { ensurePullRequestWith } from './phases/pull-request.js';
+import {
+  ensurePullRequestWith,
+  pickHeadPullRequest,
+} from './phases/pull-request.js';
 import { pushStoryBranch } from './phases/push.js';
 import { handleCriticalReviewBlock } from './phases/review-block.js';
 import { handleOverriddenReviewBlock } from './phases/review-override.js';
-import { reapWorktreePhase } from './phases/worktree-reap.js';
+import {
+  existingWorktreePath,
+  resolveStoryWorktree,
+} from './phases/worktree-restore.js';
 import { runWrongTreeGuardPhase } from './phases/wrong-tree-guard.js';
 import {
   discardHeldReview,
@@ -254,12 +260,6 @@ function closeEnvelopeGates(options, validationGates, reviewOverride) {
     // The review did fail; the envelope records the human override.
     codeReview: reviewOverride ? 'overridden' : 'passed',
   };
-}
-
-function resolveWorktreePath({ cwd, config, storyId }) {
-  const root = config.delivery?.worktreeIsolation?.root ?? '.worktrees';
-  const candidate = path.resolve(cwd, root, `story-${storyId}`);
-  return nodeFs.existsSync(candidate) ? candidate : null;
 }
 
 /**
@@ -521,7 +521,7 @@ function closeResult({
   prNumber,
   autoMergeEnabled,
   autoMergeReason,
-  worktreeReaped,
+  worktreeReaped = false,
   leaseReleased,
   localCleanupDeferred = false,
   directMerged = false,
@@ -666,30 +666,51 @@ async function resolveAutoMergeOutcome({ alreadyMerged, ...phaseArgs }) {
   return await runAutoMergePhase(phaseArgs);
 }
 
-/**
- * @param {{ status: string, nextCommand: string, blocked?: {blockClass?: string} }} terminal
- * @param {{ storyId: number, prUrl: string|null }} ctx
- * @returns {void}
- */
-function reportWaitTerminal(terminal, { storyId, prUrl }) {
-  if (terminal.status === 'landed') {
-    progress('DONE', `✅ Story #${storyId}: PR merged → ${prUrl}`);
-    return;
-  }
-  if (terminal.status === 'pending') {
-    // Not a failure: resumable, with its own CLI exit code.
-    progress(
-      'PENDING',
-      `⏸  Story #${storyId}: PR ${prUrl} still in flight — resume with: ${terminal.nextCommand}`,
-    );
-    return;
-  }
-  progress(
+/** One console line per non-landed wait ending, keyed by status. */
+const WAIT_TERMINAL_LINES = Object.freeze({
+  pending: (terminal, { storyId, prUrl }) => [
+    'PENDING',
+    `⏸  Story #${storyId}: PR ${prUrl} still in flight — resume with: ${terminal.nextCommand}`,
+  ],
+  failed: (terminal, { storyId, prUrl }) => [
+    'FAILED',
+    `🛑 Story #${storyId}: PR ${prUrl} did not land (${terminal.phase}): ` +
+      `${terminal.failure?.reason}. Labels unchanged. Next: ${terminal.nextCommand}`,
+  ],
+  blocked: (terminal, { storyId, prUrl }) => [
     'BLOCKED',
     `🛑 Story #${storyId}: PR ${prUrl} did not land ` +
       `(blockClass=${terminal.blocked?.blockClass}). Story is at agent::blocked. ` +
       `Next: ${terminal.nextCommand}`,
-  );
+  ],
+  landed: (_terminal, { storyId, prUrl }) => [
+    'DONE',
+    `✅ Story #${storyId}: PR merged → ${prUrl}`,
+  ],
+});
+
+/**
+ * `pending` is not a failure: resumable, with its own CLI exit code.
+ *
+ * @param {{ status: string, nextCommand: string }} terminal
+ * @param {{ storyId: number, prUrl: string|null }} ctx
+ * @returns {void}
+ */
+function reportWaitTerminal(terminal, ctx) {
+  const line =
+    WAIT_TERMINAL_LINES[terminal.status] ?? WAIT_TERMINAL_LINES.blocked;
+  progress(...line(terminal, ctx));
+}
+
+/**
+ * Reaped only by the post-land tail, and only when it actually removed the
+ * tree (a skipped reap reports ok with a detail).
+ *
+ * @param {object|null|undefined} tail
+ * @returns {boolean}
+ */
+function tailReapedWorktree(tail) {
+  return tail?.worktreeReap === true && !tail?.details?.worktreeReap;
 }
 
 /**
@@ -701,6 +722,7 @@ async function finishWithMergeWait(prCtx, deps) {
   deps.setPhase('confirm-merge');
   const waitOutcome = await runConfirmMergePhase({
     cwd: deps.cwd,
+    worktreePath: prCtx.worktreePath,
     storyId: prCtx.storyId,
     storyBranch: prCtx.storyBranch,
     baseBranch: prCtx.baseBranch,
@@ -708,6 +730,8 @@ async function finishWithMergeWait(prCtx, deps) {
     prUrl: prCtx.prUrl,
     autoMergeEnabled: prCtx.autoMergeEnabled,
     autoMergeReason: prCtx.autoMergeReason,
+    // Positive evidence for the re-arm rule: this close armed the PR.
+    closeArmed: closeArmedPr(prCtx),
     advisoryGate: prCtx.advisoryGate,
     provider: deps.provider,
     config: prCtx.config,
@@ -730,6 +754,7 @@ async function finishWithMergeWait(prCtx, deps) {
     prNumber: prCtx.prNumber,
     prUrl: prCtx.prUrl,
     autoMergeEnabled: prCtx.autoMergeEnabled,
+    autoMergeReason: prCtx.autoMergeReason,
     gates: prCtx.gates,
     lockWait: prCtx.lockWait,
     suiteTimings: prCtx.suiteTimings,
@@ -743,7 +768,7 @@ async function finishWithMergeWait(prCtx, deps) {
     prNumber: prCtx.prNumber,
     autoMergeEnabled: prCtx.autoMergeEnabled,
     autoMergeReason: prCtx.autoMergeReason,
-    worktreeReaped: prCtx.worktreeReaped,
+    worktreeReaped: tailReapedWorktree(waitOutcome.tail),
     // Released by the post-land tail only; any other ending keeps the claim.
     leaseReleased: waitOutcome.tail?.leaseRelease === true,
     localCleanupDeferred: prCtx.localCleanupDeferred,
@@ -784,7 +809,6 @@ async function finishWithoutMergeWait(prCtx, waitForMergeReason) {
     prNumber: prCtx.prNumber,
     autoMergeEnabled: prCtx.autoMergeEnabled,
     autoMergeReason: prCtx.autoMergeReason,
-    worktreeReaped: prCtx.worktreeReaped,
     leaseReleased: false,
     localCleanupDeferred: prCtx.localCleanupDeferred,
     directMerged: prCtx.directMerged,
@@ -803,6 +827,7 @@ async function finishWithoutMergeWait(prCtx, waitForMergeReason) {
       url: prCtx.prUrl ?? null,
       state: merged ? 'MERGED' : 'OPEN',
       autoMergeEnabled: Boolean(prCtx.autoMergeEnabled),
+      autoMergeReason: prCtx.autoMergeReason ?? null,
     },
     gates: prCtx.gates,
     lockWait: prCtx.lockWait,
@@ -910,7 +935,8 @@ async function graphqlPreflightPhase(ctx, deps) {
 
 /**
  * The base the run was SEEDED from (init receipt); throws before any merge
- * when it disagrees with current config.
+ * when it disagrees with current config. Also the Story worktree every later
+ * phase runs in — recreated before any git operation when it is missing.
  */
 async function resolveBasePhase(ctx, deps) {
   const { values, confirmed } = await resolveRunScopedConfig({
@@ -920,11 +946,101 @@ async function resolveBasePhase(ctx, deps) {
   });
   ctx.baseBranch = values.baseBranch;
   ctx.baseConfirmed = confirmed;
-  ctx.worktreePath = resolveWorktreePath({
-    cwd: ctx.options.cwd,
+  ctx.worktreePath = await resolveCloseWorktree(ctx, deps);
+  return null;
+}
+
+/**
+ * A surviving local ref, or a branch still on origin, may carry work no PR
+ * holds yet. Only `ls-remote`'s "no such ref" (exit 2) proves the remote
+ * branch gone — a read failure counts as surviving.
+ */
+function storyBranchSurvives(ctx) {
+  const cwd = ctx.options.cwd;
+  const ref = `refs/heads/${ctx.storyBranch}`;
+  const local = gitSpawn(cwd, 'show-ref', '--verify', '--quiet', ref);
+  if (local.status === 0) return true;
+  const remote = gitSpawn(
+    cwd,
+    'ls-remote',
+    '--exit-code',
+    '--heads',
+    'origin',
+    ctx.storyBranch,
+  );
+  return remote.status !== 2;
+}
+
+/**
+ * The Story's PR, when it already merged and nothing newer is in flight — a
+ * re-run after the land, whose branch `--delete-branch` and a sweep removed.
+ * An OPEN PR on the head wins (a re-delivery), as `ensurePullRequestWith`
+ * decides, and a surviving branch means there may be work to deliver.
+ * Any read failure reads as "not merged": the normal path then decides.
+ *
+ * @returns {Promise<{ prUrl: string, prNumber: number|null }|null>}
+ */
+async function findLandedPr(ctx, deps) {
+  if (storyBranchSurvives(ctx)) return null;
+  try {
+    const rows = await (deps.gh ?? defaultGh).pr.list(
+      ['--head', ctx.storyBranch, '--state', 'all'],
+      ['url', 'state', 'mergedAt'],
+    );
+    const head = pickHeadPullRequest(rows);
+    return head?.state === 'MERGED'
+      ? { prUrl: head.url, prNumber: parsePrNumber(head.url) }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A missing worktree is recreated — unless the PR already merged, which
+ * short-circuits to the confirm before any restore is attempted.
+ */
+async function resolveCloseWorktree(ctx, deps) {
+  const cwd = ctx.options.cwd;
+  const wtIsolation = deps.config.delivery?.worktreeIsolation;
+  const missing =
+    !existingWorktreePath({ cwd, wtIsolation, storyId: ctx.storyId }) &&
+    resolveWorktreeEnabled({ config: deps.config });
+  ctx.landedPr = missing ? await findLandedPr(ctx, deps) : null;
+  if (ctx.landedPr) return null;
+  return await resolveStoryWorktree({
+    cwd,
     config: deps.config,
     storyId: ctx.storyId,
+    storyBranch: ctx.storyBranch,
+    progress,
+    gitSpawn,
+    WorktreeManager,
   });
+}
+
+/** A landed PR has nothing left to validate, push or open. */
+function unlessLanded(phase, onLanded) {
+  return (ctx, deps) => (ctx.landedPr ? onLanded(ctx) : phase(ctx, deps));
+}
+
+function landedPrePush(ctx) {
+  progress(
+    'INIT',
+    `⏭  PR ${ctx.landedPr.prUrl} already merged — skipping validation, sync and push.`,
+  );
+  ctx.options = { ...ctx.options, skipValidation: true, skipSync: true };
+  ctx.prePush = {
+    validationGates: null,
+    lockWait: null,
+    suiteTimings: null,
+    pending: false,
+  };
+  return null;
+}
+
+function landedPr(ctx) {
+  ctx.pr = { ...ctx.landedPr, alreadyMerged: true, reviewOverride: null };
   return null;
 }
 
@@ -957,23 +1073,12 @@ async function openPrPhase(ctx, deps) {
 }
 
 /**
- * Reap BEFORE the arm: `gh pr merge --delete-branch` may merge at once and
- * then fail deleting a branch a live worktree holds, reading as a failed arm.
- * Safe — the work is pushed, and a dirty tree is still refused.
+ * No lease release here: only the post-land tail releases it. The Story
+ * worktree is still live at the arm, and that is safe: a `gh pr merge
+ * --delete-branch` whose only failure is the LOCAL delete of a branch the
+ * worktree holds is classified `localCleanupDeferred` (`LOCAL_CLEANUP_FAILURE`
+ * in `phases/auto-merge.js`), and the tail reaps the worktree, then the ref.
  */
-async function reapWorktreePhaseStep(ctx, deps) {
-  ctx.worktreeReaped = await reapWorktreePhase({
-    cwd: ctx.options.cwd,
-    storyId: ctx.storyId,
-    worktreePath: ctx.worktreePath,
-    wtIsolation: deps.config.delivery?.worktreeIsolation,
-    progress,
-    WorktreeManager,
-  });
-  return null;
-}
-
-/** No lease release here: only the post-land tail releases it. */
 async function armPhase(ctx, deps) {
   ctx.setPhase('auto-merge');
   const ciDelivery = getCiDelivery(deps.config);
@@ -1028,7 +1133,7 @@ async function finishPhase(ctx, deps) {
     autoMergeEnabled: arm.autoMergeEnabled,
     autoMergeReason: arm.autoMergeReason,
     advisoryGate: arm.advisoryGate,
-    worktreeReaped: ctx.worktreeReaped,
+    worktreePath: ctx.worktreePath,
     localCleanupDeferred: arm.localCleanupDeferred,
     directMerged: arm.directMerged,
     config: deps.config,
@@ -1063,9 +1168,8 @@ const CLOSE_PIPELINE = Object.freeze([
   loadStoryPhase,
   graphqlPreflightPhase,
   resolveBasePhase,
-  prePushPhase,
-  openPrPhase,
-  reapWorktreePhaseStep,
+  unlessLanded(prePushPhase, landedPrePush),
+  unlessLanded(openPrPhase, landedPr),
   armPhase,
   finishPhase,
 ]);

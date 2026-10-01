@@ -28,7 +28,7 @@
  */
 
 import assert from 'node:assert/strict';
-import { mkdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -182,17 +182,23 @@ afterEach(() => {
   rmSync(tempRoot, { recursive: true, force: true });
 });
 
+/**
+ * Isolation is OFF by default: with it on, close recreates a missing Story
+ * worktree before any git operation (Story #5533), which these scenarios —
+ * all about later phases — never provision. Tests of that recreation opt in.
+ */
 function fakeConfig({
   baseBranch = 'main',
   reapOnSuccess = false,
   worktreeRoot = '.no-such-worktree-root',
+  worktreeEnabled = false,
   autoMerge,
 } = {}) {
   return {
     project: { baseBranch, commands: {}, paths: { tempRoot } },
     delivery: {
       worktreeIsolation: {
-        enabled: true,
+        enabled: worktreeEnabled,
         root: worktreeRoot,
         reapOnSuccess,
       },
@@ -927,17 +933,14 @@ describe('runSingleStoryClose orchestration', () => {
     assert.match(result.autoMergeReason ?? '', /gh-exit-22/);
   });
 
-  it("Story #4681 — reaps the per-Story worktree BEFORE arming auto-merge, so gh's local branch delete is never blocked by a live worktree", async (t) => {
-    // `gh pr merge --auto --squash --delete-branch` shells out to local
-    // `git branch -D story-<id>` after merging. A worktree still holding the
-    // ref makes that delete fail, gh exit non-zero, and the arm read as
-    // failed — which used to block a merged Story. Pre-empting the hold is
-    // the ordering half of the fix, so the order is the contract.
+  it('Story #5533 — arms auto-merge with the Story worktree still live, and never reaps it in close', async (t) => {
+    // Worktree lifetime is Story lifetime: the post-land tail is the one
+    // reaper. Arming with a live worktree is safe because gh's LOCAL branch
+    // delete failure is classified `localCleanupDeferred` (Story #4681).
     const order = [];
     const worktreeRoot = '.worktrees';
-    mkdirSync(path.join(tempRoot, worktreeRoot, 'story-4681'), {
-      recursive: true,
-    });
+    const wtPath = path.join(tempRoot, worktreeRoot, 'story-4681');
+    mkdirSync(wtPath, { recursive: true });
     const gh = makeFakeGh((args) => {
       if (args[1] === 'list') return [];
       if (args[1] === 'create') {
@@ -958,13 +961,17 @@ describe('runSingleStoryClose orchestration', () => {
             order.push('reap');
             return { removed: true };
           }
+          async ensure() {
+            order.push('ensure');
+            return { path: wtPath, created: false };
+          }
         },
         parseWorktreePorcelain: (..._args) => [],
       },
     });
 
     const { runSingleStoryClose } = await import(
-      `${SUT_URL}?t=reap-before-arm`
+      `${SUT_URL}?t=arm-with-live-worktree`
     );
     const { result } = await runSingleStoryClose({
       storyId: 4681,
@@ -976,23 +983,110 @@ describe('runSingleStoryClose orchestration', () => {
         initialStory: {
           id: 4681,
           state: 'open',
-          title: 'Reap before arm',
+          title: 'Arm with a live worktree',
           labels: ['agent::executing'],
         },
       }),
-      injectedConfig: fakeConfig({ reapOnSuccess: true, worktreeRoot }),
+      injectedConfig: fakeConfig({
+        reapOnSuccess: true,
+        worktreeRoot,
+        worktreeEnabled: true,
+      }),
       injectedRunCodeReview: noopReview(),
       injectedGh: gh,
     });
 
     assert.deepEqual(
       order,
-      ['reap', 'arm'],
-      'the worktree reap must precede the auto-merge arm',
+      ['arm'],
+      'close neither reaps nor recreates a live worktree',
     );
-    assert.equal(result.worktreeReaped, true);
+    assert.equal(
+      existsSync(wtPath),
+      true,
+      'the pending close keeps its working copy',
+    );
+    assert.equal(result.worktreeReaped, false);
     assert.equal(result.autoMergeEnabled, true);
-    assert.equal(result.localCleanupDeferred, false);
+  });
+
+  it('Story #5533 AC-3 — recreates a missing Story worktree before any git operation, and pushes from it', async (t) => {
+    const order = [];
+    const wtPath = path.join(tempRoot, '.worktrees', 'story-5534');
+    t.mock.module(GIT_UTILS_URL, {
+      namedExports: {
+        ...defaultGitUtilsMock().namedExports,
+        gitSpawn: (_cwd, ...args) => {
+          if (args[0] === 'show-ref') {
+            order.push(`show-ref ${args.at(-1)}`);
+            return { status: 0, stdout: '', stderr: '' };
+          }
+          return defaultGitUtilsMock().namedExports.gitSpawn(_cwd, ...args);
+        },
+        gitSync: (cwd, ...args) => {
+          order.push(`${args[0]} @ ${cwd}`);
+          return { status: 0, stdout: '', stderr: '' };
+        },
+      },
+    });
+    mockCloseValidation(t, defaultCloseValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, {
+      namedExports: {
+        WorktreeManager: class {
+          async prune() {
+            return { pruned: true };
+          }
+          async ensure(id, branch) {
+            order.push(`ensure ${id} ${branch}`);
+            mkdirSync(wtPath, { recursive: true });
+            return { path: wtPath, created: true };
+          }
+        },
+        parseWorktreePorcelain: (..._args) => [],
+      },
+    });
+    const gh = makeFakeGh((args) => {
+      if (args[1] === 'list') return [];
+      if (args[1] === 'create')
+        return 'https://github.com/owner/repo/pull/78\n';
+      if (args[1] === 'merge') return 'ok';
+      throw new Error(`unexpected gh: ${args.join(' ')}`);
+    });
+
+    const { runSingleStoryClose } = await import(
+      `${SUT_URL}?t=recreate-missing-worktree`
+    );
+    await runSingleStoryClose({
+      storyId: 5534,
+      cwd: tempRoot,
+      skipValidation: true,
+      skipSync: true,
+      noWaitForMerge: true,
+      injectedProvider: makeFakeProvider({
+        initialStory: {
+          id: 5534,
+          state: 'open',
+          title: 'Recreate the worktree',
+          labels: ['agent::executing'],
+        },
+      }),
+      injectedConfig: fakeConfig({
+        worktreeRoot: '.worktrees',
+        worktreeEnabled: true,
+      }),
+      injectedRunCodeReview: noopReview(),
+      injectedGh: gh,
+    });
+
+    const ensureAt = order.indexOf('ensure 5534 story-5534');
+    const pushAt = order.findIndex((c) => c.startsWith('push @'));
+    assert.ok(ensureAt >= 0, `the worktree was recreated; got ${order}`);
+    assert.ok(ensureAt < pushAt, 'recreated before any git operation');
+    assert.equal(
+      order[pushAt],
+      `push @ ${wtPath}`,
+      'the push runs from the recreated worktree, never the main checkout',
+    );
   });
 
   it('runs the validation gate when skipValidation is false (happy path)', async (t) => {
@@ -1973,6 +2067,303 @@ describe('runSingleStoryClose — the lease is held until the merge confirms (St
     );
   });
 
+  it('Story #5533 AC-4/AC-7: a wait that hands back a DIRTY conflict ends failed at base-sync, keeping the lease and the worktree', async (t) => {
+    t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
+    mockCloseValidation(t, defaultCloseValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
+    mockConfirmMergePhase(t, {
+      confirmed: false,
+      terminal: 'failed',
+      phase: 'base-sync',
+      reason:
+        'PR #863 is DIRTY against origin/main and the merge-wait base sync could not land it (conflict): conflicting files = src/a.js',
+      prProbe: { state: 'OPEN', checksStatus: 'pending' },
+    });
+
+    const releaseCalls = [];
+    const provider = makeFakeProvider({
+      initialStory: {
+        id: 4863,
+        state: 'open',
+        title: 'dirty after arm',
+        labels: ['agent::executing'],
+      },
+    });
+    const { runSingleStoryClose } = await import(
+      `${SUT_URL}?t=wait-dirty-failed`
+    );
+    const { success, result, terminal } = await runSingleStoryClose({
+      storyId: 4863,
+      cwd: '/repo',
+      skipValidation: true,
+      skipSync: true,
+      injectedProvider: provider,
+      injectedConfig: fakeConfig(),
+      injectedGh: ghOpeningPr('https://github.com/owner/repo/pull/863'),
+      injectedRunCodeReview: noopReview(),
+      injectedReleaseLease: async ({ storyId }) => {
+        releaseCalls.push(storyId);
+        return { released: true, owner: 'alice', reason: 'released' };
+      },
+    });
+
+    assert.equal(success, false);
+    assert.equal(terminal.status, 'failed');
+    assert.equal(terminal.phase, 'base-sync');
+    assert.match(terminal.failure.reason, /src\/a\.js/);
+    assert.equal(
+      terminal.nextCommand,
+      'node .agents/scripts/single-story-close.js --story 4863',
+    );
+    assert.deepEqual(releaseCalls, [], 'the Story keeps its owner');
+    assert.equal(result.worktreeReaped, false, 'the worktree stays in place');
+    assert.equal(
+      provider
+        ._updates()
+        .some((u) => u.patch?.labels?.add?.includes('agent::blocked')),
+      false,
+      'a handed-back conflict never blocks',
+    );
+    const { validateTerminalEnvelope } = await import(
+      '../.agents/scripts/lib/orchestration/story-deliver-terminal.js'
+    );
+    assert.equal(validateTerminalEnvelope(terminal).valid, true);
+  });
+
+  it('Story #5533: a re-run after the land confirms the merge without restoring a worktree it no longer has', async (t) => {
+    // `--delete-branch` plus a sweep leaves no worktree, no local ref and no
+    // origin branch. Restoring first would throw; the merged PR wins instead.
+    const order = [];
+    t.mock.module(GIT_UTILS_URL, {
+      namedExports: {
+        ...defaultGitUtilsMock().namedExports,
+        // No local ref; `ls-remote --exit-code` exit 2: origin has no branch.
+        gitSpawn: (_cwd, ...args) =>
+          args[0] === 'ls-remote'
+            ? { status: 2, stdout: '', stderr: '' }
+            : defaultGitUtilsMock().namedExports.gitSpawn(_cwd, ...args),
+        gitSync: (cwd, ...args) => {
+          order.push(`${args[0]} @ ${cwd}`);
+          return { status: 0, stdout: '', stderr: '' };
+        },
+      },
+    });
+    mockCloseValidation(t, defaultCloseValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, {
+      namedExports: {
+        WorktreeManager: class {
+          async ensure() {
+            order.push('ensure');
+            throw new Error('restore must not run for a landed PR');
+          }
+        },
+        parseWorktreePorcelain: (..._args) => [],
+      },
+    });
+    mockConfirmMergePhase(t, {
+      confirmed: true,
+      terminal: 'landed',
+      action: 'done',
+      tail: {
+        followUps: true,
+        statusResync: true,
+        worktreeReap: true,
+        refCleanup: true,
+        baseFastForward: true,
+        tempPurge: true,
+        leaseRelease: true,
+        epicRollup: true,
+        details: { worktreeReap: 'no-worktree' },
+      },
+      prProbe: { state: 'MERGED', checksStatus: 'success' },
+    });
+    const gh = makeFakeGh((args) => {
+      if (args[1] === 'list') {
+        return [
+          { url: 'https://github.com/owner/repo/pull/864', state: 'MERGED' },
+        ];
+      }
+      throw new Error(`unexpected gh: ${args.join(' ')}`);
+    });
+
+    const { runSingleStoryClose } = await import(
+      `${SUT_URL}?t=landed-rerun-no-restore`
+    );
+    const { terminal, result } = await runSingleStoryClose({
+      storyId: 4864,
+      cwd: tempRoot,
+      injectedProvider: makeFakeProvider({
+        initialStory: {
+          id: 4864,
+          state: 'open',
+          title: 'merged, label stale',
+          labels: ['agent::closing'],
+        },
+      }),
+      injectedConfig: fakeConfig({
+        worktreeRoot: '.worktrees',
+        worktreeEnabled: true,
+      }),
+      injectedGh: gh,
+      injectedRunCodeReview: async () => {
+        throw new Error('a landed PR is not reviewed again');
+      },
+    });
+
+    assert.deepEqual(order, [], 'no restore, no push');
+    assert.equal(terminal.status, 'landed');
+    assert.equal(terminal.gates.validation, 'skipped');
+    assert.equal(result.prNumber, 864);
+    assert.equal(result.worktreeReaped, false, 'nothing was reaped');
+  });
+
+  // Two guards, each sufficient: an OPEN PR on the head (the remote branch
+  // and local ref already swept), and a surviving local ref (unpushed work).
+  for (const [variant, localRef, remoteBranch] of [
+    ['an OPEN PR beside an old merged one', false, false],
+    ['a surviving local story ref', true, false],
+    ['new work pushed to origin only, no PR yet', false, true],
+  ])
+    it(`Story #5533: a re-delivery with ${variant} never short-circuits`, async (t) => {
+      const order = [];
+      const wtPath = path.join(tempRoot, '.worktrees', 'story-4866');
+      t.mock.module(GIT_UTILS_URL, {
+        namedExports: {
+          ...defaultGitUtilsMock().namedExports,
+          gitSpawn: (_cwd, ...args) => {
+            if (args[0] === 'show-ref') return { status: localRef ? 0 : 1 };
+            if (args[0] === 'ls-remote')
+              return { status: remoteBranch ? 0 : 2 };
+            if (args[0] === 'fetch')
+              return { status: 0, stdout: '', stderr: '' };
+            return defaultGitUtilsMock().namedExports.gitSpawn(_cwd, ...args);
+          },
+          gitSync: (cwd, ...args) => {
+            order.push(`${args[0]} @ ${cwd}`);
+            return { status: 0, stdout: '', stderr: '' };
+          },
+        },
+      });
+      mockCloseValidation(t, defaultCloseValidationMock());
+      t.mock.module(WORKTREE_MANAGER_URL, {
+        namedExports: {
+          WorktreeManager: class {
+            async prune() {
+              return { pruned: true };
+            }
+            async ensure() {
+              order.push('ensure');
+              mkdirSync(wtPath, { recursive: true });
+              return { path: wtPath, created: true };
+            }
+          },
+          parseWorktreePorcelain: (..._args) => [],
+        },
+      });
+      mockConfirmMergePhase(t, {
+        confirmed: false,
+        terminal: 'pending',
+        waitBudget: {
+          maxWaitSeconds: 300,
+          waitedSeconds: 300,
+          cumulativeSeconds: 300,
+          maxBudgetSeconds: 3600,
+        },
+        prProbe: { state: 'OPEN', checksStatus: 'pending' },
+      });
+      const gh = makeFakeGh((args) => {
+        if (args[1] === 'list') {
+          return localRef || remoteBranch
+            ? [
+                {
+                  url: 'https://github.com/owner/repo/pull/10',
+                  state: 'MERGED',
+                },
+              ]
+            : [
+                {
+                  url: 'https://github.com/owner/repo/pull/10',
+                  state: 'MERGED',
+                },
+                { url: 'https://github.com/owner/repo/pull/11', state: 'OPEN' },
+              ];
+        }
+        if (args[1] === 'merge') return 'ok';
+        throw new Error(`unexpected gh: ${args.join(' ')}`);
+      });
+      const { runSingleStoryClose } = await import(
+        `${SUT_URL}?t=redelivery-${localRef}-${remoteBranch}`
+      );
+      const { result, terminal } = await runSingleStoryClose({
+        storyId: 4866,
+        cwd: tempRoot,
+        skipValidation: true,
+        skipSync: true,
+        injectedProvider: makeFakeProvider({
+          initialStory: {
+            id: 4866,
+            state: 'open',
+            title: 'second delivery',
+            labels: ['agent::executing'],
+          },
+        }),
+        injectedConfig: fakeConfig({
+          worktreeRoot: '.worktrees',
+          worktreeEnabled: true,
+        }),
+        injectedGh: gh,
+        injectedRunCodeReview: noopReview(),
+      });
+      if (!localRef && !remoteBranch) {
+        assert.equal(result.prNumber, 11, 'the OPEN PR is the one waited on');
+      }
+      assert.equal(terminal.status, 'pending', 'never landed off the old PR');
+      assert.ok(order.includes('ensure'), 'the worktree is restored as usual');
+      assert.ok(order.includes(`push @ ${wtPath}`), 'the new work is pushed');
+    });
+
+  it('Story #5533: a closed Story short-circuits before any worktree restore', async (t) => {
+    const order = [];
+    t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
+    mockCloseValidation(t, defaultCloseValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, {
+      namedExports: {
+        WorktreeManager: class {
+          async ensure() {
+            order.push('ensure');
+            return { path: '/never' };
+          }
+        },
+        parseWorktreePorcelain: (..._args) => [],
+      },
+    });
+    const { runSingleStoryClose } = await import(
+      `${SUT_URL}?t=closed-no-restore`
+    );
+    const { terminal } = await runSingleStoryClose({
+      storyId: 4865,
+      cwd: tempRoot,
+      injectedProvider: makeFakeProvider({
+        initialStory: {
+          id: 4865,
+          state: 'closed',
+          title: 'already landed',
+          labels: ['agent::done'],
+        },
+      }),
+      injectedConfig: fakeConfig({
+        worktreeRoot: '.worktrees',
+        worktreeEnabled: true,
+      }),
+      injectedGh: makeFakeGh(() => {
+        throw new Error('a closed Story reads no PR');
+      }),
+      injectedRunCodeReview: noopReview(),
+    });
+    assert.equal(terminal.status, 'landed');
+    assert.deepEqual(order, []);
+  });
+
   it('reports leaseReleased from the tail on a landed terminal, never from its own call', async (t) => {
     t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
     mockCloseValidation(t, defaultCloseValidationMock());
@@ -1984,6 +2375,7 @@ describe('runSingleStoryClose — the lease is held until the merge confirms (St
       tail: {
         followUps: true,
         statusResync: true,
+        worktreeReap: true,
         refCleanup: true,
         baseFastForward: true,
         tempPurge: true,
@@ -2025,6 +2417,11 @@ describe('runSingleStoryClose — the lease is held until the merge confirms (St
       result.leaseReleased,
       true,
       'the tail released it, so the result says so',
+    );
+    assert.equal(
+      result.worktreeReaped,
+      true,
+      'Story #5533: worktreeReaped comes from the tail step',
     );
     assert.deepEqual(
       releaseCalls,

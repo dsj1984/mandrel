@@ -100,7 +100,7 @@ Run-scoped artifacts live under `temp/run-<id>/` (standalone Stories under
 | Run ledger | `deliver-run.js` | JSON under `temp/run-<id>/` | `(runId, storyId)` — every id the beat hands out | Local dispatch bookkeeping for a multi-Story run; each beat re-probes live GitHub state. |
 | Validation evidence cache | `evidence-gate.js` | JSON cache under the run temp tree | `(storyId, gate, HEAD, tree fingerprint, command-config hash)` | Pure cache: a miss re-runs the gate; eviction is safe. |
 | PR / auto-merge state | `single-story-close.js` (`phases/auto-merge.js`) | `gh pr create`; `gh pr merge --auto --squash --delete-branch` | `(prNumber, head SHA)` — `gh pr list --head` probes before create | GitHub is authoritative for PR and auto-merge state. |
-| Worktree cleanup state | `WorktreeManager.reap` (via `single-story-close` `phases/worktree-reap.js`) | `git worktree remove` + pending-cleanup JSON | `(storyId, worktree-path)` | Filesystem is authoritative; the pending-cleanup JSON only tracks entries needing a follow-up sweep. |
+| Worktree cleanup state | `WorktreeManager.reap` (via the post-land tail's `phases/worktree-reap.js` step) | `git worktree remove` + pending-cleanup JSON | `(storyId, worktree-path)` | Filesystem is authoritative; the pending-cleanup JSON only tracks entries needing a follow-up sweep. |
 
 > A lint rule in `scripts/check-lifecycle-lint.js` confines the literal
 > `gh pr merge` command to the sanctioned close path.
@@ -302,8 +302,9 @@ filter metadata, never a resolution input — Stories deliver across plan runs.
    PR or writes any other label — the Story stays `agent::executing`.
 5. **Close** (`single-story-close.js`, the orchestrator's step) — close-
    validation gates → base-sync → push → PR → Story-scope code review →
-   arm auto-merge → `agent::closing` → worktree reap → merge wait →
-   `agent::done` → post-land tail. It emits one schema-validated terminal
+   arm auto-merge → `agent::closing` → merge wait (syncs a DIRTY PR,
+   re-arms a disarmed one) → `agent::done` → post-land tail (which reaps the
+   worktree, then the local ref). It emits one schema-validated terminal
    envelope: `landed` | `pending` | `blocked` | `failed`.
 6. **Per-run epilogue (N>1)** — `plan-run-epilogue.js` after the last Story
    lands: the `follow-ups` roll-up and a container-Epic report; the audit

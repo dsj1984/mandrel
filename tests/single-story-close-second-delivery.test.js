@@ -306,6 +306,7 @@ describe('second delivery reaches the landed state (AC-2)', () => {
         return {
           followUps: true,
           statusResync: true,
+          worktreeReap: true,
           refCleanup: true,
           baseFastForward: true,
           tempPurge: true,

@@ -1092,7 +1092,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/deliver-recover.js",
-      "mi": 84.824
+      "mi": 86.599
     },
     {
       "path": ".agents/scripts/lib/orchestration/dependency-analyzer.js",
@@ -1468,7 +1468,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/auto-merge.js",
-      "mi": 89.38
+      "mi": 91.348
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js",
@@ -1497,6 +1497,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/lock-wait-pending.js",
       "mi": 110.238
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
+      "mi": 98.581
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
@@ -1535,8 +1539,16 @@
       "mi": 107.61
     },
     {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/story-branch-catch-up.js",
+      "mi": 103.943
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/worktree-reap.js",
-      "mi": 113.344
+      "mi": 115.586
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/worktree-restore.js",
+      "mi": 108.947
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/wrong-tree-guard.js",
@@ -1548,7 +1560,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
-      "mi": 85.13
+      "mi": 87.667
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-lease-guard.js",
@@ -2136,7 +2148,7 @@
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
-      "mi": 87.436
+      "mi": 88.507
     },
     {
       "path": ".agents/scripts/single-story-init.js",

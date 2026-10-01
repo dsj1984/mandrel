@@ -24,6 +24,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import { runPostLandTail } from '../../../.agents/scripts/lib/orchestration/single-story-close/phases/post-land.js';
+import { reapWorktreePhase } from '../../../.agents/scripts/lib/orchestration/single-story-close/phases/worktree-reap.js';
 import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
 
 /** A gitSpawn stub: story-branch exists, deletes cleanly. */
@@ -85,6 +86,11 @@ function baseSeams(trace) {
       trace?.push('epicRollup');
       return { epics: [], closed: [], pending: [], reason: null };
     },
+    // Stubbed so no test reaches a real `git worktree remove` (Story #5533).
+    reapWorktreePhaseFn: async () => {
+      trace?.push('worktreeReap');
+      return { removed: true, skipped: false, reason: null };
+    },
   };
 }
 
@@ -127,6 +133,7 @@ describe('runPostLandTail — lock scope (Story #4622)', () => {
     assert.deepEqual(tail, {
       followUps: true,
       statusResync: true,
+      worktreeReap: true,
       refCleanup: true,
       baseFastForward: true,
       tempPurge: true,
@@ -135,6 +142,7 @@ describe('runPostLandTail — lock scope (Story #4622)', () => {
       details: {
         followUps: null,
         statusResync: null,
+        worktreeReap: null,
         refCleanup: null,
         baseFastForward: null,
         tempPurge: null,
@@ -160,6 +168,7 @@ describe('runPostLandTail — lock scope (Story #4622)', () => {
       'statusResync',
       'epicRollup',
       'acquire',
+      'worktreeReap',
       'refCleanup',
       'baseFastForward',
       'release',
@@ -356,5 +365,124 @@ describe('runPostLandTail — real cross-process serialization (Story #4622)', (
     ]) {
       assert.equal(tail[key], true, key);
     }
+  });
+});
+
+/**
+ * Story #5533 — worktree lifetime is Story lifetime. The close pipeline no
+ * longer reaps; the tail does, under the lock and BEFORE the local ref reap,
+ * because `git branch -D` refuses a branch a live worktree still holds.
+ */
+describe('runPostLandTail — the worktree reap (Story #5533)', () => {
+  /** A repo where the story branch is held while its worktree exists. */
+  function heldBranchRepo({ dirty = false } = {}) {
+    const wtPath = path.join(tmpDir, '.worktrees', 'story-5533');
+    fs.mkdirSync(wtPath, { recursive: true });
+    const removed = [];
+    class FakeWorktreeManager {
+      reap() {
+        if (dirty) {
+          return {
+            removed: false,
+            reason: 'uncommitted-changes',
+            path: wtPath,
+          };
+        }
+        fs.rmSync(wtPath, { recursive: true, force: true });
+        removed.push(wtPath);
+        return { removed: true, path: wtPath };
+      }
+    }
+    const gitSpawnFn = (_cwd, ...args) => {
+      if (args[0] === 'show-ref') return { status: 0 };
+      if (args[0] === 'branch' && args[1] === '-D') {
+        return fs.existsSync(wtPath)
+          ? {
+              status: 1,
+              stderr: `error: cannot delete branch 'story-5533' used by worktree at '${wtPath}'`,
+            }
+          : { status: 0 };
+      }
+      return { status: 0 };
+    };
+    return {
+      wtPath,
+      removed,
+      seams: {
+        gitSpawnFn,
+        reapWorktreePhaseFn: (args) =>
+          reapWorktreePhase({ ...args, WorktreeManager: FakeWorktreeManager }),
+      },
+    };
+  }
+
+  function runTail(seams) {
+    return runPostLandTail({
+      storyId: 5533,
+      storyBranch: 'story-5533',
+      baseBranch: 'main',
+      cwd: tmpDir,
+      provider: {},
+      config: { delivery: { worktreeIsolation: { root: '.worktrees' } } },
+      ...baseSeams([]),
+      reapPlanRunLabelsForStoryFn: async () => ({ deleted: [], failed: [] }),
+      ...seams,
+    });
+  }
+
+  it('AC-2: a landed Story with a live worktree ends with both the worktree and the local branch gone', async () => {
+    const repo = heldBranchRepo();
+    const tail = await runTail(repo.seams);
+    assert.equal(fs.existsSync(repo.wtPath), false, 'the worktree is gone');
+    assert.deepEqual(repo.removed, [repo.wtPath]);
+    assert.equal(tail.worktreeReap, true);
+    assert.equal(tail.details.worktreeReap, null);
+    assert.equal(
+      tail.refCleanup,
+      true,
+      'the ref reap ran AFTER the worktree let go of the branch',
+    );
+    assert.equal(tail.details.refCleanup, null);
+  });
+
+  it('AC-1: reports a refused reap as its own degraded step — the land stands', async () => {
+    const repo = heldBranchRepo({ dirty: true });
+    const tail = await runTail(repo.seams);
+    assert.equal(fs.existsSync(repo.wtPath), true, 'a dirty tree is kept');
+    assert.equal(tail.worktreeReap, false);
+    assert.equal(tail.details.worktreeReap, 'uncommitted-changes');
+    assert.equal(tail.leaseRelease, true, 'later steps still ran');
+  });
+
+  it('a Story with no worktree left reports the reap ok, naming why', async () => {
+    const tail = await runTail({
+      gitSpawnFn: fakeGitSpawn(),
+      reapWorktreePhaseFn: reapWorktreePhase,
+    });
+    assert.equal(tail.worktreeReap, true);
+    assert.equal(tail.details.worktreeReap, 'no-worktree');
+    assert.equal(tail.refCleanup, true);
+  });
+
+  it('honours reapOnSuccess:false — the operator keeps the tree, the step is ok', async () => {
+    const repo = heldBranchRepo();
+    const tail = await runPostLandTail({
+      storyId: 5533,
+      storyBranch: 'story-5533',
+      baseBranch: 'main',
+      cwd: tmpDir,
+      provider: {},
+      config: {
+        delivery: {
+          worktreeIsolation: { root: '.worktrees', reapOnSuccess: false },
+        },
+      },
+      ...baseSeams([]),
+      reapPlanRunLabelsForStoryFn: async () => ({ deleted: [], failed: [] }),
+      ...repo.seams,
+    });
+    assert.equal(fs.existsSync(repo.wtPath), true);
+    assert.equal(tail.worktreeReap, true);
+    assert.equal(tail.details.worktreeReap, 'reap-disabled');
   });
 });

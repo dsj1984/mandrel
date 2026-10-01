@@ -5,6 +5,12 @@ import {
   parseArgv,
   runDeliverRecover,
 } from '../.agents/scripts/deliver-recover.js';
+import {
+  decideRecovery,
+  probePr,
+  recoverStory,
+} from '../.agents/scripts/lib/orchestration/deliver-recover.js';
+import { NEXT_COMMANDS } from '../.agents/scripts/lib/orchestration/story-deliver-terminal.js';
 
 /**
  * Story #4780 — `runDeliverRecover` scored CRAP 85.4: the read-only probe an
@@ -200,5 +206,220 @@ describe('runDeliverRecover', () => {
     const bare = harness();
     await runDeliverRecover({ storyId: 1 }, bare.deps);
     assert.equal('sleepFn' in bare.probes[0], false);
+  });
+});
+
+/**
+ * Story #5533 AC-6 — under `agent::closing`, a conflicted PR and a PR a new
+ * head disarmed each get their own settled shape, checked before the red one.
+ */
+describe('deliver-recover — conflicted and un-armed closing PRs (Story #5533)', () => {
+  const closing = {
+    ok: true,
+    stateLabel: 'agent::closing',
+    labels: ['agent::closing'],
+    issueState: 'open',
+    lease: 'someone',
+  };
+  const branch = {
+    local: true,
+    remote: true,
+    worktreePath: '.worktrees/story-5533',
+  };
+  /** The last close's envelope: close armed this PR. */
+  const ARMED = {
+    envelope: {
+      storyId: 5533,
+      status: 'pending',
+      pr: { number: 9, autoMergeEnabled: true, autoMergeReason: null },
+    },
+  };
+  const decide = (pr, closeArtifacts = ARMED) =>
+    decideRecovery({
+      storyId: 5533,
+      ticket: closing,
+      branch,
+      pr,
+      closeArtifacts,
+    });
+
+  it('a DIRTY PR is closing-pr-conflicted and names close, the worktree and its recreation', () => {
+    const d = decide({
+      number: 9,
+      state: 'OPEN',
+      checksStatus: 'pending',
+      mergeStateStatus: 'DIRTY',
+      autoMergeArmed: true,
+    });
+    assert.equal(d.shape, 'closing-pr-conflicted');
+    assert.equal(d.nextCommand, NEXT_COMMANDS.close(5533));
+    assert.match(d.detail, /\.worktrees\/story-5533/);
+    assert.match(d.detail, /recreating that worktree when it is missing/);
+    assert.match(d.detail, /conflicted files/);
+    assert.ok(d.evidence.includes('mergeState=DIRTY'));
+  });
+
+  it('DIRTY outranks red: a conflicted head cannot be fixed by the red loop alone', () => {
+    const d = decide({
+      number: 9,
+      state: 'OPEN',
+      checksStatus: 'failure',
+      mergeStateStatus: 'DIRTY',
+    });
+    assert.equal(d.shape, 'closing-pr-conflicted');
+  });
+
+  it('an open, un-armed, not-red PR is closing-pr-unarmed and resumes the re-arming wait', () => {
+    const d = decide({
+      number: 9,
+      state: 'OPEN',
+      checksStatus: 'pending',
+      mergeStateStatus: 'BLOCKED',
+      autoMergeArmed: false,
+      inMergeQueue: false,
+      queueRequired: false,
+    });
+    assert.equal(d.shape, 'closing-pr-unarmed');
+    assert.equal(d.nextCommand, NEXT_COMMANDS.resumeLand(5533));
+    assert.match(d.detail, /new head disarmed/);
+    assert.match(d.detail, /gh pr merge 9 --auto --squash --delete-branch/);
+    assert.ok(d.evidence.includes('autoMerge=unarmed'));
+  });
+
+  it('an operator-owned or unproven PR is never pointed at the re-arming resume', () => {
+    const pr = {
+      number: 9,
+      state: 'OPEN',
+      checksStatus: 'pending',
+      autoMergeArmed: false,
+    };
+    const operatorOwned = {
+      envelope: {
+        storyId: 5533,
+        status: 'pending',
+        pr: {
+          number: 9,
+          autoMergeEnabled: false,
+          autoMergeReason: 'disabled-by-flag',
+        },
+      },
+    };
+    assert.equal(decide(pr, operatorOwned).shape, 'closing-pr-pending');
+    assert.equal(decide(pr, { envelope: null }).shape, 'closing-pr-pending');
+    assert.equal(
+      decide(pr, { envelope: { storyId: 5533, status: 'failed', pr: null } })
+        .shape,
+      'closing-pr-pending',
+    );
+  });
+
+  it('names the queue equivalent when the base requires a merge queue', () => {
+    const d = decide({
+      number: 9,
+      state: 'OPEN',
+      checksStatus: 'pending',
+      autoMergeArmed: false,
+      queueRequired: true,
+    });
+    assert.equal(d.shape, 'closing-pr-unarmed');
+    assert.match(d.detail, /gh pr merge 9 --auto`/);
+    assert.match(d.detail, /merge queue/);
+  });
+
+  it('a red, a queued or an armed PR is not un-armed', () => {
+    const base = { number: 9, state: 'OPEN', autoMergeArmed: false };
+    assert.equal(
+      decide({ ...base, checksStatus: 'failure' }).shape,
+      'closing-pr-red',
+    );
+    assert.equal(
+      decide({ ...base, checksStatus: 'success', inMergeQueue: true }).shape,
+      'closing-pr-pending',
+    );
+    assert.equal(
+      decide({ ...base, checksStatus: 'pending', autoMergeArmed: true }).shape,
+      'closing-pr-pending',
+    );
+    assert.equal(
+      decide({ number: 9, state: 'OPEN', checksStatus: 'pending' }).shape,
+      'closing-pr-pending',
+      'an unread auto-merge field never reads as a disarm',
+    );
+  });
+
+  it('probePr reads the merge state, the auto-merge request and the head, and reads the queue only for an un-armed PR', async () => {
+    const queueReads = [];
+    const probe = (row) =>
+      probePr({
+        storyBranch: 'story-5533',
+        gh: { pr: { list: async () => [row] } },
+        readMergeQueueStateFn: async (args) => {
+          queueReads.push(args);
+          return { inQueue: false, queueRequired: true, prNodeId: 'PR_x' };
+        },
+      });
+    const unarmed = await probe({
+      number: 9,
+      state: 'OPEN',
+      id: 'PR_x',
+      mergeStateStatus: 'BLOCKED',
+      autoMergeRequest: null,
+      headRefOid: 'abc',
+      statusCheckRollup: [],
+    });
+    assert.equal(unarmed.autoMergeArmed, false);
+    assert.equal(unarmed.mergeStateStatus, 'BLOCKED');
+    assert.equal(unarmed.headSha, 'abc');
+    assert.equal(unarmed.inMergeQueue, false);
+    assert.equal(unarmed.queueRequired, true);
+    assert.equal(queueReads[0].prNodeId, 'PR_x');
+
+    const armed = await probe({
+      number: 9,
+      state: 'OPEN',
+      autoMergeRequest: { enabledAt: 'x' },
+      statusCheckRollup: [],
+    });
+    assert.equal(armed.autoMergeArmed, true);
+    assert.equal(queueReads.length, 1, 'no queue read for an armed PR');
+  });
+
+  it('both shapes are settled — no stability re-probe', async () => {
+    let lists = 0;
+    let slept = false;
+    const recovery = await recoverStory({
+      storyId: 5533,
+      cwd: '/repo',
+      config: {},
+      provider: {
+        getTicket: async () => ({
+          id: 5533,
+          state: 'open',
+          labels: ['agent::closing'],
+        }),
+      },
+      gh: {
+        pr: {
+          list: async () => {
+            lists += 1;
+            return [
+              {
+                number: 9,
+                state: 'OPEN',
+                mergeStateStatus: 'DIRTY',
+                statusCheckRollup: [],
+              },
+            ];
+          },
+        },
+      },
+      gitSpawnFn: () => ({ status: 1, stdout: '' }),
+      sleepFn: async () => {
+        slept = true;
+      },
+    });
+    assert.equal(recovery.shape, 'closing-pr-conflicted');
+    assert.equal(lists, 1);
+    assert.equal(slept, false);
   });
 });

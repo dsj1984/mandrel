@@ -198,8 +198,8 @@ Each story runs in its own `git worktree` rooted at
 `.worktrees/story-<id>/`, owned by a single `WorktreeManager` façade
 (`ensure` / `reap` / `list` / `isSafeToRemove` / `gc` —
 `lib/worktree-manager.js`, delegating to `lib/worktree/lifecycle/`). The
-runtime threads the worktree path as `cwd`; `single-story-close.js` reaps
-after merge.
+runtime threads the worktree path as `cwd`; the post-land tail reaps it
+after the merge is confirmed, and close recreates a missing one.
 
 Two reliability properties of the worktree primitive — both established in
 Epic #1114 after #1072 surfaced the failure modes:

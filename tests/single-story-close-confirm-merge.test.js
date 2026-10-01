@@ -187,6 +187,7 @@ function phaseArgs(overrides = {}) {
     runPostLandTailFn: async () => ({
       followUps: true,
       statusResync: true,
+      worktreeReap: true,
       refCleanup: true,
       baseFastForward: true,
       tempPurge: true,
@@ -227,6 +228,7 @@ describe('merge wait — the confirmed path', () => {
           return {
             followUps: true,
             statusResync: true,
+            worktreeReap: true,
             refCleanup: true,
             baseFastForward: true,
             tempPurge: true,
@@ -1793,6 +1795,7 @@ describe('Story #4681 — local branch-delete failure never blocks a landed merg
           return {
             followUps: true,
             statusResync: true,
+            worktreeReap: true,
             refCleanup: true,
             baseFastForward: true,
             tempPurge: true,
@@ -2626,6 +2629,7 @@ describe('merge wait — decisions made once (Story #5383)', () => {
   const TAIL_OK = async () => ({
     followUps: true,
     statusResync: true,
+    worktreeReap: true,
     refCleanup: true,
     baseFastForward: true,
     tempPurge: true,
@@ -3162,5 +3166,561 @@ describe('runConfirmMergePhase — checks-failed writes the CI digest (Story #54
     } finally {
       rmSync(tempRoot, { recursive: true, force: true });
     }
+  });
+});
+
+/**
+ * Story #5533 — when `main` moves under a queued Story PR, the wait recovers
+ * on its own instead of polling to the budget: a DIRTY PR is synced in the
+ * Story worktree (or handed back as a `failed` / `base-sync` envelope), and
+ * a PR a new head disarmed is re-armed once per head SHA.
+ */
+describe('merge wait — a DIRTY PR is acted on, never polled (Story #5533)', () => {
+  const WORKTREE = '/repo/.worktrees/story-4428';
+
+  function dirtyHarness({
+    syncResults,
+    pushThrows = false,
+    remoteResult = { ok: true },
+  } = {}) {
+    const syncCalls = [];
+    const remoteCalls = [];
+    const order = [];
+    const pushCalls = [];
+    const failures = [];
+    return {
+      syncCalls,
+      remoteCalls,
+      order,
+      pushCalls,
+      failures,
+      recoverySeams: {
+        syncBranchFromBaseFn: async (args) => {
+          order.push('base');
+          syncCalls.push(args);
+          return syncResults.shift();
+        },
+        pushStoryBranchFn: (args) => {
+          pushCalls.push(args);
+          if (pushThrows) throw new Error('pre-push hook rejected');
+        },
+        handleSyncFailureFn: async (args) => {
+          failures.push(args);
+          return { handedBack: true };
+        },
+        rearmAutoMergeFn: async () => {
+          throw new Error('re-arm must not run in a DIRTY poll');
+        },
+        readCiDigestFn: () => null,
+        currentBranchFn: () => 'story-4428',
+        integrateRemoteFn: (args) => {
+          order.push('remote');
+          remoteCalls.push(args);
+          return remoteResult;
+        },
+      },
+    };
+  }
+
+  it('AC-4: a clean merge of origin/<base> is pushed from the worktree and the wait continues to the land', async () => {
+    const h = dirtyHarness({
+      syncResults: [
+        { synced: true, kind: 'merge-commit', changedPaths: ['a'] },
+      ],
+    });
+    const states = [
+      openProbe({ mergeStateStatus: 'DIRTY' }),
+      { state: 'MERGED', mergedAt: 'x' },
+    ];
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        worktreePath: WORKTREE,
+        recoverySeams: h.recoverySeams,
+        readPrWaitProbeFn: async () => states.shift(),
+        confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
+      }),
+    );
+    assert.equal(outcome.terminal, 'landed');
+    assert.equal(h.syncCalls.length, 1, 'one sync, in the same poll');
+    assert.equal(h.syncCalls[0].cwd, WORKTREE, 'the sync runs in the worktree');
+    assert.equal(h.syncCalls[0].baseBranch, 'main');
+    assert.equal(h.pushCalls.length, 1);
+    assert.equal(h.pushCalls[0].worktreePath, WORKTREE);
+    assert.equal(h.pushCalls[0].storyBranch, 'story-4428');
+    assert.equal(h.failures.length, 0);
+  });
+
+  it('AC-4: a conflict ends failed at base-sync, naming the files and the worktree, labels unchanged', async () => {
+    const provider = makeFakeProvider();
+    const h = dirtyHarness({
+      syncResults: [
+        {
+          synced: false,
+          kind: 'conflict',
+          conflictFiles: ['src/a.js', 'src/b.js'],
+        },
+      ],
+    });
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        provider,
+        worktreePath: WORKTREE,
+        recoverySeams: h.recoverySeams,
+        readPrWaitProbeFn: async () => openProbe({ mergeStateStatus: 'DIRTY' }),
+      }),
+    );
+    assert.equal(outcome.terminal, 'failed');
+    assert.equal(outcome.phase, 'base-sync');
+    assert.match(outcome.reason, /src\/a\.js, src\/b\.js/);
+    assert.match(outcome.reason, /\.worktrees\/story-4428/);
+    assert.equal(h.pushCalls.length, 0, 'nothing is pushed on a conflict');
+    assert.equal(h.failures.length, 1);
+    assert.equal(h.failures[0].baseConfirmed, true);
+    assert.equal(h.failures[0].handBack, true);
+    assert.equal(h.failures[0].syncCwd, WORKTREE);
+    assert.deepEqual(provider._updates(), [], 'no label is written');
+
+    const terminal = terminalFromWaitOutcome({
+      waitOutcome: outcome,
+      storyId: 4428,
+      storyBranch: 'story-4428',
+      baseBranch: 'main',
+      prNumber: 99,
+      prUrl: 'https://github.com/o/r/pull/99',
+      autoMergeEnabled: true,
+      elapsedSeconds: 5,
+    });
+    assert.equal(terminal.status, 'failed');
+    assert.equal(terminal.phase, 'base-sync');
+    assert.match(terminal.failure.reason, /src\/a\.js/);
+    assert.equal(
+      terminal.nextCommand,
+      'node .agents/scripts/single-story-close.js --story 4428',
+    );
+    assert.equal(validateTerminalEnvelope(terminal).valid, true);
+  });
+
+  it('AC-4: the real hand-back posts friction and leaves the Story at agent::closing', async () => {
+    // `upsertStructuredComment` reads existing comments before posting.
+    const provider = {
+      ...makeFakeProvider(),
+      getTicketComments: async () => [],
+    };
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        provider,
+        worktreePath: WORKTREE,
+        recoverySeams: {
+          syncBranchFromBaseFn: async () => ({
+            synced: false,
+            kind: 'merge-failed',
+            stderr: 'fatal: refusing to merge unrelated histories',
+          }),
+          readCiDigestFn: () => null,
+          integrateRemoteFn: () => ({ ok: true }),
+          currentBranchFn: () => 'story-4428',
+        },
+        readPrWaitProbeFn: async () => openProbe({ mergeStateStatus: 'DIRTY' }),
+      }),
+    );
+    assert.equal(outcome.terminal, 'failed');
+    assert.match(outcome.reason, /merge-failed/);
+    assert.deepEqual(
+      provider._updates(),
+      [],
+      'even a non-conflict sync failure is handed back, not blocked',
+    );
+    assert.equal(provider._comments().length, 1, 'friction was posted');
+    assert.deepEqual(provider._story().labels, ['agent::closing']);
+  });
+
+  it('spends the BEHIND update budget, then ends a still-DIRTY PR as the conflict case', async () => {
+    const h = dirtyHarness({
+      syncResults: Array.from({ length: DEFAULT_UPDATE_ATTEMPTS }, () => ({
+        synced: true,
+        kind: 'merge-commit',
+        changedPaths: [],
+      })),
+    });
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        config: { delivery: { mergeWatch: { maxWaitSeconds: 600 } } },
+        worktreePath: WORKTREE,
+        recoverySeams: h.recoverySeams,
+        readPrWaitProbeFn: async () => openProbe({ mergeStateStatus: 'DIRTY' }),
+      }),
+    );
+    assert.equal(h.syncCalls.length, DEFAULT_UPDATE_ATTEMPTS);
+    assert.equal(outcome.terminal, 'failed');
+    assert.equal(outcome.phase, 'base-sync');
+    assert.match(outcome.reason, /budget is spent/);
+  });
+
+  it('an already-current branch spends no attempt (GitHub is still recomputing)', async () => {
+    const h = dirtyHarness({
+      syncResults: [
+        { synced: true, kind: 'noop-already-current', changedPaths: [] },
+        { synced: true, kind: 'noop-already-current', changedPaths: [] },
+        { synced: true, kind: 'noop-already-current', changedPaths: [] },
+        { synced: true, kind: 'noop-already-current', changedPaths: [] },
+      ],
+    });
+    const states = [
+      openProbe({ mergeStateStatus: 'DIRTY' }),
+      openProbe({ mergeStateStatus: 'DIRTY' }),
+      openProbe({ mergeStateStatus: 'DIRTY' }),
+      openProbe({ mergeStateStatus: 'DIRTY' }),
+      { state: 'MERGED', mergedAt: 'x' },
+    ];
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        config: { delivery: { mergeWatch: { maxWaitSeconds: 600 } } },
+        worktreePath: WORKTREE,
+        recoverySeams: h.recoverySeams,
+        readPrWaitProbeFn: async () => states.shift(),
+        confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
+      }),
+    );
+    assert.equal(outcome.terminal, 'landed');
+    assert.equal(h.syncCalls.length, 4);
+  });
+
+  it('after a BEHIND update-branch, pulls origin/<story> into the worktree before merging the base', async () => {
+    // The update-branch merge commit exists only on origin; a push from the
+    // stale local head would be rejected as non-fast-forward.
+    const h = dirtyHarness({
+      syncResults: [{ synced: true, kind: 'merge-commit', changedPaths: [] }],
+    });
+    const states = [
+      openProbe({ mergeStateStatus: 'BEHIND' }),
+      openProbe({ mergeStateStatus: 'DIRTY' }),
+      { state: 'MERGED', mergedAt: 'x' },
+    ];
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        worktreePath: WORKTREE,
+        recoverySeams: h.recoverySeams,
+        injectedGh: { pr: { updateBranch: async () => {} } },
+        readPrWaitProbeFn: async () => states.shift(),
+        confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
+      }),
+    );
+    assert.equal(outcome.terminal, 'landed');
+    assert.deepEqual(h.order, ['remote', 'base']);
+    assert.equal(h.remoteCalls[0].cwd, WORKTREE);
+    assert.equal(h.remoteCalls[0].storyBranch, 'story-4428');
+    assert.equal(h.pushCalls.length, 1);
+  });
+
+  it('a story branch that cannot integrate origin is handed back, never pushed', async () => {
+    const h = dirtyHarness({
+      syncResults: [],
+      remoteResult: { ok: false, stderr: 'CONFLICT (content): src/a.js' },
+    });
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        worktreePath: WORKTREE,
+        recoverySeams: h.recoverySeams,
+        readPrWaitProbeFn: async () => openProbe({ mergeStateStatus: 'DIRTY' }),
+      }),
+    );
+    assert.equal(outcome.terminal, 'failed');
+    assert.match(outcome.reason, /remote-diverged/);
+    assert.equal(h.syncCalls.length, 0);
+    assert.equal(h.pushCalls.length, 0);
+  });
+
+  it('a rejected push is handed back too — hooks are never bypassed', async () => {
+    const h = dirtyHarness({
+      syncResults: [{ synced: true, kind: 'merge-commit', changedPaths: [] }],
+      pushThrows: true,
+    });
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        worktreePath: WORKTREE,
+        recoverySeams: h.recoverySeams,
+        readPrWaitProbeFn: async () => openProbe({ mergeStateStatus: 'DIRTY' }),
+      }),
+    );
+    assert.equal(outcome.terminal, 'failed');
+    assert.match(outcome.reason, /push-failed/);
+    assert.match(outcome.reason, /pre-push hook rejected/);
+    assert.equal(h.failures[0].result.kind, 'push-failed');
+  });
+
+  it('resolves the worktree lazily, only when a DIRTY sync needs it', async () => {
+    const h = dirtyHarness({
+      syncResults: [{ synced: true, kind: 'merge-commit', changedPaths: [] }],
+    });
+    let resolved = 0;
+    const states = [
+      openProbe(),
+      openProbe({ mergeStateStatus: 'DIRTY' }),
+      { state: 'MERGED', mergedAt: 'x' },
+    ];
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        resolveWorktree: async () => {
+          resolved += 1;
+          return WORKTREE;
+        },
+        recoverySeams: h.recoverySeams,
+        readPrWaitProbeFn: async () => states.shift(),
+        confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
+      }),
+    );
+    assert.equal(outcome.terminal, 'landed');
+    assert.equal(resolved, 1);
+    assert.equal(h.syncCalls[0].cwd, WORKTREE);
+    assert.equal(h.pushCalls[0].worktreePath, WORKTREE);
+  });
+
+  it('a merged PR lands without ever resolving the worktree', async () => {
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        resolveWorktree: async () => {
+          throw new Error('the worktree must not gate a confirm');
+        },
+        readPrWaitProbeFn: async () => ({ state: 'MERGED', mergedAt: 'x' }),
+        confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
+      }),
+    );
+    assert.equal(outcome.terminal, 'landed');
+  });
+
+  it('a worktree that cannot be recreated for a DIRTY sync ends failed at base-sync with the reason', async () => {
+    const h = dirtyHarness({ syncResults: [] });
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        resolveWorktree: async () => {
+          throw new Error(
+            '[worktree-restore] cannot recreate the story-4428 worktree',
+          );
+        },
+        recoverySeams: h.recoverySeams,
+        readPrWaitProbeFn: async () => openProbe({ mergeStateStatus: 'DIRTY' }),
+      }),
+    );
+    assert.equal(outcome.terminal, 'failed');
+    assert.equal(outcome.phase, 'base-sync');
+    assert.match(outcome.reason, /worktree-unavailable/);
+    assert.match(outcome.reason, /cannot recreate the story-4428 worktree/);
+    assert.equal(h.syncCalls.length, 0);
+    assert.equal(h.pushCalls.length, 0);
+  });
+
+  it('refuses to merge into a checkout that is not on story-<id> (no worktree, main checked out)', async () => {
+    const h = dirtyHarness({ syncResults: [] });
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        worktreePath: null,
+        resolveWorktree: async () => null,
+        recoverySeams: { ...h.recoverySeams, currentBranchFn: () => 'main' },
+        readPrWaitProbeFn: async () => openProbe({ mergeStateStatus: 'DIRTY' }),
+      }),
+    );
+    assert.equal(outcome.terminal, 'failed');
+    assert.match(outcome.reason, /wrong-tree/);
+    assert.match(outcome.reason, /has main checked out, not story-4428/);
+    assert.equal(h.remoteCalls.length, 0, 'nothing merged into main');
+    assert.equal(h.syncCalls.length, 0);
+    assert.equal(h.pushCalls.length, 0);
+  });
+
+  it('a DIRTY reading on a merged PR is the merge, not a sync', async () => {
+    const h = dirtyHarness({ syncResults: [] });
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        worktreePath: WORKTREE,
+        recoverySeams: h.recoverySeams,
+        readPrWaitProbeFn: async () => ({
+          state: 'MERGED',
+          mergedAt: 'x',
+          mergeStateStatus: 'DIRTY',
+        }),
+        confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
+      }),
+    );
+    assert.equal(outcome.terminal, 'landed');
+    assert.equal(h.syncCalls.length, 0);
+  });
+});
+
+describe('merge wait — a disarmed PR is re-armed once per head (Story #5533)', () => {
+  function rearmHarness({
+    digest = null,
+    rearmResult = { enabled: true },
+  } = {}) {
+    const rearms = [];
+    const lines = [];
+    return {
+      rearms,
+      lines,
+      progress: (_tag, msg) => lines.push(msg),
+      recoverySeams: {
+        rearmAutoMergeFn: async (args) => {
+          rearms.push(args);
+          return rearmResult;
+        },
+        readCiDigestFn: () => digest,
+      },
+    };
+  }
+
+  const unarmed = (overrides = {}) =>
+    openProbe({ autoMergeArmed: false, headSha: 'head-1', ...overrides });
+
+  it('AC-5: re-arms an open, un-armed, not-red PR once per head SHA, then keeps waiting', async () => {
+    const h = rearmHarness();
+    const states = [
+      unarmed(),
+      unarmed(),
+      unarmed({ headSha: 'head-2' }),
+      { state: 'MERGED', mergedAt: 'x' },
+    ];
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        closeArmed: true,
+        progress: h.progress,
+        recoverySeams: h.recoverySeams,
+        readPrWaitProbeFn: async () => states.shift(),
+        confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
+      }),
+    );
+    assert.equal(outcome.terminal, 'landed');
+    assert.equal(h.rearms.length, 2, 'once for head-1, once for head-2');
+    assert.equal(h.rearms[0].prNumber, 99);
+    assert.equal(h.rearms[0].cwd, '/repo');
+    assert.equal(
+      h.lines.filter((l) => /re-armed/.test(l)).length,
+      2,
+      'one progress line per re-arm',
+    );
+  });
+
+  it('AC-5: a CI digest recorded against the SAME head blocks the re-arm', async () => {
+    const h = rearmHarness({ digest: { headSha: 'head-1' } });
+    await runConfirmMergePhase(
+      phaseArgs({
+        closeArmed: true,
+        progress: h.progress,
+        recoverySeams: h.recoverySeams,
+        nowMsFn: makeClock(40_000),
+        readPrWaitProbeFn: async () => unarmed(),
+      }),
+    );
+    assert.equal(h.rearms.length, 0);
+    assert.equal(
+      h.lines.filter((l) => /not re-armed/.test(l)).length,
+      1,
+      'the refusal is reported once, not every poll',
+    );
+  });
+
+  it('AC-5: a digest against an OLDER head is a fix at source — the re-arm proceeds', async () => {
+    const h = rearmHarness({ digest: { headSha: 'head-0' } });
+    await runConfirmMergePhase(
+      phaseArgs({
+        closeArmed: true,
+        recoverySeams: h.recoverySeams,
+        nowMsFn: makeClock(40_000),
+        readPrWaitProbeFn: async () => unarmed(),
+      }),
+    );
+    assert.equal(h.rearms.length, 1);
+  });
+
+  it('AC-5: never re-arms when the arm policy says the operator owns the merge', async () => {
+    const h = rearmHarness();
+    await runConfirmMergePhase(
+      phaseArgs({
+        closeArmed: true,
+        config: { delivery: { ci: { autoMerge: 'strict' } } },
+        recoverySeams: h.recoverySeams,
+        nowMsFn: makeClock(40_000),
+        readPrWaitProbeFn: async () => unarmed(),
+      }),
+    );
+    assert.equal(h.rearms.length, 0);
+  });
+
+  it('never treats an enqueued PR, an armed PR or an unread field as disarmed', async () => {
+    for (const probe of [
+      unarmed({ checksStatus: 'success', inMergeQueue: true }),
+      unarmed({ autoMergeArmed: true }),
+      openProbe({ headSha: 'head-1' }),
+      unarmed({ headSha: undefined }),
+    ]) {
+      const h = rearmHarness();
+      await runConfirmMergePhase(
+        phaseArgs({
+          closeArmed: true,
+          recoverySeams: h.recoverySeams,
+          nowMsFn: makeClock(40_000),
+          readPrWaitProbeFn: async () => probe,
+        }),
+      );
+      assert.equal(h.rearms.length, 0, JSON.stringify(probe));
+    }
+  });
+
+  it('a failed re-arm is one progress line, never a terminal', async () => {
+    const h = rearmHarness({
+      rearmResult: { enabled: false, reason: 'gh-exit-1: nope' },
+    });
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        closeArmed: true,
+        progress: h.progress,
+        recoverySeams: h.recoverySeams,
+        nowMsFn: makeClock(40_000),
+        readPrWaitProbeFn: async () => unarmed(),
+      }),
+    );
+    assert.equal(outcome.terminal, 'pending');
+    assert.equal(h.lines.filter((l) => /re-arm failed/.test(l)).length, 1);
+  });
+
+  it('never re-arms without positive evidence that close armed the PR', async () => {
+    // A PR left un-armed on purpose (`--no-auto-merge`) reads exactly like one
+    // a new head disarmed; only the close's own record tells them apart.
+    for (const closeArmed of [false, undefined]) {
+      const h = rearmHarness();
+      await runConfirmMergePhase(
+        phaseArgs({
+          closeArmed,
+          recoverySeams: h.recoverySeams,
+          nowMsFn: makeClock(40_000),
+          readPrWaitProbeFn: async () => unarmed(),
+        }),
+      );
+      assert.equal(h.rearms.length, 0, String(closeArmed));
+    }
+  });
+
+  it('readPrWaitProbe reads the auto-merge request off the same single view', async () => {
+    const view = (autoMergeRequest) => ({
+      gh: {
+        pr: {
+          view: async (_n, fields) => {
+            assert.ok(fields.includes('autoMergeRequest'));
+            return {
+              state: 'OPEN',
+              mergeStateStatus: 'CLEAN',
+              statusCheckRollup: [],
+              headRefOid: 'abc',
+              autoMergeRequest,
+            };
+          },
+        },
+      },
+    });
+    const off = await readPrWaitProbe({ prNumber: 1, ...view(null) });
+    assert.equal(off.autoMergeArmed, false);
+    const on = await readPrWaitProbe({
+      prNumber: 1,
+      ...view({ enabledAt: 'x', mergeMethod: 'SQUASH' }),
+    });
+    assert.equal(on.autoMergeArmed, true);
   });
 });

@@ -61,6 +61,11 @@ import {
   transitionTicketState,
 } from '../../ticketing.js';
 import { disarmAutoMerge } from './auto-merge.js';
+import {
+  maybeRearmPr,
+  mergeWaitRecoverySeams,
+  settleDirtyPr,
+} from './merge-wait-recovery.js';
 import { runPostLandTail as defaultRunPostLandTail } from './post-land.js';
 
 /** Per-invocation bound; fits the host's ~10-min tool ceiling after the gates. */
@@ -123,6 +128,18 @@ function readString(value, absent = undefined) {
 }
 
 /**
+ * Whether the PR carries an auto-merge request; `undefined` when the payload
+ * has no such field, so an unread field is never mistaken for a disarm.
+ *
+ * @param {object|null|undefined} view
+ * @returns {boolean|undefined}
+ */
+function readAutoMergeArmed(view) {
+  if (!view || !Object.hasOwn(view, 'autoMergeRequest')) return undefined;
+  return view.autoMergeRequest != null;
+}
+
+/**
  * `inMergeQueue` for a green open PR, the only state GitHub enqueues from;
  * `undefined` otherwise, so the common poll pays no extra call. An enqueued
  * PR has no auto-merge request and can read BLOCKED — neither is a disarm.
@@ -170,6 +187,7 @@ export async function readPrWaitProbe({
         'reviewDecision',
         'statusCheckRollup',
         'headRefOid',
+        'autoMergeRequest',
       ]),
       ghTimeoutMs,
       `gh pr view ${prNumber}`,
@@ -201,6 +219,7 @@ export async function readPrWaitProbe({
       }),
       redHeadRuns: deriveRedHeadRuns(view?.statusCheckRollup),
       headSha: readString(view?.headRefOid),
+      autoMergeArmed: readAutoMergeArmed(view),
     };
   } catch (err) {
     return {
@@ -1200,12 +1219,31 @@ function pendingAtWaitBound(ctx, decision, probe) {
 }
 
 /**
- * Advisory gates are usually still QUEUED at arm time, so they redden here,
- * mid-wait, before auto-merge lands over them.
+ * A DIRTY PR is synced (or handed back) before anything else reads the
+ * probe; a synced one skips the rest of this poll's recovery, since the
+ * probe describes the head it just replaced.
  *
  * @returns {Promise<{ state: object, outcome: object|null }>}
  */
 async function settleProvisional(ctx, decision, probe) {
+  const dirty = await settleDirtyPr(ctx, decision.state, probe);
+  if (dirty?.outcome) return dirty;
+  const recovered = dirty ?? (await recoverOpenPr(ctx, decision, probe));
+  if (recovered.outcome) return recovered;
+  return {
+    state: recovered.state,
+    outcome: await settleVerdict(ctx, decision, probe),
+  };
+}
+
+/**
+ * Advisory gates are usually still QUEUED at arm time, so they redden here,
+ * mid-wait, before auto-merge lands over them. Then the re-arm rule, then the
+ * BEHIND update.
+ *
+ * @returns {Promise<{ state: object, outcome: object|null }>}
+ */
+async function recoverOpenPr(ctx, decision, probe) {
   const advisory = await resolveAdvisoryUnlanded({
     probe,
     blockOnAdvisoryFailure: ctx.blockOnAdvisoryFailure,
@@ -1221,6 +1259,7 @@ async function settleProvisional(ctx, decision, probe) {
   if (advisory) {
     return { state: decision.state, outcome: await blockWith(ctx, advisory) };
   }
+  await maybeRearmPr(ctx, probe);
   const updated = await maybeUpdateBehindPr({
     probe,
     prNumber: ctx.prNumber,
@@ -1233,8 +1272,13 @@ async function settleProvisional(ctx, decision, probe) {
   const state = updated
     ? { ...decision.state, updatesUsed: decision.state.updatesUsed + 1 }
     : decision.state;
+  return { state, outcome: null };
+}
+
+/** The provisional verdict's own ending: budget block, `pending`, or none. */
+async function settleVerdict(ctx, decision, probe) {
   if (decision.verdict === 'budget-exhausted') {
-    const outcome = await blockWith(ctx, {
+    return await blockWith(ctx, {
       prProbe: probe,
       budget: {
         exhausted: true,
@@ -1242,12 +1286,11 @@ async function settleProvisional(ctx, decision, probe) {
       },
       ...queuedExhaustionVerdict(probe, decision.cumulativeMs),
     });
-    return { state, outcome };
   }
   if (Object.hasOwn(PENDING_HEADLINES, decision.verdict)) {
-    return { state, outcome: pendingAtWaitBound(ctx, decision, probe) };
+    return pendingAtWaitBound(ctx, decision, probe);
   }
-  return { state, outcome: null };
+  return null;
 }
 
 /** @returns {Promise<{ state: object, done: boolean, outcome?: object }>} */
@@ -1327,6 +1370,7 @@ function blockNeverArmed({
  *
  * @param {object} args
  * @param {string} args.cwd            The MAIN checkout.
+ * @param {string|null} [args.worktreePath] The Story worktree a DIRTY sync runs in.
  * @param {number} args.storyId
  * @param {string} [args.storyBranch]
  * @param {string} [args.baseBranch]
@@ -1349,6 +1393,7 @@ function blockNeverArmed({
  * @param {Function} [args.runPostLandTailFn]
  * @param {Function} [args.disarmAutoMergeFn]
  * @param {Function} [args.recordRequiredRedFn] The shared first-red handling (disarm + CI digest).
+ * @param {object} [args.recoverySeams] DIRTY-sync / re-arm seams (`mergeWaitRecoverySeams`).
  * @param {(ms: number) => Promise<void>} [args.sleepFn]
  * @param {() => number} [args.nowMsFn]
  * @param {number} [args.ghTimeoutMs] Test seam only, not config.
@@ -1370,6 +1415,7 @@ export async function runConfirmMergePhase({
   sleepFn = defaultSleep,
   nowMsFn = Date.now,
   ghTimeoutMs = MERGE_WAIT_GH_TIMEOUT_MS,
+  recoverySeams,
   ...args
 }) {
   if (!args.autoMergeEnabled) {
@@ -1415,6 +1461,8 @@ export async function runConfirmMergePhase({
     recordRequiredRedFn,
     nowMsFn,
     ghTimeoutMs,
+    waitGh: args.injectedGh ?? defaultGh,
+    ...mergeWaitRecoverySeams(recoverySeams),
   };
   let state = createMergeWaitState({
     startedAtMs: nowMsFn(),

@@ -326,14 +326,31 @@ The `single-story-close.js` script, in order:
    would strand a CLOSED issue with no merged work if the PR failed CI, went
    `BEHIND` base, or closed unmerged. A Story only reaches `agent::done` once
    its PR to `main` is confirmed merged (Step 5).
-6. Reaps the worktree when `delivery.worktreeIsolation.reapOnSuccess`
-   is enabled.
+6. **Leaves the worktree in place.** Worktree lifetime is Story lifetime:
+   only the post-land tail reaps it (`tail.worktreeReap`, run before
+   `tail.refCleanup` because `git branch -D` refuses a branch a live
+   worktree holds; `reapOnSuccess: false` keeps it), so a `pending`,
+   `blocked` or `failed` close keeps its working copy. A missing worktree is
+   recreated from `story-<id>` before close's first git operation — and the
+   `--wait` resume's — never falling back to the main checkout.
 7. **Releases the Story lease** — a no-op when the operator no longer holds
    the claim, so a late close never yanks a live claim. Best-effort: a
    release failure is logged, not fatal, and reported as
    `leaseReleased: <boolean>`. The fail-closed lease never expires on its
    own, so a claim stranded by a failed release is cleared only by `--steal`
    or by de-assigning the ticket.
+
+The merge wait recovers on its own when `main` moves under the queued PR. A
+`DIRTY` PR is merged with `origin/<base>` in the Story worktree in that same
+poll (baseline-only conflicts auto-resolve), pushed with hooks, and the wait
+continues — each sync spends one of the BEHIND update attempts. A conflict,
+any other sync failure, or a spent budget posts `friction`, leaves the labels
+alone, and ends `failed` at `phase: base-sync` naming the conflicted files
+and the worktree: resolve there, commit, re-run close. The worktree is
+resolved only for that sync, never to confirm a merge. A PR a new head
+disarmed is re-armed once per head SHA, only when close armed it (the close
+itself, or its persisted envelope) — never a `--no-auto-merge` or `strict`
+PR, and not when the CI digest recorded a red against that head.
 
 ---
 
@@ -438,15 +455,17 @@ or an unrecoverable failure (→ `status: "failed"`) ends the turn — or a
 genuine `pending` (§ Step 7). The statuses are the shipped
 [terminal schema](../../schemas/story-deliver-terminal.schema.json)'s.
 
-### Resurrecting the worktree after `reapOnSuccess`
+### A missing Story worktree
 
-`single-story-close.js` reaps the worktree on success when
-`delivery.worktreeIsolation.reapOnSuccess` is enabled (the default). To
-fix CI you must re-attach a worktree to the existing remote branch:
+The worktree survives until the land, so a red PR's worktree is normally
+still at `.worktrees/story-<storyId>/`. When it is gone, re-running close (or
+the `--wait` resume) recreates it from `story-<storyId>`, fetching the ref
+from origin when only the remote copy is left. To fix CI by hand first:
 
 ```bash
 cd <main-repo>
-git fetch origin story-<storyId>
+git fetch origin story-<storyId>:story-<storyId>
+git worktree prune   # a deleted-but-registered entry blocks the add
 git worktree add .worktrees/story-<storyId> story-<storyId>
 cd .worktrees/story-<storyId>
 ```
@@ -535,8 +554,8 @@ once per project to delete the conflicting bot workflows entirely.
 
 ## Step 6 — Local branch cleanup detail
 
-> **The land tail already ran this** — it is `tail.refCleanup` and
-> `tail.baseFastForward` in the terminal envelope. Run it by hand only when
+> **The land tail already ran this** — it is `tail.worktreeReap`,
+> `tail.refCleanup` and `tail.baseFastForward` in the terminal envelope. Run it by hand only when
 > either step reported `false` (a dirty shared checkout is the common, benign
 > cause), or after a manual merge on a `--no-wait-merge` run:
 

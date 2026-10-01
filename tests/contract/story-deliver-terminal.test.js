@@ -69,6 +69,7 @@ const SCHEMA = JSON.parse(
 const CLEAN_TAIL = {
   followUps: true,
   statusResync: true,
+  worktreeReap: true,
   refCleanup: true,
   baseFastForward: true,
   tempPurge: true,
@@ -305,8 +306,47 @@ describe('story-deliver-terminal — landed', () => {
         'refCleanup',
         'statusResync',
         'tempPurge',
+        'worktreeReap',
       ],
     );
+  });
+
+  it('Story #5533 AC-7: the worktree reap is its own required tail step', () => {
+    const { worktreeReap: _omitted, ...withoutReap } = CLEAN_TAIL;
+    const missing = validateTerminalEnvelope({
+      ...buildTerminalEnvelope({
+        storyId: 5533,
+        status: 'landed',
+        phase: 'post-land',
+        tail: CLEAN_TAIL,
+        nextCommand: null,
+        elapsedSeconds: 1,
+      }),
+      tail: withoutReap,
+    });
+    assert.equal(
+      missing.valid,
+      false,
+      'a tail that skips the reap report is refused',
+    );
+    const degraded = buildTerminalEnvelope({
+      storyId: 5533,
+      status: 'landed',
+      phase: 'post-land',
+      tail: {
+        ...CLEAN_TAIL,
+        worktreeReap: false,
+        details: { worktreeReap: 'uncommitted-changes' },
+      },
+      nextCommand: null,
+      elapsedSeconds: 1,
+    });
+    assert.equal(
+      degraded.status,
+      'landed',
+      'a refused reap never demotes the land',
+    );
+    assert.equal(degraded.tail.worktreeReap, false);
   });
 
   it('exposes a partial-tail degradation WITHOUT failing the land', () => {
@@ -382,6 +422,7 @@ describe('story-deliver-terminal — lockWait (Story #5377)', () => {
       tail: {
         followUps: true,
         statusResync: true,
+        worktreeReap: true,
         refCleanup: true,
         baseFastForward: true,
         tempPurge: true,
