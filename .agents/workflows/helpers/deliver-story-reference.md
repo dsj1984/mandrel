@@ -346,9 +346,11 @@ poll (baseline-only conflicts auto-resolve), pushed with hooks, and the wait
 continues — each sync spends one of the BEHIND update attempts. A conflict,
 any other sync failure, or a spent budget posts `friction`, leaves the labels
 alone, and ends `failed` at `phase: base-sync` naming the conflicted files
-and the worktree: resolve there, commit, re-run close. A PR a new head
-disarmed is re-armed once per head SHA, unless the CI digest recorded a red
-against that head or `delivery.ci.autoMerge` is `strict`.
+and the worktree: resolve there, commit, re-run close. The worktree is
+resolved only for that sync, never to confirm a merge. A PR a new head
+disarmed is re-armed once per head SHA, only when close armed it (the close
+itself, or its persisted envelope) — never a `--no-auto-merge` or `strict`
+PR, and not when the CI digest recorded a red against that head.
 
 ---
 
