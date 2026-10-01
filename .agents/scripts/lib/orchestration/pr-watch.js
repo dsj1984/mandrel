@@ -23,10 +23,7 @@ function ghRepoFlag(repo) {
   return trimmed.length > 0 ? ['--repo', trimmed] : [];
 }
 
-/**
- * `--required` makes the returned set authoritative for protection gating;
- * `link` carries the Actions run id the cancelled-run discount reads.
- */
+/** `--required` makes the returned set authoritative for protection gating. */
 function ghPrChecks({ prUrl, cwd, repo, spawnFn = spawnSync }) {
   const result = spawnFn(
     'gh',
@@ -148,7 +145,6 @@ export function hasFailingCheck(outcomes) {
   return Object.values(outcomes).some((v) => checkVerdict(v) === 'fail');
 }
 
-/** No discount: the outcomes as `reduceOutcomes` built them. */
 async function identityDiscount(_entries, outcomes) {
   return outcomes;
 }
@@ -170,9 +166,7 @@ function defaultSleep(ms) {
  * @param {Function} opts.ghPrChecksFn
  * @param {number} opts.pollIntervalMs
  * @param {Function} opts.sleepFn
- * @param {(entries: object[], outcomes: object) => Promise<object>} [opts.discountFn]
- *   Rewrites a red check from a concurrency-cancelled run before the
- *   terminal read; defaults to no discount.
+ * @param {Function} [opts.discountFn]
  * @param {{ warn?: Function }} opts.logger
  * @returns {Promise<{ outcomes: object, polls: number }>}
  */
@@ -225,8 +219,7 @@ export async function pollUntilTerminal({
  * @param {Function} [opts.ghPrViewFn]
  * @param {Function} [opts.ghPrUpdateBranchFn]
  * @param {Function} [opts.sleepFn]
- * @param {(endpoint: string) => Promise<unknown>} [opts.ghApiFn] `gh api`
- *   GET port for the cancelled-run discount (tests inject a fake).
+ * @param {Function} [opts.ghApiFn]
  * @param {{ info?: Function, warn?: Function, debug?: Function }} opts.logger
  * @param {{status:number,stdout:string,stderr:string}} [opts.firstProbe]
  *   An already-issued `gh pr checks` result, so the first call is not
@@ -293,7 +286,6 @@ export async function watchPrToTerminal({
 
   const requiredChecks = firstEntries.map((e) => e.name);
 
-  // One discount per invocation, so its cancelled-run cache spans every poll.
   const discountFn = createCancelledRunDiscount({
     repo,
     ...(ghApiFn ? { ghApiFn } : {}),

@@ -607,8 +607,7 @@ async function settleRedWatch({
  * @param {Function} [opts.ghPrChecksFn]
  * @param {Function} [opts.ghPrViewFn]
  * @param {Function} [opts.ghPrUpdateBranchFn]
- * @param {Function} [opts.ghApiFn] `gh api` GET port for the cancelled-run
- *   discount.
+ * @param {Function} [opts.ghApiFn]
  * @param {Function} [opts.sleepFn]
  * @param {Function} [opts.writeDigestFn]
  * @param {Function} [opts.readDigestFn]
