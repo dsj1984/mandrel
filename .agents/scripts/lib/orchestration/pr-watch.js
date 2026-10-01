@@ -286,11 +286,7 @@ export async function watchPrToTerminal({
 
   const requiredChecks = firstEntries.map((e) => e.name);
 
-  const discountFn = createCancelledRunDiscount({
-    repo,
-    ...(ghApiFn ? { ghApiFn } : {}),
-    logger,
-  });
+  const discountFn = createCancelledRunDiscount({ repo, ghApiFn, logger });
   let outcomes = await discountFn(firstEntries, reduceOutcomes(firstEntries));
   let polls = 0;
   let updatesApplied = 0;
