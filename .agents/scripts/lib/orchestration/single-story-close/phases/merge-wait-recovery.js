@@ -15,6 +15,7 @@ import {
 import { rearmAutoMerge as defaultRearmAutoMerge } from './auto-merge.js';
 import { handleSyncFailure as defaultHandleSyncFailure } from './base-sync.js';
 import { pushStoryBranch as defaultPushStoryBranch } from './push.js';
+import { integrateRemoteStoryBranch as defaultIntegrateRemote } from './story-branch-catch-up.js';
 
 /** The red-fix guard verdicts under which a re-arm is allowed. */
 const REARM_VERDICTS = Object.freeze([
@@ -30,8 +31,10 @@ export function mergeWaitRecoverySeams({
   handleSyncFailureFn = defaultHandleSyncFailure,
   rearmAutoMergeFn = defaultRearmAutoMerge,
   readCiDigestFn = defaultReadCiDigest,
+  integrateRemoteFn = defaultIntegrateRemote,
 } = {}) {
   return {
+    integrateRemoteFn,
     syncBranchFromBaseFn,
     pushStoryBranchFn,
     handleSyncFailureFn,
@@ -73,6 +76,26 @@ function describeSyncFailure({
     `Story worktree ${syncCwd} (git merge --no-edit origin/${baseBranch}, fix, commit), ` +
     `then re-run close for Story #${storyId}.`
   );
+}
+
+/**
+ * `origin/<story>` first (a BEHIND update merged there only), then the base.
+ *
+ * @returns {Promise<object>} a `syncBranchFromBase`-shaped result.
+ */
+async function syncDirtyHead(ctx) {
+  const remote = ctx.integrateRemoteFn({
+    cwd: syncCwdOf(ctx),
+    storyBranch: ctx.storyBranch,
+  });
+  if (!remote.ok) {
+    return { synced: false, kind: 'remote-diverged', stderr: remote.stderr };
+  }
+  return ctx.syncBranchFromBaseFn({
+    cwd: syncCwdOf(ctx),
+    baseBranch: ctx.baseBranch,
+    log: (tag, msg) => ctx.progress?.(tag, msg),
+  });
 }
 
 /** Friction through the pre-PR SYNC's own path, labels left alone. */
@@ -146,11 +169,7 @@ export async function settleDirtyPr(ctx, state, probe) {
     `🔀 PR #${ctx.prNumber} is DIRTY — merging origin/${ctx.baseBranch} in ${syncCwdOf(ctx)} ` +
       `(attempt ${state.updatesUsed + 1}/${budget}).`,
   );
-  const result = await ctx.syncBranchFromBaseFn({
-    cwd: syncCwdOf(ctx),
-    baseBranch: ctx.baseBranch,
-    log: (tag, msg) => ctx.progress?.(tag, msg),
-  });
+  const result = await syncDirtyHead(ctx);
   // An already-current branch spends nothing: GitHub is still recomputing.
   const spent =
     result.kind === 'noop-already-current'

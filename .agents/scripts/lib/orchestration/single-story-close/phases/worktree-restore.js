@@ -11,6 +11,7 @@ import { resolveWorktreeEnabled } from '../../../config/runtime.js';
 import { gitSpawn as defaultGitSpawn } from '../../../git-utils.js';
 import { Logger } from '../../../Logger.js';
 import { WorktreeManager as DefaultWorktreeManager } from '../../../worktree-manager.js';
+import { catchUpWithOrigin } from './story-branch-catch-up.js';
 
 /** `<cwd>/<root>/story-<id>` when it exists on disk, else `null`. */
 export function existingWorktreePath({
@@ -49,34 +50,8 @@ function ensureLocalStoryRef({ cwd, storyBranch, gitSpawn, progress }) {
   }
 }
 
-/**
- * The existing worktree, a recreated one, or `null` when isolation is off
- * and none exists. `cwd` is the MAIN checkout.
- *
- * @returns {Promise<string|null>}
- */
-export async function resolveStoryWorktree({
-  cwd,
-  config,
-  storyId,
-  storyBranch,
-  progress,
-  gitSpawn = defaultGitSpawn,
-  WorktreeManager = DefaultWorktreeManager,
-  existsSync,
-  env = process.env,
-}) {
-  const wtIsolation = config?.delivery?.worktreeIsolation;
-  const existing = existingWorktreePath({
-    cwd,
-    wtIsolation,
-    storyId,
-    ...(existsSync ? { existsSync } : {}),
-  });
-  if (existing) return existing;
-  if (!resolveWorktreeEnabled({ config }, env)) return null;
-  ensureLocalStoryRef({ cwd, storyBranch, gitSpawn, progress });
-  const wm = new WorktreeManager({
+function createManager({ WorktreeManager, cwd, wtIsolation, progress }) {
+  return new WorktreeManager({
     repoRoot: cwd,
     config: wtIsolation,
     logger: {
@@ -85,7 +60,13 @@ export async function resolveStoryWorktree({
       error: (m) => Logger.error(`[worktree-restore] ${m}`),
     },
   });
-  const ensured = await wm.ensure(storyId, storyBranch);
+}
+
+/** `ensure` the worktree from the (fetched if needed) local story ref. */
+async function recreateWorktree(args) {
+  const { storyId, storyBranch, progress } = args;
+  ensureLocalStoryRef(args);
+  const ensured = await createManager(args).ensure(storyId, storyBranch);
   if (!ensured?.path) {
     throw new Error(
       `[worktree-restore] worktree isolation is enabled but the ${storyBranch} worktree ` +
@@ -97,4 +78,38 @@ export async function resolveStoryWorktree({
     `♻️  Recreated the missing ${storyBranch} worktree at ${ensured.path}.`,
   );
   return ensured.path;
+}
+
+/**
+ * The existing worktree, a recreated one, or `null` when isolation is off
+ * and none exists. `cwd` is the MAIN checkout.
+ *
+ * @returns {Promise<string|null>}
+ */
+export async function resolveStoryWorktree({
+  gitSpawn = defaultGitSpawn,
+  WorktreeManager = DefaultWorktreeManager,
+  existsSync,
+  env = process.env,
+  ...args
+}) {
+  const wtIsolation = args.config?.delivery?.worktreeIsolation;
+  const existing = existingWorktreePath({
+    cwd: args.cwd,
+    wtIsolation,
+    storyId: args.storyId,
+    ...(existsSync ? { existsSync } : {}),
+  });
+  if (!existing && !resolveWorktreeEnabled({ config: args.config }, env)) {
+    return null;
+  }
+  const worktreePath =
+    existing ??
+    (await recreateWorktree({
+      ...args,
+      wtIsolation,
+      gitSpawn,
+      WorktreeManager,
+    }));
+  return catchUpWithOrigin({ ...args, worktreePath, gitSpawn });
 }

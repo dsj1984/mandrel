@@ -3178,16 +3178,25 @@ describe('runConfirmMergePhase — checks-failed writes the CI digest (Story #54
 describe('merge wait — a DIRTY PR is acted on, never polled (Story #5533)', () => {
   const WORKTREE = '/repo/.worktrees/story-4428';
 
-  function dirtyHarness({ syncResults, pushThrows = false } = {}) {
+  function dirtyHarness({
+    syncResults,
+    pushThrows = false,
+    remoteResult = { ok: true },
+  } = {}) {
     const syncCalls = [];
+    const remoteCalls = [];
+    const order = [];
     const pushCalls = [];
     const failures = [];
     return {
       syncCalls,
+      remoteCalls,
+      order,
       pushCalls,
       failures,
       recoverySeams: {
         syncBranchFromBaseFn: async (args) => {
+          order.push('base');
           syncCalls.push(args);
           return syncResults.shift();
         },
@@ -3203,6 +3212,11 @@ describe('merge wait — a DIRTY PR is acted on, never polled (Story #5533)', ()
           throw new Error('re-arm must not run in a DIRTY poll');
         },
         readCiDigestFn: () => null,
+        integrateRemoteFn: (args) => {
+          order.push('remote');
+          remoteCalls.push(args);
+          return remoteResult;
+        },
       },
     };
   }
@@ -3302,6 +3316,7 @@ describe('merge wait — a DIRTY PR is acted on, never polled (Story #5533)', ()
             stderr: 'fatal: refusing to merge unrelated histories',
           }),
           readCiDigestFn: () => null,
+          integrateRemoteFn: () => ({ ok: true }),
         },
         readPrWaitProbeFn: async () => openProbe({ mergeStateStatus: 'DIRTY' }),
       }),
@@ -3366,6 +3381,51 @@ describe('merge wait — a DIRTY PR is acted on, never polled (Story #5533)', ()
     );
     assert.equal(outcome.terminal, 'landed');
     assert.equal(h.syncCalls.length, 4);
+  });
+
+  it('after a BEHIND update-branch, pulls origin/<story> into the worktree before merging the base', async () => {
+    // The update-branch merge commit exists only on origin; a push from the
+    // stale local head would be rejected as non-fast-forward.
+    const h = dirtyHarness({
+      syncResults: [{ synced: true, kind: 'merge-commit', changedPaths: [] }],
+    });
+    const states = [
+      openProbe({ mergeStateStatus: 'BEHIND' }),
+      openProbe({ mergeStateStatus: 'DIRTY' }),
+      { state: 'MERGED', mergedAt: 'x' },
+    ];
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        worktreePath: WORKTREE,
+        recoverySeams: h.recoverySeams,
+        injectedGh: { pr: { updateBranch: async () => {} } },
+        readPrWaitProbeFn: async () => states.shift(),
+        confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
+      }),
+    );
+    assert.equal(outcome.terminal, 'landed');
+    assert.deepEqual(h.order, ['remote', 'base']);
+    assert.equal(h.remoteCalls[0].cwd, WORKTREE);
+    assert.equal(h.remoteCalls[0].storyBranch, 'story-4428');
+    assert.equal(h.pushCalls.length, 1);
+  });
+
+  it('a story branch that cannot integrate origin is handed back, never pushed', async () => {
+    const h = dirtyHarness({
+      syncResults: [],
+      remoteResult: { ok: false, stderr: 'CONFLICT (content): src/a.js' },
+    });
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        worktreePath: WORKTREE,
+        recoverySeams: h.recoverySeams,
+        readPrWaitProbeFn: async () => openProbe({ mergeStateStatus: 'DIRTY' }),
+      }),
+    );
+    assert.equal(outcome.terminal, 'failed');
+    assert.match(outcome.reason, /remote-diverged/);
+    assert.equal(h.syncCalls.length, 0);
+    assert.equal(h.pushCalls.length, 0);
   });
 
   it('a rejected push is handed back too — hooks are never bypassed', async () => {

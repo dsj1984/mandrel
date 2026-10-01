@@ -22,7 +22,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
-
+import { integrateRemoteStoryBranch } from '../.agents/scripts/lib/orchestration/single-story-close/phases/story-branch-catch-up.js';
 import { reapWorktreePhase } from '../.agents/scripts/lib/orchestration/single-story-close/phases/worktree-reap.js';
 import { resolveStoryWorktree } from '../.agents/scripts/lib/orchestration/single-story-close/phases/worktree-restore.js';
 import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
@@ -334,11 +334,25 @@ describe('resolveStoryWorktree — the working copy close runs in (Story #5533)'
     });
   }
 
-  it('returns a live worktree untouched — no git, no ensure', async () => {
+  it('reuses a live worktree — no ensure — and only fast-forwards it to origin', async () => {
     const h = harness();
     const wt = await resolve(h, { exists: true });
     assert.equal(wt, path.resolve('/repo', '.worktrees', 'story-5533'));
-    assert.deepEqual(h.calls, []);
+    // A remote `gh pr update-branch` merge lands only on origin; a push from
+    // behind it would be rejected, so close catches up first (ff-only).
+    assert.deepEqual(h.calls, [
+      'fetch origin story-5533',
+      'merge --ff-only origin/story-5533',
+    ]);
+  });
+
+  it('a recreated worktree also catches up with origin before close uses it', async () => {
+    const h = harness();
+    await resolve(h);
+    assert.deepEqual(h.calls.slice(-2), [
+      'fetch origin story-5533',
+      'merge --ff-only origin/story-5533',
+    ]);
   });
 
   it('recreates a missing worktree from the local story ref', async () => {
@@ -347,9 +361,9 @@ describe('resolveStoryWorktree — the working copy close runs in (Story #5533)'
     assert.equal(wt, '/repo/.worktrees/story-5533');
     assert.ok(h.calls.includes('ensure 5533 story-5533'));
     assert.equal(
-      h.calls.some((c) => c.startsWith('fetch')),
+      h.calls.includes('fetch origin story-5533:story-5533'),
       false,
-      'a local ref needs no fetch',
+      'a local ref needs no ref-creating fetch',
     );
   });
 
@@ -379,5 +393,56 @@ describe('resolveStoryWorktree — the working copy close runs in (Story #5533)'
     });
     assert.equal(wt, null);
     assert.deepEqual(h.calls, []);
+  });
+});
+
+describe('integrateRemoteStoryBranch (Story #5533)', () => {
+  function git(replies) {
+    const calls = [];
+    return {
+      calls,
+      gitSpawn: (_cwd, ...args) => {
+        calls.push(args.join(' '));
+        return replies[args[0]] ?? { status: 0 };
+      },
+    };
+  }
+
+  it('merges origin/<story> so the push is not behind a remote update-branch', () => {
+    const g = git({});
+    const out = integrateRemoteStoryBranch({
+      cwd: '/wt',
+      storyBranch: 'story-1',
+      gitSpawn: g.gitSpawn,
+    });
+    assert.deepEqual(out, { ok: true });
+    assert.deepEqual(g.calls, [
+      'fetch origin story-1',
+      'merge --no-edit origin/story-1',
+    ]);
+  });
+
+  it('aborts a conflicting merge and reports it', () => {
+    const g = git({ merge: { status: 1, stderr: 'CONFLICT (content)' } });
+    const out = integrateRemoteStoryBranch({
+      cwd: '/wt',
+      storyBranch: 'story-1',
+      gitSpawn: g.gitSpawn,
+    });
+    assert.equal(out.ok, false);
+    assert.match(out.stderr, /CONFLICT/);
+    assert.equal(g.calls.at(-1), 'merge --abort');
+  });
+
+  it('skips when origin has no such branch yet', () => {
+    const g = git({ fetch: { status: 128 } });
+    assert.deepEqual(
+      integrateRemoteStoryBranch({
+        cwd: '/wt',
+        storyBranch: 'story-1',
+        gitSpawn: g.gitSpawn,
+      }),
+      { ok: true, skipped: true },
+    );
   });
 });
