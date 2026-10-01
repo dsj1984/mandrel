@@ -1019,6 +1019,10 @@
       "mi": 95.247
     },
     {
+      "path": ".agents/scripts/lib/orchestration/cancelled-run-discount.js",
+      "mi": 103.438
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/ceremony-routing.js",
       "mi": 111.764
     },

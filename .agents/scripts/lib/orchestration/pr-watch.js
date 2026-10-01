@@ -8,6 +8,7 @@
 import { spawnSync } from 'node:child_process';
 
 import { applyBehindUpdate } from './behind-recovery.js';
+import { createCancelledRunDiscount } from './cancelled-run-discount.js';
 import { checkVerdict, classifyRequiredCheck } from './check-state.js';
 
 /**
@@ -32,7 +33,7 @@ function ghPrChecks({ prUrl, cwd, repo, spawnFn = spawnSync }) {
       prUrl,
       '--required',
       '--json',
-      'name,state,bucket,workflow',
+      'name,state,bucket,workflow,link',
       ...ghRepoFlag(repo),
     ],
     { cwd, encoding: 'utf-8', shell: false },
@@ -144,6 +145,10 @@ export function hasFailingCheck(outcomes) {
   return Object.values(outcomes).some((v) => checkVerdict(v) === 'fail');
 }
 
+async function identityDiscount(_entries, outcomes) {
+  return outcomes;
+}
+
 function defaultSleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -161,6 +166,7 @@ function defaultSleep(ms) {
  * @param {Function} opts.ghPrChecksFn
  * @param {number} opts.pollIntervalMs
  * @param {Function} opts.sleepFn
+ * @param {Function} [opts.discountFn]
  * @param {{ warn?: Function }} opts.logger
  * @returns {Promise<{ outcomes: object, polls: number }>}
  */
@@ -174,6 +180,7 @@ export async function pollUntilTerminal({
   ghPrChecksFn,
   pollIntervalMs,
   sleepFn,
+  discountFn = identityDiscount,
   logger,
 }) {
   let currentOutcomes = outcomes;
@@ -189,7 +196,7 @@ export async function pollUntilTerminal({
       );
       continue;
     }
-    currentOutcomes = reduceOutcomes(entries);
+    currentOutcomes = await discountFn(entries, reduceOutcomes(entries));
   }
   return { outcomes: currentOutcomes, polls: currentPolls };
 }
@@ -212,6 +219,7 @@ export async function pollUntilTerminal({
  * @param {Function} [opts.ghPrViewFn]
  * @param {Function} [opts.ghPrUpdateBranchFn]
  * @param {Function} [opts.sleepFn]
+ * @param {Function} [opts.ghApiFn]
  * @param {{ info?: Function, warn?: Function, debug?: Function }} opts.logger
  * @param {{status:number,stdout:string,stderr:string}} [opts.firstProbe]
  *   An already-issued `gh pr checks` result, so the first call is not
@@ -243,6 +251,7 @@ export async function watchPrToTerminal({
   ghPrViewFn = ghPrView,
   ghPrUpdateBranchFn = ghPrUpdateBranch,
   sleepFn = defaultSleep,
+  ghApiFn,
   logger,
   firstProbe,
 }) {
@@ -277,7 +286,8 @@ export async function watchPrToTerminal({
 
   const requiredChecks = firstEntries.map((e) => e.name);
 
-  let outcomes = reduceOutcomes(firstEntries);
+  const discountFn = createCancelledRunDiscount({ repo, ghApiFn, logger });
+  let outcomes = await discountFn(firstEntries, reduceOutcomes(firstEntries));
   let polls = 0;
   let updatesApplied = 0;
   let resumesApplied = 0;
@@ -294,6 +304,7 @@ export async function watchPrToTerminal({
         ghPrChecksFn,
         pollIntervalMs,
         sleepFn,
+        discountFn,
         logger,
       }));
       // BEHIND recovery only when all green; `maxUpdates` stops a racing

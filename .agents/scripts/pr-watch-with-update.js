@@ -376,6 +376,7 @@ function buildWatchArgs({
   ghPrChecksFn,
   ghPrViewFn,
   ghPrUpdateBranchFn,
+  ghApiFn,
   sleepFn,
   logger,
 }) {
@@ -390,6 +391,7 @@ function buildWatchArgs({
     ...(ghPrChecksFn ? { ghPrChecksFn } : {}),
     ...(ghPrViewFn ? { ghPrViewFn } : {}),
     ...(ghPrUpdateBranchFn ? { ghPrUpdateBranchFn } : {}),
+    ghApiFn,
     ...(sleepFn ? { sleepFn } : {}),
     logger,
   };
@@ -605,6 +607,7 @@ async function settleRedWatch({
  * @param {Function} [opts.ghPrChecksFn]
  * @param {Function} [opts.ghPrViewFn]
  * @param {Function} [opts.ghPrUpdateBranchFn]
+ * @param {Function} [opts.ghApiFn]
  * @param {Function} [opts.sleepFn]
  * @param {Function} [opts.writeDigestFn]
  * @param {Function} [opts.readDigestFn]
@@ -630,6 +633,7 @@ export async function runPrWatch({
   ghPrChecksFn,
   ghPrViewFn,
   ghPrUpdateBranchFn,
+  ghApiFn,
   sleepFn,
   writeDigestFn = writeCiDigest,
   readDigestFn = readCiDigest,
@@ -676,6 +680,7 @@ export async function runPrWatch({
       ghPrChecksFn,
       ghPrViewFn,
       ghPrUpdateBranchFn,
+      ghApiFn,
       sleepFn,
       logger,
     }),

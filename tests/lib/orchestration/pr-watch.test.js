@@ -318,3 +318,95 @@ describe('watchPrToTerminal — the default sleeper', () => {
     assert.equal(result.polls, 1);
   });
 });
+
+// Story #5534 — a red required check from a concurrency-cancelled run is
+// read from the live sibling run on every probe, including the first.
+describe('watchPrToTerminal — cancelled-run discount', () => {
+  const cancelledRed = {
+    status: 0,
+    stdout: JSON.stringify([
+      {
+        name: 'ci-required',
+        state: 'FAILURE',
+        bucket: 'fail',
+        link: 'https://github.com/o/r/actions/runs/100/job/1',
+      },
+    ]),
+    stderr: '',
+  };
+
+  /** `gh api` fake whose live sibling (run 101) walks `liveStates`. */
+  function liveSiblingApi(liveStates) {
+    let i = 0;
+    return async (endpoint) => {
+      if (endpoint.endsWith('/actions/runs/100')) {
+        return { conclusion: 'cancelled', head_sha: 'sha', workflow_id: 7 };
+      }
+      const [status, conclusion] =
+        liveStates[Math.min(i++, liveStates.length - 1)];
+      return {
+        workflow_runs: [
+          { id: 100, status: 'completed', conclusion: 'cancelled' },
+          { id: 101, status, conclusion },
+        ],
+      };
+    };
+  }
+
+  function watch(ghApiFn, extra = {}) {
+    return watchPrToTerminal({
+      prUrl: '1',
+      cwd: '/tmp',
+      repo: 'o/r',
+      pollIntervalMs: 0,
+      maxPolls: 3,
+      maxUpdates: 0,
+      sleepFn: async () => {},
+      ghPrChecksFn: () => cancelledRed,
+      ghApiFn,
+      logger: quietLogger(),
+      ...extra,
+    });
+  }
+
+  it('keeps polling while the live sibling runs and ends still-running at the cap', async () => {
+    const verdict = await watch(liveSiblingApi([['in_progress', null]]));
+    assert.equal(verdict.terminal, false);
+    assert.equal(verdict.stillRunning, true);
+    assert.equal(verdict.polls, 3);
+    assert.deepEqual(verdict.outcomes, { 'ci-required': 'still-running' });
+  });
+
+  it('reports green once the live sibling succeeds', async () => {
+    const verdict = await watch(
+      liveSiblingApi([
+        ['queued', null],
+        ['completed', 'success'],
+      ]),
+      { ghPrViewFn: () => ({ status: 1, stdout: '', stderr: '' }) },
+    );
+    assert.equal(verdict.green, true);
+    assert.deepEqual(verdict.outcomes, { 'ci-required': 'success' });
+  });
+
+  it('reports red once the live sibling fails', async () => {
+    const verdict = await watch(
+      liveSiblingApi([
+        ['queued', null],
+        ['completed', 'failure'],
+      ]),
+    );
+    assert.equal(verdict.terminal, true);
+    assert.equal(verdict.green, false);
+    assert.deepEqual(verdict.outcomes, { 'ci-required': 'failure' });
+  });
+
+  it('a failed gh api read leaves the red standing on the first probe', async () => {
+    const verdict = await watch(async () => {
+      throw new Error('HTTP 502');
+    });
+    assert.equal(verdict.terminal, true);
+    assert.equal(verdict.polls, 0);
+    assert.deepEqual(verdict.outcomes, { 'ci-required': 'failure' });
+  });
+});
