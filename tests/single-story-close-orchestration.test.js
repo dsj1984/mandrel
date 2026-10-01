@@ -2134,6 +2134,11 @@ describe('runSingleStoryClose — the lease is held until the merge confirms (St
     t.mock.module(GIT_UTILS_URL, {
       namedExports: {
         ...defaultGitUtilsMock().namedExports,
+        // No local ref; `ls-remote --exit-code` exit 2: origin has no branch.
+        gitSpawn: (_cwd, ...args) =>
+          args[0] === 'ls-remote'
+            ? { status: 2, stdout: '', stderr: '' }
+            : defaultGitUtilsMock().namedExports.gitSpawn(_cwd, ...args),
         gitSync: (cwd, ...args) => {
           order.push(`${args[0]} @ ${cwd}`);
           return { status: 0, stdout: '', stderr: '' };
@@ -2211,9 +2216,10 @@ describe('runSingleStoryClose — the lease is held until the merge confirms (St
 
   // Two guards, each sufficient: an OPEN PR on the head (the remote branch
   // and local ref already swept), and a surviving local ref (unpushed work).
-  for (const [variant, localRef] of [
-    ['an OPEN PR beside an old merged one', false],
-    ['a surviving local story ref', true],
+  for (const [variant, localRef, remoteBranch] of [
+    ['an OPEN PR beside an old merged one', false, false],
+    ['a surviving local story ref', true, false],
+    ['new work pushed to origin only, no PR yet', false, true],
   ])
     it(`Story #5533: a re-delivery with ${variant} never short-circuits`, async (t) => {
       const order = [];
@@ -2223,6 +2229,8 @@ describe('runSingleStoryClose — the lease is held until the merge confirms (St
           ...defaultGitUtilsMock().namedExports,
           gitSpawn: (_cwd, ...args) => {
             if (args[0] === 'show-ref') return { status: localRef ? 0 : 1 };
+            if (args[0] === 'ls-remote')
+              return { status: remoteBranch ? 0 : 2 };
             if (args[0] === 'fetch')
               return { status: 0, stdout: '', stderr: '' };
             return defaultGitUtilsMock().namedExports.gitSpawn(_cwd, ...args);
@@ -2259,7 +2267,7 @@ describe('runSingleStoryClose — the lease is held until the merge confirms (St
       });
       const gh = makeFakeGh((args) => {
         if (args[1] === 'list') {
-          return localRef
+          return localRef || remoteBranch
             ? [
                 {
                   url: 'https://github.com/owner/repo/pull/10',
@@ -2278,7 +2286,7 @@ describe('runSingleStoryClose — the lease is held until the merge confirms (St
         throw new Error(`unexpected gh: ${args.join(' ')}`);
       });
       const { runSingleStoryClose } = await import(
-        `${SUT_URL}?t=redelivery-${localRef}`
+        `${SUT_URL}?t=redelivery-${localRef}-${remoteBranch}`
       );
       const { result, terminal } = await runSingleStoryClose({
         storyId: 4866,
@@ -2300,7 +2308,7 @@ describe('runSingleStoryClose — the lease is held until the merge confirms (St
         injectedGh: gh,
         injectedRunCodeReview: noopReview(),
       });
-      if (!localRef) {
+      if (!localRef && !remoteBranch) {
         assert.equal(result.prNumber, 11, 'the OPEN PR is the one waited on');
       }
       assert.equal(terminal.status, 'pending', 'never landed off the old PR');

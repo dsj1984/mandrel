@@ -950,26 +950,38 @@ async function resolveBasePhase(ctx, deps) {
   return null;
 }
 
-/** A surviving local ref may carry work no PR holds yet. */
-function localStoryRefExists(ctx) {
+/**
+ * A surviving local ref, or a branch still on origin, may carry work no PR
+ * holds yet. Only `ls-remote`'s "no such ref" (exit 2) proves the remote
+ * branch gone — a read failure counts as surviving.
+ */
+function storyBranchSurvives(ctx) {
+  const cwd = ctx.options.cwd;
   const ref = `refs/heads/${ctx.storyBranch}`;
-  return (
-    gitSpawn(ctx.options.cwd, 'show-ref', '--verify', '--quiet', ref).status ===
-    0
+  const local = gitSpawn(cwd, 'show-ref', '--verify', '--quiet', ref);
+  if (local.status === 0) return true;
+  const remote = gitSpawn(
+    cwd,
+    'ls-remote',
+    '--exit-code',
+    '--heads',
+    'origin',
+    ctx.storyBranch,
   );
+  return remote.status !== 2;
 }
 
 /**
  * The Story's PR, when it already merged and nothing newer is in flight — a
  * re-run after the land, whose branch `--delete-branch` and a sweep removed.
  * An OPEN PR on the head wins (a re-delivery), as `ensurePullRequestWith`
- * decides, and a surviving local ref means there may be work to deliver.
+ * decides, and a surviving branch means there may be work to deliver.
  * Any read failure reads as "not merged": the normal path then decides.
  *
  * @returns {Promise<{ prUrl: string, prNumber: number|null }|null>}
  */
 async function findLandedPr(ctx, deps) {
-  if (localStoryRefExists(ctx)) return null;
+  if (storyBranchSurvives(ctx)) return null;
   try {
     const rows = await (deps.gh ?? defaultGh).pr.list(
       ['--head', ctx.storyBranch, '--state', 'all'],
