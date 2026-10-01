@@ -1499,6 +1499,10 @@
       "mi": 110.238
     },
     {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
+      "mi": 100.127
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
       "mi": 101.211
     },
@@ -1537,6 +1541,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/worktree-reap.js",
       "mi": 113.344
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/worktree-restore.js",
+      "mi": 105.688
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/wrong-tree-guard.js",
