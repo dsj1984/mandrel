@@ -111,16 +111,19 @@ function syncFailureDetail({ conflictFiles, stderr }) {
 
 /**
  * A source conflict against a confirmed base is the delivering agent's to
- * resolve; every other sync failure needs a human — unless the caller hands
- * every failure back (`handBack`: the merge wait, whose PR is already open).
+ * resolve; every other sync failure needs a human.
  *
  * @param {{ kind: string }} result
  * @param {boolean} baseConfirmed
- * @param {boolean} [handBack]
  * @returns {boolean}
  */
-function isHandedBack(result, baseConfirmed, handBack = false) {
-  return handBack || (result.kind === 'conflict' && baseConfirmed === true);
+function isHandedBack(result, baseConfirmed) {
+  return result.kind === 'conflict' && baseConfirmed === true;
+}
+
+/** `handBack`: the merge wait, whose PR is open, hands every failure back. */
+function resolveHandedBack({ result, baseConfirmed, handBack }) {
+  return handBack === true || isHandedBack(result, baseConfirmed);
 }
 
 /**
@@ -226,7 +229,7 @@ export async function handleSyncFailure({
     );
   }
 
-  const handedBack = isHandedBack(result, baseConfirmed, handBack);
+  const handedBack = resolveHandedBack({ result, baseConfirmed, handBack });
   await settleSyncFailureLabels({ provider, storyId, handedBack, progress });
   return { handedBack };
 }
@@ -348,7 +351,7 @@ export function buildSyncFailureCommentBody({
   handBack = false,
 }) {
   const kind = result.kind ?? 'unknown';
-  const handedBack = isHandedBack(result, baseConfirmed, handBack);
+  const handedBack = resolveHandedBack({ result, baseConfirmed, handBack });
   const heading =
     kind === 'conflict'
       ? `Base-sync conflict on close: ${storyBranch} ↔ origin/${baseBranch}`

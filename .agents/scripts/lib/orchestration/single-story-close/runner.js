@@ -658,38 +658,40 @@ async function resolveAutoMergeOutcome({ alreadyMerged, ...phaseArgs }) {
   return await runAutoMergePhase(phaseArgs);
 }
 
-/**
- * @param {{ status: string, nextCommand: string, blocked?: {blockClass?: string} }} terminal
- * @param {{ storyId: number, prUrl: string|null }} ctx
- * @returns {void}
- */
-function reportWaitTerminal(terminal, { storyId, prUrl }) {
-  if (terminal.status === 'landed') {
-    progress('DONE', `✅ Story #${storyId}: PR merged → ${prUrl}`);
-    return;
-  }
-  if (terminal.status === 'pending') {
-    // Not a failure: resumable, with its own CLI exit code.
-    progress(
-      'PENDING',
-      `⏸  Story #${storyId}: PR ${prUrl} still in flight — resume with: ${terminal.nextCommand}`,
-    );
-    return;
-  }
-  if (terminal.status === 'failed') {
-    progress(
-      'FAILED',
-      `🛑 Story #${storyId}: PR ${prUrl} did not land (${terminal.phase}): ` +
-        `${terminal.failure?.reason}. Labels unchanged. Next: ${terminal.nextCommand}`,
-    );
-    return;
-  }
-  progress(
+/** One console line per non-landed wait ending, keyed by status. */
+const WAIT_TERMINAL_LINES = Object.freeze({
+  pending: (terminal, { storyId, prUrl }) => [
+    'PENDING',
+    `⏸  Story #${storyId}: PR ${prUrl} still in flight — resume with: ${terminal.nextCommand}`,
+  ],
+  failed: (terminal, { storyId, prUrl }) => [
+    'FAILED',
+    `🛑 Story #${storyId}: PR ${prUrl} did not land (${terminal.phase}): ` +
+      `${terminal.failure?.reason}. Labels unchanged. Next: ${terminal.nextCommand}`,
+  ],
+  blocked: (terminal, { storyId, prUrl }) => [
     'BLOCKED',
     `🛑 Story #${storyId}: PR ${prUrl} did not land ` +
       `(blockClass=${terminal.blocked?.blockClass}). Story is at agent::blocked. ` +
       `Next: ${terminal.nextCommand}`,
-  );
+  ],
+  landed: (_terminal, { storyId, prUrl }) => [
+    'DONE',
+    `✅ Story #${storyId}: PR merged → ${prUrl}`,
+  ],
+});
+
+/**
+ * `pending` is not a failure: resumable, with its own CLI exit code.
+ *
+ * @param {{ status: string, nextCommand: string }} terminal
+ * @param {{ storyId: number, prUrl: string|null }} ctx
+ * @returns {void}
+ */
+function reportWaitTerminal(terminal, ctx) {
+  const line =
+    WAIT_TERMINAL_LINES[terminal.status] ?? WAIT_TERMINAL_LINES.blocked;
+  progress(...line(terminal, ctx));
 }
 
 /**
