@@ -8,6 +8,7 @@
 import { spawnSync } from 'node:child_process';
 
 import { applyBehindUpdate } from './behind-recovery.js';
+import { createCancelledRunDiscount } from './cancelled-run-discount.js';
 import { checkVerdict, classifyRequiredCheck } from './check-state.js';
 
 /**
@@ -22,7 +23,10 @@ function ghRepoFlag(repo) {
   return trimmed.length > 0 ? ['--repo', trimmed] : [];
 }
 
-/** `--required` makes the returned set authoritative for protection gating. */
+/**
+ * `--required` makes the returned set authoritative for protection gating;
+ * `link` carries the Actions run id the cancelled-run discount reads.
+ */
 function ghPrChecks({ prUrl, cwd, repo, spawnFn = spawnSync }) {
   const result = spawnFn(
     'gh',
@@ -32,7 +36,7 @@ function ghPrChecks({ prUrl, cwd, repo, spawnFn = spawnSync }) {
       prUrl,
       '--required',
       '--json',
-      'name,state,bucket,workflow',
+      'name,state,bucket,workflow,link',
       ...ghRepoFlag(repo),
     ],
     { cwd, encoding: 'utf-8', shell: false },
@@ -144,6 +148,11 @@ export function hasFailingCheck(outcomes) {
   return Object.values(outcomes).some((v) => checkVerdict(v) === 'fail');
 }
 
+/** No discount: the outcomes as `reduceOutcomes` built them. */
+async function identityDiscount(_entries, outcomes) {
+  return outcomes;
+}
+
 function defaultSleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -161,6 +170,9 @@ function defaultSleep(ms) {
  * @param {Function} opts.ghPrChecksFn
  * @param {number} opts.pollIntervalMs
  * @param {Function} opts.sleepFn
+ * @param {(entries: object[], outcomes: object) => Promise<object>} [opts.discountFn]
+ *   Rewrites a red check from a concurrency-cancelled run before the
+ *   terminal read; defaults to no discount.
  * @param {{ warn?: Function }} opts.logger
  * @returns {Promise<{ outcomes: object, polls: number }>}
  */
@@ -174,6 +186,7 @@ export async function pollUntilTerminal({
   ghPrChecksFn,
   pollIntervalMs,
   sleepFn,
+  discountFn = identityDiscount,
   logger,
 }) {
   let currentOutcomes = outcomes;
@@ -189,7 +202,7 @@ export async function pollUntilTerminal({
       );
       continue;
     }
-    currentOutcomes = reduceOutcomes(entries);
+    currentOutcomes = await discountFn(entries, reduceOutcomes(entries));
   }
   return { outcomes: currentOutcomes, polls: currentPolls };
 }
@@ -212,6 +225,8 @@ export async function pollUntilTerminal({
  * @param {Function} [opts.ghPrViewFn]
  * @param {Function} [opts.ghPrUpdateBranchFn]
  * @param {Function} [opts.sleepFn]
+ * @param {(endpoint: string) => Promise<unknown>} [opts.ghApiFn] `gh api`
+ *   GET port for the cancelled-run discount (tests inject a fake).
  * @param {{ info?: Function, warn?: Function, debug?: Function }} opts.logger
  * @param {{status:number,stdout:string,stderr:string}} [opts.firstProbe]
  *   An already-issued `gh pr checks` result, so the first call is not
@@ -243,6 +258,7 @@ export async function watchPrToTerminal({
   ghPrViewFn = ghPrView,
   ghPrUpdateBranchFn = ghPrUpdateBranch,
   sleepFn = defaultSleep,
+  ghApiFn,
   logger,
   firstProbe,
 }) {
@@ -277,7 +293,13 @@ export async function watchPrToTerminal({
 
   const requiredChecks = firstEntries.map((e) => e.name);
 
-  let outcomes = reduceOutcomes(firstEntries);
+  // One discount per invocation, so its cancelled-run cache spans every poll.
+  const discountFn = createCancelledRunDiscount({
+    repo,
+    ...(ghApiFn ? { ghApiFn } : {}),
+    logger,
+  });
+  let outcomes = await discountFn(firstEntries, reduceOutcomes(firstEntries));
   let polls = 0;
   let updatesApplied = 0;
   let resumesApplied = 0;
@@ -294,6 +316,7 @@ export async function watchPrToTerminal({
         ghPrChecksFn,
         pollIntervalMs,
         sleepFn,
+        discountFn,
         logger,
       }));
       // BEHIND recovery only when all green; `maxUpdates` stops a racing

@@ -155,6 +155,137 @@ describe('runPrWatch — red path', () => {
   });
 });
 
+// Story #5534 — a concurrency-cancelled duplicate run's red aggregate check
+// is read from the live sibling run, so it never disarms auto-merge.
+describe('runPrWatch — concurrency-cancelled run discount', () => {
+  const cancelledRedChecks = {
+    status: 0,
+    stdout: JSON.stringify([
+      {
+        name: 'ci-required',
+        state: 'FAILURE',
+        bucket: 'fail',
+        link: 'https://github.com/o/r/actions/runs/100/job/1',
+      },
+    ]),
+    stderr: '',
+  };
+
+  /** `gh api` fake: run 100 per `run100`, live sibling 101 walks `live`. */
+  function ghApi({ run100, live = [] }) {
+    let i = 0;
+    return async (endpoint) => {
+      if (endpoint === 'repos/o/r/actions/runs/100') {
+        if (run100 instanceof Error) throw run100;
+        return run100;
+      }
+      const runs = [{ id: 100, status: 'completed', conclusion: 'cancelled' }];
+      if (live.length > 0) {
+        const [status, conclusion] = live[Math.min(i++, live.length - 1)];
+        runs.push({ id: 101, status, conclusion });
+      }
+      return { workflow_runs: runs };
+    };
+  }
+
+  const cancelledRun = {
+    conclusion: 'cancelled',
+    head_sha: 'sha',
+    workflow_id: 7,
+  };
+
+  async function run({ ghApiFn, ghPrViewFn }) {
+    const { print, lines } = collectPrint();
+    const disarms = [];
+    const code = await runPrWatch({
+      prNumber: 5534,
+      repo: 'o/r',
+      config: null,
+      pollIntervalMs: 0,
+      maxPolls: 3,
+      maxResumes: 0,
+      sleepFn: async () => {},
+      ghPrChecksFn: () => cancelledRedChecks,
+      ghApiFn,
+      ...(ghPrViewFn ? { ghPrViewFn } : {}),
+      disarmAutoMergeFn: (args) => {
+        disarms.push(args);
+        return { disarmed: true, alreadyUnarmed: false, detail: 'ok' };
+      },
+      logger: quietLogger(),
+      print,
+    });
+    return { code, out: JSON.parse(lines[0]), disarms };
+  }
+
+  it('keeps polling, exits 2 at the poll cap, and never disarms auto-merge (AC-1)', async () => {
+    const { code, out, disarms } = await run({
+      ghApiFn: ghApi({ run100: cancelledRun, live: [['in_progress', null]] }),
+    });
+    assert.equal(code, STILL_RUNNING_EXIT_CODE);
+    assert.equal(out.stillRunning, true);
+    assert.equal(out.polls, 3);
+    assert.equal(out.checkOutcomes['ci-required'], 'still-running');
+    assert.equal(disarms.length, 0, 'auto-merge is never disarmed');
+  });
+
+  it('reports the check green once the live sibling succeeds (AC-2)', async () => {
+    const { code, out, disarms } = await run({
+      ghApiFn: ghApi({
+        run100: cancelledRun,
+        live: [
+          ['queued', null],
+          ['completed', 'success'],
+        ],
+      }),
+      ghPrViewFn: () => ({
+        status: 0,
+        stdout: JSON.stringify({ mergeStateStatus: 'CLEAN' }),
+        stderr: '',
+      }),
+    });
+    assert.equal(code, 0);
+    assert.equal(out.green, true);
+    assert.equal(out.checkOutcomes['ci-required'], 'success');
+    assert.equal(disarms.length, 0);
+  });
+
+  it('takes the existing red path once the live sibling fails (AC-2)', async () => {
+    const { code, out, disarms } = await run({
+      ghApiFn: ghApi({
+        run100: cancelledRun,
+        live: [
+          ['queued', null],
+          ['completed', 'failure'],
+        ],
+      }),
+    });
+    assert.equal(code, 1);
+    assert.equal(out.checkOutcomes['ci-required'], 'failure');
+    assert.equal(disarms.length, 1, 'the red path disarms auto-merge');
+  });
+
+  for (const [label, ghApiFn] of [
+    [
+      'a run that was not cancelled',
+      ghApi({
+        run100: { conclusion: 'failure', head_sha: 'sha', workflow_id: 7 },
+      }),
+    ],
+    ['a cancelled run with no sibling', ghApi({ run100: cancelledRun })],
+    ['a failed gh api read', ghApi({ run100: new Error('HTTP 502') })],
+  ]) {
+    it(`reports the check red exactly as before for ${label} (AC-3)`, async () => {
+      const { code, out, disarms } = await run({ ghApiFn });
+      assert.equal(code, 1);
+      assert.equal(out.terminal, true);
+      assert.equal(out.polls, 0, 'red on the first probe, as before');
+      assert.equal(out.checkOutcomes['ci-required'], 'failure');
+      assert.equal(disarms.length, 1);
+    });
+  }
+});
+
 describe('runPrWatch — BEHIND recovery path', () => {
   it('issues one update-branch when all green but BEHIND, then exits 0', async () => {
     const { print, lines } = collectPrint();
@@ -341,6 +472,48 @@ describe('runPrWatch — CLI path wiring (no injected gh ports, Story #4144)', (
     assert.equal(out.terminal, true);
     assert.deepEqual(out.checkOutcomes, {
       'Validate and Test': 'success',
+    });
+  });
+
+  it('discounts a cancelled-run red through the real gh api spawn (Story #5534)', async (t) => {
+    if (process.platform === 'win32') {
+      t.skip('POSIX shell shim only');
+      return;
+    }
+    installFakeGh(
+      [
+        '#!/usr/bin/env bash',
+        'case "$*" in',
+        '  *"pr checks"*)',
+        '    echo \'[{"name":"ci-required","state":"FAILURE","bucket":"fail","link":"https://github.com/o/r/actions/runs/100/job/1"}]\'',
+        '    ;;',
+        '  *"actions/runs/100"*)',
+        '    echo \'{"conclusion":"cancelled","head_sha":"sha","workflow_id":7}\'',
+        '    ;;',
+        '  *"workflows/7/runs"*)',
+        '    echo \'{"workflow_runs":[{"id":100,"status":"completed","conclusion":"cancelled"},{"id":101,"status":"completed","conclusion":"success"}]}\'',
+        '    ;;',
+        '  *"pr view"*)',
+        '    echo \'{"mergeStateStatus":"CLEAN"}\'',
+        '    ;;',
+        'esac',
+        'exit 0',
+        '',
+      ].join('\n'),
+    );
+    const { print, lines } = collectPrint();
+    const code = await runPrWatch({
+      prNumber: 5534,
+      repo: 'o/r',
+      maxPolls: 2,
+      pollIntervalMs: 0,
+      sleepFn: async () => {},
+      logger: quietLogger(),
+      print,
+    });
+    assert.equal(code, 0);
+    assert.deepEqual(JSON.parse(lines[0]).checkOutcomes, {
+      'ci-required': 'success',
     });
   });
 });
