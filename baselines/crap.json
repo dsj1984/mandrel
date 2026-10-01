@@ -24500,6 +24500,24 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/worktree-restore.js",
+      "method": "ensureFresh",
+      "startLine": 70,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/worktree-restore.js",
+      "method": "onDisk",
+      "startLine": 76,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/worktree-restore.js",
+      "method": "notRecreated",
+      "startLine": 80,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/worktree-restore.js",
       "method": "<anon resolveStoryWorktree/(m)#0>",
       "startLine": 83,
       "crap": 1,
@@ -24518,6 +24536,18 @@
       "startLine": 85,
       "crap": 1,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/worktree-restore.js",
+      "method": "recreateWorktree",
+      "startLine": 87,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/worktree-restore.js",
+      "method": "resolveStoryWorktree",
+      "startLine": 106,
+      "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/wrong-tree-guard.js",
