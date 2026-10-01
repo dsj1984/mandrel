@@ -1551,6 +1551,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestration/cancelled-run-discount.js",
+      "lines": 100,
+      "branches": 96.77,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/ceremony-routing.js",
       "lines": 100,
       "branches": 100,
@@ -2050,9 +2056,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/pr-watch.js",
-      "lines": 95.08,
-      "branches": 85.71,
-      "functions": 93.75
+      "lines": 95.23,
+      "branches": 85.87,
+      "functions": 94.12
     },
     {
       "path": ".agents/scripts/lib/orchestration/project-meta-cache.js",
@@ -3028,8 +3034,8 @@
     },
     {
       "path": ".agents/scripts/pr-watch-with-update.js",
-      "lines": 95.36,
-      "branches": 89.83,
+      "lines": 95.39,
+      "branches": 90,
       "functions": 86.36
     },
     {

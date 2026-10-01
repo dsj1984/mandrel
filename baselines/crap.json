@@ -15762,6 +15762,79 @@
       "crap": 4
     },
     {
+      "path": ".agents/scripts/lib/orchestration/cancelled-run-discount.js",
+      "method": "defaultGhApi",
+      "startLine": 14,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/cancelled-run-discount.js",
+      "method": "repoSegment",
+      "startLine": 19,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/cancelled-run-discount.js",
+      "method": "readJson",
+      "startLine": 24,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/cancelled-run-discount.js",
+      "method": "parseCancelledRun",
+      "startLine": 33,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/cancelled-run-discount.js",
+      "method": "pickLiveSibling",
+      "startLine": 43,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/cancelled-run-discount.js",
+      "method": "siblingOutcome",
+      "startLine": 61,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/cancelled-run-discount.js",
+      "method": "lastEntryByName",
+      "startLine": 66,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/cancelled-run-discount.js",
+      "method": "createCancelledRunDiscount",
+      "startLine": 78,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/cancelled-run-discount.js",
+      "method": "readCancelledRun",
+      "startLine": 86,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/cancelled-run-discount.js",
+      "method": "discountOne",
+      "startLine": 95,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/cancelled-run-discount.js",
+      "method": "discount",
+      "startLine": 116,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/cancelled-run-discount.js",
+      "method": "<anon createCancelledRunDiscount/discount/(name)#0>",
+      "startLine": 118,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/ceremony-routing.js",
       "method": "verdictOwnerForMode",
       "startLine": 16,
@@ -21408,6 +21481,12 @@
       "startLine": 148,
       "crap": 1,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/pr-watch.js",
+      "method": "identityDiscount",
+      "startLine": 148,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/pr-watch.js",
