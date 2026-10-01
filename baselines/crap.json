@@ -23795,12 +23795,6 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
-      "method": "mergeWaitRecoverySeams",
-      "startLine": 28,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
       "method": "isOpenDirty",
       "startLine": 47,
       "crap": 3
@@ -23822,12 +23816,6 @@
       "method": "resolveDirtyWorktree",
       "startLine": 87,
       "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
-      "method": "syncDirtyHead",
-      "startLine": 108,
-      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",

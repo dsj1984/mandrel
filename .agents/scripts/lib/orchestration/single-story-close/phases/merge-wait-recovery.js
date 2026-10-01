@@ -8,6 +8,7 @@
 
 import { getCiDelivery } from '../../../config/ci.js';
 import { syncBranchFromBase as defaultSyncBranchFromBase } from '../../../git/sync-from-base.js';
+import { gitSpawn } from '../../../git-utils.js';
 import {
   classifyGreenVerdict,
   readCiDigest as defaultReadCiDigest,
@@ -24,6 +25,11 @@ const REARM_VERDICTS = Object.freeze([
   'rerun-permitted',
 ]);
 
+function defaultCurrentBranch(cwd) {
+  const head = gitSpawn(cwd, 'rev-parse', '--abbrev-ref', 'HEAD');
+  return head.status === 0 ? String(head.stdout ?? '').trim() : null;
+}
+
 /** Defaults for every seam this module reads off the wait's `ctx`. */
 export function mergeWaitRecoverySeams({
   syncBranchFromBaseFn = defaultSyncBranchFromBase,
@@ -32,9 +38,11 @@ export function mergeWaitRecoverySeams({
   rearmAutoMergeFn = defaultRearmAutoMerge,
   readCiDigestFn = defaultReadCiDigest,
   integrateRemoteFn = defaultIntegrateRemote,
+  currentBranchFn = defaultCurrentBranch,
 } = {}) {
   return {
     integrateRemoteFn,
+    currentBranchFn,
     syncBranchFromBaseFn,
     pushStoryBranchFn,
     handleSyncFailureFn,
@@ -101,6 +109,22 @@ async function resolveDirtyWorktree(ctx) {
 }
 
 /**
+ * Merge only into `story-<id>`: with no worktree the sync runs in the main
+ * checkout, which a `--wait` resume may find on `main` or anything else.
+ *
+ * @returns {object|null} a failed sync result, or null when on the branch.
+ */
+function refuseWrongTree(ctx) {
+  const branch = ctx.currentBranchFn(syncCwdOf(ctx));
+  if (branch === ctx.storyBranch) return null;
+  return {
+    synced: false,
+    kind: 'wrong-tree',
+    stderr: `${syncCwdOf(ctx)} has ${branch ?? 'no readable branch'} checked out, not ${ctx.storyBranch} — nothing was merged`,
+  };
+}
+
+/**
  * `origin/<story>` first (a BEHIND update merged there only), then the base.
  *
  * @returns {Promise<object>} a `syncBranchFromBase`-shaped result.
@@ -108,6 +132,8 @@ async function resolveDirtyWorktree(ctx) {
 async function syncDirtyHead(ctx) {
   const unavailable = await resolveDirtyWorktree(ctx);
   if (unavailable) return unavailable;
+  const wrongTree = refuseWrongTree(ctx);
+  if (wrongTree) return wrongTree;
   const remote = ctx.integrateRemoteFn({
     cwd: syncCwdOf(ctx),
     storyBranch: ctx.storyBranch,

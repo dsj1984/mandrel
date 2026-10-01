@@ -3212,6 +3212,7 @@ describe('merge wait — a DIRTY PR is acted on, never polled (Story #5533)', ()
           throw new Error('re-arm must not run in a DIRTY poll');
         },
         readCiDigestFn: () => null,
+        currentBranchFn: () => 'story-4428',
         integrateRemoteFn: (args) => {
           order.push('remote');
           remoteCalls.push(args);
@@ -3317,6 +3318,7 @@ describe('merge wait — a DIRTY PR is acted on, never polled (Story #5533)', ()
           }),
           readCiDigestFn: () => null,
           integrateRemoteFn: () => ({ ok: true }),
+          currentBranchFn: () => 'story-4428',
         },
         readPrWaitProbeFn: async () => openProbe({ mergeStateStatus: 'DIRTY' }),
       }),
@@ -3503,6 +3505,24 @@ describe('merge wait — a DIRTY PR is acted on, never polled (Story #5533)', ()
     assert.equal(outcome.phase, 'base-sync');
     assert.match(outcome.reason, /worktree-unavailable/);
     assert.match(outcome.reason, /cannot recreate the story-4428 worktree/);
+    assert.equal(h.syncCalls.length, 0);
+    assert.equal(h.pushCalls.length, 0);
+  });
+
+  it('refuses to merge into a checkout that is not on story-<id> (no worktree, main checked out)', async () => {
+    const h = dirtyHarness({ syncResults: [] });
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        worktreePath: null,
+        resolveWorktree: async () => null,
+        recoverySeams: { ...h.recoverySeams, currentBranchFn: () => 'main' },
+        readPrWaitProbeFn: async () => openProbe({ mergeStateStatus: 'DIRTY' }),
+      }),
+    );
+    assert.equal(outcome.terminal, 'failed');
+    assert.match(outcome.reason, /wrong-tree/);
+    assert.match(outcome.reason, /has main checked out, not story-4428/);
+    assert.equal(h.remoteCalls.length, 0, 'nothing merged into main');
     assert.equal(h.syncCalls.length, 0);
     assert.equal(h.pushCalls.length, 0);
   });
