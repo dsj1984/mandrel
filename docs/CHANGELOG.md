@@ -15,6 +15,18 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.72.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.71.0...mandrel-v2.72.0) (2026-10-01)
+
+
+### Added
+
+* close keeps the worktree until land, self-syncs a DIRTY PR, re-arms a disarmed PR, and recover names both ([#5533](https://github.com/dsj1984/mandrel/issues/5533)) ([#5537](https://github.com/dsj1984/mandrel/issues/5537)) ([5e0fd9c](https://github.com/dsj1984/mandrel/commit/5e0fd9c8e2bcc7984188db291f20d3171c234c69))
+
+
+### Fixed
+
+* pr-watch ignores a required check from a concurrency-cancelled run while a live run on the same head exists ([#5534](https://github.com/dsj1984/mandrel/issues/5534)) ([#5535](https://github.com/dsj1984/mandrel/issues/5535)) ([caa2d6a](https://github.com/dsj1984/mandrel/commit/caa2d6ab935dd70d2ba40b3b8e952e4587a1ef1e))
+
 ## [2.71.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.70.0...mandrel-v2.71.0) (2026-09-30)
 
 
