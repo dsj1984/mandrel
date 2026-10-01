@@ -16965,6 +16965,18 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/deliver-recover.js",
+      "method": "isUnarmed",
+      "startLine": 553,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/deliver-recover.js",
+      "method": "decideClosing",
+      "startLine": 569,
+      "crap": 7
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/deliver-recover.js",
       "method": "recoverStory",
       "startLine": 570,
       "crap": 4
@@ -23006,6 +23018,12 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/auto-merge.js",
+      "method": "closeArmedPr",
+      "startLine": 49,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/auto-merge.js",
       "method": "isLocalCleanupOnlyFailure",
       "startLine": 56,
       "crap": 1
@@ -23774,6 +23792,106 @@
       "method": "lockWaitPending",
       "startLine": 22,
       "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
+      "method": "mergeWaitRecoverySeams",
+      "startLine": 28,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
+      "method": "isOpenDirty",
+      "startLine": 47,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
+      "method": "syncCwdOf",
+      "startLine": 55,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
+      "method": "describeSyncFailure",
+      "startLine": 59,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
+      "method": "resolveDirtyWorktree",
+      "startLine": 87,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
+      "method": "syncDirtyHead",
+      "startLine": 108,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
+      "method": "<anon syncDirtyHead/(tag,msg)#0>",
+      "startLine": 121,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
+      "method": "handBackDirty",
+      "startLine": 126,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
+      "method": "<anon handBackDirty/(tag,msg)#0>",
+      "startLine": 137,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
+      "method": "pushSynced",
+      "startLine": 155,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
+      "method": "<anon pushSynced/(tag,msg)#0>",
+      "startLine": 161,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
+      "method": "settleDirtyPr",
+      "startLine": 178,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
+      "method": "isUnarmedOpenPr",
+      "startLine": 220,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
+      "method": "rearmGuard",
+      "startLine": 232,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
+      "method": "maybeRearmPr",
+      "startLine": 242,
+      "crap": 7
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
+      "method": "<anon maybeRearmPr/(err)#0>",
+      "startLine": 263,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
@@ -24821,9 +24939,46 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
+      "method": "findLandedPr",
+      "startLine": 957,
+      "crap": 3.0262390670553936
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "finishPhase",
       "startLine": 963,
       "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
+      "method": "resolveCloseWorktree",
+      "startLine": 976,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
+      "method": "unlessLanded",
+      "startLine": 996,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
+      "method": "<anon unlessLanded/(ctx,deps)#0>",
+      "startLine": 997,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
+      "method": "landedPrePush",
+      "startLine": 1000,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
+      "method": "landedPr",
+      "startLine": 1015,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
@@ -25308,6 +25463,12 @@
       "method": "failedFromWaitOutcome",
       "startLine": 333,
       "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-deliver-terminal.js",
+      "method": "prBaseFor",
+      "startLine": 333,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-deliver-terminal.js",
@@ -32770,9 +32931,28 @@
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
+      "method": "lazyWaitWorktree",
+      "startLine": 275,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/single-story-confirm-merge.js",
+      "method": "<anon lazyWaitWorktree/()#0>",
+      "startLine": 276,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/single-story-confirm-merge.js",
       "method": "resumeMergeWait",
       "startLine": 277,
       "crap": 1
+    },
+    {
+      "path": ".agents/scripts/single-story-confirm-merge.js",
+      "method": "readCloseArmEvidence",
+      "startLine": 286,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
