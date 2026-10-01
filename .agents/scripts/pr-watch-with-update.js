@@ -391,7 +391,7 @@ function buildWatchArgs({
     ...(ghPrChecksFn ? { ghPrChecksFn } : {}),
     ...(ghPrViewFn ? { ghPrViewFn } : {}),
     ...(ghPrUpdateBranchFn ? { ghPrUpdateBranchFn } : {}),
-    ...(ghApiFn ? { ghApiFn } : {}),
+    ghApiFn,
     ...(sleepFn ? { sleepFn } : {}),
     logger,
   };
