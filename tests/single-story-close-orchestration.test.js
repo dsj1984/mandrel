@@ -2127,6 +2127,128 @@ describe('runSingleStoryClose — the lease is held until the merge confirms (St
     assert.equal(validateTerminalEnvelope(terminal).valid, true);
   });
 
+  it('Story #5533: a re-run after the land confirms the merge without restoring a worktree it no longer has', async (t) => {
+    // `--delete-branch` plus a sweep leaves no worktree, no local ref and no
+    // origin branch. Restoring first would throw; the merged PR wins instead.
+    const order = [];
+    t.mock.module(GIT_UTILS_URL, {
+      namedExports: {
+        ...defaultGitUtilsMock().namedExports,
+        gitSync: (cwd, ...args) => {
+          order.push(`${args[0]} @ ${cwd}`);
+          return { status: 0, stdout: '', stderr: '' };
+        },
+      },
+    });
+    mockCloseValidation(t, defaultCloseValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, {
+      namedExports: {
+        WorktreeManager: class {
+          async ensure() {
+            order.push('ensure');
+            throw new Error('restore must not run for a landed PR');
+          }
+        },
+        parseWorktreePorcelain: (..._args) => [],
+      },
+    });
+    mockConfirmMergePhase(t, {
+      confirmed: true,
+      terminal: 'landed',
+      action: 'done',
+      tail: {
+        followUps: true,
+        statusResync: true,
+        worktreeReap: true,
+        refCleanup: true,
+        baseFastForward: true,
+        tempPurge: true,
+        leaseRelease: true,
+        epicRollup: true,
+        details: { worktreeReap: 'no-worktree' },
+      },
+      prProbe: { state: 'MERGED', checksStatus: 'success' },
+    });
+    const gh = makeFakeGh((args) => {
+      if (args[1] === 'list' && args.includes('merged')) {
+        return [{ number: 864, url: 'https://github.com/owner/repo/pull/864' }];
+      }
+      throw new Error(`unexpected gh: ${args.join(' ')}`);
+    });
+
+    const { runSingleStoryClose } = await import(
+      `${SUT_URL}?t=landed-rerun-no-restore`
+    );
+    const { terminal, result } = await runSingleStoryClose({
+      storyId: 4864,
+      cwd: tempRoot,
+      injectedProvider: makeFakeProvider({
+        initialStory: {
+          id: 4864,
+          state: 'open',
+          title: 'merged, label stale',
+          labels: ['agent::closing'],
+        },
+      }),
+      injectedConfig: fakeConfig({
+        worktreeRoot: '.worktrees',
+        worktreeEnabled: true,
+      }),
+      injectedGh: gh,
+      injectedRunCodeReview: async () => {
+        throw new Error('a landed PR is not reviewed again');
+      },
+    });
+
+    assert.deepEqual(order, [], 'no restore, no push');
+    assert.equal(terminal.status, 'landed');
+    assert.equal(terminal.gates.validation, 'skipped');
+    assert.equal(result.prNumber, 864);
+    assert.equal(result.worktreeReaped, false, 'nothing was reaped');
+  });
+
+  it('Story #5533: a closed Story short-circuits before any worktree restore', async (t) => {
+    const order = [];
+    t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
+    mockCloseValidation(t, defaultCloseValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, {
+      namedExports: {
+        WorktreeManager: class {
+          async ensure() {
+            order.push('ensure');
+            return { path: '/never' };
+          }
+        },
+        parseWorktreePorcelain: (..._args) => [],
+      },
+    });
+    const { runSingleStoryClose } = await import(
+      `${SUT_URL}?t=closed-no-restore`
+    );
+    const { terminal } = await runSingleStoryClose({
+      storyId: 4865,
+      cwd: tempRoot,
+      injectedProvider: makeFakeProvider({
+        initialStory: {
+          id: 4865,
+          state: 'closed',
+          title: 'already landed',
+          labels: ['agent::done'],
+        },
+      }),
+      injectedConfig: fakeConfig({
+        worktreeRoot: '.worktrees',
+        worktreeEnabled: true,
+      }),
+      injectedGh: makeFakeGh(() => {
+        throw new Error('a closed Story reads no PR');
+      }),
+      injectedRunCodeReview: noopReview(),
+    });
+    assert.equal(terminal.status, 'landed');
+    assert.deepEqual(order, []);
+  });
+
   it('reports leaseReleased from the tail on a landed terminal, never from its own call', async (t) => {
     t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
     mockCloseValidation(t, defaultCloseValidationMock());

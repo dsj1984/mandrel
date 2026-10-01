@@ -3446,6 +3446,67 @@ describe('merge wait — a DIRTY PR is acted on, never polled (Story #5533)', ()
     assert.equal(h.failures[0].result.kind, 'push-failed');
   });
 
+  it('resolves the worktree lazily, only when a DIRTY sync needs it', async () => {
+    const h = dirtyHarness({
+      syncResults: [{ synced: true, kind: 'merge-commit', changedPaths: [] }],
+    });
+    let resolved = 0;
+    const states = [
+      openProbe(),
+      openProbe({ mergeStateStatus: 'DIRTY' }),
+      { state: 'MERGED', mergedAt: 'x' },
+    ];
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        resolveWorktree: async () => {
+          resolved += 1;
+          return WORKTREE;
+        },
+        recoverySeams: h.recoverySeams,
+        readPrWaitProbeFn: async () => states.shift(),
+        confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
+      }),
+    );
+    assert.equal(outcome.terminal, 'landed');
+    assert.equal(resolved, 1);
+    assert.equal(h.syncCalls[0].cwd, WORKTREE);
+    assert.equal(h.pushCalls[0].worktreePath, WORKTREE);
+  });
+
+  it('a merged PR lands without ever resolving the worktree', async () => {
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        resolveWorktree: async () => {
+          throw new Error('the worktree must not gate a confirm');
+        },
+        readPrWaitProbeFn: async () => ({ state: 'MERGED', mergedAt: 'x' }),
+        confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
+      }),
+    );
+    assert.equal(outcome.terminal, 'landed');
+  });
+
+  it('a worktree that cannot be recreated for a DIRTY sync ends failed at base-sync with the reason', async () => {
+    const h = dirtyHarness({ syncResults: [] });
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        resolveWorktree: async () => {
+          throw new Error(
+            '[worktree-restore] cannot recreate the story-4428 worktree',
+          );
+        },
+        recoverySeams: h.recoverySeams,
+        readPrWaitProbeFn: async () => openProbe({ mergeStateStatus: 'DIRTY' }),
+      }),
+    );
+    assert.equal(outcome.terminal, 'failed');
+    assert.equal(outcome.phase, 'base-sync');
+    assert.match(outcome.reason, /worktree-unavailable/);
+    assert.match(outcome.reason, /cannot recreate the story-4428 worktree/);
+    assert.equal(h.syncCalls.length, 0);
+    assert.equal(h.pushCalls.length, 0);
+  });
+
   it('a DIRTY reading on a merged PR is the merge, not a sync', async () => {
     const h = dirtyHarness({ syncResults: [] });
     const outcome = await runConfirmMergePhase(
@@ -3499,6 +3560,7 @@ describe('merge wait — a disarmed PR is re-armed once per head (Story #5533)',
     ];
     const outcome = await runConfirmMergePhase(
       phaseArgs({
+        closeArmed: true,
         progress: h.progress,
         recoverySeams: h.recoverySeams,
         readPrWaitProbeFn: async () => states.shift(),
@@ -3520,6 +3582,7 @@ describe('merge wait — a disarmed PR is re-armed once per head (Story #5533)',
     const h = rearmHarness({ digest: { headSha: 'head-1' } });
     await runConfirmMergePhase(
       phaseArgs({
+        closeArmed: true,
         progress: h.progress,
         recoverySeams: h.recoverySeams,
         nowMsFn: makeClock(40_000),
@@ -3538,6 +3601,7 @@ describe('merge wait — a disarmed PR is re-armed once per head (Story #5533)',
     const h = rearmHarness({ digest: { headSha: 'head-0' } });
     await runConfirmMergePhase(
       phaseArgs({
+        closeArmed: true,
         recoverySeams: h.recoverySeams,
         nowMsFn: makeClock(40_000),
         readPrWaitProbeFn: async () => unarmed(),
@@ -3550,6 +3614,7 @@ describe('merge wait — a disarmed PR is re-armed once per head (Story #5533)',
     const h = rearmHarness();
     await runConfirmMergePhase(
       phaseArgs({
+        closeArmed: true,
         config: { delivery: { ci: { autoMerge: 'strict' } } },
         recoverySeams: h.recoverySeams,
         nowMsFn: makeClock(40_000),
@@ -3569,6 +3634,7 @@ describe('merge wait — a disarmed PR is re-armed once per head (Story #5533)',
       const h = rearmHarness();
       await runConfirmMergePhase(
         phaseArgs({
+          closeArmed: true,
           recoverySeams: h.recoverySeams,
           nowMsFn: makeClock(40_000),
           readPrWaitProbeFn: async () => probe,
@@ -3584,6 +3650,7 @@ describe('merge wait — a disarmed PR is re-armed once per head (Story #5533)',
     });
     const outcome = await runConfirmMergePhase(
       phaseArgs({
+        closeArmed: true,
         progress: h.progress,
         recoverySeams: h.recoverySeams,
         nowMsFn: makeClock(40_000),
@@ -3592,6 +3659,23 @@ describe('merge wait — a disarmed PR is re-armed once per head (Story #5533)',
     );
     assert.equal(outcome.terminal, 'pending');
     assert.equal(h.lines.filter((l) => /re-arm failed/.test(l)).length, 1);
+  });
+
+  it('never re-arms without positive evidence that close armed the PR', async () => {
+    // A PR left un-armed on purpose (`--no-auto-merge`) reads exactly like one
+    // a new head disarmed; only the close's own record tells them apart.
+    for (const closeArmed of [false, undefined]) {
+      const h = rearmHarness();
+      await runConfirmMergePhase(
+        phaseArgs({
+          closeArmed,
+          recoverySeams: h.recoverySeams,
+          nowMsFn: makeClock(40_000),
+          readPrWaitProbeFn: async () => unarmed(),
+        }),
+      );
+      assert.equal(h.rearms.length, 0, String(closeArmed));
+    }
   });
 
   it('readPrWaitProbe reads the auto-merge request off the same single view', async () => {

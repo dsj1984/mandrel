@@ -79,11 +79,35 @@ function describeSyncFailure({
 }
 
 /**
+ * The Story worktree, resolved only when a DIRTY sync needs it, so a missing
+ * one never stands between a resume and an already-merged PR.
+ *
+ * @returns {Promise<object|null>} a failed sync result, or null when ready.
+ */
+async function resolveDirtyWorktree(ctx) {
+  const resolve = ctx.resolveWorktree;
+  if (typeof resolve !== 'function') return null;
+  ctx.resolveWorktree = null;
+  try {
+    ctx.worktreePath = await resolve();
+    return null;
+  } catch (err) {
+    return {
+      synced: false,
+      kind: 'worktree-unavailable',
+      stderr: String(err?.message ?? err),
+    };
+  }
+}
+
+/**
  * `origin/<story>` first (a BEHIND update merged there only), then the base.
  *
  * @returns {Promise<object>} a `syncBranchFromBase`-shaped result.
  */
 async function syncDirtyHead(ctx) {
+  const unavailable = await resolveDirtyWorktree(ctx);
+  if (unavailable) return unavailable;
   const remote = ctx.integrateRemoteFn({
     cwd: syncCwdOf(ctx),
     storyBranch: ctx.storyBranch,
@@ -166,7 +190,7 @@ export async function settleDirtyPr(ctx, state, probe) {
   }
   ctx.progress?.(
     'CONFIRM',
-    `🔀 PR #${ctx.prNumber} is DIRTY — merging origin/${ctx.baseBranch} in ${syncCwdOf(ctx)} ` +
+    `🔀 PR #${ctx.prNumber} is DIRTY — merging origin/${ctx.baseBranch} in the Story worktree ` +
       `(attempt ${state.updatesUsed + 1}/${budget}).`,
   );
   const result = await syncDirtyHead(ctx);
@@ -192,8 +216,10 @@ export async function settleDirtyPr(ctx, state, probe) {
   return { state: spent, outcome: null };
 }
 
-function isUnarmedOpenPr(probe) {
+/** Re-arm only a PR close itself armed (`ctx.closeArmed`), never an operator's. */
+function isUnarmedOpenPr(probe, ctx) {
   return (
+    ctx.closeArmed === true &&
     probe?.state === 'OPEN' &&
     !probe?.mergedAt &&
     probe?.inMergeQueue !== true &&
@@ -215,7 +241,11 @@ function rearmGuard(ctx, headSha) {
 /** Re-arm an open, un-armed, not-red PR once per head; never a terminal. */
 export async function maybeRearmPr(ctx, probe) {
   const headSha = probe?.headSha;
-  if (!isUnarmedOpenPr(probe) || !headSha || ctx.rearmedHeads.has(headSha)) {
+  if (
+    !isUnarmedOpenPr(probe, ctx) ||
+    !headSha ||
+    ctx.rearmedHeads.has(headSha)
+  ) {
     return;
   }
   ctx.rearmedHeads.add(headSha);

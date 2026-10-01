@@ -297,10 +297,132 @@ describe('single-story-confirm-merge --wait — the shared wait recovery (Story 
         };
       },
     });
-    assert.equal(resolved.length, 1);
+    assert.equal(
+      resolved.length,
+      0,
+      'nothing resolves before a DIRTY sync needs it',
+    );
+    assert.equal(
+      await calls[0].resolveWorktree(),
+      '/repo/.worktrees/story-555',
+    );
     assert.equal(resolved[0].storyId, 555);
     assert.equal(resolved[0].storyBranch, 'story-555');
-    assert.equal(calls[0].worktreePath, '/repo/.worktrees/story-555');
+  });
+
+  it('confirms an already-merged PR whose worktree, local ref and remote branch are all gone', async () => {
+    // The normal state after `--delete-branch` plus a sweep: the default
+    // resolver would throw, so it must never run before the PR is read.
+    const { runConfirmMergePhase } = await import(
+      '../.agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js'
+    );
+    const tail = {
+      followUps: true,
+      statusResync: true,
+      worktreeReap: true,
+      refCleanup: true,
+      baseFastForward: true,
+      tempPurge: true,
+      leaseRelease: true,
+      epicRollup: true,
+      details: {},
+    };
+    let lazy = null;
+    const { terminal } = await runConfirmMerge({
+      storyId: 555,
+      cwd: tempRoot,
+      pr: 77,
+      wait: true,
+      injectedProvider: makeProvider(OPEN_STORY),
+      injectedConfig: {
+        ...fakeConfig(),
+        project: { baseBranch: 'main', paths: { tempRoot } },
+        delivery: { worktreeIsolation: { enabled: true } },
+      },
+      injectedGh: makeGh(),
+      injectedNotify: async () => {},
+      runConfirmMergePhaseFn: (args) => {
+        lazy = args.resolveWorktree;
+        return runConfirmMergePhase({
+          ...args,
+          readPrWaitProbeFn: async () => ({ state: 'MERGED', mergedAt: 'x' }),
+          confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
+          runPostLandTailFn: async () => tail,
+        });
+      },
+    });
+    assert.equal(terminal.status, 'landed');
+    assert.equal(terminal.tail.leaseRelease, true);
+    await assert.rejects(
+      () => lazy(),
+      /cannot recreate the story-555 worktree/,
+      'the resolver would have thrown had it run first',
+    );
+  });
+
+  /** The last close's persisted envelope, as the resume reads it. */
+  const envelopeFor = (pr) => () => ({
+    envelope: { storyId: 555, status: 'pending', pr },
+  });
+
+  function unarmedGh(merges) {
+    return {
+      pr: {
+        list: async () => [{ number: 77, url: 'https://example/pull/77' }],
+        view: async () => ({
+          state: 'OPEN',
+          mergedAt: null,
+          createdAt: new Date().toISOString(),
+          mergeStateStatus: 'BLOCKED',
+          statusCheckRollup: [],
+          headRefOid: 'feedface',
+          autoMergeRequest: null,
+        }),
+        merge: async (id, flags) => {
+          merges.push([id, ...flags]);
+          return { stdout: '', stderr: '' };
+        },
+      },
+    };
+  }
+
+  it('never re-arms a PR the operator left un-armed, or one with no arm record', async () => {
+    for (const pr of [
+      {
+        number: 77,
+        autoMergeEnabled: false,
+        autoMergeReason: 'disabled-by-flag',
+      },
+      {
+        number: 77,
+        autoMergeEnabled: false,
+        autoMergeReason: 'disabled-by-policy-strict',
+      },
+      null,
+    ]) {
+      const merges = [];
+      const { terminal } = await runConfirmMerge({
+        storyId: 555,
+        cwd: tempRoot,
+        pr: 77,
+        wait: true,
+        maxWaitSeconds: 1,
+        injectedProvider: makeProvider(OPEN_STORY),
+        injectedConfig: {
+          ...fakeConfig(),
+          project: { baseBranch: 'main', paths: { tempRoot } },
+        },
+        injectedGh: unarmedGh(merges),
+        injectedNotify: async () => {},
+        readCloseEnvelopeFn: envelopeFor(pr),
+      });
+      assert.deepEqual(merges, [], JSON.stringify(pr));
+      assert.equal(
+        terminal.pr.autoMergeEnabled,
+        false,
+        'no evidence is carried forward',
+      );
+    }
   });
 
   it('AC-5: a resumed wait on an open, un-armed, not-red PR re-arms auto-merge', async () => {
@@ -336,8 +458,18 @@ describe('single-story-confirm-merge --wait — the shared wait recovery (Story 
       },
       injectedGh: gh,
       injectedNotify: async () => {},
+      readCloseEnvelopeFn: envelopeFor({
+        number: 77,
+        autoMergeEnabled: true,
+        autoMergeReason: null,
+      }),
     });
     assert.equal(terminal.status, 'pending', 'a re-arm is not a terminal');
+    assert.equal(
+      terminal.pr.autoMergeEnabled,
+      true,
+      'the evidence carries forward',
+    );
     assert.deepEqual(
       merges,
       [['77', '--auto', '--squash', '--delete-branch']],

@@ -4,7 +4,9 @@ import {
 } from '../../close-validation/gates.js';
 import { runCloseValidation } from '../../close-validation/runner.js';
 import { getCiDelivery } from '../../config/ci.js';
+import { resolveWorktreeEnabled } from '../../config/runtime.js';
 import { resolveConfig } from '../../config-resolver.js';
+import { gh as defaultGh } from '../../gh-exec.js';
 import { getStoryBranch, gitSpawn, gitSync } from '../../git-utils.js';
 import { Logger } from '../../Logger.js';
 import {
@@ -29,7 +31,7 @@ import {
   terminalFromWaitOutcome,
 } from '../story-deliver-terminal.js';
 import { deriveCloseNote } from './close-note.js';
-import { runAutoMergePhase } from './phases/auto-merge.js';
+import { closeArmedPr, runAutoMergePhase } from './phases/auto-merge.js';
 import { runBaseSyncPhase } from './phases/base-sync.js';
 import { runCloseValidationPhase } from './phases/close-validation.js';
 import { parsePrNumber } from './phases/code-review.js';
@@ -42,7 +44,10 @@ import { ensurePullRequestWith } from './phases/pull-request.js';
 import { pushStoryBranch } from './phases/push.js';
 import { handleCriticalReviewBlock } from './phases/review-block.js';
 import { handleOverriddenReviewBlock } from './phases/review-override.js';
-import { resolveStoryWorktree } from './phases/worktree-restore.js';
+import {
+  existingWorktreePath,
+  resolveStoryWorktree,
+} from './phases/worktree-restore.js';
 import { runWrongTreeGuardPhase } from './phases/wrong-tree-guard.js';
 import {
   discardHeldReview,
@@ -722,6 +727,8 @@ async function finishWithMergeWait(prCtx, deps) {
     prUrl: prCtx.prUrl,
     autoMergeEnabled: prCtx.autoMergeEnabled,
     autoMergeReason: prCtx.autoMergeReason,
+    // Positive evidence for the re-arm rule: this close armed the PR.
+    closeArmed: closeArmedPr(prCtx),
     advisoryGate: prCtx.advisoryGate,
     provider: deps.provider,
     config: prCtx.config,
@@ -744,6 +751,7 @@ async function finishWithMergeWait(prCtx, deps) {
     prNumber: prCtx.prNumber,
     prUrl: prCtx.prUrl,
     autoMergeEnabled: prCtx.autoMergeEnabled,
+    autoMergeReason: prCtx.autoMergeReason,
     gates: prCtx.gates,
     lockWait: prCtx.lockWait,
     suiteTimings: prCtx.suiteTimings,
@@ -816,6 +824,7 @@ async function finishWithoutMergeWait(prCtx, waitForMergeReason) {
       url: prCtx.prUrl ?? null,
       state: merged ? 'MERGED' : 'OPEN',
       autoMergeEnabled: Boolean(prCtx.autoMergeEnabled),
+      autoMergeReason: prCtx.autoMergeReason ?? null,
     },
     gates: prCtx.gates,
     lockWait: prCtx.lockWait,
@@ -934,8 +943,46 @@ async function resolveBasePhase(ctx, deps) {
   });
   ctx.baseBranch = values.baseBranch;
   ctx.baseConfirmed = confirmed;
-  ctx.worktreePath = await resolveStoryWorktree({
-    cwd: ctx.options.cwd,
+  ctx.worktreePath = await resolveCloseWorktree(ctx, deps);
+  return null;
+}
+
+/**
+ * The Story's PR, when it already merged — a re-run after the land, whose
+ * branch `--delete-branch` and a sweep may have removed. Any read failure
+ * reads as "not merged": the normal path then decides.
+ *
+ * @returns {Promise<{ prUrl: string, prNumber: number|null }|null>}
+ */
+async function findLandedPr(ctx, deps) {
+  try {
+    const rows = await (deps.gh ?? defaultGh).pr.list(
+      ['--head', ctx.storyBranch, '--state', 'merged'],
+      ['number', 'url'],
+    );
+    const row = Array.isArray(rows) ? rows[0] : null;
+    return row?.url
+      ? { prUrl: row.url, prNumber: parsePrNumber(row.url) }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A missing worktree is recreated — unless the PR already merged, which
+ * short-circuits to the confirm before any restore is attempted.
+ */
+async function resolveCloseWorktree(ctx, deps) {
+  const cwd = ctx.options.cwd;
+  const wtIsolation = deps.config.delivery?.worktreeIsolation;
+  const missing =
+    !existingWorktreePath({ cwd, wtIsolation, storyId: ctx.storyId }) &&
+    resolveWorktreeEnabled({ config: deps.config });
+  ctx.landedPr = missing ? await findLandedPr(ctx, deps) : null;
+  if (ctx.landedPr) return null;
+  return await resolveStoryWorktree({
+    cwd,
     config: deps.config,
     storyId: ctx.storyId,
     storyBranch: ctx.storyBranch,
@@ -943,6 +990,30 @@ async function resolveBasePhase(ctx, deps) {
     gitSpawn,
     WorktreeManager,
   });
+}
+
+/** A landed PR has nothing left to validate, push or open. */
+function unlessLanded(phase, onLanded) {
+  return (ctx, deps) => (ctx.landedPr ? onLanded(ctx) : phase(ctx, deps));
+}
+
+function landedPrePush(ctx) {
+  progress(
+    'INIT',
+    `⏭  PR ${ctx.landedPr.prUrl} already merged — skipping validation, sync and push.`,
+  );
+  ctx.options = { ...ctx.options, skipValidation: true, skipSync: true };
+  ctx.prePush = {
+    validationGates: null,
+    lockWait: null,
+    suiteTimings: null,
+    pending: false,
+  };
+  return null;
+}
+
+function landedPr(ctx) {
+  ctx.pr = { ...ctx.landedPr, alreadyMerged: true, reviewOverride: null };
   return null;
 }
 
@@ -1070,8 +1141,8 @@ const CLOSE_PIPELINE = Object.freeze([
   loadStoryPhase,
   graphqlPreflightPhase,
   resolveBasePhase,
-  prePushPhase,
-  openPrPhase,
+  unlessLanded(prePushPhase, landedPrePush),
+  unlessLanded(openPrPhase, landedPr),
   armPhase,
   finishPhase,
 ]);

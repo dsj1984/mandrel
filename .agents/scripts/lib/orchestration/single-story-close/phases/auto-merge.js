@@ -40,6 +40,19 @@ export function isOperatorMergeReason(reason) {
 }
 
 /**
+ * Positive evidence that close itself armed this PR — never an operator-owned
+ * merge (`--no-auto-merge`, `strict`), and never an envelope that says nothing.
+ *
+ * @param {{ autoMergeEnabled?: boolean|null, autoMergeReason?: string|null }|null|undefined} pr
+ * @returns {boolean}
+ */
+export function closeArmedPr(pr) {
+  return (
+    pr?.autoMergeEnabled === true && !isOperatorMergeReason(pr?.autoMergeReason)
+  );
+}
+
+/**
  * A `gh pr merge --delete-branch` failure whose only casualty is the LOCAL
  * head-branch delete after the remote merge/arm already happened. Deliberately
  * narrow: a refused remote merge, and the `'<base>' is already used by

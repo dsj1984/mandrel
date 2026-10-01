@@ -19,7 +19,10 @@ import {
   isPrMerged,
 } from './merge-poll.js';
 import { readMergeQueueState as defaultReadMergeQueueState } from './merge-queue.js';
-import { manualArmCommand } from './single-story-close/phases/auto-merge.js';
+import {
+  closeArmedPr,
+  manualArmCommand,
+} from './single-story-close/phases/auto-merge.js';
 import { NEXT_COMMANDS } from './story-deliver-terminal.js';
 import { STATE_LABELS } from './ticketing.js';
 
@@ -488,7 +491,7 @@ export function decideRecovery({
   }
 
   if (label === STATE_LABELS.CLOSING) {
-    return decideClosing({ storyId, branch, pr, evidence });
+    return decideClosing({ storyId, branch, pr, closeArtifacts, evidence });
   }
 
   if (label === STATE_LABELS.EXECUTING) {
@@ -543,8 +546,14 @@ function unarmedVerdict({ storyId, pr, evidence }) {
   };
 }
 
-function isUnarmed(pr) {
+/**
+ * Un-armed by a new head — only when the last close's envelope proves close
+ * armed it; an operator-owned PR (`--no-auto-merge`, `strict`) is never one.
+ */
+function isUnarmed(pr, closeArtifacts) {
+  const envelope = closeArtifacts?.envelope;
   return (
+    closeArmedPr(envelope?.pr) &&
     pr?.state === 'OPEN' &&
     pr.autoMergeArmed === false &&
     pr.inMergeQueue !== true &&
@@ -557,11 +566,11 @@ function isUnarmed(pr) {
  *
  * @returns {{ shape: string, nextCommand: string, detail: string, evidence: string[] }}
  */
-function decideClosing({ storyId, branch, pr, evidence }) {
+function decideClosing({ storyId, branch, pr, closeArtifacts, evidence }) {
   if (pr?.number && pr.mergeStateStatus === 'DIRTY') {
     return conflictedVerdict({ storyId, branch, pr, evidence });
   }
-  if (pr?.number && isUnarmed(pr)) {
+  if (pr?.number && isUnarmed(pr, closeArtifacts)) {
     return unarmedVerdict({ storyId, pr, evidence });
   }
   if (pr?.checksStatus === 'failure') {

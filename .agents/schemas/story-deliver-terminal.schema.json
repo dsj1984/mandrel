@@ -67,7 +67,11 @@
             null
           ]
         },
-        "autoMergeEnabled": { "type": ["boolean", "null"] }
+        "autoMergeEnabled": { "type": ["boolean", "null"] },
+        "autoMergeReason": {
+          "type": ["string", "null"],
+          "description": "Story #5533 — why close did not arm (disabled-by-flag, disabled-by-policy-strict, an arm failure), or null when it armed. With autoMergeEnabled it is the evidence a resumed wait needs before it may re-arm a PR a new head disarmed: an operator-owned merge is never re-armed."
+        }
       },
       "additionalProperties": false
     },

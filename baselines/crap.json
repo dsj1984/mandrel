@@ -16965,18 +16965,6 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/deliver-recover.js",
-      "method": "isUnarmed",
-      "startLine": 546,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/deliver-recover.js",
-      "method": "decideClosing",
-      "startLine": 560,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/deliver-recover.js",
       "method": "recoverStory",
       "startLine": 570,
       "crap": 4
@@ -23786,107 +23774,6 @@
       "method": "lockWaitPending",
       "startLine": 22,
       "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
-      "method": "mergeWaitRecoverySeams",
-      "startLine": 27,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
-      "method": "isOpenDirty",
-      "startLine": 44,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
-      "method": "syncCwdOf",
-      "startLine": 52,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
-      "method": "describeSyncFailure",
-      "startLine": 56,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
-      "method": "handBackDirty",
-      "startLine": 79,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
-      "method": "syncDirtyHead",
-      "startLine": 86,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
-      "method": "<anon handBackDirty/(tag,msg)#0>",
-      "startLine": 90,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
-      "method": "<anon syncDirtyHead/(tag,msg)#0>",
-      "startLine": 97,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
-      "method": "pushSynced",
-      "startLine": 108,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
-      "method": "<anon pushSynced/(tag,msg)#0>",
-      "startLine": 114,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
-      "method": "settleDirtyPr",
-      "startLine": 131,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
-      "method": "<anon settleDirtyPr/(tag,msg)#0>",
-      "startLine": 152,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
-      "method": "isUnarmedOpenPr",
-      "startLine": 176,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
-      "method": "rearmGuard",
-      "startLine": 187,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
-      "method": "maybeRearmPr",
-      "startLine": 197,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
-      "method": "<anon maybeRearmPr/(err)#0>",
-      "startLine": 214,
-      "crap": 1,
-      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",

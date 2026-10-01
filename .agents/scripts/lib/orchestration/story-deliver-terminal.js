@@ -327,6 +327,19 @@ export function emitTerminalEnvelope(
 }
 
 /**
+ * The PR facts every wait ending carries. `autoMergeReason` rides along only
+ * when the caller knows it — it is the evidence a later re-arm reads.
+ */
+function prBaseFor({ prNumber, prUrl, autoMergeEnabled, autoMergeReason }) {
+  const base = {
+    number: prNumber,
+    url: prUrl ?? null,
+    autoMergeEnabled: Boolean(autoMergeEnabled),
+  };
+  return autoMergeReason === undefined ? base : { ...base, autoMergeReason };
+}
+
+/**
  * A DIRTY PR the wait could not sync: labels untouched, and re-running close
  * (which re-syncs in the worktree) is the remedy.
  */
@@ -352,14 +365,16 @@ export function terminalFromWaitOutcome({
   prNumber,
   prUrl,
   autoMergeEnabled,
+  autoMergeReason,
   ...common
 }) {
   const { storyId } = common;
-  const prBase = {
-    number: prNumber,
-    url: prUrl ?? null,
-    autoMergeEnabled: Boolean(autoMergeEnabled),
-  };
+  const prBase = prBaseFor({
+    prNumber,
+    prUrl,
+    autoMergeEnabled,
+    autoMergeReason,
+  });
 
   if (waitOutcome.terminal === 'landed') {
     return buildTerminalEnvelope({

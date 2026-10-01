@@ -27,8 +27,10 @@ import { getStoryBranch } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
 import { emitTerminalFriction } from './lib/observability/runtime-friction.js';
 import { emitTerseResult } from './lib/observability/terse-result.js';
+import { probeCloseArtifacts } from './lib/orchestration/deliver-recover.js';
 import { MERGED_FLIP_FAILED_BLOCK_CLASS } from './lib/orchestration/lifecycle/emit-merge-flip-failed.js';
 import { MERGE_WAIT_GH_TIMEOUT_MS } from './lib/orchestration/merge-poll.js';
+import { closeArmedPr } from './lib/orchestration/single-story-close/phases/auto-merge.js';
 import { parsePrNumber } from './lib/orchestration/single-story-close/phases/code-review.js';
 import { runConfirmMergePhase as defaultRunConfirmMergePhase } from './lib/orchestration/single-story-close/phases/confirm-merge.js';
 import { assertNoRetiredFlags } from './lib/orchestration/single-story-close/phases/options.js';
@@ -269,8 +271,22 @@ async function confirmWithoutPr(ctx) {
   );
 }
 
-function resolveWaitWorktree({ cwd, config, storyId, storyBranch, ...ctx }) {
-  return ctx.resolveWorktreeFn({ cwd, config, storyId, storyBranch, progress });
+/** Lazy: only a DIRTY sync needs the worktree, never confirming a merge. */
+function lazyWaitWorktree({ cwd, config, storyId, storyBranch, ...ctx }) {
+  return () =>
+    ctx.resolveWorktreeFn({ cwd, config, storyId, storyBranch, progress });
+}
+
+/**
+ * What the last close recorded about the arm, off its persisted envelope.
+ * Only positive evidence that close armed the PR lets the wait re-arm it.
+ *
+ * @returns {{ armed: boolean, reason: string|null }}
+ */
+function readCloseArmEvidence({ storyId, config, readCloseEnvelopeFn }) {
+  const { envelope } = readCloseEnvelopeFn({ storyId, config });
+  const pr = envelope?.storyId === storyId ? envelope.pr : null;
+  return { armed: closeArmedPr(pr), reason: pr?.autoMergeReason ?? null };
 }
 
 /**
@@ -282,16 +298,17 @@ function resolveWaitWorktree({ cwd, config, storyId, storyBranch, ...ctx }) {
  */
 async function resumeMergeWait(ctx) {
   const { storyId, storyBranch, baseBranch, prNumber } = ctx;
+  const evidence = readCloseArmEvidence(ctx);
   const waitOutcome = await ctx.runConfirmMergePhaseFn({
     cwd: ctx.cwd,
-    worktreePath: await resolveWaitWorktree(ctx),
+    resolveWorktree: lazyWaitWorktree(ctx),
+    closeArmed: evidence.armed,
     storyId,
     storyBranch,
     baseBranch,
     prNumber,
     prUrl: `${storyBranch} PR #${prNumber}`,
-    // Not an assumption that it is still armed: the wait re-arms a PR a new
-    // head disarmed (once per head, behind the red-fix guard).
+    // Enters the wait; re-arming a disarmed PR needs `closeArmed` above.
     autoMergeEnabled: true,
     maxWaitSeconds: ctx.maxWaitSeconds,
     provider: ctx.provider,
@@ -308,7 +325,9 @@ async function resumeMergeWait(ctx) {
     baseBranch,
     prNumber,
     prUrl: null,
-    autoMergeEnabled: true,
+    // Carried forward, so the next resume reads the same evidence.
+    autoMergeEnabled: evidence.armed,
+    autoMergeReason: evidence.reason,
     // This CLI runs no close gates.
     gates: undefined,
     elapsedSeconds: elapsedSeconds(ctx),
@@ -391,6 +410,7 @@ export async function runConfirmMerge({
   injectedReadPrMergeState,
   runConfirmMergePhaseFn = defaultRunConfirmMergePhase,
   resolveWorktreeFn = resolveStoryWorktree,
+  readCloseEnvelopeFn = probeCloseArtifacts,
 } = {}) {
   if (!storyId) {
     throw new Error(USAGE);
@@ -413,6 +433,7 @@ export async function runConfirmMerge({
     injectedReadPrMergeState,
     runConfirmMergePhaseFn,
     resolveWorktreeFn,
+    readCloseEnvelopeFn,
   };
 
   progress('INIT', `Confirming merge for standalone Story #${storyId}...`);

@@ -226,8 +226,22 @@ describe('deliver-recover — conflicted and un-armed closing PRs (Story #5533)'
     remote: true,
     worktreePath: '.worktrees/story-5533',
   };
-  const decide = (pr) =>
-    decideRecovery({ storyId: 5533, ticket: closing, branch, pr });
+  /** The last close's envelope: close armed this PR. */
+  const ARMED = {
+    envelope: {
+      storyId: 5533,
+      status: 'pending',
+      pr: { number: 9, autoMergeEnabled: true, autoMergeReason: null },
+    },
+  };
+  const decide = (pr, closeArtifacts = ARMED) =>
+    decideRecovery({
+      storyId: 5533,
+      ticket: closing,
+      branch,
+      pr,
+      closeArtifacts,
+    });
 
   it('a DIRTY PR is closing-pr-conflicted and names close, the worktree and its recreation', () => {
     const d = decide({
@@ -270,6 +284,33 @@ describe('deliver-recover — conflicted and un-armed closing PRs (Story #5533)'
     assert.match(d.detail, /new head disarmed/);
     assert.match(d.detail, /gh pr merge 9 --auto --squash --delete-branch/);
     assert.ok(d.evidence.includes('autoMerge=unarmed'));
+  });
+
+  it('an operator-owned or unproven PR is never pointed at the re-arming resume', () => {
+    const pr = {
+      number: 9,
+      state: 'OPEN',
+      checksStatus: 'pending',
+      autoMergeArmed: false,
+    };
+    const operatorOwned = {
+      envelope: {
+        storyId: 5533,
+        status: 'pending',
+        pr: {
+          number: 9,
+          autoMergeEnabled: false,
+          autoMergeReason: 'disabled-by-flag',
+        },
+      },
+    };
+    assert.equal(decide(pr, operatorOwned).shape, 'closing-pr-pending');
+    assert.equal(decide(pr, { envelope: null }).shape, 'closing-pr-pending');
+    assert.equal(
+      decide(pr, { envelope: { storyId: 5533, status: 'failed', pr: null } })
+        .shape,
+      'closing-pr-pending',
+    );
   });
 
   it('names the queue equivalent when the base requires a merge queue', () => {
