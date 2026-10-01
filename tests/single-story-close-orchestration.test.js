@@ -2170,8 +2170,10 @@ describe('runSingleStoryClose — the lease is held until the merge confirms (St
       prProbe: { state: 'MERGED', checksStatus: 'success' },
     });
     const gh = makeFakeGh((args) => {
-      if (args[1] === 'list' && args.includes('merged')) {
-        return [{ number: 864, url: 'https://github.com/owner/repo/pull/864' }];
+      if (args[1] === 'list') {
+        return [
+          { url: 'https://github.com/owner/repo/pull/864', state: 'MERGED' },
+        ];
       }
       throw new Error(`unexpected gh: ${args.join(' ')}`);
     });
@@ -2206,6 +2208,105 @@ describe('runSingleStoryClose — the lease is held until the merge confirms (St
     assert.equal(result.prNumber, 864);
     assert.equal(result.worktreeReaped, false, 'nothing was reaped');
   });
+
+  // Two guards, each sufficient: an OPEN PR on the head (the remote branch
+  // and local ref already swept), and a surviving local ref (unpushed work).
+  for (const [variant, localRef] of [
+    ['an OPEN PR beside an old merged one', false],
+    ['a surviving local story ref', true],
+  ])
+    it(`Story #5533: a re-delivery with ${variant} never short-circuits`, async (t) => {
+      const order = [];
+      const wtPath = path.join(tempRoot, '.worktrees', 'story-4866');
+      t.mock.module(GIT_UTILS_URL, {
+        namedExports: {
+          ...defaultGitUtilsMock().namedExports,
+          gitSpawn: (_cwd, ...args) => {
+            if (args[0] === 'show-ref') return { status: localRef ? 0 : 1 };
+            if (args[0] === 'fetch')
+              return { status: 0, stdout: '', stderr: '' };
+            return defaultGitUtilsMock().namedExports.gitSpawn(_cwd, ...args);
+          },
+          gitSync: (cwd, ...args) => {
+            order.push(`${args[0]} @ ${cwd}`);
+            return { status: 0, stdout: '', stderr: '' };
+          },
+        },
+      });
+      mockCloseValidation(t, defaultCloseValidationMock());
+      t.mock.module(WORKTREE_MANAGER_URL, {
+        namedExports: {
+          WorktreeManager: class {
+            async ensure() {
+              order.push('ensure');
+              mkdirSync(wtPath, { recursive: true });
+              return { path: wtPath, created: true };
+            }
+          },
+          parseWorktreePorcelain: (..._args) => [],
+        },
+      });
+      mockConfirmMergePhase(t, {
+        confirmed: false,
+        terminal: 'pending',
+        waitBudget: {
+          maxWaitSeconds: 300,
+          waitedSeconds: 300,
+          cumulativeSeconds: 300,
+          maxBudgetSeconds: 3600,
+        },
+        prProbe: { state: 'OPEN', checksStatus: 'pending' },
+      });
+      const gh = makeFakeGh((args) => {
+        if (args[1] === 'list') {
+          return localRef
+            ? [
+                {
+                  url: 'https://github.com/owner/repo/pull/10',
+                  state: 'MERGED',
+                },
+              ]
+            : [
+                {
+                  url: 'https://github.com/owner/repo/pull/10',
+                  state: 'MERGED',
+                },
+                { url: 'https://github.com/owner/repo/pull/11', state: 'OPEN' },
+              ];
+        }
+        if (args[1] === 'merge') return 'ok';
+        throw new Error(`unexpected gh: ${args.join(' ')}`);
+      });
+      const { runSingleStoryClose } = await import(
+        `${SUT_URL}?t=redelivery-${localRef}`
+      );
+      const { result, terminal } = await runSingleStoryClose({
+        storyId: 4866,
+        cwd: tempRoot,
+        skipValidation: true,
+        skipSync: true,
+        injectedProvider: makeFakeProvider({
+          initialStory: {
+            id: 4866,
+            state: 'open',
+            title: 'second delivery',
+            labels: ['agent::executing'],
+          },
+        }),
+        injectedConfig: fakeConfig({
+          worktreeRoot: '.worktrees',
+          worktreeEnabled: true,
+        }),
+        injectedGh: gh,
+        injectedRunCodeReview: noopReview(),
+      });
+      if (!localRef) {
+        assert.equal(result.prNumber, 11, 'the OPEN PR is the one waited on');
+      }
+      assert.equal(terminal.status, 'pending', 'never landed off the old PR');
+      assert.ok(order.includes('ensure'), 'the worktree is restored as usual');
+      assert.ok(order.includes(`push @ ${wtPath}`), 'the new work is pushed');
+    });
 
   it('Story #5533: a closed Story short-circuits before any worktree restore', async (t) => {
     const order = [];

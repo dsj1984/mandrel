@@ -24939,21 +24939,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
-      "method": "findLandedPr",
-      "startLine": 957,
-      "crap": 3.0262390670553936
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "finishPhase",
       "startLine": 963,
       "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
-      "method": "resolveCloseWorktree",
-      "startLine": 976,
-      "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",

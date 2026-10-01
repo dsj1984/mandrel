@@ -40,7 +40,10 @@ import { runGraphqlPreflight } from './phases/graphql-preflight.js';
 import { lockWaitPending } from './phases/lock-wait-pending.js';
 import { parseCloseOptions, resolveWaitForMerge } from './phases/options.js';
 import { runPostLandTail } from './phases/post-land.js';
-import { ensurePullRequestWith } from './phases/pull-request.js';
+import {
+  ensurePullRequestWith,
+  pickHeadPullRequest,
+} from './phases/pull-request.js';
 import { pushStoryBranch } from './phases/push.js';
 import { handleCriticalReviewBlock } from './phases/review-block.js';
 import { handleOverriddenReviewBlock } from './phases/review-override.js';
@@ -947,22 +950,34 @@ async function resolveBasePhase(ctx, deps) {
   return null;
 }
 
+/** A surviving local ref may carry work no PR holds yet. */
+function localStoryRefExists(ctx) {
+  const ref = `refs/heads/${ctx.storyBranch}`;
+  return (
+    gitSpawn(ctx.options.cwd, 'show-ref', '--verify', '--quiet', ref).status ===
+    0
+  );
+}
+
 /**
- * The Story's PR, when it already merged — a re-run after the land, whose
- * branch `--delete-branch` and a sweep may have removed. Any read failure
- * reads as "not merged": the normal path then decides.
+ * The Story's PR, when it already merged and nothing newer is in flight — a
+ * re-run after the land, whose branch `--delete-branch` and a sweep removed.
+ * An OPEN PR on the head wins (a re-delivery), as `ensurePullRequestWith`
+ * decides, and a surviving local ref means there may be work to deliver.
+ * Any read failure reads as "not merged": the normal path then decides.
  *
  * @returns {Promise<{ prUrl: string, prNumber: number|null }|null>}
  */
 async function findLandedPr(ctx, deps) {
+  if (localStoryRefExists(ctx)) return null;
   try {
     const rows = await (deps.gh ?? defaultGh).pr.list(
-      ['--head', ctx.storyBranch, '--state', 'merged'],
-      ['number', 'url'],
+      ['--head', ctx.storyBranch, '--state', 'all'],
+      ['url', 'state', 'mergedAt'],
     );
-    const row = Array.isArray(rows) ? rows[0] : null;
-    return row?.url
-      ? { prUrl: row.url, prNumber: parsePrNumber(row.url) }
+    const head = pickHeadPullRequest(rows);
+    return head?.state === 'MERGED'
+      ? { prUrl: head.url, prNumber: parsePrNumber(head.url) }
       : null;
   } catch {
     return null;
