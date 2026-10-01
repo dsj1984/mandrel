@@ -1092,7 +1092,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/deliver-recover.js",
-      "mi": 84.824
+      "mi": 86.599
     },
     {
       "path": ".agents/scripts/lib/orchestration/dependency-analyzer.js",
@@ -1468,7 +1468,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/auto-merge.js",
-      "mi": 89.38
+      "mi": 90.552
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js",
@@ -1544,11 +1544,11 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/worktree-reap.js",
-      "mi": 113.344
+      "mi": 115.586
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/worktree-restore.js",
-      "mi": 105.688
+      "mi": 107.107
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/wrong-tree-guard.js",
@@ -1560,7 +1560,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
-      "mi": 85.13
+      "mi": 86.499
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-lease-guard.js",
