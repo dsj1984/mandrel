@@ -23795,6 +23795,18 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
+      "method": "defaultCurrentBranch",
+      "startLine": 28,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
+      "method": "mergeWaitRecoverySeams",
+      "startLine": 34,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
       "method": "isOpenDirty",
       "startLine": 47,
       "crap": 3
@@ -23819,6 +23831,12 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
+      "method": "refuseWrongTree",
+      "startLine": 117,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
       "method": "<anon syncDirtyHead/(tag,msg)#0>",
       "startLine": 121,
       "crap": 1,
@@ -23829,6 +23847,12 @@
       "method": "handBackDirty",
       "startLine": 126,
       "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
+      "method": "syncDirtyHead",
+      "startLine": 132,
+      "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/merge-wait-recovery.js",
