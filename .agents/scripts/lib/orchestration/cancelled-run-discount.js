@@ -40,7 +40,7 @@ function parseCancelledRun(body) {
 }
 
 /** Newest sibling by run id, never start time (the cancelled job starts later). */
-export function pickLiveSibling(body, cancelledRunId) {
+function pickLiveSibling(body, cancelledRunId) {
   const runs = Array.isArray(body?.workflow_runs) ? body.workflow_runs : [];
   let newest = null;
   for (const run of runs) {
@@ -58,7 +58,7 @@ export function pickLiveSibling(body, cancelledRunId) {
 }
 
 /** @returns {'pending'|'success'|'failure'} */
-export function siblingOutcome(sibling) {
+function siblingOutcome(sibling) {
   if (sibling.status !== 'completed') return 'pending';
   return sibling.conclusion === 'success' ? 'success' : 'failure';
 }

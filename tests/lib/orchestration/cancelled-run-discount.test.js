@@ -9,11 +9,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import {
-  createCancelledRunDiscount,
-  pickLiveSibling,
-  siblingOutcome,
-} from '../../../.agents/scripts/lib/orchestration/cancelled-run-discount.js';
+import { createCancelledRunDiscount } from '../../../.agents/scripts/lib/orchestration/cancelled-run-discount.js';
 
 const SHA = 'abc123';
 const RUN_LINK = 'https://github.com/o/r/actions/runs/100/job/9';
@@ -61,56 +57,56 @@ function discountWith(routes, logger = {}) {
   };
 }
 
-describe('pickLiveSibling', () => {
-  it('ignores the cancelled run and keeps the highest id, not the latest start', () => {
-    const picked = pickLiveSibling(
-      {
-        workflow_runs: [
-          { id: 100, status: 'completed', conclusion: 'cancelled' },
-          { id: 101, status: 'queued', run_started_at: '2026-01-01T00:00:00Z' },
-          {
-            id: 99,
-            status: 'completed',
-            conclusion: 'success',
-            run_started_at: '2026-02-01T00:00:00Z',
-          },
-        ],
-      },
-      100,
-    );
-    assert.equal(picked.id, 101);
-    assert.equal(picked.status, 'queued');
+/** Discount one red entry whose run 100 was cancelled, against `body`. */
+async function discountAgainst(body) {
+  const { discount } = discountWith({
+    [RUN_URL]: cancelledRun,
+    [SIBLINGS_URL]: body,
+  });
+  return (await discount([redEntry()], { 'ci-required': 'failure' }))[
+    'ci-required'
+  ];
+}
+
+describe('live sibling selection', () => {
+  it('ignores the cancelled run and keeps the highest id, not the latest start', async () => {
+    const outcome = await discountAgainst({
+      workflow_runs: [
+        { id: 100, status: 'completed', conclusion: 'cancelled' },
+        { id: 101, status: 'queued', run_started_at: '2026-01-01T00:00:00Z' },
+        {
+          id: 99,
+          status: 'completed',
+          conclusion: 'success',
+          run_started_at: '2026-02-01T00:00:00Z',
+        },
+      ],
+    });
+    assert.equal(outcome, 'pending');
   });
 
-  it('returns null with no sibling or a malformed body', () => {
-    assert.equal(pickLiveSibling(siblings(), 100), null);
-    assert.equal(pickLiveSibling(null, 100), null);
-    assert.equal(pickLiveSibling({ workflow_runs: 'x' }, 100), null);
+  it('leaves the red with no sibling or a malformed run list', async () => {
+    assert.equal(await discountAgainst(siblings()), 'failure');
+    assert.equal(await discountAgainst({ workflow_runs: 'x' }), 'failure');
+    assert.equal(
+      await discountAgainst({ workflow_runs: [{ id: 'x', status: 'queued' }] }),
+      'failure',
+    );
   });
-});
 
-describe('siblingOutcome', () => {
-  it('maps in-flight → pending, success → success, anything else → failure', () => {
-    assert.equal(
-      siblingOutcome({ status: 'in_progress', conclusion: '' }),
-      'pending',
-    );
-    assert.equal(
-      siblingOutcome({ status: 'queued', conclusion: '' }),
-      'pending',
-    );
-    assert.equal(
-      siblingOutcome({ status: 'completed', conclusion: 'success' }),
-      'success',
-    );
-    assert.equal(
-      siblingOutcome({ status: 'completed', conclusion: 'failure' }),
-      'failure',
-    );
-    assert.equal(
-      siblingOutcome({ status: 'completed', conclusion: 'skipped' }),
-      'failure',
-    );
+  it('maps in-flight → pending, success → success, anything else → failure', async () => {
+    for (const [status, conclusion, want] of [
+      ['in_progress', null, 'pending'],
+      ['queued', null, 'pending'],
+      ['completed', 'success', 'success'],
+      ['completed', 'failure', 'failure'],
+      ['completed', 'skipped', 'failure'],
+    ]) {
+      assert.equal(
+        await discountAgainst(siblings({ id: 101, status, conclusion })),
+        want,
+      );
+    }
   });
 });
 
