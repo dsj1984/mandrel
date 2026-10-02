@@ -282,9 +282,8 @@ function predictsIncrementalCaptureSkip({
 }
 
 /**
- * The credited-run depositor — the ONE predicate close's gate registration and
- * the worker's `story-handoff.js` both call, so they cannot disagree: a
- * predicted incremental skip runs no suite, so it can never be the depositor.
+ * The credited-run depositor, shared by close and `story-handoff.js`: a
+ * predicted incremental skip runs no suite, so it is never the depositor.
  *
  * @param {{
  *   config?: object,

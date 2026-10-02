@@ -161,11 +161,7 @@ export function computeContentDigest(cwd, targetDirs, io = {}) {
   }
 }
 
-/**
- * Gate-written output, outside the suite-input digest: a `baseline-refresh:`
- * commit (handoff seat, close write-backs) records what a green run measured,
- * so it must not void that run's credit. A baseline kept elsewhere fails safe.
- */
+/** Gate-written output: a baseline-refresh commit must not void the run it records. */
 const SUITE_DIGEST_EXCLUDED_DIRS = Object.freeze(['baselines']);
 
 /** @param {string|null|undefined} coveragePath */
@@ -179,10 +175,9 @@ function suiteDigestExcludedDirs(coveragePath) {
 }
 
 /**
- * The changed paths that move {@link computeTreeDigest} — so spend the
- * capture stamp. An unknown `coveragePath` excludes only the baselines.
+ * The changed paths that move {@link computeTreeDigest}, so spend the stamp.
  *
- * @param {string[]} files Repo-relative paths.
+ * @param {string[]} files
  * @param {string|null} [coveragePath]
  * @returns {string[]}
  */
@@ -195,19 +190,15 @@ export function filterSuiteInputPaths(files, coveragePath = null) {
 }
 
 /**
- * Digest of everything the suite can read: `git ls-files -s` of the whole
- * tree plus the on-disk bytes of every path `git status` reports (untracked
- * included, gitignored excluded), at any extension, minus
- * {@link SUITE_DIGEST_EXCLUDED_DIRS} and the coverage artifact's own
- * directory (the run writes it, and the stamp lives there). The source digest says the CRAP
- * artifact matches the sources; only this one says the suite ran on this
- * tree, so a tests/docs/non-scorable edit after a capture voids it. `null`
- * when git is unavailable — callers read that as "not fresh", never a match.
+ * Digest of every suite input: tracked and dirty paths (untracked included)
+ * at any extension, minus the baselines and the coverage directory. The
+ * source digest says the artifact matches the sources; this one says the
+ * suite ran on this tree. `null` (no git) never matches.
  *
- * @param {string} cwd Absolute repo root.
- * @param {string} coveragePath Repo-relative coverage artifact path.
+ * @param {string} cwd
+ * @param {string} coveragePath
  * @param {{ spawnSync?: typeof spawnSync, readFileSync?: typeof fs.readFileSync }} [io]
- * @returns {string | null} Hex SHA-256 digest, or null when unavailable.
+ * @returns {string | null}
  */
 export function computeTreeDigest(cwd, coveragePath, io = {}) {
   const spawn = io.spawnSync ?? spawnSync;
@@ -269,9 +260,7 @@ function definedOnly(fields) {
  * Best-effort: a write failure returns `false` (next check falls back to
  * mtime). Full-scope callers omit `scope`, keeping the `{ digest, capturedAt }`
  * shape. `commit` is the HEAD sha the run measured; a stamp without it reads
- * exactly as before and is never delta-refresh eligible. `treeDigest` is
- * {@link computeTreeDigest} of the measured tree; a stamp without it never
- * reads fresh.
+ * exactly as before and is never delta-refresh eligible.
  *
  * @param {{
  *   cwd: string,
@@ -301,7 +290,6 @@ export function writeCaptureStamp({
   const payload = {
     digest,
     capturedAt: new Date().toISOString(),
-    // An absent `treeDigest` is dropped by `JSON.stringify`.
     treeDigest,
     ...optionalStampFields({ scope, files, ref, commit }),
   };
@@ -339,9 +327,6 @@ function readStampForScope(stamp, requireScope) {
 }
 
 /**
- * Both digests match: the sources the artifact measures and the tree the
- * suite ran on. A stamp with no tree digest never matches.
- *
  * @param {{ resolved: { digest: string, treeDigest: string | null }, current: string, computeTree: typeof computeTreeDigest, cwd: string, coveragePath: string }} opts
  * @returns {boolean}
  */
@@ -363,9 +348,7 @@ function stampMatchesTree({
  * `no-sources` (empty source set — "found nothing" is not "nothing changed")
  * outranks `unstamped`. A partial (incremental / affected) stamp satisfies
  * only a probe of its own scope; a stamp with no `scope` is full-scope.
- * Fresh needs BOTH digests to match: the source digest (the artifact
- * measures these sources) and the tree digest (the suite ran on this tree).
- * A stamp without a tree digest, or an unreadable current one, is `stale`.
+ * Fresh needs both digests; a stamp without a tree digest is `stale`.
  *
  * @param {{
  *   coveragePath: string,

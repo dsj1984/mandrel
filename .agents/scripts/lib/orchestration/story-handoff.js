@@ -65,8 +65,7 @@ const EXIT_CODES = Object.freeze({
 /** The § 5 output signals — a depositor that prints none deposited nothing. */
 const SIGNALS = Object.freeze({
   captureRan: /Wrote content-digest capture stamp/,
-  // Only a digest-fresh verdict is credit: the incremental / affected
-  // `no changed files … — skipping capture` lines ran no suite at all.
+  // A `no changed files … — skipping capture` line ran no suite: not credit.
   captureFresh:
     /\bis fresh(?: \((?:incremental|affected)\))? — skipping capture/,
   testRan: /✓ test passed/,
