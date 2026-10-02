@@ -34538,6 +34538,26 @@
       "crap": 1
     },
     {
+      "path": "lib/cli/sync.js",
+      "method": "listRunbooks",
+      "startLine": 321,
+      "crap": 1
+    },
+    {
+      "path": "lib/cli/sync.js",
+      "method": "<anon listRunbooks/(rel)#0>",
+      "startLine": 323,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/sync.js",
+      "method": "<anon listRunbooks/(rel)#1>",
+      "startLine": 325,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
       "path": "lib/cli/uninstall.js",
       "method": "resolveProjectRoot",
       "startLine": 38,
