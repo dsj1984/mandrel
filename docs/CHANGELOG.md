@@ -15,6 +15,14 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.75.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.74.0...mandrel-v2.75.0) (2026-10-02)
+
+
+### Added
+
+* close and handoff write a story-progress file at every phase change, so live tooling can see post-validation close phases ([#5553](https://github.com/dsj1984/mandrel/issues/5553)) ([#5554](https://github.com/dsj1984/mandrel/issues/5554)) ([84c9a87](https://github.com/dsj1984/mandrel/commit/84c9a87c46253601e0ccbe681d0b9bd41eb20a4a))
+* **mods:** mandrel-status band v2 with stage strip, learned ETAs and run line (refs [#5552](https://github.com/dsj1984/mandrel/issues/5552)) ([#5555](https://github.com/dsj1984/mandrel/issues/5555)) ([d194043](https://github.com/dsj1984/mandrel/commit/d194043b554bfb96371bfbc4ab0029b0c445bc9e))
+
 ## [2.74.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.73.0...mandrel-v2.74.0) (2026-10-02)
 
 
