@@ -60,12 +60,13 @@ the floor-vs-ratchet policy are tooling commitments rather than ADRs and live in
 
 <!-- ADR-INDEX:START -->
 
-**In force (53).** Each governs the surface named beside it.
+**In force (54).** Each governs the surface named beside it.
 A `Status` of `Accepted in part` means some clause of the entry has been
 superseded — open it before citing it.
 
 | Decision | Governs | Surface | Status |
 | --- | --- | --- | --- |
+| [`20261002-5544`](#adr-20261002-5544-claude-code-mods-are-a-beta-optional-read-only-add-on) | Claude Code mods are a beta, optional, read-only add-on | `.agents/docs/mods.md` | Accepted |
 | [`20260925-5436`](#adr-20260925-5436-one-auditor-per-lens-is-the-default-execution-path-the-dynamic-workflow-audit-path-is-retired) | One auditor per lens by default; the dynamic-workflow audit path is retired | `.agents/workflows/helpers/audit-lens-core.md` | Accepted |
 | [`20260918-5382`](#adr-20260918-5382-the-agentrc-surface-carries-only-keys-someone-sets-tuning-constants-live-at-their-read-site) | The `.agentrc` surface carries only keys someone sets; tuning constants live at their read site | `scripts/lib/agentrc-key-ceiling.js` | Accepted |
 | [`20260917-5357`](#adr-20260917-5357-concurrent-dispatch-requires-per-story-worktrees-the-cap-is-clamped-to-1-when-isolation-resolves-off) | Concurrent dispatch requires per-Story worktrees; the cap clamps to 1 when isolation is off | `.agents/scripts/lib/config/runners.js` | Accepted |
@@ -159,6 +160,46 @@ at the release tag named in the entry.
 - [Earlier ADRs (001 / 002 / 003)](#earlier-adrs-001--002--003)
 
 <!-- ADR-INDEX:END -->
+
+## ADR 20261002-5544: Claude Code mods are a beta, optional, read-only add-on
+
+**Status:** Accepted
+**Date:** 2026-10-02
+**Surface:** `.agents/docs/mods.md`
+**Story:** #5544
+
+### Context
+
+Claude Code mods are plugins of function hooks. They can draw a band above the
+prompt, a pane or a toast, and they can observe, rewrite or refuse session
+events. A delivery run has no in-session view of its own progress, which a band
+could provide. But mods ship only as plugins, and
+[`20260604-flat-command-projection-revert`](#adr-20260604-flat-command-projection-revert-revert-the-plugin-cutover--project-workflows-as-flat-name-commands)
+records that plugins are unavailable in some Claude Code environments. The mods
+API is also new. A Mandrel surface that depended on a mod would vanish wherever
+plugins do not load.
+
+### Decision
+
+- **Mods are a beta trial.** Mandrel ships them under `.agents/mods/`, starting
+  with `mandrel-status`, a read-only band for `/mandrel-deliver` runs.
+- **Nothing depends on a mod.** No script, workflow, skill, rule or
+  `.agentrc.json` key references one, and none is enabled by default. A
+  developer opts in through `CLAUDE_CODE_PLUGIN_DIRS` in user settings or
+  `--plugin-dir`, which a committed project file cannot set.
+- **Mods are read-only.** A Mandrel mod may read files, draw, keep session state
+  and keep time. It never writes, spawns, calls the network or the model, or
+  hooks `tool.call`, `prompt.submit`, `command.run` or `session.append`.
+  Guardrails stay in `.claude/settings.json` command hooks.
+- **Leaving beta needs a superseding ADR.** So does a mod that writes or blocks,
+  or any Mandrel surface that would depend on one.
+
+### Consequences
+
+- Removal is one folder, one doc, two README rows and this entry's status.
+  `mandrel sync` prunes the folder from consumers on their next sync.
+- `claude plugin validate` and `claude plugin test` gate a mod only locally;
+  CI has no `claude` binary and `npm test` collects `*.test.js` only.
 
 ## ADR 20260925-5436: One auditor per lens is the default execution path; the dynamic-workflow audit path is retired
 

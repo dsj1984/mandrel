@@ -355,6 +355,7 @@ what keeps that footer refused. The execution-model contract is owned by
 | [`scripts/lib/checks/`](scripts/lib/checks/) | Discovery-based self-healing checks registry for preflight, the `diagnose.js` viewer, and retro surfaces. |
 | [`schemas/`](schemas/) | JSON Schema contracts for config, manifests, reports, and persisted runtime artefacts. |
 | [`templates/`](templates/) | Prompt and planning templates used by the orchestration flow. |
+| [`mods/`](mods/) | Beta, opt-in Claude Code mods. Inert until a developer loads one; see [`docs/mods.md`](docs/mods.md). |
 
 ---
 
@@ -378,6 +379,7 @@ what keeps that footer refused. The execution-model contract is owned by
 | Bootstrap script (project + GitHub setup) | [`scripts/bootstrap.js`](scripts/bootstrap.js) |
 | Adopt the QA workflows (`/qa-explore`, `/qa-assist`, `/qa-run`) in your project | [§ Adopting the QA harness](#adopting-the-qa-harness) |
 | Coordinate two operators on the same repo (lease model) | [§ Multi-developer coordination](#multi-developer-coordination) |
+| Opt into the beta `mandrel-status` band above the prompt | [`docs/mods.md`](docs/mods.md) |
 
 ---
 
