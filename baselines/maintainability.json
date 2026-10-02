@@ -312,7 +312,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
-      "mi": 95.298
+      "mi": 97.151
     },
     {
       "path": ".agents/scripts/lib/baselines/diff-scope-cli.js",
