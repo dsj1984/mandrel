@@ -15,6 +15,13 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.73.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.72.0...mandrel-v2.73.0) (2026-10-02)
+
+
+### Fixed
+
+* **baselines:** CRAP --seat-missing seats nothing, without demanding coverage, when no diff file is in the gate's scope ([#5540](https://github.com/dsj1984/mandrel/issues/5540)) ([#5541](https://github.com/dsj1984/mandrel/issues/5541)) ([169798e](https://github.com/dsj1984/mandrel/commit/169798ef90e32030148203e8e881f60ee907e404))
+
 ## [2.72.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.71.0...mandrel-v2.72.0) (2026-10-01)
 
 
