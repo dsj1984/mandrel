@@ -431,7 +431,7 @@ async function openAndReviewPr(ctx, deps) {
     progress,
   });
   const prNumber = parsePrNumber(prUrl);
-  ctx.recordPrNumber?.(prNumber);
+  ctx.recordPrNumber(prNumber);
   // Already merged (landed between invocations): skip review and arm; confirm observes it.
   if (alreadyMerged) {
     discardHeldReview(ctx.heldReview, 'PR already merged', progress);
@@ -625,11 +625,12 @@ export async function runSingleStoryClose({
   let phase = 'init';
   let observedGates = null;
   const phaseTimer = createPhaseTimer();
-  let storyProgress = null;
+  // Inert until the config resolves; no phase is entered before then.
+  let storyProgress = { phase() {}, prNumber() {} };
   const setPhase = (next) => {
     phase = next;
     phaseTimer.enter(next);
-    storyProgress?.phase(next);
+    storyProgress.phase(next);
   };
   const setObservedGates = (gates) => {
     observedGates = gates;
@@ -1025,7 +1026,7 @@ async function resolveCloseWorktree(ctx, deps) {
     resolveWorktreeEnabled({ config: deps.config });
   ctx.landedPr = missing ? await findLandedPr(ctx, deps) : null;
   if (ctx.landedPr) {
-    ctx.recordPrNumber?.(ctx.landedPr.prNumber);
+    ctx.recordPrNumber(ctx.landedPr.prNumber);
     return null;
   }
   return await resolveStoryWorktree({

@@ -2306,6 +2306,48 @@ describe('runSingleStoryClose — the lease is held until the merge confirms (St
     assert.equal(result.worktreeReaped, false, 'nothing was reaped');
   });
 
+  it('a landed-PR probe whose gh read fails falls through to the worktree restore', async (t) => {
+    t.mock.module(GIT_UTILS_URL, {
+      namedExports: {
+        ...defaultGitUtilsMock().namedExports,
+        gitSpawn: (_cwd, ...args) =>
+          args[0] === 'ls-remote'
+            ? { status: 2, stdout: '', stderr: '' }
+            : defaultGitUtilsMock().namedExports.gitSpawn(_cwd, ...args),
+      },
+    });
+    mockCloseValidation(t, defaultCloseValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
+    const gh = makeFakeGh(() => {
+      throw new Error('gh unreachable');
+    });
+    const { runSingleStoryClose } = await import(
+      `${SUT_URL}?t=landed-probe-read-failure`
+    );
+    await assert.rejects(
+      runSingleStoryClose({
+        storyId: 4867,
+        cwd: tempRoot,
+        injectedProvider: makeFakeProvider({
+          initialStory: {
+            id: 4867,
+            state: 'open',
+            title: 'probe read fails',
+            labels: ['agent::executing'],
+          },
+        }),
+        injectedConfig: fakeConfig({
+          worktreeRoot: '.worktrees',
+          worktreeEnabled: true,
+        }),
+        injectedGh: gh,
+        injectedRunCodeReview: noopReview(),
+      }),
+      // A failed read is "not merged": the restore runs and is what fails.
+      /\[worktree-restore\] cannot recreate the story-4867 worktree/,
+    );
+  });
+
   // Two guards, each sufficient: an OPEN PR on the head (the remote branch
   // and local ref already swept), and a surviving local ref (unpushed work).
   for (const [variant, localRef, remoteBranch] of [
