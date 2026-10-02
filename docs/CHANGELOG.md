@@ -15,6 +15,19 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.74.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.73.0...mandrel-v2.74.0) (2026-10-02)
+
+
+### Added
+
+* add a runbook index: mandrel sync (and so init/update/postinstall) list… ([#5547](https://github.com/dsj1984/mandrel/issues/5547)) ([#5549](https://github.com/dsj1984/mandrel/issues/5549)) ([f768059](https://github.com/dsj1984/mandrel/commit/f768059f7d7229c8d8c32b773b9f8e26fecec30b))
+* beta: opt-in read-only Claude Code mod showing /mandrel-deliver status above the prompt ([#5544](https://github.com/dsj1984/mandrel/issues/5544)) ([#5545](https://github.com/dsj1984/mandrel/issues/5545)) ([1fa4f1f](https://github.com/dsj1984/mandrel/commit/1fa4f1f518bf20df116f1479e2db1c8cc0c2a74c))
+
+
+### Fixed
+
+* coverage-capture credit must only vouch for a tree the suite actually ran on ([#5548](https://github.com/dsj1984/mandrel/issues/5548)) ([#5550](https://github.com/dsj1984/mandrel/issues/5550)) ([fea9553](https://github.com/dsj1984/mandrel/commit/fea955352f2524e3546cd559b4f457b017d4f9f5))
+
 ## [2.73.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.72.0...mandrel-v2.73.0) (2026-10-02)
 
 
