@@ -30,6 +30,7 @@ import {
   NEXT_COMMANDS,
   terminalFromWaitOutcome,
 } from '../story-deliver-terminal.js';
+import { createStoryProgress } from '../story-progress.js';
 import { deriveCloseNote } from './close-note.js';
 import { closeArmedPr, runAutoMergePhase } from './phases/auto-merge.js';
 import { runBaseSyncPhase } from './phases/base-sync.js';
@@ -430,6 +431,7 @@ async function openAndReviewPr(ctx, deps) {
     progress,
   });
   const prNumber = parsePrNumber(prUrl);
+  ctx.recordPrNumber?.(prNumber);
   // Already merged (landed between invocations): skip review and arm; confirm observes it.
   if (alreadyMerged) {
     discardHeldReview(ctx.heldReview, 'PR already merged', progress);
@@ -623,18 +625,33 @@ export async function runSingleStoryClose({
   let phase = 'init';
   let observedGates = null;
   const phaseTimer = createPhaseTimer();
+  let storyProgress = null;
   const setPhase = (next) => {
     phase = next;
     phaseTimer.enter(next);
+    storyProgress?.phase(next);
   };
   const setObservedGates = (gates) => {
     observedGates = gates;
   };
   try {
     const startedAtMs = Date.now();
+    const deps = resolveCloseDeps(options, injected);
+    storyProgress = createStoryProgress({
+      storyId: options.storyId,
+      stage: 'close',
+      config: deps.config,
+    });
     return await runClosePipeline(
-      { options, setPhase, setObservedGates, phaseTimer, startedAtMs },
-      resolveCloseDeps(options, injected),
+      {
+        options,
+        setPhase,
+        setObservedGates,
+        phaseTimer,
+        startedAtMs,
+        recordPrNumber: storyProgress.prNumber,
+      },
+      deps,
     );
   } catch (err) {
     if (err && typeof err === 'object') {
@@ -1007,7 +1024,10 @@ async function resolveCloseWorktree(ctx, deps) {
     !existingWorktreePath({ cwd, wtIsolation, storyId: ctx.storyId }) &&
     resolveWorktreeEnabled({ config: deps.config });
   ctx.landedPr = missing ? await findLandedPr(ctx, deps) : null;
-  if (ctx.landedPr) return null;
+  if (ctx.landedPr) {
+    ctx.recordPrNumber?.(ctx.landedPr.prNumber);
+    return null;
+  }
   return await resolveStoryWorktree({
     cwd,
     config: deps.config,
