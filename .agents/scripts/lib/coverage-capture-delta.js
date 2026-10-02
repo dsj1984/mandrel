@@ -6,7 +6,11 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { captureStampPath, computeContentDigest } from './coverage-capture.js';
+import {
+  captureStampPath,
+  computeContentDigest,
+  computeTreeDigest,
+} from './coverage-capture.js';
 import { gitSpawn } from './git-utils.js';
 
 /** Basenames whose change moves coverage beyond the files it names. */
@@ -29,6 +33,26 @@ export function readHeadCommit(cwd, io = {}) {
   const res = git(cwd, ['rev-parse', 'HEAD'], io.gitSpawn ?? gitSpawn);
   const sha = res?.status === 0 ? res.stdout.trim() : '';
   return /^[0-9a-f]{40,64}$/.test(sha) ? sha : null;
+}
+
+/**
+ * The tree a capture is about to measure, taken before the spawn: what
+ * `stampCapturedTree` records — both digests and the HEAD commit.
+ *
+ * @param {{ cwd: string, crap: { targetDirs: string[], coveragePath: string }, computeContentDigestImpl: typeof computeContentDigest, readHeadCommitImpl?: typeof readHeadCommit }} opts
+ * @returns {{ preDigest: string | null, preTreeDigest: string | null, commit: string | null }}
+ */
+export function snapshotCapturedTree({
+  cwd,
+  crap,
+  computeContentDigestImpl,
+  readHeadCommitImpl = readHeadCommit,
+}) {
+  return {
+    preDigest: computeContentDigestImpl(cwd, crap.targetDirs),
+    preTreeDigest: computeTreeDigest(cwd, crap.coveragePath),
+    commit: readHeadCommitImpl(cwd),
+  };
 }
 
 /** @returns {Record<string, unknown> | null} */

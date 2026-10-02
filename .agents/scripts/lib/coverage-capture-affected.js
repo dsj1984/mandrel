@@ -15,6 +15,7 @@ import {
   describeStampFreshness,
   planDeltaRefresh,
   readHeadCommit,
+  snapshotCapturedTree,
 } from './coverage-capture-delta.js';
 import { tryIncrementalCapture } from './coverage-capture-incremental.js';
 
@@ -109,24 +110,11 @@ function readChangedFiles({ getChangedFilesImpl, ref, cwd, logger }) {
   }
 }
 
-/** The tree a run is about to measure: its source digest and HEAD commit. */
-function snapshotTree({
-  args,
-  crap,
-  computeContentDigestImpl,
-  readHeadCommitImpl,
-}) {
-  return {
-    preDigest: computeContentDigestImpl(args.cwd, crap.targetDirs),
-    commit: readHeadCommitImpl(args.cwd),
-  };
-}
-
 /**
  * Run the affected script against `baseRef`. The pre-spawn digest and
  * commit are what the stamp records; see `stampCapturedTree`.
  *
- * @returns {Promise<{ code: number, preDigest: string | null, commit: string | null }>}
+ * @returns {Promise<{ code: number, preDigest: string | null, preTreeDigest: string | null, commit: string | null }>}
  */
 async function runScoped({
   crap,
@@ -139,8 +127,8 @@ async function runScoped({
   readHeadCommitImpl,
   logger,
 }) {
-  const tree = snapshotTree({
-    args,
+  const tree = snapshotCapturedTree({
+    cwd: args.cwd,
     crap,
     computeContentDigestImpl,
     readHeadCommitImpl,
@@ -206,6 +194,7 @@ async function captureAndMerge(opts) {
     cwd: opts.args.cwd,
     scope: 'affected',
     preDigest: run.preDigest,
+    preTreeDigest: run.preTreeDigest,
     commit: run.commit,
     ...opts.stamp,
   });

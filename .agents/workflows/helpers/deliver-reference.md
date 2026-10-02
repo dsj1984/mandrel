@@ -397,8 +397,15 @@ Digest § 5 states the rule and both invocations; this is what surrounds them.
   covers this change set` and pays the whole suite on the serialized tail. The
   worker's capture writes the content-digest stamp in the worktree, and
   close's capture then exits on its freshness probe without spawning
-  `test:coverage`. A base-sync that merges a path under `crap.targetDirs`
-  spends the stamp, and close re-captures.
+  `test:coverage`. The stamp holds two digests — the scorable sources and
+  every suite input (all tracked and dirty paths but `baselines/` and the
+  coverage directory) — so any later commit or base-sync outside baseline
+  JSON spends it, and close re-captures.
+- **Predicted skip.** With `incrementalCoverage.skipWhenUnchanged` on and no
+  changed file under `crap.targetDirs`, the capture would run nothing, so
+  the shared predicate (`resolveCreditedDepositor`) picks the `test`
+  depositor for both close and the handoff. A `no changed files … —
+  skipping capture` line is never credit.
 - **Runner shapes.** A bare `npm test` earns the `test` credit **only** where
   the project's test script routes through mandrel's own runner, which prints
   the outcome. On any other runner it deposits nothing and prints nothing, so
@@ -425,9 +432,9 @@ Digest § 5 states the rule and both invocations; this is what surrounds them.
   over the in-scope files is exactly 100% — a lower rate means the artifact's
   coordinates predate the tree. The refusal names the rate, the unresolved
   files and the fix: re-run the digest § 5 capture, then seat.
-- **Seat order vs credit.** The capture stamp digests scorable sources only,
-  so a baseline-JSON-only seat commit leaves it fresh and the capture credit
-  stands. The evidence-gate `test` credit is keyed on the tree, so on that
+- **Seat order vs credit.** Neither capture-stamp digest reads
+  `baselines/`, so a baseline-JSON-only seat commit leaves it fresh and the
+  capture credit stands. The evidence-gate `test` credit is keyed on the tree, so on that
   path the handoff seats first — MI is static and needs no coverage — then
   runs the suite.
 

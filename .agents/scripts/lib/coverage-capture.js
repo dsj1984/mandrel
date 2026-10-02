@@ -85,16 +85,24 @@ export function captureStampPath(cwd, coveragePath) {
  *   cwd: string,
  *   readFileSync: typeof fs.readFileSync,
  *   porcelain: string,
- * }} opts `porcelain` is raw `git status --porcelain` output.
- * @returns {number} Count of scorable dirty files folded in.
+ *   select?: (file: string) => boolean,
+ * }} opts `porcelain` is raw `git status --porcelain` output; `select`
+ *   picks which dirty paths fold in (default: scorable sources).
+ * @returns {number} Count of selected dirty files folded in.
  */
-function foldDirtySources({ hash, cwd, readFileSync, porcelain }) {
+function foldDirtySources({
+  hash,
+  cwd,
+  readFileSync,
+  porcelain,
+  select = (file) => SCORABLE_SOURCE_EXT_RE.test(file),
+}) {
   let count = 0;
   for (const line of porcelain.split('\n').filter((l) => l.length > 3)) {
     let file = line.slice(3).trim();
     if (file.includes(' -> ')) file = file.split(' -> ').pop();
     file = file.replace(/^"|"$/g, '');
-    if (!SCORABLE_SOURCE_EXT_RE.test(file)) continue;
+    if (!select(file)) continue;
     count += 1;
     hash.update(`\0${file}\0`);
     try {
@@ -153,12 +161,97 @@ export function computeContentDigest(cwd, targetDirs, io = {}) {
   }
 }
 
+/**
+ * Gate-written output, outside the suite-input digest: a `baseline-refresh:`
+ * commit (handoff seat, close write-backs) records what a green run measured,
+ * so it must not void that run's credit. A baseline kept elsewhere fails safe.
+ */
+const SUITE_DIGEST_EXCLUDED_DIRS = Object.freeze(['baselines']);
+
+/** @param {string|null|undefined} coveragePath */
+function suiteDigestExcludedDirs(coveragePath) {
+  const coverageDir = path.posix.dirname(
+    String(coveragePath ?? '').replace(/\\/g, '/'),
+  );
+  return [...SUITE_DIGEST_EXCLUDED_DIRS, coverageDir].filter(
+    (dir) => dir !== '.' && dir.length > 0,
+  );
+}
+
+/**
+ * The changed paths that move {@link computeTreeDigest} — so spend the
+ * capture stamp. An unknown `coveragePath` excludes only the baselines.
+ *
+ * @param {string[]} files Repo-relative paths.
+ * @param {string|null} [coveragePath]
+ * @returns {string[]}
+ */
+export function filterSuiteInputPaths(files, coveragePath = null) {
+  const dirs = suiteDigestExcludedDirs(coveragePath);
+  return (Array.isArray(files) ? files : []).filter((file) => {
+    const norm = String(file).replace(/\\/g, '/');
+    return !dirs.some((dir) => norm === dir || norm.startsWith(`${dir}/`));
+  });
+}
+
+/**
+ * Digest of everything the suite can read: `git ls-files -s` of the whole
+ * tree plus the on-disk bytes of every path `git status` reports (untracked
+ * included, gitignored excluded), at any extension, minus
+ * {@link SUITE_DIGEST_EXCLUDED_DIRS} and the coverage artifact's own
+ * directory (the run writes it, and the stamp lives there). The source digest says the CRAP
+ * artifact matches the sources; only this one says the suite ran on this
+ * tree, so a tests/docs/non-scorable edit after a capture voids it. `null`
+ * when git is unavailable — callers read that as "not fresh", never a match.
+ *
+ * @param {string} cwd Absolute repo root.
+ * @param {string} coveragePath Repo-relative coverage artifact path.
+ * @param {{ spawnSync?: typeof spawnSync, readFileSync?: typeof fs.readFileSync }} [io]
+ * @returns {string | null} Hex SHA-256 digest, or null when unavailable.
+ */
+export function computeTreeDigest(cwd, coveragePath, io = {}) {
+  const spawn = io.spawnSync ?? spawnSync;
+  const readFileSync = io.readFileSync ?? fs.readFileSync;
+  const pathspec = [
+    '--',
+    '.',
+    ...suiteDigestExcludedDirs(coveragePath).map((dir) => `:(exclude)${dir}`),
+  ];
+  const git = (...args) => {
+    const res = spawn('git', args, { cwd, encoding: 'utf8' });
+    if (res?.error || res?.status !== 0) {
+      throw res?.error ?? new Error(res?.stderr || `git ${args[0]} failed`);
+    }
+    return res.stdout ?? '';
+  };
+  try {
+    const hash = crypto.createHash('sha256');
+    hash.update(git('ls-files', '-s', ...pathspec));
+    foldDirtySources({
+      hash,
+      cwd,
+      readFileSync,
+      porcelain: git(
+        'status',
+        '--porcelain',
+        '--untracked-files=all',
+        ...pathspec,
+      ),
+      select: () => true,
+    });
+    return hash.digest('hex');
+  } catch {
+    return null;
+  }
+}
+
 /** @param {string} value */
 const nonEmpty = (value) => typeof value === 'string' && value.length > 0;
 
 /** Scoped-stamp fields, each written only when it carries a value. */
-function optionalStampFields({ scope, files, ref, commit }) {
+function optionalStampFields({ scope, files, ref, commit, treeDigest }) {
   const out = {};
+  if (nonEmpty(treeDigest)) out.treeDigest = treeDigest;
   if (scope !== undefined) out.scope = scope;
   if (Array.isArray(files)) out.files = [...files].sort();
   if (nonEmpty(ref)) out.ref = ref;
@@ -177,7 +270,9 @@ function definedOnly(fields) {
  * Best-effort: a write failure returns `false` (next check falls back to
  * mtime). Full-scope callers omit `scope`, keeping the `{ digest, capturedAt }`
  * shape. `commit` is the HEAD sha the run measured; a stamp without it reads
- * exactly as before and is never delta-refresh eligible.
+ * exactly as before and is never delta-refresh eligible. `treeDigest` is
+ * {@link computeTreeDigest} of the measured tree; a stamp without it never
+ * reads fresh.
  *
  * @param {{
  *   cwd: string,
@@ -187,6 +282,7 @@ function definedOnly(fields) {
  *   files?: string[],
  *   ref?: string,
  *   commit?: string | null,
+ *   treeDigest?: string | null,
  *   writeFileSync?: typeof fs.writeFileSync,
  * }} opts
  * @returns {boolean} True when the stamp was written.
@@ -199,13 +295,14 @@ export function writeCaptureStamp({
   files,
   ref,
   commit,
+  treeDigest,
   writeFileSync = fs.writeFileSync,
 }) {
   if (typeof digest !== 'string' || digest.length === 0) return false;
   const payload = {
     digest,
     capturedAt: new Date().toISOString(),
-    ...optionalStampFields({ scope, files, ref, commit }),
+    ...optionalStampFields({ scope, files, ref, commit, treeDigest }),
   };
   try {
     writeFileSync(
@@ -224,7 +321,7 @@ const PARTIAL_STAMP_SCOPES = new Set(['incremental', 'affected']);
 /**
  * @param {{digest?: unknown, scope?: unknown} | null} stamp
  * @param {'full' | 'incremental' | 'affected'} requireScope
- * @returns {{ digest: string } | { scopeMismatch: true } | null} `null`
+ * @returns {{ digest: string, treeDigest: string | null } | { scopeMismatch: true } | null} `null`
  *   means no usable stamp: nothing vouches for the artifact.
  */
 function readStampForScope(stamp, requireScope) {
@@ -234,7 +331,10 @@ function readStampForScope(stamp, requireScope) {
   if (PARTIAL_STAMP_SCOPES.has(stamp.scope) && stamp.scope !== requireScope) {
     return { scopeMismatch: true };
   }
-  return { digest: stamp.digest };
+  return {
+    digest: stamp.digest,
+    treeDigest: nonEmpty(stamp.treeDigest) ? stamp.treeDigest : null,
+  };
 }
 
 /**
@@ -244,6 +344,9 @@ function readStampForScope(stamp, requireScope) {
  * `no-sources` (empty source set — "found nothing" is not "nothing changed")
  * outranks `unstamped`. A partial (incremental / affected) stamp satisfies
  * only a probe of its own scope; a stamp with no `scope` is full-scope.
+ * Fresh needs BOTH digests to match: the source digest (the artifact
+ * measures these sources) and the tree digest (the suite ran on this tree).
+ * A stamp without a tree digest, or an unreadable current one, is `stale`.
  *
  * @param {{
  *   coveragePath: string,
@@ -255,6 +358,7 @@ function readStampForScope(stamp, requireScope) {
  *   existsSync?: typeof fs.existsSync,
  *   readFileSync?: typeof fs.readFileSync,
  *   computeDigest?: typeof computeContentDigest,
+ *   computeTree?: typeof computeTreeDigest,
  * }} opts
  * @returns {{ fresh: boolean, reason: 'missing' | 'stale' | 'fresh' | 'no-sources' | 'scope-mismatch' | 'unstamped' }}
  */
@@ -268,6 +372,7 @@ export function isCoverageFresh({
   existsSync = fs.existsSync,
   readFileSync = fs.readFileSync,
   computeDigest = computeContentDigest,
+  computeTree = computeTreeDigest,
 }) {
   const absCoverage = path.resolve(cwd, coveragePath);
   if (!existsSync(absCoverage)) return { fresh: false, reason: 'missing' };
@@ -287,7 +392,9 @@ export function isCoverageFresh({
     if (resolved) {
       const current = computeDigest(cwd, targetDirs);
       if (typeof current === 'string' && current.length > 0) {
-        return current === resolved.digest
+        return current === resolved.digest &&
+          resolved.treeDigest !== null &&
+          computeTree(cwd, coveragePath) === resolved.treeDigest
           ? { fresh: true, reason: 'fresh' }
           : { fresh: false, reason: 'stale' };
       }
@@ -379,6 +486,7 @@ export function creditedCapture(runCaptureFn, { requireCredited, logger }) {
  *   files?: string[],
  *   ref?: string,
  *   commit?: string | null,
+ *   preTreeDigest?: string | null,
  *   computeContentDigestImpl: typeof computeContentDigest,
  *   writeCaptureStampImpl: typeof writeCaptureStamp,
  *   logger: { info: Function, warn: Function, error: Function },
@@ -394,6 +502,7 @@ export function stampCapturedTree({
   files,
   ref,
   commit,
+  preTreeDigest,
   computeContentDigestImpl,
   writeCaptureStampImpl,
   logger,
@@ -412,7 +521,13 @@ export function stampCapturedTree({
     cwd,
     coveragePath,
     digest: preDigest,
-    ...definedOnly({ scope, files, ref, commit: commit || undefined }),
+    ...definedOnly({
+      scope,
+      files,
+      ref,
+      commit: commit || undefined,
+      treeDigest: preTreeDigest || undefined,
+    }),
   });
   if (written) {
     logger.info(

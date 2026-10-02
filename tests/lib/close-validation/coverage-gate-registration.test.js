@@ -26,6 +26,7 @@ import {
 import { runCloseValidation } from '../../../.agents/scripts/lib/close-validation/runner.js';
 import {
   computeContentDigest,
+  computeTreeDigest,
   isCoverageFresh,
   writeCaptureStamp,
 } from '../../../.agents/scripts/lib/coverage-capture.js';
@@ -446,8 +447,16 @@ describe('close honours a fresh worker-side capture stamp (Story #5477)', () => 
   const writeWorkerStamp = (cwd, extra = {}) => {
     const digest = computeContentDigest(cwd, TARGET_DIRS);
     assert.equal(typeof digest, 'string');
+    const treeDigest = computeTreeDigest(cwd, COVERAGE_PATH);
+    assert.equal(typeof treeDigest, 'string');
     assert.ok(
-      writeCaptureStamp({ cwd, coveragePath: COVERAGE_PATH, digest, ...extra }),
+      writeCaptureStamp({
+        cwd,
+        coveragePath: COVERAGE_PATH,
+        digest,
+        treeDigest,
+        ...extra,
+      }),
     );
   };
 

@@ -5,6 +5,7 @@ import { reportCaptureFailure, stampCapturedTree } from './coverage-capture.js';
 import {
   describeStampFreshness,
   readHeadCommit,
+  snapshotCapturedTree,
 } from './coverage-capture-delta.js';
 
 /**
@@ -99,9 +100,12 @@ export async function tryIncrementalCapture({
   logger.info(
     `[coverage-capture] Incremental mode: ${scopedFiles.length} changed file(s) under [${crap.targetDirs.join(', ')}] — capturing… ${detail}`,
   );
-  // Pre-spawn digest and commit; see `stampCapturedTree`.
-  const preDigest = computeContentDigestImpl(args.cwd, crap.targetDirs);
-  const commit = readHeadCommitImpl(args.cwd);
+  const tree = snapshotCapturedTree({
+    cwd: args.cwd,
+    crap,
+    computeContentDigestImpl,
+    readHeadCommitImpl,
+  });
   const code = await runCaptureImpl({
     cwd: args.cwd,
     coveragePath: crap.coveragePath,
@@ -112,14 +116,13 @@ export async function tryIncrementalCapture({
   if (code !== 0) return reportCaptureFailure(code, logger);
 
   stampCapturedTree({
-    preDigest,
+    ...tree,
     cwd: args.cwd,
     targetDirs: crap.targetDirs,
     coveragePath: crap.coveragePath,
     scope: 'incremental',
     files: scopedFiles,
     ref,
-    commit,
     computeContentDigestImpl,
     writeCaptureStampImpl,
     logger,

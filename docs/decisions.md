@@ -60,12 +60,13 @@ the floor-vs-ratchet policy are tooling commitments rather than ADRs and live in
 
 <!-- ADR-INDEX:START -->
 
-**In force (54).** Each governs the surface named beside it.
+**In force (55).** Each governs the surface named beside it.
 A `Status` of `Accepted in part` means some clause of the entry has been
 superseded — open it before citing it.
 
 | Decision | Governs | Surface | Status |
 | --- | --- | --- | --- |
+| [`20261002-5548`](#adr-20261002-5548-a-coverage-capture-stamp-vouches-only-for-the-tree-the-suite-ran-on) | A coverage-capture stamp vouches only for the tree the suite ran on | `.agents/scripts/lib/coverage-capture.js` | Accepted |
 | [`20261002-5544`](#adr-20261002-5544-claude-code-mods-are-a-beta-optional-read-only-add-on) | Claude Code mods are a beta, optional, read-only add-on | `.agents/docs/mods.md` | Accepted |
 | [`20260925-5436`](#adr-20260925-5436-one-auditor-per-lens-is-the-default-execution-path-the-dynamic-workflow-audit-path-is-retired) | One auditor per lens by default; the dynamic-workflow audit path is retired | `.agents/workflows/helpers/audit-lens-core.md` | Accepted |
 | [`20260918-5382`](#adr-20260918-5382-the-agentrc-surface-carries-only-keys-someone-sets-tuning-constants-live-at-their-read-site) | The `.agentrc` surface carries only keys someone sets; tuning constants live at their read site | `scripts/lib/agentrc-key-ceiling.js` | Accepted |
@@ -160,6 +161,44 @@ at the release tag named in the entry.
 - [Earlier ADRs (001 / 002 / 003)](#earlier-adrs-001--002--003)
 
 <!-- ADR-INDEX:END -->
+
+## ADR 20261002-5548: A coverage-capture stamp vouches only for the tree the suite ran on
+
+**Status:** Accepted
+**Date:** 2026-10-02
+**Surface:** `.agents/scripts/lib/coverage-capture.js`
+**Story:** #5548
+
+### Context
+
+On a capture-active project the capture stamp is the suite's green credit:
+close drops its `test` gate when the stamp is fresh. The stamp hashed only the
+scorable sources under `crap.targetDirs`, so a tests, docs or non-scorable
+edit after a capture still read fresh. Separately, the handoff picked its
+depositor without close's incremental-skip prediction, and read the
+`no changed files … — skipping capture` no-op as credit. Story #5544's diff
+(a `.tsx` mod plus docs) shipped a red suite to push that way.
+
+### Decision
+
+- **Two digests.** The stamp keeps the source digest (the CRAP artifact matches
+  these sources) and adds a `treeDigest` over every tracked and dirty path,
+  untracked included, at any extension. Fresh needs both; a stamp without
+  `treeDigest` reads stale.
+- **Baseline JSON is not a suite input.** `baselines/` and the coverage
+  directory sit outside `treeDigest`, so the handoff seat and close's
+  write-backs keep the credit they record.
+- **One depositor predicate.** `resolveCreditedDepositor` in
+  `close-validation/gates.js` is the only home of the choice; close and the
+  handoff both call it, so a predicted skip makes both use the `test` gate.
+
+### Consequences
+
+- A base-sync that merges anything but baseline JSON spends the stamp, and
+  close re-runs the suite, as the tree-keyed `test` evidence already did.
+- Each existing stamp reads stale once after upgrade.
+- A baseline kept outside `baselines/` voids the stamp when it changes. That
+  costs a suite run, never a false credit.
 
 ## ADR 20261002-5544: Claude Code mods are a beta, optional, read-only add-on
 

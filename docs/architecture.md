@@ -641,10 +641,13 @@ commands itself as required evidence; its byte-identical `lint` /
 short-circuit those two gates at unchanged HEAD. The worker's **one credited
 run** (`deliver-digest.md` § 5, the rule's one home) is picked by the same
 predicate close registers `coverage-capture` on — CRAP gate enabled **and** a
-`test:coverage` script. On such a capture-active project close runs
+`test:coverage` script, unless no changed file sits under `crap.targetDirs`
+(the capture would skip, so the `test` depositor runs; Story #5548). On such a
+capture-active project close runs
 `coverage-capture` instead of the plain `test` gate, so the credited run is the
-coverage capture itself: it writes the content-digest stamp in the worktree,
-and close's capture exits on that stamp's freshness probe without spawning
+coverage capture itself: it writes the content-digest stamp in the worktree —
+a source digest plus a digest of every suite input but `baselines/` — and
+close's capture exits on that stamp's freshness probe without spawning
 `test:coverage` (Story #5477). Otherwise the `test` credit is deposited by
 running the suite through `evidence-gate.js` (`--gate test`), which is
 runner-agnostic because it stamps only what it just ran; a bare `npm test`

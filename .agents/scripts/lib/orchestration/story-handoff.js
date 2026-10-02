@@ -425,7 +425,7 @@ async function commitSeatedRows(ctx, total, evidencePath) {
   const creditedPrior = ctx.state.creditHead === ctx.head;
   ctx.head = headSha(ctx) ?? ctx.head;
   ctx.state.seatHead = ctx.head;
-  // The capture stamp digests scorable sources only, so a baseline-JSON-only
+  // Both capture-stamp digests leave `baselines/` out, so a baseline-JSON-only
   // commit keeps the credit it already holds.
   if (creditedPrior && ctx.depositor === 'coverage-capture') {
     ctx.state.creditHead = ctx.head;
@@ -656,7 +656,7 @@ async function stepReview(ctx) {
 /**
  * The run's step order. On the evidence-gate path the `test` credit is keyed
  * on the tree, so seating (static MI) goes first and cannot void it; the
- * capture stamp digests scorable sources only, so a baseline seat after it
+ * capture stamp's digests leave `baselines/` out, so a baseline seat after it
  * keeps the stamp fresh.
  *
  * @param {'coverage-capture'|'test'} depositor
