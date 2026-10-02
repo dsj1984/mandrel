@@ -304,6 +304,96 @@ describe('CRAP seat refusal (AC-2)', () => {
     );
     assert.ok(new SeatRefusal('x') instanceof Error);
   });
+
+  const forbidden = (name) => () => {
+    throw new Error(`${name} must not be called`);
+  };
+
+  function scopedScorer({ ignoreGlobs = [], fresh, scan }) {
+    const scoped = resolveCrapUpdaterOptions(
+      { seatMissing: true },
+      {
+        crap: { targetDirs: ['src'], ignoreGlobs },
+        baselines: { crap: { path: 'baselines/crap.json' } },
+      },
+      '/repo',
+    );
+    return buildCrapSeatScorer(scoped, {
+      cwd: '/repo',
+      isFresh: fresh ?? forbidden('isFresh'),
+      loadCoverage: fresh ? () => ({}) : forbidden('loadCoverage'),
+      scan: scan ?? forbidden('scan'),
+      logger: silentLogger(),
+    });
+  }
+
+  async function seatOver(score, diff) {
+    const { writePath, bytes } = seedBaseline('crap', CRAP_PRIOR);
+    const logger = silentLogger();
+    const code = await runSeatMissing({
+      kind: 'crap',
+      label: 'CRAP',
+      writePath,
+      logger,
+      score,
+      seat: (opts) =>
+        seatMissingBaseline({ ...opts, gitDiff: async () => diff }),
+    });
+    return {
+      code,
+      log: logger.lines.join('\n'),
+      unchanged: fs.readFileSync(writePath, 'utf8') === bytes,
+    };
+  }
+
+  it('seats nothing and never reads coverage when no diff file is under targetDirs', async () => {
+    const result = await seatOver(scopedScorer({}), [
+      'scripts/verify.mjs',
+      'scripts/verify.test.mjs',
+      'src-other/x.js',
+      'docs/notes.md',
+    ]);
+    assert.equal(result.code, 0);
+    assert.equal(result.unchanged, true);
+    assert.match(result.log, /seated: 0/);
+  });
+
+  it('seats nothing when every targetDirs file matches ignoreGlobs', async () => {
+    const result = await seatOver(
+      scopedScorer({ ignoreGlobs: ['**/*.test.js'] }),
+      ['src/a.test.js', 'scripts/verify.mjs'],
+    );
+    assert.equal(result.code, 0);
+    assert.equal(result.unchanged, true);
+    assert.match(result.log, /seated: 0/);
+  });
+
+  it('a mixed diff with no fresh artifact refuses naming only the in-scope files', async () => {
+    const result = await seatOver(
+      scopedScorer({
+        ignoreGlobs: ['**/*.test.js'],
+        fresh: () => ({ fresh: false }),
+      }),
+      ['scripts/verify.mjs', 'src/a.js', 'src/a.test.js'],
+    );
+    assert.equal(result.code, 1);
+    assert.equal(result.unchanged, true);
+    assert.match(result.log, /unresolved files: src\/a\.js\)/);
+    assert.doesNotMatch(result.log, /scripts\/verify\.mjs|src\/a\.test\.js/);
+  });
+
+  it('hands the scan only the in-scope files', async () => {
+    let scopeFiles;
+    const score = scopedScorer({
+      fresh: () => ({ fresh: true }),
+      scan: async (opts) => {
+        scopeFiles = opts.scopeFiles;
+        return { rows: [], scannedFiles: 1 };
+      },
+    });
+    await score(['scripts/verify.mjs', 'src/a.js', 'srcx/b.js']);
+    assert.deepEqual(scopeFiles, ['src/a.js']);
+  });
 });
 
 describe('capture stamp vs a baseline-refresh commit (AC-6)', () => {
