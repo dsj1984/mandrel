@@ -9,11 +9,12 @@ A Claude Code mod is a plugin of function hooks: a module that draws on
 Claude Code's own surfaces (a band above the prompt, a pane, a toast) and
 reacts to session events. Mandrel ships its mods under `.agents/mods/`, so
 `mandrel sync` copies them into every consumer checkout. A mod stays inert
-until a developer loads it.
+until a developer loads it. This runbook is listed at the end of every
+`mandrel sync`, `init` and `update`, like every file in `docs/runbooks/`.
 
 ## `mandrel-status`
 
-[`mods/mandrel-status/`](../mods/mandrel-status/) draws one dim line above
+[`mods/mandrel-status/`](../../mods/mandrel-status/) draws one dim line above
 the prompt while you work in a Mandrel checkout:
 
 | State on disk | The line |
@@ -87,7 +88,7 @@ npm package excludes `__tests__/`.
 
 ## Removing mods
 
-Delete `.agents/mods/`, this file, and its two rows in `.agents/README.md`. Then
+Delete `.agents/mods/`, this runbook, and its two rows in `.agents/README.md`. Then
 mark the ADR Superseded. No other file references a mod, so no other gate
 changes. Consumers lose the folder on their next `mandrel sync`, which
 prunes files that are no longer in the payload. Anyone who set

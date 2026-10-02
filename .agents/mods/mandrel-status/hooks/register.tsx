@@ -1,6 +1,6 @@
 // mandrel-status — a beta, read-only Claude Code mod. It reads the state files
 // /mandrel-deliver already writes and draws one line above the prompt. Nothing
-// in Mandrel depends on it; see .agents/docs/mods.md.
+// in Mandrel depends on it; see .agents/docs/runbooks/mods.md.
 
 import type { EngineInterface, Register } from 'claude-code';
 import { atom, read, update } from 'claude-code';
