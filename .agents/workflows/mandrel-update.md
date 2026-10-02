@@ -214,6 +214,10 @@ between the installed and target versions:
    contradict a tightened rule.
 2. **Project-specific runbooks.** Sweep any docs that paraphrase framework
    workflows for renamed flags / changed exit codes / removed scripts.
+3. **Framework runbooks.** Step 1's sync output ends with one
+   `📖  Runbook:` line per file in `.agents/docs/runbooks/`. Read each one
+   the changelog touches and relay any opt-in or action it describes to the
+   operator. Never enable an opt-in on their behalf.
 
 Do not invent updates — silence is a valid review outcome. Stage every
 consumer-side edit alongside the dependency bump so the upgrade and the

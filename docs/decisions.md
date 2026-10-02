@@ -66,7 +66,7 @@ superseded — open it before citing it.
 
 | Decision | Governs | Surface | Status |
 | --- | --- | --- | --- |
-| [`20261002-5544`](#adr-20261002-5544-claude-code-mods-are-a-beta-optional-read-only-add-on) | Claude Code mods are a beta, optional, read-only add-on | `.agents/docs/mods.md` | Accepted |
+| [`20261002-5544`](#adr-20261002-5544-claude-code-mods-are-a-beta-optional-read-only-add-on) | Claude Code mods are a beta, optional, read-only add-on | `.agents/docs/runbooks/mods.md` | Accepted |
 | [`20260925-5436`](#adr-20260925-5436-one-auditor-per-lens-is-the-default-execution-path-the-dynamic-workflow-audit-path-is-retired) | One auditor per lens by default; the dynamic-workflow audit path is retired | `.agents/workflows/helpers/audit-lens-core.md` | Accepted |
 | [`20260918-5382`](#adr-20260918-5382-the-agentrc-surface-carries-only-keys-someone-sets-tuning-constants-live-at-their-read-site) | The `.agentrc` surface carries only keys someone sets; tuning constants live at their read site | `scripts/lib/agentrc-key-ceiling.js` | Accepted |
 | [`20260917-5357`](#adr-20260917-5357-concurrent-dispatch-requires-per-story-worktrees-the-cap-is-clamped-to-1-when-isolation-resolves-off) | Concurrent dispatch requires per-Story worktrees; the cap clamps to 1 when isolation is off | `.agents/scripts/lib/config/runners.js` | Accepted |
@@ -165,7 +165,7 @@ at the release tag named in the entry.
 
 **Status:** Accepted
 **Date:** 2026-10-02
-**Surface:** `.agents/docs/mods.md`
+**Surface:** `.agents/docs/runbooks/mods.md`
 **Story:** #5544
 
 ### Context
