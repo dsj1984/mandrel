@@ -282,6 +282,37 @@ function predictsIncrementalCaptureSkip({
 }
 
 /**
+ * The credited-run depositor — the ONE predicate close's gate registration and
+ * the worker's `story-handoff.js` both call, so they cannot disagree: a
+ * predicted incremental skip runs no suite, so it can never be the depositor.
+ *
+ * @param {{
+ *   config?: object,
+ *   scripts?: Record<string, string>|null,
+ *   cwd?: string,
+ *   baseBranch?: string,
+ *   getChangedFilesImpl?: typeof getChangedFiles,
+ * }} opts
+ * @returns {'coverage-capture'|'test'}
+ */
+export function resolveCreditedDepositor({
+  config,
+  scripts,
+  cwd,
+  baseBranch,
+  getChangedFilesImpl,
+}) {
+  if (!isCoverageCaptureActive(config, scripts)) return 'test';
+  const skip = predictsIncrementalCaptureSkip({
+    config,
+    cwd,
+    baseBranch,
+    ...(getChangedFilesImpl ? { getChangedFilesImpl } : {}),
+  });
+  return skip ? 'test' : 'coverage-capture';
+}
+
+/**
  * Is the `test` gate already credited? Only consulted when coverage-capture is active.
  *
  * @param {{ coverageCaptureActive: boolean } & Parameters<typeof predictsTestEvidenceCredit>[0]} opts
@@ -412,12 +443,13 @@ export function buildDefaultGates({
   // and brings the plain `test` gate back.
   const captureSkipPredicted =
     coverageCaptureActive &&
-    predictsIncrementalCaptureSkip({
+    resolveCreditedDepositor({
       config,
+      scripts,
       cwd,
       baseBranch,
-      ...(getChangedFilesImpl ? { getChangedFilesImpl } : {}),
-    });
+      getChangedFilesImpl,
+    }) === 'test';
   if (captureSkipPredicted) {
     log?.(
       '[close-validation] coverage-capture will take the incremental skip (no changed file under the CRAP target dirs) — registering the plain `test` gate so this close still runs the suite.',

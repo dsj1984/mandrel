@@ -25,8 +25,8 @@ import { fileURLToPath } from 'node:url';
 import { spawnCaptureAsync } from '../child-exec.js';
 import { resolveLintCommand } from '../close-validation/commands.js';
 import {
-  isCoverageCaptureActive,
   isCrapGateEnabled,
+  resolveCreditedDepositor,
 } from '../close-validation/gates.js';
 import {
   orchestrationLogDir,
@@ -65,7 +65,10 @@ const EXIT_CODES = Object.freeze({
 /** The § 5 output signals — a depositor that prints none deposited nothing. */
 const SIGNALS = Object.freeze({
   captureRan: /Wrote content-digest capture stamp/,
-  captureFresh: /skipping capture/,
+  // Only a digest-fresh verdict is credit: the incremental / affected
+  // `no changed files … — skipping capture` lines ran no suite at all.
+  captureFresh:
+    /\bis fresh(?: \((?:incremental|affected)\))? — skipping capture/,
   testRan: /✓ test passed/,
   testFresh: /⏭ test skipped/,
   seated: /seated:\s*(\d+)/,
@@ -320,11 +323,12 @@ async function stepBaseMerge(ctx) {
 /**
  * The depositor close will credit, from the one shared predicate.
  *
- * @param {{ config: object, scripts: Record<string, string>|null }} args
+ * @param {{ config: object, scripts: Record<string, string>|null, cwd: string, getChangedFilesImpl?: Function }} args
  * @returns {'coverage-capture'|'test'}
  */
-function selectCreditedDepositor({ config, scripts }) {
-  return isCoverageCaptureActive(config, scripts) ? 'coverage-capture' : 'test';
+function selectCreditedDepositor({ config, ...probe }) {
+  const baseBranch = config?.project?.baseBranch ?? 'main';
+  return resolveCreditedDepositor({ config, baseBranch, ...probe });
 }
 
 /** @param {object} ctx @returns {Promise<StepResult>} */
@@ -748,6 +752,7 @@ async function defaultBlock({
  *   probeReview?: typeof probeHeldReviewDiff,
  *   computeReview: (input: { storyId: number, cwd: string, config: object }) => Promise<{ written: boolean, path?: string, reason?: string, deposit?: object }>,
  *   readPackageScriptsFn?: typeof readPackageScripts,
+ *   getChangedFilesFn?: typeof import('../changed-files.js').getChangedFiles,
  *   block?: (args: { storyId: number, config: object, reason: string, detail: string }) => Promise<void>,
  *   createProviderFn?: Function,
  *   progress?: (tag: string, msg: string) => void,
@@ -763,6 +768,7 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
     probeReview = probeHeldReviewDiff,
     computeReview,
     readPackageScriptsFn = readPackageScripts,
+    getChangedFilesFn,
     createProviderFn,
     progress = () => {},
     logDir = orchestrationLogDir(config),
@@ -796,6 +802,8 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
     depositor: selectCreditedDepositor({
       config,
       scripts: readPackageScriptsFn(cwd),
+      cwd,
+      getChangedFilesImpl: getChangedFilesFn,
     }),
     writeEvidence: (name, text) => {
       const file = path.join(logDir, `story-handoff-${storyId}-${name}.log`);
