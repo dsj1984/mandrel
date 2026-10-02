@@ -10,6 +10,7 @@ import {
 import {
   describeStampFreshness,
   readHeadCommit,
+  snapshotCapturedTree,
 } from './coverage-capture-delta.js';
 
 /**
@@ -97,9 +98,12 @@ export async function runFullScopeCapture({
   logger.info(
     `[coverage-capture] Coverage at ${crap.coveragePath} is ${describeFreshness(freshness, crap.targetDirs)}; running npm run test:coverage… ${detail}`,
   );
-  // Pre-spawn digest and commit; see `stampCapturedTree`.
-  const preDigest = computeContentDigestImpl(args.cwd, crap.targetDirs);
-  const commit = readHeadCommitImpl(args.cwd);
+  const tree = snapshotCapturedTree({
+    cwd: args.cwd,
+    crap,
+    computeContentDigestImpl,
+    readHeadCommitImpl,
+  });
   const code = await runCaptureImpl({
     cwd: args.cwd,
     coveragePath: crap.coveragePath,
@@ -111,11 +115,10 @@ export async function runFullScopeCapture({
   if (code !== 0) return reportCaptureFailure(code, logger);
 
   stampCapturedTree({
-    preDigest,
+    ...tree,
     cwd: args.cwd,
     targetDirs: crap.targetDirs,
     coveragePath: crap.coveragePath,
-    commit,
     computeContentDigestImpl,
     writeCaptureStampImpl,
     logger,

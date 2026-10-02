@@ -25,8 +25,8 @@ import { fileURLToPath } from 'node:url';
 import { spawnCaptureAsync } from '../child-exec.js';
 import { resolveLintCommand } from '../close-validation/commands.js';
 import {
-  isCoverageCaptureActive,
   isCrapGateEnabled,
+  resolveCreditedDepositor,
 } from '../close-validation/gates.js';
 import {
   orchestrationLogDir,
@@ -65,7 +65,9 @@ const EXIT_CODES = Object.freeze({
 /** The § 5 output signals — a depositor that prints none deposited nothing. */
 const SIGNALS = Object.freeze({
   captureRan: /Wrote content-digest capture stamp/,
-  captureFresh: /skipping capture/,
+  // A `no changed files … — skipping capture` line ran no suite: not credit.
+  captureFresh:
+    /\bis fresh(?: \((?:incremental|affected)\))? — skipping capture/,
   testRan: /✓ test passed/,
   testFresh: /⏭ test skipped/,
   seated: /seated:\s*(\d+)/,
@@ -320,11 +322,12 @@ async function stepBaseMerge(ctx) {
 /**
  * The depositor close will credit, from the one shared predicate.
  *
- * @param {{ config: object, scripts: Record<string, string>|null }} args
+ * @param {{ config: object, scripts: Record<string, string>|null, cwd: string, getChangedFilesImpl?: Function }} args
  * @returns {'coverage-capture'|'test'}
  */
-function selectCreditedDepositor({ config, scripts }) {
-  return isCoverageCaptureActive(config, scripts) ? 'coverage-capture' : 'test';
+function selectCreditedDepositor({ config, ...probe }) {
+  const baseBranch = config?.project?.baseBranch ?? 'main';
+  return resolveCreditedDepositor({ config, baseBranch, ...probe });
 }
 
 /** @param {object} ctx @returns {Promise<StepResult>} */
@@ -421,7 +424,7 @@ async function commitSeatedRows(ctx, total, evidencePath) {
   const creditedPrior = ctx.state.creditHead === ctx.head;
   ctx.head = headSha(ctx) ?? ctx.head;
   ctx.state.seatHead = ctx.head;
-  // The capture stamp digests scorable sources only, so a baseline-JSON-only
+  // Both capture-stamp digests leave `baselines/` out, so a baseline-JSON-only
   // commit keeps the credit it already holds.
   if (creditedPrior && ctx.depositor === 'coverage-capture') {
     ctx.state.creditHead = ctx.head;
@@ -652,7 +655,7 @@ async function stepReview(ctx) {
 /**
  * The run's step order. On the evidence-gate path the `test` credit is keyed
  * on the tree, so seating (static MI) goes first and cannot void it; the
- * capture stamp digests scorable sources only, so a baseline seat after it
+ * capture stamp's digests leave `baselines/` out, so a baseline seat after it
  * keeps the stamp fresh.
  *
  * @param {'coverage-capture'|'test'} depositor
@@ -748,6 +751,7 @@ async function defaultBlock({
  *   probeReview?: typeof probeHeldReviewDiff,
  *   computeReview: (input: { storyId: number, cwd: string, config: object }) => Promise<{ written: boolean, path?: string, reason?: string, deposit?: object }>,
  *   readPackageScriptsFn?: typeof readPackageScripts,
+ *   getChangedFilesFn?: typeof import('../changed-files.js').getChangedFiles,
  *   block?: (args: { storyId: number, config: object, reason: string, detail: string }) => Promise<void>,
  *   createProviderFn?: Function,
  *   progress?: (tag: string, msg: string) => void,
@@ -763,6 +767,7 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
     probeReview = probeHeldReviewDiff,
     computeReview,
     readPackageScriptsFn = readPackageScripts,
+    getChangedFilesFn,
     createProviderFn,
     progress = () => {},
     logDir = orchestrationLogDir(config),
@@ -796,6 +801,8 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
     depositor: selectCreditedDepositor({
       config,
       scripts: readPackageScriptsFn(cwd),
+      cwd,
+      getChangedFilesImpl: getChangedFilesFn,
     }),
     writeEvidence: (name, text) => {
       const file = path.join(logDir, `story-handoff-${storyId}-${name}.log`);

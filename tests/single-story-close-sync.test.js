@@ -1303,11 +1303,14 @@ describe('runBaseSyncPhase — the spent-credit warning (Story #5267/#5278)', ()
    * and ONE full-suite capture stamp before the push, and this sync can spend
    * either — silently, before Story #5267 said so out loud.
    *
-   * `targetDirs` is injected through a stub config because the two credits
-   * are spent on different conditions (Story #5278): any tracked path spends
-   * the evidence, only one under the CRAP scan scope spends the stamp.
+   * A stub config carries `coveragePath` because the two credits are spent
+   * on different conditions (Story #5278, narrowed by #5548): any tracked
+   * path spends the evidence, any path but baseline JSON spends the stamp.
    */
-  async function runWithSync(result, targetDirs = ['lib']) {
+  async function runWithSync(
+    result,
+    crap = { coveragePath: 'coverage/x.json' },
+  ) {
     const lines = [];
     await runBaseSyncPhase({
       cwd: '/repo',
@@ -1318,11 +1321,11 @@ describe('runBaseSyncPhase — the spent-credit warning (Story #5267/#5278)', ()
       provider: {},
       injectedSync: async () => result,
       resolveConfigImpl: () =>
-        targetDirs === null
+        crap === null
           ? (() => {
               throw new Error('unresolvable config');
             })()
-          : { delivery: { quality: { gates: { crap: { targetDirs } } } } },
+          : { delivery: { quality: { gates: { crap } } } },
       progress: (_tag, msg) => lines.push(msg),
     });
     return lines;
@@ -1383,30 +1386,32 @@ describe('runBaseSyncPhase — the spent-credit warning (Story #5267/#5278)', ()
     assert.match(warned[0], /lint\/typecheck evidence/);
   });
 
-  // AC-9 — and the capture stamp only when a merged path is actually scored.
-  it('AC-9: names the capture stamp spent only when a merged path is under targetDirs', async () => {
-    const spent = warnings(
-      await runWithSync({
-        synced: true,
-        kind: 'merge-commit',
-        changedPaths: ['lib/git/x.js', 'README.md'],
-      }),
-    );
-    assert.ok(
-      spent.some((l) => /capture stamp is spent/.test(l)),
-      'a path under the CRAP scan scope spends it',
-    );
+  // AC-9 — and the capture stamp whenever a merged path is a suite input:
+  // Story #5548 — the suite reads docs and CI files too, not only sources.
+  it('AC-9: names the capture stamp spent unless every merged path is baseline JSON', async () => {
+    for (const changedPaths of [
+      ['lib/git/x.js', 'README.md'],
+      ['docs/CHANGELOG.md', '.github/workflows/ci.yml'],
+    ]) {
+      const spent = warnings(
+        await runWithSync({ synced: true, kind: 'merge-commit', changedPaths }),
+      );
+      assert.ok(
+        spent.some((l) => /capture stamp is spent/.test(l)),
+        `${changedPaths.join(', ')} must spend it`,
+      );
+    }
 
     const survives = warnings(
       await runWithSync({
         synced: true,
         kind: 'merge-commit',
-        changedPaths: ['docs/CHANGELOG.md', '.github/workflows/ci.yml'],
+        changedPaths: ['baselines/crap.json', 'baselines/maintainability.json'],
       }),
     );
     assert.ok(
       survives.some((l) => /capture stamp SURVIVES/.test(l)),
-      'a docs/CI-only sync leaves the coverage artifact describing this tree',
+      'a baseline-JSON-only sync leaves the stamp describing this tree',
     );
     assert.equal(
       survives.some((l) => /capture stamp is spent/.test(l)),
@@ -1415,7 +1420,7 @@ describe('runBaseSyncPhase — the spent-credit warning (Story #5267/#5278)', ()
     );
   });
 
-  it('AC-9: an unresolvable scan scope fails closed to "spent"', async () => {
+  it('AC-9: an unresolvable config still names a non-baseline path spent', async () => {
     const warned = warnings(
       await runWithSync(
         {

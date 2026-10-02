@@ -14,7 +14,10 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { buildDefaultGates } from '../../.agents/scripts/lib/close-validation/gates.js';
+import {
+  buildDefaultGates,
+  resolveCreditedDepositor,
+} from '../../.agents/scripts/lib/close-validation/gates.js';
 import { runStoryHandoff } from '../../.agents/scripts/lib/orchestration/story-handoff.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import { runStoryHandoffCli } from '../../.agents/scripts/story-handoff.js';
@@ -134,6 +137,8 @@ function harness({
   },
   config = configFor(),
   cwd = '/work',
+  // `null` is an unreadable change set: no incremental skip is predicted.
+  changed = null,
 } = {}) {
   const runCommand = commandDouble(world, outputs);
   const blocks = [];
@@ -148,6 +153,7 @@ function harness({
       return { written: true, path: '/tmp/story-review.json', deposit };
     },
     readPackageScriptsFn: () => scripts,
+    getChangedFilesFn: () => changed,
     block: async (args) => {
       blocks.push(args);
     },
@@ -397,6 +403,84 @@ describe('story-handoff — one depositor predicate (AC-2)', () => {
     assert.ok(!names({}, CAPTURE_SCRIPTS).includes('test'));
     assert.ok(names({}, { test: 'x' }).includes('test'));
     assert.ok(!names({}, { test: 'x' }).includes('coverage-capture'));
+  });
+});
+
+// Story #5548 — #5544's handoff credited coverage-capture's incremental
+// no-change skip (no suite ran) while close ran the plain `test` gate red.
+describe('story-handoff — a predicted incremental skip is never the depositor', () => {
+  // Default `crap.targetDirs` is `['src']`; none of these sit under it.
+  const OUTSIDE_TARGETS = [
+    '.agents/mods/mandrel-status/index.tsx',
+    'docs/decisions.md',
+  ];
+
+  test('a diff with no file under crap.targetDirs deposits via the evidence-gate test run', async () => {
+    const h = harness({ changed: OUTSIDE_TARGETS });
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 0);
+    assert.equal(envelope.depositor, 'test');
+    assert.ok(spawned(h.runCommand).includes('evidence-gate.js'));
+    assert.ok(!spawned(h.runCommand).includes('coverage-capture.js'));
+    const step = envelope.steps.find((s) => s.name === 'credited-run');
+    assert.equal(step.outcome, 'ran');
+  });
+
+  test('close and the handoff resolve the same depositor from the one predicate', async () => {
+    for (const [changed, expected] of [
+      [OUTSIDE_TARGETS, 'test'],
+      [['src/app.js', ...OUTSIDE_TARGETS], 'coverage-capture'],
+    ]) {
+      const getChangedFilesImpl = () => changed;
+      const predicate = resolveCreditedDepositor({
+        config: configFor(),
+        scripts: CAPTURE_SCRIPTS,
+        cwd: '/work',
+        baseBranch: 'main',
+        getChangedFilesImpl,
+      });
+      assert.equal(predicate, expected);
+      const gates = buildDefaultGates({
+        config: configFor(),
+        packageScripts: CAPTURE_SCRIPTS,
+        cwd: '/work',
+        baseBranch: 'main',
+        getChangedFilesImpl,
+        presentBaselines: [],
+      });
+      const capture = gates.find((g) => g.name === 'coverage-capture');
+      const closeDepositor =
+        gates.some((g) => g.name === 'test') && capture?.skip
+          ? 'test'
+          : 'coverage-capture';
+      assert.equal(closeDepositor, expected);
+      const h = harness({ changed });
+      const { envelope } = await h.run();
+      assert.equal(envelope.depositor, expected);
+      rmSync(path.join(tempRoot, 'orchestration'), {
+        recursive: true,
+        force: true,
+      });
+    }
+  });
+
+  test('a capture that printed only a no-change skip is fix-required, not credit', async () => {
+    for (const stdout of [
+      '[coverage-capture] Incremental mode: no changed files under [src] vs main — skipping capture.',
+      '[coverage-capture] Affected mode: no changed files under [src] vs main — skipping capture.',
+      '[coverage-capture] No changed files under [src] — skipping capture.',
+    ]) {
+      const h = harness({
+        outputs: { 'coverage-capture.js': { status: 0, stdout } },
+      });
+      const { envelope, exitCode } = await h.run();
+      assert.equal(exitCode, 2, stdout);
+      assert.equal(envelope.failedStep, 'credited-run');
+      rmSync(path.join(tempRoot, 'orchestration'), {
+        recursive: true,
+        force: true,
+      });
+    }
   });
 });
 

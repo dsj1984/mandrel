@@ -26,6 +26,7 @@ import {
 } from '../../../.agents/scripts/lib/baselines/writer.js';
 import {
   computeContentDigest,
+  computeTreeDigest,
   isCoverageFresh,
   writeCaptureStamp,
 } from '../../../.agents/scripts/lib/coverage-capture.js';
@@ -420,6 +421,7 @@ describe('capture stamp vs a baseline-refresh commit (AC-6)', () => {
       writeCaptureStamp({
         ...probe,
         digest: computeContentDigest(cwd, targetDirs),
+        treeDigest: computeTreeDigest(cwd, probe.coveragePath),
       }),
     );
     assert.equal(isCoverageFresh({ ...probe, targetDirs }).fresh, true);
@@ -433,6 +435,37 @@ describe('capture stamp vs a baseline-refresh commit (AC-6)', () => {
 
     fs.writeFileSync(path.join(cwd, 'src/a.js'), 'export const a = 2;\n');
     git('commit', '-qam', 'feat: change a');
+    assert.equal(isCoverageFresh({ ...probe, targetDirs }).fresh, false);
+  });
+
+  // Story #5548: the suite reads more than the sources, so a test-only
+  // commit after the capture must void the stamp a baseline commit keeps.
+  it('a test-only commit voids the stamp', () => {
+    const cwd = tempDir();
+    const git = (...args) =>
+      execFileSync('git', args, { cwd, stdio: 'pipe' }).toString();
+    git('init', '-q');
+    git('config', 'user.email', 'seat@test.local');
+    git('config', 'user.name', 'seat');
+    git('config', 'commit.gpgsign', 'false');
+    for (const dir of ['src', 'tests', 'coverage']) {
+      fs.mkdirSync(path.join(cwd, dir));
+    }
+    fs.writeFileSync(path.join(cwd, 'src/a.js'), 'export const a = 1;\n');
+    fs.writeFileSync(path.join(cwd, 'tests/a.test.js'), '// ok\n');
+    fs.writeFileSync(path.join(cwd, 'coverage/coverage-final.json'), '{}\n');
+    git('add', 'src', 'tests');
+    git('commit', '-qm', 'seed');
+    const probe = { coveragePath: 'coverage/coverage-final.json', cwd };
+    const targetDirs = ['src'];
+    writeCaptureStamp({
+      ...probe,
+      digest: computeContentDigest(cwd, targetDirs),
+      treeDigest: computeTreeDigest(cwd, probe.coveragePath),
+    });
+    assert.equal(isCoverageFresh({ ...probe, targetDirs }).fresh, true);
+    fs.writeFileSync(path.join(cwd, 'tests/a.test.js'), 'throw 1;\n');
+    git('commit', '-qam', 'test: break a');
     assert.equal(isCoverageFresh({ ...probe, targetDirs }).fresh, false);
   });
 });

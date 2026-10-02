@@ -9784,6 +9784,12 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
+      "method": "resolveCreditedDepositor",
+      "startLine": 294,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/gates.js",
       "method": "buildQualityPreviewGateEntry",
       "startLine": 311,
       "crap": 3
@@ -11165,6 +11171,12 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-capture-delta.js",
+      "method": "snapshotCapturedTree",
+      "startLine": 45,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-delta.js",
       "method": "stampScopeOf",
       "startLine": 48,
       "crap": 3
@@ -11378,6 +11390,12 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-capture.js",
+      "method": "suiteDigestExcludedDirs",
+      "startLine": 168,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture.js",
       "method": "definedOnly",
       "startLine": 170,
       "crap": 1
@@ -11391,15 +11409,69 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-capture.js",
+      "method": "<anon suiteDigestExcludedDirs/(dir)#0>",
+      "startLine": 173,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture.js",
       "method": "writeCaptureStamp",
       "startLine": 175,
       "crap": 7
     },
     {
       "path": ".agents/scripts/lib/coverage-capture.js",
+      "method": "filterSuiteInputPaths",
+      "startLine": 184,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture.js",
+      "method": "<anon filterSuiteInputPaths/(file)#0>",
+      "startLine": 186,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture.js",
+      "method": "<anon filterSuiteInputPaths/(file)#0/(dir)#0>",
+      "startLine": 188,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture.js",
+      "method": "computeTreeDigest",
+      "startLine": 203,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture.js",
       "method": "readStampForScope",
       "startLine": 206,
       "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture.js",
+      "method": "<anon computeTreeDigest/(dir)#0>",
+      "startLine": 209,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture.js",
+      "method": "<anon computeTreeDigest/(args)#0>",
+      "startLine": 211,
+      "crap": 4,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture.js",
+      "method": "<anon computeTreeDigest/()#0>",
+      "startLine": 231,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/coverage-capture.js",
@@ -11418,6 +11490,12 @@
       "method": "announceUncreditedCapture",
       "startLine": 321,
       "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture.js",
+      "method": "stampMatchesTree",
+      "startLine": 333,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/coverage-capture.js",
@@ -23205,6 +23283,12 @@
       "method": "isHandedBack",
       "startLine": 127,
       "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js",
+      "method": "resolveCoveragePath",
+      "startLine": 136,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js",

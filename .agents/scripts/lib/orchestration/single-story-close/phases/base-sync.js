@@ -9,7 +9,7 @@
 
 import { getQuality } from '../../../config/quality.js';
 import { resolveConfig } from '../../../config-resolver.js';
-import { filterFilesUnderTargets } from '../../../coverage-capture.js';
+import { filterSuiteInputPaths } from '../../../coverage-capture.js';
 import { syncBranchFromBase } from '../../../git/sync-from-base.js';
 import { Logger } from '../../../Logger.js';
 import { AGENT_LABELS } from '../../../label-constants.js';
@@ -85,7 +85,7 @@ export async function runBaseSyncPhase({
   for (const line of buildStampInvalidatedWarning({
     baseBranch,
     result: syncResult,
-    targetDirs: resolveCrapTargetDirs(resolveConfigImpl, syncCwd),
+    coveragePath: resolveCoveragePath(resolveConfigImpl, syncCwd),
   })) {
     progress('SYNC', line);
   }
@@ -127,17 +127,17 @@ function resolveHandedBack({ result, baseConfirmed, handBack }) {
 }
 
 /**
- * The CRAP scoring scope, or `[]` when unresolvable.
+ * The coverage artifact path, or `null` when unresolvable.
  *
  * @param {typeof resolveConfig} resolveConfigImpl
  * @param {string} cwd
- * @returns {string[]}
+ * @returns {string|null}
  */
-function resolveCrapTargetDirs(resolveConfigImpl, cwd) {
+function resolveCoveragePath(resolveConfigImpl, cwd) {
   try {
-    return getQuality(resolveConfigImpl({ cwd }))?.crap?.targetDirs ?? [];
+    return getQuality(resolveConfigImpl({ cwd }))?.crap?.coveragePath ?? null;
   } catch {
-    return [];
+    return null;
   }
 }
 
@@ -146,21 +146,19 @@ const WARNED_PATH_LIMIT = 12;
 /**
  * Warn that the sync spent pre-push credit, or `[]` when it changed nothing.
  * Gate evidence is keyed on the tree, so any tracked path spends it; the
- * full-suite capture stamp is spent only by a path under `crap.targetDirs`.
+ * full-suite capture stamp is spent by any path its tree digest reads —
+ * everything but baseline JSON and the coverage artifact.
  * A content-changing fast-forward warns just as a merge does.
  *
- * @param {{ baseBranch: string, result: { kind?: string, changedPaths?: string[] }, targetDirs?: string[] }} args
+ * @param {{ baseBranch: string, result: { kind?: string, changedPaths?: string[] }, coveragePath?: string|null }} args
  * @returns {string[]} Progress lines, in order. Empty when nothing changed.
  */
-function buildStampInvalidatedWarning({ baseBranch, result, targetDirs }) {
+function buildStampInvalidatedWarning({ baseBranch, result, coveragePath }) {
   const changed = Array.isArray(result?.changedPaths)
     ? result.changedPaths
     : [];
   if (changed.length === 0) return [];
-  const dirs = Array.isArray(targetDirs) ? targetDirs : [];
-  // An unresolvable scope cannot prove the stamp survived: fail closed.
-  const scored =
-    dirs.length === 0 ? changed : filterFilesUnderTargets(changed, dirs);
+  const scored = filterSuiteInputPaths(changed, coveragePath);
   const shown = changed.slice(0, WARNED_PATH_LIMIT);
   const overflow = changed.length - shown.length;
   return [
@@ -170,11 +168,10 @@ function buildStampInvalidatedWarning({ baseBranch, result, targetDirs }) {
       `That evidence cannot be credited; those gates re-run below.`,
     scored.length > 0
       ? `⚠️  The full-suite capture stamp is spent too: ${scored.length} of ` +
-        `those path(s) fall under the CRAP target dirs [${dirs.join(', ')}], ` +
+        `those path(s) are suite inputs (anything but baseline JSON), ` +
         `so the suite re-runs against the merged tree. This is expected, not a fault.`
-      : `⚠️  The full-suite capture stamp SURVIVES: no merged path falls under ` +
-        `the CRAP target dirs [${dirs.join(', ')}], so the coverage artifact still ` +
-        `describes this tree and the suite is not re-run.`,
+      : `⚠️  The full-suite capture stamp SURVIVES: every merged path is ` +
+        `baseline JSON, so the suite already ran on this tree and is not re-run.`,
     ...shown.map((f) => `⚠️    ${f}`),
     ...(overflow > 0 ? [`⚠️    …and ${overflow} more`] : []),
   ];

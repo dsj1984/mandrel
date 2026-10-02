@@ -11,12 +11,14 @@ import {
   COVERAGE_TIMEOUT_EXIT_CODE,
   captureStampPath,
   computeContentDigest,
+  computeTreeDigest,
   describeFreshness,
   filterFilesUnderTargets,
   isCoverageFresh,
   newestSourceMtime,
   reportCaptureFailure,
   runCapture,
+  stampCapturedTree,
   writeCaptureStamp,
 } from '../../.agents/scripts/lib/coverage-capture.js';
 import {
@@ -234,7 +236,7 @@ describe('isCoverageFresh', () => {
         },
         dirs: { [repoPath('src')]: [{ name: 'a.js', kind: 'file' }] },
       });
-    const stampJson = JSON.stringify({ digest: 'abc123' });
+    const stampJson = JSON.stringify({ digest: 'abc123', treeDigest: 't1' });
 
     it('is fresh on digest match even when mtimes say stale', () => {
       const r = isCoverageFresh({
@@ -244,6 +246,7 @@ describe('isCoverageFresh', () => {
         ...baseFs(),
         readFileSync: () => stampJson,
         computeDigest: () => 'abc123',
+        computeTree: () => 't1',
       });
       assert.deepEqual(r, { fresh: true, reason: 'fresh' });
     });
@@ -264,6 +267,7 @@ describe('isCoverageFresh', () => {
         ...fs,
         readFileSync: () => stampJson,
         computeDigest: () => 'different',
+        computeTree: () => 't1',
       });
       assert.deepEqual(r, { fresh: false, reason: 'stale' });
     });
@@ -276,6 +280,7 @@ describe('isCoverageFresh', () => {
         ...baseFs(),
         readFileSync: () => 'not-json{',
         computeDigest: () => 'abc123',
+        computeTree: () => 't1',
       });
       assert.deepEqual(r, { fresh: false, reason: 'unstamped' });
     });
@@ -288,6 +293,7 @@ describe('isCoverageFresh', () => {
         ...baseFs(),
         readFileSync: () => stampJson,
         computeDigest: () => null,
+        computeTree: () => 't1',
       });
       assert.deepEqual(r, { fresh: false, reason: 'unstamped' });
     });
@@ -350,6 +356,7 @@ describe('isCoverageFresh', () => {
         targetDirs,
         cwd: dir,
         computeDigest: () => 'd1',
+        computeTree: () => 't1',
       });
       assert.deepEqual(r, { fresh: false, reason: 'unstamped' });
     });
@@ -363,6 +370,7 @@ describe('isCoverageFresh', () => {
         cwd: dir,
         coveragePath,
         digest: 'd1',
+        treeDigest: 't1',
         scope: 'incremental',
       });
       const incremental = () =>
@@ -372,6 +380,7 @@ describe('isCoverageFresh', () => {
           cwd: dir,
           requireScope: 'incremental',
           computeDigest: () => 'd1',
+          computeTree: () => 't1',
         });
       assert.equal(incremental().fresh, true, 'precondition: stamp credits');
 
@@ -927,6 +936,7 @@ describe('isCoverageFresh — scope asymmetry (Story #4981, AC-4)', () => {
   it('a scoped (incremental) stamp does NOT satisfy the default full-scope probe', () => {
     const stampJson = JSON.stringify({
       digest: 'abc123',
+      treeDigest: 't1',
       scope: 'incremental',
     });
     const r = isCoverageFresh({
@@ -936,6 +946,7 @@ describe('isCoverageFresh — scope asymmetry (Story #4981, AC-4)', () => {
       ...baseFs(),
       readFileSync: () => stampJson,
       computeDigest: () => 'abc123',
+      computeTree: () => 't1',
     });
     assert.deepEqual(r, { fresh: false, reason: 'scope-mismatch' });
   });
@@ -943,6 +954,7 @@ describe('isCoverageFresh — scope asymmetry (Story #4981, AC-4)', () => {
   it('a scoped (incremental) stamp DOES satisfy an incremental probe on digest match', () => {
     const stampJson = JSON.stringify({
       digest: 'abc123',
+      treeDigest: 't1',
       scope: 'incremental',
     });
     const r = isCoverageFresh({
@@ -953,12 +965,17 @@ describe('isCoverageFresh — scope asymmetry (Story #4981, AC-4)', () => {
       ...baseFs(),
       readFileSync: () => stampJson,
       computeDigest: () => 'abc123',
+      computeTree: () => 't1',
     });
     assert.deepEqual(r, { fresh: true, reason: 'fresh' });
   });
 
   it('a full-scope stamp satisfies an incremental probe on digest match (asymmetric)', () => {
-    const stampJson = JSON.stringify({ digest: 'abc123', scope: 'full' });
+    const stampJson = JSON.stringify({
+      digest: 'abc123',
+      treeDigest: 't1',
+      scope: 'full',
+    });
     const r = isCoverageFresh({
       coveragePath,
       targetDirs,
@@ -967,6 +984,7 @@ describe('isCoverageFresh — scope asymmetry (Story #4981, AC-4)', () => {
       ...baseFs(),
       readFileSync: () => stampJson,
       computeDigest: () => 'abc123',
+      computeTree: () => 't1',
     });
     assert.deepEqual(r, { fresh: true, reason: 'fresh' });
   });
@@ -987,8 +1005,13 @@ describe('isCoverageFresh — scope asymmetry (Story #4981, AC-4)', () => {
         requireScope,
         ...baseFs(),
         readFileSync: () =>
-          JSON.stringify({ digest: 'abc123', scope: stampScope }),
+          JSON.stringify({
+            digest: 'abc123',
+            treeDigest: 't1',
+            scope: stampScope,
+          }),
         computeDigest: () => 'abc123',
+        computeTree: () => 't1',
       });
       assert.deepEqual(r, expected);
     });
@@ -1005,8 +1028,9 @@ describe('isCoverageFresh — scope asymmetry (Story #4981, AC-4)', () => {
           ...baseFs(),
           readFileSync: () => JSON.stringify(stamp),
           computeDigest: () => digest,
+          computeTree: () => 't1',
         });
-      const legacy = { digest: 'abc123', scope: 'affected' };
+      const legacy = { digest: 'abc123', treeDigest: 't1', scope: 'affected' };
       assert.deepEqual(
         judge(legacy),
         judge({ ...legacy, commit: 'c'.repeat(40) }),
@@ -1015,7 +1039,7 @@ describe('isCoverageFresh — scope asymmetry (Story #4981, AC-4)', () => {
   });
 
   it('a legacy stamp with no scope field behaves as full-scope (AC-5 back-compat)', () => {
-    const stampJson = JSON.stringify({ digest: 'abc123' });
+    const stampJson = JSON.stringify({ digest: 'abc123', treeDigest: 't1' });
     const r = isCoverageFresh({
       coveragePath,
       targetDirs,
@@ -1023,7 +1047,131 @@ describe('isCoverageFresh — scope asymmetry (Story #4981, AC-4)', () => {
       ...baseFs(),
       readFileSync: () => stampJson,
       computeDigest: () => 'abc123',
+      computeTree: () => 't1',
     });
     assert.deepEqual(r, { fresh: true, reason: 'fresh' });
+  });
+});
+
+// Story #5548 — #5544's handoff credited a stamp whose source digest still
+// matched while the suite's other inputs (a new .tsx, docs, tests) had moved.
+describe('the capture stamp vouches only for the tree the suite ran on', () => {
+  const coveragePath = 'coverage/coverage-final.json';
+  const targetDirs = ['src'];
+  let dir;
+  const git = (...args) =>
+    execFileSync('git', args, { cwd: dir, encoding: 'utf8' });
+  const write = (rel, body) => {
+    fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
+    fs.writeFileSync(path.join(dir, rel), body);
+  };
+  /** A green capture at `scope`: the artifact plus a stamp of this tree. */
+  const stampGreen = (scope) => {
+    write(coveragePath, '{}');
+    const written = stampCapturedTree({
+      preDigest: computeContentDigest(dir, targetDirs),
+      preTreeDigest: computeTreeDigest(dir, coveragePath),
+      cwd: dir,
+      targetDirs,
+      coveragePath,
+      ...(scope === 'full' ? {} : { scope }),
+      computeContentDigestImpl: computeContentDigest,
+      writeCaptureStampImpl: writeCaptureStamp,
+      logger: { info() {}, warn() {}, error() {} },
+    });
+    assert.equal(written, true);
+  };
+  const probe = (requireScope) =>
+    isCoverageFresh({ coveragePath, targetDirs, cwd: dir, requireScope });
+
+  beforeEach(() => {
+    dir = makeTempDir('mandrel-tree-digest-');
+    git('init', '-q');
+    git('config', 'user.email', 't@example.com');
+    git('config', 'user.name', 'T');
+    write('.gitignore', 'coverage/\n');
+    write('src/a.js', 'export const a = 1;\n');
+    write('src/README.md', '# src\n');
+    write('tests/a.test.js', "import '../src/a.js';\n");
+    git('add', '-A');
+    git('commit', '-q', '-m', 'init');
+  });
+  afterEach(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  for (const scope of ['full', 'incremental', 'affected']) {
+    it(`${scope}: fresh on the stamped tree; stale once a test, a .md or a non-scorable target file moves`, () => {
+      for (const [rel, body, commit] of [
+        ['tests/a.test.js', "import '../src/a.js';\nthrow 1;\n", false],
+        ['docs/decisions.md', '# ADR\n', true],
+        ['src/README.md', '# moved\n', true],
+        ['mods/status/index.tsx', 'export {};\n', false],
+      ]) {
+        stampGreen(scope);
+        assert.deepEqual(probe(scope), { fresh: true, reason: 'fresh' });
+        write(rel, body);
+        if (commit) {
+          git('add', '-A');
+          git('commit', '-q', '-m', `edit ${rel}`);
+        }
+        assert.equal(
+          computeContentDigest(dir, targetDirs),
+          JSON.parse(
+            fs.readFileSync(captureStampPath(dir, coveragePath), 'utf8'),
+          ).digest,
+          `precondition: ${rel} leaves the source digest unchanged`,
+        );
+        assert.deepEqual(
+          probe(scope),
+          { fresh: false, reason: 'stale' },
+          `${rel} must void the ${scope} stamp`,
+        );
+      }
+    });
+  }
+
+  it('a baseline-JSON commit (seat or close write-back) keeps the stamp fresh', () => {
+    stampGreen('full');
+    write('baselines/crap.json', '{"rows":[]}\n');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'chore(baselines): baseline-refresh: seat');
+    assert.deepEqual(probe('full'), { fresh: true, reason: 'fresh' });
+  });
+
+  it('a gitignored file never moves the tree digest', () => {
+    const before = computeTreeDigest(dir, coveragePath);
+    write('coverage/other.json', '{}');
+    assert.equal(computeTreeDigest(dir, coveragePath), before);
+  });
+
+  it('a stamp with no treeDigest reads stale, never fresh', () => {
+    write(coveragePath, '{}');
+    writeCaptureStamp({
+      cwd: dir,
+      coveragePath,
+      digest: computeContentDigest(dir, targetDirs),
+    });
+    assert.deepEqual(probe('full'), { fresh: false, reason: 'stale' });
+  });
+
+  it('an unavailable tree digest confirms nothing', () => {
+    stampGreen('full');
+    const r = isCoverageFresh({
+      coveragePath,
+      targetDirs,
+      cwd: dir,
+      computeTree: () => null,
+    });
+    assert.deepEqual(r, { fresh: false, reason: 'stale' });
+  });
+
+  it('a written stamp carries both digests', () => {
+    stampGreen('full');
+    const stamp = JSON.parse(
+      fs.readFileSync(captureStampPath(dir, coveragePath), 'utf8'),
+    );
+    assert.equal(typeof stamp.digest, 'string');
+    assert.equal(stamp.treeDigest, computeTreeDigest(dir, coveragePath));
   });
 });
