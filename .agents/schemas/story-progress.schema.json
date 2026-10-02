@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/story-progress.schema.json",
+  "title": "story-progress",
+  "description": "The live progress record a Story's handoff and close rewrite at every step or phase change (Story #5553), at <tempRoot>/orchestration/story-progress-<id>.json. It exists because push, PR, review, auto-merge and the merge wait leave nothing on disk until the terminal envelope. Advisory only: nothing in Mandrel reads it to decide anything, every write is best effort, and each write is atomic (a <file>.tmp sibling renamed over the target).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "storyId",
+    "stage",
+    "phase",
+    "stageStartedAt",
+    "phaseStartedAt",
+    "prNumber",
+    "updatedAt"
+  ],
+  "properties": {
+    "kind": { "type": "string", "const": "story-progress" },
+    "storyId": { "type": "integer", "minimum": 1 },
+    "stage": {
+      "type": "string",
+      "enum": ["handoff", "close"],
+      "description": "handoff — the worker's story-handoff.js run; close — single-story-close.js."
+    },
+    "phase": {
+      "type": "string",
+      "minLength": 1,
+      "description": "For close, the phase name close passes to setPhase (the phaseDurations keys). For handoff, the step name: preflight, base-merge, credited-run, seat, push, review."
+    },
+    "stageStartedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When this handoff or close run started; fixed for the run."
+    },
+    "phaseStartedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the current phase started; resets on each phase change."
+    },
+    "prNumber": {
+      "type": ["integer", "null"],
+      "minimum": 1,
+      "description": "The Story PR's number from the moment close parses it; null before then and throughout handoff."
+    },
+    "updatedAt": { "type": "string", "format": "date-time" }
+  }
+}

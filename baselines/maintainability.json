@@ -1615,6 +1615,10 @@
       "mi": 93.163
     },
     {
+      "path": ".agents/scripts/lib/orchestration/story-progress.js",
+      "mi": 103.422
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/story-reachability.js",
       "mi": 105.753
     },

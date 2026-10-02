@@ -38,6 +38,7 @@ import { getStoryBranch, gitSpawn } from '../git-utils.js';
 import { readPackageScripts } from '../npm-scripts.js';
 import { TIMEOUT_EXIT_CODE } from '../process-group.js';
 import { probeHeldReviewDiff } from './review-deposit.js';
+import { createStoryProgress, handoffStepName } from './story-progress.js';
 import {
   STATE_LABELS,
   transitionTicketState,
@@ -815,7 +816,13 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
   const steps = [];
   let stop = precheck(ctx);
   if (stop) steps.push(stop);
+  const storyProgress = createStoryProgress({
+    storyId,
+    stage: 'handoff',
+    config,
+  });
   for (const step of stop ? [] : stepOrder(ctx.depositor)) {
+    storyProgress.phase(handoffStepName(step));
     const result = await step(ctx);
     steps.push(result);
     progress(result.name, `${result.outcome} — ${result.detail}`);

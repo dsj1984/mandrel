@@ -28,7 +28,7 @@
  */
 
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -660,6 +660,95 @@ describe('runSingleStoryClose orchestration', () => {
     );
     assert.equal(patch.state, 'open');
     assert.equal(patch.state_reason, null);
+  });
+
+  it('Story #5553 AC-1/AC-3 — rewrites story-progress at each close phase, adding the PR number once parsed', async (t) => {
+    const progressFile = path.join(
+      tempRoot,
+      'orchestration',
+      'story-progress-1234.json',
+    );
+    // Each gh call is a poll from a live reader mid-close.
+    const seen = [];
+    const gh = makeFakeGh((args) => {
+      seen.push({
+        call: args[1],
+        record: existsSync(progressFile)
+          ? JSON.parse(readFileSync(progressFile, 'utf8'))
+          : null,
+      });
+      if (args[1] === 'list') return [];
+      if (args[1] === 'create')
+        return 'https://github.com/owner/repo/pull/123\n';
+      if (args[1] === 'merge') return 'ok';
+      throw new Error(`unexpected gh: ${args.join(' ')}`);
+    });
+    t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
+    mockCloseValidation(t, defaultCloseValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
+    const { runSingleStoryClose } = await import(`${SUT_URL}?t=progress`);
+
+    const { success } = await runSingleStoryClose({
+      storyId: 1234,
+      cwd: '/repo',
+      skipValidation: true,
+      skipSync: true,
+      noWaitForMerge: true,
+      injectedProvider: makeFakeProvider(),
+      injectedConfig: fakeConfig(),
+      injectedRunCodeReview: noopReview(),
+      injectedGh: gh,
+    });
+    assert.equal(success, true);
+
+    const atCreate = seen.find((s) => s.call === 'create').record;
+    assert.equal(atCreate.stage, 'close');
+    assert.equal(atCreate.phase, 'pull-request');
+    assert.equal(atCreate.prNumber, null, 'no PR number before it is parsed');
+    const atMerge = seen.find((s) => s.call === 'merge').record;
+    assert.equal(atMerge.phase, 'auto-merge');
+    assert.equal(atMerge.prNumber, 123);
+    assert.equal(atMerge.stageStartedAt, atCreate.stageStartedAt);
+    assert.ok(atMerge.phaseStartedAt >= atCreate.phaseStartedAt);
+    assert.equal(existsSync(`${progressFile}.tmp`), false);
+  });
+
+  it('Story #5553 AC-4 — an unwritable progress target leaves the close outcome unchanged', async (t) => {
+    const progressFile = path.join(
+      tempRoot,
+      'orchestration',
+      'story-progress-1234.json',
+    );
+    // A directory squatting on the target fails every rename, portably.
+    mkdirSync(progressFile, { recursive: true });
+    const gh = makeFakeGh((args) => {
+      if (args[1] === 'list') return [];
+      if (args[1] === 'create')
+        return 'https://github.com/owner/repo/pull/123\n';
+      if (args[1] === 'merge') return 'ok';
+      throw new Error(`unexpected gh: ${args.join(' ')}`);
+    });
+    t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
+    mockCloseValidation(t, defaultCloseValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
+    const { runSingleStoryClose } = await import(
+      `${SUT_URL}?t=progress-unwritable`
+    );
+
+    const { success, result } = await runSingleStoryClose({
+      storyId: 1234,
+      cwd: '/repo',
+      skipValidation: true,
+      skipSync: true,
+      noWaitForMerge: true,
+      injectedProvider: makeFakeProvider(),
+      injectedConfig: fakeConfig(),
+      injectedRunCodeReview: noopReview(),
+      injectedGh: gh,
+    });
+    assert.equal(success, true);
+    assert.equal(result.prNumber, 123);
+    assert.equal(result.autoMergeEnabled, true);
   });
 
   it('returns noop early when the Story is already closed', async (t) => {
@@ -2215,6 +2304,48 @@ describe('runSingleStoryClose — the lease is held until the merge confirms (St
     assert.equal(terminal.gates.validation, 'skipped');
     assert.equal(result.prNumber, 864);
     assert.equal(result.worktreeReaped, false, 'nothing was reaped');
+  });
+
+  it('a landed-PR probe whose gh read fails falls through to the worktree restore', async (t) => {
+    t.mock.module(GIT_UTILS_URL, {
+      namedExports: {
+        ...defaultGitUtilsMock().namedExports,
+        gitSpawn: (_cwd, ...args) =>
+          args[0] === 'ls-remote'
+            ? { status: 2, stdout: '', stderr: '' }
+            : defaultGitUtilsMock().namedExports.gitSpawn(_cwd, ...args),
+      },
+    });
+    mockCloseValidation(t, defaultCloseValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
+    const gh = makeFakeGh(() => {
+      throw new Error('gh unreachable');
+    });
+    const { runSingleStoryClose } = await import(
+      `${SUT_URL}?t=landed-probe-read-failure`
+    );
+    await assert.rejects(
+      runSingleStoryClose({
+        storyId: 4867,
+        cwd: tempRoot,
+        injectedProvider: makeFakeProvider({
+          initialStory: {
+            id: 4867,
+            state: 'open',
+            title: 'probe read fails',
+            labels: ['agent::executing'],
+          },
+        }),
+        injectedConfig: fakeConfig({
+          worktreeRoot: '.worktrees',
+          worktreeEnabled: true,
+        }),
+        injectedGh: gh,
+        injectedRunCodeReview: noopReview(),
+      }),
+      // A failed read is "not merged": the restore runs and is what fails.
+      /\[worktree-restore\] cannot recreate the story-4867 worktree/,
+    );
   });
 
   // Two guards, each sufficient: an OPEN PR on the head (the remote branch
