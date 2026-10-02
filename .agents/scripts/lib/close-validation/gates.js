@@ -67,17 +67,14 @@ export function isCrapGateEnabled(config) {
 }
 
 /**
- * The credited-run depositor predicate — the ONE home, shared by close's gate
- * registration and the worker's `story-handoff.js`, so the two cannot pick
- * different depositors: coverage-capture runs the suite when the CRAP gate is
- * on AND a `test:coverage` script exists; any other project takes the plain
- * `test` gate (the evidence-gate `npm test` credit).
+ * Coverage-capture registers when the CRAP gate is on AND a `test:coverage`
+ * script exists; {@link resolveCreditedDepositor} builds on it.
  *
  * @param {object|undefined|null} config - Canonical resolved config.
  * @param {Record<string, string>|null|undefined} scripts - `package.json` scripts.
  * @returns {boolean}
  */
-export function isCoverageCaptureActive(config, scripts) {
+function isCoverageCaptureActive(config, scripts) {
   return isCrapGateEnabled(config) && hasNpmScript(scripts, 'test:coverage');
 }
 
