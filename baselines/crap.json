@@ -5699,6 +5699,19 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
+      "method": "isInCrapScope",
+      "startLine": 203,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
+      "method": "<anon isInCrapScope/(dir)#0>",
+      "startLine": 206,
+      "crap": 4,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
       "method": "buildCrapSeatScorer",
       "startLine": 206,
       "crap": 1
@@ -5714,6 +5727,13 @@
       "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
       "method": "<anon buildCrapSeatScorer/(files)#0/(requireScope)#0>",
       "startLine": 219,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
+      "method": "<anon buildCrapSeatScorer/(files)#0/(file)#0>",
+      "startLine": 243,
       "crap": 1,
       "anonymous": true
     },
