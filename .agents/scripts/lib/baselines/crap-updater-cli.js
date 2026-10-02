@@ -190,6 +190,27 @@ export function buildCrapUpdaterScorer(
 const CAPTURE_SCOPES = ['full', 'incremental', 'affected'];
 
 /**
+ * The coverage artifact when any capture stamp marks it fresh for the
+ * current tree; otherwise `null`.
+ *
+ * @param {{coveragePath: string, targetDirs: string[]}} options
+ * @param {{isFresh: Function, loadCoverage: Function, cwd: string}} deps
+ * @returns {object|null}
+ */
+function loadFreshCoverage(options, { isFresh, loadCoverage, cwd }) {
+  const fresh = CAPTURE_SCOPES.some(
+    (requireScope) =>
+      isFresh({
+        coveragePath: options.coveragePath,
+        targetDirs: options.targetDirs,
+        cwd,
+        requireScope,
+      }).fresh,
+  );
+  return fresh ? loadCoverage(path.resolve(cwd, options.coveragePath)) : null;
+}
+
+/**
  * Whether `file` (repo-relative) is one the CRAP scan would score: a scorable
  * source under a `targetDirs` entry and not ignored. It may over-include
  * against the walk's directory skips — that only keeps the refusal, never
@@ -242,18 +263,7 @@ export function buildCrapSeatScorer(
   return async (files) => {
     const inScope = files.filter((file) => isInCrapScope(file, options, cwd));
     if (inScope.length === 0) return [];
-    const fresh = CAPTURE_SCOPES.some(
-      (requireScope) =>
-        isFresh({
-          coveragePath: options.coveragePath,
-          targetDirs: options.targetDirs,
-          cwd,
-          requireScope,
-        }).fresh,
-    );
-    const coverage = fresh
-      ? loadCoverage(path.resolve(cwd, options.coveragePath))
-      : null;
+    const coverage = loadFreshCoverage(options, { isFresh, loadCoverage, cwd });
     if (!coverage) {
       throw new SeatRefusal(
         `[CRAP] --seat-missing refused: no coverage artifact at ${options.coveragePath} is fresh for the current tree ` +
