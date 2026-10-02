@@ -229,6 +229,21 @@ export function storyReviewDepositPath(sid, config) {
   );
 }
 
+/**
+ * Live phase record for a Story's handoff or close. The trailing
+ * `-<id>` keys it to the Story for the retention purge.
+ *
+ * @param {number} sid
+ * @param {object} [config]
+ * @returns {string}
+ */
+export function storyProgressPath(sid, config) {
+  return path.join(
+    orchestrationLogDir(config),
+    `story-progress-${storyId(sid)}.json`,
+  );
+}
+
 const runId = (id) => {
   if (!Number.isInteger(id) || id <= 0) {
     throw new Error(`[temp-paths] runId must be a positive integer; got ${id}`);

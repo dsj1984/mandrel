@@ -9,7 +9,7 @@
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -801,5 +801,51 @@ describe('story-handoff — the default block writes the label and the friction 
     const { exitCode } = await h.run();
     assert.equal(exitCode, 2);
     assert.deepEqual(touched, []);
+  });
+});
+
+describe('story-handoff — the story-progress record (Story #5553)', () => {
+  const progressFile = () =>
+    path.join(tempRoot, 'orchestration', `story-progress-${STORY}.json`);
+
+  test('AC-2: rewrites the record with stage handoff and the step name before each step runs', async () => {
+    const h = harness();
+    const observed = [];
+    const peek = () => {
+      const record = JSON.parse(readFileSync(progressFile(), 'utf8'));
+      assert.equal(record.stage, 'handoff');
+      assert.equal(record.storyId, STORY);
+      assert.equal(record.prNumber, null);
+      if (observed.at(-1) !== record.phase) observed.push(record.phase);
+    };
+    const { runCommand, syncFromBase, computeReview } = h.deps;
+    h.deps.runCommand = async (...args) => {
+      peek();
+      return runCommand(...args);
+    };
+    h.deps.syncFromBase = async (...args) => {
+      peek();
+      return syncFromBase(...args);
+    };
+    h.deps.computeReview = async (...args) => {
+      peek();
+      return computeReview(...args);
+    };
+    const { envelope } = await h.run();
+    assert.equal(envelope.status, 'ready');
+    assert.deepEqual(observed, stepNames(envelope));
+  });
+
+  test('AC-4: an unwritable progress target leaves the envelope and exit code unchanged', async () => {
+    const baseline = await harness().run();
+    rmSync(path.join(tempRoot, 'orchestration'), {
+      recursive: true,
+      force: true,
+    });
+    // A directory squatting on the target fails every rename, portably.
+    mkdirSync(progressFile(), { recursive: true });
+    const blocked = await harness().run();
+    assert.equal(blocked.exitCode, baseline.exitCode);
+    assert.deepEqual(blocked.envelope, baseline.envelope);
   });
 });

@@ -10796,10 +10796,22 @@
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
+      "method": "storyReviewDepositPath",
+      "startLine": 225,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon (id)#2>",
       "startLine": 235,
       "crap": 3,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/config/temp-paths.js",
+      "method": "storyProgressPath",
+      "startLine": 240,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
@@ -26203,6 +26215,52 @@
       "method": "composeStoryInitResult",
       "startLine": 30,
       "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-progress.js",
+      "method": "handoffStepName",
+      "startLine": 29,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-progress.js",
+      "method": "<anon handoffStepName/(c,i)#0>",
+      "startLine": 32,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-progress.js",
+      "method": "writeStoryProgress",
+      "startLine": 43,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-progress.js",
+      "method": "<anon writeStoryProgress/(msg)#0>",
+      "startLine": 45,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-progress.js",
+      "method": "createStoryProgress",
+      "startLine": 75,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-progress.js",
+      "method": "<anon createStoryProgress/(msg)#0>",
+      "startLine": 89,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-progress.js",
+      "method": "<anon createStoryProgress/()#0>",
+      "startLine": 98,
+      "crap": 3,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-reachability.js",
