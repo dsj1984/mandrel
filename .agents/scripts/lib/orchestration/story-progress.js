@@ -16,10 +16,7 @@ import path from 'node:path';
 import { storyProgressPath } from '../config/temp-paths.js';
 import { Logger } from '../Logger.js';
 
-export const STORY_PROGRESS_KIND = 'story-progress';
-
-/** The two stages that write the record. */
-export const STORY_PROGRESS_STAGES = Object.freeze(['handoff', 'close']);
+const STORY_PROGRESS_KIND = 'story-progress';
 
 /**
  * A handoff step's reported name from its function name: `stepBaseMerge` →
@@ -43,7 +40,7 @@ export function handoffStepName(step) {
  * @param {{ fsImpl?: typeof fs, debug?: (msg: string) => void }} [deps]
  * @returns {boolean} whether the record landed
  */
-export function writeStoryProgress(file, record, deps = {}) {
+function writeStoryProgress(file, record, deps = {}) {
   const fsImpl = deps.fsImpl ?? fs;
   const debug = deps.debug ?? ((msg) => Logger.debug(msg));
   const tmp = `${file}.tmp`;

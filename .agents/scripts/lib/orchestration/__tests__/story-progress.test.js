@@ -15,12 +15,7 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import { storyProgressPath } from '../../config/temp-paths.js';
 import { collectTempEntries } from '../../temp-retention.js';
 import { makeTempDir } from '../../test-temp.js';
-import {
-  createStoryProgress,
-  handoffStepName,
-  STORY_PROGRESS_KIND,
-  writeStoryProgress,
-} from '../story-progress.js';
+import { createStoryProgress, handoffStepName } from '../story-progress.js';
 
 let tempRoot;
 let config;
@@ -58,7 +53,8 @@ describe('storyProgressPath', () => {
 
   it('AC-5: retention classifies the file as Story-keyed for its id', async () => {
     const file = storyProgressPath(5553, config);
-    assert.equal(writeStoryProgress(file, { kind: STORY_PROGRESS_KIND }), true);
+    const rec = createStoryProgress({ storyId: 5553, stage: 'close', config });
+    assert.equal(rec.phase('push'), true);
     const { entries, unrecognized } = await collectTempEntries({ tempRoot });
     const entry = entries.find((e) => e.path === file);
     assert.ok(entry, 'the progress file is classified');
@@ -68,9 +64,11 @@ describe('storyProgressPath', () => {
   });
 });
 
-describe('writeStoryProgress', () => {
+describe('the atomic best-effort write', () => {
+  const recorder = (deps = {}) =>
+    createStoryProgress({ storyId: 1, stage: 'close', config, ...deps });
+
   it('AC-3: writes a tmp sibling, then renames it over the target', () => {
-    const file = path.join(tempRoot, 'orchestration', 'story-progress-1.json');
     const ops = [];
     const fsImpl = {
       ...fs,
@@ -83,41 +81,32 @@ describe('writeStoryProgress', () => {
         return fs.renameSync(from, to);
       },
     };
-    assert.equal(writeStoryProgress(file, { a: 1 }, { fsImpl }), true);
+    const rec = recorder({ fsImpl });
+    assert.equal(rec.phase('push'), true);
     assert.deepEqual(ops, [
-      ['write', `${file}.tmp`],
-      ['rename', `${file}.tmp`, file],
+      ['write', `${rec.file}.tmp`],
+      ['rename', `${rec.file}.tmp`, rec.file],
     ]);
-    assert.deepEqual(readRecord(file), { a: 1 });
-    assert.equal(fs.existsSync(`${file}.tmp`), false);
+    assert.equal(readRecord(rec.file).phase, 'push');
+    assert.equal(fs.existsSync(`${rec.file}.tmp`), false);
   });
 
   it('AC-4: swallows an fs error, logs it at debug, and cleans the tmp', () => {
-    const file = path.join(tempRoot, 'orchestration', 'story-progress-1.json');
-    // A directory squatting on the target makes the rename fail portably.
-    fs.mkdirSync(file, { recursive: true });
     const debugs = [];
-    const landed = writeStoryProgress(
-      file,
-      { a: 1 },
-      { debug: (m) => debugs.push(m) },
-    );
-    assert.equal(landed, false);
+    const rec = recorder({ debug: (m) => debugs.push(m) });
+    // A directory squatting on the target makes the rename fail portably.
+    fs.mkdirSync(rec.file, { recursive: true });
+    assert.equal(rec.phase('push'), false);
     assert.equal(debugs.length, 1);
     assert.match(debugs[0], /\[story-progress\] write skipped/);
-    assert.equal(fs.existsSync(`${file}.tmp`), false);
+    assert.equal(fs.existsSync(`${rec.file}.tmp`), false);
   });
 
   it('AC-4: an unwritable orchestration folder never throws', () => {
-    const blocker = path.join(tempRoot, 'orchestration');
-    fs.writeFileSync(blocker, 'not a dir');
-    assert.doesNotThrow(() =>
-      writeStoryProgress(
-        path.join(blocker, 'story-progress-1.json'),
-        {},
-        { debug: () => {} },
-      ),
-    );
+    fs.writeFileSync(path.join(tempRoot, 'orchestration'), 'not a dir');
+    const rec = recorder({ debug: () => {} });
+    assert.doesNotThrow(() => rec.phase('push'));
+    assert.doesNotThrow(() => rec.prNumber(5));
   });
 });
 

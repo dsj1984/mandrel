@@ -21,11 +21,7 @@ import { fileURLToPath } from 'node:url';
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 
-import {
-  createStoryProgress,
-  STORY_PROGRESS_KIND,
-  STORY_PROGRESS_STAGES,
-} from '../../.agents/scripts/lib/orchestration/story-progress.js';
+import { createStoryProgress } from '../../.agents/scripts/lib/orchestration/story-progress.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -88,8 +84,14 @@ function assertValid(record) {
 
 describe('story-progress — the record contract', () => {
   it('the schema and the writer agree on the kind and the stage vocabulary', () => {
-    assert.equal(SCHEMA.properties.kind.const, STORY_PROGRESS_KIND);
-    assert.deepEqual(SCHEMA.properties.stage.enum, [...STORY_PROGRESS_STAGES]);
+    assert.deepEqual(SCHEMA.properties.stage.enum, ['handoff', 'close']);
+    for (const stage of SCHEMA.properties.stage.enum) {
+      const rec = createStoryProgress({ storyId: 5553, stage, config });
+      rec.phase('push');
+      const record = readRecord(rec.file);
+      assert.equal(record.kind, SCHEMA.properties.kind.const);
+      assert.equal(record.stage, stage);
+    }
   });
 
   it('AC-3: every close-phase record validates, before and after the PR number', () => {
