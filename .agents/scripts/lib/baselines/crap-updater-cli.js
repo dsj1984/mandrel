@@ -11,6 +11,8 @@ import { isCoverageFresh } from '../coverage-capture.js';
 import { loadCoverage as loadCoverageDefault } from '../coverage-utils.js';
 import { checkResolutionFloor, scanAndScore } from '../crap-utils.js';
 import { Logger } from '../Logger.js';
+import { isIgnoredByGlobs } from '../maintainability-utils.js';
+import { isScorableSourceFile } from '../source-extensions.js';
 import { parseDiffScopeFlag } from './diff-scope-cli.js';
 import {
   checkSeatResolution,
@@ -188,10 +190,59 @@ export function buildCrapUpdaterScorer(
 const CAPTURE_SCOPES = ['full', 'incremental', 'affected'];
 
 /**
+ * The coverage artifact when any capture stamp marks it fresh for the
+ * current tree; otherwise `null`.
+ *
+ * @param {{coveragePath: string, targetDirs: string[]}} options
+ * @param {{isFresh: Function, loadCoverage: Function, cwd: string}} deps
+ * @returns {object|null}
+ */
+function loadFreshCoverage(options, { isFresh, loadCoverage, cwd }) {
+  const fresh = CAPTURE_SCOPES.some(
+    (requireScope) =>
+      isFresh({
+        coveragePath: options.coveragePath,
+        targetDirs: options.targetDirs,
+        cwd,
+        requireScope,
+      }).fresh,
+  );
+  return fresh ? loadCoverage(path.resolve(cwd, options.coveragePath)) : null;
+}
+
+/**
+ * Whether `file` (repo-relative) is one the CRAP scan would score: a scorable
+ * source under a `targetDirs` entry and not ignored. It may over-include
+ * against the walk's directory skips — that only keeps the refusal, never
+ * seats an unmeasured file.
+ *
+ * @param {string} file
+ * @param {{targetDirs: string[], ignoreGlobs: string[]}} options
+ * @param {string} cwd
+ * @returns {boolean}
+ */
+function isInCrapScope(file, { targetDirs, ignoreGlobs }, cwd) {
+  if (!isScorableSourceFile(file)) return false;
+  const abs = path.resolve(cwd, file);
+  const underTarget = targetDirs.some((dir) => {
+    const rel = path.relative(path.resolve(cwd, dir), abs);
+    return (
+      rel !== '' &&
+      rel !== '..' &&
+      !rel.startsWith(`..${path.sep}`) &&
+      !path.isAbsolute(rel)
+    );
+  });
+  return underTarget && !isIgnoredByGlobs(abs, ignoreGlobs, cwd);
+}
+
+/**
  * The `--seat-missing` scorer: refuses (throws {@link SeatRefusal}) unless
  * the coverage artifact is fresh for the current tree and every in-scope
  * method resolved a coverage entry — a wrong-coordinate row stays wrong even
- * when it is only inserted.
+ * when it is only inserted. A diff with no in-scope file seats nothing and
+ * never consults coverage: affected-mode capture rightly writes no artifact
+ * for it.
  *
  * @param {ReturnType<typeof resolveCrapUpdaterOptions>} options
  * @param {{loadCoverage: Function, scan?: Function, isFresh?: Function,
@@ -210,22 +261,13 @@ export function buildCrapSeatScorer(
 ) {
   const fixCommand = `node .agents/scripts/coverage-capture.js --cwd ${cwd}`;
   return async (files) => {
-    const fresh = CAPTURE_SCOPES.some(
-      (requireScope) =>
-        isFresh({
-          coveragePath: options.coveragePath,
-          targetDirs: options.targetDirs,
-          cwd,
-          requireScope,
-        }).fresh,
-    );
-    const coverage = fresh
-      ? loadCoverage(path.resolve(cwd, options.coveragePath))
-      : null;
+    const inScope = files.filter((file) => isInCrapScope(file, options, cwd));
+    if (inScope.length === 0) return [];
+    const coverage = loadFreshCoverage(options, { isFresh, loadCoverage, cwd });
     if (!coverage) {
       throw new SeatRefusal(
         `[CRAP] --seat-missing refused: no coverage artifact at ${options.coveragePath} is fresh for the current tree ` +
-          `(method resolution unmeasured; unresolved files: ${files.join(', ')}).\n` +
+          `(method resolution unmeasured; unresolved files: ${inScope.join(', ')}).\n` +
           `Fix: re-capture coverage for the current tree — ${fixCommand}`,
       );
     }
@@ -235,7 +277,7 @@ export function buildCrapSeatScorer(
       requireCoverage: options.requireCoverage,
       cwd,
       ignoreGlobs: options.ignoreGlobs,
-      scopeFiles: files,
+      scopeFiles: inScope,
     });
     reportScanSummary(summary, logger);
     const refusal = checkSeatResolution(summary.resolution, fixCommand);
