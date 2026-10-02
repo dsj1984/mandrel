@@ -230,7 +230,7 @@ export function storyReviewDepositPath(sid, config) {
 }
 
 /**
- * Live phase record for a Story's handoff or close (Story #5553). The trailing
+ * Live phase record for a Story's handoff or close. The trailing
  * `-<id>` keys it to the Story for the retention purge.
  *
  * @param {number} sid

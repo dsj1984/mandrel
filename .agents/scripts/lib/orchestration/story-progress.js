@@ -1,5 +1,5 @@
 /**
- * The live story-progress record (Story #5553): which handoff step or close
+ * The live story-progress record: which handoff step or close
  * phase a Story is in right now, so live tooling can see the post-validation
  * close phases that otherwise leave nothing on disk until the terminal
  * envelope. Shape: `.agents/schemas/story-progress.schema.json`.
