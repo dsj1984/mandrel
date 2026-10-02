@@ -97,8 +97,13 @@ const WEB_FRAMEWORK_PACKAGES = Object.freeze([
 
 const WEB_ASSET_EXTENSIONS = Object.freeze(['.html', '.css', '.jsx', '.tsx']);
 
-/** A dependency's or fixture's asset says nothing about the consumer's own surface. */
+/**
+ * A dependency's or fixture's asset says nothing about the consumer's own
+ * surface — nor does the synced Mandrel payload (`.agents/`), whose beta mods
+ * ship `.tsx` hook modules.
+ */
 const WEB_SCAN_SKIP_DIRS = Object.freeze([
+  '.agents',
   'node_modules',
   '.git',
   '.worktrees',

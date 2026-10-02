@@ -1,0 +1,9 @@
+{
+  "name": "mandrel-status",
+  "version": "0.1.0",
+  "description": "Beta, read-only: shows the current /mandrel-deliver Story above the prompt",
+  "author": {
+    "name": "Mandrel"
+  },
+  "types": "./types/index.d.ts"
+}

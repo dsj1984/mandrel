@@ -201,6 +201,15 @@ test('probe: a .css under a test directory is NOT a web surface', () => {
   assert.equal(hasWebSurface({ config: null, projectRoot: root }), false);
 });
 
+test('probe: a .tsx in the synced .agents/ payload is NOT a web surface', () => {
+  const root = fixtureRoot({
+    'package.json': JSON.stringify({ name: 'cli' }),
+    '.agents/mods/mandrel-status/hooks/register.tsx': 'export {};',
+    'src/index.js': 'export default 1;',
+  });
+  assert.equal(hasWebSurface({ config: null, projectRoot: root }), false);
+});
+
 test('probe: a Node-only consumer is not web-capable', () => {
   const root = fixtureRoot({
     'package.json': JSON.stringify({
