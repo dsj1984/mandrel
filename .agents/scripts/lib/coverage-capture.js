@@ -249,9 +249,8 @@ export function computeTreeDigest(cwd, coveragePath, io = {}) {
 const nonEmpty = (value) => typeof value === 'string' && value.length > 0;
 
 /** Scoped-stamp fields, each written only when it carries a value. */
-function optionalStampFields({ scope, files, ref, commit, treeDigest }) {
+function optionalStampFields({ scope, files, ref, commit }) {
   const out = {};
-  if (nonEmpty(treeDigest)) out.treeDigest = treeDigest;
   if (scope !== undefined) out.scope = scope;
   if (Array.isArray(files)) out.files = [...files].sort();
   if (nonEmpty(ref)) out.ref = ref;
@@ -302,7 +301,9 @@ export function writeCaptureStamp({
   const payload = {
     digest,
     capturedAt: new Date().toISOString(),
-    ...optionalStampFields({ scope, files, ref, commit, treeDigest }),
+    // An absent `treeDigest` is dropped by `JSON.stringify`.
+    treeDigest,
+    ...optionalStampFields({ scope, files, ref, commit }),
   };
   try {
     writeFileSync(
@@ -335,6 +336,24 @@ function readStampForScope(stamp, requireScope) {
     digest: stamp.digest,
     treeDigest: nonEmpty(stamp.treeDigest) ? stamp.treeDigest : null,
   };
+}
+
+/**
+ * Both digests match: the sources the artifact measures and the tree the
+ * suite ran on. A stamp with no tree digest never matches.
+ *
+ * @param {{ resolved: { digest: string, treeDigest: string | null }, current: string, computeTree: typeof computeTreeDigest, cwd: string, coveragePath: string }} opts
+ * @returns {boolean}
+ */
+function stampMatchesTree({
+  resolved,
+  current,
+  computeTree,
+  cwd,
+  coveragePath,
+}) {
+  if (current !== resolved.digest || resolved.treeDigest === null) return false;
+  return computeTree(cwd, coveragePath) === resolved.treeDigest;
 }
 
 /**
@@ -392,9 +411,13 @@ export function isCoverageFresh({
     if (resolved) {
       const current = computeDigest(cwd, targetDirs);
       if (typeof current === 'string' && current.length > 0) {
-        return current === resolved.digest &&
-          resolved.treeDigest !== null &&
-          computeTree(cwd, coveragePath) === resolved.treeDigest
+        return stampMatchesTree({
+          resolved,
+          current,
+          computeTree,
+          cwd,
+          coveragePath,
+        })
           ? { fresh: true, reason: 'fresh' }
           : { fresh: false, reason: 'stale' };
       }
