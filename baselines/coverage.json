@@ -298,7 +298,7 @@
     },
     {
       "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-policy.js",
-      "lines": 100,
+      "lines": 99.18,
       "branches": 89.55,
       "functions": 100
     },
@@ -316,14 +316,14 @@
     },
     {
       "path": ".agents/scripts/lib/audit-exceptions/adapters/sca-exceptions.js",
-      "lines": 94.44,
+      "lines": 94.55,
       "branches": 57.14,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/audit-exceptions/adapters/test-skips.js",
       "lines": 100,
-      "branches": 85,
+      "branches": 84.62,
       "functions": 100
     },
     {
@@ -347,7 +347,7 @@
     {
       "path": ".agents/scripts/lib/audit-exceptions/engine.js",
       "lines": 97.59,
-      "branches": 93.62,
+      "branches": 93.75,
       "functions": 100
     },
     {
@@ -359,7 +359,13 @@
     {
       "path": ".agents/scripts/lib/audit-exceptions/history.js",
       "lines": 100,
-      "branches": 84.38,
+      "branches": 91.89,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/locate.js",
+      "lines": 100,
+      "branches": 90.91,
       "functions": 100
     },
     {
@@ -376,7 +382,7 @@
     },
     {
       "path": ".agents/scripts/lib/audit-exceptions/read.js",
-      "lines": 98.46,
+      "lines": 98.02,
       "branches": 83.33,
       "functions": 100
     },

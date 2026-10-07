@@ -259,6 +259,10 @@
       "mi": 90.47
     },
     {
+      "path": ".agents/scripts/lib/audit-exceptions/locate.js",
+      "mi": 113.52
+    },
+    {
       "path": ".agents/scripts/lib/audit-exceptions/probe.js",
       "mi": 106.317
     },
