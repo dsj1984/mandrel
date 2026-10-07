@@ -19,6 +19,7 @@ export const AUDIT_LENSES = Object.freeze([
   'dependencies',
   'devops',
   'documentation',
+  'exceptions',
   'mobile',
   'navigability',
   'performance',

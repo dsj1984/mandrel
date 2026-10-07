@@ -21,6 +21,12 @@
       "functions": 66.67
     },
     {
+      "path": ".agents/scripts/audit-exceptions.js",
+      "lines": 100,
+      "branches": 84.62,
+      "functions": 66.67
+    },
+    {
       "path": ".agents/scripts/audit-labels-bootstrap.js",
       "lines": 82.26,
       "branches": 84.21,
@@ -258,6 +264,144 @@
       "path": ".agents/scripts/lib/audit-baselines/weights.js",
       "lines": 98.78,
       "branches": 90.91,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/ci-gates.js",
+      "lines": 100,
+      "branches": 90.48,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/code-allowlists.js",
+      "lines": 99.27,
+      "branches": 92.16,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-audit.js",
+      "lines": 100,
+      "branches": 77.78,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-patches.js",
+      "lines": 98.37,
+      "branches": 84.85,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-pins.js",
+      "lines": 98.84,
+      "branches": 94.29,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-policy.js",
+      "lines": 99.18,
+      "branches": 89.55,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/index.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 0
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/inline-suppressions.js",
+      "lines": 100,
+      "branches": 89.47,
+      "functions": 90.91
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/sca-exceptions.js",
+      "lines": 94.55,
+      "branches": 57.14,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/test-skips.js",
+      "lines": 100,
+      "branches": 84.62,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/tool-config.js",
+      "lines": 98.88,
+      "branches": 89.19,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/classify.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/dependency-index.js",
+      "lines": 97.02,
+      "branches": 87.18,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/engine.js",
+      "lines": 97.59,
+      "branches": 93.75,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/globs.js",
+      "lines": 97.17,
+      "branches": 94.74,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/history.js",
+      "lines": 100,
+      "branches": 91.89,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/locate.js",
+      "lines": 100,
+      "branches": 90.91,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/probe.js",
+      "lines": 98.98,
+      "branches": 90,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/range-subset.js",
+      "lines": 100,
+      "branches": 90.79,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/read.js",
+      "lines": 98.02,
+      "branches": 83.33,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/record.js",
+      "lines": 100,
+      "branches": 96.3,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/scope.js",
+      "lines": 100,
+      "branches": 94.44,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/tickets.js",
+      "lines": 93.88,
+      "branches": 80.56,
       "functions": 100
     },
     {

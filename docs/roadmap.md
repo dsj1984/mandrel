@@ -29,7 +29,7 @@ dependency trip-wires live in the appendix, not here.
    physics and keeps.
 2. **Remaining sequential-only audit lenses** (`audit-dependencies`,
    `audit-devops`, `audit-sre`, `audit-privacy`, `audit-seo`, `audit-ux-ui`,
-   `audit-mobile`)
+   `audit-mobile`, `audit-exceptions`)
    — re-price on inference economics. Several are
    externally bound or not dimensionally decomposable; sequential may be the
    correct default forever. (A lens dropping off this list means it was
