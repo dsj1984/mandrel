@@ -2371,6 +2371,10 @@
       "mi": 97.514
     },
     {
+      "path": "scripts/check-npm-audit.js",
+      "mi": 95.241
+    },
+    {
       "path": "scripts/check-payload-boundary.js",
       "mi": 107.036
     },
@@ -2417,6 +2421,10 @@
     {
       "path": "scripts/lib/audit-attribution.js",
       "mi": 114.93
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "mi": 99.638
     },
     {
       "path": "scripts/lib/audit-report-contracts/architecture-report-contract.js",
