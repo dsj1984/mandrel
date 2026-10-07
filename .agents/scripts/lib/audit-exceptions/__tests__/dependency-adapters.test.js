@@ -441,3 +441,40 @@ describe('yarn repo with no node_modules', () => {
     );
   });
 });
+
+describe('a lockfile the index cannot fully read', () => {
+  it('reads an npm v1 lockfile through its nested dependencies tree', async () => {
+    const root = makeRepo({
+      'package.json': {
+        name: 'v1',
+        dependencies: { a: '^1.0.0' },
+        overrides: { 'transitive-x': '^2.0.0' },
+      },
+      'knip.json': { ignoreDependencies: ['transitive-x'] },
+      'package-lock.json': {
+        lockfileVersion: 1,
+        dependencies: {
+          a: { version: '1.5.0', requires: { 'transitive-x': '^1.0.0' } },
+          'transitive-x': { version: '2.0.0' },
+        },
+      },
+    });
+    const env = await runEngine({ cwd: root, today: TODAY, gh: fakeGh({}) });
+    const pin = byTarget(env, 'npm-overrides', 'transitive-x');
+    assert.equal(pin.probeBasis, 'dependent-needs-pin', 'a requires ^1.0.0');
+    assert.notEqual(
+      byTarget(env, 'knip-ignoreDependencies', 'transitive-x').verdict,
+      'dead',
+    );
+  });
+
+  it('treats an unparseable lockfile as presence unknown — never proof of absence', async () => {
+    const root = makeRepo({
+      'package.json': { name: 'p', pnpm: { overrides: { foo: '^2.0.0' } } },
+      'pnpm-lock.yaml': lines('packages:', '  - [unterminated'),
+    });
+    const env = await runEngine({ cwd: root, today: TODAY, gh: fakeGh({}) });
+    assert.notEqual(byTarget(env, 'pnpm-overrides', 'foo').verdict, 'dead');
+    assert.ok(env.degradations.some((d) => d.input === 'lockfile'));
+  });
+});

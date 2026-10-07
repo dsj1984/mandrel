@@ -100,21 +100,51 @@ function fromYarnLock(text, present) {
  * @param {string} pm
  * @returns {Map<string, Set<string>>|null}
  */
+/** npm lockfile v1 has no `packages` map: walk its nested `dependencies` tree. */
+function fromPackageLockV1(deps, present, dependents) {
+  for (const [name, entry] of Object.entries(deps ?? {})) {
+    addPresent(present, name, entry?.version);
+    addDependents(dependents, `${name}@${entry?.version}`, {
+      dependencies: entry?.requires,
+    });
+    fromPackageLockV1(entry?.dependencies, present, dependents);
+  }
+}
+
+function fromNpmLock(lock, present, dependents) {
+  if (lock?.packages) fromPackageLock(lock, present, dependents);
+  else fromPackageLockV1(lock?.dependencies, present, dependents);
+}
+
+/** Lockfile per package manager, and how to read presence from it. */
+const LOCK_READERS = Object.freeze({
+  npm: (root, present, dependents) =>
+    fromNpmLock(readJsonc(root, 'package-lock.json'), present, dependents),
+  pnpm: (root, present) =>
+    fromPnpmLock(readYaml(root, 'pnpm-lock.yaml'), present),
+  yarn: (root, present) =>
+    fromYarnLock(readText(root, 'yarn.lock') ?? '', present),
+});
+
+/**
+ * `null` — "presence unknown" — when there is no lockfile, or when the one
+ * there yields no package at all (unparseable, an unrecognised format, empty).
+ * An empty map would read as "nothing is in the tree" and prove every pin
+ * dead, the one verdict the engine may never guess.
+ *
+ * @param {string} root
+ * @param {string|null} pm
+ * @param {Map} dependents
+ * @returns {Map<string, Set<string>>|null}
+ */
 function readPresence(root, pm, dependents) {
+  const read = LOCK_READERS[pm];
+  if (!read) return null;
+  if (pm === 'npm' && !fs.existsSync(path.join(root, 'package-lock.json')))
+    return null;
   const present = new Map();
-  if (pm === 'npm' && fs.existsSync(path.join(root, 'package-lock.json'))) {
-    fromPackageLock(readJsonc(root, 'package-lock.json'), present, dependents);
-    return present;
-  }
-  if (pm === 'pnpm') {
-    fromPnpmLock(readYaml(root, 'pnpm-lock.yaml'), present);
-    return present;
-  }
-  if (pm === 'yarn') {
-    fromYarnLock(readText(root, 'yarn.lock') ?? '', present);
-    return present;
-  }
-  return null;
+  read(root, present, dependents);
+  return present.size > 0 ? present : null;
 }
 
 function childPackageDirs(nodeModules) {
@@ -206,7 +236,8 @@ export function buildDependencyIndex(scope, root) {
   if (present === null) {
     degradations.push({
       input: 'lockfile',
-      reason: 'no lockfile; presence probes fell back to declared manifests',
+      reason:
+        'no readable lockfile; presence probes fell back to declared manifests',
       detail: '',
     });
   }
