@@ -259,6 +259,11 @@ describe('pnpm monorepo with the .pnpm store', () => {
           "  - 'packages/*'",
           'overrides:',
           "  baz: '^1.0.0'",
+          'patchedDependencies:',
+          "  'bar@1.0.0': patches/bar@1.0.0.patch",
+          'peerDependencyRules:',
+          '  ignoreMissing:',
+          '    - vue',
         ),
         'pnpm-lock.yaml': lines(
           "lockfileVersion: '9.0'",
@@ -335,6 +340,22 @@ describe('pnpm monorepo with the .pnpm store', () => {
       byTarget(env, 'pnpm-patchedDependencies', 'foo').probeBasis,
       'applies-to-resolved',
     );
+  });
+
+  it('reads patchedDependencies and peerDependencyRules from pnpm-workspace.yaml too', () => {
+    const fromYaml = env.records.filter(
+      (r) => r.file === 'pnpm-workspace.yaml',
+    );
+    const patch = fromYaml.find(
+      (r) => r.surface === 'pnpm-patchedDependencies',
+    );
+    assert.equal(patch.target, 'bar');
+    assert.equal(patch.probeBasis, 'patch-file-missing');
+    const peer = fromYaml.find(
+      (r) => r.surface === 'pnpm-peerDependencyRules.ignoreMissing',
+    );
+    assert.equal(peer.target, 'vue');
+    assert.equal(peer.verdict, 'dead');
   });
 
   it('peer rules and allowed deprecations probe presence in the tree', () => {
