@@ -10,8 +10,9 @@
  * (dead-exports ×2, context-budget, workflow-citations, cyclomatic,
  * schema-references).
  *
- * The `audit` step runs `npm audit --audit-level=high`, matching CI's
- * "Dependency Vulnerability Audit (SCA)" gate so a local green no longer hides
+ * The `audit` step runs `scripts/check-npm-audit.js` — the same command as
+ * CI's "Dependency Vulnerability Audit (SCA)" gate (a high-severity
+ * `npm audit` honoring `audit-exceptions.json`) — so a local green no longer hides
  * a high-severity advisory that CI would fail on. It is independent of the
  * pre-push `PREPUSH_AUDIT` opt-in, which stays unchanged.
  *
@@ -73,7 +74,7 @@ const gate = (label, script, ...args) => ({
 });
 
 const STEPS = [
-  { label: 'audit', cmd: 'npm', args: ['audit', '--audit-level=high'] },
+  gate('audit', 'scripts/check-npm-audit.js'),
   { label: 'lint', cmd: 'npm', args: ['run', 'lint'] },
   { label: 'test', cmd: 'npm', args: ['test'] },
   gate('baselines', '.agents/scripts/check-baselines.js'),

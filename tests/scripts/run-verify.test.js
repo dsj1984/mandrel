@@ -41,7 +41,7 @@ test('runVerifySteps runs audit, lint, test, baselines, then the ratchets in ord
   });
   assert.deepEqual(outcome, { ok: true });
   assert.deepEqual(calls, [
-    ['npm', 'audit', '--audit-level=high'],
+    ['node', 'scripts/check-npm-audit.js'],
     ['npm', 'run', 'lint'],
     ['npm', 'test'],
     ['node', '.agents/scripts/check-baselines.js'],
@@ -255,5 +255,5 @@ test('runVerifySteps surfaces a failing high-severity audit first', () => {
   assert.equal(outcome.failedStep, 'audit');
   assert.equal(outcome.exitCode, 1);
   assert.equal(calls.length, 1);
-  assert.deepEqual(calls[0], ['npm', 'audit', '--audit-level=high']);
+  assert.deepEqual(calls[0], ['node', 'scripts/check-npm-audit.js']);
 });

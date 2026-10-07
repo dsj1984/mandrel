@@ -50,11 +50,13 @@ jobs:
 
       - name: Dependency Vulnerability Audit (SCA)
         id: sca
-        # Left as the bare invocation on purpose: dependency-audit-cron.yml
-        # copies this exact command so the nightly sweep and this required
-        # check can never disagree about what counts as red. Attribution is a
+        # The high-severity npm audit, honoring the reviewed, dated
+        # entries in audit-exceptions.json (dev-only advisories with no patched
+        # release; see scripts/lib/audit-exceptions.js). dependency-audit-cron.yml
+        # runs this exact command so the nightly sweep and this required check
+        # can never disagree about what counts as red. Attribution is a
         # SEPARATE step below rather than a wrapper, so that stays true.
-        run: npm audit --audit-level=high
+        run: node scripts/check-npm-audit.js
 
       - name: Attribute the advisory failure
         # Runs only once the required step above has already failed, and only

@@ -3502,9 +3502,9 @@
     },
     {
       "path": "scripts/check-audit-attribution.js",
-      "lines": 89.74,
-      "branches": 84.21,
-      "functions": 61.54
+      "lines": 90.69,
+      "branches": 85.71,
+      "functions": 64.29
     },
     {
       "path": "scripts/check-baseline-drift.js",
@@ -3541,6 +3541,12 @@
       "lines": 100,
       "branches": 93.1,
       "functions": 100
+    },
+    {
+      "path": "scripts/check-npm-audit.js",
+      "lines": 100,
+      "branches": 88.89,
+      "functions": 75
     },
     {
       "path": "scripts/check-payload-boundary.js",
@@ -3604,14 +3610,20 @@
     },
     {
       "path": "scripts/lib/audit-advisories.js",
-      "lines": 86.15,
-      "branches": 82.5,
-      "functions": 75
+      "lines": 99.04,
+      "branches": 81.48,
+      "functions": 100
     },
     {
       "path": "scripts/lib/audit-attribution.js",
       "lines": 100,
       "branches": 95.24,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "lines": 98.88,
+      "branches": 84.51,
       "functions": 100
     },
     {

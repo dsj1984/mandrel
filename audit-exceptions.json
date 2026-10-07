@@ -1,0 +1,10 @@
+{
+  "exceptions": [
+    {
+      "id": "GHSA-vfj7-8cjw-p6xm",
+      "package": "braces",
+      "reason": "No patched release exists: the advisory covers braces <= 3.0.3 and 3.0.3 is the newest published version; micromatch@4.0.8 (also the newest) declares braces ^3.0.3. braces reaches the tree only through devDependencies — jscpd (via @jscpd/finder -> fast-glob -> micromatch) and markdownlint-cli2 (via globby/fast-glob and micromatch) — and the brace patterns those tools expand come from repo-owned config, never untrusted input. `npm audit fix --force` proposes a markdownlint-cli2 downgrade; do not take it. Delete this entry once a patched braces ships and the lockfile picks it up.",
+      "reviewBy": "2027-01-05"
+    }
+  ]
+}

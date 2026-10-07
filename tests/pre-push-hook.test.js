@@ -68,7 +68,7 @@ test('pre-push — documents npm run verify for the full local gate', () => {
 test('pre-push — optional audit remains opt-in via PREPUSH_AUDIT', () => {
   const hook = readPrePush();
   assert.match(hook, /PREPUSH_AUDIT/);
-  assert.match(hook, /npm audit --audit-level=high/);
+  assert.match(hook, /node scripts\/check-npm-audit\.js/);
 });
 
 // Story #4545 — the coverage + CRAP gate is unconditional. The Epic-era
@@ -295,7 +295,7 @@ test('pre-push — only the capture step moved: same checks, same order, same ex
     'node .agents/scripts/coverage-capture.js --skip-when-no-crap-files --ref origin/main',
     'node .agents/scripts/quality-preview.js --changed-since origin/main',
     'if [ "${PREPUSH_AUDIT:-0}" = "1" ]; then',
-    'npm audit --audit-level=high',
+    'node scripts/check-npm-audit.js',
     'fi',
     'npm run crap:check',
     'node .agents/scripts/check-context-budget.js',
