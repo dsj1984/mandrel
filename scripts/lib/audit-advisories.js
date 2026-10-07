@@ -23,6 +23,16 @@ import { spawnCapture } from '../../.agents/scripts/lib/child-exec.js';
 const BLOCKING_SEVERITIES = new Set(['critical', 'high']);
 
 /**
+ * Whether a severity is one the required SCA step fails on.
+ *
+ * @param {unknown} severity
+ * @returns {boolean}
+ */
+export function isBlockingSeverity(severity) {
+  return BLOCKING_SEVERITIES.has(String(severity ?? '').toLowerCase());
+}
+
+/**
  * The stable identity of one advisory in an `npm audit --json` report.
  *
  * `source` is the advisory's own numeric id and is what makes two runs
@@ -63,7 +73,7 @@ export function extractBlockingAdvisories(report) {
   if (!packages || typeof packages !== 'object') return [];
   const found = new Map();
   for (const [name, entry] of Object.entries(packages)) {
-    if (BLOCKING_SEVERITIES.has(String(entry?.severity ?? '').toLowerCase())) {
+    if (isBlockingSeverity(entry?.severity)) {
       collectPackageAdvisories(name, entry, found);
     }
   }
@@ -83,7 +93,7 @@ function collectPackageAdvisories(name, entry, found) {
   const before = found.size;
   for (const via of Array.isArray(entry?.via) ? entry.via : []) {
     const severity = String(via?.severity ?? entry.severity).toLowerCase();
-    const id = BLOCKING_SEVERITIES.has(severity) ? advisoryIdOf(via) : null;
+    const id = isBlockingSeverity(severity) ? advisoryIdOf(via) : null;
     if (id && !found.has(id)) {
       found.set(id, { id, severity, title: via?.title ?? name });
     }
@@ -118,26 +128,30 @@ export function diffAdvisories({ head = [], base = null }) {
 }
 
 /**
- * Run `npm audit --json` over a dependency manifest pair and project it.
+ * Run `npm audit --json` over a dependency manifest pair and return the parsed
+ * report.
  *
  * `--package-lock-only` audits the committed lockfile without installing, so
  * the probe never touches the job's own `node_modules`: an attribution
  * mechanism that could disturb the tree it is reporting on would be a worse
- * defect than the one it explains. `--json` is what makes the two runs
- * comparable at all — the human report says which advisories exist, but only
- * as prose.
+ * defect than the one it explains. `--json` is what makes two runs comparable
+ * at all — the human report says which advisories exist, but only as prose.
+ *
+ * `omitDev` audits the production closure alone (`--omit=dev`) — the
+ * reachability probe the exceptions gate reads.
  *
  * @param {string} dir — directory holding package.json + package-lock.json.
- * @param {{ spawn?: Function }} [deps]
- * @returns {{ failed: boolean, advisories: Array<object> }}
+ * @param {{ spawn?: Function, omitDev?: boolean }} [deps]
+ * @returns {object} the parsed `npm audit --json` report.
  * @throws {Error} when npm could not evaluate the tree at all.
  */
-export function auditAdvisories(dir, { spawn = spawnCapture } = {}) {
-  const result = spawn(
-    'npm',
-    ['audit', '--json', '--audit-level=high', '--package-lock-only'],
-    { cwd: dir },
-  );
+export function runAuditReport(
+  dir,
+  { spawn = spawnCapture, omitDev = false } = {},
+) {
+  const args = ['audit', '--json', '--audit-level=high', '--package-lock-only'];
+  if (omitDev) args.push('--omit=dev');
+  const result = spawn('npm', args, { cwd: dir });
   const report = parseAuditJson(result?.stdout);
   // npm exits non-zero for "advisories found" and for "could not audit" alike.
   // Only a real audit verdict carries a `vulnerabilities` map; anything else is
@@ -147,8 +161,7 @@ export function auditAdvisories(dir, { spawn = spawnCapture } = {}) {
       `npm audit could not evaluate the tree: ${String(result?.stderr ?? '').slice(0, 200)}`,
     );
   }
-  const advisories = extractBlockingAdvisories(report);
-  return { failed: advisories.length > 0, advisories };
+  return report;
 }
 
 /**

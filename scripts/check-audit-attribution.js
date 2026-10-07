@@ -26,13 +26,13 @@ import { runAsCli } from '../.agents/scripts/lib/cli-utils.js';
 import { Logger } from '../.agents/scripts/lib/Logger.js';
 import {
   attributionExitCode,
-  auditAdvisories,
   deriveVerdict,
   diffAdvisories,
   renderAdvisoryDetail,
   renderAttribution,
   UNKNOWN,
 } from './lib/audit-attribution.js';
+import { auditWithExceptions, loadExceptions } from './lib/audit-exceptions.js';
 
 /** The label the nightly sweep keys its reusable tracking issue on. */
 const TRACKING_LABEL = 'meta::dependency-advisory';
@@ -104,14 +104,25 @@ const defaultGit = (cwd, ...args) => execFileCapture('git', args, { cwd });
 export function runAttribution(argv = process.argv, deps = {}) {
   const {
     git = defaultGit,
-    auditHead = auditAdvisories,
-    auditBase = auditAdvisories,
+    auditHead,
+    auditBase,
+    load = loadExceptions,
+    spawn,
+    today,
     materialize = materializeBase,
     lookupTrackingIssue = defaultLookupTrackingIssue,
     cleanup = (dir) => rmSync(dir, { recursive: true, force: true }),
     logger = Logger,
   } = deps;
   const args = parseArgs(argv);
+  // Both trees are scored against the HEAD's exceptions — the same filter the
+  // required gate applied — so an excepted advisory is never attributed.
+  const exceptionAware = exceptionAwareAudit({
+    cwd: args.cwd,
+    load,
+    spawn,
+    today,
+  });
 
   if (!args.base) {
     const lines = renderAttribution({
@@ -122,7 +133,7 @@ export function runAttribution(argv = process.argv, deps = {}) {
     return { verdict: UNKNOWN, exitCode: 0, lines };
   }
 
-  const head = auditTheHead({ args, auditHead });
+  const head = auditTheHead({ args, auditHead: auditHead ?? exceptionAware });
   if (head.reason) {
     return report({ verdict: UNKNOWN, args, logger, reason: head.reason });
   }
@@ -130,7 +141,7 @@ export function runAttribution(argv = process.argv, deps = {}) {
   const { baseAudit, reason } = auditTheBase({
     args,
     git,
-    auditBase,
+    auditBase: auditBase ?? exceptionAware,
     materialize,
     cleanup,
   });
@@ -159,6 +170,27 @@ export function runAttribution(argv = process.argv, deps = {}) {
     introduced,
     preExisting,
   });
+}
+
+/**
+ * An auditor that applies the head's `audit-exceptions.json` to whichever tree
+ * it is pointed at. The file is read once, lazily, so a run that never audits
+ * (no `--base`) never reads it, and an invalid file surfaces as the head
+ * audit's failure — reported `unknown`, never as an accusation.
+ *
+ * @returns {(dir: string) => { failed: boolean, advisories: Array<object> }}
+ */
+function exceptionAwareAudit({ cwd, load, spawn, today }) {
+  let exceptions = null;
+  return (dir) => {
+    exceptions ??= load(cwd);
+    const { advisories } = auditWithExceptions(dir, {
+      exceptions,
+      today,
+      spawn,
+    });
+    return { failed: advisories.length > 0, advisories };
+  };
 }
 
 /**
