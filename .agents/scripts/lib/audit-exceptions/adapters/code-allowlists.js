@@ -15,11 +15,16 @@ import { makeRecord } from '../record.js';
 
 const SOURCE_EXT_RE = /\.[cm]?[jt]sx?$/;
 
+/** Group one alternative so `|` binds per alternative. */
+function group(alt) {
+  return `(?:${alt})`;
+}
+
 const NAME_ALTERNATIVES = [
   'KNOWN_[A-Z0-9_]*(?:GAPS?|FAILURES?|FAILING|BROKEN|ISSUES?|VIOLATIONS?|EXCEPTIONS?|DEBT|LEAKS?|OFFENDERS?|DRIFT)',
   '(?:EXEMPT(?:ED|IONS?)?|QUARANTINED?|GRANDFATHER(?:ED)?|WAIVED|WAIVERS?)_[A-Z0-9_]+',
   '[A-Z0-9_]+_(?:ALLOWLIST|ALLOW_LIST|EXEMPT(?:ED|IONS?)?|EXCEPTIONS|WAIVERS?|GRANDFATHERED|QUARANTINED?)',
-].map((alt) => `(?:${alt})`);
+].map(group);
 
 /** Cheap whole-file prefilter. */
 const NAME_RE = new RegExp(NAME_ALTERNATIVES.join('|'));
