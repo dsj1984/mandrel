@@ -283,6 +283,87 @@ describe('runAttribution — every break degrades to unknown', () => {
   });
 });
 
+/**
+ * Story #5559 — attribution must agree with the gate. With no injected
+ * auditors, both trees are scored through the head's audit-exceptions.json, so
+ * an excepted advisory is never named as introduced or pre-existing.
+ */
+describe('runAttribution — exceptions-aware by default', () => {
+  const braces = {
+    braces: {
+      severity: 'high',
+      via: [
+        {
+          source: 1240992,
+          name: 'braces',
+          title: 'braces',
+          url: 'https://github.com/advisories/GHSA-vfj7-8cjw-p6xm',
+          severity: 'high',
+        },
+      ],
+    },
+    micromatch: { severity: 'high', via: ['braces'] },
+  };
+  const other = {
+    other: {
+      severity: 'high',
+      via: [
+        {
+          source: 99,
+          name: 'other',
+          title: 'other',
+          url: 'https://github.com/advisories/GHSA-aaaa-bbbb-cccc',
+          severity: 'high',
+        },
+      ],
+    },
+  };
+  const exception = {
+    id: 'GHSA-vfj7-8cjw-p6xm',
+    package: 'braces',
+    reason: 'dev-only',
+    reviewBy: '2027-01-05',
+  };
+
+  function run({ head, base }) {
+    const h = harness();
+    const { auditHead, auditBase, ...deps } = h.deps;
+    const out = runAttribution(argv('--base', 'abc123'), {
+      ...deps,
+      load: () => [exception],
+      today: '2026-10-07',
+      spawn: (_cmd, args, { cwd }) => {
+        const tree = cwd === '/tmp/fake-base' ? base : head;
+        const json = args.includes('--omit=dev') ? {} : tree;
+        return { stdout: JSON.stringify({ vulnerabilities: json }) };
+      },
+    });
+    return { ...out, text: out.lines.join('\n') };
+  }
+
+  it('a head red only for an excepted advisory has nothing to attribute', () => {
+    const out = run({ head: braces, base: braces });
+    assert.equal(out.verdict, UNKNOWN);
+    assert.match(out.text, /audits clean/);
+  });
+
+  it('names only the unexcepted advisory when both are on the base', () => {
+    const out = run({
+      head: { ...braces, ...other },
+      base: { ...braces, ...other },
+    });
+    assert.equal(out.verdict, PRE_EXISTING);
+    assert.match(out.text, /advisory:99/);
+    assert.doesNotMatch(out.text, /advisory:1240992|package:micromatch/);
+  });
+
+  it('never calls an excepted advisory introduced by this diff', () => {
+    const out = run({ head: { ...braces, ...other }, base: other });
+    assert.equal(out.verdict, PRE_EXISTING);
+    assert.doesNotMatch(out.text, /Introduced/);
+  });
+});
+
 describe('extractBlockingAdvisories / diffAdvisories', () => {
   const report = {
     vulnerabilities: {
@@ -356,11 +437,22 @@ describe('ci.yml wiring', () => {
     ci.indexOf('- name: Attribute the advisory failure'),
   );
 
-  // The nightly sweep copies this command verbatim so it and the required
+  // The nightly sweep runs this command verbatim so it and the required
   // check can never disagree about what counts as red. Wrapping it would
   // break that; attribution is a separate step for exactly this reason.
-  it('leaves the required audit as the bare npm invocation', () => {
-    assert.match(scaStep, /run: npm audit --audit-level=high\s*$/m);
+  it('runs the exceptions-aware gate as the required audit', () => {
+    assert.match(scaStep, /run: node scripts\/check-npm-audit\.js\s*$/m);
+  });
+
+  it('gives the nightly sweep the same command, and no workflow a bare audit', () => {
+    const cron = readFileSync(
+      path.join(REPO_ROOT, '.github', 'workflows', 'dependency-audit-cron.yml'),
+      'utf8',
+    );
+    assert.match(cron, /node scripts\/check-npm-audit\.js 2>&1 \| tee/);
+    for (const workflow of [ci, cron]) {
+      assert.doesNotMatch(workflow, /npm audit --audit-level=high/);
+    }
   });
 
   // A pre-existing advisory must keep blocking, or advisories accumulate on

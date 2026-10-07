@@ -35560,6 +35560,19 @@
     },
     {
       "path": "scripts/check-audit-attribution.js",
+      "method": "exceptionAwareAudit",
+      "startLine": 183,
+      "crap": 1
+    },
+    {
+      "path": "scripts/check-audit-attribution.js",
+      "method": "<anon exceptionAwareAudit/(dir)#0>",
+      "startLine": 185,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/check-audit-attribution.js",
       "method": "resolveTrackingIssue",
       "startLine": 193,
       "crap": 3
@@ -35947,6 +35960,31 @@
       "path": "scripts/check-lifecycle-lint.js",
       "method": "<anon main/(v)#1>",
       "startLine": 257,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/check-npm-audit.js",
+      "method": "parseArgs",
+      "startLine": 42,
+      "crap": 3
+    },
+    {
+      "path": "scripts/check-npm-audit.js",
+      "method": "exceptionLine",
+      "startLine": 50,
+      "crap": 4
+    },
+    {
+      "path": "scripts/check-npm-audit.js",
+      "method": "runCheck",
+      "startLine": 69,
+      "crap": 7
+    },
+    {
+      "path": "scripts/check-npm-audit.js",
+      "method": "<anon ()#0>",
+      "startLine": 107,
       "crap": 1,
       "anonymous": true
     },
@@ -36547,6 +36585,12 @@
     },
     {
       "path": "scripts/lib/audit-advisories.js",
+      "method": "isBlockingSeverity",
+      "startLine": 31,
+      "crap": 1
+    },
+    {
+      "path": "scripts/lib/audit-advisories.js",
       "method": "advisoryIdOf",
       "startLine": 37,
       "crap": 7.3919999999999995
@@ -36605,6 +36649,12 @@
     },
     {
       "path": "scripts/lib/audit-advisories.js",
+      "method": "runAuditReport",
+      "startLine": 148,
+      "crap": 3
+    },
+    {
+      "path": "scripts/lib/audit-advisories.js",
       "method": "parseAuditJson",
       "startLine": 162,
       "crap": 6
@@ -36646,6 +36696,120 @@
       "method": "renderAttribution",
       "startLine": 103,
       "crap": 6
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "validate",
+      "startLine": 73,
+      "crap": 3
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "formatAjvErrors",
+      "startLine": 82,
+      "crap": 1
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "<anon formatAjvErrors/(e)#0>",
+      "startLine": 84,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "loadExceptions",
+      "startLine": 99,
+      "crap": 4.005830903790088
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "todayUtc",
+      "startLine": 129,
+      "crap": 1
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "ghsaOf",
+      "startLine": 133,
+      "crap": 3
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "viaList",
+      "startLine": 139,
+      "crap": 2
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "blockingRoots",
+      "startLine": 149,
+      "crap": 4
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "reachedRoots",
+      "startLine": 167,
+      "crap": 5
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "ghsaIdsFor",
+      "startLine": 186,
+      "crap": 4.016
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "statusOf",
+      "startLine": 197,
+      "crap": 5
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "applyExceptions",
+      "startLine": 224,
+      "crap": 4
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "<anon applyExceptions/(exception)#0>",
+      "startLine": 227,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "<anon applyExceptions/(e)#0/(e)#0>",
+      "startLine": 232,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "<anon applyExceptions/(e)#0>",
+      "startLine": 232,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "<anon applyExceptions/(id)#0>",
+      "startLine": 238,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "<anon applyExceptions/(e)#1>",
+      "startLine": 242,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "auditWithExceptions",
+      "startLine": 257,
+      "crap": 2
     },
     {
       "path": "scripts/lib/audit-report-contracts/architecture-report-contract.js",

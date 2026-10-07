@@ -3,9 +3,10 @@ name: Dependency Advisory Audit
 # Nightly high-severity npm advisory sweep against `main`.
 #
 # ── Why this exists ──────────────────────────────────────────────────────────
-# The `npm audit --audit-level=high` gate is REQUIRED, but it only ever runs on
-# a push or a pull_request — `ci.yml`'s "Dependency Vulnerability Audit (SCA)"
-# step is the single `npm audit` invocation in this directory. Advisories are
+# The high-severity audit gate (`scripts/check-npm-audit.js`, which honors the
+# reviewed exceptions in `audit-exceptions.json`) is REQUIRED, but it only ever
+# runs on a push or a pull_request — `ci.yml`'s "Dependency Vulnerability Audit
+# (SCA)" step is the only other gate invocation here. Advisories are
 # published against packages that are ALREADY installed, so `main` goes red
 # between PRs without anybody's diff causing it. The first PR opened afterwards
 # is then the discovery mechanism: its required check fails, and its author
@@ -70,13 +71,18 @@ jobs:
         id: audit
         # Same invocation as ci.yml's required SCA step, so this job and the
         # required check can never disagree about what counts as red.
-        # `pipefail` makes the pipeline carry npm's status rather than tee's,
-        # and `|| code=$?` keeps the step alive so the reporting steps below
-        # still run.
+        # `pipefail` makes the pipeline carry the gate's status rather than
+        # tee's, and `|| code=$?` keeps the step alive so the reporting steps
+        # below still run. On a red, npm's own report is appended for the
+        # dependency paths the gate's summary does not print — informational
+        # only, the verdict is already `code`.
         run: |
           set -o pipefail
           code=0
-          npm audit --audit-level=high 2>&1 | tee audit-report.txt || code=$?
+          node scripts/check-npm-audit.js 2>&1 | tee audit-report.txt || code=$?
+          if [ "$code" != '0' ]; then
+            { echo; npm audit 2>&1 || true; } >> audit-report.txt
+          fi
           echo "code=$code" >> "$GITHUB_OUTPUT"
 
       - name: Upload audit report
@@ -116,7 +122,7 @@ jobs:
             echo
             echo "This is red on \`main\` right now, so the next PR opened will fail its required \`Dependency Vulnerability Audit (SCA)\` check on a defect its diff did not cause. Fix it as a standalone \`fix(deps)\` PR against \`main\` rather than spending an unrelated Story's scope on it."
             echo
-            echo "Read the advisory's own version range before accepting a fix: \`npm audit fix --force\` often proposes a needless semver-major when the parent package's declared range already admits a patched version, in which case the real fix is lockfile-only."
+            echo "Read the advisory's own version range before accepting a fix: \`npm audit fix --force\` often proposes a needless semver-major when the parent package's declared range already admits a patched version, in which case the real fix is lockfile-only. When no patched version exists at all and production code cannot reach the package (\`npm audit --omit=dev\` is clean), add a dated entry to \`audit-exceptions.json\` instead."
           } > issue-body.md
 
           existing="$(gh issue list --label meta::dependency-advisory --state open \
@@ -155,5 +161,5 @@ jobs:
         # run, which is the second half of "fails loudly" — the issue is the
         # durable surface, the failed run is the notification.
         run: |
-          echo "::error::npm audit --audit-level=high exited ${{ steps.audit.outputs.code }} — see the tracking issue and the dependency-audit-report artifact."
+          echo "::error::scripts/check-npm-audit.js exited ${{ steps.audit.outputs.code }} — see the tracking issue and the dependency-audit-report artifact."
           exit 1

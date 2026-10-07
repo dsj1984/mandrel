@@ -2,7 +2,7 @@
 
 `npm run verify` is the local pre-PR gate. As of Story #4357 it is a **true
 CI mirror** for every gate it *can* prove on a developer's machine: it runs
-`npm audit --audit-level=high` (matching CI's SCA step), then `npm run lint`,
+`node scripts/check-npm-audit.js` (CI's SCA step), then `npm run lint`,
 the full `npm test` suite, the unified baselines (`check-baselines.js`), and —
 as of Story #4549 — the standalone ratchets CI's `baselines` job runs in its
 "Architecture Cycle Check" step (`check-dead-exports.js` and
@@ -18,7 +18,7 @@ below so a local green is understood as *necessary but not sufficient* — the
 authoritative verdict is the CI run on the pull request.
 
 > **Not** a CI-only gate: the SCA audit. `npm run verify` runs
-> `npm audit --audit-level=high` locally, mirroring CI. This is independent of
+> `node scripts/check-npm-audit.js` locally, mirroring CI. This is independent of
 > the pre-push `PREPUSH_AUDIT=1` opt-in (`.husky/pre-push`), which is
 > deliberately left off by default and is unchanged — the audit belongs in the
 > full `verify` gate, not on every push.
@@ -155,8 +155,9 @@ notification while the issue is the durable surface.
 ### Why the dependency sweep is not just the required check
 
 `ci.yml`'s required `Dependency Vulnerability Audit (SCA)` step runs
-`npm audit --audit-level=high`, and it is the only `npm audit` invocation in
-`.github/workflows/`. It runs on push and on pull_request — never in between.
+`node scripts/check-npm-audit.js` — `npm audit` at the high threshold,
+honoring the reviewed exceptions in `audit-exceptions.json` — and the nightly
+sweep is the only other gate invocation in `.github/workflows/`. It runs on push and on pull_request — never in between.
 Advisories, though, are published against packages that are *already*
 installed, so `main` turns red with no commit to blame. The first PR opened
 afterwards becomes the discovery mechanism: its required check fails, and its
@@ -177,6 +178,26 @@ the fix is still a standalone `fix(deps)` PR against `main`, and the advisory's
 own version range should be read before accepting whatever `npm audit fix
 --force` proposes — the parent package's declared range often already admits a
 patched version, making the real fix lockfile-only.
+
+### When no patched version exists: `audit-exceptions.json`
+
+Occasionally an advisory covers every published version of a package
+(GHSA-vfj7-8cjw-p6xm against `braces <= 3.0.3` was the first), so no lockfile
+refresh or `overrides` pin can clear it and `main` would stay red until
+upstream ships. `.agents/rules/security-baseline.md` permits deferring a
+finding that production code cannot reach, provided it is documented with a
+review date — `audit-exceptions.json` is that record. Each entry names the
+advisory's GHSA `id`, its `package`, a `reason`, and a `reviewBy` date, and
+the gate honors it only while **all** of these hold:
+
+- the advisory is absent from `npm audit --omit=dev` — a production-reachable
+  advisory can never be excepted, whatever the entry says;
+- today (UTC) is on or before `reviewBy`.
+
+A failing condition leaves the advisory blocking, with the reason named in the
+log. An entry that matches no current advisory is **stale** and fails the gate
+too, so the file cannot outlive the fix — delete the entry once the patched
+release lands in the lockfile. A malformed file fails closed.
 
 ## `trust-ci` auto-merge prerequisite: configure required checks
 
