@@ -2416,7 +2416,7 @@
     },
     {
       "path": "scripts/lib/audit-advisories.js",
-      "mi": 105.717
+      "mi": 106.834
     },
     {
       "path": "scripts/lib/audit-attribution.js",
@@ -2572,7 +2572,7 @@
     },
     {
       "path": "scripts/run-verify.js",
-      "mi": 101.048
+      "mi": 101.992
     },
     {
       "path": "scripts/test-isolate.js",
