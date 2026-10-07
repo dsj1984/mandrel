@@ -100,6 +100,28 @@ describe('npm-shaped repo', () => {
       'knip.json': {
         ignoreDependencies: ['lodash', 'phantom-tool', 'used-tool'],
       },
+      'audit-exceptions.json': {
+        exceptions: [
+          {
+            id: 'GHSA-1111',
+            package: 'lodash',
+            reason: 'dev-only path',
+            reviewBy: '2027-01-05',
+          },
+          {
+            id: 'GHSA-2222',
+            package: 'gone-dev-tool',
+            reason: 'no fix yet',
+            reviewBy: '2027-01-05',
+          },
+          {
+            id: 'GHSA-3333',
+            package: 'lodash',
+            reason: 'past review',
+            reviewBy: '2026-01-01',
+          },
+        ],
+      },
     });
     env = await runEngine({
       cwd: root,
@@ -193,6 +215,17 @@ describe('npm-shaped repo', () => {
       byTarget(env, 'audit-ci-allowlist', 'GHSA-aaaa-bbbb-cccc').verdict,
       'unjustified',
     );
+  });
+
+  it('a committed audit-exceptions.json: reviewBy is the expiry, an absent package is dead', () => {
+    const sca = (id) =>
+      env.records.find(
+        (r) => r.surface === 'sca-exceptions' && r.target.startsWith(id),
+      );
+    assert.equal(sca('GHSA-1111').verdict, 'live');
+    assert.equal(sca('GHSA-1111').expires, '2027-01-05');
+    assert.equal(sca('GHSA-2222').verdictBasis, 'package-not-in-tree');
+    assert.equal(sca('GHSA-3333').verdict, 'expired');
   });
 
   it('Renovate ignores and disabled rules: undeclared packages are dead, patterns undecided', () => {

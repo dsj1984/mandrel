@@ -12,6 +12,7 @@ import { dependencyPatches } from './dependency-patches.js';
 import { dependencyPins } from './dependency-pins.js';
 import { dependencyPolicy } from './dependency-policy.js';
 import { inlineSuppressions } from './inline-suppressions.js';
+import { scaExceptions } from './sca-exceptions.js';
 import { testSkips } from './test-skips.js';
 import { toolConfig } from './tool-config.js';
 
@@ -22,6 +23,7 @@ export const ADAPTERS = Object.freeze([
   dependencyPatches,
   dependencyPolicy,
   dependencyAudit,
+  scaExceptions,
   ciGates,
   testSkips,
   codeAllowlists,
