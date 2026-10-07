@@ -244,7 +244,7 @@
     },
     {
       "path": ".agents/scripts/lib/audit-exceptions/dependency-index.js",
-      "mi": 99.39
+      "mi": 101.411
     },
     {
       "path": ".agents/scripts/lib/audit-exceptions/engine.js",
