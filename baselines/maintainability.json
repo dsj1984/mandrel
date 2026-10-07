@@ -227,6 +227,10 @@
       "mi": 108.813
     },
     {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/sca-exceptions.js",
+      "mi": 108.723
+    },
+    {
       "path": ".agents/scripts/lib/audit-exceptions/adapters/test-skips.js",
       "mi": 105.216
     },
