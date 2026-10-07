@@ -71,7 +71,7 @@ function flatLeaves(node, toTarget) {
  * @param {object} index - from `buildDependencyIndex`.
  * @returns {{ verdict: string, basis: string }}
  */
-export function pinProbe(name, range, index) {
+function pinProbe(name, range, index) {
   const inTree = index.present?.has(name) ?? null;
   if (inTree === false && !index.declared.has(name)) {
     return { verdict: 'dead', basis: 'absent-from-tree' };

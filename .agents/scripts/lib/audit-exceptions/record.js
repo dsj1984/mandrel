@@ -6,13 +6,13 @@
  * @module lib/audit-exceptions/record
  */
 
-/** `#123`, `owner/repo#123`, or a GitHub issue / pull URL. */
+/** `#N`, `owner/repo#N`, or a GitHub issue / pull URL. */
 const TICKET_RE =
   /(?:https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/(?:issues|pull)\/(\d+))|(?:(?<![\w/&])([\w.-]+\/[\w.-]+)?#(\d+)\b)/g;
 
 /**
  * A ref only counts as what an exception waits on when a tracking word leads
- * into it (`TODO(#12)`, "until #12", "tracked in #12", "remove once #12").
+ * into it (`TODO(#N)`, "until #N", "tracked in #N", "remove once #N").
  * Citing the Story that introduced an exception is provenance, not a
  * dependency — a closed one must not make the exception read as orphaned.
  */
@@ -26,7 +26,7 @@ const EXPIRY_RE =
  * @param {string|null|undefined} text
  * @returns {string[]} unique tracking refs, `#N` for this repo, `owner/repo#N` otherwise.
  */
-export function ticketRefsIn(text) {
+function ticketRefsIn(text) {
   if (typeof text !== 'string' || text.length === 0) return [];
   const refs = new Set();
   for (const m of text.matchAll(TICKET_RE)) {
@@ -43,7 +43,7 @@ export function ticketRefsIn(text) {
  * @param {string|null|undefined} text
  * @returns {string|null} ISO date
  */
-export function expiryIn(text) {
+function expiryIn(text) {
   if (typeof text !== 'string') return null;
   return EXPIRY_RE.exec(text)?.[1] ?? null;
 }

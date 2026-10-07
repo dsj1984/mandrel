@@ -7,7 +7,7 @@
  * @module lib/audit-exceptions/adapters/inline-suppressions
  */
 
-import { readText } from '../read.js';
+import { insideString, readText } from '../read.js';
 import { makeRecord } from '../record.js';
 
 const SCANNED_EXT_RE =
@@ -31,7 +31,7 @@ const MATCHERS = Object.freeze([
     parse: (m) => ({ tool: 'typescript', rule: `@ts-${m[1]}`, reason: m[2] }),
   },
   {
-    re: /^(c8|istanbul) ignore\s+(next|start|else|if|file)\b\s*(.*)$/,
+    re: /^(c8|istanbul|node:coverage) ignore\s+(next|start|else|if|file)\b\s*(.*)$/,
     parse: (m) => ({
       tool: 'coverage',
       rule: `${m[1]}-ignore-${m[2]}`,
@@ -49,12 +49,6 @@ const MATCHERS = Object.freeze([
 ]);
 
 const OPENER_RE = new RegExp(OPENER, 'g');
-
-/** True when an odd number of one quote kind precede `index` — inside a string. */
-function insideString(line, index) {
-  const before = line.slice(0, index);
-  return ['"', "'", '`'].some((q) => before.split(q).length % 2 === 0);
-}
 
 function matchLine(line) {
   for (const opener of line.matchAll(OPENER_RE)) {

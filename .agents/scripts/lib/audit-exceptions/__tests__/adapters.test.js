@@ -8,7 +8,7 @@
 import assert from 'node:assert/strict';
 import { before, describe, it } from 'node:test';
 import { runEngine } from '../engine.js';
-import { fakeGh, lines, makeRepo } from './fixture.js';
+import { fakeGh, lines, makeRepo } from './fixtures/repo.js';
 
 const TODAY = '2026-10-07';
 
@@ -32,6 +32,7 @@ before(async () => {
         '// eslint-disable-next-line no-restricted-syntax',
         '// biome-ignore lint/x/y: tracked in #42',
         'export { a, s };',
+        '/* node:coverage ignore next */',
       ),
       'src/gen/out.js': 'export const g = 1;\n',
       'docs/x.md': lines('<!-- markdownlint-disable MD013 -->', '# Title'),
@@ -104,6 +105,7 @@ describe('inline suppressions', () => {
     assert.equal(at('src/a.js', 3).target, '@ts-expect-error');
     assert.equal(at('src/a.js', 4).surface, 'coverage');
     assert.equal(at('docs/x.md', 1).rule, 'markdownlint:MD013');
+    assert.equal(at('src/a.js', 10).rule, 'coverage:node:coverage-ignore-next');
   });
 
   it('never reads a directive inside a string literal', () => {

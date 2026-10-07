@@ -31,7 +31,7 @@ export function readText(root, rel) {
  * @param {string} text
  * @returns {string}
  */
-export function stripJsonc(text) {
+function stripJsonc(text) {
   let out = '';
   let i = 0;
   while (i < text.length) {
@@ -113,4 +113,18 @@ export function lineOf(text, needle) {
   const at = text.indexOf(needle);
   if (at === -1) return 1;
   return text.slice(0, at).split('\n').length;
+}
+
+/**
+ * True when an odd number of one quote kind precede `index` on `line` — the
+ * position sits inside a string literal, so a directive or declaration there
+ * is data (a fixture, a message), not code.
+ *
+ * @param {string} line
+ * @param {number} index
+ * @returns {boolean}
+ */
+export function insideString(line, index) {
+  const before = line.slice(0, index);
+  return ['"', "'", '`'].some((q) => before.split(q).length % 2 === 0);
 }

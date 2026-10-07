@@ -32,7 +32,7 @@ by `node .agents/scripts/generate-workflows-doc.js`; `npm run docs:check`
 fails when it drifts from the on-disk workflow set. To change a command’s
 description, edit the workflow file’s front-matter and regenerate.
 
-## Commands (31)
+## Commands (32)
 
 | Command | Description |
 | --- | --- |
@@ -45,6 +45,7 @@ description, edit the workflow file’s front-matter and regenerate.
 | `/audit-dependencies` | Audit `package.json` for unused, outdated, and major-version-stale dependencies; surface Node-engine drift and propose upgrade batches. |
 | `/audit-devops` | Audit CI/CD workflows, container images, infrastructure-as-code, and deployment pipelines; surface failure modes and hardening gaps. |
 | `/audit-documentation` | Audit the repository's main documentation for staleness, semantic drift, and completeness; emit a structured High/Medium/Low findings report. |
+| `/audit-exceptions` | Audit every exception and escape valve — inline suppressions, tool-config exemptions, dependency overrides, patches and allowlists, CI gate exemptions, test skips and code allowlists — and flag the ones that are dead, expired, orphaned, unjustified, or papering over a real fix. |
 | `/audit-mobile` | Audit mobile and tablet UX — layout and viewport correctness, touch ergonomics, responsive assets, and whether anything actually verifies them at a small viewport (static-first, with an optional runtime viewport pass) |
 | `/audit-navigability` | Audit the whole route tree against the consumer's nav-registry SSOT — every route has a persona nav door and no nav href is dead. A deliberately-global lens exempt from the cross-epic-leak guard and routed onto route-adding change sets. |
 | `/audit-performance` | Audit performance by measuring first — profile hot paths, I/O, memory, and payload against the repo's own numbers — and audit interleaving/partial-failure correctness (TOCTOU, unawaited promises, non-atomic writes) as a first-class dimension. |

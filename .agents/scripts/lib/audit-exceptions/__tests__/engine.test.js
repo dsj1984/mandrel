@@ -16,7 +16,7 @@ import { assertEnvelope, runCli } from '../../../audit-exceptions.js';
 import { GhNotInstalledError } from '../../gh-exec.js';
 import { gitSync } from '../../git-utils.js';
 import { makeTempDir } from '../../test-temp.js';
-import { fakeGh, lines, makeRepo } from './fixture.js';
+import { fakeGh, lines, makeRepo } from './fixtures/repo.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // __tests__ → audit-exceptions → lib → scripts → .agents → repo root

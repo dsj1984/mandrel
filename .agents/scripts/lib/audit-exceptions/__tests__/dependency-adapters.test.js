@@ -9,7 +9,7 @@
 import assert from 'node:assert/strict';
 import { before, describe, it } from 'node:test';
 import { runEngine } from '../engine.js';
-import { fakeGh, installManifest, lines, makeRepo } from './fixture.js';
+import { fakeGh, installManifest, lines, makeRepo } from './fixtures/repo.js';
 
 const TODAY = '2026-10-07';
 

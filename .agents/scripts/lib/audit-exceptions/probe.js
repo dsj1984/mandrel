@@ -15,7 +15,7 @@ import process from 'node:process';
 import { spawnCaptureAsync } from '../child-exec.js';
 import { readJsonc } from './read.js';
 
-export const PROBE_TIMEOUT_MS = 180_000;
+const PROBE_TIMEOUT_MS = 180_000;
 
 const relTo = (root, file) =>
   path.relative(root, path.resolve(root, file)).split(path.sep).join('/');

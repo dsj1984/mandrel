@@ -6,8 +6,8 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { gitSync } from '../../git-utils.js';
-import { makeTempDir } from '../../test-temp.js';
+import { gitSync } from '../../../git-utils.js';
+import { makeTempDir } from '../../../test-temp.js';
 
 /**
  * @param {Record<string, string|object>} files - path → text (objects are JSON-encoded).

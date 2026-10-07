@@ -7,7 +7,7 @@
  * @module lib/audit-exceptions/adapters/test-skips
  */
 
-import { readText } from '../read.js';
+import { insideString, readText } from '../read.js';
 import { makeRecord } from '../record.js';
 
 const TEST_FILE_RE =
@@ -27,7 +27,7 @@ const PLATFORM_RE =
 
 function optionHit(line) {
   const m = OPTION_RE.exec(line);
-  if (!m) return null;
+  if (!m || insideString(line, m.index)) return null;
   const value = m[3].trim();
   if (/^(?:false|undefined|null)$/.test(value)) return null;
   const literal = /^(['"`])(.*)\1$/.exec(value)?.[2];
@@ -43,6 +43,7 @@ function optionHit(line) {
 
 function matchLine(line) {
   const call = CALL_RE.exec(line);
+  if (call && insideString(line, call.index)) return null;
   if (call) {
     const kind = call[1] ?? 'skip';
     return {

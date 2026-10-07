@@ -10,7 +10,7 @@
  * @module lib/audit-exceptions/adapters/code-allowlists
  */
 
-import { readText } from '../read.js';
+import { insideString, readText } from '../read.js';
 import { makeRecord } from '../record.js';
 
 const SOURCE_EXT_RE = /\.[cm]?[jt]sx?$/;
@@ -110,7 +110,12 @@ function fileRecords(ctx, file) {
   const records = [];
   for (let i = 0; i < lines.length; i += 1) {
     const decl = DECL_RE.exec(lines[i]);
-    if (!decl || !EXACT_NAME_RE.test(decl[1])) continue;
+    if (
+      !decl ||
+      !EXACT_NAME_RE.test(decl[1]) ||
+      insideString(lines[i], decl.index)
+    )
+      continue;
     const end = literalEnd(lines, i);
     records.push(...entryRecords(ctx, file, decl[1], lines, i, end));
     i = end;
