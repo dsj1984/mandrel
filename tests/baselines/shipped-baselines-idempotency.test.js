@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { write } from '../../.agents/scripts/lib/baselines/writer.js';
+import { execFileCapture } from '../../.agents/scripts/lib/child-exec.js';
 
 /**
  * shipped-baselines-idempotency.test.js — Story #1895 task #1905;
@@ -60,8 +60,10 @@ function loadShipped(file) {
   // (notably the `update-*-baseline.js` smoke tests under
   // `tests/baselines/refresh-entry-points-migration.test.js`) can churn the
   // shipped baselines on disk while this test runs. The committed copy is
-  // the canonical, signed-off shape this contract pins.
-  const raw = execFileSync(
+  // the canonical, signed-off shape this contract pins. `execFileCapture`
+  // owns the shared output ceiling: `crap.json` outgrew `execFileSync`'s
+  // 1 MiB default, which surfaced as ENOBUFS rather than as a contract break.
+  const raw = execFileCapture(
     'git',
     ['show', `HEAD:${file.replace(/\\/g, '/')}`],
     { cwd: REPO_ROOT, encoding: 'utf8' },
