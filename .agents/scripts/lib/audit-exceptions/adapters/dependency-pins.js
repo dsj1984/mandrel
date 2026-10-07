@@ -10,8 +10,9 @@
  */
 
 import { nameOfSpec } from '../dependency-index.js';
+import { lineOf } from '../locate.js';
 import { rangeIsSubset } from '../range-subset.js';
-import { lineOf, readText } from '../read.js';
+import { readText } from '../read.js';
 import { makeRecord } from '../record.js';
 
 /**
@@ -103,16 +104,19 @@ const SOURCES = Object.freeze([
     surface: 'npm-overrides',
     from: (pkg) => npmLeaves(pkg.overrides),
     noteKey: (key) => `overrides.${key}`,
+    anchors: ['"overrides"'],
   },
   {
     surface: 'pnpm-overrides',
     from: (pkg) => flatLeaves(pkg.pnpm?.overrides, pnpmTarget),
     noteKey: (key) => `pnpm.overrides.${key}`,
+    anchors: ['"pnpm"', '"overrides"'],
   },
   {
     surface: 'yarn-resolutions',
     from: (pkg) => flatLeaves(pkg.resolutions, yarnTarget),
     noteKey: (key) => `resolutions.${key}`,
+    anchors: ['"resolutions"'],
   },
 ]);
 
@@ -128,7 +132,7 @@ function manifestRecords(ctx, manifest) {
           category: 'dependency',
           surface: source.surface,
           file: manifest.rel,
-          line: lineOf(text, `"${leaf.key}"`),
+          line: lineOf(text, `"${leaf.key}"`, source.anchors),
           target: leaf.target,
           rule: source.surface,
           justification: noteFor(manifest.pkg, source.noteKey(leaf.key)),
@@ -150,7 +154,7 @@ function workspaceYamlRecords(ctx) {
       category: 'dependency',
       surface: 'pnpm-overrides',
       file: 'pnpm-workspace.yaml',
-      line: lineOf(text, leaf.key),
+      line: lineOf(text, leaf.key, ['overrides:']),
       target: leaf.target,
       rule: 'pnpm-overrides',
       justification: null,

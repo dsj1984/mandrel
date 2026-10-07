@@ -10,7 +10,8 @@
  * @module lib/audit-exceptions/adapters/code-allowlists
  */
 
-import { insideString, readText } from '../read.js';
+import { insideString } from '../locate.js';
+import { readText } from '../read.js';
 import { makeRecord } from '../record.js';
 
 const SOURCE_EXT_RE = /\.[cm]?[jt]sx?$/;

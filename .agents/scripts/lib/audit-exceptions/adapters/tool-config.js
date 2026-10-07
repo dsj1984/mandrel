@@ -9,7 +9,8 @@
 
 import path from 'node:path';
 import { globsProbe, ignoreLineGlobs } from '../globs.js';
-import { lineOf, readJsonc, readText } from '../read.js';
+import { lineOf } from '../locate.js';
+import { readJsonc, readText } from '../read.js';
 import { makeRecord } from '../record.js';
 
 const JS_CONFIG_RE =
@@ -121,6 +122,7 @@ function configRecord(
     justification,
     probe,
     permanentHint,
+    anchors,
   },
 ) {
   return makeRecord({
@@ -128,7 +130,8 @@ function configRecord(
     category: 'config',
     surface,
     file,
-    line: lineOf(text, target),
+    // Every target is a JSON string or key, so match it quoted.
+    line: lineOf(text, `"${target}"`, anchors),
     target,
     rule: `${surface}:${rule}`,
     justification,
@@ -228,6 +231,7 @@ function manifestKeyRecords(ctx) {
             rule: p.rule,
             target: p.needle,
             globs: p.globs,
+            anchors: [`"${key}"`],
           }),
         );
       }

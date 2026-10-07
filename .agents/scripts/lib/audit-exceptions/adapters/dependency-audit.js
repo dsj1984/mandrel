@@ -8,7 +8,8 @@
  */
 
 import path from 'node:path';
-import { lineOf, readJsonc, readText } from '../read.js';
+import { lineOf } from '../locate.js';
+import { readJsonc, readText } from '../read.js';
 import { makeRecord } from '../record.js';
 import { nameProbe } from './dependency-policy.js';
 

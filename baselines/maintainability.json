@@ -216,7 +216,7 @@
     },
     {
       "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-policy.js",
-      "mi": 104.669
+      "mi": 104.016
     },
     {
       "path": ".agents/scripts/lib/audit-exceptions/adapters/index.js",
@@ -268,7 +268,7 @@
     },
     {
       "path": ".agents/scripts/lib/audit-exceptions/read.js",
-      "mi": 106.584
+      "mi": 105.751
     },
     {
       "path": ".agents/scripts/lib/audit-exceptions/record.js",

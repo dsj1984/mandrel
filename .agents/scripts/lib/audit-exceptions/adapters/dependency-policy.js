@@ -7,7 +7,8 @@
  * @module lib/audit-exceptions/adapters/dependency-policy
  */
 
-import { lineOf, readJsonc, readText } from '../read.js';
+import { lineOfName } from '../locate.js';
+import { readJsonc, readText } from '../read.js';
 import { makeRecord } from '../record.js';
 
 const RENOVATE_FILES = Object.freeze([
@@ -63,9 +64,14 @@ export function nameProbe(ctx, name) {
   return { verdict: 'dead', basis: 'package-not-in-tree' };
 }
 
+/**
+ * @param {object} ctx
+ * @param {object} opts - `anchors` are the section keys a name is searched
+ *   after (see `lineOf`).
+ */
 function namesRecords(
   ctx,
-  { adapter, surface, file, text, names, justification },
+  { adapter, surface, file, text, names, justification, anchors },
 ) {
   return names
     .filter((n) => typeof n === 'string' && n.length > 0)
@@ -75,7 +81,7 @@ function namesRecords(
         category: 'dependency',
         surface,
         file,
-        line: lineOf(text, `"${name}"`),
+        line: lineOfName(text, name, anchors),
         target: name,
         rule: surface,
         justification,
@@ -84,7 +90,7 @@ function namesRecords(
     );
 }
 
-function peerRuleRecords(ctx, file, block, text) {
+function peerRuleRecords(ctx, file, block, text, prefix = []) {
   if (!block) return [];
   const rules = block.peerDependencyRules ?? {};
   const groups = [
@@ -105,6 +111,7 @@ function peerRuleRecords(ctx, file, block, text) {
       surface: `pnpm-${surface}`,
       file,
       text,
+      anchors: [...prefix, surface.split('.').pop()],
       names: names.map((n) =>
         String(n)
           .split('>')
@@ -124,11 +131,12 @@ function renovateRuleNames(rule) {
     );
 }
 
-function renovateRecords(ctx, file, config) {
+function renovateRecords(ctx, file, config, prefix = []) {
   const text = readText(ctx.root, file);
   const base = { adapter: 'dependency-policy', file, text };
   const records = namesRecords(ctx, {
     ...base,
+    anchors: [...prefix, 'ignoreDeps'],
     surface: 'renovate-ignoreDeps',
     names: config.ignoreDeps ?? [],
     justification: null,
@@ -144,6 +152,7 @@ function renovateRecords(ctx, file, config) {
     records.push(
       ...namesRecords(ctx, {
         ...base,
+        anchors: [...prefix, 'packageRules'],
         surface,
         names: renovateRuleNames(rule),
         justification: rule.description ?? null,
@@ -153,9 +162,10 @@ function renovateRecords(ctx, file, config) {
   return records;
 }
 
-function knipRecords(ctx, file, config) {
+function knipRecords(ctx, file, config, prefix = []) {
   const text = readText(ctx.root, file);
   return namesRecords(ctx, {
+    anchors: [...prefix, 'ignoreDependencies'],
     adapter: 'dependency-policy',
     surface: 'knip-ignoreDependencies',
     file,
@@ -186,10 +196,13 @@ function extract(ctx) {
   const records = [];
   for (const m of ctx.scope.manifests) {
     const text = readText(ctx.root, m.rel);
-    records.push(...peerRuleRecords(ctx, m.rel, m.pkg.pnpm, text));
+    records.push(...peerRuleRecords(ctx, m.rel, m.pkg.pnpm, text, ['"pnpm"']));
     if (m.pkg.renovate)
-      records.push(...renovateRecords(ctx, m.rel, m.pkg.renovate));
-    if (m.pkg.knip) records.push(...knipRecords(ctx, m.rel, m.pkg.knip));
+      records.push(
+        ...renovateRecords(ctx, m.rel, m.pkg.renovate, ['"renovate"']),
+      );
+    if (m.pkg.knip)
+      records.push(...knipRecords(ctx, m.rel, m.pkg.knip, ['"knip"']));
   }
   const yamlText = readText(ctx.root, 'pnpm-workspace.yaml');
   records.push(

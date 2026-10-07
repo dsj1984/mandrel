@@ -8,7 +8,8 @@
  */
 
 import path from 'node:path';
-import { lineOf, readText } from '../read.js';
+import { lineOf } from '../locate.js';
+import { readText } from '../read.js';
 import { makeRecord } from '../record.js';
 import { noteFor } from './dependency-pins.js';
 
@@ -90,7 +91,7 @@ function pnpmPatchRecords(ctx, file, map, notesPkg) {
       category: 'dependency',
       surface: 'pnpm-patchedDependencies',
       file,
-      line: lineOf(text, key),
+      line: lineOf(text, key, ['patchedDependencies']),
       target: target.name,
       rule: 'pnpm-patchedDependencies',
       justification: noteFor(notesPkg, `pnpm.patchedDependencies.${key}`),

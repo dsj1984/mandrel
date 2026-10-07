@@ -7,7 +7,8 @@
  * @module lib/audit-exceptions/adapters/inline-suppressions
  */
 
-import { insideString, readText } from '../read.js';
+import { insideString } from '../locate.js';
+import { readText } from '../read.js';
 import { makeRecord } from '../record.js';
 
 const SCANNED_EXT_RE =

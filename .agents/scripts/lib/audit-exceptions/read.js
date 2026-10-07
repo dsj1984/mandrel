@@ -99,32 +99,3 @@ export function readYaml(root, rel) {
     return null;
   }
 }
-
-/**
- * 1-based line of the first occurrence of `needle` in `text`, or 1 when it
- * does not occur — a record always carries a line a reader can open.
- *
- * @param {string|null} text
- * @param {string} needle
- * @returns {number}
- */
-export function lineOf(text, needle) {
-  if (!text) return 1;
-  const at = text.indexOf(needle);
-  if (at === -1) return 1;
-  return text.slice(0, at).split('\n').length;
-}
-
-/**
- * True when an odd number of one quote kind precede `index` on `line` — the
- * position sits inside a string literal, so a directive or declaration there
- * is data (a fixture, a message), not code.
- *
- * @param {string} line
- * @param {number} index
- * @returns {boolean}
- */
-export function insideString(line, index) {
-  const before = line.slice(0, index);
-  return ['"', "'", '`'].some((q) => before.split(q).length % 2 === 0);
-}

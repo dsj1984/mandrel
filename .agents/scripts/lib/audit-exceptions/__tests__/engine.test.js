@@ -59,15 +59,6 @@ function snapshot(root) {
   return hash.digest('hex');
 }
 
-/** This checkout's state without hashing node_modules: status plus tracked diff. */
-function repoState(root) {
-  return [
-    gitSync(root, 'status', '--porcelain=v1', '--untracked-files=all'),
-    gitSync(root, 'diff', '--no-ext-diff'),
-    gitSync(root, 'ls-files', '-s'),
-  ].join('\n');
-}
-
 const SUPPRESSIONS = lines(
   '// biome-ignore lint/suspicious/noDebugger: stale',
   'const a = 1;',
@@ -75,14 +66,27 @@ const SUPPRESSIONS = lines(
 );
 
 describe('read-only invariant', () => {
-  it('leaves this repository untouched and writes a schema-valid envelope', async () => {
-    const before = repoState(REPO_ROOT);
+  // The live checkout is shared with every concurrently running test file, so
+  // only an isolated fixture can prove the engine wrote nothing.
+  it('writes a schema-valid envelope for this repository', async () => {
     const { code, env } = await run(REPO_ROOT);
     assert.equal(code, 0);
     assert.doesNotThrow(() => assertEnvelope(env));
     assert.equal(env.kind, 'audit-exceptions-envelope');
     assert.equal(env.isFrameworkSource, true);
-    assert.equal(repoState(REPO_ROOT), before);
+  });
+
+  it('leaves a fixture byte-identical without --probe', async () => {
+    const root = makeRepo({
+      'package.json': { name: 'c', overrides: { x: '^1.0.0' } },
+      'src/a.js': SUPPRESSIONS,
+      'tests/a.test.js': "test.skip('x', () => {});\n",
+    });
+    const before = snapshot(root);
+    const { code, env } = await run(root, ['--changed-since', 'HEAD']);
+    assert.equal(code, 0);
+    assert.ok(env.records.length >= 3);
+    assert.equal(snapshot(root), before);
   });
 
   it('leaves a fixture byte-identical with --probe running a real installed tool', async () => {
@@ -239,6 +243,36 @@ describe('a toolless repo', () => {
 });
 
 describe('history', () => {
+  it('a new override for an already-declared dependency is introduced on its own line', async () => {
+    const root = makeRepo({
+      'package.json': { name: 'c', dependencies: { 'js-yaml': '^4.3.2' } },
+    });
+    fs.writeFileSync(
+      path.join(root, 'package.json'),
+      `${JSON.stringify({ name: 'c', dependencies: { 'js-yaml': '^4.3.2' }, overrides: { 'js-yaml': '^4.3.2' } }, null, 2)}\n`,
+    );
+    gitSync(
+      root,
+      '-c',
+      'user.email=t@e.com',
+      '-c',
+      'user.name=T',
+      '-c',
+      'commit.gpgsign=false',
+      'commit',
+      '-qam',
+      'pin',
+    );
+    const { env } = await run(root, ['--changed-since', 'HEAD~1']);
+    const pin = env.records.find((r) => r.surface === 'npm-overrides');
+    assert.equal(
+      pin.line,
+      7,
+      'the overrides entry, not the dependencies entry',
+    );
+    assert.equal(pin.introduced, true);
+  });
+
   it('--changed-since marks only lines added since the ref', async () => {
     const root = makeRepo({ 'src/a.js': SUPPRESSIONS });
     fs.appendFileSync(
