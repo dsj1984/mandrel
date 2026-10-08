@@ -15,6 +15,13 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.77.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.76.0...mandrel-v2.77.0) (2026-10-08)
+
+
+### Added
+
+* plan-persist: name the claiming Story in the superseded-by marker and close superseded tickets as duplicate ([#5565](https://github.com/dsj1984/mandrel/issues/5565)) ([#5566](https://github.com/dsj1984/mandrel/issues/5566)) ([941fc0a](https://github.com/dsj1984/mandrel/commit/941fc0a340d7ffa5b605db48ba6a60a8172c0b5e))
+
 ## [2.76.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.75.0...mandrel-v2.76.0) (2026-10-07)
 
 
