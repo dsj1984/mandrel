@@ -24,7 +24,7 @@ const SUPERSEDED_BY_COMMENT_TYPE = 'superseded-by';
 export const SUPERSEDE_CLOSE_REASON = 'duplicate';
 
 /** Retried once when the provider refuses `duplicate`. */
-export const SUPERSEDE_FALLBACK_CLOSE_REASON = 'not_planned';
+const SUPERSEDE_FALLBACK_CLOSE_REASON = 'not_planned';
 
 /**
  * Stripped, not rewritten to `agent::done`: a retired ticket has no agent

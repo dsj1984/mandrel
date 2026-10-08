@@ -14,7 +14,6 @@ import {
   resolveSourceTicketIds,
   resolveSupersedePartition,
   SUPERSEDE_CLOSE_REASON,
-  SUPERSEDE_FALLBACK_CLOSE_REASON,
 } from '../../../.agents/scripts/lib/orchestration/plan-persist/supersede-ops.js';
 
 function story(slug, supersedes = []) {
@@ -419,7 +418,7 @@ describe('closeSupersededTickets', () => {
         id: 1,
         mutations: {
           state: 'closed',
-          state_reason: SUPERSEDE_FALLBACK_CLOSE_REASON,
+          state_reason: 'not_planned',
         },
       },
     ]);
