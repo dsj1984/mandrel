@@ -17,8 +17,14 @@ import { upsertStructuredComment } from '../ticketing.js';
 
 const SUPERSEDED_BY_COMMENT_TYPE = 'superseded-by';
 
-/** Nothing has shipped at persist time, so `not_planned`, not `completed`. */
-export const SUPERSEDE_CLOSE_REASON = 'not_planned';
+/**
+ * The claiming Story carries the work, so `duplicate`: nothing has shipped
+ * (not `completed`), but the ticket is not abandoned either.
+ */
+export const SUPERSEDE_CLOSE_REASON = 'duplicate';
+
+/** Retried once when the provider refuses `duplicate`. */
+export const SUPERSEDE_FALLBACK_CLOSE_REASON = 'not_planned';
 
 /**
  * Stripped, not rewritten to `agent::done`: a retired ticket has no agent
@@ -33,8 +39,8 @@ const AGENT_STATE_LABELS = Object.freeze(Object.values(AGENT_LABELS));
  * @param {{ labels?: unknown }} ticket The probe's fresh copy.
  * @returns {object} Mutations for `provider.updateTicket`.
  */
-function supersedeCloseMutations(ticket) {
-  const close = { state: 'closed', state_reason: SUPERSEDE_CLOSE_REASON };
+function supersedeCloseMutations(ticket, reason = SUPERSEDE_CLOSE_REASON) {
+  const close = { state: 'closed', state_reason: reason };
   const labels = Array.isArray(ticket?.labels) ? ticket.labels : [];
   const remove = AGENT_STATE_LABELS.filter((label) => labels.includes(label));
   if (remove.length === 0) return close;
@@ -289,6 +295,28 @@ export function buildSupersedeCommentBody({
 }
 
 /**
+ * Close as `duplicate`; on refusal, retry once as `not_planned` so a
+ * supersede never fails on the reason alone.
+ *
+ * @returns {Promise<void>}
+ */
+async function closeSupersededSource(provider, id, ticket) {
+  try {
+    await provider.updateTicket(id, supersedeCloseMutations(ticket));
+  } catch (err) {
+    Logger.warn(
+      `[plan-persist] closing #${id} as ${SUPERSEDE_CLOSE_REASON} was ` +
+        `refused (${err.message}) — retrying as ` +
+        `${SUPERSEDE_FALLBACK_CLOSE_REASON}.`,
+    );
+    await provider.updateTicket(
+      id,
+      supersedeCloseMutations(ticket, SUPERSEDE_FALLBACK_CLOSE_REASON),
+    );
+  }
+}
+
+/**
  * The ticket rides along so the close needs no second read.
  *
  * @returns {Promise<{ ok: true, state: string, ticket: object } | { ok: false, reason: string }>}
@@ -335,8 +363,9 @@ async function closeOneSupersededTicket({
         note,
         sourceTicketIds,
       }),
+      { story: story.id },
     );
-    await provider.updateTicket(id, supersedeCloseMutations(probe.ticket));
+    await closeSupersededSource(provider, id, probe.ticket);
     return { outcome: 'closed' };
   } catch (err) {
     return { outcome: 'failed', reason: err.message };

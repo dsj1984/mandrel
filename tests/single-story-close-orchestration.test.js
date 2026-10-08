@@ -822,50 +822,54 @@ describe('runSingleStoryClose orchestration', () => {
     assert.equal(terminal.status, 'landed');
   });
 
-  it('fails loudly for a Story closed as not_planned rather than claiming it landed', async (t) => {
-    // `state: 'closed'` covers both "merged, footer closed it" and
-    // "superseded, nothing ever merged". Reporting the latter as `landed`
-    // told /mandrel-deliver the work was on main — and would satisfy any dependent
-    // Story waiting on it.
-    const gh = makeFakeGh(() => {
-      throw new Error('gh must not be invoked when noop');
-    });
-    t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
-    mockCloseValidation(t, defaultCloseValidationMock());
-    t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
+  // `duplicate` is what /mandrel-plan's supersede writes (Story #5565); a
+  // superseded Story can itself be a source ticket.
+  for (const stateReason of ['not_planned', 'duplicate']) {
+    it(`fails loudly for a Story closed as ${stateReason} rather than claiming it landed`, async (t) => {
+      // `state: 'closed'` covers both "merged, footer closed it" and
+      // "superseded, nothing ever merged". Reporting the latter as `landed`
+      // told /mandrel-deliver the work was on main — and would satisfy any dependent
+      // Story waiting on it.
+      const gh = makeFakeGh(() => {
+        throw new Error('gh must not be invoked when noop');
+      });
+      t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
+      mockCloseValidation(t, defaultCloseValidationMock());
+      t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
 
-    const { runSingleStoryClose } = await import(
-      `${SUT_URL}?t=noop-notplanned`
-    );
-    const provider = makeFakeProvider({
-      initialStory: {
-        id: 1234,
-        state: 'closed',
-        stateReason: 'not_planned',
-        title: 'Superseded',
-        labels: [],
-      },
-    });
+      const { runSingleStoryClose } = await import(
+        `${SUT_URL}?t=noop-${stateReason}`
+      );
+      const provider = makeFakeProvider({
+        initialStory: {
+          id: 1234,
+          state: 'closed',
+          stateReason,
+          title: 'Superseded',
+          labels: [],
+        },
+      });
 
-    const { success, result, terminal } = await runSingleStoryClose({
-      storyId: 1234,
-      cwd: '/repo',
-      skipValidation: true,
-      skipSync: true,
-      noWaitForMerge: true,
-      injectedProvider: provider,
-      injectedConfig: fakeConfig(),
-      injectedRunCodeReview: noopReview(),
-      injectedGh: gh,
-    });
+      const { success, result, terminal } = await runSingleStoryClose({
+        storyId: 1234,
+        cwd: '/repo',
+        skipValidation: true,
+        skipSync: true,
+        noWaitForMerge: true,
+        injectedProvider: provider,
+        injectedConfig: fakeConfig(),
+        injectedRunCodeReview: noopReview(),
+        injectedGh: gh,
+      });
 
-    assert.equal(success, false);
-    assert.equal(terminal.status, 'failed');
-    assert.notEqual(terminal.status, 'landed');
-    assert.equal(result.reason, 'closed-not-planned');
-    assert.match(terminal.failure.reason, /not planned/i);
-    assert.equal(provider._updates().length, 0, 'no label flip on noop');
-  });
+      assert.equal(success, false);
+      assert.equal(terminal.status, 'failed');
+      assert.notEqual(terminal.status, 'landed');
+      assert.equal(result.reason, 'closed-not-planned');
+      assert.match(terminal.failure.reason, /not planned/i);
+      assert.equal(provider._updates().length, 0, 'no label flip on noop');
+    });
+  }
 
   it('honours --no-auto-merge by skipping the auto-merge gh call', async (t) => {
     const ghCalls = [];

@@ -148,10 +148,14 @@ function noopResult(storyId, reason) {
   return { storyId, standalone: true, action: 'noop', reason };
 }
 
+/** Close reasons meaning nothing merged — superseded or abandoned. */
+const UNLANDED_CLOSE_REASONS = new Set(['not_planned', 'duplicate']);
+
 /**
- * Terminal for an already-closed Story. `not_planned` means nothing merged,
- * so it fails rather than reporting `landed` (which would also unblock
- * dependents); `completed` or null (GitHub's default) reads as landed.
+ * Terminal for an already-closed Story. `not_planned` / `duplicate` mean
+ * nothing merged, so it fails rather than reporting `landed` (which would
+ * also unblock dependents); `completed` or null (GitHub's default) reads as
+ * landed.
  */
 async function alreadyClosedResult(
   storyId,
@@ -159,7 +163,7 @@ async function alreadyClosedResult(
   config,
   worker = NO_WORKER,
 ) {
-  if (stateReason === 'not_planned') {
+  if (UNLANDED_CLOSE_REASONS.has(stateReason)) {
     progress(
       'NOOP',
       `Story #${storyId} is closed as not planned — nothing to land.`,

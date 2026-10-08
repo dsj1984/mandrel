@@ -4,6 +4,7 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { Logger } from '../../../.agents/scripts/lib/Logger.js';
 import {
   buildSupersedeCommentBody,
   closeSupersededTickets,
@@ -13,6 +14,7 @@ import {
   resolveSourceTicketIds,
   resolveSupersedePartition,
   SUPERSEDE_CLOSE_REASON,
+  SUPERSEDE_FALLBACK_CLOSE_REASON,
 } from '../../../.agents/scripts/lib/orchestration/plan-persist/supersede-ops.js';
 
 function story(slug, supersedes = []) {
@@ -349,7 +351,7 @@ describe('closeSupersededTickets', () => {
   const stories = [{ slug: 'a', supersedes: [{ id: 1, note: null }] }];
   const created = [{ slug: 'a', id: 500, title: 'Story A' }];
 
-  it('closes with state_reason not_planned', async () => {
+  it('closes with state_reason duplicate', async () => {
     const p = provider({ states: { 1: 'open' } });
     const report = await closeSupersededTickets({
       provider: p,
@@ -364,7 +366,67 @@ describe('closeSupersededTickets', () => {
         mutations: { state: 'closed', state_reason: SUPERSEDE_CLOSE_REASON },
       },
     ]);
-    assert.equal(SUPERSEDE_CLOSE_REASON, 'not_planned');
+    assert.equal(SUPERSEDE_CLOSE_REASON, 'duplicate');
+  });
+
+  it('names the claiming Story in the superseded-by marker', async () => {
+    const p = provider({ states: { 1: 'open' } });
+    await closeSupersededTickets({
+      provider: p,
+      stories,
+      created,
+      sourceTicketIds: [1],
+    });
+    assert.equal(p.calls.comments.length, 1);
+    assert.ok(
+      p.calls.comments[0].body.startsWith(
+        '<!-- ap:structured-comment type="superseded-by" story="500" -->',
+      ),
+      p.calls.comments[0].body,
+    );
+    assert.match(p.calls.comments[0].body, /\*\*Superseded by #500\*\*/);
+  });
+
+  it('falls back to not_planned when the provider refuses duplicate', async () => {
+    const attempts = [];
+    const p = provider({ states: { 1: 'open' } });
+    const accept = p.updateTicket.bind(p);
+    p.updateTicket = async (id, mutations) => {
+      attempts.push(mutations.state_reason);
+      if (mutations.state_reason === 'duplicate') {
+        throw new Error('Validation Failed: state_reason');
+      }
+      return accept(id, mutations);
+    };
+    const warnings = [];
+    const originalWarn = Logger.warn;
+    Logger.warn = (msg) => warnings.push(msg);
+    try {
+      const report = await closeSupersededTickets({
+        provider: p,
+        stories,
+        created,
+        sourceTicketIds: [1],
+      });
+      assert.deepEqual(report.closed, [1]);
+      assert.deepEqual(report.failed, []);
+    } finally {
+      Logger.warn = originalWarn;
+    }
+    assert.deepEqual(attempts, ['duplicate', 'not_planned']);
+    assert.deepEqual(p.calls.updates, [
+      {
+        id: 1,
+        mutations: {
+          state: 'closed',
+          state_reason: SUPERSEDE_FALLBACK_CLOSE_REASON,
+        },
+      },
+    ]);
+    assert.ok(
+      warnings.some((w) => /refused.*retrying as not_planned/.test(w)),
+      warnings.join('\n'),
+    );
   });
 
   it('strips a stale agent::* label in the same call that closes (Story #5255)', async () => {
