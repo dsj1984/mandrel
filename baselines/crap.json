@@ -22972,6 +22972,12 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
+      "method": "closeSupersededSource",
+      "startLine": 303,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "closeOneSupersededTicket",
       "startLine": 315,
       "crap": 3
