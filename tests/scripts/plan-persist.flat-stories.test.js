@@ -1008,7 +1008,7 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
       .join('\n');
   }
 
-  it('comments naming the claiming Story and closes as not_planned', async () => {
+  it('comments naming the claiming Story and closes as duplicate', async () => {
     const provider = fakeProvider({
       sources: [{ id: 900, title: 'Old idea' }],
     });
@@ -1027,12 +1027,12 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
     const body = sourceComments(provider, 900);
     assert.match(body, new RegExp(`Superseded by #${storyId}`));
     assert.match(body, /Story solo/);
-    assert.match(body, /superseded-by/);
+    assert.match(body, new RegExp(`type="superseded-by" story="${storyId}"`));
     // Names the specific Story, not a blanket plan-run reference.
     assert.doesNotMatch(body, /superseded by this plan-run/i);
 
     assert.deepEqual(closeUpdates(provider), [
-      { id: 900, mutations: { state: 'closed', state_reason: 'not_planned' } },
+      { id: 900, mutations: { state: 'closed', state_reason: 'duplicate' } },
     ]);
     assert.equal(provider.issues.get(900).state, 'closed');
   });
