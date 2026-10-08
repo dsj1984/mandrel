@@ -1,0 +1,268 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://mandrel/.agents/schemas/audit-exceptions-envelope.schema.json",
+  "title": "AuditExceptionsEnvelope",
+  "description": "Evidence envelope emitted by `.agents/scripts/audit-exceptions.js` (Story #5560): every exception the adapter registry found in a repository (inline suppressions, tool-config exemptions, dependency pins / patches / allowlists, CI gate exemptions, test skips, code allowlists), each with a mechanical verdict, plus per-(adapter, rule) clusters, inapplicable adapters, delegations to sibling lenses, and degraded inputs.",
+  "type": "object",
+  "required": [
+    "kind",
+    "schemaVersion",
+    "generatedAt",
+    "cwd",
+    "isFrameworkSource",
+    "options",
+    "adapters",
+    "skipped",
+    "delegated",
+    "probes",
+    "degradations",
+    "totals",
+    "clusters",
+    "truncated",
+    "records"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "verdict": {
+      "enum": ["dead", "expired", "orphaned", "unjustified", "live", "unknown"]
+    },
+    "category": {
+      "enum": ["inline", "config", "dependency", "gate", "test", "allowlist"]
+    },
+    "verdictCounts": {
+      "type": "object",
+      "required": [
+        "dead",
+        "expired",
+        "orphaned",
+        "unjustified",
+        "live",
+        "unknown"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "dead": { "type": "integer", "minimum": 0 },
+        "expired": { "type": "integer", "minimum": 0 },
+        "orphaned": { "type": "integer", "minimum": 0 },
+        "unjustified": { "type": "integer", "minimum": 0 },
+        "live": { "type": "integer", "minimum": 0 },
+        "unknown": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "degradation": {
+      "type": "object",
+      "required": ["input", "reason", "detail"],
+      "additionalProperties": false,
+      "properties": {
+        "input": { "type": "string", "minLength": 1 },
+        "reason": { "type": "string" },
+        "detail": { "type": "string" }
+      }
+    },
+    "record": {
+      "type": "object",
+      "required": [
+        "id",
+        "adapter",
+        "category",
+        "surface",
+        "file",
+        "line",
+        "target",
+        "rule",
+        "justification",
+        "ticketRefs",
+        "expires",
+        "addedAt",
+        "introduced",
+        "verdict",
+        "verdictBasis",
+        "probeBasis",
+        "permanentHint"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "adapter": { "type": "string", "minLength": 1 },
+        "category": { "$ref": "#/definitions/category" },
+        "surface": { "type": "string", "minLength": 1 },
+        "file": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Repo-relative, forward slashes."
+        },
+        "line": { "type": "integer", "minimum": 1 },
+        "target": {
+          "type": "string",
+          "description": "What the exception exempts: a rule, package, glob, setting or entry."
+        },
+        "rule": {
+          "type": "string",
+          "description": "Cluster key within the adapter."
+        },
+        "justification": { "type": ["string", "null"] },
+        "ticketRefs": { "type": "array", "items": { "type": "string" } },
+        "expires": {
+          "type": ["string", "null"],
+          "description": "ISO date parsed from the justification."
+        },
+        "addedAt": {
+          "type": ["string", "null"],
+          "description": "ISO date from git blame; null past --blame-limit or when uncommitted."
+        },
+        "introduced": {
+          "type": "boolean",
+          "description": "Line added since --changed-since; false when the flag is absent."
+        },
+        "verdict": { "$ref": "#/definitions/verdict" },
+        "verdictBasis": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Why the verdict holds: a probe basis (absent-from-tree, redundant, matches-nothing, tool, ...), expiry-date, ticket-closed, no-justification, or none."
+        },
+        "probeBasis": {
+          "type": ["string", "null"],
+          "description": "What the mechanical probe found, kept even when a higher-precedence verdict (expired, orphaned, unjustified) wins; null when no probe applies."
+        },
+        "permanentHint": {
+          "type": ["string", "null"],
+          "description": "Set when the shape is legitimately permanent (platform-conditional, conventional-setting)."
+        }
+      }
+    }
+  },
+  "properties": {
+    "kind": { "const": "audit-exceptions-envelope" },
+    "schemaVersion": { "type": "string", "minLength": 1 },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "cwd": { "type": "string", "minLength": 1 },
+    "isFrameworkSource": {
+      "type": "boolean",
+      "description": "True only in the Mandrel source repo; elsewhere the materialized .agents/ payload is excluded from scope."
+    },
+    "options": {
+      "type": "object",
+      "required": [
+        "probe",
+        "changedSince",
+        "ticketLimit",
+        "blameLimit",
+        "maxRecords"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "probe": { "type": "boolean" },
+        "changedSince": { "type": ["string", "null"] },
+        "ticketLimit": { "type": "integer", "minimum": 0 },
+        "blameLimit": { "type": "integer", "minimum": 0 },
+        "maxRecords": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "adapters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "category", "recordCount"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "category": { "$ref": "#/definitions/category" },
+          "recordCount": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "skipped": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "reason"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    "delegated": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["surface", "lens", "reason"],
+        "additionalProperties": false,
+        "properties": {
+          "surface": { "type": "string" },
+          "lens": { "type": "string" },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    "probes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "flagged"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "flagged": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "degradations": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/degradation" }
+    },
+    "totals": {
+      "type": "object",
+      "required": ["records", "byVerdict", "byCategory", "introduced"],
+      "additionalProperties": false,
+      "properties": {
+        "records": { "type": "integer", "minimum": 0 },
+        "byVerdict": { "$ref": "#/definitions/verdictCounts" },
+        "byCategory": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "introduced": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "clusters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "adapter",
+          "category",
+          "rule",
+          "count",
+          "byVerdict",
+          "files"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "adapter": { "type": "string" },
+          "category": { "$ref": "#/definitions/category" },
+          "rule": { "type": "string" },
+          "count": { "type": "integer", "minimum": 1 },
+          "byVerdict": { "$ref": "#/definitions/verdictCounts" },
+          "files": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "truncated": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["kept", "dropped"],
+          "additionalProperties": false,
+          "properties": {
+            "kept": { "type": "integer", "minimum": 0 },
+            "dropped": { "type": "integer", "minimum": 1 }
+          }
+        }
+      ]
+    },
+    "records": { "type": "array", "items": { "$ref": "#/definitions/record" } }
+  }
+}

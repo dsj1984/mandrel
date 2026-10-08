@@ -23,6 +23,7 @@ const FRAMEWORK_SCRIPT_BASENAMES = Object.freeze([
   'agents-bootstrap-github.js',
   'apply-quality-bootstrap.js',
   'audit-baselines.js',
+  'audit-exceptions.js',
   'audit-labels-bootstrap.js',
   'audit-to-stories.js',
   'boot-sweep.js',

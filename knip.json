@@ -8,6 +8,7 @@
     ".agents/scripts/agents-bootstrap-github.js!",
     ".agents/scripts/apply-quality-bootstrap.js!",
     ".agents/scripts/audit-baselines.js!",
+    ".agents/scripts/audit-exceptions.js!",
     ".agents/scripts/audit-labels-bootstrap.js!",
     ".agents/scripts/audit-to-stories.js!",
     ".agents/scripts/boot-sweep.js!",

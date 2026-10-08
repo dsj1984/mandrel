@@ -19,6 +19,10 @@
       "mi": 98.554
     },
     {
+      "path": ".agents/scripts/audit-exceptions.js",
+      "mi": 93.51
+    },
+    {
       "path": ".agents/scripts/audit-labels-bootstrap.js",
       "mi": 92.065
     },
@@ -189,6 +193,98 @@
     {
       "path": ".agents/scripts/lib/audit-baselines/weights.js",
       "mi": 95.834
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/ci-gates.js",
+      "mi": 112.056
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/code-allowlists.js",
+      "mi": 101.153
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-audit.js",
+      "mi": 106.004
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-patches.js",
+      "mi": 98.387
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-pins.js",
+      "mi": 105.22
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-policy.js",
+      "mi": 104.016
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/index.js",
+      "mi": 140.122
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/inline-suppressions.js",
+      "mi": 108.813
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/sca-exceptions.js",
+      "mi": 108.723
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/test-skips.js",
+      "mi": 105.216
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/tool-config.js",
+      "mi": 102.148
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/classify.js",
+      "mi": 106.253
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/dependency-index.js",
+      "mi": 101.411
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/engine.js",
+      "mi": 97.723
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/globs.js",
+      "mi": 109.227
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/history.js",
+      "mi": 90.47
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/locate.js",
+      "mi": 113.52
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/probe.js",
+      "mi": 106.317
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/range-subset.js",
+      "mi": 100.451
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/read.js",
+      "mi": 105.751
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/record.js",
+      "mi": 100.32
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/scope.js",
+      "mi": 102.094
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/tickets.js",
+      "mi": 98.436
     },
     {
       "path": ".agents/scripts/lib/audit-suite/audit-rules-reader.js",
@@ -2371,6 +2467,10 @@
       "mi": 97.514
     },
     {
+      "path": "scripts/check-npm-audit.js",
+      "mi": 95.241
+    },
+    {
       "path": "scripts/check-payload-boundary.js",
       "mi": 107.036
     },
@@ -2412,11 +2512,15 @@
     },
     {
       "path": "scripts/lib/audit-advisories.js",
-      "mi": 105.717
+      "mi": 106.834
     },
     {
       "path": "scripts/lib/audit-attribution.js",
       "mi": 114.93
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "mi": 99.638
     },
     {
       "path": "scripts/lib/audit-report-contracts/architecture-report-contract.js",
@@ -2564,7 +2668,7 @@
     },
     {
       "path": "scripts/run-verify.js",
-      "mi": 101.048
+      "mi": 101.992
     },
     {
       "path": "scripts/test-isolate.js",

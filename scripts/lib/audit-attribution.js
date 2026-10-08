@@ -30,7 +30,6 @@
 // module stays the one import an attribution consumer needs while the audit
 // runner, the projection and the diff keep their own file.
 export {
-  auditAdvisories,
   diffAdvisories,
   renderAdvisoryDetail,
 } from './audit-advisories.js';

@@ -182,6 +182,49 @@
       "scope": "cumulative",
       "substitutionKeys": []
     },
+    "audit-exceptions": {
+      "triggers": {
+        "gates": ["gate1", "gate3"],
+        "keywords": [
+          "exception",
+          "suppression",
+          "suppress",
+          "override",
+          "overrides",
+          "allowlist",
+          "waiver",
+          "version pin",
+          "patch-package",
+          "patched dependency",
+          "eslint-disable",
+          "biome-ignore",
+          "ts-expect-error",
+          "skipped test"
+        ],
+        "filePatterns": [
+          "**/package.json",
+          "**/pnpm-workspace.yaml",
+          "**/.npmrc",
+          "patches/**",
+          "renovate.json",
+          ".github/renovate.json",
+          ".nsprc",
+          "audit-ci.json",
+          "audit-ci.jsonc",
+          "knip.json",
+          "knip.jsonc",
+          "biome.json",
+          "biome.jsonc",
+          ".eslintrc*",
+          "**/tsconfig*.json",
+          ".c8rc*",
+          ".prettierignore",
+          ".eslintignore"
+        ]
+      },
+      "scope": "cumulative",
+      "substitutionKeys": []
+    },
     "audit-documentation": {
       "triggers": {
         "gates": ["gate1", "gate3"],

@@ -11,7 +11,8 @@
 # `docs/contributing/known-tooling-behavior.md` entry 2 carries the current
 # coverage table.
 #
-# Optional: PREPUSH_AUDIT=1 re-enables npm audit (CI still audits on PR/push).
+# Optional: PREPUSH_AUDIT=1 re-enables the npm audit gate
+# (scripts/check-npm-audit.js; CI still audits on PR/push).
 
 # Drain the pre-push ref protocol from stdin. Nothing below reads it, but an
 # unconsumed stdin can leak into the next command on some shells.
@@ -42,7 +43,7 @@ cat > /dev/null
 node .agents/scripts/coverage-capture.js --skip-when-no-crap-files --ref origin/main
 node .agents/scripts/quality-preview.js --changed-since origin/main
 if [ "${PREPUSH_AUDIT:-0}" = "1" ]; then
-  npm audit --audit-level=high
+  node scripts/check-npm-audit.js
 fi
 
 npm run crap:check

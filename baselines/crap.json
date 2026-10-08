@@ -226,6 +226,32 @@
       "anonymous": true
     },
     {
+      "path": ".agents/scripts/audit-exceptions.js",
+      "method": "assertEnvelope",
+      "startLine": 54,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/audit-exceptions.js",
+      "method": "<anon assertEnvelope/(e)#0>",
+      "startLine": 62,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/audit-exceptions.js",
+      "method": "runCli",
+      "startLine": 74,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/audit-exceptions.js",
+      "method": "<anon ()#0>",
+      "startLine": 107,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
       "path": ".agents/scripts/audit-labels-bootstrap.js",
       "method": "labelExists",
       "startLine": 16,
@@ -4144,6 +4170,1932 @@
       "method": "<anon makeWeightResolver/(id)#0>",
       "startLine": 153,
       "crap": 4,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/ci-gates.js",
+      "method": "reasonFor",
+      "startLine": 24,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/ci-gates.js",
+      "method": "workflowRecords",
+      "startLine": 31,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/ci-gates.js",
+      "method": "<anon workflowRecords/(line,i)#0>",
+      "startLine": 34,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/ci-gates.js",
+      "method": "<anon workflowRecords/(line,i)#0/(s)#0>",
+      "startLine": 35,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/ci-gates.js",
+      "method": "<anon (ctx)#0>",
+      "startLine": 57,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/ci-gates.js",
+      "method": "<anon (ctx)#0/(f)#0>",
+      "startLine": 58,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/ci-gates.js",
+      "method": "<anon (ctx)#1>",
+      "startLine": 61,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/ci-gates.js",
+      "method": "<anon (ctx)#1/(f)#0>",
+      "startLine": 63,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/ci-gates.js",
+      "method": "<anon (ctx)#1/(f)#1>",
+      "startLine": 64,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/code-allowlists.js",
+      "method": "group",
+      "startLine": 19,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/code-allowlists.js",
+      "method": "literalEnd",
+      "startLine": 45,
+      "crap": 3.009
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/code-allowlists.js",
+      "method": "docComment",
+      "startLine": 59,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/code-allowlists.js",
+      "method": "reasonFor",
+      "startLine": 72,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/code-allowlists.js",
+      "method": "entryProbe",
+      "startLine": 79,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/code-allowlists.js",
+      "method": "entryRecords",
+      "startLine": 86,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/code-allowlists.js",
+      "method": "fileRecords",
+      "startLine": 111,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/code-allowlists.js",
+      "method": "<anon (ctx)#0>",
+      "startLine": 134,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/code-allowlists.js",
+      "method": "<anon (ctx)#0/(f)#0>",
+      "startLine": 135,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/code-allowlists.js",
+      "method": "<anon (ctx)#1>",
+      "startLine": 138,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/code-allowlists.js",
+      "method": "<anon (ctx)#1/(f)#0>",
+      "startLine": 140,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/code-allowlists.js",
+      "method": "<anon (ctx)#1/(f)#1>",
+      "startLine": 141,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-audit.js",
+      "method": "expiryText",
+      "startLine": 28,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-audit.js",
+      "method": "entryJustification",
+      "startLine": 35,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-audit.js",
+      "method": "allowlistProbe",
+      "startLine": 47,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-audit.js",
+      "method": "allowRecord",
+      "startLine": 55,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-audit.js",
+      "method": "nsprcRecords",
+      "startLine": 69,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-audit.js",
+      "method": "<anon nsprcRecords/(meta)#0>",
+      "startLine": 78,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-audit.js",
+      "method": "<anon nsprcRecords/(entry,meta)#0>",
+      "startLine": 79,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-audit.js",
+      "method": "auditCiEntries",
+      "startLine": 84,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-audit.js",
+      "method": "<anon auditCiEntries/(item)#0>",
+      "startLine": 85,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-audit.js",
+      "method": "<anon auditCiEntries/(item)#0/(entry,meta)#0>",
+      "startLine": 88,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-audit.js",
+      "method": "auditCiRecords",
+      "startLine": 92,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-audit.js",
+      "method": "<anon auditCiRecords/(f)#0>",
+      "startLine": 93,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-audit.js",
+      "method": "<anon auditCiRecords/(file)#0>",
+      "startLine": 94,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-audit.js",
+      "method": "<anon auditCiRecords/(file)#0/(meta)#0>",
+      "startLine": 102,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-audit.js",
+      "method": "<anon auditCiRecords/(file)#0/(entry,meta)#0>",
+      "startLine": 103,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-audit.js",
+      "method": "commentAbove",
+      "startLine": 117,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-audit.js",
+      "method": "npmrcRecords",
+      "startLine": 122,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-audit.js",
+      "method": "<anon npmrcRecords/(raw,i)#0>",
+      "startLine": 125,
+      "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-audit.js",
+      "method": "<anon (ctx)#0>",
+      "startLine": 148,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-audit.js",
+      "method": "<anon (ctx)#1>",
+      "startLine": 152,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-audit.js",
+      "method": "<anon (ctx)#1/(f)#0>",
+      "startLine": 156,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-audit.js",
+      "method": "<anon (ctx)#1/(f)#1>",
+      "startLine": 157,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-patches.js",
+      "method": "parsePatchPackageStem",
+      "startLine": 23,
+      "crap": 4.373177842565598
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-patches.js",
+      "method": "parsePnpmPatchKey",
+      "startLine": 32,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-patches.js",
+      "method": "patchProbe",
+      "startLine": 44,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-patches.js",
+      "method": "patchPackageRecords",
+      "startLine": 55,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-patches.js",
+      "method": "pnpmPatchRecords",
+      "startLine": 81,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-patches.js",
+      "method": "<anon pnpmPatchRecords/(key,patchPath)#0>",
+      "startLine": 83,
+      "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-patches.js",
+      "method": "<anon (ctx)#0>",
+      "startLine": 107,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-patches.js",
+      "method": "<anon (ctx)#1>",
+      "startLine": 111,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-patches.js",
+      "method": "<anon (ctx)#1/(m)#0>",
+      "startLine": 113,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-pins.js",
+      "method": "noteFor",
+      "startLine": 24,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-pins.js",
+      "method": "npmLeaves",
+      "startLine": 32,
+      "crap": 5.048828125
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-pins.js",
+      "method": "<anon npmLeaves/(k)#0>",
+      "startLine": 41,
+      "crap": 1.001953125,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-pins.js",
+      "method": "pnpmTarget",
+      "startLine": 50,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-pins.js",
+      "method": "yarnTarget",
+      "startLine": 55,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-pins.js",
+      "method": "flatLeaves",
+      "startLine": 62,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-pins.js",
+      "method": "<anon flatLeaves/(value)#0>",
+      "startLine": 64,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-pins.js",
+      "method": "<anon flatLeaves/(key,value)#0>",
+      "startLine": 65,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-pins.js",
+      "method": "pinProbe",
+      "startLine": 74,
+      "crap": 8
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-pins.js",
+      "method": "<anon pinProbe/(a)#0>",
+      "startLine": 85,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-pins.js",
+      "method": "resolveValue",
+      "startLine": 94,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-pins.js",
+      "method": "<anon (pkg)#0>",
+      "startLine": 104,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-pins.js",
+      "method": "<anon (key)#0>",
+      "startLine": 105,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-pins.js",
+      "method": "<anon (pkg)#1>",
+      "startLine": 109,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-pins.js",
+      "method": "<anon (key)#1>",
+      "startLine": 110,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-pins.js",
+      "method": "<anon (pkg)#2>",
+      "startLine": 114,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-pins.js",
+      "method": "<anon (key)#2>",
+      "startLine": 115,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-pins.js",
+      "method": "manifestRecords",
+      "startLine": 119,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-pins.js",
+      "method": "workspaceYamlRecords",
+      "startLine": 143,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-pins.js",
+      "method": "<anon workspaceYamlRecords/(leaf)#0>",
+      "startLine": 147,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-pins.js",
+      "method": "<anon (ctx)#0>",
+      "startLine": 165,
+      "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-pins.js",
+      "method": "<anon (ctx)#1>",
+      "startLine": 169,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-pins.js",
+      "method": "<anon (ctx)#1/(m)#0>",
+      "startLine": 170,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-policy.js",
+      "method": "invocationText",
+      "startLine": 32,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-policy.js",
+      "method": "<anon invocationText/(m)#0>",
+      "startLine": 34,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-policy.js",
+      "method": "<anon invocationText/(f)#0>",
+      "startLine": 39,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-policy.js",
+      "method": "<anon invocationText/(f)#1>",
+      "startLine": 41,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-policy.js",
+      "method": "nameProbe",
+      "startLine": 52,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-policy.js",
+      "method": "namesRecords",
+      "startLine": 66,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-policy.js",
+      "method": "<anon namesRecords/(n)#0>",
+      "startLine": 71,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-policy.js",
+      "method": "<anon namesRecords/(name)#0>",
+      "startLine": 72,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-policy.js",
+      "method": "peerRuleRecords",
+      "startLine": 87,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-policy.js",
+      "method": "<anon peerRuleRecords/(surface,names)#0>",
+      "startLine": 102,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-policy.js",
+      "method": "<anon peerRuleRecords/(surface,names)#0/(n)#0>",
+      "startLine": 108,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-policy.js",
+      "method": "renovateRuleNames",
+      "startLine": 119,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-policy.js",
+      "method": "<anon renovateRuleNames/(n)#0>",
+      "startLine": 123,
+      "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-policy.js",
+      "method": "renovateRecords",
+      "startLine": 127,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-policy.js",
+      "method": "knipRecords",
+      "startLine": 156,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-policy.js",
+      "method": "<anon knipRecords/(n)#0>",
+      "startLine": 164,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-policy.js",
+      "method": "configFiles",
+      "startLine": 170,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-policy.js",
+      "method": "<anon configFiles/(f)#0>",
+      "startLine": 172,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-policy.js",
+      "method": "<anon configFiles/(f)#1>",
+      "startLine": 173,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-policy.js",
+      "method": "readableConfigs",
+      "startLine": 176,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-policy.js",
+      "method": "<anon readableConfigs/(f)#0>",
+      "startLine": 182,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-policy.js",
+      "method": "extract",
+      "startLine": 185,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-policy.js",
+      "method": "<anon extract/(f)#0>",
+      "startLine": 203,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/dependency-policy.js",
+      "method": "<anon (ctx)#0>",
+      "startLine": 225,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/inline-suppressions.js",
+      "method": "<anon (m)#0>",
+      "startLine": 23,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/inline-suppressions.js",
+      "method": "<anon (m)#1>",
+      "startLine": 27,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/inline-suppressions.js",
+      "method": "<anon (m)#2>",
+      "startLine": 31,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/inline-suppressions.js",
+      "method": "<anon (m)#3>",
+      "startLine": 35,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/inline-suppressions.js",
+      "method": "<anon (m)#4>",
+      "startLine": 43,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/inline-suppressions.js",
+      "method": "<anon (m)#5>",
+      "startLine": 47,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/inline-suppressions.js",
+      "method": "matchLine",
+      "startLine": 53,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/inline-suppressions.js",
+      "method": "<anon matchLine/(m)#0>",
+      "startLine": 56,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/inline-suppressions.js",
+      "method": "reasonAbove",
+      "startLine": 65,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/inline-suppressions.js",
+      "method": "fileRecords",
+      "startLine": 71,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/inline-suppressions.js",
+      "method": "<anon fileRecords/(line,i)#0>",
+      "startLine": 74,
+      "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/inline-suppressions.js",
+      "method": "<anon (ctx)#0>",
+      "startLine": 98,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/inline-suppressions.js",
+      "method": "<anon (ctx)#0/(f)#0>",
+      "startLine": 99,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/inline-suppressions.js",
+      "method": "<anon (ctx)#1>",
+      "startLine": 102,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/inline-suppressions.js",
+      "method": "<anon (ctx)#1/(f)#0>",
+      "startLine": 104,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/inline-suppressions.js",
+      "method": "<anon (ctx)#1/(f)#1>",
+      "startLine": 105,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/sca-exceptions.js",
+      "method": "entryRecord",
+      "startLine": 16,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/sca-exceptions.js",
+      "method": "extract",
+      "startLine": 34,
+      "crap": 2.0811419984973702
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/sca-exceptions.js",
+      "method": "<anon extract/(e)#0>",
+      "startLine": 42,
+      "crap": 1.0202854996243427,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/sca-exceptions.js",
+      "method": "<anon extract/(e)#1>",
+      "startLine": 43,
+      "crap": 1.0202854996243427,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/sca-exceptions.js",
+      "method": "<anon (ctx)#0>",
+      "startLine": 49,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/test-skips.js",
+      "method": "optionHit",
+      "startLine": 28,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/test-skips.js",
+      "method": "matchLine",
+      "startLine": 44,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/test-skips.js",
+      "method": "fileRecords",
+      "startLine": 58,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/test-skips.js",
+      "method": "<anon fileRecords/(line,i)#0>",
+      "startLine": 61,
+      "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/test-skips.js",
+      "method": "<anon (ctx)#0>",
+      "startLine": 87,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/test-skips.js",
+      "method": "<anon (ctx)#0/(f)#0>",
+      "startLine": 88,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/test-skips.js",
+      "method": "<anon (ctx)#1>",
+      "startLine": 91,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/test-skips.js",
+      "method": "<anon (ctx)#1/(f)#0>",
+      "startLine": 93,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/test-skips.js",
+      "method": "<anon (ctx)#1/(f)#1>",
+      "startLine": 94,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/tool-config.js",
+      "method": "<anon (list)#0>",
+      "startLine": 18,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/tool-config.js",
+      "method": "<anon (list)#0/(g)#0>",
+      "startLine": 19,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/tool-config.js",
+      "method": "<anon (override)#0>",
+      "startLine": 22,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/tool-config.js",
+      "method": "<anon (c)#0>",
+      "startLine": 33,
+      "crap": 1.003375,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/tool-config.js",
+      "method": "<anon (c)#0/(k)#0>",
+      "startLine": 34,
+      "crap": 1.003375,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/tool-config.js",
+      "method": "<anon (c)#0/(k)#0/(g)#0>",
+      "startLine": 35,
+      "crap": 1.003375,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/tool-config.js",
+      "method": "<anon (c)#0/(g)#0>",
+      "startLine": 42,
+      "crap": 1.003375,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/tool-config.js",
+      "method": "<anon (c)#0/(g)#1>",
+      "startLine": 43,
+      "crap": 1.003375,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/tool-config.js",
+      "method": "<anon (c)#0/(o)#0>",
+      "startLine": 48,
+      "crap": 1.003375,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/tool-config.js",
+      "method": "<anon (c)#1>",
+      "startLine": 57,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/tool-config.js",
+      "method": "<anon (c)#1/(g)#0>",
+      "startLine": 58,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/tool-config.js",
+      "method": "<anon (c)#1/(o)#0>",
+      "startLine": 63,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/tool-config.js",
+      "method": "<anon (c)#2>",
+      "startLine": 72,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/tool-config.js",
+      "method": "<anon (c)#2/(k)#0>",
+      "startLine": 73,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/tool-config.js",
+      "method": "<anon (c)#2/(k)#0/(g)#0>",
+      "startLine": 74,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/tool-config.js",
+      "method": "<anon (c)#3>",
+      "startLine": 80,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/tool-config.js",
+      "method": "<anon (c)#3/(g)#0>",
+      "startLine": 81,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/tool-config.js",
+      "method": "<anon (c)#4>",
+      "startLine": 90,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/tool-config.js",
+      "method": "<anon (c)#4/(g)#0>",
+      "startLine": 91,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/tool-config.js",
+      "method": "configRecord",
+      "startLine": 112,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/tool-config.js",
+      "method": "jsonSourceRecords",
+      "startLine": 140,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/tool-config.js",
+      "method": "<anon jsonSourceRecords/(p)#0>",
+      "startLine": 142,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/tool-config.js",
+      "method": "ignoreFileRecords",
+      "startLine": 154,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/tool-config.js",
+      "method": "<anon ignoreFileRecords/(raw,i)#0>",
+      "startLine": 158,
+      "crap": 5,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/tool-config.js",
+      "method": "tsconfigRecords",
+      "startLine": 179,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/tool-config.js",
+      "method": "<anon tsconfigRecords/(g)#0>",
+      "startLine": 186,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/tool-config.js",
+      "method": "manifestKeyRecords",
+      "startLine": 210,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/tool-config.js",
+      "method": "<anon manifestKeyRecords/(s)#0>",
+      "startLine": 221,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/tool-config.js",
+      "method": "extract",
+      "startLine": 239,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/tool-config.js",
+      "method": "<anon (ctx)#0>",
+      "startLine": 264,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/classify.js",
+      "method": "decide",
+      "startLine": 26,
+      "crap": 9
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/classify.js",
+      "method": "<anon decide/(ref)#0>",
+      "startLine": 33,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/classify.js",
+      "method": "<anon decide/(s)#0>",
+      "startLine": 34,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/classify.js",
+      "method": "classifyAll",
+      "startLine": 57,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/dependency-index.js",
+      "method": "nameOfSpec",
+      "startLine": 30,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/dependency-index.js",
+      "method": "addTo",
+      "startLine": 35,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/dependency-index.js",
+      "method": "addPresent",
+      "startLine": 40,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/dependency-index.js",
+      "method": "addDependents",
+      "startLine": 45,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/dependency-index.js",
+      "method": "fromPackageLock",
+      "startLine": 53,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/dependency-index.js",
+      "method": "parsePnpmKey",
+      "startLine": 64,
+      "crap": 3.3333333333333335
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/dependency-index.js",
+      "method": "fromPnpmLock",
+      "startLine": 74,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/dependency-index.js",
+      "method": "fromYarnLock",
+      "startLine": 83,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/dependency-index.js",
+      "method": "<anon fromYarnLock/(s)#0>",
+      "startLine": 90,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/dependency-index.js",
+      "method": "readPresence",
+      "startLine": 103,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/dependency-index.js",
+      "method": "fromPackageLockV1",
+      "startLine": 104,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/dependency-index.js",
+      "method": "fromNpmLock",
+      "startLine": 114,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/dependency-index.js",
+      "method": "childPackageDirs",
+      "startLine": 120,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/dependency-index.js",
+      "method": "<anon (root,present,dependents)#0>",
+      "startLine": 121,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/dependency-index.js",
+      "method": "<anon (root,present)#0>",
+      "startLine": 123,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/dependency-index.js",
+      "method": "<anon (root,present)#1>",
+      "startLine": 125,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/dependency-index.js",
+      "method": "pnpmStoreDirs",
+      "startLine": 137,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/dependency-index.js",
+      "method": "<anon pnpmStoreDirs/(e)#0>",
+      "startLine": 147,
+      "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/dependency-index.js",
+      "method": "<anon pnpmStoreDirs/(e)#1>",
+      "startLine": 150,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/dependency-index.js",
+      "method": "walkInstalled",
+      "startLine": 153,
+      "crap": 5.390625
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/dependency-index.js",
+      "method": "readInstalled",
+      "startLine": 176,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/dependency-index.js",
+      "method": "<anon readInstalled/(d)#0>",
+      "startLine": 178,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/dependency-index.js",
+      "method": "<anon readInstalled/(pkg)#0>",
+      "startLine": 185,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/dependency-index.js",
+      "method": "buildDependencyIndex",
+      "startLine": 199,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/dependency-index.js",
+      "method": "<anon buildDependencyIndex/(m)#0>",
+      "startLine": 218,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/engine.js",
+      "method": "tempRelFor",
+      "startLine": 39,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/engine.js",
+      "method": "createContext",
+      "startLine": 48,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/engine.js",
+      "method": "<anon createContext/()#0>",
+      "startLine": 54,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/engine.js",
+      "method": "<anon createContext/(input,detail)#0>",
+      "startLine": 61,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/engine.js",
+      "method": "runAdapters",
+      "startLine": 70,
+      "crap": 2.0393586005830904
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/engine.js",
+      "method": "delegations",
+      "startLine": 99,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/engine.js",
+      "method": "countBy",
+      "startLine": 111,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/engine.js",
+      "method": "<anon countBy/(k)#0>",
+      "startLine": 112,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/engine.js",
+      "method": "buildClusters",
+      "startLine": 118,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/engine.js",
+      "method": "<anon buildClusters/(a,b)#0>",
+      "startLine": 139,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/engine.js",
+      "method": "<anon (a,b)#0>",
+      "startLine": 143,
+      "crap": 4,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/engine.js",
+      "method": "dedupe",
+      "startLine": 149,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/engine.js",
+      "method": "<anon dedupe/(d)#0>",
+      "startLine": 151,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/engine.js",
+      "method": "runEngine",
+      "startLine": 172,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/engine.js",
+      "method": "<anon runEngine/(r)#0>",
+      "startLine": 194,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/engine.js",
+      "method": "<anon runEngine/(r)#1>",
+      "startLine": 222,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/engine.js",
+      "method": "summarize",
+      "startLine": 238,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/engine.js",
+      "method": "<anon summarize/(s)#0>",
+      "startLine": 245,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/engine.js",
+      "method": "<anon summarize/(d)#0>",
+      "startLine": 246,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/globs.js",
+      "method": "staticBase",
+      "startLine": 24,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/globs.js",
+      "method": "ignoreLineGlobs",
+      "startLine": 41,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/globs.js",
+      "method": "<anon ignoreLineGlobs/(b)#0>",
+      "startLine": 47,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/globs.js",
+      "method": "<anon ignoreLineGlobs/(g)#0>",
+      "startLine": 48,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/globs.js",
+      "method": "probeOne",
+      "startLine": 56,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/globs.js",
+      "method": "<anon probeOne/(f)#0>",
+      "startLine": 61,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/globs.js",
+      "method": "globsProbe",
+      "startLine": 94,
+      "crap": 4.196631770596268
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/globs.js",
+      "method": "<anon globsProbe/(g)#0>",
+      "startLine": 95,
+      "crap": 1.0122894856622666,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/globs.js",
+      "method": "<anon globsProbe/(r)#0>",
+      "startLine": 96,
+      "crap": 1.0122894856622666,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/globs.js",
+      "method": "<anon globsProbe/(r)#1>",
+      "startLine": 98,
+      "crap": 1.0122894856622666,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/globs.js",
+      "method": "<anon globsProbe/(r)#2>",
+      "startLine": 101,
+      "crap": 1.0122894856622666,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/history.js",
+      "method": "parseBlame",
+      "startLine": 20,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/history.js",
+      "method": "addBlame",
+      "startLine": 50,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/history.js",
+      "method": "<anon addBlame/(r)#0>",
+      "startLine": 57,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/history.js",
+      "method": "parseAddedLines",
+      "startLine": 77,
+      "crap": 9
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/history.js",
+      "method": "markIntroduced",
+      "startLine": 103,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/locate.js",
+      "method": "lineOf",
+      "startLine": 21,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/locate.js",
+      "method": "lineOfName",
+      "startLine": 42,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/locate.js",
+      "method": "insideString",
+      "startLine": 56,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/locate.js",
+      "method": "<anon insideString/(q)#0>",
+      "startLine": 58,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/probe.js",
+      "method": "<anon (root,file)#0>",
+      "startLine": 20,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/probe.js",
+      "method": "<anon (scope)#0>",
+      "startLine": 29,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/probe.js",
+      "method": "<anon (out,root)#0>",
+      "startLine": 32,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/probe.js",
+      "method": "<anon (out,root)#0/(m)#0>",
+      "startLine": 37,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/probe.js",
+      "method": "<anon (scope)#1>",
+      "startLine": 46,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/probe.js",
+      "method": "<anon (scope)#1/(f)#0>",
+      "startLine": 47,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/probe.js",
+      "method": "<anon (out,root)#1>",
+      "startLine": 51,
+      "crap": 1.0016283329940974,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/probe.js",
+      "method": "<anon (out,root)#1/(r)#0>",
+      "startLine": 58,
+      "crap": 1.0016283329940974,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/probe.js",
+      "method": "<anon (out,root)#1/(r)#0/(m)#0>",
+      "startLine": 61,
+      "crap": 2.006513331976389,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/probe.js",
+      "method": "<anon (out,root)#1/(r)#0/(m)#1>",
+      "startLine": 65,
+      "crap": 1.0016283329940974,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/probe.js",
+      "method": "<anon (scope)#2>",
+      "startLine": 73,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/probe.js",
+      "method": "<anon (out,root)#2>",
+      "startLine": 83,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/probe.js",
+      "method": "<anon (out,root)#2/(m)#0>",
+      "startLine": 84,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/probe.js",
+      "method": "<anon (scope)#3/(f)#0>",
+      "startLine": 93,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/probe.js",
+      "method": "<anon (scope)#3>",
+      "startLine": 93,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/probe.js",
+      "method": "<anon (out,root)#3>",
+      "startLine": 95,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/probe.js",
+      "method": "<anon (out,root)#3/(m)#0>",
+      "startLine": 96,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/probe.js",
+      "method": "resolveBin",
+      "startLine": 109,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/probe.js",
+      "method": "matches",
+      "startLine": 119,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/probe.js",
+      "method": "runTool",
+      "startLine": 132,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/probe.js",
+      "method": "<anon runTool/(h)#0>",
+      "startLine": 161,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/probe.js",
+      "method": "runProbes",
+      "startLine": 180,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/range-subset.js",
+      "method": "parseVersion",
+      "startLine": 24,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/range-subset.js",
+      "method": "cmp",
+      "startLine": 39,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/range-subset.js",
+      "method": "bump",
+      "startLine": 47,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/range-subset.js",
+      "method": "nextPatch",
+      "startLine": 55,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/range-subset.js",
+      "method": "caretHi",
+      "startLine": 59,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/range-subset.js",
+      "method": "<anon caretHi/(n,i)#0>",
+      "startLine": 60,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/range-subset.js",
+      "method": "tildeHi",
+      "startLine": 65,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/range-subset.js",
+      "method": "comparatorInterval",
+      "startLine": 74,
+      "crap": 9
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/range-subset.js",
+      "method": "intersect",
+      "startLine": 94,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/range-subset.js",
+      "method": "parseSet",
+      "startLine": 105,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/range-subset.js",
+      "method": "parseRange",
+      "startLine": 125,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/range-subset.js",
+      "method": "<anon parseRange/(arm)#0>",
+      "startLine": 127,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/range-subset.js",
+      "method": "<anon parseRange/(arm)#1>",
+      "startLine": 128,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/range-subset.js",
+      "method": "within",
+      "startLine": 131,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/range-subset.js",
+      "method": "rangeIsSubset",
+      "startLine": 146,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/range-subset.js",
+      "method": "<anon rangeIsSubset/(arm)#0/(o)#0>",
+      "startLine": 150,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/range-subset.js",
+      "method": "<anon rangeIsSubset/(arm)#0>",
+      "startLine": 150,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/read.js",
+      "method": "readText",
+      "startLine": 19,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/read.js",
+      "method": "stripJsonc",
+      "startLine": 34,
+      "crap": 7
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/read.js",
+      "method": "stringEnd",
+      "startLine": 55,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/read.js",
+      "method": "lineEnd",
+      "startLine": 63,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/read.js",
+      "method": "blockEnd",
+      "startLine": 68,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/read.js",
+      "method": "readJsonc",
+      "startLine": 78,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/read.js",
+      "method": "readYaml",
+      "startLine": 93,
+      "crap": 2.0438957475994513
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/read.js",
+      "method": "lineOf",
+      "startLine": 111,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/read.js",
+      "method": "insideString",
+      "startLine": 127,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/read.js",
+      "method": "<anon insideString/(q)#0>",
+      "startLine": 129,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/record.js",
+      "method": "ticketRefsIn",
+      "startLine": 29,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/record.js",
+      "method": "expiryIn",
+      "startLine": 46,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/record.js",
+      "method": "cleanJustification",
+      "startLine": 58,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/record.js",
+      "method": "makeRecord",
+      "startLine": 81,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/scope.js",
+      "method": "listTracked",
+      "startLine": 34,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/scope.js",
+      "method": "excludedBy",
+      "startLine": 44,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/scope.js",
+      "method": "<anon excludedBy/(rel)#0>",
+      "startLine": 45,
+      "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/scope.js",
+      "method": "<anon excludedBy/(rel)#0/(p)#0>",
+      "startLine": 46,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/scope.js",
+      "method": "workspaceGlobs",
+      "startLine": 59,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/scope.js",
+      "method": "<anon workspaceGlobs/(g)#0>",
+      "startLine": 64,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/scope.js",
+      "method": "collectManifests",
+      "startLine": 78,
+      "crap": 7
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/scope.js",
+      "method": "buildScope",
+      "startLine": 104,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/scope.js",
+      "method": "<anon buildScope/(rel)#0>",
+      "startLine": 119,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/tickets.js",
+      "method": "originSlug",
+      "startLine": 25,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/tickets.js",
+      "method": "qualify",
+      "startLine": 35,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/tickets.js",
+      "method": "fetchState",
+      "startLine": 41,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/tickets.js",
+      "method": "resolveTicketStates",
+      "startLine": 57,
+      "crap": 9.236151603498543
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/tickets.js",
+      "method": "<anon resolveTicketStates/(ref)#0>",
+      "startLine": 73,
+      "crap": 1.0029154518950438,
       "anonymous": true
     },
     {
@@ -35560,6 +37512,19 @@
     },
     {
       "path": "scripts/check-audit-attribution.js",
+      "method": "exceptionAwareAudit",
+      "startLine": 183,
+      "crap": 1
+    },
+    {
+      "path": "scripts/check-audit-attribution.js",
+      "method": "<anon exceptionAwareAudit/(dir)#0>",
+      "startLine": 185,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/check-audit-attribution.js",
       "method": "resolveTrackingIssue",
       "startLine": 193,
       "crap": 3
@@ -35947,6 +37912,31 @@
       "path": "scripts/check-lifecycle-lint.js",
       "method": "<anon main/(v)#1>",
       "startLine": 257,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/check-npm-audit.js",
+      "method": "parseArgs",
+      "startLine": 42,
+      "crap": 3
+    },
+    {
+      "path": "scripts/check-npm-audit.js",
+      "method": "exceptionLine",
+      "startLine": 50,
+      "crap": 4
+    },
+    {
+      "path": "scripts/check-npm-audit.js",
+      "method": "runCheck",
+      "startLine": 69,
+      "crap": 7
+    },
+    {
+      "path": "scripts/check-npm-audit.js",
+      "method": "<anon ()#0>",
+      "startLine": 107,
       "crap": 1,
       "anonymous": true
     },
@@ -36547,6 +38537,12 @@
     },
     {
       "path": "scripts/lib/audit-advisories.js",
+      "method": "isBlockingSeverity",
+      "startLine": 31,
+      "crap": 1
+    },
+    {
+      "path": "scripts/lib/audit-advisories.js",
       "method": "advisoryIdOf",
       "startLine": 37,
       "crap": 7.3919999999999995
@@ -36605,6 +38601,12 @@
     },
     {
       "path": "scripts/lib/audit-advisories.js",
+      "method": "runAuditReport",
+      "startLine": 148,
+      "crap": 3
+    },
+    {
+      "path": "scripts/lib/audit-advisories.js",
       "method": "parseAuditJson",
       "startLine": 162,
       "crap": 6
@@ -36646,6 +38648,120 @@
       "method": "renderAttribution",
       "startLine": 103,
       "crap": 6
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "validate",
+      "startLine": 73,
+      "crap": 3
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "formatAjvErrors",
+      "startLine": 82,
+      "crap": 1
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "<anon formatAjvErrors/(e)#0>",
+      "startLine": 84,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "loadExceptions",
+      "startLine": 99,
+      "crap": 4.005830903790088
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "todayUtc",
+      "startLine": 129,
+      "crap": 1
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "ghsaOf",
+      "startLine": 133,
+      "crap": 3
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "viaList",
+      "startLine": 139,
+      "crap": 2
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "blockingRoots",
+      "startLine": 149,
+      "crap": 4
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "reachedRoots",
+      "startLine": 167,
+      "crap": 5
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "ghsaIdsFor",
+      "startLine": 186,
+      "crap": 4.016
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "statusOf",
+      "startLine": 197,
+      "crap": 5
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "applyExceptions",
+      "startLine": 224,
+      "crap": 4
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "<anon applyExceptions/(exception)#0>",
+      "startLine": 227,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "<anon applyExceptions/(e)#0/(e)#0>",
+      "startLine": 232,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "<anon applyExceptions/(e)#0>",
+      "startLine": 232,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "<anon applyExceptions/(id)#0>",
+      "startLine": 238,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "<anon applyExceptions/(e)#1>",
+      "startLine": 242,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/audit-exceptions.js",
+      "method": "auditWithExceptions",
+      "startLine": 257,
+      "crap": 2
     },
     {
       "path": "scripts/lib/audit-report-contracts/architecture-report-contract.js",
