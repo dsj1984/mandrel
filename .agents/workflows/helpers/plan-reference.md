@@ -550,9 +550,16 @@ fail-closes: a `--tickets` run whose Stories forgot `supersedes[]` is
 
 **Default on.** After the Stories exist, persist comments on each source
 issue naming the specific Story that claims it — plus that Story's optional
-per-supersede `note` — and closes it with reason **`not_planned`**
-(`state_reason`) — nothing has shipped at persist time, so `completed` would
-be a lie.
+per-supersede `note` — and closes it with reason **`duplicate`**
+(`state_reason`): the claiming Story carries the work, and nothing has
+shipped at persist time, so `completed` would be a lie. A provider that
+refuses `duplicate` gets one logged retry as `not_planned`.
+
+The comment opens with
+`<!-- ap:structured-comment type="superseded-by" story="<id>" -->`, `<id>`
+the claiming Story's issue number. That marker is a **stable consumer
+contract** — tooling mirroring issue state may follow it to the successor —
+and will not change shape without a CHANGELOG `BREAKING CHANGE`.
 
 The default also **clears the source's `agent::*` label** in the same write — a
 retired ticket has no agent state. Pass **`--no-close-superseded`** for a

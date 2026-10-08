@@ -219,7 +219,8 @@ This section states the contract the rest of the SDLC depends on.
   posts a `story-plan-state` summary, writes `blocked by #<id>` footers and
   native `blocked_by` edges, and flips every Story to `agent::ready` as the
   **terminal** step. Warnings are listed but never stop the persist.
-  Tickets mode closes the superseded source issues as `not_planned`.
+  Tickets mode closes the superseded source issues as `duplicate`, each
+  carrying a `superseded-by` marker whose `story="<id>"` names its successor.
 - **Handoff.** The `story-plan-state` comment names the delivery command:
   `/mandrel-deliver <storyId> [<storyId> ...]`.
 
