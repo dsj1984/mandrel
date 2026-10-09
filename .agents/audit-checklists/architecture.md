@@ -13,6 +13,7 @@ Self-check your change against this lens's concerns before you ship:
 - [ ] Cycle detection.
 - [ ] Dead-export detection.
 - [ ] Hotspot ranking.
+- [ ] Non-JS ecosystems.
 - [ ] LLM triage on top.
 - [ ] Documented architecture boundaries
 - [ ] Automated boundary checks

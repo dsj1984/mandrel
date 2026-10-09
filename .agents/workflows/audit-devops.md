@@ -27,13 +27,19 @@ Execution strategy.
 ## Step 1: Detection Battery (Read-Only, Tool-First)
 
 Do **not** audit CI/CD from memory. Run the deterministic battery below first
-and let its output ground every finding. Each tool is **presence-gated**: when
-the binary is absent, record the gap as a Low-severity `Standardization`
-finding (recommend adopting the scanner) and continue — a missing scanner
-degrades the audit gracefully, it never aborts it.
+and let its output ground every finding. Detect the CI systems and language
+ecosystems first per the core's
+[Ecosystem detection](helpers/audit-lens-core.md#ecosystem-detection) and run
+only the rungs for what is detected. Each tool is **presence-gated**: when the
+binary for a **detected** surface is absent, record the gap as a Low-severity
+`Standardization` finding (recommend adopting the scanner) and continue — a
+missing scanner degrades the audit gracefully, it never aborts it. A tool for
+an **undetected** surface is inapplicable and never a finding — `actionlint`,
+`zizmor` and `gh run list` on a repo with no `.github/workflows/` are skipped,
+not reported missing.
 
-1. **Workflow static analysis (`actionlint`).** When `.github/workflows/`
-   contains any `*.yml` / `*.yaml`, run:
+1. **Workflow static analysis (`actionlint`, GitHub Actions only).** When
+   `.github/workflows/` contains any `*.yml` / `*.yaml`, run:
 
    ```bash
    command -v actionlint >/dev/null 2>&1 && actionlint -color=never || \
@@ -76,11 +82,49 @@ degrades the audit gracefully, it never aborts it.
    or whose p95 duration is an outlier is a Reliability or Performance finding
    with the observed number cited in **Current State**.
 
+5. **Google Cloud Build (gated: `cloudbuild*.yaml` present).** Read each
+   definition for unpinned builder images (`gcr.io/cloud-builders/*` without a
+   digest/tag), secrets passed as plain `env` instead of `secretEnv` /
+   `availableSecrets`, an over-broad build service account, and missing
+   `timeout`. Then pull run history the same way step 4 does:
+
+   ```bash
+   gcloud builds list --limit 50 --format=json 2>/dev/null || \
+     echo "gcloud build history unavailable — Cloud Build findings degrade to config-only reasoning"
+   ```
+
+   Compute failure rate (`FAILURE` + `TIMEOUT` + `CANCELLED` / total) and
+   p50/p95 duration (`finishTime − startTime`) per trigger.
+
+6. **GitLab CI (gated: `.gitlab-ci.yml` present).** Validate the definition
+   and read it for unpinned `image:` tags, `variables:` carrying secrets,
+   missing `rules:` / `interruptible:`, and absent `cache:` keys:
+
+   ```bash
+   glab ci lint 2>/dev/null || echo "glab: not installed — recommend adding it (Standardization gap)"
+   glab ci list --per-page 50 -F json 2>/dev/null || \
+     echo "glab pipeline history unavailable — GitLab findings degrade to config-only reasoning"
+   ```
+
+   Compute failure rate and p50/p95 duration per pipeline as in step 4.
+   Azure Pipelines (`azure-pipelines.yml`) is read config-only, with
+   `az pipelines runs list` as its history source when the CLI is present.
+
+7. **Python toolchain (gated: Python manifests present).** Read the build and
+   lint configuration the Python manifests declare — `pyproject.toml`
+   (`[build-system]`, `[tool.ruff]`, `[tool.mypy]`, `[tool.pytest.ini_options]`),
+   `.pre-commit-config.yaml`, a lockfile (`uv.lock`, `poetry.lock`,
+   `requirements*.txt` with hashes) — and check that CI runs the linters and
+   type-checker the config declares. Validate with
+   `pre-commit validate-config` and `ruff check --statistics` where present.
+
 Then read the surfaces the battery flags plus the standing config set:
-CI/CD pipelines (`.github/workflows/`, `.gitlab-ci.yml`, `azure-pipelines.yml`),
-dependency/script manifests (`package.json`, `pnpm-workspace.yaml`), lint/format
-configs (`.eslintrc*`, `.prettierrc*`, `biome.json`, `tsconfig.json`), and git
-hooks / commit standards (`.husky/`, `commitlint.config.js`).
+CI/CD pipelines (`.github/workflows/`, `cloudbuild*.yaml`, `.gitlab-ci.yml`,
+`azure-pipelines.yml`), dependency/script manifests (`package.json`,
+`pnpm-workspace.yaml`, `pyproject.toml`, `requirements*.txt`), lint/format
+configs (`.eslintrc*`, `.prettierrc*`, `biome.json`, `tsconfig.json`,
+`ruff.toml`, `.pre-commit-config.yaml`), and git hooks / commit standards
+(`.husky/`, `commitlint.config.js`).
 
 ## Step 2: Analysis Dimensions
 
@@ -92,8 +136,8 @@ when absent, state "not present in scope" and skip.
 1. **Redundancy & Duplication:** Overlapping tools or conflicting rules (e.g.,
    Prettier vs. ESLint formatting, duplicated scripts in `package.json` and CI).
 2. **Performance Gaps:** Bottlenecks in CI/CD, slow caching strategies, or
-   unoptimized hooks (e.g., missing `lint-staged`) — cite the `gh run list`
-   durations from Step 1.
+   unoptimized hooks (e.g., missing `lint-staged`) — cite the run-history
+   durations from Step 1 (`gh run list`, `gcloud builds list`, `glab ci list`).
 3. **Security & Compliance:** Missing secret scanning, loose permissions (e.g.,
    `GITHUB_TOKEN` scopes), outdated or vulnerable dependency resolution
    strategies — grounded in the `zizmor` output.
@@ -103,7 +147,7 @@ when absent, state "not present in scope" and skip.
    surfaced in Step 1.
 5. **Reliability & Resilience:** Fragile pipeline steps, missing error handling,
    silent failures, or lack of retries for network-dependent tasks — cite the
-   `gh run list` failure rates from Step 1.
+   run-history failure rates from Step 1 for every detected CI system.
 
 ### Sub-step A — Dockerfile hardening (gated: `Dockerfile*` present)
 
