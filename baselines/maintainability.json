@@ -372,7 +372,7 @@
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/seed-from-findings.js",
-      "mi": 106.555
+      "mi": 109.568
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/wire-dependencies.js",
@@ -960,7 +960,7 @@
     },
     {
       "path": ".agents/scripts/lib/findings/severity.js",
-      "mi": 101.762
+      "mi": 108.057
     },
     {
       "path": ".agents/scripts/lib/format-generated-json.js",
