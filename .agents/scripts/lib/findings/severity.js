@@ -29,14 +29,21 @@ const SEVERITY_ALIASES = Object.freeze({
   trivial: 'info',
 });
 
+/**
+ * A named declaration, not a module-scope arrow: CRAP `--seat-missing` cannot
+ * resolve coverage for an anonymous function with no enclosing one.
+ *
+ * @param {string} severity
+ * @param {number} index
+ * @returns {[string, number]}
+ */
+function rankEntry(severity, index) {
+  return [severity, SEVERITIES.length - 1 - index];
+}
+
 /** @type {Readonly<Record<string, number>>} */
 export const SEVERITY_RANK = Object.freeze(
-  Object.fromEntries(
-    SEVERITIES.map((severity, index) => [
-      severity,
-      SEVERITIES.length - 1 - index,
-    ]),
-  ),
+  Object.fromEntries(SEVERITIES.map(rankEntry)),
 );
 
 /**
