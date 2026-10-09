@@ -268,7 +268,8 @@ test('buildStoryBody renders a Findings section, worst first, with the remediati
     body.indexOf('## Context'),
   );
   assert.ok(
-    findings.indexOf('### High finding') < findings.indexOf('### Low finding'),
+    findings.indexOf('#### High finding') <
+      findings.indexOf('#### Low finding'),
   );
   for (const line of [
     '- **Severity:** high',
@@ -289,4 +290,14 @@ test('buildStoryBody takes acceptance from the Acceptance signal, falling back w
     'Low finding is remediated in `src/x.js`: the recommended end-state holds and the finding is no longer reproducible',
   ]);
   assert.ok(!acceptance.some((a) => a.includes('Fix it properly')));
+});
+
+test('a finding titled like a canonical section cannot bleed into verify[] or acceptance[]', () => {
+  const group = syntheticGroup();
+  group.findings[0].title = 'Verify';
+  group.findings[1].title = 'Acceptance';
+  const { body } = parseStoryBody(buildStoryBody({ group }).body);
+  assert.deepEqual(body.verify, ['npm run lint (validate)', 'npm test (unit)']);
+  assert.equal(body.acceptance.length, 2);
+  assert.ok(!body.acceptance.some((a) => a.includes('**Severity:**')));
 });

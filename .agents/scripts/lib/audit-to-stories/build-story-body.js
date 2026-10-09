@@ -124,12 +124,16 @@ function dependencyRefs(deps, issueByGroupKey) {
 }
 
 /**
+ * `####`, never `###`: the story-body parser reads a one-word `##`/`###`
+ * heading as a canonical section, so a finding titled `Verify` would bleed
+ * its bullets into `verify[]`.
+ *
  * @param {object} finding
- * @returns {string} a `###` title and the finding's present fields.
+ * @returns {string} a heading and the finding's present fields.
  */
 function findingBlock(finding) {
   return [
-    `### ${finding.title}`,
+    `#### ${finding.title}`,
     '',
     ...findingBullets(finding, STORY_FINDING_FIELDS),
   ].join('\n');
