@@ -939,6 +939,10 @@
       "mi": 97.358
     },
     {
+      "path": ".agents/scripts/lib/findings/audit-finding-record.js",
+      "mi": 97.12
+    },
+    {
       "path": ".agents/scripts/lib/findings/classify-finding.js",
       "mi": 104.889
     },
@@ -1369,6 +1373,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/acceptance-handle-repair.js",
       "mi": 104.331
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/audit-attribution.js",
+      "mi": 113.24
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/audit-provenance.js",
