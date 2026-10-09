@@ -155,6 +155,15 @@ function ensureScript(scripts, key, command) {
   return 'added';
 }
 
+/** Each projection `prepare` must run: [script file it names, its command]. */
+const PREPARE_PROJECTIONS = Object.freeze([
+  ['sync-claude-commands.js', SYNC_COMMAND],
+  ['sync-claude-agents.js', SYNC_AGENTS_COMMAND],
+]);
+
+/** Outcomes that mean `ensurePackageJson` changed the manifest. */
+const PACKAGE_JSON_MUTATIONS = new Set([true, 'added', 'appended', 'upgraded']);
+
 /**
  * Seed the guarded `prepare`, upgrade the exact legacy bare form to it, and
  * otherwise append each missing projection so a partial prepare gains the
@@ -173,15 +182,11 @@ export function ensurePrepareScript(scripts) {
     scripts.prepare = PREPARE_COMMAND;
     return 'upgraded';
   }
-  let next = prepare;
-  if (!next.includes('sync-claude-commands.js')) {
-    next = `${next} && ${SYNC_COMMAND}`;
-  }
-  if (!next.includes('sync-claude-agents.js')) {
-    next = `${next} && ${SYNC_AGENTS_COMMAND}`;
-  }
-  if (next === prepare) return 'already-present';
-  scripts.prepare = next;
+  const missing = PREPARE_PROJECTIONS.filter(
+    ([script]) => !prepare.includes(script),
+  ).map(([, command]) => command);
+  if (missing.length === 0) return 'already-present';
+  scripts.prepare = [prepare, ...missing].join(' && ');
   return 'appended';
 }
 
@@ -219,8 +224,8 @@ export function ensurePackageJson(ctx) {
     scriptsPrepare: ensurePrepareScript(pkg.scripts),
     scriptsBootstrap: ensureScript(pkg.scripts, 'bootstrap', BOOTSTRAP_COMMAND),
   };
-  const mutated = Object.values(outcomes).some(
-    (v) => v === true || v === 'added' || v === 'appended' || v === 'upgraded',
+  const mutated = Object.values(outcomes).some((v) =>
+    PACKAGE_JSON_MUTATIONS.has(v),
   );
   if (mutated) writeJson(pkgPath, pkg, fsImpl);
   return { ...outcomes, path: pkgPath, mutated };
