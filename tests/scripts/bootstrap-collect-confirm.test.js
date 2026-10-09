@@ -152,3 +152,53 @@ describe('collectAndConfirm — exits and opt-ins', () => {
     );
   });
 });
+
+// Story #5584 — every skip path resolves to no board under --assume-yes.
+describe('collectAndConfirm — Projects V2 skip paths', () => {
+  const skipState = (flags) => ({
+    ...state({ owner: 'acme', 'assume-yes': true, ...flags }),
+    assumeYes: true,
+  });
+  const cases = [
+    ['--no-project', { 'no-project': true }, {}],
+    ['an empty --project-number', { 'project-number': true }, {}],
+    ['--project-number none', { 'project-number': 'none' }, {}],
+    ['an empty GH_PROJECT_NUMBER', {}, { GH_PROJECT_NUMBER: '' }],
+    ['GH_PROJECT_NUMBER=none', {}, { GH_PROJECT_NUMBER: 'none' }],
+    ['no stored number non-interactively', {}, {}],
+  ];
+  for (const [name, flags, env] of cases) {
+    it(`creates no board for ${name}`, async (t) => {
+      const saved = process.env.GH_PROJECT_NUMBER;
+      delete process.env.GH_PROJECT_NUMBER;
+      Object.assign(process.env, env);
+      t.after(() => {
+        if (saved === undefined) delete process.env.GH_PROJECT_NUMBER;
+        else process.env.GH_PROJECT_NUMBER = saved;
+      });
+      const { mod, info } = await loadSut(t);
+      const res = await mod.collectAndConfirm(skipState(flags));
+      assert.equal(res.ok, true);
+      assert.equal(res.payload.creation.newProject, false);
+      assert.equal(res.payload.answers.projectNumber || '', '');
+      assert.match(summaryOf(info), /Project V2 # {5}\(skip\)/);
+      const plan = mod.renderDryRunPlan({
+        flags: skipState(flags).flags,
+        gitInitialized: true,
+        answers: res.payload.answers,
+        creation: res.payload.creation,
+      });
+      assert.match(plan, /project number {3}\(skip\)/);
+      assert.match(plan, /new project {6}no/);
+    });
+  }
+
+  it('still creates a board for an explicit --project-number name', async (t) => {
+    const { mod } = await loadSut(t);
+    const res = await mod.collectAndConfirm(
+      skipState({ 'project-number': 'Roadmap' }),
+    );
+    assert.equal(res.payload.creation.newProject, true);
+    assert.equal(res.payload.answers.projectNumber, 'Roadmap');
+  });
+});
