@@ -168,7 +168,7 @@ const isSkipToken = (v) =>
  * @param {ResolverContext} ctx
  * @returns {{ kind: 'value'|'skip', value?: string }}
  */
-export function resolveExplicitSkip({ q, flags, env }) {
+function resolveExplicitSkip({ q, flags, env }) {
   if (!q.skipFlag) return { kind: 'skip' };
   const flagValue = flags[q.flag];
   const envSkip =
