@@ -237,3 +237,21 @@ test('the per-group dedup footers stay byte-identical beside the records', () =>
     .join('\n');
   assert.ok(md.includes(`${groupBlock}\n<!-- audit-finding:`));
 });
+
+test('a record omits what a finding lacks and skips an unfingerprinted one', () => {
+  const sha = 'a'.repeat(40);
+  const bare = { dimension: 'quality', normalisedTitle: 'bare', title: 'Bare' };
+  const md = buildPlanSeedMarkdown({
+    groups: [
+      { files: [], findings: [{ ...bare, fingerprint: { full: sha } }, bare] },
+      { files: [] },
+    ],
+    findings: [bare],
+    sourceReports: [],
+  });
+  const records = parseAuditFindingRecords(md);
+  assert.equal(records.length, 1);
+  assert.equal(records[0].sha, sha);
+  assert.equal(records[0].label, null);
+  assert.deepEqual(records[0].files, []);
+});
