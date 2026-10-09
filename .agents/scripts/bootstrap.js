@@ -411,6 +411,13 @@ async function createGithubProject(state, execImpl = exec) {
   return number;
 }
 
+/** A stored number first, so a re-run never reads as a new board. */
+function projectDefault(defaults, flags, opts) {
+  if (defaults.projectNumber) return defaults.projectNumber;
+  const interactive = opts.interactive ?? !flags?.['assume-yes'];
+  return interactive ? defaults.repo : null;
+}
+
 /**
  * The Step 3 question list. `opts.interactive` (default: no `--assume-yes`)
  * picks the project default: a non-interactive run never creates a board
@@ -424,7 +431,6 @@ export function buildQuestions(
   opts = {},
 ) {
   const owner = resolveOwnerForPicker(defaults, flags, env);
-  const interactive = opts.interactive ?? !flags?.['assume-yes'];
   // Pre-fetched lists are empty when the owner was unknown up front, so the
   // pickers fall back to a live fetch keyed off the typed `answers.owner`.
   const reposList = lists.reposList;
@@ -494,8 +500,7 @@ export function buildQuestions(
       message: 'New GitHub Project V2 name',
       pickerMessage:
         'GitHub Project V2 name  - Select existing or press ENTER to create',
-      // A stored number first, so a re-run never reads as a new board.
-      default: defaults.projectNumber || (interactive ? defaults.repo : null),
+      default: projectDefault(defaults, flags, opts),
       required: false,
       picker: {
         list: (answers) => {
@@ -801,32 +806,37 @@ export async function approveCreation(
   confirm = confirmYesNo,
 ) {
   if (state.flags['dry-run']) return true;
-  if (creation.newRepo) {
-    const ok = await confirm(
-      `Create the new GitHub repo ${answers.owner}/${answers.repo}?`,
-      state.interactive,
-    );
-    if (!ok) {
-      Logger.error(
-        '[Bootstrap] Repo creation declined — cannot continue without the repo. Exiting.',
-      );
-      return false;
-    }
-  }
-  if (creation.newProject) {
-    const ok = await confirm(
-      `Create the new GitHub Project V2 "${answers.projectNumber}"?`,
-      state.interactive,
-    );
-    if (!ok) {
-      answers.projectNumber = '';
-      creation.newProject = false;
-      Logger.info(
-        '[Bootstrap] Project creation declined — skipping the Projects V2 board and continuing.',
-      );
-    }
-  }
+  if (!(await approveNewRepo(state, answers, creation, confirm))) return false;
+  await approveNewProject(state, answers, creation, confirm);
   return true;
+}
+
+async function approveNewRepo(state, answers, creation, confirm) {
+  if (!creation.newRepo) return true;
+  const ok = await confirm(
+    `Create the new GitHub repo ${answers.owner}/${answers.repo}?`,
+    state.interactive,
+  );
+  if (!ok) {
+    Logger.error(
+      '[Bootstrap] Repo creation declined — cannot continue without the repo. Exiting.',
+    );
+  }
+  return ok;
+}
+
+async function approveNewProject(state, answers, creation, confirm) {
+  if (!creation.newProject) return;
+  const ok = await confirm(
+    `Create the new GitHub Project V2 "${answers.projectNumber}"?`,
+    state.interactive,
+  );
+  if (ok) return;
+  answers.projectNumber = '';
+  creation.newProject = false;
+  Logger.info(
+    '[Bootstrap] Project creation declined — skipping the Projects V2 board and continuing.',
+  );
 }
 
 async function confirmSummary(state, answers, creation, projectsList) {
