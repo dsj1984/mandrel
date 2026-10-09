@@ -347,6 +347,10 @@
       "mi": 118.964
     },
     {
+      "path": ".agents/scripts/lib/audit-to-stories/finding-bullets.js",
+      "mi": 129.701
+    },
+    {
       "path": ".agents/scripts/lib/audit-to-stories/group-findings.js",
       "mi": 93.387
     },
