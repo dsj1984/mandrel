@@ -184,9 +184,10 @@ When a Fix Properly finding's real remediation belongs to one of those
 lenses, say so in the Recommendation and name the lens rather than
 re-auditing its domain here.
 
-## Step 4: Agent Prompt templates
+## Step 4: Recommendation templates
 
-Substitute the envelope's own values for the angle-bracketed slots:
+Write each finding's **Recommendation & Rationale** from the matching template,
+substituting the envelope's own values for the angle-bracketed slots:
 
 - **Dead bundle template:**
   `Remove the <adapter> exceptions the audit-exceptions engine proved dead: <file:line list>. Each one exempts nothing (<verdictBasis>). Delete each entry, then re-run node .agents/scripts/audit-exceptions.js --out temp/audit-exceptions/envelope.json and confirm none of them reappears. For a dependency pin or patch, reinstall and confirm the lockfile resolves the same versions without it, and run the project's audit command to confirm no advisory returns.`

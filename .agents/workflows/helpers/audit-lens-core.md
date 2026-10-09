@@ -54,8 +54,9 @@ Summary carries the self-cross-check `kept <k> / dropped <d>` line
 ([below](#self-cross-check)) and, beside it, the machine-readable severity
 tally ([below](#severity-tally)).
 
-Every finding under `## Detailed Findings` uses the shared 7-field skeleton
-below. A lens may **add** fields (e.g. a WCAG success criterion, a CWE ID, a
+Every finding under `## Detailed Findings` uses the shared 6-field skeleton
+below, ordered by severity — Critical, High, Medium, Low, then Info — so a
+reader that stops early, or a truncated read, still sees the worst first. A lens may **add** fields (e.g. a WCAG success criterion, a CWE ID, a
 `Baseline MUST`, a `Route / Door` + `Persona(s)` pair, an `Evidence` tag) and
 may **relabel** the two normalized axes — `Severity` ↔ `Impact`, `Dimension` ↔
 `Category` ↔ `Type` — as its preamble declares; the parser
@@ -73,8 +74,8 @@ Severity tally: Critical <n> / High <n> / Medium <n> / Low <n>
 
 ## Detailed Findings
 
-[For every finding, use the following strict structure. Lead each title with
-the primary file the finding lives in:]
+[For every finding, in descending severity order, use the following strict
+structure. Lead each title with the primary file the finding lives in:]
 
 ### `path/to/primary-file.ext` — [Short title of the issue]
 
@@ -86,8 +87,6 @@ the primary file the finding lives in:]
 - **Acceptance signal:** [the command or observable that proves this finding is
   remediated — e.g. a grep that now returns empty, an added regression test, or
   a re-run of this lens]
-- **Agent Prompt:**
-  `[A copy-pasteable, highly specific prompt to execute this remediation independently]`
 ```
 
 ## Severity scale {#severity-scale}

@@ -163,7 +163,7 @@ describe('audit-lens-core shared contract (Story #4665)', () => {
     );
   });
 
-  it('documents the severity scale, self-cross-check, and Acceptance signal + Agent Prompt fields', () => {
+  it('documents the severity scale, self-cross-check, severity order and the Acceptance signal field', () => {
     // Story #4877: all five canonical levels. The four-level list this
     // replaces omitted `info`, so a lens had no sanctioned way to grade a
     // below-Low finding and improvised words the parser resolves to no
@@ -177,9 +177,16 @@ describe('audit-lens-core shared contract (Story #4665)', () => {
       coreTemplate.includes('**Acceptance signal:**'),
       'core skeleton has no Acceptance signal field',
     );
+    // Story #5569: the per-finding Agent Prompt was retired — nothing read it
+    // that the Recommendation did not already carry.
     assert.ok(
-      coreTemplate.includes('**Agent Prompt:**'),
-      'core skeleton has no Agent Prompt field',
+      !coreTemplate.includes('Agent Prompt'),
+      'core skeleton still carries the retired Agent Prompt field',
+    );
+    assert.match(
+      coreMd,
+      /descending severity order/,
+      'audit-lens-core.md does not require Detailed Findings in severity order',
     );
     assert.ok(
       /##\s+Severity scale/.test(coreMd),

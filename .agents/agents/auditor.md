@@ -83,7 +83,8 @@ declares a deviation follows its own Scope section instead.
 ## Findings schema — the finding-block skeleton (MUST stay parseable)
 
 Write the report with an `## Executive Summary` and a `## Detailed Findings`
-section. Every finding under Detailed Findings uses this shared skeleton; the
+section. List findings in descending severity order (Critical first, Info
+last). Every finding under Detailed Findings uses this shared skeleton; the
 lens may **add** fields and may relabel `Severity` ↔ `Impact` and
 `Dimension` ↔ `Category` ↔ `Type`, but never drops a shared field — the
 `audit-to-stories` parser depends on this shape:
@@ -98,8 +99,6 @@ lens may **add** fields and may relabel `Severity` ↔ `Impact` and
 - **Recommendation & Rationale:** [how to remediate and why it matters]
 - **Acceptance signal:** [the command or observable that proves this finding is
   remediated]
-- **Agent Prompt:**
-  `[A copy-pasteable, highly specific prompt to execute this remediation independently]`
 ```
 
 ## Severity scale
