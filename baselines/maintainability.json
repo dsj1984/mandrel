@@ -660,7 +660,7 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/commands.js",
-      "mi": 107.673
+      "mi": 108.42
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
@@ -1944,7 +1944,7 @@
     },
     {
       "path": ".agents/scripts/lib/test-run-credit.js",
-      "mi": 89.592
+      "mi": 92.872
     },
     {
       "path": ".agents/scripts/lib/test-runner-contract.js",
