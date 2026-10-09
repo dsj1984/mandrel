@@ -153,7 +153,9 @@ npx mandrel update
 - `--install-cmd "<cmd>"` — override the auto-detected install command. The
   package manager is normally detected from your lockfile
   (`pnpm-lock.yaml` ⇒ `pnpm add -D …`, `yarn.lock` ⇒ `yarn add -D …`,
-  otherwise `npm install …`), so an override is rarely needed. When you do
+  otherwise `npm install …`), and it keeps your current pin style: an exact
+  pin installs with `--save-exact` (`--exact` on yarn), a tilde pin as
+  `mandrel@~<target>`, so an override is rarely needed. When you do
   pass one, a `{target}` placeholder is substituted with the resolved newest
   version — e.g. `--install-cmd "pnpm add -D mandrel@{target} -w"` —
   so the override can still consume the auto-probed version. The registry
