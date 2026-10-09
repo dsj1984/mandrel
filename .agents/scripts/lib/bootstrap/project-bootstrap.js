@@ -29,6 +29,19 @@ export const SYNC_AGENTS_COMMAND = 'node .agents/scripts/sync-claude-agents.js';
 
 export const BOOTSTRAP_COMMAND = 'node .agents/scripts/bootstrap.js';
 
+/** The pre-guard `prepare` form; bootstrap and the 2.79.0 migration upgrade it. */
+export const LEGACY_PREPARE_COMMAND = `${SYNC_COMMAND} && ${SYNC_AGENTS_COMMAND}`;
+
+/**
+ * Exits 1 when `.agents/scripts/` exists so `||` runs the projections, and 0
+ * otherwise so a manifest-only `npm ci` (no `.agents/` yet) skips them. Only
+ * `node -e` and `||`/`&&`/`()` — portable across npm's sh and cmd shells.
+ */
+export const PREPARE_GUARD = `node -e "process.exit(require('fs').existsSync('.agents/scripts')?1:0)"`;
+
+/** The `prepare` script bootstrap writes: guarded, then both projections. */
+export const PREPARE_COMMAND = `${PREPARE_GUARD} || (${LEGACY_PREPARE_COMMAND})`;
+
 export { SYSTEM_PROMPT_BLOCK, SYSTEM_PROMPT_IMPORT };
 
 /** Install template for a fresh AGENTS.md (also the legacy CLAUDE.md one). */
@@ -39,6 +52,11 @@ export const GITIGNORE_BLOCKS = Object.freeze({
     pattern: /^\s*\.claude\/commands\/?\s*$/m,
     block:
       '\n# Claude Code command projection is generated from .agents/workflows/ — do not commit.\n.claude/commands/\n',
+  },
+  agents: {
+    pattern: /^\s*\.claude\/agents\/?\s*$/m,
+    block:
+      '\n# Claude Code agent projection is generated from .agents/agents/ by `prepare` — do not commit.\n.claude/agents/\n',
   },
   mcp: {
     pattern: /^\s*\.mcp\.json\s*$/m,
@@ -137,12 +155,23 @@ function ensureScript(scripts, key, command) {
   return 'added';
 }
 
-/** Append each projection independently so a partial prepare gains the other. */
-function ensurePrepareScript(scripts) {
+/**
+ * Seed the guarded `prepare`, upgrade the exact legacy bare form to it, and
+ * otherwise append each missing projection so a partial prepare gains the
+ * other. An operator `prepare` already naming both scripts is left alone.
+ *
+ * @param {Record<string, string>} scripts - Mutated in place.
+ * @returns {'added'|'upgraded'|'appended'|'already-present'}
+ */
+export function ensurePrepareScript(scripts) {
   const prepare = scripts.prepare;
   if (!prepare) {
-    scripts.prepare = `${SYNC_COMMAND} && ${SYNC_AGENTS_COMMAND}`;
+    scripts.prepare = PREPARE_COMMAND;
     return 'added';
+  }
+  if (prepare === LEGACY_PREPARE_COMMAND) {
+    scripts.prepare = PREPARE_COMMAND;
+    return 'upgraded';
   }
   let next = prepare;
   if (!next.includes('sync-claude-commands.js')) {
@@ -191,7 +220,7 @@ export function ensurePackageJson(ctx) {
     scriptsBootstrap: ensureScript(pkg.scripts, 'bootstrap', BOOTSTRAP_COMMAND),
   };
   const mutated = Object.values(outcomes).some(
-    (v) => v === true || v === 'added' || v === 'appended',
+    (v) => v === true || v === 'added' || v === 'appended' || v === 'upgraded',
   );
   if (mutated) writeJson(pkgPath, pkg, fsImpl);
   return { ...outcomes, path: pkgPath, mutated };
@@ -309,8 +338,9 @@ async function validateAgentrc(ctx) {
  *
  * @param {object} ctx
  * @param {typeof fs} [ctx.fsImpl]
+ * @param {readonly string[]} [keys] - Restrict to these block keys (default: all).
  */
-export function ensureGitignore(ctx) {
+export function ensureGitignore(ctx, keys = Object.keys(GITIGNORE_BLOCKS)) {
   const { fsImpl = fs } = ctx;
   const target = path.join(ctx.projectRoot, '.gitignore');
   const existing = fsImpl.existsSync(target)
@@ -318,7 +348,8 @@ export function ensureGitignore(ctx) {
     : '';
   let body = existing;
   const outcomes = {};
-  for (const [key, def] of Object.entries(GITIGNORE_BLOCKS)) {
+  for (const key of keys) {
+    const def = GITIGNORE_BLOCKS[key];
     if (def.pattern.test(body)) {
       outcomes[key] = 'already-present';
       continue;

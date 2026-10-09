@@ -8,6 +8,7 @@
  */
 
 import assert from 'node:assert/strict';
+import { execSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
@@ -22,6 +23,8 @@ import {
   ensureGitignore,
   ensurePackageJson,
   GITIGNORE_BLOCKS,
+  LEGACY_PREPARE_COMMAND,
+  PREPARE_COMMAND,
   REQUIRED_NODE_FLOOR,
   SYNC_AGENTS_COMMAND,
   SYNC_COMMAND,
@@ -102,10 +105,39 @@ describe('ensurePackageJson', () => {
     const pkg = readJson(path.join(tmpRoot, 'package.json'));
     assert.equal(pkg.scripts['sync:commands'], SYNC_COMMAND);
     assert.equal(pkg.scripts['sync:agents'], SYNC_AGENTS_COMMAND);
-    // Both projections run on prepare — command tree AND role-scoped agents.
+    // Both projections run on prepare — command tree AND role-scoped agents —
+    // behind the container guard (Story #5581).
+    assert.equal(pkg.scripts.prepare, PREPARE_COMMAND);
+    assert.ok(pkg.scripts.prepare.includes(SYNC_COMMAND));
+    assert.ok(pkg.scripts.prepare.includes(SYNC_AGENTS_COMMAND));
+  });
+
+  it('upgrades the legacy unguarded prepare to the guarded form, then is a no-op', () => {
+    writeFile(
+      path.join(tmpRoot, 'package.json'),
+      `${JSON.stringify({ name: 'host', scripts: { prepare: LEGACY_PREPARE_COMMAND } }, null, 2)}\n`,
+    );
+    const first = ensurePackageJson({ projectRoot: tmpRoot });
+    assert.equal(first.scriptsPrepare, 'upgraded');
+    assert.equal(first.mutated, true);
+    const pkg = readJson(path.join(tmpRoot, 'package.json'));
+    assert.equal(pkg.scripts.prepare, PREPARE_COMMAND);
+    const second = ensurePackageJson({ projectRoot: tmpRoot });
+    assert.equal(second.scriptsPrepare, 'already-present');
+    assert.equal(second.mutated, false);
+  });
+
+  it('leaves an operator prepare that already names both scripts untouched', () => {
+    const custom = `husky && ${SYNC_COMMAND} && ${SYNC_AGENTS_COMMAND}`;
+    writeFile(
+      path.join(tmpRoot, 'package.json'),
+      `${JSON.stringify({ name: 'host', scripts: { prepare: custom } }, null, 2)}\n`,
+    );
+    const outcome = ensurePackageJson({ projectRoot: tmpRoot });
+    assert.equal(outcome.scriptsPrepare, 'already-present');
     assert.equal(
-      pkg.scripts.prepare,
-      `${SYNC_COMMAND} && ${SYNC_AGENTS_COMMAND}`,
+      readJson(path.join(tmpRoot, 'package.json')).scripts.prepare,
+      custom,
     );
   });
 
@@ -172,10 +204,46 @@ describe('ensurePackageJson', () => {
   });
 });
 
+describe('guarded prepare — runtime behaviour (Story #5581)', () => {
+  /** Run the bootstrap-written prepare through npm's own script shell. */
+  function runPrepare() {
+    const pkg = readJson(path.join(tmpRoot, 'package.json'));
+    return spawnSync(pkg.scripts.prepare, {
+      cwd: tmpRoot,
+      shell: true,
+      encoding: 'utf8',
+    });
+  }
+
+  it('exits 0 and writes nothing when .agents/ is absent (manifest-only container)', () => {
+    ensurePackageJson({ projectRoot: tmpRoot });
+    const before = fs.readdirSync(tmpRoot).sort();
+    const result = runPrepare();
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(fs.readdirSync(tmpRoot).sort(), before);
+  });
+
+  it('runs both projections when .agents/scripts/ is present', () => {
+    ensurePackageJson({ projectRoot: tmpRoot });
+    const scripts = path.join(tmpRoot, '.agents', 'scripts');
+    for (const name of ['sync-claude-commands', 'sync-claude-agents']) {
+      writeFile(
+        path.join(scripts, `${name}.js`),
+        `import fs from 'node:fs';\nfs.writeFileSync(${JSON.stringify(`${name}.ran`)}, '');\n`,
+      );
+    }
+    const result = runPrepare();
+    assert.equal(result.status, 0, result.stderr);
+    assert.ok(fs.existsSync(path.join(tmpRoot, 'sync-claude-commands.ran')));
+    assert.ok(fs.existsSync(path.join(tmpRoot, 'sync-claude-agents.ran')));
+  });
+});
+
 describe('ensureGitignore', () => {
   it('creates a fresh .gitignore with every secret-bearing block', () => {
     const outcome = ensureGitignore({ projectRoot: tmpRoot });
     assert.equal(outcome.commands, 'added');
+    assert.equal(outcome.agents, 'added');
     assert.equal(outcome.mcp, 'added');
     assert.equal(outcome.env, 'added');
     assert.equal(outcome.installLedger, 'added');
@@ -212,6 +280,27 @@ describe('ensureGitignore', () => {
     // Exactly one occurrence of each ignored path.
     assert.equal((after.match(/^\.env$/gm) ?? []).length, 1);
     assert.equal((after.match(/^\.mcp\.json$/gm) ?? []).length, 1);
+  });
+
+  it('ignores the generated .claude/agents/ projection so git never lists it', () => {
+    ensureGitignore({ projectRoot: tmpRoot });
+    execSync('git init -q', { cwd: tmpRoot });
+    writeFile(
+      path.join(tmpRoot, '.claude', 'agents', 'story-worker.md'),
+      '#\n',
+    );
+    const status = execSync('git status --porcelain --untracked-files=all', {
+      cwd: tmpRoot,
+      encoding: 'utf8',
+    });
+    assert.equal(status.includes('.claude/agents/'), false, status);
+  });
+
+  it('restricts the write to the named block keys', () => {
+    const outcome = ensureGitignore({ projectRoot: tmpRoot }, ['agents']);
+    assert.deepEqual(Object.keys(outcome).sort(), ['agents', 'path']);
+    const body = fs.readFileSync(path.join(tmpRoot, '.gitignore'), 'utf8');
+    assert.equal(body, GITIGNORE_BLOCKS.agents.block);
   });
 
   it('does not treat a pre-existing .env.example as the .env block', () => {
