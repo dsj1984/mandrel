@@ -2431,6 +2431,10 @@
       "mi": 95.457
     },
     {
+      "path": "lib/migrations/steps/2.79.0-container-safe-projections.js",
+      "mi": 96.299
+    },
+    {
       "path": "lib/migrations/steps/strip-removed-agentrc-keys.js",
       "mi": 94.524
     },

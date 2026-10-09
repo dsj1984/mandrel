@@ -10394,6 +10394,20 @@
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
+      "method": "<anon ensurePrepareScript/(script)#0>",
+      "startLine": 186,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
+      "method": "<anon ensurePrepareScript/(command)#0>",
+      "startLine": 187,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "<anon ensurePackageJson/(v)#0>",
       "startLine": 194,
       "crap": 3,
@@ -36955,6 +36969,12 @@
     },
     {
       "path": "lib/cli/uninstall.js",
+      "method": "stripPrepare",
+      "startLine": 317,
+      "crap": 4
+    },
+    {
+      "path": "lib/cli/uninstall.js",
       "method": "revertAgentrc",
       "startLine": 368,
       "crap": 3
@@ -37544,6 +37564,24 @@
       "method": "pendingBaselines",
       "startLine": 46,
       "crap": 3
+    },
+    {
+      "path": "lib/migrations/steps/2.79.0-container-safe-projections.js",
+      "method": "readPackageJson",
+      "startLine": 25,
+      "crap": 2.0438957475994513
+    },
+    {
+      "path": "lib/migrations/steps/2.79.0-container-safe-projections.js",
+      "method": "hasLegacyPrepare",
+      "startLine": 40,
+      "crap": 1
+    },
+    {
+      "path": "lib/migrations/steps/2.79.0-container-safe-projections.js",
+      "method": "lacksAgentsIgnore",
+      "startLine": 50,
+      "crap": 2
     },
     {
       "path": "lib/migrations/steps/strip-removed-agentrc-keys.js",

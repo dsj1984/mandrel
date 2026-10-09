@@ -32,6 +32,8 @@ import {
 import {
   BOOTSTRAP_COMMAND,
   GITIGNORE_BLOCKS,
+  LEGACY_PREPARE_COMMAND,
+  PREPARE_COMMAND,
   SYNC_COMMAND,
   SYSTEM_PROMPT_AGENTS_MD,
   SYSTEM_PROMPT_BLOCK,
@@ -1053,6 +1055,42 @@ describe('runUninstall — corrupt target file guard (Story #3544)', () => {
 // ---------------------------------------------------------------------------
 // Story #3545 — prepare-removal reporting: empty-after-strip and no-match
 // ---------------------------------------------------------------------------
+
+describe('runUninstall — guarded prepare and .claude/agents/ ignore (Story #5581)', () => {
+  for (const [label, prepare] of [
+    ['guarded', PREPARE_COMMAND],
+    ['legacy bare', LEGACY_PREPARE_COMMAND],
+  ]) {
+    it(`strips the ${label} bootstrap prepare`, () => {
+      writeJson(path.join(tmpRoot, 'package.json'), {
+        name: 'host',
+        scripts: { prepare, build: 'tsc' },
+      });
+      writeLedger(tmpRoot, {
+        entries: [{ target: 'package.json', reversible: true }],
+      });
+      runUninstall({ projectRoot: tmpRoot, write: () => {}, exit: () => {} });
+      const pkg = readJson(path.join(tmpRoot, 'package.json'));
+      assert.equal(pkg.scripts.prepare, undefined);
+      assert.equal(pkg.scripts.build, 'tsc');
+    });
+  }
+
+  it('removes the .claude/agents/ ignore entry with the other framework blocks', () => {
+    fs.writeFileSync(
+      path.join(tmpRoot, '.gitignore'),
+      `node_modules/\n${GITIGNORE_BLOCKS.commands.block}${GITIGNORE_BLOCKS.agents.block}`,
+      'utf8',
+    );
+    writeLedger(tmpRoot, {
+      entries: [{ target: '.gitignore', reversible: true }],
+    });
+    runUninstall({ projectRoot: tmpRoot, write: () => {}, exit: () => {} });
+    const gi = fs.readFileSync(path.join(tmpRoot, '.gitignore'), 'utf8');
+    assert.equal(gi.includes('.claude/agents/'), false);
+    assert.ok(gi.includes('node_modules/'));
+  });
+});
 
 describe('revertPackageJson — prepare-removal reporting (Story #3545)', () => {
   it('deletes the prepare key when stripping the fragment leaves an empty string', () => {
