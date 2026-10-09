@@ -138,3 +138,59 @@ test('buildPlanSeedMarkdown handles zero findings gracefully', () => {
   assert.ok(md.includes('## Problem Statement'));
   assert.ok(md.includes('_(no concrete file paths surfaced)_'));
 });
+
+// ---------------------------------------------------------------------------
+// Story #5569 — each finding carries its own fix; the direction is a tally
+// ---------------------------------------------------------------------------
+
+function seedFromFixtures() {
+  const findings = withFingerprints(parseAuditReports(loadAll()));
+  const { groups } = groupFindings(findings);
+  const md = buildPlanSeedMarkdown({
+    groups,
+    findings,
+    sourceReports: loadAll().map((r) => r.sourceReport),
+  });
+  return { findings, md };
+}
+
+test('MVP Scope nests each finding’s Recommendation and Acceptance signal under it, worst first', () => {
+  const { findings, md } = seedFromFixtures();
+  const scope = md.slice(
+    md.indexOf('## MVP Scope'),
+    md.indexOf('## Key Files'),
+  );
+  for (const f of findings) {
+    const at = scope.indexOf(`- **${f.title}**`);
+    const next = scope.indexOf('\n- **', at + 1);
+    const block = scope.slice(at, next === -1 ? undefined : next);
+    assert.ok(block.includes(`  - **Recommendation:** ${f.recommendation}`));
+    assert.ok(
+      block.includes(`  - **Acceptance signal:** ${f.acceptanceSignal}`),
+    );
+    assert.ok(!block.includes('**Location:**'), 'an absent field is omitted');
+  }
+  const rank = { critical: 4, high: 3, medium: 2, low: 1, info: 0 };
+  const order = findings
+    .map((f) => ({ f, at: scope.indexOf(`- **${f.title}**`) }))
+    .sort((a, b) => a.at - b.at)
+    .map(({ f }) => rank[f.severity]);
+  for (let i = 1; i < order.length; i += 1) {
+    assert.ok(order[i - 1] >= order[i], `out of severity order: ${order}`);
+  }
+});
+
+test('Recommended Direction is a per-dimension tally with no recommendation text', () => {
+  const { findings, md } = seedFromFixtures();
+  const direction = md.slice(
+    md.indexOf('## Recommended Direction'),
+    md.indexOf('## Key Assumptions'),
+  );
+  for (const f of findings) {
+    assert.ok(!direction.includes(f.recommendation));
+  }
+  assert.match(
+    direction,
+    /— \d+ findings? \(\d+ (Critical|High|Medium|Low|Info)/,
+  );
+});

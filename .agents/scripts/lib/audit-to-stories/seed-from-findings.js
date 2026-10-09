@@ -3,12 +3,13 @@
  * Pure: returns a string.
  */
 
-import { SEVERITIES } from '../findings/severity.js';
+import { SEVERITIES, sortBySeverity } from '../findings/severity.js';
 import { auditLabelFooterForFindings } from './audit-label-taxonomy.js';
 import {
   renderFingerprintFooter,
   renderSemanticKeyFooter,
 } from './finding-adapter.js';
+import { findingBullets, SEED_FINDING_FIELDS } from './finding-bullets.js';
 
 const DIMENSION_LABEL = {
   security: 'Security',
@@ -43,12 +44,17 @@ function tallyDimensions(findings) {
   return tally;
 }
 
-function formatProblemStatement(findings) {
+/** `2 High, 1 Medium` — non-zero levels only, highest first. */
+function formatTally(findings) {
   const sev = tallySeverities(findings);
-  const dimensions = tallyDimensions(findings);
-  const tallyParts = SEVERITY_ORDER.filter((k) => sev[k] > 0)
+  return SEVERITY_ORDER.filter((k) => sev[k] > 0)
     .map((k) => `${sev[k]} ${k.charAt(0).toUpperCase() + k.slice(1)}`)
     .join(', ');
+}
+
+function formatProblemStatement(findings) {
+  const dimensions = tallyDimensions(findings);
+  const tallyParts = formatTally(findings);
   const topDims = [...dimensions.entries()]
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3)
@@ -57,35 +63,44 @@ function formatProblemStatement(findings) {
   return `An audit sweep surfaced ${findings.length} findings (${tallyParts}) concentrated in ${dimsPhrase}. These require remediation to restore release posture.`;
 }
 
+/**
+ * A count per dimension, not recommendation text: each finding's fix lives
+ * under it in MVP Scope, so repeating a truncated sample here only misleads.
+ *
+ * @param {object[]} findings
+ * @returns {string}
+ */
 function formatRecommendedDirection(findings) {
-  const byDim = new Map();
-  for (const f of findings) {
-    if (!byDim.has(f.dimension)) byDim.set(f.dimension, []);
-    if (f.recommendation) byDim.get(f.dimension).push(f.recommendation);
-  }
-  const lines = [];
-  for (const [dim, recs] of [...byDim.entries()].sort()) {
-    const label = DIMENSION_LABEL[dim] ?? dim;
-    const head = recs.slice(0, 2).join(' ');
-    lines.push(`- **${label}** — ${head || 'See linked findings.'}`);
-  }
-  return lines.join('\n');
+  const byDim = Map.groupBy(findings, (f) => f.dimension);
+  return [...byDim.entries()]
+    .sort(([a], [b]) => String(a).localeCompare(String(b)))
+    .map(([dim, list]) => {
+      const label = DIMENSION_LABEL[dim] ?? dim;
+      const noun = list.length === 1 ? 'finding' : 'findings';
+      return `- **${label}** — ${list.length} ${noun} (${formatTally(list)})`;
+    })
+    .join('\n');
 }
 
 /**
  * Flat, not grouped: the seed must not pre-decide the Story partition; that
- * is the planner's cohesion call.
+ * is the planner's cohesion call. Worst first, each finding carrying its own
+ * Location, Recommendation and Acceptance signal so the planner need not
+ * reopen the source report.
  *
  * @param {object[]} findings
  * @returns {string}
  */
 function formatFindingsList(findings) {
-  return findings
+  return sortBySeverity(findings)
     .map((f) => {
       const label = DIMENSION_LABEL[f.dimension] ?? f.dimension;
       const file = f.files?.[0] ? ` (\`${f.files[0]}\`)` : '';
       const severity = f.severity ? `${f.severity} · ` : '';
-      return `- **${f.title}** — ${severity}${label}${file}`;
+      const headline = `- **${f.title}** — ${severity}${label}${file}`;
+      return [headline, ...findingBullets(f, SEED_FINDING_FIELDS, '  ')].join(
+        '\n',
+      );
     })
     .join('\n');
 }
