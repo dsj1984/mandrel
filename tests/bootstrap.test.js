@@ -470,3 +470,162 @@ describe('Bootstrap — verifyApiAccess() (Story #2018, Bug 1)', () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// Story #5584 — the board is skippable: a declined project continues the run,
+// and a skipped project never reaches board provisioning.
+// ---------------------------------------------------------------------------
+describe('Bootstrap — skipping the Projects V2 board (Story #5584)', async () => {
+  const { approveCreation, renderDryRunPlan, resolveBoardDecoration } =
+    await import(
+      pathToFileURL(path.join(ROOT, '.agents', 'scripts', 'bootstrap.js')).href
+    );
+  const { Logger } = await import(
+    pathToFileURL(path.join(ROOT, '.agents', 'scripts', 'lib', 'Logger.js'))
+      .href
+  );
+  const STATE = { flags: {}, interactive: true };
+  const answersWith = (projectNumber) => ({
+    owner: 'acme',
+    repo: 'widget',
+    projectNumber,
+  });
+
+  it('continues without a board when the new project is declined', async (t) => {
+    const info = [];
+    t.mock.method(Logger, 'info', (m) => info.push(String(m)));
+    const answers = answersWith('Roadmap');
+    const creation = { newRepo: false, newProject: true };
+    const prompts = [];
+    const ok = await approveCreation(STATE, answers, creation, async (m) => {
+      prompts.push(m);
+      return false;
+    });
+    assert.equal(ok, true);
+    assert.equal(answers.projectNumber, '');
+    assert.equal(creation.newProject, false);
+    assert.equal(prompts.length, 1);
+    assert.match(prompts[0], /Project V2 "Roadmap"/);
+    assert.match(info.join('\n'), /skipping the Projects V2 board/);
+  });
+
+  it('still aborts when the new repo is declined', async (t) => {
+    const errors = [];
+    t.mock.method(Logger, 'error', (m) => errors.push(String(m)));
+    const answers = answersWith('Roadmap');
+    const creation = { newRepo: true, newProject: true };
+    const prompts = [];
+    const ok = await approveCreation(STATE, answers, creation, async (m) => {
+      prompts.push(m);
+      return false;
+    });
+    assert.equal(ok, false);
+    assert.equal(prompts.length, 1);
+    assert.match(prompts[0], /repo acme\/widget/);
+    assert.match(errors.join('\n'), /Repo creation declined/);
+  });
+
+  it('keeps an approved project and asks once per new resource', async () => {
+    const answers = answersWith('Roadmap');
+    const creation = { newRepo: true, newProject: true };
+    const prompts = [];
+    const ok = await approveCreation(STATE, answers, creation, async (m) => {
+      prompts.push(m);
+      return true;
+    });
+    assert.equal(ok, true);
+    assert.equal(prompts.length, 2);
+    assert.equal(answers.projectNumber, 'Roadmap');
+    assert.equal(creation.newProject, true);
+  });
+
+  it('never prompts under --dry-run or with nothing to create', async () => {
+    const never = async () => {
+      throw new Error('must not prompt');
+    };
+    assert.equal(
+      await approveCreation(
+        { flags: { 'dry-run': true }, interactive: true },
+        answersWith('Roadmap'),
+        { newRepo: true, newProject: true },
+        never,
+      ),
+      true,
+    );
+    assert.equal(
+      await approveCreation(
+        STATE,
+        answersWith('7'),
+        { newRepo: false, newProject: false },
+        never,
+      ),
+      true,
+    );
+  });
+
+  it('skips board decoration under --with-project-board when the project is skipped', (t) => {
+    const info = [];
+    t.mock.method(Logger, 'info', (m) => info.push(String(m)));
+    for (const projectNumber of ['', undefined]) {
+      assert.equal(
+        resolveBoardDecoration({
+          withProjectBoard: true,
+          answers: { projectNumber },
+        }),
+        false,
+      );
+    }
+    assert.match(info.join('\n'), /skipping board decoration/);
+    assert.equal(
+      resolveBoardDecoration({
+        withProjectBoard: true,
+        answers: { projectNumber: '7' },
+      }),
+      true,
+    );
+    assert.equal(
+      resolveBoardDecoration({
+        withProjectBoard: false,
+        answers: { projectNumber: '7' },
+      }),
+      false,
+    );
+  });
+
+  it('provisions labels and no board when the project is skipped', async (t) => {
+    t.mock.method(Logger, 'info', () => {});
+    const mock = new MockProvider();
+    const result = await runBootstrap(
+      {
+        provider: 'github',
+        github: { owner: 'acme', repo: 'widget', projectNumber: null },
+      },
+      {
+        providerOverride: mock,
+        quiet: true,
+        githubAdminApproved: true,
+        withProjectBoard: resolveBoardDecoration({
+          withProjectBoard: true,
+          answers: { projectNumber: '' },
+        }),
+        hitlConfirm: async () => true,
+      },
+    );
+    assert.equal(mock.ensureLabelsCalls.length, 1);
+    assert.equal(mock.resolveOrCreateProjectCalls.length, 0);
+    assert.equal(result.project.skipped, true);
+  });
+
+  for (const projectNumber of ['', undefined]) {
+    it(`renders the dry-run skip lines for projectNumber=${JSON.stringify(projectNumber)}`, () => {
+      const plan = renderDryRunPlan({
+        flags: { 'assume-yes': true, 'no-project': true },
+        gitInitialized: true,
+        answers: { owner: 'acme', repo: 'widget', projectNumber },
+        creation: { newRepo: false, newProject: false },
+      });
+      assert.match(plan, /project number {3}\(skip\)/);
+      assert.match(plan, /new project {6}no/);
+    });
+  }
+});
