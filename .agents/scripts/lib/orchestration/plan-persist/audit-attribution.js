@@ -72,7 +72,7 @@ function seedIdentities(provenanceSource) {
  * @param {string} [provenanceSource]
  * @returns {boolean}
  */
-export function attributionApplies(storyCount, provenanceSource) {
+function attributionApplies(storyCount, provenanceSource) {
   return (
     storyCount > 1 &&
     parseAuditFindingRecords(provenanceSource ?? '').length > 0
