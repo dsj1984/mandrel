@@ -173,7 +173,7 @@ const PREFIX_MEANINGS = Object.freeze([
   ],
   [
     'qa.environments',
-    'QA harness deployment target (baseUrl, per-environment sign-in seam, allowWrites gate).',
+    'QA harness deployment target (baseUrl, per-environment sign-in seam, allowWrites gate, optional read-only database audit target).',
   ],
   ['qa.personas', 'QA harness persona / credential mapping.'],
   [

@@ -467,15 +467,31 @@ const QA_PERSONAS_SCHEMA = {
   ],
 };
 
+// The connection string is a secret, so the config carries only the NAME of
+// the environment variable that holds it — a literal URL cannot match the
+// pattern, and there is no `url` key to put one in.
+const QA_DATABASE_SCHEMA = {
+  type: 'object',
+  description:
+    'Database target for the `/audit-data-model` read-only live-schema pass. `urlEnv` is the name of the environment variable carrying the connection string — never the URL itself. `allowAudit` opts the environment in to that pass; it defaults to true only for `local`.',
+  properties: {
+    urlEnv: { type: 'string', pattern: '^[A-Z_][A-Z0-9_]*$' },
+    allowAudit: { type: 'boolean' },
+  },
+  required: ['urlEnv'],
+  additionalProperties: false,
+};
+
 const QA_ENVIRONMENTS_SCHEMA = {
   type: 'object',
   description:
-    'Deployment targets the QA harness can run against (Epic #4326). A map keyed by environment name (e.g. `local`, `staging`), each carrying its own `baseUrl`, an optional per-environment sign-in seam, and an optional `allowWrites` gate. `signInSeam` is the union `{ urlTemplate }` (a dev impersonation route) or `{ skill }` (a skill id such as `stack/qa/acme-sso`, resolved against `.agents/skills/` then the consumer-writable `.agents/local/skills/` zone, and rejected loudly by resolveQaEnvironment when it resolves under neither); omit it entirely for a target with no sign-in seam. resolveQaEnvironment selects one environment per invocation by name or by raw-URL origin match against `baseUrl`; `allowWrites` defaults to true only for the `local` environment. Replaces the retired top-level single `signInSeam`.',
+    "Deployment targets the QA harness can run against (Epic #4326). A map keyed by environment name (e.g. `local`, `staging`), each carrying its own `baseUrl`, an optional per-environment sign-in seam, and an optional `allowWrites` gate. `signInSeam` is the union `{ urlTemplate }` (a dev impersonation route) or `{ skill }` (a skill id such as `stack/qa/acme-sso`, resolved against `.agents/skills/` then the consumer-writable `.agents/local/skills/` zone, and rejected loudly by resolveQaEnvironment when it resolves under neither); omit it entirely for a target with no sign-in seam. resolveQaEnvironment selects one environment per invocation by name or by raw-URL origin match against `baseUrl`; `allowWrites` defaults to true only for the `local` environment. An optional `database` object `{ urlEnv, allowAudit? }` names the environment variable holding that target's database connection string (the name only, never the URL) for the `/audit-data-model` live-schema pass; `allowAudit` gates that read-only pass and, like `allowWrites`, defaults to true only for `local`. Point `urlEnv` at a role granted catalog read only. A production database is never audited live, whatever this block says. Replaces the retired top-level single `signInSeam`.",
   // Illustrative; `staging` omits `signInSeam` to show it is optional.
   default: {
     local: {
       baseUrl: 'http://localhost:3000',
       signInSeam: { urlTemplate: '/dev/sign-in-as/{persona}' },
+      database: { urlEnv: 'DATABASE_URL' },
     },
     staging: {
       baseUrl: 'https://staging.example.test',
@@ -489,6 +505,7 @@ const QA_ENVIRONMENTS_SCHEMA = {
       baseUrl: { ...SAFE_STRING, minLength: 1 },
       signInSeam: QA_SIGN_IN_SEAM_SCHEMA,
       allowWrites: { type: 'boolean' },
+      database: QA_DATABASE_SCHEMA,
     },
     // No seam is a state QA workflows handle (unauthenticated drive).
     required: ['baseUrl'],

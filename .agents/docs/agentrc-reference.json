@@ -263,6 +263,9 @@
         "baseUrl": "http://localhost:3000",
         "signInSeam": {
           "urlTemplate": "/dev/sign-in-as/{persona}"
+        },
+        "database": {
+          "urlEnv": "DATABASE_URL"
         }
       },
       "staging": {

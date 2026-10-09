@@ -255,6 +255,7 @@ describe('the runtime-pass scaffold is shared, not restated (Story #5281)', () =
   const RUNTIME_LENSES = [
     '.agents/workflows/audit-mobile.md',
     '.agents/workflows/audit-accessibility.md',
+    '.agents/workflows/audit-data-model.md',
   ];
   const CORE = '.agents/workflows/helpers/audit-lens-core.md';
 

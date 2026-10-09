@@ -22,8 +22,8 @@ a lens performs is its report artifact (plus, where a lens explicitly declares
 it, a single measurement/baseline artifact named in that lens's own
 Constraint). A lens that names a stricter or looser read-only carve-out in its
 own body (e.g. performance's non-mutating measurements, quality's permitted
-committed-baseline reads, data-model's no-database rule) refines this shared
-constraint for that lens only.
+committed-baseline reads, data-model's opt-in read-only database carve-out)
+refines this shared constraint for that lens only.
 
 ## Scope interpretation (Story / plan-run mode) {#scope-interpretation}
 
@@ -276,15 +276,18 @@ lens that has one, so a lens documents only its own probe.
    device profile, colour scheme — before finishing, so a following lens or QA
    run does not inherit it.
 
-**Skip reasons, and how to report them.** The pass is skipped, never faked, for
-either of two reasons, and the Executive Summary says which:
+**Skip reasons, and how to report them.** The pass is skipped, never faked,
+for any of the reasons below that applies to the lens's probe, and the
+Executive Summary says which. A lens whose probe has further skip conditions
+lists them in its own body:
 
 | Condition | Reported as |
 | --- | --- |
 | No `qa.environments` target is configured | `skipped — no target configured` |
 | The browser tooling is unavailable in this runtime | `skipped — browser tooling unavailable` |
+| A database probe finds no opted-in `database` block on the target | `skipped — no database target configured` |
 
-The second is the one an unattended sweep meets: a scheduled run has no browser
+The browser-tooling row is the one an unattended sweep meets: a scheduled run has no browser
 MCP server attached, so a lens that treated "cannot drive" as "nothing found"
 would report a clean runtime section it never ran. Do not invent a URL, do not
 start an arbitrary dev server, and do not fall back to a static-only claim
