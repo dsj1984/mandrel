@@ -37,7 +37,7 @@ export const LEGACY_PREPARE_COMMAND = `${SYNC_COMMAND} && ${SYNC_AGENTS_COMMAND}
  * otherwise so a manifest-only `npm ci` (no `.agents/` yet) skips them. Only
  * `node -e` and `||`/`&&`/`()` — portable across npm's sh and cmd shells.
  */
-export const PREPARE_GUARD = `node -e "process.exit(require('fs').existsSync('.agents/scripts')?1:0)"`;
+const PREPARE_GUARD = `node -e "process.exit(require('fs').existsSync('.agents/scripts')?1:0)"`;
 
 /** The `prepare` script bootstrap writes: guarded, then both projections. */
 export const PREPARE_COMMAND = `${PREPARE_GUARD} || (${LEGACY_PREPARE_COMMAND})`;
