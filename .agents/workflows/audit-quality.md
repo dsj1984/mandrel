@@ -54,6 +54,36 @@ already compute and commit, rather than prose-scanning the tests:
 - `baselines/mutation.json` — mutation-testing survivors where present: tests
   that execute code without asserting on it (coverage without confidence).
 
+**When `baselines/*.json` do not exist** (a consumer that does not run
+Mandrel's baseline gates, or a non-JS repo), measure from the ecosystem's own
+tools instead of reporting the missing baseline. Detect ecosystems per the
+core's [Ecosystem detection](helpers/audit-lens-core.md#ecosystem-detection)
+(absent scanner = Low `Standardization` gap; undetected ecosystem =
+inapplicable, never a finding). **Python:**
+
+```bash
+coverage report -m            # coverage.py, read an existing .coverage file
+coverage json -o -            # per-file covered ratio (or coverage.xml from pytest-cov)
+radon cc -s <srcDir>          # complexity, to pair with coverage as a CRAP proxy
+mutmut results                # mutation survivors, when a mutmut cache exists
+```
+
+Read an existing `.coverage` / `coverage.xml` / `htmlcov/` artifact; do not run
+`pytest --cov` yourself (the Constraint below forbids suite runs). With no
+coverage artifact at all, record that as a `Coverage` finding — the repo
+publishes no coverage signal. The other Python dimensions read non-running
+instruments:
+
+| Dimension | Python instrument |
+| --- | --- |
+| Flakiness | `.pytest_cache/v/cache/lastfailed`, `@pytest.mark.flaky` / `pytest-rerunfailures` markers, `time.sleep` in tests |
+| Mocking | `unittest.mock` / `monkeypatch` / `responses` usage density per test file |
+| Test data | `conftest.py` fixture scopes (`scope="session"` shared mutable state) |
+| Performance & execution | `pytest --collect-only -q` (count by tier), `<testcase time=…>` in an existing JUnit XML, `pytest-xdist` presence |
+| Property-based | `hypothesis` in the manifests (dimension 8) |
+
+Go and Rust use the core's fallback table.
+
 **Rank churn-by-coverage.** Order candidate findings by **churn × coverage
 gap** — frequently-changed files (`git log --format= --name-only -n 200 | sort
 | uniq -c | sort -rn`) that also score low coverage / high CRAP are the

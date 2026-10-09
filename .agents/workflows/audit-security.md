@@ -41,19 +41,30 @@ baseline is silent — is out of scope for this lens.
 ## Step 1: Detection Battery (Tool-First, Read-Only)
 
 Ground every finding in tool output, not vibes. Run the ladder below; each rung
-is **presence-gated** — when a scanner is absent, fall through to the next rung
-and note the missing tool as a `Security Misconfiguration` finding (recommend
-adopting it).
+is **presence-gated** and **ecosystem-gated** per the core's
+[Ecosystem detection](helpers/audit-lens-core.md#ecosystem-detection): when a
+scanner for a detected ecosystem is absent, fall through to the next rung and
+note the missing tool as a `Security Misconfiguration` finding (recommend
+adopting it); a scanner for an undetected ecosystem is inapplicable and never a
+finding.
 
-1. **Dependency CVEs (`npm audit`).** Never recall CVEs from memory:
+1. **Dependency CVEs, per detected ecosystem.** Never recall CVEs from memory:
 
    ```bash
-   npm audit --omit=dev --json 2>/dev/null || echo "npm audit unavailable"
+   npm audit --omit=dev --json 2>/dev/null || echo "npm audit unavailable"  # JS
+   pip-audit -r requirements.txt --format json   # Python (or bare `pip-audit` in the venv)
+   govulncheck ./...                             # Go
+   cargo audit --json                            # Rust
    ```
 
-   Each advisory reachable in production (`--omit=dev`) at `high` or `critical`
-   is a _Vulnerable Components_ finding citing the advisory id and the violated
+   Each advisory reachable in production (`--omit=dev`; for Python, the
+   runtime requirements, not dev extras) at `high` or `critical` is a
+   _Vulnerable Components_ finding citing the advisory id and the violated
    _Dependency Hygiene_ MUST.
+
+   **Python static analysis.** On a detected Python ecosystem also run
+   `bandit -r <srcDir> -f json` for injection / `eval` / `subprocess(shell=True)`
+   / weak-crypto sinks — the Python counterpart of the grep battery below.
 
 2. **Secret scanning (`gitleaks` / `trufflehog`), with a grep fallback.** When
    `gitleaks` is installed, prefer it:
@@ -76,13 +87,17 @@ adopting it).
    rg -n "(SELECT|INSERT|UPDATE|DELETE)\b[^;]*\$\{" -i
    # Committed .env with real values (violates Secrets Management)
    git ls-files | rg "(^|/)\.env($|\.)" | rg -v "\.env\.example$"
+   # Python sinks (detected Python only): shell exec, unsafe deserialization, f-string SQL
+   rg -n "shell=True|pickle\.loads?\(|yaml\.load\(|\.execute\(f['\"]" --type py
    ```
 
 4. **Manual surface review.** Then read the surfaces the battery flags plus:
    input-validation edges (API endpoints, form handlers — is input validated at
    the boundary with a strict schema?), auth/session handling (token storage,
    missing ownership checks on sensitive routes), and injection sinks
-   (`dangerouslySetInnerHTML`, raw SQL, command execution).
+   (`dangerouslySetInnerHTML`, raw SQL, command execution). On Python, read
+   the route decorators (Django views / DRF `permission_classes`, Flask /
+   FastAPI routes and `Depends` guards) for missing ownership checks.
 
 ## Step 2: Evaluation Dimensions
 
