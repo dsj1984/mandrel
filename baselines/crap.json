@@ -36956,6 +36956,12 @@
     },
     {
       "path": "lib/cli/update.js",
+      "method": "pinPreservingSpec",
+      "startLine": 210,
+      "crap": 4
+    },
+    {
+      "path": "lib/cli/update.js",
       "method": "resolveInstallCmd",
       "startLine": 211,
       "crap": 6
