@@ -458,8 +458,10 @@ export async function runPlanPersist({
     assemblePlanStories(rawStories, {
       sharedSpec: techSpecContent,
       sourceTicketIds,
-      // Audit footers carried onto every Story that did not attribute its own
-      // `provenance`; empty for a `--tickets` run.
+      // Audit footers for every Story without an authored `provenance`: an
+      // N>1 draft over a record-carrying seed attributes them per Story by
+      // `changes[]` coverage (unattributed findings ride on all and surface
+      // in `warnings`); otherwise the seed union. Empty for `--tickets`.
       provenanceSource: seedProvenance,
     });
 
@@ -467,7 +469,7 @@ export async function runPlanPersist({
   logWarnings(supersedeWarnings);
 
   // The dedup corpus is listed by `audit::*` label; footers alone leave the
-  // Story invisible to an indexed sweep.
+  // Story invisible to an indexed sweep. Labels follow the stamped findings.
   const stories = withAuditLabels(assembled, seedProvenance);
 
   const assembledConflicts = analyzeAssembledStories({

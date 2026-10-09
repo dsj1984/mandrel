@@ -238,7 +238,14 @@ work this plan already tracked.
 | --- | --- |
 | Present | **Exactly** the identities listed — siblings' groups never leak in. |
 | Present but empty (`{}`) | Nothing. "Owns no findings" is a real answer. |
-| **Absent** | The **whole seed's** footers (the union) — the recall-safe default. |
+| **Absent**, N>1 plan, seed carries `audit-finding` records | The findings whose files this Story's `changes[]` covers (exact path or glob; the primary file first, the others only when no Story covers it), plus every **unattributed** finding. |
+| **Absent**, otherwise (N==1, or a record-less seed) | The **whole seed's** footers (the union) — the recall-safe default. |
+
+An unattributed finding — one no Story owns by `provenance` or by path — is
+stamped on every Story without an authored `provenance` and listed in
+persist's warnings (`unattributed audit finding <sha12> (<file>) — carried on
+all N Stories`). `audit::*` labels follow the stamped findings under
+attribution, and the seed union otherwise.
 
 **The union fallback is load-bearing, not legacy** — hand-carrying provenance
 out of the seed's HTML comments is a step an author forgets. Attribution is
@@ -251,8 +258,9 @@ owning Story has **closed** is masked by an open neighbour. With ownership
 stamped, the issue carrying a finding's own fingerprint decides both the match
 and its state (`lib/findings/route-finding.js`).
 
-The audit path authors this mechanically from the per-group footers the seed
-already carries — see [`audit-to-stories`](../audit-to-stories.md). A `--seed`
+The audit path attributes mechanically from the per-finding `audit-finding`
+records the seed carries beside its per-group footers — see
+[`audit-to-stories`](../audit-to-stories.md). A `--seed`
 or `--tickets` plan has nothing to attribute and omits the field.
 
 ## Cross-Story conflict analysis at persist

@@ -533,7 +533,7 @@
     {
       "path": ".agents/scripts/lib/audit-to-stories/seed-from-findings.js",
       "lines": 100,
-      "branches": 93.62,
+      "branches": 91.07,
       "functions": 100
     },
     {
@@ -1431,6 +1431,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/findings/audit-finding-record.js",
+      "lines": 100,
+      "branches": 85.29,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/findings/classify-finding.js",
       "lines": 100,
       "branches": 100,
@@ -2079,9 +2085,15 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/audit-attribution.js",
+      "lines": 100,
+      "branches": 90.91,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/plan-persist/audit-provenance.js",
       "lines": 100,
-      "branches": 95,
+      "branches": 94.44,
       "functions": 100
     },
     {
@@ -2134,8 +2146,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
-      "lines": 94.42,
-      "branches": 80.52,
+      "lines": 94.46,
+      "branches": 80.77,
       "functions": 100
     },
     {
@@ -2146,8 +2158,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
-      "lines": 95.5,
-      "branches": 86.82,
+      "lines": 95.58,
+      "branches": 87.11,
       "functions": 100
     },
     {

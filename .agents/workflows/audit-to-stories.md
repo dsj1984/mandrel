@@ -175,20 +175,35 @@ one-pager, and per-group even though the visible list is flat — they are the
 identity the next sweep matches on). `plan-persist` harvests them out of the seed on the
 `plan-context.json` envelope — which carries them apart from the seed text as
 `seed.provenance`, so an oversize seed cut for size keeps every footer — and
-appends them to **every** Story body it persists, via `carryProvenanceFooters`
+appends them to the Story bodies it persists, via `carryProvenanceFooters`
 ([`lib/findings/route-finding.js`](../scripts/lib/findings/route-finding.js)).
-The carry is additive, union-preserving and idempotent, so a resumed persist
-cannot stack footers and a hand-authored fingerprint is never dropped.
+The carry is additive and idempotent, so a resumed persist cannot stack
+footers and a hand-authored fingerprint is never dropped.
+
+**Which Story carries which finding.** Beside the group footers the seed
+emits one seed-only `audit-finding` record per finding (sha, semantic key,
+`audit::` label, files — primary first). A plan that persists **one** Story,
+or a seed with no such records, stamps the union of every footer on every
+Story. A plan that splits into **N>1** Stories attributes per Story instead:
+an authored `provenance` wins outright; otherwise a Story owns each finding
+whose primary file (or, when no Story covers the primary, any other file) its
+`changes[]` covers by exact path or glob. A finding no Story covers is
+**unattributed**: it is still stamped on every Story without an authored
+`provenance`, and persist names it in its warnings as `unattributed audit
+finding <sha12> (<file>) — carried on all N Stories`, so the smear is visible
+rather than silent. The record itself is never stamped on a Story body.
 
 **The carry is fail-closed.** The footers are the only cross-run dedup memory,
 so a dropped one is a finding silently re-filed by the next sweep. An envelope
 whose seed was truncated and that carries no `seed.provenance` makes persist
 refuse before creating any Issue, naming the cause — regenerate the envelope.
 
-**Persist stamps the labels too.** It adds the seed's `audit::<dimension>`
-labels — the dedup corpus is listed by them, and an indexed run answers lookups
-from that pool without reaching the provider, so a footer alone leaves a
-plan-path Story invisible. Persist writes no file.
+**Persist stamps the labels too.** It adds `audit::<dimension>` labels — the
+dedup corpus is listed by them, and an indexed run answers lookups from that
+pool without reaching the provider, so a footer alone leaves a plan-path Story
+invisible. On the union path every Story gets the seed's union labels; under
+N>1 attribution each Story gets the labels of the findings stamped on it (a
+stamped sha with no seed record widens to the union). Persist writes no file.
 
 This is deliberately not an authoring step. If you find yourself copying a
 footer by hand, the carry is broken — fix it there rather than papering over it
