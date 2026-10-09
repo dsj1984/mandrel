@@ -332,7 +332,7 @@
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/build-story-body.js",
-      "mi": 114.05
+      "mi": 113.446
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/dedupe-against-github.js",
