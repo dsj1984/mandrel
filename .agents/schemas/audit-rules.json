@@ -25,7 +25,11 @@
           "foreign key",
           "constraint",
           "cascade",
-          "backfill"
+          "backfill",
+          "unused table",
+          "dead column",
+          "drop column",
+          "introspect"
         ],
         "filePatterns": [
           "**/migrations/**",

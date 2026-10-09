@@ -45,7 +45,8 @@ const KEY_MEANINGS = Object.freeze({
     'Root for gitignored scratch output (per-run state, mirrors, logs).',
   'project.docsContextFiles':
     'Authoritative files an agent must read before starting any task.',
-  'project.commands.test': 'Test command the close-validation chain runs.',
+  'project.commands.test':
+    "Test command close's `test` gate runs and its credit identity hashes.",
   'project.commands.typecheck':
     'Typecheck command (null disables the typecheck gate).',
   'project.commands.formatCheck':
@@ -172,7 +173,7 @@ const PREFIX_MEANINGS = Object.freeze([
   ],
   [
     'qa.environments',
-    'QA harness deployment target (baseUrl, per-environment sign-in seam, allowWrites gate).',
+    'QA harness deployment target (baseUrl, per-environment sign-in seam, allowWrites gate, optional read-only database audit target).',
   ],
   ['qa.personas', 'QA harness persona / credential mapping.'],
   [

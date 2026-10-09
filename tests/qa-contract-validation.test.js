@@ -419,6 +419,91 @@ describe('resolveQaEnvironment — allowWrites defaulting', () => {
   });
 });
 
+/** MULTI_ENV with a `database` block applied to the named environments. */
+function withDatabase(databases) {
+  const environments = { ...MULTI_ENV.environments };
+  for (const [name, database] of Object.entries(databases)) {
+    environments[name] = { ...environments[name], database };
+  }
+  return { qa: { ...MULTI_ENV, environments } };
+}
+
+describe('resolveQaEnvironment — database audit target (Story #5594)', () => {
+  it('resolves no database target for an environment without the block', () => {
+    const contract = resolveQaContract({ qa: { ...MULTI_ENV } });
+    assert.equal(resolveQaEnvironment(contract, 'local').database, null);
+    assert.equal(resolveQaEnvironment(contract, 'staging').database, null);
+  });
+
+  it('defaults allowAudit to true only for the local environment', () => {
+    const contract = resolveQaContract(
+      withDatabase({
+        local: { urlEnv: 'DATABASE_URL' },
+        staging: { urlEnv: 'STAGING_DATABASE_URL' },
+      }),
+    );
+    assert.deepEqual(resolveQaEnvironment(contract, 'local').database, {
+      urlEnv: 'DATABASE_URL',
+      allowAudit: true,
+    });
+    assert.deepEqual(resolveQaEnvironment(contract, 'staging').database, {
+      urlEnv: 'STAGING_DATABASE_URL',
+      allowAudit: false,
+    });
+  });
+
+  it('honors an explicit allowAudit on any environment', () => {
+    const contract = resolveQaContract(
+      withDatabase({
+        local: { urlEnv: 'DATABASE_URL', allowAudit: false },
+        staging: { urlEnv: 'STAGING_DATABASE_URL', allowAudit: true },
+      }),
+    );
+    assert.equal(
+      resolveQaEnvironment(contract, 'local').database.allowAudit,
+      false,
+    );
+    assert.equal(
+      resolveQaEnvironment(contract, 'staging').database.allowAudit,
+      true,
+    );
+  });
+
+  it('rejects a literal connection URL in urlEnv', () => {
+    assert.throws(
+      () =>
+        resolveQaContract(
+          withDatabase({
+            local: { urlEnv: 'postgres://user:pw@localhost:5432/app' },
+          }),
+        ),
+      /qa\.environments/,
+    );
+  });
+
+  it('rejects a `url` key carrying the connection string', () => {
+    assert.throws(
+      () =>
+        resolveQaContract(
+          withDatabase({
+            local: {
+              urlEnv: 'DATABASE_URL',
+              url: 'postgres://localhost:5432/app',
+            },
+          }),
+        ),
+      /qa\.environments/,
+    );
+  });
+
+  it('rejects a database block with no urlEnv', () => {
+    assert.throws(
+      () => resolveQaContract(withDatabase({ local: { allowAudit: true } })),
+      /qa\.environments/,
+    );
+  });
+});
+
 describe('resolveQaEnvironment — loud failure', () => {
   const contract = resolveQaContract({ qa: { ...MULTI_ENV } });
 

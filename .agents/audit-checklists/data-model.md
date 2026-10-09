@@ -6,7 +6,7 @@
 
 # Data Model & Persistence Audit — authoring checklist
 
-> Audit the persistence layer as a first-class artifact — model↔migration↔seed drift, constraint completeness, migration hygiene, type fidelity, and access-pattern fit; gated by a persistence-layer applicability probe so DB-less repos skip cleanly.
+> Audit the persistence layer as a first-class artifact — model↔migration↔seed drift, constraint completeness, migration hygiene, type fidelity, access-pattern fit, and dead schema — with an opt-in read-only live-schema pass; gated by a persistence-layer applicability probe so DB-…
 
 Self-check your change against this lens's concerns before you ship:
 
@@ -20,3 +20,11 @@ Self-check your change against this lens's concerns before you ship:
 - [ ] Migration hygiene
 - [ ] Type fidelity
 - [ ] Access-pattern fit
+- [ ] Dead schema
+- [ ] Unused schema
+- [ ] Schema gap
+- [ ] Provisional until corroborated
+- [ ] Common identifiers are runtime-only
+- [ ] Introspection diff
+- [ ] Migration ledger
+- [ ] Catalog statistics (Postgres)

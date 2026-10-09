@@ -70,6 +70,16 @@ explicit `npx mandrel sync` above is the belt-and-suspenders step for
 `--ignore-scripts` or sandboxed-CI installs. Run `npx mandrel doctor` any
 time to confirm the install is healthy.
 
+Bootstrap also writes a guarded `prepare` script that regenerates both
+`.claude/` projections — `.claude/commands/` (from `.agents/workflows/`) and
+`.claude/agents/` (from `.agents/agents/`). Both are generated and
+gitignored; never commit them. The guard makes `prepare` exit 0 without
+writing anything when `.agents/scripts/` is absent, so a manifest-only
+container layer (`COPY package.json package-lock.json ./` then `npm ci`)
+installs cleanly; once `.agents/` is present it runs both projections.
+Existing installs pick up the guard and the `.claude/agents/` ignore entry
+through the `mandrel update` migration.
+
 > **pnpm users — hoist mandrel's runtime deps.** The materialized
 > `./.agents/scripts/*.js` run from your project root and resolve their
 > third-party deps (ajv, js-yaml, …) from your top-level `node_modules`.
@@ -143,7 +153,9 @@ npx mandrel update
 - `--install-cmd "<cmd>"` — override the auto-detected install command. The
   package manager is normally detected from your lockfile
   (`pnpm-lock.yaml` ⇒ `pnpm add -D …`, `yarn.lock` ⇒ `yarn add -D …`,
-  otherwise `npm install …`), so an override is rarely needed. When you do
+  otherwise `npm install …`), and it keeps your current pin style: an exact
+  pin installs with `--save-exact` (`--exact` on yarn), a tilde pin as
+  `mandrel@~<target>`, so an override is rarely needed. When you do
   pass one, a `{target}` placeholder is substituted with the resolved newest
   version — e.g. `--install-cmd "pnpm add -D mandrel@{target} -w"` —
   so the override can still consume the auto-probed version. The registry

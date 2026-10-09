@@ -660,7 +660,7 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/commands.js",
-      "mi": 107.673
+      "mi": 108.42
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
@@ -1944,7 +1944,7 @@
     },
     {
       "path": ".agents/scripts/lib/test-run-credit.js",
-      "mi": 89.592
+      "mi": 92.872
     },
     {
       "path": ".agents/scripts/lib/test-runner-contract.js",
@@ -2429,6 +2429,10 @@
     {
       "path": "lib/migrations/steps/2.70.0-retire-audit-ledger.js",
       "mi": 95.457
+    },
+    {
+      "path": "lib/migrations/steps/2.79.0-container-safe-projections.js",
+      "mi": 96.299
     },
     {
       "path": "lib/migrations/steps/strip-removed-agentrc-keys.js",

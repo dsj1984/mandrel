@@ -25,8 +25,9 @@ export const QA_REQUIRED_FIELDS = Object.freeze([
   'personas',
 ]);
 
-// The only environment whose `allowWrites` defaults to true; every other
-// target is read-only unless the consumer opts in.
+// The only environment whose `allowWrites` (and `database.allowAudit`)
+// defaults to true; every other target is read-only and unaudited unless the
+// consumer opts in.
 const WRITE_ENABLED_DEFAULT_ENVIRONMENT = 'local';
 
 export const QA_CONTRACT_DEFAULTS = Object.freeze({
@@ -93,7 +94,7 @@ function describeError(err) {
  * @returns {{
  *   featureRoot: string,
  *   fixturesManifest: string,
- *   environments: Record<string, { baseUrl: string, signInSeam: object, allowWrites?: boolean }>,
+ *   environments: Record<string, { baseUrl: string, signInSeam: object, allowWrites?: boolean, database?: { urlEnv: string, allowAudit?: boolean } }>,
  *   defaultEnvironment: string,
  *   personas: Record<string, object>,
  *   personaNames: string[],
@@ -221,15 +222,33 @@ function resolveSignInSeam(seam, envName, options) {
 }
 
 /**
+ * The audit opt-in mirrors `allowWrites`: an explicit boolean wins, else only
+ * the `local` environment is audited by default.
+ *
+ * @param {{ urlEnv: string, allowAudit?: boolean } | undefined} database
+ * @param {boolean} isDefaultLocal
+ * @returns {{ urlEnv: string, allowAudit: boolean } | null}
+ */
+function resolveDatabaseTarget(database, isDefaultLocal) {
+  if (database == null) return null;
+  const allowAudit =
+    typeof database.allowAudit === 'boolean'
+      ? database.allowAudit
+      : isDefaultLocal;
+  return { urlEnv: database.urlEnv, allowAudit };
+}
+
+/**
  * Select one environment: omitted → default; exact name (wins even if it
  * parses as a URL); else a raw URL matched by origin against each `baseUrl`.
- * `allowWrites` resolves to an explicit boolean.
+ * `allowWrites` resolves to an explicit boolean; `database` resolves to
+ * `null` or `{ urlEnv, allowAudit }` with `allowAudit` an explicit boolean.
  *
- * @param {{ environments: Record<string, { baseUrl: string, signInSeam?: object, allowWrites?: boolean }>, defaultEnvironment: string }} contract
+ * @param {{ environments: Record<string, { baseUrl: string, signInSeam?: object, allowWrites?: boolean, database?: { urlEnv: string, allowAudit?: boolean } }>, defaultEnvironment: string }} contract
  *   A contract returned by `resolveQaContract`.
  * @param {string} [target] Environment name or raw URL.
  * @param {{ repoRoot?: string }} [options] Roots skill-seam resolution.
- * @returns {{ name: string, baseUrl: string, signInSeam: object | null, allowWrites: boolean }}
+ * @returns {{ name: string, baseUrl: string, signInSeam: object | null, allowWrites: boolean, database: { urlEnv: string, allowAudit: boolean } | null }}
  * @throws {Error} on an unknown name, an unmatched URL, or a `{ skill }` seam
  *   that resolves under no skills root.
  */
@@ -273,15 +292,15 @@ export function resolveQaEnvironment(contract, target, options = {}) {
   }
 
   const env = environments[resolvedName];
+  const isDefaultLocal = resolvedName === WRITE_ENABLED_DEFAULT_ENVIRONMENT;
   const allowWrites =
-    typeof env.allowWrites === 'boolean'
-      ? env.allowWrites
-      : resolvedName === WRITE_ENABLED_DEFAULT_ENVIRONMENT;
+    typeof env.allowWrites === 'boolean' ? env.allowWrites : isDefaultLocal;
 
   return {
     name: resolvedName,
     baseUrl: env.baseUrl,
     signInSeam: resolveSignInSeam(env.signInSeam, resolvedName, options),
     allowWrites,
+    database: resolveDatabaseTarget(env.database, isDefaultLocal),
   };
 }

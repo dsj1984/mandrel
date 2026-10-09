@@ -10,7 +10,7 @@
 
 Self-check your change against this lens's concerns before you ship:
 
-- [ ] Dependency CVEs (`npm audit`).
+- [ ] Dependency CVEs, per detected ecosystem.
 - [ ] Secret scanning (`gitleaks` / `trufflehog`), with a grep fallback.
 - [ ] Grep battery (deterministic fallback / augmentation).
 - [ ] Manual surface review.
