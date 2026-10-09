@@ -85,7 +85,8 @@ const COMMANDS_SCHEMA = {
     test: {
       ...SAFE_STRING,
       minLength: 1,
-      description: 'Full test-suite command run by the close-validation chain.',
+      description:
+        "Full test-suite command close's `test` gate spawns, and the identity its `test` credit is hashed under — the deposit `run-tests.js` makes, close's credit probe and `verify[]` credit all key on it, as does `mandrel doctor`'s `test-credit-path` check. Set it for a non-npm project (e.g. `python3 scripts/validation.py`); unset, it is `npm test`. Like every command here it must be a single argv (no `;`, `&&`, pipes or substitution).",
       default: COMMANDS_DEFAULTS.test,
     },
     typecheck: {

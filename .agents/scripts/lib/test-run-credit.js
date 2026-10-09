@@ -9,6 +9,11 @@
 
 import path from 'node:path';
 
+import {
+  resolveTestCommand,
+  resolveTestGateArgv,
+} from './close-validation/commands.js';
+import { resolveConfig } from './config-resolver.js';
 import { gitSpawn as defaultGitSpawn } from './git-utils.js';
 import {
   recordPass as defaultRecordPass,
@@ -19,11 +24,34 @@ import {
 
 const GATE_NAME = 'test';
 
-/** Must hash identically to the command close spawns. */
-const GATE_COMMAND = Object.freeze({
-  cmd: 'npm',
-  args: Object.freeze(['test']),
-});
+/**
+ * The `test` credit identity. It must hash identically to the argv close
+ * spawns, so both derive from {@link resolveTestGateArgv}
+ * (`project.commands.test`, default `npm test`).
+ *
+ * @param {object|null|undefined} config - Resolved config; null → the default.
+ * @param {string} cwd
+ * @returns {string}
+ */
+function testGateConfigHash(config, cwd) {
+  const { cmd, args } = resolveTestGateArgv(config);
+  return hashCommandConfig({ cmd, args, cwd: path.resolve(cwd) });
+}
+
+/**
+ * The checkout's resolved config, or null (→ the `npm test` default) when it
+ * cannot be read — a credit deposit never fails the run.
+ *
+ * @param {string} cwd
+ * @returns {object|null}
+ */
+function readCheckoutConfig(cwd) {
+  try {
+    return resolveConfig({ cwd });
+  } catch {
+    return null;
+  }
+}
 
 /**
  * @param {Function} gitSpawnFn
@@ -73,9 +101,11 @@ export function resolveEvidenceRoot(cwd, gitSpawnFn) {
  *   tier?: string,
  *   status?: number,
  *   durationMs?: number|null,
+ *   config?: object|null,
  *   gitSpawnFn?: typeof defaultGitSpawn,
  *   recordPassFn?: typeof defaultRecordPass,
  * }} args
+ *   `config` defaults to the checkout's resolved config.
  * @returns {{ deposited: boolean, reason: string, storyId?: number, sha?: string }}
  */
 export function depositTestRunCredit({
@@ -83,6 +113,7 @@ export function depositTestRunCredit({
   tier = 'full',
   status = 0,
   durationMs = null,
+  config,
   gitSpawnFn = defaultGitSpawn,
   recordPassFn = defaultRecordPass,
 } = {}) {
@@ -102,6 +133,7 @@ export function depositTestRunCredit({
     storyId,
     sha,
     cwd,
+    config: config === undefined ? readCheckoutConfig(cwd) : config,
     evidenceRoot,
     durationMs,
     gitSpawnFn,
@@ -134,6 +166,7 @@ export function reportTestRunCredit({
  * Every uncertainty resolves `false`.
  *
  * @param {{
+ *   config?: object|null,
  *   storyId?: number|null,
  *   cwd?: string,
  *   evidenceCwd?: string|null,
@@ -144,6 +177,7 @@ export function reportTestRunCredit({
  * @returns {boolean}
  */
 export function predictsTestEvidenceCredit({
+  config,
   storyId,
   cwd,
   evidenceCwd,
@@ -161,18 +195,14 @@ export function predictsTestEvidenceCredit({
         storyId,
         gateName: GATE_NAME,
         currentSha: sha,
-        configHash: hashCommandConfig({
-          cmd: GATE_COMMAND.cmd,
-          args: [...GATE_COMMAND.args],
-          cwd: path.resolve(cwd),
-        }),
+        configHash: testGateConfigHash(config, cwd),
         inputFingerprint: treeFingerprint(cwd, gitSpawnImpl),
       },
       { cwd: evidenceCwd ?? cwd, standalone: true },
     );
     if (verdict.skip !== true) return false;
     log?.(
-      '[close-validation] a green `npm test` already deposited the test credit for this tree — registering the plain `test` gate so close reports it as credited.',
+      `[close-validation] a green \`${resolveTestCommand(config)}\` already deposited the test credit for this tree — registering the plain \`test\` gate so close reports it as credited.`,
     );
     return true;
   } catch {
@@ -181,13 +211,14 @@ export function predictsTestEvidenceCredit({
 }
 
 /**
- * @param {{ storyId: number, sha: string, cwd: string, evidenceRoot: string, durationMs: number|null, gitSpawnFn: Function, recordPassFn: Function }} args
+ * @param {{ storyId: number, sha: string, cwd: string, config: object|null, evidenceRoot: string, durationMs: number|null, gitSpawnFn: Function, recordPassFn: Function }} args
  * @returns {{ deposited: boolean, reason: string, storyId: number, sha: string }}
  */
 function writeRecord({
   storyId,
   sha,
   cwd,
+  config,
   evidenceRoot,
   durationMs,
   gitSpawnFn,
@@ -199,11 +230,7 @@ function writeRecord({
         storyId,
         gateName: GATE_NAME,
         sha,
-        configHash: hashCommandConfig({
-          cmd: GATE_COMMAND.cmd,
-          args: [...GATE_COMMAND.args],
-          cwd: path.resolve(cwd),
-        }),
+        configHash: testGateConfigHash(config, cwd),
         exitCode: 0,
         durationMs,
         inputFingerprint: treeFingerprint(cwd, gitSpawnFn),
