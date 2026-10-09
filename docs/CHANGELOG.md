@@ -15,6 +15,13 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.78.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.77.0...mandrel-v2.78.0) (2026-10-09)
+
+
+### Added
+
+* audit findings: drop the Agent Prompt field and carry Acceptance signal and Recommendation through to Stories and plan seeds ([#5569](https://github.com/dsj1984/mandrel/issues/5569)) ([#5570](https://github.com/dsj1984/mandrel/issues/5570)) ([0ac754d](https://github.com/dsj1984/mandrel/commit/0ac754d4897e8cb16bd7c5bfcf4034efcd039f3d))
+
 ## [2.77.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.76.0...mandrel-v2.77.0) (2026-10-08)
 
 
