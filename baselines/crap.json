@@ -29772,6 +29772,12 @@
     },
     {
       "path": ".agents/scripts/lib/qa/resolve-qa-contract.js",
+      "method": "resolveDatabaseTarget",
+      "startLine": 232,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/qa/resolve-qa-contract.js",
       "method": "resolveQaEnvironment",
       "startLine": 236,
       "crap": 11.10756855939918
