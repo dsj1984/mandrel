@@ -1380,7 +1380,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/audit-provenance.js",
-      "mi": 123.16
+      "mi": 124.837
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/changes-repair.js",
