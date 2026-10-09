@@ -173,9 +173,8 @@ describe('buildStoryBody label derivation (acceptance: multi-dimension group)', 
   });
 
   it('carries type::story and NO agent:: state label', () => {
-    // A generated audit Story is audit prose, not a delivery-ready Spec: an
-    // empty Agent Prompt section and one synthesized acceptance line per
-    // finding. `agent::ready` is what `/mandrel-deliver` reads as "pick this
+    // A generated audit Story is audit prose, not a delivery-ready Spec: the
+    // lens's findings and one acceptance line per finding. `agent::ready` is what `/mandrel-deliver` reads as "pick this
     // up", so emitting it here routed an unenriched body straight into
     // delivery. The sweep files the Story with no agent axis at all;
     // `/mandrel-plan` stamps `agent::ready` as its terminal flip once the

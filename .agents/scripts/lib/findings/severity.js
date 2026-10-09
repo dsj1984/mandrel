@@ -86,6 +86,19 @@ export function highestSeverity(values) {
   return best;
 }
 
+/**
+ * Stable highest-first order over items carrying a `severity` field; an
+ * unresolvable severity sorts after `info` rather than being dropped.
+ *
+ * @template {{ severity?: unknown }} T
+ * @param {readonly T[]} items
+ * @returns {T[]} a new array.
+ */
+export function sortBySeverity(items) {
+  const rank = (item) => SEVERITY_RANK[item?.severity] ?? -1;
+  return [...items].sort((a, b) => rank(b) - rank(a));
+}
+
 /** Test-only: the alias-table invariant is unobservable via the API. */
 export const __testing = {
   DEFAULT_SEVERITY,

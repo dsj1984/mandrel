@@ -61,8 +61,6 @@ function architectureReport(impact) {
       '- **Current State:** the envelope field is stamped and never read.',
       '- **Recommendation & Rationale:** build the reader or drop the field.',
       '- **Acceptance signal:** a test that fails when the caller is removed.',
-      '- **Agent Prompt:**',
-      '  `Wire the reader.`',
       '',
     ].join('\n'),
   };
@@ -182,7 +180,6 @@ describe('generated labels name only defined categories (Story #4877, AC-3)', ()
           dimension: 'Shipped-But-Never-Wired Seams',
           files: ['lib/seam.js'],
           sourceReport: 'temp/audits/audit-architecture-results.md',
-          agentPrompt: 'Wire the reader.',
           recommendation: 'Build the reader.',
         },
       ],

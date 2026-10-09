@@ -41,7 +41,6 @@ function makeGroup(overrides = {}) {
         currentState: 'goal is polluted with `1. [HIGH] (clean-code)` prose',
         recommendation:
           'Derive goal from group.title only; drop summaryFromGroup.',
-        agentPrompt: 'Rewrite goalFromGroup to return group.title.trim().',
         sourceReport: 'temp/audits/audit-clean-code-results.md',
         files: ['.agents/scripts/lib/audit-to-stories/build-story-body.js'],
         fingerprint: { full: 'a'.repeat(40), short: 'a'.repeat(12) },
@@ -52,7 +51,6 @@ function makeGroup(overrides = {}) {
         dimension: 'clean-code',
         currentState: 'verify: [] ships an ungated Story',
         recommendation: 'Populate verify[] with harness commands.',
-        agentPrompt: '',
         sourceReport: 'temp/audits/audit-clean-code-results.md',
         files: ['.agents/scripts/lib/audit-to-stories/build-story-body.js'],
         fingerprint: { full: 'b'.repeat(40), short: 'b'.repeat(12) },
