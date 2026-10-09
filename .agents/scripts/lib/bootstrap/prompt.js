@@ -26,6 +26,7 @@ const KNOWN_FLAGS = Object.freeze({
     'help',
     'dry-run',
     'reap-conflicting-workflows',
+    'no-project',
   ],
 });
 
@@ -153,6 +154,30 @@ export function inferDefaults(projectRoot) {
  * @property {() => Promise<readline.Interface>} getRl — Lazy, one instance per run.
  * @property {NodeJS.WritableStream} output
  */
+
+/** A bare flag (`true`), an empty value, or `none` is an explicit skip. */
+const isSkipToken = (v) =>
+  v === true ||
+  (typeof v === 'string' && ['', 'none'].includes(v.trim().toLowerCase()));
+
+/**
+ * Explicit skip for a question carrying `skipFlag` → `''`, which no later
+ * resolver or default overrides. An env var skips only when PRESENT and no
+ * value flag is set.
+ *
+ * @param {ResolverContext} ctx
+ * @returns {{ kind: 'value'|'skip', value?: string }}
+ */
+export function resolveExplicitSkip({ q, flags, env }) {
+  if (!q.skipFlag) return { kind: 'skip' };
+  const flagValue = flags[q.flag];
+  const envSkip =
+    flagValue === undefined &&
+    Object.hasOwn(env, q.env ?? '') &&
+    isSkipToken(env[q.env]);
+  const skip = flags[q.skipFlag] === true || isSkipToken(flagValue) || envSkip;
+  return skip ? { kind: 'value', value: '' } : { kind: 'skip' };
+}
 
 /**
  * @param {ResolverContext} ctx
@@ -299,6 +324,7 @@ export function resolveAssumeYes(ctx) {
 
 /** Priority order; the first non-`skip` outcome wins. */
 export const RESOLVERS = Object.freeze([
+  resolveExplicitSkip,
   resolveFromFlag,
   resolveFromEnv,
   resolveFromSilent,
@@ -313,11 +339,13 @@ export const RESOLVERS = Object.freeze([
  * @param {object} args
  * @param {Array<{ key: string, flag: string, env?: string, message: string,
  *                  default?: string|null, required?: boolean,
+ *                  skipFlag?: string,
  *                  validate?: (v: string) => string|null }>} args.questions
  * @param {Record<string, string|boolean>} args.flags
  * @param {boolean} args.interactive
  * @param {boolean} args.assumeYes
  * @param {Iterable<string>} [args.silentAccept]
+ * @param {NodeJS.ProcessEnv} [args.env=process.env]
  * @param {NodeJS.ReadableStream} [args.input=process.stdin]
  * @param {NodeJS.WritableStream} [args.output=process.stdout]
  * @returns {Promise<{ answers: Record<string, string>, missing: string[] }>}
@@ -329,6 +357,7 @@ export async function collectAnswers(args) {
     interactive,
     assumeYes,
     silentAccept,
+    env = process.env,
     input = process.stdin,
     output = process.stdout,
   } = args;
@@ -345,7 +374,7 @@ export async function collectAnswers(args) {
       const ctx = {
         q,
         flags,
-        env: process.env,
+        env,
         silentSet,
         interactive,
         assumeYes,
