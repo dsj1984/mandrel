@@ -17,7 +17,8 @@ Engineering Lead
 The `audit-*` workflows each produce a structured `audit-<dimension>-results.md`
 report under `temp/audits/`. Every `### Finding` block in those reports
 already carries the fields a Story body needs (Severity / Impact,
-Dimension / Category, Current State, Recommendation, Agent Prompt).
+Dimension / Category, Location, Current State, Recommendation, Acceptance
+signal).
 
 The audit producers themselves are **not modified** by this workflow.
 They remain read-only emitters of audit reports.
@@ -143,9 +144,11 @@ node .agents/scripts/audit-to-stories.js --emit-plan-seed \
 ```
 
 The seed renders the canonical one-pager sections — Problem Statement,
-Recommended Direction, Key Assumptions (with links to every source
-report), MVP Scope (**the findings, flat**), Key Files (so `/mandrel-plan`'s
-authoring step has concrete anchors), Not Doing.
+Recommended Direction (a finding count and severity breakdown per dimension),
+Key Assumptions (with links to every source report), MVP Scope (**the findings,
+flat**, worst first, each with its Location, Recommendation and Acceptance
+signal nested under it), Key Files (so `/mandrel-plan`'s authoring step has
+concrete anchors), Not Doing.
 
 **The seed states findings, not a partition.** MVP Scope used
 to render one numbered bullet per group beneath a `## Grouping` container
@@ -205,8 +208,8 @@ node .agents/scripts/audit-to-stories.js --emit-stories \
 For each entry whose plan classification is `create`, open a GitHub
 Issue. Use the GitHub MCP tool when available (`issue_write` with
 method `create`), or fall back to `gh issue create`. The body carries
-the canonical sections (Summary, Acceptance Criteria, Agent Prompts,
-Context) plus the machine-readable fingerprint footer rendered by the
+the canonical sections (Summary, Acceptance Criteria — one item per finding,
+taken from its Acceptance signal — Findings, Context) plus the machine-readable fingerprint footer rendered by the
 shared helper's `fingerprintFooter(sha)`
 (`<!-- audit-fingerprints: sha1,sha1,... -->`) that Phase 6 relies on.
 
