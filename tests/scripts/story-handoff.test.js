@@ -249,6 +249,26 @@ describe('story-handoff — the happy path (AC-1)', () => {
       'test',
     ]);
   });
+
+  test('the evidence-gate run wraps project.commands.test, close test gate argv (#5582)', async () => {
+    const h = harness({
+      scripts: { test: 'x' },
+      config: configFor({
+        project: {
+          baseBranch: 'main',
+          paths: { tempRoot },
+          commands: { test: 'python3 scripts/validation.py' },
+        },
+      }),
+    });
+    await h.run();
+    const gate = h.runCommand.calls.find((c) => c.key === 'evidence-gate.js');
+    assert.deepEqual(gate.args.slice(-3), [
+      '--',
+      'python3',
+      'scripts/validation.py',
+    ]);
+  });
 });
 
 describe('story-handoff — the preflight runs the standalone ratchets (#5528)', () => {

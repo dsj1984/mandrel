@@ -48,7 +48,13 @@ Flags:
                             private | public | internal (default: private)
   --operator-handle <name>  GitHub handle for github.operatorHandle
   --base-branch <name>      Base branch (default: origin/HEAD or 'main')
-  --project-number <n>      Projects V2 number/name (optional)
+  --project-number <n>      Projects V2 number/name (optional). An empty
+                            value or \`none\` skips the board. A non-
+                            interactive run with no stored number skips it
+                            unless a name/number is given.
+  --no-project              Skip the Projects V2 board (labels are still
+                            provisioned). GH_PROJECT_NUMBER set to empty or
+                            \`none\` does the same.
   --assume-yes              Accept every default + approve GitHub-admin
                             mutations. A non-TTY run requires this (or
                             --approve-github-admin) — there is no operator
@@ -405,8 +411,25 @@ async function createGithubProject(state, execImpl = exec) {
   return number;
 }
 
-/** The Step 3 question list. */
-export function buildQuestions(defaults, flags, env = process.env, lists = {}) {
+/** A stored number first, so a re-run never reads as a new board. */
+function projectDefault(defaults, flags, opts) {
+  if (defaults.projectNumber) return defaults.projectNumber;
+  const interactive = opts.interactive ?? !flags?.['assume-yes'];
+  return interactive ? defaults.repo : null;
+}
+
+/**
+ * The Step 3 question list. `opts.interactive` (default: no `--assume-yes`)
+ * picks the project default: a non-interactive run never creates a board
+ * from the repo name — only a stored number or an explicit value selects one.
+ */
+export function buildQuestions(
+  defaults,
+  flags,
+  env = process.env,
+  lists = {},
+  opts = {},
+) {
   const owner = resolveOwnerForPicker(defaults, flags, env);
   // Pre-fetched lists are empty when the owner was unknown up front, so the
   // pickers fall back to a live fetch keyed off the typed `answers.owner`.
@@ -473,11 +496,11 @@ export function buildQuestions(defaults, flags, env = process.env, lists = {}) {
       key: 'projectNumber',
       flag: 'project-number',
       env: 'GH_PROJECT_NUMBER',
+      skipFlag: 'no-project',
       message: 'New GitHub Project V2 name',
       pickerMessage:
         'GitHub Project V2 name  - Select existing or press ENTER to create',
-      // A stored number first, so a re-run never reads as a new board.
-      default: defaults.projectNumber || defaults.repo,
+      default: projectDefault(defaults, flags, opts),
       required: false,
       picker: {
         list: (answers) => {
@@ -769,13 +792,50 @@ async function resolveOptIns(state) {
   return optIns;
 }
 
-async function approveCreation(state, creation) {
-  if (state.flags['dry-run'] || !(creation.newRepo || creation.newProject)) {
-    return true;
-  }
-  return confirmYesNo(
-    'Create the new GitHub repo/project listed above?',
+/**
+ * Approve each new resource separately. A declined repo aborts (nothing can
+ * continue without it); a declined project clears `projectNumber` and the run
+ * continues without a board, so labels are still provisioned.
+ *
+ * @returns {Promise<boolean>} false only when repo creation is declined.
+ */
+export async function approveCreation(
+  state,
+  answers,
+  creation,
+  confirm = confirmYesNo,
+) {
+  if (state.flags['dry-run']) return true;
+  if (!(await approveNewRepo(state, answers, creation, confirm))) return false;
+  await approveNewProject(state, answers, creation, confirm);
+  return true;
+}
+
+async function approveNewRepo(state, answers, creation, confirm) {
+  if (!creation.newRepo) return true;
+  const ok = await confirm(
+    `Create the new GitHub repo ${answers.owner}/${answers.repo}?`,
     state.interactive,
+  );
+  if (!ok) {
+    Logger.error(
+      '[Bootstrap] Repo creation declined — cannot continue without the repo. Exiting.',
+    );
+  }
+  return ok;
+}
+
+async function approveNewProject(state, answers, creation, confirm) {
+  if (!creation.newProject) return;
+  const ok = await confirm(
+    `Create the new GitHub Project V2 "${answers.projectNumber}"?`,
+    state.interactive,
+  );
+  if (ok) return;
+  answers.projectNumber = '';
+  creation.newProject = false;
+  Logger.info(
+    '[Bootstrap] Project creation declined — skipping the Projects V2 board and continuing.',
   );
 }
 
@@ -819,6 +879,7 @@ export async function collectAndConfirm(state) {
         state.flags,
         process.env,
         lists,
+        { interactive: state.interactive },
       ),
       flags: state.flags,
       interactive: state.interactive,
@@ -844,10 +905,7 @@ export async function collectAndConfirm(state) {
       silentAccept = [];
       continue;
     }
-    if (!(await approveCreation(state, creation))) {
-      Logger.error(
-        '[Bootstrap] Creation declined — cannot continue without the repo/project. Exiting.',
-      );
+    if (!(await approveCreation(state, answers, creation))) {
       return { ok: false, exit: 1 };
     }
     const optIns = await resolveOptIns(state);
@@ -855,7 +913,7 @@ export async function collectAndConfirm(state) {
   }
 }
 
-function renderDryRunPlan(state) {
+export function renderDryRunPlan(state) {
   const a = state.answers ?? {};
   const c = state.creation ?? {};
   const flagList = Object.entries(state.flags ?? {}).map(([k, v]) =>
@@ -994,6 +1052,19 @@ export function persistProjectNumber(state) {
   return { ok: true, payload: {} };
 }
 
+/**
+ * `--with-project-board` decorates a board only when one was selected: with
+ * the project skipped, `runBootstrap` would otherwise create one.
+ */
+export function resolveBoardDecoration(state) {
+  if (state.withProjectBoard !== true) return false;
+  if (String(state.answers?.projectNumber ?? '').length > 0) return true;
+  Logger.info(
+    '[Bootstrap] Projects V2 board skipped — skipping board decoration (--with-project-board ignored).',
+  );
+  return false;
+}
+
 /** Step 6b — GitHub-side bootstrap. Honours `--skip-github`. */
 export async function executeGithubBootstrap(state) {
   if (state.flags['skip-github']) {
@@ -1004,7 +1075,7 @@ export async function executeGithubBootstrap(state) {
     state.report.github = await runGithubBootstrap(state.answers, {
       assumeYes: state.assumeYes,
       githubAdminApproved: state.githubAdminApproved === true,
-      withProjectBoard: state.withProjectBoard === true,
+      withProjectBoard: resolveBoardDecoration(state),
       reapConflictingWorkflows: Boolean(
         state.flags['reap-conflicting-workflows'],
       ),

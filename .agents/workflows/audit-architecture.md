@@ -75,14 +75,30 @@ the failure mode this lens exists to prevent.
    that is both heavily depended upon and frequently churned is the
    highest-priority structural hotspot; lead the Triage Summary with it.
 
-4. **LLM triage on top.** Only after the tools have run do you apply the Step 2
+4. **Non-JS ecosystems.** Detect ecosystems per the core's
+   [Ecosystem detection](helpers/audit-lens-core.md#ecosystem-detection) and
+   run each detected one's rung (absent scanner = Low `Standardization` gap;
+   undetected ecosystem = inapplicable, never a finding). **Python:**
+
+   ```bash
+   pydeps <package> --show-cycles --no-output   # import graph / cycles
+   lint-imports                                 # import-linter layer contracts
+   vulture <srcDir>                             # dead-export / dead-wiring candidates
+   radon cc -s -n C <srcDir>                    # testable surface: complex units to check for interleaved I/O
+   ```
+
+   Rank Python hotspots by fan-in / fan-out from the `pydeps` graph exactly as
+   step 3 does. Go and Rust use the core's fallback table.
+
+5. **LLM triage on top.** Only after the tools have run do you apply the Step 2
    dimensions to interpret, rank, and phrase the findings. A structural claim
    that no tool grounds and no Step 2 dimension covers does not belong in this
    report — route it to the ceded clean-code dimensions instead.
 
-When a shipped checker exits non-zero or is genuinely absent, record that as an
-**Automated Architecture Guardrails** finding (the guardrail is missing or
-broken) rather than skipping the step silently.
+When a checker for a **detected** ecosystem exits non-zero or is genuinely
+absent, record that as an **Automated Architecture Guardrails** finding (the
+guardrail is missing or broken) rather than skipping the step silently. A
+checker for an undetected ecosystem is inapplicable and never a finding.
 
 ## Step 1: Context Gathering (Read-Only Scan)
 

@@ -13,6 +13,13 @@ const TYPECHECK_FALLBACK = 'npm run typecheck';
  */
 const LINT_FALLBACK = 'npm run lint';
 
+/**
+ * Must stay byte-identical: it is the close `test` gate's argv and the credit
+ * identity `test-run-credit` and `verify-credit` hash, so drift would
+ * invalidate every recorded `test` evidence record.
+ */
+const TEST_FALLBACK = 'npm test';
+
 export const FORMAT_CHECK_FALLBACK = 'npx biome format .';
 
 const FORMAT_WRITE_FALLBACK = 'npx biome format --write .';
@@ -61,6 +68,32 @@ export function resolveTypecheckCommand(config) {
  */
 export function resolveLintCommand(config) {
   return resolveCommandWithFallback(config, 'lint', LINT_FALLBACK);
+}
+
+/**
+ * The close `test` gate's command. Like every `project.commands.*` key it is a
+ * single argv — the schema rejects `;`, `&&`, pipes and substitution.
+ *
+ * @param {{ project?: { commands?: object } } | null | undefined} config
+ * @returns {string}
+ */
+export function resolveTestCommand(config) {
+  return resolveCommandWithFallback(config, 'test', TEST_FALLBACK);
+}
+
+/**
+ * The argv close's `test` gate spawns — the one identity every `test`
+ * credit (deposit, close probe, `verify[]` credit) hashes. Whitespace split,
+ * as the gate builder splits every other `commands.*` key.
+ *
+ * @param {{ project?: { commands?: object } } | null | undefined} config
+ * @returns {{ cmd: string, args: string[] }}
+ */
+export function resolveTestGateArgv(config) {
+  const [cmd, ...args] = resolveTestCommand(config)
+    .split(/\s+/)
+    .filter(Boolean);
+  return { cmd, args };
 }
 
 /**

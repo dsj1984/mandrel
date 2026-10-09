@@ -138,3 +138,22 @@ test('printSummary emits one info line per section via the injected Logger', (t)
   // Views are no longer in the summary (hard-cutover deleted in Story #4234).
   assert.doesNotMatch(joined, /Views/);
 });
+
+// Story #5584 — a skipped board reads as skipped, never as created/adopted.
+test('printSummary reports a skipped board when the project was skipped', (t) => {
+  const lines = [];
+  t.mock.method(Logger, 'info', (msg) => lines.push(String(msg)));
+  printSummary({
+    labels: { created: ['a'], skipped: [] },
+    fields: { created: [], skipped: [] },
+    project: { projectNumber: null, created: false, skipped: true },
+    statusField: { status: 'skipped', added: [] },
+    workflowAudit: { skipped: true, reason: 'board-decoration-not-opted-in' },
+    branchProtection: { status: 'merged', added: [] },
+    mergeMethods: { status: 'unchanged' },
+  });
+  const joined = lines.join('\n');
+  assert.match(joined, /Labels created: 1/);
+  assert.match(joined, /Project: skipped/);
+  assert.doesNotMatch(joined, /Project: (created|adopted)/);
+});

@@ -75,6 +75,28 @@ npx vite build --profile        # or the repo's own build script
 du -sh dist/ && find dist -name '*.js' -exec wc -c {} + | sort -n | tail
 ```
 
+**Non-JS ecosystems.** Detect ecosystems per the core's
+[Ecosystem detection](helpers/audit-lens-core.md#ecosystem-detection) and run
+each detected one's rung (absent profiler = Low `Standardization` gap;
+undetected ecosystem = inapplicable, never a finding). **Python** — timing,
+CPU, memory, and interleaving:
+
+```bash
+hyperfine --warmup 1 'python -m <entry> --help'          # timing / cold start
+python -X importtime -m <entry> --help 2>&1 | sort -t'|' -k2 -n | tail   # import cost
+py-spy record -o temp/audits/pyspy.svg -- python -m <entry> <args>      # CPU (sampling)
+python -m cProfile -s cumtime -m <entry> <args> | head -40              # CPU (fallback)
+python -X tracemalloc=5 -m <entry> <args>     # memory: tracemalloc snapshot diff (or memray run)
+python -X dev -W error::RuntimeWarning -m <entry> <args>   # interleaving: "coroutine was never awaited"
+```
+
+`py-spy` / `cProfile` hot frames are the Python counterpart of `--cpu-prof`;
+an asyncio "never awaited" warning under `-X dev` is `measured` evidence for
+the interleaving dimension; I/O is read off the same profile (frames in
+`socket` / `ssl` / DB-driver calls) or `strace -c -f`. Payload/bundle stays
+web-gated — a Python web app's shipped frontend is measured by the JS rung.
+Go and Rust use the core's fallback table.
+
 **Evidence discipline.** A finding tagged `measured` names the command above
 whose output produced its number. A finding tagged `estimated` (e.g. a
 Big-O argument read off the code without a runnable repro) says so plainly and

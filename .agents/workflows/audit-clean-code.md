@@ -81,7 +81,23 @@ run the tools first.
      files auto-loaded by convention (globbed listener/plugin dirs): reachable
      via the framework, not the import graph.
 
-5. **Churn-by-complexity hotspot cap.** Rank candidate hotspots by
+5. **Non-JS ecosystems.** Detect ecosystems per the core's
+   [Ecosystem detection](helpers/audit-lens-core.md#ecosystem-detection) and
+   run each detected one's rung (absent scanner = Low `Standardization` gap;
+   undetected ecosystem = inapplicable, never a finding). **Python:**
+
+   ```bash
+   radon cc -s -a <srcDir> && radon mi -s <srcDir>      # complexity / MI
+   pylint --disable=all --enable=duplicate-code <srcDir>  # duplication (or jscpd)
+   vulture <srcDir>                                      # dead code
+   ruff check --select E722,BLE,S110,N <srcDir>          # silent failures, naming
+   ```
+
+   Apply the dead-code exclusion taxonomy above to `vulture` output too
+   (entry points, `__all__` exports, decorator-registered hooks). Go and Rust
+   use the core's fallback table.
+
+6. **Churn-by-complexity hotspot cap.** Rank candidate hotspots by
    **churn × complexity** (frequently-changed files that also score poorly on
    MI/CRAP) and **cap the Detailed Findings at the top ~15 hotspots** so the
    report stays a ranked, actionable batch rather than an exhaustive dump. Note

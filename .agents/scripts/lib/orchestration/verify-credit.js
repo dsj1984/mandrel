@@ -5,6 +5,7 @@
  * manufactures a pass.
  */
 
+import { resolveTestGateArgv } from '../close-validation/commands.js';
 import { getQuality, resolveConfig } from '../config-resolver.js';
 import { isCoverageFresh } from '../coverage-capture.js';
 import { gitSpawn } from '../git-utils.js';
@@ -134,7 +135,8 @@ export function resolveVerifyCredit(
     fullSuite: true,
     warning: FULL_SUITE_SHAPE_WARNING,
   };
-  const { crap } = getQualityImpl(resolveConfigImpl({ cwd: worktree }));
+  const config = resolveConfigImpl({ cwd: worktree });
+  const { crap } = getQualityImpl(config);
   const mode =
     crap?.enabled !== false &&
     hasNpmScriptImpl(readPackageScriptsImpl(worktree), 'test:coverage')
@@ -163,6 +165,7 @@ export function resolveVerifyCredit(
   // A stale stamp is not the last word: a green `npm test` deposits `test`
   // evidence, consulted in both modes before spawning.
   const verdict = readTestEvidence({
+    config,
     storyId,
     worktree,
     cwd,
@@ -184,10 +187,13 @@ export function resolveVerifyCredit(
 /**
  * An unreadable HEAD is `no-head`, never a credit.
  *
- * @param {{ storyId: number|string, worktree: string, cwd: string, gitSpawnFn: Function, shouldSkipImpl: Function, hashCommandConfigImpl: Function, treeFingerprintImpl: Function }} args
+ * The hashed argv is close's `test` gate argv (`project.commands.test`).
+ *
+ * @param {{ config: object|null, storyId: number|string, worktree: string, cwd: string, gitSpawnFn: Function, shouldSkipImpl: Function, hashCommandConfigImpl: Function, treeFingerprintImpl: Function }} args
  * @returns {{ skip: boolean, reason: string }}
  */
 function readTestEvidence({
+  config,
   storyId,
   worktree,
   cwd,
@@ -204,8 +210,7 @@ function readTestEvidence({
       gateName: 'test',
       currentSha: headSha,
       configHash: hashCommandConfigImpl({
-        cmd: 'npm',
-        args: ['test'],
+        ...resolveTestGateArgv(config),
         cwd: worktree,
       }),
       inputFingerprint: treeFingerprintImpl(worktree, gitSpawnFn),

@@ -23,7 +23,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { spawnCaptureAsync } from '../child-exec.js';
-import { resolveLintCommand } from '../close-validation/commands.js';
+import {
+  resolveLintCommand,
+  resolveTestGateArgv,
+} from '../close-validation/commands.js';
 import {
   isCrapGateEnabled,
   resolveCreditedDepositor,
@@ -331,6 +334,15 @@ function selectCreditedDepositor({ config, ...probe }) {
   return resolveCreditedDepositor({ config, baseBranch, ...probe });
 }
 
+/**
+ * @param {object|null|undefined} config
+ * @returns {string[]}
+ */
+function testGateArgv(config) {
+  const { cmd, args } = resolveTestGateArgv(config);
+  return [cmd, ...args];
+}
+
 /** @param {object} ctx @returns {Promise<StepResult>} */
 async function stepCreditedRun(ctx) {
   const name = 'credited-run';
@@ -358,8 +370,8 @@ async function stepCreditedRun(ctx) {
         '--worktree',
         ctx.cwd,
         '--',
-        'npm',
-        'test',
+        // Close's `test` gate argv, so the deposit keys on its credit identity.
+        ...testGateArgv(ctx.config),
       ]);
   const extra = { evidencePath: run.evidencePath, depositor: ctx.depositor };
   if (run.status !== 0) {
