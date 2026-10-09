@@ -234,6 +234,7 @@ describe('plan-summary — predicted serialisation (Story #5265, narrowed by #53
     assert.match(body, /`alpha` \+ `beta`/);
     assert.match(body, /maintainability\.json/);
     assert.match(body, /declared-overlap/);
+    assert.match(body, /one declares a glob that covers the other's path/);
     assert.doesNotMatch(body, /Scraped from|scraped-overlap/);
     const predicted = body.slice(body.indexOf('Predicted serialisation'));
     assert.doesNotMatch(predicted, /`gamma`/);

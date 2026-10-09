@@ -242,6 +242,80 @@ describe('assertNoWaveCollisions — the refusal (Story #5332 AC-4)', () => {
   });
 });
 
+describe('assertNoWaveCollisions — globs and declarers (Story #5596)', () => {
+  /** @param {string} slug @param {...string} files */
+  const declares = (slug, ...files) => ({ slug, changes: files });
+  const refusal = (a, b) => {
+    try {
+      assertNoWaveCollisions(oneWave(a.slug, b.slug), [a, b]);
+    } catch (err) {
+      return err.message;
+    }
+    return null;
+  };
+
+  it('AC-1: a glob that covers nothing the sibling declares is no collision', () => {
+    assert.deepEqual(
+      assertNoWaveCollisions(oneWave('alpha', 'beta'), [
+        declares('alpha', 'supabase/migrations/*_page.sql'),
+        declares('beta', 'GATEKEEPER/app.ts'),
+      ]),
+      [],
+    );
+  });
+
+  it('AC-2: a covering glob is refused and names its sole declarer', () => {
+    const message = refusal(
+      declares('alpha', 'lib/**'),
+      declares('beta', 'lib/x.js'),
+    );
+    assert.ok(message, 'a covering glob must still be refused');
+    assert.match(
+      message,
+      /"alpha" declares glob `lib\/\*\*`, which covers a path "beta" declares/,
+    );
+    assert.doesNotMatch(message, /both declare/);
+  });
+
+  it('names the sibling when the glob sits on the second Story', () => {
+    const message = refusal(
+      declares('alpha', 'lib/x.js'),
+      declares('beta', 'lib/**'),
+    );
+    assert.match(
+      message,
+      /"beta" declares glob `lib\/\*\*`, which covers a path "alpha" declares/,
+    );
+  });
+
+  it('AC-3: overlapping glob bases are refused once, disjoint ones persist', () => {
+    const message = refusal(
+      declares('alpha', 'lib/**'),
+      declares('beta', 'lib/sub/*.js'),
+    );
+    assert.match(
+      message,
+      /"alpha" declares glob `lib\/\*\*`, which may overlap "beta"'s glob `lib\/sub\/\*\.js`/,
+    );
+    assert.equal(message.match(/may overlap/g).length, 1);
+    assert.deepEqual(
+      assertNoWaveCollisions(oneWave('alpha', 'beta'), [
+        declares('alpha', 'lib/**'),
+        declares('beta', 'docs/*.md'),
+      ]),
+      [],
+    );
+  });
+
+  it('a shared concrete path still reads as both declaring it', () => {
+    const message = refusal(
+      declares('alpha', SHARED_PATH),
+      declares('beta', SHARED_PATH),
+    );
+    assert.match(message, /"alpha" \+ "beta" both declare/);
+  });
+});
+
 describe('runPlanPersist — the gate runs before the first create (AC-4)', () => {
   it('refuses two same-wave siblings that both declare one path', async () => {
     const { error, provider } = await persist([
