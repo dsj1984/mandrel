@@ -20,8 +20,6 @@ Severity tally: Critical 0 / High 1 / Medium 1 / Low 1
 - **Current State:** The discounted total in `src/components/CheckoutSummary.jsx` is distinguished from the original only by a red text colour, with no text or `aria-label` alternative, so a screen-reader user hears two identical currency amounts.
 - **Recommendation & Rationale:** Add a visually-hidden "discounted total" label beside the amount and keep the colour as reinforcement, satisfying WCAG 1.4.1 Use of Colour.
 - **Acceptance signal:** An axe-core run over the checkout route reports zero `color-contrast` / `use-of-colour` violations.
-- **Agent Prompt:**
-  `In src/components/CheckoutSummary.jsx, add a visually-hidden label to the discounted total and add a unit test asserting the accessible name includes "discounted".`
 
 #### `src/components/PromoBanner.jsx` — Decorative banner exposed to assistive tech
 
@@ -31,8 +29,6 @@ Severity tally: Critical 0 / High 1 / Medium 1 / Low 1
 - **Current State:** The decorative promotional image in `src/components/PromoBanner.jsx` carries a descriptive `alt` string repeating the adjacent heading, so the heading is announced twice.
 - **Recommendation & Rationale:** Mark the image decorative with `alt=""` so assistive tech skips it, per WCAG 1.1.1.
 - **Acceptance signal:** A DOM assertion that the banner image exposes an empty accessible name.
-- **Agent Prompt:**
-  `In src/components/PromoBanner.jsx, set alt="" on the decorative banner image and assert the empty accessible name in the component test.`
 
 ### Operable
 
@@ -44,5 +40,3 @@ Severity tally: Critical 0 / High 1 / Medium 1 / Low 1
 - **Current State:** On a failed submit, `src/components/AddressForm.jsx` renders an error summary but leaves focus on the submit button, so keyboard and screen-reader users are not told the submit failed.
 - **Recommendation & Rationale:** Move focus to the error summary container (`tabindex="-1"`) after a failed submit, satisfying WCAG 3.3.1.
 - **Acceptance signal:** A component test asserting `document.activeElement` is the error summary after a rejected submit.
-- **Agent Prompt:**
-  `In src/components/AddressForm.jsx, focus the error summary after a failed submit and cover it in tests/unit/address-form.test.js.`

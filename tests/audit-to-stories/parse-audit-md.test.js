@@ -52,7 +52,7 @@ test('parseAuditReport accepts Category as a Dimension alias', () => {
   assert.equal(findings[1].dimension, 'hygiene');
 });
 
-test('parseAuditReport extracts file paths from Current State and Agent Prompt', () => {
+test('parseAuditReport extracts file paths from Current State and Recommendation', () => {
   const findings = parseAuditReport(loadFixture('audit-security-results.md'));
   assert.ok(findings[0].files.includes('src/routes/auth/login.js'));
   assert.ok(findings[1].files.includes('src/routes/auth/login.js'));
@@ -373,4 +373,24 @@ test('isGroupingHeader reads the whole subtree, not the parent body alone', () =
     ]),
     false,
   );
+});
+
+test('parseAuditReport carries Location and Acceptance signal per finding', () => {
+  const findings = parseAuditReport(loadFixture('audit-security-results.md'));
+  assert.match(findings[0].acceptanceSignal, /SQL comment marker/);
+  assert.equal(findings[0].location, '');
+  assert.equal(Object.hasOwn(findings[0], 'agentPrompt'), false);
+});
+
+test('parseAuditReport tolerates a legacy Agent Prompt bullet without surfacing it', () => {
+  const findings = parseAuditReport({
+    sourceReport: '/tmp/audit-security-results.md',
+    markdown:
+      '# Security Audit\n\n## Detailed Findings\n\n### `src/a.js` — Legacy finding\n\n- **Severity:** Low\n- **Location:** `src/a.js:3`\n- **Current State:** Foo.\n- **Recommendation & Rationale:** Bar.\n- **Agent Prompt:**\n  `Edit src/legacy-only.js.`\n',
+  });
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].location, 'src/a.js:3');
+  assert.equal(findings[0].acceptanceSignal, '');
+  assert.equal(Object.hasOwn(findings[0], 'agentPrompt'), false);
+  assert.ok(!findings[0].files.includes('src/legacy-only.js'));
 });

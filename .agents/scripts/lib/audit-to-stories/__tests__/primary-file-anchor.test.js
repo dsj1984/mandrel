@@ -8,7 +8,7 @@
  * slash-only guard, so every **root-level** file (`AGENTS.md`, `README.md`,
  * `package.json`) was discarded even when it was the finding's explicit
  * `Location:`. Parsing then fell through to prose scraping and picked up an
- * incidental path quoted inside the Agent Prompt, which `pickPrimaryFile`
+ * incidental path quoted in the finding's prose, which `pickPrimaryFile`
  * returns verbatim as the group key.
  *
  * These tests pin the four shapes that failure depended on.
@@ -50,7 +50,7 @@ describe('primary-file anchor', () => {
   });
 
   it('prefers the title anchor over a path quoted in the prose', () => {
-    // The Agent Prompt quotes a `files` array; none of those paths is the
+    // The Recommendation quotes a `files` array; none of those paths is the
     // finding's subject, and one of them used to win the primary slot.
     const [finding] = parseAuditReport(
       report(
@@ -58,8 +58,7 @@ describe('primary-file anchor', () => {
           '- **Category:** Contradiction\n' +
           '- **Severity:** High\n' +
           '- **Location:** `AGENTS.md:28`\n' +
-          '- **Agent Prompt:**\n' +
-          '  `package.json files is [".agents/","bin/","docs/CHANGELOG.md","lib/"] — fix AGENTS.md.`\n',
+          '- **Recommendation & Rationale:** `package.json files is [".agents/","bin/","docs/CHANGELOG.md","lib/"] — fix AGENTS.md.`\n',
       ),
     );
 

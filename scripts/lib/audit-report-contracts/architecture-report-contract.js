@@ -43,7 +43,7 @@ export const FINDING_FIELDS = Object.freeze([
   'Dimension',
   'Current State',
   'Recommendation & Rationale',
-  'Agent Prompt',
+  'Acceptance signal',
 ]);
 
 /**
