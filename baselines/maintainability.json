@@ -1996,7 +1996,7 @@
     },
     {
       "path": ".agents/scripts/lib/wave-runner/footprint.js",
-      "mi": 105.311
+      "mi": 106.737
     },
     {
       "path": ".agents/scripts/lib/wave-runner/live-probe.js",
@@ -2004,7 +2004,7 @@
     },
     {
       "path": ".agents/scripts/lib/wave-runner/ready-set.js",
-      "mi": 94.812
+      "mi": 95.989
     },
     {
       "path": ".agents/scripts/lib/workers/crap-worker.js",
