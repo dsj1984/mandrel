@@ -178,6 +178,15 @@ describe('story-author prompt — raw-API-era scaffolding retired (Story #5427)'
   });
 });
 
+describe('story-author prompt — glob footprints (Story #5596 AC-5)', () => {
+  test('says a glob reserves every path it can match and prefers concrete paths', () => {
+    const core = renderStoryAuthorCore();
+    assert.match(core, /Globs .* are accepted/);
+    assert.match(core, /a glob reserves every path it can match/);
+    assert.match(core, /prefer concrete paths whenever the files are known/);
+  });
+});
+
 describe('story-author prompt — the N>1 rules (Story #5312 AC-2)', () => {
   const prompt = renderStoryAuthorPrompt({ storyCount: 2 });
 
@@ -191,6 +200,12 @@ describe('story-author prompt — the N>1 rules (Story #5312 AC-2)', () => {
     assert.match(prompt, /THE COLLISION REFUSAL/);
     assert.match(prompt, /before it creates a single issue/);
     assert.match(prompt, /depends_on/);
+  });
+
+  test('the split rules describe a collision exactly as the predicate does (Story #5596 AC-5)', () => {
+    const rules = renderStorySplitRules();
+    assert.match(rules, /glob that covers a concrete path the other declares/);
+    assert.match(rules, /both declaring globs whose static bases overlap/);
   });
 
   test('the acceptance partition and the risk-isolation criterion are gone (AC-2, AC-5)', () => {

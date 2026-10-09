@@ -12,7 +12,7 @@
  *   - enforce mode: selected ≤ cap − inFlight; every selected Story
  *     classifies `ready` with all dependencies done; none shares a concrete
  *     path with an in-flight record; selected Stories are pairwise
- *     non-overlapping (a glob overlaps everything within a beat);
+ *     non-overlapping (a glob overlaps every path it can match within a beat);
  *   - advisory mode: no enforced withholds, every ledger row reads
  *     `enforced: false`, and admission is simply the eligible Stories in
  *     ascending id order up to capacity;

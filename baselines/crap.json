@@ -22083,6 +22083,47 @@
       "crap": 3
     },
     {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/collision-message.js",
+      "method": "declarerClauses",
+      "startLine": 20,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/collision-message.js",
+      "method": "<anon declarerClauses/(side)#0>",
+      "startLine": 23,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/collision-message.js",
+      "method": "<anon declarerClauses/(side)#0/(p)#0>",
+      "startLine": 25,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/collision-message.js",
+      "method": "<anon declarerClauses/(g)#0>",
+      "startLine": 35,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/collision-message.js",
+      "method": "<anon declarerClauses/(g)#1>",
+      "startLine": 43,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/collision-message.js",
+      "method": "<anon declarerClauses/(g)#2>",
+      "startLine": 46,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/plan-persist/cross-plan-links.js",
       "method": "resolveCrossPlanLinks",
       "startLine": 22,
@@ -23242,6 +23283,13 @@
       "path": ".agents/scripts/lib/orchestration/plan-persist/wave-collision-gate.js",
       "method": "<anon formatCollision/(p)#0>",
       "startLine": 34,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/wave-collision-gate.js",
+      "method": "<anon formatCollision/(clause)#0>",
+      "startLine": 38,
       "crap": 1,
       "anonymous": true
     },
@@ -32178,9 +32226,66 @@
     },
     {
       "path": ".agents/scripts/lib/wave-runner/footprint.js",
+      "method": "globBase",
+      "startLine": 64,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/wave-runner/footprint.js",
+      "method": "basesOverlap",
+      "startLine": 76,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/wave-runner/footprint.js",
       "method": "detectCollision",
       "startLine": 80,
       "crap": 7
+    },
+    {
+      "path": ".agents/scripts/lib/wave-runner/footprint.js",
+      "method": "globsOverlap",
+      "startLine": 91,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/wave-runner/footprint.js",
+      "method": "addHit",
+      "startLine": 102,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/wave-runner/footprint.js",
+      "method": "collectGlobHits",
+      "startLine": 118,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/wave-runner/footprint.js",
+      "method": "<anon collectGlobHits/(path)#0>",
+      "startLine": 122,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/wave-runner/footprint.js",
+      "method": "<anon collectGlobHits/(other)#0>",
+      "startLine": 123,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/wave-runner/footprint.js",
+      "method": "partition",
+      "startLine": 132,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/wave-runner/footprint.js",
+      "method": "<anon detectCollision/(path)#0>",
+      "startLine": 187,
+      "crap": 2,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/wave-runner/live-probe.js",
@@ -32383,6 +32488,12 @@
       "method": "blockingCollision",
       "startLine": 278,
       "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/wave-runner/ready-set.js",
+      "method": "blockerRow",
+      "startLine": 292,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/wave-runner/ready-set.js",

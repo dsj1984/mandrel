@@ -1379,6 +1379,10 @@
       "mi": 90.843
     },
     {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/collision-message.js",
+      "mi": 111.48
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/plan-persist/cross-plan-links.js",
       "mi": 114.736
     },
@@ -1992,7 +1996,7 @@
     },
     {
       "path": ".agents/scripts/lib/wave-runner/footprint.js",
-      "mi": 105.311
+      "mi": 106.737
     },
     {
       "path": ".agents/scripts/lib/wave-runner/live-probe.js",
@@ -2000,7 +2004,7 @@
     },
     {
       "path": ".agents/scripts/lib/wave-runner/ready-set.js",
-      "mi": 94.812
+      "mi": 95.989
     },
     {
       "path": ".agents/scripts/lib/workers/crap-worker.js",

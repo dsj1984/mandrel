@@ -5,6 +5,7 @@
  * @module lib/orchestration/plan-persist/wave-collision-gate
  */
 
+import { declarerClauses } from './collision-message.js';
 import { predictWaveSerialisation } from './wave-serialisation.js';
 
 /**
@@ -27,12 +28,15 @@ function withDeclaredFootprint(story) {
 }
 
 /**
- * @param {{ wave: number, slugs: [string, string], paths: string[], source: string }} collision
+ * One refusal line per colliding path, each naming its declarer.
+ *
+ * @param {{ wave: number, slugs: [string, string], paths: string[], source: string, declaredBy?: Record<string, string> }} collision
  * @returns {string}
  */
-function formatCollision({ wave, slugs, paths, source }) {
-  const declared = paths.map((p) => `\`${p}\``).join(', ');
-  return `  - wave ${wave}: "${slugs[0]}" + "${slugs[1]}" both declare ${declared} (${source})`;
+function formatCollision({ wave, source, ...collision }) {
+  return declarerClauses(collision)
+    .map((clause) => `  - wave ${wave}: ${clause} (${source})`)
+    .join('\n');
 }
 
 /**
