@@ -12,6 +12,7 @@ import {
   normalizeSeverity,
   SEVERITIES,
   SEVERITY_RANK,
+  sortBySeverity,
 } from '../../../.agents/scripts/lib/findings/severity.js';
 
 // Module internals: consumed only by this module's own exported functions, so
@@ -162,4 +163,18 @@ test('fingerprintSeverity returns a canonical level for every canonical input', 
   for (const level of SEVERITIES) {
     assert.equal(fingerprintSeverity(level), level);
   }
+});
+
+test('sortBySeverity orders highest first, stably, with an unresolvable severity last', () => {
+  const items = [
+    { id: 'low', severity: 'low' },
+    { id: 'none', severity: null },
+    { id: 'crit', severity: 'critical' },
+    { id: 'low-2', severity: 'low' },
+  ];
+  assert.deepEqual(
+    sortBySeverity(items).map((i) => i.id),
+    ['crit', 'low', 'low-2', 'none'],
+  );
+  assert.equal(items[0].id, 'low', 'the input array is not mutated');
 });
