@@ -11722,8 +11722,20 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/commands.js",
+      "method": "resolveTestCommand",
+      "startLine": 80,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/commands.js",
       "method": "resolveFormatWriteCommand",
       "startLine": 82,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/commands.js",
+      "method": "resolveTestGateArgv",
+      "startLine": 92,
       "crap": 1
     },
     {
@@ -28193,6 +28205,12 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "testGateArgv",
+      "startLine": 341,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "seatKinds",
       "startLine": 352,
       "crap": 3
@@ -31523,6 +31541,24 @@
       "method": "gitLine",
       "startLine": 34,
       "crap": 3.072
+    },
+    {
+      "path": ".agents/scripts/lib/test-run-credit.js",
+      "method": "testGateConfigHash",
+      "startLine": 36,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/test-run-credit.js",
+      "method": "readCheckoutConfig",
+      "startLine": 48,
+      "crap": 1.0233236151603498
+    },
+    {
+      "path": ".agents/scripts/lib/test-run-credit.js",
+      "method": "depositConfig",
+      "startLine": 49,
+      "crap": 2.0625
     },
     {
       "path": ".agents/scripts/lib/test-run-credit.js",
@@ -36551,9 +36587,21 @@
     },
     {
       "path": "lib/cli/registry.js",
+      "method": "testCreditDepositCommand",
+      "startLine": 872,
+      "crap": 1
+    },
+    {
+      "path": "lib/cli/registry.js",
       "method": "readProjectTestScript",
       "startLine": 877,
       "crap": 3
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "testCreditRemedy",
+      "startLine": 888,
+      "crap": 1
     },
     {
       "path": "lib/cli/registry.js",
@@ -36650,6 +36698,12 @@
     },
     {
       "path": "lib/cli/registry.js",
+      "method": "configuredTestCommand",
+      "startLine": 957,
+      "crap": 4
+    },
+    {
+      "path": "lib/cli/registry.js",
       "method": "<anon (opts)#9>",
       "startLine": 960,
       "crap": 1,
@@ -36691,6 +36745,12 @@
     },
     {
       "path": "lib/cli/registry.js",
+      "method": "describeConfiguredTestCommand",
+      "startLine": 977,
+      "crap": 2
+    },
+    {
+      "path": "lib/cli/registry.js",
       "method": "<anon (opts)#13>",
       "startLine": 981,
       "crap": 1,
@@ -36702,6 +36762,12 @@
       "startLine": 986,
       "crap": 1,
       "anonymous": true
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "describeNpmTestScript",
+      "startLine": 1015,
+      "crap": 3
     },
     {
       "path": "lib/cli/registry.js",
