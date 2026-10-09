@@ -124,7 +124,7 @@ Two envelope-level reads come **before** any finding:
    stale beyond roughly a month or `surfaceStale` **Medium**, a `null` stamp
    **Medium**, an unenforced kind **Low** or **Info**.
 
-   **Regeneration is the remediation, never an in-run step.** The Agent Prompt
+   **Regeneration is the remediation, never an in-run step.** The Recommendation
    names the matching script and its one-shot acknowledgment:
 
    | Kind | Regeneration script | Acknowledgment |
@@ -211,7 +211,7 @@ Executive Summary and change it only on an explicit operator instruction.
 A remediation Story that only burns debt down leaves the floor where it was,
 and the reclaimed slack is silently re-spent by the next change — the loop
 runs and the ratchet never moves. So **every Hotspot Cluster and Tightening
-Headroom finding's Agent Prompt MUST** end the remediation with the ratchet
+Headroom finding's Recommendation MUST** end the remediation with the ratchet
 tightened and gate-enforced:
 
 1. Lower the floor under `delivery.quality.gates` in `.agentrc.json` to the
@@ -222,7 +222,7 @@ tightened and gate-enforced:
    gate that already exists at that Story's delivery time rather than by prose
    nobody runs.
 
-Use these two Agent Prompt templates verbatim, substituting the envelope's own
+Use these two Recommendation templates verbatim, substituting the envelope's own
 values for the angle-bracketed slots:
 
 - **Hotspot Cluster template:**

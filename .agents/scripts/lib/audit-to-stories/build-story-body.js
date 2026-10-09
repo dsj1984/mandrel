@@ -4,6 +4,7 @@
  */
 
 import path from 'node:path';
+import { sortBySeverity } from '../findings/severity.js';
 import { RISK_LABELS, TYPE_LABELS } from '../label-constants.js';
 import { serialize } from '../story-body/story-body.js';
 import { definesAuditLabel } from './audit-label-taxonomy.js';
@@ -12,6 +13,7 @@ import {
   renderFingerprintFooter,
   renderSemanticKeyFooter,
 } from './finding-adapter.js';
+import { findingBullets, STORY_FINDING_FIELDS } from './finding-bullets.js';
 
 // Deliberately no `agent::` state label: audit prose is not ready for pickup.
 // `/mandrel-plan` stamps `agent::ready` once enriched; an absent state is a
@@ -55,14 +57,14 @@ function changesFromGroup(group) {
 }
 
 /**
- * A checkable end-state anchored on title and primary file, not the verbatim
- * recommendation (which stays in the prompts/footer).
+ * A checkable end-state anchored on title and primary file, for a finding
+ * whose lens wrote no Acceptance signal.
  *
  * @param {object} finding
+ * @param {string} title
  * @returns {string}
  */
-function acceptanceItemFromFinding(finding) {
-  const title = (finding.title ?? 'finding').trim();
+function synthesizedAcceptance(finding, title) {
   const primaryFile =
     Array.isArray(finding.files) && finding.files.length > 0
       ? finding.files[0]
@@ -71,8 +73,22 @@ function acceptanceItemFromFinding(finding) {
   return `${title} is remediated${where}: the recommended end-state holds and the finding is no longer reproducible`;
 }
 
+/**
+ * The lens's own Acceptance signal when it wrote one, else the synthesized
+ * end-state — never the verbatim recommendation, which stays in `## Findings`.
+ *
+ * @param {object} finding
+ * @returns {string}
+ */
+function acceptanceItemFromFinding(finding) {
+  const title = (finding.title ?? 'finding').trim();
+  return finding.acceptanceSignal
+    ? `${title} — ${finding.acceptanceSignal}`
+    : synthesizedAcceptance(finding, title);
+}
+
 function acceptanceCriteriaFromGroup(group) {
-  return (group.findings ?? []).map(acceptanceItemFromFinding);
+  return sortBySeverity(group.findings ?? []).map(acceptanceItemFromFinding);
 }
 
 /**
@@ -107,13 +123,31 @@ function dependencyRefs(deps, issueByGroupKey) {
     .map((n) => `#${n}`);
 }
 
-function agentPromptsSection(group) {
-  const blocks = (group.findings ?? [])
-    .filter(
-      (f) => typeof f.agentPrompt === 'string' && f.agentPrompt.length > 0,
-    )
-    .map((f) => `**${f.title}**\n\n\`\`\`\n${f.agentPrompt}\n\`\`\``);
-  return blocks.join('\n\n') || '_(no copy-pasteable prompts captured)_';
+/**
+ * `####`, never `###`: the story-body parser reads a one-word `##`/`###`
+ * heading as a canonical section, so a finding titled `Verify` would bleed
+ * its bullets into `verify[]`.
+ *
+ * @param {object} finding
+ * @returns {string} a heading and the finding's present fields.
+ */
+function findingBlock(finding) {
+  return [
+    `#### ${finding.title}`,
+    '',
+    ...findingBullets(finding, STORY_FINDING_FIELDS),
+  ].join('\n');
+}
+
+/**
+ * One block per finding, worst first, carrying the remediation detail the
+ * acceptance list deliberately leaves out.
+ *
+ * @param {object} group
+ * @returns {string}
+ */
+function findingsSection(group) {
+  return sortBySeverity(group.findings).map(findingBlock).join('\n\n');
 }
 
 /**
@@ -204,9 +238,9 @@ export function buildStoryBody({ group, edges = [], issueByGroupKey = null }) {
   const body = [
     canonicalSections,
     '',
-    '## Agent Prompts',
+    '## Findings',
     '',
-    agentPromptsSection(group),
+    findingsSection(group),
     '',
     '## Context',
     '',

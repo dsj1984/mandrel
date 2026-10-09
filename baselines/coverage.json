@@ -472,8 +472,8 @@
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/build-story-body.js",
-      "lines": 96.93,
-      "branches": 82.76,
+      "lines": 97.29,
+      "branches": 84.21,
       "functions": 100
     },
     {
@@ -492,6 +492,12 @@
       "path": ".agents/scripts/lib/audit-to-stories/finding-adapter.js",
       "lines": 96.08,
       "branches": 83.33,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/audit-to-stories/finding-bullets.js",
+      "lines": 100,
+      "branches": 100,
       "functions": 100
     },
     {
@@ -527,7 +533,7 @@
     {
       "path": ".agents/scripts/lib/audit-to-stories/seed-from-findings.js",
       "lines": 100,
-      "branches": 93.33,
+      "branches": 93.62,
       "functions": 100
     },
     {

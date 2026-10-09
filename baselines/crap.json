@@ -6688,6 +6688,12 @@
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/build-story-body.js",
+      "method": "synthesizedAcceptance",
+      "startLine": 67,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/audit-to-stories/build-story-body.js",
       "method": "acceptanceCriteriaFromGroup",
       "startLine": 74,
       "crap": 1
@@ -6788,6 +6794,12 @@
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/build-story-body.js",
+      "method": "findingBlock",
+      "startLine": 130,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-to-stories/build-story-body.js",
       "method": "<anon contextLinksFromGroup/(r)#0>",
       "startLine": 135,
       "crap": 1,
@@ -6805,6 +6817,12 @@
       "startLine": 144,
       "crap": 1,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-to-stories/build-story-body.js",
+      "method": "findingsSection",
+      "startLine": 145,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/build-story-body.js",
@@ -6951,6 +6969,26 @@
       "method": "<anon renderSemanticKeyFooter/(k)#0>",
       "startLine": 98,
       "crap": 2.014565316340464,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-to-stories/finding-bullets.js",
+      "method": "findingBullets",
+      "startLine": 29,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-to-stories/finding-bullets.js",
+      "method": "<anon findingBullets/(key)#0>",
+      "startLine": 31,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-to-stories/finding-bullets.js",
+      "method": "<anon findingBullets/(label,key)#0>",
+      "startLine": 32,
+      "crap": 1,
       "anonymous": true
     },
     {
@@ -7344,6 +7382,12 @@
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/seed-from-findings.js",
+      "method": "formatTally",
+      "startLine": 48,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-to-stories/seed-from-findings.js",
       "method": "<anon formatProblemStatement/(k)#0>",
       "startLine": 49,
       "crap": 1,
@@ -7353,6 +7397,20 @@
       "path": ".agents/scripts/lib/audit-to-stories/seed-from-findings.js",
       "method": "<anon formatProblemStatement/(k)#1>",
       "startLine": 50,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-to-stories/seed-from-findings.js",
+      "method": "<anon formatTally/(k)#0>",
+      "startLine": 50,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-to-stories/seed-from-findings.js",
+      "method": "<anon formatTally/(k)#1>",
+      "startLine": 51,
       "crap": 1,
       "anonymous": true
     },
@@ -7375,6 +7433,27 @@
       "method": "formatRecommendedDirection",
       "startLine": 60,
       "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/audit-to-stories/seed-from-findings.js",
+      "method": "<anon formatRecommendedDirection/(f)#0>",
+      "startLine": 74,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-to-stories/seed-from-findings.js",
+      "method": "<anon formatRecommendedDirection/(a,b)#0>",
+      "startLine": 76,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-to-stories/seed-from-findings.js",
+      "method": "<anon formatRecommendedDirection/(dim,list)#0>",
+      "startLine": 77,
+      "crap": 2,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/seed-from-findings.js",
@@ -15723,6 +15802,12 @@
     },
     {
       "path": ".agents/scripts/lib/findings/severity.js",
+      "method": "rankEntry",
+      "startLine": 40,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/findings/severity.js",
       "method": "normalizeSeverity",
       "startLine": 49,
       "crap": 3
@@ -15738,6 +15823,24 @@
       "method": "highestSeverity",
       "startLine": 75,
       "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/findings/severity.js",
+      "method": "sortBySeverity",
+      "startLine": 104,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/findings/severity.js",
+      "method": "rankOf",
+      "startLine": 108,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/findings/severity.js",
+      "method": "compareSeverityDesc",
+      "startLine": 112,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/format-generated-json.js",

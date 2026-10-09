@@ -41,7 +41,7 @@ export const FINDING_FIELDS = Object.freeze([
   'CWE ID',
   'Current State',
   'Recommendation & Rationale',
-  'Agent Prompt',
+  'Acceptance signal',
 ]);
 
 /**

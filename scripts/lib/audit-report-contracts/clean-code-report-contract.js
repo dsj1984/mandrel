@@ -44,7 +44,7 @@ export const FINDING_FIELDS = Object.freeze([
   'Impact',
   'Current State',
   'Recommendation & Rationale',
-  'Agent Prompt',
+  'Acceptance signal',
 ]);
 
 /**

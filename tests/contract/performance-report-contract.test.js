@@ -145,8 +145,8 @@ test('contract headings match what audit-to-stories parses', () => {
     ),
     'utf8',
   );
-  // The consumer keys off "## Detailed Findings" and per-finding "Agent Prompt".
+  // The consumer keys off "## Detailed Findings" and per-finding "Acceptance signal".
   assert.ok(parser.includes('Detailed Findings'));
   assert.ok(REQUIRED_SECTIONS.includes('Detailed Findings'));
-  assert.ok(FINDING_FIELDS.includes('Agent Prompt'));
+  assert.ok(FINDING_FIELDS.includes('Acceptance signal'));
 });

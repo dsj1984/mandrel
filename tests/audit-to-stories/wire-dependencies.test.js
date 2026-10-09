@@ -39,7 +39,6 @@ function group(groupKey, { file = `lib/${groupKey}.js` } = {}) {
         severity: 'medium',
         dimension: 'clean-code',
         recommendation: 'Do the thing.',
-        agentPrompt: 'Do the thing.',
         sourceReport: 'temp/audits/audit-clean-code-results.md',
         files: [file],
         normalisedTitle: `${groupKey} finding`,

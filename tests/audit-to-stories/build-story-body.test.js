@@ -36,11 +36,13 @@ test('buildStoryBody emits all canonical sections', () => {
   for (const section of [
     '## Goal',
     '## Acceptance',
-    '## Agent Prompts',
+    '## Findings',
     '## Context',
   ]) {
     assert.ok(body.includes(section), `expected section "${section}" in body`);
   }
+  // Story #5569: the per-finding Agent Prompt is retired.
+  assert.ok(!body.includes('## Agent Prompts'));
   assert.ok(title.length > 0);
 });
 
@@ -91,7 +93,6 @@ test('buildStoryBody applies risk::high when any finding is critical', () => {
         dimension: 'security',
         currentState: 'eval() of user input.',
         recommendation: 'Remove eval and use a safe parser.',
-        agentPrompt: 'Remove the eval call.',
         sourceReport: '/tmp/audit-security-results.md',
         fingerprint: { full: 'd'.repeat(40), short: 'dddddddddddd' },
       },
@@ -118,7 +119,7 @@ test('buildStoryBody (real fixtures) clears the inline-contract bar and round-tr
   // Story #4270: a generated audit Story body must parse into a clean,
   // structured StoryBody with a populated changes[] footprint, non-empty
   // observable acceptance[], and a non-empty tier-tagged verify[] — and the
-  // trailing Agent Prompts / Context blocks must NOT bleed into those arrays.
+  // trailing Findings / Context blocks must NOT bleed into those arrays.
   const group = loginGroup();
   const { body } = parseStoryBody(buildStoryBody({ group }).body);
 
@@ -135,9 +136,13 @@ test('buildStoryBody (real fixtures) clears the inline-contract bar and round-tr
 
   // acceptance[] is observable and is NOT swamped by extended sections.
   assert.equal(body.acceptance.length, group.findings.length);
+  // Story #5569: each item is the finding's own Acceptance signal, prefixed
+  // by its title — every fixture finding in this group carries one.
   for (const a of body.acceptance) {
-    assert.match(a, /is remediated/);
-    assert.ok(!a.includes('## Agent Prompts'));
+    const finding = group.findings.find((f) => a.startsWith(`${f.title} — `));
+    assert.ok(finding, `acceptance item names no finding: ${a}`);
+    assert.ok(a.endsWith(finding.acceptanceSignal));
+    assert.ok(!a.includes('## Findings'));
   }
 
   // verify[] survives intact — extended markdown did not bleed in.
@@ -216,4 +221,83 @@ test('buildStoryBody drops an edge whose target was never opened (AC-6)', () => 
   });
   assert.ok(!built.body.includes('blocked by'));
   assert.deepEqual(parseStoryBody(built.body).body.depends_on, []);
+});
+
+// ---------------------------------------------------------------------------
+// Story #5569 — Findings section and Acceptance-signal acceptance
+// ---------------------------------------------------------------------------
+
+function syntheticGroup() {
+  const base = {
+    dimension: 'security',
+    sourceReport: '/tmp/audit-security-results.md',
+  };
+  return {
+    title: 'Harden the handler',
+    files: ['src/x.js'],
+    findings: [
+      {
+        ...base,
+        title: 'Low finding',
+        severity: 'low',
+        files: ['src/x.js'],
+        location: 'src/x.js:9',
+        currentState: 'Minor.',
+        recommendation: 'Tidy it.',
+        acceptanceSignal: '',
+        fingerprint: { full: 'a'.repeat(40), short: 'aaaaaaaaaaaa' },
+      },
+      {
+        ...base,
+        title: 'High finding',
+        severity: 'high',
+        location: 'src/x.js:3',
+        currentState: 'Serious.',
+        recommendation: 'Fix it properly.',
+        acceptanceSignal: '`grep -n eval src/x.js` returns nothing',
+        fingerprint: { full: 'b'.repeat(40), short: 'bbbbbbbbbbbb' },
+      },
+    ],
+  };
+}
+
+test('buildStoryBody renders a Findings section, worst first, with the remediation detail', () => {
+  const { body } = buildStoryBody({ group: syntheticGroup() });
+  const findings = body.slice(
+    body.indexOf('## Findings'),
+    body.indexOf('## Context'),
+  );
+  assert.ok(
+    findings.indexOf('#### High finding') <
+      findings.indexOf('#### Low finding'),
+  );
+  for (const line of [
+    '- **Severity:** high',
+    '- **Location:** src/x.js:3',
+    '- **Current State:** Serious.',
+    '- **Recommendation:** Fix it properly.',
+  ]) {
+    assert.ok(findings.includes(line), `missing ${line}`);
+  }
+});
+
+test('buildStoryBody takes acceptance from the Acceptance signal, falling back when absent', () => {
+  const { acceptance } = parseStoryBody(
+    buildStoryBody({ group: syntheticGroup() }).body,
+  ).body;
+  assert.deepEqual(acceptance, [
+    'High finding — `grep -n eval src/x.js` returns nothing',
+    'Low finding is remediated in `src/x.js`: the recommended end-state holds and the finding is no longer reproducible',
+  ]);
+  assert.ok(!acceptance.some((a) => a.includes('Fix it properly')));
+});
+
+test('a finding titled like a canonical section cannot bleed into verify[] or acceptance[]', () => {
+  const group = syntheticGroup();
+  group.findings[0].title = 'Verify';
+  group.findings[1].title = 'Acceptance';
+  const { body } = parseStoryBody(buildStoryBody({ group }).body);
+  assert.deepEqual(body.verify, ['npm run lint (validate)', 'npm test (unit)']);
+  assert.equal(body.acceptance.length, 2);
+  assert.ok(!body.acceptance.some((a) => a.includes('**Severity:**')));
 });

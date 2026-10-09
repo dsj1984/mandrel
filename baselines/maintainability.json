@@ -332,7 +332,7 @@
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/build-story-body.js",
-      "mi": 114.05
+      "mi": 113.446
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/dedupe-against-github.js",
@@ -345,6 +345,10 @@
     {
       "path": ".agents/scripts/lib/audit-to-stories/finding-adapter.js",
       "mi": 118.964
+    },
+    {
+      "path": ".agents/scripts/lib/audit-to-stories/finding-bullets.js",
+      "mi": 129.701
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/group-findings.js",
@@ -368,7 +372,7 @@
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/seed-from-findings.js",
-      "mi": 106.555
+      "mi": 109.568
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/wire-dependencies.js",
@@ -956,7 +960,7 @@
     },
     {
       "path": ".agents/scripts/lib/findings/severity.js",
-      "mi": 101.762
+      "mi": 108.057
     },
     {
       "path": ".agents/scripts/lib/format-generated-json.js",

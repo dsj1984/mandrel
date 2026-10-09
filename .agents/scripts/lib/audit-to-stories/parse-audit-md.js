@@ -394,7 +394,8 @@ function parseBlockFields(bodyLines) {
  *   files: string[],
  *   currentState: string,
  *   recommendation: string,
- *   agentPrompt: string,
+ *   location: string,
+ *   acceptanceSignal: string,
  *   rawFields: Record<string,string>,
  *   sourceReport: string,
  * }>}
@@ -417,13 +418,13 @@ export function parseAuditReport({ markdown, sourceReport, repoRoot }) {
     const currentState = fields['current state'] ?? '';
     const recommendation =
       fields['recommendation & rationale'] ?? fields.recommendation ?? '';
-    const agentPrompt = fields['agent prompt'] ?? '';
+    const location = fields.location ?? '';
+    const acceptanceSignal = fields['acceptance signal'] ?? '';
     const fileSet = new Set([
       ...deriveTitleFile(block.title, repoRoot),
       ...deriveLocationFiles(fields, repoRoot),
       ...extractFilePaths(currentState, repoRoot),
       ...extractFilePaths(recommendation, repoRoot),
-      ...extractFilePaths(agentPrompt, repoRoot),
     ]);
 
     return {
@@ -434,7 +435,8 @@ export function parseAuditReport({ markdown, sourceReport, repoRoot }) {
       files: [...fileSet],
       currentState,
       recommendation,
-      agentPrompt,
+      location,
+      acceptanceSignal,
       rawFields: fields,
       sourceReport,
     };
