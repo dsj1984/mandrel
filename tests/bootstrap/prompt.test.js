@@ -185,3 +185,95 @@ describe('collectAnswers silentAccept', () => {
     assert.equal(answers.owner, 'typed');
   });
 });
+
+// Story #5584 — explicit Projects V2 skip signals ahead of the default.
+describe('projectNumber explicit skip signals', () => {
+  const PROJECT_Q = {
+    key: 'projectNumber',
+    flag: 'project-number',
+    env: 'GH_PROJECT_NUMBER',
+    skipFlag: 'no-project',
+    message: 'project',
+    default: 'widget',
+    required: false,
+  };
+  const OWNER_Q = {
+    key: 'owner',
+    flag: 'owner',
+    env: 'GH_OWNER',
+    message: 'owner',
+    default: 'acme',
+    required: true,
+  };
+
+  async function resolve(argv, env = {}, questions = [PROJECT_Q]) {
+    return collectAnswers({
+      questions,
+      flags: parseFlags(argv),
+      interactive: false,
+      assumeYes: true,
+      env,
+      output: { write: () => {} },
+    });
+  }
+
+  it('parses --no-project as a known boolean flag', () => {
+    assert.equal(parseFlags(['--no-project', 'x'])['no-project'], true);
+  });
+
+  it('parses an empty --project-number as true (bare) or "" (inline)', () => {
+    assert.equal(
+      parseFlags(['--project-number', '', '--dry-run'])['project-number'],
+      true,
+    );
+    assert.equal(parseFlags(['--project-number'])['project-number'], true);
+    assert.equal(parseFlags(['--project-number='])['project-number'], '');
+  });
+
+  for (const argv of [
+    ['--no-project'],
+    ['--project-number', ''],
+    ['--project-number'],
+    ['--project-number='],
+    ['--project-number', 'none'],
+    ['--project-number=NONE'],
+    ['--no-project', '--project-number', 'Roadmap'],
+  ]) {
+    it(`skips the board for ${JSON.stringify(argv)} despite a default`, async () => {
+      const { answers, missing } = await resolve(argv);
+      assert.equal(answers.projectNumber, '');
+      assert.deepEqual(missing, []);
+    });
+  }
+
+  for (const value of ['', 'none', ' None ']) {
+    it(`skips the board when GH_PROJECT_NUMBER is present as ${JSON.stringify(value)}`, async () => {
+      const { answers } = await resolve([], { GH_PROJECT_NUMBER: value });
+      assert.equal(answers.projectNumber, '');
+    });
+  }
+
+  it('falls through to the default when GH_PROJECT_NUMBER is unset', async () => {
+    const { answers } = await resolve([], {});
+    assert.equal(answers.projectNumber, 'widget');
+  });
+
+  it('lets an explicit flag value win over a skip env var', async () => {
+    const { answers } = await resolve(['--project-number', '7'], {
+      GH_PROJECT_NUMBER: 'none',
+    });
+    assert.equal(answers.projectNumber, '7');
+  });
+
+  it('keeps a non-skip env value as the answer', async () => {
+    const { answers } = await resolve([], { GH_PROJECT_NUMBER: 'Roadmap' });
+    assert.equal(answers.projectNumber, 'Roadmap');
+  });
+
+  it('keeps empty-means-unset for questions without a skipFlag', async () => {
+    const { answers } = await resolve(['--owner='], { GH_OWNER: '' }, [
+      OWNER_Q,
+    ]);
+    assert.equal(answers.owner, 'acme');
+  });
+});
