@@ -192,8 +192,9 @@ function parseAllFooterValues(text, pattern, isValid) {
 
 /**
  * Every provenance footer in `text`, verbatim, one per line — the whole of
- * what `carryProvenanceFooters` and `parseAuditLabelFooter` read from a seed,
- * small enough to survive a seed that is cut for size.
+ * what `carryProvenanceFooters`, `parseAuditLabelFooter` and
+ * `parseAuditFindingRecords` (`audit-finding-record.js`) read from a seed, small enough to survive a seed
+ * that is cut for size.
  *
  * @param {unknown} text
  * @returns {string}
@@ -201,7 +202,7 @@ function parseAllFooterValues(text, pattern, isValid) {
 export function extractProvenanceFooters(text) {
   if (typeof text !== 'string') return '';
   const pattern =
-    /<!--\s*audit-(?:fingerprints|semantic-keys|labels):[^>]*-->/g;
+    /<!--\s*audit-(?:fingerprints|semantic-keys|labels|finding):[^>]*-->/g;
   return [...text.matchAll(pattern)].map((m) => m[0]).join('\n');
 }
 

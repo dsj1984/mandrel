@@ -24,6 +24,7 @@ import {
   concurrentMap,
   FANOUT_CONCURRENCY,
 } from '../../util/concurrent-map.js';
+import { attributeSeedProvenance } from './audit-attribution.js';
 import {
   externalDependencyId,
   isExternalDependencyRef,
@@ -329,20 +330,23 @@ export function foldSpecIntoStoryBody(bodyObject, slug, opts = {}) {
 
 /**
  * An authored `provenance` stamps exactly the identities this Story owns;
- * otherwise the whole seed's footers are carried. Keep that union fallback:
- * without it a non-attributing plan persists Stories with no provenance and
- * the next audit sweep re-files planned work.
+ * next, the seed findings path attribution gave it; otherwise the whole
+ * seed's footers are carried. Keep that union fallback: without it a
+ * non-attributing plan persists Stories with no provenance and the next
+ * audit sweep re-files planned work.
  *
  * @param {{ fingerprints: string[], semanticKeys: string[] }|null} provenance
+ * @param {string|null|undefined} attributed
  * @param {object} opts
  * @returns {string}
  */
-function resolveProvenanceSource(provenance, opts) {
+function resolveProvenanceSource(provenance, attributed, opts) {
   if (provenance !== null) return ownedProvenanceSource(provenance);
+  if (typeof attributed === 'string') return attributed;
   return opts.provenanceSource ?? '';
 }
 
-function assembleOnePlanStory(ticket, opts) {
+function assembleOnePlanStory(normalized, attributed, opts) {
   const {
     slug,
     title,
@@ -351,7 +355,7 @@ function assembleOnePlanStory(ticket, opts) {
     labels,
     supersedes,
     provenance,
-  } = normalizeStoryTicket(ticket);
+  } = normalized;
   const { bodyObject: folded } = foldSpecIntoStoryBody(bodyObject, slug, {
     sharedSpec: opts.sharedSpec ?? null,
   });
@@ -359,7 +363,7 @@ function assembleOnePlanStory(ticket, opts) {
   // Mechanical on purpose: the authoring agent is not asked to hand-carry
   // audit footers. A non-audit seed has none, so this is a no-op there.
   const { body } = carryProvenanceFooters({
-    from: resolveProvenanceSource(provenance, opts),
+    from: resolveProvenanceSource(provenance, attributed, opts),
     into: serialized,
   });
   const fingerprint = planStoryFingerprint({ slug, title, body });
@@ -402,6 +406,8 @@ function assertSharedSpecAllowed(tickets, sharedSpec) {
  * @param {object} [opts]
  * @param {string|null} [opts.sharedSpec]
  * @param {number[]} [opts.sourceTicketIds] Ids passed to `/mandrel-plan --tickets`.
+ * @param {string} [opts.provenanceSource] The seed's provenance footers; an
+ *   N>1 draft attributes its `audit-finding` records per Story.
  * @returns {{ stories: Array<{ slug: string, title: string, body: string, acceptance: string[], depends_on: string[], supersedes: Array<{ id: number, note: string|null }> }>, warnings: string[] }}
  */
 export function assemblePlanStories(tickets, opts = {}) {
@@ -413,14 +419,24 @@ export function assemblePlanStories(tickets, opts = {}) {
 
   assertSharedSpecAllowed(tickets, opts.sharedSpec);
 
+  const normalized = tickets.map(normalizeStoryTicket);
+  const attribution = attributeSeedProvenance(
+    normalized.map((n) => ({
+      provenance: n.provenance,
+      changes: n.bodyObject.changes,
+    })),
+    opts.provenanceSource,
+  );
   const stories = orderStoriesByDependencies(
-    tickets.map((ticket) => assembleOnePlanStory(ticket, opts).story),
+    normalized.map(
+      (n, i) => assembleOnePlanStory(n, attribution?.sources[i], opts).story,
+    ),
   );
 
-  const warnings = resolveSupersedePartition(
-    stories,
-    opts.sourceTicketIds ?? [],
-  );
+  const warnings = [
+    ...(attribution?.warnings ?? []),
+    ...resolveSupersedePartition(stories, opts.sourceTicketIds ?? []),
+  ];
 
   return { stories, warnings };
 }

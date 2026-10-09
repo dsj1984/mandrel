@@ -3,10 +3,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import url from 'node:url';
-import { withFingerprints } from '../../.agents/scripts/lib/audit-to-stories/finding-adapter.js';
+import { auditLabelFooterForFindings } from '../../.agents/scripts/lib/audit-to-stories/audit-label-taxonomy.js';
+import {
+  renderFingerprintFooter,
+  renderSemanticKeyFooter,
+  withFingerprints,
+} from '../../.agents/scripts/lib/audit-to-stories/finding-adapter.js';
 import { groupFindings } from '../../.agents/scripts/lib/audit-to-stories/group-findings.js';
 import { parseAuditReports } from '../../.agents/scripts/lib/audit-to-stories/parse-audit-md.js';
 import { buildPlanSeedMarkdown } from '../../.agents/scripts/lib/audit-to-stories/seed-from-findings.js';
+import { parseAuditFindingRecords } from '../../.agents/scripts/lib/findings/audit-finding-record.js';
 
 const __filename = url.fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -193,4 +199,41 @@ test('Recommended Direction is a per-dimension tally with no recommendation text
     direction,
     /— \d+ findings? \(\d+ (Critical|High|Medium|Low|Info)/,
   );
+});
+
+// ---------------------------------------------------------------------------
+// Story #5597 — one `audit-finding` record per finding, group footers intact
+// ---------------------------------------------------------------------------
+
+test('the seed carries one audit-finding record per fingerprinted finding', () => {
+  const { findings, md } = seedFromFixtures();
+  const records = parseAuditFindingRecords(md);
+  assert.equal(records.length, findings.length);
+  for (const f of findings) {
+    const record = records.find((r) => r.sha === f.fingerprint.full);
+    assert.ok(record, `no record for "${f.title}"`);
+    assert.deepEqual(record.files, f.files ?? []);
+    assert.match(record.label ?? '', /^audit::/);
+    assert.ok(record.key.length > 0);
+  }
+});
+
+test('the per-group dedup footers stay byte-identical beside the records', () => {
+  const findings = withFingerprints(parseAuditReports(loadAll()));
+  const { groups } = groupFindings(findings);
+  const md = buildPlanSeedMarkdown({
+    groups,
+    findings,
+    sourceReports: loadAll().map((r) => r.sourceReport),
+  });
+  const groupBlock = groups
+    .map((g) =>
+      [
+        renderFingerprintFooter(g.findings),
+        renderSemanticKeyFooter(g.findings),
+        auditLabelFooterForFindings(g.findings),
+      ].join('\n'),
+    )
+    .join('\n');
+  assert.ok(md.includes(`${groupBlock}\n<!-- audit-finding:`));
 });

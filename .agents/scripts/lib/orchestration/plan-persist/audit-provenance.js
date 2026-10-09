@@ -1,11 +1,13 @@
 /**
  * What an audit-seeded plan leaves for the next sweep: the provenance footers
- * every Story carries (the cross-run dedup memory) and the `audit::*` labels
+ * each Story carries (the cross-run dedup memory) and the `audit::*` labels
  * (the dedup corpus is label-listed, so footers alone are invisible to an
- * indexed sweep).
+ * indexed sweep). An N>1 plan whose seed carries `audit-finding` records
+ * attributes each finding to the Stories covering its files; otherwise every
+ * Story carries the seed union.
  */
 
-import { parseAuditLabelFooter } from '../../findings/route-finding.js';
+import { auditLabelsPerStory } from './audit-attribution.js';
 
 /**
  * @param {object|null} envelope
@@ -42,19 +44,18 @@ export function resolveSeedProvenance(envelope) {
 }
 
 /**
- * Labels come from the seed union, not per-Story attribution: a label only
- * widens the next sweep's corpus (matching is by fingerprint), so erring
- * wide is safe.
+ * Stamp the `audit::*` labels. Union path (N==1, or a seed with no records):
+ * every Story gets the seed's union labels. Attribution path: each Story gets
+ * the labels of the findings stamped on its body.
  *
  * @param {Array<object>} stories
  * @param {string} [provenanceSource]
  * @returns {Array<object>}
  */
 export function withAuditLabels(stories, provenanceSource) {
-  const fromSeed = parseAuditLabelFooter(provenanceSource ?? '');
-  if (fromSeed.length === 0) return stories;
-  return stories.map((story) => ({
+  const perStory = auditLabelsPerStory(stories, provenanceSource ?? '');
+  return stories.map((story, i) => ({
     ...story,
-    labels: [...new Set([...story.labels, ...fromSeed])],
+    labels: [...new Set([...story.labels, ...perStory[i]])],
   }));
 }

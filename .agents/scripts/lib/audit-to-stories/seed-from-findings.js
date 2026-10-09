@@ -3,11 +3,18 @@
  * Pure: returns a string.
  */
 
+import { auditFindingRecord } from '../findings/audit-finding-record.js';
+import { semanticKeyFor } from '../findings/route-finding.js';
 import { SEVERITIES, sortBySeverity } from '../findings/severity.js';
-import { auditLabelFooterForFindings } from './audit-label-taxonomy.js';
+import {
+  auditLabelFooterForFindings,
+  definesAuditLabel,
+} from './audit-label-taxonomy.js';
+import { auditLabelsForFindings } from './audit-lenses.js';
 import {
   renderFingerprintFooter,
   renderSemanticKeyFooter,
+  toCanonicalFinding,
 } from './finding-adapter.js';
 import { findingBullets, SEED_FINDING_FIELDS } from './finding-bullets.js';
 
@@ -126,6 +133,29 @@ function formatDedupFooters(groups) {
     .join('\n');
 }
 
+/**
+ * One `audit-finding` record per fingerprinted finding, so an N>1 plan can
+ * attribute each identity to the Stories that cover its files instead of
+ * smearing the group footers across every Story. Seed-only.
+ *
+ * @param {object[]} groups
+ * @returns {string}
+ */
+function formatFindingRecords(groups) {
+  return groups
+    .flatMap((g) => (Array.isArray(g.findings) ? g.findings : []))
+    .filter((f) => typeof f?.fingerprint?.full === 'string')
+    .map((f) =>
+      auditFindingRecord({
+        sha: f.fingerprint.full,
+        key: semanticKeyFor(toCanonicalFinding(f)),
+        label: auditLabelsForFindings([f]).find(definesAuditLabel) ?? null,
+        files: Array.isArray(f.files) ? f.files : [],
+      }),
+    )
+    .join('\n');
+}
+
 function formatKeyFiles(groups) {
   const files = new Set();
   for (const g of groups) for (const f of g.files) files.add(f);
@@ -169,6 +199,7 @@ export function buildPlanSeedMarkdown({ groups, findings, sourceReports }) {
   const files = formatKeyFiles(groups);
   const assumptions = formatKeyAssumptions(sourceReports);
   const dedupFooters = formatDedupFooters(groups);
+  const findingRecords = formatFindingRecords(groups);
 
   return [
     '# Idea Seed: Audit Remediation',
@@ -190,6 +221,7 @@ export function buildPlanSeedMarkdown({ groups, findings, sourceReports }) {
     scope || '_(no findings)_',
     '',
     dedupFooters,
+    ...(findingRecords ? [findingRecords] : []),
     '',
     '## Key Files',
     '',

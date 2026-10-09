@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  auditFindingRecord,
+  parseAuditFindingRecords,
+} from '../../../.agents/scripts/lib/findings/audit-finding-record.js';
+import {
   normalizeOwnedProvenance,
   ownedProvenanceSource,
 } from '../../../.agents/scripts/lib/findings/provenance-field.js';
@@ -812,4 +816,57 @@ test('ownedProvenanceSource renders nothing for an empty or absent set', () => {
       false,
     );
   }
+});
+
+// ---------------------------------------------------------------------------
+// Story #5597 — the per-finding `audit-finding` seed record
+// ---------------------------------------------------------------------------
+
+test('auditFindingRecord round-trips sha, key, label and ordered files', () => {
+  const record = {
+    sha: 'd'.repeat(40),
+    key: 'clean-code␟lib/a b.js',
+    label: 'audit::clean-code',
+    files: ['lib/a b.js', 'lib/x,y>z.js'],
+  };
+  const footer = auditFindingRecord(record);
+  assert.match(
+    footer,
+    /^<!-- audit-finding: sha=d{40} key=\S+ label=\S+ files=\S+ -->$/,
+  );
+  assert.ok(!footer.slice(4, -3).includes('>'), 'no raw > inside the record');
+  assert.deepEqual(parseAuditFindingRecords(footer), [record]);
+});
+
+test('auditFindingRecord omits an absent label and rejects a bad sha', () => {
+  const footer = auditFindingRecord({ sha: 'e'.repeat(40), files: [] });
+  assert.ok(!footer.includes('label='));
+  assert.deepEqual(parseAuditFindingRecords(footer), [
+    { sha: 'e'.repeat(40), key: '', label: null, files: [] },
+  ]);
+  assert.throws(() => auditFindingRecord({ sha: 'nope' }), /40-char sha1/);
+});
+
+test('parseAuditFindingRecords skips malformed records and repeats', () => {
+  const sha = 'f'.repeat(40);
+  const text = [
+    '<!-- audit-finding: sha=short files=a.js -->',
+    `<!-- audit-finding: sha=${sha} key=%E0%A4%A files=a.js -->`,
+    `<!-- audit-finding: sha=${sha} key=k files=a.js -->`,
+    `<!-- audit-finding: sha=${sha} key=k2 files=b.js -->`,
+  ].join('\n');
+  assert.deepEqual(parseAuditFindingRecords(text), [
+    { sha, key: 'k', label: null, files: ['a.js'] },
+  ]);
+  assert.deepEqual(parseAuditFindingRecords(undefined), []);
+});
+
+test('extractProvenanceFooters carries audit-finding records verbatim', () => {
+  const record = auditFindingRecord({
+    sha: 'c'.repeat(40),
+    key: 'quality␟lib/a.js',
+    files: ['lib/a.js'],
+  });
+  const out = extractProvenanceFooters(`# Seed\nprose\n${record}\nmore`);
+  assert.equal(out, record);
 });
