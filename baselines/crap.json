@@ -985,6 +985,12 @@
     },
     {
       "path": ".agents/scripts/bootstrap.js",
+      "method": "projectDefault",
+      "startLine": 415,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/bootstrap.js",
       "method": "<anon buildQuestions/(v)#0>",
       "startLine": 427,
       "crap": 2,
@@ -1158,6 +1164,18 @@
     },
     {
       "path": ".agents/scripts/bootstrap.js",
+      "method": "approveNewRepo",
+      "startLine": 814,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/bootstrap.js",
+      "method": "approveNewProject",
+      "startLine": 828,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/bootstrap.js",
       "method": "renderDryRunPlan",
       "startLine": 858,
       "crap": 6
@@ -1217,6 +1235,12 @@
       "method": "offerCommitPush",
       "startLine": 1050,
       "crap": 9.12240231561232
+    },
+    {
+      "path": ".agents/scripts/bootstrap.js",
+      "method": "resolveBoardDecoration",
+      "startLine": 1059,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/bootstrap.js",
@@ -10638,9 +10662,22 @@
     },
     {
       "path": ".agents/scripts/lib/bootstrap/prompt.js",
+      "method": "<anon (v)#0>",
+      "startLine": 159,
+      "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/prompt.js",
       "method": "resolveFromFlag",
       "startLine": 161,
       "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/prompt.js",
+      "method": "resolveExplicitSkip",
+      "startLine": 171,
+      "crap": 7
     },
     {
       "path": ".agents/scripts/lib/bootstrap/prompt.js",

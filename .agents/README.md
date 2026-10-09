@@ -269,7 +269,12 @@ and the prompt falls through to manual free-text entry — so a missing or
 stale `gh` never breaks the run.
 
 For non-interactive (CI) installs, pass `--owner`, `--repo`, and
-`--assume-yes`; pass `--skip-github` to defer the remote half.
+`--assume-yes`; pass `--skip-github` to defer the remote half. A
+non-interactive run creates no Projects V2 board unless one is stored in
+`.agentrc.json` or named with `--project-number <name>`; `--no-project` (or an
+empty / `none` `--project-number` or `GH_PROJECT_NUMBER`) skips it explicitly,
+and labels are still provisioned. Interactively declining a new project also
+continues without a board.
 
 After bootstrap, every Mandrel command is generated into a flat
 `.claude/commands/` tree by `npm run sync:commands` (kept current at install
