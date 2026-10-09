@@ -88,13 +88,16 @@ function attributionApplies(storyCount, provenanceSource) {
  *
  * @param {Array<{ provenance: object|null, changes?: unknown }>} stories — draft order.
  * @param {string} [provenanceSource] — the resolved seed provenance.
- * @returns {{ sources: Array<string|null>, warnings: string[] }|null}
- *   null when attribution does not apply; else one footer source per Story
- *   (`null` for an authored Story, which keeps its own).
+ * @returns {{ sources: Array<string|null>, warnings: string[] }}
+ *   One footer source per Story (`null` for an authored Story, which keeps
+ *   its own); the seed union for every Story when attribution does not
+ *   apply.
  */
 export function attributeSeedProvenance(stories, provenanceSource) {
   const list = Array.isArray(stories) ? stories : [];
-  if (!attributionApplies(list.length, provenanceSource)) return null;
+  if (!attributionApplies(list.length, provenanceSource)) {
+    return { sources: list.map(() => provenanceSource ?? ''), warnings: [] };
+  }
 
   const candidates = list
     .map((s, index) => ({ s, index }))

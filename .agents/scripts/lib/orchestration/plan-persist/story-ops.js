@@ -330,20 +330,18 @@ export function foldSpecIntoStoryBody(bodyObject, slug, opts = {}) {
 
 /**
  * An authored `provenance` stamps exactly the identities this Story owns;
- * next, the seed findings path attribution gave it; otherwise the whole
- * seed's footers are carried. Keep that union fallback: without it a
- * non-attributing plan persists Stories with no provenance and the next
- * audit sweep re-files planned work.
+ * otherwise the source `attributeSeedProvenance` resolved — the findings path
+ * attribution gave this Story, or the whole seed's union. Keep that union
+ * fallback: without it a non-attributing plan persists Stories with no
+ * provenance and the next audit sweep re-files planned work.
  *
  * @param {{ fingerprints: string[], semanticKeys: string[] }|null} provenance
- * @param {string|null|undefined} attributed
- * @param {object} opts
+ * @param {string} resolved
  * @returns {string}
  */
-function resolveProvenanceSource(provenance, attributed, opts) {
+function resolveProvenanceSource(provenance, resolved) {
   if (provenance !== null) return ownedProvenanceSource(provenance);
-  if (typeof attributed === 'string') return attributed;
-  return opts.provenanceSource ?? '';
+  return resolved;
 }
 
 function assembleOnePlanStory(normalized, attributed, opts) {
@@ -363,7 +361,7 @@ function assembleOnePlanStory(normalized, attributed, opts) {
   // Mechanical on purpose: the authoring agent is not asked to hand-carry
   // audit footers. A non-audit seed has none, so this is a no-op there.
   const { body } = carryProvenanceFooters({
-    from: resolveProvenanceSource(provenance, attributed, opts),
+    from: resolveProvenanceSource(provenance, attributed),
     into: serialized,
   });
   const fingerprint = planStoryFingerprint({ slug, title, body });
@@ -429,12 +427,12 @@ export function assemblePlanStories(tickets, opts = {}) {
   );
   const stories = orderStoriesByDependencies(
     normalized.map(
-      (n, i) => assembleOnePlanStory(n, attribution?.sources[i], opts).story,
+      (n, i) => assembleOnePlanStory(n, attribution.sources[i], opts).story,
     ),
   );
 
   const warnings = [
-    ...(attribution?.warnings ?? []),
+    ...attribution.warnings,
     ...resolveSupersedePartition(stories, opts.sourceTicketIds ?? []),
   ];
 

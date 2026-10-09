@@ -198,8 +198,12 @@ export function buildPlanSeedMarkdown({ groups, findings, sourceReports }) {
   const scope = formatFindingsList(findings);
   const files = formatKeyFiles(groups);
   const assumptions = formatKeyAssumptions(sourceReports);
-  const dedupFooters = formatDedupFooters(groups);
-  const findingRecords = formatFindingRecords(groups);
+  const dedupFooters = [
+    formatDedupFooters(groups),
+    formatFindingRecords(groups),
+  ]
+    .filter(Boolean)
+    .join('\n');
 
   return [
     '# Idea Seed: Audit Remediation',
@@ -221,7 +225,6 @@ export function buildPlanSeedMarkdown({ groups, findings, sourceReports }) {
     scope || '_(no findings)_',
     '',
     dedupFooters,
-    ...(findingRecords ? [findingRecords] : []),
     '',
     '## Key Files',
     '',
