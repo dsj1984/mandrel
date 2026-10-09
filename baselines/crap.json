@@ -31505,6 +31505,12 @@
     },
     {
       "path": ".agents/scripts/lib/test-run-credit.js",
+      "method": "depositConfig",
+      "startLine": 49,
+      "crap": 2.0625
+    },
+    {
+      "path": ".agents/scripts/lib/test-run-credit.js",
       "method": "storyIdFromBranch",
       "startLine": 49,
       "crap": 4
@@ -36705,6 +36711,12 @@
       "startLine": 986,
       "crap": 1,
       "anonymous": true
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "describeNpmTestScript",
+      "startLine": 1015,
+      "crap": 3
     },
     {
       "path": "lib/cli/registry.js",
