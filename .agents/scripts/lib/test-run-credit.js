@@ -39,13 +39,15 @@ function testGateConfigHash(config, cwd) {
 }
 
 /**
- * The checkout's resolved config, or null (→ the `npm test` default) when it
- * cannot be read — a credit deposit never fails the run.
+ * The injected config, else the checkout's resolved config, or null (→ the
+ * `npm test` default) when it cannot be read — a deposit never fails the run.
  *
+ * @param {object|null|undefined} config
  * @param {string} cwd
  * @returns {object|null}
  */
-function readCheckoutConfig(cwd) {
+function depositConfig(config, cwd) {
+  if (config !== undefined) return config;
   try {
     return resolveConfig({ cwd });
   } catch {
@@ -133,7 +135,7 @@ export function depositTestRunCredit({
     storyId,
     sha,
     cwd,
-    config: config === undefined ? readCheckoutConfig(cwd) : config,
+    config: depositConfig(config, cwd),
     evidenceRoot,
     durationMs,
     gitSpawnFn,
