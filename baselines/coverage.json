@@ -850,9 +850,9 @@
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "lines": 84.88,
-      "branches": 85.26,
-      "functions": 51.43
+      "lines": 99.53,
+      "branches": 91.56,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/bootstrap/prompt.js",
@@ -3526,8 +3526,8 @@
     },
     {
       "path": "lib/cli/uninstall.js",
-      "lines": 95.14,
-      "branches": 85.07,
+      "lines": 95.25,
+      "branches": 85.51,
       "functions": 100
     },
     {
@@ -3630,6 +3630,12 @@
       "path": "lib/migrations/steps/2.70.0-retire-audit-ledger.js",
       "lines": 100,
       "branches": 60,
+      "functions": 100
+    },
+    {
+      "path": "lib/migrations/steps/2.79.0-container-safe-projections.js",
+      "lines": 97.8,
+      "branches": 81.25,
       "functions": 100
     },
     {

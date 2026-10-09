@@ -22,8 +22,8 @@ a lens performs is its report artifact (plus, where a lens explicitly declares
 it, a single measurement/baseline artifact named in that lens's own
 Constraint). A lens that names a stricter or looser read-only carve-out in its
 own body (e.g. performance's non-mutating measurements, quality's permitted
-committed-baseline reads, data-model's no-database rule) refines this shared
-constraint for that lens only.
+committed-baseline reads, data-model's opt-in read-only database carve-out)
+refines this shared constraint for that lens only.
 
 ## Scope interpretation (Story / plan-run mode) {#scope-interpretation}
 
@@ -43,12 +43,58 @@ with its config-driven target set; navigability always evaluates the whole
 route tree regardless of the fence). Those lenses state their deviation in
 their own Scope section; every other lens follows the rule above verbatim.
 
+## Ecosystem detection & the absent-vs-inapplicable rule {#ecosystem-detection}
+
+A lens's Step 0 instruments are ecosystem-specific, so detect the ecosystems
+from repo-observable manifests **before** running any rung:
+
+| Ecosystem | Detected by |
+| --- | --- |
+| JS / TS | `package.json` |
+| Python | `pyproject.toml`, `setup.cfg`, `requirements*.txt` |
+| Go | `go.mod` |
+| Rust | `Cargo.toml` |
+| CI — GitHub Actions | `.github/workflows/*.yml` / `*.yaml` |
+| CI — Google Cloud Build | `cloudbuild*.yaml` |
+| CI — GitLab CI | `.gitlab-ci.yml` |
+| CI — Azure Pipelines | `azure-pipelines.yml` |
+
+Run the rung for **every** detected ecosystem — a polyglot repo gets more than
+one — and name the detected set in the Executive Summary. Then:
+
+- **Absent is a gap.** A scanner for a **detected** ecosystem that is not
+  installed is a gap: record it as a Low-severity `Standardization` finding
+  (recommend adopting it) and fall through to the next rung or a manual read.
+- **Inapplicable is never a finding.** A scanner for an ecosystem that is
+  **not detected** is inapplicable — skip it silently. It is never a finding,
+  not even a Low one (`actionlint` on a repo with no `.github/workflows/` is
+  inapplicable, not missing).
+- **Non-JS fallback.** Where a lens's JS rung reads a Mandrel-shipped script
+  or a committed `baselines/*.json` file that does not exist in the consumer,
+  measure with the ecosystem's own instrument instead of reporting the missing
+  script or baseline:
+
+| Dimension | Python | Go | Rust |
+| --- | --- | --- | --- |
+| Complexity / MI | `radon cc -s -a`, `radon mi -s` | `gocyclo` | `cargo clippy` (cognitive_complexity) |
+| Dead code | `vulture` | `staticcheck` (U1000) | `cargo +nightly udeps`, rustc dead_code warnings |
+| Duplication | `pylint --disable=all --enable=duplicate-code`, or `jscpd` | `jscpd` | `jscpd` |
+| Import graph / cycles | `pydeps --show-cycles`, `import-linter` (`lint-imports`) | `go vet`, `go list -deps` | `cargo modules` |
+| Coverage | `coverage report` / `pytest --cov` (coverage.py, pytest-cov) | `go test -cover` | `cargo llvm-cov`, `cargo tarpaulin` |
+| Dependency CVEs | `pip-audit` | `govulncheck` | `cargo audit` |
+| Profiling | `py-spy record`, `python -m cProfile` | `go test -cpuprofile`, `pprof` | `cargo flamegraph` |
+
 ## Report envelope & finding-block skeleton {#report-envelope}
 
 Each lens writes exactly one structured Markdown report to
 `{{auditOutputDir}}/audit-<lens>-results.md` (the lens preamble names its own
-path). The report MUST include every section its lens template mandates — write
-`_No findings._` rather than omitting a section — and always an
+path). A dispatched run gets the anchor substituted; on a manual
+`/audit-<lens>` invocation it renders the literal string `{{auditOutputDir}}`.
+Treat that literal as `<project.paths.tempRoot>/audits` — **`temp/audits` by
+default** — and write the report there, mirroring the `{{changedFiles}}`
+manual-run rule above. The report MUST include every section its lens
+template mandates — write `_No findings._` rather than omitting a section — and
+always an
 `## Executive Summary` and a `## Detailed Findings` section. The Executive
 Summary carries the self-cross-check `kept <k> / dropped <d>` line
 ([below](#self-cross-check)) and, beside it, the machine-readable severity
@@ -230,15 +276,18 @@ lens that has one, so a lens documents only its own probe.
    device profile, colour scheme — before finishing, so a following lens or QA
    run does not inherit it.
 
-**Skip reasons, and how to report them.** The pass is skipped, never faked, for
-either of two reasons, and the Executive Summary says which:
+**Skip reasons, and how to report them.** The pass is skipped, never faked,
+for any of the reasons below that applies to the lens's probe, and the
+Executive Summary says which. A lens whose probe has further skip conditions
+lists them in its own body:
 
 | Condition | Reported as |
 | --- | --- |
 | No `qa.environments` target is configured | `skipped — no target configured` |
 | The browser tooling is unavailable in this runtime | `skipped — browser tooling unavailable` |
+| A database probe finds no opted-in `database` block on the target | `skipped — no database target configured` |
 
-The second is the one an unattended sweep meets: a scheduled run has no browser
+The browser-tooling row is the one an unattended sweep meets: a scheduled run has no browser
 MCP server attached, so a lens that treated "cannot drive" as "nothing found"
 would report a clean runtime section it never ran. Do not invent a URL, do not
 start an arbitrary dev server, and do not fall back to a static-only claim

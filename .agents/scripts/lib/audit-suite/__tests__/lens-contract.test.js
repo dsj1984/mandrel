@@ -248,6 +248,96 @@ describe('lens composition contract (Story #4665)', () => {
   }
 });
 
+describe('ecosystem-detected Step 0 rungs (Story #5583)', () => {
+  const coreMd = fs.readFileSync(CORE_HELPER, 'utf8');
+
+  it('AC-1: a manual run resolves a literal {{auditOutputDir}} to <tempRoot>/audits', () => {
+    assert.match(
+      coreMd,
+      /manual\s+`\/audit-<lens>`\s+invocation[\s\S]{0,200}literal string `\{\{auditOutputDir\}\}`/,
+      'audit-lens-core.md does not say what a literal {{auditOutputDir}} means on a manual run',
+    );
+    assert.ok(
+      coreMd.includes('<project.paths.tempRoot>/audits') &&
+        coreMd.includes('`temp/audits` by\ndefault'),
+      'audit-lens-core.md does not name <tempRoot>/audits (temp/audits by default) as the manual output path',
+    );
+  });
+
+  it('AC-2: the core defines manifest-based detection and the absent-vs-inapplicable rule', () => {
+    for (const manifest of [
+      'package.json',
+      'pyproject.toml',
+      'setup.cfg',
+      'requirements*.txt',
+      'go.mod',
+      'Cargo.toml',
+      '.github/workflows/',
+      'cloudbuild*.yaml',
+      '.gitlab-ci.yml',
+      'azure-pipelines.yml',
+    ]) {
+      assert.ok(
+        coreMd.includes(`\`${manifest}`),
+        `audit-lens-core.md ecosystem detection omits the ${manifest} manifest`,
+      );
+    }
+    assert.match(
+      coreMd,
+      /\*\*Absent is a gap\.\*\*[\s\S]{0,80}\*\*detected\*\*[\s\S]{0,120}Low-severity `Standardization` finding/,
+      'audit-lens-core.md does not keep a missing scanner for a detected ecosystem as a gap',
+    );
+    assert.match(
+      coreMd,
+      /\*\*Inapplicable is never a finding\.\*\*[\s\S]{0,200}\*\*not detected\*\*[\s\S]{0,120}never a finding,\s+not even a Low one/,
+      'audit-lens-core.md does not make an undetected-ecosystem scanner inapplicable and never a finding',
+    );
+  });
+
+  /** Lens → Python instruments that must appear in its battery (AC-3). */
+  const PYTHON_RUNGS = Object.freeze({
+    'clean-code': ['radon', 'vulture', 'duplicate-code'],
+    architecture: ['pydeps', 'lint-imports', 'vulture'],
+    quality: ['coverage report', '.pytest_cache', 'hypothesis'],
+    security: ['pip-audit', 'bandit'],
+    devops: ['pyproject.toml', 'pre-commit'],
+    performance: ['py-spy', 'cProfile', 'tracemalloc'],
+  });
+
+  for (const [lens, instruments] of Object.entries(PYTHON_RUNGS)) {
+    it(`AC-3: audit-${lens} carries a Python rung and links the core's detection`, () => {
+      const md = readLens(lens);
+      assert.ok(
+        md.includes('](helpers/audit-lens-core.md#ecosystem-detection)'),
+        `audit-${lens} does not route its rungs through the core's ecosystem detection`,
+      );
+      for (const instrument of instruments) {
+        assert.ok(
+          md.includes(instrument),
+          `audit-${lens} names no Python instrument "${instrument}"`,
+        );
+      }
+    });
+  }
+
+  it('AC-4: devops covers Cloud Build and GitLab CI definitions and run history', () => {
+    const md = readLens('devops');
+    for (const needle of [
+      'cloudbuild*.yaml',
+      'gcloud builds list',
+      '.gitlab-ci.yml',
+      'glab ci list',
+    ]) {
+      assert.ok(md.includes(needle), `audit-devops omits ${needle}`);
+    }
+    assert.match(
+      md,
+      /\*\*undetected\*\* surface is inapplicable and never a finding/,
+      'audit-devops still reports a GitHub-only scanner as missing on a non-GitHub repo',
+    );
+  });
+});
+
 describe('audit-performance lens rework (Story #4631)', () => {
   const md = readLens('performance');
 

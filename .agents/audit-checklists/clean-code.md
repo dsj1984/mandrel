@@ -19,6 +19,7 @@ Self-check your change against this lens's concerns before you ship:
 - [ ] Dynamic imports
 - [ ] Test-only seams
 - [ ] Framework/registration hooks
+- [ ] Non-JS ecosystems.
 - [ ] Churn-by-complexity hotspot cap.
 - [ ] Logic Complexity
 - [ ] Duplication

@@ -68,9 +68,14 @@ file is its standalone-agent form.
   (e.g. `perf-baseline.json`).
 - Running **non-mutating** measurements/scanners the lens calls for (profilers,
   timers, `npm audit`, read-only status commands) is permitted; running
-  anything that installs, mutates git/labels, edits source, or connects to a
-  production database is forbidden. A lens that names a stricter carve-out
-  tightens this for that lens.
+  anything that installs, mutates git/labels, or edits source is forbidden.
+  A lens that names a stricter carve-out tightens this for that lens.
+- **Databases.** Never connect to a production database, under any
+  configuration. Connect to any other database only when the lens body
+  provides for it **and** that environment opts in via `allowAudit`, through
+  the environment variable named by `urlEnv`, read-only, with
+  `default_transaction_read_only=on` on any session you open. Never run a
+  migration or any statement that writes.
 
 ## Scope
 

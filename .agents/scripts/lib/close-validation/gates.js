@@ -15,6 +15,7 @@ import {
   resolveFormatCheckCommand,
   resolveFormatWriteCommand,
   resolveLintCommand,
+  resolveTestGateArgv,
   resolveTypecheckCommand,
 } from './commands.js';
 
@@ -80,16 +81,20 @@ function isCoverageCaptureActive(config, scripts) {
 
 /**
  * The plain `test` gate, unless coverage-capture will run the suite — every
- * close must keep exactly one working test gate.
+ * close must keep exactly one working test gate. Its argv is
+ * `project.commands.test` (default `npm test`).
  *
  * @param {boolean} coverageCaptureRunsSuite
+ * @param {object|undefined|null} config - Canonical resolved config.
  * @returns {Gate[]}
  */
-function buildTestGateEntry(coverageCaptureRunsSuite) {
+function buildTestGateEntry(coverageCaptureRunsSuite, config) {
   if (coverageCaptureRunsSuite) return [];
   // `fullSuiteLock` serializes this suite behind the host lock; when
   // coverage-capture runs instead, `runCapture` takes the lock itself.
-  return [{ name: 'test', cmd: 'npm', args: ['test'], fullSuiteLock: true }];
+  return [
+    { name: 'test', ...resolveTestGateArgv(config), fullSuiteLock: true },
+  ];
 }
 
 const CHECK_BASELINES_HINT =
@@ -424,10 +429,11 @@ export function buildDefaultGates({
 } = {}) {
   const scripts = packageScripts ?? readPackageScripts(cwd);
   const coverageCaptureActive = isCoverageCaptureActive(config, scripts);
-  // A credited bare `npm test` registers the plain `test` gate beside the
+  // A credited `project.commands.test` run registers the plain `test` gate beside the
   // capture so the credit is reported, never re-spent.
   const testCredited = resolveTestCredited({
     coverageCaptureActive,
+    config,
     storyId,
     cwd,
     evidenceCwd,
@@ -491,6 +497,7 @@ export function buildDefaultGates({
         captureSkipPredicted,
         testCredited,
       }),
+      config,
     ),
     {
       name: 'format',

@@ -15,6 +15,28 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.79.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.78.0...mandrel-v2.79.0) (2026-10-09)
+
+
+### Added
+
+* audit lenses: ecosystem-detected Step 0 rungs for Python and non-GitHub CI, and a stated manual output path ([#5583](https://github.com/dsj1984/mandrel/issues/5583)) ([#5586](https://github.com/dsj1984/mandrel/issues/5586)) ([3c5bf96](https://github.com/dsj1984/mandrel/commit/3c5bf9673b413800deca87e6fc30b956b10154c8))
+* bootstrap: container-safe prepare hook and a gitignored .claude/agents/ projection ([#5581](https://github.com/dsj1984/mandrel/issues/5581)) ([#5590](https://github.com/dsj1984/mandrel/issues/5590)) ([96c4b20](https://github.com/dsj1984/mandrel/commit/96c4b2024724805122ab2b4d3f046cac8b3f7852))
+* bootstrap: skip Projects V2 board creation non-interactively, and continue when project creation is declined ([#5584](https://github.com/dsj1984/mandrel/issues/5584)) ([#5587](https://github.com/dsj1984/mandrel/issues/5587)) ([14db7d3](https://github.com/dsj1984/mandrel/commit/14db7d33a017a314a98d7be2f344988da7e2ef3b))
+* close and doctor honor project.commands.test instead of hardcoding npm test ([#5582](https://github.com/dsj1984/mandrel/issues/5582)) ([#5588](https://github.com/dsj1984/mandrel/issues/5588)) ([7849cf2](https://github.com/dsj1984/mandrel/commit/7849cf2945837631167241d6c30979433f9dcfea))
+
+
+### Fixed
+
+* mandrel update preserves the consumer's exact or tilde pin instead of loosening it to a caret ([#5580](https://github.com/dsj1984/mandrel/issues/5580)) ([#5585](https://github.com/dsj1984/mandrel/issues/5585)) ([443c10a](https://github.com/dsj1984/mandrel/commit/443c10a2c0a7a2e6c7597b4196e9f3cb58440d23))
+
+## [2.78.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.77.0...mandrel-v2.78.0) (2026-10-09)
+
+
+### Added
+
+* audit findings: drop the Agent Prompt field and carry Acceptance signal and Recommendation through to Stories and plan seeds ([#5569](https://github.com/dsj1984/mandrel/issues/5569)) ([#5570](https://github.com/dsj1984/mandrel/issues/5570)) ([0ac754d](https://github.com/dsj1984/mandrel/commit/0ac754d4897e8cb16bd7c5bfcf4034efcd039f3d))
+
 ## [2.77.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.76.0...mandrel-v2.77.0) (2026-10-08)
 
 
