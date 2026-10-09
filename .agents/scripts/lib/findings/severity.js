@@ -95,8 +95,15 @@ export function highestSeverity(values) {
  * @returns {T[]} a new array.
  */
 export function sortBySeverity(items) {
-  const rank = (item) => SEVERITY_RANK[item?.severity] ?? -1;
-  return [...items].sort((a, b) => rank(b) - rank(a));
+  return [...items].sort(compareSeverityDesc);
+}
+
+function rankOf(item) {
+  return SEVERITY_RANK[item?.severity] ?? -1;
+}
+
+function compareSeverityDesc(a, b) {
+  return rankOf(b) - rankOf(a);
 }
 
 /** Test-only: the alias-table invariant is unobservable via the API. */
