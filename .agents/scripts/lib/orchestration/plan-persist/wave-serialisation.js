@@ -15,7 +15,7 @@ import { detectCollision } from '../../wave-runner/footprint.js';
  * @param {ReturnType<typeof buildWaveTable>} waveTable
  * @param {Array<{ slug: string, title?: string, body?: string, spec?: string, changes?: Array }>} stories
  * @param {{ tempRoot?: string }} [options] Accepted for compatibility; unread.
- * @returns {Array<{ wave: number, slugs: [string, string], paths: string[], source: string }>}
+ * @returns {Array<{ wave: number, slugs: [string, string], paths: string[], source: string, declaredBy: Record<string, string> }>}
  */
 export function predictWaveSerialisation(waveTable, stories, options = {}) {
   const bySlug = new Map(
@@ -71,6 +71,7 @@ export function renderPredictedSerialisationLines(collisions) {
     '_The dispatcher compares the **declared** `changes[]` footprints ' +
       '(Story #5313 retired the text scrape), so these pairs are shown in ' +
       'one order above but will be dispatched one at a time: both Stories ' +
-      'declare a colliding path, or one declares a glob._',
+      'declare a colliding path, or one declares a glob that covers the ' +
+      "other's path._",
   ];
 }

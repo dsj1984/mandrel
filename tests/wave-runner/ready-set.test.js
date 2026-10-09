@@ -7,7 +7,10 @@ import {
   semanticKeyFor,
 } from '../../.agents/scripts/lib/findings/route-finding.js';
 import { AGENT_LABELS } from '../../.agents/scripts/lib/label-constants.js';
-import { storyFootprint } from '../../.agents/scripts/lib/wave-runner/footprint.js';
+import {
+  detectCollision,
+  storyFootprint,
+} from '../../.agents/scripts/lib/wave-runner/footprint.js';
 import {
   classifyStory,
   planReadySet,
@@ -354,7 +357,7 @@ describe('lib/wave-runner/ready-set — planReadySet edge cases', () => {
   });
 });
 
-describe('storiesOverlap — glob footprints fail safe (Story #4540)', () => {
+describe('storiesOverlap — a glob collides with what it covers (Stories #4540, #5596)', () => {
   const glob = { id: 1, dependsOn: [], files: ['.agents/scripts/lib/**'] };
   const exact = {
     id: 2,
@@ -370,9 +373,15 @@ describe('storiesOverlap — glob footprints fail safe (Story #4540)', () => {
     assert.equal(storiesOverlap(glob, exact), true);
   });
 
-  it('a glob overlaps everything — unknown width is not no width', () => {
-    assert.equal(storiesOverlap(glob, unrelated), true);
-    assert.equal(storiesOverlap(unrelated, glob), true);
+  it('a glob no longer overlaps a path it cannot match (Story #5596)', () => {
+    assert.equal(storiesOverlap(glob, unrelated), false);
+    assert.equal(storiesOverlap(unrelated, glob), false);
+  });
+
+  it('the `**` sentinel still overlaps every declared path', () => {
+    const unknown = { id: 9, dependsOn: [], files: ['**'] };
+    assert.equal(storiesOverlap(unknown, unrelated), true);
+    assert.equal(storiesOverlap(unrelated, unknown), true);
   });
 
   it('exact footprints keep their precise semantics', () => {
@@ -390,14 +399,18 @@ describe('storiesOverlap — glob footprints fail safe (Story #4540)', () => {
     assert.equal(storiesOverlap(glob, { id: 5 }), false);
   });
 
-  it('a glob-bearing Story is not co-dispatched with anything', () => {
+  it('a glob-bearing Story is co-dispatched with what it cannot cover', () => {
     const ready = dispatchSet({
       stories: [glob, exact, unrelated],
       doneIds: new Set(),
       inFlight: 0,
       globalCap: 5,
     }).map((s) => s.id);
-    assert.deepEqual(ready, [1], 'the glob Story takes the beat alone');
+    assert.deepEqual(
+      ready,
+      [1, 3],
+      'the glob withholds only the Story whose path it covers',
+    );
   });
 });
 
@@ -474,7 +487,7 @@ describe('the footprint is the declaration (Story #5313)', () => {
     );
   });
 
-  it('a declared glob still collides with everything on its beat', () => {
+  it('a declared glob still collides with a path it covers on its beat', () => {
     const a = story(1, { files: ['lib/a.js'] });
     assert.equal(storiesOverlap(story(3, { files: ['lib/**'] }), a), true);
   });
@@ -1070,5 +1083,122 @@ describe('a declared glob still fails safe within a beat', () => {
     assert.equal(footprintWithholds.length, 1);
     assert.deepEqual(footprintWithholds[0].paths, ['.agents/scripts/lib/**']);
     assert.equal(footprintWithholds[0].source, 'declared-overlap');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Story #5596 — a glob collides only with paths it can cover
+// ---------------------------------------------------------------------------
+
+describe('detectCollision — coverage matching and declarer attribution (Story #5596)', () => {
+  const fp = (...files) => ({ files });
+
+  it('AC-1: a glob matching nothing on the other side does not collide', () => {
+    assert.equal(
+      detectCollision(
+        fp('supabase/migrations/*_page.sql'),
+        fp('GATEKEEPER/app.ts'),
+      ),
+      null,
+    );
+  });
+
+  it('AC-2: a covering glob collides and is attributed to its sole declarer', () => {
+    assert.deepEqual(detectCollision(fp('lib/**'), fp('lib/x.js')), {
+      paths: ['lib/**'],
+      source: 'declared-overlap',
+      declaredBy: { 'lib/**': 'a' },
+    });
+    assert.deepEqual(
+      detectCollision(fp('lib/x.js'), fp('lib/**'))?.declaredBy,
+      { 'lib/**': 'b' },
+    );
+  });
+
+  it('a shared concrete path is declared by both sides', () => {
+    assert.deepEqual(
+      detectCollision(fp('lib/x.js', 'a.md'), fp('lib/x.js'))?.declaredBy,
+      { 'lib/x.js': 'both' },
+    );
+  });
+
+  it('matches dot-paths, as the audit selector does', () => {
+    assert.ok(detectCollision(fp('lib/**'), fp('lib/.hidden/x.js')));
+  });
+
+  it('AC-3: globs collide when their static bases overlap, not otherwise', () => {
+    assert.deepEqual(
+      detectCollision(fp('lib/**'), fp('lib/sub/*.js'))?.declaredBy,
+      { 'lib/**': 'a', 'lib/sub/*.js': 'b' },
+    );
+    assert.equal(detectCollision(fp('lib/**'), fp('docs/*.md')), null);
+    assert.equal(
+      detectCollision(fp('lib/**'), fp('libs/*.js')),
+      null,
+      'a base prefix must end on a whole segment',
+    );
+    assert.ok(
+      detectCollision(fp('*.md'), fp('docs/*.md')),
+      'an empty base overlaps every glob',
+    );
+  });
+
+  it('AC-4: the `**` sentinel collides with every non-empty footprint', () => {
+    const unknown = fp('**');
+    for (const other of [
+      fp('docs/README.md'),
+      fp('.github/workflows/ci.yml'),
+      fp('lib/**'),
+      fp('*.md'),
+      fp('**'),
+    ]) {
+      assert.ok(detectCollision(unknown, other), JSON.stringify(other));
+      assert.ok(detectCollision(other, unknown), JSON.stringify(other));
+    }
+    assert.equal(detectCollision(unknown, fp()), null);
+  });
+
+  it('AC-4: the sentinel shares a beat with nothing when two Stories are picked', () => {
+    const unknown = story(1, { files: ['**'] });
+    const other = story(2, { files: ['docs/README.md'] });
+    assert.deepEqual(
+      ids(dispatchSet({ stories: [unknown, other], globalCap: 5 })),
+      [1],
+    );
+  });
+
+  it('AC-4: concreteOnly still ignores globs on both sides', () => {
+    assert.equal(
+      detectCollision(fp('**'), fp('lib/x.js'), { concreteOnly: true }),
+      null,
+    );
+    assert.equal(
+      detectCollision(fp('lib/**'), fp('lib/sub/*.js'), { concreteOnly: true }),
+      null,
+    );
+    assert.deepEqual(
+      detectCollision(fp('lib/**', 'a.js'), fp('a.js', 'lib/x.js'), {
+        concreteOnly: true,
+      }),
+      {
+        paths: ['a.js'],
+        source: 'declared-overlap',
+        declaredBy: { 'a.js': 'both' },
+      },
+    );
+  });
+
+  it('AC-4: an in-flight glob reserves nothing across beats', () => {
+    const held = story(2, {
+      files: ['**'],
+      labels: [AGENT_LABELS.EXECUTING],
+    });
+    const { selected } = planReadySet({
+      stories: [story(1, { files: ['lib/a.js'] }), held],
+      inFlight: 1,
+      globalCap: 5,
+      inFlightRecords: [held],
+    });
+    assert.deepEqual(ids(selected), [1]);
   });
 });

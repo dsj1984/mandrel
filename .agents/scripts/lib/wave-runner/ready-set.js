@@ -83,9 +83,9 @@ export function classifyStory(story) {
 
 /**
  * Beat-local overlap guard: `true` when two footprints intersect. A glob
- * (unknown width) overlaps everything, since exact-string comparison would
- * otherwise pass two Stories that really race; this fail-safe is beat-local
- * only.
+ * collides with every path it can match and with any glob whose static base
+ * overlaps its own, so the `**` UNKNOWN sentinel still collides with every
+ * declared footprint; honouring globs is beat-local only.
  *
  * @param {StoryRecord} a
  * @param {StoryRecord} b
@@ -283,6 +283,17 @@ function blockingCollision({ rec, id, selected, reserved, evidence }) {
 }
 
 /**
+ * A withhold row keeps `paths` and `source` only — the ledger shape predates
+ * the collision's `declaredBy` attribution.
+ *
+ * @param {number|null} blockedBy
+ * @param {{ paths: string[], source: string }} collision
+ */
+function blockerRow(blockedBy, { paths, source }) {
+  return { blockedBy, paths, source };
+}
+
+/**
  * The same-beat peer this candidate would race, with the colliding paths, so
  * an unfilled slot is never unexplained.
  *
@@ -294,7 +305,7 @@ function blockingCollision({ rec, id, selected, reserved, evidence }) {
 function findBeatBlocker(candidate, selected, options = {}) {
   for (const picked of selected) {
     const collision = detectCollision(picked, candidate, options);
-    if (collision) return { blockedBy: storyIdOf(picked), ...collision };
+    if (collision) return blockerRow(storyIdOf(picked), collision);
   }
   return null;
 }
@@ -315,7 +326,7 @@ function findInFlightBlocker(candidate, candidateId, reserved, options = {}) {
     const heldId = storyIdOf(held);
     if (heldId === null || heldId === candidateId) continue;
     const collision = reservesConcretePath(held, candidate, options);
-    if (collision) return { blockedBy: heldId, ...collision };
+    if (collision) return blockerRow(heldId, collision);
   }
   return null;
 }
