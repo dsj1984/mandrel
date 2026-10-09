@@ -1379,6 +1379,10 @@
       "mi": 90.843
     },
     {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/collision-message.js",
+      "mi": 111.48
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/plan-persist/cross-plan-links.js",
       "mi": 114.736
     },
