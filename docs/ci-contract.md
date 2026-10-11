@@ -108,7 +108,7 @@ simply never the deleted step's to fill.
 
 [`.github/workflows/baseline-drift.yml`](../.github/workflows/baseline-drift.yml)
 now fills it: a nightly (05:43 UTC) + `workflow_dispatch` job that re-scores
-maintainability full-scope with `--require-scored`, opens or updates one
+maintainability and duplication full-scope with `--require-scored`, opens or updates one
 `meta::baseline-drift` tracking issue with the report, closes that issue when
 the tree comes back clean, and fails the run. It is deliberately off the
 per-PR path, so the duplication #5004 removed is not reintroduced. Its first
