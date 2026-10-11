@@ -7859,8 +7859,32 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
+      "method": "relativisePath",
+      "startLine": 53,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
+      "method": "cloneLineNumbers",
+      "startLine": 68,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
       "method": "buildDuplicationRows",
       "startLine": 80,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
+      "method": "toLineCountMap",
+      "startLine": 123,
+      "crap": 10.399999999999999
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
+      "method": "readLineCount",
+      "startLine": 138,
       "crap": 4
     },
     {
