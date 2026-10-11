@@ -310,8 +310,10 @@ describe('default duplication scorer — jscpd formats (Story #5605)', () => {
       writeFileSync(path.join(srcDir, f), clonedSource(false));
     }
     const duplication = {
-      // jscpd resolves `path` against the process cwd, not its `cwd` option.
-      targetDirs: [srcDir],
+      // jscpd resolves `path` against the process cwd, not its `cwd` option,
+      // and builds fast-glob patterns from it verbatim, where a Windows `\`
+      // is an escape character — so hand it an absolute POSIX-separated path.
+      targetDirs: [srcDir.split(path.sep).join('/')],
       ...(formats ? { formats } : {}),
     };
     writeFileSync(
