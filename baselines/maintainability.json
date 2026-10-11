@@ -1428,7 +1428,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
-      "mi": 95.716
+      "mi": 96.24
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/summary.js",
@@ -1436,7 +1436,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
-      "mi": 98.381
+      "mi": 99.355
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/wave-collision-gate.js",
