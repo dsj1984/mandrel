@@ -96,6 +96,18 @@ function resolveGate(quality, kind) {
 }
 
 /**
+ * Nothing scored is a skip — except for a presence kind, where it means every
+ * row vanished, which is drift.
+ *
+ * @param {object} spec the kind's KIND_SPECS entry
+ * @param {Array<object>} currentRows
+ * @returns {boolean}
+ */
+function isUnscored(spec, currentRows) {
+  return currentRows.length === 0 && !spec.presenceIsDrift;
+}
+
+/**
  * @param {object} spec the kind's KIND_SPECS entry
  * @param {{ drifted: Array<object>, added: Array<object>, removed: Array<object> }} diff
  * @returns {boolean}
@@ -246,8 +258,7 @@ async function detectKindDrift({
     return { ...base, ok: true, skipped: 'no-scorer' };
   }
   const currentRows = projectScoredRows(kind, raw);
-  // A presence kind scoring nothing means every row vanished — drift, not a skip.
-  if (currentRows.length === 0 && !spec.presenceIsDrift) {
+  if (isUnscored(spec, currentRows)) {
     return { ...base, ok: true, skipped: 'no-scored-rows' };
   }
 
@@ -370,38 +381,47 @@ function formatKindDrift(result) {
   if (result.ok) {
     return `[drift] ✓ ${result.kind}: ${result.scanned} row(s) re-scored full-scope, no drift beyond ±${result.tolerance}`;
   }
-  const width = Math.max(
-    12,
-    ...result.drifted.map((d) => String(d.label).length),
-  );
-  const lines = [
+  return [
     `[drift] ✖ ${result.kind}: ${result.drifted.length} row(s) drifted beyond ±${result.tolerance}${presenceSuffix(result)} (${result.scanned} re-scored, ${result.baselineRows} in baseline)`,
-  ];
-  if (result.drifted.length > 0) {
-    lines.push(
-      `  ${'ROW'.padEnd(width)}  ${'BASELINE'.padStart(10)}  ${'CURRENT'.padStart(10)}  ${'DELTA'.padStart(10)}`,
-    );
-  }
-  for (const d of result.drifted) {
-    lines.push(
-      `  ${String(d.label).padEnd(width)}  ${d.baseline.toFixed(2).padStart(10)}  ${d.current
-        .toFixed(2)
-        .padStart(
-          10,
-        )}  ${(d.delta > 0 ? `+${d.delta.toFixed(2)}` : d.delta.toFixed(2)).padStart(10)}`,
-    );
-  }
-  if (KIND_SPECS[result.kind]?.presenceIsDrift) {
-    lines.push(...formatPresenceRows(result));
-  } else if (result.added.length > 0 || result.removed.length > 0) {
-    lines.push(
-      `  (${result.added.length} row(s) absent from baseline, ${result.removed.length} baseline row(s) absent from the tree)`,
-    );
-  }
-  lines.push(
+    ...formatDriftTable(result.drifted),
+    ...formatAddedRemoved(result),
     `  Remedy: run \`${result.refreshCommand}\` and commit the refreshed baseline with a \`baseline-refresh:\` tagged subject (non-empty body).`,
-  );
-  return lines.join('\n');
+  ].join('\n');
+}
+
+/**
+ * The per-row before/after table; empty when nothing drifted.
+ *
+ * @param {Array<object>} drifted
+ * @returns {string[]}
+ */
+function formatDriftTable(drifted) {
+  if (drifted.length === 0) return [];
+  const width = Math.max(12, ...drifted.map((d) => String(d.label).length));
+  const fmt = (n) => n.toFixed(2).padStart(10);
+  return [
+    `  ${'ROW'.padEnd(width)}  ${'BASELINE'.padStart(10)}  ${'CURRENT'.padStart(10)}  ${'DELTA'.padStart(10)}`,
+    ...drifted.map(
+      (d) =>
+        `  ${String(d.label).padEnd(width)}  ${fmt(d.baseline)}  ${fmt(d.current)}  ${(d.delta > 0 ? `+${d.delta.toFixed(2)}` : d.delta.toFixed(2)).padStart(10)}`,
+    ),
+  ];
+}
+
+/**
+ * Added/removed rows: listed for a presence kind (they are the drift), a
+ * one-line count otherwise.
+ *
+ * @param {object} result
+ * @returns {string[]}
+ */
+function formatAddedRemoved(result) {
+  if (KIND_SPECS[result.kind]?.presenceIsDrift)
+    return formatPresenceRows(result);
+  if (result.added.length + result.removed.length === 0) return [];
+  return [
+    `  (${result.added.length} row(s) absent from baseline, ${result.removed.length} baseline row(s) absent from the tree)`,
+  ];
 }
 
 /**
