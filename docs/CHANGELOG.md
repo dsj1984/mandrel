@@ -15,6 +15,25 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.82.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.81.0...mandrel-v2.82.0) (2026-10-11)
+
+
+### Added
+
+* re-score the by-hand baselines automatically: duplication at close and nightly, dead-export and cyclomatic shrinks at close ([#5626](https://github.com/dsj1984/mandrel/issues/5626)) ([#5631](https://github.com/dsj1984/mandrel/issues/5631)) ([60407e7](https://github.com/dsj1984/mandrel/commit/60407e71d3828a2524efa3cbb6a199ef6d340f6c))
+
+
+### Fixed
+
+* duplication scanner: drop clone sides whose end line exceeds the file length ([#5619](https://github.com/dsj1984/mandrel/issues/5619)) ([#5623](https://github.com/dsj1984/mandrel/issues/5623)) ([03c5ea3](https://github.com/dsj1984/mandrel/commit/03c5ea3e5e66ea443193b84e5822ddddda1d0bff))
+* post-land ref cleanup also reaps the origin/story-&lt;id&gt; remote-tracking… ([#5620](https://github.com/dsj1984/mandrel/issues/5620)) ([#5621](https://github.com/dsj1984/mandrel/issues/5621)) ([487ff5e](https://github.com/dsj1984/mandrel/commit/487ff5e8ef8f95ec87ae41fccb328c7d268aad29))
+
+
+### Changed
+
+* burn down the CRAP and cyclomatic debt in the audit-report parser ([#5627](https://github.com/dsj1984/mandrel/issues/5627)) ([#5630](https://github.com/dsj1984/mandrel/issues/5630)) ([e35cf33](https://github.com/dsj1984/mandrel/commit/e35cf3378c882c926ea2f2484127e709c9159547))
+* burn down the orchestration and bootstrap hotspot clusters and tighten the CRAP and MI floors behind them ([#5628](https://github.com/dsj1984/mandrel/issues/5628)) ([#5632](https://github.com/dsj1984/mandrel/issues/5632)) ([ee56182](https://github.com/dsj1984/mandrel/commit/ee561820e1593eb5e6b56cbf0c4c4b5654033d9f))
+
 ## [2.81.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.80.0...mandrel-v2.81.0) (2026-10-11)
 
 
