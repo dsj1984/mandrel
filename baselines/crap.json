@@ -22850,6 +22850,12 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
+      "method": "resolveRewrite",
+      "startLine": 349,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
       "method": "<anon logPersistEpilogue/(story)#0>",
       "startLine": 353,
       "crap": 1,
@@ -22861,6 +22867,12 @@
       "startLine": 357,
       "crap": 1,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
+      "method": "persistHeadline",
+      "startLine": 361,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
@@ -22915,6 +22927,49 @@
       "startLine": 24,
       "crap": 1,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/source-rewrite.js",
+      "method": "noRewrite",
+      "startLine": 41,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/source-rewrite.js",
+      "method": "stateRefusal",
+      "startLine": 49,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/source-rewrite.js",
+      "method": "<anon stateRefusal/(label)#0>",
+      "startLine": 57,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/source-rewrite.js",
+      "method": "probeSource",
+      "startLine": 68,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/source-rewrite.js",
+      "method": "resolveRewriteTarget",
+      "startLine": 91,
+      "crap": 7
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/source-rewrite.js",
+      "method": "buildPlanRewriteCommentBody",
+      "startLine": 117,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/source-rewrite.js",
+      "method": "rewriteSourceTicket",
+      "startLine": 146,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
@@ -23187,6 +23242,19 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
+      "method": "rewriteLabelMutations",
+      "startLine": 735,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
+      "method": "<anon rewriteLabelMutations/(label)#0>",
+      "startLine": 738,
+      "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
       "method": "<anon createStoryIssues/(story)#0>",
       "startLine": 740,
       "crap": 1.0004298850729125,
@@ -23201,6 +23269,32 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
+      "method": "dryRunEntries",
+      "startLine": 752,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
+      "method": "<anon dryRunEntries/(s)#0>",
+      "startLine": 754,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
+      "method": "<anon dryRunEntries/(s,i)#0>",
+      "startLine": 763,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
+      "method": "adoptedEntry",
+      "startLine": 781,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
       "method": "<anon createStoryIssues/()#0>",
       "startLine": 796,
       "crap": 1,
@@ -23208,9 +23302,28 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
+      "method": "rewriteInPlace",
+      "startLine": 802,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
+      "method": "createOneStory",
+      "startLine": 842,
+      "crap": 2.0059708454810496
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
       "method": "markStoriesReady",
       "startLine": 848,
       "crap": 3.0163230365200735
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
+      "method": "<anon createOneStory/()#0>",
+      "startLine": 854,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
@@ -23557,6 +23670,13 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
+      "method": "<anon closeSupersededTickets/(unit)#0>",
+      "startLine": 477,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "collectSupersedeUnits",
       "startLine": 483,
       "crap": 1
@@ -23565,6 +23685,12 @@
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "recordSupersedeOutcome",
       "startLine": 500,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
+      "method": "supersedeUnit",
+      "startLine": 521,
       "crap": 4
     },
     {
@@ -23582,8 +23708,34 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
+      "method": "isRewrittenSource",
+      "startLine": 546,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "<anon logSupersedeReport/(id)#1>",
       "startLine": 550,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
+      "method": "logRewrittenSources",
+      "startLine": 581,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
+      "method": "<anon logRewrittenSources/(id)#0>",
+      "startLine": 583,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
+      "method": "<anon logRewrittenSources/(id)#1>",
+      "startLine": 585,
       "crap": 1,
       "anonymous": true
     },
@@ -34348,6 +34500,12 @@
     {
       "path": ".agents/scripts/plan-persist.js",
       "method": "buildPersistOptions",
+      "startLine": 194,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/plan-persist.js",
+      "method": "negatableFlag",
       "startLine": 194,
       "crap": 2
     },

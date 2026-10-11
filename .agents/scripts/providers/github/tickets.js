@@ -361,12 +361,13 @@ export class TicketGateway {
    *
    * @field-manifest POST /repos/{owner}/{repo}/issues/{n}/assignees: assignees
    * @field-manifest PATCH /repos/{owner}/{repo}/issues/{n}:
-   *                 body, assignees, state, state_reason, labels
+   *                 title, body, assignees, state, state_reason, labels
    */
   /* node:coverage ignore next */
   async updateTicket(ticketId, mutations) {
     await this._addAssignees(ticketId, mutations.addAssignees);
     const patch = {};
+    if (mutations.title !== undefined) patch.title = mutations.title;
     if (mutations.body !== undefined) patch.body = mutations.body;
     if (mutations.assignees) patch.assignees = mutations.assignees;
     if (mutations.state !== undefined) patch.state = mutations.state;

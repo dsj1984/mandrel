@@ -2146,8 +2146,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
-      "lines": 94.46,
-      "branches": 80.77,
+      "lines": 94.7,
+      "branches": 82.35,
       "functions": 100
     },
     {
@@ -2157,9 +2157,15 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/source-rewrite.js",
+      "lines": 100,
+      "branches": 84.62,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
-      "lines": 95.58,
-      "branches": 87.11,
+      "lines": 95.84,
+      "branches": 87.5,
       "functions": 100
     },
     {
@@ -2171,7 +2177,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "lines": 100,
-      "branches": 93.04,
+      "branches": 93.79,
       "functions": 100
     },
     {
@@ -3214,9 +3220,9 @@
     },
     {
       "path": ".agents/scripts/plan-persist.js",
-      "lines": 80.67,
+      "lines": 81.25,
       "branches": 86.54,
-      "functions": 71.43
+      "functions": 73.33
     },
     {
       "path": ".agents/scripts/plan-run-epilogue.js",
@@ -3352,8 +3358,8 @@
     },
     {
       "path": ".agents/scripts/providers/github/tickets.js",
-      "lines": 99.5,
-      "branches": 89.41,
+      "lines": 99.51,
+      "branches": 89.53,
       "functions": 100
     },
     {

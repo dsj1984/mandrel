@@ -111,4 +111,15 @@ describe('GitHubProvider — error handling', () => {
     const call = gh.__exec.calls[0];
     assert.strictEqual(JSON.parse(call.input).body, 'New body content');
   });
+
+  it('patches the title in updateTicket', async () => {
+    const gh = makeGh({
+      'PATCH /issues/124': { status: 200, json: { id: 124 } },
+    });
+    const provider = createTestProvider({ gh });
+    await provider.updateTicket(124, { title: 'Rewritten', body: 'b' });
+    const patch = JSON.parse(gh.__exec.calls[0].input);
+    assert.strictEqual(patch.title, 'Rewritten');
+    assert.strictEqual(patch.body, 'b');
+  });
 });

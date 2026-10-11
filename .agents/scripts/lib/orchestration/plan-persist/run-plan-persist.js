@@ -1,7 +1,8 @@
 /**
  * Flat Story persist. Hard gates refuse; everything else is a warning the
  * dry-run lists. Order: validate → reachability → wave-collision gate →
- * create (without `agent::ready`) → plan comment on every Story → flip to
+ * create (without `agent::ready`) — or, for a one-for-one `--tickets` plan,
+ * rewrite the source in place → plan comment on every Story → flip to
  * `agent::ready` last, so `ready` implies "plan comments written" → close
  * superseded sources (never fails the run) → temp cleanup.
  *
@@ -40,6 +41,7 @@ import {
 } from './cross-plan-links.js';
 import { validateTickets } from './persist-helpers.js';
 import { surfaceSoftConflictFindings } from './soft-findings.js';
+import { resolveRewriteTarget } from './source-rewrite.js';
 import {
   assemblePlanStories,
   createStoryIssues,
@@ -163,6 +165,7 @@ async function runSupersedePhase(args) {
       dryRun: args.dryRun === true,
       reason: `phase-error: ${err.message}`,
       closed: [],
+      rewritten: [],
       planned: [],
       epicRollup: { closed: [], pending: [] },
       skipped: [],
@@ -336,6 +339,36 @@ async function cleanupPlanDirs({ config, planDir, skipCleanup }) {
 }
 
 /**
+ * Reads only, so the dry run probes too and reports the planned rewrite. A
+ * refused one-for-one lands in the run's warnings.
+ *
+ * @param {Parameters<typeof resolveRewriteTarget>[0]} args
+ * @param {string[]} warnings Appended to in place.
+ * @returns {ReturnType<typeof resolveRewriteTarget>}
+ */
+async function resolveRewrite(args, warnings) {
+  const rewrite = await resolveRewriteTarget(args);
+  warnings.push(...rewrite.warnings);
+  logWarnings(rewrite.warnings);
+  return rewrite;
+}
+
+/**
+ * @param {object[]} created
+ * @param {{ id: number, rewritten?: boolean }} primary
+ * @returns {string}
+ */
+function persistHeadline(created, primary) {
+  if (primary.rewritten) {
+    return `[plan-persist] Rewrote #${primary.id} in place; it is agent::ready.`;
+  }
+  return (
+    `[plan-persist] Persisted ${created.length} Story(ies)` +
+    `; primary #${primary.id} is agent::ready.`
+  );
+}
+
+/**
  * @param {{
  *   created: object[],
  *   primary: object,
@@ -357,10 +390,7 @@ function logPersistEpilogue({
         `from a previous persist: ${adopted.map((s2) => `#${s2.id}`).join(', ')}.`,
     );
   }
-  Logger.info(
-    `[plan-persist] Persisted ${created.length} Story(ies)` +
-      `; primary #${primary.id} is agent::ready.`,
-  );
+  Logger.info(persistHeadline(created, primary));
   Logger.info(
     `[plan-persist] Deliver with: /mandrel-deliver ${created.map((s2) => s2.id).join(' ')}`,
   );
@@ -392,6 +422,7 @@ function logPersistEpilogue({
  *     sourceTicketIds?: number[],
  *     sourceTicketOrigin?: 'flag'|'envelope'|'none',
  *     closeSuperseded?: boolean,
+ *     rewriteSource?: boolean,
  *   },
  * }} input
  */
@@ -416,6 +447,8 @@ export async function runPlanPersist({
     sourceTicketIds = [],
     sourceTicketOrigin = 'none',
     closeSuperseded = true,
+    // One-for-one plans rewrite their source in place unless opted out.
+    rewriteSource = true,
     // Optional container Epic; only set when the operator confirmed one.
     epic = null,
   } = opts;
@@ -493,11 +526,22 @@ export async function runPlanPersist({
     tempRoot: getPaths(config).tempRoot,
   });
 
+  const rewrite = await resolveRewrite(
+    {
+      provider,
+      storyCount: stories.length,
+      sourceTicketIds,
+      rewriteSource,
+      closeSuperseded,
+    },
+    warnings,
+  );
+
   const { created, planRunLabel, planRunLabelApplied } =
     await createStoryIssues({
       provider,
       stories,
-      opts: { dryRun },
+      opts: { dryRun, rewriteTarget: rewrite.target },
     });
 
   const primary = created[0];
@@ -573,6 +617,7 @@ export async function runPlanPersist({
     assumptionNormalizations: validated.normalizations ?? [],
     waveCollisions,
     supersede,
+    rewrite: { ticket: rewrite.ticketId, reason: rewrite.reason },
     epic: containerEpic,
   };
 }
