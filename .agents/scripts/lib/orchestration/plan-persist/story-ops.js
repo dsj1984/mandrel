@@ -743,6 +743,139 @@ function rewriteLabelMutations(currentLabels, add) {
 }
 
 /**
+ * Dry-run receipts: placeholder ids, or the source's id for a rewrite.
+ *
+ * @param {object[]} list
+ * @param {{ id: number }|null} rewriting
+ * @returns {object[]}
+ */
+function dryRunEntries(list, rewriting) {
+  if (rewriting) {
+    return list.map((s) => ({
+      slug: s.slug,
+      id: rewriting.id,
+      title: s.title,
+      url: undefined,
+      adopted: false,
+      rewritten: true,
+    }));
+  }
+  return list.map((s, i) => ({
+    slug: s.slug,
+    id: -(i + 1),
+    title: s.title,
+    url: undefined,
+    adopted: false,
+  }));
+}
+
+/**
+ * A resumed Story; when it is the rewrite target, the source already carries
+ * this Story, so it stays `rewritten`.
+ *
+ * @param {{ slug: string, title: string }} story
+ * @param {{ id: number, url?: string }} already
+ * @param {{ id: number }|null} rewriting
+ * @returns {object}
+ */
+function adoptedEntry(story, already, rewriting) {
+  const entry = {
+    slug: story.slug,
+    id: already.id,
+    title: story.title,
+    url: already.url,
+    adopted: true,
+  };
+  if (already.id === rewriting?.id) entry.rewritten = true;
+  return entry;
+}
+
+/**
+ * @param {object} args
+ * @param {object} args.provider
+ * @param {object} args.story
+ * @param {{ id: number, ticket: object }} args.rewriting
+ * @param {string[]} args.labels
+ * @param {Map<string, number>} args.idBySlug
+ * @returns {Promise<object>} The `created[]` entry.
+ */
+async function rewriteInPlace({
+  provider,
+  story,
+  rewriting,
+  labels,
+  idBySlug,
+}) {
+  await rewriteSourceTicket({
+    provider,
+    target: rewriting,
+    title: story.title,
+    body: renderStoryBodyForCreate(story, idBySlug),
+    labels: rewriteLabelMutations(rewriting.ticket.labels, labels),
+  });
+  Logger.info(
+    `[plan-persist] rewrote source ticket #${rewriting.id} in place as ` +
+      `Story "${story.slug}" — no new issue filed.`,
+  );
+  return {
+    slug: story.slug,
+    id: rewriting.id,
+    title: story.title,
+    url: rewriting.ticket.url,
+    internalId: rewriting.ticket.internalId,
+    adopted: false,
+    rewritten: true,
+  };
+}
+
+/**
+ * POST one Story, adopting a lost-response first attempt by fingerprint.
+ *
+ * @param {object} args
+ * @param {object} args.provider
+ * @param {object} args.story
+ * @param {string[]} args.labels
+ * @param {Map<string, number>} args.idBySlug
+ * @param {Map<string, number[]>} args.idsByTitle
+ * @returns {Promise<object>} The `created[]` entry.
+ */
+async function createOneStory({
+  provider,
+  story,
+  labels,
+  idBySlug,
+  idsByTitle,
+}) {
+  warnOnDivergentSameTitleStory(story, idsByTitle);
+  const result = await provider.createIssue({
+    title: story.title,
+    body: renderStoryBodyForCreate(story, idBySlug),
+    labels,
+    findExisting: () =>
+      findOpenStoryByPlanFingerprint({
+        provider,
+        fingerprint: story.fingerprint,
+      }),
+  });
+  const id = result?.id ?? result?.number;
+  if (!Number.isInteger(id)) {
+    throw new Error(
+      `[plan-persist] createIssue for slug "${story.slug}" did not return a numeric id`,
+    );
+  }
+  return {
+    slug: story.slug,
+    id,
+    title: story.title,
+    url: result.url,
+    // The database id — the only id the native sub-issue write accepts.
+    internalId: result.internalId,
+    // True when the retry probe adopted a lost-response first attempt.
+    adopted: result.adopted === true,
+  };
+}
+
+/**
  * Create Story issues resumably, adopting any open Story whose fingerprint
  * matches. Stories are born without `agent::ready`; `markStoriesReady` flips
  * it last, once every plan comment is on the ticket.
@@ -783,14 +916,7 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
 
   if (opts.dryRun) {
     return {
-      created: list.map((s, i) => ({
-        slug: s.slug,
-        id: rewriting ? rewriting.id : -(i + 1),
-        title: s.title,
-        url: undefined,
-        adopted: false,
-        ...(rewriting ? { rewritten: true } : {}),
-      })),
+      created: dryRunEntries(list, rewriting),
       dependencyEdges: null,
       planRunLabel: cohortLabel,
       planRunLabelApplied: false,
@@ -809,87 +935,33 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
   const { byFingerprint, idsByTitle } = await indexExistingStories(provider);
   const created = [];
   const idBySlug = new Map();
+  const cohortLabels = applyCohortLabel ? [cohortLabel] : [];
 
   // Already dependency-ordered; re-sorting would disagree on the primary.
   for (const story of list) {
     const already = byFingerprint.get(story.fingerprint);
-    if (!already && !rewriting)
-      warnOnDivergentSameTitleStory(story, idsByTitle);
     if (already) {
       Logger.info(
         `[plan-persist] resuming: Story "${story.slug}" already exists as ` +
           `#${already.id} with byte-identical authored content ` +
           `(plan fingerprint ${story.fingerprint}) — skipping create.`,
       );
-      created.push({
-        slug: story.slug,
-        id: already.id,
-        title: story.title,
-        url: already.url,
-        adopted: true,
-        // A resumed rewrite: the source already carries this Story.
-        ...(already.id === rewriting?.id ? { rewritten: true } : {}),
-      });
+      created.push(adoptedEntry(story, already, rewriting));
       idBySlug.set(story.slug, already.id);
       continue;
     }
 
-    const labels = [
-      ...story.labels,
-      ...(applyCohortLabel ? [cohortLabel] : []),
-    ];
-    if (rewriting) {
-      await rewriteSourceTicket({
-        provider,
-        target: rewriting,
-        title: story.title,
-        body: renderStoryBodyForCreate(story, idBySlug),
-        labels: rewriteLabelMutations(rewriting.ticket.labels, labels),
-      });
-      Logger.info(
-        `[plan-persist] rewrote source ticket #${rewriting.id} in place as ` +
-          `Story "${story.slug}" — no new issue filed.`,
-      );
-      created.push({
-        slug: story.slug,
-        id: rewriting.id,
-        title: story.title,
-        url: rewriting.ticket.url,
-        internalId: rewriting.ticket.internalId,
-        adopted: false,
-        rewritten: true,
-      });
-      idBySlug.set(story.slug, rewriting.id);
-      continue;
-    }
-
-    const result = await provider.createIssue({
-      title: story.title,
-      body: renderStoryBodyForCreate(story, idBySlug),
-      labels,
-      findExisting: () =>
-        findOpenStoryByPlanFingerprint({
-          provider,
-          fingerprint: story.fingerprint,
-        }),
-    });
-    const id = result?.id ?? result?.number;
-    if (!Number.isInteger(id)) {
-      throw new Error(
-        `[plan-persist] createIssue for slug "${story.slug}" did not return a numeric id`,
-      );
-    }
-    created.push({
-      slug: story.slug,
-      id,
-      title: story.title,
-      url: result.url,
-      // The database id — the only id the native sub-issue write accepts.
-      internalId: result.internalId,
-      // True when the retry probe adopted a lost-response first attempt.
-      adopted: result.adopted === true,
-    });
-    idBySlug.set(story.slug, id);
+    const args = {
+      provider,
+      story,
+      labels: [...story.labels, ...cohortLabels],
+      idBySlug,
+    };
+    const entry = rewriting
+      ? await rewriteInPlace({ ...args, rewriting })
+      : await createOneStory({ ...args, idsByTitle });
+    created.push(entry);
+    idBySlug.set(story.slug, entry.id);
   }
 
   // Includes adopted ids, so a resume mirrors the whole cohort (idempotent).

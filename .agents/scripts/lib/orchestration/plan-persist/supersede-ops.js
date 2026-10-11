@@ -474,20 +474,7 @@ export async function closeSupersededTickets({
   // the probe → comment → close sequence stays strictly ordered.
   const outcomes = await concurrentMap(
     units,
-    ({ id, note, createdStory }) => {
-      if (!createdStory) {
-        return { outcome: 'skipped', reason: 'story-not-created' };
-      }
-      if (isRewrittenSource(createdStory, id)) return { outcome: 'rewritten' };
-      if (dryRun) return { outcome: 'planned' };
-      return closeOneSupersededTicket({
-        provider,
-        id,
-        note,
-        story: createdStory,
-        sourceTicketIds: sources,
-      });
-    },
+    (unit) => supersedeUnit(unit, { provider, dryRun, sources }),
     { concurrency: FANOUT_CONCURRENCY },
   );
 
@@ -522,6 +509,31 @@ function collectSupersedeUnits(stories, createdBySlug) {
     }
   }
   return units;
+}
+
+/**
+ * One unit's outcome. Never throws.
+ *
+ * @param {{ id: number, note: string|null, createdStory: object|undefined }} unit
+ * @param {{ provider: object, dryRun: boolean, sources: number[] }} ctx
+ * @returns {Promise<{ outcome: string, reason?: string }>|{ outcome: string, reason?: string }}
+ */
+function supersedeUnit(
+  { id, note, createdStory },
+  { provider, dryRun, sources },
+) {
+  if (!createdStory) {
+    return { outcome: 'skipped', reason: 'story-not-created' };
+  }
+  if (isRewrittenSource(createdStory, id)) return { outcome: 'rewritten' };
+  if (dryRun) return { outcome: 'planned' };
+  return closeOneSupersededTicket({
+    provider,
+    id,
+    note,
+    story: createdStory,
+    sourceTicketIds: sources,
+  });
 }
 
 /**
