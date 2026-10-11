@@ -59,16 +59,20 @@ export function relativisePath(sourceId, cwd) {
 }
 
 /**
- * A side with `end.line < start.line` counts nothing: its real span is
- * unrecoverable, and widening it recorded hundreds of phantom lines.
+ * A side ending before it starts, or past its file's counted length, counts
+ * nothing: its real span is unrecoverable (jscpd 4 can report the other
+ * file's end line), and widening or clamping it records phantom lines.
  *
  * @param {{ start?: { line?: number }, end?: { line?: number } }} dup
+ * @param {number} [maxLine] the file's counted length, when known
  * @returns {Array<number>} the 1-based line numbers the clone covers
  */
-function cloneLineNumbers(dup) {
+function cloneLineNumbers(dup, maxLine) {
   const start = dup?.start?.line;
   const end = dup?.end?.line;
-  if (!Number.isInteger(start) || !Number.isInteger(end)) return [];
+  if (!Number.isInteger(start) || !Number.isInteger(end) || end > maxLine) {
+    return [];
+  }
   const lines = [];
   for (let n = start; n <= end; n += 1) lines.push(n);
   return lines;
@@ -100,7 +104,7 @@ export function buildDuplicationRows(
       const file = relativisePath(side.sourceId, cwd);
       if (!file) continue;
       const set = dupLinesByFile.get(file) ?? new Set();
-      for (const line of cloneLineNumbers(side)) set.add(line);
+      for (const n of cloneLineNumbers(side, counts.get(file))) set.add(n);
       dupLinesByFile.set(file, set);
     }
   }

@@ -128,6 +128,49 @@ describe('duplication-scanner.buildDuplicationRows() (pure)', () => {
     assert.equal(scope.duplicatedLines, 7, 'only the well-formed 89-95 side');
     assert.equal(other.duplicatedLines, 14, 'both partner sides still count');
   });
+
+  it('never counts a clone side whose end.line runs past the file length', () => {
+    // Shape observed from real jscpd 4 output: a 146-line file reports a side
+    // of 75 -> 491, where 491 is an end line in a different file. Counting it
+    // recorded 427 duplicated lines of 146; the over-long side counts nothing.
+    const clones = [
+      clone('src/location.ts', 75, 491, 'src/add-on.ts', 60, 73),
+      clone('src/location.ts', 10, 20, 'src/add-on.ts', 100, 110),
+    ];
+    const counts = new Map([
+      ['src/location.ts', 146],
+      ['src/add-on.ts', 120],
+    ]);
+    const rows = buildDuplicationRows(clones, counts, REPO_ROOT);
+    const location = rows.find((r) => r.path === 'src/location.ts');
+    const addOn = rows.find((r) => r.path === 'src/add-on.ts');
+    assert.equal(
+      location.duplicatedLines,
+      11,
+      'only the well-formed 10-20 side',
+    );
+    assert.equal(addOn.duplicatedLines, 25, 'both partner sides still count');
+    for (const row of rows) {
+      assert.ok(row.duplicatedLines <= row.totalLines, `${row.path} over 100%`);
+    }
+  });
+
+  it('keeps counting a side whose file has no recorded line count', () => {
+    const clones = [clone('src/a.js', 1, 400, 'src/b.js', 1, 400)];
+    const counts = new Map([['src/b.js', 500]]);
+    const rows = buildDuplicationRows(clones, counts, REPO_ROOT);
+    assert.equal(rows.find((r) => r.path === 'src/a.js').duplicatedLines, 400);
+  });
+
+  it('counts a side ending on the last line of the file', () => {
+    const clones = [clone('src/a.js', 41, 50, 'src/b.js', 1, 10)];
+    const counts = new Map([
+      ['src/a.js', 50],
+      ['src/b.js', 50],
+    ]);
+    const rows = buildDuplicationRows(clones, counts, REPO_ROOT);
+    assert.equal(rows.find((r) => r.path === 'src/a.js').duplicatedLines, 10);
+  });
 });
 
 describe('duplication-scanner.resolveDetectClones()', () => {
