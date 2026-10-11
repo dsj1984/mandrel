@@ -343,17 +343,37 @@ export function deriveStoryShape({
  */
 export function resolveStoryDispatchMode({
   storyCount,
-  priorBlocks = 0,
-  roleScopedAgents = false,
+  priorBlocks,
+  roleScopedAgents,
 } = {}) {
   if (storyCount !== 1) return multiStoryDispatch();
-  return roleScopedAgents === true && Number(priorBlocks) >= 1
+  return singleStoryDispatch(priorBlocks, roleScopedAgents);
+}
+
+/**
+ * @param {unknown} priorBlocks
+ * @param {unknown} roleScopedAgents
+ * @returns {{ mode: 'inline'|'subagent', reasons: string[] }}
+ */
+function singleStoryDispatch(priorBlocks, roleScopedAgents) {
+  return isResumeDispatch(priorBlocks, roleScopedAgents)
     ? resumeDispatch(Number(priorBlocks))
-    : singleStoryDispatch();
+    : inlineDispatch();
+}
+
+/**
+ * Only a spawn can carry per-call effort, and only role-scoped agents spawn.
+ *
+ * @param {unknown} priorBlocks
+ * @param {unknown} roleScopedAgents
+ * @returns {boolean}
+ */
+function isResumeDispatch(priorBlocks, roleScopedAgents) {
+  return roleScopedAgents === true && Number(priorBlocks) >= 1;
 }
 
 /** @returns {{ mode: 'inline', reasons: string[] }} */
-function singleStoryDispatch() {
+function inlineDispatch() {
   return {
     mode: 'inline',
     reasons: [
