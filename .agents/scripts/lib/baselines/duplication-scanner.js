@@ -8,7 +8,13 @@ import path from 'node:path';
 import { resolveDependencyVersion } from '../dependency-version.js';
 
 const DEFAULT_MIN_TOKENS = 50;
-const DEFAULT_FORMATS = Object.freeze(['javascript']);
+/** Mirrors the `gates.duplication.formats` schema default. */
+const DEFAULT_FORMATS = Object.freeze([
+  'javascript',
+  'jsx',
+  'typescript',
+  'tsx',
+]);
 
 const require = createRequire(import.meta.url);
 

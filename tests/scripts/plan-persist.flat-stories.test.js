@@ -151,7 +151,7 @@ function fakeProvider({ sources = [], createHook = null } = {}) {
       id: source.id,
       title: source.title ?? `Source ${source.id}`,
       body: source.body ?? '',
-      labels: [],
+      labels: [...(source.labels ?? [])],
       state: source.state ?? 'open',
     });
   }
@@ -1017,7 +1017,7 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
       artifacts: {
         stories: [supersedingTicket('solo', [900])],
       },
-      opts: { skipCleanup: true, sourceTicketIds: [900] },
+      opts: { skipCleanup: true, sourceTicketIds: [900], rewriteSource: false },
     });
 
     const storyId = result.primaryStoryId;
@@ -1051,7 +1051,7 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
           ]),
         ],
       },
-      opts: { skipCleanup: true, sourceTicketIds: [901] },
+      opts: { skipCleanup: true, sourceTicketIds: [901], rewriteSource: false },
     });
 
     assert.match(
@@ -1150,7 +1150,12 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
       artifacts: {
         stories: [supersedingTicket('solo', [950])],
       },
-      opts: { skipCleanup: true, sourceTicketIds: [950], dryRun: true },
+      opts: {
+        skipCleanup: true,
+        sourceTicketIds: [950],
+        dryRun: true,
+        rewriteSource: false,
+      },
     });
 
     assert.equal(result.supersede.dryRun, true);
@@ -1260,6 +1265,7 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
         skipCleanup: true,
         sourceTicketIds: ids,
         sourceTicketOrigin: origin,
+        rewriteSource: false,
       },
     });
 
@@ -1282,7 +1288,7 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
     const result = await runPlanPersist({
       provider,
       artifacts: { stories: [ticket('solo')] },
-      opts: { skipCleanup: true, sourceTicketIds: ids },
+      opts: { skipCleanup: true, sourceTicketIds: ids, rewriteSource: false },
     });
     assert.ok(
       result.warnings.some((w) => /#4525 was claimed by no Story/.test(w)),
