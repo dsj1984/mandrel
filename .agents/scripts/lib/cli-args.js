@@ -178,6 +178,20 @@ export function parseWorkerModel(value) {
 }
 
 /**
+ * The story-worker figures close records, raw — validated by the runner.
+ *
+ * @param {Record<string, unknown>} values
+ * @returns {{ workerTokens: unknown, workerModel: unknown, workerEffort: unknown }}
+ */
+function workerFields(values) {
+  return {
+    workerTokens: values['worker-tokens'],
+    workerModel: values['worker-model'],
+    workerEffort: values['worker-effort'],
+  };
+}
+
+/**
  * Throws when a validating flag parser rejects a value; error handlers use
  * {@link parseSprintArgsTolerant} instead of re-calling this.
  *
@@ -210,6 +224,7 @@ export function parseSprintArgs(
       'override-review-block': { type: 'string' },
       'worker-tokens': { type: 'string' },
       'worker-model': { type: 'string' },
+      'worker-effort': { type: 'string' },
       executor: { type: 'string' },
       cwd: { type: 'string' },
       'recut-of': { type: 'string' },
@@ -240,8 +255,7 @@ export function parseSprintArgs(
     overrideReviewBlock: tolerant
       ? tolerantOverrideReviewBlock(values['override-review-block'])
       : parseOverrideReviewBlock(values['override-review-block']),
-    workerTokens: values['worker-tokens'],
-    workerModel: values['worker-model'],
+    ...workerFields(values),
     executor: values.executor ?? null,
     cwd:
       (typeof values.cwd === 'string' && values.cwd.trim()) ||

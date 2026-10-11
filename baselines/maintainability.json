@@ -108,7 +108,7 @@
     },
     {
       "path": ".agents/scripts/deliver-run.js",
-      "mi": 96.612
+      "mi": 97.481
     },
     {
       "path": ".agents/scripts/diagnose-friction.js",
@@ -1192,7 +1192,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/complexity-gate.js",
-      "mi": 103.244
+      "mi": 105.533
     },
     {
       "path": ".agents/scripts/lib/orchestration/deliver-recover.js",
@@ -1499,6 +1499,10 @@
       "mi": 103.8
     },
     {
+      "path": ".agents/scripts/lib/orchestration/resume-effort.js",
+      "mi": 109.253
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/retro-proposals.js",
       "mi": 97.72
     },
@@ -1624,7 +1628,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/options.js",
-      "mi": 103.091
+      "mi": 104.028
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/post-land.js",

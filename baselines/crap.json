@@ -2803,6 +2803,12 @@
     },
     {
       "path": ".agents/scripts/deliver-run.js",
+      "method": "workerCloseFlags",
+      "startLine": 157,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/deliver-run.js",
       "method": "embeddedSectionLines",
       "startLine": 165,
       "crap": 1
@@ -2867,6 +2873,26 @@
     },
     {
       "path": ".agents/scripts/deliver-run.js",
+      "method": "resolveEfforts",
+      "startLine": 323,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/deliver-run.js",
+      "method": "<anon resolveEfforts/(id)#0>",
+      "startLine": 325,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/deliver-run.js",
+      "method": "<anon resolveEfforts/(id,i)#0>",
+      "startLine": 326,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/deliver-run.js",
       "method": "<anon resolveRunIds/(v)#0>",
       "startLine": 335,
       "crap": 2,
@@ -2915,6 +2941,13 @@
       "path": ".agents/scripts/deliver-run.js",
       "method": "<anon ()#0>",
       "startLine": 529,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/deliver-run.js",
+      "method": "<anon runDeliverRunBeat/(storyId)#2>",
+      "startLine": 538,
       "crap": 1,
       "anonymous": true
     },
@@ -11409,6 +11442,12 @@
     },
     {
       "path": ".agents/scripts/lib/cli-args.js",
+      "method": "workerFields",
+      "startLine": 186,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/cli-args.js",
       "method": "parseSprintArgsOrEmpty",
       "startLine": 243,
       "crap": 1.0233236151603498
@@ -17679,6 +17718,12 @@
       "crap": 2.0361689814814814
     },
     {
+      "path": ".agents/scripts/lib/observability/close-telemetry.js",
+      "method": "resolveWorkerEffort",
+      "startLine": 319,
+      "crap": 2
+    },
+    {
       "path": ".agents/scripts/lib/observability/metrics-ledger.js",
       "method": "planMetricsPath",
       "startLine": 31,
@@ -19176,6 +19221,36 @@
       "method": "resolveStoryDispatchMode",
       "startLine": 339,
       "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/complexity-gate.js",
+      "method": "singleStoryDispatch",
+      "startLine": 358,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/complexity-gate.js",
+      "method": "isResumeDispatch",
+      "startLine": 371,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/complexity-gate.js",
+      "method": "inlineDispatch",
+      "startLine": 376,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/complexity-gate.js",
+      "method": "multiStoryDispatch",
+      "startLine": 386,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/complexity-gate.js",
+      "method": "resumeDispatch",
+      "startLine": 399,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/deliver-recover.js",
@@ -24592,6 +24667,49 @@
       "crap": 3
     },
     {
+      "path": ".agents/scripts/lib/orchestration/resume-effort.js",
+      "method": "parseWorkerEffort",
+      "startLine": 35,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/resume-effort.js",
+      "method": "isPriorBlockRecord",
+      "startLine": 54,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/resume-effort.js",
+      "method": "resumeEffortFor",
+      "startLine": 72,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/resume-effort.js",
+      "method": "countPriorBlocks",
+      "startLine": 86,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/resume-effort.js",
+      "method": "<anon countPriorBlocks/(record)#0>",
+      "startLine": 95,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/resume-effort.js",
+      "method": "resolveResumeEffort",
+      "startLine": 116,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/resume-effort.js",
+      "method": "resolveRunDispatchInputs",
+      "startLine": 130,
+      "crap": 2
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/retro-proposals.js",
       "method": "emptyResult",
       "startLine": 70,
@@ -26783,6 +26901,12 @@
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/options.js",
       "method": "workerFlags",
       "startLine": 122,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/options.js",
+      "method": "workerEffortFlag",
+      "startLine": 134,
       "crap": 1
     },
     {

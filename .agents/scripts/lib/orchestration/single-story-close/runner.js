@@ -12,6 +12,7 @@ import { Logger } from '../../Logger.js';
 import {
   emitReviewBlockedFriction,
   recordCloseTelemetry,
+  resolveWorkerEffort,
   resolveWorkerModel,
   resolveWorkerTokens,
 } from '../../observability/close-telemetry.js';
@@ -104,7 +105,11 @@ function createPhaseTimer(nowMs = Date.now) {
 const UNTIMED = Object.freeze({ stamp() {} });
 
 /** No worker figures: an inline close, or an ending before they resolve. */
-const NO_WORKER = Object.freeze({ workerTokens: null, workerModel: null });
+const NO_WORKER = Object.freeze({
+  workerTokens: null,
+  workerModel: null,
+  workerEffort: null,
+});
 
 /**
  * The single terminal writer: the retry signal, the result summary (with its
@@ -600,6 +605,7 @@ export async function runSingleStoryClose({
   overrideReviewBlock: overrideReviewBlockParam,
   workerTokens: workerTokensParam,
   workerModel: workerModelParam,
+  workerEffort: workerEffortParam,
   ...injected
 } = {}) {
   const options = parseCloseOptions({
@@ -616,10 +622,11 @@ export async function runSingleStoryClose({
     overrideReviewBlockParam,
     workerTokensParam,
     workerModelParam,
+    workerEffortParam,
   });
   if (!options.storyId) {
     throw new Error(
-      'Usage: node single-story-close.js --story <STORY_ID> [--cwd <main-repo>] [--skip-validation] [--skip-sync] [--no-auto-merge] [--wait-merge|--no-wait-merge] [--max-wait-seconds <n>] [--merge-watch-mode <sync|async>] [--rerun-advisory <n>] [--override-review-block <reason>] [--worker-tokens <n>] [--worker-model <model>]',
+      'Usage: node single-story-close.js --story <STORY_ID> [--cwd <main-repo>] [--skip-validation] [--skip-sync] [--no-auto-merge] [--wait-merge|--no-wait-merge] [--max-wait-seconds <n>] [--merge-watch-mode <sync|async>] [--rerun-advisory <n>] [--override-review-block <reason>] [--worker-tokens <n>] [--worker-model <model>] [--worker-effort <level>]',
     );
   }
 
@@ -1212,6 +1219,7 @@ async function runClosePipeline(run, deps) {
     worker: {
       workerTokens: resolveWorkerTokens(run.options.workerTokens),
       workerModel: resolveWorkerModel(run.options.workerModel),
+      workerEffort: resolveWorkerEffort(run.options.workerEffort),
     },
   };
   for (const phase of CLOSE_PIPELINE) {

@@ -332,24 +332,71 @@ export function deriveStoryShape({
  * run would put several engines on one session and checkout. Only *where*
  * changes; close gates, PR and terminal envelope are identical.
  *
- * @param {{ storyCount?: unknown }} [args] Anything but exactly 1 dispatches
- *   as a sub-agent.
+ * A resumed one-Story run spawns: only a spawn carries per-call effort.
+ *
+ * @param {{ storyCount?: unknown, priorBlocks?: unknown,
+ *   roleScopedAgents?: unknown }} [args] Anything but exactly 1 Story
+ *   dispatches as a sub-agent.
  * @returns {{ mode: 'inline'|'subagent', reasons: string[] }}
  */
-export function resolveStoryDispatchMode({ storyCount } = {}) {
-  if (storyCount === 1) {
-    return {
-      mode: 'inline',
-      reasons: [
-        'single-Story run — execute deliver-story inline; sub-agent isolation is load-bearing only for concurrent dispatch, and a one-Story run has no sibling to race (close gates, PR, and terminal envelope unchanged)',
-      ],
-    };
-  }
+export function resolveStoryDispatchMode({
+  storyCount,
+  priorBlocks,
+  roleScopedAgents,
+} = {}) {
+  if (storyCount !== 1) return multiStoryDispatch();
+  return singleStoryDispatch(priorBlocks, roleScopedAgents);
+}
 
+/**
+ * @param {unknown} priorBlocks
+ * @param {unknown} roleScopedAgents
+ * @returns {{ mode: 'inline'|'subagent', reasons: string[] }}
+ */
+function singleStoryDispatch(priorBlocks, roleScopedAgents) {
+  return isResumeDispatch(priorBlocks, roleScopedAgents)
+    ? resumeDispatch(Number(priorBlocks))
+    : inlineDispatch();
+}
+
+/**
+ * @param {unknown} priorBlocks
+ * @param {unknown} roleScopedAgents
+ * @returns {boolean}
+ */
+function isResumeDispatch(priorBlocks, roleScopedAgents) {
+  return roleScopedAgents === true && Number(priorBlocks) >= 1;
+}
+
+/** @returns {{ mode: 'inline', reasons: string[] }} */
+function inlineDispatch() {
+  return {
+    mode: 'inline',
+    reasons: [
+      'single-Story run — execute deliver-story inline; sub-agent isolation is load-bearing only for concurrent dispatch, and a one-Story run has no sibling to race (close gates, PR, and terminal envelope unchanged)',
+    ],
+  };
+}
+
+/** @returns {{ mode: 'subagent', reasons: string[] }} */
+function multiStoryDispatch() {
   return {
     mode: 'subagent',
     reasons: [
       "multi-Story (or unknown-size) run — a concurrent sibling would have to share the router's session, racing worktrees and branch refs; sub-agent dispatch",
+    ],
+  };
+}
+
+/**
+ * @param {number} priorBlocks
+ * @returns {{ mode: 'subagent', reasons: string[] }}
+ */
+function resumeDispatch(priorBlocks) {
+  return {
+    mode: 'subagent',
+    reasons: [
+      `single-Story resume after ${priorBlocks} prior block(s) — dispatch a story-worker sub-agent so the resume effort rides the Agent call's per-call effort instead of raising session effort (close gates, PR, and terminal envelope unchanged)`,
     ],
   };
 }

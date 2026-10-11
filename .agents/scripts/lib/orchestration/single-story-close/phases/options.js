@@ -127,10 +127,19 @@ function workerFlags(tokensParam, modelParam, parsed) {
 }
 
 /**
+ * @param {unknown} effortParam
+ * @param {{ workerEffort?: unknown }} parsed
+ * @returns {unknown}
+ */
+function workerEffortFlag(effortParam, parsed) {
+  return resolveFlag(effortParam, parsed.workerEffort);
+}
+
+/**
  * Returns raw wait-for-merge intent; the runner resolves it after the arm.
  *
- * @param {{ storyIdParam, cwdParam, skipValidationParam, skipSyncParam, noAutoMergeParam, waitForMergeParam, noWaitForMergeParam, maxWaitSecondsParam, mergeWatchModeParam, rerunAdvisoryParam, overrideReviewBlockParam, workerTokensParam, workerModelParam }} raw
- * @returns {{ storyId, cwd, skipValidation, skipSync, noAutoMerge, waitForMergeExplicit, noWaitForMerge, maxWaitSeconds, mergeWatchMode, rerunAdvisory, overrideReviewBlock, workerTokens, workerModel }}
+ * @param {{ storyIdParam, cwdParam, skipValidationParam, skipSyncParam, noAutoMergeParam, waitForMergeParam, noWaitForMergeParam, maxWaitSecondsParam, mergeWatchModeParam, rerunAdvisoryParam, overrideReviewBlockParam, workerTokensParam, workerModelParam, workerEffortParam }} raw
+ * @returns {{ storyId, cwd, skipValidation, skipSync, noAutoMerge, waitForMergeExplicit, noWaitForMerge, maxWaitSeconds, mergeWatchMode, rerunAdvisory, overrideReviewBlock, workerTokens, workerModel, workerEffort }}
  */
 export function parseCloseOptions({
   storyIdParam,
@@ -146,6 +155,7 @@ export function parseCloseOptions({
   overrideReviewBlockParam,
   workerTokensParam,
   workerModelParam,
+  workerEffortParam,
 }) {
   // An injecting caller never reads argv (the host's flags are not its
   // business), so `parsed` stays empty and the retired-flag guard is skipped.
@@ -187,5 +197,6 @@ export function parseCloseOptions({
       resolveFlag(overrideReviewBlockParam, parsed.overrideReviewBlock),
     ),
     ...workerFlags(workerTokensParam, workerModelParam, parsed),
+    workerEffort: workerEffortFlag(workerEffortParam, parsed),
   };
 }

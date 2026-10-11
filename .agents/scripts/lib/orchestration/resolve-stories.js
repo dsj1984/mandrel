@@ -278,6 +278,9 @@ export async function readNativeBlockedBy({
  * @param {Map<number, number[]>} nativeEdges
  * @param {number[]} foreignDone Ids outside the set already satisfied.
  * @param {(msg: string) => void} [warn]
+ * @param {Map<number, number>} [priorBlocksById] Local prior-block count per
+ *   Story; absent counts 0.
+ * @param {boolean} [roleScopedAgents] `delivery.routing.roleScopedAgents`.
  * @returns {{ kind: string, stories: object[], dag: object[], done: number[] }}
  */
 export function buildStoriesEnvelope({
@@ -285,13 +288,16 @@ export function buildStoriesEnvelope({
   nativeEdges = new Map(),
   foreignDone = [],
   warn,
+  priorBlocksById = new Map(),
+  roleScopedAgents = false,
 }) {
   const sorted = [...stories].sort((a, b) => a.id - b.id);
   const inSetDone = sorted.filter(isSatisfiedBlocker).map((s) => s.id);
   return {
     kind: 'stories',
     // `inline` (the router's own session) only for a single-Story set, so no
-    // sibling can claim that session. Decided on the resolved set size, not
+    // sibling can claim that session — unless a one-Story resume needs a
+    // spawn for its per-call effort. Decided on the resolved set size, not
     // the undelivered remainder, so the mode never changes mid-run.
     stories: sorted.map(({ id, title, url, labels, state }) => ({
       id,
@@ -299,8 +305,11 @@ export function buildStoriesEnvelope({
       url,
       labels,
       state,
-      dispatchMode: resolveStoryDispatchMode({ storyCount: sorted.length })
-        .mode,
+      dispatchMode: resolveStoryDispatchMode({
+        storyCount: sorted.length,
+        priorBlocks: priorBlocksById.get(id) ?? 0,
+        roleScopedAgents,
+      }).mode,
     })),
     dag: storiesToDag(sorted, nativeEdges, warn),
     done: [...new Set([...inSetDone, ...foreignDone])].sort((a, b) => a - b),

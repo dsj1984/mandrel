@@ -18,6 +18,7 @@ import { resolveStoryWorkerModel } from './lib/config/agent-models.js';
 import { getPaths, resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
 import { ensureDocsDigest } from './lib/orchestration/docs-digest.js';
+import { resolveResumeEffort } from './lib/orchestration/resume-effort.js';
 import { expandIdList } from './lib/util/parse-id-list.js';
 import { runProbedStoriesWaveTick } from './stories-wave-tick.js';
 
@@ -51,6 +52,8 @@ const USAGE = {
     'The run ledger (<tempRoot>/run-<id>/ledger.json) records every id handed out\nas ready, so a repeat beat withholds it with no --dispatched bookkeeping from\nthe caller. It is additive: the tick still filters it against live state, so a\nledgered id that has since gone agent::done is dropped for you.',
     'A ledgered id that live state still reports as agent::ready is named in\nstalledDispatch[], with stalledDispatchReason carrying the recovery. It is a\nreport, never a release: a slow init and a dead spawn read alike here, so the\noperator edits the ledger and re-beats with --run-id.',
     '--merge-watch-mode async is added to every close command when the run holds\nmore than one Story, and omitted for a run of one. Close sees a single Story\nand cannot make that call for itself.',
+    'Every close command carries --worker-model, and --worker-effort when the\nStory resumes after a prior block: every Story a beat hands out is\nworker-dispatched, including a one-Story resume.',
+    'Each ready[] entry carries effort: "high" after one local un-recovered\nstory-blocked signal, "xhigh" after two or more, null otherwise. Pass a\nnon-null effort as the Agent call\'s effort; omit the parameter for null.',
     'Exit codes:\n  0  beat emitted\n  1  input error\n  2  dependency cycle (cycleError)\n  3  wedged\n  4  blocked — the HITL pause; stop the loop, do not poll',
   ],
 };
@@ -122,9 +125,10 @@ function writeLedger(
 /**
  * `--merge-watch-mode async` is a run-topology call close cannot make: with
  * siblings, sync closes serialize every merge wait; alone, sync lands fastest.
- * `--worker-model` rides only a multi-Story close — a one-Story run is inline.
+ * The worker flags ride every close a beat renders — every Story a beat hands
+ * out is worker-dispatched, a one-Story resume included.
  * @param {{ storyId: number, mainRepo: string, storyCount: number,
- *   workerModel?: string|null }} args
+ *   workerModel?: string|null, workerEffort?: string|null }} args
  * @returns {string}
  */
 export function renderCloseCommand({
@@ -132,6 +136,7 @@ export function renderCloseCommand({
   mainRepo,
   storyCount,
   workerModel,
+  workerEffort,
 }) {
   const parts = [
     'node',
@@ -139,17 +144,20 @@ export function renderCloseCommand({
     `--story ${storyId}`,
     `--cwd ${mainRepo}`,
   ];
-  if (storyCount > 1) parts.push(...multiStoryCloseFlags(workerModel));
+  if (storyCount > 1) parts.push('--merge-watch-mode async');
+  parts.push(...workerCloseFlags(workerModel, workerEffort));
   return parts.join(' ');
 }
 
 /**
  * @param {string|null|undefined} workerModel
+ * @param {string|null|undefined} workerEffort
  * @returns {string[]}
  */
-function multiStoryCloseFlags(workerModel) {
-  const flags = ['--merge-watch-mode async'];
+function workerCloseFlags(workerModel, workerEffort) {
+  const flags = [];
   if (workerModel) flags.push(`--worker-model ${workerModel}`);
+  if (workerEffort) flags.push(`--worker-effort ${workerEffort}`);
   return flags;
 }
 
@@ -268,11 +276,20 @@ export function renderDispatchPrompt({
  * @param {string} args.mainRepo
  * @param {string|null} args.docsDigestPath
  * @param {object} [args.config]
+ * @param {string|null} [args.effort] The resume effort; null inherits.
  * @param {object} [deps]
- * @returns {{ id: number, promptPath: string }}
+ * @returns {{ id: number, promptPath: string, effort: string|null }}
  */
 function buildDispatchEntry(
-  { storyId, body, runTempDir, mainRepo, docsDigestPath, config },
+  {
+    storyId,
+    body,
+    runTempDir,
+    mainRepo,
+    docsDigestPath,
+    config,
+    effort = null,
+  },
   { buildChecklistFn, writeFileFn = fs.writeFileSync } = {},
 ) {
   // The same Story-scoped path single-story-init returns in its envelope.
@@ -295,7 +312,18 @@ function buildDispatchEntry(
     }),
     'utf8',
   );
-  return { id: storyId, promptPath };
+  return { id: storyId, promptPath, effort };
+}
+
+/**
+ * @param {number[]} ids
+ * @param {(storyId: number) => Promise<string|null>} effortFn
+ * @returns {Promise<Map<number, string|null>>}
+ */
+async function resolveEfforts(ids, effortFn) {
+  const unique = [...new Set(ids)];
+  const efforts = await Promise.all(unique.map((id) => effortFn(id)));
+  return new Map(unique.map((id, i) => [id, efforts[i] ?? null]));
 }
 
 /**
@@ -420,6 +448,7 @@ export async function runDeliverRunBeat(
     tickFn = runProbedStoriesWaveTick,
     resolveConfigFn = resolveConfig,
     ensureDocsDigestFn = ensureDocsDigest,
+    resumeEffortFn = resolveResumeEffort,
     mkdirFn = fs.mkdirSync,
     ...entryDeps
   } = deps;
@@ -475,6 +504,10 @@ export async function runDeliverRunBeat(
   const bodyById = new Map(
     records.map((record) => [record.id, record.body ?? '']),
   );
+  const effortById = await resolveEfforts(
+    [...readyIds, ...handoffIds],
+    (storyId) => resumeEffortFn(storyId, { config: resolved }),
+  );
   const ready = readyIds.map((storyId) =>
     buildDispatchEntry(
       {
@@ -484,6 +517,7 @@ export async function runDeliverRunBeat(
         mainRepo,
         docsDigestPath,
         config: resolved,
+        effort: effortById.get(storyId) ?? null,
       },
       entryDeps,
     ),
@@ -508,6 +542,7 @@ export async function runDeliverRunBeat(
           mainRepo,
           storyCount: ids.length,
           workerModel,
+          workerEffort: effortById.get(storyId) ?? null,
         }),
       })),
       done: tick.epilogueDue === true,

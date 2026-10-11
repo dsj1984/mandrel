@@ -33,6 +33,7 @@ import {
   forEachLine,
 } from '../../../../.agents/scripts/lib/observability/signals-writer.js';
 import { runCodeReview } from '../../../../.agents/scripts/lib/orchestration/code-review.js';
+import { parseWorkerEffort } from '../../../../.agents/scripts/lib/orchestration/resume-effort.js';
 import { createChainProvider } from '../../../../.agents/scripts/lib/orchestration/review-providers/review-provider-factory.js';
 import { runStoryScopeReview } from '../../../../.agents/scripts/lib/orchestration/single-story-close/phases/code-review.js';
 import { handleOverriddenReviewBlock } from '../../../../.agents/scripts/lib/orchestration/single-story-close/phases/review-override.js';
@@ -352,6 +353,7 @@ describe('AC-4: the telemetry summary', () => {
       config,
       workerTokens: 5000,
       workerModel: 'sonnet',
+      workerEffort: 'high',
     });
     assert.deepEqual(result.telemetry, {
       acceptanceRounds: 2,
@@ -364,6 +366,7 @@ describe('AC-4: the telemetry summary', () => {
       },
       workerTokens: 5000,
       workerModel: 'sonnet',
+      workerEffort: 'high',
     });
   });
 
@@ -380,6 +383,8 @@ describe('AC-4: the telemetry summary', () => {
     assert.equal(telemetry.workerTokens, null);
     // No --worker-model: an inline close records null.
     assert.equal(telemetry.workerModel, null);
+    // No --worker-effort: a fresh Story or an inline close records null.
+    assert.equal(telemetry.workerEffort, null);
   });
 
   it('run-level tallies sum per-Story ones', async () => {
@@ -442,6 +447,50 @@ describe('AC-3/AC-4/AC-6: through the close runner', () => {
     assert.equal(outcome.terminal.status, 'landed');
     assert.equal(outcome.result.telemetry.workerTokens, 900);
     assert.equal(outcome.result.telemetry.workerModel, 'sonnet');
+  });
+
+  it('--worker-effort high records telemetry.workerEffort beside the model (#5608)', async () => {
+    const outcome = await runSingleStoryClose({
+      storyId: 7114,
+      cwd: tempRoot,
+      workerModel: 'inherit',
+      workerEffort: 'high',
+      injectedConfig: config,
+      injectedProvider: closedStoryProvider('completed'),
+    });
+    assert.equal(outcome.terminal.status, 'landed');
+    assert.equal(outcome.success, true);
+    assert.equal(outcome.result.telemetry.workerModel, 'inherit');
+    assert.equal(outcome.result.telemetry.workerEffort, 'high');
+  });
+
+  it('an invalid worker effort records null with a warning and leaves the status unchanged (#5608)', async () => {
+    const warnings = [];
+    const originalWarn = console.warn;
+    const originalError = console.error;
+    const capture = (...args) => warnings.push(args.join(' '));
+    console.warn = capture;
+    console.error = capture;
+    let outcome;
+    try {
+      outcome = await runSingleStoryClose({
+        storyId: 7115,
+        cwd: tempRoot,
+        workerEffort: 'turbo',
+        injectedConfig: config,
+        injectedProvider: closedStoryProvider('completed'),
+      });
+    } finally {
+      console.warn = originalWarn;
+      console.error = originalError;
+    }
+    assert.equal(outcome.terminal.status, 'landed');
+    assert.equal(outcome.success, true);
+    assert.equal(outcome.result.telemetry.workerEffort, null);
+    assert.ok(
+      warnings.some((w) => /--worker-effort/.test(w)),
+      `expected a --worker-effort warning, got: ${warnings.join(' | ')}`,
+    );
   });
 
   it('an invalid worker model records null and leaves the status unchanged', async () => {
@@ -535,5 +584,26 @@ describe('parseWorkerModel (#5519)', () => {
     const { model, warning } = parseWorkerModel('x $(y)');
     assert.equal(model, null);
     assert.match(warning, /--worker-model/);
+  });
+});
+
+describe('parseWorkerEffort (#5608)', () => {
+  it('absence is the fresh-Story case: null with no warning', () => {
+    assert.deepEqual(parseWorkerEffort(undefined), {
+      effort: null,
+      warning: null,
+    });
+  });
+
+  it('accepts every Agent tool effort level', () => {
+    for (const value of ['low', 'medium', 'high', 'xhigh', ' max ']) {
+      assert.equal(parseWorkerEffort(value).effort, value.trim());
+    }
+  });
+
+  it('rejects a value outside the enum with a warning', () => {
+    const { effort, warning } = parseWorkerEffort('ultra');
+    assert.equal(effort, null);
+    assert.match(warning, /--worker-effort/);
   });
 });

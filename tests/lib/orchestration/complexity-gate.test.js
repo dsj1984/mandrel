@@ -439,6 +439,51 @@ describe('resolveStoryDispatchMode — topology only (Story #5006)', () => {
   });
 });
 
+describe('resolveStoryDispatchMode — a one-Story resume dispatches a worker (Story #5608)', () => {
+  test('a one-Story run with a prior block goes to a sub-agent when role-scoped agents are on', () => {
+    for (const priorBlocks of [1, 2, 5]) {
+      const decision = resolveStoryDispatchMode({
+        storyCount: 1,
+        priorBlocks,
+        roleScopedAgents: true,
+      });
+      assert.equal(decision.mode, 'subagent');
+      assert.match(decision.reasons[0], /resume/);
+    }
+  });
+
+  test('a fresh one-Story run stays inline', () => {
+    const decision = resolveStoryDispatchMode({
+      storyCount: 1,
+      priorBlocks: 0,
+      roleScopedAgents: true,
+    });
+    assert.equal(decision.mode, 'inline');
+  });
+
+  test('role-scoped agents off keeps a resumed one-Story run inline', () => {
+    const decision = resolveStoryDispatchMode({
+      storyCount: 1,
+      priorBlocks: 2,
+      roleScopedAgents: false,
+    });
+    assert.equal(decision.mode, 'inline');
+  });
+
+  test('a multi-Story run is a sub-agent dispatch whatever the block count', () => {
+    for (const priorBlocks of [0, 1]) {
+      assert.equal(
+        resolveStoryDispatchMode({
+          storyCount: 3,
+          priorBlocks,
+          roleScopedAgents: false,
+        }).mode,
+        'subagent',
+      );
+    }
+  });
+});
+
 /**
  * Story #4736 — run topology decides ahead of shape.
  *

@@ -142,8 +142,8 @@
     },
     {
       "path": ".agents/scripts/deliver-run.js",
-      "lines": 98.44,
-      "branches": 72.55,
+      "lines": 98.54,
+      "branches": 75,
       "functions": 100
     },
     {
@@ -1810,8 +1810,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/complexity-gate.js",
-      "lines": 99.44,
-      "branches": 96.55,
+      "lines": 99.48,
+      "branches": 96.88,
       "functions": 100
     },
     {
@@ -2266,8 +2266,14 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/resolve-stories.js",
-      "lines": 96.9,
-      "branches": 81.4,
+      "lines": 97.06,
+      "branches": 82.02,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/resume-effort.js",
+      "lines": 100,
+      "branches": 96.43,
       "functions": 100
     },
     {
@@ -2458,8 +2464,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/options.js",
-      "lines": 98.86,
-      "branches": 96.67,
+      "lines": 99.01,
+      "branches": 96.88,
       "functions": 100
     },
     {
@@ -2536,9 +2542,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
-      "lines": 99.82,
-      "branches": 92.59,
-      "functions": 97.83
+      "lines": 99.84,
+      "branches": 93.13,
+      "functions": 94.44
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-lease-guard.js",
@@ -3382,7 +3388,7 @@
     },
     {
       "path": ".agents/scripts/resolve-stories.js",
-      "lines": 82.14,
+      "lines": 82.52,
       "branches": 93.55,
       "functions": 53.33
     },

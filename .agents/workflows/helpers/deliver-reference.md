@@ -78,8 +78,13 @@ but not a cycle.
 unblocked it:
 `node .agents/scripts/update-ticket-state.js --ticket <id> --state agent::ready`.
 Do not poll the label yourself while waiting — the HITL pause is the operator's
-turn, not a slow beat. Before resuming, the operator raises session effort one
-step, and raises effort before switching models
+turn, not a slow beat. Effort escalation on resume is automatic: the next beat's
+`ready[]` entry for that Story carries `effort` (`high` after one prior block,
+`xhigh` after two or more), which you pass as the Agent call's `effort`, and a
+one-Story resume dispatches a worker for it. Only the inline fallback
+(`delivery.routing.roleScopedAgents: false`, or a harness that cannot nest
+spawns) keeps the operator step: raise session effort one step before resuming,
+and raise effort before switching models
 ([effort escalation](../../docs/execution-reference.md#session-effort-and-model)).
 
 Each beat re-probes live state: it re-resolves the graph, classifies **done**

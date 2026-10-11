@@ -14,6 +14,9 @@
  *     checklist path and the change-set discipline
  *   - AC-4: --merge-watch-mode async on a multi-Story run, absent on N=1
  *
+ * Story #5608 adds the resume effort: each ready entry carries `effort` from
+ * the Story's local prior blocks, and every close carries the worker flags.
+ *
  * Story #5363 adds the stalled-dispatch report: a ledgered id live state still
  * reports as `agent::ready` is named in the envelope with its recovery, is
  * still withheld, and never changes the ready set.
@@ -37,6 +40,10 @@ import {
 } from '../../.agents/scripts/deliver-run.js';
 import { buildStoryChecklist } from '../../.agents/scripts/lib/audit-suite/index.js';
 import { resolveStoryWorkerModel } from '../../.agents/scripts/lib/config/agent-models.js';
+import {
+  emitRuntimeFriction,
+  RUNTIME_FRICTION_CATEGORIES,
+} from '../../.agents/scripts/lib/observability/runtime-friction.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import { classifyStory } from '../../.agents/scripts/lib/wave-runner/ready-set.js';
 
@@ -484,29 +491,50 @@ describe('deliver-run — the worker model on the close command (#5519)', () => 
     assert.match(envelope.close[0].command, /--worker-model inherit$/);
   });
 
-  it('a one-Story run stays inline: no --worker-model', async () => {
+  it('a one-Story resume carries the worker flags but not the async flag (#5608)', async () => {
     const { envelope } = await beat(
       { nodes: [node(101)] },
       { stories: '101', handoff: ['101'] },
+      { resumeEffortFn: async () => 'high' },
     );
-    assert.doesNotMatch(envelope.close[0].command, /--worker-model/);
+    const { command } = envelope.close[0];
+    assert.match(command, /--worker-model inherit --worker-effort high$/);
+    assert.doesNotMatch(command, /--merge-watch-mode/);
   });
 
-  it('renders the model only beside the multi-Story async flag', () => {
+  it('renders async only for a multi-Story close; worker flags for every close (#5608)', () => {
     const multi = renderCloseCommand({
       storyId: 5,
       mainRepo: '/r',
       storyCount: 2,
       workerModel: 'sonnet',
+      workerEffort: 'xhigh',
     });
-    assert.match(multi, /--merge-watch-mode async --worker-model sonnet$/);
+    assert.match(
+      multi,
+      /--merge-watch-mode async --worker-model sonnet --worker-effort xhigh$/,
+    );
     const single = renderCloseCommand({
       storyId: 5,
       mainRepo: '/r',
       storyCount: 1,
       workerModel: 'sonnet',
+      workerEffort: 'high',
     });
-    assert.doesNotMatch(single, /--worker-model/);
+    assert.match(single, /--worker-model sonnet --worker-effort high$/);
+    assert.doesNotMatch(single, /--merge-watch-mode/);
+  });
+
+  it('omits --worker-effort when the Story never blocked', () => {
+    const fresh = renderCloseCommand({
+      storyId: 5,
+      mainRepo: '/r',
+      storyCount: 2,
+      workerModel: 'sonnet',
+      workerEffort: null,
+    });
+    assert.match(fresh, /--merge-watch-mode async --worker-model sonnet$/);
+    assert.doesNotMatch(fresh, /--worker-effort/);
   });
 
   it('resolves the shipped role default, then an agentModels override', () => {
@@ -739,5 +767,61 @@ describe('deliver-run — CLI', () => {
     const out = spawnSync(process.execPath, [CLI], { encoding: 'utf8' });
     assert.strictEqual(out.status, 1);
     assert.match(out.stdout, /--stories is required/);
+  });
+});
+
+describe('deliver-run — the resume effort on each ready entry (#5608)', () => {
+  // The beat reads the real local signals stream: under `node --test` the
+  // temp root is a per-process scratch dir, so these Story ids are isolated.
+  const blockSignal = (storyId, details = { toState: 'agent::blocked' }) =>
+    emitRuntimeFriction({
+      storyId,
+      category: RUNTIME_FRICTION_CATEGORIES.STORY_BLOCKED,
+      tool: 'transitionTicketState',
+      details,
+      config: CONFIG,
+    });
+
+  it('null for none, high for one un-recovered block, xhigh for two', async () => {
+    await blockSignal(8802);
+    await blockSignal(8802, { recovered: true });
+    await blockSignal(8803);
+    await blockSignal(8803, { recovered: true });
+    await blockSignal(8803);
+    const { envelope } = await beat(
+      { nodes: [node(8801), node(8802), node(8803)] },
+      { stories: '8801,8802,8803' },
+    );
+    const byId = Object.fromEntries(
+      envelope.ready.map((entry) => [entry.id, entry.effort]),
+    );
+    assert.deepEqual(byId, { 8801: null, 8802: 'high', 8803: 'xhigh' });
+    for (const entry of envelope.ready) {
+      assert.deepEqual(Object.keys(entry).sort(), [
+        'effort',
+        'id',
+        'promptPath',
+      ]);
+    }
+  });
+
+  it('a missing signals file resolves null', async () => {
+    const { envelope } = await beat(
+      { nodes: [node(8804)] },
+      { stories: '8804' },
+    );
+    assert.equal(envelope.ready[0].effort, null);
+  });
+
+  it('a multi-Story close carries all three flags for a resumed Story', async () => {
+    const { envelope } = await beat(
+      { nodes: [node(101), node(102)] },
+      { stories: '101,102', handoff: ['101'] },
+      { resumeEffortFn: async (id) => (id === 101 ? 'xhigh' : null) },
+    );
+    assert.match(
+      envelope.close[0].command,
+      /--merge-watch-mode async --worker-model inherit --worker-effort xhigh$/,
+    );
   });
 });

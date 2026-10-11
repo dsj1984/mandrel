@@ -714,6 +714,107 @@ describe('buildStoriesEnvelope — single-Story runs dispatch inline (Story #473
   });
 });
 
+describe('buildStoriesEnvelope — a one-Story resume dispatches a worker (Story #5608)', () => {
+  const one = () => [toStoryRecord(issue({ number: 1 }))];
+
+  it('a prior block with role-scoped agents on → subagent', () => {
+    const env = buildStoriesEnvelope({
+      stories: one(),
+      priorBlocksById: new Map([[1, 1]]),
+      roleScopedAgents: true,
+    });
+    assert.equal(env.stories[0].dispatchMode, 'subagent');
+  });
+
+  it('a fresh one-Story run stays inline', () => {
+    const env = buildStoriesEnvelope({
+      stories: one(),
+      priorBlocksById: new Map(),
+      roleScopedAgents: true,
+    });
+    assert.equal(env.stories[0].dispatchMode, 'inline');
+  });
+
+  it('role-scoped agents off keeps a resume inline', () => {
+    const env = buildStoriesEnvelope({
+      stories: one(),
+      priorBlocksById: new Map([[1, 2]]),
+      roleScopedAgents: false,
+    });
+    assert.equal(env.stories[0].dispatchMode, 'inline');
+  });
+});
+
+describe('runResolveStories — prior blocks reach the dispatch mode (Story #5608)', () => {
+  const makeProvider = (byId) => ({
+    getTicket: async (id) => byId[id] ?? null,
+    _gh: { api: async () => ({ stdout: '[]' }) },
+  });
+  const run = async ({ ids, byId, config, priorBlocks }) => {
+    const chunks = [];
+    const counted = [];
+    await runResolveStories(
+      { ids, native: false },
+      {
+        provider: makeProvider(byId),
+        config,
+        stdout: { write: (s) => chunks.push(s) },
+        countPriorBlocksFn: async (id) => {
+          counted.push(id);
+          return priorBlocks;
+        },
+      },
+    );
+    return { envelope: JSON.parse(chunks.join('')), counted };
+  };
+  const GITHUB = { github: { owner: 'o', repo: 'r' } };
+
+  it('a resumed one-Story run returns subagent under the default config', async () => {
+    const { envelope, counted } = await run({
+      ids: '101',
+      byId: { 101: issue() },
+      config: GITHUB,
+      priorBlocks: 1,
+    });
+    assert.deepEqual(counted, [101]);
+    assert.equal(envelope.stories[0].dispatchMode, 'subagent');
+  });
+
+  it('a fresh one-Story run returns inline', async () => {
+    const { envelope } = await run({
+      ids: '101',
+      byId: { 101: issue() },
+      config: GITHUB,
+      priorBlocks: 0,
+    });
+    assert.equal(envelope.stories[0].dispatchMode, 'inline');
+  });
+
+  it('roleScopedAgents: false in config keeps a resume inline', async () => {
+    const { envelope } = await run({
+      ids: '101',
+      byId: { 101: issue() },
+      config: { ...GITHUB, delivery: { routing: { roleScopedAgents: false } } },
+      priorBlocks: 3,
+    });
+    assert.equal(envelope.stories[0].dispatchMode, 'inline');
+  });
+
+  it('a multi-Story run reads no prior blocks', async () => {
+    const { envelope, counted } = await run({
+      ids: '101,102',
+      byId: { 101: issue(), 102: issue({ number: 102 }) },
+      config: GITHUB,
+      priorBlocks: 1,
+    });
+    assert.deepEqual(counted, []);
+    assert.deepEqual(
+      envelope.stories.map((s) => s.dispatchMode),
+      ['subagent', 'subagent'],
+    );
+  });
+});
+
 /**
  * Story #4829 — the resolver's dispatch modes and the wave tick's ready set
  * are two answers to one run, and they must not contradict each other.

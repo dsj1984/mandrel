@@ -32,7 +32,7 @@ you read:
 | Invocation | Shape | Behavior |
 | --- | --- | --- |
 | `/mandrel-deliver` | bare | List the open `agent::ready` Stories and ask which to deliver. Deliver nothing until answered. |
-| `/mandrel-deliver 4712` | ids | One Story via `helpers/deliver-story.md`, **inline in this session** — no `story-worker` spawn. |
+| `/mandrel-deliver 4712` | ids | One Story via `helpers/deliver-story.md`, **inline in this session** — no `story-worker` spawn. A resume of a Story that blocked before dispatches one worker instead (step 3). |
 | `/mandrel-deliver 4712 4713 …` | ids | Resolve the set, then beat `deliver-run.js` — it sequences by the discovered graph and hands back the spawns and closes. |
 | `/mandrel-deliver 4712 - 4716` | ids | A **range** — every id in the inclusive span. |
 | `/mandrel-deliver 4700` (a `type::epic`) | ids | The Epic's **open** child Stories. Mixes with Story ids. |
@@ -70,7 +70,9 @@ to an attended run.
    present the order in step 2, but do **not** thread them into step 3 — every
    beat re-resolves the graph. A one-id run comes back `dispatchMode: "inline"`
    and runs [`helpers/deliver-story.md`](helpers/deliver-story.md) in this
-   session; step 3 is the multi-Story path. An Epic id expands to its open child
+   session; step 3 is the multi-Story path. A one-id run that comes back
+   `dispatchMode: "subagent"` is a resume of a Story that blocked before: take
+   step 3 with that one id, so its worker can carry the resume effort. An Epic id expands to its open child
    Stories first — **announce it**. It hard-errors (exit 1) on an id that is
    neither a Story nor an Epic, on an Epic with no open children, or on edges
    it cannot read — a missing gate would co-dispatch against an unlanded
@@ -96,8 +98,11 @@ to an attended run.
    maintained across beats by you**. Cross-run de-confliction via the assignee
    lease is automatic. Branch on the exit code:
    - **0** — spawn one `story-worker` per `ready[]` entry, **all in one turn**,
-     each with that entry's `promptPath` file as its prompt; run each `close[]`
-     entry's command foreground and serialized as hand-offs arrive. An empty
+     each with that entry's `promptPath` file as its prompt. When the entry's
+     `effort` is non-null, pass it as that Agent call's `effort`; when it is
+     `null`, omit the parameter so the worker inherits the session. Run each
+     `close[]` entry's command foreground and serialized as hand-offs arrive.
+     An empty
      `ready` with work in flight means "waiting", so beat again — **unless
      `stalledDispatch[]` is non-empty**: those ids were dispatched but still
      read `agent::ready`, which is a live init window the first beats or two
