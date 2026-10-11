@@ -6,7 +6,7 @@
 
 # Security & Vulnerability Audit — authoring checklist
 
-> Audit dependency CVEs, input-validation gaps, secrets handling, and auth boundaries; emit a structured High/Medium/Low findings report.
+> Audit dependency CVEs, input-validation gaps, secrets handling, auth boundaries, and the trust-boundary attack classes the baseline is silent on (business logic, SSRF/traversal, deserialization, crypto misuse, feature abuse, LLM tool-binding); emit a structured High/Medium/Low f…
 
 Self-check your change against this lens's concerns before you ship:
 
@@ -19,3 +19,17 @@ Self-check your change against this lens's concerns before you ship:
 - [ ] Cryptographic Failures
 - [ ] Security Misconfiguration
 - [ ] Vulnerable Components
+- [ ] Business logic & state machines
+- [ ] Access-control depth
+- [ ] Resource & file handling
+- [ ] Cryptography & secrets misuse
+- [ ] Feature abuse & data leakage
+- [ ] LLM & tool-binding boundaries
+- [ ] An unfillable Boundary is not a finding.
+- [ ] Defense-in-depth gaps are hardening notes.
+- [ ] Severity never exceeds the demonstrated result.
+- [ ] Critical
+- [ ] High
+- [ ] Medium
+- [ ] Low
+- [ ] Info
