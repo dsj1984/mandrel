@@ -368,7 +368,7 @@
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/parse-audit-md.js",
-      "mi": 93.223
+      "mi": 95.496
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/seed-from-findings.js",

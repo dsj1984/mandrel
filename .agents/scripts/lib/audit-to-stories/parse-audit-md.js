@@ -70,6 +70,50 @@ function deriveDimension(fields, fallbackDimension) {
 }
 
 /**
+ * Strip wrapping quotes/brackets, trailing punctuation, and a `Location:`
+ * anchor (`:line`, `:line:col`, `:start-end`) from a raw token.
+ *
+ * @param {string} raw
+ * @returns {string}
+ */
+function stripTokenDecoration(raw) {
+  return raw
+    .replace(/^[`'"([]+/, '')
+    .replace(/[`'")\].,;]+$/, '')
+    .trim()
+    .replace(/:\d+(?:-\d+)?(?::\d+)?$/, '');
+}
+
+/**
+ * Drop the `repoRoot` prefix (either separator) from a token, if present.
+ *
+ * @param {string} token
+ * @param {string} [repoRoot]
+ * @returns {string}
+ */
+function relativiseToRoot(token, repoRoot) {
+  if (typeof repoRoot !== 'string' || repoRoot.length === 0) return token;
+  for (const sep of ['/', '\\']) {
+    const root = repoRoot.endsWith(sep) ? repoRoot : `${repoRoot}${sep}`;
+    if (token.startsWith(root)) return token.slice(root.length);
+  }
+  return token;
+}
+
+function isAbsoluteToken(token) {
+  return /^(?:[/\\]|[A-Za-z]:)/.test(token);
+}
+
+/**
+ * A separator-less token passes only as a bare file with a known extension,
+ * and only where `requireSeparator` does not forbid it.
+ */
+function isAcceptedShape(token, requireSeparator) {
+  if (token.includes('/') || token.includes('\\')) return true;
+  return !requireSeparator && FILE_EXT.test(token);
+}
+
+/**
  * Repo-relative path, or `null` for an absolute (outside `repoRoot`) or
  * degenerate token. A bare root-level file (`AGENTS.md`) is accepted in
  * structured fields; `requireSeparator` rejects it in prose, where it is more
@@ -82,32 +126,12 @@ function deriveDimension(fields, fallbackDimension) {
  */
 function normalisePathToken(raw, repoRoot, { requireSeparator = false } = {}) {
   if (typeof raw !== 'string') return null;
-  const stripped = raw
-    .replace(/^[`'"([]+/, '')
-    .replace(/[`'")\].,;]+$/, '')
-    .trim();
-  // `Location:` anchors appear as `:line`, `:line:col`, and `:start-end`.
-  const cleaned = stripped.replace(/:\d+(?:-\d+)?(?::\d+)?$/, '');
+  const cleaned = stripTokenDecoration(raw);
   if (!cleaned || cleaned === '.' || cleaned === '..') return null;
-
-  let out = cleaned;
-  if (typeof repoRoot === 'string' && repoRoot.length > 0) {
-    for (const sep of ['/', '\\']) {
-      const root = repoRoot.endsWith(sep) ? repoRoot : `${repoRoot}${sep}`;
-      if (out.startsWith(root)) {
-        out = out.slice(root.length);
-        break;
-      }
-    }
-  }
+  const out = relativiseToRoot(cleaned, repoRoot);
   // Still absolute ⇒ outside the repo; never a valid group key.
-  if (out.startsWith('/') || out.startsWith('\\') || /^[A-Za-z]:/.test(out)) {
-    return null;
-  }
-  const hasSeparator = out.includes('/') || out.includes('\\');
-  if (requireSeparator && !hasSeparator) return null;
-  if (!hasSeparator && !FILE_EXT.test(out)) return null;
-  return out;
+  if (isAbsoluteToken(out)) return null;
+  return isAcceptedShape(out, requireSeparator) ? out : null;
 }
 
 /**
@@ -468,6 +492,7 @@ export const __testing = {
   isGroupingHeader,
   foldGroupingHeaders,
   normaliseSeverity,
+  normalisePathToken,
   extractFilePaths,
   normaliseTitle,
   deriveDimension,
