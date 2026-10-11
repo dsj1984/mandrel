@@ -51,7 +51,7 @@ description, edit the workflow file’s front-matter and regenerate.
 | `/audit-performance` | Audit performance by measuring first — profile hot paths, I/O, memory, and payload against the repo's own numbers — and audit interleaving/partial-failure correctness (TOCTOU, unawaited promises, non-atomic writes) as a first-class dimension. |
 | `/audit-privacy` | Audit logs, telemetry, and persistence paths for PII leakage and retention violations; surface secrets exposure and consent gaps. |
 | `/audit-quality` | Audit test coverage gaps, flaky tests, missing assertions, and test-pyramid balance; recommend a remediation batch. |
-| `/audit-security` | Audit dependency CVEs, input-validation gaps, secrets handling, and auth boundaries; emit a structured High/Medium/Low findings report. |
+| `/audit-security` | Audit dependency CVEs, input-validation gaps, secrets handling, auth boundaries, and the trust-boundary attack classes the baseline is silent on (business logic, SSRF/traversal, deserialization, crypto misuse, feature abuse, LLM tool-binding); emit a structured High/Medium/Low findings report. |
 | `/audit-seo` | Audit SEO fundamentals and Generative Engine Optimization signals (meta, structured data, crawlability); only relevant for web targets. |
 | `/audit-sre` | "Audit production-readiness for a release candidate: SLOs, observability, runbooks, error budgets, and rollback paths." |
 | `/audit-to-stories` | Convert findings produced by the audit-\* workflows into actionable GitHub Stories. Reads temp/audits/audit-\*-results.md, groups findings cross-audit, deduplicates against existing Issues by fingerprint, and either chains into /mandrel-plan --seed-file or opens standalone Stories. |
