@@ -103,6 +103,23 @@ describe('plan-persist CLI join — source ticket ids (Story #4554)', () => {
     assert.deepEqual(opts.sourceTicketIds, [4525]);
     assert.equal(opts.closeSuperseded, false);
   });
+
+  // Story #5604 — a one-for-one plan rewrites its source unless opted out.
+  it('defaults to rewriting the source and lets --no-rewrite-source opt out', () => {
+    const paths = resolveInputPaths(values());
+    assert.equal(
+      buildPersistOptions(values(), paths, TICKETS_ENVELOPE).rewriteSource,
+      true,
+    );
+    assert.equal(
+      buildPersistOptions(
+        values({ 'rewrite-source': true, 'no-rewrite-source': true }),
+        paths,
+        TICKETS_ENVELOPE,
+      ).rewriteSource,
+      false,
+    );
+  });
 });
 
 /**

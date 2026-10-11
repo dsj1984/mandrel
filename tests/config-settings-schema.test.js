@@ -807,6 +807,27 @@ describe('delivery.quality.* shape — uniform gates (Story #1737)', () => {
     );
   });
 
+  // Story #5605 — `formats` validates through the full runtime chain, so a
+  // consumer who sets it is not rejected at config load.
+  describe('gates.duplication.formats (Story #5605)', () => {
+    const withFormats = (formats) => ({
+      ...REQ,
+      delivery: { quality: { gates: { duplication: { formats } } } },
+    });
+
+    it('accepts a populated list of jscpd format names', () => {
+      assert.equal(validate(withFormats(['typescript', 'tsx'])), true);
+    });
+
+    it('rejects an empty list', () => {
+      expectErrors(withFormats([]), /must NOT have fewer than 1 items/);
+    });
+
+    it('rejects an empty format name', () => {
+      expectErrors(withFormats(['']), /must NOT have fewer than 1 characters/);
+    });
+  });
+
   // Story #4981 (AC-6) — the new opt-in key validates through the FULL
   // AGENTRC_SCHEMA chain (config-settings-schema-delivery.js's DELIVERY_SCHEMA
   // → config-settings-schema-quality.js's QUALITY_SCHEMA → config/gates/

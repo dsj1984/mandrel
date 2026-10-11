@@ -425,6 +425,15 @@ names, and it is the only per-project lever for moving a role such as the
 story-worker onto a cheaper model once close's `workerModel` telemetry shows
 the outcome holds. No existing key displaces it.
 
+**Raised to 133 (2026-10-11, Story #5605)** for
+`delivery.quality.gates.duplication.formats`, the jscpd format names the
+duplication gate scans. The scanner had hardcoded `javascript`, so a
+TypeScript consumer's gate measured only `.js`/`.mjs` files and read clean;
+the default now covers `javascript`, `jsx`, `typescript` and `tsx`. The key
+is the per-project lever for the rest of jscpd's vocabulary (or for narrowing
+it), a fact about which languages a project writes that no constant can know.
+No existing key displaces it.
+
 ### Consequences
 
 - A tuning value is changed by editing the constant and shipping a release,
