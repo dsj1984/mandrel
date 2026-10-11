@@ -18,11 +18,6 @@
       "maxCyclomatic": 15
     },
     {
-      "file": ".agents/scripts/lib/audit-to-stories/parse-audit-md.js",
-      "methodsAboveCeiling": 1,
-      "maxCyclomatic": 17
-    },
-    {
       "file": ".agents/scripts/lib/baselines/components.js",
       "methodsAboveCeiling": 1,
       "maxCyclomatic": 15

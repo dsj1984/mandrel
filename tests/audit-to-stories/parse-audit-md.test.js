@@ -394,3 +394,64 @@ test('parseAuditReport tolerates a legacy Agent Prompt bullet without surfacing 
   assert.equal(Object.hasOwn(findings[0], 'agentPrompt'), false);
   assert.ok(!findings[0].files.includes('src/legacy-only.js'));
 });
+
+test('normalisePathToken maps every token shape to its pinned output', () => {
+  const { normalisePathToken } = __testing;
+  const posixRoot = '/repo';
+  const winRoot = 'C:\\repo';
+  const cases = [
+    // [raw, repoRoot, options, expected]
+    [undefined, undefined, undefined, null],
+    [42, posixRoot, undefined, null],
+    ['', undefined, undefined, null],
+    ['   ', undefined, undefined, null],
+    ['.', undefined, undefined, null],
+    ['..', undefined, undefined, null],
+    ['`..`', undefined, undefined, null],
+    ['src/a.js', undefined, undefined, 'src/a.js'],
+    ['`src/a.js`', undefined, undefined, 'src/a.js'],
+    ["'src/a.js'", undefined, undefined, 'src/a.js'],
+    ['"src/a.js"', undefined, undefined, 'src/a.js'],
+    ['(src/a.js)', undefined, undefined, 'src/a.js'],
+    ['[src/a.js]', undefined, undefined, 'src/a.js'],
+    ['src/a.js.', undefined, undefined, 'src/a.js'],
+    ['src/a.js,', undefined, undefined, 'src/a.js'],
+    ['src/a.js;', undefined, undefined, 'src/a.js'],
+    ['(`src/a.js`),', undefined, undefined, 'src/a.js'],
+    ['src/a.js:12', undefined, undefined, 'src/a.js'],
+    ['src/a.js:12:4', undefined, undefined, 'src/a.js'],
+    ['src/a.js:12-30', undefined, undefined, 'src/a.js'],
+    ['`src/a.js:12`', undefined, undefined, 'src/a.js'],
+    ['src/a.js:abc', undefined, undefined, 'src/a.js:abc'],
+    [':12', undefined, undefined, null],
+    ['AGENTS.md', undefined, undefined, 'AGENTS.md'],
+    ['AGENTS.md', undefined, { requireSeparator: true }, null],
+    ['README', undefined, undefined, null],
+    ['src/README', undefined, undefined, 'src/README'],
+    ['src\\a.js', undefined, undefined, 'src\\a.js'],
+    ['src/a.js', undefined, { requireSeparator: true }, 'src/a.js'],
+    ['/repo/src/a.js', posixRoot, undefined, 'src/a.js'],
+    ['/repo/src/a.js', '/repo/', undefined, 'src/a.js'],
+    ['/repo/AGENTS.md', posixRoot, undefined, 'AGENTS.md'],
+    ['/repo/AGENTS.md', posixRoot, { requireSeparator: true }, null],
+    ['/repo/src/a.js:9', posixRoot, undefined, 'src/a.js'],
+    ['/elsewhere/src/a.js', posixRoot, undefined, null],
+    ['/repository/src/a.js', posixRoot, undefined, null],
+    ['/repo/src/a.js', '', undefined, null],
+    ['/repo/src/a.js', undefined, undefined, null],
+    ['\\share\\a.js', undefined, undefined, null],
+    ['C:\\repo\\src\\a.js', winRoot, undefined, 'src\\a.js'],
+    ['C:\\repo\\src\\a.js', 'C:\\repo\\', undefined, 'src\\a.js'],
+    ['C:\\other\\a.js', winRoot, undefined, null],
+    ['C:/repo/src/a.js', undefined, undefined, null],
+    ['D:a.js', undefined, undefined, null],
+    ['src/a.js', posixRoot, undefined, 'src/a.js'],
+  ];
+  for (const [raw, repoRoot, options, expected] of cases) {
+    assert.equal(
+      normalisePathToken(raw, repoRoot, options),
+      expected,
+      `normalisePathToken(${JSON.stringify(raw)}, ${JSON.stringify(repoRoot)}, ${JSON.stringify(options)})`,
+    );
+  }
+});
