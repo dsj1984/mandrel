@@ -33,12 +33,16 @@ export const REPORT_TITLE = 'Security Audit Report';
 /**
  * The required field labels inside each `### <finding>` block under
  * `## Detailed Findings`. Mirrors the strict per-finding structure in the
- * lens template.
+ * lens template: the shared core fields plus the three lens-added ones —
+ * `CWE ID`, `Baseline MUST` (a MUST or `none — trust-boundary class`) and
+ * `Boundary` (the six-clause candidate gate, Story #5606).
  */
 export const FINDING_FIELDS = Object.freeze([
   'Dimension',
   'Severity',
   'CWE ID',
+  'Baseline MUST',
+  'Boundary',
   'Current State',
   'Recommendation & Rationale',
   'Acceptance signal',

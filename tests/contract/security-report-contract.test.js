@@ -135,3 +135,58 @@ test('contract headings match what audit-to-stories parses', () => {
   assert.ok(FINDING_FIELDS.includes('Dimension'));
   assert.ok(FINDING_FIELDS.includes('Acceptance signal'));
 });
+
+// --- a Tier-B finding in the new template round-trips through the parser ---
+
+test('a trust-boundary finding with Boundary / Baseline MUST parses with severity and dimension intact', async () => {
+  const { parseAuditReport } = await import(
+    '../../.agents/scripts/lib/audit-to-stories/parse-audit-md.js'
+  );
+  const report = [
+    `# ${REPORT_TITLE}`,
+    '',
+    '## Executive Summary',
+    '',
+    'Self-cross-check: kept 1 / dropped 0.',
+    '',
+    'Severity tally: Critical 0 / High 1 / Medium 0 / Low 0',
+    '',
+    '## Defensive Recommendations',
+    '',
+    '- Add an allowlist for outbound webhook hosts.',
+    '',
+    '## Detailed Findings',
+    '',
+    '### `src/webhooks/deliver.js` — Webhook URL fetched without host validation',
+    '',
+    '- **Dimension:** Resource & file handling',
+    '- **Severity:** High',
+    '- **CWE ID:** CWE-918',
+    '- **Baseline MUST:** none — trust-boundary class',
+    '- **Boundary:** tenant admin → webhook URL → host allowlist (absent) → server-side fetch → internal metadata service → response body returned to caller',
+    '- **Location:** `src/webhooks/deliver.js:42`',
+    '- **Current State:** `fetch(config.url)` runs with no host check.',
+    '- **Recommendation & Rationale:** Resolve and allowlist the host before fetching.',
+    '- **Acceptance signal:** a regression test asserting a loopback URL is refused.',
+    '',
+  ].join('\n');
+
+  const [finding, ...rest] = parseAuditReport({
+    markdown: report,
+    sourceReport: REPORT_ARTIFACT_BASENAME,
+    repoRoot: REPO_ROOT,
+  });
+  assert.equal(rest.length, 0, 'exactly one finding parses');
+  assert.equal(finding.severity, 'high');
+  assert.equal(finding.dimension, 'resource & file handling');
+  assert.equal(finding.rawFields['cwe id'], 'CWE-918');
+  assert.equal(
+    finding.rawFields['baseline must'],
+    'none — trust-boundary class',
+  );
+  assert.match(
+    finding.rawFields.boundary,
+    /^tenant admin → .* → response body/,
+  );
+  assert.equal(finding.location, 'src/webhooks/deliver.js:42');
+});
