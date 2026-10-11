@@ -245,7 +245,118 @@ describe('detectBaselineDrift — skips and fan-out', () => {
   });
 
   it('defaults to every drift kind', () => {
-    assert.deepEqual([...DRIFT_KINDS], ['maintainability', 'crap']);
+    assert.deepEqual(
+      [...DRIFT_KINDS],
+      ['maintainability', 'crap', 'duplication'],
+    );
+  });
+});
+
+const DUP_BASELINE = [
+  { path: 'src/a.js', duplicatedLines: 10, totalLines: 100, percentage: 10 },
+  { path: 'src/b.js', duplicatedLines: 5, totalLines: 100, percentage: 5 },
+];
+
+describe('detectBaselineDrift — duplication (presence is drift)', () => {
+  it('is clean when a re-score reproduces every row within tolerance', async () => {
+    const result = await detectOne({
+      kind: 'duplication',
+      baseline: DUP_BASELINE,
+      rows: [{ ...DUP_BASELINE[0], percentage: 10.5 }, { ...DUP_BASELINE[1] }],
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.tolerance, 1);
+    assert.equal(result.refreshCommand, 'npm run duplication:reanchor');
+  });
+
+  it('reds on a percentage beyond tolerance', async () => {
+    const result = await detectOne({
+      kind: 'duplication',
+      baseline: DUP_BASELINE,
+      rows: [{ ...DUP_BASELINE[0], percentage: 14 }, { ...DUP_BASELINE[1] }],
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.drifted[0].key, 'src/a.js');
+  });
+
+  it('reds on an added row — a file that gained clones', async () => {
+    const result = await detectOne({
+      kind: 'duplication',
+      baseline: DUP_BASELINE,
+      rows: [
+        ...DUP_BASELINE,
+        {
+          path: 'src/c.js',
+          duplicatedLines: 3,
+          totalLines: 90,
+          percentage: 3.33,
+        },
+      ],
+    });
+    assert.equal(result.ok, false);
+    assert.deepEqual(result.drifted, []);
+    assert.deepEqual(
+      result.added.map((a) => a.label),
+      ['src/c.js'],
+    );
+    const report = formatDriftReport({ ok: false, results: [result] });
+    assert.match(report, /1 row\(s\) added, 0 removed/);
+    assert.match(report, /\+ src\/c\.js \(3\.33\)/);
+  });
+
+  it('reds on a removed row — a baseline row the tree no longer produces', async () => {
+    const result = await detectOne({
+      kind: 'duplication',
+      baseline: DUP_BASELINE,
+      rows: [DUP_BASELINE[0]],
+    });
+    assert.equal(result.ok, false);
+    assert.deepEqual(
+      result.removed.map((r) => r.label),
+      ['src/b.js'],
+    );
+  });
+
+  it('reds when the re-score finds no clones at all against a non-empty baseline', async () => {
+    const result = await detectOne({
+      kind: 'duplication',
+      baseline: DUP_BASELINE,
+      rows: [],
+    });
+    assert.equal(result.skipped, undefined);
+    assert.equal(result.ok, false);
+    assert.equal(result.removed.length, 2);
+  });
+
+  it('reads the tolerance from quality.gates.duplication', async () => {
+    const result = await detectOne({
+      kind: 'duplication',
+      baseline: DUP_BASELINE,
+      quality: {
+        gates: { duplication: { tolerance: { kind: 'absolute', value: 5 } } },
+      },
+      rows: [{ ...DUP_BASELINE[0], percentage: 14 }, { ...DUP_BASELINE[1] }],
+    });
+    assert.equal(result.tolerance, 5);
+    assert.equal(result.ok, true);
+  });
+
+  it('skips a disabled duplication gate', async () => {
+    const result = await detectOne({
+      kind: 'duplication',
+      baseline: DUP_BASELINE,
+      quality: { gates: { duplication: { enabled: false } } },
+      rows: [],
+    });
+    assert.equal(result.skipped, 'gate-disabled');
+  });
+
+  it('keeps added/removed informational for maintainability', async () => {
+    const result = await detectOne({
+      rows: [...MI_BASELINE, { path: 'src/new.js', mi: 70 }],
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.added.length, 1);
   });
 });
 
@@ -304,7 +415,7 @@ describe('drift report rendering (AC-7)', () => {
 describe('check-baseline-drift CLI (AC-7)', () => {
   it('parses gates, tolerance and --json', () => {
     assert.deepEqual(parseArgs([]), {
-      kinds: ['maintainability', 'crap'],
+      kinds: ['maintainability', 'crap', 'duplication'],
       tolerance: null,
       json: false,
       requireScored: false,
@@ -314,7 +425,7 @@ describe('check-baseline-drift CLI (AC-7)', () => {
       { kinds: ['crap'], tolerance: 2, json: true, requireScored: false },
     );
     assert.deepEqual(parseArgs(['--require-scored']), {
-      kinds: ['maintainability', 'crap'],
+      kinds: ['maintainability', 'crap', 'duplication'],
       tolerance: null,
       json: false,
       requireScored: true,

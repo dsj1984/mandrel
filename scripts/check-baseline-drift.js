@@ -14,7 +14,7 @@
 // before/after table for everything that moved beyond the gate's tolerance,
 // and exits non-zero when it finds any — so a consumer can wire it as a
 // scheduled CI job without wrapping it in verdict-parsing glue. This repo
-// schedules the maintainability kind in `.github/workflows/baseline-drift.yml`;
+// schedules the maintainability and duplication kinds in `.github/workflows/baseline-drift.yml`;
 // a consumer materializing `.agents/` still owns its own schedule.
 //
 // `--require-scored` exists because the default skip-is-green contract below

@@ -83,6 +83,25 @@ describe('baseline-drift.yml — the only full-scope re-score', () => {
     );
   });
 
+  it('re-scores duplication too, feeding the same tracking issue', () => {
+    assert.match(
+      driftStep.run,
+      /--gate duplication --require-scored/,
+      'the duplication baseline has no other automated full-scope writer; ' +
+        'without this run it drifts silently between hand refreshes',
+    );
+    assert.match(driftStep.run, /--gate maintainability --require-scored/);
+    assert.match(
+      driftStep.run,
+      /code=\$code" >> "\$GITHUB_OUTPUT"/,
+      'both runs must fold into the one `code` output the issue steps read',
+    );
+    const issueStep = job.steps.find((s) =>
+      /meta::baseline-drift/.test(String(s.run ?? '')),
+    );
+    assert.match(String(issueStep?.if), /steps\.drift\.outputs\.code/);
+  });
+
   it('fails the run on drift rather than only filing an issue', () => {
     const failStep = job.steps.find((s) => /exit 1/.test(String(s.run ?? '')));
     assert.ok(

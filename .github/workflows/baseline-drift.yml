@@ -30,9 +30,14 @@ name: Baseline Drift
 # So this is a new capability, not a restoration: nothing in this repository
 # has ever re-scored untouched files automatically.
 #
-# ── Why maintainability only ─────────────────────────────────────────────────
-# `DRIFT_KINDS` is `['maintainability', 'crap']`, and `crap` is deliberately
-# NOT wired here yet. Two measured reasons:
+# ── Why maintainability and duplication, not crap ────────────────────────────
+# Duplication joined in Story #5626: its baseline had no automated writer, so
+# it sat stale for weeks while rows regressed. Its rows exist only where clones
+# exist, so for that kind an added or removed row is drift too (the detector's
+# per-kind `presenceIsDrift` flag); the scan takes about 3s.
+#
+# `DRIFT_KINDS` also carries `crap`, and `crap` is deliberately NOT wired here
+# yet. Two measured reasons:
 #
 #   1. Its drift identity is `path::method@startLine`, and `startLine` moves
 #      whenever anything above a method changes. Measured on this tree with a
@@ -72,7 +77,7 @@ permissions:
 
 jobs:
   maintainability-drift:
-    name: Full-scope maintainability drift
+    name: Full-scope maintainability + duplication drift
     runs-on: ubuntu-latest
     # Observed 1.7s to re-score all 556 rows; the runtime here is checkout plus
     # `npm ci`. 15 minutes is comfortably inside the 10–30 window
@@ -85,19 +90,26 @@ jobs:
       - name: Setup Node & Install
         uses: ./.github/actions/setup
 
-      - name: Re-score maintainability full-scope
+      - name: Re-score maintainability and duplication full-scope
         id: drift
         # `--require-scored` is load-bearing, not belt-and-braces: without it a
         # kind the detector cannot score at all returns `{ ok: true, skipped }`
         # and this job goes green having measured nothing. `pipefail` makes the
         # pipeline carry node's status rather than tee's, and `|| code=$?`
-        # keeps the step alive so the reporting steps below still run.
+        # keeps the step alive so the reporting steps below still run. Each
+        # kind runs on its own so one kind's failure cannot hide the other's
+        # report; the step's code is the first non-zero exit.
         run: |
           set -o pipefail
           code=0
           node scripts/check-baseline-drift.js \
             --gate maintainability --require-scored 2>&1 \
             | tee drift-report.txt || code=$?
+          dup=0
+          node scripts/check-baseline-drift.js \
+            --gate duplication --require-scored 2>&1 \
+            | tee -a drift-report.txt || dup=$?
+          if [ "$code" = 0 ]; then code=$dup; fi
           echo "code=$code" >> "$GITHUB_OUTPUT"
 
       - name: Upload drift report
