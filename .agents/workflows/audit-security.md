@@ -128,9 +128,9 @@ defect is the sibling's, cite that lens and drop the finding here.
    applied; stored data trusted because another path "validated it on the way
    in". Check-then-act races and non-atomic writes are `/audit-performance`'s
    Interleaving dimension, not this class.
-2. **Access-control depth:** the _right_ permission for the _right_ resource
-   via the _right_ mechanism — a second path to the same state change behind
-   a weaker permission; a body field overriding what the permission model
+2. **Access-control depth:** whether the check that exists is the correct
+   one for this resource and this operation — a second path to the same
+   state change behind a weaker permission; a body field overriding what the permission model
    restricts; authenticated-but-never-authorized endpoints; bulk, batch,
    export and import paths skipping per-item checks. Shares the
    _Authorization_ MUST with Tier A — merge rather than double-file.
@@ -163,9 +163,9 @@ principal → accepted input or action → intended control → crossed boundary
 affected principal or resource → observed or owner-observable result_. Three
 rules follow:
 
-- **An unfillable Boundary is not a finding.** A missing best practice with no
-  affected principal or resource is a **hardening note** under
-  `## Defensive Recommendations`, never under `## Detailed Findings`.
+- **An unfillable Boundary is not a finding.** A best practice that is merely
+  absent, with nobody and nothing concretely exposed, is a **hardening note**
+  under `## Defensive Recommendations`, never under `## Detailed Findings`.
 - **Defense-in-depth gaps are hardening notes.** When one present layer
   already prevents the crossing, a missing second layer is a note.
 - **Severity never exceeds the demonstrated result.** A crash is not code
@@ -178,21 +178,21 @@ rules follow:
 
 Grade on the shared scale, anchored to the Boundary result:
 
-- **Critical** — an unauthenticated actor gains code execution, full
-  data-store access or takeover of arbitrary accounts; or a secret is leaked.
-- **High** — an actor fully defeats an explicit control with real
-  consequences: auth bypass, cross-tenant read or write, stored script
-  execution affecting other users, authenticated code execution.
-- **Medium** — a real boundary violation with limited blast radius, uncommon
-  preconditions, or consequences confined to a narrow resource set.
-- **Low** — disclosure of non-secret internals, or an effect needing
-  sustained effort for little gain.
-- **Info** — a confirmed minimal-impact observation, useful mainly as a
-  prerequisite of a larger finding.
+- **Critical** — no credentials needed and the result is code execution,
+  the whole data store, or any account the caller picks; or a leaked secret.
+- **High** — an explicit control is wholly circumvented with real effect:
+  logging in as someone else, reading or writing another tenant's data,
+  persisted script that runs for other users, or RCE behind a login.
+- **Medium** — a genuine crossing, but small: rare preconditions, few
+  affected records, or a narrow resource set.
+- **Low** — internals that are not secret become visible, or the gain is
+  trivial for the effort.
+- **Info** — real but negligible on its own; worth recording as a stepping
+  stone inside a larger finding.
 
-The High/Medium discriminator: does the result **fully defeat** an explicit
-control for a consequential action, or only weaken it? If the concrete damage
-cannot be stated, the severity is lower than it feels.
+The High/Medium line: is the control **wholly circumvented** for an action
+that matters, or merely weakened? When you cannot name the concrete damage,
+grade lower than instinct suggests.
 
 ## Report additions
 
