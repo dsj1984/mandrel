@@ -204,6 +204,55 @@ the same machine before and after an optimization. Optional flags:
 `--out-dir <path>`, `--top <n>`, plus any `node --test` args after `--` (e.g.
 `npm run test:profile -- --test-name-pattern "single-story"`).
 
+### Measuring agent cost
+
+Mandrel records no per-spawn cost of its own, but Claude Code already writes
+one JSONL transcript per session under `~/.claude/projects/<slug>/` (the slug
+is the main checkout's absolute path with every `/` and `.` replaced by `-`)
+and one per spawned subagent under `<sessionId>/subagents/`, with a sibling
+`agent-<id>.meta.json` naming its `agentType`. `npm run report:agent-cost`
+reads them and writes `temp/agent-cost/report.json` (one row per session and
+per subagent, plus the grouped summary) and `temp/agent-cost/summary.md`
+(agentType × effort × model → count, median and p90 of tokens and wall
+time). Only metadata is read — model, effort, usage, skill, timestamps — and
+no message content, tool input or tool result reaches either file.
+
+Each API message is written as several records (one per content block), each
+repeating its usage; the report counts every `message.id` once. Rows carry
+`agentType`, `storyId` (parsed from the spawn description), `efforts`,
+`models`, the five token fields, `totalTokens`, `wallMs`, `effortChanges`
+(adjacent-turn effort switches) and `cacheCreationAfterFirstEffortChange`
+(the cache rebuild a mid-session effort switch triggered). Flags:
+`--project-dir <dir>` (repeatable), `--since` / `--until <ISO date>`,
+`--agent-type <t>`, `--skill <s>`, `--out-dir <dir>`.
+
+**Capture the baseline before the change lands.** Claude Code deletes
+transcripts after 30 days by default (`cleanupPeriodDays`), so a "before"
+window cannot be reconstructed later. Run the report for the pre-change
+window, then copy `temp/agent-cost/report.json` somewhere outside `temp/`
+(the temp purge reaps it) before merging the change. Compare after an
+equivalent post-change window on the same host.
+
+Three before/after protocols:
+
+1. **Blocked-resume effort escalation** — raising effort when a blocked
+   Story worker resumes. Filter: `--agent-type story-worker`. Metrics:
+   per-group `totalTokens` median/p90 and `wallMs` median/p90 for
+   story-worker rows, plus each row's `effortChanges` and
+   `cacheCreationAfterFirstEffortChange` — the cost of the cache rebuild the
+   mid-session raise causes. Join rows to Stories by `storyId` to compare
+   resumed against first-pass deliveries.
+2. **Session/role model mix** — changing which model the main session or a
+   role-scoped agent (`story-worker`, `auditor`, `acceptance-critic`,
+   `plan-critic`) defaults to. Filter: `--agent-type main`, then each role in
+   turn. Metrics: the summary's group `count` per model (did the mix move?),
+   and `totalTokens` and `wallMs` median/p90 per agentType × model.
+3. **Auditor low-effort fan-out** — running audit lenses at low effort.
+   Filter: `--agent-type auditor`, narrowed with `--skill audit-<lens>` for
+   one lens. Metrics: auditor `count` per audit run, `totalTokens` and
+   `wallMs` median/p90 per effort group; judge finding quality from the audit
+   output itself, which the report does not see.
+
 ---
 
 ## The suite's child-process budget
