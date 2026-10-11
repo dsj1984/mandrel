@@ -572,7 +572,7 @@
     },
     {
       "path": ".agents/scripts/lib/bootstrap/manifest.js",
-      "mi": 76.538
+      "mi": 109.291
     },
     {
       "path": ".agents/scripts/lib/bootstrap/merge-methods.js",
@@ -1260,7 +1260,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/cli.js",
-      "mi": 97.122
+      "mi": 98.614
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/fast-forward.js",
@@ -1300,7 +1300,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/render.js",
-      "mi": 99.521
+      "mi": 103.229
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/stashes.js",
@@ -1471,8 +1471,12 @@
       "mi": 105.823
     },
     {
+      "path": ".agents/scripts/lib/orchestration/pr-watch-poll.js",
+      "mi": 109.534
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/pr-watch.js",
-      "mi": 96.404
+      "mi": 102.302
     },
     {
       "path": ".agents/scripts/lib/orchestration/project-meta-cache.js",
@@ -1484,7 +1488,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/reassert-status-column.js",
-      "mi": 86.111
+      "mi": 97.555
     },
     {
       "path": ".agents/scripts/lib/orchestration/remote-verifier.js",

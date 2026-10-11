@@ -20,6 +20,94 @@ function defaultSleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function requirePositiveInt(value, name) {
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new TypeError(
+      `reassertStatusColumn requires a positive integer ${name}`,
+    );
+  }
+}
+
+function assertArgs({ provider, ticketId, pollAttempts }) {
+  if (!provider || typeof provider.getTicket !== 'function') {
+    throw new TypeError(
+      'reassertStatusColumn requires a provider with getTicket',
+    );
+  }
+  if (typeof provider.graphql !== 'function') {
+    throw new TypeError(
+      'reassertStatusColumn requires a provider with graphql (for ColumnSync)',
+    );
+  }
+  requirePositiveInt(ticketId, 'ticketId');
+  requirePositiveInt(pollAttempts, 'pollAttempts');
+}
+
+/** `undefined` on a transient read failure (logged), else the column. */
+async function readColumnOrSkip(ctx, i) {
+  try {
+    return await ctx.sync.readCurrentColumn(ctx.ticketId);
+  } catch (err) {
+    ctx.logger?.warn?.(
+      `[reassertStatusColumn] drift-check #${i} failed (transient): ${
+        err?.message ?? err
+      }. Continuing.`,
+    );
+    return undefined;
+  }
+}
+
+/** The re-fire envelope, or `null` on a transient failure (logged). */
+async function refire(ctx, i) {
+  try {
+    return await ctx.sync.sync(ctx.ticketId, ctx.labels);
+  } catch (err) {
+    ctx.logger?.warn?.(
+      `[reassertStatusColumn] re-fire attempt ${i} failed (transient): ${
+        err?.message ?? err
+      }. Continuing.`,
+    );
+    return null;
+  }
+}
+
+/**
+ * One drift-check tick. Returns a terminal envelope to stop polling, or
+ * `null` to keep going; `state` carries `attempts` and the last envelope.
+ */
+async function pollTick(ctx, state, i) {
+  await ctx.sleepFn(ctx.pollDelayMs);
+  const current = await readColumnOrSkip(ctx, i);
+  if (current === undefined) return null;
+  if (current === ctx.targetColumn) return state.lastEnvelope;
+  ctx.logger?.info?.(
+    `[reassertStatusColumn] drift detected on attempt ${i} (current=${
+      current ?? '<null>'
+    } target=${ctx.targetColumn}); re-firing.`,
+  );
+  const next = await refire(ctx, i);
+  if (next === null) return null;
+  state.attempts += 1;
+  state.lastEnvelope = { ...next, attempts: state.attempts };
+  // A skip after a successful sync is unexpected: stop retrying.
+  return next.status === 'synced' ? null : state.lastEnvelope;
+}
+
+async function finalVerdict(ctx, state) {
+  let final = null;
+  try {
+    final = await ctx.sync.readCurrentColumn(ctx.ticketId);
+  } catch {
+    // An unreadable column after the budget reads as drift.
+  }
+  if (final === ctx.targetColumn) return state.lastEnvelope;
+  return {
+    status: 'drifted',
+    column: ctx.targetColumn,
+    attempts: state.attempts,
+  };
+}
+
 /**
  * Re-assert one ticket's Status column. Returns `ColumnSync.sync`'s envelope
  * plus `attempts`: `synced` (confirmed), `drifted` (budget exhausted, still
@@ -48,26 +136,7 @@ export async function reassertStatusColumn(args) {
     sleepFn = defaultSleep,
     config,
   } = args ?? {};
-  if (!provider || typeof provider.getTicket !== 'function') {
-    throw new TypeError(
-      'reassertStatusColumn requires a provider with getTicket',
-    );
-  }
-  if (typeof provider.graphql !== 'function') {
-    throw new TypeError(
-      'reassertStatusColumn requires a provider with graphql (for ColumnSync)',
-    );
-  }
-  if (!Number.isInteger(ticketId) || ticketId <= 0) {
-    throw new TypeError(
-      'reassertStatusColumn requires a positive integer ticketId',
-    );
-  }
-  if (!Number.isInteger(pollAttempts) || pollAttempts <= 0) {
-    throw new TypeError(
-      'reassertStatusColumn requires a positive integer pollAttempts',
-    );
-  }
+  assertArgs({ provider, ticketId, pollAttempts });
 
   const ticket = await provider.getTicket(ticketId);
   const labels = Array.isArray(ticket?.labels) ? ticket.labels : [];
@@ -81,60 +150,21 @@ export async function reassertStatusColumn(args) {
   if (initial.status !== 'synced') {
     return initial;
   }
-  let attempts = 1;
-  let lastEnvelope = { ...initial, attempts };
+  const ctx = {
+    sync,
+    ticketId,
+    labels,
+    targetColumn,
+    logger,
+    sleepFn,
+    pollDelayMs,
+  };
+  const state = { attempts: 1, lastEnvelope: { ...initial, attempts: 1 } };
 
   // Bounded so a hostile bot cannot stall the close path.
   for (let i = 1; i < pollAttempts; i += 1) {
-    await sleepFn(pollDelayMs);
-    let current;
-    try {
-      current = await sync.readCurrentColumn(ticketId);
-    } catch (err) {
-      logger?.warn?.(
-        `[reassertStatusColumn] drift-check #${i} failed (transient): ${
-          err?.message ?? err
-        }. Continuing.`,
-      );
-      continue;
-    }
-    if (current === targetColumn) {
-      return lastEnvelope;
-    }
-    logger?.info?.(
-      `[reassertStatusColumn] drift detected on attempt ${i} (current=${
-        current ?? '<null>'
-      } target=${targetColumn}); re-firing.`,
-    );
-    try {
-      const next = await sync.sync(ticketId, labels);
-      attempts += 1;
-      // A skip after a successful sync is unexpected: stop retrying.
-      if (next.status !== 'synced') {
-        return { ...next, attempts };
-      }
-      lastEnvelope = { ...next, attempts };
-    } catch (err) {
-      logger?.warn?.(
-        `[reassertStatusColumn] re-fire attempt ${i} failed (transient): ${
-          err?.message ?? err
-        }. Continuing.`,
-      );
-    }
+    const done = await pollTick(ctx, state, i);
+    if (done) return done;
   }
-
-  let final;
-  try {
-    final = await sync.readCurrentColumn(ticketId);
-  } catch {
-    final = null;
-  }
-  if (final === targetColumn) {
-    return lastEnvelope;
-  }
-  return {
-    status: 'drifted',
-    column: targetColumn,
-    attempts,
-  };
+  return finalVerdict(ctx, state);
 }

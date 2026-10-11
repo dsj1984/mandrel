@@ -17,13 +17,13 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
+import { watchPrToTerminal } from '../../../.agents/scripts/lib/orchestration/pr-watch.js';
 import {
   allTerminal,
   parseGhPrChecks,
   pollUntilTerminal,
   reduceOutcomes,
-  watchPrToTerminal,
-} from '../../../.agents/scripts/lib/orchestration/pr-watch.js';
+} from '../../../.agents/scripts/lib/orchestration/pr-watch-poll.js';
 
 function quietLogger() {
   return { info: () => {}, warn: () => {}, debug: () => {} };

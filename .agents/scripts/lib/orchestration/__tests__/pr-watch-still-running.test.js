@@ -30,11 +30,11 @@ import {
   WATCH_DEFAULTS,
 } from '../../../pr-watch-with-update.js';
 import { classifyFailure } from '../ci-rerun-guard.js';
+import { watchPrToTerminal } from '../pr-watch.js';
 import {
   hasFailingCheck,
   promotePendingToStillRunning,
-  watchPrToTerminal,
-} from '../pr-watch.js';
+} from '../pr-watch-poll.js';
 
 function quietLogger() {
   return { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} };

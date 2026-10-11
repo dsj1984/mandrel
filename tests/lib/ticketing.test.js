@@ -3,15 +3,17 @@ import test from 'node:test';
 import { ITicketingProvider } from '../../.agents/scripts/lib/ITicketingProvider.js';
 import { cascadeParentState } from '../../.agents/scripts/lib/orchestration/ticketing/bulk.js';
 import {
-  assertValidStructuredCommentType,
   isValidStructuredCommentType,
-  postStructuredComment,
   STRUCTURED_COMMENT_TYPES,
   structuredCommentMarker,
-  toggleTasklistCheckbox,
+  WAVE_TYPE_PATTERN,
+} from '../../.agents/scripts/lib/orchestration/ticketing/reads.js';
+import { toggleTasklistCheckbox } from '../../.agents/scripts/lib/orchestration/ticketing/state.js';
+import {
+  assertValidStructuredCommentType,
+  postStructuredComment,
   transitionTicketState,
   upsertStructuredComment,
-  WAVE_TYPE_PATTERN,
 } from '../../.agents/scripts/lib/orchestration/ticketing.js';
 
 class MockProvider extends ITicketingProvider {

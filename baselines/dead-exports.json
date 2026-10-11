@@ -19,14 +19,6 @@
       "symbol": "BASELINE_KIND_SCHEMA_FILES"
     },
     {
-      "file": ".agents/scripts/lib/bootstrap/manifest.js",
-      "symbol": "MANIFEST_ENTRY_FIELDS"
-    },
-    {
-      "file": ".agents/scripts/lib/bootstrap/manifest.js",
-      "symbol": "PHASE_GROUP_VALUES"
-    },
-    {
       "file": ".agents/scripts/lib/config-schema-shared.js",
       "symbol": "BASELINE_ENVELOPE_FILE"
     },
@@ -89,22 +81,6 @@
     {
       "file": ".agents/scripts/lib/orchestration/ticket-lease.js",
       "symbol": "OPERATOR_HANDLE_PLACEHOLDER"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
-      "symbol": "_peekStructuredCommentCache"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
-      "symbol": "buildStorylessTicketSnapshot"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
-      "symbol": "logCascadePartialFailures"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
-      "symbol": "transitionStoryDirect"
     },
     {
       "file": ".agents/scripts/lib/runtime-deps/scan-imports.js",

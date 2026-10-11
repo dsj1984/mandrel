@@ -17,19 +17,26 @@ import {
 } from './phase-drivers.js';
 import { buildJsonEnvelope, computeExitCode } from './render.js';
 
-/* node:coverage ignore next */
-function resolveBaseBranch(cwd, override) {
+const DEFAULT_DEPS = Object.freeze({
+  runFastForwardPhase,
+  runPrunePhase,
+  runBranchPhase,
+  runStashPhase,
+  resolveConfig,
+  write: (text) => process.stdout.write(text),
+});
+
+function resolveBaseBranch(cwd, override, deps) {
   if (override) return override;
   try {
-    const cfg = resolveConfig({ cwd });
+    const cfg = deps.resolveConfig({ cwd });
     return cfg?.project?.baseBranch || 'main';
   } catch {
     return 'main';
   }
 }
 
-/* node:coverage ignore next */
-async function runActivePhases(opts, cwd, baseBranch) {
+async function runActivePhases(opts, cwd, baseBranch, deps) {
   const out = {
     fastForward: null,
     prune: null,
@@ -38,24 +45,23 @@ async function runActivePhases(opts, cwd, baseBranch) {
     stashes: null,
   };
   if (opts.phases.fastForwardMain) {
-    out.fastForward = await runFastForwardPhase(opts, cwd, baseBranch);
+    out.fastForward = await deps.runFastForwardPhase(opts, cwd, baseBranch);
   }
   if (opts.phases.pruneRemotes) {
-    out.prune = await runPrunePhase(opts, cwd);
+    out.prune = await deps.runPrunePhase(opts, cwd);
   }
   if (opts.phases.branches) {
-    const r = await runBranchPhase(opts, cwd, baseBranch);
+    const r = await deps.runBranchPhase(opts, cwd, baseBranch);
     out.branchesPlan = r.plan;
     out.branchesResult = r.result;
   }
   if (opts.phases.stashes) {
-    out.stashes = await runStashPhase(opts, cwd);
+    out.stashes = await deps.runStashPhase(opts, cwd);
   }
   return out;
 }
 
-/* node:coverage ignore next */
-function maybeEmitJson(opts, baseBranch, phaseResults) {
+function maybeEmitJson(opts, baseBranch, phaseResults, deps) {
   if (!opts.json) return;
   const envelope = buildJsonEnvelope({
     dryRun: opts.dryRun,
@@ -66,7 +72,7 @@ function maybeEmitJson(opts, baseBranch, phaseResults) {
     prune: phaseResults.prune,
     stashes: phaseResults.stashes,
   });
-  process.stdout.write(`${JSON.stringify(envelope)}\n`);
+  deps.write(`${JSON.stringify(envelope)}\n`);
 }
 
 /**
@@ -75,21 +81,19 @@ function maybeEmitJson(opts, baseBranch, phaseResults) {
  * `runAsCli(...)` and applies `process.exit(envelope.exitCode)` at the
  * harness boundary so library code stays free of direct `process.exit`
  * calls (see `tests/enforcement/process-exit.test.js`).
+ *
+ * @param {{ argv?: string[], deps?: Partial<typeof DEFAULT_DEPS> }} [args]
+ *   `deps` overrides the phase drivers, config resolver and stdout writer.
  */
-/* node:coverage ignore next */
-export async function runCleanup() {
-  const opts = parseCleanupArgs(process.argv.slice(2));
+export async function runCleanup({
+  argv = process.argv.slice(2),
+  deps = {},
+} = {}) {
+  const d = { ...DEFAULT_DEPS, ...deps };
+  const opts = parseCleanupArgs(argv);
   const cwd = path.resolve(opts.cwd ?? PROJECT_ROOT);
-  const baseBranch = resolveBaseBranch(cwd, opts.base);
-  const phaseResults = await runActivePhases(opts, cwd, baseBranch);
-  maybeEmitJson(opts, baseBranch, phaseResults);
-  return {
-    exitCode: computeExitCode({
-      branchesPlan: phaseResults.branchesPlan,
-      branchesResult: phaseResults.branchesResult,
-      fastForward: phaseResults.fastForward,
-      prune: phaseResults.prune,
-      stashes: phaseResults.stashes,
-    }),
-  };
+  const baseBranch = resolveBaseBranch(cwd, opts.base, d);
+  const phaseResults = await runActivePhases(opts, cwd, baseBranch, d);
+  maybeEmitJson(opts, baseBranch, phaseResults, d);
+  return { exitCode: computeExitCode(phaseResults) };
 }

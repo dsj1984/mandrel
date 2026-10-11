@@ -36,7 +36,7 @@
           "floors": { "*": { "lines": 96, "branches": 88, "functions": 89 } }
         },
         "crap": {
-          "floors": { "*": { "methodsAbove20": 1 } },
+          "floors": { "*": { "methodsAbove20": 0 } },
           "targetDirs": [".agents/scripts", "bin", "lib", "scripts"],
           "ignoreGlobs": [
             ".agents/scripts/**/__tests__/**",
@@ -44,7 +44,7 @@
           ]
         },
         "maintainability": {
-          "floors": { "*": { "min": 76 } },
+          "floors": { "*": { "min": 81.277 } },
           "targetDirs": [".agents/scripts", "bin", "lib", "scripts"],
           "tolerance": { "kind": "absolute", "value": 0.5 },
           "ignoreGlobs": [

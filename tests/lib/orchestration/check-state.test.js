@@ -4,7 +4,7 @@
  * The ONE check-state classifier both merge-wait readers share: the merge
  * wait's `statusCheckRollup` reader (`merge-poll.js#deriveChecksStatus`) and
  * the recovery watch's `gh pr checks --required` reader
- * (`pr-watch.js#reduceOutcomes`). The tables below enumerate every state each
+ * (`pr-watch-poll.js#reduceOutcomes`). The tables below enumerate every state each
  * GitHub source can emit, and pin the pass / fail / pending verdict it maps
  * to — so a new GitHub value, or a drift between the readers, fails here.
  */
@@ -20,7 +20,7 @@ import {
 } from '../../../.agents/scripts/lib/orchestration/check-state.js';
 import { classifyGreenVerdict } from '../../../.agents/scripts/lib/orchestration/ci-rerun-guard.js';
 import { deriveChecksStatus } from '../../../.agents/scripts/lib/orchestration/merge-poll.js';
-import { reduceOutcomes } from '../../../.agents/scripts/lib/orchestration/pr-watch.js';
+import { reduceOutcomes } from '../../../.agents/scripts/lib/orchestration/pr-watch-poll.js';
 
 /**
  * `gh pr checks --required --json name,state,bucket` — the recovery watch's

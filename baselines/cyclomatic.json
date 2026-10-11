@@ -68,22 +68,7 @@
       "maxCyclomatic": 13
     },
     {
-      "file": ".agents/scripts/lib/orchestration/git-cleanup/phases/render.js",
-      "methodsAboveCeiling": 1,
-      "maxCyclomatic": 18
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/merge-block-class.js",
-      "methodsAboveCeiling": 1,
-      "maxCyclomatic": 15
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/pr-watch.js",
-      "methodsAboveCeiling": 1,
-      "maxCyclomatic": 17
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/reassert-status-column.js",
       "methodsAboveCeiling": 1,
       "maxCyclomatic": 15
     },

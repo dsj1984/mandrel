@@ -334,3 +334,101 @@ describe('reassertStatusColumn — poll-and-retry loop (Story #2876)', () => {
     );
   });
 });
+
+describe('reassertStatusColumn — extracted tick outcomes', () => {
+  it('logs a transient re-fire failure and keeps polling', async () => {
+    const provider = makeProvider({
+      ticketLabels: { 7: ['agent::done'] },
+      itemIdByTicket: { 7: 'PVTI_seven' },
+      // The bot stomps only the initial write.
+      onMutation: (itemId, _opt, callIndex) => {
+        if (callIndex === 1) provider.calls.statusByItem[itemId] = 'OPT_inprog';
+      },
+    });
+    const origGraphql = provider.graphql.bind(provider);
+    let mutations = 0;
+    provider.graphql = async (query, vars) => {
+      if (query.includes('updateProjectV2ItemFieldValue')) {
+        mutations += 1;
+        if (mutations === 2) throw new Error('transient 502');
+      }
+      return origGraphql(query, vars);
+    };
+    const warned = [];
+    const result = await callReassert({
+      provider,
+      ticketId: 7,
+      pollAttempts: 3,
+      sleepFn: fastSleep,
+      logger: { info: () => {}, warn: (m) => warned.push(m) },
+    });
+    assert.equal(result.status, 'synced');
+    assert.equal(result.attempts, 2);
+    assert.ok(warned.some((m) => /re-fire attempt 1 failed/.test(m)));
+  });
+
+  it('logs a transient drift-check failure, and an unreadable final column reads as drifted', async () => {
+    const provider = makeProvider({
+      ticketLabels: { 7: ['agent::done'] },
+      itemIdByTicket: { 7: 'PVTI_seven' },
+    });
+    const origGraphql = provider.graphql.bind(provider);
+    let itemLookups = 0;
+    provider.graphql = async (query, vars) => {
+      if (query.includes('repository(owner')) {
+        itemLookups += 1;
+        if (itemLookups > 1) throw new Error('transient ECONNRESET');
+      }
+      return origGraphql(query, vars);
+    };
+    const warned = [];
+    const result = await callReassert({
+      provider,
+      ticketId: 7,
+      pollAttempts: 2,
+      sleepFn: fastSleep,
+      logger: { info: () => {}, warn: (m) => warned.push(m) },
+    });
+    assert.deepEqual(result, {
+      status: 'drifted',
+      column: 'Done',
+      attempts: 1,
+    });
+    assert.ok(warned.some((m) => /drift-check #1 failed/.test(m)));
+  });
+
+  it('stops retrying when a re-fire no longer syncs', async () => {
+    const itemIdByTicket = { 7: 'PVTI_seven' };
+    const provider = makeProvider({
+      ticketLabels: { 7: ['agent::done'] },
+      itemIdByTicket,
+      onMutation: () => {
+        delete itemIdByTicket[7];
+      },
+    });
+    const result = await callReassert({
+      provider,
+      ticketId: 7,
+      pollAttempts: 3,
+      sleepFn: fastSleep,
+    });
+    assert.equal(result.status, 'skipped');
+    assert.equal(result.reason, 'not-on-project');
+    assert.equal(result.attempts, 2);
+  });
+
+  it('falls back to the real timer when no sleepFn is injected', async () => {
+    const provider = makeProvider({
+      ticketLabels: { 7: ['agent::done'] },
+      itemIdByTicket: { 7: 'PVTI_seven' },
+    });
+    const result = await callReassert({
+      provider,
+      ticketId: 7,
+      pollAttempts: 2,
+      pollDelayMs: 0,
+    });
+    assert.equal(result.status, 'synced');
+    assert.equal(result.attempts, 1);
+  });
+});
