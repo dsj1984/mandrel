@@ -1495,6 +1495,10 @@
       "mi": 103.8
     },
     {
+      "path": ".agents/scripts/lib/orchestration/resume-effort.js",
+      "mi": 107.894
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/retro-proposals.js",
       "mi": 97.72
     },
