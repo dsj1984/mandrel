@@ -206,6 +206,7 @@ describe('runPlanPersist — one-for-one rewrite in place (Story #5604)', () => 
     ['epic-container', { labels: [TYPE_LABELS.EPIC] }],
     ['mid-delivery', { labels: [AGENT_LABELS.EXECUTING] }],
     ['mid-delivery', { labels: [AGENT_LABELS.CLOSING] }],
+    ['mid-delivery', { labels: [AGENT_LABELS.BLOCKED] }],
     ['closed', { state: 'closed' }],
   ]) {
     it(`falls back to create-and-close with a warning when the source is ${why} (${JSON.stringify(setup)})`, async () => {

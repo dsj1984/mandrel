@@ -590,8 +590,9 @@ ticket or why there was none.
 `--no-close-superseded` — that flag means the remainder of the source must
 stay open as itself, which a rewrite would destroy. It **falls back with a
 warning** naming the reason when the source is closed, inaccessible, a
-`type::epic` container, or mid-delivery (`agent::executing` /
-`agent::closing`).
+`type::epic` container, or mid-delivery (`agent::executing`,
+`agent::closing`, or `agent::blocked` — a paused delivery still owns its
+branch and PR).
 
 ## Closing superseded source tickets
 

@@ -16,10 +16,14 @@ import {
 /** First write wins: a re-plan never replaces the pre-plan record. */
 const PLAN_REWRITE_COMMENT_TYPE = 'plan-rewrite';
 
-/** An open PR (`closing`) is as live as an implementing session. */
+/**
+ * An open PR (`closing`) is as live as an implementing session, and
+ * `blocked` is a paused one — its worktree, branch and PR still exist.
+ */
 const MID_DELIVERY_LABELS = Object.freeze([
   AGENT_LABELS.EXECUTING,
   AGENT_LABELS.CLOSING,
+  AGENT_LABELS.BLOCKED,
 ]);
 
 /**
