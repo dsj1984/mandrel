@@ -2600,7 +2600,7 @@
     },
     {
       "path": "scripts/lib/baselines/drift-detector.js",
-      "mi": 91.641
+      "mi": 99.294
     },
     {
       "path": "scripts/lib/baselines/orphan-pruner.js",
