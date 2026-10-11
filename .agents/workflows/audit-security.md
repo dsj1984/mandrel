@@ -186,7 +186,7 @@ Grade on the shared scale, anchored to the Boundary result:
 - **Medium** — a genuine crossing, but small: rare preconditions, few
   affected records, or a narrow resource set.
 - **Low** — internals that are not secret become visible, or the gain is
-  trivial for the effort.
+  tiny for the effort.
 - **Info** — real but negligible on its own; worth recording as a stepping
   stone inside a larger finding.
 
