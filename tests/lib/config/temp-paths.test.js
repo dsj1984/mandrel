@@ -7,10 +7,19 @@
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import {
+  appendFileSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { after, afterEach, before, describe, it } from 'node:test';
+import { after, afterEach, before, beforeEach, describe, it } from 'node:test';
 import {
   _clearMainCheckoutRootCache,
   _clearTestContextScratchCache,
@@ -500,35 +509,106 @@ describe('lib/config/temp-paths.js — test-context arming fallback (Story #4711
   });
 });
 
+/**
+ * Byte sizes of every `.ndjson` stream file under `dir`.
+ *
+ * @param {string} dir
+ * @returns {Map<string, number>}
+ */
+function streamSizes(dir) {
+  const sizes = new Map();
+  const walk = (d) => {
+    let entries;
+    try {
+      entries = readdirSync(d, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const ent of entries) {
+      const abs = path.join(d, ent.name);
+      if (ent.isDirectory()) walk(abs);
+      else if (ent.isFile() && ent.name.endsWith('.ndjson')) {
+        sizes.set(abs, statSync(abs).size);
+      }
+    }
+  };
+  walk(dir);
+  return sizes;
+}
+
+/**
+ * Stream files under `dir` whose bytes appended since `sizesBefore` carry
+ * `nonce`. Attributes a write to the fixture that stamped the nonce: the
+ * shared checkout's streams are appended to by every concurrent delivery on
+ * the host, so growth alone is not evidence of a leak (#5613).
+ *
+ * @param {string} dir
+ * @param {Map<string, number>} sizesBefore
+ * @param {string} nonce
+ * @returns {string[]}
+ */
+function streamsCarryingNonce(dir, sizesBefore, nonce) {
+  const hits = [];
+  for (const [abs, size] of streamSizes(dir)) {
+    const from = sizesBefore.get(abs) ?? 0;
+    if (size <= from) continue;
+    if (readFileSync(abs).subarray(from).includes(nonce)) hits.push(abs);
+  }
+  return hits;
+}
+
+describe('streamsCarryingNonce — leak attribution (#5613)', () => {
+  let dir;
+
+  beforeEach(() => {
+    dir = makeTempDir('stream-nonce-');
+    mkdirSync(path.join(dir, 'story-1'), { recursive: true });
+    mkdirSync(path.join(dir, 'story-2'), { recursive: true });
+    writeFileSync(path.join(dir, 'story-1', 'signals.ndjson'), '{"a":1}\n');
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('ignores a concurrent append that does not carry the nonce', () => {
+    const before = streamSizes(dir);
+    appendFileSync(path.join(dir, 'story-1', 'signals.ndjson'), '{"b":2}\n');
+    writeFileSync(path.join(dir, 'story-2', 'signals.ndjson'), '{"c":3}\n');
+    assert.deepEqual(streamsCarryingNonce(dir, before, 'nonce-x'), []);
+  });
+
+  it('names a grown or new stream that received the nonce', () => {
+    const before = streamSizes(dir);
+    const grown = path.join(dir, 'story-1', 'signals.ndjson');
+    const created = path.join(dir, 'story-2', 'signals.ndjson');
+    appendFileSync(grown, '{"nonce":"nonce-x"}\n');
+    writeFileSync(created, '{"nonce":"nonce-x"}\n');
+    assert.deepEqual(
+      streamsCarryingNonce(dir, before, 'nonce-x').sort(),
+      [grown, created].sort(),
+    );
+  });
+
+  it('does not re-read bytes that were already there before the run', () => {
+    writeFileSync(
+      path.join(dir, 'story-1', 'signals.ndjson'),
+      '{"nonce":"nonce-x"}\n',
+    );
+    const before = streamSizes(dir);
+    appendFileSync(path.join(dir, 'story-1', 'signals.ndjson'), '{"b":2}\n');
+    assert.deepEqual(streamsCarryingNonce(dir, before, 'nonce-x'), []);
+  });
+});
+
 describe('lib/config/temp-paths.js — direct `node --test` appends zero bytes to the real tree (Story #4711, AC-3)', () => {
   it('a signals-writing fixture run via direct `node --test` lands in scratch, not temp/standalone', () => {
     const repoRoot = mainCheckoutRoot();
     assert.ok(repoRoot, 'suite must run inside a git checkout');
     const protectedDir = path.join(repoRoot, 'temp', 'standalone', 'stories');
 
-    /** Byte sizes of every stream file under the protected subtree. */
-    const streamSizes = () => {
-      const sizes = new Map();
-      const walk = (dir) => {
-        let entries;
-        try {
-          entries = readdirSync(dir, { withFileTypes: true });
-        } catch {
-          return;
-        }
-        for (const ent of entries) {
-          const abs = path.join(dir, ent.name);
-          if (ent.isDirectory()) walk(abs);
-          else if (ent.isFile() && ent.name.endsWith('.ndjson')) {
-            sizes.set(abs, statSync(abs).size);
-          }
-        }
-      };
-      walk(protectedDir);
-      return sizes;
-    };
-
-    const sizesBefore = streamSizes();
+    const sizesBefore = streamSizes(protectedDir);
+    const nonce = `leak-probe-${randomUUID()}`;
 
     // Fixture: resolves the standalone story-4428 signals path through the
     // production helper and appends one line to it — exactly the measured
@@ -550,7 +630,7 @@ describe('lib/config/temp-paths.js — direct `node --test` appends zero bytes t
         `test('fixture appends a signal record', () => {`,
         `  const target = signalsFile(null, 4428);`,
         `  mkdirSync(path.dirname(target), { recursive: true });`,
-        `  appendFileSync(target, JSON.stringify({ kind: 'friction', fixture: true }) + '\\n');`,
+        `  appendFileSync(target, JSON.stringify({ kind: 'friction', fixture: true, nonce: ${JSON.stringify(nonce)} }) + '\\n');`,
         `  console.log('RESOLVED:' + target);`,
         `});`,
         '',
@@ -583,14 +663,11 @@ describe('lib/config/temp-paths.js — direct `node --test` appends zero bytes t
         `fixture write landed in the real tree: ${resolved}`,
       );
 
-      const sizesAfter = streamSizes();
-      for (const [abs, size] of sizesAfter) {
-        assert.equal(
-          sizesBefore.get(abs),
-          size,
-          `real stream file grew or appeared: ${abs}`,
-        );
-      }
+      assert.deepEqual(
+        streamsCarryingNonce(protectedDir, sizesBefore, nonce),
+        [],
+        'fixture record landed in a real stream file',
+      );
     } finally {
       rmSync(fixtureDir, { recursive: true, force: true });
     }
