@@ -1,21 +1,12 @@
 /**
- * duplication-close-rescore.js — re-score the duplication rows of the files a
- * Story changed, at close, before the gates run, and commit any row that moved
- * — in EITHER direction — on the Story branch.
+ * duplication-close-rescore.js — at close, re-score the duplication rows of
+ * the files the Story changed and commit any row that moved, either way.
  *
- * Without it the duplication baseline moves only when someone runs its updater
- * by hand, so the head-vs-base compare in `check-baselines` reads the same
- * stale committed rows on both sides and can never fail.
- *
- * The commit is deliberately UNTAGGED: its subject never carries the
- * `baseline-refresh:` marker `refresh-ack.js` recognises. A tagged commit
- * would acknowledge the very rise it exists to expose; untagged, a Story that
- * adds a clone to a file it changed fails the duplication compare at close.
- *
- * The scorer always scans the whole tree (clones are pairwise); only the
- * written rows are scoped to the Story's changed files. Rows of files the
- * Story did not touch are the nightly drift job's to re-anchor. Every failure
- * is a named skip, never a failed close — the gate chain is authoritative.
+ * The commit is deliberately UNTAGGED (no `baseline-refresh:`): a tagged
+ * commit would acknowledge the very rise it exists to expose, so a Story that
+ * adds clones to a file it changed fails the head-vs-base compare at close.
+ * The scan covers the whole tree (clones are pairwise); only changed-file rows
+ * are written. Every failure is a named skip, never a failed close.
  */
 
 import fs from 'node:fs';

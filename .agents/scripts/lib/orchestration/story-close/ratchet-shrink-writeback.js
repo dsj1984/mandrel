@@ -1,25 +1,12 @@
 /**
- * ratchet-shrink-writeback.js — bank the burn-down of the two standalone
- * ratchets at close: dead-export `(file, symbol)` pairs (default AND
- * `--production` baselines) the tree no longer produces, and cyclomatic rows
- * whose over-ceiling count or worst function dropped or vanished.
+ * ratchet-shrink-writeback.js — at close, bank the burn-down of the dead-export
+ * (default and `--production`) and cyclomatic ratchets, whose checks exit 0 on
+ * removals so a burnt-down row would otherwise linger as slack.
  *
- * `check-dead-exports.js` and `check-cyclomatic.js` exit 0 on removals-only,
- * so without this a burnt-down row stays in its baseline as slack the next
- * regression can silently spend.
- *
- * Shrink only. Each baseline is rewritten only when the recomputed rows are a
- * strict subset of (or, for cyclomatic, no worse on any axis than) the
- * committed rows: a write never adds a row or raises a value. Any addition or
- * rise leaves that baseline untouched for its authoritative check to fail on.
- * Rows come from each check's own computation — knip via
- * `lib/dead-exports-knip.js` + `check-dead-exports.js#diffRows`, cyclomatic
- * via `lib/cyclomatic-ceiling.js` over `lib/cyclomatic-scope.js` — never a
- * re-implementation.
- *
- * The commit carries `baseline-refresh:` — a deletion or reduction is an
- * acknowledged improvement. Runs at the pre-gate seam; every failure is a
- * named skip, never a failed close.
+ * Shrink only: a baseline is rewritten only when its recomputed rows are a
+ * strict subset of (cyclomatic: no worse than) the committed rows, so a write
+ * never adds a row or raises a value. Rows come from each check's own
+ * machinery. One `baseline-refresh:` commit; every failure is a named skip.
  */
 
 import fs from 'node:fs';
