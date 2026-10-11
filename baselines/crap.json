@@ -7887,8 +7887,8 @@
     {
       "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
       "method": "resolveDetectClones",
-      "startLine": 28,
-      "crap": 4.809327846364883
+      "startLine": 34,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
@@ -7899,37 +7899,37 @@
     {
       "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
       "method": "cloneLineNumbers",
-      "startLine": 68,
-      "crap": 4
+      "startLine": 70,
+      "crap": 5
     },
     {
       "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
       "method": "buildDuplicationRows",
-      "startLine": 80,
+      "startLine": 90,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
       "method": "toLineCountMap",
-      "startLine": 123,
+      "startLine": 127,
       "crap": 10.399999999999999
     },
     {
       "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
       "method": "readLineCount",
-      "startLine": 138,
+      "startLine": 142,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
       "method": "scanDuplication",
-      "startLine": 153,
+      "startLine": 163,
       "crap": 5.014467592592593
     },
     {
       "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
       "method": "collectVisitedFiles",
-      "startLine": 198,
+      "startLine": 208,
       "crap": 3
     },
     {
