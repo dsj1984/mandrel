@@ -211,10 +211,10 @@ one JSONL transcript per session under `~/.claude/projects/<slug>/` (the slug
 is the main checkout's absolute path with every `/` and `.` replaced by `-`)
 and one per spawned subagent under `<sessionId>/subagents/`, with a sibling
 `agent-<id>.meta.json` naming its `agentType`. `npm run report:agent-cost`
-reads them and writes `temp/agent-cost/report.json` (one row per session and
-per subagent, plus the grouped summary) and `temp/agent-cost/summary.md`
-(agentType × effort × model → count, median and p90 of tokens and wall
-time). Only metadata is read — model, effort, usage, skill, timestamps — and
+reads them and writes two files under `temp/agent-cost/` (override with
+`--out-dir`): report.json (one row per session and per subagent, plus the
+grouped summary) and summary.md (agentType × effort × model → count,
+median and p90 of tokens and wall time). Only metadata is read — model, effort, usage, skill, timestamps — and
 no message content, tool input or tool result reaches either file.
 
 Each API message is written as several records (one per content block), each
@@ -229,7 +229,7 @@ repeating its usage; the report counts every `message.id` once. Rows carry
 **Capture the baseline before the change lands.** Claude Code deletes
 transcripts after 30 days by default (`cleanupPeriodDays`), so a "before"
 window cannot be reconstructed later. Run the report for the pre-change
-window, then copy `temp/agent-cost/report.json` somewhere outside `temp/`
+window, then copy the report.json it wrote somewhere outside `temp/`
 (the temp purge reaps it) before merging the change. Compare after an
 equivalent post-change window on the same host.
 
