@@ -123,4 +123,10 @@ describe('git-cleanup runCleanup — injected active-phase runner', () => {
     }
     assert.equal(JSON.parse(captured[0]).baseBranch, 'trunk');
   });
+
+  it('defaults the working directory to the project root', async () => {
+    const { deps, calls } = stubDeps();
+    await runCleanup({ argv: ['--stashes'], deps });
+    assert.deepEqual(calls, [['stashes']]);
+  });
 });

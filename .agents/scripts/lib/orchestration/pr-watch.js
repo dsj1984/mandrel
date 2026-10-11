@@ -31,21 +31,12 @@ function ghRepoFlag(repo) {
   return trimmed.length > 0 ? ['--repo', trimmed] : [];
 }
 
-/** `--required` makes the returned set authoritative for protection gating. */
-function ghPrChecks({ prUrl, cwd, repo, spawnFn = spawnSync }) {
-  const result = spawnFn(
-    'gh',
-    [
-      'pr',
-      'checks',
-      prUrl,
-      '--required',
-      '--json',
-      'name,state,bucket,workflow,link',
-      ...ghRepoFlag(repo),
-    ],
-    { cwd, encoding: 'utf-8', shell: false },
-  );
+function runGh(args, { cwd, repo, spawnFn = spawnSync }) {
+  const result = spawnFn('gh', [...args, ...ghRepoFlag(repo)], {
+    cwd,
+    encoding: 'utf-8',
+    shell: false,
+  });
   return {
     status: result.status ?? 1,
     stdout: result.stdout ?? '',
@@ -53,17 +44,23 @@ function ghPrChecks({ prUrl, cwd, repo, spawnFn = spawnSync }) {
   };
 }
 
-function ghPrView({ prUrl, cwd, repo, spawnFn = spawnSync }) {
-  const result = spawnFn(
-    'gh',
-    ['pr', 'view', prUrl, '--json', 'mergeStateStatus', ...ghRepoFlag(repo)],
-    { cwd, encoding: 'utf-8', shell: false },
+/** `--required` makes the returned set authoritative for protection gating. */
+function ghPrChecks({ prUrl, ...port }) {
+  return runGh(
+    [
+      'pr',
+      'checks',
+      prUrl,
+      '--required',
+      '--json',
+      'name,state,bucket,workflow,link',
+    ],
+    port,
   );
-  return {
-    status: result.status ?? 1,
-    stdout: result.stdout ?? '',
-    stderr: result.stderr ?? '',
-  };
+}
+
+function ghPrView({ prUrl, ...port }) {
+  return runGh(['pr', 'view', prUrl, '--json', 'mergeStateStatus'], port);
 }
 
 /** Malformed input → `''`, which callers treat as "not BEHIND". */
@@ -80,21 +77,8 @@ function parseMergeStateStatus(stdout) {
   }
 }
 
-function ghPrUpdateBranch({ prUrl, cwd, repo, spawnFn = spawnSync }) {
-  const result = spawnFn(
-    'gh',
-    ['pr', 'update-branch', prUrl, ...ghRepoFlag(repo)],
-    {
-      cwd,
-      encoding: 'utf-8',
-      shell: false,
-    },
-  );
-  return {
-    status: result.status ?? 1,
-    stdout: result.stdout ?? '',
-    stderr: result.stderr ?? '',
-  };
+function ghPrUpdateBranch({ prUrl, ...port }) {
+  return runGh(['pr', 'update-branch', prUrl], port);
 }
 
 /** Gate for BEHIND recovery: never auto-update into a failing PR. */

@@ -517,15 +517,17 @@ describe('runPrWatch — CLI path wiring (no injected gh ports, Story #4144)', (
     assert.equal(result.green, true);
   });
 
-  it('reads a malformed pr view payload as not BEHIND', async (t) => {
+  it('reads a malformed, empty or field-less pr view payload as not BEHIND', async (t) => {
     if (process.platform === 'win32') {
       t.skip('POSIX shell shim only');
       return;
     }
-    fakeGhWithView('not-json');
-    const result = await watchDefaultPorts();
-    assert.equal(result.updatesApplied, 0);
-    assert.equal(result.green, true);
+    for (const view of ['not-json', '', '{}']) {
+      fakeGhWithView(view);
+      const result = await watchDefaultPorts();
+      assert.equal(result.updatesApplied, 0, `view=${view}`);
+      assert.equal(result.green, true);
+    }
   });
 
   it('discounts a cancelled-run red through the real gh api spawn (Story #5534)', async (t) => {
