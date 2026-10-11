@@ -379,6 +379,8 @@ async function closeOneSupersededTicket({
  * @property {string|null} reason  Why the phase was skipped wholesale.
  * @property {'flag'|'envelope'|'none'} [sourceTicketOrigin] Stamped by `runPlanPersist`.
  * @property {number[]} closed
+ * @property {number[]} rewritten Sources rewritten in place as their Story —
+ *   never commented on or closed (dry runs list the planned rewrite).
  * @property {Array<{ ticket: number, storySlug: string }>} planned Dry-run
  *   only; keyed by slug because dry-run Story ids are placeholders.
  * @property {Array<{ ticket: number, reason: string }>} skipped
@@ -392,6 +394,7 @@ function emptyReport(overrides) {
     dryRun: false,
     reason: null,
     closed: [],
+    rewritten: [],
     planned: [],
     skipped: [],
     failed: [],
@@ -475,6 +478,7 @@ export async function closeSupersededTickets({
       if (!createdStory) {
         return { outcome: 'skipped', reason: 'story-not-created' };
       }
+      if (isRewrittenSource(createdStory, id)) return { outcome: 'rewritten' };
       if (dryRun) return { outcome: 'planned' };
       return closeOneSupersededTicket({
         provider,
@@ -521,14 +525,28 @@ function collectSupersedeUnits(stories, createdBySlug) {
 }
 
 /**
+ * The source IS the Story now; closing it would close the work.
+ *
+ * @param {{ id: number, rewritten?: boolean }} createdStory
+ * @param {number} id
+ * @returns {boolean}
+ */
+function isRewrittenSource(createdStory, id) {
+  return createdStory.rewritten === true && createdStory.id === id;
+}
+
+/** Outcomes recorded as a bare ticket id. */
+const ID_OUTCOMES = new Set(['closed', 'rewritten']);
+
+/**
  * @param {SupersedeReport} report
  * @param {{ id: number, createdStory: object|undefined }} unit
  * @param {{ outcome: string, reason?: string }} result
  * @returns {void}
  */
 function recordSupersedeOutcome(report, unit, result) {
-  if (result.outcome === 'closed') {
-    report.closed.push(unit.id);
+  if (ID_OUTCOMES.has(result.outcome)) {
+    report[result.outcome].push(unit.id);
     return;
   }
   if (result.outcome === 'planned') {
@@ -548,7 +566,19 @@ function recordSupersedeOutcome(report, unit, result) {
 /**
  * @param {SupersedeReport} report
  */
+function logRewrittenSources(report) {
+  const line = report.dryRun
+    ? (id) =>
+        `[plan-persist] dry-run: would rewrite #${id} in place as its Story.`
+    : (id) => `[plan-persist] #${id} was rewritten in place — not closed.`;
+  for (const id of report.rewritten) Logger.info(line(id));
+}
+
+/**
+ * @param {SupersedeReport} report
+ */
 function logSupersedeReport(report) {
+  logRewrittenSources(report);
   if (report.dryRun) {
     for (const { ticket, storySlug } of report.planned) {
       Logger.info(

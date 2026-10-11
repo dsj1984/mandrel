@@ -29,6 +29,7 @@ import {
   externalDependencyId,
   isExternalDependencyRef,
 } from './external-deps.js';
+import { rewriteSourceTicket } from './source-rewrite.js';
 import {
   normalizeSupersedes,
   resolveSupersedePartition,
@@ -723,9 +724,32 @@ async function ensurePersistLabel({
 }
 
 /**
+ * Label mutations for a rewritten source: the Story's labels on, and every
+ * `agent::*` plus any earlier run's cohort label off — the source now belongs
+ * to this run and is not deliverable until the terminal ready flip.
+ *
+ * @param {string[]} currentLabels
+ * @param {string[]} add
+ * @returns {{ add: string[], remove: string[] }}
+ */
+function rewriteLabelMutations(currentLabels, add) {
+  const agentLabels = Object.values(AGENT_LABELS);
+  const remove = (currentLabels ?? []).filter(
+    (label) =>
+      !add.includes(label) &&
+      (agentLabels.includes(label) || label.startsWith(PLAN_RUN_LABEL_PREFIX)),
+  );
+  return { add, remove };
+}
+
+/**
  * Create Story issues resumably, adopting any open Story whose fingerprint
  * matches. Stories are born without `agent::ready`; `markStoriesReady` flips
  * it last, once every plan comment is on the ticket.
+ *
+ * With `opts.rewriteTarget` (a one-for-one plan), the single Story is written
+ * over that source ticket instead of POSTed; its entry carries
+ * `rewritten: true` and the source's id.
  *
  * The loop stays serial: `idBySlug` is filled in loop order by the POSTs, and
  * a concurrent create would render `#undefined` dependency refs.
@@ -735,8 +759,9 @@ async function ensurePersistLabel({
  * @param {ReturnType<typeof assemblePlanStories>['stories']} args.stories
  * @param {object} [args.opts]
  * @param {boolean} [args.opts.dryRun=false]
+ * @param {{ id: number, ticket: object }|null} [args.opts.rewriteTarget=null]
  * @returns {Promise<{
- *   created: Array<{ slug: string, id: number, url?: string, title: string, adopted: boolean }>,
+ *   created: Array<{ slug: string, id: number, url?: string, title: string, adopted: boolean, rewritten?: boolean }>,
  *   dependencyEdges: { edgesAdded: number, edgesSkipped: number, edgesFailed: number, storiesProcessed: number }|null,
  *   planRunLabel: string,
  *   planRunLabelApplied: boolean,
@@ -750,6 +775,7 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
   }
 
   const list = Array.isArray(stories) ? stories : [];
+  const rewriting = list.length === 1 ? (opts.rewriteTarget ?? null) : null;
 
   const cohortLabel = planRunLabel(
     derivePlanRunId(list.map((story) => story.fingerprint)),
@@ -759,10 +785,11 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
     return {
       created: list.map((s, i) => ({
         slug: s.slug,
-        id: -(i + 1),
+        id: rewriting ? rewriting.id : -(i + 1),
         title: s.title,
         url: undefined,
         adopted: false,
+        ...(rewriting ? { rewritten: true } : {}),
       })),
       dependencyEdges: null,
       planRunLabel: cohortLabel,
@@ -786,7 +813,8 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
   // Already dependency-ordered; re-sorting would disagree on the primary.
   for (const story of list) {
     const already = byFingerprint.get(story.fingerprint);
-    if (!already) warnOnDivergentSameTitleStory(story, idsByTitle);
+    if (!already && !rewriting)
+      warnOnDivergentSameTitleStory(story, idsByTitle);
     if (already) {
       Logger.info(
         `[plan-persist] resuming: Story "${story.slug}" already exists as ` +
@@ -799,15 +827,46 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
         title: story.title,
         url: already.url,
         adopted: true,
+        // A resumed rewrite: the source already carries this Story.
+        ...(already.id === rewriting?.id ? { rewritten: true } : {}),
       });
       idBySlug.set(story.slug, already.id);
+      continue;
+    }
+
+    const labels = [
+      ...story.labels,
+      ...(applyCohortLabel ? [cohortLabel] : []),
+    ];
+    if (rewriting) {
+      await rewriteSourceTicket({
+        provider,
+        target: rewriting,
+        title: story.title,
+        body: renderStoryBodyForCreate(story, idBySlug),
+        labels: rewriteLabelMutations(rewriting.ticket.labels, labels),
+      });
+      Logger.info(
+        `[plan-persist] rewrote source ticket #${rewriting.id} in place as ` +
+          `Story "${story.slug}" — no new issue filed.`,
+      );
+      created.push({
+        slug: story.slug,
+        id: rewriting.id,
+        title: story.title,
+        url: rewriting.ticket.url,
+        internalId: rewriting.ticket.internalId,
+        adopted: false,
+        rewritten: true,
+      });
+      idBySlug.set(story.slug, rewriting.id);
       continue;
     }
 
     const result = await provider.createIssue({
       title: story.title,
       body: renderStoryBodyForCreate(story, idBySlug),
-      labels: [...story.labels, ...(applyCohortLabel ? [cohortLabel] : [])],
+      labels,
       findExisting: () =>
         findOpenStoryByPlanFingerprint({
           provider,
