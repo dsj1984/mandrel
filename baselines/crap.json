@@ -38080,6 +38080,51 @@
       "anonymous": true
     },
     {
+      "path": "scripts/agent-cost-report.js",
+      "method": "mainCheckoutOf",
+      "startLine": 38,
+      "crap": 2
+    },
+    {
+      "path": "scripts/agent-cost-report.js",
+      "method": "defaultProjectDir",
+      "startLine": 51,
+      "crap": 1
+    },
+    {
+      "path": "scripts/agent-cost-report.js",
+      "method": "parseReportArgv",
+      "startLine": 59,
+      "crap": 1
+    },
+    {
+      "path": "scripts/agent-cost-report.js",
+      "method": "runAgentCostReport",
+      "startLine": 85,
+      "crap": 2
+    },
+    {
+      "path": "scripts/agent-cost-report.js",
+      "method": "<anon runAgentCostReport/(dir)#0>",
+      "startLine": 96,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/agent-cost-report.js",
+      "method": "<anon runAgentCostReport/(dir)#1>",
+      "startLine": 97,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/agent-cost-report.js",
+      "method": "<anon ()#0>",
+      "startLine": 146,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
       "path": "scripts/check-action-pinning.js",
       "method": "parseArgv",
       "startLine": 48,
@@ -39171,6 +39216,325 @@
       "method": "<anon runAssertions/(r)#0>",
       "startLine": 314,
       "crap": 1.000657516232432,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/agent-cost/read-transcripts.js",
+      "method": "mostFrequent",
+      "startLine": 57,
+      "crap": 3
+    },
+    {
+      "path": "scripts/lib/agent-cost/read-transcripts.js",
+      "method": "distinct",
+      "startLine": 78,
+      "crap": 1
+    },
+    {
+      "path": "scripts/lib/agent-cost/read-transcripts.js",
+      "method": "<anon distinct/(v)#0>",
+      "startLine": 79,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/agent-cost/read-transcripts.js",
+      "method": "parseJsonl",
+      "startLine": 88,
+      "crap": 4
+    },
+    {
+      "path": "scripts/lib/agent-cost/read-transcripts.js",
+      "method": "dedupeMessages",
+      "startLine": 111,
+      "crap": 1
+    },
+    {
+      "path": "scripts/lib/agent-cost/read-transcripts.js",
+      "method": "<anon dedupeMessages/(record,index)#0>",
+      "startLine": 113,
+      "crap": 6,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/agent-cost/read-transcripts.js",
+      "method": "<anon dedupeMessages/(a,b)#0>",
+      "startLine": 127,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/agent-cost/read-transcripts.js",
+      "method": "<anon dedupeMessages/(entry)#0>",
+      "startLine": 128,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/agent-cost/read-transcripts.js",
+      "method": "usageTokens",
+      "startLine": 136,
+      "crap": 1
+    },
+    {
+      "path": "scripts/lib/agent-cost/read-transcripts.js",
+      "method": "effortChurn",
+      "startLine": 153,
+      "crap": 6
+    },
+    {
+      "path": "scripts/lib/agent-cost/read-transcripts.js",
+      "method": "timeSpan",
+      "startLine": 176,
+      "crap": 5
+    },
+    {
+      "path": "scripts/lib/agent-cost/read-transcripts.js",
+      "method": "storyIdFrom",
+      "startLine": 197,
+      "crap": 3
+    },
+    {
+      "path": "scripts/lib/agent-cost/read-transcripts.js",
+      "method": "buildRow",
+      "startLine": 211,
+      "crap": 1
+    },
+    {
+      "path": "scripts/lib/agent-cost/read-transcripts.js",
+      "method": "<anon buildRow/(r)#0>",
+      "startLine": 224,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/agent-cost/read-transcripts.js",
+      "method": "<anon buildRow/(r)#1>",
+      "startLine": 225,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/agent-cost/read-transcripts.js",
+      "method": "<anon buildRow/(r)#2>",
+      "startLine": 232,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/agent-cost/read-transcripts.js",
+      "method": "readMeta",
+      "startLine": 255,
+      "crap": 3.140625
+    },
+    {
+      "path": "scripts/lib/agent-cost/read-transcripts.js",
+      "method": "staleBefore",
+      "startLine": 271,
+      "crap": 2
+    },
+    {
+      "path": "scripts/lib/agent-cost/read-transcripts.js",
+      "method": "readOne",
+      "startLine": 282,
+      "crap": 1
+    },
+    {
+      "path": "scripts/lib/agent-cost/read-transcripts.js",
+      "method": "readSubagents",
+      "startLine": 297,
+      "crap": 6
+    },
+    {
+      "path": "scripts/lib/agent-cost/read-transcripts.js",
+      "method": "readProjectDir",
+      "startLine": 332,
+      "crap": 4
+    },
+    {
+      "path": "scripts/lib/agent-cost/summarize.js",
+      "method": "parseBound",
+      "startLine": 17,
+      "crap": 5
+    },
+    {
+      "path": "scripts/lib/agent-cost/summarize.js",
+      "method": "filterRows",
+      "startLine": 31,
+      "crap": 1
+    },
+    {
+      "path": "scripts/lib/agent-cost/summarize.js",
+      "method": "<anon filterRows/(row)#0>",
+      "startLine": 33,
+      "crap": 12,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/agent-cost/summarize.js",
+      "method": "median",
+      "startLine": 49,
+      "crap": 3
+    },
+    {
+      "path": "scripts/lib/agent-cost/summarize.js",
+      "method": "<anon median/(a,b)#0>",
+      "startLine": 51,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/agent-cost/summarize.js",
+      "method": "p90",
+      "startLine": 64,
+      "crap": 2
+    },
+    {
+      "path": "scripts/lib/agent-cost/summarize.js",
+      "method": "<anon p90/(a,b)#0>",
+      "startLine": 66,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/agent-cost/summarize.js",
+      "method": "stats",
+      "startLine": 73,
+      "crap": 1
+    },
+    {
+      "path": "scripts/lib/agent-cost/summarize.js",
+      "method": "summarize",
+      "startLine": 82,
+      "crap": 2
+    },
+    {
+      "path": "scripts/lib/agent-cost/summarize.js",
+      "method": "<anon summarize/(g)#0>",
+      "startLine": 100,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/agent-cost/summarize.js",
+      "method": "<anon summarize/(g)#0/(r)#0>",
+      "startLine": 101,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/agent-cost/summarize.js",
+      "method": "<anon summarize/(g)#0/(r)#1/(w)#0>",
+      "startLine": 102,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/agent-cost/summarize.js",
+      "method": "<anon summarize/(g)#0/(r)#1>",
+      "startLine": 102,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/agent-cost/summarize.js",
+      "method": "<anon summarize/(g)#0/(r)#2>",
+      "startLine": 110,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/agent-cost/summarize.js",
+      "method": "<anon summarize/(g)#0/(r)#3>",
+      "startLine": 112,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/agent-cost/summarize.js",
+      "method": "<anon summarize/(a,b)#0>",
+      "startLine": 117,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/agent-cost/summarize.js",
+      "method": "<anon summarize/(r)#0>",
+      "startLine": 125,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/agent-cost/summarize.js",
+      "method": "<anon summarize/(r)#1>",
+      "startLine": 126,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/agent-cost/summarize.js",
+      "method": "<anon summarize/(r)#2>",
+      "startLine": 127,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/agent-cost/summarize.js",
+      "method": "<anon summarize/(r)#3>",
+      "startLine": 128,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/agent-cost/summarize.js",
+      "method": "<anon summarize/(r)#4>",
+      "startLine": 130,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/agent-cost/summarize.js",
+      "method": "sum",
+      "startLine": 139,
+      "crap": 1
+    },
+    {
+      "path": "scripts/lib/agent-cost/summarize.js",
+      "method": "<anon sum/(acc,v)#0>",
+      "startLine": 140,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/agent-cost/summarize.js",
+      "method": "fmt",
+      "startLine": 146,
+      "crap": 2
+    },
+    {
+      "path": "scripts/lib/agent-cost/summarize.js",
+      "method": "fmtSeconds",
+      "startLine": 153,
+      "crap": 2
+    },
+    {
+      "path": "scripts/lib/agent-cost/summarize.js",
+      "method": "renderSummaryMarkdown",
+      "startLine": 164,
+      "crap": 2
+    },
+    {
+      "path": "scripts/lib/agent-cost/summarize.js",
+      "method": "<anon renderSummaryMarkdown/(v)#0>",
+      "startLine": 167,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/agent-cost/summarize.js",
+      "method": "<anon renderSummaryMarkdown/(k,v)#0>",
+      "startLine": 176,
+      "crap": 1,
       "anonymous": true
     },
     {
