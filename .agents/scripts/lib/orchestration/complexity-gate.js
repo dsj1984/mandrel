@@ -332,9 +332,7 @@ export function deriveStoryShape({
  * run would put several engines on one session and checkout. Only *where*
  * changes; close gates, PR and terminal envelope are identical.
  *
- * One exception: a one-Story run resuming a Story that blocked before goes to
- * a sub-agent when role-scoped agents are enabled, because only a spawn can
- * carry the per-call resume effort — inline, the session's effort is fixed.
+ * A resumed one-Story run spawns: only a spawn carries per-call effort.
  *
  * @param {{ storyCount?: unknown, priorBlocks?: unknown,
  *   roleScopedAgents?: unknown }} [args] Anything but exactly 1 Story
@@ -362,8 +360,6 @@ function singleStoryDispatch(priorBlocks, roleScopedAgents) {
 }
 
 /**
- * Only a spawn can carry per-call effort, and only role-scoped agents spawn.
- *
  * @param {unknown} priorBlocks
  * @param {unknown} roleScopedAgents
  * @returns {boolean}
