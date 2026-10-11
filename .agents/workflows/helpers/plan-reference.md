@@ -554,10 +554,49 @@ Whichever channel supplies them, the supersede-map partition above still
 fail-closes: a `--tickets` run whose Stories forgot `supersedes[]` is
 **caught** (`source ticket #N is not claimed by any Story`).
 
+## Rewriting a one-for-one source in place
+
+When a tickets-mode plan is **one-for-one** — exactly one source ticket and
+exactly one drafted Story — persist rewrites that ticket instead of filing a
+new Story and closing the source as its duplicate. The issue number, its
+comment history and its non-`agent::*` labels survive. This is the default.
+Gate #2 still asks, so the operator can choose either way:
+
+| Choice | What persist does |
+| --- | --- |
+| **Rewrite #N in place** (Recommended) | No flag — the default. |
+| **File a new Story and close #N** | `--no-rewrite-source` |
+
+Under `--yes` the question is skipped and the default applies.
+
+**The write order** keeps "`agent::ready` means fully persisted" true even
+for a source that was already `agent::ready`:
+
+1. If the source carries no `plan-rewrite` comment, post one holding its
+   original title and body in a collapsed block. **First write wins** — a
+   later re-plan never replaces it, so the pre-plan evidence survives.
+2. One PATCH sets the new title and body (with the plan fingerprint, so a
+   retried persist adopts the rewritten issue instead of duplicating it),
+   adds the Story's labels and this run's `plan-run::` label, and removes
+   every `agent::*` label and any earlier run's `plan-run::` label.
+3. The `story-plan-state` comment, then the terminal `agent::ready` flip.
+
+The supersede phase lists the rewritten id under `supersede.rewritten` and
+neither comments on nor closes it; the result's `rewrite` field names the
+ticket or why there was none.
+
+**Falls back to create-and-close** with no warning for any other shape
+(several sources, several Stories), under `--no-rewrite-source`, and under
+`--no-close-superseded` — that flag means the remainder of the source must
+stay open as itself, which a rewrite would destroy. It **falls back with a
+warning** naming the reason when the source is closed, inaccessible, a
+`type::epic` container, or mid-delivery (`agent::executing` /
+`agent::closing`).
+
 ## Closing superseded source tickets
 
-**Default on.** After the Stories exist, persist comments on each source
-issue naming the specific Story that claims it — plus that Story's optional
+**Default on** for every source not rewritten in place (above). After the
+Stories exist, persist comments on each source issue naming the specific Story that claims it — plus that Story's optional
 per-supersede `note` — and closes it with reason **`duplicate`**
 (`state_reason`): the claiming Story carries the work, and nothing has
 shipped at persist time, so `completed` would be a lie. A provider that

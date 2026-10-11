@@ -121,6 +121,11 @@ than one Story** (a split always earns operator eyes, `--force-review` or
 not), or when the operator asked to review (`--force-review`).
 Under `--yes`, auto-proceed.
 
+**One-for-one (tickets mode, one source → one Story)** — ask with
+AskUserQuestion: **Rewrite #N in place (Recommended)** or **File a new Story
+and close #N** (`--no-rewrite-source`). Under `--yes`, rewrite
+([ref](helpers/plan-reference.md)).
+
 **Gate #3 — adopt, else create.** Offer the top `epicCandidates[]` Epic at
 **any N** (`--epic <id>`); else, at **N>2**, a new container (`--epic-title` /
 `--epic-goal`). Never unasked ([ref](helpers/plan-reference.md)).
@@ -151,7 +156,8 @@ Persist creates `type::story` issue(s), a **metadata-only** `plan-run::<id>`
 label, `blocked by #<id>` footers for every `depends_on` edge, and on a Gate #3
 yes links them under a `type::epic` container (adopted or new). `agent::ready`
 is the **terminal** flip after receipts land; stdout is pure JSON. Tickets mode
-also comments on and closes each source id ([ref](helpers/plan-reference.md)).
+rewrites a one-for-one source in place, else comments on and closes each
+source id ([ref](helpers/plan-reference.md)).
 
 ## Constraints
 
