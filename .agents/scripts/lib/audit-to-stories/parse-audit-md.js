@@ -468,6 +468,7 @@ export const __testing = {
   isGroupingHeader,
   foldGroupingHeaders,
   normaliseSeverity,
+  normalisePathToken,
   extractFilePaths,
   normaliseTitle,
   deriveDimension,
