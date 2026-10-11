@@ -486,3 +486,59 @@ describe('runPostLandTail — the worktree reap (Story #5533)', () => {
     assert.equal(tail.details.worktreeReap, 'reap-disabled');
   });
 });
+
+/**
+ * Story #5620 — the ref reap also drops `origin/story-<id>`. GitHub's branch
+ * auto-delete never touches a clone's tracking ref, so without this every
+ * delivered Story left one behind until a `fetch --prune`.
+ */
+describe('runPostLandTail — the tracking-ref reap (Story #5620)', () => {
+  /** gitSpawn recording each call; `localRef` and `updateRefStatus` steer it. */
+  function recordingGitSpawn(calls, { localRef = true, updateRefStatus = 0 }) {
+    return (_cwd, ...args) => {
+      calls.push(args.join(' '));
+      if (args[0] === 'show-ref') return { status: localRef ? 0 : 1 };
+      if (args[0] === 'update-ref')
+        return { status: updateRefStatus, stderr: 'ref locked' };
+      return { status: 0 };
+    };
+  }
+
+  const runTail = (gitSpawnFn) =>
+    runPostLandTail({
+      storyId: 5620,
+      storyBranch: 'story-5620',
+      baseBranch: 'main',
+      cwd: tmpDir,
+      provider: {},
+      ...baseSeams(),
+      gitSpawnFn,
+    });
+
+  it('deletes the tracking ref after the local branch', async () => {
+    const calls = [];
+    const tail = await runTail(recordingGitSpawn(calls, {}));
+    assert.equal(tail.refCleanup, true);
+    const del = calls.indexOf('branch -D story-5620');
+    const track = calls.indexOf('update-ref -d refs/remotes/origin/story-5620');
+    assert.ok(del >= 0 && track > del, calls.join(' | '));
+  });
+
+  it('still deletes the tracking ref when the local branch is already gone', async () => {
+    const calls = [];
+    const tail = await runTail(recordingGitSpawn(calls, { localRef: false }));
+    assert.equal(tail.refCleanup, true);
+    assert.ok(!calls.includes('branch -D story-5620'));
+    assert.ok(calls.includes('update-ref -d refs/remotes/origin/story-5620'));
+  });
+
+  it('a failed tracking-ref delete degrades refCleanup, never the land', async () => {
+    const tail = await runTail(recordingGitSpawn([], { updateRefStatus: 1 }));
+    assert.equal(tail.refCleanup, false);
+    assert.match(
+      tail.details.refCleanup,
+      /refs\/remotes\/origin\/story-5620 failed: ref locked/,
+    );
+    assert.equal(tail.baseFastForward, true);
+  });
+});
