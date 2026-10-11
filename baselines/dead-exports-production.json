@@ -292,14 +292,6 @@
       "symbol": "STORY_FORM_RELATIVE_PATH"
     },
     {
-      "file": ".agents/scripts/lib/bootstrap/manifest.js",
-      "symbol": "MANIFEST_ENTRY_FIELDS"
-    },
-    {
-      "file": ".agents/scripts/lib/bootstrap/manifest.js",
-      "symbol": "PHASE_GROUP_VALUES"
-    },
-    {
       "file": ".agents/scripts/lib/bootstrap/merge-methods.js",
       "symbol": "diffMergeMethods"
     },
@@ -1160,30 +1152,6 @@
       "symbol": "__testing"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/pr-watch.js",
-      "symbol": "allTerminal"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/pr-watch.js",
-      "symbol": "hasFailingCheck"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/pr-watch.js",
-      "symbol": "parseGhPrChecks"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/pr-watch.js",
-      "symbol": "pollUntilTerminal"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/pr-watch.js",
-      "symbol": "promotePendingToStillRunning"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/pr-watch.js",
-      "symbol": "reduceOutcomes"
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/remote-verifier.js",
       "symbol": "probeRemoteBranch"
     },
@@ -1509,43 +1477,7 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
-      "symbol": "_peekStructuredCommentCache"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "symbol": "_resetStructuredCommentCache"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
-      "symbol": "buildStorylessTicketSnapshot"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
-      "symbol": "isValidStructuredCommentType"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
-      "symbol": "logCascadePartialFailures"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
-      "symbol": "STRUCTURED_COMMENT_TYPES"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
-      "symbol": "structuredCommentMarker"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
-      "symbol": "toggleTasklistCheckbox"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
-      "symbol": "transitionStoryDirect"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
-      "symbol": "WAVE_TYPE_PATTERN"
     },
     {
       "file": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
