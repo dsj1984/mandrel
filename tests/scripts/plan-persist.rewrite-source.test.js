@@ -10,10 +10,7 @@ import {
   TYPE_LABELS,
 } from '../../.agents/scripts/lib/label-constants.js';
 import { runPlanPersist } from '../../.agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js';
-import {
-  buildPlanRewriteCommentBody,
-  resolveRewriteTarget,
-} from '../../.agents/scripts/lib/orchestration/plan-persist/source-rewrite.js';
+import { resolveRewriteTarget } from '../../.agents/scripts/lib/orchestration/plan-persist/source-rewrite.js';
 import { serialize } from '../../.agents/scripts/lib/story-body/story-body.js';
 
 const SOURCE_ID = 990;
@@ -46,14 +43,18 @@ function draft(goal = 'Rewrite the source in place.') {
  * In-memory provider that records every write in `events`, so the tests can
  * assert ordering (comment before ready flip) as well as end state.
  */
-function recordingProvider({ labels = [], state = 'open' } = {}) {
+function recordingProvider({
+  labels = [],
+  state = 'open',
+  body = 'The original analysis.',
+} = {}) {
   const issues = new Map([
     [
       SOURCE_ID,
       {
         id: SOURCE_ID,
         title: 'Old idea',
-        body: 'The original analysis.',
+        body,
         labels: [...labels],
         state,
       },
@@ -297,11 +298,11 @@ describe('resolveRewriteTarget (Story #5604)', () => {
   });
 });
 
-describe('buildPlanRewriteCommentBody (Story #5604)', () => {
-  it('marks an empty original body explicitly', () => {
-    assert.match(
-      buildPlanRewriteCommentBody({ title: 'T', body: '  ' }),
-      /_\(empty body\)_/,
-    );
+describe('the plan-rewrite comment (Story #5604)', () => {
+  it('marks an empty original body explicitly', async () => {
+    const provider = recordingProvider({ body: '  ' });
+    await persist(provider);
+    const [preserved] = commentsOfType(provider, 'plan-rewrite');
+    assert.match(preserved.body, /_\(empty body\)_/);
   });
 });

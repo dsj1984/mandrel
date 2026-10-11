@@ -114,7 +114,7 @@ export async function resolveRewriteTarget({
  * @param {{ title?: string, body?: string }} ticket
  * @returns {string}
  */
-export function buildPlanRewriteCommentBody(ticket) {
+function buildPlanRewriteCommentBody(ticket) {
   const body = (ticket.body ?? '').trim();
   return [
     '**Rewritten in place by `/mandrel-plan`.** The original title and body ' +
