@@ -615,6 +615,43 @@ artifact. A projected breach never changes the close verdict.
 > import graph and fails if **any** module under `projections/` is reachable
 > from nothing in production — the orphaning itself is the regression.
 
+### Close-time write-backs for the by-hand baselines (Story #5626)
+
+Three baselines had no automated writer: duplication, dead-exports and
+cyclomatic moved only when someone ran their updater by hand, so their
+ratchets compared a stale committed file against itself and could not fail.
+Close's pre-gate seam
+(`lib/orchestration/single-story-close/phases/pre-gate-steps.js`) now runs
+two more best-effort steps after the maintainability and context-budget
+write-backs. Each failure is a named skip and never fails the close; the
+authoritative gates run right after.
+
+- **Duplication re-score — both directions, untagged**
+  (`story-close/duplication-close-rescore.js`). Re-scores duplication through
+  `refreshBaseline({ kind: 'duplication' })`. The jscpd scan always covers the
+  whole tree, because clones are pairwise. Only rows for the files changed in
+  `<baseBranch>...story-<id>` are rewritten. When a row moved, it commits
+  `baselines/duplication.json` with a subject that deliberately omits
+  `baseline-refresh:`. A tagged commit would acknowledge the very rise it
+  exists to expose. Untagged, a Story that adds clones to a file it changed
+  fails the head-vs-base duplication compare at close. A clone in a file with
+  no prior row raises the rollup against the floor below.
+- **Dead-export + cyclomatic shrink — removals only, tagged**
+  (`story-close/ratchet-shrink-writeback.js`). Recomputes the rows with each
+  check's own machinery: knip through `lib/dead-exports-knip.js` for both
+  `baselines/dead-exports.json` and `baselines/dead-exports-production.json`,
+  and `lib/cyclomatic-ceiling.js` for `baselines/cyclomatic.json`. A
+  baseline is rewritten only when the new rows are a strict subset of the
+  committed ones, or for cyclomatic no worse on either axis. Any addition or
+  rise leaves that baseline for its check to fail on. A failed knip run and
+  a cyclomatic parse error are skips, never read as "every row removed". The
+  deletions and reductions land in one
+  `chore(baselines): baseline-refresh: drop burnt-down ratchet rows …` commit.
+
+The duplication floor (`delivery.quality.gates.duplication.floors['*'].percentage`)
+sits at the measured rollup of the committed baseline, so any net rise in
+duplicated lines across the baselined files breaches it.
+
 ### `check-baseline-drift.js` — the scheduled full-scope re-score
 
 Every per-PR enforcement site (close-validation, pre-push, CI) is
@@ -625,7 +662,7 @@ complex, coverage moving underneath a method — stays invisible indefinitely.
 Full-scope scoring on every push is far too expensive to be the answer.
 
 ```bash
-node scripts/check-baseline-drift.js                     # both kinds
+node scripts/check-baseline-drift.js                     # every kind
 node scripts/check-baseline-drift.js --gate crap         # one kind
 node scripts/check-baseline-drift.js --tolerance 1 --json
 ```
@@ -648,7 +685,15 @@ way is green and inert. Pass `--require-scored` and any skipped kind exits `2`
 instead, naming the kind and the skip reason. Use it in every scheduled
 invocation.
 
-This repository schedules the maintainability kind in
+For `duplication`, rows exist only where clones exist, so an **added or
+removed** row is drift too, not file churn. A file that gained or lost every
+clone means the committed baseline no longer describes the tree. The kind's
+`presenceIsDrift` flag in `scripts/lib/baselines/drift-detector.js` turns that
+on; MI and CRAP keep added/removed informational. The remedy it prints is
+`npm run duplication:reanchor`.
+
+This repository schedules the maintainability and duplication kinds (one
+`--require-scored` run each) in
 `.github/workflows/baseline-drift.yml` (framework repo only — that path is not
 part of the materialized `.agents/` payload) — nightly at 05:43 UTC plus
 `workflow_dispatch`; it files or updates one

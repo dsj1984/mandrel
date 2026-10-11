@@ -44,12 +44,19 @@ import { getQuality } from '../../../.agents/scripts/lib/config/quality.js';
 import { resolveConfig } from '../../../.agents/scripts/lib/config-resolver.js';
 
 /** The kinds whose rows carry a per-file/per-method score worth re-scoring. */
-export const DRIFT_KINDS = Object.freeze(['maintainability', 'crap']);
+export const DRIFT_KINDS = Object.freeze([
+  'maintainability',
+  'crap',
+  'duplication',
+]);
 
 /**
  * Per-kind identity, metric axis, and refresh remedy. `identity` must match
  * the granularity the kind's baseline rows are keyed at, or unchanged rows
- * masquerade as added/removed pairs.
+ * masquerade as added/removed pairs. `presenceIsDrift` marks a kind whose
+ * rows exist only where the measured thing does (a duplication row only for a
+ * file with clones), so an added or removed row is itself drift; for MI and
+ * CRAP an added/removed row is file churn and stays informational.
  */
 const KIND_SPECS = Object.freeze({
   maintainability: Object.freeze({
@@ -66,7 +73,49 @@ const KIND_SPECS = Object.freeze({
     refreshCommand: 'npm run crap:update -- --full-scope',
     defaultTolerance: 0.001,
   }),
+  duplication: Object.freeze({
+    metric: 'percentage',
+    identity: (row) => row.path,
+    label: (row) => row.path,
+    refreshCommand: 'npm run duplication:reanchor',
+    defaultTolerance: 1,
+    presenceIsDrift: true,
+  }),
 });
+
+/**
+ * The kind's gate block: MI and CRAP read the flat `quality[kind]`
+ * projection; duplication lives only under `quality.gates.duplication`.
+ *
+ * @param {object|undefined} quality
+ * @param {string} kind
+ * @returns {object|undefined}
+ */
+function resolveGate(quality, kind) {
+  return quality?.[kind] ?? quality?.gates?.[kind];
+}
+
+/**
+ * Nothing scored is a skip — except for a presence kind, where it means every
+ * row vanished, which is drift.
+ *
+ * @param {object} spec the kind's KIND_SPECS entry
+ * @param {Array<object>} currentRows
+ * @returns {boolean}
+ */
+function isUnscored(spec, currentRows) {
+  return currentRows.length === 0 && !spec.presenceIsDrift;
+}
+
+/**
+ * @param {object} spec the kind's KIND_SPECS entry
+ * @param {{ drifted: Array<object>, added: Array<object>, removed: Array<object> }} diff
+ * @returns {boolean}
+ */
+function isClean(spec, { drifted, added, removed }) {
+  if (drifted.length > 0) return false;
+  return !spec.presenceIsDrift || added.length + removed.length === 0;
+}
 
 /**
  * Resolve the absolute drift tolerance for a kind: an explicit override
@@ -192,7 +241,7 @@ async function detectKindDrift({
       `[drift] unknown kind "${kind}"; expected one of ${DRIFT_KINDS.join(', ')}`,
     );
   }
-  const gate = quality?.[kind];
+  const gate = resolveGate(quality, kind);
   const spec = KIND_SPECS[kind];
   const base = { kind, refreshCommand: spec.refreshCommand };
   if (gate?.enabled === false) {
@@ -209,7 +258,7 @@ async function detectKindDrift({
     return { ...base, ok: true, skipped: 'no-scorer' };
   }
   const currentRows = projectScoredRows(kind, raw);
-  if (currentRows.length === 0) {
+  if (isUnscored(spec, currentRows)) {
     return { ...base, ok: true, skipped: 'no-scored-rows' };
   }
 
@@ -223,7 +272,7 @@ async function detectKindDrift({
 
   return {
     ...base,
-    ok: drifted.length === 0,
+    ok: isClean(spec, { drifted, added, removed }),
     tolerance: resolvedTolerance,
     scanned: currentRows.length,
     baselineRows: baselineRows.length,
@@ -294,6 +343,30 @@ async function defaultScoreFullScope(kind, cwd) {
 }
 
 /**
+ * Header suffix naming added/removed rows for a kind where presence is drift.
+ *
+ * @param {object} result
+ * @returns {string}
+ */
+function presenceSuffix(result) {
+  if (!KIND_SPECS[result.kind]?.presenceIsDrift) return '';
+  return `, ${result.added.length} row(s) added, ${result.removed.length} removed`;
+}
+
+/**
+ * One line per added/removed row: for a presence kind these ARE the drift.
+ *
+ * @param {object} result
+ * @returns {string[]}
+ */
+function formatPresenceRows(result) {
+  return [
+    ...result.added.map((a) => `  + ${a.label} (${a.current})`),
+    ...result.removed.map((r) => `  - ${r.label} (was ${r.baseline})`),
+  ];
+}
+
+/**
  * Render one kind's result as an operator-facing block: a per-row
  * before/after table plus the refresh remedy. Returns a string always —
  * a clean kind reports one line so a scheduled job's log shows it ran.
@@ -308,32 +381,47 @@ function formatKindDrift(result) {
   if (result.ok) {
     return `[drift] ✓ ${result.kind}: ${result.scanned} row(s) re-scored full-scope, no drift beyond ±${result.tolerance}`;
   }
-  const width = Math.max(
-    12,
-    ...result.drifted.map((d) => String(d.label).length),
-  );
-  const lines = [
-    `[drift] ✖ ${result.kind}: ${result.drifted.length} row(s) drifted beyond ±${result.tolerance} (${result.scanned} re-scored, ${result.baselineRows} in baseline)`,
-    `  ${'ROW'.padEnd(width)}  ${'BASELINE'.padStart(10)}  ${'CURRENT'.padStart(10)}  ${'DELTA'.padStart(10)}`,
-  ];
-  for (const d of result.drifted) {
-    lines.push(
-      `  ${String(d.label).padEnd(width)}  ${d.baseline.toFixed(2).padStart(10)}  ${d.current
-        .toFixed(2)
-        .padStart(
-          10,
-        )}  ${(d.delta > 0 ? `+${d.delta.toFixed(2)}` : d.delta.toFixed(2)).padStart(10)}`,
-    );
-  }
-  if (result.added.length > 0 || result.removed.length > 0) {
-    lines.push(
-      `  (${result.added.length} row(s) absent from baseline, ${result.removed.length} baseline row(s) absent from the tree)`,
-    );
-  }
-  lines.push(
+  return [
+    `[drift] ✖ ${result.kind}: ${result.drifted.length} row(s) drifted beyond ±${result.tolerance}${presenceSuffix(result)} (${result.scanned} re-scored, ${result.baselineRows} in baseline)`,
+    ...formatDriftTable(result.drifted),
+    ...formatAddedRemoved(result),
     `  Remedy: run \`${result.refreshCommand}\` and commit the refreshed baseline with a \`baseline-refresh:\` tagged subject (non-empty body).`,
-  );
-  return lines.join('\n');
+  ].join('\n');
+}
+
+/**
+ * The per-row before/after table; empty when nothing drifted.
+ *
+ * @param {Array<object>} drifted
+ * @returns {string[]}
+ */
+function formatDriftTable(drifted) {
+  if (drifted.length === 0) return [];
+  const width = Math.max(12, ...drifted.map((d) => String(d.label).length));
+  const fmt = (n) => n.toFixed(2).padStart(10);
+  return [
+    `  ${'ROW'.padEnd(width)}  ${'BASELINE'.padStart(10)}  ${'CURRENT'.padStart(10)}  ${'DELTA'.padStart(10)}`,
+    ...drifted.map(
+      (d) =>
+        `  ${String(d.label).padEnd(width)}  ${fmt(d.baseline)}  ${fmt(d.current)}  ${(d.delta > 0 ? `+${d.delta.toFixed(2)}` : d.delta.toFixed(2)).padStart(10)}`,
+    ),
+  ];
+}
+
+/**
+ * Added/removed rows: listed for a presence kind (they are the drift), a
+ * one-line count otherwise.
+ *
+ * @param {object} result
+ * @returns {string[]}
+ */
+function formatAddedRemoved(result) {
+  if (KIND_SPECS[result.kind]?.presenceIsDrift)
+    return formatPresenceRows(result);
+  if (result.added.length + result.removed.length === 0) return [];
+  return [
+    `  (${result.added.length} row(s) absent from baseline, ${result.removed.length} baseline row(s) absent from the tree)`,
+  ];
 }
 
 /**

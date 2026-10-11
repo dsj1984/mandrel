@@ -187,25 +187,22 @@ describe('the committed floors are tightened to the measured levels', () => {
     );
   });
 
-  test('the duplication floor sits above the measurement by more than tolerance', () => {
-    // Story #4923 left this floor at 12 against an unproven 8.85, because the
-    // baseline was stale and its last readable interval moved AWAY from the
-    // floor. Story #4962 tightened it: five samples now read in the improving
-    // direction against a live baseline, so the slack is proven and claimable.
-    //
-    // The floor stays strictly further from the measurement than the gate's
-    // own tolerance. A floor inside tolerance is not a tighter ratchet, it is
-    // an unsatisfiable one — the trap that keeps `maintainability` at 74.
-    const { floors, tolerance } = quality.gates.duplication;
-    const floor = floors['*'].percentage;
+  test('the duplication floor sits at the measured rollup', () => {
+    // Story #4962 held this floor more than the tolerance above the
+    // measurement while the baseline had no automated writer. Story #5626
+    // gave it one (close re-scores changed files untagged; the nightly drift
+    // job re-anchors the rest), so the floor now sits at the measurement like
+    // CRAP's: any net rise in duplicated lines breaches it. The floor phase
+    // compares `value <= floor` with no tolerance, so equality is satisfiable.
+    const floor = quality.gates.duplication.floors['*'].percentage;
     const measured = readRollup('duplication').percentage;
     assert.ok(
-      floor > measured + tolerance.value,
-      `duplication floor ${floor} must stay above the measured ${measured} ` +
-        `by more than the ${tolerance.value}pt tolerance`,
+      measured <= floor,
+      `duplication floor ${floor} is below the measured ${measured} — the ` +
+        'committed tree already breaches it',
     );
     assert.ok(
-      floor - measured < 3,
+      floor - measured < 1,
       `duplication floor ${floor} leaves ${(floor - measured).toFixed(2)}pt of ` +
         'unclaimed slack above the measured value — tighten it',
     );

@@ -128,6 +128,10 @@
       "symbol": "listCyclomaticAdvisories"
     },
     {
+      "file": ".agents/scripts/lib/baselines/crap-updater-cli.js",
+      "symbol": "buildCrapSeatScorer"
+    },
+    {
       "file": ".agents/scripts/lib/baselines/duplication-scanner.js",
       "symbol": "buildDuplicationRows"
     },
@@ -214,6 +218,18 @@
     {
       "file": ".agents/scripts/lib/baselines/reader.js",
       "symbol": "canonicaliseRowPath"
+    },
+    {
+      "file": ".agents/scripts/lib/baselines/seat-missing.js",
+      "symbol": "seatKeyFor"
+    },
+    {
+      "file": ".agents/scripts/lib/baselines/seat-missing.js",
+      "symbol": "seatMissingBaseline"
+    },
+    {
+      "file": ".agents/scripts/lib/baselines/seat-missing.js",
+      "symbol": "selectMissingRows"
     },
     {
       "file": ".agents/scripts/lib/bdd-runner-detect.js",
@@ -310,10 +326,6 @@
     {
       "file": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "symbol": "ensureDependenciesInstalled"
-    },
-    {
-      "file": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "symbol": "ensureGitignore"
     },
     {
       "file": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
@@ -580,6 +592,10 @@
       "symbol": "meaningFor"
     },
     {
+      "file": ".agents/scripts/lib/config/gates/coverage.schema.js",
+      "symbol": "COVERAGE_TIMEOUT_BOUNDS"
+    },
+    {
       "file": ".agents/scripts/lib/config/qa.js",
       "symbol": "__testing"
     },
@@ -788,6 +804,10 @@
       "symbol": "resolveFullSuiteLockPath"
     },
     {
+      "file": ".agents/scripts/lib/full-suite-queue.js",
+      "symbol": "readLockHolder"
+    },
+    {
       "file": ".agents/scripts/lib/gates/baseline-store.js",
       "symbol": "BaselineNotFoundError"
     },
@@ -813,19 +833,11 @@
     },
     {
       "file": ".agents/scripts/lib/gh-exec.js",
-      "symbol": "GhAuthError"
-    },
-    {
-      "file": ".agents/scripts/lib/gh-exec.js",
       "symbol": "GhExecTimeoutError"
     },
     {
       "file": ".agents/scripts/lib/gh-exec.js",
       "symbol": "GhGraphqlError"
-    },
-    {
-      "file": ".agents/scripts/lib/gh-exec.js",
-      "symbol": "GhNotInstalledError"
     },
     {
       "file": ".agents/scripts/lib/gh-exec.js",
@@ -978,10 +990,6 @@
     {
       "file": ".agents/scripts/lib/orchestration/deliver-recover.js",
       "symbol": "probeBranch"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/deliver-recover.js",
-      "symbol": "probeCloseArtifacts"
     },
     {
       "file": ".agents/scripts/lib/orchestration/deliver-recover.js",
@@ -1190,10 +1198,6 @@
     {
       "file": ".agents/scripts/lib/orchestration/resolve-stories.js",
       "symbol": "storiesToDag"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/resolve-stories.js",
-      "symbol": "storyFootprintPaths"
     },
     {
       "file": ".agents/scripts/lib/orchestration/review-depth.js",
@@ -1517,10 +1521,6 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
-      "symbol": "findStructuredComment"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "symbol": "isValidStructuredCommentType"
     },
     {
@@ -1710,6 +1710,18 @@
     {
       "file": ".agents/scripts/lib/skills/walk-skill-files.js",
       "symbol": "SKILL_SEARCH_ROOTS"
+    },
+    {
+      "file": ".agents/scripts/lib/supervised-suite.js",
+      "symbol": "SUITE_READY_FILE_ENV"
+    },
+    {
+      "file": ".agents/scripts/lib/supervised-suite.js",
+      "symbol": "suiteReadyHandshake"
+    },
+    {
+      "file": ".agents/scripts/lib/supervised-suite.js",
+      "symbol": "superviseSuite"
     },
     {
       "file": ".agents/scripts/lib/temp-retention.js",
@@ -2016,10 +2028,6 @@
       "symbol": "addSubIssueEdges"
     },
     {
-      "file": "scripts/lib/audit-advisories.js",
-      "symbol": "extractBlockingAdvisories"
-    },
-    {
       "file": "scripts/lib/audit-report-contracts/architecture-report-contract.js",
       "symbol": "*"
     },
@@ -2090,42 +2098,6 @@
     {
       "file": "scripts/lib/test-isolate/runner.js",
       "symbol": "bisectFlipper"
-    },
-    {
-      "file": ".agents/scripts/lib/baselines/crap-updater-cli.js",
-      "symbol": "buildCrapSeatScorer"
-    },
-    {
-      "file": ".agents/scripts/lib/baselines/seat-missing.js",
-      "symbol": "seatKeyFor"
-    },
-    {
-      "file": ".agents/scripts/lib/baselines/seat-missing.js",
-      "symbol": "seatMissingBaseline"
-    },
-    {
-      "file": ".agents/scripts/lib/baselines/seat-missing.js",
-      "symbol": "selectMissingRows"
-    },
-    {
-      "file": ".agents/scripts/lib/config/gates/coverage.schema.js",
-      "symbol": "COVERAGE_TIMEOUT_BOUNDS"
-    },
-    {
-      "file": ".agents/scripts/lib/full-suite-queue.js",
-      "symbol": "readLockHolder"
-    },
-    {
-      "file": ".agents/scripts/lib/supervised-suite.js",
-      "symbol": "SUITE_READY_FILE_ENV"
-    },
-    {
-      "file": ".agents/scripts/lib/supervised-suite.js",
-      "symbol": "suiteReadyHandshake"
-    },
-    {
-      "file": ".agents/scripts/lib/supervised-suite.js",
-      "symbol": "superviseSuite"
     }
   ]
 }

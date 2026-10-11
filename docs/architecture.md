@@ -1318,7 +1318,8 @@ CI    ▶ │ ci.yml:                               │
         ┌───────────────────▼───────────────────┐
 night ▶ │ baseline-drift.yml (05:43 UTC):       │
         │   check-baseline-drift --gate         │
-        │   maintainability --require-scored    │
+        │   maintainability|duplication         │
+        │   --require-scored                    │
         │   (the ONLY full-scope re-score;      │
         │    files no diff touched)             │
         └───────────────────────────────────────┘

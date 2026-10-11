@@ -56,7 +56,7 @@
           ]
         },
         "duplication": {
-          "floors": { "*": { "percentage": 9 } },
+          "floors": { "*": { "percentage": 6.3 } },
           "targetDirs": [".agents/scripts", "bin", "lib", "scripts"],
           "tolerance": { "kind": "absolute", "value": 1 },
           "ignoreGlobs": [

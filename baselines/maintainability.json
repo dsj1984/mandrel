@@ -1699,12 +1699,20 @@
       "mi": 99.886
     },
     {
+      "path": ".agents/scripts/lib/orchestration/story-close/duplication-close-rescore.js",
+      "mi": 102.903
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
       "mi": 93.879
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/review-core.js",
       "mi": 111.975
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/ratchet-shrink-writeback.js",
+      "mi": 101.202
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-deliver-terminal-schema.js",
@@ -2592,7 +2600,7 @@
     },
     {
       "path": "scripts/lib/baselines/drift-detector.js",
-      "mi": 91.641
+      "mi": 99.294
     },
     {
       "path": "scripts/lib/baselines/orphan-pruner.js",
