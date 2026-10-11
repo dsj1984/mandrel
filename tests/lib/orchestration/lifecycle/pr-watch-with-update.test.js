@@ -28,6 +28,7 @@ import assert from 'node:assert/strict';
 import { chmodSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
+import { watchPrToTerminal } from '../../../../.agents/scripts/lib/orchestration/pr-watch.js';
 import { makeTempDir } from '../../../../.agents/scripts/lib/test-temp.js';
 import {
   REQUIRED_CONTEXT_ATTACH_WINDOW_MS,
@@ -473,6 +474,58 @@ describe('runPrWatch — CLI path wiring (no injected gh ports, Story #4144)', (
     assert.deepEqual(out.checkOutcomes, {
       'Validate and Test': 'success',
     });
+  });
+
+  function fakeGhWithView(viewOutput) {
+    installFakeGh(
+      [
+        '#!/usr/bin/env bash',
+        'case "$*" in',
+        '  *"pr checks"*)',
+        '    echo \'[{"name":"ci","state":"SUCCESS","bucket":"pass"}]\'',
+        '    ;;',
+        '  *"pr view"*)',
+        `    echo '${viewOutput}'`,
+        '    ;;',
+        'esac',
+        'exit 0',
+        '',
+      ].join('\n'),
+    );
+  }
+
+  async function watchDefaultPorts() {
+    return watchPrToTerminal({
+      prUrl: '7',
+      cwd: tmpDir,
+      maxPolls: 2,
+      maxUpdates: 1,
+      pollIntervalMs: 0,
+      sleepFn: async () => {},
+      logger: quietLogger(),
+    });
+  }
+
+  it('updates a BEHIND branch through the real update-branch spawn', async (t) => {
+    if (process.platform === 'win32') {
+      t.skip('POSIX shell shim only');
+      return;
+    }
+    fakeGhWithView('{"mergeStateStatus":"BEHIND"}');
+    const result = await watchDefaultPorts();
+    assert.equal(result.updatesApplied, 1);
+    assert.equal(result.green, true);
+  });
+
+  it('reads a malformed pr view payload as not BEHIND', async (t) => {
+    if (process.platform === 'win32') {
+      t.skip('POSIX shell shim only');
+      return;
+    }
+    fakeGhWithView('not-json');
+    const result = await watchDefaultPorts();
+    assert.equal(result.updatesApplied, 0);
+    assert.equal(result.green, true);
   });
 
   it('discounts a cancelled-run red through the real gh api spawn (Story #5534)', async (t) => {

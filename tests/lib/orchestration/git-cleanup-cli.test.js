@@ -109,4 +109,18 @@ describe('git-cleanup runCleanup — injected active-phase runner', () => {
     assert.equal(exitCode, 1);
     assert.deepEqual(JSON.parse(written[0]).candidates, []);
   });
+
+  it('writes the envelope to stdout when no writer is injected', async () => {
+    const { deps } = stubDeps();
+    delete deps.write;
+    const captured = [];
+    const original = process.stdout.write;
+    process.stdout.write = (chunk) => captured.push(String(chunk));
+    try {
+      await runCleanup({ argv: ['--cwd', CWD, '--stashes', '--json'], deps });
+    } finally {
+      process.stdout.write = original;
+    }
+    assert.equal(JSON.parse(captured[0]).baseBranch, 'trunk');
+  });
 });
