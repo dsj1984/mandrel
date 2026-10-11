@@ -146,7 +146,10 @@ async function stepWorktreeReap({
   };
 }
 
-/** Reap the local `story-<id>` ref; already absent is success. */
+/**
+ * Reap the local `story-<id>` ref, then its tracking ref; already absent is
+ * success.
+ */
 async function stepRefCleanup({ cwd, storyBranch, progress, gitSpawnFn }) {
   const exists = gitSpawnFn(
     cwd,
@@ -157,14 +160,29 @@ async function stepRefCleanup({ cwd, storyBranch, progress, gitSpawnFn }) {
   );
   if (exists.status !== 0) {
     progress?.('POST-LAND', `⏭  local ${storyBranch} already absent.`);
-    return { ok: true, detail: null };
+    return reapTrackingRef(cwd, storyBranch, gitSpawnFn);
   }
   const del = gitSpawnFn(cwd, 'branch', '-D', storyBranch);
   if (del.status !== 0) {
     return { ok: false, detail: `git branch -D failed: ${del.stderr ?? ''}` };
   }
   progress?.('POST-LAND', `🧹 reaped local ${storyBranch}.`);
-  return { ok: true, detail: null };
+  return reapTrackingRef(cwd, storyBranch, gitSpawnFn);
+}
+
+/**
+ * Drop `origin/<storyBranch>`: GitHub's branch auto-delete never touches a
+ * clone's tracking ref, so without this every delivered Story leaves one
+ * behind until a `fetch --prune`. Absent is success (`update-ref -d` exits 0).
+ */
+function reapTrackingRef(cwd, storyBranch, gitSpawnFn) {
+  const ref = `refs/remotes/origin/${storyBranch}`;
+  const del = gitSpawnFn(cwd, 'update-ref', '-d', ref);
+  if (del.status === 0) return { ok: true, detail: null };
+  return {
+    ok: false,
+    detail: `git update-ref -d ${ref} failed: ${del.stderr ?? ''}`,
+  };
 }
 
 /**
