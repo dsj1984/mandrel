@@ -14,7 +14,7 @@ import {
 } from '../ticketing.js';
 
 /** First write wins: a re-plan never replaces the pre-plan record. */
-export const PLAN_REWRITE_COMMENT_TYPE = 'plan-rewrite';
+const PLAN_REWRITE_COMMENT_TYPE = 'plan-rewrite';
 
 /** An open PR (`closing`) is as live as an implementing session. */
 const MID_DELIVERY_LABELS = Object.freeze([
