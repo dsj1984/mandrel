@@ -56,6 +56,8 @@ const CLI_OPTIONS = {
   'source-tickets': { type: 'string' },
   'close-superseded': { type: 'boolean', default: true },
   'no-close-superseded': { type: 'boolean', default: false },
+  'rewrite-source': { type: 'boolean', default: true },
+  'no-rewrite-source': { type: 'boolean', default: false },
   'dry-run': { type: 'boolean', default: false },
   'force-review': { type: 'boolean', default: false },
   'epic-title': { type: 'string' },
@@ -66,7 +68,7 @@ const CLI_OPTIONS = {
 const USAGE =
   'Usage: plan-persist.js --stories <file> ' +
   '[--tech-spec <file>] [--plan-dir <dir>] [--plan-context <file>] ' +
-  '[--source-tickets <ids>] [--no-close-superseded] ' +
+  '[--source-tickets <ids>] [--no-close-superseded] [--no-rewrite-source] ' +
   '[--dry-run] [--force-review] ' +
   '[--epic-title <text> --epic-goal <text> | --epic <id>]';
 
@@ -183,6 +185,17 @@ export function resolveEpicAdoptionId(values) {
 }
 
 /**
+ * A `--x` / `--no-x` pair: the negation always wins.
+ *
+ * @param {object} values
+ * @param {string} name
+ * @returns {boolean}
+ */
+function negatableFlag(values, name) {
+  return values[`no-${name}`] !== true && values[name] !== false;
+}
+
+/**
  * Where envelope-derived source ids meet the engine; a break here silently
  * un-wires `--tickets` superseding.
  *
@@ -206,11 +219,8 @@ export function buildPersistOptions(values, paths, planContextEnvelope) {
     sourceTicketOrigin: source.origin,
     epic: resolveEpicRequest(values),
     adoptEpicId: resolveEpicAdoptionId(values),
-    // `--no-close-superseded` always wins.
-    closeSuperseded:
-      values['no-close-superseded'] === true
-        ? false
-        : values['close-superseded'] !== false,
+    closeSuperseded: negatableFlag(values, 'close-superseded'),
+    rewriteSource: negatableFlag(values, 'rewrite-source'),
   };
 }
 
@@ -429,6 +439,10 @@ runAsCli(import.meta.url, main, {
       ['--source-tickets <ids>', 'Ticket ids this plan supersedes.'],
       ['--dry-run', 'Validate and report; create nothing.'],
       ['--no-close-superseded', 'Leave superseded source tickets open.'],
+      [
+        '--no-rewrite-source',
+        'File a new Story for a one-for-one plan instead of rewriting its source ticket in place.',
+      ],
       [
         '--force-review',
         'Require the review gate even when it would be skipped.',

@@ -60,6 +60,9 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // Posted before closing a superseded source issue; the marker keeps
   // re-runs from double-commenting.
   'superseded-by',
+  // The source ticket's pre-plan title and body, posted once before a
+  // one-for-one rewrite; first write wins, so re-plans keep the original.
+  'plan-rewrite',
 ]);
 
 export const WAVE_TYPE_PATTERN = WAVE_MARKER_RE;
