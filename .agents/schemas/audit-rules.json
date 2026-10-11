@@ -54,7 +54,16 @@
           "vulnerability",
           "cve",
           "password",
-          "encrypt"
+          "encrypt",
+          "ssrf",
+          "deserializ",
+          "traversal",
+          "webhook",
+          "export",
+          "prompt injection",
+          "llm",
+          "mcp",
+          "tool call"
         ],
         "filePatterns": [
           "**/*.lock",

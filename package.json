@@ -1,6 +1,6 @@
 {
   "name": "mandrel",
-  "version": "2.79.0",
+  "version": "2.80.0",
   "description": "Claude Code-first opinionated workflow framework: instructions, skills, rules, and SDLC workflows that govern AI coding assistants.",
   "files": [
     ".agents/",
@@ -21,6 +21,7 @@
     "test:integration": "node .agents/scripts/run-tests.js --tier integration",
     "test:e2e": "node .agents/scripts/run-tests.js --tier e2e",
     "test:profile": "node scripts/run-test-profile.js",
+    "report:agent-cost": "node scripts/agent-cost-report.js",
     "test:census": "SPAWN_CENSUS_OUT=\"${SPAWN_CENSUS_OUT:-temp/census.json}\" NODE_OPTIONS=\"--require $PWD/tests/fixtures/spawn-census.cjs\" node .agents/scripts/run-tests.js",
     "test:isolate": "node scripts/test-isolate.js",
     "verify": "node scripts/run-verify.js",

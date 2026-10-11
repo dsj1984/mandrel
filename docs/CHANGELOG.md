@@ -15,6 +15,15 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.80.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.79.0...mandrel-v2.80.0) (2026-10-09)
+
+
+### Added
+
+* audit-data-model: Dead Schema dimension and opt-in read-only live-schema verification pass ([#5594](https://github.com/dsj1984/mandrel/issues/5594)) ([#5595](https://github.com/dsj1984/mandrel/issues/5595)) ([3738dbe](https://github.com/dsj1984/mandrel/commit/3738dbe4af5bb7d71b97701684433d1feb13b839))
+* audit-seeded N&gt;1 plans: attribute each finding's footers and audit:: label to the Stories that cover it ([#5597](https://github.com/dsj1984/mandrel/issues/5597)) ([#5600](https://github.com/dsj1984/mandrel/issues/5600)) ([a8529be](https://github.com/dsj1984/mandrel/commit/a8529bee4f51771677d646275081df6deb3a6543))
+* collision predicate: a glob collides only with paths it can cover, and the message names the declarer ([#5596](https://github.com/dsj1984/mandrel/issues/5596)) ([#5599](https://github.com/dsj1984/mandrel/issues/5599)) ([dfea48c](https://github.com/dsj1984/mandrel/commit/dfea48caf755577e625002bb6873e2d54291e045))
+
 ## [2.79.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.78.0...mandrel-v2.79.0) (2026-10-09)
 
 
