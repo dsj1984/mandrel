@@ -25,12 +25,15 @@
  */
 
 import assert from 'node:assert/strict';
-import { mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { resolveDetectClones } from '../../.agents/scripts/lib/baselines/duplication-scanner.js';
 import { getKindModule } from '../../.agents/scripts/lib/baselines/kernel.js';
-import { refreshBaseline } from '../../.agents/scripts/lib/baselines/refresh-service.js';
+import {
+  refreshBaseline,
+  resolveDefaultScorer,
+} from '../../.agents/scripts/lib/baselines/refresh-service.js';
 import {
   write as writeEnvelope,
   writeFile as writeEnvelopeFile,
@@ -261,6 +264,96 @@ describe('refreshBaseline — default duplication scorer scans whole-tree (Story
     assert.deepEqual(after.rows.map((r) => r.path).sort(), [
       'src/a.js',
       'src/z.js',
+    ]);
+  });
+});
+
+/**
+ * Story #5605 — the default scorer used to hand jscpd `['javascript']` only,
+ * so a TypeScript consumer's gate read clean while every `.ts`/`.tsx` file
+ * went unmeasured. These drive the real scorer + real jscpd over a fixture
+ * holding one cloned TS pair and one cloned JS pair.
+ */
+describe('default duplication scorer — jscpd formats (Story #5605)', () => {
+  let workDir;
+
+  beforeEach(() => {
+    workDir = makeTempDir('mandrel-dup-formats-');
+  });
+
+  afterEach(() => {
+    rmSync(workDir, { recursive: true, force: true });
+  });
+
+  /** Six functions — comfortably over jscpd's 50-token clone threshold. */
+  function clonedSource(typed) {
+    const t = typed ? ': number' : '';
+    return Array.from(
+      { length: 6 },
+      (_, i) =>
+        `export function compute${i}(alpha${t}, beta${t}) {\n` +
+        `  const total = alpha * beta + ${i};\n` +
+        '  if (total > 100) { return total - alpha; }\n' +
+        `  return total + beta * ${i};\n` +
+        '}\n',
+    ).join('\n');
+  }
+
+  /** @param {string[] | undefined} formats omitted from config when undefined */
+  async function scanFixture(formats) {
+    const srcDir = path.join(workDir, 'src');
+    mkdirSync(srcDir, { recursive: true });
+    for (const f of ['a.ts', 'b.ts']) {
+      writeFileSync(path.join(srcDir, f), clonedSource(true));
+    }
+    for (const f of ['c.js', 'd.js']) {
+      writeFileSync(path.join(srcDir, f), clonedSource(false));
+    }
+    const duplication = {
+      // jscpd resolves `path` against the process cwd, not its `cwd` option.
+      targetDirs: [srcDir],
+      ...(formats ? { formats } : {}),
+    };
+    writeFileSync(
+      path.join(workDir, '.agentrc.json'),
+      JSON.stringify({
+        project: {
+          paths: {
+            agentRoot: '.agents',
+            docsRoot: 'docs',
+            tempRoot: path.join(workDir, 'temp'),
+          },
+        },
+        delivery: { quality: { gates: { duplication } } },
+      }),
+    );
+    const scorer = resolveDefaultScorer('duplication', { cwd: workDir });
+    const rows = await scorer([], { cwd: workDir });
+    return rows.map((r) => r.path).sort();
+  }
+
+  it('AC: with no formats configured, TS and JS clones are both measured', async () => {
+    assert.deepEqual(await scanFixture(undefined), [
+      'src/a.ts',
+      'src/b.ts',
+      'src/c.js',
+      'src/d.js',
+    ]);
+  });
+
+  // One scan per test: config resolution is cached per cwd, so a second
+  // scan in the same workDir would reuse the first test's formats.
+  it('AC: a configured ["javascript"] scans only the JS clones', async () => {
+    assert.deepEqual(await scanFixture(['javascript']), [
+      'src/c.js',
+      'src/d.js',
+    ]);
+  });
+
+  it('AC: a configured ["typescript"] scans only the TS clones', async () => {
+    assert.deepEqual(await scanFixture(['typescript']), [
+      'src/a.ts',
+      'src/b.ts',
     ]);
   });
 });

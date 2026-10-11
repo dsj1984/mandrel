@@ -569,11 +569,17 @@ function buildDefaultDuplicationScorer({ cwd, config, quality, detect } = {}) {
   const ignoreGlobs = Array.isArray(dupCfg.ignoreGlobs)
     ? dupCfg.ignoreGlobs
     : [];
+  // Absent or empty falls through to the scanner's own default.
+  const formats =
+    Array.isArray(dupCfg.formats) && dupCfg.formats.length > 0
+      ? dupCfg.formats
+      : undefined;
   return async (_files, opts) => {
     const effectiveCwd = opts?.cwd ?? cwd ?? process.cwd();
     return scanDuplication({
       targetDirs,
       cwd: effectiveCwd,
+      formats,
       ignoreGlobs,
       detect: detect ?? resolveDetectClones(),
     });
