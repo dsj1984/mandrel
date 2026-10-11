@@ -67,3 +67,5 @@ coverage/
 .mcp.json
 
 .worktrees
+# Local editor config for the mandrel-status mod (points at its plugin types)
+.agents/mods/mandrel-status/tsconfig.json
