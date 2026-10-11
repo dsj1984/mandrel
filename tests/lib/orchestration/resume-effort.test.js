@@ -3,7 +3,8 @@
  *
  * The prior-block counter reads the Story's local signals stream through the
  * same emitter the ticket transition uses, and the ladder maps the count to
- * the Agent tool's per-call effort: 0 → null, 1 → high, ≥2 → xhigh.
+ * the Agent tool's per-call effort: 0 → null, 1 → high, ≥2 → xhigh. Driven
+ * through the module's production surface only.
  */
 
 import assert from 'node:assert/strict';
@@ -16,11 +17,9 @@ import {
   RUNTIME_FRICTION_CATEGORIES,
 } from '../../../.agents/scripts/lib/observability/runtime-friction.js';
 import {
-  AGENT_EFFORT_LEVELS,
-  countPriorBlocks,
-  isPriorBlockRecord,
+  parseWorkerEffort,
   resolveResumeEffort,
-  resumeEffortFor,
+  resolveRunDispatchInputs,
 } from '../../../.agents/scripts/lib/orchestration/resume-effort.js';
 import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
 
@@ -57,88 +56,126 @@ function unblock(storyId) {
   });
 }
 
-describe('resumeEffortFor — the ladder', () => {
-  it('0 prior blocks → null: the worker inherits the session', () => {
-    assert.equal(resumeEffortFor(0), null);
+const BLOCKED = {
+  kind: 'friction',
+  category: RUNTIME_FRICTION_CATEGORIES.STORY_BLOCKED,
+  details: { toState: 'agent::blocked' },
+};
+
+/** A reader that replays `records` as the Story's signals stream. */
+const replay = (records) => async (_epicId, _storyId, cb) => {
+  for (const record of records) await cb(record);
+};
+
+describe('resolveResumeEffort — the ladder', () => {
+  it('0 prior blocks → null: the worker inherits the session', async () => {
+    assert.equal(await resolveResumeEffort(1, { readFn: replay([]) }), null);
   });
 
-  it('1 → high, 2 and above → xhigh', () => {
-    assert.equal(resumeEffortFor(1), 'high');
-    assert.equal(resumeEffortFor(2), 'xhigh');
-    assert.equal(resumeEffortFor(7), 'xhigh');
+  it('1 → high, 2 and above → xhigh', async () => {
+    const effortFor = (n) =>
+      resolveResumeEffort(1, { readFn: replay(Array(n).fill(BLOCKED)) });
+    assert.equal(await effortFor(1), 'high');
+    assert.equal(await effortFor(2), 'xhigh');
+    assert.equal(await effortFor(7), 'xhigh');
   });
 
-  it('a non-count is no prior block', () => {
-    for (const junk of [undefined, null, -1, 1.5, 'x', Number.NaN]) {
-      assert.equal(resumeEffortFor(junk), null);
-    }
+  it('counts only un-recovered story-blocked friction records', async () => {
+    const noise = [
+      { ...BLOCKED, details: { recovered: true } },
+      { ...BLOCKED, category: 'close-failed' },
+      { ...BLOCKED, kind: 'retry' },
+      null,
+      'friction',
+    ];
+    assert.equal(await resolveResumeEffort(1, { readFn: replay(noise) }), null);
+    assert.equal(
+      await resolveResumeEffort(1, { readFn: replay([...noise, BLOCKED]) }),
+      'high',
+    );
   });
 
-  it('every rung is a value of the Agent tool effort enum', () => {
+  it('every rung is a value the --worker-effort parser accepts', async () => {
     for (const n of [1, 2]) {
-      assert.ok(AGENT_EFFORT_LEVELS.includes(resumeEffortFor(n)));
+      const effort = await resolveResumeEffort(1, {
+        readFn: replay(Array(n).fill(BLOCKED)),
+      });
+      assert.equal(parseWorkerEffort(effort).effort, effort);
     }
   });
 });
 
-describe('isPriorBlockRecord', () => {
-  const base = {
-    kind: 'friction',
-    category: RUNTIME_FRICTION_CATEGORIES.STORY_BLOCKED,
-    details: { toState: 'agent::blocked' },
-  };
-
-  it('counts an un-recovered story-blocked friction record', () => {
-    assert.equal(isPriorBlockRecord(base), true);
-  });
-
-  it('skips the recovered twin, other categories, other kinds and junk', () => {
-    assert.equal(
-      isPriorBlockRecord({ ...base, details: { recovered: true } }),
-      false,
-    );
-    assert.equal(
-      isPriorBlockRecord({ ...base, category: 'close-failed' }),
-      false,
-    );
-    assert.equal(isPriorBlockRecord({ ...base, kind: 'retry' }), false);
-    assert.equal(isPriorBlockRecord(null), false);
-    assert.equal(isPriorBlockRecord('friction'), false);
-  });
-});
-
-describe('countPriorBlocks — the local signals stream', () => {
+describe('the local signals stream', () => {
   it('a missing signals file counts 0 and resolves no effort', async () => {
-    assert.equal(await countPriorBlocks(9101, { config }), 0);
     assert.equal(await resolveResumeEffort(9101, { config }), null);
   });
 
-  it('one block, recovered on resume → 1 → high', async () => {
+  it('one block, recovered on resume → high', async () => {
     await block(9102);
     await unblock(9102);
-    assert.equal(await countPriorBlocks(9102, { config }), 1);
     assert.equal(await resolveResumeEffort(9102, { config }), 'high');
   });
 
-  it('two blocks → 2 → xhigh; recovered twins never add', async () => {
+  it('two blocks → xhigh; recovered twins never add', async () => {
     await block(9103);
     await unblock(9103);
     await block(9103);
     await unblock(9103);
-    assert.equal(await countPriorBlocks(9103, { config }), 2);
     assert.equal(await resolveResumeEffort(9103, { config }), 'xhigh');
   });
 
   it('counts only its own Story', async () => {
     await block(9104);
-    assert.equal(await countPriorBlocks(9105, { config }), 0);
+    assert.equal(await resolveResumeEffort(9105, { config }), null);
   });
 
   it('an unreadable stream counts 0 rather than throwing', async () => {
     const readFn = async () => {
       throw new Error('EACCES');
     };
-    assert.equal(await countPriorBlocks(9106, { config, readFn }), 0);
     assert.equal(await resolveResumeEffort(9106, { config, readFn }), null);
+    const rejectsNonError = async () => {
+      throw 'EIO';
+    };
+    assert.equal(
+      await resolveResumeEffort(9106, { config, readFn: rejectsNonError }),
+      null,
+    );
+  });
+});
+
+describe('resolveRunDispatchInputs', () => {
+  it('a one-Story run reads its prior-block count from the stream', async () => {
+    await block(9107);
+    await block(9107);
+    const inputs = await resolveRunDispatchInputs([{ id: 9107 }], { config });
+    assert.deepEqual([...inputs.priorBlocksById], [[9107, 2]]);
+    assert.equal(inputs.roleScopedAgents, true);
+  });
+
+  it('a multi-Story run reads nothing; config can turn role agents off', async () => {
+    let calls = 0;
+    const inputs = await resolveRunDispatchInputs([{ id: 1 }, { id: 2 }], {
+      config: { delivery: { routing: { roleScopedAgents: false } } },
+      countFn: async () => {
+        calls += 1;
+        return 1;
+      },
+    });
+    assert.equal(calls, 0);
+    assert.equal(inputs.priorBlocksById.size, 0);
+    assert.equal(inputs.roleScopedAgents, false);
+  });
+});
+
+describe('parseWorkerEffort', () => {
+  it('accepts every Agent tool effort level; absence is silent', () => {
+    for (const level of ['low', 'medium', 'high', 'xhigh', 'max']) {
+      assert.deepEqual(parseWorkerEffort(level), {
+        effort: level,
+        warning: null,
+      });
+    }
+    assert.deepEqual(parseWorkerEffort(null), { effort: null, warning: null });
   });
 });

@@ -16,7 +16,7 @@ import { forEachLine } from '../observability/signals-writer.js';
 import { EVENT_KINDS } from '../signals/schema.js';
 
 /** The Agent tool's per-call `effort` enum, lowest to highest. */
-export const AGENT_EFFORT_LEVELS = Object.freeze([
+const AGENT_EFFORT_LEVELS = Object.freeze([
   'low',
   'medium',
   'high',
@@ -51,7 +51,7 @@ export function parseWorkerEffort(value) {
  * @param {unknown} record
  * @returns {boolean}
  */
-export function isPriorBlockRecord(record) {
+function isPriorBlockRecord(record) {
   return (
     record !== null &&
     typeof record === 'object' &&
@@ -66,13 +66,12 @@ export function isPriorBlockRecord(record) {
  * effort (a script cannot read the session's): 0 prior blocks → `null` (no
  * per-call effort; the worker inherits the session), 1 → `high`, ≥2 → `xhigh`.
  *
- * @param {unknown} priorBlocks
+ * @param {number} priorBlocks A count from {@link countPriorBlocks}.
  * @returns {'high'|'xhigh'|null}
  */
-export function resumeEffortFor(priorBlocks) {
-  const n = Number(priorBlocks);
-  if (!Number.isInteger(n) || n < 1) return null;
-  return n === 1 ? 'high' : 'xhigh';
+function resumeEffortFor(priorBlocks) {
+  if (priorBlocks < 1) return null;
+  return priorBlocks === 1 ? 'high' : 'xhigh';
 }
 
 /**
@@ -84,7 +83,7 @@ export function resumeEffortFor(priorBlocks) {
  * @param {{ config?: object, readFn?: typeof forEachLine }} [opts]
  * @returns {Promise<number>}
  */
-export async function countPriorBlocks(
+async function countPriorBlocks(
   storyId,
   { config, readFn = forEachLine } = {},
 ) {
