@@ -15,6 +15,22 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.81.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.80.0...mandrel-v2.81.0) (2026-10-11)
+
+
+### Added
+
+* /mandrel-plan rewrites a one-for-one source ticket in place instead of filing a new Story ([#5604](https://github.com/dsj1984/mandrel/issues/5604)) ([#5610](https://github.com/dsj1984/mandrel/issues/5610)) ([5e0f621](https://github.com/dsj1984/mandrel/commit/5e0f6215680ee9d9fec079a93fd51d531d59023a))
+* agent cost report: per-subagent effort, model, tokens and wall time from Claude Code transcripts ([#5607](https://github.com/dsj1984/mandrel/issues/5607)) ([#5611](https://github.com/dsj1984/mandrel/issues/5611)) ([c1680ca](https://github.com/dsj1984/mandrel/commit/c1680ca12298e21a51d8000437a675fb94bd23f2))
+* audit-security: trust-boundary attack classes, a Boundary candidate-gate field, and lens-specific severity anchors (adapted from Cloudflare's MIT security-audit skill) ([#5606](https://github.com/dsj1984/mandrel/issues/5606)) ([#5612](https://github.com/dsj1984/mandrel/issues/5612)) ([34dc807](https://github.com/dsj1984/mandrel/commit/34dc8077f7d2392385355519180d6f0122f27770))
+* duplication gate now scans TS/TSX/JSX; re-seat via duplication:reanchor ([#5605](https://github.com/dsj1984/mandrel/issues/5605)) ([#5609](https://github.com/dsj1984/mandrel/issues/5609)) ([5f73168](https://github.com/dsj1984/mandrel/commit/5f731680c4c16aa1ba11b1d2f02032af931ea5aa))
+* escalate effort per call on a blocked-Story resume instead of raising whole-session effort ([#5608](https://github.com/dsj1984/mandrel/issues/5608)) ([#5617](https://github.com/dsj1984/mandrel/issues/5617)) ([4285cdf](https://github.com/dsj1984/mandrel/commit/4285cdf55b057723f60dbe17808c23e421f645d7))
+
+
+### Fixed
+
+* **test:** attribute temp-paths leak writes by nonce, not stream growth (refs [#5615](https://github.com/dsj1984/mandrel/issues/5615)) ([#5616](https://github.com/dsj1984/mandrel/issues/5616)) ([0f33cec](https://github.com/dsj1984/mandrel/commit/0f33cecfe4db122074d79516b2d0c70c3e92bd0f))
+
 ## [2.80.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.79.0...mandrel-v2.80.0) (2026-10-09)
 
 
