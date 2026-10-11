@@ -2455,6 +2455,10 @@
       "mi": 94.524
     },
     {
+      "path": "scripts/agent-cost-report.js",
+      "mi": 94.946
+    },
+    {
       "path": "scripts/check-action-pinning.js",
       "mi": 95.351
     },
@@ -2529,6 +2533,14 @@
     {
       "path": "scripts/install-matrix-assert.js",
       "mi": 90.439
+    },
+    {
+      "path": "scripts/lib/agent-cost/read-transcripts.js",
+      "mi": 95.097
+    },
+    {
+      "path": "scripts/lib/agent-cost/summarize.js",
+      "mi": 107.286
     },
     {
       "path": "scripts/lib/agentrc-key-ceiling.js",

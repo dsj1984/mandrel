@@ -3669,6 +3669,12 @@
       "functions": 100
     },
     {
+      "path": "scripts/agent-cost-report.js",
+      "lines": 100,
+      "branches": 84.62,
+      "functions": 80
+    },
+    {
       "path": "scripts/check-action-pinning.js",
       "lines": 98.08,
       "branches": 95.56,
@@ -3781,6 +3787,18 @@
       "lines": 96.93,
       "branches": 90.91,
       "functions": 77.78
+    },
+    {
+      "path": "scripts/lib/agent-cost/read-transcripts.js",
+      "lines": 99.44,
+      "branches": 78.95,
+      "functions": 100
+    },
+    {
+      "path": "scripts/lib/agent-cost/summarize.js",
+      "lines": 100,
+      "branches": 90.14,
+      "functions": 100
     },
     {
       "path": "scripts/lib/agentrc-key-ceiling.js",
