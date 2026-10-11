@@ -9,10 +9,10 @@
 
 import assert from 'node:assert/strict';
 import { beforeEach, describe, it } from 'node:test';
+import { structuredCommentMarker } from '../../../.agents/scripts/lib/orchestration/ticketing/reads.js';
 import {
   _resetStructuredCommentCache,
   findStructuredComment,
-  structuredCommentMarker,
   upsertStructuredComment,
 } from '../../../.agents/scripts/lib/orchestration/ticketing.js';
 

@@ -9,7 +9,15 @@ import { spawnSync } from 'node:child_process';
 
 import { applyBehindUpdate } from './behind-recovery.js';
 import { createCancelledRunDiscount } from './cancelled-run-discount.js';
-import { checkVerdict, classifyRequiredCheck } from './check-state.js';
+import { checkVerdict } from './check-state.js';
+import {
+  allTerminal,
+  hasFailingCheck,
+  parseGhPrChecks,
+  pollUntilTerminal,
+  promotePendingToStillRunning,
+  reduceOutcomes,
+} from './pr-watch-poll.js';
 
 /**
  * `gh` has no `<owner/repo>#<number>` form (it parses one as a branch), so
@@ -96,109 +104,132 @@ function allGreen(outcomes) {
   return values.every((v) => checkVerdict(v) === 'pass');
 }
 
-/** Entries with a string `name`; `[]` for malformed input. */
-export function parseGhPrChecks(stdout) {
-  const trimmed = String(stdout ?? '').trim();
-  if (trimmed.length === 0) return [];
-  try {
-    const parsed = JSON.parse(trimmed);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (e) => e && typeof e === 'object' && typeof e.name === 'string',
-    );
-  } catch {
-    return [];
-  }
-}
-
-/** `{ checkName: outcome }`; a repeated name (matrix, retry) — last wins. */
-export function reduceOutcomes(entries) {
-  const out = {};
-  for (const e of entries) {
-    out[e.name] = classifyRequiredCheck(e);
-  }
-  return out;
-}
-
-/** Only `'pending'` is non-terminal (the classifier collapses running states). */
-export function allTerminal(outcomes) {
-  for (const v of Object.values(outcomes)) {
-    if (v === 'pending') return false;
-  }
-  return true;
-}
-
-/** Slow CI, not red: "re-arm the watch", never "the change is broken". */
-const STILL_RUNNING = 'still-running';
-
-/** Leftover `'pending'` → `'still-running'` (the schema forbids pending). */
-export function promotePendingToStillRunning(outcomes) {
-  const out = {};
-  for (const [k, v] of Object.entries(outcomes)) {
-    out[k] = v === 'pending' ? STILL_RUNNING : v;
-  }
-  return out;
-}
-
-/** A genuinely red check: the hard stop that consumes no resume budget. */
-export function hasFailingCheck(outcomes) {
-  return Object.values(outcomes).some((v) => checkVerdict(v) === 'fail');
-}
-
-async function identityDiscount(_entries, outcomes) {
-  return outcomes;
-}
-
 function defaultSleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
- * A transient `gh` failure is skipped; `maxPolls` bounds a broken `gh`.
- *
- * @param {object} opts
- * @param {string} opts.prUrl
- * @param {string} opts.cwd
- * @param {string|null} [opts.repo] `owner/repo` passed to `gh` as `--repo`.
- * @param {object} opts.outcomes  Initial `{ checkName: outcome }` map.
- * @param {number} opts.polls     Current poll counter.
- * @param {number} opts.maxPolls  Hard cap on total poll iterations.
- * @param {Function} opts.ghPrChecksFn
- * @param {number} opts.pollIntervalMs
- * @param {Function} opts.sleepFn
- * @param {Function} [opts.discountFn]
- * @param {{ warn?: Function }} opts.logger
- * @returns {Promise<{ outcomes: object, polls: number }>}
+ * Never poll an empty name set: `allTerminal({})` is vacuously true and would
+ * report a red verdict with no failing check. `gh` overloads non-zero for
+ * "none attached yet" and a real fault, so classification is the caller's.
  */
-export async function pollUntilTerminal({
-  prUrl,
-  cwd,
-  repo = null,
-  outcomes,
-  polls,
-  maxPolls,
-  ghPrChecksFn,
-  pollIntervalMs,
-  sleepFn,
-  discountFn = identityDiscount,
-  logger,
-}) {
-  let currentOutcomes = outcomes;
-  let currentPolls = polls;
-  while (!allTerminal(currentOutcomes) && currentPolls < maxPolls) {
-    await sleepFn(pollIntervalMs);
-    currentPolls += 1;
-    const probe = ghPrChecksFn({ prUrl, cwd, repo });
-    const entries = parseGhPrChecks(probe.stdout);
-    if (entries.length === 0 && probe.status !== 0 && probe.status !== 8) {
-      logger.warn?.(
-        `[Watcher] gh pr checks transient failure (status=${probe.status}): ${probe.stderr}`,
-      );
-      continue;
-    }
-    currentOutcomes = await discountFn(entries, reduceOutcomes(entries));
+function emptyRequiredChecksResult(first, logger) {
+  // `gh` exits 8 while checks are pending — expected, not a failure.
+  const ghFaulted = first.status !== 0 && first.status !== 8;
+  if (ghFaulted) {
+    logger.warn?.(
+      `[Watcher] gh pr checks failed (status=${first.status}): ${first.stderr}`,
+    );
   }
-  return { outcomes: currentOutcomes, polls: currentPolls };
+  return {
+    outcomes: {},
+    requiredChecks: [],
+    polls: 0,
+    updatesApplied: 0,
+    resumesApplied: 0,
+    terminal: false,
+    green: false,
+    stillRunning: false,
+    requiredChecksEmpty: true,
+    error: `gh-checks-${ghFaulted ? 'failed' : 'empty'}:status=${first.status}`,
+  };
+}
+
+function updateBranchPort(ctx) {
+  return async () => {
+    const update = ctx.ghPrUpdateBranchFn(ctx.target);
+    return update.status === 0
+      ? { ok: true }
+      : { ok: false, detail: `status=${update.status}: ${update.stderr}` };
+  };
+}
+
+/** One BEHIND-recovery attempt; true only when the branch head moved. */
+async function recoverBehind(ctx, updatesUsed) {
+  const view = ctx.ghPrViewFn(ctx.target);
+  if (view.status !== 0) {
+    ctx.logger.warn?.(
+      `[Watcher] gh pr view failed (status=${view.status}): ${view.stderr}`,
+    );
+    return false;
+  }
+  const recovery = await applyBehindUpdate({
+    mergeStateStatus: parseMergeStateStatus(view.stdout),
+    updatesUsed,
+    maxUpdates: ctx.maxUpdates,
+    updateBranch: updateBranchPort(ctx),
+    onUpdateFailed: (detail) =>
+      ctx.logger.warn?.(`[Watcher] gh pr update-branch failed (${detail})`),
+  });
+  return recovery.updated;
+}
+
+/** BEHIND recovery only when all green; `maxUpdates` stops a base race. */
+function canRecoverBehind(ctx, state) {
+  return (
+    allTerminal(state.outcomes) &&
+    allGreen(state.outcomes) &&
+    state.updatesApplied < ctx.maxUpdates
+  );
+}
+
+/** One poll-to-cap + BEHIND-recovery arm; mutates `state`. */
+async function runPollArm(ctx, state) {
+  while (state.polls < ctx.maxPolls) {
+    const polled = await pollUntilTerminal({
+      ...ctx.target,
+      outcomes: state.outcomes,
+      polls: state.polls,
+      maxPolls: ctx.maxPolls,
+      ghPrChecksFn: ctx.ghPrChecksFn,
+      pollIntervalMs: ctx.pollIntervalMs,
+      sleepFn: ctx.sleepFn,
+      discountFn: ctx.discountFn,
+      logger: ctx.logger,
+    });
+    state.outcomes = polled.outcomes;
+    state.polls = polled.polls;
+    if (!canRecoverBehind(ctx, state)) return;
+    // A failed update must not re-poll as though the head moved.
+    if (!(await recoverBehind(ctx, state.updatesApplied))) return;
+    state.updatesApplied += 1;
+    ctx.logger.info?.(
+      `[Watcher] PR BEHIND base — issued gh pr update-branch (#${state.updatesApplied}/${ctx.maxUpdates}); re-polling required checks.`,
+    );
+    await ctx.sleepFn(ctx.pollIntervalMs);
+    // The new head invalidates the previous terminal outcomes.
+    state.outcomes = Object.fromEntries(
+      ctx.requiredChecks.map((name) => [name, 'pending']),
+    );
+  }
+}
+
+/** Re-arm only when pending-but-not-failed with resume budget left. */
+function shouldResume(ctx, state) {
+  return (
+    !allTerminal(state.outcomes) &&
+    !hasFailingCheck(state.outcomes) &&
+    state.resumesApplied < ctx.maxResumes
+  );
+}
+
+function finalVerdict(ctx, state) {
+  const terminal = allTerminal(state.outcomes);
+  // Never `'timed_out'` — the auto-merge predicate would read it as failure.
+  const stillRunning = !terminal && !hasFailingCheck(state.outcomes);
+  const outcomes = terminal
+    ? state.outcomes
+    : promotePendingToStillRunning(state.outcomes);
+  return {
+    outcomes,
+    requiredChecks: ctx.requiredChecks,
+    polls: state.polls,
+    updatesApplied: state.updatesApplied,
+    resumesApplied: state.resumesApplied,
+    terminal,
+    green: terminal && allGreen(outcomes),
+    stillRunning,
+  };
 }
 
 /**
@@ -255,123 +286,41 @@ export async function watchPrToTerminal({
   logger,
   firstProbe,
 }) {
-  const first = firstProbe ?? ghPrChecksFn({ prUrl, cwd, repo });
-  // `gh` exits 8 while checks are pending — expected, not a failure.
+  const target = { prUrl, cwd, repo };
+  const first = firstProbe ?? ghPrChecksFn(target);
   const firstEntries = parseGhPrChecks(first.stdout);
   if (firstEntries.length === 0) {
-    // Never poll an empty name set: `allTerminal({})` is vacuously true and
-    // would report a red verdict with no failing check. Names resolve once
-    // per call, so the caller's attach window re-resolves by calling again.
-    const ghFaulted = first.status !== 0 && first.status !== 8;
-    if (ghFaulted) {
-      logger.warn?.(
-        `[Watcher] gh pr checks failed (status=${first.status}): ${first.stderr}`,
-      );
-    }
-    return {
-      outcomes: {},
-      requiredChecks: [],
-      polls: 0,
-      updatesApplied: 0,
-      resumesApplied: 0,
-      terminal: false,
-      green: false,
-      stillRunning: false,
-      requiredChecksEmpty: true,
-      // `gh` overloads non-zero for "none attached yet" and a real fault, and
-      // stderr is not a contract, so classification is left to the caller.
-      error: `gh-checks-${ghFaulted ? 'failed' : 'empty'}:status=${first.status}`,
-    };
+    return emptyRequiredChecksResult(first, logger);
   }
-
-  const requiredChecks = firstEntries.map((e) => e.name);
-
   const discountFn = createCancelledRunDiscount({ repo, ghApiFn, logger });
-  let outcomes = await discountFn(firstEntries, reduceOutcomes(firstEntries));
-  let polls = 0;
-  let updatesApplied = 0;
-  let resumesApplied = 0;
-  // Each outer iteration is one poll-to-cap + BEHIND-recovery arm.
+  const ctx = {
+    target,
+    requiredChecks: firstEntries.map((e) => e.name),
+    maxPolls,
+    maxUpdates,
+    maxResumes,
+    pollIntervalMs,
+    ghPrChecksFn,
+    ghPrViewFn,
+    ghPrUpdateBranchFn,
+    sleepFn,
+    discountFn,
+    logger,
+  };
+  const state = {
+    outcomes: await discountFn(firstEntries, reduceOutcomes(firstEntries)),
+    polls: 0,
+    updatesApplied: 0,
+    resumesApplied: 0,
+  };
   for (;;) {
-    while (polls < maxPolls) {
-      ({ outcomes, polls } = await pollUntilTerminal({
-        prUrl,
-        cwd,
-        repo,
-        outcomes,
-        polls,
-        maxPolls,
-        ghPrChecksFn,
-        pollIntervalMs,
-        sleepFn,
-        discountFn,
-        logger,
-      }));
-      // BEHIND recovery only when all green; `maxUpdates` stops a racing
-      // base from ping-ponging forever.
-      if (!allTerminal(outcomes) || !allGreen(outcomes)) break;
-      // Checked before the `gh pr view` spawn to save the round-trip.
-      if (updatesApplied >= maxUpdates) break;
-      const view = ghPrViewFn({ prUrl, cwd, repo });
-      if (view.status !== 0) {
-        logger.warn?.(
-          `[Watcher] gh pr view failed (status=${view.status}): ${view.stderr}`,
-        );
-        break;
-      }
-      const recovery = await applyBehindUpdate({
-        mergeStateStatus: parseMergeStateStatus(view.stdout),
-        updatesUsed: updatesApplied,
-        maxUpdates,
-        updateBranch: async () => {
-          const update = ghPrUpdateBranchFn({ prUrl, cwd, repo });
-          return update.status === 0
-            ? { ok: true }
-            : {
-                ok: false,
-                detail: `status=${update.status}: ${update.stderr}`,
-              };
-        },
-        onUpdateFailed: (detail) =>
-          logger.warn?.(`[Watcher] gh pr update-branch failed (${detail})`),
-      });
-      // A failed update must not re-poll as though the head moved.
-      if (!recovery.updated) break;
-      updatesApplied += 1;
-      logger.info?.(
-        `[Watcher] PR BEHIND base — issued gh pr update-branch (#${updatesApplied}/${maxUpdates}); re-polling required checks.`,
-      );
-      await sleepFn(pollIntervalMs);
-      // The new head invalidates the previous terminal outcomes.
-      outcomes = {};
-      for (const name of requiredChecks) outcomes[name] = 'pending';
-    }
-
-    // Re-arm only when pending-but-not-failed with resume budget left.
-    if (allTerminal(outcomes) || hasFailingCheck(outcomes)) break;
-    if (resumesApplied >= maxResumes) break;
-    resumesApplied += 1;
-    polls = 0;
+    await runPollArm(ctx, state);
+    if (!shouldResume(ctx, state)) break;
+    state.resumesApplied += 1;
+    state.polls = 0;
     logger.info?.(
-      `[Watcher] poll cap reached with checks still pending; re-arming watch (resume #${resumesApplied}/${maxResumes}).`,
+      `[Watcher] poll cap reached with checks still pending; re-arming watch (resume #${state.resumesApplied}/${maxResumes}).`,
     );
   }
-
-  const terminal = allTerminal(outcomes);
-  const failing = hasFailingCheck(outcomes);
-  // Never `'timed_out'` — the auto-merge predicate would read it as failure.
-  const stillRunning = !terminal && !failing;
-  const finalOutcomes = terminal
-    ? outcomes
-    : promotePendingToStillRunning(outcomes);
-  return {
-    outcomes: finalOutcomes,
-    requiredChecks,
-    polls,
-    updatesApplied,
-    resumesApplied,
-    terminal,
-    green: terminal && allGreen(finalOutcomes),
-    stillRunning,
-  };
+  return finalVerdict(ctx, state);
 }

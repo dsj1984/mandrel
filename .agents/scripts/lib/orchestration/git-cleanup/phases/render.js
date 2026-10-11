@@ -281,6 +281,30 @@ function legacyExitCode(plan, result) {
   return 0;
 }
 
+function anyPhaseFailed({ branchesResult, fastForward, prune, stashes }) {
+  return [branchesResult, fastForward, prune, stashes].some(
+    (phase) => phase && !phase.ok,
+  );
+}
+
+function stashDropped(stashes) {
+  return (stashes?.actions ?? []).some((a) => a.action === 'drop' && a.dropped);
+}
+
+function anyPhaseWork({ branchesPlan, fastForward, prune, stashes }) {
+  return Boolean(
+    (branchesPlan?.candidates.length ?? 0) > 0 ||
+      fastForward?.applied ||
+      (prune?.pruned?.length ?? 0) > 0 ||
+      stashDropped(stashes),
+  );
+}
+
+function multiPhaseExitCode(ctx) {
+  if (anyPhaseFailed(ctx)) return 1;
+  return anyPhaseWork(ctx) ? 0 : 2;
+}
+
 /**
  * Accepts `(plan, result)` or a multi-phase context object.
  *
@@ -292,25 +316,5 @@ export function computeExitCode(ctx, legacyResult) {
   if (legacyResult !== undefined || Array.isArray(ctx?.candidates)) {
     return legacyExitCode(ctx, legacyResult);
   }
-  const {
-    branchesPlan = null,
-    branchesResult = null,
-    fastForward = null,
-    prune = null,
-    stashes = null,
-  } = ctx ?? {};
-  const anyFailure =
-    (branchesResult && !branchesResult.ok) ||
-    (fastForward && !fastForward.ok) ||
-    (prune && !prune.ok) ||
-    (stashes && !stashes.ok);
-  if (anyFailure) return 1;
-  const anyWork =
-    (branchesPlan && branchesPlan.candidates.length > 0) ||
-    fastForward?.applied ||
-    (prune && (prune.pruned?.length ?? 0) > 0) ||
-    (stashes &&
-      (stashes.actions ?? []).some((a) => a.action === 'drop' && a.dropped));
-  if (!anyWork) return 2;
-  return 0;
+  return multiPhaseExitCode(ctx ?? {});
 }
