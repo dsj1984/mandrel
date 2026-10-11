@@ -32,6 +32,7 @@ import {
   readNativeBlockedBy,
   toStoryRecord,
 } from './lib/orchestration/resolve-stories.js';
+import { resolveRunDispatchInputs } from './lib/orchestration/resume-effort.js';
 import { createProvider } from './lib/provider-factory.js';
 import { concurrentMap } from './lib/util/concurrent-map.js';
 import { paginateRest } from './providers/github/request-helpers.js';
@@ -189,12 +190,13 @@ export async function resolveForeignDone({ provider, dag, inSetIds }) {
 /**
  * @param {{ ids: string, native?: boolean, pretty?: boolean,
  *   allowUnlabelled?: boolean }} args
- * @param {{ provider: object, config: object, stdout?: { write(s: string): void } }} deps
+ * @param {{ provider: object, config: object, stdout?: { write(s: string): void },
+ *   countPriorBlocksFn?: Function }} deps
  * @returns {Promise<number>}
  */
 export async function runResolveStories(
   { ids: rawIds, native = true, pretty = false, allowUnlabelled = false },
-  { provider, config, stdout = process.stdout },
+  { provider, config, stdout = process.stdout, countPriorBlocksFn },
 ) {
   const ids = parseIds(rawIds);
   const owner = config.github?.owner;
@@ -221,6 +223,10 @@ export async function runResolveStories(
     nativeEdges,
     foreignDone,
     warn: () => {},
+    ...(await resolveRunDispatchInputs(stories, {
+      config,
+      countFn: countPriorBlocksFn,
+    })),
   });
 
   stdout.write(

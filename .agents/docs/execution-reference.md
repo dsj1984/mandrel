@@ -138,13 +138,33 @@ everything that follows.
   are well-scoped by construction, so delivery rarely needs more. `high` for
   `/mandrel-plan`: a Spec defect costs a redraft or a blocked Story
   downstream, which is dearer than the planning turn.
+- **Recommended session model.** Set the session model explicitly — a
+  frontier model — for `/mandrel-plan` and `/mandrel-deliver` rather than
+  trusting the client default (recent Claude Code builds have been reported to
+  default to a small model). `story-worker`, `acceptance-critic` and
+  `plan-critic` declare `model: inherit`, so they run on whatever the session
+  runs on; `auditor` pins `sonnet`. Move one role off the session model with
+  `delivery.routing.agentModels`.
 - **Role agents.** `story-worker` declares no effort and inherits the
-  session's (Story #5426). The evaluator roles (`acceptance-critic`,
-  `plan-critic`, `auditor`) pin `medium`.
+  session's (Story #5426) — except on a resume, below. The evaluator roles
+  (`acceptance-critic`, `plan-critic`, `auditor`) pin `medium`.
 - **Where pins live.** Effort and model pins belong only on role agents under
   `.agents/agents/`, never in workflow or command frontmatter: a command that
   pinned its own effort would change effort mid-session and break the prompt
   cache.
-- **Escalation is an operator step.** The Agent tool takes no per-call
-  effort, so no workflow can escalate on its own. Before resuming a blocked
-  Story, raise session effort one step; raise effort before switching models.
+- **Resume escalation is per call.** The Agent tool takes a per-call `effort`,
+  so a resumed blocked Story escalates on its own `story-worker` spawn and the
+  session (and its prompt cache) stays where it is. The ladder counts the
+  Story's prior blocks in its local signals stream — un-recovered
+  `story-blocked` records: 1 prior block → `high`, 2 or more → `xhigh`, none
+  → no per-call effort (the worker inherits the session). The ladder is
+  absolute, not relative to session effort — a script cannot read the
+  session's — so an operator already delivering at `high` or above gets the
+  ladder value. A one-Story resume therefore dispatches a worker instead of
+  running inline. A Story blocked on another machine has no local record and
+  resumes at session effort.
+- **Inline fallback keeps the operator step.** With
+  `delivery.routing.roleScopedAgents: false`, or on a harness that cannot
+  nest spawns, a one-Story run executes inline and no spawn carries the
+  effort: before resuming a blocked Story there, raise session effort one
+  step; raise effort before switching models.

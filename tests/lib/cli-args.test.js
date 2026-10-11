@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { parseSprintArgs } from '../../.agents/scripts/lib/cli-args.js';
+import { parseWorkerEffort } from '../../.agents/scripts/lib/orchestration/resume-effort.js';
 
 /**
  * `parseSprintArgs` expects a full argv-shaped array (slot 0 = node, slot 1 =
@@ -82,5 +83,30 @@ describe('parseSprintArgs — --rerun-advisory (Story #5266)', () => {
       parseSprintArgs(argv('--rerun-advisory=-1')).rerunAdvisory,
       undefined,
     );
+  });
+});
+
+describe('parseSprintArgs — --worker-effort (Story #5608)', () => {
+  it('carries the raw value through for the close runner to validate', () => {
+    assert.equal(
+      parseSprintArgs(argv('--story', '5608', '--worker-effort', 'high'))
+        .workerEffort,
+      'high',
+    );
+  });
+
+  it('is undefined when absent — a fresh Story or an inline close', () => {
+    assert.equal(
+      parseSprintArgs(argv('--story', '5608')).workerEffort,
+      undefined,
+    );
+  });
+
+  it('never throws on a junk value: validation is best-effort', () => {
+    const raw = parseSprintArgs(argv('--worker-effort', 'turbo')).workerEffort;
+    assert.equal(raw, 'turbo');
+    const { effort, warning } = parseWorkerEffort(raw);
+    assert.equal(effort, null);
+    assert.match(warning, /low\|medium\|high\|xhigh\|max/);
   });
 });

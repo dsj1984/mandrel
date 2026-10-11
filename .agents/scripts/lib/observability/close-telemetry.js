@@ -10,6 +10,7 @@ import crypto from 'node:crypto';
 
 import { parseWorkerModel, parseWorkerTokens } from '../cli-args.js';
 import { Logger } from '../Logger.js';
+import { parseWorkerEffort } from '../orchestration/resume-effort.js';
 import { EVENT_KINDS } from '../signals/schema.js';
 import {
   emitRuntimeFriction,
@@ -246,7 +247,7 @@ async function readStoryTally({ storyId, config, readFn = forEachLine }) {
 
 /**
  * @param {{ storyId: number, config?: object, workerTokens?: number|null,
- *   workerModel?: string|null, landed?: boolean,
+ *   workerModel?: string|null, workerEffort?: string|null, landed?: boolean,
  *   readFn?: typeof forEachLine }} args
  * @returns {Promise<object>}
  */
@@ -255,6 +256,7 @@ async function buildCloseTelemetry({
   config,
   workerTokens = null,
   workerModel = null,
+  workerEffort = null,
   landed = false,
   readFn,
 }) {
@@ -268,6 +270,7 @@ async function buildCloseTelemetry({
     },
     workerTokens: Number.isInteger(workerTokens) ? workerTokens : null,
     workerModel,
+    workerEffort,
   };
 }
 
@@ -310,12 +313,22 @@ export function resolveWorkerModel(raw) {
 }
 
 /**
+ * @param {unknown} raw
+ * @returns {string|null}
+ */
+export function resolveWorkerEffort(raw) {
+  const { effort, warning } = parseWorkerEffort(raw);
+  if (warning) Logger.warn(`[single-story-close] ${warning}`);
+  return effort;
+}
+
+/**
  * The retry goes first so the summary counts it; a failure leaves
  * `telemetry: null` and the close's status untouched.
  *
  * @param {{ terminal: object, result?: object|null, config?: object,
  *   workerTokens?: number|null, workerModel?: string|null,
- *   readFn?: typeof forEachLine }} args
+ *   workerEffort?: string|null, readFn?: typeof forEachLine }} args
  * @returns {Promise<void>}
  */
 export async function recordCloseTelemetry({
@@ -324,6 +337,7 @@ export async function recordCloseTelemetry({
   config,
   workerTokens = null,
   workerModel = null,
+  workerEffort = null,
   readFn,
 }) {
   await emitCloseRetrySignal({ envelope: terminal, config });
@@ -334,6 +348,7 @@ export async function recordCloseTelemetry({
       config,
       workerTokens,
       workerModel,
+      workerEffort,
       landed: terminal?.status === 'landed',
       readFn,
     });

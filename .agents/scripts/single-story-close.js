@@ -18,13 +18,17 @@
  *                              [--override-review-block <reason>]
  *                              [--worker-tokens <n>]
  *                              [--worker-model <model>]
+ *                              [--worker-effort <level>]
  *
  * `--worker-tokens <n>` is the story-worker's host-reported token total,
  * recorded best-effort in the close result's `telemetry` (absent or invalid →
  * `null` plus a warning; never a change of status or exit code).
  * `--worker-model <model>` is the dispatched story-worker's resolved model,
- * which deliver-run renders on a multi-Story close (`telemetry.workerModel`;
- * an inline close omits it and records `null`).
+ * which deliver-run renders on every worker-dispatched close
+ * (`telemetry.workerModel`; an inline close omits it and records `null`).
+ * `--worker-effort <level>` is the per-call effort a resumed story-worker ran
+ * at (`telemetry.workerEffort`), rendered beside it when the Story resumed
+ * after a prior block.
  * `--override-review-block <reason>` is the audited escape past a code-review
  * CRITICAL blocker (instead of a hand-merge with no record).
  * `--merge-watch-mode async` is passed per close by the orchestrator, the only
@@ -144,7 +148,11 @@ runAsCli(import.meta.url, main, {
       ],
       [
         '--worker-model <model>',
-        'The dispatched story-worker’s resolved model, recorded in the close result’s `telemetry.workerModel` beside `workerTokens`. deliver-run renders it on every close of a multi-Story run; an inline close omits it and records null. Best-effort: an invalid value records null with a warning and never changes the status or exit code.',
+        'The dispatched story-worker’s resolved model, recorded in the close result’s `telemetry.workerModel` beside `workerTokens`. deliver-run renders it on every worker-dispatched close (a multi-Story run, or a one-Story resume); an inline close omits it and records null. Best-effort: an invalid value records null with a warning and never changes the status or exit code.',
+      ],
+      [
+        '--worker-effort <level>',
+        'The per-call effort (low|medium|high|xhigh|max) the dispatched story-worker ran at, recorded in the close result’s `telemetry.workerEffort` beside `workerModel`. deliver-run renders it when the Story resumed after a prior block; absent, it records null. Best-effort: an invalid value records null with a warning and never changes the status or exit code.',
       ],
     ],
     notes: [
