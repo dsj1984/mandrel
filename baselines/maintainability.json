@@ -1423,6 +1423,10 @@
       "mi": 115.566
     },
     {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/source-rewrite.js",
+      "mi": 99.766
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
       "mi": 95.716
     },
