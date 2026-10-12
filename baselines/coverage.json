@@ -124,8 +124,8 @@
     },
     {
       "path": ".agents/scripts/coverage-capture.js",
-      "lines": 98.66,
-      "branches": 91.67,
+      "lines": 99.14,
+      "branches": 97.14,
       "functions": 100
     },
     {
@@ -160,9 +160,9 @@
     },
     {
       "path": ".agents/scripts/evidence-gate.js",
-      "lines": 97.93,
-      "branches": 87.5,
-      "functions": 83.33
+      "lines": 96.52,
+      "branches": 90.38,
+      "functions": 84.62
     },
     {
       "path": ".agents/scripts/file-ci-gap.js",
@@ -963,6 +963,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/close-lock-events.js",
+      "lines": 100,
+      "branches": 97.56,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/close-validation/commands.js",
       "lines": 77.48,
       "branches": 84.62,
@@ -970,15 +976,15 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
-      "lines": 99.16,
-      "branches": 94.17,
+      "lines": 99.3,
+      "branches": 94.49,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/close-validation/process.js",
-      "lines": 90.78,
-      "branches": 86.49,
-      "functions": 78.57
+      "lines": 90.87,
+      "branches": 89.19,
+      "functions": 80
     },
     {
       "path": ".agents/scripts/lib/close-validation/projections/advisories.js",
@@ -1012,9 +1018,9 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
-      "lines": 90.04,
-      "branches": 85.15,
-      "functions": 86.67
+      "lines": 93.04,
+      "branches": 86.44,
+      "functions": 88.89
     },
     {
       "path": ".agents/scripts/lib/command-header.js",
@@ -1481,13 +1487,13 @@
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "lines": 100,
-      "branches": 98.57,
+      "branches": 98.88,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/full-suite-queue.js",
-      "lines": 97.18,
-      "branches": 94,
+      "lines": 97.66,
+      "branches": 90.48,
       "functions": 100
     },
     {
@@ -2956,8 +2962,8 @@
     },
     {
       "path": ".agents/scripts/lib/supervised-suite.js",
-      "lines": 98.38,
-      "branches": 91.04,
+      "lines": 98.24,
+      "branches": 91.8,
       "functions": 100
     },
     {

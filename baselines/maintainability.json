@@ -659,6 +659,10 @@
       "mi": 102.861
     },
     {
+      "path": ".agents/scripts/lib/close-lock-events.js",
+      "mi": 112.367
+    },
+    {
       "path": ".agents/scripts/lib/close-validation/commands.js",
       "mi": 108.42
     },
