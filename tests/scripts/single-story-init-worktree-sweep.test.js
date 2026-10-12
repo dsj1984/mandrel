@@ -99,6 +99,27 @@ describe('single-story-init — closed-Story worktree sweep (Story #5461)', () =
     assertSwept(worktreeSweep, trees, repo);
   });
 
+  it('the init reap also heals closed Stories stranded at agent::closing (Story #5652)', async () => {
+    const { repo } = fixtureRepo();
+    let seen = null;
+    const { closingReconcile } = await reapMergedStoryBranches({
+      cwd: repo,
+      baseBranch: 'main',
+      storyBranch: 'story-33',
+      config: CONFIG,
+      provider,
+      injectedSweep: noopBranchSweep,
+      closingReconcileFn: async (args) => {
+        seen = args;
+        return { ok: true, reconciled: [4561], skipped: [] };
+      },
+    });
+    assert.equal(seen.provider, provider);
+    assert.equal(seen.config, CONFIG);
+    assert.equal(seen.cwd, repo);
+    assert.deepEqual(closingReconcile.reconciled, [4561]);
+  });
+
   it('materializeBaseBranch carries the sweep outcome back for the init envelope', async () => {
     const { repo, trees } = fixtureRepo();
     // A warm fetch cache keeps the fixture (which has no remote) off the network.

@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { rmSync } from 'node:fs';
+import path from 'node:path';
+import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import {
   buildSummaryLine,
@@ -7,6 +9,8 @@ import {
   runBootSweepCli,
   storyIdsFromBranches,
 } from '../.agents/scripts/boot-sweep.js';
+import { reconcileStrandedClosing } from '../.agents/scripts/lib/single-story-sweep/reconcile-closing.js';
+import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 
 /** Keep the closed-Story worktree sweep (and its lockfile) out of these cases. */
 const NO_WORKTREE_SWEEP = {
@@ -290,5 +294,304 @@ describe('runBootSweep — temp-retention catch-up (Story #4794)', () => {
     assert.equal(result.ok, false);
     assert.equal(result.skipped, true);
     assert.match(warns[0], /host continues/);
+  });
+});
+
+/**
+ * Story #5652 — a Story whose PR auto-merged after its close process was gone
+ * is closed by the `Closes #<id>` footer but strands at `agent::closing`. The
+ * boot sweep finishes the flip when the `story-<id>` PR is MERGED.
+ */
+describe('reconcileStrandedClosing (Story #5652)', () => {
+  // The real flip routes through ColumnSync, which writes the project-meta
+  // cache under tempRoot; an ABSOLUTE tempRoot keeps it off the shared file.
+  let tempRoot;
+  beforeEach(() => {
+    tempRoot = makeTempDir('mandrel-reconcile-closing-');
+  });
+  afterEach(() => {
+    rmSync(tempRoot, { recursive: true, force: true });
+  });
+
+  const config = () => ({ project: { paths: { tempRoot } } });
+  const quiet = { info: () => {}, warn: () => {} };
+
+  function story(id, extra = {}) {
+    return {
+      id,
+      state: 'closed',
+      stateReason: 'completed',
+      title: `Story ${id}`,
+      labels: ['type::story', 'agent::closing'],
+      ...extra,
+    };
+  }
+
+  function fakeProvider(closed, { updateThrows = false } = {}) {
+    const byId = new Map(closed.map((t) => [t.id, { ...t }]));
+    const updates = [];
+    const listCalls = [];
+    return {
+      listTicketsByLabel: async (opts) => {
+        listCalls.push(opts);
+        return closed;
+      },
+      getTicket: async (id) => ({ ...byId.get(id) }),
+      updateTicket: async (id, patch) => {
+        updates.push({ id, patch });
+        if (updateThrows) throw new Error('provider failure');
+        byId.set(id, { ...byId.get(id), ...patch });
+      },
+      updates,
+      listCalls,
+    };
+  }
+
+  function fakeGh(rowsByBranch) {
+    const calls = [];
+    return {
+      calls,
+      pr: {
+        list: async (flags) => {
+          calls.push(flags);
+          return rowsByBranch[flags[flags.indexOf('--head') + 1]] ?? [];
+        },
+      },
+    };
+  }
+
+  const merged = (n) => [
+    {
+      url: `https://github.com/owner/repo/pull/${n}`,
+      state: 'MERGED',
+      mergedAt: '2026-10-12T19:14:50Z',
+    },
+  ];
+
+  it('writes agent::done for a closed agent::closing Story whose PR merged', async () => {
+    const provider = fakeProvider([story(4561)]);
+    const gh = fakeGh({ 'story-4561': merged(4573) });
+    const out = await reconcileStrandedClosing({
+      provider,
+      config: config(),
+      cwd: '/repo',
+      gh,
+      notify: async () => {},
+      sleep: async () => {},
+      logger: quiet,
+    });
+
+    assert.deepEqual(provider.listCalls, [
+      { state: 'closed', labels: 'agent::closing' },
+    ]);
+    assert.deepEqual(out, { ok: true, reconciled: [4561], skipped: [] });
+    const labelWrites = provider.updates.filter((u) => u.patch.labels);
+    assert.equal(labelWrites.length, 1);
+    assert.ok(labelWrites[0].patch.labels.add.includes('agent::done'));
+    assert.ok(labelWrites[0].patch.labels.remove.includes('agent::closing'));
+  });
+
+  it('leaves a Story with no merged PR, and a not_planned one, untouched', async () => {
+    const provider = fakeProvider([
+      story(10),
+      story(11, { stateReason: 'not_planned' }),
+    ]);
+    const gh = fakeGh({
+      'story-10': [{ url: 'https://x/pull/1', state: 'CLOSED' }],
+    });
+    const out = await reconcileStrandedClosing({
+      provider,
+      config: config(),
+      cwd: '/repo',
+      gh,
+      logger: quiet,
+    });
+
+    assert.equal(provider.updates.length, 0, 'no label write');
+    assert.deepEqual(out.reconciled, []);
+    assert.deepEqual(out.skipped, [
+      { storyId: 10, reason: 'no-merged-pr' },
+      { storyId: 11, reason: 'skipped' },
+    ]);
+    assert.equal(gh.calls.length, 1, 'a not_planned Story needs no PR read');
+  });
+
+  it('ignores Epics and Stories that already carry agent::done', async () => {
+    const provider = fakeProvider([
+      story(20, { labels: ['type::epic', 'agent::closing'] }),
+      story(21, { labels: ['type::story', 'agent::closing', 'agent::done'] }),
+    ]);
+    const gh = fakeGh({});
+    const out = await reconcileStrandedClosing({
+      provider,
+      config: config(),
+      cwd: '/repo',
+      gh,
+      logger: quiet,
+    });
+    assert.deepEqual(out, { ok: true, reconciled: [], skipped: [] });
+    assert.equal(gh.calls.length, 0);
+  });
+
+  it('reports a failed agent::done write under skipped instead of throwing', async () => {
+    const provider = fakeProvider([story(30)], { updateThrows: true });
+    const out = await reconcileStrandedClosing({
+      provider,
+      config: config(),
+      cwd: '/repo',
+      gh: fakeGh({ 'story-30': merged(31) }),
+      notify: async () => {},
+      sleep: async () => {},
+      logger: quiet,
+    });
+    assert.equal(out.ok, true);
+    assert.deepEqual(out.reconciled, []);
+    assert.deepEqual(out.skipped, [{ storyId: 30, reason: 'flip-failed' }]);
+  });
+
+  it('reports a throwing PR lookup as an error outcome', async () => {
+    const provider = fakeProvider([story(40)]);
+    const gh = {
+      pr: {
+        list: async () => {
+          throw new Error('gh unreachable');
+        },
+      },
+    };
+    const out = await reconcileStrandedClosing({
+      provider,
+      config: config(),
+      cwd: '/repo',
+      gh,
+      logger: quiet,
+    });
+    assert.deepEqual(out.skipped, [{ storyId: 40, reason: 'error' }]);
+    assert.equal(provider.updates.length, 0);
+  });
+
+  it('degrades a throwing listing to ok:false with the error named', async () => {
+    const warns = [];
+    const out = await reconcileStrandedClosing({
+      provider: {
+        listTicketsByLabel: async () => {
+          throw new Error('rate limited');
+        },
+      },
+      config: config(),
+      cwd: '/repo',
+      logger: { info: () => {}, warn: (m) => warns.push(m) },
+    });
+    assert.deepEqual(out, {
+      ok: false,
+      reconciled: [],
+      skipped: [],
+      error: 'rate limited',
+    });
+    assert.match(warns[0], /rate limited/);
+  });
+
+  it('is a no-op for a provider without listTicketsByLabel', async () => {
+    const out = await reconcileStrandedClosing({
+      provider: {},
+      config: config(),
+      cwd: '/repo',
+      logger: quiet,
+    });
+    assert.deepEqual(out, { ok: true, reconciled: [], skipped: [] });
+  });
+
+  it('runBootSweep writes agent::done end-to-end and reports it on the envelope', async () => {
+    const provider = fakeProvider([story(4549)]);
+    const gh = fakeGh({ 'story-4549': merged(4558) });
+    const result = await runBootSweep({
+      cwd: '/repo',
+      ...NO_WORKTREE_SWEEP,
+      injectedConfig: config(),
+      injectedProvider: provider,
+      injectedSweep: async () => ({ ok: true, reaped: [] }),
+      purgeFn: async () => ({ purged: [] }),
+      // Only the gh/notify/sleep seams are pinned; the reconcile is real.
+      closingReconcileFn: (args) =>
+        reconcileStrandedClosing({
+          ...args,
+          gh,
+          notify: async () => {},
+          sleep: async () => {},
+        }),
+      logger: quiet,
+    });
+    assert.deepEqual(result.closingReconcile.reconciled, [4549]);
+    const labelWrites = provider.updates.filter((u) => u.patch.labels);
+    assert.equal(labelWrites.length, 1);
+    assert.ok(labelWrites[0].patch.labels.add.includes('agent::done'));
+  });
+
+  it('processes at most the cap per sweep (default 10)', async () => {
+    const closed = Array.from({ length: 15 }, (_, i) => story(100 + i));
+    const seen = [];
+    const out = await reconcileStrandedClosing({
+      provider: { listTicketsByLabel: async () => closed },
+      config: config(),
+      cwd: '/repo',
+      logger: quiet,
+      reconcileFn: async (ctx) => {
+        seen.push(ctx.storyBranch);
+        return 'done';
+      },
+    });
+    assert.equal(seen.length, 10);
+    assert.equal(seen[0], 'story-100');
+    assert.equal(out.reconciled.length, 10);
+  });
+});
+
+describe('runBootSweep — stranded agent::closing reconcile (Story #5652)', () => {
+  it('runs the reconcile and carries its outcome on the envelope and summary', async () => {
+    let seen = null;
+    const provider = { marker: true };
+    const result = await runBootSweep({
+      cwd: '/repo',
+      ...NO_WORKTREE_SWEEP,
+      injectedConfig: { project: { baseBranch: 'main' } },
+      injectedProvider: provider,
+      injectedSweep: async () => ({
+        ok: true,
+        localDeleted: 0,
+        remoteDeleted: 0,
+      }),
+      purgeFn: async () => ({ purged: [] }),
+      closingReconcileFn: async (args) => {
+        seen = args;
+        return { ok: true, reconciled: [4549, 4561], skipped: [] };
+      },
+      logger: { info: () => {}, warn: () => {} },
+    });
+
+    assert.equal(seen.provider, provider);
+    assert.equal(seen.cwd, path.resolve('/repo'), 'the resolved repo root');
+    assert.deepEqual(result.closingReconcile.reconciled, [4549, 4561]);
+    assert.match(
+      buildSummaryLine(result),
+      /flipped 2 stranded agent::closing Story\(ies\) to agent::done/,
+    );
+  });
+
+  it('keeps the sweep exit-0 path when the reconcile reports a failure', async () => {
+    const result = await runBootSweep({
+      cwd: '/repo',
+      ...NO_WORKTREE_SWEEP,
+      injectedConfig: { project: { baseBranch: 'main' } },
+      injectedProvider: {
+        listTicketsByLabel: async () => {
+          throw new Error('rate limited');
+        },
+      },
+      injectedSweep: async () => ({ ok: true, reaped: [] }),
+      purgeFn: async () => ({ purged: [] }),
+      logger: { info: () => {}, warn: () => {} },
+    });
+    assert.equal(result.ok, true, 'the branch sweep envelope survives');
+    assert.equal(result.closingReconcile.ok, false);
+    assert.equal(result.closingReconcile.error, 'rate limited');
   });
 });

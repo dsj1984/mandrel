@@ -12,6 +12,9 @@
  * trees whose Story is closed or `agent::done` are removed; an open Story's
  * tree and the tree this process runs from are never touched.
  *
+ * Then it flips closed Stories stranded at `agent::closing` to
+ * `agent::done` (`closingReconcile`).
+ *
  * `content-merged` branches (merge-tree equivalence — no merge check ever
  * validated their exact diff) are never reaped here, only reported for
  * `/clean-git`.
@@ -26,6 +29,7 @@ import { Logger } from './lib/Logger.js';
 import { sweepStaleStoryWorktrees } from './lib/orchestration/plan-runner/worktree-sweep.js';
 import { createProvider } from './lib/provider-factory.js';
 import { buildProtectionCtx } from './lib/single-story-sweep/protection-ctx.js';
+import { reconcileStrandedClosing } from './lib/single-story-sweep/reconcile-closing.js';
 import {
   acquireSweepLock,
   resolveSweepLockPath,
@@ -58,6 +62,9 @@ worktree, still-open parent Story), then fast-forwards the base branch.
 Then removes every .worktrees/story-<id> tree whose Story is closed or
 agent::done (never an open Story's, never the tree this process runs from);
 the outcome lands under "worktreeSweep".
+Then flips closed Stories still labelled agent::closing whose story-<id> PR
+is MERGED to agent::done (at most 10 per run); the outcome lands under
+"closingReconcile".
 Branches detected only via the weaker content-equivalence signal
 (detectedBy: 'content-merged') are never reaped here — they are reported
 under "contentMerged" (and a routing hint in the summary line) for the
@@ -145,10 +152,11 @@ export async function runWorktreeSweep({
  *   worktreeSweepFn?: Function,
  *   acquireLockFn?: Function,
  *   purgeFn?: Function,
+ *   closingReconcileFn?: Function,
  *   logger?: { info?: Function, warn?: Function },
  * }} [args]
  * @returns {Promise<object>} the {@link sweepMergedBranches} envelope plus
- *   `worktreeSweep` and `tempPurge`.
+ *   `worktreeSweep`, `closingReconcile` and `tempPurge`.
  */
 export async function runBootSweep({
   cwd,
@@ -163,6 +171,7 @@ export async function runBootSweep({
   worktreeSweepFn = sweepStaleStoryWorktrees,
   acquireLockFn = acquireSweepLock,
   purgeFn = sweepTempRetention,
+  closingReconcileFn = reconcileStrandedClosing,
   logger = Logger,
 } = {}) {
   const root = path.resolve(cwd ?? PROJECT_ROOT);
@@ -213,6 +222,16 @@ export async function runBootSweep({
       logger,
     });
 
+    const closingReconcile = await closingReconcileFn({
+      provider,
+      config,
+      cwd: root,
+      logger: {
+        info: (m) => logger.info?.(`[boot-sweep] ${m}`),
+        warn: (m) => logger.warn?.(`[boot-sweep] ${m}`),
+      },
+    });
+
     // Temp-retention catch-up: reaped branches are confirmed merges, so their
     // artifacts are spent; the age floor collects the rest.
     const purge = await purgeFn({
@@ -221,7 +240,7 @@ export async function runBootSweep({
       label: 'boot-sweep',
       logger,
     });
-    return { ...result, worktreeSweep, tempPurge: purge };
+    return { ...result, worktreeSweep, closingReconcile, tempPurge: purge };
   } catch (err) {
     const msg = err?.message ?? String(err);
     logger.warn?.(`[boot-sweep] sweep threw (host continues): ${msg}`);
@@ -239,6 +258,12 @@ export async function runBootSweep({
   }
 }
 
+/** `; <text>` for a nonzero count, else nothing. */
+function countSuffix(list, render) {
+  const count = list?.length ?? 0;
+  return count > 0 ? `; ${render(count)}` : '';
+}
+
 /**
  * One-line summary; a nonzero `contentMerged` count adds a `/clean-git` hint.
  *
@@ -247,17 +272,21 @@ export async function runBootSweep({
  */
 export function buildSummaryLine(result) {
   const protectedCount = result.protected?.length ?? 0;
-  const contentMergedCount = result.contentMerged?.length ?? 0;
-  const worktreesReaped = result.worktreeSweep?.reaped?.length ?? 0;
-  const worktreeSuffix =
-    worktreesReaped > 0
-      ? `; removed ${worktreesReaped} closed-Story worktree(s)`
-      : '';
-  const contentMergedSuffix =
-    contentMergedCount > 0
-      ? `; ${contentMergedCount} content-merged branch(es) left for /clean-git`
-      : '';
-  return `[boot-sweep] reaped ${result.localDeleted} local + ${result.remoteDeleted} remote; protected ${protectedCount}${worktreeSuffix}${contentMergedSuffix}.`;
+  const suffixes = [
+    countSuffix(
+      result.worktreeSweep?.reaped,
+      (n) => `removed ${n} closed-Story worktree(s)`,
+    ),
+    countSuffix(
+      result.closingReconcile?.reconciled,
+      (n) => `flipped ${n} stranded agent::closing Story(ies) to agent::done`,
+    ),
+    countSuffix(
+      result.contentMerged,
+      (n) => `${n} content-merged branch(es) left for /clean-git`,
+    ),
+  ].join('');
+  return `[boot-sweep] reaped ${result.localDeleted} local + ${result.remoteDeleted} remote; protected ${protectedCount}${suffixes}.`;
 }
 
 /**
