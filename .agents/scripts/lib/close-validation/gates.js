@@ -29,6 +29,7 @@ import {
  * @property {{ baseRef: string }} [changedFileScope]
  * @property {{ reason: string }} [skip] - Pre-decided skip: recorded, never spawned.
  * @property {Record<string, string>} [env] - Overlay merged over `process.env` for this gate's child only.
+ * @property {boolean} [lockEventChannel] - The child reports on close's lock-event channel.
  * @property {(cmd: string, args: string[], opts: { cwd: string, gateName?: string, log?: (m: string) => void, signal?: AbortSignal, env?: Record<string, string> }) => Promise<{ status: number }> | { status: number }} [run]
  *   - In-process runner used instead of spawning `cmd`/`args`.
  */
@@ -520,6 +521,7 @@ export function buildDefaultGates({
             cmd: 'node',
             args: [...COVERAGE_CAPTURE_ARGS],
             hint: COVERAGE_CAPTURE_HINT,
+            lockEventChannel: true,
             ...(captureSkipPredicted
               ? { skip: { reason: 'incremental-no-crap-changes' } }
               : {}),

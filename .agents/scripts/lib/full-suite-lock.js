@@ -49,6 +49,7 @@ const LOCK_DEFAULTS = Object.freeze({
   sleepFn: (ms) => defaultSleep(ms),
   acquireOnceFn: (opts) => acquireSweepLock(opts),
   onWaitExpired: () => LOCK_WAIT_EXPIRED_EXIT_CODE,
+  onLockOutcome: () => {},
   rerunCommand: 'the same command',
 });
 
@@ -168,6 +169,7 @@ function consult(probe, applies) {
  *   lockPath?: string,
  *   skipIfSatisfied?: () => T|undefined,
  *   onWaitExpired?: (holder: import('./full-suite-queue.js').LockHolder) => T,
+ *   onLockOutcome?: (outcome: object) => void,
  *   rerunCommand?: string,
  * }} opts A non-`undefined` `skipIfSatisfied` return stands in for the spawn.
  * @param {(timing: { lockWaitMs: number }) => Promise<T>} spawn
@@ -180,11 +182,29 @@ export async function withFullSuiteLockAsync(options, spawn) {
     lock === null && lockPath !== null
       ? await waitInLine({ ...opts, lockPath })
       : { held: lock, expired: false, waited: false, waitedMs: 0 };
+  reportOutcome(opts.onLockOutcome, wait);
   try {
     return await spawnOrStandIn(opts, wait, spawn);
   } finally {
     if (wait.held?.acquired) wait.held.release();
   }
+}
+
+/** An I/O-error wait is no outcome; a throwing callback never costs the spawn. */
+function reportOutcome(onLockOutcome, wait) {
+  if (!isFinishedWait(wait)) return;
+  try {
+    onLockOutcome(lockOutcome(wait));
+  } catch {}
+}
+
+function isFinishedWait(wait) {
+  return wait.waited && (wait.expired || Boolean(wait.held?.acquired));
+}
+
+function lockOutcome({ waitedMs, expired, holder }) {
+  const outcome = { waitedSeconds: Math.round(waitedMs / 1000), expired };
+  return expired && holder ? { ...outcome, holder } : outcome;
 }
 
 function withDefaults(options) {

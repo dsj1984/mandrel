@@ -1341,8 +1341,9 @@ describe('runSingleStoryClose orchestration', () => {
   /**
    * Story #5377 — a close that queues behind another full suite on this host.
    * The mocked chain emits the same lock lines a real gate (or a capture
-   * child) would, through the `log` sink the phase hands it; the terminal and
-   * the operator console are what the phase and runner make of them.
+   * child) would through the `log` sink, and the same structured events on
+   * the `lockEvents` channel: the console shows the lines, the terminal
+   * carries only the events (Story #5642).
    */
   function lockWaitingValidation({ expired }) {
     return async (opts) => {
@@ -1356,14 +1357,32 @@ describe('runSingleStoryClose orchestration', () => {
         opts.log(
           '[coverage-capture] [full-suite-lock] ✅ acquired the full-suite lock (waited 42s).',
         );
-        opts.log(
-          '[coverage-capture] ⏲ suite timings: lockWaitMs=42000 hostWaitMs=9000 testRunMs=51000',
-        );
+        opts.lockEvents.emit({
+          kind: 'lock-wait',
+          waitedSeconds: 42,
+          expired: false,
+        });
+        opts.lockEvents.emit({
+          kind: 'suite-timings',
+          lockWaitMs: 42000,
+          hostWaitMs: 9000,
+          testRunMs: 51000,
+        });
         return { ok: true, failed: [], skipped: [] };
       }
       opts.log(
         '[coverage-capture] [full-suite-lock] ⌛ gave up waiting for the full-suite lock (waited 300s, holder pid-4711-1700000000000, pid 4711, lock age 312s) — not spawning, so two full suites never overlap. Re-run once it finishes: node .agents/scripts/coverage-capture.js --cwd /repo',
       );
+      opts.lockEvents.emit({
+        kind: 'lock-wait',
+        waitedSeconds: 300,
+        expired: true,
+        holder: {
+          ownerId: 'pid-4711-1700000000000',
+          pid: 4711,
+          ageSeconds: 312,
+        },
+      });
       return {
         ok: false,
         failed: [

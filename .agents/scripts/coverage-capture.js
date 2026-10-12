@@ -14,6 +14,7 @@
  */
 import { getChangedFiles } from './lib/changed-files.js';
 import { isDirectInvocation } from './lib/cli-utils.js';
+import { claimLockEventSink, lockEventHooks } from './lib/close-lock-events.js';
 import { getQuality, resolveConfig } from './lib/config-resolver.js';
 import {
   computeContentDigest,
@@ -68,6 +69,7 @@ export function parseArgs(argv) {
  *   filterFilesUnderTargetsImpl?: typeof filterFilesUnderTargets,
  *   logger?: { info: Function, warn: Function, error: Function },
  *   lockOptions?: object,
+ *   env?: Record<string, string|undefined>,
  * }} [deps]
  * @returns {Promise<number>}
  */
@@ -85,30 +87,26 @@ export async function runCoverageCapture(argv = process.argv, deps = {}) {
     filterFilesUnderTargetsImpl = filterFilesUnderTargets,
     logger = Logger,
     lockOptions = {},
+    env = process.env,
   } = deps;
+  const lockHooks = lockEventHooks(claimLockEventSink(env));
   const args = parseArgs(argv);
   const config = resolveConfigImpl({ cwd: args.cwd });
   const { crap, coverage } = getQualityImpl(config);
-
-  if (crap.enabled === false) {
-    logger.info('[coverage-capture] CRAP gate disabled — skipping capture.');
-    return 0;
-  }
-
-  // Name the fix rather than propagate npm's opaque "Missing script" exit.
-  if (!hasNpmScriptImpl(readPackageScriptsImpl(args.cwd), 'test:coverage')) {
-    logger.error(
-      '[coverage-capture] ✖ No "test:coverage" script in package.json. ' +
-        'Add one (e.g. "test:coverage": "node --test --experimental-test-coverage") ' +
-        'or disable the CRAP gate via delivery.quality.gates.crap.enabled=false.',
-    );
-    return 1;
-  }
+  const refused = refusal({
+    crap,
+    cwd: args.cwd,
+    readPackageScriptsImpl,
+    hasNpmScriptImpl,
+    logger,
+  });
+  if (refused !== null) return refused;
 
   // Outermost first: the credit probe announces or refuses the run, and only
   // a surviving run reaches the host-level full-suite lock.
-  const locked = lockedCapture(runCaptureImpl, config, process.env, {
+  const locked = lockedCapture(runCaptureImpl, config, env, {
     rerunCommand: rerunCommandFor(argv),
+    onLockOutcome: lockHooks.onLockOutcome,
     ...lockOptions,
   });
   const credited = creditedCapture(locked, {
@@ -139,8 +137,37 @@ export async function runCoverageCapture(argv = process.argv, deps = {}) {
       logger,
     },
   });
-  if (timings) logger.info(`[coverage-capture] ${formatSuiteTimings(timings)}`);
+  if (timings) reportTimings(timings, logger, lockHooks);
   return code;
+}
+
+/** @returns {number|null} The exit code when no capture may run. */
+function refusal({
+  crap,
+  cwd,
+  readPackageScriptsImpl,
+  hasNpmScriptImpl,
+  logger,
+}) {
+  if (crap.enabled === false) {
+    logger.info('[coverage-capture] CRAP gate disabled — skipping capture.');
+    return 0;
+  }
+  if (hasNpmScriptImpl(readPackageScriptsImpl(cwd), 'test:coverage')) {
+    return null;
+  }
+  // Name the fix rather than propagate npm's opaque "Missing script" exit.
+  logger.error(
+    '[coverage-capture] ✖ No "test:coverage" script in package.json. ' +
+      'Add one (e.g. "test:coverage": "node --test --experimental-test-coverage") ' +
+      'or disable the CRAP gate via delivery.quality.gates.crap.enabled=false.',
+  );
+  return 1;
+}
+
+function reportTimings(timings, logger, lockHooks) {
+  logger.info(`[coverage-capture] ${formatSuiteTimings(timings)}`);
+  lockHooks.onTimings(timings);
 }
 
 /** @param {string[]} argv */

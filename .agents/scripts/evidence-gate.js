@@ -11,6 +11,7 @@
 import { spawnSync } from 'node:child_process';
 import { parseArgs } from 'node:util';
 import { runAsCli } from './lib/cli-utils.js';
+import { claimLockEventSink, lockEventHooks } from './lib/close-lock-events.js';
 import { getQuality, resolveConfig } from './lib/config-resolver.js';
 import {
   fullSuiteLockPolicy,
@@ -228,12 +229,14 @@ export function runLockedSuite(
   } = {},
 ) {
   const timeoutMs = getQuality(config).coverage?.timeoutMs;
+  const lockHooks = lockEventHooks(claimLockEventSink(env));
   return withFullSuiteLockAsync(
     {
       ...fullSuiteLockPolicy(config, env),
       cwd,
       log,
       rerunCommand: ['node', ...process.argv.slice(1)].join(' '),
+      onLockOutcome: lockHooks.onLockOutcome,
       ...lockOptions,
     },
     ({ lockWaitMs }) =>
@@ -243,7 +246,10 @@ export function runLockedSuite(
         cwd,
         timeoutMs,
         lockWaitMs,
-        onTimings: (t) => log(`[evidence-gate] ${formatSuiteTimings(t)}`),
+        onTimings: (t) => {
+          log(`[evidence-gate] ${formatSuiteTimings(t)}`);
+          lockHooks.onTimings(t);
+        },
         onTimeout: () =>
           log(
             `[evidence-gate] ⏱ ${cmd} ${args.join(' ')} exceeded ${timeoutMs}ms — killed its process group.`,

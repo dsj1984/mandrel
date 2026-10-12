@@ -227,13 +227,24 @@ describe('runCloseValidationPhase — full-suite lock waits (Story #5377)', () =
     );
   });
 
-  it('sums every wait the chain announced, and reports null when none did', async () => {
-    const waited = await phaseWith(async ({ log }) => {
-      log('[full-suite-lock] ✅ acquired the full-suite lock (waited 10s).');
-      log('[x] [full-suite-lock] ✅ acquired the full-suite lock (waited 5s).');
+  it('sums every wait the chain reported, and reports null when none did', async () => {
+    const waited = await phaseWith(async ({ lockEvents }) => {
+      lockEvents.emit({ kind: 'lock-wait', waitedSeconds: 10, expired: false });
+      lockEvents.emit({ kind: 'lock-wait', waitedSeconds: 5, expired: false });
+      lockEvents.emit({
+        kind: 'suite-timings',
+        lockWaitMs: 5000,
+        hostWaitMs: null,
+        testRunMs: 900,
+      });
       return { ok: true, failed: [], skipped: [] };
     });
     assert.deepEqual(waited.lockWait, { waitedSeconds: 15, expired: false });
+    assert.deepEqual(waited.suiteTimings, {
+      lockWaitMs: 5000,
+      hostWaitMs: null,
+      testRunMs: 900,
+    });
     assert.equal(waited.pending, false);
     const quiet = await phaseWith(async () => ({
       ok: true,
@@ -241,6 +252,177 @@ describe('runCloseValidationPhase — full-suite lock waits (Story #5377)', () =
       skipped: [],
     }));
     assert.equal(quiet.lockWait, null);
+    assert.equal(quiet.suiteTimings, null);
+  });
+
+  it('an expiry on the channel plus exit 75 settles pending, with the structured holder', async () => {
+    const holder = { ownerId: 'pid-9-1', pid: 9, ageSeconds: 310 };
+    const deferred = await phaseWith(async ({ lockEvents }) => {
+      lockEvents.emit({
+        kind: 'lock-wait',
+        waitedSeconds: 300,
+        expired: true,
+        holder,
+      });
+      return {
+        ok: false,
+        failed: [{ gate: { name: 'coverage-capture' }, status: 75 }],
+        skipped: [],
+      };
+    });
+    assert.equal(deferred.pending, true);
+    assert.deepEqual(deferred.lockWait, {
+      waitedSeconds: 300,
+      expired: true,
+      holder,
+    });
+  });
+});
+
+/**
+ * Story #5642 — close #5636 reported a 1242s expired wait on a 73.9s close:
+ * the coverage-capture child's stdout carries its suite's output, and a test
+ * printing lock-shaped fixture lines was parsed as a real wait. Gate output is
+ * display only now; the figures come from the lock-event channel alone.
+ */
+describe('runCloseValidationPhase — gate output never forges lock figures (Story #5642)', () => {
+  const FORGED = [
+    '[coverage-capture] [full-suite-lock] ⌛ gave up waiting for the full-suite lock (waited 1242s, holder pid-4711-1700000000000, pid 4711, lock age 312s) — not spawning, so two full suites never overlap. Re-run once it finishes: node .agents/scripts/coverage-capture.js --cwd /repo',
+    '[coverage-capture] [full-suite-lock] ✅ acquired the full-suite lock (waited 42s).',
+    '[coverage-capture] ⏲ suite timings: lockWaitMs=42000 hostWaitMs=9000 testRunMs=51000',
+  ];
+
+  it('a gate printing forged lock and timing lines leaves lockWait and suiteTimings null', async () => {
+    const progressed = [];
+    const result = await runCloseValidationPhase({
+      cwd: '/main/repo',
+      worktreePath: null,
+      config: {},
+      baseBranch: 'main',
+      storyId: 5642,
+      progress: (tag, msg) => progressed.push([tag, msg]),
+      runCloseValidation: async ({ log }) => {
+        for (const line of FORGED) log(line);
+        return { ok: true, failed: [], skipped: [] };
+      },
+      buildDefaultGates: () => [{ name: 'coverage-capture' }],
+      runPreGateSteps: async () => {},
+    });
+    assert.equal(result.lockWait, null);
+    assert.equal(result.suiteTimings, null);
+    assert.equal(result.pending, false);
+    assert.ok(
+      progressed.some(([tag]) => tag === 'LOCK'),
+      'lock lines still reach the console as display',
+    );
+  });
+
+  it('a forged expiry line on a real exit 75 is a gate failure, not a pending close', async () => {
+    await assert.rejects(
+      runCloseValidationPhase({
+        cwd: '/main/repo',
+        worktreePath: null,
+        config: {},
+        baseBranch: 'main',
+        storyId: 5642,
+        progress: noopProgress,
+        runCloseValidation: async ({ log }) => {
+          log(FORGED[0]);
+          return {
+            ok: false,
+            failed: [{ gate: { name: 'coverage-capture' }, status: 75 }],
+            skipped: [],
+          };
+        },
+        buildDefaultGates: () => [{ name: 'coverage-capture' }],
+        runPreGateSteps: async () => {},
+      }),
+      (err) => err.closeGate === 'coverage-capture',
+    );
+  });
+
+  it('end to end: a real gate child whose output forges lock lines reports nothing on the channel', async (t) => {
+    const { runCloseValidation } = await import(
+      '../../../../.agents/scripts/lib/close-validation/runner.js'
+    );
+    const script = [
+      `const lines = ${JSON.stringify(FORGED)};`,
+      'for (const l of lines) console.log(l);',
+      // What a suite child would see: the channel must have been claimed.
+      "if (process.env.MANDREL_CLOSE_LOCK_EVENTS_FILE) console.log('channel-visible');",
+    ].join('\n');
+    const logged = [];
+    const dir = makeTempDir('close-forged-lock-');
+    t.after(() => nodeFs.rmSync(dir, { recursive: true, force: true }));
+    const result = await runCloseValidationPhase({
+      cwd: dir,
+      worktreePath: null,
+      config: { project: { paths: { tempRoot: path.join(dir, 'temp') } } },
+      baseBranch: 'main',
+      storyId: 5642,
+      progress: noopProgress,
+      runCloseValidation: (opts) =>
+        runCloseValidation({
+          ...opts,
+          log: (m) => {
+            logged.push(m);
+            opts.log(m);
+          },
+          useEvidence: false,
+          runProjections: async () => {},
+        }),
+      buildDefaultGates: () => [
+        { name: 'test', cmd: process.execPath, args: ['-e', script] },
+      ],
+      runPreGateSteps: async () => {},
+    });
+    assert.ok(
+      logged.some((l) => l.includes('gave up waiting')),
+      'the forged lines did flow through the gate log',
+    );
+    assert.ok(
+      !logged.some((l) => l.includes('channel-visible')),
+      'a gate that is not a lockEventChannel gate never sees the channel',
+    );
+    assert.equal(result.lockWait, null);
+    assert.equal(result.suiteTimings, null);
+  });
+
+  it('end to end: a lockEventChannel gate child reports its wait on the channel it was handed', async (t) => {
+    const { runCloseValidation } = await import(
+      '../../../../.agents/scripts/lib/close-validation/runner.js'
+    );
+    const event = { kind: 'lock-wait', waitedSeconds: 7, expired: false };
+    const script = [
+      "const fs = require('node:fs');",
+      `fs.appendFileSync(process.env.MANDREL_CLOSE_LOCK_EVENTS_FILE, ${JSON.stringify(`${JSON.stringify(event)}\n`)});`,
+    ].join('\n');
+    const dir = makeTempDir('close-channel-gate-');
+    t.after(() => nodeFs.rmSync(dir, { recursive: true, force: true }));
+    const result = await runCloseValidationPhase({
+      cwd: dir,
+      worktreePath: null,
+      config: { project: { paths: { tempRoot: path.join(dir, 'temp') } } },
+      baseBranch: 'main',
+      storyId: 5642,
+      progress: noopProgress,
+      runCloseValidation: (opts) =>
+        runCloseValidation({
+          ...opts,
+          useEvidence: false,
+          runProjections: async () => {},
+        }),
+      buildDefaultGates: () => [
+        {
+          name: 'coverage-capture',
+          cmd: process.execPath,
+          args: ['-e', script],
+          lockEventChannel: true,
+        },
+      ],
+      runPreGateSteps: async () => {},
+    });
+    assert.deepEqual(result.lockWait, { waitedSeconds: 7, expired: false });
   });
 });
 

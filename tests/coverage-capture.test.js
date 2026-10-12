@@ -9,11 +9,13 @@ import {
   runCoverageCapture,
 } from '../.agents/scripts/coverage-capture.js';
 import { resolveChangedFilesRef } from '../.agents/scripts/lib/changed-files.js';
+import { createLockEventChannel } from '../.agents/scripts/lib/close-lock-events.js';
 import { getQuality } from '../.agents/scripts/lib/config-resolver.js';
 import { handleCoverageCaptureHelp } from '../.agents/scripts/lib/coverage-capture-usage.js';
 import { acquireSweepLock } from '../.agents/scripts/lib/single-story-sweep/sweep-lock.js';
-import { parseSuiteTimings } from '../.agents/scripts/lib/supervised-suite.js';
 import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
+
+const CLOSE_LOCK_EVENTS_FILE_ENV = 'MANDREL_CLOSE_LOCK_EVENTS_FILE';
 
 /**
  * Story #4780 — `main` scored CRAP 42.7: the gate that decides whether
@@ -761,10 +763,16 @@ describe('runCoverageCapture — full-suite lock and timings (Story #5485)', () 
       const lockPath = path.join(dir, '.git', 'mandrel-full-suite.lock');
       const holder = acquireSweepLock({ lockPath, timeoutMs: 600_000 });
       const h = harness({ fresh: STALE_FRESHNESS, lockEnabled: true });
+      const channel = createLockEventChannel({ dir });
       const code = await runCoverageCapture(argv('--cwd', dir), {
         ...h.deps,
+        env: { ...channel.env },
         lockOptions: { waitMs: 0 },
       });
+      const [expiry] = channel.read();
+      assert.equal(expiry.kind, 'lock-wait');
+      assert.equal(expiry.expired, true);
+      assert.equal(expiry.holder.ownerId, holder.ownerId);
       holder.release();
       assert.equal(code, 75);
       assert.equal(h.calls.capture.length, 0, 'no suite was spawned');
@@ -786,11 +794,17 @@ describe('runCoverageCapture — full-suite lock and timings (Story #5485)', () 
     }
   });
 
-  it('AC-8: a capture that ran ends on its three timing figures', async () => {
+  it('AC-8: a capture that ran ends on its three timing figures, also reported on the claimed channel', async () => {
     const h = harness({ fresh: STALE_FRESHNESS });
+    const dir = makeTempDir('mandrel-capture-channel-');
+    const channel = createLockEventChannel({ dir });
+    const env = { ...channel.env };
+    let inheritedChannel;
     const deps = {
       ...h.deps,
+      env,
       runCaptureImpl: (args) => {
+        inheritedChannel = env[CLOSE_LOCK_EVENTS_FILE_ENV];
         h.calls.capture.push(args);
         args.onTimings({
           lockWaitMs: 1500,
@@ -800,13 +814,28 @@ describe('runCoverageCapture — full-suite lock and timings (Story #5485)', () 
         return 0;
       },
     };
-    assert.equal(await runCoverageCapture(argv('--cwd', '/repo'), deps), 0);
-    const closing = h.log.info.at(-1);
-    assert.deepEqual(parseSuiteTimings(closing), {
-      lockWaitMs: 1500,
-      hostWaitMs: 200,
-      testRunMs: 42_000,
-    });
-    assert.match(closing, /^\[coverage-capture\] ⏲ suite timings: /);
+    try {
+      assert.equal(await runCoverageCapture(argv('--cwd', '/repo'), deps), 0);
+      const closing = h.log.info.at(-1);
+      assert.match(
+        closing,
+        /^\[coverage-capture\] ⏲ suite timings: lockWaitMs=1500 hostWaitMs=200 testRunMs=42000/,
+      );
+      assert.equal(
+        inheritedChannel,
+        undefined,
+        'the suite never sees the channel: it is claimed before any spawn',
+      );
+      assert.deepEqual(channel.read(), [
+        {
+          kind: 'suite-timings',
+          lockWaitMs: 1500,
+          hostWaitMs: 200,
+          testRunMs: 42_000,
+        },
+      ]);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

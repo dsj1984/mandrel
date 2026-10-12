@@ -123,6 +123,7 @@ function applyChangedFileScope({ gate, spawnCwd, log }) {
  *   runProjections?: typeof defaultRunProjections,
  *   runner?: (cmd: string, args: string[], opts: { cwd: string, signal?: AbortSignal, gateName?: string, log?: (m: string) => void }) => Promise<{ status: number }> | { status: number },
  *   log?: (m: string) => void,
+ *   lockEvents?: object|null,
  *   onGateStart?: (gate: Gate) => void,
  *   storyId?: number|null,
  *   standalone?: boolean,
@@ -143,6 +144,7 @@ export async function runCloseValidation({
   gates = DEFAULT_GATES,
   runner = defaultGateRunner,
   log = () => {},
+  lockEvents = null,
   onGateStart,
   baseBranch = null,
   storyBranch = null,
@@ -159,7 +161,7 @@ export async function runCloseValidation({
   shouldSkip = defaultShouldSkip,
 } = {}) {
   const failed = [];
-  const lockOpts = fullSuiteLockOptions({ config });
+  const lockOpts = fullSuiteLockOptions({ config, lockEvents });
   const skipped = [];
   const evidenceActive = useEvidence && storyId != null && standalone;
   const evidenceStoreOpts = { cwd, standalone };
@@ -359,19 +361,27 @@ export async function runCloseValidation({
  * (`coverage.timeoutMs`) so a hung suite fails instead of holding the host
  * lock; the same figure bounds its lock wait (`resolveFullSuiteLockBudget`).
  *
- * @param {{ config: object|null }} args
+ * @param {{ config: object|null, lockEvents: object|null }} args
  * @returns {{ forGate: (gate: object) => object }}
  */
-function fullSuiteLockOptions({ config }) {
+function fullSuiteLockOptions({ config, lockEvents }) {
   const timeoutMs = getQuality(config).coverage?.timeoutMs;
   return {
     forGate(gate) {
+      const env = gateEnv(gate, lockEvents);
       return {
-        ...(gate.env ? { env: gate.env } : {}),
+        ...(env ? { env } : {}),
+        ...(lockEvents ? { onLockEvent: lockEvents.emit } : {}),
         ...(gate.fullSuiteLock ? fullSuiteGateOptions(gate, timeoutMs) : {}),
       };
     },
   };
+}
+
+/** Any child but a `lockEventChannel` one would leak the channel to tests. */
+function gateEnv(gate, lockEvents) {
+  if (!(gate.lockEventChannel && lockEvents)) return gate.env;
+  return { ...lockEvents.env, ...gate.env };
 }
 
 /**
