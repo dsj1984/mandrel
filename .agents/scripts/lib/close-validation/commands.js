@@ -61,6 +61,21 @@ export function resolveTypecheckCommand(config) {
 }
 
 /**
+ * True only when `project.commands.typecheck` is own-present and explicitly
+ * `null` — the documented "no type layer" value. `getCommands` collapses an
+ * absent key and `null` to the same default, so this reads the raw object; an
+ * absent key or a malformed config keeps the `npm run typecheck` fallback.
+ *
+ * @param {{ project?: { commands?: object } } | null | undefined} config
+ * @returns {boolean}
+ */
+export function isTypecheckDisabled(config) {
+  const commands = config?.project?.commands;
+  if (commands === null || typeof commands !== 'object') return false;
+  return Object.hasOwn(commands, 'typecheck') && commands.typecheck === null;
+}
+
+/**
  * A consumer may point this at its hooks' scoped lint; CI keeps whole-repo drift.
  *
  * @param {{ project?: { commands?: object } } | null | undefined} config
