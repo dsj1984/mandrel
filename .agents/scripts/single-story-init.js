@@ -279,11 +279,13 @@ export async function reapClosedStoryWorktrees({
 
 /**
  * Reap merged `story-*` branches (excluding the current one), then the
- * closed-Story worktrees. Never blocks init. Protected candidates (unpushed
- * work, dirty worktree, open Story) are skipped; the lockfile is shared with
- * `boot-sweep.js` via `resolveSweepLockPath` so concurrent reaps cannot race.
+ * closed-Story worktrees, then heal closed Stories stranded at
+ * `agent::closing` (the same reconcile `boot-sweep.js` runs). Never blocks
+ * init. Protected candidates (unpushed work, dirty worktree, open Story) are
+ * skipped; the lockfile is shared with `boot-sweep.js` via
+ * `resolveSweepLockPath` so concurrent reaps cannot race.
  *
- * @returns {Promise<{ worktreeSweep: object }>}
+ * @returns {Promise<{ worktreeSweep: object, closingReconcile: object }>}
  */
 export async function reapMergedStoryBranches({
   cwd,
@@ -294,6 +296,7 @@ export async function reapMergedStoryBranches({
   injectedSweep,
   worktreeSweepFn,
   acquireLockFn,
+  closingReconcileFn,
 }) {
   const sweepFn =
     injectedSweep ??
@@ -320,7 +323,20 @@ export async function reapMergedStoryBranches({
     worktreeSweepFn,
     acquireLockFn,
   });
-  return { worktreeSweep };
+  const reconcile =
+    closingReconcileFn ??
+    (await import('./lib/single-story-sweep/reconcile-closing.js'))
+      .reconcileStrandedClosing;
+  const closingReconcile = await reconcile({
+    provider,
+    config,
+    cwd,
+    logger: {
+      info: (m) => progress('CLEANUP', m),
+      warn: (m) => progress('CLEANUP', `⚠️ ${m}`),
+    },
+  });
+  return { worktreeSweep, closingReconcile };
 }
 
 async function reapMergedBranches({

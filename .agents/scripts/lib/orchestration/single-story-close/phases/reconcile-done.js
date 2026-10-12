@@ -5,7 +5,8 @@
  * already-closed early return. With merge evidence on the Story branch, this
  * finishes the flip through the shared `agent::done` confirm. Best-effort —
  * the land already happened, so nothing here may change the `landed`
- * terminal; every failure is logged and swallowed.
+ * terminal; every failure is logged and swallowed. The boot sweep reuses it
+ * for Stories GitHub closed while their close process was gone.
  */
 
 import { gh as defaultGh } from '../../../gh-exec.js';
@@ -24,12 +25,18 @@ const UNLANDED_CLOSE_REASONS = new Set(['not_planned', 'duplicate']);
  * @param {{ provider: object, config: object, gh?: object,
  *   notify?: Function, sleep?: Function }} deps
  * @param {(tag: string, msg: string) => void} progress
- * @returns {Promise<void>}
+ * @returns {Promise<string>} `skipped`, `no-merged-pr`, `error`, or the
+ *   `confirmStoryMerged` action (`done` / `noop` / `flip-failed`); the close
+ *   path ignores it, the boot sweep reports it.
  */
 export async function reconcileDoneLabel(ctx, deps, progress) {
   const { storyId, story, storyBranch } = ctx;
-  if (UNLANDED_CLOSE_REASONS.has(story.stateReason)) return;
-  if (story.labels?.includes(STATE_LABELS.DONE)) return;
+  if (
+    UNLANDED_CLOSE_REASONS.has(story.stateReason) ||
+    story.labels?.includes(STATE_LABELS.DONE)
+  ) {
+    return 'skipped';
+  }
   try {
     const rows = await (deps.gh ?? defaultGh).pr.list(
       ['--head', storyBranch, '--state', 'all'],
@@ -41,9 +48,9 @@ export async function reconcileDoneLabel(ctx, deps, progress) {
         'NOOP',
         `No merged PR on ${storyBranch} — leaving Story #${storyId}'s labels as they are.`,
       );
-      return;
+      return 'no-merged-pr';
     }
-    await confirmStoryMerged({
+    const confirmed = await confirmStoryMerged({
       provider: deps.provider,
       storyId,
       prNumber: parsePrNumber(head.url),
@@ -55,9 +62,11 @@ export async function reconcileDoneLabel(ctx, deps, progress) {
       prState: { state: 'MERGED', mergedAt: null },
       sleepFn: deps.sleep,
     });
+    return confirmed.action;
   } catch (err) {
     Logger.warn(
       `[single-story-close] ⚠️ Could not reconcile Story #${storyId} to agent::done: ${err?.message ?? err}`,
     );
+    return 'error';
   }
 }
