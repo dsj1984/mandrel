@@ -34,7 +34,7 @@ import { acquireSweepLock } from '../../.agents/scripts/lib/single-story-sweep/s
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import { hashCommandConfig } from '../../.agents/scripts/lib/validation-evidence.js';
 import {
-  waitForDeath,
+  assertGone,
   waitForExit,
   waitForFile,
 } from '../fixtures/process-group/probe.js';
@@ -300,11 +300,7 @@ describe('gate children are process groups (Story #5377)', {
     assert.deepEqual(result, { status: 124 });
     assert.match(lines.join('\n'), /exceeded 3000ms/);
     const worker = Number(fs.readFileSync(pidFile, 'utf8'));
-    assert.equal(
-      await waitForDeath(worker),
-      true,
-      'the worker dies with its group',
-    );
+    await assertGone(worker, 'the worker dies with its group');
   });
 
   it('AC-4: SIGTERM to the process running a gate kills that gate’s group before it exits', async () => {
@@ -324,7 +320,7 @@ describe('gate children are process groups (Story #5377)', {
       signal === 'SIGTERM' || code !== 0,
       'it still dies of the signal',
     );
-    assert.equal(await waitForDeath(worker), true, 'the gate’s worker is gone');
+    await assertGone(worker, 'the gate’s worker is gone');
   });
 });
 

@@ -27,7 +27,7 @@ import {
 } from '../../.agents/scripts/lib/full-suite-lock.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import {
-  waitForDeath,
+  assertGone,
   waitForExit,
   waitForFile,
 } from '../fixtures/process-group/probe.js';
@@ -816,11 +816,7 @@ describe('the suite is a process group (Story #5377)', {
     const code = await runCapture({ cwd: dir, timeoutMs: 5_000 });
     assert.equal(code, 124);
     const worker = Number(fs.readFileSync(pidFile, 'utf8'));
-    assert.equal(
-      await waitForDeath(worker),
-      true,
-      'the worker must die with its group',
-    );
+    await assertGone(worker, 'the worker must die with its group');
   });
 
   for (const sent of ['SIGTERM', 'SIGINT']) {
@@ -844,11 +840,7 @@ describe('the suite is a process group (Story #5377)', {
         'exits non-zero',
       );
       assert.equal(fs.existsSync(lockFile), false, 'the lockfile is released');
-      assert.equal(
-        await waitForDeath(worker),
-        true,
-        'the suite worker is gone',
-      );
+      await assertGone(worker, 'the suite worker is gone');
     });
   }
 });
