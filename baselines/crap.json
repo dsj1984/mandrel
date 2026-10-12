@@ -11893,6 +11893,12 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/commands.js",
+      "method": "isTypecheckDisabled",
+      "startLine": 69,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/commands.js",
       "method": "resolveFormatCheckCommand",
       "startLine": 70,
       "crap": 1

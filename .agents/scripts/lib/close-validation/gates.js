@@ -12,6 +12,7 @@ import { predictsTestEvidenceCredit } from '../test-run-credit.js';
 import {
   buildFormatHint,
   FORMAT_CHECK_FALLBACK,
+  isTypecheckDisabled,
   resolveFormatCheckCommand,
   resolveFormatWriteCommand,
   resolveLintCommand,
@@ -487,6 +488,9 @@ export function buildDefaultGates({
       cmd: typecheck.cmd,
       args: typecheck.args,
       hint: TYPECHECK_HINT,
+      ...(isTypecheckDisabled(config)
+        ? { skip: { reason: 'typecheck-disabled' } }
+        : {}),
     },
     // Gate names stay generic though commands resolve from config, so the
     // log line, evidence keyspace and partition membership never shift.

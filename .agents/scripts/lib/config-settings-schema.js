@@ -92,7 +92,7 @@ const COMMANDS_SCHEMA = {
     typecheck: {
       ...NULLABLE_NONEMPTY_SAFE_STRING,
       description:
-        'Static type-check command. `null` disables the gate for projects with no type layer; the empty string is rejected so a typo cannot silently disable it.',
+        'Static type-check command run as a close-validation gate. Left unset (the `null` default), it falls back to `npm run typecheck`. An explicit `null` disables the gate for projects with no type layer: close reports it as skipped (`typecheck-disabled`) and runs nothing. The empty string is rejected so a typo cannot silently disable it.',
       default: COMMANDS_DEFAULTS.typecheck,
     },
     lint: {
