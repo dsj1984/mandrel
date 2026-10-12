@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
+import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import {
@@ -567,7 +568,7 @@ describe('runBootSweep — stranded agent::closing reconcile (Story #5652)', () 
     });
 
     assert.equal(seen.provider, provider);
-    assert.equal(seen.cwd, '/repo');
+    assert.equal(seen.cwd, path.resolve('/repo'), 'the resolved repo root');
     assert.deepEqual(result.closingReconcile.reconciled, [4549, 4561]);
     assert.match(
       buildSummaryLine(result),
