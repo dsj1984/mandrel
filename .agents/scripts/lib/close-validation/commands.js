@@ -61,6 +61,18 @@ export function resolveTypecheckCommand(config) {
 }
 
 /**
+ * Own-present explicit `null` only: `getCommands` collapses absent and `null`.
+ *
+ * @param {{ project?: { commands?: object } } | null | undefined} config
+ * @returns {boolean}
+ */
+export function isTypecheckDisabled(config) {
+  const commands = config?.project?.commands;
+  if (commands === null || typeof commands !== 'object') return false;
+  return Object.hasOwn(commands, 'typecheck') && commands.typecheck === null;
+}
+
+/**
  * A consumer may point this at its hooks' scoped lint; CI keeps whole-repo drift.
  *
  * @param {{ project?: { commands?: object } } | null | undefined} config
