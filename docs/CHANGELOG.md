@@ -15,6 +15,16 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.83.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.82.0...mandrel-v2.83.0) (2026-10-12)
+
+
+### Fixed
+
+* close-validation: an explicit `project.commands.typecheck: null` skips the typecheck gate instead of running `npm run typecheck` ([#5637](https://github.com/dsj1984/mandrel/issues/5637)) ([#5639](https://github.com/dsj1984/mandrel/issues/5639)) ([907d0b5](https://github.com/dsj1984/mandrel/commit/907d0b52c8ce15d520d5d52d7de0bb18c769d290))
+* close-validation: derive lockWait and suiteTimings from a structured lock-event channel, never from scraped gate stdout ([#5642](https://github.com/dsj1984/mandrel/issues/5642)) ([#5644](https://github.com/dsj1984/mandrel/issues/5644)) ([ab49594](https://github.com/dsj1984/mandrel/commit/ab495945222687d6ebb2071bd25ad9cd2196436a))
+* duplication scanner: resolve target dirs and ignore globs against cwd so a cross-tree scan reads one tree ([#5636](https://github.com/dsj1984/mandrel/issues/5636)) ([#5641](https://github.com/dsj1984/mandrel/issues/5641)) ([f2f43ce](https://github.com/dsj1984/mandrel/commit/f2f43ce36aa1bf88079d18e013fd378cd1d81bfe))
+* single-story-close: reconcile agent::done on the already-closed-as-completed early return ([#5646](https://github.com/dsj1984/mandrel/issues/5646)) ([#5647](https://github.com/dsj1984/mandrel/issues/5647)) ([887df5a](https://github.com/dsj1984/mandrel/commit/887df5af1713631bdfc3c97e083d265e11b3dd34))
+
 ## [2.82.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.81.0...mandrel-v2.82.0) (2026-10-11)
 
 
