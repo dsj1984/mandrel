@@ -258,6 +258,12 @@ export async function runBootSweep({
   }
 }
 
+/** `; <text>` for a nonzero count, else nothing. */
+function countSuffix(list, render) {
+  const count = list?.length ?? 0;
+  return count > 0 ? `; ${render(count)}` : '';
+}
+
 /**
  * One-line summary; a nonzero `contentMerged` count adds a `/clean-git` hint.
  *
@@ -266,22 +272,21 @@ export async function runBootSweep({
  */
 export function buildSummaryLine(result) {
   const protectedCount = result.protected?.length ?? 0;
-  const contentMergedCount = result.contentMerged?.length ?? 0;
-  const worktreesReaped = result.worktreeSweep?.reaped?.length ?? 0;
-  const worktreeSuffix =
-    worktreesReaped > 0
-      ? `; removed ${worktreesReaped} closed-Story worktree(s)`
-      : '';
-  const reconciled = result.closingReconcile?.reconciled?.length ?? 0;
-  const reconcileSuffix =
-    reconciled > 0
-      ? `; flipped ${reconciled} stranded agent::closing Story(ies) to agent::done`
-      : '';
-  const contentMergedSuffix =
-    contentMergedCount > 0
-      ? `; ${contentMergedCount} content-merged branch(es) left for /clean-git`
-      : '';
-  return `[boot-sweep] reaped ${result.localDeleted} local + ${result.remoteDeleted} remote; protected ${protectedCount}${worktreeSuffix}${reconcileSuffix}${contentMergedSuffix}.`;
+  const suffixes = [
+    countSuffix(
+      result.worktreeSweep?.reaped,
+      (n) => `removed ${n} closed-Story worktree(s)`,
+    ),
+    countSuffix(
+      result.closingReconcile?.reconciled,
+      (n) => `flipped ${n} stranded agent::closing Story(ies) to agent::done`,
+    ),
+    countSuffix(
+      result.contentMerged,
+      (n) => `${n} content-merged branch(es) left for /clean-git`,
+    ),
+  ].join('');
+  return `[boot-sweep] reaped ${result.localDeleted} local + ${result.remoteDeleted} remote; protected ${protectedCount}${suffixes}.`;
 }
 
 /**
