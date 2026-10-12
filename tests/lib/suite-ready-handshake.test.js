@@ -22,6 +22,7 @@ import {
   runEvidenceGate,
   runLockedSuite,
 } from '../../.agents/scripts/evidence-gate.js';
+import { createLockEventChannel } from '../../.agents/scripts/lib/close-lock-events.js';
 import { runCapture } from '../../.agents/scripts/lib/coverage-capture.js';
 import {
   LOCK_WAIT_EXPIRED_EXIT_CODE,
@@ -33,12 +34,13 @@ import { TIMEOUT_EXIT_CODE } from '../../.agents/scripts/lib/process-group.js';
 import { acquireSweepLock } from '../../.agents/scripts/lib/single-story-sweep/sweep-lock.js';
 import {
   formatSuiteTimings,
-  parseSuiteTimings,
   SUITE_READY_FILE_ENV,
   suiteReadyHandshake,
   superviseSuite,
 } from '../../.agents/scripts/lib/supervised-suite.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
+
+const CLOSE_LOCK_EVENTS_FILE_ENV = 'MANDREL_CLOSE_LOCK_EVENTS_FILE';
 
 const TIMEOUT_MS = 1_000;
 const POLL_MS = 20;
@@ -230,8 +232,10 @@ describe('suite-ready handshake (Story #5485)', {
     assert.doesNotMatch(lines.join('\n'), /spawning anyway/);
   });
 
-  it('AC-8: evidence-gate --gate test prints the three figures once the suite ran', async () => {
+  it('AC-8: evidence-gate --gate test prints the three figures once the suite ran, and reports them on the claimed channel', async () => {
     const lines = [];
+    const channel = createLockEventChannel({ dir });
+    const env = { ...channel.env };
     const code = await runLockedSuite(
       {
         cmd: process.execPath,
@@ -241,29 +245,35 @@ describe('suite-ready handshake (Story #5485)', {
       },
       {
         config: { delivery: { execution: { fullSuiteLock: false } } },
+        env,
       },
     );
     assert.equal(code, 0);
-    const timings = lines.map(parseSuiteTimings).find(Boolean);
-    assert.ok(timings, lines.join('\n'));
+    assert.ok(
+      lines.some((l) => /^\[evidence-gate\] ⏲ suite timings: /.test(l)),
+      lines.join('\n'),
+    );
+    assert.equal(
+      env[CLOSE_LOCK_EVENTS_FILE_ENV],
+      undefined,
+      'the channel is claimed before the suite spawns',
+    );
+    const [timings] = channel.read();
+    assert.equal(timings.kind, 'suite-timings');
     assert.equal(timings.lockWaitMs, 0);
     assert.equal(timings.hostWaitMs, null);
+    channel.dispose();
   });
 });
 
 describe('suite timing line (Story #5485)', () => {
-  it('AC-8: formats three separate figures and parses them back', () => {
+  it('AC-8: formats three separate, rounded figures', () => {
     const line = formatSuiteTimings({
       lockWaitMs: 1200.4,
       hostWaitMs: 300,
       testRunMs: 45_000,
     });
     assert.match(line, /lockWaitMs=1200 hostWaitMs=300 testRunMs=45000/);
-    assert.deepEqual(parseSuiteTimings(`[coverage-capture] ${line}`), {
-      lockWaitMs: 1200,
-      hostWaitMs: 300,
-      testRunMs: 45_000,
-    });
   });
 
   it('prints n/a for a suite that did not use the handshake', () => {
@@ -273,8 +283,6 @@ describe('suite timing line (Story #5485)', () => {
       testRunMs: 10,
     });
     assert.match(line, /hostWaitMs=n\/a/);
-    assert.equal(parseSuiteTimings(line).hostWaitMs, null);
-    assert.equal(parseSuiteTimings('unrelated'), null);
   });
 });
 

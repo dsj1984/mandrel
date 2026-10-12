@@ -12,10 +12,7 @@ import {
   resolveFullSuiteLockPath,
   withFullSuiteLockAsync,
 } from '../../.agents/scripts/lib/full-suite-lock.js';
-import {
-  isFirstInLine,
-  parseLockWaitOutcome,
-} from '../../.agents/scripts/lib/full-suite-queue.js';
+import { isFirstInLine } from '../../.agents/scripts/lib/full-suite-queue.js';
 import { acquireSweepLock } from '../../.agents/scripts/lib/single-story-sweep/sweep-lock.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 
@@ -192,18 +189,23 @@ describe('full-suite lock (Story #5173)', () => {
     it('a wait names the holding pid and reports how long it waited', async () => {
       const holder = acquireSweepLock({ lockPath, timeoutMs: 60_000 });
       const lines = [];
+      const outcomes = [];
       const clock = fakeClock((now) => {
         if (now >= 1_000_000 + 6_000) holder.release();
       });
       await withFullSuiteLockAsync(
-        { cwd: dir, lockPath, log: (m) => lines.push(m), ...clock },
+        {
+          cwd: dir,
+          lockPath,
+          log: (m) => lines.push(m),
+          onLockOutcome: (o) => outcomes.push(o),
+          ...clock,
+        },
         async () => 0,
       );
       assert.match(lines[0], new RegExp(`holding pid ${process.pid}\\b`));
-      assert.deepEqual(parseLockWaitOutcome(lines.at(-1)), {
-        waitedSeconds: 6,
-        expired: false,
-      });
+      assert.match(lines.at(-1), /acquired the full-suite lock \(waited 6s\)/);
+      assert.deepEqual(outcomes, [{ waitedSeconds: 6, expired: false }]);
     });
 
     it('a stale holder is reclaimed rather than waited out', async () => {
@@ -242,12 +244,14 @@ describe('full-suite lock (Story #5173)', () => {
       const holder = acquireSweepLock({ lockPath, timeoutMs: 60_000 });
       let spawns = 0;
       const lines = [];
+      const outcomes = [];
       const code = await withFullSuiteLockAsync(
         {
           cwd: dir,
           lockPath,
           waitMs: 0,
           log: (m) => lines.push(m),
+          onLockOutcome: (o) => outcomes.push(o),
           rerunCommand: 'node coverage-capture.js --cwd x',
         },
         async () => {
@@ -259,7 +263,8 @@ describe('full-suite lock (Story #5173)', () => {
       assert.equal(code, LOCK_WAIT_EXPIRED_EXIT_CODE);
       assert.equal(spawns, 0, 'two full suites never overlap');
       assert.doesNotMatch(lines.join('\n'), /spawning anyway/);
-      const outcome = parseLockWaitOutcome(lines.at(-1));
+      assert.equal(outcomes.length, 1);
+      const [outcome] = outcomes;
       assert.equal(outcome.expired, true);
       assert.equal(outcome.holder.ownerId, holder.ownerId);
       assert.equal(outcome.holder.pid, process.pid);
@@ -350,14 +355,19 @@ describe('full-suite lock (Story #5173)', () => {
   describe('budgets (Story #5377)', () => {
     it('AC-5: the default wait expires at 300s, under the foreground ceiling', async () => {
       const holder = acquireSweepLock({ lockPath, timeoutMs: 600_000 });
-      const lines = [];
+      const outcomes = [];
       const clock = fakeClock();
       await withFullSuiteLockAsync(
-        { cwd: dir, lockPath, log: (m) => lines.push(m), ...clock },
+        {
+          cwd: dir,
+          lockPath,
+          onLockOutcome: (o) => outcomes.push(o),
+          ...clock,
+        },
         async () => 0,
       );
       holder.release();
-      const outcome = parseLockWaitOutcome(lines.at(-1));
+      const [outcome] = outcomes;
       assert.equal(outcome.expired, true);
       assert.ok(
         outcome.waitedSeconds >= 298 && outcome.waitedSeconds <= 300,
@@ -446,13 +456,13 @@ describe('full-suite lock (Story #5173)', () => {
         isFirstInLine({ lockPath, ticket: null, staleMs: 60_000 }),
         false,
       );
-      const lines = [];
+      const outcomes = [];
       let sleeps = 0;
       const code = await withFullSuiteLockAsync(
         {
           cwd: dir,
           lockPath,
-          log: (m) => lines.push(m),
+          onLockOutcome: (o) => outcomes.push(o),
           sleepFn: async () => {
             sleeps += 1;
             fs.rmSync(ahead, { force: true });
@@ -462,7 +472,7 @@ describe('full-suite lock (Story #5173)', () => {
       );
       assert.equal(code, 0);
       assert.ok(sleeps >= 1, 'the free lock was not taken ahead of the queue');
-      assert.equal(parseLockWaitOutcome(lines.at(-1)).expired, false);
+      assert.equal(outcomes.at(-1).expired, false);
       assert.deepEqual(fs.readdirSync(queueDir), [], 'its own ticket is gone');
     });
 
@@ -586,36 +596,35 @@ describe('full-suite lock (Story #5173)', () => {
       assert.equal(uncontended, 0);
     });
 
-    it('parseLockWaitOutcome reads only a wait’s final line', () => {
-      assert.equal(
-        parseLockWaitOutcome(
-          '[full-suite-lock] ⏳ still waiting (holding pid 1, waited 25s).',
-        ),
-        null,
+    it('Story #5642: onLockOutcome fires once per finished wait, never uncontended, and a throw never costs the spawn', async () => {
+      const outcomes = [];
+      const free = await withFullSuiteLockAsync(
+        { cwd: dir, lockPath, onLockOutcome: (o) => outcomes.push(o) },
+        async () => 0,
       );
-      assert.equal(parseLockWaitOutcome(undefined), null);
-      assert.deepEqual(
-        parseLockWaitOutcome(
-          '[coverage-capture] [full-suite-lock] ✅ acquired the full-suite lock (waited 42s).',
-        ),
-        { waitedSeconds: 42, expired: false },
-      );
-      assert.deepEqual(
-        parseLockWaitOutcome(
-          '[full-suite-lock] ⌛ gave up waiting for the full-suite lock (waited 300s, holder pid-9-1, pid 9, lock age 310s) — not spawning, so two full suites never overlap. Re-run once it finishes: npm test',
-        ),
+      assert.equal(free, 0);
+      assert.deepEqual(outcomes, [], 'an uncontended acquire is no wait');
+      const holder = acquireSweepLock({ lockPath, timeoutMs: 60_000 });
+      const clock = fakeClock((now) => {
+        if (now >= 1_000_000 + 4_000) holder.release();
+      });
+      let spawns = 0;
+      const code = await withFullSuiteLockAsync(
         {
-          waitedSeconds: 300,
-          expired: true,
-          holder: { ownerId: 'pid-9-1', pid: 9, ageSeconds: 310 },
+          cwd: dir,
+          lockPath,
+          onLockOutcome: () => {
+            throw new Error('telemetry blew up');
+          },
+          ...clock,
+        },
+        async () => {
+          spawns += 1;
+          return 0;
         },
       );
-      assert.deepEqual(
-        parseLockWaitOutcome(
-          '[full-suite-lock] ⌛ gave up waiting for the full-suite lock (waited 3s, holder unknown, pid unknown, lock age unknowns) — not spawning.',
-        ).holder,
-        { ownerId: null, pid: null, ageSeconds: null },
-      );
+      assert.equal(code, 0);
+      assert.equal(spawns, 1);
     });
   });
 
@@ -653,6 +662,7 @@ describe('full-suite lock (Story #5173)', () => {
     it('AC-1/AC-2: the capture waits 600s and spawns behind a holder released at 450s', async () => {
       const holder = acquireSweepLock({ lockPath, timeoutMs: 600_000 });
       const lines = [];
+      const outcomes = [];
       let spawns = 0;
       const wrapped = lockedCapture(
         async () => {
@@ -661,32 +671,45 @@ describe('full-suite lock (Story #5173)', () => {
         },
         {},
         {},
-        { lockPath, ...releasingAt(450_000, holder) },
+        {
+          lockPath,
+          onLockOutcome: (o) => outcomes.push(o),
+          ...releasingAt(450_000, holder),
+        },
       );
       const code = await wrapped({ cwd: dir, log: (m) => lines.push(m) });
       holder.release();
       assert.equal(code, 0);
       assert.equal(spawns, 1);
       assert.match(lines[0], /waiting up to 600s/);
-      assert.deepEqual(parseLockWaitOutcome(lines.at(-1)), {
-        waitedSeconds: 450,
-        expired: false,
-      });
+      assert.deepEqual(outcomes, [{ waitedSeconds: 450, expired: false }]);
     });
 
     it('AC-1/AC-2: the close test gate waits its 600s kill bound and spawns at 450s', async () => {
       const holder = acquireSweepLock({ lockPath, timeoutMs: 600_000 });
       const lines = [];
+      const events = [];
       const result = await defaultGateRunner(node, ['-e', 'process.exit(0)'], {
         cwd: dir,
         gateName: 'test',
         log: (m) => lines.push(m),
+        onLockEvent: (e) => events.push(e),
         fullSuiteLock: true,
         timeoutMs: 600_000,
         lockOptions: { lockPath, ...releasingAt(450_000, holder) },
       });
       holder.release();
       assert.deepEqual(result, { status: 0 });
+      assert.deepEqual(
+        events.map((e) => e.kind),
+        ['lock-wait', 'suite-timings'],
+      );
+      assert.deepEqual(events[0], {
+        kind: 'lock-wait',
+        waitedSeconds: 450,
+        expired: false,
+      });
+      assert.equal(events[1].lockWaitMs, 450_000);
       assert.ok(lines.some((l) => /waiting up to 600s/.test(l)));
       assert.ok(
         lines.some((l) =>
@@ -698,10 +721,12 @@ describe('full-suite lock (Story #5173)', () => {
     it('AC-1/AC-4: a kill bound below 300s keeps the 300s floor, and expiry still defers with 75', async () => {
       const holder = acquireSweepLock({ lockPath, timeoutMs: 600_000 });
       const lines = [];
+      const events = [];
       const result = await defaultGateRunner(node, ['-e', 'process.exit(0)'], {
         cwd: dir,
         gateName: 'test',
         log: (m) => lines.push(m),
+        onLockEvent: (e) => events.push(e),
         fullSuiteLock: true,
         timeoutMs: 200_000,
         lockOptions: { lockPath, ...fakeClock() },
@@ -709,7 +734,9 @@ describe('full-suite lock (Story #5173)', () => {
       holder.release();
       assert.deepEqual(result, { status: LOCK_WAIT_EXPIRED_EXIT_CODE });
       assert.ok(lines.some((l) => /waiting up to 300s/.test(l)));
-      const outcome = lines.map(parseLockWaitOutcome).find(Boolean);
+      assert.equal(events.length, 1, 'no suite ran, so no timings');
+      const [outcome] = events;
+      assert.equal(outcome.kind, 'lock-wait');
       assert.equal(outcome.expired, true);
       assert.equal(outcome.waitedSeconds, 300);
     });
@@ -730,6 +757,7 @@ describe('full-suite lock (Story #5173)', () => {
         fs.utimesSync(lockPath, stamp, stamp);
       });
       let spawns = 0;
+      const outcomes = [];
       const wrapped = lockedCapture(
         async () => {
           spawns += 1;
@@ -737,14 +765,13 @@ describe('full-suite lock (Story #5173)', () => {
         },
         {},
         {},
-        { lockPath, ...clock },
+        { lockPath, onLockOutcome: (o) => outcomes.push(o), ...clock },
       );
-      const lines = [];
-      const code = await wrapped({ cwd: dir, log: (m) => lines.push(m) });
+      const code = await wrapped({ cwd: dir });
       holder.release();
       assert.equal(code, LOCK_WAIT_EXPIRED_EXIT_CODE);
       assert.equal(spawns, 0, 'the live holder was never taken over');
-      const outcome = parseLockWaitOutcome(lines.at(-1));
+      const [outcome] = outcomes;
       assert.equal(outcome.waitedSeconds, 600);
       assert.equal(outcome.expired, true);
     });

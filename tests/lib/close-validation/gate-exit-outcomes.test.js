@@ -85,7 +85,7 @@ for (const [partition, gate] of Object.entries(GATES)) {
 }
 
 describe('gate exit outcomes — the close phase settles them', () => {
-  const phaseWith = (status, announce) =>
+  const phaseWith = (status, lockOutcome) =>
     runCloseValidationPhase({
       cwd: '/repo',
       worktreePath: null,
@@ -99,18 +99,15 @@ describe('gate exit outcomes — the close phase settles them', () => {
         runCloseValidation({
           ...opts,
           useEvidence: false,
-          runner: async (_cmd, _args, { log }) => {
-            if (announce) log(announce);
+          runner: async (_cmd, _args, { onLockEvent }) => {
+            if (lockOutcome) onLockEvent({ kind: 'lock-wait', ...lockOutcome });
             return { status };
           },
         }),
     });
 
   it('AC-3: an expired lock wait with exit 75 settles pending, not failed', async () => {
-    const settled = await phaseWith(
-      75,
-      '[full-suite-lock] ⌛ gave up waiting for the full-suite lock (waited 900s).',
-    );
+    const settled = await phaseWith(75, { waitedSeconds: 900, expired: true });
     assert.equal(settled.pending, true);
     assert.equal(settled.gates, null);
     assert.equal(settled.lockWait.expired, true);

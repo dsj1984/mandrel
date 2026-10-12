@@ -6,13 +6,16 @@
  * replays its tail inline. Full-suite lock-wait lines are also teed to
  * `progress()` so a long wait doesn't read as a hang, and an expired wait
  * defers to `pending` rather than failing.
+ * `lockWait` / `suiteTimings` come from the lock-event channel, never output.
  */
 
+import {
+  createLockEventChannel as defaultCreateLockEventChannel,
+  summarizeLockEvents,
+} from '../../../close-lock-events.js';
 import { buildDefaultGates as defaultBuildDefaultGates } from '../../../close-validation/gates.js';
 import { runCloseValidation as defaultRunCloseValidation } from '../../../close-validation/runner.js';
 import { LOCK_WAIT_EXPIRED_EXIT_CODE } from '../../../full-suite-lock.js';
-import { parseLockWaitOutcome } from '../../../full-suite-queue.js';
-import { parseSuiteTimings } from '../../../supervised-suite.js';
 import { createGateLogSink as defaultCreateGateLogSink } from '../gate-log.js';
 import { runPreGateSteps as defaultRunPreGateSteps } from './pre-gate-steps.js';
 
@@ -36,6 +39,7 @@ import { runPreGateSteps as defaultRunPreGateSteps } from './pre-gate-steps.js';
  *   runBaselineUpwardWriteback?: Function,
  *   runContextBudgetWriteback?: Function,
  *   createGateLogSink?: typeof defaultCreateGateLogSink,
+ *   createLockEventChannel?: typeof defaultCreateLockEventChannel,
  *   onPreGateStepsDone?: () => void,
  * }} args
  * @returns {Promise<{
@@ -61,29 +65,28 @@ export async function runCloseValidationPhase({
   runBaselineUpwardWriteback,
   runContextBudgetWriteback,
   createGateLogSink = defaultCreateGateLogSink,
+  createLockEventChannel = defaultCreateLockEventChannel,
   onPreGateStepsDone,
 }) {
-  await runPreGateSteps({
-    cwd,
-    worktreePath,
-    storyId,
-    baseBranch,
-    storyBranch,
-    config,
-    progress,
-    runScopedFormatAutofix,
-    runBaselineUpwardWriteback,
-    runContextBudgetWriteback,
+  await prepareTree({
+    runPreGateSteps,
+    onPreGateStepsDone,
+    stepArgs: {
+      cwd,
+      worktreePath,
+      storyId,
+      baseBranch,
+      storyBranch,
+      config,
+      progress,
+      runScopedFormatAutofix,
+      runBaselineUpwardWriteback,
+      runContextBudgetWriteback,
+    },
   });
-  onPreGateStepsDone?.();
-
-  progress(
-    'VALIDATE',
-    `Running close-validation gates against baseline ${baseBranch}${worktreePath ? ` in ${worktreePath}` : ''}...`,
-  );
   // One sink for both `log` seams so nothing routes around the artifact.
   const gateLog = createGateLogSink({ storyId, config });
-  const lockWaits = trackLockWaits({ sink: gateLog.log, progress });
+  const lockEvents = createLockEventChannel();
   const gateList = buildDefaultGates({
     config,
     baseBranch,
@@ -92,13 +95,15 @@ export async function runCloseValidationPhase({
     storyId,
     evidenceCwd: cwd,
   });
-  let validation;
-  try {
-    validation = await runCloseValidation({
+  const { validation, lockWait, suiteTimings } = await runGateChain({
+    runCloseValidation,
+    gateLog,
+    lockEvents,
+    progress,
+    validationArgs: {
       cwd,
       worktreePath,
       gates: gateList,
-      log: lockWaits.log,
       storyId,
       // Anchors the evidence cache on the Story id, so a re-close at an
       // unchanged HEAD skips already-passed gates.
@@ -107,13 +112,8 @@ export async function runCloseValidationPhase({
       baseBranch,
       storyBranch,
       config,
-    });
-  } finally {
-    // The sink is async-buffered; settle it before anything reads it, on
-    // the throw path too.
-    await gateLog.flush();
-  }
-  const lockWait = lockWaits.summary();
+    },
+  });
   if (!validation.ok) {
     return settleFailedValidation({ validation, lockWait, gateLog, progress });
   }
@@ -121,9 +121,44 @@ export async function runCloseValidationPhase({
   return {
     gates: gateOutcomes(gateList, validation),
     lockWait,
-    suiteTimings: lockWaits.suiteTimings(),
+    suiteTimings,
     pending: false,
   };
+}
+
+async function prepareTree({ runPreGateSteps, onPreGateStepsDone, stepArgs }) {
+  await runPreGateSteps(stepArgs);
+  onPreGateStepsDone?.();
+  const { baseBranch, worktreePath, progress } = stepArgs;
+  progress(
+    'VALIDATE',
+    `Running close-validation gates against baseline ${baseBranch}${worktreePath ? ` in ${worktreePath}` : ''}...`,
+  );
+}
+
+async function runGateChain({
+  runCloseValidation,
+  gateLog,
+  lockEvents,
+  progress,
+  validationArgs,
+}) {
+  let validation;
+  let events;
+  try {
+    validation = await runCloseValidation({
+      ...validationArgs,
+      log: teeLockLines({ sink: gateLog.log, progress }),
+      lockEvents,
+    });
+  } finally {
+    // The sink is async-buffered; settle it before anything reads it, on
+    // the throw path too.
+    await gateLog.flush();
+    events = lockEvents.read();
+    lockEvents.dispose();
+  }
+  return { validation, ...summarizeLockEvents(events) };
 }
 
 /**
@@ -157,40 +192,15 @@ function settleFailedValidation({ validation, lockWait, gateLog, progress }) {
 }
 
 /**
- * Parsed from the gate log: the one place that sees waits and timings both
- * in-process and in gate children.
+ * Display only: no figure is read back from these lines.
  *
  * @param {{ sink: (m: string) => void, progress: (tag: string, msg: string) => void }} args
- * @returns {{ log: (m: string) => void, summary: () => { waitedSeconds: number, expired: boolean, holder?: object }|null, suiteTimings: () => object|null }}
+ * @returns {(line: string) => void}
  */
-function trackLockWaits({ sink, progress }) {
-  let tally = null;
-  let timings = null;
-  return {
-    log(line) {
-      sink(line);
-      timings = parseSuiteTimings(line) ?? timings;
-      if (!String(line).includes('[full-suite-lock]')) return;
-      progress('LOCK', line);
-      const outcome = parseLockWaitOutcome(line);
-      if (!outcome) return;
-      tally = mergeLockWait(tally, outcome);
-    },
-    summary: () => tally,
-    suiteTimings: () => timings,
-  };
-}
-
-/**
- * @param {{ waitedSeconds: number, expired: boolean, holder?: object }|null} tally
- * @param {{ waitedSeconds: number, expired: boolean, holder?: object }} outcome
- */
-function mergeLockWait(tally, outcome) {
-  const holder = outcome.holder ?? tally?.holder;
-  return {
-    waitedSeconds: (tally?.waitedSeconds ?? 0) + outcome.waitedSeconds,
-    expired: Boolean(tally?.expired) || outcome.expired,
-    ...(holder ? { holder } : {}),
+function teeLockLines({ sink, progress }) {
+  return (line) => {
+    sink(line);
+    if (String(line).includes('[full-suite-lock]')) progress('LOCK', line);
   };
 }
 

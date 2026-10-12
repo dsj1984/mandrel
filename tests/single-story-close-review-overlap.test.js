@@ -760,8 +760,12 @@ describe('runSingleStoryClose — review overlaps close-validation', () => {
     const events = [];
     mockCollaborators(t, {
       gitSpawn: gitSpawnStub(),
-      runCloseValidation: async ({ log }) => {
-        log('[full-suite-lock] ⌛ lock wait expired (waited 900s)');
+      runCloseValidation: async ({ lockEvents }) => {
+        lockEvents.emit({
+          kind: 'lock-wait',
+          waitedSeconds: 900,
+          expired: true,
+        });
         return { ok: false, failed: [{ gate: { name: 'test' }, status: 75 }] };
       },
     });

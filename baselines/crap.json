@@ -2624,6 +2624,56 @@
       "crap": 4
     },
     {
+      "path": ".agents/scripts/coverage-capture.js",
+      "method": "<anon runCoverageCapture/(captureOpts)#0>",
+      "startLine": 117,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/coverage-capture.js",
+      "method": "<anon runCoverageCapture/(captureOpts)#0/(t)#0>",
+      "startLine": 120,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/coverage-capture.js",
+      "method": "refusal",
+      "startLine": 145,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/coverage-capture.js",
+      "method": "reportTimings",
+      "startLine": 168,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/coverage-capture.js",
+      "method": "rerunCommandFor",
+      "startLine": 174,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/coverage-capture.js",
+      "method": "runCaptureScopes",
+      "startLine": 182,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/coverage-capture.js",
+      "method": "exitWith",
+      "startLine": 220,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/coverage-capture.js",
+      "method": "exitOnUnexpectedError",
+      "startLine": 224,
+      "crap": 2
+    },
+    {
       "path": ".agents/scripts/deliver-light.js",
       "method": "parseCsvPaths",
       "startLine": 76,
@@ -3153,6 +3203,58 @@
       "path": ".agents/scripts/evidence-gate.js",
       "method": "main",
       "startLine": 200,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/evidence-gate.js",
+      "method": "runLockedSuite",
+      "startLine": 222,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/evidence-gate.js",
+      "method": "<anon runLockedSuite/(lockWaitMs)#0>",
+      "startLine": 242,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/evidence-gate.js",
+      "method": "<anon runLockedSuite/(lockWaitMs)#0/(t)#0>",
+      "startLine": 249,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/evidence-gate.js",
+      "method": "<anon runLockedSuite/(lockWaitMs)#0/()#0>",
+      "startLine": 253,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/evidence-gate.js",
+      "method": "runGateCommand",
+      "startLine": 262,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/evidence-gate.js",
+      "method": "<anon runGateCommand/(m)#0>",
+      "startLine": 272,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/evidence-gate.js",
+      "method": "reportGateExit",
+      "startLine": 283,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/evidence-gate.js",
+      "method": "loadConfig",
+      "startLine": 296,
       "crap": 2
     },
     {
@@ -11868,6 +11970,102 @@
       "anonymous": true
     },
     {
+      "path": ".agents/scripts/lib/close-lock-events.js",
+      "method": "appendEvent",
+      "startLine": 15,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/close-lock-events.js",
+      "method": "parseEventLine",
+      "startLine": 21,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/close-lock-events.js",
+      "method": "createLockEventChannel",
+      "startLine": 31,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/close-lock-events.js",
+      "method": "<anon createLockEventChannel/(event)#0>",
+      "startLine": 40,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/close-lock-events.js",
+      "method": "<anon createLockEventChannel/()#0>",
+      "startLine": 41,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/close-lock-events.js",
+      "method": "readEvents",
+      "startLine": 50,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/close-lock-events.js",
+      "method": "claimLockEventSink",
+      "startLine": 67,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/close-lock-events.js",
+      "method": "<anon claimLockEventSink/()#0>",
+      "startLine": 70,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/close-lock-events.js",
+      "method": "<anon claimLockEventSink/(event)#0>",
+      "startLine": 71,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/close-lock-events.js",
+      "method": "summarizeLockEvents",
+      "startLine": 80,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/close-lock-events.js",
+      "method": "mergeLockWait",
+      "startLine": 90,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/close-lock-events.js",
+      "method": "timingsOf",
+      "startLine": 99,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/close-lock-events.js",
+      "method": "lockEventHooks",
+      "startLine": 104,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/close-lock-events.js",
+      "method": "<anon lockEventHooks/(outcome)#0>",
+      "startLine": 106,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/close-lock-events.js",
+      "method": "<anon lockEventHooks/(timings)#0>",
+      "startLine": 107,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
       "path": ".agents/scripts/lib/close-validation/commands.js",
       "method": "buildFormatHint",
       "startLine": 21,
@@ -12150,9 +12348,23 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/process.js",
+      "method": "<anon defaultGateRunner/(lock)#0>",
+      "startLine": 96,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/process.js",
       "method": "gateLockOptions",
       "startLine": 101,
       "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/process.js",
+      "method": "<anon gateLockOptions/(outcome)#0>",
+      "startLine": 110,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/close-validation/process.js",
@@ -12419,6 +12631,12 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
+      "method": "reportGateExit",
+      "startLine": 38,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/runner.js",
       "method": "runCloseValidation",
       "startLine": 103,
       "crap": 8.054172507057825
@@ -12475,6 +12693,25 @@
       "method": "<anon runSerialGates/(gate,status,message)#0>",
       "startLine": 371,
       "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/runner.js",
+      "method": "gateEnv",
+      "startLine": 382,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/runner.js",
+      "method": "fullSuiteGateOptions",
+      "startLine": 393,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/runner.js",
+      "method": "<anon runSerialGates/(gate,status)#0>",
+      "startLine": 419,
+      "crap": 1,
       "anonymous": true
     },
     {
@@ -16140,6 +16377,20 @@
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
+      "method": "<anon ()#1>",
+      "startLine": 51,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-lock.js",
+      "method": "<anon ()#2>",
+      "startLine": 52,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "<anon (ms)#0>",
       "startLine": 56,
       "crap": 1,
@@ -16157,6 +16408,12 @@
       "method": "isFullSuiteLockEnabled",
       "startLine": 66,
       "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-lock.js",
+      "method": "resolveFullSuiteLockBudget",
+      "startLine": 66,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
@@ -16208,6 +16465,24 @@
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
+      "method": "reportOutcome",
+      "startLine": 194,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-lock.js",
+      "method": "isFinishedWait",
+      "startLine": 201,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-lock.js",
+      "method": "lockOutcome",
+      "startLine": 205,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "defaultSleep",
       "startLine": 209,
       "crap": 1
@@ -16241,6 +16516,19 @@
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
+      "method": "fullSuiteLockPolicy",
+      "startLine": 244,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-lock.js",
+      "method": "<anon fullSuiteLockPolicy/()#0>",
+      "startLine": 248,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "deferredCaptureExit",
       "startLine": 252,
       "crap": 2
@@ -16263,6 +16551,13 @@
       "method": "<anon freshnessProbe/()#0>",
       "startLine": 266,
       "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-lock.js",
+      "method": "<anon lockedCapture/(captureOpts)#0/(lockWaitMs)#0>",
+      "startLine": 277,
+      "crap": 1,
       "anonymous": true
     },
     {
@@ -16303,6 +16598,12 @@
     },
     {
       "path": ".agents/scripts/lib/full-suite-queue.js",
+      "method": "readLockHolder",
+      "startLine": 145,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-queue.js",
       "method": "holderLabel",
       "startLine": 148,
       "crap": 1
@@ -16312,6 +16613,12 @@
       "method": "waitInLine",
       "startLine": 161,
       "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-queue.js",
+      "method": "describeHolder",
+      "startLine": 166,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/full-suite-queue.js",
@@ -16328,9 +16635,41 @@
     },
     {
       "path": ".agents/scripts/lib/full-suite-queue.js",
+      "method": "waitClock",
+      "startLine": 198,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-queue.js",
+      "method": "<anon waitClock/()#0>",
+      "startLine": 203,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-queue.js",
+      "method": "<anon waitClock/()#1>",
+      "startLine": 204,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-queue.js",
       "method": "reportStillWaiting",
       "startLine": 207,
       "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-queue.js",
+      "method": "announceWait",
+      "startLine": 208,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-queue.js",
+      "method": "giveUp",
+      "startLine": 214,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/gates/baseline-store.js",
@@ -26371,9 +26710,21 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
+      "method": "prepareTree",
+      "startLine": 129,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
       "method": "settleFailedValidation",
       "startLine": 134,
       "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
+      "method": "runGateChain",
+      "startLine": 139,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
@@ -26399,6 +26750,19 @@
       "method": "gateOutcomes",
       "startLine": 199,
       "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
+      "method": "teeLockLines",
+      "startLine": 200,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
+      "method": "<anon teeLockLines/(line)#0>",
+      "startLine": 201,
+      "crap": 2,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
@@ -32587,6 +32951,110 @@
       "method": "<anon extractChangePaths/(entry)#0>",
       "startLine": 732,
       "crap": 4,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/supervised-suite.js",
+      "method": "suiteReadyHandshake",
+      "startLine": 29,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/supervised-suite.js",
+      "method": "formatSuiteTimings",
+      "startLine": 36,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/supervised-suite.js",
+      "method": "fileExists",
+      "startLine": 41,
+      "crap": 1.0233236151603498
+    },
+    {
+      "path": ".agents/scripts/lib/supervised-suite.js",
+      "method": "removeQuietly",
+      "startLine": 49,
+      "crap": 1.0233236151603498
+    },
+    {
+      "path": ".agents/scripts/lib/supervised-suite.js",
+      "method": "superviseSuite",
+      "startLine": 116,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/supervised-suite.js",
+      "method": "<anon superviseSuite/()#0>",
+      "startLine": 126,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/supervised-suite.js",
+      "method": "gateSupervision",
+      "startLine": 151,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/supervised-suite.js",
+      "method": "<anon gateSupervision/(child)#0>",
+      "startLine": 158,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/supervised-suite.js",
+      "method": "<anon gateSupervision/(child,output)#0>",
+      "startLine": 163,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/supervised-suite.js",
+      "method": "<anon gateSupervision/(child,output)#0/(timings)#0>",
+      "startLine": 166,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/supervised-suite.js",
+      "method": "reportOnRelease",
+      "startLine": 179,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/supervised-suite.js",
+      "method": "runSupervisedSuite",
+      "startLine": 197,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/supervised-suite.js",
+      "method": "<anon runSupervisedSuite/(resolve)#0>",
+      "startLine": 200,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/supervised-suite.js",
+      "method": "<anon runSupervisedSuite/(resolve)#0/(code)#0>",
+      "startLine": 213,
+      "crap": 4,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/supervised-suite.js",
+      "method": "<anon runSupervisedSuite/(resolve)#0/()#0>",
+      "startLine": 224,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/supervised-suite.js",
+      "method": "<anon runSupervisedSuite/(resolve)#0/(code)#1>",
+      "startLine": 225,
+      "crap": 1,
       "anonymous": true
     },
     {

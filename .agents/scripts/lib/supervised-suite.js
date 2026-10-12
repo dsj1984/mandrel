@@ -2,7 +2,7 @@
  * A full suite supervised as a process group. The suite may write
  * `$MANDREL_SUITE_READY_FILE` when its tests start; the kill timer then
  * re-arms a fresh `timeoutMs`, so a pre-test wait (bounded by `timeoutMs`
- * too) never spends the test budget. Close parses the timing line back.
+ * too) never spends the test budget.
  */
 import { spawn } from 'node:child_process';
 import crypto from 'node:crypto';
@@ -36,23 +36,6 @@ export function suiteReadyHandshake({ dir = os.tmpdir() } = {}) {
 export function formatSuiteTimings({ lockWaitMs, hostWaitMs, testRunMs }) {
   const host = hostWaitMs === null ? NO_HOST_WAIT : Math.round(hostWaitMs);
   return `⏲ suite timings: lockWaitMs=${Math.round(lockWaitMs)} hostWaitMs=${host} testRunMs=${Math.round(testRunMs)}`;
-}
-
-/**
- * @param {string} line
- * @returns {SuiteTimings|null}
- */
-export function parseSuiteTimings(line) {
-  const match =
-    /suite timings: lockWaitMs=(\d+) hostWaitMs=(\d+|n\/a) testRunMs=(\d+)/u.exec(
-      String(line ?? ''),
-    );
-  if (!match) return null;
-  return {
-    lockWaitMs: Number(match[1]),
-    hostWaitMs: match[2] === NO_HOST_WAIT ? null : Number(match[2]),
-    testRunMs: Number(match[3]),
-  };
 }
 
 function fileExists(fsImpl, file) {
@@ -160,9 +143,9 @@ export function superviseSuite(child, opts) {
 /**
  * A bare suite gets SIGKILL on a parent signal; a gate with its own cleanup
  * (a capture holding the lock) SIGTERM. A full-suite gate also gets the
- * handshake and emits its timing line on release.
+ * handshake and reports its timings on release.
  *
- * @param {{ fullSuiteLock?: boolean, timeoutMs?: number, signal?: AbortSignal, env?: Record<string, string> }} opts
+ * @param {{ fullSuiteLock?: boolean, timeoutMs?: number, signal?: AbortSignal, env?: Record<string, string>, onLockEvent?: (event: object) => void }} opts
  * @param {{ lockWaitMs?: number }} [lock]
  */
 export function gateSupervision(opts, lock = {}) {
@@ -180,14 +163,11 @@ export function gateSupervision(opts, lock = {}) {
     supervise: (child, output) =>
       reportOnRelease(
         superviseSuite(child, { ...base, readyFile: handshake.file }),
-        (timings) =>
-          output.emit(
-            output.prefix +
-              formatSuiteTimings({
-                lockWaitMs: lock.lockWaitMs ?? 0,
-                ...timings,
-              }),
-          ),
+        (timings) => {
+          const full = { lockWaitMs: lock.lockWaitMs ?? 0, ...timings };
+          output.emit(output.prefix + formatSuiteTimings(full));
+          opts.onLockEvent?.({ kind: 'suite-timings', ...full });
+        },
       ),
   };
 }

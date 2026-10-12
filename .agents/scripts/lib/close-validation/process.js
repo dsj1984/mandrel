@@ -81,12 +81,12 @@ function isBiomeNoFilesProcessed(output) {
  * nothing and returns `LOCK_WAIT_EXPIRED_EXIT_CODE`, so close ends
  * `pending`. A full-suite gate's timeout is armed at spawn, re-armed on the
  * suite-ready handshake, and its lock wait, host wait and test run are logged
- * as three figures. Each child leads its own process group so a timeout,
+ * as three figures, and both reach `onLockEvent` as structured events. Each child leads its own process group so a timeout,
  * abort or parent signal kills its workers too.
  *
  * @param {string} cmd
  * @param {string[]} args
- * @param {{ cwd: string, signal?: AbortSignal, gateName?: string, log?: (m: string) => void, env?: Record<string, string>, tolerateNoFilesProcessed?: boolean, fullSuiteLock?: boolean, timeoutMs?: number, lockOptions?: object, skipIfSatisfied?: () => {status: number}|undefined }} opts
+ * @param {{ cwd: string, signal?: AbortSignal, gateName?: string, log?: (m: string) => void, env?: Record<string, string>, tolerateNoFilesProcessed?: boolean, fullSuiteLock?: boolean, timeoutMs?: number, lockOptions?: object, onLockEvent?: (event: object) => void, skipIfSatisfied?: () => {status: number}|undefined }} opts
  * @returns {Promise<{ status: number }>}
  */
 export function defaultGateRunner(cmd, args, opts = {}) {
@@ -106,6 +106,9 @@ function gateLockOptions(opts) {
     log: opts.log,
     skipIfSatisfied: opts.skipIfSatisfied,
     onWaitExpired: deferredGateStatus,
+    onLockOutcome: opts.onLockEvent
+      ? (outcome) => opts.onLockEvent({ kind: 'lock-wait', ...outcome })
+      : undefined,
     ...opts.lockOptions, // `rerunCommand`, plus test seams
   };
 }

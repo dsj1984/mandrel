@@ -96,7 +96,7 @@
     },
     {
       "path": ".agents/scripts/coverage-capture.js",
-      "mi": 92.779
+      "mi": 94.142
     },
     {
       "path": ".agents/scripts/deliver-light.js",
@@ -659,6 +659,10 @@
       "mi": 102.861
     },
     {
+      "path": ".agents/scripts/lib/close-lock-events.js",
+      "mi": 112.367
+    },
+    {
       "path": ".agents/scripts/lib/close-validation/commands.js",
       "mi": 108.42
     },
@@ -692,7 +696,7 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
-      "mi": 81.708
+      "mi": 82.537
     },
     {
       "path": ".agents/scripts/lib/command-header.js",
@@ -976,7 +980,7 @@
     },
     {
       "path": ".agents/scripts/lib/full-suite-queue.js",
-      "mi": 93.919
+      "mi": 95.386
     },
     {
       "path": ".agents/scripts/lib/gates/baseline-store.js",
@@ -1956,7 +1960,7 @@
     },
     {
       "path": ".agents/scripts/lib/supervised-suite.js",
-      "mi": 105.676
+      "mi": 106.186
     },
     {
       "path": ".agents/scripts/lib/temp-removal.js",

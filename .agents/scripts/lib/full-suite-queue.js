@@ -167,50 +167,6 @@ function describeHolder({ ownerId, pid, ageSeconds }) {
   return `holder ${ownerId ?? 'unknown'}, pid ${pid ?? 'unknown'}, lock age ${ageSeconds ?? 'unknown'}s`;
 }
 
-const HOLDER_RE =
-  /holder ([^,\s]+), pid (\d+|unknown), lock age (\d+|unknown)s/u;
-
-/**
- * Log lines are the one channel that reaches close from a child capture.
- *
- * @param {string} line
- * @returns {{ waitedSeconds: number, expired: boolean, holder?: LockHolder }|null}
- */
-export function parseLockWaitOutcome(line) {
-  const text = String(line ?? '');
-  const match = /\[full-suite-lock\] (✅|⌛) [^\n]*\(waited (\d+)s[,)]/u.exec(
-    text,
-  );
-  if (!match) return null;
-  return withHolder(
-    { waitedSeconds: Number(match[2]), expired: match[1] === '⌛' },
-    text,
-  );
-}
-
-/** An expiry line also names the holder it gave up on. */
-function withHolder(outcome, text) {
-  const holder = outcome.expired ? HOLDER_RE.exec(text) : null;
-  if (!holder) return outcome;
-  const [, ownerId, pid, ageSeconds] = holder.map(unknownAsNull);
-  return {
-    ...outcome,
-    holder: {
-      ownerId,
-      pid: numberOrNull(pid),
-      ageSeconds: numberOrNull(ageSeconds),
-    },
-  };
-}
-
-function unknownAsNull(raw) {
-  return raw === 'unknown' ? null : raw;
-}
-
-function numberOrNull(raw) {
-  return raw === null ? null : Number(raw);
-}
-
 function holderLabel(lockPath, fsImpl) {
   return `holding pid ${readLockHolderPid(lockPath, fsImpl) ?? 'unknown'}`;
 }
@@ -225,17 +181,9 @@ function holderLabel(lockPath, fsImpl) {
  * @returns {Promise<{ held: object|null, expired: boolean, waited: true, waitedMs: number, holder?: LockHolder }>}
  */
 export async function waitInLine(opts) {
-  const { lockPath, waitMs, fsImpl, nowFn, log } = opts;
-  const startedAt = nowFn();
-  const clock = {
-    deadline: startedAt + Math.max(0, waitMs),
-    nextReport: startedAt + opts.reportMs,
-    waitedMs: () => Math.max(0, nowFn() - startedAt),
-    waited: () => Math.round((nowFn() - startedAt) / 1000),
-  };
-  log(
-    `${LOCK_TAG} ⏳ another full suite is already running on this host (${holderLabel(lockPath, fsImpl)}) — waiting up to ${Math.round(waitMs / 1000)}s for it to finish before spawning.`,
-  );
+  const { lockPath, fsImpl, nowFn } = opts;
+  const clock = waitClock(opts);
+  announceWait(opts);
   const ticket = enqueueWaiter({ lockPath, nowFn, fsImpl });
   try {
     const outcome = await pollForTurn(opts, ticket, clock);
@@ -244,9 +192,29 @@ export async function waitInLine(opts) {
   } finally {
     dequeueWaiter(ticket, { fsImpl });
   }
+  return giveUp(opts, clock);
+}
+
+function waitClock({ waitMs, reportMs, nowFn }) {
+  const startedAt = nowFn();
+  return {
+    deadline: startedAt + Math.max(0, waitMs),
+    nextReport: startedAt + reportMs,
+    waitedMs: () => Math.max(0, nowFn() - startedAt),
+    waited: () => Math.round((nowFn() - startedAt) / 1000),
+  };
+}
+
+function announceWait({ lockPath, waitMs, fsImpl, log }) {
+  log(
+    `${LOCK_TAG} ⏳ another full suite is already running on this host (${holderLabel(lockPath, fsImpl)}) — waiting up to ${Math.round(waitMs / 1000)}s for it to finish before spawning.`,
+  );
+}
+
+function giveUp({ lockPath, fsImpl, nowFn, log, rerunCommand }, clock) {
   const holder = readLockHolder(lockPath, { fsImpl, nowFn });
   log(
-    `${LOCK_TAG} ⌛ gave up waiting for the full-suite lock (waited ${clock.waited()}s, ${describeHolder(holder)}) — not spawning, so two full suites never overlap. Re-run once it finishes: ${opts.rerunCommand}`,
+    `${LOCK_TAG} ⌛ gave up waiting for the full-suite lock (waited ${clock.waited()}s, ${describeHolder(holder)}) — not spawning, so two full suites never overlap. Re-run once it finishes: ${rerunCommand}`,
   );
   return {
     held: null,
