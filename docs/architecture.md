@@ -363,7 +363,7 @@ sessions, git hooks, or CI. Every one is still at `.agents/scripts/<name>`:
 - `sync-claude-commands.js` / `sync-claude-agents.js` — project
   `.agents/workflows/` and `.agents/agents/` into `.claude/commands/` and
   `.claude/agents/` (via `mandrel sync-commands` / `sync-agents`)
-- `sync-agentrc.js` — merges `starter-agentrc.json` deltas into `.agentrc.json`
+- `sync-agentrc.js` — read-only check: validates `.agentrc.json` with the `.agentrc.local.json` overlay merged in, and flags committed keys that restate a framework default
 - `check-windows-git-perf.js` — one-time Windows git perf diagnostic
 - `lib/bootstrap/*` — shared bootstrap helper modules
 

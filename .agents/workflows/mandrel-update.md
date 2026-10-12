@@ -147,7 +147,8 @@ node .agents/scripts/sync-agentrc.js
 ```
 
 The helper is default-aware and **read-only**: it validates
-the consumer config against the new schema (non-zero exit → fix the
+the consumer config — `.agentrc.json` with any gitignored
+`.agentrc.local.json` merged over it, as the runtime does — against the new schema (non-zero exit → fix the
 validation error and re-run before proceeding), never auto-fills missing
 optional keys (the runtime layers defaults at read time), and flags
 project values that deep-equal the framework default as `[REDUNDANT]`
