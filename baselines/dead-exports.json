@@ -11,10 +11,6 @@
       "symbol": "_internals"
     },
     {
-      "file": ".agents/scripts/lib/baselines/duplication-scanner.js",
-      "symbol": "readLineCount"
-    },
-    {
       "file": ".agents/scripts/lib/baselines/reader.js",
       "symbol": "BASELINE_KIND_SCHEMA_FILES"
     },
