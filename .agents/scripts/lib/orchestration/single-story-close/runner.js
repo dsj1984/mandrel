@@ -47,6 +47,7 @@ import {
   pickHeadPullRequest,
 } from './phases/pull-request.js';
 import { pushStoryBranch } from './phases/push.js';
+import { reconcileDoneLabel } from './phases/reconcile-done.js';
 import { handleCriticalReviewBlock } from './phases/review-block.js';
 import { handleOverriddenReviewBlock } from './phases/review-override.js';
 import {
@@ -588,6 +589,7 @@ function resolveCloseDeps(options, injected) {
     gitSpawn: injected.injectedGitSpawn,
     releaseLease: injected.injectedReleaseLease ?? releaseStoryLease,
     graphqlProbe: injected.injectedGraphqlProbe,
+    sleep: injected.injectedSleep,
   };
 }
 
@@ -934,6 +936,7 @@ async function loadStoryPhase(ctx, deps) {
   progress('INIT', `Closing standalone Story #${ctx.storyId}...`);
   ctx.story = await deps.provider.getTicket(ctx.storyId);
   if (ctx.story.state !== 'closed') return null;
+  await reconcileDoneLabel(ctx, deps, progress);
   return await alreadyClosedResult(
     ctx.storyId,
     ctx.story.stateReason,
