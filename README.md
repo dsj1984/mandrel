@@ -2,252 +2,203 @@
 
 [![CI / CD](https://github.com/dsj1984/mandrel/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/dsj1984/mandrel/actions/workflows/ci.yml)
 
-An opinionated workflow framework for AI coding assistants built on
-Story-centric GitHub orchestration. Planning, execution, and state all live
-natively in GitHub Issues, Labels, and Projects V2.
+**Mandrel gives your AI coding assistant a disciplined software process.**
+Out of the box, an assistant like Claude Code will happily write code, but it
+has no shared idea of how work gets planned, verified, reviewed, and shipped.
+Mandrel supplies that: a system prompt, rules, skills, and slash-command
+workflows that turn "build me X" into a planned GitHub Story, an isolated
+branch, a tested change, and a reviewed pull request that merges itself once
+CI is green.
 
-## Prerequisites
+It is **Claude Code-first** and **GitHub-native**: planning, execution state,
+and history all live in GitHub Issues, Labels, Pull Requests, and Projects V2,
+so there is no extra service to run and every step leaves a visible record.
 
-Mandrel is distributed as the
-[`mandrel`](https://www.npmjs.com/package/mandrel) npm
-package and wires its orchestration into your project's GitHub repository.
-You do **not** need a pre-created Git repo or GitHub remote — `bootstrap.js`
-provisions both as part of a cold start (`git init` → `gh repo create --push`
-→ `gh project create`). You need:
+Mandrel ships as the [`mandrel`](https://www.npmjs.com/package/mandrel) npm
+package. `mandrel sync` copies its payload into your project's `.agents/`
+directory, where your assistant reads it.
 
-- **Node.js** >= 22.22.1 (< 25).
-- **`git`** on your `PATH`.
-- **GitHub CLI `gh`** >= 2.40, authenticated — run `gh auth login` once so
-  orchestration scripts pick up your token from the OS keychain. A vanilla
-  `gh auth login` token does **not** carry the `project` scope needed to
-  provision the GitHub Projects V2 board; bootstrap degrades to
-  warn-and-skip-board in that case (no hard failure). To enable board
-  provisioning, grant the scope with `gh auth refresh -s project` (re-auth
-  in the browser when prompted) before running `bootstrap.js`.
+## What's in `.agents/`
 
-## Quickstart
+| Path | What it is |
+| ---- | ---------- |
+| `instructions.md` | The always-loaded system prompt — the assistant's core operating protocol. |
+| `rules/` | Non-negotiable standards. A small core (security baseline, git conventions) is always on; the rest (testing, API, CI remediation, Gherkin) load when the work calls for them. |
+| `skills/` | Focused guidance loaded on demand: `core/` for universal practice (code review, security, documentation, quality gates), `stack/` for specific tools (Playwright, Gherkin, the QA harness). |
+| `workflows/` | The slash commands — `/mandrel-plan`, `/mandrel-deliver`, the `/audit-*` lenses, QA, and housekeeping. Projected into `.claude/commands/`. |
+| `agents/` | Role-scoped sub-agent contexts (story worker, auditor, critics). Projected into `.claude/agents/`. |
+| `scripts/` | Deterministic Node.js CLIs that do the mechanical work — GitHub state changes, worktrees, quality gates — so the model judges and the scripts execute. |
+| `schemas/`, `templates/` | JSON Schema contracts and the prompt/planning templates the workflows fill in. |
+| `docs/` | Consumer reference: [configuration](.agents/docs/configuration.md) (every `.agentrc.json` key), the [workflow index](.agents/docs/workflows.md), and operator runbooks. |
+| `local/` | Yours. `mandrel sync` never touches it, so project-specific skills and workflow fragments survive upgrades. |
 
-The canonical cold-start path is one command, then one slash command:
+Project settings live in `.agentrc.json` at your repo root. The full tour of
+the bundle is in [`.agents/README.md`](.agents/README.md).
 
-```bash
-npx mandrel init        # install mandrel → sync → prompt → bootstrap → onboarding tail → /mandrel-plan handoff
-```
+## The core loop: plan, then deliver
+
+Two commands carry almost all of the work.
+
+### `/mandrel-plan`
+
+[`/mandrel-plan`](.agents/workflows/mandrel-plan.md) turns an idea into a
+ready-to-execute GitHub Story. There are no flags to remember — it works out
+what you meant from what you typed and tells you what it inferred:
 
 ```text
-# then, inside Claude Code (commands load from .claude/commands/):
-/mandrel-plan --seed "…"   # interrogate → author one Story (default) → persist
-/mandrel-deliver <id>      # story-<id> → PR → main
+/mandrel-plan let users export their reports as CSV   # plan from a description
+/mandrel-plan 4712                                    # plan an existing issue
 ```
 
-`npx mandrel init` installs `mandrel` (when `./.agents/` is absent),
-materializes it via `mandrel sync`, then asks whether to **configure now**
-(option 1 → runs `bootstrap.js`, then the onboarding tail: stack detection,
-docs scaffolding offer, `mandrel doctor` readiness gate, and a `/mandrel-plan`
-handoff) or stop at **just the files** (option 2 → re-run `mandrel init`
-any time to configure). Pass `--assume-yes` for a non-interactive run that
-proceeds straight to configure (and forwards the flag to bootstrap). When
-`./.agents/` is already present (you ran `npm install mandrel` first), `init`
-skips the install/sync and goes straight to the prompt. Once `mandrel init`
-completes, you land at the `/mandrel-plan` handoff — run `/mandrel-plan --seed "<idea>"` to
-author your first Story, then deliver it with `/mandrel-deliver <storyId>`
-(`story-<id>` → PR → `main`).
+It gathers context from your repo, then authors a Story whose `## Spec` holds
+the technical plan and whose `acceptance[]` / `verify[]` lists are the contract
+the delivery is held to. It writes **one Story by default**, splitting only when
+the pieces are truly independent; larger efforts can be grouped under a
+container Epic.
 
-### Manual equivalent
+### `/mandrel-deliver`
 
-If you prefer to drive the steps `mandrel init` wraps by hand, run them from
-your project root:
+[`/mandrel-deliver`](.agents/workflows/mandrel-deliver.md) lands the work:
+
+```text
+/mandrel-deliver 4712                    # a single Story
+/mandrel-deliver 4700                    # an Epic — delivers its open child Stories
+/mandrel-deliver 4712 - 4716             # a range of Stories
+/mandrel-deliver fix the typo in the login page header   # direct text, no plan
+```
+
+Each Story gets its own `story-<id>` branch in an isolated worktree; the
+assistant implements it, checks its work against the acceptance criteria, runs
+the test suite and quality gates, opens a PR, gets it reviewed, and arms
+auto-merge. Multiple Stories are sequenced by their dependencies, with
+independent ones running in parallel sub-agents. Direct text is for small,
+unplanned work: it authors a receipt Story on the fly and escalates to
+`/mandrel-plan` if the work turns out bigger than it looked.
+
+The full process — labels, state, review, troubleshooting — is in
+[`docs/SDLC.md`](docs/SDLC.md).
+
+## Audits
+
+The `/audit-*` workflows are read-only lenses that examine the codebase along
+one dimension and write a findings report (severity, location, recommendation,
+acceptance signal) under `temp/audits/`. They never change code — fixing is a
+separate, planned pass.
+
+| Area | Lenses |
+| ---- | ------ |
+| Code & design | `architecture`, `clean-code`, `adrs`, `data-model`, `documentation`, `exceptions` |
+| Quality & ops | `quality`, `baselines`, `performance`, `devops`, `sre`, `dependencies` |
+| Security & privacy | `security`, `privacy` |
+| Product & UX | `ux-ui`, `accessibility`, `mobile`, `navigability`, `seo` |
+
+Run one manually (e.g. `/audit-security`) for a codebase-wide pass, then run
+**`/audit-to-stories`** to group the findings, deduplicate them against open
+issues, and turn them into Stories — feeding them back into
+`/mandrel-plan` → `/mandrel-deliver`. Multi-Story deliveries can also run the
+relevant cross-cutting lenses over the combined change when they finish.
+
+Other workflows cover QA (`/qa-explore`, `/qa-assist`, `/qa-run`), UI
+prototyping (`/prototype`), ad-hoc commits (`/git-deliver`), and housekeeping
+(`/clean-git`, `/clean-worktrees`, `/clean-temp`). See the
+[workflow index](.agents/docs/workflows.md) for the full list.
+
+## Getting started
+
+### Prerequisites
+
+- **Node.js** `>=22.22.1 <25`
+- **`git`** on your `PATH`
+- **GitHub CLI `gh`** `>= 2.40`, authenticated with `gh auth login`. To let
+  bootstrap create a Projects V2 board, also grant the `project` scope with
+  `gh auth refresh -s project`; without it, bootstrap warns and skips the board.
+
+You do **not** need an existing git repo or GitHub remote — bootstrap creates
+both if they're missing.
+
+### Install
 
 ```bash
-npm install mandrel   # pin an exact, provenance-signed version
-npx mandrel sync                # materialize ./.agents/ from the package
-node .agents/scripts/bootstrap.js
+npx mandrel init
 ```
 
-`npm install mandrel` pins an exact, provenance-signed version in
-your lockfile. The package's `postinstall` hook runs `mandrel sync`
-best-effort, so `./.agents/` is usually materialized automatically; the
-explicit `npx mandrel sync` above is the belt-and-suspenders step for
-`--ignore-scripts` or sandboxed-CI installs. Run `npx mandrel doctor` any
-time to confirm the install is healthy.
+This installs `mandrel` (if `.agents/` is absent), materializes `.agents/`, and
+asks whether to **configure now** or stop at **just the files**. Configuring
+runs `bootstrap.js` — which seeds `.agentrc.json`, wires the system prompt, and
+provisions the GitHub side (repo, labels, branch protection, board) — then
+detects your stack, offers to scaffold docs, runs `mandrel doctor`, and hands
+you off to `/mandrel-plan`. Use `--assume-yes` for a non-interactive run.
 
-Bootstrap also writes a guarded `prepare` script that regenerates both
-`.claude/` projections — `.claude/commands/` (from `.agents/workflows/`) and
-`.claude/agents/` (from `.agents/agents/`). Both are generated and
-gitignored; never commit them. The guard makes `prepare` exit 0 without
-writing anything when `.agents/scripts/` is absent, so a manifest-only
-container layer (`COPY package.json package-lock.json ./` then `npm ci`)
-installs cleanly; once `.agents/` is present it runs both projections.
-Existing installs pick up the guard and the `.claude/agents/` ignore entry
-through the `mandrel update` migration.
+Bootstrap infers owner, repo, base branch, and operator handle from your git
+remote and config, prompting only for what it can't infer. Override with
+`--owner`, `--repo`, `--base-branch`, `--operator-handle`, or
+`--visibility private|public|internal` for a newly created repo. It is
+idempotent — safe to re-run.
 
-> **pnpm users — hoist mandrel's runtime deps.** The materialized
-> `./.agents/scripts/*.js` run from your project root and resolve their
-> third-party deps (ajv, js-yaml, …) from your top-level `node_modules`.
-> npm and yarn hoist transitive deps there automatically; pnpm's default
-> isolated layout does **not** — it keeps them in the `.pnpm` virtual store,
-> so the framework scripts (and `mandrel doctor`'s `runtime-deps` check)
-> cannot see them. Add the following to your `.npmrc` before installing:
->
-> ```ini
-> # Lift mandrel's runtime deps to the top-level node_modules so the
-> # materialized .agents/scripts can resolve them.
-> shamefully-hoist=true
-> ```
->
-> Prefer a surgical alternative? Replace `shamefully-hoist` with a scoped
-> `public-hoist-pattern[]=` line per package listed in
-> `.agents/runtime-deps.json` — read the file rather than copying a list from
-> here, since the complexity kernel's closure is several packages. If
-> `mandrel doctor` reports `runtime-deps missing: …`, this is the fix.
-
-`bootstrap.js` is interactive on a TTY and auto-accepts the
-owner/repo/base branch/operator handle it can infer from your local
-`git remote` and `git config user.name` — you only get prompted for
-fields it can't infer (typically the optional Projects V2 number). When the
-folder is not yet a git repo, or the GitHub repo doesn't exist, it
-provisions them: `git init` plus a first commit, then
-`gh repo create --source=. --push` (use `--visibility private|public|internal`,
-default `private`, to set the new repo's visibility), then `gh project create`
-for the Projects V2 board. Override anything inferred with `--owner`,
-`--repo`, `--base-branch`, or `--operator-handle`. For CI / scripted installs
-pass `--assume-yes` plus whichever overrides you need. The script is
-idempotent — safe to re-run anytime.
-
-For the consumer reference and the end-to-end workflow narrative, see
-[`.agents/README.md`](.agents/README.md) and
-[`docs/SDLC.md`](docs/SDLC.md). Every `.agentrc.json` key is
-documented in [`.agents/docs/configuration.md`](.agents/docs/configuration.md), and the
-slash-command index lives in
-[`.agents/docs/workflows.md`](.agents/docs/workflows.md).
-
-## Update
-
-Advance `mandrel` to the newest published version and
-re-materialize `./.agents/` in one command:
+<details>
+<summary>Manual install</summary>
 
 ```bash
-npx mandrel update
+npm install mandrel                 # pins an exact, provenance-signed version
+npx mandrel sync                    # materialize ./.agents/ (postinstall usually does this)
+node .agents/scripts/bootstrap.js   # wire the project and GitHub
+npx mandrel doctor                  # verify the install
 ```
 
-`mandrel update` runs an ordered cycle:
+Bootstrap adds a guarded `prepare` script that regenerates `.claude/commands/`
+and `.claude/agents/` from `.agents/`. Both are generated and gitignored —
+never commit them.
 
-1. **Resolve** the newest published version (a `npm view mandrel
-   version` registry probe) and the currently installed version.
-2. **No-op short-circuit** — already on the newest version ⇒ nothing to do.
-3. **Install** the target version with the project's package manager —
-   auto-detected from the lockfile (`pnpm-lock.yaml` ⇒ pnpm, `yarn.lock` ⇒
-   yarn, otherwise npm) so the bump lands in your real lockfile. The
-   dependency bump is left **staged** on disk — `mandrel update` performs no
-   `git add` / `git commit`, so you review and commit the lockfile change
-   yourself.
-4. **Sync** — re-materialize `./.agents/` from the freshly installed payload.
-5. **Migrate** — apply version-keyed migration steps for the crossed range.
-6. **Doctor** — run the check registry to verify the resulting install.
-7. **Surface** the target changelog section.
+</details>
 
-### Flags
+> **pnpm users:** the `.agents/scripts/` CLIs resolve their dependencies from
+> your top-level `node_modules`, which pnpm's isolated layout doesn't populate.
+> Add `shamefully-hoist=true` to `.npmrc` (or a `public-hoist-pattern[]=` line
+> per package in `.agents/runtime-deps.json`). If `mandrel doctor` reports
+> `runtime-deps missing`, this is the fix.
 
-- `--dry-run` — print the resolved target version and the ordered step
-  plan, then exit. No dependency is bumped, no file is written, no seam
-  runs.
-- `--install-cmd "<cmd>"` — override the auto-detected install command. The
-  package manager is normally detected from your lockfile
-  (`pnpm-lock.yaml` ⇒ `pnpm add -D …`, `yarn.lock` ⇒ `yarn add -D …`,
-  otherwise `npm install …`), and it keeps your current pin style: an exact
-  pin installs with `--save-exact` (`--exact` on yarn), a tilde pin as
-  `mandrel@~<target>`, so an override is rarely needed. When you do
-  pass one, a `{target}` placeholder is substituted with the resolved newest
-  version — e.g. `--install-cmd "pnpm add -D mandrel@{target} -w"` —
-  so the override can still consume the auto-probed version. The registry
-  probe always stays on `npm view` (it is a PM-agnostic registry query).
+### Updating
 
-### Manual equivalent
+Inside Claude Code, run:
 
-If you prefer to drive the steps by hand:
-
-```bash
-npm install mandrel@latest   # or pnpm add / yarn up
-npx mandrel sync                        # re-materialize ./.agents/
-npx mandrel doctor                      # verify the install
+```text
+/mandrel-update
 ```
 
-## Benchmarking
+It upgrades to the newest published `mandrel`, re-syncs `.agents/`, applies
+migrations, checks the install, and walks you through reconciling your config
+and committing the bump.
 
-Mandrel's effectiveness is measured by a separate companion repo,
-**[mandrel-bench](https://github.com/dsj1984/mandrel-bench)** — a *consumer* of
-the published `mandrel` package. It pins a specific framework version,
-materializes it via `mandrel sync`, and drives Mandrel's own `/mandrel-plan`→`/mandrel-deliver`
-pipeline (plus a bare-model control) over a scenario corpus. Each run is scored
-across five dimensions — Quality, Planning fidelity, and Autonomy (what the
-scaffolding *buys*) versus Efficiency and Overhead ratio (what it *costs*) —
-reported as distributions with a noise-band, tracking the framework's
-**value-add over the bare-model baseline** across versions and models.
+## Contributing
 
-The benchmark lives in its own repo on purpose: holding the harness fixed while
-varying the pinned `mandrel` version cleanly decouples harness-version from
-framework-version, and running through the published-package + `mandrel sync`
-path exercises the real consumer contract. The dependency is one-directional —
-`mandrel-bench` depends on `mandrel`, never the reverse. See the
-[mandrel-bench README](https://github.com/dsj1984/mandrel-bench#readme) for the
-dimensions, run model, and how to benchmark a new version.
-
-## Contributors
-
-The published `mandrel` package ships three directories — `.agents/`, `bin/`,
-and `lib/` — plus the single file `docs/CHANGELOG.md`, and excludes the
-`__tests__` subtrees under `.agents/` and `lib/` (see the `files` array in
-[`package.json`](package.json)).
-`.agents/` is the payload `mandrel sync` materializes into a consumer's
-`./.agents/` directory; `bin/mandrel.js` and its `lib/` implementation stay
-inside `node_modules/mandrel/` and back the `npx mandrel …` CLI used
-throughout this README. Everything else in this repository — `docs/`,
-`tests/`, `.github/`, the root tooling configs — is internal development
-tooling and is not published.
-
-Common commands while developing the framework itself:
+Only `.agents/`, `bin/`, `lib/`, and `docs/CHANGELOG.md` are published (see the
+`files` array in [`package.json`](package.json)); everything else here is
+development tooling for Mandrel itself.
 
 ```bash
 npm run lint           # biome + markdownlint + repo ratchets + generated-doc drift
-npm run format         # biome format — JavaScript/JSON only, not markdown
+npm run format         # biome format (JS/JSON only)
 npm test               # framework tests
-npm run test:coverage  # tests with coverage gate
+npm run test:coverage  # tests with the coverage gate
 ```
 
-Deeper reference material lives in `docs/` rather than inline here:
+A few things to know:
 
-- [`docs/architecture.md`](docs/architecture.md) — module map, repo
-  layout, state machine, and tech stack.
-- [`.agents/docs/configuration.md`](.agents/docs/configuration.md) — every `.agentrc.json`
-  key explained.
-- [`.agents/docs/workflows.md`](.agents/docs/workflows.md) — slash-command
-  index (auto-generated from the workflow set).
-- [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — release history.
-- [`AGENTS.md`](AGENTS.md) — the repository-level orientation pointer; it
-  links on to [`docs/onboarding.md`](docs/onboarding.md) for the layout,
-  commands, and development standards.
-- [`docs/release-operations.md`](docs/release-operations.md) — the Release
-  Checklist, the Install Matrix release gate, the single-package release
-  topology, PAT / npm-token setup, and the major-version policy. Releases are
-  automated by `release-please`: land Conventional Commits on `main` and it
-  opens a combined `chore: release main` PR that squash-merges itself once
-  CI is green, tags `main`, and publishes `mandrel` to npm.
+- **Quality gates are blocking at four sites** — pre-commit (staged files),
+  pre-push (diff vs `origin/main`), Story close, and CI — using the CRAP and
+  maintainability thresholds in `delivery.quality.*`. A green `lint`/`test` run
+  does not predict them.
+- **Install scripts are off** — the committed [`.npmrc`](.npmrc) sets
+  `ignore-scripts=true` as supply-chain defense. Use
+  `npm install --ignore-scripts=false` for a one-off exception.
+- **Releases are automated** by release-please from Conventional Commits on
+  `main`.
 
-Install scripts are disabled by default: the committed
-[`.npmrc`](.npmrc) sets `ignore-scripts=true`, so `npm install` / `npm ci`
-will not execute dependency lifecycle hooks — a defense-in-depth measure
-against malicious lifecycle scripts in compromised transitive packages
-(CWE-1357). CI passes `--ignore-scripts` explicitly. If you knowingly need
-install scripts for a specific install, run
-`npm install --ignore-scripts=false` for that invocation only.
-
-CRAP and Maintainability gates fire at four sites — `.husky/pre-commit`
-(`quality-preview.js --staged`, scored on the staged index), `.husky/pre-push`
-(diff-scoped against `origin/main`), close-validation (story close), and CI
-(`ci.yml`, push + PR) — against the same thresholds from
-`delivery.quality.*` in `.agentrc.json`. All four are **blocking**: the
-pre-commit hook fires earliest and refuses the commit on a threshold
-violation, and a green `npm run lint` / `npm test` / `check-baselines.js`
-run does not predict it.
+Further reading: [`AGENTS.md`](AGENTS.md) (repo orientation),
+[`docs/onboarding.md`](docs/onboarding.md) (layout, commands, standards),
+[`docs/architecture.md`](docs/architecture.md) (module map, tech stack),
+[`docs/release-operations.md`](docs/release-operations.md), and
+[`docs/CHANGELOG.md`](docs/CHANGELOG.md).
 
 ## License
 
