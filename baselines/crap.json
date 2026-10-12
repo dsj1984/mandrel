@@ -27838,6 +27838,12 @@
       "crap": 1
     },
     {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/reconcile-done.js",
+      "method": "reconcileDoneLabel",
+      "startLine": 29,
+      "crap": 4.023883381924199
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/review-block.js",
       "method": "handleCriticalReviewBlock",
       "startLine": 12,
