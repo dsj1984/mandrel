@@ -148,13 +148,7 @@ export function readLineCount(absPath) {
   return lines.length;
 }
 
-/**
- * fast-glob reads a backslash as an escape, so a Windows absolute path must reach
- * jscpd with POSIX separators to match anything.
- *
- * @param {string} p
- * @returns {string}
- */
+/** fast-glob reads a backslash as an escape. */
 function toGlobPath(p) {
   return p.split(path.sep).join('/');
 }
@@ -179,10 +173,6 @@ function anchorIgnoreGlobs(ignoreGlobs, cwd) {
 }
 
 /**
- * Target dirs and relative ignore globs are resolved against `cwd` before
- * jscpd sees them, so clones and line counts both come from the `cwd` tree
- * whatever `process.cwd()` is.
- *
  * @param {{
  *   targetDirs: string[],
  *   cwd?: string,

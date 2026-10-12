@@ -1,12 +1,6 @@
 /**
- * duplication-scanner-cwd.test.js — Story #5636.
- *
- * jscpd 4's finder ignores its `cwd` option and globs with
- * `cwd: process.cwd()`, so a relative target dir or ignore glob resolved
- * against the process directory, not the scan tree. A close-time re-score run
- * from the main checkout against a worktree therefore paired main's clones
- * with the worktree's line counts. These drive real jscpd over two divergent
- * fixture trees and pin that a scan reads the `cwd` tree only.
+ * jscpd 4 globs against process.cwd(), not its `cwd` option. Real jscpd over
+ * two divergent trees pins that a scan reads the `cwd` tree only.
  */
 
 import assert from 'node:assert/strict';
@@ -22,7 +16,6 @@ import {
 } from '../../.agents/scripts/lib/baselines/duplication-scanner.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 
-/** `count` functions — each pair comfortably over the 50-token threshold. */
 function clonedSource(count, salt = '') {
   return Array.from(
     { length: count },
@@ -51,7 +44,6 @@ describe('scanDuplication — cwd differs from process.cwd() (Story #5636)', () 
   let procTree;
 
   beforeEach(() => {
-    // realpath: process.cwd() reports the resolved path after a chdir.
     scanTree = realpathSync(makeTempDir('mandrel-dup-scan-'));
     procTree = realpathSync(makeTempDir('mandrel-dup-proc-'));
     writeTree(scanTree, {
@@ -59,8 +51,6 @@ describe('scanDuplication — cwd differs from process.cwd() (Story #5636)', () 
       'src/b.js': `${clonedSource(6)}\nexport const tail = 1;\n`,
       'src/__tests__/t.js': clonedSource(6),
     });
-    // Same relative paths, divergent contents, plus a clone pair the scan
-    // tree does not hold.
     writeTree(procTree, {
       'src/a.js': `${clonedSource(3, 'P')}\n${'// pad\n'.repeat(40)}`,
       'src/b.js': 'export const lonely = 1;\n',
