@@ -5,7 +5,7 @@
 
 import path from 'node:path';
 
-export const LOCAL_AGENTRC = '.agentrc.local.json';
+const LOCAL_AGENTRC = '.agentrc.local.json';
 
 function isPlainObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
