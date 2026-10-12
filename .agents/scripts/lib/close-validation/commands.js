@@ -61,10 +61,7 @@ export function resolveTypecheckCommand(config) {
 }
 
 /**
- * True only when `project.commands.typecheck` is own-present and explicitly
- * `null` — the documented "no type layer" value. `getCommands` collapses an
- * absent key and `null` to the same default, so this reads the raw object; an
- * absent key or a malformed config keeps the `npm run typecheck` fallback.
+ * Own-present explicit `null` only: `getCommands` collapses absent and `null`.
  *
  * @param {{ project?: { commands?: object } } | null | undefined} config
  * @returns {boolean}

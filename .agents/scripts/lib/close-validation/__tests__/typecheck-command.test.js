@@ -1,16 +1,7 @@
 /**
  * Story #5637 — an explicit `project.commands.typecheck: null` disables the
- * close `typecheck` gate as a reported skip, never an `npm run typecheck`
- * fallback that fails in a repo with no such script.
- *
- * Pins, through the public seams only: the resolver's own-key `null` probe;
- * the `typecheck` gate `buildDefaultGates` registers (pre-decided skip when
- * disabled, `npm run typecheck` argv when absent or malformed, the configured
- * string when set); and that `runCloseValidation` spawns nothing for the
- * disabled gate and reports it as skipped with reason `typecheck-disabled`.
- *
- * Tier: unit. Every git / evidence / projection seam is injected; nothing
- * spawns a process or writes under temp/.
+ * close `typecheck` gate as a reported skip; absent or malformed config keeps
+ * the `npm run typecheck` fallback. Tier: unit, every seam injected.
  */
 
 import assert from 'node:assert/strict';
