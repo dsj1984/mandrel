@@ -12735,51 +12735,38 @@
     {
       "path": ".agents/scripts/lib/config-resolver.js",
       "method": "applyGithubDefaults",
-      "startLine": 61,
+      "startLine": 65,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/config-resolver.js",
       "method": "applyCommandsDefaults",
-      "startLine": 74,
+      "startLine": 78,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config-resolver.js",
       "method": "applyDeliveryDefaults",
-      "startLine": 82,
+      "startLine": 86,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config-resolver.js",
-      "method": "deepMergeObjects",
-      "startLine": 101,
-      "crap": 13.400592592592592
-    },
-    {
-      "path": ".agents/scripts/lib/config-resolver.js",
       "method": "readJsonConfigFile",
-      "startLine": 133,
+      "startLine": 98,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config-resolver.js",
       "method": "applyDefaults",
-      "startLine": 150,
+      "startLine": 115,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/config-resolver.js",
       "method": "resolveConfig",
-      "startLine": 181,
-      "crap": 14
-    },
-    {
-      "path": ".agents/scripts/lib/config-resolver.js",
-      "method": "<anon resolveConfig/(e)#0>",
-      "startLine": 235,
-      "crap": 2,
-      "anonymous": true
+      "startLine": 146,
+      "crap": 13
     },
     {
       "path": ".agents/scripts/lib/config/acceptance-eval.js",
@@ -12829,6 +12816,55 @@
       "method": "resolveStoryWorkerModel",
       "startLine": 102,
       "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/config/agentrc-overlay.js",
+      "method": "isPlainObject",
+      "startLine": 10,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/config/agentrc-overlay.js",
+      "method": "deepMergeObjects",
+      "startLine": 22,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/config/agentrc-overlay.js",
+      "method": "mergeValue",
+      "startLine": 32,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/config/agentrc-overlay.js",
+      "method": "applyLocalOverlay",
+      "startLine": 46,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/config/agentrc-overlay.js",
+      "method": "parseOverlay",
+      "startLine": 55,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/config/agentrc-overlay.js",
+      "method": "isMissingOperatorHandle",
+      "startLine": 69,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/config/agentrc-overlay.js",
+      "method": "formatAgentrcErrors",
+      "startLine": 84,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/config/agentrc-overlay.js",
+      "method": "<anon formatAgentrcErrors/(e)#0>",
+      "startLine": 85,
+      "crap": 3,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/config/baselines.js",
@@ -13181,45 +13217,50 @@
     {
       "path": ".agents/scripts/lib/config/sync-agentrc.js",
       "method": "syncAgentrc",
-      "startLine": 41,
-      "crap": 4
+      "startLine": 45,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/config/sync-agentrc.js",
-      "method": "<anon syncAgentrc/(e)#0>",
-      "startLine": 75,
-      "crap": 2,
-      "anonymous": true
+      "method": "invalidResult",
+      "startLine": 105,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/sync-agentrc.js",
       "method": "collectRedundantAdvisories",
-      "startLine": 106,
+      "startLine": 125,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/config/sync-agentrc.js",
       "method": "isLeafSchemaRemovable",
-      "startLine": 137,
+      "startLine": 156,
       "crap": 11
     },
     {
       "path": ".agents/scripts/lib/config/sync-agentrc.js",
       "method": "formatSyncReport",
-      "startLine": 163,
+      "startLine": 182,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/config/sync-agentrc.js",
       "method": "<anon formatSyncReport/(c)#0>",
-      "startLine": 175,
+      "startLine": 194,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/config/sync-agentrc.js",
+      "method": "overlayNote",
+      "startLine": 209,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/config/sync-agentrc.js",
       "method": "previewValue",
-      "startLine": 193,
+      "startLine": 213,
       "crap": 3.072
     },
     {
@@ -37466,25 +37507,25 @@
     {
       "path": ".agents/scripts/sync-agentrc.js",
       "method": "parseArgs",
-      "startLine": 27,
+      "startLine": 29,
       "crap": 5
     },
     {
       "path": ".agents/scripts/sync-agentrc.js",
       "method": "main",
-      "startLine": 40,
+      "startLine": 42,
       "crap": 5
     },
     {
       "path": ".agents/scripts/sync-agentrc.js",
       "method": "trimAdvisories",
-      "startLine": 54,
+      "startLine": 56,
       "crap": 1
     },
     {
       "path": ".agents/scripts/sync-agentrc.js",
       "method": "<anon trimAdvisories/(line)#0>",
-      "startLine": 57,
+      "startLine": 59,
       "crap": 1,
       "anonymous": true
     },
