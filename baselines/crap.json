@@ -7946,9 +7946,35 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
+      "method": "toGlobPath",
+      "startLine": 152,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
       "method": "scanDuplication",
       "startLine": 163,
       "crap": 5.014467592592593
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
+      "method": "anchorIgnoreGlobs",
+      "startLine": 166,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
+      "method": "<anon anchorIgnoreGlobs/(glob)#0>",
+      "startLine": 168,
+      "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
+      "method": "<anon scanDuplication/(dir)#0>",
+      "startLine": 201,
+      "crap": 1.0005787037037037,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
