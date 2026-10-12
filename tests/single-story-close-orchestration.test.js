@@ -822,6 +822,103 @@ describe('runSingleStoryClose orchestration', () => {
     assert.equal(terminal.status, 'landed');
   });
 
+  // A first close blocked (`agent::blocked`), then auto-merge landed the PR
+  // and the footer closed the issue: the re-run must finish the lifecycle.
+  async function runClosedCompleted(t, { label, prRows, updateThrows, tag }) {
+    const ghCalls = [];
+    const gh = makeFakeGh((args) => {
+      ghCalls.push(args.slice());
+      if (args[1] === 'list') return prRows;
+      throw new Error(`unexpected gh call: ${args.join(' ')}`);
+    });
+    t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
+    mockCloseValidation(t, defaultCloseValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
+
+    const { runSingleStoryClose } = await import(`${SUT_URL}?t=${tag}`);
+    const provider = makeFakeProvider({
+      initialStory: {
+        id: 1234,
+        state: 'closed',
+        stateReason: 'completed',
+        title: 'Landed after a block',
+        labels: ['type::story', label],
+      },
+      updateThrows,
+    });
+    const outcome = await runSingleStoryClose({
+      storyId: 1234,
+      cwd: '/repo',
+      skipValidation: true,
+      skipSync: true,
+      noWaitForMerge: true,
+      injectedProvider: provider,
+      injectedConfig: fakeConfig(),
+      injectedRunCodeReview: noopReview(),
+      injectedGh: gh,
+      injectedNotify: async () => {},
+      injectedSleep: async () => {},
+    });
+    return { ...outcome, provider, ghCalls };
+  }
+
+  const MERGED_ROWS = [
+    {
+      url: 'https://github.com/owner/repo/pull/77',
+      state: 'MERGED',
+      mergedAt: '2026-10-12T00:00:00Z',
+    },
+  ];
+
+  it("reconciles a stale agent::blocked to agent::done when the closed Story's PR merged", async (t) => {
+    const { success, terminal, provider, ghCalls } = await runClosedCompleted(
+      t,
+      { label: 'agent::blocked', prRows: MERGED_ROWS, tag: 'noop-reconcile' },
+    );
+
+    assert.equal(success, true);
+    assert.equal(terminal.status, 'landed');
+    assert.deepEqual(ghCalls[0].slice(0, 4), [
+      'pr',
+      'list',
+      '--head',
+      'story-1234',
+    ]);
+    const labelWrites = provider._updates().filter((u) => u.patch.labels);
+    assert.equal(labelWrites.length, 1);
+    assert.ok(labelWrites[0].patch.labels.add.includes('agent::done'));
+    assert.ok(labelWrites[0].patch.labels.remove.includes('agent::blocked'));
+  });
+
+  it('leaves labels alone for a Story closed as completed with no merged PR', async (t) => {
+    const { success, terminal, provider } = await runClosedCompleted(t, {
+      label: 'agent::blocked',
+      prRows: [],
+      tag: 'noop-no-merged-pr',
+    });
+
+    assert.equal(success, true);
+    assert.equal(terminal.status, 'landed');
+    assert.equal(
+      provider._updates().length,
+      0,
+      'no label flip without a merge',
+    );
+  });
+
+  it('still reports landed when the agent::done reconcile write fails', async (t) => {
+    const { success, terminal, provider } = await runClosedCompleted(t, {
+      label: 'agent::closing',
+      prRows: MERGED_ROWS,
+      updateThrows: true,
+      tag: 'noop-reconcile-throws',
+    });
+
+    assert.equal(success, true);
+    assert.equal(terminal.status, 'landed');
+    assert.ok(provider._updates().length > 0, 'the write was attempted');
+  });
+
   // `duplicate` is what /mandrel-plan's supersede writes (Story #5565); a
   // superseded Story can itself be a source ticket.
   for (const stateReason of ['not_planned', 'duplicate']) {
