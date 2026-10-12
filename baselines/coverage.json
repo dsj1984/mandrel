@@ -1030,8 +1030,8 @@
     },
     {
       "path": ".agents/scripts/lib/config-resolver.js",
-      "lines": 96.43,
-      "branches": 87.3,
+      "lines": 96.74,
+      "branches": 96.23,
       "functions": 100
     },
     {
@@ -1062,6 +1062,12 @@
       "path": ".agents/scripts/lib/config/agent-models.js",
       "lines": 100,
       "branches": 100,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/config/agentrc-overlay.js",
+      "lines": 100,
+      "branches": 88.46,
       "functions": 100
     },
     {
@@ -1210,8 +1216,8 @@
     },
     {
       "path": ".agents/scripts/lib/config/sync-agentrc.js",
-      "lines": 99.01,
-      "branches": 85.11,
+      "lines": 99.1,
+      "branches": 90,
       "functions": 100
     },
     {
@@ -3461,7 +3467,7 @@
     {
       "path": ".agents/scripts/sync-agentrc.js",
       "lines": 100,
-      "branches": 88.24,
+      "branches": 88.89,
       "functions": 100
     },
     {
