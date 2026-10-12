@@ -1,13 +1,16 @@
 /**
- * Read-only `.agentrc.json` reconciliation: validate against the schema
- * (never silently strip), never auto-fill defaults (the runtime layers them
- * at read time), and flag leaves equal to their default as `[REDUNDANT]`.
+ * Read-only `.agentrc.json` reconciliation: validate the effective config —
+ * `.agentrc.local.json` deep-merged over `.agentrc.json`, as the runtime
+ * resolver does — against the schema (never silently strip), never auto-fill
+ * defaults (the runtime layers them at read time), and flag committed leaves
+ * equal to their default as `[REDUNDANT]`.
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { AGENTRC_SCHEMA, getAgentrcValidator } from '../config-schema.js';
 import { deepEqual } from '../json-utils.js';
+import { applyLocalOverlay, formatAgentrcErrors } from './agentrc-overlay.js';
 import {
   getAgentrcDefaults,
   IDENTITY_PLACEHOLDER_PATHS,
@@ -29,6 +32,7 @@ import {
  * @property {SyncChange[]} changes
  * @property {string[]} errors
  * @property {string} configPath
+ * @property {string|null} [localPath] the merged `.agentrc.local.json`, if any
  * @property {boolean} wrote whether `.agentrc.json` was rewritten
  */
 
@@ -69,20 +73,23 @@ export function syncAgentrc(opts) {
     };
   }
 
-  const validate = getAgentrcValidator();
-  if (!validate(raw)) {
-    const errors = (validate.errors || []).map(
-      (e) => `${e.instancePath || '(root)'} ${e.message}`,
-    );
-    return {
-      status: 'invalid',
-      changes: [],
-      errors,
-      configPath,
-      wrote: false,
-    };
+  let overlay;
+  try {
+    overlay = applyLocalOverlay({ fsImpl, projectRoot, committed: raw });
+  } catch (err) {
+    return invalidResult(configPath, err.localPath, [err.message]);
   }
 
+  const validate = getAgentrcValidator();
+  if (!validate(overlay.effective)) {
+    return invalidResult(
+      configPath,
+      overlay.localPath,
+      formatAgentrcErrors(validate.errors),
+    );
+  }
+
+  // Advisories target the committed file only: the overlay is per-machine.
   const changes = collectRedundantAdvisories(raw, defaults);
 
   return {
@@ -90,6 +97,18 @@ export function syncAgentrc(opts) {
     changes,
     errors: [],
     configPath,
+    localPath: overlay.localPath,
+    wrote: false,
+  };
+}
+
+function invalidResult(configPath, localPath, errors) {
+  return {
+    status: 'invalid',
+    changes: [],
+    errors,
+    configPath,
+    localPath,
     wrote: false,
   };
 }
@@ -168,16 +187,13 @@ export function formatSyncReport(result) {
     return lines.join('\n');
   }
   if (result.status === 'invalid') {
-    lines.push('[sync-agentrc] ❌ Validation failed:');
+    lines.push(`[sync-agentrc] ❌ Validation failed${overlayNote(result)}:`);
     for (const err of result.errors) lines.push(`  - ${err}`);
     return lines.join('\n');
   }
   const redundant = result.changes.filter((c) => c.op === 'REDUNDANT');
-  if (redundant.length === 0) {
-    lines.push('[sync-agentrc] ✅ No changes required.');
-    return lines.join('\n');
-  }
-  lines.push('[sync-agentrc] ✅ No changes required.');
+  lines.push(`[sync-agentrc] ✅ No changes required${overlayNote(result)}.`);
+  if (redundant.length === 0) return lines.join('\n');
   lines.push(
     `[sync-agentrc] Advisories: ${redundant.length} project key(s) match framework defaults — informational only.`,
   );
@@ -188,6 +204,10 @@ export function formatSyncReport(result) {
     '[sync-agentrc] Redundant keys are safe to delete — the runtime layers framework defaults at read time.',
   );
   return lines.join('\n');
+}
+
+function overlayNote(result) {
+  return result.localPath ? ` (with overlay ${result.localPath})` : '';
 }
 
 function previewValue(value) {
