@@ -40,9 +40,9 @@
     },
     {
       "path": ".agents/scripts/boot-sweep.js",
-      "lines": 99.03,
-      "branches": 86.57,
-      "functions": 72.73
+      "lines": 99.12,
+      "branches": 89.04,
+      "functions": 76.92
     },
     {
       "path": ".agents/scripts/bootstrap.js",
@@ -2512,7 +2512,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/reconcile-done.js",
-      "lines": 93.65,
+      "lines": 100,
       "branches": 92.86,
       "functions": 100
     },
@@ -2892,6 +2892,12 @@
       "path": ".agents/scripts/lib/single-story-sweep/protection.js",
       "lines": 98.93,
       "branches": 80.95,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/reconcile-closing.js",
+      "lines": 94.38,
+      "branches": 82.61,
       "functions": 100
     },
     {
