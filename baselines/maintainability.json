@@ -420,7 +420,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
-      "mi": 92.1
+      "mi": 96.165
     },
     {
       "path": ".agents/scripts/lib/baselines/env-overrides.js",
