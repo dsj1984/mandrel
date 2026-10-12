@@ -592,6 +592,42 @@ your real handle, and the guards proceed. By contrast, `github.owner` / `repo`
 are **shared** repo identifiers (everyone targets the same `dsj1984/mandrel`)
 and stay committed with real values.
 
+#### Multi-operator repos
+
+When several developers run Mandrel against one repo, keep the committed
+`.agentrc.json` team-shared and put each operator's identity in their own
+`.agentrc.local.json`:
+
+| Key | Committed `.agentrc.json` | Per-operator `.agentrc.local.json` |
+| --- | --- | --- |
+| `github.owner` / `github.repo` | Real shared values | — |
+| `github.operatorHandle` | The `@[USERNAME]` placeholder | `"@your-handle"` |
+| `project.baseBranch` | The team's integration branch (omit only when it is `main`) | Your personal base branch, e.g. `"dev-<name>"`, when you do not work off the team branch |
+
+```json
+{
+  "project": { "baseBranch": "dev-your-name" },
+  "github": { "operatorHandle": "@your-handle" }
+}
+```
+
+Both the runtime resolver and `node .agents/scripts/sync-agentrc.js` (the
+`/mandrel-update` Step 3 check) validate the **merged** config, so a key
+supplied only by the overlay satisfies the schema on your machine.
+
+**Keep the placeholder committed.** CI runners and fresh clones have no
+`.agentrc.local.json`. If you drop `github.operatorHandle` from the committed
+file entirely, every overlay-less run, CI included, fails schema validation
+with `/github must have required property 'operatorHandle'`. The error names
+both remedies: set the handle in `.agentrc.local.json`, or keep `@[USERNAME]`
+committed. The placeholder names no real person, so the committed file never
+makes one developer the fallback identity for everyone else.
+
+**Commit a non-`main` integration branch.** `project.baseBranch` defaults to
+`main`. If the team integrates elsewhere, commit that branch to `.agentrc.json`.
+Otherwise a developer without an overlay silently seeds Story branches from,
+and opens PRs against, `main`.
+
 ### Adding a new top-level key (framework change)
 
 This is a framework-level change, not a project-level one. The path is:

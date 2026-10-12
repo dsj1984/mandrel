@@ -723,6 +723,10 @@
       "mi": 106.136
     },
     {
+      "path": ".agents/scripts/lib/config/agentrc-overlay.js",
+      "mi": 111.481
+    },
+    {
       "path": ".agents/scripts/lib/config/baselines.js",
       "mi": 111.856
     },

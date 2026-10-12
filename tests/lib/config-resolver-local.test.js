@@ -90,4 +90,24 @@ describe('config-resolver — .agentrc.local.json overlay (Story #3388)', () => 
       /\.agentrc\.local\.json.*overrides.*\.agentrc\.json/,
     );
   });
+  it('accepts github.operatorHandle supplied only by the overlay (Story #5649)', () => {
+    writeConfigs({
+      agentrc: { ...REQ, github: { owner: 'acme', repo: 'demo' } },
+      local: { github: { operatorHandle: '@octocat' } },
+    });
+
+    const config = resolveConfig({ bustCache: true, cwd: FIXTURE_ROOT });
+    assert.equal(config.github.operatorHandle, '@octocat');
+  });
+
+  it('names where to set a missing github.operatorHandle (Story #5649)', () => {
+    writeConfigs({
+      agentrc: { ...REQ, github: { owner: 'acme', repo: 'demo' } },
+    });
+
+    assert.throws(
+      () => resolveConfig({ bustCache: true, cwd: FIXTURE_ROOT }),
+      /operatorHandle.*\.agentrc\.local\.json.*@\[USERNAME\]/,
+    );
+  });
 });

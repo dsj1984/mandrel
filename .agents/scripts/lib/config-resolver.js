@@ -6,6 +6,10 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import {
+  deepMergeObjects,
+  formatAgentrcErrors,
+} from './config/agentrc-overlay.js';
 import { getCiDelivery } from './config/ci.js';
 import { getCommands } from './config/commands.js';
 import { getGitHub } from './config/github.js';
@@ -88,45 +92,6 @@ function applyDeliveryDefaults(rawDelivery) {
   // CI-aware delivery knobs resolve without operator opt-in.
   delivery.ci = getCiDelivery({ ci: delivery.ci });
   return delivery;
-}
-
-/**
- * Deep-merge plain objects for the `.agentrc.local.json` overlay. Arrays and
- * scalars from `override` replace the base value at that key.
- *
- * @param {unknown} base
- * @param {unknown} override
- * @returns {unknown}
- */
-function deepMergeObjects(base, override) {
-  if (
-    override === null ||
-    typeof override !== 'object' ||
-    Array.isArray(override)
-  ) {
-    return override;
-  }
-  if (base === null || typeof base !== 'object' || Array.isArray(base)) {
-    return { ...override };
-  }
-  const out = { ...base };
-  for (const key of Object.keys(override)) {
-    const baseVal = base[key];
-    const overrideVal = override[key];
-    if (
-      overrideVal !== null &&
-      typeof overrideVal === 'object' &&
-      !Array.isArray(overrideVal) &&
-      baseVal !== null &&
-      typeof baseVal === 'object' &&
-      !Array.isArray(baseVal)
-    ) {
-      out[key] = deepMergeObjects(baseVal, overrideVal);
-    } else {
-      out[key] = overrideVal;
-    }
-  }
-  return out;
 }
 
 /** @param {import('node:fs')} fsImpl */
@@ -231,9 +196,7 @@ export function resolveConfig(opts) {
   if (validate) {
     const validateAgentrc = getAgentrcValidator();
     if (!validateAgentrc(raw)) {
-      const details = (validateAgentrc.errors || [])
-        .map((e) => `${e.instancePath || '(root)'} ${e.message}`)
-        .join(', ');
+      const details = formatAgentrcErrors(validateAgentrc.errors).join(', ');
       throw new Error(`[config] Invalid .agentrc.json: ${details}`);
     }
   }

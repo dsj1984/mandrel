@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 
 /**
- * Validate `.agentrc.json` and flag leaves that restate a framework default.
+ * Validate `.agentrc.json` (with any `.agentrc.local.json` overlay merged in,
+ * as the runtime resolver does) and flag leaves that restate a framework
+ * default.
  * Never writes the file: defaults are layered at read time, so absent keys
  * need no filling. Flags and exit codes live in `USAGE`.
  */
@@ -14,13 +16,13 @@ import { Logger } from './lib/Logger.js';
 const USAGE = {
   invocation: 'node .agents/scripts/sync-agentrc.js [--cwd <path>] [--quiet]',
   summary:
-    'Validate `.agentrc.json` against the framework schema and report every project leaf that merely restates a framework default. Never writes the config.',
+    'Validate `.agentrc.json` — with any gitignored `.agentrc.local.json` deep-merged over it, as the runtime resolver does — against the framework schema, and report every committed leaf that merely restates a framework default. Never writes the config.',
   flags: [
     ['--cwd <path>', 'Project root (default: process cwd).'],
     ['--quiet', 'Suppress advisory rows; print only the status line.'],
   ],
   notes: [
-    'Exit codes:\n  0  config is valid (advisories may still appear)\n  1  config is missing, malformed, or fails schema validation',
+    'Exit codes:\n  0  config is valid (advisories may still appear)\n  1  `.agentrc.json` is missing, either file is malformed, or the merged config fails schema validation',
   ],
 };
 

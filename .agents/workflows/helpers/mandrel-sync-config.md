@@ -35,9 +35,10 @@ The reconciliation rules:
 
 | Scenario                                                  | Behavior                                                                                |
 | --------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| Project value validates against schema                    | **Preserve** unconditionally                                                            |
+| Merged config (`.agentrc.json` + `.agentrc.local.json`) validates | **Preserve** unconditionally                                                    |
 | Project value fails validation                            | **Abort** with a list of validation errors                                              |
-| Required key missing in project                           | **Abort via validator** — the schema catches it; the helper does not auto-fill         |
+| Required key missing from both files                      | **Abort via validator** — the schema catches it; the helper does not auto-fill         |
+| Required key supplied only by `.agentrc.local.json`       | **Valid** — the overlay is merged before validation, as the runtime resolver does      |
 | Optional key missing in project                           | **Leave absent** — the runtime resolves the framework default at read time              |
 | Project value deep-equals framework default               | **Emit `[REDUNDANT]` advisory** (informational only — the file is never modified)       |
 | Identity placeholder paths (`github.owner` / `repo` / …)  | **Never flagged** — they carry no usable framework default                              |
@@ -72,22 +73,28 @@ The script:
    override). When the file is missing, prints an error asking the
    operator to run `mandrel init` (new project) or
    `node .agents/scripts/bootstrap.js` (existing project) and exits 1.
-2. Validates the parsed config against the framework AJV schema
+2. When a gitignored `.agentrc.local.json` exists, deep-merges it over
+   `.agentrc.json` exactly as the runtime resolver does (a malformed overlay
+   is reported by name and exits 1). Per-operator identity such as
+   `github.operatorHandle` may therefore live in the overlay alone — see
+   [Multi-operator repos](../../docs/configuration.md#multi-operator-repos).
+3. Validates the merged config against the framework AJV schema
    (`getAgentrcValidator()`). On any failure, prints a single-line error
    list and exits 1 — the operator must fix the typo / missing required
-   key before re-running.
-3. Walks every default leaf path. For each path where the project
-   carries a value deep-equal to the framework default, prints a
-   `[REDUNDANT]` advisory row. Advisories are informational — the
+   key before re-running. A missing `github.operatorHandle` names where to
+   set it.
+4. Walks every default leaf path. For each path where the committed
+   `.agentrc.json` carries a value deep-equal to the framework default,
+   prints a `[REDUNDANT]` advisory row (overlay leaves are never flagged). Advisories are informational — the
    project file is never modified.
-4. Prints the summary line and exits 0.
+5. Prints the summary line and exits 0.
 
 ### Exit codes
 
 | Code | Meaning                                                                       |
 | ---- | ----------------------------------------------------------------------------- |
 | 0    | Config is valid (advisories may still appear)                                 |
-| 1    | Config is missing, malformed JSON, or fails schema validation                 |
+| 1    | `.agentrc.json` is missing, either file is malformed, or the merged config fails schema validation |
 
 ### Flags
 

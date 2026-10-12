@@ -341,3 +341,102 @@ describe('sync-agentrc CLI main — exit codes (Story #4842)', () => {
     assert.equal(main(['--cwd', root, '--bogus']), 1);
   });
 });
+
+describe('syncAgentrc — .agentrc.local.json overlay (Story #5649)', () => {
+  let root;
+  beforeEach(() => {
+    root = makeTmpProject();
+  });
+
+  function writeLocal(dir, body) {
+    const p = path.join(dir, '.agentrc.local.json');
+    writeFileSync(
+      p,
+      typeof body === 'string' ? body : JSON.stringify(body, null, 2),
+    );
+    return p;
+  }
+
+  function committedWithoutHandle() {
+    const starter = JSON.parse(readFileSync(STARTER_PATH, 'utf8'));
+    starter.github.owner = 'acme';
+    starter.github.repo = 'demo';
+    delete starter.github.operatorHandle;
+    return starter;
+  }
+
+  it('accepts operatorHandle supplied only by the local overlay', () => {
+    writeConfig(root, committedWithoutHandle());
+    const localPath = writeLocal(root, {
+      github: { operatorHandle: '@octocat' },
+    });
+    const result = syncAgentrc({ projectRoot: root });
+    assert.equal(result.status, 'noop');
+    assert.deepEqual(result.errors, []);
+    assert.equal(result.localPath, localPath);
+    assert.match(formatSyncReport(result), /with overlay/);
+    assert.equal(main(['--cwd', root]), 0);
+  });
+
+  it('fails closed with a remedy when neither file supplies operatorHandle', () => {
+    writeConfig(root, committedWithoutHandle());
+    const result = syncAgentrc({ projectRoot: root });
+    assert.equal(result.status, 'invalid');
+    assert.equal(result.localPath, null);
+    const joined = result.errors.join('\n');
+    assert.match(joined, /operatorHandle/);
+    assert.match(joined, /\.agentrc\.local\.json/);
+    assert.match(joined, /@\[USERNAME\]/);
+    assert.equal(main(['--cwd', root]), 1);
+  });
+
+  it('still fails closed when an overlay exists but omits operatorHandle', () => {
+    writeConfig(root, committedWithoutHandle());
+    writeLocal(root, { project: { baseBranch: 'dev-octocat' } });
+    const result = syncAgentrc({ projectRoot: root });
+    assert.equal(result.status, 'invalid');
+    assert.match(result.errors.join('\n'), /\.agentrc\.local\.json/);
+    assert.match(formatSyncReport(result), /with overlay/);
+  });
+
+  it('reports a malformed overlay by name', () => {
+    writeConfig(root, committedWithoutHandle());
+    writeLocal(root, '{ not json');
+    const result = syncAgentrc({ projectRoot: root });
+    assert.equal(result.status, 'invalid');
+    assert.match(result.errors[0], /\.agentrc\.local\.json/);
+    assert.equal(main(['--cwd', root]), 1);
+  });
+
+  it('rejects an overlay value that fails the schema even when the committed file validates', () => {
+    const committed = committedWithoutHandle();
+    committed.github.operatorHandle = '@octocat';
+    writeConfig(root, committed);
+    assert.equal(syncAgentrc({ projectRoot: root }).status, 'noop');
+    writeLocal(root, { project: { baseBranch: 42 } });
+    const result = syncAgentrc({ projectRoot: root });
+    assert.equal(result.status, 'invalid');
+    assert.match(result.errors.join('\n'), /baseBranch/);
+  });
+
+  it('flags only committed leaves as REDUNDANT, never overlay-only ones', () => {
+    const committed = committedWithoutHandle();
+    delete committed.project.baseBranch;
+    writeConfig(root, committed);
+    const before = readFileSync(path.join(root, '.agentrc.json'), 'utf8');
+    writeLocal(root, {
+      project: { baseBranch: 'main' },
+      github: { operatorHandle: '@octocat' },
+    });
+    const result = syncAgentrc({ projectRoot: root });
+    assert.equal(result.status, 'noop');
+    assert.ok(
+      !result.changes.some((c) => c.path === 'project.baseBranch'),
+      'overlay-only default-equal leaf must not be flagged',
+    );
+    assert.equal(
+      readFileSync(path.join(root, '.agentrc.json'), 'utf8'),
+      before,
+    );
+  });
+});
