@@ -216,17 +216,21 @@ async function runCaptureScopes({ crap, coverage, args, capture, deps }) {
   return await runFullScopeCapture(shared);
 }
 
+// Module-level so coverage sees them even when no test spawns the CLI.
+function exitWith(code) {
+  process.exit(code);
+}
+
+function exitOnUnexpectedError(err) {
+  Logger.error('[coverage-capture] unexpected error:', err);
+  process.exit(1);
+}
+
 // cli-opt-out: main resolves an exit code that is forwarded via process.exit(code); runAsCli's async-main signature does not preserve the result code.
 if (isDirectInvocation(import.meta.url)) {
   // `--help` must not reach the core, which would spawn the whole suite.
   (handleCoverageCaptureHelp(process.argv)
     ? Promise.resolve(0)
     : runCoverageCapture()
-  ).then(
-    (code) => process.exit(code),
-    (err) => {
-      Logger.error('[coverage-capture] unexpected error:', err);
-      process.exit(1);
-    },
-  );
+  ).then(exitWith, exitOnUnexpectedError);
 }
