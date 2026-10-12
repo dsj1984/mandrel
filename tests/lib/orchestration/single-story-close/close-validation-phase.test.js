@@ -354,6 +354,10 @@ describe('runCloseValidationPhase — gate output never forges lock figures (Sto
     const logged = [];
     const dir = makeTempDir('close-forged-lock-');
     t.after(() => nodeFs.rmSync(dir, { recursive: true, force: true }));
+    // A file, not `-e`: Windows spawns gates through a shell, which mangles a
+    // multi-line argument.
+    const scriptPath = path.join(dir, 'gate.cjs');
+    nodeFs.writeFileSync(scriptPath, script);
     const result = await runCloseValidationPhase({
       cwd: dir,
       worktreePath: null,
@@ -372,7 +376,7 @@ describe('runCloseValidationPhase — gate output never forges lock figures (Sto
           runProjections: async () => {},
         }),
       buildDefaultGates: () => [
-        { name: 'test', cmd: process.execPath, args: ['-e', script] },
+        { name: 'test', cmd: process.execPath, args: [scriptPath] },
       ],
       runPreGateSteps: async () => {},
     });
@@ -399,6 +403,8 @@ describe('runCloseValidationPhase — gate output never forges lock figures (Sto
     ].join('\n');
     const dir = makeTempDir('close-channel-gate-');
     t.after(() => nodeFs.rmSync(dir, { recursive: true, force: true }));
+    const scriptPath = path.join(dir, 'gate.cjs');
+    nodeFs.writeFileSync(scriptPath, script);
     const result = await runCloseValidationPhase({
       cwd: dir,
       worktreePath: null,
@@ -416,7 +422,7 @@ describe('runCloseValidationPhase — gate output never forges lock figures (Sto
         {
           name: 'coverage-capture',
           cmd: process.execPath,
-          args: ['-e', script],
+          args: [scriptPath],
           lockEventChannel: true,
         },
       ],
