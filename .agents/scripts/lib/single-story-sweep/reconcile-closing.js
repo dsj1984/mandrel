@@ -1,13 +1,7 @@
 /**
- * single-story-sweep/reconcile-closing.js — heal Stories GitHub closed while
- * still at `agent::closing`.
- *
- * Close arms auto-merge and only a live local process (close's merge wait or
- * `single-story-confirm-merge.js`) flips `agent::done`. When the PR merges
- * after that process is gone, the `Closes #<id>` footer closes the issue and
- * the label strands. The boot surfaces run on every delivery, so they finish
- * the flip here — through the close path's own `reconcileDoneLabel`, which
- * requires a MERGED `story-<id>` PR. Bounded per sweep; never throws.
+ * Only a live close flips `agent::done`; a PR that merges after it is gone
+ * closes the issue at `agent::closing`. Boot finishes the flip via
+ * `reconcileDoneLabel` (MERGED PR required). Bounded; never throws.
  */
 
 import { getStoryBranch } from '../git-utils.js';
@@ -17,10 +11,6 @@ import { reconcileDoneLabel as defaultReconcile } from '../orchestration/single-
 /** Candidates processed per sweep; a larger backlog drains across boots. */
 export const DEFAULT_RECONCILE_LIMIT = 10;
 
-/**
- * @param {{ labels?: string[] }} ticket
- * @returns {boolean} A Story still owed its `agent::done` flip.
- */
 function isStrandedStory(ticket) {
   const labels = Array.isArray(ticket?.labels) ? ticket.labels : [];
   return (
@@ -28,7 +18,6 @@ function isStrandedStory(ticket) {
   );
 }
 
-/** One candidate's outcome; a throw is an `error` outcome, never a rejection. */
 async function reconcileOne({ story, cwd, deps, logger, reconcileFn }) {
   try {
     return await reconcileFn(
@@ -49,21 +38,6 @@ async function reconcileOne({ story, cwd, deps, logger, reconcileFn }) {
   }
 }
 
-/**
- * @param {{
- *   provider: object,
- *   config: object,
- *   cwd: string,
- *   gh?: object,
- *   notify?: Function,
- *   sleep?: Function,
- *   logger?: { info?: Function, warn?: Function },
- *   limit?: number,
- *   reconcileFn?: typeof defaultReconcile,
- * }} args
- * @returns {Promise<{ ok: boolean, reconciled: number[],
- *   skipped: Array<{ storyId: number, reason: string }>, error?: string }>}
- */
 export async function reconcileStrandedClosing({
   provider,
   config,

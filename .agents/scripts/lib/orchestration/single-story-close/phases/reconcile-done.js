@@ -5,8 +5,7 @@
  * already-closed early return. With merge evidence on the Story branch, this
  * finishes the flip through the shared `agent::done` confirm. Best-effort —
  * the land already happened, so nothing here may change the `landed`
- * terminal; every failure is logged and swallowed. The boot sweep reuses it
- * for Stories GitHub closed while their close process was gone.
+ * terminal; every failure is logged and swallowed.
  */
 
 import { gh as defaultGh } from '../../../gh-exec.js';
@@ -25,9 +24,8 @@ const UNLANDED_CLOSE_REASONS = new Set(['not_planned', 'duplicate']);
  * @param {{ provider: object, config: object, gh?: object,
  *   notify?: Function, sleep?: Function }} deps
  * @param {(tag: string, msg: string) => void} progress
- * @returns {Promise<string>} `skipped`, `no-merged-pr`, `error`, or the
- *   `confirmStoryMerged` action (`done` / `noop` / `flip-failed`); the close
- *   path ignores it, the boot sweep reports it.
+ * @returns {Promise<string>} `skipped` | `no-merged-pr` | `error` | the
+ *   `confirmStoryMerged` action.
  */
 export async function reconcileDoneLabel(ctx, deps, progress) {
   const { storyId, story, storyBranch } = ctx;

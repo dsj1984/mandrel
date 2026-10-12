@@ -12,9 +12,8 @@
  * trees whose Story is closed or `agent::done` are removed; an open Story's
  * tree and the tree this process runs from are never touched.
  *
- * Then it reconciles closed Stories stranded at `agent::closing` (PR merged
- * after the close process was gone) to `agent::done`
- * (`reconcileStrandedClosing`); the outcome lands under `closingReconcile`.
+ * Then it flips closed Stories stranded at `agent::closing` to
+ * `agent::done` (`closingReconcile`).
  *
  * `content-merged` branches (merge-tree equivalence — no merge check ever
  * validated their exact diff) are never reaped here, only reported for
