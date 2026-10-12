@@ -499,6 +499,32 @@ describe('reconcileStrandedClosing (Story #5652)', () => {
     assert.deepEqual(out, { ok: true, reconciled: [], skipped: [] });
   });
 
+  it('runBootSweep writes agent::done end-to-end and reports it on the envelope', async () => {
+    const provider = fakeProvider([story(4549)]);
+    const gh = fakeGh({ 'story-4549': merged(4558) });
+    const result = await runBootSweep({
+      cwd: '/repo',
+      ...NO_WORKTREE_SWEEP,
+      injectedConfig: config(),
+      injectedProvider: provider,
+      injectedSweep: async () => ({ ok: true, reaped: [] }),
+      purgeFn: async () => ({ purged: [] }),
+      // Only the gh/notify/sleep seams are pinned; the reconcile is real.
+      closingReconcileFn: (args) =>
+        reconcileStrandedClosing({
+          ...args,
+          gh,
+          notify: async () => {},
+          sleep: async () => {},
+        }),
+      logger: quiet,
+    });
+    assert.deepEqual(result.closingReconcile.reconciled, [4549]);
+    const labelWrites = provider.updates.filter((u) => u.patch.labels);
+    assert.equal(labelWrites.length, 1);
+    assert.ok(labelWrites[0].patch.labels.add.includes('agent::done'));
+  });
+
   it('processes at most the cap per sweep (default 10)', async () => {
     const closed = Array.from({ length: 15 }, (_, i) => story(100 + i));
     const seen = [];
