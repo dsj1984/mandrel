@@ -249,7 +249,9 @@ describe('scanDuplication() — injected detect + readLineCount seams', () => {
       readLineCount,
     });
     // detect received the configured target dirs + a silent/no-reporter scan.
-    assert.deepEqual(detectCalls[0].path, ['src']);
+    assert.deepEqual(detectCalls[0].path, [
+      path.resolve(REPO_ROOT, 'src').split(path.sep).join('/'),
+    ]);
     assert.equal(detectCalls[0].silent, true);
     assert.deepEqual(detectCalls[0].reporters, []);
     const a = rows.find((r) => r.path === 'src/a.js');

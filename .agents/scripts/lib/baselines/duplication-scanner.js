@@ -149,6 +149,40 @@ export function readLineCount(absPath) {
 }
 
 /**
+ * fast-glob reads a backslash as an escape, so a Windows absolute path must reach
+ * jscpd with POSIX separators to match anything.
+ *
+ * @param {string} p
+ * @returns {string}
+ */
+function toGlobPath(p) {
+  return p.split(path.sep).join('/');
+}
+
+/**
+ * jscpd 4's finder globs with `cwd: process.cwd()` and ignores its `cwd`
+ * option, so a repo-relative ignore glob only ever matches the process tree.
+ * Anchor each one at `cwd`; absolute and `**\/`-prefixed globs pass through,
+ * as jscpd itself treats them.
+ *
+ * @param {unknown} ignoreGlobs
+ * @param {string} cwd
+ * @returns {string[]}
+ */
+function anchorIgnoreGlobs(ignoreGlobs, cwd) {
+  if (!Array.isArray(ignoreGlobs)) return [];
+  return ignoreGlobs.map((glob) =>
+    path.isAbsolute(glob) || glob.startsWith('**/')
+      ? glob
+      : toGlobPath(path.resolve(cwd, glob)),
+  );
+}
+
+/**
+ * Target dirs and relative ignore globs are resolved against `cwd` before
+ * jscpd sees them, so clones and line counts both come from the `cwd` tree
+ * whatever `process.cwd()` is.
+ *
  * @param {{
  *   targetDirs: string[],
  *   cwd?: string,
@@ -174,14 +208,14 @@ export async function scanDuplication({
   }
   const dirs = Array.isArray(targetDirs) ? targetDirs : [];
   const clones = await detect({
-    path: dirs,
+    path: dirs.map((dir) => toGlobPath(path.resolve(cwd, dir))),
     cwd,
     silent: true,
     gitignore: false,
     reporters: [],
     format: formats,
     minTokens,
-    ignore: Array.isArray(ignoreGlobs) ? ignoreGlobs : [],
+    ignore: anchorIgnoreGlobs(ignoreGlobs, cwd),
   });
   const visited = collectVisitedFiles(clones, cwd);
   const fileLineCounts = new Map();
