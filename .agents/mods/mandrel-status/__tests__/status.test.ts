@@ -25,6 +25,7 @@ type World = {
   dirs: Map<string, number>;
   toasts: string[];
   opened: string[];
+  copied: string[];
 };
 
 const parentOf = (path: string): string =>
@@ -40,6 +41,7 @@ function world(on: On) {
     dirs: new Map(),
     toasts: [],
     opened: [],
+    copied: [],
   };
   const missing = (path: string) => ({ deny: `ENOENT: ${path}` });
   on('fs.exists', (_$, e) => ({
@@ -88,6 +90,10 @@ function world(on: On) {
   on('ui.toast', (_$, e) => {
     state.toasts.push(e.text);
     return { value: undefined };
+  });
+  on('ui.copy', (_$, e) => {
+    state.copied.push(e.text);
+    return { value: { isCopied: true } };
   });
   on('ui.open', (_$, e) => {
     state.opened.push(e.id);
@@ -222,20 +228,49 @@ const textOf = async (
 ): Promise<string | undefined> =>
   (await ui.find({ type: 'Text', text: pattern }))?.text;
 
+const pane = ($: Engine) =>
+  $.ui.mount({
+    plugin: 'mandrel-status',
+    surface: 'terminal',
+    component: 'Pane',
+    requestId: 'mandrel-status',
+    props: {
+      title: 'mandrel-status',
+      isFocused: false,
+      bodyColumns: 100,
+      placement: 'inline',
+      scroll: { offset: 0, bodyRows: 40 },
+      view: {},
+    },
+  });
+
+const textsOf = async (
+  ui: Awaited<ReturnType<typeof band>>,
+): Promise<string[]> =>
+  (await ui.findAll({ type: 'Text' })).map((one) => one.text ?? '');
+
 type W = ReturnType<typeof world>;
 
+/** Close-validation medians of 60/90/120s, and a Story 2 minutes into it. */
+function slowCloseStory(w: W) {
+  w.dir('.agents');
+  [60, 90, 120].forEach((seconds, index) => {
+    w.envelope(5530 + index, 'landed', NOW - 5 * HOUR, {
+      phaseDurations: { 'close-validation': seconds, 'confirm-merge': 400 },
+    });
+  });
+  w.init(5544);
+  w.json(`${ORCH}/story-handoff-5544.json`, {}, NOW - 2 * MINUTE);
+  w.file(`${ORCH}/close-gates-5544.log`, '[test] running', NOW);
+  w.worktree(5544);
+}
+
 /** Stage fixtures, each adding the evidence of one stage over the previous. */
-const STAGE_CASES: {
-  name: string;
-  build: (w: W) => void;
-  strip: RegExp;
-  detail: RegExp;
-}[] = [
+const STAGE_CASES: { name: string; build: (w: W) => void; line: RegExp }[] = [
   {
     name: 'start: the init log alone',
     build: (w) => w.init(5544),
-    strip: /^● start ─ ○ build ─ ○ check ─ ○ handoff ─ ○ close ─ ○ merge/,
-    detail: /· initialized ·/,
+    line: /^● #5544 Band v2 {3}▰▱▱▱▱▱ start {3}30:00$/,
   },
   {
     name: 'build: reflog commits',
@@ -246,8 +281,7 @@ const STAGE_CASES: {
         { subject: 'test: cover the strip', at: NOW - 15 * MINUTE },
       ]);
     },
-    strip: /^✓ start ─ ● build ─ ○ check/,
-    detail: /2 commits · test: cover the strip/,
+    line: /^● #5544 Band v2 {3}▰▰▱▱▱▱ build · 2 commits {3}20:00$/,
   },
   {
     name: 'check: the highest verdict round',
@@ -257,8 +291,7 @@ const STAGE_CASES: {
       w.verdict(5544, 1, ['met', 'unmet', 'unmet', 'met'], NOW - 12 * MINUTE);
       w.verdict(5544, 2, ['met', 'met', 'partial', 'met'], NOW - 10 * MINUTE);
     },
-    strip: /^✓ start ─ ✓ build ─ ● check ─ ○ handoff/,
-    detail: /round 2 · 3\/4 met/,
+    line: /▰▰▰▱▱▱ check · round 2 · 3\/4 met {3}12:00$/,
   },
   {
     name: 'handoff: the newest step log',
@@ -268,8 +301,7 @@ const STAGE_CASES: {
       w.step(5544, 'preflight-lint', NOW - 8 * MINUTE);
       w.step(5544, 'credited-run', NOW - 5 * MINUTE);
     },
-    strip: /^✓ start ─ ✓ build ─ ✓ check ─ ● handoff ─ ○ close/,
-    detail: /step credited-run/,
+    line: /▰▰▰▰▱▱ handoff · credited-run {3}8:00$/,
   },
   {
     name: 'close: the gate log’s last prefix',
@@ -283,8 +315,7 @@ const STAGE_CASES: {
         NOW - 30 * SECOND,
       );
     },
-    strip: /^✓ start ─ ✓ build ─ ✓ check ─ ✓ handoff ─ ● close ─ ○ merge/,
-    detail: /gate lint/,
+    line: /▰▰▰▰▰▱ close · gate lint {3}7:00$/,
   },
   {
     name: 'merge: a progress file in confirm-merge',
@@ -306,8 +337,7 @@ const STAGE_CASES: {
         NOW - MINUTE,
       );
     },
-    strip: /^✓ start ─ ✓ build ─ ✓ check ─ ✓ handoff ─ ✓ close ─ ● merge/,
-    detail: /PR #5560 · confirm-merge · 2m0s/,
+    line: /▰▰▰▰▰▰ merge · PR #5560 · confirm-merge {3}2:00$/,
   },
   {
     name: 'merge: a pending terminal envelope',
@@ -317,14 +347,13 @@ const STAGE_CASES: {
         nextCommand: 'node .agents/scripts/single-story-close.js --story 5544',
       });
     },
-    strip: /● merge/,
-    detail: /PR #5545 · waiting on merge · pending/,
+    line: /▰▰▰▰▰▰ merge · PR #5545 · waiting on merge {3}pending$/,
   },
 ];
 
 describe('mandrel-status band', () => {
   for (const one of STAGE_CASES) {
-    test(`marks the stage and its detail — ${one.name}`, async ($, on) => {
+    test(`a healthy Story is one line with its meter and step — ${one.name}`, async ($, on) => {
       const w = world(on);
       w.dir('.agents');
       one.build(w);
@@ -332,10 +361,12 @@ describe('mandrel-status band', () => {
       await start($);
       for (const surface of SURFACES) {
         const ui = await band($, surface);
-        expect(await textOf(ui, /^mandrel · #5544 Band v2/)).toBeDefined();
-        const second = await textOf(ui, one.strip);
-        expect(second, `${surface}: strip`).toBeDefined();
-        expect(second).toMatch(one.detail);
+        const texts = await textsOf(ui);
+        expect(texts, `${surface}: one line`).toHaveLength(1);
+        expect(texts[0]).toMatch(one.line);
+        expect(texts[0]).not.toMatch(/mandrel ·| ─ /);
+        const line = await ui.find({ type: 'Text', text: one.line });
+        expect(line?.props.color).toBeUndefined();
       }
     });
   }
@@ -349,9 +380,7 @@ describe('mandrel-status band', () => {
     w.worktree(5544);
     await start($);
     const ui = await band($, 'terminal');
-    expect(
-      await textOf(ui, /● build ─ .* · 1 commit · fix: redraft/),
-    ).toBeDefined();
+    expect(await textOf(ui, /▰▰▱▱▱▱ build · 1 commit /)).toBeDefined();
   });
 
   test('a session in a linked worktree reads the main checkout', async ($, on) => {
@@ -361,40 +390,36 @@ describe('mandrel-status band', () => {
     w.dir('main/.worktrees/story-5544', NOW - 5 * MINUTE);
     await start($);
     const ui = await band($, 'terminal');
-    expect(await textOf(ui, /mandrel · #5544/)).toBeDefined();
+    expect(await textOf(ui, /^● #5544/)).toBeDefined();
   });
 
-  test('learned medians give an ETA, and turn the band yellow past twice the usual', async ($, on) => {
+  test('time shows against the usual; past twice the usual the band turns yellow and says why, once', async ($, on) => {
     const w = world(on);
-    w.dir('.agents');
-    [60, 90, 120].forEach((seconds, index) => {
-      w.envelope(5530 + index, 'landed', NOW - 5 * HOUR, {
-        phaseDurations: { 'close-validation': seconds, 'confirm-merge': 400 },
-      });
-    });
-    w.init(5544);
-    w.json(`${ORCH}/story-handoff-5544.json`, {}, NOW - 2 * MINUTE);
-    w.file(`${ORCH}/close-gates-5544.log`, '[test] running', NOW);
-    w.worktree(5544);
+    slowCloseStory(w);
     await start($);
     let ui = await band($, 'terminal');
     const calm = await ui.find({
       type: 'Text',
-      text: /gate test · 2m0s of usual ~1m30s/,
+      text: /▰▰▰▰▰▱ close · gate test {3}2:00 \/ ~1:30$/,
     });
-    expect(calm).toBeDefined();
     expect(calm?.props.color).toBeUndefined();
-    expect(await textOf(ui, /stalled/)).toBeUndefined();
+    expect(await textsOf(ui)).toHaveLength(1);
     await w.clock.advance(90 * SECOND);
     ui = await band($, 'terminal');
-    const stalled = await ui.find({
+    const head = await ui.find({
       type: 'Text',
-      text: /3m30s of usual ~1m30s · stalled\?/,
+      text: /^▲ #5544 Band v2 {3}▰▰▰▰▰▱ close · gate test {3}3:30 \/ ~1:30$/,
     });
-    expect(stalled?.props.color).toBe('yellow');
-    expect(
-      (await ui.find({ type: 'Text', text: /^mandrel · #5544/ }))?.props.color,
-    ).toBe('yellow');
+    expect(head?.props.color).toBe('yellow');
+    const why = await ui.find({
+      type: 'Text',
+      text: '↳ 2.3× usual · gate log quiet 1m · last gate test',
+    });
+    expect(why?.props.color).toBe('yellow');
+    await w.clock.advance(45 * SECOND);
+    expect(w.state.toasts).toEqual([
+      'Story #5544 is slow: close-validation 3:15 of usual ~1:30',
+    ]);
   });
 
   test('with fewer than three samples the 10-minute gate-log rule governs', async ($, on) => {
@@ -407,55 +432,113 @@ describe('mandrel-status band', () => {
     w.worktree(5544);
     await start($);
     const ui = await band($, 'desktop');
-    expect(await textOf(ui, /of usual/)).toBeUndefined();
+    expect(await textOf(ui, / \/ ~/)).toBeUndefined();
     const line = await ui.find({
       type: 'Text',
-      text: /stalled\? no gate output for 11m/,
+      text: '↳ gate log quiet 11m · last gate test',
     });
     expect(line?.props.color).toBe('yellow');
   });
 
-  test('a blocked result renders red with its class and the next command', async ($, on) => {
+  test('a blocked result needs you: magenta, the resume command, and Copy', async ($, on) => {
     const w = world(on);
     w.dir('.agents');
     w.init(5544, NOW - HOUR);
+    const resume = 'node .agents/scripts/single-story-close.js --story 5544';
     w.envelope(5544, 'blocked', NOW - MINUTE, {
       blocked: { blockClass: 'checks-failed', reason: 'CI red' },
-      nextCommand: 'node .agents/scripts/single-story-close.js --story 5544',
+      nextCommand: resume,
     });
     await start($);
     for (const surface of SURFACES) {
       const ui = await band($, surface);
       const head = await ui.find({
         type: 'Text',
-        text: /^✗ mandrel · #5544 Band v2 · blocked: checks-failed · PR #5545/,
+        text: /^◆ #5544 Band v2 {3}needs you at start · checks-failed$/,
       });
-      expect(head?.props.color).toBe('red');
-      const next = await ui.find({
-        type: 'Text',
-        text: 'next: node .agents/scripts/single-story-close.js --story 5544',
-      });
-      expect(next?.props.color).toBe('red');
-      expect(await textOf(ui, /● /)).toBeUndefined();
+      expect(head?.props.color).toBe('magenta');
+      const next = await ui.find({ type: 'Text', text: `↳ ${resume}` });
+      expect(next?.props.color).toBe('magenta');
     }
+    const ui = await band($, 'terminal');
+    await ui.press({ key: 'copy' });
+    expect(w.state.copied).toEqual([resume]);
   });
 
-  test('a failed result carries its reason', async ($, on) => {
+  test('blocked at check names the unmet acceptance ids', async ($, on) => {
     const w = world(on);
     w.dir('.agents');
-    w.envelope(5544, 'failed', NOW - MINUTE, {
-      failure: { reason: 'push rejected' },
+    w.init(5544, NOW - HOUR);
+    w.verdict(
+      5544,
+      2,
+      ['met', 'met', 'unmet', 'met', 'partial', 'met'],
+      NOW - 5 * MINUTE,
+    );
+    w.envelope(5544, 'blocked', NOW - MINUTE, {
+      blocked: { blockClass: 'acceptance-unmet' },
       nextCommand: 'node .agents/scripts/deliver-recover.js --story 5544',
     });
     await start($);
     const ui = await band($, 'terminal');
-    expect(await textOf(ui, /failed: push rejected/)).toBeDefined();
     expect(
-      await textOf(ui, /^next: node .agents\/scripts\/deliver-recover.js/),
+      await textOf(ui, /needs you at check · acceptance-unmet$/),
+    ).toBeDefined();
+    expect(
+      await textOf(
+        ui,
+        /^↳ node .agents\/scripts\/deliver-recover.js --story 5544 {3}AC-3, AC-5$/,
+      ),
     ).toBeDefined();
   });
 
-  test('a landed result collapses to one green line', async ($, on) => {
+  for (const status of ['failed', 'escalated']) {
+    test(`a ${status} result renders red as failed with its next command`, async ($, on) => {
+      const w = world(on);
+      w.dir('.agents');
+      w.envelope(5544, status, NOW - MINUTE, {
+        failure: { reason: 'push rejected' },
+        nextCommand: 'node .agents/scripts/deliver-recover.js --story 5544',
+      });
+      await start($);
+      const ui = await band($, 'terminal');
+      const head = await ui.find({
+        type: 'Text',
+        text: /^✗ #5544 {3}failed at start · push rejected$/,
+      });
+      expect(head?.props.color).toBe('red');
+      const next = await ui.find({
+        type: 'Text',
+        text: /^↳ node .agents\/scripts\/deliver-recover.js/,
+      });
+      expect(next?.props.color).toBe('red');
+    });
+  }
+
+  test('red PR checks while merging render red with an Open PR link', async ($, on) => {
+    const w = world(on);
+    w.dir('.agents');
+    w.json('.agentrc.json', { github: { owner: 'acme', repo: 'widgets' } });
+    w.init(5544);
+    w.envelope(5544, 'pending', NOW - MINUTE, {
+      pr: { number: 5545, checksStatus: 'failure' },
+    });
+    await start($);
+    const ui = await band($, 'terminal');
+    const head = await ui.find({
+      type: 'Text',
+      text: /▰▰▰▰▰▰ merge · PR #5545 · checks failing/,
+    });
+    expect(head?.props.color).toBe('red');
+    expect(
+      (await ui.find({ type: 'Text', text: '↳ PR #5545 checks failing' }))
+        ?.props.color,
+    ).toBe('red');
+    const link = await ui.find({ type: 'Link' });
+    expect(link?.props.href).toBe('https://github.com/acme/widgets/pull/5545');
+  });
+
+  test('a landed result is one green line for 10 minutes, then the band clears', async ($, on) => {
     const w = world(on);
     w.dir('.agents');
     w.init(5540, NOW - HOUR);
@@ -470,17 +553,21 @@ describe('mandrel-status band', () => {
       const ui = await band($, surface);
       const line = await ui.find({
         type: 'Text',
-        text: /^✓ mandrel · #5540 Band v2 · landed in 5m39s · PR #5541 · 2 follow-ups$/,
+        text: /^✓ #5540 Band v2 {3}landed in 5:39 · PR #5541 · 2 follow-ups$/,
       });
       expect(line?.props.color).toBe('green');
-      expect(await ui.findAll({ type: 'Text' })).toHaveLength(1);
+      expect(await textsOf(ui)).toHaveLength(1);
     }
+    await w.clock.advance(10 * MINUTE);
+    const ui = await band($, 'terminal');
+    expect(await textOf(ui, /#5540/)).toBeUndefined();
+    expect(await ui.find({ text: 'engine band' })).toBeDefined();
   });
 
-  test('a live run ledger adds a run line; a stale one does not', async ($, on) => {
+  test('run chips always include the focus Story and drop the queued count', async ($, on) => {
     const w = world(on);
     w.dir('.agents');
-    w.envelope(5543, 'landed', NOW - 40 * MINUTE);
+    w.worktree(5543, NOW - 40 * MINUTE);
     w.init(5544);
     w.worktree(5544);
     w.json('temp/run-abc123/ledger.json', {
@@ -499,108 +586,142 @@ describe('mandrel-status band', () => {
     });
     await start($);
     const ui = await band($, 'terminal');
-    expect(
-      await textOf(ui, /^run 1\/3 landed · #5544 start · 1 queued$/),
-    ).toBeDefined();
-    expect(await ui.findAll({ type: 'Text', text: /^run / })).toHaveLength(1);
+    const texts = await textsOf(ui);
+    expect(texts).toHaveLength(1);
+    expect(texts[0]).toMatch(/^● #5544 .* {3}run 0\/3 {2}◐5543 ●5544 ○5545$/);
+    expect(texts[0]).not.toMatch(/queued/);
   });
 
-  test('under 80 body columns only the first line renders', async ($, on) => {
+  test('a finished run with a Story that did not land shows the roll-up', async ($, on) => {
+    const w = world(on);
+    w.dir('.agents');
+    w.envelope(5543, 'landed', NOW - 30 * MINUTE, { elapsedSeconds: 600 });
+    w.envelope(5544, 'landed', NOW - 20 * MINUTE, { elapsedSeconds: 600 });
+    w.envelope(5545, 'blocked', NOW - 5 * MINUTE, {
+      phase: 'confirm-merge',
+      elapsedSeconds: 900,
+    });
+    w.json('temp/run-abc123/ledger.json', {
+      kind: 'deliver-run-ledger',
+      runId: 'abc123',
+      stories: [5543, 5544, 5545],
+      dispatched: [5543, 5544, 5545],
+      updatedAt: new Date(NOW - 5 * MINUTE).toISOString(),
+    });
+    await start($);
+    const ui = await band($, 'terminal');
+    const line = await ui.find({
+      type: 'Text',
+      text: /^◆ run 2\/3 landed in 35:00 · #5545 needs you at confirm-merge {3}✓5543 ✓5544 ◆5545$/,
+    });
+    expect(line?.props.color).toBe('magenta');
+  });
+
+  test('Hide hides a healthy band, which comes back when the Story turns slow', async ($, on) => {
+    const w = world(on);
+    slowCloseStory(w);
+    await start($);
+    let ui = await band($, 'terminal');
+    await ui.press({ key: 'hide' });
+    ui = await band($, 'terminal');
+    expect(await textOf(ui, /#5544/)).toBeUndefined();
+    expect(await ui.find({ text: 'engine band' })).toBeDefined();
+    await w.clock.advance(15 * SECOND);
+    ui = await band($, 'terminal');
+    expect(await textOf(ui, /#5544/)).toBeUndefined();
+    await w.clock.advance(75 * SECOND);
+    ui = await band($, 'terminal');
+    expect(await textOf(ui, /^▲ #5544/)).toBeDefined();
+  });
+
+  test('build, check and handoff learn their usual time from Stories the band watched', async ($, on) => {
+    const w = world(on);
+    w.dir('.agents');
+    await start($);
+    for (const [index, minutes] of [3, 4, 5].entries()) {
+      const id = 5600 + index;
+      const begun = NOW - 30 * MINUTE;
+      w.worktree(id, NOW + index * MINUTE);
+      w.init(id, begun);
+      w.commits(id, [{ subject: 'feat: x', at: begun + MINUTE }]);
+      await w.clock.advance(15 * SECOND);
+      w.verdict(id, 1, ['met'], begun + (1 + minutes) * MINUTE);
+      await w.clock.advance(15 * SECOND);
+    }
+    w.worktree(5700, NOW + 10 * MINUTE);
+    w.init(5700, NOW - 2 * MINUTE);
+    w.commits(5700, [{ subject: 'feat: y', at: NOW }]);
+    await w.clock.advance(15 * SECOND);
+    const ui = await band($, 'terminal');
+    expect(
+      await textOf(
+        ui,
+        /^● #5700 .*▰▰▱▱▱▱ build · 1 commit {3}\d+:\d\d \/ ~4:00$/,
+      ),
+    ).toBeDefined();
+  });
+
+  test('under 80 body columns a healthy band drops the title; an attention band keeps line 2', async ($, on) => {
     const w = world(on);
     w.dir('.agents');
     w.init(5544);
     w.worktree(5544);
     await start($);
-    const ui = await band($, 'terminal', 79);
-    expect(await textOf(ui, /^mandrel · #5544/)).toBeDefined();
-    expect(await textOf(ui, /● start/)).toBeUndefined();
-    expect(await ui.findAll({ type: 'Text' })).toHaveLength(1);
+    let ui = await band($, 'terminal', 79);
+    expect(await textsOf(ui)).toEqual(['● #5544   ▰▱▱▱▱▱ start   30:00']);
+    w.envelope(5544, 'blocked', NOW + MINUTE, {
+      blocked: { blockClass: 'checks-failed' },
+      nextCommand: 'node x.js',
+    });
+    await w.clock.advance(15 * SECOND);
+    ui = await band($, 'terminal', 79);
+    expect(await textsOf(ui)).toEqual([
+      '◆ #5544   needs you at start · checks-failed',
+      '↳ node x.js',
+    ]);
   });
 
   test('long text is cut short with an ellipsis, never wrapped', async ($, on) => {
     const w = world(on);
     w.dir('.agents');
-    w.init(5544);
-    w.commits(5544, [{ subject: 'x'.repeat(300), at: NOW - MINUTE }]);
-    w.worktree(5544);
+    w.envelope(5544, 'blocked', NOW - MINUTE, {
+      blocked: { blockClass: 'x'.repeat(300) },
+      nextCommand: `node ${'y'.repeat(300)}`,
+    });
     await start($);
     const ui = await band($, 'terminal', 100);
-    const line = await textOf(ui, /● build/);
-    expect(line?.length).toBe(100);
-    expect(line?.endsWith('…')).toBe(true);
+    const [first, second] = await textsOf(ui);
+    expect(first?.length).toBe(82);
+    expect(first?.endsWith('…')).toBe(true);
+    expect(second?.length).toBe(82);
+    expect(second?.endsWith('…')).toBe(true);
   });
 
-  test('Hide hides the band until the focus Story changes', async ($, on) => {
+  test('the Details pane leads with what needs attention, then the timeline', async ($, on) => {
     const w = world(on);
-    w.dir('.agents');
-    w.worktree(5544);
-    await start($);
-    let ui = await band($, 'terminal');
-    await ui.press({ key: 'hide' });
-    ui = await band($, 'terminal');
-    expect(await textOf(ui, /mandrel/)).toBeUndefined();
-    expect(await ui.find({ text: 'engine band' })).toBeDefined();
-    await w.clock.advance(15 * SECOND);
-    ui = await band($, 'terminal');
-    expect(await textOf(ui, /mandrel/)).toBeUndefined();
-    w.worktree(5550, NOW + 20 * SECOND);
-    await w.clock.advance(15 * SECOND);
-    ui = await band($, 'terminal');
-    expect(await textOf(ui, /mandrel · #5550/)).toBeDefined();
-  });
-
-  test('Details opens the mandrel-status pane listing stages, steps and phases', async ($, on) => {
-    const w = world(on);
-    w.dir('.agents');
-    [100, 200, 300].forEach((seconds, index) => {
-      w.envelope(5530 + index, 'landed', NOW - 5 * HOUR, {
-        phaseDurations: { 'close-validation': seconds },
-      });
-    });
-    w.init(5544);
-    w.step(5544, 'preflight-lint', NOW - 8 * MINUTE);
-    w.step(5544, 'credited-run', NOW - 5 * MINUTE);
-    w.worktree(5544);
+    slowCloseStory(w);
     await start($);
     const ui = await band($, 'terminal');
     await ui.press({ key: 'details' });
     expect(w.state.opened).toEqual(['mandrel-status']);
-    const pane = await $.ui.mount({
-      plugin: 'mandrel-status',
-      surface: 'terminal',
-      component: 'Pane',
-      requestId: 'mandrel-status',
-      props: {
-        title: 'mandrel-status',
-        isFocused: false,
-        bodyColumns: 80,
-        placement: 'inline',
-        scroll: { offset: 0, bodyRows: 30 },
-        view: {},
-      },
-    });
-    expect(
-      await pane.find({ type: 'Text', text: /^Story #5544 Band v2/ }),
-    ).toBeDefined();
-    for (const heading of ['Stages', 'Handoff steps', 'Close phases']) {
-      expect(
-        await pane.find({ type: 'Text', text: heading }),
-        heading,
-      ).toBeDefined();
-    }
-    expect(await pane.find({ type: 'Text', text: /✓ start/ })).toBeDefined();
-    expect(
-      await pane.find({ type: 'Text', text: /● handoff .* 8m0s$/ }),
-    ).toBeDefined();
-    expect(
-      await pane.find({ type: 'Text', text: /^ {2}credited-run/ }),
-    ).toBeDefined();
-    expect(
-      await pane.find({
-        type: 'Text',
-        text: /close-validation +— \(usual ~3m20s\)/,
-      }),
-    ).toBeDefined();
+    const details = await pane($);
+    let rows = await textsOf(details);
+    expect(rows[0]).toMatch(/^#5544 Band v2 {3}in flight · /);
+    expect(rows).not.toContain('NEEDS ATTENTION');
+    expect(rows).toContain('TIMELINE');
+    await w.clock.advance(90 * SECOND);
+    rows = await textsOf(details);
+    const attention = rows.indexOf('NEEDS ATTENTION');
+    expect(attention).toBeGreaterThan(0);
+    expect(attention).toBeLessThan(rows.indexOf('TIMELINE'));
+    expect(rows[attention + 1]).toMatch(
+      /^ {2}▲ close-validation {3}3:30 {3}usual ~1:30 {3}2\.3× {3}gate log quiet 1m$/,
+    );
+    expect(rows.some((row) => /^ {2}✓ start /.test(row))).toBe(true);
+    expect(rows.some((row) => /^ {2}▲ close /.test(row))).toBe(true);
+    expect(rows.some((row) => /^ {6}confirm-merge .*~6:40$/.test(row))).toBe(
+      true,
+    );
   });
 
   test('shows a landed result and toasts it exactly once across a reload', async ($, on) => {
@@ -617,7 +738,7 @@ describe('mandrel-status band', () => {
     expect(w.state.toasts).toEqual(['Story #5540 landed (PR #5541)']);
     const ui = await band($, 'desktop');
     expect(
-      await textOf(ui, /✓ mandrel · #5540 · landed in 5m39s · PR #5541/),
+      await textOf(ui, /^✓ #5540 {3}landed in 5:39 · PR #5541$/),
     ).toBeDefined();
   });
 
@@ -636,7 +757,7 @@ describe('mandrel-status band', () => {
     w.envelope(5540, 'landed');
     await start($);
     const ui = await band($, 'terminal');
-    expect(await textOf(ui, /mandrel/)).toBeUndefined();
+    expect(await textOf(ui, /#55/)).toBeUndefined();
     expect(await ui.find({ text: 'engine band' })).toBeDefined();
   });
 
@@ -646,7 +767,7 @@ describe('mandrel-status band', () => {
     w.envelope(5540, 'landed', NOW - 3 * HOUR);
     await start($);
     const ui = await band($, 'terminal');
-    expect(await textOf(ui, /mandrel/)).toBeUndefined();
+    expect(await textOf(ui, /#5540/)).toBeUndefined();
   });
 
   test('malformed config, envelope, ledger and progress files draw nothing and throw nothing', async ($, on) => {
@@ -659,7 +780,7 @@ describe('mandrel-status band', () => {
     await start($);
     await w.clock.advance(15 * SECOND);
     const ui = await band($, 'terminal');
-    expect(await textOf(ui, /mandrel/)).toBeUndefined();
+    expect(await textOf(ui, /#5540/)).toBeUndefined();
     expect(w.state.toasts).toEqual([]);
   });
 
@@ -682,7 +803,7 @@ describe('mandrel-status band', () => {
     });
     await start($);
     const ui = await band($, 'terminal');
-    expect(await textOf(ui, /#7 · blocked/)).toBeDefined();
+    expect(await textOf(ui, /^◆ #7 {3}needs you/)).toBeDefined();
     expect(await textOf(ui, /#1 /)).toBeUndefined();
   });
 
@@ -693,6 +814,6 @@ describe('mandrel-status band', () => {
     w.envelope(5540, 'landed');
     await start($);
     const ui = await band($, 'terminal');
-    expect(await textOf(ui, /#5540 · landed/)).toBeDefined();
+    expect(await textOf(ui, /^✓ #5540 {3}landed/)).toBeDefined();
   });
 });

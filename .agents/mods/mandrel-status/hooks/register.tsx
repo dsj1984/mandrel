@@ -7,6 +7,8 @@ import type { EngineInterface, FsEntry, Register } from 'claude-code';
 import { atom, read, update } from 'claude-code';
 
 import type {
+  Attention,
+  ChipState,
   Focus,
   Learned,
   PhaseRow,
@@ -14,19 +16,31 @@ import type {
   Snapshot,
   StageName,
   StageRow,
+  Tracked,
 } from '../types';
 
 const REFRESH_MS = 15_000;
 const LEARN_MS = 10 * 60_000;
 const STALL_MS = 10 * 60_000;
 const MIN_STALL_MS = 2 * 60_000;
+/** How long a run ledger, or a result that did not land, stays on the band. */
 const RECENT_MS = 2 * 60 * 60_000;
+/** How long a landed result stays on the band. */
+const LANDED_MS = 10 * 60_000;
 const MIN_SAMPLES = 3;
 const MAX_SAMPLES = 30;
 /** Under this many body columns the band keeps only its first line. */
 const NARROW = 80;
 /** Cells the Hide and Details buttons take at the end of line 1. */
 const BUTTON_CELLS = 18;
+/** Cells the Copy button and the Open PR link take at the end of line 2. */
+const ACTION_CELLS = 18;
+/** The title's share of line 1. */
+const TITLE_CELLS = 30;
+/** Unmet acceptance ids named before `+N`. */
+const MAX_UNMET = 4;
+/** The longest bar in the Details pane. */
+const BAR_CELLS = 16;
 const PANE = 'mandrel-status';
 
 const STAGES: StageName[] = [
@@ -49,8 +63,15 @@ const CLOSE_PHASES = [
   'post-land',
 ];
 const MERGE_PHASES = new Set(['auto-merge', 'confirm-merge']);
-const STOPPED = new Set(['blocked', 'failed', 'escalated']);
-const ANNOUNCED = new Set(['landed', 'blocked']);
+/** Stages the mod times itself; close and merge come from envelope phases. */
+const LEARNED_STAGES = new Set<StageName>([
+  'start',
+  'build',
+  'check',
+  'handoff',
+]);
+const FAILED = new Set(['failed', 'escalated']);
+const TERMINAL = new Set(['landed', 'blocked', 'failed', 'escalated']);
 
 const WORKTREE = /^story-(\d+)$/;
 const ENVELOPE = /^story-deliver-terminal-(\d+)\.json$/;
@@ -81,9 +102,17 @@ const learnedAtom = atom(
   { plugin: 'mandrel-status', key: 'learned' } as const,
   { at: 0, phases: {} } as Learned,
 );
+const stageSamples = atom(
+  { plugin: 'mandrel-status', key: 'stageSamples' } as const,
+  {} as Partial<Record<StageName, number[]>>,
+);
+const tracked = atom(
+  { plugin: 'mandrel-status', key: 'tracked' } as const,
+  null as Tracked | null,
+);
 const hiddenFor = atom(
   { plugin: 'mandrel-status', key: 'hiddenFor' } as const,
-  null as number | null,
+  null as string | null,
 );
 
 type Stamped = { storyId: number; mtimeMs: number };
@@ -95,13 +124,18 @@ type Ctx = {
   orchestration: string;
   files: FsEntry[];
   now: number;
+  /** `https://github.com/<owner>/<repo>` from the merged config, when it names both. */
+  repoUrl: string | null;
 };
 
 type Envelope = {
   storyId: number;
   at: number;
   status: string;
+  /** Where the delivery stopped, as the envelope's `phase` names it. */
+  phase: string | null;
   prNumber: number | null;
+  prUrl: string | null;
   checksStatus: string | null;
   elapsedSeconds: number | null;
   phaseDurations: Record<string, number>;
@@ -125,6 +159,8 @@ type Verdict = {
   round: number;
   met: number;
   total: number;
+  /** 1-based ids of the criteria not `met`. */
+  unmet: number[];
 };
 type Handoff = {
   at: number;
@@ -197,22 +233,34 @@ async function resolveRoot($: EngineInterface): Promise<string> {
   return main ?? '.';
 }
 
-function tempRootOf(config: unknown): string | undefined {
-  const value = (config as { project?: { paths?: { tempRoot?: unknown } } })
-    ?.project?.paths?.tempRoot;
-  return typeof value === 'string' && value.length > 0 ? value : undefined;
-}
+type Config = {
+  project?: { paths?: { tempRoot?: unknown } };
+  github?: { owner?: unknown; repo?: unknown };
+};
 
-/** `.agentrc.local.json` wins over `.agentrc.json`; `temp` when neither sets it. */
-async function resolveTempRoot(
+/**
+ * `.agentrc.local.json` wins over `.agentrc.json`, key by key; tempRoot is
+ * `temp` when neither sets it, and the repo address needs both owner and repo.
+ */
+async function resolveConfig(
   $: EngineInterface,
   root: string,
-): Promise<string> {
-  const temp =
-    tempRootOf(await readJson($, join(root, '.agentrc.local.json'))) ??
-    tempRootOf(await readJson($, join(root, '.agentrc.json'))) ??
-    'temp';
-  return join(root, temp);
+): Promise<{ temp: string; repoUrl: string | null }> {
+  const configs = [
+    (await readJson($, join(root, '.agentrc.local.json'))) as Config,
+    (await readJson($, join(root, '.agentrc.json'))) as Config,
+  ];
+  const first = (pick: (config: Config) => unknown): string | null =>
+    configs.map((config) => str(pick(config ?? {}))).find(Boolean) ?? null;
+  const owner = first((config) => config?.github?.owner);
+  const repo = first((config) => config?.github?.repo);
+  return {
+    temp: join(
+      root,
+      first((config) => config?.project?.paths?.tempRoot) ?? 'temp',
+    ),
+    repoUrl: owner && repo ? `https://github.com/${owner}/${repo}` : null,
+  };
 }
 
 async function listMatching(
@@ -256,10 +304,11 @@ function toEnvelope(
 ): Envelope | null {
   const body = raw as {
     status?: unknown;
+    phase?: unknown;
     elapsedSeconds?: unknown;
     nextCommand?: unknown;
     phaseDurations?: unknown;
-    pr?: { number?: unknown; checksStatus?: unknown } | null;
+    pr?: { number?: unknown; url?: unknown; checksStatus?: unknown } | null;
     blocked?: { blockClass?: unknown } | null;
     failure?: { reason?: unknown } | null;
   };
@@ -270,7 +319,9 @@ function toEnvelope(
     storyId,
     at,
     status,
+    phase: str(body.phase),
     prNumber: num(pr.number),
+    prUrl: str(pr.url),
     checksStatus: str(pr.checksStatus),
     elapsedSeconds: num(body.elapsedSeconds),
     phaseDurations: durationsOf(body.phaseDurations),
@@ -374,15 +425,19 @@ async function readCheck(
   if (rounds.length === 0) return null;
   const last = rounds.reduce((a, b) => (b.round > a.round ? b : a));
   const raw = (await readJson($, `${dir}/${last.entry.name}`)) as {
-    criteria?: { verdict?: unknown }[];
+    criteria?: { index?: unknown; verdict?: unknown }[];
   };
   const criteria = Array.isArray(raw?.criteria) ? raw.criteria : [];
+  const unmet = criteria.flatMap((one, at) =>
+    one?.verdict === 'met' ? [] : [(num(one?.index) ?? at) + 1],
+  );
   return {
     at: last.entry.mtimeMs,
     firstAt: Math.min(...rounds.map((one) => one.entry.mtimeMs)),
     round: last.round,
     met: criteria.filter((one) => one?.verdict === 'met').length,
     total: criteria.length,
+    unmet,
   };
 }
 
@@ -589,7 +644,20 @@ function stageStarts(ev: Evidence): Record<StageName, number | null> {
   };
 }
 
-function stageRows(ev: Evidence, current: StageName): StageRow[] {
+/** The learned median of a stage the mod times itself, once it has 3+ samples. */
+function stageUsualMs(
+  samples: Partial<Record<StageName, number[]>>,
+  stage: StageName,
+): number | null {
+  const list = LEARNED_STAGES.has(stage) ? (samples[stage] ?? []) : [];
+  return list.length >= MIN_SAMPLES ? median(list) * 1000 : null;
+}
+
+function stageRows(
+  ev: Evidence,
+  current: StageName,
+  samples: Partial<Record<StageName, number[]>>,
+): StageRow[] {
   const starts = stageStarts(ev);
   const at = STAGES.indexOf(current);
   return STAGES.map((name, index) => {
@@ -600,6 +668,7 @@ function stageRows(ev: Evidence, current: StageName): StageRow[] {
       name,
       startedAt: index <= at ? starts[name] : null,
       endedAt: index < at ? (later ?? null) : null,
+      usualMs: stageUsualMs(samples, name),
     };
   });
 }
@@ -614,39 +683,43 @@ function phaseOf(stage: StageName, progress: Progress | null): string | null {
 const plural = (count: number, word: string): string =>
   `${count} ${word}${count === 1 ? '' : 's'}`;
 
-function detailOf(
+/** The stage name, or the stage and what it is doing: `check · round 2 · 5/6 met`. */
+function stepOf(
   stage: StageName,
   ev: Evidence,
   progress: Progress | null,
   prNumber: number | null,
 ): string {
+  const parts: (string | null)[] = [stage];
   switch (stage) {
-    case 'start':
-      return 'initialized';
     case 'build':
-      return ev.build
-        ? `${plural(ev.build.count, 'commit')} · ${ev.build.subject}`
-        : 'building';
+      if (ev.build) parts.push(plural(ev.build.count, 'commit'));
+      break;
     case 'check':
-      return ev.check
-        ? `round ${ev.check.round} · ${ev.check.met}/${ev.check.total} met`
-        : 'self-eval';
+      if (ev.check)
+        parts.push(
+          `round ${ev.check.round}`,
+          `${ev.check.met}/${ev.check.total} met`,
+        );
+      break;
     case 'handoff':
-      if (progress?.phase) return `step ${progress.phase}`;
-      if (ev.handoff?.doneAt && !progress) return 'handed off';
-      return `step ${ev.handoff?.step ?? 'starting'}`;
+      parts.push(progress?.phase ?? ev.handoff?.step ?? null);
+      break;
     case 'close': {
       const phase = progress?.phase ?? 'close-validation';
       const gate = ev.close?.gate;
-      return phase === 'close-validation' && gate
-        ? `gate ${gate}`
-        : `phase ${phase}`;
+      parts.push(phase === 'close-validation' && gate ? `gate ${gate}` : phase);
+      break;
     }
-    case 'merge': {
-      const pr = prNumber === null ? 'PR' : `PR #${prNumber}`;
-      return `${pr} · ${progress?.phase ?? 'waiting on merge'}`;
-    }
+    case 'merge':
+      parts.push(
+        prNumber === null ? 'PR' : `PR #${prNumber}`,
+        progress?.phase ??
+          (ev.envelope?.status === 'pending' ? 'waiting on merge' : null),
+      );
+      break;
   }
+  return parts.filter(Boolean).join(' · ');
 }
 
 /** The stall verdict: learned medians first, else the 10-minute gate-log rule. */
@@ -656,60 +729,85 @@ function stallOf(
   elapsedMs: number | null,
   usualMs: number | null,
   now: number,
-): { isStalled: boolean; idleMinutes: number | null } {
+): boolean {
   if (usualMs !== null && elapsedMs !== null)
-    return {
-      isStalled: elapsedMs > Math.max(2 * usualMs, MIN_STALL_MS),
-      idleMinutes: null,
-    };
+    return elapsedMs > Math.max(2 * usualMs, MIN_STALL_MS);
   const idleMs = stage === 'close' && ev.close ? now - ev.close.at : 0;
-  return idleMs > STALL_MS
-    ? { isStalled: true, idleMinutes: Math.floor(idleMs / 60_000) }
-    : { isStalled: false, idleMinutes: null };
+  return idleMs > STALL_MS;
+}
+
+function attentionOf(
+  status: string,
+  checksStatus: string | null,
+  isStalled: boolean,
+): Attention {
+  if (status === 'landed') return 'landed';
+  if (status === 'blocked') return 'needs-you';
+  if (FAILED.has(status)) return 'failed';
+  if (checksStatus === 'failure') return 'failed';
+  return isStalled ? 'slow' : 'working';
 }
 
 function deriveFocus(
   storyId: number,
   ev: Evidence,
   learned: Learned,
-  now: number,
+  samples: Partial<Record<StageName, number[]>>,
+  ctx: Ctx,
 ): Focus {
   const isInFlight = ev.envelope === null;
   const { stage, progress } = pickStage(ev);
   const phase = phaseOf(stage, progress);
   const learnedPhase = phase ? learned.phases[phase] : undefined;
-  const usualMs =
-    learnedPhase && learnedPhase.samples >= MIN_SAMPLES
+  const usualMs = phase
+    ? learnedPhase && learnedPhase.samples >= MIN_SAMPLES
       ? learnedPhase.medianSeconds * 1000
-      : null;
+      : null
+    : stageUsualMs(samples, stage);
   const phaseStart = progress?.phaseStartedAt ?? stageStarts(ev)[stage];
   const phaseElapsedMs =
-    isInFlight && phaseStart !== null ? Math.max(0, now - phaseStart) : null;
-  const stall = isInFlight
-    ? stallOf(stage, ev, phaseElapsedMs, usualMs, now)
-    : { isStalled: false, idleMinutes: null };
+    isInFlight && phaseStart !== null
+      ? Math.max(0, ctx.now - phaseStart)
+      : null;
+  const isStalled =
+    isInFlight && stallOf(stage, ev, phaseElapsedMs, usualMs, ctx.now);
   const prNumber = ev.progress?.prNumber ?? ev.envelope?.prNumber ?? null;
-  const closePhases: PhaseRow[] = CLOSE_PHASES.map((name) => ({
-    name,
-    seconds: ev.envelope?.phaseDurations[name] ?? null,
-    usualSeconds: learned.phases[name]?.medianSeconds ?? null,
-  }));
+  const status = ev.envelope?.status ?? 'in-flight';
+  const checksStatus = ev.envelope?.checksStatus ?? null;
+  const inClose = stage === 'close' && ev.close !== null;
   return {
     storyId,
     title: ev.init?.title ?? null,
-    status: ev.envelope?.status ?? 'in-flight',
+    status,
+    attention: attentionOf(status, checksStatus, isStalled),
     stage,
-    detail: detailOf(stage, ev, progress, prNumber),
-    stages: stageRows(ev, stage),
-    handoffSteps: ev.handoff?.steps ?? [],
-    closePhases,
+    step: stepOf(stage, ev, progress, prNumber),
+    subject: ev.build?.subject ?? null,
+    stages: stageRows(ev, stage, samples),
+    closePhases: CLOSE_PHASES.map(
+      (name): PhaseRow => ({
+        name,
+        seconds: ev.envelope?.phaseDurations[name] ?? null,
+        usualSeconds: learned.phases[name]?.medianSeconds ?? null,
+      }),
+    ),
     prNumber,
-    checksStatus: ev.envelope?.checksStatus ?? null,
+    prUrl:
+      ev.envelope?.prUrl ??
+      (prNumber !== null && ctx.repoUrl
+        ? `${ctx.repoUrl}/pull/${prNumber}`
+        : null),
+    checksStatus,
     elapsedSeconds: ev.envelope?.elapsedSeconds ?? null,
     phaseElapsedMs,
     usualMs,
-    isStalled: stall.isStalled,
-    idleMinutes: stall.idleMinutes,
+    phase,
+    quietMinutes:
+      inClose && ev.close
+        ? Math.floor(Math.max(0, ctx.now - ev.close.at) / 60_000)
+        : null,
+    lastGate: inClose ? (ev.close?.gate ?? null) : null,
+    unmet: ev.check?.unmet ?? [],
     problem: ev.envelope?.problem ?? null,
     nextCommand: ev.envelope?.nextCommand ?? null,
     followUps: ev.followUps,
@@ -757,7 +855,24 @@ async function readLedgers($: EngineInterface, ctx: Ctx): Promise<Ledger[]> {
   return ledgers.sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
-/** The newest live run ledger with a Story still to land. */
+function chipOf(
+  id: number,
+  envelope: Envelope | undefined,
+  ledger: Ledger,
+  focus: Focus | null,
+): ChipState {
+  const status = envelope?.status;
+  if (status === 'landed') return 'landed';
+  if (status === 'blocked') return 'needs-you';
+  if (status && FAILED.has(status)) return 'failed';
+  if (id === focus?.storyId) return 'focus';
+  return ledger.dispatched.includes(id) ? 'in-flight' : 'queued';
+}
+
+/**
+ * The newest live run ledger: chips while it runs; a roll-up once every Story
+ * has a result, kept while one did not land, else for 10 minutes.
+ */
 async function readRun(
   $: EngineInterface,
   ctx: Ctx,
@@ -765,38 +880,57 @@ async function readRun(
   focus: Focus | null,
 ): Promise<RunLine | null> {
   for (const ledger of await readLedgers($, ctx)) {
-    const statuses = new Map<number, string>();
+    const results = new Map<number, Envelope>();
     for (const stamp of envelopes.filter((one) =>
       ledger.stories.includes(one.storyId),
     )) {
       const envelope = await readEnvelope($, ctx, stamp);
-      if (envelope) statuses.set(stamp.storyId, envelope.status);
+      if (envelope) results.set(stamp.storyId, envelope);
     }
-    const open = ledger.stories.filter((id) => statuses.get(id) !== 'landed');
-    if (open.length === 0) continue;
-    const currentId =
-      focus && open.includes(focus.storyId)
-        ? focus.storyId
-        : open.find((id) => ledger.dispatched.includes(id));
-    const stageOf = (id: number): string =>
-      id === focus?.storyId
-        ? focus.status === 'in-flight'
-          ? focus.stage
-          : focus.status
-        : (statuses.get(id) ?? 'dispatched');
+    const chips = ledger.stories.map((storyId) => ({
+      storyId,
+      state: chipOf(storyId, results.get(storyId), ledger, focus),
+    }));
+    const isDone = ledger.stories.every((id) =>
+      TERMINAL.has(results.get(id)?.status ?? ''),
+    );
+    const stragglerId = ledger.stories.find(
+      (id) => results.get(id)?.status !== 'landed',
+    );
+    const ended = [...results.values()];
+    const lastAt = Math.max(0, ...ended.map((one) => one.at));
+    if (isDone && stragglerId === undefined && ctx.now - lastAt > LANDED_MS)
+      continue;
+    const straggled =
+      isDone && stragglerId !== undefined ? results.get(stragglerId) : null;
     return {
-      landed: ledger.stories.length - open.length,
+      landed: chips.filter((chip) => chip.state === 'landed').length,
       total: ledger.stories.length,
-      current:
-        currentId === undefined
-          ? null
-          : { storyId: currentId, stage: stageOf(currentId) },
-      queued: ledger.stories.filter((id) => !ledger.dispatched.includes(id))
-        .length,
+      chips,
+      isDone,
+      spanMs: isDone
+        ? lastAt -
+          Math.min(
+            ...ended.map((one) => one.at - (one.elapsedSeconds ?? 0) * 1000),
+          )
+        : null,
+      straggler:
+        straggled && stragglerId !== undefined
+          ? {
+              storyId: stragglerId,
+              attention:
+                straggled.status === 'blocked' ? 'needs-you' : 'failed',
+              phase: straggled.phase,
+            }
+          : null,
     };
   }
   return null;
 }
+
+/** A landed result shows for 10 minutes; any other result for 2 hours. */
+const isShown = (envelope: Envelope, now: number): boolean =>
+  now - envelope.at <= (envelope.status === 'landed' ? LANDED_MS : RECENT_MS);
 
 async function scan(
   $: EngineInterface,
@@ -804,14 +938,14 @@ async function scan(
   const root = await resolveRoot($);
   if (!(await $.fs.exists(join(root, '.agents')).catch(() => false)))
     return { next: EMPTY, latest: null };
-  const temp = await resolveTempRoot($, root);
+  const { temp, repoUrl } = await resolveConfig($, root);
   const orchestration = `${temp}/orchestration`;
   const now = await $.clock.now();
   const [worktrees, files] = await Promise.all([
     listMatching($, join(root, '.worktrees'), WORKTREE),
     $.fs.list(orchestration).catch(() => []),
   ]);
-  const ctx: Ctx = { root, temp, orchestration, files, now };
+  const ctx: Ctx = { root, temp, orchestration, files, now, repoUrl };
   const envelopes = stampFiles(files, ENVELOPE);
   const learned = await learn($, ctx, envelopes);
   const recent = newest(
@@ -819,34 +953,81 @@ async function scan(
   );
   const latest = recent ? await readEnvelope($, ctx, recent) : null;
   const inFlight = pickInFlight(worktrees, envelopes);
-  const focusId = inFlight?.storyId ?? latest?.storyId;
+  const shown = latest && isShown(latest, now) ? latest : null;
+  const focusId = inFlight?.storyId ?? shown?.storyId;
   const focus =
     focusId === undefined
       ? null
       : deriveFocus(
           focusId,
-          await gather($, ctx, focusId, inFlight ? null : latest),
+          await gather($, ctx, focusId, inFlight ? null : shown),
           learned,
-          now,
+          await read($, stageSamples),
+          ctx,
         );
+  await track($, focus);
   const run = await readRun($, ctx, envelopes, focus);
   return { next: { focus, run, scannedAt: now }, latest };
 }
 
-/** Toasts a landed or blocked result once; the first scan only records. */
+/**
+ * When the followed Story moves past a stage the mod times itself, keep how
+ * long that stage took; the medians of these give build, check and handoff
+ * their usual time.
+ */
+async function track($: EngineInterface, focus: Focus | null): Promise<void> {
+  if (focus?.status !== 'in-flight') return;
+  const held = await read($, tracked);
+  const was = held?.storyId === focus.storyId ? held.stage : null;
+  if (was === focus.stage) return;
+  await update($, tracked, () => ({
+    storyId: focus.storyId,
+    stage: focus.stage,
+  }));
+  if (was === null || STAGES.indexOf(was) > STAGES.indexOf(focus.stage)) return;
+  const row = focus.stages.find((one) => one.name === was);
+  if (!row || !LEARNED_STAGES.has(was)) return;
+  if (row.startedAt === null || row.endedAt === null) return;
+  const seconds = (row.endedAt - row.startedAt) / 1000;
+  if (seconds < 0) return;
+  await update($, stageSamples, (held) => ({
+    ...held,
+    [was]: [...(held[was] ?? []), seconds].slice(-MAX_SAMPLES),
+  }));
+}
+
+/** The toast for a Story turning slow, once per Story. */
+function slowToast(focus: Focus): string {
+  const where = focus.phase ?? focus.stage;
+  const took =
+    focus.phaseElapsedMs === null ? '' : ` ${clock(focus.phaseElapsedMs)}`;
+  const usual =
+    focus.usualMs === null ? '' : ` of usual ~${clock(focus.usualMs)}`;
+  return `Story #${focus.storyId} is slow: ${where}${took}${usual}`;
+}
+
+/** Toasts each result and each first slow verdict once; the first scan only records. */
 async function announce(
   $: EngineInterface,
   latest: Envelope | null,
+  focus: Focus | null,
 ): Promise<void> {
   const seeded = await read($, isSeeded);
   if (!seeded) await update($, isSeeded, () => true);
-  if (!latest) return;
-  const key = `${latest.storyId}:${latest.at}`;
-  if ((await read($, seen)).includes(key)) return;
-  await update($, seen, (list) => [...list, key].slice(-50));
-  if (seeded && ANNOUNCED.has(latest.status)) {
+  const pending: { key: string; text: string }[] = [];
+  if (latest && TERMINAL.has(latest.status)) {
     const pr = latest.prNumber ? ` (PR #${latest.prNumber})` : '';
-    $.ui.toast(`Story #${latest.storyId} ${latest.status}${pr}`);
+    pending.push({
+      key: `${latest.storyId}:${latest.at}`,
+      text: `Story #${latest.storyId} ${latest.status}${pr}`,
+    });
+  }
+  if (focus?.attention === 'slow')
+    pending.push({ key: `${focus.storyId}:slow`, text: slowToast(focus) });
+  for (const one of pending) {
+    if ((await read($, seen)).includes(one.key)) continue;
+    await update($, seen, (list) => [...list, one.key].slice(-50));
+    if (seeded) $.ui.toast(one.text);
   }
 }
 
@@ -854,7 +1035,7 @@ async function refresh($: EngineInterface): Promise<void> {
   try {
     const { next, latest } = await scan($);
     await update($, snapshot, () => next);
-    await announce($, latest);
+    await announce($, latest, next.focus);
   } catch {
     // Read-only and best effort: a failed scan leaves the last drawing up.
   }
@@ -862,15 +1043,43 @@ async function refresh($: EngineInterface): Promise<void> {
 
 // --------------------------------------------------------------- drawing
 
-type Line = { text: string; color: string | null };
+const GLYPH: Record<Attention, string> = {
+  working: '●',
+  slow: '▲',
+  'needs-you': '◆',
+  failed: '✗',
+  landed: '✓',
+};
+const COLOR: Record<Attention, string | null> = {
+  working: null,
+  slow: 'yellow',
+  'needs-you': 'magenta',
+  failed: 'red',
+  landed: 'green',
+};
+const LABEL: Record<Attention, string> = {
+  working: 'in flight',
+  slow: 'slow',
+  'needs-you': 'needs you',
+  failed: 'failed',
+  landed: 'landed',
+};
+const CHIP: Record<ChipState, string> = {
+  landed: '✓',
+  'needs-you': '◆',
+  failed: '✗',
+  focus: '●',
+  'in-flight': '◐',
+  queued: '○',
+};
 
-/** `45s`, `5m39s`, `1h05m`. */
-function fmt(ms: number): string {
-  const seconds = Math.max(0, Math.round(ms / 1000));
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m${seconds % 60}s`;
-  return `${Math.floor(minutes / 60)}h${String(minutes % 60).padStart(2, '0')}m`;
+/** `0:45`, `5:39`, `1:05:00`. */
+function clock(ms: number): string {
+  const total = Math.max(0, Math.round(ms / 1000));
+  const seconds = String(total % 60).padStart(2, '0');
+  const minutes = Math.floor(total / 60);
+  if (minutes < 60) return `${minutes}:${seconds}`;
+  return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')}:${seconds}`;
 }
 
 /** Cut short with an ellipsis, never wrapped. */
@@ -879,85 +1088,160 @@ function cut(text: string, width: number): string {
   return width <= 1 ? '…' : `${text.slice(0, width - 1)}…`;
 }
 
-function colorOf(focus: Focus): string | null {
-  if (focus.status === 'landed') return 'green';
-  if (STOPPED.has(focus.status)) return 'red';
-  return focus.isStalled ? 'yellow' : null;
+/** Six cells: one filled per finished or current stage. */
+const meter = (stage: StageName): string =>
+  STAGES.map((_, index) => (index <= STAGES.indexOf(stage) ? '▰' : '▱')).join(
+    '',
+  );
+
+const ratioOf = (focus: Focus): string | null =>
+  focus.usualMs && focus.phaseElapsedMs !== null
+    ? `${(focus.phaseElapsedMs / focus.usualMs).toFixed(1)}×`
+    : null;
+
+/** A result that stopped the Story, as opposed to red checks on a live PR. */
+const isStopped = (focus: Focus): boolean =>
+  focus.status === 'blocked' || FAILED.has(focus.status);
+
+const isChecksRed = (focus: Focus): boolean =>
+  focus.attention === 'failed' && !isStopped(focus);
+
+function timeOf(focus: Focus): string {
+  if (focus.phaseElapsedMs === null)
+    return focus.status === 'in-flight' ? '' : focus.status;
+  const usual = focus.usualMs === null ? '' : ` / ~${clock(focus.usualMs)}`;
+  return `${clock(focus.phaseElapsedMs)}${usual}`;
 }
 
-function rightOf(focus: Focus): string {
-  const pr = focus.prNumber === null ? null : `PR #${focus.prNumber}`;
-  if (focus.status === 'landed') {
+/** Line 1 after the Story: the outcome, the stopping point, or progress and time. */
+function progressOf(focus: Focus): string {
+  if (focus.attention === 'landed') {
     return [
-      `landed in ${focus.elapsedSeconds === null ? '?' : fmt(focus.elapsedSeconds * 1000)}`,
-      pr,
+      `landed in ${focus.elapsedSeconds === null ? '?' : clock(focus.elapsedSeconds * 1000)}`,
+      focus.prNumber === null ? null : `PR #${focus.prNumber}`,
       focus.followUps === null ? null : plural(focus.followUps, 'follow-up'),
     ]
       .filter(Boolean)
       .join(' · ');
   }
-  if (STOPPED.has(focus.status))
-    return [`${focus.status}: ${focus.problem ?? 'see the Story'}`, pr]
-      .filter(Boolean)
-      .join(' · ');
-  const checks = focus.checksStatus ? ` checks ${focus.checksStatus}` : '';
-  return pr ? `${pr}${checks}` : '';
+  if (isStopped(focus))
+    return `${LABEL[focus.attention]} at ${focus.stage} · ${focus.problem ?? 'see the Story'}`;
+  const step = isChecksRed(focus)
+    ? `merge · PR #${focus.prNumber ?? '?'} · checks failing`
+    : focus.step;
+  return [`${meter(focus.stage)} ${step}`, timeOf(focus)]
+    .filter(Boolean)
+    .join('   ');
 }
 
-/** Line 1: outcome glyph, Story and title on the left, the outcome or PR on the right. */
-function headline(focus: Focus, width: number): string {
-  const glyph =
-    focus.status === 'landed' ? '✓ ' : STOPPED.has(focus.status) ? '✗ ' : '';
-  const left = `${glyph}mandrel · #${focus.storyId}${focus.title ? ` ${focus.title}` : ''}`;
-  const right = cut(rightOf(focus), Math.max(16, Math.floor(width * 0.6)));
-  if (!right) return cut(left, width);
-  const room = Math.max(glyph.length + 14, width - right.length - 3);
-  return cut(`${cut(left, room)} · ${right}`, width);
+const chipsOf = (run: RunLine): string =>
+  `run ${run.landed}/${run.total}  ${run.chips
+    .map((chip) => `${CHIP[chip.state]}${chip.storyId}`)
+    .join(' ')}`;
+
+function headline(
+  focus: Focus,
+  run: RunLine | null,
+  isNarrow: boolean,
+): string {
+  const title =
+    !isNarrow && focus.title ? ` ${cut(focus.title, TITLE_CELLS)}` : '';
+  return [
+    `${GLYPH[focus.attention]} #${focus.storyId}${title}`,
+    progressOf(focus),
+    !isNarrow && run && !run.isDone ? chipsOf(run) : null,
+  ]
+    .filter(Boolean)
+    .join('   ');
 }
 
-function timingOf(focus: Focus): string {
-  if (focus.phaseElapsedMs === null) return focus.status;
-  const usual =
-    focus.usualMs === null ? '' : ` of usual ~${fmt(focus.usualMs)}`;
-  const stall = !focus.isStalled
-    ? ''
-    : focus.idleMinutes === null
-      ? ' · stalled?'
-      : ` · stalled? no gate output for ${focus.idleMinutes}m`;
-  return `${fmt(focus.phaseElapsedMs)}${usual}${stall}`;
+const unmetOf = (unmet: number[]): string => {
+  const named = unmet.slice(0, MAX_UNMET).map((id) => `AC-${id}`);
+  const more = unmet.length - named.length;
+  return [...named, ...(more > 0 ? [`+${more}`] : [])].join(', ');
+};
+
+/** Line 2: only when the Story needs a look, and never repeating line 1. */
+function attentionLine(focus: Focus): string | null {
+  if (focus.attention === 'slow') {
+    const parts = [
+      ratioOf(focus) && `${ratioOf(focus)} usual`,
+      focus.quietMinutes ? `gate log quiet ${focus.quietMinutes}m` : null,
+      focus.lastGate ? `last gate ${focus.lastGate}` : null,
+    ].filter(Boolean);
+    return `↳ ${parts.length ? parts.join(' · ') : `${focus.stage} is past its usual time`}`;
+  }
+  if (isChecksRed(focus))
+    return `↳ PR #${focus.prNumber ?? '?'} checks failing`;
+  if (!isStopped(focus)) return null;
+  const unmet =
+    focus.stage === 'check' && focus.unmet.length
+      ? `   ${unmetOf(focus.unmet)}`
+      : '';
+  return `↳ ${focus.nextCommand ?? `see Story #${focus.storyId}`}${unmet}`;
 }
 
-/** Line 2: the six-stage strip, the step detail and the timing; or the next command. */
-function strip(focus: Focus): string {
-  if (STOPPED.has(focus.status))
-    return `next: ${focus.nextCommand ?? 'see the Story for how to resume'}`;
-  const at = STAGES.indexOf(focus.stage);
-  const marks = STAGES.map((name, index) => {
-    const mark = index < at ? '✓' : index === at ? '●' : '○';
-    return `${mark} ${name}`;
-  }).join(' ─ ');
-  return `${marks} · ${focus.detail} · ${timingOf(focus)}`;
-}
-
-function runText(run: RunLine): string {
-  const current = run.current
-    ? ` · #${run.current.storyId} ${run.current.stage}`
+function rollupOf(run: RunLine): string {
+  const straggler = run.straggler;
+  const glyph = GLYPH[straggler?.attention ?? 'landed'];
+  const span = run.spanMs === null ? '' : ` in ${clock(run.spanMs)}`;
+  const stopped = straggler
+    ? ` · #${straggler.storyId} ${LABEL[straggler.attention]}${straggler.phase ? ` at ${straggler.phase}` : ''}`
     : '';
-  return `run ${run.landed}/${run.total} landed${current} · ${run.queued} queued`;
+  return `${glyph} run ${run.landed}/${run.total} landed${span}${stopped}   ${chipsOf(
+    run,
+  )
+    .split('  ')
+    .slice(1)
+    .join('  ')}`;
 }
 
-/** The band's lines for a body this wide; null draws nothing. */
-function compose({ focus, run }: Snapshot, columns: number): Line[] | null {
+type Line = { text: string; color: string | null };
+
+type Band = {
+  /** `#<id>` or `run`, joined with the attention to key Hide. */
+  key: string;
+  attention: Attention;
+  lines: Line[];
+  /** The command line 2's Copy button copies. */
+  copy: string | null;
+  /** Where line 2's Open PR link goes. */
+  prUrl: string | null;
+};
+
+/** The band for a body this wide; null draws nothing. */
+function compose({ focus, run }: Snapshot, columns: number): Band | null {
+  const isNarrow = columns < NARROW;
+  const first = Math.max(20, columns - BUTTON_CELLS);
+  if (run?.isDone && focus?.status !== 'in-flight') {
+    const attention = run.straggler?.attention ?? 'landed';
+    return {
+      key: 'run',
+      attention,
+      lines: [{ text: cut(rollupOf(run), first), color: COLOR[attention] }],
+      copy: null,
+      prUrl: null,
+    };
+  }
   if (!focus) return null;
-  const color = colorOf(focus);
+  const color = COLOR[focus.attention];
   const lines: Line[] = [
-    { text: headline(focus, Math.max(20, columns - BUTTON_CELLS)), color },
+    { text: cut(headline(focus, run, isNarrow), first), color },
   ];
-  if (columns < NARROW) return lines;
-  if (focus.status !== 'landed')
-    lines.push({ text: cut(strip(focus), columns), color });
-  if (run) lines.push({ text: cut(runText(run), columns), color: null });
-  return lines;
+  const second = attentionLine(focus);
+  const copy = isStopped(focus) ? focus.nextCommand : null;
+  const prUrl = isChecksRed(focus) ? focus.prUrl : null;
+  if (second) {
+    const room = columns - (copy || prUrl ? ACTION_CELLS : 0);
+    lines.push({ text: cut(second, Math.max(20, room)), color });
+  }
+  return {
+    key: `#${focus.storyId}`,
+    attention: focus.attention,
+    lines,
+    copy,
+    prUrl,
+  };
 }
 
 const clockOf = (ms: number | null): string => {
@@ -968,36 +1252,111 @@ const clockOf = (ms: number | null): string => {
     .join(':');
 };
 
-/** The Details pane: stages with start and duration, handoff steps, close phases. */
-function details(focus: Focus | null, now: number): string[] {
+/** A bar on one shared scale, with `▏` where the usual time falls. */
+function bar(tookMs: number | null, usualMs: number | null, unit: number) {
+  if (tookMs === null || unit <= 0) return '';
+  const cells = [...'█'.repeat(Math.round(tookMs / unit))];
+  if (usualMs !== null) {
+    const mark = Math.round(usualMs / unit);
+    while (cells.length <= mark) cells.push(' ');
+    cells[mark] = '▏';
+  }
+  return cells.join('').trimEnd();
+}
+
+function stageDetail(focus: Focus, name: StageName): string {
+  if (name === 'build') return focus.subject ?? '';
+  return name === focus.stage
+    ? focus.step.split(' · ').slice(1).join(' · ')
+    : '';
+}
+
+function attentionRows(focus: Focus): string[] {
+  if (focus.attention === 'slow') {
+    const took =
+      focus.phaseElapsedMs === null ? '—' : clock(focus.phaseElapsedMs);
+    const usual =
+      focus.usualMs === null ? '' : `   usual ~${clock(focus.usualMs)}`;
+    const ratio = ratioOf(focus) ? `   ${ratioOf(focus)}` : '';
+    const quiet = focus.quietMinutes
+      ? `   gate log quiet ${focus.quietMinutes}m`
+      : '';
+    return [
+      `  ▲ ${focus.phase ?? focus.stage}   ${took}${usual}${ratio}${quiet}`,
+    ];
+  }
+  if (isChecksRed(focus))
+    return [`  ✗ PR #${focus.prNumber ?? '?'} checks failing`];
+  if (!isStopped(focus)) return [];
+  return [
+    `  ${GLYPH[focus.attention]} ${focus.problem ?? LABEL[focus.attention]} at ${focus.stage}`,
+    ...(focus.unmet.length ? [`  unmet ${unmetOf(focus.unmet)}`] : []),
+    `  next: ${focus.nextCommand ?? `see Story #${focus.storyId}`}`,
+  ];
+}
+
+/** The Details pane: what needs a look, then the timeline against usual, then the run. */
+function details({ focus, run }: Snapshot, now: number): string[] {
   if (!focus) return ['No /mandrel-deliver Story in flight or recent.'];
   const at = STAGES.indexOf(focus.stage);
-  const stages = focus.stages.map((row, index) => {
-    const mark = index < at ? '✓' : index === at ? '●' : '○';
-    const end = row.endedAt ?? (index === at ? now : null);
-    const took =
-      row.startedAt !== null && end !== null ? fmt(end - row.startedAt) : '—';
-    return `  ${mark} ${row.name.padEnd(8)} ${clockOf(row.startedAt)}  ${took}`;
+  const rows = focus.stages.map((row, index) => {
+    const end =
+      row.endedAt ??
+      (index === at && focus.status === 'in-flight' ? now : null);
+    return {
+      row,
+      index,
+      tookMs:
+        row.startedAt !== null && end !== null ? end - row.startedAt : null,
+    };
   });
-  const steps = focus.handoffSteps.length
-    ? focus.handoffSteps.map((step) => `  ${step.name}  ${clockOf(step.at)}`)
-    : ['  none yet'];
-  const phases = focus.closePhases.map((phase) => {
-    const took = phase.seconds === null ? '—' : fmt(phase.seconds * 1000);
-    const usual =
-      phase.usualSeconds === null
-        ? ''
-        : ` (usual ~${fmt(phase.usualSeconds * 1000)})`;
-    return `  ${phase.name.padEnd(17)} ${took}${usual}`;
+  const phases = focus.closePhases.map((phase) => ({
+    phase,
+    tookMs: phase.seconds === null ? null : phase.seconds * 1000,
+    usualMs: phase.usualSeconds === null ? null : phase.usualSeconds * 1000,
+  }));
+  const longest = Math.max(
+    0,
+    ...rows.flatMap((one) => [one.tookMs ?? 0, one.row.usualMs ?? 0]),
+    ...phases.flatMap((one) => [one.tookMs ?? 0, one.usualMs ?? 0]),
+  );
+  const unit = longest / BAR_CELLS;
+  const total =
+    focus.elapsedSeconds !== null
+      ? focus.elapsedSeconds * 1000
+      : now -
+        (focus.stages.find((row) => row.startedAt !== null)?.startedAt ?? now);
+  const timeline = rows.flatMap(({ row, index, tookMs }) => {
+    const mark =
+      index < at || focus.attention === 'landed'
+        ? '✓'
+        : index === at
+          ? GLYPH[focus.attention]
+          : '○';
+    const took = tookMs === null ? '' : clock(tookMs);
+    const line = `  ${mark} ${row.name.padEnd(17)} ${clockOf(row.startedAt).padEnd(9)} ${took.padStart(7)}   ${bar(tookMs, row.usualMs, unit)}`;
+    const detail = stageDetail(focus, row.name);
+    const head = `${line}${detail ? `   ${detail}` : ''}`.trimEnd();
+    if (row.name !== 'close' || index > at) return [head];
+    return [
+      head,
+      ...phases.map(({ phase, tookMs: phaseMs, usualMs }) =>
+        `      ${phase.name.padEnd(17)} ${''.padEnd(5)} ${(phaseMs === null ? '—' : clock(phaseMs)).padStart(7)}   ${bar(phaseMs, usualMs, unit)}${usualMs === null ? '' : `   ~${clock(usualMs)}`}`.trimEnd(),
+      ),
+    ];
   });
+  const attention = attentionRows(focus);
   return [
-    `Story #${focus.storyId}${focus.title ? ` ${focus.title}` : ''} · ${focus.status}`,
-    'Stages',
-    ...stages,
-    'Handoff steps',
-    ...steps,
-    'Close phases',
-    ...phases,
+    `#${focus.storyId}${focus.title ? ` ${focus.title}` : ''}   ${LABEL[focus.attention]} · ${clock(total)}`,
+    ...(attention.length ? ['NEEDS ATTENTION', ...attention] : []),
+    'TIMELINE',
+    ...timeline,
+    ...(run
+      ? [
+          `RUN ${run.landed}/${run.total}   ${run.chips.map((chip) => `${CHIP[chip.state]} #${chip.storyId}`).join('   ')}`,
+        ]
+      : []),
+    '▏ marks the usual time; every bar shares one scale',
   ];
 }
 
@@ -1018,14 +1377,16 @@ export const register: Register = (on) => {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey) return next(e);
     const current = await read($, snapshot);
-    const lines = compose(current, e.props.bodyColumns);
-    const focus = current.focus;
-    if (!lines || !focus || (await read($, hiddenFor)) === focus.storyId)
-      return next(e);
-    const { Box, Button, Text } = $.ui.resolve(e);
-    const [first, ...rest] = lines;
+    const drawn = compose(current, e.props.bodyColumns);
+    if (!drawn) return next(e);
+    const hideKey = `${drawn.key}:${drawn.attention}`;
+    if ((await read($, hiddenFor)) === hideKey) return next(e);
+    const { Box, Button, Link, Text } = $.ui.resolve(e);
+    const [first, ...rest] = drawn.lines;
+    if (!first) return next(e);
     const style = (line: Line) =>
       line.color ? { color: line.color } : { dimColor: true };
+    const copy = drawn.copy;
     return (
       <Box flexDirection="column">
         <Box>
@@ -1035,7 +1396,7 @@ export const register: Register = (on) => {
           <Button
             key="hide"
             label="Hide"
-            onPress={() => update($, hiddenFor, () => focus.storyId)}
+            onPress={() => update($, hiddenFor, () => hideKey)}
           />
           <Button
             key="details"
@@ -1044,9 +1405,23 @@ export const register: Register = (on) => {
           />
         </Box>
         {rest.map((line, index) => (
-          <Text key={`line-${index}`} {...style(line)} wrap="truncate">
-            {line.text}
-          </Text>
+          <Box key={`line-${index}`}>
+            <Text {...style(line)} wrap="truncate">
+              {line.text}
+            </Text>
+            {copy ? (
+              <Button
+                key="copy"
+                label="Copy"
+                onPress={(press) => {
+                  void $.ui.copy({ text: copy, surface: press.surface });
+                }}
+              />
+            ) : null}
+            {drawn.prUrl ? (
+              <Link key="pr" href={drawn.prUrl} label="Open PR" />
+            ) : null}
+          </Box>
         ))}
       </Box>
     );
@@ -1057,7 +1432,7 @@ export const register: Register = (on) => {
     const current = await read($, snapshot);
     return (
       <Box flexDirection="column">
-        {details(current.focus, current.scannedAt).map((line, index) => (
+        {details(current, current.scannedAt).map((line, index) => (
           <Text key={`row-${index}`} wrap="truncate">
             {line}
           </Text>
