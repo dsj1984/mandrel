@@ -27,7 +27,7 @@ ${SYSTEM_PROMPT_READ_DIRECTIVE}
 `;
 
 /** The pre-2.84.0 block, which carried the import alone. */
-export const LEGACY_SYSTEM_PROMPT_BLOCK = `## System Prompt
+const LEGACY_SYSTEM_PROMPT_BLOCK = `## System Prompt
 
 ${SYSTEM_PROMPT_IMPORT}
 `;
@@ -100,7 +100,7 @@ function foldEntryDocs({ claude, agents = null }) {
  * @param {string} text - entry-doc content without the block.
  * @returns {string}
  */
-export function insertSystemPromptBlock(text) {
+function insertSystemPromptBlock(text) {
   const h1 = /^(?:[ \t]*\r?\n)*# [^\n]*\n?/.exec(text);
   const head = h1 ? withTrailingNewline(h1[0].replace(/^\s+/, '')) : '';
   const rest = text.slice(h1 ? h1[0].length : 0).replace(/^\s*\n/, '');
