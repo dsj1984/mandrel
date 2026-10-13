@@ -15,6 +15,14 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.85.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.84.0...mandrel-v2.85.0) (2026-10-13)
+
+
+### Added
+
+* code-review held review: structured output, bounded context, and a degraded gate when no verdict is produced ([#5663](https://github.com/dsj1984/mandrel/issues/5663)) ([#5665](https://github.com/dsj1984/mandrel/issues/5665)) ([0927d4d](https://github.com/dsj1984/mandrel/commit/0927d4d3099e9cdb7e8f8491663f72f10f2042ac))
+* stream full-suite lock wait progress live during story handoffs ([#5662](https://github.com/dsj1984/mandrel/issues/5662)) ([#5664](https://github.com/dsj1984/mandrel/issues/5664)) ([8a679cf](https://github.com/dsj1984/mandrel/commit/8a679cf248491642aa58990c8ae24532a49f286c))
+
 ## [2.84.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.83.0...mandrel-v2.84.0) (2026-10-13)
 
 
