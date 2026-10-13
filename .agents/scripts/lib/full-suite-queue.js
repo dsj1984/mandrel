@@ -94,6 +94,30 @@ function isLiveEntry({ dir, name, staleMs, nowFn, fsImpl, killFn }) {
   }
 }
 
+/** Live waiters ahead of `ticket`; `null` when the queue is unreadable. */
+function countAhead({
+  lockPath,
+  ticket,
+  staleMs,
+  nowFn = Date.now,
+  fsImpl = fs,
+  killFn,
+}) {
+  const dir = `${lockPath}.queue`;
+  let names;
+  try {
+    names = fsImpl.readdirSync(dir).map(String).sort();
+  } catch {
+    return null;
+  }
+  const own = ticket ? names.indexOf(ticket.name) : -1;
+  return names
+    .slice(0, own === -1 ? names.length : own)
+    .filter((name) =>
+      isLiveEntry({ dir, name, staleMs, nowFn, fsImpl, killFn }),
+    ).length;
+}
+
 /**
  * With no ticket, true only when nobody is queued.
  *
@@ -107,28 +131,8 @@ function isLiveEntry({ dir, name, staleMs, nowFn, fsImpl, killFn }) {
  * }} opts
  * @returns {boolean}
  */
-export function isFirstInLine({
-  lockPath,
-  ticket,
-  staleMs,
-  nowFn = Date.now,
-  fsImpl = fs,
-  killFn,
-}) {
-  const dir = `${lockPath}.queue`;
-  let names;
-  try {
-    names = fsImpl.readdirSync(dir).map(String).sort();
-  } catch {
-    return true;
-  }
-  for (const name of names) {
-    if (name === ticket?.name) return true;
-    if (isLiveEntry({ dir, name, staleMs, nowFn, fsImpl, killFn })) {
-      return false;
-    }
-  }
-  return true;
+export function isFirstInLine(opts) {
+  return (countAhead(opts) ?? 0) === 0;
 }
 
 /**
@@ -172,18 +176,28 @@ function holderLabel(lockPath, fsImpl) {
 }
 
 /**
+ * @typedef {{
+ *   phase: 'waiting'|'still-waiting'|'acquired'|'expired',
+ *   waitedSeconds: number, waitBudgetSeconds: number,
+ *   holder?: LockHolder, queueAhead?: number,
+ * }} LockProgress
+ */
+
+/**
  * @param {{
  *   lockPath: string, waitMs: number, pollMs: number, staleMs: number,
  *   reportMs: number, fsImpl: object, nowFn: () => number,
  *   sleepFn: (ms: number) => Promise<void>, acquireOnceFn: Function,
  *   log: (m: string) => void, rerunCommand: string,
- * }} opts
+ *   onLockProgress?: (progress: LockProgress) => void,
+ * }} opts A throwing `onLockProgress` is swallowed.
  * @returns {Promise<{ held: object|null, expired: boolean, waited: true, waitedMs: number, holder?: LockHolder }>}
  */
 export async function waitInLine(opts) {
   const { lockPath, fsImpl, nowFn } = opts;
   const clock = waitClock(opts);
   announceWait(opts);
+  reportProgress(opts, clock, 'waiting', null);
   const ticket = enqueueWaiter({ lockPath, nowFn, fsImpl });
   try {
     const outcome = await pollForTurn(opts, ticket, clock);
@@ -205,17 +219,40 @@ function waitClock({ waitMs, reportMs, nowFn }) {
   };
 }
 
+function reportProgress(opts, clock, phase, ticket, knownHolder) {
+  try {
+    opts.onLockProgress?.({
+      phase,
+      waitedSeconds: clock.waited(),
+      waitBudgetSeconds: Math.round(Math.max(0, opts.waitMs) / 1000),
+      ...(phase === 'acquired' ? {} : waitContext(opts, ticket, knownHolder)),
+    });
+  } catch {}
+}
+
+/** Holder and queue position, each only when readable. */
+function waitContext({ lockPath, staleMs, fsImpl, nowFn }, ticket, known) {
+  const holder = known ?? readLockHolder(lockPath, { fsImpl, nowFn });
+  const queueAhead = countAhead({ lockPath, ticket, staleMs, nowFn, fsImpl });
+  return {
+    ...(holder.ownerId === null && holder.pid === null ? {} : { holder }),
+    ...(queueAhead === null ? {} : { queueAhead }),
+  };
+}
+
 function announceWait({ lockPath, waitMs, fsImpl, log }) {
   log(
     `${LOCK_TAG} ⏳ another full suite is already running on this host (${holderLabel(lockPath, fsImpl)}) — waiting up to ${Math.round(waitMs / 1000)}s for it to finish before spawning.`,
   );
 }
 
-function giveUp({ lockPath, fsImpl, nowFn, log, rerunCommand }, clock) {
+function giveUp(opts, clock) {
+  const { lockPath, fsImpl, nowFn, log, rerunCommand } = opts;
   const holder = readLockHolder(lockPath, { fsImpl, nowFn });
   log(
     `${LOCK_TAG} ⌛ gave up waiting for the full-suite lock (waited ${clock.waited()}s, ${describeHolder(holder)}) — not spawning, so two full suites never overlap. Re-run once it finishes: ${rerunCommand}`,
   );
+  reportProgress(opts, clock, 'expired', null, holder);
   return {
     held: null,
     expired: true,
@@ -238,19 +275,22 @@ async function pollForTurn(opts, ticket, clock) {
       log(
         `${LOCK_TAG} ✅ acquired the full-suite lock (waited ${clock.waited()}s).`,
       );
+      reportProgress(opts, clock, 'acquired', ticket);
       return { held: attempt, expired: false };
     }
     // A hard I/O error will not resolve by waiting; it is not an expiry.
     if (attempt.reason === 'error') return { held: null, expired: false };
-    reportStillWaiting(opts, clock);
+    reportStillWaiting(opts, clock, ticket);
   }
   return null;
 }
 
-function reportStillWaiting({ lockPath, fsImpl, nowFn, log, reportMs }, clock) {
+function reportStillWaiting(opts, clock, ticket) {
+  const { lockPath, fsImpl, nowFn, log, reportMs } = opts;
   if (nowFn() < clock.nextReport) return;
   log(
     `${LOCK_TAG} ⏳ still waiting for the full-suite lock (${holderLabel(lockPath, fsImpl)}, waited ${clock.waited()}s).`,
   );
+  reportProgress(opts, clock, 'still-waiting', ticket);
   clock.nextReport += reportMs;
 }

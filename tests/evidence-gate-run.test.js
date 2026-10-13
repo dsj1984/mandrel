@@ -1,7 +1,15 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import test from 'node:test';
 
-import { runEvidenceGate } from '../.agents/scripts/evidence-gate.js';
+import {
+  runEvidenceGate,
+  runLockedSuite,
+} from '../.agents/scripts/evidence-gate.js';
+import { createLockEventChannel } from '../.agents/scripts/lib/close-lock-events.js';
+import { acquireSweepLock } from '../.agents/scripts/lib/single-story-sweep/sweep-lock.js';
+import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 
 /**
  * Unit tests for the extracted `runEvidenceGate` runner. Drives the runner
@@ -432,4 +440,65 @@ test('runEvidenceGate: a deferred test gate (exit 75) records nothing and says w
   assert.deepEqual(out, { status: 75, skipped: false });
   assert.equal(recordCalls.length, 0);
   assert.ok(logger.calls.info.some((m) => /deferred \(exit 75\)/.test(m)));
+});
+
+// Story #5662 — the gate's lock wait streams `lock-progress` events onto the
+// claimed channel, beside the `lock-wait` outcome close already reads.
+test('runLockedSuite: emits lock-progress on the claimed channel while it waits', async () => {
+  const dir = makeTempDir('mandrel-eg-progress-');
+  try {
+    const lockPath = path.join(dir, 'full-suite.lock');
+    const holder = acquireSweepLock({ lockPath, timeoutMs: 600_000 });
+    const channel = createLockEventChannel({ dir });
+    const expiredCode = await runLockedSuite(
+      { cmd: 'npm', args: ['test'], cwd: dir, log: () => {} },
+      {
+        config: {},
+        env: { ...channel.env },
+        lockOptions: { lockPath, waitMs: 0 },
+        runSuiteImpl: async () => 0,
+      },
+    );
+    assert.equal(expiredCode, 75);
+    const expired = channel.drain();
+    assert.deepEqual(
+      expired.map((e) => [e.kind, e.phase]),
+      [
+        ['lock-progress', 'waiting'],
+        ['lock-progress', 'expired'],
+        ['lock-wait', undefined],
+      ],
+    );
+    assert.equal(expired[0].holder.ownerId, holder.ownerId);
+
+    let spawned = 0;
+    const acquiredCode = await runLockedSuite(
+      { cmd: 'npm', args: ['test'], cwd: dir, log: () => {} },
+      {
+        config: {},
+        env: { ...channel.env },
+        lockOptions: {
+          lockPath,
+          sleepFn: async () => holder.release(),
+        },
+        runSuiteImpl: async () => {
+          spawned += 1;
+          return 0;
+        },
+      },
+    );
+    assert.equal(acquiredCode, 0);
+    assert.equal(spawned, 1);
+    assert.deepEqual(
+      channel.drain().map((e) => [e.kind, e.phase]),
+      [
+        ['lock-progress', 'waiting'],
+        ['lock-progress', 'acquired'],
+        ['lock-wait', undefined],
+      ],
+    );
+    channel.dispose();
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

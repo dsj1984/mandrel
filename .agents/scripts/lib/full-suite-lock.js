@@ -50,6 +50,7 @@ const LOCK_DEFAULTS = Object.freeze({
   acquireOnceFn: (opts) => acquireSweepLock(opts),
   onWaitExpired: () => LOCK_WAIT_EXPIRED_EXIT_CODE,
   onLockOutcome: () => {},
+  onLockProgress: () => {},
   rerunCommand: 'the same command',
 });
 
@@ -170,6 +171,7 @@ function consult(probe, applies) {
  *   skipIfSatisfied?: () => T|undefined,
  *   onWaitExpired?: (holder: import('./full-suite-queue.js').LockHolder) => T,
  *   onLockOutcome?: (outcome: object) => void,
+ *   onLockProgress?: (progress: import('./full-suite-queue.js').LockProgress) => void,
  *   rerunCommand?: string,
  * }} opts A non-`undefined` `skipIfSatisfied` return stands in for the spawn.
  * @param {(timing: { lockWaitMs: number }) => Promise<T>} spawn

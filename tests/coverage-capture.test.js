@@ -769,7 +769,13 @@ describe('runCoverageCapture — full-suite lock and timings (Story #5485)', () 
         env: { ...channel.env },
         lockOptions: { waitMs: 0 },
       });
-      const [expiry] = channel.read();
+      const events = channel.read();
+      // Story #5662 — the live progress events precede the outcome.
+      assert.deepEqual(
+        events.map((e) => e.phase ?? e.kind),
+        ['waiting', 'expired', 'lock-wait'],
+      );
+      const expiry = events.at(-1);
       assert.equal(expiry.kind, 'lock-wait');
       assert.equal(expiry.expired, true);
       assert.equal(expiry.holder.ownerId, holder.ownerId);
