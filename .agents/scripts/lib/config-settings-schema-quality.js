@@ -71,7 +71,7 @@ export const CODE_REVIEW_SCHEMA = {
   description:
     'Review-provider chain and on-branch remediation threshold for the /mandrel-deliver code-review ceremony.',
   properties: {
-    // An adapter whose probe fails (e.g. codex without `/codex:review`)
+    // An adapter whose probe fails (e.g. codex without the Codex CLI)
     // hard-fails at construction — no silent fallback to native.
     providers: {
       type: 'array',
