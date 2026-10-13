@@ -62,6 +62,11 @@ describe('satisfiesNodeEngine', () => {
     assert.equal(satisfiesNodeEngine('21.0.0'), false);
     assert.equal(satisfiesNodeEngine('25.0.0'), false);
   });
+
+  it('decides on the minor within major 22', () => {
+    assert.equal(satisfiesNodeEngine('22.23.0'), true);
+    assert.equal(satisfiesNodeEngine('22.21.9'), false);
+  });
 });
 
 describe('checkNodeVersion', () => {
@@ -338,6 +343,14 @@ describe('ensureGitignore', () => {
     assert.deepEqual(Object.keys(outcome).sort(), ['agents', 'path']);
     const body = fs.readFileSync(path.join(tmpRoot, '.gitignore'), 'utf8');
     assert.equal(body, GITIGNORE_BLOCKS.agents.block);
+  });
+
+  it('starts the first block on its own line when .gitignore lacks a trailing newline', () => {
+    writeFile(path.join(tmpRoot, '.gitignore'), 'node_modules/');
+    ensureGitignore({ projectRoot: tmpRoot });
+    const body = fs.readFileSync(path.join(tmpRoot, '.gitignore'), 'utf8');
+    assert.ok(body.startsWith('node_modules/\n\n# '));
+    assert.ok(/^\.agents\/skills\/workflows\/$/m.test(body));
   });
 
   it('does not treat a pre-existing .env.example as the .env block', () => {
