@@ -276,6 +276,12 @@ judgment that help text cannot carry.
   `gates.codeReview: "overridden"` rather than `"passed"`. If you find yourself
   reaching for it twice for the same shape of finding, the gate is
   miscalibrated — fix the gate, not the run.
+- `gates.codeReview: "degraded"` — not a flag but an envelope value: a
+  review surface ran yet produced no verdict (the `claude` CLI is not logged
+  in or out of quota, or its output did not parse). The PR comment lists it
+  under Degraded Gates. It is reported, not blocking — close still lands —
+  so read the diff yourself before trusting the merge. Precedence:
+  `overridden` > `degraded` > `passed`.
 - `--max-wait-seconds <n>` — from a headless caller with no host
   tool-invocation ceiling, to keep single-block semantics
   without editing the consumer's config.

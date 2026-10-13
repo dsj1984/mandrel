@@ -90,7 +90,7 @@ test('isScopeApplicable: filters by declared list', () => {
  * The real `code-review` constructor over injected probe/diff/invoke seams —
  * no test spawns the `claude` binary.
  */
-function defaultChainRegistry({ cliPresent, order }) {
+function defaultChainRegistry({ cliPresent, order, reviewStatus = 0 }) {
   return inlineRegistry({
     native: () => ({
       runReview: async () => {
@@ -106,9 +106,22 @@ function defaultChainRegistry({ cliPresent, order }) {
           stdout: 'diff --git a/x b/x\n',
           stderr: '',
         }),
+        authSpawnFn: () => ({
+          status: 0,
+          stdout: JSON.stringify({ loggedIn: true, authMethod: 'claude.ai' }),
+          stderr: '',
+        }),
         spawnFn: () => {
           order.push('code-review');
-          return { status: 0, stdout: '[]', stderr: '' };
+          return {
+            status: reviewStatus,
+            stdout: JSON.stringify({
+              subtype: 'success',
+              is_error: false,
+              structured_output: { findings: [] },
+            }),
+            stderr: '',
+          };
         },
       }),
   });
@@ -128,6 +141,24 @@ test('default chain: unset config with the claude CLI runs native then code-revi
   );
   assert.deepEqual(await provider.runReview(STORY_INPUT), []);
   assert.deepEqual(order, ['native', 'code-review']);
+  assert.deepEqual(await provider.getDegradations(), []);
+});
+
+test('default chain: a code-review run with no verdict surfaces one chain degradation, not a finding (Story #5663)', async () => {
+  const order = [];
+  const provider = createReviewProvider(undefined, {
+    inlineRegistry: defaultChainRegistry({
+      cliPresent: true,
+      order,
+      reviewStatus: 1,
+    }),
+    promptRegistry: promptRegistry({}),
+  });
+  assert.deepEqual(await provider.runReview(STORY_INPUT), []);
+  const degradations = await provider.getDegradations();
+  assert.equal(degradations.length, 1);
+  assert.equal(degradations[0].tool, 'code-review');
+  assert.equal(degradations[0].surface, 'model-bug-review');
 });
 
 test('default chain: without the claude CLI code-review is skipped and native runs alone', async () => {

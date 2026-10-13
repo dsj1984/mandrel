@@ -258,18 +258,37 @@ function baselinesEnvelopeGates(validationGates) {
 }
 
 /**
+ * `overridden` > `degraded` > `passed`: an override records the human
+ * decision on a failed review; `degraded` says a review surface produced no
+ * verdict (reported, not blocking — a secondary review does not gate merge).
+ *
+ * @param {object|null} reviewOverride
+ * @param {boolean} [reviewDegraded]
+ * @returns {'overridden'|'degraded'|'passed'}
+ */
+function codeReviewGate(reviewOverride, reviewDegraded) {
+  if (reviewOverride) return 'overridden';
+  return reviewDegraded ? 'degraded' : 'passed';
+}
+
+/**
  * @param {{ skipValidation?: boolean, skipSync?: boolean }} options
  * @param {Record<string, string>|null} validationGates
  * @param {object|null} reviewOverride
+ * @param {boolean} [reviewDegraded]
  * @returns {Record<string, string>}
  */
-function closeEnvelopeGates(options, validationGates, reviewOverride) {
+function closeEnvelopeGates(
+  options,
+  validationGates,
+  reviewOverride,
+  reviewDegraded,
+) {
   return {
     validation: options.skipValidation ? 'skipped' : 'passed',
     ...baselinesEnvelopeGates(validationGates),
     baseSync: options.skipSync ? 'skipped' : 'passed',
-    // The review did fail; the envelope records the human override.
-    codeReview: reviewOverride ? 'overridden' : 'passed',
+    codeReview: codeReviewGate(reviewOverride, reviewDegraded),
   };
 }
 
@@ -466,7 +485,13 @@ async function openAndReviewPr(ctx, deps) {
   const reviewOverride = reviewOutcome.halted
     ? await resolveReviewHalt(ctx, deps, { prUrl, prNumber, reviewOutcome })
     : null;
-  return { prUrl, prNumber, alreadyMerged: false, reviewOverride };
+  return {
+    prUrl,
+    prNumber,
+    alreadyMerged: false,
+    reviewOverride,
+    reviewDegraded: reviewOutcome.degraded === true,
+  };
 }
 
 async function releaseLease({ storyId }, deps) {
@@ -1181,6 +1206,7 @@ async function finishPhase(ctx, deps) {
       options,
       ctx.prePush.validationGates,
       ctx.pr.reviewOverride,
+      ctx.pr.reviewDegraded,
     ),
   };
   if (!waitForMerge) {

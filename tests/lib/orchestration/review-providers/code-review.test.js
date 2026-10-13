@@ -1,15 +1,22 @@
 /**
- * Unit tests for `review-providers/code-review.js` — Story #5426.
+ * Unit tests for `review-providers/code-review.js` — Stories #5426, #5663.
  *
  * Every test injects the probe, git and `claude` spawn seams: none spawns
  * the real `claude` binary.
  */
 
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 import { hasSurvivingCritical } from '../../../../.agents/scripts/lib/audit-suite/findings.js';
 import { spawnCaptureAsync } from '../../../../.agents/scripts/lib/child-exec.js';
 import { createCodeReviewProviderForRegistry } from '../../../../.agents/scripts/lib/orchestration/review-providers/code-review.js';
+import {
+  mergeChainDegradations,
+  renderDegradedGatesSection,
+} from '../../../../.agents/scripts/lib/orchestration/review-providers/degraded-gates.js';
 
 const INPUT = Object.freeze({
   scope: 'story',
@@ -21,23 +28,62 @@ const INPUT = Object.freeze({
 });
 
 const DIFF = 'diff --git a/src/a.js b/src/a.js\n+const x = 1;\n';
+const PROJECT_ROOT = path.resolve(import.meta.dirname, '../../../..');
+
+const AUTH_OK = JSON.stringify({
+  loggedIn: true,
+  authMethod: 'claude.ai',
+  subscriptionType: 'max',
+  email: 'operator@example.com',
+  orgId: 'org-123',
+  orgName: 'Example Org',
+});
+
+/** A successful `--output-format json` envelope carrying `findings`. */
+function envelope(findings, extra = {}) {
+  return JSON.stringify({
+    type: 'result',
+    subtype: 'success',
+    is_error: false,
+    result: '',
+    structured_output: { findings },
+    ...extra,
+  });
+}
 
 /**
- * @param {{ stdout?: string, status?: number, stderr?: string, diff?: object }} [opts]
+ * @param {{ stdout?: string, status?: number, stderr?: string, diff?: object, auth?: object, logger?: object }} [opts]
  */
 function harness(opts = {}) {
   const calls = [];
   const provider = createCodeReviewProviderForRegistry({
     probeFn: () => true,
+    logger: opts.logger,
     gitSpawnFn: (cwd, ...args) => {
       calls.push({ kind: 'diff', cwd, args });
       return opts.diff ?? { status: 0, stdout: DIFF, stderr: '' };
     },
+    authSpawnFn: (file, args, options) => {
+      calls.push({
+        kind: 'auth',
+        file,
+        args: [...args],
+        options,
+        cwdExisted: fs.existsSync(options.cwd),
+      });
+      return opts.auth ?? { status: 0, stdout: AUTH_OK, stderr: '' };
+    },
     spawnFn: (file, args, options) => {
-      calls.push({ kind: 'invoke', file, args: [...args], options });
+      calls.push({
+        kind: 'invoke',
+        file,
+        args: [...args],
+        options,
+        cwdExisted: fs.existsSync(options.cwd),
+      });
       return {
         status: opts.status ?? 0,
-        stdout: opts.stdout ?? '[]',
+        stdout: opts.stdout ?? envelope([]),
         stderr: opts.stderr ?? '',
       };
     },
@@ -56,6 +102,17 @@ function countSeverity(findings) {
   return out;
 }
 
+/** Exactly one degraded-gate record for the model bug review. */
+function assertOneDegradation(provider, reasonRe) {
+  const rows = provider.getDegradations();
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].tool, 'code-review');
+  assert.equal(rows[0].gate, 'codeReview');
+  assert.equal(rows[0].surface, 'model-bug-review');
+  assert.match(rows[0].reason, reasonRe);
+  return rows[0];
+}
+
 test('construction throws when the claude CLI probe reports absent', () => {
   assert.throws(
     () => createCodeReviewProviderForRegistry({ probeFn: () => false }),
@@ -63,12 +120,22 @@ test('construction throws when the claude CLI probe reports absent', () => {
   );
 });
 
-test('invokes claude --print --effort low with the diff range and Story id', async () => {
+test('AC-3: invokes claude with structured output and stripped context, no --model or --bare', async () => {
   const { provider, calls } = harness();
   await provider.runReview(INPUT);
   const call = invokeCall(calls);
   assert.equal(call.file, 'claude');
-  assert.deepEqual(call.args, ['--print', '--effort', 'low']);
+  const { args } = call;
+  assert.deepEqual(args.slice(0, 3), ['--print', '--effort', 'low']);
+  assert.equal(args[args.indexOf('--output-format') + 1], 'json');
+  const schema = JSON.parse(args[args.indexOf('--json-schema') + 1]);
+  assert.deepEqual(schema.required, ['findings']);
+  assert.equal(schema.properties.findings.type, 'array');
+  assert.equal(args[args.indexOf('--setting-sources') + 1], 'user');
+  assert.ok(args.includes('--strict-mcp-config'));
+  assert.equal(args[args.indexOf('--tools') + 1], '');
+  assert.ok(!args.includes('--model'), 'no model pin');
+  assert.ok(!args.includes('--bare'), 'no --bare (would force API-key auth)');
   assert.ok(call.options.timeout > 0, 'bounded timeout');
   const diffCall = calls.find((c) => c.kind === 'diff');
   assert.deepEqual(diffCall.args, [
@@ -76,10 +143,68 @@ test('invokes claude --print --effort low with the diff range and Story id', asy
     '--no-color',
     'origin/main...story-5426',
   ]);
-  assert.ok(!call.args.includes('--model'), 'no model pin');
   assert.match(call.prompt, /origin\/main\.\.\.story-5426/);
   assert.match(call.prompt, /Story #5426/);
   assert.ok(call.prompt.includes(DIFF), 'diff text is handed over');
+});
+
+test('AC-3: the review runs from a fresh OS temp dir outside the project, removed after the run', async () => {
+  const { provider, calls } = harness();
+  await provider.runReview(INPUT);
+  const { options, cwdExisted } = invokeCall(calls);
+  const cwd = path.resolve(options.cwd);
+  assert.ok(cwdExisted, 'cwd existed during the run');
+  assert.ok(
+    cwd.startsWith(path.resolve(os.tmpdir()) + path.sep),
+    `cwd ${cwd} is under os.tmpdir()`,
+  );
+  assert.match(path.basename(cwd), /^mandrel-code-review-/);
+  assert.ok(
+    !cwd.startsWith(PROJECT_ROOT + path.sep),
+    'cwd is outside the project root',
+  );
+  assert.equal(fs.existsSync(cwd), false, 'temp dir removed after the run');
+  const auth = calls.find((c) => c.kind === 'auth');
+  assert.equal(auth.options.cwd, options.cwd, 'preflight shares the temp dir');
+});
+
+test('the temp dir is removed even when the reviewer spawn throws', async () => {
+  let seenCwd = null;
+  const provider = createCodeReviewProviderForRegistry({
+    probeFn: () => true,
+    gitSpawnFn: () => ({ status: 0, stdout: DIFF, stderr: '' }),
+    authSpawnFn: () => ({ status: 0, stdout: AUTH_OK, stderr: '' }),
+    spawnFn: (_f, _a, options) => {
+      seenCwd = options.cwd;
+      throw new Error('boom');
+    },
+  });
+  await assert.rejects(() => provider.runReview(INPUT), /boom/);
+  assert.ok(seenCwd);
+  assert.equal(fs.existsSync(seenCwd), false);
+});
+
+test('on win32 the shell-joined argv is quoted so the empty --tools value and the schema survive', async () => {
+  const seen = [];
+  const provider = createCodeReviewProviderForRegistry({
+    probeFn: () => true,
+    platform: 'win32',
+    gitSpawnFn: () => ({ status: 0, stdout: DIFF, stderr: '' }),
+    authSpawnFn: (_f, args, options) => {
+      seen.push({ args, options });
+      return { status: 0, stdout: AUTH_OK, stderr: '' };
+    },
+    spawnFn: (_f, args, options) => {
+      seen.push({ args, options });
+      return { status: 0, stdout: envelope([]), stderr: '' };
+    },
+  });
+  assert.deepEqual(await provider.runReview(INPUT), []);
+  const review = seen[1];
+  assert.equal(review.options.shell, true);
+  assert.ok(review.args.includes('""'), 'empty --tools value quoted');
+  assert.ok(review.args.every((a) => a.startsWith('"') && a.endsWith('"')));
+  assert.ok(review.args.some((a) => a.includes('\\"findings\\"')));
 });
 
 test('prompt asks only for merge-blocking problems with file, line, why and how to show it fails', async () => {
@@ -91,7 +216,7 @@ test('prompt asks only for merge-blocking problems with file, line, why and how 
   assert.match(prompt, /the\s+line/);
   assert.match(prompt, /why it is wrong/);
   assert.match(prompt, /how to show it fails/);
-  assert.match(prompt, /Emit \[\] if there is nothing/);
+  assert.match(prompt, /Emit \{"findings":\[\]\} if there is nothing/);
 });
 
 test('prompt carries no acceptance criteria or self-eval verdict', async () => {
@@ -107,8 +232,8 @@ test('prompt carries no acceptance criteria or self-eval verdict', async () => {
   assert.doesNotMatch(prompt, /self-eval|verdict/i);
 });
 
-test('every parsed finding is critical, so the chain halts', async () => {
-  const stdout = JSON.stringify([
+test('AC-1: structured_output findings are all critical with category defaulting to bug, so the chain halts', async () => {
+  const stdout = envelope([
     {
       severity: 'suggestion',
       title: 'Off-by-one drops the last row',
@@ -122,53 +247,220 @@ test('every parsed finding is critical, so the chain halts', async () => {
   const findings = await provider.runReview(INPUT);
   assert.equal(findings.length, 2);
   assert.ok(findings.every((f) => f.severity === 'critical'));
+  assert.ok(findings.every((f) => f.category === 'bug'));
   assert.equal(findings[0].file, 'src/a.js');
   assert.equal(findings[0].line, 1);
-  assert.equal(findings[0].category, 'bug');
   assert.equal(hasSurvivingCritical(countSeverity(findings)), true);
+  assert.deepEqual(provider.getDegradations(), []);
 });
 
-test('a fenced JSON array still parses', async () => {
-  const stdout = '```json\n[{"title":"t","body":"b"}]\n```\n';
+test('AC-1: structured_output with an empty findings list lets close proceed with no degradation', async () => {
+  const { provider } = harness({ stdout: envelope([]) });
+  const findings = await provider.runReview(INPUT);
+  assert.deepEqual(findings, []);
+  assert.equal(hasSurvivingCritical(countSeverity(findings)), false);
+  assert.deepEqual(provider.getDegradations(), []);
+});
+
+test('AC-2: prose before a fenced JSON array in the result text is a real verdict', async () => {
+  const stdout = JSON.stringify({
+    type: 'result',
+    subtype: 'success',
+    is_error: false,
+    result: 'The change is a one-line default swap.\n\n```json\n[]\n```',
+  });
+  const { provider } = harness({ stdout });
+  assert.deepEqual(await provider.runReview(INPUT), []);
+  assert.deepEqual(provider.getDegradations(), []);
+});
+
+test('AC-2: the last fenced block wins and may carry a findings object', async () => {
+  const stdout = JSON.stringify({
+    type: 'result',
+    subtype: 'success',
+    is_error: false,
+    result:
+      'Draft:\n```json\n[]\n```\nRevised after a second look:\n```json\n{"findings":[{"title":"t","body":"b"}]}\n```\n',
+  });
   const { provider } = harness({ stdout });
   const findings = await provider.runReview(INPUT);
   assert.equal(findings.length, 1);
   assert.equal(findings[0].severity, 'critical');
+  assert.equal(findings[0].category, 'bug');
 });
 
-test('an empty array lets close proceed', async () => {
-  const { provider } = harness({ stdout: '[]' });
+test('AC-2: prose around a bare JSON array parses the last top-level array', async () => {
+  const stdout = JSON.stringify({
+    type: 'result',
+    subtype: 'success',
+    is_error: false,
+    result:
+      'I checked [the diff] carefully. Result:\n[{"title":"Crash on [] input","body":"b","line":3}]\nDone.',
+  });
+  const { provider } = harness({ stdout });
   const findings = await provider.runReview(INPUT);
-  assert.deepEqual(findings, []);
-  assert.equal(hasSurvivingCritical(countSeverity(findings)), false);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].title, 'Crash on [] input');
+  assert.equal(findings[0].line, 3);
 });
 
-test('unparseable output yields exactly one non-halting suggestion', async () => {
+test('AC-4: unparseable result text is one degradation and no findings', async () => {
+  const stdout = JSON.stringify({
+    type: 'result',
+    subtype: 'success',
+    is_error: false,
+    result: 'Looks good to me!',
+  });
+  const { provider } = harness({ stdout });
+  assert.deepEqual(await provider.runReview(INPUT), []);
+  assertOneDegradation(provider, /did not parse as a findings verdict/);
+});
+
+test('AC-4: stdout that is not a JSON envelope is one degradation', async () => {
   const { provider } = harness({ stdout: 'Looks good to me!' });
-  const findings = await provider.runReview(INPUT);
-  assert.equal(findings.length, 1);
-  assert.equal(findings[0].severity, 'suggestion');
-  assert.match(findings[0].title, /not parseable/);
-  assert.equal(hasSurvivingCritical(countSeverity(findings)), false);
+  assert.deepEqual(await provider.runReview(INPUT), []);
+  assertOneDegradation(provider, /not a JSON result envelope/);
 });
 
-test('a non-zero claude exit degrades to one non-halting suggestion', async () => {
-  const { provider } = harness({ status: 1, stderr: 'rate limited' });
-  const findings = await provider.runReview(INPUT);
-  assert.equal(findings.length, 1);
-  assert.equal(findings[0].severity, 'suggestion');
-  assert.match(findings[0].body, /rate limited/);
+test('AC-4: a non-zero claude exit is one degradation naming the status', async () => {
+  const { provider } = harness({ status: 1, stdout: '', stderr: 'boom' });
+  assert.deepEqual(await provider.runReview(INPUT), []);
+  assertOneDegradation(provider, /exited with status 1: boom/);
 });
 
-test('an unreadable diff degrades to one suggestion without invoking claude', async () => {
+test('AC-4: is_error: true is one degradation even with a parseable result', async () => {
+  const stdout = envelope([], { is_error: true, result: 'API Error: 500' });
+  const { provider } = harness({ stdout });
+  assert.deepEqual(await provider.runReview(INPUT), []);
+  assertOneDegradation(provider, /error result: API Error: 500/);
+});
+
+test('AC-4: a non-success subtype is one degradation', async () => {
+  const stdout = JSON.stringify({
+    type: 'result',
+    subtype: 'error_max_turns',
+    is_error: false,
+    result: '[]',
+  });
+  const { provider } = harness({ stdout });
+  assert.deepEqual(await provider.runReview(INPUT), []);
+  assertOneDegradation(provider, /subtype error_max_turns/);
+});
+
+test('AC-4: an unreadable diff is one degradation without invoking claude', async () => {
   const { provider, calls } = harness({
     diff: { status: 128, stdout: '', stderr: 'bad revision' },
   });
-  const findings = await provider.runReview(INPUT);
-  assert.equal(findings.length, 1);
-  assert.equal(findings[0].severity, 'suggestion');
-  assert.match(findings[0].body, /bad revision/);
+  assert.deepEqual(await provider.runReview(INPUT), []);
+  assertOneDegradation(
+    provider,
+    /git diff origin\/main\.\.\.story-5426 failed: bad revision/,
+  );
   assert.equal(invokeCall(calls), undefined);
+  assert.equal(
+    calls.find((c) => c.kind === 'auth'),
+    undefined,
+  );
+});
+
+test('AC-4: the degradation reaches the chain and renders under Degraded Gates; no suggestion finding', async () => {
+  const { provider } = harness({ status: 1, stdout: '', stderr: 'boom' });
+  const findings = await provider.runReview(INPUT);
+  assert.equal(countSeverity(findings).suggestion, 0);
+  const merged = await mergeChainDegradations([
+    { name: 'code-review', provider },
+  ]);
+  assert.equal(merged.length, 1);
+  const comment = renderDegradedGatesSection(merged).join('\n');
+  assert.match(comment, /Degraded Gates/);
+  assert.match(comment, /model-bug-review/);
+});
+
+test('AC-5: a not-logged-in preflight skips the review and names the login problem', async () => {
+  const { provider, calls } = harness({
+    auth: {
+      status: 0,
+      stdout: JSON.stringify({
+        loggedIn: false,
+        authMethod: 'none',
+        email: 'operator@example.com',
+      }),
+      stderr: '',
+    },
+  });
+  assert.deepEqual(await provider.runReview(INPUT), []);
+  const row = assertOneDegradation(
+    provider,
+    /not logged in \(authMethod: none\)/,
+  );
+  assert.doesNotMatch(row.reason, /operator@example\.com/);
+  assert.equal(invokeCall(calls), undefined);
+});
+
+test('AC-5: a non-zero or unparseable preflight skips the review', async () => {
+  const exited = harness({ auth: { status: 1, stdout: '', stderr: 'nope' } });
+  assert.deepEqual(await exited.provider.runReview(INPUT), []);
+  assertOneDegradation(
+    exited.provider,
+    /auth status exited 1: the CLI is not logged in/,
+  );
+  assert.equal(invokeCall(exited.calls), undefined);
+
+  const garbled = harness({
+    auth: { status: 0, stdout: 'not json', stderr: '' },
+  });
+  assert.deepEqual(await garbled.provider.runReview(INPUT), []);
+  assertOneDegradation(garbled.provider, /unparseable output/);
+  assert.equal(invokeCall(garbled.calls), undefined);
+});
+
+test('AC-5: a usage-limit failure names quota exhaustion', async () => {
+  const stdout = JSON.stringify({
+    type: 'result',
+    subtype: 'success',
+    is_error: true,
+    result: "You've hit your weekly limit · resets Oct 14",
+  });
+  const { provider } = harness({ status: 1, stdout });
+  assert.deepEqual(await provider.runReview(INPUT), []);
+  assertOneDegradation(provider, /out of quota/);
+});
+
+test('AC-5: no reason or log line carries the account email, org name or org id', async () => {
+  const lines = [];
+  const logger = {
+    info: (m) => lines.push(m),
+    warn: (m) => lines.push(m),
+  };
+  const ok = harness({ logger });
+  await ok.provider.runReview(INPUT);
+  const failed = harness({ logger, status: 1, stdout: '', stderr: 'boom' });
+  await failed.provider.runReview(INPUT);
+  const text = [
+    ...lines,
+    ...failed.provider.getDegradations().map((d) => d.reason),
+  ].join('\n');
+  assert.match(text, /authMethod: claude\.ai, subscriptionType: max/);
+  assert.doesNotMatch(text, /operator@example\.com|Example Org|org-123/);
+});
+
+test('AC-6: a failed review then a successful one reports no degradation for the second run', async () => {
+  let run = 0;
+  const provider = createCodeReviewProviderForRegistry({
+    probeFn: () => true,
+    gitSpawnFn: () => ({ status: 0, stdout: DIFF, stderr: '' }),
+    authSpawnFn: () => ({ status: 0, stdout: AUTH_OK, stderr: '' }),
+    spawnFn: () => {
+      run += 1;
+      return run === 1
+        ? { status: 1, stdout: '', stderr: 'boom' }
+        : { status: 0, stdout: envelope([]), stderr: '' };
+    },
+  });
+  await provider.runReview(INPUT);
+  assert.equal(provider.getDegradations().length, 1);
+  assert.deepEqual(await provider.runReview(INPUT), []);
+  assert.deepEqual(provider.getDegradations(), []);
 });
 
 test('an empty diff returns no findings without invoking claude', async () => {
@@ -177,6 +469,7 @@ test('an empty diff returns no findings without invoking claude', async () => {
   });
   assert.deepEqual(await provider.runReview(INPUT), []);
   assert.equal(invokeCall(calls), undefined);
+  assert.deepEqual(provider.getDegradations(), []);
 });
 
 test('an oversized diff is truncated and the reviewer is told', async () => {
@@ -208,16 +501,11 @@ test('the logger hears the invocation and a failed run', async () => {
     info: (m) => lines.push(['info', m]),
     warn: (m) => lines.push(['warn', m]),
   };
-  const provider = createCodeReviewProviderForRegistry({
-    probeFn: () => true,
-    gitSpawnFn: () => ({ status: 0, stdout: DIFF, stderr: '' }),
-    spawnFn: () => ({ status: 2, stdout: '', stderr: '' }),
-    logger,
-  });
-  const findings = await provider.runReview(INPUT);
-  assert.match(findings[0].body, /<no output>/);
+  const { provider } = harness({ logger, status: 2, stdout: '', stderr: '' });
+  await provider.runReview(INPUT);
+  assertOneDegradation(provider, /status 2: <no output>/);
   assert.ok(lines.some(([lvl, m]) => lvl === 'info' && /--effort low/.test(m)));
-  assert.ok(lines.some(([lvl, m]) => lvl === 'warn' && /exited 2/.test(m)));
+  assert.ok(lines.some(([lvl, m]) => lvl === 'warn' && /status 2/.test(m)));
 });
 
 test('the claude call never blocks the event loop: a concurrent gate child drains while the reviewer runs (Story #5480)', async () => {
@@ -225,6 +513,7 @@ test('the claude call never blocks the event loop: a concurrent gate child drain
   const provider = createCodeReviewProviderForRegistry({
     probeFn: () => true,
     gitSpawnFn: () => ({ status: 0, stdout: DIFF, stderr: '' }),
+    authSpawnFn: () => ({ status: 0, stdout: AUTH_OK, stderr: '' }),
     // The real async runner, with a stand-in reviewer that reads the prompt
     // from stdin and answers after 600ms.
     spawnFn: (_file, _args, options) =>
@@ -232,7 +521,7 @@ test('the claude call never blocks the event loop: a concurrent gate child drain
         process.execPath,
         [
           '-e',
-          "process.stdin.resume();process.stdin.on('end',()=>setTimeout(()=>process.stdout.write('[]'),600));",
+          `process.stdin.resume();process.stdin.on('end',()=>setTimeout(()=>process.stdout.write(${JSON.stringify(envelope([]))}),600));`,
         ],
         // No shell: the stand-in's argv must reach node verbatim on Windows.
         { ...options, shell: false },
@@ -253,6 +542,7 @@ test('the claude call never blocks the event loop: a concurrent gate child drain
   });
   const [findings, gateBytes] = await Promise.all([review, gate]);
   assert.deepEqual(findings, []);
+  assert.deepEqual(provider.getDegradations(), []);
   assert.equal(gateBytes, 512 * 1024);
   assert.deepEqual(order, ['gate', 'review']);
 });

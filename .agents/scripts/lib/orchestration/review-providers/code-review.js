@@ -6,26 +6,58 @@
  * id and the diff text — never `acceptance[]` or the self-eval verdict: this
  * is a bug review, not a second acceptance scoring.
  *
- * A missing CLI throws at construction (the default chain entry is
- * `optional: true`, so hosts without it skip). A review that cannot run or
- * whose output does not parse degrades to one non-halting `suggestion`.
+ * Cost is bounded by stripping context, not by pinning a model: an empty
+ * OS temp cwd (no CLAUDE.md discovery), user-only settings, no MCP, no tools.
+ *
+ * A missing CLI throws at construction (the chain entry is optional). A
+ * review with no verdict records one degraded gate via `getDegradations()`
+ * and returns no findings, so "never ran" cannot read as "found nothing".
  *
  * @typedef {import('./types.js').Finding}        Finding
  * @typedef {import('./types.js').ReviewInput}    ReviewInput
  * @typedef {import('./types.js').ReviewProvider} ReviewProvider
+ * @typedef {import('./degraded-gates.js').GateDegradation} GateDegradation
  */
 
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { spawnCaptureAsync } from '../../child-exec.js';
 import { gitSpawn } from '../../git-utils.js';
 import { PROJECT_ROOT } from '../../project-root.js';
-import { parseProviderFindings } from './parse-findings.js';
+import {
+  clip,
+  FINDINGS_SCHEMA_JSON,
+  readAuthStatus,
+  resolveVerdict,
+} from './claude-verdict.js';
 import { renderDepthDirective } from './review-depth.js';
 import { probeClaudeCli } from './security-review.js';
 
-const CLAUDE_ARGS = Object.freeze(['--print', '--effort', 'low']);
+const CLAUDE_ARGS = Object.freeze([
+  '--print',
+  '--effort',
+  'low',
+  '--output-format',
+  'json',
+  '--json-schema',
+  FINDINGS_SCHEMA_JSON,
+  '--setting-sources',
+  'user',
+  '--strict-mcp-config',
+  '--tools',
+  '',
+]);
+const AUTH_ARGS = Object.freeze(['auth', 'status', '--json']);
 const INVOKE_TIMEOUT_MS = 10 * 60 * 1000;
+const AUTH_TIMEOUT_MS = 15 * 1000;
 /** Larger diffs are truncated; the reviewer is told so. */
 const MAX_DIFF_CHARS = 200_000;
+const DEGRADATION_BASE = Object.freeze({
+  tool: 'code-review',
+  gate: 'codeReview',
+  surface: 'model-bug-review',
+});
 
 const PROMPT_HEAD =
   'You are reviewing the diff `{baseRef}...{headRef}` for Story #{ticketId} ' +
@@ -37,11 +69,10 @@ const PROMPT_HEAD =
   'line in the new version, why it is wrong, and how to show it fails (an ' +
   'input, command or test that exposes it).\n\n' +
   'The diff below is authoritative — files on disk may not reflect it. ' +
-  'Emit ONLY a JSON array on stdout with this exact shape, no prose around ' +
-  'it:\n\n' +
-  '[{"title":"...","body":"Why it is wrong: ... How to show it fails: ...",' +
-  '"file":"...","line":1,"category":"bug"}]\n\n' +
-  'Emit [] if there is nothing you would block the merge for.\n\n';
+  'Answer with a JSON object of this exact shape, no prose around it:\n\n' +
+  '{"findings":[{"title":"...","body":"Why it is wrong: ... How to show it ' +
+  'fails: ...","file":"...","line":1,"category":"bug"}]}\n\n' +
+  'Emit {"findings":[]} if there is nothing you would block the merge for.\n\n';
 
 /**
  * @param {ReviewInput} input
@@ -62,64 +93,37 @@ function buildPrompt(input, diff) {
 }
 
 /**
- * The prompt rides stdin so no shell ever quotes it. Asynchronous: the
- * review overlaps close's gate children, whose output must keep draining.
+ * A Windows shell joins argv unquoted, which would drop `--tools ""` and
+ * split the schema; quote each arg for the MSVCRT argv parser.
  *
- * @param {string} prompt
- * @param {Function} [run] - `(file, args, options)` seam for tests.
+ * @param {string} arg
+ * @returns {string}
+ */
+function quoteWindowsArg(arg) {
+  const escaped = arg.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/, '$1$1');
+  return `"${escaped}"`;
+}
+
+/**
+ * Async, so close's concurrent gate children keep draining.
+ *
+ * @param {ReadonlyArray<string>} args
+ * @param {{ cwd: string, input?: string, timeout: number, run?: Function, platform: string }} opts
  * @returns {Promise<{ status: number, stdout: string, stderr: string }>}
  */
-function invokeClaude(prompt, run) {
-  return spawnCaptureAsync('claude', [...CLAUDE_ARGS], {
-    cwd: PROJECT_ROOT,
-    input: prompt,
-    shell: process.platform === 'win32',
-    timeout: INVOKE_TIMEOUT_MS,
-    ...(run ? { run } : {}),
-  });
-}
-
-/** A model often fences its JSON; strip one surrounding fence. */
-function stripFence(text) {
-  const match = /^\s*```[a-z]*\s*\n([\s\S]*?)\n\s*```\s*$/i.exec(text ?? '');
-  return match ? match[1] : (text ?? '');
-}
-
-/**
- * @param {string} title
- * @param {string} detail
- * @returns {Finding}
- */
-function advisory(title, detail) {
-  return {
-    severity: 'suggestion',
-    title,
-    body:
-      `${detail} The model bug review did not produce a verdict — inspect ` +
-      'the diff manually before merging. Advisory only; the chain did not halt.',
-    category: 'bug',
-  };
-}
-
-/**
- * @param {string} stdout
- * @returns {Finding[]}
- */
-function parseFindings(stdout) {
-  try {
-    return parseProviderFindings(stripFence(stdout), {
-      errorPrefix: '[code-review] Failed to parse reviewer stdout as JSON',
-      mapSeverity: () => 'critical',
-      defaultCategory: 'bug',
-    });
-  } catch (err) {
-    return [
-      advisory(
-        'Code review output not parseable as JSON',
-        `The reviewer returned text that did not parse as a JSON findings array (${err.message}).`,
-      ),
-    ];
-  }
+function runClaude(args, { cwd, input, timeout, run, platform }) {
+  const shell = platform === 'win32';
+  return spawnCaptureAsync(
+    'claude',
+    shell ? args.map(quoteWindowsArg) : [...args],
+    {
+      cwd,
+      input: input ?? '',
+      shell,
+      timeout,
+      ...(run ? { run } : {}),
+    },
+  );
 }
 
 /**
@@ -139,69 +143,105 @@ function assertInput(input) {
   }
 }
 
+function runAuthStatus(runDir, deps) {
+  return runClaude(AUTH_ARGS, {
+    cwd: runDir,
+    timeout: AUTH_TIMEOUT_MS,
+    run: deps.authSpawnFn,
+    platform: deps.platform,
+  });
+}
+
+function runReviewer(runDir, prompt, deps) {
+  return runClaude(CLAUDE_ARGS, {
+    cwd: runDir,
+    input: prompt,
+    timeout: INVOKE_TIMEOUT_MS,
+    run: deps.spawnFn,
+    platform: deps.platform,
+  });
+}
+
+/**
+ * Preflight, then the review, both from a fresh OS temp dir removed after.
+ *
+ * @returns {Promise<{ findings: Finding[] } | { reason: string }>}
+ */
+async function reviewInTempDir(prompt, deps) {
+  const runDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mandrel-code-review-'));
+  try {
+    const auth = readAuthStatus(await runAuthStatus(runDir, deps));
+    if (!auth.ok) return auth;
+    deps.logger?.info?.(
+      `[code-review] Invoking claude --print --effort low (${auth.detail})...`,
+    );
+    return resolveVerdict(await runReviewer(runDir, prompt, deps));
+  } finally {
+    fs.rmSync(runDir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * @returns {{ reason: string } | { text: string }}
+ */
+function readDiff(gitSpawnFn, { baseRef, headRef }) {
+  const range = `${baseRef}...${headRef}`;
+  const diff = gitSpawnFn(PROJECT_ROOT, 'diff', '--no-color', range);
+  if (diff.status === 0) return { text: diff.stdout };
+  return {
+    reason: `git diff ${range} failed: ${clip(diff.stderr) || '<no output>'}`,
+  };
+}
+
+function assertCliPresent(probeFn) {
+  if (probeFn()) return;
+  throw new Error(
+    '[ReviewProviderFactory] codeReview provider "code-review" requires ' +
+      'the `claude` CLI on PATH but it was not detected. Install the ' +
+      'Claude Code CLI, or keep the entry `optional: true` so hosts ' +
+      'without it skip the model bug review.',
+  );
+}
+
 /**
  * @param {{
  *   probeFn?: () => boolean,
  *   gitSpawnFn?: typeof gitSpawn,
  *   spawnFn?: Function,
+ *   authSpawnFn?: Function,
+ *   platform?: string,
  *   logger?: { info?: Function, warn?: Function },
- * }} [deps] - `spawnFn` replaces the async runner for the `claude` call.
- * @returns {ReviewProvider}
+ * }} [deps] - `spawnFn` / `authSpawnFn` replace the async runner for the
+ *   review and the `claude auth status` preflight.
+ * @returns {ReviewProvider & { getDegradations: () => GateDegradation[] }}
  */
 export function createCodeReviewProviderForRegistry(deps = {}) {
-  const probeFn = deps.probeFn ?? probeClaudeCli;
-  if (!probeFn()) {
-    throw new Error(
-      '[ReviewProviderFactory] codeReview provider "code-review" requires ' +
-        'the `claude` CLI on PATH but it was not detected. Install the ' +
-        'Claude Code CLI, or keep the entry `optional: true` so hosts ' +
-        'without it skip the model bug review.',
-    );
-  }
+  assertCliPresent(deps.probeFn ?? probeClaudeCli);
   const gitSpawnFn = deps.gitSpawnFn ?? gitSpawn;
-  const { spawnFn, logger } = deps;
+  const runDeps = { ...deps, platform: deps.platform ?? process.platform };
+  /** @type {GateDegradation[]} */
+  let degradations = [];
+
+  function settle(verdict) {
+    if (!('reason' in verdict)) return verdict.findings;
+    degradations.push({ ...DEGRADATION_BASE, reason: verdict.reason });
+    deps.logger?.warn?.(`[code-review] No verdict: ${verdict.reason}.`);
+    return [];
+  }
 
   return {
     async runReview(input) {
+      degradations = [];
       assertInput(input);
-      const { baseRef, headRef, ticketId } = input;
-      const diff = gitSpawnFn(
-        PROJECT_ROOT,
-        'diff',
-        '--no-color',
-        `${baseRef}...${headRef}`,
+      const diff = readDiff(gitSpawnFn, input);
+      if ('reason' in diff) return settle(diff);
+      if (diff.text.trim().length === 0) return [];
+      return settle(
+        await reviewInTempDir(buildPrompt(input, diff.text), runDeps),
       );
-      if (diff.status !== 0) {
-        return [
-          advisory(
-            'Code review could not read the diff',
-            `\`git diff ${baseRef}...${headRef}\` failed: ${diff.stderr || '<no output>'}.`,
-          ),
-        ];
-      }
-      if (diff.stdout.trim().length === 0) return [];
-
-      logger?.info?.(
-        `[code-review] Invoking claude --print --effort low for Story #${ticketId} (${baseRef}...${headRef})...`,
-      );
-      const result = await invokeClaude(
-        buildPrompt(input, diff.stdout),
-        spawnFn,
-      );
-      if (result.status !== 0) {
-        logger?.warn?.(
-          `[code-review] claude exited ${result.status}; emitting advisory.`,
-        );
-        return [
-          advisory(
-            'Code review did not complete',
-            `\`claude --print\` exited with status ${result.status}: ${
-              result.stderr || result.stdout || '<no output>'
-            }.`,
-          ),
-        ];
-      }
-      return parseFindings(result.stdout);
+    },
+    getDegradations() {
+      return degradations.map((d) => ({ ...d }));
     },
   };
 }

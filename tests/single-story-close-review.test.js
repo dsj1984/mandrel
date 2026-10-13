@@ -770,6 +770,89 @@ describe('runSingleStoryClose review-halt orchestration', () => {
     assert.equal(outcome.terminal.gates.codeReview, 'overridden');
   });
 
+  /**
+   * Story #5663: a review that produced no verdict must not read as
+   * `passed`. Precedence is `overridden` > `degraded` > `passed`, and a
+   * degraded review is reported, not blocking — the PR still arms.
+   */
+  const MODEL_REVIEW_DEGRADATION = Object.freeze({
+    tool: 'code-review',
+    gate: 'codeReview',
+    surface: 'model-bug-review',
+    reason: 'the claude CLI account is out of quota (usage limit reached)',
+  });
+  for (const { label, halted, degraded, override, expected } of [
+    { label: 'clean', halted: false, degraded: false, expected: 'passed' },
+    { label: 'degraded', halted: false, degraded: true, expected: 'degraded' },
+    {
+      label: 'overridden-and-degraded',
+      halted: true,
+      degraded: true,
+      override: 'false positive; reviewed by hand',
+      expected: 'overridden',
+    },
+  ]) {
+    it(`gates.codeReview is "${expected}" for a ${label} review outcome (Story #5663)`, async (t) => {
+      if (typeof t.mock?.module !== 'function') {
+        t.skip(
+          'module mocking unavailable without --experimental-test-module-mocks',
+        );
+        return;
+      }
+      const ghCalls = [];
+      const gh = makeFakeGh((args) => {
+        ghCalls.push(args.slice());
+        if (args[1] === 'list') return [];
+        if (args[1] === 'create') {
+          return 'https://github.com/owner/repo/pull/556\n';
+        }
+        if (args[1] === 'merge') return '';
+        throw new Error(`unexpected gh: ${args.join(' ')}`);
+      });
+      t.mock.module(GIT_UTILS_URL, gitUtilsMock());
+      mockCloseValidation(t, closeValidationMock());
+      t.mock.module(WORKTREE_MANAGER_URL, worktreeManagerMock());
+
+      const { runSingleStoryClose } = await import(
+        `${SUT_URL}?t=gate-${label}`
+      );
+      const recorder = fakeProviderRecorder();
+      const outcome = await runSingleStoryClose({
+        storyId: 2839,
+        noWaitForMerge: true,
+        cwd: '/repo',
+        skipValidation: true,
+        skipSync: true,
+        ...(override ? { overrideReviewBlock: override } : {}),
+        injectedProvider: recorder.provider,
+        injectedConfig: fakeConfig(),
+        injectedGh: gh,
+        injectedRunCodeReview: async () => ({
+          status: 'ok',
+          severity: {
+            critical: halted ? 1 : 0,
+            high: 0,
+            medium: 0,
+            suggestion: 0,
+          },
+          posted: true,
+          postedCommentId: 9999,
+          commentTargetId: 556,
+          halted,
+          degraded,
+          degradations: degraded ? [MODEL_REVIEW_DEGRADATION] : [],
+          ...(halted ? { blockerReason: '1 critical blocker(s)' } : {}),
+        }),
+      });
+
+      assert.ok(
+        ghCalls.find((c) => c[1] === 'merge'),
+        'a degraded review is reported, not blocking: the PR still arms',
+      );
+      assert.equal(outcome.terminal.gates.codeReview, expected);
+    });
+  }
+
   it('a reasonless override is rejected before any phase runs', async () => {
     const { runSingleStoryClose } = await import(`${SUT_URL}?t=override-bare`);
     await assert.rejects(
