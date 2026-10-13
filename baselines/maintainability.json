@@ -1535,6 +1535,10 @@
       "mi": 100.524
     },
     {
+      "path": ".agents/scripts/lib/orchestration/review-providers/codex-cli.js",
+      "mi": 88.193
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/review-providers/codex.js",
       "mi": 99.132
     },

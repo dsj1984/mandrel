@@ -2325,10 +2325,16 @@
       "functions": 100
     },
     {
-      "path": ".agents/scripts/lib/orchestration/review-providers/codex.js",
-      "lines": 87.44,
+      "path": ".agents/scripts/lib/orchestration/review-providers/codex-cli.js",
+      "lines": 100,
       "branches": 75,
-      "functions": 66.67
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/codex.js",
+      "lines": 96.3,
+      "branches": 77.78,
+      "functions": 83.33
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/degraded-gates.js",
