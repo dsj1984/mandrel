@@ -17,6 +17,7 @@ import { spawnCaptureAsync, spawnChild } from '../../child-exec.js';
 import { resolvedTempRoot } from '../../config/temp-paths.js';
 import { resolveConfig } from '../../config-resolver.js';
 import { PROJECT_ROOT } from '../../project-root.js';
+import { PROVIDER_SEVERITY_MAP } from './provider-severity.js';
 import { renderDepthDirective } from './review-depth.js';
 
 const PROBE_TIMEOUT_MS = 5000;
@@ -30,22 +31,7 @@ const IS_WINDOWS = process.platform === 'win32';
  *
  * @type {Readonly<Record<string, Severity>>}
  */
-export const CODEX_SEVERITY_MAP = Object.freeze({
-  blocker: 'critical',
-  critical: 'critical',
-  fatal: 'critical',
-  major: 'high',
-  high: 'high',
-  error: 'high',
-  minor: 'medium',
-  medium: 'medium',
-  warning: 'medium',
-  info: 'suggestion',
-  nit: 'suggestion',
-  style: 'suggestion',
-  suggestion: 'suggestion',
-  note: 'suggestion',
-});
+export const CODEX_SEVERITY_MAP = PROVIDER_SEVERITY_MAP;
 
 /**
  * Codex structured output is strict: every property required, no extras,

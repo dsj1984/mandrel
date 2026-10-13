@@ -11,6 +11,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { parseProviderFindings } from './parse-findings.js';
+import { PROVIDER_SEVERITY_MAP } from './provider-severity.js';
 import { renderDepthDirective } from './review-depth.js';
 
 export const SECURITY_REVIEW_REMEDIATIONS = Object.freeze({
@@ -55,26 +56,11 @@ export function buildSecurityReviewUnavailableError() {
 }
 
 /**
- * Mirrors `CODEX_SEVERITY_MAP` for a consistent vocabulary across adapters.
+ * The shared provider vocabulary, kept under this provider's export name.
  *
  * @type {Readonly<Record<string, Severity>>}
  */
-export const SECURITY_REVIEW_SEVERITY_MAP = Object.freeze({
-  blocker: 'critical',
-  critical: 'critical',
-  fatal: 'critical',
-  major: 'high',
-  high: 'high',
-  error: 'high',
-  minor: 'medium',
-  medium: 'medium',
-  warning: 'medium',
-  info: 'suggestion',
-  nit: 'suggestion',
-  style: 'suggestion',
-  suggestion: 'suggestion',
-  note: 'suggestion',
-});
+export const SECURITY_REVIEW_SEVERITY_MAP = PROVIDER_SEVERITY_MAP;
 
 /**
  * @param {unknown} raw
