@@ -699,6 +699,14 @@
       "mi": 82.537
     },
     {
+      "path": ".agents/scripts/lib/codex/agents-projection.js",
+      "mi": 98.587
+    },
+    {
+      "path": ".agents/scripts/lib/codex/skills-projection.js",
+      "mi": 103.653
+    },
+    {
       "path": ".agents/scripts/lib/command-header.js",
       "mi": 116.894
     },
@@ -2339,6 +2347,14 @@
       "mi": 99.917
     },
     {
+      "path": ".agents/scripts/sync-codex-agents.js",
+      "mi": 118.919
+    },
+    {
+      "path": ".agents/scripts/sync-codex-skills.js",
+      "mi": 118.919
+    },
+    {
       "path": ".agents/scripts/test-wrapper.js",
       "mi": 115.673
     },
@@ -2400,7 +2416,7 @@
     },
     {
       "path": "lib/cli/registry.js",
-      "mi": 96.401
+      "mi": 96.932
     },
     {
       "path": "lib/cli/sync-agents.js",
@@ -2412,7 +2428,7 @@
     },
     {
       "path": "lib/cli/sync.js",
-      "mi": 90.918
+      "mi": 92.734
     },
     {
       "path": "lib/cli/uninstall.js",
@@ -2489,6 +2505,10 @@
     {
       "path": "lib/migrations/steps/2.79.0-container-safe-projections.js",
       "mi": 96.299
+    },
+    {
+      "path": "lib/migrations/steps/2.84.0-hoist-system-prompt-block.js",
+      "mi": 95.493
     },
     {
       "path": "lib/migrations/steps/strip-removed-agentrc-keys.js",

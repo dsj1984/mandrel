@@ -13,6 +13,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { syncCodexSkills } from './lib/codex/skills-projection.js';
 import { applyHeader, isCommandExcluded } from './lib/command-header.js';
 import { Logger } from './lib/Logger.js';
 
@@ -117,14 +118,27 @@ function enumerateLoopUnits(dir) {
 // Payload first, so it wins a collision.
 const SRC_DIRS = [PAYLOAD_SRC, LOCAL_SRC].filter(dirExists);
 
+/**
+ * Named, not inline: an anonymous callback in this spawned-only script has no
+ * coverage coordinates for the CRAP seat to resolve.
+ *
+ * @param {string} dir A workflows source root.
+ * @returns {Array<{dir: string, name: string, rel: string}>}
+ */
+function workflowEntriesIn(dir) {
+  return [
+    ...fs
+      .readdirSync(dir, { withFileTypes: true })
+      .filter(isTopLevelWorkflow)
+      .map(function toWorkflowEntry(e) {
+        return { dir, name: e.name, rel: e.name };
+      }),
+    ...enumerateLoopUnits(dir),
+  ];
+}
+
 /** @type {Array<{dir: string, name: string, rel: string}>} */
-const entries = SRC_DIRS.flatMap((dir) => [
-  ...fs
-    .readdirSync(dir, { withFileTypes: true })
-    .filter(isTopLevelWorkflow)
-    .map((e) => ({ dir, name: e.name, rel: e.name })),
-  ...enumerateLoopUnits(dir),
-]);
+const entries = SRC_DIRS.flatMap(workflowEntriesIn);
 
 // A `command: false` workflow never enters `sourceSet`, so a stale copy is reaped.
 const byRel = new Map();
@@ -171,30 +185,53 @@ for (const rel of listExistingCommands()) {
 // The header goes after any frontmatter, so `---` stays on line 1.
 let synced = 0;
 const resolvedEntries = Array.from(byRel.values());
-await Promise.all(
-  resolvedEntries.map(async ({ dir, rel }) => {
-    const isLocal = dir === LOCAL_SRC;
-    const header = isLocal ? LOCAL_HEADER : HEADER;
-    const content = await fs.promises.readFile(path.join(dir, rel), 'utf8');
-    const dest = path.join(DEST_DIR, rel);
-    const target = applyHeader(content, header);
 
-    await fs.promises.mkdir(path.dirname(dest), { recursive: true });
+/**
+ * @param {{ dir: string, rel: string }} entry
+ * @returns {Promise<void>}
+ */
+async function syncEntry({ dir, rel }) {
+  const isLocal = dir === LOCAL_SRC;
+  const header = isLocal ? LOCAL_HEADER : HEADER;
+  const content = await fs.promises.readFile(path.join(dir, rel), 'utf8');
+  const dest = path.join(DEST_DIR, rel);
+  const target = applyHeader(content, header);
 
-    // Skip identical content to avoid noisy git diffs.
-    try {
-      const existingContent = await fs.promises.readFile(dest, 'utf8');
-      if (existingContent === target) return;
-    } catch (err) {
-      if (err.code !== 'ENOENT') throw err;
-    }
+  await fs.promises.mkdir(path.dirname(dest), { recursive: true });
 
-    await fs.promises.writeFile(dest, target, 'utf8');
-    synced++;
-    Logger.info(`  synced   ${rel}`);
-  }),
-);
+  // Skip identical content to avoid noisy git diffs.
+  try {
+    const existingContent = await fs.promises.readFile(dest, 'utf8');
+    if (existingContent === target) return;
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err;
+  }
+
+  await fs.promises.writeFile(dest, target, 'utf8');
+  synced++;
+  Logger.info(`  synced   ${rel}`);
+}
+
+await Promise.all(resolvedEntries.map(syncEntry));
 
 Logger.info(
   `\n✔ ${synced} file(s) synced, ${sourceSet.size} total commands in .claude/commands/`,
 );
+
+// The Codex half: the same source set as Codex skills. A fixture run (a
+// DEST override) skips it unless SYNC_CODEX_SKILLS_DEST names its own target.
+const codexSkillsDest =
+  process.env.SYNC_CODEX_SKILLS_DEST ??
+  (process.env.SYNC_CLAUDE_COMMANDS_DEST ? null : undefined);
+if (codexSkillsDest !== null) {
+  const codex = syncCodexSkills({
+    projectRoot: PROJECT_ROOT,
+    payloadSrc: PAYLOAD_SRC,
+    localSrc: LOCAL_SRC,
+    destDir: codexSkillsDest,
+    log: (line) => Logger.info(line),
+  });
+  Logger.info(
+    `✔ ${codex.written.length} file(s) synced, ${codex.total} total Codex skills in .agents/skills/workflows/`,
+  );
+}

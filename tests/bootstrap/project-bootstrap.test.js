@@ -62,6 +62,11 @@ describe('satisfiesNodeEngine', () => {
     assert.equal(satisfiesNodeEngine('21.0.0'), false);
     assert.equal(satisfiesNodeEngine('25.0.0'), false);
   });
+
+  it('decides on the minor within major 22', () => {
+    assert.equal(satisfiesNodeEngine('22.23.0'), true);
+    assert.equal(satisfiesNodeEngine('22.21.9'), false);
+  });
 });
 
 describe('checkNodeVersion', () => {
@@ -296,11 +301,56 @@ describe('ensureGitignore', () => {
     assert.equal(status.includes('.claude/agents/'), false, status);
   });
 
+  it('ignores both Codex projections but not a consumer-authored Codex agent (Story #5655)', () => {
+    const outcome = ensureGitignore({ projectRoot: tmpRoot });
+    assert.equal(outcome.codexSkills, 'added');
+    assert.equal(outcome.codexAgents, 'added');
+    execSync('git init -q', { cwd: tmpRoot });
+    writeFile(
+      path.join(tmpRoot, '.agents', 'skills', 'workflows', 'x', 'SKILL.md'),
+      '#\n',
+    );
+    writeFile(
+      path.join(tmpRoot, '.codex', 'agents', 'mandrel-story-worker.toml'),
+      'name = "story-worker"\n',
+    );
+    writeFile(
+      path.join(tmpRoot, '.codex', 'agents', 'reviewer.toml'),
+      'name = "reviewer"\n',
+    );
+    const status = execSync('git status --porcelain --untracked-files=all', {
+      cwd: tmpRoot,
+      encoding: 'utf8',
+    });
+    assert.equal(status.includes('.agents/skills/workflows/'), false, status);
+    assert.equal(status.includes('mandrel-story-worker.toml'), false, status);
+    assert.ok(status.includes('.codex/agents/reviewer.toml'), status);
+  });
+
+  it('runs the Codex projections through the seeded sync scripts — no new npm script', () => {
+    const outcome = ensurePackageJson({ projectRoot: tmpRoot });
+    const scripts = readJson(outcome.path).scripts;
+    assert.equal(scripts['sync:commands'], SYNC_COMMAND);
+    assert.equal(scripts['sync:agents'], SYNC_AGENTS_COMMAND);
+    assert.equal(
+      Object.keys(scripts).some((k) => /codex/i.test(k)),
+      false,
+    );
+  });
+
   it('restricts the write to the named block keys', () => {
     const outcome = ensureGitignore({ projectRoot: tmpRoot }, ['agents']);
     assert.deepEqual(Object.keys(outcome).sort(), ['agents', 'path']);
     const body = fs.readFileSync(path.join(tmpRoot, '.gitignore'), 'utf8');
     assert.equal(body, GITIGNORE_BLOCKS.agents.block);
+  });
+
+  it('starts the first block on its own line when .gitignore lacks a trailing newline', () => {
+    writeFile(path.join(tmpRoot, '.gitignore'), 'node_modules/');
+    ensureGitignore({ projectRoot: tmpRoot });
+    const body = fs.readFileSync(path.join(tmpRoot, '.gitignore'), 'utf8');
+    assert.ok(body.startsWith('node_modules/\n\n# '));
+    assert.ok(/^\.agents\/skills\/workflows\/$/m.test(body));
   });
 
   it('does not treat a pre-existing .env.example as the .env block', () => {

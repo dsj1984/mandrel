@@ -38,6 +38,7 @@ import {
   SYSTEM_PROMPT_AGENTS_MD,
   SYSTEM_PROMPT_BLOCK,
   SYSTEM_PROMPT_IMPORT,
+  SYSTEM_PROMPT_READ_DIRECTIVE,
 } from '../../.agents/scripts/lib/bootstrap/project-bootstrap.js';
 import {
   DOWNSTREAM_PRE_COMMIT,
@@ -1265,6 +1266,23 @@ describe('runUninstall — AGENTS.md wiring (Story #5410)', () => {
     assert.match(after, /Orientation/);
     assert.equal(after.includes(SYSTEM_PROMPT_IMPORT), false);
     assert.equal(fs.existsSync(path.join(tmpRoot, 'CLAUDE.md')), false);
+  });
+
+  it('a hand-edited block loses both the import and the Codex read directive', () => {
+    fs.mkdirSync(tmpRoot, { recursive: true });
+    fs.writeFileSync(
+      agentsPath(),
+      `# Orientation\n\n## Mandrel\n\n${SYSTEM_PROMPT_IMPORT}\n\n${SYSTEM_PROMPT_READ_DIRECTIVE}\n\nNotes.\n`,
+      'utf8',
+    );
+    writeLedger(tmpRoot, {
+      entries: [{ target: 'AGENTS.md', reversible: true }],
+    });
+    run();
+    const after = fs.readFileSync(agentsPath(), 'utf8');
+    assert.match(after, /Notes\./);
+    assert.equal(after.includes(SYSTEM_PROMPT_IMPORT), false);
+    assert.equal(after.includes(SYSTEM_PROMPT_READ_DIRECTIVE), false);
   });
 
   it('a legacy CLAUDE.md ledger entry reverts AGENTS.md once the migration folded CLAUDE.md away', () => {

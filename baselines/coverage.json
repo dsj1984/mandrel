@@ -779,7 +779,7 @@
     {
       "path": ".agents/scripts/lib/bootstrap/agents-md-fold.js",
       "lines": 100,
-      "branches": 97.37,
+      "branches": 100,
       "functions": 100
     },
     {
@@ -1021,6 +1021,18 @@
       "lines": 93.04,
       "branches": 86.44,
       "functions": 88.89
+    },
+    {
+      "path": ".agents/scripts/lib/codex/agents-projection.js",
+      "lines": 96.48,
+      "branches": 90.16,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/codex/skills-projection.js",
+      "lines": 95.88,
+      "branches": 89.83,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/command-header.js",
@@ -3490,14 +3502,26 @@
     },
     {
       "path": ".agents/scripts/sync-claude-agents.js",
-      "lines": 94.07,
-      "branches": 79.17,
+      "lines": 97.06,
+      "branches": 85.71,
       "functions": 100
     },
     {
       "path": ".agents/scripts/sync-claude-commands.js",
-      "lines": 99,
-      "branches": 95,
+      "lines": 99.09,
+      "branches": 95.65,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/sync-codex-agents.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/sync-codex-skills.js",
+      "lines": 100,
+      "branches": 100,
       "functions": 100
     },
     {
@@ -3586,9 +3610,9 @@
     },
     {
       "path": "lib/cli/registry.js",
-      "lines": 96.56,
-      "branches": 89.12,
-      "functions": 95.45
+      "lines": 97.19,
+      "branches": 89.46,
+      "functions": 96.88
     },
     {
       "path": "lib/cli/sync-agents.js",
@@ -3604,14 +3628,14 @@
     },
     {
       "path": "lib/cli/sync.js",
-      "lines": 97.72,
-      "branches": 96.92,
+      "lines": 98.09,
+      "branches": 97.56,
       "functions": 100
     },
     {
       "path": "lib/cli/uninstall.js",
-      "lines": 95.25,
-      "branches": 85.51,
+      "lines": 96,
+      "branches": 87.23,
       "functions": 100
     },
     {
@@ -3720,6 +3744,12 @@
       "path": "lib/migrations/steps/2.79.0-container-safe-projections.js",
       "lines": 97.8,
       "branches": 81.25,
+      "functions": 100
+    },
+    {
+      "path": "lib/migrations/steps/2.84.0-hoist-system-prompt-block.js",
+      "lines": 100,
+      "branches": 83.33,
       "functions": 100
     },
     {

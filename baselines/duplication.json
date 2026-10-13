@@ -419,14 +419,14 @@
     {
       "path": ".agents/scripts/sync-claude-agents.js",
       "duplicatedLines": 10,
-      "totalLines": 150,
-      "percentage": 6.67
+      "totalLines": 170,
+      "percentage": 5.88
     },
     {
       "path": ".agents/scripts/sync-claude-commands.js",
       "duplicatedLines": 10,
-      "totalLines": 200,
-      "percentage": 5
+      "totalLines": 237,
+      "percentage": 4.22
     },
     {
       "path": ".agents/scripts/update-duplication-baseline.js",

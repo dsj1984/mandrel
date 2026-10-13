@@ -12,6 +12,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { syncCodexAgents } from './lib/codex/agents-projection.js';
 import { applyHeader } from './lib/command-header.js';
 import { applyAgentModel, getAgentModels } from './lib/config/agent-models.js';
 import { resolveConfig } from './lib/config-resolver.js';
@@ -148,3 +149,22 @@ await Promise.all(Array.from(byName.values()).map(syncEntry));
 Logger.info(
   `\n✔ ${synced} file(s) synced, ${sourceSet.size} total agents in .claude/agents/`,
 );
+
+// The Codex half: the same roles as `.codex/agents/mandrel-<role>.toml`. A
+// fixture run (a DEST override) skips it unless SYNC_CODEX_AGENTS_DEST names
+// its own target.
+const codexAgentsDest =
+  process.env.SYNC_CODEX_AGENTS_DEST ??
+  (process.env.SYNC_CLAUDE_AGENTS_DEST ? null : undefined);
+if (codexAgentsDest !== null) {
+  const codex = syncCodexAgents({
+    projectRoot: PROJECT_ROOT,
+    payloadSrc: PAYLOAD_SRC,
+    localSrc: LOCAL_SRC,
+    destDir: codexAgentsDest,
+    log: (line) => Logger.info(line),
+  });
+  Logger.info(
+    `✔ ${codex.written.length} file(s) synced, ${codex.total} total Codex agents in .codex/agents/`,
+  );
+}

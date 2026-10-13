@@ -8,7 +8,8 @@
     "docs/CHANGELOG.md",
     "lib/",
     "!lib/**/__tests__",
-    "!.agents/**/__tests__"
+    "!.agents/**/__tests__",
+    "!.agents/skills/workflows"
   ],
   "publishConfig": {
     "access": "public",

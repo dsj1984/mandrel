@@ -10130,9 +10130,27 @@
     },
     {
       "path": ".agents/scripts/lib/bootstrap/agents-md-fold.js",
+      "method": "insertSystemPromptBlock",
+      "startLine": 103,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/agents-md-fold.js",
       "method": "wireEntryDoc",
       "startLine": 113,
       "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/agents-md-fold.js",
+      "method": "topOffset",
+      "startLine": 119,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/agents-md-fold.js",
+      "method": "findSystemPromptBlock",
+      "startLine": 129,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/bootstrap/agents-md-fold.js",
@@ -10142,10 +10160,22 @@
     },
     {
       "path": ".agents/scripts/lib/bootstrap/agents-md-fold.js",
+      "method": "needsSystemPromptHoist",
+      "startLine": 147,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/agents-md-fold.js",
       "method": "<anon stageLegacyEntryDocRemoval/(rel)#0>",
       "startLine": 148,
       "crap": 1,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/agents-md-fold.js",
+      "method": "hoistSystemPromptBlock",
+      "startLine": 160,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/bootstrap/baseline-merge-driver.js",
@@ -12760,6 +12790,250 @@
       "method": "runAdvisoryProjections",
       "startLine": 446,
       "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/codex/agents-projection.js",
+      "method": "roleFilesIn",
+      "startLine": 33,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/codex/agents-projection.js",
+      "method": "<anon roleFilesIn/(e)#0>",
+      "startLine": 37,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/codex/agents-projection.js",
+      "method": "<anon roleFilesIn/(e)#1>",
+      "startLine": 38,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/codex/agents-projection.js",
+      "method": "listRoleSources",
+      "startLine": 51,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/codex/agents-projection.js",
+      "method": "<anon listRoleSources/(a,b)#0>",
+      "startLine": 61,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/codex/agents-projection.js",
+      "method": "isControl",
+      "startLine": 79,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/codex/agents-projection.js",
+      "method": "unicodeEscape",
+      "startLine": 88,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/codex/agents-projection.js",
+      "method": "tomlString",
+      "startLine": 98,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/codex/agents-projection.js",
+      "method": "tomlMultiline",
+      "startLine": 114,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/codex/agents-projection.js",
+      "method": "inlineImports",
+      "startLine": 133,
+      "crap": 1.0130266639527783
+    },
+    {
+      "path": ".agents/scripts/lib/codex/agents-projection.js",
+      "method": "<anon inlineImports/(line)#0>",
+      "startLine": 136,
+      "crap": 2.0521066558111136,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/codex/agents-projection.js",
+      "method": "renderCodexAgent",
+      "startLine": 157,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/codex/agents-projection.js",
+      "method": "expectedCodexAgents",
+      "startLine": 181,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/codex/agents-projection.js",
+      "method": "listGeneratedCodexAgents",
+      "startLine": 213,
+      "crap": 1.001
+    },
+    {
+      "path": ".agents/scripts/lib/codex/agents-projection.js",
+      "method": "<anon listGeneratedCodexAgents/(f)#0>",
+      "startLine": 221,
+      "crap": 2.004,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/codex/agents-projection.js",
+      "method": "<anon listGeneratedCodexAgents/(f)#1>",
+      "startLine": 222,
+      "crap": 1.001,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/codex/agents-projection.js",
+      "method": "syncCodexAgents",
+      "startLine": 246,
+      "crap": 5.026972808037897
+    },
+    {
+      "path": ".agents/scripts/lib/codex/skills-projection.js",
+      "method": "dirExists",
+      "startLine": 41,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/codex/skills-projection.js",
+      "method": "mdFilesIn",
+      "startLine": 54,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/codex/skills-projection.js",
+      "method": "<anon mdFilesIn/(e)#0>",
+      "startLine": 58,
+      "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/codex/skills-projection.js",
+      "method": "<anon mdFilesIn/(e)#1>",
+      "startLine": 59,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/codex/skills-projection.js",
+      "method": "listProjectableWorkflows",
+      "startLine": 71,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/codex/skills-projection.js",
+      "method": "<anon listProjectableWorkflows/()#0/(f)#0>",
+      "startLine": 75,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/codex/skills-projection.js",
+      "method": "<anon listProjectableWorkflows/()#0>",
+      "startLine": 75,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/codex/skills-projection.js",
+      "method": "<anon listProjectableWorkflows/(e)#0>",
+      "startLine": 81,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/codex/skills-projection.js",
+      "method": "<anon listProjectableWorkflows/(f)#0>",
+      "startLine": 82,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/codex/skills-projection.js",
+      "method": "<anon listProjectableWorkflows/(a,b)#0>",
+      "startLine": 94,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/codex/skills-projection.js",
+      "method": "toPosixRelative",
+      "startLine": 102,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/codex/skills-projection.js",
+      "method": "skillDescription",
+      "startLine": 111,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/codex/skills-projection.js",
+      "method": "renderCodexSkill",
+      "startLine": 126,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/codex/skills-projection.js",
+      "method": "expectedCodexSkills",
+      "startLine": 151,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/codex/skills-projection.js",
+      "method": "skillNameOf",
+      "startLine": 177,
+      "crap": 1.010973936899863
+    },
+    {
+      "path": ".agents/scripts/lib/codex/skills-projection.js",
+      "method": "assertProjectableNames",
+      "startLine": 194,
+      "crap": 4.096168294515402
+    },
+    {
+      "path": ".agents/scripts/lib/codex/skills-projection.js",
+      "method": "listGeneratedCodexSkills",
+      "startLine": 223,
+      "crap": 2.006513331976389
+    },
+    {
+      "path": ".agents/scripts/lib/codex/skills-projection.js",
+      "method": "<anon listGeneratedCodexSkills/(e)#0>",
+      "startLine": 227,
+      "crap": 1.0016283329940974,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/codex/skills-projection.js",
+      "method": "<anon listGeneratedCodexSkills/(e)#1>",
+      "startLine": 228,
+      "crap": 1.0016283329940974,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/codex/skills-projection.js",
+      "method": "<anon listGeneratedCodexSkills/(name)#0>",
+      "startLine": 229,
+      "crap": 1.0016283329940974,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/codex/skills-projection.js",
+      "method": "syncCodexSkills",
+      "startLine": 253,
+      "crap": 5.026972808037897
     },
     {
       "path": ".agents/scripts/lib/command-header.js",
@@ -37670,6 +37944,13 @@
       "crap": 4
     },
     {
+      "path": ".agents/scripts/sync-claude-agents.js",
+      "method": "<anon (line)#0>",
+      "startLine": 165,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
       "path": ".agents/scripts/sync-claude-commands.js",
       "method": "dirExists",
       "startLine": 43,
@@ -37710,6 +37991,18 @@
     },
     {
       "path": ".agents/scripts/sync-claude-commands.js",
+      "method": "workflowEntriesIn",
+      "startLine": 128,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/sync-claude-commands.js",
+      "method": "toWorkflowEntry",
+      "startLine": 133,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/sync-claude-commands.js",
       "method": "listExistingCommands",
       "startLine": 149,
       "crap": 2
@@ -37739,6 +38032,45 @@
       "path": ".agents/scripts/sync-claude-commands.js",
       "method": "<anon listExistingCommands/(f)#3>",
       "startLine": 159,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/sync-claude-commands.js",
+      "method": "syncEntry",
+      "startLine": 193,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/sync-claude-commands.js",
+      "method": "<anon (line)#0>",
+      "startLine": 232,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/sync-codex-agents.js",
+      "method": "main",
+      "startLine": 18,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/sync-codex-agents.js",
+      "method": "<anon main/(line)#0>",
+      "startLine": 21,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/sync-codex-skills.js",
+      "method": "main",
+      "startLine": 18,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/sync-codex-skills.js",
+      "method": "<anon main/(line)#0>",
+      "startLine": 21,
       "crap": 1,
       "anonymous": true
     },
@@ -38395,6 +38727,66 @@
     },
     {
       "path": "lib/cli/registry.js",
+      "method": "projectionParity",
+      "startLine": 426,
+      "crap": 4
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "<anon projectionParity/(n)#0>",
+      "startLine": 441,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "<anon projectionParity/(n,body)#0>",
+      "startLine": 443,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "<anon projectionParity/(n)#1>",
+      "startLine": 445,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "readTextOrNull",
+      "startLine": 461,
+      "crap": 1.0233236151603498
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "runCodexSkillsInSync",
+      "startLine": 476,
+      "crap": 1
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "<anon runCodexSkillsInSync/()#0>",
+      "startLine": 477,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "<anon runCodexSkillsInSync/()#1>",
+      "startLine": 480,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "<anon runCodexSkillsInSync/(name)#0>",
+      "startLine": 482,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/registry.js",
       "method": "runAgentsMaterialized",
       "startLine": 488,
       "crap": 3.003525775888336
@@ -38415,6 +38807,19 @@
     },
     {
       "path": "lib/cli/registry.js",
+      "method": "runCodexAgentsInSync",
+      "startLine": 496,
+      "crap": 1
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "<anon runCodexAgentsInSync/()#0>",
+      "startLine": 497,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/registry.js",
       "method": "<anon runAgentsMaterialized/(fromDir)#0>",
       "startLine": 500,
       "crap": 1.0003917528764819,
@@ -38422,8 +38827,34 @@
     },
     {
       "path": "lib/cli/registry.js",
+      "method": "<anon runCodexAgentsInSync/()#1>",
+      "startLine": 500,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "<anon runCodexAgentsInSync/(name)#0>",
+      "startLine": 502,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "readProjectDocMaxBytes",
+      "startLine": 522,
+      "crap": 4
+    },
+    {
+      "path": "lib/cli/registry.js",
       "method": "payloadFileDrifted",
       "startLine": 541,
+      "crap": 3
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "resolveProjectDocLimit",
+      "startLine": 544,
       "crap": 3
     },
     {
@@ -38436,6 +38867,26 @@
       "path": "lib/cli/registry.js",
       "method": "<anon runAgentsDrift/()#0>",
       "startLine": 564,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "runCodexInstructions",
+      "startLine": 576,
+      "crap": 7
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "<anon runCodexInstructions/()#0>",
+      "startLine": 583,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "<anon runCodexInstructions/(s)#0>",
+      "startLine": 605,
       "crap": 1,
       "anonymous": true
     },
@@ -38695,6 +39146,34 @@
       "anonymous": true
     },
     {
+      "path": "lib/cli/registry.js",
+      "method": "<anon (opts)#13/()#0>",
+      "startLine": 1401,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "<anon (opts)#15>",
+      "startLine": 1411,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "<anon (opts)#16>",
+      "startLine": 1416,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "<anon (opts)#17>",
+      "startLine": 1421,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
       "path": "lib/cli/sync-agents.js",
       "method": "run",
       "startLine": 12,
@@ -38726,9 +39205,21 @@
     },
     {
       "path": "lib/cli/sync.js",
+      "method": "isSkippedDir",
+      "startLine": 96,
+      "crap": 4
+    },
+    {
+      "path": "lib/cli/sync.js",
       "method": "defaultResolvePackageRoot",
       "startLine": 111,
       "crap": 1
+    },
+    {
+      "path": "lib/cli/sync.js",
+      "method": "isPruneExempt",
+      "startLine": 111,
+      "crap": 3
     },
     {
       "path": "lib/cli/sync.js",
@@ -39493,6 +39984,12 @@
       "method": "lacksAgentsIgnore",
       "startLine": 50,
       "crap": 2
+    },
+    {
+      "path": "lib/migrations/steps/2.84.0-hoist-system-prompt-block.js",
+      "method": "readEntryDoc",
+      "startLine": 25,
+      "crap": 1
     },
     {
       "path": "lib/migrations/steps/strip-removed-agentrc-keys.js",

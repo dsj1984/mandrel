@@ -17,7 +17,10 @@ No persona packs, no `persona::*` labels — constraints come from this
 file, the rules, and skills; "act as [role]" means apply the matching
 skill or workflow guidance. Role-scoped spawn contexts live under
 `.agents/agents/` (`delivery.routing.roleScopedAgents`); `qa.personas`
-is a separate fixture concept.
+is a separate fixture concept. **Host mapping:** a `subagent_type: <role>`
+dispatch uses the Agent tool on Claude Code and spawns the project custom
+agent named `<role>` on Codex; `general-purpose` means the host's default
+agent.
 
 ### B. Skill Activation
 

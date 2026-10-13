@@ -2,9 +2,10 @@
 
 This document records **where** Mandrel is coupled to Claude (the model) or
 Claude Code (the host runtime). It is **evidence for**, not a revision of, the
-coupling stance fixed in [ADR `20260512-coupling-stance`](decisions.md) — that
-ADR remains the authoritative statement of what Mandrel deliberately couples
-to. Read this file before widening the supported-host set, before touching the
+coupling stance in [ADR `20260512-coupling-stance`](decisions.md), whose
+workflow-surface clause is superseded by
+[ADR `20261013-5655`](decisions.md#adr-20261013-5655-claude-code-and-codex-are-the-supported-workflow-surface-hosts): Claude Code and Codex are now
+the supported hosts, each fed a generated projection of `.agents/`. Read this file before widening the supported-host set, before touching the
 projection pipeline, or when scoping a provider-agnosticism effort.
 
 > **The verbatim file:line citation tables have been archived.** The
@@ -44,17 +45,25 @@ comments as the cross-runtime contract, while the workflow / `.claude/` / hook
 Seven clusters carry the real coupling, ordered hardest to easiest to abstract.
 Everything outside them is prose or a centralized constant.
 
-1. **The `.claude/` projection pipeline** — the single biggest lever. The
-   distribution model itself: materialize `.agents/`, then project workflows
-   into `.claude/commands/` and agent definitions into `.claude/agents/`. The
-   CLI, the doctor checks, the upgrade path, uninstall, and consumer bootstrap
-   all orbit this projection.
+1. **The projection pipeline** — the single biggest lever. The distribution
+   model itself: materialize `.agents/`, then project workflows into
+   `.claude/commands/` and agent definitions into `.claude/agents/`. The CLI,
+   the doctor checks, the upgrade path, uninstall, and consumer bootstrap all
+   orbit this projection.
+   **Now dual-host (Story #5655):** the same `sync-commands` / `sync-agents`
+   entry points also write Codex skills (`.agents/skills/workflows/`) and
+   Codex custom agents (`.codex/agents/mandrel-<role>.toml`), each with its own
+   doctor parity check. No host selector exists; both are always generated.
 2. **`Agent` / `subagent_type` dispatch semantics** — `roleScopedAgents` boots
    converted spawns on `.claude/agents/<role>.md` instead of the entry-doc
    (`AGENTS.md` or `CLAUDE.md`) closure, and Claude Code nesting-depth facts are hardcoded.
    **Already mitigated:** every converted spawn falls back to
    `subagent_type: general-purpose`, documented as the escape for hosts that
    ignore `.claude/agents/`, and `roleScopedAgents: false` is a kill-switch.
+   **Now dual-host (Story #5655):** one host-mapping rule in
+   `.agents/instructions.md` § 1.A reads `subagent_type: <role>` as "spawn the
+   Codex custom agent `<role>`" on Codex, and `general-purpose` as the host's
+   default agent. No workflow file's dispatch prose changed.
 3. **`claude` CLI shell-outs (review providers)** — the `code-review` (in
    the default chain, `claude --print --effort low`), `security-review`,
    `codex`, and `ultrareview` providers spawn or probe the `claude` binary.
@@ -113,14 +122,16 @@ These already do the host-agnostic thing and are the template for extending it:
 
 ---
 
-## If the stance changes: suggested order
+## Widening further: suggested order
 
-Ordered by leverage per unit of risk. This is a sketch, not a plan of record —
-any real effort starts by revising ADR `20260512-coupling-stance`.
+Ordered by leverage per unit of risk. The stance has changed once:
+[ADR `20261013-5655`](decisions.md#adr-20261013-5655-claude-code-and-codex-are-the-supported-workflow-surface-hosts) acted on step 1 for Codex. The rest
+remains a sketch, not a plan of record.
 
-1. **Abstract the projection layer.** `sync-claude-*` becomes a host-adapter
-   interface (`hosts/claude-code/` first), mirroring `providers/github/`, with
-   the `.claude/` paths as one adapter's output mapping.
+1. ~~**Abstract the projection layer.**~~ — done for Codex without a
+   host-adapter interface: `lib/codex/` projectors run behind the existing
+   `sync-claude-*` entry points. A third host would be the point to extract
+   the interface.
 2. **Generalize env detection** behind a single `host-runtime` resolver
    wrapping the `CLAUDE_CODE_*` / `CC_*` vars in neutral names.
 3. ~~**Generalize the model-attribution module**~~ — moot: Story #5367 deleted

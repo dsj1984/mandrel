@@ -1392,7 +1392,8 @@ validation. The surviving ceilings are **fixed framework constants**:
 distributed as the [`mandrel`](https://www.npmjs.com/package/mandrel) npm
 package. Its `package.json` `files` array publishes `.agents/`, `bin/`,
 `lib/`, and `docs/CHANGELOG.md`, minus two negations that strip the shipped
-test trees (`!lib/**/__tests__`, `!.agents/**/__tests__`). Releases are cut by
+test trees (`!lib/**/__tests__`, `!.agents/**/__tests__`) and one that strips
+the generated Codex skill projection (`!.agents/skills/workflows`). Releases are cut by
 the `release-please.yml` workflow — never by `ci.yml` — whose `npm-publish`
 job publishes to npm with Sigstore build provenance once a release is tagged;
 the `dist`-branch mirror `ci.yml` once synced no longer exists.

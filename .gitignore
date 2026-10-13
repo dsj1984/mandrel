@@ -55,6 +55,12 @@ coverage/
 # Each role def is regenerated into `.claude/agents/<name>.md` by
 # `npm run sync:agents`.
 .claude/agents/
+# Generated Codex projections (Story #5655): workflows as skills under
+# .agents/skills/workflows/ (`npm run sync:commands`) and role agents as
+# .codex/agents/mandrel-<role>.toml (`npm run sync:agents`). Ignoring the skill
+# directory also keeps it out of the npm package.
+.agents/skills/workflows/
+.codex/agents/mandrel-*.toml
 # Reaped #3576 plugin projection (kept ignored so a stale local tree never
 # gets committed before the next sync removes it).
 .claude/plugins/mandrel/

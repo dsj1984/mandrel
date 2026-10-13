@@ -111,6 +111,43 @@ The bootstrap pipeline, in order:
 The bootstrap is idempotent — safe to re-run; an already-configured
 clone produces zero file mutations.
 
+### Running Mandrel from Codex
+
+Claude Code and Codex are both supported hosts, and both are covered by the
+**same install** — there is no host setting. `mandrel init`, `mandrel update`
+and the `prepare` script run `mandrel sync-commands` / `mandrel sync-agents`,
+which write the Claude Code projections and the Codex ones side by side, all
+gitignored:
+
+| Surface | Claude Code | Codex |
+| --- | --- | --- |
+| Instructions | `AGENTS.md` → `@.agents/instructions.md` | `AGENTS.md` → the read directive in the same block |
+| Workflows | `.claude/commands/<name>.md`, invoked `/<name>` | `.agents/skills/workflows/<name>/SKILL.md`, invoked `$<name>` |
+| Role agents | `.claude/agents/<role>.md` | `.codex/agents/mandrel-<role>.toml` |
+
+- **Workflows.** Each Codex skill is a pointer: it tells Codex to read
+  `.agents/workflows/<name>.md` (or `.agents/local/workflows/<name>.md`) and
+  run it, with the text after `$<name>` as its arguments — e.g.
+  `$mandrel-plan add a CSV export`. Loop units are `$loops-<name>`.
+- **Role agents.** A workflow's `subagent_type: <role>` dispatch spawns the
+  project custom agent `<role>` (`story-worker`, `acceptance-critic`,
+  `plan-critic`, `auditor`) on Codex, per `instructions.md` § 1.A. The
+  generated TOML inlines the security baseline and sets no `model`, so the
+  Codex session's model applies. Your own `.codex/agents/*.toml` files are
+  left alone — only `mandrel-*.toml` files carrying the generated header are
+  rewritten or reaped.
+- **Trust the project.** Codex loads the project `.codex/` layer (and so the
+  role agents) only for a project it trusts; trust the checkout when Codex
+  asks. Skills and `AGENTS.md` load either way.
+- **Instruction size.** Codex reads `AGENTS.md` only up to
+  `project_doc_max_bytes` (default 32768). Bootstrap puts the Mandrel block at
+  the top for that reason; raise the limit in `.codex/config.toml` if your own
+  notes below it are cut.
+- **Doctor.** `mandrel doctor` adds `codex-skills-in-sync`,
+  `codex-agents-in-sync` (remedy: re-run `mandrel sync-commands` /
+  `mandrel sync-agents`) and `codex-instructions`, which fails when the
+  Mandrel block sits beyond the effective `project_doc_max_bytes`.
+
 ---
 
 ## Upgrading and local additions
@@ -154,8 +191,8 @@ Run `mandrel --help` for a subcommand list. Each subcommand supports
 | ---------- | ------- | --------- |
 | `init` | Install + configure mandrel in the current project (cold-start). | `--assume-yes`, `--skip-github`, `--dry-run` |
 | `sync` | Re-materialize `.agents/` from the installed package payload. | `--dry-run` |
-| `sync-commands` | Regenerate `.claude/commands/` from `.agents/workflows/`. | — |
-| `sync-agents` | Regenerate `.claude/agents/` from `.agents/agents/`. | — |
+| `sync-commands` | Regenerate `.claude/commands/` and the Codex skills under `.agents/skills/workflows/` from `.agents/workflows/`. | — |
+| `sync-agents` | Regenerate `.claude/agents/` and `.codex/agents/mandrel-<role>.toml` from `.agents/agents/`. | — |
 | `doctor` | Run readiness checks and print per-check remedies. | — |
 | `update` | Upgrade mandrel to the newest published version. | `--dry-run`, `--install-cmd` |
 | `migrate` | Apply version-keyed migrations for a version range. | `--from`, `--to`, `--dry-run` |
@@ -176,14 +213,16 @@ mandrel explain --json     # same report as JSON
 
 ### `mandrel sync-commands`
 
-Regenerates the flat `.claude/commands/` projection from `.agents/workflows/`.
-Runs automatically at install time (via the `prepare` script) and as part of
+Regenerates the flat `.claude/commands/` projection from `.agents/workflows/`,
+and the Codex skill projection under `.agents/skills/workflows/` from the same
+source set. Runs automatically at install time (via the `prepare` script) and as part of
 `mandrel sync` / `mandrel update`; doctor's `commands-in-sync` check flags a
-hand-edited or stale tree. Refuses to project when the materialized `.agents/`
+hand-edited or stale tree, and `codex-skills-in-sync` does the same for the
+Codex skills. Refuses to project when the materialized `.agents/`
 tree doesn't match the running CLI's own version — run `mandrel sync` first.
 
 ```bash
-mandrel sync-commands      # rebuild .claude/commands/
+mandrel sync-commands      # rebuild .claude/commands/ and .agents/skills/workflows/
 ```
 
 ### `mandrel sync-agents`
@@ -191,11 +230,12 @@ mandrel sync-commands      # rebuild .claude/commands/
 Regenerates the flat `.claude/agents/` projection from `.agents/agents/` —
 the role-scoped boot contexts (`story-worker`, `acceptance-critic`) that
 `delivery.routing.roleScopedAgents` (default `true`) dispatches spawns
-against. Same delegation shape, wiring, and version-match refusal as
+against — and the Codex custom agents `.codex/agents/mandrel-<role>.toml`
+(checked by `codex-agents-in-sync`). Same delegation shape, wiring, and version-match refusal as
 `sync-commands` above.
 
 ```bash
-mandrel sync-agents        # rebuild .claude/agents/
+mandrel sync-agents        # rebuild .claude/agents/ and .codex/agents/mandrel-*.toml
 ```
 
 ### `mandrel uninstall`
@@ -217,18 +257,23 @@ mandrel uninstall --include-github     # acknowledge GitHub-side manual steps
 
 ## Automatic system-prompt wiring
 
-The bootstrap wires the framework system prompt into a project-root
-`CLAUDE.md` automatically, so there is no manual "load the system prompt"
-step. Claude Code hydrates its always-loaded context from `CLAUDE.md`,
-and the wiring step (idempotent, keyed off the literal
-`@.agents/instructions.md` import path) does one of three things:
+The bootstrap wires the framework system prompt into the project-root
+`AGENTS.md` automatically, so there is no manual "load the system prompt"
+step. The block it writes carries the `@.agents/instructions.md` import that
+Claude Code expands, plus a one-line read directive for hosts that expand no
+`@` imports (Codex), and goes at the **top** of the file — directly after a
+leading H1 heading — because Codex stops reading at `project_doc_max_bytes`.
+The wiring step (idempotent, keyed off the literal import path) does one of
+three things:
 
-- **No `CLAUDE.md`** → writes a minimal one carrying a `## System Prompt`
-  heading and the `@.agents/instructions.md` import.
-- **`CLAUDE.md` exists but lacks the import** → appends the import block.
-- **`CLAUDE.md` already imports it** → no-op (no duplicate import line).
+- **No `AGENTS.md`** → writes a minimal one carrying the `## System Prompt`
+  block. A root `CLAUDE.md` is folded into `AGENTS.md` and deleted first.
+- **`AGENTS.md` exists but lacks the import** → inserts the block at the top.
+- **`AGENTS.md` already imports it** → no-op (no duplicate import line). An
+  older install whose block was appended at the end is moved to the top, and
+  gains the read directive, by `mandrel update` (the 2.84.0 migration).
 
-If your AI tool is not Claude Code, load
+If your AI tool is neither Claude Code nor Codex, load
 [`instructions.md`](instructions.md) verbatim through that tool's own
 system-prompt mechanism (`.cursorrules`, Custom Instructions, etc.).
 
