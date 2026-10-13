@@ -2416,7 +2416,7 @@
     },
     {
       "path": "lib/cli/registry.js",
-      "mi": 96.401
+      "mi": 96.932
     },
     {
       "path": "lib/cli/sync-agents.js",
@@ -2428,7 +2428,7 @@
     },
     {
       "path": "lib/cli/sync.js",
-      "mi": 90.918
+      "mi": 92.734
     },
     {
       "path": "lib/cli/uninstall.js",
