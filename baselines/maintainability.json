@@ -1536,7 +1536,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/codex-cli.js",
-      "mi": 88.193
+      "mi": 91.057
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/codex.js",
@@ -1563,6 +1563,10 @@
       "mi": 94.196
     },
     {
+      "path": ".agents/scripts/lib/orchestration/review-providers/provider-severity.js",
+      "mi": 102.283
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/review-providers/review-depth.js",
       "mi": 128.162
     },
@@ -1572,7 +1576,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
-      "mi": 97.844
+      "mi": 100.354
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/types.js",
