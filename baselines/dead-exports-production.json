@@ -1225,15 +1225,7 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/review-providers/parse-findings.js",
-      "symbol": "buildFinding"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/review-providers/parse-findings.js",
       "symbol": "coerceString"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/review-providers/parse-findings.js",
-      "symbol": "unwrapEnvelope"
     },
     {
       "file": ".agents/scripts/lib/orchestration/review-providers/review-provider-factory.js",

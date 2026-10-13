@@ -2331,9 +2331,15 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
+      "lines": 99.59,
+      "branches": 85.54,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "lines": 100,
-      "branches": 83.33,
+      "branches": 89.58,
       "functions": 100
     },
     {
@@ -2591,8 +2597,8 @@
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "lines": 99.84,
-      "branches": 93.13,
-      "functions": 94.44
+      "branches": 93.25,
+      "functions": 94.55
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-lease-guard.js",
