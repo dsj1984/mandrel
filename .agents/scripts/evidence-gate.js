@@ -237,6 +237,7 @@ export function runLockedSuite(
       log,
       rerunCommand: ['node', ...process.argv.slice(1)].join(' '),
       onLockOutcome: lockHooks.onLockOutcome,
+      onLockProgress: lockHooks.onLockProgress,
       ...lockOptions,
     },
     ({ lockWaitMs }) =>
