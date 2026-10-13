@@ -107,6 +107,7 @@ export async function runCoverageCapture(argv = process.argv, deps = {}) {
   const locked = lockedCapture(runCaptureImpl, config, env, {
     rerunCommand: rerunCommandFor(argv),
     onLockOutcome: lockHooks.onLockOutcome,
+    onLockProgress: lockHooks.onLockProgress,
     ...lockOptions,
   });
   const credited = creditedCapture(locked, {

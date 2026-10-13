@@ -23,6 +23,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { spawnCaptureAsync } from '../child-exec.js';
+import { createLockEventChannel } from '../close-lock-events.js';
 import {
   resolveLintCommand,
   resolveTestGateArgv,
@@ -109,6 +110,14 @@ const RATCHETS = Object.freeze([
 
 const MAX_OFFENDING_LINES = 10;
 
+const LOCK_POLL_MS = 1_000;
+
+function defaultSleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms).unref?.();
+  });
+}
+
 const SEAT_SCRIPTS = Object.freeze({
   crap: 'update-crap-baseline.js',
   maintainability: 'update-maintainability-baseline.js',
@@ -174,14 +183,71 @@ function headSha(ctx) {
  * @param {string} logName
  * @param {string} cmd
  * @param {string[]} args
+ * @param {Record<string, string|undefined>} [env] the child's whole env.
  * @returns {Promise<{ status: number, output: string, evidencePath: string }>}
  */
-async function runLogged(ctx, logName, cmd, args) {
+async function runLogged(ctx, logName, cmd, args, env) {
   ctx.progress(logName, `${cmd} ${args.join(' ')}`);
-  const res = await ctx.runCommand(cmd, args, { cwd: ctx.cwd });
+  const res = await ctx.runCommand(cmd, args, {
+    cwd: ctx.cwd,
+    ...(env ? { env } : {}),
+  });
   const output = [res.stdout, res.stderr].filter(Boolean).join('\n');
   const evidencePath = ctx.writeEvidence(logName, output);
   return { status: res.status, output, evidencePath };
+}
+
+const LOCK_PHASE_TEXT = Object.freeze({
+  waiting: 'waiting for the full-suite lock',
+  'still-waiting': 'still waiting for the full-suite lock',
+  acquired: 'acquired the full-suite lock',
+  expired: 'gave up waiting for the full-suite lock',
+});
+
+/** @param {import('../full-suite-queue.js').LockProgress} event */
+function describeLockProgress(event) {
+  const head = LOCK_PHASE_TEXT[event.phase] ?? `lock ${event.phase}`;
+  const parts = [
+    `waited ${event.waitedSeconds}s of a ${event.waitBudgetSeconds}s budget`,
+  ];
+  const { holder, queueAhead } = event;
+  if (holder) {
+    parts.push(
+      `holder ${holder.ownerId ?? 'unknown'}, pid ${holder.pid ?? 'unknown'}, lock age ${holder.ageSeconds ?? 'unknown'}s`,
+    );
+  }
+  if (Number.isInteger(queueAhead)) parts.push(`${queueAhead} ahead in queue`);
+  return `${head} (${parts.join('; ')})`;
+}
+
+/**
+ * Tail a fresh lock-event channel while `run(env)` runs, forwarding each
+ * `lock-progress` event once; never the child's output, which can be forged.
+ */
+async function withLockProgress(ctx, run) {
+  const channel = ctx.createLockChannel();
+  const forward = () => {
+    for (const event of channel.drain()) {
+      if (event.kind === 'lock-progress') {
+        ctx.progress('LOCK', describeLockProgress(event));
+      }
+    }
+  };
+  let running = true;
+  // Not awaited: the final drain below forwards anything it would have.
+  (async () => {
+    while (running) {
+      await ctx.sleep(ctx.lockPollMs);
+      if (running) forward();
+    }
+  })().catch(() => {});
+  try {
+    return await run({ ...ctx.env, ...channel.env });
+  } finally {
+    running = false;
+    forward();
+    channel.dispose();
+  }
 }
 
 /**
@@ -354,13 +420,9 @@ async function stepCreditedRun(ctx) {
     );
   }
   const capture = ctx.depositor === 'coverage-capture';
-  const run = capture
-    ? await runLogged(ctx, 'credited-run', 'node', [
-        path.join(SCRIPTS_DIR, 'coverage-capture.js'),
-        '--cwd',
-        ctx.cwd,
-      ])
-    : await runLogged(ctx, 'credited-run', 'node', [
+  const args = capture
+    ? [path.join(SCRIPTS_DIR, 'coverage-capture.js'), '--cwd', ctx.cwd]
+    : [
         path.join(SCRIPTS_DIR, 'evidence-gate.js'),
         '--standalone',
         '--scope-id',
@@ -372,7 +434,10 @@ async function stepCreditedRun(ctx) {
         '--',
         // Close's `test` gate argv, so the deposit keys on its credit identity.
         ...testGateArgv(ctx.config),
-      ]);
+      ];
+  const run = await withLockProgress(ctx, (env) =>
+    runLogged(ctx, 'credited-run', 'node', args, env),
+  );
   const extra = { evidencePath: run.evidencePath, depositor: ctx.depositor };
   if (run.status !== 0) {
     return fixRequired(name, describeSuiteFailure(run.status), extra);
@@ -769,6 +834,10 @@ async function defaultBlock({
  *   createProviderFn?: Function,
  *   progress?: (tag: string, msg: string) => void,
  *   logDir?: string,
+ *   createLockChannel?: typeof createLockEventChannel,
+ *   sleep?: (ms: number) => Promise<void>,
+ *   lockPollMs?: number,
+ *   env?: Record<string, string|undefined>,
  * }} deps
  * @returns {Promise<{ envelope: object, exitCode: number }>}
  */
@@ -784,6 +853,10 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
     createProviderFn,
     progress = () => {},
     logDir = orchestrationLogDir(config),
+    createLockChannel = createLockEventChannel,
+    sleep = defaultSleep,
+    lockPollMs = LOCK_POLL_MS,
+    env = process.env,
   } = deps;
   const block =
     deps.block ??
@@ -808,6 +881,10 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
     probeReview,
     computeReview,
     progress,
+    createLockChannel,
+    sleep,
+    lockPollMs,
+    env,
     state: readState(statePath),
     review: null,
     reviewPath: storyReviewDepositPath(storyId, config),
