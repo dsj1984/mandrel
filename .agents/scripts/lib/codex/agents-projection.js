@@ -95,7 +95,7 @@ function unicodeEscape(ch) {
  * @param {string} value
  * @returns {string}
  */
-export function tomlString(value) {
+function tomlString(value) {
   let out = '';
   for (const ch of String(value)) {
     if (TOML_SHORT_ESCAPES[ch]) out += TOML_SHORT_ESCAPES[ch];
@@ -111,7 +111,7 @@ export function tomlString(value) {
  * @param {string} value
  * @returns {string}
  */
-export function tomlMultiline(value) {
+function tomlMultiline(value) {
   let body = '';
   for (const ch of String(value).replace(/\r\n/g, '\n')) {
     if (ch === '\\') body += '\\\\';

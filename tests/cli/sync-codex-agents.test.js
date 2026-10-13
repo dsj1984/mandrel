@@ -17,8 +17,7 @@ import { parse as parseToml } from 'smol-toml';
 
 import {
   CODEX_AGENTS_DIR,
-  tomlMultiline,
-  tomlString,
+  expectedCodexAgents,
 } from '../../.agents/scripts/lib/codex/agents-projection.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 
@@ -216,14 +215,21 @@ describe('codex agent projection — the agent entry point writes both hosts', (
 });
 
 describe('codex agent projection — TOML encoding', () => {
-  const tricky = 'a "quote" \\ back\\slash """triple""" \u0001 ctl\ttab\n"';
+  const tricky = 'a "quote" \\ back\\slash """triple""" \u0001 ctl\ttab';
 
-  it('a basic string round-trips', () => {
-    assert.equal(parseToml(`v = ${tomlString(tricky)}`).v, tricky);
-  });
-
-  it('a multi-line string round-trips (bar the trailing newline)', () => {
-    const parsed = parseToml(`v = ${tomlMultiline(tricky)}`).v;
-    assert.equal(parsed, `${tricky}\n`);
+  it('description and body round-trip quotes, backslashes, triple quotes and control chars', () => {
+    const local = path.join(root, '.agents', 'local', 'agents');
+    fs.mkdirSync(local, { recursive: true });
+    fs.writeFileSync(
+      path.join(local, 'tricky.md'),
+      `---\ndescription: ${tricky}\n---\n\n${tricky}\n`,
+    );
+    const parsed = parseToml(
+      expectedCodexAgents({ projectRoot: root }).get('mandrel-tricky.toml'),
+    );
+    assert.equal(parsed.name, 'tricky');
+    assert.equal(parsed.developer_instructions, `${tricky}\n`);
+    // extractDescription collapses whitespace runs, so the tab reads as a space.
+    assert.equal(parsed.description, tricky.replace('\t', ' '));
   });
 });

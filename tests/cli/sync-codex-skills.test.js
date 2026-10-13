@@ -17,10 +17,8 @@ import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
 
 import {
-  CODEX_SKILL_DESCRIPTION_MAX,
   CODEX_SKILLS_DIR,
-  listProjectableWorkflows,
-  renderCodexSkill,
+  expectedCodexSkills,
 } from '../../.agents/scripts/lib/codex/skills-projection.js';
 import { collectSkillFiles } from '../../.agents/scripts/lib/skills/walk-skill-files.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
@@ -41,6 +39,8 @@ const CODEX_SYNC = path.join(
   'sync-codex-skills.js',
 );
 
+/** Codex's skill-description limit. */
+const CODEX_SKILL_DESCRIPTION_MAX = 1024;
 const LONG = 'x'.repeat(CODEX_SKILL_DESCRIPTION_MAX + 200);
 
 let root;
@@ -222,27 +222,21 @@ describe('codex skill projection — the command entry point writes both hosts',
   });
 });
 
-describe('codex skill projection — units', () => {
+describe('codex skill projection — expected set', () => {
   it('payload wins a name collision and command:false is skipped', () => {
-    const names = listProjectableWorkflows({
-      payloadSrc: path.join(root, '.agents', 'workflows'),
-      localSrc: path.join(root, '.agents', 'local', 'workflows'),
-    });
+    const expected = expectedCodexSkills({ projectRoot: root });
     assert.deepEqual(
-      names.map((w) => w.name),
+      [...expected.keys()],
       ['alpha', 'gamma', 'long', 'loops-tick'],
     );
-    assert.ok(names[0].sourcePath.endsWith(path.join('workflows', 'alpha.md')));
-    assert.ok(!names[0].sourcePath.includes(`${path.sep}local${path.sep}`));
+    assert.ok(expected.get('alpha').includes('`.agents/workflows/alpha.md`'));
+    assert.equal(expected.get('alpha').includes('.agents/local/'), false);
   });
 
   it('a workflow with no description still gets a valid one', () => {
+    write('.agents/workflows/bare.md', '# Bare\n');
     const fm = frontmatter(
-      renderCodexSkill({
-        name: 'bare',
-        description: null,
-        workflowPath: '.agents/workflows/bare.md',
-      }),
+      expectedCodexSkills({ projectRoot: root }).get('bare'),
     );
     assert.equal(fm.name, 'bare');
     assert.ok(fm.description.length > 0);
