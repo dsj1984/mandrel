@@ -2337,10 +2337,16 @@
       "functions": 100
     },
     {
-      "path": ".agents/scripts/lib/orchestration/review-providers/codex.js",
-      "lines": 87.44,
+      "path": ".agents/scripts/lib/orchestration/review-providers/codex-cli.js",
+      "lines": 100,
       "branches": 75,
-      "functions": 66.67
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/codex.js",
+      "lines": 96.3,
+      "branches": 77.78,
+      "functions": 83.33
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/degraded-gates.js",
@@ -2373,6 +2379,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestration/review-providers/provider-severity.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 0
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/review-providers/review-depth.js",
       "lines": 100,
       "branches": 100,
@@ -2386,7 +2398,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
-      "lines": 86.61,
+      "lines": 85.78,
       "branches": 64.52,
       "functions": 70
     },

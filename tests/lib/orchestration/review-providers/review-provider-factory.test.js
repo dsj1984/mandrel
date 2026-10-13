@@ -111,11 +111,30 @@ test('createReviewProvider: codex selection hard-fails when probe reports absent
       // Both remediations MUST be named in the message.
       assert.ok(err.message.includes(CODEX_REMEDIATIONS.install));
       assert.ok(err.message.includes(CODEX_REMEDIATIONS.fallback));
-      assert.match(err.message, /openai\/codex-plugin-cc/);
+      assert.match(err.message, /codex login/);
       assert.match(err.message, /provider.*native/);
       return true;
     },
   );
+});
+
+test('createReviewProvider: optional codex with an absent CLI is skipped, not thrown', () => {
+  const warnings = [];
+  const provider = createReviewProvider(
+    { providers: [{ name: 'codex', optional: true }, { name: 'native' }] },
+    {
+      registry: {
+        codex: () => createCodexProvider({ probeFn: () => false }),
+        native: () => ({ runReview: async () => [] }),
+      },
+      logger: { warn: (m) => warnings.push(m) },
+    },
+  );
+  assert.deepEqual(
+    provider.chain.inline.map((entry) => entry.name),
+    ['native'],
+  );
+  assert.ok(warnings.some((m) => /codex.*skipping/i.test(m)));
 });
 
 test('createReviewProvider: honors injected registry for adapter tests', async () => {
