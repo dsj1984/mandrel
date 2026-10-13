@@ -13,6 +13,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { syncCodexSkills } from './lib/codex/skills-projection.js';
 import { applyHeader, isCommandExcluded } from './lib/command-header.js';
 import { Logger } from './lib/Logger.js';
 
@@ -198,3 +199,21 @@ await Promise.all(
 Logger.info(
   `\n✔ ${synced} file(s) synced, ${sourceSet.size} total commands in .claude/commands/`,
 );
+
+// The Codex half: the same source set as Codex skills. A fixture run (a
+// DEST override) skips it unless SYNC_CODEX_SKILLS_DEST names its own target.
+const codexSkillsDest =
+  process.env.SYNC_CODEX_SKILLS_DEST ??
+  (process.env.SYNC_CLAUDE_COMMANDS_DEST ? null : undefined);
+if (codexSkillsDest !== null) {
+  const codex = syncCodexSkills({
+    projectRoot: PROJECT_ROOT,
+    payloadSrc: PAYLOAD_SRC,
+    localSrc: LOCAL_SRC,
+    destDir: codexSkillsDest,
+    log: (line) => Logger.info(line),
+  });
+  Logger.info(
+    `✔ ${codex.written.length} file(s) synced, ${codex.total} total Codex skills in .agents/skills/workflows/`,
+  );
+}

@@ -48,7 +48,8 @@ Four load-bearing entries are cited by most of the others:
 [`20260726-v2-story-collapse`](#adr-20260726-v2-story-collapse-story-only-ticket-model-one-plan-one-deliver-one-engine)
 (the current ticket and delivery model),
 [`20260512-coupling-stance`](#adr-20260512-coupling-stance-two-surface-coupling-stance)
-(Claude Code-first, runtime-pluggable),
+(a runtime-pluggable dispatcher; its workflow-surface clause is superseded by
+[`20261013-5655`](#adr-20261013-5655-claude-code-and-codex-are-the-supported-workflow-surface-hosts), which makes Claude Code and Codex the hosts),
 [`20260512-loop-adoption`](#adr-20260512-loop-adoption-adopt-built-in-loop-no-homegrown-surface-to-reconcile)
 (no homegrown loop runner), and
 [`20260624-loop-units-division-of-labor`](#adr-20260624-loop-units-division-of-labor-mandrel-owns-content--oracle--contract-the-host-owns-cadence--iteration)
@@ -60,12 +61,13 @@ the floor-vs-ratchet policy are tooling commitments rather than ADRs and live in
 
 <!-- ADR-INDEX:START -->
 
-**In force (55).** Each governs the surface named beside it.
+**In force (56).** Each governs the surface named beside it.
 A `Status` of `Accepted in part` means some clause of the entry has been
 superseded — open it before citing it.
 
 | Decision | Governs | Surface | Status |
 | --- | --- | --- | --- |
+| [`20261013-5655`](#adr-20261013-5655-claude-code-and-codex-are-the-supported-workflow-surface-hosts) | Claude Code and Codex are the supported workflow-surface hosts | `.agents/scripts/lib/codex/skills-projection.js` | Accepted |
 | [`20261002-5548`](#adr-20261002-5548-a-coverage-capture-stamp-vouches-only-for-the-tree-the-suite-ran-on) | A coverage-capture stamp vouches only for the tree the suite ran on | `.agents/scripts/lib/coverage-capture.js` | Accepted |
 | [`20261002-5544`](#adr-20261002-5544-claude-code-mods-are-a-beta-optional-read-only-add-on) | Claude Code mods are a beta, optional, read-only add-on | `.agents/docs/runbooks/mods.md` | Accepted |
 | [`20260925-5436`](#adr-20260925-5436-one-auditor-per-lens-is-the-default-execution-path-the-dynamic-workflow-audit-path-is-retired) | One auditor per lens by default; the dynamic-workflow audit path is retired | `.agents/workflows/helpers/audit-lens-core.md` | Accepted |
@@ -99,7 +101,7 @@ superseded — open it before citing it.
 | [`20260610-planning-determinism-dispositions`](#adr-20260610-planning-determinism-dispositions-per-layer-dispositions-for-the-deterministic-planning-proxies) | Per-layer dispositions for the deterministic planning proxies | `.agents/scripts/lib/orchestration/ticket-validator.js` | Accepted in part |
 | [`20260607-3706`](#adr-20260607-3706-drain-pending-cleanup-demoted-to-a-helper) | `drain-pending-cleanup` demoted to a helper | `.agents/scripts/drain-pending-cleanup.js` | Accepted |
 | [`20260604-flat-command-projection-revert`](#adr-20260604-flat-command-projection-revert-revert-the-plugin-cutover--project-workflows-as-flat-name-commands) | Revert the plugin cutover — project workflows as flat `/<name>` c… | `.agents/scripts/sync-claude-commands.js` | Accepted |
-| [`20260512-coupling-stance`](#adr-20260512-coupling-stance-two-surface-coupling-stance) | Two-surface coupling stance | `.agents/scripts/providers/github.js` | Accepted |
+| [`20260512-coupling-stance`](#adr-20260512-coupling-stance-two-surface-coupling-stance) | Two-surface coupling stance | `.agents/scripts/providers/github.js` | Accepted in part |
 | [`20260507-1072a`](#adr-20260507-1072a-bounded-fanout-tightened-module-boundaries-dead-module-sweep) | Bounded fanout, tightened module boundaries, dead-module sweep | `.agents/scripts/lib/branch-name-guard.js` | Accepted |
 | [`20260505-990a`](#adr-20260505-990a-audit-remediation--agents-framework-hardening--concept-removal) | Audit remediation — `.agents` framework hardening + concept removal | `.agents/schemas/audit-rules.json` | Accepted in part |
 | [`20260426-829a`](#adr-20260426-829a-strip-then-analyze-for-typescript-scoring-keep-typhonjs-escomplex) | Strip-then-analyze for TypeScript scoring; keep typhonjs-escomplex | `.agents/scripts/lib/transpile.js` | Accepted |
@@ -161,6 +163,59 @@ at the release tag named in the entry.
 - [Earlier ADRs (001 / 002 / 003)](#earlier-adrs-001--002--003)
 
 <!-- ADR-INDEX:END -->
+
+## ADR 20261013-5655: Claude Code and Codex are the supported workflow-surface hosts
+
+**Status:** Accepted
+**Date:** 2026-10-13
+**Surface:** `.agents/scripts/lib/codex/skills-projection.js`
+**Story:** #5655
+**Supersedes in part:** [`20260512-coupling-stance`](#adr-20260512-coupling-stance-two-surface-coupling-stance) — its workflow-surface clause only
+
+### Context
+
+`20260512-coupling-stance` made the workflow surface Claude Code-first and
+called its portability a non-goal. Operators now run Mandrel from Codex as
+well. Codex reads `AGENTS.md`, discovers skills under `.agents/skills/`, and
+loads project custom agents from `.codex/agents/*.toml`. So the gap was never
+the workflow text. It was three host-specific projections and one dispatch
+idiom.
+
+### Decision
+
+- **`.agents/` stays the single source of truth; each supported host gets a
+  generated projection of it.** The supported hosts are Claude Code and Codex.
+  Every other runtime stays a non-goal.
+- **No host selector.** Both projections are generated for every consumer by
+  the existing `mandrel sync-commands` / `mandrel sync-agents` entry points and
+  the npm scripts bootstrap seeds. They are gitignored and cheap. No
+  `.agentrc.json` key, CLI subcommand or npm script was added.
+- **Workflows become Codex skills** at `.agents/skills/workflows/<name>/SKILL.md`,
+  invoked as `$<name>`. Each is a pointer to its workflow file, never a copy.
+  The directory sits outside the `core`/`stack` tiers, so the skills index never
+  walks it. `lib/cli/sync.js` registers it as a generated directory, and the
+  package's `files` array excludes it.
+- **Role agents become Codex custom agents** at
+  `.codex/agents/mandrel-<role>.toml`. The security-baseline `@` import is
+  inlined, because Codex resolves none. No `model` is emitted, because
+  `delivery.routing.agentModels` holds Claude aliases.
+- **One host-mapping rule** in `.agents/instructions.md` § 1.A replaces per-site
+  rewrites of the `subagent_type` dispatches.
+- **The `AGENTS.md` system-prompt block moves to the top** and gains a prose read
+  directive. Codex expands no `@` imports and stops reading at
+  `project_doc_max_bytes`. The 2.84.0 migration moves an appended block for
+  existing consumers.
+- **The dispatcher-surface clause of `20260512-coupling-stance` stands.**
+
+### Consequences
+
+- `mandrel doctor` gains `codex-skills-in-sync`, `codex-agents-in-sync` and
+  `codex-instructions`.
+- Hooks, `CLAUDE_CODE_REMOTE*` detection and the host memory-directory readers
+  stay Claude Code-only. Coupling clusters 4 and 6 in
+  [`claude-coupling-review.md`](claude-coupling-review.md) are unchanged.
+- The project `.codex/` layer loads only for a project Codex trusts. An
+  untrusted checkout gets the skills and `AGENTS.md`, but not the role agents.
 
 ## ADR 20261002-5548: A coverage-capture stamp vouches only for the tree the suite ran on
 
@@ -2291,7 +2346,11 @@ Retired `delete-epic.js` in favour of a declarative `epic.yaml` edited then reco
 
 ## ADR 20260512-coupling-stance: Two-surface coupling stance
 
-**Status:** Accepted
+**Status:** Accepted in part — Superseded in part by
+[`20261013-5655`](#adr-20261013-5655-claude-code-and-codex-are-the-supported-workflow-surface-hosts):
+its workflow-surface clause ("Claude Code-first"; "portability … is a
+non-goal") now names Claude Code and Codex as the supported hosts. The
+dispatcher-surface clause and the hybrid built-in pattern stand.
 **Date:** 2026-05-12
 **Surface:** `.agents/scripts/sync-claude-commands.js`
 <!-- Story #5077 repointed the Surface. It named `providers/github.js`, a

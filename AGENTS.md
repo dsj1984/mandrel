@@ -1,8 +1,8 @@
 # AGENTS.md
 
-Mandrel is a Claude Code-first workflow framework: instructions, skills,
-rules, and SDLC workflows that govern AI coding assistants. It ships as the
-[`mandrel`](https://www.npmjs.com/package/mandrel) npm package, which
+Mandrel is a workflow framework for Claude Code and Codex: instructions,
+skills, rules, and SDLC workflows that govern AI coding assistants. It ships
+as the [`mandrel`](https://www.npmjs.com/package/mandrel) npm package, which
 `mandrel sync` materializes into a consumer project's `.agents/` directory.
 
 ## Always-loaded context
@@ -10,6 +10,8 @@ rules, and SDLC workflows that govern AI coding assistants. It ships as the
 @.agents/instructions.md
 @.agents/rules/security-baseline.md
 @.agents/rules/git-conventions.md
+
+Hosts that do not expand `@` imports (Codex): before any task, read `.agents/instructions.md`, `.agents/rules/security-baseline.md` and `.agents/rules/git-conventions.md` in full and follow them.
 
 `.agents/instructions.md` is the canonical system prompt. This file adds
 repository orientation only; where the two disagree, the ordering in

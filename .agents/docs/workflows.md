@@ -20,6 +20,20 @@ up as a bare `/<name>` slash command (e.g. `/mandrel-deliver`). The projection
 writes only `.claude/commands/<name>.md` — there is no plugin manifest and no
 marketplace listing. The commands load in every Claude Code environment.
 
+**Codex.** The same sync also writes one Codex skill per command to
+`.agents/skills/workflows/<name>/SKILL.md`, invoked as `$<name>` (e.g.
+`$mandrel-plan`; loop units as `$loops-<name>`). Each skill points Codex at
+the workflow file and passes the text after `$<name>` as its arguments.
+`npm run sync:agents` likewise writes the role agents a workflow dispatches
+(`subagent_type: <role>`) as Codex custom agents
+`.codex/agents/mandrel-<role>.toml`; Codex loads those only in a trusted
+project. `mandrel doctor` checks both projections
+(`codex-skills-in-sync`, `codex-agents-in-sync`) and that Codex reads the
+Mandrel block of `AGENTS.md` (`codex-instructions`). To refresh only the
+Codex half, run `node .agents/scripts/sync-codex-skills.js` or
+`node .agents/scripts/sync-codex-agents.js`. Setup: the
+[`.agents/README.md`](../README.md#running-mandrel-from-codex) Codex section.
+
 Loop units are the one namespaced exception: files under
 `.agents/workflows/loops/<name>.md` project to
 `.claude/commands/loops/<name>.md` and are invoked as the namespaced

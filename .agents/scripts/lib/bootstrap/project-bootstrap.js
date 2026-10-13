@@ -15,6 +15,7 @@ import {
   SYSTEM_PROMPT_BLOCK,
   SYSTEM_PROMPT_ENTRY_DOC,
   SYSTEM_PROMPT_IMPORT,
+  SYSTEM_PROMPT_READ_DIRECTIVE,
   wireEntryDoc,
 } from './agents-md-fold.js';
 import { LEDGER_RELATIVE_PATH } from './install-ledger.js';
@@ -42,7 +43,11 @@ const PREPARE_GUARD = `node -e "process.exit(require('fs').existsSync('.agents/s
 /** The `prepare` script bootstrap writes: guarded, then both projections. */
 export const PREPARE_COMMAND = `${PREPARE_GUARD} || (${LEGACY_PREPARE_COMMAND})`;
 
-export { SYSTEM_PROMPT_BLOCK, SYSTEM_PROMPT_IMPORT };
+export {
+  SYSTEM_PROMPT_BLOCK,
+  SYSTEM_PROMPT_IMPORT,
+  SYSTEM_PROMPT_READ_DIRECTIVE,
+};
 
 /** Install template for a fresh AGENTS.md (also the legacy CLAUDE.md one). */
 export const SYSTEM_PROMPT_AGENTS_MD = SYSTEM_PROMPT_ENTRY_DOC;
@@ -57,6 +62,16 @@ export const GITIGNORE_BLOCKS = Object.freeze({
     pattern: /^\s*\.claude\/agents\/?\s*$/m,
     block:
       '\n# Claude Code agent projection is generated from .agents/agents/ by `prepare` — do not commit.\n.claude/agents/\n',
+  },
+  codexSkills: {
+    pattern: /^\s*\/?\.agents\/skills\/workflows\/?\s*$/m,
+    block:
+      '\n# Codex skill projection is generated from .agents/workflows/ — do not commit.\n.agents/skills/workflows/\n',
+  },
+  codexAgents: {
+    pattern: /^\s*\/?\.codex\/agents\/mandrel-\*\.toml\s*$/m,
+    block:
+      '\n# Codex agent projection is generated from .agents/agents/ — do not commit.\n.codex/agents/mandrel-*.toml\n',
   },
   mcp: {
     pattern: /^\s*\.mcp\.json\s*$/m,

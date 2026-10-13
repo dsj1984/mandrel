@@ -11,7 +11,23 @@ import path from 'node:path';
 /** Entry-doc wiring keys idempotence off this exact import path. */
 export const SYSTEM_PROMPT_IMPORT = '@.agents/instructions.md';
 
+/**
+ * Prose twin of the import for hosts that load AGENTS.md but expand no `@`
+ * imports (Codex). The doctor's `codex-instructions` check locates the block
+ * by this exact line, so it stays one line.
+ */
+export const SYSTEM_PROMPT_READ_DIRECTIVE =
+  'Hosts that do not expand `@` imports (Codex): before any task, read `.agents/instructions.md`, `.agents/rules/security-baseline.md` and `.agents/rules/git-conventions.md` in full and follow them.';
+
 export const SYSTEM_PROMPT_BLOCK = `## System Prompt
+
+${SYSTEM_PROMPT_IMPORT}
+
+${SYSTEM_PROMPT_READ_DIRECTIVE}
+`;
+
+/** The pre-2.84.0 block, which carried the import alone. */
+export const LEGACY_SYSTEM_PROMPT_BLOCK = `## System Prompt
 
 ${SYSTEM_PROMPT_IMPORT}
 `;
@@ -69,14 +85,86 @@ function foldEntryDocs({ claude, agents = null }) {
       ? `${withTrailingNewline(agents)}\n${claudeBody}`
       : claudeBody;
   const lines = dedupeImport(combined.split('\n'));
-  let result = withTrailingNewline(lines.join('\n'));
-  if (!lines.some((line) => line.trim() === SYSTEM_PROMPT_IMPORT)) {
-    result =
-      result.trim().length === 0
-        ? SYSTEM_PROMPT_ENTRY_DOC
-        : `${result}\n${SYSTEM_PROMPT_BLOCK}`;
+  const result = withTrailingNewline(lines.join('\n'));
+  if (lines.some((line) => line.trim() === SYSTEM_PROMPT_IMPORT)) return result;
+  return result.trim().length === 0
+    ? SYSTEM_PROMPT_ENTRY_DOC
+    : insertSystemPromptBlock(result);
+}
+
+/**
+ * Place {@link SYSTEM_PROMPT_BLOCK} at the top of an entry doc — directly
+ * after a leading H1 when there is one. Codex stops reading AGENTS.md at
+ * `project_doc_max_bytes`, so an appended block in a long file never loads.
+ *
+ * @param {string} text - entry-doc content without the block.
+ * @returns {string}
+ */
+export function insertSystemPromptBlock(text) {
+  const h1 = /^(?:[ \t]*\r?\n)*# [^\n]*\n?/.exec(text);
+  const head = h1 ? withTrailingNewline(h1[0].replace(/^\s+/, '')) : '';
+  const rest = text.slice(h1 ? h1[0].length : 0).replace(/^\s*\n/, '');
+  const lead = head ? `${head}\n` : '';
+  const tail = rest.length > 0 ? `\n${withTrailingNewline(rest)}` : '';
+  return `${lead}${SYSTEM_PROMPT_BLOCK}${tail}`;
+}
+
+/**
+ * Byte offset just past a leading H1 and its blank lines — where the block
+ * belongs.
+ *
+ * @param {string} text
+ * @returns {number}
+ */
+function topOffset(text) {
+  return /^(?:\s*\n)*(?:# [^\n]*\n(?:[ \t]*\n)*)?/.exec(text)[0].length;
+}
+
+/**
+ * Locate a recognizable Mandrel block (current or legacy shape).
+ *
+ * @param {string} text
+ * @returns {{ start: number, end: number, current: boolean } | null}
+ */
+function findSystemPromptBlock(text) {
+  for (const [block, current] of [
+    [SYSTEM_PROMPT_BLOCK, true],
+    [LEGACY_SYSTEM_PROMPT_BLOCK, false],
+  ]) {
+    const start = text.indexOf(block);
+    if (start !== -1) return { start, end: start + block.length, current };
   }
-  return result;
+  return null;
+}
+
+/**
+ * True when an entry doc carries a recognizable Mandrel block that is not
+ * the current block at the top — the migration's `detect`.
+ *
+ * @param {string} text
+ * @returns {boolean}
+ */
+export function needsSystemPromptHoist(text) {
+  const found = findSystemPromptBlock(text);
+  if (!found) return false;
+  return !(found.current && found.start === topOffset(text));
+}
+
+/**
+ * Move a recognizable block to the top, upgrading a legacy one. Text with no
+ * recognizable block (a hand-edited import) is returned unchanged.
+ *
+ * @param {string} text
+ * @returns {string}
+ */
+export function hoistSystemPromptBlock(text) {
+  if (!needsSystemPromptHoist(text)) return text;
+  const { start, end } = findSystemPromptBlock(text);
+  const without = `${text.slice(0, start)}${text.slice(end)}`.replace(
+    /\n{3,}/g,
+    '\n\n',
+  );
+  return insertSystemPromptBlock(without.replace(/\n+$/, '\n'));
 }
 
 /**
@@ -104,11 +192,11 @@ export function foldClaudeMdIntoAgentsMd(projectRoot, fsImpl = fs) {
 
 /**
  * Wire the system-prompt import into AGENTS.md, folding a CLAUDE.md in first.
- * Creates, folds, appends, or no-ops.
+ * Creates, folds, inserts the block at the top, or no-ops.
  *
  * @param {string} projectRoot
  * @param {typeof fs} [fsImpl]
- * @returns {{ action: 'created'|'folded'|'appended'|'already-present', path: string }}
+ * @returns {{ action: 'created'|'folded'|'inserted'|'already-present', path: string }}
  */
 export function wireEntryDoc(projectRoot, fsImpl = fs) {
   const folded = foldClaudeMdIntoAgentsMd(projectRoot, fsImpl);
@@ -122,13 +210,8 @@ export function wireEntryDoc(projectRoot, fsImpl = fs) {
   if (existing.includes(SYSTEM_PROMPT_IMPORT)) {
     return { action: 'already-present', path: target };
   }
-  const separator = existing.length > 0 && !existing.endsWith('\n') ? '\n' : '';
-  fsImpl.writeFileSync(
-    target,
-    `${existing}${separator}\n${SYSTEM_PROMPT_BLOCK}`,
-    'utf8',
-  );
-  return { action: 'appended', path: target };
+  fsImpl.writeFileSync(target, insertSystemPromptBlock(existing), 'utf8');
+  return { action: 'inserted', path: target };
 }
 
 /**

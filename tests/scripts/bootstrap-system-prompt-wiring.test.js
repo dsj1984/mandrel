@@ -4,7 +4,7 @@
  * Covers two bootstrap concerns that remove the silent manual activation
  * step for cold-start onboarding:
  *
- *   1. `ensureSystemPromptWiring` — creates / appends / no-ops the
+ *   1. `ensureSystemPromptWiring` — creates / inserts (at the top) / no-ops the
  *      `@.agents/instructions.md` import inside a consumer `AGENTS.md` (folding any `CLAUDE.md`),
  *      keyed off the literal import path so a re-run never duplicates it.
  *   2. `ensurePackageJson` — seeds a discoverable `bootstrap` npm script
@@ -24,7 +24,9 @@ import {
   BOOTSTRAP_PHASES,
   ensurePackageJson,
   ensureSystemPromptWiring,
+  SYSTEM_PROMPT_BLOCK,
   SYSTEM_PROMPT_IMPORT,
+  SYSTEM_PROMPT_READ_DIRECTIVE,
 } from '../../.agents/scripts/lib/bootstrap/project-bootstrap.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 
@@ -63,13 +65,23 @@ describe('ensureSystemPromptWiring', () => {
     assert.equal(fs.existsSync(claude()), false);
   });
 
-  it('appends the import block when AGENTS.md exists without it', () => {
+  it('inserts the import block at the top, after the H1, when AGENTS.md exists without it', () => {
     writeFile(agents(), '# My Project\n\nSome existing operator notes.\n');
     const outcome = ensureSystemPromptWiring({ projectRoot: tmpRoot });
-    assert.equal(outcome.action, 'appended');
+    assert.equal(outcome.action, 'inserted');
     const body = readAgents();
-    assert.ok(body.includes('Some existing operator notes.'));
+    assert.ok(body.startsWith(`# My Project\n\n${SYSTEM_PROMPT_BLOCK}`));
+    assert.ok(body.endsWith('\nSome existing operator notes.\n'));
     assert.equal(countOccurrences(body, SYSTEM_PROMPT_IMPORT), 1);
+  });
+
+  it('the block carries a prose read directive for hosts without @-imports', () => {
+    ensureSystemPromptWiring({ projectRoot: tmpRoot });
+    const body = readAgents();
+    assert.ok(body.includes(SYSTEM_PROMPT_READ_DIRECTIVE));
+    assert.match(SYSTEM_PROMPT_READ_DIRECTIVE, /\.agents\/instructions\.md/);
+    assert.match(SYSTEM_PROMPT_READ_DIRECTIVE, /security-baseline\.md/);
+    assert.match(SYSTEM_PROMPT_READ_DIRECTIVE, /git-conventions\.md/);
   });
 
   it('inserts a newline separator when AGENTS.md lacks a trailing newline', () => {
@@ -94,7 +106,8 @@ describe('ensureSystemPromptWiring', () => {
     assert.equal(outcome.action, 'folded');
     assert.equal(fs.existsSync(claude()), false);
     const body = readAgents();
-    assert.ok(body.startsWith('# My Project\n\nOperator notes.\n'));
+    assert.ok(body.startsWith(`# My Project\n\n${SYSTEM_PROMPT_BLOCK}`));
+    assert.ok(body.endsWith('\nOperator notes.\n'));
     assert.equal(countOccurrences(body, SYSTEM_PROMPT_IMPORT), 1);
   });
 

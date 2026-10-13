@@ -70,8 +70,8 @@ describe('registry', () => {
     assert.ok(Array.isArray(registry), 'registry must be an array');
   });
 
-  it('contains exactly 15 checks', () => {
-    assert.equal(registry.length, 15);
+  it('contains exactly 18 checks', () => {
+    assert.equal(registry.length, 18);
   });
 
   it('every entry has a string name and a run function', () => {
@@ -95,6 +95,9 @@ describe('registry', () => {
       'gh-auth',
       'commands-in-sync',
       'agents-in-sync',
+      'codex-skills-in-sync',
+      'codex-agents-in-sync',
+      'codex-instructions',
       'runtime-deps',
       'agents-materialized',
       'agents-drift',
