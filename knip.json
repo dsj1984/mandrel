@@ -65,6 +65,8 @@
     ".agents/scripts/sync-agentrc.js!",
     ".agents/scripts/sync-claude-agents.js!",
     ".agents/scripts/sync-claude-commands.js!",
+    ".agents/scripts/sync-codex-agents.js!",
+    ".agents/scripts/sync-codex-skills.js!",
     ".agents/scripts/test-wrapper.js!",
     ".agents/scripts/update-coverage-baseline.js!",
     ".agents/scripts/update-crap-baseline.js!",
