@@ -190,6 +190,37 @@ function failureReason(result, envelope) {
   return `the reviewer run ended with subtype ${clip(envelope?.subtype)}`;
 }
 
+function parseEnvelope(stdout) {
+  const parsed = tryParseJson(stdout);
+  return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+    ? parsed
+    : null;
+}
+
+function isSuccess(result, envelope) {
+  return (
+    result.status === 0 &&
+    envelope !== null &&
+    envelope.is_error !== true &&
+    envelope.subtype === 'success'
+  );
+}
+
+function noVerdictReason(result, envelope) {
+  if (result.status === 0 && envelope === null) {
+    return 'the reviewer output was not a JSON result envelope';
+  }
+  return failureReason(result, envelope);
+}
+
+function structuredFindings(structured) {
+  return Array.isArray(structured?.findings) ? structured.findings : undefined;
+}
+
+function resultTextFindings(text) {
+  return typeof text === 'string' ? parseVerdictText(text) : undefined;
+}
+
 /**
  * Verdict resolution: (a) a successful envelope's `structured_output`,
  * (b) the fallback parser over its `result` text, (c) no verdict.
@@ -198,36 +229,14 @@ function failureReason(result, envelope) {
  * @returns {{ findings: Finding[] } | { reason: string }}
  */
 export function resolveVerdict(result) {
-  const parsed = tryParseJson(result.stdout);
-  const envelope =
-    parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? parsed
-      : null;
-  const succeeded =
-    result.status === 0 &&
-    envelope !== null &&
-    envelope.is_error !== true &&
-    envelope.subtype === 'success';
-  if (!succeeded) {
-    if (result.status === 0 && envelope === null) {
-      return {
-        reason: 'the reviewer output was not a JSON result envelope',
-      };
-    }
-    return { reason: failureReason(result, envelope) };
+  const envelope = parseEnvelope(result.stdout);
+  if (!isSuccess(result, envelope)) {
+    return { reason: noVerdictReason(result, envelope) };
   }
-  const structured = envelope.structured_output;
-  if (
-    structured &&
-    typeof structured === 'object' &&
-    Array.isArray(structured.findings)
-  ) {
-    return { findings: toFindings(structured.findings) };
-  }
-  const fallback =
-    typeof envelope.result === 'string'
-      ? parseVerdictText(envelope.result)
-      : undefined;
-  if (fallback) return { findings: toFindings(fallback) };
-  return { reason: 'the reviewer output did not parse as a findings verdict' };
+  const entries =
+    structuredFindings(envelope.structured_output) ??
+    resultTextFindings(envelope.result);
+  return entries
+    ? { findings: toFindings(entries) }
+    : { reason: 'the reviewer output did not parse as a findings verdict' };
 }
