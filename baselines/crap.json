@@ -12080,13 +12080,38 @@
     },
     {
       "path": ".agents/scripts/lib/close-lock-events.js",
+      "method": "readText",
+      "startLine": 51,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/close-lock-events.js",
+      "method": "parseEvents",
+      "startLine": 59,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/close-lock-events.js",
       "method": "claimLockEventSink",
       "startLine": 67,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/close-lock-events.js",
+      "method": "createDrain",
+      "startLine": 68,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/close-lock-events.js",
       "method": "<anon claimLockEventSink/()#0>",
+      "startLine": 70,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/close-lock-events.js",
+      "method": "<anon createDrain/()#0>",
       "startLine": 70,
       "crap": 1,
       "anonymous": true
@@ -12133,6 +12158,13 @@
       "path": ".agents/scripts/lib/close-lock-events.js",
       "method": "<anon lockEventHooks/(timings)#0>",
       "startLine": 107,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/close-lock-events.js",
+      "method": "<anon lockEventHooks/(progress)#0>",
+      "startLine": 126,
       "crap": 1,
       "anonymous": true
     },
@@ -16747,6 +16779,13 @@
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
+      "method": "<anon ()#3>",
+      "startLine": 53,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-lock.js",
       "method": "<anon (ms)#0>",
       "startLine": 56,
       "crap": 1,
@@ -16942,9 +16981,22 @@
     },
     {
       "path": ".agents/scripts/lib/full-suite-queue.js",
+      "method": "countAhead",
+      "startLine": 98,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-queue.js",
       "method": "isFirstInLine",
       "startLine": 110,
       "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-queue.js",
+      "method": "<anon countAhead/(name)#0>",
+      "startLine": 116,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/full-suite-queue.js",
@@ -17026,6 +17078,18 @@
       "method": "giveUp",
       "startLine": 214,
       "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-queue.js",
+      "method": "reportProgress",
+      "startLine": 222,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-queue.js",
+      "method": "waitContext",
+      "startLine": 234,
+      "crap": 4
     },
     {
       "path": ".agents/scripts/lib/gates/baseline-store.js",
@@ -30204,6 +30268,19 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "defaultSleep",
+      "startLine": 115,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "<anon defaultSleep/(resolve)#0>",
+      "startLine": 116,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "gitLine",
       "startLine": 120,
       "crap": 2
@@ -30259,6 +30336,12 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "describeLockProgress",
+      "startLine": 208,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "runRatchets",
       "startLine": 208,
       "crap": 4
@@ -30286,6 +30369,19 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "withLockProgress",
+      "startLine": 227,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "<anon withLockProgress/()#0>",
+      "startLine": 229,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon runRatchets/(r)#1>",
       "startLine": 231,
       "crap": 1,
@@ -30299,6 +30395,13 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "<anon withLockProgress/()#1>",
+      "startLine": 238,
+      "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "selectCreditedDepositor",
       "startLine": 238,
       "crap": 2
@@ -30306,6 +30409,13 @@
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon preflightFinding/(line)#0>",
+      "startLine": 243,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "<anon withLockProgress/()#1/()#0>",
       "startLine": 243,
       "crap": 1,
       "anonymous": true
@@ -30384,6 +30494,13 @@
       "method": "stepPush",
       "startLine": 432,
       "crap": 6.1929375
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "<anon stepCreditedRun/(env)#0>",
+      "startLine": 438,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",

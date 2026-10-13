@@ -965,4 +965,182 @@ describe('full-suite lock (Story #5173)', () => {
       assert.equal(probed, 0);
     });
   });
+
+  // Story #5662 — `onLockProgress` mirrors every wait line as a structured
+  // event, so a handoff can stream lock state without parsing output.
+  describe('live lock progress (Story #5662)', () => {
+    const throwingHook = () => {
+      throw new Error('progress sink blew up');
+    };
+
+    it('reports waiting (budget, holder, queue), still-waiting, then acquired', async () => {
+      const holder = acquireSweepLock({ lockPath, timeoutMs: 600_000 });
+      const queueDir = `${lockPath}.queue`;
+      fs.mkdirSync(queueDir, { recursive: true });
+      const ahead = path.join(
+        queueDir,
+        `000000000000001-000001-${process.pid}-ab`,
+      );
+      fs.writeFileSync(ahead, '');
+      const events = [];
+      const clock = fakeClock((now) => {
+        if (now >= 1_000_000 + 60_000) {
+          holder.release();
+          fs.rmSync(ahead, { force: true });
+        } else {
+          const stamp = new Date(now);
+          fs.utimesSync(ahead, stamp, stamp);
+        }
+      });
+      const code = await withFullSuiteLockAsync(
+        {
+          cwd: dir,
+          lockPath,
+          waitMs: 120_000,
+          staleMs: 90_000,
+          onLockProgress: (e) => events.push(e),
+          nowFn: clock.nowFn,
+          sleepFn: clock.sleepFn,
+        },
+        async () => 0,
+      );
+      assert.equal(code, 0);
+      const phases = events.map((e) => e.phase);
+      assert.equal(phases[0], 'waiting');
+      assert.equal(phases.at(-1), 'acquired');
+      assert.ok(phases.includes('still-waiting'));
+      const [first] = events;
+      assert.equal(first.waitedSeconds, 0);
+      assert.equal(first.waitBudgetSeconds, 120);
+      assert.equal(first.holder.pid, process.pid);
+      assert.equal(first.queueAhead, 1);
+      const still = events.find((e) => e.phase === 'still-waiting');
+      assert.ok(still.waitedSeconds >= 25);
+      assert.equal(still.holder.pid, process.pid);
+      assert.equal(still.queueAhead, 1);
+      const acquired = events.at(-1);
+      assert.ok(acquired.waitedSeconds >= 60);
+      assert.equal(acquired.holder, undefined, 'the holder is now us');
+    });
+
+    it('reports expired with the holder, and never fires uncontended', async () => {
+      const free = [];
+      await withFullSuiteLockAsync(
+        { cwd: dir, lockPath, onLockProgress: (e) => free.push(e) },
+        async () => 0,
+      );
+      assert.deepEqual(free, []);
+      const holder = acquireSweepLock({ lockPath, timeoutMs: 600_000 });
+      const events = [];
+      const code = await withFullSuiteLockAsync(
+        {
+          cwd: dir,
+          lockPath,
+          waitMs: 4_000,
+          onLockProgress: (e) => events.push(e),
+          ...fakeClock(),
+        },
+        async () => 0,
+      );
+      holder.release();
+      assert.equal(code, LOCK_WAIT_EXPIRED_EXIT_CODE);
+      const expired = events.at(-1);
+      assert.equal(expired.phase, 'expired');
+      assert.equal(expired.waitBudgetSeconds, 4);
+      assert.ok(expired.waitedSeconds >= 4);
+      assert.equal(expired.holder.pid, process.pid);
+    });
+
+    it('AC-7: a throwing hook keeps the deadline and the spawn', async () => {
+      const runExpiry = async (onLockProgress) => {
+        const holder = acquireSweepLock({ lockPath, timeoutMs: 600_000 });
+        const stamps = [];
+        const clock = fakeClock();
+        const outcomes = [];
+        const code = await withFullSuiteLockAsync(
+          {
+            cwd: dir,
+            lockPath,
+            waitMs: 60_000,
+            log: () => stamps.push(clock.nowFn()),
+            onLockOutcome: ({ waitedSeconds, expired }) =>
+              outcomes.push({ waitedSeconds, expired }),
+            onLockProgress,
+            nowFn: clock.nowFn,
+            sleepFn: clock.sleepFn,
+          },
+          async () => 0,
+        );
+        holder.release();
+        return { code, stamps, outcomes };
+      };
+      const reference = await runExpiry(() => {});
+      const throwing = await runExpiry(throwingHook);
+      assert.deepEqual(throwing, reference);
+      assert.equal(throwing.code, LOCK_WAIT_EXPIRED_EXIT_CODE);
+
+      const holder = acquireSweepLock({ lockPath, timeoutMs: 60_000 });
+      let spawns = 0;
+      const code = await withFullSuiteLockAsync(
+        {
+          cwd: dir,
+          lockPath,
+          onLockProgress: throwingHook,
+          sleepFn: async () => holder.release(),
+        },
+        async () => {
+          spawns += 1;
+          return 0;
+        },
+      );
+      assert.equal(code, 0);
+      assert.equal(spawns, 1);
+    });
+
+    it('AC-7: a throwing hook never changes FIFO order', async () => {
+      const holder = acquireSweepLock({ lockPath, timeoutMs: 60_000 });
+      const order = [];
+      let releaseHolder;
+      const holderGone = new Promise((resolve) => {
+        releaseHolder = resolve;
+      });
+      const tick = () => new Promise((resolve) => setImmediate(resolve));
+      const early = withFullSuiteLockAsync(
+        {
+          cwd: dir,
+          lockPath,
+          pollMs: 0,
+          onLockProgress: throwingHook,
+          sleepFn: async () => {
+            await holderGone;
+            for (let i = 0; i < 20; i += 1) await tick();
+          },
+        },
+        async () => {
+          order.push('early');
+          await tick();
+          return 0;
+        },
+      );
+      await tick();
+      const late = withFullSuiteLockAsync(
+        {
+          cwd: dir,
+          lockPath,
+          pollMs: 0,
+          onLockProgress: throwingHook,
+          sleepFn: tick,
+        },
+        async () => {
+          order.push('late');
+          return 0;
+        },
+      );
+      for (let i = 0; i < 5; i += 1) await tick();
+      holder.release();
+      releaseHolder();
+      await Promise.all([early, late]);
+      assert.deepEqual(order, ['early', 'late']);
+    });
+  });
 });

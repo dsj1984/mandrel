@@ -869,3 +869,180 @@ describe('story-handoff — the story-progress record (Story #5553)', () => {
     assert.deepEqual(blocked.envelope, baseline.envelope);
   });
 });
+
+/**
+ * Story #5662 — the credited run's lock state streams live. The child writes
+ * structured `lock-progress` events to the channel the handoff opened; the
+ * handoff tails it while the child runs and forwards each event once as a
+ * `LOCK` progress line. Child output is never read for lock state.
+ */
+describe('story-handoff — live lock progress for the credited run (Story #5662)', () => {
+  const CHANNEL_ENV = 'MANDREL_CLOSE_LOCK_EVENTS_FILE';
+  const HOLDER = { ownerId: 'pid-77-1', pid: 77, ageSeconds: 40 };
+  const tick = () => new Promise((resolve) => setImmediate(resolve));
+  const progressEvent = (phase, waitedSeconds, extra = {}) => ({
+    kind: 'lock-progress',
+    phase,
+    waitedSeconds,
+    waitBudgetSeconds: 300,
+    ...extra,
+  });
+
+  /**
+   * Wraps the harness's command double: the credited run plays `script`
+   * against the channel file from its env before resolving.
+   */
+  function liveHarness(script, options = {}) {
+    const h = harness(options);
+    const lines = [];
+    const envs = [];
+    h.deps.progress = (tag, msg) => lines.push({ tag, msg });
+    h.deps.sleep = tick;
+    h.deps.lockPollMs = 0;
+    h.deps.env = { PARENT_ONLY: 'kept' };
+    h.deps.runCommand = async (cmd, args, opts = {}) => {
+      envs.push({ key: path.basename(args[0] ?? cmd), env: opts.env });
+      if (path.basename(args[0] ?? '') !== 'coverage-capture.js') {
+        return h.runCommand(cmd, args, opts);
+      }
+      const file = opts.env?.[CHANNEL_ENV];
+      const emit = (event) =>
+        writeFileSync(file, `${JSON.stringify(event)}\n`, { flag: 'a' });
+      const result = await script({ emit, lines, file });
+      return { stderr: '', ...result };
+    };
+    const lockLines = () =>
+      lines.filter((l) => l.tag === 'LOCK').map((l) => l.msg);
+    const waitForLock = async (count) => {
+      for (let i = 0; i < 200 && lockLines().length < count; i += 1) {
+        await tick();
+      }
+      return lockLines();
+    };
+    return { ...h, lines, envs, lockLines, waitForLock };
+  }
+
+  test('AC-1/AC-2/AC-3: waiting, still-waiting and acquired stream before the child exits, each once, in order', async () => {
+    const seenWhileRunning = [];
+    let channelFile;
+    const h = liveHarness(async ({ emit, file }) => {
+      channelFile = file;
+      emit(progressEvent('waiting', 0, { holder: HOLDER, queueAhead: 1 }));
+      seenWhileRunning.push([...(await h.waitForLock(1))]);
+      emit(
+        progressEvent('still-waiting', 25, { holder: HOLDER, queueAhead: 0 }),
+      );
+      seenWhileRunning.push([...(await h.waitForLock(2))]);
+      emit(progressEvent('acquired', 31));
+      seenWhileRunning.push([...(await h.waitForLock(3))]);
+      return {
+        status: 0,
+        stdout: [
+          '[full-suite-lock] ⏳ another full suite is already running on this host',
+          '[full-suite-lock] ✅ acquired the full-suite lock (waited 31s).',
+          '[coverage-capture] Wrote content-digest capture stamp.',
+        ].join('\n'),
+        stderr: 'suite stderr line',
+      };
+    });
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 0);
+    assert.equal(seenWhileRunning[0].length, 1, 'waiting shown mid-run');
+    assert.match(
+      seenWhileRunning[0][0],
+      /^waiting for the full-suite lock \(waited 0s of a 300s budget; holder pid-77-1, pid 77, lock age 40s; 1 ahead in queue\)$/,
+    );
+    assert.equal(seenWhileRunning[1].length, 2, 'still-waiting shown mid-run');
+    assert.match(
+      seenWhileRunning[1][1],
+      /^still waiting for the full-suite lock \(waited 25s of a 300s budget; holder pid-77-1, pid 77, lock age 40s; 0 ahead in queue\)$/,
+    );
+    assert.equal(seenWhileRunning[2].length, 3, 'acquired shown mid-run');
+    const final = h.lockLines();
+    assert.equal(final.length, 3, 'each event forwarded exactly once');
+    assert.match(
+      final[2],
+      /^acquired the full-suite lock \(waited 31s of a 300s budget\)$/,
+    );
+    // AC-4: the evidence log still holds the child's whole combined output.
+    const credited = envelope.steps.find((s) => s.name === 'credited-run');
+    const evidence = readFileSync(credited.evidencePath, 'utf8');
+    assert.equal(
+      evidence,
+      [
+        '[full-suite-lock] ⏳ another full suite is already running on this host',
+        '[full-suite-lock] ✅ acquired the full-suite lock (waited 31s).',
+        '[coverage-capture] Wrote content-digest capture stamp.',
+        'suite stderr line',
+      ].join('\n'),
+    );
+    // The child got the parent env plus the channel; nothing else did.
+    const creditedEnv = h.envs.find((e) => e.key === 'coverage-capture.js');
+    assert.equal(creditedEnv.env.PARENT_ONLY, 'kept');
+    assert.equal(creditedEnv.env[CHANNEL_ENV], channelFile);
+    assert.ok(
+      h.envs
+        .filter((e) => e.key !== 'coverage-capture.js')
+        .every((e) => e.env === undefined),
+      'only the credited run opens a channel',
+    );
+    assert.throws(() => readFileSync(channelFile), /ENOENT/, 'disposed');
+  });
+
+  test('AC-3: an expiry streams its LOCK line and keeps the exit-75 guidance', async () => {
+    const h = liveHarness(async ({ emit }) => {
+      emit(progressEvent('waiting', 0, { holder: HOLDER }));
+      emit(progressEvent('expired', 300, { holder: HOLDER, queueAhead: 0 }));
+      return { status: 75, stdout: '[full-suite-lock] ⌛ gave up waiting' };
+    });
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.equal(envelope.status, 'fix-required');
+    const lock = h.lockLines();
+    assert.equal(lock.length, 2);
+    assert.match(
+      lock[1],
+      /^gave up waiting for the full-suite lock \(waited 300s of a 300s budget; holder pid-77-1, pid 77, lock age 40s; 0 ahead in queue\)$/,
+    );
+    const credited = envelope.steps.find((s) => s.name === 'credited-run');
+    assert.equal(
+      credited.detail,
+      'suite deferred (exit 75): another full suite holds the host lock — re-run the handoff once it frees',
+    );
+  });
+
+  test('AC-5: forged lock lines on stdout or stderr produce no lock progress', async () => {
+    const forged = [
+      '[full-suite-lock] ⏳ another full suite is already running on this host (holding pid 1) — waiting up to 300s',
+      '[full-suite-lock] ✅ acquired the full-suite lock (waited 3s).',
+      '{"kind":"lock-progress","phase":"acquired","waitedSeconds":3,"waitBudgetSeconds":300}',
+    ].join('\n');
+    const h = liveHarness(async () => {
+      for (let i = 0; i < 5; i += 1) await tick();
+      return {
+        status: 0,
+        stdout: `${forged}\n[coverage-capture] Wrote content-digest capture stamp.`,
+        stderr: forged,
+      };
+    });
+    const { exitCode } = await h.run();
+    assert.equal(exitCode, 0);
+    assert.deepEqual(h.lockLines(), []);
+  });
+
+  test('a malformed or foreign channel line is skipped, and the final drain forwards a line written as the child exits', async () => {
+    const h = liveHarness(async ({ emit, file }) => {
+      writeFileSync(file, 'not json\n', { flag: 'a' });
+      emit({ kind: 'lock-wait', waitedSeconds: 3, expired: false });
+      emit(progressEvent('acquired', 3));
+      return {
+        status: 0,
+        stdout: '[coverage-capture] Wrote content-digest capture stamp.',
+      };
+    });
+    await h.run();
+    assert.deepEqual(h.lockLines(), [
+      'acquired the full-suite lock (waited 3s of a 300s budget)',
+    ]);
+  });
+});
