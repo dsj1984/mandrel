@@ -25736,6 +25736,30 @@
       "crap": 8
     },
     {
+      "path": ".agents/scripts/lib/orchestration/review-providers/codex-cli.js",
+      "method": "defaultProbeCodexCommand",
+      "startLine": 84,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/codex-cli.js",
+      "method": "buildReviewPrompt",
+      "startLine": 101,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/codex-cli.js",
+      "method": "readIfPresent",
+      "startLine": 119,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/codex-cli.js",
+      "method": "invokeCodexExec",
+      "startLine": 136,
+      "crap": 4
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/review-providers/codex.js",
       "method": "defaultProbeCodexCommand",
       "startLine": 39,
