@@ -58,6 +58,8 @@ function harness(opts = {}) {
   const calls = [];
   const provider = createCodeReviewProviderForRegistry({
     probeFn: () => true,
+    // Pinned so argv assertions do not depend on the host's shell quoting.
+    platform: opts.platform ?? 'linux',
     logger: opts.logger,
     gitSpawnFn: (cwd, ...args) => {
       calls.push({ kind: 'diff', cwd, args });
