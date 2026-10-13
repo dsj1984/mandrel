@@ -297,12 +297,6 @@
       "percentage": 4.95
     },
     {
-      "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
-      "duplicatedLines": 22,
-      "totalLines": 238,
-      "percentage": 9.24
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
       "duplicatedLines": 16,
       "totalLines": 853,
