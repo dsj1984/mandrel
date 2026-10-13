@@ -25961,6 +25961,110 @@
       "crap": 13
     },
     {
+      "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
+      "method": "clip",
+      "startLine": 34,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
+      "method": "tryParseJson",
+      "startLine": 43,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
+      "method": "readAuthStatus",
+      "startLine": 59,
+      "crap": 8
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
+      "method": "matchArrayEnd",
+      "startLine": 95,
+      "crap": 9.016486871565235
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
+      "method": "lastBareArray",
+      "startLine": 119,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
+      "method": "asFindingList",
+      "startLine": 142,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
+      "method": "parseVerdictText",
+      "startLine": 155,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
+      "method": "toFindings",
+      "startLine": 164,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
+      "method": "<anon toFindings/(entry)#0>",
+      "startLine": 166,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
+      "method": "<anon toFindings/(entry)#0/()#0>",
+      "startLine": 168,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
+      "method": "failureReason",
+      "startLine": 175,
+      "crap": 9
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
+      "method": "parseEnvelope",
+      "startLine": 193,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
+      "method": "isSuccess",
+      "startLine": 200,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
+      "method": "noVerdictReason",
+      "startLine": 209,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
+      "method": "structuredFindings",
+      "startLine": 216,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
+      "method": "resultTextFindings",
+      "startLine": 220,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
+      "method": "resolveVerdict",
+      "startLine": 231,
+      "crap": 3
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "buildPrompt",
       "startLine": 51,
@@ -25986,6 +26090,12 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
+      "method": "quoteWindowsArg",
+      "startLine": 102,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "parseFindings",
       "startLine": 107,
       "crap": 1
@@ -25999,15 +26109,64 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
+      "method": "runClaude",
+      "startLine": 114,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "assertInput",
       "startLine": 127,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
+      "method": "runAuthStatus",
+      "startLine": 146,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "method": "createCodeReviewProviderForRegistry",
       "startLine": 150,
       "crap": 8
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
+      "method": "runReviewer",
+      "startLine": 155,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
+      "method": "reviewInTempDir",
+      "startLine": 170,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
+      "method": "readDiff",
+      "startLine": 187,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
+      "method": "assertCliPresent",
+      "startLine": 196,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
+      "method": "settle",
+      "startLine": 225,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
+      "method": "<anon createCodeReviewProviderForRegistry/(d)#0>",
+      "startLine": 244,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/codex-cli.js",
@@ -28668,6 +28827,12 @@
       "method": "runPrePushPhases",
       "startLine": 264,
       "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
+      "method": "codeReviewGate",
+      "startLine": 269,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
