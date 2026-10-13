@@ -1539,6 +1539,10 @@
       "mi": 96.376
     },
     {
+      "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
+      "mi": 99.991
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "mi": 100.524
     },
