@@ -933,10 +933,6 @@
     },
     {
       "file": ".agents/scripts/lib/mandrel-catalog.js",
-      "symbol": "extractDescription"
-    },
-    {
-      "file": ".agents/scripts/lib/mandrel-catalog.js",
       "symbol": "isVagueDescription"
     },
     {
