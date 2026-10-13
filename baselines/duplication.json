@@ -297,10 +297,10 @@
       "percentage": 4.95
     },
     {
-      "path": ".agents/scripts/lib/orchestration/review-providers/codex.js",
-      "duplicatedLines": 22,
-      "totalLines": 207,
-      "percentage": 10.63
+      "path": ".agents/scripts/lib/orchestration/review-providers/codex-cli.js",
+      "duplicatedLines": 21,
+      "totalLines": 166,
+      "percentage": 12.65
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
