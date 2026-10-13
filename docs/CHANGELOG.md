@@ -15,6 +15,21 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.84.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.83.0...mandrel-v2.84.0) (2026-10-13)
+
+
+### Added
+
+* make Codex a first-class Mandrel host alongside Claude Code ([#5655](https://github.com/dsj1984/mandrel/issues/5655)) ([#5660](https://github.com/dsj1984/mandrel/issues/5660)) ([14d999e](https://github.com/dsj1984/mandrel/commit/14d999eaebb8f456890e2e4cd49d2e912687f46d))
+* mandrel-status band v2: one quiet line while healthy, a colored action line when a Story needs attention ([#5657](https://github.com/dsj1984/mandrel/issues/5657)) ([#5658](https://github.com/dsj1984/mandrel/issues/5658)) ([19ca2ee](https://github.com/dsj1984/mandrel/commit/19ca2ee2b6387fb828788dce79a89307d8787420))
+* run the `codex` review provider on the Codex CLI instead of Claude ([#5656](https://github.com/dsj1984/mandrel/issues/5656)) ([#5659](https://github.com/dsj1984/mandrel/issues/5659)) ([0829fdf](https://github.com/dsj1984/mandrel/commit/0829fdf525198adf49773776c4d2bfc25e6519ed))
+
+
+### Fixed
+
+* boot sweep finishes the agent::done flip for Stories GitHub closed while still at agent::closing ([#5652](https://github.com/dsj1984/mandrel/issues/5652)) ([#5653](https://github.com/dsj1984/mandrel/issues/5653)) ([f29e5f8](https://github.com/dsj1984/mandrel/commit/f29e5f88cff2ff09729dd2cadbb4248e428bf608))
+* sync-agentrc validates the merged .agentrc.json + .agentrc.local.json, like the resolver ([#5649](https://github.com/dsj1984/mandrel/issues/5649)) ([#5650](https://github.com/dsj1984/mandrel/issues/5650)) ([7d4ee1d](https://github.com/dsj1984/mandrel/commit/7d4ee1d8add1d99a2cfd31d389d5495bfa9d8fd0))
+
 ## [2.83.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.82.0...mandrel-v2.83.0) (2026-10-12)
 
 
