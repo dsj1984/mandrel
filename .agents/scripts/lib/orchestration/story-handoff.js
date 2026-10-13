@@ -188,10 +188,7 @@ function headSha(ctx) {
  */
 async function runLogged(ctx, logName, cmd, args, env) {
   ctx.progress(logName, `${cmd} ${args.join(' ')}`);
-  const res = await ctx.runCommand(cmd, args, {
-    cwd: ctx.cwd,
-    ...(env ? { env } : {}),
-  });
+  const res = await ctx.runCommand(cmd, args, { cwd: ctx.cwd, env });
   const output = [res.stdout, res.stderr].filter(Boolean).join('\n');
   const evidencePath = ctx.writeEvidence(logName, output);
   return { status: res.status, output, evidencePath };

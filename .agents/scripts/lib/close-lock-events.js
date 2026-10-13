@@ -99,9 +99,9 @@ export function claimLockEventSink(env = process.env, { fsImpl = fs } = {}) {
 export function summarizeLockEvents(events) {
   let lockWait = null;
   let suiteTimings = null;
-  for (const event of events) {
+  for (const event of events.filter((e) => e.kind !== 'lock-progress')) {
     if (event.kind === 'lock-wait') lockWait = mergeLockWait(lockWait, event);
-    else if (event.kind === 'suite-timings') suiteTimings = timingsOf(event);
+    else suiteTimings = timingsOf(event);
   }
   return { lockWait, suiteTimings };
 }
