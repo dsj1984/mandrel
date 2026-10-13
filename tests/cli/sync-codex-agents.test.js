@@ -31,6 +31,12 @@ const CLAUDE_SYNC = path.join(
   'scripts',
   'sync-claude-agents.js',
 );
+const CODEX_SYNC = path.join(
+  REPO_ROOT,
+  '.agents',
+  'scripts',
+  'sync-codex-agents.js',
+);
 const PAYLOAD_AGENTS = path.join(REPO_ROOT, '.agents', 'agents');
 const SECURITY_BASELINE = path.join(
   REPO_ROOT,
@@ -173,6 +179,19 @@ describe('codex agent projection — the agent entry point writes both hosts', (
     const second = run();
     assert.match(second.stdout, /0 file\(s\) synced, \d+ total Codex agents/);
     assert.deepEqual(ROLES.map(readAgent), before);
+  });
+
+  it('the standalone entry point writes the same projection', () => {
+    const result = run([CODEX_SYNC]);
+    assert.match(
+      result.stdout,
+      /\d+ file\(s\) synced, \d+ total agents in \.codex\/agents\//,
+    );
+    assert.deepEqual(
+      fs.readdirSync(agentsDir()).sort(),
+      ROLES.map((r) => `mandrel-${r}.toml`),
+    );
+    assert.equal(fs.existsSync(path.join(root, '.claude', 'agents')), false);
   });
 
   it('`mandrel sync-agents` produces the Codex agents too', () => {

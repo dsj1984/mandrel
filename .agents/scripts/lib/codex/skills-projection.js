@@ -143,6 +143,7 @@ export function renderCodexSkill({ name, description, workflowPath }) {
 
 /**
  * Every projected skill keyed by name, with the exact SKILL.md it should hold.
+ * Throws on a name Codex cannot load or that collides with an authored skill.
  *
  * @param {{ projectRoot: string, payloadSrc?: string, localSrc?: string }} opts
  * @returns {Map<string, string>}
@@ -163,6 +164,7 @@ export function expectedCodexSkills({
       }),
     );
   }
+  assertProjectableNames(projectRoot, expected.keys());
   return expected;
 }
 
@@ -256,7 +258,6 @@ export function syncCodexSkills({
   log = () => {},
 }) {
   const expected = expectedCodexSkills({ projectRoot, payloadSrc, localSrc });
-  assertProjectableNames(projectRoot, expected.keys());
 
   const removed = [];
   for (const name of listGeneratedCodexSkills(destDir)) {
