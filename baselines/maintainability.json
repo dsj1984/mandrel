@@ -1540,7 +1540,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/codex.js",
-      "mi": 99.132
+      "mi": 104.572
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/degraded-gates.js",
