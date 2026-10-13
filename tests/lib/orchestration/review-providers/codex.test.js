@@ -3,7 +3,10 @@
  *
  * Story #2830 (Epic #2815) — verifies:
  *   - Probe failure throws a hard-fail Error naming both remediations
- *     (install the plugin, or set provider: native).
+ *     (install the Codex CLI + `codex login`, or set provider: native).
+ *   - The probe runs `codex --version`; the default invoke spawns
+ *     `codex exec` (read-only sandbox, ephemeral, output schema, last
+ *     message under the tempRoot) and never `claude`.
  *   - Probe success returns a provider whose `runReview` is an async fn.
  *   - The Codex severity vocabulary maps onto the canonical
  *     {critical, high, medium, suggestion} enum (table-driven).
@@ -16,6 +19,9 @@
  */
 
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 
 import {
@@ -27,6 +33,7 @@ import {
   mapCodexSeverity,
   parseCodexFindings,
 } from '../../../../.agents/scripts/lib/orchestration/review-providers/codex.js';
+import { invokeCodexExec } from '../../../../.agents/scripts/lib/orchestration/review-providers/codex-cli.js';
 
 const ALLOWED_SEVERITIES = new Set([
   'critical',
@@ -45,7 +52,8 @@ test('createCodexProvider: probe absent throws hard-fail Error naming both remed
       assert.ok(err instanceof Error);
       assert.ok(err.message.includes(CODEX_REMEDIATIONS.install));
       assert.ok(err.message.includes(CODEX_REMEDIATIONS.fallback));
-      assert.match(err.message, /openai\/codex-plugin-cc/);
+      assert.match(err.message, /Codex CLI/);
+      assert.match(err.message, /codex login/);
       assert.match(err.message, /provider.*native/);
       return true;
     },
@@ -66,27 +74,33 @@ test('createCodexProvider: probe present returns a ReviewProvider with runReview
   assert.equal(typeof provider.runReview, 'function');
 });
 
-test('defaultProbeCodexCommand: returns false when no markers exist', () => {
+test('defaultProbeCodexCommand: runs `codex --version` with a timeout', () => {
+  const calls = [];
   const result = defaultProbeCodexCommand({
-    markers: ['/definitely/not/a/path'],
-    existsFn: () => false,
-  });
-  assert.equal(result, false);
-});
-
-test('defaultProbeCodexCommand: returns true when a marker exists', () => {
-  const result = defaultProbeCodexCommand({
-    markers: ['/some/marker'],
-    existsFn: (p) => p === '/some/marker',
+    run: (file, args, options) => {
+      calls.push({ file, args, options });
+      return { status: 0, stdout: 'codex-cli 0.50.0', stderr: '' };
+    },
   });
   assert.equal(result, true);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].file, 'codex');
+  assert.deepEqual(calls[0].args, ['--version']);
+  assert.ok(calls[0].options.timeout > 0);
 });
 
-test('defaultProbeCodexCommand: treats existsFn throws as absent (no crash)', () => {
+test('defaultProbeCodexCommand: non-zero or null exit reads as absent', () => {
+  assert.equal(defaultProbeCodexCommand({ run: () => ({ status: 1 }) }), false);
+  assert.equal(
+    defaultProbeCodexCommand({ run: () => ({ status: null }) }),
+    false,
+  );
+});
+
+test('defaultProbeCodexCommand: a spawn throw reads as absent (no crash)', () => {
   const result = defaultProbeCodexCommand({
-    markers: ['/boom'],
-    existsFn: () => {
-      throw new Error('EACCES');
+    run: () => {
+      throw new Error('ENOENT');
     },
   });
   assert.equal(result, false);
@@ -225,7 +239,7 @@ test('parseCodexFindings: accepts `message` as a body alias', () => {
 test('parseCodexFindings: invalid JSON throws (orchestrator owns envelope)', () => {
   assert.throws(
     () => parseCodexFindings('not json'),
-    /Failed to parse \/codex:review stdout/,
+    /\[codex-review\] Failed to parse codex exec output/,
   );
 });
 
@@ -288,7 +302,7 @@ test('runReview: invokeFn receives baseRef + headRef + scope + ticketId + depth'
 test('runReview: non-zero invoker exit throws with stderr surfaced', async () => {
   const provider = createCodexProvider({
     probeFn: presentProbe,
-    invokeFn: () => ({ status: 2, stdout: '', stderr: 'plugin crashed' }),
+    invokeFn: () => ({ status: 2, stdout: '', stderr: 'codex crashed' }),
   });
   await assert.rejects(
     () =>
@@ -298,7 +312,7 @@ test('runReview: non-zero invoker exit throws with stderr surfaced', async () =>
         baseRef: 'main',
         headRef: 'epic/2815',
       }),
-    /\/codex:review exited with status 2.*plugin crashed/,
+    /\[codex-review\] codex exec exited with status 2.*codex crashed/,
   );
 });
 
@@ -344,4 +358,180 @@ test('runReview: never invokes a GitHub provider method', async () => {
     headRef: 'epic/1',
   });
   assert.ok(Array.isArray(findings));
+});
+
+test('runReview: preserves title/body/file/line/category from schema output', async () => {
+  const provider = createCodexProvider({
+    probeFn: presentProbe,
+    invokeFn: async () => ({
+      status: 0,
+      stdout: JSON.stringify({
+        findings: [
+          {
+            severity: 'major',
+            title: 'Off by one',
+            body: 'Loop skips the last row.',
+            file: 'src/a.js',
+            line: 7,
+            category: 'correctness',
+          },
+          {
+            severity: 'nit',
+            title: 'Global',
+            body: 'No location.',
+            file: null,
+            line: null,
+            category: 'style',
+          },
+        ],
+      }),
+      stderr: '',
+    }),
+  });
+  const findings = await provider.runReview({
+    scope: 'story',
+    ticketId: 5656,
+    baseRef: 'main',
+    headRef: 'story-5656',
+  });
+  assert.deepEqual(findings, [
+    {
+      severity: 'high',
+      title: 'Off by one',
+      body: 'Loop skips the last row.',
+      file: 'src/a.js',
+      line: 7,
+      category: 'correctness',
+    },
+    {
+      severity: 'suggestion',
+      title: 'Global',
+      body: 'No location.',
+      category: 'style',
+    },
+  ]);
+});
+
+test('runReview: unparseable output throws a [codex-review] error', async () => {
+  const provider = createCodexProvider({
+    probeFn: presentProbe,
+    invokeFn: () => ({ status: 0, stdout: 'not json', stderr: '' }),
+  });
+  await assert.rejects(
+    () =>
+      provider.runReview({
+        scope: 'story',
+        ticketId: 1,
+        baseRef: 'main',
+        headRef: 'story-1',
+      }),
+    /^Error: \[codex-review\]/,
+  );
+});
+
+/** A fake `codex exec` runner that records its call and writes `-o`. */
+function fakeCodexRun({ lastMessage, status = 0, stderr = '' }) {
+  const calls = [];
+  const run = async (file, args, options) => {
+    const schemaPath = args[args.indexOf('--output-schema') + 1];
+    const outPath = args[args.indexOf('-o') + 1];
+    calls.push({
+      file,
+      args,
+      options,
+      schema: JSON.parse(fs.readFileSync(schemaPath, 'utf8')),
+      outPath,
+    });
+    if (lastMessage !== undefined) fs.writeFileSync(outPath, lastMessage);
+    return { status, stdout: 'progress chatter', stderr };
+  };
+  return { run, calls };
+}
+
+/** Codex structured output is strict: every property required, no extras. */
+function assertStrictFindingsSchema(schema) {
+  assert.equal(schema.additionalProperties, false);
+  assert.deepEqual(schema.required, ['findings']);
+  const item = schema.properties.findings.items;
+  assert.equal(item.additionalProperties, false);
+  assert.deepEqual([...item.required].sort(), [
+    'body',
+    'category',
+    'file',
+    'line',
+    'severity',
+    'title',
+  ]);
+  assert.deepEqual(
+    Object.keys(item.properties).sort(),
+    [...item.required].sort(),
+  );
+  assert.deepEqual(
+    item.properties.severity.enum,
+    Object.keys(CODEX_SEVERITY_MAP),
+  );
+  assert.deepEqual(item.properties.file.type, ['string', 'null']);
+  assert.deepEqual(item.properties.line.type, ['integer', 'null']);
+}
+
+function makeTempRoot() {
+  // test-temp-allow: an isolated tempRoot stand-in, removed by the caller.
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'codex-provider-test-'));
+}
+
+test('invokeCodexExec: spawns codex exec (read-only, ephemeral, schema, -o under tempRoot) — never claude', async (t) => {
+  const tempRoot = makeTempRoot();
+  t.after(() => fs.rmSync(tempRoot, { recursive: true, force: true }));
+  const { run, calls } = fakeCodexRun({
+    lastMessage: JSON.stringify({ findings: [] }),
+  });
+  const result = await invokeCodexExec(
+    { baseRef: 'main', headRef: 'story-5656', depth: 'deep' },
+    { run, tempRoot, cwd: tempRoot },
+  );
+  assert.equal(calls.length, 1);
+  const [call] = calls;
+  assert.equal(call.file, 'codex');
+  assert.notEqual(call.file, 'claude');
+  assert.equal(call.args[0], 'exec');
+  const sandboxAt = call.args.indexOf('--sandbox');
+  assert.ok(sandboxAt > 0);
+  assert.equal(call.args[sandboxAt + 1], 'read-only');
+  assert.ok(call.args.includes('--ephemeral'));
+  assertStrictFindingsSchema(call.schema);
+  assert.ok(call.outPath.startsWith(tempRoot + path.sep));
+  assert.match(call.options.input, /main\.\.\.story-5656/);
+  assert.match(call.options.input, /deep/i);
+  assert.match(call.options.input, /schema/);
+  assert.deepEqual(result, {
+    status: 0,
+    stdout: JSON.stringify({ findings: [] }),
+    stderr: '',
+  });
+  assert.deepEqual(fs.readdirSync(tempRoot), [], 'per-run dir is removed');
+});
+
+test('invokeCodexExec: non-zero exit is returned as-is and the run dir is removed', async (t) => {
+  const tempRoot = makeTempRoot();
+  t.after(() => fs.rmSync(tempRoot, { recursive: true, force: true }));
+  const { run } = fakeCodexRun({ status: 3, stderr: 'not logged in' });
+  const result = await invokeCodexExec(
+    { baseRef: 'main', headRef: 'h' },
+    { run, tempRoot, cwd: tempRoot },
+  );
+  assert.equal(result.status, 3);
+  assert.equal(result.stderr, 'not logged in');
+  assert.deepEqual(fs.readdirSync(tempRoot), []);
+});
+
+test('invokeCodexExec: a missing last-message file is a failure, not an empty review', async (t) => {
+  const tempRoot = makeTempRoot();
+  t.after(() => fs.rmSync(tempRoot, { recursive: true, force: true }));
+  const { run } = fakeCodexRun({});
+  const result = await invokeCodexExec(
+    { baseRef: 'main', headRef: 'h' },
+    { run, tempRoot, cwd: tempRoot },
+  );
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /no last-message file/);
 });
