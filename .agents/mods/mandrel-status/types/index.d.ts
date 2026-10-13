@@ -77,7 +77,7 @@ export type ChipState =
   | 'failed'
   | 'focus'
   | 'in-flight'
-  | 'queued';
+  | 'undispatched';
 
 /** A Story that ended without landing, named by the run roll-up. */
 export type Straggler = {

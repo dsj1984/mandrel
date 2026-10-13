@@ -866,7 +866,7 @@ function chipOf(
   if (status === 'blocked') return 'needs-you';
   if (status && FAILED.has(status)) return 'failed';
   if (id === focus?.storyId) return 'focus';
-  return ledger.dispatched.includes(id) ? 'in-flight' : 'queued';
+  return ledger.dispatched.includes(id) ? 'in-flight' : 'undispatched';
 }
 
 /**
@@ -1070,7 +1070,7 @@ const CHIP: Record<ChipState, string> = {
   failed: '✗',
   focus: '●',
   'in-flight': '◐',
-  queued: '○',
+  undispatched: '○',
 };
 
 /** `0:45`, `5:39`, `1:05:00`. */
