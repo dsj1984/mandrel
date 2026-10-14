@@ -18,12 +18,23 @@ import path from 'node:path';
 import { describe, it } from 'node:test';
 import {
   buildCoverageRefreshOpts,
-  buildCoverageUpdaterScorer,
   coverageUpdaterTargets,
   loadC8ScopeConfig,
   resolveCoverageUpdaterScope,
 } from '../../../.agents/scripts/lib/baselines/coverage-updater-cli.js';
 import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
+
+/** The updater's scorer, reached through the options builder that owns it. */
+function buildCoverageUpdaterScorer(cwd, { readCoverage, ...deps }) {
+  return buildCoverageRefreshOpts(
+    cwd,
+    {
+      absBaselinePath: path.join(cwd, 'baselines', 'coverage.json'),
+      readCoverage,
+    },
+    deps,
+  ).scorer;
+}
 
 function recordingLogger() {
   const lines = { info: [], warn: [], error: [] };

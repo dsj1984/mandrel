@@ -78,7 +78,7 @@ function readOrReport(readCoverage, cwd, opts, logger) {
  *   score: Function, logger?: object}} deps
  * @returns {(files: string[], opts: object) => object[]}
  */
-export function buildCoverageUpdaterScorer(
+function buildCoverageUpdaterScorer(
   cwd,
   { readCoverage, loadScope, buildScope, score, logger = Logger } = {},
 ) {
@@ -148,15 +148,24 @@ export function coverageUpdaterTargets({ coveragePath, baselinePath }, cwd) {
 }
 
 /**
- * `refreshBaseline` options for the coverage updater.
+ * `refreshBaseline` options for the coverage updater. `deps` substitutes the
+ * scorer's scope and scoring seams so a test never touches a real artifact.
  *
  * @param {string} cwd
- * @param {ReturnType<typeof coverageUpdaterTargets>} targets
+ * @param {{ absBaselinePath: string, readCoverage: Function }} targets
+ * @param {{ loadScope?: Function, buildScope?: Function, score?: Function,
+ *   logger?: object }} [deps]
  * @returns {object}
  */
 export function buildCoverageRefreshOpts(
   cwd,
   { absBaselinePath, readCoverage },
+  {
+    loadScope = loadC8ScopeConfig,
+    buildScope = buildScopePredicate,
+    score = scoreCoverageFinal,
+    logger,
+  } = {},
 ) {
   return {
     kind: 'coverage',
@@ -164,9 +173,10 @@ export function buildCoverageRefreshOpts(
     epsilon: getBaselineEpsilon('coverage'),
     scorer: buildCoverageUpdaterScorer(cwd, {
       readCoverage,
-      loadScope: loadC8ScopeConfig,
-      buildScope: buildScopePredicate,
-      score: scoreCoverageFinal,
+      loadScope,
+      buildScope,
+      score,
+      logger,
     }),
   };
 }
