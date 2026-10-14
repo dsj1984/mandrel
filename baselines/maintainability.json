@@ -2384,7 +2384,7 @@
     },
     {
       "path": ".agents/scripts/update-duplication-baseline.js",
-      "mi": 106.025
+      "mi": 106.54
     },
     {
       "path": ".agents/scripts/update-maintainability-baseline.js",
