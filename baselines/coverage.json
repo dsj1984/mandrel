@@ -982,9 +982,9 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/process.js",
-      "lines": 90.87,
+      "lines": 89.72,
       "branches": 89.19,
-      "functions": 80
+      "functions": 75
     },
     {
       "path": ".agents/scripts/lib/close-validation/projections/advisories.js",
@@ -1505,13 +1505,13 @@
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
       "lines": 100,
-      "branches": 98.88,
+      "branches": 99.06,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/full-suite-queue.js",
-      "lines": 97.66,
-      "branches": 90.48,
+      "lines": 98.14,
+      "branches": 96.47,
       "functions": 100
     },
     {
@@ -2668,9 +2668,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "lines": 95.66,
-      "branches": 80.27,
-      "functions": 96.55
+      "lines": 96.69,
+      "branches": 83,
+      "functions": 97.5
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-init-envelope.js",
@@ -3006,6 +3006,12 @@
       "path": ".agents/scripts/lib/story-body/story-body.js",
       "lines": 100,
       "branches": 97.47,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/suite-admission.js",
+      "lines": 99.27,
+      "branches": 91.91,
       "functions": 100
     },
     {

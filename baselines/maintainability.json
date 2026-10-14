@@ -992,7 +992,7 @@
     },
     {
       "path": ".agents/scripts/lib/full-suite-queue.js",
-      "mi": 95.386
+      "mi": 96.119
     },
     {
       "path": ".agents/scripts/lib/gates/baseline-store.js",
@@ -1989,6 +1989,10 @@
     {
       "path": ".agents/scripts/lib/story-body/story-body.js",
       "mi": 96.124
+    },
+    {
+      "path": ".agents/scripts/lib/suite-admission.js",
+      "mi": 101.686
     },
     {
       "path": ".agents/scripts/lib/supervised-suite.js",
