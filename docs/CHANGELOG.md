@@ -15,6 +15,13 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.86.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.85.0...mandrel-v2.86.0) (2026-10-14)
+
+
+### Added
+
+* admit declared focused validation alongside full suites under a repo-scoped capacity budget ([#5668](https://github.com/dsj1984/mandrel/issues/5668)) ([#5669](https://github.com/dsj1984/mandrel/issues/5669)) ([318c132](https://github.com/dsj1984/mandrel/commit/318c132ed6964fcb4b6f3330ff0b3ae08cf39809))
+
 ## [2.85.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.84.0...mandrel-v2.85.0) (2026-10-13)
 
 
