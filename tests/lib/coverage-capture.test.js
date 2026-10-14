@@ -25,6 +25,7 @@ import {
   LOCK_WAIT_EXPIRED_EXIT_CODE,
   resolveFullSuiteLockBudget,
 } from '../../.agents/scripts/lib/full-suite-lock.js';
+import { FULL_SUITE_STALE_MS } from '../../.agents/scripts/lib/suite-admission.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import {
   assertGone,
@@ -688,7 +689,8 @@ describe('runCapture', () => {
     const { waitMs, staleMs } = resolveFullSuiteLockBudget(killBoundMs);
     assert.equal(waitMs, Math.max(300_000, killBoundMs));
     assert.ok(waitMs >= killBoundMs);
-    assert.ok(staleMs <= waitMs);
+    // Story #5668: staleness is fixed, never derived from the wait budget.
+    assert.equal(staleMs, FULL_SUITE_STALE_MS);
   });
 
   // Story #5065 — the spawn takes NO positional file arguments. Story #4981

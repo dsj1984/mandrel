@@ -36,11 +36,15 @@ import {
   orchestrationLogDir,
   storyReviewDepositPath,
 } from '../config/temp-paths.js';
-import { LOCK_WAIT_EXPIRED_EXIT_CODE } from '../full-suite-lock.js';
+import {
+  ADMISSION_REFUSED_EXIT_CODE,
+  LOCK_WAIT_EXPIRED_EXIT_CODE,
+} from '../full-suite-lock.js';
 import { syncBranchFromBase } from '../git/sync-from-base.js';
 import { getStoryBranch, gitSpawn } from '../git-utils.js';
 import { readPackageScripts } from '../npm-scripts.js';
 import { TIMEOUT_EXIT_CODE } from '../process-group.js';
+import { describeBlocking } from '../suite-admission.js';
 import { probeHeldReviewDiff } from './review-deposit.js';
 import { createStoryProgress, handoffStepName } from './story-progress.js';
 import {
@@ -197,16 +201,22 @@ async function runLogged(ctx, logName, cmd, args, env) {
 const LOCK_PHASE_TEXT = Object.freeze({
   waiting: 'waiting for the full-suite lock',
   'still-waiting': 'still waiting for the full-suite lock',
+  admitted: 'admitted — suite running',
+  // Pre-#5668 children report `acquired`, the same state as `admitted`.
   acquired: 'acquired the full-suite lock',
+  completed: 'suite completed',
   expired: 'gave up waiting for the full-suite lock',
 });
 
 /** @param {import('../full-suite-queue.js').LockProgress} event */
 function describeLockProgress(event) {
   const head = LOCK_PHASE_TEXT[event.phase] ?? `lock ${event.phase}`;
+  if (event.phase === 'completed') return `${head} (${durations(event)})`;
   const parts = [
     `waited ${event.waitedSeconds}s of a ${event.waitBudgetSeconds}s budget`,
   ];
+  if (event.blocking)
+    parts.push(`blocked: ${describeBlocking(event.blocking)}`);
   const { holder, queueAhead } = event;
   if (holder) {
     parts.push(
@@ -215,6 +225,11 @@ function describeLockProgress(event) {
   }
   if (Number.isInteger(queueAhead)) parts.push(`${queueAhead} ahead in queue`);
   return `${head} (${parts.join('; ')})`;
+}
+
+function durations({ waitMs, executionMs }) {
+  const seconds = (ms) => `${Math.round((ms ?? 0) / 1000)}s`;
+  return `waited ${seconds(waitMs)}, ran ${seconds(executionMs)}`;
 }
 
 /**
@@ -256,6 +271,9 @@ async function withLockProgress(ctx, run) {
 function describeSuiteFailure(status) {
   if (status === LOCK_WAIT_EXPIRED_EXIT_CODE) {
     return `suite deferred (exit ${status}): another full suite holds the host lock — re-run the handoff once it frees`;
+  }
+  if (status === ADMISSION_REFUSED_EXIT_CODE) {
+    return `suite refused (exit ${status}): its declared delivery.execution.workloads weight exceeds capacity — fix the declaration, then re-run`;
   }
   if (status === TIMEOUT_EXIT_CODE) {
     return `suite timed out (exit ${status}) — usually host contention; re-run the handoff`;

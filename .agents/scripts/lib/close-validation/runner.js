@@ -5,7 +5,10 @@
 
 import { getQuality } from '../config/quality.js';
 import { COVERAGE_TIMEOUT_EXIT_CODE } from '../coverage-capture.js';
-import { LOCK_WAIT_EXPIRED_EXIT_CODE } from '../full-suite-lock.js';
+import {
+  fullSuiteLockPolicy,
+  LOCK_WAIT_EXPIRED_EXIT_CODE,
+} from '../full-suite-lock.js';
 import { gitSpawn } from '../git-utils.js';
 import {
   recordPass as defaultRecordPass,
@@ -372,7 +375,9 @@ function fullSuiteLockOptions({ config, lockEvents }) {
       return {
         ...(env ? { env } : {}),
         ...(lockEvents ? { onLockEvent: lockEvents.emit } : {}),
-        ...(gate.fullSuiteLock ? fullSuiteGateOptions(gate, timeoutMs) : {}),
+        ...(gate.fullSuiteLock
+          ? fullSuiteGateOptions(gate, timeoutMs, config)
+          : {}),
       };
     },
   };
@@ -385,14 +390,25 @@ function gateEnv(gate, lockEvents) {
 }
 
 /**
- * A full-suite gate's kill bound, and the command its lock-expiry line names.
+ * A full-suite gate's kill bound, the command its lock-expiry line names, and
+ * the admission policy evidence-gate and coverage-capture resolve too — so
+ * `fullSuiteLock: false` / `MANDREL_FULL_SUITE_LOCK=0` reach close as well.
  *
  * @param {{ cmd: string, args?: string[] }} gate
  * @param {number} timeoutMs
+ * @param {object|null} config
  */
-function fullSuiteGateOptions(gate, timeoutMs) {
-  const rerunCommand = [gate.cmd, ...(gate.args ?? [])].join(' ');
-  return { timeoutMs, lockOptions: { rerunCommand } };
+function fullSuiteGateOptions(gate, timeoutMs, config) {
+  const argv = [gate.cmd, ...(gate.args ?? [])];
+  const { enabled, capacity, workload } = fullSuiteLockPolicy(
+    config,
+    process.env,
+    argv,
+  );
+  return {
+    timeoutMs,
+    lockOptions: { rerunCommand: argv.join(' '), enabled, capacity, workload },
+  };
 }
 
 /**

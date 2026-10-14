@@ -5,7 +5,7 @@
  * passed for the current HEAD and tree, and recording a pass for the next
  * caller. `--standalone` is required: it keys evidence by Story id, the same
  * keyspace close consults, so worker-side verify[] runs credit the close.
- * `--gate test` takes the host full-suite lock.
+ * `--gate test` is admitted through the full-suite lock.
  */
 
 import { spawnSync } from 'node:child_process';
@@ -232,7 +232,7 @@ export function runLockedSuite(
   const lockHooks = lockEventHooks(claimLockEventSink(env));
   return withFullSuiteLockAsync(
     {
-      ...fullSuiteLockPolicy(config, env),
+      ...fullSuiteLockPolicy(config, env, [cmd, ...args]),
       cwd,
       log,
       rerunCommand: ['node', ...process.argv.slice(1)].join(' '),

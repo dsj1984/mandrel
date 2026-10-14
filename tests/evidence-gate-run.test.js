@@ -493,8 +493,9 @@ test('runLockedSuite: emits lock-progress on the claimed channel while it waits'
       channel.drain().map((e) => [e.kind, e.phase]),
       [
         ['lock-progress', 'waiting'],
-        ['lock-progress', 'acquired'],
+        ['lock-progress', 'admitted'],
         ['lock-wait', undefined],
+        ['lock-progress', 'completed'],
       ],
     );
     channel.dispose();
