@@ -61,6 +61,8 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const STORY_DIR_PATTERN = /^story-(\d+)$/;
 const TRAILING_ID_PATTERN = /-(\d+)$/;
 const AUDIT_STORY_PATTERN = /^audit-story-(\d+)-/;
+/** Lens reports' own folder under `audits/` (`auditResultsDir`). */
+const AUDIT_RESULTS_DIRNAME = 'audit-results';
 /** Per-run temp tree holding `stories/story-<id>/` children. */
 const RUN_DIR_PATTERN = /^run-\d+$/;
 
@@ -187,21 +189,33 @@ async function scanValidationEvidence(tempRoot, fsp) {
   return entries;
 }
 
-/** `<tempRoot>/audits/*`; `audit-story-<id>-*` is Story-keyed, rest age-floored. */
+/** One `auditResults` entry; `audit-story-<id>-*` is Story-keyed, rest age-floored. */
+function auditEntry(fsp, dir, name) {
+  const match = AUDIT_STORY_PATTERN.exec(name);
+  return makeEntry(
+    fsp,
+    path.join(dir, name),
+    'auditResults',
+    match ? Number(match[1]) : null,
+  );
+}
+
+/**
+ * `<tempRoot>/audits/*`, with `audits/audit-results/` walked per report —
+ * reaping that folder wholesale would take fresh reports with stale ones.
+ */
 async function scanAuditResults(tempRoot, fsp) {
   const dir = path.join(tempRoot, 'audits');
-  const entries = [];
+  const resultsDir = path.join(dir, AUDIT_RESULTS_DIRNAME);
+  const pending = [];
   for (const dirent of await safeReaddir(fsp, dir)) {
-    const match = AUDIT_STORY_PATTERN.exec(dirent.name);
-    const entry = await makeEntry(
-      fsp,
-      path.join(dir, dirent.name),
-      'auditResults',
-      match ? Number(match[1]) : null,
-    );
-    if (entry) entries.push(entry);
+    if (dirent.name === AUDIT_RESULTS_DIRNAME && dirent.isDirectory()) continue;
+    pending.push(auditEntry(fsp, dir, dirent.name));
   }
-  return entries;
+  for (const dirent of await safeReaddir(fsp, resultsDir)) {
+    pending.push(auditEntry(fsp, resultsDir, dirent.name));
+  }
+  return (await Promise.all(pending)).filter(Boolean);
 }
 
 /** `<tempRoot>/plan-<slug>/`: predates its Stories, so age is the only signal. */
