@@ -15,6 +15,13 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.87.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.86.0...mandrel-v2.87.0) (2026-10-14)
+
+
+### Added
+
+* make consumer quality-baseline refresh runnable from a clean install ([#5672](https://github.com/dsj1984/mandrel/issues/5672)) ([#5673](https://github.com/dsj1984/mandrel/issues/5673)) ([9bb4a71](https://github.com/dsj1984/mandrel/commit/9bb4a718c0a9765b064c83a0a11c57b71ed9a35c))
+
 ## [2.86.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.85.0...mandrel-v2.86.0) (2026-10-14)
 
 
