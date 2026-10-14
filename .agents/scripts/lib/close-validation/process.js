@@ -3,6 +3,7 @@
 import { spawn } from 'node:child_process';
 
 import {
+  ADMISSION_REFUSED_EXIT_CODE,
   LOCK_WAIT_EXPIRED_EXIT_CODE,
   resolveFullSuiteLockBudget,
   withFullSuiteLockAsync,
@@ -106,6 +107,7 @@ function gateLockOptions(opts) {
     log: opts.log,
     skipIfSatisfied: opts.skipIfSatisfied,
     onWaitExpired: deferredGateStatus,
+    onAdmissionRefused: refusedGateStatus,
     onLockOutcome: opts.onLockEvent
       ? (outcome) => opts.onLockEvent({ kind: 'lock-wait', ...outcome })
       : undefined,
@@ -115,6 +117,10 @@ function gateLockOptions(opts) {
 
 function deferredGateStatus() {
   return { status: LOCK_WAIT_EXPIRED_EXIT_CODE };
+}
+
+function refusedGateStatus() {
+  return { status: ADMISSION_REFUSED_EXIT_CODE };
 }
 
 /**

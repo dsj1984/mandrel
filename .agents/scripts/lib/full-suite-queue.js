@@ -12,6 +12,12 @@ import {
   isHolderAlive,
   readLockHolderPid,
 } from './single-story-sweep/sweep-lock.js';
+import {
+  admissionWaitLine,
+  admittedLine,
+  blockingLabel,
+  publicBlocking,
+} from './suite-admission.js';
 
 const LOCK_TAG = '[full-suite-lock]';
 
@@ -177,9 +183,10 @@ function holderLabel(lockPath, fsImpl) {
 
 /**
  * @typedef {{
- *   phase: 'waiting'|'still-waiting'|'acquired'|'expired',
+ *   phase: 'waiting'|'still-waiting'|'admitted'|'completed'|'expired',
  *   waitedSeconds: number, waitBudgetSeconds: number,
- *   holder?: LockHolder, queueAhead?: number,
+ *   holder?: LockHolder, queueAhead?: number, blocking?: object,
+ *   waitMs?: number, executionMs?: number,
  * }} LockProgress
  */
 
@@ -187,7 +194,8 @@ function holderLabel(lockPath, fsImpl) {
  * @param {{
  *   lockPath: string, waitMs: number, pollMs: number, staleMs: number,
  *   reportMs: number, fsImpl: object, nowFn: () => number,
- *   sleepFn: (ms: number) => Promise<void>, acquireOnceFn: Function,
+ *   sleepFn: (ms: number) => Promise<void>,
+ *   attempt: { tryOnce: () => object }, workload?: object,
  *   log: (m: string) => void, rerunCommand: string,
  *   onLockProgress?: (progress: LockProgress) => void,
  * }} opts A throwing `onLockProgress` is swallowed.
@@ -196,6 +204,7 @@ function holderLabel(lockPath, fsImpl) {
 export async function waitInLine(opts) {
   const { lockPath, fsImpl, nowFn } = opts;
   const clock = waitClock(opts);
+  clock.blocking = opts.blocking ?? null;
   announceWait(opts);
   reportProgress(opts, clock, 'waiting', null);
   const ticket = enqueueWaiter({ lockPath, nowFn, fsImpl });
@@ -225,25 +234,36 @@ function reportProgress(opts, clock, phase, ticket, knownHolder) {
       phase,
       waitedSeconds: clock.waited(),
       waitBudgetSeconds: Math.round(Math.max(0, opts.waitMs) / 1000),
-      ...(phase === 'acquired' ? {} : waitContext(opts, ticket, knownHolder)),
+      ...(phase === 'admitted'
+        ? {}
+        : waitContext(opts, ticket, knownHolder, clock.blocking)),
     });
   } catch {}
 }
 
-/** Holder and queue position, each only when readable. */
-function waitContext({ lockPath, staleMs, fsImpl, nowFn }, ticket, known) {
-  const holder = known ?? readLockHolder(lockPath, { fsImpl, nowFn });
+/** Holder, queue position and what blocks admission, each when known. */
+function waitContext(opts, ticket, known, blocking) {
+  const { lockPath, staleMs, fsImpl, nowFn } = opts;
+  const holder = known ?? waitHolder(opts, blocking);
   const queueAhead = countAhead({ lockPath, ticket, staleMs, nowFn, fsImpl });
   return {
     ...(holder.ownerId === null && holder.pid === null ? {} : { holder }),
     ...(queueAhead === null ? {} : { queueAhead }),
+    ...publicBlocking(blocking, queueAhead),
   };
 }
 
-function announceWait({ lockPath, waitMs, fsImpl, log }) {
-  log(
-    `${LOCK_TAG} ⏳ another full suite is already running on this host (${holderLabel(lockPath, fsImpl)}) — waiting up to ${Math.round(waitMs / 1000)}s for it to finish before spawning.`,
-  );
+function waitHolder({ lockPath, fsImpl, nowFn }, blocking) {
+  return blocking?.holder ?? readLockHolder(lockPath, { fsImpl, nowFn });
+}
+
+function announceWait(opts) {
+  const line = admissionWaitLine(opts.workload, opts.blocking, opts.waitMs);
+  opts.log(line ?? exclusiveWaitLine(opts));
+}
+
+function exclusiveWaitLine({ lockPath, waitMs, fsImpl }) {
+  return `${LOCK_TAG} ⏳ another full suite is already running on this host (${holderLabel(lockPath, fsImpl)}) — waiting up to ${Math.round(waitMs / 1000)}s for it to finish before spawning.`;
 }
 
 function giveUp(opts, clock) {
@@ -269,13 +289,12 @@ async function pollForTurn(opts, ticket, clock) {
     await opts.sleepFn(Math.max(0, opts.pollMs));
     refreshTicket(ticket, { nowFn, fsImpl });
     const attempt = isFirstInLine({ lockPath, ticket, staleMs, nowFn, fsImpl })
-      ? opts.acquireOnceFn({ lockPath, timeoutMs: staleMs, fsImpl })
-      : { acquired: false };
+      ? opts.attempt.tryOnce()
+      : { acquired: false, blocking: { reason: 'queue' } };
+    clock.blocking = attempt.blocking ?? null;
     if (attempt.acquired) {
-      log(
-        `${LOCK_TAG} ✅ acquired the full-suite lock (waited ${clock.waited()}s).`,
-      );
-      reportProgress(opts, clock, 'acquired', ticket);
+      log(acquiredLine(opts.workload, clock.waited()));
+      reportProgress(opts, clock, 'admitted', ticket);
       return { held: attempt, expired: false };
     }
     // A hard I/O error will not resolve by waiting; it is not an expiry.
@@ -285,11 +304,19 @@ async function pollForTurn(opts, ticket, clock) {
   return null;
 }
 
+function acquiredLine(workload, waited) {
+  return (
+    admittedLine(workload, waited) ??
+    `${LOCK_TAG} ✅ acquired the full-suite lock (waited ${waited}s).`
+  );
+}
+
 function reportStillWaiting(opts, clock, ticket) {
   const { lockPath, fsImpl, nowFn, log, reportMs } = opts;
   if (nowFn() < clock.nextReport) return;
+  const reason = blockingLabel(clock.blocking) ?? holderLabel(lockPath, fsImpl);
   log(
-    `${LOCK_TAG} ⏳ still waiting for the full-suite lock (${holderLabel(lockPath, fsImpl)}, waited ${clock.waited()}s).`,
+    `${LOCK_TAG} ⏳ still waiting for the full-suite lock (${reason}, waited ${clock.waited()}s).`,
   );
   reportProgress(opts, clock, 'still-waiting', ticket);
   clock.nextReport += reportMs;

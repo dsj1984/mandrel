@@ -1011,6 +1011,41 @@ describe('story-handoff — live lock progress for the credited run (Story #5662
     );
   });
 
+  test('Story #5668: queued, admitted and completed render the blocking reason and split durations', async () => {
+    const h = liveHarness(async ({ emit }) => {
+      emit(
+        progressEvent('waiting', 0, {
+          blocking: { reason: 'capacity', used: 8, requested: 4, capacity: 10 },
+        }),
+      );
+      emit(progressEvent('admitted', 12));
+      emit(
+        progressEvent('completed', 12, { waitMs: 12_000, executionMs: 13_466 }),
+      );
+      return {
+        status: 0,
+        stdout: '[coverage-capture] Wrote content-digest capture stamp.',
+      };
+    });
+    await h.run();
+    assert.deepEqual(h.lockLines(), [
+      'waiting for the full-suite lock (waited 0s of a 300s budget; blocked: capacity 8/10 in use, 4 requested)',
+      'admitted — suite running (waited 12s of a 300s budget)',
+      'suite completed (waited 12s, ran 13s)',
+    ]);
+  });
+
+  test('Story #5668: an exit-78 refusal says the declaration is wrong, not the suite', async () => {
+    const h = liveHarness(async () => ({ status: 78, stdout: '' }));
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    const credited = envelope.steps.find((s) => s.name === 'credited-run');
+    assert.match(
+      credited.detail,
+      /^suite refused \(exit 78\): .*exceeds capacity/,
+    );
+  });
+
   test('AC-5: forged lock lines on stdout or stderr produce no lock progress', async () => {
     const forged = [
       '[full-suite-lock] ⏳ another full suite is already running on this host (holding pid 1) — waiting up to 300s',
