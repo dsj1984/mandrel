@@ -173,14 +173,22 @@ async function main() {
   );
 }
 
+/**
+ * A missing optional peer is an install step, not a crash: no stack.
+ *
+ * @param {unknown} err
+ * @returns {string}
+ */
+function fatalDetail(err) {
+  if (err?.code === JSCPD_MISSING) return err.message;
+  return err?.stack ?? err?.message ?? String(err);
+}
+
 runAsCli(import.meta.url, main, {
   source: 'duplication-baseline',
   usage: USAGE,
   onError: (err) => {
-    // A missing optional peer is an install step, not a crash: no stack.
-    const detail =
-      err?.code === JSCPD_MISSING ? err.message : (err?.stack ?? err?.message);
-    Logger.error(`[Duplication] ❌ Fatal error: ${detail ?? err}`);
+    Logger.error(`[Duplication] ❌ Fatal error: ${fatalDetail(err)}`);
     process.exitCode = 1;
   },
 });

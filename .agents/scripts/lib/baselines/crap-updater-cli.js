@@ -137,6 +137,30 @@ function reportScanSummary(summary, logger = Logger) {
 }
 
 /**
+ * No artifact under `requireCoverage`: a full-scope refresh throws naming the
+ * capture contract (zero rows would write an empty baseline); a scoped one
+ * warns and yields no rows.
+ *
+ * @param {string} coverageAbs
+ * @param {{ coveragePath: string }} options
+ * @param {{ fullScope?: boolean } | undefined} opts
+ * @param {{ warn: Function }} logger
+ * @returns {object[]}
+ */
+function noCoverageRows(coverageAbs, options, opts, logger) {
+  if (opts?.fullScope) {
+    throw new Error(`[CRAP] ${missingCoverageArtifactMessage(coverageAbs)}`);
+  }
+  logger.warn(
+    `[CRAP] ⚠ No coverage artifact at ${options.coveragePath}. All files will be skipped under requireCoverage=true.`,
+  );
+  logger.warn(
+    "[CRAP] ⚠ Run 'npm run test:coverage' before 'npm run crap:update'.",
+  );
+  return [];
+}
+
+/**
  * Fails closed on a missing coverage artifact under `requireCoverage` (throws
  * on a full-scope refresh; warns with no rows on a scoped one) and on a resolution rate below the floor (throws before anything is
  * written: a broken join is wrong, not sparse).
@@ -156,18 +180,7 @@ export function buildCrapUpdaterScorer(
       : path.resolve(effectiveCwd, options.coveragePath);
     const coverage = loadCoverage(coverageAbs);
     if (!coverage && options.requireCoverage) {
-      if (opts?.fullScope) {
-        throw new Error(
-          `[CRAP] ${missingCoverageArtifactMessage(coverageAbs)}`,
-        );
-      }
-      logger.warn(
-        `[CRAP] ⚠ No coverage artifact at ${options.coveragePath}. All files will be skipped under requireCoverage=true.`,
-      );
-      logger.warn(
-        "[CRAP] ⚠ Run 'npm run test:coverage' before 'npm run crap:update'.",
-      );
-      return [];
+      return noCoverageRows(coverageAbs, options, opts, logger);
     }
 
     const summary = await scan({
