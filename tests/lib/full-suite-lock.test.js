@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { defaultGateRunner } from '../../.agents/scripts/lib/close-validation/process.js';
 import {
+  ADMISSION_REFUSED_EXIT_CODE,
   FULL_SUITE_LOCK_ENV,
   isFullSuiteLockEnabled,
   LOCK_WAIT_EXPIRED_EXIT_CODE,
@@ -903,6 +904,30 @@ describe('full-suite lock (Story #5173)', () => {
         fullSuiteLock: true,
       });
       assert.deepEqual(result, { status: 0 });
+    });
+
+    it('reports an oversized declared workload as exit 78 without spawning', async () => {
+      const lines = [];
+      const result = await defaultGateRunner(node, ['-e', 'process.exit(0)'], {
+        cwd: dir,
+        gateName: 'test',
+        log: (m) => lines.push(m),
+        fullSuiteLock: true,
+        lockOptions: {
+          lockPath,
+          workload: {
+            kind: 'refused',
+            command: 'npm test',
+            weight: 9,
+            capacity: 4,
+          },
+        },
+      });
+      assert.deepEqual(result, { status: ADMISSION_REFUSED_EXIT_CODE });
+      assert.match(
+        lines.join('\n'),
+        /weight 9, above delivery\.execution\.capacity 4/,
+      );
     });
 
     it('propagates a non-zero child exit with the flag set', async () => {
