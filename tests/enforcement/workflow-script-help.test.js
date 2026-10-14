@@ -266,6 +266,7 @@ describe('workflow-invoked scripts are self-describing', () => {
  * set only covers them for as long as some workflow happens to cite them.
  */
 const MUTATING_UPDATERS = [
+  'update-bundle-size-baseline.js',
   'update-coverage-baseline.js',
   'update-crap-baseline.js',
   'update-duplication-baseline.js',

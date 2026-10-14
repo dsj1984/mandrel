@@ -68,6 +68,7 @@
     ".agents/scripts/sync-codex-agents.js!",
     ".agents/scripts/sync-codex-skills.js!",
     ".agents/scripts/test-wrapper.js!",
+    ".agents/scripts/update-bundle-size-baseline.js!",
     ".agents/scripts/update-coverage-baseline.js!",
     ".agents/scripts/update-crap-baseline.js!",
     ".agents/scripts/update-duplication-baseline.js!",

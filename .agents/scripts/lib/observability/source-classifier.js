@@ -84,6 +84,7 @@ const FRAMEWORK_SCRIPT_BASENAMES = Object.freeze([
   'sync-codex-agents.js',
   'sync-codex-skills.js',
   'test-wrapper.js',
+  'update-bundle-size-baseline.js',
   'update-coverage-baseline.js',
   'update-crap-baseline.js',
   'update-duplication-baseline.js',

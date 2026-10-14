@@ -403,14 +403,15 @@ export function resolveQuality(userQuality) {
 
 /**
  * The writer folds sub-epsilon row deltas back to the prior bytes so env
- * variance never rewrites a baseline. bundle-size is bytes.
+ * variance never rewrites a baseline. Each value is in its kind's row unit:
+ * bundle-size rows are KB, so 1 means "ignore sub-KB jitter".
  */
 const BASELINE_EPSILON = Object.freeze({
   maintainability: 0.5,
   crap: 0.5,
   coverage: 0.1,
   mutation: 0.5,
-  'bundle-size': 1024,
+  'bundle-size': 1,
   duplication: 0.5,
 });
 

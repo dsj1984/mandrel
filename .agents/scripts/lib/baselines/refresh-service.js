@@ -29,7 +29,9 @@ import {
   isIgnoredByGlobs as isIgnoredByGlobsMi,
   scanDirectory as scanDirectoryMi,
 } from '../maintainability-utils.js';
+import { buildBundleSizeScorer } from './bundle-size-scorer.js';
 import { resolveDetectClones, scanDuplication } from './duplication-scanner.js';
+import { getKindModule } from './kernel.js';
 import { filterExcludedRows } from './kinds/maintainability.js';
 import { canonicalizeBaselinePath } from './path-canon.js';
 import {
@@ -44,6 +46,7 @@ const SUPPORTED_KINDS = Object.freeze([
   'crap',
   'coverage',
   'duplication',
+  'bundle-size',
 ]);
 
 /**
@@ -58,6 +61,8 @@ const KIND_FILE_PREDICATES = Object.freeze({
   // Over-inclusive is inert for JS-only jscpd; under-inclusive would pin a
   // changed file's prior row.
   duplication: (p) => /\.(?:m?[jt]sx?)$/i.test(p),
+  // Bundle names are not paths: no changed file scopes a bundle row.
+  'bundle-size': () => false,
 });
 
 /**
@@ -235,6 +240,7 @@ const KIND_SCORER_BUILDERS = Object.freeze({
   crap: buildDefaultCrapScorer,
   coverage: buildDefaultCoverageScorer,
   duplication: buildDefaultDuplicationScorer,
+  'bundle-size': buildBundleSizeScorer,
 });
 
 /**
@@ -267,7 +273,7 @@ export function resolveDefaultScorer(kind, { cwd } = {}) {
  * scoped file produced no row.
  *
  * @param {{
- *   kind: 'maintainability' | 'crap' | 'coverage' | 'duplication',
+ *   kind: 'maintainability' | 'crap' | 'coverage' | 'duplication' | 'bundle-size',
  *   baseRef?: string,
  *   headRef?: string,
  *   scopeFiles?: string[] | null,
@@ -339,11 +345,7 @@ export async function refreshBaseline(opts = {}) {
     );
   }
 
-  // Rows leave the service canonical whatever scorer produced them.
-  const canonicalRows = scoredRows.map((row) => ({
-    ...row,
-    path: canonicalizeBaselinePath(row.path ?? row.file),
-  }));
+  const canonicalRows = canonicalizeRows(kind, scoredRows);
 
   assertRequiredScopeRows({
     kind,
@@ -386,6 +388,22 @@ export async function refreshBaseline(opts = {}) {
     envelope,
     wrote,
   };
+}
+
+/**
+ * Rows leave the service canonical whatever scorer produced them. Only
+ * path-keyed kinds carry a path; bundle-size rows are keyed on a name.
+ *
+ * @param {string} kind
+ * @param {object[]} rows
+ * @returns {object[]}
+ */
+function canonicalizeRows(kind, rows) {
+  if (getKindModule(kind).keyField !== 'path') return rows;
+  return rows.map((row) => ({
+    ...row,
+    path: canonicalizeBaselinePath(row.path ?? row.file),
+  }));
 }
 
 function assertRequiredScopeRows({
