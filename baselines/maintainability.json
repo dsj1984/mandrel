@@ -387,6 +387,10 @@
       "mi": 102.269
     },
     {
+      "path": ".agents/scripts/lib/baselines/bundle-size-scorer.js",
+      "mi": 104.644
+    },
+    {
       "path": ".agents/scripts/lib/baselines/component-matcher.js",
       "mi": 132.148
     },
@@ -400,7 +404,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/coverage-updater-cli.js",
-      "mi": 105.813
+      "mi": 107.734
     },
     {
       "path": ".agents/scripts/lib/baselines/crap-preview-incremental.js",
@@ -504,7 +508,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "mi": 95.979
+      "mi": 96.526
     },
     {
       "path": ".agents/scripts/lib/baselines/scope.js",
@@ -844,7 +848,7 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-capture.js",
-      "mi": 101.333
+      "mi": 101.916
     },
     {
       "path": ".agents/scripts/lib/coverage-utils.js",
@@ -2367,8 +2371,12 @@
       "mi": 115.673
     },
     {
+      "path": ".agents/scripts/update-bundle-size-baseline.js",
+      "mi": 105.847
+    },
+    {
       "path": ".agents/scripts/update-coverage-baseline.js",
-      "mi": 108.956
+      "mi": 109.831
     },
     {
       "path": ".agents/scripts/update-crap-baseline.js",
