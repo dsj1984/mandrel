@@ -1,6 +1,6 @@
 /**
  * suite-admission.js — capacity admission for the suite spawns the
- * full-suite lock guards (Story #5668).
+ * full-suite lock guards.
  *
  * A spawn is classified by its exact argv against
  * `delivery.execution.workloads[]`. A declared workload holds a

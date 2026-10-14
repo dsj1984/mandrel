@@ -202,7 +202,7 @@ const LOCK_PHASE_TEXT = Object.freeze({
   waiting: 'waiting for the full-suite lock',
   'still-waiting': 'still waiting for the full-suite lock',
   admitted: 'admitted — suite running',
-  // Pre-#5668 children report `acquired`, the same state as `admitted`.
+  // Older children report `acquired`, the same state as `admitted`.
   acquired: 'acquired the full-suite lock',
   completed: 'suite completed',
   expired: 'gave up waiting for the full-suite lock',
