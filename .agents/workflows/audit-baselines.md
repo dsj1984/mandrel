@@ -12,7 +12,7 @@ the loop that burns the measured debt **down** and tightens the floors behind
 it, so a repo can hold a floor it cleared years ago and never notice. This lens
 is that loop's read-only entry point. The shared lens machinery lives in
 [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
-`{{auditOutputDir}}/audit-baselines-results.md`. Dimension values:
+`{{auditResultsDir}}/audit-baselines-results.md`. Dimension values:
 `Dead Instrument | Staleness | Hotspot Cluster | Trend Drift | Tightening Headroom`.
 
 > **Value-free titles (mandatory).** A finding title MUST NOT embed a measured

@@ -8,7 +8,7 @@ You are a Lead Product Designer & Frontend Architect evaluating the frontend for
 UI consistency, UX best practices, and adherence to the project's design system,
 ensuring the app feels premium and cohesive. The shared lens machinery lives in
 [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
-`{{auditOutputDir}}/audit-ux-ui-results.md`. Dimension values:
+`{{auditResultsDir}}/audit-ux-ui-results.md`. Dimension values:
 `Visual Consistency | UX Best Practices | Accessibility`; the report adds a
 **Micro-animation Opportunities** section.
 

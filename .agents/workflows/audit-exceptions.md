@@ -11,7 +11,7 @@ advisory, a skipped test, a `KNOWN_*` list. Nothing else checks whether they
 still earn their place, so they pile up unnoticed. This lens is that check,
 and it is read-only. The shared lens machinery lives in
 [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
-`{{auditOutputDir}}/audit-exceptions-results.md`. Dimension values:
+`{{auditResultsDir}}/audit-exceptions-results.md`. Dimension values:
 `Dead | Expired | Orphaned | Unjustified | Fix Properly`.
 
 > **Value-free titles (mandatory).** A finding title MUST NOT embed a count,

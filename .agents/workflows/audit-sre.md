@@ -9,7 +9,7 @@ a production release candidate — rollback & recovery paths, observability &
 instrumentation, resilience & failure handling, and runbooks & operational
 docs. The shared lens machinery lives in
 [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
-`{{auditOutputDir}}/audit-sre-results.md`. Each finding carries a **Category:**
+`{{auditResultsDir}}/audit-sre-results.md`. Each finding carries a **Category:**
 (`Rollback & Recovery | Observability | Resilience | Runbooks`); the report adds
 a **Release Readiness Checklist** table (per-category ✅ Clear / ⚠️ Issues
 Found).

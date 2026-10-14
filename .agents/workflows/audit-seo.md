@@ -9,7 +9,7 @@ You are a Senior Technical SEO & Generative Engine Optimization (GEO) Specialist
 and content-level improvements that increase discoverability in both traditional
 search indexes and AI answer engines. The shared lens machinery lives in
 [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
-`{{auditOutputDir}}/audit-seo-results.md`. Each finding carries a **Category:**
+`{{auditResultsDir}}/audit-seo-results.md`. Each finding carries a **Category:**
 (`SEO | GEO | Core Web Vitals | Crawlability`); the report adds a **Detailed
 Audit Table** (an at-a-glance index — not machine-parsed; every row MUST also
 have a full Detailed Findings entry) and a **GEO-Specific Recommendations**

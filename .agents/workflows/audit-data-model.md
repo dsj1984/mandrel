@@ -11,7 +11,7 @@ schema silently disagree, where an assumed invariant is not enforced by a
 constraint, where a migration is unsafe against a live database, and where
 schema exists that nothing uses. The shared lens machinery lives in
 [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
-`{{auditOutputDir}}/audit-data-model-results.md`. Dimension values:
+`{{auditResultsDir}}/audit-data-model-results.md`. Dimension values:
 `Drift | Constraint Completeness | Migration Hygiene | Type Fidelity |
 Access-Pattern Fit | Dead Schema`. Extra finding field: **Evidence:** (a
 reference-count or introspection command plus a `measured`, `static`, or

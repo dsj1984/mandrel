@@ -87,12 +87,15 @@ one — and name the detected set in the Executive Summary. Then:
 ## Report envelope & finding-block skeleton {#report-envelope}
 
 Each lens writes exactly one structured Markdown report to
-`{{auditOutputDir}}/audit-<lens>-results.md` (the lens preamble names its own
+`{{auditResultsDir}}/audit-<lens>-results.md` (the lens preamble names its own
 path). A dispatched run gets the anchor substituted; on a manual
-`/audit-<lens>` invocation it renders the literal string `{{auditOutputDir}}`.
-Treat that literal as `<project.paths.tempRoot>/audits` — **`temp/audits` by
-default** — and write the report there, mirroring the `{{changedFiles}}`
-manual-run rule above. The report MUST include every section its lens
+`/audit-<lens>` invocation it renders the literal string `{{auditResultsDir}}`.
+Treat that literal as `<project.paths.tempRoot>/audits/audit-results` —
+**`temp/audits/audit-results` by default**, created if absent — and write the
+report there, mirroring the `{{changedFiles}}` manual-run rule above. That
+folder holds lens reports only: any other artifact a lens writes (an
+introspected schema, `perf-baseline.json`, profiler output) goes under
+`{{auditOutputDir}}`, read on a manual run as `<project.paths.tempRoot>/audits`. The report MUST include every section its lens
 template mandates — write `_No findings._` rather than omitting a section — and
 always an
 `## Executive Summary` and a `## Detailed Findings` section. The Executive

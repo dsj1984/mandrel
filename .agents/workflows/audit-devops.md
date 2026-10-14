@@ -8,7 +8,7 @@ You are a Principal DevOps Engineer & Infrastructure Architect auditing this
 repo's DevOps infrastructure, DX tooling, and CI/CD pipelines for
 inefficiencies, security risks, and modernization opportunities. The shared lens machinery lives in
 [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
-`{{auditOutputDir}}/audit-devops-results.md`. The report adds a **Proposed
+`{{auditResultsDir}}/audit-devops-results.md`. The report adds a **Proposed
 Implementation Roadmap** section (a logical, phased plan).
 
 ## Scope

@@ -17,7 +17,7 @@
  *   - the three absorbed helpers (severity-scale / self-check / dual-path) are
  *     gone and no lens references them;
  *   - each lens references the core, keeps its own `{{changedFiles}}` fence,
- *     names its canonical `{{auditOutputDir}}/audit-<lens>-results.md` path,
+ *     names its canonical `{{auditResultsDir}}/audit-<lens>-results.md` path,
  *     and states subagent dispatch as its execution path.
  *
  * The parsed report contract consumed by `audit-to-stories` is unchanged: the
@@ -224,7 +224,7 @@ describe('lens composition contract (Story #4665)', () => {
 
       it('names its canonical audit output path', () => {
         assert.ok(
-          md.includes(`{{auditOutputDir}}/audit-${lens}-results.md`),
+          md.includes(`{{auditResultsDir}}/audit-${lens}-results.md`),
           `audit-${lens} does not name its canonical output path`,
         );
       });
@@ -251,16 +251,21 @@ describe('lens composition contract (Story #4665)', () => {
 describe('ecosystem-detected Step 0 rungs (Story #5583)', () => {
   const coreMd = fs.readFileSync(CORE_HELPER, 'utf8');
 
-  it('AC-1: a manual run resolves a literal {{auditOutputDir}} to <tempRoot>/audits', () => {
+  it('AC-1: a manual run resolves a literal {{auditResultsDir}} to <tempRoot>/audits/audit-results', () => {
     assert.match(
       coreMd,
-      /manual\s+`\/audit-<lens>`\s+invocation[\s\S]{0,200}literal string `\{\{auditOutputDir\}\}`/,
-      'audit-lens-core.md does not say what a literal {{auditOutputDir}} means on a manual run',
+      /manual\s+`\/audit-<lens>`\s+invocation[\s\S]{0,200}literal string `\{\{auditResultsDir\}\}`/,
+      'audit-lens-core.md does not say what a literal {{auditResultsDir}} means on a manual run',
     );
     assert.ok(
-      coreMd.includes('<project.paths.tempRoot>/audits') &&
-        coreMd.includes('`temp/audits` by\ndefault'),
-      'audit-lens-core.md does not name <tempRoot>/audits (temp/audits by default) as the manual output path',
+      coreMd.includes('<project.paths.tempRoot>/audits/audit-results') &&
+        coreMd.includes('`temp/audits/audit-results` by default'),
+      'audit-lens-core.md does not name <tempRoot>/audits/audit-results (temp/audits/audit-results by default) as the manual report path',
+    );
+    assert.match(
+      coreMd,
+      /other artifact a lens writes[\s\S]{0,200}`\{\{auditOutputDir\}\}`/,
+      'audit-lens-core.md does not keep non-report lens artifacts under {{auditOutputDir}}',
     );
   });
 
