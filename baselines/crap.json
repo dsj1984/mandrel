@@ -13518,6 +13518,12 @@
     },
     {
       "path": ".agents/scripts/lib/config/paths.js",
+      "method": "auditDirs",
+      "startLine": 17,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/config/paths.js",
       "method": "resolvePaths",
       "startLine": 27,
       "crap": 3
@@ -34296,6 +34302,12 @@
     },
     {
       "path": ".agents/scripts/lib/temp-retention.js",
+      "method": "auditEntry",
+      "startLine": 193,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/temp-retention.js",
       "method": "scanValidationEvidence",
       "startLine": 204,
       "crap": 5
@@ -34305,6 +34317,12 @@
       "method": "scanAuditResults",
       "startLine": 228,
       "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/temp-retention.js",
+      "method": "scanScratch",
+      "startLine": 241,
+      "crap": 4
     },
     {
       "path": ".agents/scripts/lib/temp-retention.js",
@@ -34323,6 +34341,12 @@
       "method": "collectUnrecognized",
       "startLine": 291,
       "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/temp-retention.js",
+      "method": "isReservedTopLevel",
+      "startLine": 297,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/temp-retention.js",
@@ -34363,9 +34387,21 @@
     },
     {
       "path": ".agents/scripts/lib/temp-retention.js",
+      "method": "reportPurge",
+      "startLine": 449,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/temp-retention.js",
       "method": "sweepTempRetention",
       "startLine": 464,
       "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/temp-retention.js",
+      "method": "purgeOne",
+      "startLine": 466,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/templates/decomposer-prompts.js",
