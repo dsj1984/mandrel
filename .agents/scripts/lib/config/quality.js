@@ -89,6 +89,7 @@ const CRAP_GATE_KEYS = new Set([
   'baselinePath',
   'tolerance',
   'floors',
+  'components',
   'targetDirs',
   'newMethodCeiling',
   'requireCoverage',
@@ -102,6 +103,7 @@ const COVERAGE_GATE_KEYS = new Set([
   'baselinePath',
   'tolerance',
   'floors',
+  'components',
   'coveragePath',
   'captureScope',
   'timeoutMs',
@@ -112,6 +114,7 @@ const MI_GATE_KEYS = new Set([
   'baselinePath',
   'tolerance',
   'floors',
+  'components',
   'targetDirs',
   'ignoreGlobs',
 ]);

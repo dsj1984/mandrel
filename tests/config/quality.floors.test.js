@@ -16,6 +16,7 @@ import {
   MAINTAINABILITY_GATE_DEFAULTS,
   resolveQuality,
 } from '../../.agents/scripts/lib/config/quality.js';
+import { Logger } from '../../.agents/scripts/lib/Logger.js';
 
 describe('DEFAULT_MI_FLOORS (Story #2193)', () => {
   it('exposes a `*` workspace key whose `min` floor is 70', () => {
@@ -219,5 +220,26 @@ describe('gates.crap.incrementalCoverage (Story #5173)', () => {
         null,
       );
     });
+  });
+});
+
+describe('gate components key (Story #5672)', () => {
+  it('resolves a schema-accepted components map on every gate without an unknown-key warning', (t) => {
+    const warn = t.mock.method(Logger, 'warn', () => {});
+    const components = { api: ['src/api/**'] };
+    const resolved = resolveQuality({
+      gates: {
+        coverage: { components },
+        crap: { components },
+        maintainability: { components },
+      },
+    });
+    const unknown = warn.mock.calls.filter((c) =>
+      String(c.arguments[0]).includes('Unknown key'),
+    );
+    assert.deepEqual(unknown, []);
+    assert.deepEqual(resolved.gates.coverage.components, components);
+    assert.deepEqual(resolved.gates.crap.components, components);
+    assert.deepEqual(resolved.gates.maintainability.components, components);
   });
 });
