@@ -368,7 +368,8 @@ const TEMP_RETENTION_SCHEMA = {
         },
         auditResults: {
           type: 'boolean',
-          description: '<tempRoot>/audits/ — audit lens reports.',
+          description:
+            '<tempRoot>/audits/ — audit lens reports (audit-results/) and audit working artifacts.',
           default: true,
         },
         planDirs: {

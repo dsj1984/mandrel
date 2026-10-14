@@ -146,7 +146,7 @@ Everything `/mandrel-deliver` and `single-story-close` consume: worktree isolati
 | `tempRetention.classes` | No | `object` | — | Per-class opt-out. Each defaults to true; set one false to keep that family while the rest are purged. |
 | `tempRetention.classes.orchestrationLogs` | No | `boolean` | `true` | <tempRoot>/orchestration/*.log — close gate transcripts and terse-result detail dumps. |
 | `tempRetention.classes.validationEvidence` | No | `boolean` | `true` | Per-Story validation-evidence.json, lifecycle.ndjson, and manifest.md under the standalone and per-run story trees. |
-| `tempRetention.classes.auditResults` | No | `boolean` | `true` | <tempRoot>/audits/ — audit lens reports. |
+| `tempRetention.classes.auditResults` | No | `boolean` | `true` | <tempRoot>/audits/ — audit lens reports (audit-results/) and audit working artifacts. |
 | `tempRetention.classes.planDirs` | No | `boolean` | `true` | <tempRoot>/plan-<slug>/ — abandoned plan authoring dirs. Age-floored only; the current run is always excluded. |
 | `tempRetention.classes.scratch` | No | `boolean` | `true` | <tempRoot>/scratch/ — agent-authored scratch. `scratch/story-<id>/` is purged when that Story lands; any other `scratch/` entry is age-floored. |
 | `deliverRunner` | No | `object` | — | Bounded-concurrency knob for the /mandrel-deliver fan-out. |
@@ -291,9 +291,12 @@ names or defaults.
 
 - **`paths` (required).** All three roots are required — the resolver applies
   no code-level fallback, so a missing value is a validation error with a clear
-  `instancePath`. `auditOutputDir` is **derived, not configurable**: it
-  resolves to `${tempRoot}/audits` (the destination for every `audit-*` report
-  and the audit-suite prompt artifacts). Override `tempRoot` to relocate it.
+  `instancePath`. `auditOutputDir` and `auditResultsDir` are **derived, not
+  configurable**: `auditOutputDir` resolves to `${tempRoot}/audits` (the
+  audit working area — audit-suite prompt artifacts, audit-to-stories plans,
+  measurement artifacts) and `auditResultsDir` to
+  `${tempRoot}/audits/audit-results` (every `audit-*-results.md` report and
+  nothing else). Override `tempRoot` to relocate both.
 - **`commands`.** Each string must be non-empty and pass the shell-injection
   guard (`safeString` — disallows `;`, `&`, `|`, backtick, `$`, `<`, `>`).
   `typecheck` is nullable; an explicit `null` is the canonical "not
