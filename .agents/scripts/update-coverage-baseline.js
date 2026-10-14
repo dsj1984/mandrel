@@ -6,22 +6,16 @@
  * refresh is idempotent and the output can be inspected first.
  */
 
-import path from 'node:path';
 import { resolveUpdaterRefreshScope } from './lib/baselines/coverage-refresh-scope.js';
 import {
-  buildCoverageUpdaterScorer,
+  buildCoverageRefreshOpts,
+  coverageUpdaterTargets,
   loadC8ScopeConfig,
   resolveCoverageUpdaterScope,
 } from './lib/baselines/coverage-updater-cli.js';
 import { refreshBaseline } from './lib/baselines/refresh-service.js';
 import { runAsCli } from './lib/cli-utils.js';
-import { getBaselineEpsilon } from './lib/config/quality.js';
 import { getQuality, resolveConfig } from './lib/config-resolver.js';
-import {
-  buildScopePredicate,
-  readCoverageFinal,
-  scoreCoverageFinal,
-} from './lib/coverage-baseline.js';
 import { Logger } from './lib/Logger.js';
 
 /** `runAsCli` answers `--help` before `main`, so a usage probe never writes. */
@@ -46,46 +40,17 @@ const USAGE = {
   ],
 };
 
-/**
- * The configured artifact the refresh reads and the baseline it writes.
- *
- * @param {string} cwd
- */
-function coverageTargets(cwd) {
-  const { coveragePath, baselinePath } = getQuality(
-    resolveConfig({ cwd }),
-  ).coverage;
-  return {
-    coveragePath,
-    baselinePath,
-    absBaselinePath: path.resolve(cwd, baselinePath),
-    readCoverage: (dir) => readCoverageFinal(dir, { coveragePath }),
-  };
-}
-
-/** @param {string} cwd @param {ReturnType<typeof coverageTargets>} targets */
-function coverageRefreshOpts(cwd, { absBaselinePath, readCoverage }) {
-  return {
-    kind: 'coverage',
-    writePath: absBaselinePath,
-    epsilon: getBaselineEpsilon('coverage'),
-    scorer: buildCoverageUpdaterScorer(cwd, {
-      readCoverage,
-      loadScope: loadC8ScopeConfig,
-      buildScope: buildScopePredicate,
-      score: scoreCoverageFinal,
-    }),
-  };
-}
-
 function main() {
   const cwd = process.cwd();
   const { fullScope, diffScopeRef } = resolveCoverageUpdaterScope(
     process.argv.slice(2),
   );
-  const targets = coverageTargets(cwd);
+  const targets = coverageUpdaterTargets(
+    getQuality(resolveConfig({ cwd })).coverage,
+    cwd,
+  );
   Logger.info(`[Coverage] Updating baseline from ${targets.coveragePath}...`);
-  const refreshOpts = coverageRefreshOpts(cwd, targets);
+  const refreshOpts = buildCoverageRefreshOpts(cwd, targets);
   // No flag and a full artifact -> the service derives the diff via
   // `origin/main..HEAD` (its default baseRef/headRef).
   return resolveUpdaterRefreshScope(cwd, {

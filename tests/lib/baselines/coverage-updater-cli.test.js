@@ -13,11 +13,17 @@
  */
 
 import assert from 'node:assert/strict';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, it } from 'node:test';
 import {
+  buildCoverageRefreshOpts,
   buildCoverageUpdaterScorer,
+  coverageUpdaterTargets,
+  loadC8ScopeConfig,
   resolveCoverageUpdaterScope,
 } from '../../../.agents/scripts/lib/baselines/coverage-updater-cli.js';
+import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
 
 function recordingLogger() {
   const lines = { info: [], warn: [], error: [] };
@@ -267,5 +273,41 @@ describe('buildCoverageUpdaterScorer — reporting', () => {
       diff.lines.info.join('\n'),
       /Scored 2 file\(s\) \(1 in scope\)/,
     );
+  });
+});
+
+describe('coverage updater targets and scope config (Story #5672)', () => {
+  it('reads the configured coverage artifact and writes the configured baseline', () => {
+    const dir = makeTempDir('coverage-updater-targets-');
+    try {
+      mkdirSync(path.join(dir, 'out'));
+      writeFileSync(path.join(dir, 'out', 'final.json'), '{"x":1}');
+      const targets = coverageUpdaterTargets(
+        { coveragePath: 'out/final.json', baselinePath: 'b/cov.json' },
+        dir,
+      );
+      assert.equal(targets.absBaselinePath, path.resolve(dir, 'b/cov.json'));
+      assert.deepEqual(targets.readCoverage(dir), { x: 1 });
+      const opts = buildCoverageRefreshOpts(dir, targets);
+      assert.equal(opts.kind, 'coverage');
+      assert.equal(opts.writePath, targets.absBaselinePath);
+      assert.equal(typeof opts.scorer, 'function');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('treats an absent .c8rc.cjs as an unscoped artifact and loads a present one', () => {
+    const dir = makeTempDir('coverage-updater-c8rc-');
+    try {
+      assert.deepEqual(loadC8ScopeConfig(dir), {});
+      writeFileSync(
+        path.join(dir, '.c8rc.cjs'),
+        "module.exports = { include: ['src/**'], exclude: [] };\n",
+      );
+      assert.deepEqual(loadC8ScopeConfig(dir).include, ['src/**']);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

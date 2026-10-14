@@ -8,6 +8,12 @@
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { getBaselineEpsilon } from '../config/quality.js';
+import {
+  buildScopePredicate,
+  readCoverageFinal,
+  scoreCoverageFinal,
+} from '../coverage-baseline.js';
 import { Logger } from '../Logger.js';
 import { parseDiffScopeFlag } from './diff-scope-cli.js';
 
@@ -80,7 +86,6 @@ export function buildCoverageUpdaterScorer(
     const effectiveCwd = opts?.cwd ?? cwd;
     const raw = readOrReport(readCoverage, effectiveCwd, opts, logger);
     if (raw === null) return [];
-
     const c8Config = loadScope(effectiveCwd);
     const scores = score({
       raw,
@@ -90,25 +95,78 @@ export function buildCoverageUpdaterScorer(
         exclude: c8Config.exclude ?? [],
       }),
     });
+    return projectScoredRows(scores, files, opts, logger);
+  };
+}
 
-    const inScope =
-      !opts?.fullScope && Array.isArray(files) && files.length > 0
-        ? new Set(files)
-        : null;
+/**
+ * Baseline rows from per-file scores; in diff mode only the in-scope files,
+ * so untouched rows are preserved rather than re-scored.
+ *
+ * @param {Record<string, object>} scores
+ * @param {string[]} files
+ * @param {{ fullScope?: boolean } | undefined} opts
+ * @param {{ info: Function }} logger
+ * @returns {object[]}
+ */
+function projectScoredRows(scores, files, opts, logger) {
+  const inScope =
+    !opts?.fullScope && Array.isArray(files) && files.length > 0
+      ? new Set(files)
+      : null;
+  const rows = Object.entries(scores)
+    .filter(([relPath]) => inScope === null || inScope.has(relPath))
+    .map(([relPath, s]) => ({
+      path: relPath,
+      lines: s?.lines ?? 0,
+      branches: s?.branches ?? 0,
+      functions: s?.functions ?? 0,
+    }));
+  logger.info(
+    `[Coverage] Scored ${Object.keys(scores).length} file(s)${inScope ? ` (${rows.length} in scope)` : ''}.`,
+  );
+  return rows;
+}
 
-    const rows = Object.entries(scores)
-      .filter(([relPath]) => inScope === null || inScope.has(relPath))
-      .map(([relPath, s]) => ({
-        path: relPath,
-        lines: s?.lines ?? 0,
-        branches: s?.branches ?? 0,
-        functions: s?.functions ?? 0,
-      }));
+/**
+ * The configured artifact the refresh reads and the baseline it writes —
+ * `coveragePath` / `baselinePath` from the resolved coverage gate, never a
+ * hardcoded default.
+ *
+ * @param {{ coveragePath: string, baselinePath: string }} coverageGate
+ * @param {string} cwd
+ * @returns {{ coveragePath: string, baselinePath: string,
+ *   absBaselinePath: string, readCoverage: (dir: string) => object }}
+ */
+export function coverageUpdaterTargets({ coveragePath, baselinePath }, cwd) {
+  return {
+    coveragePath,
+    baselinePath,
+    absBaselinePath: path.resolve(cwd, baselinePath),
+    readCoverage: (dir) => readCoverageFinal(dir, { coveragePath }),
+  };
+}
 
-    const fileCount = Object.keys(scores).length;
-    logger.info(
-      `[Coverage] Scored ${fileCount} file(s)${inScope ? ` (${rows.length} in scope)` : ''}.`,
-    );
-    return rows;
+/**
+ * `refreshBaseline` options for the coverage updater.
+ *
+ * @param {string} cwd
+ * @param {ReturnType<typeof coverageUpdaterTargets>} targets
+ * @returns {object}
+ */
+export function buildCoverageRefreshOpts(
+  cwd,
+  { absBaselinePath, readCoverage },
+) {
+  return {
+    kind: 'coverage',
+    writePath: absBaselinePath,
+    epsilon: getBaselineEpsilon('coverage'),
+    scorer: buildCoverageUpdaterScorer(cwd, {
+      readCoverage,
+      loadScope: loadC8ScopeConfig,
+      buildScope: buildScopePredicate,
+      score: scoreCoverageFinal,
+    }),
   };
 }

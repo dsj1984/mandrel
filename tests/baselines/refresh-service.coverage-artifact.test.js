@@ -18,6 +18,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, it } from 'node:test';
 import {
+  fileFilterFor,
   refreshBaseline,
   resolveDefaultScorer,
 } from '../../.agents/scripts/lib/baselines/refresh-service.js';
@@ -137,5 +138,44 @@ describe('coverage + CRAP refresh from the configured artifact (Story #5672)', (
       scorer([], { cwd: workDir, fullScope: true }),
       /coverage artifact not found.*`json` reporter/,
     );
+  });
+
+  it('a scoped refresh with no artifact yields no rows instead of throwing', async () => {
+    workDir = seedRepo({ withArtifact: false });
+    const opts = { cwd: workDir, fullScope: false };
+    assert.deepEqual(
+      resolveDefaultScorer('coverage', { cwd: workDir })(['src/a.js'], opts),
+      [],
+    );
+    assert.deepEqual(
+      await resolveDefaultScorer('crap', { cwd: workDir })(['src/a.js'], opts),
+      [],
+    );
+  });
+});
+
+describe('bundle-size in the refresh service (Story #5672)', () => {
+  it('no changed file scopes a bundle row: bundle names are not paths', () => {
+    const predicate = fileFilterFor('bundle-size');
+    assert.equal(predicate('dist/app.js'), false);
+  });
+
+  it('writes name-keyed rows without path canonicalisation', async () => {
+    const dir = makeTempDir('refresh-bundle-size-');
+    try {
+      const writePath = path.join(dir, 'bundle-size.json');
+      await refreshBaseline({
+        kind: 'bundle-size',
+        cwd: dir,
+        fullScope: true,
+        writePath,
+        scorer: () => [{ bundle: 'app', rawKb: 10, gzippedKb: 3 }],
+      });
+      assert.deepEqual(JSON.parse(readFileSync(writePath, 'utf8')).rows, [
+        { bundle: 'app', rawKb: 10, gzippedKb: 3 },
+      ]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
