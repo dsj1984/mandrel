@@ -77,7 +77,7 @@ describe('resolveCoverageUpdaterScope', () => {
 });
 
 describe('buildCoverageUpdaterScorer — the read failure', () => {
-  it('logs the error and returns no rows', () => {
+  it('logs the error and returns no rows on a scoped refresh', () => {
     const logger = recordingLogger();
     const scorer = buildCoverageUpdaterScorer(
       '/repo',
@@ -87,8 +87,24 @@ describe('buildCoverageUpdaterScorer — the read failure', () => {
         },
       }),
     );
-    assert.deepEqual(scorer([], { fullScope: true }), []);
+    assert.deepEqual(scorer(['a.js'], { fullScope: false }), []);
     assert.match(logger.lines.error.join('\n'), /ENOENT coverage-final\.json/);
+  });
+
+  it('rethrows on a full-scope refresh rather than writing an empty baseline (Story #5672)', () => {
+    const logger = recordingLogger();
+    const scorer = buildCoverageUpdaterScorer(
+      '/repo',
+      stubDeps(logger, {
+        readCoverage: () => {
+          throw new Error('coverage artifact not found');
+        },
+      }),
+    );
+    assert.throws(
+      () => scorer([], { fullScope: true }),
+      /coverage artifact not found/,
+    );
   });
 
   it('does not score when the artifact could not be read', () => {
@@ -106,7 +122,7 @@ describe('buildCoverageUpdaterScorer — the read failure', () => {
         },
       }),
     );
-    scorer([], { fullScope: true });
+    assert.throws(() => scorer([], { fullScope: true }), /unreadable/);
     assert.equal(scored, false);
   });
 });

@@ -281,6 +281,9 @@ describe('coverage-capture CLI under captureScope', () => {
       },
       computeContentDigestImpl: () => null,
       writeCaptureStampImpl: () => true,
+      // The stub run writes nothing; the full-scope path's artifact check
+      // (Story #5672) is asserted in tests/coverage-capture.test.js.
+      coverageArtifactExistsImpl: () => true,
       logger,
     };
     return { deps, captures, log };

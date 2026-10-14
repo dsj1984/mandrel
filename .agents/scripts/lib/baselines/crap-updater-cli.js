@@ -7,7 +7,10 @@
 
 import path from 'node:path';
 import { getBaselines, getQuality, resolveConfig } from '../config-resolver.js';
-import { isCoverageFresh } from '../coverage-capture.js';
+import {
+  isCoverageFresh,
+  missingCoverageArtifactMessage,
+} from '../coverage-capture.js';
 import { loadCoverage as loadCoverageDefault } from '../coverage-utils.js';
 import { checkResolutionFloor, scanAndScore } from '../crap-utils.js';
 import { Logger } from '../Logger.js';
@@ -134,8 +137,8 @@ function reportScanSummary(summary, logger = Logger) {
 }
 
 /**
- * Fails closed on a missing coverage artifact under `requireCoverage` (warn,
- * no rows) and on a resolution rate below the floor (throws before anything is
+ * Fails closed on a missing coverage artifact under `requireCoverage` (throws
+ * on a full-scope refresh; warns with no rows on a scoped one) and on a resolution rate below the floor (throws before anything is
  * written: a broken join is wrong, not sparse).
  *
  * @param {ReturnType<typeof resolveCrapUpdaterOptions>} options
@@ -153,6 +156,11 @@ export function buildCrapUpdaterScorer(
       : path.resolve(effectiveCwd, options.coveragePath);
     const coverage = loadCoverage(coverageAbs);
     if (!coverage && options.requireCoverage) {
+      if (opts?.fullScope) {
+        throw new Error(
+          `[CRAP] ${missingCoverageArtifactMessage(coverageAbs)}`,
+        );
+      }
       logger.warn(
         `[CRAP] ⚠ No coverage artifact at ${options.coveragePath}. All files will be skipped under requireCoverage=true.`,
       );

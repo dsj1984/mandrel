@@ -43,6 +43,7 @@ function harness({
   stampWritten = true,
   lockEnabled = false,
   requireCredited = undefined,
+  artifactExists = true,
 } = {}) {
   const log = { info: [], warn: [], error: [] };
   // `order` interleaves the announcement with the spawn so a test can assert
@@ -106,6 +107,7 @@ function harness({
         calls.stamp.push(args);
         return stampWritten;
       },
+      coverageArtifactExistsImpl: () => artifactExists,
       logger: {
         info: (m) => log.info.push(m),
         warn: (m) => {
@@ -843,5 +845,45 @@ describe('runCoverageCapture — full-suite lock and timings (Story #5485)', () 
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('coverage-capture — artifact contract (Story #5672)', () => {
+  it('full scope: a green run that wrote no artifact exits 1 and writes no stamp', async () => {
+    const h = harness({
+      fresh: { fresh: false, reason: 'missing' },
+      artifactExists: false,
+    });
+    const code = await runCoverageCapture(argv('--cwd', '/repo'), h.deps);
+    assert.equal(code, 1);
+    assert.equal(h.calls.capture.length, 1);
+    assert.equal(h.calls.stamp.length, 0);
+    assert.ok(
+      h.log.error.some(
+        (m) =>
+          m.includes('`json` reporter') && m.includes('coverage-final.json'),
+      ),
+    );
+  });
+
+  it('incremental scope: a green run that wrote no artifact exits 1 and writes no stamp', async () => {
+    const h = harness({
+      crap: {
+        ...CRAP,
+        incrementalCoverage: { skipWhenUnchanged: true },
+      },
+      fresh: { fresh: false, reason: 'missing' },
+      artifactExists: false,
+    });
+    const code = await runCoverageCapture(argv('--cwd', '/repo'), h.deps);
+    assert.equal(code, 1);
+    assert.equal(h.calls.stamp.length, 0);
+  });
+
+  it('a green run that wrote the artifact still stamps', async () => {
+    const h = harness({ fresh: { fresh: false, reason: 'missing' } });
+    const code = await runCoverageCapture(argv('--cwd', '/repo'), h.deps);
+    assert.equal(code, 0);
+    assert.equal(h.calls.stamp.length, 1);
   });
 });
