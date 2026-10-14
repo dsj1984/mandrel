@@ -31,7 +31,7 @@ export const ADMISSION_REFUSED_EXIT_CODE = 78;
 export const FULL_SUITE_STALE_MS = 1_800_000;
 
 /** Holders refresh well inside every stale threshold, old or new. */
-export const HOLDER_HEARTBEAT_MS = 20_000;
+const HOLDER_HEARTBEAT_MS = 20_000;
 
 const MUTEX_STALE_MS = 30_000;
 
@@ -255,7 +255,7 @@ function reservationName({ weight, resources }) {
  *   staleMs: number, fsImpl: object, nowFn: () => number, killFn?: Function,
  *   acquireReservationFn?: typeof acquireSweepLock }} opts
  */
-export function createDeclaredAttempt(opts) {
+function createDeclaredAttempt(opts) {
   const { workload, capacity } = opts;
   const acquire = opts.acquireReservationFn ?? acquireSweepLock;
   let held = null;
@@ -312,7 +312,7 @@ export function createDeclaredAttempt(opts) {
  *   fsImpl: object, nowFn: () => number, killFn?: Function,
  *   acquireOnceFn: typeof acquireSweepLock }} opts
  */
-export function createExclusiveAttempt(opts) {
+function createExclusiveAttempt(opts) {
   let held = null;
   const drained = () => {
     const live = readLiveReservations(opts);
