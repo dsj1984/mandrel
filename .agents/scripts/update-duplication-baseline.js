@@ -9,6 +9,7 @@
 import './lib/runtime-deps/ensure-installed.js';
 import path from 'node:path';
 import { parseDiffScopeFlag } from './lib/baselines/diff-scope-cli.js';
+import { JSCPD_MISSING } from './lib/baselines/duplication-scanner.js';
 import { refreshBaseline } from './lib/baselines/refresh-service.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { getBaselineEpsilon } from './lib/config/quality.js';
@@ -176,9 +177,10 @@ runAsCli(import.meta.url, main, {
   source: 'duplication-baseline',
   usage: USAGE,
   onError: (err) => {
-    Logger.error(
-      `[Duplication] ❌ Fatal error: ${err?.stack ?? err?.message ?? err}`,
-    );
+    // A missing optional peer is an install step, not a crash: no stack.
+    const detail =
+      err?.code === JSCPD_MISSING ? err.message : (err?.stack ?? err?.message);
+    Logger.error(`[Duplication] ❌ Fatal error: ${detail ?? err}`);
     process.exitCode = 1;
   },
 });
