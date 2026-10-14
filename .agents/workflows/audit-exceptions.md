@@ -199,7 +199,7 @@ substituting the envelope's own values for the angle-bracketed slots:
 ## Step 5: Hand off to `/audit-to-stories`
 
 ```bash
-node .agents/scripts/audit-to-stories.js --scan --glob temp/audits/audit-exceptions-results.md --out temp/audits/audit-to-stories-plan.json
+node .agents/scripts/audit-to-stories.js --scan --glob temp/audits/audit-results/audit-exceptions-results.md --out temp/audits/audit-to-stories-plan.json
 ```
 
 Report the plan path and the group count; the converter owns everything

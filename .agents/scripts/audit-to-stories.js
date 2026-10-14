@@ -35,7 +35,7 @@ import {
 import { Logger } from './lib/Logger.js';
 import { parse as parseStoryBody } from './lib/story-body/story-body.js';
 
-const DEFAULT_GLOB = 'temp/audits/audit-*-results.md';
+const DEFAULT_GLOB = 'temp/audits/audit-results/audit-*-results.md';
 const FAN_OUT_REPORT = 'audit-fan-out-results.md';
 
 /**
@@ -907,6 +907,7 @@ function persist(text, outPath) {
 }
 
 export const __testing = {
+  DEFAULT_GLOB,
   meetsSeverity,
   collectReportPaths,
   buildPlan,
@@ -1097,7 +1098,7 @@ runAsCli(import.meta.url, main, {
     invocation:
       'node .agents/scripts/audit-to-stories.js (--scan | --auto | --emit-plan-seed | --emit-stories | --wire-edges) [options]',
     summary:
-      'Turn audit-lens findings under temp/audits/ into a dedup-checked plan seed or standalone Stories.',
+      'Turn audit-lens findings under temp/audits/audit-results/ into a dedup-checked plan seed or standalone Stories.',
     flags: [
       ['--scan', 'Print the grouped, deduplicated plan as JSON.'],
       ['--auto', 'Run the full scan → file pipeline and print the summary.'],

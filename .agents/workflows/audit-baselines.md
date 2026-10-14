@@ -252,7 +252,7 @@ shared finding skeleton, fingerprints each finding for dedupe, and groups the
 batch:
 
 ```bash
-node .agents/scripts/audit-to-stories.js --scan --glob temp/audits/audit-baselines-results.md --out temp/audits/audit-to-stories-plan.json
+node .agents/scripts/audit-to-stories.js --scan --glob temp/audits/audit-results/audit-baselines-results.md --out temp/audits/audit-to-stories-plan.json
 ```
 
 Report the plan path and the group count; the converter owns everything

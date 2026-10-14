@@ -565,7 +565,7 @@ refresh, floor policy) are owned by [`quality-gates.md`](quality-gates.md).
 ### Audits → Stories
 
 The standalone `/audit-<dimension>` workflows write
-`audit-<dimension>-results.md` under `temp/audits/`;
+`audit-<dimension>-results.md` under `temp/audits/audit-results/`;
 [`/audit-to-stories`](../.agents/workflows/audit-to-stories.md) groups and
 deduplicates those findings against existing Issues (by provenance footer)
 and either hands off a plan seed to `/mandrel-plan` or opens standalone
