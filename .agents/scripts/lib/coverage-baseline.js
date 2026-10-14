@@ -7,10 +7,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import picomatch from 'picomatch';
 import { write, writeFile } from './baselines/writer.js';
-import { captureStampPath } from './coverage-capture.js';
+import {
+  captureStampPath,
+  missingCoverageArtifactMessage,
+} from './coverage-capture.js';
 
 const COVERAGE_FINAL_PATH = 'coverage/coverage-final.json';
-export const COVERAGE_BASELINE_PATH = 'baselines/coverage.json';
+const COVERAGE_BASELINE_PATH = 'baselines/coverage.json';
 // Percentage points; baselines store two decimals.
 export const COVERAGE_TOLERANCE = 0.01;
 // One instrumentation event of slack per axis: V8 coverage flaps by a single
@@ -84,7 +87,7 @@ export function scoreCoverageFinal({ raw, cwd, scope }) {
   return out;
 }
 
-/** Throws, naming the capture command, when the artifact is missing. */
+/** Throws, naming the capture contract, when the artifact is missing. */
 export function readCoverageFinal(cwd, opts = {}, fsImpl) {
   const resolvedFs = fsImpl ?? fs;
   const coveragePath =
@@ -95,9 +98,7 @@ export function readCoverageFinal(cwd, opts = {}, fsImpl) {
     ? coveragePath
     : path.resolve(cwd, coveragePath);
   if (!resolvedFs.existsSync(abs)) {
-    throw new Error(
-      `coverage-final.json not found at ${abs}. Run \`npm run test:coverage\` first.`,
-    );
+    throw new Error(missingCoverageArtifactMessage(abs));
   }
   return JSON.parse(resolvedFs.readFileSync(abs, 'utf8'));
 }

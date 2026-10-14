@@ -30,7 +30,8 @@ describe('BASELINE_EPSILON — the fixed per-kind epsilon', () => {
     assert.equal(BASELINE_EPSILON.crap, 0.5);
     assert.equal(BASELINE_EPSILON.coverage, 0.1);
     assert.equal(BASELINE_EPSILON.mutation, 0.5);
-    assert.equal(BASELINE_EPSILON['bundle-size'], 1024);
+    // Story #5672 — KB, the bundle-size row unit (it was 1024, read as KB).
+    assert.equal(BASELINE_EPSILON['bundle-size'], 1);
     assert.equal(BASELINE_EPSILON.duplication, 0.5);
   });
 

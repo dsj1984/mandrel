@@ -431,8 +431,8 @@
     {
       "path": ".agents/scripts/update-duplication-baseline.js",
       "duplicatedLines": 7,
-      "totalLines": 168,
-      "percentage": 4.17
+      "totalLines": 194,
+      "percentage": 3.61
     },
     {
       "path": ".agents/scripts/validate-skills.js",

@@ -13,11 +13,28 @@
  */
 
 import assert from 'node:assert/strict';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, it } from 'node:test';
 import {
-  buildCoverageUpdaterScorer,
+  buildCoverageRefreshOpts,
+  coverageUpdaterTargets,
+  loadC8ScopeConfig,
   resolveCoverageUpdaterScope,
 } from '../../../.agents/scripts/lib/baselines/coverage-updater-cli.js';
+import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
+
+/** The updater's scorer, reached through the options builder that owns it. */
+function buildCoverageUpdaterScorer(cwd, { readCoverage, ...deps }) {
+  return buildCoverageRefreshOpts(
+    cwd,
+    {
+      absBaselinePath: path.join(cwd, 'baselines', 'coverage.json'),
+      readCoverage,
+    },
+    deps,
+  ).scorer;
+}
 
 function recordingLogger() {
   const lines = { info: [], warn: [], error: [] };
@@ -77,7 +94,7 @@ describe('resolveCoverageUpdaterScope', () => {
 });
 
 describe('buildCoverageUpdaterScorer — the read failure', () => {
-  it('logs the error and returns no rows', () => {
+  it('logs the error and returns no rows on a scoped refresh', () => {
     const logger = recordingLogger();
     const scorer = buildCoverageUpdaterScorer(
       '/repo',
@@ -87,8 +104,24 @@ describe('buildCoverageUpdaterScorer — the read failure', () => {
         },
       }),
     );
-    assert.deepEqual(scorer([], { fullScope: true }), []);
+    assert.deepEqual(scorer(['a.js'], { fullScope: false }), []);
     assert.match(logger.lines.error.join('\n'), /ENOENT coverage-final\.json/);
+  });
+
+  it('rethrows on a full-scope refresh rather than writing an empty baseline (Story #5672)', () => {
+    const logger = recordingLogger();
+    const scorer = buildCoverageUpdaterScorer(
+      '/repo',
+      stubDeps(logger, {
+        readCoverage: () => {
+          throw new Error('coverage artifact not found');
+        },
+      }),
+    );
+    assert.throws(
+      () => scorer([], { fullScope: true }),
+      /coverage artifact not found/,
+    );
   });
 
   it('does not score when the artifact could not be read', () => {
@@ -106,7 +139,7 @@ describe('buildCoverageUpdaterScorer — the read failure', () => {
         },
       }),
     );
-    scorer([], { fullScope: true });
+    assert.throws(() => scorer([], { fullScope: true }), /unreadable/);
     assert.equal(scored, false);
   });
 });
@@ -251,5 +284,41 @@ describe('buildCoverageUpdaterScorer — reporting', () => {
       diff.lines.info.join('\n'),
       /Scored 2 file\(s\) \(1 in scope\)/,
     );
+  });
+});
+
+describe('coverage updater targets and scope config (Story #5672)', () => {
+  it('reads the configured coverage artifact and writes the configured baseline', () => {
+    const dir = makeTempDir('coverage-updater-targets-');
+    try {
+      mkdirSync(path.join(dir, 'out'));
+      writeFileSync(path.join(dir, 'out', 'final.json'), '{"x":1}');
+      const targets = coverageUpdaterTargets(
+        { coveragePath: 'out/final.json', baselinePath: 'b/cov.json' },
+        dir,
+      );
+      assert.equal(targets.absBaselinePath, path.resolve(dir, 'b/cov.json'));
+      assert.deepEqual(targets.readCoverage(dir), { x: 1 });
+      const opts = buildCoverageRefreshOpts(dir, targets);
+      assert.equal(opts.kind, 'coverage');
+      assert.equal(opts.writePath, targets.absBaselinePath);
+      assert.equal(typeof opts.scorer, 'function');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('treats an absent .c8rc.cjs as an unscoped artifact and loads a present one', () => {
+    const dir = makeTempDir('coverage-updater-c8rc-');
+    try {
+      assert.deepEqual(loadC8ScopeConfig(dir), {});
+      writeFileSync(
+        path.join(dir, '.c8rc.cjs'),
+        "module.exports = { include: ['src/**'], exclude: [] };\n",
+      );
+      assert.deepEqual(loadC8ScopeConfig(dir).include, ['src/**']);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

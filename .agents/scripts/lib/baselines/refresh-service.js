@@ -11,11 +11,13 @@ import nodeFs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { execFileCaptureAsync } from '../child-exec.js';
+import { COVERAGE_GATE_DEFAULTS } from '../config/quality.js';
 import { getQuality, resolveConfig } from '../config-resolver.js';
 import {
   buildScopePredicate,
   scoreCoverageFinal,
 } from '../coverage-baseline.js';
+import { missingCoverageArtifactMessage } from '../coverage-capture.js';
 import { loadCoverage } from '../coverage-utils.js';
 import {
   resolveEscomplexVersion,
@@ -27,7 +29,9 @@ import {
   isIgnoredByGlobs as isIgnoredByGlobsMi,
   scanDirectory as scanDirectoryMi,
 } from '../maintainability-utils.js';
+import { buildBundleSizeScorer } from './bundle-size-scorer.js';
 import { resolveDetectClones, scanDuplication } from './duplication-scanner.js';
+import { getKindModule } from './kernel.js';
 import { filterExcludedRows } from './kinds/maintainability.js';
 import { canonicalizeBaselinePath } from './path-canon.js';
 import {
@@ -42,6 +46,7 @@ const SUPPORTED_KINDS = Object.freeze([
   'crap',
   'coverage',
   'duplication',
+  'bundle-size',
 ]);
 
 /**
@@ -56,6 +61,8 @@ const KIND_FILE_PREDICATES = Object.freeze({
   // Over-inclusive is inert for JS-only jscpd; under-inclusive would pin a
   // changed file's prior row.
   duplication: (p) => /\.(?:m?[jt]sx?)$/i.test(p),
+  // Bundle names are not paths: no changed file scopes a bundle row.
+  'bundle-size': () => false,
 });
 
 /**
@@ -69,6 +76,22 @@ function resolveQualityBlock({ quality, config } = {}) {
   if (quality && typeof quality === 'object') return quality;
   if (config && typeof config === 'object') return getQuality(config) ?? {};
   return {};
+}
+
+/**
+ * No coverage artifact: a full-scope refresh over zero rows would read as
+ * "nothing to score", so it throws naming the capture contract; a scoped one
+ * yields no rows and `refreshBaseline` refuses the missing in-scope files.
+ *
+ * @param {string} absPath
+ * @param {{ fullScope?: boolean } | undefined} opts
+ * @returns {object[]}
+ */
+function noArtifactRows(absPath, opts) {
+  if (opts?.fullScope) {
+    throw new Error(missingCoverageArtifactMessage(absPath));
+  }
+  return [];
 }
 
 /**
@@ -92,7 +115,7 @@ function buildDefaultCrapScorer({ cwd, config, quality } = {}) {
       ? coverageRelPath
       : path.resolve(effectiveCwd, coverageRelPath);
     const coverage = loadCoverage(coverageAbs);
-    if (!coverage && requireCoverage) return [];
+    if (!coverage && requireCoverage) return noArtifactRows(coverageAbs, opts);
     const scopeFiles = opts?.fullScope ? null : (files ?? null);
     const { rows } = await scanAndScore({
       targetDirs,
@@ -111,24 +134,24 @@ function buildDefaultCrapScorer({ cwd, config, quality } = {}) {
 }
 
 /**
- * Coverage rows from coverage-final.json, scoped by the optional `.c8rc.cjs`.
+ * Coverage rows from the configured `coverage.coveragePath` artifact, scoped by
+ * the optional `.c8rc.cjs`. A missing artifact throws on a full-scope refresh:
+ * an empty row set would otherwise read as "nothing measured".
  *
- * @param {{ cwd: string }} opts
+ * @param {{ cwd: string, config?: object, quality?: object }} opts
  * @returns {(files: string[], opts: object) => object[]}
  */
-function buildDefaultCoverageScorer({ cwd } = {}) {
+function buildDefaultCoverageScorer({ cwd, config, quality } = {}) {
+  const coverageRelPath =
+    resolveQualityBlock({ quality, config })?.coverage?.coveragePath ??
+    COVERAGE_GATE_DEFAULTS.coveragePath;
   return (files, opts) => {
     const effectiveCwd = opts?.cwd ?? cwd ?? process.cwd();
-    const coverageFinalPath = path.resolve(
-      effectiveCwd,
-      'coverage/coverage-final.json',
-    );
-    let raw;
-    try {
-      raw = JSON.parse(nodeFs.readFileSync(coverageFinalPath, 'utf-8'));
-    } catch {
-      return [];
+    const coverageFinalPath = path.resolve(effectiveCwd, coverageRelPath);
+    if (!nodeFs.existsSync(coverageFinalPath)) {
+      return noArtifactRows(coverageFinalPath, opts);
     }
+    const raw = JSON.parse(nodeFs.readFileSync(coverageFinalPath, 'utf-8'));
     let c8Scope;
     try {
       const c8rcPath = path.resolve(effectiveCwd, '.c8rc.cjs');
@@ -217,6 +240,7 @@ const KIND_SCORER_BUILDERS = Object.freeze({
   crap: buildDefaultCrapScorer,
   coverage: buildDefaultCoverageScorer,
   duplication: buildDefaultDuplicationScorer,
+  'bundle-size': buildBundleSizeScorer,
 });
 
 /**
@@ -249,7 +273,7 @@ export function resolveDefaultScorer(kind, { cwd } = {}) {
  * scoped file produced no row.
  *
  * @param {{
- *   kind: 'maintainability' | 'crap' | 'coverage' | 'duplication',
+ *   kind: 'maintainability' | 'crap' | 'coverage' | 'duplication' | 'bundle-size',
  *   baseRef?: string,
  *   headRef?: string,
  *   scopeFiles?: string[] | null,
@@ -321,11 +345,7 @@ export async function refreshBaseline(opts = {}) {
     );
   }
 
-  // Rows leave the service canonical whatever scorer produced them.
-  const canonicalRows = scoredRows.map((row) => ({
-    ...row,
-    path: canonicalizeBaselinePath(row.path ?? row.file),
-  }));
+  const canonicalRows = canonicalizeRows(kind, scoredRows);
 
   assertRequiredScopeRows({
     kind,
@@ -368,6 +388,22 @@ export async function refreshBaseline(opts = {}) {
     envelope,
     wrote,
   };
+}
+
+/**
+ * Rows leave the service canonical whatever scorer produced them. Only
+ * path-keyed kinds carry a path; bundle-size rows are keyed on a name.
+ *
+ * @param {string} kind
+ * @param {object[]} rows
+ * @returns {object[]}
+ */
+function canonicalizeRows(kind, rows) {
+  if (getKindModule(kind).keyField !== 'path') return rows;
+  return rows.map((row) => ({
+    ...row,
+    path: canonicalizeBaselinePath(row.path ?? row.file),
+  }));
 }
 
 function assertRequiredScopeRows({

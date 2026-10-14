@@ -479,6 +479,50 @@ export function creditedCapture(runCaptureFn, { requireCredited, logger }) {
 }
 
 /**
+ * The capture contract every coverage consumer leans on: `test:coverage`
+ * writes Istanbul per-file JSON at `coveragePath`. A summary-only reporter
+ * cannot feed the coverage or CRAP baselines (CRAP joins per-function maps).
+ *
+ * @param {string} abs Absolute artifact path that was looked for.
+ * @returns {string}
+ */
+export function missingCoverageArtifactMessage(abs) {
+  return (
+    `coverage artifact not found at ${abs}. \`npm run test:coverage\` must ` +
+    'write Istanbul per-file JSON (the `json` reporter → coverage-final.json) ' +
+    'at delivery.quality.gates.coverage.coveragePath; a `json-summary` ' +
+    '(coverage-summary.json) alone cannot feed the coverage or CRAP baselines.'
+  );
+}
+
+/**
+ * Wrap a capture runner so a green run that left no artifact at
+ * `coveragePath` exits 1: a broken capture contract, not a capture. Every
+ * capture path already returns before stamping on a non-zero code.
+ *
+ * @param {(opts: object) => Promise<number>} run
+ * @param {{ cwd: string, coveragePath: string,
+ *   existsSync?: (p: string) => boolean,
+ *   logger: { error: Function } }} opts
+ * @returns {(opts: object) => Promise<number>}
+ */
+export function requireCaptureArtifact(
+  run,
+  { cwd, coveragePath, existsSync = fs.existsSync, logger },
+) {
+  return async (captureOpts) => {
+    const code = await run(captureOpts);
+    if (code !== 0) return code;
+    const abs = path.resolve(cwd, coveragePath);
+    if (existsSync(abs)) return 0;
+    logger.error(
+      `[coverage-capture] ✖ test:coverage passed but ${missingCoverageArtifactMessage(abs)}`,
+    );
+    return 1;
+  };
+}
+
+/**
  * Stamp the pre-spawn digest (the tree the run measured), and write nothing
  * when the post-run digest differs — the artifact then describes a tree no
  * longer on disk. A `null` post-digest is "unavailable", not "changed".

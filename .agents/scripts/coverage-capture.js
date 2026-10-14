@@ -4,7 +4,8 @@
  * when the gate is off, no changed file is under `crap.targetDirs`, or the
  * content-digest stamp matches; otherwise run `test:coverage` (or, under
  * `coverage.captureScope: "affected"`, the consumer's `test:coverage:affected`)
- * behind the host-level full-suite lock and stamp on success.
+ * behind the host-level full-suite lock and stamp on success. A green run that
+ * leaves no artifact at `coveragePath` fails (exit 1) and is never stamped.
  *
  * `--require-credited` must stay an argument, never a config read: as policy
  * it also refused the depositing run, leaving no path that could deposit.
@@ -21,6 +22,7 @@ import {
   creditedCapture,
   filterFilesUnderTargets,
   isCoverageFresh,
+  requireCaptureArtifact,
   runCapture,
   writeCaptureStamp,
 } from './lib/coverage-capture.js';
@@ -67,6 +69,7 @@ export function parseArgs(argv) {
  *   computeContentDigestImpl?: typeof computeContentDigest,
  *   writeCaptureStampImpl?: typeof writeCaptureStamp,
  *   filterFilesUnderTargetsImpl?: typeof filterFilesUnderTargets,
+ *   coverageArtifactExistsImpl?: (absPath: string) => boolean,
  *   logger?: { info: Function, warn: Function, error: Function },
  *   lockOptions?: object,
  *   env?: Record<string, string|undefined>,
@@ -85,6 +88,7 @@ export async function runCoverageCapture(argv = process.argv, deps = {}) {
     computeContentDigestImpl = computeContentDigest,
     writeCaptureStampImpl = writeCaptureStamp,
     filterFilesUnderTargetsImpl = filterFilesUnderTargets,
+    coverageArtifactExistsImpl,
     logger = Logger,
     lockOptions = {},
     env = process.env,
@@ -110,8 +114,10 @@ export async function runCoverageCapture(argv = process.argv, deps = {}) {
     onLockProgress: lockHooks.onLockProgress,
     ...lockOptions,
   });
-  const credited = creditedCapture(locked, {
-    requireCredited: args.requireCredited,
+  const credited = artifactCheckedCapture(locked, {
+    args,
+    crap,
+    existsSync: coverageArtifactExistsImpl,
     logger,
   });
   let timings = null;
@@ -140,6 +146,20 @@ export async function runCoverageCapture(argv = process.argv, deps = {}) {
   });
   if (timings) reportTimings(timings, logger, lockHooks);
   return code;
+}
+
+/**
+ * The credited runner, failing a green run that wrote no artifact.
+ *
+ * @param {Function} locked
+ * @param {{ args: object, crap: object, existsSync?: Function, logger: object }} opts
+ * @returns {(opts: object) => Promise<number>}
+ */
+function artifactCheckedCapture(locked, { args, crap, existsSync, logger }) {
+  return requireCaptureArtifact(
+    creditedCapture(locked, { requireCredited: args.requireCredited, logger }),
+    { cwd: args.cwd, coveragePath: crap.coveragePath, existsSync, logger },
+  );
 }
 
 /** @returns {number|null} The exit code when no capture may run. */

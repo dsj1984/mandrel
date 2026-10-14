@@ -215,6 +215,19 @@ describe('buildCrapUpdaterScorer — the no-artifact refusal', () => {
     assert.match(logger.lines.warn.join('\n'), /npm run test:coverage/);
   });
 
+  it('throws on a full-scope refresh with no artifact under requireCoverage (Story #5672)', async () => {
+    const options = resolveCrapUpdaterOptions({}, CONFIG, '/repo');
+    const scorer = buildCrapUpdaterScorer(options, {
+      loadCoverage: () => null,
+      scan: async () => ({}),
+      logger: recordingLogger(),
+    });
+    await assert.rejects(
+      scorer([], { cwd: '/repo', fullScope: true }),
+      /coverage artifact not found.*`json` reporter/,
+    );
+  });
+
   it('scans anyway when requireCoverage is false', async () => {
     const options = resolveCrapUpdaterOptions(
       {},

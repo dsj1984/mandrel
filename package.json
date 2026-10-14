@@ -65,6 +65,8 @@
     "duplication:check": "node .agents/scripts/check-baselines.js --gate duplication",
     "duplication:update": "node .agents/scripts/update-duplication-baseline.js",
     "duplication:reanchor": "node .agents/scripts/update-duplication-baseline.js --full-scope",
+    "bundle-size:check": "node .agents/scripts/check-baselines.js --gate bundle-size",
+    "bundle-size:update": "node .agents/scripts/update-bundle-size-baseline.js",
     "quality:preview": "node .agents/scripts/check-dead-exports.js && node .agents/scripts/quality-preview.js",
     "quality:watch": "node .agents/scripts/quality-watch.js",
     "sync:commands": "node bin/mandrel.js sync-commands",
@@ -129,10 +131,14 @@
   },
   "peerDependencies": {
     "@cucumber/gherkin": ">=32.0.0",
+    "jscpd": "^4.0.0",
     "typescript": ">=5.0.0 <7"
   },
   "peerDependenciesMeta": {
     "@cucumber/gherkin": {
+      "optional": true
+    },
+    "jscpd": {
       "optional": true
     },
     "typescript": {

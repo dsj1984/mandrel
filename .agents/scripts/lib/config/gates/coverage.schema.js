@@ -24,7 +24,7 @@ export const COVERAGE_GATE = {
       ...SAFE_STRING,
       minLength: 1,
       description:
-        'Repo-relative path to the Istanbul `coverage-final.json` the capture step writes and the gate reads.',
+        'Repo-relative path to the Istanbul `coverage-final.json` the capture step writes and the gate reads. The capture contract: `npm run test:coverage` MUST write Istanbul per-file JSON (the `json` reporter) here — the coverage and CRAP refreshes both read it. A `json-summary` (`coverage-summary.json`) alone cannot feed them, so a green capture that leaves no file here fails and a full-scope refresh refuses to run.',
       default: COVERAGE_GATE_DEFAULTS.coveragePath,
     },
     captureScope: {

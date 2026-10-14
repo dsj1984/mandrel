@@ -21,6 +21,30 @@ const require = createRequire(import.meta.url);
 /** jscpd 5 is a Rust rewrite with no Node API; only major 4 exposes one. */
 const SUPPORTED_JSCPD_MAJOR = '^4';
 
+/** `err.code` of the missing-install refusal, so a CLI prints it stackless. */
+export const JSCPD_MISSING = 'JSCPD_MISSING';
+
+/**
+ * jscpd is an optional peer dependency: only a consumer that enables the
+ * duplication gate installs it. A missing install names the fix rather than
+ * surfacing `MODULE_NOT_FOUND`; any other load failure propagates as-is.
+ *
+ * @param {NodeJS.Require} requireFn
+ * @returns {object}
+ */
+function loadJscpd(requireFn) {
+  try {
+    return requireFn('jscpd');
+  } catch (err) {
+    if (err?.code !== 'MODULE_NOT_FOUND') throw err;
+    const missing = new Error(
+      `[Duplication] jscpd is not installed. The duplication gate scans with jscpd ${SUPPORTED_JSCPD_MAJOR}, an optional peer dependency of mandrel — install it in this project: npm i -D jscpd@${SUPPORTED_JSCPD_MAJOR}`,
+    );
+    missing.code = JSCPD_MISSING;
+    throw missing;
+  }
+}
+
 /**
  * Lazy CJS load: jscpd's ESM entry has a broken transitive `colors/safe`
  * specifier under strict ESM resolution, and importers that never scan should
@@ -32,7 +56,7 @@ const SUPPORTED_JSCPD_MAJOR = '^4';
  * @returns {(opts: object) => Promise<Array<object>>}
  */
 export function resolveDetectClones(requireFn = require) {
-  const jscpd = requireFn('jscpd');
+  const jscpd = loadJscpd(requireFn);
   if (typeof jscpd?.detectClones !== 'function') {
     const version = resolveDependencyVersion('jscpd', requireFn) ?? 'unknown';
     throw new Error(

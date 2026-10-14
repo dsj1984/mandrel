@@ -283,6 +283,66 @@ describe('check-baselines — integration (pass / floor-breach / schema-error / 
     assert.equal(res.report.totalBreaches, 0);
   });
 
+  it('Story #5672: a configured component is rolled up and held to its own floor', async () => {
+    root = setupTmpRepo({
+      coverageGate: {
+        enabled: true,
+        baselinePath: 'baselines/coverage.json',
+        tolerance: { kind: 'absolute', value: 0 },
+        floors: {
+          '*': { lines: 50, branches: 50, functions: 50 },
+          api: { lines: 90, branches: 85, functions: 90 },
+        },
+        components: { api: ['src/api/**'], unmatched: ['nowhere/**'] },
+      },
+    });
+    writeJson(path.join(root, 'baselines', 'coverage.json'), {
+      ...coverageEnvelope(),
+      rows: [
+        { path: 'src/api/a.js', lines: 60, branches: 60, functions: 60 },
+        { path: 'src/ui/b.js', lines: 100, branches: 100, functions: 100 },
+      ],
+    });
+    const res = await runCheckBaselines({
+      argv: ['--no-friction'],
+      cwd: root,
+    });
+    assert.equal(res.exitCode, 1);
+    const gate = res.report.gates.find((g) => g.kind === 'coverage');
+    assert.deepEqual(
+      gate.components.map((c) => c.component),
+      ['*', 'api'],
+    );
+    assert.ok(gate.breaches.length > 0);
+    assert.ok(gate.breaches.every((b) => b.component === 'api'));
+  });
+
+  it('Story #5672: a component without its own floor falls back to the * floor', async () => {
+    root = setupTmpRepo({
+      coverageGate: {
+        enabled: true,
+        baselinePath: 'baselines/coverage.json',
+        tolerance: { kind: 'absolute', value: 0 },
+        floors: { '*': { lines: 70, branches: 70, functions: 70 } },
+        components: { api: ['src/api/**'] },
+      },
+    });
+    writeJson(path.join(root, 'baselines', 'coverage.json'), {
+      ...coverageEnvelope(),
+      rows: [
+        { path: 'src/api/a.js', lines: 60, branches: 60, functions: 60 },
+        { path: 'src/ui/b.js', lines: 100, branches: 100, functions: 100 },
+      ],
+    });
+    const res = await runCheckBaselines({
+      argv: ['--no-friction'],
+      cwd: root,
+    });
+    assert.equal(res.exitCode, 1);
+    const gate = res.report.gates.find((g) => g.kind === 'coverage');
+    assert.ok(gate.breaches.every((b) => b.component === 'api'));
+  });
+
   it('exits 2 on schema validation error', async () => {
     root = setupTmpRepo();
     // Missing required fields → schema rejection.

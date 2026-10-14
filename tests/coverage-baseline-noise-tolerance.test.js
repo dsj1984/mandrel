@@ -181,8 +181,8 @@ test('scoreCoverageFinal — relativises absolute paths and applies scope', () =
 test('readCoverageFinal — throws helpful error when file missing', () => {
   const fakeFs = { existsSync: () => false };
   assert.throws(
-    () => readCoverageFinal('/nope', fakeFs),
-    /coverage-final.json not found/,
+    () => readCoverageFinal('/nope', {}, fakeFs),
+    /coverage artifact not found at .*coverage-final\.json.*`json` reporter/,
   );
 });
 

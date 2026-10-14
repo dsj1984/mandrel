@@ -1,26 +1,21 @@
 #!/usr/bin/env node
 /**
- * Refresh the coverage baseline from the `coverage-final.json` on disk via
+ * Refresh the coverage baseline from the configured `coverage.coveragePath`
+ * artifact (Istanbul `coverage-final.json`) on disk via
  * `refreshBaseline({ kind: 'coverage' })`. Never runs the suite, so the
  * refresh is idempotent and the output can be inspected first.
  */
 
-import { createRequire } from 'node:module';
-import path from 'node:path';
 import { resolveUpdaterRefreshScope } from './lib/baselines/coverage-refresh-scope.js';
 import {
-  buildCoverageUpdaterScorer,
+  buildCoverageRefreshOpts,
+  coverageUpdaterTargets,
+  loadC8ScopeConfig,
   resolveCoverageUpdaterScope,
 } from './lib/baselines/coverage-updater-cli.js';
 import { refreshBaseline } from './lib/baselines/refresh-service.js';
 import { runAsCli } from './lib/cli-utils.js';
-import { getBaselineEpsilon } from './lib/config/quality.js';
-import {
-  buildScopePredicate,
-  COVERAGE_BASELINE_PATH,
-  readCoverageFinal,
-  scoreCoverageFinal,
-} from './lib/coverage-baseline.js';
+import { getQuality, resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
 
 /** `runAsCli` answers `--help` before `main`, so a usage probe never writes. */
@@ -28,7 +23,7 @@ const USAGE = {
   invocation:
     'node .agents/scripts/update-coverage-baseline.js [--full-scope | --diff-scope <ref>]',
   summary:
-    'Score → write the coverage baseline from the coverage-final.json already on disk. With no scope flag the refresh is scoped to the files changed in `origin/main..HEAD`; out-of-scope rows are preserved verbatim.',
+    'Score → write the coverage baseline from the coverage artifact (`delivery.quality.gates.coverage.coveragePath`, Istanbul coverage-final.json) already on disk. With no scope flag the refresh is scoped to the files changed in `origin/main..HEAD`; out-of-scope rows are preserved verbatim.',
   flags: [
     [
       '--full-scope',
@@ -45,49 +40,29 @@ const USAGE = {
   ],
 };
 
-/** CommonJS `require`, for the `.c8rc.cjs` scope config below. */
-const require = createRequire(import.meta.url);
-
-/**
- * Load the c8 include/exclude scope. Kept in the CLI rather than the extracted
- * scorer because it is the one genuinely environment-bound step — a CJS
- * `require` of a config file resolved against the working tree — and the
- * scorer takes it as a seam so a test never touches the real `.c8rc.cjs`.
- */
-function loadC8Scope(cwd) {
-  return require(path.resolve(cwd, '.c8rc.cjs'));
-}
-
 function main() {
   const cwd = process.cwd();
   const { fullScope, diffScopeRef } = resolveCoverageUpdaterScope(
     process.argv.slice(2),
   );
-  Logger.info('[Coverage] Updating baseline from coverage-final.json...');
-
-  const absBaselinePath = path.resolve(cwd, COVERAGE_BASELINE_PATH);
-  const refreshOpts = {
-    kind: 'coverage',
-    writePath: absBaselinePath,
-    epsilon: getBaselineEpsilon('coverage'),
-    scorer: buildCoverageUpdaterScorer(cwd, {
-      readCoverage: readCoverageFinal,
-      loadScope: loadC8Scope,
-      buildScope: buildScopePredicate,
-      score: scoreCoverageFinal,
-    }),
-  };
+  const targets = coverageUpdaterTargets(
+    getQuality(resolveConfig({ cwd })).coverage,
+    cwd,
+  );
+  Logger.info(`[Coverage] Updating baseline from ${targets.coveragePath}...`);
+  const refreshOpts = buildCoverageRefreshOpts(cwd, targets);
   // No flag and a full artifact -> the service derives the diff via
   // `origin/main..HEAD` (its default baseRef/headRef).
   return resolveUpdaterRefreshScope(cwd, {
     fullScope,
     diffScopeRef,
-    loadScope: loadC8Scope,
+    loadScope: loadC8ScopeConfig,
+    readCoverage: targets.readCoverage,
   })
     .then((scope) => refreshBaseline({ ...refreshOpts, ...scope }))
     .then((result) => {
       Logger.info(
-        `[Coverage] ✅ Baseline updated: ${result.envelope.rows.length} file(s) recorded at ${COVERAGE_BASELINE_PATH} (${absBaselinePath}). scope=${result.scope.mode}, wrote=${result.wrote}.`,
+        `[Coverage] ✅ Baseline updated: ${result.envelope.rows.length} file(s) recorded at ${targets.baselinePath} (${targets.absBaselinePath}). scope=${result.scope.mode}, wrote=${result.wrote}.`,
       );
     });
 }

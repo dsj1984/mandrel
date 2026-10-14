@@ -5,6 +5,7 @@
  * @module lib/orchestration/check-baselines/phases/evaluate
  */
 
+import { groupRows, resolveComponents } from '../../../baselines/components.js';
 import {
   checkBaselineSemantics,
   checkKernelVersion,
@@ -25,7 +26,7 @@ import { applyRefreshAcknowledgment } from './refresh-ack.js';
  * @param {{ kind: string, baseline: { rows?: object[] }, ignoreGlobs?: string[], cwd?: string }} args
  * @returns {object}
  */
-function floorRollupOf({ kind, baseline, ignoreGlobs, cwd }) {
+function floorRollupOf({ kind, baseline, ignoreGlobs, components, cwd }) {
   const mod = getKindModule(kind);
   const rows = Array.isArray(baseline?.rows) ? baseline.rows : [];
   const filterIgnored =
@@ -38,7 +39,32 @@ function floorRollupOf({ kind, baseline, ignoreGlobs, cwd }) {
         return typeof p !== 'string' || !isIgnoredByGlobs(p, ignoreGlobs, cwd);
       })
     : rows;
-  return mod.rollup(kept);
+  return withComponentRollups(mod, kept, components);
+}
+
+/**
+ * `*` stays the kind's own whole-repo rollup; each configured component adds
+ * the same aggregate over the rows its globs match, keyed on the kind's
+ * `keyField`. A component matching no rows is omitted — there is nothing to
+ * hold to a floor.
+ *
+ * @param {{ keyField: string, rollup: (rows: object[]) => Record<string, object> }} mod
+ * @param {object[]} rows
+ * @param {Record<string, string[]> | undefined} components
+ * @returns {Record<string, object>}
+ */
+function withComponentRollups(mod, rows, components) {
+  const out = mod.rollup(rows);
+  const buckets = groupRows(
+    rows,
+    resolveComponents({ components }),
+    mod.keyField,
+  );
+  for (const [name, matched] of Object.entries(buckets)) {
+    if (name === '*' || matched.length === 0) continue;
+    out[name] = mod.rollup(matched)['*'];
+  }
+  return out;
 }
 
 function loadHeadBaseline(kind, cwd, configPath) {
@@ -111,6 +137,7 @@ export async function evaluateKind({
     kind,
     baseline,
     ignoreGlobs: gateBlock.ignoreGlobs,
+    components: gateBlock.components,
     cwd,
   });
   const findings = applyFloors(kind, floorRollup, gateBlock.floors ?? {});

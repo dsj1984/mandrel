@@ -124,9 +124,9 @@
     },
     {
       "path": ".agents/scripts/coverage-capture.js",
-      "lines": 99.14,
-      "branches": 97.14,
-      "functions": 100
+      "lines": 98.44,
+      "branches": 97.22,
+      "functions": 90.91
     },
     {
       "path": ".agents/scripts/deliver-light.js",
@@ -555,6 +555,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/baselines/bundle-size-scorer.js",
+      "lines": 99.13,
+      "branches": 70.83,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/baselines/component-matcher.js",
       "lines": 100,
       "branches": 100,
@@ -593,7 +599,7 @@
     {
       "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
       "lines": 100,
-      "branches": 92.98,
+      "branches": 92.65,
       "functions": 100
     },
     {
@@ -604,9 +610,9 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
-      "lines": 87.88,
-      "branches": 66.67,
-      "functions": 75
+      "lines": 96.62,
+      "branches": 76.67,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/baselines/env-overrides.js",
@@ -730,9 +736,9 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "lines": 84.51,
-      "branches": 76.27,
-      "functions": 73.68
+      "lines": 95.18,
+      "branches": 74.21,
+      "functions": 90.91
     },
     {
       "path": ".agents/scripts/lib/baselines/scope.js",
@@ -1198,8 +1204,8 @@
     },
     {
       "path": ".agents/scripts/lib/config/quality.js",
-      "lines": 99.83,
-      "branches": 93.68,
+      "lines": 99.77,
+      "branches": 93.88,
       "functions": 100
     },
     {
@@ -1252,8 +1258,8 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-baseline.js",
-      "lines": 99.7,
-      "branches": 88.43,
+      "lines": 100,
+      "branches": 89.34,
       "functions": 100
     },
     {
@@ -1288,8 +1294,8 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-capture.js",
-      "lines": 98.45,
-      "branches": 91.3,
+      "lines": 99.16,
+      "branches": 91.46,
       "functions": 100
     },
     {
@@ -1756,8 +1762,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/evaluate.js",
-      "lines": 96.45,
-      "branches": 69.23,
+      "lines": 97.02,
+      "branches": 80.65,
       "functions": 100
     },
     {
@@ -3537,8 +3543,14 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/update-bundle-size-baseline.js",
+      "lines": 100,
+      "branches": 57.14,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/update-coverage-baseline.js",
-      "lines": 62.75,
+      "lines": 63.64,
       "branches": 100,
       "functions": 0
     },
@@ -3550,9 +3562,9 @@
     },
     {
       "path": ".agents/scripts/update-duplication-baseline.js",
-      "lines": 48.37,
-      "branches": 100,
-      "functions": 0
+      "lines": 90.32,
+      "branches": 47.62,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/update-maintainability-baseline.js",
