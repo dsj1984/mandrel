@@ -44,7 +44,7 @@ const RESERVATION_RE = /^w(\d+)~([a-z0-9+-]*)~[^~]+\.lock$/;
  */
 
 /** @param {string|string[]} argv */
-export function normalizeCommand(argv) {
+function normalizeCommand(argv) {
   const text = Array.isArray(argv) ? argv.join(' ') : String(argv ?? '');
   return text.split(/\s+/).filter(Boolean).join(' ');
 }
@@ -66,7 +66,7 @@ export function resolveSuiteCapacity(config, osImpl = os) {
  * @param {{ config?: object, argv?: string|string[], capacity?: number }} opts
  * @returns {SuiteWorkload}
  */
-export function classifySuiteWorkload({ config, argv, capacity }) {
+function classifySuiteWorkload({ config, argv, capacity }) {
   const workloads = config?.delivery?.execution?.workloads;
   if (!Array.isArray(workloads) || argv === undefined) {
     return { kind: 'exclusive' };
@@ -163,7 +163,7 @@ function holderOf(file, state) {
  * @returns {Array<{ weight: number, resources: string[], holder: object }>|null}
  *   `null` when the directory is absent.
  */
-export function readLiveReservations({ lockPath, ...probe }) {
+function readLiveReservations({ lockPath, ...probe }) {
   const dir = reservationsDir(lockPath);
   let names;
   try {

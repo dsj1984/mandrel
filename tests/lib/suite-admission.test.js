@@ -12,9 +12,6 @@ import {
 import { acquireSweepLock } from '../../.agents/scripts/lib/single-story-sweep/sweep-lock.js';
 import {
   ADMISSION_REFUSED_EXIT_CODE,
-  classifySuiteWorkload,
-  normalizeCommand,
-  readLiveReservations,
   resolveSuiteCapacity,
 } from '../../.agents/scripts/lib/suite-admission.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
@@ -32,6 +29,11 @@ import {
 
 const LONG = 'npm run test:full';
 const FOCUSED = 'python scripts/validation.py --workers 4 --changed-since x';
+
+/** Classification as every caller resolves it. */
+function classifySuiteWorkload({ config, argv }) {
+  return fullSuiteLockPolicy(config, {}, argv).workload;
+}
 
 function workloads(...entries) {
   return { delivery: { execution: { capacity: 10, workloads: entries } } };
@@ -105,7 +107,13 @@ describe('suite admission (Story #5668)', () => {
         weight: 4,
         resources: ['db'],
       });
-      assert.equal(normalizeCommand(`  ${LONG.replace(/ /g, '   ')} `), LONG);
+      assert.equal(
+        classifySuiteWorkload({
+          config,
+          argv: [' ', ...LONG.split(' ').map((w) => `${w}  `)],
+        }).command,
+        LONG,
+      );
     });
 
     it('never infers safety from a prefix, a substring or a flag', () => {
@@ -124,7 +132,10 @@ describe('suite admission (Story #5668)', () => {
 
     it('treats every spawn as exclusive when nothing is declared', () => {
       assert.deepEqual(
-        classifySuiteWorkload({ config: {}, argv: ['npm', 'test'] }),
+        classifySuiteWorkload({
+          config: { delivery: {} },
+          argv: ['npm', 'test'],
+        }),
         { kind: 'exclusive' },
       );
     });
@@ -171,7 +182,7 @@ describe('suite admission (Story #5668)', () => {
       assert.equal(focusedRan, true, 'the focused run started mid-suite');
       long.finish(0);
       assert.equal(await longRun, 0);
-      assert.deepEqual(readLiveReservations(probe()), []);
+      assert.deepEqual(liveReservations(), []);
     });
 
     it('waits when the live weights leave no room, and runs once capacity frees', async () => {
@@ -360,7 +371,7 @@ describe('suite admission (Story #5668)', () => {
         ),
         /suite crashed/,
       );
-      assert.deepEqual(readLiveReservations(probe()), []);
+      assert.deepEqual(liveReservations(), []);
       assert.deepEqual(fs.readdirSync(`${lockPath}.reservations`), []);
     });
   });
@@ -484,7 +495,8 @@ describe('suite admission (Story #5668)', () => {
     });
   });
 
-  function probe() {
-    return { lockPath, fsImpl: fs, nowFn: Date.now, staleMs: 600_000 };
+  function liveReservations() {
+    const dir = `${lockPath}.reservations`;
+    return fs.existsSync(dir) ? fs.readdirSync(dir) : [];
   }
 });
