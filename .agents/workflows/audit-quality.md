@@ -9,7 +9,7 @@ infrastructure, coverage, flaky tests, mocking strategy, and test-pyramid
 balance — and, in Story-scoped mode, evaluating the implemented tests against
 the Story under audit. The shared lens machinery lives in
 [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
-`{{auditOutputDir}}/audit-quality-results.md`. Each finding carries a
+`{{auditResultsDir}}/audit-quality-results.md`. Each finding carries a
 **Category:** (`Flakiness | Coverage | Performance | Mocking | Test Plans`); the
 report adds a **Test Strategy Assessment** table (Unit / Integration / E2E /
 Test Plans / Property-Based Testing: Healthy / Needs Work / Missing, or `N/A`

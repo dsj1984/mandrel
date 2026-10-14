@@ -63,9 +63,10 @@ file is its standalone-agent form.
 - This is a **read-only** analysis. Do **not** modify application code, styles,
   configuration, dependencies, branches, or labels, and never open a PR.
 - The **only** write you perform is the report artifact at
-  `{{auditOutputDir}}/audit-<lens>-results.md`, plus — only where the lens body
+  `{{auditResultsDir}}/audit-<lens>-results.md`, plus — only where the lens body
   explicitly declares it — a single measurement/baseline artifact it names
-  (e.g. `perf-baseline.json`).
+  (e.g. `perf-baseline.json`) under `{{auditOutputDir}}`, never beside the
+  reports.
 - Running **non-mutating** measurements/scanners the lens calls for (profilers,
   timers, `npm audit`, read-only status commands) is permitted; running
   anything that installs, mutates git/labels, or edits source is forbidden.
@@ -151,7 +152,7 @@ lens's size.
 
 ## Return contract
 
-Return the **report path** (`{{auditOutputDir}}/audit-<lens>-results.md`) and
+Return the **report path** (`{{auditResultsDir}}/audit-<lens>-results.md`) and
 the report's **Executive Summary** (including the self-cross-check line). Do not
 inline the full findings — the report artifact is the record of truth, and
 `audit-to-stories` reads it from disk. If the lens resolved not-applicable or

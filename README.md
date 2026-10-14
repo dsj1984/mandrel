@@ -82,7 +82,7 @@ The full process — labels, state, review, troubleshooting — is in
 
 The `/audit-*` workflows are read-only lenses that examine the codebase along
 one dimension and write a findings report (severity, location, recommendation,
-acceptance signal) under `temp/audits/`. They never change code — fixing is a
+acceptance signal) under `temp/audits/audit-results/`. They never change code — fixing is a
 separate, planned pass.
 
 | Area | Lenses |

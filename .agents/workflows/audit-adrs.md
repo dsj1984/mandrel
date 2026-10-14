@@ -18,7 +18,7 @@ That is this lens's central target; structural tidiness is the cheap part.
 
 The shared lens machinery lives in
 [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
-`{{auditOutputDir}}/audit-adrs-results.md`. Dimension values:
+`{{auditResultsDir}}/audit-adrs-results.md`. Dimension values:
 `Decision Drift | Supersede-Chain Integrity | Structure & Status Hygiene |
 Missing Decision | Layout Conformance`; the report adds a **Decision Coverage**
 table.

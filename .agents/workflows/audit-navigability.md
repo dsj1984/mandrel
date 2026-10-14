@@ -18,7 +18,7 @@ not exist). This is **mechanism, not content**: the lens reads the consumer's
 configured route tree and nav-registry SSOT and is a **silent no-op when neither
 is configured**. The shared lens machinery lives in
 [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
-`{{auditOutputDir}}/audit-navigability-results.md`. Dimension values:
+`{{auditResultsDir}}/audit-navigability-results.md`. Dimension values:
 `Orphaned Route | Dead Nav Href`; extra finding fields **Route / Door:** and
 **Persona(s):** (identifiers only — never full route bodies or persona PII).
 

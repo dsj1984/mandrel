@@ -12,7 +12,7 @@ the loop that burns the measured debt **down** and tightens the floors behind
 it, so a repo can hold a floor it cleared years ago and never notice. This lens
 is that loop's read-only entry point. The shared lens machinery lives in
 [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
-`{{auditOutputDir}}/audit-baselines-results.md`. Dimension values:
+`{{auditResultsDir}}/audit-baselines-results.md`. Dimension values:
 `Dead Instrument | Staleness | Hotspot Cluster | Trend Drift | Tightening Headroom`.
 
 > **Value-free titles (mandatory).** A finding title MUST NOT embed a measured
@@ -252,7 +252,7 @@ shared finding skeleton, fingerprints each finding for dedupe, and groups the
 batch:
 
 ```bash
-node .agents/scripts/audit-to-stories.js --scan --glob temp/audits/audit-baselines-results.md --out temp/audits/audit-to-stories-plan.json
+node .agents/scripts/audit-to-stories.js --scan --glob temp/audits/audit-results/audit-baselines-results.md --out temp/audits/audit-to-stories-plan.json
 ```
 
 Report the plan path and the group count; the converter owns everything

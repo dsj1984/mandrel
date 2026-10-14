@@ -23,6 +23,8 @@ import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
  */
 
 const {
+  DEFAULT_GLOB,
+  collectReportPaths,
   buildPlan,
   buildAndGateStories,
   runAuto,
@@ -58,6 +60,51 @@ after(() => {
 });
 
 const silent = { logger: { warn: () => {} } };
+
+describe('default report glob (Story #5679)', () => {
+  it('reads lens reports from the dedicated audit-results folder', () => {
+    assert.equal(DEFAULT_GLOB, 'temp/audits/audit-results/audit-*-results.md');
+  });
+
+  it('buildPlan falls back to the default glob when none is given', async () => {
+    let seen;
+    await buildPlan(
+      { useProvider: false },
+      {
+        ...silent,
+        collectReportPathsImpl: async (pattern) => {
+          seen = pattern;
+          return [];
+        },
+      },
+    );
+    assert.equal(seen, DEFAULT_GLOB);
+  });
+
+  it('ignores a report left at the old temp/audits/ location', async () => {
+    const root = path.join(workspace, 'layout');
+    const audits = path.join(root, 'temp', 'audits');
+    fs.mkdirSync(path.join(audits, 'audit-results'), { recursive: true });
+    fs.writeFileSync(path.join(audits, 'audit-legacy-results.md'), '# old\n');
+    fs.writeFileSync(path.join(audits, 'audit-to-stories-plan.json'), '{}');
+    fs.writeFileSync(
+      path.join(audits, 'audit-results', 'audit-security-results.md'),
+      '# new\n',
+    );
+    const found = await collectReportPaths(path.join(root, DEFAULT_GLOB));
+    assert.deepEqual(
+      found.map((p) => path.relative(root, p)),
+      [
+        path.join(
+          'temp',
+          'audits',
+          'audit-results',
+          'audit-security-results.md',
+        ),
+      ],
+    );
+  });
+});
 
 describe('buildPlan', () => {
   it('returns a zero envelope when the glob matches no report', async () => {

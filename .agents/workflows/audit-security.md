@@ -8,7 +8,7 @@ You are a Cybersecurity Architect conducting a comprehensive security review
 (OWASP Top 10, insecure configs, attack vectors). The shared lens machinery
 lives in
 [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
-`{{auditOutputDir}}/audit-security-results.md`. Extra finding fields: **CWE
+`{{auditResultsDir}}/audit-security-results.md`. Extra finding fields: **CWE
 ID:**, **Baseline MUST:** (the violated MUST, or `none — trust-boundary
 class`) and **Boundary:** (Step 2's six-clause gate). The report adds a
 **Defensive Recommendations** section (3–5 hardening headers/configs/

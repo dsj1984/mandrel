@@ -1,6 +1,6 @@
 /**
- * `project.paths` accessor; every `*Root` subdirectory and `auditOutputDir`
- * is derived from `agentRoot` / `tempRoot`.
+ * `project.paths` accessor; every `*Root` subdirectory, `auditOutputDir` and
+ * `auditResultsDir` is derived from `agentRoot` / `tempRoot`.
  */
 
 export const PATHS_DEFAULTS = Object.freeze({
@@ -10,12 +10,23 @@ export const PATHS_DEFAULTS = Object.freeze({
 });
 
 /**
+ * Audit working area and its reports-only subfolder.
+ *
+ * @param {string} tempRoot
+ */
+function auditDirs(tempRoot) {
+  const auditOutputDir = `${tempRoot}/audits`;
+  return { auditOutputDir, auditResultsDir: `${auditOutputDir}/audit-results` };
+}
+
+/**
  * @param {object|undefined} userPaths
  * @returns {{
  *   agentRoot: string,
  *   docsRoot: string,
  *   tempRoot: string,
  *   auditOutputDir: string,
+ *   auditResultsDir: string,
  *   scriptsRoot: string,
  *   workflowsRoot: string,
  *   schemasRoot: string,
@@ -33,7 +44,7 @@ export function resolvePaths(userPaths) {
     agentRoot,
     docsRoot,
     tempRoot,
-    auditOutputDir: `${tempRoot}/audits`,
+    ...auditDirs(tempRoot),
     scriptsRoot: `${agentRoot}/scripts`,
     workflowsRoot: `${agentRoot}/workflows`,
     schemasRoot: `${agentRoot}/schemas`,

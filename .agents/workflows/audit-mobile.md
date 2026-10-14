@@ -10,7 +10,7 @@ a phone and a tablet — and does anything in the suite actually verify that it
 does? Default to **static** detection over source; escalate to a **runtime**
 viewport pass only when a live target is configured. The shared lens machinery lives in
 [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
-`{{auditOutputDir}}/audit-mobile-results.md`. Dimension values:
+`{{auditResultsDir}}/audit-mobile-results.md`. Dimension values:
 `Layout & Viewport | Touch Ergonomics | Responsive Assets | Mobile Verification`.
 Extra finding field: **Evidence:** (`measured | static` + the observable;
 single-run runtime numbers are tagged `provisional`).

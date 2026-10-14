@@ -220,8 +220,8 @@ describe('audit-adrs keeps the shared lens contract', () => {
   it('names its own report path so audit-to-stories can glob it', () => {
     const lens = read(LENS_PATH);
     assert.ok(
-      lens.includes('{{auditOutputDir}}/audit-adrs-results.md'),
-      `${LENS_PATH} must name {{auditOutputDir}}/audit-adrs-results.md`,
+      lens.includes('{{auditResultsDir}}/audit-adrs-results.md'),
+      `${LENS_PATH} must name {{auditResultsDir}}/audit-adrs-results.md`,
     );
   });
 

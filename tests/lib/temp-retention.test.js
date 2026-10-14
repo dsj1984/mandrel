@@ -97,6 +97,33 @@ describe('resolveTempRetention — the one knob, defaulting to on', () => {
 });
 
 describe('classification — allowlist, never a blocklist', () => {
+  it('reaps audits/audit-results/ per report, never the folder itself (Story #5679)', async () => {
+    const root = makeRoot();
+    const results = path.join(root, 'audits', 'audit-results');
+    const stale = writeAged(
+      path.join(results, 'audit-security-results.md'),
+      'x',
+      30 * DAY,
+    );
+    const fresh = writeAged(path.join(results, 'audit-quality-results.md'));
+    const plan = writeAged(
+      path.join(root, 'audits', 'audit-to-stories-plan.json'),
+    );
+
+    const { entries } = await collectTempEntries({ tempRoot: root });
+    const audit = entries.filter((e) => e.className === 'auditResults');
+
+    assert.deepEqual(
+      audit.map((e) => e.path).sort(),
+      [plan, fresh, stale].sort(),
+    );
+    assert.equal(
+      entries.some((e) => e.path === results),
+      false,
+      'the audit-results folder is never a single reap entry',
+    );
+  });
+
   it('claims the declared classes and nothing else', async () => {
     const root = makeRoot();
     writeAged(path.join(root, 'orchestration', 'close-gates-4794.log'));

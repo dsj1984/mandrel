@@ -200,6 +200,18 @@ describe('helper accessors against the post-reshape shape', () => {
     assert.equal(paths.scriptsRoot, '.agents/scripts');
     assert.equal(paths.workflowsRoot, '.agents/workflows');
     assert.equal(paths.auditOutputDir, 'temp/audits');
+    assert.equal(paths.auditResultsDir, 'temp/audits/audit-results');
+  });
+
+  it('getPaths derives both audit dirs from an overridden tempRoot', () => {
+    const paths = getPaths({
+      project: {
+        ...REQ.project,
+        paths: { ...REQ.project.paths, tempRoot: 'scratch' },
+      },
+    });
+    assert.equal(paths.auditOutputDir, 'scratch/audits');
+    assert.equal(paths.auditResultsDir, 'scratch/audits/audit-results');
   });
 
   it('getLimits exposes the surviving budget surface and no signals (Story #5313)', () => {

@@ -11,7 +11,7 @@ concrete element and the success criterion it violates. Default to **static**
 detection over source; escalate to a **runtime** pass only when a live target is
 configured. The shared lens machinery lives in
 [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
-`{{auditOutputDir}}/audit-accessibility-results.md`. Extra finding fields:
+`{{auditResultsDir}}/audit-accessibility-results.md`. Extra finding fields:
 **WCAG:** (the violated success criterion, e.g. `1.1.1 Non-text Content (A)`)
 and **Evidence:** (`measured | static` + the observable; single-run runtime
 numbers are tagged `provisional`). The report adds a **Runtime Verification**

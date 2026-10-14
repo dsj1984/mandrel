@@ -12,7 +12,7 @@ mode) catch broken links and generator drift — they cannot tell whether the
 prose still describes how the code actually behaves. That semantic
 verification is this lens's job. The shared lens machinery lives in
 [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
-`{{auditOutputDir}}/audit-documentation-results.md`. Each finding carries a
+`{{auditResultsDir}}/audit-documentation-results.md`. Each finding carries a
 **Category:** (`Broken Instruction | Stale Description | Missing Coverage |
 Generator Drift | Link Integrity | History Bloat | Contradiction | Authority
 Drift`); the report adds a **Target Set Coverage** table.

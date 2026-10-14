@@ -6,14 +6,14 @@ import { assertSectionsContract } from './report-contract-core.js';
  *
  * This is the **single source of truth** for the report shape the lens
  * (`.agents/workflows/audit-security.md` Step 3) MUST emit to
- * `{{auditOutputDir}}/audit-security-results.md`. Keeping it here lets the
+ * `{{auditResultsDir}}/audit-security-results.md`. Keeping it here lets the
  * contract-tier test assert report conformance against one definition rather
  * than re-deriving headings from prose.
  *
  * @module audit-report-contracts/security-report-contract
  */
 
-/** The artifact filename the lens writes under `auditOutputDir`. */
+/** The artifact filename the lens writes under `auditResultsDir`. */
 export const REPORT_ARTIFACT_BASENAME = 'audit-security-results.md';
 
 /**

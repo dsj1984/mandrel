@@ -1,7 +1,7 @@
 ---
 description:
   Convert findings produced by the audit-* workflows into actionable
-  GitHub Stories. Reads temp/audits/audit-*-results.md, groups findings
+  GitHub Stories. Reads temp/audits/audit-results/audit-*-results.md, groups findings
   cross-audit, deduplicates against existing Issues by fingerprint, and
   either chains into /mandrel-plan --seed-file or opens standalone Stories.
 ---
@@ -15,7 +15,9 @@ Engineering Lead
 ## Context
 
 The `audit-*` workflows each produce a structured `audit-<dimension>-results.md`
-report under `temp/audits/`. Every `### Finding` block in those reports
+report under `temp/audits/audit-results/` — a folder that holds lens reports
+and nothing else; this workflow's own plan, seed and stories files stay one
+level up in `temp/audits/`. Every `### Finding` block in those reports
 already carries the fields a Story body needs (Severity / Impact,
 Dimension / Category, Location, Current State, Recommendation, Acceptance
 signal).
@@ -26,7 +28,7 @@ They remain read-only emitters of audit reports.
 ## Prerequisites
 
 1. At least one `audit-*-results.md` file under
-   `temp/audits/` (or the path passed as the argument). Run a
+   `temp/audits/audit-results/` (or the path passed as the argument). Run a
    `/audit-<dimension>` first if none are present.
 2. `GITHUB_TOKEN` or `gh auth status` clean — the dedupe and create
    steps both call GitHub.
@@ -38,7 +40,7 @@ They remain read-only emitters of audit reports.
 
 `/audit-to-stories [audit-file-or-glob]`
 
-- No argument → scans `temp/audits/audit-*-results.md`.
+- No argument → scans `temp/audits/audit-results/audit-*-results.md`.
 - Single file path or glob → restricts the scan to that input.
 
 ## Phase 1 — Discover & parse
@@ -330,7 +332,7 @@ result as a JSON array, and pass it:
 
 ```bash
 node .agents/scripts/audit-to-stories.js --scan --no-provider \
-  --issues-file temp/audits/issues.json --glob "temp/audits/audit-*-results.md"
+  --issues-file temp/audits/issues.json --glob "temp/audits/audit-results/audit-*-results.md"
 ```
 
 Real `skip-open` / `skip-reoccurring` classifications come back. The corpus is
@@ -403,12 +405,12 @@ that delivers the whole sweep (`/mandrel-deliver <epicId>`).
 To run an unattended maintenance sweep, `/schedule` a nightly (or weekly)
 job that (1) runs the relevant `audit-*` lens workflows full-scope — no
 `--paths`, no change-set filter, so the whole target-set union is audited —
-writing their `temp/audits/audit-*-results.md` reports, then (2) invokes the
+writing their `temp/audits/audit-results/audit-*-results.md` reports, then (2) invokes the
 CLI's **`--auto` mode** over those results:
 
 ```bash
 node .agents/scripts/audit-to-stories.js --auto [--dry-run] \
-  [--glob "temp/audits/audit-*-results.md"] [--severity <floor>]
+  [--glob "temp/audits/audit-results/audit-*-results.md"] [--severity <floor>]
 ```
 
 The routine shape is **lenses full-scope → dry-run → live**:

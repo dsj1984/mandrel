@@ -11,7 +11,7 @@ advisory, a skipped test, a `KNOWN_*` list. Nothing else checks whether they
 still earn their place, so they pile up unnoticed. This lens is that check,
 and it is read-only. The shared lens machinery lives in
 [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
-`{{auditOutputDir}}/audit-exceptions-results.md`. Dimension values:
+`{{auditResultsDir}}/audit-exceptions-results.md`. Dimension values:
 `Dead | Expired | Orphaned | Unjustified | Fix Properly`.
 
 > **Value-free titles (mandatory).** A finding title MUST NOT embed a count,
@@ -199,7 +199,7 @@ substituting the envelope's own values for the angle-bracketed slots:
 ## Step 5: Hand off to `/audit-to-stories`
 
 ```bash
-node .agents/scripts/audit-to-stories.js --scan --glob temp/audits/audit-exceptions-results.md --out temp/audits/audit-to-stories-plan.json
+node .agents/scripts/audit-to-stories.js --scan --glob temp/audits/audit-results/audit-exceptions-results.md --out temp/audits/audit-to-stories-plan.json
 ```
 
 Report the plan path and the group count; the converter owns everything

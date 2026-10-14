@@ -32,7 +32,7 @@ has to be settled here instead.
 Run each `audit-*` workflow with **no** `--paths` and no change-set filter, so
 the whole target-set union is audited rather than whatever a recent branch
 happened to touch. Each lens writes its report to
-`temp/audits/audit-<lens>-results.md`.
+`temp/audits/audit-results/audit-<lens>-results.md`.
 
 A sweep scoped to a change set is not a sweep: it re-reports the same recent
 files every cycle and never reaches the code nobody has touched in a year,

@@ -8,7 +8,7 @@ You are a Principal Software Engineer & Code Quality Lead auditing
 maintainability — code smells, technical debt, and clean-code violations (SOLID,
 DRY, KISS) that hinder long-term velocity. The shared lens machinery lives in
 [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
-`{{auditOutputDir}}/audit-clean-code-results.md`. The report adds a **Dead Code
+`{{auditResultsDir}}/audit-clean-code-results.md`. The report adds a **Dead Code
 Inventory** table (File / Symbol / Type / Estimated LOC) and a **Technical Debt
 Backlog** section.
 

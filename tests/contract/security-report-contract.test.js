@@ -50,8 +50,8 @@ ${CORE}`;
 
 test('lens markdown writes the canonical artifact basename', () => {
   assert.ok(
-    LENS.includes(`{{auditOutputDir}}/${REPORT_ARTIFACT_BASENAME}`),
-    'lens Step 3 must target {{auditOutputDir}}/audit-security-results.md',
+    LENS.includes(`{{auditResultsDir}}/${REPORT_ARTIFACT_BASENAME}`),
+    'lens Step 3 must target {{auditResultsDir}}/audit-security-results.md',
   );
 });
 

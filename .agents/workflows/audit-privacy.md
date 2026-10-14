@@ -8,7 +8,7 @@ You are a Data Privacy Officer & Security Engineer finding accidental logging,
 insecure storage, or unnecessary collection of PII, and checking GDPR/CCPA
 compliance. The shared lens machinery lives in
 [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
-`{{auditOutputDir}}/audit-privacy-results.md`. This lens labels the severity
+`{{auditResultsDir}}/audit-privacy-results.md`. This lens labels the severity
 axis **Impact** and uses dimension values `Leaky Log | Insecure Storage | Data
 Over-collection`; its report adds a **Privacy Scorecard** section (Data
 Encryption / Logging Safety / Minimization: Pass/Fail/Partial).
