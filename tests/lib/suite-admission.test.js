@@ -12,6 +12,7 @@ import {
 import { acquireSweepLock } from '../../.agents/scripts/lib/single-story-sweep/sweep-lock.js';
 import {
   ADMISSION_REFUSED_EXIT_CODE,
+  describeBlocking,
   resolveSuiteCapacity,
 } from '../../.agents/scripts/lib/suite-admission.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
@@ -442,6 +443,69 @@ describe('suite admission (Story #5668)', () => {
         [false, false, true],
       );
       assert.equal(seen[2].workload.kind, 'declared');
+    });
+  });
+
+  describe('the admission mutex', () => {
+    it('a process mid-admission makes the next one wait, never double-admit', async () => {
+      const busy = acquireSweepLock({
+        lockPath: `${lockPath}.admission`,
+        timeoutMs: 600_000,
+      });
+      const events = [];
+      let ranAt = null;
+      const clock = fakeClock((now) => {
+        if (now >= 1_004_000) busy.release();
+      });
+      const code = await withFullSuiteLockAsync(
+        policy(workloads({ command: FOCUSED, weight: 1 }), FOCUSED, {
+          ...clock,
+          onLockProgress: (e) => events.push(e),
+        }),
+        async () => {
+          ranAt = clock.nowFn();
+          return 0;
+        },
+      );
+      assert.equal(code, 0);
+      assert.ok(ranAt >= 1_004_000);
+      assert.equal(events[0].blocking.reason, 'admission');
+    });
+
+    it('an unwritable lock home fails open: the run proceeds unserialized', async () => {
+      const notADir = path.join(dir, 'file');
+      fs.writeFileSync(notADir, '');
+      let spawns = 0;
+      const code = await withFullSuiteLockAsync(
+        {
+          ...policy(workloads({ command: FOCUSED, weight: 1 }), FOCUSED),
+          lockPath: path.join(notADir, 'full-suite.lock'),
+        },
+        async () => {
+          spawns += 1;
+          return 0;
+        },
+      );
+      assert.equal(code, 0);
+      assert.equal(spawns, 1);
+    });
+
+    it('names every blocking reason in plain words', () => {
+      const cases = [
+        [
+          { reason: 'capacity', used: 6, requested: 4, capacity: 8 },
+          /capacity 6\/8 in use, 4 requested/,
+        ],
+        [{ reason: 'resource', resource: 'db' }, /resource "db" is held/],
+        [{ reason: 'exclusive' }, /exclusive full suite/],
+        [{ reason: 'queue' }, /earlier waiter/],
+        [{ reason: 'admission' }, /mid-admission/],
+        [{ reason: 'other' }, /^blocked$/],
+        [undefined, /^blocked$/],
+      ];
+      for (const [blocking, expected] of cases) {
+        assert.match(describeBlocking(blocking), expected);
+      }
     });
   });
 
