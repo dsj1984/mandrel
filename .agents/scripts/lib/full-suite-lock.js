@@ -1,7 +1,8 @@
 /**
- * full-suite-lock.js — serialize full-suite spawns across one host's
- * worktrees (they contend for cores and a shared coverage artifact), over
- * the `sweep-lock.js` primitive.
+ * full-suite-lock.js — admit suite spawns across one repository's worktrees
+ * (they contend for cores and shared artifacts), over the `sweep-lock.js`
+ * primitive. An undeclared spawn runs exclusively; a declared one is admitted
+ * against a capacity budget by `suite-admission.js`.
  *
  * It queues, never overlaps: an expired wait behind a live holder spawns
  * nothing ({@link LOCK_WAIT_EXPIRED_EXIT_CODE}). A dead holder is taken over
@@ -16,6 +17,17 @@ import { getQuality } from './config/quality.js';
 import { mainCheckoutRoot } from './config/temp-paths.js';
 import { isFirstInLine, waitInLine } from './full-suite-queue.js';
 import { acquireSweepLock } from './single-story-sweep/sweep-lock.js';
+import {
+  ADMISSION_REFUSED_EXIT_CODE,
+  completedProgress,
+  createAttempt,
+  describeRefusal,
+  FULL_SUITE_STALE_MS,
+  resolveAdmission,
+  resolveSuiteCapacity,
+} from './suite-admission.js';
+
+export { ADMISSION_REFUSED_EXIT_CODE };
 
 /** Environment escape hatch: set to `0`/`false`/`off`/`no` to disable. */
 export const FULL_SUITE_LOCK_ENV = 'MANDREL_FULL_SUITE_LOCK';
@@ -38,6 +50,9 @@ const FALSEY = /^(0|false|off|no)$/i;
 
 const LOCK_TAG = '[full-suite-lock]';
 
+/** The argv coverage capture spawns — its workload identity. */
+const COVERAGE_CAPTURE_ARGV = Object.freeze(['npm', 'run', 'test:coverage']);
+
 const LOCK_DEFAULTS = Object.freeze({
   enabled: true,
   log: () => {},
@@ -49,24 +64,26 @@ const LOCK_DEFAULTS = Object.freeze({
   sleepFn: (ms) => defaultSleep(ms),
   acquireOnceFn: (opts) => acquireSweepLock(opts),
   onWaitExpired: () => LOCK_WAIT_EXPIRED_EXIT_CODE,
+  onAdmissionRefused: () => ADMISSION_REFUSED_EXIT_CODE,
+  workload: Object.freeze({ kind: 'exclusive' }),
+  capacity: resolveSuiteCapacity(),
   onLockOutcome: () => {},
   onLockProgress: () => {},
   rerunCommand: 'the same command',
 });
 
 /**
- * The one wait budget every full-suite lock taker uses. A holder's suite is
- * killed at its supervisor's `killBoundMs` (the coverage gate's `timeoutMs`),
- * so waiting that long always observes a release or a death. The stale
- * threshold is four fifths of the wait: never above the budget, and a live
- * holder (heartbeating at a third of its own threshold) is never read stale.
+ * The one wait budget every lock taker uses: a holder's suite is killed at
+ * its supervisor's `killBoundMs` (the coverage gate's `timeoutMs`). Staleness
+ * is fixed, never derived from the waiter's budget — a waiter with a shorter
+ * budget than the holder's timeout must not read a live holder stale.
  *
  * @param {number} [killBoundMs]
  * @returns {{ waitMs: number, staleMs: number }}
  */
 export function resolveFullSuiteLockBudget(killBoundMs) {
   const waitMs = Math.max(MIN_WAIT_MS, Number(killBoundMs) || 0);
-  return { waitMs, staleMs: waitMs - waitMs / 5 };
+  return { waitMs, staleMs: FULL_SUITE_STALE_MS };
 }
 
 /**
@@ -101,28 +118,34 @@ export function resolveFullSuiteLockPath({
 /**
  * Uncontended fast path, skipped when waiters are queued (no overtaking).
  *
- * @returns {{ lock: object|null, lockPath: string|null }} null `lock` with a
- *   `lockPath` means wait; both null means no lock.
+ * @returns {{ attempt: object|null, lock: object|null, lockPath: string|null,
+ *   blocking?: object }} null `lock` with a `lockPath` means wait; a null
+ *   `lockPath` means no lock.
  */
-function beginLock({ staleMs, fsImpl, acquireOnceFn, ...where }) {
-  const resolved = lockHome(where);
-  if (resolved === null) return NO_LOCK;
-  if (!isFirstInLine({ lockPath: resolved, ticket: null, staleMs, fsImpl })) {
-    return { lock: null, lockPath: resolved };
-  }
-  const first = acquireOnceFn({
-    lockPath: resolved,
-    timeoutMs: staleMs,
-    fsImpl,
-  });
-  if (first.acquired) return { lock: first, lockPath: resolved };
-  // A hard I/O error will not resolve by waiting — proceed unserialized.
-  return first.reason === 'error'
-    ? NO_LOCK
-    : { lock: null, lockPath: resolved };
+function beginLock(opts) {
+  const lockPath = lockHome(opts);
+  if (lockPath === null) return NO_LOCK;
+  const attempt = createAttempt({ ...opts, lockPath });
+  return { attempt, lockPath, ...firstTry(opts, attempt, lockPath) };
 }
 
-const NO_LOCK = Object.freeze({ lock: null, lockPath: null });
+const NO_LOCK = Object.freeze({ attempt: null, lock: null, lockPath: null });
+
+const QUEUED = Object.freeze({ reason: 'queue' });
+
+function firstTry({ staleMs, fsImpl }, attempt, lockPath) {
+  if (!isFirstInLine({ lockPath, ticket: null, staleMs, fsImpl })) {
+    return { lock: null, blocking: QUEUED };
+  }
+  return afterFirst(attempt.tryOnce());
+}
+
+/** A hard I/O error will not resolve by waiting — proceed unserialized. */
+function afterFirst(first) {
+  if (first.acquired) return { lock: first };
+  if (first.reason === 'error') return { lock: null, lockPath: null };
+  return { lock: null, blocking: first.blocking };
+}
 
 /**
  * @param {{ enabled: boolean, cwd: string, lockPath?: string }} where
@@ -179,17 +202,31 @@ function consult(probe, applies) {
  */
 export async function withFullSuiteLockAsync(options, spawn) {
   const opts = withDefaults(options);
-  const { lock, lockPath } = beginLock(opts);
-  const wait =
-    lock === null && lockPath !== null
-      ? await waitInLine({ ...opts, lockPath })
-      : { held: lock, expired: false, waited: false, waitedMs: 0 };
-  reportOutcome(opts.onLockOutcome, wait);
+  if (isRefused(opts)) return refuse(opts);
+  const begun = beginLock(opts);
   try {
+    const wait = await awaitTurn(opts, begun);
+    reportOutcome(opts.onLockOutcome, wait);
     return await spawnOrStandIn(opts, wait, spawn);
   } finally {
-    if (wait.held?.acquired) wait.held.release();
+    begun.attempt?.release();
   }
+}
+
+function isRefused({ enabled, workload }) {
+  return enabled && workload?.kind === 'refused';
+}
+
+function refuse(opts) {
+  opts.log(describeRefusal(opts.workload));
+  return opts.onAdmissionRefused(opts.workload);
+}
+
+function awaitTurn(opts, { attempt, lock, lockPath, blocking }) {
+  if (lock !== null || lockPath === null) {
+    return { held: lock, expired: false, waited: false, waitedMs: 0 };
+  }
+  return waitInLine({ ...opts, lockPath, attempt, blocking });
 }
 
 /** An I/O-error wait is no outcome; a throwing callback never costs the spawn. */
@@ -225,8 +262,23 @@ async function spawnOrStandIn(opts, wait, spawn) {
     );
     return probe.value;
   }
-  if (wait.expired) return opts.onWaitExpired(wait.holder);
-  return await spawn({ lockWaitMs: wait.waitedMs ?? 0 });
+  return wait.expired
+    ? opts.onWaitExpired(wait.holder)
+    : await timedSpawn(opts, wait, spawn);
+}
+
+/** Wait and execution reach progress as separate figures. */
+async function timedSpawn(opts, wait, spawn) {
+  const startedAt = opts.nowFn();
+  const result = await spawn({ lockWaitMs: wait.waitedMs ?? 0 });
+  if (wait.waited) reportCompleted(opts, wait, opts.nowFn() - startedAt);
+  return result;
+}
+
+function reportCompleted(opts, wait, ranMs) {
+  try {
+    opts.onLockProgress(completedProgress(wait.waitedMs, opts.waitMs, ranMs));
+  } catch {}
 }
 
 /**
@@ -240,14 +292,19 @@ function defaultSleep(ms) {
 }
 
 /**
+ * The one admission policy every caller resolves: enablement, budget,
+ * capacity, and the workload `argv` classifies to.
+ *
  * @param {object} [config]
  * @param {Record<string, string|undefined>} [env]
+ * @param {string[]} [argv]
  */
-export function fullSuiteLockPolicy(config, env = process.env) {
+export function fullSuiteLockPolicy(config, env = process.env, argv) {
   return {
     ...resolveFullSuiteLockBudget(getQuality(config).coverage?.timeoutMs),
     enabled: isFullSuiteLockEnabled({ config, env }),
     onWaitExpired: () => LOCK_WAIT_EXPIRED_EXIT_CODE,
+    ...resolveAdmission(config, argv),
   };
 }
 
@@ -267,7 +324,10 @@ export function lockedCapture(
   env = process.env,
   lockOptions = {},
 ) {
-  const policy = { ...fullSuiteLockPolicy(config, env), ...lockOptions };
+  const policy = {
+    ...fullSuiteLockPolicy(config, env, COVERAGE_CAPTURE_ARGV),
+    ...lockOptions,
+  };
   return (captureOpts = {}) =>
     withFullSuiteLockAsync(
       {

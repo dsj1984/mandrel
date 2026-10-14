@@ -489,6 +489,15 @@ is the per-project lever for the rest of jscpd's vocabulary (or for narrowing
 it), a fact about which languages a project writes that no constant can know.
 No existing key displaces it.
 
+**Raised to 135 (2026-10-14, Story #5668)** for `delivery.execution.capacity`
+and `delivery.execution.workloads`. The full-suite lock was one binary mutex,
+so a five-validator focused run in one worktree waited out a full suite in
+another for its whole budget and deferred. Which commands are isolated, how
+many workers each occupies, and which shared resources they touch are facts
+about a project's own suites that no constant can know; the admission budget
+scales with the host. No existing key displaces them: `fullSuiteLock` stays
+the on/off switch.
+
 ### Consequences
 
 - A tuning value is changed by editing the constant and shipping a release,

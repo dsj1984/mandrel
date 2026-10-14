@@ -76,7 +76,8 @@
   },
   "delivery": {
     "execution": {
-      "fullSuiteLock": true
+      "fullSuiteLock": true,
+      "workloads": []
     },
     "docsFreshness": {
       "paths": ["README.md"]

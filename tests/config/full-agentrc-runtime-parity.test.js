@@ -150,7 +150,8 @@ describe('agentrc-reference.json — restated defaults still track their runtime
     assert.equal('reapOnCancel' in wi, false);
     assert.deepEqual(
       ref.delivery.execution,
-      { fullSuiteLock: true },
+      // capacity has no static default: it resolves to the host's cores.
+      { fullSuiteLock: true, workloads: [] },
       'execution.timeoutMs was folded into LIMITS_DEFAULTS by Story #5382',
     );
     assert.equal(

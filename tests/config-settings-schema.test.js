@@ -962,6 +962,67 @@ describe('AGENTRC_SCHEMA — delivery.execution.fullSuiteLock (Story #5173)', ()
   });
 });
 
+// Story #5668 — the admission contract resolves from the runtime AJV schema,
+// and an invalid declaration fails at load instead of enabling overlap.
+describe('AGENTRC_SCHEMA — delivery.execution capacity/workloads (Story #5668)', () => {
+  const execution = (block) => ({ ...REQ, delivery: { execution: block } });
+
+  it('accepts a populated admission block', () => {
+    assert.equal(
+      validate(
+        execution({
+          fullSuiteLock: true,
+          capacity: 10,
+          workloads: [
+            { command: 'npm test', weight: 6, resources: ['coverage'] },
+            {
+              command: 'python scripts/validation.py --workers 4',
+              weight: 4,
+            },
+          ],
+        }),
+      ),
+      true,
+    );
+  });
+
+  it('rejects a capacity below 1 or a fractional weight', () => {
+    expectErrors(execution({ capacity: 0 }), /must be >= 1/);
+    expectErrors(
+      execution({ workloads: [{ command: 'npm test', weight: 1.5 }] }),
+      /must be integer/,
+    );
+  });
+
+  it('rejects an entry missing its weight, an unknown key, or a bad resource', () => {
+    expectErrors(
+      execution({ workloads: [{ command: 'npm test' }] }),
+      /must have required property 'weight'/,
+    );
+    expectErrors(
+      execution({
+        workloads: [{ command: 'npm test', weight: 1, isolated: true }],
+      }),
+      /must NOT have additional properties/,
+    );
+    expectErrors(
+      execution({
+        workloads: [{ command: 'npm test', weight: 1, resources: ['DB'] }],
+      }),
+      /must match pattern/,
+    );
+  });
+
+  it('rejects a shell-chained command', () => {
+    expectErrors(
+      execution({
+        workloads: [{ command: 'npm test && rm -rf x', weight: 1 }],
+      }),
+      /must NOT be valid/,
+    );
+  });
+});
+
 describe('AGENTRC_SCHEMA — delivery.codeReview.providers (Story #2871)', () => {
   it('accepts providers: [{ name: "native" }]', () => {
     assert.equal(

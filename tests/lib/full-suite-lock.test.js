@@ -14,6 +14,7 @@ import {
 } from '../../.agents/scripts/lib/full-suite-lock.js';
 import { isFirstInLine } from '../../.agents/scripts/lib/full-suite-queue.js';
 import { acquireSweepLock } from '../../.agents/scripts/lib/single-story-sweep/sweep-lock.js';
+import { FULL_SUITE_STALE_MS } from '../../.agents/scripts/lib/suite-admission.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 
 /**
@@ -375,15 +376,36 @@ describe('full-suite lock (Story #5173)', () => {
       );
     });
 
-    it('AC-5: the default stale threshold does not exceed the wait budget', async () => {
-      // A live pid that has not refreshed its lock for a full wait budget: a
-      // stale threshold at or below that budget reclaims it at once.
+    it("Story #5668: a live holder quiet for longer than the waiter's budget is not reclaimed", async () => {
+      // Staleness no longer derives from the waiter's wait budget, so a
+      // waiter with a short budget cannot steal a long-timeout holder.
       const holder = acquireSweepLock({
         lockPath,
         timeoutMs: 600_000,
         heartbeatMs: 0,
       });
       const aged = new Date(Date.now() - 301_000);
+      fs.utimesSync(lockPath, aged, aged);
+      let spawns = 0;
+      const code = await withFullSuiteLockAsync(
+        { cwd: dir, lockPath, ...fakeClock() },
+        async () => {
+          spawns += 1;
+          return 0;
+        },
+      );
+      holder.release();
+      assert.equal(code, LOCK_WAIT_EXPIRED_EXIT_CODE);
+      assert.equal(spawns, 0);
+    });
+
+    it('Story #5668: a live holder silent past the fixed stale threshold is reclaimed', async () => {
+      const holder = acquireSweepLock({
+        lockPath,
+        timeoutMs: 600_000,
+        heartbeatMs: 0,
+      });
+      const aged = new Date(Date.now() - FULL_SUITE_STALE_MS - 1_000);
       fs.utimesSync(lockPath, aged, aged);
       let sleeps = 0;
       const code = await withFullSuiteLockAsync(
@@ -640,23 +662,19 @@ describe('full-suite lock (Story #5173)', () => {
       });
     }
 
-    it('resolves max(300s, kill bound), with a stale threshold inside the wait', () => {
+    it('resolves max(300s, kill bound), with a stale threshold no budget moves', () => {
       assert.deepEqual(resolveFullSuiteLockBudget(600_000), {
         waitMs: 600_000,
-        staleMs: 480_000,
+        staleMs: FULL_SUITE_STALE_MS,
       });
       assert.deepEqual(resolveFullSuiteLockBudget(200_000), {
         waitMs: 300_000,
-        staleMs: 240_000,
+        staleMs: FULL_SUITE_STALE_MS,
       });
       assert.deepEqual(resolveFullSuiteLockBudget(undefined), {
         waitMs: 300_000,
-        staleMs: 240_000,
+        staleMs: FULL_SUITE_STALE_MS,
       });
-      for (const bound of [0, 299_999, 300_000, 450_000, 600_000, 3_600_000]) {
-        const { waitMs, staleMs } = resolveFullSuiteLockBudget(bound);
-        assert.ok(staleMs <= waitMs, `stale ${staleMs} exceeds wait ${waitMs}`);
-      }
     });
 
     it('AC-1/AC-2: the capture waits 600s and spawns behind a holder released at 450s', async () => {
@@ -973,7 +991,7 @@ describe('full-suite lock (Story #5173)', () => {
       throw new Error('progress sink blew up');
     };
 
-    it('reports waiting (budget, holder, queue), still-waiting, then acquired', async () => {
+    it('reports waiting (budget, holder, queue), still-waiting, admitted, then completed', async () => {
       const holder = acquireSweepLock({ lockPath, timeoutMs: 600_000 });
       const queueDir = `${lockPath}.queue`;
       fs.mkdirSync(queueDir, { recursive: true });
@@ -1007,7 +1025,7 @@ describe('full-suite lock (Story #5173)', () => {
       assert.equal(code, 0);
       const phases = events.map((e) => e.phase);
       assert.equal(phases[0], 'waiting');
-      assert.equal(phases.at(-1), 'acquired');
+      assert.deepEqual(phases.slice(-2), ['admitted', 'completed']);
       assert.ok(phases.includes('still-waiting'));
       const [first] = events;
       assert.equal(first.waitedSeconds, 0);
@@ -1018,9 +1036,12 @@ describe('full-suite lock (Story #5173)', () => {
       assert.ok(still.waitedSeconds >= 25);
       assert.equal(still.holder.pid, process.pid);
       assert.equal(still.queueAhead, 1);
-      const acquired = events.at(-1);
+      const acquired = events.at(-2);
       assert.ok(acquired.waitedSeconds >= 60);
       assert.equal(acquired.holder, undefined, 'the holder is now us');
+      const completed = events.at(-1);
+      assert.equal(completed.waitMs, acquired.waitedSeconds * 1000);
+      assert.equal(completed.executionMs, 0, 'wait and run are separate');
     });
 
     it('reports expired with the holder, and never fires uncontended', async () => {
