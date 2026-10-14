@@ -63,7 +63,7 @@ function walkFiles(absDir, fs) {
  * @param {typeof nodeFs} fs
  * @returns {string[]} Absolute paths.
  */
-export function resolveBundleFiles(pattern, cwd, fs = nodeFs) {
+function resolveBundleFiles(pattern, cwd, fs = nodeFs) {
   const posix = pattern.replace(/\\/g, '/').replace(/^\.\//, '');
   const matcher = new Minimatch(posix, { dot: true });
   if (!matcher.hasMagic()) {
