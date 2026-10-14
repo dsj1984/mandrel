@@ -622,7 +622,7 @@
                     },
                     "components": {
                       "type": "object",
-                      "description": "Per-gate component map — component name to the glob list whose files roll up under it. Defaults to `{ \"*\": [\"**\"] }` at the resolver layer.",
+                      "description": "Per-gate component map — component name to the glob list whose rows roll up under it (matched against the row key: the file path, or the bundle name for bundle-size). `check-baselines` reports one rollup per component that matches a row and holds it to `floors.<component>`, falling back to `floors[\"*\"]`. Defaults to `{ \"*\": [\"**\"] }` at the resolver layer.",
                       "additionalProperties": {
                         "type": "array",
                         "items": {
@@ -637,7 +637,7 @@
                         "pattern": "([;&|`]|\\$\\()"
                       },
                       "minLength": 1,
-                      "description": "Repo-relative path to the Istanbul `coverage-final.json` the capture step writes and the gate reads.",
+                      "description": "Repo-relative path to the Istanbul `coverage-final.json` the capture step writes and the gate reads. The capture contract: `npm run test:coverage` MUST write Istanbul per-file JSON (the `json` reporter) here — the coverage and CRAP refreshes both read it. A `json-summary` (`coverage-summary.json`) alone cannot feed them, so a green capture that leaves no file here fails and a full-scope refresh refuses to run.",
                       "default": "coverage/coverage-final.json"
                     },
                     "captureScope": {
@@ -715,7 +715,7 @@
                     },
                     "components": {
                       "type": "object",
-                      "description": "Per-gate component map — component name to the glob list whose files roll up under it. Defaults to `{ \"*\": [\"**\"] }` at the resolver layer.",
+                      "description": "Per-gate component map — component name to the glob list whose rows roll up under it (matched against the row key: the file path, or the bundle name for bundle-size). `check-baselines` reports one rollup per component that matches a row and holds it to `floors.<component>`, falling back to `floors[\"*\"]`. Defaults to `{ \"*\": [\"**\"] }` at the resolver layer.",
                       "additionalProperties": {
                         "type": "array",
                         "items": {
@@ -862,7 +862,7 @@
                     },
                     "components": {
                       "type": "object",
-                      "description": "Per-gate component map — component name to the glob list whose files roll up under it. Defaults to `{ \"*\": [\"**\"] }` at the resolver layer.",
+                      "description": "Per-gate component map — component name to the glob list whose rows roll up under it (matched against the row key: the file path, or the bundle name for bundle-size). `check-baselines` reports one rollup per component that matches a row and holds it to `floors.<component>`, falling back to `floors[\"*\"]`. Defaults to `{ \"*\": [\"**\"] }` at the resolver layer.",
                       "additionalProperties": {
                         "type": "array",
                         "items": {
@@ -970,7 +970,7 @@
                     },
                     "components": {
                       "type": "object",
-                      "description": "Per-gate component map — component name to the glob list whose files roll up under it. Defaults to `{ \"*\": [\"**\"] }` at the resolver layer.",
+                      "description": "Per-gate component map — component name to the glob list whose rows roll up under it (matched against the row key: the file path, or the bundle name for bundle-size). `check-baselines` reports one rollup per component that matches a row and holds it to `floors.<component>`, falling back to `floors[\"*\"]`. Defaults to `{ \"*\": [\"**\"] }` at the resolver layer.",
                       "additionalProperties": {
                         "type": "array",
                         "items": {
@@ -1037,7 +1037,7 @@
                     },
                     "components": {
                       "type": "object",
-                      "description": "Per-gate component map — component name to the glob list whose files roll up under it. Defaults to `{ \"*\": [\"**\"] }` at the resolver layer.",
+                      "description": "Per-gate component map — component name to the glob list whose rows roll up under it (matched against the row key: the file path, or the bundle name for bundle-size). `check-baselines` reports one rollup per component that matches a row and holds it to `floors.<component>`, falling back to `floors[\"*\"]`. Defaults to `{ \"*\": [\"**\"] }` at the resolver layer.",
                       "additionalProperties": {
                         "type": "array",
                         "items": {
@@ -1134,7 +1134,7 @@
                     },
                     "components": {
                       "type": "object",
-                      "description": "Per-gate component map — component name to the glob list whose files roll up under it. Defaults to `{ \"*\": [\"**\"] }` at the resolver layer.",
+                      "description": "Per-gate component map — component name to the glob list whose rows roll up under it (matched against the row key: the file path, or the bundle name for bundle-size). `check-baselines` reports one rollup per component that matches a row and holds it to `floors.<component>`, falling back to `floors[\"*\"]`. Defaults to `{ \"*\": [\"**\"] }` at the resolver layer.",
                       "additionalProperties": {
                         "type": "array",
                         "items": {

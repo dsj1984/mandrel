@@ -60,7 +60,7 @@ const FLOORS_SCHEMA = {
 const COMPONENTS_SCHEMA = {
   type: 'object',
   description:
-    'Per-gate component map — component name to the glob list whose files roll up under it. Defaults to `{ "*": ["**"] }` at the resolver layer.',
+    'Per-gate component map — component name to the glob list whose rows roll up under it (matched against the row key: the file path, or the bundle name for bundle-size). `check-baselines` reports one rollup per component that matches a row and holds it to `floors.<component>`, falling back to `floors["*"]`. Defaults to `{ "*": ["**"] }` at the resolver layer.',
   additionalProperties: {
     type: 'array',
     items: { type: 'string', minLength: 1 },

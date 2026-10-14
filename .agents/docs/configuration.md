@@ -169,8 +169,8 @@ Everything `/mandrel-deliver` and `single-story-close` consume: worktree isolati
 | `quality.gates.coverage.tolerance.kind` | Yes | `"absolute"` \| `"percent"` | — | Whether `value` is read as raw metric units (`absolute`) or as a percentage of the baseline (`percent`). |
 | `quality.gates.coverage.tolerance.value` | Yes | `number` | — | The tolerance magnitude. 0 means no drift is allowed. |
 | `quality.gates.coverage.floors` | No | `object<map>` | `{"*":{"lines":90,"branches":85,"functions":90}}` | Workspace-keyed absolute floors: `{ "<workspace>": { "<metric>": number } }`. `"*"` is the project-wide catch-all; the metric keyset is open so per-rollup keys flow through without each gate enumerating them. Floors are absolute — unlike `tolerance`, they are enforced regardless of the baseline. |
-| `quality.gates.coverage.components` | No | `object<map>` | — | Per-gate component map — component name to the glob list whose files roll up under it. Defaults to `{ "*": ["**"] }` at the resolver layer. |
-| `quality.gates.coverage.coveragePath` | No | `string` | `"coverage/coverage-final.json"` | Repo-relative path to the Istanbul `coverage-final.json` the capture step writes and the gate reads. |
+| `quality.gates.coverage.components` | No | `object<map>` | — | Per-gate component map — component name to the glob list whose rows roll up under it (matched against the row key: the file path, or the bundle name for bundle-size). `check-baselines` reports one rollup per component that matches a row and holds it to `floors.<component>`, falling back to `floors["*"]`. Defaults to `{ "*": ["**"] }` at the resolver layer. |
+| `quality.gates.coverage.coveragePath` | No | `string` | `"coverage/coverage-final.json"` | Repo-relative path to the Istanbul `coverage-final.json` the capture step writes and the gate reads. The capture contract: `npm run test:coverage` MUST write Istanbul per-file JSON (the `json` reporter) here — the coverage and CRAP refreshes both read it. A `json-summary` (`coverage-summary.json`) alone cannot feed them, so a green capture that leaves no file here fails and a full-scope refresh refuses to run. |
 | `quality.gates.coverage.captureScope` | No | `"full"` \| `"affected"` | `"full"` | What coverage-capture runs. `full` (default) runs `npm run test:coverage`. `affected` runs the consumer-owned `npm run test:coverage:affected` with the base ref in `MANDREL_COVERAGE_BASE_REF`, merges its rows over the prior artifact and stamps it `affected`; baseline rows the scoped run did not measure are treated as unmeasured, never removed. Falls back to `full` with a warning when the script is absent. Meant for consumers whose CI already enforces coverage on the full suite. |
 | `quality.gates.coverage.timeoutMs` | No | `integer` | `600000` | Kill bound (ms) for one full-suite run — the coverage capture, the close-validation full-suite gate and the full-suite lock-wait budget all read it. The clock starts at spawn, never while queued on the host lock; a suite that signals `MANDREL_SUITE_READY_FILE` gets a fresh bound for its test phase, so worst-case wall is lock wait + 2 × timeoutMs. On expiry the run exits 124 so callers can tell a hang from a failure. |
 | `quality.gates.crap` | No | `object` | — | CRAP (Change Risk Anti-Pattern) ratchet — per-method cyclomatic complexity joined against per-method coverage. |
@@ -180,7 +180,7 @@ Everything `/mandrel-deliver` and `single-story-close` consume: worktree isolati
 | `quality.gates.crap.tolerance.kind` | Yes | `"absolute"` \| `"percent"` | — | Whether `value` is read as raw metric units (`absolute`) or as a percentage of the baseline (`percent`). |
 | `quality.gates.crap.tolerance.value` | Yes | `number` | — | The tolerance magnitude. 0 means no drift is allowed. |
 | `quality.gates.crap.floors` | No | `object<map>` | `{"*":{"max":30,"p95":20,"methodsAbove20":50}}` | Workspace-keyed absolute floors: `{ "<workspace>": { "<metric>": number } }`. `"*"` is the project-wide catch-all; the metric keyset is open so per-rollup keys flow through without each gate enumerating them. Floors are absolute — unlike `tolerance`, they are enforced regardless of the baseline. |
-| `quality.gates.crap.components` | No | `object<map>` | — | Per-gate component map — component name to the glob list whose files roll up under it. Defaults to `{ "*": ["**"] }` at the resolver layer. |
+| `quality.gates.crap.components` | No | `object<map>` | — | Per-gate component map — component name to the glob list whose rows roll up under it (matched against the row key: the file path, or the bundle name for bundle-size). `check-baselines` reports one rollup per component that matches a row and holds it to `floors.<component>`, falling back to `floors["*"]`. Defaults to `{ "*": ["**"] }` at the resolver layer. |
 | `quality.gates.crap.targetDirs` | No | `string[]` or `{ append?, prepend? }` | `["src"]` | Directories whose JS sources the CRAP gate scores. Mandrel ships a `src/`-centric default; projects whose executable code lives elsewhere (e.g. this repo's `.agents/scripts/`) override here. The framework default is intentionally not auto-discovered, so an override is the explicit, auditable signal. |
 | `quality.gates.crap.newMethodCeiling` | No | `integer` | `30` | Hard CRAP ceiling applied to a method the diff introduces. A new method above it fails the gate regardless of the baseline. |
 | `quality.gates.crap.requireCoverage` | No | `boolean` | `true` | When true, the gate refuses to score without a coverage artifact rather than silently reporting complexity-only rows. |
@@ -197,7 +197,7 @@ Everything `/mandrel-deliver` and `single-story-close` consume: worktree isolati
 | `quality.gates.maintainability.tolerance.kind` | Yes | `"absolute"` \| `"percent"` | — | Whether `value` is read as raw metric units (`absolute`) or as a percentage of the baseline (`percent`). |
 | `quality.gates.maintainability.tolerance.value` | Yes | `number` | — | The tolerance magnitude. 0 means no drift is allowed. |
 | `quality.gates.maintainability.floors` | No | `object<map>` | `{"*":{"min":70}}` | Workspace-keyed absolute floors: `{ "<workspace>": { "<metric>": number } }`. `"*"` is the project-wide catch-all; the metric keyset is open so per-rollup keys flow through without each gate enumerating them. Floors are absolute — unlike `tolerance`, they are enforced regardless of the baseline. |
-| `quality.gates.maintainability.components` | No | `object<map>` | — | Per-gate component map — component name to the glob list whose files roll up under it. Defaults to `{ "*": ["**"] }` at the resolver layer. |
+| `quality.gates.maintainability.components` | No | `object<map>` | — | Per-gate component map — component name to the glob list whose rows roll up under it (matched against the row key: the file path, or the bundle name for bundle-size). `check-baselines` reports one rollup per component that matches a row and holds it to `floors.<component>`, falling back to `floors["*"]`. Defaults to `{ "*": ["**"] }` at the resolver layer. |
 | `quality.gates.maintainability.targetDirs` | No | `string[]` or `{ append?, prepend? }` | `[]` | Directories whose JS sources the maintainability gate scores. Mandrel ships a `src/`-centric default; projects whose executable code lives elsewhere (e.g. this repo's `.agents/scripts/` plus `tests/`) override here. The framework default is intentionally not auto-discovered, so an override is the explicit, auditable signal. |
 | `quality.gates.maintainability.ignoreGlobs` | No | `array<string>` | `[]` | Minimatch glob patterns matched against the canonicalised repo-relative path of each discovered file. Files matching any pattern are excluded from MI discovery before scoring. Orthogonal to `components` (grouping) — a file excluded here never appears in any component bucket. Absent or empty preserves the existing IGNORED_DIRS-only behaviour (Story #3217). |
 | `quality.gates.mutation` | No | `object` | — | Stryker mutation-score ratchet. Off in practice for most consumers — the baseline kind is registered but no framework path runs Stryker. |
@@ -207,7 +207,7 @@ Everything `/mandrel-deliver` and `single-story-close` consume: worktree isolati
 | `quality.gates.mutation.tolerance.kind` | Yes | `"absolute"` \| `"percent"` | — | Whether `value` is read as raw metric units (`absolute`) or as a percentage of the baseline (`percent`). |
 | `quality.gates.mutation.tolerance.value` | Yes | `number` | — | The tolerance magnitude. 0 means no drift is allowed. |
 | `quality.gates.mutation.floors` | No | `object<map>` | `{"*":{"score":60}}` | Workspace-keyed absolute floors: `{ "<workspace>": { "<metric>": number } }`. `"*"` is the project-wide catch-all; the metric keyset is open so per-rollup keys flow through without each gate enumerating them. Floors are absolute — unlike `tolerance`, they are enforced regardless of the baseline. |
-| `quality.gates.mutation.components` | No | `object<map>` | — | Per-gate component map — component name to the glob list whose files roll up under it. Defaults to `{ "*": ["**"] }` at the resolver layer. |
+| `quality.gates.mutation.components` | No | `object<map>` | — | Per-gate component map — component name to the glob list whose rows roll up under it (matched against the row key: the file path, or the bundle name for bundle-size). `check-baselines` reports one rollup per component that matches a row and holds it to `floors.<component>`, falling back to `floors["*"]`. Defaults to `{ "*": ["**"] }` at the resolver layer. |
 | `quality.gates.bundle-size` | No | `object` | — | Built-artifact size ratchet for web targets. Off by default — it needs declared bundles. |
 | `quality.gates.bundle-size.enabled` | No | `boolean` | `false` | When false, the checker exits 0 with a skip line and the gate is reported as `skipped`, never omitted. |
 | `quality.gates.bundle-size.baselinePath` | No | `string` | `"baselines/bundle-size.json"` | Repo-root-relative path to the gate's committed baseline artifact. |
@@ -215,7 +215,7 @@ Everything `/mandrel-deliver` and `single-story-close` consume: worktree isolati
 | `quality.gates.bundle-size.tolerance.kind` | Yes | `"absolute"` \| `"percent"` | — | Whether `value` is read as raw metric units (`absolute`) or as a percentage of the baseline (`percent`). |
 | `quality.gates.bundle-size.tolerance.value` | Yes | `number` | — | The tolerance magnitude. 0 means no drift is allowed. |
 | `quality.gates.bundle-size.floors` | No | `object<map>` | `{"*":{}}` | Workspace-keyed absolute floors: `{ "<workspace>": { "<metric>": number } }`. `"*"` is the project-wide catch-all; the metric keyset is open so per-rollup keys flow through without each gate enumerating them. Floors are absolute — unlike `tolerance`, they are enforced regardless of the baseline. |
-| `quality.gates.bundle-size.components` | No | `object<map>` | — | Per-gate component map — component name to the glob list whose files roll up under it. Defaults to `{ "*": ["**"] }` at the resolver layer. |
+| `quality.gates.bundle-size.components` | No | `object<map>` | — | Per-gate component map — component name to the glob list whose rows roll up under it (matched against the row key: the file path, or the bundle name for bundle-size). `check-baselines` reports one rollup per component that matches a row and holds it to `floors.<component>`, falling back to `floors["*"]`. Defaults to `{ "*": ["**"] }` at the resolver layer. |
 | `quality.gates.bundle-size.bundles[]` | No | `array<object>` | `[]` | The artifacts to weigh. Empty means the gate has nothing to do. Each item has: name, path, limit. |
 | `quality.gates.duplication` | No | `object` | — | Code-duplication (DRY) gate (Story #3664). Shares the gate base and adds the scan-scope extras: the `targetDirs` the duplication scanner walks, the jscpd `formats` it reads there, and `ignoreGlobs` to exclude files from the scan. |
 | `quality.gates.duplication.enabled` | No | `boolean` | `false` | When false, the checker exits 0 with a skip line and the gate is reported as `skipped`, never omitted. |
@@ -224,7 +224,7 @@ Everything `/mandrel-deliver` and `single-story-close` consume: worktree isolati
 | `quality.gates.duplication.tolerance.kind` | Yes | `"absolute"` \| `"percent"` | — | Whether `value` is read as raw metric units (`absolute`) or as a percentage of the baseline (`percent`). |
 | `quality.gates.duplication.tolerance.value` | Yes | `number` | — | The tolerance magnitude. 0 means no drift is allowed. |
 | `quality.gates.duplication.floors` | No | `object<map>` | `{"*":{"percentage":25}}` | Workspace-keyed absolute floors: `{ "<workspace>": { "<metric>": number } }`. `"*"` is the project-wide catch-all; the metric keyset is open so per-rollup keys flow through without each gate enumerating them. Floors are absolute — unlike `tolerance`, they are enforced regardless of the baseline. |
-| `quality.gates.duplication.components` | No | `object<map>` | — | Per-gate component map — component name to the glob list whose files roll up under it. Defaults to `{ "*": ["**"] }` at the resolver layer. |
+| `quality.gates.duplication.components` | No | `object<map>` | — | Per-gate component map — component name to the glob list whose rows roll up under it (matched against the row key: the file path, or the bundle name for bundle-size). `check-baselines` reports one rollup per component that matches a row and holds it to `floors.<component>`, falling back to `floors["*"]`. Defaults to `{ "*": ["**"] }` at the resolver layer. |
 | `quality.gates.duplication.targetDirs` | No | `string[]` or `{ append?, prepend? }` | `["src"]` | Directories whose sources — the languages `formats` selects — the duplication (DRY) gate scans for copy-paste clones. Mandrel ships a `src/`-centric default; projects whose executable code lives elsewhere (e.g. this repo's `.agents/scripts/`) override here. The framework default is intentionally not auto-discovered, so an override is the explicit, auditable signal (Story #3664). |
 | `quality.gates.duplication.formats` | No | `array<string>` | `["javascript","jsx","typescript","tsx"]` | jscpd format names the duplication (DRY) gate scans under `targetDirs`. The default covers JavaScript, JSX, TypeScript and TSX; jscpd's `javascript` format alone reads only `.js`/`.es`/`.es6`/`.mjs`/`.cjs`. Names are jscpd's own vocabulary and are not restricted here. Widening the set adds rows, so re-seat the baseline with `npm run duplication:reanchor` after changing it. |
 | `quality.gates.duplication.ignoreGlobs` | No | `array<string>` | `[]` | Minimatch glob patterns matched against the canonicalised repo-relative path of each discovered file. Files matching any pattern are excluded from duplication discovery before scanning. Orthogonal to `components` (grouping). Absent or empty preserves the existing behaviour (Story #3664). |
@@ -363,10 +363,30 @@ A config still carrying the retired key is a hard validation failure; the
   `enabled` / `baselinePath` / `tolerance` (`{ kind, value }`) /
   `floors` (`{ <workspace>: { <metric>: <number> } }`) /
   `components` (`{ <component>: [<glob>] }`). The `crap` / `maintainability` /
-  `duplication` `targetDirs` default `["src"]`. The `bundle-size` gate has
-  **no** `refreshTag` — there is no scorer to regenerate its baseline, so its
-  one-shot refresh is the `BUNDLE_SIZE_REFRESH=1` env var, not a config knob
+  `duplication` `targetDirs` default `["src"]`. `components` slices the floor
+  check: `check-baselines` reports one rollup per component that matches a
+  row and holds it to `floors.<component>` (else `floors["*"]`), so a
+  component below its floor breaches even when the whole-repo `*` rollup
+  passes. The `bundle-size` gate has **no** `refreshTag`: its baseline is
+  generated by `node .agents/scripts/update-bundle-size-baseline.js` (always a
+  full refresh, never a build), and an intentional growth is acknowledged with
+  the one-shot `BUNDLE_SIZE_REFRESH=1` env var, not a config knob
   (see [`quality-gates.md` § Bundle-size ratchet](https://github.com/dsj1984/mandrel/blob/main/docs/quality-gates.md#bundle-size-ratchet--one-shot-refreshacknowledge-story-151)).
+- **Coverage capture contract.** `npm run test:coverage` (and
+  `test:coverage:affected`) MUST write Istanbul per-file JSON — the `json`
+  reporter's `coverage-final.json` — at `quality.gates.coverage.coveragePath`.
+  That one artifact feeds both the coverage and the CRAP refresh; a
+  `json-summary` (`coverage-summary.json`) alone cannot. With c8, list
+  `json` in `reporter`; with Vitest or Jest, add `json` to the coverage
+  reporters. `coverage-capture.js` fails a green run that leaves no artifact
+  there (and writes no capture stamp), and a full-scope coverage or CRAP
+  refresh with no artifact exits non-zero naming the path.
+- **Duplication needs jscpd.** The duplication gate scans with `jscpd` 4, an
+  **optional peer dependency** of `mandrel`: a project that enables
+  `quality.gates.duplication` installs it itself — `npm i -D jscpd@^4`.
+  Without it, `update-duplication-baseline.js` exits non-zero naming that
+  command; `check-baselines` evaluates the committed baseline and does not
+  need jscpd.
   Extend the list-valued gate keys with the deep-merge extender form (see
   [How to extend](#how-to-extend)).
 
@@ -504,9 +524,9 @@ the lint ratchet, and the CRAP/MI gates.
 | --------------------------------- | ------------------------------------ | ---------------------------------------------------------------------- |
 | `baselines/coverage.json`         | `update-coverage-baseline.js`        | `node .agents/scripts/update-coverage-baseline.js`                     |
 | `baselines/crap.json`             | `update-crap-baseline.js`            | `npm run crap:update`                                                   |
-| `baselines/duplication.json`      | `update-duplication-baseline.js`     | `node .agents/scripts/update-duplication-baseline.js`                  |
+| `baselines/duplication.json`      | `update-duplication-baseline.js`     | `node .agents/scripts/update-duplication-baseline.js` (needs `jscpd@^4` installed) |
 | `baselines/maintainability.json`  | `update-maintainability-baseline.js` | `npm run maintainability:update`                                        |
-| `baselines/bundle-size.json`      | consumer's own build/measure step    | Commit the build's measured sizes; for an intentional growth, run the check with `BUNDLE_SIZE_REFRESH=1` (see [Bundle-size ratchet](https://github.com/dsj1984/mandrel/blob/main/docs/quality-gates.md#bundle-size-ratchet--one-shot-refreshacknowledge-story-151)) |
+| `baselines/bundle-size.json`      | `update-bundle-size-baseline.js`     | Build first, then `node .agents/scripts/update-bundle-size-baseline.js`; for an intentional growth, run the check with `BUNDLE_SIZE_REFRESH=1` (see [Bundle-size ratchet](https://github.com/dsj1984/mandrel/blob/main/docs/quality-gates.md#bundle-size-ratchet--one-shot-refreshacknowledge-story-151)) |
 
 These files are the contract — read by every gate (Story close, push hook, CI)
 and regenerated only via tagged `baseline-refresh:` commits with a non-empty
