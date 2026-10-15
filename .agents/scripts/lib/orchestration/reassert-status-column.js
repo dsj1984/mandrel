@@ -5,20 +5,13 @@
  * win that race; a one-shot mutation routinely lost it.
  */
 
+import { defaultSleep } from '../util/sleep.js';
 import { ColumnSync, columnForLabels } from './column-sync.js';
 
 /** Four attempts at 5 s cover a ~15 s window past typical bot timing. */
 const DEFAULT_POLL_ATTEMPTS = 4;
 
 const DEFAULT_POLL_DELAY_MS = 5000;
-
-/**
- * @param {number} ms
- * @returns {Promise<void>}
- */
-function defaultSleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 function requirePositiveInt(value, name) {
   if (!Number.isInteger(value) || value <= 0) {

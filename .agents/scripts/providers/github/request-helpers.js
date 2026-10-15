@@ -3,6 +3,7 @@
  */
 
 import { Logger } from '../../lib/Logger.js';
+import { concurrentMap } from '../../lib/util/concurrent-map.js';
 import { withTransientRetry } from './errors.js';
 
 export const DEFAULT_PAGE_CAP = 50;
@@ -79,4 +80,47 @@ export async function paginateRest(ghFacade, endpoint, opts = {}) {
     }
   }
   return items;
+}
+
+/**
+ * POST one request per edge, `concurrency` in flight; never throws — a failed
+ * POST is warned (`describe(edge): message`) and counted.
+ *
+ * @param {{
+ *   edges: Array<*>,
+ *   endpointFor: (edge: *) => string,
+ *   bodyFor: (edge: *) => object,
+ *   describe: (edge: *) => string,
+ *   gh: object,
+ *   concurrency: number,
+ * }} opts
+ * @returns {Promise<{ added: number, failed: number }>}
+ */
+export async function postEdges({
+  edges,
+  endpointFor,
+  bodyFor,
+  describe,
+  gh,
+  concurrency,
+}) {
+  const perEdge = await concurrentMap(
+    edges,
+    async (edge) => {
+      try {
+        await gh.api({
+          method: 'POST',
+          endpoint: endpointFor(edge),
+          body: bodyFor(edge),
+        });
+        return true;
+      } catch (err) {
+        Logger.warn(`${describe(edge)}: ${err.message}`);
+        return false;
+      }
+    },
+    { concurrency },
+  );
+  const added = perEdge.filter(Boolean).length;
+  return { added, failed: perEdge.length - added };
 }

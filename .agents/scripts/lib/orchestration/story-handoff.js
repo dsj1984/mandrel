@@ -45,6 +45,7 @@ import { getStoryBranch, gitSpawn } from '../git-utils.js';
 import { readPackageScripts } from '../npm-scripts.js';
 import { TIMEOUT_EXIT_CODE } from '../process-group.js';
 import { describeBlocking } from '../suite-admission.js';
+import { defaultSleep } from '../util/sleep.js';
 import { runStreamed } from './evidence-stream.js';
 import { probeHeldReviewDiff } from './review-deposit.js';
 import { createStoryProgress, handoffStepName } from './story-progress.js';
@@ -116,12 +117,6 @@ const RATCHETS = Object.freeze([
 const MAX_OFFENDING_LINES = 10;
 
 const LOCK_POLL_MS = 1_000;
-
-function defaultSleep(ms) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms).unref?.();
-  });
-}
 
 const SEAT_SCRIPTS = Object.freeze({
   crap: 'update-crap-baseline.js',

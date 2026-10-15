@@ -111,6 +111,58 @@ describe('config-resolver — loading + legacy shim', () => {
   });
 });
 
+describe('config-resolver — cache key isolation', () => {
+  let vol;
+  let seq = 0;
+
+  /** A fresh absolute root per test, so no case reads another's cache row. */
+  function freshRoot(agentrc) {
+    seq += 1;
+    const root = path.join(PROJECT_ROOT, 'temp', `config-cache-${seq}`);
+    vol.mkdirSync(root, { recursive: true });
+    vol.writeFileSync(
+      path.join(root, '.agentrc.json'),
+      JSON.stringify(agentrc),
+    );
+    return root;
+  }
+
+  beforeEach((t) => {
+    vol = new Volume();
+    setupFsMock(t, vol);
+  });
+
+  it('a validate:false read does not let a later validating call skip validation', () => {
+    const cwd = freshRoot({
+      project: { ...REQ.project, baseBranch: 'main; rm -rf /' },
+    });
+    const lax = resolveConfig({ cwd, validate: false });
+    assert.equal(lax.project.baseBranch, 'main; rm -rf /');
+    assert.throws(() => resolveConfig({ cwd }), /\[config\]|baseBranch/);
+  });
+
+  it('a call with an injected fs neither reads nor fills the shared cache', () => {
+    const cwd = freshRoot({
+      project: { ...REQ.project, baseBranch: 'develop' },
+    });
+    const injected = new Volume();
+    injected.mkdirSync(cwd, { recursive: true });
+    injected.writeFileSync(
+      path.join(cwd, '.agentrc.json'),
+      JSON.stringify({ project: { ...REQ.project, baseBranch: 'injected' } }),
+    );
+
+    const viaInjected = resolveConfig({ cwd, ctx: { fs: injected } });
+    assert.equal(viaInjected.project.baseBranch, 'injected');
+    assert.equal(resolveConfig({ cwd }).project.baseBranch, 'develop');
+    assert.equal(
+      resolveConfig({ cwd, ctx: { fs: injected } }).project.baseBranch,
+      'injected',
+      'a cached row never answers an injected-fs call',
+    );
+  });
+});
+
 /**
  * Story #3312 — `resolveConfig` must carry the optional top-level `qa`
  * block through `applyDefaults` so `/qa-run` Step 0 can read it

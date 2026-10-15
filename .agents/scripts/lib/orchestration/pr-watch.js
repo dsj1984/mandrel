@@ -6,7 +6,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-
+import { defaultSleep } from '../util/sleep.js';
 import { applyBehindUpdate } from './behind-recovery.js';
 import { createCancelledRunDiscount } from './cancelled-run-discount.js';
 import { checkVerdict } from './check-state.js';
@@ -86,10 +86,6 @@ function allGreen(outcomes) {
   const values = Object.values(outcomes);
   if (values.length === 0) return false;
   return values.every((v) => checkVerdict(v) === 'pass');
-}
-
-function defaultSleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**

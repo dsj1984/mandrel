@@ -25,6 +25,7 @@ import {
   readPrMergeState as defaultReadPrMergeState,
 } from '../../../single-story/confirm-merge.js';
 import { pollUntil } from '../../../util/poll-loop.js';
+import { defaultSleep } from '../../../util/sleep.js';
 import { applyBehindUpdate } from '../../behind-recovery.js';
 import { isRerunPermitted } from '../../check-state.js';
 import { recordRequiredRed as defaultRecordRequiredRed } from '../../ci-red-handling.js';
@@ -87,10 +88,6 @@ export const MIN_POLLS_BEFORE_BUDGET_BLOCK = 2;
 const CLOSED_UNMERGED_BLOCK_CLASS = 'api-race-other';
 const CLOSED_UNMERGED_REASON =
   'PR probe error: PR closed without merging (state=CLOSED)';
-
-function defaultSleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 /** Spawn-level timeout kills a wedged `gh` child; injected `gh`s are bounded by withGhTimeout. */
 const defaultGh = createGh(undefined, { timeoutMs: MERGE_WAIT_GH_TIMEOUT_MS });

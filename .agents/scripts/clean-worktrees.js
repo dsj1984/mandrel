@@ -22,6 +22,7 @@ import { spawnCapture } from './lib/child-exec.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { PROJECT_ROOT, resolveConfig } from './lib/config-resolver.js';
 import * as defaultGit from './lib/git-utils.js';
+import { STDERR_LOGGER } from './lib/Logger.js';
 import { AGENT_LABELS } from './lib/label-constants.js';
 import { createProvider } from './lib/provider-factory.js';
 import { makeGhRunner } from './lib/single-story-sweep/protection-ctx.js';
@@ -46,12 +47,6 @@ export const CLASSES = Object.freeze({
 const WORKTREE_DIR = '.worktrees';
 
 /** Removal-seam diagnostics go to stderr: stdout carries the table / JSON. */
-const STDERR_LOGGER = Object.freeze({
-  info: (m) => process.stderr.write(`${m}\n`),
-  warn: (m) => process.stderr.write(`${m}\n`),
-  error: (m) => process.stderr.write(`${m}\n`),
-});
-
 const writeStdout = (text) => process.stdout.write(`${text}\n`);
 
 const HELP = `Usage: node .agents/scripts/clean-worktrees.js [options]

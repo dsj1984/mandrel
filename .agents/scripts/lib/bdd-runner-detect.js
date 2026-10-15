@@ -14,6 +14,7 @@ import yaml from 'js-yaml';
 import picomatch from 'picomatch';
 
 import { Logger } from './Logger.js';
+import { toPosix } from './util/paths.js';
 
 /** npm package name → pending tag. Preferred-first: the first match wins. */
 export const BDD_RUNNER_TAG_TABLE = Object.freeze({
@@ -268,10 +269,6 @@ function walkPackages({
 
 function hasGlobChar(s) {
   return /[*?[]/.test(s);
-}
-
-function toPosix(p) {
-  return p.split(path.sep).join('/');
 }
 
 function existsSyncDir(p, logger) {

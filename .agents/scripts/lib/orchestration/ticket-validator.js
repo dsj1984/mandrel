@@ -1,7 +1,7 @@
 import { ValidationError } from '../errors/index.js';
 import { normalizeOwnedProvenance } from '../findings/provenance-field.js';
 import { detectCycle } from '../Graph.js';
-import { gitSpawn } from '../git-utils.js';
+import { pathExistsAtBase } from '../git-utils.js';
 
 import { validateStoryFileAssumptions } from './file-assumptions.js';
 import { isExternalDependencyRef } from './plan-persist/external-deps.js';
@@ -105,16 +105,6 @@ function collectChangesItem(item, paths) {
   }
 }
 
-function defaultGitRunner({ baseBranchRef, path, cwd }) {
-  const result = gitSpawn(
-    cwd ?? process.cwd(),
-    'cat-file',
-    '-e',
-    `${baseBranchRef}:${path}`,
-  );
-  return result.status === 0;
-}
-
 /**
  * One cache shared by the freshness and file-assumption gates.
  *
@@ -149,7 +139,7 @@ function makeMemoizedGitRunner(runner) {
 export function validateAcFreshness({
   tickets,
   baseBranchRef,
-  gitRunner = defaultGitRunner,
+  gitRunner = pathExistsAtBase,
   cwd,
 }) {
   if (!baseBranchRef || typeof baseBranchRef !== 'string') {
@@ -367,7 +357,7 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
   assertStoryBodiesParse({ tickets });
 
   const sharedGitRunner = opts.baseBranchRef
-    ? makeMemoizedGitRunner(opts.gitRunner ?? defaultGitRunner)
+    ? makeMemoizedGitRunner(opts.gitRunner ?? pathExistsAtBase)
     : null;
 
   const warnings = [...collectMissingVerifyWarnings(stories)];
