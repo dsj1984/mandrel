@@ -416,7 +416,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
-      "mi": 97.151
+      "mi": 97.833
     },
     {
       "path": ".agents/scripts/lib/baselines/diff-scope-cli.js",
@@ -1080,7 +1080,7 @@
     },
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
-      "mi": 101.345
+      "mi": 102.477
     },
     {
       "path": ".agents/scripts/lib/mandrel-catalog.js",
@@ -2040,7 +2040,7 @@
     },
     {
       "path": ".agents/scripts/lib/transpile.js",
-      "mi": 93.208
+      "mi": 97.169
     },
     {
       "path": ".agents/scripts/lib/util/concurrent-map.js",
@@ -2380,7 +2380,7 @@
     },
     {
       "path": ".agents/scripts/update-crap-baseline.js",
-      "mi": 99.049
+      "mi": 103.867
     },
     {
       "path": ".agents/scripts/update-duplication-baseline.js",
