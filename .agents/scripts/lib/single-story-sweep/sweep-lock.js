@@ -3,11 +3,15 @@
  *
  * Best-effort cross-process lockfile (atomic `wx` create) for the merged-branch
  * sweep. Never load-bearing: a contended caller skips or proceeds. A live
- * holder is never mistaken for a crashed one: it heartbeats its mtime, a
- * stale-breaker removes only the exact file it observed (dev/ino/mtime), and
- * release unlinks only a lockfile still stamped with its owner.
+ * holder is never mistaken for a crashed one: it heartbeats its mtime, and
+ * both a stale-breaker and release first move the lockfile aside with one
+ * atomic rename, then delete it only when the moved file is the one they
+ * meant (dev/ino/mtime for a break, the owner line for release) — a peer's
+ * fresh lock moved by mistake is linked straight back. A holder whose
+ * heartbeat finds a foreign owner reports the theft through `onLockEvent`.
  */
 
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -180,6 +184,7 @@ function tryCreateLock(lockPath, ownerId, fsImpl = fs) {
  * @param {Function} [opts.clearIntervalFn]
  * @param {Function} [opts.killFn]        Holder liveness probe seam.
  * @param {object} [opts.processImpl]     Seam for release-on-signal.
+ * @param {(event: LockEvent) => void} [opts.onLockEvent] Theft observer.
  * @returns {{ acquired: true, release: () => void, ownerId: string }
  *          | { acquired: false, reason: 'contended' | 'error', detail?: string }}
  */
@@ -194,6 +199,7 @@ export function acquireSweepLock({
   clearIntervalFn = clearInterval,
   killFn,
   processImpl = process,
+  onLockEvent = reportLockEvent,
 } = {}) {
   if (typeof lockPath !== 'string' || lockPath.length === 0) {
     return {
@@ -213,6 +219,7 @@ export function acquireSweepLock({
     clearIntervalFn,
     killFn,
     processImpl,
+    onLockEvent,
   };
   try {
     if (
@@ -232,8 +239,10 @@ export function acquireSweepLock({
 }
 
 /**
- * `true` only when this call removed the exact stale file it observed and won
- * the re-create, so concurrent breakers yield one acquisition.
+ * `true` only when this call moved aside the exact stale file it observed and
+ * won the re-create. A breaker that lost the race moves the winner's fresh
+ * file, sees a foreign identity and links it back, so concurrent breakers
+ * yield one acquisition and the winner's lockfile survives.
  *
  * @param {{ lockPath: string, ownerId: string, fsImpl: object, nowFn: () => number }} holder
  * @param {number} timeoutMs
@@ -279,8 +288,11 @@ function isHolderStale({
 }
 
 /**
- * Unlink only if the file is still the observed instance; `false` means
- * someone else owns it now.
+ * Atomically move the lockfile aside, then keep the break only if the moved
+ * file is still the observed instance. Re-statting `lockPath` before an
+ * unlink-by-path left a window in which a peer's fresh lock could be deleted;
+ * the rename closes it, because the identity is read off the file actually
+ * removed. `false` means someone else owns it now.
  *
  * @param {string} lockPath
  * @param {ReturnType<typeof readLockIdentity>} observed
@@ -288,26 +300,95 @@ function isHolderStale({
  * @returns {boolean}
  */
 function breakStaleLock(lockPath, observed, fsImpl) {
-  if (!sameLockIdentity(observed, readLockIdentity(lockPath, fsImpl))) {
-    return false;
-  }
-  try {
-    fsImpl.unlinkSync(lockPath);
+  const tombstone = moveAside(lockPath, fsImpl);
+  if (tombstone === null) return false;
+  if (sameLockIdentity(observed, readLockIdentity(tombstone, fsImpl))) {
+    unlinkQuietly(tombstone, fsImpl);
     return true;
+  }
+  restoreFromTombstone(tombstone, lockPath, fsImpl);
+  return false;
+}
+
+/**
+ * One atomic rename to a name no peer shares.
+ *
+ * @returns {string|null} the tombstone path, or `null` when nothing moved.
+ */
+function moveAside(lockPath, fsImpl) {
+  const rand = crypto.randomBytes(4).toString('hex');
+  const tombstone = `${lockPath}.${process.pid}-${rand}.tombstone`;
+  try {
+    fsImpl.renameSync(lockPath, tombstone);
+    return tombstone;
   } catch {
-    return false;
+    return null;
   }
 }
 
 /**
- * Refuses a lockfile no longer ours, or we would keep a thief's lock alive.
+ * Put a file moved aside by mistake back. `link` fails when a newer lock
+ * already took the path — that holder wins, and the moved one's owner sees
+ * the theft on its next heartbeat. The spare tombstone name is dropped either
+ * way (after a restore it is a second link to the live lockfile).
+ */
+function restoreFromTombstone(tombstone, lockPath, fsImpl) {
+  try {
+    fsImpl.linkSync(tombstone, lockPath);
+  } catch {
+    // A newer lock owns the path.
+  }
+  unlinkQuietly(tombstone, fsImpl);
+}
+
+function unlinkQuietly(file, fsImpl) {
+  try {
+    fsImpl.unlinkSync(file);
+  } catch {
+    // Already gone.
+  }
+}
+
+/**
+ * @typedef {{ type: 'lock-lost', lockPath: string, ownerId: string,
+ *   currentOwner: string|null }} LockEvent
+ */
+
+/** Default theft observer: one stderr line, never a throw. */
+function reportLockEvent({ lockPath, ownerId, currentOwner }) {
+  try {
+    process.stderr.write(
+      `[sweep-lock] ⚠ lost ${lockPath} while holding it as ${ownerId} (now ${currentOwner ?? 'absent'}).\n`,
+    );
+  } catch {}
+}
+
+/**
+ * Refuses a lockfile no longer ours, or we would keep a thief's lock alive,
+ * and reports the theft so a double holder is visible rather than silent.
  *
- * @param {{ lockPath: string, ownerId: string, fsImpl?: object, nowFn?: () => number }} holder
+ * @param {{ lockPath: string, ownerId: string, fsImpl?: object,
+ *   nowFn?: () => number, onLockEvent?: (event: LockEvent) => void }} holder
  * @returns {boolean} `true` when the refresh landed; `false` when the lock is
  *   no longer ours (the caller stops heartbeating).
  */
-function refreshLockSync({ lockPath, ownerId, fsImpl = fs, nowFn = Date.now }) {
-  if (readLockOwner(lockPath, fsImpl) !== ownerId) return false;
+function refreshLockSync(holder) {
+  const { lockPath, ownerId, fsImpl = fs } = holder;
+  const currentOwner = readLockOwner(lockPath, fsImpl);
+  if (currentOwner !== ownerId) {
+    emitLockLost(holder, currentOwner);
+    return false;
+  }
+  return touchLock(holder);
+}
+
+function emitLockLost({ lockPath, ownerId, onLockEvent }, currentOwner) {
+  try {
+    onLockEvent?.({ type: 'lock-lost', lockPath, ownerId, currentOwner });
+  } catch {}
+}
+
+function touchLock({ lockPath, fsImpl = fs, nowFn = Date.now }) {
   try {
     const stamp = new Date(nowFn());
     fsImpl.utimesSync(lockPath, stamp, stamp);
@@ -342,17 +423,23 @@ function startHeartbeat(holder) {
 }
 
 /**
+ * Delete only a lockfile still stamped with our owner. The owner is re-read
+ * off the file the rename actually moved, so a peer that took the path
+ * between the first read and the removal gets its lock linked straight back.
+ *
  * @param {string} lockPath
  * @param {string} ownerId
  * @param {object} fsImpl
  */
 function unlinkIfOwned(lockPath, ownerId, fsImpl) {
   if (readLockOwner(lockPath, fsImpl) !== ownerId) return;
-  try {
-    fsImpl.unlinkSync(lockPath);
-  } catch {
-    // Already gone.
+  const tombstone = moveAside(lockPath, fsImpl);
+  if (tombstone === null) return;
+  if (readLockOwner(tombstone, fsImpl) === ownerId) {
+    unlinkQuietly(tombstone, fsImpl);
+    return;
   }
+  restoreFromTombstone(tombstone, lockPath, fsImpl);
 }
 
 function buildAcquired(holder) {
@@ -449,6 +536,7 @@ function defaultSleep(ms) {
  * @param {number} [opts.heartbeatMs]
  * @param {Function} [opts.setIntervalFn]
  * @param {Function} [opts.clearIntervalFn]
+ * @param {(event: LockEvent) => void} [opts.onLockEvent]
  * @returns {Promise<{ acquired: true, release: () => void, ownerId: string }
  *          | { acquired: false, reason: 'contended-after-wait' | 'error', detail?: string }>}
  */
@@ -466,6 +554,7 @@ export async function acquireLockWithWait({
   clearIntervalFn = clearInterval,
   killFn,
   processImpl,
+  onLockEvent,
 } = {}) {
   const deadline = nowFn() + Math.max(0, waitMs);
   for (;;) {
@@ -480,6 +569,7 @@ export async function acquireLockWithWait({
       clearIntervalFn,
       killFn,
       processImpl,
+      onLockEvent,
     });
     if (res.acquired) return res;
     if (res.reason === 'error') return res;

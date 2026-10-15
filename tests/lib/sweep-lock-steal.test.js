@@ -86,6 +86,32 @@ function makeFakeFs(nowFn) {
         throw err;
       }
     },
+    /** rename(2): atomic, keeps the inode, replaces the destination. */
+    renameSync(from, to) {
+      const f = files.get(from);
+      if (!f) {
+        const err = new Error(`ENOENT: ${from}`);
+        err.code = 'ENOENT';
+        throw err;
+      }
+      files.delete(from);
+      files.set(to, f);
+    },
+    /** link(2): a second name for the same inode; EEXIST when taken. */
+    linkSync(existing, target) {
+      const f = files.get(existing);
+      if (!f) {
+        const err = new Error(`ENOENT: ${existing}`);
+        err.code = 'ENOENT';
+        throw err;
+      }
+      if (files.has(target)) {
+        const err = new Error(`EEXIST: ${target}`);
+        err.code = 'EEXIST';
+        throw err;
+      }
+      files.set(target, f);
+    },
   };
 }
 
@@ -334,6 +360,215 @@ describe('sweep-lock — two stale-breakers yield exactly one acquisition', () =
     assert.equal(result.reason, 'contended');
     // The observed-but-changed file was left alone, not unlinked.
     assert.equal(realStat(LOCK).ino, originalIno);
+  });
+});
+
+/**
+ * Story #5684 — the check-then-act windows the identity re-stat left open.
+ * Each test pauses one process at its first mutating syscall (the rename
+ * that now moves the lockfile aside, or the unlink-by-path it replaced) and
+ * runs the peer to completion inside that pause — the exact interleaving two
+ * real processes can produce, made deterministic.
+ */
+describe('sweep-lock — interleaved breakers and releases (Story #5684)', () => {
+  /** A view of `fsImpl` that runs `onPause` once, before its first mutation. */
+  function pausingAtFirstMutation(fsImpl, onPause) {
+    let paused = false;
+    const pauseOnce = () => {
+      if (paused) return;
+      paused = true;
+      onPause();
+    };
+    return {
+      ...fsImpl,
+      renameSync(from, to) {
+        pauseOnce();
+        return fsImpl.renameSync(from, to);
+      },
+      unlinkSync(p) {
+        pauseOnce();
+        return fsImpl.unlinkSync(p);
+      },
+    };
+  }
+
+  function plantCrashedLock(fsImpl) {
+    fsImpl.openSync(LOCK);
+    fsImpl.writeSync(LOCK, 'crashed-owner\n');
+  }
+
+  function tombstones(fsImpl) {
+    return [...fsImpl.files.keys()].filter((p) => p.endsWith('.tombstone'));
+  }
+
+  it('AC-5: a breaker paused mid-break cannot remove the winner’s fresh lock', () => {
+    let now = 1_000_000;
+    const fsImpl = makeFakeFs(() => now);
+    plantCrashedLock(fsImpl);
+    now += 120_000;
+
+    let breakerA = null;
+    // B has observed the stale file and judged it stale; before it removes
+    // anything, A runs its whole break-and-create.
+    const fsForB = pausingAtFirstMutation(fsImpl, () => {
+      breakerA = acquireSweepLock({
+        lockPath: LOCK,
+        ownerId: 'breaker-a',
+        nowFn: () => now,
+        fsImpl,
+        heartbeatMs: 0,
+        processImpl: null,
+      });
+    });
+    const breakerB = acquireSweepLock({
+      lockPath: LOCK,
+      ownerId: 'breaker-b',
+      nowFn: () => now,
+      fsImpl: fsForB,
+      heartbeatMs: 0,
+      processImpl: null,
+    });
+
+    assert.equal(breakerA?.acquired, true, 'A won the break');
+    assert.equal(breakerB.acquired, false, 'exactly one acquisition');
+    assert.equal(breakerB.reason, 'contended');
+    assert.match(
+      String(fsImpl.readFileSync(LOCK)),
+      /^breaker-a\n/,
+      'the winner’s lockfile survives',
+    );
+    assert.deepEqual(tombstones(fsImpl), [], 'no tombstone is left behind');
+    breakerA.release();
+    assert.equal(fsImpl.files.has(LOCK), false, 'the winner frees it');
+  });
+
+  it('AC-5: a restore that finds a newer lock leaves the newer one in place', () => {
+    let now = 1_000_000;
+    const fsImpl = makeFakeFs(() => now);
+    plantCrashedLock(fsImpl);
+    now += 120_000;
+    const crashedIno = fsImpl.statSync(LOCK).ino;
+
+    // The file B moves aside is not the one it observed; and by the time it
+    // tries to put it back, a third process has created a lock of its own.
+    const fsForB = {
+      ...fsImpl,
+      renameSync(from, to) {
+        fsImpl.unlinkSync(LOCK);
+        fsImpl.openSync(LOCK);
+        fsImpl.writeSync(LOCK, 'fresh-holder\n');
+        fsImpl.renameSync(from, to);
+        fsImpl.openSync(LOCK);
+        fsImpl.writeSync(LOCK, 'third-holder\n');
+      },
+    };
+    const breakerB = acquireSweepLock({
+      lockPath: LOCK,
+      ownerId: 'breaker-b',
+      nowFn: () => now,
+      fsImpl: fsForB,
+      heartbeatMs: 0,
+      processImpl: null,
+    });
+    assert.equal(breakerB.acquired, false);
+    assert.notEqual(fsImpl.statSync(LOCK).ino, crashedIno);
+    assert.match(String(fsImpl.readFileSync(LOCK)), /^third-holder\n/);
+    assert.deepEqual(tombstones(fsImpl), []);
+  });
+
+  it('AC-5: release cannot delete a peer’s fresh lock taken mid-release', () => {
+    const now = 1_000_000;
+    const fsImpl = makeFakeFs(() => now);
+    let peer = null;
+    const fsForA = pausingAtFirstMutation(fsImpl, () => {
+      // A read its own owner line; before it removes the file, the lock is
+      // stolen and a peer creates a fresh one at the same path.
+      fsImpl.unlinkSync(LOCK);
+      peer = acquireSweepLock({
+        lockPath: LOCK,
+        ownerId: 'peer',
+        nowFn: () => now,
+        fsImpl,
+        heartbeatMs: 0,
+        processImpl: null,
+      });
+    });
+    const holderA = acquireSweepLock({
+      lockPath: LOCK,
+      ownerId: 'holder-a',
+      nowFn: () => now,
+      fsImpl: fsForA,
+      heartbeatMs: 0,
+      processImpl: null,
+    });
+    assert.equal(holderA.acquired, true);
+
+    holderA.release();
+    assert.equal(peer?.acquired, true);
+    assert.match(
+      String(fsImpl.readFileSync(LOCK)),
+      /^peer\n/,
+      'the peer’s lock survived the late release',
+    );
+    assert.deepEqual(tombstones(fsImpl), []);
+    peer.release();
+    assert.equal(fsImpl.files.has(LOCK), false);
+  });
+
+  it('a holder whose heartbeat finds a foreign owner reports the theft', () => {
+    const now = 1_000_000;
+    const fsImpl = makeFakeFs(() => now);
+    const timers = makeFakeTimers();
+    const events = [];
+    const holder = acquireSweepLock({
+      lockPath: LOCK,
+      ownerId: 'holder-a',
+      nowFn: () => now,
+      fsImpl,
+      setIntervalFn: timers.setIntervalFn,
+      clearIntervalFn: timers.clearIntervalFn,
+      processImpl: null,
+      onLockEvent: (event) => events.push(event),
+    });
+    assert.equal(holder.acquired, true);
+
+    timers.tick();
+    assert.deepEqual(events, [], 'a healthy heartbeat reports nothing');
+
+    fsImpl.unlinkSync(LOCK);
+    fsImpl.openSync(LOCK);
+    fsImpl.writeSync(LOCK, 'thief\n');
+    timers.tick();
+    assert.deepEqual(events, [
+      {
+        type: 'lock-lost',
+        lockPath: LOCK,
+        ownerId: 'holder-a',
+        currentOwner: 'thief',
+      },
+    ]);
+    assert.equal(timers.timers.size, 0, 'and stops heartbeating');
+  });
+
+  it('a throwing theft observer never breaks the heartbeat', () => {
+    const now = 1_000_000;
+    const fsImpl = makeFakeFs(() => now);
+    const timers = makeFakeTimers();
+    acquireSweepLock({
+      lockPath: LOCK,
+      ownerId: 'holder-a',
+      nowFn: () => now,
+      fsImpl,
+      setIntervalFn: timers.setIntervalFn,
+      clearIntervalFn: timers.clearIntervalFn,
+      processImpl: null,
+      onLockEvent: () => {
+        throw new Error('observer failed');
+      },
+    });
+    fsImpl.unlinkSync(LOCK);
+    assert.doesNotThrow(() => timers.tick());
+    assert.equal(timers.timers.size, 0);
   });
 });
 
