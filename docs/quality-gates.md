@@ -2,8 +2,8 @@
 
 This is the consumer-facing reference for the quality gates the framework
 runs against your repo: the maintainability ratchet, the CRAP per-method
-gate, the **absolute quality floors**
-(90/85/90 coverage, MI ≥ 70, CRAP ≤ 20), the anti-thrashing protocol,
+gate, the **absolute quality floors** (values in
+[§ Absolute quality floors](#absolute-quality-floors-epic-1184)), the anti-thrashing protocol,
 and the concurrent close-safety retry that protects Story-branch pushes
 when multiple Stories close in quick succession.
 
@@ -126,26 +126,37 @@ an absolute-threshold gate on top of the ratchet that fails the build
 when any in-scope file is below floor, regardless of whether the diff
 touched it:
 
-| Metric | Floor | Scope |
+This is the one statement of the floor values. Every floor is scoped to
+the repo rollup. The **helper default** column is what
+[`.agents/scripts/lib/config/quality.js`](../.agents/scripts/lib/config/quality.js)
+injects for a consumer whose declared gate omits the `'*'` workspace key; the
+**this repo** column is what this repository configures in
+[`.agentrc.json`](../.agentrc.json) under
+`delivery.quality.gates.<gate>.floors['*']`. A dash means the key is not set.
+
+| Floor (`gate.floors['*']` key) | Helper default (consumers) | This repo (`.agentrc.json`) |
 | --- | --- | --- |
-| Coverage — lines | ≥ 94 % | repo rollup |
-| Coverage — branches | ≥ 85 % | repo rollup |
-| Coverage — functions | ≥ 87 % | repo rollup |
-| Maintainability Index | ≥ 70 | repo rollup |
-| CRAP — methods above 20 | ≤ 13 | repo rollup |
+| Coverage — `lines` | ≥ 90 % | ≥ 96 % |
+| Coverage — `branches` | ≥ 85 % | ≥ 88 % |
+| Coverage — `functions` | ≥ 90 % | ≥ 89 % |
+| Maintainability — `min` | ≥ 70 | ≥ 81.277 |
+| CRAP — `max` | ≤ 30 | — |
+| CRAP — `p95` | ≤ 20 | — |
+| CRAP — `methodsAbove20` | ≤ 50 | ≤ 0 |
+| Duplication — `percentage` | — | ≤ 6.3 % |
 
 Floors are enforced against the baseline's `rollup` components — the
 `applyFloors` phase compares `rollup["*"]` (and any named component), never
 individual rows. Story #4922 corrected this table, which previously read
-"per file" and quoted 90/85/90 for coverage; those numbers came from the
-example in `.agents/docs/agentrc-reference.json`, which is validated only
-against itself, and the coverage gate was not configured at all.
+"per file" and quoted the helper defaults as this repo's coverage floors;
+those numbers came from the example in `.agents/docs/agentrc-reference.json`,
+which is validated only against itself, and the coverage gate was not
+configured at all.
 
 The live coverage floors are derived from the measurement in
-[`baselines/coverage.json`](../baselines/coverage.json) — a full-tier run
-scored 95.65 / 86.16 / 88.52, and each floor sits ~1–1.7 points under its
-axis. Re-derive them, do not invent them, whenever the baseline is
-regenerated wholesale.
+[`baselines/coverage.json`](../baselines/coverage.json) — each floor sits
+just under its axis's measured rollup. Re-derive them, do not invent them,
+whenever the baseline is regenerated wholesale.
 
 The coverage gate deliberately declares **no `tolerance`**, so its
 head-vs-base ratchet arm reports regressions without failing the build (the
@@ -154,8 +165,8 @@ instrument honest; arming the ratchet belongs with the debt burn-down that
 the widened measurement newly exposes.
 
 The floors are declared in [`.agentrc.json`](../.agentrc.json) under
-`delivery.quality.gates.<gate>.floors.*` (defaults baked into the helper
-match the table above) and resolved at runtime by the shared
+`delivery.quality.gates.<gate>.floors.*` (the helper defaults are the
+table's left-hand column) and resolved at runtime by the shared
 helper [`lib/orchestration/check-baselines/phases/floors.js`](../.agents/scripts/lib/orchestration/check-baselines/phases/floors.js).
 All three gates run through `check-baselines.js` (coverage,
 maintainability, crap), which invokes the floors phase **after** the
@@ -219,7 +230,7 @@ enforced by review (and partially by the audit suite):
    the gate's numerator from the inside.
 3. **Excluded file's callees clear the floor.** A CLI shell is only a
    legitimate exclude if the `lib/` module it wraps actually clears the
-   floor (coverage 90/85/90, MI ≥ 70, CRAP ≤ 20). Excluding a shell
+   floors in [the floor table](#absolute-quality-floors-epic-1184). Excluding a shell
    that delegates to under-tested helpers re-introduces the very
    risk the floor gate exists to surface; the audit suite spot-checks
    the callee map at exclude-list churn time.
