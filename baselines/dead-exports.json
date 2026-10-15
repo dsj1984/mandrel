@@ -108,15 +108,7 @@
     },
     {
       "file": ".agents/scripts/providers/github/auth.js",
-      "symbol": "__setExecSyncForTests"
-    },
-    {
-      "file": ".agents/scripts/providers/github/auth.js",
       "symbol": "execSyncHolder"
-    },
-    {
-      "file": ".agents/scripts/providers/github/auth.js",
-      "symbol": "readGhCliToken"
     },
     {
       "file": ".agents/scripts/providers/github/issues.js",

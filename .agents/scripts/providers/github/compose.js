@@ -69,6 +69,7 @@ export function composeGateways(provider) {
     get token() {
       return p._memoizedToken;
     },
+    ensureIdentity: () => p._ensureIdentity(),
     state: { projectId: null },
     hooks: {
       getTicket: (id, o) => p.getTicket(id, o),
