@@ -128,6 +128,14 @@ const META_BLOCK_RE = /<!--\s*meta:[\s\S]*?-->/;
 const WHOLE_LINE_COMMENT_RE = /^\s*<!--.*-->\s*$/;
 
 /**
+ * @param {string} line
+ * @returns {boolean}
+ */
+function isNotCommentLine(line) {
+  return !WHOLE_LINE_COMMENT_RE.test(line);
+}
+
+/**
  * Parse one `changes` / `references` bullet: bare path (`assumption: null`),
  * humanized `` `path` — assumption ``, or inline-JSON object.
  *
@@ -435,8 +443,7 @@ function parseTextBlockSection(lines) {
  */
 function parsePathEntrySection(lines, warnings) {
   const entries = [];
-  for (const line of lines) {
-    if (WHOLE_LINE_COMMENT_RE.test(line)) continue;
+  for (const line of lines.filter(isNotCommentLine)) {
     const stripped = stripListMarker(line);
     if (!stripped) continue;
     const entry = parsePathEntry(stripped, warnings);
