@@ -102,7 +102,6 @@ const ALLOWLIST = new Set([
   '.agents/scripts/lint-issue-body.js',
   '.agents/scripts/mandrel-update-preflight.js',
   '.agents/scripts/providers/github/auth.js',
-  '.agents/scripts/providers/github/projects-v2-graphql.js',
   '.agents/scripts/quality-watch.js',
   '.agents/scripts/run-tests.js',
   'lib/cli/doctor-checks/spawn.js',
