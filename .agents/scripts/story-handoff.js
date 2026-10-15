@@ -15,8 +15,7 @@
  * @see .agents/scripts/lib/orchestration/story-handoff.js
  */
 
-import { parseArgs } from 'node:util';
-
+import { parseStoryCwdArgv } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
 import { runStoryHandoff } from './lib/orchestration/story-handoff.js';
@@ -36,26 +35,6 @@ const USAGE = {
     'Exit codes:\n  0  ready — hand off\n  2  fix-required — fix, commit, re-run (labels untouched)\n  1  blocked — agent::blocked + friction comment, or a usage error',
   ],
 };
-
-/**
- * @param {string[]} argv
- * @returns {{ storyId: number|null, cwd: string|null }}
- */
-function parseArgv(argv) {
-  const { values } = parseArgs({
-    args: argv,
-    options: {
-      story: { type: 'string' },
-      cwd: { type: 'string' },
-    },
-    strict: false,
-  });
-  const storyId = Number.parseInt(values.story ?? '', 10);
-  return {
-    storyId: Number.isInteger(storyId) && storyId > 0 ? storyId : null,
-    cwd: values.cwd ?? null,
-  };
-}
 
 /**
  * @param {string[]} [argv]
@@ -79,7 +58,7 @@ export async function runStoryHandoffCli(
     stderr = process.stderr,
     cwd: defaultCwd = process.cwd(),
   } = deps;
-  const { storyId, cwd } = parseArgv(argv);
+  const { storyId, cwd } = parseStoryCwdArgv(argv);
   if (!storyId) {
     throw new Error(
       'story-handoff: --story <id> is required (a positive integer).',
