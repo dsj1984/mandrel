@@ -12,7 +12,9 @@ import {
 import { acquireSweepLock } from '../../.agents/scripts/lib/single-story-sweep/sweep-lock.js';
 import {
   ADMISSION_REFUSED_EXIT_CODE,
+  createAttempt,
   describeBlocking,
+  FULL_SUITE_STALE_MS,
   resolveSuiteCapacity,
 } from '../../.agents/scripts/lib/suite-admission.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
@@ -563,4 +565,134 @@ describe('suite admission (Story #5668)', () => {
     const dir = `${lockPath}.reservations`;
     return fs.existsSync(dir) ? fs.readdirSync(dir) : [];
   }
+});
+
+/**
+ * Story #5684 — the exclusive drain check used to skip the admission mutex
+ * whenever the reservations directory read empty. A declared run that had
+ * passed its legacy-holder check but not yet written its reservation is
+ * exactly that state, so both could be admitted. The interleaving is made
+ * deterministic by pausing the declared run inside its legacy-holder stat and
+ * running the exclusive attempt to completion there.
+ */
+describe('suite admission — exclusive vs mid-admission declared (Story #5684)', () => {
+  let dir;
+  let lockPath;
+
+  beforeEach(() => {
+    dir = makeTempDir('mandrel-admit-race-');
+    lockPath = path.join(dir, 'full-suite.lock');
+  });
+
+  afterEach(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  /** A lock acquirer with no heartbeat or signal hooks, so tests leak none. */
+  const quietAcquire = (o) =>
+    acquireSweepLock({ ...o, heartbeatMs: 0, processImpl: null });
+
+  function attemptOpts(extra) {
+    return {
+      lockPath,
+      capacity: 10,
+      staleMs: FULL_SUITE_STALE_MS,
+      fsImpl: fs,
+      nowFn: Date.now,
+      acquireOnceFn: quietAcquire,
+      acquireReservationFn: quietAcquire,
+      ...extra,
+    };
+  }
+
+  /** `fs`, except the first stat of `target` runs `onPause` after it returns. */
+  function pauseAfterFirstStat(target, onPause) {
+    let paused = false;
+    return {
+      ...fs,
+      statSync(p, ...rest) {
+        let result;
+        let error;
+        try {
+          result = fs.statSync(p, ...rest);
+        } catch (err) {
+          error = err;
+        }
+        if (p === target && !paused) {
+          paused = true;
+          onPause();
+        }
+        if (error) throw error;
+        return result;
+      },
+    };
+  }
+
+  it('AC-1: an exclusive attempt is blocked while a declared run is mid-admission', () => {
+    const exclusive = createAttempt(
+      attemptOpts({ workload: { kind: 'exclusive' } }),
+    );
+    let midAdmission = null;
+    const declared = createAttempt(
+      attemptOpts({
+        workload: {
+          kind: 'declared',
+          command: FOCUSED,
+          weight: 4,
+          resources: [],
+        },
+        // Paused after the legacy-holder check found no holder, before the
+        // reservation is written: the exclusive run takes its turn here.
+        fsImpl: pauseAfterFirstStat(lockPath, () => {
+          midAdmission = exclusive.tryOnce();
+        }),
+      }),
+    );
+
+    try {
+      const admitted = declared.tryOnce();
+      assert.equal(admitted.acquired, true, 'the declared run is admitted');
+      assert.equal(
+        midAdmission?.acquired,
+        false,
+        'the exclusive run must not be admitted alongside it',
+      );
+      assert.equal(midAdmission.blocking.reason, 'admission');
+
+      const nextPoll = exclusive.tryOnce();
+      assert.equal(nextPoll.acquired, false, 'still draining the reservation');
+      assert.equal(nextPoll.blocking.reason, 'capacity');
+      assert.equal(nextPoll.blocking.used, 4);
+
+      declared.release();
+      assert.equal(
+        exclusive.tryOnce().acquired,
+        true,
+        'drained, then admitted',
+      );
+    } finally {
+      declared.release();
+      exclusive.release();
+    }
+  });
+
+  it('an admission-mutex I/O error still fails open for the exclusive run', () => {
+    const brokenMutexFs = {
+      ...fs,
+      openSync(p, flags) {
+        if (String(p).endsWith('.admission')) {
+          throw Object.assign(new Error('EIO'), { code: 'EIO' });
+        }
+        return fs.openSync(p, flags);
+      },
+    };
+    const exclusive = createAttempt(
+      attemptOpts({ workload: { kind: 'exclusive' }, fsImpl: brokenMutexFs }),
+    );
+    try {
+      assert.equal(exclusive.tryOnce().acquired, true);
+    } finally {
+      exclusive.release();
+    }
+  });
 });
