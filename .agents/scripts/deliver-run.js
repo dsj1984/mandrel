@@ -570,13 +570,7 @@ export async function runDeliverRunBeat(
   };
 }
 
-/**
- * Closed Stories still owing the `agent::done` flip and land tail. Advisory:
- * never gates `done`, so an unmergeable one cannot wedge the run.
- *
- * @param {number[]|undefined} ids
- * @returns {Array<{ id: number, command: string }>}
- */
+/** Closed Stories owing the done flip; advisory, never gates `done`. */
 function renderConfirmEntries(ids) {
   return (Array.isArray(ids) ? ids : []).map((id) => ({
     id,

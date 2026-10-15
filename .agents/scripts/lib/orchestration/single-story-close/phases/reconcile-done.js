@@ -1,13 +1,9 @@
 /**
- * phases/reconcile-done.js — a Story closed as completed can still carry a
- * stale lifecycle label: a close that blocked before auto-merge landed its
- * PR leaves `agent::blocked` on the closed issue, and the re-run takes the
- * already-closed early return (the boot sweep reaches the same state for a
- * PR that merged after close was gone). With merge evidence on the Story
- * branch, this finishes the flip AND the land tail (lease release, worktree
- * reap, epic rollup) through the shared confirm-and-land pairing. Best-effort
- * — the land already happened, so nothing here may change the `landed`
- * terminal; every failure is logged and swallowed.
+ * phases/reconcile-done.js — a closed-completed Story can keep a stale
+ * lifecycle label (a close that blocked before its PR merged, or a merge
+ * after close was gone). With a MERGED PR on the Story branch this finishes
+ * the flip and the land tail via confirm-and-land. Best-effort: never
+ * changes the `landed` terminal; failures are logged and swallowed.
  */
 
 import { gh as defaultGh } from '../../../gh-exec.js';

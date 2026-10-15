@@ -1,9 +1,7 @@
 /**
- * Only a live close flips `agent::done`; a PR that merges after it is gone
- * closes the issue at `agent::closing` (or at `agent::blocked`, when its
- * merge wait gave up first). Boot finishes the flip AND the land tail via
- * `reconcileDoneLabel` (MERGED PR required, so a blocked Story whose PR never
- * merged is left untouched). Bounded; never throws.
+ * A PR that merges after close is gone closes its issue at `agent::closing`
+ * or `agent::blocked`. Boot finishes the flip and land tail via
+ * `reconcileDoneLabel` (MERGED PR required). Bounded; never throws.
  */
 
 import { getStoryBranch } from '../git-utils.js';
