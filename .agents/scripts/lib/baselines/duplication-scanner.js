@@ -105,11 +105,13 @@ function cloneLineNumbers(dup, maxLine) {
 /**
  * Pure. Both sides of each clone pair accrue lines; overlapping clones are
  * unioned per file so a line counts once. Every counted file gets a row.
+ * `partners` names the other files sharing a clone with this one; the
+ * refresh service widens a diff scope with it, and `projectRow` drops it.
  *
  * @param {Array<{duplicationA?: object, duplicationB?: object}>} clones
  * @param {Map<string, number>|Record<string, number>} fileLineCounts
  * @param {string} [cwd]
- * @returns {Array<{path: string, duplicatedLines: number, totalLines: number, percentage: number}>}
+ * @returns {Array<{path: string, duplicatedLines: number, totalLines: number, percentage: number, partners: string[]}>}
  */
 export function buildDuplicationRows(
   clones,
@@ -118,19 +120,23 @@ export function buildDuplicationRows(
 ) {
   const counts = toLineCountMap(fileLineCounts);
   const dupLinesByFile = new Map();
+  const partnersByFile = new Map();
   // Seed every visited file with an empty set so clean files get a 0-row.
   for (const file of counts.keys()) {
     dupLinesByFile.set(file, new Set());
   }
   for (const clone of clones ?? []) {
+    const files = [];
     for (const side of [clone?.duplicationA, clone?.duplicationB]) {
       if (!side) continue;
       const file = relativisePath(side.sourceId, cwd);
       if (!file) continue;
+      files.push(file);
       const set = dupLinesByFile.get(file) ?? new Set();
       for (const n of cloneLineNumbers(side, counts.get(file))) set.add(n);
       dupLinesByFile.set(file, set);
     }
+    addClonePartners(partnersByFile, files);
   }
   const rows = [];
   for (const [file, lineSet] of dupLinesByFile) {
@@ -143,9 +149,22 @@ export function buildDuplicationRows(
       duplicatedLines,
       totalLines,
       percentage: Number(percentage.toFixed(2)),
+      partners: [...(partnersByFile.get(file) ?? [])].sort(),
     });
   }
   return rows;
+}
+
+/**
+ * @param {Map<string, Set<string>>} partnersByFile
+ * @param {string[]} files both sides of one clone
+ */
+function addClonePartners(partnersByFile, files) {
+  for (const file of files) {
+    const partners = partnersByFile.get(file) ?? new Set();
+    for (const other of files) if (other !== file) partners.add(other);
+    partnersByFile.set(file, partners);
+  }
 }
 
 function toLineCountMap(fileLineCounts) {

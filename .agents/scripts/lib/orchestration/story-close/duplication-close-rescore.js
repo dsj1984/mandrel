@@ -6,7 +6,7 @@
  * commit would acknowledge the very rise it exists to expose, so a Story that
  * adds clones to a file it changed fails the head-vs-base compare at close.
  * The scan covers the whole tree (clones are pairwise); only changed-file rows
- * are written. Every failure is a named skip, never a failed close.
+ * and their clone partners' rows are written. Every failure is a named skip, never a failed close.
  */
 
 import fs from 'node:fs';
@@ -233,7 +233,7 @@ export async function runDuplicationCloseRescore({
   if (!refreshed.value?.wrote) return skip(logger, 'unchanged');
 
   const moved = diffScopedRows({
-    files,
+    files: refreshed.value.scope?.files ?? files,
     priorRows,
     nextRows: refreshed.value.envelope?.rows,
   });
