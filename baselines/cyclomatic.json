@@ -48,11 +48,6 @@
       "maxCyclomatic": 13
     },
     {
-      "file": ".agents/scripts/lib/crap-utils.js",
-      "methodsAboveCeiling": 1,
-      "maxCyclomatic": 13
-    },
-    {
       "file": ".agents/scripts/lib/json-utils.js",
       "methodsAboveCeiling": 1,
       "maxCyclomatic": 14
@@ -101,11 +96,6 @@
       "file": ".agents/scripts/lib/worktree/lifecycle/creation.js",
       "methodsAboveCeiling": 1,
       "maxCyclomatic": 13
-    },
-    {
-      "file": ".agents/scripts/notify.js",
-      "methodsAboveCeiling": 1,
-      "maxCyclomatic": 17
     },
     {
       "file": ".agents/scripts/stories-wave-tick.js",

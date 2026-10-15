@@ -96,15 +96,17 @@ const SCORING_SEMANTICS = 'method-identity-v3';
  * change can move every TS row's `startLine` (half the row identity key), so
  * `tsTranspilerVersion` is stamped for the `ts-transpiler-drift` axis.
  * `provenanceStamped` is a positive marker that per-row provenance was
- * recorded; no other stamp can detect its absence.
+ * recorded; no other stamp can detect its absence. `ctx` carries the scan's
+ * `cwd` / `targetDirs` so the stamp names the compiler the scorer resolved.
  *
+ * @param {{ cwd?: string, targetDirs?: string[] }} [ctx]
  * @returns {{scoringSemantics: string, tsTranspilerVersion: string,
  *   provenanceStamped: boolean}}
  */
-export function envelopeExtras() {
+export function envelopeExtras(ctx = {}) {
   return {
     scoringSemantics: SCORING_SEMANTICS,
-    tsTranspilerVersion: resolveTsTranspilerVersion(),
+    tsTranspilerVersion: resolveTsTranspilerVersion(ctx),
     provenanceStamped: true,
   };
 }
@@ -621,13 +623,14 @@ const LOADED_ENVELOPE_AXES = [
  * closed on a message, so an incompatible baseline is never silently compared.
  *
  * @param {object|null} baseline A loaded v2 baseline envelope.
- * @param {{runningTsTranspilerVersion?: string}} [ctx]
+ * @param {{runningTsTranspilerVersion?: string, cwd?: string,
+ *   targetDirs?: string[]}} [ctx]
  * @returns {string|null} Operator-facing message, or null when compatible.
  */
 export function assertBaselineCompatible(baseline, ctx = {}) {
   if (!baseline) return null;
   const runningTsTranspilerVersion =
-    ctx.runningTsTranspilerVersion ?? resolveTsTranspilerVersion();
+    ctx.runningTsTranspilerVersion ?? resolveTsTranspilerVersion(ctx);
   for (const name of LOADED_ENVELOPE_AXES) {
     const axis = CRAP_COMPAT_AXES.find((a) => a.name === name);
     const message = axis?.check({ baseline, runningTsTranspilerVersion });

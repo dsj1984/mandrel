@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-/* node:coverage ignore file */
 
 /**
  * single-story-init.js — initialize a Story for `/mandrel-deliver`: validate,

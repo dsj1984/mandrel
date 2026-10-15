@@ -308,16 +308,16 @@ export async function main(args = process.argv.slice(2)) {
     Logger.error(remediation);
     Logger.error('----------------------------------------\n');
 
-    process.exit(abnormal?.exitCode ?? result.status);
-  } else {
-    process.exit(0);
+    return abnormal?.exitCode ?? result.status;
   }
+  return 0;
 }
 
 import { runAsCli } from './lib/cli-utils.js';
 
 runAsCli(import.meta.url, main, {
   source: 'DiagnoseFriction',
+  propagateExitCode: true,
   usage: {
     invocation:
       'node .agents/scripts/diagnose-friction.js [--story <id>] [--epic <id>] --cmd <cmd> <args...>',
