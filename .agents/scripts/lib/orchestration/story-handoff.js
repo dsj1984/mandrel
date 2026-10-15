@@ -45,7 +45,7 @@ import { getStoryBranch, gitSpawn } from '../git-utils.js';
 import { readPackageScripts } from '../npm-scripts.js';
 import { TIMEOUT_EXIT_CODE } from '../process-group.js';
 import { describeBlocking } from '../suite-admission.js';
-import { HEARTBEAT_MS, runStreamed } from './evidence-stream.js';
+import { runStreamed } from './evidence-stream.js';
 import { probeHeldReviewDiff } from './review-deposit.js';
 import { createStoryProgress, handoffStepName } from './story-progress.js';
 import {
@@ -889,8 +889,8 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
     sleep = defaultSleep,
     lockPollMs = LOCK_POLL_MS,
     env = process.env,
-    heartbeatMs = HEARTBEAT_MS,
-    commandTimeoutMs = null,
+    heartbeatMs,
+    commandTimeoutMs,
     signalTarget,
     reraise,
     evidenceFs,
@@ -939,12 +939,13 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
       getChangedFilesImpl: getChangedFilesFn,
     }),
     storyProgress,
+    // Undefined fields take runStreamed's defaults.
     stream: {
       heartbeatMs,
       timeoutMs: commandTimeoutMs,
-      ...(signalTarget ? { signalTarget } : {}),
-      ...(reraise ? { reraise } : {}),
-      ...(evidenceFs ? { fsImpl: evidenceFs } : {}),
+      signalTarget,
+      reraise,
+      fsImpl: evidenceFs,
     },
     evidencePathFor,
     writeEvidence: (name, text) => {

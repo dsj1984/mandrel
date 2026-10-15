@@ -7,7 +7,7 @@
 
 import fs from 'node:fs';
 
-export const HEARTBEAT_MS = 30_000;
+const HEARTBEAT_MS = 30_000;
 
 const CANCEL_SIGNALS = Object.freeze(['SIGINT', 'SIGTERM']);
 
