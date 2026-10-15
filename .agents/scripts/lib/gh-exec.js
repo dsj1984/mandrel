@@ -190,13 +190,16 @@ function classifySpawnError(spawnError, details) {
       details,
     );
   }
+  return classifySandboxDenial(spawnError, details);
+}
+
+function classifySandboxDenial(spawnError, details) {
   const denied = sandboxDenialCode(spawnError);
-  return denied
-    ? new GhTransportError(
-        `gh-exec: spawning gh was denied (${denied}) — ${TRANSPORT_REMEDY}`,
-        details,
-      )
-    : null;
+  if (!denied) return null;
+  return new GhTransportError(
+    `gh-exec: spawning gh was denied (${denied}) — ${TRANSPORT_REMEDY}`,
+    details,
+  );
 }
 
 export function classify({
@@ -476,6 +479,13 @@ const GRAPHQL_PROBE_TIMEOUT_MS = 15_000;
  * @returns {{ verdict: 'available'|'unavailable'|'auth-failed', reason: string }}
  */
 function classifyGraphqlProbeFailure(err) {
+  // Transport first: a sandbox/network fault never earns the re-auth copy.
+  if (isTransportFailure(err))
+    return { verdict: 'available', reason: 'transport-inconclusive' };
+  return classifyReachableProbeFailure(err);
+}
+
+function classifyReachableProbeFailure(err) {
   const haystack = `${err?.stderr ?? ''}\n${err?.message ?? ''}`.toLowerCase();
   const authShaped =
     err instanceof GhAuthError ||
@@ -483,9 +493,6 @@ function classifyGraphqlProbeFailure(err) {
     /http 401|bad credentials|requires authentication|not logged into|gh auth login/.test(
       haystack,
     );
-  // Transport first: a sandbox/network fault never earns the re-auth copy.
-  if (isTransportFailure(err))
-    return { verdict: 'available', reason: 'transport-inconclusive' };
   if (authShaped) return { verdict: 'auth-failed', reason: 'auth' };
   const rateLimited =
     err instanceof GhRateLimitError || /rate[ -]?limit/.test(haystack);

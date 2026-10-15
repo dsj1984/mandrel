@@ -28,7 +28,7 @@ function isMutatingApiCall({ method = 'GET', endpoint, body } = {}) {
   return String(method).toUpperCase() !== 'GET';
 }
 
-export function isGraphqlMutation(query) {
+function isGraphqlMutation(query) {
   return /^\s*mutation\b/.test(String(query ?? ''));
 }
 
@@ -150,4 +150,9 @@ export function gateProviderGh(gh, operatorHandle, opts) {
   if (!verify) return { _gh: gh, _ensureIdentity: async () => {} };
   const ensure = createIdentityGate({ gh, expectedHandle: operatorHandle });
   return { _gh: guardMutations(gh, ensure), _ensureIdentity: ensure };
+}
+
+/** Runs `ctx.ensureIdentity` before a GraphQL mutation; queries pass. */
+export async function ensureIdentityForQuery(ctx, query) {
+  if (isGraphqlMutation(query)) await ctx.ensureIdentity?.();
 }

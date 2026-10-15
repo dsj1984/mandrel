@@ -5,7 +5,7 @@
  */
 import { resolveToken } from './auth.js';
 import { withTransientRetry } from './errors.js';
-import { isGraphqlMutation } from './identity.js';
+import { ensureIdentityForQuery } from './identity.js';
 
 // Resolve an owner node id per-scope. Querying `user` and `organization`
 // together in one request makes GitHub return a NOT_FOUND error for whichever
@@ -38,7 +38,7 @@ export const isScopesMissingEnvelope = (value) =>
   Boolean(value) && typeof value === 'object' && value.scopesMissing === true;
 
 async function gql(ctx, query, variables, { retry = false } = {}) {
-  if (isGraphqlMutation(query)) await ctx.ensureIdentity?.();
+  await ensureIdentityForQuery(ctx, query);
   const run = async () => {
     const fetchImpl = ctx.fetchImpl ?? globalThis.fetch;
     const response = await fetchImpl('https://api.github.com/graphql', {
