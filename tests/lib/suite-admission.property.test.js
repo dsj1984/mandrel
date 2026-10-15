@@ -32,8 +32,12 @@ import {
 } from '../../.agents/scripts/lib/suite-admission.js';
 import { fcParams } from '../helpers/fast-check-config.js';
 
-const LOCK = '/fake/.git/full-suite.lock';
-const RESERVATIONS = `${LOCK}.reservations`;
+// Deliberately un-normalized: the module joins some paths with node:path
+// (backslashes on win32) and concatenates others, so the in-memory fs must
+// key on the resolved path or a reservation goes missing on Windows. The
+// doubled slash reproduces that mismatch on POSIX too.
+const LOCK = '/fake//.git/full-suite.lock';
+const RESERVATIONS = path.resolve(`${LOCK}.reservations`);
 
 function fsError(code, p) {
   return Object.assign(new Error(`${code}: ${p}`), { code });
@@ -47,19 +51,25 @@ function makeMemoryFs() {
   const files = new Map();
   const dirs = new Set();
   let nextIno = 1;
+  const key = (p) => path.resolve(String(p));
   const get = (p) => {
-    const f = files.get(p);
+    const f = files.get(key(p));
     if (!f) throw fsError('ENOENT', p);
     return f;
   };
   return {
     files,
     mkdirSync(p) {
-      dirs.add(p);
+      dirs.add(key(p));
     },
     openSync(p) {
-      if (files.has(p)) throw fsError('EEXIST', p);
-      files.set(p, { body: '', mtimeMs: Date.now(), ino: nextIno++, dev: 1 });
+      if (files.has(key(p))) throw fsError('EEXIST', p);
+      files.set(key(p), {
+        body: '',
+        mtimeMs: Date.now(),
+        ino: nextIno++,
+        dev: 1,
+      });
       return p;
     },
     writeSync(fd, data) {
@@ -74,9 +84,9 @@ function makeMemoryFs() {
       return get(p).body;
     },
     readdirSync(dir) {
-      if (!dirs.has(dir)) throw fsError('ENOENT', dir);
+      if (!dirs.has(key(dir))) throw fsError('ENOENT', dir);
       return [...files.keys()]
-        .filter((p) => path.dirname(p) === dir)
+        .filter((p) => path.dirname(p) === key(dir))
         .map((p) => path.basename(p));
     },
     utimesSync(p, _atime, mtime) {
@@ -84,17 +94,17 @@ function makeMemoryFs() {
     },
     unlinkSync(p) {
       get(p);
-      files.delete(p);
+      files.delete(key(p));
     },
     renameSync(from, to) {
       const f = get(from);
-      files.delete(from);
-      files.set(to, f);
+      files.delete(key(from));
+      files.set(key(to), f);
     },
     linkSync(existing, target) {
       const f = get(existing);
-      if (files.has(target)) throw fsError('EEXIST', target);
-      files.set(target, f);
+      if (files.has(key(target))) throw fsError('EEXIST', target);
+      files.set(key(target), f);
     },
   };
 }
