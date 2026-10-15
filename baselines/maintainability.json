@@ -2092,7 +2092,7 @@
     },
     {
       "path": ".agents/scripts/lib/workers/maintainability-report-worker.js",
-      "mi": 96.195
+      "mi": 99.567
     },
     {
       "path": ".agents/scripts/lib/workers/maintainability-worker.js",
