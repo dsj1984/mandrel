@@ -136,14 +136,7 @@ function reportScanSummary(summary, logger = Logger) {
   }
 }
 
-/**
- * No artifact under `requireCoverage` is fatal on every scope: a full-scope
- * refresh would write an empty baseline, and a scoped one would delete the
- * in-scope rows, because the scope merge takes them only from the scored set.
- *
- * @param {string} coverageAbs
- * @returns {never}
- */
+/** @param {string} coverageAbs */
 function refuseMissingCoverage(coverageAbs) {
   throw new MissingCoverageArtifactError(coverageAbs, { prefix: '[CRAP] ' });
 }

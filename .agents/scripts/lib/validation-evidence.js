@@ -223,17 +223,7 @@ export function recordPass(
   return record;
 }
 
-/**
- * Atomic write (pid-scoped tmp + rename), mirroring `review-deposit.js`: a
- * torn write would parse as an empty document and silently drop every gate's
- * credit, so the target is only ever replaced whole. A failed write or rename
- * reaps the tmp sibling and re-throws, leaving the previous document intact.
- *
- * @param {{ mkdirSync: Function, writeFileSync: Function, renameSync: Function, unlinkSync: Function, existsSync: Function }} fsImpl
- * @param {string} file
- * @param {string} body
- * @returns {void}
- */
+/** Atomic write (pid-scoped tmp + rename): a torn file drops all credit. */
 function writeEvidenceAtomically(fsImpl, file, body) {
   fsImpl.mkdirSync(path.dirname(file), { recursive: true });
   const tmpPath = `${file}.${process.pid}.tmp`;
@@ -246,18 +236,12 @@ function writeEvidenceAtomically(fsImpl, file, body) {
   }
 }
 
-/**
- * Best-effort removal of a tmp sibling; the original failure is what matters.
- *
- * @param {{ existsSync: Function, unlinkSync: Function }} fsImpl
- * @param {string} tmpPath
- * @returns {void}
- */
+/** Best-effort removal of a tmp sibling. */
 function reapTmp(fsImpl, tmpPath) {
   try {
     if (fsImpl.existsSync(tmpPath)) fsImpl.unlinkSync(tmpPath);
   } catch {
-    // The rename already failed; a leftover tmp is never read as evidence.
+    // A leftover tmp is never read as evidence.
   }
 }
 

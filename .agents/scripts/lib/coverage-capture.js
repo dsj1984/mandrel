@@ -496,15 +496,10 @@ export function missingCoverageArtifactMessage(abs) {
 }
 
 /**
- * A baseline refresh found no coverage artifact. Fatal on every scope: the
- * scope merge takes in-scope rows only from the regenerated set, so scoring
- * zero rows would delete the in-scope rows rather than leave them alone.
+ * Fatal on every scope: zero scored rows would let the scope merge delete the
+ * in-scope rows.
  */
 export class MissingCoverageArtifactError extends Error {
-  /**
-   * @param {string} abs Absolute artifact path that was looked for.
-   * @param {{ prefix?: string, cause?: unknown }} [opts]
-   */
   constructor(abs, { prefix = '', cause } = {}) {
     super(
       `${prefix}${missingCoverageArtifactMessage(abs)}`,

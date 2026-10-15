@@ -207,12 +207,10 @@ function safePlan(relPath, plan) {
 }
 
 /**
- * Write every shrunk envelope and fold them into one commit. Every write, the
- * `git add` and the commit share one restoring `try`: a throw at any step
- * restores every path so the gates score the tree the close found, then
- * re-throws.
+ * Write every shrunk envelope and fold them into one commit; a throw at any
+ * step restores every path, then re-throws.
  *
- * @param {{ workTree: string, git: Function, shrinks: object[], storyId: number|string, writeFile: typeof fs.writeFileSync }} args
+ * @param {object} args
  * @returns {string} the short sha
  */
 function commitShrinks({ workTree, git, shrinks, storyId, writeFile }) {

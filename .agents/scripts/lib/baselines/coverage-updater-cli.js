@@ -1,9 +1,7 @@
 /**
  * The `update-coverage-baseline` CLI's testable logic. The scorer stays
  * bespoke (not the refresh-service default) because it logs an unreadable
- * coverage artifact before refusing it: on every scope, since a full-scope
- * refresh over zero rows writes an empty baseline and a scoped one deletes the
- * in-scope rows the scope merge takes only from the scored set.
+ * coverage artifact before refusing it.
  */
 
 import fs from 'node:fs';
@@ -54,12 +52,7 @@ export function resolveCoverageUpdaterScope(argv = []) {
   return { fullScope, diffScopeRef };
 }
 
-/**
- * Logs a read failure and rethrows it on every scope, never yielding an empty
- * row set: the refresh must refuse rather than erase rows it could not score.
- *
- * @returns {object}
- */
+/** Logs a read failure and rethrows it: an empty row set would erase rows. */
 function readOrRefuse(readCoverage, cwd, logger) {
   try {
     return readCoverage(cwd);

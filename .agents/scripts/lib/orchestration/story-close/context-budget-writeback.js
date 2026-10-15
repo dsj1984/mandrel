@@ -81,11 +81,10 @@ function precheck({ workTree, storyBranch, git, relPath }) {
 }
 
 /**
- * Write the envelope and fold it into one commit. The write, the `git add`
- * and the commit share one restoring `try`: a throw at any step restores the
- * file so the gates score the tree the close found, then re-throws.
+ * Write the envelope and fold it into one commit; a throw at any step restores
+ * the file, then re-throws.
  *
- * @param {{ workTree: string, git: Function, relPath: string, envelope: object, storyId: number|string, shrunk: object[], writeFile: typeof fs.writeFileSync }} args
+ * @param {object} args
  * @returns {{ sha: string }}
  */
 function commitBaseline({

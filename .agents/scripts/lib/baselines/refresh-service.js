@@ -78,14 +78,7 @@ function resolveQualityBlock({ quality, config } = {}) {
   return {};
 }
 
-/**
- * No coverage artifact is fatal on every scope: a full-scope refresh over zero
- * rows would read as "nothing to score", and a scoped one would delete the
- * in-scope rows, because the scope merge takes them only from the scored set.
- *
- * @param {string} absPath
- * @returns {never}
- */
+/** @param {string} absPath */
 function refuseMissingArtifact(absPath) {
   throw new MissingCoverageArtifactError(absPath);
 }
@@ -131,8 +124,7 @@ function buildDefaultCrapScorer({ cwd, config, quality } = {}) {
 
 /**
  * Coverage rows from the configured `coverage.coveragePath` artifact, scoped by
- * the optional `.c8rc.cjs`. A missing artifact throws on every scope: an
- * empty row set would otherwise erase the rows it was meant to rescore.
+ * the optional `.c8rc.cjs`. A missing artifact throws on every scope.
  *
  * @param {{ cwd: string, config?: object, quality?: object }} opts
  * @returns {(files: string[], opts: object) => object[]}
