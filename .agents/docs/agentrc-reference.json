@@ -27,6 +27,7 @@
     "projectNumber": null,
     "projectOwner": null,
     "operatorHandle": "@[USERNAME]",
+    "cliConfigDir": null,
     "followUpRepos": {
       "framework": "dsj1984/mandrel",
       "platform": null

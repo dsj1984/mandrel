@@ -13975,6 +13975,24 @@
       "crap": 5
     },
     {
+      "path": ".agents/scripts/lib/config/gh-config-dir.js",
+      "method": "resolveGhConfigDir",
+      "startLine": 8,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/config/gh-config-dir.js",
+      "method": "isDirectory",
+      "startLine": 16,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/config/gh-config-dir.js",
+      "method": "applyGhConfigDir",
+      "startLine": 36,
+      "crap": 6
+    },
+    {
       "path": ".agents/scripts/lib/config/github.js",
       "method": "getGitHub",
       "startLine": 67,
@@ -17953,6 +17971,19 @@
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon (d)#6>",
+      "startLine": 182,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/gh-exec.js",
+      "method": "classifySandboxDenial",
+      "startLine": 196,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/gh-exec.js",
       "method": "exec",
       "startLine": 199,
       "crap": 4.0011219790658865
@@ -18149,6 +18180,12 @@
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
+      "method": "classifyReachableProbeFailure",
+      "startLine": 488,
+      "crap": 7
+    },
+    {
+      "path": ".agents/scripts/lib/gh-exec.js",
       "method": "describeGraphqlPreflight",
       "startLine": 501,
       "crap": 3
@@ -18159,6 +18196,18 @@
       "startLine": 512,
       "crap": 1,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/gh-transport.js",
+      "method": "sandboxDenialCode",
+      "startLine": 17,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/gh-transport.js",
+      "method": "isTransportFailure",
+      "startLine": 22,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/git-branch-cleanup.js",
@@ -38605,6 +38654,13 @@
     },
     {
       "path": ".agents/scripts/providers/github/compose.js",
+      "method": "<anon composeGateways/()#1>",
+      "startLine": 72,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/providers/github/compose.js",
       "method": "<anon composeGateways/(id,o)#1>",
       "startLine": 74,
       "crap": 1,
@@ -38690,6 +38746,202 @@
       "startLine": 189,
       "crap": 1,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/providers/github/gh-token-diagnostics.js",
+      "method": "redactTokens",
+      "startLine": 15,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/providers/github/gh-token-diagnostics.js",
+      "method": "failureDetail",
+      "startLine": 20,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/providers/github/gh-token-diagnostics.js",
+      "method": "<anon failureDetail/(l)#0>",
+      "startLine": 23,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/providers/github/gh-token-diagnostics.js",
+      "method": "isNotInstalled",
+      "startLine": 32,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/providers/github/gh-token-diagnostics.js",
+      "method": "isTimeoutOrDenied",
+      "startLine": 40,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/providers/github/gh-token-diagnostics.js",
+      "method": "classifyGhTokenFailure",
+      "startLine": 48,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/providers/github/gh-token-diagnostics.js",
+      "method": "runGhAuthToken",
+      "startLine": 64,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/providers/github/gh-token-diagnostics.js",
+      "method": "configDirNote",
+      "startLine": 88,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/providers/github/gh-token-diagnostics.js",
+      "method": "<anon ()#0>",
+      "startLine": 94,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/providers/github/gh-token-diagnostics.js",
+      "method": "<anon ()#1>",
+      "startLine": 99,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/providers/github/gh-token-diagnostics.js",
+      "method": "<anon ()#2>",
+      "startLine": 104,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/providers/github/gh-token-diagnostics.js",
+      "method": "<anon ()#3>",
+      "startLine": 109,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/providers/github/gh-token-diagnostics.js",
+      "method": "describeTokenFailure",
+      "startLine": 118,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/providers/github/gh-token-diagnostics.js",
+      "method": "resolveTokenSource",
+      "startLine": 126,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/providers/github/identity.js",
+      "method": "normalizeHandle",
+      "startLine": 19,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/providers/github/identity.js",
+      "method": "isMutatingApiCall",
+      "startLine": 26,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/providers/github/identity.js",
+      "method": "isGraphqlMutation",
+      "startLine": 31,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/providers/github/identity.js",
+      "method": "guardMutations",
+      "startLine": 43,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/providers/github/identity.js",
+      "method": "<anon guardMutations/(fn)#0>",
+      "startLine": 45,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/providers/github/identity.js",
+      "method": "<anon guardMutations/(fn)#0/(args)#0>",
+      "startLine": 46,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/providers/github/identity.js",
+      "method": "<anon guardMutations/(opts)#0>",
+      "startLine": 52,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/providers/github/identity.js",
+      "method": "configDirInEffect",
+      "startLine": 69,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/providers/github/identity.js",
+      "method": "classifyProbeFailure",
+      "startLine": 73,
+      "crap": 4.128
+    },
+    {
+      "path": ".agents/scripts/providers/github/identity.js",
+      "method": "probeLogin",
+      "startLine": 102,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/providers/github/identity.js",
+      "method": "cachedLogin",
+      "startLine": 113,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/providers/github/identity.js",
+      "method": "<anon cachedLogin/()#0>",
+      "startLine": 119,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/providers/github/identity.js",
+      "method": "createIdentityGate",
+      "startLine": 125,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/providers/github/identity.js",
+      "method": "ensureIdentity",
+      "startLine": 127,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/providers/github/identity.js",
+      "method": "gateProviderGh",
+      "startLine": 148,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/providers/github/identity.js",
+      "method": "<anon gateProviderGh/()#0>",
+      "startLine": 150,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/providers/github/identity.js",
+      "method": "ensureIdentityForQuery",
+      "startLine": 156,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/providers/github/issues.js",

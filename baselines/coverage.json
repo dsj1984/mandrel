@@ -1185,9 +1185,15 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/config/gh-config-dir.js",
+      "lines": 100,
+      "branches": 95,
+      "functions": 75
+    },
+    {
       "path": ".agents/scripts/lib/config/github.js",
       "lines": 100,
-      "branches": 96.15,
+      "branches": 96.3,
       "functions": 100
     },
     {
@@ -1540,9 +1546,15 @@
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
-      "lines": 96.17,
-      "branches": 91.8,
-      "functions": 86.05
+      "lines": 97.13,
+      "branches": 93.85,
+      "functions": 86.67
+    },
+    {
+      "path": ".agents/scripts/lib/gh-transport.js",
+      "lines": 100,
+      "branches": 90.91,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/git-branch-cleanup.js",
@@ -3430,14 +3442,26 @@
     },
     {
       "path": ".agents/scripts/providers/github/compose.js",
-      "lines": 97.47,
+      "lines": 97.5,
       "branches": 100,
-      "functions": 46.67
+      "functions": 50
     },
     {
       "path": ".agents/scripts/providers/github/errors.js",
       "lines": 99.57,
       "branches": 93.94,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/providers/github/gh-token-diagnostics.js",
+      "lines": 100,
+      "branches": 85.42,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/providers/github/identity.js",
+      "lines": 96.73,
+      "branches": 87.27,
       "functions": 100
     },
     {
@@ -3472,8 +3496,8 @@
     },
     {
       "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "lines": 87.73,
-      "branches": 75.82,
+      "lines": 87.82,
+      "branches": 76.34,
       "functions": 100
     },
     {

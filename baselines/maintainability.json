@@ -775,6 +775,10 @@
       "mi": 81.841
     },
     {
+      "path": ".agents/scripts/lib/config/gh-config-dir.js",
+      "mi": 104.725
+    },
+    {
       "path": ".agents/scripts/lib/config/github.js",
       "mi": 81.277
     },
@@ -1013,6 +1017,10 @@
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "mi": 103.851
+    },
+    {
+      "path": ".agents/scripts/lib/gh-transport.js",
+      "mi": 120.884
     },
     {
       "path": ".agents/scripts/lib/git-branch-cleanup.js",
@@ -2256,7 +2264,7 @@
     },
     {
       "path": ".agents/scripts/providers/github/auth.js",
-      "mi": 116.469
+      "mi": 123.417
     },
     {
       "path": ".agents/scripts/providers/github/blocked-by-add.js",
@@ -2280,11 +2288,19 @@
     },
     {
       "path": ".agents/scripts/providers/github/compose.js",
-      "mi": 113.43
+      "mi": 114.153
     },
     {
       "path": ".agents/scripts/providers/github/errors.js",
       "mi": 99.119
+    },
+    {
+      "path": ".agents/scripts/providers/github/gh-token-diagnostics.js",
+      "mi": 111.058
+    },
+    {
+      "path": ".agents/scripts/providers/github/identity.js",
+      "mi": 106.517
     },
     {
       "path": ".agents/scripts/providers/github/issues.js",

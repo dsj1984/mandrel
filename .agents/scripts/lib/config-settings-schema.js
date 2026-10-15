@@ -351,6 +351,13 @@ const GITHUB_SCHEMA = {
         'The human the framework escalates to, `@`-prefixed. Used for HITL @-mentions on `agent::blocked`.',
       default: '@[USERNAME]',
     },
+    cliConfigDir: {
+      type: ['string', 'null'],
+      minLength: 1,
+      description:
+        "Dedicated `gh` credential store (`GH_CONFIG_DIR`) for this project, set in the gitignored `.agentrc.local.json`. Relative paths resolve against the project root and a leading `~` expands to the home directory; the directory must exist. When set, every `gh` call Mandrel makes runs with `GH_CONFIG_DIR` pointed at it. `null` keeps `gh`'s default store.",
+      default: null,
+    },
     followUpRepos: FOLLOW_UP_REPOS_SCHEMA,
     branchProtection: BRANCH_PROTECTION_SCHEMA,
     mergeMethods: MERGE_METHODS_SCHEMA,
