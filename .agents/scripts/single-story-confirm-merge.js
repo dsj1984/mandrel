@@ -348,8 +348,6 @@ async function resumeMergeWait(ctx) {
 async function probeMergeOnce(ctx) {
   const { storyId, storyBranch, baseBranch, prNumber, cwd, provider, config } =
     ctx;
-  // The shared confirm-and-land pairing the boot sweep and close's
-  // already-closed early return also run.
   const { confirmation, tail } = await confirmAndLand({
     provider,
     storyId,

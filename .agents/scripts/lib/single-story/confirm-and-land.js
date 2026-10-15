@@ -1,17 +1,10 @@
-/**
- * confirm-and-land.js — the one confirm-and-land pairing every merged-Story
- * path runs: the confirm-merge CLI's single probe, the boot sweep, and close's
- * already-closed early return. A flip without the land tail strands the
- * operator's lease, the worktree and the Epic rollup.
- */
-
 import { runPostLandTail as defaultRunPostLandTail } from '../orchestration/single-story-close/phases/post-land.js';
 import { confirmStoryMerged } from './confirm-merge.js';
 
 /**
- * {@link confirmStoryMerged}, then the land tail gated on `merged`, not
- * `action === 'done'`: an already-done Story (`noop`, merged) still needs the
- * belated backfill. Every tail step is idempotent; the tail never throws.
+ * The one pairing every merged-Story path runs (confirm CLI, boot sweep,
+ * close's already-closed return): confirm, then the land tail gated on
+ * `merged` — a flip alone strands the lease, worktree and Epic rollup.
  *
  * @param {object} args  {@link confirmStoryMerged}'s arguments, plus:
  * @param {string} args.storyBranch

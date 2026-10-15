@@ -46,12 +46,7 @@ async function reconcileOne({ story, cwd, deps, logger, reconcileFn }) {
   }
 }
 
-/**
- * Closed Stories at any stranded label, de-duplicated by id in listing order
- * (a Story can carry both labels).
- *
- * @returns {Promise<object[]>}
- */
+/** Closed Stories at any stranded label, de-duplicated by id. */
 async function listStranded(provider) {
   const byId = new Map();
   for (const labels of STRANDED_LABELS) {
