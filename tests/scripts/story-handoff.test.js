@@ -233,6 +233,24 @@ describe('story-handoff — the happy path (AC-1)', () => {
     assert.equal(envelope.status, 'ready');
   });
 
+  test('a failed seat commit is fix-required with its git output as evidence', async () => {
+    const h = harness({
+      outputs: {
+        'update-crap-baseline.js': { status: 0, stdout: 'seated: 1' },
+      },
+    });
+    const git = h.world.git;
+    h.deps.git = (cwd, ...args) =>
+      args[0] === 'commit'
+        ? { status: 1, stdout: '', stderr: 'hook rejected' }
+        : git(cwd, ...args);
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.equal(envelope.failedStep, 'seat');
+    assert.match(envelope.steps.at(-1).detail, /hook rejected/);
+    assert.equal(readFileSync(envelope.evidencePath, 'utf8'), 'hook rejected');
+  });
+
   test('on the evidence-gate path the seat runs before the suite so its commit cannot void the tree-keyed credit', async () => {
     const h = harness({ scripts: { test: 'x' } });
     const { envelope } = await h.run();
