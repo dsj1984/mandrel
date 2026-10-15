@@ -906,7 +906,7 @@ describe('runSingleStoryClose orchestration', () => {
     assert.equal(terminal.status, 'landed');
     assert.deepEqual(
       tailRuns.map((a) => [a.storyId, a.storyBranch, a.cwd]),
-      [[1234, 'story-1234', '/repo']],
+      [[1234, 'story-1234', path.resolve('/repo')]],
     );
   });
 
