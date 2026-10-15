@@ -2787,6 +2787,10 @@
       "mi": 99.175
     },
     {
+      "path": "scripts/lib/comment-ratio-change.js",
+      "mi": 97.847
+    },
+    {
       "path": "scripts/lib/fs-walk.js",
       "mi": 102.83
     },

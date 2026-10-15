@@ -42,14 +42,26 @@ before it can reach CI:
 
 | Ratchet | Fails when |
 | --- | --- |
-| Comment ratio | Comment bytes exceed the landed ceiling (`COMMENT_RATIO_CEILING` in `scripts/lib/comment-policy.js`) as a share of non-generated, non-test `.agents/scripts` JavaScript bytes. The ceiling may only be lowered. |
+| Comment ratio | The global share of comment bytes in non-generated, non-test `.agents/scripts` JavaScript is over the landed ceiling (`COMMENT_RATIO_CEILING` in `scripts/lib/comment-policy.js`) **and** the change's own net diff against its merge base with `origin/<project.baseBranch>` adds comment bytes at a share above that ceiling. A change at or under the ceiling never fails, whatever landed beside it. The ceiling may only be lowered. |
 | Provenance | Any comment under `.agents/scripts`, `bin` or `lib` cites `Story #N`, `PR #N`, `Epic #N`, `ADR <date-id>` or a bare `#NN` issue number. |
+
+The ratio is judged per change so that a sibling's landing cannot fail a
+change that is itself within the policy. While the global ratio has headroom
+every change passes. Once concurrent landings push it over, only a change
+whose own diff is comment-heavy is blocked, and every change that does land
+pulls the ratio back down. When the ratio check fails, the remedy is in your
+own diff: the message names how many comment bytes to trim from it. The change
+is the working tree against the base (uncommitted edits and untracked files
+count); `--base <ref>` judges it against another commit. With no resolvable
+base the check falls back to the absolute ceiling, and at the base itself
+(nothing to attribute) it only warns when the ratio is over.
 
 Both use a dependency-free scanner that understands string, template and
 regular-expression literals, so a `//` inside a URL is not a comment.
 
 ```bash
 node scripts/check-comment-policy.js                 # both ratchets
+node scripts/check-comment-policy.js --base <ref>    # judge the ratio against <ref>
 node scripts/check-comment-policy.js --report        # per-file comment bytes
 node scripts/check-comment-policy.js --assert-code-unchanged origin/main
 ```
