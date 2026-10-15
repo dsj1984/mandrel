@@ -33129,6 +33129,19 @@
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "method": "<anon breakStaleLock/(moved)#0>",
+      "startLine": 295,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "method": "removeIfMatches",
+      "startLine": 301,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
       "method": "moveAside",
       "startLine": 306,
       "crap": 1
@@ -33150,6 +33163,12 @@
       "method": "startHeartbeat",
       "startLine": 321,
       "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "method": "relinkQuietly",
+      "startLine": 323,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
@@ -33261,6 +33280,13 @@
       "method": "<anon attachSignalRelease/()#1>",
       "startLine": 411,
       "crap": 1.0021482998220939,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "method": "<anon unlinkIfOwned/(moved)#0>",
+      "startLine": 419,
+      "crap": 1,
       "anonymous": true
     },
     {
