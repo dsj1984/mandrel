@@ -16,9 +16,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import { parseGateArgv } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
 import { resolveDocTiers, tierTotalBytes } from './lib/doc-tiers.js';
+import { readJsonBaseline } from './lib/gates/baseline-store.js';
+
+export { readJsonBaseline as loadBaseline };
 
 /**
  * Measured tiers, in report order — only those a session is forced to read.
@@ -43,48 +47,16 @@ export const DEFAULT_TOLERANCE_BYTES = 2048;
  * @returns {{ baselinePath: string|null, rootPath: string|null, update: boolean, json: boolean }}
  */
 export function parseArgv(argv = []) {
-  let baselinePath = null;
-  let rootPath = null;
-  let update = false;
-  let json = false;
-  for (let i = 0; i < argv.length; i += 1) {
-    const a = argv[i];
-    if (a === '--baseline') {
-      const next = argv[i + 1];
-      if (next && !next.startsWith('--')) {
-        baselinePath = next;
-        i += 1;
-      }
-    } else if (a === '--root') {
-      const next = argv[i + 1];
-      if (next && !next.startsWith('--')) {
-        rootPath = next;
-        i += 1;
-      }
-    } else if (a === '--update') {
-      update = true;
-    } else if (a === '--json') {
-      json = true;
-    }
-  }
-  return { baselinePath, rootPath, update, json };
-}
-
-/**
- * `null` when missing or unparseable.
- *
- * @param {string} baselinePath
- * @returns {{ toleranceBytes?: number, tiers?: Record<string, { totalBytes: number, files?: Array<{ path: string, bytes: number }> }> } | null}
- */
-export function loadBaseline(baselinePath) {
-  try {
-    if (!fs.existsSync(baselinePath)) return null;
-    const parsed = JSON.parse(fs.readFileSync(baselinePath, 'utf-8'));
-    if (!parsed || typeof parsed !== 'object') return null;
-    return parsed;
-  } catch {
-    return null;
-  }
+  const flags = parseGateArgv(argv, {
+    strings: ['baseline', 'root'],
+    booleans: ['update', 'json'],
+  });
+  return {
+    baselinePath: flags.baseline,
+    rootPath: flags.root,
+    update: flags.update,
+    json: flags.json,
+  };
 }
 
 /**
@@ -300,7 +272,7 @@ function renderAgentBoot(tierMap) {
  * @returns {0}
  */
 function writeUpdatedBaseline({ tierMap, resolvedBaselinePath, json, stdout }) {
-  const existing = loadBaseline(resolvedBaselinePath);
+  const existing = readJsonBaseline(resolvedBaselinePath);
   const tolerance = Number.isFinite(existing?.toleranceBytes)
     ? existing.toleranceBytes
     : DEFAULT_TOLERANCE_BYTES;
@@ -468,7 +440,7 @@ export async function runCli({
     });
   }
 
-  const baseline = loadBaseline(resolvedBaselinePath);
+  const baseline = readJsonBaseline(resolvedBaselinePath);
   if (!baseline) {
     return reportMissingBaseline({
       tierMap,

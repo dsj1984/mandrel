@@ -13,6 +13,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { parseStoryCwdArgv } from '../../.agents/scripts/lib/cli-args.js';
 import { storyReviewDepositPath } from '../../.agents/scripts/lib/config/temp-paths.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import {
@@ -108,6 +109,10 @@ function reviewDouble({ severity = CLEAN } = {}) {
 }
 
 describe('parseArgv', () => {
+  test('re-exports the shared parseStoryCwdArgv', () => {
+    assert.equal(parseArgv, parseStoryCwdArgv);
+  });
+
   test('reads --story as a positive integer and an optional --cwd', () => {
     assert.deepEqual(parseArgv(['--story', '5480', '--cwd', '/w']), {
       storyId: 5480,

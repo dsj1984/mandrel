@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { parseSprintArgs } from '../../.agents/scripts/lib/cli-args.js';
+import {
+  parseGateArgv,
+  parseSprintArgs,
+  parseStoryCwdArgv,
+} from '../../.agents/scripts/lib/cli-args.js';
 import { parseWorkerEffort } from '../../.agents/scripts/lib/orchestration/resume-effort.js';
 
 /**
@@ -109,4 +113,60 @@ describe('parseSprintArgs — --worker-effort (Story #5608)', () => {
     assert.equal(effort, null);
     assert.match(warning, /low\|medium\|high\|xhigh\|max/);
   });
+});
+
+describe('parseStoryCwdArgv — the worker-tail --story/--cwd argv', () => {
+  const cases = [
+    [['--story', '5480', '--cwd', '/w'], { storyId: 5480, cwd: '/w' }],
+    [['--story=12'], { storyId: 12, cwd: null }],
+    [['--story', 'x'], { storyId: null, cwd: null }],
+    [['--story', '0'], { storyId: null, cwd: null }],
+    [['--story'], { storyId: null, cwd: null }],
+    [[], { storyId: null, cwd: null }],
+  ];
+  for (const [args, expected] of cases) {
+    it(`parses ${JSON.stringify(args)}`, () => {
+      assert.deepEqual(parseStoryCwdArgv(args), expected);
+    });
+  }
+});
+
+describe("parseGateArgv — the ratchet gates' argv (Story #5686)", () => {
+  const spec = { strings: ['baseline', 'root'], booleans: ['json', 'update'] };
+  const none = { baseline: null, root: null, json: false, update: false };
+  const cases = [
+    ['nothing', [], none],
+    [
+      'string values and booleans',
+      ['--baseline', 'b.json', '--root', 'r', '--json', '--update'],
+      { baseline: 'b.json', root: 'r', json: true, update: true },
+    ],
+    [
+      'the --name=value form',
+      ['--baseline=b.json'],
+      { ...none, baseline: 'b.json' },
+    ],
+    [
+      'a valueless string flag never swallows the next flag',
+      ['--baseline', '--json'],
+      { ...none, json: true },
+    ],
+    [
+      'chained valueless string flags',
+      ['--root', '--baseline', '--update'],
+      { ...none, update: true },
+    ],
+    [
+      'a trailing valueless string flag',
+      ['--json', '--baseline'],
+      { ...none, json: true },
+    ],
+    ['unknown flags and positionals', ['--bogus', 'x', 'y'], none],
+    ['a boolean given a value', ['--json=false'], none],
+  ];
+  for (const [name, args, expected] of cases) {
+    it(`parses ${name}`, () => {
+      assert.deepEqual(parseGateArgv(args, spec), expected);
+    });
+  }
 });
