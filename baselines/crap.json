@@ -33465,6 +33465,12 @@
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "method": "tryCreateFile",
+      "startLine": 163,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
       "method": "acquireSweepLock",
       "startLine": 186,
       "crap": 5
@@ -33702,9 +33708,22 @@
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "method": "<anon unlinkIfOwned/()#1>",
+      "startLine": 433,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
       "method": "releaseUnderMutex",
       "startLine": 434,
       "crap": 3.7084548104956268
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "method": "releaseOwned",
+      "startLine": 438,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
