@@ -547,13 +547,7 @@ export async function runDeliverRunBeat(
           workerEffort: effortById.get(storyId) ?? null,
         }),
       })),
-      // Advisory: never gates `done`, so an unmergeable one cannot wedge.
-      confirm: (Array.isArray(tick.confirm) ? tick.confirm : []).map(
-        (storyId) => ({
-          id: storyId,
-          command: NEXT_COMMANDS.confirmMerge(storyId),
-        }),
-      ),
+      confirm: renderConfirmEntries(tick.confirm),
       done: tick.epilogueDue === true,
       doneStories: tick.done ?? [],
       inFlight: tick.inFlight ?? 0,
@@ -574,6 +568,20 @@ export async function runDeliverRunBeat(
     },
     exitCode,
   };
+}
+
+/**
+ * Closed Stories still owing the `agent::done` flip and land tail. Advisory:
+ * never gates `done`, so an unmergeable one cannot wedge the run.
+ *
+ * @param {number[]|undefined} ids
+ * @returns {Array<{ id: number, command: string }>}
+ */
+function renderConfirmEntries(ids) {
+  return (Array.isArray(ids) ? ids : []).map((id) => ({
+    id,
+    command: NEXT_COMMANDS.confirmMerge(id),
+  }));
 }
 
 /**
