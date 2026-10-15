@@ -19,6 +19,11 @@ import {
   normalizedCode,
   typeTags,
 } from '../../scripts/lib/comment-policy.js';
+import {
+  changeDelta,
+  ratioVerdict,
+  resolveBase,
+} from '../../scripts/lib/comment-ratio-change.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI = path.resolve(
@@ -185,6 +190,116 @@ describe('typeTags', () => {
       '@returns',
       '@throws',
     ]);
+  });
+});
+
+describe('ratioVerdict', () => {
+  const over = { comment: 40, total: 100 };
+  const under = { comment: 20, total: 100 };
+  const base = 'abcdef0123456789';
+
+  it('applies the absolute ceiling when there is no base', () => {
+    assert.equal(ratioVerdict(over, null, null).ok, false);
+    const ok = ratioVerdict(under, null, null);
+    assert.equal(ok.ok, true);
+    assert.match(ok.err[0], /no base ref resolved/);
+  });
+
+  it('passes any change while the global ratio is under the ceiling', () => {
+    const r = ratioVerdict(under, base, { comment: 90, total: 100 });
+    assert.equal(r.ok, true);
+    assert.deepEqual(r.err, []);
+    assert.match(
+      r.out[0],
+      /this change vs abcdef012: comment 90 of 100 bytes \(90\.0%\)/,
+    );
+  });
+
+  it('passes a within-ceiling or comment-free change over the ceiling, with a warning', () => {
+    for (const delta of [
+      { comment: 30, total: 100 },
+      { comment: 0, total: -50 },
+      { comment: -10, total: -5 },
+    ]) {
+      const r = ratioVerdict(over, base, delta);
+      assert.equal(r.ok, true, JSON.stringify(delta));
+      assert.match(r.err[0], /^warn/);
+    }
+    assert.match(
+      ratioVerdict(over, base, { comment: 0, total: 0 }).out[0],
+      /\(n\/a\)/,
+    );
+  });
+
+  it('fails a comment-heavy change over the ceiling, naming the bytes to trim', () => {
+    const r = ratioVerdict(over, base, { comment: 40, total: 100 });
+    assert.equal(r.ok, false);
+    assert.match(r.err[0], /Trim at least 10 comment bytes/);
+    assert.equal(
+      ratioVerdict(over, base, { comment: 5, total: -10 }).ok,
+      false,
+    );
+  });
+});
+
+describe('resolveBase and changeDelta', () => {
+  it('resolve the merge base and sum committed, uncommitted and untracked bytes', () => {
+    const root = fixtureRepo({
+      '.agents/scripts/a.js': '// one\nexport const a = 1;\n',
+      '.agents/scripts/gone.js': '// bye\nexport const g = 1;\n',
+    });
+    const mainSha = git(root, 'rev-parse', 'HEAD').trim();
+    onBranch(root, { '.agents/scripts/b.js': '// two\nexport const b = 2;\n' });
+    assert.equal(resolveBase(root, null), mainSha);
+    assert.equal(
+      resolveBase(root, 'HEAD'),
+      git(root, 'rev-parse', 'HEAD').trim(),
+    );
+    assert.equal(resolveBase(root, 'no-such-ref'), null);
+
+    fs.rmSync(path.join(root, '.agents/scripts/gone.js'));
+    writeFiles(root, {
+      '.agents/scripts/c.js': '// three\nexport const c = 3;\n',
+      '.agents/scripts/c.test.js': '// ignored\n',
+    });
+    const expected = ['b.js', 'c.js'].reduce(
+      (acc, name) => {
+        const counts = commentBytes(
+          fs.readFileSync(path.join(root, '.agents/scripts', name), 'utf8'),
+        );
+        return {
+          comment: acc.comment + counts.comment,
+          total: acc.total + counts.total,
+        };
+      },
+      { comment: 0, total: 0 },
+    );
+    const gone = commentBytes('// bye\nexport const g = 1;\n');
+    assert.deepEqual(changeDelta(root, mainSha), {
+      comment: expected.comment - gone.comment,
+      total: expected.total - gone.total,
+    });
+  });
+
+  it('falls back to the local base branch and reads the configured one', () => {
+    const root = fixtureRepo(
+      {
+        '.agentrc.json': JSON.stringify({ project: { baseBranch: 'trunk' } }),
+        '.agents/scripts/a.js': 'export const a = 1;\n',
+      },
+      'trunk',
+    );
+    assert.equal(
+      resolveBase(root, null),
+      git(root, 'rev-parse', 'HEAD').trim(),
+    );
+    fs.writeFileSync(path.join(root, '.agentrc.local.json'), '{ not json');
+    assert.equal(
+      resolveBase(root, null),
+      git(root, 'rev-parse', 'HEAD').trim(),
+    );
+    fs.writeFileSync(path.join(root, '.agentrc.json'), '{}');
+    assert.equal(resolveBase(root, null), null);
   });
 });
 

@@ -35,7 +35,7 @@ function git(root, args) {
 }
 
 /**
- * Run git in `root`, returning trimmed stdout or `null` on a non-zero exit.
+ * Run git in `root`, returning stdout or `null` on a non-zero exit.
  *
  * @param {string} root
  * @param {string[]} args
@@ -43,7 +43,7 @@ function git(root, args) {
  */
 function tryGit(root, args) {
   try {
-    return git(root, args).trim();
+    return git(root, args);
   } catch {
     return null;
   }
@@ -81,10 +81,13 @@ function baseBranchOf(root) {
  */
 export function resolveBase(root, override) {
   if (override)
-    return tryGit(root, ['rev-parse', '--verify', `${override}^{commit}`]);
+    return (
+      tryGit(root, ['rev-parse', '--verify', `${override}^{commit}`])?.trim() ??
+      null
+    );
   const branch = baseBranchOf(root);
   for (const candidate of [`origin/${branch}`, branch]) {
-    const base = tryGit(root, ['merge-base', candidate, 'HEAD']);
+    const base = tryGit(root, ['merge-base', candidate, 'HEAD'])?.trim();
     if (base) return base;
   }
   return null;
