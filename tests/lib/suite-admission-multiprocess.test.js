@@ -123,8 +123,18 @@ describe('suite admission across processes (Story #5668)', () => {
       }),
     );
     const started = () => events().filter((e) => e.event === 'start');
-    await until(() => started().length >= 2, 'two weight-4 runs to start');
-    await new Promise((resolve) => setTimeout(resolve, 400));
+    // The third process reports it is held back by capacity — a positive
+    // event, so the assertion never races a fixed sleep.
+    const blockedWhileTwoRun = () => {
+      const running = new Set(started().map((e) => e.name));
+      return events().some(
+        (e) => e.event === 'blocked' && !running.has(e.name),
+      );
+    };
+    await until(
+      () => started().length >= 2 && blockedWhileTwoRun(),
+      'two weight-4 runs to start and the third to report it is blocked',
+    );
     assert.equal(started().length, 2, 'a third would need 12 of capacity 10');
     fs.writeFileSync(releaseFile('all'), '');
     for (const run of runs) assert.equal(await run.exited, 0);
