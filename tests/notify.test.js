@@ -564,40 +564,70 @@ describe('notify script', () => {
 });
 
 describe('parseNotifyArgs', () => {
-  it('parses explicit --ticket flag with default severity', () => {
-    const parsed = parseNotifyArgs(['--ticket', '321', 'Epic closed.']);
-    assert.deepEqual(parsed, {
-      ticketId: 321,
-      message: 'Epic closed.',
-      severity: 'medium',
-    });
-  });
+  const USAGE =
+    'Usage: node notify.js [TicketId] <Message> [--severity low|medium|high]';
+  const MESSAGE_REQUIRED = '[Notify] Error: Message is required.';
+  const BAD_SEVERITY =
+    '[Notify] --severity requires one of: low | medium | high.';
+  const BAD_TICKET = '[Notify] Error: --ticket/--issue requires a numeric ID.';
 
-  it('parses --severity high', () => {
-    const parsed = parseNotifyArgs([
-      '--ticket',
-      '321',
-      'Approve deploy.',
-      '--severity',
-      'high',
-    ]);
-    assert.deepEqual(parsed, {
-      ticketId: 321,
-      message: 'Approve deploy.',
-      severity: 'high',
-    });
-  });
+  const accepted = [
+    [
+      'explicit --ticket with default severity',
+      ['--ticket', '321', 'Epic closed.'],
+      { ticketId: 321, message: 'Epic closed.', severity: 'medium' },
+    ],
+    [
+      '--issue alias joins every positional',
+      ['--issue', '7', 'hi', 'there'],
+      { ticketId: 7, message: 'hi there', severity: 'medium' },
+    ],
+    [
+      '--severity after the message',
+      ['--ticket', '321', 'Approve deploy.', '--severity', 'high'],
+      { ticketId: 321, message: 'Approve deploy.', severity: 'high' },
+    ],
+    [
+      'legacy numeric ticket id followed by a multi-word message',
+      ['321', 'Planning complete.', 'Review now.'],
+      {
+        ticketId: 321,
+        message: 'Planning complete. Review now.',
+        severity: 'medium',
+      },
+    ],
+    [
+      'a non-numeric first positional is the whole message',
+      ['hi', 'there'],
+      { ticketId: 0, message: 'hi', severity: 'medium' },
+    ],
+    [
+      '--severity before the message, no ticket',
+      ['--severity', 'low', 'Heads up.'],
+      { ticketId: 0, message: 'Heads up.', severity: 'low' },
+    ],
+  ];
 
-  it('parses legacy numeric ticket id followed by multi-word message', () => {
-    const parsed = parseNotifyArgs([
-      '321',
-      'Planning complete.',
-      'Review now.',
-    ]);
-    assert.deepEqual(parsed, {
-      ticketId: 321,
-      message: 'Planning complete. Review now.',
-      severity: 'medium',
+  for (const [name, argv, expected] of accepted) {
+    it(`accepts ${name}`, () => {
+      assert.deepEqual(parseNotifyArgs(argv), expected);
     });
-  });
+  }
+
+  const rejected = [
+    ['no arguments', [], USAGE],
+    ['a bare --severity', ['--severity'], BAD_SEVERITY],
+    ['an unknown severity', ['--severity', 'bogus', 'm'], BAD_SEVERITY],
+    ['only a severity', ['--severity', 'high'], MESSAGE_REQUIRED],
+    ['a bare --ticket', ['--ticket'], BAD_TICKET],
+    ['a non-numeric --ticket', ['--ticket', 'x', 'm'], BAD_TICKET],
+    ['a --ticket with no message', ['--ticket', '5'], MESSAGE_REQUIRED],
+    ['a legacy ticket id with no message', ['42'], MESSAGE_REQUIRED],
+  ];
+
+  for (const [name, argv, message] of rejected) {
+    it(`rejects ${name}`, () => {
+      assert.throws(() => parseNotifyArgs(argv), { message });
+    });
+  }
 });
