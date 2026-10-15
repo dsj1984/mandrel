@@ -1,7 +1,11 @@
 import fs from 'node:fs';
 import { install as installAstCompat } from './escomplex-ast-compat.js';
 import { analyzeModule } from './escomplex-kernel.js';
-import { transpileIfNeeded } from './transpile.js';
+import {
+  isCompilerMissing,
+  owningPackageDir,
+  transpileIfNeeded,
+} from './transpile.js';
 
 installAstCompat();
 
@@ -34,6 +38,22 @@ function unscorable(reason) {
 }
 
 /**
+ * No compiler resolved for a TypeScript file: not a kernel gap, so the
+ * caller fails loud naming `packageDir` instead of reporting it unscorable.
+ *
+ * @param {string} filePath
+ */
+function compilerMissing(filePath) {
+  return {
+    score: UNSCORABLE,
+    unscorable: true,
+    compilerMissing: true,
+    packageDir: owningPackageDir(filePath),
+    reason: 'typescript compiler not resolvable',
+  };
+}
+
+/**
  * Ambiguous 0 when unscorable — prefer {@link scoreSource}.
  *
  * @param {string} sourceCode
@@ -52,11 +72,12 @@ export function calculateForFile(filePath) {
 }
 
 /**
- * TS is transpiled first. Transpile and kernel failures need different
- * fixes, so they are reported separately.
+ * TS is transpiled first. Missing-compiler, transpile and kernel failures
+ * need different fixes, so they are reported separately.
  *
  * @param {string} filePath
- * @returns {{ score: number, unscorable: boolean, reason: string|null }}
+ * @returns {{ score: number, unscorable: boolean, reason: string|null,
+ *   compilerMissing?: boolean, packageDir?: string }}
  */
 export function scoreFile(filePath) {
   let sourceCode;
@@ -70,6 +91,7 @@ export function scoreFile(filePath) {
   }
 
   const prepared = transpileIfNeeded(filePath, sourceCode);
+  if (isCompilerMissing(prepared)) return compilerMissing(filePath);
   if (prepared === null) return unscorable('TypeScript transpile failed');
   return scoreSource(prepared);
 }

@@ -7,6 +7,7 @@ import { Logger } from './Logger.js';
 import { scoreFile } from './maintainability-engine.js';
 import { isScored, reportUnscorable } from './maintainability-unscorable.js';
 import { isScorableSourceFile } from './source-extensions.js';
+import { CompilerMissingError } from './transpile.js';
 
 const MAINTAINABILITY_WORKER_URL = new URL(
   './workers/maintainability-worker.js',
@@ -144,7 +145,9 @@ export function scanDirectory(dir, fileList = [], opts = {}) {
  * Score files on a worker pool (serial below the cutover, where spawn cost
  * dominates). Output is sorted by path so it is stable across worker timing.
  * Failed and unscorable files are dropped — a phantom `mi: 0` poisons the
- * rollup — but unscorable ones are reported, never silently omitted.
+ * rollup — but unscorable ones are reported, never silently omitted. A
+ * TypeScript file with no resolvable compiler throws `CompilerMissingError`
+ * so no baseline is written from a partial scan.
  *
  * @param {string[]} paths
  * @param {{serialThreshold?: number}} [opts] Test seam for the cutover.
@@ -195,6 +198,12 @@ export async function calculateAll(paths, opts = {}) {
   perFile.sort((a, b) =>
     a.relPath < b.relPath ? -1 : a.relPath > b.relPath ? 1 : 0,
   );
+
+  const missingDirs = perFile
+    .filter((entry) => entry?.compilerMissing)
+    .map((entry) => entry.packageDir);
+  if (missingDirs.length > 0)
+    throw new CompilerMissingError(missingDirs, { cwd });
 
   reportUnscorable(perFile);
 

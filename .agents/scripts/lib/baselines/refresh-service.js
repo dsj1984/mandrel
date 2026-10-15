@@ -126,7 +126,7 @@ function buildDefaultCrapScorer({ cwd, config, quality } = {}) {
       scopeFiles,
     });
     resolveEscomplexVersion(effectiveCwd);
-    resolveTsTranspilerVersion();
+    resolveTsTranspilerVersion({ cwd: effectiveCwd, targetDirs });
     return (rows ?? []).filter(
       (r) => typeof r?.crap === 'number' && Number.isFinite(r.crap),
     );
@@ -286,6 +286,7 @@ export function resolveDefaultScorer(kind, { cwd } = {}) {
  *   cwd?: string,
  *   requireRowsForScopeFiles?: boolean,
  *   requiredScopeFilePredicate?: (file: string) => boolean,
+ *   extrasContext?: { cwd?: string, targetDirs?: string[] },
  * }} opts
  * @returns {Promise<{
  *   kind: string,
@@ -310,6 +311,7 @@ export async function refreshBaseline(opts = {}) {
     cwd = process.cwd(),
     requireRowsForScopeFiles = false,
     requiredScopeFilePredicate,
+    extrasContext = { cwd },
   } = opts;
 
   validateOptions({ kind, scopeFiles, fullScope, writePath });
@@ -363,6 +365,7 @@ export async function refreshBaseline(opts = {}) {
     prior: priorEnvelope?.rows,
     priorEnvelope,
     epsilon,
+    extrasContext,
     scope:
       scope.mode === 'full'
         ? null

@@ -2,11 +2,12 @@
 /**
  * Verifies graceful degradation when TypeScript is absent (B4).
  *
- * `transpileIfNeeded` performs a lazy, guarded `require('typescript')`. When
- * the package is absent it returns null and logs a warn — it must not throw.
- * This test exercises that path by faking the require to throw
- * ERR_MODULE_NOT_FOUND, without actually uninstalling the real typescript
- * peer dep.
+ * `transpileIfNeeded` resolves `typescript` from the scanned file's own
+ * package (Story #5692). When nothing resolves it returns the distinct
+ * `COMPILER_MISSING` outcome — never throws, never a per-file warn — and the
+ * gates fail loud on it. The end-to-end nested-package and missing-compiler
+ * paths live in `transpile-consumer-resolution.test.js`; this file pins the
+ * in-process contract without uninstalling the real typescript peer dep.
  *
  * `resolveTsTranspilerVersion` degrades on a **different** input (Story
  * #5109): it never evaluates the compiler at all, it resolves and reads the
@@ -92,13 +93,11 @@ describe('transpile.js — real TS present', () => {
 // ---------------------------------------------------------------------------
 // Graceful degradation when TS is absent
 //
-// We simulate absence by directly testing the internal loadTypeScript logic
-// via a thin in-process fake. Since the module is already loaded (ES module
-// cache), we cannot re-import it with a broken require. Instead we verify the
-// public contract via the '0.0.0' sentinel from resolveTsTranspilerVersion()
-// when TS fails to load — and we test the degradation path by calling
-// transpileIfNeeded with a broken private require stub injected via a
-// separate module-scoped helper below.
+// The module is already loaded (ES module cache) with a resolvable compiler,
+// so absence is exercised through the public seams: injected `transpile`
+// doubles for `prepareSourceForScoring`, the diagnostic builder, and the
+// '0.0.0' manifest sentinel. The real no-compiler path runs in a child
+// process in transpile-consumer-resolution.test.js.
 // ---------------------------------------------------------------------------
 
 describe('transpile.js — TS-absent degradation (simulated)', () => {
@@ -144,28 +143,72 @@ describe('transpile.js — TS-absent degradation (simulated)', () => {
     );
   });
 
-  it('transpileIfNeeded returns null for .ts files when typescript is absent', () => {
-    // Same in-process double approach
-    const warnings = [];
-    const fakeTsLoadFailed = true;
+  it('a missing compiler is a distinct prepare outcome naming the owning package', async () => {
+    const { COMPILER_MISSING, prepareSourceForScoring } = await import(
+      pathToFileURL(TRANSPILE_PATH).href
+    );
+    const abs = path.resolve(__dirname, '../../.agents/scripts/lib/x.ts');
+    const prepared = prepareSourceForScoring(abs, {
+      readFile: () => 'const x: number = 1;',
+      transpile: () => COMPILER_MISSING,
+    });
+    assert.equal(prepared.error, 'compiler-missing');
+    assert.equal(
+      prepared.packageDir,
+      path.resolve(__dirname, '../../.agents/scripts'),
+      'nearest package.json ancestor',
+    );
+    const failed = prepareSourceForScoring(abs, {
+      readFile: () => 'x',
+      transpile: () => null,
+    });
+    assert.deepEqual(
+      failed,
+      { error: 'transpile' },
+      'syntax failures stay separate',
+    );
+  });
 
-    function transpileIfNeededFake(filePath, source) {
-      const TS_EXTS = new Set(['.ts', '.tsx', '.mts', '.cts']);
-      const ext = path.extname(String(filePath)).toLowerCase();
-      if (!TS_EXTS.has(ext)) return source;
-      if (fakeTsLoadFailed) {
-        warnings.push(
-          `[Maintainability] ⚠ typescript package not resolvable; cannot score ${filePath}.`,
-        );
-        return null;
-      }
-      return source; // would not reach here
-    }
+  it('the compiler-missing diagnostic dedupes, caps and names the remedy', async () => {
+    const { CompilerMissingError, compilerMissingMessage } = await import(
+      pathToFileURL(TRANSPILE_PATH).href
+    );
+    const dirs = Array.from(
+      { length: 12 },
+      (_, i) => `/repo/pkg-${String(i).padStart(2, '0')}`,
+    );
+    const message = compilerMissingMessage([...dirs, dirs[0]], {
+      cwd: '/repo',
+    });
+    assert.match(message, /in 12 package\(s\): pkg-00, pkg-01/);
+    assert.match(message, /\(\+2 more\)/);
+    assert.doesNotMatch(message, /pkg-11/);
+    assert.match(message, /npm install --save-dev typescript/);
+    assert.match(message, />=5\.0\.0 <7/);
+    const err = new CompilerMissingError(['/b', '/a', '/b']);
+    assert.equal(err.name, 'CompilerMissingError');
+    assert.deepEqual(err.packageDirs, ['/a', '/b']);
+  });
 
-    const result = transpileIfNeededFake('foo.ts', 'const x: number = 1;');
-    assert.equal(result, null, 'must return null when TS is absent');
-    assert.ok(warnings.length > 0, 'must emit a warning when TS is absent');
-    assert.match(warnings[0], /typescript/i, 'warning must mention typescript');
+  it('resolveTsTranspilerVersion anchors at the scan cwd and target dirs', async () => {
+    const { resolveTsTranspilerVersion } = await import(
+      pathToFileURL(TRANSPILE_PATH).href
+    );
+    const repo = path.resolve(__dirname, '../..');
+    const manifest = JSON.parse(
+      readFileSync(
+        path.join(repo, 'node_modules/typescript/package.json'),
+        'utf-8',
+      ),
+    );
+    assert.equal(
+      resolveTsTranspilerVersion({
+        cwd: repo,
+        targetDirs: ['.agents/scripts', 'lib'],
+      }),
+      manifest.version,
+      'one installation resolved from several anchors stamps one version',
+    );
   });
 
   it('transpileIfNeeded passes through .js files even when TS is absent', () => {

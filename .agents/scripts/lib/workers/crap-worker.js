@@ -2,7 +2,8 @@
  * CPU-pool worker for `scanAndScore`: one file in, its per-method CRAP rows
  * out. The host pre-resolves each file's coverage entry (`item.coverageEntry`)
  * so the coverage map is never cloned per worker. An unrecoverable per-file
- * failure replies `rows: null`, which the host drops and counts.
+ * failure replies `rows: null`, which the host drops and counts; a missing
+ * TypeScript compiler replies `compilerMissing` so the host fails loud.
  */
 
 import { parentPort } from 'node:worker_threads';
@@ -11,7 +12,10 @@ import {
   finalizeMethodRows,
   UNSCORABLE,
 } from '../crap-engine.js';
-import { prepareSourceForScoring } from '../transpile.js';
+import {
+  preparedFailureFields,
+  prepareSourceForScoring,
+} from '../transpile.js';
 import { serveWorkerMessages } from './serve-worker-messages.js';
 
 /**
@@ -44,7 +48,13 @@ export function handleCrapWorkerMessage(msg, _coverage, deps = {}) {
       },
     };
   }
-  const { abs, relPath, requireCoverage, coverageAvailable = true } = item;
+  const {
+    abs,
+    relPath,
+    root,
+    requireCoverage,
+    coverageAvailable = true,
+  } = item;
 
   const entry = item.coverageEntry ?? null;
 
@@ -77,7 +87,7 @@ export function handleCrapWorkerMessage(msg, _coverage, deps = {}) {
   // escomplex's transpiled coordinates to them.
   const prepare = deps.prepare ?? prepareSourceForScoring;
   const prepared = prepare(abs, deps);
-  if (prepared.error) return dropped(null);
+  if (prepared.error) return reply(preparedFailureFields(prepared));
 
   let methodRows;
   try {
