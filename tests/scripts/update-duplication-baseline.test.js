@@ -234,6 +234,35 @@ describe('duplication-scanner.collectVisitedFiles() (pure)', () => {
   });
 });
 
+describe('duplication-scanner.buildDuplicationRows() — clone partners (Story #5702)', () => {
+  it('names every other file sharing a clone, sorted and deduped', () => {
+    const clones = [
+      clone('src/a.js', 1, 10, 'src/b.js', 1, 10),
+      clone('src/a.js', 20, 30, 'src/c.js', 1, 10),
+      clone('src/a.js', 40, 50, 'src/b.js', 20, 30),
+      clone('src/d.js', 1, 10, 'src/d.js', 20, 30),
+    ];
+    const counts = new Map([
+      ['src/a.js', 100],
+      ['src/b.js', 100],
+      ['src/c.js', 100],
+      ['src/d.js', 100],
+    ]);
+    const partners = Object.fromEntries(
+      buildDuplicationRows(clones, counts, REPO_ROOT).map((r) => [
+        r.path,
+        r.partners,
+      ]),
+    );
+    assert.deepEqual(partners, {
+      'src/a.js': ['src/b.js', 'src/c.js'],
+      'src/b.js': ['src/a.js'],
+      'src/c.js': ['src/a.js'],
+      'src/d.js': [],
+    });
+  });
+});
+
 describe('scanDuplication() — injected detect + readLineCount seams', () => {
   it('parses mocked clones into canonical rows (no real jscpd, no disk)', async () => {
     const detectCalls = [];
