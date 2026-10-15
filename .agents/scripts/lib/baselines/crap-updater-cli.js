@@ -167,18 +167,19 @@ function noCoverageRows(coverageAbs, options, opts, logger) {
  * from: the target dirs and the project root.
  *
  * @param {ReturnType<typeof resolveCrapUpdaterOptions>} options
- * @param {{loadCoverage: Function, epsilon?: number, cwd?: string}} deps
+ * @param {{loadCoverage: Function, epsilon?: number, cwd?: string,
+ *   scan?: Function, logger?: object}} deps
  * @returns {object}
  */
 export function buildCrapRefreshOptions(
   options,
-  { loadCoverage, epsilon, cwd = process.cwd() },
+  { epsilon, cwd = process.cwd(), ...scorerDeps },
 ) {
   return {
     kind: 'crap',
     writePath: options.absBaselinePath,
     epsilon,
-    scorer: buildCrapUpdaterScorer(options, { loadCoverage }),
+    scorer: buildCrapUpdaterScorer(options, scorerDeps),
     extrasContext: { cwd, targetDirs: options.targetDirs },
     ...scopeFields(options),
   };
@@ -198,7 +199,7 @@ function scopeFields({ fullScope, diffScopeRef }) {
  * @param {{loadCoverage: Function, scan?: Function, logger?: object}} deps
  * @returns {(files: string[], opts: object) => Promise<object[]>}
  */
-export function buildCrapUpdaterScorer(
+function buildCrapUpdaterScorer(
   options,
   { loadCoverage, scan = scanAndScore, logger = Logger } = {},
 ) {

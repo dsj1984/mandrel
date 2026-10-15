@@ -37,12 +37,7 @@ function unscorable(reason) {
   return { score: UNSCORABLE, unscorable: true, reason };
 }
 
-/**
- * No compiler resolved for a TypeScript file: not a kernel gap, so the
- * caller fails loud naming `packageDir` instead of reporting it unscorable.
- *
- * @param {string} filePath
- */
+/** Not a kernel gap: the caller fails loud naming `packageDir`. */
 function compilerMissing(filePath) {
   return {
     score: UNSCORABLE,

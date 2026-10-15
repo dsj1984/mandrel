@@ -9,50 +9,29 @@ const moduleRequire = createRequire(import.meta.url);
 const TS_EXTS = new Set(['.ts', '.tsx', '.mts', '.cts']);
 
 /** TS 7 moved `transpileModule` under `unstable/*`; mirrors the peer range. */
-export const SUPPORTED_TS_RANGE = '>=5.0.0 <7';
+const SUPPORTED_TS_RANGE = '>=5.0.0 <7';
 
-/**
- * `transpileIfNeeded` outcome when no `typescript` resolves for a file —
- * distinct from `null` (a transpile failure) so the gates can fail loud.
- */
-export const COMPILER_MISSING = Object.freeze({ compilerMissing: true });
+/** No compiler resolved — distinct from `null`, a transpile failure. */
+const COMPILER_MISSING = Object.freeze({ compilerMissing: true });
 
-/** Cap on package directories named in one compiler-missing diagnostic. */
 const DIAGNOSTIC_DIR_CAP = 10;
 
-/** Module-location anchor key (cannot collide with an absolute directory). */
 const MODULE_ANCHOR = '\0module-location';
 
-/** anchor directory → resolved `typescript` entry, or `null` (a per-dir miss). */
+// Misses are cached per anchor, never process-wide.
 const _entryByAnchor = new Map();
-/** resolved entry → loaded compiler, or `null` when it failed to load. */
 const _compilerByEntry = new Map();
-/** directory → owning package directory. */
 const _packageDirByDir = new Map();
 
-/**
- * A require anchored at `dir`, so Node's own upward `node_modules` walk
- * starts there (the consumer-anchored precedent in check-gherkin-corpus.js).
- *
- * @param {string} dir
- * @returns {NodeJS.Require}
- */
+/** Node's upward `node_modules` walk starts at `dir`. */
 function requireFromDir(dir) {
   return createRequire(path.join(dir, 'noop.cjs'));
 }
 
-/**
- * @param {string} anchor An absolute directory or {@link MODULE_ANCHOR}.
- * @returns {NodeJS.Require}
- */
 function requireForAnchor(anchor) {
   return anchor === MODULE_ANCHOR ? moduleRequire : requireFromDir(anchor);
 }
 
-/**
- * @param {string} anchor
- * @returns {string|null}
- */
 function resolveEntry(anchor) {
   if (_entryByAnchor.has(anchor)) return _entryByAnchor.get(anchor);
   let entry = null;
@@ -65,12 +44,7 @@ function resolveEntry(anchor) {
   return entry;
 }
 
-/**
- * One load per installation, however many files resolve to it.
- *
- * @param {string} entry
- * @returns {object|null}
- */
+/** One load per installation. */
 function loadCompiler(entry) {
   if (_compilerByEntry.has(entry)) return _compilerByEntry.get(entry);
   let ts = null;
@@ -84,14 +58,8 @@ function loadCompiler(entry) {
 }
 
 /**
- * Resolution order: the scanned file's own directory — Node's upward walk
- * finds the compiler of the package that owns it and, for any file inside
- * the project, passes through the project root's `node_modules` on the way —
- * then this module's location. A miss is cached per anchor only, never
- * process-wide.
- *
- * @param {string} filePath
- * @returns {object|null}
+ * The file's own directory first: the walk finds its package's compiler and
+ * passes the project root on the way. Then this module's location.
  */
 function loadTypeScriptFor(filePath) {
   const anchors = [path.dirname(path.resolve(String(filePath))), MODULE_ANCHOR];
@@ -104,8 +72,7 @@ function loadTypeScriptFor(filePath) {
 }
 
 /**
- * Nearest ancestor directory holding a `package.json` — the package a missing
- * compiler must be installed into. Falls back to the file's own directory.
+ * Nearest ancestor holding a `package.json` (else the file's directory).
  *
  * @param {string} filePath
  * @returns {string}
@@ -128,15 +95,7 @@ export function owningPackageDir(filePath) {
   return found;
 }
 
-/**
- * The one diagnostic for in-scope TypeScript with no resolvable compiler:
- * deduplicated, capped package directories plus the remedy.
- *
- * @param {Iterable<string>} packageDirs
- * @param {{ cwd?: string }} [opts] Renders directories relative to `cwd`.
- * @returns {string}
- */
-export function compilerMissingMessage(packageDirs, opts = {}) {
+function compilerMissingMessage(packageDirs, opts = {}) {
   const dirs = [...new Set(packageDirs)].sort();
   const render = (dir) =>
     opts.cwd ? path.relative(opts.cwd, dir).replace(/\\/g, '/') || '.' : dir;
@@ -151,17 +110,13 @@ export function compilerMissingMessage(packageDirs, opts = {}) {
   );
 }
 
-/** Thrown by the CRAP and MI scorers so update/check fail loud, writing nothing. */
+/** The scorers throw this so update/check fail loud and write nothing. */
 export class CompilerMissingError extends Error {
-  /**
-   * @param {Iterable<string>} packageDirs
-   * @param {{ cwd?: string }} [opts]
-   */
   constructor(packageDirs, opts = {}) {
     super(compilerMissingMessage(packageDirs, opts));
     this.name = 'CompilerMissingError';
     this.packageDirs = [...new Set(packageDirs)].sort();
-    // An install step, not a crash: a logged `stack` carries no trace.
+    // An install step, not a crash: no trace.
     this.stack = `${this.name}: ${this.message}`;
   }
 }
@@ -175,8 +130,7 @@ export function isCompilerMissing(value) {
 }
 
 /**
- * Scan-result fields for a failed `prepareSourceForScoring`: a missing
- * compiler carries its package so the host fails loud; others carry nothing.
+ * Scan-result fields for a failed prepare; only a missing compiler has any.
  *
  * @param {{error?: string, packageDir?: string}} prepared
  * @returns {{compilerMissing?: true, packageDir?: string}}
@@ -210,11 +164,9 @@ function isUsableCompiler(ts) {
 const _tsVersionByAnchors = new Map();
 
 /**
- * `typescript` version for baseline stamps, read from manifests (never by
- * loading the compiler), resolved from the same anchors the scorer uses:
- * each target dir, then the project root; this module's location only when
- * neither resolves. Distinct versions are sorted and `+`-joined; `'0.0.0'`
- * means unknown environment.
+ * `typescript` version stamp from manifests (never loading the compiler):
+ * target dirs and project root, else this module's location. Distinct
+ * versions are `+`-joined; `'0.0.0'` means unknown.
  *
  * @param {{ cwd?: string, targetDirs?: string[] }} [ctx]
  * @returns {string}
@@ -228,7 +180,6 @@ export function resolveTsTranspilerVersion(ctx = {}) {
   return _tsVersionByAnchors.get(key);
 }
 
-/** Relative target dirs need a `cwd` to anchor; nothing reads `process.cwd()`. */
 function stampAnchors({ cwd, targetDirs }) {
   const dirs = Array.isArray(targetDirs) ? targetDirs.filter(Boolean) : [];
   if (!cwd) return dirs.filter((dir) => path.isAbsolute(dir));
@@ -305,9 +256,9 @@ function buildLineMapper(sourceMapText, code) {
 
 /**
  * TS/TSX → JS escomplex can parse (types add no control flow); JS passes
- * through; `null` means a transpile failure and {@link COMPILER_MISSING} means
- * no compiler resolved for the file. Transpiling shifts lines, so a coverage
- * join opts into `{ withLineMap: true }` → `{ code, mapLine }` (`null` for JS).
+ * through; `null` means skip, `COMPILER_MISSING` no compiler. Transpiling
+ * shifts lines, so a coverage join opts into `{ withLineMap: true }` →
+ * `{ code, mapLine }` (`null` for JS).
  *
  * @param {string} filePath
  * @param {string} source
@@ -354,7 +305,7 @@ export function transpileIfNeeded(filePath, source, opts = {}) {
 
 /**
  * Read + transpile with a line map. Read, transpile and missing-compiler
- * failures stay distinct; `compiler-missing` names the owning package.
+ * failures stay distinct.
  *
  * @param {string} abs
  * @param {{readFile?: (p: string) => string, transpile?: Function}} [deps]

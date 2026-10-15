@@ -1,18 +1,8 @@
 /**
- * transpile-consumer-resolution.test.js — Story #5692.
- *
- * A consumer that installs `typescript` only inside a nested workspace
- * package (`packages/web/node_modules/typescript`) gets that package's TS
- * scored by the CRAP and maintainability gates, with no root install and no
- * `NODE_PATH`. A package with no compiler fails both refresh commands loud,
- * naming the package and the remedy, and leaves the baseline byte-identical.
- *
- * The fixture lives under the OS temp dir, so no ancestor `node_modules`
- * holds a compiler. Mandrel's own module location still would (this repo
- * installs typescript), so a `--require` preload refuses `typescript` for
- * any request issued from inside this repository — the position a consumer's
- * `node_modules/mandrel` is in when the peer is not installed at its root.
- * Same simulation as `tests/scripts/duplication-jscpd-optional-peer.test.js`.
+ * TypeScript installed only in a nested package is resolved and scored with
+ * no root install and no NODE_PATH; a package with no compiler fails both
+ * refreshes loud. A `--require` preload refuses `typescript` from inside this
+ * repo, standing in for a consumer whose root lacks the peer.
  */
 
 import assert from 'node:assert/strict';
@@ -64,7 +54,6 @@ export function pick(mode: Mode, n: number): number {
 }
 `;
 
-/** 100%-covered istanbul entry for `pick` at its real source line (3). */
 function coverageEntry(absPath) {
   const statementMap = {};
   const s = {};
@@ -99,10 +88,6 @@ afterEach(() => {
   root = undefined;
 });
 
-/**
- * @param {{ withCompilerless?: boolean }} [opts] Adds `packages/api`, whose
- *   TS has no compiler anywhere on its resolution path.
- */
 function seed({ withCompilerless = false } = {}) {
   root = fs.realpathSync(makeTempDir('ts-nested-resolution-'));
   const write = (rel, text) => {
@@ -113,8 +98,6 @@ function seed({ withCompilerless = false } = {}) {
   };
   write('package.json', JSON.stringify({ name: 'fixture', private: true }));
   write('block-ts.cjs', BLOCK_MODULE_LOCATION_TS);
-  // Each workspace package is a target dir (the Spec's `APP/frontend`
-  // shape), so the transpiler stamp anchors where the scorer resolves.
   const targetDirs = ['packages/web', 'packages/api'];
   write(
     '.agentrc.json',
@@ -155,7 +138,6 @@ function seed({ withCompilerless = false } = {}) {
 }
 
 function childEnv() {
-  // `resolveConfig()` defaults to the script's project; point it at the fixture.
   const env = { ...process.env, NO_COLOR: '1', AP_AGENTRC_CWD: root };
   delete env.NODE_PATH;
   return env;
@@ -223,7 +205,6 @@ describe('a package with no resolvable compiler fails loud', () => {
       const res = run([path.join(SCRIPTS, script), '--full-scope']);
       const output = `${res.stdout}${res.stderr}`;
       assert.notEqual(res.status, 0, output);
-      // Only the compilerless package is named; `web` still resolves.
       assert.match(output, /1 package\(s\): packages\/api\./);
       assert.match(output, /npm install --save-dev typescript/);
       assert.doesNotMatch(output, /\n\s+at /, 'no stack trace');

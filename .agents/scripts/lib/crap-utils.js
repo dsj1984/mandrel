@@ -274,14 +274,7 @@ function projectScanRow(relPath, mr) {
   };
 }
 
-/**
- * Fold per-file results into rows and counters. A missing compiler is
- * collected by package directory and thrown as one `CompilerMissingError`,
- * never counted as an unscorable drop.
- *
- * @param {Array<{item: object, result: object|null}>} perFile
- * @param {string} cwd Renders the diagnostic's package directories.
- */
+/** Fold per-file results; missing compilers throw one CompilerMissingError. */
 function tallyScanResults(perFile, cwd) {
   const rows = [];
   let skippedFilesNoCoverage = 0;
