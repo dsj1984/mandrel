@@ -1680,7 +1680,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/open-pr.js",
-      "mi": 80.186
+      "mi": 81.391
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/options.js",
@@ -1713,6 +1713,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/review-block.js",
       "mi": 114.79
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/review-halt.js",
+      "mi": 97.516
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/review-outcome.js",

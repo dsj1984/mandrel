@@ -2543,7 +2543,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/open-pr.js",
       "lines": 100,
-      "branches": 92.86,
+      "branches": 100,
       "functions": 100
     },
     {
@@ -2592,6 +2592,12 @@
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/review-block.js",
       "lines": 90.91,
       "branches": 66.67,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/review-halt.js",
+      "lines": 100,
+      "branches": 83.33,
       "functions": 100
     },
     {
