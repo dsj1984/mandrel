@@ -6,8 +6,8 @@
 > configuration, and the major-version policy. It was relocated out of the
 > always-`@`-imported [`AGENTS.md`](../AGENTS.md) (Story #4333) so the
 > always-loaded session context stays lean; this material is consulted at
-> release-plumbing time, not on every task. [`AGENTS.md`](../AGENTS.md)
-> links here from its **Release Operations** section.
+> release-plumbing time, not on every task. The inbound link is
+> [`docs/onboarding.md` § Release Operations](onboarding.md#release-operations).
 
 ## Release Checklist
 
@@ -89,8 +89,12 @@ manifest mode**, which has two operator-visible consequences:
 
 - **One release PR.** release-please opens a single PR that bumps the
   root package. The PR uses:
-  - **Branch:** `release-please--branches--main`
-  - **Title:** `chore: release main`
+  - **Branch:** `release-please--branches--main--components--mandrel`
+  - **Title:** `chore(main): release mandrel X.Y.Z`
+
+  Both carry the component because `include-component-in-tag` is `true`
+  and the root package sets `package-name: "mandrel"` (see the tag bullet
+  below).
 
   There should be **exactly one** open release PR at a time. (The repo
   briefly ran a two-package topology when the `create-mandrel` launcher
@@ -98,8 +102,8 @@ manifest mode**, which has two operator-visible consequences:
   reverting release-please to single-package mode. A package-set change
   can briefly orphan the prior release-PR branch shape — if you ever see
   two open `autorelease: pending` PRs, close the stale orphan and keep
-  the live `release-please--branches--main` PR; it self-resolves on the
-  next release run.)
+  the live `release-please--branches--main--components--mandrel` PR; it
+  self-resolves on the next release run.)
 
 - **Namespaced tags (`include-component-in-tag: true`).** The root
   `mandrel` package has `package-name: "mandrel"` with `component: ""`.
