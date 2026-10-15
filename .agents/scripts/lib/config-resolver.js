@@ -52,9 +52,9 @@ export {
 } from './config/worktree-isolation.js';
 export { PROJECT_ROOT } from './project-root.js';
 
-// Cache keyed by absolute root path so callers passing different cwds
-// (e.g. per-worktree) each get their own resolved config.
-const _cacheByRoot = new Map();
+// Keyed by absolute root + validate mode, so per-worktree cwds and a
+// `validate: false` read never answer a validating caller.
+const _cacheByKey = new Map();
 const _envLoadedRoots = new Set();
 
 /**
@@ -137,79 +137,91 @@ function applyDefaults(raw) {
 }
 
 /**
- * Returns `{ project, github, planning, delivery, qa?, raw, source }`. A
- * missing file falls back to defaults; malformed JSON or a schema failure
- * throws.
+ * The merged raw config and a human description of where it came from;
+ * `raw: null` when neither file exists (zero-config).
  *
- * @param {{ bustCache?: boolean, cwd?: string, validate?: boolean, ctx?: object }} [opts]
+ * @param {import('node:fs')} fsImpl
+ * @param {string} root
+ * @returns {{ raw: object|null, source: string }}
  */
-export function resolveConfig(opts) {
-  const envCwd = process.env.AP_AGENTRC_CWD;
-  const root = path.resolve(opts?.cwd ?? envCwd ?? PROJECT_ROOT);
-  const validate = opts?.validate !== false;
-  const fsImpl = opts?.ctx?.fs ?? fs;
-
-  if (!opts?.bustCache && _cacheByRoot.has(root)) {
-    return _cacheByRoot.get(root);
-  }
-
-  if (!_envLoadedRoots.has(root)) {
-    loadEnv(root);
-    _envLoadedRoots.add(root);
-  }
-
+function readRawConfig(fsImpl, root) {
   const agentrcPath = path.join(root, '.agentrc.json');
   const localPath = path.join(root, '.agentrc.local.json');
   const hasAgentrc = fsImpl.existsSync(agentrcPath);
   const hasLocal = fsImpl.existsSync(localPath);
-
-  if (!hasAgentrc && !hasLocal) {
-    const blocks = applyDefaults({ ...ZERO_CONFIG_RAW });
-    const resolved = {
-      ...blocks,
-      raw: null,
-      source: 'built-in defaults',
+  if (!hasAgentrc) {
+    if (!hasLocal) return { raw: null, source: 'built-in defaults' };
+    return {
+      raw: deepMergeObjects(
+        { ...ZERO_CONFIG_RAW },
+        readJsonConfigFile(fsImpl, localPath, '.agentrc.local.json'),
+      ),
+      source: `${localPath} (overrides built-in defaults)`,
     };
-    _cacheByRoot.set(root, resolved);
-    return resolved;
   }
-
-  let raw = hasAgentrc
-    ? readJsonConfigFile(fsImpl, agentrcPath, '.agentrc.json')
-    : { ...ZERO_CONFIG_RAW };
-
-  let source = hasAgentrc ? agentrcPath : 'built-in defaults';
-
-  if (hasLocal) {
-    const localRaw = readJsonConfigFile(
-      fsImpl,
-      localPath,
-      '.agentrc.local.json',
-    );
-    raw = deepMergeObjects(raw, localRaw);
-    source =
-      source === 'built-in defaults'
-        ? `${localPath} (overrides built-in defaults)`
-        : `${localPath} (overrides ${agentrcPath})`;
-  }
-
-  if (validate) {
-    const validateAgentrc = getAgentrcValidator();
-    if (!validateAgentrc(raw)) {
-      const details = formatAgentrcErrors(validateAgentrc.errors).join(', ');
-      throw new Error(`[config] Invalid .agentrc.json: ${details}`);
-    }
-  }
-
-  const blocks = applyDefaults(raw);
-
-  if (validate) validateOrchestrationConfig(blocks);
-
-  const resolved = {
-    ...blocks,
-    raw,
-    source,
+  const raw = readJsonConfigFile(fsImpl, agentrcPath, '.agentrc.json');
+  if (!hasLocal) return { raw, source: agentrcPath };
+  return {
+    raw: deepMergeObjects(
+      raw,
+      readJsonConfigFile(fsImpl, localPath, '.agentrc.local.json'),
+    ),
+    source: `${localPath} (overrides ${agentrcPath})`,
   };
-  _cacheByRoot.set(root, resolved);
+}
+
+/** @param {object} raw */
+function assertSchemaValid(raw) {
+  const validateAgentrc = getAgentrcValidator();
+  if (!validateAgentrc(raw)) {
+    const details = formatAgentrcErrors(validateAgentrc.errors).join(', ');
+    throw new Error(`[config] Invalid .agentrc.json: ${details}`);
+  }
+}
+
+/**
+ * Defaults applied over `raw`; a zero-config read is never validated.
+ *
+ * @param {{ raw: object|null, source: string }} read
+ * @param {boolean} validate
+ */
+function finalizeConfig({ raw, source }, validate) {
+  const checked = validate && raw !== null;
+  if (checked) assertSchemaValid(raw);
+  const blocks = applyDefaults(raw ?? { ...ZERO_CONFIG_RAW });
+  if (checked) validateOrchestrationConfig(blocks);
+  return { ...blocks, raw, source };
+}
+
+function ensureEnvLoaded(root) {
+  if (_envLoadedRoots.has(root)) return;
+  loadEnv(root);
+  _envLoadedRoots.add(root);
+}
+
+/**
+ * Returns `{ project, github, planning, delivery, qa?, raw, source }`. A
+ * missing file falls back to defaults; malformed JSON or a schema failure
+ * throws. A call with an injected `ctx.fs` neither reads nor fills the
+ * shared cache.
+ *
+ * @param {{ bustCache?: boolean, cwd?: string, validate?: boolean, ctx?: object }} [opts]
+ */
+export function resolveConfig(opts) {
+  const root = path.resolve(
+    opts?.cwd ?? process.env.AP_AGENTRC_CWD ?? PROJECT_ROOT,
+  );
+  const validate = opts?.validate !== false;
+  const injectedFs = opts?.ctx?.fs;
+  const key = `${root}\0${validate}`;
+  if (!injectedFs && !opts?.bustCache && _cacheByKey.has(key)) {
+    return _cacheByKey.get(key);
+  }
+  ensureEnvLoaded(root);
+  const resolved = finalizeConfig(
+    readRawConfig(injectedFs ?? fs, root),
+    validate,
+  );
+  if (!injectedFs) _cacheByKey.set(key, resolved);
   return resolved;
 }

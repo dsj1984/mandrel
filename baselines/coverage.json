@@ -40,9 +40,9 @@
     },
     {
       "path": ".agents/scripts/boot-sweep.js",
-      "lines": 99.12,
-      "branches": 89.04,
-      "functions": 76.92
+      "lines": 99.14,
+      "branches": 88.73,
+      "functions": 78.57
     },
     {
       "path": ".agents/scripts/bootstrap.js",
@@ -112,9 +112,9 @@
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
-      "lines": 91.74,
+      "lines": 91.67,
       "branches": 84.39,
-      "functions": 76.47
+      "functions": 83.87
     },
     {
       "path": ".agents/scripts/cleanup-repo-test-temp.js",
@@ -676,8 +676,8 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "lines": 94.23,
-      "branches": 83.03,
+      "lines": 94.45,
+      "branches": 84.71,
       "functions": 90
     },
     {
@@ -760,9 +760,9 @@
     },
     {
       "path": ".agents/scripts/lib/bdd-runner-detect.js",
-      "lines": 90.25,
+      "lines": 91.11,
       "branches": 81.93,
-      "functions": 88.89
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/bdd-scenario-budget.js",
@@ -1042,8 +1042,8 @@
     },
     {
       "path": ".agents/scripts/lib/codex/skills-projection.js",
-      "lines": 95.88,
-      "branches": 89.83,
+      "lines": 95.71,
+      "branches": 89.47,
       "functions": 100
     },
     {
@@ -1054,8 +1054,8 @@
     },
     {
       "path": ".agents/scripts/lib/config-resolver.js",
-      "lines": 96.74,
-      "branches": 96.23,
+      "lines": 96.92,
+      "branches": 96.77,
       "functions": 100
     },
     {
@@ -1558,9 +1558,9 @@
     },
     {
       "path": ".agents/scripts/lib/git-utils.js",
-      "lines": 95.16,
-      "branches": 91.49,
-      "functions": 90.91
+      "lines": 96.96,
+      "branches": 90.38,
+      "functions": 95.45
     },
     {
       "path": ".agents/scripts/lib/git/cached-fetch.js",
@@ -1930,8 +1930,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/file-assumptions.js",
-      "lines": 98.08,
-      "branches": 87.34,
+      "lines": 98.14,
+      "branches": 88.62,
       "functions": 100
     },
     {
@@ -1942,8 +1942,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/branches-reap.js",
-      "lines": 97.63,
-      "branches": 91.43,
+      "lines": 97.58,
+      "branches": 93.55,
       "functions": 100
     },
     {
@@ -2177,7 +2177,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/persist-helpers.js",
       "lines": 100,
-      "branches": 96.3,
+      "branches": 100,
       "functions": 100
     },
     {
@@ -2279,7 +2279,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/pr-watch.js",
       "lines": 100,
-      "branches": 92.42,
+      "branches": 92.19,
       "functions": 100
     },
     {
@@ -2297,7 +2297,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/reassert-status-column.js",
       "lines": 100,
-      "branches": 91.67,
+      "branches": 91.3,
       "functions": 100
     },
     {
@@ -2500,8 +2500,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
-      "lines": 97.15,
-      "branches": 83.72,
+      "lines": 97.14,
+      "branches": 83.46,
       "functions": 100
     },
     {
@@ -2722,9 +2722,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "lines": 96.5,
-      "branches": 83.9,
-      "functions": 95.12
+      "lines": 97.49,
+      "branches": 82.76,
+      "functions": 97.5
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-init-envelope.js",
@@ -2783,7 +2783,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "lines": 100,
-      "branches": 88.71,
+      "branches": 89.76,
       "functions": 100
     },
     {
@@ -2890,8 +2890,8 @@
     },
     {
       "path": ".agents/scripts/lib/qa/resolve-selection.js",
-      "lines": 90.16,
-      "branches": 88.37,
+      "lines": 89.93,
+      "branches": 88.24,
       "functions": 100
     },
     {
@@ -2986,9 +2986,9 @@
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
-      "lines": 97.96,
-      "branches": 88.7,
-      "functions": 96.3
+      "lines": 97.97,
+      "branches": 89.58,
+      "functions": 95.12
     },
     {
       "path": ".agents/scripts/lib/single-story/confirm-merge.js",
@@ -3004,8 +3004,8 @@
     },
     {
       "path": ".agents/scripts/lib/skills/parse-skill.js",
-      "lines": 86.98,
-      "branches": 82.93,
+      "lines": 86.75,
+      "branches": 82.5,
       "functions": 100
     },
     {
@@ -3100,8 +3100,8 @@
     },
     {
       "path": ".agents/scripts/lib/test-run-credit.js",
-      "lines": 99.1,
-      "branches": 92.59,
+      "lines": 98.39,
+      "branches": 91.23,
       "functions": 100
     },
     {
@@ -3147,9 +3147,21 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/util/paths.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/util/poll-loop.js",
       "lines": 100,
       "branches": 96.88,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/util/sleep.js",
+      "lines": 100,
+      "branches": 100,
       "functions": 100
     },
     {
@@ -3214,8 +3226,8 @@
     },
     {
       "path": ".agents/scripts/lib/workflow-closure.js",
-      "lines": 98.85,
-      "branches": 89.9,
+      "lines": 98.83,
+      "branches": 89.8,
       "functions": 100
     },
     {
@@ -3388,8 +3400,8 @@
     },
     {
       "path": ".agents/scripts/providers/github/blocked-by-add.js",
-      "lines": 99.09,
-      "branches": 90.91,
+      "lines": 99.02,
+      "branches": 90.63,
       "functions": 100
     },
     {
@@ -3442,8 +3454,8 @@
     },
     {
       "path": ".agents/scripts/providers/github/mappers.js",
-      "lines": 98.94,
-      "branches": 94.29,
+      "lines": 98.89,
+      "branches": 97.06,
       "functions": 100
     },
     {
@@ -3460,14 +3472,14 @@
     },
     {
       "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "lines": 79.21,
+      "lines": 87.73,
       "branches": 75.82,
-      "functions": 76.47
+      "functions": 100
     },
     {
       "path": ".agents/scripts/providers/github/request-helpers.js",
       "lines": 100,
-      "branches": 89.29,
+      "branches": 90.63,
       "functions": 100
     },
     {
@@ -3485,7 +3497,7 @@
     {
       "path": ".agents/scripts/providers/github/sub-issue-add.js",
       "lines": 100,
-      "branches": 90.63,
+      "branches": 90,
       "functions": 100
     },
     {
@@ -3550,8 +3562,8 @@
     },
     {
       "path": ".agents/scripts/stories-wave-tick.js",
-      "lines": 98.63,
-      "branches": 92.9,
+      "lines": 98.96,
+      "branches": 93.07,
       "functions": 100
     },
     {
@@ -3574,14 +3586,14 @@
     },
     {
       "path": ".agents/scripts/sync-claude-agents.js",
-      "lines": 97.06,
-      "branches": 85.71,
+      "lines": 96.86,
+      "branches": 84.62,
       "functions": 100
     },
     {
       "path": ".agents/scripts/sync-claude-commands.js",
-      "lines": 99.09,
-      "branches": 95.65,
+      "lines": 99.12,
+      "branches": 95.45,
       "functions": 100
     },
     {

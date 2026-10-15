@@ -8,28 +8,11 @@
  * on), which is an error.
  */
 
-import { gitSpawn } from '../git-utils.js';
+import { gitSpawn, pathExistsAtBase } from '../git-utils.js';
 import { parse as parseStoryBody } from '../story-body/story-body.js';
 import { FILE_ASSUMPTION_VALUES } from './file-assumption-enum.js';
 import { computeStoryReachability } from './story-reachability.js';
 import { bareReferencePath, isObjectPathEntry } from './task-body-validator.js';
-
-/**
- * Existence probe at `baseBranchRef`; same semantics as
- * `ticket-validator.js#validateAcFreshness`.
- *
- * @param {{ baseBranchRef: string, path: string, cwd?: string }} opts
- * @returns {boolean}
- */
-function defaultGitRunner({ baseBranchRef, path, cwd }) {
-  const result = gitSpawn(
-    cwd ?? process.cwd(),
-    'cat-file',
-    '-e',
-    `${baseBranchRef}:${path}`,
-  );
-  return result.status === 0;
-}
 
 /**
  * Find `path`'s rename target in a commit's `--name-status -M` output. The
@@ -292,7 +275,7 @@ export function validateStoryFileAssumptions(opts) {
   const {
     tickets,
     baseBranchRef,
-    gitRunner = defaultGitRunner,
+    gitRunner = pathExistsAtBase,
     historyRunner = defaultHistoryRunner,
     cwd,
   } = opts;

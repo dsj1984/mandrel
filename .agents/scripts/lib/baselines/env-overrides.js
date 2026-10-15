@@ -10,52 +10,57 @@ import { Logger } from '../Logger.js';
 const MI_DEFAULT_TOLERANCE = 0.5;
 
 /**
+ * A non-negative numeric env override of `key`, or `current` (with a warning)
+ * when the value is malformed. An unset or empty var keeps `current` silently.
+ *
+ * @param {{ env: NodeJS.ProcessEnv, varName: string, key: string, current: number, overrides: string[] }} opts
+ * @returns {number}
+ */
+function readNonNegativeEnv({ env, varName, key, current, overrides }) {
+  const raw = env?.[varName];
+  if (raw === undefined || raw === '') return current;
+  const parsed = Number(raw);
+  if (Number.isFinite(parsed) && parsed >= 0) {
+    overrides.push(`${key}=${parsed} (${varName})`);
+    return parsed;
+  }
+  Logger.warn(
+    `[CRAP] ⚠ ignoring malformed ${varName}=${raw}; keeping config value ${current}`,
+  );
+  return current;
+}
+
+const finiteOr = (value, fallback) =>
+  Number.isFinite(value) ? value : fallback;
+
+/**
  * @param {{ newMethodCeiling?: unknown, tolerance?: unknown, refreshTag?: unknown }} crapConfig
  * @param {NodeJS.ProcessEnv} env
  * @returns {{ newMethodCeiling: number, tolerance: number, refreshTag: string, overrides: string[] }}
  */
 export function resolveCrapEnvOverrides(crapConfig, env) {
   const overrides = [];
-  let newMethodCeiling = Number.isFinite(crapConfig?.newMethodCeiling)
-    ? crapConfig.newMethodCeiling
-    : 30;
+  const newMethodCeiling = readNonNegativeEnv({
+    env,
+    varName: 'CRAP_NEW_METHOD_CEILING',
+    key: 'newMethodCeiling',
+    current: finiteOr(crapConfig?.newMethodCeiling, 30),
+    overrides,
+  });
   // Coverage rounding across CI environments shifts a CRAP score by ~0.01;
   // real regressions cross whole integers and clear 0.05 trivially.
-  let tolerance = Number.isFinite(crapConfig?.tolerance)
-    ? crapConfig.tolerance
-    : 0.05;
+  const tolerance = readNonNegativeEnv({
+    env,
+    varName: 'CRAP_TOLERANCE',
+    key: 'tolerance',
+    current: finiteOr(crapConfig?.tolerance, 0.05),
+    overrides,
+  });
+  const rawRefreshTag = env?.CRAP_REFRESH_TAG;
   let refreshTag =
     typeof crapConfig?.refreshTag === 'string' && crapConfig.refreshTag.length
       ? crapConfig.refreshTag
       : 'baseline-refresh:';
-
-  const rawCeiling = env?.CRAP_NEW_METHOD_CEILING;
-  if (rawCeiling !== undefined && rawCeiling !== '') {
-    const parsed = Number(rawCeiling);
-    if (Number.isFinite(parsed) && parsed >= 0) {
-      newMethodCeiling = parsed;
-      overrides.push(`newMethodCeiling=${parsed} (CRAP_NEW_METHOD_CEILING)`);
-    } else {
-      Logger.warn(
-        `[CRAP] ⚠ ignoring malformed CRAP_NEW_METHOD_CEILING=${rawCeiling}; keeping config value ${newMethodCeiling}`,
-      );
-    }
-  }
-
-  const rawTolerance = env?.CRAP_TOLERANCE;
-  if (rawTolerance !== undefined && rawTolerance !== '') {
-    const parsed = Number(rawTolerance);
-    if (Number.isFinite(parsed) && parsed >= 0) {
-      tolerance = parsed;
-      overrides.push(`tolerance=${parsed} (CRAP_TOLERANCE)`);
-    } else {
-      Logger.warn(
-        `[CRAP] ⚠ ignoring malformed CRAP_TOLERANCE=${rawTolerance}; keeping config value ${tolerance}`,
-      );
-    }
-  }
-
-  const rawRefreshTag = env?.CRAP_REFRESH_TAG;
   if (typeof rawRefreshTag === 'string' && rawRefreshTag.length > 0) {
     refreshTag = rawRefreshTag;
     overrides.push(`refreshTag=${rawRefreshTag} (CRAP_REFRESH_TAG)`);

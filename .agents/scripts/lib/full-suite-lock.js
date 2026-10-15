@@ -26,6 +26,7 @@ import {
   resolveAdmission,
   resolveSuiteCapacity,
 } from './suite-admission.js';
+import { defaultSleep } from './util/sleep.js';
 
 export { ADMISSION_REFUSED_EXIT_CODE };
 
@@ -279,16 +280,6 @@ function reportCompleted(opts, wait, ranMs) {
   try {
     opts.onLockProgress(completedProgress(wait.waitedMs, opts.waitMs, ranMs));
   } catch {}
-}
-
-/**
- * @param {number} ms
- * @returns {Promise<void>}
- */
-function defaultSleep(ms) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
 }
 
 /**

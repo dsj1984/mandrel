@@ -383,6 +383,62 @@ function reservationNote(withheld) {
   return `${parts.join(' ')} Neither is a wedge and neither is a failure.`;
 }
 
+const isPositiveInt = (v) => Number.isInteger(v) && v > 0;
+
+/**
+ * @param {number[]} dependsOn
+ * @param {string} where `DAG entry at index <i> (id=<id>)`
+ * @returns {string|null}
+ */
+function dependsOnError(dependsOn, where) {
+  const j = dependsOn.findIndex((dep) => !isPositiveInt(dep));
+  return j === -1
+    ? null
+    : `${where}: dependsOn[${j}] must be a positive integer`;
+}
+
+/**
+ * @param {unknown} files
+ * @returns {boolean}
+ */
+function isStringArray(files) {
+  return Array.isArray(files) && files.every((f) => typeof f === 'string');
+}
+
+/**
+ * One DAG entry → its node, or the first validation error.
+ *
+ * @param {unknown} entry
+ * @param {number} i
+ * @returns {{ node: {id: number, dependsOn: number[], files?: string[]}|null, error: string|null }}
+ */
+function validateDagEntry(entry, i) {
+  const at = `DAG entry at index ${i}`;
+  if (!entry || typeof entry !== 'object') {
+    return { node: null, error: `${at} must be an object` };
+  }
+  const { id, dependsOn, files } = entry;
+  if (!isPositiveInt(id)) {
+    return { node: null, error: `${at} must have a positive integer "id"` };
+  }
+  const where = `${at} (id=${id})`;
+  if (!Array.isArray(dependsOn)) {
+    return { node: null, error: `${where} must have a "dependsOn" array` };
+  }
+  const depError = dependsOnError(dependsOn, where);
+  if (depError) return { node: null, error: depError };
+  const node = { id, dependsOn: [...dependsOn] };
+  if (files === undefined) return { node, error: null };
+  if (!isStringArray(files)) {
+    return {
+      node: null,
+      error: `${where}: "files" must be an array of strings`,
+    };
+  }
+  node.files = [...files];
+  return { node, error: null };
+}
+
 /**
  * Validate the raw DAG array. An optional `files` footprint is forwarded so
  * the overlap guard is active in flag mode too.
@@ -394,54 +450,10 @@ export function parseDag(raw) {
   if (!Array.isArray(raw)) {
     return { nodes: null, error: 'DAG input must be a JSON array' };
   }
-  if (raw.length === 0) {
-    return { nodes: [], error: null };
-  }
   const nodes = [];
   for (let i = 0; i < raw.length; i++) {
-    const entry = raw[i];
-    if (!entry || typeof entry !== 'object') {
-      return {
-        nodes: null,
-        error: `DAG entry at index ${i} must be an object`,
-      };
-    }
-    const id = entry.id;
-    if (!Number.isInteger(id) || id <= 0) {
-      return {
-        nodes: null,
-        error: `DAG entry at index ${i} must have a positive integer "id"`,
-      };
-    }
-    const dependsOn = entry.dependsOn;
-    if (!Array.isArray(dependsOn)) {
-      return {
-        nodes: null,
-        error: `DAG entry at index ${i} (id=${id}) must have a "dependsOn" array`,
-      };
-    }
-    for (let j = 0; j < dependsOn.length; j++) {
-      const dep = dependsOn[j];
-      if (!Number.isInteger(dep) || dep <= 0) {
-        return {
-          nodes: null,
-          error: `DAG entry at index ${i} (id=${id}): dependsOn[${j}] must be a positive integer`,
-        };
-      }
-    }
-    const node = { id, dependsOn: [...dependsOn] };
-    if (entry.files !== undefined) {
-      if (
-        !Array.isArray(entry.files) ||
-        entry.files.some((f) => typeof f !== 'string')
-      ) {
-        return {
-          nodes: null,
-          error: `DAG entry at index ${i} (id=${id}): "files" must be an array of strings`,
-        };
-      }
-      node.files = [...entry.files];
-    }
+    const { node, error } = validateDagEntry(raw[i], i);
+    if (error) return { nodes: null, error };
     nodes.push(node);
   }
   return { nodes, error: null };

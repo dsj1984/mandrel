@@ -3,7 +3,6 @@
  * `{ path, method, startLine, crap }`.
  */
 
-import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -12,6 +11,7 @@ import {
   deriveFixGuidance,
 } from '../../crap-engine.js';
 import { isAnonymousMethodLabel } from '../../crap-method-identity.js';
+import { resolveEscomplexVersion } from '../../crap-utils.js';
 import { Logger } from '../../Logger.js';
 import { resolveTsTranspilerVersion } from '../../transpile.js';
 import {
@@ -42,43 +42,16 @@ export { loadCrapBaseline } from './_crap-read.js';
 
 const __filename = fileURLToPath(import.meta.url);
 
-/** The package that computes the metrics; its version stamps the scorer identity. */
-const SCORER_PACKAGE = 'escomplex-plugin-metrics-module';
-
 /**
- * Resolve the scorer version from the nearest `node_modules/<SCORER_PACKAGE>`,
- * walking up. Returns the `'0.0.0'` "unknown environment" sentinel when not
- * found, which makes the writer refuse to persist. The walk-up can escape a
- * worktree into the parent checkout, so a local pass does not prove CI's.
+ * Scorer version, walked up from this module's directory; the `'0.0.0'`
+ * sentinel (unknown environment) makes the writer refuse to persist. The
+ * walk-up can escape a worktree into the parent checkout, so a local pass
+ * does not prove CI's.
  *
  * @returns {string}
  */
 export function kernelVersion() {
-  let dir = path.dirname(__filename);
-  const { root } = path.parse(dir);
-  while (true) {
-    const pkgPath = path.join(
-      dir,
-      'node_modules',
-      SCORER_PACKAGE,
-      'package.json',
-    );
-    if (fs.existsSync(pkgPath)) {
-      try {
-        const parsed = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
-        if (parsed && typeof parsed.version === 'string') {
-          return parsed.version;
-        }
-      } catch {
-        // fall through to parent lookup
-      }
-    }
-    if (dir === root) break;
-    const parent = path.dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-  return '0.0.0';
+  return resolveEscomplexVersion(path.dirname(__filename));
 }
 
 /**

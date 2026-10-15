@@ -10,6 +10,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { defaultSleep } from '../util/sleep.js';
 
 const DEFAULT_TIMEOUT_MS = 60_000;
 
@@ -527,16 +528,6 @@ function attachSignalRelease(processImpl, release) {
 
 const DEFAULT_WAIT_MS = 8_000;
 const DEFAULT_POLL_MS = 150;
-
-/**
- * @param {number} ms
- * @returns {Promise<void>}
- */
-function defaultSleep(ms) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
 
 /**
  * Polls {@link acquireSweepLock} up to `waitMs` — a collision damper for the

@@ -14,14 +14,7 @@
 import path from 'node:path';
 
 import { listFeatureFiles, scanBddScenarios } from '../bdd-scenario-scanner.js';
-
-/**
- * @param {string} p
- * @returns {string}
- */
-function toPosix(p) {
-  return p.split(path.sep).join('/');
-}
+import { toPosix } from '../util/paths.js';
 
 /**
  * @param {string} featureRoot - Absolute path to the feature root.
