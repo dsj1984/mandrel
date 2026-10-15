@@ -15,7 +15,13 @@ function normalizeLabels(issue) {
   return [];
 }
 
-export function issueToTicket(issue) {
+/**
+ * Fields every REST-issue mapper shares.
+ *
+ * @param {object} issue
+ * @returns {object}
+ */
+function baseIssueFields(issue) {
   const labels = normalizeLabels(issue);
   return {
     id: issue.number,
@@ -25,6 +31,12 @@ export function issueToTicket(issue) {
     body: issue.body ?? '',
     labels,
     labelSet: new Set(labels),
+  };
+}
+
+export function issueToTicket(issue) {
+  return {
+    ...baseIssueFields(issue),
     assignees: (issue.assignees ?? []).map((a) => a.login),
     state: issue.state,
     // Distinguishes a landed Story from a superseded one; both are `closed`.
@@ -33,16 +45,7 @@ export function issueToTicket(issue) {
 }
 
 export function issueToEpic(issue) {
-  const labels = normalizeLabels(issue);
-  return {
-    id: issue.number,
-    internalId: issue.id,
-    nodeId: issue.node_id,
-    title: issue.title,
-    body: issue.body ?? '',
-    labels,
-    labelSet: new Set(labels),
-  };
+  return baseIssueFields(issue);
 }
 
 export function subIssueNodeToTicket(node) {
@@ -80,15 +83,8 @@ export function subIssueNodesToTickets(nodes) {
 }
 
 export function issueToListItem(issue) {
-  const labels = normalizeLabels(issue);
   return {
-    id: issue.number,
-    internalId: issue.id,
-    nodeId: issue.node_id,
-    title: issue.title,
-    body: issue.body ?? '',
-    labels,
-    labelSet: new Set(labels),
+    ...baseIssueFields(issue),
     state: issue.state,
   };
 }

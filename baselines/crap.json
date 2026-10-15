@@ -8290,6 +8290,19 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/env-overrides.js",
+      "method": "readNonNegativeEnv",
+      "startLine": 19,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/env-overrides.js",
+      "method": "<anon (value,fallback)#0>",
+      "startLine": 33,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/env-overrides.js",
       "method": "kindRefreshEnvVar",
       "startLine": 73,
       "crap": 3
@@ -10006,6 +10019,12 @@
       "method": "stabiliseRows",
       "startLine": 156,
       "crap": 8
+    },
+    {
+      "path": ".agents/scripts/lib/bdd-runner-detect.js",
+      "method": "withAndWithoutAt",
+      "startLine": 36,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/bdd-runner-detect.js",
@@ -11930,6 +11949,219 @@
       "anonymous": true
     },
     {
+      "path": ".agents/scripts/lib/clean-temp.js",
+      "method": "<anon ()#0>",
+      "startLine": 39,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/clean-temp.js",
+      "method": "idCandidates",
+      "startLine": 48,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/clean-temp.js",
+      "method": "parseCleanTempArgs",
+      "startLine": 57,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/clean-temp.js",
+      "method": "canonical",
+      "startLine": 72,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/clean-temp.js",
+      "method": "resolveScopedTempRoot",
+      "startLine": 88,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/clean-temp.js",
+      "method": "readIssueStates",
+      "startLine": 107,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/clean-temp.js",
+      "method": "<anon readIssueStates/(id)#0>",
+      "startLine": 111,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/clean-temp.js",
+      "method": "<anon readIssueStates/(id,i)#0>",
+      "startLine": 122,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/clean-temp.js",
+      "method": "topLevelName",
+      "startLine": 126,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/clean-temp.js",
+      "method": "idsToRead",
+      "startLine": 131,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/clean-temp.js",
+      "method": "closedIds",
+      "startLine": 144,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/clean-temp.js",
+      "method": "<anon closedIds/(s)#0/(id)#0>",
+      "startLine": 145,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/clean-temp.js",
+      "method": "<anon closedIds/(s)#0>",
+      "startLine": 145,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/clean-temp.js",
+      "method": "classifyUnrecognized",
+      "startLine": 156,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/clean-temp.js",
+      "method": "buildRows",
+      "startLine": 179,
+      "crap": 4.002157824643032
+    },
+    {
+      "path": ".agents/scripts/lib/clean-temp.js",
+      "method": "<anon buildRows/(u)#0>",
+      "startLine": 187,
+      "crap": 1.0001348640401895,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/clean-temp.js",
+      "method": "<anon buildRows/(a,b)#0>",
+      "startLine": 216,
+      "crap": 1.0001348640401895,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/clean-temp.js",
+      "method": "bucketTotals",
+      "startLine": 223,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/clean-temp.js",
+      "method": "<anon bucketTotals/(r)#0>",
+      "startLine": 226,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/clean-temp.js",
+      "method": "<anon bucketTotals/(sum,r)#0>",
+      "startLine": 229,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/clean-temp.js",
+      "method": "renderTable",
+      "startLine": 239,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/clean-temp.js",
+      "method": "purgeUnrecognizedEntries",
+      "startLine": 259,
+      "crap": 2.1017708121310807
+    },
+    {
+      "path": ".agents/scripts/lib/clean-temp.js",
+      "method": "<anon purgeUnrecognizedEntries/(u)#0>",
+      "startLine": 261,
+      "crap": 1.0254427030327702,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/clean-temp.js",
+      "method": "executeBucket",
+      "startLine": 282,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/clean-temp.js",
+      "method": "<anon executeBucket/(r)#0/(r)#0>",
+      "startLine": 297,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/clean-temp.js",
+      "method": "<anon executeBucket/(r)#0>",
+      "startLine": 297,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/clean-temp.js",
+      "method": "approveBucket",
+      "startLine": 307,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/clean-temp.js",
+      "method": "executeBuckets",
+      "startLine": 323,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/clean-temp.js",
+      "method": "runCleanTemp",
+      "startLine": 365,
+      "crap": 7
+    },
+    {
+      "path": ".agents/scripts/lib/clean-temp.js",
+      "method": "<anon runCleanTemp/(path,_p,r)#0>",
+      "startLine": 415,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/clean-temp.js",
+      "method": "renderSummary",
+      "startLine": 435,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/clean-temp.js",
+      "method": "<anon renderSummary/(bucket,t)#0>",
+      "startLine": 437,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/clean-temp.js",
+      "method": "<anon renderSummary/(e)#0>",
+      "startLine": 443,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
       "path": ".agents/scripts/lib/cli-args.js",
       "method": "parseTicketId",
       "startLine": 9,
@@ -13433,6 +13665,30 @@
       "method": "resolveConfig",
       "startLine": 146,
       "crap": 13
+    },
+    {
+      "path": ".agents/scripts/lib/config-resolver.js",
+      "method": "readRawConfig",
+      "startLine": 147,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/config-resolver.js",
+      "method": "assertSchemaValid",
+      "startLine": 174,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/config-resolver.js",
+      "method": "finalizeConfig",
+      "startLine": 188,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/config-resolver.js",
+      "method": "ensureEnvLoaded",
+      "startLine": 196,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/config/acceptance-eval.js",
@@ -18118,6 +18374,12 @@
       "method": "getStoryBranch",
       "startLine": 262,
       "crap": 4.25
+    },
+    {
+      "path": ".agents/scripts/lib/git-utils.js",
+      "method": "pathExistsAtBase",
+      "startLine": 270,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/git-utils.js",
@@ -35763,6 +36025,18 @@
       "anonymous": true
     },
     {
+      "path": ".agents/scripts/lib/util/paths.js",
+      "method": "toPosix",
+      "startLine": 17,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/util/paths.js",
+      "method": "dirExists",
+      "startLine": 25,
+      "crap": 1
+    },
+    {
       "path": ".agents/scripts/lib/util/poll-loop.js",
       "method": "pollUntil",
       "startLine": 21,
@@ -35785,6 +36059,19 @@
       "path": ".agents/scripts/lib/util/poll-loop.js",
       "method": "<anon sleep/(resolve)#0/()#0>",
       "startLine": 75,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/util/sleep.js",
+      "method": "defaultSleep",
+      "startLine": 11,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/util/sleep.js",
+      "method": "<anon defaultSleep/(resolve)#0>",
+      "startLine": 12,
       "crap": 1,
       "anonymous": true
     },
@@ -38127,8 +38414,22 @@
     },
     {
       "path": ".agents/scripts/providers/github/blocked-by-add.js",
+      "method": "<anon addBlockedByEdges/()#0>",
+      "startLine": 84,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/providers/github/blocked-by-add.js",
       "method": "<anon addBlockedByEdges/(blockerId)#0>",
       "startLine": 84,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/providers/github/blocked-by-add.js",
+      "method": "<anon addBlockedByEdges/(blockerId)#1>",
+      "startLine": 87,
       "crap": 1,
       "anonymous": true
     },
@@ -38371,6 +38672,12 @@
     },
     {
       "path": ".agents/scripts/providers/github/mappers.js",
+      "method": "baseIssueFields",
+      "startLine": 24,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/providers/github/mappers.js",
       "method": "<anon issueToTicket/(a)#0>",
       "startLine": 28,
       "crap": 1,
@@ -38604,6 +38911,19 @@
       "anonymous": true
     },
     {
+      "path": ".agents/scripts/providers/github/request-helpers.js",
+      "method": "postEdges",
+      "startLine": 99,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/providers/github/request-helpers.js",
+      "method": "<anon postEdges/(edge)#0>",
+      "startLine": 109,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
       "path": ".agents/scripts/providers/github/search-budget.js",
       "method": "createSearchBudget",
       "startLine": 28,
@@ -38680,8 +39000,22 @@
     },
     {
       "path": ".agents/scripts/providers/github/sub-issue-add.js",
+      "method": "<anon addSubIssueEdges/()#0>",
+      "startLine": 86,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/providers/github/sub-issue-add.js",
       "method": "<anon addSubIssueEdges/(childId)#0>",
       "startLine": 87,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/providers/github/sub-issue-add.js",
+      "method": "<anon addSubIssueEdges/(childId)#1>",
+      "startLine": 89,
       "crap": 1,
       "anonymous": true
     },
@@ -39605,6 +39939,45 @@
     },
     {
       "path": ".agents/scripts/stories-wave-tick.js",
+      "method": "<anon (v)#0>",
+      "startLine": 386,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/stories-wave-tick.js",
+      "method": "dependsOnError",
+      "startLine": 393,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/stories-wave-tick.js",
+      "method": "<anon dependsOnError/(dep)#0>",
+      "startLine": 394,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/stories-wave-tick.js",
+      "method": "isStringArray",
+      "startLine": 404,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/stories-wave-tick.js",
+      "method": "<anon isStringArray/(f)#0>",
+      "startLine": 405,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/stories-wave-tick.js",
+      "method": "validateDagEntry",
+      "startLine": 415,
+      "crap": 8.029130632680928
+    },
+    {
+      "path": ".agents/scripts/stories-wave-tick.js",
       "method": "<anon parseDag/(f)#0>",
       "startLine": 427,
       "crap": 1.0007117802478134,
@@ -39801,9 +40174,28 @@
     },
     {
       "path": ".agents/scripts/stories-wave-tick.js",
+      "method": "crossRunFields",
+      "startLine": 1025,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/stories-wave-tick.js",
       "method": "main",
       "startLine": 1026,
       "crap": 5.048828125
+    },
+    {
+      "path": ".agents/scripts/stories-wave-tick.js",
+      "method": "crossRunWarnings",
+      "startLine": 1042,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/stories-wave-tick.js",
+      "method": "<anon crossRunWarnings/(id,otherId,holder,paths)#0>",
+      "startLine": 1043,
+      "crap": 2,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/stories-wave-tick.js",

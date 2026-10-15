@@ -81,12 +81,6 @@
       "percentage": 3.82
     },
     {
-      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "duplicatedLines": 35,
-      "totalLines": 763,
-      "percentage": 4.59
-    },
-    {
       "path": ".agents/scripts/lib/baselines/kinds/kind-factory.js",
       "duplicatedLines": 14,
       "totalLines": 171,
@@ -231,12 +225,6 @@
       "percentage": 6.5
     },
     {
-      "path": ".agents/scripts/lib/orchestration/file-assumptions.js",
-      "duplicatedLines": 19,
-      "totalLines": 573,
-      "percentage": 3.32
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
       "duplicatedLines": 34,
       "totalLines": 510,
@@ -247,12 +235,6 @@
       "duplicatedLines": 6,
       "totalLines": 158,
       "percentage": 3.8
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/plan-persist/persist-helpers.js",
-      "duplicatedLines": 16,
-      "totalLines": 140,
-      "percentage": 11.43
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
@@ -303,12 +285,6 @@
       "percentage": 4.6
     },
     {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "duplicatedLines": 16,
-      "totalLines": 426,
-      "percentage": 3.76
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "duplicatedLines": 21,
       "totalLines": 504,
@@ -334,15 +310,9 @@
     },
     {
       "path": ".agents/scripts/providers/github/blocked-by-add.js",
-      "duplicatedLines": 44,
-      "totalLines": 220,
-      "percentage": 20
-    },
-    {
-      "path": ".agents/scripts/providers/github/mappers.js",
-      "duplicatedLines": 33,
-      "totalLines": 94,
-      "percentage": 35.11
+      "duplicatedLines": 7,
+      "totalLines": 204,
+      "percentage": 3.43
     },
     {
       "path": ".agents/scripts/providers/github/search-query.js",
@@ -352,9 +322,9 @@
     },
     {
       "path": ".agents/scripts/providers/github/sub-issue-add.js",
-      "duplicatedLines": 43,
-      "totalLines": 185,
-      "percentage": 23.24
+      "duplicatedLines": 7,
+      "totalLines": 168,
+      "percentage": 4.17
     },
     {
       "path": ".agents/scripts/prune-plan-run-labels.js",

@@ -17,6 +17,7 @@ import { applyHeader } from './lib/command-header.js';
 import { applyAgentModel, getAgentModels } from './lib/config/agent-models.js';
 import { resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
+import { dirExists } from './lib/util/paths.js';
 
 // cwd, never `__dirname/../..`, which lands inside node_modules when installed.
 const PROJECT_ROOT = process.cwd();
@@ -36,18 +37,6 @@ export const HEADER =
 
 export const LOCAL_HEADER =
   '<!-- AUTO-GENERATED from .agents/local/ — do not edit. Source of truth: .agents/local/agents/ -->\n<!-- Re-run: npm run sync:agents -->\n\n';
-
-/**
- * @param {string} dir
- * @returns {boolean}
- */
-function dirExists(dir) {
-  try {
-    return fs.statSync(dir).isDirectory();
-  } catch {
-    return false;
-  }
-}
 
 fs.mkdirSync(DEST_DIR, { recursive: true });
 

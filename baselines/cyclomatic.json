@@ -23,22 +23,12 @@
       "maxCyclomatic": 15
     },
     {
-      "file": ".agents/scripts/lib/baselines/env-overrides.js",
-      "methodsAboveCeiling": 1,
-      "maxCyclomatic": 15
-    },
-    {
       "file": ".agents/scripts/lib/bdd-scenario-scanner.js",
       "methodsAboveCeiling": 1,
       "maxCyclomatic": 14
     },
     {
       "file": ".agents/scripts/lib/bootstrap/quality-bootstrap.js",
-      "methodsAboveCeiling": 1,
-      "maxCyclomatic": 13
-    },
-    {
-      "file": ".agents/scripts/lib/config-resolver.js",
       "methodsAboveCeiling": 1,
       "maxCyclomatic": 13
     },
@@ -96,11 +86,6 @@
       "file": ".agents/scripts/lib/worktree/lifecycle/creation.js",
       "methodsAboveCeiling": 1,
       "maxCyclomatic": 13
-    },
-    {
-      "file": ".agents/scripts/stories-wave-tick.js",
-      "methodsAboveCeiling": 1,
-      "maxCyclomatic": 15
     },
     {
       "file": "lib/cli/uninstall.js",

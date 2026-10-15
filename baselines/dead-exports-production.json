@@ -920,10 +920,6 @@
       "symbol": "setLevel"
     },
     {
-      "file": ".agents/scripts/lib/Logger.js",
-      "symbol": "STDERR_LOGGER"
-    },
-    {
       "file": ".agents/scripts/lib/maintainability-engine.js",
       "symbol": "calculateForFile"
     },

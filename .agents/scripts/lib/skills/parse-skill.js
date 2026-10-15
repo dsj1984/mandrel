@@ -7,6 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import yaml from 'js-yaml';
+import { toPosix } from '../util/paths.js';
 
 const FRONTMATTER_DELIMITER = '---';
 const POLICY_HEADING_RE = /^## Policy Capsule\s*$/;
@@ -27,10 +28,6 @@ function resolveRepoRoot(absoluteSkillPath) {
     dir = path.dirname(dir);
   }
   return path.resolve(path.dirname(absoluteSkillPath), '..', '..', '..', '..');
-}
-
-function toPosix(p) {
-  return p.split(path.sep).join('/');
 }
 
 /** Indices match the file's lines, so 1-based line numbers report verbatim. */

@@ -5,6 +5,8 @@
  * @module lib/orchestration/git-cleanup/phases/branches-reap
  */
 
+import { parseStoryBranch } from '../../../git-utils.js';
+
 const TAG = '[git-cleanup]';
 
 /**
@@ -67,7 +69,7 @@ function recordDeferredWorktree({
   worktreeRoot,
 }) {
   let pendingCleanup = null;
-  const storyId = storyIdFromBranch(cand.branch);
+  const storyId = parseStoryBranch(cand.branch);
   if (recordPendingCleanupFn && worktreeRoot && storyId != null) {
     try {
       pendingCleanup = recordPendingCleanupFn(worktreeRoot, {
@@ -93,12 +95,6 @@ function recordDeferredWorktree({
     `${TAG} ⚠️ worktree ${cand.worktreePath} could not be removed (file lock); ` +
       `ref reaped, directory deferred to pending-cleanup sweep`,
   );
-}
-
-/** Story id of a `story-<id>` branch (the manifest key), else `null`. */
-function storyIdFromBranch(branch) {
-  const m = /^story-(\d+)$/.exec(branch ?? '');
-  return m ? Number(m[1]) : null;
 }
 
 export function reapLocalRef({ cand, deleteLocalFn, cwd, local, failures }) {
