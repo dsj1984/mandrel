@@ -52,6 +52,7 @@ describe('providers/github/mappers.js — REST payload shapes', () => {
       assignees: ['alice', 'bob'],
       state: 'open',
       stateReason: null,
+      closedAt: null,
     });
   });
 

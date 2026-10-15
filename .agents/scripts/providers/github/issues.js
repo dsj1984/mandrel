@@ -125,8 +125,8 @@ export class IssuesGateway {
    * @param {{ state?: 'open'|'closed'|'all', labels?: string }} [opts]
    * @returns {Promise<Array<object>>} Mapped tickets (`id` is the issue number).
    * @field-manifest /repos/{owner}/{repo}/issues: number, id, node_id, title,
-   *                 body, labels, state, state_reason, assignees, html_url,
-   *                 pull_request
+   *                 body, labels, state, state_reason, closed_at, assignees,
+   *                 html_url, pull_request
    */
   async listTicketsByLabel(opts = {}) {
     const issues = await this.listIssuesByLabel(opts);

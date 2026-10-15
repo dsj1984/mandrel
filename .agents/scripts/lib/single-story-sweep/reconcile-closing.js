@@ -8,7 +8,10 @@ import { getStoryBranch } from '../git-utils.js';
 import { AGENT_LABELS, TYPE_LABELS } from '../label-constants.js';
 import { reconcileDoneLabel as defaultReconcile } from '../orchestration/single-story-close/phases/reconcile-done.js';
 
-/** Candidates processed per sweep; a larger backlog drains across boots. */
+/**
+ * Candidates per sweep, most recently closed first: an unmerged closed Story
+ * stays a candidate forever and must not starve a newly stranded one.
+ */
 export const DEFAULT_RECONCILE_LIMIT = 10;
 
 /** Lifecycle labels a closed Story can strand at; one listing each. */
@@ -42,6 +45,15 @@ async function reconcileOne({ story, cwd, deps, logger, reconcileFn }) {
     );
     return 'error';
   }
+}
+
+function closedAtMs(ticket) {
+  const ms = Date.parse(ticket?.closedAt ?? '');
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+function byClosedAtDesc(a, b) {
+  return closedAtMs(b) - closedAtMs(a);
 }
 
 /** Closed Stories at any stranded label, de-duplicated by id. */
@@ -83,7 +95,10 @@ export async function reconcileStrandedClosing({
     );
     return { ...outcome, ok: false, error: msg };
   }
-  const candidates = tickets.filter(isStrandedStory).slice(0, limit);
+  const candidates = tickets
+    .filter(isStrandedStory)
+    .sort(byClosedAtDesc)
+    .slice(0, limit);
   const deps = { provider, config, gh, notify, sleep, runPostLandTail };
   for (const story of candidates) {
     const storyId = story.id;

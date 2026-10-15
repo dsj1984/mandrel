@@ -41,6 +41,7 @@ export function issueToTicket(issue) {
     state: issue.state,
     // Distinguishes a landed Story from a superseded one; both are `closed`.
     stateReason: issue.state_reason ?? null,
+    closedAt: issue.closed_at ?? null,
   };
 }
 

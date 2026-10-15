@@ -411,6 +411,34 @@ describe('reconcileStrandedClosing (Story #5652)', () => {
     assert.ok(labelWrites[0].patch.labels.remove.includes('agent::closing'));
   });
 
+  it('reconciles a newly stranded Story even when older unmerged closes fill the cap', async () => {
+    const unmerged = Array.from({ length: 10 }, (_, i) =>
+      story(100 + i, {
+        labels: ['type::story', 'agent::blocked'],
+        closedAt: `2026-01-${String(i + 1).padStart(2, '0')}T00:00:00Z`,
+      }),
+    );
+    const fresh = story(200, {
+      labels: ['type::story', 'agent::blocked'],
+      closedAt: '2026-10-15T00:00:00Z',
+    });
+    const provider = fakeProvider([...unmerged, fresh]);
+    const gh = fakeGh({ 'story-200': merged(201) });
+    const out = await reconcileStrandedClosing({
+      provider,
+      config: config(),
+      cwd: '/repo',
+      gh,
+      notify: async () => {},
+      sleep: async () => {},
+      runPostLandTail: fakeTail().fn,
+      logger: quiet,
+    });
+
+    assert.deepEqual(out.reconciled, [200]);
+    assert.equal(out.skipped.length, 9);
+  });
+
   it('leaves a Story with no merged PR, and a not_planned one, untouched', async () => {
     const provider = fakeProvider([
       story(10),
