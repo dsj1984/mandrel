@@ -61,16 +61,38 @@ function writeStoryProgress(file, record, deps = {}) {
 }
 
 /**
+ * The configured progress path, or `null` when it cannot be resolved.
+ *
+ * @param {number} storyId
+ * @param {object|undefined} config
+ * @param {((msg: string) => void)|undefined} debug
+ * @returns {string|null}
+ */
+function resolveProgressPath(storyId, config, debug) {
+  try {
+    return storyProgressPath(storyId, config);
+  } catch (err) {
+    (debug ?? ((msg) => Logger.debug(msg)))(
+      `[story-progress] no progress path: ${err?.message ?? err}`,
+    );
+    return null;
+  }
+}
+
+/**
  * A per-run recorder: `stageStartedAt` is fixed at creation, `phaseStartedAt`
  * resets on each `phase()`, and `prNumber()` re-writes the current phase with
- * the PR number once known. Nothing is written until the first `phase()`.
+ * the PR number once known. `evidence()` records the current phase's live
+ * evidence log, cleared by the next `phase()`. Nothing is written until the
+ * first `phase()`.
  * Construction never throws either: a bad Story id or config degrades to a
  * recorder that writes nothing.
  *
  * @param {{ storyId: number, stage: 'handoff'|'close', config?: object,
  *   file?: string, now?: () => Date, fsImpl?: typeof fs,
  *   debug?: (msg: string) => void }} args
- * @returns {{ phase: (name: string) => boolean, prNumber: (n: number|null) => boolean, file: string|null }}
+ * @returns {{ phase: (name: string) => boolean, prNumber: (n: number|null) => boolean,
+ *   evidence: (file: string) => boolean, file: string|null }}
  */
 export function createStoryProgress({
   storyId,
@@ -81,20 +103,12 @@ export function createStoryProgress({
   fsImpl,
   debug,
 }) {
-  let target = file ?? null;
-  if (!target) {
-    try {
-      target = storyProgressPath(storyId, config);
-    } catch (err) {
-      (debug ?? ((msg) => Logger.debug(msg)))(
-        `[story-progress] no progress path: ${err?.message ?? err}`,
-      );
-    }
-  }
+  const target = file ?? resolveProgressPath(storyId, config, debug);
   const stageStartedAt = now().toISOString();
   let current = null;
   let phaseStartedAt = stageStartedAt;
   let pr = null;
+  let extra = {};
   const write = () => {
     if (!target || current === null) return false;
     return writeStoryProgress(
@@ -107,6 +121,7 @@ export function createStoryProgress({
         stageStartedAt,
         phaseStartedAt,
         prNumber: pr,
+        ...extra,
         updatedAt: now().toISOString(),
       },
       { fsImpl, debug },
@@ -117,6 +132,11 @@ export function createStoryProgress({
     phase(name) {
       current = name;
       phaseStartedAt = now().toISOString();
+      extra = {};
+      return write();
+    },
+    evidence(file) {
+      extra = { evidencePath: file };
       return write();
     },
     prNumber(n) {

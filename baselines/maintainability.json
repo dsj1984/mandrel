@@ -643,6 +643,10 @@
       "mi": 112.652
     },
     {
+      "path": ".agents/scripts/lib/child-stream.js",
+      "mi": 100.789
+    },
+    {
       "path": ".agents/scripts/lib/clean-temp.js",
       "mi": 94.177
     },
@@ -1257,6 +1261,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/epic-rollup.js",
       "mi": 91.602
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/evidence-stream.js",
+      "mi": 104.224
     },
     {
       "path": ".agents/scripts/lib/orchestration/file-assumption-enum.js",
