@@ -877,7 +877,7 @@ changing its shape (full per-field reference:
   ruleset, never off `.agentrc.json` — [`ci-contract.md`](ci-contract.md).
 - **`delivery.routing.closeAndLand`** — default `true`: `single-story-close`
   arms auto-merge and may poll to confirmation; set `false` to stop at
-  PR-open for operator-driven merge.
+  PR-open and leave the merge to the operator.
 
 ---
 
@@ -1070,7 +1070,7 @@ Both modes share:
 - The launch-time blocker pre-flight: `resolve-stories.js` resolves every
   `depends_on` / native `blocked_by` edge against live state, so a Story
   with unresolved blockers never enters the ready set.
-- Deterministic, operator-driven story assignment — `/mandrel-deliver` always
+- Deterministic story assignment chosen by the operator — `/mandrel-deliver` always
   takes explicit Story ids. There is no per-launch label race.
 - The per-Story ticket lease (`lib/orchestration/ticket-lease.js`,
   enforced by `single-story-init.js`) so two operators driving the same
@@ -1256,28 +1256,41 @@ external test framework dependencies. Tests live under `tests/` with
 
 ## CI/CD Pipeline
 
-A single GitHub Actions workflow (`ci.yml`) runs on every push and PR,
-with three jobs:
+The per-change gate is `ci.yml`, which runs on every push and PR with four
+jobs:
 
 1. **Validate and Test** — the main job, in step order: `npm audit`
    (SCA), TruffleHog secret scanning, **Lint and Format** via
    `npm run lint` (which folds in the Biome format check — Story #1829),
    and **Run Tests with Coverage** via `npm run test:coverage`. Artifacts:
    `test-results` (test output) and `coverage-final` (c8 coverage map).
-   A `Maintainability Check` step sat between the last two until Story
-   #5004 removed it as a duplicate of the `baselines` job.
 2. **baselines** — `node .agents/scripts/check-baselines.js --format text`,
    surfaced as its own required status check (Epic #1943 / Story #1981);
    the unified floor + tolerance + schema gate that replaced the retired
    per-kind `check-maintainability` / `check-crap` / `check-mutation`
-   scripts.
-3. **Windows Smoke** — advisory (non-required) Windows leg (Story #3389):
-   bootstrap dry-run, command sync, and config-resolution tests.
+   scripts. Its Architecture Cycle Check step also runs the CI-side
+   ratchets that [`docs/ci-contract.md`](ci-contract.md) enumerates.
+3. **e2e** — the `npm run test:e2e` tier (a real `npm pack` + install and
+   the interactive-init guard). Advisory: two of its suites degrade to a
+   documented skip on a fresh runner, and the required coverage job
+   already executes the same files.
+4. **Windows Smoke** — a **required** Windows leg (Story #3389): bootstrap
+   dry-run, command sync, config resolution, a fast test slice, and the
+   worktree-manager real-git contract.
 
-A second workflow, `baseline-drift.yml`, runs on a nightly schedule rather
-than per change. It is the only automated **full-scope**
-baseline re-score in the repository: every gate in `ci.yml` reads committed
+`install-matrix.yml` also runs on every PR and push to `main`. It packs
+this repo and proves the consumer install contract across package managers
+and operating systems; its `install (npm / ubuntu-latest)` and
+`install (yarn / windows-latest)` legs are required checks.
+[`docs/ci-contract.md`](ci-contract.md) is the single authoritative list of
+required checks — read it there rather than restating it here.
+
+Two workflows run on a schedule rather than per change.
+`baseline-drift.yml` is the only automated **full-scope** baseline
+re-score in the repository: every gate in `ci.yml` reads committed
 baseline rows, so none of them can see drift in a file no branch touched.
+`dependency-audit-cron.yml` is the nightly high-severity npm advisory
+sweep against `main`, which surfaces advisories published between PRs.
 
 Distribution is **not** handled by `ci.yml` — see
 [**Distribution Model**](#distribution-model).
@@ -1451,22 +1464,27 @@ conventions to follow.
 ### Tooling
 
 - **Linter & formatter:** Biome (`@biomejs/biome`)
-- **Markdown lint:** `markdownlint-cli`
-- **Markdown format:** Prettier (markdown only)
+- **Markdown lint & fix:** `markdownlint-cli2` (markdown is not formatted;
+  it is only fixed via `markdownlint-cli2 --fix`)
 - **Git hooks:** Husky + `lint-staged`
 - **JSON Schema validation:** Ajv + `ajv-formats`
 - **In-memory filesystem for tests:** `memfs`
-- **Complexity metrics:** `typhonjs-escomplex` (maintainability baseline
-  enforcement)
+- **Complexity metrics:** `typhonjs-escomplex-commons` with
+  `escomplex-plugin-metrics-module` and `escomplex-plugin-syntax-babylon`
+  (maintainability baseline enforcement)
+- **Dead code & entry points:** `knip`
+- **Duplication:** `jscpd`
+- **Commit lint:** `@commitlint/cli` + `@commitlint/config-conventional`
+  (the Husky `commit-msg` hook)
 
 ### Testing
 
 - **Framework:** Node.js native test runner (`node --test`)
 - **Test file pattern:** `tests/**/*.test.js`
-- **Coverage:** `node --experimental-test-coverage` with absolute
-  floors enforced per-file: lines ≥ 90, branches ≥ 85, functions ≥ 90,
-  MI ≥ 70, CRAP ≤ 20. See [`docs/quality-gates.md`](quality-gates.md) for the
-  ratchet-plus-floor policy.
+- **Coverage:** `c8` (via `scripts/run-coverage.js`, configured by
+  `.c8rc.cjs`). The absolute floors are **rollup-scoped**, not per-file —
+  see [`docs/quality-gates.md`](quality-gates.md) for the floor values and
+  the ratchet-plus-floor policy.
 - **Property / model-based tests:** `fast-check` (devDependency only — never
   in the shipped `files` surface). `*.property.test.js` suites run under the
   same `node --test` tiers; today they cover the Epic rollup
@@ -1502,7 +1520,8 @@ conventions to follow.
 
 - **Ticketing provider:** GitHub (Issues, Labels, Projects V2, Sub-Issues API)
 - **CI:** GitHub Actions
-- **Distribution:** GitHub Releases (tagged from `main` post-PR-merge; tagging is operator-driven since `/mandrel-deliver` exits at PR-open).
+- **Distribution:** see [**Distribution Model**](#distribution-model) —
+  release-please cuts the release and its `npm-publish` job publishes to npm.
 
 ### Testing Contract
 

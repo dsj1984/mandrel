@@ -44,7 +44,7 @@
     },
     {
       "path": ".agents/scripts/check-arch-cycles.js",
-      "mi": 95.163
+      "mi": 97.94
     },
     {
       "path": ".agents/scripts/check-baselines.js",
@@ -52,15 +52,15 @@
     },
     {
       "path": ".agents/scripts/check-context-budget.js",
-      "mi": 91.72
+      "mi": 93.837
     },
     {
       "path": ".agents/scripts/check-cyclomatic.js",
-      "mi": 89.413
+      "mi": 92.1
     },
     {
       "path": ".agents/scripts/check-dead-exports.js",
-      "mi": 92.322
+      "mi": 96.911
     },
     {
       "path": ".agents/scripts/check-doc-links.js",
@@ -2188,7 +2188,7 @@
     },
     {
       "path": ".agents/scripts/notify.js",
-      "mi": 89.701
+      "mi": 91.093
     },
     {
       "path": ".agents/scripts/plan-context.js",
@@ -2300,7 +2300,7 @@
     },
     {
       "path": ".agents/scripts/quality-preview.js",
-      "mi": 101.342
+      "mi": 101.995
     },
     {
       "path": ".agents/scripts/quality-watch.js",
@@ -2340,11 +2340,11 @@
     },
     {
       "path": ".agents/scripts/story-handoff.js",
-      "mi": 98.03
+      "mi": 100.476
     },
     {
       "path": ".agents/scripts/story-review-compute.js",
-      "mi": 92.456
+      "mi": 93.032
     },
     {
       "path": ".agents/scripts/sync-agentrc.js",

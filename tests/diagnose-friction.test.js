@@ -24,8 +24,7 @@
  * process, and what these cases assert is what only a real process can produce
  * — an exit code passed through unchanged, the SIGTERM a `spawnSync` timeout
  * sends, an ENOENT from a binary that is not there, and an 11 MB stdout that
- * overruns the interceptor's buffer bound. Its `main` also ends in
- * `process.exit`, so an in-process call would take the test process with it.
+ * overruns the interceptor's buffer bound, and stdout drained through a pipe.
  *
  * Converting these would mean deleting the assertions the file exists for,
  * which is exactly what the Story's non-goals forbid. They are the sanctioned
@@ -148,6 +147,26 @@ describe('diagnose-friction.js — v5 (CLI contract)', () => {
       'Should print auto-remediation suggestions on failure',
     );
   });
+});
+
+describe('diagnose-friction.js — piped output past 64 KiB (Story #5686)', () => {
+  const BYTES = 100_000;
+  const emitter = (exitCode) =>
+    `process.stdout.write('x'.repeat(${BYTES})); process.exitCode = ${exitCode};`;
+
+  for (const exitCode of [0, 3]) {
+    it(`forwards all ${BYTES} bytes through a pipe and exits ${exitCode}`, () => {
+      const result = runScript(
+        ['--cmd', 'node', '-e', emitter(exitCode)],
+        {},
+        {
+          stdio: ['ignore', 'pipe', 'pipe'],
+        },
+      );
+      assert.equal(result.stdout.length, BYTES, 'no stdout truncation');
+      assert.equal(result.status, exitCode, 'exit status propagates');
+    });
+  }
 });
 
 describe('diagnose-friction.js — quoted-command usage error (Story #4915)', () => {

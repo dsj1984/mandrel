@@ -10,6 +10,7 @@
  */
 
 import { createHmac } from 'node:crypto';
+import { parseArgs } from 'node:util';
 import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
@@ -123,111 +124,103 @@ export async function notify(ticketId, payload, opts = {}) {
   const commentEvents = resolveEventAllowlist(notifications, 'commentEvents');
   const webhookEvents = resolveEventAllowlist(notifications, 'webhookEvents');
 
-  const numericId = Number.parseInt(ticketId, 10);
-  const noTicket = Number.isNaN(numericId) || numericId <= 0;
-  const callerSuppressed = opts.skipComment === true;
-  const eventAllowedOnComments = Boolean(event) && commentEvents.has(event);
-  const fireComment = !noTicket && !callerSuppressed && eventAllowedOnComments;
-
-  if (fireComment) {
-    const mention =
-      severity === 'high' ||
-      (severity === 'medium' && notifications?.mentionOperator);
-    const commentBody = mention ? `${operator} ${message}` : message;
-
-    await provider.postComment(numericId, {
-      body: commentBody,
-      type: SEVERITY_TO_COMMENT_TYPE[severity],
-    });
+  const ctx = { config, operator, notifications, severity, message, event };
+  if (event && commentEvents.has(event) && opts.skipComment !== true) {
+    await postOperatorComment(provider, ticketId, ctx);
   }
-
   if (event && webhookEvents.has(event)) {
-    // Only `undefined` resolves from env; an explicit `null` means none.
-    const webhookUrl =
-      opts.webhookUrl === undefined ? resolveWebhookUrl() : opts.webhookUrl;
-    if (webhookUrl) {
-      Logger.info(`[Notify] Firing webhook (${event}) to ${webhookUrl}...`);
-      const payloadBody = buildWebhookPayload({
-        config,
-        ticketId,
-        severity,
-        message,
-        operator,
-        event,
-        level,
-        epicId,
-        phase,
-      });
-      await sendWebhook(webhookUrl, payloadBody, opts.fetchImpl);
-    } else {
-      // Allowlisted but no URL: warn rather than drop silently.
-      Logger.warn(
-        `[Notify] Webhook event (${event}) suppressed — no webhook URL resolved (NOTIFICATION_WEBHOOK_URL unset or empty).`,
-      );
-    }
+    await fireWebhook(opts, { ...ctx, ticketId, level, epicId, phase });
   }
 }
 
+async function postOperatorComment(provider, ticketId, ctx) {
+  const numericId = Number.parseInt(ticketId, 10);
+  if (Number.isNaN(numericId) || numericId <= 0) return;
+  const { severity, message, operator, notifications } = ctx;
+  const mention =
+    severity === 'high' ||
+    (severity === 'medium' && notifications?.mentionOperator);
+  await provider.postComment(numericId, {
+    body: mention ? `${operator} ${message}` : message,
+    type: SEVERITY_TO_COMMENT_TYPE[severity],
+  });
+}
+
+async function fireWebhook(opts, payload) {
+  // Only `undefined` resolves from env; an explicit `null` means none.
+  const webhookUrl =
+    opts.webhookUrl === undefined ? resolveWebhookUrl() : opts.webhookUrl;
+  if (!webhookUrl) {
+    // Allowlisted but no URL: warn rather than drop silently.
+    Logger.warn(
+      `[Notify] Webhook event (${payload.event}) suppressed — no webhook URL resolved (NOTIFICATION_WEBHOOK_URL unset or empty).`,
+    );
+    return;
+  }
+  Logger.info(`[Notify] Firing webhook (${payload.event}) to ${webhookUrl}...`);
+  await sendWebhook(webhookUrl, buildWebhookPayload(payload), opts.fetchImpl);
+}
+
+const NOTIFY_USAGE_ERROR =
+  'Usage: node notify.js [TicketId] <Message> [--severity low|medium|high]';
+const MESSAGE_REQUIRED_ERROR = '[Notify] Error: Message is required.';
+const NUMERIC_ID = /^\d+$/;
+
+const NOTIFY_OPTIONS = {
+  severity: { type: 'string' },
+  ticket: { type: 'string' },
+  issue: { type: 'string' },
+};
+
+function requireSeverity(raw) {
+  if (raw === undefined) return 'medium';
+  if (typeof raw === 'string' && Object.hasOwn(SEVERITY_RANK, raw)) return raw;
+  throw new Error('[Notify] --severity requires one of: low | medium | high.');
+}
+
+function requireTicketId(raw) {
+  if (typeof raw === 'string' && NUMERIC_ID.test(raw)) {
+    return Number.parseInt(raw, 10);
+  }
+  throw new Error('[Notify] Error: --ticket/--issue requires a numeric ID.');
+}
+
+/** Without `--ticket`, a leading numeric positional is the legacy ticket id. */
+function splitTicketAndMessage(explicitTicket, positionals) {
+  if (explicitTicket !== undefined) {
+    return {
+      ticketId: requireTicketId(explicitTicket),
+      message: positionals.join(' ').trim(),
+    };
+  }
+  const [first = '', ...rest] = positionals;
+  if (NUMERIC_ID.test(first)) {
+    return {
+      ticketId: Number.parseInt(first, 10),
+      message: rest.join(' ').trim(),
+    };
+  }
+  return { ticketId: 0, message: first };
+}
+
 export function parseNotifyArgs(args) {
-  if (args.length < 1) {
-    throw new Error(
-      'Usage: node notify.js [TicketId] <Message> [--severity low|medium|high]',
-    );
+  if (args.length < 1) throw new Error(NOTIFY_USAGE_ERROR);
+  const { values, positionals } = parseArgs({
+    args,
+    options: NOTIFY_OPTIONS,
+    allowPositionals: true,
+    strict: false,
+  });
+  const severity = requireSeverity(values.severity);
+  const explicitTicket = values.ticket ?? values.issue;
+  if (positionals.length === 0 && explicitTicket === undefined) {
+    throw new Error(MESSAGE_REQUIRED_ERROR);
   }
-
-  let severity = 'medium';
-  const sevIdx = args.indexOf('--severity');
-  let working = args;
-  if (sevIdx !== -1) {
-    const raw = args[sevIdx + 1];
-    if (!raw || !Object.hasOwn(SEVERITY_RANK, raw)) {
-      throw new Error(
-        '[Notify] --severity requires one of: low | medium | high.',
-      );
-    }
-    severity = raw;
-    working = args.filter((_a, i) => i !== sevIdx && i !== sevIdx + 1);
-  }
-
-  if (working.length === 0) {
-    throw new Error('[Notify] Error: Message is required.');
-  }
-
-  let ticketId = 0;
-  let message = '';
-  const explicitTicketFlag = working.findIndex(
-    (arg) => arg === '--ticket' || arg === '--issue',
+  const { ticketId, message } = splitTicketAndMessage(
+    explicitTicket,
+    positionals,
   );
-
-  if (explicitTicketFlag !== -1) {
-    const rawTicketId = working[explicitTicketFlag + 1] ?? '';
-    if (!/^\d+$/.test(rawTicketId)) {
-      throw new Error(
-        '[Notify] Error: --ticket/--issue requires a numeric ID.',
-      );
-    }
-    ticketId = Number.parseInt(rawTicketId, 10);
-    const positional = working.filter(
-      (_arg, idx) =>
-        idx !== explicitTicketFlag && idx !== explicitTicketFlag + 1,
-    );
-    message = positional.join(' ').trim();
-  } else {
-    const firstArg = working[0];
-    const isNumeric = /^\d+$/.test(firstArg);
-
-    if (isNumeric) {
-      ticketId = Number.parseInt(firstArg, 10);
-      message = working.slice(1).join(' ').trim();
-    } else {
-      message = firstArg;
-    }
-  }
-
-  if (!message) {
-    throw new Error('[Notify] Error: Message is required.');
-  }
-
+  if (!message) throw new Error(MESSAGE_REQUIRED_ERROR);
   return { ticketId, message, severity };
 }
 
