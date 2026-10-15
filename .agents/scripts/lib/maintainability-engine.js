@@ -85,7 +85,10 @@ export function scoreFile(filePath) {
     throw err;
   }
 
-  const prepared = transpileIfNeeded(filePath, sourceCode);
+  return scorePrepared(filePath, transpileIfNeeded(filePath, sourceCode));
+}
+
+function scorePrepared(filePath, prepared) {
   if (isCompilerMissing(prepared)) return compilerMissing(filePath);
   if (prepared === null) return unscorable('TypeScript transpile failed');
   return scoreSource(prepared);

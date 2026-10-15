@@ -141,6 +141,15 @@ export function scanDirectory(dir, fileList = [], opts = {}) {
   return fileList;
 }
 
+function assertCompilersResolved(perFile, cwd) {
+  const missingDirs = perFile
+    .filter((entry) => entry?.compilerMissing)
+    .map((entry) => entry.packageDir);
+  if (missingDirs.length > 0) {
+    throw new CompilerMissingError(missingDirs, { cwd });
+  }
+}
+
 /**
  * Score files on a worker pool (serial below the cutover, where spawn cost
  * dominates). Output is sorted by path so it is stable across worker timing.
@@ -199,12 +208,7 @@ export async function calculateAll(paths, opts = {}) {
     a.relPath < b.relPath ? -1 : a.relPath > b.relPath ? 1 : 0,
   );
 
-  const missingDirs = perFile
-    .filter((entry) => entry?.compilerMissing)
-    .map((entry) => entry.packageDir);
-  if (missingDirs.length > 0)
-    throw new CompilerMissingError(missingDirs, { cwd });
-
+  assertCompilersResolved(perFile, cwd);
   reportUnscorable(perFile);
 
   const scores = {};
