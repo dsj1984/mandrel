@@ -24,7 +24,7 @@ const REPO_ROOT = path.resolve(
 const HOT_PATH_SCRIPTS = [
   '.agents/scripts/single-story-init.js',
   '.agents/scripts/single-story-confirm-merge.js',
-  '.agents/scripts/lib/orchestration/single-story-close/runner.js',
+  '.agents/scripts/lib/orchestration/single-story-close/result.js',
 ];
 
 /** An inline pretty-printed result dump straight to a logger — the anti-pattern. */

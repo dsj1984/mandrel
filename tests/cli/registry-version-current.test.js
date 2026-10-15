@@ -22,7 +22,9 @@
  */
 
 import assert from 'node:assert/strict';
+import path from 'node:path';
 import { describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import { registry } from '../../lib/cli/registry.js';
 
@@ -235,5 +237,25 @@ describe('version-current — installed version cannot be resolved', () => {
     assertResultShape(result, { expectOk: true });
     assert.equal(result.remedy, undefined);
     assert.match(result.detail, /unknown/);
+  });
+});
+
+describe('version-current — default installed version', () => {
+  it('reads the package-root package.json, not one beside the check module', () => {
+    const check = versionCurrentCheck();
+    const manifest = path.resolve(
+      path.dirname(fileURLToPath(import.meta.url)),
+      '../../package.json',
+    );
+    const result = check.run({
+      cachePath: CACHE_PATH,
+      fsImpl: makeReadOnlyFs({
+        [CACHE_PATH]: cacheJson('999.0.0'),
+        [manifest]: JSON.stringify({ version: '1.0.0' }),
+      }),
+    });
+    assert.equal(result.ok, true);
+    assert.match(result.detail, /1\.0\.0/);
+    assert.match(result.detail, /999\.0\.0/);
   });
 });

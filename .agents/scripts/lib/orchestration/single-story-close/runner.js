@@ -1,7 +1,4 @@
-import {
-  BASELINES_GATE_NAMES,
-  buildDefaultGates,
-} from '../../close-validation/gates.js';
+import { buildDefaultGates } from '../../close-validation/gates.js';
 import { runCloseValidation } from '../../close-validation/runner.js';
 import { getCiDelivery } from '../../config/ci.js';
 import { resolveWorktreeEnabled } from '../../config/runtime.js';
@@ -10,489 +7,45 @@ import { gh as defaultGh } from '../../gh-exec.js';
 import { getStoryBranch, gitSpawn, gitSync } from '../../git-utils.js';
 import { Logger } from '../../Logger.js';
 import {
-  emitReviewBlockedFriction,
-  recordCloseTelemetry,
   resolveWorkerEffort,
   resolveWorkerModel,
   resolveWorkerTokens,
 } from '../../observability/close-telemetry.js';
-import { emitTerminalFriction } from '../../observability/runtime-friction.js';
-import { emitTerseResult } from '../../observability/terse-result.js';
 import { createProvider } from '../../provider-factory.js';
 import { flipLabelAndNotify } from '../../single-story/story-merged-notify.js';
 import { WorktreeManager } from '../../worktree-manager.js';
 import { runCodeReview as runCodeReviewDefault } from '../code-review.js';
-import { MERGED_FLIP_FAILED_BLOCK_CLASS } from '../lifecycle/emit-merge-flip-failed.js';
 import { resolveRunScopedConfig } from '../run-scoped-config.js';
 import { releaseStoryLease } from '../single-story-lease-guard.js';
-import {
-  buildTerminalEnvelope,
-  emitTerminalEnvelope,
-  NEXT_COMMANDS,
-  terminalFromWaitOutcome,
-} from '../story-deliver-terminal.js';
 import { createStoryProgress } from '../story-progress.js';
-import { deriveCloseNote } from './close-note.js';
-import { closeArmedPr, runAutoMergePhase } from './phases/auto-merge.js';
-import { runBaseSyncPhase } from './phases/base-sync.js';
-import { runCloseValidationPhase } from './phases/close-validation.js';
+import { createPhaseTimer } from './phase-timer.js';
 import { parsePrNumber } from './phases/code-review.js';
 import { runConfirmMergePhase } from './phases/confirm-merge.js';
-import { runGraphqlPreflight } from './phases/graphql-preflight.js';
-import { lockWaitPending } from './phases/lock-wait-pending.js';
-import { parseCloseOptions, resolveWaitForMerge } from './phases/options.js';
-import { runPostLandTail } from './phases/post-land.js';
 import {
-  ensurePullRequestWith,
-  pickHeadPullRequest,
-} from './phases/pull-request.js';
-import { pushStoryBranch } from './phases/push.js';
+  finishDeferred,
+  finishWithMergeWait,
+  finishWithoutMergeWait,
+  reportOperatorMergeSkip,
+  resolveAutoMergeOutcome,
+} from './phases/finish.js';
+import { runGraphqlPreflight } from './phases/graphql-preflight.js';
+import { openAndReviewPr } from './phases/open-pr.js';
+import { parseCloseOptions, resolveWaitForMerge } from './phases/options.js';
+import { runPrePushPhases } from './phases/pre-push.js';
+import { pickHeadPullRequest } from './phases/pull-request.js';
 import { reconcileDoneLabel } from './phases/reconcile-done.js';
-import { handleCriticalReviewBlock } from './phases/review-block.js';
-import { handleOverriddenReviewBlock } from './phases/review-override.js';
 import {
   existingWorktreePath,
   resolveStoryWorktree,
 } from './phases/worktree-restore.js';
-import { runWrongTreeGuardPhase } from './phases/wrong-tree-guard.js';
 import {
-  discardHeldReview,
-  reviewAfterPrOpen,
-  startHeldReview,
-} from './review-overlap.js';
+  alreadyClosedResult,
+  closeEnvelopeGates,
+  preflightBlockedResult,
+} from './result.js';
+import { discardHeldReview } from './review-overlap.js';
 
 const progress = Logger.createProgress('single-story-close', { stderr: true });
-
-/**
- * Wall-clock seconds per named phase; each transition logs the phase it ends.
- * Overlapping work `pause`s the clock and `record`s its own time.
- *
- * @param {() => number} [nowMs]
- */
-function createPhaseTimer(nowMs = Date.now) {
-  const durations = {};
-  let current = null;
-  let since = 0;
-  const record = (phase, ms) => {
-    const seconds = Math.round(Math.max(0, ms) / 100) / 10;
-    durations[phase] = (durations[phase] ?? 0) + seconds;
-    progress('TIMING', `⏱  ${phase}: ${seconds}s`);
-  };
-  const end = () => {
-    if (current === null) return;
-    record(current, nowMs() - since);
-    current = null;
-  };
-  return {
-    enter(phase) {
-      end();
-      if (phase === 'init') return;
-      current = phase;
-      since = nowMs();
-    },
-    record,
-    pause: end,
-    finish() {
-      end();
-      return Object.keys(durations).length > 0 ? { ...durations } : null;
-    },
-    stamp(terminal) {
-      const phaseDurations = this.finish();
-      if (phaseDurations) terminal.phaseDurations = phaseDurations;
-    },
-  };
-}
-
-const UNTIMED = Object.freeze({ stamp() {} });
-
-/** No worker figures: an inline close, or an ending before they resolve. */
-const NO_WORKER = Object.freeze({
-  workerTokens: null,
-  workerModel: null,
-  workerEffort: null,
-});
-
-/**
- * The single terminal writer: the retry signal, the result summary (with its
- * `telemetry`), the envelope callers parse, and terminal friction — so no
- * ending can forget one. Must be awaited: the CLI `process.exit`s as soon as
- * `main` resolves.
- */
-async function emitTerminal({
-  terminal,
-  result,
-  config,
-  phaseTimer = UNTIMED,
-  worker = NO_WORKER,
-}) {
-  phaseTimer.stamp(terminal);
-  await recordCloseTelemetry({ terminal, result, config, ...worker });
-  if (result) {
-    emitTerseResult({
-      label: 'STORY CLOSE RESULT',
-      result,
-      scope: result.storyId,
-      summary: {
-        storyId: result.storyId,
-        action: result.action,
-        reason: result.reason,
-        prNumber: result.prNumber,
-        status: terminal?.status,
-      },
-    });
-  }
-  emitTerminalEnvelope(terminal, { config });
-  await emitTerminalFriction({ envelope: terminal, config });
-}
-
-/**
- * @param {number} storyId
- * @param {string} reason
- * @returns {{ storyId: number, standalone: true, action: 'noop', reason: string }}
- */
-function noopResult(storyId, reason) {
-  return { storyId, standalone: true, action: 'noop', reason };
-}
-
-/** Close reasons meaning nothing merged — superseded or abandoned. */
-const UNLANDED_CLOSE_REASONS = new Set(['not_planned', 'duplicate']);
-
-/**
- * Terminal for an already-closed Story. `not_planned` / `duplicate` mean
- * nothing merged, so it fails rather than reporting `landed` (which would
- * also unblock dependents); `completed` or null (GitHub's default) reads as
- * landed.
- */
-async function alreadyClosedResult(
-  storyId,
-  stateReason = null,
-  config,
-  worker = NO_WORKER,
-) {
-  if (UNLANDED_CLOSE_REASONS.has(stateReason)) {
-    progress(
-      'NOOP',
-      `Story #${storyId} is closed as not planned — nothing to land.`,
-    );
-    const result = noopResult(storyId, 'closed-not-planned');
-    const terminal = buildTerminalEnvelope({
-      storyId,
-      status: 'failed',
-      phase: 'init',
-      failure: {
-        reason:
-          `Story #${storyId} is closed as not planned (superseded or abandoned) — ` +
-          'there is nothing to land. Re-plan it as a new Story, or pass a Story that is still open.',
-      },
-      nextCommand: null,
-      elapsedSeconds: 0,
-    });
-    await emitTerminal({ terminal, result, config, worker });
-    return { success: false, result, terminal };
-  }
-
-  progress('NOOP', `Story #${storyId} is already closed. Nothing to do.`);
-  const result = noopResult(storyId, 'already-closed');
-  const terminal = buildTerminalEnvelope({
-    storyId,
-    status: 'landed',
-    phase: 'done',
-    nextCommand: null,
-    elapsedSeconds: 0,
-  });
-  await emitTerminal({ terminal, result, config, worker });
-  return { success: true, result, terminal };
-}
-
-/**
- * Reuses the classifier's fallback class: the vocabulary is pinned by the
- * terminal schema, so `reason` names the blocker instead.
- */
-const PREFLIGHT_BLOCK_CLASS = 'api-race-other';
-
-/**
- * Returned, not thrown: a classified block, not a crash (a throw surfaces as
- * `failed`). The next command is the same close.
- *
- * @param {{ storyId: number, preflight: { verdict: string, reason: string },
- *   config: object, startedAtMs: number }} args
- * @returns {Promise<{ success: false, result: object, terminal: object }>}
- */
-async function preflightBlockedResult({
-  storyId,
-  preflight,
-  config,
-  startedAtMs,
-  worker = NO_WORKER,
-}) {
-  const result = noopResult(storyId, `graphql-preflight-${preflight.verdict}`);
-  const terminal = buildTerminalEnvelope({
-    storyId,
-    status: 'blocked',
-    phase: 'init',
-    blocked: {
-      blockClass: PREFLIGHT_BLOCK_CLASS,
-      reason: preflight.reason,
-      frictionCommentId: null,
-    },
-    nextCommand: NEXT_COMMANDS.close(storyId),
-    elapsedSeconds: elapsedSecondsSince(startedAtMs),
-  });
-  await emitTerminal({ terminal, result, config, worker });
-  return { success: false, result, terminal };
-}
-
-/**
- * The split baselines gates, by name; only registered ones, never a phantom key.
- *
- * @param {Record<string, string>|null|undefined} validationGates
- * @returns {Record<string, string>}
- */
-function baselinesEnvelopeGates(validationGates) {
-  const registered = Object.values(BASELINES_GATE_NAMES);
-  const out = {};
-  for (const [name, outcome] of Object.entries(validationGates ?? {})) {
-    if (registered.includes(name)) out[name] = outcome;
-  }
-  return out;
-}
-
-/**
- * `overridden` > `degraded` > `passed`: an override records the human
- * decision on a failed review; `degraded` says a review surface produced no
- * verdict (reported, not blocking — a secondary review does not gate merge).
- *
- * @param {object|null} reviewOverride
- * @param {boolean} [reviewDegraded]
- * @returns {'overridden'|'degraded'|'passed'}
- */
-function codeReviewGate(reviewOverride, reviewDegraded) {
-  if (reviewOverride) return 'overridden';
-  return reviewDegraded ? 'degraded' : 'passed';
-}
-
-/**
- * @param {{ skipValidation?: boolean, skipSync?: boolean }} options
- * @param {Record<string, string>|null} validationGates
- * @param {object|null} reviewOverride
- * @param {boolean} [reviewDegraded]
- * @returns {Record<string, string>}
- */
-function closeEnvelopeGates(
-  options,
-  validationGates,
-  reviewOverride,
-  reviewDegraded,
-) {
-  return {
-    validation: options.skipValidation ? 'skipped' : 'passed',
-    ...baselinesEnvelopeGates(validationGates),
-    baseSync: options.skipSync ? 'skipped' : 'passed',
-    codeReview: codeReviewGate(reviewOverride, reviewDegraded),
-  };
-}
-
-/**
- * wrong-tree guard → base-sync → close-validation. Validation runs last so
- * the validated tree is the pushed tree (base-sync's merge commit included),
- * and a cheap conflict is found before the expensive gates.
- *
- * @param {object} ctx
- * @param {object} deps
- * @returns {Promise<{
- *   validationGates: Record<string, string>|null,
- *   lockWait: { waitedSeconds: number, expired: boolean }|null,
- *   suiteTimings: object|null,
- *   pending: boolean,
- * }>} `validationGates` is null when skipped; `pending` means a full-suite
- *   lock wait expired and the gates deferred.
- */
-async function runPrePushPhases(ctx, deps) {
-  const { options, worktreePath, baseBranch, storyBranch, storyId, setPhase } =
-    ctx;
-  const { cwd } = options;
-  setPhase('wrong-tree-guard');
-  await runWrongTreeGuardPhase({
-    cwd,
-    worktreePath,
-    baseBranch,
-    storyId,
-    provider: deps.provider,
-    progress,
-    gitSpawn: deps.gitSpawn,
-  });
-  if (!options.skipSync) {
-    setPhase('base-sync');
-    await runBaseSyncPhase({
-      cwd,
-      worktreePath,
-      baseBranch,
-      baseConfirmed: ctx.baseConfirmed,
-      storyBranch,
-      storyId,
-      provider: deps.provider,
-      injectedSync: deps.sync,
-      progress,
-    });
-  } else {
-    progress('SYNC', '⏭ Skipped (--skip-sync).');
-  }
-  if (options.skipValidation) {
-    progress('VALIDATE', '⏭ Skipped (--skip-validation).');
-    return {
-      validationGates: null,
-      lockWait: null,
-      suiteTimings: null,
-      pending: false,
-    };
-  }
-  setPhase('close-validation');
-  let validation;
-  try {
-    validation = await runCloseValidationPhase({
-      cwd,
-      worktreePath,
-      config: deps.config,
-      baseBranch,
-      storyBranch,
-      storyId,
-      progress,
-      runCloseValidation,
-      buildDefaultGates,
-      onPreGateStepsDone: () => {
-        ctx.heldReview = startHeldReview({
-          cwd,
-          storyId,
-          storyBranch,
-          baseBranch,
-          provider: deps.provider,
-          runCodeReviewFn: deps.runCodeReview,
-          gitSpawnFn: gitSpawn,
-          progress,
-          config: deps.config,
-        });
-      },
-    });
-  } catch (err) {
-    discardHeldReview(ctx.heldReview, 'validation failed', progress);
-    // The gate that died is all this run observed; the envelope claims no more.
-    if (typeof err?.closeGate === 'string') {
-      ctx.setObservedGates({ [err.closeGate]: 'failed' });
-    }
-    throw err;
-  }
-  const gates = validation?.gates ?? null;
-  ctx.setObservedGates(gates);
-  return {
-    validationGates: gates,
-    lockWait: validation?.lockWait ?? null,
-    suiteTimings: validation?.suiteTimings ?? null,
-    pending: validation?.pending === true,
-  };
-}
-
-/**
- * An overridden Story proceeds; anything else emits friction, blocks, throws.
- *
- * @param {object} ctx
- * @param {object} deps
- * @param {{ prUrl: string, prNumber: number|null, reviewOutcome: object }} pr
- * @returns {Promise<object>}
- */
-async function resolveReviewHalt(
-  ctx,
-  deps,
-  { prUrl, prNumber, reviewOutcome },
-) {
-  const { storyId } = ctx;
-  const criticalCount = reviewOutcome.severity?.critical ?? 0;
-  // Checked before the blocked transition: an overridden Story proceeds.
-  if (ctx.options.overrideReviewBlock) {
-    return await handleOverriddenReviewBlock({
-      provider: deps.provider,
-      storyId,
-      prUrl,
-      prNumber,
-      criticalCount,
-      criticalByProvider: reviewOutcome.criticalByProvider,
-      reason: ctx.options.overrideReviewBlock,
-      config: deps.config,
-    });
-  }
-  await emitReviewBlockedFriction({
-    storyId,
-    prNumber,
-    criticalCount,
-    criticalByProvider: reviewOutcome.criticalByProvider,
-    config: deps.config,
-  });
-  await handleCriticalReviewBlock({
-    provider: deps.provider,
-    storyId,
-    prUrl,
-    criticalCount,
-  });
-  throw new Error(
-    `[single-story-close] Story-scope review reported ${criticalCount} critical blocker(s) on PR ${prUrl}. ` +
-      'Auto-merge was not enabled. Remediate the findings posted to the PR and re-run `/mandrel-deliver`. ' +
-      'If you have reviewed a finding and judged it wrong, re-run with ' +
-      '`--override-review-block "<reason>"` rather than merging by hand.',
-  );
-}
-
-async function openAndReviewPr(ctx, deps) {
-  const { options, worktreePath, story, storyId, storyBranch, baseBranch } =
-    ctx;
-  const { cwd } = options;
-  ctx.setPhase('push');
-  // Push from the worktree so `pre-push` measures the tree being sent; the
-  // ref-based reads below resolve identically from the shared `.git`.
-  pushStoryBranch({ cwd, worktreePath, storyBranch, gitSync, progress });
-  ctx.setPhase('pull-request');
-  const { url: prUrl, alreadyMerged } = await ensurePullRequestWith({
-    cwd,
-    storyId,
-    storyTitle: story.title,
-    storyBody: story.body,
-    storyBranch,
-    baseBranch,
-    gh: deps.gh,
-    progress,
-  });
-  const prNumber = parsePrNumber(prUrl);
-  ctx.recordPrNumber(prNumber);
-  // Already merged (landed between invocations): skip review and arm; confirm observes it.
-  if (alreadyMerged) {
-    discardHeldReview(ctx.heldReview, 'PR already merged', progress);
-    return { prUrl, prNumber, alreadyMerged: true };
-  }
-  const reviewOutcome = await reviewAfterPrOpen({
-    held: ctx.heldReview,
-    cwd,
-    storyId,
-    storyBranch,
-    baseBranch,
-    prUrl,
-    prNumber,
-    provider: deps.provider,
-    runCodeReviewFn: deps.runCodeReview,
-    gitSpawnFn: gitSpawn,
-    progress,
-    setPhase: ctx.setPhase,
-    pauseTimer: ctx.phaseTimer.pause,
-    recordDuration: ctx.phaseTimer.record,
-  });
-  const reviewOverride = reviewOutcome.halted
-    ? await resolveReviewHalt(ctx, deps, { prUrl, prNumber, reviewOutcome })
-    : null;
-  return {
-    prUrl,
-    prNumber,
-    alreadyMerged: false,
-    reviewOverride,
-    reviewDegraded: reviewOutcome.degraded === true,
-  };
-}
 
 async function releaseLease({ storyId }, deps) {
   try {
@@ -536,63 +89,15 @@ async function releaseLeaseOnBlock(run, ctx, deps) {
 }
 
 /**
- * Did this run OBSERVE the merge — confirmed, merged-but-flip-failed, or
- * direct-merged? Observation only, never intent.
- *
- * @param {{ waitOutcome?: object|null, directMerged?: boolean }} args
- * @returns {boolean}
+ * Tests mock these at their module URLs and re-import only this module, so
+ * they are bound here and handed to the phases rather than imported there.
  */
-function deriveObservedMerge({ waitOutcome = null, directMerged = false }) {
-  return (
-    waitOutcome?.confirmed === true ||
-    waitOutcome?.blockClass === MERGED_FLIP_FAILED_BLOCK_CLASS ||
-    directMerged === true
-  );
-}
-
-function closeResult({
-  storyId,
-  storyBranch,
-  baseBranch,
-  prUrl,
-  prNumber,
-  autoMergeEnabled,
-  autoMergeReason,
-  worktreeReaped = false,
-  leaseReleased,
-  localCleanupDeferred = false,
-  directMerged = false,
-  waitedForMerge = false,
-  merged = false,
-  landCompleted = merged,
-}) {
-  return {
-    storyId,
-    standalone: true,
-    storyBranch,
-    baseBranch,
-    prUrl,
-    prNumber,
-    pushed: true,
-    autoMergeEnabled,
-    autoMergeReason,
-    worktreeReaped,
-    leaseReleased,
-    // `gh`'s local branch delete failed while the remote merge/arm stood.
-    localCleanupDeferred,
-    // No native auto-merge, so the arm squash-merged directly.
-    directMerged,
-    waitedForMerge,
-    merged,
-    // Never from `waitedForMerge`; `merged` can be true without a completed land.
-    note: deriveCloseNote({
-      merged,
-      directMerged,
-      autoMergeEnabled,
-      landCompleted,
-    }),
-  };
-}
+const MODULE_SEAMS = Object.freeze({
+  runCloseValidation,
+  buildDefaultGates,
+  git: Object.freeze({ gitSpawn, gitSync }),
+  runConfirmMergePhase,
+});
 
 /**
  * An injected double wins, else the real one; an absent optional seam stays
@@ -605,6 +110,7 @@ function closeResult({
 function resolveCloseDeps(options, injected) {
   const config = injected.injectedConfig || resolveConfig({ cwd: options.cwd });
   return {
+    ...MODULE_SEAMS,
     config,
     provider: injected.injectedProvider || createProvider(config),
     notify: injected.injectedNotify,
@@ -700,261 +206,6 @@ export async function runSingleStoryClose({
     }
     throw err;
   }
-}
-
-/**
- * An already-merged PR skips the arm (`gh pr merge` would fail and block it).
- *
- * @param {object} args
- * @returns {Promise<{ autoMergeEnabled: boolean, autoMergeReason: string|null,
- *   localCleanupDeferred: boolean, directMerged: boolean }>}
- */
-async function resolveAutoMergeOutcome({ alreadyMerged, ...phaseArgs }) {
-  if (alreadyMerged) {
-    return {
-      autoMergeEnabled: true,
-      autoMergeReason: null,
-      localCleanupDeferred: false,
-      directMerged: false,
-      advisoryGate: null,
-    };
-  }
-  return await runAutoMergePhase(phaseArgs);
-}
-
-/** One console line per non-landed wait ending, keyed by status. */
-const WAIT_TERMINAL_LINES = Object.freeze({
-  pending: (terminal, { storyId, prUrl }) => [
-    'PENDING',
-    `⏸  Story #${storyId}: PR ${prUrl} still in flight — resume with: ${terminal.nextCommand}`,
-  ],
-  failed: (terminal, { storyId, prUrl }) => [
-    'FAILED',
-    `🛑 Story #${storyId}: PR ${prUrl} did not land (${terminal.phase}): ` +
-      `${terminal.failure?.reason}. Labels unchanged. Next: ${terminal.nextCommand}`,
-  ],
-  blocked: (terminal, { storyId, prUrl }) => [
-    'BLOCKED',
-    `🛑 Story #${storyId}: PR ${prUrl} did not land ` +
-      `(blockClass=${terminal.blocked?.blockClass}). Story is at agent::blocked. ` +
-      `Next: ${terminal.nextCommand}`,
-  ],
-  landed: (_terminal, { storyId, prUrl }) => [
-    'DONE',
-    `✅ Story #${storyId}: PR merged → ${prUrl}`,
-  ],
-});
-
-/**
- * `pending` is not a failure: resumable, with its own CLI exit code.
- *
- * @param {{ status: string, nextCommand: string }} terminal
- * @param {{ storyId: number, prUrl: string|null }} ctx
- * @returns {void}
- */
-function reportWaitTerminal(terminal, ctx) {
-  const line =
-    WAIT_TERMINAL_LINES[terminal.status] ?? WAIT_TERMINAL_LINES.blocked;
-  progress(...line(terminal, ctx));
-}
-
-/**
- * Reaped only by the post-land tail, and only when it actually removed the
- * tree (a skipped reap reports ok with a detail).
- *
- * @param {object|null|undefined} tail
- * @returns {boolean}
- */
-function tailReapedWorktree(tail) {
-  return tail?.worktreeReap === true && !tail?.details?.worktreeReap;
-}
-
-/**
- * @param {object} prCtx
- * @param {object} deps
- * @returns {Promise<{ success: boolean, result: object, terminal: object }>}
- */
-async function finishWithMergeWait(prCtx, deps) {
-  deps.setPhase('confirm-merge');
-  const waitOutcome = await runConfirmMergePhase({
-    cwd: deps.cwd,
-    worktreePath: prCtx.worktreePath,
-    storyId: prCtx.storyId,
-    storyBranch: prCtx.storyBranch,
-    baseBranch: prCtx.baseBranch,
-    prNumber: prCtx.prNumber,
-    prUrl: prCtx.prUrl,
-    autoMergeEnabled: prCtx.autoMergeEnabled,
-    autoMergeReason: prCtx.autoMergeReason,
-    // Positive evidence for the re-arm rule: this close armed the PR.
-    closeArmed: closeArmedPr(prCtx),
-    advisoryGate: prCtx.advisoryGate,
-    provider: deps.provider,
-    config: prCtx.config,
-    maxWaitSeconds: deps.maxWaitSeconds,
-    mergeWatchMode: deps.mergeWatchMode,
-    rerunAdvisory: deps.rerunAdvisory,
-    progress,
-    injectedGh: deps.injectedGh,
-    injectedNotify: deps.injectedNotify,
-    runPostLandTailFn: (args) => {
-      deps.setPhase('post-land');
-      return runPostLandTail(args);
-    },
-  });
-  const terminal = terminalFromWaitOutcome({
-    waitOutcome,
-    storyId: prCtx.storyId,
-    storyBranch: prCtx.storyBranch,
-    baseBranch: prCtx.baseBranch,
-    prNumber: prCtx.prNumber,
-    prUrl: prCtx.prUrl,
-    autoMergeEnabled: prCtx.autoMergeEnabled,
-    autoMergeReason: prCtx.autoMergeReason,
-    gates: prCtx.gates,
-    lockWait: prCtx.lockWait,
-    suiteTimings: prCtx.suiteTimings,
-    elapsedSeconds: elapsedSecondsSince(prCtx.startedAtMs),
-  });
-  const result = closeResult({
-    storyId: prCtx.storyId,
-    storyBranch: prCtx.storyBranch,
-    baseBranch: prCtx.baseBranch,
-    prUrl: prCtx.prUrl,
-    prNumber: prCtx.prNumber,
-    autoMergeEnabled: prCtx.autoMergeEnabled,
-    autoMergeReason: prCtx.autoMergeReason,
-    worktreeReaped: tailReapedWorktree(waitOutcome.tail),
-    // Released by the post-land tail only; any other ending keeps the claim.
-    leaseReleased: waitOutcome.tail?.leaseRelease === true,
-    localCleanupDeferred: prCtx.localCleanupDeferred,
-    directMerged: prCtx.directMerged,
-    waitedForMerge: true,
-    merged: deriveObservedMerge({
-      waitOutcome,
-      directMerged: prCtx.directMerged,
-    }),
-    landCompleted: waitOutcome.confirmed === true,
-  });
-  await emitTerminal({
-    terminal,
-    result,
-    config: prCtx.config,
-    phaseTimer: prCtx.phaseTimer,
-    worker: prCtx.worker,
-  });
-  reportWaitTerminal(terminal, { storyId: prCtx.storyId, prUrl: prCtx.prUrl });
-  return { success: terminal.status === 'landed', result, terminal };
-}
-
-/**
- * The no-wait ending: a human owns the land, so it is `pending` with one
- * command to finish it. A direct merge by the arm is still observed.
- *
- * @param {object} prCtx
- * @param {string} waitForMergeReason
- * @returns {Promise<{ success: boolean, result: object, terminal: object }>}
- */
-async function finishWithoutMergeWait(prCtx, waitForMergeReason) {
-  const merged = deriveObservedMerge({ directMerged: prCtx.directMerged });
-  const result = closeResult({
-    storyId: prCtx.storyId,
-    storyBranch: prCtx.storyBranch,
-    baseBranch: prCtx.baseBranch,
-    prUrl: prCtx.prUrl,
-    prNumber: prCtx.prNumber,
-    autoMergeEnabled: prCtx.autoMergeEnabled,
-    autoMergeReason: prCtx.autoMergeReason,
-    leaseReleased: false,
-    localCleanupDeferred: prCtx.localCleanupDeferred,
-    directMerged: prCtx.directMerged,
-    merged,
-    // The flip, issue close and tail belong to `nextCommand`.
-    landCompleted: false,
-  });
-  const terminal = buildTerminalEnvelope({
-    storyId: prCtx.storyId,
-    status: 'pending',
-    phase: 'auto-merge',
-    storyBranch: prCtx.storyBranch,
-    baseBranch: prCtx.baseBranch,
-    pr: {
-      number: prCtx.prNumber,
-      url: prCtx.prUrl ?? null,
-      state: merged ? 'MERGED' : 'OPEN',
-      autoMergeEnabled: Boolean(prCtx.autoMergeEnabled),
-      autoMergeReason: prCtx.autoMergeReason ?? null,
-    },
-    gates: prCtx.gates,
-    lockWait: prCtx.lockWait,
-    suiteTimings: prCtx.suiteTimings,
-    nextCommand: NEXT_COMMANDS.confirmMerge(prCtx.storyId),
-    elapsedSeconds: elapsedSecondsSince(prCtx.startedAtMs),
-  });
-  await emitTerminal({
-    terminal,
-    result,
-    config: prCtx.config,
-    phaseTimer: prCtx.phaseTimer,
-    worker: prCtx.worker,
-  });
-  progress(
-    'DONE',
-    `✅ Story #${prCtx.storyId}: PR ready → ${prCtx.prUrl} (${waitForMergeReason})`,
-  );
-  return { success: true, result, terminal };
-}
-
-/**
- * A full-suite lock wait expired: `pending`, nothing pushed.
- *
- * @param {{ waitedSeconds: number, expired: boolean }|null} lockWait
- * @param {{ storyId: number, storyBranch: string, baseBranch: string,
- *   config: object, startedAtMs: number }} ctx
- * @returns {Promise<{ success: false, result: object, terminal: object }>}
- */
-async function finishDeferred(
-  lockWait,
-  { config, startedAtMs, phaseTimer, worker, ...ids },
-) {
-  const { result, terminal, note } = lockWaitPending({
-    ...ids,
-    lockWait,
-    elapsedSeconds: elapsedSecondsSince(startedAtMs),
-  });
-  await emitTerminal({ terminal, result, config, phaseTimer, worker });
-  progress('PENDING', note);
-  return { success: false, result, terminal };
-}
-
-/**
- * @param {number} startedAtMs
- * @returns {number}
- */
-function elapsedSecondsSince(startedAtMs) {
-  return Math.round((Date.now() - startedAtMs) / 1000);
-}
-
-/**
- * @param {{ waitForMergeReason: string, autoMergeReason: string|null,
- *   storyId: number, waitForMergeExplicit?: boolean }} args
- * @returns {void}
- */
-function reportOperatorMergeSkip({
-  waitForMergeReason,
-  autoMergeReason,
-  storyId,
-  waitForMergeExplicit,
-}) {
-  if (waitForMergeReason !== 'operator-merge') return;
-  progress(
-    'MERGE',
-    `⏭  Not waiting for merge (${autoMergeReason}) — the operator owns this merge; ` +
-      `Story #${storyId} rests at agent::closing.` +
-      (waitForMergeExplicit === true
-        ? ' --wait-merge cannot land a PR that was deliberately left un-armed.'
-        : ''),
-  );
 }
 
 async function loadStoryPhase(ctx, deps) {
@@ -1221,6 +472,7 @@ async function finishPhase(ctx, deps) {
     setPhase: ctx.setPhase,
     injectedGh: deps.gh,
     injectedNotify: deps.notify,
+    runConfirmMergePhase: deps.runConfirmMergePhase,
   });
 }
 
