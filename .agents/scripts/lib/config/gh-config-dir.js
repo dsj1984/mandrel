@@ -1,24 +1,10 @@
-/**
- * `github.cliConfigDir` → `process.env.GH_CONFIG_DIR`. Applied once at config
- * resolution so every `gh` child Mandrel spawns — and every child Node
- * process, which inherits the env — reads the one pinned credential store.
- * Diagnostics carry paths only, never credentials.
- */
+/** `github.cliConfigDir` → `process.env.GH_CONFIG_DIR`, inherited by every `gh` child. */
 
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Logger } from '../Logger.js';
 
-/**
- * Absolute form of a configured `cliConfigDir`: a leading `~` expands to the
- * home directory, anything else relative resolves against `root`.
- *
- * @param {string} value
- * @param {string} root
- * @param {{ homedir?: () => string }} [deps]
- * @returns {string}
- */
 function resolveGhConfigDir(value, root, { homedir = os.homedir } = {}) {
   if (value === '~') return homedir();
   if (value.startsWith('~/') || value.startsWith('~\\')) {
@@ -27,10 +13,6 @@ function resolveGhConfigDir(value, root, { homedir = os.homedir } = {}) {
   return path.resolve(root, value);
 }
 
-/**
- * @param {import('node:fs')} fsImpl
- * @param {string} dir
- */
 function isDirectory(fsImpl, dir) {
   try {
     return fsImpl.statSync(dir).isDirectory();

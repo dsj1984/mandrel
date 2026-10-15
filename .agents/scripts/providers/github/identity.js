@@ -1,11 +1,4 @@
-/**
- * GitHub Provider — operator identity preflight. Before the first mutating
- * request, the `gh`-store login (`GET /user`, memoised per process) must
- * equal `github.operatorHandle`; a mismatch refuses so no write lands as the
- * wrong account. Env-supplied tokens (CI, bots) are exempt, and a transport
- * fault on the probe is reported as transport, never as a mismatch.
- * Diagnostics carry handles and paths only.
- */
+/** Operator identity preflight: the gh-store login must equal `github.operatorHandle` before any write. */
 
 import { GhAuthError, GhNotInstalledError } from '../../lib/gh-exec.js';
 import {
@@ -14,7 +7,6 @@ import {
 } from '../../lib/gh-transport.js';
 import { failureDetail, resolveTokenSource } from './gh-token-diagnostics.js';
 
-/** Each refusal carries `code` so callers can branch without parsing text. */
 class GitHubIdentityError extends Error {
   constructor(message, code) {
     super(message);
@@ -23,12 +15,7 @@ class GitHubIdentityError extends Error {
   }
 }
 
-/**
- * `@Name` → `name`; null for an unset or bootstrap-placeholder handle.
- *
- * @param {unknown} handle
- * @returns {string|null}
- */
+/** `@Name` → `name`; null for unset or placeholder. */
 function normalizeHandle(handle) {
   if (typeof handle !== 'string') return null;
   const bare = handle.trim().replace(/^@/, '').toLowerCase();
@@ -36,21 +23,15 @@ function normalizeHandle(handle) {
   return bare;
 }
 
-/**
- * @param {{ method?: string, endpoint?: string, body?: { query?: string } }} [opts]
- * @returns {boolean}
- */
 function isMutatingApiCall({ method = 'GET', endpoint, body } = {}) {
   if (endpoint === 'graphql') return isGraphqlMutation(body?.query);
   return String(method).toUpperCase() !== 'GET';
 }
 
-/** @param {unknown} query */
 export function isGraphqlMutation(query) {
   return /^\s*mutation\b/.test(String(query ?? ''));
 }
 
-/** Facade groups whose methods always write. */
 const MUTATING_METHODS = Object.freeze({
   issue: ['edit', 'comment'],
   pr: ['create', 'edit', 'merge', 'updateBranch'],
@@ -58,14 +39,7 @@ const MUTATING_METHODS = Object.freeze({
   repo: ['edit'],
 });
 
-/**
- * A `createGh` facade whose writes await `ensure()` first; reads pass
- * straight through.
- *
- * @param {object} gh
- * @param {() => Promise<void>} ensure
- * @returns {object}
- */
+/** A `createGh` facade whose writes await `ensure()` first. */
 function guardMutations(gh, ensure) {
   const before =
     (fn) =>
@@ -96,13 +70,6 @@ function configDirInEffect(env) {
   return env.GH_CONFIG_DIR || "gh's default config dir";
 }
 
-/**
- * The refusal for a failed `/user` probe, by failure class.
- *
- * @param {unknown} err
- * @param {string} configDir
- * @returns {GitHubIdentityError}
- */
 function classifyProbeFailure(err, configDir) {
   const said = `gh said: ${failureDetail(err)}`;
   if (isTransportFailure(err)) {
@@ -129,7 +96,7 @@ function classifyProbeFailure(err, configDir) {
   );
 }
 
-/** Per-process memo: one `/user` probe per config dir (keyed by GH_CONFIG_DIR). */
+/** One `/user` probe per process per GH_CONFIG_DIR. */
 const _loginByConfigDir = new Map();
 
 async function probeLogin(gh) {
@@ -154,12 +121,7 @@ function cachedLogin(gh, env) {
   return _loginByConfigDir.get(key);
 }
 
-/**
- * @param {{ gh: object, expectedHandle: unknown, env?: NodeJS.ProcessEnv }} opts
- *   `gh` is the UNGUARDED facade the probe runs through.
- * @returns {() => Promise<void>} resolves when the identity is verified or
- *   exempt; rejects with a {@link GitHubIdentityError} otherwise.
- */
+/** `gh` is the UNGUARDED facade the probe runs through. */
 function createIdentityGate({ gh, expectedHandle, env = process.env }) {
   const expected = normalizeHandle(expectedHandle);
   return async function ensureIdentity() {
@@ -182,17 +144,7 @@ function createIdentityGate({ gh, expectedHandle, env = process.env }) {
   };
 }
 
-/**
- * The provider's `gh` facade, with writes gated on the identity preflight.
- * An injected `opts.gh` (test seam) opts in via `opts.verifyIdentity`; an
- * explicit `opts.token` is never the gh store's, so it is never gated.
- *
- * @param {object} gh
- * @param {unknown} operatorHandle
- * @param {{ gh?: object, token?: string, verifyIdentity?: boolean }} opts
- * @returns {{ _gh: object, _ensureIdentity: () => Promise<void> }} the
- *   provider fields, keyed as the provider stores them.
- */
+/** Provider `_gh`/`_ensureIdentity`; an injected `opts.gh` opts in via `verifyIdentity`, an explicit token never gates. */
 export function gateProviderGh(gh, operatorHandle, opts) {
   const verify = (opts.verifyIdentity ?? !opts.gh) && !opts.token;
   if (!verify) return { _gh: gh, _ensureIdentity: async () => {} };

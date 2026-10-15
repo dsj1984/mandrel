@@ -1,9 +1,4 @@
-/**
- * Classified `gh auth token` results and their refusal text. A failure is
- * never collapsed to "no token": only a confirmed not-logged-in result
- * carries the `gh auth login` remedy, and a sandbox/network fault says
- * credentials were not assessed. No diagnostic here ever carries a token.
- */
+/** Classified `gh auth token` results; only a confirmed not-logged-in result says `gh auth login`. */
 
 import {
   isTransportFailure,
@@ -11,31 +6,17 @@ import {
   TRANSPORT_REMEDY,
 } from '../../lib/gh-transport.js';
 
-/**
- * Set beside a memoised `GITHUB_TOKEN` so this process and its children can
- * tell a token copied out of the `gh` store from one an operator exported.
- */
+/** Marks a memoised `GITHUB_TOKEN` as copied out of the `gh` store. */
 export const TOKEN_SOURCE_ENV = 'MANDREL_GH_TOKEN_SOURCE';
 
 const TOKEN_SHAPE =
   /\b(?:gh[pousr]_[A-Za-z0-9]{8,}|github_pat_[A-Za-z0-9_]{8,})\b/g;
 
-/**
- * Masks anything token-shaped so `gh` stderr can ride a diagnostic.
- *
- * @param {unknown} text
- * @returns {string}
- */
 function redactTokens(text) {
   return String(text ?? '').replace(TOKEN_SHAPE, '[redacted]');
 }
 
-/**
- * Last non-empty stderr line (or the message), redacted.
- *
- * @param {any} err
- * @returns {string}
- */
+/** Last stderr line (or the message), redacted. */
 export function failureDetail(err) {
   const lines = String(err?.stderr ?? '')
     .split('\n')
@@ -64,10 +45,6 @@ function isTimeoutOrDenied(err) {
   );
 }
 
-/**
- * @param {any} err  the `execSync` failure
- * @returns {'not-installed'|'transport'|'auth-rejected'|'unknown'}
- */
 function classifyGhTokenFailure(err) {
   if (isNotInstalled(err)) return 'not-installed';
   if (isTimeoutOrDenied(err) || isTransportFailure(err)) return 'transport';
@@ -83,12 +60,7 @@ function classifyGhTokenFailure(err) {
  *   detail: string|null }} GhTokenResult
  */
 
-/**
- * Runs `gh auth token` through `execImpl` and classifies the outcome.
- *
- * @param {Function} execImpl  `execSync`-shaped
- * @returns {GhTokenResult}
- */
+/** @returns {GhTokenResult} */
 export function runGhAuthToken(execImpl) {
   try {
     const out = execImpl('gh auth token', {
@@ -143,12 +115,6 @@ const FAILURE_LINES = {
   ],
 };
 
-/**
- * The refusal text for a failed `gh auth token`, by verdict.
- *
- * @param {{ verdict: string, detail: string|null }} result
- * @returns {string}
- */
 export function describeTokenFailure({ verdict, detail }) {
   const lines = (FAILURE_LINES[verdict] ?? FAILURE_LINES['auth-rejected'])();
   if (detail) lines.push(`gh said: ${detail}`);
@@ -156,14 +122,7 @@ export function describeTokenFailure({ verdict, detail }) {
   return lines.join('\n');
 }
 
-/**
- * Where this process's GitHub identity comes from: `env` for an operator- or
- * CI-exported token, `gh-cli` for the `gh` credential store (including a
- * token memoised out of it).
- *
- * @param {NodeJS.ProcessEnv} [env]
- * @returns {'env'|'gh-cli'}
- */
+/** `env` for an exported token, `gh-cli` for the gh store (or a token memoised from it). */
 export function resolveTokenSource(env = process.env) {
   if (!env.GITHUB_TOKEN && !env.GH_TOKEN) return 'gh-cli';
   if (env[TOKEN_SOURCE_ENV] === 'gh-cli' && !env.GH_TOKEN) return 'gh-cli';
