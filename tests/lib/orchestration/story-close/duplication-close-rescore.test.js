@@ -123,6 +123,26 @@ describe('runDuplicationCloseRescore — real git (AC-1)', () => {
     assert.equal(ack.compareOutput.regressions.length, 1);
   });
 
+  test('a clone partner of a changed file is re-scored and named in the commit (Story #5702)', async () => {
+    // a.js (changed) and b.js (unchanged) shared their only clone; the
+    // branch removed it, so the whole-tree scan reports neither file.
+    const { root, git } = realRepo([row('src/a.js', 20), row('src/b.js', 20)]);
+    const out = await runDuplicationCloseRescore({
+      cwd: root,
+      storyId: 7,
+      baseBranch: 'main',
+      storyBranch: 'story-7',
+      config: {},
+      logger: QUIET,
+      scorer: () => [],
+    });
+    assert.equal(out.committed, true, JSON.stringify(out));
+    assert.deepEqual(out.movedPaths.sort(), ['src/a.js', 'src/b.js']);
+    assert.deepEqual(readRows(root), []);
+    assert.match(git('log', '-1', '--format=%b'), /src\/b\.js: 20% -> none/);
+    assert.doesNotMatch(git('log', '-1', '--format=%s'), /baseline-refresh:/);
+  });
+
   test('a lowered row is committed too (both directions), and a re-run is a no-op', async () => {
     const { root, git } = realRepo([row('src/a.js', 20)]);
     const args = {

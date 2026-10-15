@@ -358,6 +358,12 @@ export async function refreshBaseline(opts = {}) {
   });
 
   const priorEnvelope = readPriorEnvelope(writePath, fs);
+  const writeFiles = resolveWriteScopeFiles({
+    kind,
+    scope,
+    rows: canonicalRows,
+    priorRows: priorEnvelope?.rows,
+  });
 
   const envelope = writeEnvelope({
     kind,
@@ -369,7 +375,7 @@ export async function refreshBaseline(opts = {}) {
     scope:
       scope.mode === 'full'
         ? null
-        : { mode: 'diff', files: new Set(scope.files) },
+        : { mode: 'diff', files: new Set(writeFiles) },
   });
 
   // The writer returns the prior object itself when nothing changed; skip the
@@ -386,11 +392,45 @@ export async function refreshBaseline(opts = {}) {
     scope: {
       mode: scope.mode,
       ref: scope.ref,
-      files: [...scope.files],
+      files: writeFiles,
     },
     envelope,
     wrote,
   };
+}
+
+/**
+ * The files whose rows a scoped refresh rewrites. Duplication is pairwise, so
+ * a changed file also moves the rows of files it shares (or shared) a clone
+ * with; for that kind the scope widens to the head clone partners of every
+ * scoped file, plus every out-of-scope prior row that vanished or shrank (a
+ * removed clone's partner appears in no head pair). A rise in an unrelated
+ * file stays out of scope, so a branch never owns drift it did not cause.
+ *
+ * @param {{ kind: string, scope: { mode: string, files: string[] }, rows: object[], priorRows?: object[] }} args
+ * @returns {string[]}
+ */
+function resolveWriteScopeFiles({ kind, scope, rows, priorRows }) {
+  if (kind !== 'duplication' || scope.mode === 'full') return [...scope.files];
+  const headByPath = new Map(rows.map((row) => [row.path, row]));
+  const partners = scope.files.flatMap(
+    (file) => headByPath.get(file)?.partners ?? [],
+  );
+  const shrunk = (priorRows ?? [])
+    .filter((prior) => isShrunk(prior, headByPath.get(prior.path)))
+    .map((prior) => prior.path);
+  return [
+    ...new Set([
+      ...scope.files,
+      ...partners.map(canonicalizeBaselinePath),
+      ...shrunk,
+    ]),
+  ];
+}
+
+/** A prior row whose clones vanished (no head row) or shrank. */
+function isShrunk(prior, head) {
+  return !head || head.percentage < prior.percentage;
 }
 
 /**
