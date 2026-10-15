@@ -2264,7 +2264,7 @@
     },
     {
       "path": ".agents/scripts/providers/github/auth.js",
-      "mi": 116.469
+      "mi": 123.417
     },
     {
       "path": ".agents/scripts/providers/github/blocked-by-add.js",
@@ -2288,7 +2288,7 @@
     },
     {
       "path": ".agents/scripts/providers/github/compose.js",
-      "mi": 113.43
+      "mi": 114.153
     },
     {
       "path": ".agents/scripts/providers/github/errors.js",
