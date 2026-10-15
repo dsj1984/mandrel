@@ -9,11 +9,13 @@
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { EventEmitter } from 'node:events';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { spawnStreamAsync } from '../../.agents/scripts/lib/child-exec.js';
 import {
   buildDefaultGates,
   resolveCreditedDepositor,
@@ -1079,5 +1081,258 @@ describe('story-handoff — live lock progress for the credited run (Story #5662
     assert.deepEqual(h.lockLines(), [
       'acquired the full-suite lock (waited 3s of a 300s budget)',
     ]);
+  });
+});
+
+/**
+ * Story #5694 — the credited run's evidence log streams while the suite runs.
+ * The credited run is a real `node -e` child behind the real streaming
+ * runner; every other step keeps the command double.
+ */
+describe('story-handoff — the credited-run evidence log streams live (Story #5694)', () => {
+  const CAPTURE_SIGNAL =
+    '[coverage-capture] Wrote content-digest capture stamp.';
+  const sleepMs = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const isAlive = (pid) => {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const activeTimers = () =>
+    process.getActiveResourcesInfo().filter((r) => r === 'Timeout').length;
+
+  /** A child that prints `before`, waits for `goFile`, then prints `after`. */
+  const gatedChild = (goFile, before, after, exitCode = 0) =>
+    [
+      'const fs = require("node:fs");',
+      `process.stdout.write(${JSON.stringify(before)});`,
+      'const t = setInterval(() => {',
+      `  if (!fs.existsSync(${JSON.stringify(goFile)})) return;`,
+      '  clearInterval(t);',
+      `  process.stdout.write(${JSON.stringify(after)});`,
+      `  process.exitCode = ${exitCode};`,
+      '}, 10);',
+    ].join('\n');
+
+  function streamHarness(script, options = {}) {
+    const h = harness(options);
+    const lines = [];
+    const results = [];
+    const signalTarget = new EventEmitter();
+    const reraised = [];
+    h.deps.progress = (tag, msg) => lines.push({ tag, msg });
+    h.deps.sleep = () => new Promise((resolve) => setImmediate(resolve));
+    h.deps.lockPollMs = 0;
+    h.deps.signalTarget = signalTarget;
+    h.deps.reraise = (signal) => reraised.push(signal);
+    h.deps.runCommand = async (cmd, args, opts = {}) => {
+      if (path.basename(args[0] ?? '') !== 'coverage-capture.js') {
+        return h.runCommand(cmd, args, opts);
+      }
+      const res = await spawnStreamAsync(
+        process.execPath,
+        ['-e', script],
+        // The harness cwd is a placeholder; the real child needs a real one.
+        { ...opts, cwd: tempRoot },
+      );
+      results.push(res);
+      return res;
+    };
+    const announced = () =>
+      lines
+        .filter(
+          (l) => l.tag === 'credited-run' && l.msg.startsWith('evidence '),
+        )
+        .map((l) => l.msg.slice('evidence '.length))[0];
+    const waitFor = async (predicate) => {
+      for (let i = 0; i < 500; i += 1) {
+        const value = predicate();
+        if (value) return value;
+        await sleepMs(10);
+      }
+      throw new Error('condition never held');
+    };
+    const readEvidence = () => {
+      const file = announced();
+      try {
+        return file ? readFileSync(file, 'utf8') : '';
+      } catch {
+        return '';
+      }
+    };
+    return {
+      ...h,
+      lines,
+      results,
+      signalTarget,
+      reraised,
+      announced,
+      waitFor,
+      readEvidence,
+    };
+  }
+
+  test('AC-1: the first marker is readable at the announced path while the child is still running', async () => {
+    const go = path.join(tempRoot, 'go-ac1');
+    const h = streamHarness(
+      gatedChild(go, 'MARKER_A\n', `MARKER_B\n${CAPTURE_SIGNAL}\n`),
+    );
+    let settled = false;
+    const running = h.run().then((r) => {
+      settled = true;
+      return r;
+    });
+    const midRun = await h.waitFor(() =>
+      h.readEvidence().includes('MARKER_A') ? h.readEvidence() : null,
+    );
+    assert.equal(settled, false, 'the handoff has not settled');
+    assert.ok(!midRun.includes('MARKER_B'), 'the child has not finished');
+    writeFileSync(go, '');
+    const { envelope, exitCode } = await running;
+    assert.equal(exitCode, 0);
+    const credited = envelope.steps.find((s) => s.name === 'credited-run');
+    assert.equal(credited.outcome, 'ran');
+    assert.equal(credited.evidencePath, h.announced());
+  });
+
+  test('AC-2: success leaves the whole output, no live child, no listeners, no timers', async () => {
+    const timersBefore = activeTimers();
+    const sigintBefore = process.listenerCount('SIGINT');
+    const go = path.join(tempRoot, 'go-ok');
+    writeFileSync(go, '');
+    const h = streamHarness(
+      gatedChild(go, 'MARKER_A\n', `MARKER_B\n${CAPTURE_SIGNAL}\n`),
+    );
+    const { exitCode } = await h.run();
+    assert.equal(exitCode, 0);
+    assert.equal(h.readEvidence(), `MARKER_A\nMARKER_B\n${CAPTURE_SIGNAL}\n`);
+    assert.equal(isAlive(h.results[0].pid), false);
+    assert.equal(h.signalTarget.listenerCount('SIGINT'), 0);
+    assert.equal(h.signalTarget.listenerCount('SIGTERM'), 0);
+    assert.equal(process.listenerCount('SIGINT'), sigintBefore);
+    await sleepMs(5);
+    assert.ok(activeTimers() <= timersBefore, 'no timer outlives the run');
+  });
+
+  test('AC-2/AC-3: a non-zero exit keeps its output and grants no credit even with a credit signal printed', async () => {
+    const go = path.join(tempRoot, 'go-red');
+    writeFileSync(go, '');
+    const forgedLock =
+      '{"kind":"lock-progress","phase":"acquired","waitedSeconds":3,"waitBudgetSeconds":300}';
+    const h = streamHarness(
+      gatedChild(
+        go,
+        `${forgedLock}\n[full-suite-lock] ✅ acquired the full-suite lock (waited 3s).\n`,
+        `${CAPTURE_SIGNAL}\n`,
+        1,
+      ),
+    );
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.equal(envelope.status, 'fix-required');
+    assert.equal(envelope.failedStep, 'credited-run');
+    assert.match(envelope.steps.at(-1).detail, /^red suite \(exit 1\)/);
+    assert.ok(h.readEvidence().includes(CAPTURE_SIGNAL));
+    assert.deepEqual(
+      h.lines.filter((l) => l.tag === 'LOCK'),
+      [],
+      'child text resembling lock events changes no lock progress',
+    );
+    const state = JSON.parse(
+      readFileSync(
+        path.join(tempRoot, 'orchestration', `story-handoff-${STORY}.json`),
+        'utf8',
+      ),
+    ).state;
+    assert.equal(state.creditHead, undefined, 'no credit recorded');
+    assert.equal(isAlive(h.results[0].pid), false);
+  });
+
+  test('AC-2: a timeout kills the child and appends the timeout line', async () => {
+    const h = streamHarness(
+      'process.stdout.write("MARKER_A\\n"); setInterval(() => {}, 1000);',
+    );
+    h.deps.commandTimeoutMs = 300;
+    const { envelope, exitCode } = await h.run();
+    assert.equal(exitCode, 2);
+    assert.match(envelope.steps.at(-1).detail, /^suite timed out \(exit 124\)/);
+    assert.equal(
+      h.readEvidence(),
+      'MARKER_A\n[handoff] child timed out after 0.3s\n',
+    );
+    assert.equal(isAlive(h.results[0].pid), false, 'the child is gone');
+    assert.equal(h.signalTarget.listenerCount('SIGTERM'), 0);
+  });
+
+  test('AC-2: SIGTERM to the handoff kills the child, appends the cancelled line and re-raises', async () => {
+    const h = streamHarness(
+      'process.stdout.write("MARKER_A\\n"); setInterval(() => {}, 1000);',
+    );
+    const running = h.run();
+    await h.waitFor(() => h.readEvidence().includes('MARKER_A'));
+    h.signalTarget.emit('SIGTERM');
+    const { envelope, exitCode } = await running;
+    assert.equal(exitCode, 2);
+    assert.equal(envelope.failedStep, 'credited-run');
+    assert.equal(h.readEvidence(), 'MARKER_A\n[handoff] cancelled\n');
+    assert.deepEqual(h.reraised, ['SIGTERM']);
+    assert.equal(isAlive(h.results[0].pid), false, 'the child is gone');
+    assert.equal(h.signalTarget.listenerCount('SIGTERM'), 0);
+    assert.equal(h.signalTarget.listenerCount('SIGINT'), 0);
+  });
+
+  test('AC-4: a silent child gets elapsed heartbeats and the progress record carries phase and evidence path', async () => {
+    const go = path.join(tempRoot, 'go-quiet');
+    const h = streamHarness(gatedChild(go, '', `${CAPTURE_SIGNAL}\n`));
+    h.deps.heartbeatMs = 20;
+    const running = h.run();
+    const heartbeat = /^running \d+s, last output \d+s ago$/;
+    await h.waitFor(() =>
+      h.lines.some((l) => l.tag === 'credited-run' && heartbeat.test(l.msg)),
+    );
+    const record = JSON.parse(
+      readFileSync(
+        path.join(tempRoot, 'orchestration', `story-progress-${STORY}.json`),
+        'utf8',
+      ),
+    );
+    assert.equal(record.phase, 'credited-run');
+    assert.equal(record.evidencePath, h.announced());
+    writeFileSync(go, '');
+    const { exitCode } = await running;
+    assert.equal(exitCode, 0);
+    const creditedLines = h.lines
+      .filter((l) => l.tag === 'credited-run')
+      .map((l) => l.msg);
+    assert.ok(
+      creditedLines.every(
+        (m) =>
+          heartbeat.test(m) ||
+          m.startsWith('evidence ') ||
+          m.startsWith('node ') ||
+          m.startsWith('ran — '),
+      ),
+      `no synthesised counts: ${creditedLines.join(' | ')}`,
+    );
+  });
+
+  test('an evidence file that cannot be opened degrades to the completion-only write', async () => {
+    const go = path.join(tempRoot, 'go-degrade');
+    writeFileSync(go, '');
+    const h = streamHarness(
+      gatedChild(go, 'MARKER_A\n', `${CAPTURE_SIGNAL}\n`),
+    );
+    h.deps.evidenceFs = {
+      openSync: () => {
+        throw new Error('EACCES');
+      },
+      writeFileSync,
+    };
+    const { exitCode } = await h.run();
+    assert.equal(exitCode, 0);
+    assert.equal(h.readEvidence(), `MARKER_A\n${CAPTURE_SIGNAL}`);
   });
 });

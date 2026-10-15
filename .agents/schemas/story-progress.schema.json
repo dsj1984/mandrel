@@ -43,6 +43,11 @@
       "minimum": 1,
       "description": "The Story PR's number from the moment close parses it; null before then and throughout handoff."
     },
+    "evidencePath": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "description": "Optional. The evidence log the current handoff step's child is streaming into (Story #5694), so a poller can tail it while the step runs. Absent when the phase runs no logged child."
+    },
     "updatedAt": { "type": "string", "format": "date-time" }
   }
 }

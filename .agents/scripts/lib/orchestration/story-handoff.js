@@ -22,7 +22,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { spawnCaptureAsync } from '../child-exec.js';
+import { spawnStreamAsync } from '../child-exec.js';
 import { createLockEventChannel } from '../close-lock-events.js';
 import {
   resolveLintCommand,
@@ -45,6 +45,7 @@ import { getStoryBranch, gitSpawn } from '../git-utils.js';
 import { readPackageScripts } from '../npm-scripts.js';
 import { TIMEOUT_EXIT_CODE } from '../process-group.js';
 import { describeBlocking } from '../suite-admission.js';
+import { HEARTBEAT_MS, runStreamed } from './evidence-stream.js';
 import { probeHeldReviewDiff } from './review-deposit.js';
 import { createStoryProgress, handoffStepName } from './story-progress.js';
 import {
@@ -181,7 +182,8 @@ function headSha(ctx) {
 }
 
 /**
- * Run one child, write its combined output to the step's evidence log.
+ * Run one child with its combined output streamed live into the step's
+ * evidence log (announced, and recorded in story-progress, before it spawns).
  *
  * @param {object} ctx
  * @param {string} logName
@@ -192,10 +194,18 @@ function headSha(ctx) {
  */
 async function runLogged(ctx, logName, cmd, args, env) {
   ctx.progress(logName, `${cmd} ${args.join(' ')}`);
-  const res = await ctx.runCommand(cmd, args, { cwd: ctx.cwd, env });
-  const output = [res.stdout, res.stderr].filter(Boolean).join('\n');
-  const evidencePath = ctx.writeEvidence(logName, output);
-  return { status: res.status, output, evidencePath };
+  const file = ctx.evidencePathFor(logName);
+  ctx.storyProgress.evidence(file);
+  return runStreamed({
+    ...ctx.stream,
+    runCommand: ctx.runCommand,
+    progress: ctx.progress,
+    cmd,
+    args,
+    opts: { cwd: ctx.cwd, env },
+    file,
+    tag: logName,
+  });
 }
 
 const LOCK_PHASE_TEXT = Object.freeze({
@@ -839,7 +849,7 @@ async function defaultBlock({
  * @param {{ storyId: number, cwd: string, config: object }} input
  * @param {{
  *   git?: typeof gitSpawn,
- *   runCommand?: (cmd: string, args: string[], opts: { cwd: string }) => Promise<{ status: number, stdout: string, stderr: string }>,
+ *   runCommand?: (cmd: string, args: string[], opts: { cwd: string }) => Promise<{ status: number, stdout: string, stderr: string, timedOut?: boolean }>,
  *   syncFromBase?: typeof syncBranchFromBase,
  *   probeReview?: typeof probeHeldReviewDiff,
  *   computeReview: (input: { storyId: number, cwd: string, config: object }) => Promise<{ written: boolean, path?: string, reason?: string, deposit?: object }>,
@@ -853,13 +863,20 @@ async function defaultBlock({
  *   sleep?: (ms: number) => Promise<void>,
  *   lockPollMs?: number,
  *   env?: Record<string, string|undefined>,
- * }} deps
+ *   heartbeatMs?: number,
+ *   commandTimeoutMs?: number|null,
+ *   signalTarget?: import('node:events').EventEmitter,
+ *   reraise?: (signal: string) => void,
+ *   evidenceFs?: typeof fs,
+ * }} deps `runCommand` receives `onChunk`, `signal` and (when set)
+ *   `timeoutMs` beside `cwd`/`env`; a runner that never calls `onChunk`
+ *   still gets its whole output written at settle.
  * @returns {Promise<{ envelope: object, exitCode: number }>}
  */
 export async function runStoryHandoff({ storyId, cwd, config }, deps) {
   const {
     git = gitSpawn,
-    runCommand = spawnCaptureAsync,
+    runCommand = spawnStreamAsync,
     syncFromBase = syncBranchFromBase,
     probeReview = probeHeldReviewDiff,
     computeReview,
@@ -872,6 +889,11 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
     sleep = defaultSleep,
     lockPollMs = LOCK_POLL_MS,
     env = process.env,
+    heartbeatMs = HEARTBEAT_MS,
+    commandTimeoutMs = null,
+    signalTarget,
+    reraise,
+    evidenceFs,
   } = deps;
   const block =
     deps.block ??
@@ -884,6 +906,13 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
   fs.mkdirSync(logDir, { recursive: true });
   const statePath = path.join(logDir, `story-handoff-${storyId}.json`);
   const branch = getStoryBranch(storyId);
+  const evidencePathFor = (name) =>
+    path.join(logDir, `story-handoff-${storyId}-${name}.log`);
+  const storyProgress = createStoryProgress({
+    storyId,
+    stage: 'handoff',
+    config,
+  });
   const ctx = {
     storyId,
     cwd,
@@ -909,8 +938,17 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
       cwd,
       getChangedFilesImpl: getChangedFilesFn,
     }),
+    storyProgress,
+    stream: {
+      heartbeatMs,
+      timeoutMs: commandTimeoutMs,
+      ...(signalTarget ? { signalTarget } : {}),
+      ...(reraise ? { reraise } : {}),
+      ...(evidenceFs ? { fsImpl: evidenceFs } : {}),
+    },
+    evidencePathFor,
     writeEvidence: (name, text) => {
-      const file = path.join(logDir, `story-handoff-${storyId}-${name}.log`);
+      const file = evidencePathFor(name);
       fs.writeFileSync(file, text ?? '', 'utf8');
       return file;
     },
@@ -920,11 +958,6 @@ export async function runStoryHandoff({ storyId, cwd, config }, deps) {
   const steps = [];
   let stop = precheck(ctx);
   if (stop) steps.push(stop);
-  const storyProgress = createStoryProgress({
-    storyId,
-    stage: 'handoff',
-    config,
-  });
   for (const step of stop ? [] : stepOrder(ctx.depositor)) {
     storyProgress.phase(handoffStepName(step));
     const result = await step(ctx);
