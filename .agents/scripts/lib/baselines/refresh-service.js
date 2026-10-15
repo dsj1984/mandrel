@@ -266,6 +266,18 @@ export function resolveDefaultScorer(kind, { cwd } = {}) {
   return builder({ cwd: effectiveCwd, quality });
 }
 
+/** The CRAP stamp anchors where check-baselines does: target dirs + root. */
+function defaultExtrasContext(kind, cwd) {
+  if (kind !== 'crap') return { cwd };
+  let targetDirs;
+  try {
+    targetDirs = getQuality(resolveConfig({ cwd }))?.crap?.targetDirs;
+  } catch {
+    targetDirs = undefined;
+  }
+  return { cwd, targetDirs };
+}
+
 /**
  * Refresh the on-disk baseline for `kind`. `scopeFiles: null` without
  * `fullScope` derives scope from `git diff baseRef..headRef`; `fullScope`
@@ -311,7 +323,7 @@ export async function refreshBaseline(opts = {}) {
     cwd = process.cwd(),
     requireRowsForScopeFiles = false,
     requiredScopeFilePredicate,
-    extrasContext = { cwd },
+    extrasContext,
   } = opts;
 
   validateOptions({ kind, scopeFiles, fullScope, writePath });
@@ -365,7 +377,7 @@ export async function refreshBaseline(opts = {}) {
     prior: priorEnvelope?.rows,
     priorEnvelope,
     epsilon,
-    extrasContext,
+    extrasContext: extrasContext ?? defaultExtrasContext(kind, cwd),
     scope:
       scope.mode === 'full'
         ? null

@@ -46,6 +46,9 @@ const { scanAndScore } = await import(
 const { handleCrapWorkerMessage } = await import(
   '../../.agents/scripts/lib/workers/crap-worker.js'
 );
+const { refreshBaseline } = await import(
+  '../../.agents/scripts/lib/baselines/refresh-service.js'
+);
 const { CompilerMissingError, prepareSourceForScoring, transpileIfNeeded } =
   await import('../../.agents/scripts/lib/transpile.js');
 
@@ -104,5 +107,39 @@ describe('no resolvable compiler (in process)', () => {
     );
     assert.equal(out.message.result.compilerMissing, true);
     assert.equal(out.message.result.packageDir, appDir);
+  });
+});
+
+describe('the default CRAP refresh stamp', () => {
+  it('anchors at the configured target dirs, as check-baselines does', async () => {
+    const repo = fs.realpathSync(makeTempDir('ts-stamp-anchor-'));
+    try {
+      const tsDir = path.join(repo, 'web', 'node_modules', 'typescript');
+      fs.mkdirSync(tsDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(tsDir, 'package.json'),
+        '{"name":"typescript","version":"5.4.9"}',
+      );
+      fs.writeFileSync(
+        path.join(repo, '.agentrc.json'),
+        JSON.stringify({
+          project: {
+            baseBranch: 'main',
+            paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+          },
+          delivery: { quality: { gates: { crap: { targetDirs: ['web'] } } } },
+        }),
+      );
+      const { envelope } = await refreshBaseline({
+        kind: 'crap',
+        fullScope: true,
+        writePath: path.join(repo, 'baselines', 'crap.json'),
+        cwd: repo,
+        scorer: async () => [],
+      });
+      assert.equal(envelope.tsTranspilerVersion, '5.4.9');
+    } finally {
+      fs.rmSync(repo, { recursive: true, force: true });
+    }
   });
 });
