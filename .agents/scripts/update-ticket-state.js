@@ -2,8 +2,7 @@
  * .agents/scripts/update-ticket-state.js — CLI entrypoint for ticket
  * label transitions. Core logic lives in `lib/orchestration/ticketing.js`;
  * this file is the operator-facing command surface (not a compatibility
- * layer). The decision body is `runUpdateTicketState`, driven by tests with
- * an injected provider and transition.
+ * layer).
  */
 
 import { parseArgs } from 'node:util';
@@ -32,13 +31,7 @@ const USAGE = {
   notes: ['Exactly one of --state or --remove-label is required.'],
 };
 
-/**
- * Parse and validate the argv. Throws the usage line when the ticket id is
- * not numeric or neither `--state` nor `--remove-label` is given.
- *
- * @param {string[]} argv
- * @returns {{ ticketId: number, state: string|undefined, removeLabel: string|undefined }}
- */
+/** @param {string[]} argv */
 function parseTicketStateArgs(argv) {
   const { values } = parseArgs({
     args: argv,
@@ -63,14 +56,7 @@ function parseTicketStateArgs(argv) {
 }
 
 /**
- * Apply one label mutation: the remove-label-only path, or the state
- * transition with an optional secondary label removal.
- *
- * @param {object} [opts]
- * @param {string[]} [opts.argv] Defaults to `process.argv.slice(2)`.
- * @param {object} [opts.provider] Defaults to the configured provider.
- * @param {typeof transitionTicketState} [opts.transition]
- * @returns {Promise<{ ticketId: number, state: string|null, removedLabel: string|null }>}
+ * @param {{ argv?: string[], provider?: object, transition?: typeof transitionTicketState }} [opts]
  */
 export async function runUpdateTicketState({
   argv = process.argv.slice(2),

@@ -88,21 +88,12 @@ export function resolveDefaultOutPath({
   );
 }
 
-/**
- * One issue id token; a leading `#` is the accepted GitHub spelling.
- *
- * @param {string} token
- * @returns {number}
- */
+/** @param {string} token a `#` prefix is stripped */
 function parseIdToken(token) {
   return Number(token.trim().replace(/^#/, ''));
 }
 
 /**
- * Comma/whitespace-separated issue ids, deduped in first-seen order. A
- * leading `#` is stripped per id, the same spelling {@link parseAmendsId}
- * accepts.
- *
  * @param {string} raw
  * @returns {number[]}
  */

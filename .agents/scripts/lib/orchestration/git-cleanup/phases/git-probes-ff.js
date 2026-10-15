@@ -112,16 +112,10 @@ export function makeFfProbes(spawn = gitSpawn) {
 const defaultFfProbes = makeFfProbes(gitSpawn);
 
 /**
- * The destructive worktree / prune / stash wrappers, built over an injected
- * spawn exactly like {@link makeFfProbes} so their decision tables are
- * testable without a real git process.
+ * The destructive worktree / prune / stash wrappers over an injected spawn,
+ * like {@link makeFfProbes}.
  *
  * @param {(cwd: string, ...args: string[]) => { status: number, stdout: string, stderr: string }} [spawn]
- * @returns {{
- *   removeWorktree: (worktreePath: string, cwd: string) => { ok: boolean, dirty: boolean, lockClass?: boolean, stderr?: string },
- *   pruneRemoteTracking: (cwd: string, remoteName: string, parsePruneFn: (output: string, remoteName: string) => string[]) => { ok: boolean, pruned: string[], stderr?: string },
- *   dropStash: (ref: string, cwd: string) => { ok: boolean, stderr?: string },
- * }}
  */
 export function makeWorktreeOps(spawn = gitSpawn) {
   return {
@@ -140,8 +134,7 @@ export function makeWorktreeOps(spawn = gitSpawn) {
         stderr,
       };
     },
-    // Never `--quiet`: it suppresses the `[deleted]` lines that are the only
-    // record of what was pruned, making real work read as "nothing to do".
+    // Never `--quiet`: it hides the `[deleted]` lines the parser reads.
     pruneRemoteTracking: (cwd, remoteName, parsePruneFn) => {
       const res = spawn(cwd, 'fetch', '--prune', remoteName);
       if (res.status !== 0) {
