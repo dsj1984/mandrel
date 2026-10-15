@@ -2,7 +2,7 @@
 /**
  * Real-git round trip for git-cleanup's destructive wrappers. A linked
  * worktree holding an untracked file refuses a plain `git worktree remove`,
- * so only the `--force` escalation inside the real `removeWorktree` can
+ * so only the `--force` escalation inside the real `removeWorktree` (as production binds it in `git-probes.js`) can
  * remove it — if that branch is deleted this test fails with `ok: false`.
  * The same fixture drives the real `dropStash` and the fast-forward
  * delegates through the default `gitSpawn` binding.
@@ -22,7 +22,7 @@ import {
   isWorkingTreeClean,
   mergeFastForward,
   removeWorktree,
-} from '../../.agents/scripts/lib/orchestration/git-cleanup/phases/git-probes-ff.js';
+} from '../../.agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js';
 import { makeGitRepo, seedGitIdentity } from '../fixtures/git-fixture.js';
 
 const CLEAN_ENV = Object.fromEntries(

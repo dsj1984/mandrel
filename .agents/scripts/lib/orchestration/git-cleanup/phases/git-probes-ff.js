@@ -149,17 +149,3 @@ export function makeWorktreeOps(spawn = gitSpawn) {
     },
   };
 }
-
-const defaultWorktreeOps = makeWorktreeOps(gitSpawn);
-
-export function removeWorktree(worktreePath, cwd) {
-  return defaultWorktreeOps.removeWorktree(worktreePath, cwd);
-}
-
-export function pruneRemoteTracking(cwd, remoteName, parsePruneFn) {
-  return defaultWorktreeOps.pruneRemoteTracking(cwd, remoteName, parsePruneFn);
-}
-
-export function dropStash(ref, cwd) {
-  return defaultWorktreeOps.dropStash(ref, cwd);
-}
