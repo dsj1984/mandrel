@@ -842,3 +842,48 @@ describe('agents-materialized check', () => {
     assert.doesNotMatch(result.detail, /\n/);
   });
 });
+
+describe('test-credit-path pre-push gate detector', () => {
+  const ROOT = path.resolve('/consumer');
+  const run = (hook) =>
+    findCheck('test-credit-path').run({
+      projectRoot: ROOT,
+      readFile: (file) => {
+        const rel = path.relative(ROOT, file).split(path.sep).join('/');
+        if (rel === 'package.json') {
+          return JSON.stringify({
+            scripts: { test: 'node .agents/scripts/run-tests.js' },
+          });
+        }
+        if (rel === '.husky/pre-push') return hook;
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+      },
+    });
+
+  // This repo's own pre-push shape: lint named only in comments.
+  const COMMENT_ONLY_HOOK = [
+    '#!/usr/bin/env sh',
+    '# Runs no lint, docs:check, or the full test suite.',
+    '# That runs audit → lint (biome + docs:check) → npm test.',
+    'cat > /dev/null',
+    'npm run crap:check',
+    '  # It is also a lint task, and this hook runs no lint.',
+    'node scripts/check-comment-policy.js',
+    '',
+  ].join('\n');
+
+  it('does not flag a hook whose comments mention lint but whose commands do not', () => {
+    const result = run(COMMENT_ONLY_HOOK);
+    assert.equal(result.remedy, undefined);
+    assert.match(result.detail, /runs no typecheck or lint gate/);
+  });
+
+  it('still flags a hook that actually invokes lint without evidence-gate.js', () => {
+    const result = run(`${COMMENT_ONLY_HOOK}npm run lint\n`);
+    assert.match(result.remedy, /evidence-gate\.js/);
+    assert.match(
+      result.detail,
+      /runs typecheck or lint without `evidence-gate\.js`/,
+    );
+  });
+});
