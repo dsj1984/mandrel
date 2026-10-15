@@ -2392,7 +2392,7 @@
     },
     {
       "path": ".agents/scripts/update-ticket-state.js",
-      "mi": 91.705
+      "mi": 92.815
     },
     {
       "path": ".agents/scripts/validate-skills.js",
