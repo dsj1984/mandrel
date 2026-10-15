@@ -29,13 +29,13 @@ export const BDD_RUNNER_TAG_TABLE = Object.freeze({
  * `skip` forms (parsers may strip the `@`).
  */
 export const PENDING_TAGS = Object.freeze(
-  new Set(
-    Object.values(BDD_RUNNER_TAG_TABLE).flatMap((tag) => [
-      tag,
-      tag.startsWith('@') ? tag.slice(1) : `@${tag}`,
-    ]),
-  ),
+  new Set(Object.values(BDD_RUNNER_TAG_TABLE).flatMap(withAndWithoutAt)),
 );
+
+/** @param {string} tag */
+function withAndWithoutAt(tag) {
+  return [tag, tag.startsWith('@') ? tag.slice(1) : `@${tag}`];
+}
 
 const FALLBACK = Object.freeze({
   runner: null,
