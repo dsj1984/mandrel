@@ -2469,6 +2469,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phase-timer.js",
+      "lines": 100,
+      "branches": 92.31,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/auto-merge.js",
       "lines": 99.62,
       "branches": 86.78,
@@ -2505,6 +2511,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/finish.js",
+      "lines": 99.24,
+      "branches": 88,
+      "functions": 91.67
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/graphql-preflight.js",
       "lines": 100,
       "branches": 83.33,
@@ -2529,6 +2541,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/open-pr.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/options.js",
       "lines": 99.01,
       "branches": 96.88,
@@ -2545,6 +2563,12 @@
       "lines": 100,
       "branches": 86.21,
       "functions": 92.31
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pre-push.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pull-request.js",
@@ -2568,6 +2592,12 @@
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/review-block.js",
       "lines": 90.91,
       "branches": 66.67,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/review-halt.js",
+      "lines": 100,
+      "branches": 83.33,
       "functions": 100
     },
     {
@@ -2607,6 +2637,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/result.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/single-story-close/review-overlap.js",
       "lines": 100,
       "branches": 100,
@@ -2614,9 +2650,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
-      "lines": 99.84,
-      "branches": 93.25,
-      "functions": 94.55
+      "lines": 100,
+      "branches": 91.43,
+      "functions": 90.91
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-lease-guard.js",
@@ -3621,6 +3657,66 @@
       "functions": 75
     },
     {
+      "path": "lib/cli/doctor-checks/codex.js",
+      "lines": 99.17,
+      "branches": 87.27,
+      "functions": 100
+    },
+    {
+      "path": "lib/cli/doctor-checks/merge-driver.js",
+      "lines": 100,
+      "branches": 86.67,
+      "functions": 100
+    },
+    {
+      "path": "lib/cli/doctor-checks/payload.js",
+      "lines": 100,
+      "branches": 94.59,
+      "functions": 100
+    },
+    {
+      "path": "lib/cli/doctor-checks/read-json.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
+      "path": "lib/cli/doctor-checks/runtime-deps.js",
+      "lines": 88.36,
+      "branches": 67.86,
+      "functions": 100
+    },
+    {
+      "path": "lib/cli/doctor-checks/spawn.js",
+      "lines": 100,
+      "branches": 50,
+      "functions": 100
+    },
+    {
+      "path": "lib/cli/doctor-checks/sync-parity.js",
+      "lines": 94.15,
+      "branches": 90.91,
+      "functions": 100
+    },
+    {
+      "path": "lib/cli/doctor-checks/test-credit-path.js",
+      "lines": 100,
+      "branches": 96.72,
+      "functions": 100
+    },
+    {
+      "path": "lib/cli/doctor-checks/toolchain.js",
+      "lines": 95.62,
+      "branches": 92.5,
+      "functions": 100
+    },
+    {
+      "path": "lib/cli/doctor-checks/version-current.js",
+      "lines": 96.34,
+      "branches": 90.91,
+      "functions": 66.67
+    },
+    {
       "path": "lib/cli/doctor.js",
       "lines": 98.67,
       "branches": 92.86,
@@ -3652,9 +3748,9 @@
     },
     {
       "path": "lib/cli/registry.js",
-      "lines": 97.19,
-      "branches": 89.46,
-      "functions": 96.88
+      "lines": 100,
+      "branches": 100,
+      "functions": 94.74
     },
     {
       "path": "lib/cli/sync-agents.js",

@@ -105,9 +105,9 @@ const ALLOWLIST = new Set([
   '.agents/scripts/providers/github/projects-v2-graphql.js',
   '.agents/scripts/quality-watch.js',
   '.agents/scripts/run-tests.js',
+  'lib/cli/doctor-checks/spawn.js',
   'lib/cli/guarded-sync.js',
   'lib/cli/init.js',
-  'lib/cli/registry.js',
   'lib/cli/update.js',
 ]);
 

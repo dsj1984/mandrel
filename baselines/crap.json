@@ -27694,6 +27694,26 @@
       "anonymous": true
     },
     {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phase-timer.js",
+      "method": "createPhaseTimer",
+      "startLine": 11,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phase-timer.js",
+      "method": "<anon createPhaseTimer/(phase,ms)#0>",
+      "startLine": 15,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phase-timer.js",
+      "method": "<anon createPhaseTimer/()#0>",
+      "startLine": 20,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/auto-merge.js",
       "method": "isOperatorMergeReason",
       "startLine": 38,
@@ -28490,6 +28510,83 @@
       "crap": 6
     },
     {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/finish.js",
+      "method": "resolveAutoMergeOutcome",
+      "startLine": 26,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/finish.js",
+      "method": "<anon (terminal,storyId,prUrl)#0>",
+      "startLine": 41,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/finish.js",
+      "method": "<anon (terminal,storyId,prUrl)#1>",
+      "startLine": 45,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/finish.js",
+      "method": "<anon (terminal,storyId,prUrl)#2>",
+      "startLine": 50,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/finish.js",
+      "method": "<anon (_terminal,storyId,prUrl)#0>",
+      "startLine": 56,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/finish.js",
+      "method": "reportWaitTerminal",
+      "startLine": 69,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/finish.js",
+      "method": "tailReapedWorktree",
+      "startLine": 82,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/finish.js",
+      "method": "finishWithMergeWait",
+      "startLine": 91,
+      "crap": 1.0000214334705075
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/finish.js",
+      "method": "<anon finishWithMergeWait/(args)#0>",
+      "startLine": 114,
+      "crap": 1.125,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/finish.js",
+      "method": "finishWithoutMergeWait",
+      "startLine": 172,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/finish.js",
+      "method": "finishDeferred",
+      "startLine": 230,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/finish.js",
+      "method": "reportOperatorMergeSkip",
+      "startLine": 249,
+      "crap": 3
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/graphql-preflight.js",
       "method": "announcePreflightBlock",
       "startLine": 27,
@@ -28668,6 +28765,12 @@
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
       "method": "buildPullRequestFields",
       "startLine": 147,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/open-pr.js",
+      "method": "openAndReviewPr",
+      "startLine": 10,
       "crap": 3
     },
     {
@@ -29044,6 +29147,19 @@
       "anonymous": true
     },
     {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pre-push.js",
+      "method": "runPrePushPhases",
+      "startLine": 24,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pre-push.js",
+      "method": "<anon runPrePushPhases/()#0>",
+      "startLine": 76,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pull-request.js",
       "method": "pickHeadPullRequest",
       "startLine": 23,
@@ -29078,6 +29194,12 @@
       "method": "handleCriticalReviewBlock",
       "startLine": 12,
       "crap": 1.0017808943428779
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/review-halt.js",
+      "method": "resolveReviewHalt",
+      "startLine": 13,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/review-outcome.js",
@@ -29450,6 +29572,66 @@
       "method": "runWrongTreeGuardPhase",
       "startLine": 321,
       "crap": 7.001755640808895
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/result.js",
+      "method": "emitTerminal",
+      "startLine": 31,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/result.js",
+      "method": "noopResult",
+      "startLine": 63,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/result.js",
+      "method": "alreadyClosedResult",
+      "startLine": 76,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/result.js",
+      "method": "preflightBlockedResult",
+      "startLine": 131,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/result.js",
+      "method": "baselinesEnvelopeGates",
+      "startLine": 161,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/result.js",
+      "method": "codeReviewGate",
+      "startLine": 179,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/result.js",
+      "method": "closeEnvelopeGates",
+      "startLine": 191,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/result.js",
+      "method": "deriveObservedMerge",
+      "startLine": 212,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/result.js",
+      "method": "closeResult",
+      "startLine": 223,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/result.js",
+      "method": "elapsedSecondsSince",
+      "startLine": 271,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
@@ -40093,6 +40275,491 @@
       "method": "runClaudeCodeVersion",
       "startLine": 40,
       "crap": 7
+    },
+    {
+      "path": "lib/cli/doctor-checks/codex.js",
+      "method": "projectionParity",
+      "startLine": 37,
+      "crap": 4
+    },
+    {
+      "path": "lib/cli/doctor-checks/codex.js",
+      "method": "<anon projectionParity/(n)#0>",
+      "startLine": 52,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/codex.js",
+      "method": "<anon projectionParity/(n,body)#0>",
+      "startLine": 54,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/codex.js",
+      "method": "<anon projectionParity/(n)#1>",
+      "startLine": 56,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/codex.js",
+      "method": "readTextOrNull",
+      "startLine": 72,
+      "crap": 1.0233236151603498
+    },
+    {
+      "path": "lib/cli/doctor-checks/codex.js",
+      "method": "runCodexSkillsInSync",
+      "startLine": 87,
+      "crap": 1
+    },
+    {
+      "path": "lib/cli/doctor-checks/codex.js",
+      "method": "<anon runCodexSkillsInSync/()#0>",
+      "startLine": 88,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/codex.js",
+      "method": "<anon runCodexSkillsInSync/()#1>",
+      "startLine": 91,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/codex.js",
+      "method": "<anon runCodexSkillsInSync/(name)#0>",
+      "startLine": 93,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/codex.js",
+      "method": "runCodexAgentsInSync",
+      "startLine": 107,
+      "crap": 1
+    },
+    {
+      "path": "lib/cli/doctor-checks/codex.js",
+      "method": "<anon runCodexAgentsInSync/()#0>",
+      "startLine": 108,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/codex.js",
+      "method": "<anon runCodexAgentsInSync/()#1>",
+      "startLine": 111,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/codex.js",
+      "method": "<anon runCodexAgentsInSync/(name)#0>",
+      "startLine": 113,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/codex.js",
+      "method": "readProjectDocMaxBytes",
+      "startLine": 133,
+      "crap": 4
+    },
+    {
+      "path": "lib/cli/doctor-checks/codex.js",
+      "method": "resolveProjectDocLimit",
+      "startLine": 155,
+      "crap": 3
+    },
+    {
+      "path": "lib/cli/doctor-checks/codex.js",
+      "method": "runCodexInstructions",
+      "startLine": 187,
+      "crap": 7
+    },
+    {
+      "path": "lib/cli/doctor-checks/codex.js",
+      "method": "<anon runCodexInstructions/()#0>",
+      "startLine": 194,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/codex.js",
+      "method": "<anon runCodexInstructions/(s)#0>",
+      "startLine": 216,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/merge-driver.js",
+      "method": "runMergeDriver",
+      "startLine": 23,
+      "crap": 3
+    },
+    {
+      "path": "lib/cli/doctor-checks/merge-driver.js",
+      "method": "<anon runMergeDriver/()#0>",
+      "startLine": 24,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/merge-driver.js",
+      "method": "<anon runMergeDriver/(args)#0>",
+      "startLine": 29,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/merge-driver.js",
+      "method": "probeConfiguredDriver",
+      "startLine": 60,
+      "crap": 3
+    },
+    {
+      "path": "lib/cli/doctor-checks/payload.js",
+      "method": "payloadFileDrifted",
+      "startLine": 26,
+      "crap": 3
+    },
+    {
+      "path": "lib/cli/doctor-checks/payload.js",
+      "method": "runAgentsDrift",
+      "startLine": 48,
+      "crap": 5
+    },
+    {
+      "path": "lib/cli/doctor-checks/payload.js",
+      "method": "<anon runAgentsDrift/()#0>",
+      "startLine": 49,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/payload.js",
+      "method": "runPinCurrent",
+      "startLine": 133,
+      "crap": 5
+    },
+    {
+      "path": "lib/cli/doctor-checks/payload.js",
+      "method": "<anon runPinCurrent/()#0>",
+      "startLine": 134,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/read-json.js",
+      "method": "readJsonSafe",
+      "startLine": 10,
+      "crap": 1
+    },
+    {
+      "path": "lib/cli/doctor-checks/runtime-deps.js",
+      "method": "allPresentVerdict",
+      "startLine": 19,
+      "crap": 2.375657400450789
+    },
+    {
+      "path": "lib/cli/doctor-checks/runtime-deps.js",
+      "method": "runRuntimeDeps",
+      "startLine": 39,
+      "crap": 5.164794921875
+    },
+    {
+      "path": "lib/cli/doctor-checks/runtime-deps.js",
+      "method": "runAgentsMaterialized",
+      "startLine": 102,
+      "crap": 3.002666666666667
+    },
+    {
+      "path": "lib/cli/doctor-checks/runtime-deps.js",
+      "method": "<anon runAgentsMaterialized/()#0>",
+      "startLine": 107,
+      "crap": 1.0002962962962962,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/runtime-deps.js",
+      "method": "<anon runAgentsMaterialized/(p)#0>",
+      "startLine": 108,
+      "crap": 1.0002962962962962,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/runtime-deps.js",
+      "method": "<anon runAgentsMaterialized/(fromDir)#0>",
+      "startLine": 118,
+      "crap": 1.0002962962962962,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/spawn.js",
+      "method": "spawn",
+      "startLine": 10,
+      "crap": 3
+    },
+    {
+      "path": "lib/cli/doctor-checks/sync-parity.js",
+      "method": "runCommandsInSync",
+      "startLine": 24,
+      "crap": 8.0480841472577
+    },
+    {
+      "path": "lib/cli/doctor-checks/sync-parity.js",
+      "method": "<anon runCommandsInSync/()#0>",
+      "startLine": 30,
+      "crap": 1.0007513148009015,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/sync-parity.js",
+      "method": "<anon runCommandsInSync/(dir)#0>",
+      "startLine": 34,
+      "crap": 1.0007513148009015,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/sync-parity.js",
+      "method": "<anon runCommandsInSync/(dir)#0/(f)#0>",
+      "startLine": 36,
+      "crap": 1.0007513148009015,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/sync-parity.js",
+      "method": "<anon runCommandsInSync/(file)#0>",
+      "startLine": 43,
+      "crap": 1.0007513148009015,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/sync-parity.js",
+      "method": "<anon runCommandsInSync/(f)#0>",
+      "startLine": 69,
+      "crap": 1.0007513148009015,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/sync-parity.js",
+      "method": "<anon runCommandsInSync/(f)#1>",
+      "startLine": 73,
+      "crap": 1.0007513148009015,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/sync-parity.js",
+      "method": "<anon runCommandsInSync/(f)#2>",
+      "startLine": 74,
+      "crap": 1.0007513148009015,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/sync-parity.js",
+      "method": "resolveRoleScopedAgentsFlag",
+      "startLine": 103,
+      "crap": 1
+    },
+    {
+      "path": "lib/cli/doctor-checks/sync-parity.js",
+      "method": "runAgentsInSync",
+      "startLine": 136,
+      "crap": 9.051008746355684
+    },
+    {
+      "path": "lib/cli/doctor-checks/sync-parity.js",
+      "method": "<anon runAgentsInSync/()#0>",
+      "startLine": 143,
+      "crap": 1.0006297376093294,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/sync-parity.js",
+      "method": "<anon runAgentsInSync/(dir)#0>",
+      "startLine": 147,
+      "crap": 1.0006297376093294,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/sync-parity.js",
+      "method": "<anon runAgentsInSync/(dir)#0/(f)#0>",
+      "startLine": 149,
+      "crap": 1.0006297376093294,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/sync-parity.js",
+      "method": "<anon runAgentsInSync/(f)#0>",
+      "startLine": 159,
+      "crap": 1.0006297376093294,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/sync-parity.js",
+      "method": "<anon runAgentsInSync/(f)#1>",
+      "startLine": 162,
+      "crap": 1.0006297376093294,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/sync-parity.js",
+      "method": "<anon runAgentsInSync/(f)#2>",
+      "startLine": 189,
+      "crap": 1.0006297376093294,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/sync-parity.js",
+      "method": "<anon runAgentsInSync/(f)#3>",
+      "startLine": 190,
+      "crap": 1.0006297376093294,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/test-credit-path.js",
+      "method": "testCreditDepositCommand",
+      "startLine": 21,
+      "crap": 1
+    },
+    {
+      "path": "lib/cli/doctor-checks/test-credit-path.js",
+      "method": "testCreditRemedy",
+      "startLine": 37,
+      "crap": 1
+    },
+    {
+      "path": "lib/cli/doctor-checks/test-credit-path.js",
+      "method": "hookCommandLines",
+      "startLine": 53,
+      "crap": 1
+    },
+    {
+      "path": "lib/cli/doctor-checks/test-credit-path.js",
+      "method": "<anon hookCommandLines/(line)#0>",
+      "startLine": 56,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/test-credit-path.js",
+      "method": "readProjectScripts",
+      "startLine": 68,
+      "crap": 3
+    },
+    {
+      "path": "lib/cli/doctor-checks/test-credit-path.js",
+      "method": "scriptNamed",
+      "startLine": 83,
+      "crap": 3
+    },
+    {
+      "path": "lib/cli/doctor-checks/test-credit-path.js",
+      "method": "isCrapEnabled",
+      "startLine": 99,
+      "crap": 2
+    },
+    {
+      "path": "lib/cli/doctor-checks/test-credit-path.js",
+      "method": "configuredTestCommand",
+      "startLine": 119,
+      "crap": 4
+    },
+    {
+      "path": "lib/cli/doctor-checks/test-credit-path.js",
+      "method": "describeConfiguredTestCommand",
+      "startLine": 139,
+      "crap": 2
+    },
+    {
+      "path": "lib/cli/doctor-checks/test-credit-path.js",
+      "method": "describeCreditedRun",
+      "startLine": 159,
+      "crap": 4
+    },
+    {
+      "path": "lib/cli/doctor-checks/test-credit-path.js",
+      "method": "describeNpmTestScript",
+      "startLine": 177,
+      "crap": 3
+    },
+    {
+      "path": "lib/cli/doctor-checks/test-credit-path.js",
+      "method": "describePrePushHook",
+      "startLine": 204,
+      "crap": 4
+    },
+    {
+      "path": "lib/cli/doctor-checks/test-credit-path.js",
+      "method": "runTestCreditPath",
+      "startLine": 248,
+      "crap": 2
+    },
+    {
+      "path": "lib/cli/doctor-checks/test-credit-path.js",
+      "method": "<anon runTestCreditPath/(p)#0>",
+      "startLine": 264,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/test-credit-path.js",
+      "method": "<anon runTestCreditPath/(p)#1>",
+      "startLine": 267,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/toolchain.js",
+      "method": "runNodeVersion",
+      "startLine": 16,
+      "crap": 2
+    },
+    {
+      "path": "lib/cli/doctor-checks/toolchain.js",
+      "method": "runGitAvailable",
+      "startLine": 33,
+      "crap": 6
+    },
+    {
+      "path": "lib/cli/doctor-checks/toolchain.js",
+      "method": "runGhAvailable",
+      "startLine": 52,
+      "crap": 6
+    },
+    {
+      "path": "lib/cli/doctor-checks/toolchain.js",
+      "method": "runGithubToken",
+      "startLine": 78,
+      "crap": 8
+    },
+    {
+      "path": "lib/cli/doctor-checks/toolchain.js",
+      "method": "runGhAuth",
+      "startLine": 108,
+      "crap": 7.3919999999999995
+    },
+    {
+      "path": "lib/cli/doctor-checks/version-current.js",
+      "method": "defaultInstalledVersion",
+      "startLine": 15,
+      "crap": 1
+    },
+    {
+      "path": "lib/cli/doctor-checks/version-current.js",
+      "method": "defaultVersionCachePath",
+      "startLine": 31,
+      "crap": 2
+    },
+    {
+      "path": "lib/cli/doctor-checks/version-current.js",
+      "method": "runVersionCurrent",
+      "startLine": 46,
+      "crap": 4
     },
     {
       "path": "lib/cli/doctor.js",
