@@ -15,6 +15,7 @@ import {
   resolveConfig,
 } from '../../.agents/scripts/lib/config-resolver.js';
 import { getAgentrcValidator } from '../../.agents/scripts/lib/config-schema.js';
+import { validate as validateGenerated } from '../../.agents/scripts/lib/generated/agentrc-validator.js';
 import {
   classify,
   createGh,
@@ -79,6 +80,18 @@ const BASE_CONFIG = {
 describe('AC-1 github.cliConfigDir → GH_CONFIG_DIR', () => {
   beforeEach(() => {
     delete process.env.GH_CONFIG_DIR;
+  });
+
+  it('the precompiled generated validator accepts a populated github.cliConfigDir', () => {
+    const cfg = {
+      ...BASE_CONFIG,
+      github: { ...BASE_CONFIG.github, cliConfigDir: '/tmp' },
+    };
+    assert.equal(
+      validateGenerated(cfg),
+      true,
+      JSON.stringify(validateGenerated.errors),
+    );
   });
 
   it('the runtime validator accepts a populated github.cliConfigDir', () => {
