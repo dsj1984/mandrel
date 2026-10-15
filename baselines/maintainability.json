@@ -108,7 +108,7 @@
     },
     {
       "path": ".agents/scripts/deliver-run.js",
-      "mi": 97.481
+      "mi": 98.019
     },
     {
       "path": ".agents/scripts/diagnose-friction.js",
@@ -1708,7 +1708,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/reconcile-done.js",
-      "mi": 92.83
+      "mi": 99.839
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/review-block.js",
@@ -2116,7 +2116,7 @@
     },
     {
       "path": ".agents/scripts/lib/wave-runner/live-probe.js",
-      "mi": 105.603
+      "mi": 107.463
     },
     {
       "path": ".agents/scripts/lib/wave-runner/ready-set.js",
