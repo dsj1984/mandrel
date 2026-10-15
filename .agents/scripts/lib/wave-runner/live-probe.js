@@ -85,7 +85,7 @@ function deriveConfirmIds(storyRecords) {
     .filter(
       (rec) =>
         rec.state === 'closed' &&
-        !(rec.labels ?? []).includes(AGENT_LABELS.DONE) &&
+        !rec.labels.includes(AGENT_LABELS.DONE) &&
         !UNLANDED_CLOSE_REASONS.has(rec.stateReason),
     )
     .map((rec) => storyIdOf(rec))

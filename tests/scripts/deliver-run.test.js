@@ -889,4 +889,18 @@ describe('deliver-run — confirm[] (Story #5705)', () => {
     const { envelope } = await beat({ nodes: [node(101)] }, { stories: '101' });
     assert.deepEqual(envelope.confirm, []);
   });
+
+  it('tolerates a tick envelope with no confirm field at all', async () => {
+    const { envelope } = await runDeliverRunBeat(
+      { stories: '101', cwd: makeTempDir('deliver-run-'), config: CONFIG },
+      {
+        tickFn: async () => ({
+          envelope: { ready: [], done: [], epilogueDue: false },
+          exitCode: 0,
+          records: [],
+        }),
+      },
+    );
+    assert.deepEqual(envelope.confirm, []);
+  });
 });
