@@ -201,8 +201,7 @@ describe('resolveCrapUpdaterOptions — incompatible scopes', () => {
 });
 
 describe('buildCrapUpdaterScorer — the no-artifact refusal', () => {
-  it('returns no rows and warns twice when coverage is absent under requireCoverage', async () => {
-    const logger = recordingLogger();
+  it('throws on a scoped refresh when coverage is absent under requireCoverage (Story #5683)', async () => {
     const options = resolveCrapUpdaterOptions({}, CONFIG, '/repo');
     let scanned = false;
     const scorer = scorerOf(options, {
@@ -211,12 +210,15 @@ describe('buildCrapUpdaterScorer — the no-artifact refusal', () => {
         scanned = true;
         return {};
       },
-      logger,
+      logger: recordingLogger(),
     });
-    assert.deepEqual(await scorer([], { cwd: '/repo' }), []);
+    await assert.rejects(
+      scorer(['a.js'], { cwd: '/repo' }),
+      (err) =>
+        err.name === 'MissingCoverageArtifactError' &&
+        /^\[CRAP\] coverage artifact not found/.test(err.message),
+    );
     assert.equal(scanned, false, 'must not scan without an artifact');
-    assert.match(logger.lines.warn.join('\n'), /No coverage artifact/);
-    assert.match(logger.lines.warn.join('\n'), /npm run test:coverage/);
   });
 
   it('throws on a full-scope refresh with no artifact under requireCoverage (Story #5672)', async () => {

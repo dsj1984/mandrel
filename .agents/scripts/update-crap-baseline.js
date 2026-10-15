@@ -55,7 +55,7 @@ const USAGE = {
     ],
   ],
   notes: [
-    'Run `npm run test:coverage` first — without a coverage artifact every file is skipped.',
+    'Run `npm run test:coverage` first — without a coverage artifact the refresh refuses (exit 1) and leaves the baseline untouched.',
   ],
 };
 
