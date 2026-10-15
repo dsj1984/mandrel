@@ -11,7 +11,7 @@ import {
   calculateReport,
   calculateReportForFile,
 } from '../maintainability-engine.js';
-import { transpileIfNeeded } from '../transpile.js';
+import { transpileForReport } from '../transpile.js';
 import { serveWorkerMessages } from './serve-worker-messages.js';
 
 /**
@@ -22,7 +22,7 @@ import { serveWorkerMessages } from './serve-worker-messages.js';
  * @returns {object}
  */
 function reportFromSource(source, label) {
-  const prepared = transpileIfNeeded(label, source);
+  const prepared = transpileForReport(label, source);
   if (prepared === null) {
     return {
       moduleScore: 0,

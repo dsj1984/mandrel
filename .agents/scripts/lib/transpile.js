@@ -303,6 +303,32 @@ export function transpileIfNeeded(filePath, source, opts = {}) {
   }
 }
 
+const _reportDiagnosed = new Set();
+
+/**
+ * For report-only callers (review, report worker): a string, or `null` to
+ * report a parse error. A missing compiler is diagnosed once per package,
+ * never handed back as a sentinel.
+ *
+ * @param {string} filePath
+ * @param {string} source
+ * @returns {string|null}
+ */
+export function transpileForReport(filePath, source) {
+  const prepared = transpileIfNeeded(filePath, source);
+  if (!isCompilerMissing(prepared)) return prepared;
+  const dir = owningPackageDir(filePath);
+  if (!_reportDiagnosed.has(dir)) {
+    _reportDiagnosed.add(dir);
+    Logger.warn(
+      `[Maintainability] ⚠ typescript is not resolvable for ${dir}; its TypeScript is ` +
+        `reported as a parse error. Install it there: 'npm install --save-dev typescript' ` +
+        `(${SUPPORTED_TS_RANGE}).`,
+    );
+  }
+  return null;
+}
+
 /**
  * Read + transpile with a line map. Read, transpile and missing-compiler
  * failures stay distinct.

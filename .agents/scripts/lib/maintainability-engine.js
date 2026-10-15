@@ -4,6 +4,7 @@ import { analyzeModule } from './escomplex-kernel.js';
 import {
   isCompilerMissing,
   owningPackageDir,
+  transpileForReport,
   transpileIfNeeded,
 } from './transpile.js';
 
@@ -149,7 +150,7 @@ export function calculateReport(sourceCode) {
 export function calculateReportForFile(filePath) {
   try {
     const sourceCode = fs.readFileSync(filePath, 'utf-8');
-    const prepared = transpileIfNeeded(filePath, sourceCode);
+    const prepared = transpileForReport(filePath, sourceCode);
     if (prepared === null) {
       return {
         moduleScore: 0,

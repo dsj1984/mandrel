@@ -230,4 +230,46 @@ process.stdout.write(JSON.stringify(out));
     assert.equal(res.status, 0, res.stderr);
     assert.deepEqual(JSON.parse(res.stdout), ['missing', 'string', 'missing']);
   });
+
+  it('report callers fall back to a parse error with one diagnostic, never the sentinel', () => {
+    const [webFile, apiFile] = seed({ withCompilerless: true });
+    const lib = (rel) =>
+      JSON.stringify(pathToFileURL(path.join(SCRIPTS, 'lib', rel)).href);
+    const probe = path.join(root, 'report-probe.mjs');
+    fs.writeFileSync(
+      probe,
+      `import { calculateReportForFile } from ${lib('maintainability-engine.js')};
+import { handleMaintainabilityReportWorkerMessage } from ${lib('workers/maintainability-report-worker.js')};
+import { scoreSourceReport } from ${lib('orchestration/review-providers/native.js')};
+const src = ${JSON.stringify(TS_SOURCE)};
+const worker = (f) =>
+  handleMaintainabilityReportWorkerMessage({ item: { source: src, label: f } })
+    .message.result.report;
+const reports = [${JSON.stringify(apiFile)}, ${JSON.stringify(webFile)}].flatMap((f) => [
+  calculateReportForFile(f),
+  worker(f),
+  scoreSourceReport(src, f),
+]);
+process.stdout.write(JSON.stringify(reports.map((r) => r.parseError)));
+`,
+    );
+    const res = run([probe]);
+    assert.equal(res.status, 0, res.stderr);
+    assert.deepEqual(JSON.parse(res.stdout), [
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+    ]);
+    const output = `${res.stdout}${res.stderr}`;
+    const diagnostics = output.match(/typescript is not resolvable for/g) ?? [];
+    assert.equal(diagnostics.length, 1, output);
+    assert.match(
+      output,
+      /packages\/api; its TypeScript is reported as a parse error/,
+    );
+    assert.match(output, /npm install --save-dev typescript/);
+  });
 });
