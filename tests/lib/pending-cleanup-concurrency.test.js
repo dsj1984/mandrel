@@ -187,7 +187,12 @@ describe('pending-cleanup — the manifest is written via rename', () => {
     const manifestWrites = writes.filter((p) => p.startsWith(target));
     assert.equal(manifestWrites.length, 1);
     assert.match(manifestWrites[0], /\.\d+\.tmp$/, 'pid-scoped temp file');
-    assert.deepEqual(renames, [[manifestWrites[0], target]]);
+    // The pending-cleanup lock releases by its own rename to a tombstone
+    // (Story #5684); only renames onto the manifest are this contract's.
+    assert.deepEqual(
+      renames.filter(([, to]) => to === target),
+      [[manifestWrites[0], target]],
+    );
     assert.equal(readManifest(worktreeRoot).length, 1);
   });
 
