@@ -25640,6 +25640,12 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/project-meta-cache.js",
+      "method": "writeStoreAtomic",
+      "startLine": 60,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/project-meta-cache.js",
       "method": "readProjectMetaCache",
       "startLine": 71,
       "crap": 10.032801672885316
@@ -33123,9 +33129,21 @@
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "method": "moveAside",
+      "startLine": 306,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
       "method": "refreshLockSync",
       "startLine": 309,
       "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "method": "restoreFromTombstone",
+      "startLine": 318,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
@@ -33142,6 +33160,12 @@
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "method": "unlinkQuietly",
+      "startLine": 325,
+      "crap": 1.0233236151603498
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
       "method": "<anon startHeartbeat/()#1>",
       "startLine": 327,
       "crap": 2,
@@ -33153,6 +33177,12 @@
       "startLine": 337,
       "crap": 2,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "method": "reportLockEvent",
+      "startLine": 339,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
@@ -33182,10 +33212,22 @@
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "method": "emitLockLost",
+      "startLine": 365,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
       "method": "<anon buildAcquired/()#2>",
       "startLine": 370,
       "crap": 1,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "method": "touchLock",
+      "startLine": 371,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
