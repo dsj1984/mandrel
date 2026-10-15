@@ -77,6 +77,7 @@ export function handleCrapWorkerMessage(msg, _coverage, deps = {}) {
   // escomplex's transpiled coordinates to them.
   const prepare = deps.prepare ?? prepareSourceForScoring;
   const prepared = prepare(abs, deps);
+  // `reply` defaults `rows: null`, so every prepare error is a drop.
   if (prepared.error) return reply(preparedFailureFields(prepared));
 
   let methodRows;

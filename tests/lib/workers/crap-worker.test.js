@@ -120,6 +120,25 @@ describe('handleCrapWorkerMessage — failure isolation', () => {
     assert.equal(out.message.result.rows, null);
   });
 
+  it('a read/transpile prepare error still replies rows=null (the drop envelope)', () => {
+    for (const error of ['read', 'transpile']) {
+      const out = handleCrapWorkerMessage({ item: okItem }, null, {
+        prepare: () => ({ error }),
+      });
+      assert.equal(out.message.result.rows, null, error);
+      assert.equal(out.message.result.compilerMissing, undefined, error);
+    }
+  });
+
+  it('a compiler-missing prepare error replies its package, rows=null', () => {
+    const out = handleCrapWorkerMessage({ item: okItem }, null, {
+      prepare: () => ({ error: 'compiler-missing', packageDir: '/pkg' }),
+    });
+    assert.equal(out.message.result.rows, null);
+    assert.equal(out.message.result.compilerMissing, true);
+    assert.equal(out.message.result.packageDir, '/pkg');
+  });
+
   it('calculateCrap throws Error → rows=null + error string', () => {
     const out = handleCrapWorkerMessage(
       { item: okItem },
