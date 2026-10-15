@@ -3,10 +3,13 @@
 /**
  * CLI: the comment policy ratchets (docs/contributing/comment-policy.md).
  *
- * Default mode runs both ratchets: the comment-byte ratio over non-generated,
- * non-test `.agents/scripts` JavaScript may not exceed the landed ceiling, and
- * no comment under `.agents/scripts`, `bin` or `lib` may cite a ticket, pull
- * request or decision-record number.
+ * Default mode runs both ratchets. The comment-byte ratio over non-generated,
+ * non-test `.agents/scripts` JavaScript is judged per change: a change fails
+ * only when the global ratio is over the landed ceiling and its own net diff
+ * against the merge base is itself above the ceiling, so a sibling's landing
+ * can never fail a change that is under it. And no comment under
+ * `.agents/scripts`, `bin` or `lib` may cite a ticket, pull request or
+ * decision-record number.
  *
  * `--assert-code-unchanged <ref>` is the safety net for a comment-only change:
  * every scanned file that differs from `<ref>` must have the same
@@ -21,7 +24,6 @@ import { fileURLToPath } from 'node:url';
 
 import { runAsCli } from '../.agents/scripts/lib/cli-utils.js';
 import {
-  COMMENT_RATIO_CEILING,
   commentBytes,
   findProvenance,
   isScannedSource,
@@ -30,6 +32,11 @@ import {
   RATIO_ROOT,
   typeTags,
 } from './lib/comment-policy.js';
+import {
+  changeDelta,
+  ratioVerdict,
+  resolveBase,
+} from './lib/comment-ratio-change.js';
 
 const REPO_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -38,13 +45,18 @@ const REPO_ROOT = path.resolve(
 
 const HELP = {
   invocation:
-    'node scripts/check-comment-policy.js [--root <dir>] [--assert-code-unchanged <ref>] [--only <prefix>]... [--report]',
+    'node scripts/check-comment-policy.js [--root <dir>] [--base <ref>] [--assert-code-unchanged <ref>] [--only <prefix>]... [--report]',
   summary:
     'Hold the comment policy: a comment-byte ratio ceiling and a ban on ticket/PR/ADR citations in comments; or prove a change touched comments only.',
   flags: [
     {
       flag: '--root <dir>',
       description: 'Repository root (default: this checkout).',
+    },
+    {
+      flag: '--base <ref>',
+      description:
+        'Judge the ratio against <ref> instead of the merge base of HEAD and origin/<project.baseBranch>.',
     },
     {
       flag: '--assert-code-unchanged <ref>',
@@ -71,13 +83,20 @@ const HELP = {
  * Parse argv into options.
  *
  * @param {string[]} argv
- * @returns {{ root: string, ref: string | null, only: string[], report: boolean }}
+ * @returns {{ root: string, base: string | null, ref: string | null, only: string[], report: boolean }}
  */
 function parseOptions(argv) {
-  const opts = { root: REPO_ROOT, ref: null, only: [], report: false };
+  const opts = {
+    root: REPO_ROOT,
+    base: null,
+    ref: null,
+    only: [],
+    report: false,
+  };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--root') opts.root = path.resolve(argv[++i]);
+    else if (arg === '--base') opts.base = argv[++i];
     else if (arg === '--assert-code-unchanged') opts.ref = argv[++i];
     else if (arg === '--only') opts.only.push(argv[++i].replace(/\/$/, ''));
     else if (arg === '--report') opts.report = true;
@@ -129,13 +148,13 @@ function inScope(file, prefixes) {
 }
 
 /**
- * The ratio ratchet.
+ * Global comment and total bytes, printing the per-file report when asked.
  *
  * @param {string} root
  * @param {{ only: string[], report: boolean }} opts
- * @returns {boolean}
+ * @returns {{ comment: number, total: number }}
  */
-function checkRatio(root, opts) {
+function globalCounts(root, opts) {
   let total = 0;
   let comment = 0;
   const rows = [];
@@ -154,16 +173,26 @@ function checkRatio(root, opts) {
       );
     }
   }
-  const ratio = comment / (total || 1);
-  const line = `comment bytes ${comment} of ${total} (${(100 * ratio).toFixed(1)}%), ceiling ${(100 * COMMENT_RATIO_CEILING).toFixed(1)}%`;
-  if (ratio <= COMMENT_RATIO_CEILING) {
-    process.stdout.write(`[comment-policy] ratio: ${line} — ok\n`);
-    return true;
-  }
-  process.stderr.write(
-    `[comment-policy] ratio: ${line} — over the ceiling. Trim comments to the policy in docs/contributing/comment-policy.md.\n`,
-  );
-  return false;
+  return { comment, total };
+}
+
+/**
+ * The ratio ratchet, judged per change (see `ratioVerdict`).
+ *
+ * @param {string} root
+ * @param {{ base: string | null, only: string[], report: boolean }} opts
+ * @returns {boolean}
+ */
+function checkRatio(root, opts) {
+  const counts = globalCounts(root, opts);
+  const base = resolveBase(root, opts.base);
+  const delta = base === null ? null : changeDelta(root, base);
+  const { ok, out, err } = ratioVerdict(counts, base, delta);
+  for (const line of out)
+    process.stdout.write(`[comment-policy] ratio: ${line}\n`);
+  for (const line of err)
+    process.stderr.write(`[comment-policy] ratio: ${line}\n`);
+  return ok;
 }
 
 /**
