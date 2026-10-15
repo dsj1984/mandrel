@@ -15,6 +15,35 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.88.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.87.0...mandrel-v2.88.0) (2026-10-15)
+
+
+### Added
+
+* finalize a merged Story's labels and lease from the beat and the boot sweep ([#5705](https://github.com/dsj1984/mandrel/issues/5705)) ([#5710](https://github.com/dsj1984/mandrel/issues/5710)) ([516f675](https://github.com/dsj1984/mandrel/commit/516f6755be4ca16845d47b0ba346a9b3fa7a5a98))
+* persist a project-local GitHub CLI config dir, verify the operator identity, and stop reading transport failures as expired auth ([#5693](https://github.com/dsj1984/mandrel/issues/5693)) ([#5712](https://github.com/dsj1984/mandrel/issues/5712)) ([2668ff4](https://github.com/dsj1984/mandrel/commit/2668ff4cce7231ac612d4d98e02794d2fb7fb941))
+* resolve TypeScript from the scanned file's own package in the CRAP and maintainability scorers ([#5692](https://github.com/dsj1984/mandrel/issues/5692)) ([#5701](https://github.com/dsj1984/mandrel/issues/5701)) ([c7ac7eb](https://github.com/dsj1984/mandrel/commit/c7ac7eb5b03ab6a36b1e0c3fb62915ab803f9c04))
+* stream the handoff credited-run evidence log while the suite runs ([#5694](https://github.com/dsj1984/mandrel/issues/5694)) ([#5699](https://github.com/dsj1984/mandrel/issues/5699)) ([8931932](https://github.com/dsj1984/mandrel/commit/89319325ebeb67babcf845c29bef98807eb163f8))
+* write audit lens reports to a dedicated temp/audits/audit-results/ folder ([#5679](https://github.com/dsj1984/mandrel/issues/5679)) ([#5680](https://github.com/dsj1984/mandrel/issues/5680)) ([9f20249](https://github.com/dsj1984/mandrel/commit/9f202494a51e69b83accbdfba8c0f44ec95369cb))
+
+
+### Fixed
+
+* clear the duplication drift and make the scoped refresh rewrite clone-partner rows ([#5702](https://github.com/dsj1984/mandrel/issues/5702)) ([#5711](https://github.com/dsj1984/mandrel/issues/5711)) ([76cff34](https://github.com/dsj1984/mandrel/commit/76cff34be2729c57d2e40ec8d291355a9137c906))
+* close the suite-admission and sweep-lock interleaving races and prove the admission invariant ([#5684](https://github.com/dsj1984/mandrel/issues/5684)) ([#5700](https://github.com/dsj1984/mandrel/issues/5700)) ([2bf193d](https://github.com/dsj1984/mandrel/commit/2bf193d4f8358f3d24310a924fc34c0d416f0a2c))
+* drive the untested destructive and state-mutation seams: worktree ops, flip-failed emitter, init, ticket-state CLI ([#5685](https://github.com/dsj1984/mandrel/issues/5685)) ([#5698](https://github.com/dsj1984/mandrel/issues/5698)) ([297ed1c](https://github.com/dsj1984/mandrel/commit/297ed1c8205de307e8acdb4dd8a66fcb99fe8db4))
+* fail the comment-ratio gate only on a change whose own diff is comment-heavy, so an unrelated merge cannot tip it ([#5713](https://github.com/dsj1984/mandrel/issues/5713)) ([#5714](https://github.com/dsj1984/mandrel/issues/5714)) ([5bc18a3](https://github.com/dsj1984/mandrel/commit/5bc18a34d26a446ff0f0f1a5aff3663aea51a3c1))
+* give a re-close after a block a fresh merge budget and re-take its lease ([#5706](https://github.com/dsj1984/mandrel/issues/5706)) ([#5708](https://github.com/dsj1984/mandrel/issues/5708)) ([8c3be8b](https://github.com/dsj1984/mandrel/commit/8c3be8b0bc7c9db55ebebe8455f5a3ff7925a43a))
+* make baseline and gate-credit writes fail closed: scoped refresh, writeback restore, atomic evidence, honest mutation default ([#5683](https://github.com/dsj1984/mandrel/issues/5683)) ([#5697](https://github.com/dsj1984/mandrel/issues/5697)) ([6a65a02](https://github.com/dsj1984/mandrel/commit/6a65a0226e474d3fe9e96bca6b0648895360ef94))
+* make the story-body parser skip whole-line HTML comment markers (audit-… ([#5690](https://github.com/dsj1984/mandrel/issues/5690)) ([#5691](https://github.com/dsj1984/mandrel/issues/5691)) ([1419e05](https://github.com/dsj1984/mandrel/commit/1419e05fef8a289f207e7bf9cbbe902e600e6688))
+* split the close runner and the doctor registry along their seams, and fix the doctor's comment-matching hook detector ([#5688](https://github.com/dsj1984/mandrel/issues/5688)) ([#5703](https://github.com/dsj1984/mandrel/issues/5703)) ([cbca841](https://github.com/dsj1984/mandrel/commit/cbca841a5a8f62e35597bf78b13675161f2cd22f))
+* stop CLIs truncating piped output at 64 KiB and move hand-rolled argv parsing onto parseArgs ([#5686](https://github.com/dsj1984/mandrel/issues/5686)) ([#5696](https://github.com/dsj1984/mandrel/issues/5696)) ([02d7684](https://github.com/dsj1984/mandrel/commit/02d76845f3f4fe65698ca2e9549b5e8fbfc3a1ab))
+
+
+### Changed
+
+* collapse drifting duplicate helpers onto one owner each and fix the config-resolver cache key ([#5687](https://github.com/dsj1984/mandrel/issues/5687)) ([#5704](https://github.com/dsj1984/mandrel/issues/5704)) ([18bdfcc](https://github.com/dsj1984/mandrel/commit/18bdfccf8c31b064b0e25db28fb97fff6a4fd5a0))
+
 ## [2.87.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.86.0...mandrel-v2.87.0) (2026-10-14)
 
 
