@@ -3,12 +3,9 @@
  *
  * Best-effort cross-process lockfile (atomic `wx` create) for the merged-branch
  * sweep. Never load-bearing: a contended caller skips or proceeds. A live
- * holder is never mistaken for a crashed one: it heartbeats its mtime, and
- * both a stale-breaker and release first move the lockfile aside with one
- * atomic rename, then delete it only when the moved file is the one they
- * meant (dev/ino/mtime for a break, the owner line for release) — a peer's
- * fresh lock moved by mistake is linked straight back. A holder whose
- * heartbeat finds a foreign owner reports the theft through `onLockEvent`.
+ * holder is never mistaken for a crashed one: it heartbeats its mtime; break
+ * and release rename the lockfile aside and delete it only if it is the one
+ * they meant, else link it back.
  */
 
 import crypto from 'node:crypto';
@@ -239,10 +236,8 @@ export function acquireSweepLock({
 }
 
 /**
- * `true` only when this call moved aside the exact stale file it observed and
- * won the re-create. A breaker that lost the race moves the winner's fresh
- * file, sees a foreign identity and links it back, so concurrent breakers
- * yield one acquisition and the winner's lockfile survives.
+ * `true` only when this call broke the exact stale file it observed and won
+ * the re-create, so concurrent breakers yield one acquisition.
  *
  * @param {{ lockPath: string, ownerId: string, fsImpl: object, nowFn: () => number }} holder
  * @param {number} timeoutMs
@@ -288,11 +283,8 @@ function isHolderStale({
 }
 
 /**
- * Atomically move the lockfile aside, then keep the break only if the moved
- * file is still the observed instance. Re-statting `lockPath` before an
- * unlink-by-path left a window in which a peer's fresh lock could be deleted;
- * the rename closes it, because the identity is read off the file actually
- * removed. `false` means someone else owns it now.
+ * Identity is read off the file the rename moved, so a peer's fresh lock is
+ * never deleted; `false` means someone else owns it now.
  *
  * @param {string} lockPath
  * @param {ReturnType<typeof readLockIdentity>} observed
@@ -310,11 +302,7 @@ function breakStaleLock(lockPath, observed, fsImpl) {
   return false;
 }
 
-/**
- * One atomic rename to a name no peer shares.
- *
- * @returns {string|null} the tombstone path, or `null` when nothing moved.
- */
+/** @returns {string|null} a unique tombstone path, `null` when nothing moved. */
 function moveAside(lockPath, fsImpl) {
   const rand = crypto.randomBytes(4).toString('hex');
   const tombstone = `${lockPath}.${process.pid}-${rand}.tombstone`;
@@ -326,18 +314,11 @@ function moveAside(lockPath, fsImpl) {
   }
 }
 
-/**
- * Put a file moved aside by mistake back. `link` fails when a newer lock
- * already took the path — that holder wins, and the moved one's owner sees
- * the theft on its next heartbeat. The spare tombstone name is dropped either
- * way (after a restore it is a second link to the live lockfile).
- */
+/** `link` fails when a newer lock took the path; that holder wins. */
 function restoreFromTombstone(tombstone, lockPath, fsImpl) {
   try {
     fsImpl.linkSync(tombstone, lockPath);
-  } catch {
-    // A newer lock owns the path.
-  }
+  } catch {}
   unlinkQuietly(tombstone, fsImpl);
 }
 
@@ -364,8 +345,7 @@ function reportLockEvent({ lockPath, ownerId, currentOwner }) {
 }
 
 /**
- * Refuses a lockfile no longer ours, or we would keep a thief's lock alive,
- * and reports the theft so a double holder is visible rather than silent.
+ * Refuses (and reports) a lockfile no longer ours.
  *
  * @param {{ lockPath: string, ownerId: string, fsImpl?: object,
  *   nowFn?: () => number, onLockEvent?: (event: LockEvent) => void }} holder
@@ -423,10 +403,6 @@ function startHeartbeat(holder) {
 }
 
 /**
- * Delete only a lockfile still stamped with our owner. The owner is re-read
- * off the file the rename actually moved, so a peer that took the path
- * between the first read and the removal gets its lock linked straight back.
- *
  * @param {string} lockPath
  * @param {string} ownerId
  * @param {object} fsImpl

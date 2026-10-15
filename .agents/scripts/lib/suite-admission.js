@@ -9,9 +9,7 @@
  * undeclared spawn is exclusive: it takes the legacy lockfile (so older
  * Mandrel versions still queue behind it) and drains every reservation first.
  * Check-then-reserve runs under a short admission mutex, so two processes can
- * never both take the last slot — and an exclusive run's drain check runs
- * under the same mutex, so it can never pass between a declared run's
- * legacy-holder check and its reservation.
+ * never both take the last slot; the exclusive drain check takes it too.
  */
 import crypto from 'node:crypto';
 import os from 'node:os';
@@ -308,11 +306,8 @@ function createDeclaredAttempt(opts) {
 
 /**
  * An undeclared run: take the legacy lockfile, then wait (still holding it,
- * so nothing new is admitted) until every live reservation has drained. The
- * drain check always takes the admission mutex: a declared run mid-admission
- * has passed its legacy-holder check but not yet written its reservation, so
- * an unlocked "no reservations" read could admit both. A busy mutex blocks as
- * `admission` and retries next poll; a mutex I/O error fails open.
+ * so nothing new is admitted) until every live reservation has drained —
+ * always under the mutex, or a declared run mid-admission is missed.
  *
  * @param {{ lockPath: string, capacity: number, staleMs: number,
  *   fsImpl: object, nowFn: () => number, killFn?: Function,

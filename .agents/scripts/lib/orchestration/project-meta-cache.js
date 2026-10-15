@@ -56,14 +56,7 @@ function readCacheFile(filePath) {
   }
 }
 
-/**
- * Pid-scoped temp file in the same directory, renamed into place, so a
- * concurrent reader sees the old file or the new one — never a partial write.
- * Throws (the callers' best-effort catch answers it); the temp is reaped.
- *
- * @param {string} filePath
- * @param {Record<string, object>} store
- */
+/** Tmp + rename: a reader never sees a partial write. Throws; reaps the tmp. */
 function writeStoreAtomic(filePath, store) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   const tmp = `${filePath}.${process.pid}.tmp`;
