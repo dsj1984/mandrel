@@ -939,6 +939,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/child-stream.js",
+      "lines": 92.62,
+      "branches": 96.55,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/clean-temp.js",
       "lines": 98.41,
       "branches": 94.34,
@@ -1911,6 +1917,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestration/evidence-stream.js",
+      "lines": 94.09,
+      "branches": 82.22,
+      "functions": 93.33
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/file-assumption-enum.js",
       "lines": 100,
       "branches": 100,
@@ -2674,9 +2686,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "lines": 96.69,
-      "branches": 83,
-      "functions": 97.5
+      "lines": 96.5,
+      "branches": 83.9,
+      "functions": 95.12
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-init-envelope.js",
@@ -2699,7 +2711,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/story-progress.js",
       "lines": 100,
-      "branches": 88.46,
+      "branches": 89.29,
       "functions": 100
     },
     {
