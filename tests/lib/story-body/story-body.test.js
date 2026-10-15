@@ -296,6 +296,56 @@ describe('parse() — path entry shapes (Story #5342)', () => {
 // parse() — unstructured body
 // ---------------------------------------------------------------------------
 
+describe('parse() — machine comment markers in path sections', () => {
+  // Plan-persist appends audit provenance and plan-story markers after the
+  // last section; when that section is References they land in a path list.
+  const auditSeededBody = [
+    '## Goal',
+    'Wire X to Y.',
+    '',
+    '## Changes',
+    '- src/foo.js',
+    '',
+    '## Acceptance',
+    '- [ ] it works',
+    '',
+    '## Verify',
+    '- npm test',
+    '',
+    '## References',
+    '- `docs/foo.md` — exists',
+    '',
+    '<!-- audit-fingerprints: 35ef3c6af68330191c590d627d0ede1b85d08790 -->',
+    '<!-- audit-semantic-keys: solid␟src/foo.js -->',
+    '',
+    '',
+    '<!-- plan-story: 0fb6766e8d24d695 -->',
+  ].join('\n');
+
+  it('skips whole-line HTML comments trailing a References list', () => {
+    const { body } = parse(auditSeededBody);
+    assert.deepEqual(body.references, [
+      { path: 'docs/foo.md', assumption: 'exists' },
+    ]);
+  });
+
+  it('skips whole-line HTML comments inside a Changes list', () => {
+    const md =
+      '## Goal\nWire X to Y.\n\n## Changes\n- src/foo.js\n<!-- audit-labels: audit::quality -->\n- src/bar.js\n\n## Acceptance\n- [ ] it works';
+    const { body } = parse(md);
+    assert.deepEqual(
+      body.changes.map((e) => e.path),
+      ['src/foo.js', 'src/bar.js'],
+    );
+  });
+
+  it('still refuses a prose bullet that merely contains a comment', () => {
+    const md =
+      '## Goal\nWire X to Y.\n\n## Changes\n- src/foo.js <!-- note --> extra words\n\n## Acceptance\n- [ ] it works';
+    assert.throws(() => parse(md), StoryBodyParseError);
+  });
+});
+
 describe('parse() — unstructured body (no sections)', () => {
   it('returns minimal body from preamble text', () => {
     const md =

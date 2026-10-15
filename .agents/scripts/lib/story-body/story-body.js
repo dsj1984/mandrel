@@ -123,6 +123,9 @@ const AC_PREFIX_RE = /^AC-\d+[a-z]?:\s*/i;
 const WIDE_MARKER_LINE_RE = /^>\s*\*\*Wide:\*\*/;
 const AUTHORED_MARKER_LINE_RE = /^\s*>\s*🏷️\s+Authored with Mandrel\b/;
 const META_BLOCK_RE = /<!--\s*meta:[\s\S]*?-->/;
+// Provenance and plan-story markers persist appends after the last section
+// can land in a path list; a whole-line comment is never a path bullet.
+const WHOLE_LINE_COMMENT_RE = /^\s*<!--.*-->\s*$/;
 
 /**
  * Parse one `changes` / `references` bullet: bare path (`assumption: null`),
@@ -433,6 +436,7 @@ function parseTextBlockSection(lines) {
 function parsePathEntrySection(lines, warnings) {
   const entries = [];
   for (const line of lines) {
+    if (WHOLE_LINE_COMMENT_RE.test(line)) continue;
     const stripped = stripListMarker(line);
     if (!stripped) continue;
     const entry = parsePathEntry(stripped, warnings);
