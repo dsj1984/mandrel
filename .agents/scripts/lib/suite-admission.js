@@ -9,7 +9,7 @@
  * undeclared spawn is exclusive: it takes the legacy lockfile (so older
  * Mandrel versions still queue behind it) and drains every reservation first.
  * Check-then-reserve runs under a short admission mutex, so two processes can
- * never both take the last slot.
+ * never both take the last slot; the exclusive drain check takes it too.
  */
 import crypto from 'node:crypto';
 import os from 'node:os';
@@ -306,7 +306,8 @@ function createDeclaredAttempt(opts) {
 
 /**
  * An undeclared run: take the legacy lockfile, then wait (still holding it,
- * so nothing new is admitted) until every live reservation has drained.
+ * so nothing new is admitted) until every live reservation has drained —
+ * always under the mutex, or a declared run mid-admission is missed.
  *
  * @param {{ lockPath: string, capacity: number, staleMs: number,
  *   fsImpl: object, nowFn: () => number, killFn?: Function,
@@ -336,7 +337,6 @@ function createExclusiveAttempt(opts) {
       if (!first.acquired) return first;
       held = first;
     }
-    if (!hasReservations(opts)) return held;
     const verdict = underAdmissionMutex(opts, drained);
     return verdict.reason === 'error' ? held : verdict;
   };
@@ -344,14 +344,6 @@ function createExclusiveAttempt(opts) {
     tryOnce,
     release: () => held?.release(),
   };
-}
-
-function hasReservations({ lockPath, fsImpl }) {
-  try {
-    return fsImpl.readdirSync(reservationsDir(lockPath)).length > 0;
-  } catch {
-    return false;
-  }
 }
 
 const LOCK_TAG = '[full-suite-lock]';

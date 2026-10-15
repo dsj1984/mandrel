@@ -25998,6 +25998,12 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/project-meta-cache.js",
+      "method": "writeStoreAtomic",
+      "startLine": 60,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/project-meta-cache.js",
       "method": "readProjectMetaCache",
       "startLine": 71,
       "crap": 10.032801672885316
@@ -33659,6 +33665,12 @@
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "method": "tryCreateFile",
+      "startLine": 163,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
       "method": "acquireSweepLock",
       "startLine": 186,
       "crap": 5
@@ -33683,15 +33695,65 @@
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "method": "<anon breakStaleLock/(moved)#0>",
+      "startLine": 295,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "method": "removeIfMatches",
+      "startLine": 301,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "method": "<anon breakStaleLock/()#0>",
+      "startLine": 302,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "method": "unlinkIfSame",
+      "startLine": 305,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "method": "moveAside",
+      "startLine": 306,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
       "method": "refreshLockSync",
       "startLine": 309,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "method": "withBreakMutex",
+      "startLine": 315,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "method": "restoreFromTombstone",
+      "startLine": 318,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
       "method": "startHeartbeat",
       "startLine": 321,
       "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "method": "relinkQuietly",
+      "startLine": 323,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
@@ -33702,6 +33764,18 @@
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "method": "takeBreakMutex",
+      "startLine": 325,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "method": "unlinkQuietly",
+      "startLine": 325,
+      "crap": 1.0233236151603498
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
       "method": "<anon startHeartbeat/()#1>",
       "startLine": 327,
       "crap": 2,
@@ -33709,10 +33783,22 @@
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "method": "reclaimStaleMutex",
+      "startLine": 332,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
       "method": "<anon startHeartbeat/()#2>",
       "startLine": 337,
       "crap": 2,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "method": "reportLockEvent",
+      "startLine": 339,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
@@ -33742,10 +33828,22 @@
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "method": "emitLockLost",
+      "startLine": 365,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
       "method": "<anon buildAcquired/()#2>",
       "startLine": 370,
       "crap": 1,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "method": "touchLock",
+      "startLine": 371,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
@@ -33783,6 +33881,20 @@
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "method": "<anon unlinkIfOwned/(moved)#0>",
+      "startLine": 419,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "method": "<anon unlinkIfOwned/()#0>",
+      "startLine": 427,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
       "method": "defaultSleep",
       "startLine": 429,
       "crap": 1
@@ -33793,6 +33905,37 @@
       "startLine": 430,
       "crap": 1,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "method": "<anon unlinkIfOwned/()#1>",
+      "startLine": 433,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "method": "releaseUnderMutex",
+      "startLine": 434,
+      "crap": 3.7084548104956268
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "method": "releaseOwned",
+      "startLine": 438,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "method": "guardedRelease",
+      "startLine": 443,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "method": "sleepSync",
+      "startLine": 452,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",

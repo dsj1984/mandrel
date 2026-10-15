@@ -1508,7 +1508,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/project-meta-cache.js",
-      "mi": 92.275
+      "mi": 94.141
     },
     {
       "path": ".agents/scripts/lib/orchestration/project-meta-resolver.js",
@@ -1976,7 +1976,7 @@
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
-      "mi": 102.32
+      "mi": 103.558
     },
     {
       "path": ".agents/scripts/lib/single-story/confirm-merge.js",

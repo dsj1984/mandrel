@@ -261,12 +261,6 @@
       "percentage": 7.52
     },
     {
-      "path": ".agents/scripts/lib/orchestration/project-meta-cache.js",
-      "duplicatedLines": 16,
-      "totalLines": 173,
-      "percentage": 9.25
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/required-checks.js",
       "duplicatedLines": 5,
       "totalLines": 147,

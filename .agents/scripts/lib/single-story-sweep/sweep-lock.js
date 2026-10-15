@@ -3,9 +3,9 @@
  *
  * Best-effort cross-process lockfile (atomic `wx` create) for the merged-branch
  * sweep. Never load-bearing: a contended caller skips or proceeds. A live
- * holder is never mistaken for a crashed one: it heartbeats its mtime, a
- * stale-breaker removes only the exact file it observed (dev/ino/mtime), and
- * release unlinks only a lockfile still stamped with its owner.
+ * holder is never mistaken for a crashed one: it heartbeats its mtime. Only
+ * break and release remove the lockfile, each under a short `.break` mutex
+ * that re-checks identity/owner first, so no removal races another.
  */
 
 import fs from 'node:fs';
@@ -14,6 +14,14 @@ import path from 'node:path';
 const DEFAULT_TIMEOUT_MS = 60_000;
 
 const MIN_HEARTBEAT_MS = 1_000;
+
+// A crashed breaker's mutex is reclaimed past this; a live one holds it for
+// microseconds.
+const BREAK_MUTEX_STALE_MS = 10_000;
+
+const RELEASE_MUTEX_TRIES = 25;
+
+const RELEASE_MUTEX_SPIN_MS = 2;
 
 // Three refreshes per staleness window: two missed refreshes (stalled loop,
 // slow disk) still do not make a live holder look dead.
@@ -148,6 +156,11 @@ export function isLockStale(mtime, nowMs, timeoutMs) {
  */
 function tryCreateLock(lockPath, ownerId, fsImpl = fs) {
   fsImpl.mkdirSync(path.dirname(lockPath), { recursive: true });
+  return tryCreateFile(lockPath, ownerId, fsImpl);
+}
+
+/** No `mkdir`: a mutex beside a reaped lockfile must not resurrect its dir. */
+function tryCreateFile(lockPath, ownerId, fsImpl) {
   let fd;
   try {
     fd = fsImpl.openSync(lockPath, 'wx');
@@ -180,6 +193,7 @@ function tryCreateLock(lockPath, ownerId, fsImpl = fs) {
  * @param {Function} [opts.clearIntervalFn]
  * @param {Function} [opts.killFn]        Holder liveness probe seam.
  * @param {object} [opts.processImpl]     Seam for release-on-signal.
+ * @param {(event: LockEvent) => void} [opts.onLockEvent] Theft observer.
  * @returns {{ acquired: true, release: () => void, ownerId: string }
  *          | { acquired: false, reason: 'contended' | 'error', detail?: string }}
  */
@@ -194,6 +208,7 @@ export function acquireSweepLock({
   clearIntervalFn = clearInterval,
   killFn,
   processImpl = process,
+  onLockEvent = reportLockEvent,
 } = {}) {
   if (typeof lockPath !== 'string' || lockPath.length === 0) {
     return {
@@ -213,6 +228,7 @@ export function acquireSweepLock({
     clearIntervalFn,
     killFn,
     processImpl,
+    onLockEvent,
   };
   try {
     if (
@@ -232,7 +248,7 @@ export function acquireSweepLock({
 }
 
 /**
- * `true` only when this call removed the exact stale file it observed and won
+ * `true` only when this call broke the exact stale file it observed and won
  * the re-create, so concurrent breakers yield one acquisition.
  *
  * @param {{ lockPath: string, ownerId: string, fsImpl: object, nowFn: () => number }} holder
@@ -251,7 +267,7 @@ function tryStaleTakeover(
     return false;
   }
   return (
-    breakStaleLock(lockPath, observed, fsImpl) &&
+    breakStaleLock({ lockPath, fsImpl, nowFn }, observed) &&
     tryCreateLock(lockPath, ownerId, fsImpl)
   );
 }
@@ -279,20 +295,56 @@ function isHolderStale({
 }
 
 /**
- * Unlink only if the file is still the observed instance; `false` means
- * someone else owns it now.
+ * Under the break mutex nothing else can remove the lockfile and a creator
+ * cannot replace a present one, so the identity re-read holds until the
+ * unlink. `false` means someone else owns it now, or another breaker is mid-break.
  *
- * @param {string} lockPath
+ * @param {{ lockPath: string, fsImpl: object, nowFn: () => number }} where
  * @param {ReturnType<typeof readLockIdentity>} observed
- * @param {object} fsImpl
  * @returns {boolean}
  */
-function breakStaleLock(lockPath, observed, fsImpl) {
-  if (!sameLockIdentity(observed, readLockIdentity(lockPath, fsImpl))) {
-    return false;
-  }
+function breakStaleLock(where, observed) {
+  return Boolean(withBreakMutex(where, () => unlinkIfSame(where, observed)));
+}
+
+function unlinkIfSame({ lockPath, fsImpl }, observed) {
+  const same = sameLockIdentity(observed, readLockIdentity(lockPath, fsImpl));
+  return same && unlinkQuietly(lockPath, fsImpl);
+}
+
+/**
+ * Runs `fn` holding `<lockPath>.break`.
+ *
+ * @returns {*} `fn()`'s result, or `null` when the mutex is busy.
+ */
+function withBreakMutex({ lockPath, fsImpl, nowFn = Date.now }, fn) {
+  const mutexPath = `${lockPath}.break`;
+  if (!takeBreakMutex(mutexPath, fsImpl, nowFn)) return null;
   try {
-    fsImpl.unlinkSync(lockPath);
+    return fn();
+  } finally {
+    unlinkQuietly(mutexPath, fsImpl);
+  }
+}
+
+function takeBreakMutex(mutexPath, fsImpl, nowFn) {
+  return (
+    tryCreateFile(mutexPath, 'break', fsImpl) ||
+    reclaimStaleMutex(mutexPath, fsImpl, nowFn)
+  );
+}
+
+function reclaimStaleMutex(mutexPath, fsImpl, nowFn) {
+  const mtime = readLockMtime(mutexPath, fsImpl);
+  if (!isLockStale(mtime, nowFn(), BREAK_MUTEX_STALE_MS)) return false;
+  unlinkQuietly(mutexPath, fsImpl);
+  return tryCreateFile(mutexPath, 'break', fsImpl);
+}
+
+/** @returns {boolean} whether the unlink landed. */
+function unlinkQuietly(file, fsImpl) {
+  try {
+    fsImpl.unlinkSync(file);
     return true;
   } catch {
     return false;
@@ -300,14 +352,44 @@ function breakStaleLock(lockPath, observed, fsImpl) {
 }
 
 /**
- * Refuses a lockfile no longer ours, or we would keep a thief's lock alive.
+ * @typedef {{ type: 'lock-lost', lockPath: string, ownerId: string,
+ *   currentOwner: string|null }} LockEvent
+ */
+
+/** Default theft observer: one stderr line, never a throw. */
+function reportLockEvent({ lockPath, ownerId, currentOwner }) {
+  try {
+    process.stderr.write(
+      `[sweep-lock] ⚠ lost ${lockPath} while holding it as ${ownerId} (now ${currentOwner ?? 'absent'}).\n`,
+    );
+  } catch {}
+}
+
+/**
+ * Refuses (and reports) a lockfile no longer ours.
  *
- * @param {{ lockPath: string, ownerId: string, fsImpl?: object, nowFn?: () => number }} holder
+ * @param {{ lockPath: string, ownerId: string, fsImpl?: object,
+ *   nowFn?: () => number, onLockEvent?: (event: LockEvent) => void }} holder
  * @returns {boolean} `true` when the refresh landed; `false` when the lock is
  *   no longer ours (the caller stops heartbeating).
  */
-function refreshLockSync({ lockPath, ownerId, fsImpl = fs, nowFn = Date.now }) {
-  if (readLockOwner(lockPath, fsImpl) !== ownerId) return false;
+function refreshLockSync(holder) {
+  const { lockPath, ownerId, fsImpl = fs } = holder;
+  const currentOwner = readLockOwner(lockPath, fsImpl);
+  if (currentOwner !== ownerId) {
+    emitLockLost(holder, currentOwner);
+    return false;
+  }
+  return touchLock(holder);
+}
+
+function emitLockLost({ lockPath, ownerId, onLockEvent }, currentOwner) {
+  try {
+    onLockEvent?.({ type: 'lock-lost', lockPath, ownerId, currentOwner });
+  } catch {}
+}
+
+function touchLock({ lockPath, fsImpl = fs, nowFn = Date.now }) {
   try {
     const stamp = new Date(nowFn());
     fsImpl.utimesSync(lockPath, stamp, stamp);
@@ -347,12 +429,36 @@ function startHeartbeat(holder) {
  * @param {object} fsImpl
  */
 function unlinkIfOwned(lockPath, ownerId, fsImpl) {
-  if (readLockOwner(lockPath, fsImpl) !== ownerId) return;
-  try {
-    fsImpl.unlinkSync(lockPath);
-  } catch {
-    // Already gone.
+  const isOwn = () => readLockOwner(lockPath, fsImpl) === ownerId;
+  const removeOwn = () => isOwn() && unlinkQuietly(lockPath, fsImpl);
+  if (isOwn()) releaseOwned(lockPath, fsImpl, removeOwn);
+}
+
+/** Fail open: a wedged mutex must not strand our lock until it reads stale. */
+function releaseOwned(lockPath, fsImpl, removeOwn) {
+  if (!releaseUnderMutex(lockPath, fsImpl, removeOwn)) removeOwn();
+}
+
+function releaseUnderMutex(lockPath, fsImpl, removeOwn) {
+  for (let tries = 0; tries < RELEASE_MUTEX_TRIES; tries += 1) {
+    if (guardedRelease(lockPath, fsImpl, removeOwn)) return true;
+    sleepSync(RELEASE_MUTEX_SPIN_MS);
   }
+  return false;
+}
+
+/** `true` once the release ran under the break mutex (or could not take it). */
+function guardedRelease(lockPath, fsImpl, removeOwn) {
+  try {
+    return withBreakMutex({ lockPath, fsImpl }, removeOwn) !== null;
+  } catch {
+    removeOwn();
+    return true;
+  }
+}
+
+function sleepSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
 function buildAcquired(holder) {
@@ -449,6 +555,7 @@ function defaultSleep(ms) {
  * @param {number} [opts.heartbeatMs]
  * @param {Function} [opts.setIntervalFn]
  * @param {Function} [opts.clearIntervalFn]
+ * @param {(event: LockEvent) => void} [opts.onLockEvent]
  * @returns {Promise<{ acquired: true, release: () => void, ownerId: string }
  *          | { acquired: false, reason: 'contended-after-wait' | 'error', detail?: string }>}
  */
@@ -466,6 +573,7 @@ export async function acquireLockWithWait({
   clearIntervalFn = clearInterval,
   killFn,
   processImpl,
+  onLockEvent,
 } = {}) {
   const deadline = nowFn() + Math.max(0, waitMs);
   for (;;) {
@@ -480,6 +588,7 @@ export async function acquireLockWithWait({
       clearIntervalFn,
       killFn,
       processImpl,
+      onLockEvent,
     });
     if (res.acquired) return res;
     if (res.reason === 'error') return res;

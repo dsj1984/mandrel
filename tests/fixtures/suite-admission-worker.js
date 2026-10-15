@@ -2,7 +2,9 @@
  * One contending process for tests/lib/suite-admission-multiprocess.test.js.
  * argv[2] is a JSON spec: { name, lockPath, log, config, command, waitMs,
  * holdUntil?, holdMs? }. The "suite" appends start/end lines to `log` and
- * holds until the `holdUntil` file appears (or for `holdMs`).
+ * holds until the `holdUntil` file appears (or for `holdMs`). The first time
+ * admission reports a capacity or resource wait, it appends one `blocked`
+ * line — the positive signal a test waits on instead of a fixed sleep.
  */
 import fs from 'node:fs';
 
@@ -24,6 +26,15 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+const WAIT_REASONS = new Set(['capacity', 'resource']);
+let reportedBlocked = false;
+
+function onLockProgress(progress) {
+  if (reportedBlocked || !WAIT_REASONS.has(progress?.blocking?.reason)) return;
+  reportedBlocked = true;
+  note('blocked');
+}
+
 async function suite() {
   note('start');
   if (spec.holdUntil) {
@@ -42,7 +53,8 @@ const code = await withFullSuiteLockAsync(
     lockPath: spec.lockPath,
     waitMs: spec.waitMs,
     pollMs: 25,
-    reportMs: 1_000,
+    reportMs: 50,
+    onLockProgress,
   },
   suite,
 );

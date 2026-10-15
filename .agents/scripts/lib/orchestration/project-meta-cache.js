@@ -56,6 +56,21 @@ function readCacheFile(filePath) {
   }
 }
 
+/** Tmp + rename: a reader never sees a partial write. Throws; reaps the tmp. */
+function writeStoreAtomic(filePath, store) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  const tmp = `${filePath}.${process.pid}.tmp`;
+  try {
+    fs.writeFileSync(tmp, `${JSON.stringify(store, null, 2)}\n`, 'utf8');
+    fs.renameSync(tmp, filePath);
+  } catch (err) {
+    try {
+      fs.unlinkSync(tmp);
+    } catch {}
+    throw err;
+  }
+}
+
 /**
  * A fresh entry with `options` re-hydrated to a Map, else `null`. Never throws.
  *
@@ -137,8 +152,7 @@ export function writeProjectMetaCache(opts = {}) {
       fieldId: meta.fieldId,
       options,
     };
-    fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    fs.writeFileSync(filePath, `${JSON.stringify(store, null, 2)}\n`, 'utf8');
+    writeStoreAtomic(filePath, store);
     return true;
   } catch {
     return false;
@@ -164,8 +178,7 @@ export function invalidateProjectMetaCache(opts = {}) {
     const store = readCacheFile(filePath);
     if (!(key in store)) return false;
     delete store[key];
-    fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    fs.writeFileSync(filePath, `${JSON.stringify(store, null, 2)}\n`, 'utf8');
+    writeStoreAtomic(filePath, store);
     return true;
   } catch {
     return false;
