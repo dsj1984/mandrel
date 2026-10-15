@@ -35382,6 +35382,12 @@
       "anonymous": true
     },
     {
+      "path": ".agents/scripts/lib/transpile.js",
+      "method": "transpileForReport",
+      "startLine": 317,
+      "crap": 3
+    },
+    {
       "path": ".agents/scripts/lib/util/concurrent-map.js",
       "method": "concurrentMap",
       "startLine": 21,
@@ -35911,6 +35917,18 @@
       "method": "handleMaintainabilityReportWorkerMessage",
       "startLine": 45,
       "crap": 12
+    },
+    {
+      "path": ".agents/scripts/lib/workers/maintainability-report-worker.js",
+      "method": "isSourceShaped",
+      "startLine": 87,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/workers/maintainability-report-worker.js",
+      "method": "errorText",
+      "startLine": 96,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/workers/maintainability-worker.js",
