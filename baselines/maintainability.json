@@ -44,7 +44,7 @@
     },
     {
       "path": ".agents/scripts/check-arch-cycles.js",
-      "mi": 95.163
+      "mi": 97.94
     },
     {
       "path": ".agents/scripts/check-baselines.js",
@@ -52,15 +52,15 @@
     },
     {
       "path": ".agents/scripts/check-context-budget.js",
-      "mi": 91.72
+      "mi": 93.837
     },
     {
       "path": ".agents/scripts/check-cyclomatic.js",
-      "mi": 89.413
+      "mi": 92.1
     },
     {
       "path": ".agents/scripts/check-dead-exports.js",
-      "mi": 92.322
+      "mi": 96.911
     },
     {
       "path": ".agents/scripts/check-doc-links.js",
@@ -641,6 +641,10 @@
     {
       "path": ".agents/scripts/lib/child-exec.js",
       "mi": 112.652
+    },
+    {
+      "path": ".agents/scripts/lib/child-stream.js",
+      "mi": 100.789
     },
     {
       "path": ".agents/scripts/lib/clean-temp.js",
@@ -1259,6 +1263,10 @@
       "mi": 91.602
     },
     {
+      "path": ".agents/scripts/lib/orchestration/evidence-stream.js",
+      "mi": 104.224
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/file-assumption-enum.js",
       "mi": 142.277
     },
@@ -1296,7 +1304,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
-      "mi": 98.969
+      "mi": 98.394
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/merged-tip.js",
@@ -2188,11 +2196,11 @@
     },
     {
       "path": ".agents/scripts/notify.js",
-      "mi": 89.701
+      "mi": 91.093
     },
     {
       "path": ".agents/scripts/plan-context.js",
-      "mi": 94.507
+      "mi": 93.673
     },
     {
       "path": ".agents/scripts/plan-critics.js",
@@ -2300,7 +2308,7 @@
     },
     {
       "path": ".agents/scripts/quality-preview.js",
-      "mi": 101.342
+      "mi": 101.995
     },
     {
       "path": ".agents/scripts/quality-watch.js",
@@ -2340,11 +2348,11 @@
     },
     {
       "path": ".agents/scripts/story-handoff.js",
-      "mi": 98.03
+      "mi": 100.476
     },
     {
       "path": ".agents/scripts/story-review-compute.js",
-      "mi": 92.456
+      "mi": 93.032
     },
     {
       "path": ".agents/scripts/sync-agentrc.js",
@@ -2392,7 +2400,7 @@
     },
     {
       "path": ".agents/scripts/update-ticket-state.js",
-      "mi": 91.705
+      "mi": 92.815
     },
     {
       "path": ".agents/scripts/validate-skills.js",

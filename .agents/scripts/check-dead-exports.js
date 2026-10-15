@@ -10,9 +10,9 @@
  * `lib/dead-exports-mode.js`.
  */
 
-import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import { parseGateArgv } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
 import {
   extractRowsFromKnip,
@@ -20,6 +20,9 @@ import {
   runKnip,
 } from './lib/dead-exports-knip.js';
 import { resolveDeadExportsMode } from './lib/dead-exports-mode.js';
+import { readJsonBaseline } from './lib/gates/baseline-store.js';
+
+export { readJsonBaseline as loadBaseline };
 
 /**
  * `--knip-output` is a test seam: a pre-captured knip JSON instead of a spawn.
@@ -28,49 +31,16 @@ import { resolveDeadExportsMode } from './lib/dead-exports-mode.js';
  * @returns {{ baselinePath: string | null, json: boolean, knipOutputPath: string | null, production: boolean }}
  */
 export function parseArgv(argv = []) {
-  let baselinePath = null;
-  let json = false;
-  let knipOutputPath = null;
-  let production = false;
-  for (let i = 0; i < argv.length; i += 1) {
-    const a = argv[i];
-    if (a === '--baseline') {
-      const next = argv[i + 1];
-      if (next && !next.startsWith('--')) {
-        baselinePath = next;
-        i += 1;
-      }
-    } else if (a === '--json') {
-      json = true;
-    } else if (a === '--production') {
-      production = true;
-    } else if (a === '--knip-output') {
-      const next = argv[i + 1];
-      if (next && !next.startsWith('--')) {
-        knipOutputPath = next;
-        i += 1;
-      }
-    }
-  }
-  return { baselinePath, json, knipOutputPath, production };
-}
-
-/**
- * `null` when missing or unparseable.
- *
- * @param {string} baselinePath
- * @returns {{ kernelVersion?: string, rows?: Array<{file: string, symbol: string}> } | null}
- */
-export function loadBaseline(baselinePath) {
-  try {
-    if (!fs.existsSync(baselinePath)) return null;
-    const raw = fs.readFileSync(baselinePath, 'utf-8');
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return null;
-    return parsed;
-  } catch {
-    return null;
-  }
+  const flags = parseGateArgv(argv, {
+    strings: ['baseline', 'knip-output'],
+    booleans: ['json', 'production'],
+  });
+  return {
+    baselinePath: flags.baseline,
+    json: flags.json,
+    knipOutputPath: flags['knip-output'],
+    production: flags.production,
+  };
 }
 
 /**
@@ -123,7 +93,7 @@ export function renderDiff(diff, label = 'dead-exports') {
  *   stdout?: { write: (s: string) => void },
  *   stderr?: { write: (s: string) => void },
  *   runKnipImpl?: typeof runKnip,
- *   loadBaselineImpl?: typeof loadBaseline,
+ *   loadBaselineImpl?: typeof readJsonBaseline,
  * }} [opts]
  * @returns {Promise<number>} exit code: 0 = clean or removals-only; 1 = added exports detected
  */
@@ -133,7 +103,7 @@ export async function runCli({
   stdout = process.stdout,
   stderr = process.stderr,
   runKnipImpl = runKnip,
-  loadBaselineImpl = loadBaseline,
+  loadBaselineImpl = readJsonBaseline,
 } = {}) {
   const { baselinePath, json, knipOutputPath, production } = parseArgv(argv);
   const {

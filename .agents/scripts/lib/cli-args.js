@@ -17,6 +17,55 @@ export function parseTicketId(value) {
 }
 
 /**
+ * `--story <id> [--cwd <path>]`; an invalid story id reads as `null`.
+ *
+ * @returns {{ storyId: number|null, cwd: string|null }}
+ */
+export function parseStoryCwdArgv(argv) {
+  const { values } = parseArgs({
+    args: argv,
+    options: {
+      story: { type: 'string' },
+      cwd: { type: 'string' },
+    },
+    strict: false,
+  });
+  const storyId = Number.parseInt(values.story ?? '', 10);
+  return {
+    storyId: Number.isInteger(storyId) && storyId > 0 ? storyId : null,
+    cwd: values.cwd ?? null,
+  };
+}
+
+/**
+ * Ratchet-gate argv. A valueless string flag reads as `null` and never
+ * swallows the next `--flag`.
+ */
+export function parseGateArgv(argv, { strings = [], booleans = [] }) {
+  const stringFlags = new Set(strings.map((name) => `--${name}`));
+  const args = argv.filter(
+    (arg, i) =>
+      !(stringFlags.has(arg) && String(argv[i + 1] ?? '').startsWith('--')),
+  );
+  const options = {};
+  for (const name of strings) options[name] = { type: 'string' };
+  for (const name of booleans) options[name] = { type: 'boolean' };
+  const { values } = parseArgs({
+    args,
+    options,
+    strict: false,
+    allowPositionals: true,
+  });
+  const out = {};
+  for (const name of strings) {
+    const value = values[name];
+    out[name] = typeof value === 'string' && value !== '' ? value : null;
+  }
+  for (const name of booleans) out[name] = values[name] === true;
+  return out;
+}
+
+/**
  * Under `strict: false`, `--flag=false` arrives as the string `'false'`.
  *
  * @param {boolean|string|null|undefined} value

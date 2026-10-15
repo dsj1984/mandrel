@@ -27,34 +27,10 @@
       "percentage": 5.63
     },
     {
-      "path": ".agents/scripts/check-arch-cycles.js",
-      "duplicatedLines": 39,
-      "totalLines": 273,
-      "percentage": 14.29
-    },
-    {
       "path": ".agents/scripts/check-baselines.js",
       "duplicatedLines": 7,
       "totalLines": 63,
       "percentage": 11.11
-    },
-    {
-      "path": ".agents/scripts/check-context-budget.js",
-      "duplicatedLines": 33,
-      "totalLines": 506,
-      "percentage": 6.52
-    },
-    {
-      "path": ".agents/scripts/check-cyclomatic.js",
-      "duplicatedLines": 12,
-      "totalLines": 253,
-      "percentage": 4.74
-    },
-    {
-      "path": ".agents/scripts/check-dead-exports.js",
-      "duplicatedLines": 12,
-      "totalLines": 228,
-      "percentage": 5.26
     },
     {
       "path": ".agents/scripts/check-windows-git-perf.js",
@@ -157,6 +133,12 @@
       "duplicatedLines": 9,
       "totalLines": 440,
       "percentage": 2.05
+    },
+    {
+      "path": ".agents/scripts/lib/cli-args.js",
+      "duplicatedLines": 9,
+      "totalLines": 532,
+      "percentage": 1.69
     },
     {
       "path": ".agents/scripts/lib/close-validation/commands.js",
@@ -381,12 +363,6 @@
       "percentage": 4.89
     },
     {
-      "path": ".agents/scripts/quality-preview.js",
-      "duplicatedLines": 12,
-      "totalLines": 556,
-      "percentage": 2.16
-    },
-    {
       "path": ".agents/scripts/quality-watch.js",
       "duplicatedLines": 13,
       "totalLines": 223,
@@ -403,18 +379,6 @@
       "duplicatedLines": 10,
       "totalLines": 165,
       "percentage": 6.06
-    },
-    {
-      "path": ".agents/scripts/story-handoff.js",
-      "duplicatedLines": 27,
-      "totalLines": 112,
-      "percentage": 24.11
-    },
-    {
-      "path": ".agents/scripts/story-review-compute.js",
-      "duplicatedLines": 20,
-      "totalLines": 207,
-      "percentage": 9.66
     },
     {
       "path": ".agents/scripts/sync-claude-agents.js",

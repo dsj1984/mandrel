@@ -9,8 +9,10 @@
  * @module lib/child-exec
  */
 
-import { execFile, execFileSync, spawnSync } from 'node:child_process';
+import { execFile, execFileSync, spawn, spawnSync } from 'node:child_process';
 import { promisify } from 'node:util';
+
+import { streamChild } from './child-stream.js';
 
 const MIB = 1024 * 1024;
 
@@ -146,6 +148,17 @@ export async function spawnCaptureAsync(file, args, opts = {}) {
     await spawnChild(file, args, { run: execCollect, ...opts }),
   );
 }
+
+/**
+ * Spawn and stream each output chunk to `opts.onChunk` while retaining a
+ * bounded tail; see `child-stream.js` for the contract.
+ *
+ * @param {string}   file
+ * @param {string[]} args
+ * @param {object}   [opts]
+ */
+export const spawnStreamAsync = (file, args, opts = {}) =>
+  streamChild(file, args, { spawnImpl: spawn, ...opts });
 
 /**
  * `status=null` is printed verbatim: it means the child was killed.

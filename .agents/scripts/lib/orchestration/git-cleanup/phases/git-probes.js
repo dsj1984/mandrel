@@ -9,18 +9,19 @@ import { execFileSync } from 'node:child_process';
 
 import { gitSpawn } from '../../../git-utils.js';
 import { parseWorktreePorcelain } from '../../../worktree-manager.js';
+import { makeWorktreeOps } from './git-probes-ff.js';
 import { resolveMergedTip } from './merged-tip.js';
 
 export {
   canFastForward,
   checkoutBranch,
-  dropStash,
   fetchRef,
   isWorkingTreeClean,
   mergeFastForward,
-  pruneRemoteTracking,
-  removeWorktree,
 } from './git-probes-ff.js';
+
+export const { removeWorktree, pruneRemoteTracking, dropStash } =
+  makeWorktreeOps(gitSpawn);
 
 /* node:coverage ignore next */
 export function listLocalBranches(cwd) {
