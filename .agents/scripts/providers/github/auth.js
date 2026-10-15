@@ -29,7 +29,6 @@ function readEnvToken() {
 
 /* node:coverage ignore next */
 function memoizeEnvToken(token) {
-  if (process.env.GITHUB_TOKEN) return;
   process.env.GITHUB_TOKEN = token;
   process.env[TOKEN_SOURCE_ENV] = 'gh-cli';
 }
