@@ -2,7 +2,7 @@
  * confirm-and-land.js — the one confirm-and-land pairing every merged-Story
  * path runs: the confirm-merge CLI's single probe, the boot sweep, and close's
  * already-closed early return. A flip without the land tail strands the
- * operator's lease, the worktree and the Epic rollup (Story #5705).
+ * operator's lease, the worktree and the Epic rollup.
  */
 
 import { runPostLandTail as defaultRunPostLandTail } from '../orchestration/single-story-close/phases/post-land.js';
