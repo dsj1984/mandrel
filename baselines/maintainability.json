@@ -1076,7 +1076,7 @@
     },
     {
       "path": ".agents/scripts/lib/maintainability-engine.js",
-      "mi": 101.893
+      "mi": 102.753
     },
     {
       "path": ".agents/scripts/lib/maintainability-unscorable.js",
@@ -1084,7 +1084,7 @@
     },
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
-      "mi": 102.477
+      "mi": 103.335
     },
     {
       "path": ".agents/scripts/lib/mandrel-catalog.js",
@@ -2088,7 +2088,7 @@
     },
     {
       "path": ".agents/scripts/lib/workers/crap-worker.js",
-      "mi": 95.681
+      "mi": 98.329
     },
     {
       "path": ".agents/scripts/lib/workers/maintainability-report-worker.js",
