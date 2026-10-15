@@ -88,7 +88,7 @@
     },
     {
       "path": ".agents/scripts/clean-worktrees.js",
-      "mi": 100.114
+      "mi": 99.411
     },
     {
       "path": ".agents/scripts/cleanup-repo-test-temp.js",
@@ -428,7 +428,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/env-overrides.js",
-      "mi": 90.69
+      "mi": 96.158
     },
     {
       "path": ".agents/scripts/lib/baselines/envelope.js",
@@ -468,7 +468,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "mi": 96.235
+      "mi": 97.782
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/duplication.js",
@@ -524,7 +524,7 @@
     },
     {
       "path": ".agents/scripts/lib/bdd-runner-detect.js",
-      "mi": 95.055
+      "mi": 94.393
     },
     {
       "path": ".agents/scripts/lib/bdd-scenario-budget.js",
@@ -648,7 +648,7 @@
     },
     {
       "path": ".agents/scripts/lib/clean-temp.js",
-      "mi": 94.177
+      "mi": 95.176
     },
     {
       "path": ".agents/scripts/lib/cli-args.js",
@@ -720,7 +720,7 @@
     },
     {
       "path": ".agents/scripts/lib/config-resolver.js",
-      "mi": 91.644
+      "mi": 98.928
     },
     {
       "path": ".agents/scripts/lib/config-schema-shared.js",
@@ -1024,7 +1024,7 @@
     },
     {
       "path": ".agents/scripts/lib/git-utils.js",
-      "mi": 113.583
+      "mi": 112.562
     },
     {
       "path": ".agents/scripts/lib/git/cached-fetch.js",
@@ -1272,7 +1272,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/file-assumptions.js",
-      "mi": 86.666
+      "mi": 86.035
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/branches-detect.js",
@@ -1280,7 +1280,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/branches-reap.js",
-      "mi": 91.852
+      "mi": 89.771
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/branches.js",
@@ -1504,7 +1504,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/pr-watch.js",
-      "mi": 102.302
+      "mi": 101.009
     },
     {
       "path": ".agents/scripts/lib/orchestration/project-meta-cache.js",
@@ -1516,7 +1516,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/reassert-status-column.js",
-      "mi": 97.555
+      "mi": 93.916
     },
     {
       "path": ".agents/scripts/lib/orchestration/remote-verifier.js",
@@ -1988,7 +1988,7 @@
     },
     {
       "path": ".agents/scripts/lib/skills/parse-skill.js",
-      "mi": 87.688
+      "mi": 85.195
     },
     {
       "path": ".agents/scripts/lib/skills/skills-index.js",
@@ -2052,7 +2052,7 @@
     },
     {
       "path": ".agents/scripts/lib/test-run-credit.js",
-      "mi": 92.872
+      "mi": 94.022
     },
     {
       "path": ".agents/scripts/lib/test-runner-contract.js",
@@ -2083,8 +2083,16 @@
       "mi": 92.232
     },
     {
+      "path": ".agents/scripts/lib/util/paths.js",
+      "mi": 132.771
+    },
+    {
       "path": ".agents/scripts/lib/util/poll-loop.js",
       "mi": 101.918
+    },
+    {
+      "path": ".agents/scripts/lib/util/sleep.js",
+      "mi": 153.208
     },
     {
       "path": ".agents/scripts/lib/util/with-timeout.js",
@@ -2128,7 +2136,7 @@
     },
     {
       "path": ".agents/scripts/lib/workflow-closure.js",
-      "mi": 97.938
+      "mi": 97.403
     },
     {
       "path": ".agents/scripts/lib/workspace-provisioner.js",
@@ -2252,7 +2260,7 @@
     },
     {
       "path": ".agents/scripts/providers/github/blocked-by-add.js",
-      "mi": 91.731
+      "mi": 97.574
     },
     {
       "path": ".agents/scripts/providers/github/board-add.js",
@@ -2288,7 +2296,7 @@
     },
     {
       "path": ".agents/scripts/providers/github/mappers.js",
-      "mi": 105.908
+      "mi": 111.712
     },
     {
       "path": ".agents/scripts/providers/github/merge-methods.js",
@@ -2300,11 +2308,11 @@
     },
     {
       "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "mi": 98.344
+      "mi": 97.11
     },
     {
       "path": ".agents/scripts/providers/github/request-helpers.js",
-      "mi": 102.72
+      "mi": 101.289
     },
     {
       "path": ".agents/scripts/providers/github/search-budget.js",
@@ -2316,7 +2324,7 @@
     },
     {
       "path": ".agents/scripts/providers/github/sub-issue-add.js",
-      "mi": 94.604
+      "mi": 100.83
     },
     {
       "path": ".agents/scripts/providers/github/sub-issues.js",
@@ -2368,7 +2376,7 @@
     },
     {
       "path": ".agents/scripts/stories-wave-tick.js",
-      "mi": 93.382
+      "mi": 94.483
     },
     {
       "path": ".agents/scripts/story-handoff.js",
@@ -2384,11 +2392,11 @@
     },
     {
       "path": ".agents/scripts/sync-claude-agents.js",
-      "mi": 99.169
+      "mi": 98.093
     },
     {
       "path": ".agents/scripts/sync-claude-commands.js",
-      "mi": 99.917
+      "mi": 99.004
     },
     {
       "path": ".agents/scripts/sync-codex-agents.js",
