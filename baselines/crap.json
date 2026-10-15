@@ -33604,6 +33604,12 @@
     },
     {
       "path": ".agents/scripts/lib/story-body/story-body.js",
+      "method": "isNotCommentLine",
+      "startLine": 134,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/story-body/story-body.js",
       "method": "pathEntryFromBare",
       "startLine": 150,
       "crap": 4
