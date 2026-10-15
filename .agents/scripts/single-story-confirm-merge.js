@@ -292,8 +292,8 @@ function readCloseArmEvidence({ storyId, config, readCloseEnvelopeFn }) {
 /**
  * `--wait` runs the SAME phase as close so the cumulative budget give-up
  * (the only path to `merge.unlanded` / `agent::blocked`) is reachable from a
- * resume. The budget is anchored at the PR's `createdAt`, so resuming does
- * not restart the clock. The Story worktree is resolved (and recreated when
+ * resume. The budget is anchored at the latest auto-merge arm, which a
+ * resume does not move, so resuming does not restart the clock. The Story worktree is resolved (and recreated when
  * missing) exactly as close does, so a DIRTY PR syncs there.
  */
 async function resumeMergeWait(ctx) {
