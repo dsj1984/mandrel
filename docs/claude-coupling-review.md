@@ -108,8 +108,9 @@ These already do the host-agnostic thing and are the template for extending it:
    when a project keeps one, wins the host precedence and should `@AGENTS.md`. `AGENTS.md` is the emerging cross-tool standard.
 2. **"Host's best available X" language** —
    [`.agents/instructions.md`](../.agents/instructions.md) § 1.C (live docs),
-   § 4 subagents ("name no specific model — let the host and operator own the
-   concrete mapping"), § 2 (the host owns quota).
+   § 1.A host mapping (a `subagent_type: <role>` dispatch uses the Agent
+   tool on Claude Code and spawns the project custom agent `<role>` on
+   Codex), § 2 (the host owns quota).
 3. **Ticketing provider abstraction** — `ITicketingProvider.js` +
    `provider-factory.js` (GitHub-only today, with a discriminator anticipated).
    The cleanest shape to mirror for a host adapter.

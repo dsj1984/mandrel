@@ -298,10 +298,11 @@ Applied to `lib/worktree-manager.js` (live), and pre-v2 to
 tier). The same pattern drives the
 `config-resolver.js` split into accessor submodules under `lib/config/` and
 the `providers/github.js` decomposition into focused modules under
-`providers/github/*`. Epic #946 (v5.31.1) extended the pattern to
-`story-close.js` — a 938-line CLI orchestrator collapsed into a 189-line
-shell over `lib/orchestration/story-close/{merge-runner,cleanup-reconciler,comment-bodies}` —
-and to `run-audit-suite.js`, decomposed into helpers under `lib/audit-suite/`.
+`providers/github/*`. Epic #946 (v5.31.1) extended the pattern to the
+close and audit-suite CLI orchestrators of the day; those CLIs were later
+deleted, but the audit-suite helpers it extracted still sit behind one
+facade — `lib/audit-suite/index.js`, the barrel that is the only supported
+entry point, consumed by `single-story-init.js` and `deliver-run.js`.
 
 ### Pattern
 
@@ -1034,8 +1035,7 @@ service that may have drifted).
 
 ## Honest degraded modes: structured envelope, non-zero exit
 
-When a soft-failing gate (`select-audits.js`,
-`baseline-refresh-guardrail.js`) cannot fully execute — diff timeout,
+When a soft-failing gate cannot fully execute — diff timeout,
 JSON parse failure, missing ref — the previous behaviour was a permissive
 zero-error fallback that read identically to a clean run. The current
 contract is:
@@ -1044,6 +1044,14 @@ contract is:
   stdout and exit non-zero. Caller decides whether to absorb.
 - `--gate-mode` (or `MANDREL_GATE_MODE=1`): fail closed without
   the permissive envelope. Use in CI / pre-push / authoritative gates.
+
+The contract lives in
+[`lib/degraded-mode.js`](../.agents/scripts/lib/degraded-mode.js)
+(`degraded`, `isDegraded`, `isGateMode`, `softFailOrThrow`); its live
+consumer is the audit selector,
+[`lib/audit-suite/selector.js`](../.agents/scripts/lib/audit-suite/selector.js),
+which returns the degraded envelope on a diff timeout or an unresolvable head
+ref.
 
 Pattern: never let a degraded execution path mimic a clean one. The
 caller's flexibility is preserved by the structured envelope; the
