@@ -57,6 +57,28 @@ function readCacheFile(filePath) {
 }
 
 /**
+ * Pid-scoped temp file in the same directory, renamed into place, so a
+ * concurrent reader sees the old file or the new one — never a partial write.
+ * Throws (the callers' best-effort catch answers it); the temp is reaped.
+ *
+ * @param {string} filePath
+ * @param {Record<string, object>} store
+ */
+function writeStoreAtomic(filePath, store) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  const tmp = `${filePath}.${process.pid}.tmp`;
+  try {
+    fs.writeFileSync(tmp, `${JSON.stringify(store, null, 2)}\n`, 'utf8');
+    fs.renameSync(tmp, filePath);
+  } catch (err) {
+    try {
+      fs.unlinkSync(tmp);
+    } catch {}
+    throw err;
+  }
+}
+
+/**
  * A fresh entry with `options` re-hydrated to a Map, else `null`. Never throws.
  *
  * @param {{
@@ -137,8 +159,7 @@ export function writeProjectMetaCache(opts = {}) {
       fieldId: meta.fieldId,
       options,
     };
-    fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    fs.writeFileSync(filePath, `${JSON.stringify(store, null, 2)}\n`, 'utf8');
+    writeStoreAtomic(filePath, store);
     return true;
   } catch {
     return false;
@@ -164,8 +185,7 @@ export function invalidateProjectMetaCache(opts = {}) {
     const store = readCacheFile(filePath);
     if (!(key in store)) return false;
     delete store[key];
-    fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    fs.writeFileSync(filePath, `${JSON.stringify(store, null, 2)}\n`, 'utf8');
+    writeStoreAtomic(filePath, store);
     return true;
   } catch {
     return false;
