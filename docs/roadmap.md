@@ -93,7 +93,6 @@ preserved in git history at the tags below — resolve a citation by reading
 
 | Citation | Cited by | Preserved at |
 | --- | --- | --- |
-| **§ v2.0.0** / **Stage 3** — the Story collapse | `plan-persist.js`, `run-plan-persist.js`, `story-ops.js`, `split-policy-validator.js`, `ticket-validator-sizing.js` | `mandrel-v2.0.0` |
 | **Part 1 — Model-Evolution Audit** (incl. "Also parked") | `renovate.json` | `mandrel-v1.94.0` |
 | **Part 2 — product-readiness backlog** | Someday item 5 above | `mandrel-v1.94.0` |
 
@@ -101,8 +100,10 @@ preserved in git history at the tags below — resolve a citation by reading
 is greppable. Story #4786 removed two names for carrying none:
 `git-conventions-reference.md` (Part 1) and the `audit-*.md` lens workflows
 (Part 3). Story #5008 then deleted `capability.js`, Part 3's last citer, so
-that anchor is retired entirely. Do not re-add a name without a matching grep
-hit.
+that anchor is retired entirely. Story #5682 retired the **§ v2.0.0** /
+**Stage 3** anchor the same way: none of its five listed citers contained the
+citation, and `split-policy-validator.js` no longer exists. Do not re-add a
+name without a matching grep hit.
 
 The Part 1 audit's conclusion — **risk routes rigor, never scope** — and its
 Keep-invariants survive as live policy in
