@@ -151,7 +151,11 @@ describe('refreshBaseline — duplication kind (Story #4944)', () => {
       kind: 'duplication',
       writePath,
       scopeFiles: ['src/a.js'],
-      scorer: () => [row('src/b.js', 10, 100), row('src/c.js', 40, 100)],
+      scorer: () => [
+        row('src/b.js', 10, 100),
+        row('src/c.js', 40, 100),
+        row('src/d.js', 40, 100),
+      ],
     });
 
     const after = byPath(readEnvelope(writePath));
@@ -190,7 +194,7 @@ describe('refreshBaseline — duplication kind (Story #4944)', () => {
       kind: 'duplication',
       writePath,
       scopeFiles: ['src/a.js'],
-      scorer: () => [row('src/a.js', 20, 100)],
+      scorer: () => [...PRIOR_ROWS.slice(1), row('src/a.js', 20, 100)],
     });
 
     const after = readEnvelope(writePath);
@@ -213,6 +217,103 @@ describe('refreshBaseline — duplication kind (Story #4944)', () => {
     const after = readEnvelope(writePath);
     assert.deepEqual(after.rows, []);
     assert.equal(derivedRollup(after).percentage, 0);
+  });
+});
+
+/**
+ * Story #5702 — a diff-scoped refresh used to keep a clone partner's row
+ * verbatim, so a branch that removed one side of a clone left the other
+ * side's row stale until the nightly full-scope re-score flagged it.
+ */
+describe('refreshBaseline — duplication clone-partner scope (Story #5702)', () => {
+  let workDir;
+  let writePath;
+
+  beforeEach(() => {
+    workDir = makeTempDir('mandrel-refresh-dup-partners-');
+    writePath = path.join(workDir, 'baselines', 'duplication.json');
+  });
+
+  afterEach(() => {
+    rmSync(workDir, { recursive: true, force: true });
+  });
+
+  const withPartners = (r, partners) => ({ ...r, partners });
+
+  it('AC: rewrites an out-of-scope row that shares a clone with a changed file', async () => {
+    const prior = seedPrior(writePath, PRIOR_ROWS);
+
+    const result = await refreshBaseline({
+      kind: 'duplication',
+      writePath,
+      scopeFiles: ['src/a.js'],
+      scorer: () => [
+        withPartners(row('src/a.js', 30, 100), ['src/c.js']),
+        withPartners(row('src/b.js', 10, 100), ['src/d.js']),
+        withPartners(row('src/c.js', 55, 100), ['src/a.js']),
+        withPartners(row('src/d.js', 99, 100), ['src/b.js']),
+      ],
+    });
+
+    const after = byPath(readEnvelope(writePath));
+    assert.equal(after.get('src/a.js').percentage, 30);
+    assert.equal(after.get('src/c.js').percentage, 55, 'partner rewritten');
+    assert.deepEqual(
+      after.get('src/d.js'),
+      byPath(prior).get('src/d.js'),
+      'an unrelated rise stays out of scope, byte-for-byte',
+    );
+    assert.equal(
+      Object.hasOwn(after.get('src/c.js'), 'partners'),
+      false,
+      'partners never reach the committed row',
+    );
+    assert.deepEqual(result.scope.files.sort(), ['src/a.js', 'src/c.js']);
+  });
+
+  it('AC: removes or lowers an out-of-scope row whose clone left with its changed partner', async () => {
+    seedPrior(writePath, PRIOR_ROWS);
+
+    // a.js changed and its clones are gone; c.js lost every clone it shared
+    // with a.js (no head row), d.js lost some (lower row). Neither appears in
+    // a head clone pair with a.js, so only the shrink arm can reach them.
+    const result = await refreshBaseline({
+      kind: 'duplication',
+      writePath,
+      scopeFiles: ['src/a.js'],
+      scorer: () => [
+        withPartners(row('src/b.js', 10, 100), ['src/d.js']),
+        withPartners(row('src/d.js', 20, 100), ['src/b.js']),
+      ],
+    });
+
+    const after = byPath(readEnvelope(writePath));
+    assert.equal(after.has('src/a.js'), false);
+    assert.equal(after.has('src/c.js'), false, 'vanished partner row removed');
+    assert.equal(after.get('src/d.js').percentage, 20, 'shrunk row lowered');
+    assert.equal(after.get('src/b.js').percentage, 10);
+    assert.deepEqual(result.scope.files.sort(), [
+      'src/a.js',
+      'src/c.js',
+      'src/d.js',
+    ]);
+  });
+
+  it('AC: fullScope ignores partners and reports no widened file list', async () => {
+    seedPrior(writePath, PRIOR_ROWS);
+
+    const result = await refreshBaseline({
+      kind: 'duplication',
+      writePath,
+      fullScope: true,
+      scorer: () => [withPartners(row('src/a.js', 1, 100), ['src/b.js'])],
+    });
+
+    assert.deepEqual(result.scope.files, []);
+    assert.deepEqual(
+      readEnvelope(writePath).rows.map((r) => r.path),
+      ['src/a.js'],
+    );
   });
 });
 
