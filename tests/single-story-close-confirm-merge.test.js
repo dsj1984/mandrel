@@ -10,8 +10,9 @@
  *
  *   1. **The split timing model.** `maxWaitSeconds` bounds ONE invocation and
  *      its expiry is `pending` — no label flip, no `merge.unlanded` event.
- *      `maxBudgetSeconds` bounds the CUMULATIVE wait anchored at the PR's
- *      `createdAt`, so a resume continues the clock instead of restarting it,
+ *      `maxBudgetSeconds` bounds the CUMULATIVE wait anchored at the latest
+ *      auto-merge arm (else the PR's `createdAt`), so a resume continues the
+ *      clock instead of restarting it while a re-arming re-close starts fresh,
  *      and exhausting THAT is the genuine block.
  *   2. **The wait is not weaker than the watch it displaced.** A red check
  *      fails fast as `checks-failed`; a BEHIND PR gets a bounded update.
@@ -393,6 +394,43 @@ describe('merge wait — pending (the resumable terminal)', () => {
     assert.ok(
       outcome.waitBudget.cumulativeSeconds > outcome.waitBudget.waitedSeconds,
       'cumulative must outrun this invocation',
+    );
+  });
+
+  it('Story #5706 AC-1: a re-close that re-armed a PR opened ~9h earlier does not block on budget while fresh checks run', async () => {
+    // Replays #5684 / PR #5700: opened at 01:34, re-closed at 10:25 with a
+    // new head and a fresh arm. Anchored at createdAt the wait read 32458s of
+    // 3600s and blocked after the poll floor; anchored at the arm it waits.
+    const provider = makeFakeProvider();
+    const emitted = [];
+    const startMs = Date.parse('2026-10-15T10:25:30Z');
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        provider,
+        config: {
+          delivery: {
+            mergeWatch: {
+              intervalSeconds: 30,
+              maxWaitSeconds: 120,
+              maxBudgetSeconds: 3600,
+            },
+          },
+        },
+        nowMsFn: makeClock(10_000, startMs),
+        readPrWaitProbeFn: async () =>
+          openProbe({
+            createdAt: '2026-10-15T01:34:00Z',
+            autoMergeEnabledAt: '2026-10-15T10:25:00Z',
+          }),
+        emitMergeUnlandedFn: (rec) => emitted.push(rec),
+      }),
+    );
+    assert.equal(outcome.terminal, 'pending', 'checks still running → pending');
+    assert.equal(emitted.length, 0, 'no merge.unlanded');
+    assert.equal(provider._updates().length, 0, 'no agent::blocked flip');
+    assert.ok(
+      outcome.waitBudget.cumulativeSeconds < 3600,
+      `cumulative (${outcome.waitBudget.cumulativeSeconds}s) is measured from the arm`,
     );
   });
 
@@ -1392,6 +1430,53 @@ describe('resolveMergeWaitConfig / resolveBudgetAnchorMs', () => {
       999,
     );
   });
+
+  it('Story #5706: anchors at the later of createdAt and the auto-merge arm', () => {
+    const created = '2026-10-15T01:34:00Z';
+    const armed = '2026-10-15T10:25:00Z';
+    assert.equal(
+      resolveBudgetAnchorMs({
+        createdAt: created,
+        enabledAt: armed,
+        fallbackMs: 999,
+      }),
+      Date.parse(armed),
+    );
+    // An arm reported before createdAt never pulls the anchor earlier.
+    assert.equal(
+      resolveBudgetAnchorMs({
+        createdAt: armed,
+        enabledAt: created,
+        fallbackMs: 999,
+      }),
+      Date.parse(armed),
+    );
+    // AC-3: no readable arm → createdAt, then the invocation start.
+    assert.equal(
+      resolveBudgetAnchorMs({
+        createdAt: created,
+        enabledAt: null,
+        fallbackMs: 999,
+      }),
+      Date.parse(created),
+    );
+    assert.equal(
+      resolveBudgetAnchorMs({
+        createdAt: null,
+        enabledAt: 'garbage',
+        fallbackMs: 999,
+      }),
+      999,
+    );
+    assert.equal(
+      resolveBudgetAnchorMs({
+        createdAt: null,
+        enabledAt: armed,
+        fallbackMs: 999,
+      }),
+      Date.parse(armed),
+    );
+  });
 });
 
 describe('readPrWaitProbe — one probe carries every field the loop needs', () => {
@@ -1430,6 +1515,8 @@ describe('readPrWaitProbe — one probe carries every field the loop needs', () 
     }
     assert.equal(probe.mergeStateStatus, 'BEHIND');
     assert.equal(probe.createdAt, '2026-07-16T00:00:00Z');
+    assert.ok(fields.includes('autoMergeRequest'), 'probe omits arm time');
+    assert.equal(probe.autoMergeEnabledAt, null, 'unarmed → no arm anchor');
     // The probe carries head-anchored per-run evidence (Story #4695).
     assert.deepEqual(probe.requiredRunEvidence, {
       requiredRunFailed: false,
@@ -3722,5 +3809,7 @@ describe('merge wait — a disarmed PR is re-armed once per head (Story #5533)',
       ...view({ enabledAt: 'x', mergeMethod: 'SQUASH' }),
     });
     assert.equal(on.autoMergeArmed, true);
+    assert.equal(on.autoMergeEnabledAt, 'x', 'arm time is the budget anchor');
+    assert.equal(off.autoMergeEnabledAt, null);
   });
 });
