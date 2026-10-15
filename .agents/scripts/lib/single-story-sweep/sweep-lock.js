@@ -156,6 +156,11 @@ export function isLockStale(mtime, nowMs, timeoutMs) {
  */
 function tryCreateLock(lockPath, ownerId, fsImpl = fs) {
   fsImpl.mkdirSync(path.dirname(lockPath), { recursive: true });
+  return tryCreateFile(lockPath, ownerId, fsImpl);
+}
+
+/** No `mkdir`: a mutex beside a reaped lockfile must not resurrect its dir. */
+function tryCreateFile(lockPath, ownerId, fsImpl) {
   let fd;
   try {
     fd = fsImpl.openSync(lockPath, 'wx');
@@ -324,7 +329,7 @@ function withBreakMutex({ lockPath, fsImpl, nowFn = Date.now }, fn) {
 
 function takeBreakMutex(mutexPath, fsImpl, nowFn) {
   return (
-    tryCreateLock(mutexPath, 'break', fsImpl) ||
+    tryCreateFile(mutexPath, 'break', fsImpl) ||
     reclaimStaleMutex(mutexPath, fsImpl, nowFn)
   );
 }
@@ -333,7 +338,7 @@ function reclaimStaleMutex(mutexPath, fsImpl, nowFn) {
   const mtime = readLockMtime(mutexPath, fsImpl);
   if (!isLockStale(mtime, nowFn(), BREAK_MUTEX_STALE_MS)) return false;
   unlinkQuietly(mutexPath, fsImpl);
-  return tryCreateLock(mutexPath, 'break', fsImpl);
+  return tryCreateFile(mutexPath, 'break', fsImpl);
 }
 
 /** @returns {boolean} whether the unlink landed. */
@@ -424,10 +429,13 @@ function startHeartbeat(holder) {
  * @param {object} fsImpl
  */
 function unlinkIfOwned(lockPath, ownerId, fsImpl) {
-  const removeOwn = () =>
-    readLockOwner(lockPath, fsImpl) === ownerId &&
-    unlinkQuietly(lockPath, fsImpl);
-  // Fail open: a wedged mutex must not strand our lock until it reads stale.
+  const isOwn = () => readLockOwner(lockPath, fsImpl) === ownerId;
+  const removeOwn = () => isOwn() && unlinkQuietly(lockPath, fsImpl);
+  if (isOwn()) releaseOwned(lockPath, fsImpl, removeOwn);
+}
+
+/** Fail open: a wedged mutex must not strand our lock until it reads stale. */
+function releaseOwned(lockPath, fsImpl, removeOwn) {
   if (!releaseUnderMutex(lockPath, fsImpl, removeOwn)) removeOwn();
 }
 

@@ -665,6 +665,23 @@ describe('sweep-lock — release is owner-checked', () => {
     }
   });
 
+  // An exit-time release runs after the suite-root reaper: it must never
+  // re-create the directory its lockfile lived in.
+  it('release never re-creates a removed lock directory', () => {
+    const lockDir = path.join(tmpDir, 'reaped');
+    const lockPath = path.join(lockDir, 'sweep.lock');
+    const held = acquireSweepLock({
+      lockPath,
+      ownerId: 'holder',
+      heartbeatMs: 0,
+      processImpl: null,
+    });
+    assert.equal(held.acquired, true);
+    fs.rmSync(lockDir, { recursive: true, force: true });
+    held.release();
+    assert.equal(fs.existsSync(lockDir), false);
+  });
+
   it('a late release leaves the current holder’s lock in place (real fs)', () => {
     const lockPath = path.join(tmpDir, 'sweep.lock');
     const first = acquireSweepLock({ lockPath, ownerId: 'first' });
