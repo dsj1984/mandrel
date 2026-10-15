@@ -404,7 +404,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/coverage-updater-cli.js",
-      "mi": 107.734
+      "mi": 108.347
     },
     {
       "path": ".agents/scripts/lib/baselines/crap-preview-incremental.js",
@@ -416,7 +416,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
-      "mi": 97.151
+      "mi": 98.309
     },
     {
       "path": ".agents/scripts/lib/baselines/diff-scope-cli.js",
@@ -2060,7 +2060,7 @@
     },
     {
       "path": ".agents/scripts/lib/validation-evidence.js",
-      "mi": 94.023
+      "mi": 95.045
     },
     {
       "path": ".agents/scripts/lib/wave-runner/cross-run-overlap.js",
