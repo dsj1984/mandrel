@@ -11,6 +11,7 @@ import {
   existsSync as defaultExistsSync,
   mkdirSync as defaultMkdirSync,
   readFileSync as defaultReadFileSync,
+  renameSync as defaultRenameSync,
   unlinkSync as defaultUnlinkSync,
   writeFileSync as defaultWriteFileSync,
 } from 'node:fs';
@@ -54,6 +55,7 @@ const defaultFsAdapter = {
   existsSync: defaultExistsSync,
   mkdirSync: defaultMkdirSync,
   readFileSync: defaultReadFileSync,
+  renameSync: defaultRenameSync,
   unlinkSync: defaultUnlinkSync,
   writeFileSync: defaultWriteFileSync,
 };
@@ -213,10 +215,50 @@ export function recordPass(
     throw new Error(`Evidence document failed schema validation: ${detail}`);
   }
 
-  const file = evidencePath(storyId, evidenceOpts);
-  resolved.fs.mkdirSync(path.dirname(file), { recursive: true });
-  resolved.fs.writeFileSync(file, JSON.stringify(doc, null, 2), 'utf8');
+  writeEvidenceAtomically(
+    resolved.fs,
+    evidencePath(storyId, evidenceOpts),
+    JSON.stringify(doc, null, 2),
+  );
   return record;
+}
+
+/**
+ * Atomic write (pid-scoped tmp + rename), mirroring `review-deposit.js`: a
+ * torn write would parse as an empty document and silently drop every gate's
+ * credit, so the target is only ever replaced whole. A failed write or rename
+ * reaps the tmp sibling and re-throws, leaving the previous document intact.
+ *
+ * @param {{ mkdirSync: Function, writeFileSync: Function, renameSync: Function, unlinkSync: Function, existsSync: Function }} fsImpl
+ * @param {string} file
+ * @param {string} body
+ * @returns {void}
+ */
+function writeEvidenceAtomically(fsImpl, file, body) {
+  fsImpl.mkdirSync(path.dirname(file), { recursive: true });
+  const tmpPath = `${file}.${process.pid}.tmp`;
+  try {
+    fsImpl.writeFileSync(tmpPath, body, 'utf8');
+    fsImpl.renameSync(tmpPath, file);
+  } catch (err) {
+    reapTmp(fsImpl, tmpPath);
+    throw err;
+  }
+}
+
+/**
+ * Best-effort removal of a tmp sibling; the original failure is what matters.
+ *
+ * @param {{ existsSync: Function, unlinkSync: Function }} fsImpl
+ * @param {string} tmpPath
+ * @returns {void}
+ */
+function reapTmp(fsImpl, tmpPath) {
+  try {
+    if (fsImpl.existsSync(tmpPath)) fsImpl.unlinkSync(tmpPath);
+  } catch {
+    // The rename already failed; a leftover tmp is never read as evidence.
+  }
 }
 
 /**
