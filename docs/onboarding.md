@@ -96,11 +96,11 @@ mandrel/
 | Language     | Markdown (prose), JavaScript ESM (scripts), JSON (config)      |
 | Linter       | `biome` + `markdownlint` + the repo's own ratchets — `npm run lint` |
 | Formatter    | `biome format` — **JavaScript and JSON only**; markdown is not formatted by `npm run format` (see below) |
-| Git Hooks    | Husky — `pre-commit` runs version-sync, lint-staged, and the blocking `quality-preview.js --staged` MI/CRAP gate; `pre-push` runs the diff-scoped quality preview plus the coverage/CRAP ratchet |
+| Git Hooks    | Husky — `pre-commit` runs version-sync, lint-staged, and the blocking `quality-preview.js --staged` MI/CRAP gate; `pre-push` runs the diff-scoped quality preview, the coverage/CRAP ratchet, the context-budget and workflow-citations reports, and the blocking `check-comment-policy.js` gate |
 | Node Version | >=22.22.1 <25                                                  |
 | Package Mgr  | npm                                                            |
 | Shell        | PowerShell (Windows) — use `;` not `&&` as statement separator |
-| CI/CD        | GitHub Actions (`ci.yml`) — `Validate and Test` + `baselines` (required) and the advisory `Windows Smoke` leg |
+| CI/CD        | GitHub Actions (`ci.yml`, `install-matrix.yml`) — the required-check set is listed in [`ci-contract.md`](ci-contract.md); `Windows Smoke` is required |
 
 **Markdown is not auto-formatted by `npm run format`.** That script is
 `biome format --write .`, and [`biome.json`](../biome.json) declares only a
@@ -121,7 +121,7 @@ npm run lint              # biome ci + markdownlint + the lifecycle/workflow-cli
                           #   label-vocabulary/arch-cycles ratchets, then the
                           #   generated-doc drift gate (docs:check); if it fails
                           #   on drift, run docs:gen to regenerate
-npm run docs:gen          # Regenerate config/lifecycle/workflows docs
+npm run docs:gen          # Regenerate config/workflows docs and audit lens checklists
 npm run skills:index      # Regenerate the skills index
 npm run format            # biome format --write . — JavaScript/JSON only, NOT markdown
 npm run format:check      # biome ci . — verify without modifying files
@@ -152,8 +152,10 @@ but a small set of CI gates (action pinning, the TruffleHog secret scan, and
 the `check-test-temp-hygiene.js` snapshot/assert bracket around the test run)
 cannot be reproduced from a local working tree — those are catalogued in
 [`ci-contract.md`](ci-contract.md), so a local green is necessary but not
-sufficient. Pre-push runs only diff-scoped quality preview plus coverage/CRAP
-ratchet; it does not run full lint or `npm test`. CI always runs the full
+sufficient. Pre-push runs the diff-scoped quality preview, the coverage/CRAP
+ratchet, the context-budget and workflow-citations reports, and
+`check-comment-policy.js` — the comment-policy gate, which can fail the push;
+it does not run full lint or `npm test`. CI always runs the full
 `npm test` suite.
 
 ### Where the CRAP / Maintainability gates fire

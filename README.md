@@ -30,10 +30,13 @@ directory, where your assistant reads it.
 | `scripts/` | Deterministic Node.js CLIs that do the mechanical work — GitHub state changes, worktrees, quality gates — so the model judges and the scripts execute. |
 | `schemas/`, `templates/` | JSON Schema contracts and the prompt/planning templates the workflows fill in. |
 | `docs/` | Consumer reference: [configuration](.agents/docs/configuration.md) (every `.agentrc.json` key), the [workflow index](.agents/docs/workflows.md), and operator runbooks. |
+| `audit-checklists/` | Generated per-lens authoring checklists, threaded into a Story's write-time checklist when its change set matches an audit lens. |
+| `mods/` | Beta, opt-in Claude Code mods — see the [mods runbook](.agents/docs/runbooks/mods.md). |
 | `local/` | Yours. `mandrel sync` never touches it, so project-specific skills and workflow fragments survive upgrades. |
 
-Project settings live in `.agentrc.json` at your repo root. The full tour of
-the bundle is in [`.agents/README.md`](.agents/README.md).
+Project settings live in `.agentrc.json` at your repo root. The table above is
+a partial list (it omits single files such as `starter-agentrc.json`); the full
+tour of the bundle is in [`.agents/README.md`](.agents/README.md).
 
 ## The core loop: plan, then deliver
 
