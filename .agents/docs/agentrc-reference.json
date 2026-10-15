@@ -169,7 +169,7 @@
           "ignoreGlobs": []
         },
         "mutation": {
-          "enabled": true,
+          "enabled": false,
           "baselinePath": "baselines/mutation.json",
           "tolerance": {
             "kind": "percent",
