@@ -292,14 +292,19 @@ function isHolderStale({
  * @returns {boolean}
  */
 function breakStaleLock(lockPath, observed, fsImpl) {
+  return removeIfMatches(lockPath, fsImpl, (moved) =>
+    sameLockIdentity(observed, readLockIdentity(moved, fsImpl)),
+  );
+}
+
+/** Rename aside; delete if `matches(moved)`, else link it back. */
+function removeIfMatches(lockPath, fsImpl, matches) {
   const tombstone = moveAside(lockPath, fsImpl);
   if (tombstone === null) return false;
-  if (sameLockIdentity(observed, readLockIdentity(tombstone, fsImpl))) {
-    unlinkQuietly(tombstone, fsImpl);
-    return true;
-  }
-  restoreFromTombstone(tombstone, lockPath, fsImpl);
-  return false;
+  const matched = matches(tombstone);
+  if (!matched) relinkQuietly(tombstone, lockPath, fsImpl);
+  unlinkQuietly(tombstone, fsImpl);
+  return matched;
 }
 
 /** @returns {string|null} a unique tombstone path, `null` when nothing moved. */
@@ -315,11 +320,10 @@ function moveAside(lockPath, fsImpl) {
 }
 
 /** `link` fails when a newer lock took the path; that holder wins. */
-function restoreFromTombstone(tombstone, lockPath, fsImpl) {
+function relinkQuietly(tombstone, lockPath, fsImpl) {
   try {
     fsImpl.linkSync(tombstone, lockPath);
   } catch {}
-  unlinkQuietly(tombstone, fsImpl);
 }
 
 function unlinkQuietly(file, fsImpl) {
@@ -409,13 +413,11 @@ function startHeartbeat(holder) {
  */
 function unlinkIfOwned(lockPath, ownerId, fsImpl) {
   if (readLockOwner(lockPath, fsImpl) !== ownerId) return;
-  const tombstone = moveAside(lockPath, fsImpl);
-  if (tombstone === null) return;
-  if (readLockOwner(tombstone, fsImpl) === ownerId) {
-    unlinkQuietly(tombstone, fsImpl);
-    return;
-  }
-  restoreFromTombstone(tombstone, lockPath, fsImpl);
+  removeIfMatches(
+    lockPath,
+    fsImpl,
+    (moved) => readLockOwner(moved, fsImpl) === ownerId,
+  );
 }
 
 function buildAcquired(holder) {
