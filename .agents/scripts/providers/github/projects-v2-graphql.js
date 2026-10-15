@@ -1,9 +1,9 @@
 /**
- * Projects V2 GraphQL shim. Token: `gh auth token` → GITHUB_TOKEN/GH_TOKEN.
+ * Projects V2 GraphQL shim. Token: `auth.js#resolveToken`.
  * Soft-fails on INSUFFICIENT_SCOPES via `{scopesMissing:true}` /
  * `status:'scopes-missing'` / `unavailable:true` envelopes.
  */
-import { execSync } from 'node:child_process';
+import { resolveToken } from './auth.js';
 import { withTransientRetry } from './errors.js';
 
 // Resolve an owner node id per-scope. Querying `user` and `organization`
@@ -29,40 +29,6 @@ const opt = (name, id) => ({
   color: 'GRAY',
   description: '',
 });
-
-function readGhCliToken() {
-  try {
-    const cliToken = execSync('gh auth token', {
-      encoding: 'utf8',
-      timeout: 5000,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    }).trim();
-    return cliToken || null;
-  } catch {
-    return null;
-  }
-}
-
-function readEnvToken() {
-  return process.env.GITHUB_TOKEN || process.env.GH_TOKEN || null;
-}
-
-function memoizeEnvToken(token) {
-  if (!process.env.GITHUB_TOKEN) process.env.GITHUB_TOKEN = token;
-}
-
-function resolveToken() {
-  const envToken = readEnvToken();
-  if (envToken) return envToken;
-  const ghToken = readGhCliToken();
-  if (!ghToken) {
-    throw new Error(
-      '[GitHubProvider] No GitHub token (set GITHUB_TOKEN or run `gh auth login`).',
-    );
-  }
-  memoizeEnvToken(ghToken);
-  return ghToken;
-}
 
 export const isInsufficientScopes = (err) =>
   Boolean(err) &&

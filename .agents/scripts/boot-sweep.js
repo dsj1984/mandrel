@@ -25,6 +25,7 @@ import { parseArgs } from 'node:util';
 
 import { runAsCli } from './lib/cli-utils.js';
 import { PROJECT_ROOT, resolveConfig } from './lib/config-resolver.js';
+import { parseStoryBranch } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
 import { sweepStaleStoryWorktrees } from './lib/orchestration/plan-runner/worktree-sweep.js';
 import { createProvider } from './lib/provider-factory.js';
@@ -47,8 +48,8 @@ import { sweepTempRetention } from './lib/temp-retention.js';
 export function storyIdsFromBranches(branches) {
   const ids = [];
   for (const branch of Array.isArray(branches) ? branches : []) {
-    const match = /^story-(\d+)$/.exec(String(branch));
-    if (match) ids.push(Number(match[1]));
+    const id = parseStoryBranch(String(branch));
+    if (id !== null) ids.push(id);
   }
   return ids;
 }

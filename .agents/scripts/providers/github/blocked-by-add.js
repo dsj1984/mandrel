@@ -7,7 +7,7 @@
 
 import { Logger } from '../../lib/Logger.js';
 import { concurrentMap } from '../../lib/util/concurrent-map.js';
-import { paginateRest } from './request-helpers.js';
+import { paginateRest, postEdges } from './request-helpers.js';
 
 /** Modest, to stay clear of GitHub's secondary rate limits. */
 const EDGE_CONCURRENCY = 5;
@@ -79,32 +79,16 @@ async function addBlockedByEdges({
   const missing = blockerInternalIds.filter((id) => !existingSet.has(id));
   const skipped = blockerInternalIds.length - missing.length;
 
-  const perEdge = await concurrentMap(
-    missing,
-    async (blockerId) => {
-      try {
-        await gh.api({
-          method: 'POST',
-          endpoint: `/repos/${owner}/${repo}/issues/${issueNumber}/dependencies/blocked_by`,
-          body: { issue_id: blockerId },
-        });
-        return { added: 1, failed: 0 };
-      } catch (err) {
-        Logger.warn(
-          `[blocked-by-add] Failed to add blocked-by edge #${issueNumber} ← blocker(id=${blockerId}): ${err.message}`,
-        );
-        return { added: 0, failed: 1 };
-      }
-    },
-    { concurrency: EDGE_CONCURRENCY },
-  );
-
-  let added = 0;
-  let failed = 0;
-  for (const r of perEdge) {
-    added += r.added;
-    failed += r.failed;
-  }
+  const { added, failed } = await postEdges({
+    edges: missing,
+    endpointFor: () =>
+      `/repos/${owner}/${repo}/issues/${issueNumber}/dependencies/blocked_by`,
+    bodyFor: (blockerId) => ({ issue_id: blockerId }),
+    describe: (blockerId) =>
+      `[blocked-by-add] Failed to add blocked-by edge #${issueNumber} ← blocker(id=${blockerId})`,
+    gh,
+    concurrency: EDGE_CONCURRENCY,
+  });
 
   return { added, skipped, failed };
 }

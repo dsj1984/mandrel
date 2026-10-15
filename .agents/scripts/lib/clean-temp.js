@@ -22,6 +22,7 @@ import {
   resolveTempRetention,
   sweepTempRetention,
 } from './temp-retention.js';
+import { concurrentMap, FANOUT_CONCURRENCY } from './util/concurrent-map.js';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -95,25 +96,30 @@ function resolveScopedTempRoot(projectRoot, config) {
 }
 
 /**
- * Issue states, read once per id. A failed read is `error`, which every
- * caller treats as "not closed" — reads fail safe.
+ * Issue states, read once per id with at most `FANOUT_CONCURRENCY` in
+ * flight. A failed read is `error`, which every caller treats as "not
+ * closed" — reads fail safe.
  *
  * @param {object|null} provider
  * @param {Iterable<number>} ids
  * @returns {Promise<Map<number, 'closed'|'open'|'error'>>}
  */
 async function readIssueStates(provider, ids) {
-  const states = new Map();
-  for (const id of ids) {
-    try {
-      const ticket = await provider.getTicket(id);
-      const state = String(ticket?.state ?? '').toLowerCase();
-      states.set(id, state === 'closed' ? 'closed' : 'open');
-    } catch {
-      states.set(id, 'error');
-    }
-  }
-  return states;
+  const list = [...ids];
+  const read = await concurrentMap(
+    list,
+    async (id) => {
+      try {
+        const ticket = await provider.getTicket(id);
+        const state = String(ticket?.state ?? '').toLowerCase();
+        return state === 'closed' ? 'closed' : 'open';
+      } catch {
+        return 'error';
+      }
+    },
+    { concurrency: FANOUT_CONCURRENCY },
+  );
+  return new Map(list.map((id, i) => [id, read[i]]));
 }
 
 /** Top-level name of `target` beneath `tempRoot`. */

@@ -10,6 +10,7 @@
 
 import nodeFs from 'node:fs';
 import path from 'node:path';
+import { toPosix } from './util/paths.js';
 
 /**
  * @type {string}
@@ -53,14 +54,6 @@ function unquote(value) {
     ((t.startsWith('"') && t.endsWith('"')) ||
       (t.startsWith("'") && t.endsWith("'")));
   return quoted ? t.slice(1, -1).trim() : t;
-}
-
-/**
- * @param {string} p
- * @returns {string}
- */
-function toPosix(p) {
-  return p.split(path.sep).join('/');
 }
 
 /**

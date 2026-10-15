@@ -21,6 +21,7 @@ import { fileURLToPath } from 'node:url';
 
 import { runCleanTemp } from '../../.agents/scripts/lib/clean-temp.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
+import { FANOUT_CONCURRENCY } from '../../.agents/scripts/lib/util/concurrent-map.js';
 
 const DAY = 24 * 60 * 60 * 1000;
 const REPO_ROOT = path.resolve(
@@ -236,6 +237,49 @@ describe('clean-temp --execute --yes (AC-2)', () => {
     assert.equal(existsSync(paths.agedMulti), false);
     assert.equal(existsSync(paths.recentEntry), true, 'too recent is kept');
     assert.equal(existsSync(paths.topSignals), true);
+  });
+});
+
+describe('clean-temp issue-state fan-out', () => {
+  it('reads at most FANOUT_CONCURRENCY states at once and maps a failed read to error', async () => {
+    const project = makeProject();
+    const temp = path.join(project, 'temp');
+    const ids = Array.from(
+      { length: 3 * FANOUT_CONCURRENCY },
+      (_, i) => 500 + i,
+    );
+    const failing = ids[1];
+    for (const id of ids) writeAged(path.join(temp, `pr-${id}-notes.md`));
+
+    const pending = [];
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const provider = {
+      async getTicket(id) {
+        inFlight += 1;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await new Promise((resolve) => pending.push(resolve));
+        inFlight -= 1;
+        if (id === failing) throw new Error(`HTTP 502 for #${id}`);
+        return { id, state: 'closed' };
+      },
+    };
+    let settled = false;
+    const done = run(project, ['--json'], { provider }).finally(() => {
+      settled = true;
+    });
+    while (!settled) {
+      await new Promise((resolve) => setImmediate(resolve));
+      for (const resolve of pending.splice(0)) resolve();
+    }
+    const { envelope } = await done;
+
+    assert.equal(maxInFlight, FANOUT_CONCURRENCY);
+    const buckets = bucketsOf(envelope);
+    assert.equal(buckets[`pr-${failing}-notes.md`], 'kept');
+    for (const id of ids.filter((n) => n !== failing)) {
+      assert.equal(buckets[`pr-${id}-notes.md`], 'closed-issue', String(id));
+    }
   });
 });
 

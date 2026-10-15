@@ -16,6 +16,7 @@ import path from 'node:path';
 import { syncCodexSkills } from './lib/codex/skills-projection.js';
 import { applyHeader, isCommandExcluded } from './lib/command-header.js';
 import { Logger } from './lib/Logger.js';
+import { dirExists } from './lib/util/paths.js';
 
 // The root is cwd, never `__dirname/../..`: installed under node_modules that
 // climb lands on the package dir and would write commands inside it.
@@ -36,18 +37,6 @@ export const HEADER =
 
 export const LOCAL_HEADER =
   '<!-- AUTO-GENERATED from .agents/local/ — do not edit. Source of truth: .agents/local/workflows/ -->\n<!-- Re-run: npm run sync:commands -->\n\n';
-
-/**
- * @param {string} dir
- * @returns {boolean}
- */
-function dirExists(dir) {
-  try {
-    return fs.statSync(dir).isDirectory();
-  } catch {
-    return false;
-  }
-}
 
 /**
  * Remove any on-disk plugin projection and marketplace listing, which would

@@ -14,7 +14,7 @@ import {
   resolveTestGateArgv,
 } from './close-validation/commands.js';
 import { resolveConfig } from './config-resolver.js';
-import { gitSpawn as defaultGitSpawn } from './git-utils.js';
+import { gitSpawn as defaultGitSpawn, parseStoryBranch } from './git-utils.js';
 import {
   recordPass as defaultRecordPass,
   shouldSkip as defaultShouldSkip,
@@ -77,10 +77,7 @@ function gitLine(gitSpawnFn, cwd, args) {
  * @returns {number|null}
  */
 export function storyIdFromBranch(branch) {
-  const match = /^story-(\d+)$/.exec(branch ?? '');
-  if (!match) return null;
-  const id = Number.parseInt(match[1], 10);
-  return Number.isInteger(id) && id > 0 ? id : null;
+  return parseStoryBranch(branch);
 }
 
 /**

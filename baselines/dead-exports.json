@@ -59,10 +59,6 @@
       "symbol": "__testing"
     },
     {
-      "file": ".agents/scripts/lib/Logger.js",
-      "symbol": "STDERR_LOGGER"
-    },
-    {
       "file": ".agents/scripts/lib/onboard/init-tail.js",
       "symbol": "*"
     },

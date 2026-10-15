@@ -4,7 +4,7 @@
  * @module lib/orchestration/plan-persist/persist-helpers
  */
 
-import { gitSpawn } from '../../git-utils.js';
+import { gitSpawn, pathExistsAtBase } from '../../git-utils.js';
 import { validateTaskBodies } from '../task-body-validator.js';
 import { validateAndNormalizeTickets } from '../ticket-validator.js';
 import { normalizeAcceptanceHandles } from './acceptance-handle-repair.js';
@@ -48,23 +48,6 @@ function resolveProbeRef({ baseBranch, cwd }) {
 }
 
 /**
- * The validator gates' own probe, so repair and gates agree on what is at
- * base.
- *
- * @param {{ baseBranchRef: string, path: string, cwd?: string }} opts
- * @returns {boolean}
- */
-function defaultGitRunner({ baseBranchRef, path, cwd }) {
-  const result = gitSpawn(
-    cwd ?? process.cwd(),
-    'cat-file',
-    '-e',
-    `${baseBranchRef}:${path}`,
-  );
-  return result.status === 0;
-}
-
-/**
  * With no base to read, a bare bullet is taken as an in-place edit.
  *
  * @param {{ baseBranchRef: string|null, cwd?: string, gitRunner?: Function }} opts
@@ -72,7 +55,7 @@ function defaultGitRunner({ baseBranchRef, path, cwd }) {
  */
 function makeExistsAtBase({ baseBranchRef, cwd, gitRunner }) {
   if (baseBranchRef === null) return () => true;
-  const runner = gitRunner ?? defaultGitRunner;
+  const runner = gitRunner ?? pathExistsAtBase;
   return (path) => Boolean(runner({ baseBranchRef, path, cwd }));
 }
 

@@ -5,6 +5,7 @@
 
 import { execFileSync, spawnSync } from 'node:child_process';
 import { execFileCapture, spawnCapture } from './child-exec.js';
+import { defaultSleep } from './util/sleep.js';
 
 /**
  * `status` is 1 when null (signal); output is trimmed.
@@ -151,14 +152,6 @@ function isPackedRefsContention(stderr) {
 }
 
 /**
- * @param {number} ms
- * @returns {Promise<void>}
- */
-function defaultSleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/**
  * @type {(ms: number) => Promise<void>}
  */
 let _sleep = defaultSleep;
@@ -268,7 +261,21 @@ export function getStoryBranch(storyId) {
   return `story-${id}`;
 }
 
-const STORY_BRANCH_RE = /^story-(\d+)$/;
+/**
+ * Whether `path` exists in the tree at `baseBranchRef` (`git cat-file -e`).
+ *
+ * @param {{ baseBranchRef: string, path: string, cwd?: string }} opts
+ * @returns {boolean}
+ */
+export function pathExistsAtBase({ baseBranchRef, path, cwd }) {
+  return (
+    gitSpawn(cwd ?? process.cwd(), 'cat-file', '-e', `${baseBranchRef}:${path}`)
+      .status === 0
+  );
+}
+
+/** Positive ids only: `story-0` (and a zero-padded id) is not a Story branch. */
+const STORY_BRANCH_RE = /^story-([1-9]\d*)$/;
 
 /**
  * @param {string} name

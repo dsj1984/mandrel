@@ -14,6 +14,7 @@ import yaml from 'js-yaml';
 import picomatch from 'picomatch';
 
 import { Logger } from './Logger.js';
+import { toPosix } from './util/paths.js';
 
 /** npm package name → pending tag. Preferred-first: the first match wins. */
 export const BDD_RUNNER_TAG_TABLE = Object.freeze({
@@ -28,13 +29,13 @@ export const BDD_RUNNER_TAG_TABLE = Object.freeze({
  * `skip` forms (parsers may strip the `@`).
  */
 export const PENDING_TAGS = Object.freeze(
-  new Set(
-    Object.values(BDD_RUNNER_TAG_TABLE).flatMap((tag) => [
-      tag,
-      tag.startsWith('@') ? tag.slice(1) : `@${tag}`,
-    ]),
-  ),
+  new Set(Object.values(BDD_RUNNER_TAG_TABLE).flatMap(withAndWithoutAt)),
 );
+
+/** @param {string} tag */
+function withAndWithoutAt(tag) {
+  return [tag, tag.startsWith('@') ? tag.slice(1) : `@${tag}`];
+}
 
 const FALLBACK = Object.freeze({
   runner: null,
@@ -268,10 +269,6 @@ function walkPackages({
 
 function hasGlobChar(s) {
   return /[*?[]/.test(s);
-}
-
-function toPosix(p) {
-  return p.split(path.sep).join('/');
 }
 
 function existsSyncDir(p, logger) {
