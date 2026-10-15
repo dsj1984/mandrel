@@ -274,7 +274,8 @@ export function pathExistsAtBase({ baseBranchRef, path, cwd }) {
   );
 }
 
-const STORY_BRANCH_RE = /^story-(\d+)$/;
+/** Positive ids only: `story-0` (and a zero-padded id) is not a Story branch. */
+const STORY_BRANCH_RE = /^story-([1-9]\d*)$/;
 
 /**
  * @param {string} name
@@ -283,8 +284,7 @@ const STORY_BRANCH_RE = /^story-(\d+)$/;
 export function parseStoryBranch(name) {
   if (typeof name !== 'string') return null;
   const match = STORY_BRANCH_RE.exec(name);
-  const id = match ? Number.parseInt(match[1], 10) : 0;
-  return id > 0 ? id : null;
+  return match ? Number.parseInt(match[1], 10) : null;
 }
 
 /**
