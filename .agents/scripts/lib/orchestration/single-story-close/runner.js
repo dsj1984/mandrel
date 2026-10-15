@@ -15,8 +15,12 @@ import { createProvider } from '../../provider-factory.js';
 import { flipLabelAndNotify } from '../../single-story/story-merged-notify.js';
 import { WorktreeManager } from '../../worktree-manager.js';
 import { runCodeReview as runCodeReviewDefault } from '../code-review.js';
+import { resolveOperatorFromCandidates } from '../lease-guard-shared.js';
 import { resolveRunScopedConfig } from '../run-scoped-config.js';
-import { releaseStoryLease } from '../single-story-lease-guard.js';
+import {
+  acquireStoryLease,
+  releaseStoryLease,
+} from '../single-story-lease-guard.js';
 import { createStoryProgress } from '../story-progress.js';
 import { createPhaseTimer } from './phase-timer.js';
 import { parsePrNumber } from './phases/code-review.js';
@@ -71,6 +75,37 @@ async function releaseLease({ storyId }, deps) {
 }
 
 /**
+ * Re-take the Story lease before any gate, push or PR write: a block released
+ * it, and init is the only other acquirer, so a re-close would otherwise run
+ * unassigned and unguarded. No steal — a foreign holder throws init's
+ * refusal. No configured operator handle skips the acquire (release is
+ * best-effort for the same reason), so close never newly hard-fails on it.
+ */
+async function acquireLease({ storyId }, deps) {
+  const operator = resolveOperatorFromCandidates({
+    candidates: [deps.config?.github?.operatorHandle],
+  });
+  if (operator === null) {
+    progress(
+      'LEASE',
+      `⚠️ Story #${storyId} lease not taken: github.operatorHandle is unset.`,
+    );
+    return null;
+  }
+  const lease = await deps.acquireLease({
+    provider: deps.provider,
+    storyId,
+    config: deps.config,
+    operator,
+  });
+  progress(
+    'LEASE',
+    `🔒 Story #${storyId} lease ${lease.reason} (owner=@${lease.owner}).`,
+  );
+  return lease;
+}
+
+/**
  * Release the lease best-effort before re-throwing a blocked-prone phase's
  * error verbatim. The lease has no TTL, so a stranded claim would refuse the
  * next operator who picks up the blocked Story.
@@ -118,6 +153,7 @@ function resolveCloseDeps(options, injected) {
     runCodeReview: injected.injectedRunCodeReview ?? runCodeReviewDefault,
     gh: injected.injectedGh,
     gitSpawn: injected.injectedGitSpawn,
+    acquireLease: injected.injectedAcquireLease ?? acquireStoryLease,
     releaseLease: injected.injectedReleaseLease ?? releaseStoryLease,
     graphqlProbe: injected.injectedGraphqlProbe,
     sleep: injected.injectedSleep,
@@ -212,7 +248,10 @@ export async function runSingleStoryClose({
 async function loadStoryPhase(ctx, deps) {
   progress('INIT', `Closing standalone Story #${ctx.storyId}...`);
   ctx.story = await deps.provider.getTicket(ctx.storyId);
-  if (ctx.story.state !== 'closed') return null;
+  if (ctx.story.state !== 'closed') {
+    await acquireLease(ctx, deps);
+    return null;
+  }
   await reconcileDoneLabel(ctx, deps, progress);
   return await alreadyClosedResult(
     ctx.storyId,

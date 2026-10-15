@@ -3093,3 +3093,194 @@ describe('runSingleStoryClose — pipeline endings past the PR phase', () => {
     assert.equal(terminal.phase, 'auto-merge');
   });
 });
+
+describe('runSingleStoryClose — close re-takes the Story lease (Story #5706)', () => {
+  /** A provider that applies assignee patches the way GitHub does. */
+  function leaseProvider(initialStory, events) {
+    let story = { ...initialStory };
+    const updates = [];
+    return {
+      getTicket: async () => ({ ...story }),
+      updateTicket: async (id, patch) => {
+        updates.push({ id, patch });
+        if (patch.addAssignees || patch.assignees) events.push('lease');
+        const assignees =
+          patch.assignees ??
+          (patch.addAssignees
+            ? [...(story.assignees ?? []), ...patch.addAssignees]
+            : story.assignees);
+        const { addAssignees: _add, ...rest } = patch;
+        story = { ...story, ...rest, assignees };
+      },
+      _story: () => story,
+      _updates: () => updates,
+    };
+  }
+
+  function leaseConfig() {
+    return { ...fakeConfig(), github: { operatorHandle: '@alice' } };
+  }
+
+  function recordingGh(events) {
+    return makeFakeGh((args) => {
+      events.push(`gh:${args[1]}`);
+      if (args[1] === 'list') return [];
+      if (args[1] === 'create')
+        return 'https://github.com/owner/repo/pull/5706\n';
+      if (args[1] === 'merge') return 'ok';
+      throw new Error(`unexpected gh: ${args.join(' ')}`);
+    });
+  }
+
+  function recordingGit(events) {
+    return defaultGitUtilsMock({
+      pushImpl: (_cwd, ...args) => {
+        events.push(`git:${args[0]}`);
+        return { status: 0, stdout: '', stderr: '' };
+      },
+    });
+  }
+
+  it('AC-4: an unassigned open Story is assigned to the operator before any push or PR write', async (t) => {
+    const events = [];
+    t.mock.module(GIT_UTILS_URL, recordingGit(events));
+    mockCloseValidation(t, defaultCloseValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
+    const provider = leaseProvider(
+      {
+        id: 5706,
+        state: 'open',
+        title: 're-close after a block',
+        labels: ['agent::blocked'],
+        assignees: [],
+      },
+      events,
+    );
+    const { runSingleStoryClose } = await import(
+      `${SUT_URL}?t=lease-reacquire`
+    );
+    await runSingleStoryClose({
+      storyId: 5706,
+      cwd: '/repo',
+      skipValidation: true,
+      skipSync: true,
+      noWaitForMerge: true,
+      injectedProvider: provider,
+      injectedConfig: leaseConfig(),
+      injectedGh: recordingGh(events),
+      injectedRunCodeReview: noopReview(),
+      injectedReleaseLease: async () => ({
+        released: false,
+        owner: 'alice',
+        reason: 'not-held',
+      }),
+    });
+    assert.deepEqual(provider._story().assignees, ['alice']);
+    assert.equal(events[0], 'lease', `lease first, got ${events.join(',')}`);
+    assert.ok(
+      events.some((e) => e === 'gh:create'),
+      'the close went on to open the PR',
+    );
+  });
+
+  it('AC-5: a foreign holder refuses the close with init wording before anything is pushed', async (t) => {
+    const events = [];
+    t.mock.module(GIT_UTILS_URL, recordingGit(events));
+    mockCloseValidation(t, defaultCloseValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
+    const provider = leaseProvider(
+      {
+        id: 5707,
+        state: 'open',
+        title: 'someone else owns it',
+        labels: ['agent::executing'],
+        assignees: ['bob'],
+      },
+      events,
+    );
+    const { runSingleStoryClose } = await import(`${SUT_URL}?t=lease-foreign`);
+    await assert.rejects(
+      runSingleStoryClose({
+        storyId: 5707,
+        cwd: '/repo',
+        skipValidation: true,
+        skipSync: true,
+        noWaitForMerge: true,
+        injectedProvider: provider,
+        injectedConfig: leaseConfig(),
+        injectedGh: recordingGh(events),
+        injectedRunCodeReview: noopReview(),
+      }),
+      /single-story lease: Story #5707 is currently held by @bob\. Another \/mandrel-deliver run owns this Story/,
+    );
+    assert.deepEqual(events, [], 'no push, no PR write, no lease write');
+    assert.deepEqual(provider._story().assignees, ['bob']);
+  });
+
+  it('AC-5: an already-closed Story takes no lease', async (t) => {
+    t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
+    mockCloseValidation(t, defaultCloseValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
+    const acquires = [];
+    const { runSingleStoryClose } = await import(`${SUT_URL}?t=lease-closed`);
+    const { result } = await runSingleStoryClose({
+      storyId: 5708,
+      cwd: '/repo',
+      skipValidation: true,
+      skipSync: true,
+      noWaitForMerge: true,
+      injectedProvider: makeFakeProvider({
+        initialStory: {
+          id: 5708,
+          state: 'closed',
+          title: 'Done',
+          labels: ['agent::done'],
+        },
+      }),
+      injectedConfig: leaseConfig(),
+      injectedRunCodeReview: noopReview(),
+      injectedGh: makeFakeGh(() => {
+        throw new Error('gh must not be invoked when noop');
+      }),
+      injectedAcquireLease: async (args) => {
+        acquires.push(args.storyId);
+        return { acquired: true, owner: 'alice', reason: 'unclaimed' };
+      },
+    });
+    assert.equal(result.reason, 'already-closed');
+    assert.deepEqual(acquires, []);
+  });
+
+  it('skips the acquire when no operator handle is configured', async (t) => {
+    t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
+    mockCloseValidation(t, defaultCloseValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
+    const acquires = [];
+    const { runSingleStoryClose } = await import(
+      `${SUT_URL}?t=lease-no-handle`
+    );
+    await runSingleStoryClose({
+      storyId: 5709,
+      cwd: '/repo',
+      skipValidation: true,
+      skipSync: true,
+      noWaitForMerge: true,
+      injectedProvider: makeFakeProvider({
+        initialStory: {
+          id: 5709,
+          state: 'open',
+          title: 'no handle',
+          labels: ['agent::executing'],
+        },
+      }),
+      injectedConfig: fakeConfig(),
+      injectedRunCodeReview: noopReview(),
+      injectedGh: recordingGh([]),
+      injectedAcquireLease: async (args) => {
+        acquires.push(args.storyId);
+        return { acquired: true, owner: 'alice', reason: 'unclaimed' };
+      },
+    });
+    assert.deepEqual(acquires, []);
+  });
+});

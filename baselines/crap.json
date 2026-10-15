@@ -28386,6 +28386,12 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "method": "readAutoMergeEnabledAt",
+      "startLine": 149,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "readPrWaitProbe",
       "startLine": 154,
       "crap": 1
@@ -28417,9 +28423,22 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "method": "parseTimestampMs",
+      "startLine": 294,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "method": "unlandedRemedy",
       "startLine": 311,
       "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "method": "<anon resolveBudgetAnchorMs/(ms)#0>",
+      "startLine": 313,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
@@ -29945,6 +29964,12 @@
       "startLine": 67,
       "crap": 1,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
+      "method": "acquireLease",
+      "startLine": 84,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
