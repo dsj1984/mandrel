@@ -7961,6 +7961,12 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/coverage-updater-cli.js",
+      "method": "readOrRefuse",
+      "startLine": 56,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/coverage-updater-cli.js",
       "method": "readOrReport",
       "startLine": 62,
       "crap": 2
@@ -8092,6 +8098,12 @@
       "startLine": 136,
       "crap": 6,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
+      "method": "refuseMissingCoverage",
+      "startLine": 140,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
@@ -9561,6 +9573,12 @@
       "method": "buildDefaultCrapScorer",
       "startLine": 78,
       "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/refresh-service.js",
+      "method": "refuseMissingArtifact",
+      "startLine": 82,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
@@ -35057,9 +35075,21 @@
     },
     {
       "path": ".agents/scripts/lib/validation-evidence.js",
+      "method": "writeEvidenceAtomically",
+      "startLine": 227,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/validation-evidence.js",
       "method": "treeFingerprint",
       "startLine": 231,
       "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/validation-evidence.js",
+      "method": "reapTmp",
+      "startLine": 240,
+      "crap": 2.0932944606413995
     },
     {
       "path": ".agents/scripts/lib/validation-evidence.js",
