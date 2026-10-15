@@ -498,6 +498,15 @@ about a project's own suites that no constant can know; the admission budget
 scales with the host. No existing key displaces them: `fullSuiteLock` stays
 the on/off switch.
 
+**Raised to 136 (2026-10-15, Story #5693)** for `github.cliConfigDir`, the
+dedicated `gh` credential store (`GH_CONFIG_DIR`) a project pins Mandrel to.
+An operator who keeps several GitHub accounts otherwise has every `gh` child
+Mandrel spawns read whichever account the default store happens to hold, so a
+mutation can land as the wrong identity. Which store holds the right account
+is a fact about one operator's machine that no constant can know, so it lives
+in `.agentrc.local.json`. No existing key displaces it: `operatorHandle` names
+the expected identity, not where its credentials live.
+
 ### Consequences
 
 - A tuning value is changed by editing the constant and shipping a release,

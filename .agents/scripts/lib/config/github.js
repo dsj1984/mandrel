@@ -59,6 +59,7 @@ export const NOTIFICATIONS_DEFAULTS = Object.freeze({
  *   projectNumber: number|null,
  *   projectOwner: string|null,
  *   operatorHandle: string|null,
+ *   cliConfigDir: string|null,
  *   branchProtection: { enforce: boolean, requiredChecks: Array<{name:string,cmd:readonly string[]}> },
  *   mergeMethods: typeof MERGE_METHODS_DEFAULTS,
  *   notifications: typeof NOTIFICATIONS_DEFAULTS,
@@ -81,6 +82,7 @@ export function getGitHub(config) {
     projectNumber: gh.projectNumber ?? null,
     projectOwner: gh.projectOwner ?? null,
     operatorHandle: gh.operatorHandle ?? null,
+    cliConfigDir: gh.cliConfigDir ?? null,
     branchProtection: {
       enforce:
         typeof userBranchProtection.enforce === 'boolean'

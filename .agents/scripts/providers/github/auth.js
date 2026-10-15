@@ -1,10 +1,15 @@
 /**
  * GitHub Provider — token resolution: GITHUB_TOKEN / GH_TOKEN env →
- * `gh auth token` → instructive throw. `execSync` sits behind a holder so
- * tests can swap it.
+ * `gh auth token` → classified throw (`gh-token-diagnostics.js`). `execSync`
+ * sits behind a holder so tests can swap it.
  */
 
 import { execSync as defaultExecSync } from 'node:child_process';
+import {
+  describeTokenFailure,
+  runGhAuthToken,
+  TOKEN_SOURCE_ENV,
+} from './gh-token-diagnostics.js';
 
 export const execSyncHolder = { impl: defaultExecSync };
 
@@ -14,30 +19,8 @@ export function __setExecSyncForTests(fn) {
 
 /* node:coverage ignore next */
 export function readGhCliToken() {
-  try {
-    const t = execSyncHolder
-      .impl('gh auth token', {
-        encoding: 'utf8',
-        timeout: 5000,
-        stdio: ['pipe', 'pipe', 'pipe'],
-      })
-      .trim();
-    return t || null;
-  } catch {
-    // gh CLI not installed or not authenticated.
-    return null;
-  }
+  return runGhAuthToken(execSyncHolder.impl);
 }
-
-const TOKEN_MISSING_ERROR = [
-  '[GitHubProvider] Authentication Failed: No GitHub token found.',
-  '',
-  'To resolve this, choose one of the following:',
-  '  A. (CI/CD / Agent Script) Set the GITHUB_TOKEN or GH_TOKEN environment variable.',
-  '  B. (Local) Run `gh auth login` to authenticate the GitHub CLI.',
-  '',
-  'See .agents/README.md#github-authentication for details.',
-].join('\n');
 
 /* node:coverage ignore next */
 function readEnvToken() {
@@ -46,15 +29,17 @@ function readEnvToken() {
 
 /* node:coverage ignore next */
 function memoizeEnvToken(token) {
-  if (!process.env.GITHUB_TOKEN) process.env.GITHUB_TOKEN = token;
+  if (process.env.GITHUB_TOKEN) return;
+  process.env.GITHUB_TOKEN = token;
+  process.env[TOKEN_SOURCE_ENV] = 'gh-cli';
 }
 
 /* node:coverage ignore next */
 export function resolveToken() {
   const envToken = readEnvToken();
   if (envToken) return envToken;
-  const ghToken = readGhCliToken();
-  if (!ghToken) throw new Error(TOKEN_MISSING_ERROR);
-  memoizeEnvToken(ghToken);
-  return ghToken;
+  const result = readGhCliToken();
+  if (!result.token) throw new Error(describeTokenFailure(result));
+  memoizeEnvToken(result.token);
+  return result.token;
 }

@@ -17,6 +17,7 @@ import {
   isTransientByCodeOrMessage,
   isTransientStatus,
 } from './github/errors.js';
+import { gateProviderGh } from './github/identity.js';
 import * as projects from './github/projects-v2-graphql.js';
 
 export {
@@ -45,8 +46,15 @@ export class GitHubProvider extends ITicketingProvider {
     this._explicitToken = opts.token ?? null;
     this._memoizedToken = opts.token ?? null;
     // An injected `opts.gh` is honored as-is (test seam).
-    this._gh =
-      opts.gh ?? createGh(undefined, { timeoutMs: GH_DEFAULT_TIMEOUT_MS });
+    // Sets `_gh` (writes gated on the identity preflight) and `_ensureIdentity`.
+    Object.assign(
+      this,
+      gateProviderGh(
+        opts.gh ?? createGh(undefined, { timeoutMs: GH_DEFAULT_TIMEOUT_MS }),
+        this.operatorHandle,
+        opts,
+      ),
+    );
     this._cache = createInlineTicketCache();
     composeGateways(this);
   }

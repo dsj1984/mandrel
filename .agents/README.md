@@ -143,6 +143,17 @@ gitignored:
   `project_doc_max_bytes` (default 32768). Bootstrap puts the Mandrel block at
   the top for that reason; raise the limit in `.codex/config.toml` if your own
   notes below it are cut.
+- **Direct `gh` calls keep the pinned store.** Mandrel's scripts set
+  `GH_CONFIG_DIR` from `github.cliConfigDir` themselves (see
+  [GitHub authentication](#github-authentication)), but a `gh` command the
+  agent runs directly, outside a Mandrel script, does not. Export the same
+  `GH_CONFIG_DIR` in the host's environment config (Codex
+  `shell_environment_policy` in `.codex/config.toml`, or Claude Code `env` in
+  `.claude/settings.local.json`), or prefix the command
+  (`GH_CONFIG_DIR=~/.config/gh-work gh pr view`). When a sandbox blocks the
+  network, `gh` fails with a connection error. That is not an expired login:
+  re-run the command with escalated, network-enabled permissions instead of
+  `gh auth login`.
 - **Doctor.** `mandrel doctor` adds `codex-skills-in-sync`,
   `codex-agents-in-sync` (remedy: re-run `mandrel sync-commands` /
   `mandrel sync-agents`) and `codex-instructions`, which fails when the
@@ -588,6 +599,36 @@ PATs need `repo` and `project`.
 Set `GITHUB_TOKEN` in the process environment or in `.env` at the
 project root; the resolver auto-loads `.env`. For local interactive
 sessions, `gh auth login` is sufficient.
+
+**Pinning one account (`github.cliConfigDir`).** If you keep several GitHub
+accounts, give the project its own `gh` credential store and point Mandrel at
+it in the gitignored `.agentrc.local.json` (the key is accepted in
+`.agentrc.json` too, but the path is operator-local):
+
+```json
+{ "github": { "cliConfigDir": "~/.config/gh-work" } }
+```
+
+Log that store in once with `GH_CONFIG_DIR=~/.config/gh-work gh auth login`.
+A relative path resolves against the project root and a leading `~` expands
+to your home directory; a directory that does not exist is a config error,
+never a silent fall-back to the default store. Config resolution exports
+`GH_CONFIG_DIR` to the resolved path, so every `gh` call Mandrel makes, and
+every child process it spawns, reads that store. A differing inherited
+`GH_CONFIG_DIR` is overridden with one warning.
+
+**Identity check.** When `github.operatorHandle` is set (not the `@[USERNAME]`
+placeholder) and the credential comes from the `gh` store, the provider
+checks the store's login (`GET /user`, once per process) before its first
+write and refuses on a mismatch. The refusal names the expected handle, the
+actual login and the `GH_CONFIG_DIR` in effect. An exported `GITHUB_TOKEN` /
+`GH_TOKEN` (CI, bots) is exempt.
+
+**Transport is not auth.** A sandbox or network fault (a denied spawn, a
+timeout, DNS or connection failures, an unreadable config dir) is reported as
+transport: credentials were not checked, so re-authenticating will not help.
+Re-run with network access instead. Only a confirmed not-logged-in or
+HTTP 401 result tells you to run `gh auth login`.
 
 ---
 

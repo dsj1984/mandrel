@@ -4,6 +4,12 @@
  */
 
 import { spawn as defaultSpawn } from 'node:child_process';
+import {
+  isTransportFailure,
+  sandboxDenialCode,
+  TRANSPORT_FAILURE_PATTERN,
+  TRANSPORT_REMEDY,
+} from './gh-transport.js';
 
 let _spawnCount = 0;
 
@@ -49,6 +55,17 @@ export class GhAuthError extends GhExecError {
   constructor(message, details = {}) {
     super(message, details);
     this.name = 'GhAuthError';
+  }
+}
+
+/**
+ * Sandbox or network fault: `gh` never reached GitHub (or its own config), so
+ * credentials were not assessed and re-authenticating will not help.
+ */
+class GhTransportError extends GhExecError {
+  constructor(message, details = {}) {
+    super(message, details);
+    this.name = 'GhTransportError';
   }
 }
 
@@ -126,7 +143,16 @@ const CLASSIFY_RULES = [
       ),
   },
   {
-    pattern: /requires authentication|not logged into|authentication required/,
+    pattern: TRANSPORT_FAILURE_PATTERN,
+    build: (d) =>
+      new GhTransportError(
+        `gh-exec: gh could not reach GitHub or its config — ${TRANSPORT_REMEDY}`,
+        d,
+      ),
+  },
+  {
+    pattern:
+      /requires authentication|not logged into|authentication required|http 401|bad credentials/,
     build: (d) =>
       new GhAuthError(
         'gh-exec: gh is not authenticated — run `gh auth login`',
@@ -164,7 +190,13 @@ function classifySpawnError(spawnError, details) {
       details,
     );
   }
-  return null;
+  const denied = sandboxDenialCode(spawnError);
+  return denied
+    ? new GhTransportError(
+        `gh-exec: spawning gh was denied (${denied}) — ${TRANSPORT_REMEDY}`,
+        details,
+      )
+    : null;
 }
 
 export function classify({
@@ -211,6 +243,7 @@ export function exec({
   const spawnOpts = {
     stdio: ['pipe', 'pipe', 'pipe'],
     shell: false,
+    env: process.env,
   };
   if (typeof timeoutMs === 'number' && timeoutMs > 0) {
     spawnOpts.timeout = timeoutMs;
@@ -450,6 +483,9 @@ function classifyGraphqlProbeFailure(err) {
     /http 401|bad credentials|requires authentication|not logged into|gh auth login/.test(
       haystack,
     );
+  // Transport first: a sandbox/network fault never earns the re-auth copy.
+  if (isTransportFailure(err))
+    return { verdict: 'available', reason: 'transport-inconclusive' };
   if (authShaped) return { verdict: 'auth-failed', reason: 'auth' };
   const rateLimited =
     err instanceof GhRateLimitError || /rate[ -]?limit/.test(haystack);
