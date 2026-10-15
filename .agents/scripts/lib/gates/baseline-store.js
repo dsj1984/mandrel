@@ -48,6 +48,16 @@ function defaultReadFromTree({ baselinePath, projectRoot } = {}) {
   return JSON.parse(fs.readFileSync(abs, 'utf8'));
 }
 
+/** Ratchet-gate read: `null` when missing, unparseable or not an object. */
+export function readJsonBaseline(baselinePath) {
+  try {
+    const parsed = defaultReadFromTree({ baselinePath });
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * A gate may supply `readFromTree` for a "missing → empty" bootstrap (MI
  * returns `{}`); the default throws `BaselineNotFoundError`.

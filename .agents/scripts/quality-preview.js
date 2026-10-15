@@ -6,14 +6,13 @@
  * scored for the branch's own work, not everything the base landed.
  */
 
-import path from 'node:path';
 import process from 'node:process';
 import {
   runCrapPreview,
   runMaintainabilityPreview,
 } from './lib/baselines/preview-gates.js';
 import { resolveMergeHead } from './lib/changed-files.js';
-import { respondToHelp } from './lib/cli-usage.js';
+import { runAsCli } from './lib/cli-utils.js';
 import { CODING_GUARDRAILS } from './lib/config/quality.js';
 
 const USAGE = {
@@ -537,20 +536,8 @@ export async function runCli({
   };
 }
 
-// cli-opt-out: Windows-aware main-guard with leading-slash drive-letter normalisation; mirrors quality-watch.js so the diagnostic surface stays consistent across the gate suite.
-const isDirect = (() => {
-  try {
-    const invoked = process.argv[1] ? path.resolve(process.argv[1]) : '';
-    const self = new URL(import.meta.url).pathname;
-    const normalizedSelf = /^\/[A-Za-z]:/.test(self) ? self.slice(1) : self;
-    return path.resolve(normalizedSelf) === invoked;
-  } catch {
-    return false;
-  }
-})();
-
-if (isDirect && !respondToHelp(process.argv.slice(2), USAGE)) {
-  runCli().then(({ exitCode }) => {
-    process.exit(exitCode);
-  });
-}
+runAsCli(import.meta.url, async () => (await runCli()).exitCode, {
+  source: 'quality:preview',
+  propagateExitCode: true,
+  usage: USAGE,
+});

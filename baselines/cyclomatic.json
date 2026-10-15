@@ -103,11 +103,6 @@
       "maxCyclomatic": 13
     },
     {
-      "file": ".agents/scripts/notify.js",
-      "methodsAboveCeiling": 1,
-      "maxCyclomatic": 17
-    },
-    {
       "file": ".agents/scripts/stories-wave-tick.js",
       "methodsAboveCeiling": 1,
       "maxCyclomatic": 15

@@ -9,6 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import { parseGateArgv } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { getQuality, resolveConfig } from './lib/config-resolver.js';
 import {
@@ -20,47 +21,22 @@ import {
   scanCyclomatic,
 } from './lib/cyclomatic-ceiling.js';
 import { resolveScanScope } from './lib/cyclomatic-scope.js';
+import { readJsonBaseline } from './lib/gates/baseline-store.js';
 
 /**
  * @param {string[]} argv
  * @returns {{ baselinePath: string | null, json: boolean, update: boolean }}
  */
 function parseArgv(argv = []) {
-  let baselinePath = null;
-  let json = false;
-  let update = false;
-  for (let i = 0; i < argv.length; i += 1) {
-    const a = argv[i];
-    if (a === '--baseline') {
-      const next = argv[i + 1];
-      if (next && !next.startsWith('--')) {
-        baselinePath = next;
-        i += 1;
-      }
-    } else if (a === '--json') {
-      json = true;
-    } else if (a === '--update') {
-      update = true;
-    }
-  }
-  return { baselinePath, json, update };
-}
-
-/**
- * `null` when missing or unparseable — treated as empty, so a first run
- * reports every breach rather than silently passing.
- *
- * @param {string} baselinePath
- * @returns {{ ceiling?: number, rows?: Array<object> } | null}
- */
-function loadCyclomaticBaseline(baselinePath) {
-  try {
-    if (!fs.existsSync(baselinePath)) return null;
-    const parsed = JSON.parse(fs.readFileSync(baselinePath, 'utf-8'));
-    return parsed && typeof parsed === 'object' ? parsed : null;
-  } catch {
-    return null;
-  }
+  const flags = parseGateArgv(argv, {
+    strings: ['baseline'],
+    booleans: ['json', 'update'],
+  });
+  return {
+    baselinePath: flags.baseline,
+    json: flags.json,
+    update: flags.update,
+  };
 }
 
 /**
@@ -145,7 +121,7 @@ function warnAboutBaseline({ baseline, mustFix, baselinePath, stderr }) {
  *   stderr?: { write: (s: string) => void },
  *   resolveConfigImpl?: typeof resolveConfig,
  *   scanImpl?: typeof scanCyclomatic,
- *   loadBaselineImpl?: typeof loadCyclomaticBaseline,
+ *   loadBaselineImpl?: typeof readJsonBaseline,
  *   writeFileImpl?: (p: string, data: string) => void,
  * }} [opts]
  * @returns {Promise<number>} 0 = clean / improved; 1 = ratchet breached
@@ -157,7 +133,7 @@ export async function runCli({
   stderr = process.stderr,
   resolveConfigImpl = resolveConfig,
   scanImpl = scanCyclomatic,
-  loadBaselineImpl = loadCyclomaticBaseline,
+  loadBaselineImpl = readJsonBaseline,
   writeFileImpl = (p, data) => fs.writeFileSync(p, data),
 } = {}) {
   const { baselinePath, json, update } = parseArgv(argv);
