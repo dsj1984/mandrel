@@ -5,8 +5,11 @@
  * Two timing domains: `maxWaitSeconds` bounds THIS invocation (it must fit
  * the host's ~10-min tool ceiling after the close gates) and expires to a
  * resumable `pending` with no mutation; `maxBudgetSeconds` bounds the
- * cumulative wait, anchored at the PR's `createdAt` so resumes don't restart
- * it, and exhausting it is the real give-up (classify, emit, block). The
+ * cumulative wait, anchored at the latest auto-merge arm
+ * (`autoMergeRequest.enabledAt`, else the PR's `createdAt`): every close
+ * re-arms, so a re-close gets a fresh budget, while a `--wait` resume does
+ * not re-arm and keeps the clock. Exhausting it is the real give-up
+ * (classify, emit, block). The
  * poll is stateless and re-entrant. Async mode probes once (see
  * ASYNC_PROBE_WINDOW_SECONDS). Checks are probed every iteration so a red required
  * check fails fast instead of burning the budget.
@@ -78,7 +81,7 @@ export const DEFAULT_UPDATE_ATTEMPTS = 3;
 
 /**
  * Minimum polls before the cumulative budget may block: the clock is anchored
- * at `createdAt`, so a long-open PR is over budget on its first probe and
+ * at the latest arm, so a long-armed PR is over budget on its first probe and
  * would otherwise block without ever having waited.
  */
 export const MIN_POLLS_BEFORE_BUDGET_BLOCK = 2;
@@ -140,6 +143,17 @@ function readAutoMergeArmed(view) {
 }
 
 /**
+ * When auto-merge was last armed — the budget anchor; `null` when disarmed
+ * or unreadable, so the anchor falls back to `createdAt`.
+ *
+ * @param {object|null|undefined} view
+ * @returns {string|null}
+ */
+function readAutoMergeEnabledAt(view) {
+  return readString(view?.autoMergeRequest?.enabledAt, null);
+}
+
+/**
  * `inMergeQueue` for a green open PR, the only state GitHub enqueues from;
  * `undefined` otherwise, so the common poll pays no extra call. An enqueued
  * PR has no auto-merge request and can read BLOCKED — neither is a disarm.
@@ -197,6 +211,7 @@ export async function readPrWaitProbe({
       state: readString(view?.state, null),
       mergedAt: readString(view?.mergedAt, null),
       createdAt: readString(view?.createdAt, null),
+      autoMergeEnabledAt: readAutoMergeEnabledAt(view),
       mergeStateStatus: readString(view?.mergeStateStatus),
       reviewDecision: readString(view?.reviewDecision),
       checksStatus,
@@ -279,16 +294,27 @@ export function resolveMergeWaitConfig(
   };
 }
 
+function parseTimestampMs(value) {
+  if (typeof value !== 'string' || !value) return null;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 /**
- * Budget anchor; without `createdAt` it falls back to this invocation's start
- * (worst case a fresh budget, never a premature block).
+ * Budget anchor: the later of `createdAt` and the auto-merge arm time
+ * (`enabledAt`), so a re-close that re-arms starts a fresh budget. With
+ * neither readable it falls back to this invocation's start (worst case a
+ * fresh budget, never a premature block).
  *
+ * @param {{ createdAt?: string|null, enabledAt?: string|null, fallbackMs: number }} args
  * @returns {number} epoch ms
  */
-export function resolveBudgetAnchorMs({ createdAt, fallbackMs }) {
-  if (typeof createdAt !== 'string' || !createdAt) return fallbackMs;
-  const parsed = Date.parse(createdAt);
-  return Number.isFinite(parsed) ? parsed : fallbackMs;
+export function resolveBudgetAnchorMs({ createdAt, enabledAt, fallbackMs }) {
+  const anchors = [
+    parseTimestampMs(createdAt),
+    parseTimestampMs(enabledAt),
+  ].filter((ms) => ms !== null);
+  return anchors.length > 0 ? Math.max(...anchors) : fallbackMs;
 }
 
 /**
@@ -1081,6 +1107,7 @@ export function decideMergeWaitPoll({
 }) {
   const anchorMs = resolveBudgetAnchorMs({
     createdAt: probe.createdAt,
+    enabledAt: probe.autoMergeEnabledAt,
     fallbackMs: state.startedAtMs,
   });
   const waitedMs = nowMs - state.startedAtMs;

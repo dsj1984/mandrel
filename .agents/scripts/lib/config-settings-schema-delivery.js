@@ -183,7 +183,7 @@ const WORKTREE_ISOLATION_SCHEMA = {
 const MERGE_WATCH_SCHEMA = {
   type: 'object',
   description:
-    "Knobs consumed by the close-and-land merge wait (Story #4543). `mode` (Story #4698) selects the close-time merge posture. `maxWaitSeconds` bounds ONE invocation of the merge wait and its expiry returns a resumable `pending` terminal with no label mutation; `maxBudgetSeconds` bounds the CUMULATIVE wait across resumes (anchored at the PR's createdAt, so a resume does not restart the clock) and exhausting it is the genuine give-up that classifies and blocks. The poll cadence is internal (at most 30s while checks run, at most 10s once they are green and the PR is unmerged); it and the cap of 3 behind-the-base updates are not configurable.",
+    "Knobs consumed by the close-and-land merge wait (Story #4543). `mode` (Story #4698) selects the close-time merge posture. `maxWaitSeconds` bounds ONE invocation of the merge wait and its expiry returns a resumable `pending` terminal with no label mutation; `maxBudgetSeconds` bounds the CUMULATIVE wait across resumes (anchored at the later of the PR's createdAt and its latest auto-merge arm, so a `--wait` resume does not restart the clock while a re-close that re-arms gets a fresh budget) and exhausting it is the genuine give-up that classifies and blocks. The poll cadence is internal (at most 30s while checks run, at most 10s once they are green and the PR is unmerged); it and the cap of 3 behind-the-base updates are not configurable.",
   properties: {
     mode: {
       type: 'string',
@@ -201,7 +201,7 @@ const MERGE_WATCH_SCHEMA = {
       type: 'integer',
       minimum: 1,
       description:
-        "Cumulative wall-clock budget (seconds) across merge-wait resumes, anchored at the PR's createdAt. Default 3600 (60 minutes). Exhausting this classifies the block and transitions the Story to agent::blocked.",
+        "Cumulative wall-clock budget (seconds) across merge-wait resumes, anchored at the later of the PR's createdAt and its latest auto-merge arm (`autoMergeRequest.enabledAt`), so a re-close that re-arms starts a fresh budget; without an arm time it falls back to createdAt, then to the invocation start. Default 3600 (60 minutes). Exhausting this classifies the block and transitions the Story to agent::blocked.",
       default: 3600,
     },
   },
