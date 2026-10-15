@@ -407,10 +407,9 @@ jobs:
         run: npm run test:e2e
 
   windows-smoke:
-    # Story #3389 — advisory Windows leg. Exercises bootstrap, command sync,
-    # config resolution, and the quick test tier without joining the
-    # branch-protection required-check set (Validate and Test / baselines
-    # names stay unchanged). Catches Windows-only regressions in worktree
+    # Story #3389 — Windows leg, a required check (docs/ci-contract.md lists
+    # the required set). Exercises bootstrap, command sync,
+    # config resolution, and the quick test tier. Catches Windows-only regressions in worktree
     # path handling, PowerShell/npm wiring, and platform-conditional code
     # without reintroducing the c8/timing baseline flap that retired the
     # full Windows matrix leg (#1270).

@@ -5,9 +5,8 @@ CI mirror** for every gate it *can* prove on a developer's machine: it runs
 `node scripts/check-npm-audit.js` (CI's SCA step), then `npm run lint`,
 the full `npm test` suite, the unified baselines (`check-baselines.js`), and —
 as of Story #4549 — the standalone ratchets CI's `baselines` job runs in its
-"Architecture Cycle Check" step (`check-dead-exports.js` and
-`check-context-budget.js`; `check-arch-cycles.js` is already run by the `lint`
-step) — the same shape CI runs.
+"Architecture Cycle Check" step (all but `check-baseline-scope.js`, which is
+not mirrored; see the table below) — the same shape CI runs.
 
 A green `npm run verify` therefore no longer hides a high-severity advisory
 that CI's audit step would fail on. It is still **not** a total substitute for
@@ -27,8 +26,9 @@ Nor are the architecture ratchets, for the same reason:
 
 > **Not** CI-only gates: the standalone ratchets in CI's "Architecture Cycle
 > Check" step. Every ratchet that step runs is pure-Node, baseline-aware and
-> full-tree-safe, so `npm run verify` covers each one (Story #4549). The step
-> itself is the SSOT for the command list —
+> full-tree-safe, and `npm run verify` covers all of them but one —
+> `check-baseline-scope.js`, listed in the CI-only table below (Story #4549).
+> The step itself is the SSOT for the command list —
 > [`ci.yml`](../.github/workflows/ci.yml), `baselines` job:
 >
 > | Ratchet | How `npm run verify` covers it |
@@ -38,6 +38,9 @@ Nor are the architecture ratchets, for the same reason:
 > | `check-dead-exports.js --production` | Its own `dead-exports-production` step — added when the production-mode pass (#4582) joined CI's baselines job. |
 > | `check-context-budget.js` | Its own `context-budget` step (Story #4549). Since Story #5340 it fails on the `alwaysLoaded` tier alone; its other tiers, and the role-scoped agent-boot sizes, are printed. |
 > | `check-workflow-citations.js` | Its own `workflow-citations` step (Story #5340). It is a report, not a gate: it prints the per-file provenance count and always exits 0. Before #5340 it was exempted from the mirror because `tests/check-workflow-citations.test.js` re-ran its ratchet through the `test` step. |
+> | `check-knip-entries.js` | Its own `knip-entries` step, run before the dead-exports pair so a knip entry-glob drift names its cause first. |
+> | `check-cyclomatic.js` | Its own `cyclomatic` step (Story #5004 closed the omission left by #4923). |
+> | `check-schema-references.js` | Its own `schema-references` step (Story #5004 closed the omission left by #4938). |
 >
 > Before #4549 the latter two sat in a contract hole — omitted from the mirror
 > *and* absent from the CI-only table below — reachable locally only by a direct
@@ -58,46 +61,18 @@ Nor are the architecture ratchets, for the same reason:
 | Test-temp hygiene (`--snapshot` / `--assert`) | `node .agents/scripts/check-test-temp-hygiene.js --snapshot` before the test run, `--assert` after (`.github/workflows/ci.yml`) | Brackets the CI test run (Story #4696): fingerprints the friction / lifecycle / trace NDJSON streams under `temp/` pre-test and fails the build if any stream file was added or grew — catching a test writer that bypasses the scratch seam and pollutes real telemetry. `npm run verify` does not bracket its test run with this snapshot/assert pair. |
 | `Windows Smoke` (required) | the `windows-smoke` job of `.github/workflows/ci.yml` — `bootstrap.js --dry-run --assume-yes --skip-github`, `npm run sync:commands`, the config-resolution slice (`tests/shipped-configs-validate.test.js` + `tests/lib/config-resolver.test.js`), then `npm run test:quick` | The only `windows-latest` surface in the repo (Story #3389). It catches Windows-only regressions in worktree path handling, PowerShell/npm wiring, and platform-conditional code — the largest gap a local green on macOS/Linux structurally cannot cover, since no local run executes on Windows. It is **required**: the job is in the branch-protection required-status-check set, so a red `Windows Smoke` blocks the merge. It was advisory until 2026-09-10, deliberately kept out to avoid reintroducing the c8/timing baseline flap that retired the full Windows matrix leg (#1270) — but advisory meant auto-merge landed Windows-only reds on `main` unnoticed: on 2026-09-10 alone `main` went red seven times, and **every** red CI run in that window was this job — two of them from Epic #5286's own Stories, and one of those was only discovered because it failed the 2.55.0 release PR. The flap risk is real and now shows up as a blocked merge rather than a red `main`; if a timing-sensitive assertion starts flapping, fix or quarantine that assertion rather than demoting the leg again. |
 | OS-temp-root hygiene (same bracket) | the same `--assert` step, plus `--lint-globs` (`.github/workflows/ci.yml`) | Two further dimensions added in Story #4808, riding the bracket above. **Runtime:** the snapshot also records the `mandrel-suite-*` roots already present in `os.tmpdir()`, and `--assert` fails on any that appeared during the run and survived — i.e. a process minted a suite root and exited without reaping it. Diffing against the snapshot (rather than asserting an empty set) is what keeps a concurrent suite in another checkout from failing this one. **Static:** `--lint-globs` fails when a test file calls `mkdtemp` against `os.tmpdir()` directly instead of `makeTempDir()` from `.agents/scripts/lib/test-temp.js`, catching the next leaking file at authoring time. Both are CI-only for the same reason as the row above; the static one is additionally **off unless `--lint-globs` is passed**, because this script ships in the materialized `.agents/` payload and the rule must not fire on a consumer's tests. |
+| Baseline scope | `node scripts/check-baseline-scope.js` in the Architecture Cycle Check step of the `baselines` job (`.github/workflows/ci.yml`) | **Not mirrored by `verify`** (`scripts/run-verify.js` says so in its header). It checks whether each baseline's row set still describes the tree, and is in no local aggregate command — [`known-tooling-behavior.md`](contributing/known-tooling-behavior.md) entry 2 carries the coverage table. |
 
 ### Retired: push-scoped maintainability (`BASELINE_SCOPE=full`)
 
-Until Story #5004 this table carried a **Push-scoped maintainability** row: the
-`validate` job's `Maintainability Check` step exported
-`BASELINE_SCOPE: ${{ github.event_name == 'pull_request' && '' || 'full' }}`,
-so on PR runs it was diff-scoped — a byte-for-byte duplicate of the required
-`baselines` job's `check-baselines.js` run — and on push-to-`main` it took the
-`full` branch.
+Archived: the deleted `Maintainability Check` step's history (Story #5004) lives in [`docs/archive/ci-contract-2026-10.md`](archive/ci-contract-2026-10.md).
 
-#### Correction: the `full` leg was not a sweep
+### The real gap, and what now covers it
 
-Story #5004 recorded the deleted `full` leg as a full-scope sweep that
-"re-scored untouched files", and called losing it the price of removing the
-duplicate. **That was wrong on the mechanism, and so wrong on the loss.**
-
-`check-baselines.js` is a **reader**. It loads the committed baseline envelope
-via `lib/baselines/reader.js` and never invokes a scorer. On the read path
-`BASELINE_SCOPE=full` does one thing: it makes `evaluateCompare`
-([`phases/compare.js`](../.agents/scripts/lib/orchestration/check-baselines/phases/compare.js))
-return an empty result, because that function short-circuits whenever
-`scope.mode !== 'diff'`. Full scope **disables the head-vs-base ratchet arm**;
-it does not widen a re-score, because there is no re-score to widen.
-
-Measured on this repository:
-
-| Invocation | Rows compared | `baseRead` | Wall clock |
-| --- | --- | --- | --- |
-| `check-baselines.js --gate maintainability` | 556 | `true` | 0.18s |
-| `BASELINE_SCOPE=full` + the same command | 0 | `false` | 0.14s |
-
-Both finish in under a fifth of a second, which is the tell on its own: a real
-full-scope maintainability re-score of this tree takes ~1.7s of escomplex work.
-
-So the push-to-`main` leg ran **floors only** over the committed rollup —
-strictly weaker than the diff-scoped PR leg, and a strict subset of the
-required `baselines` job on push runs as well as on PR runs. Deleting the step
-lost nothing. There is no gap here to attribute to Story #5004.
-
-#### The real gap, and what now covers it
+`check-baselines.js` is a reader: it never re-scores a file, and
+`BASELINE_SCOPE=full` **disables its head-vs-base ratchet arm** rather than
+widening a re-score — under full scope it checks floors only over the
+committed rollup.
 
 Full-scope **re-scoring** has only ever existed in two places: the write path
 (`*:update -- --full-scope`) and
@@ -215,7 +190,9 @@ semantics.
 Operators running `trust-ci` unattended MUST therefore keep a non-empty
 required-status-check set configured on the base branch. In **this**
 repository that set is the contexts recorded in
-[`.github/ruleset.json`](../.github/ruleset.json):
+[`.github/ruleset.json`](../.github/ruleset.json). The table below is the
+single statement of the required-check set; other docs link here rather
+than restating it:
 
 | Required check context     | Produced by                                                    |
 | -------------------------- | -------------------------------------------------------------- |
@@ -223,6 +200,7 @@ repository that set is the contexts recorded in
 | `baselines`                | the `baselines` job of `.github/workflows/ci.yml`              |
 | `install (npm / ubuntu-latest)`   | the Gate profile of `.github/workflows/install-matrix.yml` |
 | `install (yarn / windows-latest)` | the Gate profile of `.github/workflows/install-matrix.yml` |
+| `Windows Smoke`            | the `windows-smoke` job of `.github/workflows/ci.yml`          |
 
 > **`.github/ruleset.json` is a non-enforcing snapshot, not the declaration.**
 > It is a committed *record* of the live `Protect Main` ruleset (id
