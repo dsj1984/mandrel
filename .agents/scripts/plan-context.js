@@ -89,18 +89,31 @@ export function resolveDefaultOutPath({
 }
 
 /**
+ * One issue id token; a leading `#` is the accepted GitHub spelling.
+ *
+ * @param {string} token
+ * @returns {number}
+ */
+function parseIdToken(token) {
+  return Number(token.trim().replace(/^#/, ''));
+}
+
+/**
+ * Comma/whitespace-separated issue ids, deduped in first-seen order. A
+ * leading `#` is stripped per id, the same spelling {@link parseAmendsId}
+ * accepts.
+ *
  * @param {string} raw
  * @returns {number[]}
  */
 export function parseTicketIds(raw) {
-  if (typeof raw !== 'string' || raw.trim().length === 0) {
+  if (typeof raw !== 'string' || raw.replace(/[,\s]/g, '').length === 0) {
     throw new Error('--tickets requires one or more positive issue ids.');
   }
   const ids = raw
     .split(/[,\s]+/)
-    .map((s) => s.trim())
     .filter(Boolean)
-    .map((s) => Number(s));
+    .map(parseIdToken);
   if (ids.some((n) => !Number.isInteger(n) || n <= 0)) {
     throw new Error(
       `--tickets expects positive integer ids; got ${JSON.stringify(raw)}`,
@@ -117,7 +130,7 @@ export function parseAmendsId(raw) {
   if (typeof raw !== 'string' || raw.trim().length === 0) {
     throw new Error('--amends requires a single prior Story id.');
   }
-  const id = Number(raw.trim().replace(/^#/, ''));
+  const id = parseIdToken(raw);
   if (!Number.isInteger(id) || id <= 0) {
     throw new Error(
       `--amends expects a positive integer Story id; got ${JSON.stringify(raw)}`,
