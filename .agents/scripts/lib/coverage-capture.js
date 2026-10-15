@@ -486,7 +486,7 @@ export function creditedCapture(runCaptureFn, { requireCredited, logger }) {
  * @param {string} abs Absolute artifact path that was looked for.
  * @returns {string}
  */
-export function missingCoverageArtifactMessage(abs) {
+function missingCoverageArtifactMessage(abs) {
   return (
     `coverage artifact not found at ${abs}. \`npm run test:coverage\` must ` +
     'write Istanbul per-file JSON (the `json` reporter → coverage-final.json) ' +
