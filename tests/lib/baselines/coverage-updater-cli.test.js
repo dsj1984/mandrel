@@ -5,11 +5,10 @@
  * Both lived inside `main`, unreachable from a test: `main` scored CRAP 30 and
  * the inlined scorer another 30.
  *
- * The `[Coverage] ❌` read-failure log is asserted deliberately. It is the
- * reason this scorer was not collapsed into the service's behaviour-equivalent
- * `buildDefaultCoverageScorer`: `refresh-service.js` has no empty-rows guard,
- * so an unreadable artifact silently writes an emptied baseline at exit 0, and
- * that line is the only signal the operator gets.
+ * The `[Coverage] ❌` read-failure log is asserted deliberately, alongside the
+ * throw that follows it on every scope (Story #5683): an empty row set from an
+ * unreadable artifact would let the scope merge delete the in-scope rows at
+ * exit 0, so the scorer refuses instead.
  */
 
 import assert from 'node:assert/strict';
@@ -94,7 +93,7 @@ describe('resolveCoverageUpdaterScope', () => {
 });
 
 describe('buildCoverageUpdaterScorer — the read failure', () => {
-  it('logs the error and returns no rows on a scoped refresh', () => {
+  it('logs the error and throws on a scoped refresh instead of yielding no rows (Story #5683)', () => {
     const logger = recordingLogger();
     const scorer = buildCoverageUpdaterScorer(
       '/repo',
@@ -104,8 +103,36 @@ describe('buildCoverageUpdaterScorer — the read failure', () => {
         },
       }),
     );
-    assert.deepEqual(scorer(['a.js'], { fullScope: false }), []);
+    assert.throws(
+      () => scorer(['a.js'], { fullScope: false }),
+      /ENOENT coverage-final\.json/,
+    );
     assert.match(logger.lines.error.join('\n'), /ENOENT coverage-final\.json/);
+  });
+
+  it('propagates the named MissingCoverageArtifactError from the real reader on a scoped refresh', () => {
+    const dir = makeTempDir('coverage-updater-missing-');
+    try {
+      const targets = coverageUpdaterTargets(
+        {
+          coveragePath: 'coverage/coverage-final.json',
+          baselinePath: 'baselines/coverage.json',
+        },
+        dir,
+      );
+      const scorer = buildCoverageUpdaterScorer(
+        dir,
+        stubDeps(recordingLogger(), { readCoverage: targets.readCoverage }),
+      );
+      assert.throws(
+        () => scorer(['a.js'], { fullScope: false, cwd: dir }),
+        (err) =>
+          err.name === 'MissingCoverageArtifactError' &&
+          /coverage artifact not found/.test(err.message),
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('rethrows on a full-scope refresh rather than writing an empty baseline (Story #5672)', () => {

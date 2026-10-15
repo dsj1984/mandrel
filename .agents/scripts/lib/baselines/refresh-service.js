@@ -17,7 +17,7 @@ import {
   buildScopePredicate,
   scoreCoverageFinal,
 } from '../coverage-baseline.js';
-import { missingCoverageArtifactMessage } from '../coverage-capture.js';
+import { MissingCoverageArtifactError } from '../coverage-capture.js';
 import { loadCoverage } from '../coverage-utils.js';
 import {
   resolveEscomplexVersion,
@@ -79,19 +79,15 @@ function resolveQualityBlock({ quality, config } = {}) {
 }
 
 /**
- * No coverage artifact: a full-scope refresh over zero rows would read as
- * "nothing to score", so it throws naming the capture contract; a scoped one
- * yields no rows and `refreshBaseline` refuses the missing in-scope files.
+ * No coverage artifact is fatal on every scope: a full-scope refresh over zero
+ * rows would read as "nothing to score", and a scoped one would delete the
+ * in-scope rows, because the scope merge takes them only from the scored set.
  *
  * @param {string} absPath
- * @param {{ fullScope?: boolean } | undefined} opts
- * @returns {object[]}
+ * @returns {never}
  */
-function noArtifactRows(absPath, opts) {
-  if (opts?.fullScope) {
-    throw new Error(missingCoverageArtifactMessage(absPath));
-  }
-  return [];
+function refuseMissingArtifact(absPath) {
+  throw new MissingCoverageArtifactError(absPath);
 }
 
 /**
@@ -115,7 +111,7 @@ function buildDefaultCrapScorer({ cwd, config, quality } = {}) {
       ? coverageRelPath
       : path.resolve(effectiveCwd, coverageRelPath);
     const coverage = loadCoverage(coverageAbs);
-    if (!coverage && requireCoverage) return noArtifactRows(coverageAbs, opts);
+    if (!coverage && requireCoverage) refuseMissingArtifact(coverageAbs);
     const scopeFiles = opts?.fullScope ? null : (files ?? null);
     const { rows } = await scanAndScore({
       targetDirs,
@@ -135,8 +131,8 @@ function buildDefaultCrapScorer({ cwd, config, quality } = {}) {
 
 /**
  * Coverage rows from the configured `coverage.coveragePath` artifact, scoped by
- * the optional `.c8rc.cjs`. A missing artifact throws on a full-scope refresh:
- * an empty row set would otherwise read as "nothing measured".
+ * the optional `.c8rc.cjs`. A missing artifact throws on every scope: an
+ * empty row set would otherwise erase the rows it was meant to rescore.
  *
  * @param {{ cwd: string, config?: object, quality?: object }} opts
  * @returns {(files: string[], opts: object) => object[]}
@@ -149,7 +145,7 @@ function buildDefaultCoverageScorer({ cwd, config, quality } = {}) {
     const effectiveCwd = opts?.cwd ?? cwd ?? process.cwd();
     const coverageFinalPath = path.resolve(effectiveCwd, coverageRelPath);
     if (!nodeFs.existsSync(coverageFinalPath)) {
-      return noArtifactRows(coverageFinalPath, opts);
+      refuseMissingArtifact(coverageFinalPath);
     }
     const raw = JSON.parse(nodeFs.readFileSync(coverageFinalPath, 'utf-8'));
     let c8Scope;

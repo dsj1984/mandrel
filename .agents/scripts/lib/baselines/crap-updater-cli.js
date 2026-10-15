@@ -9,7 +9,7 @@ import path from 'node:path';
 import { getBaselines, getQuality, resolveConfig } from '../config-resolver.js';
 import {
   isCoverageFresh,
-  missingCoverageArtifactMessage,
+  MissingCoverageArtifactError,
 } from '../coverage-capture.js';
 import { loadCoverage as loadCoverageDefault } from '../coverage-utils.js';
 import { checkResolutionFloor, scanAndScore } from '../crap-utils.js';
@@ -137,33 +137,21 @@ function reportScanSummary(summary, logger = Logger) {
 }
 
 /**
- * No artifact under `requireCoverage`: a full-scope refresh throws naming the
- * capture contract (zero rows would write an empty baseline); a scoped one
- * warns and yields no rows.
+ * No artifact under `requireCoverage` is fatal on every scope: a full-scope
+ * refresh would write an empty baseline, and a scoped one would delete the
+ * in-scope rows, because the scope merge takes them only from the scored set.
  *
  * @param {string} coverageAbs
- * @param {{ coveragePath: string }} options
- * @param {{ fullScope?: boolean } | undefined} opts
- * @param {{ warn: Function }} logger
- * @returns {object[]}
+ * @returns {never}
  */
-function noCoverageRows(coverageAbs, options, opts, logger) {
-  if (opts?.fullScope) {
-    throw new Error(`[CRAP] ${missingCoverageArtifactMessage(coverageAbs)}`);
-  }
-  logger.warn(
-    `[CRAP] ⚠ No coverage artifact at ${options.coveragePath}. All files will be skipped under requireCoverage=true.`,
-  );
-  logger.warn(
-    "[CRAP] ⚠ Run 'npm run test:coverage' before 'npm run crap:update'.",
-  );
-  return [];
+function refuseMissingCoverage(coverageAbs) {
+  throw new MissingCoverageArtifactError(coverageAbs, { prefix: '[CRAP] ' });
 }
 
 /**
  * Fails closed on a missing coverage artifact under `requireCoverage` (throws
- * on a full-scope refresh; warns with no rows on a scoped one) and on a resolution rate below the floor (throws before anything is
- * written: a broken join is wrong, not sparse).
+ * on every scope) and on a resolution rate below the floor (throws before
+ * anything is written: a broken join is wrong, not sparse).
  *
  * @param {ReturnType<typeof resolveCrapUpdaterOptions>} options
  * @param {{loadCoverage: Function, scan?: Function, logger?: object}} deps
@@ -179,9 +167,8 @@ export function buildCrapUpdaterScorer(
       ? options.coveragePath
       : path.resolve(effectiveCwd, options.coveragePath);
     const coverage = loadCoverage(coverageAbs);
-    if (!coverage && options.requireCoverage) {
-      return noCoverageRows(coverageAbs, options, opts, logger);
-    }
+    if (!coverage && options.requireCoverage)
+      refuseMissingCoverage(coverageAbs);
 
     const summary = await scan({
       targetDirs: options.targetDirs,

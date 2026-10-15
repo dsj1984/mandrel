@@ -496,6 +496,26 @@ export function missingCoverageArtifactMessage(abs) {
 }
 
 /**
+ * A baseline refresh found no coverage artifact. Fatal on every scope: the
+ * scope merge takes in-scope rows only from the regenerated set, so scoring
+ * zero rows would delete the in-scope rows rather than leave them alone.
+ */
+export class MissingCoverageArtifactError extends Error {
+  /**
+   * @param {string} abs Absolute artifact path that was looked for.
+   * @param {{ prefix?: string, cause?: unknown }} [opts]
+   */
+  constructor(abs, { prefix = '', cause } = {}) {
+    super(
+      `${prefix}${missingCoverageArtifactMessage(abs)}`,
+      cause === undefined ? undefined : { cause },
+    );
+    this.name = 'MissingCoverageArtifactError';
+    this.artifactPath = abs;
+  }
+}
+
+/**
  * Wrap a capture runner so a green run that left no artifact at
  * `coveragePath` exits 1: a broken capture contract, not a capture. Every
  * capture path already returns before stamping on a non-zero code.

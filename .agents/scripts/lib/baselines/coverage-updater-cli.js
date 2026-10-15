@@ -1,8 +1,9 @@
 /**
  * The `update-coverage-baseline` CLI's testable logic. The scorer stays
- * bespoke (not the refresh-service default) because it logs when the coverage
- * artifact is missing on a scoped refresh; a full-scope refresh rethrows, since
- * `refreshBaseline` has no empty-rows guard and would write an empty baseline.
+ * bespoke (not the refresh-service default) because it logs an unreadable
+ * coverage artifact before refusing it: on every scope, since a full-scope
+ * refresh over zero rows writes an empty baseline and a scoped one deletes the
+ * in-scope rows the scope merge takes only from the scored set.
  */
 
 import fs from 'node:fs';
@@ -54,18 +55,17 @@ export function resolveCoverageUpdaterScope(argv = []) {
 }
 
 /**
- * A full-scope refresh rethrows a read failure — over zero rows it would
- * write an empty baseline; a scoped one logs it and yields `null`.
+ * Logs a read failure and rethrows it on every scope, never yielding an empty
+ * row set: the refresh must refuse rather than erase rows it could not score.
  *
- * @returns {object|null}
+ * @returns {object}
  */
-function readOrReport(readCoverage, cwd, opts, logger) {
+function readOrRefuse(readCoverage, cwd, logger) {
   try {
     return readCoverage(cwd);
   } catch (err) {
-    if (opts?.fullScope) throw err;
     logger.error(`[Coverage] ❌ ${err.message}`);
-    return null;
+    throw err;
   }
 }
 
@@ -84,8 +84,7 @@ function buildCoverageUpdaterScorer(
 ) {
   return (files, opts) => {
     const effectiveCwd = opts?.cwd ?? cwd;
-    const raw = readOrReport(readCoverage, effectiveCwd, opts, logger);
-    if (raw === null) return [];
+    const raw = readOrRefuse(readCoverage, effectiveCwd, logger);
     const c8Config = loadScope(effectiveCwd);
     const scores = score({
       raw,
