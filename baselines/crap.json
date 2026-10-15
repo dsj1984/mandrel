@@ -21686,98 +21686,125 @@
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes-ff.js",
       "method": "isWorkingTreeClean",
-      "startLine": 26,
+      "startLine": 25,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes-ff.js",
       "method": "fetchRef",
-      "startLine": 31,
-      "crap": 1.2962962962962963
+      "startLine": 29,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes-ff.js",
       "method": "canFastForward",
-      "startLine": 36,
-      "crap": 1.2962962962962963
+      "startLine": 33,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes-ff.js",
       "method": "checkoutBranch",
-      "startLine": 41,
-      "crap": 1.2962962962962963
+      "startLine": 37,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes-ff.js",
       "method": "mergeFastForward",
-      "startLine": 46,
-      "crap": 1.2962962962962963
+      "startLine": 41,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes-ff.js",
       "method": "makeFfProbes",
-      "startLine": 64,
+      "startLine": 59,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes-ff.js",
       "method": "<anon makeFfProbes/(cwd)#0>",
-      "startLine": 66,
+      "startLine": 61,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes-ff.js",
       "method": "<anon makeFfProbes/(cwd)#1>",
-      "startLine": 70,
+      "startLine": 65,
       "crap": 3,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes-ff.js",
       "method": "<anon makeFfProbes/(cwd,remoteName,ref)#0>",
-      "startLine": 74,
+      "startLine": 69,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes-ff.js",
       "method": "<anon makeFfProbes/(cwd,baseBranch,remoteName)#0>",
-      "startLine": 80,
+      "startLine": 75,
       "crap": 5,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes-ff.js",
       "method": "<anon makeFfProbes/(cwd,branch)#0>",
-      "startLine": 102,
+      "startLine": 97,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes-ff.js",
       "method": "<anon makeFfProbes/(cwd,ref)#0>",
-      "startLine": 108,
+      "startLine": 103,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes-ff.js",
+      "method": "makeWorktreeOps",
+      "startLine": 126,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes-ff.js",
+      "method": "<anon makeWorktreeOps/(worktreePath,cwd)#0>",
+      "startLine": 128,
+      "crap": 4,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes-ff.js",
+      "method": "<anon makeWorktreeOps/(cwd,remoteName,parsePruneFn)#0>",
+      "startLine": 145,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes-ff.js",
+      "method": "<anon makeWorktreeOps/(ref,cwd)#0>",
+      "startLine": 152,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes-ff.js",
       "method": "removeWorktree",
-      "startLine": 120,
-      "crap": 17.008592592592592
+      "startLine": 162,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes-ff.js",
       "method": "pruneRemoteTracking",
-      "startLine": 146,
-      "crap": 2
+      "startLine": 166,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes-ff.js",
       "method": "dropStash",
-      "startLine": 153,
-      "crap": 2.032
+      "startLine": 170,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
@@ -37005,72 +37032,64 @@
     },
     {
       "path": ".agents/scripts/plan-context.js",
+      "method": "parseIdToken",
+      "startLine": 97,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/plan-context.js",
       "method": "parseTicketIds",
-      "startLine": 95,
-      "crap": 17.18359375
-    },
-    {
-      "path": ".agents/scripts/plan-context.js",
-      "method": "<anon parseTicketIds/(s)#0>",
-      "startLine": 101,
-      "crap": 1.823974609375,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/plan-context.js",
-      "method": "<anon parseTicketIds/(s)#1>",
-      "startLine": 103,
-      "crap": 1.823974609375,
-      "anonymous": true
+      "startLine": 109,
+      "crap": 4
     },
     {
       "path": ".agents/scripts/plan-context.js",
       "method": "<anon parseTicketIds/(n)#0>",
-      "startLine": 104,
-      "crap": 5.2958984375,
+      "startLine": 117,
+      "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/plan-context.js",
       "method": "parseAmendsId",
-      "startLine": 116,
+      "startLine": 129,
       "crap": 5
     },
     {
       "path": ".agents/scripts/plan-context.js",
       "method": "emitPlanContext",
-      "startLine": 133,
+      "startLine": 146,
       "crap": 4
     },
     {
       "path": ".agents/scripts/plan-context.js",
       "method": "<anon emitPlanContext/(t)#0>",
-      "startLine": 189,
+      "startLine": 202,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/plan-context.js",
       "method": "writeEnvelopeFile",
-      "startLine": 216,
+      "startLine": 229,
       "crap": 1.037037037037037
     },
     {
       "path": ".agents/scripts/plan-context.js",
       "method": "writeStoriesTemplateFile",
-      "startLine": 236,
+      "startLine": 249,
       "crap": 1.008
     },
     {
       "path": ".agents/scripts/plan-context.js",
       "method": "main",
-      "startLine": 257,
+      "startLine": 270,
       "crap": 16.474099586486318
     },
     {
       "path": ".agents/scripts/plan-context.js",
       "method": "<anon main/()#0>",
-      "startLine": 329,
+      "startLine": 342,
       "crap": 4.723847879204802,
       "anonymous": true
     },
@@ -38682,6 +38701,236 @@
       "crap": 1
     },
     {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "assertDepsInstalled",
+      "startLine": 64,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "assertDeliverableStory",
+      "startLine": 82,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "assertNotForeignExecuting",
+      "startLine": 115,
+      "crap": 6.094468817909713
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "flipStoryToExecuting",
+      "startLine": 153,
+      "crap": 1.0291306326809286
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "rollUpContainerEpic",
+      "startLine": 176,
+      "crap": 5.31930879038317
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "rollbackClaimOnInitFailure",
+      "startLine": 197,
+      "crap": 1.048084147257701
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "decideStoryBranchSeed",
+      "startLine": 226,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "reapClosedStoryWorktrees",
+      "startLine": 239,
+      "crap": 4.017262597144254
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "<anon reapClosedStoryWorktrees/(m)#0>",
+      "startLine": 249,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "<anon reapClosedStoryWorktrees/(m)#1>",
+      "startLine": 250,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "reapMergedStoryBranches",
+      "startLine": 288,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "<anon reapMergedStoryBranches/(m)#0>",
+      "startLine": 333,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "<anon reapMergedStoryBranches/(m)#1>",
+      "startLine": 334,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "reapMergedBranches",
+      "startLine": 340,
+      "crap": 11.103271484375
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "<anon reapMergedBranches/(m)#0>",
+      "startLine": 355,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "<anon reapMergedBranches/(m)#1>",
+      "startLine": 356,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "<anon reapMergedBranches/(p)#0>",
+      "startLine": 373,
+      "crap": 1.083740234375,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "materializeBaseBranch",
+      "startLine": 407,
+      "crap": 8.105993671406264
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "fastForwardBase",
+      "startLine": 459,
+      "crap": 4.373177842565598
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "<anon fastForwardBase/(m)#0>",
+      "startLine": 466,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "<anon fastForwardBase/(m)#1>",
+      "startLine": 467,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "seedStoryBranch",
+      "startLine": 498,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "<anon seedStoryBranch/(args)#0>",
+      "startLine": 504,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "<anon seedStoryBranch/(b)#0>",
+      "startLine": 505,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "<anon seedStoryBranch/(b)#1>",
+      "startLine": 506,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "<anon seedStoryBranch/(b)#2>",
+      "startLine": 509,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "<anon seedStoryBranch/(b)#3>",
+      "startLine": 510,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "<anon seedStoryBranch/(b,ref)#0>",
+      "startLine": 511,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "<anon seedStoryBranch/(b,_ref,stderr)#0>",
+      "startLine": 512,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "<anon seedStoryBranch/(b,stderr)#0>",
+      "startLine": 514,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "provisionWorktree",
+      "startLine": 531,
+      "crap": 3.947723765432099
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "<anon provisionWorktree/(m)#0>",
+      "startLine": 548,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "<anon provisionWorktree/(m)#1>",
+      "startLine": 549,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "<anon provisionWorktree/(m)#2>",
+      "startLine": 550,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "method": "runSingleStoryInit",
+      "startLine": 568,
+      "crap": 12.001634114407867
+    },
+    {
       "path": ".agents/scripts/stories-wave-tick.js",
       "method": "inputErrorResult",
       "startLine": 203,
@@ -39422,6 +39671,25 @@
       "method": "seat",
       "startLine": 97,
       "crap": 2
+    },
+    {
+      "path": ".agents/scripts/update-ticket-state.js",
+      "method": "parseTicketStateArgs",
+      "startLine": 42,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/update-ticket-state.js",
+      "method": "runUpdateTicketState",
+      "startLine": 75,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/update-ticket-state.js",
+      "method": "<anon ()#0>",
+      "startLine": 112,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/validate-skills.js",
