@@ -268,7 +268,8 @@ process.stdout.write(JSON.stringify(reports.map((r) => r.parseError)));
     assert.equal(diagnostics.length, 1, output);
     assert.match(
       output,
-      /packages\/api; its TypeScript is reported as a parse error/,
+      // The diagnostic names the native absolute dir: `\` on Windows.
+      /packages[\\/]api; its TypeScript is reported as a parse error/,
     );
     assert.match(output, /npm install --save-dev typescript/);
   });
