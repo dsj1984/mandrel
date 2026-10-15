@@ -79,11 +79,6 @@ module.exports = {
     // Test-tier driver: spawns `node --test`; the tier logic it delegates
     // to lives in `lib/test-tiers.js` and is unit-tested there.
     '.agents/scripts/run-tests.js',
-    // Story #1827 note: `single-story-close.js` is deliberately NOT
-    // excluded — its orchestration body is exercised through
-    // `runSingleStoryClose` with an injected provider, a fake gh runner,
-    // and an in-memory worktree. Only the init shell stays out.
-    '.agents/scripts/single-story-init.js',
     // Test harness wrapper — spawns the runner, no logic of its own.
     '.agents/scripts/test-wrapper.js',
 
