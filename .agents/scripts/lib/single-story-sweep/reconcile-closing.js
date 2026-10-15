@@ -1,7 +1,9 @@
 /**
  * Only a live close flips `agent::done`; a PR that merges after it is gone
- * closes the issue at `agent::closing`. Boot finishes the flip via
- * `reconcileDoneLabel` (MERGED PR required). Bounded; never throws.
+ * closes the issue at `agent::closing` (or at `agent::blocked`, when its
+ * merge wait gave up first). Boot finishes the flip AND the land tail via
+ * `reconcileDoneLabel` (MERGED PR required, so a blocked Story whose PR never
+ * merged is left untouched). Bounded; never throws.
  */
 
 import { getStoryBranch } from '../git-utils.js';
@@ -10,6 +12,12 @@ import { reconcileDoneLabel as defaultReconcile } from '../orchestration/single-
 
 /** Candidates processed per sweep; a larger backlog drains across boots. */
 export const DEFAULT_RECONCILE_LIMIT = 10;
+
+/** Lifecycle labels a closed Story can strand at; one listing each. */
+const STRANDED_LABELS = Object.freeze([
+  AGENT_LABELS.CLOSING,
+  AGENT_LABELS.BLOCKED,
+]);
 
 function isStrandedStory(ticket) {
   const labels = Array.isArray(ticket?.labels) ? ticket.labels : [];
@@ -38,6 +46,26 @@ async function reconcileOne({ story, cwd, deps, logger, reconcileFn }) {
   }
 }
 
+/**
+ * Closed Stories at any stranded label, de-duplicated by id in listing order
+ * (a Story can carry both labels).
+ *
+ * @returns {Promise<object[]>}
+ */
+async function listStranded(provider) {
+  const byId = new Map();
+  for (const labels of STRANDED_LABELS) {
+    const tickets = await provider.listTicketsByLabel({
+      state: 'closed',
+      labels,
+    });
+    for (const ticket of Array.isArray(tickets) ? tickets : []) {
+      if (!byId.has(ticket?.id)) byId.set(ticket?.id, ticket);
+    }
+  }
+  return [...byId.values()];
+}
+
 export async function reconcileStrandedClosing({
   provider,
   config,
@@ -45,6 +73,7 @@ export async function reconcileStrandedClosing({
   gh,
   notify,
   sleep,
+  runPostLandTail,
   logger = {},
   limit = DEFAULT_RECONCILE_LIMIT,
   reconcileFn = defaultReconcile,
@@ -53,21 +82,16 @@ export async function reconcileStrandedClosing({
   if (typeof provider?.listTicketsByLabel !== 'function') return outcome;
   let tickets;
   try {
-    tickets = await provider.listTicketsByLabel({
-      state: 'closed',
-      labels: AGENT_LABELS.CLOSING,
-    });
+    tickets = await listStranded(provider);
   } catch (err) {
     const msg = err?.message ?? String(err);
     logger.warn?.(
-      `closed agent::closing listing failed (host continues): ${msg}`,
+      `closed agent::closing / agent::blocked listing failed (host continues): ${msg}`,
     );
     return { ...outcome, ok: false, error: msg };
   }
-  const candidates = (Array.isArray(tickets) ? tickets : [])
-    .filter(isStrandedStory)
-    .slice(0, limit);
-  const deps = { provider, config, gh, notify, sleep };
+  const candidates = tickets.filter(isStrandedStory).slice(0, limit);
+  const deps = { provider, config, gh, notify, sleep, runPostLandTail };
   for (const story of candidates) {
     const storyId = story.id;
     const result = await reconcileOne({
@@ -82,7 +106,7 @@ export async function reconcileStrandedClosing({
   }
   if (outcome.reconciled.length > 0) {
     logger.info?.(
-      `🏷️  reconciled ${outcome.reconciled.length} closed Story(ies) stranded at agent::closing → agent::done.`,
+      `🏷️  reconciled ${outcome.reconciled.length} closed Story(ies) stranded at agent::closing / agent::blocked → agent::done.`,
     );
   }
   return outcome;

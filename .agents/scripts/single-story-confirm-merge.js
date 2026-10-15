@@ -45,7 +45,7 @@ import {
 } from './lib/orchestration/story-deliver-terminal.js';
 import { PROJECT_ROOT } from './lib/project-root.js';
 import { createProvider } from './lib/provider-factory.js';
-import { confirmStoryMerged } from './lib/single-story/confirm-merge.js';
+import { confirmAndLand } from './lib/single-story/confirm-and-land.js';
 
 const progress = Logger.createProgress('single-story-confirm-merge', {
   stderr: true,
@@ -348,7 +348,9 @@ async function resumeMergeWait(ctx) {
 async function probeMergeOnce(ctx) {
   const { storyId, storyBranch, baseBranch, prNumber, cwd, provider, config } =
     ctx;
-  const confirmation = await confirmStoryMerged({
+  // The shared confirm-and-land pairing the boot sweep and close's
+  // already-closed early return also run.
+  const { confirmation, tail } = await confirmAndLand({
     provider,
     storyId,
     prNumber,
@@ -359,23 +361,11 @@ async function probeMergeOnce(ctx) {
     injectedGh: ctx.gh,
     injectedNotify: ctx.injectedNotify,
     readPrMergeStateFn: ctx.injectedReadPrMergeState,
+    storyBranch,
+    baseBranch,
+    // Bound at this module's own import, so a test's module mock reaches it.
+    runPostLandTailFn: runPostLandTail,
   });
-
-  // The same shared land tail close runs. Gated on `merged`, not
-  // `action === 'done'`: an already-done Story (`noop`, merged) still needs
-  // the belated backfill. Every tail step is idempotent.
-  const tail =
-    confirmation.merged === true
-      ? await runPostLandTail({
-          storyId,
-          storyBranch,
-          baseBranch,
-          cwd,
-          provider,
-          config,
-          progress,
-        })
-      : null;
 
   const terminal = buildConfirmTerminal({
     storyId,

@@ -826,6 +826,7 @@ describe('runSingleStoryClose orchestration', () => {
   // and the footer closed the issue: the re-run must finish the lifecycle.
   async function runClosedCompleted(t, { label, prRows, updateThrows, tag }) {
     const ghCalls = [];
+    const tailRuns = [];
     const gh = makeFakeGh((args) => {
       ghCalls.push(args.slice());
       if (args[1] === 'list') return prRows;
@@ -858,8 +859,12 @@ describe('runSingleStoryClose orchestration', () => {
       injectedGh: gh,
       injectedNotify: async () => {},
       injectedSleep: async () => {},
+      injectedRunPostLandTail: async (args) => {
+        tailRuns.push(args);
+        return { leaseRelease: true };
+      },
     });
-    return { ...outcome, provider, ghCalls };
+    return { ...outcome, provider, ghCalls, tailRuns };
   }
 
   const MERGED_ROWS = [
@@ -888,6 +893,30 @@ describe('runSingleStoryClose orchestration', () => {
     assert.equal(labelWrites.length, 1);
     assert.ok(labelWrites[0].patch.labels.add.includes('agent::done'));
     assert.ok(labelWrites[0].patch.labels.remove.includes('agent::blocked'));
+  });
+
+  // Story #5705 — the flip alone stranded the lease, worktree and epic
+  // rollup; the early return runs the same land tail every confirm path does.
+  it('runs the land tail when the already-closed early return reconciles a merged Story', async (t) => {
+    const { terminal, tailRuns } = await runClosedCompleted(t, {
+      label: 'agent::closing',
+      prRows: MERGED_ROWS,
+      tag: 'noop-reconcile-tail',
+    });
+    assert.equal(terminal.status, 'landed');
+    assert.deepEqual(
+      tailRuns.map((a) => [a.storyId, a.storyBranch, a.cwd]),
+      [[1234, 'story-1234', '/repo']],
+    );
+  });
+
+  it('runs no land tail when the closed Story has no merged PR', async (t) => {
+    const { tailRuns } = await runClosedCompleted(t, {
+      label: 'agent::blocked',
+      prRows: [],
+      tag: 'noop-no-merged-pr-tail',
+    });
+    assert.deepEqual(tailRuns, []);
   });
 
   it('leaves labels alone for a Story closed as completed with no merged PR', async (t) => {
