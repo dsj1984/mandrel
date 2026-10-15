@@ -156,6 +156,67 @@ describe('decideMergeWaitPoll — verdicts', () => {
   });
 });
 
+describe('decideMergeWaitPoll — budget anchor follows the head commit', () => {
+  const agedCreatedAt = new Date(START_MS - 30_000_000).toISOString();
+  const polledState = {
+    ...createMergeWaitState({ startedAtMs: START_MS, intervalSeconds: 30 }),
+    polls: 2,
+  };
+
+  it('an aged PR whose head was committed recently is not over budget', () => {
+    const headCommittedAt = new Date(START_MS - 600_000).toISOString();
+    const decision = decide({
+      state: polledState,
+      probe: openProbe({ createdAt: agedCreatedAt, headCommittedAt }),
+    });
+    assert.equal(decision.verdict, 'continue');
+    assert.equal(decision.cumulativeMs, 600_000);
+  });
+
+  it('a head older than the PR keeps the createdAt anchor', () => {
+    const createdAt = new Date(START_MS - 600_000).toISOString();
+    const headCommittedAt = new Date(START_MS - 30_000_000).toISOString();
+    const decision = decide({
+      state: polledState,
+      probe: openProbe({ createdAt, headCommittedAt }),
+    });
+    assert.equal(decision.cumulativeMs, 600_000);
+  });
+
+  it('repeated probes of one head keep one anchor, so a resume never restarts the budget', () => {
+    const headCommittedAt = new Date(START_MS - 600_000).toISOString();
+    const probe = openProbe({ createdAt: agedCreatedAt, headCommittedAt });
+    const first = decide({ state: polledState, probe });
+    const later = decide({
+      state: first.state,
+      probe,
+      nowMs: START_MS + 3_000_000,
+    });
+    assert.equal(later.cumulativeMs, 3_600_000);
+    assert.equal(later.verdict, 'budget-exhausted');
+  });
+
+  it('an unavailable head date falls back to createdAt', () => {
+    for (const headCommittedAt of [null, undefined, 'not-a-date']) {
+      const decision = decide({
+        state: polledState,
+        probe: openProbe({ createdAt: agedCreatedAt, headCommittedAt }),
+      });
+      assert.equal(decision.verdict, 'budget-exhausted');
+      assert.equal(decision.cumulativeMs, 30_000_000);
+    }
+  });
+
+  it('with neither date the anchor is the invocation start', () => {
+    const decision = decide({
+      state: polledState,
+      probe: openProbe({ createdAt: null, headCommittedAt: null }),
+      nowMs: START_MS + 1_000,
+    });
+    assert.equal(decision.cumulativeMs, 1_000);
+  });
+});
+
 describe('decideMergeWaitPoll — state and clock', () => {
   it('returns a new state and never mutates the one it was given', () => {
     const state = Object.freeze(

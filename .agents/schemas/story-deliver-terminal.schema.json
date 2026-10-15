@@ -194,7 +194,7 @@
     "elapsedSeconds": { "type": "number", "minimum": 0 },
     "waitBudget": {
       "type": ["object", "null"],
-      "description": "Merge-wait accounting. maxWaitSeconds bounds THIS invocation (defaulting under the host's single-tool-invocation ceiling); cumulativeSeconds is anchored at the PR's createdAt so a resume does not restart the clock, and maxBudgetSeconds bounds that cumulative total.",
+      "description": "Merge-wait accounting. maxWaitSeconds bounds THIS invocation (defaulting under the host's single-tool-invocation ceiling); cumulativeSeconds is anchored at the later of the PR's createdAt and its head commit's date so a resume does not restart the clock but a new head does, and maxBudgetSeconds bounds that cumulative total.",
       "properties": {
         "maxWaitSeconds": { "type": "integer", "minimum": 1 },
         "waitedSeconds": { "type": "number", "minimum": 0 },

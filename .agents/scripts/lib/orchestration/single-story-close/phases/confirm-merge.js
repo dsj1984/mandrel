@@ -5,9 +5,10 @@
  * Two timing domains: `maxWaitSeconds` bounds THIS invocation (it must fit
  * the host's ~10-min tool ceiling after the close gates) and expires to a
  * resumable `pending` with no mutation; `maxBudgetSeconds` bounds the
- * cumulative wait, anchored at the PR's `createdAt` so resumes don't restart
- * it, and exhausting it is the real give-up (classify, emit, block). The
- * poll is stateless and re-entrant. Async mode probes once (see
+ * cumulative wait, anchored at the later of the PR's `createdAt` and its head
+ * commit's date so resumes don't restart it but a new head does, and
+ * exhausting it is the real give-up (classify, emit, block). The poll is
+ * stateless and re-entrant. Async mode probes once (see
  * ASYNC_PROBE_WINDOW_SECONDS). Checks are probed every iteration so a red required
  * check fails fast instead of burning the budget.
  *
@@ -79,7 +80,7 @@ export const DEFAULT_UPDATE_ATTEMPTS = 3;
 
 /**
  * Minimum polls before the cumulative budget may block: the clock is anchored
- * at `createdAt`, so a long-open PR is over budget on its first probe and
+ * at `createdAt` / the head commit, so a long-waiting PR is over budget on its first probe and
  * would otherwise block without ever having waited.
  */
 export const MIN_POLLS_BEFORE_BUDGET_BLOCK = 2;
@@ -184,6 +185,7 @@ export async function readPrWaitProbe({
         'reviewDecision',
         'statusCheckRollup',
         'headRefOid',
+        'commits',
         'autoMergeRequest',
       ]),
       ghTimeoutMs,
@@ -194,6 +196,7 @@ export async function readPrWaitProbe({
       state: readString(view?.state, null),
       mergedAt: readString(view?.mergedAt, null),
       createdAt: readString(view?.createdAt, null),
+      headCommittedAt: readHeadCommittedAt(view),
       mergeStateStatus: readString(view?.mergeStateStatus),
       reviewDecision: readString(view?.reviewDecision),
       checksStatus,
@@ -223,6 +226,7 @@ export async function readPrWaitProbe({
       state: null,
       mergedAt: null,
       createdAt: null,
+      headCommittedAt: null,
       checksStatus: 'pending',
       redHeadRuns: [],
       error: `PR probe failed: ${err?.message ?? err}`,
@@ -276,16 +280,34 @@ export function resolveMergeWaitConfig(
   };
 }
 
+function parseIsoMs(value) {
+  if (typeof value !== 'string' || !value) return Number.NaN;
+  return Date.parse(value);
+}
+
 /**
- * Budget anchor; without `createdAt` it falls back to this invocation's start
- * (worst case a fresh budget, never a premature block).
+ * Budget anchor: the later of `createdAt` and the head commit's date, so a new
+ * head restarts the budget while a same-head resume keeps it. With neither it
+ * falls back to this invocation's start (a fresh budget, never a premature block).
  *
  * @returns {number} epoch ms
  */
-export function resolveBudgetAnchorMs({ createdAt, fallbackMs }) {
-  if (typeof createdAt !== 'string' || !createdAt) return fallbackMs;
-  const parsed = Date.parse(createdAt);
-  return Number.isFinite(parsed) ? parsed : fallbackMs;
+export function resolveBudgetAnchorMs({
+  createdAt,
+  headCommittedAt,
+  fallbackMs,
+}) {
+  const known = [parseIsoMs(createdAt), parseIsoMs(headCommittedAt)].filter(
+    Number.isFinite,
+  );
+  return known.length > 0 ? Math.max(...known) : fallbackMs;
+}
+
+/** `committedDate` of the PR commit at `headRefOid`, or null. */
+function readHeadCommittedAt(view) {
+  const commits = Array.isArray(view?.commits) ? view.commits : [];
+  const head = commits.find((c) => c?.oid === view?.headRefOid);
+  return readString(head?.committedDate, null);
 }
 
 /**
@@ -1078,6 +1100,7 @@ export function decideMergeWaitPoll({
 }) {
   const anchorMs = resolveBudgetAnchorMs({
     createdAt: probe.createdAt,
+    headCommittedAt: probe.headCommittedAt,
     fallbackMs: state.startedAtMs,
   });
   const waitedMs = nowMs - state.startedAtMs;

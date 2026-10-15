@@ -228,8 +228,8 @@ separate (`delivery.mergeWatch.*`):
   that precede it. Expiry → `pending`. Pass `--max-wait-seconds <n>` to raise
   it when your host has no such ceiling and you want to land in one block.
 - **`maxBudgetSeconds`** (default 3600) bounds the **cumulative** wait across
-  resumes, anchored at the PR's `createdAt` so resuming does not restart the
-  clock. Exhausting _this_ is the genuine give-up → `blocked`.
+  resumes, anchored at the later of the PR's `createdAt` and its head
+  commit's date, so resuming does not restart the clock but a new head does. Exhausting _this_ is the genuine give-up → `blocked`.
 
 The wait probes the checks every poll: a red required check fails fast as
 `checks-failed` instead of burning the budget, and a PR that falls behind its
@@ -623,8 +623,8 @@ tool-invocation ceiling:
 
 - It is **resumable**: no label was mutated, no `merge.unlanded` was emitted,
   and `nextCommand` names the one command that continues it. The cumulative
-  budget is anchored at the PR's `createdAt`, so resuming does not restart the
-  clock.
+  budget is anchored at the later of the PR's `createdAt` and its head
+  commit's date, so resuming does not restart the clock but a new head does.
 - It is **not** a park. Returning `pending` because you would rather not wait
   is the no-park failure mode wearing a schema. Return it only
   when the bound genuinely expired, or a human owns the merge.
