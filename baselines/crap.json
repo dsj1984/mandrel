@@ -11783,9 +11783,115 @@
     },
     {
       "path": ".agents/scripts/lib/child-exec.js",
+      "method": "normalizeCapture",
+      "startLine": 109,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/child-exec.js",
       "method": "formatChildFailure",
       "startLine": 121,
       "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/child-exec.js",
+      "method": "execCollect",
+      "startLine": 123,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/child-exec.js",
+      "method": "<anon execCollect/(resolve)#0>",
+      "startLine": 124,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/child-exec.js",
+      "method": "<anon execCollect/(resolve)#0/(error,stdout,stderr)#0>",
+      "startLine": 125,
+      "crap": 5,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/child-exec.js",
+      "method": "<anon execCollect/(resolve)#0/()#0>",
+      "startLine": 131,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/child-exec.js",
+      "method": "spawnCaptureAsync",
+      "startLine": 146,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/child-exec.js",
+      "method": "<anon (file,args,opts)#0>",
+      "startLine": 160,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/child-stream.js",
+      "method": "createTail",
+      "startLine": 18,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/child-stream.js",
+      "method": "<anon createTail/()#0>",
+      "startLine": 21,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/child-stream.js",
+      "method": "chunkForwarder",
+      "startLine": 41,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/child-stream.js",
+      "method": "<anon chunkForwarder/(buf)#0>",
+      "startLine": 43,
+      "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/child-stream.js",
+      "method": "streamChild",
+      "startLine": 60,
+      "crap": 1.0029154518950438
+    },
+    {
+      "path": ".agents/scripts/lib/child-stream.js",
+      "method": "<anon streamChild/(resolve)#0>",
+      "startLine": 70,
+      "crap": 1.0029154518950438,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/child-stream.js",
+      "method": "<anon streamChild/(resolve)#0/(code)#0>",
+      "startLine": 98,
+      "crap": 6,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/child-stream.js",
+      "method": "<anon streamChild/(resolve)#0/(err)#0>",
+      "startLine": 114,
+      "crap": 2.011661807580175,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/child-stream.js",
+      "method": "<anon streamChild/(resolve)#0/()#0>",
+      "startLine": 119,
+      "crap": 1.0029154518950438,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/cli-args.js",
@@ -21062,6 +21168,119 @@
       "method": "<anon rollUpEpicForStory/(e)#1>",
       "startLine": 485,
       "crap": 1.0002226117928597,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/evidence-stream.js",
+      "method": "defaultReraise",
+      "startLine": 18,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/evidence-stream.js",
+      "method": "openSink",
+      "startLine": 26,
+      "crap": 6.010666666666666
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/evidence-stream.js",
+      "method": "<anon openSink/()#0>",
+      "startLine": 34,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/evidence-stream.js",
+      "method": "<anon openSink/(text)#0>",
+      "startLine": 42,
+      "crap": 2.108,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/evidence-stream.js",
+      "method": "<anon openSink/(line)#0>",
+      "startLine": 55,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/evidence-stream.js",
+      "method": "<anon (ms)#0>",
+      "startLine": 73,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/evidence-stream.js",
+      "method": "startHeartbeat",
+      "startLine": 76,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/evidence-stream.js",
+      "method": "<anon startHeartbeat/()#0>",
+      "startLine": 78,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/evidence-stream.js",
+      "method": "<anon startHeartbeat/()#1>",
+      "startLine": 88,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/evidence-stream.js",
+      "method": "trapCancellation",
+      "startLine": 92,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/evidence-stream.js",
+      "method": "<anon trapCancellation/(signal)#0>",
+      "startLine": 95,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/evidence-stream.js",
+      "method": "<anon trapCancellation/(signal)#0/()#0>",
+      "startLine": 96,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/evidence-stream.js",
+      "method": "<anon trapCancellation/()#0>",
+      "startLine": 105,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/evidence-stream.js",
+      "method": "describeTimeout",
+      "startLine": 115,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/evidence-stream.js",
+      "method": "runStreamed",
+      "startLine": 132,
+      "crap": 7.002356123215628
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/evidence-stream.js",
+      "method": "<anon runStreamed/()#0>",
+      "startLine": 156,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/evidence-stream.js",
+      "method": "<anon runStreamed/(text)#0>",
+      "startLine": 164,
+      "crap": 1,
       "anonymous": true
     },
     {
@@ -30887,6 +31106,13 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "<anon runStoryHandoff/(name)#0>",
+      "startLine": 909,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "<anon runStoryHandoff/(name,text)#0>",
       "startLine": 912,
       "crap": 1,
@@ -30946,6 +31172,19 @@
       "path": ".agents/scripts/lib/orchestration/story-progress.js",
       "method": "<anon writeStoryProgress/(msg)#0>",
       "startLine": 45,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-progress.js",
+      "method": "resolveProgressPath",
+      "startLine": 71,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-progress.js",
+      "method": "<anon resolveProgressPath/(msg)#0>",
+      "startLine": 75,
       "crap": 1,
       "anonymous": true
     },
