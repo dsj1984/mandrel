@@ -9663,6 +9663,12 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
+      "method": "defaultExtrasContext",
+      "startLine": 270,
+      "crap": 2.032
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/refresh-service.js",
       "method": "refreshBaseline",
       "startLine": 274,
       "crap": 6.019583676869332
