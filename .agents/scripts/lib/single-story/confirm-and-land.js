@@ -2,9 +2,8 @@ import { runPostLandTail as defaultRunPostLandTail } from '../orchestration/sing
 import { confirmStoryMerged } from './confirm-merge.js';
 
 /**
- * The one pairing every merged-Story path runs (confirm CLI, boot sweep,
- * close's already-closed return): confirm, then the land tail gated on
- * `merged` — a flip alone strands the lease, worktree and Epic rollup.
+ * Confirm, then the land tail when merged — shared by every merged-Story
+ * path, since a flip alone strands the lease and worktree.
  *
  * @param {object} args  {@link confirmStoryMerged}'s arguments, plus:
  * @param {string} args.storyBranch

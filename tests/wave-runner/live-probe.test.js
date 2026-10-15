@@ -1121,12 +1121,7 @@ describe('probeLiveState — cross-session overlap advisory (Story #5488)', () =
   });
 });
 
-/**
- * Story #5705 — a merged PR's `Closes #` footer closes the issue before any
- * confirm runs, so the Story reads `done` for scheduling while its
- * `agent::done` flip, lease release and worktree reap still wait. The beat
- * names those Stories on `confirm` without letting them gate anything.
- */
+/** Closed-but-not-done Stories are listed on `confirm`, never gated. */
 describe('probe-mode tick — confirm[] for closed Stories missing agent::done (Story #5705)', () => {
   it('lists a closed Story without agent::done and excludes superseded closes', async () => {
     const { envelope } = await tick({

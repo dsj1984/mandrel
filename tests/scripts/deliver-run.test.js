@@ -826,9 +826,7 @@ describe('deliver-run — the resume effort on each ready entry (#5608)', () => 
   });
 });
 
-// ---------------------------------------------------------------------------
-// Story #5705 — confirm[]: closed Stories still owing agent::done
-// ---------------------------------------------------------------------------
+// confirm[]: closed Stories still owing agent::done
 
 describe('deliver-run — confirm[] (Story #5705)', () => {
   it('renders a confirm-merge command per closed Story missing agent::done', async () => {

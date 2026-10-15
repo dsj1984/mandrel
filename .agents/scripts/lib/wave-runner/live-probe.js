@@ -72,8 +72,7 @@ function deriveBlockedIds(storyRecords) {
 const UNLANDED_CLOSE_REASONS = new Set(['not_planned', 'duplicate']);
 
 /**
- * Closed Stories still missing `agent::done` (a merged PR's footer closes the
- * issue before any confirm), superseded closes excluded; ascending.
+ * Closed, not `agent::done`, not superseded; ascending.
  *
  * @param {Array<{id?: number, number?: number, labels?: string[], state?: string, stateReason?: string|null}>} storyRecords
  * @returns {number[]}

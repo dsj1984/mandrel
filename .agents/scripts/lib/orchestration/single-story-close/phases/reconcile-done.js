@@ -1,9 +1,6 @@
 /**
- * phases/reconcile-done.js — a closed-completed Story can keep a stale
- * lifecycle label (a close that blocked before its PR merged, or a merge
- * after close was gone). With a MERGED PR on the Story branch this finishes
- * the flip and the land tail via confirm-and-land. Best-effort: never
- * changes the `landed` terminal; failures are logged and swallowed.
+ * phases/reconcile-done.js — finish a closed Story's stale label: with a
+ * MERGED PR, flip and run the land tail. Best-effort; failures are logged.
  */
 
 import { gh as defaultGh } from '../../../gh-exec.js';

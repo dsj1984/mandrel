@@ -895,8 +895,6 @@ describe('runSingleStoryClose orchestration', () => {
     assert.ok(labelWrites[0].patch.labels.remove.includes('agent::blocked'));
   });
 
-  // Story #5705 — the flip alone stranded the lease, worktree and epic
-  // rollup; the early return runs the same land tail every confirm path does.
   it('runs the land tail when the already-closed early return reconciles a merged Story', async (t) => {
     const { terminal, tailRuns } = await runClosedCompleted(t, {
       label: 'agent::closing',

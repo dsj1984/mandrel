@@ -74,8 +74,6 @@ export function toStoryRecord(issue, requestedId, { allowUnlabelled } = {}) {
     url: issue?.html_url ?? issue?.url ?? null,
     labels,
     state: String(issue?.state ?? 'open').toLowerCase(),
-    // Tells a merged close from a superseded one: the beat owes a confirm
-    // only for the former.
     stateReason: issue?.stateReason ?? issue?.state_reason ?? null,
     // The sole assignee is the Story lease holder; the live probe reads it to
     // withhold a Story another operator holds.
