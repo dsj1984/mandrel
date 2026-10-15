@@ -1084,11 +1084,7 @@ describe('story-handoff — live lock progress for the credited run (Story #5662
   });
 });
 
-/**
- * Story #5694 — the credited run's evidence log streams while the suite runs.
- * The credited run is a real `node -e` child behind the real streaming
- * runner; every other step keeps the command double.
- */
+// The credited run is a real child behind the real streaming runner.
 describe('story-handoff — the credited-run evidence log streams live (Story #5694)', () => {
   const CAPTURE_SIGNAL =
     '[coverage-capture] Wrote content-digest capture stamp.';
@@ -1104,7 +1100,6 @@ describe('story-handoff — the credited-run evidence log streams live (Story #5
   const activeTimers = () =>
     process.getActiveResourcesInfo().filter((r) => r === 'Timeout').length;
 
-  /** A child that prints `before`, waits for `goFile`, then prints `after`. */
   const gatedChild = (goFile, before, after, exitCode = 0) =>
     [
       'const fs = require("node:fs");',
@@ -1132,12 +1127,10 @@ describe('story-handoff — the credited-run evidence log streams live (Story #5
       if (path.basename(args[0] ?? '') !== 'coverage-capture.js') {
         return h.runCommand(cmd, args, opts);
       }
-      const res = await spawnStreamAsync(
-        process.execPath,
-        ['-e', script],
-        // The harness cwd is a placeholder; the real child needs a real one.
-        { ...opts, cwd: tempRoot },
-      );
+      const res = await spawnStreamAsync(process.execPath, ['-e', script], {
+        ...opts,
+        cwd: tempRoot,
+      });
       results.push(res);
       return res;
     };

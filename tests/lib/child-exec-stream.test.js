@@ -1,8 +1,4 @@
-/**
- * child-exec-stream.test.js — the streamed runner (Story #5694). Real `node -e`
- * children: chunks arrive in order while the child runs, only a bounded tail
- * is retained, and a timeout or abort kills the child and still settles.
- */
+// The streamed runner against real `node -e` children.
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';

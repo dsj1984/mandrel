@@ -1,9 +1,6 @@
 /**
- * child-stream.js — the streaming half of the child-process surface
- * (Story #5694). `child-exec.js` owns the `node:child_process` import and
- * hands `spawn` in, so this module stays out of the importer allowlist.
- *
- * @module lib/child-stream
+ * The streaming half of the child-process surface; `child-exec.js` owns the
+ * `node:child_process` import and injects `spawn`.
  */
 
 import { StringDecoder } from 'node:string_decoder';
@@ -14,23 +11,10 @@ import {
   TIMEOUT_EXIT_CODE,
 } from './process-group.js';
 
-const MIB = 1024 * 1024;
+/** `execFile`'s default `maxBuffer`: callers still see what they saw. */
+const STREAM_TAIL_BYTES = 1024 * 1024;
 
-/**
- * The streamed runner's retained tail per stream: `execFile`'s default
- * `maxBuffer`, so a caller matching output sees at least what it saw before
- * the runner streamed — and a larger output no longer fails the child.
- *
- * @type {number}
- */
-const STREAM_TAIL_BYTES = MIB;
-
-/**
- * A byte-bounded tail: keeps the last `limit` bytes, compacting lazily.
- *
- * @param {number} limit
- * @returns {{ push: (buf: Buffer) => void, text: () => string }}
- */
+/** Keeps the last `limit` bytes, compacting lazily. */
 function createTail(limit) {
   let chunks = [];
   let size = 0;
@@ -53,10 +37,7 @@ function createTail(limit) {
   };
 }
 
-/**
- * One stream's `data` handler: retain the tail, hand the decoded text on.
- * A throwing `onChunk` never kills the run.
- */
+/** Retain the tail and hand decoded text on; a throwing sink is ignored. */
 function chunkForwarder(tail, name, onChunk) {
   const decoder = new StringDecoder('utf8');
   return (buf) => {
@@ -65,28 +46,15 @@ function chunkForwarder(tail, name, onChunk) {
     if (!onChunk || text.length === 0) return;
     try {
       onChunk(text, name);
-    } catch {
-      // The sink's failure is the sink's to report.
-    }
+    } catch {}
   };
 }
 
 /**
- * Spawn without a shell and stream: each stdout/stderr chunk reaches
- * `onChunk(text, 'stdout'|'stderr')` in arrival order, while only a bounded
- * tail is retained. The child runs as a process group, killed whole on
- * `timeoutMs` (status → `TIMEOUT_EXIT_CODE`, `timedOut: true`) or when
- * `signal` aborts. Never rejects: a spawn error resolves status 1.
+ * Shell-free spawn streaming each chunk to `onChunk(text, stream)` in arrival
+ * order; only a bounded tail is retained. The process group is killed on
+ * `timeoutMs` (status 124, `timedOut`) or `signal` abort. Never rejects.
  *
- * @param {string}   file
- * @param {string[]} args
- * @param {object}   [opts] spawn options plus the fields below.
- * @param {(text: string, stream: 'stdout'|'stderr') => void} [opts.onChunk]
- * @param {number}   [opts.timeoutMs]
- * @param {AbortSignal} [opts.signal]
- * @param {string}   [opts.input] written to stdin, which is then closed.
- * @param {number}   [opts.tailBytes]
- * @param {Function} opts.spawnImpl `child_process.spawn`, injected.
  * @returns {Promise<{ status: number, stdout: string, stderr: string, timedOut: boolean, pid: number|null }>}
  */
 export function streamChild(file, args, opts = {}) {
@@ -145,7 +113,6 @@ export function streamChild(file, args, opts = {}) {
     child.stderr.on('data', chunkForwarder(stderr, 'stderr', onChunk));
     child.on('error', (err) => {
       spawnError = err;
-      // A child that never started emits no `close` on every platform.
       if (!child.pid) settle(1);
     });
     child.on('close', settle);

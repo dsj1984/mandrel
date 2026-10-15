@@ -46,7 +46,7 @@
     "evidencePath": {
       "type": ["string", "null"],
       "minLength": 1,
-      "description": "Optional. The evidence log the current handoff step's child is streaming into (Story #5694), so a poller can tail it while the step runs. Absent when the phase runs no logged child."
+      "description": "Optional. The evidence log the current handoff step's child is streaming into, so a poller can tail it while the step runs. Absent when the phase runs no logged child."
     },
     "updatedAt": { "type": "string", "format": "date-time" }
   }
