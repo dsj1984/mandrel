@@ -1,7 +1,7 @@
 // Must be the first import: fails fast before any third-party import loads.
 import './lib/runtime-deps/ensure-installed.js';
 import {
-  buildCrapUpdaterScorer,
+  buildCrapRefreshOptions,
   parseCrapUpdaterArgs,
   resolveCrapUpdaterOptions,
   seatCrapBaseline,
@@ -15,10 +15,7 @@ import {
   resolveConfig,
 } from './lib/config-resolver.js';
 import { loadCoverage } from './lib/coverage-utils.js';
-import {
-  resolveEscomplexVersion,
-  resolveTsTranspilerVersion,
-} from './lib/crap-utils.js';
+import { resolveEscomplexVersion } from './lib/crap-utils.js';
 
 import { Logger } from './lib/Logger.js';
 
@@ -75,21 +72,15 @@ async function main() {
     `[CRAP] Coverage source: ${options.coveragePath}${options.requireCoverage ? ' (required)' : ' (optional)'}`,
   );
 
-  const refreshOpts = {
-    kind: 'crap',
-    writePath: options.absBaselinePath,
-    epsilon: getBaselineEpsilon('crap'),
-    scorer: buildCrapUpdaterScorer(options, { loadCoverage }),
-  };
-  // No flag -> scopeFiles=null + fullScope=false -> the service derives the
-  // diff via `origin/main..HEAD` (its default baseRef/headRef).
-  if (options.fullScope) refreshOpts.fullScope = true;
-  else if (options.diffScopeRef) refreshOpts.baseRef = options.diffScopeRef;
-
-  const result = await refreshBaseline(refreshOpts);
+  const result = await refreshBaseline(
+    buildCrapRefreshOptions(options, {
+      loadCoverage,
+      epsilon: getBaselineEpsilon('crap'),
+    }),
+  );
 
   Logger.info(
-    `[CRAP] ✅ Baseline updated (kernelVersion=${result.envelope.kernelVersion}, escomplexVersion=${resolveEscomplexVersion()}, tsTranspilerVersion=${resolveTsTranspilerVersion()}). Wrote to ${options.absBaselinePath}.`,
+    `[CRAP] ✅ Baseline updated (kernelVersion=${result.envelope.kernelVersion}, escomplexVersion=${resolveEscomplexVersion()}, tsTranspilerVersion=${result.envelope.tsTranspilerVersion}). Wrote to ${options.absBaselinePath}.`,
   );
   Logger.info(
     `[CRAP] Wrote ${result.envelope.rows.length} row(s). scope=${result.scope.mode}, wrote=${result.wrote}.`,

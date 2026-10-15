@@ -233,12 +233,13 @@ function tryGetKindModule(kind) {
  *
  * @param {string} kind
  * @param {object|null} baseline
+ * @param {object} [ctx] Passed through to the kind's hook (e.g. scan anchors).
  * @returns {string|null} Operator-facing message, or null when compatible.
  */
-export function checkBaselineSemantics(kind, baseline) {
+export function checkBaselineSemantics(kind, baseline, ctx = {}) {
   const mod = tryGetKindModule(kind);
   if (typeof mod?.assertBaselineCompatible !== 'function') return null;
-  return mod.assertBaselineCompatible(baseline);
+  return mod.assertBaselineCompatible(baseline, ctx);
 }
 
 /**

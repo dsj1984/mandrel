@@ -126,7 +126,7 @@ function buildDefaultCrapScorer({ cwd, config, quality } = {}) {
       scopeFiles,
     });
     resolveEscomplexVersion(effectiveCwd);
-    resolveTsTranspilerVersion();
+    resolveTsTranspilerVersion({ cwd: effectiveCwd, targetDirs });
     return (rows ?? []).filter(
       (r) => typeof r?.crap === 'number' && Number.isFinite(r.crap),
     );
@@ -266,6 +266,18 @@ export function resolveDefaultScorer(kind, { cwd } = {}) {
   return builder({ cwd: effectiveCwd, quality });
 }
 
+/** The CRAP stamp anchors where check-baselines does: target dirs + root. */
+function defaultExtrasContext(kind, cwd) {
+  if (kind !== 'crap') return { cwd };
+  let targetDirs;
+  try {
+    targetDirs = getQuality(resolveConfig({ cwd }))?.crap?.targetDirs;
+  } catch {
+    targetDirs = undefined;
+  }
+  return { cwd, targetDirs };
+}
+
 /**
  * Refresh the on-disk baseline for `kind`. `scopeFiles: null` without
  * `fullScope` derives scope from `git diff baseRef..headRef`; `fullScope`
@@ -286,6 +298,7 @@ export function resolveDefaultScorer(kind, { cwd } = {}) {
  *   cwd?: string,
  *   requireRowsForScopeFiles?: boolean,
  *   requiredScopeFilePredicate?: (file: string) => boolean,
+ *   extrasContext?: { cwd?: string, targetDirs?: string[] },
  * }} opts
  * @returns {Promise<{
  *   kind: string,
@@ -310,6 +323,7 @@ export async function refreshBaseline(opts = {}) {
     cwd = process.cwd(),
     requireRowsForScopeFiles = false,
     requiredScopeFilePredicate,
+    extrasContext,
   } = opts;
 
   validateOptions({ kind, scopeFiles, fullScope, writePath });
@@ -363,6 +377,7 @@ export async function refreshBaseline(opts = {}) {
     prior: priorEnvelope?.rows,
     priorEnvelope,
     epsilon,
+    extrasContext: extrasContext ?? defaultExtrasContext(kind, cwd),
     scope:
       scope.mode === 'full'
         ? null
