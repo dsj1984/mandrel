@@ -9,7 +9,7 @@ import picomatch from 'picomatch';
 import { write, writeFile } from './baselines/writer.js';
 import {
   captureStampPath,
-  missingCoverageArtifactMessage,
+  MissingCoverageArtifactError,
 } from './coverage-capture.js';
 
 const COVERAGE_FINAL_PATH = 'coverage/coverage-final.json';
@@ -98,7 +98,7 @@ export function readCoverageFinal(cwd, opts = {}, fsImpl) {
     ? coveragePath
     : path.resolve(cwd, coveragePath);
   if (!resolvedFs.existsSync(abs)) {
-    throw new Error(missingCoverageArtifactMessage(abs));
+    throw new MissingCoverageArtifactError(abs);
   }
   return JSON.parse(resolvedFs.readFileSync(abs, 'utf8'));
 }

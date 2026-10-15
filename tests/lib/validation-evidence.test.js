@@ -33,6 +33,16 @@ function makeFakeFs() {
       }
       return v;
     },
+    renameSync: (from, to) => {
+      const src = path.resolve(from);
+      if (!files.has(src)) {
+        const err = new Error(`ENOENT: ${from}`);
+        err.code = 'ENOENT';
+        throw err;
+      }
+      files.set(path.resolve(to), files.get(src));
+      files.delete(src);
+    },
     unlinkSync: (p) => {
       files.delete(path.resolve(p));
     },
@@ -338,6 +348,76 @@ test('shouldSkip() returns missing-input when any field is empty', () => {
       opts,
     ).reason,
     'missing-input',
+  );
+});
+
+test('recordPass() writes a pid-scoped tmp sibling and renames it over the target (Story #5683)', () => {
+  const fs = makeFakeFs();
+  const ops = [];
+  const traced = {
+    ...fs,
+    writeFileSync: (p, data) => {
+      ops.push(['write', path.basename(p)]);
+      fs.writeFileSync(p, data);
+    },
+    renameSync: (from, to) => {
+      ops.push(['rename', path.basename(from), path.basename(to)]);
+      fs.renameSync(from, to);
+    },
+  };
+  const cfg = hashCommandConfig({ cmd: 'npm', args: ['run', 'lint'] });
+  recordPass(
+    { storyId: 901, gateName: 'lint', sha: 'abcdef0', configHash: cfg },
+    baseOpts({ fs: traced }),
+  );
+  const tmp = `validation-evidence.json.${process.pid}.tmp`;
+  assert.deepEqual(ops, [
+    ['write', tmp],
+    ['rename', tmp, 'validation-evidence.json'],
+  ]);
+  assert.deepEqual(
+    [...fs.files.keys()].map((p) => path.basename(p)),
+    ['validation-evidence.json'],
+  );
+});
+
+test('a failure between the tmp write and the rename leaves the previous evidence intact and parseable (Story #5683)', () => {
+  const fs = makeFakeFs();
+  const opts = baseOpts({ fs });
+  const cfg = hashCommandConfig({ cmd: 'npm', args: ['run', 'lint'] });
+  recordPass(
+    { storyId: 901, gateName: 'lint', sha: 'abcdef0', configHash: cfg },
+    opts,
+  );
+  const file = evidencePath(901, { cwd: FAKE_CWD, standalone: true });
+  const before = fs.files.get(path.resolve(file));
+
+  const failingRename = {
+    ...fs,
+    renameSync: () => {
+      throw new Error('EXDEV rename boom');
+    },
+  };
+  assert.throws(
+    () =>
+      recordPass(
+        { storyId: 901, gateName: 'test', sha: 'abcdef0', configHash: cfg },
+        baseOpts({ fs: failingRename }),
+      ),
+    /EXDEV rename boom/,
+  );
+
+  assert.equal(fs.files.get(path.resolve(file)), before, 'target untouched');
+  const doc = loadEvidence(901, opts);
+  assert.deepEqual(
+    doc.records.map((r) => r.gateName),
+    ['lint'],
+    'the prior document still parses and keeps its credit',
+  );
+  assert.deepEqual(
+    [...fs.files.keys()].map((p) => path.basename(p)),
+    ['validation-evidence.json'],
+    'the tmp sibling is reaped',
   );
 });
 

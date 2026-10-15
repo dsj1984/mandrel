@@ -91,6 +91,7 @@ function run({
   scanRows = CYC_ROWS,
   parseErrors = 0,
   git = gitStub(),
+  writeFile,
 } = {}) {
   const out = runRatchetShrinkWriteback({
     cwd: root,
@@ -103,8 +104,42 @@ function run({
       knip ?? (({ production }) => knipOf(production ? knipProd : knipDefault)),
     scanCyclomatic: () => ({ rows: scanRows, parseErrors }),
     resolveScanScope: () => null,
+    ...(writeFile ? { writeFile } : {}),
   });
   return { out, root, calls: git.calls };
+}
+
+/**
+ * A git stub whose `restore --staged --worktree -- <paths>` puts each path's
+ * seeded bytes back, as the real command would, and which can fail `add`.
+ */
+function restoringGitStub(root, { failOn = null } = {}) {
+  const snapshot = new Map();
+  for (const rel of [DEFAULT_REL, PROD_REL, CYC_REL]) {
+    snapshot.set(rel, fs.readFileSync(path.join(root, rel), 'utf8'));
+  }
+  const base = gitStub({ failOn });
+  const git = (cwd, ...args) => {
+    if (args[0] === 'restore') {
+      base.calls.push(args);
+      for (const rel of args.slice(args.indexOf('--') + 1)) {
+        fs.writeFileSync(path.join(root, rel), snapshot.get(rel));
+      }
+      return '';
+    }
+    return base.git(cwd, ...args);
+  };
+  return { git, calls: base.calls, snapshot };
+}
+
+/** `fs.writeFileSync`, except the `n`th call throws. */
+function failingNthWrite(n) {
+  let count = 0;
+  return (file, data) => {
+    count += 1;
+    if (count === n) throw new Error(`write ${count} boom`);
+    fs.writeFileSync(file, data);
+  };
 }
 
 describe('runRatchetShrinkWriteback — shrink is written (AC-3)', () => {
@@ -261,6 +296,61 @@ describe('runRatchetShrinkWriteback — fail-safe skips', () => {
       calls.find((c) => c[0] === 'restore'),
       ['restore', '--staged', '--worktree', '--', DEFAULT_REL],
     );
+  });
+
+  test('a throw on the second write restores every path it touched and re-throws (Story #5683)', () => {
+    const root = seed();
+    const git = restoringGitStub(root);
+    const { out, calls } = run({
+      root,
+      git,
+      knipDefault: [DEFAULT_ROWS[0]],
+      knipProd: [PROD_ROWS[0]],
+      scanRows: [{ file: 'x.js', methodsAboveCeiling: 1, maxCyclomatic: 15 }],
+      writeFile: failingNthWrite(2),
+    });
+    assert.equal(out.committed, false);
+    assert.match(out.reason, /^git-failed: write 2 boom/);
+    assert.deepEqual(
+      calls.find((c) => c[0] === 'restore'),
+      [
+        'restore',
+        '--staged',
+        '--worktree',
+        '--',
+        DEFAULT_REL,
+        PROD_REL,
+        CYC_REL,
+      ],
+    );
+    assert.equal(calls.filter((c) => c[0] === 'add').length, 0);
+    assert.equal(calls.filter((c) => c[0] === 'commit').length, 0);
+    for (const [rel, bytes] of git.snapshot) {
+      assert.equal(
+        fs.readFileSync(path.join(root, rel), 'utf8'),
+        bytes,
+        `${rel} must be restored`,
+      );
+    }
+  });
+
+  test('a throw on git add restores every written baseline and re-throws (Story #5683)', () => {
+    const root = seed();
+    const git = restoringGitStub(root, { failOn: 'add' });
+    const { out, calls } = run({
+      root,
+      git,
+      knipDefault: [DEFAULT_ROWS[0]],
+      knipProd: [PROD_ROWS[0]],
+    });
+    assert.match(out.reason, /^git-failed: git add boom/);
+    assert.deepEqual(
+      calls.find((c) => c[0] === 'restore'),
+      ['restore', '--staged', '--worktree', '--', DEFAULT_REL, PROD_REL],
+    );
+    for (const [rel, bytes] of git.snapshot) {
+      assert.equal(fs.readFileSync(path.join(root, rel), 'utf8'), bytes);
+    }
   });
 
   test('nothing to shrink is a named skip listing each baseline', () => {
