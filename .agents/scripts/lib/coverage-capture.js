@@ -486,13 +486,28 @@ export function creditedCapture(runCaptureFn, { requireCredited, logger }) {
  * @param {string} abs Absolute artifact path that was looked for.
  * @returns {string}
  */
-export function missingCoverageArtifactMessage(abs) {
+function missingCoverageArtifactMessage(abs) {
   return (
     `coverage artifact not found at ${abs}. \`npm run test:coverage\` must ` +
     'write Istanbul per-file JSON (the `json` reporter → coverage-final.json) ' +
     'at delivery.quality.gates.coverage.coveragePath; a `json-summary` ' +
     '(coverage-summary.json) alone cannot feed the coverage or CRAP baselines.'
   );
+}
+
+/**
+ * Fatal on every scope: zero scored rows would let the scope merge delete the
+ * in-scope rows.
+ */
+export class MissingCoverageArtifactError extends Error {
+  constructor(abs, { prefix = '', cause } = {}) {
+    super(
+      `${prefix}${missingCoverageArtifactMessage(abs)}`,
+      cause === undefined ? undefined : { cause },
+    );
+    this.name = 'MissingCoverageArtifactError';
+    this.artifactPath = abs;
+  }
 }
 
 /**

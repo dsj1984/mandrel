@@ -7,8 +7,8 @@
  *   - the default coverage scorer reads the CONFIGURED path, not a hardcoded
  *     `coverage/coverage-final.json`;
  *   - both refreshes complete from a fixture artifact at that path;
- *   - a full-scope refresh with no artifact fails naming the `json` reporter
- *     contract instead of returning zero rows.
+ *   - a refresh with no artifact, full-scope or scoped, fails naming the
+ *     `json` reporter contract instead of returning zero rows.
  *
  * Config resolution is cached per cwd, so every case gets its own workDir.
  */
@@ -140,16 +140,20 @@ describe('coverage + CRAP refresh from the configured artifact (Story #5672)', (
     );
   });
 
-  it('a scoped refresh with no artifact yields no rows instead of throwing', async () => {
+  it('a scoped refresh with no artifact throws instead of yielding no rows (Story #5683)', async () => {
     workDir = seedRepo({ withArtifact: false });
     const opts = { cwd: workDir, fullScope: false };
-    assert.deepEqual(
-      resolveDefaultScorer('coverage', { cwd: workDir })(['src/a.js'], opts),
-      [],
+    const named = (err) =>
+      err.name === 'MissingCoverageArtifactError' &&
+      /coverage artifact not found/.test(err.message);
+    assert.throws(
+      () =>
+        resolveDefaultScorer('coverage', { cwd: workDir })(['src/a.js'], opts),
+      named,
     );
-    assert.deepEqual(
-      await resolveDefaultScorer('crap', { cwd: workDir })(['src/a.js'], opts),
-      [],
+    await assert.rejects(
+      resolveDefaultScorer('crap', { cwd: workDir })(['src/a.js'], opts),
+      named,
     );
   });
 });
