@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { parseSprintArgs } from '../../.agents/scripts/lib/cli-args.js';
+import {
+  parseSprintArgs,
+  parseStoryCwdArgv,
+} from '../../.agents/scripts/lib/cli-args.js';
 import { parseWorkerEffort } from '../../.agents/scripts/lib/orchestration/resume-effort.js';
 
 /**
@@ -109,4 +112,20 @@ describe('parseSprintArgs — --worker-effort (Story #5608)', () => {
     assert.equal(effort, null);
     assert.match(warning, /low\|medium\|high\|xhigh\|max/);
   });
+});
+
+describe('parseStoryCwdArgv — the worker-tail --story/--cwd argv', () => {
+  const cases = [
+    [['--story', '5480', '--cwd', '/w'], { storyId: 5480, cwd: '/w' }],
+    [['--story=12'], { storyId: 12, cwd: null }],
+    [['--story', 'x'], { storyId: null, cwd: null }],
+    [['--story', '0'], { storyId: null, cwd: null }],
+    [['--story'], { storyId: null, cwd: null }],
+    [[], { storyId: null, cwd: null }],
+  ];
+  for (const [args, expected] of cases) {
+    it(`parses ${JSON.stringify(args)}`, () => {
+      assert.deepEqual(parseStoryCwdArgv(args), expected);
+    });
+  }
 });

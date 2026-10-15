@@ -17,6 +17,30 @@ export function parseTicketId(value) {
 }
 
 /**
+ * The `--story <id> [--cwd <path>]` argv shared by the worker-tail CLIs
+ * (`story-handoff`, `story-review-compute`). A non-positive or non-numeric
+ * story id is `null`, which each caller reports as its usage error.
+ *
+ * @param {string[]} argv
+ * @returns {{ storyId: number|null, cwd: string|null }}
+ */
+export function parseStoryCwdArgv(argv) {
+  const { values } = parseArgs({
+    args: argv,
+    options: {
+      story: { type: 'string' },
+      cwd: { type: 'string' },
+    },
+    strict: false,
+  });
+  const storyId = Number.parseInt(values.story ?? '', 10);
+  return {
+    storyId: Number.isInteger(storyId) && storyId > 0 ? storyId : null,
+    cwd: values.cwd ?? null,
+  };
+}
+
+/**
  * Under `strict: false`, `--flag=false` arrives as the string `'false'`.
  *
  * @param {boolean|string|null|undefined} value

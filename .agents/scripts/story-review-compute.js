@@ -15,8 +15,7 @@
  * findings; 1 only on a usage error or a provider throw.
  */
 
-import { parseArgs } from 'node:util';
-
+import { parseStoryCwdArgv } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
 import { getStoryBranch, gitSpawn } from './lib/git-utils.js';
@@ -44,25 +43,8 @@ const USAGE = {
   ],
 };
 
-/**
- * @param {string[]} argv
- * @returns {{ storyId: number|null, cwd: string|null }}
- */
-export function parseArgv(argv) {
-  const { values } = parseArgs({
-    args: argv,
-    options: {
-      story: { type: 'string' },
-      cwd: { type: 'string' },
-    },
-    strict: false,
-  });
-  const storyId = Number.parseInt(values.story ?? '', 10);
-  return {
-    storyId: Number.isInteger(storyId) && storyId > 0 ? storyId : null,
-    cwd: values.cwd ?? null,
-  };
-}
+// Re-exported: tests import the parser from this module path.
+export { parseStoryCwdArgv as parseArgv };
 
 /**
  * @param {object} severity
@@ -160,7 +142,7 @@ export async function runStoryReviewComputeCli(
     cwd: defaultCwd = process.cwd(),
     ...computeDeps
   } = deps;
-  const { storyId, cwd } = parseArgv(argv);
+  const { storyId, cwd } = parseStoryCwdArgv(argv);
   if (!storyId) {
     throw new Error(
       'story-review-compute: --story <id> is required (a positive integer).',
