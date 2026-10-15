@@ -6,6 +6,7 @@ import {
   BaselineNotFoundError,
   BaselineWriteError,
   loadBaseline,
+  readJsonBaseline,
   writeBaseline,
 } from '../.agents/scripts/lib/gates/baseline-store.js';
 import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
@@ -192,5 +193,25 @@ describe('writeBaseline — error envelope', () => {
     assert.ok(caught instanceof BaselineWriteError);
     assert.equal(caught.path, target);
     assert.ok(caught.cause, 'cause must be threaded through');
+  });
+});
+
+describe("readJsonBaseline — the ratchet gates' lenient loader (Story #5686)", () => {
+  const write = (name, body) => {
+    const file = path.join(tmpRoot, name);
+    fs.writeFileSync(file, body);
+    return file;
+  };
+
+  it('returns the parsed object for a well-formed file', () => {
+    const file = write('ok.json', JSON.stringify({ rows: [{ file: 'a' }] }));
+    assert.deepEqual(readJsonBaseline(file), { rows: [{ file: 'a' }] });
+  });
+
+  it('returns null for a missing, unparseable or non-object file', () => {
+    assert.equal(readJsonBaseline(path.join(tmpRoot, 'nope.json')), null);
+    assert.equal(readJsonBaseline(write('bad.json', '{ not json')), null);
+    assert.equal(readJsonBaseline(write('num.json', '42')), null);
+    assert.equal(readJsonBaseline(write('null.json', 'null')), null);
   });
 });

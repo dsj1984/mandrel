@@ -41,6 +41,39 @@ export function parseStoryCwdArgv(argv) {
 }
 
 /**
+ * `--name <value>` / `--flag` argv for the ratchet gates. A string flag
+ * followed by another `--flag` (or by nothing) has no value and reads as
+ * `null`; it never swallows the next flag. Unknown arguments are ignored.
+ *
+ * @param {string[]} argv
+ * @param {{ strings?: string[], booleans?: string[] }} spec Flag names without `--`.
+ * @returns {Record<string, string | null | boolean>} Keyed by flag name.
+ */
+export function parseGateArgv(argv, { strings = [], booleans = [] }) {
+  const stringFlags = new Set(strings.map((name) => `--${name}`));
+  const args = argv.filter(
+    (arg, i) =>
+      !(stringFlags.has(arg) && String(argv[i + 1] ?? '').startsWith('--')),
+  );
+  const options = {};
+  for (const name of strings) options[name] = { type: 'string' };
+  for (const name of booleans) options[name] = { type: 'boolean' };
+  const { values } = parseArgs({
+    args,
+    options,
+    strict: false,
+    allowPositionals: true,
+  });
+  const out = {};
+  for (const name of strings) {
+    const value = values[name];
+    out[name] = typeof value === 'string' && value !== '' ? value : null;
+  }
+  for (const name of booleans) out[name] = values[name] === true;
+  return out;
+}
+
+/**
  * Under `strict: false`, `--flag=false` arrives as the string `'false'`.
  *
  * @param {boolean|string|null|undefined} value

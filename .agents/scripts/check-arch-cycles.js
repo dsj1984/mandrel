@@ -9,7 +9,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import { parseGateArgv } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
+import { readJsonBaseline } from './lib/gates/baseline-store.js';
 import {
   buildGraph,
   collectJsFiles,
@@ -17,36 +19,30 @@ import {
   parseRelativeImports,
 } from './lib/import-graph.js';
 
+// Re-exported: tests import the shared loader under its gate-local name.
 // Shared with `audit-baselines.js`; re-exported as part of this module's contract.
-export { buildGraph, collectJsFiles, DEFAULT_ROOTS, parseRelativeImports };
+export {
+  buildGraph,
+  collectJsFiles,
+  DEFAULT_ROOTS,
+  parseRelativeImports,
+  readJsonBaseline as loadBaseline,
+};
 
 /**
  * @param {string[]} argv
  * @returns {{ baselinePath: string | null, rootPath: string | null, json: boolean }}
  */
 export function parseArgv(argv = []) {
-  let baselinePath = null;
-  let rootPath = null;
-  let json = false;
-  for (let i = 0; i < argv.length; i += 1) {
-    const a = argv[i];
-    if (a === '--baseline') {
-      const next = argv[i + 1];
-      if (next && !next.startsWith('--')) {
-        baselinePath = next;
-        i += 1;
-      }
-    } else if (a === '--root') {
-      const next = argv[i + 1];
-      if (next && !next.startsWith('--')) {
-        rootPath = next;
-        i += 1;
-      }
-    } else if (a === '--json') {
-      json = true;
-    }
-  }
-  return { baselinePath, rootPath, json };
+  const flags = parseGateArgv(argv, {
+    strings: ['baseline', 'root'],
+    booleans: ['json'],
+  });
+  return {
+    baselinePath: flags.baseline,
+    rootPath: flags.root,
+    json: flags.json,
+  };
 }
 
 /**
@@ -124,23 +120,6 @@ export function findCycles(graph) {
 }
 
 /**
- * `null` when missing or unparseable.
- *
- * @param {string} baselinePath
- * @returns {{ cycles?: string[][] } | null}
- */
-export function loadBaseline(baselinePath) {
-  try {
-    if (!fs.existsSync(baselinePath)) return null;
-    const parsed = JSON.parse(fs.readFileSync(baselinePath, 'utf-8'));
-    if (!parsed || typeof parsed !== 'object') return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-/**
  * Both sides normalized, so a rotation never counts as drift.
  *
  * @param {string[][]} allowlisted
@@ -208,7 +187,7 @@ export async function runCli({
   if (presentScanDirs.length === 0) {
     throw new Error(`[arch-cycles] no scan root found: ${scanDirs.join(', ')}`);
   }
-  const baseline = loadBaseline(resolvedBaselinePath);
+  const baseline = readJsonBaseline(resolvedBaselinePath);
   const allowlisted = Array.isArray(baseline?.cycles) ? baseline.cycles : [];
 
   const files = presentScanDirs.flatMap((dir) => collectJsFiles(dir));

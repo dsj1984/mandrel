@@ -49,6 +49,24 @@ function defaultReadFromTree({ baselinePath, projectRoot } = {}) {
 }
 
 /**
+ * Lenient read for the ratchet gates (`check-arch-cycles`,
+ * `check-context-budget`, `check-cyclomatic`, `check-dead-exports`): the
+ * parsed JSON object, or `null` when the file is missing, unparseable, or not
+ * an object — each gate treats `null` as an empty baseline.
+ *
+ * @param {string} baselinePath
+ * @returns {object | null}
+ */
+export function readJsonBaseline(baselinePath) {
+  try {
+    const parsed = defaultReadFromTree({ baselinePath });
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * A gate may supply `readFromTree` for a "missing → empty" bootstrap (MI
  * returns `{}`); the default throws `BaselineNotFoundError`.
  */
