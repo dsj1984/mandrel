@@ -47,11 +47,7 @@ export function handleMaintainabilityReportWorkerMessage(msg, deps = {}) {
 
   const item = msg?.item;
   const isPathItem = typeof item === 'string';
-  const isSourceItem =
-    item &&
-    typeof item === 'object' &&
-    typeof item.source === 'string' &&
-    typeof item.label === 'string';
+  const isSourceItem = isSourceShaped(item);
   if (!isPathItem && !isSourceItem) {
     return {
       kind: 'reply',
@@ -81,14 +77,24 @@ export function handleMaintainabilityReportWorkerMessage(msg, deps = {}) {
         result: {
           filePath,
           report: null,
-          error:
-            err && typeof err.message === 'string' ? err.message : String(err),
+          error: errorText(err),
         },
       },
     };
   }
 }
 
-serveWorkerMessages(parentPort, (msg) =>
-  handleMaintainabilityReportWorkerMessage(msg),
-);
+function isSourceShaped(item) {
+  return (
+    Boolean(item) &&
+    typeof item === 'object' &&
+    typeof item.source === 'string' &&
+    typeof item.label === 'string'
+  );
+}
+
+function errorText(err) {
+  return err && typeof err.message === 'string' ? err.message : String(err);
+}
+
+serveWorkerMessages(parentPort, handleMaintainabilityReportWorkerMessage);
