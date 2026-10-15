@@ -3049,6 +3049,19 @@
       "anonymous": true
     },
     {
+      "path": ".agents/scripts/deliver-run.js",
+      "method": "renderConfirmEntries",
+      "startLine": 580,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/deliver-run.js",
+      "method": "<anon renderConfirmEntries/(id)#0>",
+      "startLine": 581,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
       "path": ".agents/scripts/diagnose.js",
       "method": "parseArgs",
       "startLine": 73,
@@ -29572,6 +29585,18 @@
       "crap": 4.023883381924199
     },
     {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/reconcile-done.js",
+      "method": "readMergedHead",
+      "startLine": 51,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/reconcile-done.js",
+      "method": "reconcileFromMergedHead",
+      "startLine": 60,
+      "crap": 2
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/review-block.js",
       "method": "handleCriticalReviewBlock",
       "startLine": 12,
@@ -33986,6 +34011,12 @@
       "crap": 5
     },
     {
+      "path": ".agents/scripts/lib/single-story-sweep/reconcile-closing.js",
+      "method": "listStranded",
+      "startLine": 50,
+      "crap": 2
+    },
+    {
       "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
       "method": "resolveSweepLockPath",
       "startLine": 30,
@@ -34324,6 +34355,12 @@
       "method": "acquireLockWithWait",
       "startLine": 455,
       "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/single-story/confirm-and-land.js",
+      "method": "confirmAndLand",
+      "startLine": 15,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/single-story/confirm-merge.js",
@@ -36458,9 +36495,43 @@
     },
     {
       "path": ".agents/scripts/lib/wave-runner/live-probe.js",
+      "method": "deriveConfirmIds",
+      "startLine": 81,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/wave-runner/live-probe.js",
       "method": "deriveForeignHeld",
       "startLine": 82,
       "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/wave-runner/live-probe.js",
+      "method": "<anon deriveConfirmIds/(rec)#0>",
+      "startLine": 84,
+      "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/wave-runner/live-probe.js",
+      "method": "<anon deriveConfirmIds/(rec)#1>",
+      "startLine": 89,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/wave-runner/live-probe.js",
+      "method": "<anon deriveConfirmIds/(id)#0>",
+      "startLine": 90,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/wave-runner/live-probe.js",
+      "method": "<anon deriveConfirmIds/(a,b)#0>",
+      "startLine": 91,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/wave-runner/live-probe.js",

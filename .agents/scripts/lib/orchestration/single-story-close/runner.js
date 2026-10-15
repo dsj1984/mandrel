@@ -157,6 +157,7 @@ function resolveCloseDeps(options, injected) {
     releaseLease: injected.injectedReleaseLease ?? releaseStoryLease,
     graphqlProbe: injected.injectedGraphqlProbe,
     sleep: injected.injectedSleep,
+    runPostLandTail: injected.injectedRunPostLandTail,
   };
 }
 

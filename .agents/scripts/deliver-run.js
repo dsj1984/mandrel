@@ -19,6 +19,7 @@ import { getPaths, resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
 import { ensureDocsDigest } from './lib/orchestration/docs-digest.js';
 import { resolveResumeEffort } from './lib/orchestration/resume-effort.js';
+import { NEXT_COMMANDS } from './lib/orchestration/story-deliver-terminal.js';
 import { expandIdList } from './lib/util/parse-id-list.js';
 import { runProbedStoriesWaveTick } from './stories-wave-tick.js';
 
@@ -54,6 +55,7 @@ const USAGE = {
     '--merge-watch-mode async is added to every close command when the run holds\nmore than one Story, and omitted for a run of one. Close sees a single Story\nand cannot make that call for itself.',
     'Every close command carries --worker-model, and --worker-effort when the\nStory resumes after a prior block: every Story a beat hands out is\nworker-dispatched, including a one-Story resume.',
     'Each ready[] entry carries effort: "high" after one local un-recovered\nstory-blocked signal, "xhigh" after two or more, null otherwise. Pass a\nnon-null effort as the Agent call\'s effort; omit the parameter for null.',
+    'confirm[] lists every Story in the run that is closed but not yet\nagent::done (a superseded not_planned/duplicate close excluded), each with\nthe single-story-confirm-merge.js command that finishes its flip and land\ntail. Run each verbatim on every beat, before the epilogue. It is advisory:\nit never gates done.',
     'Exit codes:\n  0  beat emitted\n  1  input error\n  2  dependency cycle (cycleError)\n  3  wedged\n  4  blocked — the HITL pause; stop the loop, do not poll',
   ],
 };
@@ -545,6 +547,7 @@ export async function runDeliverRunBeat(
           workerEffort: effortById.get(storyId) ?? null,
         }),
       })),
+      confirm: renderConfirmEntries(tick.confirm),
       done: tick.epilogueDue === true,
       doneStories: tick.done ?? [],
       inFlight: tick.inFlight ?? 0,
@@ -565,6 +568,14 @@ export async function runDeliverRunBeat(
     },
     exitCode,
   };
+}
+
+/** Closed Stories owing the done flip; advisory, never gates `done`. */
+function renderConfirmEntries(ids) {
+  return (Array.isArray(ids) ? ids : []).map((id) => ({
+    id,
+    command: NEXT_COMMANDS.confirmMerge(id),
+  }));
 }
 
 /**

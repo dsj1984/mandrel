@@ -825,3 +825,80 @@ describe('deliver-run — the resume effort on each ready entry (#5608)', () => 
     );
   });
 });
+
+// confirm[]: closed Stories still owing agent::done
+
+describe('deliver-run — confirm[] (Story #5705)', () => {
+  it('renders a confirm-merge command per closed Story missing agent::done', async () => {
+    const { envelope, exitCode } = await beat(
+      {
+        nodes: [
+          node(101, { labels: ['agent::closing'] }),
+          node(102, { dependsOn: [101], labels: ['agent::ready'] }),
+        ],
+        doneIds: new Set([101]),
+        confirmIds: [101],
+      },
+      { stories: '101,102' },
+    );
+
+    assert.strictEqual(exitCode, 0);
+    assert.deepEqual(envelope.confirm, [
+      {
+        id: 101,
+        command:
+          'node .agents/scripts/single-story-confirm-merge.js --story 101',
+      },
+    ]);
+    assert.deepEqual(
+      envelope.ready.map((r) => r.id),
+      [102],
+      'a pending confirm never withholds a dependent',
+    );
+  });
+
+  it('keeps done true with a non-empty confirm[], and empties it once each is agent::done', async () => {
+    const pending = await beat(
+      {
+        nodes: [node(101, { labels: ['agent::closing'] })],
+        doneIds: new Set([101]),
+        confirmIds: [101],
+      },
+      { stories: '101' },
+    );
+    assert.strictEqual(pending.envelope.done, true);
+    assert.deepEqual(
+      pending.envelope.confirm.map((c) => c.id),
+      [101],
+    );
+
+    const settled = await beat(
+      {
+        nodes: [node(101, { labels: ['agent::done'] })],
+        doneIds: new Set([101]),
+        confirmIds: [],
+      },
+      { stories: '101' },
+    );
+    assert.deepEqual(settled.envelope.confirm, []);
+  });
+
+  it('defaults confirm[] to empty when the tick carries none', async () => {
+    const { envelope } = await beat({ nodes: [node(101)] }, { stories: '101' });
+    assert.deepEqual(envelope.confirm, []);
+  });
+
+  it('tolerates a tick envelope with no confirm field at all', async () => {
+    const { envelope } = await runDeliverRunBeat(
+      { stories: '101', cwd: makeTempDir('deliver-run-'), config: CONFIG },
+      {
+        tickFn: async () => ({
+          envelope: { ready: [], done: [], epilogueDue: false },
+          exitCode: 0,
+          records: [],
+        }),
+      },
+    );
+    assert.deepEqual(envelope.confirm, []);
+  });
+});

@@ -74,6 +74,7 @@ export function toStoryRecord(issue, requestedId, { allowUnlabelled } = {}) {
     url: issue?.html_url ?? issue?.url ?? null,
     labels,
     state: String(issue?.state ?? 'open').toLowerCase(),
+    stateReason: issue?.stateReason ?? issue?.state_reason ?? null,
     // The sole assignee is the Story lease holder; the live probe reads it to
     // withhold a Story another operator holds.
     assignees: Array.isArray(issue?.assignees)

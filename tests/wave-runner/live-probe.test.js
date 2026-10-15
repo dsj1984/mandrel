@@ -1120,3 +1120,47 @@ describe('probeLiveState — cross-session overlap advisory (Story #5488)', () =
     assert.equal('crossRunOverlapProbe' in envelope, false);
   });
 });
+
+/** Closed-but-not-done Stories are listed on `confirm`, never gated. */
+describe('probe-mode tick — confirm[] for closed Stories missing agent::done (Story #5705)', () => {
+  it('lists a closed Story without agent::done and excludes superseded closes', async () => {
+    const { envelope } = await tick({
+      101: issue(101, { state: 'closed', labels: ['agent::closing'] }),
+      102: issue(102, { state: 'closed', labels: ['agent::blocked'] }),
+      103: { ...issue(103, { state: 'closed' }), state_reason: 'not_planned' },
+      104: { ...issue(104, { state: 'closed' }), stateReason: 'duplicate' },
+      105: issue(105, { state: 'closed', labels: ['agent::done'] }),
+    });
+    assert.deepEqual(envelope.confirm, [101, 102]);
+  });
+
+  it('is empty once every closed Story carries agent::done', async () => {
+    const { envelope } = await tick({
+      101: issue(101, { state: 'closed', labels: ['agent::done'] }),
+    });
+    assert.deepEqual(envelope.confirm, []);
+    assert.equal(envelope.epilogueDue, true);
+  });
+
+  it('never wedges the run: a closed blocker still unblocks its dependent and the run reaches its epilogue', async () => {
+    const pending = await tick({
+      101: issue(101, { state: 'closed', labels: ['agent::closing'] }),
+      102: issue(102, { labels: ['agent::ready'], blockedBy: 101 }),
+    });
+    assert.deepEqual(pending.envelope.confirm, [101]);
+    assert.deepEqual(
+      pending.envelope.ready,
+      [102],
+      'the dependent is eligible',
+    );
+    assert.equal(pending.envelope.epilogueDue, false);
+
+    const finished = await tick({
+      101: issue(101, { state: 'closed', labels: ['agent::closing'] }),
+      102: issue(102, { state: 'closed', labels: ['agent::closing'] }),
+    });
+    assert.deepEqual(finished.envelope.confirm, [101, 102]);
+    assert.equal(finished.envelope.epilogueDue, true);
+    assert.equal(finished.exitCode, 0);
+  });
+});

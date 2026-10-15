@@ -108,7 +108,7 @@
     },
     {
       "path": ".agents/scripts/deliver-run.js",
-      "mi": 97.481
+      "mi": 98.019
     },
     {
       "path": ".agents/scripts/diagnose-friction.js",
@@ -1716,7 +1716,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/reconcile-done.js",
-      "mi": 92.83
+      "mi": 99.839
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/review-block.js",
@@ -1980,11 +1980,15 @@
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/reconcile-closing.js",
-      "mi": 95.18
+      "mi": 98.485
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
       "mi": 103.558
+    },
+    {
+      "path": ".agents/scripts/lib/single-story/confirm-and-land.js",
+      "mi": 102.26
     },
     {
       "path": ".agents/scripts/lib/single-story/confirm-merge.js",
@@ -2120,7 +2124,7 @@
     },
     {
       "path": ".agents/scripts/lib/wave-runner/live-probe.js",
-      "mi": 105.603
+      "mi": 107.463
     },
     {
       "path": ".agents/scripts/lib/wave-runner/ready-set.js",

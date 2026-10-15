@@ -68,6 +68,28 @@ function deriveBlockedIds(storyRecords) {
     .sort((a, b) => a - b);
 }
 
+/** Close reasons meaning nothing merged — no `agent::done` is owed. */
+const UNLANDED_CLOSE_REASONS = new Set(['not_planned', 'duplicate']);
+
+/**
+ * Closed, not `agent::done`, not superseded; ascending.
+ *
+ * @param {Array<{id?: number, number?: number, labels?: string[], state?: string, stateReason?: string|null}>} storyRecords
+ * @returns {number[]}
+ */
+function deriveConfirmIds(storyRecords) {
+  return storyRecords
+    .filter(
+      (rec) =>
+        rec.state === 'closed' &&
+        !rec.labels.includes(AGENT_LABELS.DONE) &&
+        !UNLANDED_CLOSE_REASONS.has(rec.stateReason),
+    )
+    .map((rec) => storyIdOf(rec))
+    .filter((id) => id !== null)
+    .sort((a, b) => a - b);
+}
+
 /**
  * `ready` Stories whose assignee lease belongs to another operator: they can
  * read `ready` while that operator's init is still running, and dispatching
@@ -143,6 +165,7 @@ export function createProbeContext({
  *   doneIds: Set<number>,
  *   inFlight: number,
  *   blockedIds: number[],
+ *   confirmIds: number[],
  *   stalledDispatch: number[],
  *   foreignHeld: Array<{id: number, holder: string}>,
  *   crossRunOverlaps?: object[]
@@ -204,6 +227,7 @@ export async function probeLiveState({
     doneIds: new Set(envelope.done),
     inFlight: inFlightIds.size,
     blockedIds: deriveBlockedIds(stories),
+    confirmIds: deriveConfirmIds(stories),
     // Reported, never released. A foreign lease outranks the claim, so one
     // Story never carries two recoveries.
     stalledDispatch: [...unlabelled]

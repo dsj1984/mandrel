@@ -2326,8 +2326,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/resolve-stories.js",
-      "lines": 97.06,
-      "branches": 82.02,
+      "lines": 97.08,
+      "branches": 82.61,
       "functions": 100
     },
     {
@@ -2597,7 +2597,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/reconcile-done.js",
       "lines": 100,
-      "branches": 92.86,
+      "branches": 94.12,
       "functions": 100
     },
     {
@@ -2992,8 +2992,8 @@
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/reconcile-closing.js",
-      "lines": 94.38,
-      "branches": 82.61,
+      "lines": 95.58,
+      "branches": 85.71,
       "functions": 100
     },
     {
@@ -3001,6 +3001,12 @@
       "lines": 97.97,
       "branches": 89.58,
       "functions": 95.12
+    },
+    {
+      "path": ".agents/scripts/lib/single-story/confirm-and-land.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/single-story/confirm-merge.js",
@@ -3204,7 +3210,7 @@
       "path": ".agents/scripts/lib/wave-runner/live-probe.js",
       "lines": 100,
       "branches": 90.32,
-      "functions": 87.5
+      "functions": 88.89
     },
     {
       "path": ".agents/scripts/lib/wave-runner/ready-set.js",
@@ -3574,9 +3580,9 @@
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
-      "lines": 90.06,
-      "branches": 68.57,
-      "functions": 89.47
+      "lines": 90.27,
+      "branches": 70.67,
+      "functions": 90
     },
     {
       "path": ".agents/scripts/single-story-init.js",

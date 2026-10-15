@@ -9,6 +9,7 @@ import {
   runBootSweepCli,
   storyIdsFromBranches,
 } from '../.agents/scripts/boot-sweep.js';
+import { runPostLandTail as realRunPostLandTail } from '../.agents/scripts/lib/orchestration/single-story-close/phases/post-land.js';
 import { reconcileStrandedClosing } from '../.agents/scripts/lib/single-story-sweep/reconcile-closing.js';
 import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 
@@ -327,6 +328,7 @@ describe('reconcileStrandedClosing (Story #5652)', () => {
     };
   }
 
+  /** Each listing returns the closed Stories carrying that label. */
   function fakeProvider(closed, { updateThrows = false } = {}) {
     const byId = new Map(closed.map((t) => [t.id, { ...t }]));
     const updates = [];
@@ -334,7 +336,7 @@ describe('reconcileStrandedClosing (Story #5652)', () => {
     return {
       listTicketsByLabel: async (opts) => {
         listCalls.push(opts);
-        return closed;
+        return closed.filter((t) => t.labels.includes(opts.labels));
       },
       getTicket: async (id) => ({ ...byId.get(id) }),
       updateTicket: async (id, patch) => {
@@ -360,6 +362,16 @@ describe('reconcileStrandedClosing (Story #5652)', () => {
     };
   }
 
+  /** A land-tail double recording each Story it ran for. */
+  function fakeTail() {
+    const ran = [];
+    const fn = async (args) => {
+      ran.push(args);
+      return { leaseRelease: true };
+    };
+    return { ran, fn };
+  }
+
   const merged = (n) => [
     {
       url: `https://github.com/owner/repo/pull/${n}`,
@@ -371,6 +383,7 @@ describe('reconcileStrandedClosing (Story #5652)', () => {
   it('writes agent::done for a closed agent::closing Story whose PR merged', async () => {
     const provider = fakeProvider([story(4561)]);
     const gh = fakeGh({ 'story-4561': merged(4573) });
+    const tail = fakeTail();
     const out = await reconcileStrandedClosing({
       provider,
       config: config(),
@@ -378,17 +391,52 @@ describe('reconcileStrandedClosing (Story #5652)', () => {
       gh,
       notify: async () => {},
       sleep: async () => {},
+      runPostLandTail: tail.fn,
       logger: quiet,
     });
 
     assert.deepEqual(provider.listCalls, [
       { state: 'closed', labels: 'agent::closing' },
+      { state: 'closed', labels: 'agent::blocked' },
     ]);
+    assert.deepEqual(
+      tail.ran.map((a) => [a.storyId, a.storyBranch, a.baseBranch, a.cwd]),
+      [[4561, 'story-4561', 'main', '/repo']],
+      'the land tail runs on the sweep path (Story #5705)',
+    );
     assert.deepEqual(out, { ok: true, reconciled: [4561], skipped: [] });
     const labelWrites = provider.updates.filter((u) => u.patch.labels);
     assert.equal(labelWrites.length, 1);
     assert.ok(labelWrites[0].patch.labels.add.includes('agent::done'));
     assert.ok(labelWrites[0].patch.labels.remove.includes('agent::closing'));
+  });
+
+  it('reconciles a newly stranded Story even when older unmerged closes fill the cap', async () => {
+    const unmerged = Array.from({ length: 10 }, (_, i) =>
+      story(100 + i, {
+        labels: ['type::story', 'agent::blocked'],
+        closedAt: `2026-01-${String(i + 1).padStart(2, '0')}T00:00:00Z`,
+      }),
+    );
+    const fresh = story(200, {
+      labels: ['type::story', 'agent::blocked'],
+      closedAt: '2026-10-15T00:00:00Z',
+    });
+    const provider = fakeProvider([...unmerged, fresh]);
+    const gh = fakeGh({ 'story-200': merged(201) });
+    const out = await reconcileStrandedClosing({
+      provider,
+      config: config(),
+      cwd: '/repo',
+      gh,
+      notify: async () => {},
+      sleep: async () => {},
+      runPostLandTail: fakeTail().fn,
+      logger: quiet,
+    });
+
+    assert.deepEqual(out.reconciled, [200]);
+    assert.equal(out.skipped.length, 9);
   });
 
   it('leaves a Story with no merged PR, and a not_planned one, untouched', async () => {
@@ -442,6 +490,7 @@ describe('reconcileStrandedClosing (Story #5652)', () => {
       gh: fakeGh({ 'story-30': merged(31) }),
       notify: async () => {},
       sleep: async () => {},
+      runPostLandTail: fakeTail().fn,
       logger: quiet,
     });
     assert.equal(out.ok, true);
@@ -517,6 +566,7 @@ describe('reconcileStrandedClosing (Story #5652)', () => {
           gh,
           notify: async () => {},
           sleep: async () => {},
+          runPostLandTail: fakeTail().fn,
         }),
       logger: quiet,
     });
@@ -524,6 +574,126 @@ describe('reconcileStrandedClosing (Story #5652)', () => {
     const labelWrites = provider.updates.filter((u) => u.patch.labels);
     assert.equal(labelWrites.length, 1);
     assert.ok(labelWrites[0].patch.labels.add.includes('agent::done'));
+  });
+
+  it('releases the lease through the real land tail on the sweep path (Story #5705)', async () => {
+    const provider = fakeProvider([story(5682)]);
+    const gh = fakeGh({ 'story-5682': merged(5690) });
+    const released = [];
+    const ok = async () => ({ ok: true });
+    const out = await reconcileStrandedClosing({
+      provider,
+      config: config(),
+      cwd: '/repo',
+      gh,
+      notify: async () => {},
+      sleep: async () => {},
+      // The real tail, with only its side-effecting step seams pinned.
+      runPostLandTail: (args) =>
+        realRunPostLandTail({
+          ...args,
+          emitCloseRecoveredFrictionFn: async () => {},
+          emitRecoveredFrictionMarkerFn: async () => {},
+          captureStoryFollowUpsFn: ok,
+          reassertStatusColumnFn: async () => ({ status: 'skipped' }),
+          reapPlanRunLabelsForStoryFn: ok,
+          rollUpEpicForStoryFn: ok,
+          gitSpawnFn: () => ({ status: 1, stdout: '', stderr: '' }),
+          planFastForwardFn: () => ({ action: 'skip', reason: 'test' }),
+          executeFastForwardFn: () => ({ ok: true }),
+          acquireLockWithWaitFn: async () => ({
+            acquired: true,
+            release: () => {},
+          }),
+          reapWorktreePhaseFn: async () => ({ ok: true }),
+          purgeStoryTempArtifactsFn: async () => ({ ok: true }),
+          releaseStoryLeaseFn: async ({ storyId }) => {
+            released.push(storyId);
+            return { ok: true };
+          },
+        }),
+      logger: quiet,
+    });
+    assert.deepEqual(out.reconciled, [5682]);
+    assert.deepEqual(released, [5682], 'the operator lease is released');
+  });
+
+  it('reconciles a closed agent::blocked Story whose PR merged, and leaves an unmerged one untouched', async () => {
+    const blocked = (id) =>
+      story(id, { labels: ['type::story', 'agent::blocked'] });
+    const provider = fakeProvider([blocked(5684), blocked(60)]);
+    const gh = fakeGh({
+      'story-5684': merged(5697),
+      'story-60': [{ url: 'https://x/pull/61', state: 'CLOSED' }],
+    });
+    const tail = fakeTail();
+    const out = await reconcileStrandedClosing({
+      provider,
+      config: config(),
+      cwd: '/repo',
+      gh,
+      notify: async () => {},
+      sleep: async () => {},
+      runPostLandTail: tail.fn,
+      logger: quiet,
+    });
+    assert.deepEqual(out.reconciled, [5684]);
+    assert.deepEqual(out.skipped, [{ storyId: 60, reason: 'no-merged-pr' }]);
+    assert.deepEqual(
+      tail.ran.map((a) => a.storyId),
+      [5684],
+    );
+    const labelWrites = provider.updates.filter((u) => u.patch.labels);
+    assert.equal(labelWrites.length, 1, 'only the merged Story is written');
+    assert.equal(labelWrites[0].id, 5684);
+    assert.ok(labelWrites[0].patch.labels.remove.includes('agent::blocked'));
+  });
+
+  it('skips not_planned and duplicate closes on either stranded label', async () => {
+    const provider = fakeProvider([
+      story(70, { stateReason: 'not_planned' }),
+      story(71, {
+        stateReason: 'duplicate',
+        labels: ['type::story', 'agent::blocked'],
+      }),
+    ]);
+    const gh = fakeGh({ 'story-70': merged(1), 'story-71': merged(2) });
+    const tail = fakeTail();
+    const out = await reconcileStrandedClosing({
+      provider,
+      config: config(),
+      cwd: '/repo',
+      gh,
+      runPostLandTail: tail.fn,
+      logger: quiet,
+    });
+    assert.deepEqual(out.skipped, [
+      { storyId: 70, reason: 'skipped' },
+      { storyId: 71, reason: 'skipped' },
+    ]);
+    assert.equal(gh.calls.length, 0);
+    assert.equal(tail.ran.length, 0);
+    assert.equal(provider.updates.length, 0);
+  });
+
+  it('lists a Story carrying both stranded labels once', async () => {
+    const provider = fakeProvider([
+      story(80, {
+        labels: ['type::story', 'agent::closing', 'agent::blocked'],
+      }),
+    ]);
+    const seen = [];
+    await reconcileStrandedClosing({
+      provider,
+      config: config(),
+      cwd: '/repo',
+      logger: quiet,
+      reconcileFn: async (ctx) => {
+        seen.push(ctx.storyId);
+        return 'done';
+      },
+    });
+    assert.deepEqual(seen, [80]);
   });
 
   it('processes at most the cap per sweep (default 10)', async () => {
