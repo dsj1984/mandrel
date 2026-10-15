@@ -207,22 +207,24 @@ function safePlan(relPath, plan) {
 }
 
 /**
- * Write every shrunk envelope and fold them into one commit. On a rejected
- * commit the files are restored so the gates score the tree the close found.
+ * Write every shrunk envelope and fold them into one commit. Every write, the
+ * `git add` and the commit share one restoring `try`: a throw at any step
+ * restores every path so the gates score the tree the close found, then
+ * re-throws.
  *
- * @param {{ workTree: string, git: Function, shrinks: object[], storyId: number|string }} args
+ * @param {{ workTree: string, git: Function, shrinks: object[], storyId: number|string, writeFile: typeof fs.writeFileSync }} args
  * @returns {string} the short sha
  */
-function commitShrinks({ workTree, git, shrinks, storyId }) {
+function commitShrinks({ workTree, git, shrinks, storyId, writeFile }) {
   const paths = shrinks.map((s) => s.relPath);
-  for (const s of shrinks) {
-    fs.writeFileSync(
-      path.join(workTree, s.relPath),
-      `${JSON.stringify(s.envelope, null, 2)}\n`,
-    );
-  }
-  git(['add', '--', ...paths], { cwd: workTree });
   try {
+    for (const s of shrinks) {
+      writeFile(
+        path.join(workTree, s.relPath),
+        `${JSON.stringify(s.envelope, null, 2)}\n`,
+      );
+    }
+    git(['add', '--', ...paths], { cwd: workTree });
     git(
       [
         'commit',
@@ -267,6 +269,7 @@ function bindGit(gitSync, workTree) {
  *   runKnip?: typeof defaultRunKnip,
  *   scanCyclomatic?: typeof defaultScanCyclomatic,
  *   resolveScanScope?: typeof defaultResolveScanScope,
+ *   writeFile?: typeof fs.writeFileSync,
  * }} opts
  * @returns {{ ran: boolean, committed: boolean, sha?: string, baselines?: string[], skipped?: Record<string, string>, reason?: string }}
  */
@@ -281,6 +284,7 @@ export function runRatchetShrinkWriteback({
   runKnip = defaultRunKnip,
   scanCyclomatic = defaultScanCyclomatic,
   resolveScanScope = defaultResolveScanScope,
+  writeFile = fs.writeFileSync,
 } = {}) {
   if (!cwd || !storyBranch) return skip(logger, 'missing-context');
   const workTree = worktreePath || cwd;
@@ -329,7 +333,13 @@ export function runRatchetShrinkWriteback({
     return { ...skip(logger, `no-shrink: ${detail}`), skipped };
   }
   try {
-    const sha = commitShrinks({ workTree, git, shrinks, storyId });
+    const sha = commitShrinks({
+      workTree,
+      git,
+      shrinks,
+      storyId,
+      writeFile,
+    });
     const baselines = shrinks.map((s) => s.relPath);
     logger.warn?.(
       `${TAG} dropped burnt-down rows from ${baselines.join(', ')} on story #${storyId}; committed as ${sha}.`,

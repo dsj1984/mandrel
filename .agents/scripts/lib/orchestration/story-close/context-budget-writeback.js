@@ -81,19 +81,28 @@ function precheck({ workTree, storyBranch, git, relPath }) {
 }
 
 /**
- * Write the envelope and fold it into one commit. On a rejected commit the
- * file is restored so the gates score the tree the close found.
+ * Write the envelope and fold it into one commit. The write, the `git add`
+ * and the commit share one restoring `try`: a throw at any step restores the
+ * file so the gates score the tree the close found, then re-throws.
  *
- * @param {{ workTree: string, git: Function, relPath: string, envelope: object, storyId: number|string, shrunk: object[] }} args
+ * @param {{ workTree: string, git: Function, relPath: string, envelope: object, storyId: number|string, shrunk: object[], writeFile: typeof fs.writeFileSync }} args
  * @returns {{ sha: string }}
  */
-function commitBaseline({ workTree, git, relPath, envelope, storyId, shrunk }) {
-  fs.writeFileSync(
-    path.join(workTree, relPath),
-    `${JSON.stringify(envelope, null, 2)}\n`,
-  );
-  git(['add', '--', relPath], { cwd: workTree });
+function commitBaseline({
+  workTree,
+  git,
+  relPath,
+  envelope,
+  storyId,
+  shrunk,
+  writeFile,
+}) {
   try {
+    writeFile(
+      path.join(workTree, relPath),
+      `${JSON.stringify(envelope, null, 2)}\n`,
+    );
+    git(['add', '--', relPath], { cwd: workTree });
     git(
       [
         'commit',
@@ -126,6 +135,7 @@ function commitBaseline({ workTree, git, relPath, envelope, storyId, shrunk }) {
  *   loadBaselineImpl?: typeof defaultLoadBaseline,
  *   diffBudgetImpl?: typeof defaultDiffBudget,
  *   buildBaselineImpl?: typeof defaultBuildBaseline,
+ *   writeFile?: typeof fs.writeFileSync,
  * }} opts
  * @returns {{ ran: boolean, committed: boolean, sha?: string, tiers?: string[], reason?: string }}
  */
@@ -141,6 +151,7 @@ export function runContextBudgetWriteback({
   loadBaselineImpl = defaultLoadBaseline,
   diffBudgetImpl = defaultDiffBudget,
   buildBaselineImpl = defaultBuildBaseline,
+  writeFile = fs.writeFileSync,
 } = {}) {
   if (!cwd || !storyBranch) return skip(logger, 'missing-context');
   const workTree = worktreePath || cwd;
@@ -171,6 +182,7 @@ export function runContextBudgetWriteback({
       envelope: buildBaselineImpl(tierMap, tolerance),
       storyId,
       shrunk: diff.shrunk,
+      writeFile,
     });
     const tiers = diff.shrunk.map((s) => s.tier);
     logger.warn?.(
