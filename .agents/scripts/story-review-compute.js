@@ -43,7 +43,6 @@ const USAGE = {
   ],
 };
 
-// Re-exported: tests import the parser from this module path.
 export { parseStoryCwdArgv as parseArgv };
 
 /**

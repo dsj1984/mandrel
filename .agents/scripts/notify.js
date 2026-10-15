@@ -133,7 +133,6 @@ export async function notify(ticketId, payload, opts = {}) {
   }
 }
 
-/** No-op for a non-positive or non-numeric ticket id (webhook-only call). */
 async function postOperatorComment(provider, ticketId, ctx) {
   const numericId = Number.parseInt(ticketId, 10);
   if (Number.isNaN(numericId) || numericId <= 0) return;
@@ -186,12 +185,7 @@ function requireTicketId(raw) {
   throw new Error('[Notify] Error: --ticket/--issue requires a numeric ID.');
 }
 
-/**
- * Ticket id and message from the positionals. An explicit `--ticket` /
- * `--issue` takes every positional as the message; otherwise a leading
- * numeric positional is the legacy ticket id and only a non-numeric first
- * positional is the whole message.
- */
+/** Without `--ticket`, a leading numeric positional is the legacy ticket id. */
 function splitTicketAndMessage(explicitTicket, positionals) {
   if (explicitTicket !== undefined) {
     return {

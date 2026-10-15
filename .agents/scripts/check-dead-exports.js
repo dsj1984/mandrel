@@ -22,7 +22,6 @@ import {
 import { resolveDeadExportsMode } from './lib/dead-exports-mode.js';
 import { readJsonBaseline } from './lib/gates/baseline-store.js';
 
-// Re-exported: tests import the shared loader under its gate-local name.
 export { readJsonBaseline as loadBaseline };
 
 /**

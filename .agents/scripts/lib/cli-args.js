@@ -17,11 +17,8 @@ export function parseTicketId(value) {
 }
 
 /**
- * The `--story <id> [--cwd <path>]` argv shared by the worker-tail CLIs
- * (`story-handoff`, `story-review-compute`). A non-positive or non-numeric
- * story id is `null`, which each caller reports as its usage error.
+ * `--story <id> [--cwd <path>]`; an invalid story id reads as `null`.
  *
- * @param {string[]} argv
  * @returns {{ storyId: number|null, cwd: string|null }}
  */
 export function parseStoryCwdArgv(argv) {
@@ -41,13 +38,8 @@ export function parseStoryCwdArgv(argv) {
 }
 
 /**
- * `--name <value>` / `--flag` argv for the ratchet gates. A string flag
- * followed by another `--flag` (or by nothing) has no value and reads as
- * `null`; it never swallows the next flag. Unknown arguments are ignored.
- *
- * @param {string[]} argv
- * @param {{ strings?: string[], booleans?: string[] }} spec Flag names without `--`.
- * @returns {Record<string, string | null | boolean>} Keyed by flag name.
+ * Ratchet-gate argv. A valueless string flag reads as `null` and never
+ * swallows the next `--flag`.
  */
 export function parseGateArgv(argv, { strings = [], booleans = [] }) {
   const stringFlags = new Set(strings.map((name) => `--${name}`));

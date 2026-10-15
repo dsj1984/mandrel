@@ -19,7 +19,6 @@ import {
   parseRelativeImports,
 } from './lib/import-graph.js';
 
-// Re-exported: tests import the shared loader under its gate-local name.
 // Shared with `audit-baselines.js`; re-exported as part of this module's contract.
 export {
   buildGraph,

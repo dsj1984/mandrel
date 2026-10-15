@@ -24,9 +24,7 @@
  * process, and what these cases assert is what only a real process can produce
  * — an exit code passed through unchanged, the SIGTERM a `spawnSync` timeout
  * sends, an ENOENT from a binary that is not there, and an 11 MB stdout that
- * overruns the interceptor's buffer bound — and, since Story #5686, the full
- * forwarded stdout arriving through a real pipe, which only a spawned process
- * can show.
+ * overruns the interceptor's buffer bound, and stdout drained through a pipe.
  *
  * Converting these would mean deleting the assertions the file exists for,
  * which is exactly what the Story's non-goals forbid. They are the sanctioned
@@ -152,9 +150,6 @@ describe('diagnose-friction.js — v5 (CLI contract)', () => {
 });
 
 describe('diagnose-friction.js — piped output past 64 KiB (Story #5686)', () => {
-  // `process.exit()` after a buffered write dropped everything past the
-  // 64 KiB pipe buffer; `main` now returns its code and `runAsCli` sets
-  // `process.exitCode`, so stdout drains before the process ends.
   const BYTES = 100_000;
   const emitter = (exitCode) =>
     `process.stdout.write('x'.repeat(${BYTES})); process.exitCode = ${exitCode};`;

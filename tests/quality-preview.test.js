@@ -1218,9 +1218,7 @@ describe('runCli — --only selects one half (Story #5471)', () => {
 });
 
 describe('quality-preview CLI — piped --json past 64 KiB (Story #5686)', () => {
-  // `process.exit()` after the buffered `--json` write dropped everything past
-  // the 64 KiB pipe buffer. A real child on a real pipe is the only way to
-  // observe it: stdout is synchronous on a file or TTY.
+  // Only a real pipe shows it: stdout is synchronous on a file or TTY.
   const PIPE_BUFFER = 64 * 1024;
   const FILE_COUNT = 250;
   const CLI = fileURLToPath(
@@ -1231,7 +1229,6 @@ describe('quality-preview CLI — piped --json past 64 KiB (Story #5686)', () =>
     Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')),
   );
 
-  /** A repo whose every file regresses against a baseline MI of 999. */
   function setupRegressedRepo(root) {
     const git = (...args) =>
       execFileSync('git', args, {

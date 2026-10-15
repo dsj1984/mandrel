@@ -48,15 +48,7 @@ function defaultReadFromTree({ baselinePath, projectRoot } = {}) {
   return JSON.parse(fs.readFileSync(abs, 'utf8'));
 }
 
-/**
- * Lenient read for the ratchet gates (`check-arch-cycles`,
- * `check-context-budget`, `check-cyclomatic`, `check-dead-exports`): the
- * parsed JSON object, or `null` when the file is missing, unparseable, or not
- * an object — each gate treats `null` as an empty baseline.
- *
- * @param {string} baselinePath
- * @returns {object | null}
- */
+/** Ratchet-gate read: `null` when missing, unparseable or not an object. */
 export function readJsonBaseline(baselinePath) {
   try {
     const parsed = defaultReadFromTree({ baselinePath });

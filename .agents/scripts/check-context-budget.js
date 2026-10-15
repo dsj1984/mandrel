@@ -22,7 +22,6 @@ import { resolveConfig } from './lib/config-resolver.js';
 import { resolveDocTiers, tierTotalBytes } from './lib/doc-tiers.js';
 import { readJsonBaseline } from './lib/gates/baseline-store.js';
 
-// Re-exported: tests import the shared loader under its gate-local name.
 export { readJsonBaseline as loadBaseline };
 
 /**
