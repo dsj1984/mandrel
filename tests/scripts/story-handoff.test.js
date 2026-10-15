@@ -1099,6 +1099,22 @@ describe('story-handoff — the credited-run evidence log streams live (Story #5
   };
   const activeTimers = () =>
     process.getActiveResourcesInfo().filter((r) => r === 'Timeout').length;
+  const baseline = () => ({
+    timers: activeTimers(),
+    sigint: process.listenerCount('SIGINT'),
+    sigterm: process.listenerCount('SIGTERM'),
+  });
+  /** The child is gone and nothing the run armed is left behind. */
+  const assertReleased = async (h, before) => {
+    assert.equal(isAlive(h.results[0].pid), false, 'the child is gone');
+    for (const signal of ['SIGINT', 'SIGTERM']) {
+      assert.equal(h.signalTarget.listenerCount(signal), 0);
+    }
+    assert.equal(process.listenerCount('SIGINT'), before.sigint);
+    assert.equal(process.listenerCount('SIGTERM'), before.sigterm);
+    await sleepMs(5);
+    assert.ok(activeTimers() <= before.timers, 'no timer outlives the run');
+  };
 
   const gatedChild = (goFile, before, after, exitCode = 0) =>
     [
@@ -1192,8 +1208,7 @@ describe('story-handoff — the credited-run evidence log streams live (Story #5
   });
 
   test('AC-2: success leaves the whole output, no live child, no listeners, no timers', async () => {
-    const timersBefore = activeTimers();
-    const sigintBefore = process.listenerCount('SIGINT');
+    const before = baseline();
     const go = path.join(tempRoot, 'go-ok');
     writeFileSync(go, '');
     const h = streamHarness(
@@ -1202,15 +1217,11 @@ describe('story-handoff — the credited-run evidence log streams live (Story #5
     const { exitCode } = await h.run();
     assert.equal(exitCode, 0);
     assert.equal(h.readEvidence(), `MARKER_A\nMARKER_B\n${CAPTURE_SIGNAL}\n`);
-    assert.equal(isAlive(h.results[0].pid), false);
-    assert.equal(h.signalTarget.listenerCount('SIGINT'), 0);
-    assert.equal(h.signalTarget.listenerCount('SIGTERM'), 0);
-    assert.equal(process.listenerCount('SIGINT'), sigintBefore);
-    await sleepMs(5);
-    assert.ok(activeTimers() <= timersBefore, 'no timer outlives the run');
+    await assertReleased(h, before);
   });
 
   test('AC-2/AC-3: a non-zero exit keeps its output and grants no credit even with a credit signal printed', async () => {
+    const before = baseline();
     const go = path.join(tempRoot, 'go-red');
     writeFileSync(go, '');
     const forgedLock =
@@ -1241,10 +1252,11 @@ describe('story-handoff — the credited-run evidence log streams live (Story #5
       ),
     ).state;
     assert.equal(state.creditHead, undefined, 'no credit recorded');
-    assert.equal(isAlive(h.results[0].pid), false);
+    await assertReleased(h, before);
   });
 
   test('AC-2: a timeout kills the child and appends the timeout line', async () => {
+    const before = baseline();
     const h = streamHarness(
       'process.stdout.write("MARKER_A\\n"); setInterval(() => {}, 1000);',
     );
@@ -1256,11 +1268,11 @@ describe('story-handoff — the credited-run evidence log streams live (Story #5
       h.readEvidence(),
       'MARKER_A\n[handoff] child timed out after 0.3s\n',
     );
-    assert.equal(isAlive(h.results[0].pid), false, 'the child is gone');
-    assert.equal(h.signalTarget.listenerCount('SIGTERM'), 0);
+    await assertReleased(h, before);
   });
 
   test('AC-2: SIGTERM to the handoff kills the child, appends the cancelled line and re-raises', async () => {
+    const before = baseline();
     const h = streamHarness(
       'process.stdout.write("MARKER_A\\n"); setInterval(() => {}, 1000);',
     );
@@ -1272,9 +1284,7 @@ describe('story-handoff — the credited-run evidence log streams live (Story #5
     assert.equal(envelope.failedStep, 'credited-run');
     assert.equal(h.readEvidence(), 'MARKER_A\n[handoff] cancelled\n');
     assert.deepEqual(h.reraised, ['SIGTERM']);
-    assert.equal(isAlive(h.results[0].pid), false, 'the child is gone');
-    assert.equal(h.signalTarget.listenerCount('SIGTERM'), 0);
-    assert.equal(h.signalTarget.listenerCount('SIGINT'), 0);
+    await assertReleased(h, before);
   });
 
   test('AC-4: a silent child gets elapsed heartbeats and the progress record carries phase and evidence path', async () => {
