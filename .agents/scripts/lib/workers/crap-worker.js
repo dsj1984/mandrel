@@ -35,11 +35,7 @@ export function handleCrapWorkerMessage(msg, _coverage, deps = {}) {
   if (msg && msg.exit === true) return { kind: 'exit' };
 
   const item = msg?.item;
-  if (
-    !item ||
-    typeof item.abs !== 'string' ||
-    typeof item.relPath !== 'string'
-  ) {
+  if (!isWorkItem(item)) {
     return {
       kind: 'reply',
       message: {
@@ -48,13 +44,7 @@ export function handleCrapWorkerMessage(msg, _coverage, deps = {}) {
       },
     };
   }
-  const {
-    abs,
-    relPath,
-    root,
-    requireCoverage,
-    coverageAvailable = true,
-  } = item;
+  const { abs, relPath, requireCoverage, coverageAvailable = true } = item;
 
   const entry = item.coverageEntry ?? null;
 
@@ -97,9 +87,7 @@ export function handleCrapWorkerMessage(msg, _coverage, deps = {}) {
       prepared.mapLine,
     );
   } catch (err) {
-    return dropped(
-      err && typeof err.message === 'string' ? err.message : String(err),
-    );
+    return dropped(errorText(err));
   }
   // Unparseable must drop (`rows: null`), not read as a file with no methods,
   // or its baseline rows vanish uncounted.
@@ -110,4 +98,16 @@ export function handleCrapWorkerMessage(msg, _coverage, deps = {}) {
   );
 }
 
-serveWorkerMessages(parentPort, (msg) => handleCrapWorkerMessage(msg, null));
+function isWorkItem(item) {
+  return (
+    Boolean(item) &&
+    typeof item.abs === 'string' &&
+    typeof item.relPath === 'string'
+  );
+}
+
+function errorText(err) {
+  return err && typeof err.message === 'string' ? err.message : String(err);
+}
+
+serveWorkerMessages(parentPort, handleCrapWorkerMessage);
