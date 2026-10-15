@@ -416,7 +416,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
-      "mi": 97.151
+      "mi": 97.833
     },
     {
       "path": ".agents/scripts/lib/baselines/diff-scope-cli.js",
@@ -641,6 +641,10 @@
     {
       "path": ".agents/scripts/lib/child-exec.js",
       "mi": 112.652
+    },
+    {
+      "path": ".agents/scripts/lib/child-stream.js",
+      "mi": 100.789
     },
     {
       "path": ".agents/scripts/lib/clean-temp.js",
@@ -1072,7 +1076,7 @@
     },
     {
       "path": ".agents/scripts/lib/maintainability-engine.js",
-      "mi": 101.893
+      "mi": 102.753
     },
     {
       "path": ".agents/scripts/lib/maintainability-unscorable.js",
@@ -1080,7 +1084,7 @@
     },
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
-      "mi": 101.345
+      "mi": 103.335
     },
     {
       "path": ".agents/scripts/lib/mandrel-catalog.js",
@@ -1257,6 +1261,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/epic-rollup.js",
       "mi": 91.602
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/evidence-stream.js",
+      "mi": 104.224
     },
     {
       "path": ".agents/scripts/lib/orchestration/file-assumption-enum.js",
@@ -2040,7 +2048,7 @@
     },
     {
       "path": ".agents/scripts/lib/transpile.js",
-      "mi": 93.208
+      "mi": 97.169
     },
     {
       "path": ".agents/scripts/lib/util/concurrent-map.js",
@@ -2080,11 +2088,11 @@
     },
     {
       "path": ".agents/scripts/lib/workers/crap-worker.js",
-      "mi": 95.681
+      "mi": 98.329
     },
     {
       "path": ".agents/scripts/lib/workers/maintainability-report-worker.js",
-      "mi": 96.195
+      "mi": 99.567
     },
     {
       "path": ".agents/scripts/lib/workers/maintainability-worker.js",
@@ -2380,7 +2388,7 @@
     },
     {
       "path": ".agents/scripts/update-crap-baseline.js",
-      "mi": 99.049
+      "mi": 103.867
     },
     {
       "path": ".agents/scripts/update-duplication-baseline.js",

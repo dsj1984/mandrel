@@ -15,7 +15,7 @@ import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import {
-  buildCrapUpdaterScorer,
+  buildCrapRefreshOptions,
   parseCrapUpdaterArgs,
   resolveCrapUpdaterOptions,
   seatCrapBaseline,
@@ -42,6 +42,10 @@ const CONFIG = {
   },
   baselines: { crap: { path: 'baselines/crap.json' } },
 };
+
+/** The updater's scorer, as `refreshBaseline` receives it. */
+const scorerOf = (options, deps) =>
+  buildCrapRefreshOptions(options, deps).scorer;
 
 describe('parseCrapUpdaterArgs', () => {
   it('returns the unset shape for an empty argv', () => {
@@ -201,7 +205,7 @@ describe('buildCrapUpdaterScorer — the no-artifact refusal', () => {
     const logger = recordingLogger();
     const options = resolveCrapUpdaterOptions({}, CONFIG, '/repo');
     let scanned = false;
-    const scorer = buildCrapUpdaterScorer(options, {
+    const scorer = scorerOf(options, {
       loadCoverage: () => null,
       scan: async () => {
         scanned = true;
@@ -217,7 +221,7 @@ describe('buildCrapUpdaterScorer — the no-artifact refusal', () => {
 
   it('throws on a full-scope refresh with no artifact under requireCoverage (Story #5672)', async () => {
     const options = resolveCrapUpdaterOptions({}, CONFIG, '/repo');
-    const scorer = buildCrapUpdaterScorer(options, {
+    const scorer = scorerOf(options, {
       loadCoverage: () => null,
       scan: async () => ({}),
       logger: recordingLogger(),
@@ -235,7 +239,7 @@ describe('buildCrapUpdaterScorer — the no-artifact refusal', () => {
       '/repo',
     );
     let scanned = false;
-    const scorer = buildCrapUpdaterScorer(options, {
+    const scorer = scorerOf(options, {
       loadCoverage: () => null,
       scan: async () => {
         scanned = true;
@@ -252,7 +256,7 @@ describe('buildCrapUpdaterScorer — the resolution-floor refusal', () => {
   /** Drive the scorer with a scan whose join resolved `resolved` of `total`. */
   function scorerWithResolution(resolution) {
     const options = resolveCrapUpdaterOptions({}, CONFIG, '/repo');
-    return buildCrapUpdaterScorer(options, {
+    return scorerOf(options, {
       loadCoverage: () => ({}),
       scan: async () => ({
         rows: [{ file: 'a.js', method: 'm', startLine: 1, crap: 3 }],
@@ -292,7 +296,7 @@ describe('buildCrapUpdaterScorer — rows and reporting', () => {
   /** Build a scorer over a fixed scan summary. */
   function scorerFor(summary, logger) {
     const options = resolveCrapUpdaterOptions({}, CONFIG, '/repo');
-    return buildCrapUpdaterScorer(options, {
+    return scorerOf(options, {
       loadCoverage: () => ({}),
       scan: async () => summary,
       logger,
@@ -367,7 +371,7 @@ describe('buildCrapUpdaterScorer — rows and reporting', () => {
   it('passes fullScope through as a null scopeFiles, and a diff as the file list', async () => {
     const options = resolveCrapUpdaterOptions({}, CONFIG, '/repo');
     const seen = [];
-    const scorer = buildCrapUpdaterScorer(options, {
+    const scorer = scorerOf(options, {
       loadCoverage: () => ({}),
       scan: async (args) => {
         seen.push(args.scopeFiles);
@@ -384,7 +388,7 @@ describe('buildCrapUpdaterScorer — rows and reporting', () => {
   it('resolves a relative coverage path against the scan cwd, not the build cwd', async () => {
     const options = resolveCrapUpdaterOptions({}, CONFIG, '/repo');
     let asked;
-    const scorer = buildCrapUpdaterScorer(options, {
+    const scorer = scorerOf(options, {
       loadCoverage: (p) => {
         asked = p;
         return {};
@@ -410,7 +414,7 @@ describe('buildCrapUpdaterScorer — rows and reporting', () => {
       '/repo',
     );
     let asked;
-    const scorer = buildCrapUpdaterScorer(options, {
+    const scorer = scorerOf(options, {
       loadCoverage: (p) => {
         asked = p;
         return {};

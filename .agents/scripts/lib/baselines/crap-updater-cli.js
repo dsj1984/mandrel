@@ -161,6 +161,36 @@ function noCoverageRows(coverageAbs, options, opts, logger) {
 }
 
 /**
+ * `refreshBaseline` options for the CRAP updater. With no scope flag the
+ * service derives the diff via `origin/main..HEAD` (its default refs). The
+ * transpiler stamp resolves from the anchors the scorer resolves compilers
+ * from: the target dirs and the project root.
+ *
+ * @param {ReturnType<typeof resolveCrapUpdaterOptions>} options
+ * @param {{loadCoverage: Function, epsilon?: number, cwd?: string,
+ *   scan?: Function, logger?: object}} deps
+ * @returns {object}
+ */
+export function buildCrapRefreshOptions(
+  options,
+  { epsilon, cwd = process.cwd(), ...scorerDeps },
+) {
+  return {
+    kind: 'crap',
+    writePath: options.absBaselinePath,
+    epsilon,
+    scorer: buildCrapUpdaterScorer(options, scorerDeps),
+    extrasContext: { cwd, targetDirs: options.targetDirs },
+    ...scopeFields(options),
+  };
+}
+
+function scopeFields({ fullScope, diffScopeRef }) {
+  if (fullScope) return { fullScope: true };
+  return diffScopeRef ? { baseRef: diffScopeRef } : {};
+}
+
+/**
  * Fails closed on a missing coverage artifact under `requireCoverage` (throws
  * on a full-scope refresh; warns with no rows on a scoped one) and on a resolution rate below the floor (throws before anything is
  * written: a broken join is wrong, not sparse).
@@ -169,7 +199,7 @@ function noCoverageRows(coverageAbs, options, opts, logger) {
  * @param {{loadCoverage: Function, scan?: Function, logger?: object}} deps
  * @returns {(files: string[], opts: object) => Promise<object[]>}
  */
-export function buildCrapUpdaterScorer(
+function buildCrapUpdaterScorer(
   options,
   { loadCoverage, scan = scanAndScore, logger = Logger } = {},
 ) {
