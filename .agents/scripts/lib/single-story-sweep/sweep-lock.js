@@ -3,18 +3,25 @@
  *
  * Best-effort cross-process lockfile (atomic `wx` create) for the merged-branch
  * sweep. Never load-bearing: a contended caller skips or proceeds. A live
- * holder is never mistaken for a crashed one: it heartbeats its mtime; break
- * and release rename the lockfile aside and delete it only if it is the one
- * they meant, else link it back.
+ * holder is never mistaken for a crashed one: it heartbeats its mtime. Only
+ * break and release remove the lockfile, each under a short `.break` mutex
+ * that re-checks identity/owner first, so no removal races another.
  */
 
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
 const DEFAULT_TIMEOUT_MS = 60_000;
 
 const MIN_HEARTBEAT_MS = 1_000;
+
+// A crashed breaker's mutex is reclaimed past this; a live one holds it for
+// microseconds.
+const BREAK_MUTEX_STALE_MS = 10_000;
+
+const RELEASE_MUTEX_TRIES = 25;
+
+const RELEASE_MUTEX_SPIN_MS = 2;
 
 // Three refreshes per staleness window: two missed refreshes (stalled loop,
 // slow disk) still do not make a live holder look dead.
@@ -255,7 +262,7 @@ function tryStaleTakeover(
     return false;
   }
   return (
-    breakStaleLock(lockPath, observed, fsImpl) &&
+    breakStaleLock({ lockPath, fsImpl, nowFn }, observed) &&
     tryCreateLock(lockPath, ownerId, fsImpl)
   );
 }
@@ -283,54 +290,59 @@ function isHolderStale({
 }
 
 /**
- * Identity is read off the file the rename moved, so a peer's fresh lock is
- * never deleted; `false` means someone else owns it now.
+ * Under the break mutex nothing else can remove the lockfile and a creator
+ * cannot replace a present one, so the identity re-read holds until the
+ * unlink. `false` means someone else owns it now, or another breaker is mid-break.
  *
- * @param {string} lockPath
+ * @param {{ lockPath: string, fsImpl: object, nowFn: () => number }} where
  * @param {ReturnType<typeof readLockIdentity>} observed
- * @param {object} fsImpl
  * @returns {boolean}
  */
-function breakStaleLock(lockPath, observed, fsImpl) {
-  return removeIfMatches(lockPath, fsImpl, (moved) =>
-    sameLockIdentity(observed, readLockIdentity(moved, fsImpl)),
-  );
+function breakStaleLock(where, observed) {
+  return Boolean(withBreakMutex(where, () => unlinkIfSame(where, observed)));
 }
 
-/** Rename aside; delete if `matches(moved)`, else link it back. */
-function removeIfMatches(lockPath, fsImpl, matches) {
-  const tombstone = moveAside(lockPath, fsImpl);
-  if (tombstone === null) return false;
-  const matched = matches(tombstone);
-  if (!matched) relinkQuietly(tombstone, lockPath, fsImpl);
-  unlinkQuietly(tombstone, fsImpl);
-  return matched;
+function unlinkIfSame({ lockPath, fsImpl }, observed) {
+  const same = sameLockIdentity(observed, readLockIdentity(lockPath, fsImpl));
+  return same && unlinkQuietly(lockPath, fsImpl);
 }
 
-/** @returns {string|null} a unique tombstone path, `null` when nothing moved. */
-function moveAside(lockPath, fsImpl) {
-  const rand = crypto.randomBytes(4).toString('hex');
-  const tombstone = `${lockPath}.${process.pid}-${rand}.tombstone`;
+/**
+ * Runs `fn` holding `<lockPath>.break`.
+ *
+ * @returns {*} `fn()`'s result, or `null` when the mutex is busy.
+ */
+function withBreakMutex({ lockPath, fsImpl, nowFn = Date.now }, fn) {
+  const mutexPath = `${lockPath}.break`;
+  if (!takeBreakMutex(mutexPath, fsImpl, nowFn)) return null;
   try {
-    fsImpl.renameSync(lockPath, tombstone);
-    return tombstone;
-  } catch {
-    return null;
+    return fn();
+  } finally {
+    unlinkQuietly(mutexPath, fsImpl);
   }
 }
 
-/** `link` fails when a newer lock took the path; that holder wins. */
-function relinkQuietly(tombstone, lockPath, fsImpl) {
-  try {
-    fsImpl.linkSync(tombstone, lockPath);
-  } catch {}
+function takeBreakMutex(mutexPath, fsImpl, nowFn) {
+  return (
+    tryCreateLock(mutexPath, 'break', fsImpl) ||
+    reclaimStaleMutex(mutexPath, fsImpl, nowFn)
+  );
 }
 
+function reclaimStaleMutex(mutexPath, fsImpl, nowFn) {
+  const mtime = readLockMtime(mutexPath, fsImpl);
+  if (!isLockStale(mtime, nowFn(), BREAK_MUTEX_STALE_MS)) return false;
+  unlinkQuietly(mutexPath, fsImpl);
+  return tryCreateLock(mutexPath, 'break', fsImpl);
+}
+
+/** @returns {boolean} whether the unlink landed. */
 function unlinkQuietly(file, fsImpl) {
   try {
     fsImpl.unlinkSync(file);
+    return true;
   } catch {
-    // Already gone.
+    return false;
   }
 }
 
@@ -412,12 +424,33 @@ function startHeartbeat(holder) {
  * @param {object} fsImpl
  */
 function unlinkIfOwned(lockPath, ownerId, fsImpl) {
-  if (readLockOwner(lockPath, fsImpl) !== ownerId) return;
-  removeIfMatches(
-    lockPath,
-    fsImpl,
-    (moved) => readLockOwner(moved, fsImpl) === ownerId,
-  );
+  const removeOwn = () =>
+    readLockOwner(lockPath, fsImpl) === ownerId &&
+    unlinkQuietly(lockPath, fsImpl);
+  // Fail open: a wedged mutex must not strand our lock until it reads stale.
+  if (!releaseUnderMutex(lockPath, fsImpl, removeOwn)) removeOwn();
+}
+
+function releaseUnderMutex(lockPath, fsImpl, removeOwn) {
+  for (let tries = 0; tries < RELEASE_MUTEX_TRIES; tries += 1) {
+    if (guardedRelease(lockPath, fsImpl, removeOwn)) return true;
+    sleepSync(RELEASE_MUTEX_SPIN_MS);
+  }
+  return false;
+}
+
+/** `true` once the release ran under the break mutex (or could not take it). */
+function guardedRelease(lockPath, fsImpl, removeOwn) {
+  try {
+    return withBreakMutex({ lockPath, fsImpl }, removeOwn) !== null;
+  } catch {
+    removeOwn();
+    return true;
+  }
+}
+
+function sleepSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
 function buildAcquired(holder) {

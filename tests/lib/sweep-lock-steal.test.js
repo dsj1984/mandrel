@@ -142,6 +142,10 @@ function makeFakeTimers() {
 
 const LOCK = '/fake/temp/merged-branch-sweep.lock';
 
+function fsError(code, p) {
+  return Object.assign(new Error(`${code}: ${p}`), { code });
+}
+
 /**
  * Is the lock currently held? Asked the way a competing process asks it — by
  * attempting to acquire. Uses a nowFn that never advances so the probe cannot
@@ -365,10 +369,9 @@ describe('sweep-lock — two stale-breakers yield exactly one acquisition', () =
 
 /**
  * Story #5684 — the check-then-act windows the identity re-stat left open.
- * Each test pauses one process at its first mutating syscall (the rename
- * that now moves the lockfile aside, or the unlink-by-path it replaced) and
- * runs the peer to completion inside that pause — the exact interleaving two
- * real processes can produce, made deterministic.
+ * Each test pauses one process at its first mutating syscall and runs the
+ * peer to completion inside that pause — the exact interleaving two real
+ * processes can produce, made deterministic.
  */
 describe('sweep-lock — interleaved breakers and releases (Story #5684)', () => {
   /** A view of `fsImpl` that runs `onPause` once, before its first mutation. */
@@ -381,6 +384,11 @@ describe('sweep-lock — interleaved breakers and releases (Story #5684)', () =>
     };
     return {
       ...fsImpl,
+      // The first create of LOCK itself is the attempt, not the break.
+      openSync(p, flags) {
+        if (p !== LOCK) pauseOnce();
+        return fsImpl.openSync(p, flags);
+      },
       renameSync(from, to) {
         pauseOnce();
         return fsImpl.renameSync(from, to);
@@ -392,13 +400,69 @@ describe('sweep-lock — interleaved breakers and releases (Story #5684)', () =>
     };
   }
 
+  /** Who holds LOCK, read off its owner line. */
+  function ownerOf(fsImpl) {
+    return fsImpl.files.has(LOCK)
+      ? String(fsImpl.readFileSync(LOCK)).split('\n', 1)[0]
+      : null;
+  }
+
+  function contender(fsImpl, ownerId, nowFn) {
+    return acquireSweepLock({
+      lockPath: LOCK,
+      ownerId,
+      nowFn,
+      fsImpl,
+      heartbeatMs: 0,
+      processImpl: null,
+    });
+  }
+
+  it('AC-5: a live winner’s lock is never left absent for a third process', () => {
+    let now = 1_000_000;
+    const fsImpl = makeFakeFs(() => now);
+    plantCrashedLock(fsImpl);
+    now += 120_000;
+    const clock = () => now;
+
+    // B judged the crashed file stale; A breaks and re-creates before B's
+    // first mutation; C tries right after anything B removes or moves.
+    let a = null;
+    let c = null;
+    const afterRemoval =
+      (op) =>
+      (...args) => {
+        const out = op(...args);
+        c ??= contender(fsImpl, 'c', clock);
+        return out;
+      };
+    const fsForB = pausingAtFirstMutation(
+      {
+        ...fsImpl,
+        renameSync: afterRemoval(fsImpl.renameSync),
+        unlinkSync: afterRemoval(fsImpl.unlinkSync),
+      },
+      () => {
+        a = contender(fsImpl, 'a', clock);
+      },
+    );
+    const b = contender(fsForB, 'b', clock);
+    c ??= contender(fsImpl, 'c', clock);
+
+    assert.equal(a?.acquired, true, 'A won the break');
+    const holders = [a, b, c].filter((r) => r.acquired);
+    assert.equal(holders.length, 1, 'exactly one holder');
+    assert.equal(ownerOf(fsImpl), 'a', 'A’s lockfile survives');
+  });
+
   function plantCrashedLock(fsImpl) {
     fsImpl.openSync(LOCK);
     fsImpl.writeSync(LOCK, 'crashed-owner\n');
   }
 
+  /** Leftover break mutexes: a finished break or release leaves none. */
   function tombstones(fsImpl) {
-    return [...fsImpl.files.keys()].filter((p) => p.endsWith('.tombstone'));
+    return [...fsImpl.files.keys()].filter((p) => p !== LOCK);
   }
 
   it('AC-5: a breaker paused mid-break cannot remove the winner’s fresh lock', () => {
@@ -437,43 +501,57 @@ describe('sweep-lock — interleaved breakers and releases (Story #5684)', () =>
       /^breaker-a\n/,
       'the winner’s lockfile survives',
     );
-    assert.deepEqual(tombstones(fsImpl), [], 'no tombstone is left behind');
+    assert.deepEqual(tombstones(fsImpl), [], 'no break mutex is left behind');
     breakerA.release();
     assert.equal(fsImpl.files.has(LOCK), false, 'the winner frees it');
   });
 
-  it('AC-5: a restore that finds a newer lock leaves the newer one in place', () => {
+  it('a breaker contends while another holds the break mutex', () => {
     let now = 1_000_000;
     const fsImpl = makeFakeFs(() => now);
     plantCrashedLock(fsImpl);
     now += 120_000;
-    const crashedIno = fsImpl.statSync(LOCK).ino;
+    fsImpl.openSync(`${LOCK}.break`);
+    now += 5_000;
+    const b = contender(fsImpl, 'b', () => now);
+    assert.equal(b.acquired, false);
+    assert.equal(ownerOf(fsImpl), 'crashed-owner', 'nothing was removed');
+  });
 
-    // The file B moves aside is not the one it observed; and by the time it
-    // tries to put it back, a third process has created a lock of its own.
-    const fsForB = {
+  it('a crashed breaker’s stale break mutex is reclaimed', () => {
+    let now = 1_000_000;
+    const fsImpl = makeFakeFs(() => now);
+    plantCrashedLock(fsImpl);
+    fsImpl.openSync(`${LOCK}.break`);
+    now += 120_000;
+    const b = contender(fsImpl, 'b', () => now);
+    assert.equal(b.acquired, true);
+    assert.equal(ownerOf(fsImpl), 'b');
+    assert.deepEqual(tombstones(fsImpl), []);
+  });
+
+  it('release fails open past a wedged break mutex', () => {
+    const now = 1_000_000;
+    const fsImpl = makeFakeFs(() => now);
+    const holder = contender(fsImpl, 'holder', () => now);
+    fsImpl.openSync(`${LOCK}.break`);
+    holder.release();
+    assert.equal(fsImpl.files.has(LOCK), false, 'our own lock is removed');
+  });
+
+  it('release fails open when the break mutex cannot be created', () => {
+    const now = 1_000_000;
+    const fsImpl = makeFakeFs(() => now);
+    const brokenMutexFs = {
       ...fsImpl,
-      renameSync(from, to) {
-        fsImpl.unlinkSync(LOCK);
-        fsImpl.openSync(LOCK);
-        fsImpl.writeSync(LOCK, 'fresh-holder\n');
-        fsImpl.renameSync(from, to);
-        fsImpl.openSync(LOCK);
-        fsImpl.writeSync(LOCK, 'third-holder\n');
+      openSync(p, flags) {
+        if (p.endsWith('.break')) throw fsError('EIO', p);
+        return fsImpl.openSync(p, flags);
       },
     };
-    const breakerB = acquireSweepLock({
-      lockPath: LOCK,
-      ownerId: 'breaker-b',
-      nowFn: () => now,
-      fsImpl: fsForB,
-      heartbeatMs: 0,
-      processImpl: null,
-    });
-    assert.equal(breakerB.acquired, false);
-    assert.notEqual(fsImpl.statSync(LOCK).ino, crashedIno);
-    assert.match(String(fsImpl.readFileSync(LOCK)), /^third-holder\n/);
-    assert.deepEqual(tombstones(fsImpl), []);
+    const holder = contender(brokenMutexFs, 'holder', () => now);
+    holder.release();
+    assert.equal(fsImpl.files.has(LOCK), false);
   });
 
   it('AC-5: release cannot delete a peer’s fresh lock taken mid-release', () => {
