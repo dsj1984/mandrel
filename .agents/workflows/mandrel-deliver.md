@@ -102,7 +102,9 @@ to an attended run.
      `effort` is non-null, pass it as that Agent call's `effort`; when it is
      `null`, omit the parameter so the worker inherits the session. Run each
      `close[]` entry's command foreground and serialized as hand-offs arrive.
-     An empty
+     Run every `confirm[]` command verbatim on each beat, before the epilogue:
+     a closed Story still owing its `agent::done` flip and land tail. It never
+     gates `done`. An empty
      `ready` with work in flight means "waiting", so beat again — **unless
      `stalledDispatch[]` is non-empty**: those ids were dispatched but still
      read `agent::ready`, which is a live init window the first beats or two

@@ -963,6 +963,7 @@ export async function runProbedStoriesWaveTick({
     doneIds,
     inFlight,
     blockedIds = [],
+    confirmIds = [],
     stalledDispatch = [],
     foreignHeld = [],
     inFlightRecords = [],
@@ -989,6 +990,8 @@ export async function runProbedStoriesWaveTick({
       epilogueDue,
       blocked: blockedIds,
       blockedReason: blockedReasonFor(blockedIds),
+      // Closed but not `agent::done`: advisory, never part of `done` gating.
+      confirm: confirmIds,
       stalledDispatch,
       foreignHeld,
       foreignHeldReason: foreignHeldReasonFor(foreignHeld),

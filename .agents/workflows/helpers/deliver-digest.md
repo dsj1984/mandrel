@@ -12,8 +12,7 @@ description: >-
 > covers the happy path. Situational material (lease preflight, recovery
 > routers, merge-wait budgets, CI remediation) stays on demand in
 > [`deliver-story-reference.md`](deliver-story-reference.md) and
-> [`deliver-reference.md`](deliver-reference.md); read those **only** when an
-> envelope or a failure routes you there.
+> [`deliver-reference.md`](deliver-reference.md); read those only when routed.
 
 ## 1. Dispatch — where the engine runs
 
@@ -25,8 +24,8 @@ rule produces it:
    sibling, and a one-Story run has none.
 2. **Every other run is `subagent`**, however trivial each Story's shape.
 
-`inline` removes the `story-worker` boot and nothing else — not the verdict
-owner, which the profile alone names (§ 3). **`subagent` and `inline` run the same engine**: same gates,
+`inline` drops only the `story-worker` boot — not the verdict owner, which
+the profile alone names (§ 3). **`subagent` and `inline` run the same engine**: same gates,
 same PR to `main`, same terminal envelope.
 
 ## 2. Engine invariants
@@ -154,7 +153,7 @@ respawned.
 | `status` | Exit | Meaning | You do |
 | --- | --- | --- | --- |
 | `landed` | 0 | PR merged, `agent::done`, tail ran (`tail.*: false` degrades the report, not the land) | Relay it. Done. |
-| `pending` | 3 | **Resumable, not a failure** — the bounded wait expired healthy, or a human owns the merge. Nothing was mutated. | Run `nextCommand`. |
+| `pending` | 3 | **Resumable, not a failure** — the bounded wait expired healthy, or a human owns the merge. Nothing was mutated. | Run `nextCommand`. Each beat: run every `confirm[]` verbatim, pre-epilogue. |
 | `blocked` | 1 | Hard block; `blocked.blockClass` names it | `checks-failed` → fix + resume; else relay |
 | `failed` | 1 | A phase crashed; `phase` names which | Diagnose, fix, re-run close. `base-sync` conflict (files in `failure.reason`): resolve in `workCwd`, commit, run `nextCommand`; block only if you cannot |
 
