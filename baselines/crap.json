@@ -43755,96 +43755,102 @@
     {
       "path": "scripts/check-comment-policy.js",
       "method": "parseOptions",
-      "startLine": 76,
-      "crap": 6.5625
+      "startLine": 88,
+      "crap": 7.192885260242018
     },
     {
       "path": "scripts/check-comment-policy.js",
       "method": "git",
-      "startLine": 96,
+      "startLine": 115,
       "crap": 1
     },
     {
       "path": "scripts/check-comment-policy.js",
       "method": "listSources",
-      "startLine": 111,
+      "startLine": 130,
       "crap": 1
     },
     {
       "path": "scripts/check-comment-policy.js",
       "method": "<anon listSources/(f)#0>",
-      "startLine": 114,
+      "startLine": 133,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": "scripts/check-comment-policy.js",
       "method": "inScope",
-      "startLine": 124,
+      "startLine": 143,
       "crap": 2.0185185185185186
     },
     {
       "path": "scripts/check-comment-policy.js",
       "method": "<anon inScope/(p)#0>",
-      "startLine": 127,
+      "startLine": 146,
       "crap": 2.0185185185185186,
       "anonymous": true
     },
     {
       "path": "scripts/check-comment-policy.js",
-      "method": "checkRatio",
-      "startLine": 138,
-      "crap": 6.682666666666667
+      "method": "globalCounts",
+      "startLine": 157,
+      "crap": 4.884569700896232
     },
     {
       "path": "scripts/check-comment-policy.js",
-      "method": "<anon checkRatio/(a,b)#0>",
-      "startLine": 149,
-      "crap": 1.018962962962963,
+      "method": "<anon globalCounts/(a,b)#0>",
+      "startLine": 168,
+      "crap": 1.0552856063060145,
       "anonymous": true
     },
     {
       "path": "scripts/check-comment-policy.js",
+      "method": "checkRatio",
+      "startLine": 186,
+      "crap": 2
+    },
+    {
+      "path": "scripts/check-comment-policy.js",
       "method": "checkProvenance",
-      "startLine": 175,
+      "startLine": 204,
       "crap": 2
     },
     {
       "path": "scripts/check-comment-policy.js",
       "method": "lostKeys",
-      "startLine": 203,
+      "startLine": 232,
       "crap": 2
     },
     {
       "path": "scripts/check-comment-policy.js",
       "method": "assertCodeUnchanged",
-      "startLine": 222,
+      "startLine": 251,
       "crap": 5.029158769499927
     },
     {
       "path": "scripts/check-comment-policy.js",
       "method": "<anon assertCodeUnchanged/(f)#0>",
-      "startLine": 238,
+      "startLine": 267,
       "crap": 2.004665403119988,
       "anonymous": true
     },
     {
       "path": "scripts/check-comment-policy.js",
       "method": "firstDifference",
-      "startLine": 287,
+      "startLine": 316,
       "crap": 3
     },
     {
       "path": "scripts/check-comment-policy.js",
       "method": "<anon firstDifference/(t)#0>",
-      "startLine": 290,
+      "startLine": 319,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "scripts/check-comment-policy.js",
       "method": "<anon ()#0>",
-      "startLine": 296,
+      "startLine": 325,
       "crap": 3,
       "anonymous": true
     },
@@ -45682,6 +45688,62 @@
       "method": "typeTags",
       "startLine": 404,
       "crap": 4
+    },
+    {
+      "path": "scripts/lib/comment-ratio-change.js",
+      "method": "git",
+      "startLine": 28,
+      "crap": 1
+    },
+    {
+      "path": "scripts/lib/comment-ratio-change.js",
+      "method": "tryGit",
+      "startLine": 44,
+      "crap": 1
+    },
+    {
+      "path": "scripts/lib/comment-ratio-change.js",
+      "method": "baseBranchOf",
+      "startLine": 60,
+      "crap": 4
+    },
+    {
+      "path": "scripts/lib/comment-ratio-change.js",
+      "method": "resolveBase",
+      "startLine": 82,
+      "crap": 3
+    },
+    {
+      "path": "scripts/lib/comment-ratio-change.js",
+      "method": "countsOf",
+      "startLine": 102,
+      "crap": 2
+    },
+    {
+      "path": "scripts/lib/comment-ratio-change.js",
+      "method": "changeDelta",
+      "startLine": 114,
+      "crap": 2
+    },
+    {
+      "path": "scripts/lib/comment-ratio-change.js",
+      "method": "<anon changeDelta/(f)#0>",
+      "startLine": 133,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/comment-ratio-change.js",
+      "method": "<anon (n,d)#0>",
+      "startLine": 146,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/comment-ratio-change.js",
+      "method": "ratioVerdict",
+      "startLine": 163,
+      "crap": 8
     },
     {
       "path": "scripts/lib/fs-walk.js",
