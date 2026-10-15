@@ -215,7 +215,10 @@ export async function runCrapPreview({
 
   // An incompatible baseline yields no meaningful verdict. Fail open:
   // `check-baselines` still gates the merge.
-  const incompatible = assertBaselineCompatible(baseline);
+  const incompatible = assertBaselineCompatible(baseline, {
+    cwd,
+    targetDirs: crap.targetDirs,
+  });
   if (incompatible) {
     return {
       exitCode: 0,

@@ -14,6 +14,8 @@ import { analyzeModule } from './escomplex-kernel.js';
 import { Logger } from './Logger.js';
 import { scanDirectory } from './maintainability-utils.js';
 import {
+  CompilerMissingError,
+  preparedFailureFields,
   prepareSourceForScoring,
   resolveTsTranspilerVersion,
 } from './transpile.js';
@@ -272,12 +274,58 @@ function projectScanRow(relPath, mr) {
   };
 }
 
+/** Fold per-file results; missing compilers throw one CompilerMissingError. */
+function tallyScanResults(perFile, cwd) {
+  const rows = [];
+  let skippedFilesNoCoverage = 0;
+  let skippedMethodsNoCoverage = 0;
+  let unscorableFiles = 0;
+  const missingCompilerDirs = [];
+  const resolution = newResolutionAccumulator();
+  for (const { item, result } of perFile) {
+    if (result?.compilerMissing) {
+      missingCompilerDirs.push(result.packageDir);
+      continue;
+    }
+    if (result?.skippedFileNoCoverage) {
+      skippedFilesNoCoverage += 1;
+      continue;
+    }
+    // `!result` is a pool-level error the worker never answered.
+    if (!result || result.rows === null) {
+      unscorableFiles += 1;
+      if (result?.error) {
+        Logger.warn(
+          `[crap-utils] failed to score ${item.relPath}: ${result.error}`,
+        );
+      }
+      continue;
+    }
+    skippedMethodsNoCoverage += result.skippedMethodsNoCoverage ?? 0;
+    accumulateResolution(resolution, item.relPath, result);
+    for (const mr of result.rows) {
+      rows.push(projectScanRow(item.relPath, mr));
+    }
+  }
+  if (missingCompilerDirs.length > 0) {
+    throw new CompilerMissingError(missingCompilerDirs, { cwd });
+  }
+  return {
+    rows,
+    skippedFilesNoCoverage,
+    skippedMethodsNoCoverage,
+    unscorableFiles,
+    resolution: summarizeResolution(resolution),
+  };
+}
+
 /**
  * Score every method under `targetDirs` (no disk writes). Files without
  * coverage are skipped under `requireCoverage`; methods without resolvable
  * coverage are always dropped, so baselines never hold partial rows. A file
  * that cannot be read, transpiled or parsed is counted in `unscorableFiles`
- * so no drop is silent. `scopeFiles` filters before any I/O;
+ * so no drop is silent; a TypeScript file with no resolvable compiler throws
+ * `CompilerMissingError` instead. `scopeFiles` filters before any I/O;
  * `preScannedFiles` skips the walk; `incremental` resolves untouched files
  * from the baseline instead of fresh coverage.
  *
@@ -351,52 +399,16 @@ export async function scanAndScore({
     ? queue.map((item) => ({ item, result: scoreFileSerial(item, coverage) }))
     : await scoreFilesViaPool(queue, coverage);
 
-  const rows = [];
-  let skippedFilesNoCoverage = 0;
-  let skippedMethodsNoCoverage = 0;
-  let unscorableFiles = 0;
-  const resolution = newResolutionAccumulator();
-  for (const { item, result } of perFile) {
-    if (!result) {
-      // Pool-level error the worker never answered.
-      unscorableFiles += 1;
-      continue;
-    }
-    if (result.skippedFileNoCoverage) {
-      skippedFilesNoCoverage += 1;
-      continue;
-    }
-    if (result.rows === null) {
-      unscorableFiles += 1;
-      if (result.error) {
-        Logger.warn(
-          `[crap-utils] failed to score ${item.relPath}: ${result.error}`,
-        );
-      }
-      continue;
-    }
-    skippedMethodsNoCoverage += result.skippedMethodsNoCoverage ?? 0;
-    accumulateResolution(resolution, item.relPath, result);
-    for (const mr of result.rows) {
-      rows.push(projectScanRow(item.relPath, mr));
-    }
-  }
+  const tally = tallyScanResults(perFile, cwd);
+  tally.rows.sort(compareScanRows);
+  return { ...tally, scannedFiles };
+}
 
-  rows.sort((a, b) => {
-    if (a.file !== b.file) return a.file < b.file ? -1 : 1;
-    if (a.startLine !== b.startLine) return a.startLine - b.startLine;
-    if (a.method !== b.method) return a.method < b.method ? -1 : 1;
-    return 0;
-  });
-
-  return {
-    rows,
-    scannedFiles,
-    skippedFilesNoCoverage,
-    skippedMethodsNoCoverage,
-    unscorableFiles,
-    resolution: summarizeResolution(resolution),
-  };
+function compareScanRows(a, b) {
+  if (a.file !== b.file) return a.file < b.file ? -1 : 1;
+  if (a.startLine !== b.startLine) return a.startLine - b.startLine;
+  if (a.method !== b.method) return a.method < b.method ? -1 : 1;
+  return 0;
 }
 
 /** In-process scorer; the reference the worker output must match exactly. */
@@ -433,7 +445,7 @@ function scoreFileSerial(
     totalMethods: 0,
   };
   const prepared = prepareSourceForScoring(abs);
-  if (prepared.error) return dropped;
+  if (prepared.error) return { ...dropped, ...preparedFailureFields(prepared) };
   const { crapRows, parseError } = analyzeOnce(
     prepared.code,
     entry,

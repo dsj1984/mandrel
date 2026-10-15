@@ -27,6 +27,7 @@ import { assertCanonical } from './path-canon.js';
  *   priorEnvelope?: object,
  *   epsilon?: number,
  *   scope?: {mode: 'full'|'diff', files: Set<string>|Iterable<string>}|null,
+ *   extrasContext?: object,
  * }} params
  * @returns {object}
  */
@@ -38,6 +39,7 @@ export function write({
   priorEnvelope,
   epsilon,
   scope,
+  extrasContext = {},
 } = {}) {
   if (typeof kind !== 'string' || kind.length === 0) {
     throw new TypeError('writer.write: kind is required');
@@ -87,7 +89,9 @@ export function write({
     rows: sortedRows,
     kernelVersion: kernelVersion ?? currentKernelVersion(kind),
     extras:
-      typeof mod.envelopeExtras === 'function' ? mod.envelopeExtras() : null,
+      typeof mod.envelopeExtras === 'function'
+        ? mod.envelopeExtras(extrasContext)
+        : null,
   });
   assertEnvelope(envelope);
   return envelope;

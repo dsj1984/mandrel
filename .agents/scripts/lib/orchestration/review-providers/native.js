@@ -17,7 +17,7 @@ import {
   classifyReport,
 } from '../../maintainability-engine.js';
 import { PROJECT_ROOT } from '../../project-root.js';
-import { transpileIfNeeded } from '../../transpile.js';
+import { transpileForReport } from '../../transpile.js';
 import {
   resolveMaintainabilityIgnoreGlobs,
   scopeMaintainabilityFiles,
@@ -57,7 +57,7 @@ export function readHeadSource(relPath, headRef, gitSpawnFn = gitSpawn) {
  * @returns {ReturnType<typeof calculateReport>}
  */
 export function scoreSourceReport(source, relPath) {
-  const prepared = transpileIfNeeded(relPath, source);
+  const prepared = transpileForReport(relPath, source);
   if (prepared === null) {
     return {
       moduleScore: 0,

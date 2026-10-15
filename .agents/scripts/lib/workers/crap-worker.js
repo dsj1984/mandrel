@@ -2,7 +2,8 @@
  * CPU-pool worker for `scanAndScore`: one file in, its per-method CRAP rows
  * out. The host pre-resolves each file's coverage entry (`item.coverageEntry`)
  * so the coverage map is never cloned per worker. An unrecoverable per-file
- * failure replies `rows: null`, which the host drops and counts.
+ * failure replies `rows: null`, which the host drops and counts; a missing
+ * TypeScript compiler replies `compilerMissing` so the host fails loud.
  */
 
 import { parentPort } from 'node:worker_threads';
@@ -11,7 +12,10 @@ import {
   finalizeMethodRows,
   UNSCORABLE,
 } from '../crap-engine.js';
-import { prepareSourceForScoring } from '../transpile.js';
+import {
+  preparedFailureFields,
+  prepareSourceForScoring,
+} from '../transpile.js';
 import { serveWorkerMessages } from './serve-worker-messages.js';
 
 /**
@@ -31,11 +35,7 @@ export function handleCrapWorkerMessage(msg, _coverage, deps = {}) {
   if (msg && msg.exit === true) return { kind: 'exit' };
 
   const item = msg?.item;
-  if (
-    !item ||
-    typeof item.abs !== 'string' ||
-    typeof item.relPath !== 'string'
-  ) {
+  if (!isWorkItem(item)) {
     return {
       kind: 'reply',
       message: {
@@ -77,7 +77,8 @@ export function handleCrapWorkerMessage(msg, _coverage, deps = {}) {
   // escomplex's transpiled coordinates to them.
   const prepare = deps.prepare ?? prepareSourceForScoring;
   const prepared = prepare(abs, deps);
-  if (prepared.error) return dropped(null);
+  // `reply` defaults `rows: null`, so every prepare error is a drop.
+  if (prepared.error) return reply(preparedFailureFields(prepared));
 
   let methodRows;
   try {
@@ -87,9 +88,7 @@ export function handleCrapWorkerMessage(msg, _coverage, deps = {}) {
       prepared.mapLine,
     );
   } catch (err) {
-    return dropped(
-      err && typeof err.message === 'string' ? err.message : String(err),
-    );
+    return dropped(errorText(err));
   }
   // Unparseable must drop (`rows: null`), not read as a file with no methods,
   // or its baseline rows vanish uncounted.
@@ -100,4 +99,16 @@ export function handleCrapWorkerMessage(msg, _coverage, deps = {}) {
   );
 }
 
-serveWorkerMessages(parentPort, (msg) => handleCrapWorkerMessage(msg, null));
+function isWorkItem(item) {
+  return (
+    Boolean(item) &&
+    typeof item.abs === 'string' &&
+    typeof item.relPath === 'string'
+  );
+}
+
+function errorText(err) {
+  return err && typeof err.message === 'string' ? err.message : String(err);
+}
+
+serveWorkerMessages(parentPort, handleCrapWorkerMessage);

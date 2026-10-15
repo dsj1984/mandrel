@@ -48,11 +48,6 @@
       "maxCyclomatic": 13
     },
     {
-      "file": ".agents/scripts/lib/crap-utils.js",
-      "methodsAboveCeiling": 1,
-      "maxCyclomatic": 13
-    },
-    {
       "file": ".agents/scripts/lib/json-utils.js",
       "methodsAboveCeiling": 1,
       "maxCyclomatic": 14
