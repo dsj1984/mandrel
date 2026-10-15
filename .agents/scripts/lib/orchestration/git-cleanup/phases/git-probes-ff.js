@@ -22,27 +22,22 @@ export function isWorktreeLockFailure(stderr) {
   return WORKTREE_LOCK_RE.test(stderr ?? '');
 }
 
-/* node:coverage ignore next */
 export function isWorkingTreeClean(cwd) {
   return defaultFfProbes.isClean(cwd);
 }
 
-/* node:coverage ignore next */
 export function fetchRef(cwd, remoteName, ref) {
   return defaultFfProbes.fetch(cwd, remoteName, ref);
 }
 
-/* node:coverage ignore next */
 export function canFastForward(cwd, baseBranch, remoteName) {
   return defaultFfProbes.canFastForward(cwd, baseBranch, remoteName);
 }
 
-/* node:coverage ignore next */
 export function checkoutBranch(cwd, branch) {
   return defaultFfProbes.checkout(cwd, branch);
 }
 
-/* node:coverage ignore next */
 export function mergeFastForward(cwd, ref) {
   return defaultFfProbes.merge(cwd, ref);
 }
@@ -116,42 +111,41 @@ export function makeFfProbes(spawn = gitSpawn) {
 
 const defaultFfProbes = makeFfProbes(gitSpawn);
 
-/* node:coverage ignore next */
-export function removeWorktree(worktreePath, cwd) {
-  const plain = gitSpawn(cwd, 'worktree', 'remove', worktreePath);
-  if (plain.status === 0) return { ok: true, dirty: false };
-  const forced = gitSpawn(cwd, 'worktree', 'remove', '--force', worktreePath);
-  if (forced.status === 0) {
-    return { ok: true, dirty: true, stderr: plain.stderr };
-  }
-  const stderr = forced.stderr || plain.stderr;
-  return {
-    ok: false,
-    dirty: true,
-    lockClass: isWorktreeLockFailure(stderr),
-    stderr,
-  };
-}
-
 /**
- * Never `--quiet`: it suppresses the `[deleted]` lines that are the only
- * record of what was pruned, making real work read as "nothing to do".
+ * The destructive worktree / prune / stash wrappers over an injected spawn,
+ * like {@link makeFfProbes}.
  *
- * @param {string} cwd
- * @param {string} remoteName
- * @param {(output: string, remoteName: string) => string[]} parsePruneFn
- * @returns {{ ok: boolean, pruned: string[], stderr?: string }}
+ * @param {(cwd: string, ...args: string[]) => { status: number, stdout: string, stderr: string }} [spawn]
  */
-/* node:coverage ignore next */
-export function pruneRemoteTracking(cwd, remoteName, parsePruneFn) {
-  const res = gitSpawn(cwd, 'fetch', '--prune', remoteName);
-  if (res.status !== 0) return { ok: false, pruned: [], stderr: res.stderr };
-  return { ok: true, pruned: parsePruneFn(res.stderr, remoteName) };
-}
-
-/* node:coverage ignore next */
-export function dropStash(ref, cwd) {
-  const res = gitSpawn(cwd, 'stash', 'drop', ref);
-  if (res.status !== 0) return { ok: false, stderr: res.stderr };
-  return { ok: true };
+export function makeWorktreeOps(spawn = gitSpawn) {
+  return {
+    removeWorktree: (worktreePath, cwd) => {
+      const plain = spawn(cwd, 'worktree', 'remove', worktreePath);
+      if (plain.status === 0) return { ok: true, dirty: false };
+      const forced = spawn(cwd, 'worktree', 'remove', '--force', worktreePath);
+      if (forced.status === 0) {
+        return { ok: true, dirty: true, stderr: plain.stderr };
+      }
+      const stderr = forced.stderr || plain.stderr;
+      return {
+        ok: false,
+        dirty: true,
+        lockClass: isWorktreeLockFailure(stderr),
+        stderr,
+      };
+    },
+    // Never `--quiet`: it hides the `[deleted]` lines the parser reads.
+    pruneRemoteTracking: (cwd, remoteName, parsePruneFn) => {
+      const res = spawn(cwd, 'fetch', '--prune', remoteName);
+      if (res.status !== 0) {
+        return { ok: false, pruned: [], stderr: res.stderr };
+      }
+      return { ok: true, pruned: parsePruneFn(res.stderr, remoteName) };
+    },
+    dropStash: (ref, cwd) => {
+      const res = spawn(cwd, 'stash', 'drop', ref);
+      if (res.status !== 0) return { ok: false, stderr: res.stderr };
+      return { ok: true };
+    },
+  };
 }

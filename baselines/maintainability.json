@@ -1296,7 +1296,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
-      "mi": 98.969
+      "mi": 98.394
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/merged-tip.js",
@@ -2192,7 +2192,7 @@
     },
     {
       "path": ".agents/scripts/plan-context.js",
-      "mi": 94.507
+      "mi": 93.673
     },
     {
       "path": ".agents/scripts/plan-critics.js",
@@ -2392,7 +2392,7 @@
     },
     {
       "path": ".agents/scripts/update-ticket-state.js",
-      "mi": 91.705
+      "mi": 92.815
     },
     {
       "path": ".agents/scripts/validate-skills.js",

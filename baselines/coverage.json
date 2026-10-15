@@ -1960,8 +1960,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes-ff.js",
-      "lines": 85.35,
-      "branches": 78.13,
+      "lines": 100,
+      "branches": 94.44,
       "functions": 100
     },
     {
@@ -3298,9 +3298,9 @@
     },
     {
       "path": ".agents/scripts/plan-context.js",
-      "lines": 85.16,
-      "branches": 52.08,
-      "functions": 90.91
+      "lines": 89.66,
+      "branches": 59.65,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/plan-critics.js",
@@ -3495,6 +3495,12 @@
       "functions": 89.47
     },
     {
+      "path": ".agents/scripts/single-story-init.js",
+      "lines": 88.27,
+      "branches": 66.33,
+      "functions": 70.59
+    },
+    {
       "path": ".agents/scripts/stories-wave-tick.js",
       "lines": 98.63,
       "branches": 92.9,
@@ -3574,9 +3580,9 @@
     },
     {
       "path": ".agents/scripts/update-ticket-state.js",
-      "lines": 39.22,
-      "branches": 25,
-      "functions": 0
+      "lines": 100,
+      "branches": 93.75,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/validate-skills.js",

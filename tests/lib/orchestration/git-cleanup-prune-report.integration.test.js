@@ -18,7 +18,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
-import { pruneRemoteTracking } from '../../../.agents/scripts/lib/orchestration/git-cleanup/phases/git-probes-ff.js';
+import { pruneRemoteTracking } from '../../../.agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js';
 import {
   executePrune,
   parsePrunedRefs,

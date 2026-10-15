@@ -12,10 +12,7 @@ import { describe, it } from 'node:test';
 
 import { executeCleanup } from '../../../.agents/scripts/lib/orchestration/git-cleanup/phases/branches.js';
 import { reapWorktree } from '../../../.agents/scripts/lib/orchestration/git-cleanup/phases/branches-reap.js';
-import {
-  isWorktreeLockFailure,
-  removeWorktree,
-} from '../../../.agents/scripts/lib/orchestration/git-cleanup/phases/git-probes-ff.js';
+import { isWorktreeLockFailure } from '../../../.agents/scripts/lib/orchestration/git-cleanup/phases/git-probes-ff.js';
 import {
   renderDeferredLine,
   renderExecutionSummary,
@@ -321,14 +318,5 @@ describe('git-cleanup render — deferred surface (Story #3598)', () => {
     });
     assert.match(summary, /Reaped 1 local/);
     assert.match(summary, /1 worktree\(s\) deferred to sweep/);
-  });
-});
-
-describe('removeWorktree — lockClass plumbing (Story #3598)', () => {
-  it('threads lockClass through git-cleanup removeWorktree via injected spawn', () => {
-    // removeWorktree calls gitSpawn internally; we cannot inject it here,
-    // so this guards the classification helper the wrapper relies on.
-    assert.equal(typeof removeWorktree, 'function');
-    assert.equal(isWorktreeLockFailure('Access is denied.'), true);
   });
 });
