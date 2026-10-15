@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it, test } from 'node:test';
@@ -17,6 +18,7 @@ import {
   renderTable,
   runCli,
 } from '../.agents/scripts/quality-preview.js';
+import { seedGitIdentity } from './fixtures/git-fixture.js';
 
 /**
  * quality-preview.js unit coverage: argv parsing, the pure envelope merge,
@@ -1212,5 +1214,92 @@ describe('runCli — --only selects one half (Story #5471)', () => {
     assert.equal(exitCode, 2);
     assert.deepEqual(calls, []);
     assert.match(err.lines.join(''), /--only takes mi or crap/);
+  });
+});
+
+describe('quality-preview CLI — piped --json past 64 KiB (Story #5686)', () => {
+  // `process.exit()` after the buffered `--json` write dropped everything past
+  // the 64 KiB pipe buffer. A real child on a real pipe is the only way to
+  // observe it: stdout is synchronous on a file or TTY.
+  const PIPE_BUFFER = 64 * 1024;
+  const FILE_COUNT = 250;
+  const CLI = fileURLToPath(
+    new URL('../.agents/scripts/quality-preview.js', import.meta.url),
+  );
+  // Drop `GIT_*`: under a pre-push hook GIT_DIR points at the main gitdir.
+  const CLEAN_ENV = Object.fromEntries(
+    Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')),
+  );
+
+  /** A repo whose every file regresses against a baseline MI of 999. */
+  function setupRegressedRepo(root) {
+    const git = (...args) =>
+      execFileSync('git', args, {
+        cwd: root,
+        stdio: 'pipe',
+        encoding: 'utf-8',
+        env: CLEAN_ENV,
+      }).trim();
+    git('init', '-q', '-b', 'main');
+    seedGitIdentity(root);
+    git('commit', '-q', '--allow-empty', '-m', 'root');
+    const base = git('rev-parse', 'HEAD');
+    fs.mkdirSync(path.join(root, 'src'));
+    fs.mkdirSync(path.join(root, 'baselines'));
+    const rows = [];
+    for (let i = 0; i < FILE_COUNT; i += 1) {
+      const rel = `src/module-with-a-long-name-${String(i).padStart(4, '0')}.js`;
+      fs.writeFileSync(
+        path.join(root, rel),
+        `export function f${i}(a) { return a + ${i}; }\n`,
+      );
+      rows.push({ path: rel, mi: 999 });
+    }
+    fs.writeFileSync(
+      path.join(root, 'baselines', 'maintainability.json'),
+      JSON.stringify({ $schema: 'x', kernelVersion: '0.1.0', rows }),
+    );
+    fs.writeFileSync(
+      path.join(root, '.agentrc.json'),
+      JSON.stringify({
+        project: {
+          paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+        },
+        github: { owner: 'x', repo: 'y', operatorHandle: '@ci' },
+        delivery: {
+          quality: { gates: { maintainability: { targetDirs: ['src'] } } },
+        },
+      }),
+    );
+    git('add', '-A');
+    git('commit', '-q', '-m', 'files');
+    return base;
+  }
+
+  it('delivers the whole report through a pipe and exits 1', () => {
+    const root = fs.realpathSync(makeTempDir('quality-preview-pipe-'));
+    try {
+      const base = setupRegressedRepo(root);
+      const result = spawnSync(
+        process.execPath,
+        [CLI, '--only', 'mi', '--json', '--changed-since', base],
+        {
+          cwd: root,
+          env: CLEAN_ENV,
+          encoding: 'utf-8',
+          stdio: ['ignore', 'pipe', 'pipe'],
+          maxBuffer: 16 * 1024 * 1024,
+        },
+      );
+      assert.ok(
+        Buffer.byteLength(result.stdout, 'utf8') > PIPE_BUFFER,
+        `fixture must exceed one pipe buffer (stderr: ${result.stderr})`,
+      );
+      const report = JSON.parse(result.stdout);
+      assert.equal(report.mi.envelope.summary.regressions, FILE_COUNT);
+      assert.equal(result.status, 1, 'the violation exit code propagates');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 });
