@@ -185,7 +185,8 @@ function writeMerged({
  */
 async function captureAndMerge(opts) {
   const run = await runScoped(opts);
-  if (run.code !== 0) return reportCaptureFailure(run.code, opts.logger);
+  if (run.code !== 0)
+    return reportCaptureFailure(run.code, opts.logger, AFFECTED_CAPTURE_SCRIPT);
   if (!writeMerged(opts)) return 1;
   stampCapturedTree({
     ...opts,
