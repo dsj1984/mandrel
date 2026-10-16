@@ -926,8 +926,9 @@ describe('runCoverageCapture — own CRAP coverage source (Story #5717)', () => 
       h.calls.capture.push(args);
       return (args.script ?? 'test:coverage') === failScript ? 1 : 0;
     };
+    // `abs` is native (backslashes on Windows); the fixture paths are posix.
     h.deps.coverageArtifactExistsImpl = (abs) =>
-      !missingArtifacts.some((rel) => abs.endsWith(rel));
+      !missingArtifacts.some((rel) => abs.replace(/\\/g, '/').endsWith(rel));
     return h;
   }
 
