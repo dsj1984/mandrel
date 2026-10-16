@@ -887,3 +887,136 @@ describe('coverage-capture — artifact contract (Story #5672)', () => {
     assert.equal(h.calls.stamp.length, 1);
   });
 });
+
+/**
+ * Story #5717 — an own CRAP coverage source. The coverage gate's artifact is
+ * captured exactly as today; the CRAP artifact gets its own full-scope pass
+ * via `crap.captureScript`, stamped in its own directory.
+ */
+describe('runCoverageCapture — own CRAP coverage source (Story #5717)', () => {
+  const COVERAGE_PATH = 'coverage/coverage-final.json';
+  const CRAP_PATH = 'coverage-py/coverage-final.json';
+  const OWN = {
+    ...CRAP,
+    coveragePath: CRAP_PATH,
+    captureScript: 'test:coverage:py',
+    ownCoverageSource: true,
+  };
+
+  function ownHarness({
+    stale = [COVERAGE_PATH, CRAP_PATH],
+    scripts = ['test:coverage', 'test:coverage:py'],
+    missingArtifacts = [],
+    failScript = null,
+    crap = OWN,
+  } = {}) {
+    const h = harness({ crap });
+    h.deps.getQualityImpl = () => ({
+      crap,
+      coverage: { coveragePath: COVERAGE_PATH, timeoutMs: 1234 },
+    });
+    h.deps.hasNpmScriptImpl = (_scripts, name) => scripts.includes(name);
+    h.deps.isCoverageFreshImpl = (args) => {
+      h.calls.fresh.push(args);
+      return stale.includes(args.coveragePath)
+        ? { fresh: false, reason: 'missing' }
+        : { fresh: true, reason: 'fresh' };
+    };
+    h.deps.runCaptureImpl = (args) => {
+      h.calls.capture.push(args);
+      return (args.script ?? 'test:coverage') === failScript ? 1 : 0;
+    };
+    h.deps.coverageArtifactExistsImpl = (abs) =>
+      !missingArtifacts.some((rel) => abs.endsWith(rel));
+    return h;
+  }
+
+  it('AC-4: refreshes the coverage gate artifact, then runs the CRAP capture script', async () => {
+    const h = ownHarness();
+    assert.equal(await runCoverageCapture(argv('--cwd', '/repo'), h.deps), 0);
+    assert.deepEqual(
+      h.calls.capture.map((c) => [c.coveragePath, c.script ?? 'test:coverage']),
+      [
+        [COVERAGE_PATH, 'test:coverage'],
+        [CRAP_PATH, 'test:coverage:py'],
+      ],
+    );
+    assert.deepEqual(
+      h.calls.stamp.map((s) => s.coveragePath),
+      [COVERAGE_PATH, CRAP_PATH],
+    );
+  });
+
+  it('a fresh CRAP artifact is not re-captured', async () => {
+    const h = ownHarness({ stale: [COVERAGE_PATH] });
+    assert.equal(await runCoverageCapture(argv('--cwd', '/repo'), h.deps), 0);
+    assert.equal(h.calls.capture.length, 1);
+    assert.equal(h.calls.capture[0].coveragePath, COVERAGE_PATH);
+    assert.ok(h.calls.fresh.some((f) => f.coveragePath === CRAP_PATH));
+  });
+
+  it('scoped capture modes never apply to the own source', async () => {
+    const h = ownHarness({
+      stale: [CRAP_PATH],
+      crap: { ...OWN, incrementalCoverage: { skipWhenUnchanged: true } },
+    });
+    assert.equal(await runCoverageCapture(argv('--cwd', '/repo'), h.deps), 0);
+    assert.equal(h.calls.capture.length, 1);
+    assert.equal(h.calls.capture[0].script, 'test:coverage:py');
+    assert.equal(h.calls.stamp.at(-1).scope, undefined);
+  });
+
+  it('AC-4: a green CRAP capture that writes no artifact exits 1 naming the script and path', async () => {
+    const h = ownHarness({ missingArtifacts: [CRAP_PATH] });
+    assert.equal(await runCoverageCapture(argv('--cwd', '/repo'), h.deps), 1);
+    const error = h.log.error.join('\n');
+    assert.match(error, /test:coverage:py passed/);
+    assert.match(error, /coverage-py\/coverage-final\.json/);
+    assert.match(error, /delivery\.quality\.gates\.crap\.coveragePath/);
+    assert.deepEqual(
+      h.calls.stamp.map((s) => s.coveragePath),
+      [COVERAGE_PATH],
+    );
+  });
+
+  it('the first non-zero pass wins and the CRAP pass is not run', async () => {
+    const h = ownHarness({ failScript: 'test:coverage' });
+    assert.equal(await runCoverageCapture(argv('--cwd', '/repo'), h.deps), 1);
+    assert.equal(h.calls.capture.length, 1);
+    assert.equal(h.calls.stamp.length, 0);
+  });
+
+  it('AC-6: a repo whose only coverage script is the captureScript still captures', async () => {
+    const h = ownHarness({ scripts: ['test:coverage:py'] });
+    assert.equal(await runCoverageCapture(argv('--cwd', '/repo'), h.deps), 0);
+    assert.deepEqual(
+      h.calls.capture.map((c) => c.script),
+      ['test:coverage:py'],
+    );
+    assert.ok(h.log.info.some((m) => /No "test:coverage" script/.test(m)));
+  });
+
+  it('AC-6: the refusal keys on the configured captureScript and names its key', async () => {
+    const h = ownHarness({ scripts: ['test:coverage'] });
+    assert.equal(await runCoverageCapture(argv('--cwd', '/repo'), h.deps), 1);
+    assert.match(h.log.error[0], /No "test:coverage:py" script/);
+    assert.match(
+      h.log.error[0],
+      /delivery\.quality\.gates\.crap\.captureScript/,
+    );
+    assert.equal(h.calls.capture.length, 0);
+  });
+
+  it('AC-2: a shared source with a custom captureScript runs it in one pass', async () => {
+    const h = ownHarness({
+      stale: [COVERAGE_PATH],
+      scripts: ['cov'],
+      crap: { ...CRAP, coveragePath: COVERAGE_PATH, captureScript: 'cov' },
+    });
+    assert.equal(await runCoverageCapture(argv('--cwd', '/repo'), h.deps), 0);
+    assert.deepEqual(
+      h.calls.capture.map((c) => [c.coveragePath, c.script]),
+      [[COVERAGE_PATH, 'cov']],
+    );
+  });
+});

@@ -507,6 +507,17 @@ is a fact about one operator's machine that no constant can know, so it lives
 in `.agentrc.local.json`. No existing key displaces it: `operatorHandle` names
 the expected identity, not where its credentials live.
 
+**Raised to 138 (2026-10-15, Story #5717)** for
+`delivery.quality.gates.crap.coveragePath` and
+`delivery.quality.gates.crap.captureScript`. The CRAP gate read the coverage
+gate's artifact unconditionally, so a polyglot repo whose CRAP `targetDirs`
+are measured by a different suite blocked every Story at the handoff seat
+once the baseline held real rows. Which artifact covers the CRAP targets and
+which npm script writes it are facts about one project's test layout that no
+constant can know. No existing key displaces them: the coverage gate's
+`coveragePath` stays the coverage gate's, and `captureScript` names an npm
+script rather than a shell command, so it opens no injection surface.
+
 ### Consequences
 
 - A tuning value is changed by editing the constant and shipping a release,

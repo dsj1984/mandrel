@@ -122,7 +122,9 @@ export async function computeCrapPreviewScan({
   envelope.cyclomaticAdvisories = listCyclomaticAdvisories(scan.rows);
   // Above the drifted-row ratio every verdict is an artefact of a mis-keyed
   // join: say so once and fail open.
-  const basis = assessComparisonBasis(result);
+  const basis = assessComparisonBasis(result, {
+    captureScript: crap.captureScript,
+  });
   if (!basis.sound) {
     return {
       exitCode: 0,

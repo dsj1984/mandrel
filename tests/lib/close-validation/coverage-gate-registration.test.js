@@ -34,6 +34,30 @@ import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
 
 const names = (gates) => gates.map((g) => g.name);
 
+describe('buildDefaultGates — registration keys on crap.captureScript (Story #5717 AC-6)', () => {
+  const crapWith = (crap) => ({
+    delivery: { quality: { gates: { crap: { enabled: true, ...crap } } } },
+  });
+
+  it('registers when the only coverage script is the configured captureScript', () => {
+    const gates = buildDefaultGates({
+      config: crapWith({ captureScript: 'test:coverage:py' }),
+      packageScripts: { 'test:coverage:py': 'pytest --cov' },
+    });
+    assert.ok(names(gates).includes('coverage-capture'));
+    assert.ok(!names(gates).includes('test'));
+  });
+
+  it('does not register on test:coverage when another captureScript is configured', () => {
+    const gates = buildDefaultGates({
+      config: crapWith({ captureScript: 'test:coverage:py' }),
+      packageScripts: { 'test:coverage': 'c8 node --test' },
+    });
+    assert.ok(!names(gates).includes('coverage-capture'));
+    assert.ok(names(gates).includes('test'));
+  });
+});
+
 describe('buildDefaultGates — coverage-capture registration (Story #4473)', () => {
   it('CRAP on + test:coverage present → coverage-capture runs, no separate test gate', () => {
     const gates = buildDefaultGates({

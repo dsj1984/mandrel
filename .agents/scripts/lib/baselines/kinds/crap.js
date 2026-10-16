@@ -420,7 +420,7 @@ export const INCOMPATIBLE_BASELINE_DIAGNOSTIC = 'crap-baseline-incompatible';
  *
  * @param {{total?: number, comparable?: number, provenanceMismatched?: number,
  *   incomparable?: number}} compareResult
- * @param {{ratio?: number, minSample?: number}} [opts]
+ * @param {{ratio?: number, minSample?: number, captureScript?: string}} [opts]
  */
 export function assessComparisonBasis(compareResult, opts = {}) {
   const ratio = Number.isFinite(opts.ratio)
@@ -451,7 +451,7 @@ export function assessComparisonBasis(compareResult, opts = {}) {
         'the same line coordinates, so every per-method verdict below would ' +
         'be derived from a mis-keyed join rather than from your change. ' +
         'They are suppressed.\n' +
-        "       Re-seed the baseline: run 'npm run test:coverage' then " +
+        `       Re-seed the baseline: run 'npm run ${captureScriptOf(opts)}' then ` +
         "'npm run crap:update -- --full-scope' and commit the result with a " +
         "'baseline-refresh:' subject. The authoritative check-baselines gate " +
         'still gates the merge.',
@@ -459,10 +459,27 @@ export function assessComparisonBasis(compareResult, opts = {}) {
   };
 }
 
-const RESEED_REMEDY =
-  "Re-derive the baseline: run 'npm run test:coverage' then " +
-  "'npm run crap:update -- --full-scope' and commit the result with a " +
-  "'baseline-refresh:' subject.";
+/**
+ * The CRAP capture script an operator hint names — the resolved
+ * `gates.crap.captureScript` when the caller passes it, else the default.
+ *
+ * @param {{ captureScript?: string } | undefined} ctx
+ * @returns {string}
+ */
+function captureScriptOf(ctx) {
+  return typeof ctx?.captureScript === 'string' && ctx.captureScript.length > 0
+    ? ctx.captureScript
+    : 'test:coverage';
+}
+
+/** @param {{ captureScript?: string } | undefined} ctx */
+function reseedRemedy(ctx) {
+  return (
+    `Re-derive the baseline: run 'npm run ${captureScriptOf(ctx)}' then ` +
+    "'npm run crap:update -- --full-scope' and commit the result with a " +
+    "'baseline-refresh:' subject."
+  );
+}
 
 /**
  * Compat axes for `evaluateBaselineCompatibility`: `{ name, severity, check }`,
@@ -477,7 +494,7 @@ export const CRAP_COMPAT_AXES = [
   {
     name: 'scoring-semantics-drift',
     severity: 'fatal',
-    check: ({ baseline }) => {
+    check: ({ baseline, captureScript }) => {
       if (!baseline) return null;
       const stamped = baseline.scoringSemantics ?? null;
       if (stamped === SCORING_SEMANTICS) return null;
@@ -485,14 +502,14 @@ export const CRAP_COMPAT_AXES = [
         `[CRAP] scoring semantics changed: baseline=${stamped ?? '<unstamped>'} ` +
         `running=${SCORING_SEMANTICS}. Rows scored by the previous per-method ` +
         'coverage join are not comparable to rows scored by the current one, ' +
-        `so this baseline cannot be compared. ${RESEED_REMEDY}`
+        `so this baseline cannot be compared. ${reseedRemedy({ captureScript })}`
       );
     },
   },
   {
     name: 'ts-transpiler-drift',
     severity: 'fatal',
-    check: ({ baseline, runningTsTranspilerVersion }) => {
+    check: ({ baseline, runningTsTranspilerVersion, captureScript }) => {
       if (!baseline) return null;
       if (!isKnownVersion(runningTsTranspilerVersion)) return null;
       const baselineTs = baseline.tsTranspilerVersion;
@@ -505,7 +522,7 @@ export const CRAP_COMPAT_AXES = [
         `[CRAP] tsTranspilerVersion changed: baseline=${baselineTs} running=${runningTsTranspilerVersion}. ` +
         "A TS row's startLine is an original-source coordinate only because the transpiler's " +
         'sourcemap said so, and that coordinate is half the row identity key — so rows scored ' +
-        `under the previous transpiler are not comparable to rows scored under this one. ${RESEED_REMEDY}`
+        `under the previous transpiler are not comparable to rows scored under this one. ${reseedRemedy({ captureScript })}`
       );
     },
   },
@@ -515,7 +532,7 @@ export const CRAP_COMPAT_AXES = [
     // scoped to transpiled rows because pure-JS coordinates coincide.
     name: 'provenance-unstamped',
     severity: 'fatal',
-    check: ({ baseline }) =>
+    check: ({ baseline, captureScript }) =>
       baseline &&
       baseline.provenanceStamped !== true &&
       hasTranspiledRows(baseline)
@@ -524,7 +541,7 @@ export const CRAP_COMPAT_AXES = [
           'asserts by omission that every row is an original-source coordinate. ' +
           '`startLine` is half the row identity key, so the comparator would ' +
           'key those rows against a coordinate space they are not in and ' +
-          `report regressions no edit can satisfy. ${RESEED_REMEDY}`
+          `report regressions no edit can satisfy. ${reseedRemedy({ captureScript })}`
         : null,
   },
   {
@@ -534,7 +551,7 @@ export const CRAP_COMPAT_AXES = [
     // `anonymous` marker.
     name: 'anon-identity-unstamped',
     severity: 'fatal',
-    check: ({ baseline }) => {
+    check: ({ baseline, captureScript }) => {
       if (!baseline) return null;
       const stale = (baseline.rows ?? []).filter(
         (row) => isAnonymousMethodLabel(row?.method) && row?.anonymous !== true,
@@ -547,7 +564,7 @@ export const CRAP_COMPAT_AXES = [
         'envelope claims the current scoring semantics. Those ordinals ' +
         'renumber whenever any anonymous function is added or removed, so the ' +
         'comparator would score the live methods against the new-method ' +
-        `ceiling instead of their own baseline. ${RESEED_REMEDY}`
+        `ceiling instead of their own baseline. ${reseedRemedy({ captureScript })}`
       );
     },
   },
@@ -597,7 +614,7 @@ const LOADED_ENVELOPE_AXES = [
  *
  * @param {object|null} baseline A loaded v2 baseline envelope.
  * @param {{runningTsTranspilerVersion?: string, cwd?: string,
- *   targetDirs?: string[]}} [ctx]
+ *   targetDirs?: string[], captureScript?: string}} [ctx]
  * @returns {string|null} Operator-facing message, or null when compatible.
  */
 export function assertBaselineCompatible(baseline, ctx = {}) {
@@ -606,7 +623,11 @@ export function assertBaselineCompatible(baseline, ctx = {}) {
     ctx.runningTsTranspilerVersion ?? resolveTsTranspilerVersion(ctx);
   for (const name of LOADED_ENVELOPE_AXES) {
     const axis = CRAP_COMPAT_AXES.find((a) => a.name === name);
-    const message = axis?.check({ baseline, runningTsTranspilerVersion });
+    const message = axis?.check({
+      baseline,
+      runningTsTranspilerVersion,
+      captureScript: ctx.captureScript,
+    });
     if (message) return message;
   }
   return null;

@@ -24,6 +24,7 @@ import {
   write as writeEnvelope,
   writeFile as writeEnvelopeFile,
 } from '../../../.agents/scripts/lib/baselines/writer.js';
+import { resolveQuality } from '../../../.agents/scripts/lib/config/quality.js';
 import {
   computeContentDigest,
   computeTreeDigest,
@@ -394,6 +395,95 @@ describe('CRAP seat refusal (AC-2)', () => {
     });
     await score(['scripts/verify.mjs', 'src/a.js', 'srcx/b.js']);
     assert.deepEqual(scopeFiles, ['src/a.js']);
+  });
+});
+
+describe('CRAP seat reads the CRAP coverage source (Story #5717 AC-3)', () => {
+  const COVERAGE_GATE_PATH = 'coverage/coverage-final.json';
+  const CRAP_PATH = 'coverage-py/coverage-final.json';
+  const ARTIFACTS = {
+    // The coverage gate's artifact measures another language: no CRAP-target entry.
+    [path.resolve('/repo', COVERAGE_GATE_PATH)]: { 'lib/other.js': {} },
+    [path.resolve('/repo', CRAP_PATH)]: { 'src/a.js': {} },
+  };
+
+  function seatFor(gates) {
+    const { crap } = resolveQuality({ gates });
+    const options = resolveCrapUpdaterOptions(
+      { seatMissing: true },
+      { crap, baselines: { crap: { path: 'baselines/crap.json' } } },
+      '/repo',
+    );
+    const loaded = [];
+    const score = buildCrapSeatScorer(options, {
+      cwd: '/repo',
+      // Only the CRAP artifact carries a fresh capture stamp.
+      isFresh: ({ coveragePath }) => ({ fresh: coveragePath === CRAP_PATH }),
+      loadCoverage: (abs) => {
+        loaded.push(abs);
+        return ARTIFACTS[abs] ?? null;
+      },
+      scan: async ({ coverage, scopeFiles }) => {
+        const resolved = scopeFiles.filter((f) => coverage[f]).length;
+        return {
+          rows: [{ file: 'src/a.js', method: 'added', startLine: 1, crap: 1 }],
+          scannedFiles: scopeFiles.length,
+          resolution: {
+            resolvedMethods: resolved,
+            joinableMethods: scopeFiles.length,
+            rate: resolved / scopeFiles.length,
+          },
+        };
+      },
+      logger: silentLogger(),
+    });
+    return { options, loaded, score };
+  }
+
+  async function seat(score) {
+    const { writePath } = seedBaseline('crap', CRAP_PRIOR);
+    const logger = silentLogger();
+    const code = await runSeatMissing({
+      kind: 'crap',
+      label: 'CRAP',
+      writePath,
+      logger,
+      score,
+      seat: (opts) =>
+        seatMissingBaseline({ ...opts, gitDiff: async () => ['src/a.js'] }),
+    });
+    return { code, log: logger.lines.join('\n') };
+  }
+
+  it('an own crap.coveragePath seats rows from the CRAP artifact', async () => {
+    const { options, loaded, score } = seatFor({
+      crap: { targetDirs: ['src'], coveragePath: CRAP_PATH },
+    });
+    assert.equal(options.coveragePath, CRAP_PATH);
+    const { code, log } = await seat(score);
+    assert.equal(code, 0);
+    assert.match(log, /seated: 1/);
+    assert.deepEqual(loaded, [path.resolve('/repo', CRAP_PATH)]);
+  });
+
+  it('without the key the seat reads the coverage gate artifact and refuses', async () => {
+    const { options, score } = seatFor({ crap: { targetDirs: ['src'] } });
+    assert.equal(options.coveragePath, COVERAGE_GATE_PATH);
+    const { code, log } = await seat(score);
+    assert.equal(code, 1);
+    assert.match(log, /coverage\/coverage-final\.json is fresh/);
+  });
+
+  it('--coverage still wins over config', () => {
+    const { crap } = resolveQuality({
+      gates: { crap: { coveragePath: CRAP_PATH } },
+    });
+    const options = resolveCrapUpdaterOptions(
+      { coveragePath: 'elsewhere/cov.json' },
+      { crap, baselines: { crap: { path: 'baselines/crap.json' } } },
+      '/repo',
+    );
+    assert.equal(options.coveragePath, 'elsewhere/cov.json');
   });
 });
 

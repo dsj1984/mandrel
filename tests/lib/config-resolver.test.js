@@ -483,6 +483,93 @@ describe('resolveQuality / resolveMaintainabilityCrap / CODING_GUARDRAILS', () =
     assert.equal(crap.diffRef, 'main');
   });
 
+  describe('CRAP coverage source (Story #5717)', () => {
+    const coverageGate = { coveragePath: 'coverage/coverage-final.json' };
+
+    it('AC-2: with neither key set, falls back to the coverage gate', () => {
+      for (const user of [undefined, { enabled: true }]) {
+        const crap = resolveMaintainabilityCrap(user, coverageGate);
+        assert.equal(crap.coveragePath, 'coverage/coverage-final.json');
+        assert.equal(crap.captureScript, 'test:coverage');
+        assert.equal(crap.ownCoverageSource, false);
+      }
+      const q = resolveQuality({});
+      assert.equal(q.crap.coveragePath, q.coverage.coveragePath);
+      assert.equal(q.crap.captureScript, CRAP_GATE_DEFAULTS.captureScript);
+    });
+
+    it('an own coveragePath and captureScript resolve as the CRAP source', () => {
+      const q = resolveQuality({
+        gates: {
+          crap: {
+            coveragePath: 'coverage-py/coverage-final.json',
+            captureScript: 'test:coverage:py',
+          },
+        },
+      });
+      assert.equal(q.crap.coveragePath, 'coverage-py/coverage-final.json');
+      assert.equal(q.crap.captureScript, 'test:coverage:py');
+      assert.equal(q.crap.ownCoverageSource, true);
+      // The coverage gate keeps its own artifact.
+      assert.equal(q.coverage.coveragePath, 'coverage/coverage-final.json');
+    });
+
+    it('a coveragePath equal to the coverage gate is a shared source', () => {
+      const crap = resolveMaintainabilityCrap(
+        { coveragePath: 'coverage/coverage-final.json' },
+        coverageGate,
+      );
+      assert.equal(crap.ownCoverageSource, false);
+    });
+
+    it('a captureScript alone keeps the shared artifact', () => {
+      const crap = resolveMaintainabilityCrap(
+        { captureScript: 'cov' },
+        coverageGate,
+      );
+      assert.equal(crap.coveragePath, 'coverage/coverage-final.json');
+      assert.equal(crap.captureScript, 'cov');
+      assert.equal(crap.ownCoverageSource, false);
+    });
+
+    it('AC-5: refuses an own source in the coverage gate artifact directory, naming both paths', () => {
+      for (const userPath of [
+        'coverage/crap-final.json',
+        './coverage/crap-final.json',
+        'coverage\\crap-final.json',
+      ]) {
+        assert.throws(
+          () =>
+            resolveMaintainabilityCrap(
+              { coveragePath: userPath },
+              coverageGate,
+            ),
+          (err) =>
+            err.message.includes(userPath) &&
+            err.message.includes('coverage/coverage-final.json') &&
+            /same directory/.test(err.message),
+        );
+      }
+      assert.throws(() =>
+        resolveQuality({
+          gates: {
+            coverage: { coveragePath: 'cov.json' },
+            crap: { coveragePath: 'crap.json' },
+          },
+        }),
+      );
+    });
+
+    it('a blank key falls back rather than resolving an empty path', () => {
+      const crap = resolveMaintainabilityCrap(
+        { coveragePath: '  ', captureScript: '' },
+        coverageGate,
+      );
+      assert.equal(crap.coveragePath, 'coverage/coverage-final.json');
+      assert.equal(crap.captureScript, 'test:coverage');
+    });
+  });
+
   it('resolveQuality ignores leftover codingGuardrails keys (Stories #4531, #5382)', () => {
     const q = resolveQuality({
       codingGuardrails: { miDropMustRefactor: 2.0, cyclomaticFlag: 3 },

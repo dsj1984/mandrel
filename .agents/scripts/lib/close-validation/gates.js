@@ -4,7 +4,11 @@ import { existsSync } from 'node:fs';
 
 import { _internals as baselineReaderInternals } from '../baselines/reader.js';
 import { getChangedFiles } from '../changed-files.js';
-import { COVERAGE_GATE_DEFAULTS, getQuality } from '../config/quality.js';
+import {
+  COVERAGE_GATE_DEFAULTS,
+  CRAP_GATE_DEFAULTS,
+  getQuality,
+} from '../config/quality.js';
 import { filterFilesUnderTargets } from '../coverage-capture.js';
 import { hasNpmScript, readPackageScripts } from '../npm-scripts.js';
 import { KNOWN_KINDS } from '../orchestration/check-baselines/phases/parse-args.js';
@@ -70,7 +74,22 @@ export function isCrapGateEnabled(config) {
 }
 
 /**
- * Coverage-capture registers when the CRAP gate is on AND a `test:coverage`
+ * The npm script that writes the CRAP coverage artifact —
+ * `gates.crap.captureScript`, default `test:coverage`. Read
+ * from the unresolved block for the same reason as {@link isCrapGateEnabled}.
+ *
+ * @param {object|undefined|null} config - Canonical resolved config.
+ * @returns {string}
+ */
+function crapCaptureScript(config) {
+  const script = config?.delivery?.quality?.gates?.crap?.captureScript;
+  return typeof script === 'string' && script.trim().length > 0
+    ? script.trim()
+    : CRAP_GATE_DEFAULTS.captureScript;
+}
+
+/**
+ * Coverage-capture registers when the CRAP gate is on AND the CRAP capture
  * script exists; {@link resolveCreditedDepositor} builds on it.
  *
  * @param {object|undefined|null} config - Canonical resolved config.
@@ -78,7 +97,10 @@ export function isCrapGateEnabled(config) {
  * @returns {boolean}
  */
 function isCoverageCaptureActive(config, scripts) {
-  return isCrapGateEnabled(config) && hasNpmScript(scripts, 'test:coverage');
+  return (
+    isCrapGateEnabled(config) &&
+    hasNpmScript(scripts, crapCaptureScript(config))
+  );
 }
 
 /**
@@ -407,8 +429,8 @@ export const GATE_TIMEOUT_HINT = `The gate outran the suite timeout (\`delivery.
 /**
  * Build the close-validation gate list, cheapest fast-fail first: typecheck →
  * lint → [test] → format → [quality-preview-mi] → [coverage-capture →
- * quality-preview-crap] → check-baselines. Coverage-capture registers only when CRAP is enabled AND a
- * `test:coverage` script exists; it then carries test-failure signalling and
+ * quality-preview-crap] → check-baselines. Coverage-capture registers only when CRAP is enabled AND its
+ * capture script (`gates.crap.captureScript`, default `test:coverage`) exists; it then carries test-failure signalling and
  * the plain `test` gate is dropped, so there is always exactly one test gate.
  *
  * @param {{ config?: object, baseBranch?: string, cwd?: string, packageScripts?: Record<string, string>, presentBaselines?: string[]|Set<string>, log?: (message: string) => void, getChangedFilesImpl?: typeof getChangedFiles }} [opts]

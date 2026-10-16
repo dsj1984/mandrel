@@ -749,6 +749,33 @@ describe('verify[] credit — the suite is paid for once (#5174)', () => {
     );
   });
 
+  it('Story #5717 AC-6: the capture-mode probe keys on crap.captureScript and the CRAP artifact', () => {
+    const probedScripts = [];
+    const probedPaths = [];
+    const verdict = credited('npm test', {
+      getQualityImpl: () => ({
+        crap: {
+          enabled: true,
+          coveragePath: 'coverage-py/coverage-final.json',
+          captureScript: 'test:coverage:py',
+          targetDirs: ['src'],
+        },
+      }),
+      hasNpmScriptImpl: (_scripts, name) => {
+        probedScripts.push(name);
+        return name === 'test:coverage:py';
+      },
+      isCoverageFreshImpl: ({ coveragePath }) => {
+        probedPaths.push(coveragePath);
+        return { fresh: true, reason: 'fresh' };
+      },
+    });
+    assert.deepEqual(probedScripts, ['test:coverage:py']);
+    assert.deepEqual(probedPaths, ['coverage-py/coverage-final.json']);
+    assert.equal(verdict.mode, 'capture');
+    assert.equal(verdict.reason, 'capture-stamp-fresh');
+  });
+
   it('reports a full-suite entry as credited against a fresh capture stamp', () => {
     const verdict = credited('npm test');
     assert.equal(verdict.fullSuite, true);

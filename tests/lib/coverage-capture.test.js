@@ -17,6 +17,7 @@ import {
   isCoverageFresh,
   newestSourceMtime,
   reportCaptureFailure,
+  requireCaptureArtifact,
   runCapture,
   stampCapturedTree,
   writeCaptureStamp,
@@ -1167,5 +1168,70 @@ describe('the capture stamp vouches only for the tree the suite ran on', () => {
     );
     assert.equal(typeof stamp.digest, 'string');
     assert.equal(stamp.treeDigest, computeTreeDigest(dir, coveragePath));
+  });
+});
+
+describe('requireCaptureArtifact / captureStampPath — own CRAP source (Story #5717)', () => {
+  const logger = () => {
+    const errors = [];
+    return { errors, error: (m) => errors.push(m) };
+  };
+
+  it('a green run with no artifact names the configured script, path and key', async () => {
+    const log = logger();
+    const run = requireCaptureArtifact(async () => 0, {
+      cwd: FAKE_REPO,
+      coveragePath: 'coverage-py/coverage-final.json',
+      script: 'test:coverage:py',
+      configKey: 'delivery.quality.gates.crap.coveragePath',
+      existsSync: () => false,
+      logger: log,
+    });
+    assert.equal(await run({}), 1);
+    assert.match(log.errors[0], /test:coverage:py passed/);
+    assert.match(log.errors[0], /`npm run test:coverage:py` must/);
+    assert.match(log.errors[0], /delivery\.quality\.gates\.crap\.coveragePath/);
+    assert.ok(
+      log.errors[0].includes(repoPath('coverage-py', 'coverage-final.json')),
+    );
+  });
+
+  it('defaults to the coverage gate wording when no source is named', async () => {
+    const log = logger();
+    const run = requireCaptureArtifact(async () => 0, {
+      cwd: FAKE_REPO,
+      coveragePath: 'coverage/coverage-final.json',
+      existsSync: () => false,
+      logger: log,
+    });
+    assert.equal(await run({}), 1);
+    assert.match(log.errors[0], /^\[coverage-capture\] ✖ test:coverage passed/);
+    assert.match(
+      log.errors[0],
+      /delivery\.quality\.gates\.coverage\.coveragePath/,
+    );
+  });
+
+  it('a non-zero run passes through without the artifact probe', async () => {
+    const log = logger();
+    let probed = false;
+    const run = requireCaptureArtifact(async () => 7, {
+      cwd: FAKE_REPO,
+      coveragePath: 'x/y.json',
+      existsSync: () => {
+        probed = true;
+        return false;
+      },
+      logger: log,
+    });
+    assert.equal(await run({}), 7);
+    assert.equal(probed, false);
+  });
+
+  it('an own source in its own directory gets its own stamp file', () => {
+    assert.notEqual(
+      captureStampPath(FAKE_REPO, 'coverage/coverage-final.json'),
+      captureStampPath(FAKE_REPO, 'coverage-py/coverage-final.json'),
+    );
   });
 });

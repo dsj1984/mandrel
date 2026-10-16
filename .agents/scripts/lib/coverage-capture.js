@@ -486,11 +486,15 @@ export function creditedCapture(runCaptureFn, { requireCredited, logger }) {
  * @param {string} abs Absolute artifact path that was looked for.
  * @returns {string}
  */
-function missingCoverageArtifactMessage(abs) {
+function missingCoverageArtifactMessage(
+  abs,
+  script = 'test:coverage',
+  configKey = 'delivery.quality.gates.coverage.coveragePath',
+) {
   return (
-    `coverage artifact not found at ${abs}. \`npm run test:coverage\` must ` +
+    `coverage artifact not found at ${abs}. \`npm run ${script}\` must ` +
     'write Istanbul per-file JSON (the `json` reporter → coverage-final.json) ' +
-    'at delivery.quality.gates.coverage.coveragePath; a `json-summary` ' +
+    `at ${configKey}; a \`json-summary\` ` +
     '(coverage-summary.json) alone cannot feed the coverage or CRAP baselines.'
   );
 }
@@ -513,17 +517,20 @@ export class MissingCoverageArtifactError extends Error {
 /**
  * Wrap a capture runner so a green run that left no artifact at
  * `coveragePath` exits 1: a broken capture contract, not a capture. Every
- * capture path already returns before stamping on a non-zero code.
+ * capture path already returns before stamping on a non-zero code. `script`
+ * and `configKey` name the capture source in the refusal (an
+ * own CRAP source runs `crap.captureScript` into `crap.coveragePath`).
  *
  * @param {(opts: object) => Promise<number>} run
  * @param {{ cwd: string, coveragePath: string,
  *   existsSync?: (p: string) => boolean,
+ *   script?: string, configKey?: string,
  *   logger: { error: Function } }} opts
  * @returns {(opts: object) => Promise<number>}
  */
 export function requireCaptureArtifact(
   run,
-  { cwd, coveragePath, existsSync = fs.existsSync, logger },
+  { cwd, coveragePath, existsSync = fs.existsSync, script, configKey, logger },
 ) {
   return async (captureOpts) => {
     const code = await run(captureOpts);
@@ -531,7 +538,7 @@ export function requireCaptureArtifact(
     const abs = path.resolve(cwd, coveragePath);
     if (existsSync(abs)) return 0;
     logger.error(
-      `[coverage-capture] ✖ test:coverage passed but ${missingCoverageArtifactMessage(abs)}`,
+      `[coverage-capture] ✖ ${script ?? 'test:coverage'} passed but ${missingCoverageArtifactMessage(abs, script, configKey)}`,
     );
     return 1;
   };

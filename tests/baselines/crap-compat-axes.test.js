@@ -660,3 +660,22 @@ describe('read path — one door, complete (#5002)', () => {
     }
   });
 });
+
+describe('re-seed remedies name the configured capture script (Story #5717 AC-7)', () => {
+  const stale = { ...VALID_BASELINE, scoringSemantics: 'superseded' };
+
+  it('assertBaselineCompatible names ctx.captureScript', () => {
+    const message = assertBaselineCompatible(stale, {
+      runningTsTranspilerVersion: VALID_BASELINE.tsTranspilerVersion,
+      captureScript: 'test:coverage:py',
+    });
+    assert.match(message, /run 'npm run test:coverage:py' then/);
+  });
+
+  it('defaults to test:coverage when no script is configured', () => {
+    const message = assertBaselineCompatible(stale, {
+      runningTsTranspilerVersion: VALID_BASELINE.tsTranspilerVersion,
+    });
+    assert.match(message, /run 'npm run test:coverage' then/);
+  });
+});

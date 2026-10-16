@@ -707,6 +707,14 @@ describe('assessComparisonBasis — the unsound-basis backstop (#4871)', () => {
     assert.equal(verdict.diagnostic.name, 'crap-unsound-comparison-basis');
   });
 
+  it('Story #5717 AC-7: the re-seed remedy names the configured capture script', () => {
+    const verdict = assessComparisonBasis(
+      { comparable: 133, provenanceMismatched: 101, incomparable: 0 },
+      { captureScript: 'test:coverage:py' },
+    );
+    assert.match(verdict.diagnostic.message, /'npm run test:coverage:py'/);
+  });
+
   it('names the coordinate mismatch and the re-seed remedy exactly once', () => {
     const { diagnostic } = assessComparisonBasis({
       comparable: 133,
