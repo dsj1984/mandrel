@@ -31638,6 +31638,12 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "worktreeEnv",
+      "startLine": 188,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "runLogged",
       "startLine": 193,
       "crap": 1
