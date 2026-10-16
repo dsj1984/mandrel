@@ -39,6 +39,12 @@
       "functions": 98
     },
     {
+      "path": ".agents/scripts/board-backfill.js",
+      "lines": 87.94,
+      "branches": 84.75,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/boot-sweep.js",
       "lines": 99.14,
       "branches": 88.73,
@@ -1761,6 +1767,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestration/board-access-latch.js",
+      "lines": 100,
+      "branches": 80,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/cancelled-run-discount.js",
       "lines": 100,
       "branches": 96.77,
@@ -1858,8 +1870,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/column-sync.js",
-      "lines": 97.16,
-      "branches": 86.52,
+      "lines": 98.81,
+      "branches": 89.81,
       "functions": 100
     },
     {
@@ -2309,7 +2321,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/project-meta-resolver.js",
       "lines": 100,
-      "branches": 95.65,
+      "branches": 96.43,
       "functions": 100
     },
     {
@@ -3431,7 +3443,7 @@
     {
       "path": ".agents/scripts/providers/github/board-add.js",
       "lines": 100,
-      "branches": 92.86,
+      "branches": 95,
       "functions": 100
     },
     {
@@ -3508,8 +3520,8 @@
     },
     {
       "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "lines": 87.82,
-      "branches": 76.34,
+      "lines": 89.05,
+      "branches": 78.13,
       "functions": 100
     },
     {
@@ -3723,6 +3735,12 @@
       "functions": 100
     },
     {
+      "path": "lib/cli/doctor-checks/project-access.js",
+      "lines": 98.29,
+      "branches": 80,
+      "functions": 100
+    },
+    {
       "path": "lib/cli/doctor-checks/read-json.js",
       "lines": 100,
       "branches": 100,
@@ -3798,7 +3816,7 @@
       "path": "lib/cli/registry.js",
       "lines": 100,
       "branches": 100,
-      "functions": 94.74
+      "functions": 95
     },
     {
       "path": "lib/cli/sync-agents.js",

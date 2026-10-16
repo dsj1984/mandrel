@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { resolveProjectMeta } from '../../../.agents/scripts/lib/orchestration/project-meta-resolver.js';
+import {
+  ProjectAccessError,
+  resolveProjectMeta,
+} from '../../../.agents/scripts/lib/orchestration/project-meta-resolver.js';
 
 /**
  * Build a fake provider whose graphql() resolves each owner scope from a
@@ -164,5 +167,97 @@ describe('resolveProjectMeta', () => {
       }),
       /projectFields selection/,
     );
+  });
+});
+
+describe('resolveProjectMeta — error classification (Story #5727)', () => {
+  /** A provider whose owner rungs throw the given messages, in ladder order. */
+  function throwingProvider(messages, viewer = NODE) {
+    const calls = [];
+    return {
+      calls,
+      async graphql(query) {
+        calls.push(query);
+        for (const root of ['organization', 'user']) {
+          if (query.includes(`${root}(login: $owner)`)) {
+            const msg = messages[root];
+            if (msg) throw new Error(msg);
+            return { [root]: null };
+          }
+        }
+        return { viewer: { projectV2: viewer } };
+      },
+    };
+  }
+
+  it('advances the ladder on a GraphQL NOT_FOUND owner miss', async () => {
+    const provider = throwingProvider({
+      organization:
+        '[GitHubProvider] GraphQL errors: [{"type":"NOT_FOUND","message":"Could not resolve to an Organization with the login of \'a-user\'."}]',
+    });
+    const node = await resolveProjectMeta({
+      provider,
+      owner: 'a-user',
+      projectNumber: 7,
+      projectFields: 'id',
+    });
+    assert.deepEqual(node, NODE);
+    assert.equal(provider.calls.length, 3);
+  });
+
+  it('fails fast with a ProjectAccessError naming the project scope on INSUFFICIENT_SCOPES', async () => {
+    const provider = throwingProvider({
+      organization:
+        '[GitHubProvider] GraphQL errors: [{"type":"INSUFFICIENT_SCOPES","message":"Your token has not been granted the required scopes to execute this query."}]',
+    });
+    await assert.rejects(
+      resolveProjectMeta({
+        provider,
+        owner: 'acme',
+        projectNumber: 8,
+        projectFields: 'id',
+      }),
+      (err) => {
+        assert.ok(err instanceof ProjectAccessError);
+        assert.equal(err.scope, 'project');
+        assert.equal(err.remedy, 'gh auth refresh -h github.com -s project');
+        assert.match(err.cause.message, /INSUFFICIENT_SCOPES/);
+        return true;
+      },
+    );
+    assert.equal(provider.calls.length, 1, 'no later rung is tried');
+  });
+
+  it('fails fast on a FORBIDDEN / HTTP 403 auth refusal', async () => {
+    for (const msg of [
+      'GraphQL errors: [{"type":"FORBIDDEN","message":"no"}]',
+      '[GitHubProvider] GraphQL 403: forbidden',
+    ]) {
+      const provider = throwingProvider({ user: msg });
+      await assert.rejects(
+        resolveProjectMeta({
+          provider,
+          owner: 'acme',
+          projectNumber: 9,
+          projectFields: 'id',
+        }),
+        ProjectAccessError,
+      );
+      assert.equal(provider.calls.length, 2);
+    }
+  });
+
+  it('keeps advancing on any other error', async () => {
+    const provider = throwingProvider({
+      organization: 'socket hang up',
+      user: 'gh-exec: timeout',
+    });
+    const node = await resolveProjectMeta({
+      provider,
+      owner: 'acme',
+      projectNumber: 10,
+      projectFields: 'id',
+    });
+    assert.deepEqual(node, NODE);
   });
 });

@@ -31,6 +31,10 @@
       "mi": 98.775
     },
     {
+      "path": ".agents/scripts/board-backfill.js",
+      "mi": 91.698
+    },
+    {
       "path": ".agents/scripts/boot-sweep.js",
       "mi": 97.243
     },
@@ -1159,6 +1163,10 @@
       "mi": 95.247
     },
     {
+      "path": ".agents/scripts/lib/orchestration/board-access-latch.js",
+      "mi": 107.783
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/cancelled-run-discount.js",
       "mi": 103.438
     },
@@ -1224,7 +1232,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/column-sync.js",
-      "mi": 83.477
+      "mi": 84.49
     },
     {
       "path": ".agents/scripts/lib/orchestration/complexity-gate.js",
@@ -1524,7 +1532,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/project-meta-resolver.js",
-      "mi": 95.47
+      "mi": 97.542
     },
     {
       "path": ".agents/scripts/lib/orchestration/reassert-status-column.js",
@@ -2280,7 +2288,7 @@
     },
     {
       "path": ".agents/scripts/providers/github/board-add.js",
-      "mi": 98.588
+      "mi": 101.395
     },
     {
       "path": ".agents/scripts/providers/github/branch-protection.js",
@@ -2485,6 +2493,10 @@
     {
       "path": "lib/cli/doctor-checks/payload.js",
       "mi": 87.64
+    },
+    {
+      "path": "lib/cli/doctor-checks/project-access.js",
+      "mi": 95.117
     },
     {
       "path": "lib/cli/doctor-checks/read-json.js",

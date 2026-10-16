@@ -65,7 +65,16 @@ async function gql(ctx, query, variables, { retry = false } = {}) {
   return retry ? withTransientRetry(run) : run();
 }
 
-async function lookupProject(ctx, fragment, strict = false) {
+/**
+ * `strict` rethrows every failure; `scopeStrict` rethrows only a scope
+ * refusal (identical on both rungs), leaving an owner miss a soft null.
+ */
+async function lookupProject(
+  ctx,
+  fragment,
+  strict = false,
+  { scopeStrict = false } = {},
+) {
   if (!ctx.projectNumber) return null;
   let lastError = null;
   for (const scope of ['user', 'organization']) {
@@ -78,7 +87,7 @@ async function lookupProject(ctx, fragment, strict = false) {
       );
       if (data?.[scope]?.projectV2) return data[scope].projectV2;
     } catch (err) {
-      if (strict && isInsufficientScopes(err)) throw err;
+      if ((strict || scopeStrict) && isInsufficientScopes(err)) throw err;
       lastError = err;
     }
   }
@@ -260,7 +269,10 @@ export async function ensureProjectFields(ctx, fieldDefs) {
 
 export async function addItemToProject(ctx, contentNodeId) {
   if (!ctx.state.projectId) {
-    const project = await lookupProject(ctx, 'id');
+    // A scope refusal must reach the caller, not read as "no board".
+    const project = await lookupProject(ctx, 'id', false, {
+      scopeStrict: true,
+    });
     if (!project) return;
     ctx.state.projectId = project.id;
   }

@@ -324,6 +324,13 @@ names or defaults.
 - **`branchProtection.requiredChecks`.** Each `{ name, cmd[] }` entry is used
   **both** as a required-status-check expectation on the PR and as a local
   close-validation gate invocation.
+- **`projectNumber`.** Board sync needs a token with the `project` scope. A
+  token without it never aborts a run (labels stay authoritative): the first
+  board add or Status flip that fails on scope emits one warning per process
+  naming the remedy, `gh auth refresh -h github.com -s project`, and
+  `mandrel doctor` fails its `github-project-access` check. After refreshing
+  the token, `node .agents/scripts/board-backfill.js` (`--dry-run` to preview)
+  adds the open Stories and Epics the board missed and syncs their Status.
 - **`notifications`.** Both event allowlists filter their channel
   independently; their enums are pinned in the schema. Set an array to `[]` to
   suppress a channel. The severity vocabulary and shipped default allowlists

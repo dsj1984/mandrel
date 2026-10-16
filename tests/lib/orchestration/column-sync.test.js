@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { afterEach, beforeEach, describe, it } from 'node:test';
-
+import { Logger } from '../../../.agents/scripts/lib/Logger.js';
 import {
   ColumnSync,
   columnForLabels,
 } from '../../../.agents/scripts/lib/orchestration/column-sync.js';
 import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
+import { addIssueToBoard } from '../../../.agents/scripts/providers/github/board-add.js';
 
 // Story #4252 — ColumnSync now persists resolved board metadata to an
 // on-disk cache under the resolved `tempRoot`. Give every ColumnSync in this
@@ -734,5 +735,138 @@ describe('ColumnSync.readCurrentColumn (Story #2876)', () => {
     const result = await sync.readCurrentColumn(7);
     assert.equal(result, null);
     assert.ok(warned.some((m) => /could not read current Status/.test(m)));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Story #5727 — a token without the `project` scope reports, never throws,
+// and warns once per process.
+// ---------------------------------------------------------------------------
+
+const SCOPE_ERROR =
+  '[GitHubProvider] GraphQL errors: [{"type":"INSUFFICIENT_SCOPES","message":"Your token has not been granted the required scopes to execute this query."}]';
+
+/** Every board call fails on scope. */
+function scopeFailingProvider() {
+  const calls = [];
+  return {
+    calls,
+    projectNumber: 42,
+    owner: 'acme',
+    repo: 'widgets',
+    async graphql(query) {
+      calls.push(query);
+      throw new Error(SCOPE_ERROR);
+    },
+  };
+}
+
+describe('ColumnSync — insufficient project scope (Story #5727)', () => {
+  it('reports failed / insufficient-scope from the meta resolve and never throws', async () => {
+    const provider = scopeFailingProvider();
+    const warned = [];
+    const sync = makeSync({
+      provider,
+      logger: { info() {}, warn: (m) => warned.push(m) },
+    });
+    const res = await sync.sync(1, ['agent::executing']);
+    assert.deepEqual(res, {
+      status: 'failed',
+      reason: 'insufficient-scope',
+      scope: 'project',
+    });
+    // Fail-fast: one rung tried, not the whole ladder.
+    assert.equal(provider.calls.length, 1);
+    // A second flip is answered from memory without a round-trip.
+    const again = await sync.sync(1, ['agent::done']);
+    assert.equal(again.reason, 'insufficient-scope');
+    assert.equal(provider.calls.length, 1);
+    assert.equal(warned.length, 1);
+    assert.match(warned[0], /"project" scope/);
+    assert.match(warned[0], /gh auth refresh -h github\.com -s project/);
+    // The miss is never cached to disk.
+    assert.deepEqual(fs.readdirSync(_testTempDir), []);
+  });
+
+  it('reports failed / insufficient-scope when the item lookup is refused', async () => {
+    const provider = providerWithProject();
+    const base = provider.graphql.bind(provider);
+    provider.graphql = async (query, vars) => {
+      if (query.includes('projectItems(first')) throw new Error(SCOPE_ERROR);
+      return base(query, vars);
+    };
+    const sync = makeSync({
+      provider,
+      logger: { info() {}, warn() {} },
+    });
+    const res = await sync.sync(5, ['agent::ready']);
+    assert.equal(res.status, 'failed');
+    assert.equal(res.reason, 'insufficient-scope');
+  });
+
+  it('reports failed / insufficient-scope when the Status mutation is refused', async () => {
+    const provider = providerWithProject();
+    const base = provider.graphql.bind(provider);
+    provider.graphql = async (query, vars) => {
+      if (query.includes('updateProjectV2ItemFieldValue')) {
+        throw new Error(SCOPE_ERROR);
+      }
+      return base(query, vars);
+    };
+    const sync = makeSync({
+      provider,
+      logger: { info() {}, warn() {} },
+    });
+    const res = await sync.setColumn(5, 'Done');
+    assert.equal(res.reason, 'insufficient-scope');
+  });
+
+  it('still re-throws a non-scope item-lookup failure', async () => {
+    const provider = providerWithProject();
+    const base = provider.graphql.bind(provider);
+    provider.graphql = async (query, vars) => {
+      if (query.includes('projectItems(first')) throw new Error('boom');
+      return base(query, vars);
+    };
+    const sync = makeSync({ provider, logger: { info() {}, warn() {} } });
+    await assert.rejects(sync.sync(5, ['agent::ready']), /boom/);
+  });
+
+  it('emits exactly one warning across many board adds and Status flips in one process', async (t) => {
+    const warned = [];
+    t.mock.method(Logger, 'warn', (m) => warned.push(String(m)));
+    const provider = scopeFailingProvider();
+    // Two seams, several calls each — the shape plan-persist / deliver-run
+    // drive: issue creation adds to the board, label flips sync Status.
+    const adds = [];
+    for (const n of [11, 12, 13]) {
+      adds.push(
+        await addIssueToBoard({
+          nodeId: `node_${n}`,
+          issueNumber: n,
+          getProjectNumber: () => 42,
+          addItemToProject: async () => {
+            throw new Error(SCOPE_ERROR);
+          },
+        }),
+      );
+    }
+    const flips = [];
+    for (const labels of [['agent::ready'], ['agent::executing']]) {
+      const sync = makeSync({ provider, logger: Logger });
+      flips.push(await sync.sync(11, labels));
+      flips.push(await sync.sync(12, labels));
+    }
+    for (const add of adds) {
+      assert.deepEqual(add, {
+        added: false,
+        reason: 'insufficient-scope',
+        scope: 'project',
+      });
+    }
+    for (const flip of flips) assert.equal(flip.reason, 'insufficient-scope');
+    assert.equal(warned.length, 1, warned.join('\n'));
+    assert.match(warned[0], /"project" scope/);
+    assert.match(warned[0], /gh auth refresh -h github\.com -s project/);
   });
 });

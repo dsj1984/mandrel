@@ -26,6 +26,7 @@ const FRAMEWORK_SCRIPT_BASENAMES = Object.freeze([
   'audit-exceptions.js',
   'audit-labels-bootstrap.js',
   'audit-to-stories.js',
+  'board-backfill.js',
   'boot-sweep.js',
   'bootstrap.js',
   'check-arch-cycles.js',

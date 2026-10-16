@@ -2,10 +2,17 @@
  * ColumnSync — collapse an issue's `agent::*` labels onto the stock Projects
  * v2 Status options (`Todo` / `In Progress` / `Done`) and push it via
  * GraphQL. Soft no-op when no project is configured, the Status field or
- * option is missing, or the issue is not on the board.
+ * option is missing, or the issue is not on the board. A token that cannot
+ * reach the board (missing `project` scope) reports `{ status: 'failed',
+ * reason: 'insufficient-scope' }` and trips the warn-once latch instead.
  */
 
 import { AGENT_LABELS } from '../label-constants.js';
+import {
+  isProjectAccessFailure,
+  reportBoardScopeFailure,
+  SCOPE_FAILURE,
+} from './board-access-latch.js';
 import {
   invalidateProjectMetaCache,
   readProjectMetaCache,
@@ -40,6 +47,59 @@ export function columnForLabels(labels) {
   return null;
 }
 
+/**
+ * The issue's item id on board `projectId`, or null. Walks issue →
+ * projectItems, not board → items: scanning board items hits a pagination
+ * cliff on large boards; an issue is on few boards.
+ */
+async function getProjectItemId(provider, issueId, projectId) {
+  const owner = provider.owner;
+  const repo = provider.repo;
+  if (!owner || !repo) return null;
+  const data = await provider.graphql(
+    `
+    query($owner: String!, $repo: String!, $number: Int!) {
+      repository(owner: $owner, name: $repo) {
+        issue(number: $number) {
+          projectItems(first: 20) {
+            nodes {
+              id
+              project { id }
+            }
+          }
+        }
+      }
+    }`,
+    { owner, repo, number: issueId },
+  );
+  const nodes = data?.repository?.issue?.projectItems?.nodes ?? [];
+  const match = nodes.find((n) => n?.project?.id === projectId);
+  return match?.id ?? null;
+}
+
+/** Push one Status option onto a board item. */
+async function updateStatusField(provider, meta, itemId, optionId) {
+  await provider.graphql(
+    `
+      mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+        updateProjectV2ItemFieldValue(
+          input: {
+            projectId: $projectId,
+            itemId: $itemId,
+            fieldId: $fieldId,
+            value: { singleSelectOptionId: $optionId }
+          }
+        ) { projectV2Item { id } }
+      }`,
+    {
+      projectId: meta.projectId,
+      itemId,
+      fieldId: meta.fieldId,
+      optionId,
+    },
+  );
+}
+
 export class ColumnSync {
   /**
    * @param {{
@@ -68,6 +128,8 @@ export class ColumnSync {
     this._meta = null; // lazy-cached { projectId, fieldId, options: Map<name, id> }
     // Disk-hydrated meta may be stale; a failed mutation then invalidates it.
     this._metaFromDiskCache = false;
+    // A scope/auth refusal seen this process; memory only, never on disk.
+    this._accessFailed = false;
   }
 
   /**
@@ -92,45 +154,56 @@ export class ColumnSync {
     if (!this.projectNumber) {
       return { status: 'skipped', reason: 'no-project' };
     }
+    try {
+      return await this.#setColumnOnBoard(issueId, column);
+    } catch (err) {
+      if (!isProjectAccessFailure(err)) throw err;
+      return this.#scopeFailure();
+    }
+  }
 
+  async #setColumnOnBoard(issueId, column) {
     const meta = await this.#loadMeta();
-    if (!meta) return { status: 'skipped', reason: 'no-meta' };
+    if (!meta) return this.#metaMiss();
 
     const optionId = meta.options.get(column);
     if (!optionId) {
       return { status: 'skipped', reason: `no-option-${column}` };
     }
 
-    const itemId = await this.#getProjectItemId(issueId, meta.projectId);
+    const itemId = await getProjectItemId(
+      this.provider,
+      issueId,
+      meta.projectId,
+    );
     if (!itemId) return { status: 'skipped', reason: 'not-on-project' };
 
     try {
-      await this.provider.graphql(
-        `
-      mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
-        updateProjectV2ItemFieldValue(
-          input: {
-            projectId: $projectId,
-            itemId: $itemId,
-            fieldId: $fieldId,
-            value: { singleSelectOptionId: $optionId }
-          }
-        ) { projectV2Item { id } }
-      }`,
-        {
-          projectId: meta.projectId,
-          itemId,
-          fieldId: meta.fieldId,
-          optionId,
-        },
-      );
+      await updateStatusField(this.provider, meta, itemId, optionId);
     } catch (err) {
       // Likely a reconfigured board: drop cached meta so the next flip
-      // self-heals, and re-throw for the caller's handling.
-      this.#invalidateMetaCache();
+      // self-heals, and re-throw for the caller's handling. A scope refusal
+      // is not staleness, so the cache stays.
+      if (!isProjectAccessFailure(err)) this.#invalidateMetaCache();
       throw err;
     }
     return { status: 'synced', column };
+  }
+
+  /** No meta: a latched scope refusal, or a board without a Status field. */
+  #metaMiss() {
+    if (this._accessFailed) return this.#scopeFailure();
+    return { status: 'skipped', reason: 'no-meta' };
+  }
+
+  /**
+   * Latch the scope failure (one warning per process) and report it to the
+   * caller; never throws, so the label transition still completes.
+   */
+  #scopeFailure() {
+    this._accessFailed = true;
+    reportBoardScopeFailure({ logger: this.logger });
+    return { status: 'failed', ...SCOPE_FAILURE };
   }
 
   /**
@@ -158,6 +231,7 @@ export class ColumnSync {
   }
 
   async #loadMeta() {
+    if (this._accessFailed) return null;
     if (this._meta !== null) return this._meta || null;
     // Board meta is repo-invariant; the disk cache spares each cold CLI
     // process the resolve round-trips.
@@ -208,6 +282,10 @@ export class ColumnSync {
       this._metaFromDiskCache = false;
       return this._meta;
     } catch (err) {
+      if (isProjectAccessFailure(err)) {
+        this._accessFailed = true;
+        return null;
+      }
       this.logger.warn?.(
         `[ColumnSync] could not resolve project metadata: ${err?.message ?? err}`,
       );
@@ -227,7 +305,11 @@ export class ColumnSync {
     if (!this.projectNumber) return null;
     const meta = await this.#loadMeta();
     if (!meta) return null;
-    const itemId = await this.#getProjectItemId(issueId, meta.projectId);
+    const itemId = await getProjectItemId(
+      this.provider,
+      issueId,
+      meta.projectId,
+    );
     if (!itemId) return null;
     try {
       const data = await this.provider.graphql(
@@ -251,32 +333,5 @@ export class ColumnSync {
       );
       return null;
     }
-  }
-
-  async #getProjectItemId(issueId, projectId) {
-    // Walk issue → projectItems, not board → items: scanning board items
-    // hits a pagination cliff on large boards; an issue is on few boards.
-    const owner = this.provider.owner;
-    const repo = this.provider.repo;
-    if (!owner || !repo) return null;
-    const data = await this.provider.graphql(
-      `
-      query($owner: String!, $repo: String!, $number: Int!) {
-        repository(owner: $owner, name: $repo) {
-          issue(number: $number) {
-            projectItems(first: 20) {
-              nodes {
-                id
-                project { id }
-              }
-            }
-          }
-        }
-      }`,
-      { owner, repo, number: issueId },
-    );
-    const nodes = data?.repository?.issue?.projectItems?.nodes ?? [];
-    const match = nodes.find((n) => n?.project?.id === projectId);
-    return match?.id ?? null;
   }
 }

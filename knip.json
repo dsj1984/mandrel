@@ -12,6 +12,7 @@
     ".agents/scripts/audit-labels-bootstrap.js!",
     ".agents/scripts/audit-to-stories.js!",
     ".agents/scripts/boot-sweep.js!",
+    ".agents/scripts/board-backfill.js!",
     ".agents/scripts/bootstrap.js!",
     ".agents/scripts/check-arch-cycles.js!",
     ".agents/scripts/check-baselines.js!",
