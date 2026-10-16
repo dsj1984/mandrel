@@ -543,11 +543,13 @@ describe('data-dictionary.md — crap.json row mirrors the live schema (Story #4
     );
   });
 
-  it('puts coveragePath on the coverage gate, not the crap gate', () => {
+  it('documents the coverage gate artifact and the CRAP gate own-source override', () => {
     // The live gate schemas are the authority: both are additionalProperties:
-    // false, so the key exists on exactly one of them.
-    assert.ok(!Object.hasOwn(CRAP_GATE.properties, 'coveragePath'));
+    // false, and the CRAP gate's coveragePath is an optional own source that
+    // falls back to the coverage gate's.
     assert.equal(CRAP_GATE.additionalProperties, false);
+    assert.ok(Object.hasOwn(CRAP_GATE.properties, 'coveragePath'));
+    assert.equal(CRAP_GATE.properties.coveragePath.default, null);
     assert.ok(Object.hasOwn(COVERAGE_GATE.properties, 'coveragePath'));
 
     const md = dataDictionary();
@@ -555,11 +557,6 @@ describe('data-dictionary.md — crap.json row mirrors the live schema (Story #4
       .split('\n')
       .find((l) => l.includes('`delivery.quality.gates.crap`'));
     assert.ok(crapConfigRow, 'no `delivery.quality.gates.crap` row found');
-    assert.doesNotMatch(
-      crapConfigRow,
-      /coveragePath/,
-      'the gates.crap config row still lists the retired `coveragePath` key',
-    );
     for (const key of Object.keys(CRAP_GATE.properties)) {
       assert.ok(
         crapConfigRow.includes(`${key}`),
