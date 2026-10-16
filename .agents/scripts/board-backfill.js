@@ -1,12 +1,8 @@
 #!/usr/bin/env node
 
 /**
- * board-backfill.js — catch the Projects v2 board up with the issues it
- * missed (typically while the token lacked the `project` scope). Lists open
- * `type::story` / `type::epic` issues, adds the ones not on the board (the
- * add mutation is idempotent), and sets a Story's Status from its `agent::*`
- * label through `ColumnSync`. Epics are added but their Status is left to the
- * epic rollup. Re-running is a no-op. Prints a JSON summary on stdout.
+ * board-backfill.js — add open Stories/Epics missing from the Projects v2
+ * board and sync each Story's Status from its `agent::*` label. Idempotent.
  */
 
 import { parseArgs } from 'node:util';

@@ -1,10 +1,7 @@
 /**
- * board-access-latch — the typed Projects v2 access failure and the
- * warn-once-per-process latch that surfaces it. A token without the
- * `project` scope fails every board call identically, so the first failure
- * emits one prominent warning naming the scope and the remedy, and every
- * later one in the same process stays silent. Labels remain the source of
- * truth: nothing here throws or aborts a run.
+ * board-access-latch — the typed Projects v2 access failure and a
+ * warn-once-per-process latch for it. Labels stay authoritative: nothing
+ * here aborts a run.
  */
 
 import { isInsufficientScopes } from '../../providers/github/projects-v2-graphql.js';
@@ -70,9 +67,7 @@ export function toProjectAccessError(err) {
   );
 }
 
-// Sinks already warned. Every production seam reports through the shared
-// `Logger` singleton, so this is once per process; a test's own logger gets
-// its own latch.
+// Sinks already warned; production shares one `Logger`, so once per process.
 const warnedSinks = new WeakSet();
 
 /**
