@@ -13,6 +13,7 @@ import { describe, it } from 'node:test';
  */
 
 import {
+  addItemToProject,
   isScopesMissingEnvelope,
   resolveOrCreateProject,
 } from '../../.agents/scripts/providers/github/projects-v2-graphql.js';
@@ -44,5 +45,41 @@ describe('resolveOrCreateProject — public surface', () => {
   it('is an exported AsyncFunction', () => {
     assert.equal(typeof resolveOrCreateProject, 'function');
     assert.equal(resolveOrCreateProject.constructor.name, 'AsyncFunction');
+  });
+});
+
+describe('addItemToProject — scope refusal reaches the caller (Story #5727)', () => {
+  /** A ctx whose GraphQL endpoint answers every request with `errors`. */
+  function ctxAnswering(errors) {
+    const requests = [];
+    return {
+      requests,
+      projectNumber: 3,
+      projectOwner: 'acme',
+      token: 'test-token',
+      state: { projectId: null },
+      fetchImpl: async (_url, init) => {
+        requests.push(JSON.parse(init.body));
+        return { ok: true, json: async () => ({ errors }) };
+      },
+    };
+  }
+
+  it('re-throws an INSUFFICIENT_SCOPES board lookup instead of reading it as "no board"', async () => {
+    const ctx = ctxAnswering([
+      {
+        type: 'INSUFFICIENT_SCOPES',
+        message:
+          'Your token has not been granted the required scopes to execute this query.',
+      },
+    ]);
+    await assert.rejects(addItemToProject(ctx, 'NODE'), /INSUFFICIENT_SCOPES/);
+    assert.equal(ctx.requests.length, 1, 'fails on the first rung');
+  });
+
+  it('still treats an owner miss on every rung as a soft no-op', async () => {
+    const ctx = ctxAnswering([{ type: 'NOT_FOUND', message: 'nope' }]);
+    assert.equal(await addItemToProject(ctx, 'NODE'), undefined);
+    assert.equal(ctx.requests.length, 2);
   });
 });
