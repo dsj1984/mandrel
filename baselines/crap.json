@@ -804,6 +804,70 @@
       "crap": 1
     },
     {
+      "path": ".agents/scripts/board-backfill.js",
+      "method": "classify",
+      "startLine": 69,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/board-backfill.js",
+      "method": "listBoardCandidates",
+      "startLine": 80,
+      "crap": 5.006713436944043
+    },
+    {
+      "path": ".agents/scripts/board-backfill.js",
+      "method": "<anon listBoardCandidates/(l)#0>",
+      "startLine": 102,
+      "crap": 1.0002685374777618,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/board-backfill.js",
+      "method": "<anon listBoardCandidates/(a,b)#0>",
+      "startLine": 109,
+      "crap": 1.0002685374777618,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/board-backfill.js",
+      "method": "planIssue",
+      "startLine": 119,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/board-backfill.js",
+      "method": "<anon planIssue/(n)#0>",
+      "startLine": 122,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/board-backfill.js",
+      "method": "runBackfill",
+      "startLine": 142,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/board-backfill.js",
+      "method": "applyPlan",
+      "startLine": 189,
+      "crap": 5.034293552812072
+    },
+    {
+      "path": ".agents/scripts/board-backfill.js",
+      "method": "<anon applyPlan/(err)#0>",
+      "startLine": 209,
+      "crap": 1.0013717421124828,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/board-backfill.js",
+      "method": "main",
+      "startLine": 218,
+      "crap": 5.571813239851649
+    },
+    {
       "path": ".agents/scripts/boot-sweep.js",
       "method": "storyIdsFromBranches",
       "startLine": 43,
@@ -15380,19 +15444,19 @@
     {
       "path": ".agents/scripts/lib/coverage-capture.js",
       "method": "timeoutMessage",
-      "startLine": 698,
+      "startLine": 701,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/coverage-capture.js",
       "method": "failingSuiteMessage",
-      "startLine": 703,
+      "startLine": 709,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/coverage-capture.js",
       "method": "reportCaptureFailure",
-      "startLine": 728,
+      "startLine": 736,
       "crap": 1
     },
     {
@@ -19716,49 +19780,49 @@
     {
       "path": ".agents/scripts/lib/observability/source-classifier.js",
       "method": "toScanString",
-      "startLine": 100,
+      "startLine": 107,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/observability/source-classifier.js",
       "method": "containsFrameworkPrefix",
-      "startLine": 111,
+      "startLine": 118,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/observability/source-classifier.js",
       "method": "containsFrameworkScriptBasename",
-      "startLine": 125,
+      "startLine": 132,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/observability/source-classifier.js",
       "method": "namesFrameworkSurface",
-      "startLine": 138,
+      "startLine": 145,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/observability/source-classifier.js",
       "method": "classifyPathSource",
-      "startLine": 150,
+      "startLine": 157,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/observability/source-classifier.js",
       "method": "isSupplied",
-      "startLine": 173,
+      "startLine": 180,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/observability/source-classifier.js",
       "method": "detailsScanText",
-      "startLine": 181,
+      "startLine": 188,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/observability/source-classifier.js",
       "method": "classifySignalSource",
-      "startLine": 201,
+      "startLine": 208,
       "crap": 11
     },
     {
@@ -19935,6 +19999,30 @@
       "method": "applyBehindUpdate",
       "startLine": 45,
       "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/board-access-latch.js",
+      "method": "isProjectAccessFailure",
+      "startLine": 50,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/board-access-latch.js",
+      "method": "toProjectAccessError",
+      "startLine": 64,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/board-access-latch.js",
+      "method": "reportBoardScopeFailure",
+      "startLine": 85,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/board-access-latch.js",
+      "method": "boardScopeFailure",
+      "startLine": 102,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/cancelled-run-discount.js",
@@ -20910,8 +20998,27 @@
     {
       "path": ".agents/scripts/lib/orchestration/column-sync.js",
       "method": "columnForLabels",
-      "startLine": 29,
+      "startLine": 36,
       "crap": 7
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/column-sync.js",
+      "method": "getProjectItemId",
+      "startLine": 55,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/column-sync.js",
+      "method": "<anon getProjectItemId/(n)#0>",
+      "startLine": 76,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/column-sync.js",
+      "method": "updateStatusField",
+      "startLine": 81,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/complexity-gate.js",
@@ -26497,14 +26604,20 @@
     {
       "path": ".agents/scripts/lib/orchestration/project-meta-resolver.js",
       "method": "buildScopedQuery",
-      "startLine": 23,
+      "startLine": 31,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/project-meta-resolver.js",
+      "method": "queryRung",
+      "startLine": 57,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/project-meta-resolver.js",
       "method": "resolveProjectMeta",
-      "startLine": 56,
-      "crap": 9
+      "startLine": 93,
+      "crap": 8
     },
     {
       "path": ".agents/scripts/lib/orchestration/reassert-status-column.js",
@@ -38744,8 +38857,14 @@
     {
       "path": ".agents/scripts/providers/github/board-add.js",
       "method": "addIssueToBoard",
-      "startLine": 21,
-      "crap": 7
+      "startLine": 24,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/providers/github/board-add.js",
+      "method": "warnAddFailure",
+      "startLine": 48,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/providers/github/branch-protection.js",
@@ -39215,172 +39334,148 @@
     {
       "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "<anon (scope)#0>",
-      "startLine": 14,
+      "startLine": 15,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "<anon (scope,fields)#0>",
-      "startLine": 16,
+      "startLine": 17,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "<anon (name,id)#0>",
-      "startLine": 26,
+      "startLine": 27,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "readGhCliToken",
-      "startLine": 33,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "readEnvToken",
-      "startLine": 46,
-      "crap": 12
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "memoizeEnvToken",
-      "startLine": 50,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "resolveToken",
-      "startLine": 54,
-      "crap": 12
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "<anon (err)#0>",
-      "startLine": 67,
+      "startLine": 34,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "<anon (value)#0>",
-      "startLine": 70,
+      "startLine": 37,
       "crap": 3,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "gql",
-      "startLine": 73,
-      "crap": 2.0018206645425582
+      "startLine": 40,
+      "crap": 2.0016257684296095
     },
     {
       "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "<anon gql/()#0>",
-      "startLine": 74,
+      "startLine": 42,
       "crap": 3.0059176460918877,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "<anon gql/()#0/()#0>",
-      "startLine": 88,
+      "startLine": 56,
       "crap": 1.000657516232432,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "lookupProject",
-      "startLine": 100,
-      "crap": 7.049
+      "startLine": 72,
+      "crap": 8
     },
     {
       "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "resolveOwnerId",
-      "startLine": 128,
+      "startLine": 105,
       "crap": 4.096168294515402
     },
     {
       "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "resolveOrCreateProject",
-      "startLine": 151,
+      "startLine": 128,
       "crap": 9.82608236288505
     },
     {
       "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "ensureStatusField",
-      "startLine": 196,
+      "startLine": 173,
       "crap": 7.100333137370175
     },
     {
       "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "<anon ensureStatusField/(field)#0>",
-      "startLine": 214,
+      "startLine": 191,
       "crap": 1.0020476150483708,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "<anon ensureStatusField/(name)#0>",
-      "startLine": 224,
+      "startLine": 201,
       "crap": 1.0020476150483708,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "<anon ensureStatusField/(option)#0>",
-      "startLine": 235,
+      "startLine": 212,
       "crap": 1.0020476150483708,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "<anon ensureStatusField/(name)#1>",
-      "startLine": 237,
+      "startLine": 214,
       "crap": 1.0020476150483708,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "<anon ensureStatusField/(option)#1>",
-      "startLine": 241,
+      "startLine": 218,
       "crap": 1.0020476150483708,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "<anon ensureStatusField/(name)#2>",
-      "startLine": 244,
+      "startLine": 221,
       "crap": 1.0020476150483708,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "ensureProjectFields",
-      "startLine": 260,
+      "startLine": 237,
       "crap": 5
     },
     {
       "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "<anon ensureProjectFields/(field)#0>",
-      "startLine": 268,
+      "startLine": 245,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "<anon ensureProjectFields/(option)#0>",
-      "startLine": 284,
+      "startLine": 261,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "addItemToProject",
-      "startLine": 293,
+      "startLine": 270,
       "crap": 3
     },
     {
@@ -41487,6 +41582,37 @@
       "anonymous": true
     },
     {
+      "path": "lib/cli/doctor-checks/project-access.js",
+      "method": "readBoardConfig",
+      "startLine": 23,
+      "crap": 5
+    },
+    {
+      "path": "lib/cli/doctor-checks/project-access.js",
+      "method": "rungArgs",
+      "startLine": 39,
+      "crap": 3
+    },
+    {
+      "path": "lib/cli/doctor-checks/project-access.js",
+      "method": "probeRung",
+      "startLine": 54,
+      "crap": 7.095703125
+    },
+    {
+      "path": "lib/cli/doctor-checks/project-access.js",
+      "method": "runProjectAccess",
+      "startLine": 83,
+      "crap": 7
+    },
+    {
+      "path": "lib/cli/doctor-checks/project-access.js",
+      "method": "<anon runProjectAccess/()#0>",
+      "startLine": 84,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
       "path": "lib/cli/doctor-checks/read-json.js",
       "method": "readJsonSafe",
       "startLine": 10,
@@ -41991,619 +42117,141 @@
     },
     {
       "path": "lib/cli/registry.js",
-      "method": "spawn",
-      "startLine": 48,
-      "crap": 3
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "runNodeVersion",
-      "startLine": 64,
-      "crap": 2
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "runGitAvailable",
-      "startLine": 81,
-      "crap": 6
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "runGhAvailable",
-      "startLine": 100,
-      "crap": 6
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "runGithubToken",
-      "startLine": 126,
-      "crap": 8
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "runGhAuth",
-      "startLine": 156,
-      "crap": 7.3919999999999995
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "runCommandsInSync",
-      "startLine": 202,
-      "crap": 8.060903776086985
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon runCommandsInSync/()#0>",
-      "startLine": 203,
-      "crap": 1.0009516215013592,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon runCommandsInSync/(dir)#0>",
-      "startLine": 207,
-      "crap": 1.0009516215013592,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon runCommandsInSync/(dir)#0/(f)#0>",
-      "startLine": 209,
-      "crap": 1.0009516215013592,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon runCommandsInSync/(file)#0>",
-      "startLine": 216,
-      "crap": 1.0009516215013592,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon runCommandsInSync/(f)#0>",
-      "startLine": 242,
-      "crap": 1.0009516215013592,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon runCommandsInSync/(f)#1>",
-      "startLine": 246,
-      "crap": 1.0009516215013592,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon runCommandsInSync/(f)#2>",
-      "startLine": 247,
-      "crap": 1.0009516215013592,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "readJsonSafe",
-      "startLine": 273,
-      "crap": 1
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "resolveRoleScopedAgentsFlag",
-      "startLine": 291,
-      "crap": 1
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "runAgentsInSync",
-      "startLine": 324,
-      "crap": 9.051008746355684
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon runAgentsInSync/()#0>",
-      "startLine": 331,
-      "crap": 1.0006297376093294,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon runAgentsInSync/(dir)#0>",
-      "startLine": 335,
-      "crap": 1.0006297376093294,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon runAgentsInSync/(dir)#0/(f)#0>",
-      "startLine": 337,
-      "crap": 1.0006297376093294,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon runAgentsInSync/(f)#0>",
-      "startLine": 347,
-      "crap": 1.0006297376093294,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon runAgentsInSync/(f)#1>",
-      "startLine": 350,
-      "crap": 1.0006297376093294,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon runAgentsInSync/(f)#2>",
-      "startLine": 377,
-      "crap": 1.0006297376093294,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon runAgentsInSync/(f)#3>",
-      "startLine": 378,
-      "crap": 1.0006297376093294,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "allPresentVerdict",
-      "startLine": 405,
-      "crap": 2.375657400450789
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "runRuntimeDeps",
-      "startLine": 425,
-      "crap": 5.164794921875
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "projectionParity",
-      "startLine": 426,
-      "crap": 4
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon projectionParity/(n)#0>",
-      "startLine": 441,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon projectionParity/(n,body)#0>",
-      "startLine": 443,
-      "crap": 2,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon projectionParity/(n)#1>",
-      "startLine": 445,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "readTextOrNull",
-      "startLine": 461,
-      "crap": 1.0233236151603498
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "runCodexSkillsInSync",
-      "startLine": 476,
-      "crap": 1
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon runCodexSkillsInSync/()#0>",
-      "startLine": 477,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon runCodexSkillsInSync/()#1>",
-      "startLine": 480,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon runCodexSkillsInSync/(name)#0>",
-      "startLine": 482,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "runAgentsMaterialized",
-      "startLine": 488,
-      "crap": 3.003525775888336
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon runAgentsMaterialized/()#0>",
-      "startLine": 489,
-      "crap": 1.0003917528764819,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon runAgentsMaterialized/(p)#0>",
-      "startLine": 490,
-      "crap": 1.0003917528764819,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "runCodexAgentsInSync",
-      "startLine": 496,
-      "crap": 1
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon runCodexAgentsInSync/()#0>",
-      "startLine": 497,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon runAgentsMaterialized/(fromDir)#0>",
-      "startLine": 500,
-      "crap": 1.0003917528764819,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon runCodexAgentsInSync/()#1>",
-      "startLine": 500,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon runCodexAgentsInSync/(name)#0>",
-      "startLine": 502,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "readProjectDocMaxBytes",
-      "startLine": 522,
-      "crap": 4
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "payloadFileDrifted",
-      "startLine": 541,
-      "crap": 3
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "resolveProjectDocLimit",
-      "startLine": 544,
-      "crap": 3
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "runAgentsDrift",
-      "startLine": 563,
-      "crap": 5
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon runAgentsDrift/()#0>",
-      "startLine": 564,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "runCodexInstructions",
-      "startLine": 576,
-      "crap": 7
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon runCodexInstructions/()#0>",
-      "startLine": 583,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon runCodexInstructions/(s)#0>",
-      "startLine": 605,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "runPinCurrent",
-      "startLine": 648,
-      "crap": 5
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon runPinCurrent/()#0>",
-      "startLine": 649,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "defaultInstalledVersion",
-      "startLine": 724,
-      "crap": 1
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "defaultVersionCachePath",
-      "startLine": 740,
-      "crap": 2
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "runVersionCurrent",
-      "startLine": 755,
-      "crap": 4
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "runMergeDriver",
-      "startLine": 800,
-      "crap": 3
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon runMergeDriver/()#0>",
-      "startLine": 801,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon runMergeDriver/(args)#0>",
-      "startLine": 806,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "probeConfiguredDriver",
-      "startLine": 837,
-      "crap": 3
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "testCreditDepositCommand",
-      "startLine": 872,
-      "crap": 1
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "readProjectTestScript",
-      "startLine": 877,
-      "crap": 3
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "testCreditRemedy",
-      "startLine": 888,
-      "crap": 1
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "readProjectScripts",
-      "startLine": 891,
-      "crap": 3
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "runTestCreditPath",
-      "startLine": 898,
-      "crap": 3
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "scriptNamed",
-      "startLine": 906,
-      "crap": 3
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "isCrapEnabled",
-      "startLine": 922,
-      "crap": 2
-    },
-    {
-      "path": "lib/cli/registry.js",
       "method": "<anon (opts)#0>",
-      "startLine": 924,
+      "startLine": 57,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon (opts)#1>",
-      "startLine": 928,
+      "startLine": 61,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon (opts)#2>",
-      "startLine": 932,
+      "startLine": 65,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon (opts)#3>",
-      "startLine": 936,
+      "startLine": 69,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
-      "method": "describeCreditedRun",
-      "startLine": 939,
-      "crap": 5
-    },
-    {
-      "path": "lib/cli/registry.js",
       "method": "<anon (opts)#4>",
-      "startLine": 940,
+      "startLine": 74,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon (opts)#5>",
-      "startLine": 944,
+      "startLine": 79,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon (opts)#6>",
-      "startLine": 948,
+      "startLine": 83,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon (opts)#7>",
-      "startLine": 952,
+      "startLine": 87,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon (opts)#8>",
-      "startLine": 956,
+      "startLine": 91,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
-      "method": "configuredTestCommand",
-      "startLine": 957,
-      "crap": 4
-    },
-    {
-      "path": "lib/cli/registry.js",
       "method": "<anon (opts)#9>",
-      "startLine": 960,
+      "startLine": 95,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon (opts)#10>",
-      "startLine": 964,
+      "startLine": 99,
       "crap": 1,
       "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon (opts)#10/()#0>",
-      "startLine": 966,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "describePrePushHook",
-      "startLine": 970,
-      "crap": 4
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon (opts)#11>",
-      "startLine": 972,
+      "startLine": 103,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon (opts)#12>",
-      "startLine": 976,
+      "startLine": 107,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
-      "method": "describeConfiguredTestCommand",
-      "startLine": 977,
-      "crap": 2
-    },
-    {
-      "path": "lib/cli/registry.js",
       "method": "<anon (opts)#13>",
-      "startLine": 981,
+      "startLine": 111,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon (opts)#14>",
-      "startLine": 986,
+      "startLine": 115,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
-      "method": "describeNpmTestScript",
-      "startLine": 1015,
-      "crap": 3
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon runTestCreditPath/(p)#0>",
-      "startLine": 1026,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon runTestCreditPath/(p)#1>",
-      "startLine": 1029,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon (opts)#13/()#0>",
-      "startLine": 1401,
+      "method": "<anon (opts)#14/()#0>",
+      "startLine": 117,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon (opts)#15>",
-      "startLine": 1411,
+      "startLine": 123,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon (opts)#16>",
-      "startLine": 1416,
+      "startLine": 127,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon (opts)#17>",
-      "startLine": 1421,
+      "startLine": 132,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "<anon (opts)#18>",
+      "startLine": 137,
       "crap": 1,
       "anonymous": true
     },
