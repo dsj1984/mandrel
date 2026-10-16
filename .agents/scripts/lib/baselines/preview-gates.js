@@ -218,6 +218,7 @@ export async function runCrapPreview({
   const incompatible = assertBaselineCompatible(baseline, {
     cwd,
     targetDirs: crap.targetDirs,
+    captureScript: crap.captureScript,
   });
   if (incompatible) {
     return {

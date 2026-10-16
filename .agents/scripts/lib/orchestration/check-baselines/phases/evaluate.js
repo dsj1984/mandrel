@@ -127,8 +127,8 @@ export async function evaluateKind({
   // Rows from superseded scoring semantics pass schema but are incomparable;
   // fail closed.
   const semanticsError = checkBaselineSemantics(kind, baseline, {
+    ...gateBlock,
     cwd,
-    targetDirs: gateBlock?.targetDirs,
   });
   if (semanticsError) {
     return {

@@ -91,6 +91,7 @@ export function resolveCrapUpdaterOptions(
     minMethodResolutionRate:
       crap.minMethodResolutionRate ?? DEFAULT_MIN_RESOLUTION_RATE,
     coveragePath,
+    captureScript: crap.captureScript ?? 'test:coverage',
     baselinePath,
     absBaselinePath: path.isAbsolute(baselinePath)
       ? baselinePath
@@ -208,6 +209,7 @@ function buildCrapUpdaterScorer(
     const refusal = checkResolutionFloor(
       summary.resolution,
       options.minMethodResolutionRate,
+      options.captureScript,
     );
     if (refusal) throw new Error(refusal);
 

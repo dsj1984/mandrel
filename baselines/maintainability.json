@@ -96,7 +96,7 @@
     },
     {
       "path": ".agents/scripts/coverage-capture.js",
-      "mi": 94.142
+      "mi": 95.113
     },
     {
       "path": ".agents/scripts/deliver-light.js",
@@ -796,7 +796,7 @@
     },
     {
       "path": ".agents/scripts/lib/config/quality.js",
-      "mi": 88.089
+      "mi": 89.882
     },
     {
       "path": ".agents/scripts/lib/config/review-chain-default.js",
@@ -849,6 +849,10 @@
     {
       "path": ".agents/scripts/lib/coverage-capture-incremental.js",
       "mi": 95.817
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-passes.js",
+      "mi": 98.474
     },
     {
       "path": ".agents/scripts/lib/coverage-capture-usage.js",

@@ -58,6 +58,8 @@ export const CRAP_GATE_DEFAULTS = Object.freeze({
   // Healthy runs resolve ~98%; a coordinate mismatch resolves 4–6%.
   minMethodResolutionRate: 0.75,
   incrementalCoverage: DEFAULT_INCREMENTAL_COVERAGE,
+  // npm script that writes the CRAP coverage artifact (never a shell command).
+  captureScript: 'test:coverage',
 });
 
 export const COVERAGE_GATE_DEFAULTS = Object.freeze({
@@ -96,6 +98,8 @@ const CRAP_GATE_KEYS = new Set([
   'ignoreGlobs',
   'minMethodResolutionRate',
   'incrementalCoverage',
+  'coveragePath',
+  'captureScript',
 ]);
 
 const COVERAGE_GATE_KEYS = new Set([
@@ -176,6 +180,48 @@ function resolveIncrementalCoverage(user, defaults) {
   };
 }
 
+function nonEmptyString(value) {
+  return typeof value === 'string' && value.trim().length > 0
+    ? value.trim()
+    : null;
+}
+
+/** Directory part of a repo-relative path, separator-agnostic. */
+function artifactDir(relPath) {
+  const parts = relPath.replace(/\\/g, '/').split('/').filter(Boolean);
+  parts.pop();
+  return parts.filter((p) => p !== '.').join('/');
+}
+
+/**
+ * The CRAP gate's coverage source. A user `coveragePath` that
+ * differs from the coverage gate's is an OWN source; one in the same
+ * directory would share the per-directory capture stamp and cross-credit
+ * freshness, so it is refused here rather than silently falling back.
+ *
+ * @param {{ coveragePath?: unknown, captureScript?: unknown }} userCrap
+ * @param {string} coverageGatePath
+ * @returns {{ coveragePath: string, captureScript: string, ownCoverageSource: boolean }}
+ */
+function resolveCrapCoverageSource(userCrap, coverageGatePath) {
+  const userPath = nonEmptyString(userCrap?.coveragePath);
+  const captureScript =
+    nonEmptyString(userCrap?.captureScript) ?? CRAP_GATE_DEFAULTS.captureScript;
+  const coveragePath = userPath ?? coverageGatePath;
+  const ownCoverageSource =
+    userPath !== null &&
+    userPath.replace(/\\/g, '/') !== coverageGatePath.replace(/\\/g, '/');
+  if (
+    ownCoverageSource &&
+    artifactDir(userPath) === artifactDir(coverageGatePath)
+  ) {
+    throw new Error(
+      `[config] delivery.quality.gates.crap.coveragePath '${userPath}' sits in the same directory as delivery.quality.gates.coverage.coveragePath '${coverageGatePath}'. The capture stamp is per directory, so an own CRAP coverage source must live in its own directory.`,
+    );
+  }
+  return { coveragePath, captureScript, ownCoverageSource };
+}
+
 /**
  * @param {object | undefined} userCrap
  * @param {{ coveragePath: string }} coverageGate
@@ -195,6 +241,8 @@ export function resolveMaintainabilityCrap(userCrap, coverageGate) {
       targetDirs: [...defaults.targetDirs],
       newMethodCeiling: defaults.newMethodCeiling,
       coveragePath: coverage.coveragePath,
+      captureScript: defaults.captureScript,
+      ownCoverageSource: false,
       tolerance: toleranceScalar(
         defaults.tolerance,
         DEFAULT_CRAP_TOLERANCE.value,
@@ -213,7 +261,7 @@ export function resolveMaintainabilityCrap(userCrap, coverageGate) {
     enabled: userCrap.enabled ?? defaults.enabled,
     targetDirs: resolveListValue(defaults.targetDirs, userCrap.targetDirs),
     newMethodCeiling: userCrap.newMethodCeiling ?? defaults.newMethodCeiling,
-    coveragePath: coverage.coveragePath,
+    ...resolveCrapCoverageSource(userCrap, coverage.coveragePath),
     tolerance: toleranceScalar(
       userCrap.tolerance,
       toleranceScalar(defaults.tolerance, DEFAULT_CRAP_TOLERANCE.value),

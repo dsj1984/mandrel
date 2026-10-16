@@ -39,7 +39,7 @@ const USAGE = {
     ],
     [
       '--coverage <path>',
-      'Read coverage from this path (default `coverage/coverage-final.json`).',
+      "Read coverage from this path; wins over config (default `delivery.quality.gates.crap.coveragePath`, falling back to the coverage gate's `coveragePath`, `coverage/coverage-final.json`).",
     ],
     [
       '--full-scope',
@@ -55,7 +55,7 @@ const USAGE = {
     ],
   ],
   notes: [
-    'Run `npm run test:coverage` first — without a coverage artifact the refresh refuses (exit 1) and leaves the baseline untouched.',
+    'Run the CRAP capture script first — `npm run <delivery.quality.gates.crap.captureScript>`, default `npm run test:coverage` — without a coverage artifact the refresh refuses (exit 1) and leaves the baseline untouched.',
   ],
 };
 

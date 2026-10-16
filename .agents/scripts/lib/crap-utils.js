@@ -164,7 +164,11 @@ const MIN_RESOLUTION_SAMPLE = 25;
  * @param {number} floor
  * @returns {string|null}
  */
-export function checkResolutionFloor(resolution, floor) {
+export function checkResolutionFloor(
+  resolution,
+  floor,
+  captureScript = 'test:coverage',
+) {
   if (!resolution) return null;
   const { joinableMethods = 0, resolvedMethods = 0, rate = 1 } = resolution;
   if (joinableMethods < MIN_RESOLUTION_SAMPLE) return null;
@@ -181,7 +185,7 @@ export function checkResolutionFloor(resolution, floor) {
     'unresolved methods are absent and coincidental line collisions are ' +
     'mis-attributed.\n' +
     (worst ? `       Worst unresolved files:\n${worst}\n` : '') +
-    "       Regenerate coverage ('npm run test:coverage') and re-run; if the " +
+    `       Regenerate coverage ('npm run ${captureScript}') and re-run; if the ` +
     'rate stays low the coverage artifact and the scanned tree disagree.'
   );
 }

@@ -703,19 +703,19 @@ describe('delivery.quality.* shape — uniform gates (Story #1737)', () => {
     );
   });
 
-  it('rejects coveragePath on the CRAP gate (moved to coverage)', () => {
-    expectErrors(
-      {
+  it('accepts an own coveragePath on the CRAP gate (re-admitted as the CRAP source)', () => {
+    assert.equal(
+      validate({
         ...REQ,
         delivery: {
           quality: {
             gates: {
-              crap: { coveragePath: 'coverage/coverage-final.json' },
+              crap: { coveragePath: 'coverage-py/coverage-final.json' },
             },
           },
         },
-      },
-      /additional properties/,
+      }),
+      true,
     );
   });
 

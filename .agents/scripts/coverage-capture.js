@@ -6,6 +6,8 @@
  * `coverage.captureScope: "affected"`, the consumer's `test:coverage:affected`)
  * behind the host-level full-suite lock and stamp on success. A green run that
  * leaves no artifact at `coveragePath` fails (exit 1) and is never stamped.
+ * An own CRAP source gets a second, always full-scope pass via
+ * `crap.captureScript` (`lib/coverage-capture-passes.js`).
  *
  * `--require-credited` must stay an argument, never a config read: as policy
  * it also refused the depositing run, leaving no path that could deposit.
@@ -28,6 +30,10 @@ import {
 } from './lib/coverage-capture.js';
 import { tryScopedCapture } from './lib/coverage-capture-affected.js';
 import { runFullScopeCapture } from './lib/coverage-capture-fullscope.js';
+import {
+  captureRefusal,
+  runCapturePasses,
+} from './lib/coverage-capture-passes.js';
 import { handleCoverageCaptureHelp } from './lib/coverage-capture-usage.js';
 import { lockedCapture } from './lib/full-suite-lock.js';
 import { Logger } from './lib/Logger.js';
@@ -97,13 +103,8 @@ export async function runCoverageCapture(argv = process.argv, deps = {}) {
   const args = parseArgs(argv);
   const config = resolveConfigImpl({ cwd: args.cwd });
   const { crap, coverage } = getQualityImpl(config);
-  const refused = refusal({
-    crap,
-    cwd: args.cwd,
-    readPackageScriptsImpl,
-    hasNpmScriptImpl,
-    logger,
-  });
+  const scripts = readPackageScriptsImpl(args.cwd);
+  const refused = captureRefusal({ crap, scripts, hasNpmScriptImpl, logger });
   if (refused !== null) return refused;
 
   // Outermost first: the credit probe announces or refuses the run, and only
@@ -114,25 +115,30 @@ export async function runCoverageCapture(argv = process.argv, deps = {}) {
     onLockProgress: lockHooks.onLockProgress,
     ...lockOptions,
   });
-  const credited = artifactCheckedCapture(locked, {
-    args,
-    crap,
-    existsSync: coverageArtifactExistsImpl,
-    logger,
-  });
   let timings = null;
-  const capture = (captureOpts) =>
-    credited({
-      ...captureOpts,
-      onTimings: (t) => {
-        timings = t;
-      },
+  const makeCapture = (source) => {
+    const credited = artifactCheckedCapture(locked, {
+      args,
+      source,
+      existsSync: coverageArtifactExistsImpl,
+      logger,
     });
-  const code = await runCaptureScopes({
+    return (captureOpts) =>
+      credited({
+        ...captureOpts,
+        onTimings: (t) => {
+          timings = t;
+        },
+      });
+  };
+  const code = await runCapturePasses({
     crap,
     coverage,
     args,
-    capture,
+    scripts,
+    hasNpmScriptImpl,
+    makeCapture,
+    runShared: runCaptureScopes,
     deps: {
       getChangedFilesImpl,
       isCoverageFreshImpl,
@@ -149,41 +155,18 @@ export async function runCoverageCapture(argv = process.argv, deps = {}) {
 }
 
 /**
- * The credited runner, failing a green run that wrote no artifact.
+ * The credited runner, failing a green run that wrote no artifact at the
+ * pass's source.
  *
  * @param {Function} locked
- * @param {{ args: object, crap: object, existsSync?: Function, logger: object }} opts
+ * @param {{ args: object, source: { coveragePath: string, script?: string, configKey?: string }, existsSync?: Function, logger: object }} opts
  * @returns {(opts: object) => Promise<number>}
  */
-function artifactCheckedCapture(locked, { args, crap, existsSync, logger }) {
+function artifactCheckedCapture(locked, { args, source, existsSync, logger }) {
   return requireCaptureArtifact(
     creditedCapture(locked, { requireCredited: args.requireCredited, logger }),
-    { cwd: args.cwd, coveragePath: crap.coveragePath, existsSync, logger },
+    { ...source, cwd: args.cwd, existsSync, logger },
   );
-}
-
-/** @returns {number|null} The exit code when no capture may run. */
-function refusal({
-  crap,
-  cwd,
-  readPackageScriptsImpl,
-  hasNpmScriptImpl,
-  logger,
-}) {
-  if (crap.enabled === false) {
-    logger.info('[coverage-capture] CRAP gate disabled — skipping capture.');
-    return 0;
-  }
-  if (hasNpmScriptImpl(readPackageScriptsImpl(cwd), 'test:coverage')) {
-    return null;
-  }
-  // Name the fix rather than propagate npm's opaque "Missing script" exit.
-  logger.error(
-    '[coverage-capture] ✖ No "test:coverage" script in package.json. ' +
-      'Add one (e.g. "test:coverage": "node --test --experimental-test-coverage") ' +
-      'or disable the CRAP gate via delivery.quality.gates.crap.enabled=false.',
-  );
-  return 1;
 }
 
 function reportTimings(timings, logger, lockHooks) {

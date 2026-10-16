@@ -124,9 +124,9 @@
     },
     {
       "path": ".agents/scripts/coverage-capture.js",
-      "lines": 98.44,
-      "branches": 97.22,
-      "functions": 90.91
+      "lines": 98.33,
+      "branches": 96.88,
+      "functions": 90
     },
     {
       "path": ".agents/scripts/deliver-light.js",
@@ -599,7 +599,7 @@
     {
       "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
       "lines": 100,
-      "branches": 92.65,
+      "branches": 93.42,
       "functions": 100
     },
     {
@@ -676,9 +676,9 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "lines": 94.45,
-      "branches": 84.71,
-      "functions": 90
+      "lines": 94.61,
+      "branches": 85,
+      "functions": 90.63
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/duplication.js",
@@ -724,8 +724,8 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/preview-gates.js",
-      "lines": 87.76,
-      "branches": 60,
+      "lines": 97.1,
+      "branches": 69.7,
       "functions": 100
     },
     {
@@ -988,8 +988,8 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
-      "lines": 99.3,
-      "branches": 94.49,
+      "lines": 98.82,
+      "branches": 94.85,
       "functions": 100
     },
     {
@@ -1216,8 +1216,8 @@
     },
     {
       "path": ".agents/scripts/lib/config/quality.js",
-      "lines": 99.77,
-      "branches": 93.88,
+      "lines": 99.79,
+      "branches": 94.59,
       "functions": 100
     },
     {
@@ -1299,6 +1299,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/coverage-capture-passes.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/coverage-capture-usage.js",
       "lines": 100,
       "branches": 100,
@@ -1306,8 +1312,8 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-capture.js",
-      "lines": 99.16,
-      "branches": 91.46,
+      "lines": 99.18,
+      "branches": 91.07,
       "functions": 100
     },
     {
@@ -1348,8 +1354,8 @@
     },
     {
       "path": ".agents/scripts/lib/crap-utils.js",
-      "lines": 96,
-      "branches": 83.96,
+      "lines": 96.95,
+      "branches": 86.96,
       "functions": 100
     },
     {
@@ -2831,7 +2837,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/verify-credit.js",
       "lines": 100,
-      "branches": 94.44,
+      "branches": 94.64,
       "functions": 100
     },
     {
@@ -3652,9 +3658,9 @@
     },
     {
       "path": ".agents/scripts/update-crap-baseline.js",
-      "lines": 65.77,
+      "lines": 97.06,
       "branches": 50,
-      "functions": 0
+      "functions": 66.67
     },
     {
       "path": ".agents/scripts/update-duplication-baseline.js",

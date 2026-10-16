@@ -152,7 +152,9 @@
           "incrementalCoverage": {
             "skipWhenUnchanged": true,
             "baselineJoin": false
-          }
+          },
+          "coveragePath": null,
+          "captureScript": "test:coverage"
         },
         "maintainability": {
           "enabled": true,

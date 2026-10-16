@@ -139,7 +139,10 @@ export function resolveVerifyCredit(
   const { crap } = getQualityImpl(config);
   const mode =
     crap?.enabled !== false &&
-    hasNpmScriptImpl(readPackageScriptsImpl(worktree), 'test:coverage')
+    hasNpmScriptImpl(
+      readPackageScriptsImpl(worktree),
+      crap?.captureScript ?? 'test:coverage',
+    )
       ? 'capture'
       : 'evidence';
 

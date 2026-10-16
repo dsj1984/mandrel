@@ -294,6 +294,65 @@ describe('buildCrapUpdaterScorer — the resolution-floor refusal', () => {
   });
 });
 
+describe('own CRAP coverage source (Story #5717)', () => {
+  const OWN = {
+    crap: {
+      ...CONFIG.crap,
+      coveragePath: 'coverage-py/coverage-final.json',
+      captureScript: 'test:coverage:py',
+    },
+    baselines: CONFIG.baselines,
+  };
+
+  it('AC-3: without --coverage the updater reads crap.coveragePath', async () => {
+    const options = resolveCrapUpdaterOptions({}, OWN, '/repo');
+    assert.equal(options.coveragePath, 'coverage-py/coverage-final.json');
+    const loaded = [];
+    const rows = await scorerOf(options, {
+      loadCoverage: (abs) => {
+        loaded.push(abs);
+        return {};
+      },
+      scan: async () => ({ rows: [], scannedFiles: 0 }),
+      logger: recordingLogger(),
+    })([], { cwd: '/repo' });
+    assert.deepEqual(rows, []);
+    assert.deepEqual(loaded, [
+      path.resolve('/repo', 'coverage-py/coverage-final.json'),
+    ]);
+  });
+
+  it('AC-7: the resolution-floor refusal names the configured capture script', async () => {
+    const options = resolveCrapUpdaterOptions({}, OWN, '/repo');
+    assert.equal(options.captureScript, 'test:coverage:py');
+    await assert.rejects(
+      () =>
+        scorerOf(options, {
+          loadCoverage: () => ({}),
+          scan: async () => ({
+            rows: [],
+            scannedFiles: 1,
+            resolution: {
+              resolvedMethods: 10,
+              joinableMethods: 100,
+              rate: 0.1,
+              worstFiles: [],
+            },
+          }),
+          logger: recordingLogger(),
+        })([], { cwd: '/repo' }),
+      /npm run test:coverage:py/,
+    );
+  });
+
+  it('defaults the capture script to test:coverage', () => {
+    assert.equal(
+      resolveCrapUpdaterOptions({}, CONFIG, '/repo').captureScript,
+      'test:coverage',
+    );
+  });
+});
+
 describe('buildCrapUpdaterScorer — rows and reporting', () => {
   /** Build a scorer over a fixed scan summary. */
   function scorerFor(summary, logger) {
