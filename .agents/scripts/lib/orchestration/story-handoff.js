@@ -177,6 +177,19 @@ function headSha(ctx) {
 }
 
 /**
+ * A child's env with `AP_AGENTRC_CWD` pinned to the Story worktree, layered
+ * last so a stale inherited value cannot win: a gate judges the branch by
+ * the branch's own `.agentrc.json`.
+ *
+ * @param {object} ctx
+ * @param {Record<string, string|undefined>} [env] defaults to `ctx.env`.
+ * @returns {Record<string, string|undefined>}
+ */
+function worktreeEnv(ctx, env) {
+  return { ...(env ?? ctx.env), AP_AGENTRC_CWD: ctx.cwd };
+}
+
+/**
  * Run one child with its combined output streamed live into the step's
  * evidence log (announced, and recorded in story-progress, before it spawns).
  *
@@ -197,7 +210,7 @@ async function runLogged(ctx, logName, cmd, args, env) {
     progress: ctx.progress,
     cmd,
     args,
-    opts: { cwd: ctx.cwd, env },
+    opts: { cwd: ctx.cwd, env: worktreeEnv(ctx, env) },
     file,
     tag: logName,
   });

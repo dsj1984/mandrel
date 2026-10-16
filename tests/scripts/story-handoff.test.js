@@ -112,10 +112,10 @@ function commandDouble(world, outputs = {}) {
     'update-maintainability-baseline.js': { status: 0, stdout: 'seated: 0' },
     git: { status: 0, stdout: '' },
   };
-  const run = async (cmd, args) => {
+  const run = async (cmd, args, opts) => {
     const production = args.includes('--production') ? ' --production' : '';
     const key = cmd === 'node' ? `${path.basename(args[0])}${production}` : cmd;
-    calls.push({ key, cmd, args });
+    calls.push({ key, cmd, args, opts });
     const out = outputs[key] ?? defaults[key] ?? { status: 0, stdout: '' };
     if (key === 'git' && out.status === 0) world.remote = world.head;
     if (/seated: [1-9]/.test(out.stdout ?? '')) {
@@ -288,6 +288,79 @@ describe('story-handoff — the happy path (AC-1)', () => {
       'python3',
       'scripts/validation.py',
     ]);
+  });
+});
+
+describe('story-handoff — children resolve config from the worktree (#5729)', () => {
+  const CRAP_UPDATER = path.join(path.dirname(CLI), 'update-crap-baseline.js');
+
+  /** A stale parent value — the main checkout's config root. */
+  const staleEnv = () => ({ ...process.env, AP_AGENTRC_CWD: '/main-checkout' });
+
+  test('AC-1: the seat and every other child get AP_AGENTRC_CWD = the worktree, overriding the inherited value', async () => {
+    const h = harness({ cwd: '/work' });
+    h.deps.env = staleEnv();
+    await h.run();
+    const seat = h.runCommand.calls.find(
+      (c) => c.key === 'update-crap-baseline.js',
+    );
+    assert.equal(seat.opts.env.AP_AGENTRC_CWD, '/work');
+    assert.equal(seat.opts.cwd, '/work');
+    const credited = h.runCommand.calls.find(
+      (c) => c.key === 'coverage-capture.js',
+    );
+    assert.equal(credited.opts.env.AP_AGENTRC_CWD, '/work');
+    for (const call of h.runCommand.calls) {
+      assert.equal(call.opts.env.AP_AGENTRC_CWD, '/work', call.key);
+    }
+  });
+
+  test('AC-3: update-crap-baseline.js run with the seat env resolves the worktree crap.coveragePath', async () => {
+    const worktree = path.join(tempRoot, 'wt-config');
+    mkdirSync(worktree, { recursive: true });
+    writeFileSync(
+      path.join(worktree, '.agentrc.json'),
+      JSON.stringify({
+        project: {
+          baseBranch: 'main',
+          paths: {
+            agentRoot: '.agents',
+            docsRoot: 'docs',
+            tempRoot: path.join(worktree, 'tmp'),
+          },
+        },
+        delivery: {
+          quality: {
+            gates: {
+              crap: {
+                coveragePath: 'worktree-cov/coverage-final.json',
+                targetDirs: ['src'],
+              },
+            },
+          },
+        },
+      }),
+    );
+    const h = harness({ cwd: worktree });
+    h.deps.env = staleEnv();
+    await h.run();
+    const seat = h.runCommand.calls.find(
+      (c) => c.key === 'update-crap-baseline.js',
+    );
+    // The refresh mode logs its coverage source, then refuses on the
+    // missing artifact — nothing is written.
+    const child = spawnSync(process.execPath, [CRAP_UPDATER], {
+      cwd: seat.opts.cwd,
+      env: seat.opts.env,
+      encoding: 'utf8',
+      timeout: 30_000,
+    });
+    const output = `${child.stdout}${child.stderr}`;
+    assert.match(
+      output,
+      /Coverage source: worktree-cov\/coverage-final\.json/,
+      output,
+    );
   });
 });
 
@@ -1003,7 +1076,7 @@ describe('story-handoff — live lock progress for the credited run (Story #5662
     assert.ok(
       h.envs
         .filter((e) => e.key !== 'coverage-capture.js')
-        .every((e) => e.env === undefined),
+        .every((e) => e.env[CHANNEL_ENV] === undefined),
       'only the credited run opens a channel',
     );
     assert.throws(() => readFileSync(channelFile), /ENOENT/, 'disposed');
