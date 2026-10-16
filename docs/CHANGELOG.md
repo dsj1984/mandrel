@@ -15,6 +15,19 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.90.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.89.0...mandrel-v2.90.0) (2026-10-16)
+
+
+### Added
+
+* surface Projects v2 scope failures instead of swallowing them, and backfill the board ([#5727](https://github.com/dsj1984/mandrel/issues/5727)) ([#5733](https://github.com/dsj1984/mandrel/issues/5733)) ([41bf87a](https://github.com/dsj1984/mandrel/commit/41bf87a94e2930d04ce4a8f374fb204bfca94e77))
+
+
+### Fixed
+
+* coverage-capture: route the tree/content digest git calls through child-exec so large repos get a freshable stamp ([#5728](https://github.com/dsj1984/mandrel/issues/5728)) ([#5730](https://github.com/dsj1984/mandrel/issues/5730)) ([8919d41](https://github.com/dsj1984/mandrel/commit/8919d414e715afa9dd352a8c18cd41a72fbb2118))
+* handoff and close gate children resolve .agentrc.json from the Story worktree, not the main checkout ([#5729](https://github.com/dsj1984/mandrel/issues/5729)) ([#5731](https://github.com/dsj1984/mandrel/issues/5731)) ([af4f4cf](https://github.com/dsj1984/mandrel/commit/af4f4cf05e7f7b05e75ab0418a366733206b84ad))
+
 ## [2.89.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.88.0...mandrel-v2.89.0) (2026-10-16)
 
 
