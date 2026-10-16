@@ -972,7 +972,7 @@ describe('runCoverageCapture — own CRAP coverage source (Story #5717)', () => 
     assert.equal(await runCoverageCapture(argv('--cwd', '/repo'), h.deps), 1);
     const error = h.log.error.join('\n');
     assert.match(error, /test:coverage:py passed/);
-    assert.match(error, /coverage-py\/coverage-final\.json/);
+    assert.match(error, /coverage-py[\\/]coverage-final\.json/);
     assert.match(error, /delivery\.quality\.gates\.crap\.coveragePath/);
     assert.deepEqual(
       h.calls.stamp.map((s) => s.coveragePath),
