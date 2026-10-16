@@ -113,7 +113,7 @@ export async function tryIncrementalCapture({
     log: (m) => logger.info(m),
     recheckFresh: () => probe().fresh === true,
   });
-  if (code !== 0) return reportCaptureFailure(code, logger);
+  if (code !== 0) return reportCaptureFailure(code, logger, crap.captureScript);
 
   stampCapturedTree({
     ...tree,

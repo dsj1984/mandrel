@@ -694,14 +694,20 @@ function lockWaitExpiredMessage(code) {
   return `[coverage-capture] ⏸ the full-suite lock wait expired with another suite still running, so this capture was deferred — no suite ran. Exiting ${code}; re-run it once that suite finishes.`;
 }
 
-/** @param {number} code */
-function timeoutMessage(code) {
-  return `[coverage-capture] ⏱ npm run test:coverage timed out and was killed (exit ${code}) — no test verdict exists. This is usually host contention, not a failing test; re-run once the host is quieter.`;
+/**
+ * @param {number} code
+ * @param {string} script
+ */
+function timeoutMessage(code, script) {
+  return `[coverage-capture] ⏱ npm run ${script} timed out and was killed (exit ${code}) — no test verdict exists. This is usually host contention, not a failing test; re-run once the host is quieter.`;
 }
 
-/** @param {number} code */
-function failingSuiteMessage(code) {
-  return `[coverage-capture] ✖ npm run test:coverage exited ${code}. Fix failing tests or coverage-threshold breaches before re-running the CRAP gate.`;
+/**
+ * @param {number} code
+ * @param {string} script
+ */
+function failingSuiteMessage(code, script) {
+  return `[coverage-capture] ✖ npm run ${script} exited ${code}. Fix failing tests or coverage-threshold breaches before re-running the CRAP gate.`;
 }
 
 /**
@@ -719,15 +725,17 @@ const FAILING_SUITE_REPORT = Object.freeze(['error', failingSuiteMessage]);
 
 /**
  * Report a non-zero capture; an expired lock wait or a timeout is not a
- * failing suite, so neither prints the failing-tests line.
+ * failing suite, so neither prints the failing-tests line. `script` is the
+ * one the pass ran (an own CRAP source runs `crap.captureScript`).
  *
  * @param {number} code
  * @param {{ info: Function, error: Function }} logger
+ * @param {string} [script]
  * @returns {number}
  */
-export function reportCaptureFailure(code, logger) {
+export function reportCaptureFailure(code, logger, script = 'test:coverage') {
   const [level, message] =
     NON_FAILURE_CAPTURE_EXITS[code] ?? FAILING_SUITE_REPORT;
-  logger[level](message(code));
+  logger[level](message(code, script));
   return code;
 }

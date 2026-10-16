@@ -56,6 +56,28 @@ describe('buildDefaultGates — registration keys on crap.captureScript (Story #
     assert.ok(!names(gates).includes('coverage-capture'));
     assert.ok(names(gates).includes('test'));
   });
+
+  const captureHint = (gates) =>
+    gates.find((g) => g.name === 'coverage-capture').hint;
+
+  it('names the configured captureScript in the capture hint', () => {
+    const gates = buildDefaultGates({
+      config: crapWith({ captureScript: 'test:coverage:py' }),
+      packageScripts: { 'test:coverage:py': 'pytest --cov' },
+    });
+    assert.match(captureHint(gates), /`npm run test:coverage:py`/);
+  });
+
+  it('keeps the default capture hint when captureScript is the default', () => {
+    const gates = buildDefaultGates({
+      config: crapWith({}),
+      packageScripts: { 'test:coverage': 'c8 node --test' },
+    });
+    assert.equal(
+      captureHint(gates),
+      'Coverage capture failed — its suite run (`npm run test:coverage`, or `npm run test:coverage:affected` under `captureScope: "affected"`, including a delta refresh keyed on the stamped commit after a base-sync) exited non-zero. The coverage-capture log names which ran; fix the failing tests or coverage-threshold breaches, then re-run close.',
+    );
+  });
 });
 
 describe('buildDefaultGates — coverage-capture registration (Story #4473)', () => {

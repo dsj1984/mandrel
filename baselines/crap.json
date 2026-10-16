@@ -13056,6 +13056,12 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
+      "method": "coverageCaptureHint",
+      "startLine": 372,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/gates.js",
       "method": "buildQualityPreviewGateEntries",
       "startLine": 400,
       "crap": 3

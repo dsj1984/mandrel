@@ -363,10 +363,19 @@ function coverageCaptureRunsSuite({
 
 /**
  * Names every suite the capture can run: under `captureScope: "affected"` a
- * red may come from a delta refresh the base-sync triggered, not the Story.
+ * red may come from a delta refresh the base-sync triggered, not the Story;
+ * a non-default `gates.crap.captureScript` is named beside `test:coverage`.
+ *
+ * @param {string} captureScript The CRAP capture script ({@link crapCaptureScript}).
+ * @returns {string}
  */
-const COVERAGE_CAPTURE_HINT =
-  'Coverage capture failed — its suite run (`npm run test:coverage`, or `npm run test:coverage:affected` under `captureScope: "affected"`, including a delta refresh keyed on the stamped commit after a base-sync) exited non-zero. The coverage-capture log names which ran; fix the failing tests or coverage-threshold breaches, then re-run close.';
+function coverageCaptureHint(captureScript) {
+  const crapScript =
+    captureScript === CRAP_GATE_DEFAULTS.captureScript
+      ? ''
+      : `, the CRAP gate's own \`npm run ${captureScript}\` (\`gates.crap.captureScript\`)`;
+  return `Coverage capture failed — its suite run (\`npm run test:coverage\`${crapScript}, or \`npm run test:coverage:affected\` under \`captureScope: "affected"\`, including a delta refresh keyed on the stamped commit after a base-sync) exited non-zero. The coverage-capture log names which ran; fix the failing tests or coverage-threshold breaches, then re-run close.`;
+}
 
 const COVERAGE_CAPTURE_ARGS = Object.freeze([
   '.agents/scripts/coverage-capture.js',
@@ -542,7 +551,7 @@ export function buildDefaultGates({
             name: 'coverage-capture',
             cmd: 'node',
             args: [...COVERAGE_CAPTURE_ARGS],
-            hint: COVERAGE_CAPTURE_HINT,
+            hint: coverageCaptureHint(crapCaptureScript(config)),
             lockEventChannel: true,
             ...(captureSkipPredicted
               ? { skip: { reason: 'incremental-no-crap-changes' } }

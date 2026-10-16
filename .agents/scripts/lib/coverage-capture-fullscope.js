@@ -96,7 +96,7 @@ export async function runFullScopeCapture({
   }
 
   logger.info(
-    `[coverage-capture] Coverage at ${crap.coveragePath} is ${describeFreshness(freshness, crap.targetDirs)}; running npm run test:coverage… ${detail}`,
+    `[coverage-capture] Coverage at ${crap.coveragePath} is ${describeFreshness(freshness, crap.targetDirs)}; running npm run ${crap.captureScript ?? 'test:coverage'}… ${detail}`,
   );
   const tree = snapshotCapturedTree({
     cwd: args.cwd,
@@ -112,7 +112,7 @@ export async function runFullScopeCapture({
     // After queueing behind another suite, which may have stamped this tree.
     recheckFresh: () => probe().fresh === true,
   });
-  if (code !== 0) return reportCaptureFailure(code, logger);
+  if (code !== 0) return reportCaptureFailure(code, logger, crap.captureScript);
 
   stampCapturedTree({
     ...tree,

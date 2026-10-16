@@ -11,6 +11,7 @@ import {
 import { resolveChangedFilesRef } from '../.agents/scripts/lib/changed-files.js';
 import { createLockEventChannel } from '../.agents/scripts/lib/close-lock-events.js';
 import { getQuality } from '../.agents/scripts/lib/config-resolver.js';
+import { COVERAGE_TIMEOUT_EXIT_CODE } from '../.agents/scripts/lib/coverage-capture.js';
 import { handleCoverageCaptureHelp } from '../.agents/scripts/lib/coverage-capture-usage.js';
 import { acquireSweepLock } from '../.agents/scripts/lib/single-story-sweep/sweep-lock.js';
 import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
@@ -908,6 +909,7 @@ describe('runCoverageCapture — own CRAP coverage source (Story #5717)', () => 
     scripts = ['test:coverage', 'test:coverage:py'],
     missingArtifacts = [],
     failScript = null,
+    failCode = 1,
     crap = OWN,
   } = {}) {
     const h = harness({ crap });
@@ -924,7 +926,7 @@ describe('runCoverageCapture — own CRAP coverage source (Story #5717)', () => 
     };
     h.deps.runCaptureImpl = (args) => {
       h.calls.capture.push(args);
-      return (args.script ?? 'test:coverage') === failScript ? 1 : 0;
+      return (args.script ?? 'test:coverage') === failScript ? failCode : 0;
     };
     // `abs` is native (backslashes on Windows); the fixture paths are posix.
     h.deps.coverageArtifactExistsImpl = (abs) =>
@@ -985,6 +987,30 @@ describe('runCoverageCapture — own CRAP coverage source (Story #5717)', () => 
     assert.equal(await runCoverageCapture(argv('--cwd', '/repo'), h.deps), 1);
     assert.equal(h.calls.capture.length, 1);
     assert.equal(h.calls.stamp.length, 0);
+    assert.match(h.log.error.join('\n'), /npm run test:coverage exited 1\./);
+  });
+
+  it('a failing CRAP pass names the configured captureScript, not test:coverage', async () => {
+    const h = ownHarness({ failScript: 'test:coverage:py' });
+    assert.equal(await runCoverageCapture(argv('--cwd', '/repo'), h.deps), 1);
+    const error = h.log.error.join('\n');
+    assert.match(error, /npm run test:coverage:py exited 1\./);
+    assert.doesNotMatch(error, /npm run test:coverage exited/);
+    assert.ok(
+      h.log.info.some((m) => /running npm run test:coverage:py…/.test(m)),
+    );
+  });
+
+  it('a timed-out CRAP pass names the configured captureScript', async () => {
+    const h = ownHarness({
+      failScript: 'test:coverage:py',
+      failCode: COVERAGE_TIMEOUT_EXIT_CODE,
+    });
+    assert.equal(
+      await runCoverageCapture(argv('--cwd', '/repo'), h.deps),
+      COVERAGE_TIMEOUT_EXIT_CODE,
+    );
+    assert.match(h.log.error.join('\n'), /npm run test:coverage:py timed out/);
   });
 
   it('AC-6: a repo whose only coverage script is the captureScript still captures', async () => {
