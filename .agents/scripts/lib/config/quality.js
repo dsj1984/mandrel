@@ -203,7 +203,7 @@ function artifactDir(relPath) {
  * @param {string} coverageGatePath
  * @returns {{ coveragePath: string, captureScript: string, ownCoverageSource: boolean }}
  */
-export function resolveCrapCoverageSource(userCrap, coverageGatePath) {
+function resolveCrapCoverageSource(userCrap, coverageGatePath) {
   const userPath = nonEmptyString(userCrap?.coveragePath);
   const captureScript =
     nonEmptyString(userCrap?.captureScript) ?? CRAP_GATE_DEFAULTS.captureScript;
