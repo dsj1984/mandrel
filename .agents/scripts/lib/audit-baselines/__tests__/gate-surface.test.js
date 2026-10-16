@@ -21,6 +21,7 @@ import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { getQuality, resolveConfig } from '../../config-resolver.js';
+import { IGNORED_DIRS } from '../../maintainability-utils.js';
 import { makeTempDir } from '../../test-temp.js';
 import { buildGateSurface } from '../gate-surface.js';
 import { GATE_KINDS } from '../kinds.js';
@@ -146,6 +147,94 @@ describe('dead ignoreGlobs', () => {
       gates: { crap: { targetDirs: ['src'] } },
     });
     assert.deepEqual(byKind.get('crap').deadIgnoreGlobs, []);
+  });
+});
+
+describe("dead ignoreGlobs — judged against each gate's own scanner walk (Story #5716)", () => {
+  const INSTALLED = [
+    ['src/a.js', 'export const a = 1;\n'],
+    ['src/node_modules/dep/index.js', 'module.exports = 1;\n'],
+  ];
+
+  it('never calls a duplication glob over an installed node_modules tree dead', () => {
+    const byKind = surfaceOf(makeFixture(INSTALLED), {
+      gates: {
+        duplication: {
+          targetDirs: ['src'],
+          ignoreGlobs: ['**/node_modules/**'],
+        },
+      },
+    });
+    const dup = byKind.get('duplication');
+    assert.deepEqual(dup.deadIgnoreGlobs, []);
+    assert.equal(dup.configured, true);
+    assert.equal(dup.stub, false);
+  });
+
+  it('never calls a duplication glob over an unbuilt dist tree dead', () => {
+    const byKind = surfaceOf(makeFixture([['src/a.js', 'export {};\n']]), {
+      gates: {
+        duplication: { targetDirs: ['src'], ignoreGlobs: ['**/dist/**'] },
+      },
+    });
+    assert.deepEqual(byKind.get('duplication').deadIgnoreGlobs, []);
+  });
+
+  for (const kind of ['crap', 'maintainability']) {
+    it(`still calls ${kind} globs on trees its scanner never walks dead`, () => {
+      const root = makeFixture([
+        ...INSTALLED,
+        ['src/dist/bundle.js', 'export {};\n'],
+      ]);
+      const byKind = surfaceOf(root, {
+        gates: {
+          [kind]: {
+            targetDirs: ['src'],
+            ignoreGlobs: ['**/node_modules/**', '**/dist/**'],
+          },
+        },
+      });
+      assert.deepEqual(byKind.get(kind).deadIgnoreGlobs, [
+        '**/node_modules/**',
+        '**/dist/**',
+      ]);
+    });
+  }
+
+  it("follows the scanner's own skip set, not a copy of it", () => {
+    // Every directory scanDirectory skips that the lens itself would walk:
+    // a file there exists on disk yet the CRAP scanner can never see it.
+    const scannerOnly = [...IGNORED_DIRS].filter(
+      (dir) => !['node_modules', '.git', '.worktrees'].includes(dir),
+    );
+    assert.ok(scannerOnly.length > 0);
+    const root = makeFixture(
+      scannerOnly.map((dir) => [`src/${dir}/x.js`, 'export {};\n']),
+    );
+    const globs = scannerOnly.map((dir) => `src/${dir}/x.js`);
+    const byKind = surfaceOf(root, {
+      gates: {
+        crap: { targetDirs: ['src'], ignoreGlobs: globs },
+        duplication: { targetDirs: ['src'], ignoreGlobs: globs },
+      },
+    });
+    assert.deepEqual(byKind.get('crap').deadIgnoreGlobs, globs);
+    assert.deepEqual(byKind.get('duplication').deadIgnoreGlobs, []);
+  });
+
+  it("judges a glob against its own gate's targetDirs, not another gate's", () => {
+    const root = makeFixture([
+      ['src/a.js', 'export const a = 1;\n'],
+      ['other/b.js', 'export const b = 2;\n'],
+    ]);
+    const byKind = surfaceOf(root, {
+      gates: {
+        crap: { targetDirs: ['src'], ignoreGlobs: ['other/**', 'src/a.js'] },
+        maintainability: { targetDirs: ['other'], ignoreGlobs: ['other/**'] },
+      },
+    });
+    assert.deepEqual(byKind.get('crap').deadIgnoreGlobs, ['other/**']);
+    assert.deepEqual(byKind.get('maintainability').deadIgnoreGlobs, []);
   });
 });
 

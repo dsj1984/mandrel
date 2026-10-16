@@ -33,10 +33,12 @@ export function readJsonFile(absolutePath) {
 /**
  * @param {string} repoRoot
  * @param {string} rootDir repo-relative directory to walk
+ * @param {Iterable<string>} [scannerSkip] directory names a gate's scanner
+ *   never descends into, skipped on top of the lens's own cost guard
  * @returns {string[]} sorted repo-relative posix paths
  */
-export function listFilesUnder(repoRoot, rootDir) {
-  const skip = new Set(['node_modules', '.git', '.worktrees']);
+export function listFilesUnder(repoRoot, rootDir, scannerSkip = []) {
+  const skip = new Set(['node_modules', '.git', '.worktrees', ...scannerSkip]);
   const out = [];
   const walk = (abs) => {
     let entries;

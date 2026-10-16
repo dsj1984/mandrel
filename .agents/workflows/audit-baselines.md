@@ -107,8 +107,13 @@ Two envelope-level reads come **before** any finding:
    - `baselineExists` is `false`, or `parseError` is non-null — the instrument
      cannot be read at all.
    - `deadIgnoreGlobs` is non-empty — a configured ignore pattern matches zero
-     files. It protects nothing today and silently exempts the next file that
-     happens to match it.
+     files that **its own gate's scanner walk** would visit: that gate's
+     `targetDirs`, minus the directories its scanner skips. It protects nothing
+     today and silently exempts the next file that happens to match it. A glob
+     aimed at a generated or installed tree (`node_modules`, `dist`, `build`,
+     `out`, `coverage`, `.next`) that the scanner would visit is never reported
+     dead — it is load-bearing after an install or build, even when the tree is
+     absent now.
 
    Grade a stub or unenforced gate **Medium**, a `parseError` on an enforced
    gate **High** (delivery reads that file every run), a dead glob **Low**.

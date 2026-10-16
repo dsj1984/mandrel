@@ -152,7 +152,7 @@
     },
     {
       "path": ".agents/scripts/lib/audit-baselines/gate-surface.js",
-      "mi": 104.863
+      "mi": 107.002
     },
     {
       "path": ".agents/scripts/lib/audit-baselines/headroom.js",
@@ -184,7 +184,7 @@
     },
     {
       "path": ".agents/scripts/lib/audit-baselines/surface-entry.js",
-      "mi": 107.021
+      "mi": 111.886
     },
     {
       "path": ".agents/scripts/lib/audit-baselines/trend.js",
