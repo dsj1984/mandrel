@@ -15177,6 +15177,19 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-capture.js",
+      "method": "digestGit",
+      "startLine": 127,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture.js",
+      "method": "<anon digestGit/(args)#0>",
+      "startLine": 128,
+      "crap": 5,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture.js",
       "method": "computeContentDigest",
       "startLine": 128,
       "crap": 3
@@ -15201,6 +15214,12 @@
       "startLine": 148,
       "crap": 1,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture.js",
+      "method": "warnDigestUnavailable",
+      "startLine": 148,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/coverage-capture.js",
