@@ -3970,6 +3970,12 @@
     },
     {
       "path": ".agents/scripts/lib/audit-baselines/gate-surface.js",
+      "method": "targetDirsOf",
+      "startLine": 19,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/audit-baselines/gate-surface.js",
       "method": "buildGateSurface",
       "startLine": 33,
       "crap": 1
@@ -3978,6 +3984,19 @@
       "path": ".agents/scripts/lib/audit-baselines/gate-surface.js",
       "method": "<anon buildGateSurface/(dir)#0>",
       "startLine": 34,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-baselines/gate-surface.js",
+      "method": "candidateFilesFor",
+      "startLine": 36,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-baselines/gate-surface.js",
+      "method": "<anon candidateFilesFor/(dir)#0>",
+      "startLine": 38,
       "crap": 1,
       "anonymous": true
     },
@@ -4292,9 +4311,54 @@
     },
     {
       "path": ".agents/scripts/lib/audit-baselines/surface-entry.js",
+      "method": "scannerSkipDirsFor",
+      "startLine": 55,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-baselines/surface-entry.js",
       "method": "surfaceEntryFor",
       "startLine": 59,
       "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/audit-baselines/surface-entry.js",
+      "method": "isLatentGlob",
+      "startLine": 83,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-baselines/surface-entry.js",
+      "method": "<anon isLatentGlob/(segment)#0>",
+      "startLine": 87,
+      "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-baselines/surface-entry.js",
+      "method": "isJudgeableGlob",
+      "startLine": 99,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/audit-baselines/surface-entry.js",
+      "method": "matchesNothing",
+      "startLine": 112,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-baselines/surface-entry.js",
+      "method": "<anon matchesNothing/(f)#0>",
+      "startLine": 114,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-baselines/surface-entry.js",
+      "method": "<anon findDeadIgnoreGlobs/(glob)#0>",
+      "startLine": 125,
+      "crap": 2,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/audit-baselines/trend.js",

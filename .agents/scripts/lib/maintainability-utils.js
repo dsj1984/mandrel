@@ -16,7 +16,12 @@ const MAINTAINABILITY_WORKER_URL = new URL(
 
 const SERIAL_THRESHOLD = POOL_SERIAL_THRESHOLD;
 
-const IGNORED_DIRS = new Set([
+/**
+ * Directory names `scanDirectory` never descends into — the CRAP and
+ * maintainability walk. Exported so the baseline-audit lens judges a dead
+ * `ignoreGlobs` entry against this exact walk instead of a copy of it.
+ */
+export const IGNORED_DIRS = new Set([
   'node_modules',
   '.git',
   'dist',
