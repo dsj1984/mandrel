@@ -491,11 +491,119 @@ describe('computeContentDigest', () => {
     assert.equal(
       computeContentDigest(FAKE_REPO, ['src'], {
         spawnSync: () => ({ status: 128, stdout: '', stderr: 'not a repo' }),
+        logger: { warn() {} },
       }),
       null,
     );
     assert.equal(computeContentDigest(FAKE_REPO, [], {}), null);
   });
+});
+
+// Story #5728 — a >1 MiB `git ls-files -s` listing overflowed Node's default
+// spawnSync buffer (ENOBUFS), both digests came back null, and every stamp
+// read `stale` forever.
+describe('digests survive a git listing larger than 1 MiB (Story #5728)', () => {
+  const MIB = 1024 * 1024;
+  const coveragePath = 'coverage/coverage-final.json';
+  const targetDirs = ['src'];
+  const bigListing = Array.from(
+    { length: 30000 },
+    (_, i) => `100644 ${String(i).padStart(40, '0')} 0\tsrc/file-${i}.js`,
+  ).join('\n');
+
+  /** Behaves like real spawnSync: ENOBUFS when stdout outgrows `maxBuffer`. */
+  const bufferedSpawn = (_cmd, args, opts = {}) => {
+    const stdout = args[0] === 'ls-files' ? bigListing : '';
+    const limit = opts.maxBuffer ?? MIB;
+    if (Buffer.byteLength(stdout) > limit) {
+      const error = Object.assign(new Error('spawnSync git ENOBUFS'), {
+        code: 'ENOBUFS',
+      });
+      return { status: null, stdout: '', stderr: '', error };
+    }
+    return { status: 0, stdout, stderr: '' };
+  };
+
+  let dir;
+  beforeEach(() => {
+    dir = makeTempDir('mandrel-big-listing-');
+    fs.mkdirSync(path.join(dir, 'coverage'), { recursive: true });
+    fs.writeFileSync(path.join(dir, coveragePath), '{}');
+  });
+  afterEach(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('the fixture listing really exceeds the 1 MiB default', () => {
+    assert.ok(Buffer.byteLength(bigListing) > MIB);
+  });
+
+  it('both digests are non-null and the stamp they write probes fresh', () => {
+    const io = { spawnSync: bufferedSpawn, logger: { warn() {} } };
+    const digest = computeContentDigest(dir, targetDirs, io);
+    const treeDigest = computeTreeDigest(dir, coveragePath, io);
+    assert.equal(typeof digest, 'string');
+    assert.equal(typeof treeDigest, 'string');
+
+    assert.equal(
+      writeCaptureStamp({ cwd: dir, coveragePath, digest, treeDigest }),
+      true,
+    );
+    const freshness = isCoverageFresh({
+      coveragePath,
+      targetDirs,
+      cwd: dir,
+      computeDigest: (cwd, dirs) => computeContentDigest(cwd, dirs, io),
+      computeTree: (cwd, cov) => computeTreeDigest(cwd, cov, io),
+    });
+    assert.deepEqual(freshness, { fresh: true, reason: 'fresh' });
+  });
+});
+
+describe('a swallowed digest git failure warns (Story #5728)', () => {
+  const enobufs = () => ({
+    status: null,
+    stdout: '',
+    error: Object.assign(new Error('spawnSync git ENOBUFS'), {
+      code: 'ENOBUFS',
+    }),
+  });
+  const capture = () => {
+    const warnings = [];
+    return { warnings, logger: { warn: (m) => warnings.push(m) } };
+  };
+
+  for (const [name, run] of [
+    [
+      'computeContentDigest',
+      (io) => computeContentDigest(FAKE_REPO, ['src'], io),
+    ],
+    [
+      'computeTreeDigest',
+      (io) => computeTreeDigest(FAKE_REPO, 'coverage/coverage-final.json', io),
+    ],
+  ]) {
+    it(`${name}: one warning naming the subcommand and error code, still null`, () => {
+      const { warnings, logger } = capture();
+      assert.equal(run({ spawnSync: enobufs, logger }), null);
+      assert.equal(warnings.length, 1);
+      assert.match(warnings[0], /^\[coverage-capture\] ⚠/);
+      assert.match(warnings[0], /git ls-files/);
+      assert.match(warnings[0], /ENOBUFS/);
+    });
+
+    it(`${name}: a non-zero git exit names the exit status`, () => {
+      const { warnings, logger } = capture();
+      const failing = (_cmd, args) =>
+        args[0] === 'status'
+          ? { status: 128, stdout: '', stderr: 'fatal' }
+          : { status: 0, stdout: '100644 aaa 0\tsrc/a.js\n', stderr: '' };
+      assert.equal(run({ spawnSync: failing, logger }), null);
+      assert.equal(warnings.length, 1);
+      assert.match(warnings[0], /git status/);
+      assert.match(warnings[0], /exit 128/);
+    });
+  }
 });
 
 describe('describeFreshness (Story #5076)', () => {

@@ -171,12 +171,6 @@
       "percentage": 17.56
     },
     {
-      "path": ".agents/scripts/lib/coverage-capture.js",
-      "duplicatedLines": 24,
-      "totalLines": 667,
-      "percentage": 3.6
-    },
-    {
       "path": ".agents/scripts/lib/crap-baseline-join.js",
       "duplicatedLines": 13,
       "totalLines": 202,
