@@ -7,10 +7,13 @@
  */
 
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { rmSync } from 'node:fs';
+import { afterEach, beforeEach, describe, it } from 'node:test';
 
+import { defaultGateRunner } from '../../../.agents/scripts/lib/close-validation/process.js';
 import { runCloseValidation } from '../../../.agents/scripts/lib/close-validation/runner.js';
 import { runCloseValidationPhase } from '../../../.agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js';
+import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
 
 const FAILING_TESTS_HINT =
   'Coverage capture failed — `npm run test:coverage` exited non-zero. Fix failing tests or coverage-threshold breaches, then re-run close.';
@@ -121,5 +124,45 @@ describe('gate exit outcomes — the close phase settles them', () => {
       assert.doesNotMatch(err.message, /Fix failing tests/);
       return true;
     });
+  });
+});
+
+describe('gate children resolve config from their cwd (#5729)', () => {
+  const PRINT_AGENTRC_CWD = [
+    '-e',
+    'process.stdout.write(String(process.env.AP_AGENTRC_CWD))',
+  ];
+
+  async function spawnedAgentrcCwd(opts) {
+    const lines = [];
+    const { status } = await defaultGateRunner(
+      process.execPath,
+      PRINT_AGENTRC_CWD,
+      { ...opts, log: (m) => lines.push(m) },
+    );
+    assert.equal(status, 0);
+    return lines.join('\n');
+  }
+
+  let cwd;
+  let inherited;
+  beforeEach(() => {
+    cwd = makeTempDir('mandrel-gate-env-');
+    inherited = process.env.AP_AGENTRC_CWD;
+    process.env.AP_AGENTRC_CWD = '/main-checkout';
+  });
+  afterEach(() => {
+    if (inherited === undefined) delete process.env.AP_AGENTRC_CWD;
+    else process.env.AP_AGENTRC_CWD = inherited;
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  it('AC-2: a gate spawned with no supervision env gets AP_AGENTRC_CWD = its cwd', async () => {
+    assert.equal(await spawnedAgentrcCwd({ cwd }), cwd);
+  });
+
+  it('AC-2: a supplied env cannot override the cwd pin', async () => {
+    const env = { AP_AGENTRC_CWD: '/elsewhere', GATE_ONLY: '1' };
+    assert.equal(await spawnedAgentrcCwd({ cwd, env }), cwd);
   });
 });

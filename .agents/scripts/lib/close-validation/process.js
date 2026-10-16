@@ -153,6 +153,10 @@ function spawnGate(cmd, args, opts, lock) {
 }
 
 /**
+ * The child always gets an env: `AP_AGENTRC_CWD` is pinned to `cwd` (layered
+ * last) so every gate and its `npm run` grandchildren resolve the worktree's
+ * `.agentrc.json`, not the config of the checkout holding the scripts.
+ *
  * @param {string} cmd
  * @param {string[]} args
  * @param {string} cwd
@@ -164,7 +168,7 @@ function spawnGateChild(cmd, args, cwd, env) {
     shell: process.platform === 'win32',
     stdio: ['ignore', 'pipe', 'pipe'],
     ...groupSpawnOptions(),
-    ...(env ? { env: { ...process.env, ...env } } : {}),
+    env: { ...process.env, ...env, AP_AGENTRC_CWD: cwd },
   });
 }
 
