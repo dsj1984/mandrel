@@ -3,11 +3,12 @@
  * reads it: the scorer skips uncovered methods, so a stale artifact silently
  * weakens the gate.
  */
-import { spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnChild } from './child-exec.js';
 import { LOCK_WAIT_EXPIRED_EXIT_CODE } from './full-suite-lock.js';
+import { Logger } from './Logger.js';
 import { TIMEOUT_EXIT_CODE } from './process-group.js';
 import {
   isScorableSourceFile,
@@ -115,6 +116,45 @@ function foldDirtySources({
 }
 
 /**
+ * A digest's git runner, through `spawnChild` so a repo whose index listing
+ * outgrows Node's 1 MiB default buffer still digests (no ENOBUFS). A failure
+ * throws an error tagged with the subcommand, for the warning.
+ *
+ * @param {string} cwd
+ * @param {{ spawnSync?: Function }} io `io.spawnSync` is the test seam.
+ * @returns {(...args: string[]) => string}
+ */
+function digestGit(cwd, io) {
+  return (...args) => {
+    const res = spawnChild('git', args, { cwd, run: io.spawnSync });
+    if (res?.error || res?.status !== 0) {
+      const err =
+        res?.error ?? new Error(res?.stderr || `git ${args[0]} failed`);
+      err.gitSubcommand = args[0];
+      if (err.code === undefined) err.code = `exit ${res?.status}`;
+      throw err;
+    }
+    return res.stdout ?? '';
+  };
+}
+
+/**
+ * No digest never matches, so an unfreshable stamp is announced, not silent.
+ *
+ * @param {Error & { gitSubcommand?: string, code?: string }} err
+ * @param {{ logger?: { warn: Function } }} io
+ * @returns {null}
+ */
+function warnDigestUnavailable(err, io) {
+  const logger = io.logger ?? Logger;
+  const subcommand = err?.gitSubcommand ?? 'digest';
+  logger.warn(
+    `[coverage-capture] ⚠ git ${subcommand} failed (${err?.code ?? 'unknown'}); digest unavailable, stamp cannot read fresh.`,
+  );
+  return null;
+}
+
+/**
  * Digest of the scorable sources under `targetDirs`: `git ls-files -s` of
  * tracked content plus dirty files' bytes, so it moves only on content change.
  * `null` means unavailable (no git, no dirs, or zero matching files — a hash
@@ -122,24 +162,17 @@ function foldDirtySources({
  *
  * @param {string} cwd Absolute repo root.
  * @param {string[]} targetDirs Repo-relative directories to digest.
- * @param {{ spawnSync?: typeof spawnSync, readFileSync?: typeof fs.readFileSync }} [io]
+ * @param {{ spawnSync?: Function, readFileSync?: typeof fs.readFileSync, logger?: { warn: Function } }} [io]
  * @returns {string | null} Hex SHA-256 digest, or null when unavailable.
  */
 export function computeContentDigest(cwd, targetDirs, io = {}) {
-  const spawn = io.spawnSync ?? spawnSync;
   const readFileSync = io.readFileSync ?? fs.readFileSync;
   const dirs = (targetDirs ?? []).filter(
     (d) => typeof d === 'string' && d.length > 0,
   );
   if (dirs.length === 0) return null;
 
-  const git = (...args) => {
-    const res = spawn('git', args, { cwd, encoding: 'utf8' });
-    if (res?.error || res?.status !== 0) {
-      throw res?.error ?? new Error(res?.stderr || `git ${args[0]} failed`);
-    }
-    return res.stdout ?? '';
-  };
+  const git = digestGit(cwd, io);
 
   try {
     const hash = crypto.createHash('sha256');
@@ -156,8 +189,8 @@ export function computeContentDigest(cwd, targetDirs, io = {}) {
     });
     if (tracked.length + scorableDirty === 0) return null;
     return hash.digest('hex');
-  } catch {
-    return null;
+  } catch (err) {
+    return warnDigestUnavailable(err, io);
   }
 }
 
@@ -197,24 +230,17 @@ export function filterSuiteInputPaths(files, coveragePath = null) {
  *
  * @param {string} cwd
  * @param {string} coveragePath
- * @param {{ spawnSync?: typeof spawnSync, readFileSync?: typeof fs.readFileSync }} [io]
+ * @param {{ spawnSync?: Function, readFileSync?: typeof fs.readFileSync, logger?: { warn: Function } }} [io]
  * @returns {string | null}
  */
 export function computeTreeDigest(cwd, coveragePath, io = {}) {
-  const spawn = io.spawnSync ?? spawnSync;
   const readFileSync = io.readFileSync ?? fs.readFileSync;
   const pathspec = [
     '--',
     '.',
     ...suiteDigestExcludedDirs(coveragePath).map((dir) => `:(exclude)${dir}`),
   ];
-  const git = (...args) => {
-    const res = spawn('git', args, { cwd, encoding: 'utf8' });
-    if (res?.error || res?.status !== 0) {
-      throw res?.error ?? new Error(res?.stderr || `git ${args[0]} failed`);
-    }
-    return res.stdout ?? '';
-  };
+  const git = digestGit(cwd, io);
   try {
     const hash = crypto.createHash('sha256');
     hash.update(git('ls-files', '-s', ...pathspec));
@@ -231,8 +257,8 @@ export function computeTreeDigest(cwd, coveragePath, io = {}) {
       select: () => true,
     });
     return hash.digest('hex');
-  } catch {
-    return null;
+  } catch (err) {
+    return warnDigestUnavailable(err, io);
   }
 }
 
