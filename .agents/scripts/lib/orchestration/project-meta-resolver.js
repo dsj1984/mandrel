@@ -5,6 +5,14 @@
  * `projectV2 { … }` selection body as `projectFields`.
  */
 
+import {
+  isProjectAccessFailure,
+  ProjectAccessError,
+  toProjectAccessError,
+} from './board-access-latch.js';
+
+export { ProjectAccessError };
+
 /**
  * Priority order. `viewer` (the ambient identity) is last so a configured
  * owner always wins.
@@ -42,8 +50,36 @@ function buildScopedQuery(scope, projectFields) {
 }
 
 /**
- * The first non-null `projectV2` node down the ladder; a throwing or null
- * rung is a miss. With no `owner`, only `viewer` is tried.
+ * One rung's `projectV2` node, or null for a miss. An owner miss (NOT_FOUND)
+ * and any other non-access error advance the ladder; a scope or auth refusal
+ * is raised as a `ProjectAccessError`.
+ */
+async function queryRung(
+  provider,
+  scope,
+  { owner, projectNumber, projectFields },
+) {
+  const vars = scope.needsOwner
+    ? { owner, number: projectNumber }
+    : { number: projectNumber };
+  try {
+    const data = await provider.graphql(
+      buildScopedQuery(scope, projectFields),
+      vars,
+    );
+    return data?.[scope.root]?.projectV2 ?? null;
+  } catch (err) {
+    if (isProjectAccessFailure(err)) throw toProjectAccessError(err);
+    return null;
+  }
+}
+
+/**
+ * The first non-null `projectV2` node down the ladder. A null rung or an
+ * owner miss (NOT_FOUND — expected on two of three rungs) advances; a scope
+ * or auth refusal is identical on every rung, so it fails fast as a
+ * `ProjectAccessError` instead of being hidden by the ladder. With no
+ * `owner`, only `viewer` is tried.
  *
  * @param {{
  *   provider: { graphql: Function },
@@ -52,6 +88,7 @@ function buildScopedQuery(scope, projectFields) {
  *   projectFields: string,
  * }} args
  * @returns {Promise<object|null>} the resolved `projectV2` node, or null.
+ * @throws {ProjectAccessError} when the token cannot read the board.
  */
 export async function resolveProjectMeta(args) {
   const { provider, owner, projectNumber, projectFields } = args ?? {};
@@ -66,21 +103,11 @@ export async function resolveProjectMeta(args) {
 
   for (const scope of OWNER_SCOPES) {
     if (scope.needsOwner && !owner) continue;
-
-    const query = buildScopedQuery(scope, projectFields);
-    const vars = scope.needsOwner
-      ? { owner, number: projectNumber }
-      : { number: projectNumber };
-
-    let data;
-    try {
-      data = await provider.graphql(query, vars);
-    } catch {
-      // Wrong owner type (NOT_FOUND) etc. — advance the ladder.
-      continue;
-    }
-
-    const node = data?.[scope.root]?.projectV2;
+    const node = await queryRung(provider, scope, {
+      owner,
+      projectNumber,
+      projectFields,
+    });
     if (node) return node;
   }
 

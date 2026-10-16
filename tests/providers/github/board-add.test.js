@@ -107,4 +107,22 @@ describe('providers/github/board-add.js — addIssueToBoard', () => {
     });
     assert.deepEqual(out, { added: false, reason: 'error' });
   });
+
+  it('reports insufficient-scope (never throws) for a scope-shaped add failure', async () => {
+    const out = await addIssueToBoard({
+      nodeId: 'node_42',
+      issueNumber: 42,
+      getProjectNumber: () => 1,
+      addItemToProject: async () => {
+        throw new Error(
+          'GraphQL errors: [{"type":"INSUFFICIENT_SCOPES","message":"Your token has not been granted the required scopes to execute this query."}]',
+        );
+      },
+    });
+    assert.deepEqual(out, {
+      added: false,
+      reason: 'insufficient-scope',
+      scope: 'project',
+    });
+  });
 });

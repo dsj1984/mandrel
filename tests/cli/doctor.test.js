@@ -672,3 +672,125 @@ describe('runDoctor — merge-driver reports a broken driver, not just a missing
     fs.rmSync(cwd, { recursive: true, force: true });
   });
 });
+
+// ---------------------------------------------------------------------------
+// github-project-access: a token that cannot read the board fails the run
+// (Story #5727)
+// ---------------------------------------------------------------------------
+
+describe('runDoctor — github-project-access', () => {
+  const entry = registry.find((c) => c.name === 'github-project-access');
+
+  /** A project root whose `.agentrc.json` carries the given `github` block. */
+  function projectWith(github) {
+    const dir = makeTempDir('mandrel-doctor-board-');
+    fs.writeFileSync(
+      path.join(dir, '.agentrc.json'),
+      JSON.stringify({ github }),
+    );
+    return dir;
+  }
+
+  async function drive(cwd, runner) {
+    const cap = makeCapture();
+    await runDoctor({
+      checks: [
+        {
+          name: entry.name,
+          run: () => entry.run({ cwd: () => cwd, runner }),
+        },
+      ],
+      write: cap.write,
+      exit: cap.exit,
+      writeResultCache: () => {},
+    });
+    fs.rmSync(cwd, { recursive: true, force: true });
+    return { exitCode: cap.exitCode, text: cap.lines.join('') };
+  }
+
+  it('is registered directly after gh-auth', () => {
+    const names = registry.map((c) => c.name);
+    assert.equal(
+      names.indexOf('github-project-access'),
+      names.indexOf('gh-auth') + 1,
+    );
+  });
+
+  it('fails with the gh auth refresh remedy when the token lacks the project scope', async () => {
+    const calls = [];
+    const { exitCode, text } = await drive(
+      projectWith({ owner: 'acme', projectNumber: 7 }),
+      (_cmd, args) => {
+        calls.push(args);
+        return {
+          status: 1,
+          stdout:
+            '{"errors":[{"type":"INSUFFICIENT_SCOPES","message":"Your token has not been granted the required scopes to execute this query."}]}',
+          stderr: 'gh: Your token has not been granted the required scopes',
+        };
+      },
+    );
+    assert.equal(exitCode, 1);
+    assert.match(text, /github-project-access/);
+    assert.match(text, /"project" scope/);
+    assert.match(text, /→.*gh auth refresh -h github\.com -s project/s);
+    assert.equal(calls.length, 1, 'a scope failure stops the ladder');
+    assert.ok(calls[0].some((a) => /organization\(login/.test(a)));
+  });
+
+  it('reports skipped when no board is configured', async () => {
+    let ran = false;
+    const { exitCode, text } = await drive(
+      projectWith({ owner: 'acme' }),
+      () => {
+        ran = true;
+        return { status: 0, stdout: '', stderr: '' };
+      },
+    );
+    assert.notEqual(exitCode, 1);
+    assert.match(text, /skipped — no github\.projectNumber configured/);
+    assert.equal(ran, false);
+  });
+
+  it('falls from organization to user and passes when the board resolves', async () => {
+    const { exitCode, text } = await drive(
+      projectWith({ owner: 'a-user', projectNumber: 3 }),
+      (_cmd, args) =>
+        args.some((a) => /organization\(login/.test(a))
+          ? {
+              status: 1,
+              stdout:
+                '{"data":{"organization":null},"errors":[{"type":"NOT_FOUND"}]}',
+              stderr: '',
+            }
+          : {
+              status: 0,
+              stdout: '{"data":{"user":{"projectV2":{"id":"P"}}}}',
+              stderr: '',
+            },
+    );
+    assert.notEqual(exitCode, 1);
+    assert.match(text, /project #3 for a-user readable/);
+  });
+
+  it('defers to gh-available / gh-auth when gh cannot run', async () => {
+    const enoent = Object.assign(new Error('spawn gh ENOENT'), {
+      code: 'ENOENT',
+    });
+    const { exitCode, text } = await drive(
+      projectWith({ owner: 'acme', projectNumber: 7 }),
+      () => ({ status: null, stdout: '', stderr: '', error: enoent }),
+    );
+    assert.notEqual(exitCode, 1);
+    assert.match(text, /see gh-auth/);
+  });
+
+  it('fails when the configured board is found on no rung', async () => {
+    const { exitCode, text } = await drive(
+      projectWith({ projectNumber: 9 }),
+      () => ({ status: 0, stdout: '{"data":{"viewer":null}}', stderr: '' }),
+    );
+    assert.equal(exitCode, 1);
+    assert.match(text, /project #9 not found/);
+  });
+});
