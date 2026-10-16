@@ -92,20 +92,39 @@ function isLatentGlob(glob, scannerSkipDirs) {
 }
 
 /**
+ * @param {unknown} glob
+ * @param {ReadonlySet<string>} scannerSkipDirs
+ * @returns {boolean} a non-empty, non-latent glob string
+ */
+function isJudgeableGlob(glob, scannerSkipDirs) {
+  return (
+    typeof glob === 'string' &&
+    glob.length > 0 &&
+    !isLatentGlob(glob, scannerSkipDirs)
+  );
+}
+
+/**
+ * @param {string} glob
+ * @param {string[]} files
+ * @returns {boolean}
+ */
+function matchesNothing(glob, files) {
+  const isMatch = picomatch(glob, { dot: true });
+  return !files.some((f) => isMatch(f));
+}
+
+/**
  * @param {string[]} ignoreGlobs
  * @param {string[]} files repo-relative posix paths the gate's scanner walks
  * @param {ReadonlySet<string>} scannerSkipDirs
  * @returns {string[]} non-latent globs matching zero files
  */
 function findDeadIgnoreGlobs(ignoreGlobs, files, scannerSkipDirs) {
-  const dead = [];
-  for (const glob of ignoreGlobs ?? []) {
-    if (typeof glob !== 'string' || glob.length === 0) continue;
-    if (isLatentGlob(glob, scannerSkipDirs)) continue;
-    const isMatch = picomatch(glob, { dot: true });
-    if (!files.some((f) => isMatch(f))) dead.push(glob);
-  }
-  return dead;
+  return (ignoreGlobs ?? []).filter(
+    (glob) =>
+      isJudgeableGlob(glob, scannerSkipDirs) && matchesNothing(glob, files),
+  );
 }
 
 /**
