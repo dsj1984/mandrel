@@ -6,6 +6,7 @@
  */
 
 import picomatch from 'picomatch';
+import { IGNORED_DIRS } from '../maintainability-utils.js';
 import { GATE_KINDS, KIND_SPECS, measuredTotalOf, rollupOf } from './kinds.js';
 import { stalenessOf } from './staleness.js';
 
@@ -33,14 +34,74 @@ function isStubInstrument({ rowCount, rollup }) {
 }
 
 /**
- * @param {string[]} ignoreGlobs
- * @param {string[]} files repo-relative posix paths
- * @returns {string[]} globs matching zero files
+ * Directory names each gate's own scanner never descends into. CRAP and
+ * maintainability share the `scanDirectory` walk; duplication runs jscpd with
+ * `gitignore: false` over its `targetDirs`, so it skips nothing. A kind absent
+ * here declares no `ignoreGlobs` and skips nothing.
+ *
+ * @type {Readonly<Record<string, ReadonlySet<string>>>}
  */
-function findDeadIgnoreGlobs(ignoreGlobs, files) {
+const SCANNER_SKIP_DIRS = Object.freeze({
+  crap: IGNORED_DIRS,
+  maintainability: IGNORED_DIRS,
+});
+
+const NO_SKIP = new Set();
+
+/**
+ * @param {string} kind
+ * @returns {ReadonlySet<string>}
+ */
+export function scannerSkipDirsFor(kind) {
+  return SCANNER_SKIP_DIRS[kind] ?? NO_SKIP;
+}
+
+/**
+ * Generated or installed trees: absent from a fresh checkout, present after an
+ * install or build. A glob aimed at one is load-bearing whenever the gate's
+ * scanner would descend there, whatever is on disk today.
+ */
+const GENERATED_TREE_DIRS = new Set([
+  'node_modules',
+  'dist',
+  'build',
+  'out',
+  'coverage',
+  '.next',
+]);
+
+const GLOB_META = /[*?[\]{}()!+@]/;
+
+/**
+ * A glob is latent when one of its literal segments names a generated tree the
+ * scanner would walk into, so an empty match today is not evidence of death.
+ *
+ * @param {string} glob
+ * @param {ReadonlySet<string>} scannerSkipDirs
+ * @returns {boolean}
+ */
+function isLatentGlob(glob, scannerSkipDirs) {
+  return glob
+    .split('/')
+    .some(
+      (segment) =>
+        !GLOB_META.test(segment) &&
+        GENERATED_TREE_DIRS.has(segment) &&
+        !scannerSkipDirs.has(segment),
+    );
+}
+
+/**
+ * @param {string[]} ignoreGlobs
+ * @param {string[]} files repo-relative posix paths the gate's scanner walks
+ * @param {ReadonlySet<string>} scannerSkipDirs
+ * @returns {string[]} non-latent globs matching zero files
+ */
+function findDeadIgnoreGlobs(ignoreGlobs, files, scannerSkipDirs) {
   const dead = [];
   for (const glob of ignoreGlobs ?? []) {
     if (typeof glob !== 'string' || glob.length === 0) continue;
+    if (isLatentGlob(glob, scannerSkipDirs)) continue;
     const isMatch = picomatch(glob, { dot: true });
     if (!files.some((f) => isMatch(f))) dead.push(glob);
   }
@@ -79,7 +140,11 @@ export function surfaceEntryFor({
     rowCount: rows.length,
     measured: measuredTotalOf(kind, baseline),
     ...stalenessOf({ kind, gateBlock, rows, relPath, baseline, now, io }),
-    deadIgnoreGlobs: findDeadIgnoreGlobs(gateBlock?.ignoreGlobs, files),
+    deadIgnoreGlobs: findDeadIgnoreGlobs(
+      gateBlock?.ignoreGlobs,
+      files,
+      scannerSkipDirsFor(kind),
+    ),
     parseError,
   };
 }
