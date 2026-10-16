@@ -15,6 +15,19 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.89.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.88.0...mandrel-v2.89.0) (2026-10-16)
+
+
+### Added
+
+* CRAP gate: own coverage source (crap.coveragePath + crap.captureScript) honored by seat, capture, preview and updater ([#5717](https://github.com/dsj1984/mandrel/issues/5717)) ([#5719](https://github.com/dsj1984/mandrel/issues/5719)) ([2912ae0](https://github.com/dsj1984/mandrel/commit/2912ae07ae488b171f005e69cab16d2dab473d6c))
+
+
+### Fixed
+
+* audit-baselines: judge dead ignoreGlobs against each gate's own scanner walk, not the lens's ([#5716](https://github.com/dsj1984/mandrel/issues/5716)) ([#5718](https://github.com/dsj1984/mandrel/issues/5718)) ([9d00bb1](https://github.com/dsj1984/mandrel/commit/9d00bb1f25a1e6b4745ea9efcf260d9ed09f8ae9))
+* coverage-capture failure and timeout messages, and the close coverage-c… ([#5721](https://github.com/dsj1984/mandrel/issues/5721)) ([#5722](https://github.com/dsj1984/mandrel/issues/5722)) ([dbf1ac8](https://github.com/dsj1984/mandrel/commit/dbf1ac855a19206a179ebdc664e4fe4f4c6c4f56))
+
 ## [2.88.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.87.0...mandrel-v2.88.0) (2026-10-15)
 
 
