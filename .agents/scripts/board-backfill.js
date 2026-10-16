@@ -230,7 +230,7 @@ export async function main(argv = process.argv.slice(2)) {
       config,
       dryRun: values['dry-run'],
     });
-    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify(result)}\n`);
   } catch (err) {
     if (err instanceof ProjectAccessError) {
       process.stderr.write(
