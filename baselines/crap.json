@@ -14325,6 +14325,12 @@
     },
     {
       "path": ".agents/scripts/lib/config/git-roots.js",
+      "method": "nativeReal",
+      "startLine": 55,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/config/git-roots.js",
       "method": "overlayRoot",
       "startLine": 60,
       "crap": 3
@@ -14334,6 +14340,12 @@
       "method": "_clearGitRootCaches",
       "startLine": 64,
       "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/config/git-roots.js",
+      "method": "canonical",
+      "startLine": 64,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/config/git-roots.js",
