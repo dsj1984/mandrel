@@ -1834,6 +1834,18 @@
     },
     {
       "path": ".agents/scripts/check-dead-exports.js",
+      "method": "writeTextReport",
+      "startLine": 172,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/check-dead-exports.js",
+      "method": "gateExitCode",
+      "startLine": 173,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/check-dead-exports.js",
       "method": "main",
       "startLine": 199,
       "crap": 2
@@ -16002,6 +16014,18 @@
     },
     {
       "path": ".agents/scripts/lib/dead-exports-knip.js",
+      "method": "interpretKnipResult",
+      "startLine": 43,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/dead-exports-knip.js",
+      "method": "parseKnipStdout",
+      "startLine": 56,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/dead-exports-knip.js",
       "method": "readKnipOutput",
       "startLine": 57,
       "crap": 1
@@ -20030,6 +20054,12 @@
       "method": "toProjectAccessError",
       "startLine": 64,
       "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/board-access-latch.js",
+      "method": "resetBoardAccessLatch",
+      "startLine": 81,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/board-access-latch.js",
@@ -39402,6 +39432,27 @@
       "method": "<anon gql/()#0>",
       "startLine": 42,
       "crap": 3.0059176460918877,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
+      "method": "<anon (err,re)#0>",
+      "startLine": 45,
+      "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
+      "method": "<anon (err,re)#0/(text)#0>",
+      "startLine": 48,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
+      "method": "<anon (err,re)#0/(text)#1>",
+      "startLine": 51,
+      "crap": 1,
       "anonymous": true
     },
     {

@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { afterEach, beforeEach, describe, it } from 'node:test';
+import { classify } from '../../../.agents/scripts/lib/gh-exec.js';
 import { Logger } from '../../../.agents/scripts/lib/Logger.js';
+import { resetBoardAccessLatch } from '../../../.agents/scripts/lib/orchestration/board-access-latch.js';
 import {
   ColumnSync,
   columnForLabels,
@@ -833,6 +835,7 @@ describe('ColumnSync — insufficient project scope (Story #5727)', () => {
   });
 
   it('emits exactly one warning across many board adds and Status flips in one process', async (t) => {
+    resetBoardAccessLatch();
     const warned = [];
     t.mock.method(Logger, 'warn', (m) => warned.push(String(m)));
     const provider = scopeFailingProvider();
@@ -868,5 +871,69 @@ describe('ColumnSync — insufficient project scope (Story #5727)', () => {
     assert.equal(warned.length, 1, warned.join('\n'));
     assert.match(warned[0], /"project" scope/);
     assert.match(warned[0], /gh auth refresh -h github\.com -s project/);
+  });
+});
+
+// Story #5735 — the live path runs `gh api graphql`, so the refusal arrives
+// as a gh-exec classified error: generic message, scope text in stderr.
+describe('ColumnSync — gh-exec scope refusal (Story #5735)', () => {
+  const ghScopeError = () =>
+    classify({
+      args: ['api', 'graphql'],
+      stdout: '',
+      stderr:
+        'gh: Your token has not been granted the required scopes to execute this query. (INSUFFICIENT_SCOPES)\n',
+      code: 1,
+    });
+
+  function ghScopeFailingProvider() {
+    const calls = [];
+    return {
+      calls,
+      projectNumber: 42,
+      owner: 'acme',
+      repo: 'widgets',
+      async graphql(query) {
+        calls.push(query);
+        throw ghScopeError();
+      },
+    };
+  }
+
+  it('reports failed / insufficient-scope and warns exactly once per logger', async () => {
+    resetBoardAccessLatch();
+    const provider = ghScopeFailingProvider();
+    const warned = [];
+    const logger = { info() {}, warn: (m) => warned.push(m) };
+    const first = makeSync({ provider, logger });
+    const second = makeSync({ provider, logger });
+    const results = [
+      await first.sync(1, ['agent::executing']),
+      await first.sync(1, ['agent::done']),
+      await second.sync(2, ['agent::ready']),
+    ];
+    for (const res of results) {
+      assert.deepEqual(res, {
+        status: 'failed',
+        reason: 'insufficient-scope',
+        scope: 'project',
+      });
+    }
+    assert.equal(warned.length, 1, warned.join('\n'));
+    assert.match(warned[0], /gh auth refresh -h github\.com -s project/);
+    // One rung per ColumnSync — the refusal fails fast, never ladders.
+    assert.equal(provider.calls.length, 2);
+  });
+
+  it('reports insufficient-scope when the gh Status mutation is refused', async () => {
+    const provider = providerWithProject();
+    const base = provider.graphql.bind(provider);
+    provider.graphql = async (query, vars) => {
+      if (query.includes('updateProjectV2ItemFieldValue')) throw ghScopeError();
+      return base(query, vars);
+    };
+    const sync = makeSync({ provider, logger: { info() {}, warn() {} } });
+    const res = await sync.setColumn(5, 'Done');
+    assert.equal(res.reason, 'insufficient-scope');
   });
 });
