@@ -5,43 +5,77 @@
  * @module lib/dead-exports-knip
  */
 
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import process from 'node:process';
+import { spawnChild } from './child-exec.js';
+
+/** Knip's own exit codes: 0 = clean, 1 = issues reported; anything else is an error. */
+const KNIP_MAX_ISSUE_STATUS = 1;
 
 /**
- * Never throws; on error the caller treats current rows as empty, which
- * surfaces every baseline row as removed — loud but safe.
+ * Never throws; a failure comes back as `{ ok: false, error }` and the
+ * gate fails closed on it (exit 2) rather than scoring an empty row set.
+ *
+ * Spawns through `child-exec.js`, so knip's JSON report rides the shared
+ * 64 MiB stdout ceiling instead of Node's 1 MiB default (which kills the
+ * child with ENOBUFS on a large repository). `spawn` is the injected run
+ * seam *inside* that wrapper, so a fake still runs under the ceiling.
  *
  * `production` requires the `!`-suffixed entry patterns in `knip.json`
  * (test globs deliberately lack it, so test-only exports read as dead);
  * without them production mode silently reports nothing.
  *
- * @param {{ cwd?: string, spawn?: typeof spawnSync, production?: boolean }} [opts]
+ * @param {{ cwd?: string, spawn?: Function, production?: boolean }} [opts]
  * @returns {{ ok: true, envelope: unknown } | { ok: false, error: string }}
  */
 export function runKnip({
   cwd = process.cwd(),
-  spawn = spawnSync,
+  spawn,
   production = false,
 } = {}) {
   const args = ['knip', '--reporter', 'json', '--no-progress'];
   if (production) args.push('--production');
-  const result = spawn(process.platform === 'win32' ? 'npx.cmd' : 'npx', args, {
+  const isWindows = process.platform === 'win32';
+  const result = spawnChild(isWindows ? 'npx.cmd' : 'npx', args, {
     cwd,
     stdio: ['ignore', 'pipe', 'pipe'],
-    encoding: 'utf-8',
-    shell: process.platform === 'win32',
+    shell: isWindows,
+    run: spawn,
   });
+  return interpretKnipResult(result);
+}
+
+/**
+ * A spawn error (ENOBUFS included) or a status above 1 is a failure; knip
+ * itself exits 1 when it reports issues, so that status still parses.
+ *
+ * @param {{ error?: Error, status?: number|null, stdout?: unknown, stderr?: unknown }} result
+ * @returns {{ ok: true, envelope: unknown } | { ok: false, error: string }}
+ */
+function interpretKnipResult(result) {
   if (result.error) {
     return { ok: false, error: `spawn failed: ${result.error.message}` };
   }
-  const stdout = typeof result.stdout === 'string' ? result.stdout : '';
-  if (stdout.trim().length === 0) {
+  if (result.status > KNIP_MAX_ISSUE_STATUS) {
+    return {
+      ok: false,
+      error: `knip exited ${result.status}: ${String(result.stderr ?? '').trim()}`,
+    };
+  }
+  return parseKnipStdout(result.stdout);
+}
+
+/**
+ * @param {unknown} stdout
+ * @returns {{ ok: true, envelope: unknown } | { ok: false, error: string }}
+ */
+function parseKnipStdout(stdout) {
+  const text = typeof stdout === 'string' ? stdout : '';
+  if (text.trim().length === 0) {
     return { ok: false, error: 'knip produced empty stdout' };
   }
   try {
-    return { ok: true, envelope: JSON.parse(stdout) };
+    return { ok: true, envelope: JSON.parse(text) };
   } catch (err) {
     return {
       ok: false,

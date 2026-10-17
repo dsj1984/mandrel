@@ -1,9 +1,10 @@
 /**
  * CLI: ratchet-down dead-export gate built on knip. Diffs knip's unused
  * exports — plus a `{ file, symbol: '*' }` row per module nothing imports —
- * against `baselines/dead-exports.json` by `(file, symbol)`. Exit 1 only on an
- * added row; a knip spawn/parse failure is advisory (exit 0 + warning) so a
- * broken knip cannot block CI.
+ * against `baselines/dead-exports.json` by `(file, symbol)`. Exit 1 on an
+ * added row; exit 2 when knip could not produce a report (spawn error,
+ * overflow, error exit, empty or unparseable output) — fail closed, since a
+ * green exit with zero rows would silently drop the gate's protection.
  *
  * `--production` discounts test-only importers (production-dead code hides
  * behind its own tests) and uses its own baseline — see
@@ -67,19 +68,25 @@ export function diffRows(baselineRows, currentRows) {
   };
 }
 
+/** Exit codes: clean, new dead exports, no knip report. */
+const EXIT = Object.freeze({ CLEAN: 0, ADDED: 1, KNIP_FAILED: 2 });
+
 /**
  * `+`/`-` rows then a summary line. `label` tells the two back-to-back passes
- * apart in CI logs.
+ * apart in CI logs. A `knipError` renders as a `!` line and fails the gate.
  *
  * @param {{ added: Array, removed: Array }} diff
  * @param {string} [label='dead-exports']
+ * @param {string|null} [knipError=null]
  * @returns {string}
  */
-export function renderDiff(diff, label = 'dead-exports') {
+export function renderDiff(diff, label = 'dead-exports', knipError = null) {
   const lines = [];
+  if (knipError) lines.push(`! knip run failed: ${knipError}`);
   for (const r of diff.added) lines.push(`+ ${r.file}: ${r.symbol}`);
   for (const r of diff.removed) lines.push(`- ${r.file}: ${r.symbol}`);
-  const tag = diff.added.length > 0 ? '(gate fail)' : '(ok)';
+  const failed = knipError !== null || diff.added.length > 0;
+  const tag = failed ? '(gate fail)' : '(ok)';
   lines.push(
     `[${label}] added=${diff.added.length} removed=${diff.removed.length} ${tag}`,
   );
@@ -95,7 +102,7 @@ export function renderDiff(diff, label = 'dead-exports') {
  *   runKnipImpl?: typeof runKnip,
  *   loadBaselineImpl?: typeof readJsonBaseline,
  * }} [opts]
- * @returns {Promise<number>} exit code: 0 = clean or removals-only; 1 = added exports detected
+ * @returns {Promise<number>} exit code: 0 = clean or removals-only; 1 = added exports detected; 2 = knip produced no report
  */
 export async function runCli({
   argv = process.argv.slice(2),
@@ -135,7 +142,7 @@ export async function runCli({
   const currentRows = extractRowsFromKnip(knipEnvelope);
   const diff = diffRows(baselineRows, currentRows);
 
-  const exitCode = knipError === null && diff.added.length > 0 ? 1 : 0;
+  const exitCode = gateExitCode(knipError, diff);
 
   if (json) {
     const envelope = {
@@ -157,13 +164,23 @@ export async function runCli({
       );
     }
     if (knipError) {
-      stderr.write(`[${label}] ⚠ knip run failed: ${knipError}\n`);
+      stderr.write(`[${label}] ❌ knip run failed: ${knipError}\n`);
     }
     stdout.write(`\n--- ${label} preview ---\n`);
-    stdout.write(`${renderDiff(diff, label)}\n`);
+    stdout.write(`${renderDiff(diff, label, knipError)}\n`);
   }
 
   return exitCode;
+}
+
+/**
+ * @param {string|null} knipError
+ * @param {{ added: Array }} diff
+ * @returns {number}
+ */
+function gateExitCode(knipError, diff) {
+  if (knipError !== null) return EXIT.KNIP_FAILED;
+  return diff.added.length > 0 ? EXIT.ADDED : EXIT.CLEAN;
 }
 
 async function main() {
@@ -192,7 +209,7 @@ runAsCli(import.meta.url, main, {
       ['--json', 'Emit the comparison envelope as JSON.'],
     ],
     notes: [
-      'Exit codes:\n  0  clean, or removals only\n  1  newly added unused exports',
+      'Exit codes:\n  0  clean, or removals only\n  1  newly added unused exports\n  2  knip produced no report (spawn error, overflow, error exit, empty or unparseable output)',
     ],
   },
 });
