@@ -564,7 +564,7 @@
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-preflight.js",
-      "mi": 103.964
+      "mi": 105.516
     },
     {
       "path": ".agents/scripts/lib/bootstrap/hitl-confirm.js",
@@ -783,6 +783,10 @@
       "mi": 104.725
     },
     {
+      "path": ".agents/scripts/lib/config/git-roots.js",
+      "mi": 106.511
+    },
+    {
       "path": ".agents/scripts/lib/config/github.js",
       "mi": 81.277
     },
@@ -824,7 +828,7 @@
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
-      "mi": 107.756
+      "mi": 110.885
     },
     {
       "path": ".agents/scripts/lib/config/validate-orchestration.js",
@@ -1021,6 +1025,10 @@
     {
       "path": ".agents/scripts/lib/gates/friction.js",
       "mi": 100.286
+    },
+    {
+      "path": ".agents/scripts/lib/gh-env.js",
+      "mi": 98.446
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
@@ -1620,7 +1628,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
-      "mi": 100.354
+      "mi": 101.248
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/types.js",
@@ -2496,7 +2504,7 @@
     },
     {
       "path": "lib/cli/doctor-checks/project-access.js",
-      "mi": 95.117
+      "mi": 96.879
     },
     {
       "path": "lib/cli/doctor-checks/read-json.js",

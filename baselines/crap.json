@@ -10726,133 +10726,146 @@
     {
       "path": ".agents/scripts/lib/bootstrap/gh-list.js",
       "method": "defaultGhRunner",
-      "startLine": 30,
+      "startLine": 29,
       "crap": 12
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-list.js",
       "method": "parseJsonList",
-      "startLine": 50,
+      "startLine": 49,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-list.js",
       "method": "<anon parseJsonList/(value)#0>",
-      "startLine": 62,
+      "startLine": 61,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-list.js",
       "method": "listRepos",
-      "startLine": 76,
+      "startLine": 75,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-list.js",
       "method": "<anon listRepos/(item)#0>",
-      "startLine": 89,
+      "startLine": 88,
       "crap": 3,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-list.js",
       "method": "listProjects",
-      "startLine": 107,
+      "startLine": 106,
       "crap": 9.006241391599165
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-list.js",
       "method": "<anon listProjects/(item)#0>",
-      "startLine": 140,
+      "startLine": 139,
       "crap": 7.0037756566464076,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-list.js",
       "method": "<anon listProjects/(choice)#0>",
-      "startLine": 152,
+      "startLine": 151,
       "crap": 1.0000770542172737,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-preflight.js",
       "method": "defaultGhRunner",
-      "startLine": 37,
-      "crap": 12
+      "startLine": 38,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/gh-preflight.js",
+      "method": "resolveRunner",
+      "startLine": 48,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/gh-preflight.js",
+      "method": "<anon resolveRunner/(args)#0>",
+      "startLine": 49,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-preflight.js",
       "method": "parseGhVersion",
-      "startLine": 51,
+      "startLine": 56,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-preflight.js",
       "method": "compareSemver",
-      "startLine": 63,
+      "startLine": 68,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-preflight.js",
       "method": "<anon compareSemver/(n)#0>",
-      "startLine": 66,
+      "startLine": 71,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-preflight.js",
       "method": "<anon compareSemver/(n)#1>",
-      "startLine": 69,
+      "startLine": 74,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-preflight.js",
       "method": "preflightGh",
-      "startLine": 86,
+      "startLine": 91,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-preflight.js",
       "method": "resolveGhVersion",
-      "startLine": 100,
+      "startLine": 105,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-preflight.js",
       "method": "assertGhVersionFloor",
-      "startLine": 125,
+      "startLine": 130,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-preflight.js",
       "method": "assertGhAuth",
-      "startLine": 137,
+      "startLine": 142,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-preflight.js",
       "method": "checkProjectScopes",
-      "startLine": 164,
+      "startLine": 169,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-preflight.js",
       "method": "classifyProjectScopes",
-      "startLine": 175,
+      "startLine": 180,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-preflight.js",
       "method": "preflightRuntimeDeps",
-      "startLine": 200,
+      "startLine": 205,
       "crap": 5.369684499314129
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-preflight.js",
       "method": "<anon preflightRuntimeDeps/(specifier)#0>",
-      "startLine": 202,
+      "startLine": 207,
       "crap": 1.8424211248285323,
       "anonymous": true
     },
@@ -13867,12 +13880,6 @@
     },
     {
       "path": ".agents/scripts/lib/config-resolver.js",
-      "method": "resolveConfig",
-      "startLine": 146,
-      "crap": 13
-    },
-    {
-      "path": ".agents/scripts/lib/config-resolver.js",
       "method": "readRawConfig",
       "startLine": 147,
       "crap": 4
@@ -13894,6 +13901,12 @@
       "method": "ensureEnvLoaded",
       "startLine": 196,
       "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/config-resolver.js",
+      "method": "resolveConfig",
+      "startLine": 210,
+      "crap": 5
     },
     {
       "path": ".agents/scripts/lib/config/acceptance-eval.js",
@@ -14150,6 +14163,36 @@
       "method": "applyGhConfigDir",
       "startLine": 36,
       "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/config/git-roots.js",
+      "method": "revParse",
+      "startLine": 14,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/config/git-roots.js",
+      "method": "mainCheckoutRoot",
+      "startLine": 32,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/config/git-roots.js",
+      "method": "gitToplevel",
+      "startLine": 44,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/config/git-roots.js",
+      "method": "resolveAgentrcRoot",
+      "startLine": 52,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/config/git-roots.js",
+      "method": "_clearGitRootCaches",
+      "startLine": 64,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/github.js",
@@ -14441,170 +14484,164 @@
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
-      "method": "mainCheckoutRoot",
-      "startLine": 29,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "_clearMainCheckoutRootCache",
-      "startLine": 55,
+      "startLine": 21,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "testScratchTempRoot",
-      "startLine": 72,
+      "startLine": 38,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "_clearTestContextScratchCache",
-      "startLine": 87,
+      "startLine": 53,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "inNodeTestContext",
-      "startLine": 99,
+      "startLine": 65,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "anchorTempRoot",
-      "startLine": 120,
+      "startLine": 86,
       "crap": 9
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "tempRootFrom",
-      "startLine": 158,
+      "startLine": 124,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "orchestrationLogDir",
-      "startLine": 173,
+      "startLine": 139,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "closeGateLogName",
-      "startLine": 184,
+      "startLine": 150,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "closeGateLogPath",
-      "startLine": 193,
+      "startLine": 159,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "storyTerminalEnvelopeName",
-      "startLine": 201,
+      "startLine": 167,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "storyTerminalEnvelopePath",
-      "startLine": 213,
+      "startLine": 179,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/config/temp-paths.js",
+      "method": "storyReviewDepositPath",
+      "startLine": 191,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/config/temp-paths.js",
+      "method": "storyProgressPath",
+      "startLine": 206,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon (id)#0>",
-      "startLine": 217,
+      "startLine": 213,
       "crap": 3,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon (id)#1>",
-      "startLine": 225,
+      "startLine": 221,
       "crap": 4,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
-      "method": "storyReviewDepositPath",
-      "startLine": 225,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon (id)#2>",
-      "startLine": 235,
+      "startLine": 231,
       "crap": 3,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
-      "method": "storyProgressPath",
-      "startLine": 240,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon (name)#0>",
-      "startLine": 244,
+      "startLine": 240,
       "crap": 6,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "runTempDir",
-      "startLine": 262,
+      "startLine": 258,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "storyTempDir",
-      "startLine": 274,
+      "startLine": 270,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "signalsFile",
-      "startLine": 292,
+      "startLine": 288,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "resolvedTempRoot",
-      "startLine": 306,
+      "startLine": 302,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon (eid,sid,config)#0>",
-      "startLine": 318,
+      "startLine": 314,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "runArtifactPath",
-      "startLine": 329,
+      "startLine": 325,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "storyArtifactPath",
-      "startLine": 340,
+      "startLine": 336,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon (eid,config)#0>",
-      "startLine": 351,
+      "startLine": 347,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon (eid,sid,config)#1>",
-      "startLine": 354,
+      "startLine": 350,
       "crap": 1,
       "anonymous": true
     },
@@ -16732,175 +16769,175 @@
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
       "method": "runChild",
-      "startLine": 25,
-      "crap": 1.0000694057072057
+      "startLine": 26,
+      "crap": 1.000066629814621
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
       "method": "<anon runChild/(resolve)#0>",
-      "startLine": 32,
-      "crap": 3.0006246513648502,
+      "startLine": 33,
+      "crap": 3.0005996683315894,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
       "method": "<anon runChild/(resolve)#0/(result)#0>",
-      "startLine": 54,
+      "startLine": 56,
       "crap": 3,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
       "method": "<anon runChild/(resolve)#0/()#0>",
-      "startLine": 61,
-      "crap": 1.0000694057072057,
+      "startLine": 63,
+      "crap": 1.000066629814621,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
       "method": "<anon runChild/(resolve)#0/(chunk)#0>",
-      "startLine": 84,
-      "crap": 1.0000694057072057,
+      "startLine": 86,
+      "crap": 1.000066629814621,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
       "method": "<anon runChild/(resolve)#0/(chunk)#1>",
-      "startLine": 87,
-      "crap": 1.0000694057072057,
+      "startLine": 89,
+      "crap": 1.000066629814621,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
       "method": "<anon runChild/(resolve)#0/(err)#0>",
-      "startLine": 90,
-      "crap": 1.0000694057072057,
+      "startLine": 92,
+      "crap": 1.000066629814621,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
       "method": "<anon runChild/(resolve)#0/(code)#0>",
-      "startLine": 93,
-      "crap": 1.0000694057072057,
+      "startLine": 95,
+      "crap": 1.000066629814621,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
       "method": "runWith",
-      "startLine": 99,
+      "startLine": 101,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
       "method": "runGh",
-      "startLine": 109,
+      "startLine": 111,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
       "method": "childFailed",
-      "startLine": 113,
+      "startLine": 115,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
       "method": "probePathStatus",
-      "startLine": 131,
+      "startLine": 133,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
       "method": "normalizeMarkerQuery",
-      "startLine": 146,
+      "startLine": 148,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
       "method": "toFollowUpRef",
-      "startLine": 158,
+      "startLine": 160,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
       "method": "searchFollowUpByMarker",
-      "startLine": 173,
+      "startLine": 175,
       "crap": 5.021595939963287
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
       "method": "findExistingFollowUp",
-      "startLine": 209,
+      "startLine": 211,
       "crap": 7.004301783264746
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
       "method": "<anon findExistingFollowUp/(m)#0>",
-      "startLine": 217,
+      "startLine": 219,
       "crap": 2.0003511659807955,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
       "method": "<anon findExistingFollowUp/(issue)#0>",
-      "startLine": 243,
+      "startLine": 245,
       "crap": 2.0003511659807955,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
       "method": "<anon findExistingFollowUp/(issue)#0/(token)#0>",
-      "startLine": 245,
+      "startLine": 247,
       "crap": 1.0000877914951989,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
       "method": "<anon findExistingFollowUp/(issue)#1>",
-      "startLine": 250,
+      "startLine": 252,
       "crap": 1.0000877914951989,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
       "method": "issueWriteError",
-      "startLine": 255,
+      "startLine": 257,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
       "method": "updateFollowUpIssue",
-      "startLine": 267,
+      "startLine": 269,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
       "method": "describeMintedLabel",
-      "startLine": 296,
+      "startLine": 298,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
       "method": "readLiveLabelNames",
-      "startLine": 314,
+      "startLine": 316,
       "crap": 9.864360491579427
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
       "method": "ensureIssueLabels",
-      "startLine": 367,
+      "startLine": 369,
       "crap": 10
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
       "method": "<anon ensureIssueLabels/(name)#0>",
-      "startLine": 376,
+      "startLine": 378,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-gh.js",
       "method": "createFollowUpIssue",
-      "startLine": 423,
+      "startLine": 425,
       "crap": 3
     },
     {
@@ -18115,309 +18152,333 @@
       "crap": 6.0703125
     },
     {
+      "path": ".agents/scripts/lib/gh-env.js",
+      "method": "readCommittedAgentrc",
+      "startLine": 15,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/gh-env.js",
+      "method": "ensureGhEnv",
+      "startLine": 32,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/gh-env.js",
+      "method": "ghEnv",
+      "startLine": 54,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/gh-exec.js",
+      "method": "runGh",
+      "startLine": 21,
+      "crap": 1
+    },
+    {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "getSpawnCount",
-      "startLine": 13,
-      "crap": 1.037037037037037
+      "startLine": 28,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "resetSpawnCount",
-      "startLine": 17,
+      "startLine": 32,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "describeGhFailure",
-      "startLine": 91,
+      "startLine": 117,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon describeGhFailure/(line)#0>",
-      "startLine": 95,
+      "startLine": 121,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon (d)#0>",
-      "startLine": 122,
+      "startLine": 148,
       "crap": 1.216,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon (d)#1>",
-      "startLine": 130,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/gh-exec.js",
-      "method": "<anon (d)#2>",
-      "startLine": 138,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/gh-exec.js",
-      "method": "<anon (d)#3>",
-      "startLine": 144,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/gh-exec.js",
-      "method": "<anon (d)#4>",
-      "startLine": 152,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/gh-exec.js",
-      "method": "<anon (d)#5>",
       "startLine": 156,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
-      "method": "classifySpawnError",
-      "startLine": 160,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/gh-exec.js",
-      "method": "classify",
-      "startLine": 170,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/gh-exec.js",
-      "method": "<anon (d)#6>",
-      "startLine": 182,
+      "method": "<anon (d)#2>",
+      "startLine": 165,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon (d)#3>",
+      "startLine": 173,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon (d)#4>",
+      "startLine": 179,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon (d)#5>",
+      "startLine": 187,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon (d)#6>",
+      "startLine": 191,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/gh-exec.js",
+      "method": "classifySpawnError",
+      "startLine": 195,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/gh-exec.js",
       "method": "classifySandboxDenial",
-      "startLine": 196,
+      "startLine": 205,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
+      "method": "classify",
+      "startLine": 214,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/gh-exec.js",
       "method": "exec",
-      "startLine": 199,
-      "crap": 4.0011219790658865
+      "startLine": 243,
+      "crap": 4.000910332271279
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon exec/(resolve,reject)#0>",
-      "startLine": 221,
-      "crap": 4.0011219790658865,
+      "startLine": 272,
+      "crap": 4.000910332271279,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon exec/(resolve,reject)#0/(chunk)#0>",
-      "startLine": 236,
-      "crap": 1.0000701236916179,
+      "startLine": 287,
+      "crap": 1.000056895766955,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon exec/(resolve,reject)#0/(chunk)#1>",
-      "startLine": 239,
-      "crap": 1.0000701236916179,
+      "startLine": 290,
+      "crap": 1.000056895766955,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon exec/(resolve,reject)#0/(err)#0>",
-      "startLine": 243,
-      "crap": 2.000280494766472,
+      "startLine": 294,
+      "crap": 2.0002275830678196,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon exec/(resolve,reject)#0/(code,signal)#0>",
-      "startLine": 249,
-      "crap": 8.004487916263546,
+      "startLine": 300,
+      "crap": 8.003641329085116,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "createGh",
-      "startLine": 303,
-      "crap": 1.000149698835052
+      "startLine": 354,
+      "crap": 1.0000443552103857
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon createGh/(opts)#0>",
-      "startLine": 304,
+      "startLine": 355,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "api",
-      "startLine": 314,
-      "crap": 8.032768
+      "startLine": 365,
+      "crap": 8
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon createGh/api/(f)#0>",
-      "startLine": 330,
-      "crap": 1.000512,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/gh-exec.js",
-      "method": "jsonFlag",
-      "startLine": 340,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/gh-exec.js",
-      "method": "idStr",
-      "startLine": 345,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/gh-exec.js",
-      "method": "<anon createGh/(id,fields)#0>",
-      "startLine": 350,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/gh-exec.js",
-      "method": "<anon createGh/(id,flags)#0>",
-      "startLine": 354,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/gh-exec.js",
-      "method": "<anon createGh/(id,bodyText)#0>",
-      "startLine": 356,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/gh-exec.js",
-      "method": "<anon createGh/(flags,fields)#0>",
-      "startLine": 361,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/gh-exec.js",
-      "method": "<anon createGh/(id,fields)#1>",
-      "startLine": 368,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/gh-exec.js",
-      "method": "<anon createGh/(flags)#0>",
-      "startLine": 372,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/gh-exec.js",
-      "method": "<anon createGh/(id,flags)#1>",
-      "startLine": 374,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/gh-exec.js",
-      "method": "<anon createGh/(id,flags)#2>",
-      "startLine": 376,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/gh-exec.js",
-      "method": "<anon createGh/(id,flags)#3>",
-      "startLine": 379,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/gh-exec.js",
-      "method": "<anon createGh/(flags,fields)#1>",
       "startLine": 381,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
+      "method": "jsonFlag",
+      "startLine": 391,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/gh-exec.js",
+      "method": "idStr",
+      "startLine": 396,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon createGh/(id,fields)#0>",
+      "startLine": 401,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon createGh/(id,flags)#0>",
+      "startLine": 405,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon createGh/(id,bodyText)#0>",
+      "startLine": 407,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon createGh/(flags,fields)#0>",
+      "startLine": 412,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon createGh/(id,fields)#1>",
+      "startLine": 419,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon createGh/(flags)#0>",
+      "startLine": 423,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon createGh/(id,flags)#1>",
+      "startLine": 425,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon createGh/(id,flags)#2>",
+      "startLine": 427,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon createGh/(id,flags)#3>",
+      "startLine": 430,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon createGh/(flags,fields)#1>",
+      "startLine": 432,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon createGh/(name,flags)#0>",
-      "startLine": 388,
+      "startLine": 439,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon createGh/(name,flags)#1>",
-      "startLine": 390,
+      "startLine": 441,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon createGh/(flags,fields)#2>",
-      "startLine": 392,
+      "startLine": 443,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon createGh/(target,fields)#0>",
-      "startLine": 399,
+      "startLine": 450,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon createGh/(target,flags)#0>",
-      "startLine": 405,
+      "startLine": 456,
       "crap": 3.1851851851851856,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "classifyGraphqlProbeFailure",
-      "startLine": 445,
+      "startLine": 496,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/gh-exec.js",
+      "method": "classifyReachableProbeFailure",
+      "startLine": 503,
       "crap": 7
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "probeGraphqlAvailability",
-      "startLine": 472,
+      "startLine": 530,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
-      "method": "classifyReachableProbeFailure",
-      "startLine": 488,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/gh-exec.js",
       "method": "describeGraphqlPreflight",
-      "startLine": 501,
+      "startLine": 559,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon describeGraphqlPreflight/(s)#0>",
-      "startLine": 512,
+      "startLine": 570,
       "crap": 1,
       "anonymous": true
     },
@@ -20046,25 +20107,25 @@
     {
       "path": ".agents/scripts/lib/orchestration/board-access-latch.js",
       "method": "isProjectAccessFailure",
-      "startLine": 50,
+      "startLine": 47,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/board-access-latch.js",
       "method": "toProjectAccessError",
-      "startLine": 64,
+      "startLine": 61,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/board-access-latch.js",
       "method": "reportBoardScopeFailure",
-      "startLine": 85,
+      "startLine": 80,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/board-access-latch.js",
       "method": "boardScopeFailure",
-      "startLine": 102,
+      "startLine": 97,
       "crap": 2
     },
     {
@@ -20813,144 +20874,144 @@
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "resolveDigestScope",
-      "startLine": 53,
+      "startLine": 54,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "classifyFailure",
-      "startLine": 68,
+      "startLine": 69,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "ciDigestPaths",
-      "startLine": 83,
+      "startLine": 84,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "ghRunLogTail",
-      "startLine": 98,
+      "startLine": 99,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "resolveFailingCheckRun",
-      "startLine": 117,
+      "startLine": 118,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "<anon resolveFailingCheckRun/(e)#0>",
-      "startLine": 126,
+      "startLine": 127,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "resolvePrHeadSha",
-      "startLine": 143,
+      "startLine": 144,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "readCiDigest",
-      "startLine": 169,
+      "startLine": 167,
       "crap": 5.2
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "retireCiDigest",
-      "startLine": 186,
+      "startLine": 184,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "summarizeRed",
-      "startLine": 197,
+      "startLine": 195,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "carryPriorReds",
-      "startLine": 210,
+      "startLine": 208,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "renderDigestMarkdown",
-      "startLine": 220,
+      "startLine": 218,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "<anon renderDigestMarkdown/(f)#0>",
-      "startLine": 234,
+      "startLine": 232,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "<anon renderDigestMarkdown/(r)#0>",
-      "startLine": 239,
+      "startLine": 237,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "writeCiDigest",
-      "startLine": 274,
+      "startLine": 272,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "recordRerunAllowance",
-      "startLine": 333,
+      "startLine": 331,
       "crap": 4.007282658170232
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "allowanceFor",
-      "startLine": 365,
+      "startLine": 363,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "classifyGreenVerdict",
-      "startLine": 382,
+      "startLine": 380,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "failureSignature",
-      "startLine": 414,
+      "startLine": 412,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "<anon failureSignature/(l)#0>",
-      "startLine": 418,
+      "startLine": 416,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "<anon failureSignature/(l)#1>",
-      "startLine": 419,
+      "startLine": 417,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "formatRerunViolation",
-      "startLine": 429,
+      "startLine": 427,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "blockStoryDelivery",
-      "startLine": 476,
+      "startLine": 474,
       "crap": 2
     },
     {
@@ -22513,183 +22574,183 @@
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
       "method": "listLocalBranches",
-      "startLine": 26,
+      "startLine": 27,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
       "method": "<anon listLocalBranches/(l)#0>",
-      "startLine": 36,
+      "startLine": 37,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
       "method": "shortRemoteNames",
-      "startLine": 51,
+      "startLine": 52,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
       "method": "<anon shortRemoteNames/(l)#0>",
-      "startLine": 55,
+      "startLine": 56,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
       "method": "<anon shortRemoteNames/(l)#1>",
-      "startLine": 57,
-      "crap": 2,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
-      "method": "<anon shortRemoteNames/(l)#2>",
       "startLine": 58,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
+      "method": "<anon shortRemoteNames/(l)#2>",
+      "startLine": 59,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
       "method": "listRemoteBranches",
-      "startLine": 63,
+      "startLine": 64,
       "crap": 4.916
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
       "method": "listRemoteMergedBranches",
-      "startLine": 85,
+      "startLine": 86,
       "crap": 2.002314814814815
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
       "method": "listMergedBranches",
-      "startLine": 99,
+      "startLine": 100,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
       "method": "<anon listMergedBranches/(l)#0>",
-      "startLine": 110,
+      "startLine": 111,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
       "method": "freshAnchoredMergedSet",
-      "startLine": 122,
+      "startLine": 123,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
       "method": "currentBranch",
-      "startLine": 138,
+      "startLine": 139,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
       "method": "readProtectedConfig",
-      "startLine": 145,
+      "startLine": 146,
       "crap": 2.5
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
       "method": "<anon readProtectedConfig/(s)#0>",
-      "startLine": 150,
+      "startLine": 151,
       "crap": 1.125,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
       "method": "worktreesByBranch",
-      "startLine": 155,
+      "startLine": 156,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
       "method": "defaultGhRunner",
-      "startLine": 169,
+      "startLine": 170,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
       "method": "probeMergedPr",
-      "startLine": 177,
+      "startLine": 178,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
       "method": "probeLatestPr",
-      "startLine": 219,
+      "startLine": 220,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
       "method": "probeAllPrs",
-      "startLine": 270,
+      "startLine": 271,
       "crap": 8
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
       "method": "validSha",
-      "startLine": 318,
+      "startLine": 319,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
       "method": "firstLsRemoteSha",
-      "startLine": 327,
+      "startLine": 328,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
       "method": "<anon firstLsRemoteSha/(l)#0>",
-      "startLine": 330,
+      "startLine": 331,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
       "method": "branchTipSha",
-      "startLine": 342,
+      "startLine": 343,
       "crap": 16.584433318161132
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
       "method": "refExists",
-      "startLine": 358,
+      "startLine": 359,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
       "method": "branchLastCommitAt",
-      "startLine": 373,
+      "startLine": 374,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
       "method": "firstStdoutLine",
-      "startLine": 387,
+      "startLine": 388,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
       "method": "<anon firstStdoutLine/(l)#0>",
-      "startLine": 390,
+      "startLine": 391,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
       "method": "probeContentEquivalent",
-      "startLine": 404,
+      "startLine": 405,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
       "method": "classifyLatestPr",
-      "startLine": 451,
+      "startLine": 452,
       "crap": 6
     },
     {
@@ -26515,90 +26576,77 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/pr-watch.js",
-      "method": "defaultSleep",
-      "startLine": 91,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/pr-watch.js",
-      "method": "<anon defaultSleep/(resolve)#0>",
-      "startLine": 92,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/pr-watch.js",
       "method": "emptyRequiredChecksResult",
-      "startLine": 100,
+      "startLine": 96,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/pr-watch.js",
       "method": "updateBranchPort",
-      "startLine": 122,
+      "startLine": 118,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/pr-watch.js",
       "method": "<anon updateBranchPort/()#0>",
-      "startLine": 123,
+      "startLine": 119,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/pr-watch.js",
       "method": "recoverBehind",
-      "startLine": 132,
+      "startLine": 128,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/pr-watch.js",
       "method": "<anon recoverBehind/(detail)#0>",
-      "startLine": 145,
+      "startLine": 141,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/pr-watch.js",
       "method": "canRecoverBehind",
-      "startLine": 152,
+      "startLine": 148,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/pr-watch.js",
       "method": "runPollArm",
-      "startLine": 161,
+      "startLine": 157,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/pr-watch.js",
       "method": "<anon runPollArm/(name)#0>",
-      "startLine": 186,
+      "startLine": 182,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/pr-watch.js",
       "method": "shouldResume",
-      "startLine": 192,
+      "startLine": 188,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/pr-watch.js",
       "method": "finalVerdict",
-      "startLine": 200,
+      "startLine": 196,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/pr-watch.js",
       "method": "watchPrToTerminal",
-      "startLine": 257,
+      "startLine": 253,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/pr-watch.js",
       "method": "<anon watchPrToTerminal/(e)#0>",
-      "startLine": 282,
+      "startLine": 278,
       "crap": 1,
       "anonymous": true
     },
@@ -27498,25 +27546,25 @@
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/codex-cli.js",
       "method": "defaultProbeCodexCommand",
-      "startLine": 84,
+      "startLine": 70,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/codex-cli.js",
       "method": "buildReviewPrompt",
-      "startLine": 101,
+      "startLine": 87,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/codex-cli.js",
       "method": "readIfPresent",
-      "startLine": 119,
+      "startLine": 105,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/codex-cli.js",
       "method": "invokeCodexExec",
-      "startLine": 136,
+      "startLine": 122,
       "crap": 4
     },
     {
@@ -27929,55 +27977,62 @@
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
       "method": "probeClaudeCli",
-      "startLine": 32,
+      "startLine": 34,
       "crap": 1.7865270823850707
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
       "method": "buildSecurityReviewUnavailableError",
-      "startLine": 49,
+      "startLine": 51,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
       "method": "mapSecurityReviewSeverity",
-      "startLine": 83,
+      "startLine": 70,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
       "method": "parseSecurityReviewFindings",
-      "startLine": 94,
+      "startLine": 81,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
       "method": "buildSecurityReviewPrompt",
-      "startLine": 119,
+      "startLine": 106,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
       "method": "defaultInvokeSecurityReview",
-      "startLine": 138,
-      "crap": 2
+      "startLine": 128,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
       "method": "buildUnparseableFallbackFinding",
-      "startLine": 155,
+      "startLine": 146,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
       "method": "createSecurityReviewProvider",
-      "startLine": 176,
-      "crap": 9.054672692812364
+      "startLine": 168,
+      "crap": 9.049299100687023
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
+      "method": "<anon createSecurityReviewProvider/(input)#0>",
+      "startLine": 175,
+      "crap": 1.0006086308726794,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
       "method": "createSecurityReviewProviderForRegistry",
-      "startLine": 237,
+      "startLine": 231,
       "crap": 1.2962962962962963
     },
     {
@@ -38809,31 +38864,31 @@
     {
       "path": ".agents/scripts/providers/github/auth.js",
       "method": "__setExecSyncForTests",
-      "startLine": 11,
+      "startLine": 16,
       "crap": 1
     },
     {
       "path": ".agents/scripts/providers/github/auth.js",
       "method": "readGhCliToken",
-      "startLine": 16,
-      "crap": 2
+      "startLine": 21,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/providers/github/auth.js",
       "method": "readEnvToken",
-      "startLine": 43,
+      "startLine": 26,
       "crap": 3
     },
     {
       "path": ".agents/scripts/providers/github/auth.js",
       "method": "memoizeEnvToken",
-      "startLine": 48,
-      "crap": 2
+      "startLine": 31,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/providers/github/auth.js",
       "method": "resolveToken",
-      "startLine": 53,
+      "startLine": 37,
       "crap": 3
     },
     {
@@ -39093,90 +39148,90 @@
     {
       "path": ".agents/scripts/providers/github/gh-token-diagnostics.js",
       "method": "redactTokens",
-      "startLine": 15,
+      "startLine": 16,
       "crap": 1
     },
     {
       "path": ".agents/scripts/providers/github/gh-token-diagnostics.js",
       "method": "failureDetail",
-      "startLine": 20,
+      "startLine": 21,
       "crap": 1
     },
     {
       "path": ".agents/scripts/providers/github/gh-token-diagnostics.js",
       "method": "<anon failureDetail/(l)#0>",
-      "startLine": 23,
+      "startLine": 24,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/providers/github/gh-token-diagnostics.js",
       "method": "isNotInstalled",
-      "startLine": 32,
+      "startLine": 33,
       "crap": 3
     },
     {
       "path": ".agents/scripts/providers/github/gh-token-diagnostics.js",
       "method": "isTimeoutOrDenied",
-      "startLine": 40,
+      "startLine": 41,
       "crap": 3
     },
     {
       "path": ".agents/scripts/providers/github/gh-token-diagnostics.js",
       "method": "classifyGhTokenFailure",
-      "startLine": 48,
+      "startLine": 49,
       "crap": 5
     },
     {
       "path": ".agents/scripts/providers/github/gh-token-diagnostics.js",
       "method": "runGhAuthToken",
-      "startLine": 64,
+      "startLine": 68,
       "crap": 2
     },
     {
       "path": ".agents/scripts/providers/github/gh-token-diagnostics.js",
       "method": "configDirNote",
-      "startLine": 88,
+      "startLine": 91,
       "crap": 2
     },
     {
       "path": ".agents/scripts/providers/github/gh-token-diagnostics.js",
       "method": "<anon ()#0>",
-      "startLine": 94,
+      "startLine": 97,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/providers/github/gh-token-diagnostics.js",
       "method": "<anon ()#1>",
-      "startLine": 99,
+      "startLine": 102,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/providers/github/gh-token-diagnostics.js",
       "method": "<anon ()#2>",
-      "startLine": 104,
+      "startLine": 107,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/providers/github/gh-token-diagnostics.js",
       "method": "<anon ()#3>",
-      "startLine": 109,
+      "startLine": 112,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/providers/github/gh-token-diagnostics.js",
       "method": "describeTokenFailure",
-      "startLine": 118,
+      "startLine": 121,
       "crap": 2
     },
     {
       "path": ".agents/scripts/providers/github/gh-token-diagnostics.js",
       "method": "resolveTokenSource",
-      "startLine": 126,
+      "startLine": 129,
       "crap": 5
     },
     {
@@ -41633,31 +41688,37 @@
     {
       "path": "lib/cli/doctor-checks/project-access.js",
       "method": "readBoardConfig",
-      "startLine": 23,
+      "startLine": 25,
       "crap": 5
     },
     {
       "path": "lib/cli/doctor-checks/project-access.js",
+      "method": "effectiveConfig",
+      "startLine": 38,
+      "crap": 1.0233236151603498
+    },
+    {
+      "path": "lib/cli/doctor-checks/project-access.js",
       "method": "rungArgs",
-      "startLine": 39,
+      "startLine": 47,
       "crap": 3
     },
     {
       "path": "lib/cli/doctor-checks/project-access.js",
       "method": "probeRung",
-      "startLine": 54,
-      "crap": 7.095703125
+      "startLine": 62,
+      "crap": 7.06721536351166
     },
     {
       "path": "lib/cli/doctor-checks/project-access.js",
       "method": "runProjectAccess",
-      "startLine": 83,
+      "startLine": 90,
       "crap": 7
     },
     {
       "path": "lib/cli/doctor-checks/project-access.js",
       "method": "<anon runProjectAccess/()#0>",
-      "startLine": 84,
+      "startLine": 91,
       "crap": 1,
       "anonymous": true
     },
@@ -41924,31 +41985,31 @@
     {
       "path": "lib/cli/doctor-checks/toolchain.js",
       "method": "runNodeVersion",
-      "startLine": 16,
+      "startLine": 18,
       "crap": 2
     },
     {
       "path": "lib/cli/doctor-checks/toolchain.js",
       "method": "runGitAvailable",
-      "startLine": 33,
+      "startLine": 35,
       "crap": 6
     },
     {
       "path": "lib/cli/doctor-checks/toolchain.js",
       "method": "runGhAvailable",
-      "startLine": 52,
+      "startLine": 54,
       "crap": 6
     },
     {
       "path": "lib/cli/doctor-checks/toolchain.js",
       "method": "runGithubToken",
-      "startLine": 78,
+      "startLine": 80,
       "crap": 8
     },
     {
       "path": "lib/cli/doctor-checks/toolchain.js",
       "method": "runGhAuth",
-      "startLine": 108,
+      "startLine": 110,
       "crap": 7.3919999999999995
     },
     {

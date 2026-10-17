@@ -820,9 +820,9 @@
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-preflight.js",
-      "lines": 88.02,
-      "branches": 83.72,
-      "functions": 80
+      "lines": 92.34,
+      "branches": 85.11,
+      "functions": 90.91
     },
     {
       "path": ".agents/scripts/lib/bootstrap/hitl-confirm.js",
@@ -1197,6 +1197,12 @@
       "functions": 75
     },
     {
+      "path": ".agents/scripts/lib/config/git-roots.js",
+      "lines": 100,
+      "branches": 96.67,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/config/github.js",
       "lines": 100,
       "branches": 96.3,
@@ -1259,7 +1265,7 @@
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "lines": 100,
-      "branches": 97.85,
+      "branches": 97.53,
       "functions": 96.15
     },
     {
@@ -1557,10 +1563,16 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/gh-env.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/gh-exec.js",
-      "lines": 97.13,
-      "branches": 93.85,
-      "functions": 86.67
+      "lines": 97.41,
+      "branches": 94.07,
+      "functions": 87.5
     },
     {
       "path": ".agents/scripts/lib/gh-transport.js",
@@ -1858,8 +1870,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
-      "lines": 99.23,
-      "branches": 80.39,
+      "lines": 99.22,
+      "branches": 80.77,
       "functions": 100
     },
     {
@@ -2393,7 +2405,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/codex-cli.js",
       "lines": 100,
-      "branches": 75,
+      "branches": 82.35,
       "functions": 100
     },
     {
@@ -2452,9 +2464,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
-      "lines": 85.78,
-      "branches": 64.52,
-      "functions": 70
+      "lines": 91.85,
+      "branches": 63.89,
+      "functions": 80
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/types.js",
@@ -3736,8 +3748,8 @@
     },
     {
       "path": "lib/cli/doctor-checks/project-access.js",
-      "lines": 98.29,
-      "branches": 80,
+      "lines": 96.77,
+      "branches": 78.72,
       "functions": 100
     },
     {
