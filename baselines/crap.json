@@ -31397,6 +31397,13 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
+      "method": "<anon (paths)#0>",
+      "startLine": 23,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
       "method": "listDirtyPaths",
       "startLine": 26,
       "crap": 1
@@ -31457,6 +31464,13 @@
       "method": "<anon runScopedFormatAutofix/(args,opts)#0>",
       "startLine": 175,
       "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
+      "method": "<anon runScopedFormatAutofix/(file,args,opts)#0>",
+      "startLine": 184,
+      "crap": 2,
       "anonymous": true
     },
     {

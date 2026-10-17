@@ -119,6 +119,49 @@ test('runInstallWithRetry: succeeds on first attempt without sleeping', () => {
   assert.deepEqual(sleepCalls, []);
 });
 
+/**
+ * A `spawnSync`-shaped runner that enforces the `maxBuffer` it is handed, the
+ * way Node does: output past the bound (1 MiB when none is passed) kills the
+ * child — SIGTERM, null status, ENOBUFS (Story #5739).
+ */
+function bufferHonouringSpawn(stdout) {
+  const calls = [];
+  const fn = (cmd, args, opts = {}) => {
+    calls.push({ cmd, args, opts });
+    if (stdout.length > (opts.maxBuffer ?? 1024 * 1024)) {
+      return {
+        status: null,
+        signal: 'SIGTERM',
+        stdout: stdout.slice(0, 1024 * 1024),
+        stderr: '',
+        error: Object.assign(new Error('ENOBUFS'), { code: 'ENOBUFS' }),
+      };
+    }
+    return { status: 0, signal: null, stdout, stderr: '' };
+  };
+  fn.calls = calls;
+  return fn;
+}
+
+test('runInstallWithRetry: an install printing more than 1 MiB is not killed by the buffer (Story #5739)', () => {
+  const spawnFn = bufferHonouringSpawn('x'.repeat(2 * 1024 * 1024));
+  const out = runInstallWithRetry({
+    cmd: 'npm',
+    args: ['ci'],
+    cwd: '/wt',
+    shell: false,
+    policy: installRetryPolicy('npm'),
+    spawnFn,
+    sleepFn: () => {},
+    logger: { info: () => {}, warn: () => {} },
+    strategy: 'per-worktree',
+  });
+  assert.equal(out.ok, true, 'the chatty install ran to its own exit');
+  assert.equal(out.attempts, 1);
+  assert.equal(out.lastResult.stdout.length, 2 * 1024 * 1024);
+  assert.ok(spawnFn.calls[0].opts.maxBuffer > 1024 * 1024);
+});
+
 test('runInstallWithRetry: retries pnpm up to maxAttempts before giving up', () => {
   let calls = 0;
   const out = runInstallWithRetry({
@@ -516,8 +559,8 @@ test(
     fs.mkdirSync(wtPath, { recursive: true });
     const calls = [];
     const out = cloneNodeModules(cloneCtx({ repoRoot: root }), wtPath, {
-      spawnFn: (cmd, args) => {
-        calls.push({ cmd, args });
+      spawnFn: (cmd, args, opts) => {
+        calls.push({ cmd, args, opts });
         return { status: 0, stderr: '' };
       },
       fsLike: fs,
@@ -525,6 +568,10 @@ test(
     assert.deepEqual(out, { cloned: true });
     assert.equal(calls.length, 1);
     assert.equal(calls[0].cmd, 'cp');
+    assert.ok(
+      calls[0].opts.maxBuffer > 1024 * 1024,
+      'the clone capture runs under the wrapper ceiling (Story #5739)',
+    );
     // The CoW flag is host-OS specific: `-c` (clonefile) on darwin,
     // `--reflink=always` on linux. The capability branch keys off the real
     // `process.platform`, not the injected ctx.platform.

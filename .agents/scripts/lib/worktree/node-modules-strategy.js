@@ -6,11 +6,26 @@
  * install), `symlink` (to a donor; opt-in on Windows) and `pnpm-store`.
  */
 
-import { spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnChild } from '../child-exec.js';
 import { detectPackageManager } from '../detect-package-manager.js';
+
+/**
+ * Every spawn here goes through `spawnChild` so the wrapper's stdout ceiling
+ * applies: a chatty install overflowing Node's 1 MiB default would be killed
+ * mid-write and leave a half-populated `node_modules`. An injected `spawnFn`
+ * becomes the wrapper's `run` seam, so tests still see every call.
+ *
+ * @param {Function|undefined} spawnFn - `spawnSync`-shaped seam; omitted → real.
+ * @param {string} cmd
+ * @param {string[]} args
+ * @param {object} opts
+ */
+function runChild(spawnFn, cmd, args, opts) {
+  return spawnChild(cmd, args, spawnFn ? { ...opts, run: spawnFn } : opts);
+}
 
 function sleepSync(ms) {
   if (!Number.isFinite(ms) || ms <= 0) return;
@@ -106,11 +121,11 @@ export function applyNodeModulesStrategy(ctx, wtPath) {
  *
  * @param {{ config: object, platform: NodeJS.Platform, logger: object, repoRoot: string }} ctx
  * @param {string} wtPath
- * @param {{ spawnFn?: typeof spawnSync, fsLike?: typeof fs }} [io]
+ * @param {{ spawnFn?: Function, fsLike?: typeof fs }} [io]
  * @returns {{ cloned: boolean, reason?: string }}
  */
 export function cloneNodeModules(ctx, wtPath, io = {}) {
-  const spawnFn = io.spawnFn ?? spawnSync;
+  const spawnFn = io.spawnFn;
   const fsLike = io.fsLike ?? fs;
   // Real host OS, not `ctx.platform`: Windows has no clone `cp` here.
   if (process.platform === 'win32') {
@@ -144,7 +159,7 @@ export function cloneNodeModules(ctx, wtPath, io = {}) {
     process.platform === 'darwin'
       ? ['-c', '-R', donorNodeModules, target]
       : ['--reflink=always', '-R', donorNodeModules, target];
-  const result = spawnFn('cp', cloneArgs, {
+  const result = runChild(spawnFn, 'cp', cloneArgs, {
     cwd: wtPath,
     stdio: 'pipe',
     encoding: 'utf-8',
@@ -319,7 +334,7 @@ function primePnpmStore({
   strategy,
   repoRoot,
   logger,
-  spawnFn = spawnSync,
+  spawnFn,
   fsLike = fs,
   shell = process.platform === 'win32',
 }) {
@@ -334,7 +349,7 @@ function primePnpmStore({
   logger.info(
     `worktree.install priming pnpm content-addressable store at ${repoRoot} (sentinel missing)`,
   );
-  const result = spawnFn('pnpm', ['install', '--frozen-lockfile'], {
+  const result = runChild(spawnFn, 'pnpm', ['install', '--frozen-lockfile'], {
     cwd: repoRoot,
     stdio: 'pipe',
     encoding: 'utf-8',
@@ -391,7 +406,7 @@ export function runInstallWithRetry({
     logger.info(
       `worktree.install strategy=${strategy} cmd=${cmd} attempt=${attempt}/${policy.maxAttempts} path=${cwd}`,
     );
-    lastResult = spawnFn(cmd, args, {
+    lastResult = runChild(spawnFn, cmd, args, {
       cwd,
       stdio: 'pipe',
       encoding: 'utf-8',
@@ -480,7 +495,6 @@ export function installDependencies(ctx, wtPath) {
     cwd: wtPath,
     shell: ctx.platform === 'win32',
     policy,
-    spawnFn: spawnSync,
     sleepFn: sleepSync,
     logger: ctx.logger,
     strategy,
