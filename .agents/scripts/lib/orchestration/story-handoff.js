@@ -300,13 +300,23 @@ function describeSuiteFailure(status) {
 }
 
 /**
+ * The lint preflight, absent when `project.commands.lint` is `null`.
+ *
+ * @param {object} config
+ * @returns {Array<{ key: string, cmd: string, args: string[] }>}
+ */
+function lintPreflight(config) {
+  const lint = resolveGateCommand(config, 'lint');
+  return lint.disabled ? [] : [{ key: 'lint', cmd: lint.cmd, args: lint.args }];
+}
+
+/**
  * Lint, quality-preview, then each ratchet whose baseline is committed.
  *
  * @param {object} ctx
  * @returns {Array<{ key: string, cmd: string, args: string[], gated?: boolean }>}
  */
 function preflightChecks(ctx) {
-  const lint = resolveGateCommand(ctx.config, 'lint');
   const ratchets = RATCHETS.filter((r) =>
     fs.existsSync(path.join(ctx.cwd, r.baseline)),
   ).map((r) => ({
@@ -316,7 +326,7 @@ function preflightChecks(ctx) {
     gated: true,
   }));
   return [
-    ...(lint.disabled ? [] : [{ key: 'lint', cmd: lint.cmd, args: lint.args }]),
+    ...lintPreflight(ctx.config),
     {
       key: 'quality-preview',
       cmd: 'node',
