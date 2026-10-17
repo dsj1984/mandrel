@@ -13609,9 +13609,21 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
+      "method": "bucketOf",
+      "startLine": 123,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
       "method": "collectRegressions",
       "startLine": 132,
       "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
+      "method": "toUnscorableEntry",
+      "startLine": 167,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
@@ -15857,6 +15869,12 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-utils.js",
+      "method": "statementCoverageOverLines",
+      "startLine": 217,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-utils.js",
       "method": "coverageForMethodInEntry",
       "startLine": 226,
       "crap": 7
@@ -16033,6 +16051,12 @@
       "method": "resolveCoordinate",
       "startLine": 33,
       "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/crap-engine.js",
+      "method": "resolveEndLine",
+      "startLine": 50,
+      "crap": 4
     },
     {
       "path": ".agents/scripts/lib/crap-engine.js",
