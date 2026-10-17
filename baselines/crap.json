@@ -35186,21 +35186,14 @@
     {
       "path": ".agents/scripts/lib/source-extensions.js",
       "method": "isScorableSourceFile",
-      "startLine": 46,
+      "startLine": 48,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/source-extensions.js",
       "method": "jscpdFormatsFor",
-      "startLine": 58,
+      "startLine": 60,
       "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/source-extensions.js",
-      "method": "<anon jscpdFormatsFor/(format)#0>",
-      "startLine": 59,
-      "crap": 1,
-      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/source-text/strip-js-comments.js",
