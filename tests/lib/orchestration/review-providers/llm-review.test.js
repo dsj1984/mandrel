@@ -6,6 +6,7 @@
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { REVIEW_PROVIDER_CLIS } from '../../../../.agents/scripts/lib/config/review-provider-clis.js';
 import { getAgentrcValidator } from '../../../../.agents/scripts/lib/config-settings-schema.js';
 import { CODE_REVIEW_SCHEMA } from '../../../../.agents/scripts/lib/config-settings-schema-quality.js';
 import { createCodeReviewProviderForRegistry } from '../../../../.agents/scripts/lib/orchestration/review-providers/code-review.js';
@@ -132,6 +133,16 @@ test('resolveLlmReviewDelegate prefers claude and stops probing at the first hit
     }),
     null,
   );
+});
+
+test('resolveLlmReviewDelegate probes in the shared provider-to-CLI order (Story #5756)', () => {
+  const probed = [];
+  resolveLlmReviewDelegate({
+    probeClaudeFn: () => probed.push('claude') < 0,
+    probeCodexFn: () => probed.push('codex') < 0,
+  });
+  assert.deepEqual(probed, REVIEW_PROVIDER_CLIS['llm-review']);
+  assert.ok(Object.isFrozen(REVIEW_PROVIDER_CLIS['llm-review']));
 });
 
 test('AC-2: neither CLI → native closes alone with one warning naming both remedies', async () => {

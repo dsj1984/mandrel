@@ -21,7 +21,6 @@ import {
   writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
-import { spawnChild } from '../child-exec.js';
 import { resolveConfig } from '../config-resolver.js';
 import { runGh } from '../gh-exec.js';
 import { Logger } from '../Logger.js';
@@ -100,8 +99,8 @@ function ghRunLogTail({ runId, cwd, spawnFn, maxLines = 40 }) {
   if (!runId) return '';
   const result = runGh(
     ['run', 'view', String(runId), '--log-failed'],
-    { run: spawnFn, cwd },
-    spawnChild,
+    { cwd },
+    spawnFn,
   );
   const out = (result.stdout ?? '').trim();
   if (out.length === 0) return '';
@@ -118,8 +117,8 @@ function ghRunLogTail({ runId, cwd, spawnFn, maxLines = 40 }) {
 function resolveFailingCheckRun({ prRef, checkName, cwd, spawnFn }) {
   const result = runGh(
     ['pr', 'checks', prRef, '--json', 'name,link'],
-    { run: spawnFn, cwd },
-    spawnChild,
+    { cwd },
+    spawnFn,
   );
   try {
     const parsed = JSON.parse((result.stdout ?? '').trim() || '[]');
@@ -144,8 +143,8 @@ function resolveFailingCheckRun({ prRef, checkName, cwd, spawnFn }) {
 export function resolvePrHeadSha({ prRef, cwd, spawnFn }) {
   const result = runGh(
     ['pr', 'view', prRef, '--json', 'headRefOid'],
-    { run: spawnFn, cwd },
-    spawnChild,
+    { cwd },
+    spawnFn,
   );
   if ((result?.status ?? 1) !== 0) return null;
   try {

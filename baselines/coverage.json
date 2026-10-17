@@ -1251,6 +1251,12 @@
       "functions": 0
     },
     {
+      "path": ".agents/scripts/lib/config/review-provider-clis.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 0
+    },
+    {
       "path": ".agents/scripts/lib/config/runners.js",
       "lines": 100,
       "branches": 100,
@@ -1582,9 +1588,9 @@
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
-      "lines": 97.41,
-      "branches": 94.07,
-      "functions": 87.5
+      "lines": 97.8,
+      "branches": 93.57,
+      "functions": 87.76
     },
     {
       "path": ".agents/scripts/lib/gh-transport.js",
@@ -2440,8 +2446,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/llm-review.js",
-      "lines": 97.87,
-      "branches": 85.71,
+      "lines": 98.02,
+      "branches": 86.36,
       "functions": 85.71
     },
     {
@@ -3754,7 +3760,7 @@
     },
     {
       "path": "lib/cli/doctor-checks/llm-review.js",
-      "lines": 98.21,
+      "lines": 98.04,
       "branches": 84.62,
       "functions": 100
     },

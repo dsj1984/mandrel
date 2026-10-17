@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
+import fs from 'node:fs';
+import path from 'node:path';
 import { describe, it } from 'node:test';
 
 import exec, {
@@ -7,7 +9,9 @@ import exec, {
   GhExecTimeoutError,
   getSpawnCount,
   resetSpawnCount,
+  runGh,
 } from '../../.agents/scripts/lib/gh-exec.js';
+import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 
 /**
  * Build a fake `spawn` that drives the EventEmitter-shaped child the
@@ -137,5 +141,70 @@ describe('gh-exec — throw-away spawn counter (Story #1795)', () => {
     assert.ok(getSpawnCount() >= 1);
     resetSpawnCount();
     assert.equal(getSpawnCount(), 0);
+  });
+});
+
+describe('runGh captures through child-exec (Story #5756)', () => {
+  const MIB = 1024 * 1024;
+  const BIG = 'x'.repeat(2 * MIB);
+
+  /** A `spawnSync`-shaped fake that fails ENOBUFS past its `maxBuffer`. */
+  function bufferHonouringRunner(stdout) {
+    const calls = [];
+    const runner = (file, args, opts) => {
+      calls.push({ file, args, opts });
+      const limit = opts.maxBuffer ?? MIB;
+      if (stdout.length > limit) {
+        const error = Object.assign(new Error('spawnSync gh ENOBUFS'), {
+          code: 'ENOBUFS',
+        });
+        return { status: null, stdout: stdout.slice(0, limit), error };
+      }
+      return { status: 0, stdout, stderr: '' };
+    };
+    return { runner, calls };
+  }
+
+  it('an injected runner receives the call under the shared ceiling', () => {
+    const { runner, calls } = bufferHonouringRunner(BIG);
+    const result = runGh(['api', 'big'], { cwd: '/repo' }, runner);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].file, 'gh');
+    assert.deepEqual(calls[0].args, ['api', 'big']);
+    assert.equal(calls[0].opts.cwd, '/repo');
+    assert.equal(calls[0].opts.shell, false);
+    assert.ok(calls[0].opts.maxBuffer > 1 * MIB);
+    assert.equal(result.error, undefined);
+    assert.equal(result.stdout.length, BIG.length);
+  });
+
+  it('a caller cannot reset the ceiling through its options', () => {
+    const { runner, calls } = bufferHonouringRunner(BIG);
+    runGh(['api', 'big'], { maxBuffer: MIB }, runner);
+    assert.ok(calls[0].opts.maxBuffer >= MIB);
+  });
+
+  it('reads a gh child output larger than 1 MiB in full by default', {
+    skip: process.platform === 'win32' && 'needs a POSIX gh stub on PATH',
+  }, () => {
+    const bin = makeTempDir('mandrel-rungh-big-');
+    try {
+      const stub = path.join(bin, 'gh');
+      fs.writeFileSync(
+        stub,
+        `#!/bin/sh\nexec "${process.execPath}" -e "process.stdout.write('x'.repeat(${BIG.length}))"\n`,
+      );
+      fs.chmodSync(stub, 0o755);
+      const env = {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH}`,
+      };
+      const result = runGh(['api', 'big'], { env });
+      assert.equal(result.error, undefined);
+      assert.equal(result.status, 0);
+      assert.equal(result.stdout.length, BIG.length);
+    } finally {
+      fs.rmSync(bin, { recursive: true, force: true });
+    }
   });
 });

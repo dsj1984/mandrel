@@ -187,8 +187,8 @@ const RAW_CAPTURE_SITES = {
   },
   '.agents/scripts/lib/gh-exec.js': {
     reason:
-      "the gh surface: a streaming spawn() seam that collects its own output, and runGh's spawnSync default runner (callers pass a wrapper runner for large reads)",
-    sites: { 'spawn (seam)': 1, 'spawnSync (seam)': 1 },
+      "exec()'s streaming spawn() seam, which collects its own output with no buffer to overflow (runGh routes through child-exec since #5756)",
+    sites: { 'spawn (seam)': 1 },
   },
   '.agents/scripts/lib/git-utils.js': {
     reason:
@@ -256,12 +256,12 @@ const RAW_CAPTURE_SITES = {
 };
 
 /**
- * Raw capture sites at this Story's base (#5739; main at 436844bc2, after
- * #5740's gh migrations), measured by the same
- * scanner before its migrations (diagnose-friction, format-autofix,
- * node-modules-strategy). The pinned total must stay strictly below it.
+ * Raw capture sites at the base of the last Story that migrated one (#5756;
+ * main at ccbd466e5, before runGh moved onto child-exec), measured by the
+ * same scanner. The pinned total must stay strictly below it, so the next
+ * migrating Story lowers this to the total it starts from.
  */
-const BASE_RAW_CAPTURE_SITE_COUNT = 47;
+const BASE_RAW_CAPTURE_SITE_COUNT = 42;
 
 /**
  * A numeric `maxBuffer` option literal — the hand-copied constant this Story
@@ -655,7 +655,7 @@ describe('raw capture call sites across the shipped tree (Story #5739)', () => {
     }
   });
 
-  it('the pinned site count is strictly below the Story #5739 base', () => {
+  it('the pinned site count is strictly below the Story #5756 base', () => {
     const pinnedTotal = Object.values(RAW_CAPTURE_SITES)
       .flatMap(({ sites }) => Object.values(sites))
       .reduce((sum, n) => sum + n, 0);

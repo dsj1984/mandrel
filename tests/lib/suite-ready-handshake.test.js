@@ -138,18 +138,23 @@ describe('suite-ready handshake (Story #5485)', {
   });
 
   it('AC-4: host wait plus test run may exceed timeoutMs when each phase fits', async () => {
+    // Its own bound: each phase keeps a 1200 ms margin for child startup and
+    // the ready-file poll (600 ms phases under the shared 1000 ms bound left
+    // 400 ms, which a loaded host overran into a 124 kill — Story #5756).
+    const boundMs = 3000;
+    const phaseMs = 1800;
     let timings = null;
     const code = await runCapture({
       cwd: dir,
-      timeoutMs: TIMEOUT_MS,
+      timeoutMs: boundMs,
       readyPollMs: POLL_MS,
-      spawnImpl: stubSuite({ hostWaitMs: 600, runMs: 600 }),
+      spawnImpl: stubSuite({ hostWaitMs: phaseMs, runMs: phaseMs }),
       onTimings: (t) => {
         timings = t;
       },
     });
-    assert.equal(code, 0);
-    assert.ok(timings.hostWaitMs + timings.testRunMs > TIMEOUT_MS);
+    assert.equal(code, 0, JSON.stringify(timings));
+    assert.ok(timings.hostWaitMs + timings.testRunMs > boundMs);
   });
 
   it('AC-4: the test phase is still bounded after the ready signal', async () => {
