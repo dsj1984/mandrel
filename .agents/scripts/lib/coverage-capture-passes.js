@@ -100,7 +100,23 @@ export function captureRefusal({
     coverage,
   });
   if (hasNpmScriptImpl(scripts, script)) return null;
-  // Name the fix rather than propagate the package manager's opaque exit.
+  return missingScriptExit({ crap, script, scriptKey, logger });
+}
+
+/**
+ * With the CRAP gate off nothing fails closed on a missing artifact, and close
+ * registers no capture without the script, so its absence is a skip (0).
+ * Otherwise name the fix rather than propagate the manager's opaque exit (1).
+ *
+ * @param {{ crap: object, script: string, scriptKey: string, logger: object }} opts
+ */
+function missingScriptExit({ crap, script, scriptKey, logger }) {
+  if (crap.enabled === false) {
+    logger.info(
+      `[coverage-capture] CRAP gate disabled and no "${script}" script — skipping capture.`,
+    );
+    return 0;
+  }
   logger.error(
     `[coverage-capture] ✖ No "${script}" script in package.json (the capture script, set by ${scriptKey}). ` +
       `Add one (e.g. "${script}": "node --test --experimental-test-coverage"), ` +

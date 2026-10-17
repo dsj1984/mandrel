@@ -200,7 +200,7 @@ function resolveCrapCoverageSource(userCrap, coverageGate) {
     slashed(userPath) !== slashed(coverageGate.coveragePath);
   if (userScript !== null && !ownCoverageSource) {
     throw new Error(
-      `[config] ${CRAP_CAPTURE_SCRIPT_KEY} '${userScript}' is set without an own ${CRAP_COVERAGE_PATH_KEY}. A CRAP capture script only writes a CRAP coverage artifact distinct from delivery.quality.gates.coverage.coveragePath — set ${CRAP_COVERAGE_PATH_KEY} to that artifact, or drop ${CRAP_CAPTURE_SCRIPT_KEY} so the coverage gate's captureScript runs.`,
+      `[config] ${CRAP_CAPTURE_SCRIPT_KEY} '${userScript}' is set without an own ${CRAP_COVERAGE_PATH_KEY}. A CRAP capture script only writes a CRAP coverage artifact distinct from delivery.quality.gates.coverage.coveragePath — set ${CRAP_COVERAGE_PATH_KEY} to that artifact, or move it to delivery.quality.gates.coverage.captureScript (\`npx mandrel update\` migrates it).`,
     );
   }
   return {

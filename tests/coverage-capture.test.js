@@ -230,6 +230,17 @@ describe('runCoverageCapture', () => {
     );
   });
 
+  it('skips (exit 0) with the CRAP gate off and no coverage capture script', async () => {
+    const h = harness({ crap: { ...CRAP, enabled: false }, hasScript: false });
+    assert.equal(await runCoverageCapture(argv(), h.deps), 0);
+    assert.equal(h.calls.capture.length, 0);
+    assert.match(
+      h.log.info[0],
+      /CRAP gate disabled and no "test:coverage" script/,
+    );
+    assert.equal(h.log.error.length, 0);
+  });
+
   it('AC-5: still captures with the CRAP gate off while the coverage gate is on', async () => {
     const h = harness({
       crap: { ...CRAP, enabled: false },
