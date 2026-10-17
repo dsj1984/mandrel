@@ -38,8 +38,9 @@ function gitToplevel(cwd, exec) {
 }
 
 /**
- * Where `.agentrc.json` is read: `cwd` → `AP_AGENTRC_CWD` → the process
- * cwd's git toplevel → `PROJECT_ROOT`.
+ * Where `.agentrc.json` is read: `cwd` → `AP_AGENTRC_CWD` → the nearest
+ * config dir within the process cwd's work tree (else its toplevel) →
+ * `PROJECT_ROOT`.
  */
 export function resolveAgentrcRoot({
   cwd,
@@ -49,7 +50,26 @@ export function resolveAgentrcRoot({
 } = {}) {
   if (cwd) return path.resolve(cwd);
   if (env.AP_AGENTRC_CWD) return path.resolve(env.AP_AGENTRC_CWD);
-  return path.resolve(gitToplevel(processCwd(), exec) ?? PROJECT_ROOT);
+  return path.resolve(cwdRoot(processCwd(), exec));
+}
+
+/** The config dir of the work tree `here` is in, or `PROJECT_ROOT`. */
+function cwdRoot(here, exec) {
+  const top = gitToplevel(here, exec);
+  return top === null ? PROJECT_ROOT : nearestConfig(here, top);
+}
+
+/**
+ * The nearest dir from `start` up to the work tree root `top` holding an
+ * `.agentrc.json` — a project nested in a larger repo — else `top`.
+ */
+function nearestConfig(start, top) {
+  const stop = canonical(top, process.platform);
+  for (let dir = start; ; dir = path.dirname(dir)) {
+    if (fs.existsSync(path.join(dir, '.agentrc.json'))) return dir;
+    const atTop = canonical(dir, process.platform) === stop;
+    if (atTop || path.dirname(dir) === dir) return top;
+  }
 }
 
 function nativeReal(p) {

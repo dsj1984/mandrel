@@ -255,6 +255,26 @@ process.stdout.write(JSON.stringify({ source: c.source, baseBranch: c.project.ba
     assert.match(got.source, /overrides .*story-1/);
   });
 
+  it('a project nested in a larger repo reads its own config, not the toplevel', () => {
+    const mono = realpathSync.native(makeTempDir('mandrel-anchor-mono-'));
+    made.push(mono);
+    execFileSync('git', ['init', '-q'], { cwd: mono });
+    const app = path.join(mono, 'app');
+    mkdirSync(path.join(app, 'src'), { recursive: true });
+    writeFileSync(
+      path.join(app, '.agentrc.json'),
+      JSON.stringify({
+        project: {
+          baseBranch: 'nested-base',
+          paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+        },
+      }),
+    );
+    const got = resolvedIn(path.join(app, 'src'), envWithout());
+    assert.equal(got.baseBranch, 'nested-base');
+    assert.equal(got.source, path.join(app, '.agentrc.json'));
+  });
+
   it('AC-1: an explicit AP_AGENTRC_CWD still overrides the cwd tree', () => {
     const worktree = treeWith('worktree-base');
     const other = treeWith('override-base');
