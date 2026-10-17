@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
+import { classify } from '../../../.agents/scripts/lib/gh-exec.js';
 import {
   ProjectAccessError,
   resolveProjectMeta,
@@ -259,5 +260,80 @@ describe('resolveProjectMeta — error classification (Story #5727)', () => {
       projectFields: 'id',
     });
     assert.deepEqual(node, NODE);
+  });
+});
+
+describe('resolveProjectMeta — gh-exec classified errors (Story #5735)', () => {
+  const SCOPE_STDERR =
+    "gh: Your token has not been granted the required scopes to execute this query. The 'projectV2' field requires one of the following scopes: ['read:project'] (INSUFFICIENT_SCOPES)\n";
+
+  /** A provider whose organization rung throws `err`, as `ghGraphql` would. */
+  function ghThrowingProvider(err) {
+    const calls = [];
+    return {
+      calls,
+      async graphql(query) {
+        calls.push(query);
+        if (query.includes('organization(login: $owner)')) throw err;
+        if (query.includes('user(login: $owner)')) return { user: null };
+        return { viewer: { projectV2: NODE } };
+      },
+    };
+  }
+
+  const ghError = (stderr) =>
+    classify({ args: ['api', 'graphql'], stdout: '', stderr, code: 1 });
+
+  it('fails fast with a ProjectAccessError when the scope text is only in stderr', async () => {
+    const err = ghError(SCOPE_STDERR);
+    assert.equal(err.name, 'GhScopeError');
+    assert.doesNotMatch(err.message, /INSUFFICIENT_SCOPES/);
+    const provider = ghThrowingProvider(err);
+    await assert.rejects(
+      resolveProjectMeta({
+        provider,
+        owner: 'acme',
+        projectNumber: 11,
+        projectFields: 'id',
+      }),
+      (thrown) => {
+        assert.ok(thrown instanceof ProjectAccessError);
+        assert.equal(thrown.cause, err);
+        assert.match(thrown.message, /INSUFFICIENT_SCOPES/);
+        return true;
+      },
+    );
+    assert.equal(provider.calls.length, 1, 'no later rung is tried');
+  });
+
+  it('fails fast when gh leaves an unclassified error carrying INSUFFICIENT_SCOPES in stderr', async () => {
+    const err = ghError('gh: GraphQL: INSUFFICIENT_SCOPES\n');
+    assert.notEqual(err.name, 'GhScopeError');
+    await assert.rejects(
+      resolveProjectMeta({
+        provider: ghThrowingProvider(err),
+        owner: 'acme',
+        projectNumber: 12,
+        projectFields: 'id',
+      }),
+      ProjectAccessError,
+    );
+  });
+
+  it('treats a gh transport failure and a gh NOT_FOUND as rung misses', async () => {
+    for (const stderr of [
+      'error connecting to api.github.com: dial tcp: lookup api.github.com: no such host\n',
+      "gh: Could not resolve to an Organization with the login of 'acme'. (NOT_FOUND)\n",
+    ]) {
+      const provider = ghThrowingProvider(ghError(stderr));
+      const node = await resolveProjectMeta({
+        provider,
+        owner: 'acme',
+        projectNumber: 13,
+        projectFields: 'id',
+      });
+      assert.deepEqual(node, NODE, stderr);
+      assert.equal(provider.calls.length, 3);
+    }
   });
 });
