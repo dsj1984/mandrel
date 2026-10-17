@@ -569,10 +569,7 @@ describe('storeRoot compares the work tree root canonically (#5740)', () => {
     args[1] === '--show-toplevel' ? 'C:/Repo/.worktrees/s1\n' : '/main/.git\n';
 
   it("on win32 a backslashed, differently-cased root matches git's toplevel", () => {
-    assert.equal(
-      storeRoot('c:\\REPO\\.worktrees\\s1', exec, 'win32'),
-      path.dirname(path.resolve('/main/.git')),
-    );
+    assert.equal(storeRoot('c:\\REPO\\.worktrees\\s1', exec, 'win32'), '/main');
   });
 
   it('on posix the same spellings are different directories', () => {
