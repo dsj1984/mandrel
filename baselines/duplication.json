@@ -167,8 +167,8 @@
     {
       "path": ".agents/scripts/lib/crap-engine.js",
       "duplicatedLines": 13,
-      "totalLines": 199,
-      "percentage": 6.53
+      "totalLines": 217,
+      "percentage": 5.99
     },
     {
       "path": ".agents/scripts/lib/findings/semantic-issue-search.js",
