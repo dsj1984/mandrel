@@ -5,13 +5,14 @@
 
 import { spawn as defaultSpawn } from 'node:child_process';
 
+import { ensureGhEnv } from '../gh-env.js';
 import { LABEL_COLORS } from '../label-constants.js';
 
 export const DEFAULT_RUN_CHILD_TIMEOUT_MS = 30000;
 
 /**
- * The feedback loop's single spawn helper. Never throws: spawn errors land in
- * `spawnError`; an overrun is SIGKILL'd and resolves `timedOut: true`.
+ * The feedback loop's single spawn helper (gh env ensured first). Never
+ * throws: spawn and config errors land in `spawnError`; an overrun is SIGKILL'd and resolves `timedOut: true`.
  * `timeoutMs` of `0`/`Infinity` disables the watchdog.
  *
  * @param {object} opts
@@ -32,6 +33,7 @@ export function runChild({
   return new Promise((resolve) => {
     let child;
     try {
+      ensureGhEnv();
       child = spawnImpl(cmd, args, {
         stdio: ['ignore', 'pipe', 'pipe'],
         cwd,
