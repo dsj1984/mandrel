@@ -31,9 +31,17 @@ const opt = (name, id) => ({
   description: '',
 });
 
-export const isInsufficientScopes = (err) =>
-  Boolean(err) &&
-  SCOPES_RE.test(err.message ?? err.toString?.() ?? String(err));
+// gh-exec keeps the refusal text in stderr behind a generic message.
+export const errorTextMatches = (err, re) => {
+  if (!err) return false;
+  const texts = [err.message, err.stderr, err.stdout].filter(
+    (text) => typeof text === 'string',
+  );
+  if (texts.length === 0) texts.push(err.toString?.() ?? String(err));
+  return texts.some((text) => re.test(text));
+};
+
+export const isInsufficientScopes = (err) => errorTextMatches(err, SCOPES_RE);
 export const isScopesMissingEnvelope = (value) =>
   Boolean(value) && typeof value === 'object' && value.scopesMissing === true;
 

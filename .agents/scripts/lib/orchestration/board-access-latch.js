@@ -4,7 +4,11 @@
  * here aborts a run.
  */
 
-import { isInsufficientScopes } from '../../providers/github/projects-v2-graphql.js';
+import {
+  errorTextMatches,
+  isInsufficientScopes,
+} from '../../providers/github/projects-v2-graphql.js';
+import { describeGhFailure, GhScopeError } from '../gh-exec.js';
 import { Logger } from '../Logger.js';
 
 const PROJECT_SCOPE = 'project';
@@ -19,6 +23,8 @@ export const SCOPE_FAILURE = Object.freeze({
 // GraphQL `FORBIDDEN`, or an explicit HTTP 401/403 from the GraphQL endpoint.
 const AUTH_FAILURE_RE =
   /\bFORBIDDEN\b|Bad credentials|\b(?:HTTP|GraphQL) 40[13]\b/;
+
+const ACCESS_ERROR_NAMES = new Set(['ProjectAccessError', 'GhScopeError']);
 
 /**
  * The board is unreachable with this token — a missing `project` scope or an
@@ -39,17 +45,17 @@ export class ProjectAccessError extends Error {
 
 /**
  * Is `err` a token-scope / auth refusal (as opposed to a NOT_FOUND miss or a
- * transient failure)? A `ProjectAccessError` always is.
+ * transient failure)? A `ProjectAccessError` or `GhScopeError` always is.
  *
  * @param {unknown} err
  * @returns {boolean}
  */
 export function isProjectAccessFailure(err) {
   if (!err) return false;
-  if (err instanceof ProjectAccessError) return true;
-  if (isInsufficientScopes(err)) return true;
-  const message = typeof err.message === 'string' ? err.message : String(err);
-  return AUTH_FAILURE_RE.test(message);
+  if (err instanceof GhScopeError || ACCESS_ERROR_NAMES.has(err.name)) {
+    return true;
+  }
+  return isInsufficientScopes(err) || errorTextMatches(err, AUTH_FAILURE_RE);
 }
 
 /**
@@ -60,7 +66,7 @@ export function isProjectAccessFailure(err) {
  */
 export function toProjectAccessError(err) {
   if (err instanceof ProjectAccessError) return err;
-  const detail = err?.message ?? String(err);
+  const detail = describeGhFailure(err);
   return new ProjectAccessError(
     `GitHub Projects v2 board is not accessible with this token (missing the "${PROJECT_SCOPE}" scope?): ${detail}`,
     { cause: err },
@@ -68,7 +74,12 @@ export function toProjectAccessError(err) {
 }
 
 // Sinks already warned; production shares one `Logger`, so once per process.
-const warnedSinks = new WeakSet();
+let warnedSinks = new WeakSet();
+
+/** Test isolation: forget every warned sink. */
+export function resetBoardAccessLatch() {
+  warnedSinks = new WeakSet();
+}
 
 /**
  * Record a board scope failure; the first call per process (per sink) emits
