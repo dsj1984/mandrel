@@ -130,9 +130,10 @@ Ordered by leverage per unit of risk. The stance has changed once:
 remains a sketch, not a plan of record.
 
 1. ~~**Abstract the projection layer.**~~ — done for Codex without a
-   host-adapter interface: `lib/codex/` projectors run behind the existing
-   `sync-claude-*` entry points. A third host would be the point to extract
-   the interface.
+   host-adapter interface: `lib/claude/` and `lib/codex/` projectors share
+   one module shape (`expected*` / `listGenerated*` / `sync*`) behind the
+   thin `sync-claude-*` entry points. A third host would be the point to
+   extract the interface.
 2. **Generalize env detection** behind a single `host-runtime` resolver
    wrapping the `CLAUDE_CODE_*` / `CC_*` vars in neutral names.
 3. ~~**Generalize the model-attribution module**~~ — moot: Story #5367 deleted

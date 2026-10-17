@@ -327,18 +327,6 @@
       "percentage": 6.06
     },
     {
-      "path": ".agents/scripts/sync-claude-agents.js",
-      "duplicatedLines": 10,
-      "totalLines": 170,
-      "percentage": 5.88
-    },
-    {
-      "path": ".agents/scripts/sync-claude-commands.js",
-      "duplicatedLines": 10,
-      "totalLines": 237,
-      "percentage": 4.22
-    },
-    {
       "path": ".agents/scripts/update-duplication-baseline.js",
       "duplicatedLines": 7,
       "totalLines": 194,
@@ -349,12 +337,6 @@
       "duplicatedLines": 32,
       "totalLines": 245,
       "percentage": 13.06
-    },
-    {
-      "path": "lib/cli/doctor-checks/sync-parity.js",
-      "duplicatedLines": 22,
-      "totalLines": 205,
-      "percentage": 10.73
     },
     {
       "path": "lib/cli/doctor-checks/toolchain.js",

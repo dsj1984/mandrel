@@ -10,21 +10,21 @@
  * whole file, which is strictly stronger than "ahead of stable bytes" and
  * has no false positives on this corpus.
  *
- * The sync header injected into materialized `.claude/agents/` /
- * `.claude/commands/` copies is imported and checked too — a header that
- * grew a timestamp would poison every materialized boot prompt at byte 0.
+ * The sync headers injected into materialized `.claude/agents/` /
+ * `.claude/commands/` copies are checked too, through the projectors' own
+ * output — a header that grew a timestamp would poison every materialized
+ * boot prompt at byte 0.
  */
 
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import {
-  HEADER as AGENTS_HEADER,
-  LOCAL_HEADER as AGENTS_LOCAL_HEADER,
-} from '../../.agents/scripts/sync-claude-agents.js';
+import { expectedClaudeAgents } from '../../.agents/scripts/lib/claude/agents-projection.js';
+import { expectedClaudeCommands } from '../../.agents/scripts/lib/claude/commands-projection.js';
+import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
@@ -83,7 +83,26 @@ describe('prefix stability — the assembled closure carries no volatile bytes (
   });
 
   it('the sync-injected materialization headers are static', () => {
-    assertStable('sync-claude-agents.js HEADER', AGENTS_HEADER);
-    assertStable('sync-claude-agents.js LOCAL_HEADER', AGENTS_LOCAL_HEADER);
+    // A static body from both sources: any volatile byte is the header's.
+    const root = makeTempDir('prefix-stability-');
+    const src = (zone) => {
+      const dir = path.join(root, zone);
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(path.join(dir, `${zone}.md`), '# static body\n');
+      return dir;
+    };
+    const sources = { payloadSrc: src('payload'), localSrc: src('local') };
+    const projected = [
+      ...expectedClaudeAgents({
+        projectRoot: root,
+        ...sources,
+        agentModels: {},
+      }),
+      ...expectedClaudeCommands({ projectRoot: root, ...sources }),
+    ];
+    assert.equal(projected.length, 4);
+    for (const [name, body] of projected) {
+      assertStable(`projected ${name}`, body);
+    }
   });
 });
