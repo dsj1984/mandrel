@@ -20,7 +20,6 @@ import { describe, it } from 'node:test';
 
 import {
   COMMANDS_DEFAULTS,
-  OPTIONAL_COMMAND_KEYS,
   resolveProjectCommand,
 } from '../../config/commands.js';
 import { getAgentrcValidator } from '../../config-settings-schema.js';
@@ -227,14 +226,10 @@ describe('resolveProjectCommand — one tri-state for every key (Story #5737 AC-
   });
 
   it('own-present null → disabled for typecheck, lint and formatCheck only', () => {
-    assert.deepEqual(OPTIONAL_COMMAND_KEYS, [
-      'typecheck',
-      'lint',
-      'formatCheck',
-    ]);
+    const OPTIONAL = ['typecheck', 'lint', 'formatCheck'];
     for (const key of KEYS) {
       const config = withCommands({ [key]: null });
-      if (OPTIONAL_COMMAND_KEYS.includes(key)) {
+      if (OPTIONAL.includes(key)) {
         assert.deepEqual(resolveProjectCommand(config, key), {
           argv: [],
           raw: null,

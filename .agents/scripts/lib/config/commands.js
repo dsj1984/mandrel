@@ -13,7 +13,7 @@ export const COMMANDS_DEFAULTS = Object.freeze({
 });
 
 /** The gates an explicit `null` disables. */
-export const OPTIONAL_COMMAND_KEYS = Object.freeze([
+const OPTIONAL_COMMAND_KEYS = Object.freeze([
   'typecheck',
   'lint',
   'formatCheck',

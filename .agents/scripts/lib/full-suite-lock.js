@@ -306,7 +306,7 @@ export function fullSuiteLockPolicy(config, env = process.env, argv) {
  * @param {{ cwd?: string, script?: string }} [captureOpts]
  * @returns {string[]}
  */
-export function coverageCaptureArgv(config, { cwd, script } = {}) {
+function coverageCaptureArgv(config, { cwd, script } = {}) {
   return packageScriptArgv(
     cwd ?? process.cwd(),
     script ?? getQuality(config).coverage.captureScript,
