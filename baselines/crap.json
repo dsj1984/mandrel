@@ -14337,6 +14337,12 @@
     },
     {
       "path": ".agents/scripts/lib/config/git-roots.js",
+      "method": "checkoutOf",
+      "startLine": 64,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/config/git-roots.js",
       "method": "storeRoot",
       "startLine": 67,
       "crap": 3
