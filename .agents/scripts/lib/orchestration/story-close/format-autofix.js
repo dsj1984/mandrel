@@ -15,6 +15,14 @@ import { Logger as DefaultLogger } from '../../Logger.js';
 const SCOPED_TAG = '[format-autofix-scoped]';
 
 /**
+ * `-- <paths…>` when pathspecs are given, else nothing (whole tree).
+ *
+ * @param {string[]} [paths]
+ * @returns {string[]}
+ */
+const pathspecArgs = (paths = []) => (paths.length ? ['--', ...paths] : []);
+
+/**
  * Paths from `git status --porcelain`. Lines are `XY <path>` and the status
  * pair's leading space is significant, so slice 3 chars rather than trim.
  * With `paths`, the status walk is limited to those pathspecs.
@@ -25,7 +33,7 @@ const SCOPED_TAG = '[format-autofix-scoped]';
  * @returns {string[]}
  */
 export function listDirtyPaths(cwd, git, paths) {
-  const scope = paths?.length ? ['--', ...paths] : [];
+  const scope = pathspecArgs(paths);
   const out = git(['status', '--porcelain', ...scope], {
     cwd,
     encoding: 'utf8',
@@ -89,7 +97,7 @@ export function currentBranch(cwd, git) {
  * @returns {string} short HEAD SHA of the new commit
  */
 export function commitDirtyPaths({ cwd, git, subject, paths }) {
-  const scope = paths?.length ? ['--', ...paths] : [];
+  const scope = pathspecArgs(paths);
   git(['add', '-u', ...scope], { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
   git(['commit', '-m', subject, ...scope], {
     cwd,
