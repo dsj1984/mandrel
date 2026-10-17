@@ -120,6 +120,10 @@ function scoreFile({
   };
 }
 
+function bucketOf(outcome) {
+  return outcome.reason ? 'unscorable' : 'regressions';
+}
+
 /**
  * @param {{
  *   cwd: string,
@@ -141,8 +145,7 @@ function collectRegressions({
   git,
   scoreSource,
 }) {
-  const regressions = [];
-  const unscorable = [];
+  const found = { regressions: [], unscorable: [] };
   for (const file of files) {
     if (!isScorableSourceFile(file)) continue;
     const baselineScore = baseline[file];
@@ -156,9 +159,9 @@ function collectRegressions({
       git,
       scoreSource,
     });
-    if (outcome) (outcome.reason ? unscorable : regressions).push(outcome);
+    if (outcome) found[bucketOf(outcome)].push(outcome);
   }
-  return { regressions, unscorable };
+  return found;
 }
 
 function toUnscorableEntry({ file, reason }) {

@@ -251,9 +251,7 @@ export function coverageForMethodInEntry(entry, startLine, endLine) {
     );
     return total === 0 ? 0 : covered / total;
   }
-  if (typeof startLine !== 'number' || typeof endLine !== 'number') {
-    return null;
-  }
+  if (typeof endLine !== 'number') return null;
   const { total, covered } = statementCoverageOverLines(
     idx,
     startLine,
