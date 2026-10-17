@@ -712,7 +712,7 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
-      "mi": 93.456
+      "mi": 94.768
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
@@ -884,7 +884,7 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-utils.js",
-      "mi": 87.488
+      "mi": 88.045
     },
     {
       "path": ".agents/scripts/lib/cpu-pool.js",
@@ -900,7 +900,7 @@
     },
     {
       "path": ".agents/scripts/lib/crap-engine.js",
-      "mi": 91.524
+      "mi": 92.189
     },
     {
       "path": ".agents/scripts/lib/crap-method-identity.js",
