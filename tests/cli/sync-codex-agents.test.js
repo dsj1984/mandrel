@@ -71,14 +71,9 @@ function effortOf(role) {
 }
 
 function run(args = [CLAUDE_SYNC]) {
-  const env = { ...process.env };
-  for (const key of Object.keys(env)) {
-    if (/^SYNC_(CLAUDE|CODEX)_/.test(key)) delete env[key];
-  }
   const result = spawnSync(process.execPath, args, {
     cwd: root,
     encoding: 'utf8',
-    env,
   });
   assert.equal(result.status, 0, result.stderr);
   return result;
@@ -198,19 +193,6 @@ describe('codex agent projection — the agent entry point writes both hosts', (
     assert.ok(
       fs.existsSync(path.join(agentsDir(), 'mandrel-story-worker.toml')),
     );
-  });
-
-  it('a fixture DEST override skips the Codex half', () => {
-    const result = spawnSync(process.execPath, [CLAUDE_SYNC], {
-      cwd: root,
-      encoding: 'utf8',
-      env: {
-        ...process.env,
-        SYNC_CLAUDE_AGENTS_DEST: path.join(root, 'claude-out'),
-      },
-    });
-    assert.equal(result.status, 0, result.stderr);
-    assert.equal(fs.existsSync(agentsDir()), false);
   });
 });
 

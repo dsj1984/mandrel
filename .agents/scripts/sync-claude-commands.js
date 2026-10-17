@@ -1,226 +1,43 @@
 #!/usr/bin/env node
 
-/**
- * Project `.agents/workflows/` and `.agents/local/workflows/` into a flat
- * `.claude/commands/` tree (one `/<name>` per top-level workflow). The payload
- * wins a name collision; both sources feed the orphan-reap set, so local
- * commands survive re-syncs. Flat commands, not a plugin tree, because the
- * plugin system is unavailable in some Claude Code hosts. `helpers/` is not
- * projected; `loops/` is the one recursed subdirectory (`/loops:<name>`).
- */
+/** Project the workflow set for Claude, then Codex, from `process.cwd()`. */
 
-// cli-opt-out: top-level-await script with no main() function — runAsCli wraps an async main, which doesn't apply here.
-import fs from 'node:fs';
-import path from 'node:path';
-
-import { syncCodexSkills } from './lib/codex/skills-projection.js';
-import { applyHeader, isCommandExcluded } from './lib/command-header.js';
+import {
+  CLAUDE_COMMANDS_DIR,
+  syncClaudeCommands,
+} from './lib/claude/commands-projection.js';
+import { runAsCli } from './lib/cli-utils.js';
+import {
+  CODEX_SKILLS_DIR,
+  syncCodexSkills,
+} from './lib/codex/skills-projection.js';
 import { Logger } from './lib/Logger.js';
-import { dirExists } from './lib/util/paths.js';
 
-// The root is cwd, never `__dirname/../..`: installed under node_modules that
-// climb lands on the package dir and would write commands inside it.
-const PROJECT_ROOT = process.cwd();
-
-// Test overrides; SYNC_CLAUDE_COMMANDS_SRC replaces the payload source only.
-const PAYLOAD_SRC =
-  process.env.SYNC_CLAUDE_COMMANDS_SRC ??
-  path.join(PROJECT_ROOT, '.agents', 'workflows');
-const LOCAL_SRC = path.join(PROJECT_ROOT, '.agents', 'local', 'workflows');
-
-const DEST_DIR =
-  process.env.SYNC_CLAUDE_COMMANDS_DEST ??
-  path.join(PROJECT_ROOT, '.claude', 'commands');
-
-export const HEADER =
-  '<!-- AUTO-GENERATED — do not edit. Source of truth: .agents/workflows/ -->\n<!-- Re-run: npm run sync:commands -->\n\n';
-
-export const LOCAL_HEADER =
-  '<!-- AUTO-GENERATED from .agents/local/ — do not edit. Source of truth: .agents/local/workflows/ -->\n<!-- Re-run: npm run sync:commands -->\n\n';
-
-/**
- * Remove any on-disk plugin projection and marketplace listing, which would
- * shadow the flat commands. Idempotent; skipped for fixture runs.
- *
- * @returns {void}
- */
-function reapPluginTree() {
-  if (process.env.SYNC_CLAUDE_COMMANDS_DEST) return;
-  const pluginRoot = path.join(PROJECT_ROOT, '.claude', 'plugins', 'mandrel');
-  const marketplace = path.join(
-    PROJECT_ROOT,
-    '.claude',
-    '.claude-plugin',
-    'marketplace.json',
-  );
-  for (const target of [pluginRoot, marketplace]) {
-    try {
-      fs.rmSync(target, { recursive: true, force: true });
-    } catch (err) {
-      Logger.warn(`  skip reap ${target}: ${err.message}`);
-    }
-  }
-  try {
-    fs.rmdirSync(path.join(PROJECT_ROOT, '.claude', '.claude-plugin'));
-  } catch {
-    /* not empty or absent — leave it */
-  }
-}
-
-reapPluginTree();
-fs.mkdirSync(DEST_DIR, { recursive: true });
-
-// The only recursed subdirectory; helpers/ holds path-included modules.
-const LOOPS_NS = 'loops';
-
-const isTopLevelWorkflow = (entry) =>
-  entry.isFile() && entry.name.endsWith('.md');
-
-/**
- * `loops/README.md` is documentation, not a command.
- *
- * @param {import('node:fs').Dirent} entry
- * @returns {boolean}
- */
-const isLoopUnit = (entry) =>
-  isTopLevelWorkflow(entry) && entry.name.toLowerCase() !== 'readme.md';
-
-/**
- * Keyed by `loops/<name>.md` so a unit never collides with a flat command.
- *
- * @param {string} dir A workflows source root.
- * @returns {Array<{dir: string, name: string, rel: string}>}
- */
-function enumerateLoopUnits(dir) {
-  const loopsDir = path.join(dir, LOOPS_NS);
-  if (!dirExists(loopsDir)) return [];
-  return fs
-    .readdirSync(loopsDir, { withFileTypes: true })
-    .filter(isLoopUnit)
-    .map((e) => ({
-      dir,
-      name: e.name,
-      rel: `${LOOPS_NS}/${e.name}`,
-    }));
-}
-
-// Payload first, so it wins a collision.
-const SRC_DIRS = [PAYLOAD_SRC, LOCAL_SRC].filter(dirExists);
-
-/**
- * Named, not inline: an anonymous callback in this spawned-only script has no
- * coverage coordinates for the CRAP seat to resolve.
- *
- * @param {string} dir A workflows source root.
- * @returns {Array<{dir: string, name: string, rel: string}>}
- */
-function workflowEntriesIn(dir) {
-  return [
-    ...fs
-      .readdirSync(dir, { withFileTypes: true })
-      .filter(isTopLevelWorkflow)
-      .map(function toWorkflowEntry(e) {
-        return { dir, name: e.name, rel: e.name };
-      }),
-    ...enumerateLoopUnits(dir),
-  ];
-}
-
-/** @type {Array<{dir: string, name: string, rel: string}>} */
-const entries = SRC_DIRS.flatMap(workflowEntriesIn);
-
-// A `command: false` workflow never enters `sourceSet`, so a stale copy is reaped.
-const byRel = new Map();
-for (const e of entries) {
-  if (byRel.has(e.rel)) {
-    Logger.warn(`  shadowed  ${e.rel} (local copy ignored; payload wins)`);
-    continue;
-  }
-  if (isCommandExcluded(fs.readFileSync(path.join(e.dir, e.rel), 'utf8'))) {
-    Logger.info(`  excluded ${e.rel} (frontmatter command: false)`);
-    continue;
-  }
-  byRel.set(e.rel, e);
-}
-
-// Any existing command not in this set is reaped.
-const sourceSet = new Set(byRel.keys());
-
-/**
- * @returns {string[]}
- */
-function listExistingCommands() {
-  const flat = fs
-    .readdirSync(DEST_DIR)
-    .filter((f) => f.endsWith('.md'))
-    .map((f) => f);
-  const loopsDest = path.join(DEST_DIR, LOOPS_NS);
-  const loops = dirExists(loopsDest)
-    ? fs
-        .readdirSync(loopsDest)
-        .filter((f) => f.endsWith('.md'))
-        .map((f) => `${LOOPS_NS}/${f}`)
-    : [];
-  return [...flat, ...loops];
-}
-
-for (const rel of listExistingCommands()) {
-  if (!sourceSet.has(rel)) {
-    fs.unlinkSync(path.join(DEST_DIR, rel));
-    Logger.info(`  removed  ${rel} (no longer in workflows)`);
-  }
-}
-
-// The header goes after any frontmatter, so `---` stays on line 1.
-let synced = 0;
-const resolvedEntries = Array.from(byRel.values());
-
-/**
- * @param {{ dir: string, rel: string }} entry
- * @returns {Promise<void>}
- */
-async function syncEntry({ dir, rel }) {
-  const isLocal = dir === LOCAL_SRC;
-  const header = isLocal ? LOCAL_HEADER : HEADER;
-  const content = await fs.promises.readFile(path.join(dir, rel), 'utf8');
-  const dest = path.join(DEST_DIR, rel);
-  const target = applyHeader(content, header);
-
-  await fs.promises.mkdir(path.dirname(dest), { recursive: true });
-
-  // Skip identical content to avoid noisy git diffs.
-  try {
-    const existingContent = await fs.promises.readFile(dest, 'utf8');
-    if (existingContent === target) return;
-  } catch (err) {
-    if (err.code !== 'ENOENT') throw err;
-  }
-
-  await fs.promises.writeFile(dest, target, 'utf8');
-  synced++;
-  Logger.info(`  synced   ${rel}`);
-}
-
-await Promise.all(resolvedEntries.map(syncEntry));
-
-Logger.info(
-  `\n✔ ${synced} file(s) synced, ${sourceSet.size} total commands in .claude/commands/`,
-);
-
-// The Codex half: the same source set as Codex skills. A fixture run (a
-// DEST override) skips it unless SYNC_CODEX_SKILLS_DEST names its own target.
-const codexSkillsDest =
-  process.env.SYNC_CODEX_SKILLS_DEST ??
-  (process.env.SYNC_CLAUDE_COMMANDS_DEST ? null : undefined);
-if (codexSkillsDest !== null) {
-  const codex = syncCodexSkills({
-    projectRoot: PROJECT_ROOT,
-    payloadSrc: PAYLOAD_SRC,
-    localSrc: LOCAL_SRC,
-    destDir: codexSkillsDest,
-    log: (line) => Logger.info(line),
+/** @returns {Promise<void>} */
+async function main() {
+  // cwd, never `__dirname/../..`, which lands inside node_modules.
+  const projectRoot = process.cwd();
+  const log = (line) => Logger.info(line);
+  const claude = syncClaudeCommands({
+    projectRoot,
+    log,
+    warn: (line) => Logger.warn(line),
   });
   Logger.info(
-    `✔ ${codex.written.length} file(s) synced, ${codex.total} total Codex skills in .agents/skills/workflows/`,
+    `\n✔ ${claude.written.length} file(s) synced, ${claude.total} total commands in ${CLAUDE_COMMANDS_DIR}/`,
+  );
+  const codex = syncCodexSkills({ projectRoot, log });
+  Logger.info(
+    `✔ ${codex.written.length} file(s) synced, ${codex.total} total Codex skills in ${CODEX_SKILLS_DIR}/`,
   );
 }
+
+runAsCli(import.meta.url, main, {
+  source: 'sync-claude-commands',
+  usage: {
+    invocation: 'node .agents/scripts/sync-claude-commands.js',
+    summary:
+      'Regenerate the .claude/commands/ projection of .agents/workflows/ (and .agents/local/workflows/), then the Codex skills under .agents/skills/workflows/.',
+    flags: [],
+  },
+});

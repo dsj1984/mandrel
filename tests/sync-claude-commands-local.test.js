@@ -10,27 +10,21 @@
  *        is ignored with a "shadowed" warning on stderr/stdout.
  *   AC4. Removing the local file removes its projected command on the next
  *        sync (still reaped when absent from both sources).
- *   AC5. The SYNC_CLAUDE_COMMANDS_SRC test override still works (existing
- *        fixture tests continue to pass; LOCAL_SRC remains absent or empty
- *        when the fixture tree has no local/workflows/).
+ *   AC5. A payload-only fixture (a `payloadSrc` argument, no
+ *        local/workflows/ under the project root) projects the payload alone.
  */
 
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { syncClaudeCommands } from '../.agents/scripts/lib/claude/commands-projection.js';
 import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
+import { runProjection } from './helpers/run-projection.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '..');
-const SYNC_SCRIPT = path.join(
-  PROJECT_ROOT,
-  '.agents',
-  'scripts',
-  'sync-claude-commands.js',
-);
 
 const LOCAL_HEADER =
   '<!-- AUTO-GENERATED from .agents/local/ — do not edit. Source of truth: .agents/local/workflows/ -->\n<!-- Re-run: npm run sync:commands -->\n\n';
@@ -54,7 +48,7 @@ function runSyncIsolated({
 } = {}) {
   const tmp = makeTempDir('sync-local-test-');
 
-  // Payload source (overridden via SYNC_CLAUDE_COMMANDS_SRC)
+  // Payload source (passed as the `payloadSrc` argument)
   const payloadSrc = path.join(tmp, 'workflows');
   fs.mkdirSync(payloadSrc, { recursive: true });
   for (const [name, content] of Object.entries(payloadFiles)) {
@@ -79,14 +73,10 @@ function runSyncIsolated({
     fs.writeFileSync(path.join(dest, name), content, 'utf8');
   }
 
-  const result = spawnSync(process.execPath, [SYNC_SCRIPT], {
-    cwd: tmp,
-    env: {
-      ...process.env,
-      SYNC_CLAUDE_COMMANDS_SRC: payloadSrc,
-      SYNC_CLAUDE_COMMANDS_DEST: dest,
-    },
-    encoding: 'utf8',
+  const result = runProjection(syncClaudeCommands, {
+    projectRoot: tmp,
+    payloadSrc: payloadSrc,
+    destDir: dest,
   });
 
   const commands = {};
@@ -157,17 +147,12 @@ test('AC2: local command survives a second sync run (prune-exempt)', () => {
     const dest = path.join(tmp, '.claude', 'commands');
     fs.mkdirSync(dest, { recursive: true });
 
-    const env = {
-      ...process.env,
-      SYNC_CLAUDE_COMMANDS_SRC: payloadSrc,
-      SYNC_CLAUDE_COMMANDS_DEST: dest,
-    };
+    const opts = { payloadSrc: payloadSrc, destDir: dest };
 
     // First run — projects the command
-    const first = spawnSync(process.execPath, [SYNC_SCRIPT], {
-      cwd: tmp,
-      env,
-      encoding: 'utf8',
+    const first = runProjection(syncClaudeCommands, {
+      projectRoot: tmp,
+      ...opts,
     });
     assert.equal(first.status, 0, first.stderr);
     assert.ok(
@@ -176,10 +161,9 @@ test('AC2: local command survives a second sync run (prune-exempt)', () => {
     );
 
     // Second run — must not reap the command
-    const second = spawnSync(process.execPath, [SYNC_SCRIPT], {
-      cwd: tmp,
-      env,
-      encoding: 'utf8',
+    const second = runProjection(syncClaudeCommands, {
+      projectRoot: tmp,
+      ...opts,
     });
     assert.equal(second.status, 0, second.stderr);
     assert.ok(
@@ -258,17 +242,12 @@ test('AC4: removing .agents/local/workflows/foo.md reaps .claude/commands/foo.md
     const dest = path.join(tmp, '.claude', 'commands');
     fs.mkdirSync(dest, { recursive: true });
 
-    const env = {
-      ...process.env,
-      SYNC_CLAUDE_COMMANDS_SRC: payloadSrc,
-      SYNC_CLAUDE_COMMANDS_DEST: dest,
-    };
+    const opts = { payloadSrc: payloadSrc, destDir: dest };
 
     // First run — projects the command
-    const first = spawnSync(process.execPath, [SYNC_SCRIPT], {
-      cwd: tmp,
-      env,
-      encoding: 'utf8',
+    const first = runProjection(syncClaudeCommands, {
+      projectRoot: tmp,
+      ...opts,
     });
     assert.equal(first.status, 0, first.stderr);
     assert.ok(
@@ -280,10 +259,9 @@ test('AC4: removing .agents/local/workflows/foo.md reaps .claude/commands/foo.md
     fs.unlinkSync(path.join(localSrc, 'to-remove.md'));
 
     // Second run — must reap the now-orphaned command
-    const second = spawnSync(process.execPath, [SYNC_SCRIPT], {
-      cwd: tmp,
-      env,
-      encoding: 'utf8',
+    const second = runProjection(syncClaudeCommands, {
+      projectRoot: tmp,
+      ...opts,
     });
     assert.equal(second.status, 0, second.stderr);
     assert.equal(
@@ -297,10 +275,10 @@ test('AC4: removing .agents/local/workflows/foo.md reaps .claude/commands/foo.md
 });
 
 // ---------------------------------------------------------------------------
-// AC5: SYNC_CLAUDE_COMMANDS_SRC override still works (existing fixture contract)
+// AC5: a payloadSrc argument with no local zone projects the payload alone
 // ---------------------------------------------------------------------------
 
-test('AC5: SYNC_CLAUDE_COMMANDS_SRC override still works; no local/ = no extra commands', () => {
+test('AC5: a payloadSrc argument projects alone; no local/ = no extra commands', () => {
   // When the cwd has no .agents/local/workflows/, LOCAL_SRC is silently skipped
   // and the behaviour is identical to the pre-#4243 single-source mode.
   const run = runSyncIsolated({
@@ -376,8 +354,8 @@ test('local and payload commands coexist without interfering', () => {
 // ---------------------------------------------------------------------------
 
 test("the guard projection ignores the checkout's own .agents/local/workflows/", async () => {
-  // `SYNC_CLAUDE_COMMANDS_SRC` overrides the payload source only; LOCAL_SRC is
-  // resolved from the sync's cwd. A projection run from the repository root
+  // `payloadSrc` overrides the payload source only; the local zone is
+  // resolved from the project root. A projection run from the repository root
   // therefore folded whatever the developer keeps in their local zone into the
   // file set the structural rename/retirement guards assert over — a file that
   // is not in the repository and that CI will never see.

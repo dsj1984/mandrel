@@ -3,7 +3,8 @@
  * Unit tests for lib/cli/registry.js — the mandrel doctor check registry.
  *
  * Each test drives a specific check in isolation via injectable seams so no
- * real child processes are spawned and no real filesystem is touched.
+ * real child processes are spawned; the Claude projection-parity checks run
+ * over a throwaway temp project, since they compare real bytes.
  *
  * Coverage contract (per AC):
  *   1. registry exports an ordered array of 7 check objects shaped { name, run() }
@@ -14,9 +15,13 @@
  */
 
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 
+import { syncClaudeAgents } from '../../.agents/scripts/lib/claude/agents-projection.js';
+import { syncClaudeCommands } from '../../.agents/scripts/lib/claude/commands-projection.js';
+import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import { registry } from '../../lib/cli/registry.js';
 
 // ---------------------------------------------------------------------------
@@ -404,315 +409,264 @@ describe('gh-auth check', () => {
 });
 
 // ---------------------------------------------------------------------------
-// commands-in-sync
+// commands-in-sync / agents-in-sync — byte parity over a real temp project
 // ---------------------------------------------------------------------------
 
-describe('commands-in-sync check', () => {
-  const ROOT = '/fake/root';
-  const PAYLOAD_DIR = path.join(ROOT, '.agents', 'workflows');
-  const LOCAL_DIR = path.join(ROOT, '.agents', 'local', 'workflows');
-  const DEST_DIR = path.join(ROOT, '.claude', 'commands');
+/**
+ * A throwaway project root seeded with `files` (project-relative path →
+ * content). The Claude parity checks compare real bytes, so they run over a
+ * real tree rather than a readDir fake.
+ *
+ * @param {Record<string, string>} files
+ * @returns {string}
+ */
+function seedProject(files) {
+  const root = makeTempDir('registry-sync-parity-');
+  for (const [rel, content] of Object.entries(files)) {
+    const abs = path.join(root, rel);
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.writeFileSync(abs, content, 'utf8');
+  }
+  return root;
+}
 
-  /**
-   * Dir-keyed readDir fake (#4721) — the check reads three dirs (payload,
-   * local, dest); keying by path keeps the read order non-load-bearing.
-   * An unlisted dir returns [] (mirrors the real seam's catch on an absent
-   * `.agents/local/workflows/`).
-   *
-   * @param {{ payload?: string[], local?: string[], dest?: string[] }} dirs
-   */
-  function makeReadDir({ payload = [], local = [], dest = [] } = {}) {
-    return (dir) => {
-      if (dir === PAYLOAD_DIR) return [...payload];
-      if (dir === LOCAL_DIR) return [...local];
-      if (dir === DEST_DIR) return [...dest];
-      return [];
-    };
+const WORKFLOW = '---\ndescription: normal\n---\n\n# Normal\n';
+const EXCLUDED = '---\ndescription: lens\ncommand: false\n---\n\n# Lens\n';
+const ROLE = '---\nname: worker\nmodel: inherit\n---\n\n# Worker\n';
+
+describe('commands-in-sync check', () => {
+  const run = (root) =>
+    findCheck('commands-in-sync').run({ projectRoot: root });
+
+  /** Seed sources, project them for real, return the root. */
+  function synced(files) {
+    const root = seedProject(files);
+    syncClaudeCommands({ projectRoot: root });
+    return root;
   }
 
-  it('returns ok=true when sources and destinations match', () => {
-    const check = findCheck('commands-in-sync');
-    const files = ['epic-deliver.md', 'story-deliver.md', 'git-deliver.md'];
-    const result = check.run({
-      projectRoot: ROOT,
-      readDir: makeReadDir({ payload: files, dest: files }),
+  it('returns ok=true when the projection matches the sources', () => {
+    const root = synced({
+      '.agents/workflows/epic-deliver.md': WORKFLOW,
+      '.agents/workflows/story-deliver.md': WORKFLOW,
+      '.agents/workflows/loops/tick.md': WORKFLOW,
     });
+    const result = run(root);
     assertResultShape(result, { expectOk: true });
     assert.match(result.detail, /3 commands up to date/);
   });
 
   it('returns ok=false when a source file is not in the destination', () => {
-    const check = findCheck('commands-in-sync');
-    const result = check.run({
-      projectRoot: ROOT,
-      readDir: makeReadDir({
-        payload: ['epic-deliver.md', 'story-deliver.md'],
-        dest: ['epic-deliver.md'],
-      }),
-    });
+    const root = synced({ '.agents/workflows/epic-deliver.md': WORKFLOW });
+    fs.writeFileSync(
+      path.join(root, '.agents', 'workflows', 'story-deliver.md'),
+      WORKFLOW,
+    );
+    const result = run(root);
     assertResultShape(result, { expectOk: false });
     assert.match(result.remedy, /sync:commands/);
     assert.match(result.detail, /1 not synced/);
   });
 
   it('returns ok=false when the destination has a stale file not in source', () => {
-    const check = findCheck('commands-in-sync');
-    const result = check.run({
-      projectRoot: ROOT,
-      readDir: makeReadDir({
-        payload: ['epic-deliver.md'],
-        dest: ['epic-deliver.md', 'old-command.md'],
-      }),
-    });
+    const root = synced({ '.agents/workflows/epic-deliver.md': WORKFLOW });
+    fs.writeFileSync(
+      path.join(root, '.claude', 'commands', 'old-command.md'),
+      '# old\n',
+    );
+    const result = run(root);
     assertResultShape(result, { expectOk: false });
     assert.match(result.detail, /1 stale/);
   });
 
-  // Story #3588 — regression: without an explicit projectRoot the check MUST
-  // anchor on the consumer dir (cwd()), not the package-relative
-  // resolveProjectRoot() climb that lands in node_modules in a real install.
-  it('defaults the root to cwd() (the consumer dir), not the package-relative climb', () => {
-    const check = findCheck('commands-in-sync');
-    const consumerRoot = path.join('/fake', 'consumer');
-    const dirsRead = [];
-    const result = check.run({
-      // projectRoot intentionally omitted — exercise the default resolution.
-      cwd: () => consumerRoot,
-      readDir: (dir) => {
-        dirsRead.push(dir);
-        // Every dir returns the same set so src and dest are in sync and the
-        // assertion is purely about roots.
-        return ['epic-deliver.md', 'story-deliver.md'];
-      },
-    });
-    assertResultShape(result, { expectOk: true });
-    // The check must read both source dirs and the dest dir anchored on the
-    // cwd() consumer root — not a package-relative path under node_modules.
-    assert.deepEqual(dirsRead, [
-      path.join(consumerRoot, '.agents', 'workflows'),
-      path.join(consumerRoot, '.agents', 'local', 'workflows'),
-      path.join(consumerRoot, '.claude', 'commands'),
-    ]);
+  // Story #5742 AC-4 — a same-name command with stale bytes fails, not only a
+  // missing or extra file.
+  it('returns ok=false when a same-name command holds stale content', () => {
+    const root = synced({ '.agents/workflows/epic-deliver.md': WORKFLOW });
+    fs.writeFileSync(
+      path.join(root, '.agents', 'workflows', 'epic-deliver.md'),
+      `${WORKFLOW}\nEdited after the last sync.\n`,
+    );
+    const result = run(root);
+    assertResultShape(result, { expectOk: false });
+    assert.match(result.detail, /1 stale/);
+    assert.match(result.remedy, /sync:commands/);
   });
 
-  // #4482 — a workflow whose frontmatter carries `command: false` (dual-use
-  // audit lens payload with a host-native standalone equivalent) is excluded
-  // from projection and MUST NOT count as "not synced".
-  it('excludes frontmatter `command: false` workflows from the expected set', () => {
-    const check = findCheck('commands-in-sync');
-    const result = check.run({
-      projectRoot: ROOT,
-      readDir: makeReadDir({
-        // payload has the lens + a normal workflow; dest only the normal one.
-        payload: ['audit-security.md', 'epic-deliver.md'],
-        dest: ['epic-deliver.md'],
-      }),
-      readFile: (file) =>
-        file.endsWith('audit-security.md')
-          ? '---\ndescription: lens\ncommand: false\n---\n\n# Lens\n'
-          : '---\ndescription: normal\n---\n\n# Normal\n',
-    });
+  // Story #3588 — without an explicit projectRoot the check MUST anchor on
+  // the consumer dir (cwd()), not the package-relative resolveProjectRoot()
+  // climb that lands in node_modules in a real install.
+  it('defaults the root to cwd() (the consumer dir), not the package-relative climb', () => {
+    const root = synced({ '.agents/workflows/epic-deliver.md': WORKFLOW });
+    const result = findCheck('commands-in-sync').run({ cwd: () => root });
     assertResultShape(result, { expectOk: true });
     assert.match(result.detail, /1 commands up to date/);
   });
 
-  // #4721 — the sync script has projected `.agents/local/workflows/` as a
-  // second, prune-exempt source since 1.75.0 (#4244); a dest command backed
-  // only by a local workflow MUST NOT count as stale. This was the permanent
-  // "1 stale" doctor false positive in consumers with a local command.
-  it('counts a dest command backed only by a local workflow as in sync (#4721)', () => {
-    const check = findCheck('commands-in-sync');
-    const result = check.run({
-      projectRoot: ROOT,
-      readDir: makeReadDir({
-        payload: ['epic-deliver.md'],
-        local: ['benchmark.md'],
-        dest: ['epic-deliver.md', 'benchmark.md'],
-      }),
+  // #4482 — a `command: false` workflow is not expected.
+  it('excludes frontmatter `command: false` workflows from the expected set', () => {
+    const root = synced({
+      '.agents/workflows/audit-security.md': EXCLUDED,
+      '.agents/workflows/epic-deliver.md': WORKFLOW,
     });
+    const result = run(root);
+    assertResultShape(result, { expectOk: true });
+    assert.match(result.detail, /1 commands up to date/);
+  });
+
+  // #4721 — a dest command backed only by a local workflow is in sync.
+  it('counts a dest command backed only by a local workflow as in sync (#4721)', () => {
+    const root = synced({
+      '.agents/workflows/epic-deliver.md': WORKFLOW,
+      '.agents/local/workflows/benchmark.md': WORKFLOW,
+    });
+    const result = run(root);
     assertResultShape(result, { expectOk: true });
     assert.match(result.detail, /2 commands up to date/);
   });
 
   it('reports a local workflow with no dest counterpart as not synced', () => {
-    const check = findCheck('commands-in-sync');
-    const result = check.run({
-      projectRoot: ROOT,
-      readDir: makeReadDir({
-        payload: ['epic-deliver.md'],
-        local: ['benchmark.md'],
-        dest: ['epic-deliver.md'],
-      }),
-    });
+    const root = synced({ '.agents/workflows/epic-deliver.md': WORKFLOW });
+    const local = path.join(root, '.agents', 'local', 'workflows');
+    fs.mkdirSync(local, { recursive: true });
+    fs.writeFileSync(path.join(local, 'benchmark.md'), WORKFLOW);
+    const result = run(root);
     assertResultShape(result, { expectOk: false });
     assert.match(result.detail, /1 not synced/);
   });
 
   it('applies the `command: false` exclusion to local sources too', () => {
-    const check = findCheck('commands-in-sync');
-    const result = check.run({
-      projectRoot: ROOT,
-      readDir: makeReadDir({
-        payload: ['epic-deliver.md'],
-        local: ['local-lens.md'],
-        dest: ['epic-deliver.md'],
-      }),
-      readFile: (file) =>
-        file.endsWith('local-lens.md')
-          ? '---\ndescription: lens\ncommand: false\n---\n\n# Lens\n'
-          : '---\ndescription: normal\n---\n\n# Normal\n',
+    const root = synced({
+      '.agents/workflows/epic-deliver.md': WORKFLOW,
+      '.agents/local/workflows/local-lens.md': EXCLUDED,
     });
+    const result = run(root);
     assertResultShape(result, { expectOk: true });
     assert.match(result.detail, /1 commands up to date/);
   });
 
-  // Union semantics on basename collision: the sync script's payload-wins
-  // shadowing means a basename projects iff at least one source copy is
-  // non-excluded — including the payload-excluded/local-projected case
-  // (an excluded payload entry never enters `byRel`, so it does not shadow
-  // the local copy).
+  // Payload-wins shadowing: an excluded payload copy never claims its name,
+  // so the local copy projects.
   it('counts a basename supplied by both sources once, and a payload-excluded/local-projected basename as expected', () => {
-    const check = findCheck('commands-in-sync');
-    const result = check.run({
-      projectRoot: ROOT,
-      readDir: makeReadDir({
-        // shared.md in both dirs; lens.md excluded in payload, plain local.
-        payload: ['shared.md', 'lens.md'],
-        local: ['shared.md', 'lens.md'],
-        dest: ['shared.md', 'lens.md'],
-      }),
-      readFile: (file) =>
-        file === path.join(PAYLOAD_DIR, 'lens.md')
-          ? '---\ndescription: lens\ncommand: false\n---\n\n# Lens\n'
-          : '---\ndescription: normal\n---\n\n# Normal\n',
+    const root = synced({
+      '.agents/workflows/shared.md': WORKFLOW,
+      '.agents/workflows/lens.md': EXCLUDED,
+      '.agents/local/workflows/shared.md': WORKFLOW,
+      '.agents/local/workflows/lens.md': WORKFLOW,
     });
+    const result = run(root);
     assertResultShape(result, { expectOk: true });
     assert.match(result.detail, /2 commands up to date/);
   });
 });
 
-// ---------------------------------------------------------------------------
-// agents-in-sync
-// ---------------------------------------------------------------------------
-
 describe('agents-in-sync check', () => {
-  it('returns ok=true when sources and destinations match', () => {
-    const check = findCheck('agents-in-sync');
-    const files = ['story-worker.md', 'acceptance-critic.md', 'retro.md'];
-    const result = check.run({
-      projectRoot: '/fake/root',
-      readDir: () => [...files],
+  const run = (root, opts = {}) =>
+    findCheck('agents-in-sync').run({ projectRoot: root, ...opts });
+
+  /** Seed sources, project them for real, return the root. */
+  function synced(files) {
+    const root = seedProject(files);
+    syncClaudeAgents({ projectRoot: root });
+    return root;
+  }
+
+  it('returns ok=true when the projection matches the sources', () => {
+    const root = synced({
+      '.agents/agents/story-worker.md': ROLE,
+      '.agents/agents/acceptance-critic.md': ROLE,
+      '.agents/agents/retro.md': ROLE,
     });
+    const result = run(root);
     assertResultShape(result, { expectOk: true });
     assert.match(result.detail, /3 agents up to date/);
   });
 
   it('is a clean no-op when there are no agent sources or dests', () => {
-    const check = findCheck('agents-in-sync');
-    const result = check.run({
-      projectRoot: '/fake/root',
-      readDir: () => [],
-    });
+    const result = run(seedProject({}));
     assertResultShape(result, { expectOk: true });
     assert.match(result.detail, /0 agents up to date/);
   });
 
-  // Tightened from advisory to fatal (Story #4530, M7-B): the never-
-  // materialized-tree tolerance existed only because nothing spawned the
-  // role agents yet. M7-B has landed (deliver-story Step 1a dispatches
-  // subagent_type: acceptance-critic by default), so under the default
-  // roleScopedAgents:true this is now a readiness failure.
+  // Story #4530 (M7-B): under the default roleScopedAgents:true an
+  // unmaterialized tree is a readiness failure.
   it('is fatal (ok:false) when sources exist, the dest tree is empty, and roleScopedAgents is true (default)', () => {
-    const check = findCheck('agents-in-sync');
-    let callCount = 0;
-    const result = check.run({
-      projectRoot: '/fake/root',
-      roleScopedAgents: true,
-      readDir: () => {
-        callCount++;
-        // First call = srcDir (3 defs), second call = destDir (empty).
-        if (callCount === 1) {
-          return ['story-worker.md', 'acceptance-critic.md', 'retro.md'];
-        }
-        return [];
-      },
+    const root = seedProject({
+      '.agents/agents/story-worker.md': ROLE,
+      '.agents/agents/acceptance-critic.md': ROLE,
+      '.agents/agents/retro.md': ROLE,
     });
+    const result = run(root, { roleScopedAgents: true });
     assertResultShape(result, { expectOk: false });
     assert.match(result.detail, /3 agent def\(s\) not yet materialized/);
     assert.doesNotMatch(result.detail, /inert/);
     assert.match(result.remedy, /mandrel sync-agents/);
   });
 
-  // roleScopedAgents:false is the documented kill-switch — an unmaterialized
-  // tree under that flag is expected, not a defect, so the check stays
-  // advisory.
+  // roleScopedAgents:false is the documented kill-switch.
   it('stays advisory (ok:true) when sources exist, the dest tree is empty, and roleScopedAgents is false', () => {
-    const check = findCheck('agents-in-sync');
-    let callCount = 0;
-    const result = check.run({
-      projectRoot: '/fake/root',
-      roleScopedAgents: false,
-      readDir: () => {
-        callCount++;
-        if (callCount === 1) {
-          return ['story-worker.md', 'acceptance-critic.md', 'retro.md'];
-        }
-        return [];
-      },
+    const root = seedProject({
+      '.agents/agents/story-worker.md': ROLE,
+      '.agents/agents/acceptance-critic.md': ROLE,
+      '.agents/agents/retro.md': ROLE,
     });
+    const result = run(root, { roleScopedAgents: false });
     assertResultShape(result, { expectOk: true });
     assert.match(result.detail, /3 agent def\(s\) not materialized/);
     assert.match(result.detail, /roleScopedAgents is disabled/);
   });
 
   it('returns ok=false when a source def is not in the destination', () => {
-    const check = findCheck('agents-in-sync');
-    let callCount = 0;
-    const result = check.run({
-      projectRoot: '/fake/root',
-      readDir: () => {
-        callCount++;
-        // First call = srcDir (2 defs), second call = destDir (1 def).
-        if (callCount === 1) return ['story-worker.md', 'retro.md'];
-        return ['story-worker.md'];
-      },
-    });
+    const root = synced({ '.agents/agents/story-worker.md': ROLE });
+    fs.writeFileSync(path.join(root, '.agents', 'agents', 'retro.md'), ROLE);
+    const result = run(root);
     assertResultShape(result, { expectOk: false });
     assert.match(result.remedy, /mandrel sync-agents/);
     assert.match(result.detail, /1 not synced/);
   });
 
   it('returns ok=false when the destination has a stale def not in source', () => {
-    const check = findCheck('agents-in-sync');
-    let callCount = 0;
-    const result = check.run({
-      projectRoot: '/fake/root',
-      readDir: () => {
-        callCount++;
-        if (callCount === 1) return ['story-worker.md'];
-        return ['story-worker.md', 'old-agent.md'];
-      },
-    });
+    const root = synced({ '.agents/agents/story-worker.md': ROLE });
+    fs.writeFileSync(
+      path.join(root, '.claude', 'agents', 'old-agent.md'),
+      ROLE,
+    );
+    const result = run(root);
     assertResultShape(result, { expectOk: false });
     assert.match(result.detail, /1 stale/);
   });
 
+  // Story #5742 AC-4 — a same-name agent with stale bytes fails.
+  it('returns ok=false when a same-name agent holds stale content', () => {
+    const root = synced({ '.agents/agents/story-worker.md': ROLE });
+    fs.writeFileSync(
+      path.join(root, '.agents', 'agents', 'story-worker.md'),
+      `${ROLE}\nEdited after the last sync.\n`,
+    );
+    const result = run(root);
+    assertResultShape(result, { expectOk: false });
+    assert.match(result.detail, /1 stale/);
+    assert.match(result.remedy, /mandrel sync-agents/);
+  });
+
+  it('an agentModels override changes the expected bytes', () => {
+    const root = synced({ '.agents/agents/story-worker.md': ROLE });
+    fs.writeFileSync(
+      path.join(root, '.agentrc.json'),
+      JSON.stringify({
+        delivery: { routing: { agentModels: { 'story-worker': 'sonnet' } } },
+      }),
+    );
+    assertResultShape(run(root), { expectOk: false });
+    syncClaudeAgents({ projectRoot: root });
+    assertResultShape(run(root), { expectOk: true });
+  });
+
   it('defaults the root to cwd() (the consumer dir), not the package-relative climb', () => {
-    const check = findCheck('agents-in-sync');
-    const consumerRoot = path.join('/fake', 'consumer');
-    const dirsRead = [];
-    const result = check.run({
-      cwd: () => consumerRoot,
-      readDir: (dir) => {
-        dirsRead.push(dir);
-        return ['story-worker.md'];
-      },
-    });
+    const root = synced({ '.agents/agents/story-worker.md': ROLE });
+    const result = findCheck('agents-in-sync').run({ cwd: () => root });
     assertResultShape(result, { expectOk: true });
-    assert.deepEqual(dirsRead, [
-      path.join(consumerRoot, '.agents', 'agents'),
-      path.join(consumerRoot, '.claude', 'agents'),
-    ]);
+    assert.match(result.detail, /1 agents up to date/);
   });
 });
 

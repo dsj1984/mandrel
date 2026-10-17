@@ -67,14 +67,9 @@ function frontmatter(text) {
 }
 
 function run(script = CLAUDE_SYNC) {
-  const env = { ...process.env };
-  for (const key of Object.keys(env)) {
-    if (/^SYNC_(CLAUDE|CODEX)_/.test(key)) delete env[key];
-  }
   const result = spawnSync(process.execPath, [script], {
     cwd: root,
     encoding: 'utf8',
-    env,
   });
   assert.equal(result.status, 0, result.stderr);
   return result;
@@ -208,17 +203,6 @@ describe('codex skill projection — the command entry point writes both hosts',
     });
     assert.equal(result.status, 0, result.stderr);
     assert.ok(fs.existsSync(path.join(skillsDir(), 'alpha', 'SKILL.md')));
-  });
-
-  it('a fixture DEST override skips the Codex half unless it is named', () => {
-    const dest = path.join(root, 'claude-out');
-    const result = spawnSync(process.execPath, [CLAUDE_SYNC], {
-      cwd: root,
-      encoding: 'utf8',
-      env: { ...process.env, SYNC_CLAUDE_COMMANDS_DEST: dest },
-    });
-    assert.equal(result.status, 0, result.stderr);
-    assert.equal(fs.existsSync(skillsDir()), false);
   });
 });
 
