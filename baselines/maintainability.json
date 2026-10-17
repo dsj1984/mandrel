@@ -651,6 +651,14 @@
       "mi": 100.789
     },
     {
+      "path": ".agents/scripts/lib/claude/agents-projection.js",
+      "mi": 103.04
+    },
+    {
+      "path": ".agents/scripts/lib/claude/commands-projection.js",
+      "mi": 101.381
+    },
+    {
       "path": ".agents/scripts/lib/clean-temp.js",
       "mi": 95.176
     },
@@ -2424,11 +2432,11 @@
     },
     {
       "path": ".agents/scripts/sync-claude-agents.js",
-      "mi": 98.093
+      "mi": 112.433
     },
     {
       "path": ".agents/scripts/sync-claude-commands.js",
-      "mi": 99.004
+      "mi": 115.001
     },
     {
       "path": ".agents/scripts/sync-codex-agents.js",
@@ -2512,7 +2520,7 @@
     },
     {
       "path": "lib/cli/doctor-checks/sync-parity.js",
-      "mi": 102.008
+      "mi": 105.521
     },
     {
       "path": "lib/cli/doctor-checks/test-credit-path.js",
