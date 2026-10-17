@@ -12,6 +12,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { Volume } from 'memfs';
 import { applyGhConfigDir } from '../../.agents/scripts/lib/config/gh-config-dir.js';
+import { storeRoot } from '../../.agents/scripts/lib/config/git-roots.js';
 import {
   PROJECT_ROOT,
   resolveConfig,
@@ -562,6 +563,24 @@ describe('runGh reports a gh-env config error instead of throwing (#5740)', () =
   });
 });
 
+describe('storeRoot compares the work tree root canonically (#5740)', () => {
+  // git prints C:/Users/runneradmin/...; the root may be C:\\USERS\\... .
+  const exec = (_file, args) =>
+    args[1] === '--show-toplevel' ? 'C:/Repo/.worktrees/s1\n' : '/main/.git\n';
+
+  it("on win32 a backslashed, differently-cased root matches git's toplevel", () => {
+    assert.equal(
+      storeRoot('c:\\REPO\\.worktrees\\s1', exec, 'win32'),
+      path.dirname(path.resolve('/main/.git')),
+    );
+  });
+
+  it('on posix the same spellings are different directories', () => {
+    const root = 'c:\\REPO\\.worktrees\\s1';
+    assert.equal(storeRoot(root, exec, 'linux'), root);
+  });
+});
+
 describe('the gh store root follows the project, not the enclosing repo (#5740)', () => {
   const made = [];
   afterEach(() => {
@@ -615,8 +634,8 @@ describe('the gh store root follows the project, not the enclosing repo (#5740)'
     );
     const dir = ensureGhEnv({ cwd: app, env: {} });
     assert.equal(
-      fs.realpathSync(dir),
-      fs.realpathSync(path.join(app, 'gh-store')),
+      fs.realpathSync.native(dir),
+      fs.realpathSync.native(path.join(app, 'gh-store')),
     );
   });
 
@@ -641,8 +660,8 @@ describe('the gh store root follows the project, not the enclosing repo (#5740)'
     const env = {};
     const dir = ensureGhEnv({ cwd: worktree, env });
     assert.equal(
-      fs.realpathSync(dir),
-      fs.realpathSync(path.join(main, 'gh-store')),
+      fs.realpathSync.native(dir),
+      fs.realpathSync.native(path.join(main, 'gh-store')),
     );
   });
 });

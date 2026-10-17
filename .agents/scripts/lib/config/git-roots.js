@@ -52,18 +52,27 @@ export function resolveAgentrcRoot({
   return path.resolve(gitToplevel(processCwd(), exec) ?? PROJECT_ROOT);
 }
 
-const canonical = (p) => {
+function nativeReal(p) {
   try {
-    return fs.realpathSync(p);
+    return fs.realpathSync.native(p);
   } catch {
-    return path.resolve(p);
+    return p;
   }
-};
+}
+
+/** Native realpath (8.3 names, symlinks); win32 compares case-insensitively. */
+function canonical(p, platform) {
+  const win = platform === 'win32';
+  const resolved = (win ? path.win32 : path).resolve(nativeReal(p));
+  return win ? resolved.toLowerCase() : resolved;
+}
 
 /** The main checkout when `root` is a work tree root over a checkout's `.git`. */
-function checkoutOf(root, exec) {
+function checkoutOf(root, exec, platform) {
   const top = gitToplevel(root, exec);
-  if (top === null || canonical(top) !== canonical(root)) return null;
+  const same =
+    top !== null && canonical(top, platform) === canonical(root, platform);
+  if (!same) return null;
   const common = revParse('--git-common-dir', root, exec) ?? '';
   return path.basename(common) === '.git'
     ? mainCheckoutRoot(root, { exec })
@@ -75,8 +84,8 @@ function checkoutOf(root, exec) {
  * checkout for a checkout or linked worktree root, else `root` (a nested
  * project, a submodule, a separate git dir).
  */
-export function storeRoot(root, exec) {
-  return checkoutOf(root, exec) ?? root;
+export function storeRoot(root, exec, platform = process.platform) {
+  return checkoutOf(root, exec, platform) ?? root;
 }
 
 /** Where `root`'s `.agentrc.local.json` is read: its own, else `storeRoot`'s. */

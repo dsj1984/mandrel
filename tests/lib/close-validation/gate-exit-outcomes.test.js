@@ -201,7 +201,7 @@ process.stdout.write(JSON.stringify({ source: c.source, baseBranch: c.project.ba
 
   /** A git work tree whose `.agentrc.json` names `baseBranch`. */
   function treeWith(baseBranch) {
-    const dir = realpathSync(makeTempDir('mandrel-anchor-'));
+    const dir = realpathSync.native(makeTempDir('mandrel-anchor-'));
     execFileSync('git', ['init', '-q'], { cwd: dir });
     writeFileSync(
       path.join(dir, '.agentrc.json'),
@@ -264,7 +264,7 @@ process.stdout.write(JSON.stringify({ source: c.source, baseBranch: c.project.ba
   });
 
   it('AC-1: a non-git temp directory falls back to PROJECT_ROOT', () => {
-    const plain = realpathSync(makeTempDir('mandrel-anchor-plain-'));
+    const plain = realpathSync.native(makeTempDir('mandrel-anchor-plain-'));
     made.push(plain);
     const got = resolvedIn(plain, envWithout());
     assert.ok(
