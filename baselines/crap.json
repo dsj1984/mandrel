@@ -18304,6 +18304,12 @@
       "crap": 2
     },
     {
+      "path": ".agents/scripts/lib/gh-env.js",
+      "method": "tryGhEnv",
+      "startLine": 62,
+      "crap": 1
+    },
+    {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "runGh",
       "startLine": 21,
@@ -18314,6 +18320,12 @@
       "method": "getSpawnCount",
       "startLine": 28,
       "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/gh-exec.js",
+      "method": "runGhOrThrow",
+      "startLine": 31,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
