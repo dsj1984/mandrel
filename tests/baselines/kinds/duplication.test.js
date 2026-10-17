@@ -176,6 +176,28 @@ describe('kinds/duplication.applyEpsilon()', () => {
     assert.deepEqual(out, regen);
   });
 
+  it('regenerated row wins when duplicatedLines moves inside the percentage epsilon', () => {
+    const prior = [
+      {
+        path: 'src/a.js',
+        duplicatedLines: 10,
+        totalLines: 100,
+        percentage: 10,
+      },
+    ];
+    const regen = [
+      {
+        path: 'src/a.js',
+        duplicatedLines: 11,
+        totalLines: 110,
+        percentage: 10,
+      },
+    ];
+    const out = applyEpsilon(prior, regen, 0.5);
+    assert.deepEqual(out, regen);
+    assert.equal(compare({ rows: regen }, { rows: out }).regressions.length, 0);
+  });
+
   it('treats a negative epsilon as 0 (exact-match only preserves)', () => {
     const regen = [row('src/a.js', 10, 100, 10.01)];
     const out = applyEpsilon(prior, regen, -1);
