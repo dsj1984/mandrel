@@ -1834,6 +1834,12 @@
     },
     {
       "path": ".agents/scripts/check-dead-exports.js",
+      "method": "writeTextReport",
+      "startLine": 172,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/check-dead-exports.js",
       "method": "gateExitCode",
       "startLine": 173,
       "crap": 3
