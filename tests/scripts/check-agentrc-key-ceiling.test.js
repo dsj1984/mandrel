@@ -6,12 +6,16 @@
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { AGENTRC_SCHEMA } from '../../.agents/scripts/lib/config-settings-schema.js';
-import { checkLeafKeyCeiling } from '../../scripts/lib/agentrc-key-ceiling.js';
+import {
+  checkLeafKeyCeiling,
+  formatCeilingBreach,
+} from '../../scripts/lib/agentrc-key-ceiling.js';
 
 /** The leaf paths the ceiling counts. */
 const collectLeafKeys = (schema) => checkLeafKeyCeiling(schema).leaves;
@@ -124,6 +128,34 @@ describe('checkLeafKeyCeiling', () => {
     ]) {
       assert.equal(leaves.has(kept), true, kept);
     }
+  });
+});
+
+describe('the raise-and-record rule (Story #5743)', () => {
+  const DERIVATION_CLAUSE =
+    /existing source of truth the new key could not (be )?derived? from/;
+
+  it('the failure text names the count, the ceiling and the derivation clause', () => {
+    const line = formatCeilingBreach({ count: 140, ceiling: 138 });
+    assert.match(line, /140 leaf key\(s\) exceeds the ceiling of 138\./);
+    assert.match(line, DERIVATION_CLAUSE);
+    assert.match(line, /docs\/decisions\.md/);
+  });
+
+  it('the module header and decisions.md carry the same clause', () => {
+    const header = readFileSync(
+      path.join(REPO_ROOT, 'scripts', 'lib', 'agentrc-key-ceiling.js'),
+      'utf8',
+    );
+    const decisions = readFileSync(
+      path.join(REPO_ROOT, 'docs', 'decisions.md'),
+      'utf8',
+    ).replace(/\s+/g, ' ');
+    assert.match(header.replace(/\s*\*\s*/g, ' '), DERIVATION_CLAUSE);
+    assert.match(decisions, DERIVATION_CLAUSE);
+    assert.match(decisions, /Derive, don't declare/);
+    assert.match(decisions, /Story #5738.*duplication\.formats/);
+    assert.match(decisions, /Story #5737.*per artifact/);
   });
 });
 

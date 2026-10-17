@@ -12,6 +12,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { resolveCrapPreviewIncremental } from '../../.agents/scripts/lib/baselines/crap-preview-incremental.js';
+import { gateBase } from '../../.agents/scripts/lib/config/gates/shared.js';
 import {
   MAINTAINABILITY_GATE_DEFAULTS,
   resolveQuality,
@@ -19,12 +20,12 @@ import {
 import { Logger } from '../../.agents/scripts/lib/Logger.js';
 
 describe('DEFAULT_MI_FLOORS (Story #2193)', () => {
-  it('exposes a `*` workspace key whose `min` floor is 70', () => {
+  it('exposes a `*` component key whose `min` floor is 70', () => {
     const floors = MAINTAINABILITY_GATE_DEFAULTS.floors;
     assert.ok(floors, 'maintainability gate defaults expose a floors object');
     assert.ok(
       Object.hasOwn(floors, '*'),
-      'maintainability default floors key on the catch-all `*` workspace',
+      'maintainability default floors key on the catch-all `*` component',
     );
     assert.equal(
       floors['*'].min,
@@ -44,7 +45,7 @@ describe('DEFAULT_MI_FLOORS (Story #2193)', () => {
 
   it('resolveQuality injects the corrected default when the consumer declares maintainability with empty floors', () => {
     // Story #2125's defaults-injection path merges the framework default
-    // into the consumer block when the consumer omits the `*` workspace
+    // into the consumer block when the consumer omits the `*` component
     // key. Pre-#2193 that injected `{ maintainability: 70 }`; post-#2193
     // it must inject `{ min: 70 }`.
     const resolved = resolveQuality({
@@ -73,6 +74,23 @@ describe('DEFAULT_MI_FLOORS (Story #2193)', () => {
 // flip to be reverted, so what these pin is the *independence*, not just the
 // values.
 // ---------------------------------------------------------------------------
+describe('floors / components share the component axis (Story #5743)', () => {
+  const { floors, components } = gateBase();
+
+  it('documents both keys as component-keyed, never workspace-keyed', () => {
+    for (const [key, schema] of Object.entries({ floors, components })) {
+      assert.match(schema.description, /Component-keyed/, key);
+      assert.doesNotMatch(schema.description, /workspace/i, key);
+    }
+  });
+
+  it('names each key as one half of the same mapping', () => {
+    assert.match(floors.description, /`\{ "<component>":/);
+    assert.match(floors.description, /threshold half/);
+    assert.match(components.description, /membership half/);
+  });
+});
+
 describe('gates.crap.incrementalCoverage (Story #5173)', () => {
   const resolveCrap = (userCrap) =>
     resolveQuality({ gates: { crap: userCrap } }).crap.incrementalCoverage;

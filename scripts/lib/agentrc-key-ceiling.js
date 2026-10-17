@@ -11,6 +11,12 @@
  * or the change must raise {@link AGENTRC_LEAF_KEY_CEILING} deliberately and
  * say why.
  *
+ * The ceiling is a brake, not a ledger. A raise's docs/decisions.md note must
+ * name the existing source of truth the new key could not be derived from — a
+ * tool's own config, the scorable-extension list, the package manifest, an
+ * existing gate key. A value that can be derived from one of those is derived,
+ * never declared ({@link CEILING_RAISE_RULE}).
+ *
  * A **leaf key** is a property whose schema is not itself an object with
  * declared `properties` (directly or through a `oneOf` / `anyOf` / `allOf`
  * branch). An open map such as `floors` or `components` counts once, however
@@ -23,6 +29,28 @@
  * the new key earns its place (docs/decisions.md).
  */
 const AGENTRC_LEAF_KEY_CEILING = 138;
+
+/**
+ * The raise-and-record rule, stated once so the gate's failure text and this
+ * module's contract cannot drift apart.
+ */
+const CEILING_RAISE_RULE =
+  'Remove a key the new one displaces, or raise AGENTRC_LEAF_KEY_CEILING in ' +
+  'scripts/lib/agentrc-key-ceiling.js and record why in docs/decisions.md. ' +
+  'The note must name the existing source of truth the new key could not ' +
+  "derive from (a tool's own config, the scorable-extension list, the " +
+  'package manifest, an existing gate key); a value that derives from one is ' +
+  'derived, not declared.';
+
+/**
+ * The gate's failure line for a schema over the ceiling.
+ *
+ * @param {{ count: number, ceiling: number }} result
+ * @returns {string}
+ */
+export function formatCeilingBreach({ count, ceiling }) {
+  return `[agentrc-key-ceiling] ${count} leaf key(s) exceeds the ceiling of ${ceiling}. ${CEILING_RAISE_RULE}\n`;
+}
 
 /**
  * Composition branches a JSON-Schema node may carry.

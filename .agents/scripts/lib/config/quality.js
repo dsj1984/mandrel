@@ -1,7 +1,7 @@
 /**
  * `delivery.quality` resolver. Every `gates.<tier>` shares `enabled`,
- * `baselinePath`, `tolerance` (`{ kind, value }`) and workspace-keyed
- * `floors`; the resolver flattens them into the legacy bag callers read
+ * `baselinePath`, `tolerance` (`{ kind, value }`) and the
+ * component-keyed `floors` / `components` pair (threshold and membership); the resolver flattens them into the legacy bag callers read
  * (scalar `tolerance`, `crap.coveragePath` cross-read from the coverage gate).
  */
 
@@ -19,7 +19,7 @@ const BASELINE_REFRESH_TAG = 'baseline-refresh:';
 const DEFAULT_CRAP_TOLERANCE = Object.freeze({ kind: 'absolute', value: 0.05 });
 const DEFAULT_MI_TOLERANCE = Object.freeze({ kind: 'absolute', value: 0.5 });
 
-/** Injected when a declared gate omits a workspace key (usually `'*'`). */
+/** Injected when a declared gate omits a component key (usually `'*'`). */
 const DEFAULT_CRAP_FLOORS = Object.freeze({
   '*': Object.freeze({ max: 30, p95: 20, methodsAbove20: 50 }),
 });
@@ -376,7 +376,7 @@ function resolveBaselinesFromGates(gates) {
 }
 
 /**
- * Consumer entries win per workspace key. Returns a fresh object so callers
+ * Consumer entries win per component key. Returns a fresh object so callers
  * cannot mutate the frozen defaults.
  *
  * @param {object | undefined | null} userFloors
@@ -385,15 +385,15 @@ function resolveBaselinesFromGates(gates) {
  */
 function mergeFloorsWithDefaults(userFloors, defaults) {
   const defaultsCopy = {};
-  for (const [workspace, axes] of Object.entries(defaults)) {
-    defaultsCopy[workspace] = { ...axes };
+  for (const [component, axes] of Object.entries(defaults)) {
+    defaultsCopy[component] = { ...axes };
   }
   if (userFloors == null || typeof userFloors !== 'object') {
     return defaultsCopy;
   }
-  for (const [workspace, axes] of Object.entries(userFloors)) {
+  for (const [component, axes] of Object.entries(userFloors)) {
     if (axes != null && typeof axes === 'object') {
-      defaultsCopy[workspace] = { ...axes };
+      defaultsCopy[component] = { ...axes };
     }
   }
   return defaultsCopy;

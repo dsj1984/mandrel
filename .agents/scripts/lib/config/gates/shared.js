@@ -50,7 +50,7 @@ const TOLERANCE_SCHEMA = {
 const FLOORS_SCHEMA = {
   type: 'object',
   description:
-    'Workspace-keyed absolute floors: `{ "<workspace>": { "<metric>": number } }`. `"*"` is the project-wide catch-all; the metric keyset is open so per-rollup keys flow through without each gate enumerating them. Floors are absolute — unlike `tolerance`, they are enforced regardless of the baseline.',
+    'Component-keyed absolute floors: `{ "<component>": { "<metric>": number } }` — the threshold half of the component mapping whose membership half is `components`. `"*"` is the project-wide catch-all component; the metric keyset is open so per-rollup keys flow through without each gate enumerating them. Floors are absolute — unlike `tolerance`, they are enforced regardless of the baseline.',
   additionalProperties: {
     type: 'object',
     additionalProperties: { type: 'number' },
@@ -60,7 +60,7 @@ const FLOORS_SCHEMA = {
 const COMPONENTS_SCHEMA = {
   type: 'object',
   description:
-    'Per-gate component map — component name to the glob list whose rows roll up under it (matched against the row key: the file path, or the bundle name for bundle-size). `check-baselines` reports one rollup per component that matches a row and holds it to `floors.<component>`, falling back to `floors["*"]`. Defaults to `{ "*": ["**"] }` at the resolver layer.',
+    'Component-keyed membership map — the membership half of the component mapping whose threshold half is `floors`: component name to the glob list whose rows roll up under it (matched against the row key: the file path, or the bundle name for bundle-size). `check-baselines` reports one rollup per component that matches a row and holds it to `floors.<component>`, falling back to `floors["*"]`. Defaults to `{ "*": ["**"] }` at the resolver layer.',
   additionalProperties: {
     type: 'array',
     items: { type: 'string', minLength: 1 },

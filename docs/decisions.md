@@ -448,7 +448,12 @@ a no-op on a second run.
 **A ceiling keeps it cut.** `scripts/check-agentrc-key-ceiling.js` (inside
 `npm run lint`) counts the runtime schema's leaf keys and fails above 128, so a
 new key must displace an old one or raise `AGENTRC_LEAF_KEY_CEILING` in a change
-that records why.
+that records why. The ceiling is a brake, not a ledger: each raise's note here
+must name the existing source of truth the new key could not be derived from —
+a tool's own config, the scorable-extension list, the package manifest, an
+existing gate key. A value that derives from one of those is derived, never
+declared. The gate's failure text states the same clause, so the next author
+meets it at `npm run lint` rather than in review.
 
 **Raised to 129 (2026-09-26, Story #5459)** for
 `delivery.tempRetention.classes.scratch`: it turns off the purge of the new
@@ -540,6 +545,22 @@ that list: a narrower one leaves files the other gates score unmeasured for
 duplication, and a wider one names languages no gate can score. A consumer
 that wants fewer files scanned narrows `duplication.ignoreGlobs`; the 2.91.0
 migration strips the key from `.agentrc.json` and `.agentrc.local.json`.
+
+**Derive, don't declare (2026-10-17, Story #5743).** Six leaf keys landed in
+one week (132 → 138) and the raise-and-record rule logged each one without
+braking any, so the rule gained the derivation clause above. Two landed
+Stories are its worked examples:
+
+- **Story #5738** retired `duplication.formats` by deriving the jscpd formats
+  from the scorable-extension list every other gate already selects by. The
+  declared key could only disagree with that source of truth.
+- **Story #5737** keyed the coverage capture stamp per artifact instead of per
+  directory. The per-directory stamp was what forced `crap.coveragePath` to
+  refuse an artifact sharing the coverage gate's directory; keyed on the
+  artifact itself, the refusal had nothing left to guard and was removed:
+  the stamp derives from the artifact path the gates already declare.
+
+The ceiling number does not change here.
 
 ### Consequences
 

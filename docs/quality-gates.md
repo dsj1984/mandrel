@@ -129,7 +129,7 @@ touched it:
 This is the one statement of the floor values. Every floor is scoped to
 the repo rollup. The **helper default** column is what
 [`.agents/scripts/lib/config/quality.js`](../.agents/scripts/lib/config/quality.js)
-injects for a consumer whose declared gate omits the `'*'` workspace key; the
+injects for a consumer whose declared gate omits the `'*'` component key; the
 **this repo** column is what this repository configures in
 [`.agentrc.json`](../.agentrc.json) under
 `delivery.quality.gates.<gate>.floors['*']`. A dash means the key is not set.
@@ -1039,7 +1039,7 @@ form before it is written:
 
 - Windows backslashes are normalised to forward slashes.
 - Leading `./` is stripped.
-- A `.worktrees/<workspace>/` prefix — which would leak into a hand-edit
+- A `.worktrees/<story-worktree>/` prefix — which would leak into a hand-edit
   made inside a story worktree — is stripped.
 - Absolute paths are rejected (the writer throws rather than silently
   rewrite identity).
