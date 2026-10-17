@@ -60,14 +60,23 @@ const canonical = (p) => {
   }
 };
 
+/** The main checkout when `root` is a work tree root over a checkout's `.git`. */
+function checkoutOf(root, exec) {
+  const top = gitToplevel(root, exec);
+  if (top === null || canonical(top) !== canonical(root)) return null;
+  const common = revParse('--git-common-dir', root, exec) ?? '';
+  return path.basename(common) === '.git'
+    ? mainCheckoutRoot(root, { exec })
+    : null;
+}
+
 /**
  * The project root a gitignored file under `root` lives in: the main
- * checkout when `root` is a work tree's own root, else `root` itself.
+ * checkout for a checkout or linked worktree root, else `root` (a nested
+ * project, a submodule, a separate git dir).
  */
 export function storeRoot(root, exec) {
-  const top = gitToplevel(root, exec);
-  const isTop = top !== null && canonical(top) === canonical(root);
-  return isTop ? mainCheckoutRoot(root, { exec }) : root;
+  return checkoutOf(root, exec) ?? root;
 }
 
 /** Where `root`'s `.agentrc.local.json` is read: its own, else `storeRoot`'s. */

@@ -590,6 +590,36 @@ describe('the gh store root follows the project, not the enclosing repo (#5740)'
     assert.equal(ensureGhEnv({ cwd: app, env }), path.join(app, 'gh-store'));
   });
 
+  it('a project that is a git submodule resolves a relative store against itself', () => {
+    const lib = makeTempDir('mandrel-sub-src-');
+    const sup = makeTempDir('mandrel-sub-super-');
+    made.push(lib, sup);
+    git(lib, 'init', '-q');
+    git(lib, 'commit', '-q', '--allow-empty', '-m', 'init');
+    git(sup, 'init', '-q');
+    git(
+      sup,
+      '-c',
+      'protocol.file.allow=always',
+      'submodule',
+      'add',
+      '-q',
+      lib,
+      'app',
+    );
+    const app = path.join(sup, 'app');
+    fs.mkdirSync(path.join(app, 'gh-store'));
+    fs.writeFileSync(
+      path.join(app, '.agentrc.local.json'),
+      JSON.stringify({ github: { cliConfigDir: 'gh-store' } }),
+    );
+    const dir = ensureGhEnv({ cwd: app, env: {} });
+    assert.equal(
+      fs.realpathSync(dir),
+      fs.realpathSync(path.join(app, 'gh-store')),
+    );
+  });
+
   it('a linked worktree reached through a non-canonical path still finds the main checkout overlay and store', () => {
     // makeTempDir is not realpath-ed: on macOS it sits under /var, git under /private/var.
     const main = makeTempDir('mandrel-wt-main-');
