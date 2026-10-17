@@ -532,8 +532,10 @@ test('runCli: a knip spawn failure fails the gate closed (exit 2)', async () => 
   });
   assert.equal(exit, 2);
   assert.match(stderr.text(), /simulated spawn failure/);
-  assert.match(stdout.text(), /^! knip run failed: simulated spawn failure$/m);
-  assert.match(stdout.text(), /\(gate fail\)/);
+  assert.match(
+    stdout.text(),
+    /^! knip run failed: simulated spawn failure \(gate fail\)$/m,
+  );
 });
 
 // Story #4575 — the production-mode (test-only-importer discount) pass.

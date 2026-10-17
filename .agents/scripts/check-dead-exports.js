@@ -74,16 +74,13 @@ const EXIT = Object.freeze({ CLEAN: 0, ADDED: 1, KNIP_FAILED: 2 });
  *
  * @param {{ added: Array, removed: Array }} diff
  * @param {string} [label='dead-exports']
- * @param {string|null} [knipError=null]
  * @returns {string}
  */
-export function renderDiff(diff, label = 'dead-exports', knipError = null) {
+export function renderDiff(diff, label = 'dead-exports') {
   const lines = [];
-  if (knipError) lines.push(`! knip run failed: ${knipError}`);
   for (const r of diff.added) lines.push(`+ ${r.file}: ${r.symbol}`);
   for (const r of diff.removed) lines.push(`- ${r.file}: ${r.symbol}`);
-  const failed = knipError !== null || diff.added.length > 0;
-  const tag = failed ? '(gate fail)' : '(ok)';
+  const tag = diff.added.length > 0 ? '(gate fail)' : '(ok)';
   lines.push(
     `[${label}] added=${diff.added.length} removed=${diff.removed.length} ${tag}`,
   );
@@ -160,11 +157,7 @@ export async function runCli({
         `[${label}] ⚠ baseline not found at ${resolvedBaselinePath} — treating as empty\n`,
       );
     }
-    if (knipError) {
-      stderr.write(`[${label}] ❌ knip run failed: ${knipError}\n`);
-    }
-    stdout.write(`\n--- ${label} preview ---\n`);
-    stdout.write(`${renderDiff(diff, label, knipError)}\n`);
+    writeTextReport({ stdout, stderr, label, knipError, diff });
   }
 
   return exitCode;
@@ -173,6 +166,17 @@ export async function runCli({
 function gateExitCode(knipError, diff) {
   if (knipError !== null) return EXIT.KNIP_FAILED;
   return diff.added.length > 0 ? EXIT.ADDED : EXIT.CLEAN;
+}
+
+/** A failed knip run has no meaningful diff, so it prints the failure alone. */
+function writeTextReport({ stdout, stderr, label, knipError, diff }) {
+  if (knipError) {
+    stderr.write(`[${label}] ❌ knip run failed: ${knipError}\n`);
+    stdout.write(`! knip run failed: ${knipError} (gate fail)\n`);
+    return;
+  }
+  stdout.write(`\n--- ${label} preview ---\n`);
+  stdout.write(`${renderDiff(diff, label)}\n`);
 }
 
 async function main() {
