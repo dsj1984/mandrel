@@ -1,6 +1,5 @@
 /** Close-validation `project.commands.*` spawns and formatter file policy. */
 
-import { execFileSync } from 'node:child_process';
 import { diffNameOnly } from '../changed-files.js';
 import {
   COMMANDS_DEFAULTS,
@@ -71,23 +70,7 @@ export function listChangedFilesForFormatGate({ cwd, baseRef }) {
   if (!cwd) throw new Error('listChangedFilesForFormatGate: cwd is required');
   if (!baseRef)
     throw new Error('listChangedFilesForFormatGate: baseRef is required');
-  const gitSpawn = (_cwd, ...args) => {
-    try {
-      const stdout = execFileSync('git', args, {
-        cwd: _cwd,
-        encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
-      return { status: 0, stdout, stderr: '' };
-    } catch (err) {
-      return {
-        status: err.status ?? 1,
-        stdout: err.stdout ?? '',
-        stderr: err.stderr ?? err.message,
-      };
-    }
-  };
-  return diffNameOnly({ baseRef, cwd, gitSpawn });
+  return diffNameOnly({ baseRef, cwd });
 }
 
 /**
