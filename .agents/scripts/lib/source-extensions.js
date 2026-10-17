@@ -11,24 +11,24 @@
 import path from 'node:path';
 
 /**
- * What the engines can parse (not `.vue`/`.svelte`/`.astro`), each beside the
- * jscpd format that reads it — jscpd's `javascript` alone reads only
+ * What the engines can parse (not `.vue`/`.svelte`/`.astro`), each mapped to
+ * the jscpd format that reads it — jscpd's `javascript` alone reads only
  * `.js`/`.mjs`/`.cjs`. Private: select via the exported regex or predicate.
  *
- * @type {ReadonlyArray<readonly [string, string]>}
+ * @type {Readonly<Record<string, string>>}
  */
-const SCORABLE_SOURCES = Object.freeze([
-  ['.js', 'javascript'],
-  ['.mjs', 'javascript'],
-  ['.cjs', 'javascript'],
-  ['.jsx', 'jsx'],
-  ['.ts', 'typescript'],
-  ['.tsx', 'tsx'],
-  ['.mts', 'typescript'],
-  ['.cts', 'typescript'],
-]);
+const SCORABLE_SOURCES = Object.freeze({
+  '.js': 'javascript',
+  '.mjs': 'javascript',
+  '.cjs': 'javascript',
+  '.jsx': 'jsx',
+  '.ts': 'typescript',
+  '.tsx': 'tsx',
+  '.mts': 'typescript',
+  '.cts': 'typescript',
+});
 
-const SCORABLE_SOURCE_EXTENSIONS = SCORABLE_SOURCES.map(([ext]) => ext);
+const SCORABLE_SOURCE_EXTENSIONS = Object.keys(SCORABLE_SOURCES);
 
 /**
  * For paths arriving as raw text (git output lines).
@@ -56,5 +56,5 @@ export function isScorableSourceFile(filePath) {
  * @returns {string[]}
  */
 export function jscpdFormatsFor() {
-  return [...new Set(SCORABLE_SOURCES.map(([, format]) => format))];
+  return [...new Set(Object.values(SCORABLE_SOURCES))];
 }
