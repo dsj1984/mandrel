@@ -64,7 +64,7 @@
     },
     {
       "path": ".agents/scripts/check-dead-exports.js",
-      "mi": 96.911
+      "mi": 97.863
     },
     {
       "path": ".agents/scripts/check-doc-links.js",
@@ -904,7 +904,7 @@
     },
     {
       "path": ".agents/scripts/lib/dead-exports-knip.js",
-      "mi": 94.159
+      "mi": 97.168
     },
     {
       "path": ".agents/scripts/lib/dead-exports-mode.js",

@@ -5,43 +5,61 @@
  * @module lib/dead-exports-knip
  */
 
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import process from 'node:process';
+import { spawnChild } from './child-exec.js';
+
+const KNIP_MAX_ISSUE_STATUS = 1;
 
 /**
- * Never throws; on error the caller treats current rows as empty, which
- * surfaces every baseline row as removed — loud but safe.
+ * Never throws; the caller fails closed on `{ ok: false }`. `spawn` is the
+ * run seam inside `spawnChild`, so a fake still gets the buffer ceiling.
  *
  * `production` requires the `!`-suffixed entry patterns in `knip.json`
  * (test globs deliberately lack it, so test-only exports read as dead);
  * without them production mode silently reports nothing.
  *
- * @param {{ cwd?: string, spawn?: typeof spawnSync, production?: boolean }} [opts]
+ * @param {{ cwd?: string, spawn?: Function, production?: boolean }} [opts]
  * @returns {{ ok: true, envelope: unknown } | { ok: false, error: string }}
  */
 export function runKnip({
   cwd = process.cwd(),
-  spawn = spawnSync,
+  spawn,
   production = false,
 } = {}) {
   const args = ['knip', '--reporter', 'json', '--no-progress'];
   if (production) args.push('--production');
-  const result = spawn(process.platform === 'win32' ? 'npx.cmd' : 'npx', args, {
+  const isWindows = process.platform === 'win32';
+  const result = spawnChild(isWindows ? 'npx.cmd' : 'npx', args, {
     cwd,
     stdio: ['ignore', 'pipe', 'pipe'],
-    encoding: 'utf-8',
-    shell: process.platform === 'win32',
+    shell: isWindows,
+    run: spawn,
   });
+  return interpretKnipResult(result);
+}
+
+/** Knip exits 1 when it reports issues, so only a status above 1 fails. */
+function interpretKnipResult(result) {
   if (result.error) {
     return { ok: false, error: `spawn failed: ${result.error.message}` };
   }
-  const stdout = typeof result.stdout === 'string' ? result.stdout : '';
-  if (stdout.trim().length === 0) {
+  if (result.status > KNIP_MAX_ISSUE_STATUS) {
+    return {
+      ok: false,
+      error: `knip exited ${result.status}: ${String(result.stderr ?? '').trim()}`,
+    };
+  }
+  return parseKnipStdout(result.stdout);
+}
+
+function parseKnipStdout(stdout) {
+  const text = typeof stdout === 'string' ? stdout : '';
+  if (text.trim().length === 0) {
     return { ok: false, error: 'knip produced empty stdout' };
   }
   try {
-    return { ok: true, envelope: JSON.parse(stdout) };
+    return { ok: true, envelope: JSON.parse(text) };
   } catch (err) {
     return {
       ok: false,
