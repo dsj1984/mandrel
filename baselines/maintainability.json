@@ -1164,7 +1164,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/board-access-latch.js",
-      "mi": 107.783
+      "mi": 111.114
     },
     {
       "path": ".agents/scripts/lib/orchestration/cancelled-run-discount.js",
@@ -2340,7 +2340,7 @@
     },
     {
       "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "mi": 97.11
+      "mi": 98.181
     },
     {
       "path": ".agents/scripts/providers/github/request-helpers.js",
