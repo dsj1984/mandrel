@@ -1834,6 +1834,12 @@
     },
     {
       "path": ".agents/scripts/check-dead-exports.js",
+      "method": "gateExitCode",
+      "startLine": 173,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/check-dead-exports.js",
       "method": "main",
       "startLine": 199,
       "crap": 2
@@ -15999,6 +16005,18 @@
       "method": "runKnip",
       "startLine": 23,
       "crap": 7.0760588790028285
+    },
+    {
+      "path": ".agents/scripts/lib/dead-exports-knip.js",
+      "method": "interpretKnipResult",
+      "startLine": 43,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/dead-exports-knip.js",
+      "method": "parseKnipStdout",
+      "startLine": 56,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/dead-exports-knip.js",
