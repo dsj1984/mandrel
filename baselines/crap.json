@@ -43368,6 +43368,31 @@
       "anonymous": true
     },
     {
+      "path": "lib/migrations/steps/2.91.0-unset-null-lint-command.js",
+      "method": "agentrcPath",
+      "startLine": 19,
+      "crap": 1
+    },
+    {
+      "path": "lib/migrations/steps/2.91.0-unset-null-lint-command.js",
+      "method": "readConfig",
+      "startLine": 24,
+      "crap": 1
+    },
+    {
+      "path": "lib/migrations/steps/2.91.0-unset-null-lint-command.js",
+      "method": "hasNullLint",
+      "startLine": 33,
+      "crap": 4
+    },
+    {
+      "path": "lib/migrations/steps/2.91.0-unset-null-lint-command.js",
+      "method": "<anon (name)#0>",
+      "startLine": 51,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
       "path": "lib/migrations/steps/strip-removed-agentrc-keys.js",
       "method": "<anon (dotted,constant,value)#0>",
       "startLine": 25,
