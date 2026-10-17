@@ -8345,88 +8345,88 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
-      "method": "resolveDetectClones",
-      "startLine": 34,
+      "method": "loadJscpd",
+      "startLine": 31,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
-      "method": "loadJscpd",
-      "startLine": 35,
+      "method": "resolveDetectClones",
+      "startLine": 54,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
       "method": "relativisePath",
-      "startLine": 53,
+      "startLine": 73,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
       "method": "cloneLineNumbers",
-      "startLine": 70,
+      "startLine": 90,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
       "method": "buildDuplicationRows",
-      "startLine": 90,
+      "startLine": 112,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
+      "method": "addClonePartners",
+      "startLine": 158,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
       "method": "toLineCountMap",
-      "startLine": 127,
+      "startLine": 166,
       "crap": 10.399999999999999
     },
     {
       "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
       "method": "readLineCount",
-      "startLine": 142,
+      "startLine": 181,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
       "method": "toGlobPath",
-      "startLine": 152,
+      "startLine": 191,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
-      "method": "addClonePartners",
-      "startLine": 162,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
-      "method": "scanDuplication",
-      "startLine": 163,
-      "crap": 5.014467592592593
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
       "method": "anchorIgnoreGlobs",
-      "startLine": 166,
+      "startLine": 205,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
       "method": "<anon anchorIgnoreGlobs/(glob)#0>",
-      "startLine": 168,
+      "startLine": 207,
       "crap": 3,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
+      "method": "scanDuplication",
+      "startLine": 225,
+      "crap": 4.010075801749271
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
       "method": "<anon scanDuplication/(dir)#0>",
-      "startLine": 201,
-      "crap": 1.0005787037037037,
+      "startLine": 238,
+      "crap": 1.0006297376093294,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
       "method": "collectVisitedFiles",
-      "startLine": 208,
+      "startLine": 269,
       "crap": 3
     },
     {
@@ -9713,318 +9713,277 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "method": "<anon (p)#0>",
-      "startLine": 53,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "method": "<anon (p)#1>",
-      "startLine": 54,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "method": "<anon (p)#2>",
-      "startLine": 55,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "method": "<anon (p)#3>",
-      "startLine": 58,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/refresh-service.js",
       "method": "<anon ()#0>",
-      "startLine": 65,
+      "startLine": 68,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
       "method": "resolveQualityBlock",
-      "startLine": 68,
+      "startLine": 78,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "method": "buildDefaultCrapScorer",
-      "startLine": 78,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/refresh-service.js",
       "method": "refuseMissingArtifact",
-      "startLine": 82,
+      "startLine": 85,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
+      "method": "buildDefaultCrapScorer",
+      "startLine": 93,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/refresh-service.js",
       "method": "<anon buildDefaultCrapScorer/(files,opts)#0>",
-      "startLine": 89,
+      "startLine": 104,
       "crap": 5,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "method": "noArtifactRows",
-      "startLine": 90,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/refresh-service.js",
       "method": "<anon buildDefaultCrapScorer/(files,opts)#0/(r)#0>",
-      "startLine": 108,
+      "startLine": 123,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
       "method": "buildDefaultCoverageScorer",
-      "startLine": 119,
-      "crap": 2
+      "startLine": 135,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
       "method": "<anon buildDefaultCoverageScorer/(files,opts)#0>",
-      "startLine": 120,
-      "crap": 20,
+      "startLine": 139,
+      "crap": 5,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
       "method": "<anon buildDefaultCoverageScorer/(files,opts)#0/(relPath)#0>",
-      "startLine": 153,
-      "crap": 6,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "method": "<anon buildDefaultCoverageScorer/(files,opts)#0/(relPath,score)#0>",
-      "startLine": 154,
+      "startLine": 167,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
+      "method": "<anon buildDefaultCoverageScorer/(files,opts)#0/(relPath,score)#0>",
+      "startLine": 168,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/refresh-service.js",
       "method": "buildDefaultMaintainabilityScorer",
-      "startLine": 167,
+      "startLine": 181,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
       "method": "<anon buildDefaultMaintainabilityScorer/(files,opts)#0>",
-      "startLine": 171,
+      "startLine": 185,
       "crap": 4,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
       "method": "<anon buildDefaultMaintainabilityScorer/(files,opts)#0/(dir)#0>",
-      "startLine": 173,
-      "crap": 2,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "method": "<anon buildDefaultMaintainabilityScorer/(files,opts)#0/(root)#0>",
       "startLine": 187,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "method": "<anon buildDefaultMaintainabilityScorer/(files,opts)#0/(p,mi)#0>",
+      "method": "<anon buildDefaultMaintainabilityScorer/(files,opts)#0/(root)#0>",
       "startLine": 201,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "method": "resolveDefaultScorer",
-      "startLine": 232,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "method": "defaultExtrasContext",
-      "startLine": 270,
-      "crap": 2.032
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "method": "refreshBaseline",
-      "startLine": 274,
-      "crap": 6.019583676869332
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "method": "<anon refreshBaseline/(row)#0>",
-      "startLine": 325,
-      "crap": 1.000543991024148,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "method": "assertRequiredScopeRows",
-      "startLine": 373,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "method": "<anon assertRequiredScopeRows/()#0>",
-      "startLine": 384,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "method": "<anon assertRequiredScopeRows/(row)#0>",
-      "startLine": 390,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "method": "<anon assertRequiredScopeRows/(rowPath)#0>",
-      "startLine": 391,
+      "method": "<anon buildDefaultMaintainabilityScorer/(files,opts)#0/(p,mi)#0>",
+      "startLine": 215,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "method": "<anon assertRequiredScopeRows/(file)#0>",
-      "startLine": 393,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "method": "canonicalizeRows",
-      "startLine": 401,
+      "method": "resolveDefaultScorer",
+      "startLine": 247,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "method": "<anon canonicalizeRows/(row)#0>",
-      "startLine": 403,
-      "crap": 1,
-      "anonymous": true
+      "method": "defaultExtrasContext",
+      "startLine": 261,
+      "crap": 2.032
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "method": "defaultGitDiff",
-      "startLine": 409,
-      "crap": 2
+      "method": "refreshBaseline",
+      "startLine": 302,
+      "crap": 6.017368885270371
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
       "method": "resolveWriteScopeFiles",
-      "startLine": 413,
+      "startLine": 416,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
       "method": "<anon resolveWriteScopeFiles/(row)#0>",
-      "startLine": 415,
+      "startLine": 418,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
       "method": "<anon resolveWriteScopeFiles/(file)#0>",
-      "startLine": 417,
+      "startLine": 420,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "method": "<anon defaultGitDiff/(line)#0>",
-      "startLine": 419,
-      "crap": 2,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "method": "<anon defaultGitDiff/(line)#1>",
-      "startLine": 420,
-      "crap": 2,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/refresh-service.js",
       "method": "<anon resolveWriteScopeFiles/(prior)#0>",
-      "startLine": 420,
+      "startLine": 423,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
       "method": "<anon resolveWriteScopeFiles/(prior)#1>",
-      "startLine": 421,
+      "startLine": 424,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
       "method": "isShrunk",
-      "startLine": 432,
+      "startLine": 435,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
+      "method": "canonicalizeRows",
+      "startLine": 447,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/refresh-service.js",
+      "method": "<anon canonicalizeRows/(row)#0>",
+      "startLine": 449,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/refresh-service.js",
+      "method": "assertRequiredScopeRows",
+      "startLine": 455,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/refresh-service.js",
+      "method": "<anon assertRequiredScopeRows/()#0>",
+      "startLine": 466,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/refresh-service.js",
+      "method": "<anon assertRequiredScopeRows/(row)#0>",
+      "startLine": 472,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/refresh-service.js",
+      "method": "<anon assertRequiredScopeRows/(rowPath)#0>",
+      "startLine": 473,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/refresh-service.js",
+      "method": "<anon assertRequiredScopeRows/(file)#0>",
+      "startLine": 475,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/refresh-service.js",
+      "method": "defaultGitDiff",
+      "startLine": 491,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/refresh-service.js",
+      "method": "<anon defaultGitDiff/(line)#0>",
+      "startLine": 501,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/refresh-service.js",
+      "method": "<anon defaultGitDiff/(line)#1>",
+      "startLine": 502,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/refresh-service.js",
       "method": "deriveScopeFromDiff",
-      "startLine": 440,
+      "startLine": 522,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
       "method": "fileFilterFor",
-      "startLine": 464,
+      "startLine": 546,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
       "method": "resolveScope",
-      "startLine": 475,
+      "startLine": 557,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
       "method": "<anon resolveScope/(p)#0>",
-      "startLine": 490,
+      "startLine": 572,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
       "method": "readPriorEnvelope",
-      "startLine": 510,
+      "startLine": 592,
       "crap": 5.150262960180315
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
       "method": "validateOptions",
-      "startLine": 533,
+      "startLine": 615,
       "crap": 9
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
       "method": "buildDefaultDuplicationScorer",
-      "startLine": 565,
-      "crap": 12
+      "startLine": 647,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
       "method": "<anon buildDefaultDuplicationScorer/(_files,opts)#0>",
-      "startLine": 572,
-      "crap": 2,
+      "startLine": 654,
+      "crap": 1,
       "anonymous": true
     },
     {
@@ -13607,44 +13566,50 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
+      "method": "scoreHeadSource",
+      "startLine": 29,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
       "method": "normaliseSkipReason",
-      "startLine": 23,
+      "startLine": 40,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
       "method": "refreshEpicRef",
-      "startLine": 36,
+      "startLine": 53,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
       "method": "diffChangedFiles",
-      "startLine": 53,
+      "startLine": 70,
       "crap": 1.0046296296296295
     },
     {
       "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
       "method": "scoreFile",
-      "startLine": 80,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
-      "method": "collectRegressions",
-      "startLine": 113,
+      "startLine": 97,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
+      "method": "collectRegressions",
+      "startLine": 132,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
       "method": "projectMaintainabilityRegressions",
-      "startLine": 163,
+      "startLine": 182,
       "crap": 4.03485241070975
     },
     {
       "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
       "method": "formatMaintainabilityProjection",
-      "startLine": 224,
+      "startLine": 243,
       "crap": 4
     },
     {
@@ -27972,84 +27937,78 @@
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/native.js",
       "method": "readHeadSource",
-      "startLine": 45,
+      "startLine": 43,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/native.js",
       "method": "scoreSourceReport",
-      "startLine": 59,
-      "crap": 2.9321802457897133
+      "startLine": 57,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/native.js",
       "method": "classifyChangedFile",
-      "startLine": 79,
+      "startLine": 77,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/native.js",
       "method": "accumulateClassified",
-      "startLine": 137,
+      "startLine": 135,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/native.js",
-      "method": "isJsMaintainabilityFile",
-      "startLine": 145,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/review-providers/native.js",
       "method": "analyzeChangedFiles",
-      "startLine": 157,
+      "startLine": 151,
       "crap": 13
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/native.js",
       "method": "<anon analyzeChangedFiles/(relPath)#0>",
-      "startLine": 181,
+      "startLine": 175,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/native.js",
       "method": "<anon analyzeChangedFiles/(source,relPath)#0>",
-      "startLine": 186,
+      "startLine": 180,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/native.js",
       "method": "<anon analyzeChangedFiles/()#0>",
-      "startLine": 197,
+      "startLine": 191,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/native.js",
       "method": "<anon analyzeChangedFiles/()#1>",
-      "startLine": 229,
+      "startLine": 223,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/native.js",
       "method": "createNativeProvider",
-      "startLine": 246,
+      "startLine": 240,
       "crap": 8
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/native.js",
       "method": "<anon createNativeProvider/(f)#0>",
-      "startLine": 291,
+      "startLine": 285,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/native.js",
       "method": "createNativeProviderForRegistry",
-      "startLine": 322,
+      "startLine": 316,
       "crap": 1
     },
     {
@@ -30955,140 +30914,133 @@
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "resolveTolerance",
-      "startLine": 68,
+      "startLine": 67,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "resolveGate",
-      "startLine": 85,
+      "startLine": 84,
       "crap": 1.0233236151603498
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "projectRows",
-      "startLine": 100,
+      "startLine": 99,
       "crap": 2.0185185185185186
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "selectImprovedRows",
-      "startLine": 122,
+      "startLine": 121,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "<anon selectImprovedRows/(row)#0>",
-      "startLine": 123,
+      "startLine": 122,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "<anon selectImprovedRows/(row)#1>",
-      "startLine": 124,
+      "startLine": 123,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "buildCommitBody",
-      "startLine": 152,
+      "startLine": 151,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "<anon buildCommitBody/(row)#0>",
-      "startLine": 154,
+      "startLine": 153,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "buildCommitSubject",
-      "startLine": 177,
+      "startLine": 176,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "commitBaseline",
-      "startLine": 188,
+      "startLine": 187,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "precheck",
-      "startLine": 222,
+      "startLine": 221,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "isDirty",
-      "startLine": 237,
+      "startLine": 236,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "resolveScopeBase",
-      "startLine": 252,
+      "startLine": 251,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "runBaselineUpwardWriteback",
-      "startLine": 295,
+      "startLine": 294,
       "crap": 11
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "<anon runBaselineUpwardWriteback/(args,opts)#0>",
-      "startLine": 318,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
-      "method": "<anon runBaselineUpwardWriteback/(file)#0>",
-      "startLine": 326,
+      "startLine": 317,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "persist",
-      "startLine": 380,
+      "startLine": 379,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "<anon persist/(row)#0>",
-      "startLine": 391,
+      "startLine": 390,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "<anon persist/()#0>",
-      "startLine": 397,
+      "startLine": 396,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "skip",
-      "startLine": 420,
+      "startLine": 419,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "defaultLoadBaselineRows",
-      "startLine": 426,
+      "startLine": 425,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "defaultResolveWritePath",
-      "startLine": 434,
+      "startLine": 433,
       "crap": 1
     },
     {
@@ -35118,8 +35070,21 @@
     {
       "path": ".agents/scripts/lib/source-extensions.js",
       "method": "isScorableSourceFile",
-      "startLine": 41,
+      "startLine": 46,
       "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/source-extensions.js",
+      "method": "jscpdFormatsFor",
+      "startLine": 58,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/source-extensions.js",
+      "method": "<anon jscpdFormatsFor/(format)#0>",
+      "startLine": 59,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/source-text/strip-js-comments.js",
@@ -43219,27 +43184,27 @@
     {
       "path": "lib/migrations/index.js",
       "method": "selectStepsInRange",
-      "startLine": 58,
+      "startLine": 68,
       "crap": 1
     },
     {
       "path": "lib/migrations/index.js",
       "method": "<anon selectStepsInRange/(step)#0>",
-      "startLine": 65,
+      "startLine": 75,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": "lib/migrations/index.js",
       "method": "<anon selectStepsInRange/(a,b)#0>",
-      "startLine": 69,
+      "startLine": 79,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/migrations/index.js",
       "method": "runMigrations",
-      "startLine": 88,
+      "startLine": 98,
       "crap": 2
     },
     {
