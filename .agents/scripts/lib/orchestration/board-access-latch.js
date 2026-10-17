@@ -24,6 +24,10 @@ export const SCOPE_FAILURE = Object.freeze({
 const AUTH_FAILURE_RE =
   /\bFORBIDDEN\b|Bad credentials|\b(?:HTTP|GraphQL) 40[13]\b/;
 
+// Errors typed as a board access refusal, by name so a duplicate module copy
+// (or a subclass) still classifies.
+const ACCESS_ERROR_NAMES = new Set(['ProjectAccessError', 'GhScopeError']);
+
 /**
  * The board is unreachable with this token — a missing `project` scope or an
  * auth refusal, never an owner-type miss.
@@ -52,8 +56,9 @@ export class ProjectAccessError extends Error {
  */
 export function isProjectAccessFailure(err) {
   if (!err) return false;
-  if (err instanceof ProjectAccessError) return true;
-  if (err instanceof GhScopeError || err.name === 'GhScopeError') return true;
+  if (err instanceof GhScopeError || ACCESS_ERROR_NAMES.has(err.name)) {
+    return true;
+  }
   return isInsufficientScopes(err) || errorTextMatches(err, AUTH_FAILURE_RE);
 }
 
