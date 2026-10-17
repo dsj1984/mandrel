@@ -10,6 +10,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
+import { resolveAgentrcRoot } from '../../config/git-roots.js';
 import { parseProviderFindings } from './parse-findings.js';
 import { PROVIDER_SEVERITY_MAP } from './provider-severity.js';
 import { renderDepthDirective } from './review-depth.js';
@@ -118,12 +119,16 @@ export function buildSecurityReviewPrompt(input) {
 }
 
 /**
+ * Spawns in the reviewed checkout: the tree this process judges.
+ *
  * @param {ReviewInput} input
+ * @param {typeof spawnSync} [spawnFn]
  * @returns {{ status: number, stdout: string, stderr: string }}
  */
-function defaultInvokeSecurityReview(input) {
+function defaultInvokeSecurityReview(input, spawnFn = spawnSync) {
   const prompt = buildSecurityReviewPrompt(input);
-  const result = spawnSync('claude', ['--print', prompt], {
+  const result = spawnFn('claude', ['--print', prompt], {
+    cwd: resolveAgentrcRoot(),
     encoding: 'utf-8',
     shell: process.platform === 'win32',
     timeout: 10 * 60 * 1000,
@@ -155,6 +160,7 @@ export function buildUnparseableFallbackFinding() {
  * @param {{
  *   probeFn?: () => boolean,
  *   invokeFn?: (input: ReviewInput) => { status: number, stdout: string, stderr: string },
+ *   spawnFn?: Function,
  *   logger?: { info?: Function, warn?: Function, error?: Function },
  * }} [deps]
  * @returns {ReviewProvider}
@@ -164,7 +170,9 @@ export function createSecurityReviewProvider(deps = {}) {
   if (!probeFn()) {
     throw buildSecurityReviewUnavailableError();
   }
-  const invokeFn = deps.invokeFn ?? defaultInvokeSecurityReview;
+  const invokeFn =
+    deps.invokeFn ??
+    ((input) => defaultInvokeSecurityReview(input, deps.spawnFn));
   const logger = deps.logger;
 
   return {

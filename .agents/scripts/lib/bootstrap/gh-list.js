@@ -2,8 +2,7 @@
  * bootstrap/gh-list — `gh`-backed list providers for live pickers.
  *
  * Provides the selection substrate for interactive pickers: thin wrappers
- * over `gh repo list` / `gh project list` that shell out via the same
- * `spawnSync('gh', …)` convention used elsewhere in the bootstrap libs
+ * over `gh repo list` / `gh project list` that shell out via `runGh`
  * (see `gh-preflight.js`). Both providers return a plain array of string
  * values and degrade to an **empty array on any non-zero exit** (or spawn
  * error), so a missing scope, an unauthenticated host, or a `gh` that is
@@ -12,11 +11,11 @@
  * through to manual entry.
  *
  * The `runner` seam mirrors `gh-preflight.js`: it defaults to a real
- * `spawnSync('gh', …)` but lets tests inject a stub returning the canonical
+ * `runGh` spawn but lets tests inject a stub returning the canonical
  * `{ status, stdout, stderr, error }` shape without spawning a child.
  */
 
-import { spawnSync } from 'node:child_process';
+import { runGh } from '../gh-exec.js';
 
 /**
  * Default runner: synchronously execs `gh <args>` and returns the canonical
@@ -28,7 +27,7 @@ import { spawnSync } from 'node:child_process';
  *             error?: NodeJS.ErrnoException }}
  */
 function defaultGhRunner(args) {
-  const result = spawnSync('gh', args, { encoding: 'utf8' });
+  const result = runGh(args, { encoding: 'utf8' });
   return {
     status: result.status,
     stdout: typeof result.stdout === 'string' ? result.stdout : '',

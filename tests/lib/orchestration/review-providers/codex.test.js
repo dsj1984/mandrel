@@ -23,7 +23,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-
+import { resolveAgentrcRoot } from '../../../../.agents/scripts/lib/config/git-roots.js';
 import {
   buildCodexUnavailableError,
   CODEX_REMEDIATIONS,
@@ -297,6 +297,16 @@ test('runReview: invokeFn receives baseRef + headRef + scope + ticketId + depth'
     ticketId: 2830,
     depth: 'deep',
   });
+});
+
+test('invokeCodexExec: with no cwd anywhere, codex still spawns in an explicit cwd (the config anchor root)', async (t) => {
+  const tempRoot = makeTempRoot();
+  t.after(() => fs.rmSync(tempRoot, { recursive: true, force: true }));
+  const { run, calls } = fakeCodexRun({
+    lastMessage: JSON.stringify({ findings: [] }),
+  });
+  await invokeCodexExec({ baseRef: 'main', headRef: 'h' }, { run, tempRoot });
+  assert.equal(calls[0].options.cwd, resolveAgentrcRoot());
 });
 
 test('runReview: non-zero invoker exit throws with stderr surfaced', async () => {

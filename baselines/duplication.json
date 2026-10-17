@@ -106,15 +106,9 @@
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-list.js",
-      "duplicatedLines": 20,
-      "totalLines": 153,
-      "percentage": 13.07
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/gh-preflight.js",
-      "duplicatedLines": 13,
-      "totalLines": 217,
-      "percentage": 5.99
+      "duplicatedLines": 19,
+      "totalLines": 152,
+      "percentage": 12.5
     },
     {
       "path": ".agents/scripts/lib/bootstrap/preflight.js",

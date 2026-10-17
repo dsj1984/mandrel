@@ -1239,6 +1239,9 @@ describe('quality-preview CLI — piped --json past 64 KiB (Story #5686)', () =>
       }).trim();
     git('init', '-q', '-b', 'main');
     seedGitIdentity(root);
+    // A detached auto-maintenance after the commit races the rmSync cleanup.
+    git('config', 'maintenance.auto', 'false');
+    git('config', 'gc.auto', '0');
     git('commit', '-q', '--allow-empty', '-m', 'root');
     const base = git('rev-parse', 'HEAD');
     fs.mkdirSync(path.join(root, 'src'));

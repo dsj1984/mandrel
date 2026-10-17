@@ -1,12 +1,12 @@
 /** Provider-agnostic `gh` CLI and runtime-dependency preflight. */
 
-import { spawnSync } from 'node:child_process';
 import {
   GhAuthError,
   GhNotInstalledError,
   GhVersionError,
   MissingRuntimeDepsError,
 } from '../errors/index.js';
+import { runGh } from '../gh-exec.js';
 
 /** Older releases miss flags the `gh` shim relies on; bumping is operator-visible. */
 export const MIN_GH_VERSION = '2.40.0';
@@ -27,21 +27,26 @@ const RUNTIME_DEPS_HINT =
   'Run `mandrel init` (for a fresh project) or `npm install mandrel` (for an existing one) to install the framework runtime dependencies, then re-run this command.';
 
 /**
- * Raw `spawnSync`, not the `gh-exec` facade: these probes decide whether the
+ * Raw `runGh`, not the `exec()` facade: these probes decide whether the
  * facade (which assumes an authenticated `gh`) is usable at all.
  *
  * @param {string[]} args
+ * @param {Function} [spawnImpl]
  * @returns {{ status: number|null, stdout: string, stderr: string,
  *             error?: NodeJS.ErrnoException }}
  */
-function defaultGhRunner(args) {
-  const result = spawnSync('gh', args, { encoding: 'utf8' });
+function defaultGhRunner(args, spawnImpl) {
+  const result = runGh(args, { encoding: 'utf8' }, spawnImpl);
   return {
     status: result.status,
     stdout: typeof result.stdout === 'string' ? result.stdout : '',
     stderr: typeof result.stderr === 'string' ? result.stderr : '',
     error: result.error,
   };
+}
+
+function resolveRunner(opts) {
+  return opts.runner ?? ((args) => defaultGhRunner(args, opts.spawnImpl));
 }
 
 /**
@@ -80,11 +85,11 @@ export function compareSemver(a, b) {
  * @param {{ runner?: (args: string[]) => {
  *   status: number|null, stdout: string, stderr: string,
  *   error?: NodeJS.ErrnoException
- * } }} [opts]
+ * }, spawnImpl?: Function }} [opts]
  * @returns {Promise<{ version: string }>}
  */
 export async function preflightGh(opts = {}) {
-  const runner = opts.runner ?? defaultGhRunner;
+  const runner = resolveRunner(opts);
   const version = resolveGhVersion(runner);
   assertGhVersionFloor(version);
   assertGhAuth(runner);
@@ -157,12 +162,12 @@ function assertGhAuth(runner) {
  * @param {{ runner?: (args: string[]) => {
  *   status: number|null, stdout: string, stderr: string,
  *   error?: NodeJS.ErrnoException
- * } }} [opts]
+ * }, spawnImpl?: Function }} [opts]
  * @returns {Promise<{ name: string, ok: boolean, remedy?: string,
  *   detail?: string }>}
  */
 export async function checkProjectScopes(opts = {}) {
-  const runner = opts.runner ?? defaultGhRunner;
+  const runner = resolveRunner(opts);
   const result = runner(['auth', 'status']);
   const text = `${result.stdout || ''}\n${result.stderr || ''}`;
   return classifyProjectScopes(/Token scopes:([^\n]*)/i.exec(text));
