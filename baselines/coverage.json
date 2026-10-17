@@ -1000,7 +1000,7 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/commands.js",
-      "lines": 74.19,
+      "lines": 85.05,
       "branches": 90.91,
       "functions": 77.78
     },
@@ -3972,6 +3972,12 @@
       "path": "lib/migrations/steps/2.91.0-move-shared-crap-capture-script.js",
       "lines": 100,
       "branches": 90.91,
+      "functions": 100
+    },
+    {
+      "path": "lib/migrations/steps/2.91.0-unset-null-lint-command.js",
+      "lines": 100,
+      "branches": 81.25,
       "functions": 100
     },
     {
