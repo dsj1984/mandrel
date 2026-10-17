@@ -24,8 +24,6 @@ export const SCOPE_FAILURE = Object.freeze({
 const AUTH_FAILURE_RE =
   /\bFORBIDDEN\b|Bad credentials|\b(?:HTTP|GraphQL) 40[13]\b/;
 
-// Errors typed as a board access refusal, by name so a duplicate module copy
-// (or a subclass) still classifies.
 const ACCESS_ERROR_NAMES = new Set(['ProjectAccessError', 'GhScopeError']);
 
 /**
@@ -47,9 +45,7 @@ export class ProjectAccessError extends Error {
 
 /**
  * Is `err` a token-scope / auth refusal (as opposed to a NOT_FOUND miss or a
- * transient failure)? A `ProjectAccessError` or a gh-exec `GhScopeError`
- * always is; anything else is judged on the scope / auth text in its
- * `message`, `stderr` or `stdout`.
+ * transient failure)? A `ProjectAccessError` or `GhScopeError` always is.
  *
  * @param {unknown} err
  * @returns {boolean}
@@ -70,7 +66,6 @@ export function isProjectAccessFailure(err) {
  */
 export function toProjectAccessError(err) {
   if (err instanceof ProjectAccessError) return err;
-  // gh-exec's message is generic; the refusal text is the stderr tail.
   const detail = describeGhFailure(err);
   return new ProjectAccessError(
     `GitHub Projects v2 board is not accessible with this token (missing the "${PROJECT_SCOPE}" scope?): ${detail}`,
@@ -78,11 +73,10 @@ export function toProjectAccessError(err) {
   );
 }
 
-// Sinks already warned, keyed per logger instance; production shares one
-// `Logger`, so once per process.
+// Sinks already warned; production shares one `Logger`, so once per process.
 let warnedSinks = new WeakSet();
 
-/** Forget every warned sink — test isolation within one process. */
+/** Test isolation: forget every warned sink. */
 export function resetBoardAccessLatch() {
   warnedSinks = new WeakSet();
 }
