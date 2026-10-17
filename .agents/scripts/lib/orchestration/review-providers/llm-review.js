@@ -9,6 +9,7 @@
  * @typedef {import('./degraded-gates.js').GateDegradation} GateDegradation
  */
 
+import { REVIEW_PROVIDER_CLIS } from '../../config/review-provider-clis.js';
 import { createCodeReviewProviderForRegistry } from './code-review.js';
 import {
   CODEX_REMEDIATIONS,
@@ -17,11 +18,18 @@ import {
 } from './codex.js';
 import { probeClaudeCli } from './security-review.js';
 
-/** Delegates in preference order: the CLI each probes and what it runs. */
-const LLM_REVIEW_DELEGATES = Object.freeze([
-  Object.freeze({ name: 'code-review', cli: 'claude', runs: 'claude --print' }),
-  Object.freeze({ name: 'codex', cli: 'codex', runs: 'codex exec' }),
-]);
+/** The delegate each CLI serves, and what it runs. */
+const DELEGATE_BY_CLI = Object.freeze({
+  claude: { name: 'code-review', runs: 'claude --print' },
+  codex: { name: 'codex', runs: 'codex exec' },
+});
+
+/** Delegates in the shared `llm-review` probe order. */
+const LLM_REVIEW_DELEGATES = Object.freeze(
+  REVIEW_PROVIDER_CLIS['llm-review'].map((cli) =>
+    Object.freeze({ cli, ...DELEGATE_BY_CLI[cli] }),
+  ),
+);
 
 /**
  * @returns {Error}

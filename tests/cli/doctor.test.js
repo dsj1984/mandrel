@@ -988,4 +988,15 @@ describe('llm-review-provider check', () => {
       /pinned chain reviews with code-review via claude/,
     );
   });
+
+  it('reads its provider-to-CLI map from the one built-ins-only module (Story #5756)', () => {
+    const lib = (rel) => fs.readFileSync(new URL(rel, import.meta.url), 'utf8');
+    const checkSource = lib('../../lib/cli/doctor-checks/llm-review.js');
+    const mapSource = lib(
+      '../../.agents/scripts/lib/config/review-provider-clis.js',
+    );
+    assert.match(checkSource, /from '[^']*\/config\/review-provider-clis\.js'/);
+    assert.doesNotMatch(checkSource, /'code-review': \[/);
+    assert.doesNotMatch(mapSource, /^import /m);
+  });
 });
