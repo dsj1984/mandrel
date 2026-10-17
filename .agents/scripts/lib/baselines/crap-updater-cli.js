@@ -6,6 +6,7 @@
  */
 
 import path from 'node:path';
+import { COVERAGE_CAPTURE_DEFAULTS } from '../config/gates/coverage.schema.js';
 import { getBaselines, getQuality, resolveConfig } from '../config-resolver.js';
 import {
   isCoverageFresh,
@@ -22,8 +23,6 @@ import {
   runSeatMissing,
   SeatRefusal,
 } from './seat-missing.js';
-
-const DEFAULT_COVERAGE_PATH = 'coverage/coverage-final.json';
 
 const DEFAULT_MIN_RESOLUTION_RATE = 0.75;
 
@@ -83,7 +82,9 @@ export function resolveCrapUpdaterOptions(
   }
   const baselinePath = args.baselinePath ?? baselines?.crap?.path;
   const coveragePath =
-    args.coveragePath ?? crap.coveragePath ?? DEFAULT_COVERAGE_PATH;
+    args.coveragePath ??
+    crap.coveragePath ??
+    COVERAGE_CAPTURE_DEFAULTS.coveragePath;
   return {
     targetDirs: Array.isArray(crap.targetDirs) ? crap.targetDirs : [],
     ignoreGlobs: Array.isArray(crap.ignoreGlobs) ? crap.ignoreGlobs : [],
@@ -91,7 +92,8 @@ export function resolveCrapUpdaterOptions(
     minMethodResolutionRate:
       crap.minMethodResolutionRate ?? DEFAULT_MIN_RESOLUTION_RATE,
     coveragePath,
-    captureScript: crap.captureScript ?? 'test:coverage',
+    captureScript:
+      crap.captureScript ?? COVERAGE_CAPTURE_DEFAULTS.captureScript,
     baselinePath,
     absBaselinePath: path.isAbsolute(baselinePath)
       ? baselinePath

@@ -33,8 +33,17 @@ const CRAP = {
   coveragePath: 'coverage/coverage-final.json',
 };
 
+/** The resolved coverage gate the CLI reads beside `crap`. */
+const COVERAGE = {
+  enabled: true,
+  coveragePath: 'coverage/coverage-final.json',
+  captureScript: 'test:coverage',
+  timeoutMs: 1234,
+};
+
 function harness({
   crap = CRAP,
+  coverage = COVERAGE,
   fresh = { fresh: true, reason: 'fresh' },
   changed = ['.agents/scripts/a.js'],
   captureCode = 0,
@@ -78,7 +87,7 @@ function harness({
           },
         },
       }),
-      getQualityImpl: () => ({ crap, coverage: { timeoutMs: 1234 } }),
+      getQualityImpl: () => ({ crap, coverage }),
       readPackageScriptsImpl: () => ({ 'test:coverage': 'node --test' }),
       hasNpmScriptImpl: () => hasScript,
       getChangedFilesImpl: (args) => {
@@ -208,11 +217,47 @@ describe('handleCoverageCaptureHelp', () => {
 });
 
 describe('runCoverageCapture', () => {
-  it('exits 0 immediately when the CRAP gate is disabled', async () => {
-    const h = harness({ crap: { ...CRAP, enabled: false } });
+  it('exits 0 immediately when the CRAP and coverage gates are disabled', async () => {
+    const h = harness({
+      crap: { ...CRAP, enabled: false },
+      coverage: { ...COVERAGE, enabled: false },
+    });
     assert.equal(await runCoverageCapture(argv(), h.deps), 0);
     assert.equal(h.calls.capture.length, 0);
-    assert.match(h.log.info[0], /CRAP gate disabled — skipping capture/);
+    assert.match(
+      h.log.info[0],
+      /CRAP and coverage gates disabled — skipping capture/,
+    );
+  });
+
+  it('skips (exit 0) with the CRAP gate off and no coverage capture script', async () => {
+    const h = harness({ crap: { ...CRAP, enabled: false }, hasScript: false });
+    assert.equal(await runCoverageCapture(argv(), h.deps), 0);
+    assert.equal(h.calls.capture.length, 0);
+    assert.match(
+      h.log.info[0],
+      /CRAP gate disabled and no "test:coverage" script/,
+    );
+    assert.equal(h.log.error.length, 0);
+  });
+
+  it('AC-5: still captures with the CRAP gate off while the coverage gate is on', async () => {
+    const h = harness({
+      crap: { ...CRAP, enabled: false },
+      fresh: { fresh: false, reason: 'missing' },
+    });
+    assert.equal(await runCoverageCapture(argv(), h.deps), 0);
+    assert.equal(h.calls.capture.length, 1);
+    assert.equal(h.calls.capture[0].script, 'test:coverage');
+  });
+
+  it('AC-5: runs the coverage gate captureScript, not a hardcoded script', async () => {
+    const h = harness({
+      coverage: { ...COVERAGE, captureScript: 'cov' },
+      fresh: { fresh: false, reason: 'missing' },
+    });
+    assert.equal(await runCoverageCapture(argv(), h.deps), 0);
+    assert.equal(h.calls.capture[0].script, 'cov');
   });
 
   it('fails with a fix-naming diagnostic when there is no test:coverage script', async () => {
@@ -298,7 +343,7 @@ describe('runCoverageCapture', () => {
     });
     assert.equal(await runCoverageCapture(argv(), h.deps), 2);
     assert.equal(h.calls.stamp.length, 0);
-    assert.match(h.log.error[0], /npm run test:coverage exited 2/);
+    assert.match(h.log.error[0], /the test:coverage capture script exited 2/);
   });
 
   it('treats an unavailable digest as a best-effort skip, not a failure', async () => {
@@ -911,12 +956,10 @@ describe('runCoverageCapture — own CRAP coverage source (Story #5717)', () => 
     failScript = null,
     failCode = 1,
     crap = OWN,
+    coverage = { ...COVERAGE, coveragePath: COVERAGE_PATH },
   } = {}) {
-    const h = harness({ crap });
-    h.deps.getQualityImpl = () => ({
-      crap,
-      coverage: { coveragePath: COVERAGE_PATH, timeoutMs: 1234 },
-    });
+    const h = harness({ crap, coverage });
+    h.deps.getQualityImpl = () => ({ crap, coverage });
     h.deps.hasNpmScriptImpl = (_scripts, name) => scripts.includes(name);
     h.deps.isCoverageFreshImpl = (args) => {
       h.calls.fresh.push(args);
@@ -987,17 +1030,22 @@ describe('runCoverageCapture — own CRAP coverage source (Story #5717)', () => 
     assert.equal(await runCoverageCapture(argv('--cwd', '/repo'), h.deps), 1);
     assert.equal(h.calls.capture.length, 1);
     assert.equal(h.calls.stamp.length, 0);
-    assert.match(h.log.error.join('\n'), /npm run test:coverage exited 1\./);
+    assert.match(
+      h.log.error.join('\n'),
+      /the test:coverage capture script exited 1\./,
+    );
   });
 
   it('a failing CRAP pass names the configured captureScript, not test:coverage', async () => {
     const h = ownHarness({ failScript: 'test:coverage:py' });
     assert.equal(await runCoverageCapture(argv('--cwd', '/repo'), h.deps), 1);
     const error = h.log.error.join('\n');
-    assert.match(error, /npm run test:coverage:py exited 1\./);
-    assert.doesNotMatch(error, /npm run test:coverage exited/);
+    assert.match(error, /the test:coverage:py capture script exited 1\./);
+    assert.doesNotMatch(error, /the test:coverage capture script exited/);
     assert.ok(
-      h.log.info.some((m) => /running npm run test:coverage:py…/.test(m)),
+      h.log.info.some((m) =>
+        /running the test:coverage:py capture script…/.test(m),
+      ),
     );
   });
 
@@ -1010,7 +1058,10 @@ describe('runCoverageCapture — own CRAP coverage source (Story #5717)', () => 
       await runCoverageCapture(argv('--cwd', '/repo'), h.deps),
       COVERAGE_TIMEOUT_EXIT_CODE,
     );
-    assert.match(h.log.error.join('\n'), /npm run test:coverage:py timed out/);
+    assert.match(
+      h.log.error.join('\n'),
+      /the test:coverage:py capture script timed out/,
+    );
   });
 
   it('AC-6: a repo whose only coverage script is the captureScript still captures', async () => {
@@ -1034,11 +1085,16 @@ describe('runCoverageCapture — own CRAP coverage source (Story #5717)', () => 
     assert.equal(h.calls.capture.length, 0);
   });
 
-  it('AC-2: a shared source with a custom captureScript runs it in one pass', async () => {
+  it('AC-5: a shared source runs the coverage gate captureScript in one pass', async () => {
     const h = ownHarness({
       stale: [COVERAGE_PATH],
       scripts: ['cov'],
       crap: { ...CRAP, coveragePath: COVERAGE_PATH, captureScript: 'cov' },
+      coverage: {
+        ...COVERAGE,
+        coveragePath: COVERAGE_PATH,
+        captureScript: 'cov',
+      },
     });
     assert.equal(await runCoverageCapture(argv('--cwd', '/repo'), h.deps), 0);
     assert.deepEqual(

@@ -684,7 +684,7 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/commands.js",
-      "mi": 108.42
+      "mi": 111.988
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
@@ -764,7 +764,7 @@
     },
     {
       "path": ".agents/scripts/lib/config/commands.js",
-      "mi": 121.608
+      "mi": 112.058
     },
     {
       "path": ".agents/scripts/lib/config/defaults.js",
@@ -868,7 +868,7 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-capture-passes.js",
-      "mi": 98.474
+      "mi": 100.808
     },
     {
       "path": ".agents/scripts/lib/coverage-capture-usage.js",
@@ -936,7 +936,7 @@
     },
     {
       "path": ".agents/scripts/lib/detect-package-manager.js",
-      "mi": 104.935
+      "mi": 107.772
     },
     {
       "path": ".agents/scripts/lib/doc-tiers.js",
@@ -1900,7 +1900,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/verify-credit.js",
-      "mi": 94.268
+      "mi": 94.313
     },
     {
       "path": ".agents/scripts/lib/orchestration/worktree-dirty.js",
@@ -2532,7 +2532,7 @@
     },
     {
       "path": "lib/cli/doctor-checks/test-credit-path.js",
-      "mi": 102.741
+      "mi": 107.451
     },
     {
       "path": "lib/cli/doctor-checks/toolchain.js",
@@ -2659,6 +2659,14 @@
       "mi": 95.493
     },
     {
+      "path": "lib/migrations/steps/2.91.0-move-shared-crap-capture-script.js",
+      "mi": 106.218
+    },
+    {
+      "path": "lib/migrations/steps/2.91.0-unset-null-lint-command.js",
+      "mi": 105.231
+    },
+    {
       "path": "lib/migrations/steps/strip-removed-agentrc-keys.js",
       "mi": 94.524
     },
@@ -2692,7 +2700,7 @@
     },
     {
       "path": "scripts/check-generated-validator.js",
-      "mi": 97.187
+      "mi": 101.6
     },
     {
       "path": "scripts/check-knip-entries.js",

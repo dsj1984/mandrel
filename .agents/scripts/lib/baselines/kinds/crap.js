@@ -5,6 +5,7 @@
 
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { COVERAGE_CAPTURE_DEFAULTS } from '../../config/gates/coverage.schema.js';
 import {
   COORDINATE_ORIGINAL,
   COORDINATE_TRANSPILED,
@@ -461,7 +462,8 @@ export function assessComparisonBasis(compareResult, opts = {}) {
 
 /**
  * The CRAP capture script an operator hint names — the resolved
- * `gates.crap.captureScript` when the caller passes it, else the default.
+ * `gates.crap.captureScript` when the caller passes it, else the coverage
+ * gate's default.
  *
  * @param {{ captureScript?: string } | undefined} ctx
  * @returns {string}
@@ -469,7 +471,7 @@ export function assessComparisonBasis(compareResult, opts = {}) {
 function captureScriptOf(ctx) {
   return typeof ctx?.captureScript === 'string' && ctx.captureScript.length > 0
     ? ctx.captureScript
-    : 'test:coverage';
+    : COVERAGE_CAPTURE_DEFAULTS.captureScript;
 }
 
 /** @param {{ captureScript?: string } | undefined} ctx */

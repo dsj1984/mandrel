@@ -16,7 +16,10 @@ const COVERAGE_BASE_REF_ENV = 'MANDREL_COVERAGE_BASE_REF';
 
 const CWD = path.resolve('/repo');
 const ARTIFACT = path.join(CWD, 'coverage/coverage-final.json');
-const STAMP = path.join(CWD, 'coverage/.capture-stamp.json');
+const STAMP = path.join(
+  CWD,
+  'coverage/.capture-stamp.coverage-final.json.json',
+);
 const abs = (rel) => path.join(CWD, rel);
 const CRAP = {
   enabled: true,
@@ -270,7 +273,12 @@ describe('coverage-capture CLI under captureScope', () => {
       }),
       getQualityImpl: () => ({
         crap: CRAP,
-        coverage: { timeoutMs: 1, captureScope },
+        coverage: {
+          timeoutMs: 1,
+          captureScope,
+          coveragePath: CRAP.coveragePath,
+          captureScript: 'test:coverage',
+        },
       }),
       readPackageScriptsImpl: () => scripts,
       getChangedFilesImpl: () => ['src/a.js'],
@@ -310,7 +318,7 @@ describe('coverage-capture CLI under captureScope', () => {
     });
     assert.equal(await runCoverageCapture(argv, h.deps), 0);
     assert.equal(h.captures.length, 1);
-    assert.equal(h.captures[0].script, undefined);
+    assert.equal(h.captures[0].script, 'test:coverage');
     assert.match(h.log.warn.join('\n'), /test:coverage:affected/);
   });
 
@@ -320,7 +328,7 @@ describe('coverage-capture CLI under captureScope', () => {
       scripts: { 'test:coverage': 'x', [AFFECTED_CAPTURE_SCRIPT]: 'y' },
     });
     assert.equal(await runCoverageCapture(argv, h.deps), 0);
-    assert.equal(h.captures[0].script, undefined);
+    assert.equal(h.captures[0].script, 'test:coverage');
     assert.doesNotMatch(h.log.warn.join('\n'), /captureScope/);
   });
 });

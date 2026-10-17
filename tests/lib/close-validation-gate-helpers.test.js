@@ -394,11 +394,16 @@ describe('buildDefaultGates — lint command resolution', () => {
     );
   });
 
-  it('an empty or blank value falls back rather than spawning nothing', () => {
-    for (const lint of ['', '   ', null]) {
-      const gate = lintGate({ project: { commands: { lint } } });
-      assert.deepEqual([gate.cmd, ...gate.args], ['npm', 'run', 'lint']);
+  it('a blank value throws rather than spawning nothing; null disables the gate', () => {
+    for (const lint of ['', '   ']) {
+      assert.throws(
+        () => lintGate({ project: { commands: { lint } } }),
+        /project\.commands\.lint/,
+      );
     }
+    const disabled = lintGate({ project: { commands: { lint: null } } });
+    assert.deepEqual(disabled.skip, { reason: 'lint-disabled' });
+    assert.deepEqual([disabled.cmd, ...disabled.args], ['npm', 'run', 'lint']);
   });
 
   // The gate name and its parallel-partition membership are part of the

@@ -361,7 +361,7 @@ describe('deliver-digest § 5 — the credited run follows close registration (#
     const doc = section();
     assertDocMentions(
       doc,
-      /CRAP gate enabled \*\*and\*\* a `test:coverage` script/,
+      /coverage or CRAP gate on \*\*and\*\* a `captureScript`/,
       'the predicate must be the one close registers coverage-capture on',
     );
     assertDocMentions(

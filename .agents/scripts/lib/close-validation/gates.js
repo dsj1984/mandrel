@@ -6,22 +6,23 @@ import { _internals as baselineReaderInternals } from '../baselines/reader.js';
 import { getChangedFiles } from '../changed-files.js';
 import {
   COVERAGE_GATE_DEFAULTS,
-  CRAP_GATE_DEFAULTS,
   getQuality,
+  resolveQuality,
 } from '../config/quality.js';
 import { filterFilesUnderTargets } from '../coverage-capture.js';
+import {
+  isCaptureActive,
+  primaryCaptureSource,
+} from '../coverage-capture-passes.js';
 import { hasNpmScript, readPackageScripts } from '../npm-scripts.js';
 import { KNOWN_KINDS } from '../orchestration/check-baselines/phases/parse-args.js';
 import { predictsTestEvidenceCredit } from '../test-run-credit.js';
 import {
   buildFormatHint,
-  FORMAT_CHECK_FALLBACK,
-  isTypecheckDisabled,
-  resolveFormatCheckCommand,
+  isDefaultFormatCheck,
   resolveFormatWriteCommand,
-  resolveLintCommand,
+  resolveGateCommand,
   resolveTestGateArgv,
-  resolveTypecheckCommand,
 } from './commands.js';
 
 /**
@@ -74,33 +75,34 @@ export function isCrapGateEnabled(config) {
 }
 
 /**
- * The npm script that writes the CRAP coverage artifact —
- * `gates.crap.captureScript`, default `test:coverage`. Read
- * from the unresolved block for the same reason as {@link isCrapGateEnabled}.
+ * Resolves only the two gates capture reads, so a broken sibling gate block
+ * is left to the baselines partition's own fail-closed path.
  *
  * @param {object|undefined|null} config - Canonical resolved config.
- * @returns {string}
  */
-function crapCaptureScript(config) {
-  const script = config?.delivery?.quality?.gates?.crap?.captureScript;
-  return typeof script === 'string' && script.trim().length > 0
-    ? script.trim()
-    : CRAP_GATE_DEFAULTS.captureScript;
+function captureQuality(config) {
+  const gates = config?.delivery?.quality?.gates ?? {};
+  const { crap, coverage } = gates;
+  return resolveQuality({ gates: { crap, coverage } });
 }
 
 /**
- * Coverage-capture registers when the CRAP gate is on AND the CRAP capture
- * script exists; {@link resolveCreditedDepositor} builds on it.
+ * Coverage-capture registers when the coverage or CRAP gate is on AND the
+ * primary capture script exists (the coverage gate's `captureScript`, or an
+ * own CRAP source's); {@link resolveCreditedDepositor} builds on it.
  *
  * @param {object|undefined|null} config - Canonical resolved config.
  * @param {Record<string, string>|null|undefined} scripts - `package.json` scripts.
  * @returns {boolean}
  */
 function isCoverageCaptureActive(config, scripts) {
-  return (
-    isCrapGateEnabled(config) &&
-    hasNpmScript(scripts, crapCaptureScript(config))
-  );
+  const { crap, coverage } = captureQuality(config);
+  return isCaptureActive({
+    crap,
+    coverage,
+    scripts,
+    hasNpmScriptImpl: hasNpmScript,
+  });
 }
 
 /**
@@ -260,14 +262,14 @@ function buildBaselinesGateEntries({ decision, kinds, env }) {
 }
 
 /**
- * Whitespace split; keeps an unconfigured consumer's `commandConfigHash` stable.
+ * The pre-decided skip an explicit `project.commands.<key>: null` registers.
  *
- * @param {string} commandString
- * @returns {{ cmd: string, args: string[] }}
+ * @param {{ disabled: boolean }} command
+ * @param {string} gateName
+ * @returns {{ skip?: { reason: string } }}
  */
-function splitCommand(commandString) {
-  const [cmd, ...args] = commandString.split(/\s+/).filter(Boolean);
-  return { cmd, args };
+function disabledSkip(command, gateName) {
+  return command.disabled ? { skip: { reason: `${gateName}-disabled` } } : {};
 }
 
 /**
@@ -364,17 +366,19 @@ function coverageCaptureRunsSuite({
 /**
  * Names every suite the capture can run: under `captureScope: "affected"` a
  * red may come from a delta refresh the base-sync triggered, not the Story;
- * a non-default `gates.crap.captureScript` is named beside `test:coverage`.
+ * an own CRAP source's script is named beside the coverage gate's.
  *
- * @param {string} captureScript The CRAP capture script ({@link crapCaptureScript}).
+ * @param {object|undefined|null} config - Canonical resolved config.
  * @returns {string}
  */
-function coverageCaptureHint(captureScript) {
+function coverageCaptureHint(config) {
+  const { crap, coverage } = captureQuality(config);
+  const primary = primaryCaptureSource({ crap, coverage });
   const crapScript =
-    captureScript === CRAP_GATE_DEFAULTS.captureScript
+    primary.captureScript === coverage.captureScript
       ? ''
-      : `, the CRAP gate's own \`npm run ${captureScript}\` (\`gates.crap.captureScript\`)`;
-  return `Coverage capture failed — its suite run (\`npm run test:coverage\`${crapScript}, or \`npm run test:coverage:affected\` under \`captureScope: "affected"\`, including a delta refresh keyed on the stamped commit after a base-sync) exited non-zero. The coverage-capture log names which ran; fix the failing tests or coverage-threshold breaches, then re-run close.`;
+      : `, the CRAP gate's own \`${primary.captureScript}\` (\`gates.crap.captureScript\`)`;
+  return `Coverage capture failed — its suite run (the \`${coverage.captureScript}\` script, \`gates.coverage.captureScript\`${crapScript}, or the affected capture script under \`captureScope: "affected"\`, including a delta refresh keyed on the stamped commit after a base-sync) exited non-zero. The coverage-capture log names which ran; fix the failing tests or coverage-threshold breaches, then re-run close.`;
 }
 
 const COVERAGE_CAPTURE_ARGS = Object.freeze([
@@ -438,8 +442,8 @@ export const GATE_TIMEOUT_HINT = `The gate outran the suite timeout (\`delivery.
 /**
  * Build the close-validation gate list, cheapest fast-fail first: typecheck →
  * lint → [test] → format → [quality-preview-mi] → [coverage-capture →
- * quality-preview-crap] → check-baselines. Coverage-capture registers only when CRAP is enabled AND its
- * capture script (`gates.crap.captureScript`, default `test:coverage`) exists; it then carries test-failure signalling and
+ * quality-preview-crap] → check-baselines. Coverage-capture registers only when the coverage or CRAP gate is
+ * enabled AND its capture script (`gates.coverage.captureScript`) exists; it then carries test-failure signalling and
  * the plain `test` gate is dropped, so there is always exactly one test gate.
  *
  * @param {{ config?: object, baseBranch?: string, cwd?: string, packageScripts?: Record<string, string>, presentBaselines?: string[]|Set<string>, log?: (message: string) => void, getChangedFilesImpl?: typeof getChangedFiles }} [opts]
@@ -490,15 +494,13 @@ export function buildDefaultGates({
       '[close-validation] coverage-capture will take the incremental skip (no changed file under the CRAP target dirs) — registering the plain `test` gate so this close still runs the suite.',
     );
   }
-  const typecheck = splitCommand(resolveTypecheckCommand(config));
-  const lint = splitCommand(resolveLintCommand(config));
-  const formatCheckString = resolveFormatCheckCommand(config);
-  const format = splitCommand(formatCheckString);
+  const typecheck = resolveGateCommand(config, 'typecheck');
+  const lint = resolveGateCommand(config, 'lint');
+  const format = resolveGateCommand(config, 'formatCheck');
   const formatWriteString = resolveFormatWriteCommand(config);
-  const formatChangedFileScope =
-    formatCheckString === FORMAT_CHECK_FALLBACK
-      ? buildChangedFileScope(baseBranch)
-      : null;
+  const formatChangedFileScope = isDefaultFormatCheck(format.raw)
+    ? buildChangedFileScope(baseBranch)
+    : null;
   const baselinesGateEnv = buildBaselinesGateEnv(baseBranch);
   const baselineKinds = enabledBaselineKinds(config);
   const baselinesDecision = probeBaselinesGate({
@@ -520,13 +522,16 @@ export function buildDefaultGates({
       cmd: typecheck.cmd,
       args: typecheck.args,
       hint: TYPECHECK_HINT,
-      ...(isTypecheckDisabled(config)
-        ? { skip: { reason: 'typecheck-disabled' } }
-        : {}),
+      ...disabledSkip(typecheck, 'typecheck'),
     },
     // Gate names stay generic though commands resolve from config, so the
     // log line, evidence keyspace and partition membership never shift.
-    { name: 'lint', cmd: lint.cmd, args: lint.args },
+    {
+      name: 'lint',
+      cmd: lint.cmd,
+      args: lint.args,
+      ...disabledSkip(lint, 'lint'),
+    },
     ...buildTestGateEntry(
       coverageCaptureRunsSuite({
         coverageCaptureActive,
@@ -540,6 +545,7 @@ export function buildDefaultGates({
       cmd: format.cmd,
       args: format.args,
       hint: buildFormatHint(formatWriteString),
+      ...disabledSkip(format, 'format'),
       ...(formatChangedFileScope
         ? { changedFileScope: formatChangedFileScope }
         : {}),
@@ -551,7 +557,7 @@ export function buildDefaultGates({
             name: 'coverage-capture',
             cmd: 'node',
             args: [...COVERAGE_CAPTURE_ARGS],
-            hint: coverageCaptureHint(crapCaptureScript(config)),
+            hint: coverageCaptureHint(config),
             lockEventChannel: true,
             ...(captureSkipPredicted
               ? { skip: { reason: 'incremental-no-crap-changes' } }

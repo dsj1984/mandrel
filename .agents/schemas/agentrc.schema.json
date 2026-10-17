@@ -73,7 +73,7 @@
         },
         "commands": {
           "type": "object",
-          "description": "Shell commands the close-validation chain spawns. Each is run from the repo root.",
+          "description": "Shell commands the close-validation chain spawns, each run from the repo root. One tri-state per key: absent uses the default shown; an explicit `null` disables an optional gate (`typecheck`, `lint`, `formatCheck`) — close reports it as skipped (`<gate>-disabled`) and runs nothing; a string is that command. Like every command here it must be a single argv (no `;`, `&&`, pipes or substitution), so wrap a multi-tool pair in one script and name that.",
           "properties": {
             "test": {
               "type": "string",
@@ -81,7 +81,7 @@
                 "pattern": "([;&|`]|\\$\\()"
               },
               "minLength": 1,
-              "description": "Full test-suite command close's `test` gate spawns, and the identity its `test` credit is hashed under — the deposit `run-tests.js` makes, close's credit probe and `verify[]` credit all key on it, as does `mandrel doctor`'s `test-credit-path` check. Set it for a non-npm project (e.g. `python3 scripts/validation.py`); unset, it is `npm test`. Like every command here it must be a single argv (no `;`, `&&`, pipes or substitution).",
+              "description": "Full test-suite command close's `test` gate spawns, and the identity its `test` credit is hashed under — the deposit `run-tests.js` makes, close's credit probe and `verify[]` credit all key on it, as does `mandrel doctor`'s `test-credit-path` check. Set it for a non-npm project (e.g. `python3 scripts/validation.py`). Mandatory: `null` is rejected.",
               "default": "npm test"
             },
             "typecheck": {
@@ -91,8 +91,8 @@
                 "type": "string",
                 "pattern": "([;&|`]|\\$\\()"
               },
-              "description": "Static type-check command run as a close-validation gate. Left unset (the `null` default), it falls back to `npm run typecheck`. An explicit `null` disables the gate for projects with no type layer: close reports it as skipped (`typecheck-disabled`) and runs nothing. The empty string is rejected so a typo cannot silently disable it.",
-              "default": null
+              "description": "Static type-check command run as a close-validation gate. An explicit `null` disables the gate for projects with no type layer (skip reason `typecheck-disabled`). The empty string is rejected so a typo cannot silently disable it.",
+              "default": "npm run typecheck"
             },
             "lint": {
               "type": ["string", "null"],
@@ -101,16 +101,17 @@
                 "type": "string",
                 "pattern": "([;&|`]|\\$\\()"
               },
-              "description": "Lint command run as a close-validation gate. `null` (the default) uses `npm run lint`; the gate is mandatory, so unlike `typecheck` this key cannot disable it. Point it at the scoped command your hooks already run to stop paying for a third whole-repo lint at close — the gate still lints the diff, and CI still owns whole-repo drift. Like every command here it must be a single argv (no `;`, `&&`, pipes or substitution), so wrap a multi-linter pair in one npm script and name that.",
-              "default": null
+              "description": "Lint command run as a close-validation gate and by the handoff preflight. An explicit `null` disables both (skip reason `lint-disabled`). Point it at the scoped command your hooks already run to stop paying for a third whole-repo lint at close — the gate still lints the diff, and CI still owns whole-repo drift.",
+              "default": "npm run lint"
             },
             "formatCheck": {
-              "type": "string",
+              "type": ["string", "null"],
+              "minLength": 1,
               "not": {
+                "type": "string",
                 "pattern": "([;&|`]|\\$\\()"
               },
-              "minLength": 1,
-              "description": "Non-mutating format verification run as a close-validation gate.",
+              "description": "Non-mutating format verification run as a close-validation gate. An explicit `null` disables the gate (skip reason `format-disabled`).",
               "default": "npx biome format ."
             },
             "formatWrite": {
@@ -365,7 +366,7 @@
           "properties": {
             "fullSuiteLock": {
               "type": "boolean",
-              "description": "Serialize full-suite spawns (`npm test` / `npm run test:coverage`) behind a repository-level advisory lock shared by every worktree, so two concurrent deliveries do not run two suites against the same cores (see `capacity` / `workloads` for declared runs that may overlap). The lock queues, it never overlaps: a wait that expires with a live holder spawns nothing and exits 75 (resumable), naming the holder. A dead or non-heartbeating holder is taken over, and a broken lockfile proceeds unserialized, so the lock can never fail a delivery. Set false — or export `MANDREL_FULL_SUITE_LOCK=0` for one invocation — to disable.",
+              "description": "Serialize full-suite spawns (`npm test` / the coverage gate's `captureScript`) behind a repository-level advisory lock shared by every worktree, so two concurrent deliveries do not run two suites against the same cores (see `capacity` / `workloads` for declared runs that may overlap). The lock queues, it never overlaps: a wait that expires with a live holder spawns nothing and exits 75 (resumable), naming the holder. A dead or non-heartbeating holder is taken over, and a broken lockfile proceeds unserialized, so the lock can never fail a delivery. Set false — or export `MANDREL_FULL_SUITE_LOCK=0` for one invocation — to disable.",
               "default": true
             },
             "capacity": {
@@ -386,7 +387,7 @@
                       "pattern": "([;&|`]|\\$\\()"
                     },
                     "minLength": 1,
-                    "description": "The exact suite argv, as `project.commands.test` spells it (or `npm run test:coverage` for coverage capture)."
+                    "description": "The exact suite argv, as `project.commands.test` spells it (or `<pm> run <captureScript>` for coverage capture)."
                   },
                   "weight": {
                     "type": "integer",
@@ -643,13 +644,20 @@
                         "pattern": "([;&|`]|\\$\\()"
                       },
                       "minLength": 1,
-                      "description": "Repo-relative path to the Istanbul `coverage-final.json` the capture step writes and the gate reads. The capture contract: `npm run test:coverage` MUST write Istanbul per-file JSON (the `json` reporter) here — the coverage and CRAP refreshes both read it. A `json-summary` (`coverage-summary.json`) alone cannot feed them, so a green capture that leaves no file here fails and a full-scope refresh refuses to run.",
+                      "description": "Repo-relative path to the Istanbul `coverage-final.json` the capture step writes and the gate reads. The capture contract: `captureScript` MUST write Istanbul per-file JSON (the `json` reporter) here — the coverage and CRAP refreshes both read it. A `json-summary` (`coverage-summary.json`) alone cannot feed them, so a green capture that leaves no file here fails and a full-scope refresh refuses to run. Its capture stamp sits beside it (`.capture-stamp.<file>.json`), so another artifact may share its directory.",
                       "default": "coverage/coverage-final.json"
+                    },
+                    "captureScript": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "^[A-Za-z0-9@:._/-]+$",
+                      "description": "`package.json` script (never a shell command) the coverage gate's capture runs, spawned as `<pm> run <script>` under the detected package manager (npm, pnpm, yarn or bun). Close registers the coverage-capture gate when the coverage or CRAP gate is enabled and this script exists; the full-suite lock's workload identity and `mandrel doctor`'s `test-credit-path` check follow it. Default `test:coverage`.",
+                      "default": "test:coverage"
                     },
                     "captureScope": {
                       "type": "string",
                       "enum": ["full", "affected"],
-                      "description": "What coverage-capture runs. `full` (default) runs `npm run test:coverage`. `affected` runs the consumer-owned `npm run test:coverage:affected` with the base ref in `MANDREL_COVERAGE_BASE_REF`, merges its rows over the prior artifact and stamps it `affected`; baseline rows the scoped run did not measure are treated as unmeasured, never removed. Falls back to `full` with a warning when the script is absent. Meant for consumers whose CI already enforces coverage on the full suite.",
+                      "description": "What coverage-capture runs. `full` (default) runs `captureScript`. `affected` runs the consumer-owned `test:coverage:affected` script with the base ref in `MANDREL_COVERAGE_BASE_REF`, merges its rows over the prior artifact and stamps it `affected`; baseline rows the scoped run did not measure are treated as unmeasured, never removed. Falls back to `full` with a warning when the script is absent. Meant for consumers whose CI already enforces coverage on the full suite.",
                       "default": "full"
                     },
                     "timeoutMs": {
@@ -788,7 +796,7 @@
                     },
                     "incrementalCoverage": {
                       "type": "object",
-                      "description": "The two independent full-suite economies (Story #4981, split by Story #5173). `skipWhenUnchanged` (default true) decides WHETHER to capture — no changed file under `crap.targetDirs` versus `baseRef` means no capture at all — and is a pure saving. `baselineJoin` (default false) loosens gate semantics: the CRAP join resolves a method in an untouched file from its committed baseline row instead of requiring fresh coverage for it. Neither narrows the capture run itself: a capture that does happen is the ordinary full `npm run test:coverage` (Story #5065).",
+                      "description": "The two independent full-suite economies (Story #4981, split by Story #5173). `skipWhenUnchanged` (default true) decides WHETHER to capture — no changed file under `crap.targetDirs` versus `baseRef` means no capture at all — and is a pure saving. `baselineJoin` (default false) loosens gate semantics: the CRAP join resolves a method in an untouched file from its committed baseline row instead of requiring fresh coverage for it. Neither narrows the capture run itself: a capture that does happen is the ordinary full run of the coverage gate's `captureScript` (Story #5065).",
                       "properties": {
                         "skipWhenUnchanged": {
                           "type": "boolean",
@@ -811,16 +819,18 @@
                     "coveragePath": {
                       "type": ["string", "null"],
                       "minLength": 1,
-                      "description": "Repo-relative Istanbul `coverage-final.json` the CRAP gate joins against (Story #5717). `null` or unset falls back to `delivery.quality.gates.coverage.coveragePath`. When it differs from that path the CRAP gate has its OWN coverage source: `coverage-capture.js` refreshes it full-scope via `captureScript`, and the handoff seat, close preview and `update-crap-baseline.js` read it. It must live in a different directory from the coverage gate's artifact (the capture stamp is per directory); a same-directory path is refused at config resolution.",
+                      "description": "Repo-relative Istanbul `coverage-final.json` the CRAP gate joins against (Story #5717). `null` or unset falls back to `delivery.quality.gates.coverage.coveragePath`. When it differs from that path the CRAP gate has its OWN coverage source: `coverage-capture.js` refreshes it full-scope via `captureScript`, and the handoff seat, close preview and `update-crap-baseline.js` read it. Its capture stamp sits beside it, so it may share a directory with the coverage gate's artifact.",
                       "default": null
                     },
                     "captureScript": {
                       "type": "string",
                       "minLength": 1,
                       "pattern": "^[A-Za-z0-9@:._/-]+$",
-                      "description": "npm script name (run as `npm run <script>`, never a shell command) that writes the CRAP coverage artifact. Close registers the coverage-capture gate, and the capture refusal and credited-run probe key, on this script.",
-                      "default": "test:coverage"
+                      "description": "`package.json` script (never a shell command) that writes the CRAP gate's OWN coverage artifact, spawned as `<pm> run <script>`. Valid only beside an own `coveragePath`: without one the CRAP gate reads the coverage gate's artifact, so this key is refused and `delivery.quality.gates.coverage.captureScript` runs. Unset beside an own `coveragePath`, it is the coverage gate's `captureScript`."
                     }
+                  },
+                  "dependencies": {
+                    "captureScript": ["coveragePath"]
                   },
                   "additionalProperties": false
                 },

@@ -6,6 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { resolveChangedFilesRef } from './changed-files.js';
+import { COVERAGE_CAPTURE_DEFAULTS } from './config/gates/coverage.schema.js';
 import {
   captureStampPath,
   reportCaptureFailure,
@@ -19,7 +20,7 @@ import {
 } from './coverage-capture-delta.js';
 import { tryIncrementalCapture } from './coverage-capture-incremental.js';
 
-const AFFECTED_CAPTURE_SCRIPT = 'test:coverage:affected';
+const AFFECTED_CAPTURE_SCRIPT = COVERAGE_CAPTURE_DEFAULTS.affectedCaptureScript;
 const COVERAGE_BASE_REF_ENV = 'MANDREL_COVERAGE_BASE_REF';
 
 /** A configured scope with no script warns, and the caller runs full scope. */
@@ -32,7 +33,7 @@ function shouldCaptureAffected({
   if (coverage?.captureScope !== 'affected') return false;
   if (hasNpmScriptImpl(scripts, AFFECTED_CAPTURE_SCRIPT)) return true;
   logger.warn(
-    `[coverage-capture] ⚠ captureScope is "affected" but package.json has no "${AFFECTED_CAPTURE_SCRIPT}" script — running the full npm run test:coverage instead.`,
+    `[coverage-capture] ⚠ captureScope is "affected" but package.json has no "${AFFECTED_CAPTURE_SCRIPT}" script — running the full ${coverage.captureScript} capture instead.`,
   );
   return false;
 }
@@ -163,7 +164,7 @@ function writeMerged({
   const scoped = readArtifact(artifactAbs, fsImpl);
   if (scoped === null) {
     logger.error(
-      `[coverage-capture] ✖ npm run ${AFFECTED_CAPTURE_SCRIPT} exited 0 but wrote no readable artifact at ${crap.coveragePath} — point its coverage output there.`,
+      `[coverage-capture] ✖ the ${AFFECTED_CAPTURE_SCRIPT} script exited 0 but wrote no readable artifact at ${crap.coveragePath} — point its coverage output there.`,
     );
     return false;
   }

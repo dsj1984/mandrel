@@ -129,12 +129,6 @@
       "percentage": 1.69
     },
     {
-      "path": ".agents/scripts/lib/close-validation/commands.js",
-      "duplicatedLines": 10,
-      "totalLines": 184,
-      "percentage": 5.43
-    },
-    {
       "path": ".agents/scripts/lib/close-validation/projections/crap.js",
       "duplicatedLines": 10,
       "totalLines": 257,
@@ -259,12 +253,6 @@
       "duplicatedLines": 10,
       "totalLines": 133,
       "percentage": 7.52
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
-      "duplicatedLines": 11,
-      "totalLines": 239,
-      "percentage": 4.6
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/bulk.js",

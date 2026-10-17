@@ -53,7 +53,7 @@ export const CRAP_GATE = {
       type: ['string', 'null'],
       minLength: 1,
       description:
-        "Repo-relative Istanbul `coverage-final.json` the CRAP gate joins against (Story #5717). `null` or unset falls back to `delivery.quality.gates.coverage.coveragePath`. When it differs from that path the CRAP gate has its OWN coverage source: `coverage-capture.js` refreshes it full-scope via `captureScript`, and the handoff seat, close preview and `update-crap-baseline.js` read it. It must live in a different directory from the coverage gate's artifact (the capture stamp is per directory); a same-directory path is refused at config resolution.",
+        "Repo-relative Istanbul `coverage-final.json` the CRAP gate joins against (Story #5717). `null` or unset falls back to `delivery.quality.gates.coverage.coveragePath`. When it differs from that path the CRAP gate has its OWN coverage source: `coverage-capture.js` refreshes it full-scope via `captureScript`, and the handoff seat, close preview and `update-crap-baseline.js` read it. Its capture stamp sits beside it, so it may share a directory with the coverage gate's artifact.",
       default: null,
     },
     captureScript: {
@@ -61,9 +61,11 @@ export const CRAP_GATE = {
       minLength: 1,
       pattern: '^[A-Za-z0-9@:._/-]+$',
       description:
-        'npm script name (run as `npm run <script>`, never a shell command) that writes the CRAP coverage artifact. Close registers the coverage-capture gate, and the capture refusal and credited-run probe key, on this script.',
-      default: CRAP_GATE_DEFAULTS.captureScript,
+        "`package.json` script (never a shell command) that writes the CRAP gate's OWN coverage artifact, spawned as `<pm> run <script>`. Valid only beside an own `coveragePath`: without one the CRAP gate reads the coverage gate's artifact, so this key is refused and `delivery.quality.gates.coverage.captureScript` runs. Unset beside an own `coveragePath`, it is the coverage gate's `captureScript`.",
     },
   },
+  // Draft-07 `dependencies` (array form) — the `dependentRequired` contract:
+  // a CRAP capture script needs the own artifact it writes.
+  dependencies: { captureScript: ['coveragePath'] },
   additionalProperties: false,
 };

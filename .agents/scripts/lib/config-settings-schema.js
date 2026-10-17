@@ -80,32 +80,31 @@ const PATHS_SCHEMA = {
 const COMMANDS_SCHEMA = {
   type: 'object',
   description:
-    'Shell commands the close-validation chain spawns. Each is run from the repo root.',
+    'Shell commands the close-validation chain spawns, each run from the repo root. One tri-state per key: absent uses the default shown; an explicit `null` disables an optional gate (`typecheck`, `lint`, `formatCheck`) — close reports it as skipped (`<gate>-disabled`) and runs nothing; a string is that command. Like every command here it must be a single argv (no `;`, `&&`, pipes or substitution), so wrap a multi-tool pair in one script and name that.',
   properties: {
     test: {
       ...SAFE_STRING,
       minLength: 1,
       description:
-        "Full test-suite command close's `test` gate spawns, and the identity its `test` credit is hashed under — the deposit `run-tests.js` makes, close's credit probe and `verify[]` credit all key on it, as does `mandrel doctor`'s `test-credit-path` check. Set it for a non-npm project (e.g. `python3 scripts/validation.py`); unset, it is `npm test`. Like every command here it must be a single argv (no `;`, `&&`, pipes or substitution).",
+        "Full test-suite command close's `test` gate spawns, and the identity its `test` credit is hashed under — the deposit `run-tests.js` makes, close's credit probe and `verify[]` credit all key on it, as does `mandrel doctor`'s `test-credit-path` check. Set it for a non-npm project (e.g. `python3 scripts/validation.py`). Mandatory: `null` is rejected.",
       default: COMMANDS_DEFAULTS.test,
     },
     typecheck: {
       ...NULLABLE_NONEMPTY_SAFE_STRING,
       description:
-        'Static type-check command run as a close-validation gate. Left unset (the `null` default), it falls back to `npm run typecheck`. An explicit `null` disables the gate for projects with no type layer: close reports it as skipped (`typecheck-disabled`) and runs nothing. The empty string is rejected so a typo cannot silently disable it.',
+        'Static type-check command run as a close-validation gate. An explicit `null` disables the gate for projects with no type layer (skip reason `typecheck-disabled`). The empty string is rejected so a typo cannot silently disable it.',
       default: COMMANDS_DEFAULTS.typecheck,
     },
     lint: {
       ...NULLABLE_NONEMPTY_SAFE_STRING,
       description:
-        'Lint command run as a close-validation gate. `null` (the default) uses `npm run lint`; the gate is mandatory, so unlike `typecheck` this key cannot disable it. Point it at the scoped command your hooks already run to stop paying for a third whole-repo lint at close — the gate still lints the diff, and CI still owns whole-repo drift. Like every command here it must be a single argv (no `;`, `&&`, pipes or substitution), so wrap a multi-linter pair in one npm script and name that.',
+        'Lint command run as a close-validation gate and by the handoff preflight. An explicit `null` disables both (skip reason `lint-disabled`). Point it at the scoped command your hooks already run to stop paying for a third whole-repo lint at close — the gate still lints the diff, and CI still owns whole-repo drift.',
       default: COMMANDS_DEFAULTS.lint,
     },
     formatCheck: {
-      ...SAFE_STRING,
-      minLength: 1,
+      ...NULLABLE_NONEMPTY_SAFE_STRING,
       description:
-        'Non-mutating format verification run as a close-validation gate.',
+        'Non-mutating format verification run as a close-validation gate. An explicit `null` disables the gate (skip reason `format-disabled`).',
       default: COMMANDS_DEFAULTS.formatCheck,
     },
     formatWrite: {

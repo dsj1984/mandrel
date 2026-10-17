@@ -518,6 +518,18 @@ constant can know. No existing key displaces them: the coverage gate's
 `coveragePath` stays the coverage gate's, and `captureScript` names an npm
 script rather than a shell command, so it opens no injection surface.
 
+**Raised to 139 (2026-10-17, Story #5737)** for
+`delivery.quality.gates.coverage.captureScript`. Coverage capture hardcoded
+`npm run test:coverage`, so a consumer whose coverage suite is a differently
+named script — or one that only the coverage gate (not CRAP) reads — had no
+lever but renaming its own scripts. The capture script is a fact about one
+project's `package.json`, and it now belongs to the gate that owns the
+artifact: `crap.captureScript` stays valid only beside an own
+`crap.coveragePath` (a shared artifact has one writer), so no existing key
+displaces it. Like its CRAP sibling it names a `package.json` script, spawned
+as `<pm> run <script>` under the detected package manager, never a shell
+command, so it opens no injection surface.
+
 ### Consequences
 
 - A tuning value is changed by editing the constant and shipping a release,
