@@ -1169,19 +1169,7 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/review-providers/codex.js",
-      "symbol": "CODEX_REMEDIATIONS"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/review-providers/codex.js",
       "symbol": "CODEX_SEVERITY_MAP"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/review-providers/codex.js",
-      "symbol": "createCodexProvider"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/review-providers/codex.js",
-      "symbol": "defaultProbeCodexCommand"
     },
     {
       "file": ".agents/scripts/lib/orchestration/review-providers/codex.js",
@@ -1194,6 +1182,18 @@
     {
       "file": ".agents/scripts/lib/orchestration/review-providers/findings-renderer.js",
       "symbol": "renderFinding"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/review-providers/llm-review.js",
+      "symbol": "buildLlmReviewUnavailableError"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/review-providers/llm-review.js",
+      "symbol": "createLlmReviewProvider"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/review-providers/llm-review.js",
+      "symbol": "resolveLlmReviewDelegate"
     },
     {
       "file": ".agents/scripts/lib/orchestration/review-providers/native.js",

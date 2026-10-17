@@ -24,6 +24,11 @@ marketplace listing. The commands load in every Claude Code environment.
 `.agents/skills/workflows/<name>/SKILL.md`, invoked as `$<name>` (e.g.
 `$mandrel-plan`; loop units as `$loops-<name>`). Each skill points Codex at
 the workflow file and passes the text after `$<name>` as its arguments.
+A `$loops-<name>` unit runs once per invocation: Codex has no `/loop`
+cadence, so re-invoke it (or schedule it) to iterate. At close, the default
+review chain's `llm-review` entry reviews through `codex exec` when `claude`
+is absent (`claude` wins when both are present); `mandrel doctor`'s
+`llm-review-provider` check names the CLI that will serve it.
 `npm run sync:agents` likewise writes the role agents a workflow dispatches
 (`subagent_type: <role>`) as Codex custom agents
 `.codex/agents/mandrel-<role>.toml`; Codex loads those only in a trusted

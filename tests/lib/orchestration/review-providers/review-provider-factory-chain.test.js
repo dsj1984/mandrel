@@ -20,6 +20,7 @@ import { DEFAULT_REVIEW_PROVIDERS } from '../../../../.agents/scripts/lib/config
 import { getAgentrcValidator } from '../../../../.agents/scripts/lib/config-settings-schema.js';
 import { CODE_REVIEW_SCHEMA } from '../../../../.agents/scripts/lib/config-settings-schema-quality.js';
 import { createCodeReviewProviderForRegistry } from '../../../../.agents/scripts/lib/orchestration/review-providers/code-review.js';
+import { createLlmReviewProvider } from '../../../../.agents/scripts/lib/orchestration/review-providers/llm-review.js';
 import {
   buildGate,
   buildProviderChain,
@@ -87,8 +88,8 @@ test('isScopeApplicable: filters by declared list', () => {
 });
 
 /**
- * The real `code-review` constructor over injected probe/diff/invoke seams —
- * no test spawns the `claude` binary.
+ * The real `llm-review` → `code-review` constructors over injected
+ * probe/diff/invoke seams — no test spawns the `claude` or `codex` binary.
  */
 function defaultChainRegistry({ cliPresent, order, reviewStatus = 0 }) {
   return inlineRegistry({
@@ -98,38 +99,46 @@ function defaultChainRegistry({ cliPresent, order, reviewStatus = 0 }) {
         return [];
       },
     }),
-    'code-review': () =>
-      createCodeReviewProviderForRegistry({
-        probeFn: () => cliPresent,
-        gitSpawnFn: () => ({
-          status: 0,
-          stdout: 'diff --git a/x b/x\n',
-          stderr: '',
-        }),
-        authSpawnFn: () => ({
-          status: 0,
-          stdout: JSON.stringify({ loggedIn: true, authMethod: 'claude.ai' }),
-          stderr: '',
-        }),
-        spawnFn: () => {
-          order.push('code-review');
-          return {
-            status: reviewStatus,
-            stdout: JSON.stringify({
-              subtype: 'success',
-              is_error: false,
-              structured_output: { findings: [] },
+    'llm-review': () =>
+      createLlmReviewProvider({
+        probeClaudeFn: () => cliPresent,
+        probeCodexFn: () => false,
+        createCodeReviewFn: (deps) =>
+          createCodeReviewProviderForRegistry({
+            ...deps,
+            gitSpawnFn: () => ({
+              status: 0,
+              stdout: 'diff --git a/x b/x\n',
+              stderr: '',
             }),
-            stderr: '',
-          };
-        },
+            authSpawnFn: () => ({
+              status: 0,
+              stdout: JSON.stringify({
+                loggedIn: true,
+                authMethod: 'claude.ai',
+              }),
+              stderr: '',
+            }),
+            spawnFn: () => {
+              order.push('code-review');
+              return {
+                status: reviewStatus,
+                stdout: JSON.stringify({
+                  subtype: 'success',
+                  is_error: false,
+                  structured_output: { findings: [] },
+                }),
+                stderr: '',
+              };
+            },
+          }),
       }),
   });
 }
 
 const STORY_INPUT = { ...INPUT, scope: 'story', headRef: 'story-42' };
 
-test('default chain: unset config with the claude CLI runs native then code-review', async () => {
+test('default chain: unset config with the claude CLI runs native then llm-review through code-review', async () => {
   const order = [];
   const provider = createReviewProvider(undefined, {
     inlineRegistry: defaultChainRegistry({ cliPresent: true, order }),
@@ -137,7 +146,7 @@ test('default chain: unset config with the claude CLI runs native then code-revi
   });
   assert.deepEqual(
     provider.chain.inline.map((e) => e.name),
-    ['native', 'code-review'],
+    ['native', 'llm-review'],
   );
   assert.deepEqual(await provider.runReview(STORY_INPUT), []);
   assert.deepEqual(order, ['native', 'code-review']);
@@ -161,7 +170,7 @@ test('default chain: a code-review run with no verdict surfaces one chain degrad
   assert.equal(degradations[0].surface, 'model-bug-review');
 });
 
-test('default chain: without the claude CLI code-review is skipped and native runs alone', async () => {
+test('default chain: with neither CLI llm-review is skipped and native runs alone', async () => {
   const order = [];
   const warnings = [];
   const provider = createReviewProvider(
@@ -178,13 +187,14 @@ test('default chain: without the claude CLI code-review is skipped and native ru
   );
   await provider.runReview(STORY_INPUT);
   assert.deepEqual(order, ['native']);
-  assert.ok(warnings.some((m) => /code-review unavailable/.test(m)));
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /llm-review unavailable/);
 });
 
 test('default chain: the factory fallback is the shared DEFAULT_REVIEW_PROVIDERS constant', () => {
   assert.deepEqual(JSON.parse(JSON.stringify(DEFAULT_REVIEW_PROVIDERS)), [
     { name: 'native' },
-    { name: 'code-review', scopes: ['story'], optional: true },
+    { name: 'llm-review', scopes: ['story'], optional: true },
   ]);
   assert.deepEqual(
     JSON.parse(JSON.stringify(DELIVERY_SCHEMA_PROVIDERS_DEFAULT)),

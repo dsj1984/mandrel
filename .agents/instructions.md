@@ -20,7 +20,9 @@ skill or workflow guidance. Role-scoped spawn contexts live under
 is a separate fixture concept. **Host mapping:** a `subagent_type: <role>`
 dispatch uses the Agent tool on Claude Code and spawns the project custom
 agent named `<role>` on Codex; `general-purpose` means the host's default
-agent.
+agent. An `AskUserQuestion` ask is the host's question idiom (Codex: ask in
+plain text, wait for the reply). A `/loop` cadence is host-owned: Codex runs
+`$loops-<name>` once per invocation.
 
 ### B. Skill Activation
 

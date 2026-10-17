@@ -18,6 +18,7 @@ import { DEFAULT_REVIEW_PROVIDERS } from '../../config/review-chain-default.js';
 import { createCodeReviewProviderForRegistry } from './code-review.js';
 import { createCodexProviderForRegistry } from './codex.js';
 import { mergeChainDegradations } from './degraded-gates.js';
+import { createLlmReviewProviderForRegistry } from './llm-review.js';
 import { createNativeProviderForRegistry } from './native.js';
 import { createSecurityReviewProviderForRegistry } from './security-review.js';
 import { createUltrareviewProviderForRegistry } from './ultrareview.js';
@@ -26,6 +27,7 @@ import { createUltrareviewProviderForRegistry } from './ultrareview.js';
 const INLINE_PROVIDERS = Object.freeze({
   'code-review': createCodeReviewProviderForRegistry,
   codex: createCodexProviderForRegistry,
+  'llm-review': createLlmReviewProviderForRegistry,
   native: createNativeProviderForRegistry,
   'security-review': createSecurityReviewProviderForRegistry,
 });
