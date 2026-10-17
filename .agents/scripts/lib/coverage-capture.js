@@ -1,12 +1,14 @@
 /**
- * Keep `coverage/coverage-final.json` present and fresh before a CRAP gate
- * reads it: the scorer skips uncovered methods, so a stale artifact silently
- * weakens the gate.
+ * Keep the coverage artifact (`coverage.coveragePath`) present and fresh
+ * before a CRAP or coverage gate reads it: the scorer skips uncovered
+ * methods, so a stale artifact silently weakens the gate.
  */
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnChild } from './child-exec.js';
+import { COVERAGE_CAPTURE_DEFAULTS } from './config/gates/coverage.schema.js';
+import { packageScriptArgv } from './detect-package-manager.js';
 import { LOCK_WAIT_EXPIRED_EXIT_CODE } from './full-suite-lock.js';
 import { Logger } from './Logger.js';
 import { TIMEOUT_EXIT_CODE } from './process-group.js';
@@ -64,16 +66,18 @@ export function newestSourceMtime(cwd, targetDirs, io = {}) {
 
 /**
  * The stamp records the sources' content digest at capture time, so freshness
- * survives mtime churn from checkouts.
+ * survives mtime churn from checkouts. It is keyed per artifact, beside it, so
+ * two artifacts may share a directory without cross-crediting freshness.
  *
  * @param {string} cwd Absolute repo root.
  * @param {string} coveragePath Repo-relative coverage artifact path.
- * @returns {string} Absolute stamp path (`<coverage-dir>/.capture-stamp.json`).
+ * @returns {string} Absolute stamp path (`<dir>/.capture-stamp.<basename>.json`).
  */
 export function captureStampPath(cwd, coveragePath) {
+  const abs = path.resolve(cwd, coveragePath);
   return path.join(
-    path.dirname(path.resolve(cwd, coveragePath)),
-    '.capture-stamp.json',
+    path.dirname(abs),
+    `.capture-stamp.${path.basename(abs)}.json`,
   );
 }
 
@@ -505,7 +509,7 @@ export function creditedCapture(runCaptureFn, { requireCredited, logger }) {
 }
 
 /**
- * The capture contract every coverage consumer leans on: `test:coverage`
+ * The capture contract every coverage consumer leans on: the capture script
  * writes Istanbul per-file JSON at `coveragePath`. A summary-only reporter
  * cannot feed the coverage or CRAP baselines (CRAP joins per-function maps).
  *
@@ -514,11 +518,11 @@ export function creditedCapture(runCaptureFn, { requireCredited, logger }) {
  */
 function missingCoverageArtifactMessage(
   abs,
-  script = 'test:coverage',
+  script = COVERAGE_CAPTURE_DEFAULTS.captureScript,
   configKey = 'delivery.quality.gates.coverage.coveragePath',
 ) {
   return (
-    `coverage artifact not found at ${abs}. \`npm run ${script}\` must ` +
+    `coverage artifact not found at ${abs}. The \`${script}\` script must ` +
     'write Istanbul per-file JSON (the `json` reporter → coverage-final.json) ' +
     `at ${configKey}; a \`json-summary\` ` +
     '(coverage-summary.json) alone cannot feed the coverage or CRAP baselines.'
@@ -564,7 +568,7 @@ export function requireCaptureArtifact(
     const abs = path.resolve(cwd, coveragePath);
     if (existsSync(abs)) return 0;
     logger.error(
-      `[coverage-capture] ✖ ${script ?? 'test:coverage'} passed but ${missingCoverageArtifactMessage(abs, script, configKey)}`,
+      `[coverage-capture] ✖ ${script ?? COVERAGE_CAPTURE_DEFAULTS.captureScript} passed but ${missingCoverageArtifactMessage(abs, script, configKey)}`,
     );
     return 1;
   };
@@ -677,7 +681,8 @@ function dropCaptureStamp({ cwd, coveragePath }) {
 export const COVERAGE_TIMEOUT_EXIT_CODE = TIMEOUT_EXIT_CODE;
 
 /**
- * Spawn `npm run <script>` asynchronously as its own process group, so
+ * Spawn `<pm> run <script>` (the detected package manager, see
+ * `packageScriptArgv`) asynchronously as its own process group, so
  * the lock heartbeat keeps running and a timeout or signal kills every
  * worker. Takes no positional file args: node's runner would execute a
  * forwarded source file as a test instead of filtering the suite. Scope a
@@ -700,17 +705,19 @@ export const COVERAGE_TIMEOUT_EXIT_CODE = TIMEOUT_EXIT_CODE;
  * @returns {Promise<number>}
  */
 export function runCapture(opts = {}) {
-  const { script = 'test:coverage', log = () => {} } = opts;
+  const { script = COVERAGE_CAPTURE_DEFAULTS.captureScript, log = () => {} } =
+    opts;
   dropCaptureStamp(opts);
-  const args = ['run', script];
-  log(`[coverage-capture] ▶ npm ${args.join(' ')}`);
+  const [cmd, ...args] = packageScriptArgv(opts.cwd ?? process.cwd(), script);
+  const command = [cmd, ...args].join(' ');
+  log(`[coverage-capture] ▶ ${command}`);
   return runSupervisedSuite({
     ...opts,
-    cmd: 'npm',
+    cmd,
     args,
     onTimeout: () =>
       log(
-        `[coverage-capture] ⏱ npm run ${script} exceeded ${opts.timeoutMs}ms — killed its process group. Returning exit ${COVERAGE_TIMEOUT_EXIT_CODE}.`,
+        `[coverage-capture] ⏱ ${command} exceeded ${opts.timeoutMs}ms — killed its process group. Returning exit ${COVERAGE_TIMEOUT_EXIT_CODE}.`,
       ),
   });
 }
@@ -725,7 +732,7 @@ function lockWaitExpiredMessage(code) {
  * @param {string} script
  */
 function timeoutMessage(code, script) {
-  return `[coverage-capture] ⏱ npm run ${script} timed out and was killed (exit ${code}) — no test verdict exists. This is usually host contention, not a failing test; re-run once the host is quieter.`;
+  return `[coverage-capture] ⏱ the ${script} capture script timed out and was killed (exit ${code}) — no test verdict exists. This is usually host contention, not a failing test; re-run once the host is quieter.`;
 }
 
 /**
@@ -733,7 +740,7 @@ function timeoutMessage(code, script) {
  * @param {string} script
  */
 function failingSuiteMessage(code, script) {
-  return `[coverage-capture] ✖ npm run ${script} exited ${code}. Fix failing tests or coverage-threshold breaches before re-running the CRAP gate.`;
+  return `[coverage-capture] ✖ the ${script} capture script exited ${code}. Fix failing tests or coverage-threshold breaches before re-running the CRAP gate.`;
 }
 
 /**
@@ -759,7 +766,11 @@ const FAILING_SUITE_REPORT = Object.freeze(['error', failingSuiteMessage]);
  * @param {string} [script]
  * @returns {number}
  */
-export function reportCaptureFailure(code, logger, script = 'test:coverage') {
+export function reportCaptureFailure(
+  code,
+  logger,
+  script = COVERAGE_CAPTURE_DEFAULTS.captureScript,
+) {
   const [level, message] =
     NON_FAILURE_CAPTURE_EXITS[code] ?? FAILING_SUITE_REPORT;
   logger[level](message(code, script));

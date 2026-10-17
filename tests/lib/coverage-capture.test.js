@@ -648,11 +648,33 @@ describe('writeCaptureStamp / captureStampPath', () => {
     );
     assert.equal(
       norm(writes[0].p),
-      norm(repoPath('coverage/.capture-stamp.json')),
+      norm(repoPath('coverage/.capture-stamp.coverage-final.json.json')),
     );
     const parsed = JSON.parse(writes[0].body);
     assert.equal(parsed.digest, 'abc123');
     assert.equal(typeof parsed.capturedAt, 'string');
+  });
+
+  it('Story #5737 AC-8: two artifacts in one directory each carry their own stamp', () => {
+    const dir = makeTempDir('story-5737-stamps-');
+    try {
+      fs.mkdirSync(path.join(dir, 'coverage'));
+      const gate = 'coverage/coverage-final.json';
+      const crap = 'coverage/crap-final.json';
+      assert.notEqual(captureStampPath(dir, gate), captureStampPath(dir, crap));
+      assert.ok(
+        writeCaptureStamp({ cwd: dir, coveragePath: gate, digest: 'g' }),
+      );
+      assert.ok(
+        writeCaptureStamp({ cwd: dir, coveragePath: crap, digest: 'c' }),
+      );
+      const read = (p) =>
+        JSON.parse(fs.readFileSync(captureStampPath(dir, p), 'utf8')).digest;
+      assert.equal(read(gate), 'g');
+      assert.equal(read(crap), 'c');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('returns false on an empty digest or a write failure', () => {
@@ -752,6 +774,32 @@ describe('runCapture', () => {
       process.platform === 'win32' ? undefined : true,
       'on POSIX the suite leads its own process group',
     );
+  });
+
+  it('Story #5737 AC-6: spawns `pnpm run test:coverage` in a pnpm fixture', async () => {
+    const dir = makeTempDir('story-5737-pnpm-');
+    try {
+      fs.writeFileSync(path.join(dir, 'package.json'), '{}');
+      fs.writeFileSync(path.join(dir, 'pnpm-lock.yaml'), '');
+      const calls = [];
+      assert.equal(
+        await runCapture({ cwd: dir, spawnImpl: fakeSpawn(calls) }),
+        0,
+      );
+      assert.equal(calls[0].cmd, 'pnpm');
+      assert.deepEqual(calls[0].args, ['run', 'test:coverage']);
+      await runCapture({
+        cwd: dir,
+        script: 'cov',
+        spawnImpl: fakeSpawn(calls),
+      });
+      assert.deepEqual(
+        [calls[1].cmd, ...calls[1].args],
+        ['pnpm', 'run', 'cov'],
+      );
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('resolves the suite status (1 when the suite fails)', async () => {
@@ -1297,7 +1345,7 @@ describe('requireCaptureArtifact / captureStampPath — own CRAP source (Story #
     });
     assert.equal(await run({}), 1);
     assert.match(log.errors[0], /test:coverage:py passed/);
-    assert.match(log.errors[0], /`npm run test:coverage:py` must/);
+    assert.match(log.errors[0], /The `test:coverage:py` script must/);
     assert.match(log.errors[0], /delivery\.quality\.gates\.crap\.coveragePath/);
     assert.ok(
       log.errors[0].includes(repoPath('coverage-py', 'coverage-final.json')),

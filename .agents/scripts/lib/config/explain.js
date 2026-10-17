@@ -49,8 +49,9 @@ const KEY_MEANINGS = Object.freeze({
     "Test command close's `test` gate runs and its credit identity hashes.",
   'project.commands.typecheck':
     'Typecheck command (null disables the typecheck gate).',
+  'project.commands.lint': 'Lint command (null disables the lint gate).',
   'project.commands.formatCheck':
-    'Format-verify command run without modifying files.',
+    'Format-verify command run without modifying files (null disables the format gate).',
   'project.commands.formatWrite':
     'Format-write command that applies formatting in place.',
 

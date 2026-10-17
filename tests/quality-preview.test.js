@@ -1296,7 +1296,14 @@ describe('quality-preview CLI — piped --json past 64 KiB (Story #5686)', () =>
       assert.equal(report.mi.envelope.summary.regressions, FILE_COUNT);
       assert.equal(result.status, 1, 'the violation exit code propagates');
     } finally {
-      fs.rmSync(root, { recursive: true, force: true });
+      // A 250-file tree on a loaded macOS host can raise ENOTEMPTY mid-walk;
+      // Node's own retry loop is the documented remedy for that race.
+      fs.rmSync(root, {
+        recursive: true,
+        force: true,
+        maxRetries: 5,
+        retryDelay: 100,
+      });
     }
   });
 });

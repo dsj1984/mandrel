@@ -13062,6 +13062,18 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/commands.js",
+      "method": "resolveGateCommand",
+      "startLine": 25,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/commands.js",
+      "method": "defaultArgv",
+      "startLine": 32,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/commands.js",
       "method": "resolveCommandWithFallback",
       "startLine": 35,
       "crap": 3.0416666666666665
@@ -13070,6 +13082,12 @@
       "path": ".agents/scripts/lib/close-validation/commands.js",
       "method": "resolveTypecheckCommand",
       "startLine": 52,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/commands.js",
+      "method": "isDefaultFormatCheck",
+      "startLine": 59,
       "crap": 1
     },
     {
@@ -13144,6 +13162,12 @@
       "method": "isCrapGateEnabled",
       "startLine": 70,
       "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/gates.js",
+      "method": "captureQuality",
+      "startLine": 83,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
@@ -13233,6 +13257,12 @@
       "method": "splitCommand",
       "startLine": 268,
       "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/gates.js",
+      "method": "disabledSkip",
+      "startLine": 271,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
@@ -14182,6 +14212,60 @@
       "anonymous": true
     },
     {
+      "path": ".agents/scripts/lib/config/commands.js",
+      "method": "splitArgv",
+      "startLine": 23,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/config/commands.js",
+      "method": "configError",
+      "startLine": 28,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/config/commands.js",
+      "method": "isPlainObject",
+      "startLine": 33,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/config/commands.js",
+      "method": "commandsBlock",
+      "startLine": 38,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/config/commands.js",
+      "method": "enabled",
+      "startLine": 48,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/config/commands.js",
+      "method": "disabledCommand",
+      "startLine": 53,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/config/commands.js",
+      "method": "configuredCommand",
+      "startLine": 61,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/config/commands.js",
+      "method": "assertKnownKey",
+      "startLine": 70,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/config/commands.js",
+      "method": "resolveProjectCommand",
+      "startLine": 81,
+      "crap": 4
+    },
+    {
       "path": ".agents/scripts/lib/config/defaults.js",
       "method": "getAgentrcDefaults",
       "startLine": 32,
@@ -14377,6 +14461,12 @@
       "startLine": 171,
       "crap": 2,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/config/quality.js",
+      "method": "slashed",
+      "startLine": 177,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/quality.js",
@@ -15249,15 +15339,45 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-capture-passes.js",
+      "method": "captureGates",
+      "startLine": 23,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-passes.js",
       "method": "captureRefusal",
       "startLine": 23,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/coverage-capture-passes.js",
+      "method": "isCaptureGateEnabled",
+      "startLine": 40,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-passes.js",
       "method": "planPasses",
       "startLine": 44,
       "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-passes.js",
+      "method": "crapOwnsSource",
+      "startLine": 45,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-passes.js",
+      "method": "primaryCaptureSource",
+      "startLine": 50,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-passes.js",
+      "method": "isCaptureActive",
+      "startLine": 65,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/coverage-capture-passes.js",
@@ -15277,6 +15397,12 @@
       "method": "runCapturePasses",
       "startLine": 93,
       "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-capture-passes.js",
+      "method": "missingScriptExit",
+      "startLine": 113,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/coverage-capture-passes.js",
@@ -16285,6 +16411,12 @@
       "method": "detectPackageManagerWithWorkspace",
       "startLine": 34,
       "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/detect-package-manager.js",
+      "method": "packageScriptArgv",
+      "startLine": 53,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/doc-tiers.js",
@@ -18031,6 +18163,12 @@
       "startLine": 306,
       "crap": 1,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/full-suite-lock.js",
+      "method": "coverageCaptureArgv",
+      "startLine": 309,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
@@ -31993,6 +32131,12 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "lintPreflight",
+      "startLine": 308,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "preflightFinding",
       "startLine": 324,
       "crap": 7
@@ -33194,6 +33338,12 @@
       "method": "parseVerifyEntry",
       "startLine": 55,
       "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/verify-credit.js",
+      "method": "probeCaptureStamp",
+      "startLine": 62,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/verify-credit.js",
@@ -41857,9 +42007,63 @@
     },
     {
       "path": "lib/cli/doctor-checks/test-credit-path.js",
+      "method": "overlaidValue",
+      "startLine": 103,
+      "crap": 2
+    },
+    {
+      "path": "lib/cli/doctor-checks/test-credit-path.js",
+      "method": "<anon (v)#0>",
+      "startLine": 116,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/test-credit-path.js",
+      "method": "<anon (v)#1>",
+      "startLine": 117,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/test-credit-path.js",
       "method": "configuredTestCommand",
       "startLine": 119,
       "crap": 4
+    },
+    {
+      "path": "lib/cli/doctor-checks/test-credit-path.js",
+      "method": "readCaptureConfig",
+      "startLine": 128,
+      "crap": 2
+    },
+    {
+      "path": "lib/cli/doctor-checks/test-credit-path.js",
+      "method": "<anon readCaptureConfig/(name)#0/(c)#0>",
+      "startLine": 129,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/test-credit-path.js",
+      "method": "<anon readCaptureConfig/(name)#0>",
+      "startLine": 129,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/test-credit-path.js",
+      "method": "<anon readCaptureConfig/(name)#1>",
+      "startLine": 130,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/test-credit-path.js",
+      "method": "<anon readCaptureConfig/(name)#1/(c)#0>",
+      "startLine": 134,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": "lib/cli/doctor-checks/test-credit-path.js",
@@ -41869,9 +42073,23 @@
     },
     {
       "path": "lib/cli/doctor-checks/test-credit-path.js",
+      "method": "<anon readCaptureConfig/(c)#0>",
+      "startLine": 140,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/test-credit-path.js",
       "method": "describeCreditedRun",
       "startLine": 159,
       "crap": 4
+    },
+    {
+      "path": "lib/cli/doctor-checks/test-credit-path.js",
+      "method": "<anon configuredTestCommand/(c)#0>",
+      "startLine": 162,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": "lib/cli/doctor-checks/test-credit-path.js",
@@ -43107,6 +43325,74 @@
       "crap": 1
     },
     {
+      "path": "lib/migrations/steps/2.91.0-move-shared-crap-capture-script.js",
+      "method": "agentrcPath",
+      "startLine": 22,
+      "crap": 1
+    },
+    {
+      "path": "lib/migrations/steps/2.91.0-move-shared-crap-capture-script.js",
+      "method": "readConfig",
+      "startLine": 27,
+      "crap": 1
+    },
+    {
+      "path": "lib/migrations/steps/2.91.0-move-shared-crap-capture-script.js",
+      "method": "gatesOf",
+      "startLine": 36,
+      "crap": 3
+    },
+    {
+      "path": "lib/migrations/steps/2.91.0-move-shared-crap-capture-script.js",
+      "method": "slashed",
+      "startLine": 42,
+      "crap": 2
+    },
+    {
+      "path": "lib/migrations/steps/2.91.0-move-shared-crap-capture-script.js",
+      "method": "sharedCrapScript",
+      "startLine": 52,
+      "crap": 5
+    },
+    {
+      "path": "lib/migrations/steps/2.91.0-move-shared-crap-capture-script.js",
+      "method": "moveScript",
+      "startLine": 64,
+      "crap": 2
+    },
+    {
+      "path": "lib/migrations/steps/2.91.0-move-shared-crap-capture-script.js",
+      "method": "<anon (name)#0>",
+      "startLine": 83,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/migrations/steps/2.91.0-unset-null-lint-command.js",
+      "method": "agentrcPath",
+      "startLine": 19,
+      "crap": 1
+    },
+    {
+      "path": "lib/migrations/steps/2.91.0-unset-null-lint-command.js",
+      "method": "readConfig",
+      "startLine": 24,
+      "crap": 1
+    },
+    {
+      "path": "lib/migrations/steps/2.91.0-unset-null-lint-command.js",
+      "method": "hasNullLint",
+      "startLine": 33,
+      "crap": 4
+    },
+    {
+      "path": "lib/migrations/steps/2.91.0-unset-null-lint-command.js",
+      "method": "<anon (name)#0>",
+      "startLine": 51,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
       "path": "lib/migrations/steps/strip-removed-agentrc-keys.js",
       "method": "<anon (dotted,constant,value)#0>",
       "startLine": 25,
@@ -43650,6 +43936,39 @@
       "method": "readCommitted",
       "startLine": 116,
       "crap": 1
+    },
+    {
+      "path": "scripts/check-generated-validator.js",
+      "method": "stripAnnotations",
+      "startLine": 122,
+      "crap": 4
+    },
+    {
+      "path": "scripts/check-generated-validator.js",
+      "method": "<anon stripAnnotations/(key)#0>",
+      "startLine": 127,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/check-generated-validator.js",
+      "method": "<anon stripAnnotations/(key,value)#0>",
+      "startLine": 128,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/check-generated-validator.js",
+      "method": "stripKeywordValue",
+      "startLine": 133,
+      "crap": 3
+    },
+    {
+      "path": "scripts/check-generated-validator.js",
+      "method": "<anon stripKeywordValue/(name,sub)#0>",
+      "startLine": 137,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": "scripts/check-generated-validator.js",

@@ -75,7 +75,6 @@ const ALLOWLIST = new Set([
   '.agents/scripts/lib/bootstrap/prompt.js',
   '.agents/scripts/lib/bootstrap/quality-bootstrap.js',
   '.agents/scripts/lib/checks/state.js',
-  '.agents/scripts/lib/close-validation/commands.js',
   '.agents/scripts/lib/close-validation/process.js',
   '.agents/scripts/lib/config/temp-paths.js',
   '.agents/scripts/lib/feedback-loop/graduator-gh.js',

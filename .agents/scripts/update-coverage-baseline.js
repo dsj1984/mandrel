@@ -35,7 +35,7 @@ const USAGE = {
     ],
   ],
   notes: [
-    'Run `npm run test:coverage` first — this script never runs the suite itself.',
+    "Run the coverage gate's `captureScript` first (`delivery.quality.gates.coverage.captureScript`) — this script never runs the suite itself.",
     'Against an `affected`-stamped artifact only measured rows are rewritten; rows the scoped run skipped are kept.',
   ],
 };

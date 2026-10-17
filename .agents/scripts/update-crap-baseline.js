@@ -55,7 +55,7 @@ const USAGE = {
     ],
   ],
   notes: [
-    'Run the CRAP capture script first — `npm run <delivery.quality.gates.crap.captureScript>`, default `npm run test:coverage` — without a coverage artifact the refresh refuses (exit 1) and leaves the baseline untouched.',
+    "Run the CRAP capture script first — `<pm> run <delivery.quality.gates.crap.captureScript>`, default the coverage gate's `captureScript` — without a coverage artifact the refresh refuses (exit 1) and leaves the baseline untouched.",
   ],
 };
 

@@ -25,7 +25,7 @@ import { fileURLToPath } from 'node:url';
 import { spawnStreamAsync } from '../child-exec.js';
 import { createLockEventChannel } from '../close-lock-events.js';
 import {
-  resolveLintCommand,
+  resolveGateCommand,
   resolveTestGateArgv,
 } from '../close-validation/commands.js';
 import {
@@ -300,15 +300,23 @@ function describeSuiteFailure(status) {
 }
 
 /**
+ * The lint preflight, absent when `project.commands.lint` is `null`.
+ *
+ * @param {object} config
+ * @returns {Array<{ key: string, cmd: string, args: string[] }>}
+ */
+function lintPreflight(config) {
+  const lint = resolveGateCommand(config, 'lint');
+  return lint.disabled ? [] : [{ key: 'lint', cmd: lint.cmd, args: lint.args }];
+}
+
+/**
  * Lint, quality-preview, then each ratchet whose baseline is committed.
  *
  * @param {object} ctx
  * @returns {Array<{ key: string, cmd: string, args: string[], gated?: boolean }>}
  */
 function preflightChecks(ctx) {
-  const [lintCmd, ...lintArgs] = resolveLintCommand(ctx.config)
-    .split(/\s+/)
-    .filter(Boolean);
   const ratchets = RATCHETS.filter((r) =>
     fs.existsSync(path.join(ctx.cwd, r.baseline)),
   ).map((r) => ({
@@ -318,7 +326,7 @@ function preflightChecks(ctx) {
     gated: true,
   }));
   return [
-    { key: 'lint', cmd: lintCmd, args: lintArgs },
+    ...lintPreflight(ctx.config),
     {
       key: 'quality-preview',
       cmd: 'node',

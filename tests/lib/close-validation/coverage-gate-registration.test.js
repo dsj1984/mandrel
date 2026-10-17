@@ -6,8 +6,8 @@
  * failure — and because CRAP mode drops the plain `test` gate, that consumer
  * would have NO working test gate at all. `buildDefaultGates` now probes the
  * consumer's `package.json` (injected here via `packageScripts`) and:
- *   - registers coverage-capture ONLY when CRAP is on AND `test:coverage`
- *     exists;
+ *   - registers coverage-capture ONLY when the coverage or CRAP gate is on
+ *     AND the capture script (`coverage.captureScript`) exists;
  *   - restores the plain `test` gate whenever coverage-capture is not the
  *     active test runner, so there is always a working test gate.
  */
@@ -34,48 +34,74 @@ import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
 
 const names = (gates) => gates.map((g) => g.name);
 
-describe('buildDefaultGates — registration keys on crap.captureScript (Story #5717 AC-6)', () => {
-  const crapWith = (crap) => ({
-    delivery: { quality: { gates: { crap: { enabled: true, ...crap } } } },
-  });
+describe('buildDefaultGates — registration keys on the capture script (Stories #5717, #5737)', () => {
+  const gatesWith = (gates) => ({ delivery: { quality: { gates } } });
+  const OWN_CRAP = {
+    enabled: true,
+    coveragePath: 'coverage-py/coverage-final.json',
+    captureScript: 'test:coverage:py',
+  };
 
-  it('registers when the only coverage script is the configured captureScript', () => {
+  it('registers on an own CRAP source when its captureScript is the only coverage script', () => {
     const gates = buildDefaultGates({
-      config: crapWith({ captureScript: 'test:coverage:py' }),
+      config: gatesWith({ crap: OWN_CRAP }),
       packageScripts: { 'test:coverage:py': 'pytest --cov' },
     });
     assert.ok(names(gates).includes('coverage-capture'));
     assert.ok(!names(gates).includes('test'));
   });
 
-  it('does not register on test:coverage when another captureScript is configured', () => {
+  it('does not register on test:coverage when an own CRAP captureScript is absent', () => {
     const gates = buildDefaultGates({
-      config: crapWith({ captureScript: 'test:coverage:py' }),
+      config: gatesWith({ crap: OWN_CRAP }),
       packageScripts: { 'test:coverage': 'c8 node --test' },
     });
     assert.ok(!names(gates).includes('coverage-capture'));
     assert.ok(names(gates).includes('test'));
   });
 
+  it('a crap.captureScript without an own coveragePath refuses at resolution', () => {
+    assert.throws(
+      () =>
+        buildDefaultGates({
+          config: gatesWith({ crap: { captureScript: 'test:coverage:py' } }),
+          packageScripts: { 'test:coverage:py': 'pytest --cov' },
+        }),
+      /crap\.captureScript.*crap\.coveragePath/,
+    );
+  });
+
+  it('AC-5: registers on the coverage gate captureScript with the CRAP gate disabled', () => {
+    const gates = buildDefaultGates({
+      config: gatesWith({
+        crap: { enabled: false },
+        coverage: { captureScript: 'coverage:ci' },
+      }),
+      packageScripts: { 'coverage:ci': 'vitest --coverage' },
+    });
+    assert.ok(names(gates).includes('coverage-capture'));
+    assert.ok(!names(gates).includes('test'));
+  });
+
   const captureHint = (gates) =>
     gates.find((g) => g.name === 'coverage-capture').hint;
 
-  it('names the configured captureScript in the capture hint', () => {
+  it('names an own CRAP captureScript in the capture hint', () => {
     const gates = buildDefaultGates({
-      config: crapWith({ captureScript: 'test:coverage:py' }),
+      config: gatesWith({ crap: OWN_CRAP }),
       packageScripts: { 'test:coverage:py': 'pytest --cov' },
     });
-    assert.match(captureHint(gates), /`npm run test:coverage:py`/);
+    assert.match(captureHint(gates), /`test:coverage:py`/);
   });
 
-  it('keeps the default capture hint when captureScript is the default', () => {
+  it('keeps the default capture hint when the capture script is the default', () => {
     const gates = buildDefaultGates({
-      config: crapWith({}),
+      config: gatesWith({ crap: { enabled: true } }),
       packageScripts: { 'test:coverage': 'c8 node --test' },
     });
     assert.equal(
       captureHint(gates),
-      'Coverage capture failed — its suite run (`npm run test:coverage`, or `npm run test:coverage:affected` under `captureScope: "affected"`, including a delta refresh keyed on the stamped commit after a base-sync) exited non-zero. The coverage-capture log names which ran; fix the failing tests or coverage-threshold breaches, then re-run close.',
+      'Coverage capture failed — its suite run (the `test:coverage` script, `gates.coverage.captureScript`, or the affected capture script under `captureScope: "affected"`, including a delta refresh keyed on the stamped commit after a base-sync) exited non-zero. The coverage-capture log names which ran; fix the failing tests or coverage-threshold breaches, then re-run close.',
     );
   });
 });
@@ -132,10 +158,14 @@ describe('buildDefaultGates — coverage-capture registration (Story #4473)', ()
     );
   });
 
-  it('CRAP off → plain test gate present, coverage-capture absent (regardless of script)', () => {
+  it('CRAP and coverage off → plain test gate present, coverage-capture absent (regardless of script)', () => {
     const gates = buildDefaultGates({
       config: {
-        delivery: { quality: { gates: { crap: { enabled: false } } } },
+        delivery: {
+          quality: {
+            gates: { crap: { enabled: false }, coverage: { enabled: false } },
+          },
+        },
       },
       packageScripts: { 'test:coverage': 'c8 node --test' },
     });
@@ -445,7 +475,11 @@ describe('buildDefaultGates — the pre-push quality preview runs at close as tw
   it('absent when coverage-capture is not registered', () => {
     const crapOff = buildDefaultGates({
       config: {
-        delivery: { quality: { gates: { crap: { enabled: false } } } },
+        delivery: {
+          quality: {
+            gates: { crap: { enabled: false }, coverage: { enabled: false } },
+          },
+        },
       },
       packageScripts: SCRIPTS,
     });
@@ -546,7 +580,13 @@ describe('close honours a fresh worker-side capture stamp (Story #5477)', () => 
           ['node', ...args, '--cwd', cwd],
           {
             resolveConfigImpl: () => config,
-            getQualityImpl: () => ({ crap, coverage: {} }),
+            getQualityImpl: () => ({
+              crap,
+              coverage: {
+                coveragePath: COVERAGE_PATH,
+                captureScript: 'test:coverage',
+              },
+            }),
             readPackageScriptsImpl: () => SCRIPTS,
             getChangedFilesImpl: changed,
             isCoverageFreshImpl: isCoverageFresh,

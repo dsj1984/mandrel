@@ -120,7 +120,7 @@ it in the **background**.
    **first**, ahead of this run and the push: close's base-sync then no-ops,
    so neither stamp goes stale.
 3. **One depositor**, by the predicate close registers `coverage-capture` on
-   (one shared function) — CRAP gate enabled **and** a `test:coverage` script:
+   (one shared function) — coverage or CRAP gate on **and** a `captureScript`:
    - **Capture-active** →
      `node <main-repo>/.agents/scripts/coverage-capture.js --cwd <workCwd>`,
      behind the host full-suite lock. Signal: `Wrote content-digest capture

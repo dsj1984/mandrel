@@ -1189,4 +1189,60 @@ describe('full-suite lock (Story #5173)', () => {
       assert.deepEqual(order, ['early', 'late']);
     });
   });
+
+  describe('capture workload identity follows the resolved capture argv (Story #5737 AC-7)', () => {
+    const covConfig = (extra = {}) => ({
+      delivery: {
+        quality: { gates: { coverage: { captureScript: 'cov' } } },
+        ...extra,
+      },
+    });
+
+    const refusedFor = async (command, captureOpts = {}) => {
+      let spawns = 0;
+      const config = covConfig({
+        execution: { capacity: 2, workloads: [{ command, weight: 9 }] },
+      });
+      const wrapped = lockedCapture(
+        async () => {
+          spawns += 1;
+          return 0;
+        },
+        config,
+        {},
+        { lockPath },
+      );
+      const code = await wrapped({ cwd: dir, log: () => {}, ...captureOpts });
+      return code === ADMISSION_REFUSED_EXIT_CODE && spawns === 0;
+    };
+
+    it('derives `<pm> run <script>` from the detected manager and the pass script', async () => {
+      assert.equal(await refusedFor('npm run test:coverage'), false);
+      fs.writeFileSync(path.join(dir, 'pnpm-lock.yaml'), '');
+      assert.equal(await refusedFor('pnpm run cov'), true);
+      assert.equal(await refusedFor('pnpm run own', { script: 'own' }), true);
+    });
+
+    it('a workload declared for the non-default capture argv is the one admission classifies', async () => {
+      let spawns = 0;
+      const config = covConfig({
+        execution: {
+          capacity: 2,
+          workloads: [{ command: 'npm run cov', weight: 9 }],
+        },
+      });
+      const wrapped = lockedCapture(
+        async () => {
+          spawns += 1;
+          return 0;
+        },
+        config,
+        {},
+        { lockPath },
+      );
+      const code = await wrapped({ cwd: dir, log: () => {} });
+      assert.equal(code, ADMISSION_REFUSED_EXIT_CODE);
+      assert.equal(spawns, 0);
+    });
+  });
 });
