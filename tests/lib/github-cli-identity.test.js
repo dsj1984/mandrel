@@ -153,10 +153,10 @@ describe('AC-1 github.cliConfigDir → GH_CONFIG_DIR', () => {
       JSON.stringify({ github: { cliConfigDir: 'gh-store' } }),
     );
     // `--git-common-dir` from the worktree names the main checkout's `.git`.
-    const exec = (_file, args) => {
-      assert.deepEqual(args, ['rev-parse', '--git-common-dir']);
-      return `${path.join(FIXTURE_ROOT, '.git')}\n`;
-    };
+    const exec = (_file, args) =>
+      args[1] === '--show-toplevel'
+        ? `${worktree}\n`
+        : `${path.join(FIXTURE_ROOT, '.git')}\n`;
     const env = {};
     assert.equal(ensureGhEnv({ cwd: worktree, env, fsImpl: vol, exec }), STORE);
     assert.equal(env.GH_CONFIG_DIR, STORE);

@@ -40,7 +40,7 @@ export function ensureGhEnv(deps = {}) {
   if (memoize && _ensuredByRoot.has(root)) return _ensuredByRoot.get(root);
   const { effective } = applyLocalOverlay({
     fsImpl,
-    projectRoot: overlayRoot(root, { exec, fsImpl }),
+    projectRoot: overlayRoot(root, exec),
     committed: readCommittedAgentrc(fsImpl, root),
   });
   const storeRoot = mainCheckoutRoot(root, { exec }) ?? root;

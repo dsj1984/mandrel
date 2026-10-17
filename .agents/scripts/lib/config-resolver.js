@@ -146,10 +146,7 @@ function applyDefaults(raw) {
  */
 function readRawConfig(fsImpl, root) {
   const agentrcPath = path.join(root, '.agentrc.json');
-  const localPath = path.join(
-    overlayRoot(root, { fsImpl }),
-    '.agentrc.local.json',
-  );
+  const localPath = path.join(overlayRoot(root), '.agentrc.local.json');
   const hasAgentrc = fsImpl.existsSync(agentrcPath);
   const hasLocal = fsImpl.existsSync(localPath);
   if (!hasAgentrc) {
