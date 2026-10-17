@@ -23,8 +23,9 @@
  * not that. `diagnose-friction.js` is an *interceptor*: its subject is a child
  * process, and what these cases assert is what only a real process can produce
  * — an exit code passed through unchanged, the SIGTERM a `spawnSync` timeout
- * sends, an ENOENT from a binary that is not there, and an 11 MB stdout that
- * overruns the interceptor's buffer bound, and stdout drained through a pipe.
+ * sends, an ENOENT from a binary that is not there, a >10 MiB stdout that must
+ * complete, a >64 MiB stdout that overruns the wrapper ceiling, and stdout
+ * drained through a pipe.
  *
  * Converting these would mean deleting the assertions the file exists for,
  * which is exactly what the Story's non-goals forbid. They are the sanctioned
@@ -563,13 +564,43 @@ describe(
       );
     });
 
+    it('a >10 MiB command completes and is recorded with its real exit status (Story #5739)', () => {
+      // The interceptor used to pass a 10 MiB `maxBuffer`, so a command this
+      // chatty was killed and recorded as a buffer overflow. Routed through
+      // the wrapper, it runs to its own exit and the row carries that status.
+      const result = runScript(
+        [
+          '--story',
+          '1042',
+          '--epic',
+          '1030',
+          '--cmd',
+          'node',
+          '-e',
+          "process.stdout.write('x'.repeat(11 * 1024 * 1024), () => process.exit(3))",
+        ],
+        {},
+        { maxBuffer: 32 * 1024 * 1024 },
+      );
+      assert.equal(result.status, 3, 'the real exit status passes through');
+      assert.equal(
+        result.stdout.length,
+        11 * 1024 * 1024,
+        'the whole stdout is relayed, not a truncated prefix',
+      );
+      const signal = readSignal();
+      assert.equal(signal.details.killedBySignal, undefined);
+      assert.equal(signal.details.killOrigin, undefined);
+      assert.equal(signal.details.executionMaxBuffer, undefined);
+    });
+
     it('separates a maxBuffer overflow from a timeout, though both are SIGTERM (Story #4915)', () => {
       // AC-7 + AC-8: Node kills a `maxBuffer` overflow with SIGTERM too, so the
       // two shapes are distinguishable only by `error.code: 'ENOBUFS'`. Drive
       // both through the CLI seam and pin that they cannot silently re-merge.
-      // The child's output must exceed the interceptor's 10 MiB
-      // `executionMaxBuffer`; this test's own capture buffer must exceed that
-      // again, since the interceptor passes the truncated output through.
+      // The child's output must exceed the wrapper's 64 MiB ceiling (the
+      // interceptor passes no `maxBuffer` of its own); this test's own capture
+      // buffer must exceed that again, since the truncated output is relayed.
       const overflow = runScript(
         [
           '--story',
@@ -579,10 +610,10 @@ describe(
           '--cmd',
           'node',
           '-e',
-          "process.stdout.write('x'.repeat(11 * 1024 * 1024))",
+          "process.stdout.write('x'.repeat(65 * 1024 * 1024))",
         ],
         {},
-        { maxBuffer: 64 * 1024 * 1024 },
+        { maxBuffer: 128 * 1024 * 1024 },
       );
       assert.notEqual(overflow.status, 0, 'an overflowed child is a failure');
       const overflowSignal = readSignal();
@@ -598,13 +629,13 @@ describe(
       );
       assert.equal(
         overflowSignal.details.executionMaxBuffer,
-        10485760,
+        67108864,
         'the row records the bound that actually fired',
       );
       const overflowStderr = overflow.stderr ?? '';
       assert.match(
         overflowStderr,
-        /executionMaxBuffer bound \(10485760 bytes \/ 10 MiB\)/,
+        /executionMaxBuffer bound \(67108864 bytes \/ 64 MiB\)/,
         'remediation names the buffer bound, not the timeout bound',
       );
       assert.match(

@@ -67,10 +67,6 @@
       "symbol": "defaultGhRunner"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
-      "symbol": "commitDirtyPaths"
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/ticket-lease.js",
       "symbol": "OPERATOR_HANDLE_PLACEHOLDER"
     },
