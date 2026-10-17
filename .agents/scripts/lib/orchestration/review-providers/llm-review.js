@@ -48,7 +48,7 @@ export function resolveLlmReviewDelegate(deps = {}) {
     codex: deps.probeCodexFn ?? defaultProbeCodexCommand,
   };
   const cli = REVIEW_PROVIDER_CLIS['llm-review'].find((c) => probes[c]());
-  return cli ? DELEGATE_BY_CLI[cli] : null;
+  return DELEGATE_BY_CLI[cli] ?? null;
 }
 
 /**
