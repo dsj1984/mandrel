@@ -40,3 +40,16 @@ export function detectPackageManagerWithWorkspace(
     pm === 'pnpm' && exists(path.join(root, 'pnpm-workspace.yaml'));
   return { packageManager: pm, workspaceRoot };
 }
+
+/**
+ * The argv that runs `package.json` script `script` under `root`'s package
+ * manager — `npm` when none is detected. All four managers honour `run`.
+ *
+ * @param {string} root - Absolute directory to probe.
+ * @param {string} script - The `package.json` script name.
+ * @param {(p: string) => boolean} [exists=fs.existsSync] - Path existence probe.
+ * @returns {string[]} `[<pm>, 'run', script]`.
+ */
+export function packageScriptArgv(root, script, exists = fs.existsSync) {
+  return [detectPackageManager(root, exists) ?? 'npm', 'run', script];
+}

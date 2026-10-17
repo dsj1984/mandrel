@@ -15,6 +15,7 @@ import path from 'node:path';
 
 import { getQuality } from './config/quality.js';
 import { mainCheckoutRoot } from './config/temp-paths.js';
+import { packageScriptArgv } from './detect-package-manager.js';
 import { isFirstInLine, waitInLine } from './full-suite-queue.js';
 import { acquireSweepLock } from './single-story-sweep/sweep-lock.js';
 import {
@@ -50,9 +51,6 @@ const DEFAULT_REPORT_MS = 25_000;
 const FALSEY = /^(0|false|off|no)$/i;
 
 const LOCK_TAG = '[full-suite-lock]';
-
-/** The argv coverage capture spawns — its workload identity. */
-const COVERAGE_CAPTURE_ARGV = Object.freeze(['npm', 'run', 'test:coverage']);
 
 const LOCK_DEFAULTS = Object.freeze({
   enabled: true,
@@ -300,8 +298,25 @@ export function fullSuiteLockPolicy(config, env = process.env, argv) {
 }
 
 /**
+ * The argv a capture spawns — its workload identity: `<pm> run <script>`,
+ * where `script` is the pass's own (an own CRAP source) or the coverage
+ * gate's `captureScript`.
+ *
+ * @param {object} [config]
+ * @param {{ cwd?: string, script?: string }} [captureOpts]
+ * @returns {string[]}
+ */
+export function coverageCaptureArgv(config, { cwd, script } = {}) {
+  return packageScriptArgv(
+    cwd ?? process.cwd(),
+    script ?? getQuality(config).coverage.captureScript,
+  );
+}
+
+/**
  * Serialize a capture runner's spawn. Wrapped at the one call site below
- * every skip/freshness decision, so a credited capture never waits.
+ * every skip/freshness decision, so a credited capture never waits. The
+ * admission policy is resolved per spawn, from that spawn's argv.
  *
  * @param {Function} runCaptureFn
  * @param {object} [config]
@@ -315,14 +330,15 @@ export function lockedCapture(
   env = process.env,
   lockOptions = {},
 ) {
-  const policy = {
-    ...fullSuiteLockPolicy(config, env, COVERAGE_CAPTURE_ARGV),
-    ...lockOptions,
-  };
   return (captureOpts = {}) =>
     withFullSuiteLockAsync(
       {
-        ...policy,
+        ...fullSuiteLockPolicy(
+          config,
+          env,
+          coverageCaptureArgv(config, captureOpts),
+        ),
+        ...lockOptions,
         cwd: captureOpts.cwd,
         log: captureOpts.log,
         skipIfSatisfied: freshnessProbe(captureOpts),

@@ -294,7 +294,7 @@ describe('freshness diagnostics on the other capture paths (AC-5)', () => {
     await runFullScopeCapture(h.opts);
     assert.match(
       h.log.join('\n'),
-      /is stale; running npm run test:coverage… \(stamp scope: none, required scope: full, verdict: stale\)/,
+      /is stale; running the test:coverage capture script… \(stamp scope: none, required scope: full, verdict: stale\)/,
     );
   });
 

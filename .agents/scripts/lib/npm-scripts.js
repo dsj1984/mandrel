@@ -27,7 +27,7 @@ export function readPackageScripts(cwd) {
  * Runnable means a present, non-empty string.
  *
  * @param {Record<string, string>} scripts - A scripts map.
- * @param {string} name - The script name to check (e.g. `test:coverage`).
+ * @param {string} name - The script name to check (e.g. the coverage gate's `captureScript`).
  * @returns {boolean}
  */
 export function hasNpmScript(scripts, name) {

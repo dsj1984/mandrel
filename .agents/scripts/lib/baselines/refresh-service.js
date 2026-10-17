@@ -11,6 +11,7 @@ import nodeFs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { execFileCaptureAsync } from '../child-exec.js';
+import { COVERAGE_CAPTURE_DEFAULTS } from '../config/gates/coverage.schema.js';
 import { COVERAGE_GATE_DEFAULTS } from '../config/quality.js';
 import { getQuality, resolveConfig } from '../config-resolver.js';
 import {
@@ -97,7 +98,7 @@ function buildDefaultCrapScorer({ cwd, config, quality } = {}) {
     : [];
   const requireCoverage = crapCfg.requireCoverage !== false;
   const coverageRelPath =
-    crapCfg.coveragePath ?? 'coverage/coverage-final.json';
+    crapCfg.coveragePath ?? COVERAGE_CAPTURE_DEFAULTS.coveragePath;
   return async (files, opts) => {
     const effectiveCwd = opts?.cwd ?? cwd ?? process.cwd();
     const coverageAbs = path.isAbsolute(coverageRelPath)

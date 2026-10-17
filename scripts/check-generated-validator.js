@@ -88,8 +88,62 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 `;
 
+/** Annotation keywords: they never affect a validation verdict or its errors. */
+const ANNOTATION_KEYWORDS = new Set(['description', 'default', 'examples']);
+
+/** Keywords whose value maps a property name to a sub-schema. */
+const SCHEMA_MAP_KEYWORDS = new Set(['properties', 'patternProperties']);
+
+/** Keywords whose value is a sub-schema, or an array of them. */
+const SCHEMA_KEYWORDS = new Set([
+  'items',
+  'additionalProperties',
+  'not',
+  'oneOf',
+  'anyOf',
+  'allOf',
+  'if',
+  'then',
+  'else',
+  'contains',
+  'propertyNames',
+]);
+
 /**
- * Emit the standalone validator source for `AGENTRC_SCHEMA`.
+ * `schema` without its annotation keywords. The standalone emit embeds the
+ * schema it compiled, so prose and defaults would otherwise ride along in the
+ * validator: dead bytes, and literals (a script name, an artifact path) that
+ * would live twice. Property names are never touched — a config key may be
+ * called `default`.
+ *
+ * @param {unknown} schema
+ * @returns {unknown}
+ */
+export function stripAnnotations(schema) {
+  if (Array.isArray(schema)) return schema.map(stripAnnotations);
+  if (!schema || typeof schema !== 'object') return schema;
+  const out = {};
+  for (const [key, value] of Object.entries(schema)) {
+    if (ANNOTATION_KEYWORDS.has(key)) continue;
+    if (SCHEMA_MAP_KEYWORDS.has(key)) {
+      out[key] = Object.fromEntries(
+        Object.entries(value).map(([name, sub]) => [
+          name,
+          stripAnnotations(sub),
+        ]),
+      );
+    } else if (SCHEMA_KEYWORDS.has(key)) {
+      out[key] = stripAnnotations(value);
+    } else {
+      out[key] = value;
+    }
+  }
+  return out;
+}
+
+/**
+ * Emit the standalone validator source for `AGENTRC_SCHEMA`, compiled from
+ * its annotation-free form ({@link stripAnnotations}).
  *
  * Exported so the parity test can assert the committed artifact and a fresh
  * emit agree without shelling out to this CLI.
@@ -102,7 +156,7 @@ export function generateValidatorSource() {
   const standaloneModule = require('ajv/dist/standalone');
   const standaloneCode = standaloneModule.default ?? standaloneModule;
   const ajv = new Ajv(AJV_OPTIONS);
-  const validate = ajv.compile(AGENTRC_SCHEMA);
+  const validate = ajv.compile(stripAnnotations(AGENTRC_SCHEMA));
   const body = standaloneCode(ajv, validate);
   return `${BANNER}\n${body.trim()}\n`;
 }

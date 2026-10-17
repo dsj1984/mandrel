@@ -1,10 +1,12 @@
 /**
  * crap-coverage-source.test.js — `delivery.quality.gates.crap.coveragePath`
- * and `delivery.quality.gates.crap.captureScript` (Story #5717).
+ * and `delivery.quality.gates.crap.captureScript` (Story #5717), and the
+ * coverage gate's own `captureScript` (Story #5737).
  *
  * Covers: a populated block passes the runtime validator, malformed values
- * are rejected naming the key, and the published mirror, reference inventory
- * and configuration docs list both keys.
+ * are rejected naming the key, a CRAP captureScript needs its own
+ * coveragePath, and the published mirror, reference inventory and
+ * configuration docs list the keys without the retired same-directory rule.
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -67,7 +69,7 @@ describe('crap coverage source — runtime validator (AC-1)', () => {
     const validate = getAgentrcValidator();
     for (const captureScript of ['', 'npm test && rm -rf /', 'a b', 7]) {
       assert.equal(
-        validate(withCrap({ captureScript })),
+        validate(withCrap({ captureScript, coveragePath: 'cov-py/c.json' })),
         false,
         `captureScript=${JSON.stringify(captureScript)} must be rejected`,
       );
@@ -76,6 +78,32 @@ describe('crap coverage source — runtime validator (AC-1)', () => {
         JSON.stringify(validate.errors),
       );
     }
+  });
+
+  it('Story #5737 AC-4: rejects a crap.captureScript without crap.coveragePath', () => {
+    const validate = getAgentrcValidator();
+    assert.equal(
+      validate(withCrap({ captureScript: 'test:coverage:py' })),
+      false,
+    );
+    assert.ok(
+      validate.errors.some((e) => e.params?.missingProperty === 'coveragePath'),
+      JSON.stringify(validate.errors),
+    );
+  });
+
+  it('Story #5737 AC-4: accepts a coverage gate captureScript and rejects a shell command there', () => {
+    const validate = getAgentrcValidator();
+    const withCoverage = (coverage) => ({
+      project: { paths: PATHS },
+      delivery: { quality: { gates: { coverage } } },
+    });
+    assert.equal(
+      validate(withCoverage({ captureScript: 'coverage:ci' })),
+      true,
+      JSON.stringify(validate.errors),
+    );
+    assert.equal(validate(withCoverage({ captureScript: 'a && b' })), false);
   });
 
   it('rejects an empty or non-string coveragePath', () => {
@@ -97,7 +125,19 @@ describe('crap coverage source — published surfaces (AC-1)', () => {
     );
     assert.ok(crapGate, 'crap gate node not found in the mirror');
     assert.ok(crapGate.properties.coveragePath);
-    assert.equal(crapGate.properties.captureScript.default, 'test:coverage');
+    assert.ok(crapGate.properties.captureScript);
+    assert.equal(crapGate.properties.captureScript.default, undefined);
+    assert.deepEqual(crapGate.dependencies, {
+      captureScript: ['coveragePath'],
+    });
+    const coverageGate = findNode(
+      schema,
+      (n) => n?.properties?.captureScope && n?.properties?.timeoutMs,
+    );
+    assert.equal(
+      coverageGate.properties.captureScript.default,
+      'test:coverage',
+    );
   });
 
   it('the reference inventory lists both keys under the crap gate', () => {
@@ -105,12 +145,18 @@ describe('crap coverage source — published surfaces (AC-1)', () => {
     const crap = ref.delivery.quality.gates.crap;
     assert.ok(Object.hasOwn(crap, 'coveragePath'));
     assert.equal(crap.coveragePath, null);
-    assert.equal(crap.captureScript, 'test:coverage');
+    assert.equal(Object.hasOwn(crap, 'captureScript'), false);
+    assert.equal(
+      ref.delivery.quality.gates.coverage.captureScript,
+      'test:coverage',
+    );
   });
 
-  it('the configuration docs list both keys', () => {
+  it('the configuration docs list the keys and no same-directory refusal (AC-8)', () => {
     const doc = readRepoFile('.agents/docs/configuration.md');
     assert.match(doc, /`quality\.gates\.crap\.coveragePath`/);
     assert.match(doc, /`quality\.gates\.crap\.captureScript`/);
+    assert.match(doc, /`quality\.gates\.coverage\.captureScript`/);
+    assert.doesNotMatch(doc, /same-directory path is refused/);
   });
 });

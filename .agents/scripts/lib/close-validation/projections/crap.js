@@ -15,6 +15,7 @@ import {
 } from '../../baselines/kinds/crap.js';
 import { loadFile as loadBaselineFile } from '../../baselines/reader.js';
 import { diffNameOnly } from '../../changed-files.js';
+import { COVERAGE_CAPTURE_DEFAULTS } from '../../config/gates/coverage.schema.js';
 import { loadCoverage } from '../../coverage-utils.js';
 import { scanAndScore } from '../../crap-utils.js';
 import { cachedGitFetchSync } from '../../git/cached-fetch.js';
@@ -78,7 +79,7 @@ export function createCrapScorer({
   targetDirs = [],
   ignoreGlobs = [],
   requireCoverage = true,
-  coveragePath = 'coverage/coverage-final.json',
+  coveragePath = COVERAGE_CAPTURE_DEFAULTS.coveragePath,
 } = {}) {
   return async (files) => {
     const abs = path.isAbsolute(coveragePath)

@@ -749,7 +749,7 @@ describe('verify[] credit — the suite is paid for once (#5174)', () => {
     );
   });
 
-  it('Story #5717 AC-6: the capture-mode probe keys on crap.captureScript and the CRAP artifact', () => {
+  it('Story #5717 AC-6: the capture-mode probe keys on an own CRAP source captureScript and artifact', () => {
     const probedScripts = [];
     const probedPaths = [];
     const verdict = credited('npm test', {
@@ -758,6 +758,7 @@ describe('verify[] credit — the suite is paid for once (#5174)', () => {
           enabled: true,
           coveragePath: 'coverage-py/coverage-final.json',
           captureScript: 'test:coverage:py',
+          ownCoverageSource: true,
           targetDirs: ['src'],
         },
       }),

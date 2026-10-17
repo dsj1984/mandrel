@@ -18,6 +18,11 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 
+import {
+  COMMANDS_DEFAULTS,
+  OPTIONAL_COMMAND_KEYS,
+  resolveProjectCommand,
+} from '../../config/commands.js';
 import { getAgentrcValidator } from '../../config-settings-schema.js';
 import { resolveVerifyCredit } from '../../orchestration/verify-credit.js';
 import {
@@ -96,10 +101,19 @@ function creditHashes(config) {
 }
 
 describe('resolveTestCommand', () => {
-  it('falls back to npm test when unset, empty or the config is malformed', () => {
+  it('defaults to npm test when unset or there is no config', () => {
     assert.equal(resolveTestCommand(configWith(undefined)), 'npm test');
-    assert.equal(resolveTestCommand(configWith('   ')), 'npm test');
     assert.equal(resolveTestCommand(null), 'npm test');
+    assert.equal(resolveTestCommand({ project: null }), 'npm test');
+  });
+
+  it('throws, never falls back, on a blank, null or non-string test', () => {
+    for (const test of ['   ', null, 42]) {
+      assert.throws(
+        () => resolveTestCommand(configWith(test)),
+        /project\.commands\.test/,
+      );
+    }
   });
 
   it('returns the configured command, trimmed', () => {
@@ -184,4 +198,86 @@ describe('commands.test schema (AC-4)', () => {
       assert.equal(validate(agentrc({ lint: composed })), false);
     });
   }
+});
+
+describe('resolveProjectCommand — one tri-state for every key (Story #5737 AC-1)', () => {
+  const withCommands = (commands) => ({ project: { commands } });
+  const KEYS = Object.keys(COMMANDS_DEFAULTS);
+
+  it('absent → the default, for every key', () => {
+    for (const key of KEYS) {
+      const resolved = resolveProjectCommand(withCommands({}), key);
+      assert.equal(resolved.source, 'default');
+      assert.equal(resolved.disabled, false);
+      assert.equal(resolved.raw, COMMANDS_DEFAULTS[key]);
+      assert.deepEqual(resolved.argv, COMMANDS_DEFAULTS[key].split(' '));
+    }
+  });
+
+  it('a string → that command, trimmed and split, for every key', () => {
+    for (const key of KEYS) {
+      const resolved = resolveProjectCommand(
+        withCommands({ [key]: ' tool --flag x ' }),
+        key,
+      );
+      assert.equal(resolved.source, 'config');
+      assert.equal(resolved.raw, 'tool --flag x');
+      assert.deepEqual(resolved.argv, ['tool', '--flag', 'x']);
+    }
+  });
+
+  it('own-present null → disabled for typecheck, lint and formatCheck only', () => {
+    assert.deepEqual(OPTIONAL_COMMAND_KEYS, [
+      'typecheck',
+      'lint',
+      'formatCheck',
+    ]);
+    for (const key of KEYS) {
+      const config = withCommands({ [key]: null });
+      if (OPTIONAL_COMMAND_KEYS.includes(key)) {
+        assert.deepEqual(resolveProjectCommand(config, key), {
+          argv: [],
+          raw: null,
+          disabled: true,
+          source: 'disabled',
+        });
+      } else {
+        assert.throws(() => resolveProjectCommand(config, key), /mandatory/);
+      }
+    }
+  });
+
+  it('an inherited null is not own-present, so it stays the default', () => {
+    const commands = Object.create({ typecheck: null });
+    assert.equal(
+      resolveProjectCommand(withCommands(commands), 'typecheck').source,
+      'default',
+    );
+  });
+
+  it('a non-object project.commands or an unknown key throws', () => {
+    for (const commands of [null, 'nope', ['npm test']]) {
+      assert.throws(
+        () => resolveProjectCommand(withCommands(commands), 'test'),
+        /project\.commands must be an object/,
+      );
+    }
+    assert.throws(
+      () => resolveProjectCommand(withCommands({}), 'deploy'),
+      /not a known command/,
+    );
+  });
+
+  it('the schema rejects test: null and a non-object block, and accepts the optional nulls', () => {
+    const validate = getAgentrcValidator();
+    const paths = { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' };
+    const valid = (commands) => validate({ project: { paths, commands } });
+    assert.equal(valid({ test: null }), false);
+    assert.equal(valid({ formatWrite: null }), false);
+    assert.equal(valid('npm test'), false);
+    assert.equal(
+      valid({ typecheck: null, lint: null, formatCheck: null }),
+      true,
+    );
+  });
 });

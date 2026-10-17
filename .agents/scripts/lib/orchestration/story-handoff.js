@@ -25,7 +25,7 @@ import { fileURLToPath } from 'node:url';
 import { spawnStreamAsync } from '../child-exec.js';
 import { createLockEventChannel } from '../close-lock-events.js';
 import {
-  resolveLintCommand,
+  resolveGateCommand,
   resolveTestGateArgv,
 } from '../close-validation/commands.js';
 import {
@@ -306,9 +306,7 @@ function describeSuiteFailure(status) {
  * @returns {Array<{ key: string, cmd: string, args: string[], gated?: boolean }>}
  */
 function preflightChecks(ctx) {
-  const [lintCmd, ...lintArgs] = resolveLintCommand(ctx.config)
-    .split(/\s+/)
-    .filter(Boolean);
+  const lint = resolveGateCommand(ctx.config, 'lint');
   const ratchets = RATCHETS.filter((r) =>
     fs.existsSync(path.join(ctx.cwd, r.baseline)),
   ).map((r) => ({
@@ -318,7 +316,7 @@ function preflightChecks(ctx) {
     gated: true,
   }));
   return [
-    { key: 'lint', cmd: lintCmd, args: lintArgs },
+    ...(lint.disabled ? [] : [{ key: 'lint', cmd: lint.cmd, args: lint.args }]),
     {
       key: 'quality-preview',
       cmd: 'node',

@@ -401,8 +401,8 @@ Digest § 5 states the rule and both invocations; this is what surrounds them.
   `test` deposit buys nothing there: close logs `no credited capture stamp
   covers this change set` and pays the whole suite on the serialized tail. The
   worker's capture writes the content-digest stamp in the worktree, and
-  close's capture then exits on its freshness probe without spawning
-  `test:coverage`. The stamp holds two digests — the scorable sources and
+  close's capture then exits on its freshness probe without spawning the
+  coverage gate's `captureScript`. The stamp (beside its artifact) holds two digests — the scorable sources and
   every suite input (all tracked and dirty paths but `baselines/` and the
   coverage directory) — so any later commit or base-sync outside baseline
   JSON spends it, and close re-captures.

@@ -1,6 +1,8 @@
 /** Full-scope (default) capture path for `coverage-capture.js`. */
+
 import path from 'node:path';
 import { resolveChangedFilesRef } from './changed-files.js';
+import { COVERAGE_CAPTURE_DEFAULTS } from './config/gates/coverage.schema.js';
 import {
   anyChangedUnderTargets,
   describeFreshness,
@@ -96,7 +98,7 @@ export async function runFullScopeCapture({
   }
 
   logger.info(
-    `[coverage-capture] Coverage at ${crap.coveragePath} is ${describeFreshness(freshness, crap.targetDirs)}; running npm run ${crap.captureScript ?? 'test:coverage'}… ${detail}`,
+    `[coverage-capture] Coverage at ${crap.coveragePath} is ${describeFreshness(freshness, crap.targetDirs)}; running the ${crap.captureScript ?? COVERAGE_CAPTURE_DEFAULTS.captureScript} capture script… ${detail}`,
   );
   const tree = snapshotCapturedTree({
     cwd: args.cwd,

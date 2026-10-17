@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { canonicalise as canonicalisePath } from './baselines/path-canon.js';
+import { COVERAGE_CAPTURE_DEFAULTS } from './config/gates/coverage.schema.js';
 import { findCoverageEntry } from './coverage-utils.js';
 import { POOL_SERIAL_THRESHOLD, runOnPool } from './cpu-pool.js';
 import {
@@ -167,7 +168,7 @@ const MIN_RESOLUTION_SAMPLE = 25;
 export function checkResolutionFloor(
   resolution,
   floor,
-  captureScript = 'test:coverage',
+  captureScript = COVERAGE_CAPTURE_DEFAULTS.captureScript,
 ) {
   if (!resolution) return null;
   const { joinableMethods = 0, resolvedMethods = 0, rate = 1 } = resolution;

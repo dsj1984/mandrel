@@ -7,12 +7,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import picomatch from 'picomatch';
 import { write, writeFile } from './baselines/writer.js';
+import { COVERAGE_CAPTURE_DEFAULTS } from './config/gates/coverage.schema.js';
 import {
   captureStampPath,
   MissingCoverageArtifactError,
 } from './coverage-capture.js';
 
-const COVERAGE_FINAL_PATH = 'coverage/coverage-final.json';
+const COVERAGE_FINAL_PATH = COVERAGE_CAPTURE_DEFAULTS.coveragePath;
 const COVERAGE_BASELINE_PATH = 'baselines/coverage.json';
 // Percentage points; baselines store two decimals.
 export const COVERAGE_TOLERANCE = 0.01;

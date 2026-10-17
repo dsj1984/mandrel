@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import { defaultGateRunner } from '../../.agents/scripts/lib/close-validation/process.js';
 import {
   ADMISSION_REFUSED_EXIT_CODE,
+  coverageCaptureArgv,
   FULL_SUITE_LOCK_ENV,
   isFullSuiteLockEnabled,
   LOCK_WAIT_EXPIRED_EXIT_CODE,
@@ -1187,6 +1188,59 @@ describe('full-suite lock (Story #5173)', () => {
       releaseHolder();
       await Promise.all([early, late]);
       assert.deepEqual(order, ['early', 'late']);
+    });
+  });
+
+  describe('capture workload identity follows the resolved capture argv (Story #5737 AC-7)', () => {
+    const covConfig = (extra = {}) => ({
+      delivery: {
+        quality: { gates: { coverage: { captureScript: 'cov' } } },
+        ...extra,
+      },
+    });
+
+    it('derives `<pm> run <captureScript>`, never a literal', () => {
+      assert.deepEqual(coverageCaptureArgv(covConfig(), { cwd: dir }), [
+        'npm',
+        'run',
+        'cov',
+      ]);
+      fs.writeFileSync(path.join(dir, 'pnpm-lock.yaml'), '');
+      assert.deepEqual(coverageCaptureArgv(covConfig(), { cwd: dir }), [
+        'pnpm',
+        'run',
+        'cov',
+      ]);
+      assert.deepEqual(
+        coverageCaptureArgv(covConfig(), { cwd: dir, script: 'own' }),
+        ['pnpm', 'run', 'own'],
+      );
+      assert.deepEqual(coverageCaptureArgv({}, { cwd: dir }).slice(1), [
+        'run',
+        'test:coverage',
+      ]);
+    });
+
+    it('a workload declared for the non-default capture argv is the one admission classifies', async () => {
+      let spawns = 0;
+      const config = covConfig({
+        execution: {
+          capacity: 2,
+          workloads: [{ command: 'npm run cov', weight: 9 }],
+        },
+      });
+      const wrapped = lockedCapture(
+        async () => {
+          spawns += 1;
+          return 0;
+        },
+        config,
+        {},
+        { lockPath },
+      );
+      const code = await wrapped({ cwd: dir, log: () => {} });
+      assert.equal(code, ADMISSION_REFUSED_EXIT_CODE);
+      assert.equal(spawns, 0);
     });
   });
 });

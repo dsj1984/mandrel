@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /**
- * Ensures `coverage/coverage-final.json` is fresh before the CRAP gate: skip
- * when the gate is off, no changed file is under `crap.targetDirs`, or the
- * content-digest stamp matches; otherwise run `test:coverage` (or, under
- * `coverage.captureScope: "affected"`, the consumer's `test:coverage:affected`)
+ * Ensures the coverage artifact (`coverage.coveragePath`) is fresh before the
+ * coverage and CRAP gates: skip when both are off, no changed file is under
+ * `crap.targetDirs`, or the content-digest stamp matches; otherwise run the
+ * coverage gate's `captureScript` as `<pm> run <script>` (or, under
+ * `coverage.captureScope: "affected"`, the consumer's affected variant)
  * behind the host-level full-suite lock and stamp on success. A green run that
  * leaves no artifact at `coveragePath` fails (exit 1) and is never stamped.
  * An own CRAP source gets a second, always full-scope pass via
@@ -31,6 +32,7 @@ import {
 import { tryScopedCapture } from './lib/coverage-capture-affected.js';
 import { runFullScopeCapture } from './lib/coverage-capture-fullscope.js';
 import {
+  captureGates,
   captureRefusal,
   runCapturePasses,
 } from './lib/coverage-capture-passes.js';
@@ -102,9 +104,15 @@ export async function runCoverageCapture(argv = process.argv, deps = {}) {
   const lockHooks = lockEventHooks(claimLockEventSink(env));
   const args = parseArgs(argv);
   const config = resolveConfigImpl({ cwd: args.cwd });
-  const { crap, coverage } = getQualityImpl(config);
+  const { crap, coverage } = captureGates(getQualityImpl(config));
   const scripts = readPackageScriptsImpl(args.cwd);
-  const refused = captureRefusal({ crap, scripts, hasNpmScriptImpl, logger });
+  const refused = captureRefusal({
+    crap,
+    coverage,
+    scripts,
+    hasNpmScriptImpl,
+    logger,
+  });
   if (refused !== null) return refused;
 
   // Outermost first: the credit probe announces or refuses the run, and only

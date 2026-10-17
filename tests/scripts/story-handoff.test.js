@@ -489,14 +489,18 @@ describe('story-handoff — the preflight runs the standalone ratchets (#5528)',
 });
 
 describe('story-handoff — one depositor predicate (AC-2)', () => {
-  test('CRAP on + test:coverage → coverage capture; anything else → the evidence-gate test run', async () => {
-    const crapOff = configFor({
-      delivery: { quality: { gates: { crap: { enabled: false } } } },
+  test('coverage or CRAP on + the capture script → coverage capture; anything else → the evidence-gate test run', async () => {
+    const gatesOff = (gates) => configFor({ delivery: { quality: { gates } } });
+    const crapOff = gatesOff({ crap: { enabled: false } });
+    const bothOff = gatesOff({
+      crap: { enabled: false },
+      coverage: { enabled: false },
     });
     for (const [scripts, config, depositor, script] of [
       [CAPTURE_SCRIPTS, configFor(), 'coverage-capture', 'coverage-capture.js'],
       [{ test: 'x' }, configFor(), 'test', 'evidence-gate.js'],
-      [CAPTURE_SCRIPTS, crapOff, 'test', 'evidence-gate.js'],
+      [CAPTURE_SCRIPTS, crapOff, 'coverage-capture', 'coverage-capture.js'],
+      [CAPTURE_SCRIPTS, bothOff, 'test', 'evidence-gate.js'],
     ]) {
       const h = harness({ scripts, config });
       const { envelope } = await h.run();

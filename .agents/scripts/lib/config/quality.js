@@ -6,7 +6,10 @@
  */
 
 import { Logger } from '../Logger.js';
+import { COVERAGE_GATE_DEFAULTS } from './gates/coverage.schema.js';
 import { resolveListValue } from './shared.js';
+
+export { COVERAGE_GATE_DEFAULTS };
 
 const GATE_SCOPING = Object.freeze({ scope: 'diff', diffRef: 'main' });
 
@@ -17,9 +20,6 @@ const DEFAULT_CRAP_TOLERANCE = Object.freeze({ kind: 'absolute', value: 0.05 });
 const DEFAULT_MI_TOLERANCE = Object.freeze({ kind: 'absolute', value: 0.5 });
 
 /** Injected when a declared gate omits a workspace key (usually `'*'`). */
-const DEFAULT_COVERAGE_FLOORS = Object.freeze({
-  '*': Object.freeze({ lines: 90, branches: 85, functions: 90 }),
-});
 const DEFAULT_CRAP_FLOORS = Object.freeze({
   '*': Object.freeze({ max: 30, p95: 20, methodsAbove20: 50 }),
 });
@@ -58,20 +58,6 @@ export const CRAP_GATE_DEFAULTS = Object.freeze({
   // Healthy runs resolve ~98%; a coordinate mismatch resolves 4–6%.
   minMethodResolutionRate: 0.75,
   incrementalCoverage: DEFAULT_INCREMENTAL_COVERAGE,
-  // npm script that writes the CRAP coverage artifact (never a shell command).
-  captureScript: 'test:coverage',
-});
-
-export const COVERAGE_GATE_DEFAULTS = Object.freeze({
-  enabled: true,
-  baselinePath: 'baselines/coverage.json',
-  tolerance: Object.freeze({ kind: 'absolute', value: 0 }),
-  floors: DEFAULT_COVERAGE_FLOORS,
-  coveragePath: 'coverage/coverage-final.json',
-  // `affected` runs the consumer's `test:coverage:affected` instead.
-  captureScope: 'full',
-  // On expiry `runCapture` exits 124 so callers can tell a hang from a failure.
-  timeoutMs: 600_000,
 });
 
 export const MAINTAINABILITY_GATE_DEFAULTS = Object.freeze({
@@ -109,6 +95,7 @@ const COVERAGE_GATE_KEYS = new Set([
   'floors',
   'components',
   'coveragePath',
+  'captureScript',
   'captureScope',
   'timeoutMs',
 ]);
@@ -186,40 +173,41 @@ function nonEmptyString(value) {
     : null;
 }
 
-/** Directory part of a repo-relative path, separator-agnostic. */
-function artifactDir(relPath) {
-  const parts = relPath.replace(/\\/g, '/').split('/').filter(Boolean);
-  parts.pop();
-  return parts.filter((p) => p !== '.').join('/');
+/** @param {string} relPath @returns {string} forward-slash form. */
+function slashed(relPath) {
+  return relPath.replace(/\\/g, '/');
 }
 
+const CRAP_CAPTURE_SCRIPT_KEY = 'delivery.quality.gates.crap.captureScript';
+const CRAP_COVERAGE_PATH_KEY = 'delivery.quality.gates.crap.coveragePath';
+
 /**
- * The CRAP gate's coverage source. A user `coveragePath` that
- * differs from the coverage gate's is an OWN source; one in the same
- * directory would share the per-directory capture stamp and cross-credit
- * freshness, so it is refused here rather than silently falling back.
+ * The CRAP gate's coverage source. A user `coveragePath` that differs from
+ * the coverage gate's is an OWN source with its own capture stamp. Without
+ * one the CRAP gate reads the coverage gate's artifact, captured by the
+ * coverage gate's `captureScript` — so a `crap.captureScript` there has no
+ * artifact to write and is refused rather than silently ignored.
  *
  * @param {{ coveragePath?: unknown, captureScript?: unknown }} userCrap
- * @param {string} coverageGatePath
+ * @param {{ coveragePath: string, captureScript: string }} coverageGate
  * @returns {{ coveragePath: string, captureScript: string, ownCoverageSource: boolean }}
  */
-function resolveCrapCoverageSource(userCrap, coverageGatePath) {
+function resolveCrapCoverageSource(userCrap, coverageGate) {
   const userPath = nonEmptyString(userCrap?.coveragePath);
-  const captureScript =
-    nonEmptyString(userCrap?.captureScript) ?? CRAP_GATE_DEFAULTS.captureScript;
-  const coveragePath = userPath ?? coverageGatePath;
+  const userScript = nonEmptyString(userCrap?.captureScript);
   const ownCoverageSource =
     userPath !== null &&
-    userPath.replace(/\\/g, '/') !== coverageGatePath.replace(/\\/g, '/');
-  if (
-    ownCoverageSource &&
-    artifactDir(userPath) === artifactDir(coverageGatePath)
-  ) {
+    slashed(userPath) !== slashed(coverageGate.coveragePath);
+  if (userScript !== null && !ownCoverageSource) {
     throw new Error(
-      `[config] delivery.quality.gates.crap.coveragePath '${userPath}' sits in the same directory as delivery.quality.gates.coverage.coveragePath '${coverageGatePath}'. The capture stamp is per directory, so an own CRAP coverage source must live in its own directory.`,
+      `[config] ${CRAP_CAPTURE_SCRIPT_KEY} '${userScript}' is set without an own ${CRAP_COVERAGE_PATH_KEY}. A CRAP capture script only writes a CRAP coverage artifact distinct from delivery.quality.gates.coverage.coveragePath — set ${CRAP_COVERAGE_PATH_KEY} to that artifact, or drop ${CRAP_CAPTURE_SCRIPT_KEY} so the coverage gate's captureScript runs.`,
     );
   }
-  return { coveragePath, captureScript, ownCoverageSource };
+  return {
+    coveragePath: userPath ?? coverageGate.coveragePath,
+    captureScript: userScript ?? coverageGate.captureScript,
+    ownCoverageSource,
+  };
 }
 
 /**
@@ -229,7 +217,12 @@ function resolveCrapCoverageSource(userCrap, coverageGatePath) {
  */
 export function resolveMaintainabilityCrap(userCrap, coverageGate) {
   const defaults = CRAP_GATE_DEFAULTS;
-  const coverage = coverageGate ?? COVERAGE_GATE_DEFAULTS;
+  const coverage = {
+    coveragePath:
+      coverageGate?.coveragePath ?? COVERAGE_GATE_DEFAULTS.coveragePath,
+    captureScript:
+      coverageGate?.captureScript ?? COVERAGE_GATE_DEFAULTS.captureScript,
+  };
   const fixed = {
     refreshTag: defaults.refreshTag,
     defaultScope: GATE_SCOPING.scope,
@@ -241,7 +234,7 @@ export function resolveMaintainabilityCrap(userCrap, coverageGate) {
       targetDirs: [...defaults.targetDirs],
       newMethodCeiling: defaults.newMethodCeiling,
       coveragePath: coverage.coveragePath,
-      captureScript: defaults.captureScript,
+      captureScript: coverage.captureScript,
       ownCoverageSource: false,
       tolerance: toleranceScalar(
         defaults.tolerance,
@@ -261,7 +254,7 @@ export function resolveMaintainabilityCrap(userCrap, coverageGate) {
     enabled: userCrap.enabled ?? defaults.enabled,
     targetDirs: resolveListValue(defaults.targetDirs, userCrap.targetDirs),
     newMethodCeiling: userCrap.newMethodCeiling ?? defaults.newMethodCeiling,
-    ...resolveCrapCoverageSource(userCrap, coverage.coveragePath),
+    ...resolveCrapCoverageSource(userCrap, coverage),
     tolerance: toleranceScalar(
       userCrap.tolerance,
       toleranceScalar(defaults.tolerance, DEFAULT_CRAP_TOLERANCE.value),
@@ -320,6 +313,7 @@ function resolveCoverageGate(userBlock) {
       enabled: defaults.enabled,
       baselinePath: defaults.baselinePath,
       coveragePath: defaults.coveragePath,
+      captureScript: defaults.captureScript,
       captureScope: defaults.captureScope,
       tolerance: toleranceScalar(defaults.tolerance, 0),
       timeoutMs: defaults.timeoutMs,
@@ -330,6 +324,8 @@ function resolveCoverageGate(userBlock) {
     enabled: userBlock.enabled ?? defaults.enabled,
     baselinePath: userBlock.baselinePath ?? defaults.baselinePath,
     coveragePath: userBlock.coveragePath ?? defaults.coveragePath,
+    captureScript:
+      nonEmptyString(userBlock.captureScript) ?? defaults.captureScript,
     captureScope: userBlock.captureScope ?? defaults.captureScope,
     tolerance: toleranceScalar(
       userBlock.tolerance,
@@ -404,7 +400,7 @@ function mergeFloorsWithDefaults(userFloors, defaults) {
 }
 
 const FLOOR_DEFAULTS_BY_KIND = Object.freeze({
-  coverage: DEFAULT_COVERAGE_FLOORS,
+  coverage: COVERAGE_GATE_DEFAULTS.floors,
   crap: DEFAULT_CRAP_FLOORS,
   maintainability: DEFAULT_MI_FLOORS,
 });

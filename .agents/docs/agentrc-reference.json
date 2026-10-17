@@ -15,8 +15,8 @@
     ],
     "commands": {
       "test": "npm test",
-      "typecheck": null,
-      "lint": null,
+      "typecheck": "npm run typecheck",
+      "lint": "npm run lint",
       "formatCheck": "npx biome format .",
       "formatWrite": "npx biome format --write ."
     }
@@ -128,6 +128,7 @@
             }
           },
           "coveragePath": "coverage/coverage-final.json",
+          "captureScript": "test:coverage",
           "captureScope": "full",
           "timeoutMs": 600000
         },
@@ -153,8 +154,7 @@
             "skipWhenUnchanged": true,
             "baselineJoin": false
           },
-          "coveragePath": null,
-          "captureScript": "test:coverage"
+          "coveragePath": null
         },
         "maintainability": {
           "enabled": true,

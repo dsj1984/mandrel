@@ -14,7 +14,7 @@ const COVERAGE_CAPTURE_USAGE = {
   invocation:
     'node .agents/scripts/coverage-capture.js [--skip-when-no-crap-files] [--require-credited] [--ref <git-ref>] [--cwd <path>]',
   summary:
-    'Ensure coverage/coverage-final.json is present and fresh before the CRAP gate fires, spawning `npm run test:coverage` only when it is stale (`npm run test:coverage:affected`, with the base ref in MANDREL_COVERAGE_BASE_REF, under delivery.quality.gates.coverage.captureScope="affected"). Writes a content-digest capture stamp that close-validation reads to skip a redundant re-run. When delivery.quality.gates.crap.coveragePath names its own artifact, that artifact is then refreshed full-scope with `npm run <delivery.quality.gates.crap.captureScript>` and stamped in its own directory.',
+    'Ensure the coverage artifact (delivery.quality.gates.coverage.coveragePath) is present and fresh before the coverage and CRAP gates fire, spawning `<pm> run <delivery.quality.gates.coverage.captureScript>` under the detected package manager only when it is stale (the affected capture script, with the base ref in MANDREL_COVERAGE_BASE_REF, under delivery.quality.gates.coverage.captureScope="affected"). Writes a content-digest capture stamp beside the artifact that close-validation reads to skip a redundant re-run. When delivery.quality.gates.crap.coveragePath names its own artifact, that artifact is then refreshed full-scope with `<pm> run <delivery.quality.gates.crap.captureScript>` and stamped beside itself.',
   flags: [
     [
       '--skip-when-no-crap-files',

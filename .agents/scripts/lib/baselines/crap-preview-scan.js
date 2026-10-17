@@ -2,7 +2,9 @@
  * The scan → compare → report tail of `preview-gates.js#runCrapPreview`, once
  * its baseline is loaded and judged compatible.
  */
+
 import path from 'node:path';
+import { COVERAGE_CAPTURE_DEFAULTS } from '../config/gates/coverage.schema.js';
 import { loadCoverage } from '../coverage-utils.js';
 import {
   KERNEL_VERSION,
@@ -81,7 +83,8 @@ export async function computeCrapPreviewScan({
     ? crap.ignoreGlobs
     : [];
   const requireCoverage = crap.requireCoverage !== false;
-  const coveragePath = crap.coveragePath ?? 'coverage/coverage-final.json';
+  const coveragePath =
+    crap.coveragePath ?? COVERAGE_CAPTURE_DEFAULTS.coveragePath;
   const coverage = loadCoverage(path.resolve(cwd, coveragePath));
   // The configured tolerance keeps the preview aligned with the authoritative
   // gate: deltas at or under it are demoted, not failed.

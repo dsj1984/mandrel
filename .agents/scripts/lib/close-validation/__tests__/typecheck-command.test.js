@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 
-import { isTypecheckDisabled, resolveTypecheckCommand } from '../commands.js';
+import { resolveGateCommand } from '../commands.js';
 import { buildDefaultGates } from '../gates.js';
 import { runCloseValidation } from '../runner.js';
 
@@ -20,28 +20,38 @@ const configWith = (commands) => ({
   delivery: NO_CRAP,
 });
 
-const typecheckGate = (config) =>
+const gateNamed = (config, name) =>
   buildDefaultGates({
     config,
     cwd: WORKTREE,
     packageScripts: { test: 'whatever' },
     presentBaselines: [],
-  }).find((gate) => gate.name === 'typecheck');
+  }).find((gate) => gate.name === name);
 
-describe('isTypecheckDisabled', () => {
-  it('is true only for an own-present explicit null', () => {
-    assert.equal(isTypecheckDisabled(configWith({ typecheck: null })), true);
+const typecheckGate = (config) => gateNamed(config, 'typecheck');
+
+describe('resolveGateCommand — disabled optional gates', () => {
+  it('is disabled only for an own-present explicit null', () => {
+    assert.equal(
+      resolveGateCommand(configWith({ typecheck: null }), 'typecheck').disabled,
+      true,
+    );
+    for (const config of [
+      configWith({}),
+      configWith({ typecheck: 'tsc' }),
+      { project: null },
+      null,
+      undefined,
+      configWith(Object.create({ typecheck: null })),
+    ]) {
+      assert.equal(resolveGateCommand(config, 'typecheck').disabled, false);
+    }
   });
 
-  it('is false when the key is absent, set, or the config is malformed', () => {
-    assert.equal(isTypecheckDisabled(configWith({})), false);
-    assert.equal(isTypecheckDisabled(configWith({ typecheck: 'tsc' })), false);
-    assert.equal(isTypecheckDisabled(configWith(null)), false);
-    assert.equal(isTypecheckDisabled({ project: null }), false);
-    assert.equal(isTypecheckDisabled(null), false);
-    assert.equal(isTypecheckDisabled(undefined), false);
-    const inherited = Object.create({ typecheck: null });
-    assert.equal(isTypecheckDisabled(configWith(inherited)), false);
+  it('keeps the default argv as a disabled gate identity', () => {
+    const resolved = resolveGateCommand(configWith({ lint: null }), 'lint');
+    assert.deepEqual([resolved.cmd, ...resolved.args], ['npm', 'run', 'lint']);
+    assert.equal(resolved.raw, null);
   });
 });
 
@@ -56,26 +66,42 @@ describe('buildDefaultGates — typecheck gate', () => {
     assert.equal(gate.skip, undefined);
     assert.equal(gate.cmd, 'npm');
     assert.deepEqual(gate.args, ['run', 'typecheck']);
-    assert.equal(resolveTypecheckCommand(configWith({})), 'npm run typecheck');
   });
 
-  it('keeps the fallback for a malformed config', () => {
-    for (const config of [
-      { project: { commands: 'nope' } },
-      { project: null },
-      null,
-      undefined,
-    ]) {
+  it('uses the default when there is no config, and throws on a malformed block', () => {
+    for (const config of [{ project: null }, null, undefined]) {
       const gate = typecheckGate(config);
       assert.equal(gate.skip, undefined);
       assert.deepEqual([gate.cmd, ...gate.args], ['npm', 'run', 'typecheck']);
     }
+    assert.throws(
+      () => typecheckGate({ project: { commands: 'nope' } }),
+      /project\.commands must be an object/,
+    );
   });
 
   it('runs a configured string', () => {
     const gate = typecheckGate(configWith({ typecheck: 'tsc --noEmit' }));
     assert.equal(gate.skip, undefined);
     assert.deepEqual([gate.cmd, ...gate.args], ['tsc', '--noEmit']);
+  });
+});
+
+describe('buildDefaultGates — lint and format honour an explicit null (Story #5737)', () => {
+  it('registers lint-disabled and format-disabled skips', () => {
+    const config = configWith({ lint: null, formatCheck: null });
+    assert.deepEqual(gateNamed(config, 'lint').skip, {
+      reason: 'lint-disabled',
+    });
+    assert.deepEqual(gateNamed(config, 'format').skip, {
+      reason: 'format-disabled',
+    });
+  });
+
+  it('runs both when absent', () => {
+    const config = configWith({});
+    assert.equal(gateNamed(config, 'lint').skip, undefined);
+    assert.equal(gateNamed(config, 'format').skip, undefined);
   });
 });
 
