@@ -14318,6 +14318,12 @@
     },
     {
       "path": ".agents/scripts/lib/config/git-roots.js",
+      "method": "overlayRoot",
+      "startLine": 60,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/config/git-roots.js",
       "method": "_clearGitRootCaches",
       "startLine": 64,
       "crap": 1
