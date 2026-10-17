@@ -9,17 +9,11 @@ import fs from 'node:fs';
 import process from 'node:process';
 import { spawnChild } from './child-exec.js';
 
-/** Knip's own exit codes: 0 = clean, 1 = issues reported; anything else is an error. */
 const KNIP_MAX_ISSUE_STATUS = 1;
 
 /**
- * Never throws; a failure comes back as `{ ok: false, error }` and the
- * gate fails closed on it (exit 2) rather than scoring an empty row set.
- *
- * Spawns through `child-exec.js`, so knip's JSON report rides the shared
- * 64 MiB stdout ceiling instead of Node's 1 MiB default (which kills the
- * child with ENOBUFS on a large repository). `spawn` is the injected run
- * seam *inside* that wrapper, so a fake still runs under the ceiling.
+ * Never throws; the caller fails closed on `{ ok: false }`. `spawn` is the
+ * run seam inside `spawnChild`, so a fake still gets the buffer ceiling.
  *
  * `production` requires the `!`-suffixed entry patterns in `knip.json`
  * (test globs deliberately lack it, so test-only exports read as dead);
@@ -45,13 +39,7 @@ export function runKnip({
   return interpretKnipResult(result);
 }
 
-/**
- * A spawn error (ENOBUFS included) or a status above 1 is a failure; knip
- * itself exits 1 when it reports issues, so that status still parses.
- *
- * @param {{ error?: Error, status?: number|null, stdout?: unknown, stderr?: unknown }} result
- * @returns {{ ok: true, envelope: unknown } | { ok: false, error: string }}
- */
+/** Knip exits 1 when it reports issues, so only a status above 1 fails. */
 function interpretKnipResult(result) {
   if (result.error) {
     return { ok: false, error: `spawn failed: ${result.error.message}` };
@@ -65,10 +53,6 @@ function interpretKnipResult(result) {
   return parseKnipStdout(result.stdout);
 }
 
-/**
- * @param {unknown} stdout
- * @returns {{ ok: true, envelope: unknown } | { ok: false, error: string }}
- */
 function parseKnipStdout(stdout) {
   const text = typeof stdout === 'string' ? stdout : '';
   if (text.trim().length === 0) {
