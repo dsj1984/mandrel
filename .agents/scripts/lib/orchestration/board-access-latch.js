@@ -4,7 +4,11 @@
  * here aborts a run.
  */
 
-import { isInsufficientScopes } from '../../providers/github/projects-v2-graphql.js';
+import {
+  errorTextMatches,
+  isInsufficientScopes,
+} from '../../providers/github/projects-v2-graphql.js';
+import { describeGhFailure, GhScopeError } from '../gh-exec.js';
 import { Logger } from '../Logger.js';
 
 const PROJECT_SCOPE = 'project';
@@ -39,7 +43,9 @@ export class ProjectAccessError extends Error {
 
 /**
  * Is `err` a token-scope / auth refusal (as opposed to a NOT_FOUND miss or a
- * transient failure)? A `ProjectAccessError` always is.
+ * transient failure)? A `ProjectAccessError` or a gh-exec `GhScopeError`
+ * always is; anything else is judged on the scope / auth text in its
+ * `message`, `stderr` or `stdout`.
  *
  * @param {unknown} err
  * @returns {boolean}
@@ -47,9 +53,8 @@ export class ProjectAccessError extends Error {
 export function isProjectAccessFailure(err) {
   if (!err) return false;
   if (err instanceof ProjectAccessError) return true;
-  if (isInsufficientScopes(err)) return true;
-  const message = typeof err.message === 'string' ? err.message : String(err);
-  return AUTH_FAILURE_RE.test(message);
+  if (err instanceof GhScopeError || err.name === 'GhScopeError') return true;
+  return isInsufficientScopes(err) || errorTextMatches(err, AUTH_FAILURE_RE);
 }
 
 /**
@@ -60,15 +65,22 @@ export function isProjectAccessFailure(err) {
  */
 export function toProjectAccessError(err) {
   if (err instanceof ProjectAccessError) return err;
-  const detail = err?.message ?? String(err);
+  // gh-exec's message is generic; the refusal text is the stderr tail.
+  const detail = describeGhFailure(err);
   return new ProjectAccessError(
     `GitHub Projects v2 board is not accessible with this token (missing the "${PROJECT_SCOPE}" scope?): ${detail}`,
     { cause: err },
   );
 }
 
-// Sinks already warned; production shares one `Logger`, so once per process.
-const warnedSinks = new WeakSet();
+// Sinks already warned, keyed per logger instance; production shares one
+// `Logger`, so once per process.
+let warnedSinks = new WeakSet();
+
+/** Forget every warned sink — test isolation within one process. */
+export function resetBoardAccessLatch() {
+  warnedSinks = new WeakSet();
+}
 
 /**
  * Record a board scope failure; the first call per process (per sink) emits

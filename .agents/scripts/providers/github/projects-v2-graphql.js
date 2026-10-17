@@ -31,9 +31,27 @@ const opt = (name, id) => ({
   description: '',
 });
 
-export const isInsufficientScopes = (err) =>
-  Boolean(err) &&
-  SCOPES_RE.test(err.message ?? err.toString?.() ?? String(err));
+/**
+ * Does `re` match any text an error carries? Scans `message`, `stderr` and
+ * `stdout` — a gh-exec classified error keeps GitHub's refusal text in the
+ * child's stderr behind a generic message — and falls back to the error's
+ * string form when it carries none of them. The one text scan the fetch path
+ * and the gh path share.
+ *
+ * @param {unknown} err
+ * @param {RegExp} re
+ * @returns {boolean}
+ */
+export const errorTextMatches = (err, re) => {
+  if (!err) return false;
+  const texts = [err.message, err.stderr, err.stdout].filter(
+    (text) => typeof text === 'string',
+  );
+  if (texts.length === 0) texts.push(err.toString?.() ?? String(err));
+  return texts.some((text) => re.test(text));
+};
+
+export const isInsufficientScopes = (err) => errorTextMatches(err, SCOPES_RE);
 export const isScopesMissingEnvelope = (value) =>
   Boolean(value) && typeof value === 'object' && value.scopesMissing === true;
 
