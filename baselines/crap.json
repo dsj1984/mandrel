@@ -9290,6 +9290,33 @@
       "crap": 1
     },
     {
+      "path": ".agents/scripts/lib/baselines/kinds/kind-factory.js",
+      "method": "priorStillHolds",
+      "startLine": 172,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/kind-factory.js",
+      "method": "<anon priorStillHolds/(axis)#0>",
+      "startLine": 173,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/kind-factory.js",
+      "method": "<anon priorStillHolds/(axis)#1>",
+      "startLine": 174,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/kind-factory.js",
+      "method": "<anon priorStillHolds/(axis)#2>",
+      "startLine": 176,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
       "path": ".agents/scripts/lib/baselines/kinds/maintainability.js",
       "method": "filterExcludedRows",
       "startLine": 33,
@@ -13609,9 +13636,21 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
+      "method": "bucketOf",
+      "startLine": 123,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
       "method": "collectRegressions",
       "startLine": 132,
       "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
+      "method": "toUnscorableEntry",
+      "startLine": 167,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
@@ -15857,6 +15896,12 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-utils.js",
+      "method": "statementCoverageOverLines",
+      "startLine": 217,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/coverage-utils.js",
       "method": "coverageForMethodInEntry",
       "startLine": 226,
       "crap": 7
@@ -16033,6 +16078,12 @@
       "method": "resolveCoordinate",
       "startLine": 33,
       "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/crap-engine.js",
+      "method": "resolveEndLine",
+      "startLine": 50,
+      "crap": 4
     },
     {
       "path": ".agents/scripts/lib/crap-engine.js",

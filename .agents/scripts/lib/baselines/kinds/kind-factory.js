@@ -8,11 +8,14 @@ import { mergeRowsByScope } from '../scope.js';
  * (default; never a regression) or is classified against a `'perfect'` base.
  * `removedRowPolicy`: a base row with no head row is classified against a
  * perfect head, or is an improvement when `when(baseRow)` holds.
+ * `epsilonAxes`: the axes `applyEpsilon` measures (default `axes`); a prior
+ * row is kept only when every compared axis outside them is unchanged.
  *
  * @param {{
  *   keyField: string,
  *   kernelVersion: string | (() => string),
  *   axes: string[],
+ *   epsilonAxes?: string[],
  *   betterWhen: 'higher' | 'lower',
  *   aggregate: (rows: object[]) => Record<string, number>,
  *   missingBasePolicy?: 'addition' | 'perfect',
@@ -35,6 +38,7 @@ export function makeBaselineKind({
   keyField,
   kernelVersion,
   axes,
+  epsilonAxes = axes,
   betterWhen,
   aggregate,
   missingBasePolicy = 'addition',
@@ -141,12 +145,7 @@ export function makeBaselineKind({
     return regenRows.map((row) => {
       const p = priorByKey.get(keyOf(row));
       if (!p) return row;
-      let maxAxisDelta = 0;
-      for (const axis of axes) {
-        const d = Math.abs((row[axis] ?? 0) - (p[axis] ?? 0));
-        if (d > maxAxisDelta) maxAxisDelta = d;
-      }
-      return maxAxisDelta <= eps ? p : row;
+      return priorStillHolds(row, p, { axes, epsilonAxes, eps }) ? p : row;
     });
   }
 
@@ -168,4 +167,12 @@ export function makeBaselineKind({
     applyEpsilon,
     mergeRows,
   };
+}
+
+function priorStillHolds(row, prior, { axes, epsilonAxes, eps }) {
+  const drift = (axis) => Math.abs((row[axis] ?? 0) - (prior[axis] ?? 0));
+  if (epsilonAxes.some((axis) => drift(axis) > eps)) return false;
+  return axes.every(
+    (axis) => epsilonAxes.includes(axis) || row[axis] === prior[axis],
+  );
 }

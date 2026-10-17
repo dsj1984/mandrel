@@ -61,12 +61,14 @@ the floor-vs-ratchet policy are tooling commitments rather than ADRs and live in
 
 <!-- ADR-INDEX:START -->
 
-**In force (56).** Each governs the surface named beside it.
+**In force (58).** Each governs the surface named beside it.
 A `Status` of `Accepted in part` means some clause of the entry has been
 superseded — open it before citing it.
 
 | Decision | Governs | Surface | Status |
 | --- | --- | --- | --- |
+| [`20261017-5755a`](#adr-20261017-5755a-crap-joins-an-unresolved-method-on-the-statements-of-its-own-line-span) | CRAP joins an unresolved method on its own statement span | `.agents/scripts/lib/coverage-utils.js` | Accepted |
+| [`20261017-5755b`](#adr-20261017-5755b-per-file-duplication-regressions-compare-duplicated-lines-not-the-ratio) | Per-file duplication regressions compare duplicated lines, not the ratio | `.agents/scripts/lib/baselines/kinds/duplication.js` | Accepted |
 | [`20261013-5655`](#adr-20261013-5655-claude-code-and-codex-are-the-supported-workflow-surface-hosts) | Claude Code and Codex are the supported workflow-surface hosts | `.agents/scripts/lib/codex/skills-projection.js` | Accepted |
 | [`20261002-5548`](#adr-20261002-5548-a-coverage-capture-stamp-vouches-only-for-the-tree-the-suite-ran-on) | A coverage-capture stamp vouches only for the tree the suite ran on | `.agents/scripts/lib/coverage-capture.js` | Accepted |
 | [`20261002-5544`](#adr-20261002-5544-claude-code-mods-are-a-beta-optional-read-only-add-on) | Claude Code mods are a beta, optional, read-only add-on | `.agents/docs/runbooks/mods.md` | Accepted |
@@ -163,6 +165,83 @@ at the release tag named in the entry.
 - [Earlier ADRs (001 / 002 / 003)](#earlier-adrs-001--002--003)
 
 <!-- ADR-INDEX:END -->
+
+## ADR 20261017-5755a: CRAP joins an unresolved method on the statements of its own line span
+
+**Status:** Accepted
+**Date:** 2026-10-17
+**Surface:** `.agents/scripts/lib/coverage-utils.js`
+**Story:** #5755
+
+### Context
+
+V8 folds a function's coverage range into its parent's when both share an
+execution count. A module-scope arrow callback that runs once at import
+therefore has no `fnMap` entry in the Istanbul output (reproduced with c8
+10.1.3). The CRAP join found no range, counted the method joinable but
+unresolved, and refused the `--seat-missing` seat. Production code was being
+rewritten to avoid arrow callbacks so the gate would seat.
+
+### Decision
+
+- `coverageForMethodInEntry(entry, startLine, endLine?)` resolves through the
+  `fnMap` exactly as before. Only when that yields no range **and** an end
+  line is supplied does it score the statements whose start line falls in
+  `[startLine, endLine]`. A span holding no statements stays `null`.
+- `methodRowsFromReport` passes the escomplex method's `lineEnd`. The fallback
+  runs only in original coordinates: a transpiled line stays unjoinable, and
+  an end line that does not map back turns the fallback off.
+- A method resolved this way counts as resolved for the resolution-rate floor.
+- `source-extensions.js` keeps its callback-free regex for now: the seat and
+  close run the main checkout's join, so reverting the workaround lands in a
+  follow-up Story once this fallback is on `main`.
+
+### Alternatives considered
+
+- **Widen the decl-window match.** Rejected. The window exists so a line
+  cannot claim a neighbour's coverage, and widening it reintroduces exactly
+  that. The statement span is bounded by the method's own lines, so it cannot
+  mis-attribute an unrelated function.
+
+### Consequences
+
+- A folded callback scores from its own statements, and the scoped seat no
+  longer refuses a file that contains one.
+- The resolution-rate floor and the decl window are unchanged.
+
+## ADR 20261017-5755b: Per-file duplication regressions compare duplicated lines, not the ratio
+
+**Status:** Accepted
+**Date:** 2026-10-17
+**Surface:** `.agents/scripts/lib/baselines/kinds/duplication.js`
+**Story:** #5755
+
+### Context
+
+The duplication kind classified a per-file row on `percentage`. A ratio moves
+when the denominator moves. Deleting code around an unchanged clone read as a
+regression: Epic #5744 took a file from 10 / 184 lines to 10 / 124, which is
+5.43% to 8.06%. Padding a file with new code read as an improvement.
+
+### Decision
+
+- Per-file regressions compare `duplicatedLines` (lower is better).
+- `percentage` stays in the row, stays the `applyEpsilon` noise axis (the new
+  `epsilonAxes` option on the kind factory), and still drives floors and the
+  rollup, which is recomputed from line counts.
+- A removed row counts as an improvement when its `duplicatedLines > 0`.
+- No kernel-version bump: neither the row shape nor the rollup math changed.
+
+### Alternatives considered
+
+- **Keep the ratio and add a tolerance.** Rejected. It hides small real
+  regressions, and it still punishes a large deletion around an unchanged
+  clone.
+
+### Consequences
+
+- A row moves only when duplication itself moves. Floors and the repo-wide
+  percentage read exactly as before.
 
 ## ADR 20261013-5655: Claude Code and Codex are the supported workflow-surface hosts
 

@@ -11,6 +11,7 @@ import {
   hasCoverageFor,
   loadCoverage,
 } from '../../.agents/scripts/lib/coverage-utils.js';
+import { foldedArrowCoverageEntry } from '../fixtures/v8-folded-arrow.js';
 
 function writeTemp(contents, suffix = '.json') {
   const p = path.join(
@@ -340,5 +341,37 @@ test('hasCoverageFor — Object.keys(map) called exactly once across 1000 lookup
     callsForMap,
     1,
     `Expected Object.keys(map) to be called exactly once, got ${callsForMap}`,
+  );
+});
+
+test('coverageForMethodInEntry — a V8-folded module-scope arrow joins on its own statement span', () => {
+  const entry = foldedArrowCoverageEntry('/abs/mod.js');
+  // Line 2's arrow has no fnMap entry: without an end line it stays unjoined.
+  assert.strictEqual(coverageForMethodInEntry(entry, 2), null);
+  assert.strictEqual(coverageForMethodInEntry(entry, 2, 2), 1);
+  // The named function still resolves through its fnMap range first.
+  assert.strictEqual(coverageForMethodInEntry(entry, 4, 7), 3 / 4);
+});
+
+test('coverageForMethodInEntry — the statement-span fallback never reaches past the method', () => {
+  const entry = makeEntry({
+    fnStart: 10,
+    fnEnd: 14,
+    statements: [
+      { line: 2, hits: 0 },
+      { line: 3, hits: 1 },
+      { line: 11, hits: 1 },
+    ],
+  });
+  assert.strictEqual(coverageForMethodInEntry(entry, 2, 3), 0.5);
+  assert.strictEqual(coverageForMethodInEntry(entry, 3, 3), 1);
+});
+
+test('coverageForMethodInEntry — a span holding no statements still resolves to null', () => {
+  const entry = foldedArrowCoverageEntry('/abs/mod.js');
+  assert.strictEqual(coverageForMethodInEntry(entry, 20, 25), null);
+  assert.strictEqual(
+    coverageByMethod({ '/abs/mod.js': entry }, 'mod.js', 20, 25),
+    null,
   );
 });

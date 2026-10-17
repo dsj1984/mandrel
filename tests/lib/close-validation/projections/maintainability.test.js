@@ -207,7 +207,11 @@ describe('projectMaintainabilityRegressions — TypeScript (Story #5738 AC-3)', 
   it('a .tsx at its baseline score projects clean', async () => {
     const score = await baselineScore();
     assert.ok(score > 0, 'fixture must be scorable');
-    assert.deepEqual(project(score), { ok: true, regressions: [] });
+    assert.deepEqual(project(score), {
+      ok: true,
+      regressions: [],
+      unscorable: [],
+    });
   });
 
   it('a .tsx below its baseline is named with the transpiled score', async () => {
@@ -217,5 +221,47 @@ describe('projectMaintainabilityRegressions — TypeScript (Story #5738 AC-3)', 
     assert.equal(result.regressions.length, 1);
     assert.equal(result.regressions[0].file, 'src/Greeting.tsx');
     assert.ok(Math.abs(result.regressions[0].projected - score) < 1e-9);
+  });
+});
+
+describe('projectMaintainabilityRegressions — unscorable TypeScript (Story #5755 AC-6)', () => {
+  function projectUntranspilable(opts = {}) {
+    return projectMaintainabilityRegressions({
+      ...baseOpts,
+      git: makeFakeGit({
+        files: ['src/Broken.ts', 'src/ok.js'],
+        sources: { 'src/Broken.ts': 'broken', 'src/ok.js': 'fine' },
+      }),
+      loadBaseline: () => ({ 'src/Broken.ts': 90, 'src/ok.js': 80 }),
+      // `null` is the scorer's transpile-failed contract.
+      scoreSource: (source) => (source === 'broken' ? null : 80),
+      ...opts,
+    });
+  }
+
+  it('lists the file as unscorable with a reason, not as a regression', () => {
+    const reported = [];
+    const result = projectUntranspilable({
+      report: (entries) => reported.push(...entries),
+    });
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.regressions, []);
+    assert.equal(result.unscorable.length, 1);
+    const [entry] = result.unscorable;
+    assert.equal(entry.file, 'src/Broken.ts');
+    assert.match(entry.reason, /transpile failed/);
+    assert.deepEqual(reported, [
+      { relPath: 'src/Broken.ts', unscorable: true, reason: entry.reason },
+    ]);
+  });
+
+  it('logs an UNSCORABLE line through maintainability-unscorable by default', (t) => {
+    const lines = [];
+    t.mock.method(console, 'error', (msg) => lines.push(String(msg)));
+    projectUntranspilable();
+    assert.ok(
+      lines.some((l) => l.includes('UNSCORABLE src/Broken.ts')),
+      `expected an UNSCORABLE line, got: ${lines.join(' | ')}`,
+    );
   });
 });

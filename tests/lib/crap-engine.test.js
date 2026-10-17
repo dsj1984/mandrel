@@ -16,6 +16,10 @@ import {
   isAnonymousMethodLabel,
 } from '../../.agents/scripts/lib/crap-method-identity.js';
 import { analyzeModule } from '../../.agents/scripts/lib/escomplex-kernel.js';
+import {
+  FOLDED_ARROW_SOURCE,
+  foldedArrowCoverageEntry,
+} from '../fixtures/v8-folded-arrow.js';
 
 /**
  * Build a coverage-entry fixture that forces coverageForMethodInEntry to
@@ -838,5 +842,31 @@ describe('isAnonymousMethodLabel', () => {
     assert.equal(isAnonymousMethodLabel('<anon method-7>'), true);
     assert.equal(isAnonymousMethodLabel('doWork'), false);
     assert.equal(isAnonymousMethodLabel(undefined), false);
+  });
+});
+
+describe('calculateCrapForSource — statement-span fallback (Story #5755)', () => {
+  const entry = () => foldedArrowCoverageEntry('/abs/mod.js');
+
+  it('joins a V8-folded module-scope arrow from the statements on its own lines', () => {
+    const rows = calculateCrapForSource(FOLDED_ARROW_SOURCE, entry());
+    const arrow = rows.find((r) => r.anonymous && r.startLine === 2);
+    assert.ok(arrow, 'the module-scope arrow is a method row');
+    assert.strictEqual(arrow.coverage, 1);
+    assert.strictEqual(arrow.crap, crapFormula(arrow.cyclomatic, 1));
+    const named = rows.find((r) => r.method === 'named');
+    assert.strictEqual(named.coverage, 3 / 4);
+  });
+
+  it('leaves a transpiled (unmapped) method unjoined, exactly as before', () => {
+    const rows = calculateCrapForSource(
+      FOLDED_ARROW_SOURCE,
+      entry(),
+      () => null,
+    );
+    for (const row of rows) {
+      assert.strictEqual(row.coordinateSystem, COORDINATE_TRANSPILED);
+      assert.strictEqual(row.coverage, null);
+    }
   });
 });

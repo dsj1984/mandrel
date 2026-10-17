@@ -10,12 +10,16 @@ import { diffNameOnly } from '../../changed-files.js';
 import { cachedGitFetchSync } from '../../git/cached-fetch.js';
 import { gitSpawn as defaultGitSpawn } from '../../git-utils.js';
 import { calculateForSource } from '../../maintainability-engine.js';
+import { reportUnscorable } from '../../maintainability-unscorable.js';
 import { isScorableSourceFile } from '../../source-extensions.js';
 import { transpileForReport } from '../../transpile.js';
 import { MISSING_ARG_REASONS, validateProjectionInputs } from './inputs.js';
 
 /** Absorbs floating-point noise. */
 export const DEFAULT_MI_TOLERANCE = 0.001;
+
+const UNSCORABLE_TRANSPILE_REASON =
+  'transpile failed; no projected MI (lint and typecheck own the syntax error)';
 
 /**
  * TS is transpiled first, as the baseline scanner does, so a `.tsx` projects
@@ -81,7 +85,7 @@ function diffChangedFiles({ cwd, baseBranch, storyBranch, git }) {
 }
 
 /**
- * `null` when deleted on the story branch, unscorable, or within tolerance.
+ * `null` when deleted on the story branch or within tolerance.
  *
  * @param {{
  *   cwd: string,
@@ -92,7 +96,7 @@ function diffChangedFiles({ cwd, baseBranch, storyBranch, git }) {
  *   git: { gitSpawn: typeof defaultGitSpawn },
  *   scoreSource: (source: string, absPath: string) => number | null,
  * }} opts
- * @returns {{ file: string, projected: number, baseline: number, drop: number } | null}
+ * @returns {{ file: string, projected?: number, reason?: string } | null}
  */
 function scoreFile({
   cwd,
@@ -106,15 +110,18 @@ function scoreFile({
   const show = git.gitSpawn(cwd, 'show', `${storyBranch}:${file}`);
   if (show.status !== 0) return null; // deleted/renamed on the story branch
   const projected = scoreSource(show.stdout || '', path.join(cwd, file));
-  if (projected === null || projected >= baselineScore - tolerance) {
-    return null;
-  }
+  if (projected === null) return { file, reason: UNSCORABLE_TRANSPILE_REASON };
+  if (projected >= baselineScore - tolerance) return null;
   return {
     file,
     projected,
     baseline: baselineScore,
     drop: baselineScore - projected,
   };
+}
+
+function bucketOf(outcome) {
+  return outcome.reason ? 'unscorable' : 'regressions';
 }
 
 /**
@@ -127,7 +134,7 @@ function scoreFile({
  *   git: { gitSpawn: typeof defaultGitSpawn },
  *   scoreSource: (source: string, absPath: string) => number | null,
  * }} opts
- * @returns {Array<{ file: string, projected: number, baseline: number, drop: number }>}
+ * @returns {{ regressions: object[], unscorable: object[] }}
  */
 function collectRegressions({
   cwd,
@@ -138,12 +145,12 @@ function collectRegressions({
   git,
   scoreSource,
 }) {
-  const regressions = [];
+  const found = { regressions: [], unscorable: [] };
   for (const file of files) {
     if (!isScorableSourceFile(file)) continue;
     const baselineScore = baseline[file];
     if (typeof baselineScore !== 'number') continue;
-    const reg = scoreFile({
+    const outcome = scoreFile({
       cwd,
       storyBranch,
       file,
@@ -152,15 +159,20 @@ function collectRegressions({
       git,
       scoreSource,
     });
-    if (reg) regressions.push(reg);
+    if (outcome) found[bucketOf(outcome)].push(outcome);
   }
-  return regressions;
+  return found;
+}
+
+function toUnscorableEntry({ file, reason }) {
+  return { relPath: file, unscorable: true, reason };
 }
 
 /**
  * Scores each changed file's content at the Story branch tip (exact for a
  * clean merge). Never throws; failures resolve to
- * `{ ok: true, regressions: [], skipped }`.
+ * `{ ok: true, regressions: [], skipped }`. An unscorable file is reported,
+ * never a regression.
  *
  * @param {{
  *   cwd: string,
@@ -171,10 +183,12 @@ function collectRegressions({
  *   git?: { gitSpawn: typeof defaultGitSpawn },
  *   scoreSource?: (source: string, absPath: string) => number | null,
  *   loadBaseline?: (path: string) => Record<string, number>,
+ *   report?: typeof reportUnscorable,
  * }} opts
  * @returns {{
  *   ok: boolean,
  *   regressions: Array<{ file: string, projected: number, baseline: number, drop: number }>,
+ *   unscorable?: object[],
  *   skipped?: string,
  *   detail?: string,
  * }}
@@ -188,6 +202,7 @@ export function projectMaintainabilityRegressions({
   git = { gitSpawn: defaultGitSpawn },
   scoreSource = scoreHeadSource,
   loadBaseline = getBaseline,
+  report = reportUnscorable,
 } = {}) {
   const validation = validateProjectionInputs(
     { cwd, baseBranch, storyBranch, baselinePath },
@@ -221,7 +236,7 @@ export function projectMaintainabilityRegressions({
     };
   }
 
-  const regressions = collectRegressions({
+  const { regressions, unscorable } = collectRegressions({
     cwd,
     storyBranch,
     files: diffOutcome.files,
@@ -231,7 +246,8 @@ export function projectMaintainabilityRegressions({
     scoreSource,
   });
 
-  return { ok: regressions.length === 0, regressions };
+  report(unscorable.map(toUnscorableEntry));
+  return { ok: regressions.length === 0, regressions, unscorable };
 }
 
 /**
