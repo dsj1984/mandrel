@@ -98,33 +98,26 @@ const ALLOWLIST = new Set([
   '.agents/scripts/bootstrap.js',
   '.agents/scripts/check-windows-git-perf.js',
   '.agents/scripts/evidence-gate.js',
-  '.agents/scripts/lib/bootstrap/gh-list.js',
-  '.agents/scripts/lib/bootstrap/gh-preflight.js',
   '.agents/scripts/lib/bootstrap/preflight.js',
   '.agents/scripts/lib/bootstrap/project-bootstrap.js',
   '.agents/scripts/lib/bootstrap/prompt.js',
   '.agents/scripts/lib/bootstrap/quality-bootstrap.js',
   '.agents/scripts/lib/checks/state.js',
   '.agents/scripts/lib/close-validation/process.js',
-  '.agents/scripts/lib/config/temp-paths.js',
   '.agents/scripts/lib/feedback-loop/graduator-gh.js',
   '.agents/scripts/lib/format-generated-json.js',
   '.agents/scripts/lib/gh-exec.js',
   '.agents/scripts/lib/git-utils.js',
   '.agents/scripts/lib/install-cmd-parser.js',
   '.agents/scripts/lib/onboard/init-tail.js',
-  '.agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js',
-  '.agents/scripts/lib/orchestration/pr-watch.js',
   '.agents/scripts/lib/orchestration/remote-verifier.js',
   '.agents/scripts/lib/orchestration/review-providers/security-review.js',
-  '.agents/scripts/lib/single-story-sweep/protection-ctx.js',
   // Story #5485: streams a full suite as a supervised process group (inherit
   // stdio, group kill, suite-ready handshake) that the wrapper cannot serve.
   '.agents/scripts/lib/supervised-suite.js',
   '.agents/scripts/lib/test-runner-contract.js',
   '.agents/scripts/lib/worktree/git-hooks.js',
   '.agents/scripts/lib/worktree/lifecycle/force-drain.js',
-  '.agents/scripts/lint-issue-body.js',
   '.agents/scripts/mandrel-update-preflight.js',
   '.agents/scripts/providers/github/auth.js',
   '.agents/scripts/quality-watch.js',
@@ -137,8 +130,6 @@ const ALLOWLIST = new Set([
 
 const SEAM_REASON =
   'seeds an injectable runner default (tests swap it); its captures are small probes';
-const GH_REASON =
-  'captures one bounded gh response (auth/status/list); far below 1 MiB';
 const GIT_PROBE_REASON =
   'captures a short git probe (rev-parse / config / status line); far below 1 MiB';
 
@@ -160,14 +151,6 @@ const RAW_CAPTURE_SITES = {
   '.agents/scripts/evidence-gate.js': {
     reason: SEAM_REASON,
     sites: { 'spawnSync (seam)': 1 },
-  },
-  '.agents/scripts/lib/bootstrap/gh-list.js': {
-    reason: GH_REASON,
-    sites: { spawnSync: 1 },
-  },
-  '.agents/scripts/lib/bootstrap/gh-preflight.js': {
-    reason: GH_REASON,
-    sites: { spawnSync: 1 },
   },
   '.agents/scripts/lib/bootstrap/preflight.js': {
     reason: GIT_PROBE_REASON,
@@ -194,10 +177,6 @@ const RAW_CAPTURE_SITES = {
       'async gate runner: streams line-prefixed stdio as it arrives; spawn() has no buffer to overflow',
     sites: { spawn: 1 },
   },
-  '.agents/scripts/lib/config/temp-paths.js': {
-    reason: `${SEAM_REASON} (git rev-parse --git-common-dir)`,
-    sites: { 'execFileSync (seam)': 1 },
-  },
   '.agents/scripts/lib/feedback-loop/graduator-gh.js': {
     reason: 'streaming spawn() seam; no buffer to overflow',
     sites: { 'spawn (seam)': 1 },
@@ -208,8 +187,8 @@ const RAW_CAPTURE_SITES = {
   },
   '.agents/scripts/lib/gh-exec.js': {
     reason:
-      'the gh surface: streaming spawn() seam that collects its own output; no buffer to overflow',
-    sites: { 'spawn (seam)': 1 },
+      "the gh surface: a streaming spawn() seam that collects its own output, and runGh's spawnSync default runner (callers pass a wrapper runner for large reads)",
+    sites: { 'spawn (seam)': 1, 'spawnSync (seam)': 1 },
   },
   '.agents/scripts/lib/git-utils.js': {
     reason:
@@ -220,26 +199,14 @@ const RAW_CAPTURE_SITES = {
     reason: `${SEAM_REASON}; the call it feeds streams stdio: 'inherit'`,
     sites: { 'spawnSync (seam)': 1 },
   },
-  '.agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js': {
-    reason: GH_REASON,
-    sites: { execFileSync: 1 },
-  },
-  '.agents/scripts/lib/orchestration/pr-watch.js': {
-    reason: `${SEAM_REASON} (one gh pr view)`,
-    sites: { 'spawnSync (seam)': 1 },
-  },
   '.agents/scripts/lib/orchestration/remote-verifier.js': {
     reason: `${SEAM_REASON} (git remote / ls-remote)`,
     sites: { 'spawnSync (seam)': 2 },
   },
   '.agents/scripts/lib/orchestration/review-providers/security-review.js': {
     reason:
-      'claude CLI probe seam plus one timeout-bounded review run whose report is a short summary',
-    sites: { 'spawnSync (seam)': 1, spawnSync: 1 },
-  },
-  '.agents/scripts/lib/single-story-sweep/protection-ctx.js': {
-    reason: `${SEAM_REASON} (gh pr list)`,
-    sites: { 'spawnSync (seam)': 1 },
+      'claude CLI probe and review-run seams; the review is timeout-bounded and reports a short summary',
+    sites: { 'spawnSync (seam)': 2 },
   },
   '.agents/scripts/lib/supervised-suite.js': {
     reason:
@@ -258,17 +225,13 @@ const RAW_CAPTURE_SITES = {
     reason: `${SEAM_REASON} (process-table listing, taskkill)`,
     sites: { 'spawnSync (seam)': 3 },
   },
-  '.agents/scripts/lint-issue-body.js': {
-    reason: GH_REASON,
-    sites: { spawnSync: 1 },
-  },
   '.agents/scripts/mandrel-update-preflight.js': {
     reason: 'staged-file list and npm ping before an update; small captures',
     sites: { execFileSync: 2 },
   },
   '.agents/scripts/providers/github/auth.js': {
     reason: `${SEAM_REASON} (gh auth token)`,
-    sites: { 'execSync (seam)': 2 },
+    sites: { 'execFileSync (seam)': 2 },
   },
   '.agents/scripts/quality-watch.js': {
     reason: 'streaming spawn() seam for the watch loop; no buffer to overflow',
@@ -293,11 +256,12 @@ const RAW_CAPTURE_SITES = {
 };
 
 /**
- * Raw capture sites at this Story's base (#5739), measured by the same
+ * Raw capture sites at this Story's base (#5739; main at 436844bc2, after
+ * #5740's gh migrations), measured by the same
  * scanner before its migrations (diagnose-friction, format-autofix,
  * node-modules-strategy). The pinned total must stay strictly below it.
  */
-const BASE_RAW_CAPTURE_SITE_COUNT = 53;
+const BASE_RAW_CAPTURE_SITE_COUNT = 47;
 
 /**
  * A numeric `maxBuffer` option literal — the hand-copied constant this Story

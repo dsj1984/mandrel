@@ -78,16 +78,16 @@ describe('providers/github/auth.js — token resolution', () => {
   });
 
   it('gh-cli-fallback: shells out to `gh auth token` when env is unset', () => {
-    let receivedCmd = null;
-    __setExecSyncForTests((cmd) => {
-      receivedCmd = cmd;
+    let received = null;
+    __setExecSyncForTests((file, args) => {
+      received = { file, args };
       return 'cli-token\n';
     });
 
     const got = resolveToken();
 
     assert.strictEqual(got, 'cli-token');
-    assert.strictEqual(receivedCmd, 'gh auth token');
+    assert.deepStrictEqual(received, { file: 'gh', args: ['auth', 'token'] });
     // memoization side-effect: subsequent reads from env return the same.
     assert.strictEqual(process.env.GITHUB_TOKEN, 'cli-token');
     assert.strictEqual(process.env.MANDREL_GH_TOKEN_SOURCE, 'gh-cli');
@@ -127,7 +127,7 @@ describe('providers/github/auth.js — token resolution', () => {
   it('__setExecSyncForTests(null) restores the real implementation', () => {
     __setExecSyncForTests(() => 'fake');
     __setExecSyncForTests(null);
-    // After reset, the holder points back at the default execSync.
+    // After reset, the holder points back at the default execFileSync.
     // We can't run gh in tests, but we can assert the holder's impl shape.
     assert.strictEqual(typeof execSyncHolder.impl, 'function');
   });

@@ -629,3 +629,52 @@ describe('Bootstrap — skipping the Projects V2 board (Story #5584)', async () 
     });
   }
 });
+
+describe('Bootstrap — gh preflight runs with the configured GH_CONFIG_DIR (#5740)', () => {
+  it('every preflight probe spawns gh with github.cliConfigDir applied', async () => {
+    const fs = await import('node:fs');
+    const { makeTempDir } = await import('../.agents/scripts/lib/test-temp.js');
+    const { preflightGh } = await import(
+      '../.agents/scripts/lib/bootstrap/gh-preflight.js'
+    );
+    const project = makeTempDir('mandrel-preflight-gh-env-');
+    const store = path.join(project, 'gh-store');
+    fs.mkdirSync(store);
+    fs.writeFileSync(
+      path.join(project, '.agentrc.local.json'),
+      JSON.stringify({ github: { cliConfigDir: 'gh-store' } }),
+    );
+    const saved = {
+      anchor: process.env.AP_AGENTRC_CWD,
+      dir: process.env.GH_CONFIG_DIR,
+    };
+    process.env.AP_AGENTRC_CWD = project;
+    delete process.env.GH_CONFIG_DIR;
+    try {
+      const spawned = [];
+      const spawnImpl = (file, args, opts) => {
+        spawned.push({ file, args, env: opts.env });
+        return {
+          status: 0,
+          stdout: args[0] === '--version' ? 'gh version 2.60.0' : '',
+          stderr: '',
+        };
+      };
+      await preflightGh({ spawnImpl });
+      assert.deepEqual(
+        spawned.map((s) => s.args.join(' ')),
+        ['--version', 'auth status'],
+      );
+      for (const call of spawned) {
+        assert.equal(call.file, 'gh');
+        assert.equal(call.env.GH_CONFIG_DIR, store, call.args.join(' '));
+      }
+    } finally {
+      if (saved.anchor === undefined) delete process.env.AP_AGENTRC_CWD;
+      else process.env.AP_AGENTRC_CWD = saved.anchor;
+      if (saved.dir === undefined) delete process.env.GH_CONFIG_DIR;
+      else process.env.GH_CONFIG_DIR = saved.dir;
+      fs.rmSync(project, { recursive: true, force: true });
+    }
+  });
+});

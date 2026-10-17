@@ -8,8 +8,8 @@
  * @module lint-issue-body
  */
 
-import { spawnSync } from 'node:child_process';
 import { runAsCli } from './lib/cli-utils.js';
+import { runGh } from './lib/gh-exec.js';
 import { parse, StoryBodyParseError } from './lib/story-body/story-body.js';
 
 export const LINT_COMMENT_MARKER = '<!-- mandrel:issue-body-conformance -->';
@@ -142,7 +142,7 @@ export function renderConformanceComment(verdict) {
  * @returns {string}
  */
 function gh(args) {
-  const res = spawnSync('gh', args, { encoding: 'utf8' });
+  const res = runGh(args, { encoding: 'utf8' });
   if (res.status !== 0) {
     throw new Error(
       `gh ${args.join(' ')} failed (exit ${res.status}): ${res.stderr?.trim() ?? ''}`,

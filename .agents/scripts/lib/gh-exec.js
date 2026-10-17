@@ -3,7 +3,11 @@
  * shell, so argument injection is impossible by construction.
  */
 
-import { spawn as defaultSpawn } from 'node:child_process';
+import {
+  spawn as defaultSpawn,
+  spawnSync as defaultSpawnSync,
+} from 'node:child_process';
+import { ghEnv, tryGhEnv } from './gh-env.js';
 import {
   isTransportFailure,
   sandboxDenialCode,
@@ -12,6 +16,23 @@ import {
 } from './gh-transport.js';
 
 let _spawnCount = 0;
+
+/**
+ * `gh` through any `(file, args, opts)` runner, with the gh env ensured. A
+ * gh-env config error never throws: it returns a failed `spawnSync`-shaped
+ * result carrying it as `error`.
+ */
+export function runGh(args, opts = {}, runner = defaultSpawnSync) {
+  const { env, failure } = tryGhEnv(opts.env);
+  return failure ?? runner('gh', args, { ...opts, env });
+}
+
+/** `runGh` for a throwing runner (`execFileSync`): a config error throws too. */
+export function runGhOrThrow(args, opts, runner) {
+  const out = runGh(args, opts, runner);
+  if (out?.error) throw out.error;
+  return out;
+}
 
 /**
  * @returns {number}
@@ -243,10 +264,16 @@ export function exec({
     );
   }
 
+  let env;
+  try {
+    env = ghEnv();
+  } catch (err) {
+    return Promise.reject(err);
+  }
   const spawnOpts = {
     stdio: ['pipe', 'pipe', 'pipe'],
     shell: false,
-    env: process.env,
+    env,
   };
   if (typeof timeoutMs === 'number' && timeoutMs > 0) {
     spawnOpts.timeout = timeoutMs;

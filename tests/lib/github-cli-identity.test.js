@@ -5,17 +5,21 @@
  */
 
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
+import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { Volume } from 'memfs';
 import { applyGhConfigDir } from '../../.agents/scripts/lib/config/gh-config-dir.js';
+import { storeRoot } from '../../.agents/scripts/lib/config/git-roots.js';
 import {
   PROJECT_ROOT,
   resolveConfig,
 } from '../../.agents/scripts/lib/config-resolver.js';
 import { getAgentrcValidator } from '../../.agents/scripts/lib/config-schema.js';
 import { validate as validateGenerated } from '../../.agents/scripts/lib/generated/agentrc-validator.js';
+import { ensureGhEnv } from '../../.agents/scripts/lib/gh-env.js';
 import {
   classify,
   createGh,
@@ -23,7 +27,9 @@ import {
   exec,
   GhAuthError,
   probeGraphqlAvailability,
+  runGh,
 } from '../../.agents/scripts/lib/gh-exec.js';
+import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import {
   __setExecSyncForTests,
   readGhCliToken,
@@ -119,7 +125,7 @@ describe('AC-1 github.cliConfigDir → GH_CONFIG_DIR', () => {
     );
   });
 
-  it('config resolution sets GH_CONFIG_DIR from .agentrc.local.json, and every gh child inherits it', async () => {
+  it('resolveConfig never sets GH_CONFIG_DIR (#5740)', () => {
     const vol = new Volume();
     vol.mkdirSync(STORE, { recursive: true });
     vol.writeFileSync(
@@ -131,32 +137,32 @@ describe('AC-1 github.cliConfigDir → GH_CONFIG_DIR', () => {
       JSON.stringify({ github: { cliConfigDir: 'gh-store' } }),
     );
     resolveConfig({ cwd: FIXTURE_ROOT, ctx: { fs: vol } });
-    assert.equal(process.env.GH_CONFIG_DIR, STORE);
-
-    // gh-exec spawn env.
-    let spawnedEnv = null;
-    const spawnImpl = (_cmd, _args, opts) => {
-      spawnedEnv = opts.env;
-      const child = new EventEmitter();
-      child.stdout = new EventEmitter();
-      child.stderr = new EventEmitter();
-      child.stdin = { end() {} };
-      setImmediate(() => child.emit('close', 0, null));
-      return child;
-    };
-    await exec({ args: ['issue', 'list'], spawnImpl });
-    assert.equal(spawnedEnv.GH_CONFIG_DIR, STORE);
-
-    // `gh auth token` env.
-    let tokenEnv = null;
-    __setExecSyncForTests((_cmd, opts) => {
-      tokenEnv = opts.env;
-      return `${SENTINEL}\n`;
-    });
-    assert.equal(readGhCliToken().verdict, 'ok');
-    assert.equal(tokenEnv.GH_CONFIG_DIR, STORE);
+    assert.equal(process.env.GH_CONFIG_DIR, undefined);
   });
 
+  it('a relative cliConfigDir resolves against the main checkout even when the anchor root is a worktree', () => {
+    const worktree = path.join(FIXTURE_ROOT, '.worktrees', 'story-1');
+    const vol = new Volume();
+    vol.mkdirSync(STORE, { recursive: true });
+    vol.mkdirSync(worktree, { recursive: true });
+    vol.writeFileSync(
+      path.join(worktree, '.agentrc.json'),
+      JSON.stringify(BASE_CONFIG),
+    );
+    // The gitignored overlay lives only in the main checkout.
+    vol.writeFileSync(
+      path.join(FIXTURE_ROOT, '.agentrc.local.json'),
+      JSON.stringify({ github: { cliConfigDir: 'gh-store' } }),
+    );
+    // `--git-common-dir` from the worktree names the main checkout's `.git`.
+    const exec = (_file, args) =>
+      args[1] === '--show-toplevel'
+        ? `${worktree}\n`
+        : `${path.join(FIXTURE_ROOT, '.git')}\n`;
+    const env = {};
+    assert.equal(ensureGhEnv({ cwd: worktree, env, fsImpl: vol, exec }), STORE);
+    assert.equal(env.GH_CONFIG_DIR, STORE);
+  });
   it('a configured directory that does not exist is a config error', () => {
     const vol = new Volume();
     vol.mkdirSync(FIXTURE_ROOT, { recursive: true });
@@ -192,6 +198,80 @@ describe('AC-1 github.cliConfigDir → GH_CONFIG_DIR', () => {
   it('an absent key leaves the env untouched', () => {
     assert.equal(applyGhConfigDir({}, FIXTURE_ROOT), null);
     assert.equal(process.env.GH_CONFIG_DIR, undefined);
+  });
+});
+
+describe('#5740 the gh boundary owns GH_CONFIG_DIR', () => {
+  let project;
+  let savedAnchor;
+  beforeEach(() => {
+    project = makeTempDir('mandrel-gh-env-');
+    fs.mkdirSync(path.join(project, 'gh-store'));
+    fs.writeFileSync(
+      path.join(project, '.agentrc.local.json'),
+      JSON.stringify({ github: { cliConfigDir: 'gh-store' } }),
+    );
+    savedAnchor = process.env.AP_AGENTRC_CWD;
+    process.env.AP_AGENTRC_CWD = project;
+    delete process.env.GH_CONFIG_DIR;
+  });
+  afterEach(() => {
+    if (savedAnchor === undefined) delete process.env.AP_AGENTRC_CWD;
+    else process.env.AP_AGENTRC_CWD = savedAnchor;
+    fs.rmSync(project, { recursive: true, force: true });
+  });
+
+  it('the first gh spawn through exec() sets GH_CONFIG_DIR, and `gh auth token` inherits it', async () => {
+    const store = path.join(project, 'gh-store');
+    let spawnedEnv = null;
+    const spawnImpl = (_cmd, _args, opts) => {
+      spawnedEnv = opts.env;
+      const child = new EventEmitter();
+      child.stdout = new EventEmitter();
+      child.stderr = new EventEmitter();
+      child.stdin = { end() {} };
+      setImmediate(() => child.emit('close', 0, null));
+      return child;
+    };
+    assert.equal(process.env.GH_CONFIG_DIR, undefined);
+    await exec({ args: ['issue', 'list'], spawnImpl });
+    assert.equal(spawnedEnv.GH_CONFIG_DIR, store);
+    assert.equal(process.env.GH_CONFIG_DIR, store);
+
+    let tokenEnv = null;
+    __setExecSyncForTests((_file, _args, opts) => {
+      tokenEnv = opts.env;
+      return `${SENTINEL}\n`;
+    });
+    assert.equal(readGhCliToken().verdict, 'ok');
+    assert.equal(tokenEnv.GH_CONFIG_DIR, store);
+  });
+
+  it('runGh layers the ensured store over a caller-built env', () => {
+    const store = path.join(project, 'gh-store');
+    let seen = null;
+    runGh(
+      ['--version'],
+      { env: { GH_CONFIG_DIR: '/stale' } },
+      (file, args, opts) => {
+        seen = { file, args, env: opts.env };
+        return { status: 0 };
+      },
+    );
+    assert.deepEqual(seen.args, ['--version']);
+    assert.equal(seen.file, 'gh');
+    assert.equal(seen.env.GH_CONFIG_DIR, store);
+  });
+
+  it('a configured store that does not exist rejects exec() as a config error', async () => {
+    fs.rmSync(path.join(project, 'gh-store'), { recursive: true });
+    await assert.rejects(
+      exec({
+        args: ['issue', 'list'],
+        spawnImpl: () => assert.fail('spawned'),
+      }),
+      /github\.cliConfigDir points at .*not an existing directory/,
+    );
   });
 });
 
@@ -458,5 +538,127 @@ describe('AC-6 no token in any diagnostic', () => {
       assertNoToken(err.message);
       return true;
     });
+  });
+});
+
+describe('runGh reports a gh-env config error instead of throwing (#5740)', () => {
+  it('returns a failed spawnSync-shaped result and never spawns', () => {
+    const project = makeTempDir('mandrel-rungh-bad-');
+    fs.writeFileSync(
+      path.join(project, '.agentrc.local.json'),
+      JSON.stringify({ github: { cliConfigDir: 'missing-store' } }),
+    );
+    const saved = process.env.AP_AGENTRC_CWD;
+    process.env.AP_AGENTRC_CWD = project;
+    try {
+      const result = runGh(['--version'], {}, () => assert.fail('spawned'));
+      assert.equal(result.status, null);
+      assert.match(result.error.message, /not an existing directory/);
+      assert.match(result.stderr, /missing-store/);
+    } finally {
+      if (saved === undefined) delete process.env.AP_AGENTRC_CWD;
+      else process.env.AP_AGENTRC_CWD = saved;
+      fs.rmSync(project, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('storeRoot compares the work tree root canonically (#5740)', () => {
+  // git prints C:/Users/runneradmin/...; the root may be C:\\USERS\\... .
+  const exec = (_file, args) =>
+    args[1] === '--show-toplevel' ? 'C:/Repo/.worktrees/s1\n' : '/main/.git\n';
+
+  it("on win32 a backslashed, differently-cased root matches git's toplevel", () => {
+    assert.equal(storeRoot('c:\\REPO\\.worktrees\\s1', exec, 'win32'), '/main');
+  });
+
+  it('on posix the same spellings are different directories', () => {
+    const root = 'c:\\REPO\\.worktrees\\s1';
+    assert.equal(storeRoot(root, exec, 'linux'), root);
+  });
+});
+
+describe('the gh store root follows the project, not the enclosing repo (#5740)', () => {
+  const made = [];
+  afterEach(() => {
+    for (const dir of made.splice(0)) {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  const git = (cwd, ...args) =>
+    execFileSync(
+      'git',
+      ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args],
+      { cwd, stdio: 'pipe' },
+    );
+
+  it('a project nested in a larger repo resolves a relative store against itself', () => {
+    const mono = makeTempDir('mandrel-mono-');
+    made.push(mono);
+    git(mono, 'init', '-q');
+    const app = path.join(mono, 'app');
+    fs.mkdirSync(path.join(app, 'gh-store'), { recursive: true });
+    fs.writeFileSync(
+      path.join(app, '.agentrc.local.json'),
+      JSON.stringify({ github: { cliConfigDir: 'gh-store' } }),
+    );
+    const env = {};
+    assert.equal(ensureGhEnv({ cwd: app, env }), path.join(app, 'gh-store'));
+  });
+
+  it('a project that is a git submodule resolves a relative store against itself', () => {
+    const lib = makeTempDir('mandrel-sub-src-');
+    const sup = makeTempDir('mandrel-sub-super-');
+    made.push(lib, sup);
+    git(lib, 'init', '-q');
+    git(lib, 'commit', '-q', '--allow-empty', '-m', 'init');
+    git(sup, 'init', '-q');
+    git(
+      sup,
+      '-c',
+      'protocol.file.allow=always',
+      'submodule',
+      'add',
+      '-q',
+      lib,
+      'app',
+    );
+    const app = path.join(sup, 'app');
+    fs.mkdirSync(path.join(app, 'gh-store'));
+    fs.writeFileSync(
+      path.join(app, '.agentrc.local.json'),
+      JSON.stringify({ github: { cliConfigDir: 'gh-store' } }),
+    );
+    const dir = ensureGhEnv({ cwd: app, env: {} });
+    assert.equal(
+      fs.realpathSync.native(dir),
+      fs.realpathSync.native(path.join(app, 'gh-store')),
+    );
+  });
+
+  it('a linked worktree reached through a non-canonical path still finds the main checkout overlay and store', () => {
+    // makeTempDir is not realpath-ed: on macOS it sits under /var, git under /private/var.
+    const main = makeTempDir('mandrel-wt-main-');
+    made.push(main);
+    git(main, 'init', '-q');
+    fs.writeFileSync(
+      path.join(main, '.gitignore'),
+      '.agentrc.local.json\ngh-store\n',
+    );
+    git(main, 'add', '.');
+    git(main, 'commit', '-q', '-m', 'init');
+    fs.mkdirSync(path.join(main, 'gh-store'));
+    fs.writeFileSync(
+      path.join(main, '.agentrc.local.json'),
+      JSON.stringify({ github: { cliConfigDir: 'gh-store' } }),
+    );
+    const worktree = path.join(main, '.worktrees', 'story-1');
+    git(main, 'worktree', 'add', '-q', worktree);
+    const env = {};
+    const dir = ensureGhEnv({ cwd: worktree, env });
+    assert.equal(
+      fs.realpathSync.native(dir),
+      fs.realpathSync.native(path.join(main, 'gh-store')),
+    );
   });
 });

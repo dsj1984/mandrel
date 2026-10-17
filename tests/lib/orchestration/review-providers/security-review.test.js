@@ -15,6 +15,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { resolveAgentrcRoot } from '../../../../.agents/scripts/lib/config/git-roots.js';
+
 import {
   buildSecurityReviewPrompt,
   buildSecurityReviewUnavailableError,
@@ -229,4 +231,22 @@ test('runReview: rejects invalid input shapes with TypeError', async () => {
       }),
     TypeError,
   );
+});
+
+test('runReview: `claude --print` spawns with an explicit cwd = the reviewed checkout (#5740)', async () => {
+  const spawned = [];
+  const provider = createSecurityReviewProvider({
+    probeFn: () => true,
+    spawnFn: (file, _args, opts) => {
+      spawned.push({ file, cwd: opts.cwd });
+      return { status: 0, stdout: '[]', stderr: '' };
+    },
+  });
+  await provider.runReview({
+    scope: 'story',
+    ticketId: 5740,
+    baseRef: 'main',
+    headRef: 'story-5740',
+  });
+  assert.deepEqual(spawned, [{ file: 'claude', cwd: resolveAgentrcRoot() }]);
 });
