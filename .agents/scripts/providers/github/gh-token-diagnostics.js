@@ -1,6 +1,6 @@
 /** Classified `gh auth token` results; only a confirmed not-logged-in result says `gh auth login`. */
 
-import { runGh } from '../../lib/gh-exec.js';
+import { runGhOrThrow } from '../../lib/gh-exec.js';
 import {
   isTransportFailure,
   sandboxDenialCode,
@@ -67,7 +67,7 @@ function classifyGhTokenFailure(err) {
  */
 export function runGhAuthToken(execImpl) {
   try {
-    const out = runGh(
+    const out = runGhOrThrow(
       ['auth', 'token'],
       { encoding: 'utf8', timeout: 5000, stdio: ['pipe', 'pipe', 'pipe'] },
       execImpl,

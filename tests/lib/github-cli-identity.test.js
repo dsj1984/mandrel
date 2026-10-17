@@ -538,3 +538,25 @@ describe('AC-6 no token in any diagnostic', () => {
     });
   });
 });
+
+describe('runGh reports a gh-env config error instead of throwing (#5740)', () => {
+  it('returns a failed spawnSync-shaped result and never spawns', () => {
+    const project = makeTempDir('mandrel-rungh-bad-');
+    fs.writeFileSync(
+      path.join(project, '.agentrc.local.json'),
+      JSON.stringify({ github: { cliConfigDir: 'missing-store' } }),
+    );
+    const saved = process.env.AP_AGENTRC_CWD;
+    process.env.AP_AGENTRC_CWD = project;
+    try {
+      const result = runGh(['--version'], {}, () => assert.fail('spawned'));
+      assert.equal(result.status, null);
+      assert.match(result.error.message, /not an existing directory/);
+      assert.match(result.stderr, /missing-store/);
+    } finally {
+      if (saved === undefined) delete process.env.AP_AGENTRC_CWD;
+      else process.env.AP_AGENTRC_CWD = saved;
+      fs.rmSync(project, { recursive: true, force: true });
+    }
+  });
+});

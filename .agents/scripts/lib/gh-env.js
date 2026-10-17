@@ -49,8 +49,22 @@ export function ensureGhEnv(deps = {}) {
   return dir;
 }
 
-/** `base` with the ensured `GH_CONFIG_DIR` layered on. */
+/** `base` with the ensured `GH_CONFIG_DIR` layered on; throws a config error. */
 export function ghEnv(base = process.env) {
   const dir = ensureGhEnv();
   return dir ? { ...base, GH_CONFIG_DIR: dir } : base;
+}
+
+/**
+ * `{ env }` — `base` with the ensured `GH_CONFIG_DIR` — or, on a config
+ * error, `{ failure }`: a failed `spawnSync`-shaped result carrying it.
+ */
+export function tryGhEnv(base = process.env) {
+  try {
+    return { env: ghEnv(base) };
+  } catch (error) {
+    return {
+      failure: { status: null, stdout: '', stderr: error.message, error },
+    };
+  }
 }

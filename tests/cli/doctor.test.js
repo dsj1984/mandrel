@@ -860,3 +860,43 @@ describe('doctor gh checks run with the configured GH_CONFIG_DIR', () => {
     });
   }
 });
+
+describe('doctor gh checks report a gh-env config error as a result', () => {
+  let project;
+  let saved;
+  beforeEach(() => {
+    project = makeTempDir('mandrel-doctor-gh-env-bad-');
+    fs.writeFileSync(
+      path.join(project, '.agentrc.local.json'),
+      JSON.stringify({ github: { cliConfigDir: 'missing-store' } }),
+    );
+    saved = process.env.AP_AGENTRC_CWD;
+    process.env.AP_AGENTRC_CWD = project;
+  });
+  afterEach(() => {
+    if (saved === undefined) delete process.env.AP_AGENTRC_CWD;
+    else process.env.AP_AGENTRC_CWD = saved;
+    fs.rmSync(project, { recursive: true, force: true });
+  });
+
+  for (const name of ['gh-available', 'github-token', 'gh-auth']) {
+    it(`${name} returns ok:false naming the missing store, without spawning`, () => {
+      let spawned = false;
+      const result = registry
+        .find((c) => c.name === name)
+        .run({
+          runner: () => {
+            spawned = true;
+            return { status: 0, stdout: 'ok', stderr: '' };
+          },
+          env: {},
+        });
+      assert.equal(spawned, false);
+      assert.equal(result.ok, false);
+      assert.match(
+        result.detail,
+        /cliConfigDir|missing-store|not logged in|no GitHub token/,
+      );
+    });
+  }
+});

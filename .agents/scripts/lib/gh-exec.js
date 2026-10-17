@@ -7,7 +7,7 @@ import {
   spawn as defaultSpawn,
   spawnSync as defaultSpawnSync,
 } from 'node:child_process';
-import { ghEnv } from './gh-env.js';
+import { ghEnv, tryGhEnv } from './gh-env.js';
 import {
   isTransportFailure,
   sandboxDenialCode,
@@ -17,9 +17,21 @@ import {
 
 let _spawnCount = 0;
 
-/** `gh` through any `(file, args, opts)` runner, with the gh env ensured. */
+/**
+ * `gh` through any `(file, args, opts)` runner, with the gh env ensured. A
+ * gh-env config error never throws: it returns a failed `spawnSync`-shaped
+ * result carrying it as `error`.
+ */
 export function runGh(args, opts = {}, runner = defaultSpawnSync) {
-  return runner('gh', args, { ...opts, env: ghEnv(opts.env ?? process.env) });
+  const { env, failure } = tryGhEnv(opts.env);
+  return failure ?? runner('gh', args, { ...opts, env });
+}
+
+/** `runGh` for a throwing runner (`execFileSync`): a config error throws too. */
+export function runGhOrThrow(args, opts, runner) {
+  const out = runGh(args, opts, runner);
+  if (out?.error) throw out.error;
+  return out;
 }
 
 /**
