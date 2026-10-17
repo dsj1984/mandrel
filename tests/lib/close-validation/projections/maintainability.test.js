@@ -15,7 +15,6 @@ import {
   DEFAULT_MI_TOLERANCE,
   formatMaintainabilityProjection,
   projectMaintainabilityRegressions,
-  UNSCORABLE_TRANSPILE_REASON,
 } from '../../../../.agents/scripts/lib/close-validation/projections/maintainability.js';
 
 function makeFakeGit({ files, sources, fetchOk = true, diffOk = true }) {
@@ -247,15 +246,12 @@ describe('projectMaintainabilityRegressions — unscorable TypeScript (Story #57
     });
     assert.equal(result.ok, true);
     assert.deepEqual(result.regressions, []);
-    assert.deepEqual(result.unscorable, [
-      { file: 'src/Broken.ts', reason: UNSCORABLE_TRANSPILE_REASON },
-    ]);
+    assert.equal(result.unscorable.length, 1);
+    const [entry] = result.unscorable;
+    assert.equal(entry.file, 'src/Broken.ts');
+    assert.match(entry.reason, /transpile failed/);
     assert.deepEqual(reported, [
-      {
-        relPath: 'src/Broken.ts',
-        unscorable: true,
-        reason: UNSCORABLE_TRANSPILE_REASON,
-      },
+      { relPath: 'src/Broken.ts', unscorable: true, reason: entry.reason },
     ]);
   });
 

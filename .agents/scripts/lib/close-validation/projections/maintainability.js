@@ -18,7 +18,7 @@ import { MISSING_ARG_REASONS, validateProjectionInputs } from './inputs.js';
 /** Absorbs floating-point noise. */
 export const DEFAULT_MI_TOLERANCE = 0.001;
 
-export const UNSCORABLE_TRANSPILE_REASON =
+const UNSCORABLE_TRANSPILE_REASON =
   'transpile failed; no projected MI (lint and typecheck own the syntax error)';
 
 /**
