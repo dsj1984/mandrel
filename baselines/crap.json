@@ -14331,6 +14331,12 @@
     },
     {
       "path": ".agents/scripts/lib/config/git-roots.js",
+      "method": "cwdRoot",
+      "startLine": 57,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/config/git-roots.js",
       "method": "overlayRoot",
       "startLine": 60,
       "crap": 3
@@ -14351,6 +14357,12 @@
       "path": ".agents/scripts/lib/config/git-roots.js",
       "method": "checkoutOf",
       "startLine": 64,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/config/git-roots.js",
+      "method": "nearestConfig",
+      "startLine": 66,
       "crap": 4
     },
     {
