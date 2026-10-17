@@ -75,7 +75,6 @@ const ALLOWLIST = new Set([
   '.agents/scripts/lib/checks/state.js',
   '.agents/scripts/lib/close-validation/commands.js',
   '.agents/scripts/lib/close-validation/process.js',
-  '.agents/scripts/lib/dead-exports-knip.js',
   '.agents/scripts/lib/feedback-loop/graduator-gh.js',
   '.agents/scripts/lib/format-generated-json.js',
   '.agents/scripts/lib/gh-exec.js',
