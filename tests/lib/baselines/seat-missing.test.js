@@ -34,6 +34,10 @@ import {
 } from '../../../.agents/scripts/lib/coverage-capture.js';
 import { scanAndScore } from '../../../.agents/scripts/lib/crap-utils.js';
 import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
+import {
+  FOLDED_ARROW_SOURCE,
+  foldedArrowCoverageEntry,
+} from '../../fixtures/v8-folded-arrow.js';
 
 function tempDir() {
   return fs.realpathSync(makeTempDir('seat-missing-'));
@@ -661,5 +665,39 @@ describe('a changed .jsx file seats a CRAP row (Story #5738 AC-2)', () => {
       result.envelope.rows.some((r) => r.path === 'src/App.jsx'),
       'the .jsx row is written',
     );
+  });
+});
+
+describe('CRAP seat over a V8-folded module-scope arrow (Story #5755 AC-1)', () => {
+  function foldedRepo() {
+    const cwd = tempDir();
+    const abs = path.join(cwd, 'src', 'mod.js');
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.writeFileSync(abs, FOLDED_ARROW_SOURCE);
+    return { cwd, coverage: { [abs]: foldedArrowCoverageEntry(abs) } };
+  }
+
+  it('resolves every joinable method, so the scoped seat does not refuse', async () => {
+    const { cwd, coverage } = foldedRepo();
+    const summary = await scanAndScore({
+      targetDirs: ['src'],
+      coverage,
+      cwd,
+      scopeFiles: ['src/mod.js'],
+    });
+    assert.equal(summary.resolution.joinableMethods, 2);
+    assert.equal(summary.resolution.resolvedMethods, 2);
+    assert.equal(checkSeatResolution(summary.resolution, 'fix'), null);
+
+    const { writePath } = seedBaseline('crap', CRAP_PRIOR);
+    const result = await seatMissingBaseline({
+      kind: 'crap',
+      writePath,
+      baseRef: 'origin/main',
+      cwd,
+      gitDiff: async () => ['src/mod.js'],
+      score: async () => summary.rows,
+    });
+    assert.equal(result.seated, 2);
   });
 });

@@ -214,44 +214,68 @@ function getEntryIndex(entry) {
   return idx;
 }
 
-/**
- * Executed fraction of statements in the method's range (0 for an empty
- * range, `null` for no data). `startLine` MUST be in original-source
- * coordinates. The entry index is cached on the entry.
- *
- * @param {object|null} entry One inner value from a `coverage-final.json` map.
- * @param {number} startLine The method's start line, in entry coordinates.
- * @returns {number|null}
- */
-export function coverageForMethodInEntry(entry, startLine) {
-  if (!entry || typeof entry !== 'object') return null;
-  const idx = getEntryIndex(entry);
-  const range = resolveFnRangeForLine(idx, startLine);
-  if (!range) return null;
-  const { fnStart, fnEnd } = range;
-
+function statementCoverageOverLines(idx, fromLine, toLine) {
   let total = 0;
   let covered = 0;
-  for (let line = fnStart; line <= fnEnd; line += 1) {
+  for (let line = fromLine; line <= toLine; line += 1) {
     const bucket = idx.statementsByLine.get(line);
     if (!bucket) continue;
     total += bucket.total;
     covered += bucket.covered;
   }
+  return { total, covered };
+}
 
-  if (total === 0) return 0;
-  return covered / total;
+/**
+ * Executed fraction of statements in the method's range (0 for an empty
+ * range, `null` for no data). `startLine` MUST be in original-source
+ * coordinates. The entry index is cached on the entry.
+ *
+ * When no `fnMap` range resolves and `endLine` is given, falls back to the
+ * statements starting inside the method's own `[startLine, endLine]` span:
+ * V8 folds a function's range into its parent when both share an execution
+ * count, so a module-scope arrow run once at import has no `fnMap` entry.
+ * The span is bounded by the method's own lines, so it cannot claim an
+ * unrelated function's coverage. A span holding no statements is `null`.
+ *
+ * @param {object|null} entry One inner value from a `coverage-final.json` map.
+ * @param {number} startLine The method's start line, in entry coordinates.
+ * @param {number} [endLine] The method's end line, in entry coordinates.
+ * @returns {number|null}
+ */
+export function coverageForMethodInEntry(entry, startLine, endLine) {
+  if (!entry || typeof entry !== 'object') return null;
+  const idx = getEntryIndex(entry);
+  const range = resolveFnRangeForLine(idx, startLine);
+  if (range) {
+    const { total, covered } = statementCoverageOverLines(
+      idx,
+      range.fnStart,
+      range.fnEnd,
+    );
+    return total === 0 ? 0 : covered / total;
+  }
+  if (typeof startLine !== 'number' || typeof endLine !== 'number') {
+    return null;
+  }
+  const { total, covered } = statementCoverageOverLines(
+    idx,
+    startLine,
+    endLine,
+  );
+  return total === 0 ? null : covered / total;
 }
 
 /**
  * @param {object|null} map Parsed `coverage-final.json`.
  * @param {string} relPath Repo-relative path of the source file.
  * @param {number} startLine The method's start line, in entry coordinates.
+ * @param {number} [endLine] The method's end line, in entry coordinates.
  * @returns {number|null} Coverage in [0, 1], or null when the file or method
  *   is absent.
  */
-export function coverageByMethod(map, relPath, startLine) {
+export function coverageByMethod(map, relPath, startLine, endLine) {
   const entry = findFileEntry(map, relPath);
   if (!entry) return null;
-  return coverageForMethodInEntry(entry, startLine);
+  return coverageForMethodInEntry(entry, startLine, endLine);
 }

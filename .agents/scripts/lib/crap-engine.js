@@ -41,6 +41,21 @@ function resolveCoordinate(rawStartLine, mapLine) {
 }
 
 /**
+ * The method's end line in original coordinates, or `undefined` when it has
+ * none or does not map — the statement-span fallback then stays off.
+ *
+ * @param {unknown} rawEndLine escomplex's `lineEnd`.
+ * @param {((line: number) => number|null)|null} mapLine
+ * @returns {number|undefined}
+ */
+function resolveEndLine(rawEndLine, mapLine) {
+  if (typeof rawEndLine !== 'number') return undefined;
+  if (typeof mapLine !== 'function') return rawEndLine;
+  const mapped = mapLine(rawEndLine);
+  return typeof mapped === 'number' ? mapped : undefined;
+}
+
+/**
  * Raw per-method CRAP rows, shared by the CRAP-only and combined MI paths.
  * A row still in transpiled coordinates joins no coverage: a transpiled line
  * can land inside an unrelated function's `fnMap` range and mis-attribute it.
@@ -74,7 +89,11 @@ export function methodRowsFromReport(report, coverageForFile, mapLine = null) {
     const cyclomatic = m?.cyclomatic ?? 0;
     const coverage =
       coverageForFile && coordinateSystem === COORDINATE_ORIGINAL
-        ? coverageForMethodInEntry(coverageForFile, startLine)
+        ? coverageForMethodInEntry(
+            coverageForFile,
+            startLine,
+            resolveEndLine(m?.lineEnd, mapLine),
+          )
         : null;
     const crap = coverage === null ? null : crapFormula(cyclomatic, coverage);
     rows.push({
