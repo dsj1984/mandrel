@@ -41,10 +41,9 @@ function resolveCoordinate(rawStartLine, mapLine) {
 }
 
 /**
- * The method's end line in original coordinates, or `undefined` when it has
- * none or does not map — the statement-span fallback then stays off.
+ * `undefined` when unmapped, which keeps the statement-span fallback off.
  *
- * @param {unknown} rawEndLine escomplex's `lineEnd`.
+ * @param {unknown} rawEndLine
  * @param {((line: number) => number|null)|null} mapLine
  * @returns {number|undefined}
  */

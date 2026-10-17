@@ -8,8 +8,7 @@ import { mergeRowsByScope } from '../scope.js';
  * (default; never a regression) or is classified against a `'perfect'` base.
  * `removedRowPolicy`: a base row with no head row is classified against a
  * perfect head, or is an improvement when `when(baseRow)` holds.
- * `epsilonAxes`: the axes `applyEpsilon` measures drift on (default `axes`),
- * for a kind whose regression axis differs from its noise axis.
+ * `epsilonAxes`: the axes `applyEpsilon` measures (default `axes`).
  *
  * @param {{
  *   keyField: string,

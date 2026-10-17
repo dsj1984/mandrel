@@ -18,15 +18,13 @@ import { MISSING_ARG_REASONS, validateProjectionInputs } from './inputs.js';
 /** Absorbs floating-point noise. */
 export const DEFAULT_MI_TOLERANCE = 0.001;
 
-/** Why a changed file has no projected score: `scoreSource` returned `null`. */
 export const UNSCORABLE_TRANSPILE_REASON =
   'transpile failed; no projected MI (lint and typecheck own the syntax error)';
 
 /**
  * TS is transpiled first, as the baseline scanner does, so a `.tsx` projects
  * the score its baseline row holds. `null` when the transpile fails: no
- * projection beats a phantom 0-score regression, and the file is reported
- * unscorable rather than dropped.
+ * projection beats a phantom 0-score regression.
  *
  * @param {string} source
  * @param {string} absPath  Used only to pick the transpile mode and compiler.
@@ -87,8 +85,7 @@ function diffChangedFiles({ cwd, baseBranch, storyBranch, git }) {
 }
 
 /**
- * `null` when deleted on the story branch or within tolerance; a
- * `{ file, reason }` unscorable entry when the head source could not be scored.
+ * `null` when deleted on the story branch or within tolerance.
  *
  * @param {{
  *   cwd: string,
@@ -99,9 +96,7 @@ function diffChangedFiles({ cwd, baseBranch, storyBranch, git }) {
  *   git: { gitSpawn: typeof defaultGitSpawn },
  *   scoreSource: (source: string, absPath: string) => number | null,
  * }} opts
- * @returns {{ file: string, projected: number, baseline: number, drop: number }
- *   | { file: string, reason: string }
- *   | null}
+ * @returns {{ file: string, projected?: number, reason?: string } | null}
  */
 function scoreFile({
   cwd,
@@ -135,10 +130,7 @@ function scoreFile({
  *   git: { gitSpawn: typeof defaultGitSpawn },
  *   scoreSource: (source: string, absPath: string) => number | null,
  * }} opts
- * @returns {{
- *   regressions: Array<{ file: string, projected: number, baseline: number, drop: number }>,
- *   unscorable: Array<{ file: string, reason: string }>,
- * }}
+ * @returns {{ regressions: object[], unscorable: object[] }}
  */
 function collectRegressions({
   cwd,
@@ -169,7 +161,6 @@ function collectRegressions({
   return { regressions, unscorable };
 }
 
-/** @param {{ file: string, reason: string }} entry */
 function toUnscorableEntry({ file, reason }) {
   return { relPath: file, unscorable: true, reason };
 }
@@ -177,9 +168,8 @@ function toUnscorableEntry({ file, reason }) {
 /**
  * Scores each changed file's content at the Story branch tip (exact for a
  * clean merge). Never throws; failures resolve to
- * `{ ok: true, regressions: [], skipped }`. A file whose head source cannot
- * be scored lands in `unscorable` and is logged through `report` — not a
- * regression, never silently dropped.
+ * `{ ok: true, regressions: [], skipped }`. An unscorable file is reported,
+ * never a regression.
  *
  * @param {{
  *   cwd: string,
@@ -195,7 +185,7 @@ function toUnscorableEntry({ file, reason }) {
  * @returns {{
  *   ok: boolean,
  *   regressions: Array<{ file: string, projected: number, baseline: number, drop: number }>,
- *   unscorable?: Array<{ file: string, reason: string }>,
+ *   unscorable?: object[],
  *   skipped?: string,
  *   detail?: string,
  * }}

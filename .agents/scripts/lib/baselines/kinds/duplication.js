@@ -2,11 +2,7 @@
  * Per-kind module for the duplication baseline (jscpd). Row shape:
  * `{ path, duplicatedLines, totalLines, percentage }`; lower is better. Bump
  * the static kernel version when the row shape or rollup math changes.
- *
- * Per-file regressions compare absolute `duplicatedLines`: a ratio penalises
- * deleting code around an unchanged clone and rewards padding a file.
- * `percentage` stays the epsilon (noise) axis, the floor metric and the
- * rollup.
+ * Regressions compare `duplicatedLines`; a ratio moves with the file's size.
  */
 
 import { canonicalise } from '../path-canon.js';

@@ -231,16 +231,12 @@ function statementCoverageOverLines(idx, fromLine, toLine) {
  * range, `null` for no data). `startLine` MUST be in original-source
  * coordinates. The entry index is cached on the entry.
  *
- * When no `fnMap` range resolves and `endLine` is given, falls back to the
- * statements starting inside the method's own `[startLine, endLine]` span:
- * V8 folds a function's range into its parent when both share an execution
- * count, so a module-scope arrow run once at import has no `fnMap` entry.
- * The span is bounded by the method's own lines, so it cannot claim an
- * unrelated function's coverage. A span holding no statements is `null`.
+ * No `fnMap` range (V8 folds a callback into its parent) falls back to the
+ * statements on `[startLine, endLine]`; an empty span is `null`.
  *
  * @param {object|null} entry One inner value from a `coverage-final.json` map.
  * @param {number} startLine The method's start line, in entry coordinates.
- * @param {number} [endLine] The method's end line, in entry coordinates.
+ * @param {number} [endLine]
  * @returns {number|null}
  */
 export function coverageForMethodInEntry(entry, startLine, endLine) {
@@ -270,7 +266,7 @@ export function coverageForMethodInEntry(entry, startLine, endLine) {
  * @param {object|null} map Parsed `coverage-final.json`.
  * @param {string} relPath Repo-relative path of the source file.
  * @param {number} startLine The method's start line, in entry coordinates.
- * @param {number} [endLine] The method's end line, in entry coordinates.
+ * @param {number} [endLine]
  * @returns {number|null} Coverage in [0, 1], or null when the file or method
  *   is absent.
  */
