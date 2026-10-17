@@ -232,6 +232,29 @@ process.stdout.write(JSON.stringify({ source: c.source, baseBranch: c.project.ba
     assert.equal(got.source, path.join(worktree, '.agentrc.json'));
   });
 
+  it('a linked worktree without the gitignored overlay takes the main checkout overlay', () => {
+    const main = treeWith('committed-base');
+    made.push(main);
+    const git = (...args) =>
+      execFileSync(
+        'git',
+        ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args],
+        { cwd: main, stdio: 'pipe' },
+      );
+    writeFileSync(path.join(main, '.gitignore'), '.agentrc.local.json\n');
+    git('add', '.');
+    git('commit', '-q', '-m', 'init');
+    writeFileSync(
+      path.join(main, '.agentrc.local.json'),
+      JSON.stringify({ project: { baseBranch: 'local-base' } }),
+    );
+    const worktree = path.join(main, '.worktrees', 'story-1');
+    git('worktree', 'add', '-q', worktree);
+    const got = resolvedIn(worktree, envWithout());
+    assert.equal(got.baseBranch, 'local-base');
+    assert.match(got.source, /overrides .*story-1/);
+  });
+
   it('AC-1: an explicit AP_AGENTRC_CWD still overrides the cwd tree', () => {
     const worktree = treeWith('worktree-base');
     const other = treeWith('override-base');

@@ -12,7 +12,7 @@ import {
 } from './config/agentrc-overlay.js';
 import { getCiDelivery } from './config/ci.js';
 import { getCommands } from './config/commands.js';
-import { resolveAgentrcRoot } from './config/git-roots.js';
+import { overlayRoot, resolveAgentrcRoot } from './config/git-roots.js';
 import { getGitHub } from './config/github.js';
 import { resolvePaths } from './config/paths.js';
 import { validateOrchestrationConfig } from './config/validate-orchestration.js';
@@ -146,7 +146,10 @@ function applyDefaults(raw) {
  */
 function readRawConfig(fsImpl, root) {
   const agentrcPath = path.join(root, '.agentrc.json');
-  const localPath = path.join(root, '.agentrc.local.json');
+  const localPath = path.join(
+    overlayRoot(root, { fsImpl }),
+    '.agentrc.local.json',
+  );
   const hasAgentrc = fsImpl.existsSync(agentrcPath);
   const hasLocal = fsImpl.existsSync(localPath);
   if (!hasAgentrc) {

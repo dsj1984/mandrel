@@ -630,6 +630,8 @@ in. The root resolves in this order:
    config with no env plumbing;
 4. the Mandrel install root, outside any git work tree.
 
+A worktree with no `.agentrc.local.json` of its own takes the main
+checkout's (the gitignored overlay is not copied by `git worktree add`).
 `tempRoot` stays anchored on the main checkout either way.
 
 **Identity check.** With a real `github.operatorHandle` and a `gh`-store

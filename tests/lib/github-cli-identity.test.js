@@ -147,8 +147,9 @@ describe('AC-1 github.cliConfigDir → GH_CONFIG_DIR', () => {
       path.join(worktree, '.agentrc.json'),
       JSON.stringify(BASE_CONFIG),
     );
+    // The gitignored overlay lives only in the main checkout.
     vol.writeFileSync(
-      path.join(worktree, '.agentrc.local.json'),
+      path.join(FIXTURE_ROOT, '.agentrc.local.json'),
       JSON.stringify({ github: { cliConfigDir: 'gh-store' } }),
     );
     // `--git-common-dir` from the worktree names the main checkout's `.git`.

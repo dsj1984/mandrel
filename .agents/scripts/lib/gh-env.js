@@ -7,7 +7,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { applyLocalOverlay } from './config/agentrc-overlay.js';
 import { applyGhConfigDir } from './config/gh-config-dir.js';
-import { mainCheckoutRoot, resolveAgentrcRoot } from './config/git-roots.js';
+import {
+  mainCheckoutRoot,
+  overlayRoot,
+  resolveAgentrcRoot,
+} from './config/git-roots.js';
 
 /** Applied dir (or null) per anchor root. */
 const _ensuredByRoot = new Map();
@@ -30,22 +34,17 @@ function readCommittedAgentrc(fsImpl, root) {
  * @returns {string|null} the applied dir.
  */
 export function ensureGhEnv(deps = {}) {
-  const { cwd, env = process.env, fsImpl = fs, exec, homedir, warn } = deps;
+  const { cwd, env = process.env, fsImpl = fs, exec } = deps;
   const memoize = env === process.env && fsImpl === fs && !exec;
   const root = resolveAgentrcRoot({ cwd, env, exec });
   if (memoize && _ensuredByRoot.has(root)) return _ensuredByRoot.get(root);
   const { effective } = applyLocalOverlay({
     fsImpl,
-    projectRoot: root,
+    projectRoot: overlayRoot(root, { exec, fsImpl }),
     committed: readCommittedAgentrc(fsImpl, root),
   });
   const storeRoot = mainCheckoutRoot(root, { exec }) ?? root;
-  const dir = applyGhConfigDir(effective?.github, storeRoot, {
-    env,
-    fsImpl,
-    homedir,
-    warn,
-  });
+  const dir = applyGhConfigDir(effective?.github, storeRoot, { env, fsImpl });
   if (memoize) _ensuredByRoot.set(root, dir);
   return dir;
 }

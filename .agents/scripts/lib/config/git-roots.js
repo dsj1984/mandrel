@@ -1,5 +1,6 @@
 /** Git-derived roots; Node builtins only, since doctor imports it. */
 
+import fs from 'node:fs';
 import path from 'node:path';
 
 import { execFileCapture } from '../child-exec.js';
@@ -58,6 +59,16 @@ export function resolveAgentrcRoot({
   if (cwd) return path.resolve(cwd);
   if (env.AP_AGENTRC_CWD) return path.resolve(env.AP_AGENTRC_CWD);
   return path.resolve(gitToplevel(processCwd(), { exec }) ?? PROJECT_ROOT);
+}
+
+/**
+ * The dir whose `.agentrc.local.json` overlays `root`: `root` when it has
+ * one, else the main checkout — a gitignored overlay is not copied into a
+ * plain `git worktree add`.
+ */
+export function overlayRoot(root, { exec, fsImpl = fs } = {}) {
+  if (fsImpl.existsSync(path.join(root, '.agentrc.local.json'))) return root;
+  return mainCheckoutRoot(root, { exec }) ?? root;
 }
 
 /** Test-only. */
