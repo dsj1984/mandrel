@@ -30,6 +30,7 @@ import {
   isIgnoredByGlobs as isIgnoredByGlobsMi,
   scanDirectory as scanDirectoryMi,
 } from '../maintainability-utils.js';
+import { isScorableSourceFile } from '../source-extensions.js';
 import { buildBundleSizeScorer } from './bundle-size-scorer.js';
 import { resolveDetectClones, scanDuplication } from './duplication-scanner.js';
 import { getKindModule } from './kernel.js';
@@ -56,12 +57,13 @@ const SUPPORTED_KINDS = Object.freeze([
  * @type {Record<string, (p: string) => boolean>}
  */
 const KIND_FILE_PREDICATES = Object.freeze({
-  maintainability: (p) => /\.(?:m?[jt]sx?)$/i.test(p),
-  crap: (p) => /\.(?:m?[jt]sx?)$/i.test(p),
-  coverage: (p) => /\.(?:m?[jt]sx?)$/i.test(p),
-  // Over-inclusive is inert for JS-only jscpd; under-inclusive would pin a
-  // changed file's prior row.
-  duplication: (p) => /\.(?:m?[jt]sx?)$/i.test(p),
+  // The scanner walks exactly this set, so a scoped file it never scores
+  // cannot trip the "produced no baseline rows" refusal.
+  maintainability: isScorableSourceFile,
+  crap: isScorableSourceFile,
+  coverage: isScorableSourceFile,
+  // jscpd's formats derive from the same set, so the scope matches the scan.
+  duplication: isScorableSourceFile,
   // Bundle names are not paths: no changed file scopes a bundle row.
   'bundle-size': () => false,
 });
@@ -649,17 +651,11 @@ function buildDefaultDuplicationScorer({ cwd, config, quality, detect } = {}) {
   const ignoreGlobs = Array.isArray(dupCfg.ignoreGlobs)
     ? dupCfg.ignoreGlobs
     : [];
-  // Absent or empty falls through to the scanner's own default.
-  const formats =
-    Array.isArray(dupCfg.formats) && dupCfg.formats.length > 0
-      ? dupCfg.formats
-      : undefined;
   return async (_files, opts) => {
     const effectiveCwd = opts?.cwd ?? cwd ?? process.cwd();
     return scanDuplication({
       targetDirs,
       cwd: effectiveCwd,
-      formats,
       ignoreGlobs,
       detect: detect ?? resolveDetectClones(),
     });

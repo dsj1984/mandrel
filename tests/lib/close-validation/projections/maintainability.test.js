@@ -164,3 +164,58 @@ describe('formatMaintainabilityProjection — submodule', () => {
     assert.match(text, /baseline-refresh:/);
   });
 });
+
+/**
+ * Story #5738 — the projection used to filter to `.js`/`.mjs`, so a TypeScript
+ * file never entered it. A `.tsx` now projects through the default scorer the
+ * same transpile-then-score path its baseline row was written by.
+ */
+describe('projectMaintainabilityRegressions — TypeScript (Story #5738 AC-3)', () => {
+  const TSX = [
+    'interface Props { name: string; count: number }',
+    'export function Greeting({ name, count }: Props) {',
+    '  if (count > 0) return <b>{name}</b>;',
+    '  return <i>{name}</i>;',
+    '}',
+    '',
+  ].join('\n');
+
+  async function baselineScore() {
+    const path = await import('node:path');
+    const { calculateForSource } = await import(
+      '../../../../.agents/scripts/lib/maintainability-engine.js'
+    );
+    const { transpileIfNeeded } = await import(
+      '../../../../.agents/scripts/lib/transpile.js'
+    );
+    return calculateForSource(
+      transpileIfNeeded(path.join('/repo', 'src/Greeting.tsx'), TSX),
+    );
+  }
+
+  function project(baseline) {
+    return projectMaintainabilityRegressions({
+      ...baseOpts,
+      git: makeFakeGit({
+        files: ['src/Greeting.tsx'],
+        sources: { 'src/Greeting.tsx': TSX },
+      }),
+      loadBaseline: () => ({ 'src/Greeting.tsx': baseline }),
+    });
+  }
+
+  it('a .tsx at its baseline score projects clean', async () => {
+    const score = await baselineScore();
+    assert.ok(score > 0, 'fixture must be scorable');
+    assert.deepEqual(project(score), { ok: true, regressions: [] });
+  });
+
+  it('a .tsx below its baseline is named with the transpiled score', async () => {
+    const score = await baselineScore();
+    const result = project(score + 5);
+    assert.equal(result.ok, false);
+    assert.equal(result.regressions.length, 1);
+    assert.equal(result.regressions[0].file, 'src/Greeting.tsx');
+    assert.ok(Math.abs(result.regressions[0].projected - score) < 1e-9);
+  });
+});

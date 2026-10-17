@@ -4,15 +4,32 @@
  * per-file baseline so a `baseline-refresh:` commit can ship with the PR.
  */
 
+import path from 'node:path';
 import { getBaseline } from '../../baselines/maintainability-baseline-io.js';
 import { diffNameOnly } from '../../changed-files.js';
 import { cachedGitFetchSync } from '../../git/cached-fetch.js';
 import { gitSpawn as defaultGitSpawn } from '../../git-utils.js';
 import { calculateForSource } from '../../maintainability-engine.js';
+import { isScorableSourceFile } from '../../source-extensions.js';
+import { transpileForReport } from '../../transpile.js';
 import { MISSING_ARG_REASONS, validateProjectionInputs } from './inputs.js';
 
 /** Absorbs floating-point noise. */
 export const DEFAULT_MI_TOLERANCE = 0.001;
+
+/**
+ * TS is transpiled first, as the baseline scanner does, so a `.tsx` projects
+ * the score its baseline row holds. `null` when the transpile fails: no
+ * projection beats a phantom 0-score regression.
+ *
+ * @param {string} source
+ * @param {string} absPath  Used only to pick the transpile mode and compiler.
+ * @returns {number | null}
+ */
+function scoreHeadSource(source, absPath) {
+  const prepared = transpileForReport(absPath, source);
+  return prepared === null ? null : calculateForSource(prepared);
+}
 
 /**
  * Collapse `missing-*` to the public `missing-args` reason.
@@ -64,7 +81,7 @@ function diffChangedFiles({ cwd, baseBranch, storyBranch, git }) {
 }
 
 /**
- * `null` when deleted on the story branch or within tolerance.
+ * `null` when deleted on the story branch, unscorable, or within tolerance.
  *
  * @param {{
  *   cwd: string,
@@ -73,7 +90,7 @@ function diffChangedFiles({ cwd, baseBranch, storyBranch, git }) {
  *   baselineScore: number,
  *   tolerance: number,
  *   git: { gitSpawn: typeof defaultGitSpawn },
- *   scoreSource: (source: string) => number,
+ *   scoreSource: (source: string, absPath: string) => number | null,
  * }} opts
  * @returns {{ file: string, projected: number, baseline: number, drop: number } | null}
  */
@@ -88,8 +105,10 @@ function scoreFile({
 }) {
   const show = git.gitSpawn(cwd, 'show', `${storyBranch}:${file}`);
   if (show.status !== 0) return null; // deleted/renamed on the story branch
-  const projected = scoreSource(show.stdout || '');
-  if (projected >= baselineScore - tolerance) return null;
+  const projected = scoreSource(show.stdout || '', path.join(cwd, file));
+  if (projected === null || projected >= baselineScore - tolerance) {
+    return null;
+  }
   return {
     file,
     projected,
@@ -106,7 +125,7 @@ function scoreFile({
  *   baseline: Record<string, number>,
  *   tolerance: number,
  *   git: { gitSpawn: typeof defaultGitSpawn },
- *   scoreSource: (source: string) => number,
+ *   scoreSource: (source: string, absPath: string) => number | null,
  * }} opts
  * @returns {Array<{ file: string, projected: number, baseline: number, drop: number }>}
  */
@@ -121,7 +140,7 @@ function collectRegressions({
 }) {
   const regressions = [];
   for (const file of files) {
-    if (!file.endsWith('.js') && !file.endsWith('.mjs')) continue;
+    if (!isScorableSourceFile(file)) continue;
     const baselineScore = baseline[file];
     if (typeof baselineScore !== 'number') continue;
     const reg = scoreFile({
@@ -150,7 +169,7 @@ function collectRegressions({
  *   baselinePath: string,
  *   tolerance?: number,
  *   git?: { gitSpawn: typeof defaultGitSpawn },
- *   scoreSource?: (source: string) => number,
+ *   scoreSource?: (source: string, absPath: string) => number | null,
  *   loadBaseline?: (path: string) => Record<string, number>,
  * }} opts
  * @returns {{
@@ -167,7 +186,7 @@ export function projectMaintainabilityRegressions({
   baselinePath,
   tolerance = DEFAULT_MI_TOLERANCE,
   git = { gitSpawn: defaultGitSpawn },
-  scoreSource = calculateForSource,
+  scoreSource = scoreHeadSource,
   loadBaseline = getBaseline,
 } = {}) {
   const validation = validateProjectionInputs(

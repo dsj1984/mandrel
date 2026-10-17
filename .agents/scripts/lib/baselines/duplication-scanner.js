@@ -6,15 +6,11 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { resolveDependencyVersion } from '../dependency-version.js';
+import { jscpdFormatsFor } from '../source-extensions.js';
 
 const DEFAULT_MIN_TOKENS = 50;
-/** Mirrors the `gates.duplication.formats` schema default. */
-const DEFAULT_FORMATS = Object.freeze([
-  'javascript',
-  'jsx',
-  'typescript',
-  'tsx',
-]);
+/** Derived from the scorable-extension SSOT; deliberately not configurable. */
+const SCAN_FORMATS = Object.freeze(jscpdFormatsFor());
 
 const require = createRequire(import.meta.url);
 
@@ -220,7 +216,6 @@ function anchorIgnoreGlobs(ignoreGlobs, cwd) {
  *   targetDirs: string[],
  *   cwd?: string,
  *   minTokens?: number,
- *   formats?: string[],
  *   ignoreGlobs?: string[],
  *   detect: (opts: object) => Promise<Array<object>>,
  *   readLineCount?: (absPath: string) => number,
@@ -231,7 +226,6 @@ export async function scanDuplication({
   targetDirs,
   cwd = process.cwd(),
   minTokens = DEFAULT_MIN_TOKENS,
-  formats = DEFAULT_FORMATS,
   ignoreGlobs = [],
   detect,
   readLineCount: readLineCountFn = readLineCount,
@@ -246,7 +240,7 @@ export async function scanDuplication({
     silent: true,
     gitignore: false,
     reporters: [],
-    format: formats,
+    format: [...SCAN_FORMATS],
     minTokens,
     ignore: anchorIgnoreGlobs(ignoreGlobs, cwd),
   });

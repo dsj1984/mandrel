@@ -807,25 +807,19 @@ describe('delivery.quality.* shape — uniform gates (Story #1737)', () => {
     );
   });
 
-  // Story #5605 — `formats` validates through the full runtime chain, so a
-  // consumer who sets it is not rejected at config load.
-  describe('gates.duplication.formats (Story #5605)', () => {
-    const withFormats = (formats) => ({
-      ...REQ,
-      delivery: { quality: { gates: { duplication: { formats } } } },
-    });
-
-    it('accepts a populated list of jscpd format names', () => {
-      assert.equal(validate(withFormats(['typescript', 'tsx'])), true);
-    });
-
-    it('rejects an empty list', () => {
-      expectErrors(withFormats([]), /must NOT have fewer than 1 items/);
-    });
-
-    it('rejects an empty format name', () => {
-      expectErrors(withFormats(['']), /must NOT have fewer than 1 characters/);
-    });
+  // Story #5738 — the jscpd formats derive from the scorable-extension list,
+  // so `formats` (added by Story #5605) is retired; the 2.91.0 migration
+  // strips it from a consumer config before validation sees it.
+  it('rejects the retired gates.duplication.formats key', () => {
+    expectErrors(
+      {
+        ...REQ,
+        delivery: {
+          quality: { gates: { duplication: { formats: ['typescript'] } } },
+        },
+      },
+      /additional properties/,
+    );
   });
 
   // Story #4981 (AC-6) — the new opt-in key validates through the FULL

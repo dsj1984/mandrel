@@ -9,7 +9,6 @@
  * @typedef {import('./types.js').ReviewProvider} ReviewProvider
  */
 
-import path from 'node:path';
 import { POOL_SERIAL_THRESHOLD, runOnPool } from '../../cpu-pool.js';
 import { gitSpawn } from '../../git-utils.js';
 import {
@@ -17,6 +16,7 @@ import {
   classifyReport,
 } from '../../maintainability-engine.js';
 import { PROJECT_ROOT } from '../../project-root.js';
+import { isScorableSourceFile } from '../../source-extensions.js';
 import { transpileForReport } from '../../transpile.js';
 import {
   resolveMaintainabilityIgnoreGlobs,
@@ -28,10 +28,8 @@ const MAINTAINABILITY_REPORT_WORKER_URL = new URL(
   import.meta.url,
 );
 
-/** Below this JS-file count scoring runs in-process; at or above, on the worker pool. */
+/** Below this scorable-file count scoring runs in-process; at or above, on the worker pool. */
 export const SERIAL_THRESHOLD = POOL_SERIAL_THRESHOLD;
-
-const JS_MAINTAINABILITY_EXTS = new Set(['.js', '.mjs', '.cjs']);
 
 /**
  * Read the file at `headRef`, never from disk: close runs from the main
@@ -142,10 +140,6 @@ function accumulateClassified(results, classified) {
   if (mediumFinding) results.mediumFindings.push(mediumFinding);
 }
 
-function isJsMaintainabilityFile(relPath) {
-  return JS_MAINTAINABILITY_EXTS.has(path.extname(relPath));
-}
-
 /**
  * Pooled at or above `serialThreshold`. An injected `reportFn` forces the
  * serial path (a closure cannot cross the worker boundary).
@@ -174,11 +168,11 @@ export async function analyzeChangedFiles(
     mediumFindings: [],
   };
 
-  const jsFiles = changedFiles.filter(isJsMaintainabilityFile);
-  results.jsFiles = jsFiles.length;
-  if (jsFiles.length === 0) return results;
+  const scorableFiles = changedFiles.filter(isScorableSourceFile);
+  results.jsFiles = scorableFiles.length;
+  if (scorableFiles.length === 0) return results;
 
-  const sources = jsFiles.map((relPath) =>
+  const sources = scorableFiles.map((relPath) =>
     headRef == null ? '' : readHeadSourceFn(relPath, headRef, gitSpawnFn),
   );
 
@@ -186,9 +180,9 @@ export async function analyzeChangedFiles(
     reportFn ?? ((source, relPath) => scoreSourceReport(source, relPath));
   const customReportFn = reportFn != null;
 
-  if (jsFiles.length < serialThreshold || customReportFn) {
-    for (let i = 0; i < jsFiles.length; i += 1) {
-      const relPath = jsFiles[i];
+  if (scorableFiles.length < serialThreshold || customReportFn) {
+    for (let i = 0; i < scorableFiles.length; i += 1) {
+      const relPath = scorableFiles[i];
       const source = sources[i];
       if (source == null) continue;
       accumulateClassified(
@@ -204,10 +198,10 @@ export async function analyzeChangedFiles(
 
   // Send head content (not a disk path) so the worker scores what the serial path does.
   const poolItems = [];
-  const poolIndex = []; // poolItems[k] corresponds to jsFiles[poolIndex[k]]
-  for (let i = 0; i < jsFiles.length; i += 1) {
+  const poolIndex = []; // poolItems[k] corresponds to scorableFiles[poolIndex[k]]
+  for (let i = 0; i < scorableFiles.length; i += 1) {
     if (sources[i] == null) continue;
-    poolItems.push({ source: sources[i], label: jsFiles[i] });
+    poolItems.push({ source: sources[i], label: scorableFiles[i] });
     poolIndex.push(i);
   }
   if (poolItems.length === 0) return results;
@@ -217,7 +211,7 @@ export async function analyzeChangedFiles(
     poolItems,
   );
   for (let k = 0; k < poolIndex.length; k += 1) {
-    const relPath = jsFiles[poolIndex[k]];
+    const relPath = scorableFiles[poolIndex[k]];
     const poolEntry = poolResults[k];
     // A pool error or null report drops the file, as a serial throw does.
     if (!poolEntry || poolEntry.__cpuPoolError || poolEntry.report == null) {

@@ -262,9 +262,12 @@ describe('deriveScopeFromDiff — direct invocation', () => {
 });
 
 describe('fileFilterFor — per-kind predicate registry', () => {
-  it('accepts .js / .ts / .mjs / .tsx for the JS-family kinds', () => {
-    for (const kind of ['maintainability', 'crap', 'coverage']) {
+  it('accepts every scorable extension for the JS-family kinds', () => {
+    for (const kind of ['maintainability', 'crap', 'coverage', 'duplication']) {
       const pred = fileFilterFor(kind);
+      assert.equal(pred('src/a.jsx'), true);
+      assert.equal(pred('src/a.cjs'), true);
+      assert.equal(pred('src/a.cts'), true);
       assert.equal(pred('src/a.js'), true);
       assert.equal(pred('src/a.ts'), true);
       assert.equal(pred('src/a.mjs'), true);
