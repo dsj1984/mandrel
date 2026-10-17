@@ -18458,319 +18458,319 @@
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "runGh",
-      "startLine": 21,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/gh-exec.js",
-      "method": "getSpawnCount",
-      "startLine": 28,
+      "startLine": 23,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "runGhOrThrow",
-      "startLine": 31,
+      "startLine": 29,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
+      "method": "getSpawnCount",
+      "startLine": 38,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/gh-exec.js",
       "method": "resetSpawnCount",
-      "startLine": 32,
+      "startLine": 42,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "describeGhFailure",
-      "startLine": 117,
+      "startLine": 127,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon describeGhFailure/(line)#0>",
-      "startLine": 121,
+      "startLine": 131,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon (d)#0>",
-      "startLine": 148,
+      "startLine": 158,
       "crap": 1.216,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon (d)#1>",
-      "startLine": 156,
+      "startLine": 166,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon (d)#2>",
-      "startLine": 165,
+      "startLine": 175,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon (d)#3>",
-      "startLine": 173,
+      "startLine": 183,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon (d)#4>",
-      "startLine": 179,
+      "startLine": 189,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon (d)#5>",
-      "startLine": 187,
+      "startLine": 197,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon (d)#6>",
-      "startLine": 191,
+      "startLine": 201,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "classifySpawnError",
-      "startLine": 195,
+      "startLine": 205,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "classifySandboxDenial",
-      "startLine": 205,
+      "startLine": 215,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "classify",
-      "startLine": 214,
+      "startLine": 224,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "exec",
-      "startLine": 243,
+      "startLine": 253,
       "crap": 4.000910332271279
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon exec/(resolve,reject)#0>",
-      "startLine": 272,
+      "startLine": 282,
       "crap": 4.000910332271279,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon exec/(resolve,reject)#0/(chunk)#0>",
-      "startLine": 287,
+      "startLine": 297,
       "crap": 1.000056895766955,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon exec/(resolve,reject)#0/(chunk)#1>",
-      "startLine": 290,
+      "startLine": 300,
       "crap": 1.000056895766955,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon exec/(resolve,reject)#0/(err)#0>",
-      "startLine": 294,
+      "startLine": 304,
       "crap": 2.0002275830678196,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon exec/(resolve,reject)#0/(code,signal)#0>",
-      "startLine": 300,
+      "startLine": 310,
       "crap": 8.003641329085116,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "createGh",
-      "startLine": 354,
+      "startLine": 364,
       "crap": 1.0000443552103857
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon createGh/(opts)#0>",
-      "startLine": 355,
+      "startLine": 365,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "api",
-      "startLine": 365,
+      "startLine": 375,
       "crap": 8
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon createGh/api/(f)#0>",
-      "startLine": 381,
+      "startLine": 391,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "jsonFlag",
-      "startLine": 391,
+      "startLine": 401,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "idStr",
-      "startLine": 396,
+      "startLine": 406,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon createGh/(id,fields)#0>",
-      "startLine": 401,
+      "startLine": 411,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon createGh/(id,flags)#0>",
-      "startLine": 405,
+      "startLine": 415,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon createGh/(id,bodyText)#0>",
-      "startLine": 407,
+      "startLine": 417,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon createGh/(flags,fields)#0>",
-      "startLine": 412,
+      "startLine": 422,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon createGh/(id,fields)#1>",
-      "startLine": 419,
+      "startLine": 429,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon createGh/(flags)#0>",
-      "startLine": 423,
+      "startLine": 433,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon createGh/(id,flags)#1>",
-      "startLine": 425,
+      "startLine": 435,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon createGh/(id,flags)#2>",
-      "startLine": 427,
+      "startLine": 437,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon createGh/(id,flags)#3>",
-      "startLine": 430,
+      "startLine": 440,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon createGh/(flags,fields)#1>",
-      "startLine": 432,
+      "startLine": 442,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon createGh/(name,flags)#0>",
-      "startLine": 439,
+      "startLine": 449,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon createGh/(name,flags)#1>",
-      "startLine": 441,
+      "startLine": 451,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon createGh/(flags,fields)#2>",
-      "startLine": 443,
+      "startLine": 453,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon createGh/(target,fields)#0>",
-      "startLine": 450,
+      "startLine": 460,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon createGh/(target,flags)#0>",
-      "startLine": 456,
+      "startLine": 466,
       "crap": 3.1851851851851856,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "classifyGraphqlProbeFailure",
-      "startLine": 496,
+      "startLine": 506,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "classifyReachableProbeFailure",
-      "startLine": 503,
+      "startLine": 513,
       "crap": 7
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "probeGraphqlAvailability",
-      "startLine": 530,
+      "startLine": 540,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "describeGraphqlPreflight",
-      "startLine": 559,
+      "startLine": 569,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon describeGraphqlPreflight/(s)#0>",
-      "startLine": 570,
+      "startLine": 580,
       "crap": 1,
       "anonymous": true
     },
@@ -21172,144 +21172,144 @@
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "resolveDigestScope",
-      "startLine": 54,
+      "startLine": 53,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "classifyFailure",
-      "startLine": 69,
+      "startLine": 68,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "ciDigestPaths",
-      "startLine": 84,
+      "startLine": 83,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "ghRunLogTail",
-      "startLine": 99,
+      "startLine": 98,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "resolveFailingCheckRun",
-      "startLine": 118,
+      "startLine": 117,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "<anon resolveFailingCheckRun/(e)#0>",
-      "startLine": 127,
+      "startLine": 126,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "resolvePrHeadSha",
-      "startLine": 144,
+      "startLine": 143,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "readCiDigest",
-      "startLine": 167,
+      "startLine": 166,
       "crap": 5.2
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "retireCiDigest",
-      "startLine": 184,
+      "startLine": 183,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "summarizeRed",
-      "startLine": 195,
+      "startLine": 194,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "carryPriorReds",
-      "startLine": 208,
+      "startLine": 207,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "renderDigestMarkdown",
-      "startLine": 218,
+      "startLine": 217,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "<anon renderDigestMarkdown/(f)#0>",
-      "startLine": 232,
+      "startLine": 231,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "<anon renderDigestMarkdown/(r)#0>",
-      "startLine": 237,
+      "startLine": 236,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "writeCiDigest",
-      "startLine": 272,
+      "startLine": 271,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "recordRerunAllowance",
-      "startLine": 331,
+      "startLine": 330,
       "crap": 4.007282658170232
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "allowanceFor",
-      "startLine": 363,
+      "startLine": 362,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "classifyGreenVerdict",
-      "startLine": 380,
+      "startLine": 379,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "failureSignature",
-      "startLine": 412,
+      "startLine": 411,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "<anon failureSignature/(l)#0>",
-      "startLine": 416,
+      "startLine": 415,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "<anon failureSignature/(l)#1>",
-      "startLine": 417,
+      "startLine": 416,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "formatRerunViolation",
-      "startLine": 427,
+      "startLine": 426,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
       "method": "blockStoryDelivery",
-      "startLine": 474,
+      "startLine": 473,
       "crap": 2
     },
     {
@@ -28022,39 +28022,39 @@
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/llm-review.js",
       "method": "buildLlmReviewUnavailableError",
-      "startLine": 29,
+      "startLine": 36,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/llm-review.js",
       "method": "resolveLlmReviewDelegate",
-      "startLine": 44,
+      "startLine": 51,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/llm-review.js",
       "method": "<anon resolveLlmReviewDelegate/(d)#0>",
-      "startLine": 49,
+      "startLine": 56,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/llm-review.js",
       "method": "createLlmReviewProvider",
-      "startLine": 63,
+      "startLine": 70,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/llm-review.js",
       "method": "<anon createLlmReviewProvider/()#0>",
-      "startLine": 70,
+      "startLine": 77,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/llm-review.js",
       "method": "createLlmReviewProviderForRegistry",
-      "startLine": 92,
+      "startLine": 99,
       "crap": 1.2962962962962963
     },
     {
@@ -41891,26 +41891,26 @@
     {
       "path": "lib/cli/doctor-checks/llm-review.js",
       "method": "readReviewChain",
-      "startLine": 32,
+      "startLine": 22,
       "crap": 3.0262390670553936
     },
     {
       "path": "lib/cli/doctor-checks/llm-review.js",
       "method": "runLlmReviewProvider",
-      "startLine": 61,
+      "startLine": 51,
       "crap": 9
     },
     {
       "path": "lib/cli/doctor-checks/llm-review.js",
       "method": "<anon runLlmReviewProvider/()#0>",
-      "startLine": 68,
+      "startLine": 58,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/doctor-checks/llm-review.js",
       "method": "<anon runLlmReviewProvider/(cli)#0>",
-      "startLine": 71,
+      "startLine": 61,
       "crap": 2,
       "anonymous": true
     },
