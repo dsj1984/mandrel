@@ -1616,7 +1616,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/llm-review.js",
-      "mi": 112.462
+      "mi": 111.506
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/mi-exemptions.js",

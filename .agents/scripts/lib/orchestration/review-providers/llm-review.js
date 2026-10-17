@@ -18,17 +18,11 @@ import {
 } from './codex.js';
 import { probeClaudeCli } from './security-review.js';
 
+/** The delegate each CLI serves: what it probes and what it runs. */
 const DELEGATE_BY_CLI = Object.freeze({
-  claude: { name: 'code-review', runs: 'claude --print' },
-  codex: { name: 'codex', runs: 'codex exec' },
+  claude: { name: 'code-review', cli: 'claude', runs: 'claude --print' },
+  codex: { name: 'codex', cli: 'codex', runs: 'codex exec' },
 });
-
-/** Delegates in preference order: the CLI each probes and what it runs. */
-const LLM_REVIEW_DELEGATES = Object.freeze(
-  REVIEW_PROVIDER_CLIS['llm-review'].map((cli) =>
-    Object.freeze({ cli, ...DELEGATE_BY_CLI[cli] }),
-  ),
-);
 
 /**
  * @returns {Error}
@@ -46,14 +40,15 @@ export function buildLlmReviewUnavailableError() {
  * The first delegate whose CLI answers, or null.
  *
  * @param {{ probeClaudeFn?: () => boolean, probeCodexFn?: () => boolean }} [deps]
- * @returns {(typeof LLM_REVIEW_DELEGATES)[number] | null}
+ * @returns {(typeof DELEGATE_BY_CLI)[keyof typeof DELEGATE_BY_CLI] | null}
  */
 export function resolveLlmReviewDelegate(deps = {}) {
   const probes = {
     claude: deps.probeClaudeFn ?? probeClaudeCli,
     codex: deps.probeCodexFn ?? defaultProbeCodexCommand,
   };
-  return LLM_REVIEW_DELEGATES.find((d) => probes[d.cli]()) ?? null;
+  const cli = REVIEW_PROVIDER_CLIS['llm-review'].find((c) => probes[c]());
+  return cli ? DELEGATE_BY_CLI[cli] : null;
 }
 
 /**
