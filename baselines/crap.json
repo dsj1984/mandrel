@@ -3936,13 +3936,13 @@
     {
       "path": ".agents/scripts/generate-workflows-doc.js",
       "method": "buildExpected",
-      "startLine": 138,
+      "startLine": 157,
       "crap": 2
     },
     {
       "path": ".agents/scripts/generate-workflows-doc.js",
       "method": "main",
-      "startLine": 152,
+      "startLine": 171,
       "crap": 4
     },
     {
@@ -28055,6 +28055,44 @@
       "crap": 4
     },
     {
+      "path": ".agents/scripts/lib/orchestration/review-providers/llm-review.js",
+      "method": "buildLlmReviewUnavailableError",
+      "startLine": 29,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/llm-review.js",
+      "method": "resolveLlmReviewDelegate",
+      "startLine": 44,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/llm-review.js",
+      "method": "<anon resolveLlmReviewDelegate/(d)#0>",
+      "startLine": 49,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/llm-review.js",
+      "method": "createLlmReviewProvider",
+      "startLine": 63,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/llm-review.js",
+      "method": "<anon createLlmReviewProvider/()#0>",
+      "startLine": 70,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/llm-review.js",
+      "method": "createLlmReviewProviderForRegistry",
+      "startLine": 92,
+      "crap": 1.2962962962962963
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/review-providers/mi-exemptions.js",
       "method": "resolveMaintainabilityIgnoreGlobs",
       "startLine": 18,
@@ -28207,104 +28245,104 @@
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/review-provider-factory.js",
       "method": "buildGate",
-      "startLine": 48,
+      "startLine": 50,
       "crap": 8.074646449919813
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/review-provider-factory.js",
       "method": "<anon buildGate/()#0>",
-      "startLine": 49,
+      "startLine": 51,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/review-provider-factory.js",
       "method": "<anon buildGate/(l)#0>",
-      "startLine": 52,
+      "startLine": 54,
       "crap": 2.004665403119988,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/review-provider-factory.js",
       "method": "<anon buildGate/()#1>",
-      "startLine": 55,
+      "startLine": 57,
       "crap": 1.001166350779997,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/review-provider-factory.js",
       "method": "<anon buildGate/(ctx)#0>",
-      "startLine": 57,
+      "startLine": 59,
       "crap": 7.057151188219857,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/review-provider-factory.js",
       "method": "<anon buildGate/(ctx)#0/(l)#0>",
-      "startLine": 61,
+      "startLine": 63,
       "crap": 1.001166350779997,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/review-provider-factory.js",
       "method": "isScopeApplicable",
-      "startLine": 75,
+      "startLine": 77,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/review-provider-factory.js",
       "method": "createReviewProvider",
-      "startLine": 99,
+      "startLine": 101,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/review-provider-factory.js",
       "method": "buildProviderChain",
-      "startLine": 129,
+      "startLine": 131,
       "crap": 12.157083248524323
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/review-provider-factory.js",
       "method": "<anon buildProviderChain/(gctx)#0>",
-      "startLine": 148,
+      "startLine": 150,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/review-provider-factory.js",
       "method": "recordCritical",
-      "startLine": 203,
+      "startLine": 205,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/review-provider-factory.js",
       "method": "<anon recordCritical/(f)#0>",
-      "startLine": 204,
+      "startLine": 206,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/review-provider-factory.js",
       "method": "createChainProvider",
-      "startLine": 220,
+      "startLine": 222,
       "crap": 6.033702843757705
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/review-provider-factory.js",
       "method": "listRegisteredProviders",
-      "startLine": 316,
+      "startLine": 318,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/review-provider-factory.js",
       "method": "listInlineProviders",
-      "startLine": 327,
+      "startLine": 329,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/review-provider-factory.js",
       "method": "listPromptProviders",
-      "startLine": 334,
+      "startLine": 336,
       "crap": 1
     },
     {
@@ -41893,6 +41931,32 @@
       "anonymous": true
     },
     {
+      "path": "lib/cli/doctor-checks/llm-review.js",
+      "method": "readReviewChain",
+      "startLine": 32,
+      "crap": 3.0262390670553936
+    },
+    {
+      "path": "lib/cli/doctor-checks/llm-review.js",
+      "method": "runLlmReviewProvider",
+      "startLine": 61,
+      "crap": 9
+    },
+    {
+      "path": "lib/cli/doctor-checks/llm-review.js",
+      "method": "<anon runLlmReviewProvider/()#0>",
+      "startLine": 68,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/doctor-checks/llm-review.js",
+      "method": "<anon runLlmReviewProvider/(cli)#0>",
+      "startLine": 71,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
       "path": "lib/cli/doctor-checks/merge-driver.js",
       "method": "runMergeDriver",
       "startLine": 23,
@@ -42505,126 +42569,126 @@
     {
       "path": "lib/cli/registry.js",
       "method": "<anon (opts)#0>",
-      "startLine": 57,
+      "startLine": 58,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon (opts)#1>",
-      "startLine": 61,
+      "startLine": 62,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon (opts)#2>",
-      "startLine": 65,
+      "startLine": 66,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon (opts)#3>",
-      "startLine": 69,
+      "startLine": 70,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon (opts)#4>",
-      "startLine": 74,
+      "startLine": 75,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon (opts)#5>",
-      "startLine": 79,
+      "startLine": 80,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon (opts)#6>",
-      "startLine": 83,
+      "startLine": 84,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon (opts)#7>",
-      "startLine": 87,
+      "startLine": 88,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon (opts)#8>",
-      "startLine": 91,
+      "startLine": 92,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon (opts)#9>",
-      "startLine": 95,
+      "startLine": 96,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon (opts)#10>",
-      "startLine": 99,
+      "startLine": 100,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon (opts)#11>",
-      "startLine": 103,
+      "startLine": 104,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon (opts)#12>",
-      "startLine": 107,
+      "startLine": 108,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon (opts)#13>",
-      "startLine": 111,
+      "startLine": 112,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon (opts)#14>",
-      "startLine": 115,
+      "startLine": 116,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon (opts)#14/()#0>",
-      "startLine": 117,
+      "startLine": 118,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon (opts)#15>",
-      "startLine": 123,
+      "startLine": 124,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon (opts)#16>",
-      "startLine": 127,
+      "startLine": 128,
       "crap": 1,
       "anonymous": true
     },
@@ -42639,6 +42703,13 @@
       "path": "lib/cli/registry.js",
       "method": "<anon (opts)#18>",
       "startLine": 137,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "<anon (opts)#19>",
+      "startLine": 142,
       "crap": 1,
       "anonymous": true
     },

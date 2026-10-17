@@ -85,11 +85,12 @@ export const CODE_REVIEW_SCHEMA = {
               'native',
               'code-review',
               'codex',
+              'llm-review',
               'security-review',
               'ultrareview',
             ],
             description:
-              'Registered provider key. Inline: native, code-review, codex, security-review. Manual-prompt: ultrareview.',
+              'Registered provider key. Inline: native, code-review, codex, llm-review, security-review. Manual-prompt: ultrareview.',
           },
           scopes: {
             type: 'array',
@@ -132,7 +133,7 @@ export const CODE_REVIEW_SCHEMA = {
         additionalProperties: false,
       },
       description:
-        "Review-provider chain (Story #2871). When unset or empty, falls back to this default: `native` (maintainability scoring of the changed files) then an optional story-scoped `code-review` — a low-effort `claude --print` bug review whose every finding is critical and halts close before auto-merge; hosts without the `claude` CLI skip it. `security-review` and `ultrareview` are opt-in. The orchestrator iterates inline entries in declaration order and merges their Finding[] before posting one structured comment; manual-prompt entries (e.g. ultrareview) contribute a trailing 'Manual review suggestions' section. Selecting an adapter whose probe fails hard-fails at factory construction unless declared `optional: true` in the chain.",
+        "Review-provider chain (Story #2871). When unset or empty, falls back to this default: `native` (maintainability scoring of the changed files) then an optional story-scoped `llm-review` — the first available of `code-review` (a low-effort `claude --print` bug review whose every finding is critical and halts close before auto-merge) and `codex` (`codex exec`), so a host with both CLIs runs one LLM review and a host with neither skips it. Pin `code-review` or `codex` to choose the CLI. `security-review` and `ultrareview` are opt-in. The orchestrator iterates inline entries in declaration order and merges their Finding[] before posting one structured comment; manual-prompt entries (e.g. ultrareview) contribute a trailing 'Manual review suggestions' section. Selecting an adapter whose probe fails hard-fails at factory construction unless declared `optional: true` in the chain.",
       default: DEFAULT_REVIEW_PROVIDERS,
     },
     autoFixSeverity: {

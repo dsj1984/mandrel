@@ -900,3 +900,92 @@ describe('doctor gh checks report a gh-env config error as a result', () => {
     });
   }
 });
+
+// ---------------------------------------------------------------------------
+// llm-review-provider (Story #5741)
+// ---------------------------------------------------------------------------
+
+describe('llm-review-provider check', () => {
+  const check = () => registry.find((c) => c.name === 'llm-review-provider');
+  let project;
+  beforeEach(() => {
+    project = makeTempDir('mandrel-doctor-llm-review-');
+  });
+  afterEach(() => {
+    fs.rmSync(project, { recursive: true, force: true });
+  });
+
+  /** A `--version` runner answering only for the CLIs on this fake PATH. */
+  function pathWith(...clis) {
+    const probed = [];
+    const runner = (cmd, args) => {
+      probed.push(`${cmd} ${args.join(' ')}`);
+      return { status: clis.includes(cmd) ? 0 : 1, stdout: '', stderr: '' };
+    };
+    return { runner, probed };
+  }
+
+  function pin(providers, file = '.agentrc.json') {
+    fs.writeFileSync(
+      path.join(project, file),
+      JSON.stringify({ delivery: { codeReview: { providers } } }),
+    );
+  }
+
+  it('names claude as the default chain CLI when both are present', () => {
+    const { runner, probed } = pathWith('claude', 'codex');
+    const result = check().run({ projectRoot: project, runner });
+    assert.equal(result.ok, true);
+    assert.match(
+      result.detail,
+      /default chain reviews with llm-review via claude/,
+    );
+    assert.deepEqual(probed, ['claude --version']);
+  });
+
+  it('names codex when it is the only CLI', () => {
+    const { runner } = pathWith('codex');
+    const result = check().run({ projectRoot: project, runner });
+    assert.equal(result.ok, true);
+    assert.match(result.detail, /llm-review via codex/);
+  });
+
+  it('passes with the native-only advisory when neither CLI is present', () => {
+    const { runner } = pathWith();
+    const result = check().run({ projectRoot: project, runner });
+    assert.equal(result.ok, true);
+    assert.equal(
+      result.detail,
+      'close runs native only — install claude or codex, or pin codeReview.providers',
+    );
+  });
+
+  it('fails for a pinned non-optional provider whose CLI is missing', () => {
+    pin([{ name: 'native' }, { name: 'codex' }]);
+    const { runner } = pathWith('claude');
+    const result = check().run({ projectRoot: project, runner });
+    assert.equal(result.ok, false);
+    assert.match(result.detail, /pins codex without optional: true/);
+    assert.ok(result.remedy);
+  });
+
+  it('passes for a pinned optional provider whose CLI is missing', () => {
+    pin([{ name: 'native' }, { name: 'code-review', optional: true }]);
+    const { runner } = pathWith('codex');
+    const result = check().run({ projectRoot: project, runner });
+    assert.equal(result.ok, true);
+    assert.match(result.detail, /pinned .* runs no LLM review/);
+  });
+
+  it('reads the pin from .agentrc.local.json over .agentrc.json', () => {
+    pin([{ name: 'codex' }]);
+    pin([{ name: 'code-review' }], '.agentrc.local.json');
+    const { runner } = pathWith('claude');
+    const result = check().run({ projectRoot: project, runner });
+    assert.equal(result.ok, true);
+    assert.match(
+      result.detail,
+      /pinned chain reviews with code-review via claude/,
+    );
+  });
+});

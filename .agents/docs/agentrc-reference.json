@@ -231,7 +231,7 @@
           "name": "native"
         },
         {
-          "name": "code-review",
+          "name": "llm-review",
           "scopes": ["story"],
           "optional": true
         }
