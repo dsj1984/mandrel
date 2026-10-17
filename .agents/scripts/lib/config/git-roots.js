@@ -52,16 +52,28 @@ export function resolveAgentrcRoot({
   return path.resolve(gitToplevel(processCwd(), exec) ?? PROJECT_ROOT);
 }
 
+const canonical = (p) => {
+  try {
+    return fs.realpathSync(p);
+  } catch {
+    return path.resolve(p);
+  }
+};
+
 /**
- * The dir whose `.agentrc.local.json` overlays `root`: `root` when it has
- * one or is not a work tree's root, else the main checkout — a gitignored
- * overlay is not copied into a plain `git worktree add`.
+ * The project root a gitignored file under `root` lives in: the main
+ * checkout when `root` is a work tree's own root, else `root` itself.
  */
+export function storeRoot(root, exec) {
+  const top = gitToplevel(root, exec);
+  const isTop = top !== null && canonical(top) === canonical(root);
+  return isTop ? mainCheckoutRoot(root, { exec }) : root;
+}
+
+/** Where `root`'s `.agentrc.local.json` is read: its own, else `storeRoot`'s. */
 export function overlayRoot(root, exec) {
   if (fs.existsSync(path.join(root, '.agentrc.local.json'))) return root;
-  return gitToplevel(root, exec) === root
-    ? mainCheckoutRoot(root, { exec })
-    : root;
+  return storeRoot(root, exec);
 }
 
 /** Test-only. */

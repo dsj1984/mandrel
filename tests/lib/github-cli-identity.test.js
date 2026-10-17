@@ -5,6 +5,7 @@
  */
 
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -558,5 +559,60 @@ describe('runGh reports a gh-env config error instead of throwing (#5740)', () =
       else process.env.AP_AGENTRC_CWD = saved;
       fs.rmSync(project, { recursive: true, force: true });
     }
+  });
+});
+
+describe('the gh store root follows the project, not the enclosing repo (#5740)', () => {
+  const made = [];
+  afterEach(() => {
+    for (const dir of made.splice(0)) {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  const git = (cwd, ...args) =>
+    execFileSync(
+      'git',
+      ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args],
+      { cwd, stdio: 'pipe' },
+    );
+
+  it('a project nested in a larger repo resolves a relative store against itself', () => {
+    const mono = makeTempDir('mandrel-mono-');
+    made.push(mono);
+    git(mono, 'init', '-q');
+    const app = path.join(mono, 'app');
+    fs.mkdirSync(path.join(app, 'gh-store'), { recursive: true });
+    fs.writeFileSync(
+      path.join(app, '.agentrc.local.json'),
+      JSON.stringify({ github: { cliConfigDir: 'gh-store' } }),
+    );
+    const env = {};
+    assert.equal(ensureGhEnv({ cwd: app, env }), path.join(app, 'gh-store'));
+  });
+
+  it('a linked worktree reached through a non-canonical path still finds the main checkout overlay and store', () => {
+    // makeTempDir is not realpath-ed: on macOS it sits under /var, git under /private/var.
+    const main = makeTempDir('mandrel-wt-main-');
+    made.push(main);
+    git(main, 'init', '-q');
+    fs.writeFileSync(
+      path.join(main, '.gitignore'),
+      '.agentrc.local.json\ngh-store\n',
+    );
+    git(main, 'add', '.');
+    git(main, 'commit', '-q', '-m', 'init');
+    fs.mkdirSync(path.join(main, 'gh-store'));
+    fs.writeFileSync(
+      path.join(main, '.agentrc.local.json'),
+      JSON.stringify({ github: { cliConfigDir: 'gh-store' } }),
+    );
+    const worktree = path.join(main, '.worktrees', 'story-1');
+    git(main, 'worktree', 'add', '-q', worktree);
+    const env = {};
+    const dir = ensureGhEnv({ cwd: worktree, env });
+    assert.equal(
+      fs.realpathSync(dir),
+      fs.realpathSync(path.join(main, 'gh-store')),
+    );
   });
 });

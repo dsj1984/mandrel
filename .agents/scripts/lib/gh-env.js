@@ -8,9 +8,9 @@ import path from 'node:path';
 import { applyLocalOverlay } from './config/agentrc-overlay.js';
 import { applyGhConfigDir } from './config/gh-config-dir.js';
 import {
-  mainCheckoutRoot,
   overlayRoot,
   resolveAgentrcRoot,
+  storeRoot,
 } from './config/git-roots.js';
 
 /** Applied dir (or null) per anchor root. */
@@ -43,8 +43,10 @@ export function ensureGhEnv(deps = {}) {
     projectRoot: overlayRoot(root, exec),
     committed: readCommittedAgentrc(fsImpl, root),
   });
-  const storeRoot = mainCheckoutRoot(root, { exec }) ?? root;
-  const dir = applyGhConfigDir(effective?.github, storeRoot, { env, fsImpl });
+  const dir = applyGhConfigDir(effective?.github, storeRoot(root, exec), {
+    env,
+    fsImpl,
+  });
   if (memoize) _ensuredByRoot.set(root, dir);
   return dir;
 }
