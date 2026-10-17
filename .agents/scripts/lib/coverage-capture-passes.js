@@ -37,7 +37,7 @@ export function captureGates({ crap, coverage }) {
 }
 
 /** @param {{ crap: object, coverage: object }} gates */
-export function isCaptureGateEnabled({ crap, coverage }) {
+function isCaptureGateEnabled({ crap, coverage }) {
   return crap.enabled !== false || coverage.enabled !== false;
 }
 
