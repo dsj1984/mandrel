@@ -3,10 +3,8 @@
  * shell, so argument injection is impossible by construction.
  */
 
-import {
-  spawn as defaultSpawn,
-  spawnSync as defaultSpawnSync,
-} from 'node:child_process';
+import { spawn as defaultSpawn } from 'node:child_process';
+import { spawnChild } from './child-exec.js';
 import { ghEnv, tryGhEnv } from './gh-env.js';
 import {
   isTransportFailure,
@@ -18,13 +16,13 @@ import {
 let _spawnCount = 0;
 
 /**
- * `gh` through any `(file, args, opts)` runner, with the gh env ensured. A
- * gh-env config error never throws: it returns a failed `spawnSync`-shaped
- * result carrying it as `error`.
+ * `gh` through `spawnChild` (an injected runner is its `run` seam), with the
+ * gh env ensured. A gh-env config error never throws: it returns a failed
+ * `spawnSync`-shaped result carrying it as `error`.
  */
-export function runGh(args, opts = {}, runner = defaultSpawnSync) {
+export function runGh(args, opts = {}, runner) {
   const { env, failure } = tryGhEnv(opts.env);
-  return failure ?? runner('gh', args, { ...opts, env });
+  return failure ?? spawnChild('gh', args, { ...opts, env, run: runner });
 }
 
 /** `runGh` for a throwing runner (`execFileSync`): a config error throws too. */
