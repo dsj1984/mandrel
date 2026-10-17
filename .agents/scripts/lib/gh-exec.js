@@ -16,10 +16,8 @@ import {
 let _spawnCount = 0;
 
 /**
- * `gh` through child-exec's `spawnChild`, with the gh env ensured, so every
- * capture runs under the shared stdout ceiling. An injected `(file, args,
- * opts)` runner becomes `spawnChild`'s `run` seam and receives that ceiling
- * too. A gh-env config error never throws: it returns a failed
+ * `gh` through `spawnChild` (an injected runner is its `run` seam), with the
+ * gh env ensured. A gh-env config error never throws: it returns a failed
  * `spawnSync`-shaped result carrying it as `error`.
  */
 export function runGh(args, opts = {}, runner) {

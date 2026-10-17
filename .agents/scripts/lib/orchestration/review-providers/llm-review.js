@@ -18,13 +18,12 @@ import {
 } from './codex.js';
 import { probeClaudeCli } from './security-review.js';
 
-/** The delegate each CLI serves, and what it runs. */
 const DELEGATE_BY_CLI = Object.freeze({
   claude: { name: 'code-review', runs: 'claude --print' },
   codex: { name: 'codex', runs: 'codex exec' },
 });
 
-/** Delegates in the shared `llm-review` probe order. */
+/** Delegates in preference order: the CLI each probes and what it runs. */
 const LLM_REVIEW_DELEGATES = Object.freeze(
   REVIEW_PROVIDER_CLIS['llm-review'].map((cli) =>
     Object.freeze({ cli, ...DELEGATE_BY_CLI[cli] }),
