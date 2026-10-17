@@ -19,7 +19,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
-import { _resetGhEnvForTests } from '../../.agents/scripts/lib/gh-env.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import doctor, {
   formatClosureReport,
@@ -823,14 +822,12 @@ describe('doctor gh checks run with the configured GH_CONFIG_DIR', () => {
     };
     process.env.AP_AGENTRC_CWD = project;
     delete process.env.GH_CONFIG_DIR;
-    _resetGhEnvForTests();
   });
   afterEach(() => {
     if (saved.anchor === undefined) delete process.env.AP_AGENTRC_CWD;
     else process.env.AP_AGENTRC_CWD = saved.anchor;
     if (saved.dir === undefined) delete process.env.GH_CONFIG_DIR;
     else process.env.GH_CONFIG_DIR = saved.dir;
-    _resetGhEnvForTests();
     fs.rmSync(project, { recursive: true, force: true });
   });
 

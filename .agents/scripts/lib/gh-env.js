@@ -9,8 +9,8 @@ import { applyLocalOverlay } from './config/agentrc-overlay.js';
 import { applyGhConfigDir } from './config/gh-config-dir.js';
 import { mainCheckoutRoot, resolveAgentrcRoot } from './config/git-roots.js';
 
-/** `undefined` until the first ensure. */
-let _ensuredGhConfigDir;
+/** Applied dir (or null) per anchor root. */
+const _ensuredByRoot = new Map();
 
 function readCommittedAgentrc(fsImpl, root) {
   try {
@@ -25,15 +25,15 @@ function readCommittedAgentrc(fsImpl, root) {
 /**
  * Export `GH_CONFIG_DIR` from `github.cliConfigDir` before any `gh` spawn. A
  * relative dir resolves against the main checkout, where the gitignored
- * store lives. Memoised per process unless deps are injected.
+ * store lives. Memoised per anchor root unless deps are injected.
  *
  * @returns {string|null} the applied dir.
  */
 export function ensureGhEnv(deps = {}) {
   const { cwd, env = process.env, fsImpl = fs, exec, homedir, warn } = deps;
   const memoize = env === process.env && fsImpl === fs && !exec;
-  if (memoize && _ensuredGhConfigDir !== undefined) return _ensuredGhConfigDir;
   const root = resolveAgentrcRoot({ cwd, env, exec });
+  if (memoize && _ensuredByRoot.has(root)) return _ensuredByRoot.get(root);
   const { effective } = applyLocalOverlay({
     fsImpl,
     projectRoot: root,
@@ -46,13 +46,8 @@ export function ensureGhEnv(deps = {}) {
     homedir,
     warn,
   });
-  if (memoize) _ensuredGhConfigDir = dir;
+  if (memoize) _ensuredByRoot.set(root, dir);
   return dir;
-}
-
-/** Test-only. */
-export function _resetGhEnvForTests() {
-  _ensuredGhConfigDir = undefined;
 }
 
 /** `base` with the ensured `GH_CONFIG_DIR` layered on. */

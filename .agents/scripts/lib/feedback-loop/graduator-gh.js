@@ -11,8 +11,8 @@ import { LABEL_COLORS } from '../label-constants.js';
 export const DEFAULT_RUN_CHILD_TIMEOUT_MS = 30000;
 
 /**
- * The feedback loop's single spawn helper. Never throws: spawn errors land in
- * `spawnError`; an overrun is SIGKILL'd and resolves `timedOut: true`.
+ * The feedback loop's single spawn helper (gh env ensured first). Never
+ * throws: spawn and config errors land in `spawnError`; an overrun is SIGKILL'd and resolves `timedOut: true`.
  * `timeoutMs` of `0`/`Infinity` disables the watchdog.
  *
  * @param {object} opts
@@ -33,6 +33,7 @@ export function runChild({
   return new Promise((resolve) => {
     let child;
     try {
+      ensureGhEnv();
       child = spawnImpl(cmd, args, {
         stdio: ['ignore', 'pipe', 'pipe'],
         cwd,
@@ -97,22 +98,6 @@ export function runChild({
   });
 }
 
-/** `runChild` for `gh`, after `ensureGhEnv` (a config error → `spawnError`). */
-export function runGhChild(opts) {
-  try {
-    ensureGhEnv();
-  } catch (err) {
-    return Promise.resolve({
-      code: null,
-      stdout: '',
-      stderr: '',
-      spawnError: err,
-      timedOut: false,
-    });
-  }
-  return runChild(opts);
-}
-
 function runWith(gh, cmd, args) {
   return runChild({
     cmd,
@@ -124,13 +109,7 @@ function runWith(gh, cmd, args) {
 }
 
 function runGh(gh, args) {
-  return runGhChild({
-    cmd: gh.ghPath,
-    args,
-    spawnImpl: gh.spawnImpl,
-    cwd: gh.cwd,
-    timeoutMs: gh.timeoutMs,
-  });
+  return runWith(gh, gh.ghPath, args);
 }
 
 function childFailed(res) {

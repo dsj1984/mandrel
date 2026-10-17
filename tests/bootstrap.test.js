@@ -634,9 +634,6 @@ describe('Bootstrap — gh preflight runs with the configured GH_CONFIG_DIR (#57
   it('every preflight probe spawns gh with github.cliConfigDir applied', async () => {
     const fs = await import('node:fs');
     const { makeTempDir } = await import('../.agents/scripts/lib/test-temp.js');
-    const { _resetGhEnvForTests } = await import(
-      '../.agents/scripts/lib/gh-env.js'
-    );
     const { preflightGh } = await import(
       '../.agents/scripts/lib/bootstrap/gh-preflight.js'
     );
@@ -653,7 +650,6 @@ describe('Bootstrap — gh preflight runs with the configured GH_CONFIG_DIR (#57
     };
     process.env.AP_AGENTRC_CWD = project;
     delete process.env.GH_CONFIG_DIR;
-    _resetGhEnvForTests();
     try {
       const spawned = [];
       const spawnImpl = (file, args, opts) => {
@@ -678,7 +674,6 @@ describe('Bootstrap — gh preflight runs with the configured GH_CONFIG_DIR (#57
       else process.env.AP_AGENTRC_CWD = saved.anchor;
       if (saved.dir === undefined) delete process.env.GH_CONFIG_DIR;
       else process.env.GH_CONFIG_DIR = saved.dir;
-      _resetGhEnvForTests();
       fs.rmSync(project, { recursive: true, force: true });
     }
   });

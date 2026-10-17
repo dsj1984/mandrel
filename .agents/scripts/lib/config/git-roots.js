@@ -41,7 +41,7 @@ export function mainCheckoutRoot(cwd = process.cwd(), deps = {}) {
 }
 
 /** This work tree's own root — a linked worktree's, not the main one's. */
-export function gitToplevel(cwd = process.cwd(), deps = {}) {
+function gitToplevel(cwd = process.cwd(), deps = {}) {
   return revParse('--show-toplevel', cwd, _toplevelCache, deps.exec);
 }
 

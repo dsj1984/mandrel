@@ -17,10 +17,7 @@ import {
 } from '../../.agents/scripts/lib/config-resolver.js';
 import { getAgentrcValidator } from '../../.agents/scripts/lib/config-schema.js';
 import { validate as validateGenerated } from '../../.agents/scripts/lib/generated/agentrc-validator.js';
-import {
-  _resetGhEnvForTests,
-  ensureGhEnv,
-} from '../../.agents/scripts/lib/gh-env.js';
+import { ensureGhEnv } from '../../.agents/scripts/lib/gh-env.js';
 import {
   classify,
   createGh,
@@ -214,12 +211,10 @@ describe('#5740 the gh boundary owns GH_CONFIG_DIR', () => {
     savedAnchor = process.env.AP_AGENTRC_CWD;
     process.env.AP_AGENTRC_CWD = project;
     delete process.env.GH_CONFIG_DIR;
-    _resetGhEnvForTests();
   });
   afterEach(() => {
     if (savedAnchor === undefined) delete process.env.AP_AGENTRC_CWD;
     else process.env.AP_AGENTRC_CWD = savedAnchor;
-    _resetGhEnvForTests();
     fs.rmSync(project, { recursive: true, force: true });
   });
 
