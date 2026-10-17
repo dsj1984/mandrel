@@ -31,14 +31,12 @@ const SCORABLE_SOURCES = Object.freeze({
 const SCORABLE_SOURCE_EXTENSIONS = Object.keys(SCORABLE_SOURCES);
 
 /**
- * For paths arriving as raw text (git output lines). Built without a
- * callback: a module-scope arrow gets no per-method coverage, so the CRAP
- * seat could never resolve it.
+ * For paths arriving as raw text (git output lines).
  *
  * @type {RegExp}
  */
 export const SCORABLE_SOURCE_EXT_RE = new RegExp(
-  `\\.(?:${SCORABLE_SOURCE_EXTENSIONS.join('|').replaceAll('.', '')})$`,
+  `\\.(?:${SCORABLE_SOURCE_EXTENSIONS.map((ext) => ext.slice(1)).join('|')})$`,
 );
 
 /**
