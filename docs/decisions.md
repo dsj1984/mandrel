@@ -192,9 +192,9 @@ rewritten to avoid arrow callbacks so the gate would seat.
   runs only in original coordinates: a transpiled line stays unjoinable, and
   an end line that does not map back turns the fallback off.
 - A method resolved this way counts as resolved for the resolution-rate floor.
-- `source-extensions.js` keeps its callback-free regex for now: the seat and
-  close run the main checkout's join, so reverting the workaround lands in a
-  follow-up Story once this fallback is on `main`.
+- `source-extensions.js` builds its regex with an ordinary `.map()` callback
+  again (#5758, once this fallback was on `main`); the callback-free
+  workaround and its comment are gone.
 
 ### Alternatives considered
 
