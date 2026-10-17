@@ -625,9 +625,11 @@ in. The root resolves in this order:
 1. an explicit `cwd` passed to `resolveConfig`;
 2. `AP_AGENTRC_CWD`, the explicit override for a process that must judge
    another tree;
-3. the git toplevel of the process's working directory — a Story worktree's
-   own root, so a gate spawned with `cwd` set to the worktree reads its
-   config with no env plumbing;
+3. the nearest directory holding an `.agentrc.json` between the process's
+   working directory and its git toplevel (else the toplevel) — a Story
+   worktree's own root, so a gate spawned with `cwd` set to the worktree
+   reads its config with no env plumbing, and a project nested in a larger
+   repo reads its own;
 4. the Mandrel install root, outside any git work tree.
 
 A worktree with no `.agentrc.local.json` of its own takes the main
