@@ -55,6 +55,30 @@ function hasNarrowingFlag(tokens) {
 }
 
 /**
+ * The credit mode, and — in capture mode — the primary artifact's freshness.
+ *
+ * @param {{ quality: object, scripts: object, worktree: string, hasNpmScriptImpl: Function, isCoverageFreshImpl: Function }} opts
+ */
+function probeCaptureStamp({
+  quality,
+  scripts,
+  worktree,
+  hasNpmScriptImpl,
+  isCoverageFreshImpl,
+}) {
+  const gates = captureGates(quality);
+  if (!isCaptureActive({ ...gates, scripts, hasNpmScriptImpl })) {
+    return { mode: 'evidence', freshness: null };
+  }
+  const freshness = isCoverageFreshImpl({
+    coveragePath: primaryCaptureSource(gates).coveragePath,
+    targetDirs: gates.crap.targetDirs,
+    cwd: worktree,
+  });
+  return { mode: 'capture', freshness };
+}
+
+/**
  * Strip a trailing `(<tier>)` tag, which would otherwise make every entry
  * look scoped.
  *
@@ -145,34 +169,25 @@ export function resolveVerifyCredit(
     warning: FULL_SUITE_SHAPE_WARNING,
   };
   const config = resolveConfigImpl({ cwd: worktree });
-  const { crap, coverage } = captureGates(getQualityImpl(config));
-  const mode = isCaptureActive({
-    crap,
-    coverage,
+  const { mode, freshness } = probeCaptureStamp({
+    quality: getQualityImpl(config),
     scripts: readPackageScriptsImpl(worktree),
+    worktree,
     hasNpmScriptImpl,
-  })
-    ? 'capture'
-    : 'evidence';
+    isCoverageFreshImpl,
+  });
 
-  let stampReason = null;
-  if (mode === 'capture') {
-    const freshness = isCoverageFreshImpl({
-      coveragePath: primaryCaptureSource({ crap, coverage }).coveragePath,
-      targetDirs: crap.targetDirs,
-      cwd: worktree,
-    });
-    if (freshness?.fresh === true) {
-      return {
-        ...scoped,
-        mode,
-        credited: true,
-        spawn: false,
-        reason: 'capture-stamp-fresh',
-      };
-    }
-    stampReason = freshness?.reason ?? 'unknown';
+  if (freshness?.fresh === true) {
+    return {
+      ...scoped,
+      mode,
+      credited: true,
+      spawn: false,
+      reason: 'capture-stamp-fresh',
+    };
   }
+  const stampReason =
+    mode === 'capture' ? (freshness?.reason ?? 'unknown') : null;
 
   // A stale stamp is not the last word: a green `npm test` deposits `test`
   // evidence, consulted in both modes before spawning.

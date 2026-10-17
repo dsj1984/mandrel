@@ -66,15 +66,20 @@ function configuredCommand(key, value) {
   return enabled(raw, 'config');
 }
 
+/** @param {string} key */
+function assertKnownKey(key) {
+  if (!Object.hasOwn(COMMANDS_DEFAULTS, key)) {
+    throw configError(`.${key} is not a known command`);
+  }
+}
+
 /**
  * @param {object|null|undefined} config
  * @param {keyof typeof COMMANDS_DEFAULTS} key
  * @returns {{ argv: string[], raw: string|null, disabled: boolean, source: 'default'|'disabled'|'config' }}
  */
 export function resolveProjectCommand(config, key) {
-  if (!Object.hasOwn(COMMANDS_DEFAULTS, key)) {
-    throw configError(`.${key} is not a known command`);
-  }
+  assertKnownKey(key);
   const commands = commandsBlock(config);
   if (!Object.hasOwn(commands, key) || commands[key] === undefined) {
     return enabled(COMMANDS_DEFAULTS[key], 'default');

@@ -122,23 +122,20 @@ const SCHEMA_KEYWORDS = new Set([
 export function stripAnnotations(schema) {
   if (Array.isArray(schema)) return schema.map(stripAnnotations);
   if (!schema || typeof schema !== 'object') return schema;
-  const out = {};
-  for (const [key, value] of Object.entries(schema)) {
-    if (ANNOTATION_KEYWORDS.has(key)) continue;
-    if (SCHEMA_MAP_KEYWORDS.has(key)) {
-      out[key] = Object.fromEntries(
-        Object.entries(value).map(([name, sub]) => [
-          name,
-          stripAnnotations(sub),
-        ]),
-      );
-    } else if (SCHEMA_KEYWORDS.has(key)) {
-      out[key] = stripAnnotations(value);
-    } else {
-      out[key] = value;
-    }
-  }
-  return out;
+  return Object.fromEntries(
+    Object.entries(schema)
+      .filter(([key]) => !ANNOTATION_KEYWORDS.has(key))
+      .map(([key, value]) => [key, stripKeywordValue(key, value)]),
+  );
+}
+
+/** @param {string} key @param {unknown} value */
+function stripKeywordValue(key, value) {
+  if (SCHEMA_KEYWORDS.has(key)) return stripAnnotations(value);
+  if (!SCHEMA_MAP_KEYWORDS.has(key)) return value;
+  return Object.fromEntries(
+    Object.entries(value).map(([name, sub]) => [name, stripAnnotations(sub)]),
+  );
 }
 
 /**

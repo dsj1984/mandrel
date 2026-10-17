@@ -23,12 +23,14 @@ export function buildFormatHint(writeCmd) {
  * @param {keyof typeof COMMANDS_DEFAULTS} key
  */
 export function resolveGateCommand(config, key) {
-  const resolved = resolveProjectCommand(config, key);
-  const argv = resolved.disabled
-    ? resolveProjectCommand(null, key).argv
-    : resolved.argv;
-  const [cmd, ...args] = argv;
-  return { cmd, args, raw: resolved.raw, disabled: resolved.disabled };
+  const { raw, disabled, argv } = resolveProjectCommand(config, key);
+  const [cmd, ...args] = disabled ? defaultArgv(key) : argv;
+  return { cmd, args, raw, disabled };
+}
+
+/** @param {keyof typeof COMMANDS_DEFAULTS} key */
+function defaultArgv(key) {
+  return resolveProjectCommand(null, key).argv;
 }
 
 /**

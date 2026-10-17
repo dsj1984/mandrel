@@ -676,7 +676,7 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/commands.js",
-      "mi": 107.292
+      "mi": 108.132
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
@@ -756,7 +756,7 @@
     },
     {
       "path": ".agents/scripts/lib/config/commands.js",
-      "mi": 110.861
+      "mi": 112.058
     },
     {
       "path": ".agents/scripts/lib/config/defaults.js",
@@ -1884,7 +1884,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/verify-credit.js",
-      "mi": 93.53
+      "mi": 94.313
     },
     {
       "path": ".agents/scripts/lib/orchestration/worktree-dirty.js",
@@ -2676,7 +2676,7 @@
     },
     {
       "path": "scripts/check-generated-validator.js",
-      "mi": 94.672
+      "mi": 101.6
     },
     {
       "path": "scripts/check-knip-entries.js",
