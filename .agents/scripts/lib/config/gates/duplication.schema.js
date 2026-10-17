@@ -19,6 +19,13 @@ export const DUPLICATION_GATE = {
         "Directories whose scorable sources (`.js`, `.mjs`, `.cjs`, `.jsx`, `.ts`, `.tsx`, `.mts`, `.cts`) the duplication (DRY) gate scans for copy-paste clones. Mandrel ships a `src/`-centric default; projects whose executable code lives elsewhere (e.g. this repo's `.agents/scripts/`) override here. The framework default is intentionally not auto-discovered, so an override is the explicit, auditable signal (Story #3664).",
       default: ['src'],
     },
+    // `formats` is retired (Story #5738): the jscpd formats derive from
+    // `jscpdFormatsFor()` in `lib/source-extensions.js`. A consumer config
+    // that still carries the key is stripped on upgrade by the 2.91.0
+    // migration `lib/migrations/steps/2.91.0-retire-duplication-formats.js`
+    // (both `.agentrc.json` and `.agentrc.local.json`), so the strict
+    // `additionalProperties: false` here never sees it. Rejecting it on a
+    // non-migrated config is deliberate (tests/config-settings-schema.test.js).
     ignoreGlobs: {
       type: 'array',
       items: { type: 'string', minLength: 1 },
