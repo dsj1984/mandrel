@@ -514,7 +514,7 @@ test('runCli: renders a whole-file row with the * sentinel', async () => {
   assert.match(stdout.text(), /^\+ lib\/orphan\.js: \*$/m);
 });
 
-test('runCli: surfaces knip spawn failure as advisory warning', async () => {
+test('runCli: a knip spawn failure fails the gate closed (exit 2)', async () => {
   const tmp = makeTempDir('dead-exports-cli-');
   const baselinePath = path.join(tmp, 'baseline.json');
   fs.writeFileSync(
@@ -530,8 +530,12 @@ test('runCli: surfaces knip spawn failure as advisory warning', async () => {
     stderr: stderr.stream,
     runKnipImpl: () => ({ ok: false, error: 'simulated spawn failure' }),
   });
-  assert.equal(exit, 0);
+  assert.equal(exit, 2);
   assert.match(stderr.text(), /simulated spawn failure/);
+  assert.match(
+    stdout.text(),
+    /^! knip run failed: simulated spawn failure \(gate fail\)$/m,
+  );
 });
 
 // Story #4575 — the production-mode (test-only-importer discount) pass.
@@ -788,4 +792,133 @@ test('runCli: --production labels its human output distinctly', async () => {
     stderr: captureStream().stream,
   });
   assert.match(stdout.text(), /dead-exports:production/);
+});
+
+// Story #5736 — a knip failure of any kind fails the gate closed (exit 2)
+// instead of reporting a green run with zero rows. The fake runners below
+// stand in for `spawnSync` *inside* the child-exec wrapper, so they see the
+// real options (including `maxBuffer`) the wrapper passes.
+
+const MIB = 1024 * 1024;
+
+/** A baseline + cwd for a real-`runKnip` CLI run with an injected spawn. */
+function knipCliFixture() {
+  const tmp = makeTempDir('dead-exports-knip-fail-');
+  const baselinePath = path.join(tmp, 'baseline.json');
+  fs.writeFileSync(
+    baselinePath,
+    JSON.stringify({ kernelVersion: '6.14.0', rows: [] }),
+  );
+  return { tmp, baselinePath };
+}
+
+/** Drive `runCli --json` through the real `runKnip` with a fake spawn. */
+async function runJsonWithSpawn(spawn) {
+  const { tmp, baselinePath } = knipCliFixture();
+  const stdout = captureStream();
+  const exit = await runCli({
+    argv: ['--baseline', baselinePath, '--json'],
+    cwd: tmp,
+    stdout: stdout.stream,
+    stderr: captureStream().stream,
+    runKnipImpl: (opts) => runKnip({ ...opts, spawn }),
+  });
+  return { exit, envelope: JSON.parse(stdout.text()) };
+}
+
+/** Behaves like real spawnSync: ENOBUFS when stdout outgrows `maxBuffer`. */
+function bufferedSpawn(stdout) {
+  return (_cmd, _args, opts = {}) => {
+    const limit = opts.maxBuffer ?? MIB;
+    if (Buffer.byteLength(stdout) > limit) {
+      const error = Object.assign(new Error('spawnSync npx ENOBUFS'), {
+        code: 'ENOBUFS',
+      });
+      return { status: null, signal: 'SIGTERM', stdout: '', stderr: '', error };
+    }
+    return { status: 1, signal: null, stdout, stderr: '' };
+  };
+}
+
+for (const [name, spawn, pattern] of [
+  [
+    'knip exits with an error status',
+    () => ({ status: 2, stdout: '', stderr: 'ERROR: bad config\nmore' }),
+    /knip exited 2: ERROR: bad config/,
+  ],
+  [
+    'knip writes empty stdout',
+    () => ({ status: 0, stdout: '   \n', stderr: '' }),
+    /empty stdout/,
+  ],
+  [
+    'knip writes unparseable JSON',
+    () => ({ status: 1, stdout: '{"issues": [', stderr: '' }),
+    /JSON parse failed/,
+  ],
+]) {
+  test(`runCli: exits 2 with a non-null knipError when ${name}`, async () => {
+    const { exit, envelope } = await runJsonWithSpawn(spawn);
+    assert.equal(exit, 2);
+    assert.equal(envelope.exitCode, 2);
+    assert.equal(typeof envelope.knipError, 'string');
+    assert.match(envelope.knipError, pattern);
+  });
+}
+
+test('runCli: a clean run carries knipError: null in the JSON envelope', async () => {
+  const { exit, envelope } = await runJsonWithSpawn(() => ({
+    status: 0,
+    stdout: '{"issues":[]}',
+    stderr: '',
+  }));
+  assert.equal(exit, 0);
+  assert.equal(envelope.knipError, null);
+});
+
+test('runCli: an unreadable --knip-output fails closed (exit 2)', async () => {
+  const { tmp, baselinePath } = knipCliFixture();
+  const stdout = captureStream();
+  const exit = await runCli({
+    argv: [
+      '--baseline',
+      baselinePath,
+      '--knip-output',
+      'missing.json',
+      '--json',
+    ],
+    cwd: tmp,
+    stdout: stdout.stream,
+    stderr: captureStream().stream,
+  });
+  assert.equal(exit, 2);
+  assert.match(JSON.parse(stdout.text()).knipError, /missing\.json/);
+});
+
+test('runKnip: a report larger than 1 MiB is read in full and scored', async () => {
+  const issues = Array.from({ length: 20000 }, (_, i) => ({
+    file: `src/module-${String(i).padStart(6, '0')}.js`,
+    exports: [{ name: `unusedExportNumber${i}` }],
+  }));
+  const report = JSON.stringify({ issues });
+  assert.ok(Buffer.byteLength(report) > MIB, 'fixture must exceed 1 MiB');
+
+  const { exit, envelope } = await runJsonWithSpawn(bufferedSpawn(report));
+  assert.equal(envelope.knipError, null);
+  assert.equal(envelope.currentRows.length, issues.length);
+  assert.equal(envelope.added.length, issues.length);
+  assert.equal(exit, 1);
+});
+
+test('runKnip: a report larger than the 64 MiB ceiling fails closed naming the overflow', async () => {
+  let seenMaxBuffer = null;
+  const huge = 'x'.repeat(64 * MIB + 1);
+  const spawn = (cmd, args, opts) => {
+    seenMaxBuffer = opts.maxBuffer;
+    return bufferedSpawn(huge)(cmd, args, opts);
+  };
+  const { exit, envelope } = await runJsonWithSpawn(spawn);
+  assert.equal(seenMaxBuffer, 64 * MIB);
+  assert.equal(exit, 2);
+  assert.match(envelope.knipError, /ENOBUFS/);
 });
