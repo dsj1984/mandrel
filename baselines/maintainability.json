@@ -480,7 +480,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/kind-factory.js",
-      "mi": 97.12
+      "mi": 100.51
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/maintainability.js",
