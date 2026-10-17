@@ -13,7 +13,10 @@
 
 import { runAsCli } from '../.agents/scripts/lib/cli-utils.js';
 import { AGENTRC_SCHEMA } from '../.agents/scripts/lib/config-settings-schema.js';
-import { checkLeafKeyCeiling } from './lib/agentrc-key-ceiling.js';
+import {
+  checkLeafKeyCeiling,
+  formatCeilingBreach,
+} from './lib/agentrc-key-ceiling.js';
 
 const HELP = {
   invocation: 'node scripts/check-agentrc-key-ceiling.js',
@@ -21,24 +24,21 @@ const HELP = {
     'Fail when the .agentrc schema carries more leaf keys than the landed ceiling, so the config surface cannot regrow silently.',
   flags: [],
   notes: [
-    'Exit codes:\n  0  at or under the ceiling\n  1  over the ceiling; the count and the ceiling are printed',
+    'Exit codes:\n  0  at or under the ceiling\n  1  over the ceiling; the count, the ceiling and the raise-and-record rule are printed',
   ],
 };
 
 runAsCli(
   import.meta.url,
   async () => {
-    const { count, ceiling, ok } = checkLeafKeyCeiling(AGENTRC_SCHEMA);
-    if (ok) {
+    const result = checkLeafKeyCeiling(AGENTRC_SCHEMA);
+    if (result.ok) {
       process.stdout.write(
-        `[agentrc-key-ceiling] ${count} leaf key(s), ceiling ${ceiling} — ok\n`,
+        `[agentrc-key-ceiling] ${result.count} leaf key(s), ceiling ${result.ceiling} — ok\n`,
       );
       return;
     }
-    process.stderr.write(
-      `[agentrc-key-ceiling] ${count} leaf key(s) exceeds the ceiling of ${ceiling}. ` +
-        'Remove a key the new one displaces, or raise AGENTRC_LEAF_KEY_CEILING in scripts/lib/agentrc-key-ceiling.js and record why in docs/decisions.md.\n',
-    );
+    process.stderr.write(formatCeilingBreach(result));
     process.exitCode = 1;
   },
   { source: 'agentrc-key-ceiling', usage: HELP },

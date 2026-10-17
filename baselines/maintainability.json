@@ -2692,7 +2692,7 @@
     },
     {
       "path": "scripts/check-agentrc-key-ceiling.js",
-      "mi": 108.03
+      "mi": 110.833
     },
     {
       "path": "scripts/check-audit-attribution.js",
@@ -2772,7 +2772,7 @@
     },
     {
       "path": "scripts/lib/agentrc-key-ceiling.js",
-      "mi": 113.335
+      "mi": 114.378
     },
     {
       "path": "scripts/lib/audit-advisories.js",
