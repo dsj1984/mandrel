@@ -5,7 +5,7 @@
  * skip or wait forever on a check. Returns a verdict; no side effects.
  */
 
-import { spawnSync } from 'node:child_process';
+import { runGh as spawnGh } from '../gh-exec.js';
 import { defaultSleep } from '../util/sleep.js';
 import { applyBehindUpdate } from './behind-recovery.js';
 import { createCancelledRunDiscount } from './cancelled-run-discount.js';
@@ -31,12 +31,12 @@ function ghRepoFlag(repo) {
   return trimmed.length > 0 ? ['--repo', trimmed] : [];
 }
 
-function runGh(args, { cwd, repo, spawnFn = spawnSync }) {
-  const result = spawnFn('gh', [...args, ...ghRepoFlag(repo)], {
-    cwd,
-    encoding: 'utf-8',
-    shell: false,
-  });
+function runGh(args, { cwd, repo, spawnFn }) {
+  const result = spawnGh(
+    [...args, ...ghRepoFlag(repo)],
+    { cwd, encoding: 'utf-8', shell: false },
+    spawnFn,
+  );
   return {
     status: result.status ?? 1,
     stdout: result.stdout ?? '',

@@ -5,6 +5,7 @@
 
 import { spawn as defaultSpawn } from 'node:child_process';
 
+import { ensureGhEnv } from '../gh-env.js';
 import { LABEL_COLORS } from '../label-constants.js';
 
 export const DEFAULT_RUN_CHILD_TIMEOUT_MS = 30000;
@@ -96,6 +97,22 @@ export function runChild({
   });
 }
 
+/** `runChild` for `gh`, after `ensureGhEnv` (a config error → `spawnError`). */
+export function runGhChild(opts) {
+  try {
+    ensureGhEnv();
+  } catch (err) {
+    return Promise.resolve({
+      code: null,
+      stdout: '',
+      stderr: '',
+      spawnError: err,
+      timedOut: false,
+    });
+  }
+  return runChild(opts);
+}
+
 function runWith(gh, cmd, args) {
   return runChild({
     cmd,
@@ -107,7 +124,13 @@ function runWith(gh, cmd, args) {
 }
 
 function runGh(gh, args) {
-  return runWith(gh, gh.ghPath, args);
+  return runGhChild({
+    cmd: gh.ghPath,
+    args,
+    spawnImpl: gh.spawnImpl,
+    cwd: gh.cwd,
+    timeoutMs: gh.timeoutMs,
+  });
 }
 
 function childFailed(res) {

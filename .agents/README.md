@@ -604,10 +604,33 @@ accounts, give the project its own `gh` credential store in the gitignored
 ```
 
 Log it in once with `GH_CONFIG_DIR=~/.config/gh-work gh auth login`. Relative
-paths resolve against the project root and `~` expands to your home; a
-missing directory is a config error. Config resolution exports
-`GH_CONFIG_DIR`, so every `gh` call and child process Mandrel spawns reads
-that store (a differing inherited value is overridden with a warning).
+paths resolve against the project root (the main checkout, also from a Story
+worktree) and `~` expands to your home; a missing directory is a config
+error.
+
+**The gh env contract.** The gh boundary owns the gh environment: before
+the first `gh` spawn in a process, `ensureGhEnv()` (`lib/gh-env.js`, called by
+`gh-exec.js`) reads `github.cliConfigDir`
+through the `.agentrc.local.json` overlay and exports `GH_CONFIG_DIR`, so
+every `gh` call and child process Mandrel spawns — `mandrel doctor` and the
+bootstrap preflight included — reads that store (a differing inherited value
+is overridden with a warning). Config resolution itself never sets it. New
+code spawns `gh` only through `exec()` or `runGh()`; an enforcement test fails
+on any other `gh` spawn.
+
+**Config anchoring.** A script reads the `.agentrc.json` (and
+`.agentrc.local.json`) of the tree it runs in, not the tree its code lives
+in. The root resolves in this order:
+
+1. an explicit `cwd` passed to `resolveConfig`;
+2. `AP_AGENTRC_CWD`, the explicit override for a process that must judge
+   another tree;
+3. the git toplevel of the process's working directory — a Story worktree's
+   own root, so a gate spawned with `cwd` set to the worktree reads its
+   config with no env plumbing;
+4. the Mandrel install root, outside any git work tree.
+
+`tempRoot` stays anchored on the main checkout either way.
 
 **Identity check.** With a real `github.operatorHandle` and a `gh`-store
 credential, the provider checks the login (`GET /user`, once per process)

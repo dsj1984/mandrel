@@ -6,6 +6,7 @@
 
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
+import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { Volume } from 'memfs';
@@ -17,13 +18,19 @@ import {
 import { getAgentrcValidator } from '../../.agents/scripts/lib/config-schema.js';
 import { validate as validateGenerated } from '../../.agents/scripts/lib/generated/agentrc-validator.js';
 import {
+  _resetGhEnvForTests,
+  ensureGhEnv,
+} from '../../.agents/scripts/lib/gh-env.js';
+import {
   classify,
   createGh,
   describeGraphqlPreflight,
   exec,
   GhAuthError,
   probeGraphqlAvailability,
+  runGh,
 } from '../../.agents/scripts/lib/gh-exec.js';
+import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import {
   __setExecSyncForTests,
   readGhCliToken,
@@ -119,7 +126,7 @@ describe('AC-1 github.cliConfigDir → GH_CONFIG_DIR', () => {
     );
   });
 
-  it('config resolution sets GH_CONFIG_DIR from .agentrc.local.json, and every gh child inherits it', async () => {
+  it('resolveConfig never sets GH_CONFIG_DIR (#5740)', () => {
     const vol = new Volume();
     vol.mkdirSync(STORE, { recursive: true });
     vol.writeFileSync(
@@ -131,32 +138,31 @@ describe('AC-1 github.cliConfigDir → GH_CONFIG_DIR', () => {
       JSON.stringify({ github: { cliConfigDir: 'gh-store' } }),
     );
     resolveConfig({ cwd: FIXTURE_ROOT, ctx: { fs: vol } });
-    assert.equal(process.env.GH_CONFIG_DIR, STORE);
-
-    // gh-exec spawn env.
-    let spawnedEnv = null;
-    const spawnImpl = (_cmd, _args, opts) => {
-      spawnedEnv = opts.env;
-      const child = new EventEmitter();
-      child.stdout = new EventEmitter();
-      child.stderr = new EventEmitter();
-      child.stdin = { end() {} };
-      setImmediate(() => child.emit('close', 0, null));
-      return child;
-    };
-    await exec({ args: ['issue', 'list'], spawnImpl });
-    assert.equal(spawnedEnv.GH_CONFIG_DIR, STORE);
-
-    // `gh auth token` env.
-    let tokenEnv = null;
-    __setExecSyncForTests((_cmd, opts) => {
-      tokenEnv = opts.env;
-      return `${SENTINEL}\n`;
-    });
-    assert.equal(readGhCliToken().verdict, 'ok');
-    assert.equal(tokenEnv.GH_CONFIG_DIR, STORE);
+    assert.equal(process.env.GH_CONFIG_DIR, undefined);
   });
 
+  it('a relative cliConfigDir resolves against the main checkout even when the anchor root is a worktree', () => {
+    const worktree = path.join(FIXTURE_ROOT, '.worktrees', 'story-1');
+    const vol = new Volume();
+    vol.mkdirSync(STORE, { recursive: true });
+    vol.mkdirSync(worktree, { recursive: true });
+    vol.writeFileSync(
+      path.join(worktree, '.agentrc.json'),
+      JSON.stringify(BASE_CONFIG),
+    );
+    vol.writeFileSync(
+      path.join(worktree, '.agentrc.local.json'),
+      JSON.stringify({ github: { cliConfigDir: 'gh-store' } }),
+    );
+    // `--git-common-dir` from the worktree names the main checkout's `.git`.
+    const exec = (_file, args) => {
+      assert.deepEqual(args, ['rev-parse', '--git-common-dir']);
+      return `${path.join(FIXTURE_ROOT, '.git')}\n`;
+    };
+    const env = {};
+    assert.equal(ensureGhEnv({ cwd: worktree, env, fsImpl: vol, exec }), STORE);
+    assert.equal(env.GH_CONFIG_DIR, STORE);
+  });
   it('a configured directory that does not exist is a config error', () => {
     const vol = new Volume();
     vol.mkdirSync(FIXTURE_ROOT, { recursive: true });
@@ -192,6 +198,82 @@ describe('AC-1 github.cliConfigDir → GH_CONFIG_DIR', () => {
   it('an absent key leaves the env untouched', () => {
     assert.equal(applyGhConfigDir({}, FIXTURE_ROOT), null);
     assert.equal(process.env.GH_CONFIG_DIR, undefined);
+  });
+});
+
+describe('#5740 the gh boundary owns GH_CONFIG_DIR', () => {
+  let project;
+  let savedAnchor;
+  beforeEach(() => {
+    project = makeTempDir('mandrel-gh-env-');
+    fs.mkdirSync(path.join(project, 'gh-store'));
+    fs.writeFileSync(
+      path.join(project, '.agentrc.local.json'),
+      JSON.stringify({ github: { cliConfigDir: 'gh-store' } }),
+    );
+    savedAnchor = process.env.AP_AGENTRC_CWD;
+    process.env.AP_AGENTRC_CWD = project;
+    delete process.env.GH_CONFIG_DIR;
+    _resetGhEnvForTests();
+  });
+  afterEach(() => {
+    if (savedAnchor === undefined) delete process.env.AP_AGENTRC_CWD;
+    else process.env.AP_AGENTRC_CWD = savedAnchor;
+    _resetGhEnvForTests();
+    fs.rmSync(project, { recursive: true, force: true });
+  });
+
+  it('the first gh spawn through exec() sets GH_CONFIG_DIR, and `gh auth token` inherits it', async () => {
+    const store = path.join(project, 'gh-store');
+    let spawnedEnv = null;
+    const spawnImpl = (_cmd, _args, opts) => {
+      spawnedEnv = opts.env;
+      const child = new EventEmitter();
+      child.stdout = new EventEmitter();
+      child.stderr = new EventEmitter();
+      child.stdin = { end() {} };
+      setImmediate(() => child.emit('close', 0, null));
+      return child;
+    };
+    assert.equal(process.env.GH_CONFIG_DIR, undefined);
+    await exec({ args: ['issue', 'list'], spawnImpl });
+    assert.equal(spawnedEnv.GH_CONFIG_DIR, store);
+    assert.equal(process.env.GH_CONFIG_DIR, store);
+
+    let tokenEnv = null;
+    __setExecSyncForTests((_file, _args, opts) => {
+      tokenEnv = opts.env;
+      return `${SENTINEL}\n`;
+    });
+    assert.equal(readGhCliToken().verdict, 'ok');
+    assert.equal(tokenEnv.GH_CONFIG_DIR, store);
+  });
+
+  it('runGh layers the ensured store over a caller-built env', () => {
+    const store = path.join(project, 'gh-store');
+    let seen = null;
+    runGh(
+      ['--version'],
+      { env: { GH_CONFIG_DIR: '/stale' } },
+      (file, args, opts) => {
+        seen = { file, args, env: opts.env };
+        return { status: 0 };
+      },
+    );
+    assert.deepEqual(seen.args, ['--version']);
+    assert.equal(seen.file, 'gh');
+    assert.equal(seen.env.GH_CONFIG_DIR, store);
+  });
+
+  it('a configured store that does not exist rejects exec() as a config error', async () => {
+    fs.rmSync(path.join(project, 'gh-store'), { recursive: true });
+    await assert.rejects(
+      exec({
+        args: ['issue', 'list'],
+        spawnImpl: () => assert.fail('spawned'),
+      }),
+      /github\.cliConfigDir points at .*not an existing directory/,
+    );
   });
 });
 

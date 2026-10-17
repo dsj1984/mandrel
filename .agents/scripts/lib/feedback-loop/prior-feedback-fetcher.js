@@ -6,7 +6,7 @@
 
 import { META_LABELS } from '../label-constants.js';
 import { CI_GAP_INTAKE_MARKER } from '../orchestration/ci-gap-intake.js';
-import { runChild } from './graduator-core.js';
+import { runGhChild } from './graduator-gh.js';
 
 const DEFAULT_LIMIT = 50;
 
@@ -63,7 +63,7 @@ function extractRecurringDefectClasses(issues) {
  * @returns {Promise<{ code: number|null, stdout: string, stderr: string, spawnError: Error|null }>}
  */
 function runGh({ ghPath, args, spawnImpl }) {
-  return runChild({ cmd: ghPath, args, spawnImpl });
+  return runGhChild({ cmd: ghPath, args, spawnImpl });
 }
 
 /**

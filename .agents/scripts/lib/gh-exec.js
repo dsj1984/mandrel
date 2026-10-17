@@ -3,7 +3,11 @@
  * shell, so argument injection is impossible by construction.
  */
 
-import { spawn as defaultSpawn } from 'node:child_process';
+import {
+  spawn as defaultSpawn,
+  spawnSync as defaultSpawnSync,
+} from 'node:child_process';
+import { ghEnv } from './gh-env.js';
 import {
   isTransportFailure,
   sandboxDenialCode,
@@ -12,6 +16,11 @@ import {
 } from './gh-transport.js';
 
 let _spawnCount = 0;
+
+/** `gh` through any `(file, args, opts)` runner, with the gh env ensured. */
+export function runGh(args, opts = {}, runner = defaultSpawnSync) {
+  return runner('gh', args, { ...opts, env: ghEnv(opts.env ?? process.env) });
+}
 
 /**
  * @returns {number}
@@ -243,10 +252,16 @@ export function exec({
     );
   }
 
+  let env;
+  try {
+    env = ghEnv();
+  } catch (err) {
+    return Promise.reject(err);
+  }
   const spawnOpts = {
     stdio: ['pipe', 'pipe', 'pipe'],
     shell: false,
-    env: process.env,
+    env,
   };
   if (typeof timeoutMs === 'number' && timeoutMs > 0) {
     spawnOpts.timeout = timeoutMs;

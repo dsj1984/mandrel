@@ -1,5 +1,6 @@
 /** Classified `gh auth token` results; only a confirmed not-logged-in result says `gh auth login`. */
 
+import { runGh } from '../../lib/gh-exec.js';
 import {
   isTransportFailure,
   sandboxDenialCode,
@@ -60,15 +61,17 @@ function classifyGhTokenFailure(err) {
  *   detail: string|null }} GhTokenResult
  */
 
-/** @returns {GhTokenResult} */
+/**
+ * @param {Function} execImpl - an `execFileSync`-shaped `(file, args, opts)` runner.
+ * @returns {GhTokenResult}
+ */
 export function runGhAuthToken(execImpl) {
   try {
-    const out = execImpl('gh auth token', {
-      encoding: 'utf8',
-      timeout: 5000,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env: process.env,
-    });
+    const out = runGh(
+      ['auth', 'token'],
+      { encoding: 'utf8', timeout: 5000, stdio: ['pipe', 'pipe', 'pipe'] },
+      execImpl,
+    );
     const token = String(out ?? '').trim();
     if (token) return { token, verdict: 'ok', detail: null };
     return {

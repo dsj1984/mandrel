@@ -23,6 +23,7 @@ import {
 import path from 'node:path';
 import { spawnChild } from '../child-exec.js';
 import { resolveConfig } from '../config-resolver.js';
+import { runGh } from '../gh-exec.js';
 import { Logger } from '../Logger.js';
 import { createProvider } from '../provider-factory.js';
 import { isRerunPermitted } from './check-state.js';
@@ -97,10 +98,10 @@ function ciDigestPaths({ storyId = null, tempRoot, cwd }) {
  */
 function ghRunLogTail({ runId, cwd, spawnFn, maxLines = 40 }) {
   if (!runId) return '';
-  const result = spawnChild(
-    'gh',
+  const result = runGh(
     ['run', 'view', String(runId), '--log-failed'],
     { run: spawnFn, cwd },
+    spawnChild,
   );
   const out = (result.stdout ?? '').trim();
   if (out.length === 0) return '';
@@ -115,10 +116,10 @@ function ghRunLogTail({ runId, cwd, spawnFn, maxLines = 40 }) {
  * @returns {{ runId: string|null, url: string|null }}
  */
 function resolveFailingCheckRun({ prRef, checkName, cwd, spawnFn }) {
-  const result = spawnChild(
-    'gh',
+  const result = runGh(
     ['pr', 'checks', prRef, '--json', 'name,link'],
     { run: spawnFn, cwd },
+    spawnChild,
   );
   try {
     const parsed = JSON.parse((result.stdout ?? '').trim() || '[]');
@@ -141,13 +142,10 @@ function resolveFailingCheckRun({ prRef, checkName, cwd, spawnFn }) {
  * @returns {string|null}
  */
 export function resolvePrHeadSha({ prRef, cwd, spawnFn }) {
-  const result = spawnChild(
-    'gh',
+  const result = runGh(
     ['pr', 'view', prRef, '--json', 'headRefOid'],
-    {
-      run: spawnFn,
-      cwd,
-    },
+    { run: spawnFn, cwd },
+    spawnChild,
   );
   if ((result?.status ?? 1) !== 0) return null;
   try {

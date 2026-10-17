@@ -5,8 +5,8 @@
  * @module lib/orchestration/git-cleanup/phases/git-probes
  */
 
-import { execFileSync } from 'node:child_process';
-
+import { execFileCapture } from '../../../child-exec.js';
+import { runGh } from '../../../gh-exec.js';
 import { gitSpawn } from '../../../git-utils.js';
 import { parseWorktreePorcelain } from '../../../worktree-manager.js';
 import { makeWorktreeOps } from './git-probes-ff.js';
@@ -168,7 +168,7 @@ export function worktreesByBranch(cwd) {
 /* node:coverage ignore next */
 // Synchronous on purpose: `planCleanup` is a sync planner.
 export function defaultGhRunner(args, { cwd }) {
-  return execFileSync('gh', args, { cwd, encoding: 'utf8' });
+  return runGh(args, { cwd, encoding: 'utf8' }, execFileCapture);
 }
 
 /**

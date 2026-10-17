@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { beforeEach, describe, it } from 'node:test';
 import { Volume } from 'memfs';
+import { resolveAgentrcRoot } from '../../.agents/scripts/lib/config/git-roots.js';
 import { CRAP_GATE_DEFAULTS } from '../../.agents/scripts/lib/config/quality.js';
 import {
   BASELINES_DEFAULTS,
@@ -703,5 +704,51 @@ describe('config-resolver — notifications defaults', () => {
       commentEvents: [...NOTIFICATIONS_DEFAULTS.commentEvents],
       webhookEvents: [...NOTIFICATIONS_DEFAULTS.webhookEvents],
     });
+  });
+});
+
+describe('config-resolver — anchor root order (#5740)', () => {
+  const toplevelOf = (top) => (_file, args) => {
+    assert.deepEqual(args, ['rev-parse', '--show-toplevel']);
+    if (top === null) throw new Error('not a git repository');
+    return `${top}\n`;
+  };
+  const processCwd = () => path.resolve('/anywhere/sub');
+
+  it('an explicit cwd wins over AP_AGENTRC_CWD and the git toplevel', () => {
+    const root = resolveAgentrcRoot({
+      cwd: '/explicit',
+      env: { AP_AGENTRC_CWD: '/env' },
+      processCwd,
+      exec: toplevelOf('/top'),
+    });
+    assert.equal(root, path.resolve('/explicit'));
+  });
+
+  it('AP_AGENTRC_CWD overrides the git toplevel', () => {
+    const root = resolveAgentrcRoot({
+      env: { AP_AGENTRC_CWD: '/env' },
+      processCwd,
+      exec: toplevelOf('/top'),
+    });
+    assert.equal(root, path.resolve('/env'));
+  });
+
+  it('with no override, the git toplevel of the process cwd is the root', () => {
+    const root = resolveAgentrcRoot({
+      env: {},
+      processCwd,
+      exec: toplevelOf(path.resolve('/repo/.worktrees/story-1')),
+    });
+    assert.equal(root, path.resolve('/repo/.worktrees/story-1'));
+  });
+
+  it('outside any work tree the root falls back to PROJECT_ROOT', () => {
+    const root = resolveAgentrcRoot({
+      env: {},
+      processCwd,
+      exec: toplevelOf(null),
+    });
+    assert.equal(root, PROJECT_ROOT);
   });
 });

@@ -7,12 +7,16 @@
  */
 
 import assert from 'node:assert/strict';
-import { rmSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
+import { pathToFileURL } from 'node:url';
 
 import { defaultGateRunner } from '../../../.agents/scripts/lib/close-validation/process.js';
 import { runCloseValidation } from '../../../.agents/scripts/lib/close-validation/runner.js';
 import { runCloseValidationPhase } from '../../../.agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js';
+import { PROJECT_ROOT } from '../../../.agents/scripts/lib/project-root.js';
 import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
 
 const FAILING_TESTS_HINT =
@@ -164,5 +168,85 @@ describe('gate children resolve config from their cwd (#5729)', () => {
   it('AC-2: a supplied env cannot override the cwd pin', async () => {
     const env = { AP_AGENTRC_CWD: '/elsewhere', GATE_ONLY: '1' };
     assert.equal(await spawnedAgentrcCwd({ cwd, env }), cwd);
+  });
+});
+
+describe('a gate child anchors config on its own tree with no env var (#5740)', () => {
+  const RESOLVER = pathToFileURL(
+    path.join(PROJECT_ROOT, '.agents/scripts/lib/config-resolver.js'),
+  ).href;
+  const PRINT_CONFIG = [
+    '--input-type=module',
+    '-e',
+    `import { resolveConfig } from ${JSON.stringify(RESOLVER)};
+const c = resolveConfig();
+process.stdout.write(JSON.stringify({ source: c.source, baseBranch: c.project.baseBranch }));`,
+  ];
+
+  function envWithout(extra = {}) {
+    const env = { ...process.env, ...extra };
+    if (!('AP_AGENTRC_CWD' in extra)) delete env.AP_AGENTRC_CWD;
+    return env;
+  }
+
+  function resolvedIn(cwd, env) {
+    return JSON.parse(
+      execFileSync(process.execPath, PRINT_CONFIG, {
+        cwd,
+        env,
+        encoding: 'utf8',
+      }),
+    );
+  }
+
+  /** A git work tree whose `.agentrc.json` names `baseBranch`. */
+  function treeWith(baseBranch) {
+    const dir = realpathSync(makeTempDir('mandrel-anchor-'));
+    execFileSync('git', ['init', '-q'], { cwd: dir });
+    writeFileSync(
+      path.join(dir, '.agentrc.json'),
+      JSON.stringify({
+        project: {
+          baseBranch,
+          paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+        },
+      }),
+    );
+    return dir;
+  }
+
+  const made = [];
+  afterEach(() => {
+    for (const dir of made.splice(0)) {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('AC-1: a child spawned with cwd = a worktree, AP_AGENTRC_CWD unset, reads that worktree .agentrc.json', () => {
+    const worktree = treeWith('worktree-base');
+    made.push(worktree);
+    const sub = path.join(worktree, 'nested');
+    mkdirSync(sub);
+    const got = resolvedIn(sub, envWithout());
+    assert.equal(got.baseBranch, 'worktree-base');
+    assert.equal(got.source, path.join(worktree, '.agentrc.json'));
+  });
+
+  it('AC-1: an explicit AP_AGENTRC_CWD still overrides the cwd tree', () => {
+    const worktree = treeWith('worktree-base');
+    const other = treeWith('override-base');
+    made.push(worktree, other);
+    const got = resolvedIn(worktree, envWithout({ AP_AGENTRC_CWD: other }));
+    assert.equal(got.baseBranch, 'override-base');
+  });
+
+  it('AC-1: a non-git temp directory falls back to PROJECT_ROOT', () => {
+    const plain = realpathSync(makeTempDir('mandrel-anchor-plain-'));
+    made.push(plain);
+    const got = resolvedIn(plain, envWithout());
+    assert.ok(
+      got.source.includes(path.join(PROJECT_ROOT, '.agentrc')),
+      got.source,
+    );
   });
 });

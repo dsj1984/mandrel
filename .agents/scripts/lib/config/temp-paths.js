@@ -8,52 +8,18 @@
  * worktree and the host reading from the main checkout converge on one file.
  */
 
-import { execFileSync } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
 import { reapOnExit } from '../test-temp.js';
+import { _clearGitRootCaches, mainCheckoutRoot } from './git-roots.js';
 
-/** Keyed by cwd; a cached `null` records a non-repo miss. */
-const _mainCheckoutRootCache = new Map();
-
-/**
- * Parent of `--git-common-dir`, which is the main checkout root from both the
- * main checkout and any linked worktree. `null` outside a repo.
- *
- * @param {string} [cwd=process.cwd()]
- * @param {{ exec?: typeof execFileSync }} [deps]
- * @returns {string|null}
- */
-export function mainCheckoutRoot(cwd = process.cwd(), deps = {}) {
-  const exec = deps.exec ?? execFileSync;
-  // Only the real resolver is memoized.
-  const memoize = !deps.exec;
-  if (memoize && _mainCheckoutRootCache.has(cwd)) {
-    return _mainCheckoutRootCache.get(cwd);
-  }
-  let resolved = null;
-  try {
-    const out = exec('git', ['rev-parse', '--git-common-dir'], {
-      cwd,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim();
-    if (out) {
-      const commonDir = path.isAbsolute(out) ? out : path.resolve(cwd, out);
-      resolved = path.dirname(commonDir);
-    }
-  } catch {
-    resolved = null;
-  }
-  if (memoize) _mainCheckoutRootCache.set(cwd, resolved);
-  return resolved;
-}
+export { mainCheckoutRoot } from './git-roots.js';
 
 /** Test-only. */
 export function _clearMainCheckoutRootCache() {
-  _mainCheckoutRootCache.clear();
+  _clearGitRootCaches();
 }
 
 /**

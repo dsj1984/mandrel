@@ -1,10 +1,10 @@
 /**
  * GitHub Provider — token resolution: GITHUB_TOKEN / GH_TOKEN env →
- * `gh auth token` → classified throw (`gh-token-diagnostics.js`). `execSync`
- * sits behind a holder so tests can swap it.
+ * `gh auth token` → classified throw (`gh-token-diagnostics.js`). The
+ * `execFileSync`-shaped runner sits behind a holder so tests can swap it.
  */
 
-import { execSync as defaultExecSync } from 'node:child_process';
+import { execFileSync as defaultExecSync } from 'node:child_process';
 import {
   describeTokenFailure,
   runGhAuthToken,

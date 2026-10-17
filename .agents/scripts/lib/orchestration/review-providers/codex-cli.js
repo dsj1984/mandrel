@@ -14,9 +14,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnCaptureAsync, spawnChild } from '../../child-exec.js';
+import { resolveAgentrcRoot } from '../../config/git-roots.js';
 import { resolvedTempRoot } from '../../config/temp-paths.js';
 import { resolveConfig } from '../../config-resolver.js';
-import { PROJECT_ROOT } from '../../project-root.js';
 import { PROVIDER_SEVERITY_MAP } from './provider-severity.js';
 import { renderDepthDirective } from './review-depth.js';
 
@@ -130,7 +130,7 @@ export async function invokeCodexExec(args, deps = {}) {
     const execArgs = ['exec', '--sandbox', 'read-only', '--ephemeral'];
     execArgs.push('--output-schema', schemaPath, '-o', lastMessagePath, '-');
     const result = await spawnCaptureAsync('codex', execArgs, {
-      cwd: deps.cwd ?? PROJECT_ROOT,
+      cwd: deps.cwd ?? resolveAgentrcRoot(),
       input: buildReviewPrompt(args),
       shell: IS_WINDOWS,
       timeout: INVOKE_TIMEOUT_MS,

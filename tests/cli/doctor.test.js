@@ -17,8 +17,9 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { describe, it } from 'node:test';
+import { afterEach, beforeEach, describe, it } from 'node:test';
 
+import { _resetGhEnvForTests } from '../../.agents/scripts/lib/gh-env.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import doctor, {
   formatClosureReport,
@@ -793,4 +794,72 @@ describe('runDoctor — github-project-access', () => {
     assert.equal(exitCode, 1);
     assert.match(text, /project #9 not found/);
   });
+});
+
+// ---------------------------------------------------------------------------
+// gh checks run with the configured GH_CONFIG_DIR (Story #5740)
+// ---------------------------------------------------------------------------
+
+describe('doctor gh checks run with the configured GH_CONFIG_DIR', () => {
+  const byName = (name) => registry.find((c) => c.name === name);
+  let project;
+  let store;
+  let saved;
+  beforeEach(() => {
+    project = makeTempDir('mandrel-doctor-gh-env-');
+    store = path.join(project, 'gh-store');
+    fs.mkdirSync(store);
+    fs.writeFileSync(
+      path.join(project, '.agentrc.json'),
+      JSON.stringify({ github: { owner: 'acme', projectNumber: 7 } }),
+    );
+    fs.writeFileSync(
+      path.join(project, '.agentrc.local.json'),
+      JSON.stringify({ github: { cliConfigDir: 'gh-store' } }),
+    );
+    saved = {
+      anchor: process.env.AP_AGENTRC_CWD,
+      dir: process.env.GH_CONFIG_DIR,
+    };
+    process.env.AP_AGENTRC_CWD = project;
+    delete process.env.GH_CONFIG_DIR;
+    _resetGhEnvForTests();
+  });
+  afterEach(() => {
+    if (saved.anchor === undefined) delete process.env.AP_AGENTRC_CWD;
+    else process.env.AP_AGENTRC_CWD = saved.anchor;
+    if (saved.dir === undefined) delete process.env.GH_CONFIG_DIR;
+    else process.env.GH_CONFIG_DIR = saved.dir;
+    _resetGhEnvForTests();
+    fs.rmSync(project, { recursive: true, force: true });
+  });
+
+  /** Records every spawn's command and env; answers like a logged-in gh. */
+  function recordingRunner() {
+    const calls = [];
+    const runner = (cmd, args, opts) => {
+      calls.push({ cmd, args, env: opts?.env });
+      return {
+        status: 0,
+        stdout:
+          args[0] === 'api'
+            ? '{"data":{"organization":{"projectV2":{"id":"P"}}}}'
+            : 'ok',
+        stderr: '',
+      };
+    };
+    return { runner, calls };
+  }
+
+  for (const name of ['github-token', 'gh-auth', 'github-project-access']) {
+    it(`${name} spawns gh with GH_CONFIG_DIR = the configured store`, async () => {
+      const { runner, calls } = recordingRunner();
+      await byName(name).run({ cwd: () => project, runner, env: {} });
+      assert.ok(calls.length > 0, `${name} spawned nothing`);
+      for (const call of calls) {
+        assert.equal(call.cmd, 'gh');
+        assert.equal(call.env?.GH_CONFIG_DIR, store);
+      }
+    });
+  }
 });

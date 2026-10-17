@@ -12,14 +12,13 @@ import {
 } from './config/agentrc-overlay.js';
 import { getCiDelivery } from './config/ci.js';
 import { getCommands } from './config/commands.js';
-import { applyGhConfigDir } from './config/gh-config-dir.js';
+import { resolveAgentrcRoot } from './config/git-roots.js';
 import { getGitHub } from './config/github.js';
 import { resolvePaths } from './config/paths.js';
 import { validateOrchestrationConfig } from './config/validate-orchestration.js';
 import { getWorktreeIsolation } from './config/worktree-isolation.js';
 import { getAgentrcValidator } from './config-schema.js';
 import { loadEnv } from './env-loader.js';
-import { PROJECT_ROOT } from './project-root.js';
 
 export { getAcceptanceEval } from './config/acceptance-eval.js';
 export { BASELINES_DEFAULTS, getBaselines } from './config/baselines.js';
@@ -203,15 +202,13 @@ function ensureEnvLoaded(root) {
 /**
  * Returns `{ project, github, planning, delivery, qa?, raw, source }`. A
  * missing file falls back to defaults; malformed JSON or a schema failure
- * throws. A set `github.cliConfigDir` is applied to `GH_CONFIG_DIR`. A call with an injected `ctx.fs` neither reads nor fills the
- * shared cache.
+ * throws. The root is `resolveAgentrcRoot`'s; `GH_CONFIG_DIR` is gh-exec's. A call
+ * with an injected `ctx.fs` neither reads nor fills the shared cache.
  *
  * @param {{ bustCache?: boolean, cwd?: string, validate?: boolean, ctx?: object }} [opts]
  */
 export function resolveConfig(opts) {
-  const root = path.resolve(
-    opts?.cwd ?? process.env.AP_AGENTRC_CWD ?? PROJECT_ROOT,
-  );
+  const root = resolveAgentrcRoot({ cwd: opts?.cwd });
   const validate = opts?.validate !== false;
   const injectedFs = opts?.ctx?.fs;
   const key = `${root}\0${validate}`;
@@ -223,7 +220,6 @@ export function resolveConfig(opts) {
     readRawConfig(injectedFs ?? fs, root),
     validate,
   );
-  applyGhConfigDir(resolved.github, root, { fsImpl: injectedFs ?? fs });
   if (!injectedFs) _cacheByKey.set(key, resolved);
   return resolved;
 }
