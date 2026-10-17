@@ -833,10 +833,6 @@
     },
     {
       "file": ".agents/scripts/lib/gh-exec.js",
-      "symbol": "GhScopeError"
-    },
-    {
-      "file": ".agents/scripts/lib/gh-exec.js",
       "symbol": "resetSpawnCount"
     },
     {
@@ -962,6 +958,10 @@
     {
       "file": ".agents/scripts/lib/orchestration/auto-merge-cwd.js",
       "symbol": "pickPrimaryWorktreePath"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/board-access-latch.js",
+      "symbol": "resetBoardAccessLatch"
     },
     {
       "file": ".agents/scripts/lib/orchestration/ceremony-routing.js",

@@ -21,6 +21,25 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..', '..');
 
+const { classify } = await import(
+  pathToFileURL(path.join(ROOT, '.agents', 'scripts', 'lib', 'gh-exec.js')).href
+);
+const { Logger } = await import(
+  pathToFileURL(path.join(ROOT, '.agents', 'scripts', 'lib', 'Logger.js')).href
+);
+const { resetBoardAccessLatch } = await import(
+  pathToFileURL(
+    path.join(
+      ROOT,
+      '.agents',
+      'scripts',
+      'lib',
+      'orchestration',
+      'board-access-latch.js',
+    ),
+  ).href
+);
+
 const { addIssueToBoard } = await import(
   pathToFileURL(
     path.join(
@@ -124,5 +143,41 @@ describe('providers/github/board-add.js — addIssueToBoard', () => {
       reason: 'insufficient-scope',
       scope: 'project',
     });
+  });
+
+  it('reports insufficient-scope and warns once per logger for a gh-exec scope refusal', async (t) => {
+    resetBoardAccessLatch();
+    const warned = [];
+    t.mock.method(Logger, 'warn', (m) => warned.push(String(m)));
+    const ghErr = classify({
+      args: ['api', 'graphql'],
+      stdout: '',
+      stderr:
+        'gh: Your token has not been granted the required scopes to execute this query. (INSUFFICIENT_SCOPES)\n',
+      code: 1,
+    });
+    const add = (n) =>
+      addIssueToBoard({
+        nodeId: `node_${n}`,
+        issueNumber: n,
+        getProjectNumber: () => 1,
+        addItemToProject: async () => {
+          throw ghErr;
+        },
+      });
+    const outs = [await add(1), await add(2), await add(3)];
+    for (const out of outs) {
+      assert.deepEqual(out, {
+        added: false,
+        reason: 'insufficient-scope',
+        scope: 'project',
+      });
+    }
+    assert.equal(warned.length, 1, warned.join('\n'));
+    assert.match(warned[0], /"project" scope/);
+    // A reset re-arms the latch for the logger that already warned.
+    resetBoardAccessLatch();
+    await add(4);
+    assert.equal(warned.length, 2);
   });
 });

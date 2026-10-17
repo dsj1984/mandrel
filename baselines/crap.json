@@ -20124,6 +20124,12 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/board-access-latch.js",
+      "method": "resetBoardAccessLatch",
+      "startLine": 81,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/board-access-latch.js",
       "method": "boardScopeFailure",
       "startLine": 97,
       "crap": 2
@@ -39481,6 +39487,27 @@
       "method": "<anon gql/()#0>",
       "startLine": 42,
       "crap": 3.0059176460918877,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
+      "method": "<anon (err,re)#0>",
+      "startLine": 45,
+      "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
+      "method": "<anon (err,re)#0/(text)#0>",
+      "startLine": 48,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
+      "method": "<anon (err,re)#0/(text)#1>",
+      "startLine": 51,
+      "crap": 1,
       "anonymous": true
     },
     {
