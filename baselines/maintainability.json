@@ -428,7 +428,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/duplication-scanner.js",
-      "mi": 96.165
+      "mi": 95.611
     },
     {
       "path": ".agents/scripts/lib/baselines/env-overrides.js",
@@ -512,7 +512,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "mi": 97.585
+      "mi": 96.453
     },
     {
       "path": ".agents/scripts/lib/baselines/scope.js",
@@ -712,7 +712,7 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
-      "mi": 91.763
+      "mi": 93.456
     },
     {
       "path": ".agents/scripts/lib/close-validation/runner.js",
@@ -1608,7 +1608,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/native.js",
-      "mi": 92.442
+      "mi": 91.484
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/parse-findings.js",
@@ -1792,7 +1792,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
-      "mi": 97.791
+      "mi": 96.681
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/context-budget-writeback.js",
@@ -2032,7 +2032,7 @@
     },
     {
       "path": ".agents/scripts/lib/source-extensions.js",
-      "mi": 123.338
+      "mi": 125.608
     },
     {
       "path": ".agents/scripts/lib/source-text/strip-js-comments.js",
@@ -2653,6 +2653,10 @@
     {
       "path": "lib/migrations/steps/2.91.0-move-shared-crap-capture-script.js",
       "mi": 106.218
+    },
+    {
+      "path": "lib/migrations/steps/2.91.0-retire-duplication-formats.js",
+      "mi": 117.324
     },
     {
       "path": "lib/migrations/steps/2.91.0-unset-null-lint-command.js",
