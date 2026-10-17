@@ -1812,7 +1812,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
-      "mi": 93.879
+      "mi": 95.292
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/review-core.js",
@@ -2248,7 +2248,7 @@
     },
     {
       "path": ".agents/scripts/lib/worktree/node-modules-strategy.js",
-      "mi": 86.803
+      "mi": 87.492
     },
     {
       "path": ".agents/scripts/lint-issue-body.js",

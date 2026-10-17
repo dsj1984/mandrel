@@ -15,7 +15,7 @@ import {
   execFileCapture,
   execFileCaptureAsync,
   formatChildFailure,
-  INTERCEPTOR_MAX_BUFFER_BYTES,
+  REPORTED_MAX_BUFFER_BYTES,
   spawnCapture,
   spawnCaptureAsync,
   spawnChild,
@@ -47,12 +47,13 @@ describe('the ceilings', () => {
     assert.equal(calls[0].opts.maxBuffer, MAX_BUFFER_BYTES);
   });
 
-  it('the interceptor bound stays at the 10 MiB it reports', () => {
-    // diagnose-friction.js emits this number on the friction row and in its
-    // remediation text; raising it would change emitted output, so it is a
-    // deliberately separate constant rather than an oversight.
-    assert.equal(INTERCEPTOR_MAX_BUFFER_BYTES, 10485760);
-    assert.ok(INTERCEPTOR_MAX_BUFFER_BYTES < MAX_BUFFER_BYTES);
+  it('the reported ceiling is the one the wrapper applies', () => {
+    // diagnose-friction.js names this number on an overflow's friction row;
+    // it must be the bound that actually fired, never a second policy value.
+    const { calls, run } = recorder('');
+    spawnChild('node', ['-v'], { run });
+    assert.equal(REPORTED_MAX_BUFFER_BYTES, calls[0].opts.maxBuffer);
+    assert.equal(REPORTED_MAX_BUFFER_BYTES, MAX_BUFFER_BYTES);
   });
 });
 
@@ -86,9 +87,9 @@ describe('execFileCapture', () => {
     const { calls, run } = recorder('');
     execFileCapture('node', ['-v'], {
       run,
-      maxBuffer: INTERCEPTOR_MAX_BUFFER_BYTES,
+      maxBuffer: 2048,
     });
-    assert.equal(calls[0].opts.maxBuffer, INTERCEPTOR_MAX_BUFFER_BYTES);
+    assert.equal(calls[0].opts.maxBuffer, 2048);
   });
 
   it('propagates a throwing runner — a non-zero exit stays the caller-owned', () => {
