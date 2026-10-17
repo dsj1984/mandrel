@@ -83,7 +83,7 @@ describe('kinds/duplication.rollup()', () => {
 });
 
 describe('kinds/duplication.compare()', () => {
-  it('classifies an increased percentage as a regression', () => {
+  it('classifies risen duplicated lines as a regression', () => {
     const head = { rows: [row('src/a.js', 20, 100, 20)] };
     const base = { rows: [row('src/a.js', 10, 100, 10)] };
     const out = compare(head, base);
@@ -92,7 +92,7 @@ describe('kinds/duplication.compare()', () => {
     assert.equal(out.improvements.length, 0);
   });
 
-  it('classifies a decreased percentage as an improvement', () => {
+  it('classifies fewer duplicated lines as an improvement', () => {
     const head = { rows: [row('src/a.js', 5, 100, 5)] };
     const base = { rows: [row('src/a.js', 10, 100, 10)] };
     const out = compare(head, base);
@@ -100,11 +100,28 @@ describe('kinds/duplication.compare()', () => {
     assert.equal(out.regressions.length, 0);
   });
 
-  it('classifies an equal percentage as unchanged', () => {
+  it('classifies equal duplicated lines as unchanged', () => {
     const head = { rows: [row('src/a.js', 10, 100, 10)] };
     const base = { rows: [row('src/a.js', 10, 100, 10)] };
     const out = compare(head, base);
     assert.equal(out.unchanged.length, 1);
+  });
+
+  it('unchanged duplicated lines over a shrunk file are not a regression (Story #5755)', () => {
+    // Epic #5744: 10 / 184 → 10 / 124 read as 5.43% → 8.06% on the ratio.
+    const head = { rows: [row('src/a.js', 10, 124, 8.06)] };
+    const base = { rows: [row('src/a.js', 10, 184, 5.43)] };
+    const out = compare(head, base);
+    assert.equal(out.regressions.length, 0);
+    assert.equal(out.unchanged.length, 1);
+  });
+
+  it('risen duplicated lines regress even when padding lowers the ratio (Story #5755)', () => {
+    const head = { rows: [row('src/a.js', 12, 400, 3)] };
+    const base = { rows: [row('src/a.js', 10, 100, 10)] };
+    const out = compare(head, base);
+    assert.equal(out.regressions.length, 1);
+    assert.equal(out.regressions[0].key, 'src/a.js');
   });
 
   it('new paths land in additions, never regressions', () => {
@@ -123,7 +140,7 @@ describe('kinds/duplication.compare()', () => {
     assert.equal(out.improvements[0].key, 'src/gone.js');
   });
 
-  it('removed clean paths (0%) count as unchanged', () => {
+  it('removed clean paths (0 duplicated lines) count as unchanged', () => {
     const head = { rows: [] };
     const base = { rows: [row('src/clean.js', 0, 100, 0)] };
     const out = compare(head, base);
@@ -149,6 +166,12 @@ describe('kinds/duplication.applyEpsilon()', () => {
 
   it('missing-prior rows fall through to regenerated', () => {
     const regen = [row('src/new.js', 5, 100, 5)];
+    const out = applyEpsilon(prior, regen, 0.5);
+    assert.deepEqual(out, regen);
+  });
+
+  it('measures drift on percentage, not the duplicated-lines regression axis', () => {
+    const regen = [row('src/a.js', 10, 50, 20)];
     const out = applyEpsilon(prior, regen, 0.5);
     assert.deepEqual(out, regen);
   });

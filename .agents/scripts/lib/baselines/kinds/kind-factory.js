@@ -8,11 +8,14 @@ import { mergeRowsByScope } from '../scope.js';
  * (default; never a regression) or is classified against a `'perfect'` base.
  * `removedRowPolicy`: a base row with no head row is classified against a
  * perfect head, or is an improvement when `when(baseRow)` holds.
+ * `epsilonAxes`: the axes `applyEpsilon` measures drift on (default `axes`),
+ * for a kind whose regression axis differs from its noise axis.
  *
  * @param {{
  *   keyField: string,
  *   kernelVersion: string | (() => string),
  *   axes: string[],
+ *   epsilonAxes?: string[],
  *   betterWhen: 'higher' | 'lower',
  *   aggregate: (rows: object[]) => Record<string, number>,
  *   missingBasePolicy?: 'addition' | 'perfect',
@@ -35,6 +38,7 @@ export function makeBaselineKind({
   keyField,
   kernelVersion,
   axes,
+  epsilonAxes = axes,
   betterWhen,
   aggregate,
   missingBasePolicy = 'addition',
@@ -142,7 +146,7 @@ export function makeBaselineKind({
       const p = priorByKey.get(keyOf(row));
       if (!p) return row;
       let maxAxisDelta = 0;
-      for (const axis of axes) {
+      for (const axis of epsilonAxes) {
         const d = Math.abs((row[axis] ?? 0) - (p[axis] ?? 0));
         if (d > maxAxisDelta) maxAxisDelta = d;
       }

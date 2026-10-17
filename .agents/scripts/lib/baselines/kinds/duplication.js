@@ -2,6 +2,11 @@
  * Per-kind module for the duplication baseline (jscpd). Row shape:
  * `{ path, duplicatedLines, totalLines, percentage }`; lower is better. Bump
  * the static kernel version when the row shape or rollup math changes.
+ *
+ * Per-file regressions compare absolute `duplicatedLines`: a ratio penalises
+ * deleting code around an unchanged clone and rewards padding a file.
+ * `percentage` stays the epsilon (noise) axis, the floor metric and the
+ * rollup.
  */
 
 import { canonicalise } from '../path-canon.js';
@@ -72,12 +77,13 @@ export const {
 } = makeBaselineKind({
   keyField,
   kernelVersion: '1.0.0',
-  axes: ['percentage'],
+  axes: ['duplicatedLines'],
+  epsilonAxes: ['percentage'],
   betterWhen: 'lower',
   aggregate,
   missingBasePolicy: 'addition',
   removedRowPolicy: {
     kind: 'improvement-when',
-    when: (b) => (b.percentage ?? 0) > 0,
+    when: (b) => (b.duplicatedLines ?? 0) > 0,
   },
 });
