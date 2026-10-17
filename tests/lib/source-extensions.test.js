@@ -303,3 +303,15 @@ describe('the scorable-source selectors agree', () => {
     );
   });
 });
+
+describe('SCORABLE_SOURCE_EXT_RE construction (Story #5758)', () => {
+  it('is built with an ordinary array callback, without the callback-free workaround', () => {
+    const text = fs.readFileSync(MODULE_PATH, 'utf8');
+    assert.match(
+      text,
+      /SCORABLE_SOURCE_EXTENSIONS\.map\(\(ext\) => ext\.slice\(1\)\)/,
+    );
+    assert.doesNotMatch(text, /Built without a callback/);
+    assert.doesNotMatch(text, /replaceAll\('\.', ''\)/);
+  });
+});
