@@ -19,7 +19,7 @@
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -324,15 +324,19 @@ describe('sync-claude-agents — per-role model override (#5519)', () => {
       JSON.stringify(config),
       'utf8',
     );
+    // A fixture project root carrying the shipped role files (and the rule
+    // their `@` import names, which the Codex half inlines).
+    cpSync(PAYLOAD, path.join(project, '.agents', 'agents'), {
+      recursive: true,
+    });
+    cpSync(
+      path.join(REPO_ROOT, '.agents', 'rules', 'security-baseline.md'),
+      path.join(project, '.agents', 'rules', 'security-baseline.md'),
+    );
     const dest = path.join(project, '.claude', 'agents');
     const result = spawnSync(process.execPath, [SYNC_SCRIPT], {
       cwd: project,
       encoding: 'utf8',
-      env: {
-        ...process.env,
-        SYNC_CLAUDE_AGENTS_SRC: PAYLOAD,
-        SYNC_CLAUDE_AGENTS_DEST: dest,
-      },
     });
     const modelOf = (role) =>
       readFileSync(path.join(dest, `${role}.md`), 'utf8').match(

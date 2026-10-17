@@ -12161,6 +12161,134 @@
       "anonymous": true
     },
     {
+      "path": ".agents/scripts/lib/claude/agents-projection.js",
+      "method": "agentFilesIn",
+      "startLine": 27,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/claude/agents-projection.js",
+      "method": "<anon agentFilesIn/(e)#0>",
+      "startLine": 31,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/claude/agents-projection.js",
+      "method": "<anon agentFilesIn/(e)#1>",
+      "startLine": 32,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/claude/agents-projection.js",
+      "method": "readJsonOrNull",
+      "startLine": 39,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/claude/agents-projection.js",
+      "method": "readAgentModels",
+      "startLine": 54,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/claude/agents-projection.js",
+      "method": "<anon readAgentModels/(file)#0>",
+      "startLine": 55,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/claude/agents-projection.js",
+      "method": "expectedClaudeAgents",
+      "startLine": 77,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/claude/agents-projection.js",
+      "method": "listGeneratedClaudeAgents",
+      "startLine": 109,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/claude/agents-projection.js",
+      "method": "<anon listGeneratedClaudeAgents/(f)#0>",
+      "startLine": 111,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/claude/agents-projection.js",
+      "method": "syncClaudeAgents",
+      "startLine": 129,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/claude/commands-projection.js",
+      "method": "mdFilesIn",
+      "startLine": 29,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/claude/commands-projection.js",
+      "method": "<anon mdFilesIn/(e)#0>",
+      "startLine": 34,
+      "crap": 4,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/claude/commands-projection.js",
+      "method": "<anon mdFilesIn/(e)#1>",
+      "startLine": 39,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/claude/commands-projection.js",
+      "method": "commandRelsIn",
+      "startLine": 48,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/claude/commands-projection.js",
+      "method": "<anon commandRelsIn/(f)#0>",
+      "startLine": 51,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/claude/commands-projection.js",
+      "method": "expectedClaudeCommands",
+      "startLine": 67,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/claude/commands-projection.js",
+      "method": "listGeneratedClaudeCommands",
+      "startLine": 98,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/claude/commands-projection.js",
+      "method": "<anon listGeneratedClaudeCommands/(rel)#0>",
+      "startLine": 100,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/claude/commands-projection.js",
+      "method": "reapPluginTree",
+      "startLine": 111,
+      "crap": 1.0013717421124828
+    },
+    {
+      "path": ".agents/scripts/lib/claude/commands-projection.js",
+      "method": "syncClaudeCommands",
+      "startLine": 143,
+      "crap": 4
+    },
+    {
       "path": ".agents/scripts/lib/clean-temp.js",
       "method": "<anon ()#0>",
       "startLine": 39,
@@ -41025,156 +41153,41 @@
     },
     {
       "path": ".agents/scripts/sync-claude-agents.js",
-      "method": "dirExists",
-      "startLine": 40,
+      "method": "main",
+      "startLine": 19,
       "crap": 1
     },
     {
       "path": ".agents/scripts/sync-claude-agents.js",
-      "method": "<anon (entry)#0>",
-      "startLine": 50,
-      "crap": 2,
+      "method": "<anon main/(line)#0>",
+      "startLine": 22,
+      "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/sync-claude-agents.js",
-      "method": "agentEntriesIn",
-      "startLine": 65,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/sync-claude-agents.js",
-      "method": "toAgentEntry",
-      "startLine": 69,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/sync-claude-agents.js",
-      "method": "listExistingAgents",
-      "startLine": 78,
-      "crap": 1.0233236151603498
-    },
-    {
-      "path": ".agents/scripts/sync-claude-agents.js",
-      "method": "<anon listExistingAgents/(f)#0>",
-      "startLine": 80,
-      "crap": 1.0233236151603498,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/sync-claude-agents.js",
-      "method": "withModelOverride",
-      "startLine": 114,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/sync-claude-agents.js",
-      "method": "syncEntry",
-      "startLine": 127,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/sync-claude-agents.js",
-      "method": "<anon (line)#0>",
-      "startLine": 165,
+      "method": "<anon main/(line)#1>",
+      "startLine": 28,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/sync-claude-commands.js",
-      "method": "dirExists",
-      "startLine": 43,
+      "method": "main",
+      "startLine": 17,
       "crap": 1
     },
     {
       "path": ".agents/scripts/sync-claude-commands.js",
-      "method": "reapPluginTree",
-      "startLine": 57,
-      "crap": 2.0030052592036065
-    },
-    {
-      "path": ".agents/scripts/sync-claude-commands.js",
-      "method": "<anon (entry)#0>",
-      "startLine": 86,
-      "crap": 2,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/sync-claude-commands.js",
-      "method": "<anon (entry)#1>",
-      "startLine": 95,
-      "crap": 2,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/sync-claude-commands.js",
-      "method": "enumerateLoopUnits",
-      "startLine": 104,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/sync-claude-commands.js",
-      "method": "<anon enumerateLoopUnits/(e)#0>",
-      "startLine": 110,
+      "method": "<anon main/(line)#0>",
+      "startLine": 20,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/sync-claude-commands.js",
-      "method": "workflowEntriesIn",
-      "startLine": 128,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/sync-claude-commands.js",
-      "method": "toWorkflowEntry",
-      "startLine": 133,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/sync-claude-commands.js",
-      "method": "listExistingCommands",
-      "startLine": 149,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/sync-claude-commands.js",
-      "method": "<anon listExistingCommands/(f)#0>",
-      "startLine": 152,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/sync-claude-commands.js",
-      "method": "<anon listExistingCommands/(f)#1>",
-      "startLine": 153,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/sync-claude-commands.js",
-      "method": "<anon listExistingCommands/(f)#2>",
-      "startLine": 158,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/sync-claude-commands.js",
-      "method": "<anon listExistingCommands/(f)#3>",
-      "startLine": 159,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/sync-claude-commands.js",
-      "method": "syncEntry",
-      "startLine": 193,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/sync-claude-commands.js",
-      "method": "<anon (line)#0>",
-      "startLine": 232,
+      "method": "<anon main/(line)#1>",
+      "startLine": 24,
       "crap": 1,
       "anonymous": true
     },
@@ -41538,119 +41551,119 @@
     {
       "path": "lib/cli/doctor-checks/codex.js",
       "method": "projectionParity",
-      "startLine": 37,
+      "startLine": 38,
       "crap": 4
     },
     {
       "path": "lib/cli/doctor-checks/codex.js",
       "method": "<anon projectionParity/(n)#0>",
-      "startLine": 52,
+      "startLine": 53,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/doctor-checks/codex.js",
       "method": "<anon projectionParity/(n,body)#0>",
-      "startLine": 54,
+      "startLine": 55,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": "lib/cli/doctor-checks/codex.js",
       "method": "<anon projectionParity/(n)#1>",
-      "startLine": 56,
+      "startLine": 57,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/doctor-checks/codex.js",
       "method": "readTextOrNull",
-      "startLine": 72,
+      "startLine": 73,
       "crap": 1.0233236151603498
     },
     {
       "path": "lib/cli/doctor-checks/codex.js",
       "method": "runCodexSkillsInSync",
-      "startLine": 87,
+      "startLine": 88,
       "crap": 1
     },
     {
       "path": "lib/cli/doctor-checks/codex.js",
       "method": "<anon runCodexSkillsInSync/()#0>",
-      "startLine": 88,
+      "startLine": 89,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/doctor-checks/codex.js",
       "method": "<anon runCodexSkillsInSync/()#1>",
-      "startLine": 91,
+      "startLine": 92,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/doctor-checks/codex.js",
       "method": "<anon runCodexSkillsInSync/(name)#0>",
-      "startLine": 93,
+      "startLine": 94,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/doctor-checks/codex.js",
       "method": "runCodexAgentsInSync",
-      "startLine": 107,
+      "startLine": 108,
       "crap": 1
     },
     {
       "path": "lib/cli/doctor-checks/codex.js",
       "method": "<anon runCodexAgentsInSync/()#0>",
-      "startLine": 108,
+      "startLine": 109,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/doctor-checks/codex.js",
       "method": "<anon runCodexAgentsInSync/()#1>",
-      "startLine": 111,
+      "startLine": 112,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/doctor-checks/codex.js",
       "method": "<anon runCodexAgentsInSync/(name)#0>",
-      "startLine": 113,
+      "startLine": 114,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/doctor-checks/codex.js",
       "method": "readProjectDocMaxBytes",
-      "startLine": 133,
+      "startLine": 134,
       "crap": 4
     },
     {
       "path": "lib/cli/doctor-checks/codex.js",
       "method": "resolveProjectDocLimit",
-      "startLine": 155,
+      "startLine": 156,
       "crap": 3
     },
     {
       "path": "lib/cli/doctor-checks/codex.js",
       "method": "runCodexInstructions",
-      "startLine": 187,
+      "startLine": 188,
       "crap": 7
     },
     {
       "path": "lib/cli/doctor-checks/codex.js",
       "method": "<anon runCodexInstructions/()#0>",
-      "startLine": 194,
+      "startLine": 195,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/doctor-checks/codex.js",
       "method": "<anon runCodexInstructions/(s)#0>",
-      "startLine": 216,
+      "startLine": 217,
       "crap": 1,
       "anonymous": true
     },
@@ -41803,117 +41816,61 @@
     {
       "path": "lib/cli/doctor-checks/sync-parity.js",
       "method": "runCommandsInSync",
-      "startLine": 24,
-      "crap": 8.0480841472577
+      "startLine": 38,
+      "crap": 1
     },
     {
       "path": "lib/cli/doctor-checks/sync-parity.js",
       "method": "<anon runCommandsInSync/()#0>",
-      "startLine": 30,
-      "crap": 1.0007513148009015,
+      "startLine": 39,
+      "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/doctor-checks/sync-parity.js",
-      "method": "<anon runCommandsInSync/(dir)#0>",
-      "startLine": 34,
-      "crap": 1.0007513148009015,
+      "method": "<anon runCommandsInSync/()#1>",
+      "startLine": 42,
+      "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/doctor-checks/sync-parity.js",
-      "method": "<anon runCommandsInSync/(dir)#0/(f)#0>",
-      "startLine": 36,
-      "crap": 1.0007513148009015,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/doctor-checks/sync-parity.js",
-      "method": "<anon runCommandsInSync/(file)#0>",
-      "startLine": 43,
-      "crap": 1.0007513148009015,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/doctor-checks/sync-parity.js",
-      "method": "<anon runCommandsInSync/(f)#0>",
-      "startLine": 69,
-      "crap": 1.0007513148009015,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/doctor-checks/sync-parity.js",
-      "method": "<anon runCommandsInSync/(f)#1>",
-      "startLine": 73,
-      "crap": 1.0007513148009015,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/doctor-checks/sync-parity.js",
-      "method": "<anon runCommandsInSync/(f)#2>",
-      "startLine": 74,
-      "crap": 1.0007513148009015,
+      "method": "<anon runCommandsInSync/(rel)#0>",
+      "startLine": 44,
+      "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/doctor-checks/sync-parity.js",
       "method": "resolveRoleScopedAgentsFlag",
-      "startLine": 103,
+      "startLine": 62,
       "crap": 1
     },
     {
       "path": "lib/cli/doctor-checks/sync-parity.js",
       "method": "runAgentsInSync",
-      "startLine": 136,
-      "crap": 9.051008746355684
+      "startLine": 91,
+      "crap": 5.003125
     },
     {
       "path": "lib/cli/doctor-checks/sync-parity.js",
       "method": "<anon runAgentsInSync/()#0>",
-      "startLine": 143,
-      "crap": 1.0006297376093294,
+      "startLine": 92,
+      "crap": 1.000125,
       "anonymous": true
     },
     {
       "path": "lib/cli/doctor-checks/sync-parity.js",
-      "method": "<anon runAgentsInSync/(dir)#0>",
-      "startLine": 147,
-      "crap": 1.0006297376093294,
+      "method": "<anon runAgentsInSync/()#1>",
+      "startLine": 95,
+      "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/doctor-checks/sync-parity.js",
-      "method": "<anon runAgentsInSync/(dir)#0/(f)#0>",
-      "startLine": 149,
-      "crap": 1.0006297376093294,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/doctor-checks/sync-parity.js",
-      "method": "<anon runAgentsInSync/(f)#0>",
-      "startLine": 159,
-      "crap": 1.0006297376093294,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/doctor-checks/sync-parity.js",
-      "method": "<anon runAgentsInSync/(f)#1>",
-      "startLine": 162,
-      "crap": 1.0006297376093294,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/doctor-checks/sync-parity.js",
-      "method": "<anon runAgentsInSync/(f)#2>",
-      "startLine": 189,
-      "crap": 1.0006297376093294,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/doctor-checks/sync-parity.js",
-      "method": "<anon runAgentsInSync/(f)#3>",
-      "startLine": 190,
-      "crap": 1.0006297376093294,
+      "method": "<anon runAgentsInSync/(name)#0>",
+      "startLine": 125,
+      "crap": 1,
       "anonymous": true
     },
     {

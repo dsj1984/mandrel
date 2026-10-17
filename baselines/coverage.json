@@ -951,6 +951,18 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/claude/agents-projection.js",
+      "lines": 100,
+      "branches": 96.97,
+      "functions": 88.89
+    },
+    {
+      "path": ".agents/scripts/lib/claude/commands-projection.js",
+      "lines": 98.91,
+      "branches": 94.74,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/clean-temp.js",
       "lines": 98.41,
       "branches": 94.34,
@@ -3646,14 +3658,14 @@
     },
     {
       "path": ".agents/scripts/sync-claude-agents.js",
-      "lines": 96.86,
-      "branches": 84.62,
-      "functions": 100
+      "lines": 100,
+      "branches": 100,
+      "functions": 66.67
     },
     {
       "path": ".agents/scripts/sync-claude-commands.js",
-      "lines": 99.12,
-      "branches": 95.45,
+      "lines": 100,
+      "branches": 100,
       "functions": 100
     },
     {
@@ -3731,7 +3743,7 @@
     {
       "path": "lib/cli/doctor-checks/codex.js",
       "lines": 99.17,
-      "branches": 87.27,
+      "branches": 87.72,
       "functions": 100
     },
     {
@@ -3772,8 +3784,8 @@
     },
     {
       "path": "lib/cli/doctor-checks/sync-parity.js",
-      "lines": 94.15,
-      "branches": 90.91,
+      "lines": 98.46,
+      "branches": 85.19,
       "functions": 100
     },
     {

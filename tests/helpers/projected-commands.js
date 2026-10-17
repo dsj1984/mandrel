@@ -20,59 +20,49 @@
  *   - "somebody has run `npm run sync:commands` in this checkout" — an
  *     environment fact, which is what actually broke.
  *
- * This helper separates them. It runs the **real** sync script against the
- * repository's **real** `.agents/workflows/` tree, projecting into a managed
- * temp directory via the script's own `SYNC_CLAUDE_COMMANDS_SRC` / `_DEST`
- * fixture seams. The resulting file set is a function of tracked source alone,
- * so the guards keep their full strength in any checkout — and gain some: they
- * now prove the projection the sync *would* produce, rather than trusting a
- * stale mirror somebody happened to have on disk.
+ * This helper separates them. It runs the **real** command projection
+ * (`syncClaudeCommands`) against the repository's **real**
+ * `.agents/workflows/` tree, projecting into a managed temp directory through
+ * the module's own `payloadSrc` / `destDir` arguments. The resulting file set
+ * is a function of tracked source alone, so the guards keep their full
+ * strength in any checkout — and gain some: they prove the projection the
+ * sync *would* produce, rather than trusting a stale mirror somebody happened
+ * to have on disk.
  *
- * Setting `SYNC_CLAUDE_COMMANDS_DEST` also disables the script's
- * `reapPluginTree()` step, so a projection run never touches the real
- * `.claude/` tree.
+ * ## Why the project root is an empty scratch directory
  *
- * ## Why the sync runs from an empty scratch directory
+ * `payloadSrc` overrides the **payload** source only. The second source —
+ * `.agents/local/workflows/`, the consumer-owned, sync-exempt zone — and the
+ * plugin-tree reap both resolve from `projectRoot`. Rooting the projection at
+ * the repository would fold whatever the developer happened to have in their
+ * own local zone into the file set these guards assert over: a hand-authored
+ * `/scratch.md` would make a structural rename guard pass or fail on a file
+ * that is not in the repository and that CI will never see.
  *
- * `SYNC_CLAUDE_COMMANDS_SRC` overrides the **payload** source only. The
- * second source — `.agents/local/workflows/`, the consumer-owned, sync-exempt
- * zone — is resolved from the script's `process.cwd()` and has no override.
- * Running the projection from the repository root therefore folded whatever
- * the developer happened to have in their own local zone into the file set
- * these guards assert over: a hand-authored `/scratch.md` would make a
- * structural rename guard pass or fail on a file that is not in the
- * repository and that CI will never see.
+ * An empty project root resolves the local zone to a path that does not
+ * exist, which the projection already skips, and keeps the reap off the real
+ * `.claude/` tree. The projection is then a function of tracked payload
+ * source alone — the property this helper exists to provide.
  *
- * Pointing `cwd` at an empty directory resolves `LOCAL_SRC` to a path that
- * does not exist, which the script already filters out. The projection is
- * then a function of tracked payload source alone — the property this helper
- * exists to provide.
- *
- * @see .agents/scripts/sync-claude-commands.js — the projector under test.
- * @see tests/sync-claude-commands-local.test.js — the same seams, driven with
- *      synthetic fixture workflows rather than the real payload.
+ * @see .agents/scripts/lib/claude/commands-projection.js — the projector under test.
+ * @see tests/sync-claude-commands-local.test.js — the same arguments, driven
+ *      with synthetic fixture workflows rather than the real payload.
  */
 
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { syncClaudeCommands } from '../../.agents/scripts/lib/claude/commands-projection.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
-const SYNC_SCRIPT = path.join(
-  REPO_ROOT,
-  '.agents',
-  'scripts',
-  'sync-claude-commands.js',
-);
 const WORKFLOWS_SRC = path.join(REPO_ROOT, '.agents', 'workflows');
 
 /**
  * List every projected file under `dir`, as destination-relative POSIX paths
- * (`qa-run.md`, `loops/<name>.md`) — matching the `rel` keys the sync script
+ * (`qa-run.md`, `loops/<name>.md`) — matching the `rel` keys the projection
  * itself projects and reaps on.
  *
  * @param {string} dir
@@ -93,8 +83,8 @@ function listProjected(dir, prefix = '') {
 }
 
 /**
- * Project `.agents/workflows/` into a managed temp directory by running the
- * real sync script, and return what it wrote.
+ * Project `.agents/workflows/` into a managed temp directory through the real
+ * projection module, and return what it wrote.
  *
  * @param {{ seedOrphans?: string[] }} [options]
  *   `seedOrphans` — destination-relative paths to plant in the destination
@@ -107,10 +97,10 @@ export function projectCommands({ seedOrphans = [] } = {}) {
   const scratch = makeTempDir('projected-commands-');
   const dest = path.join(scratch, 'commands');
   fs.mkdirSync(dest, { recursive: true });
-  // The sync's cwd: empty, so LOCAL_SRC resolves to a path that does not
-  // exist and the developer's own local zone cannot enter the projection.
-  const cwd = path.join(scratch, 'empty-cwd');
-  fs.mkdirSync(cwd, { recursive: true });
+  // An empty project root: the local zone resolves to a path that does not
+  // exist, so the developer's own local zone cannot enter the projection.
+  const emptyRoot = path.join(scratch, 'empty-root');
+  fs.mkdirSync(emptyRoot, { recursive: true });
 
   for (const rel of seedOrphans) {
     const abs = path.join(dest, rel);
@@ -118,28 +108,17 @@ export function projectCommands({ seedOrphans = [] } = {}) {
     fs.writeFileSync(abs, 'stale generated command\n', 'utf8');
   }
 
-  const result = spawnSync(process.execPath, [SYNC_SCRIPT], {
-    cwd,
-    env: {
-      ...process.env,
-      SYNC_CLAUDE_COMMANDS_SRC: WORKFLOWS_SRC,
-      SYNC_CLAUDE_COMMANDS_DEST: dest,
-    },
-    encoding: 'utf8',
+  syncClaudeCommands({
+    projectRoot: emptyRoot,
+    payloadSrc: WORKFLOWS_SRC,
+    destDir: dest,
   });
-
-  if (result.status !== 0) {
-    throw new Error(
-      `sync-claude-commands.js exited ${result.status} while projecting ${WORKFLOWS_SRC}\n` +
-        `${result.stdout ?? ''}${result.stderr ?? ''}`,
-    );
-  }
 
   const files = listProjected(dest);
   return { dest, files, has: (rel) => files.includes(rel) };
 }
 
-/** Memoized default projection — one sync spawn per test process. */
+/** Memoized default projection — one sync per test process. */
 let _cached = null;
 
 /**

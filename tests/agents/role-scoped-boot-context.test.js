@@ -22,7 +22,6 @@
 // the PR keys the default-true decision on.
 
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import test, { before, describe } from 'node:test';
@@ -30,17 +29,12 @@ import { fileURLToPath } from 'node:url';
 
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
+import { syncClaudeAgents } from '../../.agents/scripts/lib/claude/agents-projection.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import { assertDocMentions, assertDocOmits } from '../helpers/doc-assert.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
-const SYNC_SCRIPT = path.join(
-  REPO_ROOT,
-  '.agents',
-  'scripts',
-  'sync-claude-agents.js',
-);
 
 // Drive a REAL materialization into an isolated temp dest (the exact code path
 // `npm run sync:agents` / the postinstall bootstrap runs), so we validate the
@@ -63,16 +57,8 @@ function resolveImportFromHostLocation(fileName, importSpec) {
 
 before(() => {
   destDir = makeTempDir('m7b-agents-');
-  const result = spawnSync(process.execPath, [SYNC_SCRIPT], {
-    cwd: REPO_ROOT,
-    encoding: 'utf8',
-    env: { ...process.env, SYNC_CLAUDE_AGENTS_DEST: destDir },
-  });
-  assert.equal(
-    result.status,
-    0,
-    `sync-claude-agents.js failed: ${result.stderr}`,
-  );
+  // No agentModels: the projection carries each role file's own default.
+  syncClaudeAgents({ projectRoot: REPO_ROOT, destDir, agentModels: {} });
   for (const name of readdirSync(destDir).filter((f) => f.endsWith('.md'))) {
     materialized.set(name, readFileSync(path.join(destDir, name), 'utf8'));
   }

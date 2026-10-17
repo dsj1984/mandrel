@@ -13,23 +13,13 @@
  */
 
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
-
+import { syncClaudeCommands } from '../.agents/scripts/lib/claude/commands-projection.js';
 import { applyHeader } from '../.agents/scripts/lib/command-header.js';
 import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PROJECT_ROOT = path.resolve(__dirname, '..');
-const SYNC_SCRIPT = path.join(
-  PROJECT_ROOT,
-  '.agents',
-  'scripts',
-  'sync-claude-commands.js',
-);
+import { runProjection } from './helpers/run-projection.js';
 
 const HEADER =
   '<!-- AUTO-GENERATED — do not edit. Source of truth: .agents/workflows/ -->\n<!-- Re-run: npm run sync:commands -->\n\n';
@@ -48,15 +38,10 @@ function runSyncWith(sources) {
   for (const [name, content] of Object.entries(sources)) {
     fs.writeFileSync(path.join(src, name), content, 'utf8');
   }
-  const result = spawnSync(process.execPath, [SYNC_SCRIPT], {
-    // The local zone resolves from cwd; keep it off the shared checkout.
-    cwd: tmp,
-    env: {
-      ...process.env,
-      SYNC_CLAUDE_COMMANDS_SRC: src,
-      SYNC_CLAUDE_COMMANDS_DEST: dest,
-    },
-    encoding: 'utf8',
+  const result = runProjection(syncClaudeCommands, {
+    projectRoot: tmp,
+    payloadSrc: src,
+    destDir: dest,
   });
   if (result.status !== 0) {
     fs.rmSync(tmp, { recursive: true, force: true });
@@ -156,14 +141,10 @@ test('sync-claude-commands: excludes the helpers/ subdirectory', () => {
     fs.writeFileSync(path.join(src, 'top-level.md'), source, 'utf8');
     // A helper module lives under helpers/ — it must NOT become a command.
     fs.writeFileSync(path.join(helpers, 'a-helper.md'), source, 'utf8');
-    const result = spawnSync(process.execPath, [SYNC_SCRIPT], {
-      cwd: tmp,
-      env: {
-        ...process.env,
-        SYNC_CLAUDE_COMMANDS_SRC: src,
-        SYNC_CLAUDE_COMMANDS_DEST: dest,
-      },
-      encoding: 'utf8',
+    const result = runProjection(syncClaudeCommands, {
+      projectRoot: tmp,
+      payloadSrc: src,
+      destDir: dest,
     });
     assert.equal(result.status, 0, result.stderr);
     const synced = fs.readdirSync(dest).sort();
@@ -185,23 +166,17 @@ test('sync-claude-commands: re-running is idempotent (no churn)', () => {
     fs.mkdirSync(src, { recursive: true });
     fs.mkdirSync(dest, { recursive: true });
     fs.writeFileSync(path.join(src, 'fixture.md'), source, 'utf8');
-    const env = {
-      ...process.env,
-      SYNC_CLAUDE_COMMANDS_SRC: src,
-      SYNC_CLAUDE_COMMANDS_DEST: dest,
-    };
-    const first = spawnSync(process.execPath, [SYNC_SCRIPT], {
-      cwd: tmp,
-      env,
-      encoding: 'utf8',
+    const opts = { payloadSrc: src, destDir: dest };
+    const first = runProjection(syncClaudeCommands, {
+      projectRoot: tmp,
+      ...opts,
     });
     assert.equal(first.status, 0, first.stderr);
     const cmdPath = path.join(dest, 'fixture.md');
     const after1 = fs.readFileSync(cmdPath, 'utf8');
-    const second = spawnSync(process.execPath, [SYNC_SCRIPT], {
-      cwd: tmp,
-      env,
-      encoding: 'utf8',
+    const second = runProjection(syncClaudeCommands, {
+      projectRoot: tmp,
+      ...opts,
     });
     assert.equal(second.status, 0, second.stderr);
     const after2 = fs.readFileSync(cmdPath, 'utf8');
@@ -260,14 +235,10 @@ test('sync-claude-commands: frontmatter `command: false` excludes the workflow a
       applyHeader(excluded, HEADER),
       'utf8',
     );
-    const rerun = spawnSync(process.execPath, [SYNC_SCRIPT], {
-      cwd: run.tmp,
-      env: {
-        ...process.env,
-        SYNC_CLAUDE_COMMANDS_SRC: path.join(run.tmp, 'workflows'),
-        SYNC_CLAUDE_COMMANDS_DEST: run.dest,
-      },
-      encoding: 'utf8',
+    const rerun = runProjection(syncClaudeCommands, {
+      projectRoot: run.tmp,
+      payloadSrc: path.join(run.tmp, 'workflows'),
+      destDir: run.dest,
     });
     assert.equal(rerun.status, 0, rerun.stderr || rerun.stdout);
     assert.ok(
