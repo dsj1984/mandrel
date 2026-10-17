@@ -2651,6 +2651,10 @@
       "mi": 95.493
     },
     {
+      "path": "lib/migrations/steps/2.91.0-move-shared-crap-capture-script.js",
+      "mi": 106.218
+    },
+    {
       "path": "lib/migrations/steps/strip-removed-agentrc-keys.js",
       "mi": 94.524
     },

@@ -742,9 +742,9 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "lines": 95.18,
-      "branches": 74.21,
-      "functions": 90.91
+      "lines": 97.9,
+      "branches": 78.01,
+      "functions": 96
     },
     {
       "path": ".agents/scripts/lib/baselines/scope.js",
@@ -1000,14 +1000,14 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/commands.js",
-      "lines": 77.48,
-      "branches": 84.62,
-      "functions": 75
+      "lines": 74.19,
+      "branches": 90.91,
+      "functions": 77.78
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
-      "lines": 98.82,
-      "branches": 94.85,
+      "lines": 98.85,
+      "branches": 94.7,
       "functions": 100
     },
     {
@@ -1235,7 +1235,7 @@
     {
       "path": ".agents/scripts/lib/config/quality.js",
       "lines": 99.79,
-      "branches": 94.59,
+      "branches": 95.69,
       "functions": 100
     },
     {
@@ -1289,14 +1289,14 @@
     {
       "path": ".agents/scripts/lib/coverage-baseline.js",
       "lines": 100,
-      "branches": 89.34,
+      "branches": 89.6,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/coverage-capture-affected.js",
       "lines": 100,
-      "branches": 98.11,
-      "functions": 87.5
+      "branches": 98.28,
+      "functions": 88.89
     },
     {
       "path": ".agents/scripts/lib/coverage-capture-delta.js",
@@ -1307,7 +1307,7 @@
     {
       "path": ".agents/scripts/lib/coverage-capture-fullscope.js",
       "lines": 100,
-      "branches": 94.44,
+      "branches": 95,
       "functions": 100
     },
     {
@@ -1319,7 +1319,7 @@
     {
       "path": ".agents/scripts/lib/coverage-capture-passes.js",
       "lines": 100,
-      "branches": 100,
+      "branches": 97.67,
       "functions": 100
     },
     {
@@ -1330,8 +1330,8 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-capture.js",
-      "lines": 99.18,
-      "branches": 91.07,
+      "lines": 99.23,
+      "branches": 90.59,
       "functions": 100
     },
     {
@@ -2764,9 +2764,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
-      "lines": 97.49,
-      "branches": 82.76,
-      "functions": 97.5
+      "lines": 97.54,
+      "branches": 82.61,
+      "functions": 97.62
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-init-envelope.js",
@@ -3676,9 +3676,9 @@
     },
     {
       "path": ".agents/scripts/update-coverage-baseline.js",
-      "lines": 63.64,
-      "branches": 100,
-      "functions": 0
+      "lines": 96.1,
+      "branches": 80,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/update-crap-baseline.js",
@@ -3779,7 +3779,7 @@
     {
       "path": "lib/cli/doctor-checks/test-credit-path.js",
       "lines": 100,
-      "branches": 96.72,
+      "branches": 97.3,
       "functions": 100
     },
     {
@@ -3969,6 +3969,12 @@
       "functions": 100
     },
     {
+      "path": "lib/migrations/steps/2.91.0-move-shared-crap-capture-script.js",
+      "lines": 100,
+      "branches": 90.91,
+      "functions": 100
+    },
+    {
       "path": "lib/migrations/steps/strip-removed-agentrc-keys.js",
       "lines": 100,
       "branches": 89.66,
@@ -4018,9 +4024,9 @@
     },
     {
       "path": "scripts/check-generated-validator.js",
-      "lines": 98.51,
-      "branches": 83.33,
-      "functions": 60
+      "lines": 98.81,
+      "branches": 92.31,
+      "functions": 71.43
     },
     {
       "path": "scripts/check-knip-entries.js",
