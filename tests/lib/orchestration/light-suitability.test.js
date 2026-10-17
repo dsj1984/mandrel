@@ -52,6 +52,7 @@ import {
   runGateMode,
   runLightGate,
 } from '../../../.agents/scripts/deliver-light.js';
+import { syncClaudeCommands } from '../../../.agents/scripts/lib/claude/commands-projection.js';
 import { TEST_TEMP_ROOT_ENV } from '../../../.agents/scripts/lib/config/temp-paths.js';
 import {
   lightScopeRejectedCategory,
@@ -1117,24 +1118,11 @@ describe('the light path does not project a command (AC-7, Story #4760)', () => 
     // so this exercises the orphan-reap rather than merely a non-write.
     writeFileSync(path.join(dest, 'deliver-light.md'), '# stale\n');
 
-    const result = spawnSync(
-      process.execPath,
-      [path.join(REPO_ROOT, '.agents', 'scripts', 'sync-claude-commands.js')],
-      {
-        cwd: REPO_ROOT,
-        env: {
-          ...process.env,
-          SYNC_CLAUDE_COMMANDS_SRC: path.join(
-            REPO_ROOT,
-            '.agents',
-            'workflows',
-          ),
-          SYNC_CLAUDE_COMMANDS_DEST: dest,
-        },
-        encoding: 'utf8',
-      },
-    );
-    assert.equal(result.status, 0, result.stderr);
+    syncClaudeCommands({
+      projectRoot: makeTempDir('light-cmd-root-'),
+      payloadSrc: path.join(REPO_ROOT, '.agents', 'workflows'),
+      destDir: dest,
+    });
     assert.equal(
       existsSync(path.join(dest, 'deliver-light.md')),
       false,

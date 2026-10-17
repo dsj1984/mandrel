@@ -30,21 +30,12 @@
  */
 
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { syncClaudeCommands } from '../.agents/scripts/lib/claude/commands-projection.js';
 import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PROJECT_ROOT = path.resolve(__dirname, '..');
-const SYNC_SCRIPT = path.join(
-  PROJECT_ROOT,
-  '.agents',
-  'scripts',
-  'sync-claude-commands.js',
-);
+import { runProjection } from './helpers/run-projection.js';
 
 // The flat-fallback invocation form a host that flattens subdirectory
 // commands would surface for a loop unit named `<name>` (documented; the
@@ -86,14 +77,10 @@ function runSyncIsolated({ payloadFiles = {}, existingDest = {} } = {}) {
     fs.writeFileSync(file, content, 'utf8');
   }
 
-  const result = spawnSync(process.execPath, [SYNC_SCRIPT], {
-    cwd: tmp,
-    env: {
-      ...process.env,
-      SYNC_CLAUDE_COMMANDS_SRC: payloadSrc,
-      SYNC_CLAUDE_COMMANDS_DEST: dest,
-    },
-    encoding: 'utf8',
+  const result = runProjection(syncClaudeCommands, {
+    projectRoot: tmp,
+    payloadSrc: payloadSrc,
+    destDir: dest,
   });
 
   const commands = {};
@@ -308,16 +295,11 @@ test('AC5: removing a loop unit reaps loops/<name>.md without touching flat comm
     const dest = path.join(tmp, '.claude', 'commands');
     fs.mkdirSync(dest, { recursive: true });
 
-    const env = {
-      ...process.env,
-      SYNC_CLAUDE_COMMANDS_SRC: payloadSrc,
-      SYNC_CLAUDE_COMMANDS_DEST: dest,
-    };
+    const opts = { payloadSrc: payloadSrc, destDir: dest };
 
-    const first = spawnSync(process.execPath, [SYNC_SCRIPT], {
-      cwd: tmp,
-      env,
-      encoding: 'utf8',
+    const first = runProjection(syncClaudeCommands, {
+      projectRoot: tmp,
+      ...opts,
     });
     assert.equal(first.status, 0, first.stderr);
     assert.ok(
@@ -332,10 +314,9 @@ test('AC5: removing a loop unit reaps loops/<name>.md without touching flat comm
     // Remove the loop unit source.
     fs.unlinkSync(path.join(payloadSrc, 'loops', 'converge.md'));
 
-    const second = spawnSync(process.execPath, [SYNC_SCRIPT], {
-      cwd: tmp,
-      env,
-      encoding: 'utf8',
+    const second = runProjection(syncClaudeCommands, {
+      projectRoot: tmp,
+      ...opts,
     });
     assert.equal(second.status, 0, second.stderr);
     assert.equal(
