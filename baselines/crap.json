@@ -32125,6 +32125,12 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-handoff.js",
+      "method": "lintPreflight",
+      "startLine": 308,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-handoff.js",
       "method": "preflightFinding",
       "startLine": 324,
       "crap": 7
