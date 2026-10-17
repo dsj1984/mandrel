@@ -530,6 +530,17 @@ displaces it. Like its CRAP sibling it names a `package.json` script, spawned
 as `<pm> run <script>` under the detected package manager, never a shell
 command, so it opens no injection surface.
 
+**Lowered to 138 (2026-10-17, Story #5738)** by retiring
+`delivery.quality.gates.duplication.formats`. The jscpd formats are now
+derived from `SCORABLE_SOURCE_EXTENSIONS` (`jscpdFormatsFor()` in
+`.agents/scripts/lib/source-extensions.js`), the one list the CRAP and MI
+walks, the refresh scope predicates, the close-time projections and native
+review already select by. A declared format set could only disagree with
+that list: a narrower one leaves files the other gates score unmeasured for
+duplication, and a wider one names languages no gate can score. A consumer
+that wants fewer files scanned narrows `duplication.ignoreGlobs`; the 2.91.0
+migration strips the key from `.agentrc.json` and `.agentrc.local.json`.
+
 ### Consequences
 
 - A tuning value is changed by editing the constant and shipping a release,

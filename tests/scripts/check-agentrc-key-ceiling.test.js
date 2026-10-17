@@ -87,8 +87,8 @@ describe('checkLeafKeyCeiling', () => {
     assert.equal(checkLeafKeyCeiling(schema, 2).ok, false);
   });
 
-  it('the landed ceiling is 139 (183 before Story #5382, +1 for #5459 scratch, +1 for #5472 captureScope, +1 for #5485 coverage.timeoutMs, +1 for #5519 agentModels, +1 for #5605 duplication.formats, +2 for #5668 execution.capacity/workloads, +1 for #5693 github.cliConfigDir, +2 for #5717 crap.coveragePath/captureScript, +1 for #5737 coverage.captureScript)', () => {
-    assert.equal(AGENTRC_LEAF_KEY_CEILING, 139);
+  it('the landed ceiling is 138 (183 before Story #5382, +1 for #5459 scratch, +1 for #5472 captureScope, +1 for #5485 coverage.timeoutMs, +1 for #5519 agentModels, +1 for #5605 duplication.formats, +2 for #5668 execution.capacity/workloads, +1 for #5693 github.cliConfigDir, +2 for #5717 crap.coveragePath/captureScript, +1 for #5737 coverage.captureScript, -1 for #5738 retiring duplication.formats)', () => {
+    assert.equal(AGENTRC_LEAF_KEY_CEILING, 138);
   });
 
   it('holds the real schema at the landed ceiling', () => {
@@ -104,6 +104,7 @@ describe('checkLeafKeyCeiling', () => {
   it('the removed keys are gone from the real schema', () => {
     const leaves = new Set(collectLeafKeys(AGENTRC_SCHEMA));
     for (const removed of [
+      'delivery.quality.gates.duplication.formats',
       'delivery.quality.gates.lint.enabled',
       'delivery.quality.gates.lighthouse.routes',
       'delivery.quality.gates.mutation.strykerConfigPath',

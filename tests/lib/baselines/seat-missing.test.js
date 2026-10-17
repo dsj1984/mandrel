@@ -11,6 +11,7 @@ import {
   buildCrapSeatScorer,
   resolveCrapUpdaterOptions,
 } from '../../../.agents/scripts/lib/baselines/crap-updater-cli.js';
+import { refreshBaseline } from '../../../.agents/scripts/lib/baselines/refresh-service.js';
 import {
   checkSeatResolution,
   runSeatMissing,
@@ -31,6 +32,7 @@ import {
   isCoverageFresh,
   writeCaptureStamp,
 } from '../../../.agents/scripts/lib/coverage-capture.js';
+import { scanAndScore } from '../../../.agents/scripts/lib/crap-utils.js';
 import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
 
 function tempDir() {
@@ -557,5 +559,107 @@ describe('capture stamp vs a baseline-refresh commit (AC-6)', () => {
     fs.writeFileSync(path.join(cwd, 'tests/a.test.js'), 'throw 1;\n');
     git('commit', '-qam', 'test: break a');
     assert.equal(isCoverageFresh({ ...probe, targetDirs }).fresh, false);
+  });
+});
+
+/**
+ * Story #5738 — the refresh scope predicate accepted `.jsx` while the CRAP/MI
+ * walk skipped it, so a changed `.jsx` was in scope, produced no row, and
+ * tripped the "scoped file(s) produced no baseline rows" refusal.
+ */
+describe('a changed .jsx file seats a CRAP row (Story #5738 AC-2)', () => {
+  const JSX = [
+    'export function App({ count }) {',
+    '  if (count > 0) {',
+    '    return <div>{count}</div>;',
+    '  }',
+    '  return <span>none</span>;',
+    '}',
+    '',
+  ].join('\n');
+
+  /** A fully-covered istanbul entry for `App` (line 1), keyed on `abs`. */
+  function coverageFor(abs) {
+    const statementMap = {};
+    const hits = {};
+    for (let i = 0; i < 4; i += 1) {
+      statementMap[String(i)] = {
+        start: { line: 2 + i, column: 0 },
+        end: { line: 2 + i, column: 10 },
+      };
+      hits[String(i)] = 1;
+    }
+    return {
+      [abs]: {
+        path: abs,
+        fnMap: {
+          0: {
+            name: 'App',
+            decl: { start: { line: 1, column: 0 } },
+            loc: { start: { line: 1, column: 0 }, end: { line: 6, column: 1 } },
+            line: 1,
+          },
+        },
+        f: { 0: 1 },
+        statementMap,
+        s: hits,
+        branchMap: {},
+        b: {},
+      },
+    };
+  }
+
+  function jsxRepo() {
+    const cwd = tempDir();
+    const abs = path.join(cwd, 'src', 'App.jsx');
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.writeFileSync(abs, JSX);
+    const coverage = coverageFor(abs);
+    const score = async (files) =>
+      (
+        await scanAndScore({
+          targetDirs: ['src'],
+          coverage,
+          cwd,
+          scopeFiles: files,
+        })
+      ).rows;
+    return { cwd, score };
+  }
+
+  it('--seat-missing seats the .jsx method', async () => {
+    const { cwd, score } = jsxRepo();
+    const { writePath } = seedBaseline('crap', CRAP_PRIOR);
+    const result = await seatMissingBaseline({
+      kind: 'crap',
+      writePath,
+      baseRef: 'origin/main',
+      cwd,
+      gitDiff: async () => ['src/App.jsx'],
+      score,
+    });
+    assert.equal(result.seated, 1);
+    const rows = JSON.parse(fs.readFileSync(writePath, 'utf8')).rows;
+    assert.ok(
+      rows.some((r) => r.path === 'src/App.jsx' && r.method === 'App'),
+      'the .jsx method row is seated',
+    );
+  });
+
+  it('a scoped refresh requiring rows does not refuse the .jsx', async () => {
+    const { cwd, score } = jsxRepo();
+    const { writePath } = seedBaseline('crap', CRAP_PRIOR);
+    const result = await refreshBaseline({
+      kind: 'crap',
+      writePath,
+      cwd,
+      scopeFiles: ['src/App.jsx'],
+      requireRowsForScopeFiles: true,
+      scorer: score,
+    });
+    assert.ok(
+      result.envelope.rows.some((r) => r.path === 'src/App.jsx'),
+      'the .jsx row is written',
+    );
   });
 });

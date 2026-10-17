@@ -209,7 +209,6 @@
             }
           },
           "targetDirs": ["src"],
-          "formats": ["javascript", "jsx", "typescript", "tsx"],
           "ignoreGlobs": []
         }
       },

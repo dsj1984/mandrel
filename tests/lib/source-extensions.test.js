@@ -22,6 +22,7 @@ import { fileURLToPath } from 'node:url';
 import { computeContentDigest } from '../../.agents/scripts/lib/coverage-capture.js';
 import {
   isScorableSourceFile,
+  jscpdFormatsFor,
   SCORABLE_SOURCE_EXT_RE,
 } from '../../.agents/scripts/lib/source-extensions.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
@@ -33,7 +34,7 @@ const MODULE_PATH = path.resolve(
 );
 
 /** Extensions the CRAP and maintainability engines can score. */
-const EXPECTED = ['.js', '.mjs', '.cjs', '.ts', '.tsx', '.mts', '.cts'];
+const EXPECTED = ['.js', '.mjs', '.cjs', '.jsx', '.ts', '.tsx', '.mts', '.cts'];
 
 /** Extensions no consumer may treat as scorable. */
 const NOT_SCORABLE = ['.astro', '.vue', '.svelte', '.md', '.json', '.txt'];
@@ -72,6 +73,15 @@ describe('the scorable-source extension set', () => {
     assert.equal(isScorableSourceFile('src/page.ASTRO'), false);
   });
 
+  it('derives the jscpd formats from the list (Story #5738)', () => {
+    assert.deepEqual(jscpdFormatsFor(), [
+      'javascript',
+      'jsx',
+      'typescript',
+      'tsx',
+    ]);
+  });
+
   it('reads an extension only from the final segment', () => {
     assert.equal(isScorableSourceFile('a.ts/b.astro'), false);
     assert.equal(isScorableSourceFile('a.astro/b.ts'), true);
@@ -101,7 +111,37 @@ describe('source-extensions module graph (pre-push safety)', () => {
   });
 });
 
-describe('the three scorable-source selectors agree', () => {
+/**
+ * Story #5738 — the scoring, refresh, projection and review filters used to
+ * carry private literals (`/\.(?:m?[jt]sx?)$/`, `Set(['.js', ...])`,
+ * `endsWith('.mjs')`) that disagreed about `.jsx`, `.cjs` and TypeScript.
+ * The audit-suite selectors classify rather than score and keep their own.
+ */
+describe('no module declares a private scorable-extension selector', () => {
+  const LIB = path.resolve(HERE, '../../.agents/scripts/lib');
+  const SCORING_DIRS = ['baselines', 'orchestration', 'close-validation'];
+  const PRIVATE_SELECTOR =
+    /\[jt\]sx\?\$|JS_MAINTAINABILITY_EXTS|endsWith\('\.mjs'\)|new Set\(\[\s*'\.js'/;
+
+  function sourcesUnder(dir) {
+    return fs
+      .readdirSync(dir, { withFileTypes: true, recursive: true })
+      .filter((e) => e.isFile() && e.name.endsWith('.js'))
+      .map((e) => path.join(e.parentPath ?? e.path, e.name))
+      .filter((abs) => !abs.split(path.sep).includes('__tests__'));
+  }
+
+  it('the scoring/refresh/projection/review modules select via the SSOT', () => {
+    const offenders = SCORING_DIRS.flatMap((d) =>
+      sourcesUnder(path.join(LIB, d)),
+    )
+      .filter((abs) => PRIVATE_SELECTOR.test(fs.readFileSync(abs, 'utf8')))
+      .map((abs) => path.relative(LIB, abs).split(path.sep).join('/'));
+    assert.deepEqual(offenders, []);
+  });
+});
+
+describe('the scorable-source selectors agree', () => {
   /**
    * Each consumer's real selector, exercised through its own public surface:
    *
@@ -187,6 +227,78 @@ describe('the three scorable-source selectors agree', () => {
     });
     assert.deepEqual(
       (scored ?? []).map((f) => path.extname(f)).sort(),
+      [...EXPECTED].sort(),
+    );
+  });
+
+  it('the refresh scope predicate accepts exactly the shared set for every scored kind', async () => {
+    const { fileFilterFor } = await import(
+      '../../.agents/scripts/lib/baselines/refresh-service.js'
+    );
+    for (const kind of ['maintainability', 'crap', 'coverage', 'duplication']) {
+      const accepted = [...EXPECTED, ...NOT_SCORABLE].filter((ext) =>
+        fileFilterFor(kind)(sampleFor(ext)),
+      );
+      assert.deepEqual(accepted, EXPECTED, kind);
+    }
+  });
+
+  it('the close-validation MI projection scores exactly the shared set (AC-3)', async () => {
+    const { projectMaintainabilityRegressions } = await import(
+      '../../.agents/scripts/lib/close-validation/projections/maintainability.js'
+    );
+    const all = [...EXPECTED, ...NOT_SCORABLE].map(sampleFor);
+    const scored = [];
+    const result = projectMaintainabilityRegressions({
+      cwd: '/repo',
+      baseBranch: 'main',
+      storyBranch: 'story-1',
+      baselinePath: '/repo/baselines/maintainability.json',
+      git: {
+        gitSpawn: (_cwd, ...args) => {
+          if (args[0] === 'diff') {
+            return { status: 0, stdout: all.join('\n'), stderr: '' };
+          }
+          if (args[0] === 'show') {
+            return { status: 0, stdout: args[1], stderr: '' };
+          }
+          return { status: 0, stdout: '', stderr: '' };
+        },
+      },
+      loadBaseline: () => Object.fromEntries(all.map((f) => [f, 90])),
+      scoreSource: (source) => {
+        scored.push(source.slice('story-1:'.length));
+        return 10;
+      },
+    });
+    assert.deepEqual(
+      scored.map((f) => path.extname(f)).sort(),
+      [...EXPECTED].sort(),
+    );
+    assert.ok(
+      result.regressions.some((r) => r.file === 'src/sample.tsx'),
+      'a .tsx regression is projected',
+    );
+  });
+
+  it('native review scores exactly the shared set (AC-3)', async () => {
+    const { analyzeChangedFiles } = await import(
+      '../../.agents/scripts/lib/orchestration/review-providers/native.js'
+    );
+    const all = [...EXPECTED, ...NOT_SCORABLE].map(sampleFor);
+    const reported = [];
+    const out = await analyzeChangedFiles(all, {
+      headRef: 'HEAD',
+      readHeadSourceFn: () => '',
+      reportFn: (_source, relPath) => {
+        reported.push(relPath);
+        return { moduleScore: 100, methods: [], worstMethod: 100 };
+      },
+      classifier: () => 'healthy',
+    });
+    assert.equal(out.jsFiles, EXPECTED.length);
+    assert.deepEqual(
+      reported.map((f) => path.extname(f)).sort(),
       [...EXPECTED].sort(),
     );
   });

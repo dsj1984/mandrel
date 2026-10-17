@@ -31,6 +31,7 @@ import {
 import { getQuality } from '../../config-resolver.js';
 import { gitSync as defaultGitSync } from '../../git-utils.js';
 import { Logger as DefaultLogger } from '../../Logger.js';
+import { isScorableSourceFile } from '../../source-extensions.js';
 import {
   currentBranch,
   listChangedFiles,
@@ -43,8 +44,6 @@ const KIND = 'maintainability';
 
 /** Matches the drift detector's maintainability default tolerance. */
 const DEFAULT_TOLERANCE = 0.5;
-
-const SCORABLE = /\.(?:m?[jt]sx?)$/i;
 
 /**
  * Skips that fire before any scoring, so `ran: false` means exactly "a guard
@@ -323,7 +322,7 @@ export async function runBaselineUpwardWriteback({
     baseBranch: resolveScopeBase({ workTree, git, baseBranch }),
     storyBranch,
     git,
-  }).filter((file) => SCORABLE.test(file));
+  }).filter(isScorableSourceFile);
 
   const writePath = resolveWritePath({ cwd: workTree });
   const relPath = path.relative(workTree, writePath).split(path.sep).join('/');

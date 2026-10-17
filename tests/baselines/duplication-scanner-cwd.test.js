@@ -14,6 +14,7 @@ import {
   resolveDetectClones,
   scanDuplication,
 } from '../../.agents/scripts/lib/baselines/duplication-scanner.js';
+import { jscpdFormatsFor } from '../../.agents/scripts/lib/source-extensions.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 
 function clonedSource(count, salt = '') {
@@ -125,6 +126,25 @@ describe('scanDuplication — cwd differs from process.cwd() (Story #5636)', () 
     ]);
   });
 
+  it('hands jscpd the formats derived from the scorable list (Story #5738)', async () => {
+    const seen = [];
+    await scanDuplication({
+      targetDirs: ['src'],
+      cwd: scanTree,
+      detect: async (opts) => {
+        seen.push(opts);
+        return [];
+      },
+    });
+    assert.deepEqual(seen[0].format, jscpdFormatsFor());
+    assert.deepEqual(seen[0].format, [
+      'javascript',
+      'jsx',
+      'typescript',
+      'tsx',
+    ]);
+  });
+
   it('AC-3: when cwd === process.cwd(), rows match the relative-path scan', async () => {
     process.chdir(scanTree);
     const cwd = process.cwd();
@@ -143,7 +163,7 @@ describe('scanDuplication — cwd differs from process.cwd() (Story #5636)', () 
       silent: true,
       gitignore: false,
       reporters: [],
-      format: ['javascript', 'jsx', 'typescript', 'tsx'],
+      format: jscpdFormatsFor(),
       minTokens: 50,
       ignore,
     });
