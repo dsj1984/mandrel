@@ -7,10 +7,9 @@
  * never a ticket comment. With no resolvable Story the write is skipped: a
  * missing signal beats a halted runner.
  */
-import { spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import { constants as osConstants } from 'node:os';
-import { INTERCEPTOR_MAX_BUFFER_BYTES } from './lib/child-exec.js';
+import { REPORTED_MAX_BUFFER_BYTES, spawnChild } from './lib/child-exec.js';
 import { getLimits, resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
 import { appendSignal } from './lib/observability/signals-writer.js';
@@ -85,6 +84,8 @@ const OVERFLOW_ERROR_CODE = 'ENOBUFS';
 
 const SIGNAL_EXIT_BASE = 128;
 
+const BYTES_PER_MIB = 1024 * 1024;
+
 /**
  * For a `null` status, which must never reach `process.exit` (null exits 0).
  * SIGTERM + ENOBUFS = buffer overflow, SIGTERM otherwise = timeout, any other
@@ -125,7 +126,7 @@ function describeAbnormalExit(
   const shapes = {
     'buffer-overflow': {
       category: 'Tool Limitation',
-      remediation: ` - ${signal} was sent because the command's output overflowed the interceptor's executionMaxBuffer bound (${executionMaxBuffer} bytes / 10 MiB) — the executionTimeoutMs bound (${executionTimeoutMs}ms) did not fire. Do NOT split the command into smaller steps: quieten or redirect its output, or raise the buffer bound.`,
+      remediation: ` - ${signal} was sent because the command's output overflowed the interceptor's executionMaxBuffer bound (${executionMaxBuffer} bytes / ${executionMaxBuffer / BYTES_PER_MIB} MiB) — the executionTimeoutMs bound (${executionTimeoutMs}ms) did not fire. Do NOT split the command into smaller steps: quieten or redirect its output, or raise the buffer bound.`,
       extraDetails: { executionMaxBuffer },
     },
     'interceptor-timeout': {
@@ -220,18 +221,15 @@ export async function main(args = process.argv.slice(2)) {
 
   const config = resolveConfig();
   const { executionTimeoutMs } = getLimits();
-  // Deliberately below `MAX_BUFFER_BYTES`: a reported policy bound, not an
-  // overflow guard.
-  const executionMaxBuffer = INTERCEPTOR_MAX_BUFFER_BYTES;
+  // Reported, never passed: the wrapper applies its own ceiling, so the row
+  // names the bound that actually fires on an overflow.
+  const executionMaxBuffer = REPORTED_MAX_BUFFER_BYTES;
 
   const commandStr = cmdArgs.join(' ');
   Logger.error(`[Diagnostic Interceptor] Executing: ${commandStr}`);
 
-  const result = spawnSync(cmdArgs[0], cmdArgs.slice(1), {
-    stdio: 'pipe',
-    encoding: 'utf-8',
+  const result = spawnChild(cmdArgs[0], cmdArgs.slice(1), {
     timeout: executionTimeoutMs,
-    maxBuffer: executionMaxBuffer,
   });
 
   if (result.stdout) process.stdout.write(result.stdout);

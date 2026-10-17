@@ -25,13 +25,13 @@ const MIB = 1024 * 1024;
 const MAX_BUFFER_BYTES = 64 * MIB;
 
 /**
- * Deliberately lower bound for `diagnose-friction.js`: a reported policy
- * limit (it records `executionMaxBuffer` on the friction row), not an
- * overflow guard.
+ * The ceiling, readable for *reporting* only: `diagnose-friction.js` names
+ * the bound that killed an overflowed child on its friction row. Passing it
+ * as a `maxBuffer` is redundant — omitting the option applies it.
  *
  * @type {number}
  */
-export const INTERCEPTOR_MAX_BUFFER_BYTES = 10 * MIB;
+export const REPORTED_MAX_BUFFER_BYTES = MAX_BUFFER_BYTES;
 
 /**
  * `maxBuffer` goes last so a caller's spread cannot reset it to 1 MB.

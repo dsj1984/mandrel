@@ -7,9 +7,8 @@
  * formats the changed files and commits the result instead.
  */
 
-import { execFileSync } from 'node:child_process';
-
 import { diffNameOnly } from '../../changed-files.js';
+import { execFileCapture } from '../../child-exec.js';
 import { resolveFormatWriteCommand } from '../../close-validation/commands.js';
 import { Logger as DefaultLogger } from '../../Logger.js';
 
@@ -18,13 +17,16 @@ const SCOPED_TAG = '[format-autofix-scoped]';
 /**
  * Paths from `git status --porcelain`. Lines are `XY <path>` and the status
  * pair's leading space is significant, so slice 3 chars rather than trim.
+ * With `paths`, the status walk is limited to those pathspecs.
  *
  * @param {string} cwd
  * @param {(args: string[], opts: object) => string} git
+ * @param {string[]} [paths] - Pathspecs to scope the status to.
  * @returns {string[]}
  */
-export function listDirtyPaths(cwd, git) {
-  const out = git(['status', '--porcelain'], {
+export function listDirtyPaths(cwd, git, paths) {
+  const scope = paths?.length ? ['--', ...paths] : [];
+  const out = git(['status', '--porcelain', ...scope], {
     cwd,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'ignore'],
@@ -74,18 +76,22 @@ export function currentBranch(cwd, git) {
 }
 
 /**
- * `git add -u` + commit with hooks enabled (never `--no-verify`).
+ * `git add -u` + commit with hooks enabled (never `--no-verify`). With
+ * `paths`, both the staging and the commit are limited to those pathspecs, so
+ * a change outside them is never swept in.
  *
  * @param {{
  *   cwd: string,
  *   git: (args: string[], opts: object) => string,
  *   subject: string,
+ *   paths?: string[],
  * }} opts
  * @returns {string} short HEAD SHA of the new commit
  */
-export function commitDirtyPaths({ cwd, git, subject }) {
-  git(['add', '-u'], { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
-  git(['commit', '-m', subject], {
+export function commitDirtyPaths({ cwd, git, subject, paths }) {
+  const scope = paths?.length ? ['--', ...paths] : [];
+  git(['add', '-u', ...scope], { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+  git(['commit', '-m', subject, ...scope], {
     cwd,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -142,7 +148,7 @@ export function listChangedFiles({ cwd, baseBranch, storyBranch, git }) {
  *   storyBranch: string,
  *   config?: object,
  *   logger?: object,
- *   spawnSync?: typeof execFileSync,
+ *   spawnSync?: Function,
  *   gitSync?: (args: string[], opts: object) => string,
  * }} opts
  * @returns {{
@@ -161,7 +167,7 @@ export function runScopedFormatAutofix({
   storyBranch,
   config,
   logger = DefaultLogger,
-  spawnSync = execFileSync,
+  spawnSync,
   gitSync,
 } = {}) {
   if (!cwd) throw new Error('runScopedFormatAutofix: cwd is required');
@@ -172,7 +178,12 @@ export function runScopedFormatAutofix({
 
   const workTree = worktreePath || cwd;
 
-  const git = gitSync ?? ((args, opts) => spawnSync('git', args, opts));
+  // `spawnSync` is an `execFileSync`-shaped seam: it becomes the wrapper's
+  // `run`, so the wrapper's stdout ceiling covers the diff, status and
+  // formatter captures whether or not a test injects it.
+  const exec = (file, args, opts) =>
+    execFileCapture(file, args, spawnSync ? { ...opts, run: spawnSync } : opts);
+  const git = gitSync ?? ((args, opts) => exec('git', args, opts));
 
   const { writeCmdString, writeCmd, writeArgs } = resolveFormatterCmd({
     commands: config?.project?.commands,
@@ -191,7 +202,7 @@ export function runScopedFormatAutofix({
     return { ran: false, committed: false, reason: 'no-changed-files' };
   }
 
-  const dirtyBefore = listDirtyPaths(workTree, git);
+  const dirtyBefore = listDirtyPaths(workTree, git, changed);
   if (dirtyBefore.length) {
     logger.info?.(
       `${SCOPED_TAG} skipped — working tree dirty before scoped autofix (${dirtyBefore.length} paths).`,
@@ -201,7 +212,7 @@ export function runScopedFormatAutofix({
 
   // A non-zero exit is tolerated: the downstream check gate is authoritative.
   try {
-    spawnSync(writeCmd, [...writeArgs, ...changed], {
+    exec(writeCmd, [...writeArgs, ...changed], {
       cwd: workTree,
       stdio: ['ignore', 'pipe', 'pipe'],
       encoding: 'utf8',
@@ -212,7 +223,7 @@ export function runScopedFormatAutofix({
     );
   }
 
-  const dirtyAfter = listDirtyPaths(workTree, git);
+  const dirtyAfter = listDirtyPaths(workTree, git, changed);
   if (!dirtyAfter.length) {
     logger.info?.(
       `${SCOPED_TAG} no format drift on ${changed.length} changed file(s).`,
@@ -230,7 +241,14 @@ export function runScopedFormatAutofix({
   }
 
   const subject = `fix(story-close): auto-apply biome format in scoped lint (story #${storyId})`;
-  const sha = commitDirtyPaths({ cwd: workTree, git, subject });
+  const sha = commitDirtyPaths({
+    cwd: workTree,
+    git,
+    subject,
+    // The dirty set, not `changed`: a path the branch deleted is no pathspec
+    // `git add` / `git commit` can match.
+    paths: dirtyAfter,
+  });
 
   logger.warn?.(
     `${SCOPED_TAG} auto-applied biome format to ${dirtyAfter.length} path(s) on story #${storyId}: ${dirtyAfter.join(', ')}; committed as ${sha}.`,
