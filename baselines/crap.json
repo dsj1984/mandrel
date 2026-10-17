@@ -31460,6 +31460,13 @@
       "anonymous": true
     },
     {
+      "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
+      "method": "<anon runScopedFormatAutofix/(file,args,opts)#0>",
+      "startLine": 184,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/review-core.js",
       "method": "runStoryReviewCore",
       "startLine": 36,
