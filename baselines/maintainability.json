@@ -1611,6 +1611,10 @@
       "mi": 97.791
     },
     {
+      "path": ".agents/scripts/lib/orchestration/review-providers/llm-review.js",
+      "mi": 111.768
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/review-providers/mi-exemptions.js",
       "mi": 105.32
     },
@@ -2501,6 +2505,10 @@
     {
       "path": "lib/cli/doctor-checks/codex.js",
       "mi": 100.975
+    },
+    {
+      "path": "lib/cli/doctor-checks/llm-review.js",
+      "mi": 93.672
     },
     {
       "path": "lib/cli/doctor-checks/merge-driver.js",

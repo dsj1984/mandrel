@@ -3,7 +3,7 @@
  *
  * Story #2825 (Epic #2815) — verifies:
  *   - Unset / empty `codeReview.providers` falls back to the default
- *     chain (`native` + optional `code-review`).
+ *     chain (`native` + optional `llm-review`).
  *   - Unknown provider name throws an Error whose message names the
  *     unknown value, lists the supported values, and points the
  *     operator at `.agentrc.json` for remediation.
@@ -22,11 +22,11 @@ import {
   listRegisteredProviders,
 } from '../../../../.agents/scripts/lib/orchestration/review-providers/review-provider-factory.js';
 
-// Stub registry: the real `code-review` constructor probes the `claude` CLI,
-// and no test may spawn it.
+// Stub registry: the real `llm-review` constructor probes the `claude` and
+// `codex` CLIs, and no test may spawn them.
 const STUB_DEFAULT_REGISTRY = Object.freeze({
   native: () => ({ runReview: async () => [] }),
-  'code-review': () => ({ runReview: async () => [] }),
+  'llm-review': () => ({ runReview: async () => [] }),
 });
 
 test('createReviewProvider: unset codeReview falls back to the default chain', () => {
@@ -37,7 +37,7 @@ test('createReviewProvider: unset codeReview falls back to the default chain', (
   assert.equal(typeof provider.getPromptMessages, 'function');
   assert.deepEqual(
     provider.chain.inline.map((e) => e.name),
-    ['native', 'code-review'],
+    ['native', 'llm-review'],
   );
 });
 
@@ -48,7 +48,7 @@ test('createReviewProvider: missing or empty providers falls back to the default
     });
     assert.deepEqual(
       provider.chain.inline.map((e) => e.name),
-      ['native', 'code-review'],
+      ['native', 'llm-review'],
     );
   }
 });
@@ -154,8 +154,10 @@ test('createReviewProvider: honors injected registry for adapter tests', async (
   assert.deepEqual(findings, []);
 });
 
-test('listRegisteredProviders includes code-review', () => {
-  assert.ok(listRegisteredProviders().includes('code-review'));
+test('listRegisteredProviders includes code-review and llm-review', () => {
+  const names = listRegisteredProviders();
+  assert.ok(names.includes('code-review'));
+  assert.ok(names.includes('llm-review'));
 });
 
 test('listRegisteredProviders returns the registered names sorted', () => {

@@ -2439,6 +2439,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestration/review-providers/llm-review.js",
+      "lines": 97.87,
+      "branches": 85.71,
+      "functions": 85.71
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/review-providers/mi-exemptions.js",
       "lines": 100,
       "branches": 90.48,
@@ -2470,8 +2476,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/review-provider-factory.js",
-      "lines": 94.58,
-      "branches": 89.66,
+      "lines": 94.67,
+      "branches": 89.89,
       "functions": 100
     },
     {
@@ -3747,6 +3753,12 @@
       "functions": 100
     },
     {
+      "path": "lib/cli/doctor-checks/llm-review.js",
+      "lines": 98.21,
+      "branches": 84.62,
+      "functions": 100
+    },
+    {
       "path": "lib/cli/doctor-checks/merge-driver.js",
       "lines": 100,
       "branches": 86.67,
@@ -3840,7 +3852,7 @@
       "path": "lib/cli/registry.js",
       "lines": 100,
       "branches": 100,
-      "functions": 95
+      "functions": 95.24
     },
     {
       "path": "lib/cli/sync-agents.js",

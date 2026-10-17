@@ -128,7 +128,18 @@ gitignored:
 - **Workflows.** Each Codex skill is a pointer: it tells Codex to read
   `.agents/workflows/<name>.md` (or `.agents/local/workflows/<name>.md`) and
   run it, with the text after `$<name>` as its arguments — e.g.
-  `$mandrel-plan add a CSV export`. Loop units are `$loops-<name>`.
+  `$mandrel-plan add a CSV export`. Loop units are `$loops-<name>` and run
+  once per invocation — Codex has no `/loop` cadence, so re-invoke the unit
+  (or schedule it) to iterate.
+- **Code review at close.** The default review chain runs `native` then
+  `llm-review`, which reviews through the first CLI on PATH: `claude --print`
+  (`code-review`), else `codex exec` (`codex`). A Codex-only host therefore
+  gets its LLM review from `codex`, and a host with both CLIs pays for one
+  review, not two. With neither, close runs `native` alone with one warning.
+  Pin `codeReview.providers` (e.g. `{ "name": "codex" }`) to choose the CLI.
+- **Operator questions.** Workflow prose that says to ask with
+  `AskUserQuestion` means the host's question idiom: on Codex, ask in plain
+  text and wait for the reply (`instructions.md` § 1.A).
 - **Role agents.** A workflow's `subagent_type: <role>` dispatch spawns the
   project custom agent `<role>` (`story-worker`, `acceptance-critic`,
   `plan-critic`, `auditor`) on Codex, per `instructions.md` § 1.A. The
@@ -152,7 +163,9 @@ gitignored:
 - **Doctor.** `mandrel doctor` adds `codex-skills-in-sync`,
   `codex-agents-in-sync` (remedy: re-run `mandrel sync-commands` /
   `mandrel sync-agents`) and `codex-instructions`, which fails when the
-  Mandrel block sits beyond the effective `project_doc_max_bytes`.
+  Mandrel block sits beyond the effective `project_doc_max_bytes`. Its
+  `llm-review-provider` check names the CLI that will serve the review chain
+  and fails only when a pinned, non-optional provider's CLI is missing.
 
 ---
 

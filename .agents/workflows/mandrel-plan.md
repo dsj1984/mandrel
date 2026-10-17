@@ -121,8 +121,8 @@ than one Story** (a split always earns operator eyes, `--force-review` or
 not), or when the operator asked to review (`--force-review`).
 Under `--yes`, auto-proceed.
 
-**One-for-one (tickets mode, one source → one Story)** — ask with
-AskUserQuestion: **Rewrite #N in place (Recommended)** or **File a new Story
+**One-for-one (tickets mode, one source → one Story)** — ask the operator
+(the host's question idiom, § 1.A): **Rewrite #N in place (Recommended)** or **File a new Story
 and close #N** (`--no-rewrite-source`). Under `--yes`, rewrite
 ([ref](helpers/plan-reference.md)).
 
