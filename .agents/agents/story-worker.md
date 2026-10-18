@@ -71,6 +71,26 @@ MUST print `story-<storyId>`. If it does not, **STOP** — never commit Story
 work to `main` or outside the worktree/branch. Re-run
 `single-story-init.js` (idempotent) to restore it.
 
+## Smallest complete change (MUST)
+
+Read the code first and list every place the change must reach — callers,
+tests, fixtures, config, exports; that is the scope. Take the first rung
+that fully solves the Story:
+
+1. Does it need to exist at all?
+2. Already in this codebase — reuse it the way nearby code does.
+3. The standard library or a platform feature.
+4. An installed dependency — never add one for a few lines.
+5. One line a reader gets at a glance.
+6. Otherwise the minimum code that works.
+
+Lazy about the solution, never the change: finish every caller, test and
+fixture it breaks. No unasked abstraction, option, config or "for later"
+code; deletion beats addition; keep the existing layers. Mark a deliberate
+shortcut with the comment `shortcut: <the limit>, <when to upgrade>`. Never
+cut trust-boundary validation, error handling that prevents data loss,
+security, accessibility, or anything `acceptance[]` asks for.
+
 ## Commit discipline
 
 Conventional Commit subjects on `story-<storyId>` per
