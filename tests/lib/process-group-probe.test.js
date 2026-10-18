@@ -30,14 +30,16 @@ describe('process-group probe (Story #5638)', {
   skip: process.platform === 'win32',
 }, () => {
   it('a dead child nobody reaps reads as a zombie, and counts as gone', async () => {
-    // The backgrounded `sleep 0` exits at once; its parent exec's into
-    // `sleep 5`, which never waits, so the echoed pid stays a zombie.
-    const holder = spawn('sh', ['-c', 'sleep 0 & echo $!; exec sleep 5'], {
+    // The backgrounded `sleep 1` outlives the shell's `exec` into `sleep 10`,
+    // which never waits, so the echoed pid dies as a zombie. A child that
+    // exits before the `exec` is reaped by dash between commands and reads
+    // as gone, so the background job must not finish first.
+    const holder = spawn('sh', ['-c', 'sleep 1 & echo $!; exec sleep 10'], {
       stdio: ['ignore', 'pipe', 'ignore'],
     });
     try {
       const zombie = Number(await firstLine(holder));
-      const deadline = Date.now() + 3_000;
+      const deadline = Date.now() + 5_000;
       let seen = pidState(zombie);
       while (seen.state === 'alive' && Date.now() < deadline) {
         await new Promise((resolve) => setTimeout(resolve, 25));
