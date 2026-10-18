@@ -65,6 +65,8 @@ describe('story-worker smallest-complete-change ladder', () => {
 
   it('names the finish-every-caller rule and the never-cut list', () => {
     const section = ladderSection();
+    // assertDocMentions collapses whitespace runs (newlines included) before
+    // matching, so a phrase wrapped across lines still matches a plain space.
     assertDocMentions(section, /finish every caller/i);
     assertDocMentions(section, /never cut.*trust-boundary validation/i);
     assertDocMentions(section, /data loss/i);
