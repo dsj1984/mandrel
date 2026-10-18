@@ -17,9 +17,8 @@ import {
 } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import Ajv from 'ajv/dist/2020.js';
-import addFormats from 'ajv-formats';
 import { storyTempDir } from './config/temp-paths.js';
+import { createAjv2020 } from './util/ajv.js';
 
 export const SCHEMA_VERSION = 1;
 const DEFAULT_TEMP_DIR = 'temp';
@@ -44,8 +43,7 @@ let cachedValidator = null;
  */
 function getEvidenceValidator() {
   if (cachedValidator) return cachedValidator;
-  const ajv = new Ajv({ allErrors: true, strict: false });
-  addFormats(ajv);
+  const ajv = createAjv2020({ allErrors: true, strict: false });
   const schema = JSON.parse(defaultReadFileSync(SCHEMA_PATH, 'utf8'));
   cachedValidator = ajv.compile(schema);
   return cachedValidator;

@@ -5,8 +5,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import Ajv from 'ajv';
-import addFormats from 'ajv-formats';
+import { createAjv } from './util/ajv.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -50,11 +49,10 @@ export const BASELINE_SCHEMA_FILES = Object.freeze([
  * Build an AJV instance with the envelope and every per-kind baseline schema
  * pre-registered. Throws if any schema file is unreadable or fails to compile.
  *
- * @returns {Ajv} configured AJV with all baseline schemas registered.
+ * @returns {import('ajv').default} configured AJV with all baseline schemas registered.
  */
 export function buildBaselineSchemaAjv() {
-  const ajv = new Ajv({ allErrors: true, strict: false });
-  addFormats(ajv);
+  const ajv = createAjv({ allErrors: true, strict: false });
   for (const filename of BASELINE_SCHEMA_FILES) {
     const filePath = path.join(BASELINE_SCHEMAS_DIR, filename);
     const schema = JSON.parse(readFileSync(filePath, 'utf8'));

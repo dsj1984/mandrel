@@ -14,8 +14,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
-import Ajv from 'ajv';
-import addFormats from 'ajv-formats';
 import {
   DEFAULT_MAX_RECORDS,
   runEngine,
@@ -25,6 +23,7 @@ import { DEFAULT_BLAME_LIMIT } from './lib/audit-exceptions/history.js';
 import { DEFAULT_TICKET_LIMIT } from './lib/audit-exceptions/tickets.js';
 import { defineFlags } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
+import { createAjv } from './lib/util/ajv.js';
 
 const SCHEMA_PATH = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -53,8 +52,7 @@ let validator;
  */
 export function assertEnvelope(envelope) {
   if (!validator) {
-    const ajv = new Ajv({ allErrors: true, strict: false });
-    addFormats(ajv);
+    const ajv = createAjv({ allErrors: true, strict: false });
     validator = ajv.compile(JSON.parse(fs.readFileSync(SCHEMA_PATH, 'utf8')));
   }
   if (validator(envelope)) return;

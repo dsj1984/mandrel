@@ -12,10 +12,9 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import Ajv2020 from 'ajv/dist/2020.js';
-import addFormats from 'ajv-formats';
 import { CI_DELIVERY_DEFAULTS, getCiDelivery } from '../config/ci.js';
 import { getAgentrcValidator } from '../config-settings-schema.js';
+import { createAjv2020 } from '../util/ajv.js';
 
 function makeValidator() {
   return getAgentrcValidator();
@@ -31,8 +30,7 @@ function makeMirrorValidator() {
     path.dirname(fileURLToPath(import.meta.url)),
     '../../../schemas/agentrc.schema.json',
   );
-  const ajv = new Ajv2020({ allErrors: true });
-  addFormats(ajv);
+  const ajv = createAjv2020({ allErrors: true });
   return ajv.compile(JSON.parse(readFileSync(mirrorPath, 'utf8')));
 }
 

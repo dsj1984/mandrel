@@ -11,11 +11,8 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-
-import Ajv from 'ajv';
-import addFormats from 'ajv-formats';
-
 import { Logger } from '../Logger.js';
+import { createAjv } from '../util/ajv.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMA_PATH = path.resolve(
@@ -36,8 +33,7 @@ const SCHEMA_PATH = path.resolve(
 function buildValidator() {
   try {
     const schema = JSON.parse(readFileSync(SCHEMA_PATH, 'utf8'));
-    const ajv = new Ajv({ allErrors: true, strict: false });
-    addFormats(ajv);
+    const ajv = createAjv({ allErrors: true, strict: false });
     return ajv.compile(schema);
   } catch (err) {
     Logger.warn(

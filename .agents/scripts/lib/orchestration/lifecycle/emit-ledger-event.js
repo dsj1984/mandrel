@@ -6,11 +6,8 @@
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-
-import Ajv2020 from 'ajv/dist/2020.js';
-import addFormats from 'ajv-formats';
-
 import { storyLedgerPath } from '../../config/temp-paths.js';
+import { createAjv2020 } from '../../util/ajv.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMA_DIR = path.resolve(
@@ -42,8 +39,7 @@ function getValidator(schemaFile) {
   const schema = JSON.parse(
     readFileSync(path.resolve(SCHEMA_DIR, schemaFile), 'utf8'),
   );
-  const ajv = new Ajv2020({ allErrors: true, strict: false });
-  addFormats(ajv);
+  const ajv = createAjv2020({ allErrors: true, strict: false });
   const validator = ajv.compile(schema);
   _validators.set(schemaFile, validator);
   return validator;

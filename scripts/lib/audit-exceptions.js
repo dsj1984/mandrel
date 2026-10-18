@@ -24,8 +24,7 @@
 
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import Ajv from 'ajv';
-import addFormats from 'ajv-formats';
+import { createAjv } from '../../.agents/scripts/lib/util/ajv.js';
 
 import {
   extractBlockingAdvisories,
@@ -72,8 +71,7 @@ const SCHEMA = {
 let validator = null;
 function validate(data) {
   if (!validator) {
-    const ajv = new Ajv({ allErrors: true, strict: true });
-    addFormats(ajv);
+    const ajv = createAjv({ allErrors: true, strict: true });
     validator = ajv.compile(SCHEMA);
   }
   return validator(data) ? null : formatAjvErrors(validator.errors);
