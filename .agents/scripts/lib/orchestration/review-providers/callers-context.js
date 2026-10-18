@@ -1,20 +1,13 @@
 /**
- * review-providers/callers-context.js — the out-of-diff caller context the
- * model bug review is handed at depth `deep`. A diff cannot show an untouched
- * caller broken by a renamed field or a changed signature, so this module
- * pulls the symbols a diff defines or removes and finds, by a word-boundary
- * `git grep` at the reviewed branch tip, the lines outside the changed files
- * that reference them.
- *
- * Deterministic and tool-free on purpose: the reviewer runs with no tools
- * from an empty temp dir, so its callers arrive as prompt text. Every cap
- * that drops context is reported back so the provider can record it as a
- * degradation — an unreviewed slice must never read as a reviewed one.
+ * review-providers/callers-context.js — the `<callers>` block for a `deep`
+ * review: lines outside the changed files that reference symbols the diff
+ * defines or removes, by `git grep` at the head ref. Every cap that drops
+ * context is reported so the provider records a degradation.
  */
 
 import { normalizeDepth } from './review-depth.js';
 
-/** Depths whose prompt carries the `<callers>` block; widen after a measured review-time check. */
+/** Widen after a measured review-time check. */
 const CALLER_CONTEXT_DEPTHS = Object.freeze(['deep']);
 const CALLERS_INSTRUCTION =
   'The <callers> block lists lines outside the diff that reference symbols ' +
@@ -35,12 +28,7 @@ const DECLARATION_PATTERNS = Object.freeze([
 const EXPORT_LIST = /\bexport\s*\{([^}]*)\}/g;
 const NEW_FILE_HEADER = /^\+\+\+ b\/(.+)$/;
 
-/**
- * Exported names from an `export { A, B as C }` list body (`C`, not `B`).
- *
- * @param {string} list
- * @returns {string[]}
- */
+/** `export { A, B as C }` exports `A` and `C`. */
 function exportListNames(list) {
   const ident = new RegExp(`^${IDENT}$`);
   return list
@@ -56,10 +44,6 @@ function exportListNames(list) {
     .filter((name) => ident.test(name) && name !== 'default');
 }
 
-/**
- * @param {string} line - a changed line with its `+`/`-` marker stripped.
- * @returns {string[]}
- */
 function symbolsOnLine(line) {
   const out = [];
   for (const pattern of DECLARATION_PATTERNS) {
@@ -71,13 +55,7 @@ function symbolsOnLine(line) {
   return out;
 }
 
-/**
- * Walk the diff once: changed-line symbols (hunk bodies only, so the
- * `+++`/`---` headers never contribute) and the `+++ b/` file paths.
- *
- * @param {string} diff
- * @returns {{ found: Set<string>, files: string[] }}
- */
+/** Hunk bodies only, so `+++`/`---` headers never contribute. */
 function scanDiff(diff) {
   const found = new Set();
   const files = [];
@@ -100,14 +78,7 @@ function scanDiff(diff) {
   return { found, files };
 }
 
-/**
- * Symbols the diff defines or removes, longest first (short names grep
- * noisily), capped at `maxSymbols`; the overflow is returned as `dropped`.
- *
- * @param {string} diff
- * @param {number} [maxSymbols]
- * @returns {{ symbols: string[], dropped: string[], files: string[] }}
- */
+/** Longest first: short names grep noisily. */
 function extractChangedSymbols(diff, maxSymbols = CALLER_CAPS.maxSymbols) {
   const { found, files } = scanDiff(diff);
   const ranked = [...found].sort(
@@ -120,15 +91,6 @@ function extractChangedSymbols(diff, maxSymbols = CALLER_CAPS.maxSymbols) {
   };
 }
 
-/**
- * The `git grep` argv for one symbol: fixed-string, word-boundary, at
- * `headRef`, with every changed file excluded from the pathspec.
- *
- * @param {string} symbol
- * @param {string} headRef
- * @param {string[]} files
- * @returns {string[]}
- */
 function callerGrepArgs(symbol, headRef, files) {
   return [
     'grep',
@@ -144,13 +106,6 @@ function callerGrepArgs(symbol, headRef, files) {
   ];
 }
 
-/**
- * `<headRef>:<path>:<line>:<text>` → `path:line: text`.
- *
- * @param {string} raw
- * @param {string} headRef
- * @returns {string|null}
- */
 function formatHit(raw, headRef) {
   const prefix = `${headRef}:`;
   const rest = raw.startsWith(prefix) ? raw.slice(prefix.length) : raw;
@@ -158,11 +113,6 @@ function formatHit(raw, headRef) {
   return match ? `${match[1]}:${match[2]}: ${match[3].trim()}` : null;
 }
 
-/**
- * @param {{ status: number, stdout: string }} result
- * @param {string} headRef
- * @returns {string[]|null} null when the lookup itself failed.
- */
 function readHits(result, headRef) {
   if (result.status === 1) return [];
   if (result.status !== 0) return null;
@@ -172,13 +122,6 @@ function readHits(result, headRef) {
     .filter((hit) => hit !== null);
 }
 
-/**
- * Look up each symbol and render the sections, applying the per-symbol and
- * total caps.
- *
- * @param {{ symbols: string[], files: string[], headRef: string, cwd: string, gitSpawnFn: Function, caps: typeof CALLER_CAPS }} args
- * @returns {{ sections: string[], dropped: string[] }}
- */
 function lookUpCallers({ symbols, files, headRef, cwd, gitSpawnFn, caps }) {
   const sections = [];
   const dropped = [];
@@ -208,19 +151,6 @@ function lookUpCallers({ symbols, files, headRef, cwd, gitSpawnFn, caps }) {
   return { sections, dropped };
 }
 
-/**
- * Build the body of the `<callers>` block for a diff, plus every symbol (or
- * part of one) a cap or a failed lookup left unchecked.
- *
- * @param {{
- *   diff: string,
- *   headRef: string,
- *   cwd: string,
- *   gitSpawnFn: (cwd: string, ...args: string[]) => { status: number, stdout: string, stderr: string },
- *   caps?: typeof CALLER_CAPS,
- * }} args
- * @returns {{ body: string, dropped: string[] }}
- */
 function buildCallersContext({
   diff,
   headRef,
@@ -251,18 +181,9 @@ function buildCallersContext({
 }
 
 /**
- * The prompt section the provider appends after the diff: the instruction
- * sentence and the `<callers>` block at a caller-context depth, '' below it;
- * `reason` names what a cap or failed lookup left unchecked, else null.
- *
- * @param {{
- *   diff: string,
- *   input: { headRef: string, depth?: unknown },
- *   cwd: string,
- *   gitSpawnFn: (cwd: string, ...args: string[]) => { status: number, stdout: string, stderr: string },
- *   caps?: typeof CALLER_CAPS,
- * }} args - `caps` overrides the 20 / 25 / 30,000 caps (tests).
- * @returns {{ text: string, reason: string|null }}
+ * The instruction plus `<callers>` block at `deep` ('' below it), and a
+ * degradation `reason` when a cap or lookup left a symbol unchecked.
+ * `caps` overrides the 20 / 25 / 30,000 limits (tests).
  */
 export function buildCallersSection({
   diff,
