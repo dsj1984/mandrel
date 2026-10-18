@@ -10,7 +10,7 @@
 import nodeFs from 'node:fs';
 import path from 'node:path';
 import { gzipSync } from 'node:zlib';
-import { Minimatch } from 'minimatch';
+import picomatch from 'picomatch';
 
 /** Directories a bundle glob never descends into. */
 const SKIPPED_DIRS = new Set(['.git', 'node_modules']);
@@ -65,16 +65,14 @@ function walkFiles(absDir, fs) {
  */
 function resolveBundleFiles(pattern, cwd, fs = nodeFs) {
   const posix = pattern.replace(/\\/g, '/').replace(/^\.\//, '');
-  const matcher = new Minimatch(posix, { dot: true });
-  if (!matcher.hasMagic()) {
+  if (!picomatch.scan(posix).isGlob) {
     const abs = path.resolve(cwd, posix);
     return fs.existsSync(abs) && fs.statSync(abs).isFile() ? [abs] : [];
   }
+  const isMatch = picomatch(posix, { dot: true });
   const base = staticBase(posix.split('/'));
   return walkFiles(path.resolve(cwd, base), fs)
-    .filter((abs) =>
-      matcher.match(path.relative(cwd, abs).split(path.sep).join('/')),
-    )
+    .filter((abs) => isMatch(path.relative(cwd, abs).split(path.sep).join('/')))
     .sort();
 }
 

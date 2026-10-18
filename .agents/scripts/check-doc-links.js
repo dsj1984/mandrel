@@ -8,7 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { minimatch } from 'minimatch';
+import picomatch from 'picomatch';
 import { parseStandardCliArgs } from './lib/cli/standard-args.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { Logger } from './lib/Logger.js';
@@ -155,7 +155,7 @@ function walkMarkdown(dirAbs, repoRoot, out) {
 /**
  * @param {string}   rootAbs
  * @param {string[]} scanRoots
- * @param {string[]} [exclude] minimatch globs over repo-relative POSIX paths
+ * @param {string[]} [exclude] picomatch globs over repo-relative POSIX paths
  */
 export function discoverMarkdown(rootAbs, scanRoots, exclude = []) {
   const out = [];
@@ -166,7 +166,7 @@ export function discoverMarkdown(rootAbs, scanRoots, exclude = []) {
   const filtered = exclude.length
     ? out.filter((abs) => {
         const rel = path.relative(rootAbs, abs).split(path.sep).join('/');
-        return !exclude.some((g) => minimatch(rel, g, { dot: true }));
+        return !exclude.some((g) => picomatch.isMatch(rel, g, { dot: true }));
       })
     : out;
   filtered.sort();
@@ -459,7 +459,7 @@ runAsCli(import.meta.url, main, {
       ],
       [
         '--exclude <glob>',
-        'Repeatable. minimatch glob; matching files are dropped from the scan.',
+        'Repeatable. picomatch glob; matching files are dropped from the scan.',
       ],
     ],
     notes: [
