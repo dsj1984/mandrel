@@ -15,6 +15,41 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.91.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.90.0...mandrel-v2.91.0) (2026-10-18)
+
+
+### Added
+
+* **audit:** add the /audit-lean lens for grep-grounded reuse findings (refs [#5763](https://github.com/dsj1984/mandrel/issues/5763)) ([#5769](https://github.com/dsj1984/mandrel/issues/5769)) ([c770356](https://github.com/dsj1984/mandrel/commit/c77035646a1a697dc329d71bbf7b9513192a1b10))
+* codex host parity: a first-available LLM review in the default chain, a doctor check that names it, and a host-mapping rule covering HITL questions and loop cadence ([#5741](https://github.com/dsj1984/mandrel/issues/5741)) ([#5752](https://github.com/dsj1984/mandrel/issues/5752)) ([4da251b](https://github.com/dsj1984/mandrel/commit/4da251b65395a4a84e3394ff7d9a5f172a3b8cf8))
+* gate verdicts measure the change: CRAP joins module-scope arrows, duplication regresses on absolute lines, an untranspilable TS file is reported unscorable ([#5755](https://github.com/dsj1984/mandrel/issues/5755)) ([#5759](https://github.com/dsj1984/mandrel/issues/5759)) ([68197b2](https://github.com/dsj1984/mandrel/commit/68197b28b6467e387823b5ca4f18177143f90203))
+* give the story-worker a smallest-complete-change ladder: reuse, stdlib, installed dep, one line, then the minimum, with the shortcut: comment form ([#5762](https://github.com/dsj1984/mandrel/issues/5762)) ([#5770](https://github.com/dsj1984/mandrel/issues/5770)) ([01c7020](https://github.com/dsj1984/mandrel/commit/01c70200295ba9d3eae08c7ccaf1ac84299d8e17))
+* join each Story's landed diff size into the agent cost report so lines-per-Story and tokens-per-changed-line can be read before and after a worker rule changes ([#5766](https://github.com/dsj1984/mandrel/issues/5766)) ([#5772](https://github.com/dsj1984/mandrel/issues/5772)) ([9463d76](https://github.com/dsj1984/mandrel/commit/9463d763c4a530473598a90f370a8ca1522e14e6))
+* make the close reviewer caller-aware at depth deep and record what it did not check: a callers block built from git grep, and a degradation whenever the diff or that block is truncated ([#5764](https://github.com/dsj1984/mandrel/issues/5764)) ([#5773](https://github.com/dsj1984/mandrel/issues/5773)) ([33b0cc6](https://github.com/dsj1984/mandrel/commit/33b0cc62fa91d6afcef8464ff3e633f648f98e14))
+* one project.commands contract: a single resolver and defaults table, the coverage gate owns its capture script, capture spawns via the detected package manager ([#5737](https://github.com/dsj1984/mandrel/issues/5737)) ([#5750](https://github.com/dsj1984/mandrel/issues/5750)) ([0b1b171](https://github.com/dsj1984/mandrel/commit/0b1b171d23460ca595276a4e000a8a2435375427))
+* one scorable-extension list drives the refresh predicates, the MI projection, native review and the duplication scanner; retire duplication.formats ([#5738](https://github.com/dsj1984/mandrel/issues/5738)) ([#5753](https://github.com/dsj1984/mandrel/issues/5753)) ([839b6cf](https://github.com/dsj1984/mandrel/commit/839b6cf715f4e8c352d25bf77d7ac5b2bb6e0a28))
+* read `shortcut: <ceiling>, <trigger>` comments everywhere the framework judges code: an audit-exceptions adapter whose verdicts are the ledger, the shared lens rule, the guardrails convention, and one sentence for the close reviewer ([#5765](https://github.com/dsj1984/mandrel/issues/5765)) ([#5774](https://github.com/dsj1984/mandrel/issues/5774)) ([0c74524](https://github.com/dsj1984/mandrel/commit/0c745249ebac8a27c61865dbd44f8e71865990cc))
+
+
+### Fixed
+
+* anchor .agentrc resolution on the working tree's git toplevel and apply GH_CONFIG_DIR at the gh boundary, not as a side effect of resolveConfig ([#5740](https://github.com/dsj1984/mandrel/issues/5740)) ([#5749](https://github.com/dsj1984/mandrel/issues/5749)) ([436844b](https://github.com/dsj1984/mandrel/commit/436844bc221dabe48946d86edf0ec0e7dddaff89))
+* close out the Epic [#5744](https://github.com/dsj1984/mandrel/issues/5744) residue: runGh through child-exec, one provider-to-CLI source, and two test-timing band-aids replaced by root fixes ([#5756](https://github.com/dsj1984/mandrel/issues/5756)) ([#5757](https://github.com/dsj1984/mandrel/issues/5757)) ([3ffdcfc](https://github.com/dsj1984/mandrel/commit/3ffdcfc9b6773cb851ae8cb4be7f184271b12567))
+* dead-exports gate exits non-zero when knip fails or overflows, instead of passing with zero rows ([#5736](https://github.com/dsj1984/mandrel/issues/5736)) ([#5745](https://github.com/dsj1984/mandrel/issues/5745)) ([d021612](https://github.com/dsj1984/mandrel/commit/d021612bcbbc456aa291f952278fed9513308b20))
+* fix callers-context bogus symbols from prose: the deep review's declara… ([#5781](https://github.com/dsj1984/mandrel/issues/5781)) ([#5782](https://github.com/dsj1984/mandrel/issues/5782)) ([4e3c8fe](https://github.com/dsj1984/mandrel/commit/4e3c8fe0a0f227c5b8e20f9dfb62755d6f18de65))
+* projects v2 scope detection recognises gh-exec classified errors, not just the fetch-path message ([#5735](https://github.com/dsj1984/mandrel/issues/5735)) ([#5746](https://github.com/dsj1984/mandrel/issues/5746)) ([95fe821](https://github.com/dsj1984/mandrel/commit/95fe821bca8b8bc1e33463dbe752d4f4a9cdc43f))
+* ratchet child-process call sites on maxBuffer, not imports, and migrate the raw capture sites that can exceed 1 MiB ([#5739](https://github.com/dsj1984/mandrel/issues/5739)) ([#5751](https://github.com/dsj1984/mandrel/issues/5751)) ([ab7360d](https://github.com/dsj1984/mandrel/commit/ab7360dcd146f08386046c0f02592e950b7882a4))
+* replace eight hand-rolled tmp-write-then-rename copies with one shared writeFileAtomic, and seven recursive directory walkers with one pruning walkFiles ([#5776](https://github.com/dsj1984/mandrel/issues/5776)) ([#5780](https://github.com/dsj1984/mandrel/issues/5780)) ([e927ad2](https://github.com/dsj1984/mandrel/commit/e927ad26d1c86b722701f4a54715e498fb6f4bed))
+* **skills:** repair dead reference.md anchors in two skill capsules (refs [#4667](https://github.com/dsj1984/mandrel/issues/4667)) ([#5761](https://github.com/dsj1984/mandrel/issues/5761)) ([4c1752d](https://github.com/dsj1984/mandrel/commit/4c1752d5374fa23ad2f0297728589b5c7c689526))
+
+
+### Changed
+
+* bring the Claude command and agent projectors to the Codex projector shape: injectable modules behind thin CLIs, no env-var test seams ([#5742](https://github.com/dsj1984/mandrel/issues/5742)) ([#5748](https://github.com/dsj1984/mandrel/issues/5748)) ([5d13fbc](https://github.com/dsj1984/mandrel/commit/5d13fbcf0a7a27e0534b782d3fb77074bd71b212))
+* drop the minimatch and ajv-formats runtime dependencies: standardise globs on picomatch and register the two JSON-schema formats Mandrel uses through one shared Ajv factory ([#5775](https://github.com/dsj1984/mandrel/issues/5775)) ([#5778](https://github.com/dsj1984/mandrel/issues/5778)) ([a00800a](https://github.com/dsj1984/mandrel/commit/a00800a848033858dbfb70fe5eaaf057e1b4c27e))
+* retire seven small lean findings: parseArgs for four hand-rolled argv loops, ten main() forwarders, three slug copies, two isPlainObject copies, inline sleeps, two storyIdFromBranch forwarders and the issueToEpic alias ([#5777](https://github.com/dsj1984/mandrel/issues/5777)) ([#5779](https://github.com/dsj1984/mandrel/issues/5779)) ([7f9d7f2](https://github.com/dsj1984/mandrel/commit/7f9d7f2fea54d8541c6bb3c8f017b94046b8dc84))
+* revert the callback-free scorable-extension regex once the CRAP statement-span join is on main ([#5758](https://github.com/dsj1984/mandrel/issues/5758)) ([#5760](https://github.com/dsj1984/mandrel/issues/5760)) ([8655f3f](https://github.com/dsj1984/mandrel/commit/8655f3f1a603cb745acc7a41f6fdd90e7f9779a4))
+
 ## [2.90.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.89.0...mandrel-v2.90.0) (2026-10-16)
 
 
