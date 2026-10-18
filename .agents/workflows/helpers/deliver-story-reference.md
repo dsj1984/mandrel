@@ -36,8 +36,15 @@ foreign claim is stale — a foreign assignee is treated as a _live_ claim:
   the current owner. Coordinate with that operator, or pass **`--steal`** to
   forcibly transfer the claim once you have confirmed the other run is dead.
 
-`--dry-run` skips the lease (no assignee mutation). The matching release
-runs in `single-story-close.js` (Step 3).
+`--dry-run` skips the lease (no assignee mutation). The claim lives for the
+Story's whole delivery: it is released only by close's post-land tail once
+the merge is confirmed (Step 3), or by init's own rollback when provisioning
+fails or the `agent::executing` flip does not land — that flip is not
+best-effort, so init exits non-zero rather than leave a ready Story assigned.
+A blocked or failed close **keeps** the claim. The flip's Projects v2 outcome
+is reported as `boardSync` in the init envelope; a Status that did not move
+logs one warning naming the fix (`gh auth refresh -h github.com -s project`
+for a token without the `project` scope).
 
 ### Branch reuse
 
@@ -339,12 +346,16 @@ The `single-story-close.js` script, in order:
    `blocked` or `failed` close keeps its working copy. A missing worktree is
    recreated from `story-<id>` before close's first git operation — and the
    `--wait` resume's — never falling back to the main checkout.
-7. **Releases the Story lease** — a no-op when the operator no longer holds
-   the claim, so a late close never yanks a live claim. Best-effort: a
-   release failure is logged, not fatal, and reported as
-   `leaseReleased: <boolean>`. The fail-closed lease never expires on its
-   own, so a claim stranded by a failed release is cleared only by `--steal`
-   or by de-assigning the ticket.
+7. **Releases the Story lease only after the merge is confirmed** — the
+   post-land tail's step, a no-op when the operator no longer holds the
+   claim, so a late close never yanks a live claim. Every other ending keeps
+   it: a red gate, a review-critical halt, a base-sync conflict, a blocked
+   GraphQL preflight, `pending` and `blocked` all leave the Story assigned,
+   because its label still says it is owned; the next close re-affirms the
+   claim as `already-held`. Best-effort: a release failure is logged, not
+   fatal, and reported as `leaseReleased: <boolean>`. The fail-closed lease
+   never expires on its own, so a claim stranded by a failed release is
+   cleared only by `--steal` or by de-assigning the ticket.
 
 The merge wait recovers on its own when `main` moves under the queued PR. A
 `DIRTY` PR is merged with `origin/<base>` in the Story worktree in that same

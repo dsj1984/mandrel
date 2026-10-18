@@ -52,12 +52,8 @@ import { discardHeldReview } from './review-overlap.js';
 const progress = Logger.createProgress('single-story-close', { stderr: true });
 
 /**
- * Re-affirm the Story lease before any gate, push or PR write. Close never
- * releases it on a failure — the claim lives from init until the post-land
- * tail — so this is normally `already-held`; it re-takes a claim someone
- * cleared by hand. No steal — a foreign holder throws init's refusal. No
- * configured operator handle skips the acquire, so close never newly
- * hard-fails on it.
+ * Re-affirm the Story lease before any write; normally `already-held`, since
+ * only the post-land tail releases it. No steal; no operator handle skips it.
  */
 async function acquireLease({ storyId }, deps) {
   const operator = resolveOperatorFromCandidates({
@@ -121,7 +117,6 @@ function resolveCloseDeps(options, injected) {
   };
 }
 
-/** @param {{ storyId?: number|null }} options */
 function assertStoryId(options) {
   if (!options.storyId) {
     throw new Error(
@@ -130,10 +125,6 @@ function assertStoryId(options) {
   }
 }
 
-/**
- * Tag a thrown close error with where it stopped and what it observed; the
- * CLI boundary builds the `failed` envelope from these tags.
- */
 function tagCloseError(err, { phaseTimer, phase, observedGates }) {
   if (!err || typeof err !== 'object') return;
   err.closePhaseDurations = phaseTimer.finish();
@@ -242,8 +233,6 @@ async function graphqlPreflightPhase(ctx, deps) {
     ghFacade: deps.gh,
     probe: deps.graphqlProbe,
   });
-  // The claim stays: the Story is `agent::blocked`, and the assignee is the
-  // record of who owns it until the merge lands.
   if (!preflight) return null;
   return await preflightBlockedResult({
     storyId: ctx.storyId,
@@ -369,8 +358,6 @@ function landedPr(ctx) {
 }
 
 async function prePushPhase(ctx, deps) {
-  // A throw here (a red gate, a wrong-tree refusal, a base-sync conflict)
-  // keeps the lease: the label still says the Story is owned.
   ctx.prePush = await runPrePushPhases(ctx, deps);
   if (!ctx.prePush.pending) return null;
   discardHeldReview(ctx.heldReview, 'validation pending', progress);
@@ -427,7 +414,6 @@ async function armPhase(ctx, deps) {
   return null;
 }
 
-/** The PR-level facts every finish path reports. */
 function buildPrContext(ctx, deps) {
   const { options, arm } = ctx;
   return {
@@ -457,7 +443,6 @@ function buildPrContext(ctx, deps) {
   };
 }
 
-/** Resolve wait-for-merge from the arm outcome and tell the operator why. */
 function decideWaitForMerge(ctx, deps) {
   const { options, arm } = ctx;
   const decision = resolveWaitForMerge({
@@ -493,7 +478,6 @@ async function finishPhase(ctx, deps) {
     injectedGh: deps.gh,
     injectedNotify: deps.notify,
     runConfirmMergePhase: deps.runConfirmMergePhase,
-    // The land tail is the one place the claim is released.
     releaseLease: deps.releaseLease,
   });
 }

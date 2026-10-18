@@ -25,8 +25,7 @@ const INSTALL_FLAGS = Object.freeze({ installed: 'true', failed: 'false' });
  * @param {boolean} args.dryRun
  * @param {{ remoteVerified: boolean, remoteUrl?: string, detail?: string }} args.remote
  * @param {string|null} args.checklistPath
- * @param {{ status: string, reason?: string }|null} [args.boardSync] The
- *   executing flip's Projects v2 outcome; `null` under --dry-run.
+ * @param {{ status: string, reason?: string }|null} [args.boardSync]
  * @returns {{ result: object, summary: object }}
  */
 export function composeStoryInitResult({
@@ -71,8 +70,6 @@ export function composeStoryInitResult({
     // Footprint-matched write-time checklist (null when no lens matches) —
     // the same Story-scoped path a multi-Story dispatch prompt names.
     checklistPath,
-    // The board is best-effort, so a Status that did not move is reported,
-    // never an init failure; the transition logged the remedy.
     boardSync,
   };
   const summary = {
@@ -89,13 +86,7 @@ export function composeStoryInitResult({
   return { result, summary };
 }
 
-/**
- * `synced`, or the status with its reason so the one stdout line says why
- * the board did not move.
- *
- * @param {{ status: string, reason?: string }|null} boardSync
- * @returns {string|null}
- */
+/** The status, plus its reason when the board did not move. */
 function summarizeBoardSync(boardSync) {
   if (!boardSync) return null;
   if (!boardSync.reason) return boardSync.status;

@@ -143,16 +143,8 @@ export async function assertNotForeignExecuting({
 }
 
 /**
- * Publish the claim as `agent::executing`. A flip that fails (after the
- * provider's own transient retries) rolls the claim back and throws: a ready
- * Story with an assignee reads as a stalled dispatch to the wave tick and as
- * a foreign claim to the next init.
- *
- * @param {object} provider
- * @param {number} storyId
- * @param {object} story Prefetched snapshot.
- * @param {object} config
- * @returns {Promise<object>} The flip's Projects v2 board-sync outcome.
+ * A failed flip rolls the claim back and throws: a ready, assigned Story
+ * reads as a stalled dispatch. Returns the flip's board-sync outcome.
  */
 async function flipStoryToExecuting(provider, storyId, story, config) {
   let flip;

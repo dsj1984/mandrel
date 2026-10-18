@@ -106,34 +106,20 @@ async function loadTicketSnapshot(provider, opts, ticketId, needFromState) {
   }
 }
 
-/**
- * The command that fixes each board-sync failure the operator can act on.
- * Named in the per-flip warning so the fix is in the message.
- */
 const BOARD_SYNC_REMEDIES = Object.freeze({
   'insufficient-scope': 'gh auth refresh -h github.com -s project',
   'not-on-project': 'node .agents/scripts/board-backfill.js',
 });
 
-/** A consumer with no board configured is not a failure to report. */
 const SILENT_BOARD_SKIPS = new Set(['no-project']);
 
-/**
- * One warn line per board sync that did not happen. Emitted on every flip,
- * not latched: a Claude-driven run reads the flip's own output, never the
- * first warning of the process.
- *
- * @param {number} ticketId
- * @param {string} newState
- * @param {{ status: string, reason?: string, detail?: string }} boardSync
- */
+/** Warns on every flip, never latched: agents read the flip's own output. */
 function reportBoardSync(ticketId, newState, boardSync) {
   if (boardSync.status === 'synced') return;
   if (SILENT_BOARD_SKIPS.has(boardSync.reason)) return;
   Logger.warn(boardSyncMessage(ticketId, newState, boardSync));
 }
 
-/** The warn line: what did not move, why, and the fix when there is one. */
 function boardSyncMessage(ticketId, newState, { status, reason, detail }) {
   const why = detail ? `${reason}: ${detail}` : reason;
   const remedy = BOARD_SYNC_REMEDIES[reason];
@@ -141,11 +127,7 @@ function boardSyncMessage(ticketId, newState, { status, reason, detail }) {
   return `[Ticketing] board Status not synced for #${ticketId} → ${newState} (${status}, ${why})${fix}`;
 }
 
-/**
- * The provider's shared `ColumnSync`, or a test stub that bypasses the
- * registry. `config` is read at construction only; the first instance per
- * provider wins, so a later transition's config is ignored.
- */
+/** First instance per provider wins, so a later `config` is ignored. */
 function columnSyncFor(provider, _makeColumnSync, config) {
   if (_makeColumnSync) return _makeColumnSync({ provider, logger: Logger });
   if (!_columnSyncRegistry.has(provider)) {
@@ -159,9 +141,8 @@ function columnSyncFor(provider, _makeColumnSync, config) {
 
 /**
  * Mirror the new state onto the Projects v2 Status column. Best-effort: a
- * board failure never blocks the label transition, and the outcome is
- * returned rather than swallowed. An injected `_makeColumnSync` bypasses the
- * registry so test stubs are never cached.
+ * board failure never blocks the label transition; the outcome is returned.
+ * An injected `_makeColumnSync` bypasses the registry.
  *
  * @param {object} provider
  * @param {number} ticketId
@@ -292,9 +273,7 @@ async function emitBlockedFriction(ticketId, fromState, newState, opts) {
  *   `cascade: false` suppresses the upward parent cascade.
  *   `ticketSnapshot` is a pre-fetched ticket that saves the `fromState` read
  *   and the provider's label-merge read. `_makeColumnSync` is a test seam.
- * @returns {Promise<{ boardSync: { status: 'synced'|'skipped'|'failed', reason?: string, column?: string, detail?: string } }>}
- *   The Projects v2 Status outcome; a board that did not move is reported
- *   here and in one warn line, never thrown.
+ * @returns {Promise<{ boardSync: { status: string, reason?: string, column?: string, detail?: string } }>}
  */
 export async function transitionTicketState(
   provider,
