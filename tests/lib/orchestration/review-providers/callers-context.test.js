@@ -67,6 +67,25 @@ test('extracts function, class, export const and export-list names, longest firs
   ]);
 });
 
+test('prose never yields a symbol: words starting "function" and comment-only lines are skipped', () => {
+  const diff = [
+    'diff --git a/src/p.js b/src/p.js',
+    '--- a/src/p.js',
+    '+++ b/src/p.js',
+    '@@ -1,6 +1,6 @@',
+    '- * functional `minimatch()` recompiles per call',
+    '+ * functions here; the function returns early',
+    '+// function helperInComment() is documented above',
+    '+/* class CommentedOut {} */',
+    '+const functionalMode = true; // functions too',
+    '+function foo() {}',
+    '+function* gen() {}',
+    '+export async function bar() {}',
+  ].join('\n');
+  const { grepped } = run({ diff });
+  assert.deepEqual(grepped, ['bar', 'foo', 'gen']);
+});
+
 test('each lookup is a fixed-string word-boundary grep at the head ref excluding every changed file', () => {
   const { calls } = run();
   assert.ok(calls.every((c) => c.cwd === '/repo'));

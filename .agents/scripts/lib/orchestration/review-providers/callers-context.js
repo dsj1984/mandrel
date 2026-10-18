@@ -21,12 +21,14 @@ const CALLER_CAPS = Object.freeze({
 
 const IDENT = '[A-Za-z_$][\\w$]*';
 const DECLARATION_PATTERNS = Object.freeze([
-  new RegExp(`\\bfunction\\s*\\*?\\s*(${IDENT})`, 'g'),
+  new RegExp(`\\bfunction\\b\\s*\\*?\\s*(${IDENT})`, 'g'),
   new RegExp(`\\bclass\\s+(${IDENT})`, 'g'),
   new RegExp(`\\bexport\\s+(?:const|let|var)\\s+(${IDENT})`, 'g'),
 ]);
 const EXPORT_LIST = /\bexport\s*\{([^}]*)\}/g;
 const NEW_FILE_HEADER = /^\+\+\+ b\/(.+)$/;
+/** Comment prose ("the function returns…") declares nothing. */
+const COMMENT_LINE = /^\s*(?:\/\/|\/\*|\*)/;
 
 /** `export { A, B as C }` exports `A` and `C`. */
 function exportListNames(list) {
@@ -71,11 +73,16 @@ function scanDiff(diff) {
       if (line.startsWith('@@')) inHunk = true;
       continue;
     }
-    if (line.startsWith('+') || line.startsWith('-')) {
-      for (const name of symbolsOnLine(line.slice(1))) found.add(name);
-    }
+    for (const name of symbolsOnLine(changedCode(line))) found.add(name);
   }
   return { found, files };
+}
+
+/** The code of a `+`/`-` hunk line; `''` for context and comment-only lines. */
+function changedCode(line) {
+  const body = line.slice(1);
+  if (!/^[+-]/.test(line) || COMMENT_LINE.test(body)) return '';
+  return body;
 }
 
 /** Longest first: short names grep noisily. */

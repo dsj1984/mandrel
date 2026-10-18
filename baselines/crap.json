@@ -27870,6 +27870,12 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/callers-context.js",
+      "method": "changedCode",
+      "startLine": 82,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-providers/callers-context.js",
       "method": "extractChangedSymbols",
       "startLine": 82,
       "crap": 1
