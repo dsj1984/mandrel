@@ -4,12 +4,9 @@
  */
 
 import path from 'node:path';
+import { isObject } from '../json-utils.js';
 
 const LOCAL_AGENTRC = '.agentrc.local.json';
-
-function isPlainObject(value) {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
 
 /**
  * Deep-merge plain objects for the overlay. Arrays and scalars from
@@ -20,8 +17,8 @@ function isPlainObject(value) {
  * @returns {unknown}
  */
 export function deepMergeObjects(base, override) {
-  if (!isPlainObject(override)) return override;
-  if (!isPlainObject(base)) return { ...override };
+  if (!isObject(override)) return override;
+  if (!isObject(base)) return { ...override };
   const out = { ...base };
   for (const key of Object.keys(override)) {
     out[key] = mergeValue(base[key], override[key]);
@@ -30,7 +27,7 @@ export function deepMergeObjects(base, override) {
 }
 
 function mergeValue(baseVal, overrideVal) {
-  if (isPlainObject(overrideVal) && isPlainObject(baseVal)) {
+  if (isObject(overrideVal) && isObject(baseVal)) {
     return deepMergeObjects(baseVal, overrideVal);
   }
   return overrideVal;

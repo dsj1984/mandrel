@@ -276,11 +276,7 @@ export async function runCli({
   return 0;
 }
 
-async function main() {
-  return runCli();
-}
-
-runAsCli(import.meta.url, main, {
+runAsCli(import.meta.url, runCli, {
   source: 'dead-exports-baseline',
   propagateExitCode: true,
   errorPrefix: '[dead-exports-baseline] ❌ Fatal error',

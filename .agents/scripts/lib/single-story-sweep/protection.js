@@ -13,14 +13,6 @@ import { parseStoryBranch } from '../git-utils.js';
 const DONE_LABEL = 'agent::done';
 
 /**
- * @param {string} branch
- * @returns {number|null}
- */
-export function storyIdFromBranch(branch) {
-  return parseStoryBranch(branch);
-}
-
-/**
  * Closed, or carrying `agent::done`.
  *
  * @param {{state?: string|null, labels?: Array<string>}} ticket
@@ -135,7 +127,7 @@ export function checkDirtyTree({ candidate, ctx }) {
 
 /** Non-`story-<n>` branches have no parent ticket and bypass this guard. */
 export async function checkTicketNotDone({ candidate, ctx }) {
-  const storyId = storyIdFromBranch(candidate.branch);
+  const storyId = parseStoryBranch(candidate.branch);
   if (storyId === null) return { protected: false };
   if (typeof ctx.getTicket !== 'function') {
     return { protected: true, reason: 'provider-unavailable' };

@@ -280,11 +280,7 @@ export async function runCli({
   return exitCode;
 }
 
-async function main() {
-  return runCli();
-}
-
-runAsCli(import.meta.url, main, {
+runAsCli(import.meta.url, runCli, {
   source: 'workflow-timeouts',
   propagateExitCode: true,
   errorPrefix: '[workflow-timeouts] ❌ Fatal error',

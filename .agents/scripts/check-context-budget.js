@@ -467,11 +467,7 @@ export async function runCli({
   return report.exitCode;
 }
 
-async function main() {
-  return runCli();
-}
-
-runAsCli(import.meta.url, main, {
+runAsCli(import.meta.url, runCli, {
   source: 'context-budget',
   propagateExitCode: true,
   errorPrefix: '[context-budget] ❌ Fatal error',

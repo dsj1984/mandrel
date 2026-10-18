@@ -220,11 +220,7 @@ export async function runCli({
   return exitCode;
 }
 
-async function main() {
-  return runCli();
-}
-
-runAsCli(import.meta.url, main, {
+runAsCli(import.meta.url, runCli, {
   source: 'arch-cycles',
   propagateExitCode: true,
   errorPrefix: '[arch-cycles] ❌ Fatal error',

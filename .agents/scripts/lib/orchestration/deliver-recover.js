@@ -13,6 +13,7 @@ import {
 } from '../config/temp-paths.js';
 import { gh as defaultGh } from '../gh-exec.js';
 import { gitSpawn as defaultGitSpawn, getStoryBranch } from '../git-utils.js';
+import { defaultSleep } from '../util/sleep.js';
 import {
   CHECKS_FAILED_CLASS,
   deriveChecksStatus,
@@ -709,7 +710,7 @@ export async function recoverStory({
   fsImpl,
   reprobe = true,
   stabilityDelayMs = STABILITY_DELAY_MS,
-  sleepFn = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  sleepFn = defaultSleep,
 }) {
   const storyBranch = getStoryBranch(storyId);
   const probeArgs = {

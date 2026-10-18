@@ -7,6 +7,7 @@
  * @module lib/orchestration/light-suitability
  */
 
+import { slugifyLabel } from '../util/slug.js';
 import { deriveStoryShape, SHAPE_CODES } from './complexity-gate.js';
 import { deriveChangeLevel } from './review-depth.js';
 
@@ -387,13 +388,10 @@ const RECEIPT_SLUG_MAX = 48;
  * @returns {string}
  */
 function slugifyPrompt(text) {
-  const slug = text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, RECEIPT_SLUG_MAX)
-    .replace(/-+$/g, '');
-  return slug === '' ? 'light-change' : slug;
+  return slugifyLabel(text, {
+    max: RECEIPT_SLUG_MAX,
+    fallback: 'light-change',
+  });
 }
 
 const RECEIPT_TITLE_MAX = 72;

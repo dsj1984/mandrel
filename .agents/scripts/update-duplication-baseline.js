@@ -11,6 +11,7 @@ import path from 'node:path';
 import { parseDiffScopeFlag } from './lib/baselines/diff-scope-cli.js';
 import { JSCPD_MISSING } from './lib/baselines/duplication-scanner.js';
 import { refreshBaseline } from './lib/baselines/refresh-service.js';
+import { parseGateArgv } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { getBaselineEpsilon } from './lib/config/quality.js';
 import { getQuality, resolveConfig } from './lib/config-resolver.js';
@@ -41,21 +42,6 @@ const USAGE = {
     'Clone detection is pairwise, so the scan always covers the whole target tree — a scope flag narrows which rows are rewritten, not what is scanned.',
   ],
 };
-
-/**
- * @param {string[]} argv
- * @returns {{ baselinePath: string | undefined }}
- */
-function parseCliArgs(argv = process.argv.slice(2)) {
-  const out = { baselinePath: undefined };
-  for (let i = 0; i < argv.length; i += 1) {
-    if (argv[i] === '--baseline' && argv[i + 1]) {
-      out.baselinePath = argv[i + 1];
-      i += 1;
-    }
-  }
-  return out;
-}
 
 /**
  * @param {string[]} argv
@@ -100,7 +86,7 @@ function resolveScopeSelection(argv) {
  */
 function resolveAbsBaselinePath(argv, gate) {
   const baselinePath =
-    parseCliArgs(argv).baselinePath ??
+    parseGateArgv(argv, { strings: ['baseline'] }).baseline ??
     gate.baselinePath ??
     'baselines/duplication.json';
   return path.isAbsolute(baselinePath)

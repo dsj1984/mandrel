@@ -63,12 +63,6 @@
       "percentage": 9.38
     },
     {
-      "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
-      "duplicatedLines": 6,
-      "totalLines": 313,
-      "percentage": 1.92
-    },
-    {
       "path": ".agents/scripts/lib/baselines/kinds/_shared-metric.js",
       "duplicatedLines": 14,
       "totalLines": 165,
@@ -307,12 +301,6 @@
       "duplicatedLines": 10,
       "totalLines": 165,
       "percentage": 6.06
-    },
-    {
-      "path": ".agents/scripts/update-duplication-baseline.js",
-      "duplicatedLines": 7,
-      "totalLines": 194,
-      "percentage": 3.61
     },
     {
       "path": ".agents/scripts/validate-skills.js",

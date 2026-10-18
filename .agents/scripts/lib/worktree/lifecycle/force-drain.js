@@ -8,6 +8,7 @@
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { NOOP_LOGGER } from '../../Logger.js';
+import { defaultSleep } from '../../util/sleep.js';
 import { drainPendingCleanup, readManifest } from './pending-cleanup.js';
 
 const SETTLE_MS = 1500;
@@ -233,7 +234,7 @@ export async function forceDrainPendingCleanup({
   logger = NOOP_LOGGER,
   findHolders = findHoldersInPath,
   killHolders = terminateHolders,
-  sleep = (ms) => new Promise((r) => setTimeout(r, ms)),
+  sleep = defaultSleep,
   escalate = true,
 } = {}) {
   const first = await drainPendingCleanup({

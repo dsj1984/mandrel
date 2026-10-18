@@ -8,7 +8,11 @@ import { Logger } from '../../lib/Logger.js';
 import { concurrentMap } from '../../lib/util/concurrent-map.js';
 import { isNotFoundError } from './branch-protection.js';
 import { classifyGithubError, withTransientRetry } from './errors.js';
-import { issueToEpic, issueToTicket, subIssueNodeToTicket } from './mappers.js';
+import {
+  baseIssueFields,
+  issueToTicket,
+  subIssueNodeToTicket,
+} from './mappers.js';
 import {
   defaultRetryWarn,
   paginateRest,
@@ -229,7 +233,7 @@ export class IssuesGateway {
         }),
       { label: `getEpic #${epicId}`, onRetry: defaultRetryWarn },
     );
-    return issueToEpic(parseApiJson(result));
+    return baseIssueFields(parseApiJson(result));
   }
 
   /**

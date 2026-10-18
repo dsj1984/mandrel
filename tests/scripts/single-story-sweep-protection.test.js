@@ -7,7 +7,6 @@ import {
   checkUnpushedWork,
   evaluateProtection,
   isTicketDone,
-  storyIdFromBranch,
 } from '../../.agents/scripts/lib/single-story-sweep/protection.js';
 
 function makeGit({ revParse = {}, status = {} } = {}) {
@@ -42,20 +41,6 @@ function makeGh(viewByPr) {
     throw new Error(`unexpected gh args: ${args.join(' ')}`);
   };
 }
-
-describe('storyIdFromBranch', () => {
-  it('extracts the numeric id from story-<n>', () => {
-    assert.equal(storyIdFromBranch('story-42'), 42);
-    assert.equal(storyIdFromBranch('story-1981'), 1981);
-  });
-
-  it('returns null for non-story shapes', () => {
-    assert.equal(storyIdFromBranch('epic/100'), null);
-    assert.equal(storyIdFromBranch('feature/foo'), null);
-    assert.equal(storyIdFromBranch(null), null);
-    assert.equal(storyIdFromBranch(undefined), null);
-  });
-});
 
 describe('isTicketDone', () => {
   it('treats closed-state tickets as done', () => {

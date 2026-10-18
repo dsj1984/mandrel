@@ -11,6 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnChild } from '../child-exec.js';
 import { detectPackageManager } from '../detect-package-manager.js';
+import { sleepSync } from '../util/sleep.js';
 
 /**
  * Every spawn here goes through `spawnChild` so the wrapper's stdout ceiling
@@ -25,12 +26,6 @@ import { detectPackageManager } from '../detect-package-manager.js';
  */
 function runChild(spawnFn, cmd, args, opts) {
   return spawnChild(cmd, args, spawnFn ? { ...opts, run: spawnFn } : opts);
-}
-
-function sleepSync(ms) {
-  if (!Number.isFinite(ms) || ms <= 0) return;
-  const signal = new Int32Array(new SharedArrayBuffer(4));
-  Atomics.wait(signal, 0, 0, ms);
 }
 
 /**
@@ -507,5 +502,3 @@ export function installDependencies(ctx, wtPath) {
   }
   return { status: 'installed' };
 }
-
-export { sleepSync };

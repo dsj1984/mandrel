@@ -198,11 +198,7 @@ export async function runCli({
   return exitCode;
 }
 
-async function main() {
-  return runCli();
-}
-
-runAsCli(import.meta.url, main, {
+runAsCli(import.meta.url, runCli, {
   source: 'cyclomatic',
   propagateExitCode: true,
   errorPrefix: '[cyclomatic] ❌ Fatal error',
