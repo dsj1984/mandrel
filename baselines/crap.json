@@ -1573,12 +1573,6 @@
       "anonymous": true
     },
     {
-      "path": ".agents/scripts/check-arch-cycles.js",
-      "method": "main",
-      "startLine": 245,
-      "crap": 2
-    },
-    {
       "path": ".agents/scripts/check-baselines.js",
       "method": "main",
       "startLine": 44,
@@ -1727,12 +1721,6 @@
       "crap": 5.0646433121499275
     },
     {
-      "path": ".agents/scripts/check-context-budget.js",
-      "method": "main",
-      "startLine": 498,
-      "crap": 1
-    },
-    {
       "path": ".agents/scripts/check-cyclomatic.js",
       "method": "parseArgv",
       "startLine": 28,
@@ -1767,12 +1755,6 @@
       "method": "runCli",
       "startLine": 153,
       "crap": 5
-    },
-    {
-      "path": ".agents/scripts/check-cyclomatic.js",
-      "method": "main",
-      "startLine": 225,
-      "crap": 2
     },
     {
       "path": ".agents/scripts/check-dead-exports.js",
@@ -1843,12 +1825,6 @@
       "method": "gateExitCode",
       "startLine": 173,
       "crap": 3
-    },
-    {
-      "path": ".agents/scripts/check-dead-exports.js",
-      "method": "main",
-      "startLine": 199,
-      "crap": 2
     },
     {
       "path": ".agents/scripts/check-doc-links.js",
@@ -14188,12 +14164,6 @@
     },
     {
       "path": ".agents/scripts/lib/config/agentrc-overlay.js",
-      "method": "isPlainObject",
-      "startLine": 10,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/config/agentrc-overlay.js",
       "method": "deepMergeObjects",
       "startLine": 22,
       "crap": 3
@@ -14306,12 +14276,6 @@
       "method": "configError",
       "startLine": 28,
       "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/config/commands.js",
-      "method": "isPlainObject",
-      "startLine": 33,
-      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/config/commands.js",
@@ -34825,12 +34789,6 @@
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/protection.js",
-      "method": "storyIdFromBranch",
-      "startLine": 19,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/single-story-sweep/protection.js",
       "method": "isTicketDone",
       "startLine": 29,
       "crap": 4
@@ -35235,12 +35193,6 @@
       "method": "guardedRelease",
       "startLine": 443,
       "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
-      "method": "sleepSync",
-      "startLine": 452,
-      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
@@ -36521,12 +36473,6 @@
       "method": "depositConfig",
       "startLine": 49,
       "crap": 2.0625
-    },
-    {
-      "path": ".agents/scripts/lib/test-run-credit.js",
-      "method": "storyIdFromBranch",
-      "startLine": 49,
-      "crap": 4
     },
     {
       "path": ".agents/scripts/lib/test-run-credit.js",
@@ -39990,12 +39936,6 @@
     },
     {
       "path": ".agents/scripts/providers/github/mappers.js",
-      "method": "issueToEpic",
-      "startLine": 35,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/providers/github/mappers.js",
       "method": "subIssueNodeToTicket",
       "startLine": 48,
       "crap": 3
@@ -40589,12 +40529,6 @@
       "method": "runCli",
       "startLine": 47,
       "crap": 1
-    },
-    {
-      "path": ".agents/scripts/resolve-doc-tiers.js",
-      "method": "main",
-      "startLine": 62,
-      "crap": 2
     },
     {
       "path": ".agents/scripts/resolve-stories.js",
@@ -41578,12 +41512,6 @@
     },
     {
       "path": ".agents/scripts/sync-agentrc.js",
-      "method": "parseArgs",
-      "startLine": 29,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/sync-agentrc.js",
       "method": "main",
       "startLine": 42,
       "crap": 5
@@ -41731,12 +41659,6 @@
       "startLine": 98,
       "crap": 1,
       "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/update-duplication-baseline.js",
-      "method": "parseCliArgs",
-      "startLine": 48,
-      "crap": 20
     },
     {
       "path": ".agents/scripts/update-duplication-baseline.js",
@@ -43976,12 +43898,6 @@
       "crap": 4.001232867476378
     },
     {
-      "path": "scripts/check-action-pinning.js",
-      "method": "main",
-      "startLine": 252,
-      "crap": 2
-    },
-    {
       "path": "scripts/check-agentrc-key-ceiling.js",
       "method": "<anon ()#0>",
       "startLine": 30,
@@ -44381,12 +44297,6 @@
       "method": "runCli",
       "startLine": 138,
       "crap": 4
-    },
-    {
-      "path": "scripts/check-generated-validator.js",
-      "method": "main",
-      "startLine": 179,
-      "crap": 2
     },
     {
       "path": "scripts/check-knip-entries.js",
@@ -44865,12 +44775,6 @@
       "crap": 3
     },
     {
-      "path": "scripts/check-workflow-citations.js",
-      "method": "main",
-      "startLine": 197,
-      "crap": 2
-    },
-    {
       "path": "scripts/check-workflow-cli-lint.js",
       "method": "stripFences",
       "startLine": 85,
@@ -44988,12 +44892,6 @@
       "method": "runCli",
       "startLine": 220,
       "crap": 7.001644792051291
-    },
-    {
-      "path": "scripts/check-workflow-timeouts.js",
-      "method": "main",
-      "startLine": 283,
-      "crap": 2
     },
     {
       "path": "scripts/install-matrix-assert.js",
@@ -47422,12 +47320,6 @@
       "method": "runCli",
       "startLine": 224,
       "crap": 4
-    },
-    {
-      "path": "scripts/update-dead-exports-baseline.js",
-      "method": "main",
-      "startLine": 279,
-      "crap": 2
     }
   ]
 }
