@@ -200,6 +200,7 @@
         "gates": ["gate1", "gate3"],
         "keywords": [
           "exception",
+          "shortcut",
           "suppression",
           "suppress",
           "override",

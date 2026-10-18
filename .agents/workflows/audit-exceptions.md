@@ -81,6 +81,7 @@ sole evidence base. Cite its fields by name:
 | `delegated[]` | `surface`, `lens`, `reason` |
 | `clusters[]` | `adapter`, `category`, `rule`, `count`, `byVerdict`, `files` |
 | `records[]` | `file`, `line`, `surface`, `target`, `rule`, `justification`, `ticketRefs`, `expires`, `addedAt`, `introduced`, `verdict`, `verdictBasis`, `probeBasis`, `permanentHint` |
+| Shortcut markers | `adapter: shortcut-markers`, `surface: shortcut-marker`, `target` (the ceiling), `rule` (`has-trigger` / `no-trigger`), `justification` (the trigger) |
 
 `verdict` is the engine's mechanical call, first match wins: `dead` (a probe
 proved it exempts nothing), `expired` (its stated date is past), `orphaned`
@@ -149,6 +150,14 @@ judgment is the fifth, plus severity and routing.
 (`platform-conditional`, `untracked-path`, `conventional-setting`) or a
 justification that states a lasting reason is legitimately forever. Count
 it in the inventory; never file it.
+
+**Shortcut markers are the deferral ledger.** Each `shortcut: <ceiling>,
+<trigger>` comment
+([convention](helpers/code-quality-guardrails.md#deliberate-shortcuts)) is one
+record, and its verdict is the action: `live` (basis `trigger-named`) is a
+decision, so leave it; `expired` or `orphaned` means the trigger fired, so fix
+the shortcut now; `unjustified` means no trigger, so add one or fix it. This
+report is the ledger `/audit-to-stories` consumes.
 
 **`unknown` is not `dead`.** An undecided probe is never evidence of
 obsolescence. List `unknown` records under Undecided (below) and file one

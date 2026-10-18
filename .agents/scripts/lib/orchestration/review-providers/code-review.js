@@ -71,7 +71,9 @@ const PROMPT_HEAD =
   'caller. Do not report style, naming, refactoring ideas, missing tests or ' +
   'anything you would merge anyway. For each problem give the file, the ' +
   'line in the new version, why it is wrong, and how to show it fails (an ' +
-  'input, command or test that exposes it).\n\n' +
+  'input, command or test that exposes it). A `shortcut:` comment naming ' +
+  'its ceiling and trigger is a decision, not a finding, unless this diff ' +
+  'itself crosses the ceiling.\n\n' +
   'The diff below is authoritative — files on disk may not reflect it. ' +
   'Answer with a JSON object of this exact shape, no prose around it:\n\n' +
   '{"findings":[{"title":"...","body":"Why it is wrong: ... How to show it ' +

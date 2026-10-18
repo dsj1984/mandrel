@@ -89,6 +89,21 @@ describe('read-only invariant', () => {
     assert.equal(snapshot(root), before);
   });
 
+  it('runs the shortcut-markers adapter into a schema-valid envelope', async () => {
+    const root = makeRepo({
+      'src/a.js': lines('// shortcut: one tenant, until #9', 'export {};'),
+    });
+    const { code, env } = await run(root);
+    assert.equal(code, 0);
+    assert.doesNotThrow(() => assertEnvelope(env));
+    assert.deepEqual(
+      env.adapters.find((a) => a.id === 'shortcut-markers'),
+      { id: 'shortcut-markers', category: 'inline', recordCount: 1 },
+    );
+    const record = env.records.find((r) => r.adapter === 'shortcut-markers');
+    assert.equal(record.surface, 'shortcut-marker');
+  });
+
   it('leaves a fixture byte-identical with --probe running a real installed tool', async () => {
     const root = makeRepo({
       'biome.json': { linter: { enabled: true } },

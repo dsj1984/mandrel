@@ -225,6 +225,16 @@ test('prompt asks only for merge-blocking problems with file, line, why and how 
   assert.match(prompt, /Emit \{"findings":\[\]\} if there is nothing/);
 });
 
+test('prompt reads a shortcut: comment with ceiling and trigger as a decision', async () => {
+  const { provider, calls } = harness();
+  await provider.runReview({ ...INPUT, depth: 'light' });
+  const { prompt } = invokeCall(calls);
+  assert.match(
+    prompt,
+    /A `shortcut:` comment naming its ceiling and trigger is a decision, not a finding, unless this diff itself crosses the ceiling\./,
+  );
+});
+
 test('prompt carries no acceptance criteria or self-eval verdict', async () => {
   const { provider, calls } = harness();
   await provider.runReview({

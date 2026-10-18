@@ -13,6 +13,7 @@ import { dependencyPins } from './dependency-pins.js';
 import { dependencyPolicy } from './dependency-policy.js';
 import { inlineSuppressions } from './inline-suppressions.js';
 import { scaExceptions } from './sca-exceptions.js';
+import { shortcutMarkers } from './shortcut-markers.js';
 import { testSkips } from './test-skips.js';
 import { toolConfig } from './tool-config.js';
 
@@ -27,4 +28,5 @@ export const ADAPTERS = Object.freeze([
   ciGates,
   testSkips,
   codeAllowlists,
+  shortcutMarkers,
 ]);

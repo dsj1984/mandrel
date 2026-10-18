@@ -90,6 +90,27 @@ escomplex keys CRAP rows on `<file>::<methodName>`, so a rename produces a
 phantom new method + a phantom deleted method. Use the refresh tag to
 suppress the noise.
 
+## Deliberate shortcuts
+
+A shortcut with a known limit is marked in a one-line code comment, after
+the language's comment opener:
+
+```text
+shortcut: <ceiling>, <trigger>
+```
+
+The **ceiling** is the limit the simpler form holds to (a size, a load, a case
+it does not handle). The **trigger** is when to upgrade: an ISO date, an issue
+ref written `until #N` or `when #N lands`, or a measurable condition in words.
+Every judging surface reads the marker the same way:
+
+- **Decision**: ceiling and trigger named, trigger not fired. Leave it.
+- **Rot**: a ceiling with no trigger. Nothing will ever say when to fix it.
+- **Fired**: the date has passed or the issue has closed. Fix it now.
+
+[`/audit-exceptions`](../audit-exceptions.md) lists every marker with its
+verdict.
+
 ## When a number changes
 
 Update two places **in the same commit**:
