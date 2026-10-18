@@ -228,7 +228,7 @@
     },
     {
       "path": ".agents/scripts/lib/audit-exceptions/adapters/inline-suppressions.js",
-      "mi": 108.813
+      "mi": 109.476
     },
     {
       "path": ".agents/scripts/lib/audit-exceptions/adapters/sca-exceptions.js",
@@ -237,6 +237,10 @@
     {
       "path": ".agents/scripts/lib/audit-exceptions/adapters/shortcut-markers.js",
       "mi": 107.629
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/source-scan.js",
+      "mi": 128.355
     },
     {
       "path": ".agents/scripts/lib/audit-exceptions/adapters/test-skips.js",

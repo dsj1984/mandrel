@@ -317,8 +317,8 @@
     {
       "path": ".agents/scripts/lib/audit-exceptions/adapters/inline-suppressions.js",
       "lines": 100,
-      "branches": 89.47,
-      "functions": 90.91
+      "branches": 88.24,
+      "functions": 92.31
     },
     {
       "path": ".agents/scripts/lib/audit-exceptions/adapters/sca-exceptions.js",
@@ -329,7 +329,13 @@
     {
       "path": ".agents/scripts/lib/audit-exceptions/adapters/shortcut-markers.js",
       "lines": 100,
-      "branches": 96.3,
+      "branches": 94.74,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/source-scan.js",
+      "lines": 100,
+      "branches": 100,
       "functions": 100
     },
     {
