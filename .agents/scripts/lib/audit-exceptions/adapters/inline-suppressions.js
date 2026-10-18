@@ -10,6 +10,7 @@
 import { insideString } from '../locate.js';
 import { readText } from '../read.js';
 import { makeRecord } from '../record.js';
+import { sourceScanAdapter } from './source-scan.js';
 
 const SCANNED_EXT_RE =
   /\.(?:[cm]?[jt]sx?|vue|svelte|astro|mdx?|css|scss|html)$/;
@@ -63,10 +64,36 @@ function matchLine(line) {
 }
 
 /** A pure comment line directly above, used when the directive carries no reason. */
+function isPlainComment(text) {
+  return /^(?:\/\/|\/\*|\*|<!--)/.test(text) && !matchLine(text);
+}
+
+function commentBody(text) {
+  return text.replace(/^(?:\/\/+|\/\*+|\*+|<!--)\s*|\s*(?:\*\/|-->)$/g, '');
+}
+
 function reasonAbove(lines, i) {
   const prev = lines[i - 1]?.trim() ?? '';
-  if (!/^(?:\/\/|\/\*|\*|<!--)/.test(prev) || matchLine(prev)) return null;
-  return prev.replace(/^(?:\/\/+|\/\*+|\*+|<!--)\s*|\s*(?:\*\/|-->)$/g, '');
+  return isPlainComment(prev) ? commentBody(prev) : null;
+}
+
+function reasonFor(hit, lines, i) {
+  return (
+    hit.reason?.replace(/\s*(?:\*\/|-->)\s*$/, '') || reasonAbove(lines, i)
+  );
+}
+
+function suppressionRecord(file, line, hit, reason) {
+  return makeRecord({
+    adapter: 'inline-suppressions',
+    category: 'inline',
+    surface: hit.tool,
+    file,
+    line,
+    target: hit.rule,
+    rule: `${hit.tool}:${hit.rule}`,
+    justification: reason,
+  });
 }
 
 function fileRecords(ctx, file) {
@@ -74,34 +101,16 @@ function fileRecords(ctx, file) {
   const records = [];
   lines.forEach((line, i) => {
     const hit = matchLine(line);
-    if (!hit) return;
-    const reason =
-      hit.reason?.replace(/\s*(?:\*\/|-->)\s*$/, '') || reasonAbove(lines, i);
-    records.push(
-      makeRecord({
-        adapter: 'inline-suppressions',
-        category: 'inline',
-        surface: hit.tool,
-        file,
-        line: i + 1,
-        target: hit.rule,
-        rule: `${hit.tool}:${hit.rule}`,
-        justification: reason,
-      }),
-    );
+    if (hit)
+      records.push(
+        suppressionRecord(file, i + 1, hit, reasonFor(hit, lines, i)),
+      );
   });
   return records;
 }
 
-export const inlineSuppressions = Object.freeze({
+export const inlineSuppressions = sourceScanAdapter({
   id: 'inline-suppressions',
-  category: 'inline',
-  applies: (ctx) =>
-    ctx.scope.files.some((f) => SCANNED_EXT_RE.test(f))
-      ? { applies: true, reason: 'source files present' }
-      : { applies: false, reason: 'no scannable source files' },
-  extract: (ctx) =>
-    ctx.scope.files
-      .filter((f) => SCANNED_EXT_RE.test(f))
-      .flatMap((f) => fileRecords(ctx, f)),
+  extRe: SCANNED_EXT_RE,
+  fileRecords,
 });

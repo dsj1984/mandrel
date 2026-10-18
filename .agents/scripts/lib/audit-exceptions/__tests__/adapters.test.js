@@ -84,13 +84,23 @@ before(async () => {
         "export const KNOWN_KINDS = ['coverage', 'crap'];",
         "export const PAYLOAD_ALLOWLIST = new Set(['x']);",
       ),
+      'src/short.js': lines(
+        '// shortcut: linear scan under 1k rows, 2026-01-01',
+        '/* shortcut: one tenant only, until #44 */',
+        '// shortcut: in-memory cache, when traffic passes 50 rps',
+        '// shortcut: no retry on 5xx',
+        'const s = "// shortcut: not a marker, ever";',
+        '// shortcut: sync write, when #41 lands',
+      ),
+      'tools/s.py': '# shortcut: single process, until the queue lands\n',
+      'docs/s.html': '<!-- shortcut: static list, 2099-01-01 -->\n',
     },
     { origin: 'https://github.com/acme/app.git' },
   );
   env = await runEngine({
     cwd: root,
     today: TODAY,
-    gh: fakeGh({ 41: 'open', 42: 'closed', 43: 'open' }),
+    gh: fakeGh({ 41: 'open', 42: 'closed', 43: 'open', 44: 'closed' }),
   });
 });
 
@@ -126,6 +136,39 @@ describe('inline suppressions', () => {
     assert.equal(at('src/a.js', 3).verdict, 'unjustified');
     assert.equal(at('src/a.js', 4).verdict, 'unjustified');
     assert.equal(at('src/a.js', 8).verdict, 'orphaned');
+  });
+});
+
+describe('shortcut markers', () => {
+  it('reads the ceiling as target and the trigger shape as rule', () => {
+    const date = at('src/short.js', 1);
+    assert.equal(date.adapter, 'shortcut-markers');
+    assert.equal(date.category, 'inline');
+    assert.equal(date.surface, 'shortcut-marker');
+    assert.equal(date.target, 'linear scan under 1k rows');
+    assert.equal(date.rule, 'has-trigger');
+    assert.equal(at('src/short.js', 4).rule, 'no-trigger');
+    assert.equal(at('tools/s.py', 1).target, 'single process');
+    assert.equal(at('docs/s.html', 1).expires, '2099-01-01');
+  });
+
+  it('maps the four trigger shapes onto the unchanged verdicts', () => {
+    assert.equal(at('src/short.js', 1).verdict, 'expired');
+    assert.deepEqual(at('src/short.js', 2).ticketRefs, ['#44']);
+    assert.equal(at('src/short.js', 2).verdict, 'orphaned');
+    const prose = at('src/short.js', 3);
+    assert.equal(prose.verdict, 'live');
+    assert.equal(prose.verdictBasis, 'trigger-named');
+    const none = at('src/short.js', 4);
+    assert.equal(none.verdict, 'unjustified');
+    assert.equal(none.verdictBasis, 'no-justification');
+    assert.deepEqual(at('src/short.js', 6).ticketRefs, ['#41']);
+    assert.equal(at('tools/s.py', 1).verdict, 'live');
+    assert.equal(at('docs/s.html', 1).verdict, 'live');
+  });
+
+  it('never reads a marker inside a string literal', () => {
+    assert.equal(at('src/short.js', 5), undefined);
   });
 });
 

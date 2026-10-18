@@ -52,15 +52,15 @@
     },
     {
       "path": ".agents/scripts/lib/audit-exceptions/adapters/inline-suppressions.js",
-      "duplicatedLines": 10,
-      "totalLines": 107,
-      "percentage": 9.35
+      "duplicatedLines": 9,
+      "totalLines": 116,
+      "percentage": 7.76
     },
     {
       "path": ".agents/scripts/lib/audit-exceptions/adapters/test-skips.js",
-      "duplicatedLines": 10,
+      "duplicatedLines": 9,
       "totalLines": 96,
-      "percentage": 10.42
+      "percentage": 9.38
     },
     {
       "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
