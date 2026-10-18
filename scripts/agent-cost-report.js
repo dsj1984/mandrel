@@ -15,6 +15,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { runAsCli } from '../.agents/scripts/lib/cli-utils.js';
+import {
+  attachDelivered,
+  defaultGitFn,
+} from './lib/agent-cost/delivered-diff.js';
 import { readProjectDir } from './lib/agent-cost/read-transcripts.js';
 import {
   filterRows,
@@ -66,6 +70,7 @@ function parseReportArgv(argv) {
       'agent-type': { type: 'string' },
       skill: { type: 'string' },
       'out-dir': { type: 'string' },
+      base: { type: 'string' },
     },
     strict: true,
   });
@@ -73,33 +78,13 @@ function parseReportArgv(argv) {
 }
 
 /**
- * @param {object} [opts]
- * @param {string[]} [opts.argv]
- * @param {string} [opts.root]     checkout the default dirs derive from
- * @param {string} [opts.homeDir]
- * @param {typeof fs} [opts.fs]
- * @param {{ write: (s: string) => unknown }} [opts.stdout]
- * @param {{ write: (s: string) => unknown }} [opts.stderr]
- * @returns {{ exitCode: number, reportPath?: string, summaryPath?: string }}
+ * Read, filter and delivered-join the rows of every project dir.
+ *
+ * @param {string[]} projectDirs
+ * @param {ReturnType<typeof parseReportArgv>} values
+ * @param {{ fsLike: typeof fs, gitFn: Function, stderr: { write: (s: string) => unknown } }} deps
  */
-export function runAgentCostReport({
-  argv = process.argv.slice(2),
-  root = ROOT,
-  homeDir = os.homedir(),
-  fs: fsLike = fs,
-  stdout = process.stdout,
-  stderr = process.stderr,
-} = {}) {
-  const values = parseReportArgv(argv);
-  const projectDirs = (
-    values['project-dir'] ?? [defaultProjectDir(mainCheckoutOf(root), homeDir)]
-  ).map((dir) => path.resolve(dir));
-  const missing = projectDirs.find((dir) => !fsLike.existsSync(dir));
-  if (missing) {
-    stderr.write(`[agent-cost-report] project dir not found: ${missing}\n`);
-    return { exitCode: 1 };
-  }
-
+function collectRows(projectDirs, values, { fsLike, gitFn, stderr }) {
   const sinceMs = parseBound(values.since, 'since');
   const untilMs = parseBound(values.until, 'until');
   let rows = [];
@@ -115,6 +100,66 @@ export function runAgentCostReport({
     agentType: values['agent-type'],
     skill: values.skill,
   });
+  const baseRef = values.base ?? 'origin/main';
+  rows = attachDelivered(rows, { gitFn, baseRef, stderr });
+  return { rows, skippedLines, baseRef };
+}
+
+/**
+ * @param {typeof fs} fsLike
+ * @param {{ reportPath: string, summaryPath: string }} paths
+ * @param {{ projectDirs: string[], filters: object, base: string,
+ *   skippedLines: number, summary: object, rows: object[] }} report
+ */
+function writeOutputs(fsLike, { reportPath, summaryPath }, report) {
+  fsLike.writeFileSync(
+    reportPath,
+    `${JSON.stringify(report, null, 2)}\n`,
+    'utf8',
+  );
+  fsLike.writeFileSync(
+    summaryPath,
+    renderSummaryMarkdown(report.summary, report),
+    'utf8',
+  );
+}
+
+/**
+ * @param {object} [opts]
+ * @param {string[]} [opts.argv]
+ * @param {string} [opts.root]     checkout the default dirs derive from
+ * @param {string} [opts.homeDir]
+ * @param {typeof fs} [opts.fs]
+ * @param {{ write: (s: string) => unknown }} [opts.stdout]
+ * @param {{ write: (s: string) => unknown }} [opts.stderr]
+ * @param {import('./lib/agent-cost/delivered-diff.js').GitFn} [opts.gitFn]
+ *   git seam for the delivered-diff join; default runs at the main checkout
+ * @returns {{ exitCode: number, reportPath?: string, summaryPath?: string }}
+ */
+export function runAgentCostReport({
+  argv = process.argv.slice(2),
+  root = ROOT,
+  homeDir = os.homedir(),
+  fs: fsLike = fs,
+  stdout = process.stdout,
+  stderr = process.stderr,
+  gitFn = defaultGitFn(mainCheckoutOf(root)),
+} = {}) {
+  const values = parseReportArgv(argv);
+  const projectDirs = (
+    values['project-dir'] ?? [defaultProjectDir(mainCheckoutOf(root), homeDir)]
+  ).map((dir) => path.resolve(dir));
+  const missing = projectDirs.find((dir) => !fsLike.existsSync(dir));
+  if (missing) {
+    stderr.write(`[agent-cost-report] project dir not found: ${missing}\n`);
+    return { exitCode: 1 };
+  }
+
+  const { rows, skippedLines, baseRef } = collectRows(projectDirs, values, {
+    fsLike,
+    gitFn,
+    stderr,
+  });
 
   const filters = {
     since: values.since,
@@ -129,15 +174,17 @@ export function runAgentCostReport({
   fsLike.mkdirSync(outDir, { recursive: true });
   const reportPath = path.join(outDir, 'report.json');
   const summaryPath = path.join(outDir, 'summary.md');
-  fsLike.writeFileSync(
-    reportPath,
-    `${JSON.stringify({ projectDirs, filters, skippedLines, summary, rows }, null, 2)}\n`,
-    'utf8',
-  );
-  fsLike.writeFileSync(
-    summaryPath,
-    renderSummaryMarkdown(summary, { projectDirs, filters, skippedLines }),
-    'utf8',
+  writeOutputs(
+    fsLike,
+    { reportPath, summaryPath },
+    {
+      projectDirs,
+      filters,
+      base: baseRef,
+      skippedLines,
+      summary,
+      rows,
+    },
   );
   stdout.write(`${summaryPath}\n`);
   return { exitCode: 0, reportPath, summaryPath };
@@ -148,7 +195,7 @@ runAsCli(import.meta.url, async () => runAgentCostReport().exitCode, {
   propagateExitCode: true,
   usage: {
     invocation:
-      'node scripts/agent-cost-report.js [--project-dir <dir>]... [--since <ISO date>] [--until <ISO date>] [--agent-type <t>] [--skill <s>] [--out-dir <dir>]',
+      'node scripts/agent-cost-report.js [--project-dir <dir>]... [--since <ISO date>] [--until <ISO date>] [--agent-type <t>] [--skill <s>] [--out-dir <dir>] [--base <ref>]',
     summary:
       'Per-session and per-subagent effort, model, tokens and wall time from Claude Code transcripts; writes report.json and summary.md.',
     flags: [
@@ -167,6 +214,10 @@ runAsCli(import.meta.url, async () => runAgentCostReport().exitCode, {
       ],
       ['--skill <s>', 'Keep rows whose most frequent attributionSkill is <s>.'],
       ['--out-dir <dir>', 'Output directory. Default: temp/agent-cost/.'],
+      [
+        '--base <ref>',
+        'Branch whose (refs #<id>) squash commits give each Story its delivered diff. Default: origin/main.',
+      ],
     ],
   },
 });

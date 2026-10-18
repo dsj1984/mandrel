@@ -4025,8 +4025,8 @@
     {
       "path": "scripts/agent-cost-report.js",
       "lines": 100,
-      "branches": 84.62,
-      "functions": 80
+      "branches": 87.5,
+      "functions": 85.71
     },
     {
       "path": "scripts/check-action-pinning.js",
@@ -4143,6 +4143,12 @@
       "functions": 77.78
     },
     {
+      "path": "scripts/lib/agent-cost/delivered-diff.js",
+      "lines": 98.36,
+      "branches": 95.83,
+      "functions": 100
+    },
+    {
       "path": "scripts/lib/agent-cost/read-transcripts.js",
       "lines": 99.44,
       "branches": 78.95,
@@ -4151,7 +4157,7 @@
     {
       "path": "scripts/lib/agent-cost/summarize.js",
       "lines": 100,
-      "branches": 90.14,
+      "branches": 93.88,
       "functions": 100
     },
     {
