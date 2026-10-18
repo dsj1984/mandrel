@@ -224,7 +224,7 @@
     },
     {
       "path": ".agents/scripts/lib/audit-exceptions/adapters/index.js",
-      "mi": 140.122
+      "mi": 139.492
     },
     {
       "path": ".agents/scripts/lib/audit-exceptions/adapters/inline-suppressions.js",
