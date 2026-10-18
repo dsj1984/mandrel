@@ -21,7 +21,8 @@ const DEPTH_DIRECTIVES = Object.freeze({
     'Review depth: DEEP. Cover all review pillars at full thoroughness, then ' +
     'make a second adversarial pass over the diff specifically hunting for ' +
     'integration regressions and security-relevant edges before finalizing ' +
-    'findings.',
+    'findings. Check every caller in the callers block against the new ' +
+    'signature or shape.',
 });
 
 /**
@@ -30,7 +31,7 @@ const DEPTH_DIRECTIVES = Object.freeze({
  * @param {unknown} depth
  * @returns {ReviewDepth}
  */
-function normalizeDepth(depth) {
+export function normalizeDepth(depth) {
   return depth === 'light' || depth === 'deep' ? depth : 'standard';
 }
 

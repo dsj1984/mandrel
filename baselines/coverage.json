@@ -2409,6 +2409,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestration/review-providers/callers-context.js",
+      "lines": 100,
+      "branches": 94.55,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
       "lines": 99.59,
       "branches": 85.54,
@@ -2417,7 +2423,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/code-review.js",
       "lines": 100,
-      "branches": 89.58,
+      "branches": 90.48,
       "functions": 100
     },
     {

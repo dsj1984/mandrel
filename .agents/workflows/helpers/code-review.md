@@ -74,7 +74,14 @@ How each tier changes the review protocol:
 - **`standard`** — the default: all three pillars at today's depth.
 - **`deep`** — all three pillars at full depth, **plus** an explicit second
   adversarial pass over the diff hunting for integration regressions and
-  security-relevant edges before findings are finalized.
+  security-relevant edges before findings are finalized. At `deep` the
+  code-review provider also hands the reviewer a `<callers>` block: for each
+  symbol the diff defines or removes (`function`, `class`, `export const`,
+  `export { … }`), the lines **outside** the changed files that reference it
+  at `headRef`, found by a word-boundary `git grep` (capped at 20 symbols,
+  25 lines per symbol, 30,000 characters). The directive tells the reviewer
+  to check every caller in that block against the new signature or shape —
+  the one bug class a diff alone cannot show.
 
 The LLM-backed review providers (code-review, codex, security-review,
 ultrareview) render the resolved `depth` into the prompt/instructions they emit so the underlying
@@ -111,6 +118,13 @@ The pipeline will:
 - Calculate maintainability scores for all new/modified files (lint is a
   close-validation gate, so the review does not re-run it).
 - Post a structured summary report to the `[TICKET_ID]` issue.
+
+**What the review did not check is posted, not silent.** A diff longer than
+200,000 characters is truncated for the model bug review, and a `<callers>`
+block can hit a cap; each records a degradation (the unreviewed character and
+file counts, or the dropped symbols) beside the parsed findings. Those land
+in the **Degraded gates** section of the posted `verification-results`
+comment — that section is where every unreviewed slice appears.
 
 ### Story scope runs no lens pass
 
