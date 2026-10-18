@@ -78,11 +78,6 @@
       "maxCyclomatic": 14
     },
     {
-      "file": ".agents/scripts/lib/validation-evidence.js",
-      "methodsAboveCeiling": 1,
-      "maxCyclomatic": 13
-    },
-    {
       "file": ".agents/scripts/lib/worktree/lifecycle/creation.js",
       "methodsAboveCeiling": 1,
       "maxCyclomatic": 13
