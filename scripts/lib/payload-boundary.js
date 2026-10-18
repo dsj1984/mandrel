@@ -94,17 +94,21 @@ function isTestPath(rel) {
  * @returns {string[]}
  */
 function listFiles(repoRoot, root, fsImpl) {
-  const abs = path.join(repoRoot, root);
+  return listTree(path.join(repoRoot, root), fsImpl)
+    .map((file) => toPosix(path.relative(repoRoot, file)))
+    .sort();
+}
+
+/** `abs` itself when it is a file, its files when a directory, else none. */
+function listTree(abs, fsImpl) {
   let stat;
   try {
     stat = fsImpl.statSync(abs);
   } catch {
     return [];
   }
-  if (!stat.isDirectory()) return [root];
-  return walkFiles(abs, { skipDirs: ['node_modules'], fsImpl })
-    .map((file) => toPosix(path.relative(repoRoot, file)))
-    .sort();
+  if (!stat.isDirectory()) return [abs];
+  return walkFiles(abs, { skipDirs: ['node_modules'], fsImpl });
 }
 
 /**
