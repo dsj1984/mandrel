@@ -142,7 +142,7 @@ export function summarize(rows) {
  * @param {Array<import('./read-transcripts.js').CostRow & {
  *   delivered?: import('./delivered-diff.js').DeliveredDiff|null }>} rows
  */
-export function summarizePerStory(rows) {
+function summarizePerStory(rows) {
   const byStory = new Map();
   for (const row of rows) {
     if (row.storyId == null) continue;
