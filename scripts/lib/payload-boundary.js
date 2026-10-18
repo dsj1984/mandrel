@@ -30,6 +30,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { stripJsComments } from '../../.agents/scripts/lib/source-text/strip-js-comments.js';
+import { toPosix, walkFiles } from '../../.agents/scripts/lib/util/paths.js';
 
 /** The payload root, repo-relative. */
 const PAYLOAD_DIR = '.agents';
@@ -93,25 +94,17 @@ function isTestPath(rel) {
  * @returns {string[]}
  */
 function listFiles(repoRoot, root, fsImpl) {
-  const out = [];
-  const visit = (rel) => {
-    let stat;
-    try {
-      stat = fsImpl.statSync(path.join(repoRoot, rel));
-    } catch {
-      return;
-    }
-    if (!stat.isDirectory()) {
-      out.push(rel);
-      return;
-    }
-    for (const name of fsImpl.readdirSync(path.join(repoRoot, rel))) {
-      if (name === 'node_modules') continue;
-      visit(`${rel}/${name}`);
-    }
-  };
-  visit(root);
-  return out.sort();
+  const abs = path.join(repoRoot, root);
+  let stat;
+  try {
+    stat = fsImpl.statSync(abs);
+  } catch {
+    return [];
+  }
+  if (!stat.isDirectory()) return [root];
+  return walkFiles(abs, { skipDirs: ['node_modules'], fsImpl })
+    .map((file) => toPosix(path.relative(repoRoot, file)))
+    .sort();
 }
 
 /**

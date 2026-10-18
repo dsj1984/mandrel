@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import picomatch from 'picomatch';
+import { toPosix, walkFiles } from './util/paths.js';
 
 /** Suite-root name prefix; the guard matches on it. */
 export const SUITE_ROOT_PREFIX = 'mandrel-suite-';
@@ -207,12 +208,21 @@ export function reapOnExit(
 export function listSuiteTempRoots(tmpDir, { fsImpl = fs } = {}) {
   if (!fsImpl.existsSync(tmpDir)) return [];
   return fsImpl
-    .readdirSync(tmpDir, { withFileTypes: true })
+    .readdirSync(tmpDir)
     .filter(
-      (ent) => ent.isDirectory() && ent.name.startsWith(SUITE_ROOT_PREFIX),
+      (name) =>
+        name.startsWith(SUITE_ROOT_PREFIX) &&
+        isDirectory(path.join(tmpDir, name), fsImpl),
     )
-    .map((ent) => ent.name)
     .sort();
+}
+
+function isDirectory(p, fsImpl) {
+  try {
+    return fsImpl.statSync(p).isDirectory();
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -259,7 +269,7 @@ export function findRawTmpdirMkdtemp(repoRoot, globs, { fsImpl = fs } = {}) {
   const isIncluded = picomatch(include);
   const isExcluded = exclude.length > 0 ? picomatch(exclude) : () => false;
   const findings = [];
-  for (const rel of walkFiles(repoRoot, fsImpl)) {
+  for (const rel of listJsSources(repoRoot, fsImpl)) {
     if (!isIncluded(rel) || isExcluded(rel)) continue;
     const lines = fsImpl
       .readFileSync(path.join(repoRoot, rel), 'utf8')
@@ -282,21 +292,12 @@ export function findRawTmpdirMkdtemp(repoRoot, globs, { fsImpl = fs } = {}) {
  * @param {typeof fs} fsImpl
  * @returns {string[]}
  */
-function walkFiles(root, fsImpl) {
-  const out = [];
-  const skip = new Set(['node_modules', '.worktrees', '.git', 'temp']);
-  const walk = (dir, prefix) => {
-    if (!fsImpl.existsSync(dir)) return;
-    for (const ent of fsImpl.readdirSync(dir, { withFileTypes: true })) {
-      if (skip.has(ent.name)) continue;
-      const rel = prefix ? `${prefix}/${ent.name}` : ent.name;
-      if (ent.isDirectory()) {
-        walk(path.join(dir, ent.name), rel);
-      } else if (/\.(?:js|mjs|cjs)$/.test(ent.name)) {
-        out.push(rel);
-      }
-    }
-  };
-  walk(root, '');
-  return out.sort();
+function listJsSources(root, fsImpl) {
+  return walkFiles(root, {
+    skipDirs: ['node_modules', '.worktrees', '.git', 'temp'],
+    filter: (_abs, dirent) => /\.(?:js|mjs|cjs)$/.test(dirent.name),
+    fsImpl,
+  })
+    .map((abs) => toPosix(path.relative(root, abs)))
+    .sort();
 }

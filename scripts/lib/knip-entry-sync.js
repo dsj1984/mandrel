@@ -56,6 +56,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { stripJsComments } from '../../.agents/scripts/lib/source-text/strip-js-comments.js';
+import { walkFiles } from '../../.agents/scripts/lib/util/paths.js';
 import {
   resolveKnipEntryPatterns,
   __testing as resolverTesting,
@@ -110,30 +111,20 @@ function stripStaticImports(text) {
 }
 
 /**
- * Recursively list files under `dir`, skipping `node_modules` and `.git`.
+ * Files under `dir`, skipping `node_modules` and `.git` unless `opts` says
+ * otherwise; an unreadable tree yields none.
  *
  * @param {string} dir absolute path
  * @param {typeof fs} fsImpl
- * @param {string[]} [acc]
+ * @param {{ skipDirs?: string[] | ((name: string) => boolean), filter?: Function }} [opts]
  * @returns {string[]} absolute file paths
  */
-function walk(dir, fsImpl, acc = []) {
-  let entries;
+function walk(dir, fsImpl, opts = { skipDirs: ['node_modules', '.git'] }) {
   try {
-    entries = fsImpl.readdirSync(dir, { withFileTypes: true });
+    return walkFiles(dir, { ...opts, fsImpl });
   } catch {
-    return acc;
+    return [];
   }
-  for (const entry of entries) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      if (entry.name === 'node_modules' || entry.name === '.git') continue;
-      walk(full, fsImpl, acc);
-    } else {
-      acc.push(full);
-    }
-  }
-  return acc;
 }
 
 /**
@@ -217,17 +208,12 @@ function buildInvocationPatterns(cli) {
  * @returns {string[]} sorted basenames
  */
 function listTopLevelClis({ repoRoot, fsImpl = fs }) {
-  let entries;
-  try {
-    entries = fsImpl.readdirSync(path.join(repoRoot, SCRIPTS_DIR), {
-      withFileTypes: true,
-    });
-  } catch {
-    return [];
-  }
-  return entries
-    .filter((e) => e.isFile() && e.name.endsWith('.js'))
-    .map((e) => e.name)
+  // Every subdirectory is pruned: only the top level is listed.
+  return walk(path.join(repoRoot, SCRIPTS_DIR), fsImpl, {
+    skipDirs: () => true,
+    filter: (_abs, d) => d.isFile() && d.name.endsWith('.js'),
+  })
+    .map((abs) => path.basename(abs))
     .sort();
 }
 

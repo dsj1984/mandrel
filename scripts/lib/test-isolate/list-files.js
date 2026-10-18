@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import picomatch from 'picomatch';
+import { toPosix, walkFiles } from '../../../.agents/scripts/lib/util/paths.js';
 
 /**
  * Walk a directory and return repo-relative `*.test.js` paths (forward
@@ -11,30 +12,13 @@ import picomatch from 'picomatch';
  * @returns {string[]}
  */
 export function walkTestFiles(root, fsLike = fs) {
-  const out = [];
-  walk(root, '');
-  return out.sort();
-
-  function walk(dir, prefix) {
-    if (!fsLike.existsSync(dir)) return;
-    for (const ent of fsLike.readdirSync(dir, { withFileTypes: true })) {
-      const name = ent.name;
-      if (
-        name === 'node_modules' ||
-        name === '.worktrees' ||
-        name.startsWith('.')
-      ) {
-        continue;
-      }
-      const abs = path.join(dir, name);
-      const rel = prefix ? `${prefix}/${name}` : name;
-      if (ent.isDirectory()) {
-        walk(abs, rel);
-      } else if (name.endsWith('.test.js')) {
-        out.push(rel.replace(/\\/g, '/'));
-      }
-    }
-  }
+  return walkFiles(root, {
+    skipDirs: (name) => name === 'node_modules' || name.startsWith('.'),
+    filter: (_abs, d) => !d.name.startsWith('.') && d.name.endsWith('.test.js'),
+    fsImpl: fsLike,
+  })
+    .map((abs) => toPosix(path.relative(root, abs)))
+    .sort();
 }
 
 /**

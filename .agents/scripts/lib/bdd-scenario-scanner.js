@@ -4,13 +4,13 @@
  * keyword-based (not embeddings) so re-planning is deterministic.
  */
 
-import { readdirSync, readFileSync, statSync } from 'node:fs';
-import path from 'node:path';
+import { readFileSync, statSync } from 'node:fs';
 
 import { Logger } from './Logger.js';
+import { walkFiles } from './util/paths.js';
 
 /**
- * Unreadable directories are skipped, never thrown.
+ * An unreadable or missing root is logged at debug and skipped, never thrown.
  *
  * @param {string[]} roots
  * @param {{ logger?: { debug: Function } }} [opts]
@@ -20,39 +20,31 @@ export function listFeatureFiles(roots, opts = {}) {
   const logger = opts.logger ?? Logger;
   const out = [];
   for (const root of roots ?? []) {
-    walk(root, out, logger);
+    try {
+      statSync(root); // a missing root is worth a debug line, not silence
+      out.push(
+        ...walkFiles(root, {
+          filter: (abs, d) => isFeatureFile(abs, d, logger),
+        }),
+      );
+    } catch (err) {
+      logger.debug(
+        `[bdd-scenario-scanner] readdir failed for ${root}: ${err?.message ?? err}`,
+      );
+    }
   }
   return out;
 }
 
-function walk(dir, acc, logger) {
-  let entries;
+function isFeatureFile(abs, dirent, logger) {
+  if (!dirent.isFile() || !abs.toLowerCase().endsWith('.feature')) return false;
   try {
-    entries = readdirSync(dir, { withFileTypes: true });
+    return statSync(abs).size <= 256 * 1024; // skip obviously bogus inputs
   } catch (err) {
     logger.debug(
-      `[bdd-scenario-scanner] readdir failed for ${dir}: ${err?.message ?? err}`,
+      `[bdd-scenario-scanner] stat failed for ${abs}: ${err?.message ?? err}`,
     );
-    return;
-  }
-  for (const entry of entries) {
-    const abs = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      walk(abs, acc, logger);
-      continue;
-    }
-    if (!entry.isFile()) continue;
-    if (!abs.toLowerCase().endsWith('.feature')) continue;
-    try {
-      const stat = statSync(abs);
-      if (stat.size > 256 * 1024) continue; // skip obviously bogus inputs
-    } catch (err) {
-      logger.debug(
-        `[bdd-scenario-scanner] stat failed for ${abs}: ${err?.message ?? err}`,
-      );
-      continue;
-    }
-    acc.push(abs);
+    return false;
   }
 }
 
