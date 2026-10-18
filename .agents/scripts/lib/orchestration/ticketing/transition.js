@@ -106,15 +106,49 @@ async function loadTicketSnapshot(provider, opts, ticketId, needFromState) {
   }
 }
 
+const BOARD_SYNC_REMEDIES = Object.freeze({
+  'insufficient-scope': 'gh auth refresh -h github.com -s project',
+  'not-on-project': 'node .agents/scripts/board-backfill.js',
+});
+
+const SILENT_BOARD_SKIPS = new Set(['no-project']);
+
+/** Warns on every flip, never latched: agents read the flip's own output. */
+function reportBoardSync(ticketId, newState, boardSync) {
+  if (boardSync.status === 'synced') return;
+  if (SILENT_BOARD_SKIPS.has(boardSync.reason)) return;
+  Logger.warn(boardSyncMessage(ticketId, newState, boardSync));
+}
+
+function boardSyncMessage(ticketId, newState, { status, reason, detail }) {
+  const why = detail ? `${reason}: ${detail}` : reason;
+  const remedy = BOARD_SYNC_REMEDIES[reason];
+  const fix = remedy ? ` — fix: \`${remedy}\`` : '';
+  return `[Ticketing] board Status not synced for #${ticketId} → ${newState} (${status}, ${why})${fix}`;
+}
+
+/** First instance per provider wins, so a later `config` is ignored. */
+function columnSyncFor(provider, _makeColumnSync, config) {
+  if (_makeColumnSync) return _makeColumnSync({ provider, logger: Logger });
+  if (!_columnSyncRegistry.has(provider)) {
+    _columnSyncRegistry.set(
+      provider,
+      new ColumnSync({ provider, logger: Logger, config }),
+    );
+  }
+  return _columnSyncRegistry.get(provider);
+}
+
 /**
  * Mirror the new state onto the Projects v2 Status column. Best-effort: a
- * board failure is logged and never blocks the label transition. An injected
- * `_makeColumnSync` bypasses the registry so test stubs are never cached.
+ * board failure never blocks the label transition; the outcome is returned.
+ * An injected `_makeColumnSync` bypasses the registry.
  *
  * @param {object} provider
  * @param {number} ticketId
  * @param {string} newState
  * @param {(opts: object) => { sync: (id: number, labels: string[]) => Promise<object> }} [_makeColumnSync]
+ * @returns {Promise<{ status: string, reason?: string, column?: string, detail?: string }>}
  */
 async function syncProjectStatusColumn(
   provider,
@@ -124,25 +158,14 @@ async function syncProjectStatusColumn(
   config,
 ) {
   try {
-    let sync;
-    if (_makeColumnSync) {
-      sync = _makeColumnSync({ provider, logger: Logger });
-    } else {
-      // `config` is read at construction only; the first instance per
-      // provider wins, so a later transition's config is ignored.
-      if (!_columnSyncRegistry.has(provider)) {
-        _columnSyncRegistry.set(
-          provider,
-          new ColumnSync({ provider, logger: Logger, config }),
-        );
-      }
-      sync = _columnSyncRegistry.get(provider);
-    }
-    await sync.sync(ticketId, [newState]);
+    const sync = columnSyncFor(provider, _makeColumnSync, config);
+    return await sync.sync(ticketId, [newState]);
   } catch (err) {
-    Logger.warn(
-      `[Ticketing] column sync failed for #${ticketId} → ${newState}: ${err?.message ?? err}`,
-    );
+    return {
+      status: 'failed',
+      reason: 'error',
+      detail: String(err?.message ?? err),
+    };
   }
 }
 
@@ -250,6 +273,7 @@ async function emitBlockedFriction(ticketId, fromState, newState, opts) {
  *   `cascade: false` suppresses the upward parent cascade.
  *   `ticketSnapshot` is a pre-fetched ticket that saves the `fromState` read
  *   and the provider's label-merge read. `_makeColumnSync` is a test seam.
+ * @returns {Promise<{ boardSync: { status: string, reason?: string, column?: string, detail?: string } }>}
  */
 export async function transitionTicketState(
   provider,
@@ -285,13 +309,14 @@ export async function transitionTicketState(
 
   await emitBlockedFriction(ticketId, fromState, newState, opts);
 
-  await syncProjectStatusColumn(
+  const boardSync = await syncProjectStatusColumn(
     provider,
     ticketId,
     newState,
     opts._makeColumnSync,
     opts.config,
   );
+  reportBoardSync(ticketId, newState, boardSync);
 
   // Every transition re-derives parent state from children (not just `done`),
   // keeping the board accurate when work starts or a child blocks.
@@ -310,6 +335,7 @@ export async function transitionTicketState(
       newState,
     });
   }
+  return { boardSync };
 }
 
 /**

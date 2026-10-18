@@ -1868,7 +1868,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-init-result.js",
-      "mi": 93.163
+      "mi": 95.017
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-progress.js",
@@ -1916,7 +1916,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/transition.js",
-      "mi": 99.072
+      "mi": 99.627
     },
     {
       "path": ".agents/scripts/lib/orchestration/verify-credit.js",

@@ -25,6 +25,7 @@ const INSTALL_FLAGS = Object.freeze({ installed: 'true', failed: 'false' });
  * @param {boolean} args.dryRun
  * @param {{ remoteVerified: boolean, remoteUrl?: string, detail?: string }} args.remote
  * @param {string|null} args.checklistPath
+ * @param {{ status: string, reason?: string }|null} [args.boardSync]
  * @returns {{ result: object, summary: object }}
  */
 export function composeStoryInitResult({
@@ -41,6 +42,7 @@ export function composeStoryInitResult({
   dryRun,
   remote,
   checklistPath,
+  boardSync = null,
 }) {
   const dependenciesInstalled =
     INSTALL_FLAGS[installStatus.status] ?? 'skipped';
@@ -68,6 +70,7 @@ export function composeStoryInitResult({
     // Footprint-matched write-time checklist (null when no lens matches) —
     // the same Story-scoped path a multi-Story dispatch prompt names.
     checklistPath,
+    boardSync,
   };
   const summary = {
     storyId,
@@ -78,6 +81,14 @@ export function composeStoryInitResult({
     remoteVerified: remote.remoteVerified,
     checklistPath,
     dryRun,
+    boardSync: summarizeBoardSync(boardSync),
   };
   return { result, summary };
+}
+
+/** The status, plus its reason when the board did not move. */
+function summarizeBoardSync(boardSync) {
+  if (!boardSync) return null;
+  if (!boardSync.reason) return boardSync.status;
+  return `${boardSync.status} (${boardSync.reason})`;
 }

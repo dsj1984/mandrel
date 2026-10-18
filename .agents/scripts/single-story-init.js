@@ -143,25 +143,27 @@ export async function assertNotForeignExecuting({
 }
 
 /**
- * Best-effort: the lease is the real guard, so a failed flip only logs.
- *
- * @param {object} provider
- * @param {number} storyId
- * @param {object} story Prefetched snapshot.
- * @returns {Promise<void>}
+ * A failed flip rolls the claim back and throws: a ready, assigned Story
+ * reads as a stalled dispatch. Returns the flip's board-sync outcome.
  */
-async function flipStoryToExecuting(provider, storyId, story) {
+async function flipStoryToExecuting(provider, storyId, story, config) {
+  let flip;
   try {
-    await transitionTicketState(provider, storyId, STATE_LABELS.EXECUTING, {
-      ticketSnapshot: story,
-      cascade: false,
-    });
-    progress('LABELS', `🏷️  Story #${storyId} → agent::executing`);
+    flip = await transitionTicketState(
+      provider,
+      storyId,
+      STATE_LABELS.EXECUTING,
+      { ticketSnapshot: story, cascade: false, config },
+    );
   } catch (err) {
     Logger.error(
-      `[single-story-init] ⚠️ Failed to flip Story labels: ${err?.message ?? err}`,
+      `[single-story-init] ⚠️ Failed to flip Story #${storyId} to agent::executing; rolling the claim back: ${err?.message ?? err}`,
     );
+    await rollbackClaimOnInitFailure(provider, storyId, config);
+    throw err;
   }
+  progress('LABELS', `🏷️  Story #${storyId} → agent::executing`);
+  return flip?.boardSync ?? null;
 }
 
 /**
@@ -647,6 +649,7 @@ export async function runSingleStoryInit({
   let worktreeCreated = false;
   let installStatus = { status: 'skipped', reason: 'dry-run' };
   let worktreeSweep = null;
+  let boardSync = null;
 
   if (!dryRun) {
     const acquire = injectedAcquireLease ?? acquireStoryLease;
@@ -671,7 +674,7 @@ export async function runSingleStoryInit({
     });
 
     // Before the install, so a concurrent probe cannot double-dispatch.
-    await flipStoryToExecuting(provider, storyId, story);
+    boardSync = await flipStoryToExecuting(provider, storyId, story, config);
 
     // After the flip (the rollup reads it), before the install window.
     await rollUpContainerEpic(provider, storyId, config);
@@ -723,6 +726,7 @@ export async function runSingleStoryInit({
     dryRun,
     remote,
     checklistPath,
+    boardSync,
   });
 
   // The envelope (stdout + disk) is the only record; no ticket comment. Full

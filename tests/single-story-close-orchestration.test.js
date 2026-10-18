@@ -87,6 +87,12 @@ const CONFIRM_MERGE_PHASE_URL = pathToFileURL(
     '.agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js',
   ),
 ).href;
+const POST_LAND_URL = pathToFileURL(
+  path.resolve(
+    REPO_ROOT,
+    '.agents/scripts/lib/orchestration/single-story-close/phases/post-land.js',
+  ),
+).href;
 // Story #2990: the close-tail phases reach `gh` through the
 // `lib/gh-exec.js` facade rather than direct `execFileSync('gh', …)`
 // calls. Tests inject a fake `gh` facade via `injectedGh` (or pass it
@@ -1940,14 +1946,17 @@ describe('runSingleStoryClose story-closing notify dispatch', () => {
   });
 });
 
-describe('runSingleStoryClose — lease release on recoverable-blocked exits (Story #4257)', () => {
+describe('runSingleStoryClose — a failed close keeps the lease (Story #5784, was #4257)', () => {
   /**
-   * A review halt with ≥1 critical blocker throws from `openAndReviewPr`
-   * before the clean-close lease release. The lease must be released
-   * best-effort BEFORE the throw propagates, and the original throw must
-   * still surface (per `docs/contributing/orchestration-error-handling.md`).
+   * Story #5784 reverses #4257: a close that throws keeps the operator
+   * assigned, because the label still says the Story is owned and the
+   * assignee is the record of who owns it. The same operator re-acquires
+   * (`already-held`) on the next close; a different one is refused by init's
+   * foreign-executing guard either way. Each test records every release and
+   * asserts none happened, while the original throw still surfaces (per
+   * `docs/contributing/orchestration-error-handling.md`).
    */
-  it('releases the lease then re-throws on a review-critical halt', async (t) => {
+  it('keeps the lease and re-throws on a review-critical halt', async (t) => {
     const gh = makeFakeGh((args) => {
       if (args[1] === 'list') return [];
       if (args[1] === 'create') {
@@ -1998,8 +2007,8 @@ describe('runSingleStoryClose — lease release on recoverable-blocked exits (St
 
     assert.deepEqual(
       releaseCalls,
-      [4257],
-      'lease must be released exactly once on the review-critical exit',
+      [],
+      'a review-critical halt must leave the Story assigned to its operator',
     );
   });
 
@@ -2070,11 +2079,10 @@ describe('runSingleStoryClose — lease release on recoverable-blocked exits (St
   });
 
   /**
-   * A base-sync conflict throws from `runBaseSyncPhase` before the
-   * clean-close lease release. Same contract: release best-effort, then
-   * re-throw the original base-sync error.
+   * A base-sync conflict flips the Story to `agent::blocked` and throws; the
+   * claim stays with the operator who must resolve it.
    */
-  it('releases the lease then re-throws on a base-sync conflict', async (t) => {
+  it('keeps the lease and re-throws on a base-sync conflict', async (t) => {
     t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
     mockCloseValidation(t, defaultCloseValidationMock());
     t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
@@ -2119,70 +2127,69 @@ describe('runSingleStoryClose — lease release on recoverable-blocked exits (St
 
     assert.deepEqual(
       releaseCalls,
-      [4258],
-      'lease must be released exactly once on the base-sync conflict exit',
+      [],
+      'a base-sync conflict must leave the Story assigned to its operator',
     );
   });
 
-  /**
-   * Regression guard: a best-effort release failure on the blocked path
-   * must NOT mask the original throw. The operator-visible error is still
-   * the review-critical message, not the lease-release error.
-   */
-  it('still re-throws the original error when the lease release itself fails', async (t) => {
-    const gh = makeFakeGh((args) => {
-      if (args[1] === 'list') return [];
-      if (args[1] === 'create') {
-        return 'https://github.com/owner/repo/pull/4259\n';
-      }
-      throw new Error('gh merge must not run when review halts');
-    });
+  it('keeps the lease and re-throws when a close-validation gate goes red', async (t) => {
     t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
-    mockCloseValidation(t, defaultCloseValidationMock());
+    mockCloseValidation(t, {
+      namedExports: {
+        buildDefaultGates: () => [{ name: 'lint', cmd: 'npm', args: [] }],
+        runCloseValidation: async () => ({
+          ok: false,
+          failed: [{ gate: { name: 'lint' }, status: 1, cwd: '/repo' }],
+          skipped: [],
+        }),
+      },
+    });
     t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
 
-    const { runSingleStoryClose } = await import(`${SUT_URL}?t=lease-fail`);
-    await assert.rejects(
-      () =>
-        runSingleStoryClose({
-          storyId: 4259,
-          cwd: '/repo',
-          skipValidation: true,
-          skipSync: true,
-          injectedProvider: makeFakeProvider({
-            initialStory: {
-              id: 4259,
-              state: 'open',
-              title: 'review halt + lease fail',
-              labels: ['agent::executing'],
-            },
-          }),
-          injectedConfig: fakeConfig(),
-          injectedGh: gh,
-          injectedRunCodeReview: async () => ({
-            status: 'critical',
-            severity: { critical: 1, high: 0, medium: 0, suggestion: 0 },
-            posted: true,
-            postedCommentId: 'c-2',
-            commentTargetId: 4259,
-            halted: true,
-            blockerReason: 'critical blocker',
-          }),
-          injectedReleaseLease: async () => {
-            throw new Error('assignee write failed');
-          },
-        }),
-      /Story-scope review reported 1 critical blocker/,
+    const releaseCalls = [];
+    const { runSingleStoryClose } = await import(`${SUT_URL}?t=lease-red-gate`);
+    const err = await runSingleStoryClose({
+      storyId: 5784,
+      cwd: '/repo',
+      skipSync: true,
+      noWaitForMerge: true,
+      injectedProvider: makeFakeProvider({
+        initialStory: {
+          id: 5784,
+          state: 'open',
+          title: 'a red lint gate',
+          labels: ['agent::executing'],
+        },
+      }),
+      injectedConfig: fakeConfig(),
+      injectedGh: makeFakeGh(() => {
+        throw new Error('gh must not be reached: the gates failed first');
+      }),
+      injectedRunCodeReview: noopReview(),
+      injectedReleaseLease: async ({ storyId }) => {
+        releaseCalls.push(storyId);
+        return { released: true, owner: 'alice', reason: 'released' };
+      },
+    }).then(
+      () => null,
+      (e) => e,
+    );
+
+    assert.ok(err, 'a red gate must throw, never return a failure');
+    assert.equal(err.closePhase, 'close-validation');
+    assert.deepEqual(
+      releaseCalls,
+      [],
+      'a red gate must leave the Story assigned to its operator',
     );
   });
 });
 
 /**
  * Story #4860 — the close no longer drops the operator's claim the moment the
- * PR opens. The clean post-arm release is gone; the only releases left in this
- * runner are `releaseLeaseOnBlock`'s two throwing exits (pinned by the #4257
- * suite above), and the post-land tail's own step, which runs on a CONFIRMED
- * merge only.
+ * PR opens. Since Story #5784 the post-land tail's own step, which runs on a
+ * CONFIRMED merge only, is the one release left in this runner; every failed
+ * exit keeps the claim (pinned by the suite above).
  *
  * The property under test is a NEGATIVE one — "no release happened" — so each
  * test injects a release seam that records every call and asserts it stayed
@@ -2255,6 +2262,86 @@ describe('runSingleStoryClose — the lease is held until the merge confirms (St
       /release the lease this close is still holding/,
       'the note tells the operator the claim is deliberately retained',
     );
+  });
+
+  it('Story #5784: releases exactly once, from the land tail, when the merge lands', async (t) => {
+    t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
+    mockCloseValidation(t, defaultCloseValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
+    // The tail stub calls the release it is handed, so the assertion proves
+    // the runner threads its release seam into the land tail.
+    t.mock.module(POST_LAND_URL, {
+      namedExports: {
+        runPostLandTail: async (args) => {
+          const outcome = await args.releaseStoryLeaseFn({
+            provider: args.provider,
+            storyId: args.storyId,
+            config: args.config,
+          });
+          return {
+            followUps: true,
+            statusResync: true,
+            worktreeReap: true,
+            refCleanup: true,
+            baseFastForward: true,
+            tempPurge: true,
+            leaseRelease: outcome.released === true,
+            epicRollup: true,
+            details: {},
+          };
+        },
+      },
+    });
+    t.mock.module(CONFIRM_MERGE_PHASE_URL, {
+      namedExports: {
+        runConfirmMergePhase: async (opts) => ({
+          confirmed: true,
+          terminal: 'landed',
+          action: 'done',
+          tail: await opts.runPostLandTailFn({
+            storyId: opts.storyId,
+            storyBranch: opts.storyBranch,
+            baseBranch: opts.baseBranch,
+            cwd: opts.cwd,
+            provider: opts.provider,
+            config: opts.config,
+            progress: opts.progress,
+          }),
+          prProbe: { state: 'MERGED', checksStatus: 'success' },
+        }),
+        resolveMergeWaitConfig: () => ({ maxWaitSeconds: 1, pollMs: 1 }),
+      },
+    });
+
+    const releaseCalls = [];
+    const { runSingleStoryClose } = await import(
+      `${SUT_URL}?t=lease-release-on-land`
+    );
+    const { terminal, result } = await runSingleStoryClose({
+      storyId: 5785,
+      cwd: '/repo',
+      skipValidation: true,
+      skipSync: true,
+      injectedProvider: makeFakeProvider({
+        initialStory: {
+          id: 5785,
+          state: 'open',
+          title: 'lands and releases',
+          labels: ['agent::executing'],
+        },
+      }),
+      injectedConfig: fakeConfig(),
+      injectedGh: ghOpeningPr('https://github.com/owner/repo/pull/5785'),
+      injectedRunCodeReview: noopReview(),
+      injectedReleaseLease: async ({ storyId }) => {
+        releaseCalls.push(storyId);
+        return { released: true, owner: 'alice', reason: 'released' };
+      },
+    });
+
+    assert.equal(terminal.status, 'landed');
+    assert.deepEqual(releaseCalls, [5785], 'the land tail releases once');
+    assert.equal(result.leaseReleased, true);
   });
 
   it('does not release on a merge.unlanded blocked terminal', async (t) => {

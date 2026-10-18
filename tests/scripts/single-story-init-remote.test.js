@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
+import { composeStoryInitResult } from '../../.agents/scripts/lib/orchestration/story-init-result.js';
 import {
   assertNotForeignExecuting,
   handleRemoteVerificationFailure,
@@ -251,5 +252,116 @@ describe('single-story-init — early claim publication + rollback (Story #4620)
     // executing was flipped before provisioning ran, and no ready-rollback.
     assert.deepEqual(provisionOrder[0], ['agent::executing']);
     assert.deepEqual(provider.transitions, ['agent::executing']);
+  });
+
+  /**
+   * Story #5784 — the executing flip is no longer best-effort: a Story left
+   * at `agent::ready` with an assignee reads as a stalled dispatch to the
+   * wave tick and as a foreign claim to the next init.
+   */
+  it('rolls the claim back and throws when the executing flip fails, before provisioning', async () => {
+    const provider = recordingProvider();
+    provider.getTicket = async () => ({
+      labels: ['type::story', 'agent::ready'],
+      title: 'Story 4620',
+      body: '## Goal\nx',
+      assignees: ['dsj1984'],
+      state: 'open',
+    });
+    const recordWrite = provider.updateTicket;
+    provider.updateTicket = async (id, mutations) => {
+      if (mutations?.labels?.add?.[0] === 'agent::executing') {
+        throw new Error('label write refused');
+      }
+      return recordWrite(id, mutations);
+    };
+    let provisioned = false;
+
+    await assert.rejects(
+      () =>
+        runSingleStoryInit(
+          baseArgs(provider, {
+            injectedProvisionWorktree: async () => {
+              provisioned = true;
+              return {};
+            },
+          }),
+        ),
+      /label write refused/,
+    );
+
+    assert.equal(provisioned, false, 'no worktree for an unpublished claim');
+    assert.deepEqual(provider.transitions, ['agent::ready']);
+    assert.deepEqual(
+      provider.assigneeWrites.at(-1),
+      [],
+      'the lease is released with the rollback',
+    );
+  });
+
+  it('carries the executing flip board outcome in the result and summary', async () => {
+    const provider = recordingProvider();
+    provider.getTicket = async () => ({
+      labels: ['type::story', 'agent::ready'],
+      title: 'Story 4620',
+      body: '## Goal\nx',
+      assignees: ['dsj1984'],
+      state: 'open',
+    });
+
+    const { result } = await runSingleStoryInit(
+      baseArgs(provider, {
+        injectedProvisionWorktree: async () => ({
+          workCwd: '/tmp/wt',
+          worktreeCreated: true,
+          installStatus: { status: 'skipped', reason: 'test' },
+        }),
+      }),
+    );
+
+    // No `github.projectNumber` in CONFIG: the board is not configured.
+    assert.deepEqual(result.boardSync, {
+      status: 'skipped',
+      reason: 'no-project',
+    });
+  });
+});
+
+describe('composeStoryInitResult — board-sync summary (Story #5784)', () => {
+  function compose(boardSync) {
+    return composeStoryInitResult({
+      storyId: 5784,
+      storyBranch: 'story-5784',
+      baseBranch: 'main',
+      config: { project: { baseBranch: 'main' } },
+      story: { title: 't' },
+      runtime: { worktreeEnabled: true },
+      workCwd: '/tmp/wt',
+      worktreeCreated: true,
+      installStatus: { status: 'skipped' },
+      worktreeSweep: null,
+      dryRun: false,
+      remote: { remoteVerified: true },
+      checklistPath: null,
+      boardSync,
+    });
+  }
+
+  it('names a refused board sync and its reason on the stdout line', () => {
+    const { result, summary } = compose({
+      status: 'failed',
+      reason: 'insufficient-scope',
+      scope: 'project',
+    });
+    assert.equal(summary.boardSync, 'failed (insufficient-scope)');
+    assert.equal(result.boardSync.reason, 'insufficient-scope');
+  });
+
+  it('reports a synced board as synced, and a dry-run as null', () => {
+    assert.equal(
+      compose({ status: 'synced', column: 'In Progress' }).summary.boardSync,
+      'synced',
+    );
+    assert.equal(compose(null).summary.boardSync, null);
   });
 });

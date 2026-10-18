@@ -113,7 +113,10 @@ export async function finishWithMergeWait(prCtx, deps) {
     injectedNotify: deps.injectedNotify,
     runPostLandTailFn: (args) => {
       deps.setPhase('post-land');
-      return runPostLandTail(args);
+      return runPostLandTail({
+        ...args,
+        releaseStoryLeaseFn: deps.releaseLease,
+      });
     },
   });
   const terminal = terminalFromWaitOutcome({
