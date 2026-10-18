@@ -61,12 +61,14 @@ the floor-vs-ratchet policy are tooling commitments rather than ADRs and live in
 
 <!-- ADR-INDEX:START -->
 
-**In force (58).** Each governs the surface named beside it.
+**In force (59).** Each governs the surface named beside it; a
+`Rejected` row governs no surface and names its reopening trip-wire in the body.
 A `Status` of `Accepted in part` means some clause of the entry has been
 superseded — open it before citing it.
 
 | Decision | Governs | Surface | Status |
 | --- | --- | --- | --- |
+| [`20261017-5767`](#adr-20261017-5767-hook-injected-session-context-and-a-codebase-map--rejected) | No hook-injected session context and no shipped codebase map | — | Rejected |
 | [`20261017-5755a`](#adr-20261017-5755a-crap-joins-an-unresolved-method-on-the-statements-of-its-own-line-span) | CRAP joins an unresolved method on its own statement span | `.agents/scripts/lib/coverage-utils.js` | Accepted |
 | [`20261017-5755b`](#adr-20261017-5755b-per-file-duplication-regressions-compare-duplicated-lines-not-the-ratio) | Per-file duplication regressions compare duplicated lines, not the ratio | `.agents/scripts/lib/baselines/kinds/duplication.js` | Accepted |
 | [`20261013-5655`](#adr-20261013-5655-claude-code-and-codex-are-the-supported-workflow-surface-hosts) | Claude Code and Codex are the supported workflow-surface hosts | `.agents/scripts/lib/codex/skills-projection.js` | Accepted |
@@ -165,6 +167,116 @@ at the release tag named in the entry.
 - [Earlier ADRs (001 / 002 / 003)](#earlier-adrs-001--002--003)
 
 <!-- ADR-INDEX:END -->
+
+## ADR 20261017-5767: Hook-injected session context and a codebase map — Rejected
+
+**Status:** Rejected
+**Date:** 2026-10-17
+**Story:** #5767
+
+### Context
+
+Ponytail delivers its rules through lifecycle hooks. It also ships a "what
+already exists" map: a regex pass per language over `git ls-files`, shared
+folders first, capped at 2,000 characters. Mandrel has neither. It loads an
+always-on closure (`AGENTS.md` plus three `@` imports, about 18 KB), points
+agents at a per-run docs digest, and installs one hook only: the
+`UserPromptSubmit` entry for `sync-claude-commands.js` that `mandrel uninstall`
+reverts (`lib/cli/uninstall.js`). This entry decides whether to add a
+`SessionStart` / `SubagentStart` context hook and a shipped map script.
+
+**Sources, fetched 2026-10-17:** the Claude Code hooks reference
+(`https://code.claude.com/docs/en/hooks`) and the Codex hooks page
+(`https://developers.openai.com/codex/hooks`, which now 308-redirects to
+`https://learn.chatgpt.com/docs/hooks`).
+
+### Evidence
+
+1. **Delivery channel.** On Claude Code, `SessionStart` matches `startup`,
+   `resume`, `clear`, `compact` and `fork`. Its plain stdout and its
+   `hookSpecificOutput.additionalContext` are both added as context that
+   Claude reads, as a system reminder before the first prompt. Strings are
+   capped at 10,000 characters; over the cap, Claude Code saves a file and
+   passes only a path and a 2,000-character preview. `systemMessage` is a
+   warning shown to the user. `SubagentStart` is context-only: its
+   `additionalContext` goes into the child's context, not the parent's.
+   Codex has the same events and the same matcher values. Its plain stdout and
+   `additionalContext` for `SessionStart`, `UserPromptSubmit` and
+   `SubagentStart` are "added as extra developer context". It shows
+   `systemMessage` as a warning in the UI or event stream, which matches
+   ponytail's note that Codex prints it as a yellow `warning:` every session.
+   **So one payload works on both hosts:** emit only
+   `hookSpecificOutput.additionalContext` and never `systemMessage`. **One
+   registration does not.** Claude Code reads `.claude/settings.json`. Codex
+   reads `.codex/hooks.json` or `[hooks]` in `.codex/config.toml`, loads
+   project hooks only when the project `.codex/` layer is trusted, and asks
+   each developer to trust the exact hook definition by hash. Every `mandrel
+   sync` that changed the hook would ask every developer to trust it again.
+   Meeting the § 1.A host-parity contract would take a second generated
+   projection, a second uninstall arm and a new `doctor` check, all to
+   deliver text the closure already delivers.
+2. **Operator visibility.** On both hosts, injected context does not appear as
+   a chat message. Claude Code saves it in the session transcript and points
+   to the debug log (`claude --debug-file <path>`) to confirm delivery. Codex
+   documents no way to view it: `/hooks` lists, trusts and disables hooks, and
+   `transcript_path` is "not a stable interface". An operator auditing a run
+   would need a Mandrel-owned log line or a flag file. Today they audit the
+   always-on context by reading four committed files. A hook would swap a
+   reviewable, diffable surface for a hidden one.
+3. **Map value against the digest.** We measured a throwaway map on this
+   repository (`temp/scratch/story-5767/map.mjs`, not committed). It read
+   tracked `.js` / `.mjs` files minus tests and fixtures, extracted export
+   names by regex, put `lib/` and `.agents/scripts/lib/` first, and stopped at
+   2,000 characters. The map came to **1,994 bytes**. It named **23 of 581**
+   shared-folder files that have exports, and **52 of 2,114** of their
+   exports: **2.5%**. The uncapped map is **88,293 characters**, 44× the
+   budget. A paths-only variant fits 39 of 584 shared files (6.7%) and names
+   no exports. At that budget the map orients the agent on alphabetically
+   early files only, and it says nothing about intent. The digest does better
+   for the consumers who have one: this run's `docs-digest.md` outlines all
+   four `docsContextFiles` with line numbers. The map's only real audience
+   would be consumers whose `docsDigestPath` is null, because
+   `docsContextFiles` is empty or names no file that exists. For them,
+   instructions.md § 3.1 already says no docs read is mandatory, and targeted
+   `grep` is cheaper and fresher than a 2.5% sample. A shipped script would
+   also join the `--help` contract, the knip entry list and five baseline
+   kinds. That cost is not justified.
+4. **Subagent reach.** `SessionStart` context does not reach an
+   `Agent`-spawned child. `SubagentStart` would reach it. But every
+   role-scoped child (`story-worker`, `auditor`, `plan-critic`,
+   `acceptance-critic`) already boots on its own `.agents/agents/*.md` file,
+   with the security baseline `@`-imported on Claude Code and inlined on Codex.
+   The dispatch prompt carries the docs-digest path and the Story's contract.
+   For those children, a `SubagentStart` hook would add a second copy of
+   context they already have. It could reach `general-purpose` children only,
+   which Mandrel's own workflows avoid for delivery work. It would also put
+   hidden context next to the boot file that the shared-prefix contract test
+   keeps byte-identical across roles.
+
+### Decision
+
+- **Rejected: no `SessionStart` or `SubagentStart` context hook.** The
+  always-on closure stays the one delivery channel, and
+  `20260917-5340` still gates it.
+- **Rejected: no shipped codebase-map script.** The digest stays the
+  orientation surface. With no digest, the agent reads on demand.
+- The one hook Mandrel installs stays the `UserPromptSubmit` sync entry.
+
+### Trip-wire (reopens this entry)
+
+Reopen this entry if any of these happens:
+
+- Codex project hooks stop needing per-developer trust by hash, or Codex adds
+  a generated-hook path that `mandrel sync` can keep trusted. That removes the
+  re-trust tax in point 1.
+- Either host adds a way for an operator to view the context a hook injected.
+  That removes the visibility cost in point 2.
+- A consumer cohort runs with no docs digest, and their friction signals show
+  orientation misses that `grep` does not fix. Then re-measure the map on
+  their trees; it earns a Story only if it names well over 2.5% of shared
+  exports at its budget.
+- The always-on closure hits its byte ceiling, and moving content into a hook
+  is the only alternative to cutting it.
 
 ## ADR 20261017-5755a: CRAP joins an unresolved method on the statements of its own line span
 
