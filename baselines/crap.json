@@ -10425,8 +10425,22 @@
     },
     {
       "path": ".agents/scripts/lib/bdd-scenario-scanner.js",
+      "method": "<anon listFeatureFiles/(err,dir)#0>",
+      "startLine": 22,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/bdd-scenario-scanner.js",
       "method": "<anon listFeatureFiles/(abs,d)#0>",
       "startLine": 27,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/bdd-scenario-scanner.js",
+      "method": "<anon listFeatureFiles/(root)#0>",
+      "startLine": 28,
       "crap": 1,
       "anonymous": true
     },
@@ -10435,6 +10449,19 @@
       "method": "walk",
       "startLine": 28,
       "crap": 5.1157407407407405
+    },
+    {
+      "path": ".agents/scripts/lib/bdd-scenario-scanner.js",
+      "method": "<anon listFeatureFiles/(root)#1>",
+      "startLine": 29,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/bdd-scenario-scanner.js",
+      "method": "rootReadable",
+      "startLine": 32,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/bdd-scenario-scanner.js",
@@ -37253,9 +37280,29 @@
     },
     {
       "path": ".agents/scripts/lib/util/paths.js",
+      "method": "<anon walkFiles/(current)#0>",
+      "startLine": 48,
+      "crap": 5,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/util/paths.js",
       "method": "readEntries",
       "startLine": 66,
       "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/util/paths.js",
+      "method": "toSkipPredicate",
+      "startLine": 67,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/util/paths.js",
+      "method": "<anon toSkipPredicate/(name)#0>",
+      "startLine": 70,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/util/poll-loop.js",
@@ -44720,6 +44767,13 @@
     },
     {
       "path": "scripts/check-schema-references.js",
+      "method": "<anon walk/()#0>",
+      "startLine": 151,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/check-schema-references.js",
       "method": "readSources",
       "startLine": 170,
       "crap": 1
@@ -46602,6 +46656,13 @@
       "method": "walk",
       "startLine": 120,
       "crap": 4
+    },
+    {
+      "path": "scripts/lib/knip-entry-sync.js",
+      "method": "<anon walk/()#0>",
+      "startLine": 123,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": "scripts/lib/knip-entry-sync.js",
