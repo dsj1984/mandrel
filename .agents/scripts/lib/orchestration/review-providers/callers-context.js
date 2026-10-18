@@ -73,15 +73,16 @@ function scanDiff(diff) {
       if (line.startsWith('@@')) inHunk = true;
       continue;
     }
-    const body = line.slice(1);
-    if (
-      (line.startsWith('+') || line.startsWith('-')) &&
-      !COMMENT_LINE.test(body)
-    ) {
-      for (const name of symbolsOnLine(body)) found.add(name);
-    }
+    for (const name of symbolsOnLine(changedCode(line))) found.add(name);
   }
   return { found, files };
+}
+
+/** The code of a `+`/`-` hunk line; `''` for context and comment-only lines. */
+function changedCode(line) {
+  const body = line.slice(1);
+  if (!/^[+-]/.test(line) || COMMENT_LINE.test(body)) return '';
+  return body;
 }
 
 /** Longest first: short names grep noisily. */
