@@ -40,7 +40,7 @@ export function defaultGitFn(cwd) {
  * @param {string} text
  * @returns {{ files: number, insertions: number, deletions: number }}
  */
-export function parseShortstat(text) {
+function parseShortstat(text) {
   const count = (pattern) => {
     const match = pattern.exec(text);
     return match ? Number(match[1]) : 0;
@@ -59,7 +59,7 @@ export function parseShortstat(text) {
  * @param {{ gitFn: GitFn, baseRef: string }} opts
  * @returns {DeliveredDiff|null} null when no first-parent commit matches
  */
-export function resolveDelivered(storyId, { gitFn, baseRef }) {
+function resolveDelivered(storyId, { gitFn, baseRef }) {
   const sha = gitFn([
     'log',
     '--first-parent',

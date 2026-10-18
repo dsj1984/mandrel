@@ -1,10 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import {
-  attachDelivered,
-  parseShortstat,
-  resolveDelivered,
-} from '../../../scripts/lib/agent-cost/delivered-diff.js';
+import { attachDelivered } from '../../../scripts/lib/agent-cost/delivered-diff.js';
 
 const SHA = 'a'.repeat(40);
 
@@ -36,33 +32,27 @@ function sink() {
   return { write: (s) => chunks.push(s), text: () => chunks.join('') };
 }
 
-describe('parseShortstat', () => {
-  it('reads files, insertions and deletions, defaulting absent parts to 0', () => {
-    assert.deepEqual(
-      parseShortstat(' 16 files changed, 506 insertions(+), 71 deletions(-)'),
-      { files: 16, insertions: 506, deletions: 71 },
-    );
-    assert.deepEqual(parseShortstat(' 1 file changed, 1 insertion(+)'), {
-      files: 1,
-      insertions: 1,
-      deletions: 0,
-    });
+function deliveredFor(storyId, landed) {
+  const { gitFn, calls } = fakeGit({ landed });
+  const [row] = attachDelivered([{ storyId }], {
+    gitFn,
+    baseRef: 'origin/main',
   });
-});
+  return { delivered: row.delivered, calls };
+}
 
-describe('resolveDelivered', () => {
-  it('matches the first-parent squash subject by fixed string on the base ref', () => {
-    const { gitFn, calls } = fakeGit({
-      landed: { 5755: ' 16 files changed, 506 insertions(+), 71 deletions(-)' },
+describe('resolving a landed Story', () => {
+  it('matches the first-parent squash subject by fixed string and parses the shortstat', () => {
+    const { delivered, calls } = deliveredFor(5755, {
+      5755: ' 16 files changed, 506 insertions(+), 71 deletions(-)',
     });
-    const delivered = resolveDelivered(5755, { gitFn, baseRef: 'origin/main' });
     assert.deepEqual(delivered, {
       sha: '5755'.padStart(40, '0'),
       files: 16,
       insertions: 506,
       deletions: 71,
     });
-    assert.deepEqual(calls[0], [
+    assert.deepEqual(calls[1], [
       'log',
       '--first-parent',
       '--fixed-strings',
@@ -74,9 +64,18 @@ describe('resolveDelivered', () => {
     ]);
   });
 
+  it('defaults an absent shortstat part to 0', () => {
+    const { delivered } = deliveredFor(3, {
+      3: ' 1 file changed, 1 insertion(+)',
+    });
+    assert.deepEqual(
+      { ...delivered, sha: undefined },
+      { sha: undefined, files: 1, insertions: 1, deletions: 0 },
+    );
+  });
+
   it('returns null for an unlanded Story', () => {
-    const { gitFn } = fakeGit();
-    assert.equal(resolveDelivered(1, { gitFn, baseRef: 'origin/main' }), null);
+    assert.equal(deliveredFor(1, {}).delivered, null);
   });
 });
 
