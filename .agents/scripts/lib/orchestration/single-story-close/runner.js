@@ -51,35 +51,13 @@ import { discardHeldReview } from './review-overlap.js';
 
 const progress = Logger.createProgress('single-story-close', { stderr: true });
 
-async function releaseLease({ storyId }, deps) {
-  try {
-    const outcome = await deps.releaseLease({
-      provider: deps.provider,
-      storyId,
-      config: deps.config,
-    });
-    progress(
-      'LEASE',
-      outcome.released
-        ? `🔓 Story #${storyId} lease released.`
-        : `🔓 Story #${storyId} lease not released (${outcome.reason}).`,
-    );
-    return outcome.released;
-  } catch (err) {
-    progress(
-      'LEASE',
-      `⚠️ lease release failed (close continues): ${err?.message ?? err}`,
-    );
-    return false;
-  }
-}
-
 /**
- * Re-take the Story lease before any gate, push or PR write: a block released
- * it, and init is the only other acquirer, so a re-close would otherwise run
- * unassigned and unguarded. No steal — a foreign holder throws init's
- * refusal. No configured operator handle skips the acquire (release is
- * best-effort for the same reason), so close never newly hard-fails on it.
+ * Re-affirm the Story lease before any gate, push or PR write. Close never
+ * releases it on a failure — the claim lives from init until the post-land
+ * tail — so this is normally `already-held`; it re-takes a claim someone
+ * cleared by hand. No steal — a foreign holder throws init's refusal. No
+ * configured operator handle skips the acquire, so close never newly
+ * hard-fails on it.
  */
 async function acquireLease({ storyId }, deps) {
   const operator = resolveOperatorFromCandidates({
@@ -103,24 +81,6 @@ async function acquireLease({ storyId }, deps) {
     `🔒 Story #${storyId} lease ${lease.reason} (owner=@${lease.owner}).`,
   );
   return lease;
-}
-
-/**
- * Release the lease best-effort before re-throwing a blocked-prone phase's
- * error verbatim. The lease has no TTL, so a stranded claim would refuse the
- * next operator who picks up the blocked Story.
- *
- * @template T
- * @param {() => Promise<T>} run
- * @returns {Promise<T>}
- */
-async function releaseLeaseOnBlock(run, ctx, deps) {
-  try {
-    return await run();
-  } catch (err) {
-    await releaseLease(ctx, deps);
-    throw err;
-  }
 }
 
 /**
@@ -161,6 +121,26 @@ function resolveCloseDeps(options, injected) {
   };
 }
 
+/** @param {{ storyId?: number|null }} options */
+function assertStoryId(options) {
+  if (!options.storyId) {
+    throw new Error(
+      'Usage: node single-story-close.js --story <STORY_ID> [--cwd <main-repo>] [--skip-validation] [--skip-sync] [--no-auto-merge] [--wait-merge|--no-wait-merge] [--max-wait-seconds <n>] [--merge-watch-mode <sync|async>] [--rerun-advisory <n>] [--override-review-block <reason>] [--worker-tokens <n>] [--worker-model <model>] [--worker-effort <level>]',
+    );
+  }
+}
+
+/**
+ * Tag a thrown close error with where it stopped and what it observed; the
+ * CLI boundary builds the `failed` envelope from these tags.
+ */
+function tagCloseError(err, { phaseTimer, phase, observedGates }) {
+  if (!err || typeof err !== 'object') return;
+  err.closePhaseDurations = phaseTimer.finish();
+  if (!err.closePhase) err.closePhase = phase;
+  if (!err.closeGates && observedGates) err.closeGates = observedGates;
+}
+
 export async function runSingleStoryClose({
   storyId: storyIdParam,
   cwd: cwdParam,
@@ -194,11 +174,7 @@ export async function runSingleStoryClose({
     workerModelParam,
     workerEffortParam,
   });
-  if (!options.storyId) {
-    throw new Error(
-      'Usage: node single-story-close.js --story <STORY_ID> [--cwd <main-repo>] [--skip-validation] [--skip-sync] [--no-auto-merge] [--wait-merge|--no-wait-merge] [--max-wait-seconds <n>] [--merge-watch-mode <sync|async>] [--rerun-advisory <n>] [--override-review-block <reason>] [--worker-tokens <n>] [--worker-model <model>] [--worker-effort <level>]',
-    );
-  }
+  assertStoryId(options);
 
   // The runner keeps THROWING; it only tags the error with its phase and the
   // gates it observed (null until validation reports), and the CLI boundary
@@ -236,11 +212,7 @@ export async function runSingleStoryClose({
       deps,
     );
   } catch (err) {
-    if (err && typeof err === 'object') {
-      err.closePhaseDurations = phaseTimer.finish();
-      if (!err.closePhase) err.closePhase = phase;
-      if (!err.closeGates && observedGates) err.closeGates = observedGates;
-    }
+    tagCloseError(err, { phaseTimer, phase, observedGates });
     throw err;
   }
 }
@@ -270,8 +242,9 @@ async function graphqlPreflightPhase(ctx, deps) {
     ghFacade: deps.gh,
     probe: deps.graphqlProbe,
   });
+  // The claim stays: the Story is `agent::blocked`, and the assignee is the
+  // record of who owns it until the merge lands.
   if (!preflight) return null;
-  await releaseLease(ctx, deps);
   return await preflightBlockedResult({
     storyId: ctx.storyId,
     preflight,
@@ -396,11 +369,9 @@ function landedPr(ctx) {
 }
 
 async function prePushPhase(ctx, deps) {
-  ctx.prePush = await releaseLeaseOnBlock(
-    () => runPrePushPhases(ctx, deps),
-    ctx,
-    deps,
-  );
+  // A throw here (a red gate, a wrong-tree refusal, a base-sync conflict)
+  // keeps the lease: the label still says the Story is owned.
+  ctx.prePush = await runPrePushPhases(ctx, deps);
   if (!ctx.prePush.pending) return null;
   discardHeldReview(ctx.heldReview, 'validation pending', progress);
   return await finishDeferred(ctx.prePush.lockWait, {
@@ -415,11 +386,7 @@ async function prePushPhase(ctx, deps) {
 }
 
 async function openPrPhase(ctx, deps) {
-  ctx.pr = await releaseLeaseOnBlock(
-    () => openAndReviewPr(ctx, deps),
-    ctx,
-    deps,
-  );
+  ctx.pr = await openAndReviewPr(ctx, deps);
   return null;
 }
 
@@ -460,22 +427,10 @@ async function armPhase(ctx, deps) {
   return null;
 }
 
-/** Wait-for-merge needs the arm outcome, so it is resolved here. */
-async function finishPhase(ctx, deps) {
+/** The PR-level facts every finish path reports. */
+function buildPrContext(ctx, deps) {
   const { options, arm } = ctx;
-  const { waitForMerge, reason: waitForMergeReason } = resolveWaitForMerge({
-    waitForMergeExplicit: options.waitForMergeExplicit,
-    noWaitForMerge: options.noWaitForMerge,
-    config: deps.config,
-    autoMergeReason: arm.autoMergeReason,
-  });
-  reportOperatorMergeSkip({
-    waitForMergeReason,
-    autoMergeReason: arm.autoMergeReason,
-    storyId: ctx.storyId,
-    waitForMergeExplicit: options.waitForMergeExplicit,
-  });
-  const prCtx = {
+  return {
     storyId: ctx.storyId,
     storyBranch: ctx.storyBranch,
     baseBranch: ctx.baseBranch,
@@ -500,8 +455,33 @@ async function finishPhase(ctx, deps) {
       ctx.pr.reviewDegraded,
     ),
   };
+}
+
+/** Resolve wait-for-merge from the arm outcome and tell the operator why. */
+function decideWaitForMerge(ctx, deps) {
+  const { options, arm } = ctx;
+  const decision = resolveWaitForMerge({
+    waitForMergeExplicit: options.waitForMergeExplicit,
+    noWaitForMerge: options.noWaitForMerge,
+    config: deps.config,
+    autoMergeReason: arm.autoMergeReason,
+  });
+  reportOperatorMergeSkip({
+    waitForMergeReason: decision.reason,
+    autoMergeReason: arm.autoMergeReason,
+    storyId: ctx.storyId,
+    waitForMergeExplicit: options.waitForMergeExplicit,
+  });
+  return decision;
+}
+
+/** Wait-for-merge needs the arm outcome, so it is resolved here. */
+async function finishPhase(ctx, deps) {
+  const { options } = ctx;
+  const { waitForMerge, reason } = decideWaitForMerge(ctx, deps);
+  const prCtx = buildPrContext(ctx, deps);
   if (!waitForMerge) {
-    return await finishWithoutMergeWait(prCtx, waitForMergeReason);
+    return await finishWithoutMergeWait(prCtx, reason);
   }
   return await finishWithMergeWait(prCtx, {
     cwd: options.cwd,
@@ -513,6 +493,8 @@ async function finishPhase(ctx, deps) {
     injectedGh: deps.gh,
     injectedNotify: deps.notify,
     runConfirmMergePhase: deps.runConfirmMergePhase,
+    // The land tail is the one place the claim is released.
+    releaseLease: deps.releaseLease,
   });
 }
 

@@ -1529,6 +1529,7 @@ describe('runSingleStoryClose — GraphQL preflight (Story #5355)', () => {
     });
     t.mock.module(WORKTREE_MANAGER_URL, worktreeManagerMock());
     const provider = fakeProvider();
+    const releaseCalls = [];
     const run = async () => {
       preflightTag += 1;
       const { runSingleStoryClose } = await import(
@@ -1543,6 +1544,10 @@ describe('runSingleStoryClose — GraphQL preflight (Story #5355)', () => {
         injectedNotify: () => Promise.resolve(),
         injectedRunCodeReview: reviewOk,
         injectedGraphqlProbe: probe,
+        injectedReleaseLease: async ({ storyId }) => {
+          releaseCalls.push(storyId);
+          return { released: true, owner: 'alice', reason: 'released' };
+        },
         injectedSync: async () => {
           order.push('base-sync');
           return { synced: true, kind: 'fast-forward' };
@@ -1554,7 +1559,7 @@ describe('runSingleStoryClose — GraphQL preflight (Story #5355)', () => {
         }),
       });
     };
-    return { order, provider, run };
+    return { order, provider, releaseCalls, run };
   }
 
   // AC-1 — the run stops in `init`: no gate is spawned and nothing is pushed.
@@ -1583,6 +1588,12 @@ describe('runSingleStoryClose — GraphQL preflight (Story #5355)', () => {
     assert.ok(
       h.provider._labels().includes('agent::blocked'),
       'the Story must carry the label the blocked envelope claims',
+    );
+    // Story #5784 — a blocked Story keeps its owner.
+    assert.deepEqual(
+      h.releaseCalls,
+      [],
+      'a blocked preflight must leave the Story assigned to its operator',
     );
     // AC-5 — re-validated here rather than trusting the writer, so the
     // envelope's schema conformance is asserted by this Story's own test.
