@@ -224,9 +224,23 @@ repeating its usage; the report counts every `message.id` once. Rows carry
 `agentType`, `storyId` (parsed from the spawn description), `efforts`,
 `models`, the five token fields, `totalTokens`, `wallMs`, `effortChanges`
 (adjacent-turn effort switches) and `cacheCreationAfterFirstEffortChange`
-(the cache rebuild a mid-session effort switch triggered). Flags:
-`--project-dir <dir>` (repeatable), `--since` / `--until <ISO date>`,
-`--agent-type <t>`, `--skill <s>`, `--out-dir <dir>`.
+(the cache rebuild a mid-session effort switch triggered), and `delivered`
+— `{ sha, files, insertions, deletions }` of the Story's landed squash commit
+(the first-parent commit on `--base` whose subject contains
+`(refs #<storyId>)`, read with `git show --shortstat`), or `null` when the
+Story has not landed or the base ref is missing (a stderr warning, exit 0).
+Flags: `--project-dir <dir>` (repeatable), `--since` / `--until <ISO date>`,
+`--agent-type <t>`, `--skill <s>`, `--out-dir <dir>`, `--base <ref>`
+(default `origin/main`; offline — fetch first for fresh landings).
+
+The summary's `perStory` list, rendered as summary.md's `## Per Story`
+table, gives each Story its agent rows, tokens sum, wall sum, +/- lines,
+files and `tokensPerChangedLine` (tokens over insertions + deletions; `—`
+for an unlanded Story). It reads a worker-rule change off real deliveries
+at zero run cost. **Reading rule:** a before/after comparison is confounded
+by Story mix — a docs Story and a gate rewrite differ by an order of
+magnitude — so compare medians over windows of at least ten Stories, never
+single Stories.
 
 **Capture the baseline before the change lands.** Claude Code deletes
 transcripts after 30 days by default (`cleanupPeriodDays`), so a "before"

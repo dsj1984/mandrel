@@ -86,6 +86,61 @@ describe('summarize', () => {
   });
 });
 
+describe('perStory', () => {
+  const delivered = { sha: 'abc', files: 3, insertions: 150, deletions: 50 };
+  const rows = [
+    row({ storyId: 7, totalTokens: 1000, wallMs: 1000, delivered }),
+    row({ storyId: 7, totalTokens: 1000, wallMs: 2000, delivered }),
+    row({ storyId: 9, totalTokens: 500, wallMs: null, delivered: null }),
+    row({ storyId: null, totalTokens: 99 }),
+  ];
+
+  it('sums tokens and wall per Story and divides by changed lines, storyId descending', () => {
+    const { perStory } = summarize(rows);
+    assert.deepEqual(perStory, [
+      {
+        storyId: 9,
+        rows: 1,
+        totalTokens: 500,
+        wallMs: 0,
+        delivered: null,
+        tokensPerChangedLine: null,
+      },
+      {
+        storyId: 7,
+        rows: 2,
+        totalTokens: 2000,
+        wallMs: 3000,
+        delivered,
+        tokensPerChangedLine: 10,
+      },
+    ]);
+  });
+
+  it('nulls tokensPerChangedLine when the landed diff changed no lines', () => {
+    const empty = { sha: 'e', files: 1, insertions: 0, deletions: 0 };
+    const { perStory } = summarize([row({ storyId: 1, delivered: empty })]);
+    assert.equal(perStory[0].tokensPerChangedLine, null);
+  });
+
+  it('renders a Per Story table with a dash for an unlanded Story', () => {
+    const md = renderSummaryMarkdown(summarize(rows), {
+      projectDirs: ['/p'],
+      filters: {},
+      skippedLines: 0,
+      base: 'origin/main',
+    });
+    assert.match(md, /## Per Story/);
+    assert.match(
+      md,
+      /\| #7 \| 2 \| 2,000 \| 3\.0s \| \+150\/-50 \| 3 \| 10 \|/,
+    );
+    assert.match(md, /\| #9 \| 1 \| 500 \| 0\.0s \| — \| — \| — \|/);
+    assert.match(md, /Delivered diffs from: origin\/main/);
+    assert.match(md, /\| agentType \| effort \| model \| count \|/);
+  });
+});
+
 describe('filterRows', () => {
   const rows = [
     row({ startedAt: '2026-09-01T00:00:00.000Z', skill: 'audit-security' }),

@@ -2688,7 +2688,7 @@
     },
     {
       "path": "scripts/agent-cost-report.js",
-      "mi": 94.946
+      "mi": 95.563
     },
     {
       "path": "scripts/check-action-pinning.js",
@@ -2765,6 +2765,10 @@
     {
       "path": "scripts/install-matrix-assert.js",
       "mi": 90.439
+    },
+    {
+      "path": "scripts/lib/agent-cost/delivered-diff.js",
+      "mi": 113.88
     },
     {
       "path": "scripts/lib/agent-cost/read-transcripts.js",
