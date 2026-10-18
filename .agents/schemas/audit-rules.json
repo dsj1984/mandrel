@@ -238,6 +238,24 @@
       "scope": "cumulative",
       "substitutionKeys": []
     },
+    "audit-lean": {
+      "triggers": {
+        "gates": ["gate1", "gate3"],
+        "keywords": [
+          "reuse",
+          "reinvent",
+          "stdlib",
+          "yagni",
+          "bloat",
+          "over-engineered",
+          "one implementation",
+          "wrapper"
+        ],
+        "filePatterns": ["**/*"]
+      },
+      "scope": "cumulative",
+      "substitutionKeys": []
+    },
     "audit-documentation": {
       "triggers": {
         "gates": ["gate1", "gate3"],
