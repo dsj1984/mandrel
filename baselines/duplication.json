@@ -52,9 +52,15 @@
     },
     {
       "path": ".agents/scripts/lib/audit-exceptions/adapters/inline-suppressions.js",
-      "duplicatedLines": 10,
+      "duplicatedLines": 21,
       "totalLines": 107,
-      "percentage": 9.35
+      "percentage": 19.63
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/shortcut-markers.js",
+      "duplicatedLines": 11,
+      "totalLines": 63,
+      "percentage": 17.46
     },
     {
       "path": ".agents/scripts/lib/audit-exceptions/adapters/test-skips.js",
