@@ -20,8 +20,6 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import Ajv from 'ajv';
-import addFormats from 'ajv-formats';
 import {
   appendSignal,
   forEachLine,
@@ -30,6 +28,7 @@ import { buildAcceptanceEvalSignal } from '../../.agents/scripts/lib/orchestrati
 import { composeRoutedProposals } from '../../.agents/scripts/lib/orchestration/retro-proposals.js';
 import { hasCommonEnvelope } from '../../.agents/scripts/lib/signals/schema.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
+import { createAjv } from '../../.agents/scripts/lib/util/ajv.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMA_PATH = path.resolve(
@@ -41,8 +40,7 @@ const SCHEMA_PATH = path.resolve(
   'signal-event.schema.json',
 );
 
-const ajv = new Ajv({ allErrors: true, strict: false });
-addFormats(ajv);
+const ajv = createAjv({ allErrors: true, strict: false });
 const validate = ajv.compile(JSON.parse(readFileSync(SCHEMA_PATH, 'utf8')));
 
 const NOW = '2026-07-11T00:00:00.000Z';

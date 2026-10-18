@@ -363,7 +363,7 @@ a single vendored manifest that ships inside the bundle:
 
 - **[`runtime-deps.json`](runtime-deps.json)** — the single source of
   truth. Its `dependencies` block lists the **required** packages — `ajv`,
-  `ajv-formats`, `js-yaml`, `minimatch`, `picomatch`, plus the complexity
+  `js-yaml`, `picomatch`, plus the complexity
   kernel's closure (`@babel/parser`, `typhonjs-escomplex-commons`,
   `escomplex-plugin-metrics-module`, `escomplex-plugin-syntax-babylon`,
   `typhonjs-ast-walker`, and `babel-runtime`, which those packages require

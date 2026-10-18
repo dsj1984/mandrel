@@ -1467,7 +1467,8 @@ conventions to follow.
 - **Markdown lint & fix:** `markdownlint-cli2` (markdown is not formatted;
   it is only fixed via `markdownlint-cli2 --fix`)
 - **Git hooks:** Husky + `lint-staged`
-- **JSON Schema validation:** Ajv + `ajv-formats`
+- **JSON Schema validation:** Ajv, with `date-time` and `date` registered by
+  the shared factory in `.agents/scripts/lib/util/ajv.js`
 - **In-memory filesystem for tests:** `memfs`
 - **Complexity metrics:** `typhonjs-escomplex-commons` with
   `escomplex-plugin-metrics-module` and `escomplex-plugin-syntax-babylon`

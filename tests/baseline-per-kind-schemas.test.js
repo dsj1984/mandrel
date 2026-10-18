@@ -3,8 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import Ajv from 'ajv';
-import addFormats from 'ajv-formats';
+import { createAjv } from '../.agents/scripts/lib/util/ajv.js';
 
 // ---------------------------------------------------------------------------
 // Fixture tests for the seven per-kind baseline schemas (Story #1888).
@@ -33,8 +32,7 @@ const loadSchema = (filename) =>
 const envelope = loadSchema('baseline-envelope.schema.json');
 
 const buildAjv = () => {
-  const ajv = new Ajv({ allErrors: true, strict: false });
-  addFormats(ajv);
+  const ajv = createAjv({ allErrors: true, strict: false });
   ajv.addSchema(envelope, 'baseline-envelope.schema.json');
   return ajv;
 };

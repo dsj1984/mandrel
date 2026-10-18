@@ -1,8 +1,8 @@
 /**
  * The one Ajv factory for validators that need string formats. Mandrel's
  * schemas declare only `date-time` and `date`, so those two are registered by
- * hand — a port of ajv-formats' full-mode RFC 3339 checks — instead of
- * loading the whole ajv-formats plugin.
+ * hand (a port of the Ajv formats plugin's full-mode RFC 3339 checks) instead
+ * of loading that whole plugin.
  */
 
 import AjvDraft07 from 'ajv';

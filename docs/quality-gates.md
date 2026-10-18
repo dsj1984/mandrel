@@ -1023,7 +1023,7 @@ Rules:
   captures every row regardless of declared globs. Every baseline emits
   `rollup['*']` for backwards compatibility with pre-component gates.
 - Glob matching uses
-  [`minimatch`](https://github.com/isaacs/minimatch) with `dot: true`.
+  [`picomatch`](https://github.com/micromatch/picomatch) with `dot: true`.
 - **Overlap is allowed by design** — a row matched by two components is
   reported under both.
 - When a gate omits `components`, the default is `{ "*": ["**"] }`. The

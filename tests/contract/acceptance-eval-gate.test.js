@@ -13,16 +13,15 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-
-import Ajv from 'ajv';
-import Ajv2020 from 'ajv/dist/2020.js';
-import addFormats from 'ajv-formats';
-
 import {
   runAcceptanceEval,
   runAcceptanceEvalCli,
   validateVerdict,
 } from '../../.agents/scripts/acceptance-eval.js';
+import {
+  createAjv,
+  createAjv2020,
+} from '../../.agents/scripts/lib/util/ajv.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMAS_DIR = path.resolve(__dirname, '..', '..', '.agents', 'schemas');
@@ -37,10 +36,8 @@ function compile(name) {
   // verdict schema is draft-2020-12; signal-event.schema.json is draft-07.
   const isDraft07 =
     typeof schema.$schema === 'string' && schema.$schema.includes('draft-07');
-  const ajv = isDraft07
-    ? new Ajv({ allErrors: true, strict: false })
-    : new Ajv2020({ allErrors: true, strict: false });
-  addFormats(ajv);
+  const factory = isDraft07 ? createAjv : createAjv2020;
+  const ajv = factory({ allErrors: true, strict: false });
   return ajv.compile(schema);
 }
 

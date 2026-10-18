@@ -3,8 +3,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import Ajv from 'ajv';
-import addFormats from 'ajv-formats';
 
 import {
   isUntriaged,
@@ -15,6 +13,7 @@ import {
   TRIAGED_DISPOSITIONS,
 } from '../../../.agents/scripts/lib/qa/qa-session.js';
 import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
+import { createAjv } from '../../../.agents/scripts/lib/util/ajv.js';
 
 /**
  * Story #3723 — session-id + ledger resume helper (Epic #3686).
@@ -47,8 +46,7 @@ const LEDGER_SCHEMA_PATH = path.resolve(
 /** Compile the on-disk qa-ledger schema into an AJV validator. */
 function compileLedgerSchema() {
   const schema = JSON.parse(fs.readFileSync(LEDGER_SCHEMA_PATH, 'utf8'));
-  const ajv = new Ajv({ allErrors: true, strict: false });
-  addFormats(ajv);
+  const ajv = createAjv({ allErrors: true, strict: false });
   return ajv.compile(schema);
 }
 

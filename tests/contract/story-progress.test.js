@@ -18,11 +18,9 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import Ajv2020 from 'ajv/dist/2020.js';
-import addFormats from 'ajv-formats';
-
 import { createStoryProgress } from '../../.agents/scripts/lib/orchestration/story-progress.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
+import { createAjv2020 } from '../../.agents/scripts/lib/util/ajv.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMA = JSON.parse(
@@ -38,8 +36,7 @@ const SCHEMA = JSON.parse(
     'utf8',
   ),
 );
-const ajv = new Ajv2020({ allErrors: true, strict: false });
-addFormats(ajv);
+const ajv = createAjv2020({ allErrors: true, strict: false });
 const validate = ajv.compile(SCHEMA);
 
 const CLOSE_PHASES = [

@@ -30,8 +30,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import Ajv from 'ajv';
-import addFormats from 'ajv-formats';
+import { createAjv } from '../.agents/scripts/lib/util/ajv.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMA_DIR = path.resolve(__dirname, '..', '.agents', 'schemas');
@@ -40,8 +39,7 @@ const LEDGER_SCHEMA_PATH = path.join(SCHEMA_DIR, 'qa-ledger.schema.json');
 const schema = JSON.parse(readFileSync(LEDGER_SCHEMA_PATH, 'utf8'));
 
 function compile() {
-  const ajv = new Ajv({ allErrors: true, strict: false });
-  addFormats(ajv);
+  const ajv = createAjv({ allErrors: true, strict: false });
   return ajv.compile(schema);
 }
 
