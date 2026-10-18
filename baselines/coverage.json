@@ -64,9 +64,9 @@
     },
     {
       "path": ".agents/scripts/check-arch-cycles.js",
-      "lines": 98.9,
-      "branches": 90.91,
-      "functions": 83.33
+      "lines": 100,
+      "branches": 90.74,
+      "functions": 90
     },
     {
       "path": ".agents/scripts/check-baselines.js",
@@ -76,21 +76,21 @@
     },
     {
       "path": ".agents/scripts/check-context-budget.js",
-      "lines": 91.3,
-      "branches": 86.41,
-      "functions": 95
+      "lines": 91.14,
+      "branches": 86.52,
+      "functions": 94.44
     },
     {
       "path": ".agents/scripts/check-cyclomatic.js",
-      "lines": 96.05,
-      "branches": 86.21,
-      "functions": 87.5
+      "lines": 100,
+      "branches": 94.74,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/check-dead-exports.js",
-      "lines": 98.25,
-      "branches": 93.75,
-      "functions": 87.5
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/check-doc-links.js",
@@ -106,9 +106,9 @@
     },
     {
       "path": ".agents/scripts/check-test-temp-hygiene.js",
-      "lines": 99.7,
-      "branches": 91.96,
-      "functions": 88
+      "lines": 99.64,
+      "branches": 94.29,
+      "functions": 88.46
     },
     {
       "path": ".agents/scripts/check-windows-git-perf.js",
@@ -1121,7 +1121,7 @@
     {
       "path": ".agents/scripts/lib/config/agentrc-overlay.js",
       "lines": 100,
-      "branches": 88.46,
+      "branches": 87.5,
       "functions": 100
     },
     {
@@ -1366,8 +1366,8 @@
     },
     {
       "path": ".agents/scripts/lib/cpu-pool.js",
-      "lines": 98.1,
-      "branches": 92.59,
+      "lines": 98.09,
+      "branches": 92.45,
       "functions": 100
     },
     {
@@ -1775,7 +1775,7 @@
     {
       "path": ".agents/scripts/lib/observability/terse-result.js",
       "lines": 100,
-      "branches": 85.71,
+      "branches": 92.31,
       "functions": 100
     },
     {
@@ -1925,8 +1925,8 @@
     {
       "path": ".agents/scripts/lib/orchestration/deliver-recover.js",
       "lines": 99.49,
-      "branches": 87.98,
-      "functions": 95.45
+      "branches": 88.24,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/orchestration/dependency-analyzer.js",
@@ -2135,7 +2135,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/light-suitability.js",
       "lines": 99.6,
-      "branches": 92.45,
+      "branches": 93.33,
       "functions": 100
     },
     {
@@ -2878,9 +2878,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
-      "lines": 94.05,
-      "branches": 83.55,
-      "functions": 95.24
+      "lines": 94.02,
+      "branches": 83.33,
+      "functions": 95
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
@@ -3058,8 +3058,8 @@
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/protection.js",
-      "lines": 98.93,
-      "branches": 80.95,
+      "lines": 98.88,
+      "branches": 80.65,
       "functions": 100
     },
     {
@@ -3070,9 +3070,9 @@
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
-      "lines": 97.97,
+      "lines": 98.47,
       "branches": 89.58,
-      "functions": 95.12
+      "functions": 97.5
     },
     {
       "path": ".agents/scripts/lib/single-story/confirm-and-land.js",
@@ -3190,8 +3190,8 @@
     },
     {
       "path": ".agents/scripts/lib/test-run-credit.js",
-      "lines": 98.39,
-      "branches": 91.23,
+      "lines": 98.33,
+      "branches": 91.07,
       "functions": 100
     },
     {
@@ -3250,6 +3250,12 @@
     },
     {
       "path": ".agents/scripts/lib/util/sleep.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/util/slug.js",
       "lines": 100,
       "branches": 100,
       "functions": 100
@@ -3376,9 +3382,9 @@
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/force-drain.js",
-      "lines": 88.34,
+      "lines": 88.38,
       "branches": 82.8,
-      "functions": 71.43
+      "functions": 83.33
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/gc.js",
@@ -3406,9 +3412,9 @@
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
-      "lines": 90.16,
-      "branches": 77.91,
-      "functions": 96.3
+      "lines": 90.22,
+      "branches": 78.03,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/registry-sync.js",
@@ -3448,8 +3454,8 @@
     },
     {
       "path": ".agents/scripts/plan-context.js",
-      "lines": 89.66,
-      "branches": 59.65,
+      "lines": 89.26,
+      "branches": 59.26,
       "functions": 100
     },
     {
@@ -3527,7 +3533,7 @@
     {
       "path": ".agents/scripts/providers/github/errors.js",
       "lines": 99.57,
-      "branches": 93.94,
+      "branches": 93.75,
       "functions": 100
     },
     {
@@ -3544,7 +3550,7 @@
     },
     {
       "path": ".agents/scripts/providers/github/issues.js",
-      "lines": 83.88,
+      "lines": 86.36,
       "branches": 86,
       "functions": 81.25
     },
@@ -3588,7 +3594,7 @@
       "path": ".agents/scripts/providers/github/search-budget.js",
       "lines": 100,
       "branches": 100,
-      "functions": 85.71
+      "functions": 100
     },
     {
       "path": ".agents/scripts/providers/github/search-query.js",
@@ -3628,9 +3634,9 @@
     },
     {
       "path": ".agents/scripts/resolve-doc-tiers.js",
-      "lines": 96.39,
+      "lines": 100,
       "branches": 100,
-      "functions": 66.67
+      "functions": 100
     },
     {
       "path": ".agents/scripts/resolve-stories.js",
@@ -3683,7 +3689,7 @@
     {
       "path": ".agents/scripts/sync-agentrc.js",
       "lines": 100,
-      "branches": 88.89,
+      "branches": 83.33,
       "functions": 100
     },
     {
@@ -3730,8 +3736,8 @@
     },
     {
       "path": ".agents/scripts/update-duplication-baseline.js",
-      "lines": 90.32,
-      "branches": 47.62,
+      "lines": 91.67,
+      "branches": 50,
       "functions": 100
     },
     {
@@ -4048,9 +4054,9 @@
     },
     {
       "path": "scripts/check-action-pinning.js",
-      "lines": 98.08,
+      "lines": 99.22,
       "branches": 95.56,
-      "functions": 87.5
+      "functions": 100
     },
     {
       "path": "scripts/check-agentrc-key-ceiling.js",
@@ -4084,9 +4090,9 @@
     },
     {
       "path": "scripts/check-generated-validator.js",
-      "lines": 98.81,
+      "lines": 100,
       "branches": 92.31,
-      "functions": 71.43
+      "functions": 83.33
     },
     {
       "path": "scripts/check-knip-entries.js",
@@ -4138,9 +4144,9 @@
     },
     {
       "path": "scripts/check-workflow-citations.js",
-      "lines": 96.79,
+      "lines": 98.13,
       "branches": 90.32,
-      "functions": 87.5
+      "functions": 100
     },
     {
       "path": "scripts/check-workflow-cli-lint.js",
@@ -4150,9 +4156,9 @@
     },
     {
       "path": "scripts/check-workflow-timeouts.js",
-      "lines": 98.28,
+      "lines": 99.3,
       "branches": 94.64,
-      "functions": 87.5
+      "functions": 100
     },
     {
       "path": "scripts/install-matrix-assert.js",
@@ -4432,9 +4438,9 @@
     },
     {
       "path": "scripts/update-dead-exports-baseline.js",
-      "lines": 99.03,
+      "lines": 100,
       "branches": 97.78,
-      "functions": 87.5
+      "functions": 100
     }
   ]
 }
