@@ -5326,6 +5326,60 @@
       "anonymous": true
     },
     {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/shortcut-markers.js",
+      "method": "parse",
+      "startLine": 19,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/shortcut-markers.js",
+      "method": "fileRecords",
+      "startLine": 29,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/shortcut-markers.js",
+      "method": "<anon fileRecords/(line,i)#0>",
+      "startLine": 31,
+      "crap": 6,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/shortcut-markers.js",
+      "method": "<anon (ctx)#0>",
+      "startLine": 55,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/shortcut-markers.js",
+      "method": "<anon (ctx)#0/(f)#0>",
+      "startLine": 56,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/shortcut-markers.js",
+      "method": "<anon (ctx)#1>",
+      "startLine": 59,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/shortcut-markers.js",
+      "method": "<anon (ctx)#1/(f)#0>",
+      "startLine": 61,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/shortcut-markers.js",
+      "method": "<anon (ctx)#1/(f)#1>",
+      "startLine": 62,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
       "path": ".agents/scripts/lib/audit-exceptions/adapters/test-skips.js",
       "method": "optionHit",
       "startLine": 28,
