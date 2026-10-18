@@ -37261,22 +37261,8 @@
     {
       "path": ".agents/scripts/lib/util/paths.js",
       "method": "walkFiles",
-      "startLine": 41,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/util/paths.js",
-      "method": "<anon walkFiles/(name)#0>",
-      "startLine": 43,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/util/paths.js",
-      "method": "<anon walkFiles/(current,entries)#0>",
-      "startLine": 45,
-      "crap": 5,
-      "anonymous": true
+      "startLine": 42,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/util/paths.js",
@@ -37284,12 +37270,6 @@
       "startLine": 48,
       "crap": 5,
       "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/util/paths.js",
-      "method": "readEntries",
-      "startLine": 66,
-      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/util/paths.js",
@@ -37303,6 +37283,12 @@
       "startLine": 70,
       "crap": 1,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/util/paths.js",
+      "method": "readEntries",
+      "startLine": 73,
+      "crap": 4
     },
     {
       "path": ".agents/scripts/lib/util/poll-loop.js",
