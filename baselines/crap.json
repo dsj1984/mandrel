@@ -8084,6 +8084,13 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/bundle-size-scorer.js",
+      "method": "<anon resolveBundleFiles/(abs,dirent)#0>",
+      "startLine": 58,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/bundle-size-scorer.js",
       "method": "resolveBundleFiles",
       "startLine": 66,
       "crap": 4
@@ -10418,9 +10425,49 @@
     },
     {
       "path": ".agents/scripts/lib/bdd-scenario-scanner.js",
+      "method": "<anon listFeatureFiles/(err,dir)#0>",
+      "startLine": 22,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/bdd-scenario-scanner.js",
+      "method": "<anon listFeatureFiles/(abs,d)#0>",
+      "startLine": 27,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/bdd-scenario-scanner.js",
+      "method": "<anon listFeatureFiles/(root)#0>",
+      "startLine": 28,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/bdd-scenario-scanner.js",
       "method": "walk",
       "startLine": 28,
       "crap": 5.1157407407407405
+    },
+    {
+      "path": ".agents/scripts/lib/bdd-scenario-scanner.js",
+      "method": "<anon listFeatureFiles/(root)#1>",
+      "startLine": 29,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/bdd-scenario-scanner.js",
+      "method": "rootReadable",
+      "startLine": 32,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/bdd-scenario-scanner.js",
+      "method": "isFeatureFile",
+      "startLine": 39,
+      "crap": 3.845229151014275
     },
     {
       "path": ".agents/scripts/lib/bdd-scenario-scanner.js",
@@ -27724,6 +27771,54 @@
       "crap": 1
     },
     {
+      "path": ".agents/scripts/lib/orchestration/review-deposit.js",
+      "method": "resolveRefSha",
+      "startLine": 28,
+      "crap": 3.021333333333333
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-deposit.js",
+      "method": "computeReviewDiffDigest",
+      "startLine": 53,
+      "crap": 4.026053327905557
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-deposit.js",
+      "method": "buildReviewDeposit",
+      "startLine": 78,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-deposit.js",
+      "method": "depositAsComputedReview",
+      "startLine": 112,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-deposit.js",
+      "method": "writeReviewDeposit",
+      "startLine": 138,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-deposit.js",
+      "method": "isDeposit",
+      "startLine": 149,
+      "crap": 7
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-deposit.js",
+      "method": "readReviewDeposit",
+      "startLine": 167,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-deposit.js",
+      "method": "probeHeldReviewDiff",
+      "startLine": 190,
+      "crap": 4
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/review-depth.js",
       "method": "deriveChangeLevel",
       "startLine": 32,
@@ -36645,10 +36740,23 @@
     },
     {
       "path": ".agents/scripts/lib/test-temp.js",
+      "method": "<anon listSuiteTempRoots/(name)#0>",
+      "startLine": 213,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/test-temp.js",
       "method": "<anon listSuiteTempRoots/(ent)#1>",
       "startLine": 214,
       "crap": 1,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/test-temp.js",
+      "method": "isDirectory",
+      "startLine": 220,
+      "crap": 1.0233236151603498
     },
     {
       "path": ".agents/scripts/lib/test-temp.js",
@@ -36715,6 +36823,26 @@
       "method": "<anon walkFiles/(dir,prefix)#0>",
       "startLine": 288,
       "crap": 6,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/test-temp.js",
+      "method": "listJsSources",
+      "startLine": 295,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/test-temp.js",
+      "method": "<anon listJsSources/(_abs,dirent)#0>",
+      "startLine": 298,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/test-temp.js",
+      "method": "<anon listJsSources/(abs)#0>",
+      "startLine": 301,
+      "crap": 1,
       "anonymous": true
     },
     {
@@ -37075,6 +37203,18 @@
       "crap": 1
     },
     {
+      "path": ".agents/scripts/lib/util/atomic-write.js",
+      "method": "writeFileAtomic",
+      "startLine": 12,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/util/atomic-write.js",
+      "method": "reapTmp",
+      "startLine": 24,
+      "crap": 2
+    },
+    {
       "path": ".agents/scripts/lib/util/concurrent-map.js",
       "method": "concurrentMap",
       "startLine": 21,
@@ -37117,6 +37257,38 @@
       "method": "dirExists",
       "startLine": 25,
       "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/util/paths.js",
+      "method": "walkFiles",
+      "startLine": 42,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/util/paths.js",
+      "method": "<anon walkFiles/(current)#0>",
+      "startLine": 48,
+      "crap": 5,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/util/paths.js",
+      "method": "toSkipPredicate",
+      "startLine": 67,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/util/paths.js",
+      "method": "<anon toSkipPredicate/(name)#0>",
+      "startLine": 70,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/util/paths.js",
+      "method": "readEntries",
+      "startLine": 73,
+      "crap": 4
     },
     {
       "path": ".agents/scripts/lib/util/poll-loop.js",
@@ -37267,9 +37439,28 @@
     },
     {
       "path": ".agents/scripts/lib/validation-evidence.js",
+      "method": "assertValidEvidence",
+      "startLine": 217,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/validation-evidence.js",
+      "method": "<anon assertValidEvidence/(e)#0>",
+      "startLine": 221,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/validation-evidence.js",
       "method": "writeEvidenceAtomically",
       "startLine": 225,
       "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/validation-evidence.js",
+      "method": "isNonEmptyString",
+      "startLine": 226,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/validation-evidence.js",
@@ -38240,6 +38431,18 @@
       "method": "writeManifest",
       "startLine": 80,
       "crap": 3.0327719617660445
+    },
+    {
+      "path": ".agents/scripts/lib/worktree/lifecycle/pending-cleanup.js",
+      "method": "gitWorktreeRemove",
+      "startLine": 94,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/worktree/lifecycle/pending-cleanup.js",
+      "method": "spawnOutput",
+      "startLine": 101,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/pending-cleanup.js",
@@ -44543,6 +44746,20 @@
     },
     {
       "path": "scripts/check-schema-references.js",
+      "method": "<anon walk/(_abs,d)#0>",
+      "startLine": 151,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/check-schema-references.js",
+      "method": "<anon walk/()#0>",
+      "startLine": 151,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/check-schema-references.js",
       "method": "readSources",
       "startLine": 170,
       "crap": 1
@@ -46428,6 +46645,13 @@
     },
     {
       "path": "scripts/lib/knip-entry-sync.js",
+      "method": "<anon walk/()#0>",
+      "startLine": 123,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/knip-entry-sync.js",
       "method": "collectInvocationSurfaces",
       "startLine": 150,
       "crap": 4.003561788685755
@@ -46444,6 +46668,27 @@
       "method": "buildInvocationPatterns",
       "startLine": 203,
       "crap": 1
+    },
+    {
+      "path": "scripts/lib/knip-entry-sync.js",
+      "method": "<anon listTopLevelClis/()#0>",
+      "startLine": 213,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/knip-entry-sync.js",
+      "method": "<anon listTopLevelClis/(_abs,d)#0>",
+      "startLine": 214,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/knip-entry-sync.js",
+      "method": "<anon listTopLevelClis/(abs)#0>",
+      "startLine": 216,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": "scripts/lib/knip-entry-sync.js",
@@ -46570,6 +46815,19 @@
       "startLine": 97,
       "crap": 3,
       "anonymous": true
+    },
+    {
+      "path": "scripts/lib/payload-boundary.js",
+      "method": "<anon listFiles/(file)#0>",
+      "startLine": 98,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/payload-boundary.js",
+      "method": "listTree",
+      "startLine": 103,
+      "crap": 2
     },
     {
       "path": "scripts/lib/payload-boundary.js",
@@ -46770,9 +47028,30 @@
     },
     {
       "path": "scripts/lib/test-isolate/list-files.js",
+      "method": "<anon walkTestFiles/(name)#0>",
+      "startLine": 16,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/test-isolate/list-files.js",
+      "method": "<anon walkTestFiles/(_abs,d)#0>",
+      "startLine": 17,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": "scripts/lib/test-isolate/list-files.js",
       "method": "walk",
       "startLine": 18,
       "crap": 8
+    },
+    {
+      "path": "scripts/lib/test-isolate/list-files.js",
+      "method": "<anon walkTestFiles/(abs)#0>",
+      "startLine": 20,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": "scripts/lib/test-isolate/list-files.js",

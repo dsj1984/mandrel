@@ -91,6 +91,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { runAsCli } from '../.agents/scripts/lib/cli-utils.js';
 import { stripJsComments } from '../.agents/scripts/lib/source-text/strip-js-comments.js';
+import { walkFiles } from '../.agents/scripts/lib/util/paths.js';
 
 /** Schema root, relative to the repository root. */
 const SCHEMA_ROOT = path.join('.agents', 'schemas');
@@ -136,29 +137,19 @@ export function parseArgv(argv = []) {
 }
 
 /**
- * Recursively collect files under `dir` whose extension is in `extensions`.
+ * Files under `dir` whose extension is in `extensions`; an unreadable
+ * directory is skipped.
  *
  * @param {string} dir absolute directory to walk
  * @param {Set<string>} extensions lowercase extensions including the dot
- * @param {string[]} [acc]
  * @returns {string[]} absolute file paths
  */
-function walk(dir, extensions, acc = []) {
-  let entries;
-  try {
-    entries = fs.readdirSync(dir, { withFileTypes: true });
-  } catch {
-    return acc;
-  }
-  for (const entry of entries) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      if (!SKIP_DIRS.has(entry.name)) walk(full, extensions, acc);
-    } else if (extensions.has(path.extname(entry.name).toLowerCase())) {
-      acc.push(full);
-    }
-  }
-  return acc;
+function walk(dir, extensions) {
+  return walkFiles(dir, {
+    skipDirs: SKIP_DIRS,
+    filter: (_abs, d) => extensions.has(path.extname(d.name).toLowerCase()),
+    onError: () => {},
+  });
 }
 
 /**

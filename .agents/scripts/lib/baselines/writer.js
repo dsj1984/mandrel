@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { deepEqual } from '../json-utils.js';
+import { writeFileAtomic } from '../util/atomic-write.js';
 import { assertEnvelope, buildEnvelope } from './envelope.js';
 import { currentKernelVersion, getKindModule } from './kernel.js';
 import { assertCanonical } from './path-canon.js';
@@ -144,10 +145,9 @@ export function writeFile(absPath, envelope, opts = {}) {
     rows: envelope.rows,
   };
 
-  const tmpPath = `${absPath}.tmp`;
-  fsImpl.mkdirSync(path.dirname(absPath), { recursive: true });
-  fsImpl.writeFileSync(tmpPath, `${JSON.stringify(canonical, null, 2)}\n`);
-  fsImpl.renameSync(tmpPath, absPath);
+  writeFileAtomic(absPath, `${JSON.stringify(canonical, null, 2)}\n`, {
+    fsImpl,
+  });
   return absPath;
 }
 

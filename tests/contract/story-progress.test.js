@@ -138,6 +138,6 @@ describe('story-progress — the record contract', () => {
       const text = fs.readFileSync(rec.file, 'utf8');
       assertValid(JSON.parse(text));
     }
-    assert.equal(fs.existsSync(`${rec.file}.tmp`), false);
+    assert.equal(fs.existsSync(`${rec.file}.${process.pid}.tmp`), false);
   });
 });

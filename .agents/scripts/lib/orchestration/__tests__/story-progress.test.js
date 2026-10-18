@@ -84,11 +84,11 @@ describe('the atomic best-effort write', () => {
     const rec = recorder({ fsImpl });
     assert.equal(rec.phase('push'), true);
     assert.deepEqual(ops, [
-      ['write', `${rec.file}.tmp`],
-      ['rename', `${rec.file}.tmp`, rec.file],
+      ['write', `${rec.file}.${process.pid}.tmp`],
+      ['rename', `${rec.file}.${process.pid}.tmp`, rec.file],
     ]);
     assert.equal(readRecord(rec.file).phase, 'push');
-    assert.equal(fs.existsSync(`${rec.file}.tmp`), false);
+    assert.equal(fs.existsSync(`${rec.file}.${process.pid}.tmp`), false);
   });
 
   it('AC-4: swallows an fs error, logs it at debug, and cleans the tmp', () => {
@@ -99,7 +99,7 @@ describe('the atomic best-effort write', () => {
     assert.equal(rec.phase('push'), false);
     assert.equal(debugs.length, 1);
     assert.match(debugs[0], /\[story-progress\] write skipped/);
-    assert.equal(fs.existsSync(`${rec.file}.tmp`), false);
+    assert.equal(fs.existsSync(`${rec.file}.${process.pid}.tmp`), false);
   });
 
   it('AC-4: an unwritable orchestration folder never throws', () => {

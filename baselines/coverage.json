@@ -574,8 +574,8 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/bundle-size-scorer.js",
-      "lines": 99.13,
-      "branches": 70.83,
+      "lines": 100,
+      "branches": 75,
       "functions": 100
     },
     {
@@ -772,8 +772,8 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/writer.js",
-      "lines": 95.27,
-      "branches": 91.07,
+      "lines": 95.38,
+      "branches": 91.23,
       "functions": 100
     },
     {
@@ -790,8 +790,8 @@
     },
     {
       "path": ".agents/scripts/lib/bdd-scenario-scanner.js",
-      "lines": 95.98,
-      "branches": 80.65,
+      "lines": 95.85,
+      "branches": 81.13,
       "functions": 100
     },
     {
@@ -1582,8 +1582,8 @@
     },
     {
       "path": ".agents/scripts/lib/gates/baseline-store.js",
-      "lines": 98.11,
-      "branches": 81.82,
+      "lines": 98.08,
+      "branches": 88.46,
       "functions": 100
     },
     {
@@ -2356,8 +2356,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/project-meta-cache.js",
-      "lines": 95.38,
-      "branches": 80.49,
+      "lines": 96.61,
+      "branches": 83.72,
       "functions": 100
     },
     {
@@ -2794,8 +2794,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-deliver-terminal.js",
-      "lines": 99.53,
-      "branches": 88.51,
+      "lines": 100,
+      "branches": 90.91,
       "functions": 100
     },
     {
@@ -2831,7 +2831,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/story-progress.js",
       "lines": 100,
-      "branches": 89.29,
+      "branches": 88.89,
       "functions": 100
     },
     {
@@ -3202,8 +3202,8 @@
     },
     {
       "path": ".agents/scripts/lib/test-temp.js",
-      "lines": 100,
-      "branches": 96.05,
+      "lines": 99.34,
+      "branches": 97.14,
       "functions": 100
     },
     {
@@ -3228,6 +3228,12 @@
       "path": ".agents/scripts/lib/util/ajv.js",
       "lines": 100,
       "branches": 91.11,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/util/atomic-write.js",
+      "lines": 100,
+      "branches": 100,
       "functions": 100
     },
     {
@@ -3274,8 +3280,8 @@
     },
     {
       "path": ".agents/scripts/lib/validation-evidence.js",
-      "lines": 96.55,
-      "branches": 91.46,
+      "lines": 98.68,
+      "branches": 92.11,
       "functions": 100
     },
     {
@@ -3406,8 +3412,8 @@
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/pending-cleanup.js",
-      "lines": 98.22,
-      "branches": 83.15,
+      "lines": 98.76,
+      "branches": 85.37,
       "functions": 100
     },
     {
@@ -4132,8 +4138,8 @@
     },
     {
       "path": "scripts/check-schema-references.js",
-      "lines": 98.91,
-      "branches": 88.41,
+      "lines": 98.9,
+      "branches": 87.69,
       "functions": 100
     },
     {
@@ -4312,14 +4318,14 @@
     },
     {
       "path": "scripts/lib/knip-entry-sync.js",
-      "lines": 98.1,
-      "branches": 91.55,
+      "lines": 98.04,
+      "branches": 92.19,
       "functions": 100
     },
     {
       "path": "scripts/lib/payload-boundary.js",
-      "lines": 99.22,
-      "branches": 95.83,
+      "lines": 99.2,
+      "branches": 97.73,
       "functions": 100
     },
     {
@@ -4348,8 +4354,8 @@
     },
     {
       "path": "scripts/lib/test-isolate/list-files.js",
-      "lines": 88.89,
-      "branches": 88,
+      "lines": 86.49,
+      "branches": 88.89,
       "functions": 100
     },
     {

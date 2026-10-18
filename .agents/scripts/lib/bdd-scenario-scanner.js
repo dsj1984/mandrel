@@ -4,13 +4,14 @@
  * keyword-based (not embeddings) so re-planning is deterministic.
  */
 
-import { readdirSync, readFileSync, statSync } from 'node:fs';
-import path from 'node:path';
+import { readFileSync, statSync } from 'node:fs';
 
 import { Logger } from './Logger.js';
+import { walkFiles } from './util/paths.js';
 
 /**
- * Unreadable directories are skipped, never thrown.
+ * An unreadable or missing directory is logged at debug and skipped, never
+ * thrown; its readable siblings are still listed.
  *
  * @param {string[]} roots
  * @param {{ logger?: { debug: Function } }} [opts]
@@ -18,41 +19,35 @@ import { Logger } from './Logger.js';
  */
 export function listFeatureFiles(roots, opts = {}) {
   const logger = opts.logger ?? Logger;
-  const out = [];
-  for (const root of roots ?? []) {
-    walk(root, out, logger);
-  }
-  return out;
-}
-
-function walk(dir, acc, logger) {
-  let entries;
-  try {
-    entries = readdirSync(dir, { withFileTypes: true });
-  } catch (err) {
+  const onError = (err, dir) =>
     logger.debug(
       `[bdd-scenario-scanner] readdir failed for ${dir}: ${err?.message ?? err}`,
     );
-    return;
+  const filter = (abs, d) => isFeatureFile(abs, d, logger);
+  return (roots ?? [])
+    .filter((root) => rootReadable(root, onError))
+    .flatMap((root) => walkFiles(root, { filter, onError }));
+}
+
+function rootReadable(root, onError) {
+  try {
+    statSync(root);
+    return true;
+  } catch (err) {
+    onError(err, root);
+    return false;
   }
-  for (const entry of entries) {
-    const abs = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      walk(abs, acc, logger);
-      continue;
-    }
-    if (!entry.isFile()) continue;
-    if (!abs.toLowerCase().endsWith('.feature')) continue;
-    try {
-      const stat = statSync(abs);
-      if (stat.size > 256 * 1024) continue; // skip obviously bogus inputs
-    } catch (err) {
-      logger.debug(
-        `[bdd-scenario-scanner] stat failed for ${abs}: ${err?.message ?? err}`,
-      );
-      continue;
-    }
-    acc.push(abs);
+}
+
+function isFeatureFile(abs, dirent, logger) {
+  if (!dirent.isFile() || !abs.toLowerCase().endsWith('.feature')) return false;
+  try {
+    return statSync(abs).size <= 256 * 1024; // skip obviously bogus inputs
+  } catch (err) {
+    logger.debug(
+      `[bdd-scenario-scanner] stat failed for ${abs}: ${err?.message ?? err}`,
+    );
+    return false;
   }
 }
 

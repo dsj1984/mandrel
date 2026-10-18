@@ -250,11 +250,11 @@ describe('writeFile() — fsImpl seam (Story #2135 / Task #2146)', () => {
     assert.equal(calls.mkdirSync[0][0], path.dirname(target));
     assert.deepEqual(calls.mkdirSync[0][1], { recursive: true });
     assert.equal(calls.writeFileSync.length, 1);
-    assert.equal(calls.writeFileSync[0][0], `${target}.tmp`);
+    assert.equal(calls.writeFileSync[0][0], `${target}.${process.pid}.tmp`);
     assert.ok(calls.writeFileSync[0][1].includes('"$schema"'));
     assert.ok(calls.writeFileSync[0][1].endsWith('\n'));
     assert.equal(calls.renameSync.length, 1);
-    assert.equal(calls.renameSync[0][0], `${target}.tmp`);
+    assert.equal(calls.renameSync[0][0], `${target}.${process.pid}.tmp`);
     assert.equal(calls.renameSync[0][1], target);
   });
 

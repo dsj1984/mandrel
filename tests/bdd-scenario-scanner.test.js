@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'node:test';
@@ -174,6 +174,31 @@ describe('listFeatureFiles — observability for unreadable paths (Story #2997)'
       calls[0].includes(missing),
       `expected debug payload to include the unreadable path; got: ${calls[0]}`,
     );
+  });
+});
+
+describe('listFeatureFiles — an unreadable subdirectory', () => {
+  const unprivileged = process.platform !== 'win32' && process.getuid?.() !== 0;
+  it('skips only that directory and keeps its sibling features', {
+    skip: !unprivileged && 'chmod 000 does not deny reads here',
+  }, () => {
+    const root = makeTempDir('bdd-locked-');
+    writeFileSync(path.join(root, 'a.feature'), 'Feature: A\n');
+    const locked = path.join(root, 'locked');
+    mkdirSync(locked);
+    writeFileSync(path.join(locked, 'b.feature'), 'Feature: B\n');
+    chmodSync(locked, 0o000);
+    try {
+      const calls = [];
+      const out = listFeatureFiles([root], {
+        logger: { debug: (m) => calls.push(m) },
+      });
+      assert.deepEqual(out, [path.join(root, 'a.feature')]);
+      assert.equal(calls.length, 1);
+      assert.ok(calls[0].includes(locked));
+    } finally {
+      chmodSync(locked, 0o755);
+    }
   });
 });
 

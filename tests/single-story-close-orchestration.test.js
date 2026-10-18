@@ -710,7 +710,7 @@ describe('runSingleStoryClose orchestration', () => {
     assert.equal(atMerge.prNumber, 123);
     assert.equal(atMerge.stageStartedAt, atCreate.stageStartedAt);
     assert.ok(atMerge.phaseStartedAt >= atCreate.phaseStartedAt);
-    assert.equal(existsSync(`${progressFile}.tmp`), false);
+    assert.equal(existsSync(`${progressFile}.${process.pid}.tmp`), false);
   });
 
   it('Story #5553 AC-4 — an unwritable progress target leaves the close outcome unchanged', async (t) => {

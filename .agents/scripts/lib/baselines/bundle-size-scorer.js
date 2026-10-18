@@ -11,9 +11,10 @@ import nodeFs from 'node:fs';
 import path from 'node:path';
 import { gzipSync } from 'node:zlib';
 import picomatch from 'picomatch';
+import { toPosix, walkFiles } from '../util/paths.js';
 
 /** Directories a bundle glob never descends into. */
-const SKIPPED_DIRS = new Set(['.git', 'node_modules']);
+const SKIPPED_DIRS = ['.git', 'node_modules'];
 
 /**
  * @param {number} bytes
@@ -37,25 +38,6 @@ function staticBase(segments) {
 }
 
 /**
- * @param {string} absDir
- * @param {typeof nodeFs} fs
- * @returns {string[]} Absolute file paths under `absDir`.
- */
-function walkFiles(absDir, fs) {
-  if (!fs.existsSync(absDir)) return [];
-  const out = [];
-  for (const entry of fs.readdirSync(absDir, { withFileTypes: true })) {
-    const abs = path.join(absDir, entry.name);
-    if (entry.isDirectory()) {
-      if (!SKIPPED_DIRS.has(entry.name)) out.push(...walkFiles(abs, fs));
-    } else if (entry.isFile()) {
-      out.push(abs);
-    }
-  }
-  return out;
-}
-
-/**
  * Repo-relative files a bundle `path` (literal or glob) matches, sorted.
  *
  * @param {string} pattern
@@ -71,9 +53,12 @@ function resolveBundleFiles(pattern, cwd, fs = nodeFs) {
   }
   const isMatch = picomatch(posix, { dot: true });
   const base = staticBase(posix.split('/'));
-  return walkFiles(path.resolve(cwd, base), fs)
-    .filter((abs) => isMatch(path.relative(cwd, abs).split(path.sep).join('/')))
-    .sort();
+  return walkFiles(path.resolve(cwd, base), {
+    skipDirs: SKIPPED_DIRS,
+    filter: (abs, dirent) =>
+      dirent.isFile() && isMatch(toPosix(path.relative(cwd, abs))),
+    fsImpl: fs,
+  }).sort();
 }
 
 /**

@@ -14,9 +14,9 @@
 
 import { createHash } from 'node:crypto';
 import nodeFs from 'node:fs';
-import path from 'node:path';
 
 import { storyReviewDepositPath } from '../config/temp-paths.js';
+import { writeFileAtomic } from '../util/atomic-write.js';
 import { resolveSharedBaseRef } from './review-base-ref.js';
 
 const DEPOSIT_KIND = 'story-review-deposit';
@@ -137,14 +137,7 @@ export function depositAsComputedReview(deposit) {
  */
 export function writeReviewDeposit(deposit, { config, fsImpl = nodeFs } = {}) {
   const target = storyReviewDepositPath(deposit.storyId, config);
-  fsImpl.mkdirSync(path.dirname(target), { recursive: true });
-  const tmpPath = `${target}.${process.pid}.tmp`;
-  fsImpl.writeFileSync(
-    tmpPath,
-    `${JSON.stringify(deposit, null, 2)}\n`,
-    'utf8',
-  );
-  fsImpl.renameSync(tmpPath, target);
+  writeFileAtomic(target, `${JSON.stringify(deposit, null, 2)}\n`, { fsImpl });
   return target;
 }
 

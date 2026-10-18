@@ -6,15 +6,15 @@
  *
  * Advisory only — nothing in Mandrel decides on it. Every write is best
  * effort (an fs error is swallowed and logged at debug) and atomic (a
- * `<file>.tmp` sibling renamed over the target), so a poller never parses
+ * pid-scoped tmp sibling renamed over the target), so a poller never parses
  * half a file and an unwritable temp folder changes no delivery outcome.
  */
 
 import fs from 'node:fs';
-import path from 'node:path';
 
 import { storyProgressPath } from '../config/temp-paths.js';
 import { Logger } from '../Logger.js';
+import { writeFileAtomic } from '../util/atomic-write.js';
 
 const STORY_PROGRESS_KIND = 'story-progress';
 
@@ -43,18 +43,10 @@ export function handoffStepName(step) {
 function writeStoryProgress(file, record, deps = {}) {
   const fsImpl = deps.fsImpl ?? fs;
   const debug = deps.debug ?? ((msg) => Logger.debug(msg));
-  const tmp = `${file}.tmp`;
   try {
-    fsImpl.mkdirSync(path.dirname(file), { recursive: true });
-    fsImpl.writeFileSync(tmp, `${JSON.stringify(record, null, 2)}\n`, 'utf8');
-    fsImpl.renameSync(tmp, file);
+    writeFileAtomic(file, `${JSON.stringify(record, null, 2)}\n`, { fsImpl });
     return true;
   } catch (err) {
-    try {
-      fsImpl.rmSync(tmp, { force: true });
-    } catch {
-      // The stray tmp is harmless; the next write overwrites it.
-    }
     debug(`[story-progress] write skipped for ${file}: ${err?.message ?? err}`);
     return false;
   }

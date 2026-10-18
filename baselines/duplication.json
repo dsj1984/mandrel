@@ -345,12 +345,6 @@
       "percentage": 6.63
     },
     {
-      "path": "scripts/check-schema-references.js",
-      "duplicatedLines": 8,
-      "totalLines": 366,
-      "percentage": 2.19
-    },
-    {
       "path": "scripts/check-test-portability.js",
       "duplicatedLines": 9,
       "totalLines": 512,
@@ -373,12 +367,6 @@
       "duplicatedLines": 20,
       "totalLines": 291,
       "percentage": 6.87
-    },
-    {
-      "path": "scripts/lib/knip-entry-sync.js",
-      "duplicatedLines": 8,
-      "totalLines": 452,
-      "percentage": 1.77
     },
     {
       "path": "scripts/lib/test-isolate/runner.js",

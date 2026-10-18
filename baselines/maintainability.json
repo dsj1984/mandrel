@@ -400,7 +400,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/bundle-size-scorer.js",
-      "mi": 104.644
+      "mi": 107.258
     },
     {
       "path": ".agents/scripts/lib/baselines/component-matcher.js",
@@ -532,7 +532,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/writer.js",
-      "mi": 98.419
+      "mi": 99.198
     },
     {
       "path": ".agents/scripts/lib/bdd-runner-detect.js",
@@ -544,7 +544,7 @@
     },
     {
       "path": ".agents/scripts/lib/bdd-scenario-scanner.js",
-      "mi": 89.079
+      "mi": 96.99
     },
     {
       "path": ".agents/scripts/lib/bdd-step-index.js",
@@ -1040,7 +1040,7 @@
     },
     {
       "path": ".agents/scripts/lib/gates/baseline-store.js",
-      "mi": 104.319
+      "mi": 107.546
     },
     {
       "path": ".agents/scripts/lib/gates/friction.js",
@@ -1556,7 +1556,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/project-meta-cache.js",
-      "mi": 94.141
+      "mi": 96.27
     },
     {
       "path": ".agents/scripts/lib/orchestration/project-meta-resolver.js",
@@ -1592,7 +1592,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-deposit.js",
-      "mi": 97.217
+      "mi": 97.913
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-depth.js",
@@ -1848,7 +1848,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-deliver-terminal.js",
-      "mi": 99.591
+      "mi": 100.366
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-follow-ups.js",
@@ -1872,7 +1872,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-progress.js",
-      "mi": 103.422
+      "mi": 105.421
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-reachability.js",
@@ -2120,7 +2120,7 @@
     },
     {
       "path": ".agents/scripts/lib/test-temp.js",
-      "mi": 108.681
+      "mi": 110.033
     },
     {
       "path": ".agents/scripts/lib/test-tiers.js",
@@ -2139,6 +2139,10 @@
       "mi": 109.411
     },
     {
+      "path": ".agents/scripts/lib/util/atomic-write.js",
+      "mi": 114.319
+    },
+    {
       "path": ".agents/scripts/lib/util/concurrent-map.js",
       "mi": 98.282
     },
@@ -2148,7 +2152,7 @@
     },
     {
       "path": ".agents/scripts/lib/util/paths.js",
-      "mi": 132.771
+      "mi": 112.539
     },
     {
       "path": ".agents/scripts/lib/util/poll-loop.js",
@@ -2168,7 +2172,7 @@
     },
     {
       "path": ".agents/scripts/lib/validation-evidence.js",
-      "mi": 95.045
+      "mi": 96.25
     },
     {
       "path": ".agents/scripts/lib/wave-runner/cross-run-overlap.js",
@@ -2256,7 +2260,7 @@
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/pending-cleanup.js",
-      "mi": 98.312
+      "mi": 99.226
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/precheck.js",
@@ -2760,7 +2764,7 @@
     },
     {
       "path": "scripts/check-schema-references.js",
-      "mi": 99.343
+      "mi": 101.952
     },
     {
       "path": "scripts/check-test-portability.js",
@@ -2880,11 +2884,11 @@
     },
     {
       "path": "scripts/lib/knip-entry-sync.js",
-      "mi": 93.513
+      "mi": 97.092
     },
     {
       "path": "scripts/lib/payload-boundary.js",
-      "mi": 102.547
+      "mi": 103.732
     },
     {
       "path": "scripts/lib/pinned-override-notes.js",
@@ -2904,7 +2908,7 @@
     },
     {
       "path": "scripts/lib/test-isolate/list-files.js",
-      "mi": 105.26
+      "mi": 112.86
     },
     {
       "path": "scripts/lib/test-isolate/parse-tap.js",

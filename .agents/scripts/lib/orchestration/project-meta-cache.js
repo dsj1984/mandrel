@@ -10,6 +10,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { anchorTempRoot, tempRootFrom } from '../config/temp-paths.js';
+import { writeFileAtomic } from '../util/atomic-write.js';
 
 /** One hour spans a delivery run's cold flips yet forces periodic refresh. */
 const DEFAULT_META_TTL_MS = 60 * 60 * 1000;
@@ -58,17 +59,7 @@ function readCacheFile(filePath) {
 
 /** Tmp + rename: a reader never sees a partial write. Throws; reaps the tmp. */
 function writeStoreAtomic(filePath, store) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  const tmp = `${filePath}.${process.pid}.tmp`;
-  try {
-    fs.writeFileSync(tmp, `${JSON.stringify(store, null, 2)}\n`, 'utf8');
-    fs.renameSync(tmp, filePath);
-  } catch (err) {
-    try {
-      fs.unlinkSync(tmp);
-    } catch {}
-    throw err;
-  }
+  writeFileAtomic(filePath, `${JSON.stringify(store, null, 2)}\n`);
 }
 
 /**

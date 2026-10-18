@@ -5,9 +5,9 @@
  */
 
 import nodeFs from 'node:fs';
-import path from 'node:path';
 import { storyTerminalEnvelopePath } from '../config/temp-paths.js';
 import { resolveConfig } from '../config-resolver.js';
+import { writeFileAtomic } from '../util/atomic-write.js';
 import { validateTerminalEnvelope } from './story-deliver-terminal-schema.js';
 
 export { validateTerminalEnvelope };
@@ -273,23 +273,12 @@ export function persistTerminalEnvelope(
 ) {
   const storyId = envelope?.storyId;
   if (!Number.isInteger(storyId) || storyId <= 0) return null;
-  let tmpPath = null;
   try {
     const resolved = config ?? tolerantConfig(resolveConfigImpl);
     const target = storyTerminalEnvelopePath(storyId, resolved);
-    fsImpl.mkdirSync(path.dirname(target), { recursive: true });
-    tmpPath = `${target}.${process.pid}.tmp`;
-    fsImpl.writeFileSync(tmpPath, `${JSON.stringify(envelope)}\n`, 'utf8');
-    fsImpl.renameSync(tmpPath, target);
+    writeFileAtomic(target, `${JSON.stringify(envelope)}\n`, { fsImpl });
     return target;
   } catch {
-    if (tmpPath) {
-      try {
-        fsImpl.rmSync(tmpPath, { force: true });
-      } catch {
-        // Best-effort.
-      }
-    }
     return null;
   }
 }
