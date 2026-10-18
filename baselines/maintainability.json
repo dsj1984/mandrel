@@ -544,7 +544,7 @@
     },
     {
       "path": ".agents/scripts/lib/bdd-scenario-scanner.js",
-      "mi": 92.062
+      "mi": 96.99
     },
     {
       "path": ".agents/scripts/lib/bdd-step-index.js",
@@ -2152,7 +2152,7 @@
     },
     {
       "path": ".agents/scripts/lib/util/paths.js",
-      "mi": 111.491
+      "mi": 112.539
     },
     {
       "path": ".agents/scripts/lib/util/poll-loop.js",
@@ -2764,7 +2764,7 @@
     },
     {
       "path": "scripts/check-schema-references.js",
-      "mi": 100.961
+      "mi": 101.952
     },
     {
       "path": "scripts/check-test-portability.js",
@@ -2884,11 +2884,11 @@
     },
     {
       "path": "scripts/lib/knip-entry-sync.js",
-      "mi": 96.161
+      "mi": 97.092
     },
     {
       "path": "scripts/lib/payload-boundary.js",
-      "mi": 102.547
+      "mi": 103.732
     },
     {
       "path": "scripts/lib/pinned-override-notes.js",
