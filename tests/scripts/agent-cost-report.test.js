@@ -24,6 +24,18 @@ function tempDir(prefix) {
   return dir;
 }
 
+/** A git seam that lands Story 77 and never touches the real repository. */
+function fakeGit({ baseExists = true } = {}) {
+  return (args) => {
+    if (args[0] === 'rev-parse') return baseExists ? 'b'.repeat(40) : null;
+    if (args[0] === 'log')
+      return args[3] === '--grep=(refs #77)' ? 'c'.repeat(40) : '';
+    if (args[0] === 'show')
+      return ' 4 files changed, 90 insertions(+), 10 deletions(-)';
+    return null;
+  };
+}
+
 function sink() {
   const chunks = [];
   return { write: (s) => chunks.push(s), text: () => chunks.join('') };
@@ -91,6 +103,7 @@ describe('agent-cost-report CLI', () => {
       argv: ['--project-dir', projects, '--out-dir', outDir],
       stdout,
       stderr: sink(),
+      gitFn: fakeGit(),
     });
 
     assert.equal(outcome.exitCode, 0);
@@ -116,6 +129,46 @@ describe('agent-cost-report CLI', () => {
     const summary = fs.readFileSync(outcome.summaryPath, 'utf8');
     assert.match(summary, /\| story-worker \| high \|/);
     assert.match(summary, /\| main \| medium \|/);
+    assert.deepEqual(worker.delivered, {
+      sha: 'c'.repeat(40),
+      files: 4,
+      insertions: 90,
+      deletions: 10,
+    });
+    const main = report.rows.find((r) => r.agentType === 'main');
+    assert.equal(main.delivered, null);
+    assert.equal(report.base, 'origin/main');
+    assert.equal(report.summary.perStory[0].tokensPerChangedLine, 0.1);
+    assert.match(summary, /\| #77 \| 1 \| 10 \|.*\| \+90\/-10 \| 4 \|/);
+  });
+
+  it('degrades a missing --base ref to null delivered with a warning and exit 0', () => {
+    const projects = buildFixture();
+    const outDir = tempDir('agent-cost-out-');
+    const stderr = sink();
+
+    const outcome = runAgentCostReport({
+      argv: [
+        '--project-dir',
+        projects,
+        '--out-dir',
+        outDir,
+        '--base',
+        'gone/main',
+      ],
+      stdout: sink(),
+      stderr,
+      gitFn: fakeGit({ baseExists: false }),
+    });
+
+    assert.equal(outcome.exitCode, 0);
+    const report = JSON.parse(fs.readFileSync(outcome.reportPath, 'utf8'));
+    assert.ok(report.rows.every((r) => r.delivered === null));
+    assert.match(stderr.text(), /base ref not found: gone\/main/);
+    assert.match(
+      fs.readFileSync(outcome.summaryPath, 'utf8'),
+      /\| #77 \|.*\| — \| — \| — \|/,
+    );
   });
 
   it('never writes message content, tool input or tool result', () => {
@@ -126,6 +179,7 @@ describe('agent-cost-report CLI', () => {
       argv: ['--project-dir', projects, '--out-dir', outDir],
       stdout: sink(),
       stderr: sink(),
+      gitFn: fakeGit(),
     });
 
     for (const file of [outcome.reportPath, outcome.summaryPath]) {
@@ -150,6 +204,7 @@ describe('agent-cost-report CLI', () => {
       ],
       stdout: sink(),
       stderr: sink(),
+      gitFn: fakeGit(),
     });
 
     const report = JSON.parse(fs.readFileSync(outcome.reportPath, 'utf8'));
