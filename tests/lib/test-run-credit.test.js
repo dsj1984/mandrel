@@ -21,7 +21,6 @@ import {
   predictsTestEvidenceCredit,
   reportTestRunCredit,
   resolveEvidenceRoot,
-  storyIdFromBranch,
 } from '../../.agents/scripts/lib/test-run-credit.js';
 import { hashCommandConfig } from '../../.agents/scripts/lib/validation-evidence.js';
 
@@ -51,15 +50,6 @@ const gitFor = ({
       : { status: 0, stdout: `${out}\n` };
   };
 };
-
-describe('storyIdFromBranch', () => {
-  test('reads the Story id off story-<id> and nothing else', () => {
-    assert.equal(storyIdFromBranch('story-4321'), 4321);
-    for (const bad of ['main', 'story-', 'story-0', 'feat/story-4', null]) {
-      assert.equal(storyIdFromBranch(bad), null, String(bad));
-    }
-  });
-});
 
 describe('resolveEvidenceRoot', () => {
   test('maps a worktree onto the main checkout via the common git dir', () => {

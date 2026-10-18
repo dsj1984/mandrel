@@ -3,6 +3,8 @@
  * disabled (optional gates only); string → that command. Anything else throws.
  */
 
+import { isObject } from '../json-utils.js';
+
 /** `test` must stay byte-identical: every recorded `test` credit hashes it. */
 export const COMMANDS_DEFAULTS = Object.freeze({
   test: 'npm test',
@@ -29,16 +31,11 @@ function configError(detail) {
   return new Error(`[config] project.commands${detail}.`);
 }
 
-/** @param {unknown} value */
-function isPlainObject(value) {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-
 /** @param {object|null|undefined} config */
 function commandsBlock(config) {
   const commands = config?.project?.commands;
   if (commands === undefined) return {};
-  if (!isPlainObject(commands)) {
+  if (!isObject(commands)) {
     throw configError(' must be an object of command strings');
   }
   return commands;

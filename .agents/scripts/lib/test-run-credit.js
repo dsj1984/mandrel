@@ -73,14 +73,6 @@ function gitLine(gitSpawnFn, cwd, args) {
 }
 
 /**
- * @param {string|null} branch
- * @returns {number|null}
- */
-export function storyIdFromBranch(branch) {
-  return parseStoryBranch(branch);
-}
-
-/**
  * The main checkout (where close reads evidence), via `--git-common-dir`.
  *
  * @param {string} cwd
@@ -118,7 +110,7 @@ export function depositTestRunCredit({
 } = {}) {
   if (status !== 0) return { deposited: false, reason: 'run-not-green' };
   if (tier !== 'full') return { deposited: false, reason: 'not-full-tier' };
-  const storyId = storyIdFromBranch(
+  const storyId = parseStoryBranch(
     gitLine(gitSpawnFn, cwd, ['rev-parse', '--abbrev-ref', 'HEAD']),
   );
   if (storyId === null)

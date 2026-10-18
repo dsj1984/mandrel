@@ -10,7 +10,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { defaultSleep } from '../util/sleep.js';
+import { defaultSleep, sleepSync } from '../util/sleep.js';
 
 const DEFAULT_TIMEOUT_MS = 60_000;
 
@@ -456,10 +456,6 @@ function guardedRelease(lockPath, fsImpl, removeOwn) {
     removeOwn();
     return true;
   }
-}
-
-function sleepSync(ms) {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
 function buildAcquired(holder) {

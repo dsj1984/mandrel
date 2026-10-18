@@ -3,6 +3,7 @@ import path from 'node:path';
 
 import { orchestrationLogDir } from '../config/temp-paths.js';
 import { Logger } from '../Logger.js';
+import { slugifyLabel } from '../util/slug.js';
 
 /**
  * Hot-path CLIs log their full result and print one summary line, keeping a
@@ -17,12 +18,7 @@ const RESULT_DETAIL_ENV = 'MANDREL_RESULT_DETAIL';
  * @returns {string}
  */
 function slugify(label) {
-  return (
-    String(label)
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '') || 'result'
-  );
+  return slugifyLabel(String(label), { fallback: 'result' });
 }
 
 /**

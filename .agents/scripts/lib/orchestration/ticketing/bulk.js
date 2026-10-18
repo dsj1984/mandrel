@@ -6,6 +6,7 @@
  */
 
 import { Logger } from '../../Logger.js';
+import { defaultSleep } from '../../util/sleep.js';
 import { ALL_STATES, STATE_LABELS } from './reads.js';
 import {
   postStructuredComment,
@@ -15,10 +16,8 @@ import {
 
 /** Backoff for transient `gh` failures inside the cascade transition. */
 const CASCADE_RETRY_BACKOFF_MS = [250, 500, 1000];
-const defaultCascadeSleep = (ms) =>
-  new Promise((resolve) => setTimeout(resolve, ms));
 let _cascadeRetryDelays = CASCADE_RETRY_BACKOFF_MS;
-let _cascadeSleep = defaultCascadeSleep;
+let _cascadeSleep = defaultSleep;
 
 /**
  * Test seam; call with no arguments to restore defaults.
@@ -29,8 +28,7 @@ export function __setCascadeRetryDelays(opts = {}) {
   _cascadeRetryDelays = Array.isArray(opts.delays)
     ? opts.delays
     : CASCADE_RETRY_BACKOFF_MS;
-  _cascadeSleep =
-    typeof opts.sleep === 'function' ? opts.sleep : defaultCascadeSleep;
+  _cascadeSleep = typeof opts.sleep === 'function' ? opts.sleep : defaultSleep;
 }
 
 /**

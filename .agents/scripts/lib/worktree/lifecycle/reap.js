@@ -7,9 +7,9 @@
 import fs from 'node:fs';
 import { rm as fsPromisesRm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { defaultSleep, sleepSync } from '../../util/sleep.js';
 import { canonicalPath } from '../canonical-path.js';
 import { isInsideWorktree, samePath } from '../inspector.js';
-import { sleepSync } from '../node-modules-strategy.js';
 import { checkMergeReachability } from './merge-reachability.js';
 import { recordPendingCleanup } from './pending-cleanup.js';
 import { checkLocalSafety } from './precheck.js';
@@ -108,7 +108,7 @@ async function fsRmWithRetry(
     } catch (err) {
       lastErr = err;
       if (attempt < maxRetries && retryDelay > 0) {
-        await new Promise((r) => setTimeout(r, retryDelay));
+        await defaultSleep(retryDelay);
       }
     }
   }

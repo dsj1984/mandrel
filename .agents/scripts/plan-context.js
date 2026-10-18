@@ -31,6 +31,7 @@ import {
 } from './lib/orchestration/plan-context.js';
 import { recordPlanInvocation } from './lib/orchestration/plan-metrics.js';
 import { createProvider } from './lib/provider-factory.js';
+import { slugifyLabel } from './lib/util/slug.js';
 
 const PLAN_SLUG_MAX_LENGTH = 48;
 
@@ -42,13 +43,7 @@ const PLAN_SLUG_MAX_LENGTH = 48;
  * @returns {string} `plan` when nothing survives.
  */
 export function slugifyPlanLabel(raw) {
-  const slug = String(raw ?? '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, PLAN_SLUG_MAX_LENGTH)
-    .replace(/-+$/, '');
-  return slug === '' ? 'plan' : slug;
+  return slugifyLabel(raw, { max: PLAN_SLUG_MAX_LENGTH, fallback: 'plan' });
 }
 
 /**

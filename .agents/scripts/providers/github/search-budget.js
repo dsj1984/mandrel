@@ -4,6 +4,8 @@
  * it before every call so all callers share one budget.
  */
 
+import { defaultSleep } from '../../lib/util/sleep.js';
+
 /** GitHub's authenticated Search cap; cooldown applies when no reset is readable. */
 const SEARCH_BUDGET_DEFAULTS = Object.freeze({
   capacity: 30,
@@ -30,7 +32,7 @@ export function createSearchBudget({
   windowMs = SEARCH_BUDGET_DEFAULTS.windowMs,
   cooldownMs = SEARCH_BUDGET_DEFAULTS.cooldownMs,
   now = () => Date.now(),
-  sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  sleep = defaultSleep,
 } = {}) {
   const refillPerMs = capacity / windowMs;
   let tokens = capacity;

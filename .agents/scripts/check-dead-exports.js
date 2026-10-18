@@ -179,11 +179,7 @@ function writeTextReport({ stdout, stderr, label, knipError, diff }) {
   stdout.write(`${renderDiff(diff, label)}\n`);
 }
 
-async function main() {
-  return runCli();
-}
-
-runAsCli(import.meta.url, main, {
+runAsCli(import.meta.url, runCli, {
   source: 'dead-exports',
   propagateExitCode: true,
   errorPrefix: '[dead-exports] ❌ Fatal error',

@@ -21,7 +21,7 @@ function normalizeLabels(issue) {
  * @param {object} issue
  * @returns {object}
  */
-function baseIssueFields(issue) {
+export function baseIssueFields(issue) {
   const labels = normalizeLabels(issue);
   return {
     id: issue.number,
@@ -43,10 +43,6 @@ export function issueToTicket(issue) {
     stateReason: issue.state_reason ?? null,
     closedAt: issue.closed_at ?? null,
   };
-}
-
-export function issueToEpic(issue) {
-  return baseIssueFields(issue);
 }
 
 export function subIssueNodeToTicket(node) {

@@ -21,6 +21,7 @@ import {
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseGateArgv } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { mainCheckoutRoot } from './lib/config/temp-paths.js';
 import {
@@ -326,44 +327,39 @@ export function assertNoReservedIdStreams({
   return 1;
 }
 
+const MODE_FLAGS = ['--snapshot', '--assert', '--clean'];
+
 /**
  * @param {string[]} argv
  * @returns {{ mode: 'snapshot'|'assert'|'clean', apply: boolean, ids: number[]|null, repoRoot: string, baseline: string|null, lintGlobs: string[] }}
  */
 export function parseArgv(argv) {
-  let mode = 'assert';
-  let apply = false;
-  let ids = null;
-  let repoRoot = REPO_ROOT;
-  let baseline = null;
-  let lintGlobs = [];
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (arg === '--snapshot') mode = 'snapshot';
-    else if (arg === '--assert') mode = 'assert';
-    else if (arg === '--clean') mode = 'clean';
-    else if (arg === '--yes') apply = true;
-    else if (arg === '--lint-globs') {
-      i += 1;
-      lintGlobs = String(argv[i] ?? '')
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean);
-    } else if (arg === '--ids') {
-      i += 1;
-      ids = String(argv[i] ?? '')
-        .split(',')
-        .map((s) => Number(s.trim()))
-        .filter((n) => Number.isInteger(n) && n > 0);
-    } else if (arg === '--root') {
-      i += 1;
-      repoRoot = path.resolve(String(argv[i] ?? '.'));
-    } else if (arg === '--baseline') {
-      i += 1;
-      baseline = path.resolve(String(argv[i] ?? '.'));
-    }
-  }
-  return { mode, apply, ids, repoRoot, baseline, lintGlobs };
+  const values = parseGateArgv(argv, {
+    strings: ['lint-globs', 'ids', 'root', 'baseline'],
+    booleans: ['yes'],
+  });
+  const modeFlag = argv.filter((arg) => MODE_FLAGS.includes(arg)).at(-1);
+  return {
+    mode: modeFlag ? modeFlag.slice(2) : 'assert',
+    apply: values.yes,
+    ids:
+      values.ids === null
+        ? null
+        : splitList(values.ids)
+            .map(Number)
+            .filter((n) => Number.isInteger(n) && n > 0),
+    repoRoot: values.root === null ? REPO_ROOT : path.resolve(values.root),
+    baseline: values.baseline === null ? null : path.resolve(values.baseline),
+    lintGlobs: splitList(values['lint-globs'] ?? ''),
+  };
+}
+
+/** @param {string} raw */
+function splitList(raw) {
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 /**

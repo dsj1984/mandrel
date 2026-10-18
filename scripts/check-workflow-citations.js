@@ -194,11 +194,7 @@ export async function runCli({
   return 0;
 }
 
-async function main() {
-  return runCli();
-}
-
-runAsCli(import.meta.url, main, {
+runAsCli(import.meta.url, runCli, {
   source: 'workflow-citations',
   propagateExitCode: true,
   errorPrefix: '[workflow-citations] ❌ Fatal error',
