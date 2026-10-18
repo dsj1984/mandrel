@@ -2,7 +2,7 @@
 // buckets for per-component floors. The `*` component is the whole-repo
 // rollup and matches every row; overlap between components is allowed.
 
-import { Minimatch } from 'minimatch';
+import picomatch from 'picomatch';
 
 const DEFAULT_COMPONENTS = Object.freeze({ '*': Object.freeze(['**']) });
 
@@ -10,18 +10,18 @@ const DEFAULT_COMPONENTS = Object.freeze({ '*': Object.freeze(['**']) });
  * Compiled matchers keyed by glob: `groupRows` runs over tens of thousands of
  * rows, and re-parsing each glob per row dominated its cost.
  *
- * @type {Map<string, import('minimatch').Minimatch>}
+ * @type {Map<string, (path: string) => boolean>}
  */
 const GLOB_MATCHER_CACHE = new Map();
 
 /**
  * @param {string} glob
- * @returns {import('minimatch').Minimatch}
+ * @returns {(path: string) => boolean}
  */
 function matcherFor(glob) {
   let matcher = GLOB_MATCHER_CACHE.get(glob);
   if (!matcher) {
-    matcher = new Minimatch(glob, { dot: true });
+    matcher = picomatch(glob, { dot: true });
     GLOB_MATCHER_CACHE.set(glob, matcher);
   }
   return matcher;
@@ -91,7 +91,7 @@ export function groupRows(rows, components, keyField = 'path') {
       const list = Array.isArray(globs) ? globs : [];
       for (const glob of list) {
         if (typeof glob !== 'string' || glob.length === 0) continue;
-        if (matcherFor(glob).match(normalized)) {
+        if (matcherFor(glob)(normalized)) {
           buckets[name].push(row);
           break;
         }

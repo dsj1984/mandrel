@@ -8,7 +8,7 @@
     {
       "path": ".agents/scripts/acceptance-eval.js",
       "method": "getVerdictValidator",
-      "startLine": 63,
+      "startLine": 64,
       "crap": 1
     },
     {
@@ -32,160 +32,160 @@
     },
     {
       "path": ".agents/scripts/acceptance-eval.js",
-      "method": "readStoryAcceptanceCount",
-      "startLine": 129,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/acceptance-eval.js",
       "method": "readStoryAcceptance",
-      "startLine": 136,
+      "startLine": 132,
       "crap": 5
     },
     {
       "path": ".agents/scripts/acceptance-eval.js",
-      "method": "reconcileExpectedCriteria",
-      "startLine": 152,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/acceptance-eval.js",
-      "method": "resolveExpectedCriteriaCount",
-      "startLine": 168,
+      "method": "readStoryAcceptanceCount",
+      "startLine": 157,
       "crap": 2
     },
     {
       "path": ".agents/scripts/acceptance-eval.js",
       "method": "buildVerdictSkeleton",
-      "startLine": 174,
+      "startLine": 170,
       "crap": 1
     },
     {
       "path": ".agents/scripts/acceptance-eval.js",
       "method": "<anon buildVerdictSkeleton/(criterion,index)#0>",
-      "startLine": 185,
+      "startLine": 181,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/acceptance-eval.js",
-      "method": "resolveExpectedCriteria",
-      "startLine": 191,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/acceptance-eval.js",
       "method": "findUnfilledCriteria",
-      "startLine": 201,
+      "startLine": 197,
       "crap": 2
     },
     {
       "path": ".agents/scripts/acceptance-eval.js",
       "method": "<anon findUnfilledCriteria/(v)#0>",
-      "startLine": 203,
+      "startLine": 199,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/acceptance-eval.js",
       "method": "<anon findUnfilledCriteria/(c,i)#0>",
-      "startLine": 205,
+      "startLine": 201,
       "crap": 3,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/acceptance-eval.js",
       "method": "<anon findUnfilledCriteria/(i)#0>",
-      "startLine": 208,
+      "startLine": 204,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/acceptance-eval.js",
-      "method": "assertCriteriaCoverage",
-      "startLine": 212,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/acceptance-eval.js",
       "method": "assertVerdictFilled",
-      "startLine": 218,
+      "startLine": 214,
       "crap": 2
     },
     {
       "path": ".agents/scripts/acceptance-eval.js",
       "method": "readHeadSha",
-      "startLine": 228,
+      "startLine": 224,
       "crap": 3
-    },
-    {
-      "path": ".agents/scripts/acceptance-eval.js",
-      "method": "collectFullSuiteVerifyCommands",
-      "startLine": 230,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/acceptance-eval.js",
-      "method": "warnOnFullSuiteVerify",
-      "startLine": 248,
-      "crap": 2
     },
     {
       "path": ".agents/scripts/acceptance-eval.js",
       "method": "initVerdictSkeleton",
-      "startLine": 249,
+      "startLine": 245,
       "crap": 2
     },
     {
       "path": ".agents/scripts/acceptance-eval.js",
       "method": "<anon initVerdictSkeleton/(file,text)#0>",
-      "startLine": 255,
+      "startLine": 251,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/acceptance-eval.js",
+      "method": "reconcileExpectedCriteria",
+      "startLine": 297,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/acceptance-eval.js",
+      "method": "resolveExpectedCriteriaCount",
+      "startLine": 313,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/acceptance-eval.js",
+      "method": "resolveExpectedCriteria",
+      "startLine": 336,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/acceptance-eval.js",
+      "method": "assertCriteriaCoverage",
+      "startLine": 357,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/acceptance-eval.js",
+      "method": "collectFullSuiteVerifyCommands",
+      "startLine": 375,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/acceptance-eval.js",
+      "method": "warnOnFullSuiteVerify",
+      "startLine": 393,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/acceptance-eval.js",
       "method": "runAcceptanceEval",
-      "startLine": 275,
+      "startLine": 420,
       "crap": 7
     },
     {
       "path": ".agents/scripts/acceptance-eval.js",
       "method": "<anon runAcceptanceEval/(c)#0>",
-      "startLine": 342,
+      "startLine": 487,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/acceptance-eval.js",
+      "method": "requireStoryId",
+      "startLine": 503,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/acceptance-eval.js",
+      "method": "runInitCli",
+      "startLine": 516,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/acceptance-eval.js",
       "method": "runAcceptanceEvalCli",
-      "startLine": 371,
+      "startLine": 542,
       "crap": 8
     },
     {
       "path": ".agents/scripts/acceptance-eval.js",
       "method": "<anon runAcceptanceEvalCli/(c)#0>",
-      "startLine": 450,
+      "startLine": 620,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/acceptance-eval.js",
       "method": "main",
-      "startLine": 465,
+      "startLine": 635,
       "crap": 1.2962962962962963
-    },
-    {
-      "path": ".agents/scripts/acceptance-eval.js",
-      "method": "requireStoryId",
-      "startLine": 507,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/acceptance-eval.js",
-      "method": "runInitCli",
-      "startLine": 520,
-      "crap": 1
     },
     {
       "path": ".agents/scripts/apply-quality-bootstrap.js",
@@ -228,26 +228,26 @@
     {
       "path": ".agents/scripts/audit-exceptions.js",
       "method": "assertEnvelope",
-      "startLine": 54,
+      "startLine": 53,
       "crap": 3
     },
     {
       "path": ".agents/scripts/audit-exceptions.js",
       "method": "<anon assertEnvelope/(e)#0>",
-      "startLine": 62,
+      "startLine": 60,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-exceptions.js",
       "method": "runCli",
-      "startLine": 74,
+      "startLine": 72,
       "crap": 2
     },
     {
       "path": ".agents/scripts/audit-exceptions.js",
       "method": "<anon ()#0>",
-      "startLine": 107,
+      "startLine": 105,
       "crap": 1,
       "anonymous": true
     },
@@ -8054,7 +8054,7 @@
     {
       "path": ".agents/scripts/lib/baseline-schema-registry.js",
       "method": "buildBaselineSchemaAjv",
-      "startLine": 55,
+      "startLine": 54,
       "crap": 1
     },
     {
@@ -8098,26 +8098,26 @@
     {
       "path": ".agents/scripts/lib/baselines/bundle-size-scorer.js",
       "method": "measureBundle",
-      "startLine": 87,
+      "startLine": 85,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/baselines/bundle-size-scorer.js",
       "method": "buildBundleSizeScorer",
-      "startLine": 108,
+      "startLine": 106,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/baselines/bundle-size-scorer.js",
       "method": "<anon buildBundleSizeScorer/(_files,opts)#0>",
-      "startLine": 111,
+      "startLine": 109,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/baselines/bundle-size-scorer.js",
       "method": "<anon buildBundleSizeScorer/(_files,opts)#0/(bundle)#0>",
-      "startLine": 113,
+      "startLine": 111,
       "crap": 1,
       "anonymous": true
     },
@@ -19772,113 +19772,113 @@
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
       "method": "ignoreMatcherEntry",
-      "startLine": 45,
+      "startLine": 51,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
       "method": "<anon ignoreMatcherEntry/(g)#0>",
-      "startLine": 51,
+      "startLine": 57,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
       "method": "<anon ignoreMatcherEntry/(g)#1>",
-      "startLine": 52,
+      "startLine": 58,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
       "method": "canonicalRelPath",
-      "startLine": 75,
+      "startLine": 81,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
       "method": "memoisedIgnoreVerdict",
-      "startLine": 90,
+      "startLine": 96,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
-      "method": "<anon memoisedIgnoreVerdict/(m)#0>",
-      "startLine": 93,
+      "method": "<anon memoisedIgnoreVerdict/(isMatch)#0>",
+      "startLine": 99,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
       "method": "isIgnoredByGlobs",
-      "startLine": 98,
+      "startLine": 104,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
       "method": "scanDirectory",
-      "startLine": 116,
+      "startLine": 122,
       "crap": 7
     },
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
       "method": "assertCompilersResolved",
-      "startLine": 144,
+      "startLine": 149,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
       "method": "<anon assertCompilersResolved/(entry)#0>",
-      "startLine": 146,
+      "startLine": 151,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
       "method": "<anon assertCompilersResolved/(entry)#1>",
-      "startLine": 147,
+      "startLine": 152,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
       "method": "calculateAll",
-      "startLine": 153,
-      "crap": 3.0987654320987654
+      "startLine": 170,
+      "crap": 3.0934755822689706
     },
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
       "method": "<anon calculateAll/(p)#0>",
-      "startLine": 158,
-      "crap": 1.010973936899863,
+      "startLine": 175,
+      "crap": 1.0103861758076633,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
       "method": "<anon calculateAll/(abs,relPath)#0>",
-      "startLine": 165,
-      "crap": 1.010973936899863,
+      "startLine": 182,
+      "crap": 1.0103861758076633,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
       "method": "<anon calculateAll/(e)#0>",
-      "startLine": 178,
-      "crap": 1.010973936899863,
+      "startLine": 195,
+      "crap": 1.0103861758076633,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
       "method": "<anon calculateAll/(r,i)#0>",
-      "startLine": 180,
-      "crap": 5.274348422496571,
+      "startLine": 197,
+      "crap": 5.2596543951915855,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
       "method": "<anon calculateAll/(a,b)#0>",
-      "startLine": 195,
-      "crap": 3.0987654320987654,
+      "startLine": 212,
+      "crap": 3.0934755822689706,
       "anonymous": true
     },
     {
@@ -20192,20 +20192,26 @@
     {
       "path": ".agents/scripts/lib/observability/signal-validator.js",
       "method": "buildValidator",
-      "startLine": 32,
-      "crap": 2.4065185185185185
+      "startLine": 33,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/observability/signal-validator.js",
+      "method": "getValidator",
+      "startLine": 52,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/observability/signal-validator.js",
       "method": "violatingFieldOf",
-      "startLine": 54,
+      "startLine": 61,
       "crap": 12.544270303277019
     },
     {
       "path": ".agents/scripts/lib/observability/signal-validator.js",
       "method": "validateSignal",
-      "startLine": 76,
-      "crap": 6.058619987787503
+      "startLine": 83,
+      "crap": 6
     },
     {
       "path": ".agents/scripts/lib/observability/signals-writer.js",
@@ -23579,25 +23585,25 @@
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/emit-ledger-event.js",
       "method": "getValidator",
-      "startLine": 39,
+      "startLine": 36,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/emit-ledger-event.js",
       "method": "assertMergeTerminalFields",
-      "startLine": 56,
-      "crap": 14.808414725770099
+      "startLine": 52,
+      "crap": 10
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/emit-ledger-event.js",
       "method": "appendLedgerEvent",
-      "startLine": 90,
+      "startLine": 86,
       "crap": 2.020501045553323
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/emit-ledger-event.js",
       "method": "<anon appendLedgerEvent/(e)#0>",
-      "startLine": 102,
+      "startLine": 98,
       "crap": 2.020501045553323,
       "anonymous": true
     },
@@ -31885,31 +31891,31 @@
     {
       "path": ".agents/scripts/lib/orchestration/story-deliver-terminal-schema.js",
       "method": "loadSchemaSource",
-      "startLine": 31,
+      "startLine": 30,
       "crap": 1.008
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-deliver-terminal-schema.js",
       "method": "getValidator",
-      "startLine": 56,
+      "startLine": 55,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-deliver-terminal-schema.js",
       "method": "warnUnvalidated",
-      "startLine": 76,
+      "startLine": 74,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-deliver-terminal-schema.js",
       "method": "validateTerminalEnvelope",
-      "startLine": 95,
+      "startLine": 93,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-deliver-terminal-schema.js",
       "method": "<anon validateTerminalEnvelope/(e)#0>",
-      "startLine": 107,
+      "startLine": 105,
       "crap": 2,
       "anonymous": true
     },
@@ -37021,6 +37027,54 @@
       "crap": 3
     },
     {
+      "path": ".agents/scripts/lib/util/ajv.js",
+      "method": "isLeapYear",
+      "startLine": 20,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/util/ajv.js",
+      "method": "isDate",
+      "startLine": 30,
+      "crap": 7
+    },
+    {
+      "path": ".agents/scripts/lib/util/ajv.js",
+      "method": "isLeapSecond",
+      "startLine": 46,
+      "crap": 9
+    },
+    {
+      "path": ".agents/scripts/lib/util/ajv.js",
+      "method": "isTime",
+      "startLine": 60,
+      "crap": 10
+    },
+    {
+      "path": ".agents/scripts/lib/util/ajv.js",
+      "method": "isDateTime",
+      "startLine": 74,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/util/ajv.js",
+      "method": "withFormats",
+      "startLine": 84,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/util/ajv.js",
+      "method": "createAjv",
+      "startLine": 99,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/util/ajv.js",
+      "method": "createAjv2020",
+      "startLine": 109,
+      "crap": 1
+    },
+    {
       "path": ".agents/scripts/lib/util/concurrent-map.js",
       "method": "concurrentMap",
       "startLine": 21,
@@ -37214,38 +37268,38 @@
     {
       "path": ".agents/scripts/lib/validation-evidence.js",
       "method": "writeEvidenceAtomically",
-      "startLine": 227,
+      "startLine": 225,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/validation-evidence.js",
-      "method": "treeFingerprint",
-      "startLine": 231,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/validation-evidence.js",
       "method": "reapTmp",
-      "startLine": 240,
+      "startLine": 238,
       "crap": 2.0932944606413995
     },
     {
       "path": ".agents/scripts/lib/validation-evidence.js",
+      "method": "treeFingerprint",
+      "startLine": 255,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/validation-evidence.js",
       "method": "shouldSkip",
-      "startLine": 251,
+      "startLine": 275,
       "crap": 13
     },
     {
       "path": ".agents/scripts/lib/validation-evidence.js",
       "method": "<anon shouldSkip/(r)#0>",
-      "startLine": 259,
+      "startLine": 283,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/validation-evidence.js",
       "method": "forceClear",
-      "startLine": 286,
+      "startLine": 310,
       "crap": 2
     },
     {
@@ -41794,87 +41848,87 @@
     {
       "path": ".agents/scripts/validate-skills.js",
       "method": "defaultRepoRoot",
-      "startLine": 35,
+      "startLine": 34,
       "crap": 2
     },
     {
       "path": ".agents/scripts/validate-skills.js",
       "method": "parseArgs",
-      "startLine": 40,
+      "startLine": 39,
       "crap": 2.0240420736288502
     },
     {
       "path": ".agents/scripts/validate-skills.js",
       "method": "<anon parseArgs/(t)#0>",
-      "startLine": 42,
+      "startLine": 41,
       "crap": 2.0240420736288502,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/validate-skills.js",
       "method": "loadSkillSchema",
-      "startLine": 57,
+      "startLine": 56,
       "crap": 2.0054869684499312
     },
     {
       "path": ".agents/scripts/validate-skills.js",
       "method": "loadManifestSchema",
-      "startLine": 76,
+      "startLine": 75,
       "crap": 2.0054869684499312
     },
     {
       "path": ".agents/scripts/validate-skills.js",
-      "method": "createAjv",
+      "method": "createSkillsAjv",
       "startLine": 95,
       "crap": 1
     },
     {
       "path": ".agents/scripts/validate-skills.js",
       "method": "buildValidator",
-      "startLine": 103,
+      "startLine": 99,
       "crap": 1
     },
     {
       "path": ".agents/scripts/validate-skills.js",
       "method": "buildManifestValidator",
-      "startLine": 109,
+      "startLine": 105,
       "crap": 1
     },
     {
       "path": ".agents/scripts/validate-skills.js",
       "method": "readIndex",
-      "startLine": 119,
+      "startLine": 115,
       "crap": 1
     },
     {
       "path": ".agents/scripts/validate-skills.js",
       "method": "validateOne",
-      "startLine": 127,
+      "startLine": 123,
       "crap": 13.495623855078364
     },
     {
       "path": ".agents/scripts/validate-skills.js",
       "method": "rel",
-      "startLine": 162,
+      "startLine": 158,
       "crap": 1
     },
     {
       "path": ".agents/scripts/validate-skills.js",
       "method": "run",
-      "startLine": 170,
+      "startLine": 166,
       "crap": 9.060856498873028
     },
     {
       "path": ".agents/scripts/validate-skills.js",
       "method": "<anon run/(f)#0>",
-      "startLine": 229,
+      "startLine": 225,
       "crap": 1.0007513148009015,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/validate-skills.js",
       "method": "main",
-      "startLine": 237,
+      "startLine": 233,
       "crap": 2
     },
     {
@@ -44928,57 +44982,57 @@
     {
       "path": "scripts/install-matrix-assert.js",
       "method": "isLeak",
-      "startLine": 110,
+      "startLine": 108,
       "crap": 2
     },
     {
       "path": "scripts/install-matrix-assert.js",
       "method": "parseArgs",
-      "startLine": 130,
+      "startLine": 128,
       "crap": 9.081
     },
     {
       "path": "scripts/install-matrix-assert.js",
       "method": "<anon parseArgs/()#0>",
-      "startLine": 137,
+      "startLine": 135,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "scripts/install-matrix-assert.js",
       "method": "checkMaterialized",
-      "startLine": 167,
+      "startLine": 165,
       "crap": 2
     },
     {
       "path": "scripts/install-matrix-assert.js",
       "method": "checkManifestClean",
-      "startLine": 186,
+      "startLine": 184,
       "crap": 3
     },
     {
       "path": "scripts/install-matrix-assert.js",
       "method": "<anon checkManifestClean/(dep)#0>",
-      "startLine": 205,
+      "startLine": 203,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "scripts/install-matrix-assert.js",
       "method": "checkDoctorReady",
-      "startLine": 232,
+      "startLine": 230,
       "crap": 3
     },
     {
       "path": "scripts/install-matrix-assert.js",
       "method": "runAssertions",
-      "startLine": 271,
+      "startLine": 269,
       "crap": 7.032218295389168
     },
     {
       "path": "scripts/install-matrix-assert.js",
       "method": "<anon runAssertions/(r)#0>",
-      "startLine": 314,
+      "startLine": 312,
       "crap": 1.000657516232432,
       "anonymous": true
     },
@@ -45593,115 +45647,115 @@
     {
       "path": "scripts/lib/audit-exceptions.js",
       "method": "validate",
-      "startLine": 73,
+      "startLine": 72,
       "crap": 3
     },
     {
       "path": "scripts/lib/audit-exceptions.js",
       "method": "formatAjvErrors",
-      "startLine": 82,
+      "startLine": 80,
       "crap": 1
     },
     {
       "path": "scripts/lib/audit-exceptions.js",
       "method": "<anon formatAjvErrors/(e)#0>",
-      "startLine": 84,
+      "startLine": 82,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": "scripts/lib/audit-exceptions.js",
       "method": "loadExceptions",
-      "startLine": 99,
+      "startLine": 97,
       "crap": 4.005830903790088
     },
     {
       "path": "scripts/lib/audit-exceptions.js",
       "method": "todayUtc",
-      "startLine": 129,
+      "startLine": 127,
       "crap": 1
     },
     {
       "path": "scripts/lib/audit-exceptions.js",
       "method": "ghsaOf",
-      "startLine": 133,
+      "startLine": 131,
       "crap": 3
     },
     {
       "path": "scripts/lib/audit-exceptions.js",
       "method": "viaList",
-      "startLine": 139,
+      "startLine": 137,
       "crap": 2
     },
     {
       "path": "scripts/lib/audit-exceptions.js",
       "method": "blockingRoots",
-      "startLine": 149,
+      "startLine": 147,
       "crap": 4
     },
     {
       "path": "scripts/lib/audit-exceptions.js",
       "method": "reachedRoots",
-      "startLine": 167,
+      "startLine": 165,
       "crap": 5
     },
     {
       "path": "scripts/lib/audit-exceptions.js",
       "method": "ghsaIdsFor",
-      "startLine": 186,
+      "startLine": 184,
       "crap": 4.016
     },
     {
       "path": "scripts/lib/audit-exceptions.js",
       "method": "statusOf",
-      "startLine": 197,
+      "startLine": 195,
       "crap": 5
     },
     {
       "path": "scripts/lib/audit-exceptions.js",
       "method": "applyExceptions",
-      "startLine": 224,
+      "startLine": 222,
       "crap": 4
     },
     {
       "path": "scripts/lib/audit-exceptions.js",
       "method": "<anon applyExceptions/(exception)#0>",
-      "startLine": 227,
+      "startLine": 225,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "scripts/lib/audit-exceptions.js",
       "method": "<anon applyExceptions/(e)#0/(e)#0>",
-      "startLine": 232,
+      "startLine": 230,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "scripts/lib/audit-exceptions.js",
       "method": "<anon applyExceptions/(e)#0>",
-      "startLine": 232,
+      "startLine": 230,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "scripts/lib/audit-exceptions.js",
       "method": "<anon applyExceptions/(id)#0>",
-      "startLine": 238,
+      "startLine": 236,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "scripts/lib/audit-exceptions.js",
       "method": "<anon applyExceptions/(e)#1>",
-      "startLine": 242,
+      "startLine": 240,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "scripts/lib/audit-exceptions.js",
       "method": "auditWithExceptions",
-      "startLine": 257,
+      "startLine": 255,
       "crap": 2
     },
     {

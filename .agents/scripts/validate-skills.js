@@ -11,8 +11,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import Ajv from 'ajv';
-import addFormats from 'ajv-formats';
 import { parseStandardCliArgs } from './lib/cli/standard-args.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { Logger } from './lib/Logger.js';
@@ -28,6 +26,7 @@ import {
   LOCAL_SKILLS_SEGMENTS,
   PAYLOAD_SKILLS_SEGMENTS,
 } from './lib/skills/walk-skill-files.js';
+import { createAjv } from './lib/util/ajv.js';
 
 const MIN_CAPSULE_BULLETS = 5;
 const MAX_CAPSULE_BULLETS = 12;
@@ -92,22 +91,19 @@ function loadManifestSchema(repoRoot) {
   return JSON.parse(fs.readFileSync(fallback, 'utf8'));
 }
 
-function createAjv() {
-  const AjvCtor = Ajv.default ?? Ajv;
-  const ajv = new AjvCtor({ allErrors: true, strict: false });
-  const addFormatsFn = addFormats.default ?? addFormats;
-  addFormatsFn(ajv);
-  return ajv;
+/** One option bag for both skill-schema validators. */
+function createSkillsAjv() {
+  return createAjv({ allErrors: true, strict: false });
 }
 
 function buildValidator(repoRoot) {
-  const ajv = createAjv();
+  const ajv = createSkillsAjv();
   const schema = loadSkillSchema(repoRoot);
   return ajv.compile(schema);
 }
 
 function buildManifestValidator(repoRoot) {
-  const ajv = createAjv();
+  const ajv = createSkillsAjv();
   const schema = loadManifestSchema(repoRoot);
   return ajv.compile(schema);
 }

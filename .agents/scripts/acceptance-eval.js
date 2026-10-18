@@ -22,10 +22,6 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-
-import Ajv2020 from 'ajv/dist/2020.js';
-import addFormats from 'ajv-formats';
-
 import { deriveCeremony } from './ceremony-derive.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { getDeliveryRouting } from './lib/config/delivery-routing.js';
@@ -46,6 +42,7 @@ import {
 } from './lib/orchestration/verify-credit.js';
 import { createProvider } from './lib/provider-factory.js';
 import { parse as parseStoryBody } from './lib/story-body/story-body.js';
+import { createAjv2020 } from './lib/util/ajv.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -68,8 +65,7 @@ function getVerdictValidator(
   schemaPath = VERDICT_SCHEMA_PATH,
   io = { readFileSync },
 ) {
-  const ajv = new Ajv2020({ allErrors: true, strict: false });
-  addFormats(ajv);
+  const ajv = createAjv2020({ allErrors: true, strict: false });
   const schema = JSON.parse(io.readFileSync(schemaPath, 'utf8'));
   return ajv.compile(schema);
 }

@@ -27,8 +27,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import Ajv2020 from 'ajv/dist/2020.js';
-import addFormats from 'ajv-formats';
+import { createAjv2020 } from '../../../.agents/scripts/lib/util/ajv.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // v2 Stage 3: production schema dropped; fixture retained until Stage 5.
@@ -43,8 +42,7 @@ const SCHEMA_PATH = path.resolve(
 
 function compileSchema() {
   const schema = JSON.parse(readFileSync(SCHEMA_PATH, 'utf8'));
-  const ajv = new Ajv2020({ allErrors: true, strict: false });
-  addFormats(ajv);
+  const ajv = createAjv2020({ allErrors: true, strict: false });
   return ajv.compile(schema);
 }
 

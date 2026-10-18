@@ -396,7 +396,7 @@
     },
     {
       "path": ".agents/scripts/lib/baseline-schema-registry.js",
-      "mi": 102.269
+      "mi": 102.785
     },
     {
       "path": ".agents/scripts/lib/baselines/bundle-size-scorer.js",
@@ -2133,6 +2133,10 @@
     {
       "path": ".agents/scripts/lib/transpile.js",
       "mi": 96.875
+    },
+    {
+      "path": ".agents/scripts/lib/util/ajv.js",
+      "mi": 109.411
     },
     {
       "path": ".agents/scripts/lib/util/concurrent-map.js",

@@ -9,9 +9,9 @@
  *      declared in the manifest (the import-vs-manifest drift guard). If a
  *      new import is added without declaring it — or a declaration is
  *      removed while the import remains — this test fails.
- *   2. The manifest covers (at least) the eight required runtime packages
- *      named in the Story, and `minimatch` specifically is declared (the
- *      historical gap this Story closes).
+ *   2. The manifest covers (at least) the required runtime packages, and
+ *      the glob engine (`picomatch`) specifically is declared — the
+ *      historical gap Story #3432 closed was an undeclared glob engine.
  *   3. A negative control proves the drift comparison actually fails when a
  *      declaration is removed — i.e. the test is not vacuously green.
  */
@@ -32,12 +32,10 @@ const SCRIPTS_DIR = path.join(REPO_ROOT, '.agents', 'scripts');
 const REQUIRED_NAMED = [
   '@babel/parser',
   'ajv',
-  'ajv-formats',
   'babel-runtime',
   'escomplex-plugin-metrics-module',
   'escomplex-plugin-syntax-babylon',
   'js-yaml',
-  'minimatch',
   'picomatch',
   'typhonjs-ast-walker',
   'typhonjs-escomplex-commons',
@@ -59,7 +57,7 @@ describe('runtime-deps drift', () => {
     );
   });
 
-  it('covers the required runtime packages, including minimatch', () => {
+  it('covers the required runtime packages, including the glob engine', () => {
     const { dependencies } = loadRuntimeDepsManifest();
     for (const pkg of REQUIRED_NAMED) {
       assert.ok(
@@ -67,8 +65,8 @@ describe('runtime-deps drift', () => {
         `expected ${pkg} in runtime-deps.json "dependencies"`,
       );
     }
-    // The historical gap: minimatch was imported but never declared.
-    assert.ok(dependencies.minimatch, 'minimatch must be declared');
+    // The historical gap: the glob engine was imported but never declared.
+    assert.ok(dependencies.picomatch, 'picomatch must be declared');
   });
 
   it('declares typescript as an optional dependency (graceful-degradation path)', () => {
@@ -100,20 +98,20 @@ describe('runtime-deps drift', () => {
 
   it('fails the drift check when a declaration is removed (negative control)', () => {
     const { packages } = scanThirdPartyImports(SCRIPTS_DIR);
-    assert.ok(packages.has('minimatch'), 'precondition: minimatch is imported');
+    assert.ok(packages.has('picomatch'), 'precondition: picomatch is imported');
 
-    // Simulate a manifest that dropped `minimatch` while the import remains.
+    // Simulate a manifest that dropped `picomatch` while the import remains.
     const { declared } = loadRuntimeDepsManifest();
-    const declaredWithoutMinimatch = new Set(
-      [...declared].filter((pkg) => pkg !== 'minimatch'),
+    const declaredWithoutPicomatch = new Set(
+      [...declared].filter((pkg) => pkg !== 'picomatch'),
     );
     const undeclared = [...packages].filter(
-      (pkg) => !declaredWithoutMinimatch.has(pkg),
+      (pkg) => !declaredWithoutPicomatch.has(pkg),
     );
 
     assert.deepEqual(
       undeclared,
-      ['minimatch'],
+      ['picomatch'],
       'drift comparison must flag an imported-but-undeclared package',
     );
   });

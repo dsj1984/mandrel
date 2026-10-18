@@ -36,9 +36,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import Ajv from 'ajv/dist/2020.js';
-import addFormats from 'ajv-formats';
-
+import { createAjv2020 } from '../../.agents/scripts/lib/util/ajv.js';
 import runMigrations from '../../lib/migrations/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -98,8 +96,7 @@ function fixtureMigrations() {
 /** Compile a validator for the full agentrc root schema (draft 2020-12). */
 function compileAgentRcValidator() {
   const schema = readJson(AGENTRC_SCHEMA);
-  const ajv = new Ajv({ allErrors: true, strict: false });
-  addFormats(ajv);
+  const ajv = createAjv2020({ allErrors: true, strict: false });
   return ajv.compile(schema);
 }
 

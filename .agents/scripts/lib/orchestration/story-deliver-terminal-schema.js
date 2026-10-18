@@ -9,8 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import Ajv2020 from 'ajv/dist/2020.js';
-import addFormats from 'ajv-formats';
+import { createAjv2020 } from '../util/ajv.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -57,8 +56,7 @@ function getValidator(source) {
   if (!source?.schema) return null;
   const cached = VALIDATORS.get(source);
   if (cached) return cached;
-  const ajv = new Ajv2020({ allErrors: true, strict: false });
-  addFormats(ajv);
+  const ajv = createAjv2020({ allErrors: true, strict: false });
   const validate = ajv.compile(source.schema);
   VALIDATORS.set(source, validate);
   return validate;

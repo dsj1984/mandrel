@@ -8,7 +8,7 @@ import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 /**
  * Story #3217 — configurable `ignoreGlobs` for CRAP/MI baseline file
  * discovery. `scanDirectory` accepts an optional `opts` bag with
- * `ignoreGlobs` (minimatch patterns) and `cwd` (root for relative-path
+ * `ignoreGlobs` (picomatch patterns) and `cwd` (root for relative-path
  * computation). Files whose canonicalised relative path matches any glob
  * are excluded before scoring.
  */

@@ -5,10 +5,8 @@ import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import Ajv2020 from 'ajv/dist/2020.js';
-import addFormats from 'ajv-formats';
-
 import { AGENTRC_SCHEMA } from '../../.agents/scripts/lib/config-settings-schema.js';
+import { createAjv2020 } from '../../.agents/scripts/lib/util/ajv.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMA_DIR = path.resolve(
@@ -81,8 +79,7 @@ describe('lifecycle/schema-registry', () => {
   });
 
   it('every event schema compiles under AJV draft 2020-12', () => {
-    const ajv = new Ajv2020({ allErrors: true });
-    addFormats(ajv);
+    const ajv = createAjv2020({ allErrors: true });
     for (const event of REQUIRED_EVENTS) {
       const schema = readSchema(event);
       assert.doesNotThrow(
@@ -93,8 +90,7 @@ describe('lifecycle/schema-registry', () => {
   });
 
   it('ledger-record schema validates a sample emitted record', () => {
-    const ajv = new Ajv2020({ allErrors: true });
-    addFormats(ajv);
+    const ajv = createAjv2020({ allErrors: true });
     const validate = ajv.compile(readSchema('ledger-record'));
     const ok = validate({
       kind: 'emitted',
@@ -107,8 +103,7 @@ describe('lifecycle/schema-registry', () => {
   });
 
   it('ledger-record schema validates a sample completed record', () => {
-    const ajv = new Ajv2020({ allErrors: true });
-    addFormats(ajv);
+    const ajv = createAjv2020({ allErrors: true });
     const validate = ajv.compile(readSchema('ledger-record'));
     const ok = validate({
       kind: 'completed',
@@ -121,8 +116,7 @@ describe('lifecycle/schema-registry', () => {
   });
 
   it('ledger-record schema validates a sample failed record', () => {
-    const ajv = new Ajv2020({ allErrors: true });
-    addFormats(ajv);
+    const ajv = createAjv2020({ allErrors: true });
     const validate = ajv.compile(readSchema('ledger-record'));
     const ok = validate({
       kind: 'failed',
@@ -136,8 +130,7 @@ describe('lifecycle/schema-registry', () => {
   });
 
   it('ledger-record schema rejects an unknown kind', () => {
-    const ajv = new Ajv2020({ allErrors: true });
-    addFormats(ajv);
+    const ajv = createAjv2020({ allErrors: true });
     const validate = ajv.compile(readSchema('ledger-record'));
     const ok = validate({
       kind: 'unknown',
@@ -149,8 +142,7 @@ describe('lifecycle/schema-registry', () => {
   });
 
   it('agentrc.schema rejects retired delivery.lifecycle keys', () => {
-    const ajv = new Ajv2020({ allErrors: true });
-    addFormats(ajv);
+    const ajv = createAjv2020({ allErrors: true });
     const validate = ajv.compile(AGENTRC_SCHEMA);
     const ok = validate({
       project: {
@@ -174,8 +166,7 @@ describe('lifecycle/schema-registry', () => {
   });
 
   it('agentrc.schema accepts delivery.mergeWatch.maxBudgetSeconds', () => {
-    const ajv = new Ajv2020({ allErrors: true });
-    addFormats(ajv);
+    const ajv = createAjv2020({ allErrors: true });
     const validate = ajv.compile(AGENTRC_SCHEMA);
     const ok = validate({
       project: {
@@ -193,8 +184,7 @@ describe('lifecycle/schema-registry', () => {
   });
 
   it('agentrc.schema rejects the folded delivery.mergeWatch.intervalSeconds (Story #5382)', () => {
-    const ajv = new Ajv2020({ allErrors: true });
-    addFormats(ajv);
+    const ajv = createAjv2020({ allErrors: true });
     const validate = ajv.compile(AGENTRC_SCHEMA);
     const ok = validate({
       project: {
@@ -212,8 +202,7 @@ describe('lifecycle/schema-registry', () => {
   });
 
   it('agentrc.schema rejects negative delivery.mergeWatch.maxBudgetSeconds', () => {
-    const ajv = new Ajv2020({ allErrors: true });
-    addFormats(ajv);
+    const ajv = createAjv2020({ allErrors: true });
     const validate = ajv.compile(AGENTRC_SCHEMA);
     const ok = validate({
       project: {
@@ -231,8 +220,7 @@ describe('lifecycle/schema-registry', () => {
   });
 
   it('agentrc.schema rejects unknown delivery.mergeWatch key', () => {
-    const ajv = new Ajv2020({ allErrors: true });
-    addFormats(ajv);
+    const ajv = createAjv2020({ allErrors: true });
     const validate = ajv.compile(AGENTRC_SCHEMA);
     const ok = validate({
       project: {

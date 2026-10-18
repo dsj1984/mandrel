@@ -17,13 +17,12 @@ import path from 'node:path';
 import { afterEach, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import Ajv2020 from 'ajv/dist/2020.js';
-import addFormats from 'ajv-formats';
 import {
   emitMergeFlipFailed,
   MERGED_FLIP_FAILED_BLOCK_CLASS,
 } from '../../.agents/scripts/lib/orchestration/lifecycle/emit-merge-flip-failed.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
+import { createAjv2020 } from '../../.agents/scripts/lib/util/ajv.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMA_PATH = path.resolve(
@@ -38,8 +37,7 @@ const SCHEMA_PATH = path.resolve(
 
 function compileSchema() {
   const schema = JSON.parse(readFileSync(SCHEMA_PATH, 'utf8'));
-  const ajv = new Ajv2020({ allErrors: true });
-  addFormats(ajv);
+  const ajv = createAjv2020({ allErrors: true });
   return ajv.compile(schema);
 }
 
