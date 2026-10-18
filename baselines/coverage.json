@@ -4,9 +4,9 @@
   "rows": [
     {
       "path": ".agents/scripts/acceptance-eval.js",
-      "lines": 98.63,
-      "branches": 90,
-      "functions": 85.71
+      "lines": 99.7,
+      "branches": 88.28,
+      "functions": 95.65
     },
     {
       "path": ".agents/scripts/apply-quality-bootstrap.js",
@@ -587,7 +587,7 @@
     {
       "path": ".agents/scripts/lib/baselines/components.js",
       "lines": 100,
-      "branches": 82.05,
+      "branches": 83.33,
       "functions": 100
     },
     {
@@ -1714,8 +1714,8 @@
     },
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
-      "lines": 94.17,
-      "branches": 88.89,
+      "lines": 94.64,
+      "branches": 89.83,
       "functions": 100
     },
     {
@@ -1756,8 +1756,8 @@
     },
     {
       "path": ".agents/scripts/lib/observability/signal-validator.js",
-      "lines": 84.78,
-      "branches": 66.67,
+      "lines": 95,
+      "branches": 77.78,
       "functions": 100
     },
     {
@@ -2104,8 +2104,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/emit-ledger-event.js",
-      "lines": 88.98,
-      "branches": 60,
+      "lines": 95.61,
+      "branches": 91.67,
       "functions": 100
     },
     {
@@ -2471,7 +2471,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/mi-exemptions.js",
       "lines": 100,
-      "branches": 90.48,
+      "branches": 90.91,
       "functions": 100
     },
     {
@@ -3225,6 +3225,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/util/ajv.js",
+      "lines": 100,
+      "branches": 91.11,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/util/concurrent-map.js",
       "lines": 92.98,
       "branches": 88.89,
@@ -3262,8 +3268,8 @@
     },
     {
       "path": ".agents/scripts/lib/validation-evidence.js",
-      "lines": 96.95,
-      "branches": 92.31,
+      "lines": 96.55,
+      "branches": 91.46,
       "functions": 100
     },
     {
@@ -3748,8 +3754,8 @@
     },
     {
       "path": ".agents/scripts/validate-skills.js",
-      "lines": 87.35,
-      "branches": 61.76,
+      "lines": 87.14,
+      "branches": 65.63,
       "functions": 91.67
     },
     {

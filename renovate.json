@@ -86,13 +86,6 @@
       "labels": ["dependencies", "manual-review"]
     },
     {
-      "description": "DEFERRED — review by 2026-10-31. ajv-formats is effectively unmaintained upstream but is a load-bearing runtime dependency shipped in .agents/runtime-deps.json: it supplies the `date-time`/`uri` format assertions every schema validator in .agents/scripts/ relies on. It has no known vulnerability today (`npm audit` clean), so removal is deferred rather than forced — replacing it means re-authoring format assertions across every shipped schema. Updates stay ENABLED so a security release is never blocked, but auto-merge is off so each bump — and the deferral itself — gets a human look. At the review date, re-decide: adopt a maintained replacement, inline the small surface, or extend the deferral with a fresh date. (string-argv shared this deferral until its only importer, lint-baseline.js, was retired and the dependency dropped.)",
-      "matchPackageNames": ["ajv-formats"],
-      "automerge": false,
-      "platformAutomerge": false,
-      "labels": ["dependencies", "unmaintained-upstream"]
-    },
-    {
       "description": "Major updates always need manual review",
       "matchUpdateTypes": ["major"],
       "automerge": false,

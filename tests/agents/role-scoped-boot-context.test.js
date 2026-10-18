@@ -27,10 +27,9 @@ import path from 'node:path';
 import test, { before, describe } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import Ajv2020 from 'ajv/dist/2020.js';
-import addFormats from 'ajv-formats';
 import { syncClaudeAgents } from '../../.agents/scripts/lib/claude/agents-projection.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
+import { createAjv2020 } from '../../.agents/scripts/lib/util/ajv.js';
 import { assertDocMentions, assertDocOmits } from '../helpers/doc-assert.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -429,8 +428,7 @@ describe('acceptance-critic boot context produces a valid maker-blind verdict (d
         'utf8',
       ),
     );
-    const ajv = new Ajv2020({ allErrors: true, strict: false });
-    addFormats(ajv);
+    const ajv = createAjv2020({ allErrors: true, strict: false });
     const validate = ajv.compile(schema);
 
     const makerBlindVerdict = {

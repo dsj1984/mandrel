@@ -628,7 +628,7 @@ jobs:
         # The previous step runs the *packaged* doctor bin; this step executes
         # a file genuinely materialized under $CONSUMER_DIR/.agents/scripts/
         # with cwd=$CONSUMER_DIR. validate-skills.js imports third-party deps
-        # (ajv, ajv-formats) at module top, so even its read-only `--help` run
+        # (ajv) at module top, so even its read-only `--help` run
         # (exits 0) proves materialized scripts resolve runtime deps through
         # the package-root anchoring rather than free-riding on the consumer's
         # node_modules layout — under pnpm's isolated layout a free-ride

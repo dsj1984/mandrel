@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { Minimatch } from 'minimatch';
+import picomatch from 'picomatch';
 import { canonicalise as canonicalisePath } from './baselines/path-canon.js';
 import { POOL_SERIAL_THRESHOLD, runOnPool } from './cpu-pool.js';
 import { Logger } from './Logger.js';
@@ -33,12 +33,12 @@ export const IGNORED_DIRS = new Set([
 
 /**
  * Compiled matchers plus a per-path verdict memo, keyed on the pattern list:
- * functional `minimatch()` recompiles per call, and the gates ask about the
+ * `picomatch.isMatch()` recompiles per call, and the gates ask about the
  * same path once per CRAP row. Inputs are immutable config, so it is bounded.
  * `\u0000` is the join separator because it cannot occur in a glob, so two
  * different lists cannot collide onto one key.
  *
- * @type {Map<string, {matchers: import('minimatch').Minimatch[], verdicts: Map<string, boolean>}>}
+ * @type {Map<string, {matchers: ((path: string) => boolean)[], verdicts: Map<string, boolean>}>}
  */
 const IGNORE_MATCHER_CACHE = new Map();
 
@@ -46,7 +46,7 @@ const IGNORE_MATCHER_CACHE = new Map();
  * Non-string patterns are dropped rather than compiled.
  *
  * @param {string[]} ignoreGlobs
- * @returns {{matchers: import('minimatch').Minimatch[], verdicts: Map<string, boolean>}}
+ * @returns {{matchers: ((path: string) => boolean)[], verdicts: Map<string, boolean>}}
  */
 function ignoreMatcherEntry(ignoreGlobs) {
   const key = ignoreGlobs.join('\u0000');
@@ -55,7 +55,7 @@ function ignoreMatcherEntry(ignoreGlobs) {
   entry = {
     matchers: ignoreGlobs
       .filter((g) => typeof g === 'string')
-      .map((g) => new Minimatch(g, { dot: true })),
+      .map((g) => picomatch(g, { dot: true })),
     verdicts: new Map(),
   };
   IGNORE_MATCHER_CACHE.set(key, entry);
@@ -69,7 +69,7 @@ function ignoreMatcherEntry(ignoreGlobs) {
  * match.
  *
  * @param {string} filePath absolute or relative path to the source file
- * @param {string[]} ignoreGlobs minimatch patterns; empty/absent is a no-op
+ * @param {string[]} ignoreGlobs picomatch patterns; empty/absent is a no-op
  * @param {string} [cwd] root for repo-relative resolution; defaults to cwd
  * @returns {boolean} true when the file matches at least one ignore glob
  */
@@ -89,14 +89,14 @@ function canonicalRelPath(filePath, matchCwd) {
 /**
  * Split out to keep `isIgnoredByGlobs` under the per-method CRAP contract.
  *
- * @param {{matchers: import('minimatch').Minimatch[], verdicts: Map<string, boolean>}} entry
+ * @param {{matchers: ((path: string) => boolean)[], verdicts: Map<string, boolean>}} entry
  * @param {string} relPath Canonicalised, POSIX, repo-relative path.
  * @returns {boolean}
  */
 function memoisedIgnoreVerdict(entry, relPath) {
   const memoised = entry.verdicts.get(relPath);
   if (memoised !== undefined) return memoised;
-  const verdict = entry.matchers.some((m) => m.match(relPath));
+  const verdict = entry.matchers.some((isMatch) => isMatch(relPath));
   entry.verdicts.set(relPath, verdict);
   return verdict;
 }

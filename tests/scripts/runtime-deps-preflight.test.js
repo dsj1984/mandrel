@@ -48,7 +48,7 @@ describe('loadRuntimeDepsManifest', () => {
   it('parses the vendored manifest with required + optional sets', () => {
     const m = loadRuntimeDepsManifest();
     assert.ok(m.required.includes('ajv'));
-    assert.ok(m.required.includes('minimatch'));
+    assert.ok(m.required.includes('picomatch'));
     assert.ok(m.declared.has('ajv'));
     // optional deps are declared but kept out of the required (preflight) set.
     assert.ok(m.optional.includes('chokidar'));

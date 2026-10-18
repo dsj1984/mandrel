@@ -22,14 +22,12 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import Ajv from 'ajv/dist/2020.js';
-import addFormats from 'ajv-formats';
-
 import {
   BASELINES_GATE_NAMES,
   buildDefaultGates,
 } from '../.agents/scripts/lib/close-validation/gates.js';
 import { gatesForFailedPhase } from '../.agents/scripts/lib/orchestration/single-story-close/failed-terminal.js';
+import { createAjv2020 } from '../.agents/scripts/lib/util/ajv.js';
 
 const SCHEMA_PATH = fileURLToPath(
   new URL(
@@ -99,8 +97,7 @@ function deriveCloseValidationGateNames() {
 
 /** A fresh AJV-2020 validator compiled against the evidence schema. */
 function makeValidator() {
-  const ajv = new Ajv({ allErrors: true, strict: false });
-  addFormats(ajv);
+  const ajv = createAjv2020({ allErrors: true, strict: false });
   return ajv.compile(schema);
 }
 

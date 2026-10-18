@@ -22,9 +22,8 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import Ajv from 'ajv';
-import addFormats from 'ajv-formats';
 import { getAgentrcValidator } from '../../.agents/scripts/lib/config-settings-schema.js';
+import { createAjv } from '../../.agents/scripts/lib/util/ajv.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMAS_DIR = path.resolve(__dirname, '..', '..', '.agents', 'schemas');
@@ -33,8 +32,7 @@ const loadSchema = (filename) =>
   JSON.parse(readFileSync(path.join(SCHEMAS_DIR, filename), 'utf8'));
 
 const compile = (schema) => {
-  const ajv = new Ajv({ allErrors: true, strict: false });
-  addFormats(ajv);
+  const ajv = createAjv({ allErrors: true, strict: false });
   return ajv.compile(schema);
 };
 

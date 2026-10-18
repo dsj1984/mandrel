@@ -13,7 +13,7 @@ import { isIgnoredByGlobs } from '../../maintainability-utils.js';
  * scoring nothing would silently retire the dimension.
  *
  * @param {{ resolveConfigFn?: typeof resolveConfig, getQualityFn?: typeof getQuality }} [deps]
- * @returns {string[]} minimatch patterns; `[]` when unset or unresolvable.
+ * @returns {string[]} picomatch patterns; `[]` when unset or unresolvable.
  */
 export function resolveMaintainabilityIgnoreGlobs({
   resolveConfigFn = resolveConfig,
@@ -29,7 +29,7 @@ export function resolveMaintainabilityIgnoreGlobs({
 
 /**
  * Matches through `isIgnoredByGlobs`, the same rule the baseline uses; a
- * local `minimatch` would let the two surfaces disagree.
+ * local `picomatch` would let the two surfaces disagree.
  *
  * @param {string[]} files
  * @param {string[]} ignoreGlobs
