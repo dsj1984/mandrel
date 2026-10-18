@@ -80,6 +80,27 @@ describe('walkFiles', () => {
     assert.throws(() => walkFiles(root, { fsImpl }), /EACCES denied/);
   });
 
+  it('with onError, reports an unreadable subdirectory and keeps its siblings', () => {
+    const root = tree(['a.js', 'locked/b.js', 'open/c.js']);
+    const locked = path.join(root, 'locked');
+    const fsImpl = {
+      ...fs,
+      readdirSync: (dir, opts) => {
+        if (dir === locked) {
+          throw Object.assign(new Error('EACCES denied'), { code: 'EACCES' });
+        }
+        return fs.readdirSync(dir, opts);
+      },
+    };
+    const errors = [];
+    const out = walkFiles(root, {
+      fsImpl,
+      onError: (err, dir) => errors.push([err.code, dir]),
+    });
+    assert.deepEqual(rel(root, out), ['a.js', 'open/c.js']);
+    assert.deepEqual(errors, [['EACCES', locked]]);
+  });
+
   it('throws when the root is a file, not a directory', () => {
     const root = tree(['a.js']);
     assert.throws(() => walkFiles(path.join(root, 'a.js')), {

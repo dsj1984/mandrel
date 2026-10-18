@@ -137,22 +137,19 @@ export function parseArgv(argv = []) {
 }
 
 /**
- * Files under `dir` whose extension is in `extensions`; an unreadable tree
- * yields none.
+ * Files under `dir` whose extension is in `extensions`; an unreadable
+ * directory is skipped.
  *
  * @param {string} dir absolute directory to walk
  * @param {Set<string>} extensions lowercase extensions including the dot
  * @returns {string[]} absolute file paths
  */
 function walk(dir, extensions) {
-  try {
-    return walkFiles(dir, {
-      skipDirs: SKIP_DIRS,
-      filter: (_abs, d) => extensions.has(path.extname(d.name).toLowerCase()),
-    });
-  } catch {
-    return [];
-  }
+  return walkFiles(dir, {
+    skipDirs: SKIP_DIRS,
+    filter: (_abs, d) => extensions.has(path.extname(d.name).toLowerCase()),
+    onError: () => {},
+  });
 }
 
 /**

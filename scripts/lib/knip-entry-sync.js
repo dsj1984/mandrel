@@ -112,7 +112,7 @@ function stripStaticImports(text) {
 
 /**
  * Files under `dir`, skipping `node_modules` and `.git` unless `opts` says
- * otherwise; an unreadable tree yields none.
+ * otherwise; an unreadable directory is skipped.
  *
  * @param {string} dir absolute path
  * @param {typeof fs} fsImpl
@@ -120,11 +120,7 @@ function stripStaticImports(text) {
  * @returns {string[]} absolute file paths
  */
 function walk(dir, fsImpl, opts = { skipDirs: ['node_modules', '.git'] }) {
-  try {
-    return walkFiles(dir, { ...opts, fsImpl });
-  } catch {
-    return [];
-  }
+  return walkFiles(dir, { ...opts, onError: () => {}, fsImpl });
 }
 
 /**

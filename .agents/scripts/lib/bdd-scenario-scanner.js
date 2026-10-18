@@ -10,7 +10,8 @@ import { Logger } from './Logger.js';
 import { walkFiles } from './util/paths.js';
 
 /**
- * An unreadable or missing root is logged at debug and skipped, never thrown.
+ * An unreadable or missing directory is logged at debug and skipped, never
+ * thrown; its readable siblings are still listed.
  *
  * @param {string[]} roots
  * @param {{ logger?: { debug: Function } }} [opts]
@@ -18,22 +19,24 @@ import { walkFiles } from './util/paths.js';
  */
 export function listFeatureFiles(roots, opts = {}) {
   const logger = opts.logger ?? Logger;
-  const out = [];
-  for (const root of roots ?? []) {
-    try {
-      statSync(root);
-      out.push(
-        ...walkFiles(root, {
-          filter: (abs, d) => isFeatureFile(abs, d, logger),
-        }),
-      );
-    } catch (err) {
-      logger.debug(
-        `[bdd-scenario-scanner] readdir failed for ${root}: ${err?.message ?? err}`,
-      );
-    }
+  const onError = (err, dir) =>
+    logger.debug(
+      `[bdd-scenario-scanner] readdir failed for ${dir}: ${err?.message ?? err}`,
+    );
+  const filter = (abs, d) => isFeatureFile(abs, d, logger);
+  return (roots ?? [])
+    .filter((root) => rootReadable(root, onError))
+    .flatMap((root) => walkFiles(root, { filter, onError }));
+}
+
+function rootReadable(root, onError) {
+  try {
+    statSync(root);
+    return true;
+  } catch (err) {
+    onError(err, root);
+    return false;
   }
-  return out;
 }
 
 function isFeatureFile(abs, dirent, logger) {
