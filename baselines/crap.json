@@ -2266,6 +2266,13 @@
     },
     {
       "path": ".agents/scripts/check-test-temp-hygiene.js",
+      "method": "<anon parseArgv/(arg)#0>",
+      "startLine": 341,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/check-test-temp-hygiene.js",
       "method": "<anon parseArgv/(s)#0>",
       "startLine": 350,
       "crap": 1,
@@ -2283,6 +2290,19 @@
       "method": "<anon parseArgv/(n)#0>",
       "startLine": 357,
       "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/check-test-temp-hygiene.js",
+      "method": "splitList",
+      "startLine": 358,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/check-test-temp-hygiene.js",
+      "method": "<anon splitList/(s)#0>",
+      "startLine": 361,
+      "crap": 1,
       "anonymous": true
     },
     {
@@ -37082,6 +37102,18 @@
       "startLine": 12,
       "crap": 1,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/util/sleep.js",
+      "method": "sleepSync",
+      "startLine": 18,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/util/slug.js",
+      "method": "slugifyLabel",
+      "startLine": 5,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/util/with-timeout.js",
