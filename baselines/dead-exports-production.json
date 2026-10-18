@@ -1608,10 +1608,6 @@
       "symbol": "isTicketDone"
     },
     {
-      "file": ".agents/scripts/lib/single-story-sweep/protection.js",
-      "symbol": "storyIdFromBranch"
-    },
-    {
       "file": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
       "symbol": "isLockStale"
     },
@@ -1670,10 +1666,6 @@
     {
       "file": ".agents/scripts/lib/test-run-credit.js",
       "symbol": "resolveEvidenceRoot"
-    },
-    {
-      "file": ".agents/scripts/lib/test-run-credit.js",
-      "symbol": "storyIdFromBranch"
     },
     {
       "file": ".agents/scripts/lib/test-temp.js",
