@@ -120,6 +120,7 @@ export function summarize(rows) {
   );
   return {
     groups: summarized,
+    perStory: summarizePerStory(rows),
     totals: {
       rows: rows.length,
       messages: sum(rows.map((r) => r.messages)),
@@ -131,6 +132,53 @@ export function summarize(rows) {
       ),
     },
   };
+}
+
+/**
+ * One entry per non-null storyId: row count, token and wall sums, the landed
+ * diff (Story #5766) and tokens per changed line. Sorted by storyId
+ * descending.
+ *
+ * @param {Array<import('./read-transcripts.js').CostRow & {
+ *   delivered?: import('./delivered-diff.js').DeliveredDiff|null }>} rows
+ */
+function summarizePerStory(rows) {
+  const byStory = new Map();
+  for (const row of rows) {
+    if (row.storyId == null) continue;
+    if (!byStory.has(row.storyId)) byStory.set(row.storyId, []);
+    byStory.get(row.storyId).push(row);
+  }
+  return [...byStory.entries()]
+    .sort(([a], [b]) => b - a)
+    .map(([storyId, storyRows]) => perStoryEntry(storyId, storyRows));
+}
+
+/**
+ * @param {number} storyId
+ * @param {Parameters<typeof summarizePerStory>[0]} storyRows
+ */
+function perStoryEntry(storyId, storyRows) {
+  const totalTokens = sum(storyRows.map((r) => r.totalTokens));
+  const delivered = storyRows[0].delivered ?? null;
+  return {
+    storyId,
+    rows: storyRows.length,
+    totalTokens,
+    wallMs: sum(storyRows.map((r) => r.wallMs ?? 0)),
+    delivered,
+    tokensPerChangedLine: perChangedLine(totalTokens, delivered),
+  };
+}
+
+/**
+ * @param {number} totalTokens
+ * @param {import('./delivered-diff.js').DeliveredDiff|null} delivered
+ * @returns {number|null}
+ */
+function perChangedLine(totalTokens, delivered) {
+  const changed = delivered ? delivered.insertions + delivered.deletions : 0;
+  return changed > 0 ? totalTokens / changed : null;
 }
 
 /**
@@ -158,7 +206,8 @@ function fmtSeconds(ms) {
  * Render the summary as Markdown.
  *
  * @param {ReturnType<typeof summarize>} summary
- * @param {{ projectDirs: string[], filters: object, skippedLines: number }} context
+ * @param {{ projectDirs: string[], filters: object, skippedLines: number,
+ *   base?: string }} context
  * @returns {string}
  */
 export function renderSummaryMarkdown(summary, context) {
@@ -178,6 +227,7 @@ export function renderSummaryMarkdown(summary, context) {
     `- Rows: ${totals.rows} · messages: ${fmt(totals.messages)} · total tokens: ${fmt(totals.totalTokens)}`,
     `- Rows with a mid-session effort change: ${totals.rowsWithEffortChange} · cache creation after first change: ${fmt(totals.cacheCreationAfterFirstEffortChange)}`,
     `- Skipped unparseable lines: ${context.skippedLines}`,
+    ...(context.base ? [`- Delivered diffs from: ${context.base}`] : []),
     '',
     '| agentType | effort | model | count | tokens median | tokens p90 | tokens sum | wall median | wall p90 | effort-changed rows | cache after change |',
     '| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
@@ -187,6 +237,34 @@ export function renderSummaryMarkdown(summary, context) {
       `| ${g.agentType} | ${g.effort ?? '—'} | ${g.model ?? '—'} | ${g.count} | ${fmt(g.totalTokens.median)} | ${fmt(g.totalTokens.p90)} | ${fmt(g.totalTokens.sum)} | ${fmtSeconds(g.wallMs.median)} | ${fmtSeconds(g.wallMs.p90)} | ${g.rowsWithEffortChange} | ${fmt(g.cacheCreationAfterFirstEffortChange)} |`,
     );
   }
-  lines.push('');
+  lines.push('', ...renderPerStoryTable(summary.perStory ?? []));
   return lines.join('\n');
+}
+
+/**
+ * The `## Per Story` table; `—` where the Story has no landed commit.
+ *
+ * @param {ReturnType<typeof summarizePerStory>} perStory
+ * @returns {string[]}
+ */
+function renderPerStoryTable(perStory) {
+  const lines = [
+    '## Per Story',
+    '',
+    '| story | agent rows | tokens sum | wall sum | +/- lines | files | tokens per changed line |',
+    '| ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
+  ];
+  lines.push(...perStory.map(perStoryLine));
+  lines.push('');
+  return lines;
+}
+
+/**
+ * @param {ReturnType<typeof perStoryEntry>} s
+ * @returns {string}
+ */
+function perStoryLine(s) {
+  const d = s.delivered;
+  const diff = d ? `+${d.insertions}/-${d.deletions} | ${d.files}` : '— | —';
+  return `| #${s.storyId} | ${s.rows} | ${fmt(s.totalTokens)} | ${fmtSeconds(s.wallMs)} | ${diff} | ${fmt(s.tokensPerChangedLine)} |`;
 }
