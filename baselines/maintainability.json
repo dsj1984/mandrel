@@ -235,6 +235,10 @@
       "mi": 108.723
     },
     {
+      "path": ".agents/scripts/lib/audit-exceptions/adapters/shortcut-markers.js",
+      "mi": 107.629
+    },
+    {
       "path": ".agents/scripts/lib/audit-exceptions/adapters/test-skips.js",
       "mi": 105.216
     },
