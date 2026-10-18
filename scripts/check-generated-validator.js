@@ -227,11 +227,7 @@ export function runCli({
   return 0;
 }
 
-async function main() {
-  return runCli();
-}
-
-runAsCli(import.meta.url, main, {
+runAsCli(import.meta.url, runCli, {
   source: 'generated-validator',
   propagateExitCode: true,
   errorPrefix: '[generated-validator] ❌ Fatal error',

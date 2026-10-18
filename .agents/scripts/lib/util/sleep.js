@@ -13,3 +13,9 @@ export function defaultSleep(ms) {
     setTimeout(resolve, ms);
   });
 }
+
+/** Blocks without spinning; a no-op for a non-finite or non-positive `ms`. */
+export function sleepSync(ms) {
+  if (!Number.isFinite(ms) || ms <= 0) return;
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}

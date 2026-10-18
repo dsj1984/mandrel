@@ -5,6 +5,7 @@
  */
 
 import process from 'node:process';
+import { parseGateArgv } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { PROJECT_ROOT, resolveConfig } from './lib/config-resolver.js';
 import { resolveDocTiers } from './lib/doc-tiers.js';
@@ -14,21 +15,11 @@ import { resolveDocTiers } from './lib/doc-tiers.js';
  * @returns {{ rootPath: string | null, json: boolean }}
  */
 export function parseArgv(argv = []) {
-  let rootPath = null;
-  let json = false;
-  for (let i = 0; i < argv.length; i += 1) {
-    const a = argv[i];
-    if (a === '--root') {
-      const next = argv[i + 1];
-      if (next && !next.startsWith('--')) {
-        rootPath = next;
-        i += 1;
-      }
-    } else if (a === '--json') {
-      json = true;
-    }
-  }
-  return { rootPath, json };
+  const { root, json } = parseGateArgv(argv, {
+    strings: ['root'],
+    booleans: ['json'],
+  });
+  return { rootPath: root, json };
 }
 
 /**
@@ -59,11 +50,7 @@ export async function runCli(
   return 0;
 }
 
-async function main() {
-  return runCli();
-}
-
-runAsCli(import.meta.url, main, {
+runAsCli(import.meta.url, runCli, {
   source: 'resolve-doc-tiers',
   propagateExitCode: true,
   errorPrefix: '[resolve-doc-tiers] ❌ Fatal error',

@@ -9,6 +9,7 @@
  */
 
 import { fileURLToPath } from 'node:url';
+import { parseGateArgv } from './lib/cli-args.js';
 import { respondToHelp } from './lib/cli-usage.js';
 import { formatSyncReport, syncAgentrc } from './lib/config/sync-agentrc.js';
 import { Logger } from './lib/Logger.js';
@@ -26,21 +27,11 @@ const USAGE = {
   ],
 };
 
-function parseArgs(argv) {
-  const out = { cwd: null, quiet: false };
-  for (let i = 0; i < argv.length; i += 1) {
-    const a = argv[i];
-    if (a === '--cwd' && i + 1 < argv.length) {
-      out.cwd = argv[++i];
-    } else if (a === '--quiet') {
-      out.quiet = true;
-    }
-  }
-  return out;
-}
-
 export function main(argv = process.argv.slice(2)) {
-  const { cwd, quiet } = parseArgs(argv);
+  const { cwd, quiet } = parseGateArgv(argv, {
+    strings: ['cwd'],
+    booleans: ['quiet'],
+  });
   const projectRoot = cwd || process.cwd();
   const result = syncAgentrc({ projectRoot });
   const report = quiet

@@ -7,6 +7,8 @@
  * permission rule because a secondary rate limit arrives as HTTP 403.
  */
 
+import { defaultSleep } from '../../lib/util/sleep.js';
+
 /**
  * Schema facts (absent field, disabled feature) no retry can change. Never
  * add a bare `sub-issues` needle: it matches the endpoint name, so a rate
@@ -186,7 +188,7 @@ export async function withTransientRetry(fn, opts = {}) {
     classify = classifyGithubError,
     label = 'gh-api',
     onRetry,
-    sleep = (ms) => new Promise((r) => setTimeout(r, ms)),
+    sleep = defaultSleep,
     random = Math.random,
   } = opts;
 

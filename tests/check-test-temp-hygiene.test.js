@@ -302,6 +302,21 @@ describe('check-test-temp-hygiene — parseArgv', () => {
       path.resolve('/tmp/x/base.json'),
     );
   });
+
+  it('ignores unknown flags, lets the last mode win, and never lets a valueless flag swallow the next', () => {
+    const opts = parseArgv([
+      '--bogus',
+      '--clean',
+      '--snapshot',
+      '--ids',
+      '--yes',
+    ]);
+    assert.equal(opts.mode, 'snapshot');
+    assert.equal(opts.ids, null);
+    assert.equal(opts.apply, true);
+    assert.equal(parseArgv(['--baseline', '--clean']).baseline, null);
+    assert.equal(parseArgv(['--baseline', '--clean']).mode, 'clean');
+  });
 });
 
 /** Capture the guard's log lines instead of writing them to stdout. */

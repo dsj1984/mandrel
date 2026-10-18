@@ -410,7 +410,7 @@ describe('update-duplication-baseline — thin CLI wrapper (Story #4944)', () =>
   it('AC: retains the --baseline <path> override', () => {
     assert.match(
       source,
-      /'--baseline'/,
+      /strings: \['baseline'\]/,
       'CLI must still honour --baseline <path> (its one non-shared flag)',
     );
   });

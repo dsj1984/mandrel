@@ -10,6 +10,7 @@
 
 import os from 'node:os';
 import { Worker } from 'node:worker_threads';
+import { defaultSleep } from './util/sleep.js';
 
 const defaultWorkerFactory = (script, options) => new Worker(script, options);
 
@@ -136,10 +137,7 @@ export async function runOnPool(workerScript, items, opts = {}) {
             else worker.once('exit', resolve);
           });
           // Never unref: an idle-looking loop trips test-runner cancellation.
-          await Promise.race([
-            exited,
-            new Promise((resolve) => setTimeout(resolve, 1000)),
-          ]);
+          await Promise.race([exited, defaultSleep(1000)]);
         }
       }
       try {

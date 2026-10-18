@@ -3,7 +3,7 @@
  *
  * Covers the REST and GraphQL payload shapes for the live mappers:
  *   - issueToTicket           (REST Issue → normalized ticket)
- *   - issueToEpic             (REST Issue → Epic; raw body, no link parsing)
+ *   - baseIssueFields         (REST Issue → Epic; raw body, no link parsing)
  *   - issueToListItem         (REST Issue → list item)
  *   - subIssueNodeToTicket    (GraphQL node → ticket; labels.nodes shape)
  *
@@ -25,8 +25,12 @@ const mappersMod = await import(
   ).href
 );
 
-const { issueToTicket, issueToEpic, issueToListItem, subIssueNodeToTicket } =
-  mappersMod;
+const {
+  issueToTicket,
+  baseIssueFields,
+  issueToListItem,
+  subIssueNodeToTicket,
+} = mappersMod;
 
 describe('providers/github/mappers.js — REST payload shapes', () => {
   it('issueToTicket maps REST Issue with array-of-objects labels', () => {
@@ -98,14 +102,14 @@ describe('providers/github/mappers.js — REST payload shapes', () => {
     assert.strictEqual(t.labelSet.size, 0);
   });
 
-  it('issueToEpic returns the raw body without linked-issue parsing (legacy Planning Artifacts lines are inert)', () => {
+  it('baseIssueFields returns the raw body without linked-issue parsing (legacy Planning Artifacts lines are inert)', () => {
     // Story #4324 retired the context-ticket classes: the Epic body is the
     // single planning document, so a historical `## Planning Artifacts`
     // list (PRD / Tech Spec issue refs) is carried verbatim in `body` and
     // no `linkedIssues` slot is derived from it.
     const legacyBody =
       '## Planning Artifacts\n- [ ] PRD: #200\n- [ ] Tech Spec: #201\n';
-    const epic = issueToEpic({
+    const epic = baseIssueFields({
       number: 100,
       id: 9999,
       node_id: 'EPIC_NODE',
@@ -119,8 +123,8 @@ describe('providers/github/mappers.js — REST payload shapes', () => {
     assert.strictEqual(Object.hasOwn(epic, 'linkedIssues'), false);
   });
 
-  it('issueToEpic does not attach linkedIssues for a plain body either', () => {
-    const epic = issueToEpic({
+  it('baseIssueFields does not attach linkedIssues for a plain body either', () => {
+    const epic = baseIssueFields({
       number: 1,
       id: 1,
       node_id: 'N',
