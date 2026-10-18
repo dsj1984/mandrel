@@ -20,23 +20,13 @@ description:
 ## Long-form reference — read on demand
 
 The capsule above is the contract and the whole always-read surface of this
-skill. The long-form material behind it — patterns, worked examples,
-checklists, and rationalizations — lives in the on-demand sibling
+skill. The project-specific material behind it — the decisions-log layouts and
+the prune/archive procedure — lives in the on-demand sibling
 [`reference.md`](reference.md), matching the split the always-on rules already
 use ([`rules/git-conventions.md`](../../../rules/git-conventions.md) ⇄
 [`git-conventions-reference.md`](../../../rules/git-conventions-reference.md)).
 Activating this skill costs the capsule; open a section below only when the
 task actually engages it.
 
-- [Overview](reference.md#overview)
-- [When to Use](reference.md#when-to-use)
-- [Architecture Decision Records (ADRs)](reference.md#architecture-decision-records-adrs)
-- [Inline Documentation](reference.md#inline-documentation)
-- [API Documentation](reference.md#api-documentation)
-- [README Structure](reference.md#readme-structure)
-- [Changelog Maintenance](reference.md#changelog-maintenance)
-- [Pruning & Archiving](reference.md#pruning-archiving)
-- [Documentation for Agents](reference.md#documentation-for-agents)
-- [Common Rationalizations](reference.md#common-rationalizations)
-- [Red Flags](reference.md#red-flags)
-- [Verification](reference.md#verification)
+- [Decisions-log layouts](reference.md#decisions-log-layouts)
+- [Pruning & Archiving](reference.md#pruning--archiving)

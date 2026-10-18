@@ -23,28 +23,13 @@ description:
 ## Long-form reference — read on demand
 
 The capsule above is the contract and the whole always-read surface of this
-skill. The long-form material behind it — patterns, worked examples,
-checklists, and rationalizations — lives in the on-demand sibling
+skill. The project-specific material behind it — the finding-severity table and
+the post-green refactor pass — lives in the on-demand sibling
 [`reference.md`](reference.md), matching the split the always-on rules already
 use ([`rules/git-conventions.md`](../../../rules/git-conventions.md) ⇄
 [`git-conventions-reference.md`](../../../rules/git-conventions-reference.md)).
 Activating this skill costs the capsule; open a section below only when the
 task actually engages it.
 
-- [Overview](reference.md#overview)
-- [When to Use](reference.md#when-to-use)
-- [The Five-Axis Review](reference.md#the-five-axis-review)
-- [Change Sizing](reference.md#change-sizing)
-- [Change Descriptions](reference.md#change-descriptions)
-- [Review Process](reference.md#review-process)
-- [Multi-Model Review Pattern](reference.md#multi-model-review-pattern)
-- [Dead Code Hygiene](reference.md#dead-code-hygiene)
-- [Review Speed](reference.md#review-speed)
-- [Handling Disagreements](reference.md#handling-disagreements)
-- [Honesty in Review](reference.md#honesty-in-review)
-- [Dependency Discipline](reference.md#dependency-discipline)
-- [The Review Checklist](reference.md#the-review-checklist)
-- [Common Rationalizations](reference.md#common-rationalizations)
-- [Red Flags](reference.md#red-flags)
+- [Finding-Severity Table](reference.md#finding-severity-table)
 - [Post-Green Refactor Pass](reference.md#post-green-refactor-pass)
-- [Verification](reference.md#verification)
