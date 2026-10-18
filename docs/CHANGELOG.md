@@ -15,6 +15,13 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.92.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.91.0...mandrel-v2.92.0) (2026-10-18)
+
+
+### Fixed
+
+* keep the Story assignee until the merge lands, and report every board-Status sync that did not happen ([#5784](https://github.com/dsj1984/mandrel/issues/5784)) ([#5785](https://github.com/dsj1984/mandrel/issues/5785)) ([8ca2b61](https://github.com/dsj1984/mandrel/commit/8ca2b611adb70a4bb53ec3b35dcdfe42dc1528bc))
+
 ## [2.91.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.90.0...mandrel-v2.91.0) (2026-10-18)
 
 
