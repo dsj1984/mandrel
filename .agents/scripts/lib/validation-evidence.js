@@ -206,7 +206,6 @@ export function recordPass(
   doc.records = [...doc.records.filter((r) => r.gateName !== gateName), record];
 
   assertValidEvidence(doc);
-  // A torn file drops all credit, so the write is atomic.
   writeFileAtomic(
     evidencePath(storyId, evidenceOpts),
     JSON.stringify(doc, null, 2),
@@ -215,7 +214,6 @@ export function recordPass(
   return record;
 }
 
-/** @param {object} doc */
 function assertValidEvidence(doc) {
   const validator = getEvidenceValidator();
   if (validator(doc)) return;
@@ -225,7 +223,6 @@ function assertValidEvidence(doc) {
   throw new Error(`Evidence document failed schema validation: ${detail}`);
 }
 
-/** @param {unknown} value */
 function isNonEmptyString(value) {
   return typeof value === 'string' && value.length > 0;
 }

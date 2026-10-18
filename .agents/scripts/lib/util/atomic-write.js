@@ -1,17 +1,9 @@
-/**
- * The one tmp-then-rename write: a reader never sees a partial file.
- *
- * @module lib/util/atomic-write
- */
-
 import fs from 'node:fs';
 import path from 'node:path';
 
 /**
- * Write `contents` to `target` through a pid-scoped tmp sibling (same
- * directory, so the rename is atomic and two processes never share a tmp).
- * Creates the parent directory. On any failure the tmp is reaped and the
- * error rethrown — a best-effort caller keeps its own `try/catch`.
+ * Tmp-then-rename via a pid-scoped sibling; reaps the tmp and rethrows on
+ * failure.
  *
  * @param {string} target
  * @param {string} contents
@@ -29,13 +21,10 @@ export function writeFileAtomic(target, contents, { fsImpl = fs } = {}) {
   }
 }
 
-/** Best-effort removal; an injected fs may carry `rmSync` or `unlinkSync`. */
 function reapTmp(fsImpl, tmp) {
   try {
     if (typeof fsImpl.rmSync === 'function')
       fsImpl.rmSync(tmp, { force: true });
     else fsImpl.unlinkSync(tmp);
-  } catch {
-    // Never written, or already gone.
-  }
+  } catch {}
 }

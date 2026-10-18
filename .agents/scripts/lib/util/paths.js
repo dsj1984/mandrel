@@ -31,18 +31,11 @@ export function dirExists(dir) {
 }
 
 /**
- * Absolute paths of every non-directory entry under `dir` that passes
- * `filter`. Prunes a directory before descending when its name is in
- * `skipDirs` (or `skipDirs(name)` is true) — why `readdirSync({ recursive })`
- * is no substitute: it cannot prune `node_modules`. A missing root returns
- * `[]`; any other readdir error throws.
+ * Non-directory entries under `dir` passing `filter`, pruning `skipDirs`
+ * before descent. A missing root is `[]`; other readdir errors throw.
  *
  * @param {string} dir
- * @param {{
- *   skipDirs?: Iterable<string> | ((name: string) => boolean),
- *   filter?: (absPath: string, dirent: fs.Dirent) => boolean,
- *   fsImpl?: typeof fs,
- * }} [opts]
+ * @param {{ skipDirs?: Iterable<string> | ((name: string) => boolean), filter?: (absPath: string, dirent: fs.Dirent) => boolean, fsImpl?: typeof fs }} [opts]
  * @returns {string[]}
  */
 export function walkFiles(dir, { skipDirs = [], filter, fsImpl = fs } = {}) {

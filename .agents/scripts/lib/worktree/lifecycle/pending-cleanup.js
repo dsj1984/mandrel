@@ -91,7 +91,6 @@ function writeManifest(worktreeRoot, entries) {
   writeFileAtomic(p, `${JSON.stringify(entries, null, 2)}\n`);
 }
 
-/** `git worktree remove`, retried with `--force`. */
 function gitWorktreeRemove(wtPath, { git, repoRoot }) {
   const rm = git.gitSpawn(repoRoot, 'worktree', 'remove', wtPath);
   if (rm.status !== 0) {
@@ -99,7 +98,6 @@ function gitWorktreeRemove(wtPath, { git, repoRoot }) {
   }
 }
 
-/** A spawn result's diagnostic text. */
 function spawnOutput(result) {
   return (result.stderr || result.stdout || '').trim();
 }

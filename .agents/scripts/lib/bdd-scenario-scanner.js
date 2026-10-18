@@ -21,7 +21,7 @@ export function listFeatureFiles(roots, opts = {}) {
   const out = [];
   for (const root of roots ?? []) {
     try {
-      statSync(root); // a missing root is worth a debug line, not silence
+      statSync(root);
       out.push(
         ...walkFiles(root, {
           filter: (abs, d) => isFeatureFile(abs, d, logger),
