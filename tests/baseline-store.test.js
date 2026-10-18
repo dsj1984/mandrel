@@ -150,7 +150,7 @@ describe('writeBaseline — atomic write', () => {
   it('leaves no <path>.tmp residue after a successful write', () => {
     const p = path.join(tmpRoot, 'clean.json');
     writeBaseline({ baselinePath: p, data: { ok: true } });
-    assert.equal(fs.existsSync(`${p}.tmp`), false);
+    assert.equal(fs.existsSync(`${p}.${process.pid}.tmp`), false);
   });
 
   it('rejects circular structures with BaselineWriteError', () => {

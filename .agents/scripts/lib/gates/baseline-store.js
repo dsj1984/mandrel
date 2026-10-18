@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { readBaselineAtRef as defaultReadAtRef } from '../baseline-loader.js';
 import { Logger } from '../Logger.js';
+import { writeFileAtomic } from '../util/atomic-write.js';
 
 export class BaselineNotFoundError extends Error {
   constructor(message, details = {}) {
@@ -92,18 +93,9 @@ export function writeBaseline({
   indent = 2,
 } = {}) {
   const abs = absPath(baselinePath, projectRoot);
-  const tmp = `${abs}.tmp`;
   try {
-    const serialised = `${JSON.stringify(data, null, indent)}\n`;
-    fs.mkdirSync(path.dirname(abs), { recursive: true });
-    fs.writeFileSync(tmp, serialised, 'utf8');
-    fs.renameSync(tmp, abs);
+    writeFileAtomic(abs, `${JSON.stringify(data, null, indent)}\n`);
   } catch (err) {
-    try {
-      fs.rmSync(tmp, { force: true });
-    } catch {
-      /* best-effort cleanup */
-    }
     throw new BaselineWriteError(
       `[baseline-store] failed to write baseline at ${baselinePath}: ${err?.message ?? err}`,
       { path: abs, cause: err },

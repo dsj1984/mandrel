@@ -19,6 +19,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { storyTempDir } from './config/temp-paths.js';
 import { createAjv2020 } from './util/ajv.js';
+import { writeFileAtomic } from './util/atomic-write.js';
 
 export const SCHEMA_VERSION = 1;
 const DEFAULT_TEMP_DIR = 'temp';
@@ -197,50 +198,36 @@ export function recordPass(
     commandConfigHash: configHash,
     exitCode,
     durationMs,
-    inputFingerprint:
-      typeof inputFingerprint === 'string' && inputFingerprint.length > 0
-        ? inputFingerprint
-        : null,
+    inputFingerprint: isNonEmptyString(inputFingerprint)
+      ? inputFingerprint
+      : null,
     timestamp: resolved.now().toISOString(),
   };
   doc.records = [...doc.records.filter((r) => r.gateName !== gateName), record];
 
-  const validator = getEvidenceValidator();
-  if (!validator(doc)) {
-    const detail = (validator.errors || [])
-      .map((e) => `${e.instancePath || '(root)'} ${e.message}`)
-      .join('; ');
-    throw new Error(`Evidence document failed schema validation: ${detail}`);
-  }
-
-  writeEvidenceAtomically(
-    resolved.fs,
+  assertValidEvidence(doc);
+  // A torn file drops all credit, so the write is atomic.
+  writeFileAtomic(
     evidencePath(storyId, evidenceOpts),
     JSON.stringify(doc, null, 2),
+    { fsImpl: resolved.fs },
   );
   return record;
 }
 
-/** Atomic write (pid-scoped tmp + rename): a torn file drops all credit. */
-function writeEvidenceAtomically(fsImpl, file, body) {
-  fsImpl.mkdirSync(path.dirname(file), { recursive: true });
-  const tmpPath = `${file}.${process.pid}.tmp`;
-  try {
-    fsImpl.writeFileSync(tmpPath, body, 'utf8');
-    fsImpl.renameSync(tmpPath, file);
-  } catch (err) {
-    reapTmp(fsImpl, tmpPath);
-    throw err;
-  }
+/** @param {object} doc */
+function assertValidEvidence(doc) {
+  const validator = getEvidenceValidator();
+  if (validator(doc)) return;
+  const detail = (validator.errors || [])
+    .map((e) => `${e.instancePath || '(root)'} ${e.message}`)
+    .join('; ');
+  throw new Error(`Evidence document failed schema validation: ${detail}`);
 }
 
-/** Best-effort removal of a tmp sibling. */
-function reapTmp(fsImpl, tmpPath) {
-  try {
-    if (fsImpl.existsSync(tmpPath)) fsImpl.unlinkSync(tmpPath);
-  } catch {
-    // A leftover tmp is never read as evidence.
-  }
+/** @param {unknown} value */
+function isNonEmptyString(value) {
+  return typeof value === 'string' && value.length > 0;
 }
 
 /**
@@ -289,10 +276,7 @@ export function shouldSkip(
     return { skip: true, reason: 'evidence-match', record: match };
   }
   if (
-    typeof inputFingerprint === 'string' &&
-    inputFingerprint.length > 0 &&
-    typeof match.inputFingerprint === 'string' &&
-    match.inputFingerprint.length > 0 &&
+    isNonEmptyString(inputFingerprint) &&
     match.inputFingerprint === inputFingerprint
   ) {
     return { skip: true, reason: 'fingerprint-match', record: match };

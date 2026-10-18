@@ -13,6 +13,7 @@ import { rm as fsPromisesRm } from 'node:fs/promises';
 import path from 'node:path';
 import { NOOP_LOGGER } from '../../Logger.js';
 import { acquireSweepLock } from '../../single-story-sweep/sweep-lock.js';
+import { writeFileAtomic } from '../../util/atomic-write.js';
 
 const MANIFEST_FILENAME = '.pending-cleanup.json';
 const MANIFEST_LOCK_FILENAME = '.pending-cleanup.lock';
@@ -87,34 +88,20 @@ function writeManifest(worktreeRoot, entries) {
     }
     return;
   }
-  fs.mkdirSync(worktreeRoot, { recursive: true });
   writeFileAtomic(p, `${JSON.stringify(entries, null, 2)}\n`);
 }
 
-/**
- * Pid-scoped temp file in the same directory (so rename is atomic), renamed
- * into place; on failure the temp is reaped and the error propagates.
- *
- * @param {string} targetPath
- * @param {string} contents
- */
-function writeFileAtomic(targetPath, contents) {
-  const tmp = `${targetPath}.${process.pid}.tmp`;
-  try {
-    fs.writeFileSync(tmp, contents, 'utf8');
-    fs.renameSync(tmp, targetPath);
-  } catch (err) {
-    reapTempFile(tmp);
-    throw err;
+/** `git worktree remove`, retried with `--force`. */
+function gitWorktreeRemove(wtPath, { git, repoRoot }) {
+  const rm = git.gitSpawn(repoRoot, 'worktree', 'remove', wtPath);
+  if (rm.status !== 0) {
+    git.gitSpawn(repoRoot, 'worktree', 'remove', '--force', wtPath);
   }
 }
 
-function reapTempFile(tmp) {
-  try {
-    fs.unlinkSync(tmp);
-  } catch {
-    // Already gone.
-  }
+/** A spawn result's diagnostic text. */
+function spawnOutput(result) {
+  return (result.stderr || result.stdout || '').trim();
 }
 
 /**
@@ -164,10 +151,7 @@ export function removePendingCleanup(worktreeRoot, storyId) {
 
 async function removeStuckWorktreePath(wtPath, { git, repoRoot, fsRm }) {
   if (!fs.existsSync(wtPath)) return { ok: true };
-  let rm = git.gitSpawn(repoRoot, 'worktree', 'remove', wtPath);
-  if (rm.status !== 0) {
-    rm = git.gitSpawn(repoRoot, 'worktree', 'remove', '--force', wtPath);
-  }
+  gitWorktreeRemove(wtPath, { git, repoRoot });
   if (fs.existsSync(wtPath)) {
     try {
       await fsRm(wtPath, { recursive: true, force: true });
@@ -189,7 +173,7 @@ async function removeStuckWorktreePath(wtPath, { git, repoRoot, fsRm }) {
 function sweepBranchLocal(branch, { git, repoRoot, logger }) {
   const localDel = git.gitSpawn(repoRoot, 'branch', '-D', branch);
   if (localDel.status === 0) return true;
-  const stderr = (localDel.stderr || localDel.stdout || '').trim();
+  const stderr = spawnOutput(localDel);
   if (/not found|no such|not match/i.test(stderr)) return true;
   logger.warn(
     `worktree-sweep: branch -D ${branch} failed: ${stderr || 'unknown'} (continuing)`,
@@ -207,7 +191,7 @@ function sweepBranchRemote(branch, { git, repoRoot, logger }) {
     branch,
   );
   if (remoteDel.status === 0) return true;
-  const stderr = (remoteDel.stderr || remoteDel.stdout || '').trim();
+  const stderr = spawnOutput(remoteDel);
   if (/remote ref does not exist|not found/i.test(stderr)) return true;
   logger.warn(
     `worktree-sweep: push --delete ${branch} failed: ${stderr || 'unknown'} (continuing)`,
