@@ -31032,9 +31032,21 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
+      "method": "assertStoryId",
+      "startLine": 120,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "noopResult",
       "startLine": 125,
       "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
+      "method": "tagCloseError",
+      "startLine": 128,
+      "crap": 6
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
@@ -31099,9 +31111,21 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
+      "method": "buildPrContext",
+      "startLine": 417,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "releaseLease",
       "startLine": 420,
       "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
+      "method": "decideWaitForMerge",
+      "startLine": 446,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
@@ -32802,6 +32826,12 @@
       "crap": 1
     },
     {
+      "path": ".agents/scripts/lib/orchestration/story-init-result.js",
+      "method": "summarizeBoardSync",
+      "startLine": 90,
+      "crap": 3
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/story-progress.js",
       "method": "handoffStepName",
       "startLine": 29,
@@ -33684,8 +33714,26 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/transition.js",
+      "method": "reportBoardSync",
+      "startLine": 117,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/ticketing/transition.js",
       "method": "syncProjectStatusColumn",
       "startLine": 119,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/ticketing/transition.js",
+      "method": "boardSyncMessage",
+      "startLine": 123,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/ticketing/transition.js",
+      "method": "columnSyncFor",
+      "startLine": 131,
       "crap": 3
     },
     {
