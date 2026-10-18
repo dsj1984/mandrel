@@ -52,7 +52,7 @@ function envelope(findings, extra = {}) {
 }
 
 /**
- * @param {{ stdout?: string, status?: number, stderr?: string, diff?: object, auth?: object, logger?: object }} [opts]
+ * @param {{ stdout?: string, status?: number, stderr?: string, diff?: object, grep?: Function, auth?: object, logger?: object }} [opts]
  */
 function harness(opts = {}) {
   const calls = [];
@@ -62,6 +62,10 @@ function harness(opts = {}) {
     platform: opts.platform ?? 'linux',
     logger: opts.logger,
     gitSpawnFn: (cwd, ...args) => {
+      if (args[0] === 'grep') {
+        calls.push({ kind: 'grep', cwd, args });
+        return opts.grep?.(args) ?? { status: 1, stdout: '', stderr: '' };
+      }
       calls.push({ kind: 'diff', cwd, args });
       return opts.diff ?? { status: 0, stdout: DIFF, stderr: '' };
     },
@@ -547,4 +551,100 @@ test('the claude call never blocks the event loop: a concurrent gate child drain
   assert.deepEqual(provider.getDegradations(), []);
   assert.equal(gateBytes, 512 * 1024);
   assert.deepEqual(order, ['gate', 'review']);
+});
+
+const CALLER_DIFF = [
+  'diff --git a/src/a.js b/src/a.js',
+  '--- a/src/a.js',
+  '+++ b/src/a.js',
+  '@@ -1 +1 @@',
+  '-export function loadWidget(id) {',
+  '+export function loadWidget(id, opts) {',
+].join('\n');
+const CALLERS_SENTENCE =
+  'The <callers> block lists lines outside the diff that reference symbols ' +
+  'the diff changes; a caller the change breaks is a finding.';
+
+test('#5764 AC-1: at deep the prompt carries a <callers> block from git grep at the head ref', async () => {
+  const { provider, calls } = harness({
+    diff: { status: 0, stdout: CALLER_DIFF, stderr: '' },
+    grep: () => ({
+      status: 0,
+      stdout: 'story-5426:src/b.js:9:loadWidget(1);',
+      stderr: '',
+    }),
+  });
+  await provider.runReview({ ...INPUT, depth: 'deep' });
+  const grep = calls.find((c) => c.kind === 'grep');
+  assert.ok(grep.args.includes('story-5426'), 'greps the reviewed tip');
+  assert.ok(grep.args.includes(':(exclude)src/a.js'));
+  const { prompt } = invokeCall(calls);
+  assert.ok(prompt.includes(CALLERS_SENTENCE));
+  assert.match(
+    prompt,
+    /<callers>\n## loadWidget\nsrc\/b\.js:9: loadWidget\(1\);\n<\/callers>/,
+  );
+  assert.match(prompt, /Check every caller in the callers block/);
+  assert.deepEqual(provider.getDegradations(), []);
+});
+
+for (const depth of ['light', 'standard']) {
+  test(`#5764 AC-1: at ${depth} the prompt has no callers block and no grep runs`, async () => {
+    const { provider, calls } = harness({
+      diff: { status: 0, stdout: CALLER_DIFF, stderr: '' },
+    });
+    await provider.runReview({ ...INPUT, depth });
+    assert.equal(calls.filter((c) => c.kind === 'grep').length, 0);
+    const { prompt } = invokeCall(calls);
+    assert.ok(!prompt.includes('<callers>'));
+    assert.ok(!prompt.includes(CALLERS_SENTENCE));
+  });
+}
+
+test('#5764 AC-2: a 200,001-character diff yields one truncation degradation beside the parsed findings', async () => {
+  const head = 'diff --git a/src/a.js b/src/a.js\n+++ b/src/a.js\n';
+  const tail = '\ndiff --git a/src/z.js b/src/z.js\n+++ b/src/z.js\n';
+  const filler = 'x'.repeat(200_001 - head.length - tail.length);
+  const big = `${head}${filler}${tail}`;
+  assert.equal(big.length, 200_001);
+  const { provider } = harness({
+    diff: { status: 0, stdout: big, stderr: '' },
+    stdout: envelope([
+      { title: 'Bug', body: 'b', file: 'src/a.js', line: 1, category: 'bug' },
+    ]),
+  });
+  const findings = await provider.runReview(INPUT);
+  assert.equal(findings.length, 1, 'findings still returned');
+  const row = assertOneDegradation(provider, /truncated/);
+  assert.match(row.reason, /\b1 characters\b/);
+  assert.match(row.reason, /\b0 file\(s\)/);
+});
+
+test('#5764 AC-2: the truncation reason counts files whose first header is past the cut', async () => {
+  const head = 'diff --git a/src/a.js b/src/a.js\n+++ b/src/a.js\n';
+  const filler = 'x'.repeat(200_000);
+  const big = `${head}${filler}\n+++ b/src/y.js\n+++ b/src/z.js\n`;
+  const { provider } = harness({
+    diff: { status: 0, stdout: big, stderr: '' },
+  });
+  await provider.runReview(INPUT);
+  const row = assertOneDegradation(provider, /truncated at 200000 characters/);
+  assert.match(row.reason, new RegExp(`${big.length - 200_000} characters`));
+  assert.match(row.reason, /2 file\(s\) not reviewed/);
+});
+
+test('#5764 AC-2: a capped callers block records one degradation naming the dropped symbols', async () => {
+  const hits = Array.from(
+    { length: 30 },
+    (_, i) => `story-5426:src/b.js:${i + 1}:loadWidget();`,
+  ).join('\n');
+  const { provider } = harness({
+    diff: { status: 0, stdout: CALLER_DIFF, stderr: '' },
+    grep: () => ({ status: 0, stdout: hits, stderr: '' }),
+  });
+  await provider.runReview({ ...INPUT, depth: 'deep' });
+  assertOneDegradation(
+    provider,
+    /callers block incomplete; not checked: loadWidget/,
+  );
 });
