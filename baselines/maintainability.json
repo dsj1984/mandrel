@@ -1591,6 +1591,10 @@
       "mi": 96.376
     },
     {
+      "path": ".agents/scripts/lib/orchestration/review-providers/callers-context.js",
+      "mi": 100.514
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/review-providers/claude-verdict.js",
       "mi": 99.991
     },
