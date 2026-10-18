@@ -12,6 +12,9 @@
  * A missing CLI throws at construction (the chain entry is optional). A
  * review with no verdict records one degraded gate via `getDegradations()`
  * and returns no findings, so "never ran" cannot read as "found nothing".
+ * A review that reached a verdict still records what it did not check — a
+ * truncated diff, a capped `<callers>` block (depth `deep` only) — beside
+ * its findings.
  *
  * @typedef {import('./types.js').Finding}        Finding
  * @typedef {import('./types.js').ReviewInput}    ReviewInput
@@ -25,6 +28,7 @@ import path from 'node:path';
 import { spawnCaptureAsync } from '../../child-exec.js';
 import { gitSpawn } from '../../git-utils.js';
 import { PROJECT_ROOT } from '../../project-root.js';
+import { buildCallersSection } from './callers-context.js';
 import {
   clip,
   FINDINGS_SCHEMA_JSON,
@@ -51,7 +55,7 @@ const CLAUDE_ARGS = Object.freeze([
 const AUTH_ARGS = Object.freeze(['auth', 'status', '--json']);
 const INVOKE_TIMEOUT_MS = 10 * 60 * 1000;
 const AUTH_TIMEOUT_MS = 15 * 1000;
-/** Larger diffs are truncated; the reviewer is told so. */
+/** Larger diffs are truncated; the reviewer is told so and a degradation is recorded. */
 const MAX_DIFF_CHARS = 200_000;
 const DEGRADATION_BASE = Object.freeze({
   tool: 'code-review',
@@ -75,11 +79,35 @@ const PROMPT_HEAD =
   'Emit {"findings":[]} if there is nothing you would block the merge for.\n\n';
 
 /**
+ * The truncation degradation reason, or null when the diff fits: the
+ * unreviewed character count and the files whose first header is past the cut.
+ *
+ * @param {string} diff
+ * @returns {string|null}
+ */
+function truncationReason(diff) {
+  if (diff.length <= MAX_DIFF_CHARS) return null;
+  const firstHeader = new Map();
+  for (const match of diff.matchAll(/^\+\+\+ b\/(.+)$/gm)) {
+    if (!firstHeader.has(match[1])) firstHeader.set(match[1], match.index);
+  }
+  const unreviewedFiles = [...firstHeader.values()].filter(
+    (index) => index >= MAX_DIFF_CHARS,
+  ).length;
+  return (
+    `diff truncated at ${MAX_DIFF_CHARS} characters: ` +
+    `${diff.length - MAX_DIFF_CHARS} characters and ${unreviewedFiles} ` +
+    'file(s) not reviewed'
+  );
+}
+
+/**
  * @param {ReviewInput} input
  * @param {string} diff
+ * @param {string} callers - the `<callers>` section, or '' below `deep`.
  * @returns {string}
  */
-function buildPrompt(input, diff) {
+function buildPrompt(input, diff, callers) {
   const truncated = diff.length > MAX_DIFF_CHARS;
   const body = truncated ? diff.slice(0, MAX_DIFF_CHARS) : diff;
   const note = truncated
@@ -89,7 +117,7 @@ function buildPrompt(input, diff) {
     .replace('{headRef}', input.headRef)
     .replace('{ticketId}', String(input.ticketId))
     .replace('{depthDirective}', renderDepthDirective(input.depth));
-  return `${head}<diff>\n${body}${note}\n</diff>\n`;
+  return `${head}<diff>\n${body}${note}\n</diff>\n${callers}`;
 }
 
 /**
@@ -222,6 +250,12 @@ export function createCodeReviewProviderForRegistry(deps = {}) {
   /** @type {GateDegradation[]} */
   let degradations = [];
 
+  /** Record a not-checked slice without replacing the findings. */
+  function noteDegradation(reason) {
+    degradations.push({ ...DEGRADATION_BASE, reason });
+    deps.logger?.warn?.(`[code-review] Not checked: ${reason}.`);
+  }
+
   function settle(verdict) {
     if (!('reason' in verdict)) return verdict.findings;
     degradations.push({ ...DEGRADATION_BASE, reason: verdict.reason });
@@ -236,8 +270,20 @@ export function createCodeReviewProviderForRegistry(deps = {}) {
       const diff = readDiff(gitSpawnFn, input);
       if ('reason' in diff) return settle(diff);
       if (diff.text.trim().length === 0) return [];
+      const truncation = truncationReason(diff.text);
+      if (truncation) noteDegradation(truncation);
+      const callers = buildCallersSection({
+        diff: diff.text,
+        input,
+        cwd: PROJECT_ROOT,
+        gitSpawnFn,
+      });
+      if (callers.reason) noteDegradation(callers.reason);
       return settle(
-        await reviewInTempDir(buildPrompt(input, diff.text), runDeps),
+        await reviewInTempDir(
+          buildPrompt(input, diff.text, callers.text),
+          runDeps,
+        ),
       );
     },
     getDegradations() {
