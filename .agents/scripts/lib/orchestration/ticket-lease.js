@@ -167,6 +167,44 @@ function notAssignableMessage(operator, ticketId) {
 }
 
 /**
+ * The re-read holds no foreign login: the claim stuck unless it is empty,
+ * which means GitHub dropped the operator.
+ *
+ * @param {object} args
+ * @param {object} args.provider
+ * @param {number} args.ticketId
+ * @param {string} args.operator
+ * @param {string|null} args.previousOwner
+ * @param {string} args.reason
+ * @param {string[]} args.assignees           The verify re-read.
+ * @returns {Promise<{ acquired: boolean, owner: string|null, previousOwner: string|null, reason: string, message?: string }>}
+ */
+async function settleUncontested({
+  provider,
+  ticketId,
+  operator,
+  previousOwner,
+  reason,
+  assignees,
+}) {
+  if (assignees.length > 0) {
+    return { acquired: true, owner: operator, previousOwner, reason };
+  }
+  if (previousOwner !== null) {
+    await provider
+      .updateTicket(ticketId, { assignees: [previousOwner] })
+      .catch(() => undefined);
+  }
+  return {
+    acquired: false,
+    owner: null,
+    previousOwner,
+    reason: 'not-assignable',
+    message: notAssignableMessage(operator, ticketId),
+  };
+}
+
+/**
  * Write, then re-read with `fresh: true`. A foreign co-assignee backs us out
  * as `lost-race`; an operator absent from the re-read is `not-assignable`
  * (GitHub ignores an unassignable login without an error), restoring a
@@ -194,21 +232,14 @@ async function claimAndVerify({
   const foreign = assignees.filter((login) => !sameLogin(login, operator));
 
   if (foreign.length === 0) {
-    if (assignees.length > 0) {
-      return { acquired: true, owner: operator, previousOwner, reason };
-    }
-    if (previousOwner !== null) {
-      await provider
-        .updateTicket(ticketId, { assignees: [previousOwner] })
-        .catch(() => undefined);
-    }
-    return {
-      acquired: false,
-      owner: null,
+    return settleUncontested({
+      provider,
+      ticketId,
+      operator,
       previousOwner,
-      reason: 'not-assignable',
-      message: notAssignableMessage(operator, ticketId),
-    };
+      reason,
+      assignees,
+    });
   }
 
   // Lost the race: leave the winner as sole assignee.
