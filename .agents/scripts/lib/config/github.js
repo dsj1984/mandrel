@@ -3,6 +3,8 @@
  * `/agents-bootstrap-github` registers as required-status checks.
  */
 
+import { isObject } from '../json-utils.js';
+
 /** Keep in sync with the job names in `.github/workflows/ci.yml`. */
 export const DEFAULT_REQUIRED_CHECKS = Object.freeze([
   Object.freeze({
@@ -105,5 +107,27 @@ export function getGitHub(config) {
         ? userNotifications.webhookEvents
         : [...NOTIFICATIONS_DEFAULTS.webhookEvents],
     },
+  };
+}
+
+/**
+ * `GH_OPERATOR_HANDLE` wins over `github.operatorHandle`, for sessions with no
+ * gitignored `.agentrc.local.json` (Claude Code cloud environments). Applied
+ * before validation; a bare login gains the `@` the schema requires. Only a
+ * config that already has a `github` block is touched — a lone handle would
+ * fail the block's required `owner` / `repo`.
+ *
+ * @param {{ raw: object|null, source: string }} read
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {{ raw: object|null, source: string }}
+ */
+export function applyOperatorHandleEnv(read, env = process.env) {
+  const handle = String(env.GH_OPERATOR_HANDLE ?? '').trim();
+  const github = read.raw?.github;
+  if (handle.length === 0 || !isObject(github)) return read;
+  const operatorHandle = handle.startsWith('@') ? handle : `@${handle}`;
+  return {
+    ...read,
+    raw: { ...read.raw, github: { ...github, operatorHandle } },
   };
 }

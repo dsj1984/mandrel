@@ -33,6 +33,13 @@ describe('config-resolver — .agentrc.local.json overlay (Story #3388)', () => 
   beforeEach((t) => {
     vol = new Volume();
     setupFsMock(t, vol);
+    // The operator-handle env override must not leak in from the host shell.
+    const savedHandle = process.env.GH_OPERATOR_HANDLE;
+    delete process.env.GH_OPERATOR_HANDLE;
+    t.after(() => {
+      if (savedHandle === undefined) delete process.env.GH_OPERATOR_HANDLE;
+      else process.env.GH_OPERATOR_HANDLE = savedHandle;
+    });
     resolveConfig({ bustCache: true });
   });
 
@@ -109,5 +116,71 @@ describe('config-resolver — .agentrc.local.json overlay (Story #3388)', () => 
       () => resolveConfig({ bustCache: true, cwd: FIXTURE_ROOT }),
       /operatorHandle.*\.agentrc\.local\.json.*@\[USERNAME\]/,
     );
+  });
+
+  describe('GH_OPERATOR_HANDLE env override', () => {
+    const GITHUB = Object.freeze({
+      owner: 'acme',
+      repo: 'demo',
+      operatorHandle: '@[USERNAME]',
+    });
+
+    it('wins over the committed .agentrc.json handle', () => {
+      writeConfigs({ agentrc: { ...REQ, github: GITHUB } });
+      process.env.GH_OPERATOR_HANDLE = '@beesterastaff';
+
+      const config = resolveConfig({ bustCache: true, cwd: FIXTURE_ROOT });
+      assert.equal(config.github.operatorHandle, '@beesterastaff');
+      assert.equal(config.raw.github.operatorHandle, '@beesterastaff');
+    });
+
+    it('wins over the .agentrc.local.json overlay', () => {
+      writeConfigs({
+        agentrc: { ...REQ, github: GITHUB },
+        local: { github: { operatorHandle: '@octocat' } },
+      });
+      process.env.GH_OPERATOR_HANDLE = '@beesterastaff';
+
+      const config = resolveConfig({ bustCache: true, cwd: FIXTURE_ROOT });
+      assert.equal(config.github.operatorHandle, '@beesterastaff');
+    });
+
+    it('adds the @ prefix to a bare login and trims it', () => {
+      writeConfigs({ agentrc: { ...REQ, github: GITHUB } });
+      process.env.GH_OPERATOR_HANDLE = '  beesterastaff ';
+
+      const config = resolveConfig({ bustCache: true, cwd: FIXTURE_ROOT });
+      assert.equal(config.github.operatorHandle, '@beesterastaff');
+    });
+
+    it('supplies a handle the committed config omits', () => {
+      writeConfigs({
+        agentrc: { ...REQ, github: { owner: 'acme', repo: 'demo' } },
+      });
+      process.env.GH_OPERATOR_HANDLE = 'beesterastaff';
+
+      const config = resolveConfig({ bustCache: true, cwd: FIXTURE_ROOT });
+      assert.equal(config.github.operatorHandle, '@beesterastaff');
+    });
+
+    it('ignores an empty or whitespace-only value', () => {
+      writeConfigs({
+        agentrc: { ...REQ, github: GITHUB },
+        local: { github: { operatorHandle: '@octocat' } },
+      });
+      process.env.GH_OPERATOR_HANDLE = '   ';
+
+      const config = resolveConfig({ bustCache: true, cwd: FIXTURE_ROOT });
+      assert.equal(config.github.operatorHandle, '@octocat');
+    });
+
+    it('leaves a config with no github block untouched', () => {
+      writeConfigs({ agentrc: { ...REQ } });
+      process.env.GH_OPERATOR_HANDLE = 'beesterastaff';
+
+      const config = resolveConfig({ bustCache: true, cwd: FIXTURE_ROOT });
+      assert.equal(config.github, null);
+      assert.equal(config.raw.github, undefined);
+    });
   });
 });
