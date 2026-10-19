@@ -651,32 +651,6 @@ Both the runtime resolver and `node .agents/scripts/sync-agentrc.js` (the
 `/mandrel-update` Step 3 check) validate the **merged** config, so a key
 supplied only by the overlay satisfies the schema on your machine.
 
-**Environment override.** `GH_OPERATOR_HANDLE` beats both files: when it is
-set, the resolver uses it as `github.operatorHandle`, so precedence is
-`GH_OPERATOR_HANDLE` → `.agentrc.local.json` → `.agentrc.json`. A bare login
-gets its `@` prefix added, an empty value is ignored, and a `.env` entry
-works too. The override only applies when the config already has a `github`
-block. It is the same variable `bootstrap.js` reads for the handle.
-
-#### Claude Code cloud environments
-
-A cloud session clones the repo without the gitignored `.agentrc.local.json`,
-so it has only the committed `@[USERNAME]` placeholder, or whatever handle
-the team committed. Set the identity in the cloud environment's settings
-instead:
-
-- `GITHUB_TOKEN`: a token for the GitHub **user** who runs the session.
-  It needs Issues, Pull requests and Contents write on the repo, plus
-  organization Projects read-write for board sync. A classic PAT needs
-  `repo` + `project`.
-- `GH_OPERATOR_HANDLE`: that same user's login, never an Organization or
-  team.
-
-The handle has to be a user who can be assigned. GitHub's add-assignees
-endpoint silently ignores a login it cannot assign, such as an Organization,
-a team, or a user with no access to the repo. When that happens the Story
-lease refuses with `not-assignable` rather than running a Story nobody holds.
-
 **Keep the placeholder committed.** CI runners and fresh clones have no
 `.agentrc.local.json`. If you drop `github.operatorHandle` from the committed
 file entirely, every overlay-less run, CI included, fails schema validation
@@ -689,6 +663,39 @@ makes one developer the fallback identity for everyone else.
 `main`. If the team integrates elsewhere, commit that branch to `.agentrc.json`.
 Otherwise a developer without an overlay silently seeds Story branches from,
 and opens PRs against, `main`.
+
+**Environment override.** `GH_OPERATOR_HANDLE` beats both files: when it is
+set, the resolver uses it as `github.operatorHandle`, so precedence is
+`GH_OPERATOR_HANDLE` → `.agentrc.local.json` → `.agentrc.json`. A bare login
+gets its `@` prefix added, an empty value is ignored, and a `.env` entry
+works too. The override only applies when the config already has a `github`
+block. It is the same variable `bootstrap.js` reads for the handle.
+
+#### Claude Code cloud environments
+
+A cloud session clones the repo without the gitignored `.agentrc.local.json`,
+so it has only the committed `@[USERNAME]` placeholder, or whatever handle
+the team committed. Each person has their own cloud environment, so one
+environment variable identifies one person:
+
+- Add `GH_OPERATOR_HANDLE=your-github-login` to your cloud environment's
+  **Environment variables**. Use your own user login, never an Organization
+  or team. Don't write `.agentrc.local.json` from a setup script instead: the
+  script runs once, and later sessions start from a cached snapshot that
+  skips it.
+- Leave `GITHUB_TOKEN` and `GH_TOKEN` unset. Every GitHub request from a
+  hosted cloud session goes through the Claude Code GitHub proxy, which
+  supplies your connected GitHub account's credential for REST calls.
+
+The proxy answers **all** GitHub GraphQL with HTTP 403, even when you set
+your own token. Projects v2 is GraphQL-only, so board Status never syncs
+from a cloud session. Labels stay authoritative, and each skipped Status flip
+is reported as a warning.
+
+The handle has to be a user who can be assigned. GitHub's add-assignees
+endpoint silently ignores a login it cannot assign, such as an Organization,
+a team, or a user with no access to the repo. When that happens the Story
+lease refuses with `not-assignable` rather than running a Story nobody holds.
 
 ### Adding a new top-level key (framework change)
 
