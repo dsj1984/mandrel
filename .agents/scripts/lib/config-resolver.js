@@ -1,8 +1,7 @@
 /**
  * Configuration resolver facade: `.agentrc.local.json` deep-merges over
  * `.agentrc.json` over built-in defaults, validated against `AGENTRC_SCHEMA`
- * on load; `GH_OPERATOR_HANDLE` overrides `github.operatorHandle`. `.env`
- * loads lazily once per resolved root.
+ * on load. `.env` loads lazily once per resolved root.
  */
 
 import fs from 'node:fs';

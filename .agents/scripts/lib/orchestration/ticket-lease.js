@@ -42,14 +42,7 @@ export function currentOwner(assignees) {
   return assignees[0];
 }
 
-/**
- * GitHub returns the canonical-case login; a configured handle may differ
- * in case, so every operator/assignee comparison is case-insensitive.
- *
- * @param {string|null|undefined} a
- * @param {string|null|undefined} b
- * @returns {boolean}
- */
+/** GitHub returns the canonical-case login; the configured handle may differ. */
 function sameLogin(a, b) {
   if (typeof a !== 'string' || typeof b !== 'string') return false;
   return a.toLowerCase() === b.toLowerCase();
@@ -151,11 +144,6 @@ function claimMutation(operator, previousOwner) {
   return { assignees: [operator] };
 }
 
-/**
- * @param {string} operator
- * @param {number} ticketId
- * @returns {string}
- */
 function notAssignableMessage(operator, ticketId) {
   return (
     `ticket lease: GitHub silently dropped @${operator} as an assignee of ` +
@@ -166,19 +154,7 @@ function notAssignableMessage(operator, ticketId) {
   );
 }
 
-/**
- * The re-read holds no foreign login: the claim stuck unless it is empty,
- * which means GitHub dropped the operator.
- *
- * @param {object} args
- * @param {object} args.provider
- * @param {number} args.ticketId
- * @param {string} args.operator
- * @param {string|null} args.previousOwner
- * @param {string} args.reason
- * @param {string[]} args.assignees           The verify re-read.
- * @returns {Promise<{ acquired: boolean, owner: string|null, previousOwner: string|null, reason: string, message?: string }>}
- */
+/** No foreign login: an empty re-read means GitHub dropped the operator. */
 async function settleUncontested({
   provider,
   ticketId,
@@ -205,10 +181,9 @@ async function settleUncontested({
 }
 
 /**
- * Write, then re-read with `fresh: true`. A foreign co-assignee backs us out
- * as `lost-race`; an operator absent from the re-read is `not-assignable`
- * (GitHub ignores an unassignable login without an error), restoring a
- * stolen-from owner so a failed steal never leaves the ticket ownerless.
+ * Write, then re-read with `fresh: true`; on a foreign co-assignee, back out
+ * and report `lost-race` so the loser never builds the winner's worktree. An
+ * empty re-read is `not-assignable`: GitHub ignores an unassignable login.
  *
  * @param {object} args
  * @param {object} args.provider
@@ -216,7 +191,7 @@ async function settleUncontested({
  * @param {string} args.operator
  * @param {string|null} args.previousOwner
  * @param {string} args.reason                Success reason when the claim holds.
- * @returns {Promise<{ acquired: boolean, owner: string|null, previousOwner: string|null, reason: string, message?: string }>}
+ * @returns {Promise<{ acquired: boolean, owner: string|null, previousOwner: string|null, reason: string }>}
  */
 async function claimAndVerify({
   provider,

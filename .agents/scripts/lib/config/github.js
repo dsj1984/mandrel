@@ -111,15 +111,9 @@ export function getGitHub(config) {
 }
 
 /**
- * `GH_OPERATOR_HANDLE` wins over `github.operatorHandle`, for sessions with no
- * gitignored `.agentrc.local.json` (Claude Code cloud environments). Applied
- * before validation; a bare login gains the `@` the schema requires. Only a
- * config that already has a `github` block is touched — a lone handle would
- * fail the block's required `owner` / `repo`.
- *
- * @param {{ raw: object|null, source: string }} read
- * @param {NodeJS.ProcessEnv} [env]
- * @returns {{ raw: object|null, source: string }}
+ * `GH_OPERATOR_HANDLE` beats `github.operatorHandle` (cloud sessions have no
+ * `.agentrc.local.json`). Only an existing `github` block is touched: a lone
+ * handle would fail its required `owner` / `repo`.
  */
 export function applyOperatorHandleEnv(read, env = process.env) {
   const handle = String(env.GH_OPERATOR_HANDLE ?? '').trim();
