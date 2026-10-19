@@ -506,7 +506,7 @@ number of keys.
 | `delivery.quality.gates.maintainability.targetDirs`  | `[".agents/scripts", "tests"]`        | `["src"]`                                  | Root scans the framework's own source tree; consumer template scans the conventional `src/`.                                     |
 | `delivery.quality.gates.crap.targetDirs`             | `[".agents/scripts"]`                 | `["src"]`                                  | Same reason as maintainability above.                                                                                            |
 | `github.owner` / `.repo` / `.projectNumber` | Populated for `dsj1984/mandrel` | `[OWNER]` / `[REPO]` / `null` | Shared repo identifiers; placeholders in the template are replaced by `node .agents/scripts/bootstrap.js` (or by hand). |
-| `github.operatorHandle` | Committed as the `@[USERNAME]` placeholder; each contributor overrides it in gitignored `.agentrc.local.json` | `@[USERNAME]` | Schema-required, but per-contributor: the committed placeholder resolves to null and the lease guards fail closed until you set your own handle locally (see [Per-machine local overrides](#per-machine-local-overrides)). |
+| `github.operatorHandle` | Committed as the `@[USERNAME]` placeholder; each contributor overrides it in gitignored `.agentrc.local.json`, or with `GH_OPERATOR_HANDLE` where there is no overlay (cloud sessions) | `@[USERNAME]` | Schema-required, but per-contributor: the committed placeholder resolves to null and the lease guards fail closed until you set your own handle locally (see [Per-machine local overrides](#per-machine-local-overrides)). |
 | `delivery.worktreeIsolation.nodeModulesStrategy`     | `clone`                               | `clone`                                    | Platform default on darwin/linux (copy-on-write clone of donor `node_modules`); Windows dogfood/template use `per-worktree`.     |
 
 When a consumer runs `/mandrel-update`, the
@@ -651,6 +651,32 @@ Both the runtime resolver and `node .agents/scripts/sync-agentrc.js` (the
 `/mandrel-update` Step 3 check) validate the **merged** config, so a key
 supplied only by the overlay satisfies the schema on your machine.
 
+**Environment override.** `GH_OPERATOR_HANDLE` beats both files: when it is
+set, the resolver uses it as `github.operatorHandle`, so precedence is
+`GH_OPERATOR_HANDLE` → `.agentrc.local.json` → `.agentrc.json`. A bare login
+gets its `@` prefix added, an empty value is ignored, and a `.env` entry
+works too. The override only applies when the config already has a `github`
+block. It is the same variable `bootstrap.js` reads for the handle.
+
+#### Claude Code cloud environments
+
+A cloud session clones the repo without the gitignored `.agentrc.local.json`,
+so it has only the committed `@[USERNAME]` placeholder, or whatever handle
+the team committed. Set the identity in the cloud environment's settings
+instead:
+
+- `GITHUB_TOKEN`: a token for the GitHub **user** who runs the session.
+  It needs Issues, Pull requests and Contents write on the repo, plus
+  organization Projects read-write for board sync. A classic PAT needs
+  `repo` + `project`.
+- `GH_OPERATOR_HANDLE`: that same user's login, never an Organization or
+  team.
+
+The handle has to be a user who can be assigned. GitHub's add-assignees
+endpoint silently ignores a login it cannot assign, such as an Organization,
+a team, or a user with no access to the repo. When that happens the Story
+lease refuses with `not-assignable` rather than running a Story nobody holds.
+
 **Keep the placeholder committed.** CI runners and fresh clones have no
 `.agentrc.local.json`. If you drop `github.operatorHandle` from the committed
 file entirely, every overlay-less run, CI included, fails schema validation
@@ -699,6 +725,7 @@ Claude Code web environment-variables UI for web sessions.
 | Variable                   | Required? | Purpose                                                                                                                                                  |
 | -------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GITHUB_TOKEN`             | Yes\*     | GitHub API auth for all ticketing operations. `GH_TOKEN` is accepted as a synonym. `gh auth token` is a fallback for local sessions.                      |
+| `GH_OPERATOR_HANDLE`       | No        | Overrides `github.operatorHandle` (the lease owner and @mention handle). Set it where there is no `.agentrc.local.json`, such as a Claude Code cloud environment. See [Claude Code cloud environments](#claude-code-cloud-environments). |
 | `NOTIFICATION_WEBHOOK_URL` | No        | POST target for in-band Notifier events (Make.com / Slack / Discord). Unset disables the webhook channel; the GitHub comment channel still fires. |
 | `WEBHOOK_SECRET`           | No        | Shared secret used to sign outbound webhook payloads as `X-Signature-256: sha256=<hmac>`. Unset ships unsigned payloads.                                 |
 | `MANDREL_ALLOW_TEST_WEBHOOKS` | No     | Set to `1` to keep `NOTIFICATION_WEBHOOK_URL` live inside `npm test` / `npm run test:profile`. Default behaviour scrubs the env var from the test child so no URL resolves and the webhook never fires (see below). |
