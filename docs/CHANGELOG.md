@@ -15,6 +15,13 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.93.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.92.0...mandrel-v2.93.0) (2026-10-19)
+
+
+### Added
+
+* fail the Story lease closed when GitHub silently drops the operator, and let cloud sessions supply the operator handle via GH_OPERATOR_HANDLE ([#5788](https://github.com/dsj1984/mandrel/issues/5788)) ([#5789](https://github.com/dsj1984/mandrel/issues/5789)) ([6acb901](https://github.com/dsj1984/mandrel/commit/6acb901cf34ef312f7eb18e0f3eb3053697f65f0))
+
 ## [2.92.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.91.0...mandrel-v2.92.0) (2026-10-18)
 
 
