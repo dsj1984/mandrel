@@ -42,6 +42,12 @@ export function currentOwner(assignees) {
   return assignees[0];
 }
 
+/** GitHub returns the canonical-case login; the configured handle may differ. */
+function sameLogin(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  return a.toLowerCase() === b.toLowerCase();
+}
+
 /**
  * @param {string} op
  * @param {object} opts
@@ -74,9 +80,10 @@ function normaliseOpts(op, opts) {
  * @param {boolean} [opts.steal=false]        Transfer a foreign claim.
  * @returns {Promise<{
  *   acquired: boolean,
- *   owner: string,
+ *   owner: string|null,
  *   previousOwner: string|null,
- *   reason: 'unclaimed'|'already-held'|'stolen'|'held'|'lost-race',
+ *   reason: 'unclaimed'|'already-held'|'stolen'|'held'|'lost-race'|'not-assignable',
+ *   message?: string,
  * }>}
  */
 export async function acquireLease(opts) {
@@ -96,7 +103,7 @@ export async function acquireLease(opts) {
     });
   }
 
-  if (owner === operator) {
+  if (sameLogin(owner, operator)) {
     return {
       acquired: true,
       owner: operator,
@@ -124,18 +131,6 @@ export async function acquireLease(opts) {
 }
 
 /**
- * Write, then re-read with `fresh: true`; on a foreign co-assignee, back out
- * and report `lost-race` so the loser never builds the winner's worktree.
- *
- * @param {object} args
- * @param {object} args.provider
- * @param {number} args.ticketId
- * @param {string} args.operator
- * @param {string|null} args.previousOwner
- * @param {string} args.reason                Success reason when the claim holds.
- * @returns {Promise<{ acquired: boolean, owner: string, previousOwner: string|null, reason: string }>}
- */
-/**
  * Additive for an unowned ticket — a replacing PATCH would evict a
  * simultaneous claimer, hiding the collision verify keys on. Replacing only
  * for a steal.
@@ -149,6 +144,55 @@ function claimMutation(operator, previousOwner) {
   return { assignees: [operator] };
 }
 
+function notAssignableMessage(operator, ticketId) {
+  return (
+    `ticket lease: GitHub silently dropped @${operator} as an assignee of ` +
+    `#${ticketId} — the handle is an Organization or team, or has no access ` +
+    'to the repo, so the lease cannot be held. Set github.operatorHandle (or ' +
+    'GH_OPERATOR_HANDLE in a cloud environment) to the GitHub user who runs ' +
+    'this session, and re-run.'
+  );
+}
+
+/** No foreign login: an empty re-read means GitHub dropped the operator. */
+async function settleUncontested({
+  provider,
+  ticketId,
+  operator,
+  previousOwner,
+  reason,
+  assignees,
+}) {
+  if (assignees.length > 0) {
+    return { acquired: true, owner: operator, previousOwner, reason };
+  }
+  if (previousOwner !== null) {
+    await provider
+      .updateTicket(ticketId, { assignees: [previousOwner] })
+      .catch(() => undefined);
+  }
+  return {
+    acquired: false,
+    owner: null,
+    previousOwner,
+    reason: 'not-assignable',
+    message: notAssignableMessage(operator, ticketId),
+  };
+}
+
+/**
+ * Write, then re-read with `fresh: true`; on a foreign co-assignee, back out
+ * and report `lost-race` so the loser never builds the winner's worktree. An
+ * empty re-read is `not-assignable`: GitHub ignores an unassignable login.
+ *
+ * @param {object} args
+ * @param {object} args.provider
+ * @param {number} args.ticketId
+ * @param {string} args.operator
+ * @param {string|null} args.previousOwner
+ * @param {string} args.reason                Success reason when the claim holds.
+ * @returns {Promise<{ acquired: boolean, owner: string|null, previousOwner: string|null, reason: string }>}
+ */
 async function claimAndVerify({
   provider,
   ticketId,
@@ -160,10 +204,17 @@ async function claimAndVerify({
 
   const after = await provider.getTicket(ticketId, { fresh: true });
   const assignees = Array.isArray(after?.assignees) ? after.assignees : [];
-  const foreign = assignees.filter((login) => login !== operator);
+  const foreign = assignees.filter((login) => !sameLogin(login, operator));
 
   if (foreign.length === 0) {
-    return { acquired: true, owner: operator, previousOwner, reason };
+    return settleUncontested({
+      provider,
+      ticketId,
+      operator,
+      previousOwner,
+      reason,
+      assignees,
+    });
   }
 
   // Lost the race: leave the winner as sole assignee.
@@ -196,7 +247,7 @@ export async function releaseLease(opts) {
   const ticket = await provider.getTicket(ticketId);
   const owner = currentOwner(ticket?.assignees);
 
-  if (owner !== operator) {
+  if (!sameLogin(owner, operator)) {
     return { released: false, owner, reason: 'not-held' };
   }
 

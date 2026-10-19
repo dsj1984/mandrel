@@ -37,7 +37,7 @@ export function resolveOperatorFromCandidates({
 
 /**
  * Acquire a lease; a foreign claim without `steal` throws the surface's
- * refusal.
+ * refusal; a result's own `message` wins.
  *
  * @param {object} opts
  * @param {object} opts.provider
@@ -62,7 +62,7 @@ export async function acquireLeaseFailClosed({
     steal,
   });
   if (!result.acquired) {
-    throw new Error(renderRefusal(result, ticketId));
+    throw new Error(result.message ?? renderRefusal(result, ticketId));
   }
   return result;
 }

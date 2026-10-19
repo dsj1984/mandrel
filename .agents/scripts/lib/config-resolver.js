@@ -13,7 +13,7 @@ import {
 import { getCiDelivery } from './config/ci.js';
 import { getCommands } from './config/commands.js';
 import { overlayRoot, resolveAgentrcRoot } from './config/git-roots.js';
-import { getGitHub } from './config/github.js';
+import { applyOperatorHandleEnv, getGitHub } from './config/github.js';
 import { resolvePaths } from './config/paths.js';
 import { validateOrchestrationConfig } from './config/validate-orchestration.js';
 import { getWorktreeIsolation } from './config/worktree-isolation.js';
@@ -217,7 +217,7 @@ export function resolveConfig(opts) {
   }
   ensureEnvLoaded(root);
   const resolved = finalizeConfig(
-    readRawConfig(injectedFs ?? fs, root),
+    applyOperatorHandleEnv(readRawConfig(injectedFs ?? fs, root)),
     validate,
   );
   if (!injectedFs) _cacheByKey.set(key, resolved);
