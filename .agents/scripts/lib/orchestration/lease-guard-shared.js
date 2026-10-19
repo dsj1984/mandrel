@@ -37,7 +37,8 @@ export function resolveOperatorFromCandidates({
 
 /**
  * Acquire a lease; a foreign claim without `steal` throws the surface's
- * refusal.
+ * refusal, and a result carrying its own `message` (`not-assignable`)
+ * throws that instead.
  *
  * @param {object} opts
  * @param {object} opts.provider
@@ -45,7 +46,7 @@ export function resolveOperatorFromCandidates({
  * @param {string} opts.operator
  * @param {boolean} [opts.steal=false]
  * @param {(result: object, ticketId: number) => string} opts.renderRefusal
- * @returns {Promise<{ acquired: boolean, owner: string, previousOwner: string|null, reason: string }>}
+ * @returns {Promise<{ acquired: boolean, owner: string|null, previousOwner: string|null, reason: string }>}
  * @throws {Error} When the claim is refused (`result.acquired === false`).
  */
 export async function acquireLeaseFailClosed({
@@ -62,7 +63,7 @@ export async function acquireLeaseFailClosed({
     steal,
   });
   if (!result.acquired) {
-    throw new Error(renderRefusal(result, ticketId));
+    throw new Error(result.message ?? renderRefusal(result, ticketId));
   }
   return result;
 }

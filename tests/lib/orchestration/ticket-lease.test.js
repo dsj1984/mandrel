@@ -330,6 +330,174 @@ describe('ticket-lease — acquireLease verify-after-write (lost-race, Story #46
   });
 });
 
+describe('ticket-lease — operator silently dropped by GitHub (not-assignable)', () => {
+  /**
+   * GitHub's add-assignees endpoint ignores a login it cannot assign (an
+   * Organization, a team, no repo access) and still answers 2xx — so the
+   * write "succeeds" and the verify re-read comes back without the operator.
+   *
+   * @param {string[]} initialAssignees
+   */
+  function droppingProvider(initialAssignees = []) {
+    const state = { assignees: [...initialAssignees] };
+    const updateCalls = [];
+    return {
+      state,
+      updateCalls,
+      async getTicket() {
+        return { assignees: [...state.assignees] };
+      },
+      async updateTicket(id, mutations) {
+        updateCalls.push({ id, mutations });
+        const logins = mutations?.addAssignees ?? mutations?.assignees ?? [];
+        const kept = logins.filter((login) => login !== 'Beestera');
+        if (Array.isArray(mutations?.addAssignees)) {
+          state.assignees.push(...kept);
+        } else if (Array.isArray(mutations?.assignees)) {
+          state.assignees = kept;
+        }
+      },
+    };
+  }
+
+  it('refuses the claim when the verify re-read shows no assignees', async () => {
+    const provider = droppingProvider([]);
+
+    const result = await acquireLease({
+      provider,
+      ticketId: 5136,
+      operator: 'Beestera',
+    });
+
+    assert.equal(result.acquired, false);
+    assert.equal(result.reason, 'not-assignable');
+    assert.equal(result.owner, null);
+    assert.equal(result.previousOwner, null);
+    assert.match(result.message, /silently dropped @Beestera/);
+    assert.match(result.message, /#5136/);
+    assert.match(result.message, /Organization or team/);
+    assert.match(result.message, /github\.operatorHandle/);
+    assert.match(result.message, /GH_OPERATOR_HANDLE/);
+    // One additive claim; nothing to back out or restore on an unowned ticket.
+    assert.deepEqual(
+      provider.updateCalls.map((c) => c.mutations),
+      [{ addAssignees: ['Beestera'] }],
+    );
+  });
+
+  it('refuses via a pure re-read queue too (write accepted, re-read [])', async () => {
+    const reads = [[], []];
+    let call = 0;
+    const provider = {
+      async getTicket() {
+        return { assignees: [...reads[Math.min(call++, reads.length - 1)]] };
+      },
+      async updateTicket() {},
+    };
+
+    const result = await acquireLease({
+      provider,
+      ticketId: 7,
+      operator: 'alice',
+    });
+
+    assert.equal(result.acquired, false);
+    assert.equal(result.reason, 'not-assignable');
+  });
+
+  it('restores the previous owner when a dropped steal evicted them', async () => {
+    const provider = droppingProvider(['bob']);
+
+    const result = await acquireLease({
+      provider,
+      ticketId: 9,
+      operator: 'Beestera',
+      steal: true,
+    });
+
+    assert.equal(result.acquired, false);
+    assert.equal(result.reason, 'not-assignable');
+    assert.equal(result.previousOwner, 'bob');
+    assert.deepEqual(
+      provider.updateCalls.map((c) => c.mutations),
+      [{ assignees: ['Beestera'] }, { assignees: ['bob'] }],
+    );
+    assert.deepEqual(provider.state.assignees, ['bob']);
+  });
+
+  it('still reports not-assignable when the restore write fails', async () => {
+    const provider = droppingProvider(['bob']);
+    const write = provider.updateTicket.bind(provider);
+    provider.updateTicket = async (id, mutations) => {
+      if (provider.updateCalls.length > 0) throw new Error('HTTP 502');
+      return write(id, mutations);
+    };
+
+    const result = await acquireLease({
+      provider,
+      ticketId: 9,
+      operator: 'Beestera',
+      steal: true,
+    });
+
+    assert.equal(result.reason, 'not-assignable');
+  });
+});
+
+describe('ticket-lease — login comparison is case-insensitive', () => {
+  it('reads an existing canonical-case assignee as already-held', async () => {
+    const provider = makeProvider(['Alice']);
+
+    const result = await acquireLease({
+      provider,
+      ticketId: 42,
+      operator: 'alice',
+    });
+
+    assert.equal(result.acquired, true);
+    assert.equal(result.reason, 'already-held');
+    assert.equal(provider.updateCalls.length, 0);
+  });
+
+  it('confirms a claim whose re-read returns the canonical-case login', async () => {
+    let call = 0;
+    const provider = {
+      updateCalls: [],
+      async getTicket() {
+        call += 1;
+        return { assignees: call === 1 ? [] : ['Alice'] };
+      },
+      async updateTicket(id, mutations) {
+        this.updateCalls.push({ id, mutations });
+      },
+    };
+
+    const result = await acquireLease({
+      provider,
+      ticketId: 42,
+      operator: 'alice',
+    });
+
+    assert.equal(result.acquired, true);
+    assert.equal(result.reason, 'unclaimed');
+    // No lost-race back-out: 'Alice' is the operator, not a foreign login.
+    assert.equal(provider.updateCalls.length, 1);
+  });
+
+  it('releases a ticket whose owner differs from the operator only in case', async () => {
+    const provider = makeProvider(['Alice']);
+
+    const result = await releaseLease({
+      provider,
+      ticketId: 42,
+      operator: 'alice',
+    });
+
+    assert.equal(result.released, true);
+    assert.deepEqual(provider.state.assignees, []);
+  });
+});
+
 describe('ticket-lease — releaseLease', () => {
   // AC5: clears the assignment when the operator still holds it
   it('clears the assignment when the operator still holds the lease', async () => {

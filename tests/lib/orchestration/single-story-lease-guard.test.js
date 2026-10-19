@@ -61,6 +61,7 @@ describe('single-story-lease-guard — resolveOperator', () => {
       () => resolveOperator({ github: {} }),
       /no operator identity is configured/,
     );
+    assert.throws(() => resolveOperator({ github: {} }), /GH_OPERATOR_HANDLE/);
     assert.throws(
       () => resolveOperator({}),
       /no operator identity is configured/,
@@ -189,6 +190,28 @@ describe('single-story-lease-guard — acquireStoryLease', () => {
     assert.equal(result.acquired, true);
     assert.equal(result.owner, 'carol');
     assert.deepEqual(provider.state.assignees, ['carol']);
+  });
+
+  it('refuses with the not-assignable message when GitHub drops the operator', async () => {
+    // An Organization handle: the additive write answers 2xx, assigns nobody.
+    const provider = makeProvider([]);
+    provider.updateTicket = async (id, mutations) => {
+      provider.updateCalls.push({ id, mutations });
+    };
+
+    await assert.rejects(
+      acquireStoryLease({
+        provider,
+        storyId: 5136,
+        config: { github: { operatorHandle: '@Beestera' } },
+      }),
+      (err) => {
+        assert.match(err.message, /silently dropped @Beestera/);
+        assert.match(err.message, /GH_OPERATOR_HANDLE/);
+        assert.doesNotMatch(err.message, /currently held by/);
+        return true;
+      },
+    );
   });
 });
 

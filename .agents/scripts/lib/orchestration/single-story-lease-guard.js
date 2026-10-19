@@ -26,7 +26,8 @@ export function resolveOperator(config) {
       'github.operatorHandle is unset or still the shipped `@[USERNAME]` ' +
       'placeholder, so the standalone Story lease has no owner. Set your own ' +
       'handle in .agentrc.local.json (e.g. { "github": { "operatorHandle": ' +
-      '"@your-login" } }) and re-run.',
+      '"@your-login" } }), or GH_OPERATOR_HANDLE in the environment where ' +
+      'there is no .agentrc.local.json (cloud sessions), and re-run.',
   });
 }
 
