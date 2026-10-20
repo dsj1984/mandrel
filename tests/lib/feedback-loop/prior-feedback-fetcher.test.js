@@ -35,19 +35,27 @@ function makeSpawnStub(responder) {
 }
 
 /**
- * Look up the value passed to a given flag in a gh-style args array.
- * Returns `null` if the flag is absent.
+ * Look up a `-f key=value` field in a `gh api` args array. Returns `null` if
+ * the field is absent.
  */
-function flagValue(args, flag) {
-  const idx = args.indexOf(flag);
-  if (idx === -1 || idx + 1 >= args.length) return null;
-  return args[idx + 1];
+function fieldValue(args, key) {
+  for (let i = 0; i < args.length - 1; i++) {
+    if (args[i] !== '-f') continue;
+    const [k, ...rest] = args[i + 1].split('=');
+    if (k === key) return rest.join('=');
+  }
+  return null;
+}
+
+/** The label a fetch asked for. */
+function labelOf(args) {
+  return fieldValue(args, 'labels');
 }
 
 describe('fetchPriorFeedback', () => {
   it('returns open issues for both meta labels in the canonical envelope shape', async () => {
     const responder = (args) => {
-      const label = flagValue(args, '--label');
+      const label = labelOf(args);
       if (label === 'meta::framework-gap') {
         return {
           stdout: JSON.stringify([
@@ -102,7 +110,7 @@ describe('fetchPriorFeedback', () => {
     );
   });
 
-  it('passes --state open and --label to gh issue list', async () => {
+  it('reads each label from the repo-scoped REST issues endpoint, never GraphQL (Story #5794)', async () => {
     const seen = [];
     const responder = (args) => {
       seen.push(args.slice());
@@ -117,18 +125,96 @@ describe('fetchPriorFeedback', () => {
 
     // One invocation per ownership bucket (Story #5300 added the third).
     assert.equal(seen.length, 3, 'expected one gh invocation per meta label');
-    assert.deepEqual(seen.map((args) => flagValue(args, '--label')).sort(), [
+    assert.deepEqual(seen.map(labelOf).sort(), [
       'meta::consumer-improvement',
       'meta::framework-gap',
       'meta::platform-gap',
     ]);
     for (const args of seen) {
-      assert.equal(flagValue(args, '--state'), 'open');
-      assert.equal(flagValue(args, '--repo'), 'o/r');
-      // `body` is fetched so the CI-gap intake marker is visible; the body
-      // itself is not carried onto the planner envelope.
-      assert.equal(flagValue(args, '--json'), 'number,title,labels,url,body');
+      // `gh issue list` is GraphQL, which a cloud session refuses.
+      assert.deepEqual(args.slice(0, 4), [
+        'api',
+        '-X',
+        'GET',
+        'repos/o/r/issues',
+      ]);
+      assert.ok(!args.includes('issue'), 'must not shell `gh issue list`');
+      assert.equal(fieldValue(args, 'state'), 'open');
+      assert.equal(fieldValue(args, 'per_page'), '50');
     }
+  });
+
+  it('caps per_page at the REST maximum of 100', async () => {
+    const seen = [];
+    await fetchPriorFeedback({
+      owner: 'o',
+      repo: 'r',
+      limit: 500,
+      spawnImpl: makeSpawnStub((args) => {
+        seen.push(fieldValue(args, 'per_page'));
+        return { stdout: '[]', stderr: '', code: 0 };
+      }),
+    });
+    assert.deepEqual(seen, ['100', '100', '100']);
+  });
+
+  it('maps REST rows (html_url → url) and drops pull requests', async () => {
+    const responder = (args) => {
+      if (labelOf(args) !== 'meta::framework-gap') {
+        return { stdout: '[]', stderr: '', code: 0 };
+      }
+      return {
+        stdout: JSON.stringify([
+          {
+            number: 7,
+            title: 'A REST issue',
+            html_url: 'https://github.com/o/r/issues/7',
+            url: 'https://api.github.com/repos/o/r/issues/7',
+            labels: [{ name: 'meta::framework-gap' }],
+          },
+          {
+            number: 8,
+            title: 'A pull request',
+            html_url: 'https://github.com/o/r/pull/8',
+            labels: [{ name: 'meta::framework-gap' }],
+            pull_request: { url: 'https://api.github.com/repos/o/r/pulls/8' },
+          },
+        ]),
+        stderr: '',
+        code: 0,
+      };
+    };
+
+    const result = await fetchPriorFeedback({
+      owner: 'o',
+      repo: 'r',
+      spawnImpl: makeSpawnStub(responder),
+    });
+
+    assert.equal(result.errors.length, 0);
+    assert.deepEqual(result.frameworkGaps, [
+      {
+        number: 7,
+        title: 'A REST issue',
+        url: 'https://github.com/o/r/issues/7',
+        labels: ['meta::framework-gap'],
+        intake: false,
+      },
+    ]);
+  });
+
+  it('reports non-array JSON in errors[]', async () => {
+    const result = await fetchPriorFeedback({
+      owner: 'o',
+      repo: 'r',
+      spawnImpl: makeSpawnStub(() => ({
+        stdout: '{"message":"x"}',
+        stderr: '',
+        code: 0,
+      })),
+    });
+    assert.equal(result.errors.length, 3);
+    for (const msg of result.errors) assert.match(msg, /non-array JSON/);
   });
 
   it('dedupes issues that carry both meta labels (frameworkGaps wins)', async () => {
@@ -142,9 +228,8 @@ describe('fetchPriorFeedback', () => {
       ],
     };
     const responder = (args) => {
-      const label = flagValue(args, '--label');
-      // gh's `--label` filter is OR-implicit for a single value, but a
-      // dual-labeled issue is returned by both `--label` queries — this is
+      const label = labelOf(args);
+      // A dual-labeled issue is returned by both per-label queries — this is
       // exactly the duplication the fetcher must collapse.
       if (label === 'meta::framework-gap') {
         return {
@@ -190,7 +275,7 @@ describe('fetchPriorFeedback', () => {
 
   it('captures gh non-zero exits in errors[] without throwing', async () => {
     const responder = (args) => {
-      const label = flagValue(args, '--label');
+      const label = labelOf(args);
       if (label === 'meta::framework-gap') {
         return {
           stdout: '',
@@ -254,7 +339,7 @@ describe('fetchPriorFeedback', () => {
     assert.equal(result.platformGaps.length, 0);
     assert.equal(result.errors.length, 3);
     for (const msg of result.errors) {
-      assert.match(msg, /Failed to parse gh issue list JSON/);
+      assert.match(msg, /Failed to parse gh api issues JSON/);
     }
   });
 
@@ -262,7 +347,7 @@ describe('fetchPriorFeedback', () => {
     // The graduation surface: `/mandrel-plan` offers an intake filing a
     // `/mandrel-plan <id>` rewrite, so the flag has to survive the fetch.
     const responder = (args) => {
-      const label = flagValue(args, '--label');
+      const label = labelOf(args);
       if (label === 'meta::platform-gap') {
         return {
           stdout: JSON.stringify([

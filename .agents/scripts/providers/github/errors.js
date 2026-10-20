@@ -147,6 +147,59 @@ export function classifyGithubError(err) {
   return 'permanent';
 }
 
+/**
+ * The Claude Code cloud session's GitHub proxy refuses GraphQL wholesale, and
+ * some REST routes (`/search/issues`) per session. Both needles are the
+ * proxy's own wording, so an ordinary 403 (scope, SSO, rate limit) never
+ * matches and keeps its `classifyGithubError` bucket.
+ */
+const GRAPHQL_BLOCKED_RE =
+  /GitHub GraphQL is not available from Claude Code sessions/i;
+const PROXY_SCOPE_REFUSAL_RE =
+  /is not enabled for this session|sessions are bound to their configured repositories/i;
+
+// Wrappers (`ProjectAccessError`) carry the proxy's text on `cause`.
+const CAUSE_DEPTH = 3;
+
+/**
+ * Message and stderr of `err` and its `cause` chain, joined.
+ *
+ * @param {unknown} err
+ * @returns {string}
+ */
+function failureText(err) {
+  const parts = [];
+  let cur = err;
+  for (let depth = 0; cur && depth < CAUSE_DEPTH; depth++) {
+    parts.push(
+      stderrText(cur),
+      typeof cur.message === 'string' ? cur.message : '',
+    );
+    cur = cur.cause;
+  }
+  return parts.join(' ');
+}
+
+/**
+ * Is `err` the cloud proxy refusing GraphQL? No retry or re-auth helps.
+ *
+ * @param {unknown} err
+ * @returns {boolean}
+ */
+export function isGraphqlBlocked(err) {
+  return GRAPHQL_BLOCKED_RE.test(failureText(err));
+}
+
+/**
+ * Is `err` the cloud proxy refusing a REST route for this session's scope?
+ *
+ * @param {unknown} err
+ * @returns {boolean}
+ */
+export function isProxyScopeRefusal(err) {
+  return PROXY_SCOPE_REFUSAL_RE.test(failureText(err));
+}
+
 export const TRANSIENT_RETRY_DEFAULTS = Object.freeze({
   maxAttempts: 6,
   baseDelayMs: 500,

@@ -4,6 +4,7 @@
  * fallback errors propagate verbatim to the caller.
  */
 
+import { isProxyScopeRefusal } from '../providers/github/errors.js';
 import { Logger } from './Logger.js';
 import { TYPE_LABELS } from './label-constants.js';
 
@@ -232,10 +233,55 @@ async function fetchOpenStoriesViaList(provider) {
   return issues.map(normalizeIssue);
 }
 
+// A cloud session's proxy refuses `/search/issues` for the whole process;
+// once seen, later calls skip straight to the label listing, silently.
+let searchRefusedByProxy = false;
+
+/**
+ * Search, or `null` when the caller should use the label listing: search
+ * errored (and a listing exists), was refused by the proxy, or found nothing.
+ * An empty search is evidence about the AND-ed query, not about the backlog.
+ *
+ * @param {object} provider
+ * @param {string} seed
+ * @param {boolean} hasList
+ * @returns {Promise<Array<object>|null>}
+ */
+async function trySearch(provider, seed, hasList) {
+  try {
+    const hits = await fetchOpenStoriesViaSearch(provider, seed);
+    if (hits.length > 0 || !hasList) return hits;
+    Logger.info(
+      '[duplicate-search] narrowed search matched no open Stories; ' +
+        'falling back to listIssuesByLabel + client-side ranking',
+    );
+  } catch (err) {
+    if (!hasList) throw err;
+    reportSearchFailure(err);
+  }
+  return null;
+}
+
+/** @param {unknown} err */
+function reportSearchFailure(err) {
+  if (isProxyScopeRefusal(err)) {
+    searchRefusedByProxy = true;
+    Logger.info(
+      '[duplicate-search] the Claude Code cloud proxy refuses /search/issues ' +
+        'in this session; ranking from listIssuesByLabel for the rest of the run',
+    );
+    return;
+  }
+  const msg = typeof err?.message === 'string' ? err.message : String(err);
+  Logger.warn(
+    `[duplicate-search] search-based candidate fetch failed (${msg}); ` +
+      'falling back to listIssuesByLabel',
+  );
+}
+
 /**
  * Search first; fall back to the label listing when search errors, is
- * unavailable, or returns no hits. An empty search is evidence about the
- * AND-ed query, not about the backlog.
+ * unavailable, was refused by the cloud proxy, or returns no hits.
  *
  * @param {object} provider
  * @param {string} seed
@@ -254,22 +300,9 @@ async function fetchOpenStoryCandidates(provider, seed) {
     );
   }
 
-  if (hasSearch) {
-    try {
-      const hits = await fetchOpenStoriesViaSearch(provider, seed);
-      if (hits.length > 0 || !hasList) return hits;
-      Logger.info(
-        '[duplicate-search] narrowed search matched no open Stories; ' +
-          'falling back to listIssuesByLabel + client-side ranking',
-      );
-    } catch (err) {
-      if (!hasList) throw err;
-      const msg = typeof err?.message === 'string' ? err.message : String(err);
-      Logger.warn(
-        `[duplicate-search] search-based candidate fetch failed (${msg}); ` +
-          'falling back to listIssuesByLabel',
-      );
-    }
+  if (hasSearch && !(hasList && searchRefusedByProxy)) {
+    const hits = await trySearch(provider, seed, hasList);
+    if (hits) return hits;
   }
 
   return fetchOpenStoriesViaList(provider);
@@ -323,4 +356,8 @@ export const __test = {
   SEARCH_RESULT_CAP,
   buildIssueUrl,
   buildEpicUrl: buildIssueUrl,
+  /** Test isolation: forget a proxy search refusal seen this process. */
+  resetProxySearchRefusal() {
+    searchRefusedByProxy = false;
+  },
 };

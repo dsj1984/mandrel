@@ -86,7 +86,8 @@ function formatGhError(label, { code, stderr, spawnError }) {
 
 /**
  * Deliberately narrow: the planner envelope is budgeted. The body is fetched
- * only to derive `intake` (CI-gap intake marker) and is not carried.
+ * only to derive `intake` (CI-gap intake marker) and is not carried. Takes a
+ * REST issue row, so the link is `html_url`; a bare `url` is accepted too.
  *
  * @param {object} raw
  * @returns {{ number: number, title: string, url: string, labels: string[], intake: boolean }|null}
@@ -96,10 +97,24 @@ function normalizeIssue(raw) {
   const number = typeof raw.number === 'number' ? raw.number : null;
   if (number === null) return null;
   const title = typeof raw.title === 'string' ? raw.title : '';
-  const url = typeof raw.url === 'string' ? raw.url : '';
   const intake =
     typeof raw.body === 'string' && raw.body.includes(CI_GAP_INTAKE_MARKER);
-  return { number, title, url, labels: normalizeLabels(raw.labels), intake };
+  return {
+    number,
+    title,
+    url: issueUrl(raw),
+    labels: normalizeLabels(raw.labels),
+    intake,
+  };
+}
+
+/**
+ * @param {{ html_url?: unknown, url?: unknown }} raw
+ * @returns {string}
+ */
+function issueUrl(raw) {
+  if (typeof raw.html_url === 'string') return raw.html_url;
+  return typeof raw.url === 'string' ? raw.url : '';
 }
 
 /**
@@ -115,6 +130,32 @@ function normalizeLabels(raw) {
     .filter((name) => typeof name === 'string');
 }
 
+// The REST issues endpoint caps a page at 100 rows.
+const REST_PER_PAGE_MAX = 100;
+
+/**
+ * The repo-scoped REST issues endpoint, never `gh issue list`: that one is
+ * GraphQL, which a Claude Code cloud session refuses outright.
+ *
+ * @param {{ owner: string, repo: string, label: string, limit: number }} opts
+ * @returns {string[]}
+ */
+function restIssuesArgs({ owner, repo, label, limit }) {
+  const perPage = Math.min(Math.max(1, limit), REST_PER_PAGE_MAX);
+  return [
+    'api',
+    '-X',
+    'GET',
+    `repos/${owner}/${repo}/issues`,
+    '-f',
+    'state=open',
+    '-f',
+    `labels=${label}`,
+    '-f',
+    `per_page=${perPage}`,
+  ];
+}
+
 /**
  * @param {object} opts
  * @param {string} opts.owner
@@ -126,21 +167,7 @@ function normalizeLabels(raw) {
  * @returns {Promise<{ issues: object[], error: string|null }>}
  */
 async function fetchByLabel({ owner, repo, label, ghPath, limit, spawnImpl }) {
-  const args = [
-    'issue',
-    'list',
-    '--repo',
-    `${owner}/${repo}`,
-    '--state',
-    'open',
-    '--label',
-    label,
-    '--json',
-    'number,title,labels,url,body',
-    '--limit',
-    String(limit),
-  ];
-
+  const args = restIssuesArgs({ owner, repo, label, limit });
   const result = await runGh({ ghPath, args, spawnImpl });
 
   if (
@@ -155,15 +182,19 @@ async function fetchByLabel({ owner, repo, label, ghPath, limit, spawnImpl }) {
     if (!Array.isArray(parsed)) {
       return {
         issues: [],
-        error: `gh issue list returned non-array JSON for label "${label}"`,
+        error: `gh api issues returned non-array JSON for label "${label}"`,
       };
     }
-    const issues = parsed.map(normalizeIssue).filter((issue) => issue !== null);
+    // The REST issues endpoint lists pull requests too.
+    const issues = parsed
+      .filter((row) => !row?.pull_request)
+      .map(normalizeIssue)
+      .filter((issue) => issue !== null);
     return { issues, error: null };
   } catch (err) {
     return {
       issues: [],
-      error: `Failed to parse gh issue list JSON for label "${label}": ${err.message}`,
+      error: `Failed to parse gh api issues JSON for label "${label}": ${err.message}`,
     };
   }
 }

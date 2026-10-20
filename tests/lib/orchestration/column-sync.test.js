@@ -874,6 +874,65 @@ describe('ColumnSync — insufficient project scope (Story #5727)', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Story #5794 — a cloud session whose proxy refuses GraphQL skips the board
+// as `graphql-blocked` and warns once per process.
+// ---------------------------------------------------------------------------
+
+function graphqlBlockedError() {
+  return Object.assign(new Error('gh-exec: gh exited with code 1'), {
+    stderr:
+      'HTTP 403: GitHub GraphQL is not available from Claude Code sessions (https://api.github.com/graphql)',
+  });
+}
+
+describe('ColumnSync — GraphQL refused by the cloud proxy (Story #5794)', () => {
+  it('reports skipped / graphql-blocked from the meta resolve, warns once, never throws', async () => {
+    // A fresh sink starts unwarned; every ColumnSync shares it, as they
+    // share the one `Logger` in production.
+    const warned = [];
+    const logger = { info() {}, warn: (m) => warned.push(String(m)) };
+    const calls = [];
+    const provider = {
+      projectNumber: 42,
+      owner: 'acme',
+      repo: 'widgets',
+      async graphql(query) {
+        calls.push(query);
+        throw graphqlBlockedError();
+      },
+    };
+    const flips = [];
+    for (const labels of [['agent::ready'], ['agent::executing']]) {
+      const sync = makeSync({ provider, logger });
+      flips.push(await sync.sync(11, labels));
+      flips.push(await sync.sync(12, labels));
+    }
+    for (const flip of flips) {
+      assert.deepEqual(flip, { status: 'skipped', reason: 'graphql-blocked' });
+    }
+    assert.equal(warned.length, 1, warned.join('\n'));
+    assert.match(warned[0], /GraphQL-only/);
+    assert.doesNotMatch(warned[0], /gh auth refresh/);
+    // One resolve per ColumnSync instance; later flips answer from memory.
+    assert.equal(calls.length, 2);
+  });
+
+  it('reports graphql-blocked when the Status mutation is the refused call', async () => {
+    const provider = providerWithProject();
+    const base = provider.graphql.bind(provider);
+    provider.graphql = async (query, vars) => {
+      if (query.includes('updateProjectV2ItemFieldValue')) {
+        throw graphqlBlockedError();
+      }
+      return base(query, vars);
+    };
+    const sync = makeSync({ provider, logger: { info() {}, warn() {} } });
+    const res = await sync.setColumn(5, 'Done');
+    assert.deepEqual(res, { status: 'skipped', reason: 'graphql-blocked' });
+  });
+});
+
 // Story #5735 — the live path runs `gh api graphql`, so the refusal arrives
 // as a gh-exec classified error: generic message, scope text in stderr.
 describe('ColumnSync — gh-exec scope refusal (Story #5735)', () => {
