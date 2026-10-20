@@ -1600,9 +1600,15 @@
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
-      "lines": 97.8,
-      "branches": 93.57,
-      "functions": 87.76
+      "lines": 98.18,
+      "branches": 96.07,
+      "functions": 92.86
+    },
+    {
+      "path": ".agents/scripts/lib/gh-pr-rest.js",
+      "lines": 100,
+      "branches": 84.4,
+      "functions": 92.86
     },
     {
       "path": ".agents/scripts/lib/gh-transport.js",
@@ -1900,8 +1906,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
-      "lines": 99.22,
-      "branches": 80.77,
+      "lines": 99.28,
+      "branches": 81.71,
       "functions": 100
     },
     {
@@ -2152,8 +2158,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/merge-queue.js",
-      "lines": 96.2,
-      "branches": 82.93,
+      "lines": 97.04,
+      "branches": 83.67,
       "functions": 100
     },
     {
@@ -2380,8 +2386,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/required-checks.js",
-      "lines": 100,
-      "branches": 94.44,
+      "lines": 99.03,
+      "branches": 86.79,
       "functions": 100
     },
     {
@@ -2560,8 +2566,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/auto-merge.js",
-      "lines": 99.62,
-      "branches": 86.78,
+      "lines": 99.68,
+      "branches": 88.36,
       "functions": 100
     },
     {
@@ -2584,8 +2590,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
-      "lines": 97.14,
-      "branches": 83.46,
+      "lines": 97.34,
+      "branches": 85.31,
       "functions": 100
     },
     {
@@ -2603,7 +2609,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/graphql-preflight.js",
       "lines": 100,
-      "branches": 83.33,
+      "branches": 85.19,
       "functions": 100
     },
     {
@@ -3670,8 +3676,8 @@
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
-      "lines": 90.27,
-      "branches": 70.67,
+      "lines": 91.05,
+      "branches": 75.95,
       "functions": 90
     },
     {

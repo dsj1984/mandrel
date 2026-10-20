@@ -1055,6 +1055,10 @@
       "mi": 103.851
     },
     {
+      "path": ".agents/scripts/lib/gh-pr-rest.js",
+      "mi": 103.771
+    },
+    {
       "path": ".agents/scripts/lib/gh-transport.js",
       "mi": 120.884
     },
@@ -1252,7 +1256,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
-      "mi": 92.372
+      "mi": 93.606
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
@@ -1572,7 +1576,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/required-checks.js",
-      "mi": 89.391
+      "mi": 90.974
     },
     {
       "path": ".agents/scripts/lib/orchestration/resolve-stories.js",
@@ -1692,7 +1696,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/auto-merge.js",
-      "mi": 91.348
+      "mi": 96.389
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js",
@@ -1720,7 +1724,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/graphql-preflight.js",
-      "mi": 98.072
+      "mi": 105.391
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/lock-wait-pending.js",
