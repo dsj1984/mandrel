@@ -111,7 +111,7 @@ const BOARD_SYNC_REMEDIES = Object.freeze({
   'not-on-project': 'node .agents/scripts/board-backfill.js',
 });
 
-const SILENT_BOARD_SKIPS = new Set(['no-project']);
+const SILENT_BOARD_SKIPS = new Set(['no-project', 'graphql-blocked']);
 
 /** Warns on every flip, never latched: agents read the flip's own output. */
 function reportBoardSync(ticketId, newState, boardSync) {

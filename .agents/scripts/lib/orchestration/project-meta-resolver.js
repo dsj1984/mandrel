@@ -6,10 +6,10 @@
  */
 
 import {
-  isProjectAccessFailure,
   ProjectAccessError,
   toProjectAccessError,
 } from './board-access-latch.js';
+import { isBoardAccessFailure } from './board-graphql-latch.js';
 
 export { ProjectAccessError };
 
@@ -69,7 +69,7 @@ async function queryRung(
     );
     return data?.[scope.root]?.projectV2 ?? null;
   } catch (err) {
-    if (isProjectAccessFailure(err)) throw toProjectAccessError(err);
+    if (isBoardAccessFailure(err)) throw toProjectAccessError(err);
     return null;
   }
 }

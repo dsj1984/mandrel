@@ -4,11 +4,11 @@
  * be enabled via API. Never throws (issue creation survives a board failure)
  * and is idempotent (the mutation returns an existing item). A token without
  * the `project` scope reports `reason: 'insufficient-scope'` and trips the
- * warn-once latch rather than warning per issue.
+ * warn-once latch rather than warning per issue (`graphql-blocked` likewise).
  */
 
 import { Logger } from '../../lib/Logger.js';
-import { boardScopeFailure } from '../../lib/orchestration/board-access-latch.js';
+import { boardAccessFailure } from '../../lib/orchestration/board-graphql-latch.js';
 
 /**
  * No project number → no-op without network.
@@ -38,7 +38,7 @@ export async function addIssueToBoard({
     await addItemToProject(nodeId);
     return { added: true };
   } catch (err) {
-    const scopeFailure = boardScopeFailure(err);
+    const scopeFailure = boardAccessFailure(err);
     if (scopeFailure) return { added: false, ...scopeFailure };
     warnAddFailure(err, issueNumber, nodeId);
     return { added: false, reason: 'error' };

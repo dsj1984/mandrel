@@ -16778,102 +16778,114 @@
     {
       "path": ".agents/scripts/lib/duplicate-search.js",
       "method": "tokenize",
-      "startLine": 75,
+      "startLine": 76,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/duplicate-search.js",
       "method": "<anon tokenize/(t)#0>",
-      "startLine": 81,
+      "startLine": 82,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/duplicate-search.js",
       "method": "pickSearchTokens",
-      "startLine": 92,
+      "startLine": 93,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/duplicate-search.js",
       "method": "<anon pickSearchTokens/(a,b)#0>",
-      "startLine": 95,
+      "startLine": 96,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/duplicate-search.js",
       "method": "buildOpenStorySearchQuery",
-      "startLine": 103,
+      "startLine": 104,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/duplicate-search.js",
       "method": "overlapScore",
-      "startLine": 113,
+      "startLine": 114,
       "crap": 7
     },
     {
       "path": ".agents/scripts/lib/duplicate-search.js",
       "method": "buildIssueUrl",
-      "startLine": 126,
+      "startLine": 127,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/duplicate-search.js",
       "method": "normalizeIssue",
-      "startLine": 139,
+      "startLine": 140,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/duplicate-search.js",
       "method": "rankOpenStoryDuplicates",
-      "startLine": 160,
+      "startLine": 161,
       "crap": 11.090909090909092
     },
     {
       "path": ".agents/scripts/lib/duplicate-search.js",
       "method": "<anon rankOpenStoryDuplicates/(id)#0/(n)#0>",
-      "startLine": 180,
+      "startLine": 181,
       "crap": 1.0007513148009015,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/duplicate-search.js",
       "method": "<anon rankOpenStoryDuplicates/(id)#0>",
-      "startLine": 180,
+      "startLine": 181,
       "crap": 1.0007513148009015,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/duplicate-search.js",
       "method": "<anon rankOpenStoryDuplicates/(a,b)#0>",
-      "startLine": 201,
+      "startLine": 202,
       "crap": 1.0007513148009015,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/duplicate-search.js",
       "method": "fetchOpenStoriesViaSearch",
-      "startLine": 210,
+      "startLine": 211,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/duplicate-search.js",
       "method": "fetchOpenStoriesViaList",
-      "startLine": 221,
+      "startLine": 222,
       "crap": 3.262175694128357
     },
     {
       "path": ".agents/scripts/lib/duplicate-search.js",
+      "method": "trySearch",
+      "startLine": 250,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/duplicate-search.js",
+      "method": "reportSearchFailure",
+      "startLine": 266,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/duplicate-search.js",
       "method": "fetchOpenStoryCandidates",
-      "startLine": 244,
-      "crap": 10.022261179285973
+      "startLine": 290,
+      "crap": 9.081
     },
     {
       "path": ".agents/scripts/lib/duplicate-search.js",
       "method": "findSimilarOpenStories",
-      "startLine": 290,
+      "startLine": 323,
       "crap": 4
     },
     {
@@ -17404,52 +17416,71 @@
     {
       "path": ".agents/scripts/lib/feedback-loop/prior-feedback-fetcher.js",
       "method": "normalizeIssue",
-      "startLine": 94,
-      "crap": 8
+      "startLine": 95,
+      "crap": 7
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/prior-feedback-fetcher.js",
+      "method": "issueUrl",
+      "startLine": 115,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/prior-feedback-fetcher.js",
       "method": "normalizeLabels",
-      "startLine": 111,
+      "startLine": 126,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/prior-feedback-fetcher.js",
       "method": "<anon normalizeLabels/(l)#0>",
-      "startLine": 114,
+      "startLine": 129,
       "crap": 3,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/prior-feedback-fetcher.js",
       "method": "<anon normalizeLabels/(name)#0>",
-      "startLine": 115,
+      "startLine": 130,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/prior-feedback-fetcher.js",
+      "method": "restIssuesArgs",
+      "startLine": 143,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/prior-feedback-fetcher.js",
       "method": "fetchByLabel",
-      "startLine": 128,
-      "crap": 6.060738581146745
+      "startLine": 169,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/prior-feedback-fetcher.js",
+      "method": "<anon fetchByLabel/(row)#0>",
+      "startLine": 190,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/prior-feedback-fetcher.js",
       "method": "<anon fetchByLabel/(issue)#0>",
-      "startLine": 161,
-      "crap": 1.0016871828096319,
+      "startLine": 192,
+      "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/prior-feedback-fetcher.js",
       "method": "dedupeInto",
-      "startLine": 180,
+      "startLine": 211,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/prior-feedback-fetcher.js",
       "method": "fetchPriorFeedback",
-      "startLine": 207,
+      "startLine": 238,
       "crap": 7
     },
     {
@@ -20588,6 +20619,36 @@
       "crap": 2
     },
     {
+      "path": ".agents/scripts/lib/orchestration/board-graphql-latch.js",
+      "method": "reportBoardGraphqlBlocked",
+      "startLine": 37,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/board-graphql-latch.js",
+      "method": "isBoardAccessFailure",
+      "startLine": 51,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/board-graphql-latch.js",
+      "method": "boardAccessFailureReason",
+      "startLine": 61,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/board-graphql-latch.js",
+      "method": "reportBoardAccessFailure",
+      "startLine": 75,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/board-graphql-latch.js",
+      "method": "boardAccessFailure",
+      "startLine": 93,
+      "crap": 2
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/cancelled-run-discount.js",
       "method": "defaultGhApi",
       "startLine": 14,
@@ -21561,26 +21622,26 @@
     {
       "path": ".agents/scripts/lib/orchestration/column-sync.js",
       "method": "columnForLabels",
-      "startLine": 36,
+      "startLine": 38,
       "crap": 7
     },
     {
       "path": ".agents/scripts/lib/orchestration/column-sync.js",
       "method": "getProjectItemId",
-      "startLine": 55,
+      "startLine": 57,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/column-sync.js",
       "method": "<anon getProjectItemId/(n)#0>",
-      "startLine": 76,
+      "startLine": 78,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/column-sync.js",
       "method": "updateStatusField",
-      "startLine": 81,
+      "startLine": 83,
       "crap": 1
     },
     {
@@ -33753,83 +33814,83 @@
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/transition.js",
       "method": "reportBoardSync",
-      "startLine": 117,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/transition.js",
-      "method": "syncProjectStatusColumn",
-      "startLine": 119,
+      "startLine": 118,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/transition.js",
       "method": "boardSyncMessage",
-      "startLine": 123,
+      "startLine": 124,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/transition.js",
       "method": "columnSyncFor",
-      "startLine": 131,
+      "startLine": 132,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/transition.js",
+      "method": "syncProjectStatusColumn",
+      "startLine": 154,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/ticketing/transition.js",
       "method": "dispatchTransitionNotification",
-      "startLine": 161,
+      "startLine": 185,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/transition.js",
       "method": "<anon dispatchTransitionNotification/(l)#0>",
-      "startLine": 164,
+      "startLine": 188,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/transition.js",
       "method": "<anon dispatchTransitionNotification/(err)#0>",
-      "startLine": 195,
+      "startLine": 219,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/transition.js",
       "method": "emitBlockedFriction",
-      "startLine": 217,
+      "startLine": 241,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/transition.js",
       "method": "transitionTicketState",
-      "startLine": 254,
+      "startLine": 279,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/transition.js",
       "method": "<anon transitionTicketState/(state)#0>",
-      "startLine": 262,
+      "startLine": 287,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/transition.js",
       "method": "<anon transitionTicketState/(l)#0>",
-      "startLine": 271,
+      "startLine": 296,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/transition.js",
       "method": "toggleTasklistCheckbox",
-      "startLine": 323,
+      "startLine": 350,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/transition.js",
       "method": "postStructuredComment",
-      "startLine": 366,
+      "startLine": 393,
       "crap": 1
     },
     {
@@ -39872,13 +39933,13 @@
     {
       "path": ".agents/scripts/providers/github/board-add.js",
       "method": "addIssueToBoard",
-      "startLine": 24,
+      "startLine": 25,
       "crap": 6
     },
     {
       "path": ".agents/scripts/providers/github/board-add.js",
       "method": "warnAddFailure",
-      "startLine": 48,
+      "startLine": 49,
       "crap": 3
     },
     {
@@ -39902,159 +39963,163 @@
     {
       "path": ".agents/scripts/providers/github/compose.js",
       "method": "composeGateways",
-      "startLine": 18,
-      "crap": 1.0000335671847203
+      "startLine": 19,
+      "crap": 1.000030517578125
     },
     {
       "path": ".agents/scripts/providers/github/compose.js",
       "method": "<anon composeGateways/(id)#0>",
-      "startLine": 21,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/providers/github/compose.js",
-      "method": "<anon composeGateways/()#0>",
       "startLine": 22,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/providers/github/compose.js",
+      "method": "<anon composeGateways/()#0>",
+      "startLine": 23,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/providers/github/compose.js",
       "method": "<anon composeGateways/(q,v,o)#0>",
-      "startLine": 33,
+      "startLine": 34,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/providers/github/compose.js",
       "method": "<anon composeGateways/(id)#1>",
-      "startLine": 39,
+      "startLine": 41,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/providers/github/compose.js",
       "method": "<anon composeGateways/(id,o)#0>",
-      "startLine": 47,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/providers/github/compose.js",
-      "method": "<anon composeGateways/(id)#2>",
-      "startLine": 48,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/providers/github/compose.js",
-      "method": "<anon composeGateways/(n,id)#0>",
       "startLine": 49,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/providers/github/compose.js",
-      "method": "<anon composeGateways/(t)#0>",
+      "method": "<anon composeGateways/(id)#2>",
       "startLine": 50,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/providers/github/compose.js",
-      "method": "<anon composeGateways/()#1>",
-      "startLine": 72,
+      "method": "<anon composeGateways/(n,id)#0>",
+      "startLine": 51,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/providers/github/compose.js",
-      "method": "<anon composeGateways/(id,o)#1>",
+      "method": "<anon composeGateways/(t)#0>",
+      "startLine": 52,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/providers/github/compose.js",
+      "method": "<anon composeGateways/()#1>",
       "startLine": 74,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/providers/github/compose.js",
+      "method": "<anon composeGateways/(id,o)#1>",
+      "startLine": 77,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/providers/github/compose.js",
       "method": "<anon composeGateways/(id)#3>",
-      "startLine": 75,
+      "startLine": 78,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/providers/github/errors.js",
       "method": "isTransientNetworkError",
-      "startLine": 58,
+      "startLine": 60,
       "crap": 1
     },
     {
       "path": ".agents/scripts/providers/github/errors.js",
       "method": "matchesAny",
-      "startLine": 71,
+      "startLine": 73,
       "crap": 2
     },
     {
       "path": ".agents/scripts/providers/github/errors.js",
       "method": "stderrText",
-      "startLine": 85,
+      "startLine": 87,
       "crap": 2
     },
     {
       "path": ".agents/scripts/providers/github/errors.js",
       "method": "statusFromStderr",
-      "startLine": 95,
+      "startLine": 97,
       "crap": 3
     },
     {
       "path": ".agents/scripts/providers/github/errors.js",
       "method": "extractErrorFields",
-      "startLine": 106,
+      "startLine": 108,
       "crap": 4
     },
     {
       "path": ".agents/scripts/providers/github/errors.js",
       "method": "isTransientStatus",
-      "startLine": 119,
+      "startLine": 121,
       "crap": 3
     },
     {
       "path": ".agents/scripts/providers/github/errors.js",
       "method": "isTransientByCodeOrMessage",
-      "startLine": 124,
+      "startLine": 126,
       "crap": 2
     },
     {
       "path": ".agents/scripts/providers/github/errors.js",
       "method": "isPermissionSignal",
-      "startLine": 129,
+      "startLine": 131,
       "crap": 3
     },
     {
       "path": ".agents/scripts/providers/github/errors.js",
       "method": "classifyGithubError",
-      "startLine": 134,
+      "startLine": 136,
       "crap": 8
     },
     {
       "path": ".agents/scripts/providers/github/errors.js",
+      "method": "failureText",
+      "startLine": 170,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/providers/github/errors.js",
+      "method": "isGraphqlBlocked",
+      "startLine": 189,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/providers/github/errors.js",
+      "method": "isProxyScopeRefusal",
+      "startLine": 199,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/providers/github/errors.js",
       "method": "withTransientRetry",
-      "startLine": 180,
+      "startLine": 235,
       "crap": 5.000762939453125
-    },
-    {
-      "path": ".agents/scripts/providers/github/errors.js",
-      "method": "<anon withTransientRetry/(ms)#0/(r)#0>",
-      "startLine": 189,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/providers/github/errors.js",
-      "method": "<anon withTransientRetry/(ms)#0>",
-      "startLine": 189,
-      "crap": 1,
-      "anonymous": true
     },
     {
       "path": ".agents/scripts/providers/github/gh-token-diagnostics.js",
@@ -40647,6 +40712,39 @@
       "method": "linkStoriesToEpic",
       "startLine": 133,
       "crap": 6
+    },
+    {
+      "path": ".agents/scripts/providers/github/sub-issues-rest.js",
+      "method": "createSubIssueRestFallback",
+      "startLine": 41,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/providers/github/sub-issues-rest.js",
+      "method": "<anon createSubIssueRestFallback/(parentId)#0>",
+      "startLine": 42,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/providers/github/sub-issues-rest.js",
+      "method": "<anon createSubIssueRestFallback/(parentId)#1>",
+      "startLine": 44,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/providers/github/sub-issues-rest.js",
+      "method": "listSubIssuesViaRest",
+      "startLine": 65,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/providers/github/sub-issues-rest.js",
+      "method": "<anon listSubIssuesViaRest/(row)#0>",
+      "startLine": 76,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/prune-plan-run-labels.js",

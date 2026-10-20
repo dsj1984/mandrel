@@ -12,6 +12,7 @@ import { MergeMethodsGateway } from './merge-methods.js';
 import { ProjectBoardGateway } from './project-board.js';
 import * as projects from './projects-v2-graphql.js';
 import { SubIssueGateway } from './sub-issues.js';
+import { createSubIssueRestFallback } from './sub-issues-rest.js';
 import { TicketGateway } from './tickets.js';
 
 /** Mutates `provider` in place. */
@@ -33,6 +34,7 @@ export function composeGateways(provider) {
     ghGraphql: (q, v, o) => p.graphql(q, v, o),
     cache: p._cache,
     classifyGithubError,
+    restFallback: createSubIssueRestFallback({ ...ghDeps, cache: p._cache }),
   });
   p.comments = new CommentGateway({
     ...ghDeps,

@@ -40,6 +40,19 @@ const loggerMod = await import(
 );
 
 const { SubIssueGateway } = subIssuesMod;
+const { createTestProvider, makeGh } = await import('./_helpers.js');
+const { createSubIssueRestFallback } = await import(
+  pathToFileURL(
+    path.join(
+      ROOT,
+      '.agents',
+      'scripts',
+      'providers',
+      'github',
+      'sub-issues-rest.js',
+    ),
+  ).href
+);
 const { createInlineTicketCache } = cacheMod;
 const { Logger } = loggerMod;
 
@@ -60,6 +73,65 @@ async function captureErrors(fn) {
     Logger.error = original;
   }
   return lines;
+}
+
+/**
+ * Run `fn` with `Logger.warn` and `Logger.error` captured.
+ *
+ * @param {() => Promise<unknown>} fn
+ * @returns {Promise<{ warn: string[], error: string[] }>}
+ */
+async function captureWarnAndError(fn) {
+  const logs = { warn: [], error: [] };
+  const original = { warn: Logger.warn, error: Logger.error };
+  Logger.warn = (m) => logs.warn.push(String(m));
+  Logger.error = (m) => logs.error.push(String(m));
+  try {
+    await fn();
+  } finally {
+    Logger.warn = original.warn;
+    Logger.error = original.error;
+  }
+  return logs;
+}
+
+/** The cloud proxy's GraphQL refusal, shaped as the gh transport throws it. */
+function graphqlBlockedError() {
+  return Object.assign(new Error('gh-exec: gh exited with code 1'), {
+    stderr:
+      'HTTP 403: GitHub GraphQL is not available from Claude Code sessions (https://api.github.com/graphql)',
+  });
+}
+
+/**
+ * A fake gh facade serving `/issues/{n}/sub_issues` from `childrenByParent`.
+ *
+ * @param {Record<number, object[]>} childrenByParent
+ */
+function makeRestGh(childrenByParent) {
+  const endpoints = [];
+  return {
+    endpoints,
+    async api({ method, endpoint }) {
+      endpoints.push(`${method} ${endpoint}`);
+      const m = /\/issues\/(\d+)\/sub_issues\?page=(\d+)/.exec(endpoint);
+      const rows = m && Number(m[2]) === 1 ? childrenByParent[m[1]] : [];
+      return { stdout: JSON.stringify(rows ?? []) };
+    },
+  };
+}
+
+function restRow(number) {
+  return {
+    number,
+    id: number * 1000,
+    node_id: `I_${number}`,
+    title: `T${number}`,
+    body: '',
+    state: 'open',
+    labels: [{ name: 'type::story' }],
+    assignees: [],
+  };
 }
 
 describe('providers/github/sub-issues.js — SubIssueGateway', () => {
@@ -157,5 +229,108 @@ describe('providers/github/sub-issues.js — SubIssueGateway', () => {
     });
     const ids = await gateway.getNativeSubIssues('parent_node', 1);
     assert.deepEqual(ids, []);
+  });
+
+  describe('GraphQL refused by the cloud proxy (Story #5794)', () => {
+    it('reads the same child numbers from REST and primes the cache', async () => {
+      const gh = makeRestGh({ 42: [restRow(43), restRow(44)] });
+      const cache = createInlineTicketCache();
+      const gateway = new SubIssueGateway({
+        ghGraphql: async () => {
+          throw graphqlBlockedError();
+        },
+        cache,
+        restFallback: createSubIssueRestFallback(
+          { gh, owner: 'o', repo: 'r', cache },
+          { blocked: false },
+        ),
+      });
+
+      let ids;
+      await captureWarnAndError(async () => {
+        ids = await gateway.getNativeSubIssues('parent_node', 42);
+      });
+
+      assert.deepEqual(ids, [43, 44]);
+      assert.equal(cache.has(43), true);
+      assert.equal(cache.has(44), true);
+      assert.match(
+        gh.endpoints[0],
+        /^GET \/repos\/o\/r\/issues\/42\/sub_issues\?/,
+      );
+    });
+
+    it('N parents print exactly one warning and no errors; later parents skip GraphQL', async () => {
+      const gh = makeRestGh({
+        1: [restRow(10)],
+        2: [restRow(20)],
+        3: [restRow(30), restRow(31)],
+      });
+      let graphqlCalls = 0;
+      const gateway = new SubIssueGateway({
+        ghGraphql: async () => {
+          graphqlCalls += 1;
+          throw graphqlBlockedError();
+        },
+        restFallback: createSubIssueRestFallback(
+          { gh, owner: 'o', repo: 'r' },
+          { blocked: false },
+        ),
+      });
+
+      const results = [];
+      const logs = await captureWarnAndError(async () => {
+        for (const id of [1, 2, 3]) {
+          results.push(await gateway.getNativeSubIssues(`node_${id}`, id));
+        }
+      });
+
+      assert.deepEqual(results, [[10], [20], [30, 31]]);
+      assert.equal(graphqlCalls, 1, 'GraphQL is tried once per process');
+      assert.equal(logs.error.length, 0);
+      assert.equal(logs.warn.length, 1);
+      assert.match(logs.warn[0], /REST/);
+    });
+
+    it('an ordinary 403 keeps the error path and does not trip the latch', async () => {
+      const gh = makeRestGh({ 5: [restRow(6)] });
+      const plain403 = Object.assign(new Error('gh exited with code 1'), {
+        stderr: 'HTTP 403: Resource not accessible by integration',
+      });
+      const gateway = new SubIssueGateway({
+        ghGraphql: async () => {
+          throw plain403;
+        },
+        restFallback: createSubIssueRestFallback(
+          { gh, owner: 'o', repo: 'r' },
+          { blocked: false },
+        ),
+      });
+
+      const logs = await captureWarnAndError(async () => {
+        await assert.rejects(() => gateway.getNativeSubIssues('n', 5));
+        await assert.rejects(() => gateway.getNativeSubIssues('n', 5));
+      });
+
+      assert.equal(logs.error.length, 2);
+      assert.equal(gh.endpoints.length, 0, 'no REST fallback for a plain 403');
+    });
+
+    // The one case on the process-wide latch: a composed provider owns it.
+    it('the composed provider falls back to REST end to end', async () => {
+      const gh = makeGh({
+        'POST graphql': {
+          status: 403,
+          json: 'GitHub GraphQL is not available from Claude Code sessions',
+        },
+        'GET /issues/9/sub_issues': { status: 200, json: [restRow(91)] },
+      });
+      const provider = createTestProvider({ gh });
+      let ids;
+      await captureWarnAndError(async () => {
+        ids = await provider.getNativeSubIssues('node_9', 9);
+      });
+      assert.deepEqual(ids, [91]);
+    });
   });
 });

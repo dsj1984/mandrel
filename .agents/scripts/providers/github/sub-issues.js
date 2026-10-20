@@ -1,7 +1,8 @@
 /**
  * GitHub Provider — SubIssueGateway: the read side of native Sub-Issues (the
  * GraphQL `subIssues` field, paginated into child numbers). Holds no
- * transport state; every call goes through the parent's `ghGraphql` hook.
+ * transport state; every call goes through the parent's `ghGraphql` hook
+ * (or `restFallback` once GraphQL is refused).
  */
 
 import { describeGhFailure } from '../../lib/gh-exec.js';
@@ -23,20 +24,25 @@ export class SubIssueGateway {
    *   ghGraphql: (query: string, variables?: object, opts?: object) => Promise<object>,
    *   cache?: { primeIfAbsent: (ticket: object) => void },
    *   classifyGithubError?: (err: unknown) => string,
+   *   restFallback?: object | null,
    * }} deps
    */
   constructor({
     ghGraphql,
     cache,
     classifyGithubError = defaultClassifyGithubError,
+    restFallback = null,
   } = {}) {
     this._ghGraphql = ghGraphql;
+    this._restFallback = restFallback;
     this._cache = cache;
     this._classify = classifyGithubError;
   }
 
   /** Primes the ticket cache; `[]` when the feature is disabled. */
   async getNativeSubIssues(parentNodeId, parentId) {
+    const latched = this._restFallback?.latched(parentId);
+    if (latched) return latched;
     const childIds = [];
     let cursor = null;
     try {
@@ -72,6 +78,8 @@ export class SubIssueGateway {
         }
       }
     } catch (err) {
+      const rest = this._restFallback?.onError(err, parentId);
+      if (rest) return rest;
       const category = this._classify(err);
       if (category === 'feature-disabled') {
         Logger.warn(

@@ -992,7 +992,7 @@
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/prior-feedback-fetcher.js",
-      "mi": 94.474
+      "mi": 96.628
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/retro-proposals-graduator.js",
@@ -1193,6 +1193,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/board-access-latch.js",
       "mi": 111.114
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/board-graphql-latch.js",
+      "mi": 112.807
     },
     {
       "path": ".agents/scripts/lib/orchestration/cancelled-run-discount.js",
@@ -2352,11 +2356,11 @@
     },
     {
       "path": ".agents/scripts/providers/github/compose.js",
-      "mi": 114.153
+      "mi": 113.411
     },
     {
       "path": ".agents/scripts/providers/github/errors.js",
-      "mi": 96.467
+      "mi": 98.361
     },
     {
       "path": ".agents/scripts/providers/github/gh-token-diagnostics.js",
@@ -2407,8 +2411,12 @@
       "mi": 100.83
     },
     {
+      "path": ".agents/scripts/providers/github/sub-issues-rest.js",
+      "mi": 115.117
+    },
+    {
       "path": ".agents/scripts/providers/github/sub-issues.js",
-      "mi": 100.364
+      "mi": 96.654
     },
     {
       "path": ".agents/scripts/providers/github/tickets.js",
