@@ -6,6 +6,7 @@
 import { spawn as defaultSpawn } from 'node:child_process';
 import { spawnChild } from './child-exec.js';
 import { ghEnv, tryGhEnv } from './gh-env.js';
+import { createRestPr } from './gh-pr-rest.js';
 import {
   isTransportFailure,
   sandboxDenialCode,
@@ -356,12 +357,65 @@ export function exec({
 }
 
 /**
+ * The process-wide GraphQL-availability verdict, produced once — by close's
+ * preflight (`setGraphqlAvailability`) or the facade's first PR-surface use —
+ * and read by every facade. Only `unavailable` (the proxy 403) selects REST:
+ * `auth-failed` would fail REST the same way, and an inconclusive probe keeps
+ * the GraphQL path it was already on.
+ */
+let graphqlLatch = null;
+let graphqlLatchPending = null;
+
+function transportForVerdict(verdict) {
+  return verdict?.verdict === 'unavailable' ? 'rest' : 'graphql';
+}
+
+/**
+ * Seed (or, with `null`, clear) the latch.
+ *
+ * @param {{ verdict: string }|null} verdict A `probeGraphqlAvailability` result.
+ */
+export function setGraphqlAvailability(verdict) {
+  graphqlLatch = verdict ?? null;
+  graphqlLatchPending = null;
+}
+
+/**
+ * Synchronous read for callers that cannot await: true only once the latch
+ * has settled on `unavailable`.
+ *
+ * @returns {boolean}
+ */
+export function prSurfaceUsesRest() {
+  return transportForVerdict(graphqlLatch) === 'rest';
+}
+
+/**
+ * The PR transport a facade will use; a facade without one (a test double)
+ * is on GraphQL.
+ *
+ * @param {{ prTransport?: () => Promise<string> }|null|undefined} facade
+ * @returns {Promise<'rest'|'graphql'>}
+ */
+export async function prTransportOf(facade) {
+  if (typeof facade?.prTransport !== 'function') return 'graphql';
+  return (await facade.prTransport()) === 'rest' ? 'rest' : 'graphql';
+}
+
+/**
  * Typed `gh` facade over an `exec` implementation (tests inject a fake).
  *
  * @param {Function} execImpl
  * @param {object} [defaultExecOpts] — per-call options win.
+ * @param {{ lazyProbe?: boolean }} [transportOpts] `lazyProbe`: probe GraphQL
+ *   on first PR-surface use when nothing seeded the latch. Defaults on for the
+ *   real spawner only, so an injected exec's call log stays its own.
  */
-export function createGh(execImpl = exec, defaultExecOpts = {}) {
+export function createGh(
+  execImpl = exec,
+  defaultExecOpts = {},
+  { lazyProbe = execImpl === exec } = {},
+) {
   const execWithDefaults = (opts) => execImpl({ ...defaultExecOpts, ...opts });
   /**
    * @param {object} opts
@@ -425,7 +479,7 @@ export function createGh(execImpl = exec, defaultExecOpts = {}) {
       }),
   };
 
-  const pr = {
+  const graphqlPr = {
     view: (id, fields) =>
       execWithDefaults({
         args: ['pr', 'view', idStr(id), ...jsonFlag(fields)],
@@ -444,6 +498,42 @@ export function createGh(execImpl = exec, defaultExecOpts = {}) {
         args: ['pr', 'list', ...flags, ...jsonFlag(fields)],
       }),
   };
+  const restPr = createRestPr({ api, GhExecError });
+
+  /** @returns {'rest'|'graphql'|null} null until a lazy probe settles it. */
+  function settledPrTransport() {
+    if (graphqlLatch) return transportForVerdict(graphqlLatch);
+    return lazyProbe ? null : 'graphql';
+  }
+
+  /** @returns {Promise<'rest'|'graphql'>} */
+  async function prTransport() {
+    const settled = settledPrTransport();
+    if (settled) return settled;
+    graphqlLatchPending ??= probeGraphqlAvailability({
+      ghFacade: { api },
+    }).then((verdict) => {
+      graphqlLatch ??= verdict;
+      return graphqlLatch;
+    });
+    return transportForVerdict(await graphqlLatchPending);
+  }
+
+  /** Synchronous when the transport is already known, so argv order is unchanged. */
+  function routed(name) {
+    return (...args) => {
+      const settled = settledPrTransport();
+      if (settled)
+        return (settled === 'rest' ? restPr : graphqlPr)[name](...args);
+      return prTransport().then((transport) =>
+        (transport === 'rest' ? restPr : graphqlPr)[name](...args),
+      );
+    };
+  }
+
+  const pr = Object.fromEntries(
+    Object.keys(graphqlPr).map((name) => [name, routed(name)]),
+  );
 
   const label = {
     create: (name, flags = []) =>
@@ -472,23 +562,10 @@ export function createGh(execImpl = exec, defaultExecOpts = {}) {
   };
 
   const defaults = Object.freeze({ ...defaultExecOpts });
-  return { api, issue, pr, label, repo, defaults };
+  return { api, issue, pr, label, repo, defaults, prTransport };
 }
 
 export const gh = createGh();
-
-/**
- * `gh` routes every one of these through GraphQL, so a GraphQL 403 gates the
- * whole PR surface. Kept beside `pr` so the refusal text cannot drift.
- */
-const GH_PR_SUBCOMMANDS = Object.freeze([
-  'view',
-  'create',
-  'edit',
-  'merge',
-  'update-branch',
-  'list',
-]);
 
 /** Cheapest authenticated GraphQL read: no repo, no extra scope. */
 const GRAPHQL_PROBE_QUERY = 'query{viewer{login}}';
@@ -577,14 +654,7 @@ export function describeGraphqlPreflight({ verdict, detail } = {}) {
       suffix
     );
   }
-  const subcommands = GH_PR_SUBCOMMANDS.map((s) => `\`gh pr ${s}\``).join(', ');
-  return (
-    'GitHub GraphQL is unavailable in this session (HTTP 403). `gh` routes the entire pull-request ' +
-    `surface through GraphQL — ${subcommands} — so this close can neither open, inspect, nor merge ` +
-    'a pull request, and every later phase would fail the same way. Retrying here will not help: ' +
-    're-run the close from a local session, where GraphQL is reachable.' +
-    suffix
-  );
+  return `GitHub GraphQL preflight did not refuse this session (verdict=${verdict ?? 'unknown'}).${suffix}`;
 }
 
 export default exec;

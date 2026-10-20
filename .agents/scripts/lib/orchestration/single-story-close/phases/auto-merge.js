@@ -9,7 +9,12 @@
  * repo's `delete_branch_on_merge` owns the remote branch reap.
  */
 
-import { gh as defaultGh, describeGhFailure } from '../../../gh-exec.js';
+import {
+  gh as defaultGh,
+  describeGhFailure,
+  prTransportOf,
+} from '../../../gh-exec.js';
+import { REST_MERGE_ON_GREEN } from '../../../gh-pr-rest.js';
 import { resolveAutoMergeArmCwd } from '../../auto-merge-cwd.js';
 import {
   decideAdvisoryGateBlock,
@@ -19,6 +24,7 @@ import {
   armForMergeQueue,
   disarmByDequeue,
   MERGE_QUEUE_REFUSAL,
+  MERGE_QUEUE_REST_BLOCK_CLASS,
   readMergeQueueState,
 } from '../../merge-queue.js';
 
@@ -139,10 +145,28 @@ export async function enableAutoMergeWith({
   resolveArmCwd = resolveAutoMergeArmCwd,
   queueRequired = false,
 }) {
-  const exec = runner ?? makeDefaultGhAutoMergeRunner(gh ?? defaultGh);
+  const facade = gh ?? defaultGh;
+  const refused = await refuseQueueOverRest(facade, queueRequired);
+  if (refused) return refused;
+  const exec = runner ?? makeDefaultGhAutoMergeRunner(facade);
   const armCwd = resolveArmCwd(cwd);
   const arm = queueRequired ? armForMergeQueue : armNativeAutoMerge;
   return arm({ exec, prNumber, armCwd });
+}
+
+/**
+ * A merge-queue base over the REST transport: enqueueing is GraphQL-only, and
+ * a direct merge would bypass the queue, so the arm refuses.
+ *
+ * @returns {Promise<{ enabled: false, mergeQueue: true, reason: string }|null>}
+ */
+async function refuseQueueOverRest(facade, queueRequired) {
+  if (!queueRequired || (await prTransportOf(facade)) !== 'rest') return null;
+  return {
+    enabled: false,
+    mergeQueue: true,
+    reason: MERGE_QUEUE_REST_BLOCK_CLASS,
+  };
 }
 
 /** The hand-run equivalent of the arm, for an operator-facing remedy. */
@@ -178,6 +202,37 @@ export async function rearmAutoMerge({
 }
 
 /**
+ * The merge wait's own squash-merge for a PR the CCR route would not arm,
+ * pinned to the head SHA it saw green (a moved head is refused), with the
+ * head ref reaped. Lives here because `lifecycle-lint` confines `gh pr merge`
+ * to this module. Never throws.
+ *
+ * @param {{ prNumber: number, headSha: string, gh?: object }} args
+ * @returns {Promise<{ merged: boolean, detail: string }>}
+ */
+export async function mergeOnGreen({ prNumber, headSha, gh }) {
+  try {
+    const result = await (gh ?? defaultGh).pr.merge(String(prNumber), [
+      '--squash',
+      '--delete-branch',
+      '--match-head-commit',
+      headSha,
+    ]);
+    const merged = result?.merged !== false;
+    return { merged, detail: merged ? 'merged' : 'merge not performed' };
+  } catch (err) {
+    return { merged: false, detail: describeGhFailure(err) };
+  }
+}
+
+/** A zero-exit arm; the REST transport's CCR refusal hands the merge to the wait. */
+function armedOutcome(result) {
+  return result.mergeOnGreen
+    ? { enabled: true, mergeOnGreen: true, reason: result.stderr }
+    : { enabled: true };
+}
+
+/**
  * `--auto --squash --delete-branch`, falling back to a direct squash-merge
  * only when native auto-merge is unavailable.
  */
@@ -194,7 +249,7 @@ async function armNativeAutoMerge({ exec, prNumber, armCwd }) {
       ],
       { cwd: armCwd },
     );
-    if (result.status === 0) return { enabled: true };
+    if (result.status === 0) return armedOutcome(result);
     const detail = `gh-exit-${result.status}: ${(result.stderr ?? '').trim().slice(0, 200)}`;
     if (isLocalCleanupOnlyFailure(result.stderr)) {
       // The remote side stands; the land tail finishes the local ref reap.
@@ -219,6 +274,21 @@ async function armNativeAutoMerge({ exec, prNumber, armCwd }) {
 }
 
 /**
+ * A resolved `gh.pr.merge` as the runner envelope. The REST transport's CCR
+ * refusal resolves too, carrying `mergeOnGreen` and its detail as `stderr`.
+ */
+function successEnvelope(result) {
+  if (result?.mergeOnGreen) {
+    return { status: 0, stdout: '', stderr: result.detail, mergeOnGreen: true };
+  }
+  return {
+    status: 0,
+    stdout: result?.stdout ?? '',
+    stderr: result?.stderr ?? '',
+  };
+}
+
+/**
  * Adapt `gh.pr.merge` into the `{ status, stdout, stderr }` envelope,
  * mapping non-zero exits back to that envelope rather than throwing.
  */
@@ -226,12 +296,7 @@ function makeDefaultGhAutoMergeRunner(gh) {
   return async function defaultGhAutoMergeRunner(args, _opts) {
     const [, , prIdStr, ...flags] = args;
     try {
-      const result = await gh.pr.merge(prIdStr, flags);
-      return {
-        status: 0,
-        stdout: result?.stdout ?? '',
-        stderr: result?.stderr ?? '',
-      };
+      return successEnvelope(await gh.pr.merge(prIdStr, flags));
     } catch (err) {
       // Any error with a numeric `.code`/`.status` maps to the envelope;
       // a codeless Error falls through to the caller's spawn-error reason.
@@ -392,60 +457,69 @@ async function evaluateAdvisoryGate({
   };
 }
 
+/** The fields every standing arm reports. */
+const ARMED = Object.freeze({ autoMergeEnabled: true, autoMergeReason: null });
+
+/** How each kind of standing arm reports, and the outcome it returns. */
+const ARMED_REPORTS = Object.freeze({
+  mergeOnGreen: ({ result, prNumber }) => [
+    `↪ The CCR auto-merge route refused PR #${prNumber} (${result.reason || 'no detail'}) — ` +
+      'the merge wait squash-merges it, pinned to the head SHA, once it is CLEAN with green checks.',
+    {
+      ...ARMED,
+      autoMergeReason: REST_MERGE_ON_GREEN,
+      localCleanupDeferred: false,
+    },
+  ],
+  mergeQueue: ({ prNumber }) => [
+    `✅ Auto-merge enabled on PR #${prNumber} (merge queue — the queue rule picks the strategy).`,
+    { ...ARMED, localCleanupDeferred: false, mergeQueue: true },
+  ],
+  directMerged: ({ result, prNumber }) => [
+    `✅ Native auto-merge unavailable on PR #${prNumber} — direct squash-merge landed it` +
+      (result.localCleanupDeferred
+        ? " (gh's LOCAL branch cleanup deferred to the land tail; the merge stands)."
+        : '.'),
+    {
+      ...ARMED,
+      directMerged: true,
+      localCleanupDeferred: Boolean(result.localCleanupDeferred),
+    },
+  ],
+  localCleanupDeferred: ({ result, prNumber }) => [
+    `⚠️ Auto-merge armed on PR #${prNumber}, but gh's LOCAL branch cleanup failed ` +
+      `(${result.reason}) — deferring the local ref reap to the land tail; the merge stands.`,
+    { ...ARMED, localCleanupDeferred: true },
+  ],
+  plain: ({ prNumber }) => [
+    `✅ Auto-merge enabled on PR #${prNumber} (squash, delete-branch).`,
+    { ...ARMED, localCleanupDeferred: false },
+  ],
+});
+
+/** The first flag a standing arm carries, in precedence order. */
+function armedKind(result) {
+  const kinds = [
+    'mergeOnGreen',
+    'mergeQueue',
+    'directMerged',
+    'localCleanupDeferred',
+  ];
+  return kinds.find((kind) => result[kind]) ?? 'plain';
+}
+
 /**
  * Report an arm that stood, naming how it will land.
  *
- * @returns {{ autoMergeEnabled: true, autoMergeReason: null, localCleanupDeferred: boolean, directMerged?: boolean, mergeQueue?: boolean }}
+ * @returns {{ autoMergeEnabled: true, autoMergeReason: string|null, localCleanupDeferred: boolean, directMerged?: boolean, mergeQueue?: boolean }}
  */
 function reportArmed({ result, prNumber, progress }) {
-  if (result.mergeQueue) {
-    progress(
-      'PR',
-      `✅ Auto-merge enabled on PR #${prNumber} (merge queue — the queue rule picks the strategy).`,
-    );
-    return {
-      autoMergeEnabled: true,
-      autoMergeReason: null,
-      localCleanupDeferred: false,
-      mergeQueue: true,
-    };
-  }
-  if (result.directMerged) {
-    progress(
-      'PR',
-      `✅ Native auto-merge unavailable on PR #${prNumber} — direct squash-merge landed it` +
-        (result.localCleanupDeferred
-          ? " (gh's LOCAL branch cleanup deferred to the land tail; the merge stands)."
-          : '.'),
-    );
-    return {
-      autoMergeEnabled: true,
-      autoMergeReason: null,
-      directMerged: true,
-      localCleanupDeferred: Boolean(result.localCleanupDeferred),
-    };
-  }
-  if (result.localCleanupDeferred) {
-    progress(
-      'PR',
-      `⚠️ Auto-merge armed on PR #${prNumber}, but gh's LOCAL branch cleanup failed ` +
-        `(${result.reason}) — deferring the local ref reap to the land tail; the merge stands.`,
-    );
-    return {
-      autoMergeEnabled: true,
-      autoMergeReason: null,
-      localCleanupDeferred: true,
-    };
-  }
-  progress(
-    'PR',
-    `✅ Auto-merge enabled on PR #${prNumber} (squash, delete-branch).`,
-  );
-  return {
-    autoMergeEnabled: true,
-    autoMergeReason: null,
-    localCleanupDeferred: false,
-  };
+  const [line, outcome] = ARMED_REPORTS[armedKind(result)]({
+    result,
+    prNumber,
+  });
+  progress('PR', line);
+  return outcome;
 }
 
 /**

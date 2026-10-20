@@ -2,14 +2,18 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
-import { describe, it } from 'node:test';
+import { afterEach, describe, it } from 'node:test';
 
 import exec, {
+  createGh,
   GhExecError,
   GhExecTimeoutError,
   getSpawnCount,
+  prSurfaceUsesRest,
+  prTransportOf,
   resetSpawnCount,
   runGh,
+  setGraphqlAvailability,
 } from '../../.agents/scripts/lib/gh-exec.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 
@@ -206,5 +210,159 @@ describe('runGh captures through child-exec (Story #5756)', () => {
     } finally {
       fs.rmSync(bin, { recursive: true, force: true });
     }
+  });
+});
+
+/**
+ * Story #5793 — the GraphQL-availability latch and the `pr` transport it
+ * selects. Every case clears the process-wide latch it set.
+ */
+describe('gh-exec — PR transport latch (Story #5793)', () => {
+  afterEach(() => setGraphqlAvailability(null));
+
+  /** A recording exec answering every `gh api` with `answer(args)`. */
+  function recordingExec(answer = () => ({ stdout: '{}' })) {
+    const argvs = [];
+    const execImpl = async ({ args }) => {
+      argvs.push(args);
+      if (args[0] !== 'api')
+        return args.includes('--json') ? [] : { stdout: '' };
+      const value = answer(args);
+      if (value instanceof Error) throw value;
+      return { stderr: '', code: 0, ...value };
+    };
+    return { argvs, execImpl };
+  }
+
+  /** Every `pr` call the close path makes, with the argv `gh` gets today. */
+  const CLOSE_PATH_CALLS = [
+    [
+      (gh) =>
+        gh.pr.list(
+          ['--head', 'story-1', '--state', 'all'],
+          ['url', 'state', 'mergedAt'],
+        ),
+      [
+        'pr',
+        'list',
+        '--head',
+        'story-1',
+        '--state',
+        'all',
+        '--json',
+        'url,state,mergedAt',
+      ],
+    ],
+    [
+      (gh) =>
+        gh.pr.create([
+          '--base',
+          'main',
+          '--head',
+          'story-1',
+          '--title',
+          't',
+          '--body',
+          'b',
+        ]),
+      [
+        'pr',
+        'create',
+        '--base',
+        'main',
+        '--head',
+        'story-1',
+        '--title',
+        't',
+        '--body',
+        'b',
+      ],
+    ],
+    [
+      (gh) => gh.pr.view(9, ['mergeStateStatus', 'statusCheckRollup']),
+      ['pr', 'view', '9', '--json', 'mergeStateStatus,statusCheckRollup'],
+    ],
+    [
+      (gh) => gh.pr.merge('9', ['--auto', '--squash', '--delete-branch']),
+      ['pr', 'merge', '9', '--auto', '--squash', '--delete-branch'],
+    ],
+    [
+      (gh) => gh.pr.merge('9', ['--disable-auto']),
+      ['pr', 'merge', '9', '--disable-auto'],
+    ],
+    [(gh) => gh.pr.updateBranch(9), ['pr', 'update-branch', '9']],
+    [
+      (gh) => gh.pr.edit(9, ['--title', 't']),
+      ['pr', 'edit', '9', '--title', 't'],
+    ],
+  ];
+
+  // AC-4 — a GraphQL-reachable session issues byte-identical argv.
+  for (const verdict of [null, 'available', 'auth-failed']) {
+    it(`keeps every close-path gh pr argv unchanged (latch=${verdict})`, async () => {
+      if (verdict) setGraphqlAvailability({ verdict });
+      const { argvs, execImpl } = recordingExec();
+      const gh = createGh(execImpl);
+      for (const [callIt] of CLOSE_PATH_CALLS) await callIt(gh);
+      assert.deepEqual(
+        argvs,
+        CLOSE_PATH_CALLS.map(([, argv]) => argv),
+      );
+      assert.equal(await prTransportOf(gh), 'graphql');
+      assert.equal(prSurfaceUsesRest(), false);
+    });
+  }
+
+  it('routes the pr surface over REST once the latch reads unavailable', async () => {
+    setGraphqlAvailability({ verdict: 'unavailable' });
+    const { argvs, execImpl } = recordingExec(() => ({ stdout: '[]' }));
+    const gh = createGh(execImpl);
+    await gh.pr.list(['--head', 'story-1', '--state', 'all'], ['url']);
+    assert.deepEqual(argvs, [
+      [
+        'api',
+        '-X',
+        'GET',
+        'repos/{owner}/{repo}/pulls?head={owner}:story-1&state=all',
+      ],
+    ]);
+    assert.equal(await prTransportOf(gh), 'rest');
+    assert.equal(prSurfaceUsesRest(), true);
+  });
+
+  it('probes once on first use with lazyProbe, and memoizes the verdict', async () => {
+    const { argvs, execImpl } = recordingExec((args) =>
+      args[3] === 'graphql'
+        ? new GhExecError('gh-exec: gh exited with code 1', {
+            args,
+            stderr:
+              'gh: GitHub GraphQL is not available from Claude Code sessions (HTTP 403)',
+            code: 1,
+          })
+        : { stdout: '[]' },
+    );
+    const gh = createGh(execImpl, {}, { lazyProbe: true });
+    await gh.pr.list(['--head', 'story-1', '--state', 'all'], ['url']);
+    await gh.pr.list(['--head', 'story-2', '--state', 'all'], ['url']);
+    const probes = argvs.filter((a) => a[3] === 'graphql');
+    assert.equal(probes.length, 1, 'the probe runs once per process');
+    assert.ok(
+      argvs.every((a) => a[0] === 'api'),
+      'no gh pr subcommand spawned',
+    );
+    assert.equal(prSurfaceUsesRest(), true);
+  });
+
+  it('keeps GraphQL when the lazy probe answers', async () => {
+    const { argvs, execImpl } = recordingExec(() => ({ stdout: '{}' }));
+    const gh = createGh(execImpl, {}, { lazyProbe: true });
+    await gh.pr.view(3, ['url']);
+    assert.deepEqual(argvs.at(-1), ['pr', 'view', '3', '--json', 'url']);
+    assert.equal(await prTransportOf(gh), 'graphql');
+  });
+
+  it('reads a facade without a transport as GraphQL', async () => {
+    assert.equal(await prTransportOf({ pr: {} }), 'graphql');
+    assert.equal(await prTransportOf(undefined), 'graphql');
   });
 });

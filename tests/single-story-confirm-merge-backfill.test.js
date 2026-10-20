@@ -17,6 +17,11 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import {
+  createGh,
+  GhExecError,
+  setGraphqlAvailability,
+} from '../.agents/scripts/lib/gh-exec.js';
 
 const POST_LAND_URL = new URL(
   '../.agents/scripts/lib/orchestration/single-story-close/phases/post-land.js',
@@ -139,5 +144,78 @@ describe('single-story-confirm-merge — land-tail backfill', () => {
     assert.deepEqual(calls, [], 'no merge, no tail');
     assert.equal(terminal.tail, null);
     assert.notEqual(terminal.status, 'landed');
+  });
+});
+
+/**
+ * Story #5793 AC-3 — with GraphQL blocked (the proxy 403), confirm resolves
+ * the Story's PR by head branch over REST and lands it: no `--pr`, no
+ * `No PR found`, and no `gh pr` subcommand spawned.
+ */
+describe('single-story-confirm-merge — GraphQL blocked (Story #5793)', () => {
+  it('resolves the PR by head branch over REST and flips agent::done', async (t) => {
+    t.after(() => setGraphqlAvailability(null));
+    t.mock.module(POST_LAND_URL, {
+      namedExports: { runPostLandTail: async () => ({ ...TAIL }) },
+    });
+    const merged = {
+      number: 77,
+      html_url: 'https://github.com/o/r/pull/77',
+      state: 'closed',
+      merged: true,
+      merged_at: '2026-10-20T00:00:00Z',
+    };
+    const argvs = [];
+    const exec = async ({ args }) => {
+      argvs.push(args);
+      const endpoint = args[3];
+      if (endpoint === 'graphql') {
+        throw new GhExecError('gh-exec: gh exited with code 1', {
+          args,
+          stderr:
+            'gh: GitHub GraphQL is not available from Claude Code sessions (HTTP 403)',
+          code: 1,
+        });
+      }
+      if (
+        endpoint ===
+        'repos/{owner}/{repo}/pulls?head={owner}:story-5793&state=all'
+      ) {
+        return { stdout: JSON.stringify([merged]) };
+      }
+      if (endpoint === 'repos/{owner}/{repo}/pulls/77') {
+        return { stdout: JSON.stringify(merged) };
+      }
+      throw new Error(`unexpected gh: ${args.join(' ')}`);
+    };
+    const provider = makeProvider({
+      id: 5793,
+      state: 'open',
+      title: 'confirm over REST',
+      labels: ['agent::closing'],
+    });
+    const { runConfirmMerge } = await import(`${SUT_URL}?t=rest-confirm`);
+    const { terminal } = await runConfirmMerge({
+      storyId: 5793,
+      cwd: '/repo',
+      injectedProvider: provider,
+      injectedConfig: fakeConfig(),
+      injectedGh: createGh(exec, {}, { lazyProbe: true }),
+      injectedNotify: async () => {},
+    });
+
+    assert.equal(terminal.status, 'landed');
+    assert.equal(terminal.pr.number, 77);
+    assert.ok(
+      provider
+        ._updates()
+        .some((u) => u.patch?.labels?.add?.includes('agent::done')),
+      'the Story flips to agent::done',
+    );
+    assert.deepEqual(
+      argvs.filter((a) => a[0] !== 'api'),
+      [],
+      'no gh pr subcommand is spawned',
+    );
   });
 });

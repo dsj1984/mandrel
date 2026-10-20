@@ -36,6 +36,10 @@ import {
   parseSprintArgsTolerant,
 } from '../.agents/scripts/lib/cli-args.js';
 import { TEST_TEMP_ROOT_ENV } from '../.agents/scripts/lib/config/temp-paths.js';
+import {
+  createGh,
+  setGraphqlAvailability,
+} from '../.agents/scripts/lib/gh-exec.js';
 import { recordRequiredRed } from '../.agents/scripts/lib/orchestration/ci-red-handling.js';
 import {
   readCiDigest,
@@ -3811,5 +3815,183 @@ describe('merge wait — a disarmed PR is re-armed once per head (Story #5533)',
     assert.equal(on.autoMergeArmed, true);
     assert.equal(on.autoMergeEnabledAt, 'x', 'arm time is the budget anchor');
     assert.equal(off.autoMergeEnabledAt, null);
+  });
+});
+
+/**
+ * Story #5793 AC-2 — merge-on-green: when the CCR auto-merge route refused,
+ * the wait squash-merges a CLEAN, green PR pinned to the head SHA it saw. A
+ * `--wait` resume (no arm outcome in hand) does the same once the transport
+ * reads REST and GitHub holds no auto-merge request.
+ */
+describe('merge wait — merge-on-green over REST (Story #5793)', () => {
+  const green = (overrides = {}) =>
+    openProbe({
+      mergeStateStatus: 'CLEAN',
+      checksStatus: 'success',
+      headSha: 'head-green',
+      autoMergeArmed: false,
+      ...overrides,
+    });
+
+  /** The re-arm stays offline: these cases are about the merge, not the arm. */
+  const NO_REARM = {
+    rearmAutoMergeFn: async () => ({ enabled: true }),
+    readCiDigestFn: () => null,
+  };
+
+  function mergeRecorder(result = { merged: true, detail: 'merged' }) {
+    const merges = [];
+    return {
+      merges,
+      mergeOnGreenFn: async (args) => {
+        merges.push(args);
+        return typeof result === 'function' ? result(merges.length) : result;
+      },
+    };
+  }
+
+  it('merges the CLEAN green head the arm handed over, and lands', async () => {
+    const rec = mergeRecorder();
+    const states = [openProbe({ checksStatus: 'still-running' }), green()];
+    let confirmedWith = null;
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        closeArmed: true,
+        autoMergeReason: 'rest-merge-on-green',
+        mergeOnGreenFn: rec.mergeOnGreenFn,
+        recoverySeams: NO_REARM,
+        readPrWaitProbeFn: async () => states.shift(),
+        confirmStoryMergedFn: async (args) => {
+          confirmedWith = args.prState;
+          return { action: 'done', merged: true };
+        },
+      }),
+    );
+    assert.equal(outcome.terminal, 'landed');
+    assert.equal(rec.merges.length, 1, 'merged once, on the green poll');
+    assert.equal(
+      rec.merges[0].headSha,
+      'head-green',
+      'pinned to the seen head',
+    );
+    assert.equal(rec.merges[0].prNumber, 99);
+    assert.equal(confirmedWith.state, 'MERGED');
+  });
+
+  it('does not merge until the PR reads CLEAN with green checks', async () => {
+    const rec = mergeRecorder();
+    const states = [
+      green({ mergeStateStatus: 'BLOCKED' }),
+      green({ checksStatus: 'still-running' }),
+      green({ headSha: undefined }),
+      { state: 'MERGED', mergedAt: 'x' },
+    ];
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        closeArmed: true,
+        autoMergeReason: 'rest-merge-on-green',
+        mergeOnGreenFn: rec.mergeOnGreenFn,
+        recoverySeams: NO_REARM,
+        readPrWaitProbeFn: async () => states.shift(),
+        confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
+      }),
+    );
+    assert.equal(outcome.terminal, 'landed');
+    assert.equal(rec.merges.length, 0);
+  });
+
+  it('keeps waiting when the pinned merge is refused', async () => {
+    const lines = [];
+    const rec = mergeRecorder({ merged: false, detail: 'HTTP 409' });
+    const states = [green(), { state: 'MERGED', mergedAt: 'x' }];
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        closeArmed: true,
+        autoMergeReason: 'rest-merge-on-green',
+        progress: (_tag, msg) => lines.push(msg),
+        mergeOnGreenFn: rec.mergeOnGreenFn,
+        recoverySeams: NO_REARM,
+        readPrWaitProbeFn: async () => states.shift(),
+        confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
+      }),
+    );
+    assert.equal(outcome.terminal, 'landed');
+    assert.equal(rec.merges.length, 1);
+    assert.ok(lines.some((l) => /merge was refused \(HTTP 409\)/.test(l)));
+  });
+
+  it('a --wait resume merges on green once the transport reads REST', async (t) => {
+    t.after(() => setGraphqlAvailability(null));
+    setGraphqlAvailability({ verdict: 'unavailable' });
+    const rec = mergeRecorder();
+    const states = [green()];
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        closeArmed: true,
+        autoMergeReason: null,
+        injectedGh: createGh(async () => ({ stdout: '{}' })),
+        mergeOnGreenFn: rec.mergeOnGreenFn,
+        recoverySeams: NO_REARM,
+        readPrWaitProbeFn: async () => states.shift(),
+        confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
+      }),
+    );
+    assert.equal(outcome.terminal, 'landed');
+    assert.equal(rec.merges.length, 1);
+  });
+
+  it('never merges an operator-owned PR, nor one GitHub auto-merge already holds', async () => {
+    const rec = mergeRecorder();
+    for (const overrides of [
+      { closeArmed: false, autoMergeReason: 'rest-merge-on-green' },
+      { closeArmed: true, autoMergeReason: null },
+    ]) {
+      const states = [
+        green({ autoMergeArmed: true }),
+        { state: 'MERGED', mergedAt: 'x' },
+      ];
+      await runConfirmMergePhase(
+        phaseArgs({
+          ...overrides,
+          injectedGh: { pr: {} },
+          mergeOnGreenFn: rec.mergeOnGreenFn,
+          recoverySeams: NO_REARM,
+          readPrWaitProbeFn: async () => states.shift(),
+          confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
+        }),
+      );
+    }
+    assert.equal(rec.merges.length, 0);
+  });
+
+  // AC-5 — a merge-queue base under REST blocks with its own class and remedy.
+  it('blocks a merge-queue refusal with its named class and remedy', async () => {
+    const emitted = [];
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        autoMergeEnabled: false,
+        autoMergeReason: 'merge-queue-rest-unsupported',
+        emitMergeUnlandedFn: (event) => emitted.push(event),
+      }),
+    );
+    assert.equal(outcome.terminal, 'blocked');
+    assert.equal(outcome.blockClass, 'merge-queue-rest-unsupported');
+    assert.match(outcome.reason, /merge queue/);
+    assert.match(outcome.reason, /GraphQL-only/);
+    assert.equal(emitted[0].blockClass, 'merge-queue-rest-unsupported');
+    const terminal = terminalFromWaitOutcome({
+      waitOutcome: outcome,
+      storyId: 4428,
+      storyBranch: 'story-4428',
+      baseBranch: 'main',
+      prNumber: 99,
+      prUrl: 'https://github.com/o/r/pull/99',
+      autoMergeEnabled: false,
+      autoMergeReason: 'merge-queue-rest-unsupported',
+      elapsedSeconds: 0,
+    });
+    validateTerminalEnvelope(terminal);
+    assert.equal(terminal.blocked.blockClass, 'merge-queue-rest-unsupported');
   });
 });

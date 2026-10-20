@@ -61,13 +61,14 @@ the floor-vs-ratchet policy are tooling commitments rather than ADRs and live in
 
 <!-- ADR-INDEX:START -->
 
-**In force (59).** Each governs the surface named beside it; a
+**In force (60).** Each governs the surface named beside it; a
 `Rejected` row governs no surface and names its reopening trip-wire in the body.
 A `Status` of `Accepted in part` means some clause of the entry has been
 superseded — open it before citing it.
 
 | Decision | Governs | Surface | Status |
 | --- | --- | --- | --- |
+| [`20261020-5793`](#adr-20261020-5793-close-merge-and-confirm-over-repo-scoped-rest-when-graphql-is-blocked) | Close, merge and confirm over repo-scoped REST when GraphQL is blocked | `.agents/scripts/lib/gh-pr-rest.js` | Accepted |
 | [`20261017-5767`](#adr-20261017-5767-hook-injected-session-context-and-a-codebase-map--rejected) | No hook-injected session context and no shipped codebase map | — | Rejected |
 | [`20261017-5755a`](#adr-20261017-5755a-crap-joins-an-unresolved-method-on-the-statements-of-its-own-line-span) | CRAP joins an unresolved method on its own statement span | `.agents/scripts/lib/coverage-utils.js` | Accepted |
 | [`20261017-5755b`](#adr-20261017-5755b-per-file-duplication-regressions-compare-duplicated-lines-not-the-ratio) | Per-file duplication regressions compare duplicated lines, not the ratio | `.agents/scripts/lib/baselines/kinds/duplication.js` | Accepted |
@@ -77,7 +78,7 @@ superseded — open it before citing it.
 | [`20260925-5436`](#adr-20260925-5436-one-auditor-per-lens-is-the-default-execution-path-the-dynamic-workflow-audit-path-is-retired) | One auditor per lens by default; the dynamic-workflow audit path is retired | `.agents/workflows/helpers/audit-lens-core.md` | Accepted |
 | [`20260918-5382`](#adr-20260918-5382-the-agentrc-surface-carries-only-keys-someone-sets-tuning-constants-live-at-their-read-site) | The `.agentrc` surface carries only keys someone sets; tuning constants live at their read site | `scripts/lib/agentrc-key-ceiling.js` | Accepted |
 | [`20260917-5357`](#adr-20260917-5357-concurrent-dispatch-requires-per-story-worktrees-the-cap-is-clamped-to-1-when-isolation-resolves-off) | Concurrent dispatch requires per-Story worktrees; the cap clamps to 1 when isolation is off | `.agents/scripts/lib/config/runners.js` | Accepted |
-| [`20260917-5355`](#adr-20260917-5355-probe-graphql-reachability-at-close-init-defer-the-gh-pr-rest-migration) | Probe GraphQL reachability at close init; defer the `gh pr` REST migration | `.agents/scripts/lib/gh-exec.js` | Accepted |
+| [`20260917-5355`](#adr-20260917-5355-probe-graphql-reachability-at-close-init-defer-the-gh-pr-rest-migration) | Probe GraphQL reachability at close init; defer the `gh pr` REST migration | `.agents/scripts/lib/gh-exec.js` | Accepted in part |
 | [`20260917-5345`](#adr-20260917-5345-the-multi-story-run-is-a-script-beat-plus-spawns-and-closes-the-run-ledger-is-the-dispatch-record) | The multi-Story run is a script beat plus spawns and closes | `.agents/scripts/deliver-run.js` | Accepted |
 | [`20260917-5344`](#adr-20260917-5344-the-light-gate-reads-evidence-only-and-an-escalation-may-continue-in-session) | The light gate reads evidence only; an escalation may continue in-session | `.agents/scripts/lib/orchestration/light-suitability.js` | Accepted |
 | [`20260917-5343`](#adr-20260917-5343-the-delivering-worker-owns-its-acceptance-verdict-and-a-recorded-verdict-buys-one-rerun) | The delivering worker owns its acceptance verdict; a recorded verdict buys one rerun | `.agents/scripts/lib/orchestration/ceremony-routing.js` | Accepted |
@@ -852,7 +853,10 @@ off and never on an absent key.
 
 ## ADR 20260917-5355: Probe GraphQL reachability at close init; defer the `gh pr` REST migration
 
-**Status:** Accepted
+**Status:** Accepted in part — the deferred REST migration landed as
+[`20261020-5793`](#adr-20261020-5793-close-merge-and-confirm-over-repo-scoped-rest-when-graphql-is-blocked): an `unavailable` verdict now selects the REST
+transport instead of refusing. The probe, its fail-open rule and the
+`auth-failed` refusal stand.
 **Date:** 2026-09-17
 **Deciders:** @dsj1984
 **Surface:** `.agents/scripts/lib/gh-exec.js`
@@ -4870,3 +4874,64 @@ directly, and the cross-runtime convention is `AGENTS.md`. But the host reads
 - `mandrel uninstall` reverts the wiring in `AGENTS.md` (deleting it only when
   byte-identical to the install template), still reverts an un-migrated
   `CLAUDE.md`, and never recreates `CLAUDE.md`.
+
+## ADR 20261020-5793: Close, merge and confirm over repo-scoped REST when GraphQL is blocked
+
+**Status:** Accepted
+**Date:** 2026-10-20
+**Surface:** `.agents/scripts/lib/gh-pr-rest.js`
+**Story:** #5793
+
+### Context
+
+[`20260917-5355`](#adr-20260917-5355-probe-graphql-reachability-at-close-init-defer-the-gh-pr-rest-migration)
+made a GraphQL-less session fail fast instead of late, and deferred the fix:
+a Claude Code cloud session, whose GitHub proxy answers every GraphQL request
+with HTTP 403, still could not open, merge or confirm a PR, because `gh`
+routes the whole `gh pr` surface through GraphQL. The deferral named the hard
+part: native auto-merge is a GraphQL mutation. The proxy's 403 names two
+repo-scoped routes for it (`PUT|DELETE …/pulls/{n}/ccr/auto_merge`), but no
+public document does, so they cannot be the only way a PR lands.
+
+### Decision
+
+- **One process-wide latch picks the transport.** `gh-exec.js` memoizes the
+  existing probe's verdict — seeded by close's preflight, else probed on the
+  facade's first PR-surface use. Only `unavailable` selects REST; `auth-failed`
+  still refuses close (REST would fail the same way), and an inconclusive
+  probe stays on GraphQL. On a GraphQL-reachable session every `gh pr` argv
+  is byte-identical to before.
+- **`createGh().pr` routes to a REST facade** with the same signatures,
+  returning rows in `gh`'s `--json` shape for the fields callers request
+  (`statusCheckRollup` is rebuilt from check runs plus commit statuses;
+  `reviewDecision` is `null`). It parses only the flags callers pass and
+  throws on any other, and it issues only `repos/{owner}/{repo}/…`
+  requests — no `graphql`, no `search/*`, no user or org endpoint.
+- **Arm through the CCR route; merge on green when it refuses.** A refusal
+  arms `rest-merge-on-green`: each merge-wait poll that reads `CLEAN` with
+  green checks squash-merges with `PUT …/pulls/{n}/merge` pinned to the head
+  SHA it saw, then deletes the head ref. A `--wait` resume re-enters the same
+  loop, so a session that dies before CI finishes is recovered by the next.
+- **A merge-queue base refuses** with the `merge-queue-rest-unsupported` block
+  class. Enqueueing is GraphQL-only, and a direct merge would bypass the
+  queue.
+- **Required-check attribution reads REST**: the base's
+  `required_status_checks` rulesets unioned with classic protection (404 is
+  none), under the same cache key.
+
+### Alternatives considered
+
+- **Merge-on-green only, never the CCR route.** Rejected: where the route
+  works it hands the merge to GitHub, which needs no live poller.
+- **REST everywhere, GraphQL never.** Rejected: GraphQL carries the merge
+  queue and the `isRequired` attribution REST cannot reproduce exactly, so the
+  reachable path keeps it.
+
+### Consequences
+
+- A cloud session can close a Story through PR open, merge and
+  `agent::done`. Projects v2 board Status still cannot sync from one (no REST
+  equivalent), and a merge-queue base still needs a GraphQL session.
+- On REST, a PR lands only while a poller watches it unless the CCR arm
+  stood. A close that ends `pending` must be resumed (`--wait`) for the merge
+  to happen.

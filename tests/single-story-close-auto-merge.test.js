@@ -16,11 +16,17 @@
  */
 
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { afterEach, describe, it } from 'node:test';
+import {
+  createGh,
+  GhExecError,
+  setGraphqlAvailability,
+} from '../.agents/scripts/lib/gh-exec.js';
 import { readMergeQueueState } from '../.agents/scripts/lib/orchestration/merge-queue.js';
 import {
   disarmAutoMerge,
   enableAutoMergeWith,
+  mergeOnGreen,
   runAutoMergePhase,
 } from '../.agents/scripts/lib/orchestration/single-story-close/phases/auto-merge.js';
 import { parsePrNumber } from '../.agents/scripts/single-story-close.js';
@@ -858,5 +864,136 @@ describe('disarmAutoMerge — enqueued PR (Story #5395)', () => {
     });
     assert.equal(result.disarmed, true);
     assert.deepEqual(mergeCalls, [['42', ['--disable-auto']]]);
+  });
+});
+
+/**
+ * Story #5793 — the arm over the REST transport: the CCR route arms, its
+ * refusal hands the merge to the wait, and a merge-queue base refuses.
+ */
+describe('auto-merge over the REST transport (Story #5793)', () => {
+  afterEach(() => setGraphqlAvailability(null));
+
+  /** A REST-routed facade whose CCR arm answers `ccr` (an Error refuses). */
+  function restGh({ ccr }) {
+    setGraphqlAvailability({ verdict: 'unavailable' });
+    const argvs = [];
+    const exec = async ({ args }) => {
+      argvs.push(args);
+      if (args[3] === 'repos/{owner}/{repo}/pulls/5/ccr/auto_merge') {
+        if (ccr instanceof Error) throw ccr;
+        return { stdout: '{}' };
+      }
+      throw new Error(`unexpected gh: ${args.join(' ')}`);
+    };
+    return { gh: createGh(exec), argvs };
+  }
+
+  const noAdvisory = async () => ({
+    mergeStateStatus: 'CLEAN',
+    redHeadRuns: [],
+  });
+
+  it('arms through the CCR route and reports a plain arm', async () => {
+    const { gh, argvs } = restGh({ ccr: {} });
+    const result = await enableAutoMergeWith({
+      cwd: '/repo',
+      prNumber: 5,
+      gh,
+      resolveArmCwd: (c) => c,
+    });
+    assert.deepEqual(result, { enabled: true });
+    assert.deepEqual(argvs[0].slice(0, 4), [
+      'api',
+      '-X',
+      'PUT',
+      'repos/{owner}/{repo}/pulls/5/ccr/auto_merge',
+    ]);
+  });
+
+  it('a refused CCR route arms merge-on-green (AC-2)', async () => {
+    const { gh } = restGh({
+      ccr: new GhExecError('gh-exec: gh exited with code 1', {
+        args: [],
+        stderr: 'gh: Not Found (HTTP 404)',
+        code: 1,
+      }),
+    });
+    const lines = [];
+    const outcome = await runAutoMergePhase({
+      cwd: '/repo',
+      prNumber: 5,
+      prUrl: 'https://github.com/o/r/pull/5',
+      noAutoMerge: false,
+      gh,
+      progress: (_tag, msg) => lines.push(msg),
+      readPrWaitProbeFn: noAdvisory,
+      readMergeQueueStateFn: async () => ({ queueRequired: false }),
+    });
+    assert.equal(outcome.autoMergeEnabled, true);
+    assert.equal(outcome.autoMergeReason, 'rest-merge-on-green');
+    assert.ok(lines.some((l) => /merge wait squash-merges it/.test(l)));
+  });
+
+  it('refuses a merge-queue base with a named reason, issuing no merge (AC-5)', async () => {
+    const { gh, argvs } = restGh({ ccr: {} });
+    const outcome = await runAutoMergePhase({
+      cwd: '/repo',
+      prNumber: 5,
+      prUrl: 'https://github.com/o/r/pull/5',
+      noAutoMerge: false,
+      gh,
+      progress: () => {},
+      readPrWaitProbeFn: noAdvisory,
+      readMergeQueueStateFn: async () => ({ queueRequired: true }),
+    });
+    assert.equal(outcome.autoMergeEnabled, false);
+    assert.equal(outcome.autoMergeReason, 'merge-queue-rest-unsupported');
+    assert.deepEqual(argvs, [], 'neither an enqueue nor a direct merge');
+  });
+});
+
+describe('mergeOnGreen (Story #5793)', () => {
+  it('squash-merges pinned to the head SHA it was handed', async () => {
+    const calls = [];
+    const gh = {
+      pr: {
+        merge: async (id, flags) => {
+          calls.push([id, flags]);
+          return { stdout: '', merged: true };
+        },
+      },
+    };
+    const result = await mergeOnGreen({ prNumber: 5, headSha: 'h1', gh });
+    assert.deepEqual(result, { merged: true, detail: 'merged' });
+    assert.deepEqual(calls, [
+      ['5', ['--squash', '--delete-branch', '--match-head-commit', 'h1']],
+    ]);
+  });
+
+  it('reports a refused or unperformed merge without throwing', async () => {
+    const refused = await mergeOnGreen({
+      prNumber: 5,
+      headSha: 'h1',
+      gh: {
+        pr: {
+          merge: async () => {
+            throw new GhExecError('gh-exec: gh exited with code 1', {
+              args: [],
+              stderr: 'gh: Head branch was modified (HTTP 409)',
+              code: 1,
+            });
+          },
+        },
+      },
+    });
+    assert.equal(refused.merged, false);
+    assert.match(refused.detail, /409/);
+    const unperformed = await mergeOnGreen({
+      prNumber: 5,
+      headSha: 'h1',
+      gh: { pr: { merge: async () => ({ merged: false }) } },
+    });
+    assert.equal(unperformed.merged, false);
   });
 });

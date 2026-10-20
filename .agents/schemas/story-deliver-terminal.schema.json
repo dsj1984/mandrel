@@ -141,6 +141,7 @@
             "predicate-refused",
             "advisory-gate-red",
             "advisory-gate-inconclusive",
+            "merge-queue-rest-unsupported",
             "merged-flip-failed"
           ]
         },

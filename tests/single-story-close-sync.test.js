@@ -17,6 +17,10 @@ import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { BASELINES_GATE_NAMES as REAL_BASELINES_GATE_NAMES } from '../.agents/scripts/lib/close-validation/gates.js';
+import {
+  prSurfaceUsesRest,
+  setGraphqlAvailability,
+} from '../.agents/scripts/lib/gh-exec.js';
 import { pinRunScopedConfig } from '../.agents/scripts/lib/orchestration/run-scoped-config.js';
 import { failedTerminalFor } from '../.agents/scripts/lib/orchestration/single-story-close/failed-terminal.js';
 import { runBaseSyncPhase } from '../.agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js';
@@ -1562,9 +1566,12 @@ describe('runSingleStoryClose — GraphQL preflight (Story #5355)', () => {
     return { order, provider, releaseCalls, run };
   }
 
-  // AC-1 — the run stops in `init`: no gate is spawned and nothing is pushed.
-  // AC-5 — and the envelope it emits is the shipped schema's, unchanged.
-  it('stops in init on an unavailable verdict, spending no gate and no push', async (t) => {
+  // Story #5793 — the proxy 403 no longer stops the run: it selects the
+  // repo-scoped REST transport and the pipeline runs exactly as it would on
+  // GraphQL. (The REST requests themselves are pinned end to end in
+  // `single-story-close-orchestration.test.js`.)
+  it('proceeds on an unavailable verdict, with the PR surface on REST', async (t) => {
+    t.after(() => setGraphqlAvailability(null));
     const h = preflightHarness(t, {
       probe: async () => ({
         verdict: 'unavailable',
@@ -1574,29 +1581,14 @@ describe('runSingleStoryClose — GraphQL preflight (Story #5355)', () => {
       }),
     });
     const out = await h.run();
-    assert.equal(out.success, false);
-    assert.deepEqual(h.order, [], 'no phase after init may run');
-    assert.equal(out.terminal.status, 'blocked');
-    assert.equal(out.terminal.phase, 'init');
-    assert.match(out.terminal.blocked.reason, /GraphQL is unavailable/i);
-    assert.match(out.terminal.blocked.reason, /gh pr create/);
-    assert.match(out.terminal.blocked.reason, /local session/i);
-    assert.match(
-      out.terminal.nextCommand,
-      /single-story-close\.js --story 4242/,
-    );
+    assert.equal(out.success, true);
+    assert.deepEqual(h.order, ['base-sync', 'close-validation', 'push']);
+    assert.equal(out.terminal.status, 'pending');
+    assert.equal(prSurfaceUsesRest(), true, 'the preflight seeded the latch');
     assert.ok(
-      h.provider._labels().includes('agent::blocked'),
-      'the Story must carry the label the blocked envelope claims',
+      !h.provider._labels().includes('agent::blocked'),
+      'a REST-capable session is not a blocker',
     );
-    // Story #5784 — a blocked Story keeps its owner.
-    assert.deepEqual(
-      h.releaseCalls,
-      [],
-      'a blocked preflight must leave the Story assigned to its operator',
-    );
-    // AC-5 — re-validated here rather than trusting the writer, so the
-    // envelope's schema conformance is asserted by this Story's own test.
     validateTerminalEnvelope(out.terminal);
   });
 
