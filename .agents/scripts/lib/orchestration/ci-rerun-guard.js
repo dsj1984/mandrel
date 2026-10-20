@@ -22,7 +22,7 @@ import {
 } from 'node:fs';
 import path from 'node:path';
 import { resolveConfig } from '../config-resolver.js';
-import { runGh } from '../gh-exec.js';
+import { prSurfaceUsesRest, runGh } from '../gh-exec.js';
 import { Logger } from '../Logger.js';
 import { createProvider } from '../provider-factory.js';
 import { isRerunPermitted } from './check-state.js';
@@ -109,28 +109,78 @@ function ghRunLogTail({ runId, cwd, spawnFn, maxLines = 40 }) {
 }
 
 /**
+ * Parsed JSON stdout of a `gh` run, or `null` on an unparseable one — or a
+ * failed one, unless `anyExit` (`gh pr checks` exits non-zero on a red or
+ * pending check and still prints the rows).
+ */
+function readGhJson(args, { cwd, spawnFn, anyExit = false }) {
+  const result = runGh(args, { cwd }, spawnFn);
+  if (!anyExit && (result?.status ?? 1) !== 0) return null;
+  try {
+    return JSON.parse((result.stdout ?? '').trim() || 'null');
+  } catch {
+    return null;
+  }
+}
+
+/** The PR number in a number, numeric string, or PR URL; `null` otherwise. */
+function prNumberOfRef(prRef) {
+  const match = /^(\d+)$|\/pull\/(\d+)/.exec(String(prRef ?? ''));
+  return match ? (match[1] ?? match[2]) : null;
+}
+
+/**
+ * The head SHA over the REST transport (GraphQL answers 403 there, and
+ * `gh pr view` needs it).
+ *
+ * @returns {string|null}
+ */
+function resolvePrHeadShaRest({ prRef, cwd, spawnFn }) {
+  const n = prNumberOfRef(prRef);
+  if (!n) return null;
+  const pull = readGhJson(['api', `repos/{owner}/{repo}/pulls/${n}`], {
+    cwd,
+    spawnFn,
+  });
+  const sha = pull?.head?.sha;
+  return typeof sha === 'string' && sha.length > 0 ? sha : null;
+}
+
+/** `[{ name, link }]` for the PR head's check runs, as `gh pr checks --json` gives it. */
+function readCheckLinks({ prRef, cwd, spawnFn }) {
+  if (!prSurfaceUsesRest()) {
+    return readGhJson(['pr', 'checks', prRef, '--json', 'name,link'], {
+      cwd,
+      spawnFn,
+      anyExit: true,
+    });
+  }
+  const sha = resolvePrHeadShaRest({ prRef, cwd, spawnFn });
+  if (!sha) return null;
+  const runs = readGhJson(
+    ['api', `repos/{owner}/{repo}/commits/${sha}/check-runs?per_page=100`],
+    { cwd, spawnFn },
+  );
+  return (runs?.check_runs ?? []).map((run) => ({
+    name: run?.name,
+    link: run?.details_url ?? run?.html_url ?? null,
+  }));
+}
+
+/**
  * The failing check's run id and URL (the intake filing needs the link).
  * Best-effort.
  *
  * @returns {{ runId: string|null, url: string|null }}
  */
 function resolveFailingCheckRun({ prRef, checkName, cwd, spawnFn }) {
-  const result = runGh(
-    ['pr', 'checks', prRef, '--json', 'name,link'],
-    { cwd },
-    spawnFn,
-  );
-  try {
-    const parsed = JSON.parse((result.stdout ?? '').trim() || '[]');
-    const entry = Array.isArray(parsed)
-      ? parsed.find((e) => e?.name === checkName)
-      : null;
-    const link = entry?.link ? String(entry.link) : null;
-    const m = link ? /\/runs\/(\d+)/.exec(link) : null;
-    return { runId: m ? m[1] : null, url: link };
-  } catch {
-    return { runId: null, url: null };
-  }
+  const parsed = readCheckLinks({ prRef, cwd, spawnFn });
+  const entry = Array.isArray(parsed)
+    ? parsed.find((e) => e?.name === checkName)
+    : null;
+  const link = entry?.link ? String(entry.link) : null;
+  const m = link ? /\/runs\/(\d+)/.exec(link) : null;
+  return { runId: m ? m[1] : null, url: link };
 }
 
 /**
@@ -141,19 +191,13 @@ function resolveFailingCheckRun({ prRef, checkName, cwd, spawnFn }) {
  * @returns {string|null}
  */
 export function resolvePrHeadSha({ prRef, cwd, spawnFn }) {
-  const result = runGh(
-    ['pr', 'view', prRef, '--json', 'headRefOid'],
-    { cwd },
+  if (prSurfaceUsesRest()) return resolvePrHeadShaRest({ prRef, cwd, spawnFn });
+  const parsed = readGhJson(['pr', 'view', prRef, '--json', 'headRefOid'], {
+    cwd,
     spawnFn,
-  );
-  if ((result?.status ?? 1) !== 0) return null;
-  try {
-    const parsed = JSON.parse((result.stdout ?? '').trim() || '{}');
-    const sha = parsed?.headRefOid;
-    return typeof sha === 'string' && sha.length > 0 ? sha : null;
-  } catch {
-    return null;
-  }
+  });
+  const sha = parsed?.headRefOid;
+  return typeof sha === 'string' && sha.length > 0 ? sha : null;
 }
 
 /**

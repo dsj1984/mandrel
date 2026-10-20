@@ -203,8 +203,8 @@
     {
       "path": ".agents/scripts/lib/orchestration/merge-queue.js",
       "duplicatedLines": 6,
-      "totalLines": 158,
-      "percentage": 3.8
+      "totalLines": 203,
+      "percentage": 2.96
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
@@ -215,8 +215,8 @@
     {
       "path": ".agents/scripts/lib/orchestration/required-checks.js",
       "duplicatedLines": 5,
-      "totalLines": 147,
-      "percentage": 3.4
+      "totalLines": 207,
+      "percentage": 2.42
     },
     {
       "path": ".agents/scripts/lib/orchestration/resolve-stories.js",

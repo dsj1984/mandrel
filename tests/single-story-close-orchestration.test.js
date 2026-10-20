@@ -33,6 +33,11 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { BASELINES_GATE_NAMES as REAL_BASELINES_GATE_NAMES } from '../.agents/scripts/lib/close-validation/gates.js';
+import {
+  createGh,
+  GhExecError,
+  setGraphqlAvailability,
+} from '../.agents/scripts/lib/gh-exec.js';
 import { forEachLine } from '../.agents/scripts/lib/observability/signals-writer.js';
 import { ensurePullRequestWith } from '../.agents/scripts/lib/orchestration/single-story-close/phases/pull-request.js';
 import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
@@ -3367,5 +3372,148 @@ describe('runSingleStoryClose — close re-takes the Story lease (Story #5706)',
       },
     });
     assert.deepEqual(acquires, []);
+  });
+});
+
+/**
+ * Story #5793 AC-1 — a cloud session whose GitHub proxy 403s GraphQL closes a
+ * Story end to end: the preflight selects REST, the PR opens with
+ * `POST …/pulls`, the CCR arm is refused so the REAL merge wait squash-merges
+ * on green pinned to the head SHA, and the Story lands at `agent::done` —
+ * with no `gh pr` subcommand spawned.
+ */
+describe('runSingleStoryClose — the REST transport (Story #5793)', () => {
+  const PR_URL = 'https://github.com/owner/repo/pull/5793';
+  const PULL = {
+    number: 5793,
+    html_url: PR_URL,
+    state: 'open',
+    merged: false,
+    merged_at: null,
+    created_at: '2026-10-20T00:00:00Z',
+    node_id: 'PR_5793',
+    mergeable_state: 'clean',
+    auto_merge: null,
+    head: {
+      sha: 'feed5793',
+      ref: 'story-5793',
+      repo: { full_name: 'owner/repo' },
+    },
+    base: { ref: 'main', repo: { full_name: 'owner/repo' } },
+  };
+
+  /** A `createGh` over a recording exec that speaks only REST. */
+  function restOnlyGh() {
+    const argvs = [];
+    const bodies = [];
+    const routes = {
+      'GET repos/{owner}/{repo}/pulls?head={owner}:story-5793&state=all': [],
+      'POST repos/{owner}/{repo}/pulls': PULL,
+      'GET repos/{owner}/{repo}/pulls/5793': PULL,
+      'GET repos/{owner}/{repo}/commits/feed5793/check-runs?per_page=100': {
+        check_runs: [
+          { name: 'test', status: 'completed', conclusion: 'success' },
+        ],
+      },
+      'GET repos/{owner}/{repo}/commits/feed5793/status': { statuses: [] },
+      'GET repos/{owner}/{repo}/rules/branches/main': [],
+      'PUT repos/{owner}/{repo}/pulls/5793/ccr/auto_merge': new GhExecError(
+        'gh-exec: gh exited with code 1',
+        { args: [], stderr: 'gh: Not Found (HTTP 404)', code: 1 },
+      ),
+      'PUT repos/{owner}/{repo}/pulls/5793/merge': { merged: true, sha: 'sq1' },
+      'DELETE repos/{owner}/{repo}/git/refs/heads/story-5793': {},
+    };
+    const exec = async ({ args, input }) => {
+      argvs.push(args);
+      const [, , method, endpoint] = args;
+      const key = `${method} ${endpoint}`;
+      if (!Object.hasOwn(routes, key)) {
+        throw new Error(`unexpected gh: ${args.join(' ')}`);
+      }
+      bodies.push({ key, body: input ? JSON.parse(input) : null });
+      if (routes[key] instanceof Error) throw routes[key];
+      return { stdout: JSON.stringify(routes[key]), stderr: '', code: 0 };
+    };
+    return { gh: createGh(exec), argvs, bodies };
+  }
+
+  it('opens, arms, merges on green and lands with no gh pr subcommand', async (t) => {
+    t.after(() => setGraphqlAvailability(null));
+    t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
+    mockCloseValidation(t, defaultCloseValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
+    t.mock.module(POST_LAND_URL, {
+      namedExports: {
+        runPostLandTail: async () => ({
+          followUps: true,
+          statusResync: true,
+          worktreeReap: true,
+          refCleanup: true,
+          baseFastForward: true,
+          tempPurge: true,
+          leaseRelease: false,
+          epicRollup: true,
+          details: {},
+        }),
+      },
+    });
+    const { gh, argvs, bodies } = restOnlyGh();
+    // Applies `{ add, remove }` label patches, so the done flip is observable.
+    let labels = ['agent::executing'];
+    const provider = {
+      getTicket: async () => ({
+        id: 5793,
+        state: 'open',
+        title: 'close over REST',
+        labels: [...labels],
+      }),
+      updateTicket: async (_id, patch) => {
+        const remove = new Set(patch?.labels?.remove ?? []);
+        labels = [
+          ...labels.filter((l) => !remove.has(l)),
+          ...(patch?.labels?.add ?? []),
+        ];
+      },
+      getTicketComments: async () => [],
+      postComment: async () => ({ id: 1 }),
+    };
+    const { runSingleStoryClose } = await import(
+      `${SUT_URL}?t=rest-transport-e2e`
+    );
+    const { terminal } = await runSingleStoryClose({
+      storyId: 5793,
+      cwd: '/repo',
+      skipValidation: true,
+      skipSync: true,
+      injectedProvider: provider,
+      injectedConfig: fakeConfig(),
+      injectedGh: gh,
+      injectedRunCodeReview: noopReview(),
+      injectedGraphqlProbe: async () => ({
+        verdict: 'unavailable',
+        available: false,
+        reason: 'http-403',
+        detail:
+          'gh: GitHub GraphQL is not available from Claude Code sessions (HTTP 403)',
+      }),
+    });
+
+    assert.equal(terminal.status, 'landed');
+    assert.ok(labels.includes('agent::done'), `labels: ${labels}`);
+    assert.deepEqual(
+      argvs.filter((a) => a[0] !== 'api'),
+      [],
+      'no gh pr subcommand is spawned',
+    );
+    const keys = bodies.map((b) => b.key);
+    assert.ok(keys.includes('POST repos/{owner}/{repo}/pulls'));
+    assert.ok(
+      keys.includes('PUT repos/{owner}/{repo}/pulls/5793/ccr/auto_merge'),
+    );
+    const merge = bodies.find(
+      (b) => b.key === 'PUT repos/{owner}/{repo}/pulls/5793/merge',
+    );
+    assert.deepEqual(merge.body, { merge_method: 'squash', sha: 'feed5793' });
   });
 });

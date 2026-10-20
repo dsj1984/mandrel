@@ -22,7 +22,8 @@
  */
 
 import { getCiDelivery } from '../../../config/ci.js';
-import { createGh } from '../../../gh-exec.js';
+import { createGh, prTransportOf } from '../../../gh-exec.js';
+import { REST_MERGE_ON_GREEN } from '../../../gh-pr-rest.js';
 import {
   confirmStoryMerged as defaultConfirmStoryMerged,
   readPrMergeState as defaultReadPrMergeState,
@@ -56,7 +57,11 @@ import {
   readRunSummary,
   resolveAdvisoryGateVerdict,
 } from '../../merge-poll.js';
-import { readMergeQueueState } from '../../merge-queue.js';
+import {
+  MERGE_QUEUE_REST_BLOCK_CLASS,
+  MERGE_QUEUE_REST_REMEDY,
+  readMergeQueueState,
+} from '../../merge-queue.js';
 import { readProbeRunEvidence } from '../../required-checks.js';
 import { NEXT_COMMANDS } from '../../story-deliver-terminal.js';
 import {
@@ -64,7 +69,7 @@ import {
   STATE_LABELS,
   transitionTicketState,
 } from '../../ticketing.js';
-import { disarmAutoMerge } from './auto-merge.js';
+import { disarmAutoMerge, mergeOnGreen } from './auto-merge.js';
 import {
   maybeRearmPr,
   mergeWaitRecoverySeams,
@@ -1283,6 +1288,8 @@ async function recoverOpenPr(ctx, decision, probe) {
   if (advisory) {
     return { state: decision.state, outcome: await blockWith(ctx, advisory) };
   }
+  const landed = await maybeMergeOnGreen(ctx, decision, probe);
+  if (landed) return { state: decision.state, outcome: landed };
   await maybeRearmPr(ctx, probe);
   const updated = await maybeUpdateBehindPr({
     probe,
@@ -1297,6 +1304,67 @@ async function recoverOpenPr(ctx, decision, probe) {
     ? { ...decision.state, updatesUsed: decision.state.updatesUsed + 1 }
     : decision.state;
   return { state, outcome: null };
+}
+
+/**
+ * Close owns the merge when the CCR route would not arm it: the arm said so,
+ * or (a `--wait` resume, which has no arm outcome) the PR transport is REST
+ * and GitHub holds no auto-merge request. Only a PR close itself armed.
+ *
+ * @returns {Promise<boolean>}
+ */
+async function closeOwnsMerge(ctx, probe) {
+  if (ctx.closeArmed !== true) return false;
+  if (ctx.autoMergeReason === REST_MERGE_ON_GREEN) return true;
+  return (
+    probe.autoMergeArmed !== true &&
+    (await prTransportOf(ctx.waitGh)) === 'rest'
+  );
+}
+
+function isCleanAndGreen(probe) {
+  return (
+    probe?.state === 'OPEN' &&
+    !probe?.mergedAt &&
+    probe?.inMergeQueue !== true &&
+    probe?.mergeStateStatus === 'CLEAN' &&
+    probe?.checksStatus === 'success' &&
+    Boolean(probe?.headSha)
+  );
+}
+
+/**
+ * Merge-on-green: squash-merge a CLEAN, green PR pinned to the head SHA this
+ * poll saw, and settle it as merged. A refused merge (the head moved, GitHub
+ * still recomputing) is not a terminal; the next poll re-reads.
+ *
+ * @returns {Promise<object|null>} the landed outcome, or null to keep polling.
+ */
+async function maybeMergeOnGreen(ctx, decision, probe) {
+  if (!isCleanAndGreen(probe) || !(await closeOwnsMerge(ctx, probe))) {
+    return null;
+  }
+  const merge = await ctx.mergeOnGreenFn({
+    prNumber: ctx.prNumber,
+    headSha: probe.headSha,
+    gh: ctx.waitGh,
+  });
+  if (!merge.merged) {
+    ctx.progress?.(
+      'CONFIRM',
+      `⚠️ PR #${ctx.prNumber} is CLEAN and green but the merge was refused (${merge.detail}) — still waiting.`,
+    );
+    return null;
+  }
+  ctx.progress?.(
+    'CONFIRM',
+    `🔀 PR #${ctx.prNumber} was CLEAN and green — squash-merged at ${probe.headSha.slice(0, 7)}.`,
+  );
+  return settleMerged(ctx, decision, {
+    ...probe,
+    state: 'MERGED',
+    mergedAt: new Date(ctx.nowMsFn()).toISOString(),
+  });
 }
 
 /** The provisional verdict's own ending: budget block, `pending`, or none. */
@@ -1379,13 +1447,25 @@ function blockNeverArmed({
     progress,
     classifyMergeBlockFn,
     emitMergeUnlandedFn,
-    ...(autoMergeReason === 'advisory-gate-red'
-      ? {
-          blockClassOverride: advisoryGate?.blockClass ?? 'advisory-gate-red',
-          reasonOverride: advisoryGate?.reason,
-        }
-      : {}),
+    ...neverArmedOverride(autoMergeReason, advisoryGate),
   });
+}
+
+/** An arm refusal that names its own class rather than a generic `arm-failure`. */
+function neverArmedOverride(autoMergeReason, advisoryGate) {
+  if (autoMergeReason === 'advisory-gate-red') {
+    return {
+      blockClassOverride: advisoryGate?.blockClass ?? 'advisory-gate-red',
+      reasonOverride: advisoryGate?.reason,
+    };
+  }
+  if (autoMergeReason === MERGE_QUEUE_REST_BLOCK_CLASS) {
+    return {
+      blockClassOverride: MERGE_QUEUE_REST_BLOCK_CLASS,
+      reasonOverride: MERGE_QUEUE_REST_REMEDY,
+    };
+  }
+  return {};
 }
 
 /**
@@ -1417,6 +1497,7 @@ function blockNeverArmed({
  * @param {Function} [args.runPostLandTailFn]
  * @param {Function} [args.disarmAutoMergeFn]
  * @param {Function} [args.recordRequiredRedFn] The shared first-red handling (disarm + CI digest).
+ * @param {Function} [args.mergeOnGreenFn] The merge-on-green squash-merge (`auto-merge.js#mergeOnGreen`).
  * @param {object} [args.recoverySeams] DIRTY-sync / re-arm seams (`mergeWaitRecoverySeams`).
  * @param {(ms: number) => Promise<void>} [args.sleepFn]
  * @param {() => number} [args.nowMsFn]
@@ -1436,6 +1517,7 @@ export async function runConfirmMergePhase({
   runPostLandTailFn = defaultRunPostLandTail,
   disarmAutoMergeFn = disarmAutoMerge,
   recordRequiredRedFn = defaultRecordRequiredRed,
+  mergeOnGreenFn = mergeOnGreen,
   sleepFn = defaultSleep,
   nowMsFn = Date.now,
   ghTimeoutMs = MERGE_WAIT_GH_TIMEOUT_MS,
@@ -1483,6 +1565,7 @@ export async function runConfirmMergePhase({
     runPostLandTailFn,
     disarmAutoMergeFn,
     recordRequiredRedFn,
+    mergeOnGreenFn,
     nowMsFn,
     ghTimeoutMs,
     waitGh: args.injectedGh ?? defaultGh,

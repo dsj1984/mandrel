@@ -303,6 +303,8 @@ async function resumeMergeWait(ctx) {
     cwd: ctx.cwd,
     resolveWorktree: lazyWaitWorktree(ctx),
     closeArmed: evidence.armed,
+    // `rest-merge-on-green` tells the wait it owns the merge.
+    autoMergeReason: evidence.reason,
     storyId,
     storyBranch,
     baseBranch,

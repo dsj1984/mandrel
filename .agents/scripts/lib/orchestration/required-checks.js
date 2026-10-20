@@ -1,8 +1,11 @@
 /**
- * GitHub's per-PR required-check attribution (GraphQL `isRequired`), not
+ * GitHub's per-PR required-check attribution (GraphQL `isRequired`, or over
+ * the REST transport the base's rulesets plus classic protection), not
  * `.agentrc` requiredChecks, which are local command names.
  */
 
+import { GhNotFoundError, prTransportOf } from '../gh-exec.js';
+import { parseApiJson, readBranchRules } from '../gh-pr-rest.js';
 import {
   deriveRequiredRunEvidence,
   failingChecksBlockMerge,
@@ -71,6 +74,69 @@ function parseRequiredNames(result) {
   return names;
 }
 
+/**
+ * Classic branch protection's required contexts; no protection (404) is none.
+ *
+ * @returns {Promise<string[]>}
+ */
+async function readProtectionContexts({ api, base, timeoutMs }) {
+  try {
+    const body = parseApiJson(
+      await api({
+        method: 'GET',
+        endpoint: `repos/{owner}/{repo}/branches/${encodeURIComponent(base)}/protection/required_status_checks`,
+        execOpts: { timeoutMs },
+      }),
+    );
+    return [
+      ...(body?.contexts ?? []),
+      ...(body?.checks ?? []).map((check) => check?.context),
+    ];
+  } catch (err) {
+    if (err instanceof GhNotFoundError) return [];
+    throw err;
+  }
+}
+
+/**
+ * REST required names: `required_status_checks` rules on the base, unioned
+ * with classic protection.
+ *
+ * @returns {Promise<Set<string>>}
+ */
+async function readRequiredNamesRest({ prNumber, gh, timeoutMs }) {
+  const view = await gh.pr.view(String(prNumber), ['baseRefName']);
+  const base = view?.baseRefName;
+  if (!base) throw new Error('PR base branch unreadable');
+  const [rules, contexts] = await Promise.all([
+    readBranchRules({ api: gh.api, base, timeoutMs }),
+    readProtectionContexts({ api: gh.api, base, timeoutMs }),
+  ]);
+  const names = new Set(contexts.filter(Boolean));
+  for (const rule of rules) {
+    if (rule?.type !== 'required_status_checks') continue;
+    for (const check of rule.parameters?.required_status_checks ?? []) {
+      if (check?.context) names.add(check.context);
+    }
+  }
+  return names;
+}
+
+/** @returns {Promise<Set<string>>} */
+async function readRequiredNamesGraphql({ prNodeId, prNumber, gh, timeoutMs }) {
+  return parseRequiredNames(
+    await gh.api({
+      method: 'POST',
+      endpoint: 'graphql',
+      body: {
+        query: REQUIRED_CHECKS_QUERY,
+        variables: { id: prNodeId, n: Number(prNumber) },
+      },
+      execOpts: { timeoutMs },
+    }),
+  );
+}
+
 /** Per-head cache: required attribution is read at most once per PR head. */
 const requiredNamesCache = new Map();
 
@@ -92,17 +158,11 @@ async function readRequiredCheckNames({
   const key = `${prNodeId}@${headSha}`;
   if (requiredNamesCache.has(key)) return requiredNamesCache.get(key);
   try {
-    const names = parseRequiredNames(
-      await gh.api({
-        method: 'POST',
-        endpoint: 'graphql',
-        body: {
-          query: REQUIRED_CHECKS_QUERY,
-          variables: { id: prNodeId, n: Number(prNumber) },
-        },
-        execOpts: { timeoutMs },
-      }),
-    );
+    const read =
+      (await prTransportOf(gh)) === 'rest'
+        ? readRequiredNamesRest
+        : readRequiredNamesGraphql;
+    const names = await read({ prNodeId, prNumber, gh, timeoutMs });
     requiredNamesCache.set(key, names);
     return names;
   } catch {

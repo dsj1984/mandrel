@@ -688,9 +688,14 @@ environment variable identifies one person:
   supplies your connected GitHub account's credential for REST calls.
 
 The proxy answers **all** GitHub GraphQL with HTTP 403, even when you set
-your own token. Projects v2 is GraphQL-only, so board Status never syncs
-from a cloud session. Labels stay authoritative, and each skipped Status flip
-is reported as a warning.
+your own token. Close detects that during `init` and runs the pull-request
+surface over repo-scoped REST instead: it opens the PR, arms auto-merge
+through the proxy's route or, when that route refuses, squash-merges the PR
+itself once it is CLEAN with green checks, and confirms the land. A base
+branch behind a merge queue still needs a session that reaches GraphQL.
+Projects v2 is GraphQL-only, so board Status never syncs from a cloud
+session. Labels stay authoritative, and each skipped Status flip is reported
+as a warning.
 
 The handle has to be a user who can be assigned. GitHub's add-assignees
 endpoint silently ignores a login it cannot assign, such as an Organization,

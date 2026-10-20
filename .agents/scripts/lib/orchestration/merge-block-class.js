@@ -26,7 +26,8 @@ export const BLOCK_CLASSES = Object.freeze([
 
 /**
  * Plus classes emitted directly, never by the classifier: `predicate-refused`
- * (kept so archived records validate) and the advisory-gate pair.
+ * (kept so archived records validate), the advisory-gate pair, and the REST
+ * transport's merge-queue refusal (`merge-queue.js` owns its constant).
  */
 export const MERGE_UNLANDED_BLOCK_CLASSES = Object.freeze([
   ...BLOCK_CLASSES,
@@ -34,6 +35,7 @@ export const MERGE_UNLANDED_BLOCK_CLASSES = Object.freeze([
   // Sourced from the gate's own constants so the vocabulary cannot drift.
   ADVISORY_GATE_RED_CLASS,
   ADVISORY_GATE_INCONCLUSIVE_CLASS,
+  'merge-queue-rest-unsupported',
 ]);
 
 const BLOCK_CLASS_SET = new Set(MERGE_UNLANDED_BLOCK_CLASSES);

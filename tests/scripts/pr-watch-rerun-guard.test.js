@@ -24,12 +24,14 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
+import { setGraphqlAvailability } from '../../.agents/scripts/lib/gh-exec.js';
 import {
   blockStoryDelivery,
   classifyGreenVerdict,
   formatRerunViolation,
   recordRerunAllowance,
   resolvePrHeadSha,
+  writeCiDigest,
 } from '../../.agents/scripts/lib/orchestration/ci-rerun-guard.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import { runPrWatch } from '../../.agents/scripts/pr-watch-with-update.js';
@@ -775,5 +777,81 @@ describe('blockStoryDelivery — the escalation the red path takes', () => {
     });
     assert.deepEqual(thrower, { blocked: false, commented: false });
     assert.ok(errors.some((m) => /rate limited/.test(m)));
+  });
+});
+
+/**
+ * Story #5793 — with GraphQL blocked the guard's `gh` reads go over REST:
+ * `gh pr view` / `gh pr checks` need GraphQL, so neither is spawned.
+ */
+describe('ci-rerun-guard over the REST transport (Story #5793)', () => {
+  function restSpawn() {
+    const argvs = [];
+    const spawnFn = (_cmd, args) => {
+      argvs.push(args);
+      if (args[1] === 'repos/{owner}/{repo}/pulls/12') {
+        return {
+          status: 0,
+          stdout: JSON.stringify({ head: { sha: 'sha12' } }),
+        };
+      }
+      if (
+        args[1] === 'repos/{owner}/{repo}/commits/sha12/check-runs?per_page=100'
+      ) {
+        return {
+          status: 0,
+          stdout: JSON.stringify({
+            check_runs: [
+              {
+                name: 'test',
+                details_url: 'https://github.com/o/r/actions/runs/4242/job/1',
+              },
+            ],
+          }),
+        };
+      }
+      return { status: 1, stdout: '', stderr: `unexpected ${args.join(' ')}` };
+    };
+    return { argvs, spawnFn };
+  }
+
+  it('reads the head SHA and the failing run without a gh pr subcommand', (t) => {
+    t.after(() => setGraphqlAvailability(null));
+    setGraphqlAvailability({ verdict: 'unavailable' });
+    const { argvs, spawnFn } = restSpawn();
+    assert.equal(
+      resolvePrHeadSha({
+        prRef: 'https://github.com/o/r/pull/12',
+        cwd: '.',
+        spawnFn,
+      }),
+      'sha12',
+    );
+    assert.equal(
+      resolvePrHeadSha({ prRef: 'story-12', cwd: '.', spawnFn }),
+      null,
+    );
+    const tempRoot = makeTempDir('mandrel-rest-digest-');
+    try {
+      const out = writeCiDigest({
+        storyId: 5793,
+        prNumber: 12,
+        headSha: 'sha12',
+        failures: [{ name: 'test', outcome: 'failure' }],
+        tempRoot,
+        cwd: tempRoot,
+        prRef: '12',
+        logTailFn: () => '',
+        spawnFn,
+      });
+      const digest = JSON.parse(readFileSync(out.jsonPath, 'utf8'));
+      assert.equal(digest.runId, '4242');
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
+    assert.ok(
+      argvs.every((a) => a[0] === 'api'),
+      'no gh pr subcommand',
+    );
   });
 });

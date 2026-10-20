@@ -18,7 +18,7 @@
  */
 
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { afterEach, describe, it } from 'node:test';
 import {
   describeGraphqlPreflight,
   GhAuthError,
@@ -26,6 +26,8 @@ import {
   GhRateLimitError,
   GhScopeError,
   probeGraphqlAvailability,
+  prSurfaceUsesRest,
+  setGraphqlAvailability,
 } from '../../.agents/scripts/lib/gh-exec.js';
 import { runGraphqlPreflight } from '../../.agents/scripts/lib/orchestration/single-story-close/phases/graphql-preflight.js';
 
@@ -228,29 +230,16 @@ describe('probeGraphqlAvailability', () => {
 });
 
 describe('describeGraphqlPreflight', () => {
-  // AC-2 — all three things the operator needs, in one message.
-  it('names the condition, the whole gh pr surface, and the local-session remedy', () => {
+  // Story #5793 — an unavailable verdict no longer refuses, so only the auth
+  // fault carries a remedy; any other verdict is a plain, non-auth line.
+  it('describes a non-auth verdict without the re-authenticate remedy', () => {
     const message = describeGraphqlPreflight({
       verdict: 'unavailable',
       detail: 'gh: HTTP 403',
     });
-    assert.match(message, /GraphQL is unavailable in this session/i);
-    assert.match(message, /403/);
-    for (const sub of [
-      'view',
-      'create',
-      'edit',
-      'merge',
-      'update-branch',
-      'list',
-    ]) {
-      assert.ok(
-        message.includes(`gh pr ${sub}`),
-        `the refusal must name \`gh pr ${sub}\` — the surface it gates`,
-      );
-    }
-    assert.match(message, /local session/i);
-    assert.match(message, /Retrying here will not help/i);
+    assert.match(message, /verdict=unavailable/);
+    assert.match(message, /HTTP 403/);
+    assert.doesNotMatch(message, /gh auth login/);
   });
 
   // AC-3 — the two faults do not share a sentence, and the auth remedy is
@@ -276,6 +265,8 @@ describe('describeGraphqlPreflight', () => {
 });
 
 describe('runGraphqlPreflight', () => {
+  afterEach(() => setGraphqlAvailability(null));
+
   function recorder() {
     const lines = [];
     return { lines, progress: (tag, msg) => lines.push(`${tag} ${msg}`) };
@@ -341,11 +332,13 @@ describe('runGraphqlPreflight', () => {
     assert.ok(lines.some((l) => l.includes('rate-limited-inconclusive')));
   });
 
-  it('refuses, flips agent::blocked and posts friction on an unavailable verdict', async () => {
+  // Story #5793 AC-1 — the proxy 403 selects the REST transport instead of
+  // refusing: nothing is posted, nothing is blocked, the latch is seeded.
+  it('selects the REST transport on an unavailable verdict, mutating nothing', async () => {
     const provider = recordingProvider();
-    const { progress } = recorder();
+    const { lines, progress } = recorder();
     const outcome = await runGraphqlPreflight({
-      storyId: 5355,
+      storyId: 5793,
       provider,
       progress,
       probe: async () => ({
@@ -355,15 +348,55 @@ describe('runGraphqlPreflight', () => {
         detail: 'gh: HTTP 403',
       }),
     });
-    assert.equal(outcome.verdict, 'unavailable');
-    assert.match(outcome.reason, /local session/i);
+    assert.equal(outcome, null, 'the close proceeds');
+    assert.deepEqual(provider.comments, []);
+    assert.deepEqual(provider.labels, []);
+    assert.equal(prSurfaceUsesRest(), true, 'the gh-exec latch is seeded');
+    assert.ok(lines.some((l) => /repo-scoped REST/.test(l)));
+  });
+
+  it('seeds an available verdict as GraphQL', async () => {
+    const { progress } = recorder();
+    await runGraphqlPreflight({
+      storyId: 5793,
+      provider: recordingProvider(),
+      progress,
+      probe: async () => ({
+        verdict: 'available',
+        available: true,
+        reason: 'ok',
+      }),
+    });
+    assert.equal(prSurfaceUsesRest(), false);
+  });
+
+  // Story #5793 AC-5 — REST would fail an auth fault the same way, so it
+  // still refuses with today's re-authenticate wording.
+  it('refuses, flips agent::blocked and posts friction on an auth-failed verdict', async () => {
+    const provider = recordingProvider();
+    const { progress } = recorder();
+    const outcome = await runGraphqlPreflight({
+      storyId: 5355,
+      provider,
+      progress,
+      probe: async () => ({
+        verdict: 'auth-failed',
+        available: false,
+        reason: 'auth',
+        detail: 'gh: run gh auth login',
+      }),
+    });
+    assert.equal(outcome.verdict, 'auth-failed');
+    assert.match(outcome.reason, /re-authenticate/);
+    assert.match(outcome.reason, /gh auth login/);
+    assert.equal(prSurfaceUsesRest(), false);
     assert.ok(
       provider.labels.includes('agent::blocked'),
       'the Story the blocked envelope describes must actually carry the label',
     );
     const friction = provider.comments.at(-1);
     assert.ok(friction, 'the operator gets a friction comment');
-    assert.match(friction.body, /gh pr create/);
+    assert.match(friction.body, /gh auth login/);
     assert.match(friction.body, /single-story-close\.js --story 5355/);
   });
 
@@ -381,14 +414,14 @@ describe('runGraphqlPreflight', () => {
       provider,
       progress,
       probe: async () => ({
-        verdict: 'unavailable',
+        verdict: 'auth-failed',
         available: false,
-        reason: 'http-403',
+        reason: 'auth',
       }),
     });
     assert.equal(
       outcome.verdict,
-      'unavailable',
+      'auth-failed',
       'a notification-side failure must not replace the real blocker',
     );
   });
