@@ -992,7 +992,7 @@
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/prior-feedback-fetcher.js",
-      "mi": 94.474
+      "mi": 96.628
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/retro-proposals-graduator.js",
@@ -2360,7 +2360,7 @@
     },
     {
       "path": ".agents/scripts/providers/github/errors.js",
-      "mi": 96.467
+      "mi": 98.361
     },
     {
       "path": ".agents/scripts/providers/github/gh-token-diagnostics.js",
